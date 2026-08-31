@@ -1,6 +1,6 @@
 /**
- * INPUT: WorkGraph 本地 viewport、折叠与搜索状态。
- * OUTPUT: 不改写 Graph 数据的紧凑画布控制条。
+ * INPUT: WorkGraph 本地 viewport、折叠与搜索状态，以及可选的大图打开动作。
+ * OUTPUT: 不改写 Graph 数据的紧凑画布控制条；适应当前视口与打开大图使用不同图标和语义。
  * POS: WorkGraph 主画布的可访问导航层；所有动作只影响当前用户视图。
  */
 "use client";
@@ -15,6 +15,7 @@ import {
   Maximize2,
   Minus,
   Plus,
+  Scan,
   Search,
   X,
 } from "lucide-react";
@@ -31,6 +32,7 @@ interface ExecutionWorkGraphControlsProps {
   onFit: () => void;
   onLocateCurrent: () => void;
   onNextResult: () => void;
+  onOpenExpanded?: () => void;
   onPreviousResult: () => void;
   onQueryChange: (query: string) => void;
   onResetZoom: () => void;
@@ -50,6 +52,7 @@ export function ExecutionWorkGraphControls({
   onFit,
   onLocateCurrent,
   onNextResult,
+  onOpenExpanded,
   onPreviousResult,
   onQueryChange,
   onResetZoom,
@@ -104,8 +107,16 @@ export function ExecutionWorkGraphControls({
           <Plus className="h-3.5 w-3.5" />
         </GraphControlButton>
         <GraphControlButton label={t("execution.fit_graph")} onClick={onFit}>
-          <Maximize2 className="h-3.5 w-3.5" />
+          <Scan className="h-3.5 w-3.5" />
         </GraphControlButton>
+        {onOpenExpanded ? (
+          <GraphControlButton
+            label={t("execution.open_workgraph")}
+            onClick={onOpenExpanded}
+          >
+            <Maximize2 className="h-3.5 w-3.5" />
+          </GraphControlButton>
+        ) : null}
         <GraphControlButton label={t("execution.locate_current")} onClick={onLocateCurrent}>
           <LocateFixed className="h-3.5 w-3.5" />
         </GraphControlButton>

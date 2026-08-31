@@ -1,6 +1,6 @@
 /**
  * INPUT: 权威 Execution Graph、Agent 目录、当前 Graph 节点、节点展示密度与精确 Agent round Task run。
- * OUTPUT: 在焦点稳定、全边界可达且不叠加伪主图底框的工作板上显示图标或可读摘要卡片、可整体悬停聚焦的子图、跨子图边框端口、带语义分叉点的中性正交流程边、按需展开的精确端点短引线、降饱和控制回连，以及节点完整上下游路径聚焦。
+ * OUTPUT: 在焦点稳定、全边界可达且不叠加伪主图底框的工作板上显示图标或可读摘要卡片、可整体悬停聚焦的子图、跨子图边框端口、带语义分叉点的中性正交流程边、按需展开的精确端点短引线、降饱和控制回连、节点完整上下游路径聚焦，以及复用全部交互能力的大图弹窗。
  * POS: DM/Room 共用的只读 Execution Graph 主视图；一级运行树外框与内部方向边只按结构化父身份投影，不从自由文本反推关系。
  */
 "use client";
@@ -26,6 +26,13 @@ import type { ConversationTaskRun } from "@/features/conversation/shared/todos/t
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import { cn } from "@/shared/ui/class-name";
+import {
+  UiDialogBackdrop,
+  UiDialogBody,
+  UiDialogHeader,
+  UiDialogPortal,
+  UiDialogShell,
+} from "@/shared/ui/dialog/dialog";
 import type {
   ExecutionAttemptView,
   ExecutionGraphEdgeKind,
@@ -153,6 +160,19 @@ interface ExecutionGraphViewportSize {
   width: number;
 }
 
+interface ExecutionWorkGraphCanvasProps {
+  currentId: string | null;
+  directory: ExecutionAgentDirectory;
+  execution: ExecutionView;
+  expandedMode?: boolean;
+  nodePresentation?: ExecutionGraphNodePresentation;
+  onOpenWorkspaceFile?: (
+    path: string,
+    workspaceAgentId?: string | null,
+  ) => void;
+  taskRuns: readonly ConversationTaskRun[];
+}
+
 function isExecutionGraphInteractiveTarget(target: EventTarget | null): boolean {
   return target instanceof Element
     && target.closest(EXECUTION_GRAPH_INTERACTIVE_TARGET_SELECTOR) !== null;
@@ -170,20 +190,11 @@ export function ExecutionWorkGraphCanvas({
   currentId,
   directory,
   execution,
+  expandedMode = false,
   nodePresentation = "icon",
   onOpenWorkspaceFile,
   taskRuns,
-}: {
-  currentId: string | null;
-  directory: ExecutionAgentDirectory;
-  execution: ExecutionView;
-  nodePresentation?: ExecutionGraphNodePresentation;
-  onOpenWorkspaceFile?: (
-    path: string,
-    workspaceAgentId?: string | null,
-  ) => void;
-  taskRuns: readonly ConversationTaskRun[];
-}) {
+}: ExecutionWorkGraphCanvasProps) {
   const { t } = useI18n();
   const markerId = `execution-arrow-${useId().replace(/:/g, "")}`;
   const loopMarkerId = `${markerId}-loop`;
@@ -206,6 +217,7 @@ export function ExecutionWorkGraphCanvas({
   const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
   const [hoveredGroupId, setHoveredGroupId] = useState<string | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+  const [expandedOpen, setExpandedOpen] = useState(false);
   const [pendingFocusId, setPendingFocusId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
@@ -806,10 +818,11 @@ export function ExecutionWorkGraphCanvas({
   };
 
   return (
-    <div
-      className="relative flex min-h-0 flex-1 overflow-hidden"
-      data-execution-node-map
-    >
+    <Fragment>
+      <div
+        className="relative flex min-h-0 flex-1 overflow-hidden"
+        data-execution-node-map
+      >
       <ExecutionWorkGraphControls
         collapsibleCount={collapsibleNodeIds.length}
         collapsedCount={collapsedCount}
@@ -819,6 +832,7 @@ export function ExecutionWorkGraphCanvas({
         onFit={fitGraph}
         onLocateCurrent={() => revealNode(currentId)}
         onNextResult={() => navigateSearch(1)}
+        onOpenExpanded={expandedMode ? undefined : () => setExpandedOpen(true)}
         onPreviousResult={() => navigateSearch(-1)}
         onQueryChange={setQuery}
         onResetZoom={() => requestZoomAtViewportCenter(1)}
@@ -1380,8 +1394,69 @@ export function ExecutionWorkGraphCanvas({
         </div>
       </div>
       {/* eslint-enable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
+        </div>
       </div>
-    </div>
+      {!expandedMode && expandedOpen ? (
+        <ExecutionWorkGraphExpandedDialog
+          currentId={currentId}
+          directory={directory}
+          execution={execution}
+          nodePresentation={nodePresentation}
+          onClose={() => setExpandedOpen(false)}
+          onOpenWorkspaceFile={onOpenWorkspaceFile}
+          taskRuns={taskRuns}
+        />
+      ) : null}
+    </Fragment>
+  );
+}
+
+function ExecutionWorkGraphExpandedDialog({
+  currentId,
+  directory,
+  execution,
+  nodePresentation,
+  onClose,
+  onOpenWorkspaceFile,
+  taskRuns,
+}: Omit<ExecutionWorkGraphCanvasProps, "expandedMode"> & {
+  onClose: () => void;
+}) {
+  const { t } = useI18n();
+  const titleId = `execution-workgraph-expanded-${useId().replace(/:/g, "")}`;
+  return (
+    <UiDialogPortal>
+      <UiDialogBackdrop
+        className="z-[10000] p-4"
+        data-execution-workgraph-expanded-dialog
+        labelledBy={titleId}
+        onClose={onClose}
+      >
+        <UiDialogShell
+          className="h-[calc(100dvh-32px)]"
+          size="wide"
+          style={{ maxWidth: "calc(100vw - 32px)" }}
+        >
+          <UiDialogHeader
+            onClose={onClose}
+            subtitle={execution.objective.trim() || undefined}
+            title={t("execution.label")}
+            titleId={titleId}
+          />
+          <UiDialogBody className="flex min-h-0 flex-1 overflow-hidden bg-(--surface-canvas-background) p-0">
+            <ExecutionWorkGraphCanvas
+              currentId={currentId}
+              directory={directory}
+              execution={execution}
+              expandedMode
+              nodePresentation={nodePresentation}
+              onOpenWorkspaceFile={onOpenWorkspaceFile}
+              taskRuns={taskRuns}
+            />
+          </UiDialogBody>
+        </UiDialogShell>
+      </UiDialogBackdrop>
+    </UiDialogPortal>
   );
 }
 

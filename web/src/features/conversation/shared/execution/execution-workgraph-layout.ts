@@ -1,6 +1,6 @@
 /**
  * INPUT: 权威 Execution Graph 节点/边、当前画布可用宽度、节点展示密度与纯 UI 隐藏节点集合。
- * OUTPUT: 主责任图自上而下展开；节点图标与摘要卡片共享矩形避让和固定端口；稳定交叉最小化只在确实减少交叉时调整主层顺序；子图内部普通边按层间走廊分配轨道，跨子图边改从边框代理端口连接、把所有子图安全外扩区作为硬障碍并保留按需展示的精确节点短引线；真正成环的控制回连继续在所属子图框内避让节点并合流到共享 U 形正交总线。
+ * OUTPUT: 主责任图自上而下展开；节点图标与摘要卡片共享矩形避让和固定端口；稳定交叉最小化只在确实减少交叉时调整主层顺序；子图内部普通边按层间走廊分配轨道，跨子图边改从边框代理端口连接、把所有子图安全外扩区作为硬障碍并保留按需展示的精确节点短引线；所有箭头按最终接近方向对准目标边并保留可见间距；真正成环的控制回连继续在所属子图框内避让节点并合流到共享 U 形正交总线。
  * POS: 后端 Agent/Subagent/Tool/Gate Graph View 到交互画布之间的无状态树形投影；只为一级 Agent/Gate 的完整运行树绘制外框，Subagent 层级只由树线表达，不再嵌套子图框。
  */
 import type {
@@ -32,6 +32,7 @@ const BOUNDARY_PORT_SAFE_INSET = 22;
 const BOUNDARY_PORT_MIN_GAP = 14;
 const BOUNDARY_PORT_TAIL_GUTTER = 10;
 const PROCESS_EDGE_GROUP_CLEARANCE = 10;
+const EDGE_TARGET_CLEARANCE = 6;
 const PROCESS_EDGE_BEND_COST = 18;
 const CONTROL_EDGE_GUTTER = 18;
 const CONTROL_EDGE_KIND_LANE_GAP = 8;
@@ -123,6 +124,8 @@ interface ExecutionGraphRoutePoint {
   x: number;
   y: number;
 }
+
+type ExecutionGraphBoundarySide = "bottom" | "left" | "right" | "top";
 
 interface ExecutionGraphRouteObstacle {
   bottom: number;
@@ -408,7 +411,11 @@ export function buildExecutionGraphLayout(
       const sourcePoint = sourcePort
         ?? executionGraphNodeSideAnchor(source, sides.source);
       const targetPoint = targetPort
-        ?? executionGraphNodeSideAnchor(target, sides.target);
+        ?? executionGraphNodeSideAnchor(
+          target,
+          sides.target,
+          EDGE_TARGET_CLEARANCE,
+        );
       if (sourcePort) {
         processRoutes.sourceTailPathById.set(
           edge.id,
@@ -427,6 +434,7 @@ export function buildExecutionGraphLayout(
         sourcePort,
         targetPort,
         groups,
+        sides,
       );
     } else {
       path = buildControlEdgePath(source, target, edge.kind, {
@@ -1421,25 +1429,36 @@ function buildProcessEdgeRoutes(
         buildExecutionGraphBoundaryPortTail(target, targetPort),
       );
     }
-    const sourceX = sourcePort?.x ?? source.x;
-    const sourceY = sourcePort?.y ?? source.y + source.height / 2;
-    const targetX = targetPort?.x ?? target.x;
-    const targetY = targetPort?.y ?? target.y - target.height / 2;
     const sourceRoot = rootByNodeId.get(source.node.id) ?? source.node.id;
     const targetRoot = rootByNodeId.get(target.node.id) ?? target.node.id;
     if (sourceRoot !== targetRoot) {
+      const sides = executionGraphBoundaryPortSides(source, target);
+      const sourcePoint = sourcePort
+        ?? executionGraphNodeSideAnchor(source, sides.source);
+      const targetPoint = targetPort
+        ?? executionGraphNodeSideAnchor(
+          target,
+          sides.target,
+          EDGE_TARGET_CLEARANCE,
+        );
       pathById.set(
         edge.id,
         buildObstacleAvoidingGraphEdgePath(
-          { x: sourceX, y: sourceY },
-          { x: targetX, y: targetY },
+          sourcePoint,
+          targetPoint,
           sourcePort,
           targetPort,
           groups,
+          sides,
         ),
       );
       continue;
     }
+    const sourceX = sourcePort?.x ?? source.x;
+    const sourceY = sourcePort?.y ?? source.y + source.height / 2;
+    const targetX = targetPort?.x ?? target.x;
+    const targetY = targetPort?.y
+      ?? target.y - target.height / 2 - EDGE_TARGET_CLEARANCE;
     if (targetY <= sourceY) {
       pathById.set(edge.id, buildMainEdgePath(source, target));
       continue;
@@ -1569,6 +1588,10 @@ function buildObstacleAvoidingGraphEdgePath(
   sourcePort: ExecutionGraphBoundaryPortLayout | null,
   targetPort: ExecutionGraphBoundaryPortLayout | null,
   groups: ExecutionGraphGroupLayout[],
+  sides: {
+    source: ExecutionGraphBoundarySide;
+    target: ExecutionGraphBoundarySide;
+  },
 ): string {
   const obstacles = groups.map((group) => ({
     bottom: group.y + group.height + PROCESS_EDGE_GROUP_CLEARANCE,
@@ -1579,9 +1602,20 @@ function buildObstacleAvoidingGraphEdgePath(
   }));
   const sourceEscape = sourcePort
     ? executionGraphBoundaryPortEscape(sourcePort)
-    : source;
+    : executionGraphRoutePointOffset(
+      source,
+      sides.source,
+      PROCESS_EDGE_GROUP_CLEARANCE,
+    );
   const targetEscape = targetPort
     ? executionGraphBoundaryPortEscape(targetPort)
+    : executionGraphRoutePointOffset(
+      target,
+      sides.target,
+      PROCESS_EDGE_GROUP_CLEARANCE,
+    );
+  const renderedTarget = targetPort
+    ? executionGraphBoundaryPortOffset(targetPort, EDGE_TARGET_CLEARANCE)
     : target;
   const routed = findExecutionGraphOrthogonalRoute(
     sourceEscape,
@@ -1593,7 +1627,7 @@ function buildObstacleAvoidingGraphEdgePath(
     sourceEscape,
     ...routed,
     targetEscape,
-    target,
+    renderedTarget,
   ]);
   return points.map((point, index) => (
     `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`
@@ -1603,32 +1637,48 @@ function buildObstacleAvoidingGraphEdgePath(
 function executionGraphBoundaryPortEscape(
   port: ExecutionGraphBoundaryPortLayout,
 ): ExecutionGraphRoutePoint {
-  if (port.side === "top") {
-    return { x: port.x, y: port.y - PROCESS_EDGE_GROUP_CLEARANCE };
+  return executionGraphBoundaryPortOffset(port, PROCESS_EDGE_GROUP_CLEARANCE);
+}
+
+function executionGraphBoundaryPortOffset(
+  port: ExecutionGraphBoundaryPortLayout,
+  distance: number,
+): ExecutionGraphRoutePoint {
+  return executionGraphRoutePointOffset(port, port.side, distance);
+}
+
+function executionGraphRoutePointOffset(
+  point: ExecutionGraphRoutePoint,
+  side: ExecutionGraphBoundarySide,
+  distance: number,
+): ExecutionGraphRoutePoint {
+  if (side === "top") {
+    return { x: point.x, y: point.y - distance };
   }
-  if (port.side === "bottom") {
-    return { x: port.x, y: port.y + PROCESS_EDGE_GROUP_CLEARANCE };
+  if (side === "bottom") {
+    return { x: point.x, y: point.y + distance };
   }
-  if (port.side === "left") {
-    return { x: port.x - PROCESS_EDGE_GROUP_CLEARANCE, y: port.y };
+  if (side === "left") {
+    return { x: point.x - distance, y: point.y };
   }
-  return { x: port.x + PROCESS_EDGE_GROUP_CLEARANCE, y: port.y };
+  return { x: point.x + distance, y: point.y };
 }
 
 function executionGraphNodeSideAnchor(
   node: ExecutionGraphNodeLayout,
-  side: "bottom" | "left" | "right" | "top",
+  side: ExecutionGraphBoundarySide,
+  clearance = 0,
 ): ExecutionGraphRoutePoint {
   if (side === "top") {
-    return { x: node.x, y: node.y - node.height / 2 };
+    return { x: node.x, y: node.y - node.height / 2 - clearance };
   }
   if (side === "bottom") {
-    return { x: node.x, y: node.y + node.height / 2 };
+    return { x: node.x, y: node.y + node.height / 2 + clearance };
   }
   if (side === "left") {
-    return { x: node.x - node.width / 2, y: node.y };
+    return { x: node.x - node.width / 2 - clearance, y: node.y };
   }
-  return { x: node.x + node.width / 2, y: node.y };
+  return { x: node.x + node.width / 2 + clearance, y: node.y };
 }
 
 function findExecutionGraphOrthogonalRoute(
@@ -2045,7 +2095,8 @@ function buildSideControlEdgeCandidates(
   const sourceY = source.y
     + (returnsUpward ? source.height / 2 : -source.height / 2);
   const targetY = target.y
-    + (returnsUpward ? target.height / 2 : -target.height / 2);
+    + (returnsUpward ? 1 : -1)
+      * (target.height / 2 + EDGE_TARGET_CLEARANCE);
   const sourceLayerBoundary = executionControlSourceLayerBoundary(
     source,
     context.nodes,
@@ -2123,7 +2174,7 @@ function buildSiblingControlEdgeCandidate(
   lane: number,
 ): ExecutionControlRouteCandidate {
   const sourceY = source.y + source.height / 2;
-  const targetY = target.y + target.height / 2;
+  const targetY = target.y + target.height / 2 + EDGE_TARGET_CLEARANCE;
   const railY = Math.max(sourceY, targetY)
     + CONTROL_EDGE_GUTTER
     + lane * CONTROL_EDGE_KIND_LANE_GAP;
@@ -2303,18 +2354,23 @@ function buildMainEdgePath(
   target: ExecutionGraphNodeLayout,
 ): string {
   const sourceY = source.y + source.height / 2;
-  const targetY = target.y - target.height / 2;
+  const targetY = target.y - target.height / 2 - EDGE_TARGET_CLEARANCE;
   if (targetY <= sourceY) {
     const reverseSourceY = source.y - source.height / 2;
-    const reverseTargetY = target.y + target.height / 2;
+    const reverseTargetY = target.y + target.height / 2
+      + EDGE_TARGET_CLEARANCE;
+    const sourceApproachY = reverseSourceY - CONTROL_EDGE_GUTTER;
+    const targetApproachY = reverseTargetY + CONTROL_EDGE_GUTTER;
     const sideDirection = source.x <= target.x ? -1 : 1;
     const railX = sideDirection < 0
       ? Math.min(source.x, target.x) - 38
       : Math.max(source.x, target.x) + 38;
     return [
       `M ${source.x} ${reverseSourceY}`,
-      `L ${railX} ${reverseSourceY}`,
-      `L ${railX} ${reverseTargetY}`,
+      `L ${source.x} ${sourceApproachY}`,
+      `L ${railX} ${sourceApproachY}`,
+      `L ${railX} ${targetApproachY}`,
+      `L ${target.x} ${targetApproachY}`,
       `L ${target.x} ${reverseTargetY}`,
     ].join(" ");
   }
