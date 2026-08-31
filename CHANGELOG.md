@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Improved dense WorkGraph readability with stable crossing reduction,
+  corridor-aware orthogonal routing, semantic fan-in/fan-out junctions, exact
+  edge midpoint controls, and full upstream/downstream path focus that dims
+  unrelated graph content without hiding durable Tool runs.
 - Standardized shared failure banners and resource states around a persistent
   result, current-state impact, and explicit next action contract, with
   independent screen-reader urgency and responsive mobile reflow.

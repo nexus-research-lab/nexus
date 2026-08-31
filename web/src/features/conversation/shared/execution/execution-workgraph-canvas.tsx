@@ -1,6 +1,6 @@
 /**
  * INPUT: 权威 Execution Graph、Agent 目录、当前 Graph 节点、节点展示密度与精确 Agent round Task run。
- * OUTPUT: 在焦点稳定、全边界可达且不叠加伪主图底框的工作板上显示图标或可读摘要卡片、中性正交流程边与降饱和控制回连。
+ * OUTPUT: 在焦点稳定、全边界可达且不叠加伪主图底框的工作板上显示图标或可读摘要卡片、带语义分叉点的中性正交流程边、降饱和控制回连，以及节点完整上下游路径聚焦。
  * POS: DM/Room 共用的只读 Execution Graph 主视图；一级运行树外框与内部方向边只按结构化父身份投影，不从自由文本反推关系。
  */
 "use client";
@@ -63,6 +63,7 @@ import {
   resolveExecutionGraphInitialScroll,
   resolveExecutionGraphNodeAncestors,
   resolveExecutionGraphPanPadding,
+  resolveExecutionGraphTrace,
   resolveExecutionGraphWheelZoom,
   searchExecutionGraphNodes,
 } from "./execution-workgraph-interaction-model";
@@ -201,6 +202,8 @@ export function ExecutionWorkGraphCanvas({
   const [collapsedNodeIds, setCollapsedNodeIds] = useState<Set<string>>(
     () => new Set(),
   );
+  const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [pendingFocusId, setPendingFocusId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
@@ -240,6 +243,22 @@ export function ExecutionWorkGraphCanvas({
   const selectedLayoutEdge = layout.edges.find(
     (candidate) => candidate.id === selectedEdgeId,
   ) ?? null;
+  const activeTraceNodeId = selectedId ?? (selectedEdgeId ? null : hoveredNodeId);
+  const activeTraceEdgeId = selectedEdgeId ?? (selectedId ? null : hoveredEdgeId);
+  const graphTrace = useMemo(
+    () => resolveExecutionGraphTrace(layout.edges, activeTraceNodeId),
+    [activeTraceNodeId, layout.edges],
+  );
+  const activeTraceEdge = activeTraceEdgeId
+    ? layout.edges.find((edge) => edge.id === activeTraceEdgeId) ?? null
+    : null;
+  const traceActive = activeTraceNodeId !== null || activeTraceEdge !== null;
+  const tracedNodeIds = activeTraceEdge
+    ? new Set([activeTraceEdge.sourceId, activeTraceEdge.targetId])
+    : graphTrace.nodeIds;
+  const tracedEdgeIds = activeTraceEdge
+    ? new Set([activeTraceEdge.id])
+    : graphTrace.edgeIds;
   const selectedItem = selectedLayoutNode?.item ?? null;
   const selectedAttempt = selectedLayoutNode?.node.attempt_id
     ? selectedItem?.attempts?.find(
@@ -896,20 +915,25 @@ export function ExecutionWorkGraphCanvas({
             width: layout.width,
           }}
         >
-          {layout.groups.map((group) => (
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute z-0 rounded-[18px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_78%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-control-background)_48%,transparent)]"
-              data-execution-subgraph-root={group.id}
-              key={group.id}
-              style={{
-                height: group.height,
-                left: group.x,
-                top: group.y,
-                width: group.width,
-              }}
-            />
-          ))}
+          {layout.groups.map((group) => {
+            const traced = group.nodeIds.some((nodeId) => tracedNodeIds.has(nodeId));
+            return (
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute z-0 rounded-[18px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_78%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-control-background)_48%,transparent)] transition-opacity duration-150"
+                data-execution-subgraph-root={group.id}
+                data-execution-subgraph-traced={traceActive && traced ? "true" : undefined}
+                key={group.id}
+                style={{
+                  height: group.height,
+                  left: group.x,
+                  opacity: traceActive && !traced ? 0.22 : 1,
+                  top: group.y,
+                  width: group.width,
+                }}
+              />
+            );
+          })}
           <svg
             aria-label={t("execution.edge_layer")}
             className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
@@ -960,6 +984,9 @@ export function ExecutionWorkGraphCanvas({
             </defs>
             {layout.edges.map((edge) => {
               const selected = edge.id === selectedEdgeId;
+              const hovered = edge.id === hoveredEdgeId;
+              const traced = tracedEdgeIds.has(edge.id);
+              const dimmed = traceActive && !traced;
               const connected = edge.sourceId === selectedId
                 || edge.targetId === selectedId
                 || edge.targetId === currentId;
@@ -977,14 +1004,21 @@ export function ExecutionWorkGraphCanvas({
                       : undefined}
                     data-execution-edge-source={edge.sourceId}
                     data-execution-edge-target={edge.targetId}
+                    data-execution-edge-traced={traceActive && traced
+                      ? "true"
+                      : undefined}
                     fill="none"
                     markerEnd={`url(#${edge.kind === "loop_back"
                       ? loopMarkerId
                       : edge.kind === "retry"
                       ? retryMarkerId
                       : markerId})`}
-                    opacity={selected
+                    opacity={dimmed
+                      ? control ? 0.14 : 0.1
+                      : selected || hovered
                       ? 0.98
+                      : traceActive && traced
+                      ? control ? 0.88 : 0.82
                       : control
                       ? paired
                         ? connected ? 0.76 : 0.66
@@ -994,7 +1028,7 @@ export function ExecutionWorkGraphCanvas({
                       : connected ? 0.66 : 0.48}
                     stroke={edge.kind === "loop_back"
                       ? "color-mix(in srgb, var(--warning) 62%, var(--icon-muted))"
-                      : edge.kind === "retry" || selected
+                      : edge.kind === "retry" || selected || hovered || (traceActive && traced)
                       ? "var(--primary)"
                       : "var(--icon-muted)"}
                     strokeDasharray={!paired
@@ -1003,7 +1037,14 @@ export function ExecutionWorkGraphCanvas({
                       : undefined}
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    strokeWidth={selected ? 1.7 : control ? 1.15 : 1.1}
+                    strokeWidth={selected || hovered
+                      ? 1.7
+                      : traceActive && traced
+                      ? 1.4
+                      : control
+                      ? 1.15
+                      : 1.1}
+                    style={{ transition: "opacity 150ms ease, stroke 150ms ease" }}
                   />
                   <path
                     aria-hidden="true"
@@ -1015,12 +1056,35 @@ export function ExecutionWorkGraphCanvas({
                       event.stopPropagation();
                       selectEdge(edge.id);
                     }}
+                    onMouseEnter={() => setHoveredEdgeId(edge.id)}
+                    onMouseLeave={() => setHoveredEdgeId((current) => (
+                      current === edge.id ? null : current
+                    ))}
                     stroke="transparent"
                     strokeLinecap="round"
                     strokeWidth="12"
                     style={{ pointerEvents: "stroke" }}
                   />
                 </Fragment>
+              );
+            })}
+            {layout.junctions.map((junction) => {
+              const traced = junction.edgeIds.some((edgeId) => tracedEdgeIds.has(edgeId));
+              return (
+                <circle
+                  aria-hidden="true"
+                  cx={junction.x}
+                  cy={junction.y}
+                  data-execution-edge-junction={junction.id}
+                  data-execution-edge-junction-kind={junction.kind}
+                  fill={traceActive && traced ? "var(--primary)" : "var(--icon-muted)"}
+                  key={junction.id}
+                  opacity={traceActive && !traced ? 0.12 : traceActive ? 0.9 : 0.68}
+                  r={traceActive && traced ? 2.6 : 2.1}
+                  stroke="var(--surface-panel-background)"
+                  strokeWidth="1.2"
+                  style={{ transition: "opacity 150ms ease, fill 150ms ease" }}
+                />
               );
             })}
           </svg>
@@ -1036,6 +1100,10 @@ export function ExecutionWorkGraphCanvas({
                 event.stopPropagation();
                 selectEdge(edge.id);
               }}
+              onBlur={() => setHoveredEdgeId((current) => (
+                current === edge.id ? null : current
+              ))}
+              onFocus={() => setHoveredEdgeId(edge.id)}
               onKeyDown={(event) => {
                 if (event.key !== "Enter" && event.key !== " ") {
                   return;
@@ -1044,6 +1112,10 @@ export function ExecutionWorkGraphCanvas({
                 event.stopPropagation();
                 selectEdge(edge.id);
               }}
+              onMouseEnter={() => setHoveredEdgeId(edge.id)}
+              onMouseLeave={() => setHoveredEdgeId((current) => (
+                current === edge.id ? null : current
+              ))}
               style={{ left: edge.x, top: edge.y }}
               title={`${t("execution.edge_details")}: ${t(EDGE_KIND_LABEL_KEY[edge.kind])}`}
               type="button"
@@ -1055,6 +1127,7 @@ export function ExecutionWorkGraphCanvas({
             const status = resolveExecutionGraphNodeStatus(node, item);
             const selected = node.id === selectedId;
             const current = node.id === currentId;
+            const traced = tracedNodeIds.has(node.id);
             const title = graphNodeTitle(node, item, owner?.name, t);
             const summaryHeading = item?.subject.trim()
               || graphNodeHeading(node, item, t);
@@ -1070,24 +1143,34 @@ export function ExecutionWorkGraphCanvas({
                 aria-label={`${t("execution.details")}: ${title}`}
                 aria-pressed={selected}
                 className={cn(
-                  "absolute z-10 transition-[left,top,transform,border-color,box-shadow] duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--primary)",
+                  "absolute z-10 transition-[left,top,transform,border-color,box-shadow,opacity,filter] duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--primary)",
                   nodePresentation === "summary"
                     ? "grid grid-cols-[auto_minmax(0,1fr)] items-start gap-2 overflow-hidden rounded-[14px] border border-(--surface-control-border) bg-(--surface-panel-background) px-3 py-2 text-left shadow-[0_5px_18px_color-mix(in_srgb,var(--shadow-color)_9%,transparent)] hover:border-[color:color-mix(in_srgb,var(--primary)_34%,var(--surface-control-border))] hover:shadow-[0_8px_22px_color-mix(in_srgb,var(--shadow-color)_13%,transparent)]"
                     : "grid place-items-center rounded-[16px]",
                   selected
                     && nodePresentation === "summary"
                     && "border-(--primary) ring-2 ring-[color:color-mix(in_srgb,var(--primary)_16%,transparent)]",
+                  traceActive && !traced && "opacity-25 saturate-[0.55]",
                 )}
                 data-execution-attempt-id={node.attempt_id || undefined}
                 data-execution-current-node={current ? "true" : undefined}
                 data-execution-graph-node-id={node.id}
                 data-execution-node-presentation={nodePresentation}
                 data-execution-node-selected={selected ? "true" : undefined}
+                data-execution-node-traced={traceActive && traced ? "true" : undefined}
                 data-execution-work-item-id={node.work_item_id || undefined}
                 onClick={() => {
                   setSelectedEdgeId(null);
                   setSelectedId(node.id);
                 }}
+                onBlur={() => setHoveredNodeId((hovered) => (
+                  hovered === node.id ? null : hovered
+                ))}
+                onFocus={() => setHoveredNodeId(node.id)}
+                onMouseEnter={() => setHoveredNodeId(node.id)}
+                onMouseLeave={() => setHoveredNodeId((hovered) => (
+                  hovered === node.id ? null : hovered
+                ))}
                 style={{
                   height: nodePresentation === "summary" ? height : size + 8,
                   left: x - (nodePresentation === "summary" ? width : size + 8) / 2,
@@ -1152,7 +1235,10 @@ export function ExecutionWorkGraphCanvas({
                     ? t("execution.expand_node")
                     : t("execution.collapse_node")}
                   aria-pressed={collapsed}
-                  className="absolute z-20 flex h-5 min-w-5 items-center justify-center gap-0.5 rounded-full border border-(--surface-control-border) bg-(--surface-panel-background) px-1 text-[9px] font-semibold tabular-nums text-(--text-soft) shadow-sm transition hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--primary)"
+                  className={cn(
+                    "absolute z-20 flex h-5 min-w-5 items-center justify-center gap-0.5 rounded-full border border-(--surface-control-border) bg-(--surface-panel-background) px-1 text-[9px] font-semibold tabular-nums text-(--text-soft) shadow-sm transition hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--primary)",
+                    traceActive && !traced && "opacity-25",
+                  )}
                   data-execution-collapse-node={node.id}
                   data-execution-hidden-node-count={collapsed ? descendantCount : 0}
                   onClick={() => setCollapsedNodeIds((currentValue) => {

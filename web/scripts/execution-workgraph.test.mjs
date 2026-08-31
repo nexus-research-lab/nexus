@@ -712,6 +712,88 @@ test("WorkGraph layout reflows without treating containment as dependency", asyn
     addedLayout.nodes.find((node) => node.node.id === "build").y,
     addedLayout.nodes.find((node) => node.node.id === "review").y,
   );
+  assert.deepEqual(
+    addedLayout.junctions.map((junction) => ({
+      edges: junction.edgeIds,
+      kind: junction.kind,
+    })),
+    [
+      {
+        edges: ["dependency:research:build", "dependency:research:review"],
+        kind: "fan-out",
+      },
+      {
+        edges: ["dependency:build:integrate", "dependency:review:integrate"],
+        kind: "fan-in",
+      },
+    ],
+    "only edges with one semantic source or target share a marked local bus",
+  );
+  assert.equal(
+    orthogonalPathsShareNonTerminalSegment(
+      addedLayout.edges.find((edge) => edge.id === "dependency:research:build").path,
+      addedLayout.edges.find((edge) => edge.id === "dependency:research:review").path,
+    ),
+    true,
+    "same-source branches share a visible fan-out bus",
+  );
+
+  const crossing = structuredClone(execution);
+  crossing.graph.nodes = [
+    ["source-a", 0],
+    ["source-b", 1],
+    ["target-c", 2],
+    ["target-d", 3],
+  ].map(([id, position]) => ({
+    id,
+    kind: "agent",
+    visibility: "primary",
+    work_item_id: id,
+    responsibility_status: "waiting",
+    position,
+  }));
+  crossing.graph.edges = [
+    {
+      id: "dependency:source-a:target-d",
+      kind: "dependency",
+      source_node_id: "source-a",
+      target_node_id: "target-d",
+    },
+    {
+      id: "dependency:source-b:target-c",
+      kind: "dependency",
+      source_node_id: "source-b",
+      target_node_id: "target-c",
+    },
+  ];
+  crossing.work_items = crossing.graph.nodes.map((node) => ({
+    id: node.id,
+    logical_key: node.id,
+    kind: "produce",
+    subject: node.id,
+    objective: node.id,
+    deliverable: node.id,
+    acceptance_criteria: ["done"],
+    dependency_ids: [],
+    required: true,
+    position: node.position,
+    status: "waiting",
+    updated_at: "2026-07-31T10:02:00Z",
+  }));
+  const crossingLayout = buildExecutionGraphLayout(crossing);
+  const crossingNode = (id) => crossingLayout.nodes.find((node) => node.node.id === id);
+  assert.ok(
+    crossingNode("target-d").x < crossingNode("target-c").x,
+    "a layer reorders only when the deterministic barycenter sweep removes a crossing",
+  );
+  assert.equal(
+    orthogonalPathsShareSegment(
+      crossingLayout.edges[0].path,
+      crossingLayout.edges[1].path,
+    ),
+    false,
+    "unrelated routes keep independent tracks instead of creating a false shared bus",
+  );
 
   const nestedOwnership = structuredClone(execution);
   nestedOwnership.graph.nodes.push(
@@ -1549,6 +1631,7 @@ test("WorkGraph interaction model collapses, searches, and fits large graphs wit
     resolveExecutionGraphInitialScroll,
     resolveExecutionGraphNodeAncestors,
     resolveExecutionGraphPanPadding,
+    resolveExecutionGraphTrace,
     resolveExecutionGraphWheelZoom,
     resolveExecutionWorkspaceReference,
     searchExecutionGraphNodes,
@@ -1579,6 +1662,21 @@ test("WorkGraph interaction model collapses, searches, and fits large graphs wit
     resolveExecutionGraphNodeAncestors(searchable, "attempt-child"),
     ["build"],
   );
+  const traced = resolveExecutionGraphTrace([
+    ...buildExecutionGraphLayout(searchable).edges,
+    {
+      id: "loop:attempt-child:build",
+      kind: "loop_back",
+      sourceId: "attempt-child",
+      targetId: "build",
+    },
+  ], "attempt-child");
+  assert.deepEqual([...traced.nodeIds], ["attempt-child", "build", "research"]);
+  assert.deepEqual([...traced.edgeIds], [
+    "spawn:build:attempt-child",
+    "dependency:research:build",
+    "loop:attempt-child:build",
+  ]);
   const collapsedLayout = buildExecutionGraphLayout(
     searchable,
     700,
