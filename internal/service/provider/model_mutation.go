@@ -65,7 +65,7 @@ func (s *Service) fetchModelsForItem(
 		if modelID == "" {
 			continue
 		}
-		capabilities, category, contextWindow, maxOutput := model.modelCard()
+		capabilities, category, contextWindow, maxOutput := model.modelCard(item.ProviderKind)
 		entities = append(entities, providerstore.ModelEntity{
 			ID:                       s.idFactory("provider_model"),
 			ProviderID:               item.ID,
@@ -186,6 +186,67 @@ func (s *Service) UpdatePublicModel(
 	return s.updateModelForItem(ctx, *item, modelID, input, item.ConfigurationVersion)
 }
 
+// DeleteModel 删除当前用户可管理 Provider 下的模型卡。
+func (s *Service) DeleteModel(ctx context.Context, provider string, modelID string) (*DeleteModelResult, error) {
+	item, err := s.requireProvider(ctx, provider)
+	if err != nil {
+		return nil, err
+	}
+	if err = s.requireProviderManagement(ctx, *item); err != nil {
+		return nil, err
+	}
+	return s.deleteModelForItem(ctx, *item, modelID, item.ConfigurationVersion)
+}
+
+// DeletePublicModel 删除公共 Provider 下的模型卡。
+func (s *Service) DeletePublicModel(
+	ctx context.Context,
+	provider string,
+	modelID string,
+) (*DeleteModelResult, error) {
+	item, err := s.requirePublicProvider(ctx, provider)
+	if err != nil {
+		return nil, err
+	}
+	return s.deleteModelForItem(ctx, *item, modelID, item.ConfigurationVersion)
+}
+
+func (s *Service) deleteModelForItem(
+	ctx context.Context,
+	item providerstore.Entity,
+	modelID string,
+	expectedVersion int64,
+) (*DeleteModelResult, error) {
+	modelID = normalizeModelID(modelID)
+	if modelID == "" {
+		return nil, errors.New("model_id 不能为空")
+	}
+	result := &DeleteModelResult{Provider: item.Provider, Model: modelID}
+	_, err := s.repository.WithProviderMutation(
+		ctx,
+		item.ID,
+		expectedVersion,
+		func(mutation *providerstore.Mutation) error {
+			model, loadErr := getMutationModel(ctx, mutation, modelID)
+			if loadErr != nil {
+				return loadErr
+			}
+			if model == nil {
+				return ErrModelNotFound
+			}
+			if model.IsDefault {
+				return fmt.Errorf("默认模型不能删除: %s", model.ModelID)
+			}
+			result.Model = model.ModelID
+			return mutation.DeleteModel(ctx, *model)
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 func (s *Service) updateModelForItem(
 	ctx context.Context,
 	item providerstore.Entity,
@@ -242,15 +303,24 @@ func (u *modelUpdate) run(expectedVersion int64) (*ModelRecord, error) {
 }
 
 func (u *modelUpdate) load() error {
-	model, err := u.mutation.GetModel(u.ctx, u.modelID)
-	if err == nil && model == nil {
-		escaped := url.PathEscape(u.modelID)
-		if escaped != u.modelID {
-			model, err = u.mutation.GetModel(u.ctx, escaped)
-		}
-	}
+	model, err := getMutationModel(u.ctx, u.mutation, u.modelID)
 	u.model = model
 	return err
+}
+
+func getMutationModel(
+	ctx context.Context,
+	mutation *providerstore.Mutation,
+	modelID string,
+) (*providerstore.ModelEntity, error) {
+	model, err := mutation.GetModel(ctx, modelID)
+	if err == nil && model == nil {
+		escaped := url.PathEscape(modelID)
+		if escaped != modelID {
+			model, err = mutation.GetModel(ctx, escaped)
+		}
+	}
+	return model, err
 }
 
 func (u *modelUpdate) validateDefaultCandidate() error {
@@ -291,7 +361,7 @@ func (u *modelUpdate) persist() error {
 }
 
 func (u *modelUpdate) newModel() *providerstore.ModelEntity {
-	capabilities, category, contextWindow, maxOutput := defaultModelCard(u.modelID)
+	capabilities, category, contextWindow, maxOutput := defaultModelCard(u.modelID, u.item.ProviderKind)
 	contextWindow = modelLimitOrDefault(u.input.ContextWindow, contextWindow)
 	maxOutput = modelLimitOrDefault(u.input.MaxOutputTokens, maxOutput)
 	now := u.service.now()

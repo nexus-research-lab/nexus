@@ -122,12 +122,12 @@ export function MessageActivityStatus({
   const presentation = ACTIVITY_PRESENTATION[state];
   const ActivityIcon = presentation.icon;
   return (
-    <div className={cn("flex min-w-0 items-center", className)}>
+    <div className={cn("flex min-w-0 items-center px-1.5", className)}>
       <div className={cn(
-        "inline-flex min-w-0 items-center gap-2 py-1 text-sm font-medium transition-colors",
+        "inline-flex min-w-0 items-center gap-1.5 py-1 text-sm font-medium transition-colors",
         uniformTone ? "text-primary" : presentation.toneClassName,
       )}>
-        <span className="shrink-0 opacity-75">
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center opacity-75">
           <ActivityIcon className="h-3.5 w-3.5" />
         </span>
         <MessageActivityLabel label={label} />
@@ -172,7 +172,7 @@ function MessageLoadingDots({
     <span
       aria-hidden="true"
       className={cn(
-        "inline-block h-[1em] overflow-hidden select-none whitespace-pre leading-[1em] text-current align-middle text-[1.4em]",
+        "inline-block h-[1em] translate-y-[2px] overflow-hidden select-none whitespace-pre leading-[1em] text-current text-[1.4em]",
         className,
       )}
       style={{ width: `${spinnerWidth}ch` }}

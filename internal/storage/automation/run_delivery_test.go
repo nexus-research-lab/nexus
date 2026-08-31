@@ -1,6 +1,6 @@
 // INPUT: latest completed run identity and exact delivery attempt completions.
 // OUTPUT: historical completion updates its run only; latest completion also updates the task summary.
-// POS: storage regression for migration 00121 and exact last_delivery_status projection.
+// POS: storage regression for migration 00122 and exact last_delivery_status projection.
 package automation
 
 import (

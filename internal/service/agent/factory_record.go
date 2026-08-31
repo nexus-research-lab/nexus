@@ -52,6 +52,7 @@ func BuildCreateRecord(
 		IsMain:               isMain,
 		Avatar:               resolveAgentAvatar(request.Avatar, agentID, isMain),
 		Description:          request.Description,
+		BusinessTagsJSON:     mustJSONString(normalizeStringList(request.BusinessTags)),
 		VibeTagsJSON:         mustJSONString(request.VibeTags),
 		DisplayName:          normalizedName,
 		Headline:             "",

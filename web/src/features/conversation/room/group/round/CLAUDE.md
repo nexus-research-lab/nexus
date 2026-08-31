@@ -8,4 +8,5 @@
 - 结果状态映射与消息状态优先级由数据表定义；合成 result 只在 canonical assistant 缺席时保留。
 - 权威 lifecycle terminal 是 Agent entry 状态的单调上界；迟到的 active slot、stream 与精确 permission 都不能复活已收口 execution，冲突终态按 error、cancelled、done 的优先级合并。
 - 权威 lifecycle active 同样覆盖尚无 `result_summary` 的 Assistant turn 完成态；Thread 仍执行时，主 Feed 必须继续显示思考/回复活动提示，不能把 `message_stop` 或 `is_complete` 当成整个 `agent_round` 结束。
+- 重连后同一根轮次与 Agent 出现更新的 execution 时，较早且未收口的 execution 单调转为 cancelled；分页拆出的公区节点继续携带该终态，历史 entry 与顺序保留，不能让旧 Stop 控件与新执行并存。
 - 本目录只放纯模型，不读取 Store、不调用 API、不持有 React 状态。

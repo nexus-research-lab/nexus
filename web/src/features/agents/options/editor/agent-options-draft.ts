@@ -20,6 +20,7 @@ import type {
 export interface AgentOptionsDraft {
   allowedTools: string[];
   avatar: string;
+  businessTags: string[];
   connectorIds: string[];
   description: string;
   disallowedTools: string[];
@@ -77,6 +78,7 @@ export function createAgentOptionsDraft({
   return {
     allowedTools: normalizeAgentAllowedToolsForEditor(initial.options.allowed_tools),
     avatar: initial.avatar,
+    businessTags: initial.businessTags,
     connectorIds: initial.options.connector_ids ?? [],
     description: initial.description,
     disallowedTools: initial.options.disallowed_tools ?? [],
@@ -132,6 +134,7 @@ export function buildAgentOptionsSubmission(
   return {
     identity: {
       avatar: draft.avatar,
+      business_tags: draft.businessTags,
       description: draft.description.trim(),
       profile_template: draft.profileTemplate?.trim(),
       vibe_tags: draft.vibeTags,

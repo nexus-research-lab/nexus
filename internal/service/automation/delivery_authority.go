@@ -258,7 +258,7 @@ func (s *Service) validatePersistentDeliveryGrant(
 	if s.deliveryGrants == nil {
 		return errors.New("automation IM delivery grant resolver is not configured")
 	}
-	err = s.deliveryGrants.ValidateAutomationDeliveryGrant(
+	err = s.deliveryGrants.ValidateExternalSessionGrant(
 		ctx,
 		strings.TrimSpace(job.OwnerUserID),
 		targetAgentID,

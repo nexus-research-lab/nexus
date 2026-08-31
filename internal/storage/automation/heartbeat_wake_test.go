@@ -1,6 +1,6 @@
 // INPUT: concurrent heartbeat config CAS、owner/request wake intent 与过期 claim。
 // OUTPUT: 受理版本线性化、exact idempotency、冲突拒绝和可恢复 deadline。
-// POS: migration 00124 durable heartbeat wake outbox 的仓储回归。
+// POS: migration 00125 durable heartbeat wake outbox 的仓储回归。
 package automation
 
 import (
@@ -50,7 +50,7 @@ func TestHeartbeatWakeMigrationRoundTrip(t *testing.T) {
 	if err = goose.SetDialect("sqlite3"); err != nil {
 		t.Fatal(err)
 	}
-	if err = goose.UpTo(db, "../../../db/migrations/sqlite", 124); err != nil {
+	if err = goose.UpTo(db, "../../../db/migrations/sqlite", 125); err != nil {
 		t.Fatal(err)
 	}
 	assertHeartbeatWakeColumns := func(want bool) {
@@ -80,7 +80,7 @@ func TestHeartbeatWakeMigrationRoundTrip(t *testing.T) {
 		}
 	}
 	assertHeartbeatWakeColumns(true)
-	if err = goose.DownTo(db, "../../../db/migrations/sqlite", 123); err != nil {
+	if err = goose.DownTo(db, "../../../db/migrations/sqlite", 124); err != nil {
 		t.Fatal(err)
 	}
 	assertHeartbeatWakeColumns(false)

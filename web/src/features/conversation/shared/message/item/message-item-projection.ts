@@ -38,12 +38,12 @@ const ASSISTANT_CONTENT_MODE_POLICIES: Readonly<Record<
   room_result: {
     pendingInteractionOwner: "composer",
     responseSurface: "final",
-    showTimeline: true,
+    showTimeline: false,
   },
   room_thread: {
     pendingInteractionOwner: "composer",
     responseSurface: "direct",
-    showTimeline: true,
+    showTimeline: false,
   },
   room_thread_process: {
     pendingInteractionOwner: "composer",

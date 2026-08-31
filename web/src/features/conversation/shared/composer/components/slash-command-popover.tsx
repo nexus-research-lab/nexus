@@ -17,6 +17,7 @@ import { Check, Lock } from "lucide-react";
 
 import { getSkillDisplayDescription } from "@/lib/skill-description";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import type { TranslationKey } from "@/shared/i18n/messages";
 import { cn } from "@/shared/ui/class-name";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
@@ -46,6 +47,20 @@ const SLASH_COMMAND_PANEL_MAX_HEIGHT_PX = 296;
 const SLASH_PICKER_PANEL_MAX_HEIGHT_PX = 336;
 const SLASH_LIST_CLASS_NAME =
   "soft-scrollbar min-h-0 max-h-72 flex-1 overflow-y-auto overscroll-contain p-1";
+
+const SLASH_COMMAND_DESCRIPTION_KEYS: Record<string, TranslationKey> = {
+  browser: "composer.slash_command_description_browser",
+  "build-ship": "composer.slash_command_description_build_ship",
+  compact: "composer.slash_command_description_compact",
+  "decision-brief": "composer.slash_command_description_decision_brief",
+  "deep-research": "composer.slash_command_description_deep_research",
+  goal: "composer.slash_command_description_goal",
+  model: "composer.slash_command_description_model",
+  "review-improve": "composer.slash_command_description_review_improve",
+  skills: "composer.slash_command_description_skills",
+  visualize: "composer.slash_command_description_visualize",
+  workgraph: "composer.workgraph_command_description",
+};
 
 interface SlashCommandPopoverProps {
   activeIndex: number;
@@ -265,6 +280,7 @@ function SlashCommandList({
     >
       {commands.map((command, index) => {
         const selectable = isSelectableSlashCommand(command);
+        const descriptionKey = SLASH_COMMAND_DESCRIPTION_KEYS[command.name];
         return (
           <button
             aria-disabled={!selectable}
@@ -289,11 +305,13 @@ function SlashCommandList({
                 ?? t("composer.slash_command_unavailable")}
             type="button"
           >
-            <span className="w-20 shrink-0 truncate font-mono text-[11px] font-semibold leading-4 text-(--text-strong)">
+            <span className="w-28 shrink-0 truncate font-mono text-[11px] font-semibold leading-4 text-(--text-strong)">
               /{command.name}
             </span>
             <span className="min-w-0 flex-1 truncate text-[11px] leading-4 text-(--text-default)">
-              {command.description || t("composer.slash_command_unavailable")}
+              {descriptionKey
+                ? t(descriptionKey)
+                : command.description || t("composer.slash_command_unavailable")}
             </span>
             {command.argument_hint ? (
               <span className="max-w-[32%] shrink-0 truncate font-mono text-[9px] leading-4 text-(--text-soft)">

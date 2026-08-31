@@ -1,6 +1,6 @@
 /**
  * INPUT: DM/Room live 过程内容、流式索引、ToolUseSummary 与当前人工交互工具身份。
- * OUTPUT: 以独立交互为边界、首个 tool_use.id 稳定标识且按最后动作判定终态的连续执行段，以及独立内容段。
+ * OUTPUT: 以可见正文和独立交互为边界、首个 tool_use.id 稳定标识且按最后动作判定终态的连续工具段，以及独立内容段。
  * POS: 会话 live 过程压缩的纯投影边界；摘要持续更新包含其 preceding_tool_use_ids 的执行段，权限动作保持独立。
  */
 import type {
@@ -73,6 +73,7 @@ export function projectToolRunSegments({
   const supportIndexesByToolUseId = collectToolSupportIndexes(
     projection.content,
   );
+  const resolvedToolUseIds = collectResolvedToolUseIds(projection.content);
   const claimedSupportIndexes = collectClaimedSupportIndexes(
     supportIndexesByToolUseId,
   );
@@ -109,7 +110,18 @@ export function projectToolRunSegments({
     }
 
     if (block.type === "tool_use") {
-      if (isInteractiveToolUse(block, interactiveToolUseIds)) {
+      if (
+        block.name === ASK_USER_QUESTION_TOOL_NAME
+        && resolvedToolUseIds.has(block.id)
+      ) {
+        flushToolRun(true);
+        flushPendingProcess();
+      }
+      if (isInteractiveToolUse(
+        block,
+        interactiveToolUseIds,
+        resolvedToolUseIds,
+      )) {
         flushToolRun(true);
         flushPendingProcess();
         segments.push(buildInteractiveToolSegment(
@@ -286,11 +298,23 @@ function toolSupportOwnerId(block: ContentBlock): string | null {
 function isInteractiveToolUse(
   block: ToolUseContent,
   interactiveToolUseIds: ReadonlySet<string>,
+  resolvedToolUseIds: ReadonlySet<string>,
 ): boolean {
   return (
-    block.name === ASK_USER_QUESTION_TOOL_NAME
-    || interactiveToolUseIds.has(block.id)
+    interactiveToolUseIds.has(block.id)
+    || (
+      block.name === ASK_USER_QUESTION_TOOL_NAME
+      && !resolvedToolUseIds.has(block.id)
+    )
   );
+}
+
+function collectResolvedToolUseIds(
+  content: readonly ContentBlock[],
+): Set<string> {
+  return new Set(content.flatMap((block) => (
+    block.type === "tool_result" ? [block.tool_use_id] : []
+  )));
 }
 
 function isTrailingToolSupport(block: ContentBlock): boolean {
@@ -303,8 +327,7 @@ function isTrailingToolSupport(block: ContentBlock): boolean {
 
 function isCollapsibleProcessBlock(block: ContentBlock): boolean {
   return (
-    block.type === "text"
-    || block.type === "thinking"
+    block.type === "thinking"
     || block.type === "redacted_thinking"
     || block.type === "progress_update"
   );

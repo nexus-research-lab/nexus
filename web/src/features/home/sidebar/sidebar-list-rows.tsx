@@ -82,7 +82,7 @@ function ConversationRowMeta({
     return null;
   }
   return (
-    <span className="relative flex h-7 w-10 shrink-0 items-center justify-end">
+    <span className="relative flex h-5 w-10 shrink-0 items-center justify-end">
       {timeLabel ? (
         <span
           className={cn(
@@ -139,7 +139,7 @@ function ConversationRowStatus({
 function ConversationRowSummary({ item }: { item: SidebarConversationItem }) {
   return (
     <UiMarkdownContent
-      className="nexus-sidebar-conversation-summary truncate text-compact leading-5 text-(--text-muted) [&_*]:leading-5"
+      className="nexus-sidebar-conversation-summary truncate text-compact leading-[1.125rem] text-(--text-muted) [&_*]:leading-[1.125rem]"
       content={item.summary}
       mermaidShowHeader={false}
       summaryMonochrome

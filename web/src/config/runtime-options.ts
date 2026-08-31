@@ -25,7 +25,7 @@ let DEFAULT_AGENT_SDK_DIAGNOSTICS_ENABLED = false;
 let DEFAULT_EMOTION_ENABLED = false;
 let DEFAULT_BROWSER_CDP_ENABLED = false;
 let DEFAULT_RUNTIME_SETTINGS: UserPreferences["runtime_settings"] = {
-  nxs: { tool_search: false },
+  nxs: { auto_memory_enabled: true, auto_dream_enabled: true, tool_search: false },
 };
 let DEFAULT_WEB_SEARCH: UserPreferences["web_search"] = {
   enabled: true,
@@ -182,6 +182,8 @@ function normalizeRuntimeSettings(
   return {
     ...settings,
     nxs: {
+      auto_memory_enabled: settings?.nxs?.auto_memory_enabled ?? true,
+      auto_dream_enabled: settings?.nxs?.auto_dream_enabled ?? true,
       tool_search: settings?.nxs?.tool_search === true,
     },
   };

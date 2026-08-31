@@ -209,6 +209,7 @@ func newAgentRepositoryTestDB(t *testing.T) *sql.DB {
 			is_main BOOLEAN NOT NULL DEFAULT FALSE,
 			avatar TEXT,
 			vibe_tags TEXT NOT NULL DEFAULT '[]',
+			business_tags TEXT NOT NULL DEFAULT '[]',
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`,
@@ -258,6 +259,7 @@ func testCreateRecord() CreateRecord {
 		Name:                 "test-agent",
 		WorkspacePath:        "/tmp/agent-1",
 		Status:               "active",
+		BusinessTagsJSON:     "[]",
 		VibeTagsJSON:         "[]",
 		DisplayName:          "test-agent",
 		RuntimeID:            "runtime-1",
@@ -282,6 +284,7 @@ func testUpdateRecord() UpdateRecord {
 		OwnerUserID:          "owner-1",
 		Name:                 "test-agent",
 		WorkspacePath:        "/tmp/agent-1",
+		BusinessTagsJSON:     "[]",
 		VibeTagsJSON:         "[]",
 		Provider:             "provider-1",
 		Model:                "model-v1",

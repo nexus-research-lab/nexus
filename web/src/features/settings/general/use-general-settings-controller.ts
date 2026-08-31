@@ -85,6 +85,36 @@ export function useGeneralSettingsController() {
     },
     [updatePreferences],
   );
+  const handleAutoMemoryEnabledChange = useCallback(
+    (checked: boolean) => {
+      updatePreferences((current) => ({
+        ...current,
+        runtime_settings: {
+          ...current.runtime_settings,
+          nxs: {
+            ...current.runtime_settings?.nxs,
+            auto_memory_enabled: checked,
+          },
+        },
+      }));
+    },
+    [updatePreferences],
+  );
+  const handleAutoDreamEnabledChange = useCallback(
+    (checked: boolean) => {
+      updatePreferences((current) => ({
+        ...current,
+        runtime_settings: {
+          ...current.runtime_settings,
+          nxs: {
+            ...current.runtime_settings?.nxs,
+            auto_dream_enabled: checked,
+          },
+        },
+      }));
+    },
+    [updatePreferences],
+  );
   const handlePermissionModeChange = useCallback((value: string) => {
     updatePreferences((current) => ({
       ...current,
@@ -101,6 +131,10 @@ export function useGeneralSettingsController() {
         preferences.agent_sdk_diagnostics_enabled === true,
       chatDefaultDeliveryPolicy: preferences.chat_default_delivery_policy,
       emotionEnabled: preferences.emotion_enabled === true,
+      autoMemoryEnabled:
+        preferences.runtime_settings?.nxs?.auto_memory_enabled ?? true,
+      autoDreamEnabled:
+        preferences.runtime_settings?.nxs?.auto_dream_enabled ?? true,
       echoDisabled: echo.disabled,
       echoEnabled: echo.enabled,
       echoFeedback: echo.feedback,
@@ -118,6 +152,8 @@ export function useGeneralSettingsController() {
       defaultModelSavingRole: defaultModels.savingRole,
       defaultModelValue: defaultModels.values.agent,
       onAgentSdkDiagnosticsChange: handleAgentSdkDiagnosticsChange,
+      onAutoMemoryEnabledChange: handleAutoMemoryEnabledChange,
+      onAutoDreamEnabledChange: handleAutoDreamEnabledChange,
       onEmotionEnabledChange: handleEmotionEnabledChange,
       onEchoEnabledChange: echo.handleEnabledChange,
       onDefaultDeliveryPolicyChange: handleDeliveryPolicyChange,

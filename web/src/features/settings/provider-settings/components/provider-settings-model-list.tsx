@@ -8,6 +8,7 @@ import {
   Plus,
   RefreshCw,
   SlidersHorizontal,
+  Trash2,
   Wrench,
   type LucideIcon,
 } from "lucide-react";
@@ -39,6 +40,7 @@ interface ProviderSettingsModelListProps {
   onModelOptions: (model: ProviderModelRecord) => void;
   onModelQueryChange: (query: string) => void;
   onOpenAddModel: () => void;
+  onRequestDeleteModel: (model: ProviderModelRecord) => void;
   onToggleModel: (model: ProviderModelRecord, enabled: boolean) => void;
   pendingAction: ProviderPendingAction | null;
   selectedCanManage: boolean;
@@ -225,6 +227,7 @@ function ProviderModelRow({
   model,
   onDefaultModelDisableAttempt,
   onModelOptions,
+  onRequestDeleteModel,
   onToggleModel,
   pendingAction,
   selectedCanManage,
@@ -232,12 +235,15 @@ function ProviderModelRow({
   ProviderSettingsModelListProps,
   | "onDefaultModelDisableAttempt"
   | "onModelOptions"
+  | "onRequestDeleteModel"
   | "onToggleModel"
   | "pendingAction"
   | "selectedCanManage"
 > & { model: ProviderModelRecord }) {
   const { t } = useI18n();
   const displayName = model.display_name || model.model_id;
+  const isDeletePending = pendingAction?.kind === "delete-model"
+    && pendingAction.modelId === model.model_id;
   return (
     <div className="grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b border-(--divider-subtle-color) px-2.5 py-1 last:border-b-0">
       <div className="flex min-w-0 items-center gap-2">
@@ -261,6 +267,26 @@ function ProviderModelRow({
         >
           <SlidersHorizontal className="h-3.5 w-3.5" />
         </UiIconButton>
+        {!model.is_default ? (
+          <UiIconButton
+            aria-label={t("settings.providers.delete_model_aria", {
+              name: displayName,
+            })}
+            disabled={pendingAction !== null || !selectedCanManage}
+            onClick={() => onRequestDeleteModel(model)}
+            size="xs"
+            title={t("settings.providers.delete_model")}
+            tone="danger"
+            type="button"
+            variant="ghost"
+          >
+            {isDeletePending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Trash2 className="h-3.5 w-3.5" />
+            )}
+          </UiIconButton>
+        ) : null}
         <ProviderModelToggle
           model={model}
           onDefaultModelDisableAttempt={onDefaultModelDisableAttempt}
@@ -277,6 +303,7 @@ function ProviderModelListBody({
   displayedModels,
   onDefaultModelDisableAttempt,
   onModelOptions,
+  onRequestDeleteModel,
   onToggleModel,
   pendingAction,
   selectedCanManage,
@@ -286,6 +313,7 @@ function ProviderModelListBody({
   | "displayedModels"
   | "onDefaultModelDisableAttempt"
   | "onModelOptions"
+  | "onRequestDeleteModel"
   | "onToggleModel"
   | "pendingAction"
   | "selectedCanManage"
@@ -307,6 +335,7 @@ function ProviderModelListBody({
       model={model}
       onDefaultModelDisableAttempt={onDefaultModelDisableAttempt}
       onModelOptions={onModelOptions}
+      onRequestDeleteModel={onRequestDeleteModel}
       onToggleModel={onToggleModel}
       pendingAction={pendingAction}
       selectedCanManage={selectedCanManage}
@@ -325,6 +354,7 @@ export function ProviderSettingsModelList({
   onModelOptions,
   onModelQueryChange,
   onOpenAddModel,
+  onRequestDeleteModel,
   onToggleModel,
   pendingAction,
   selectedCanManage,
@@ -360,6 +390,7 @@ export function ProviderSettingsModelList({
           displayedModels={displayedModels}
           onDefaultModelDisableAttempt={onDefaultModelDisableAttempt}
           onModelOptions={onModelOptions}
+          onRequestDeleteModel={onRequestDeleteModel}
           onToggleModel={onToggleModel}
           pendingAction={pendingAction}
           selectedCanManage={selectedCanManage}

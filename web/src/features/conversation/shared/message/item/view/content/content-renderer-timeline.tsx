@@ -10,9 +10,11 @@ export const TIMELINE_LINE_CLASS_NAME =
 export function TimelineBlock({
   active = false,
   children,
+  showRail = true,
 }: {
   active?: boolean;
   children: ReactNode;
+  showRail?: boolean;
 }) {
   const contentRef = useRef<HTMLDivElement | null>(null);
   const dotRef = useRef<HTMLSpanElement | null>(null);
@@ -41,14 +43,19 @@ export function TimelineBlock({
     return () => window.cancelAnimationFrame(frameId);
   });
 
+  if (!showRail) {
+    return <div className="min-w-0">{children}</div>;
+  }
+
   return (
-    <div className="nexus-chat-timeline-block relative grid min-w-0 grid-cols-[12px_minmax(0,1fr)] items-start gap-3">
+    <div className="nexus-chat-timeline-block relative grid min-w-0 grid-cols-[12px_minmax(0,1fr)] items-start gap-1">
       <div className="relative">
         <span
           className={cn(
             "absolute left-1/2 block h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-(--divider-subtle-color)",
             active && "bg-primary/70",
           )}
+          data-timeline-dot
           ref={dotRef}
           style={{ top: `${DEFAULT_TIMELINE_DOT_TOP}px` }}
         />

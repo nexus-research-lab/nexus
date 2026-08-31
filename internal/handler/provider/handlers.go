@@ -181,6 +181,20 @@ func (h *Handlers) HandleUpdateProviderModel(writer http.ResponseWriter, request
 	h.api.WriteSuccess(writer, item)
 }
 
+// HandleDeleteProviderModel 删除 Provider 模型卡。
+func (h *Handlers) HandleDeleteProviderModel(writer http.ResponseWriter, request *http.Request) {
+	item, err := h.providers.DeleteModel(
+		request.Context(),
+		chi.URLParam(request, "provider"),
+		chi.URLParam(request, "model_id"),
+	)
+	if err != nil {
+		h.api.WriteFailure(writer, providerMutationErrorStatus(err), err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, item)
+}
+
 // HandleSetDefaultProviderModel 设置默认运行模型。
 func (h *Handlers) HandleSetDefaultProviderModel(writer http.ResponseWriter, request *http.Request) {
 	item, err := h.providers.SetDefaultModel(
@@ -352,4 +366,17 @@ func providerPreviewRequestInvalidFailure() handlershared.FailureSpec {
 			Action: "provider.review_import_source",
 		},
 	}
+}
+
+func providerMutationErrorStatus(err error) int {
+	switch {
+	case errors.Is(err, providercfg.ErrProviderNotFound), errors.Is(err, providercfg.ErrModelNotFound):
+		return http.StatusNotFound
+	case errors.Is(err, providercfg.ErrConfigurationVersionConflict):
+		return http.StatusConflict
+	}
+	if err != nil && strings.Contains(err.Error(), "只有管理员") {
+		return http.StatusForbidden
+	}
+	return http.StatusBadRequest
 }

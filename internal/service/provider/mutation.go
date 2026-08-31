@@ -93,7 +93,7 @@ func (s *Service) updateAtVersion(
 	input UpdateInput,
 	expectedVersion *int64,
 ) (*Record, error) {
-	normalizedProvider, err := NormalizeProvider(provider, false)
+	normalizedProvider, err := normalizeProviderReference(provider, false)
 	if err != nil {
 		return nil, invalidInputError(err)
 	}
@@ -128,7 +128,7 @@ func (s *Service) PatchAtVersion(
 	input PatchInput,
 	expectedVersion int64,
 ) (*Record, error) {
-	normalizedProvider, err := NormalizeProvider(provider, false)
+	normalizedProvider, err := normalizeProviderReference(provider, false)
 	if err != nil {
 		return nil, invalidInputError(err)
 	}
@@ -210,7 +210,7 @@ func (s *Service) UpdatePublic(ctx context.Context, provider string, input Updat
 
 // Delete 删除 Provider 配置；强制删除会保留显式绑定，并让运行时暂时回退到用户默认模型。
 func (s *Service) Delete(ctx context.Context, provider string, input DeleteInput) (*DeleteResult, error) {
-	normalizedProvider, err := NormalizeProvider(provider, false)
+	normalizedProvider, err := normalizeProviderReference(provider, false)
 	if err != nil {
 		return nil, invalidInputError(err)
 	}
@@ -234,7 +234,7 @@ func (s *Service) DeleteAtVersion(
 	input DeleteInput,
 	expectedVersion int64,
 ) (*DeleteResult, error) {
-	normalizedProvider, err := NormalizeProvider(provider, false)
+	normalizedProvider, err := normalizeProviderReference(provider, false)
 	if err != nil {
 		return nil, invalidInputError(err)
 	}
@@ -319,7 +319,7 @@ func providerBecameUnavailable(current providerstore.Entity, updated providersto
 
 // Get 读取单个 Provider 配置。
 func (s *Service) Get(ctx context.Context, provider string) (*Record, error) {
-	normalizedProvider, err := NormalizeProvider(provider, false)
+	normalizedProvider, err := normalizeProviderReference(provider, false)
 	if err != nil {
 		return nil, err
 	}
@@ -361,7 +361,7 @@ func (s *Service) Get(ctx context.Context, provider string) (*Record, error) {
 //
 // 即使当前认证主体是 owner/admin，也不会回退到同名公共订阅 Provider。
 func (s *Service) GetPrivate(ctx context.Context, provider string) (*Record, error) {
-	normalizedProvider, err := NormalizeProvider(provider, false)
+	normalizedProvider, err := normalizeProviderReference(provider, false)
 	if err != nil {
 		return nil, err
 	}

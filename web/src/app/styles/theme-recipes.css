@@ -9,6 +9,86 @@
 
 /* 共享配方层只负责“材质语法”，业务组件只能组合这些规则，不再自己发明玻璃写法。 */
 @layer components {
+  @keyframes nexus-live-tool-text-flow {
+    from {
+      background-position: 120% 50%;
+    }
+
+    to {
+      background-position: -120% 50%;
+    }
+  }
+
+  .nexus-live-tool-text {
+    color: var(--text-muted);
+  }
+
+  @supports ((background-clip: text) or (-webkit-background-clip: text)) {
+    .nexus-live-tool-text {
+      animation: nexus-live-tool-text-flow 2.2s linear infinite;
+      background-image: linear-gradient(
+        90deg,
+        var(--text-soft) 20%,
+        var(--text-strong) 50%,
+        var(--text-soft) 80%
+      );
+      background-position: 120% 50%;
+      background-repeat: repeat-x;
+      background-size: 240% 100%;
+      background-clip: text;
+      color: transparent;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .nexus-live-tool-text {
+      animation: none;
+      background: none;
+      color: var(--text-muted);
+      -webkit-text-fill-color: currentColor;
+    }
+  }
+
+  [data-message-detail-scroll][data-message-detail-fade="both"] {
+    mask-image: linear-gradient(to bottom, transparent 0, #000 1.5rem, #000 calc(100% - 1.5rem), transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 1.5rem, #000 calc(100% - 1.5rem), transparent 100%);
+  }
+
+  [data-message-detail-scroll][data-message-detail-fade="bottom"] {
+    mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 1.5rem), transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 1.5rem), transparent 100%);
+  }
+
+  [data-message-detail-scroll][data-message-detail-fade="top"] {
+    mask-image: linear-gradient(to bottom, transparent 0, #000 1.5rem, #000 100%);
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 1.5rem, #000 100%);
+  }
+
+  /* 外层详情滚动时固定当前展开项标题；标题本身取代顶部虚化来遮住已滚过内容。 */
+  [data-message-detail-scroll] [data-message-detail-sticky-header="true"] {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--surface-popover-background);
+  }
+
+  [data-message-detail-scroll]:has([data-message-detail-sticky-header="true"])[data-message-detail-fade="both"] {
+    mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 1.5rem), transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 1.5rem), transparent 100%);
+  }
+
+  [data-message-detail-scroll]:has([data-message-detail-sticky-header="true"])[data-message-detail-fade="top"] {
+    mask-image: none;
+    -webkit-mask-image: none;
+  }
+
+  /* runtime 终态后 Markdown 仍可能排空平滑输出；正文完全展示前不提前露出页脚。 */
+  .nexus-chat-assistant:has([data-markdown-streaming]) > .nexus-chat-message-stats {
+    display: none;
+  }
+
   /* 表面原语只保留少数稳定语义，其他组件统一映射回来，避免继续堆近义 recipe。
    * 1. desktop-rail：桌面侧栏底面
    * 2. surface-panel：主面板
@@ -1373,6 +1453,23 @@
   .nexus-chat-feed .nexus-markdown-body .markdown-list-item::marker {
     color: var(--text-default);
     font-weight: 400;
+  }
+
+  /* Thought 明细属于工具审计内容，不沿用消息正文的大字号排版。 */
+  .nexus-markdown-body.nexus-message-detail-markdown {
+    gap: 0.5rem;
+    font-size: var(--text-xs);
+    line-height: 1rem;
+  }
+
+  .nexus-markdown-body.nexus-message-detail-markdown [data-markdown-anchor],
+  .nexus-markdown-body.nexus-message-detail-markdown .markdown-list-item {
+    line-height: 1rem;
+  }
+
+  .nexus-markdown-body.nexus-message-detail-markdown :is(h1, h2, h3, h4, h5, h6)[data-markdown-anchor] {
+    font-size: inherit;
+    line-height: 1rem;
   }
 
   /* 工作区文件是次级阅读面板，使用紧凑但不拥挤的独立字号与段落节奏。 */

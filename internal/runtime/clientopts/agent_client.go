@@ -100,6 +100,8 @@ type AgentClientOptionsInput struct {
 	// ConfigurationEnv 只接受宿主按当前 runtime round 签发的 nexuscfg broker capability。
 	ConfigurationEnv           map[string]string
 	AgentSDKDiagnosticsEnabled bool
+	AutoMemoryDisabled         bool
+	AutoDreamDisabled          bool
 	ToolSearchEnabled          bool
 	WebSearch                  WebSearchConfig
 	RuntimeIsolationMode       string
@@ -165,6 +167,8 @@ func BuildAgentClientOptionsWithConfig(
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, visionRuntimeEnvFromConfig(visionConfig))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, BuildWebSearchRuntimeEnv(effectiveRuntimeKind, input.WebSearch))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, input.ExtraEnv)
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, BuildAutoMemoryRuntimeEnv(effectiveRuntimeKind, input.AutoMemoryDisabled))
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, BuildAutoDreamRuntimeEnv(effectiveRuntimeKind, input.AutoDreamDisabled))
 	// 身份与作用域是宿主授权事实，不能交给调用方的 ExtraEnv 覆盖。
 	// 必须在所有可配置环境合并后再次写入，确保 session metadata 和下游
 	// hook 始终绑定同一个 owner；nexusctl 仍只对主智能体开放，nexuscfg 则

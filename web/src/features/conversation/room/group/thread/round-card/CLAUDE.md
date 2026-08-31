@@ -18,7 +18,7 @@
 - 卡片与 Thread 选择态以 `agent_round_id` 隔离；同 Agent 的历史执行与当前执行不得共用 React key 或展开态。
 - 单目标 guide 优先按持久化的消费方 `agent_round_id` 归卡；只有旧历史缺少该身份时才按时间兼容。
 - Agent 卡片只按稳定 `display_order` / slot 顺序排列；pending、streaming、terminal 状态变化以及 guide 到达都不得移动已展示卡片。
-- 公区不显示 thinking、普通工具、MCP/CLI 调用或可展开过程栏，只在原有活动位置用统一主色显示一条持续更新的 ToolUseSummary（无摘要时回退“正在思考/正在回复”）；公开最终回复与 Composer-owned 人工介入保持独立，具体过程进入 Thread 后再按现有折叠逻辑查看，同一执行外壳内的内容增长不得依赖滚动层补救组件整体替换。
+- 公区不显示 thinking、工具详情、MCP/CLI 调用或可展开过程栏；存在未收口工具时，原有活动位置复用 Thread 工具组头部的图标栈与当前工具标题，不读取 Provider ToolUseSummary，工具收口后回退“正在思考/正在回复”。公开最终回复与 Composer-owned 人工介入保持独立，具体过程进入 Thread 后再按现有折叠逻辑查看，同一执行外壳内的内容增长不得依赖滚动层补救组件整体替换。
 - 公区终态过滤 thinking；成功完成且明确无公开回复的槽位不进入主 Feed，内部过程仍保留在会话数据中，不得用空卡片暴露编排噪音。
 - 公区是 Agent 最终答复的唯一展示面；Thread 检查器只保留思考、工具和系统过程，不重复用户输入、身份元数据或最终答复。
 - 每个 pending interaction 只由 Composer 提供操作面；Agent 槽位与终态正文不得重复渲染结构化问题或批准按钮。

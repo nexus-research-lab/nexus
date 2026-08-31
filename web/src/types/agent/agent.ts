@@ -44,6 +44,7 @@ export interface Agent {
     status: string;
     avatar?: string | null;
     description?: string | null;
+    business_tags?: string[] | null;
     vibe_tags?: string[] | null;
     skills_count?: number | null;
     /** 仅在 Room member 投影中存在；全局 Agent 本身不拥有此状态。 */
@@ -93,6 +94,7 @@ export interface ApiAgent {
     status: string;
     avatar?: string | null;
     description?: string | null;
+    business_tags?: string[] | null;
     vibe_tags?: string[] | null;
     skills_count?: number | null;
 }
@@ -156,6 +158,7 @@ export interface CreateAgentParams {
     avatar?: string;
     description?: string;
     profile_template?: string;
+    business_tags?: string[];
     vibe_tags?: string[];
     creation_request_id?: string;
 }
@@ -185,6 +188,7 @@ export interface UpdateAgentParams {
     options?: Partial<AgentOptions>;
     avatar?: string;
     description?: string;
+    business_tags?: string[];
     vibe_tags?: string[];
 }
 
@@ -192,6 +196,7 @@ export interface AgentIdentityDraft {
     avatar?: string;
     description?: string;
     profile_template?: string;
+    business_tags?: string[];
     vibe_tags?: string[];
 }
 

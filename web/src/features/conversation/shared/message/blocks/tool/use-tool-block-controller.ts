@@ -20,7 +20,6 @@ import { buildToolBlockViewModel } from "./tool-block-model";
 import type { ToolBlockProps } from "./tool-block-types";
 
 export function useToolBlockController({
-  defaultExpanded = false,
   endTime,
   interactionDisabled = false,
   interactionDisabledReason,
@@ -32,7 +31,6 @@ export function useToolBlockController({
   toolUse,
 }: Pick<
   ToolBlockProps,
-  | "defaultExpanded"
   | "endTime"
   | "interactionDisabled"
   | "interactionDisabledReason"
@@ -44,7 +42,7 @@ export function useToolBlockController({
   | "toolUse"
 >) {
   const localization = useI18n();
-  const expansion = useScrollAnchoredState(defaultExpanded);
+  const expansion = useScrollAnchoredState(false);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] =
     useResettableState(-1, permissionRequest?.request_id ?? null);
   const { copied, copy } = useCopyToClipboard();
@@ -85,8 +83,6 @@ export function useToolBlockController({
   const deny = useCallback(() => {
     permissionRequest?.on_deny();
   }, [permissionRequest]);
-  const permissionActions = projectPermissionActions(permissionRequest, allow, deny);
-
   return {
     anchorRef: expansion.anchorRef,
     header: {
@@ -95,9 +91,9 @@ export function useToolBlockController({
       interactionDisabledReason,
       isExpanded: expansion.isOpen,
       model,
-      onAllow: permissionActions.onAllow,
+      onAllow: permissionRequest ? allow : undefined,
       onCopyResult: copyResult,
-      onDeny: permissionActions.onDeny,
+      onDeny: permissionRequest ? deny : undefined,
       onToggle: expansion.toggle,
     },
     isExpanded: expansion.isOpen,
@@ -139,22 +135,4 @@ function getSelectedPermissionUpdates(
 ): PermissionUpdate[] | undefined {
   const selected = suggestions?.[selectedIndex];
   return selected ? [selected] : undefined;
-}
-
-function projectPermissionActions(
-  permissionRequest: ToolBlockProps["permissionRequest"],
-  onAllow: () => void,
-  onDeny: () => void,
-) {
-  const rules = [
-    {
-      matches: Boolean(permissionRequest),
-      value: { onAllow, onDeny },
-    },
-    {
-      matches: true,
-      value: { onAllow: undefined, onDeny: undefined },
-    },
-  ];
-  return rules.find((rule) => rule.matches)!.value;
 }

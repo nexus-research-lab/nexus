@@ -1,7 +1,7 @@
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { getUiChoiceClassName } from "@/shared/ui/form/choice-styles";
 
-import { ToolBlockDetailScroll } from "./tool-block-detail";
+import { MessageDetailScroll } from "../../ui/message-rail";
 import type {
   ToolBlockViewModel,
   ToolPermissionRequest,
@@ -32,11 +32,11 @@ export function ToolBlockPermission({
           <div className="text-2xs font-semibold uppercase tracking-[0.14em] text-(--text-soft)">
             {model.primaryInputDetail.label}
           </div>
-          <ToolBlockDetailScroll>
+          <MessageDetailScroll>
             <pre className="message-cjk-font whitespace-pre-wrap break-all text-compact leading-5 text-(--text-default)">
               {model.primaryInputDetail.value}
             </pre>
-          </ToolBlockDetailScroll>
+          </MessageDetailScroll>
         </div>
       ) : null}
 

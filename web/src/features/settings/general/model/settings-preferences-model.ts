@@ -278,6 +278,12 @@ function normalizeRuntimeSettings(
     nxs: {
       ...fallback?.nxs,
       ...settings?.nxs,
+      auto_memory_enabled: settings?.nxs?.auto_memory_enabled
+        ?? fallback?.nxs?.auto_memory_enabled
+        ?? true,
+      auto_dream_enabled: settings?.nxs?.auto_dream_enabled
+        ?? fallback?.nxs?.auto_dream_enabled
+        ?? true,
       tool_search: settings?.nxs?.tool_search
         ?? fallback?.nxs?.tool_search
         ?? false,

@@ -1,5 +1,5 @@
 // INPUT: Room round/slot 生命周期、原子 Slash 输入、structured WorkBinding/ReviewBinding、运行时消息与并发状态变更。
-// OUTPUT: 固定权限世代、trusted dispatch identity、稳定 owner/root usage scope、原子 runtime 输入、Work/Goal 绑定、结算屏障、游标与最终回复快照。
+// OUTPUT: 固定权限世代、trusted dispatch identity、稳定 owner/root usage scope、原子 runtime 输入、Work/Goal 绑定、结算屏障、游标、工具回执与最终回复快照。
 // POS: Room 实时执行过程的内存状态与权限能力模型。
 package realtime
 
@@ -182,15 +182,16 @@ type roomSlotCursorState struct {
 
 // roomSlotDeliveryState 负责输入队列、回复路由和输出投影。
 type roomSlotDeliveryState struct {
-	mu                     sync.Mutex
-	replyRoute             protocol.RoomReplyRoute
-	replySourceMessage     string
-	handoffID              string
-	queuedInputs           []roomQueuedInput
-	suppressOutput         bool
-	publicMessagePublished bool
-	noReplyCandidate       bool
-	pendingStream          []protocol.EventMessage
+	mu                          sync.Mutex
+	replyRoute                  protocol.RoomReplyRoute
+	replySourceMessage          string
+	handoffID                   string
+	queuedInputs                []roomQueuedInput
+	suppressOutput              bool
+	publicMessagePublished      bool
+	publicMessageReceiptPending bool
+	noReplyCandidate            bool
+	pendingStream               []protocol.EventMessage
 }
 
 // roomSlotConversationState 只保存 slot 与 conversation shard 的关联，避免
@@ -1029,6 +1030,7 @@ func (slot *activeRoomSlot) markPublicMessagePublished() {
 	}
 	slot.mutable.delivery.mu.Lock()
 	slot.mutable.delivery.publicMessagePublished = true
+	slot.mutable.delivery.publicMessageReceiptPending = true
 	slot.mutable.delivery.suppressOutput = true
 	slot.mutable.delivery.pendingStream = nil
 	slot.mutable.delivery.noReplyCandidate = false
@@ -1052,6 +1054,13 @@ func (slot *activeRoomSlot) eventsReadyForEmission(event protocol.EventMessage) 
 	defer slot.mutable.delivery.mu.Unlock()
 	if slot.mutable.delivery.suppressOutput {
 		slot.mutable.delivery.pendingStream = nil
+		if slot.mutable.delivery.publicMessageReceiptPending &&
+			event.EventType == protocol.EventTypeMessage &&
+			len(messagepkg.AssistantToolResults(protocol.Message(event.Data))) > 0 {
+			slot.mutable.delivery.publicMessageReceiptPending = false
+			event.DeliveryMode = protocol.DeliveryModeEphemeral
+			return []protocol.EventMessage{event}
+		}
 		return nil
 	}
 	if slot.mutable.delivery.noReplyCandidate {

@@ -1,6 +1,6 @@
-// INPUT: owner、Agent 与 ingress/Automation 使用的结构化外部 session key。
-// OUTPUT: 当前精确 active pairing grant，或 fail-closed 的撤销/越权错误。
-// POS: IM pairing 到 ingress 能力提升及 Automation create/delivery/retry 的共用实时授权边界。
+// INPUT: owner、Agent、结构化外部 Session 与主动消息正文。
+// OUTPUT: active-paired 真实私聊目录、主动投递结果或 fail-closed 的撤销/越权错误。
+// POS: IM pairing 到 ingress、Agent 通讯和 Automation 的共用实时授权边界。
 package channels
 
 import (
@@ -15,18 +15,112 @@ import (
 // ErrExternalSessionGrantUnavailable 表示外部会话当前无法证明持有精确 active pairing。
 var ErrExternalSessionGrantUnavailable = errors.New("external IM pairing grant is unavailable")
 
+// AgentExternalSession 是当前 Agent 可安全寻址的 active-paired 外部私聊。
+type AgentExternalSession struct {
+	SessionKey string `json:"session_key"`
+	Channel    string `json:"channel"`
+	Label      string `json:"label,omitempty"`
+	AgentID    string `json:"agent_id"`
+}
+
 func unavailableExternalSessionGrant(reason string) error {
 	return fmt.Errorf("%w: %s", ErrExternalSessionGrantUnavailable, reason)
 }
 
-// ValidateAutomationDeliveryGrant 验证定时任务此刻仍持有目标 IM 会话的配对授权。
-func (s *ControlService) ValidateAutomationDeliveryGrant(
+// ListAgentExternalSessions 列出同 owner、同 Agent 的 active-paired 真实私聊。
+// 返回结构化 Session，而不是裸 recipient，后续发送仍会再次校验 pairing。
+func (s *ControlService) ListAgentExternalSessions(
+	ctx context.Context,
+	ownerUserID string,
+	agentID string,
+	channelType string,
+) ([]AgentExternalSession, error) {
+	channelType = normalizeIMChannelType(channelType)
+	if channelType != "" {
+		if _, ok := channelCatalogByType(channelType); !ok ||
+			channelType == ChannelTypeInternal || channelType == ChannelTypeWebSocket {
+			return nil, unavailableExternalSessionGrant("channel is not an external IM transport")
+		}
+	}
+	rows, err := s.listPairingRows(ctx, normalizeChannelOwnerUserID(ownerUserID), PairingQuery{
+		ChannelType: channelType,
+		Status:      PairingStatusActive,
+		AgentID:     strings.TrimSpace(agentID),
+	})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]AgentExternalSession, 0, len(rows))
+	for _, row := range rows {
+		if protocol.NormalizeSessionChatType(row.ChatType) != protocol.RoomTypeDM {
+			continue
+		}
+		sessionKey := protocol.BuildAgentAccountSessionKey(
+			row.AgentID,
+			protocol.NormalizeSessionKeyChannelSegment(row.ChannelType),
+			row.ChatType,
+			row.AccountID,
+			row.ExternalRef,
+			row.ThreadID,
+		)
+		stored, resolveErr := s.resolveDeliverySession(ctx, sessionKey)
+		if resolveErr != nil {
+			return nil, resolveErr
+		}
+		if stored == nil || strings.TrimSpace(stored.SessionKey) != sessionKey ||
+			strings.TrimSpace(stored.AgentID) != strings.TrimSpace(agentID) {
+			continue
+		}
+		label := strings.TrimSpace(nullStringValue(row.ExternalName))
+		if label == "" {
+			label = strings.TrimSpace(stored.Title)
+		}
+		result = append(result, AgentExternalSession{
+			SessionKey: sessionKey,
+			Channel:    row.ChannelType,
+			Label:      label,
+			AgentID:    row.AgentID,
+		})
+	}
+	return result, nil
+}
+
+// SendAgentExternalSessionMessage 向同一 Agent 已配对的真实外部私聊发送消息。
+func (s *ControlService) SendAgentExternalSessionMessage(
 	ctx context.Context,
 	ownerUserID string,
 	agentID string,
 	sessionKey string,
-) error {
-	return s.ValidateExternalSessionGrant(ctx, ownerUserID, agentID, sessionKey)
+	text string,
+) (DeliveryResult, error) {
+	ownerUserID = normalizeChannelOwnerUserID(ownerUserID)
+	agentID = strings.TrimSpace(agentID)
+	sessionKey = strings.TrimSpace(sessionKey)
+	if strings.TrimSpace(text) == "" {
+		return DeliveryResult{}, errors.New("external session message content is empty")
+	}
+	if err := s.ValidateExternalSessionGrant(ctx, ownerUserID, agentID, sessionKey); err != nil {
+		return DeliveryResult{}, err
+	}
+	stored, err := s.resolveDeliverySession(ctx, sessionKey)
+	if err != nil {
+		return DeliveryResult{}, err
+	}
+	if stored == nil || strings.TrimSpace(stored.SessionKey) != sessionKey ||
+		strings.TrimSpace(stored.AgentID) != agentID {
+		return DeliveryResult{}, unavailableExternalSessionGrant("session is not available")
+	}
+	return s.router.deliverAgentSessionMessage(ctx, agentID, text, sessionKey)
+}
+
+func (s *ControlService) resolveDeliverySession(
+	ctx context.Context,
+	sessionKey string,
+) (*protocol.Session, error) {
+	if s == nil || s.router == nil {
+		return nil, errors.New("external session delivery is not configured")
+	}
+	return s.router.resolveDeliverySession(ctx, sessionKey)
 }
 
 // ValidateExternalSessionGrant 验证结构化外部会话仍精确绑定到当前 owner 与 Agent。

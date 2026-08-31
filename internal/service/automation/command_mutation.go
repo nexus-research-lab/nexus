@@ -471,6 +471,8 @@ func (s *Service) runtimeCommandCreateInput(
 	input automationdomain.AutomationCommandInput,
 	requestID string,
 ) (automationdomain.CreateJobInput, automationdomain.AutomationCommandInput, error) {
+	input.DeliveryChannel = strings.TrimSpace(input.DeliveryChannel)
+	input.DeliverySessionKey = strings.TrimSpace(input.DeliverySessionKey)
 	agentID, err := runtimeCommandAgentID(actor, input.AgentID)
 	if err != nil {
 		return automationdomain.CreateJobInput{}, input, err
@@ -545,6 +547,8 @@ func (s *Service) runtimeCommandUpdateInput(
 	input.AgentID = strings.TrimSpace(input.AgentID)
 	input.Instruction = strings.TrimSpace(input.Instruction)
 	input.InstructionAdd = strings.TrimSpace(input.InstructionAdd)
+	input.DeliveryChannel = strings.TrimSpace(input.DeliveryChannel)
+	input.DeliverySessionKey = strings.TrimSpace(input.DeliverySessionKey)
 	if input.RunID != "" && !input.CancelActiveRun {
 		return automationdomain.UpdateJobInput{}, input, errors.New("run_id 只能与 cancel_active_run=true 同时使用")
 	}
@@ -614,7 +618,7 @@ func (s *Service) runtimeCommandUpdateInput(
 	}
 	targetChanged := strings.TrimSpace(input.ContextMode) != "" || strings.TrimSpace(input.ExecutionMode) != "" ||
 		strings.TrimSpace(input.SelectedSessionKey) != "" || strings.TrimSpace(input.NamedSessionKey) != "" || update.AgentID != nil
-	deliveryChanged := input.DeliverResult != nil || strings.TrimSpace(input.ReplyMode) != "" ||
+	deliveryChanged := input.DeliverResult != nil || strings.TrimSpace(input.DeliverySessionKey) != "" || strings.TrimSpace(input.ReplyMode) != "" ||
 		strings.TrimSpace(input.SelectedReplySessionKey) != "" || strings.TrimSpace(input.ReplySessionKey) != "" || update.AgentID != nil
 	if targetChanged || deliveryChanged {
 		target, delivery, err := runtimeCommandTargets(actor, input)

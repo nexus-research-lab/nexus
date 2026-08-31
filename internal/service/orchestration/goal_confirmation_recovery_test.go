@@ -10,6 +10,17 @@ import (
 	orchestrationstore "github.com/nexus-research-lab/nexus/internal/storage/orchestration"
 )
 
+type capturingExecutionInvalidationSink struct {
+	invalidations []ExecutionInvalidation
+}
+
+func (s *capturingExecutionInvalidationSink) InvalidateExecution(
+	_ context.Context,
+	invalidation ExecutionInvalidation,
+) {
+	s.invalidations = append(s.invalidations, invalidation)
+}
+
 func TestReconcileGoalConfirmationsSurvivesServiceRestartAndIsIdempotent(t *testing.T) {
 	snapshot := executionSnapshot()
 	snapshot.Execution.GoalID = "goal-recovery"

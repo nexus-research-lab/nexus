@@ -11,6 +11,7 @@ import (
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
+	"github.com/nexus-research-lab/nexus/internal/service/channels"
 	communicationsvc "github.com/nexus-research-lab/nexus/internal/service/communication"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 )
@@ -108,6 +109,13 @@ func (h *Handlers) writeCommunicationFailure(
 		spec.Category = protocol.FailureCategoryNotFound
 		spec.Effect = protocol.FailureEffectNotApplied
 		spec.Detail = "联系人或会话不存在，本次操作没有执行"
+		spec.Resolution.Action = "communication.refresh_contacts"
+	case errors.Is(err, channels.ErrExternalSessionGrantUnavailable):
+		status = http.StatusForbidden
+		spec.Code = "communication.external_session_unavailable"
+		spec.Category = protocol.FailureCategoryAuthorization
+		spec.Effect = protocol.FailureEffectNotApplied
+		spec.Detail = "外部私聊已解绑或不属于当前 Agent，本次操作没有执行"
 		spec.Resolution.Action = "communication.refresh_contacts"
 	case errors.As(err, &inputError):
 		status = http.StatusBadRequest

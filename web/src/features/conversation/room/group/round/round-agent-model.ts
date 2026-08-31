@@ -555,10 +555,40 @@ export function buildRoomAgentRoundEntries(
     pendingPermissions,
     executionStates,
   );
-  return Array.from(index.entryIds).flatMap((entryId) => {
+  const entries = Array.from(index.entryIds).flatMap((entryId) => {
     const entry = buildRoomAgentRoundEntry(index, entryId);
     return entry ? [entry] : [];
   }).sort(compareAgentRoundDisplayOrder);
+  return settleSupersededToolTurns(entries);
+}
+
+function settleSupersededToolTurns(
+  entries: RoomAgentRoundEntry[],
+): RoomAgentRoundEntry[] {
+  const laterExecutions = new Set<string>();
+  let changed = false;
+  const next = [...entries];
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index];
+    const roundId = entry.pending_slot?.round_id
+      ?? entry.assistant_messages.at(-1)?.round_id;
+    if (!roundId) {
+      continue;
+    }
+    const key = `${roundId}\u001f${entry.agent_id}`;
+    const lastMessage = entry.assistant_messages.at(-1);
+    if (
+      laterExecutions.has(key)
+      && !entry.result_summary
+      && lastMessage?.stop_reason === "tool_use"
+      && entry.status !== "cancelled"
+    ) {
+      next[index] = { ...entry, status: "cancelled" };
+      changed = true;
+    }
+    laterExecutions.add(key);
+  }
+  return changed ? next : entries;
 }
 
 export function getRoomAgentRoundEntry(

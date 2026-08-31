@@ -21,10 +21,15 @@ const (
 	actionOpenApp     = "open_app"
 )
 
-// directorySessionLister 刻意只暴露持久 Session metadata 目录。
-// Launcher 不持有历史读取接口，避免首屏随单个超长会话退化为全量扫描。
-type directorySessionLister interface {
+// directorySessionReader 提供持久 Session 目录与有界最新消息页。
+// Launcher 只读取最近两个 round，不能退回完整历史扫描。
+type directorySessionReader interface {
 	ListDirectorySessions(context.Context) ([]protocol.Session, error)
+	GetSessionMessagesPage(
+		context.Context,
+		string,
+		sessionsvc.MessagePageRequest,
+	) (*protocol.MessagePage, error)
 }
 
 // Service 提供 Launcher 查询和推荐能力。
@@ -32,7 +37,7 @@ type Service struct {
 	config       config.Config
 	agentService *agentsvc.Service
 	roomService  *roomsvc.Service
-	session      directorySessionLister
+	session      directorySessionReader
 }
 
 // NewService 创建 Launcher 服务。

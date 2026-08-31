@@ -91,6 +91,18 @@ export function isAtScrollBottom(element: ScrollMetrics): boolean {
   );
 }
 
+export type ScrollFade = "both" | "bottom" | "none" | "top";
+
+export function resolveScrollFade(element: ScrollMetrics): ScrollFade {
+  if (!hasScrollableOverflow(element)) {
+    return "none";
+  }
+  if (element.scrollTop <= SCROLL_OVERFLOW_TOLERANCE_PX) {
+    return "bottom";
+  }
+  return isAtScrollBottom(element) ? "top" : "both";
+}
+
 /**
  * live layout epoch 覆盖正文、工具调用、占位 shell 和权限状态的连续变化。
  * 只要任一来源仍可能改变当前 Feed 的几何结构，就暂不结算高度回缩。

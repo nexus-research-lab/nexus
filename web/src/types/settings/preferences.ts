@@ -33,6 +33,8 @@ export interface ModelSelectionPreference {
 }
 
 export interface RuntimeSettingsForKind {
+  auto_memory_enabled?: boolean;
+  auto_dream_enabled?: boolean;
   tool_search?: boolean;
 }
 

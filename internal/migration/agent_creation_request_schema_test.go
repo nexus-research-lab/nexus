@@ -41,7 +41,7 @@ func TestPostgresAgentCreationRequestMigrationHasOwnerScopedKeys(t *testing.T) {
 	path := filepath.Join(
 		filepath.Dir(providerRecoveryMigrationDir(t)),
 		"postgres",
-		"00125_agent_creation_requests.sql",
+		"00126_agent_creation_requests.sql",
 	)
 	body, err := os.ReadFile(path)
 	if err != nil {

@@ -33,13 +33,22 @@ type automationCommandFixture struct {
 
 type allowAutomationDeliveryGrant struct{}
 
-func (allowAutomationDeliveryGrant) ValidateAutomationDeliveryGrant(
+func (allowAutomationDeliveryGrant) ValidateExternalSessionGrant(
 	context.Context,
 	string,
 	string,
 	string,
 ) error {
 	return nil
+}
+
+func (allowAutomationDeliveryGrant) ListAgentExternalSessions(
+	context.Context,
+	string,
+	string,
+	string,
+) ([]channels.AgentExternalSession, error) {
+	return nil, nil
 }
 
 func newAutomationCommandFixture(t *testing.T, resultText string) automationCommandFixture {

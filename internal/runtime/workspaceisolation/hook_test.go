@@ -568,7 +568,7 @@ func TestWorkspacePolicyHookAllowsMainAgentControlCLIs(t *testing.T) {
 	}
 }
 
-func TestWorkspacePolicyHookTerminatesForbiddenNexusctl(t *testing.T) {
+func TestWorkspacePolicyHookReturnsForbiddenNexusctlToModel(t *testing.T) {
 	workspace := t.TempDir()
 	for _, mode := range []Mode{ModeAudit, ModeEnforce} {
 		t.Run(string(mode), func(t *testing.T) {
@@ -587,10 +587,33 @@ func TestWorkspacePolicyHookTerminatesForbiddenNexusctl(t *testing.T) {
 				output.SpecificOutput.PermissionDecision != sdkpermission.BehaviorDeny {
 				t.Fatalf("普通 Agent nexusctl 应被拒绝: %#v", output)
 			}
-			if output.Continue == nil || *output.Continue || output.StopReason == "" {
-				t.Fatalf("控制面越界应终止当前 runtime turn: %#v", output)
+			if output.Continue != nil || output.StopReason != "" {
+				t.Fatalf("普通 Agent nexusctl 拒绝应允许模型同轮修正: %#v", output)
+			}
+			if output.SpecificOutput.PermissionDecisionReason != ordinaryAgentNexusctlDenial {
+				t.Fatalf("普通 Agent 应收到替代能力提示: %#v", output)
 			}
 		})
+	}
+}
+
+func TestWorkspacePolicyHookTerminatesScopeOverride(t *testing.T) {
+	workspace := t.TempDir()
+	callback := workspacePolicyCallback(ModeEnforce, testPolicy(t, workspace))
+	output, err := callback(context.Background(), sdkhook.Input{
+		CWD:      workspace,
+		ToolName: "Bash",
+		ToolInput: map[string]any{
+			"command": "NEXUSCFG_BROKER_URL=http://127.0.0.1:9 nexuscfg inspect",
+		},
+	}, "scope-override")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if output.SpecificOutput == nil ||
+		output.SpecificOutput.PermissionDecision != sdkpermission.BehaviorDeny ||
+		output.Continue == nil || *output.Continue || output.StopReason == "" {
+		t.Fatalf("显式 capability 覆盖仍应终止当前 runtime turn: %#v", output)
 	}
 }
 

@@ -370,6 +370,7 @@ function buildIdentityProps({
   return {
     agentId: source.kind === "edit" ? source.agentId : undefined,
     avatar: draft.avatar,
+    businessTags: draft.businessTags,
     defaultModel: providerOptions.defaultModel,
     defaultProvider: providerOptions.defaultProvider,
     description: draft.description,
@@ -378,6 +379,7 @@ function buildIdentityProps({
     model: isMain ? "" : draft.model,
     nameValidation: validation.result,
     onAvatarChange: (value: string) => updateField("avatar", value),
+    onBusinessTagsChange: (value: string[]) => updateField("businessTags", value),
     onDescriptionChange: (value: string) => updateField("description", value),
     onProfileTemplateChange: (value: string) => updateField("profileTemplate", value),
     onModelChange: (value: string) => updateField("model", value),

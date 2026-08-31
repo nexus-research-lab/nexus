@@ -16,8 +16,6 @@ import (
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
 )
 
-const goalContextualInputName = "goal"
-
 func goalContextualInputs(contextText string, goalID string, sessionKey string) []runtimectx.ContextualInputBlock {
 	contextText = strings.TrimSpace(contextText)
 	if contextText == "" {
@@ -31,7 +29,12 @@ func goalContextualInputs(contextText string, goalID string, sessionKey string) 
 		metadata["session_key"] = sessionKey
 	}
 	return []runtimectx.ContextualInputBlock{
-		runtimectx.NewContextualInputBlock(goalContextualInputName, contextText, 0, metadata),
+		runtimectx.NewContextualInputBlock(
+			runtimectx.ContextualInputNameGoal,
+			contextText,
+			runtimectx.ContextualInputPriorityGoal,
+			metadata,
+		),
 	}
 }
 
@@ -175,7 +178,7 @@ func (s *Service) executionContextualInputs(
 		runtimectx.NewContextualInputBlock(
 			runtimectx.ContextualInputNameExecution,
 			content,
-			0,
+			runtimectx.ContextualInputPriorityExecution,
 			nil,
 		),
 	}, nil

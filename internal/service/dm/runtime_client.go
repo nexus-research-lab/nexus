@@ -393,6 +393,8 @@ func (s *Service) ensureClient(
 		AgentMCPServers:            agentValue.Options.MCPServers,
 		ConfigurationEnv:           configurationRuntimeEnv,
 		AgentSDKDiagnosticsEnabled: runtimeSelection.AgentSDKDiagnosticsEnabled,
+		AutoMemoryDisabled:         runtimeSelection.AutoMemoryDisabled,
+		AutoDreamDisabled:          runtimeSelection.AutoDreamDisabled,
 		ToolSearchEnabled:          runtimeSelection.ToolSearchEnabled,
 		WebSearch:                  runtimeSelection.WebSearch,
 		RuntimeIsolationMode:       s.config.RuntimeIsolationMode,

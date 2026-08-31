@@ -12,19 +12,20 @@ const (
 )
 
 const (
-	AutomationCommandOperationList          = "list"
-	AutomationCommandOperationGet           = "get"
-	AutomationCommandOperationRuns          = "runs"
-	AutomationCommandOperationEvents        = "events"
-	AutomationCommandOperationReport        = "report"
-	AutomationCommandOperationHeartbeat     = "heartbeat"
-	AutomationCommandOperationCreate        = "create"
-	AutomationCommandOperationUpdate        = "update"
-	AutomationCommandOperationDelete        = "delete"
-	AutomationCommandOperationRun           = "run"
-	AutomationCommandOperationRetryDelivery = "retry_delivery"
-	AutomationCommandOperationSetHeartbeat  = "set_heartbeat"
-	AutomationCommandOperationWake          = "wake"
+	AutomationCommandOperationList            = "list"
+	AutomationCommandOperationGet             = "get"
+	AutomationCommandOperationRuns            = "runs"
+	AutomationCommandOperationEvents          = "events"
+	AutomationCommandOperationReport          = "report"
+	AutomationCommandOperationDeliveryTargets = "delivery_targets"
+	AutomationCommandOperationHeartbeat       = "heartbeat"
+	AutomationCommandOperationCreate          = "create"
+	AutomationCommandOperationUpdate          = "update"
+	AutomationCommandOperationDelete          = "delete"
+	AutomationCommandOperationRun             = "run"
+	AutomationCommandOperationRetryDelivery   = "retry_delivery"
+	AutomationCommandOperationSetHeartbeat    = "set_heartbeat"
+	AutomationCommandOperationWake            = "wake"
 )
 
 // AutomationCommandSchedule 是面向对话和 UI 的调度形状；service 会翻译成持久 Schedule。
@@ -50,16 +51,18 @@ type AutomationCommandInput struct {
 	Instruction    string `json:"instruction,omitempty"`
 	InstructionAdd string `json:"instruction_append,omitempty"`
 
-	Schedule        *AutomationCommandSchedule `json:"schedule,omitempty"`
-	ExecutionKind   string                     `json:"execution_kind,omitempty"`
-	PermissionMode  string                     `json:"permission_mode,omitempty"`
-	ContextMode     string                     `json:"context_mode,omitempty"`
-	DeliverResult   *bool                      `json:"deliver_result,omitempty"`
-	OverlapPolicy   string                     `json:"overlap_policy,omitempty"`
-	ExpiresAt       string                     `json:"expires_at,omitempty"`
-	ClearExpiresAt  bool                       `json:"clear_expires_at,omitempty"`
-	Enabled         *bool                      `json:"enabled,omitempty"`
-	CancelActiveRun bool                       `json:"cancel_active_run,omitempty"`
+	Schedule           *AutomationCommandSchedule `json:"schedule,omitempty"`
+	ExecutionKind      string                     `json:"execution_kind,omitempty"`
+	PermissionMode     string                     `json:"permission_mode,omitempty"`
+	ContextMode        string                     `json:"context_mode,omitempty"`
+	DeliverResult      *bool                      `json:"deliver_result,omitempty"`
+	DeliveryChannel    string                     `json:"delivery_channel,omitempty"`
+	DeliverySessionKey string                     `json:"delivery_session_key,omitempty"`
+	OverlapPolicy      string                     `json:"overlap_policy,omitempty"`
+	ExpiresAt          string                     `json:"expires_at,omitempty"`
+	ClearExpiresAt     bool                       `json:"clear_expires_at,omitempty"`
+	Enabled            *bool                      `json:"enabled,omitempty"`
+	CancelActiveRun    bool                       `json:"cancel_active_run,omitempty"`
 
 	// 下面字段只允许 owner main 在自己的可信 Nexus 私有 DM 使用。
 	ExecutionMode           string `json:"execution_mode,omitempty"`
@@ -82,6 +85,15 @@ type AutomationCommandInput struct {
 	AckMaxChars  *int   `json:"ack_max_chars,omitempty"`
 	Mode         string `json:"mode,omitempty"`
 	Text         string `json:"text,omitempty"`
+}
+
+// AutomationCommandDeliverySession 是宿主返回给当前 Agent 的可投递真实会话。
+// 模型只能回传 SessionKey 选择目标，不能自行拼装 channel/account/recipient。
+type AutomationCommandDeliverySession struct {
+	SessionKey string `json:"session_key"`
+	Channel    string `json:"channel"`
+	Label      string `json:"label,omitempty"`
+	AgentID    string `json:"agent_id"`
 }
 
 // AutomationCommandRequest 是 nexus CLI 到宿主 broker 的请求。

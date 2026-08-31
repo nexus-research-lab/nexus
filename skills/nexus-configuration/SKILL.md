@@ -8,7 +8,7 @@ tags: [nexus, configuration, settings, agent, room]
 
 # Nexus 配置
 
-配置命令使用宿主注入的 `NEXUSCFG_COMMAND_PATH`；示例中的 `nexuscfg` 只代表该入口。宿主绑定当前 Agent、DM/Room round 与 owner scope，服务端返回真实 `owner_main|agent_self|room_host|room_member` authority。不要声明、切换或覆盖 identity/scope，也不要使用 `nexusctl`、数据库或配置文件替代本控制面。
+配置命令使用宿主注入的 `NEXUSCFG_COMMAND_PATH`；示例中的 `nexuscfg` 只代表该入口。宿主绑定当前 Agent、DM/Room round 与 owner scope，服务端返回真实 `owner_main|agent_self|room_host|room_member` authority。不要声明、切换或覆盖 identity/scope，也不要使用 owner 控制面、数据库或配置文件替代本能力。
 
 ## 固定生命周期
 

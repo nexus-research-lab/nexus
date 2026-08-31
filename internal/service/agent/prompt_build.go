@@ -26,7 +26,6 @@ var defaultBaseSystemPrompt string
 var defaultMainAgentSystemPrompt string
 
 var defaultWorkspacePromptFiles = []string{
-	"AGENTS.md",
 	"USER.md",
 	"SOUL.md",
 	"TOOLS.md",

@@ -40,6 +40,8 @@ type Selection struct {
 	VisionModel                string
 	AgentSDKDiagnosticsEnabled bool
 	EmotionEnabled             bool
+	AutoMemoryDisabled         bool
+	AutoDreamDisabled          bool
 	ToolSearchEnabled          bool
 	WebSearch                  clientopts.WebSearchConfig
 }
@@ -88,6 +90,8 @@ func (s *Service) Resolve(ctx context.Context, request Request) (Selection, erro
 		selection.RuntimeKind = runtimeprovider.NormalizeRuntimeKind(prefs.AgentRuntimeKind)
 		selection.AgentSDKDiagnosticsEnabled = prefs.AgentSDKDiagnosticsEnabled
 		selection.EmotionEnabled = prefs.EmotionEnabled
+		selection.AutoMemoryDisabled = !prefs.AutoMemoryEnabledForRuntime(runtimeprovider.RuntimeKindNXS)
+		selection.AutoDreamDisabled = !prefs.AutoDreamEnabledForRuntime(runtimeprovider.RuntimeKindNXS)
 		selection.ToolSearchEnabled = prefs.ToolSearchEnabledForRuntime(selection.RuntimeKind)
 		selection.WebSearch = WebSearchConfigFromPreferences(prefs.WebSearch)
 		selection.BackgroundProvider = strings.TrimSpace(prefs.DefaultBackgroundModelSelection.Provider)
@@ -162,6 +166,23 @@ func WebSearchConfigFromPreferences(settings preferencessvc.WebSearchSettings) c
 		},
 	}
 	return config.WithAPIKey(settings.WebSearchAPIKey())
+}
+
+// RuntimeEnvironmentFromPreferences 把可热更新的用户运行偏好投影为 nxs 环境。
+func RuntimeEnvironmentFromPreferences(preferences preferencessvc.Preferences) map[string]string {
+	environment := clientopts.BuildWebSearchRuntimeEnv(
+		runtimeprovider.RuntimeKindNXS,
+		WebSearchConfigFromPreferences(preferences.WebSearch),
+	)
+	maps.Copy(environment, clientopts.BuildAutoMemoryRuntimeEnv(
+		runtimeprovider.RuntimeKindNXS,
+		!preferences.AutoMemoryEnabledForRuntime(runtimeprovider.RuntimeKindNXS),
+	))
+	maps.Copy(environment, clientopts.BuildAutoDreamRuntimeEnv(
+		runtimeprovider.RuntimeKindNXS,
+		!preferences.AutoDreamEnabledForRuntime(runtimeprovider.RuntimeKindNXS),
+	))
+	return environment
 }
 
 func (s *Service) resolveRuntimeConfig(

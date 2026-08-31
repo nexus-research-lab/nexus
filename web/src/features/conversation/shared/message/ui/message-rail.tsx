@@ -9,65 +9,127 @@
 
 "use client";
 
-import type { ReactNode, Ref } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 
-import { cn } from "@/shared/ui/class-name";
+import {
+  isAtScrollBottom,
+  resolveScrollFade,
+  type ScrollFade,
+} from "@/features/conversation/shared/timeline/scroll/follow-scroll-model";
 
-export function MessageRail({
-  children,
-  className: className,
-  ref,
-}: {
-  children: ReactNode;
-  className?: string;
-  ref?: Ref<HTMLDivElement>;
-}) {
+export function MessageDetailFrame({ children }: { children: ReactNode }) {
   return (
     <div
-      className={cn(
-        "min-w-0 max-w-full overflow-hidden border-l-2 pl-4",
-        className,
-      )}
-      ref={ref}
-      style={{ borderColor: "color-mix(in srgb, var(--foreground) 18%, transparent)" }}
+      className="ml-4 mt-1 min-w-0 border-l border-(--divider-subtle-color) py-0.5 pl-4"
+      data-message-detail-frame
     >
       {children}
     </div>
   );
 }
 
-export function MessageRailLabel({
+const MessageDetailScrollContext = createContext(false);
+
+export function MessageDetailScroll({
   children,
-  active = false,
-  className: className,
+  followContent = false,
 }: {
   children: ReactNode;
-  active?: boolean;
-  className?: string;
+  followContent?: boolean;
 }) {
+  const nested = useContext(MessageDetailScrollContext);
+  if (nested) {
+    return children;
+  }
   return (
-    <div
-      className={cn(
-        "flex min-w-0 items-center gap-2 text-xs font-medium text-(--text-muted)",
-        active && "text-primary",
-        className,
-      )}
-    >
+    <MessageDetailScrollRoot followContent={followContent}>
       {children}
-    </div>
+    </MessageDetailScrollRoot>
   );
 }
 
-export function MessageRailBody({
+function MessageDetailScrollRoot({
   children,
-  className: className,
+  followContent,
 }: {
   children: ReactNode;
-  className?: string;
+  followContent: boolean;
 }) {
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  const followingRef = useRef(followContent);
+  const [fade, setFade] = useState<ScrollFade>("none");
+  const updateFade = useCallback(() => {
+    const element = scrollRef.current;
+    if (!element) {
+      return;
+    }
+    const nextFade = resolveScrollFade(element);
+    setFade((currentFade) => currentFade === nextFade
+      ? currentFade
+      : nextFade);
+  }, []);
+  const updateLayout = useCallback(() => {
+    const element = scrollRef.current;
+    if (!element) {
+      return;
+    }
+    if (followContent && followingRef.current) {
+      element.scrollTop = element.scrollHeight;
+    }
+    if (followContent && isAtScrollBottom(element)) {
+      followingRef.current = true;
+    }
+    updateFade();
+  }, [followContent, updateFade]);
+  const handleScroll = useCallback(() => {
+    const element = scrollRef.current;
+    if (element) {
+      followingRef.current = followContent
+        && isAtScrollBottom(element);
+    }
+    updateFade();
+  }, [followContent, updateFade]);
+
+  useLayoutEffect(() => {
+    followingRef.current = followContent;
+  }, [followContent]);
+
+  useLayoutEffect(() => {
+    updateLayout();
+    if (typeof ResizeObserver === "undefined") {
+      return;
+    }
+    const observer = new ResizeObserver(updateLayout);
+    if (scrollRef.current) {
+      observer.observe(scrollRef.current);
+    }
+    if (contentRef.current) {
+      observer.observe(contentRef.current);
+    }
+    return () => observer.disconnect();
+  }, [children, updateLayout]);
+
   return (
-    <div className={cn("message-cjk-font min-w-0 max-w-full overflow-hidden break-words text-xs leading-[1.45] text-(--text-default)", className)}>
-      {children}
+    <div
+      className="min-w-0 max-h-[17.5rem] overflow-auto overscroll-contain custom-scrollbar"
+      data-message-detail-fade={fade}
+      data-message-detail-follow={followContent || undefined}
+      data-message-detail-scroll
+      onScroll={handleScroll}
+      ref={scrollRef}
+    >
+      <MessageDetailScrollContext.Provider value>
+        <div ref={contentRef}>{children}</div>
+      </MessageDetailScrollContext.Provider>
     </div>
   );
 }

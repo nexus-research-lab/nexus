@@ -276,6 +276,21 @@ func (m *Mutation) UpdateModel(ctx context.Context, item ModelEntity) error {
 	return requireAffected(result, err, 1, ErrModelNotFound)
 }
 
+// DeleteModel 删除当前 Provider 下的指定模型卡。
+func (m *Mutation) DeleteModel(ctx context.Context, item ModelEntity) error {
+	if strings.TrimSpace(item.ProviderID) != m.providerID {
+		return ErrModelNotFound
+	}
+	result, err := m.tx.ExecContext(ctx, `
+		DELETE FROM provider_models
+		WHERE id = `+m.repository.bind(1)+`
+		  AND provider_id = `+m.repository.bind(2),
+		item.ID,
+		m.providerID,
+	)
+	return requireAffected(result, err, 1, ErrModelNotFound)
+}
+
 // HasDefaultModelInScope 判断目标 Provider 的 owner/public + provider_kind 范围是否已有默认模型。
 func (m *Mutation) HasDefaultModelInScope(ctx context.Context) (bool, error) {
 	var count int

@@ -18,6 +18,7 @@ export function transformApiAgent(apiAgent: ApiAgent): Agent {
     status: apiAgent.status,
     avatar: apiAgent.avatar ?? null,
     description: apiAgent.description ?? null,
+    business_tags: apiAgent.business_tags ?? [],
     vibe_tags: apiAgent.vibe_tags ?? [],
     skills_count: apiAgent.skills_count ?? null,
   };

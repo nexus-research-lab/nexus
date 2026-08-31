@@ -8,10 +8,11 @@ Agent 通讯是 Nexus 产品层能力。SDK 只执行单次 runtime 和工具调
 
 ## 2. 通讯录
 
-每个普通 Agent 的通讯录由两类目标组成：
+每个普通 Agent 的通讯录由三类目标组成：
 
 - 好友：`contacts` 中同一 owner 的双向 Agent 关系。别名只属于设置它的一方。
 - 群：该 Agent 当前仍是成员的 Group Room。联系人直聊使用的内部 Room 不重复出现在群列表。
+- 外部私聊：同一 owner、同一 Agent 下仍 active-paired 且真实存在的外部 DM Session。模型只能使用目录返回的完整 SessionKey，不能拼装平台收件人。
 
 主智能体是 owner 控制面，不进入普通 Agent 通讯录，也不作为 Group Room 成员。跨 owner 好友、请求确认、拉黑和陌生人消息不属于当前版本。
 
@@ -52,20 +53,20 @@ ledger、InputQueue 和重启恢复保持，并只用于等待、审计及重新
 workspace、WorkBinding、ReviewBinding 或其他 capability。普通 Room round 不会
 伪造 Goal attribution。
 
-通讯能力跟随普通 Agent 身份，而不跟随配置控制权：WebSocket、外部通道、后台任务、队列续跑和 Room handoff 只要仍持有当前 live runtime lease 都可以通信；主智能体和已经结束的 round 不可以。
+通讯能力跟随普通 Agent 身份，而不跟随当前聊天 transport：WebSocket、外部通道、后台任务、队列续跑和 Room handoff 只要仍持有当前 live runtime lease，都共享该 Agent 的联系人、Room 与 active-paired 外部 DM 目录；主智能体和已经结束的 round 不可以。跨 transport 发送不会合并 transcript，消息仍写入实际目标 Session，并在每次发送时重新校验 owner、Agent、真实 Session 与 active pairing；撤销配对立即失效。
 
 ## 6. 工具
 
 `nexus` MCP 中的平台通讯工具组提供两个始终加载的工具：
 
-- `list_targets`：读取当前 Agent 的好友与群目标。
-- `send_message`：DM/外部 Agent runtime 使用 `destination=contact|room`；Room runtime
+- `list_targets`：读取当前 Agent 的好友、群与已配对外部私聊目标。
+- `send_message`：DM/外部 Agent runtime 使用 `destination=contact|room|external_session`；Room runtime
   额外支持宿主绑定的 `destination=current_room`，并以
   `visibility=private|public` 选择当前 Room 私域或公区。
 
 `send_message` 的工具名保持统一，但 Schema 随可信来源上下文收窄。DM 不暴露当前
 Room 的 recipients、wake 或 reply route；Room 的当前私域发送才接受这些投递参数。
-内部仍复用 directed message 与 public feed 两条 transport，内部方法名不扩张为模型工具。
+`external_session` 的 `target_id` 必须来自 `list_targets.external_sessions[].session_key`；当前外部私聊的正常回复仍直接使用 final reply。内部继续复用 directed message、public feed 与 Channels delivery，不扩张为多个模型工具。
 
 工具成功只表示消息已经进入对应 Room transport；运行时启动、忙碌排队或 mention handoff 的后续状态仍由 Room 事件与队列真相源表达。消息持久化后若唤醒启动失败，调用必须返回错误，不能把失败伪装成 `queued`。
 

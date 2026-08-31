@@ -104,7 +104,7 @@ test("Room deletion controller locks execution and reconciles unknown outcomes",
   assert.match(controller, /projectMutationFailure\(/);
   assert.match(
     controller,
-    /failure\.kind !== "not_applied"[\s\S]*await reconcileDeletion\(target, failure\)/,
+    /failure\.kind !== "not_applied"[\s\S]*await reconcileDeletion\(target, failure, ownerGeneration\)/,
   );
   assert.doesNotMatch(controller, /console\.error\("\[Sidebar\] 删除 Room 失败"/);
   assert.match(panel, /busy=\{controller\.deletion\.action !== null\}/);
