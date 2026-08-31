@@ -20,6 +20,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
+	"github.com/nexus-research-lab/nexus/internal/storage"
 	"github.com/nexus-research-lab/nexus/internal/storage/agentrepo"
 
 	_ "modernc.org/sqlite"
@@ -64,11 +65,7 @@ func TestServiceImportsAndEnablesSkill(t *testing.T) {
 	cfg := newSkillsTestConfig(t)
 	migrateSkillsSQLite(t, cfg.DatabaseURL)
 
-	db, err := sql.Open("sqlite", cfg.DatabaseURL)
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	defer func() { _ = db.Close() }()
+	db := openSkillsTestDB(t, cfg)
 	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
 	workspaceService := workspacepkg.NewService(cfg, agentService)
 	service := NewService(cfg, agentService, workspaceService)
@@ -450,11 +447,7 @@ func TestBuiltinPlatformSkillStoresIDWithoutWorkspaceCopy(t *testing.T) {
 		t.Fatalf("初始化测试平台 Skill 失败: %v", err)
 	}
 
-	db, err := sql.Open("sqlite", cfg.DatabaseURL)
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	defer func() { _ = db.Close() }()
+	db := openSkillsTestDB(t, cfg)
 	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
 	workspaceService := workspacepkg.NewService(cfg, agentService)
 	service := NewService(cfg, agentService, workspaceService)
@@ -549,11 +542,7 @@ func TestAgentWorkspaceSkillIsPrivateAndEnabledByDefault(t *testing.T) {
 	cfg := newSkillsTestConfig(t)
 	migrateSkillsSQLite(t, cfg.DatabaseURL)
 
-	db, err := sql.Open("sqlite", cfg.DatabaseURL)
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	defer func() { _ = db.Close() }()
+	db := openSkillsTestDB(t, cfg)
 	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
 	workspaceService := workspacepkg.NewService(cfg, agentService)
 	service := NewService(cfg, agentService, workspaceService)
@@ -644,11 +633,7 @@ func TestVersionedSkillMutationPreservesConcurrentAgentOptions(t *testing.T) {
 	cfg := newSkillsTestConfig(t)
 	migrateSkillsSQLite(t, cfg.DatabaseURL)
 
-	db, err := sql.Open("sqlite", cfg.DatabaseURL)
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	defer func() { _ = db.Close() }()
+	db := openSkillsTestDB(t, cfg)
 	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
 	workspaceService := workspacepkg.NewService(cfg, agentService)
 	service := NewService(cfg, agentService, workspaceService)
@@ -843,11 +828,7 @@ func TestUserGlobalSkillUsesGlobalAgentBinding(t *testing.T) {
 	cfg.AppMode = "desktop"
 	migrateSkillsSQLite(t, cfg.DatabaseURL)
 
-	db, err := sql.Open("sqlite", cfg.DatabaseURL)
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	defer func() { _ = db.Close() }()
+	db := openSkillsTestDB(t, cfg)
 	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
 	workspaceService := workspacepkg.NewService(cfg, agentService)
 	service := NewService(cfg, agentService, workspaceService)
@@ -863,7 +844,7 @@ func TestUserGlobalSkillUsesGlobalAgentBinding(t *testing.T) {
 		"用户全局 Skill",
 		false,
 	)
-	if err = workspacepkg.EnsureHostSkillLibrary(cfg); err != nil {
+	if err := workspacepkg.EnsureHostSkillLibrary(cfg); err != nil {
 		t.Fatalf("同步宿主 Skill 投影失败: %v", err)
 	}
 
@@ -1023,11 +1004,7 @@ func TestAgentWorkspaceSkillShadowsSameNamedUserGlobalSkill(t *testing.T) {
 	cfg.AppMode = "desktop"
 	migrateSkillsSQLite(t, cfg.DatabaseURL)
 
-	db, err := sql.Open("sqlite", cfg.DatabaseURL)
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	defer func() { _ = db.Close() }()
+	db := openSkillsTestDB(t, cfg)
 	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
 	workspaceService := workspacepkg.NewService(cfg, agentService)
 	service := NewService(cfg, agentService, workspaceService)
@@ -1038,7 +1015,7 @@ func TestAgentWorkspaceSkillShadowsSameNamedUserGlobalSkill(t *testing.T) {
 	t.Setenv("NEXUS_APP_MODE", "desktop")
 	hostSkillRoot := filepath.Join(home, ".agents", "skills", "same-name-skill")
 	writeTestSkillDir(t, hostSkillRoot, "same-name-skill", "用户全局版本", false)
-	if err = workspacepkg.EnsureHostSkillLibrary(cfg); err != nil {
+	if err := workspacepkg.EnsureHostSkillLibrary(cfg); err != nil {
 		t.Fatalf("同步宿主 Skill 投影失败: %v", err)
 	}
 
@@ -1221,11 +1198,7 @@ func TestUpdateSingleSkillUsesSharedUserSource(t *testing.T) {
 	cfg := newSkillsTestConfig(t)
 	migrateSkillsSQLite(t, cfg.DatabaseURL)
 
-	db, err := sql.Open("sqlite", cfg.DatabaseURL)
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	defer func() { _ = db.Close() }()
+	db := openSkillsTestDB(t, cfg)
 	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
 	workspaceService := workspacepkg.NewService(cfg, agentService)
 	service := NewServiceWithDB(cfg, db, agentService, workspaceService)
@@ -1386,6 +1359,16 @@ func newSkillsTestConfig(t *testing.T) config.Config {
 		DatabaseURL:               filepath.Join(root, "nexus.db"),
 		ConnectorOAuthRedirectURI: "http://localhost:3000/capability/connectors",
 	}
+}
+
+func openSkillsTestDB(t *testing.T, cfg config.Config) *sql.DB {
+	t.Helper()
+	db, err := storage.OpenDB(cfg)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	return db
 }
 
 func migrateSkillsSQLite(t *testing.T, databaseURL string) {
