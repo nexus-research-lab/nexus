@@ -1,6 +1,6 @@
 /**
  * INPUT: Assistant direct/process/final 投影、活动状态、interaction owner 与请求切片。
- * OUTPUT: DM/Thread 的折叠工具段、Room 主 Feed 的单行活动摘要、固定位置的 final 正文与唯一人工响应面。
+ * OUTPUT: DM/Thread 的折叠工具段、Room 主 Feed 的等高单行活动摘要、固定位置的 final 正文与唯一人工响应面。
  * POS: Assistant 正文、过程、终态与人工介入的纯视图编排层；Room 公区不消费具体工具过程。
  */
 import { AlertTriangle } from "lucide-react";
@@ -49,7 +49,10 @@ export function AssistantMessageContent({
   const { t } = useI18n();
   return (
     <>
-      <StandaloneActivity activity={activity} />
+      <StandaloneActivity
+        activity={activity}
+        stableSlot={environment.mode === "room_result"}
+      />
       <EmptyStreamStatus status={activity.emptyStreamStatus} />
       <AssistantDirectContent
         activity={activity}
@@ -114,7 +117,7 @@ function RoomResultProcessActivity({
   if (runningTool) {
     return (
       <div
-        className="flex min-h-7 min-w-0 items-center gap-1.5 py-1 text-sm font-normal leading-5 text-primary"
+        className="flex h-7 min-w-0 items-center gap-1.5 px-1.5 py-1 text-sm font-normal leading-5 text-primary"
         data-room-tool-activity
       >
         <ProcessActivityIconStack content={direct.projection.content} />
@@ -133,7 +136,7 @@ function RoomResultProcessActivity({
   }
   return (
     <LocalizedMessageActivityStatus
-      className="py-1"
+      stableSlot
       state={activity.state}
       uniformTone
     />
@@ -178,8 +181,8 @@ function RoomResultTrailingActivity({
   }
   return (
     <LocalizedMessageActivityStatus
-      className="pt-1"
       label={activity.label}
+      stableSlot
       state={activity.state}
     />
   );
@@ -187,16 +190,19 @@ function RoomResultTrailingActivity({
 
 function StandaloneActivity({
   activity,
+  stableSlot,
 }: {
   activity: AssistantActivityState;
+  stableSlot: boolean;
 }) {
   if (!activity.standalone || !activity.state) {
     return null;
   }
   return (
     <LocalizedMessageActivityStatus
-      className="py-1"
+      className={stableSlot ? undefined : "py-1"}
       label={activity.label}
+      stableSlot={stableSlot}
       state={activity.state}
     />
   );

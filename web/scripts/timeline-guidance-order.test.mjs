@@ -1182,6 +1182,11 @@ test("Room public activity survives the pause between reply text and tool work",
     1,
     "the continued Thread activity stays inside the existing Agent card",
   );
+  assert.match(
+    continuedHtml,
+    /class="flex min-w-0 items-center px-1\.5 h-7" data-message-activity-stable-slot="true"/,
+    "Room thinking and replying reuse the fixed-height public activity slot",
+  );
 
   const toolContinuation = {
     ...assistantMessage({
@@ -1223,6 +1228,11 @@ test("Room public activity survives the pause between reply text and tool work",
   );
   assert.doesNotMatch(workingHtml, /搜索产品线资料/);
   assert.match(workingHtml, /data-room-tool-activity/);
+  assert.match(
+    workingHtml,
+    /class="[^"]*h-7[^"]*px-1\.5[^"]*"[^>]*data-room-tool-activity/,
+    "Room tools keep the same fixed-height geometry as thinking and replying",
+  );
   assert.match(workingHtml, /data-process-activity-icon="search"/);
   assert.match(
     workingHtml,

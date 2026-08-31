@@ -43,6 +43,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Kept Room tool, thinking, and replying activity rows on one stable geometry,
+  preventing live tool transitions from nudging the conversation viewport.
 - Repaired the shifted migration-number collision across Agent business tags,
   Automation recovery, and Agent creation receipts, preserving existing data
   while replaying the missing schema during upgrades.
