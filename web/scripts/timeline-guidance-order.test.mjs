@@ -2571,6 +2571,19 @@ test("Thought detail uses compact tool-detail typography", async () => {
   assert.match(html, /data-message-detail-sticky-header="true"/);
   assert.match(html, /data-message-detail-follow="true"/);
   assert.match(html, /data-markdown-streaming="true"/);
+  assert.doesNotMatch(
+    html,
+    /data-thinking-block-preview/,
+    "expanded Thought keeps its complete content only in the detail body",
+  );
+  assert.equal(html.match(/Compact detail/g)?.length, 1);
+
+  const collapsedHtml = await renderWithI18n(React.createElement(ThinkingBlock, {
+    thinking: "Collapsed preview",
+  }));
+  assert.match(collapsedHtml, /data-thinking-block-preview/);
+  assert.match(collapsedHtml, /Collapsed preview/);
+  assert.doesNotMatch(collapsedHtml, /nexus-message-detail-markdown/);
 });
 
 test("a newer semantic block closes the preceding smooth stream", async () => {
