@@ -58,6 +58,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Prevented the WorkGraph history dropdown from opening as an empty strip when
+  a conversation has no current or historical graph; it now shows an explicit
+  empty or load-failure state, grows with its history through seven entries,
+  and only then switches to scrolling with separated rows.
 - Removed duplicate inline Thought and tool-result previews from expanded process details while preserving them as scannable collapsed-row summaries and moving distinct tool inputs into the detail body.
 - Kept Room tool, thinking, and replying activity rows on one stable geometry,
   preventing live tool transitions from nudging the conversation viewport.

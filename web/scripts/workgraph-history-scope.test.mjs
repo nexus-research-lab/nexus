@@ -29,8 +29,21 @@ test("WorkGraph history read failures state result, impact, and recovery", async
   assert.match(surface, /ReadResourceReliabilityNotice/);
   assert.match(surface, /surface_history_load_failed/);
   assert.match(surface, /surface_history_(?:stale|unavailable)_impact/);
-  assert.match(surface, /surface_history_failure_next_step/);
   assert.match(surface, /onRefresh=\{historyResource\.refresh\}/);
+});
+
+test("WorkGraph history menu never opens as an empty strip", async () => {
+  const surface = await read(
+    "src/features/conversation/shared/execution/execution-workgraph-surface.tsx",
+  );
+
+  assert.match(surface, /historyResource\.error[\s\S]*surface_history_load_failed/);
+  assert.match(surface, /historicalExecutions\.length === 0[\s\S]*surface_history_menu_empty/);
+  assert.match(surface, /value: "history-empty"/);
+  assert.match(
+    surface,
+    /<UiActionMenu[\s\S]*itemSpacing="sm"[\s\S]*items=\{historyMenuItems\}/,
+  );
 });
 
 function read(relativePath) {
