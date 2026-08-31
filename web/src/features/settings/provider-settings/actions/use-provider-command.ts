@@ -10,6 +10,7 @@ export type ProviderPendingAction =
   | { kind: "test-provider" }
   | { kind: "test-model"; modelId: string }
   | { kind: "toggle-model"; modelId: string }
+  | { kind: "set-default-model"; modelId: string }
   | { kind: "save-model-options"; modelId: string };
 
 export type RunProviderCommand = <Result>(

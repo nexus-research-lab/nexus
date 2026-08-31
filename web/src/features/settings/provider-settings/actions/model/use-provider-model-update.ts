@@ -21,7 +21,7 @@ import type {
 import type { RunProviderCommand } from "../use-provider-command";
 
 interface UseProviderModelUpdateOptions {
-  modelApi: Pick<ProviderModelApi, "deleteModel" | "updateModel">;
+  modelApi: Pick<ProviderModelApi, "deleteModel" | "setDefaultModel" | "updateModel">;
   modelOptions: ModelOptionsState | null;
   refreshAll: (preferredProvider?: string | null) => Promise<void>;
   runCommand: RunProviderCommand;
@@ -113,6 +113,48 @@ export function useProviderModelUpdate({
     }
     setDeleteModelTarget(model);
   }, [handleDefaultModelDisableAttempt, selectedCanManage]);
+
+  const handleSetDefaultModel = useCallback((model: ProviderModelRecord) => {
+    if (!selectedRecord || !selectedCanManage || model.is_default) {
+      return;
+    }
+    void runCommand({
+      kind: "set-default-model",
+      modelId: model.model_id,
+    }, async () => {
+      try {
+        await modelApi.setDefaultModel(
+          selectedRecord.provider,
+          model.model_id,
+        );
+        await refreshAll(selectedRecord.provider);
+        setFeedback({
+          tone: "success",
+          title: t("settings.providers.subscription_default_updated_title"),
+          message: t("settings.providers.subscription_default_updated_message", {
+            model: model.display_name || model.model_id,
+          }),
+        });
+      } catch (error) {
+        setFeedback({
+          tone: "error",
+          title: t("settings.providers.subscription_default_update_failed_title"),
+          message: getErrorMessage(
+            error,
+            t("settings.providers.retry_later"),
+          ),
+        });
+      }
+    });
+  }, [
+    modelApi,
+    refreshAll,
+    runCommand,
+    selectedCanManage,
+    selectedRecord,
+    setFeedback,
+    t,
+  ]);
 
   const handleDeleteModel = useCallback(() => {
     if (!selectedRecord || !deleteModelTarget || !selectedCanManage) {
@@ -218,6 +260,7 @@ export function useProviderModelUpdate({
     handleDeleteModel,
     handleRequestDeleteModel,
     handleSaveModelOptions,
+    handleSetDefaultModel,
     handleToggleModel,
   };
 }

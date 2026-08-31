@@ -437,6 +437,15 @@ func (s *Service) SetDefaultModel(ctx context.Context, provider string, modelID 
 	return s.setDefaultModelForItem(ctx, *item, modelID, item.ConfigurationVersion)
 }
 
+// SetPublicDefaultModel 把指定公共模型设置为订阅用户的默认运行模型。
+func (s *Service) SetPublicDefaultModel(ctx context.Context, provider string, modelID string) (*ModelRecord, error) {
+	item, err := s.requirePublicProvider(ctx, provider)
+	if err != nil {
+		return nil, err
+	}
+	return s.setDefaultModelForItem(ctx, *item, modelID, item.ConfigurationVersion)
+}
+
 // SetDefaultModelAtVersion 以 Provider 聚合版本 CAS 切换默认模型。
 func (s *Service) SetDefaultModelAtVersion(
 	ctx context.Context,

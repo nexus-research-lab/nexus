@@ -184,6 +184,26 @@ export async function updateSubscriptionProviderModelApi(
   );
 }
 
+export async function setDefaultProviderModelApi(
+  provider: string,
+  modelId: string,
+): Promise<ProviderModelRecord> {
+  return requestApi<ProviderModelRecord>(
+    `${PROVIDER_CONFIG_BASE_URL}/${encodeURIComponent(provider)}/models/${encodeURIComponent(modelId)}/default`,
+    { method: "POST" },
+  );
+}
+
+export async function setSubscriptionDefaultProviderModelApi(
+  provider: string,
+  modelId: string,
+): Promise<ProviderModelRecord> {
+  return requestApi<ProviderModelRecord>(
+    `${SUBSCRIPTION_PROVIDER_CONFIG_BASE_URL}/${encodeURIComponent(provider)}/models/${encodeURIComponent(modelId)}/default`,
+    { method: "POST" },
+  );
+}
+
 export async function deleteProviderModelApi(
   provider: string,
   modelId: string,
