@@ -58,6 +58,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Reconciled Room Agent execution cards against authoritative reconnect
+  snapshots, so executions absent from the server's active-slot set no longer
+  remain stuck on thinking with a stale Stop action; incremental ACKs still
+  preserve unrelated work, and late exact failure or interruption evidence can
+  refine the neutral terminal state without reordering replies.
 - Prevented the WorkGraph history dropdown from opening as an empty strip when
   a conversation has no current or historical graph; it now shows an explicit
   empty or load-failure state, grows with its history through seven entries,

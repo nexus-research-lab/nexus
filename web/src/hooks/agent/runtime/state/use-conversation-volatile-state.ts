@@ -1,6 +1,6 @@
 /**
- * INPUT: Room slot/permission/精确停止动作、execution 跟踪模式与权限过期时钟。
- * OUTPUT: 同步可读的易失 slot/permission/execution/stopping 切片、拒绝 terminal execution 的迟到精确权限、acknowledged tombstone 与 Session 清理命令。
+ * INPUT: Room 增量 slot/权威 slot snapshot/permission/精确停止动作、execution 跟踪模式与权限过期时钟。
+ * OUTPUT: 同步可读的易失 slot/permission/execution/stopping 切片、快照缺失 execution 收口、拒绝 terminal execution 的迟到精确权限与 Session 清理命令。
  * POS: runtime 易失状态的 React owner；业务迁移委托给相邻纯 model。
  */
 import {
@@ -26,6 +26,7 @@ import {
 } from "../model/pending-permission-model";
 import {
   acknowledgeRoomAgentExecutionPermission,
+  reconcileRoomAgentExecutionsFromSlotSnapshot,
   syncRoomAgentExecutionsFromPermissions,
   syncRoomAgentExecutionsFromSlots,
 } from "../model/room-agent-execution-state";
@@ -164,6 +165,17 @@ export function useConversationVolatileState({
     },
     [setRoomAgentExecutionStates, trackRoomAgentExecutions],
   );
+  const reconcilePendingAgentSlotSnapshot = useCallback((
+    slots: RoomPendingAgentSlotState[],
+  ): void => {
+    pendingAgentSlotsRef.current = slots;
+    if (trackRoomAgentExecutions) {
+      setRoomAgentExecutionStates((states) => (
+        reconcileRoomAgentExecutionsFromSlotSnapshot(states, slots)
+      ));
+    }
+    setPendingAgentSlotsState(slots);
+  }, [setRoomAgentExecutionStates, trackRoomAgentExecutions]);
   const setPendingPermissions = useCallback(
     (nextState: SetStateAction<PendingPermission[]>): void => {
       const proposed = resolveStateAction(
@@ -258,6 +270,7 @@ export function useConversationVolatileState({
     readPendingAgentSlots,
     readPendingPermissions,
     readStoppingAgentRoundIds,
+    reconcilePendingAgentSlotSnapshot,
     setPendingAgentSlots,
     setPendingPermissions,
     setRoomAgentExecutionStates,
