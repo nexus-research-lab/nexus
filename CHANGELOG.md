@@ -27,8 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   corridor-aware orthogonal routing, semantic fan-in/fan-out junctions,
   frame-boundary proxy ports and hard subgraph obstacle avoidance for
   cross-subgraph edges, on-demand exact endpoint tails, whole-subgraph hover,
-  exact edge midpoint controls, and full upstream/downstream path focus that
-  dims unrelated graph content without hiding durable Tool runs.
+  direction-aligned arrowheads with visible target clearance, a near-fullscreen
+  detail dialog with a distinct fit-to-view action, exact edge midpoint controls,
+  and full upstream/downstream path focus that dims unrelated graph content
+  without hiding durable Tool runs.
 - Standardized shared failure banners and resource states around a persistent
   result, current-state impact, and explicit next action contract, with
   independent screen-reader urgency and responsive mobile reflow.
