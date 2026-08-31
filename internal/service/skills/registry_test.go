@@ -1,7 +1,6 @@
 package skills
 
 import (
-	"database/sql"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -16,11 +15,7 @@ func TestServiceExternalSkillRegistryIsPrivatePerOwner(t *testing.T) {
 	cfg := newSkillsTestConfig(t)
 	migrateSkillsSQLite(t, cfg.DatabaseURL)
 
-	db, err := sql.Open("sqlite", cfg.DatabaseURL)
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	defer func() { _ = db.Close() }()
+	db := openSkillsTestDB(t, cfg)
 
 	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
 	workspaceService := workspacepkg.NewService(cfg, agentService)
@@ -32,10 +27,10 @@ func TestServiceExternalSkillRegistryIsPrivatePerOwner(t *testing.T) {
 	sourceB := filepath.Join(t.TempDir(), "private-skill-b")
 	writeTestSkillDir(t, sourceA, "private-skill", "Owner A Skill", false)
 	writeTestSkillDir(t, sourceB, "private-skill", "Owner B Skill", false)
-	if _, err = service.ImportLocalPath(ctxA, sourceA); err != nil {
+	if _, err := service.ImportLocalPath(ctxA, sourceA); err != nil {
 		t.Fatalf("owner-a 导入 skill 失败: %v", err)
 	}
-	if _, err = service.ImportLocalPath(ctxB, sourceB); err != nil {
+	if _, err := service.ImportLocalPath(ctxB, sourceB); err != nil {
 		t.Fatalf("owner-b 导入 skill 失败: %v", err)
 	}
 	agentA, err := agentService.CreateAgent(ctxA, protocol.CreateRequest{Name: "Owner A Agent"})
