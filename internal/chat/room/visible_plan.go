@@ -2,6 +2,7 @@ package room
 
 import (
 	"fmt"
+	"html"
 	"slices"
 	"strings"
 
@@ -429,7 +430,12 @@ func renderVisibleContext(
 	if strings.TrimSpace(trigger) == "" {
 		trigger = "(No trigger message.)"
 	}
-	sections = append(sections, fmt.Sprintf("<latest_trigger>\n%s\n</latest_trigger>", trigger))
+	triggerType := strings.TrimSpace(input.LatestTrigger.TriggerType)
+	triggerOpen := "<latest_trigger>"
+	if triggerType != "" {
+		triggerOpen = fmt.Sprintf(`<latest_trigger type="%s">`, html.EscapeString(triggerType))
+	}
+	sections = append(sections, fmt.Sprintf("%s\n%s\n</latest_trigger>", triggerOpen, trigger))
 	if len(privateLines) > 0 {
 		sections = append(sections, wrapRoomDirectedMessageContext(privateLines, input.AgentNameByID, input.TargetAgentID))
 	}

@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Reduced per-turn Room activation prompts to structured trigger types, source content, and compact reply routes while keeping collaboration and authority rules in the stable Room prompt.
 - Model discovery and manual model addition now fill missing LLM card metadata from the built-in catalog and stable runtime defaults, so settings show concrete limits instead of `auto` whenever the Provider omits them.
 - Aligned host-provided internal context with Claude Code attachment semantics: NXS keeps it in non-persistent live history, while the Claude runtime receives it through its native `UserPromptSubmit` hook attachment path.
 - Made the Agent SDK the sole loader for workspace `AGENTS.md` instructions, removing their duplicate Nexus prompt projection.

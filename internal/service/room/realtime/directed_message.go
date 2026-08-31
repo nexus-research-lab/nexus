@@ -1223,7 +1223,7 @@ func (s *Service) stopRoomWakeSchedulers() {
 	s.wakeTimers.Stop()
 }
 
-const roomDirectedMessageWakePrompt = "A Room directed message was delivered to you. Read the content projected in <room_directed_messages> and answer according to reply_route."
+const roomDirectedMessageWakePrompt = "Read <room_directed_messages> and follow reply_route."
 
 func roomDirectedMessageWakeContent(message protocol.RoomDirectedMessageRecord) (string, bool) {
 	if message.WakePolicy != protocol.RoomWakePolicyImmediate &&
