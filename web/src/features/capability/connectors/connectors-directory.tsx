@@ -13,6 +13,7 @@ import { AppRouteBuilders } from "@/app/router/route-paths";
 import { CapabilityPageLayout } from "@/features/capability/shared/capability-page-layout";
 import { getErrorMessage } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { completeFeedbackBanner } from "@/shared/ui/feedback/feedback-banner-contract";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
@@ -63,6 +64,7 @@ export function ConnectorsDirectory() {
     handleConnectFeishuWithQr,
     handleConnectWithCredential,
     handleDeleteOauthClient: deleteOauthClient,
+    handleDeviceAuthFailure,
     handleDeviceConnected,
     handleDisconnect,
     handleSaveOauthClient: saveOauthClient,
@@ -79,6 +81,8 @@ export function ConnectorsDirectory() {
     () => filterCustomMCPServers(customMCP.servers, customSearchQuery),
     [customMCP.servers, customSearchQuery],
   );
+  const activeFeedback = controller.reconciliationFeedbacks[0]
+    ?? controller.feedback;
 
   useEffect(() => {
     if (!connectorId) {
@@ -89,10 +93,11 @@ export function ConnectorsDirectory() {
   }, [closeDetail, connectorId, openDetail]);
 
   useConnectorOauthEvents({
-    connectorId,
-    openDetail,
-    refreshCatalog,
+    completeReconciliation: controller.completeReconciliation,
+    reconcileCatalog: controller.reconcileCatalog,
+    refreshConnector: controller.refreshConnector,
     reportFeedback,
+    requireReconciliation: controller.requireReconciliation,
   });
 
   const openConnectorPage = useCallback((id: string) => {
@@ -135,13 +140,19 @@ export function ConnectorsDirectory() {
     }
   }, [closeConfigDialog, deleteOauthClient]);
 
-  const busy = controller.pendingAction !== null;
   const credentialDetail = configDialog?.kind === "credential"
     ? configDialog.detail
     : null;
   const oauthClientDetail = configDialog?.kind === "oauth-client"
     ? configDialog.detail
     : null;
+  const activeConnectorId = configDialog?.detail.connector_id
+    ?? connectorId
+    ?? (feishuConnectionOpen ? "feishu-docx" : null);
+  const busy = controller.pendingAction !== null
+    || controller.reconciliationActions.some((action) => (
+      action.connectorId === activeConnectorId
+    ));
 
   return (
     <>
@@ -153,6 +164,7 @@ export function ConnectorsDirectory() {
           <ConnectorDetailView
             busy={busy}
             detail={controller.selectedDetail}
+            failure={controller.detailFailure}
             loading={controller.detailLoading}
             onBack={backToConnectors}
             onConfigureCredential={(detail) => setConfigDialog({
@@ -166,6 +178,9 @@ export function ConnectorsDirectory() {
             onConnect={requestConnectorConnect}
             onDisconnect={(id) => void handleDisconnect(id)}
             onReplaceOauthClient={() => setFeishuConnectionOpen(true)}
+            onRetry={() => {
+              void openDetail(connectorId);
+            }}
           />
         ) : (
           <CapabilityPageLayout
@@ -198,11 +213,16 @@ export function ConnectorsDirectory() {
               <ConnectorsGrid
                 activeCategory={controller.activeCategory}
                 connectors={controller.connectors}
+                failure={controller.catalogFailure}
                 loading={controller.loading}
                 onConnect={requestConnectorConnect}
                 onDisconnect={(id) => void handleDisconnect(id)}
                 onOpenConnector={openConnectorPage}
+                onRefresh={() => {
+                  void refreshCatalog();
+                }}
                 pendingAction={controller.pendingAction}
+                reconciliationActions={controller.reconciliationActions}
                 searchQuery={controller.searchQuery}
               />
             ) : (
@@ -266,22 +286,29 @@ export function ConnectorsDirectory() {
             await openDetail(id);
           } catch (error) {
             reportFeedback({
+              impact: t("capability.connector_connected_refresh_failed_impact"),
+              nextStep: t("capability.connector_connected_refresh_failed_next_step"),
               tone: "error",
-              title: "连接已完成",
+              title: t("capability.connector_connected_refresh_failed_title"),
               message: getErrorMessage(
                 error,
-                "飞书已连接，但页面状态刷新失败，请重新打开连接器页面",
+                t("capability.connector_connected_refresh_failed_message"),
               ),
             });
           }
         }}
-        onError={(message) => {
+        onError={(message, kind) => {
+          if (kind) {
+            handleDeviceAuthFailure(message, kind);
+            return;
+          }
           reportFeedback({
+            impact: t("capability.connector_auth_local_error_impact"),
+            nextStep: t("capability.connector_auth_local_error_next_step"),
             tone: "error",
-            title: "操作失败",
+            title: t("capability.connector_auth_local_error_title"),
             message,
           });
-          void cancelDeviceAuthSession();
         }}
         onNext={controller.continueDeviceAuthSession}
         onOpenWebAuthUrl={controller.openFeishuWebAuthorizationUrl}
@@ -319,12 +346,25 @@ export function ConnectorsDirectory() {
         variant="danger"
       />
       <FeedbackBannerViewport
-        item={controller.feedback ? {
-          message: controller.feedback.message,
-          onDismiss: clearFeedback,
-          title: controller.feedback.title,
-          tone: controller.feedback.tone,
-        } : null}
+        item={activeFeedback
+          ? completeFeedbackBanner(
+            {
+              action: activeFeedback.action,
+              impact: activeFeedback.impact,
+              message: activeFeedback.message,
+              nextStep: activeFeedback.nextStep,
+              onDismiss: activeFeedback.persistent
+                ? undefined
+                : clearFeedback,
+              title: activeFeedback.title,
+              tone: activeFeedback.tone,
+            },
+            {
+              impact: t("feedback.unconfirmed_impact"),
+              nextStep: t("feedback.unconfirmed_next_step"),
+            },
+          )
+          : null}
       />
     </>
   );

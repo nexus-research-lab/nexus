@@ -83,7 +83,12 @@ function rejectUnauthorized({
   message: string;
   notifyOn401: boolean | undefined;
 }): never {
-  if (recoverDesktopSessionTokenError(message, input, failure?.code)) {
+  // 只有当前 v1 的稳定 code 可以驱动桌面恢复。未来版本仍保留作诊断，
+  // 但不能仅因复用了同名字面值就触发刷新；旧文案兼容也只在没有
+  // 结构化 FailureCore 时使用。
+  const currentFailureCode = failure?.version === 1 ? failure.code : null;
+  const legacyMessage = failure === null ? message : "";
+  if (recoverDesktopSessionTokenError(legacyMessage, input, currentFailureCode)) {
     throw new UnauthorizedError(message, failure);
   }
   if (notifyOn401 !== false) {

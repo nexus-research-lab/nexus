@@ -13,7 +13,6 @@ import { UiPanel } from "@/shared/ui/panel";
 import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
-import { UiStateBlock } from "@/shared/ui/display/state-block";
 
 import type { ScheduledTaskMutationFailureProjection } from "../../controller/scheduled-task-mutation-outcome";
 import { DailyTimePicker } from "../../pickers/daily-time-picker";
@@ -405,11 +404,13 @@ export function TaskSchedulePanel({
                 : "capability.scheduled_mutation_unknown_title")}
         />
       ) : errorMessage ? (
-        <UiStateBlock
+        <UiResourceState
           description={errorMessage}
+          impact={t("capability.scheduled_dialog_invalid_impact")}
+          nextStep={t("capability.scheduled_dialog_invalid_next_step")}
           size="sm"
+          state="error"
           title={t("capability.scheduled_dialog_invalid")}
-          tone="danger"
         />
       ) : null}
     </div>

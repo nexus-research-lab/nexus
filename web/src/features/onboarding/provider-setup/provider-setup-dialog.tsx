@@ -1,11 +1,13 @@
 /**
- * INPUT: 模型服务目录、已有配置、连接验证与默认模型命令。
- * OUTPUT: 单栏 plain 模型服务连接向导。
- * POS: 首次使用的 Provider 配置边界；不承担品牌展示或功能营销。
+ * INPUT: Owner 作用域、Provider 精确 key/version、连接测试与默认偏好命令。
+ * OUTPUT: 可恢复的保存、测试、默认选择三阶段单栏连接向导及普通语言失败三段式。
+ * POS: 首次 Provider 配置编排边界；写前 journal 不保存密钥、Base URL、请求正文或 HTTP 身份。
  */
 "use client";
 
 import {
+  type Dispatch,
+  type SetStateAction,
   useEffect,
   useMemo,
   useRef,
@@ -24,6 +26,7 @@ import {
 
 import { isDesktopRuntime } from "@/config/desktop-runtime";
 import { getDefaultAgentRuntimeKind, setUserPreferences } from "@/config/runtime-options";
+import { resolveAuthOwnerScope } from "@/app/auth/auth-owner-scope";
 import { ProviderIcon } from "@/features/settings/provider-settings/components/provider-settings-icon";
 import { ProviderCCSwitchDialog } from "@/features/provider-imports/cc-switch/provider-ccswitch-dialog";
 import { invalidateProviderAvailability } from "@/hooks/capability/use-provider-availability";
@@ -39,7 +42,15 @@ import {
   getUserPreferencesApi,
   updateUserPreferencesApi,
 } from "@/lib/api/settings/preferences-api";
-import { getErrorMessage } from "@/lib/error-message";
+import { projectMutationFailure } from "@/lib/error-message";
+import { useAuth } from "@/shared/auth/auth-context";
+import {
+  assertAuthOwnerScopeGenerationCurrent,
+  captureAuthOwnerScopeGeneration,
+  isAuthOwnerScopeGenerationCurrent,
+  isAuthOwnerScopeSupersededError,
+  subscribeAuthOwnerScopeGeneration,
+} from "@/shared/auth/auth-owner-generation";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
 import {
@@ -56,7 +67,9 @@ import type {
   CCSwitchSyncResult,
   ProviderApiFormat,
   ProviderConfigRecord,
+  UpdateProviderConfigPayload,
 } from "@/types/capability/provider";
+import type { UserPreferences } from "@/types/settings/preferences";
 
 import {
   findManageablePresetProvider,
@@ -66,6 +79,16 @@ import {
   selectInitialProviderSetupPreset,
   type ProviderSetupPreset,
 } from "./provider-setup-model";
+import {
+  fingerprintProviderSetup,
+  preferencesUseProviderSelection,
+  readProviderSetupJournal,
+  reconcileProviderPersist,
+  reconcileProviderTest,
+  removeProviderSetupJournal,
+  writeProviderSetupJournal,
+  type ProviderSetupJournal,
+} from "./provider-setup-recovery";
 
 interface ProviderSetupDialogProps {
   isOpen: boolean;
@@ -75,6 +98,18 @@ interface ProviderSetupDialogProps {
 
 type SetupScene = "provider" | "credentials" | "custom" | "verify" | "ready";
 type JourneyPhase = "connect" | "discover" | "start";
+type SetupFailureKind =
+  | "default_not_applied"
+  | "default_unknown"
+  | "journal_after_save"
+  | "journal_before_submit"
+  | "persist_not_applied"
+  | "persist_unknown"
+  | "read"
+  | "test_failed"
+  | "test_not_applied"
+  | "test_unknown"
+  | "validation";
 
 interface SetupResult {
   model: string;
@@ -103,6 +138,8 @@ export function ProviderSetupDialog({
   onStart,
 }: ProviderSetupDialogProps) {
   const { t } = useI18n();
+  const { status: authStatus } = useAuth();
+  const ownerScope = authStatus ? resolveAuthOwnerScope(authStatus) : null;
   const runtimeKind = getDefaultAgentRuntimeKind();
   const canImportFromCCSwitch = isDesktopRuntime();
   const [scene, setScene] = useState<SetupScene>("provider");
@@ -125,7 +162,19 @@ export function ProviderSetupDialog({
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorKind, setErrorKind] = useState<SetupFailureKind>("read");
   const [result, setResult] = useState<SetupResult | null>(null);
+  const [journal, setJournal] = useState<ProviderSetupJournal | null>(null);
+
+  useEffect(() => {
+    if (!ownerScope) {
+      return undefined;
+    }
+    return subscribeAuthOwnerScopeGeneration(() => {
+      removeProviderSetupJournal(ownerScope);
+      setJournal(null);
+    });
+  }, [ownerScope]);
 
   const selected = useMemo(
     () => presets.find((item) => item.preset.preset_key === selectedPresetKey) ?? null,
@@ -162,16 +211,22 @@ export function ProviderSetupDialog({
       return undefined;
     }
     let cancelled = false;
+    const ownerGeneration = captureAuthOwnerScopeGeneration();
+    const journalRead = ownerScope
+      ? readProviderSetupJournal(ownerScope)
+      : { journal: null, status: "unavailable" as const };
+    const recoveredJournal = journalRead.journal;
     setScene("provider");
     setLoading(true);
     setBusy(false);
     setCCSwitchOpen(false);
     setError(null);
     setResult(null);
+    setJournal(recoveredJournal);
     setApiKey("");
     setBaseUrl("");
     setModelId("");
-    setCustomProviderKey(createCustomProviderKey());
+    setCustomProviderKey(recoveredJournal?.providerKey ?? createCustomProviderKey());
     setCustomProviderName("");
     setCustomApiFormat("");
     setCustomApiKey("");
@@ -182,7 +237,7 @@ export function ProviderSetupDialog({
       listProviderPresetsApi(),
       listProviderConfigsApi(),
     ]).then(([nextPresets, nextProviders]) => {
-      if (cancelled) {
+      if (cancelled || !isAuthOwnerScopeGenerationCurrent(ownerGeneration)) {
         return;
       }
       const setupPresets = listProviderSetupPresets(
@@ -197,7 +252,28 @@ export function ProviderSetupDialog({
       setPresets(setupPresets);
       setCustomSetups(nextCustomSetups);
       setProviders(nextProviders);
-      setCustomApiFormat(selectInitialCustomAPIFormat(nextCustomSetups));
+      setCustomApiFormat(
+        recoveredJournal?.apiFormat
+        ?? selectInitialCustomAPIFormat(nextCustomSetups),
+      );
+      if (recoveredJournal) {
+        restoreProviderSetupJournal({
+          journal: recoveredJournal,
+          providers: nextProviders,
+          setBaseUrl,
+          setCustomBaseUrl,
+          setCustomModelId,
+          setCustomProviderName,
+          setModelId,
+          setScene,
+          setSelectedPresetKey,
+        });
+        if (recoveredJournal.outcome === "unknown") {
+          setErrorKind(failureKindForUnknownStage(recoveredJournal.stage));
+          setError(t(failureMessageKeyForUnknownStage(recoveredJournal.stage)));
+        }
+        return;
+      }
       // 优先接续用户已经开始配置的供应商，避免每次都退回目录第一项。
       const first = selectInitialProviderSetupPreset(
         setupPresets,
@@ -222,37 +298,27 @@ export function ProviderSetupDialog({
         setSelectedPresetKey("");
       }
     }).catch((loadError: unknown) => {
-      if (!cancelled) {
-        setError(getErrorMessage(loadError, t("onboarding.provider_setup_load_failed")));
+      if (!cancelled && isAuthOwnerScopeGenerationCurrent(ownerGeneration)) {
+        void loadError;
+        setErrorKind("read");
+        setError(t("onboarding.provider_setup_load_failed"));
       }
     }).finally(() => {
-      if (!cancelled) {
+      if (!cancelled && isAuthOwnerScopeGenerationCurrent(ownerGeneration)) {
         setLoading(false);
       }
     });
     return () => {
       cancelled = true;
     };
-  }, [isOpen, runtimeKind, t]);
-
-  useEffect(() => {
-    if (scene !== "verify" || !busy) {
-      return undefined;
-    }
-    setVerifyPhase(0);
-    const discoverTimer = window.setTimeout(() => setVerifyPhase(1), 650);
-    const defaultTimer = window.setTimeout(() => setVerifyPhase(2), 1350);
-    return () => {
-      window.clearTimeout(discoverTimer);
-      window.clearTimeout(defaultTimer);
-    };
-  }, [busy, scene]);
+  }, [isOpen, ownerScope, runtimeKind, t]);
 
   if (!isOpen) {
     return null;
   }
 
   const selectPreset = (preset: ProviderSetupPreset) => {
+    abandonProviderSetupJournal(ownerScope, setJournal);
     setSelectedPresetKey(preset.preset.preset_key);
     setError(null);
     setResult(null);
@@ -270,6 +336,28 @@ export function ProviderSetupDialog({
   };
 
   const handleBack = () => {
+    if (journal?.stage === "persist" && journal.outcome === "unknown") {
+      return;
+    }
+    abandonProviderSetupJournal(ownerScope, setJournal);
+    setError(null);
+    setScene("provider");
+  };
+
+  const markConfigurationEdited = () => {
+    if (journal?.stage === "persist" && journal.outcome === "unknown") {
+      return;
+    }
+    abandonProviderSetupJournal(ownerScope, setJournal);
+    setError(null);
+  };
+
+  const startNewIntent = () => {
+    if (!window.confirm(t("onboarding.provider_setup_new_intent_confirm"))) {
+      return;
+    }
+    abandonProviderSetupJournal(ownerScope, setJournal);
+    setCustomProviderKey(createCustomProviderKey());
     setError(null);
     setScene("provider");
   };
@@ -285,64 +373,544 @@ export function ProviderSetupDialog({
     const normalizedBaseURL = draft.baseURL.trim();
     const normalizedModelID = draft.modelID.trim();
     const requiresAPIKey = !draft.existingProvider?.auth_token_masked?.trim();
-    if (requiresAPIKey && !normalizedApiKey) {
+    const resumesWithoutDraft = journal?.providerKey === draft.providerKey
+      && (journal.stage !== "persist" || journal.outcome === "unknown");
+    if (!resumesWithoutDraft && requiresAPIKey && !normalizedApiKey) {
+      setErrorKind("validation");
       setError(t("onboarding.provider_setup_api_key_required"));
       return;
     }
-    if (!normalizedBaseURL) {
+    if (!resumesWithoutDraft && !normalizedBaseURL) {
+      setErrorKind("validation");
       setError(t("onboarding.provider_setup_base_url_required"));
       return;
     }
-    if (draft.modelRequired && !normalizedModelID) {
+    if (!resumesWithoutDraft && draft.modelRequired && !normalizedModelID) {
+      setErrorKind("validation");
       setError(t("onboarding.provider_setup_model_required"));
       return;
     }
 
+    const normalizedDraft: ProviderConnectionDraft = {
+      ...draft,
+      apiKey: normalizedApiKey,
+      baseURL: normalizedBaseURL,
+      displayName: draft.displayName.trim(),
+      modelID: normalizedModelID,
+    };
     setBusy(true);
     setScene("verify");
     setError(null);
     setResult(null);
-    void persistAndTest({
-      apiKey: normalizedApiKey,
-      baseURL: normalizedBaseURL,
-      displayName: draft.displayName.trim(),
-      apiFormat: draft.apiFormat,
-      modelsPath: draft.modelsPath,
-      modelID: normalizedModelID,
-      presetKey: draft.presetKey,
-      providerKey: draft.providerKey,
-      existingProvider: draft.existingProvider,
-    }).then(async (testResult) => {
-      const provider = testResult.provider.trim()
-        || draft.existingProvider?.provider
-        || draft.providerKey;
-      const model = testResult.model?.trim() || normalizedModelID;
-      if (!model) {
-        throw new Error(t("onboarding.provider_setup_model_required"));
-      }
-      await persistDefaultModelSelections({ model, provider });
-      setResult({
-        model,
-        provider: draft.displayName.trim(),
+    const ownerGeneration = captureAuthOwnerScopeGeneration();
+    void runProviderSetup(normalizedDraft, failureScene, ownerGeneration)
+      .catch((setupError: unknown) => {
+        if (!isAuthOwnerScopeSupersededError(setupError)) {
+          setSetupFailure(
+            "persist_unknown",
+            t("onboarding.provider_setup_persist_unknown_problem"),
+            failureScene,
+          );
+        }
+      })
+      .finally(() => {
+        if (isAuthOwnerScopeGenerationCurrent(ownerGeneration)) {
+          setBusy(false);
+        }
       });
-      setScene("ready");
-    }).catch(async (setupError: unknown) => {
-      // 测试失败前 Provider 可能已经落库；刷新记录后允许用户原地修正并重试。
+  };
+
+  const runProviderSetup = async (
+    draft: ProviderConnectionDraft,
+    failureScene: "credentials" | "custom",
+    ownerGeneration: number,
+  ) => {
+    assertAuthOwnerScopeGenerationCurrent(ownerGeneration);
+    let activeJournal = journal;
+    if (activeJournal && activeJournal.providerKey !== draft.providerKey) {
+      setSetupFailure(
+        "persist_unknown",
+        t("onboarding.provider_setup_persist_unknown_problem"),
+        failureScene,
+      );
+      return;
+    }
+    if (!activeJournal) {
       try {
-        setProviders(await listProviderConfigsApi());
-      } catch {
-        // 保留原错误作为主反馈，目录刷新失败不覆盖真实连接原因。
+        activeJournal = await createProviderSetupJournal(ownerScope, draft);
+      } catch (setupError) {
+        if (isAuthOwnerScopeSupersededError(setupError)) {
+          throw setupError;
+        }
+        setSetupFailure(
+          "journal_before_submit",
+          t("onboarding.provider_setup_journal_before_problem"),
+          failureScene,
+        );
+        return;
       }
-      setError(getErrorMessage(
+      assertAuthOwnerScopeGenerationCurrent(ownerGeneration);
+      if (!activeJournal || !storeJournalBeforeEffect(activeJournal, setJournal)) {
+        setSetupFailure(
+          "journal_before_submit",
+          t("onboarding.provider_setup_journal_before_problem"),
+          failureScene,
+        );
+        return;
+      }
+    }
+
+    if (activeJournal.stage === "persist") {
+      setVerifyPhase(0);
+      const persisted = await ensureProviderPersisted(
+        activeJournal,
+        draft,
+        failureScene,
+        ownerGeneration,
+      );
+      assertAuthOwnerScopeGenerationCurrent(ownerGeneration);
+      if (!persisted) {
+        return;
+      }
+      activeJournal = persisted;
+    }
+    if (activeJournal.stage === "test") {
+      setVerifyPhase(1);
+      const tested = await ensureProviderTested(
+        activeJournal,
+        failureScene,
+        ownerGeneration,
+      );
+      assertAuthOwnerScopeGenerationCurrent(ownerGeneration);
+      if (!tested) {
+        return;
+      }
+      activeJournal = tested;
+    }
+    if (activeJournal.stage === "default") {
+      setVerifyPhase(2);
+      await ensureDefaultSelection(activeJournal, failureScene, ownerGeneration);
+    }
+  };
+
+  const ensureProviderPersisted = async (
+    activeJournal: ProviderSetupJournal,
+    draft: ProviderConnectionDraft,
+    failureScene: "credentials" | "custom",
+    ownerGeneration: number,
+  ): Promise<ProviderSetupJournal | null> => {
+    if (activeJournal.outcome === "unknown") {
+      return reconcilePersistStage(activeJournal, failureScene, ownerGeneration);
+    }
+    const inFlight = { ...activeJournal, outcome: "unknown" as const };
+    if (!storeJournalBeforeEffect(inFlight, setJournal)) {
+      setSetupFailure(
+        "journal_before_submit",
+        t("onboarding.provider_setup_journal_before_problem"),
+        failureScene,
+      );
+      return null;
+    }
+    let record: ProviderConfigRecord;
+    try {
+      const payload = providerSetupPayload(draft);
+      record = draft.existingProvider
+        ? await updateProviderConfigApi(draft.existingProvider.provider, payload, {
+          expectedVersion: activeJournal.baselineConfigurationVersion ?? undefined,
+        })
+        : await createProviderConfigApi({
+          ...payload,
+          auth_token: draft.apiKey,
+          provider: draft.providerKey,
+          provider_kind: "llm",
+          visibility: "private",
+        });
+      assertAuthOwnerScopeGenerationCurrent(ownerGeneration);
+    } catch (setupError) {
+      if (isAuthOwnerScopeSupersededError(setupError)) {
+        throw setupError;
+      }
+      const failure = projectMutationFailure(
         setupError,
-        t("onboarding.provider_setup_test_failed", {
-          message: t("settings.providers.retry_later"),
-        }),
-      ));
-      setScene(failureScene);
-    }).finally(() => {
-      setBusy(false);
+        t("onboarding.provider_setup_persist_unknown_problem"),
+      );
+      if (failure.effect === "not_applied") {
+        const ready = { ...inFlight, outcome: "ready" as const };
+        writeProviderSetupJournal(ready);
+        setJournal(ready);
+        setSetupFailure(
+          "persist_not_applied",
+          t("onboarding.provider_setup_persist_not_applied_problem"),
+          failureScene,
+        );
+        return null;
+      }
+      if (failure.effect === "committed") {
+        return reconcilePersistStage(
+          inFlight,
+          failureScene,
+          ownerGeneration,
+          true,
+        );
+      }
+      return reconcilePersistStage(inFlight, failureScene, ownerGeneration);
+    }
+    return advanceJournalAfterPersist(inFlight, record, failureScene);
+  };
+
+  const reconcilePersistStage = async (
+    activeJournal: ProviderSetupJournal,
+    failureScene: "credentials" | "custom",
+    ownerGeneration: number,
+    commitConfirmed = false,
+  ): Promise<ProviderSetupJournal | null> => {
+    try {
+      const latestProviders = await listProviderConfigsApi();
+      assertAuthOwnerScopeGenerationCurrent(ownerGeneration);
+      setProviders(latestProviders);
+      const outcome = await reconcileProviderPersist(
+        activeJournal,
+        latestProviders,
+        commitConfirmed,
+      );
+      assertAuthOwnerScopeGenerationCurrent(ownerGeneration);
+      if (outcome.kind === "applied") {
+        return advanceJournalAfterPersist(activeJournal, outcome.record, failureScene);
+      }
+    } catch (setupError) {
+      if (isAuthOwnerScopeSupersededError(setupError)) {
+        throw setupError;
+      }
+      // The exact read is the only recovery evidence; keep the write lock if it is unavailable.
+    }
+    setJournal(activeJournal);
+    setSetupFailure(
+      "persist_unknown",
+      t("onboarding.provider_setup_persist_unknown_problem"),
+      failureScene,
+    );
+    return null;
+  };
+
+  const advanceJournalAfterPersist = (
+    activeJournal: ProviderSetupJournal,
+    record: ProviderConfigRecord,
+    failureScene: "credentials" | "custom",
+  ): ProviderSetupJournal | null => {
+    if (!validConfigurationVersion(record.configuration_version)) {
+      setSetupFailure(
+        "journal_after_save",
+        t("onboarding.provider_setup_journal_after_problem"),
+        failureScene,
+      );
+      return null;
+    }
+    const next: ProviderSetupJournal = {
+      ...activeJournal,
+      configurationVersion: record.configuration_version,
+      outcome: "ready",
+      providerDisplayName: record.display_name || activeJournal.providerDisplayName,
+      stage: "test",
+      testBaselineAt: record.last_test_at?.trim() || null,
+    };
+    if (!storeJournalBeforeEffect(next, setJournal)) {
+      setSetupFailure(
+        "journal_after_save",
+        t("onboarding.provider_setup_journal_after_problem"),
+        failureScene,
+      );
+      return null;
+    }
+    return next;
+  };
+
+  const ensureProviderTested = async (
+    activeJournal: ProviderSetupJournal,
+    failureScene: "credentials" | "custom",
+    ownerGeneration: number,
+  ): Promise<ProviderSetupJournal | null> => {
+    if (activeJournal.outcome === "unknown") {
+      return reconcileTestStage(activeJournal, failureScene, ownerGeneration);
+    }
+    const inFlight = { ...activeJournal, outcome: "unknown" as const };
+    if (!storeJournalBeforeEffect(inFlight, setJournal)) {
+      setSetupFailure(
+        "journal_after_save",
+        t("onboarding.provider_setup_journal_after_problem"),
+        failureScene,
+      );
+      return null;
+    }
+    try {
+      const options = { expectedVersion: activeJournal.configurationVersion ?? undefined };
+      const testResult = activeJournal.model
+        ? await testProviderModelApi(activeJournal.providerKey, activeJournal.model, options)
+        : await testProviderConfigApi(activeJournal.providerKey, options);
+      assertAuthOwnerScopeGenerationCurrent(ownerGeneration);
+      const testedJournal = {
+        ...inFlight,
+        configurationVersion: testResult.configuration_version,
+        model: testResult.model?.trim() || activeJournal.model,
+        testBaselineAt: testResult.tested_at?.trim() || activeJournal.testBaselineAt,
+      };
+      if (!testResult.success) {
+        const ready = { ...testedJournal, outcome: "ready" as const };
+        writeProviderSetupJournal(ready);
+        setJournal(ready);
+        await refreshProvidersWithoutReplacingFailure(ownerGeneration);
+        setSetupFailure(
+          "test_failed",
+          t("onboarding.provider_setup_test_failed_problem"),
+          failureScene,
+        );
+        return null;
+      }
+      return advanceJournalAfterTest(testedJournal, failureScene);
+    } catch (setupError) {
+      if (isAuthOwnerScopeSupersededError(setupError)) {
+        throw setupError;
+      }
+      const failure = projectMutationFailure(
+        setupError,
+        t("onboarding.provider_setup_test_unknown_problem"),
+      );
+      if (failure.effect === "not_applied") {
+        await refreshProvidersWithoutReplacingFailure(ownerGeneration);
+        const ready = {
+          ...inFlight,
+          outcome: "ready" as const,
+        };
+        writeProviderSetupJournal(ready);
+        setJournal(ready);
+        setSetupFailure(
+          "test_not_applied",
+          t("onboarding.provider_setup_test_not_applied_problem"),
+          failureScene,
+        );
+        return null;
+      }
+      return reconcileTestStage(inFlight, failureScene, ownerGeneration);
+    }
+  };
+
+  const reconcileTestStage = async (
+    activeJournal: ProviderSetupJournal,
+    failureScene: "credentials" | "custom",
+    ownerGeneration: number,
+  ): Promise<ProviderSetupJournal | null> => {
+    try {
+      const latestProviders = await listProviderConfigsApi();
+      assertAuthOwnerScopeGenerationCurrent(ownerGeneration);
+      setProviders(latestProviders);
+      const outcome = reconcileProviderTest(activeJournal, latestProviders);
+      if (outcome.kind === "passed") {
+        return advanceJournalAfterTest({
+          ...activeJournal,
+          configurationVersion: outcome.record.configuration_version,
+          testBaselineAt: outcome.record.last_test_at?.trim() || activeJournal.testBaselineAt,
+        }, failureScene);
+      }
+      if (outcome.kind === "failed") {
+        const ready = {
+          ...activeJournal,
+          configurationVersion: outcome.record.configuration_version,
+          outcome: "ready" as const,
+          testBaselineAt: outcome.record.last_test_at?.trim() || activeJournal.testBaselineAt,
+        };
+        writeProviderSetupJournal(ready);
+        setJournal(ready);
+        setSetupFailure(
+          "test_failed",
+          t("onboarding.provider_setup_test_failed_problem"),
+          failureScene,
+        );
+        return null;
+      }
+    } catch (setupError) {
+      if (isAuthOwnerScopeSupersededError(setupError)) {
+        throw setupError;
+      }
+      // Keep the exact test stage locked until a later Provider read can prove it.
+    }
+    setJournal(activeJournal);
+    setSetupFailure(
+      "test_unknown",
+      t("onboarding.provider_setup_test_unknown_problem"),
+      failureScene,
+    );
+    return null;
+  };
+
+  const advanceJournalAfterTest = (
+    activeJournal: ProviderSetupJournal,
+    failureScene: "credentials" | "custom",
+  ): ProviderSetupJournal | null => {
+    if (!activeJournal.model || !validConfigurationVersion(activeJournal.configurationVersion)) {
+      setSetupFailure(
+        "test_unknown",
+        t("onboarding.provider_setup_test_unknown_problem"),
+        failureScene,
+      );
+      return null;
+    }
+    const next: ProviderSetupJournal = {
+      ...activeJournal,
+      outcome: "ready",
+      stage: "default",
+    };
+    if (!storeJournalBeforeEffect(next, setJournal)) {
+      setSetupFailure(
+        "journal_after_save",
+        t("onboarding.provider_setup_journal_after_problem"),
+        failureScene,
+      );
+      return null;
+    }
+    return next;
+  };
+
+  const ensureDefaultSelection = async (
+    activeJournal: ProviderSetupJournal,
+    failureScene: "credentials" | "custom",
+    ownerGeneration: number,
+  ) => {
+    if (activeJournal.outcome === "unknown") {
+      await reconcileDefaultStage(activeJournal, failureScene, ownerGeneration);
+      return;
+    }
+    let currentPreferences;
+    try {
+      currentPreferences = await getUserPreferencesApi();
+      assertAuthOwnerScopeGenerationCurrent(ownerGeneration);
+    } catch (setupError) {
+      if (isAuthOwnerScopeSupersededError(setupError)) {
+        throw setupError;
+      }
+      setSetupFailure(
+        "default_not_applied",
+        t("onboarding.provider_setup_default_not_applied_problem"),
+        failureScene,
+      );
+      return;
+    }
+    if (!validConfigurationVersion(currentPreferences.version)) {
+      setSetupFailure(
+        "default_not_applied",
+        t("onboarding.provider_setup_default_not_applied_problem"),
+        failureScene,
+      );
+      return;
+    }
+    const inFlight = { ...activeJournal, outcome: "unknown" as const };
+    if (!storeJournalBeforeEffect(inFlight, setJournal)) {
+      setSetupFailure(
+        "journal_after_save",
+        t("onboarding.provider_setup_journal_after_problem"),
+        failureScene,
+      );
+      return;
+    }
+    try {
+      const savedPreferences = await updateDefaultModelSelections(
+        currentPreferences,
+        activeJournal.providerKey,
+        activeJournal.model,
+      );
+      assertAuthOwnerScopeGenerationCurrent(ownerGeneration);
+      finishProviderSetup(inFlight, savedPreferences);
+    } catch (setupError) {
+      if (isAuthOwnerScopeSupersededError(setupError)) {
+        throw setupError;
+      }
+      const failure = projectMutationFailure(
+        setupError,
+        t("onboarding.provider_setup_default_unknown_problem"),
+      );
+      if (failure.effect === "not_applied") {
+        const ready = { ...inFlight, outcome: "ready" as const };
+        writeProviderSetupJournal(ready);
+        setJournal(ready);
+        setSetupFailure(
+          "default_not_applied",
+          t("onboarding.provider_setup_default_not_applied_problem"),
+          failureScene,
+        );
+        return;
+      }
+      await reconcileDefaultStage(inFlight, failureScene, ownerGeneration);
+    }
+  };
+
+  const reconcileDefaultStage = async (
+    activeJournal: ProviderSetupJournal,
+    failureScene: "credentials" | "custom",
+    ownerGeneration: number,
+  ) => {
+    try {
+      const currentPreferences = await getUserPreferencesApi();
+      assertAuthOwnerScopeGenerationCurrent(ownerGeneration);
+      if (preferencesUseProviderSelection(
+        currentPreferences,
+        activeJournal.providerKey,
+        activeJournal.model,
+      )) {
+        finishProviderSetup(activeJournal, currentPreferences);
+        return;
+      }
+    } catch (setupError) {
+      if (isAuthOwnerScopeSupersededError(setupError)) {
+        throw setupError;
+      }
+      // A failed exact preference read cannot release an unknown default-selection stage.
+    }
+    setJournal(activeJournal);
+    setSetupFailure(
+      "default_unknown",
+      t("onboarding.provider_setup_default_unknown_problem"),
+      failureScene,
+    );
+  };
+
+  const finishProviderSetup = (
+    activeJournal: ProviderSetupJournal,
+    savedPreferences: Awaited<ReturnType<typeof getUserPreferencesApi>>,
+  ) => {
+    setUserPreferences(savedPreferences);
+    invalidateProviderAvailability();
+    const complete = { ...activeJournal, outcome: "ready" as const, stage: "complete" as const };
+    writeProviderSetupJournal(complete);
+    removeProviderSetupJournal(activeJournal.ownerScope);
+    setJournal(null);
+    setError(null);
+    setResult({
+      model: activeJournal.model,
+      provider: activeJournal.providerDisplayName,
     });
+    setScene("ready");
+  };
+
+  const refreshProvidersWithoutReplacingFailure = async (ownerGeneration: number) => {
+    try {
+      const latest = await listProviderConfigsApi();
+      assertAuthOwnerScopeGenerationCurrent(ownerGeneration);
+      setProviders(latest);
+      return latest;
+    } catch (setupError) {
+      if (isAuthOwnerScopeSupersededError(setupError)) {
+        throw setupError;
+      }
+      return providers;
+    }
+  };
+
+  const setSetupFailure = (
+    kind: SetupFailureKind,
+    message: string,
+    failureScene: "credentials" | "custom",
+  ) => {
+    setErrorKind(kind);
+    setError(message);
+    setScene(failureScene);
   };
 
   const handleSubmit = () => {
@@ -366,10 +934,12 @@ export function ProviderSetupDialog({
   const handleCustomSubmit = () => {
     const displayName = customProviderName.trim();
     if (!displayName) {
+      setErrorKind("validation");
       setError(t("onboarding.provider_setup_custom_name_required"));
       return;
     }
     if (!customSetup || !customApiFormat) {
+      setErrorKind("validation");
       setError(t("onboarding.provider_setup_custom_format_required"));
       return;
     }
@@ -417,6 +987,16 @@ export function ProviderSetupDialog({
     onStart?.();
   };
 
+  const persistenceLocked = journal?.stage === "persist"
+    && journal.outcome === "unknown";
+  const submitLabel = journal?.stage === "default"
+    ? t("onboarding.provider_setup_retry_default")
+    : journal?.stage === "test"
+      ? t("onboarding.provider_setup_retry_test")
+      : persistenceLocked
+        ? t("onboarding.provider_setup_reconcile_action")
+        : t("onboarding.provider_setup_submit");
+
   return (
     <>
       <UiDialogPortal>
@@ -450,6 +1030,7 @@ export function ProviderSetupDialog({
                   {scene === "provider" ? (
                     <ProviderScene
                         error={error}
+                        errorKind={errorKind}
                         loading={loading}
                         onContinue={() => {
                           if (selected) {
@@ -458,6 +1039,8 @@ export function ProviderSetupDialog({
                           }
                         }}
                         onCustom={() => {
+                          abandonProviderSetupJournal(ownerScope, setJournal);
+                          setCustomProviderKey(createCustomProviderKey());
                           setError(null);
                           setScene("custom");
                         }}
@@ -478,24 +1061,28 @@ export function ProviderSetupDialog({
                         apiKeyRequired={apiKeyRequired}
                         baseUrl={baseUrl}
                         error={error}
+                        errorKind={errorKind}
                         existingProvider={existingProvider}
                         modelId={modelId}
                         modelRequired={modelRequired}
+                        locked={persistenceLocked}
                         onApiKeyChange={(value) => {
                           setApiKey(value);
-                          setError(null);
+                          markConfigurationEdited();
                         }}
                         onBack={handleBack}
                         onBaseUrlChange={(value) => {
                           setBaseUrl(value);
-                          setError(null);
+                          markConfigurationEdited();
                         }}
                         onModelIDChange={(value) => {
                           setModelId(value);
-                          setError(null);
+                          markConfigurationEdited();
                         }}
+                        onStartNewIntent={startNewIntent}
                         onSubmit={handleSubmit}
                         setup={selected}
+                        submitLabel={submitLabel}
                     />
                   ) : null}
                   {scene === "custom" ? (
@@ -504,8 +1091,10 @@ export function ProviderSetupDialog({
                         apiKey={customApiKey}
                         baseUrl={customBaseUrl}
                         error={error}
+                        errorKind={errorKind}
                         existingProvider={customExistingProvider}
                         formats={customSetups}
+                        locked={persistenceLocked}
                         modelId={customModelId}
                         onApiFormatChange={(value) => {
                           const nextSetup = customSetups.find(
@@ -513,28 +1102,30 @@ export function ProviderSetupDialog({
                           );
                           if (nextSetup) {
                             setCustomApiFormat(nextSetup.format.api_format);
-                            setError(null);
+                            markConfigurationEdited();
                           }
                         }}
                         onApiKeyChange={(value) => {
                           setCustomApiKey(value);
-                          setError(null);
+                          markConfigurationEdited();
                         }}
                         onBack={handleBack}
                         onBaseUrlChange={(value) => {
                           setCustomBaseUrl(value);
-                          setError(null);
+                          markConfigurationEdited();
                         }}
                         onModelIDChange={(value) => {
                           setCustomModelId(value);
-                          setError(null);
+                          markConfigurationEdited();
                         }}
                         onNameChange={(value) => {
                           setCustomProviderName(value);
-                          setError(null);
+                          markConfigurationEdited();
                         }}
+                        onStartNewIntent={startNewIntent}
                         onSubmit={handleCustomSubmit}
                         providerName={customProviderName}
+                        submitLabel={submitLabel}
                     />
                   ) : null}
                   {scene === "verify" ? <VerifyScene phase={verifyPhase} /> : null}
@@ -599,8 +1190,102 @@ function JourneyProgress({ scene }: { scene: SetupScene }) {
   );
 }
 
+function ProviderSetupFailure({
+  kind,
+  message,
+}: {
+  kind: SetupFailureKind;
+  message: string;
+}) {
+  const { t } = useI18n();
+  let recovery: { impact: string; nextStep: string };
+  switch (kind) {
+    case "read":
+      recovery = {
+        impact: t("state.read_failure_impact"),
+        nextStep: t("state.retry_next_step"),
+      };
+      break;
+    case "validation":
+      recovery = {
+        impact: t("state.validation_failure_impact"),
+        nextStep: t("state.validation_failure_next_step"),
+      };
+      break;
+    case "journal_before_submit":
+      recovery = {
+        impact: t("onboarding.provider_setup_journal_before_impact"),
+        nextStep: t("onboarding.provider_setup_journal_before_next"),
+      };
+      break;
+    case "journal_after_save":
+      recovery = {
+        impact: t("onboarding.provider_setup_journal_after_impact"),
+        nextStep: t("onboarding.provider_setup_journal_after_next"),
+      };
+      break;
+    case "persist_not_applied":
+      recovery = {
+        impact: t("onboarding.provider_setup_persist_not_applied_impact"),
+        nextStep: t("onboarding.provider_setup_persist_not_applied_next"),
+      };
+      break;
+    case "persist_unknown":
+      recovery = {
+        impact: t("onboarding.provider_setup_persist_unknown_impact"),
+        nextStep: t("onboarding.provider_setup_persist_unknown_next"),
+      };
+      break;
+    case "test_failed":
+      recovery = {
+        impact: t("onboarding.provider_setup_test_failed_impact"),
+        nextStep: t("onboarding.provider_setup_test_failed_next"),
+      };
+      break;
+    case "test_not_applied":
+      recovery = {
+        impact: t("onboarding.provider_setup_test_not_applied_impact"),
+        nextStep: t("onboarding.provider_setup_test_not_applied_next"),
+      };
+      break;
+    case "test_unknown":
+      recovery = {
+        impact: t("onboarding.provider_setup_test_unknown_impact"),
+        nextStep: t("onboarding.provider_setup_test_unknown_next"),
+      };
+      break;
+    case "default_not_applied":
+      recovery = {
+        impact: t("onboarding.provider_setup_default_not_applied_impact"),
+        nextStep: t("onboarding.provider_setup_default_not_applied_next"),
+      };
+      break;
+    case "default_unknown":
+      recovery = {
+        impact: t("onboarding.provider_setup_default_unknown_impact"),
+        nextStep: t("onboarding.provider_setup_default_unknown_next"),
+      };
+      break;
+  }
+  return (
+    <div
+      aria-live="polite"
+      className={`${getDialogNoteClassName("danger")} space-y-1`}
+      role="status"
+    >
+      <div className="flex items-start gap-2">
+        <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-(--destructive)" />
+        <span>{message}</span>
+      </div>
+      <p className="pl-6 text-xs leading-5 text-(--text-muted)">{recovery.impact}</p>
+      <p className="pl-6 text-xs font-medium leading-5 text-(--text-default)">{recovery.nextStep}</p>
+    </div>
+  );
+}
+
 function ProviderScene({
   error,
+  errorKind,
   loading,
   onContinue,
   onCustom,
@@ -615,6 +1300,7 @@ function ProviderScene({
   supportsCustom,
 }: {
   error: string | null;
+  errorKind: SetupFailureKind;
   loading: boolean;
   onContinue: () => void;
   onCustom: () => void;
@@ -642,12 +1328,12 @@ function ProviderScene({
             <Loader2 className="h-5 w-5 animate-spin" />
           </div>
         ) : null}
-        {!loading && (error || presets.length === 0) ? (
-          <div className={getDialogNoteClassName("danger")} role="alert">
-            <div className="flex items-start gap-2">
-              <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-(--destructive)" />
-              <span>{error || t("onboarding.provider_setup_provider_empty")}</span>
-            </div>
+        {!loading && error ? (
+          <ProviderSetupFailure kind={errorKind} message={error} />
+        ) : null}
+        {!loading && !error && presets.length === 0 ? (
+          <div className={getDialogNoteClassName("danger")} role="status">
+            {t("onboarding.provider_setup_provider_empty")}
           </div>
         ) : null}
         {!loading && !error && presets.length > 0 ? (
@@ -744,29 +1430,37 @@ function CredentialsScene({
   apiKeyRequired,
   baseUrl,
   error,
+  errorKind,
   existingProvider,
+  locked,
   modelId,
   modelRequired,
   onApiKeyChange,
   onBack,
   onBaseUrlChange,
   onModelIDChange,
+  onStartNewIntent,
   onSubmit,
   setup,
+  submitLabel,
 }: {
   apiKey: string;
   apiKeyRequired: boolean;
   baseUrl: string;
   error: string | null;
+  errorKind: SetupFailureKind;
   existingProvider: ProviderConfigRecord | null;
+  locked: boolean;
   modelId: string;
   modelRequired: boolean;
   onApiKeyChange: (value: string) => void;
   onBack: () => void;
   onBaseUrlChange: (value: string) => void;
   onModelIDChange: (value: string) => void;
+  onStartNewIntent: () => void;
   onSubmit: () => void;
   setup: ProviderSetupPreset;
+  submitLabel: string;
 }) {
   const { t } = useI18n();
   const apiKeyInputRef = useRef<HTMLInputElement>(null);
@@ -800,7 +1494,7 @@ function CredentialsScene({
             : undefined}
           htmlFor="provider-setup-api-key"
           label={t("onboarding.provider_setup_api_key")}
-          required={apiKeyRequired}
+          required={apiKeyRequired && !locked}
         >
           <UiInput
             ref={apiKeyInputRef}
@@ -814,7 +1508,8 @@ function CredentialsScene({
             name="provider-setup-api-key"
             onChange={(event) => onApiKeyChange(event.target.value)}
             placeholder={t("onboarding.provider_setup_api_key_placeholder")}
-            required={apiKeyRequired}
+            readOnly={locked}
+            required={apiKeyRequired && !locked}
             spellCheck={false}
             type="password"
             value={apiKey}
@@ -836,7 +1531,7 @@ function CredentialsScene({
           <UiField
             htmlFor="provider-setup-base-url"
             label={t("onboarding.provider_setup_base_url")}
-            required
+            required={!locked}
           >
             <UiInput
               autoCapitalize="off"
@@ -845,7 +1540,8 @@ function CredentialsScene({
               id="provider-setup-base-url"
               onChange={(event) => onBaseUrlChange(event.target.value)}
               placeholder={setup.format.base_url_placeholder || t("onboarding.provider_setup_base_url_placeholder")}
-              required
+              readOnly={locked}
+              required={!locked}
               spellCheck={false}
               type="url"
               value={baseUrl}
@@ -857,7 +1553,7 @@ function CredentialsScene({
           <UiField
             htmlFor="provider-setup-model-id"
             label={t("onboarding.provider_setup_model")}
-            required
+            required={!locked}
           >
             <UiInput
               autoCapitalize="off"
@@ -866,7 +1562,8 @@ function CredentialsScene({
               id="provider-setup-model-id"
               onChange={(event) => onModelIDChange(event.target.value)}
               placeholder={t("onboarding.provider_setup_model_placeholder")}
-              required
+              readOnly={locked}
+              required={!locked}
               spellCheck={false}
               type="text"
               value={modelId}
@@ -874,23 +1571,23 @@ function CredentialsScene({
           </UiField>
         ) : null}
 
-        {error ? (
-          <div className={getDialogNoteClassName("danger")} role="alert">
-            <div className="flex items-start gap-2">
-              <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-(--destructive)" />
-              <span>{error}</span>
-            </div>
-          </div>
-        ) : null}
+        {error ? <ProviderSetupFailure kind={errorKind} message={error} /> : null}
       </div>
 
       <div className="flex shrink-0 items-center justify-end gap-2 border-t border-(--divider-subtle-color) pb-5 pt-3">
-        <UiButton onClick={onBack} size="sm" type="button" variant="text">
-          <ChevronLeft className="h-3.5 w-3.5" />
-          {t("onboarding.provider_setup_back")}
+        <UiButton
+          onClick={locked ? onStartNewIntent : onBack}
+          size="sm"
+          type="button"
+          variant="text"
+        >
+          {locked ? null : <ChevronLeft className="h-3.5 w-3.5" />}
+          {locked
+            ? t("onboarding.provider_setup_new_intent_action")
+            : t("onboarding.provider_setup_back")}
         </UiButton>
         <UiButton size="sm" tone="primary" type="submit" variant="solid">
-          {t("onboarding.provider_setup_submit")}
+          {submitLabel}
         </UiButton>
       </div>
     </form>
@@ -902,8 +1599,10 @@ function CustomProviderScene({
   apiKey,
   baseUrl,
   error,
+  errorKind,
   existingProvider,
   formats,
+  locked,
   modelId,
   onApiFormatChange,
   onApiKeyChange,
@@ -911,15 +1610,19 @@ function CustomProviderScene({
   onBaseUrlChange,
   onModelIDChange,
   onNameChange,
+  onStartNewIntent,
   onSubmit,
   providerName,
+  submitLabel,
 }: {
   apiFormat: ProviderApiFormat | "";
   apiKey: string;
   baseUrl: string;
   error: string | null;
+  errorKind: SetupFailureKind;
   existingProvider: ProviderConfigRecord | null;
   formats: ProviderSetupPreset[];
+  locked: boolean;
   modelId: string;
   onApiFormatChange: (value: string) => void;
   onApiKeyChange: (value: string) => void;
@@ -927,8 +1630,10 @@ function CustomProviderScene({
   onBaseUrlChange: (value: string) => void;
   onModelIDChange: (value: string) => void;
   onNameChange: (value: string) => void;
+  onStartNewIntent: () => void;
   onSubmit: () => void;
   providerName: string;
+  submitLabel: string;
 }) {
   const { t } = useI18n();
   const formatOptions = formats.map((setup) => ({
@@ -953,7 +1658,7 @@ function CustomProviderScene({
           <UiField
             htmlFor="provider-setup-custom-name"
             label={t("onboarding.provider_setup_custom_name")}
-            required
+            required={!locked}
           >
             <UiInput
               autoCapitalize="off"
@@ -962,7 +1667,8 @@ function CustomProviderScene({
               id="provider-setup-custom-name"
               onChange={(event) => onNameChange(event.target.value)}
               placeholder={t("onboarding.provider_setup_custom_name_placeholder")}
-              required
+              readOnly={locked}
+              required={!locked}
               spellCheck={false}
               type="text"
               value={providerName}
@@ -971,11 +1677,12 @@ function CustomProviderScene({
           <UiField
             htmlFor="provider-setup-custom-format"
             label={t("onboarding.provider_setup_custom_format")}
-            required
+            required={!locked}
           >
             <UiSelectMenu
               ariaLabel={t("onboarding.provider_setup_custom_format")}
               className="w-full"
+              disabled={locked}
               id="provider-setup-custom-format"
               onChange={onApiFormatChange}
               options={formatOptions}
@@ -993,7 +1700,7 @@ function CustomProviderScene({
             : undefined}
           htmlFor="provider-setup-custom-api-key"
           label={t("onboarding.provider_setup_api_key")}
-          required={!existingProvider?.auth_token_masked?.trim()}
+          required={!locked && !existingProvider?.auth_token_masked?.trim()}
         >
           <UiInput
             autoCapitalize="off"
@@ -1006,7 +1713,8 @@ function CustomProviderScene({
             name="provider-setup-custom-api-key"
             onChange={(event) => onApiKeyChange(event.target.value)}
             placeholder={t("onboarding.provider_setup_api_key_placeholder")}
-            required={!existingProvider?.auth_token_masked?.trim()}
+            readOnly={locked}
+            required={!locked && !existingProvider?.auth_token_masked?.trim()}
             spellCheck={false}
             type="password"
             value={apiKey}
@@ -1016,7 +1724,7 @@ function CustomProviderScene({
         <UiField
           htmlFor="provider-setup-custom-base-url"
           label={t("onboarding.provider_setup_base_url")}
-          required
+          required={!locked}
         >
           <UiInput
             autoCapitalize="off"
@@ -1025,7 +1733,8 @@ function CustomProviderScene({
             id="provider-setup-custom-base-url"
             onChange={(event) => onBaseUrlChange(event.target.value)}
             placeholder={t("onboarding.provider_setup_base_url_placeholder")}
-            required
+            readOnly={locked}
+            required={!locked}
             spellCheck={false}
             type="url"
             value={baseUrl}
@@ -1035,7 +1744,7 @@ function CustomProviderScene({
         <UiField
           htmlFor="provider-setup-custom-model-id"
           label={t("onboarding.provider_setup_model")}
-          required
+          required={!locked}
         >
           <UiInput
             autoCapitalize="off"
@@ -1044,30 +1753,31 @@ function CustomProviderScene({
             id="provider-setup-custom-model-id"
             onChange={(event) => onModelIDChange(event.target.value)}
             placeholder={t("onboarding.provider_setup_model_placeholder")}
-            required
+            readOnly={locked}
+            required={!locked}
             spellCheck={false}
             type="text"
             value={modelId}
           />
         </UiField>
 
-        {error ? (
-          <div className={getDialogNoteClassName("danger")} role="alert">
-            <div className="flex items-start gap-2">
-              <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-(--destructive)" />
-              <span>{error}</span>
-            </div>
-          </div>
-        ) : null}
+        {error ? <ProviderSetupFailure kind={errorKind} message={error} /> : null}
       </div>
 
       <div className="flex shrink-0 items-center justify-end gap-2 border-t border-(--divider-subtle-color) pb-5 pt-3">
-        <UiButton onClick={onBack} size="sm" type="button" variant="text">
-          <ChevronLeft className="h-3.5 w-3.5" />
-          {t("onboarding.provider_setup_back")}
+        <UiButton
+          onClick={locked ? onStartNewIntent : onBack}
+          size="sm"
+          type="button"
+          variant="text"
+        >
+          {locked ? null : <ChevronLeft className="h-3.5 w-3.5" />}
+          {locked
+            ? t("onboarding.provider_setup_new_intent_action")
+            : t("onboarding.provider_setup_back")}
         </UiButton>
         <UiButton size="sm" tone="primary" type="submit" variant="solid">
-          {t("onboarding.provider_setup_submit")}
+          {submitLabel}
         </UiButton>
       </div>
     </form>
@@ -1178,54 +1888,150 @@ function resolveVisiblePresets(
   return [...featured.slice(0, FEATURED_PROVIDER_COUNT - 1), selected];
 }
 
-async function persistAndTest({
-  apiFormat,
-  apiKey,
-  baseURL,
-  displayName,
-  modelsPath,
-  modelID,
-  presetKey,
-  providerKey,
-  existingProvider,
-}: {
-  apiFormat: ProviderApiFormat;
-  apiKey: string;
-  baseURL: string;
-  displayName: string;
-  modelsPath: string;
-  modelID: string;
-  presetKey: string;
-  providerKey: string;
-  existingProvider: ProviderConfigRecord | null;
-}) {
-  const basePayload = {
-    api_format: apiFormat,
-    base_url: baseURL,
-    display_name: displayName,
-    enabled: true,
-    models_path: modelsPath,
-    preset_key: presetKey,
-    provider_kind: "llm" as const,
-  };
-  const record = existingProvider
-    ? await updateProviderConfigApi(existingProvider.provider, {
-      ...basePayload,
-      ...(apiKey ? { auth_token: apiKey } : {}),
-    })
-    : await createProviderConfigApi({
-      ...basePayload,
-      auth_token: apiKey,
-      provider: providerKey,
-      visibility: "private",
-    });
-  const testResult = modelID
-    ? await testProviderModelApi(record.provider, modelID)
-    : await testProviderConfigApi(record.provider);
-  if (!testResult.success) {
-    throw new Error(testResult.error || "Provider 测试失败");
+async function createProviderSetupJournal(
+  ownerScope: string | null,
+  draft: ProviderConnectionDraft,
+): Promise<ProviderSetupJournal | null> {
+  const normalizedOwnerScope = ownerScope?.trim() ?? "";
+  const baselineConfigurationVersion = draft.existingProvider?.configuration_version ?? null;
+  if (
+    !normalizedOwnerScope
+    || draft.existingProvider && !validConfigurationVersion(baselineConfigurationVersion)
+  ) {
+    return null;
   }
-  return testResult;
+  const configurationFingerprint = await fingerprintProviderSetup({
+    apiFormat: draft.apiFormat,
+    baseURL: draft.baseURL,
+    displayName: draft.displayName,
+    enabled: true,
+    modelsPath: draft.modelsPath,
+    presetKey: draft.presetKey,
+    providerKind: "llm",
+  });
+  return {
+    apiFormat: draft.apiFormat,
+    baselineConfigurationVersion,
+    configurationFingerprint,
+    configurationVersion: null,
+    credentialMode: draft.apiKey ? "replace" : "preserve",
+    model: draft.modelID,
+    outcome: "ready",
+    ownerScope: normalizedOwnerScope,
+    presetKey: draft.presetKey,
+    providerDisplayName: draft.displayName,
+    providerKey: draft.providerKey,
+    providerWasExisting: Boolean(draft.existingProvider),
+    stage: "persist",
+    testBaselineAt: draft.existingProvider?.last_test_at?.trim() || null,
+    version: 1,
+  };
+}
+
+function providerSetupPayload(
+  draft: ProviderConnectionDraft,
+): UpdateProviderConfigPayload {
+  return {
+    api_format: draft.apiFormat,
+    base_url: draft.baseURL,
+    display_name: draft.displayName,
+    enabled: true,
+    models_path: draft.modelsPath,
+    preset_key: draft.presetKey,
+    provider_kind: "llm",
+    ...(draft.apiKey ? { auth_token: draft.apiKey } : {}),
+  };
+}
+
+function storeJournalBeforeEffect(
+  next: ProviderSetupJournal,
+  setJournal: Dispatch<SetStateAction<ProviderSetupJournal | null>>,
+): boolean {
+  if (!writeProviderSetupJournal(next)) {
+    return false;
+  }
+  setJournal(next);
+  return true;
+}
+
+function abandonProviderSetupJournal(
+  ownerScope: string | null,
+  setJournal: Dispatch<SetStateAction<ProviderSetupJournal | null>>,
+): void {
+  if (ownerScope) {
+    removeProviderSetupJournal(ownerScope);
+  }
+  setJournal(null);
+}
+
+function validConfigurationVersion(value: unknown): value is number {
+  return typeof value === "number"
+    && Number.isSafeInteger(value)
+    && value > 0;
+}
+
+function restoreProviderSetupJournal({
+  journal,
+  providers,
+  setBaseUrl,
+  setCustomBaseUrl,
+  setCustomModelId,
+  setCustomProviderName,
+  setModelId,
+  setScene,
+  setSelectedPresetKey,
+}: {
+  journal: ProviderSetupJournal;
+  providers: readonly ProviderConfigRecord[];
+  setBaseUrl: Dispatch<SetStateAction<string>>;
+  setCustomBaseUrl: Dispatch<SetStateAction<string>>;
+  setCustomModelId: Dispatch<SetStateAction<string>>;
+  setCustomProviderName: Dispatch<SetStateAction<string>>;
+  setModelId: Dispatch<SetStateAction<string>>;
+  setScene: Dispatch<SetStateAction<SetupScene>>;
+  setSelectedPresetKey: Dispatch<SetStateAction<string>>;
+}): void {
+  const record = providers.find((item) => (
+    item.can_manage && item.provider === journal.providerKey
+  )) ?? null;
+  const model = journal.model || defaultModelID(record);
+  if (journal.presetKey === "custom") {
+    setCustomProviderName(record?.display_name || journal.providerDisplayName);
+    setCustomBaseUrl(record?.base_url || "");
+    setCustomModelId(model);
+    setScene("custom");
+    return;
+  }
+  setSelectedPresetKey(journal.presetKey);
+  setBaseUrl(record?.base_url || "");
+  setModelId(model);
+  setScene("credentials");
+}
+
+function failureKindForUnknownStage(
+  stage: ProviderSetupJournal["stage"],
+): SetupFailureKind {
+  if (stage === "persist") {
+    return "persist_unknown";
+  }
+  if (stage === "test") {
+    return "test_unknown";
+  }
+  return "default_unknown";
+}
+
+function failureMessageKeyForUnknownStage(
+  stage: ProviderSetupJournal["stage"],
+): "onboarding.provider_setup_default_unknown_problem"
+  | "onboarding.provider_setup_persist_unknown_problem"
+  | "onboarding.provider_setup_test_unknown_problem" {
+  if (stage === "persist") {
+    return "onboarding.provider_setup_persist_unknown_problem";
+  }
+  if (stage === "test") {
+    return "onboarding.provider_setup_test_unknown_problem";
+  }
+  return "onboarding.provider_setup_default_unknown_problem";
 }
 
 function defaultModelID(provider: ProviderConfigRecord | null): string {
@@ -1271,15 +2077,29 @@ async function persistDefaultModelSelections({
   provider: string;
 }): Promise<void> {
   const currentPreferences = await getUserPreferencesApi();
-  const selection = { model, provider };
-  const savedPreferences = await updateUserPreferencesApi({
+  const savedPreferences = await updateDefaultModelSelections(
+    currentPreferences,
+    provider,
+    model,
+  );
+  setUserPreferences(savedPreferences);
+  invalidateProviderAvailability();
+}
+
+async function updateDefaultModelSelections(
+  currentPreferences: UserPreferences,
+  provider: string,
+  model: string,
+): Promise<UserPreferences> {
+  if (!validConfigurationVersion(currentPreferences.version)) {
+    throw new Error("Preferences version is unavailable");
+  }
+  return updateUserPreferencesApi({
     default_agent_options: {
       ...currentPreferences.default_agent_options,
       model,
       provider,
     },
-    default_background_model_selection: selection,
-  });
-  setUserPreferences(savedPreferences);
-  invalidateProviderAvailability();
+    default_background_model_selection: { model, provider },
+  }, { expectedVersion: currentPreferences.version });
 }

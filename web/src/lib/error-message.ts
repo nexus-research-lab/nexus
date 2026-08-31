@@ -10,12 +10,25 @@ import {
 const INTERNAL_ERROR_PLACEHOLDERS = new Set([
   "服务内部错误",
   "内部服务错误",
+  "服务暂时无法完成请求",
   "Internal server error",
   "Internal Server Error",
 ]);
 
 export function getErrorMessage(error: unknown, fallback: string): string {
   if (!(error instanceof Error)) {
+    return fallback;
+  }
+
+  // 传输错误的 kind/effect 供业务层决定影响和恢复；用户正文必须使用
+  // 当前页面提供的本地化、操作相关文案，不能显示共享层固定语言。
+  if (error instanceof ApiTransportError) {
+    return fallback;
+  }
+  // 只有经过 HTTP envelope 安全解析的文案才允许跨共享边界展示。
+  // 普通 Error 可能来自浏览器、原生 bridge、第三方 SDK 或响应校验，
+  // 其中可能包含路径、堆栈、Provider 正文或其他内部细节。
+  if (!(error instanceof ApiRequestError) && !(error instanceof UnauthorizedError)) {
     return fallback;
   }
   const message = error.message.trim();
@@ -80,10 +93,11 @@ export function projectMutationFailure(
   const structured = error instanceof ApiRequestError || error instanceof UnauthorizedError
     ? error
     : null;
+  const failure = currentFailureV1(structured);
   return {
-    category: structured?.failure?.category ?? null,
-    code: structured?.failure?.code ?? null,
-    effect: knownMutationEffect(structured?.failure?.effect),
+    category: failure?.category ?? null,
+    code: failure?.code ?? null,
+    effect: knownMutationEffect(failure?.effect),
     message: getErrorMessage(error, fallback),
     transportRequestId: structured?.transportRequestId ?? null,
   };
@@ -108,6 +122,13 @@ function knownMutationEffect(value: string | undefined): MutationFailureEffect {
   }
 }
 
+function currentFailureV1(
+  error: ApiRequestError | UnauthorizedError | null,
+) {
+  const failure = error?.failure;
+  return failure?.version === 1 ? failure : null;
+}
+
 function classifyResourceAccessFailure(
   error: unknown,
 ): ResourceAccessFailure | null {
@@ -117,10 +138,11 @@ function classifyResourceAccessFailure(
   if (!(error instanceof ApiRequestError)) {
     return null;
   }
-  if (error.status === 401 || error.failure?.category === "authentication") {
+  const failure = currentFailureV1(error);
+  if (error.status === 401 || failure?.category === "authentication") {
     return "authentication_required";
   }
-  if (error.status === 403 || error.failure?.category === "authorization") {
+  if (error.status === 403 || failure?.category === "authorization") {
     return "forbidden";
   }
   return null;

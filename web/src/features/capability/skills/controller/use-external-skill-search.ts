@@ -19,7 +19,7 @@ const MIN_EXTERNAL_SEARCH_LENGTH = 2;
 
 interface UseExternalSkillSearchOptions {
   active: boolean;
-  onError: (message: string) => void;
+  onError: (kind: "preview" | "search", message: string) => void;
   sourceRevision: number;
   sources: ExternalSkillSourceInfo[];
   sourcesLoading: boolean;
@@ -95,10 +95,10 @@ export function useExternalSkillSearch({
         if (abortController.signal.aborted) return;
         if (requestId !== searchRequestRef.current) return;
         setSourceStatuses([]);
-        onError(getErrorMessage(
-          error,
-          t("capability.skills_external_search_failed"),
-        ));
+        onError(
+          "search",
+          getErrorMessage(error, t("capability.skills_external_search_failed")),
+        );
       } finally {
         if (searchAbortRef.current === abortController) {
           searchAbortRef.current = null;
@@ -151,10 +151,10 @@ export function useExternalSkillSearch({
         : current);
     } catch (error) {
       if (requestId === previewRequestRef.current) {
-        onError(getErrorMessage(
-          error,
-          t("capability.skills_external_preview_failed"),
-        ));
+        onError(
+          "preview",
+          getErrorMessage(error, t("capability.skills_external_preview_failed")),
+        );
       }
     } finally {
       if (requestId === previewRequestRef.current) {

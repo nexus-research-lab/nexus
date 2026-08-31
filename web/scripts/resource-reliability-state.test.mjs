@@ -29,7 +29,7 @@ test("resource failures only project access loss from HTTP facts", async () => {
 
   assert.deepEqual(
     getResourceFailure(new Error("network unavailable"), "fallback"),
-    { access: null, message: "network unavailable" },
+    { access: null, message: "fallback" },
   );
   assert.equal(
     getResourceFailure(new UnauthorizedError("sign in"), "fallback").access,
@@ -137,6 +137,45 @@ test("desktop token recovery prefers the stable FailureCore code", async () => {
     assert.equal(calls, 1);
     await new Promise((resolve) => setTimeout(resolve, 0));
     assert.equal(reloadCount(), 1);
+  });
+});
+
+test("future FailureCore codes cannot trigger desktop token recovery", async () => {
+  const { requestApi } = await server.ssrLoadModule(
+    "/src/lib/api/core/http.ts",
+  );
+  const { UnauthorizedError } = await server.ssrLoadModule(
+    "/src/lib/api/core/http-error.ts",
+  );
+  await withDesktopRuntime(async ({ reloadCount }) => {
+    const error = await captureError(() => withFetch(async () => (
+      new Response(JSON.stringify({
+        code: "401",
+        message: "failed",
+        success: false,
+        data: {
+          detail: "桌面会话 token 无效",
+          failure: {
+            version: 7,
+            code: "auth.desktop_session_invalid",
+            category: "authentication",
+            effect: "not_applicable",
+          },
+        },
+      }), {
+        headers: { "Content-Type": "application/json" },
+        status: 401,
+        statusText: "Unauthorized",
+      })
+    ), () => requestApi("http://nexus.local/nexus/v1/private", {
+      method: "GET",
+      notify_on_401: false,
+    })));
+
+    assert.ok(error instanceof UnauthorizedError);
+    assert.equal(error.failure?.version, 7);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(reloadCount(), 0);
   });
 });
 
@@ -397,7 +436,7 @@ test("sensitive snapshots are blocked by access state and refresh stays non-dest
   );
 });
 
-test("uncertain mutation copy never claims that nothing changed", async () => {
+test("uncertain mutation copy states uncertainty for the affected resource", async () => {
   const [capabilityZh, capabilityEn, conversationZh, conversationEn] = await Promise.all([
     read("src/shared/i18n/catalog/zh/capability.ts"),
     read("src/shared/i18n/catalog/en/capability.ts"),
@@ -406,10 +445,51 @@ test("uncertain mutation copy never claims that nothing changed", async () => {
   ]);
   const copy = [capabilityZh, capabilityEn, conversationZh, conversationEn].join("\n");
 
-  assert.doesNotMatch(copy, /这张工作图仍然保留|对话内容没有改变/);
-  assert.doesNotMatch(copy, /This WorkGraph is still available|The conversation was not changed/);
   assert.match(copy, /无法确认删除是否已经生效/);
   assert.match(copy, /cannot yet confirm whether deletion took effect/);
+  assert.match(copy, /这次“\{action\}”可能已经完成/);
+  assert.match(copy, /“\{action\}” may already have completed/);
+  assert.match(copy, /系统尚未确认是否已经受理/);
+  assert.match(copy, /hasn't confirmed whether it was accepted/);
+});
+
+test("Room external tabs and round indexes retain only same-scope read snapshots", async () => {
+  const [
+    externalSessionsSource,
+    roundIndexSource,
+    conversationSessionSource,
+    noticeSource,
+    panelLayoutSource,
+    desktopRoomSource,
+    mobileRoomSource,
+  ] = await Promise.all([
+    read("src/pages/room/controller/model/use-room-external-sessions.ts"),
+    read("src/hooks/conversation/use-session-round-index.ts"),
+    read("src/features/conversation/shared/session/use-conversation-session.ts"),
+    read("src/features/conversation/shared/read-resource-reliability-notice.tsx"),
+    read("src/features/conversation/shared/conversation-panel-layout.tsx"),
+    read("src/features/conversation/room/surface/layout/room-surface-content.tsx"),
+    read("src/features/conversation/room/surface/mobile/room-mobile-surface.tsx"),
+  ]);
+
+  assert.match(externalSessionsSource, /\$\{roomId\}\\u0000\$\{agentId\}/);
+  assert.match(externalSessionsSource, /if \(failure\.access\) \{[\s\S]*setExternalAgentSessions\(\[\]\)/);
+  assert.match(externalSessionsSource, /requestId !== refreshRequestId/);
+  assert.match(externalSessionsSource, /isExternalSessionCatalogStale/);
+  assert.match(externalSessionsSource, /refreshExternalSessions/);
+
+  assert.match(roundIndexSource, /snapshot\.scopeKey === scopeKey/);
+  assert.match(roundIndexSource, /items: accessLost \? \[\] : current\.items/);
+  assert.match(roundIndexSource, /hasSuccessfulSnapshot/);
+  assert.match(roundIndexSource, /retry: \(\) => void/);
+  assert.match(conversationSessionSource, /roundIndexResource\.error !== null/);
+  assert.match(conversationSessionSource, /roundIndexResource\.items/);
+  assert.match(noticeSource, /data-read-resource-state/);
+  assert.match(noticeSource, /<p className="mt-0\.5 leading-5">\{impact\}<\/p>/);
+  assert.match(noticeSource, /<p className="leading-5">\{nextStep\}<\/p>/);
+  assert.match(panelLayoutSource, /resource="session-round-index"/);
+  assert.match(desktopRoomSource, /resource="room-external-sessions"/);
+  assert.match(mobileRoomSource, /resource="room-external-sessions"/);
 });
 
 function read(relativePath) {

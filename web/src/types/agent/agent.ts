@@ -2,7 +2,7 @@
  * Agent 类型定义
  *
  * [INPUT]: 无外部依赖
- * [OUTPUT]: 对外提供 Agent / AgentContact / AgentCommunicationSendResult / AgentOptions / ApiAgent / CreateAgentParams / UpdateAgentParams
+ * [OUTPUT]: 对外提供 Agent、owner-scoped 创建对账与带内容 revision 的 WorkspaceFileContent
  * [POS]: types 模块的 Agent 核心类型，被 agent-api.ts 和 agent store 消费
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -157,6 +157,26 @@ export interface CreateAgentParams {
     description?: string;
     profile_template?: string;
     vibe_tags?: string[];
+    creation_request_id?: string;
+}
+
+export type AgentCreationRequestStatus =
+    | "not_found"
+    | "pending"
+    | "committed"
+    | "deleted"
+    | "failed";
+
+export interface ApiAgentCreationRequestResult {
+    creation_request_id: string;
+    status: AgentCreationRequestStatus;
+    agent?: ApiAgent | null;
+}
+
+export interface AgentCreationRequestResult {
+    creationRequestId: string;
+    status: AgentCreationRequestStatus;
+    agent: Agent | null;
 }
 
 /** 更新 Agent 参数 */
@@ -201,6 +221,7 @@ export interface WorkspaceFileEntry {
 export interface WorkspaceFileContent {
     path: string;
     content: string;
+    revision: string;
 }
 
 export interface WorkspaceEntryMutationResponse {

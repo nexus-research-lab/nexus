@@ -2,8 +2,8 @@
  * Workspace Files Store
  *
  * [INPUT]: 依赖 zustand，依赖 @/types/agent/agent
- * [OUTPUT]: 对外提供 useWorkspaceFilesStore
- * [POS]: store 层共享当前 workspace 文件列表，用于跨组件判断文件是否存在
+ * [OUTPUT]: 对外提供 useWorkspaceFilesStore 与 owner reset
+ * [POS]: store 层共享 owner-scoped workspace 文件列表，用于跨组件判断文件是否存在
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 
@@ -13,6 +13,7 @@ import { getWorkspaceFilesApi } from '@/lib/api/agent/agent-api';
 import { WorkspaceFileEntry } from '@/types/agent/agent';
 
 const requestVersionByAgent = new Map<string, number>();
+let workspaceFilesOwnerRevision = 0;
 
 function nextRequestVersion(agentId: string): number {
   const nextVersion = (requestVersionByAgent.get(agentId) ?? 0) + 1;
@@ -20,8 +21,13 @@ function nextRequestVersion(agentId: string): number {
   return nextVersion;
 }
 
-function isCurrentRequest(agentId: string, requestVersion: number): boolean {
-  return requestVersionByAgent.get(agentId) === requestVersion;
+function isCurrentRequest(
+  agentId: string,
+  requestVersion: number,
+  ownerRevision: number,
+): boolean {
+  return workspaceFilesOwnerRevision === ownerRevision
+    && requestVersionByAgent.get(agentId) === requestVersion;
 }
 
 interface WorkspaceFilesStoreState {
@@ -63,9 +69,10 @@ export const useWorkspaceFilesStore = create<WorkspaceFilesStoreState>()((set) =
   },
 
   refresh_files: async (agentId) => {
+    const ownerRevision = workspaceFilesOwnerRevision;
     const requestVersion = nextRequestVersion(agentId);
     const files = await getWorkspaceFilesApi(agentId);
-    if (!isCurrentRequest(agentId, requestVersion)) {
+    if (!isCurrentRequest(agentId, requestVersion, ownerRevision)) {
       return files;
     }
     set((state) => ({
@@ -77,3 +84,13 @@ export const useWorkspaceFilesStore = create<WorkspaceFilesStoreState>()((set) =
     return files;
   },
 }));
+
+/** Auth owner 变化时清空文件快照，并拒绝旧 owner 的迟到读取。 */
+export function resetWorkspaceFilesOwnerScope(): void {
+  workspaceFilesOwnerRevision += 1;
+  requestVersionByAgent.clear();
+  useWorkspaceFilesStore.setState({
+    files_by_agent: {},
+    requested_open_agent_id: null,
+  });
+}

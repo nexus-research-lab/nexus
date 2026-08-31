@@ -14,7 +14,8 @@
 //     Codex app-server Goal RPC、并发/绑定冲突的稳定 server-error reason_code、授权成功后的 owner/thread 双重隔离订阅注册与事件广播。
 //   - execution_invalidation.go：只把 orchestration 成功 mutation 投影为 owner/session 双重隔离的 WorkGraph 失效事件。
 //   - app_event_subscription.go / room_subscription_registry.go / workspace_*.go：
-//     房间、工作区、事件订阅的引用状态转换与 runtime 快照广播。
+//     房间、工作区、事件订阅的引用状态转换与 runtime 快照广播；workspace 终态
+//     正文快照可携带与 HTTP 文件读取一致的内容 revision。
 //   - live_workspace.go：实时工作区推送。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）

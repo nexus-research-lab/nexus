@@ -1,11 +1,15 @@
 import { useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
-import { getErrorMessage } from "@/lib/error-message";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type { ProviderConfigRecord } from "@/types/capability/provider";
 
 import type { ProviderModelApi } from "../../provider-settings-api";
+import {
+  buildProviderCommittedRefreshFeedback,
+  buildProviderErrorFeedback,
+  buildProviderValidationFeedback,
+} from "../../model/provider-feedback-model";
 import { buildNewModelPayload } from "../../model/provider-model-model";
 import type { FeedbackState } from "../../model/provider-settings-types";
 import type { RunProviderCommand } from "../use-provider-command";
@@ -14,7 +18,7 @@ interface UseProviderModelAddOptions {
   manualModelEnabled: boolean;
   manualModelId: string;
   modelApi: Pick<ProviderModelApi, "updateModel">;
-  refreshAll: (preferredProvider?: string | null) => Promise<void>;
+  refreshAll: (preferredProvider?: string | null) => Promise<boolean>;
   runCommand: RunProviderCommand;
   selectedCanManage: boolean;
   selectedRecord: ProviderConfigRecord | null;
@@ -43,11 +47,11 @@ export function useProviderModelAdd({
     }
     const modelId = manualModelId.trim();
     if (!modelId) {
-      setFeedback({
-        tone: "error",
-        title: t("settings.providers.model_id_required_title"),
-        message: t("settings.providers.model_id_required_message"),
-      });
+      setFeedback(buildProviderValidationFeedback(
+        t("settings.providers.model_id_required_title"),
+        t("settings.providers.model_id_required_message"),
+        t,
+      ));
       return;
     }
     void runCommand({ kind: "add-model", modelId }, async () => {
@@ -59,7 +63,13 @@ export function useProviderModelAdd({
         );
         setAddModelOpen(false);
         setManualModelId("");
-        await refreshAll(selectedRecord.provider);
+        if (!await refreshAll(selectedRecord.provider)) {
+          setFeedback(buildProviderCommittedRefreshFeedback(
+            t("settings.providers.refresh_after_change_failed_message"),
+            t,
+          ));
+          return;
+        }
         setFeedback({
           tone: "success",
           title: t("settings.providers.model_added_title"),
@@ -68,14 +78,12 @@ export function useProviderModelAdd({
           }),
         });
       } catch (error) {
-        setFeedback({
-          tone: "error",
-          title: t("settings.providers.model_add_failed_title"),
-          message: getErrorMessage(
-            error,
-            t("settings.providers.model_add_failed_message"),
-          ),
-        });
+        setFeedback(buildProviderErrorFeedback(
+          error,
+          t("settings.providers.model_add_failed_title"),
+          t("settings.providers.model_add_failed_message"),
+          t,
+        ));
       }
     });
   }, [

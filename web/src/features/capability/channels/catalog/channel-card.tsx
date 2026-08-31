@@ -13,7 +13,9 @@ import { CAPABILITY_DIRECTORY_ROW_CLASS_NAME } from "@/features/capability/share
 import { ChannelConfigView } from "@/lib/api/capability/channel-api";
 import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiListActionButton } from "@/shared/ui/list/list-action";
+import { getUiListActionClassName } from "@/shared/ui/list/list-action-styles";
 import { UiListRow } from "@/shared/ui/list/list-row";
 import { ChannelIcon } from "../channel-icon";
 import {
@@ -39,14 +41,17 @@ function ChannelCardActions({
   return (
     <div className="flex shrink-0 items-center gap-1">
       {action.docsUrl ? (
-        <UiListActionButton
-          onClick={() => window.open(action.docsUrl, "_blank", "noopener,noreferrer")}
-          size="sm"
-          stopPropagation
+        <a
+          aria-label="查看接入文档"
+          className={getUiListActionClassName({ size: "sm" })}
+          href={action.docsUrl}
+          onClick={(event) => event.stopPropagation()}
+          rel="noopener noreferrer"
+          target="_blank"
           title="查看接入文档"
         >
           <ExternalLink className="h-3 w-3" />
-        </UiListActionButton>
+        </a>
       ) : null}
       <UiListActionButton
         className="text-(--primary)"
@@ -69,6 +74,7 @@ function ChannelCardContent({
   model: ChannelCardModel;
   title: string;
 }) {
+  const { t } = useI18n();
   return (
     <div className="min-w-0 flex-1">
       <div className="flex min-w-0 items-center gap-2">
@@ -76,8 +82,8 @@ function ChannelCardContent({
           {title}
         </span>
         {model.badges.map((badge) => (
-          <UiBadge key={badge.label} size="xs" tone={badge.tone}>
-            {badge.label}
+          <UiBadge key={badge.labelKey} size="xs" tone={badge.tone}>
+            {t(badge.labelKey)}
           </UiBadge>
         ))}
       </div>

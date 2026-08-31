@@ -21,6 +21,7 @@ interface WorkspaceDialogsController {
   closePrompt: () => void;
   contextMenu: WorkspaceContextMenuState;
   deleteTarget: WorkspaceFileEntry | null;
+  isMutating: boolean;
   promptState: WorkspacePromptState;
   handleUploadClick: (directoryPath?: string | null) => void;
   openCreatePrompt: (entryType: "file" | "directory", parentPath?: string | null) => void;
@@ -98,6 +99,7 @@ export function WorkspaceDialogs({controller}: {controller: WorkspaceDialogsCont
       />
 
       <ConfirmDialog
+        busy={controller.isMutating}
         cancelText={t("common.cancel")}
         confirmText={t("common.delete")}
         isOpen={controller.deleteTarget !== null}

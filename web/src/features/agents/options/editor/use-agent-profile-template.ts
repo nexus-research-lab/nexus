@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { getAgentProfileTemplateApi } from "@/lib/api/agent/agent-api";
 
@@ -25,6 +25,10 @@ export function useAgentProfileTemplate(
 ) {
   const [resource, setResource] =
     useState<AgentProfileTemplateResource>(EMPTY_RESOURCE);
+  const [refreshRevision, setRefreshRevision] = useState(0);
+  const retry = useCallback(() => {
+    setRefreshRevision((current) => current + 1);
+  }, []);
 
   useEffect(() => {
     if (!enabled) {
@@ -49,13 +53,13 @@ export function useAgentProfileTemplate(
           scopeKey,
         });
       })
-      .catch((error: unknown) => {
+      .catch(() => {
         if (!active) {
           return;
         }
         setResource({
           content: "",
-          error: error instanceof Error ? error.message : fallbackError,
+          error: fallbackError,
           loading: false,
           scopeKey,
         });
@@ -63,18 +67,19 @@ export function useAgentProfileTemplate(
     return () => {
       active = false;
     };
-  }, [enabled, fallbackError, scopeKey]);
+  }, [enabled, fallbackError, refreshRevision, scopeKey]);
 
   if (!enabled) {
-    return EMPTY_RESOURCE;
+    return { ...EMPTY_RESOURCE, retry };
   }
   if (resource.scopeKey !== scopeKey) {
     return {
       content: "",
       error: null,
       loading: true,
+      retry,
       scopeKey,
     };
   }
-  return resource;
+  return { ...resource, retry };
 }

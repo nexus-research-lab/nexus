@@ -9,7 +9,10 @@ import {
   getProviderTitle,
   isCustomProviderRecord,
 } from "../../model/provider-config-model";
-import { buildProviderErrorFeedback } from "../../model/provider-feedback-model";
+import {
+  buildProviderCommittedRefreshFeedback,
+  buildProviderErrorFeedback,
+} from "../../model/provider-feedback-model";
 import type { FeedbackState } from "../../model/provider-settings-types";
 import type { RunProviderCommand } from "../use-provider-command";
 
@@ -21,7 +24,7 @@ type DeleteDialogState = {
 interface UseProviderDeleteOptions {
   providerApi: ProviderSettingsApi;
   providers: ProviderConfigRecord[];
-  refreshAll: (preferredProvider?: string | null) => Promise<void>;
+  refreshAll: (preferredProvider?: string | null) => Promise<boolean>;
   runCommand: RunProviderCommand;
   setFeedback: Dispatch<SetStateAction<FeedbackState | null>>;
   t: I18nContextValue["t"];
@@ -65,7 +68,13 @@ export function useProviderDelete({
           force,
         });
         setDialog(null);
-        await refreshAll();
+        if (!await refreshAll()) {
+          setFeedback(buildProviderCommittedRefreshFeedback(
+            t("settings.providers.refresh_after_change_failed_message"),
+            t,
+          ));
+          return;
+        }
         setFeedback({
           tone: "success",
           title: t("settings.providers.deleted_title"),
@@ -83,6 +92,7 @@ export function useProviderDelete({
           error,
           t("settings.providers.delete_failed_title"),
           t("settings.providers.delete_in_use_fallback"),
+          t,
         ));
       }
     });

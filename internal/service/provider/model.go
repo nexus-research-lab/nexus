@@ -264,6 +264,8 @@ type TestResult struct {
 	Status   string     `json:"status"`
 	Error    string     `json:"error,omitempty"`
 	TestedAt *time.Time `json:"tested_at,omitempty"`
+	// ConfigurationVersion is the exact target Provider aggregate version committed with this test result.
+	ConfigurationVersion int64 `json:"configuration_version"`
 }
 
 // ImageConfig 表示图片生成要使用的 Provider 运行时配置。

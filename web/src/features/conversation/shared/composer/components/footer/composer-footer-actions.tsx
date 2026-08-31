@@ -1,3 +1,6 @@
+// INPUT: Composer 附件/目录/Goal/Loop/WorkGraph 动作与 Connector 只读目录。
+// OUTPUT: 主动作菜单及已加载的 Session Connector 开关项。
+// POS: Composer Footer 动作入口；Connector 读取失败由外层可靠性面统一展示。
 import type { ReactNode, RefObject } from "react";
 import {
   Check,
@@ -162,19 +165,12 @@ function buildConnectorItems({
   disabled: boolean;
   labels: Record<"enable" | "enabled" | "loading", string>;
 }): UiActionMenuItem[] {
-  if (controller.connectorsLoading) {
+  if (controller.connectorsLoading && controller.connectors.length === 0) {
     return [{
       disabled: true,
       icon: <Loader2 className="h-4 w-4 animate-spin text-(--icon-muted)" />,
       label: labels.loading,
       value: "connectors:loading",
-    }];
-  }
-  if (controller.connectorsError) {
-    return [{
-      disabled: true,
-      label: controller.connectorsError,
-      value: "connectors:error",
     }];
   }
   return controller.connectors.map((connector) => {
@@ -184,7 +180,10 @@ function buildConnectorItems({
     return {
       active,
       description: active ? labels.enabled : labels.enable,
-      disabled: disabled || controller.busy,
+      disabled: disabled
+        || controller.busy
+        || controller.connectorsLoading
+        || Boolean(controller.connectorsFailure),
       icon: (
         <ConnectorIcon
           icon={connector.icon}

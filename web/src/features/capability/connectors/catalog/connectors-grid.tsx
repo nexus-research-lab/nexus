@@ -9,7 +9,9 @@ import {
   CAPABILITY_DIRECTORY_GRID_CLASS_NAME,
   CapabilitySectionHeader,
 } from "@/features/capability/shared/capability-page-layout";
+import type { ResourceFailure } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 import type { ConnectorInfo } from "@/types/capability/connector";
 
 import type { ConnectorPendingAction } from "../controller/use-connector-command";
@@ -19,11 +21,14 @@ import { buildConnectorSections } from "./connector-catalog-model";
 interface ConnectorsGridProps {
   activeCategory: string;
   connectors: ConnectorInfo[];
+  failure: ResourceFailure | null;
   loading: boolean;
   onConnect: (connectorId: string) => void;
   onDisconnect: (connectorId: string) => void;
   onOpenConnector: (connectorId: string) => void;
+  onRefresh: () => void;
   pendingAction: ConnectorPendingAction | null;
+  reconciliationActions: ConnectorPendingAction[];
   searchQuery: string;
 }
 
@@ -31,20 +36,39 @@ interface ConnectorsGridProps {
 export function ConnectorsGrid({
   activeCategory,
   connectors,
+  failure,
   loading,
   onConnect,
   onDisconnect,
   onOpenConnector,
+  onRefresh,
   pendingAction,
+  reconciliationActions,
   searchQuery,
 }: ConnectorsGridProps) {
   const { t } = useI18n();
 
-  if (loading) {
+  if (loading && connectors.length === 0) {
     return (
       <div className="flex min-h-40 items-center justify-center text-sm text-(--text-muted)">
         {t("capability.connectors_loading")}
       </div>
+    );
+  }
+
+  if (failure && connectors.length === 0) {
+    return (
+      <UiResourceState
+        description={failure.message}
+        impact={t("capability.connector_catalog_load_failed_impact")}
+        nextStep={t("capability.connector_catalog_load_failed_next_step")}
+        primaryAction={{
+          label: t("capability.connector_catalog_refresh"),
+          onClick: onRefresh,
+        }}
+        state="error"
+        title={t("capability.connector_catalog_load_failed_title")}
+      />
     );
   }
 
@@ -65,6 +89,20 @@ export function ConnectorsGrid({
 
   return (
     <div className="space-y-6">
+      {failure ? (
+        <UiResourceState
+          description={failure.message}
+          impact={t("capability.connector_catalog_stale_impact")}
+          nextStep={t("capability.connector_catalog_load_failed_next_step")}
+          primaryAction={{
+            label: t("capability.connector_catalog_refresh"),
+            onClick: onRefresh,
+          }}
+          size="sm"
+          state="error"
+          title={t("capability.connector_catalog_load_failed_title")}
+        />
+      ) : null}
       {sections.map((section) => (
         <section key={section.key}>
           <CapabilitySectionHeader title={section.title} />
@@ -72,7 +110,12 @@ export function ConnectorsGrid({
             {section.connectors.map((connector) => (
               <ConnectorCard
                 key={connector.connector_id}
-                busy={pendingAction?.connectorId === connector.connector_id}
+                busy={
+                  pendingAction?.connectorId === connector.connector_id
+                  || reconciliationActions.some((action) => (
+                    action.connectorId === connector.connector_id
+                  ))
+                }
                 connector={connector}
                 onConnect={() => onConnect(connector.connector_id)}
                 onDisconnect={() => onDisconnect(connector.connector_id)}

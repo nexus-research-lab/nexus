@@ -1,4 +1,9 @@
+// INPUT: Server Channel login snapshot plus the current translation function.
+// OUTPUT: Safe status, identity, QR and terminal recovery copy for the login panel.
+// POS: Login presentation boundary; raw provider output, errors and login IDs stay hidden.
 import type { ChannelLoginView } from "@/lib/api/capability/channel-api";
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
+import type { TranslationKey } from "@/shared/i18n/messages";
 import type { UiBadgeTone } from "@/shared/ui/display/badge-styles";
 
 export type ChannelLoginStatusIcon = "success" | "terminal" | "warning";
@@ -12,24 +17,56 @@ interface ChannelLoginStatusPresentation {
 export type ChannelLoginPanelModel =
   | { kind: "idle" }
   | {
-      error: string;
+      failure: {
+        impact: string;
+        message: string;
+        nextStep: string;
+        title: string;
+        tone: "error" | "warning";
+      } | null;
       identity: string;
       kind: "session";
-      output: string;
+      progress: string;
       qrPayload: string;
+      qrRequired: boolean;
       status: ChannelLoginStatusPresentation;
       verifyCodeHint: string;
     };
 
-const LOGIN_STATUS_PRESENTATIONS: Record<string, ChannelLoginStatusPresentation> = {
-  cancelled: { icon: "terminal", label: "已取消", tone: "warning" },
-  error: { icon: "warning", label: "登录失败", tone: "danger" },
-  expired: { icon: "warning", label: "已超时", tone: "warning" },
-  running: { icon: "terminal", label: "等待扫码", tone: "info" },
-  succeeded: { icon: "success", label: "登录完成", tone: "success" },
+type ChannelLoginStatusDefinition = Omit<
+  ChannelLoginStatusPresentation,
+  "label"
+> & { labelKey: TranslationKey };
+
+const LOGIN_STATUS_PRESENTATIONS: Record<string, ChannelLoginStatusDefinition> = {
+  cancelled: {
+    icon: "terminal",
+    labelKey: "capability.channel_login_status_cancelled",
+    tone: "warning",
+  },
+  error: {
+    icon: "warning",
+    labelKey: "capability.channel_login_status_error",
+    tone: "danger",
+  },
+  expired: {
+    icon: "warning",
+    labelKey: "capability.channel_login_status_expired",
+    tone: "warning",
+  },
+  running: {
+    icon: "terminal",
+    labelKey: "capability.channel_login_status_running",
+    tone: "info",
+  },
+  succeeded: {
+    icon: "success",
+    labelKey: "capability.channel_login_status_succeeded",
+    tone: "success",
+  },
   verify_code_required: {
     icon: "terminal",
-    label: "需要验证码",
+    labelKey: "capability.channel_login_status_verify_required",
     tone: "warning",
   },
 };
@@ -42,43 +79,127 @@ const DEFAULT_LOGIN_STATUS_PRESENTATION: Omit<
   tone: "default",
 };
 
+function loginStatusDefinition(
+  status: string,
+): ChannelLoginStatusDefinition | undefined {
+  return Object.prototype.hasOwnProperty.call(LOGIN_STATUS_PRESENTATIONS, status)
+    ? LOGIN_STATUS_PRESENTATIONS[status]
+    : undefined;
+}
+
 export function isChannelLoginRunning(view: ChannelLoginView | null): boolean {
   return view?.status === "running";
 }
 
-function resolveLoginStatus(status: string): ChannelLoginStatusPresentation {
-  return LOGIN_STATUS_PRESENTATIONS[status] ?? {
-    ...DEFAULT_LOGIN_STATUS_PRESENTATION,
-    label: status || "未启动",
+function resolveLoginStatus(
+  status: string,
+  t: I18nContextValue["t"],
+): ChannelLoginStatusPresentation {
+  const presentation = loginStatusDefinition(status);
+  if (!presentation) {
+    return {
+      ...DEFAULT_LOGIN_STATUS_PRESENTATION,
+      label: t("capability.channel_login_status_pending"),
+    };
+  }
+  return {
+    icon: presentation.icon,
+    label: t(presentation.labelKey),
+    tone: presentation.tone,
   };
 }
 
-function resolveLoginIdentity(view: ChannelLoginView): string {
-  return [view.account_id, view.command].find(Boolean)
-    ?? "Nexus iLink QR login";
+function resolveLoginIdentity(
+  view: ChannelLoginView,
+  t: I18nContextValue["t"],
+): string {
+  return [view.user_id, view.account_id].find(Boolean)
+    ?? t("capability.channel_login_session_label");
 }
 
-function resolveLoginOutput(view: ChannelLoginView): string {
-  const output = view.output?.trimEnd() ?? "";
-  return output || (isChannelLoginRunning(view) ? "等待 iLink 扫码状态..." : "");
+function resolveLoginProgress(
+  view: ChannelLoginView,
+  t: I18nContextValue["t"],
+): string {
+  switch (view.status) {
+    case "running":
+      return t("capability.channel_login_running_message");
+    case "verify_code_required":
+      return t("capability.channel_login_verify_required_message");
+    case "succeeded":
+      return t("capability.channel_login_succeeded_message");
+    case "expired":
+      return t("capability.channel_login_expired_message");
+    case "cancelled":
+      return t("capability.channel_login_cancelled_message");
+    case "error":
+      return t("capability.channel_login_failed_message");
+    default:
+      return t("capability.channel_login_status_pending_message");
+  }
+}
+
+function resolveTerminalFailure(
+  view: ChannelLoginView,
+  t: I18nContextValue["t"],
+): Extract<ChannelLoginPanelModel, { kind: "session" }>["failure"] {
+  if (!loginStatusDefinition(view.status)) {
+    return {
+      impact: t("capability.channel_login_unknown_status_impact"),
+      message: t("capability.channel_login_unknown_status_message"),
+      nextStep: t("capability.channel_login_unknown_status_next_step"),
+      title: t("capability.channel_login_unknown_status_title"),
+      tone: "warning",
+    };
+  }
+  if (view.status === "error") {
+    return {
+      impact: t("capability.channel_login_failed_impact"),
+      message: t("capability.channel_login_failed_message"),
+      nextStep: t("capability.channel_login_failed_next_step"),
+      title: t("capability.channel_login_failed_title"),
+      tone: "error",
+    };
+  }
+  if (view.status === "expired" || view.status === "cancelled") {
+    const expired = view.status === "expired";
+    return {
+      impact: t(expired
+        ? "capability.channel_login_expired_impact"
+        : "capability.channel_login_cancelled_impact"),
+      message: t(expired
+        ? "capability.channel_login_expired_message"
+        : "capability.channel_login_cancelled_message"),
+      nextStep: t(expired
+        ? "capability.channel_login_expired_next_step"
+        : "capability.channel_login_cancelled_next_step"),
+      title: t(expired
+        ? "capability.channel_login_expired_title"
+        : "capability.channel_login_cancelled_title"),
+      tone: "warning",
+    };
+  }
+  return null;
 }
 
 export function buildChannelLoginPanelModel(
   view: ChannelLoginView | null,
+  t: I18nContextValue["t"],
 ): ChannelLoginPanelModel {
   if (!view) {
     return { kind: "idle" };
   }
 
   return {
-    error: view.error ?? "",
-    identity: resolveLoginIdentity(view),
+    failure: resolveTerminalFailure(view, t),
+    identity: resolveLoginIdentity(view, t),
     kind: "session",
-    output: resolveLoginOutput(view),
+    progress: resolveLoginProgress(view, t),
     qrPayload: view.qr_payload ?? "",
-    status: resolveLoginStatus(view.status),
+    qrRequired: view.status === "running",
+    status: resolveLoginStatus(view.status, t),
     verifyCodeHint: view.status === "verify_code_required"
-      ? view.verify_code_hint || "输入手机微信显示的数字"
+      ? t("capability.channel_login_verify_code_hint")
       : "",
   };
 }

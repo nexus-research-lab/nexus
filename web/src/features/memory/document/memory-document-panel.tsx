@@ -1,3 +1,6 @@
+// INPUT: Memory 文档控制面、目录动作和 workspace live 状态。
+// OUTPUT: 正文、P/I/R 失败、冲突双版对照与明确决策入口。
+// POS: Memory 正文可视化；不自动合并或覆盖并发版本。
 "use client";
 
 import { useMemo } from "react";
@@ -25,7 +28,6 @@ import { useMemoryDocument } from "./use-memory-document";
 interface MemoryDocumentPanelProps {
   agentId: string;
   deleteBusy: boolean;
-  deleteError: string | null;
   deleting: boolean;
   document: MemoryDocument | null;
   onBack: () => void;
@@ -39,7 +41,6 @@ type MemoryDocumentController = ReturnType<typeof useMemoryDocument>;
 export function MemoryDocumentPanel({
   agentId,
   deleteBusy,
-  deleteError,
   deleting,
   document,
   onBack,
@@ -101,7 +102,6 @@ export function MemoryDocumentPanel({
       <MemoryDocumentAlerts
         controller={controller}
         document={document}
-        externalError={deleteError}
       />
       <div className="soft-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto">
         <MemoryDocumentBody
@@ -145,20 +145,19 @@ function MemoryDocumentEmpty() {
 function MemoryDocumentAlerts({
   controller,
   document,
-  externalError,
 }: {
   controller: MemoryDocumentController;
   document: MemoryDocument;
-  externalError: string | null;
 }) {
   const { t } = useI18n();
   const staleDays = memoryAgeDays(document.modified_at);
   const stale = staleDays > MEMORY_STALE_AFTER_DAYS;
-  const commandError = controller.commandError || externalError;
+  const commandError = controller.commandError;
   const resourceFailure = controller.resourceError;
   if (
     !stale
     && !commandError
+    && !controller.saveIssue
     && !(resourceFailure && !resourceFailure.access && controller.content)
   ) {
     return null;
@@ -171,9 +170,24 @@ function MemoryDocumentAlerts({
         </div>
       ) : null}
       {commandError ? (
-        <div className="rounded-[8px] bg-[color:color-mix(in_srgb,var(--destructive)_7%,transparent)] px-3 py-2 text-compact leading-5 text-(--destructive)">
-          {commandError}
-        </div>
+        <UiResourceState
+          className="min-h-0 py-3"
+          description={commandError}
+          impact={t("feedback.unconfirmed_impact")}
+          nextStep={t("feedback.unconfirmed_next_step")}
+          primaryAction={{
+            busy: controller.isLoading,
+            icon: <RefreshCw className="h-3.5 w-3.5" />,
+            label: t("state.reload_check"),
+            onClick: () => void controller.reload(),
+          }}
+          size="sm"
+          state="error"
+          title={t("capability.memory_save_failed")}
+        />
+      ) : null}
+      {controller.saveIssue ? (
+        <MemorySaveIssueNotice controller={controller} />
       ) : null}
       {resourceFailure && !resourceFailure.access && controller.content ? (
         <UiResourceState
@@ -193,6 +207,90 @@ function MemoryDocumentAlerts({
         />
       ) : null}
     </div>
+  );
+}
+
+function MemorySaveIssueNotice({
+  controller,
+}: {
+  controller: MemoryDocumentController;
+}) {
+  const { t } = useI18n();
+  const issue = controller.saveIssue;
+  if (!issue) {
+    return null;
+  }
+  if (issue.kind === "conflict") {
+    const reviewing = issue.phase === "review";
+    return (
+      <UiResourceState
+        className="min-h-0 py-3"
+        impact={t(reviewing
+          ? "capability.memory_conflict_review_impact"
+          : "capability.memory_conflict_impact")}
+        nextStep={t(reviewing
+          ? "capability.memory_conflict_review_next_step"
+          : "capability.memory_conflict_next_step")}
+        primaryAction={reviewing
+          ? {
+              label: t("capability.memory_use_latest"),
+              onClick: controller.adoptLatest,
+            }
+          : {
+              busy: controller.isLoading,
+              busyLabel: t("capability.memory_loading_latest"),
+              icon: <RefreshCw className="h-3.5 w-3.5" />,
+              label: t("capability.memory_load_latest"),
+              onClick: () => void controller.reload(),
+            }}
+        secondaryAction={reviewing
+          ? {
+              busy: controller.isSaving,
+              disabled: !controller.revision,
+              label: t("capability.memory_overwrite_draft"),
+              onClick: () => void controller.overwriteConflict(),
+              tone: "danger",
+            }
+          : undefined}
+        size="sm"
+        state="error"
+        title={t(reviewing
+          ? "capability.memory_conflict_review_title"
+          : "capability.memory_conflict_title")}
+      />
+    );
+  }
+  if (issue.kind === "outcome_unknown") {
+    return (
+      <UiResourceState
+        className="min-h-0 py-3"
+        impact={t("capability.memory_save_unknown_impact")}
+        nextStep={t("capability.memory_save_unknown_next_step")}
+        primaryAction={{
+          busy: controller.isReconciling,
+          busyLabel: t("capability.memory_checking_save_result"),
+          icon: <RefreshCw className="h-3.5 w-3.5" />,
+          label: t("capability.memory_check_save_result"),
+          onClick: () => void controller.reconcileSave(),
+        }}
+        size="sm"
+        state="error"
+        title={t(issue.reconciliationFailed
+          ? "capability.memory_save_check_failed_title"
+          : "capability.memory_save_unknown_title")}
+      />
+    );
+  }
+  return (
+    <UiResourceState
+      className="min-h-0 py-3"
+      description={issue.detail}
+      impact={t("capability.memory_not_applied_impact")}
+      nextStep={t("capability.memory_not_applied_next_step")}
+      size="sm"
+      state="error"
+      title={t("capability.memory_not_applied_title")}
+    />
   );
 }
 
@@ -239,6 +337,12 @@ function MemoryDocumentBody({
     );
   }
   if (controller.editing) {
+    if (
+      controller.saveIssue?.kind === "conflict"
+      && controller.saveIssue.phase === "review"
+    ) {
+      return <MemoryConflictReview controller={controller} />;
+    }
     return (
       <textarea
         aria-label={t("capability.memory_editor_aria")}
@@ -267,5 +371,41 @@ function MemoryDocumentBody({
       mermaidShowHeader={false}
       workspaceAgentId={agentId}
     />
+  );
+}
+
+function MemoryConflictReview({
+  controller,
+}: {
+  controller: MemoryDocumentController;
+}) {
+  const { t } = useI18n();
+  return (
+    <div className="nexus-memory-document-content grid min-h-0 flex-1 gap-2 py-4 lg:grid-cols-2">
+      <section className="flex min-h-[240px] min-w-0 flex-col rounded-[10px] border border-[color:color-mix(in_srgb,var(--warning)_26%,var(--border-subtle))] bg-[color:color-mix(in_srgb,var(--warning)_4%,transparent)]">
+        <h3 className="shrink-0 px-3 pb-2 pt-3 text-xs font-semibold text-(--text-strong)">
+          {t("capability.memory_local_draft")}
+        </h3>
+        <textarea
+          aria-label={t("capability.memory_local_draft")}
+          className="message-cjk-code-font min-h-[200px] flex-1 resize-none overflow-auto bg-transparent px-3 pb-3 text-sm leading-6 text-(--text-default) outline-none"
+          onChange={(event) => controller.setDraft(event.target.value)}
+          spellCheck={false}
+          value={controller.draft}
+        />
+      </section>
+      <section className="flex min-h-[240px] min-w-0 flex-col rounded-[10px] border border-(--border-subtle) bg-(--surface-subtle)">
+        <h3 className="shrink-0 px-3 pb-2 pt-3 text-xs font-semibold text-(--text-strong)">
+          {t("capability.memory_saved_version")}
+        </h3>
+        <textarea
+          aria-label={t("capability.memory_saved_version")}
+          className="message-cjk-code-font min-h-[200px] flex-1 resize-none overflow-auto bg-transparent px-3 pb-3 text-sm leading-6 text-(--text-muted) outline-none"
+          readOnly
+          spellCheck={false}
+          value={controller.content}
+        />
+      </section>
+    </div>
   );
 }

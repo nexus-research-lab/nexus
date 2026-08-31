@@ -1,13 +1,32 @@
+/**
+ * INPUT: 当前 owner generation、runtime 默认值与 Provider options API。
+ * OUTPUT: 同 owner/runtime 共享且跨 owner 不复用响应的 Composer Provider readiness。
+ * POS: Provider 配置到聊天入口之间的轻量只读门禁；不保存 Provider 详情。
+ */
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useState,
+  useSyncExternalStore,
+} from "react";
 
 import {
   getDefaultAgentRuntimeKind,
   USER_PREFERENCES_CHANGED_EVENT,
 } from "@/config/runtime-options";
 import { listProviderOptionsApi } from "@/lib/api/settings/provider-api";
-import type { AgentRuntimeKind } from "@/types/settings/preferences";
+import {
+  captureAuthOwnerScopeGeneration,
+  isAuthOwnerScopeGenerationCurrent,
+  subscribeAuthOwnerScopeGeneration,
+} from "@/shared/auth/auth-owner-generation";
+
+import {
+  ProviderAvailabilityResource,
+  type ProviderAvailabilityEvent,
+} from "./provider-availability-resource";
 
 interface ProviderAvailabilityState {
   hasAvailableProvider: boolean;
@@ -15,47 +34,33 @@ interface ProviderAvailabilityState {
   refresh: () => Promise<void>;
 }
 
-const cachedHasProviderByRuntime = new Map<AgentRuntimeKind, boolean>();
-const subscribers = new Set<(value: boolean) => void>();
-const inFlightByRuntime = new Map<AgentRuntimeKind, Promise<void>>();
-
-async function fetchAvailability(runtimeKind = getDefaultAgentRuntimeKind()): Promise<void> {
-  const currentInFlight = inFlightByRuntime.get(runtimeKind);
-  if (currentInFlight) return currentInFlight;
-
-  const request = (async () => {
-    try {
-      const response = await listProviderOptionsApi(runtimeKind);
-      // 中文注释：只有能解析到当前用户真正选择的 Provider/Model，聊天才具备启动条件。
-      // 仅检查模型列表会把“有模型但没有默认模型”的半配置状态误报为可用。
-      const selection = response?.default_selection;
-      const nextValue = Boolean(
-        selection
-        && (response?.items ?? []).some((provider) => (
-          provider.provider === selection.provider
-          && provider.models.some((model) => model.model_id === selection.model)
-        )),
-      );
-      cachedHasProviderByRuntime.set(runtimeKind, nextValue);
-      subscribers.forEach((subscriber) => subscriber(nextValue));
-    } catch (error) {
-      console.warn("Failed to load provider availability:", error);
-    } finally {
-      inFlightByRuntime.delete(runtimeKind);
-    }
-  })();
-
-  inFlightByRuntime.set(runtimeKind, request);
-  return request;
-}
+const providerAvailabilityResource = new ProviderAvailabilityResource({
+  isGenerationCurrent: isAuthOwnerScopeGenerationCurrent,
+  load: async (runtimeKind) => {
+    const response = await listProviderOptionsApi(runtimeKind);
+    // 只有能解析到当前用户真正选择的 Provider/Model，聊天才具备启动条件。
+    // 仅检查模型列表会把“有模型但没有默认模型”的半配置状态误报为可用。
+    const selection = response?.default_selection;
+    return Boolean(
+      selection
+      && (response?.items ?? []).some((provider) => (
+        provider.provider === selection.provider
+        && provider.models.some((model) => model.model_id === selection.model)
+      )),
+    );
+  },
+  reportError: (error) => {
+    console.warn("Failed to load provider availability:", error);
+  },
+});
 
 /**
  * 让其它模块（如 Settings 面板的增删改）在变更后主动失效缓存。
  */
 export function invalidateProviderAvailability(): void {
+  const ownerGeneration = captureAuthOwnerScopeGeneration();
   const runtimeKind = getDefaultAgentRuntimeKind();
-  cachedHasProviderByRuntime.delete(runtimeKind);
-  void fetchAvailability(runtimeKind);
+  void providerAvailabilityResource.invalidate(ownerGeneration, runtimeKind);
 }
 
 /**
@@ -63,33 +68,57 @@ export function invalidateProviderAvailability(): void {
  * 多个调用者共享同一份请求结果，避免重复打 API。
  */
 export function useProviderAvailability(): ProviderAvailabilityState {
-  const initialRuntimeKind = getDefaultAgentRuntimeKind();
-  const cachedHasProvider = cachedHasProviderByRuntime.get(initialRuntimeKind);
-  const [hasAvailableProvider, setHasAvailableProvider] = useState<boolean>(
-    cachedHasProvider ?? true,
+  const ownerGeneration = useSyncExternalStore(
+    subscribeAuthOwnerScopeGeneration,
+    captureAuthOwnerScopeGeneration,
+    captureAuthOwnerScopeGeneration,
   );
-  const [isReady, setIsReady] = useState<boolean>(cachedHasProvider !== undefined);
+  const initialRuntimeKind = getDefaultAgentRuntimeKind();
+  const cachedHasProvider = providerAvailabilityResource.read(
+    ownerGeneration,
+    initialRuntimeKind,
+  );
+  const [snapshot, setSnapshot] = useState<ProviderAvailabilityEvent | null>(
+    cachedHasProvider === undefined
+      ? null
+      : { generation: ownerGeneration, runtimeKind: initialRuntimeKind, value: cachedHasProvider },
+  );
 
   useEffect(() => {
-    const subscriber = (value: boolean) => {
-      setHasAvailableProvider(value);
-      setIsReady(true);
+    const subscriber = (event: ProviderAvailabilityEvent) => {
+      if (
+        event.generation === ownerGeneration
+        && event.runtimeKind === getDefaultAgentRuntimeKind()
+      ) {
+        setSnapshot(event);
+      }
     };
-    subscribers.add(subscriber);
+    const unsubscribe = providerAvailabilityResource.subscribe(subscriber);
 
     const currentRuntimeKind = getDefaultAgentRuntimeKind();
-    const cachedValue = cachedHasProviderByRuntime.get(currentRuntimeKind);
+    const cachedValue = providerAvailabilityResource.read(
+      ownerGeneration,
+      currentRuntimeKind,
+    );
     if (cachedValue === undefined) {
-      void fetchAvailability(currentRuntimeKind);
+      setSnapshot(null);
+      void providerAvailabilityResource.fetch(
+        ownerGeneration,
+        currentRuntimeKind,
+      );
     } else {
-      setHasAvailableProvider(cachedValue);
-      setIsReady(true);
+      setSnapshot({
+        generation: ownerGeneration,
+        runtimeKind: currentRuntimeKind,
+        value: cachedValue,
+      });
     }
 
     const refreshCurrentRuntime = () => {
+      const generation = captureAuthOwnerScopeGeneration();
       const runtimeKind = getDefaultAgentRuntimeKind();
-      cachedHasProviderByRuntime.delete(runtimeKind);
-      void fetchAvailability(runtimeKind);
+      setSnapshot(null);
+      void providerAvailabilityResource.invalidate(generation, runtimeKind);
     };
     const handleVisibility = () => {
       if (document.visibilityState === "visible") refreshCurrentRuntime();
@@ -99,18 +128,26 @@ export function useProviderAvailability(): ProviderAvailabilityState {
     window.addEventListener(USER_PREFERENCES_CHANGED_EVENT, refreshCurrentRuntime);
 
     return () => {
-      subscribers.delete(subscriber);
+      unsubscribe();
       document.removeEventListener("visibilitychange", handleVisibility);
       window.removeEventListener("focus", handleVisibility);
       window.removeEventListener(USER_PREFERENCES_CHANGED_EVENT, refreshCurrentRuntime);
     };
-  }, []);
+  }, [ownerGeneration]);
 
   const refresh = useCallback(async () => {
+    const generation = captureAuthOwnerScopeGeneration();
     const runtimeKind = getDefaultAgentRuntimeKind();
-    cachedHasProviderByRuntime.delete(runtimeKind);
-    await fetchAvailability(runtimeKind);
+    setSnapshot(null);
+    await providerAvailabilityResource.invalidate(generation, runtimeKind);
   }, []);
 
-  return { hasAvailableProvider, isReady, refresh };
+  const currentRuntimeKind = getDefaultAgentRuntimeKind();
+  const isCurrentSnapshot = snapshot?.generation === ownerGeneration
+    && snapshot.runtimeKind === currentRuntimeKind;
+  return {
+    hasAvailableProvider: isCurrentSnapshot ? snapshot.value : true,
+    isReady: isCurrentSnapshot,
+    refresh,
+  };
 }

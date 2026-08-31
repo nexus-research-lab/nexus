@@ -1,3 +1,6 @@
+// INPUT: 当前发现模式、搜索条件与目录失败反馈入口。
+// OUTPUT: 只提交最新请求的 Skill 目录快照，以及可判定成功/失败的只读刷新结果。
+// POS: Skill marketplace 目录资源边界；刷新不执行或重放任何写操作。
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { getAvailableSkillsApi } from "@/lib/api/capability/skill-api";
@@ -44,15 +47,14 @@ export function useSkillCatalog({
       });
       if (requestId === requestRef.current) {
         setSkills(nextSkills);
+        return true;
       }
-    } catch (error) {
+      return false;
+    } catch {
       if (requestId === requestRef.current) {
-        onError(
-          error instanceof Error
-            ? error.message
-            : catalogLoadFailed,
-        );
+        onError(catalogLoadFailed);
       }
+      return false;
     } finally {
       if (requestId === requestRef.current) {
         setLoading(false);

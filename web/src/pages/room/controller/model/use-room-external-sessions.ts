@@ -1,9 +1,18 @@
+/**
+ * INPUT: 当前 DM 的 exact Room + Agent scope 与 Agent Session 目录。
+ * OUTPUT: 同 scope 的外部 Session 标签快照，以及 stale/error/显式刷新状态。
+ * POS: Room 外部 Session 读取可靠性边界；普通失败保留旧快照，scope 或访问权限失效清空。
+ */
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { getAgentSessionsApi } from "@/lib/api/conversation/session-api";
+import {
+  getResourceFailure,
+  type ResourceFailure,
+} from "@/lib/error-message";
 import { subscribeRoomDirectoryUpdates } from "@/lib/conversation/room-directory-events";
 import {
   buildExternalSessionConversationId,
@@ -89,7 +98,9 @@ export function useRoomExternalSessions({
   roomId: string | null;
   roomType: string | null;
 }) {
-  const externalSessionsResetKey = roomType === "dm" && agentId ? agentId : "inactive";
+  const externalSessionsResetKey = roomType === "dm" && agentId && roomId
+    ? `${roomId}\u0000${agentId}`
+    : "inactive";
   const [externalAgentSessions, setExternalAgentSessions] = useResettableState<AgentSession[]>(
     [],
     externalSessionsResetKey,
@@ -98,7 +109,16 @@ export function useRoomExternalSessions({
     false,
     externalSessionsResetKey,
   );
+  const [hasSuccessfulExternalSessionSnapshot, setHasSuccessfulExternalSessionSnapshot] =
+    useResettableState(false, externalSessionsResetKey);
+  const [externalSessionFailure, setExternalSessionFailure] =
+    useResettableState<ResourceFailure | null>(null, externalSessionsResetKey);
+  const [isRefreshingExternalSessions, setIsRefreshingExternalSessions] =
+    useResettableState(false, externalSessionsResetKey);
   const [externalSessionRefreshVersion, setExternalSessionRefreshVersion] = useState(0);
+  const refreshExternalSessions = useCallback(() => {
+    setExternalSessionRefreshVersion((version) => version + 1);
+  }, []);
 
   useEffect(
     () => subscribeRoomDirectoryUpdates(() => {
@@ -108,15 +128,19 @@ export function useRoomExternalSessions({
   );
 
   useEffect(() => {
-    if (roomType !== "dm" || !agentId) {
+    if (roomType !== "dm" || !agentId || !roomId) {
       return undefined;
     }
 
     let cancelled = false;
+    let refreshRequestId = 0;
     const refreshExternalSessions = () => {
+      refreshRequestId += 1;
+      const requestId = refreshRequestId;
+      setIsRefreshingExternalSessions(true);
       void getAgentSessionsApi(agentId)
         .then((sessions) => {
-          if (cancelled) {
+          if (cancelled || requestId !== refreshRequestId) {
             return;
           }
           const nextSessions = filterExternalAgentSessions(sessions);
@@ -125,13 +149,25 @@ export function useRoomExternalSessions({
               ? currentSessions
               : nextSessions
           ));
+          setExternalSessionFailure(null);
           setHasLoadedExternalSessions(true);
+          setHasSuccessfulExternalSessionSnapshot(true);
+          setIsRefreshingExternalSessions(false);
         })
         .catch((error) => {
-          console.error("[RoomPage] 加载 Agent 外部 IM 会话失败:", error);
-          if (!cancelled) {
-            setExternalAgentSessions([]);
+          if (!cancelled && requestId === refreshRequestId) {
+            console.error("[RoomPage] 加载 Agent 外部 IM 会话失败:", error);
+            const failure = getResourceFailure(
+              error,
+              "外部会话标签暂时无法更新",
+            );
+            if (failure.access) {
+              setExternalAgentSessions([]);
+              setHasSuccessfulExternalSessionSnapshot(false);
+            }
+            setExternalSessionFailure(failure);
             setHasLoadedExternalSessions(true);
+            setIsRefreshingExternalSessions(false);
           }
         });
     };
@@ -156,10 +192,15 @@ export function useRoomExternalSessions({
     };
   }, [
     agentId,
+    externalSessionsResetKey,
     externalSessionRefreshVersion,
+    roomId,
     roomType,
     setExternalAgentSessions,
+    setExternalSessionFailure,
     setHasLoadedExternalSessions,
+    setHasSuccessfulExternalSessionSnapshot,
+    setIsRefreshingExternalSessions,
   ]);
 
   const externalRoomConversations = useMemo(
@@ -173,7 +214,13 @@ export function useRoomExternalSessions({
   return {
     externalAgentSessions,
     externalRoomConversations,
+    externalSessionFailure,
+    isExternalSessionCatalogStale: Boolean(
+      externalSessionFailure && hasSuccessfulExternalSessionSnapshot,
+    ),
+    isRefreshingExternalSessions,
     isExternalSessionCatalogReady:
-      roomType !== "dm" || !agentId || hasLoadedExternalSessions,
+      roomType !== "dm" || !agentId || !roomId || hasLoadedExternalSessions,
+    refreshExternalSessions,
   };
 }

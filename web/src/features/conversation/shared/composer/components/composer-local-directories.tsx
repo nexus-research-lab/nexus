@@ -1,8 +1,9 @@
 "use client";
 
-import { CircleAlert, Folder, Laptop, Plus, X } from "lucide-react";
+import { Folder, Laptop, Plus, X } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 
 import type { ComposerLocalDirectoriesController } from "../controller/use-composer-local-directories";
 
@@ -16,15 +17,16 @@ export function ComposerLocalDirectories({
   const { t } = useI18n();
   if (
     !controller.available
-    || (controller.directories.length === 0 && !controller.error)
+    || (controller.directories.length === 0 && !controller.failure)
   ) {
     return null;
   }
   return (
-    <div
-      aria-label={t("composer.local_directories_label")}
-      className="scrollbar-hide mb-2 flex min-h-8 min-w-0 flex-nowrap items-center gap-1.5 overflow-x-auto overflow-y-hidden overscroll-x-contain px-1"
-    >
+    <div className="mb-2 space-y-2">
+      <div
+        aria-label={t("composer.local_directories_label")}
+        className="scrollbar-hide flex min-h-8 min-w-0 flex-nowrap items-center gap-1.5 overflow-x-auto overflow-y-hidden overscroll-x-contain px-1"
+      >
       {controller.directories.length > 0 ? (
         <span className="radius-control-sm inline-flex h-8 shrink-0 items-center gap-1.5 border border-(--divider-subtle-color) bg-(--surface-panel-subtle-background) px-2.5 text-xs font-medium text-(--text-soft)">
           <Laptop className="h-3.5 w-3.5 text-(--icon-muted)" />
@@ -64,15 +66,20 @@ export function ComposerLocalDirectories({
           <Plus className="h-4 w-4" />
         </button>
       ) : null}
-      {controller.error ? (
-        <span
-          aria-live="polite"
-          className="radius-control-sm inline-flex min-h-8 max-w-full shrink-0 items-center gap-1.5 bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] px-2.5 text-xs text-(--destructive)"
-          role="status"
-        >
-          <CircleAlert className="h-3.5 w-3.5 shrink-0" />
-          <span className="truncate">{controller.error}</span>
-        </span>
+      </div>
+      {controller.failure ? (
+        <UiResourceState
+          description={controller.failure.message}
+          impact={controller.failure.impact}
+          nextStep={controller.failure.nextStep}
+          primaryAction={{
+            label: t("composer.local_directories_reload"),
+            onClick: controller.reload,
+          }}
+          size="sm"
+          state="error"
+          title={t("composer.local_directories_failure_title")}
+        />
       ) : null}
     </div>
   );

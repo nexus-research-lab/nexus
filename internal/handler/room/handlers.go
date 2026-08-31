@@ -1,3 +1,6 @@
+// INPUT: owner-scoped Room HTTP 请求、业务服务与实时目录广播。
+// OUTPUT: Room 查询/修改响应，以及删除失败的结构化提交证据。
+// POS: Room HTTP 主入口；业务事务留在 service，失败事实由领域映射显式给出。
 package room
 
 import (
@@ -175,12 +178,9 @@ func (h *Handlers) HandleDeleteRoom(writer http.ResponseWriter, request *http.Re
 		_ = h.roomRealtime.InterruptRoom(request.Context(), roomID, "room 已删除")
 	}
 	err := h.roomService.DeleteRoom(request.Context(), roomID)
-	if errors.Is(err, roompkg.ErrRoomNotFound) {
-		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
-		return
-	}
 	if err != nil {
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		status, failure := roomDeleteFailure(err)
+		h.api.WriteError(writer, request, status, failure)
 		return
 	}
 	h.broadcastRoomEvent(request.Context(), roomID, protocol.EventTypeRoomDeleted, map[string]any{

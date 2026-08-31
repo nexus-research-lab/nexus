@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -31,7 +30,7 @@ func requirePublicProviderManagement(ctx context.Context) error {
 	if canManagePublicProviders(ctx) {
 		return nil
 	}
-	return errors.New("只有管理员可以维护公共 Provider")
+	return fmt.Errorf("%w: 只有管理员可以维护公共 Provider", ErrProviderManagementForbidden)
 }
 
 func (s *Service) createVisibility(ctx context.Context, requested string) (string, string, error) {
@@ -51,13 +50,13 @@ func normalizeProviderVisibility(requested string, canManagePublic bool) (string
 		return providerstore.VisibilityPrivate, nil
 	case providerstore.VisibilityPublic:
 		if !canManagePublic {
-			return "", errors.New("只有管理员可以创建公共 Provider")
+			return "", fmt.Errorf("%w: 只有管理员可以创建公共 Provider", ErrProviderManagementForbidden)
 		}
 		return providerstore.VisibilityPublic, nil
 	case providerstore.VisibilityPrivate:
 		return providerstore.VisibilityPrivate, nil
 	default:
-		return "", errors.New("provider visibility 只支持 public 或 private")
+		return "", fmt.Errorf("%w: provider visibility 只支持 public 或 private", ErrInvalidInput)
 	}
 }
 

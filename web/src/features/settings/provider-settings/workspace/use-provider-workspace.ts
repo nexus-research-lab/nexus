@@ -11,6 +11,7 @@ import type {
   FeedbackState,
   ProviderDraft,
 } from "../model/provider-settings-types";
+import { buildProviderReadFailureFeedback } from "../model/provider-feedback-model";
 import {
   createProviderWorkspace,
   INITIAL_PROVIDER_WORKSPACE,
@@ -47,7 +48,9 @@ export function useProviderWorkspace({
     [draft.preset_key, presets],
   );
 
-  const refreshAll = useCallback(async (preferredProvider?: string | null) => {
+  const refreshAll = useCallback(async (
+    preferredProvider?: string | null,
+  ): Promise<boolean> => {
     const requestId = ++requestIdRef.current;
     try {
       const [nextPresets, nextProviders] = await Promise.all([
@@ -55,7 +58,7 @@ export function useProviderWorkspace({
         listConfigs(),
       ]);
       if (requestId !== requestIdRef.current) {
-        return;
+        return false;
       }
       setWorkspace((current) => refreshProviderWorkspace(
         current,
@@ -66,17 +69,17 @@ export function useProviderWorkspace({
       ));
       invalidateProviderAvailability();
       setFeedback((current) => current?.tone === "error" ? null : current);
+      return true;
     } catch (error) {
       if (requestId !== requestIdRef.current) {
-        return;
+        return false;
       }
-      setFeedback({
-        tone: "error",
-        title: t("settings.providers.load_failed_title"),
-        message: error instanceof Error
-          ? error.message
-          : t("settings.providers.retry_later"),
-      });
+      setFeedback(buildProviderReadFailureFeedback(
+        error,
+        t("settings.providers.retry_later"),
+        t,
+      ));
+      return false;
     } finally {
       if (requestId === requestIdRef.current) {
         setLoading(false);

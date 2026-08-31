@@ -1,7 +1,7 @@
 /**
  * INPUT: Room 会话目录、当前会话和既有创建/选择/删除/重命名命令。
- * OUTPUT: 带固定高度滚动列表、标题编辑、多选和全量清空确认的锚定历史菜单。
- * POS: Room Header 历史入口的交互装配层，不解释底层会话协议。
+ * OUTPUT: 带固定高度列表、批量操作，以及未确认删除项 Problem/Impact/Recovery 的历史菜单。
+ * POS: Room Header 历史交互层；只按命令结果展示恢复事实，不猜测底层提交状态。
  */
 
 "use client";
@@ -60,6 +60,11 @@ interface PendingRoomHistoryBulkDelete {
   conversationIds: string[];
 }
 
+interface RoomHistoryBulkDeleteFailure {
+  failedCount: number;
+  totalCount: number;
+}
+
 export function RoomHistoryMenu({
   canManageConversations = true,
   conversationId,
@@ -77,7 +82,7 @@ export function RoomHistoryMenu({
     setPendingBulkDelete,
   ] = useState<PendingRoomHistoryBulkDelete | null>(null);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
-  const [bulkDeleteFailureCount, setBulkDeleteFailureCount] = useState<number | null>(null);
+  const [bulkDeleteFailure, setBulkDeleteFailure] = useState<RoomHistoryBulkDeleteFailure | null>(null);
   const entries = useMemo(() => buildRoomHistoryEntries({
     canManageConversations,
     canUpdateConversationTitle: onUpdateConversationTitle !== undefined,
@@ -172,7 +177,7 @@ export function RoomHistoryMenu({
     const pendingDelete = pendingBulkDelete;
     const conversationIds = pendingDelete?.conversationIds ?? [];
     setPendingBulkDelete(null);
-    setBulkDeleteFailureCount(null);
+    setBulkDeleteFailure(null);
     if (conversationIds.length === 0) {
       return;
     }
@@ -196,7 +201,10 @@ export function RoomHistoryMenu({
       onSelectConversation(replacementConversationId);
     }
     if (failedConversationIds.length > 0) {
-      setBulkDeleteFailureCount(failedConversationIds.length);
+      setBulkDeleteFailure({
+        failedCount: failedConversationIds.length,
+        totalCount: conversationIds.length,
+      });
       restoreSelection(failedConversationIds);
       toggleMenu();
     }
@@ -210,7 +218,7 @@ export function RoomHistoryMenu({
     toggleMenu,
   ]);
   const toggleSelectionMode = useCallback(() => {
-    setBulkDeleteFailureCount(null);
+    setBulkDeleteFailure(null);
     if (isSelecting) {
       clearSelection();
       return;
@@ -245,7 +253,7 @@ export function RoomHistoryMenu({
         type="button"
       >
         {isBulkDeleting ? (
-          <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+          <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none" />
         ) : triggerVariant === "session" ? (
           <ChevronDown
             className={cn(
@@ -318,15 +326,28 @@ export function RoomHistoryMenu({
                   })}
                 </span>
               </div>
-              {bulkDeleteFailureCount ? (
-                <p
-                  className="px-1.5 pt-1 text-2xs text-(--destructive)"
-                  role="alert"
+              {bulkDeleteFailure ? (
+                <div
+                  aria-atomic="true"
+                  aria-live="polite"
+                  className="space-y-0.5 px-1.5 pt-1 text-2xs leading-4"
+                  role="status"
                 >
-                  {t("room.history_batch_delete_failed", {
-                    count: bulkDeleteFailureCount,
-                  })}
-                </p>
+                  <p className="font-medium text-(--destructive)">
+                    {t("room.history_batch_delete_failed", {
+                      count: bulkDeleteFailure.failedCount,
+                    })}
+                  </p>
+                  <p className="text-(--text-muted)">
+                    {t("room.history_batch_delete_impact", {
+                      completed: bulkDeleteFailure.totalCount - bulkDeleteFailure.failedCount,
+                      pending: bulkDeleteFailure.failedCount,
+                    })}
+                  </p>
+                  <p className="font-medium text-(--text-default)">
+                    {t("room.history_batch_delete_next_step")}
+                  </p>
+                </div>
               ) : null}
             </div>
           ) : null}

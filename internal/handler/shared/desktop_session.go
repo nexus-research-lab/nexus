@@ -57,7 +57,7 @@ func DesktopSessionTokenMiddleware(api *API, token string, apiPrefix string) fun
 					Code:     "auth.desktop_session_invalid",
 					Category: protocol.FailureCategoryAuthentication,
 					Effect:   failureEffectBeforeHandler(request),
-					Detail:   "桌面会话 token 无效",
+					Detail:   "桌面登录状态已失效",
 					Resolution: &protocol.FailureResolution{
 						Actor:  protocol.FailureRecoveryActorSystem,
 						Action: "auth.refresh_desktop_session",

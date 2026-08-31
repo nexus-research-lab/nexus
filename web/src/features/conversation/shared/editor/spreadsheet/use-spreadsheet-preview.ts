@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { fetchOfficePreviewBuffer } from "../office-preview-resource";
@@ -9,9 +9,9 @@ import {
 } from "./spreadsheet-preview-model";
 
 export type SpreadsheetPreviewStatus =
-  | { state: "loading"; message: string }
+  | { state: "loading" }
   | { state: "loaded"; sheetCount: number }
-  | { state: "error"; message: string };
+  | { state: "error" };
 
 async function parseSpreadsheetBuffer(
   buffer: ArrayBuffer,
@@ -37,12 +37,16 @@ export function useSpreadsheetPreview(agentId: string, path: string) {
   );
   const [status, setStatus] = useResettableState<SpreadsheetPreviewStatus>({
     state: "loading",
-    message: "加载表格预览中",
   }, previewKey);
+  const [retryRevision, setRetryRevision] = useState(0);
+  const retryPreview = useCallback(() => {
+    setRetryRevision((current) => current + 1);
+  }, []);
 
   useEffect(() => {
     const abortController = new AbortController();
     let active = true;
+    setStatus({ state: "loading" });
     const loadPreview = async (): Promise<void> => {
       try {
         const buffer = await fetchOfficePreviewBuffer({
@@ -54,7 +58,7 @@ export function useSpreadsheetPreview(agentId: string, path: string) {
         if (!active) {
           return;
         }
-        setStatus({ state: "loading", message: "解析 workbook 中" });
+        setStatus({ state: "loading" });
         const nextWorkbook = await parseSpreadsheetBuffer(buffer);
         if (!active) {
           return;
@@ -64,14 +68,13 @@ export function useSpreadsheetPreview(agentId: string, path: string) {
           state: "loaded",
           sheetCount: nextWorkbook.sheets.length,
         });
-      } catch (error) {
+      } catch {
         if (!active || abortController.signal.aborted) {
           return;
         }
         setWorkbook(null);
         setStatus({
           state: "error",
-          message: error instanceof Error ? error.message : "xlsx 预览失败",
         });
       }
     };
@@ -80,11 +83,12 @@ export function useSpreadsheetPreview(agentId: string, path: string) {
       active = false;
       abortController.abort();
     };
-  }, [agentId, path, setStatus, setWorkbook]);
+  }, [agentId, path, retryRevision, setStatus, setWorkbook]);
 
   return {
     activeSheetIndex,
     setActiveSheetIndex,
+    retryPreview,
     status,
     workbook,
   };

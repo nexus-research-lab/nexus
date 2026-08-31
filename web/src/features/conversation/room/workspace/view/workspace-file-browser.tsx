@@ -12,10 +12,9 @@ import type { WorkspaceFileEntry } from "@/types/agent/agent";
 interface WorkspaceFileBrowserController {
   files: WorkspaceFileEntry[];
   isLoadingFiles: boolean;
+  isMutating: boolean;
   isUploading: boolean;
-  errorMessage: string | null;
   focusedDirectoryPath: string | null;
-  clearErrorMessage: () => void;
   handleClickFile: (path: string) => void;
   handleClickDirectory: (path: string) => void;
   handleUploadClick: (directoryPath?: string | null) => void;
@@ -36,7 +35,7 @@ interface WorkspaceFileBrowserProps {
 
 type WorkspaceDirectoryToolbarController = Pick<
   WorkspaceFileBrowserController,
-  "handleUploadClick" | "isUploading" | "openCreatePrompt"
+  "handleUploadClick" | "isMutating" | "isUploading" | "openCreatePrompt"
 >;
 
 export function WorkspaceDirectoryToolbar({
@@ -52,7 +51,7 @@ export function WorkspaceDirectoryToolbar({
   return (
     <div className="flex shrink-0 items-center gap-0.5">
       <WorkspaceFileToolbarButton
-        disabled={controller.isUploading}
+        disabled={controller.isMutating}
         onClick={() => controller.handleUploadClick()}
         title={t(uploadKey)}
       >
@@ -64,6 +63,7 @@ export function WorkspaceDirectoryToolbar({
       </WorkspaceFileToolbarButton>
 
       <WorkspaceFileToolbarButton
+        disabled={controller.isMutating}
         onClick={() => controller.openCreatePrompt("directory")}
         title={t("room.workspace_action_new_folder")}
       >
@@ -71,6 +71,7 @@ export function WorkspaceDirectoryToolbar({
       </WorkspaceFileToolbarButton>
 
       <WorkspaceFileToolbarButton
+        disabled={controller.isMutating}
         onClick={() => controller.openCreatePrompt("file")}
         title={t("room.workspace_action_new_file")}
       >
@@ -143,19 +144,6 @@ export function WorkspaceFileBrowser({
           ariaLabel={t("room.resize_workspace_file_list")}
           onResizeStart={onResizeStart}
         />
-      ) : null}
-
-      {controller.errorMessage ? (
-        <div className="mb-4 flex items-center justify-between surface-radius-md border border-destructive/20 bg-destructive/6 px-4 py-3 text-sm text-destructive">
-          <span className="min-w-0 flex-1 truncate">{controller.errorMessage}</span>
-          <button
-            type="button"
-            className="ml-3 shrink-0 rounded-md px-2 py-1 text-xs font-medium transition hover:bg-destructive/10"
-            onClick={controller.clearErrorMessage}
-          >
-            {t("common.close")}
-          </button>
-        </div>
       ) : null}
 
       <div

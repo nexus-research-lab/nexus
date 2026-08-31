@@ -1,3 +1,9 @@
+/**
+ * INPUT: Launcher 目录投影、导航回调与可选页面级可靠性反馈。
+ * OUTPUT: Console、Hero 和最近会话入口之间共享的窄类型合同。
+ * POS: Launcher 展示层类型边界；不持有请求、导航或恢复状态。
+ */
+import type { FeedbackBannerProps } from "@/shared/ui/feedback/feedback-banner-contract";
 import type { MentionTargetItem } from "@/shared/ui/mention/mention-target-model";
 import type {
   LauncherAgentSummary,
@@ -11,6 +17,7 @@ export interface LauncherConsoleProps {
   rooms: LauncherRoomSummary[];
   conversations: LauncherConversationSummary[];
   currentAgentId: string | null;
+  feedback?: FeedbackBannerProps | null;
   initialQuery: string;
   onOpenMainAgentDm: (initialPrompt?: string) => void;
   onOpenRoute: (route: string) => void;

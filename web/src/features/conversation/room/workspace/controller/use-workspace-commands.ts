@@ -1,4 +1,10 @@
-import { useCallback, useRef, useState } from "react";
+/**
+ * INPUT: 当前 Agent、精确 workspace 命令、文件选择与权威列表刷新函数。
+ * OUTPUT: 串行命令、按 Agent/路径/命令隔离的未知结果锁，以及三段式恢复反馈。
+ * POS: workspace 文件命令控制器；已提交结果与列表刷新分阶段，未知副作用不自动重放。
+ */
+
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import {
   createWorkspaceEntryApi,
@@ -26,12 +32,22 @@ import {
   buildLocalAttachmentBatch,
 } from "@/features/conversation/shared/composer/attachments/composer-local-attachment-model";
 import { useComposerDraftStore } from "@/features/conversation/shared/composer/composer-draft-store";
+import { getErrorMessage, projectMutationFailure } from "@/lib/error-message";
+import type { FeedbackBannerProps } from "@/shared/ui/feedback/feedback-banner-contract";
 
 import {
   getParentWorkspacePath,
   joinLocalWorkspacePath,
   joinWorkspacePath,
 } from "./workspace-path-model";
+import {
+  getWorkspaceMutationIntentKey,
+  groupWorkspaceUploadOutcomes,
+  reconcileWorkspaceMutation,
+  type WorkspaceMutationIntent,
+  type WorkspaceReconciledMutation,
+  type WorkspaceUploadOutcome,
+} from "./workspace-command-recovery";
 
 type WorkspaceCommand =
   | "upload"
@@ -46,7 +62,7 @@ type WorkspaceCommand =
 interface WorkspaceCommandState {
   scopeKey: string;
   activeCommand: WorkspaceCommand | null;
-  errorMessage: string | null;
+  feedback: WorkspaceCommandFeedback | null;
 }
 
 interface WorkspaceCommandToken {
@@ -59,6 +75,26 @@ interface UseWorkspaceCommandsOptions {
   composerDraftScopeKey: string | null;
   refreshFiles: () => Promise<WorkspaceFileEntry[] | null>;
   workspaceRoot: string;
+}
+
+type WorkspaceFeedbackAction = "allow-new-intent" | "refresh";
+
+interface WorkspaceCommandFeedback {
+  action: WorkspaceFeedbackAction | null;
+  impact: string;
+  message: string;
+  nextStep: string;
+  recoveryKey: string | null;
+  title: string;
+  tone: FeedbackBannerProps["tone"];
+}
+
+interface PendingWorkspaceRecovery {
+  canStartNewIntent: boolean;
+  failureMessage: string;
+  intent: WorkspaceMutationIntent;
+  listChecked: boolean;
+  uploadOutcomes: WorkspaceUploadOutcome[] | null;
 }
 
 interface WorkspaceOpenApplicationsState {
@@ -86,15 +122,11 @@ const COMMAND_ERROR_KEYS: Partial<Record<WorkspaceCommand, TranslationKey>> = {
   "add-to-chat": "room.workspace_add_to_chat_failed",
 };
 
-const COMMAND_REFRESH_POLICY: Record<WorkspaceCommand, boolean> = {
-  upload: true,
-  create: true,
-  rename: true,
-  delete: true,
-  download: false,
-  open: false,
-  "copy-path": false,
-  "add-to-chat": false,
+const MUTATION_ACTION_KEYS: Record<"create" | "delete" | "rename" | "upload", TranslationKey> = {
+  create: "room.workspace_create_entry_action",
+  delete: "room.workspace_delete_title",
+  rename: "room.workspace_rename_title",
+  upload: "room.workspace_action_upload",
 };
 
 function getCommandErrorMessage(
@@ -102,11 +134,20 @@ function getCommandErrorMessage(
   command: WorkspaceCommand,
   translate: ReturnType<typeof useI18n>["t"],
 ): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
   const messageKey = COMMAND_ERROR_KEYS[command];
-  return messageKey ? translate(messageKey) : COMMAND_ERROR_MESSAGES[command];
+  return getErrorMessage(
+    error,
+    messageKey ? translate(messageKey) : COMMAND_ERROR_MESSAGES[command],
+  );
+}
+
+function asUploadFileIdentity(file: File) {
+  return {
+    lastModified: file.lastModified,
+    name: file.name,
+    size: file.size,
+    type: file.type,
+  };
 }
 
 export function useWorkspaceCommands({
@@ -119,10 +160,12 @@ export function useWorkspaceCommands({
   const scopeRef = useRef(agentId);
   const commandSequenceRef = useRef(0);
   const activeTokenRef = useRef<WorkspaceCommandToken | null>(null);
+  const recoveryLocksRef = useRef(new Map<string, PendingWorkspaceRecovery>());
+  const recoveryRequestSequenceRef = useRef(0);
   const [state, setState] = useState<WorkspaceCommandState>({
     scopeKey: agentId,
     activeCommand: null,
-    errorMessage: null,
+    feedback: null,
   });
   const applicationRequestRef = useRef(0);
   const [openApplicationsState, setOpenApplicationsState] =
@@ -135,83 +178,448 @@ export function useWorkspaceCommands({
       && activeTokenRef.current.commandId === token.commandId
   ), []);
 
+  const mutationActionLabel = useCallback((
+    intent: WorkspaceMutationIntent,
+  ): string => {
+    switch (intent.command) {
+      case "create":
+        return t(intent.entryType === "directory"
+          ? "room.workspace_create_folder_title"
+          : "room.workspace_create_file_title");
+      case "rename":
+        return t("room.workspace_rename_title");
+      case "delete":
+        return t("room.workspace_delete_title");
+      case "upload":
+        return t("room.workspace_action_upload");
+    }
+  }, [t]);
+
+  const formatUploadNames = useCallback((names: string[]): string => {
+    if (names.length === 0) {
+      return t("room.workspace_upload_status_none");
+    }
+    const visibleNames = names.slice(0, 5).join(", ");
+    return names.length > 5
+      ? t("room.workspace_upload_status_more", {
+          count: names.length - 5,
+          names: visibleNames,
+        })
+      : visibleNames;
+  }, [t]);
+
+  const uploadOutcomeMessage = useCallback((
+    outcomes: WorkspaceUploadOutcome[],
+  ): string => {
+    const grouped = groupWorkspaceUploadOutcomes(outcomes);
+    return t("room.workspace_upload_status_summary", {
+      completed: formatUploadNames(grouped.completed),
+      notApplied: formatUploadNames(grouped.not_applied),
+      notStarted: formatUploadNames(grouped.not_started),
+      unconfirmed: formatUploadNames(grouped.unconfirmed),
+    });
+  }, [formatUploadNames, t]);
+
+  const unknownFeedback = useCallback((
+    recoveryKey: string,
+    recovery: PendingWorkspaceRecovery,
+  ): WorkspaceCommandFeedback => {
+    const actionLabel = mutationActionLabel(recovery.intent);
+    return {
+      action: recovery.listChecked && recovery.canStartNewIntent
+        ? "allow-new-intent"
+        : "refresh",
+      impact: recovery.uploadOutcomes
+        ? t("room.workspace_upload_unknown_impact")
+        : t("room.workspace_mutation_unknown_impact", {action: actionLabel}),
+      message: recovery.uploadOutcomes
+        ? t("room.workspace_upload_unknown_message", {
+            detail: recovery.failureMessage,
+            summary: uploadOutcomeMessage(recovery.uploadOutcomes),
+          })
+        : t("room.workspace_mutation_unknown_message", {
+            action: actionLabel,
+            detail: recovery.failureMessage,
+          }),
+      nextStep: recovery.listChecked
+        ? t(recovery.canStartNewIntent
+            ? "room.workspace_mutation_checked_next"
+            : "room.workspace_mutation_wait_next")
+        : t("room.workspace_mutation_unknown_next"),
+      recoveryKey,
+      title: t("room.workspace_mutation_unknown_title"),
+      tone: "warning",
+    };
+  }, [mutationActionLabel, t, uploadOutcomeMessage]);
+
+  const safeRefreshFiles = useCallback(async (): Promise<WorkspaceFileEntry[] | null> => {
+    try {
+      return await refreshFiles();
+    } catch {
+      return null;
+    }
+  }, [refreshFiles]);
+
+  const committedRefreshFeedback = useCallback((
+    command: keyof typeof MUTATION_ACTION_KEYS,
+  ): WorkspaceCommandFeedback => ({
+    action: "refresh",
+    impact: t("room.workspace_committed_refresh_impact"),
+    message: t("room.workspace_committed_refresh_message", {
+      action: t(MUTATION_ACTION_KEYS[command]),
+    }),
+    nextStep: t("room.workspace_committed_refresh_next"),
+    recoveryKey: null,
+    title: t("room.workspace_committed_refresh_title"),
+    tone: "warning",
+  }), [t]);
+
+  const refreshAfterCommittedMutation = useCallback(async (
+    command: keyof typeof MUTATION_ACTION_KEYS,
+    token: WorkspaceCommandToken,
+  ): Promise<boolean> => {
+    const files = await safeRefreshFiles();
+    if (files === null && isCurrentToken(token)) {
+      setState((current) => ({
+        ...current,
+        feedback: committedRefreshFeedback(command),
+      }));
+    }
+    return files !== null;
+  }, [committedRefreshFeedback, isCurrentToken, safeRefreshFiles]);
+
+  const beginCommand = useCallback((
+    command: WorkspaceCommand,
+  ): WorkspaceCommandToken | null => {
+    if (activeTokenRef.current?.scopeKey === agentId) {
+      return null;
+    }
+    const token = {scopeKey: agentId, commandId: ++commandSequenceRef.current};
+    activeTokenRef.current = token;
+    setState({scopeKey: agentId, activeCommand: command, feedback: null});
+    return token;
+  }, [agentId]);
+
+  const finishCommand = useCallback((token: WorkspaceCommandToken): void => {
+    if (!isCurrentToken(token)) {
+      return;
+    }
+    activeTokenRef.current = null;
+    setState((current) => ({...current, activeCommand: null}));
+  }, [isCurrentToken]);
+
   const runCommand = useCallback(async <Result,>(
     command: WorkspaceCommand,
     mutation: (scopeKey: string) => Promise<Result>,
   ): Promise<Result | null> => {
-    if (activeTokenRef.current?.scopeKey === agentId) {
+    const token = beginCommand(command);
+    if (!token) {
       return null;
     }
 
-    const token = {scopeKey: agentId, commandId: ++commandSequenceRef.current};
-    activeTokenRef.current = token;
-    setState({scopeKey: agentId, activeCommand: command, errorMessage: null});
-
     try {
       const result = await mutation(token.scopeKey);
-      if (COMMAND_REFRESH_POLICY[command]) {
-        await refreshFiles();
-      }
       return isCurrentToken(token) ? result : null;
     } catch (error) {
       if (isCurrentToken(token)) {
         setState({
-          scopeKey: agentId,
+          scopeKey: token.scopeKey,
           activeCommand: null,
-          errorMessage: getCommandErrorMessage(error, command, t),
+          feedback: {
+            action: null,
+            impact: t("room.workspace_read_action_failed_impact"),
+            message: getCommandErrorMessage(error, command, t),
+            nextStep: t("room.workspace_read_action_failed_next"),
+            recoveryKey: null,
+            title: COMMAND_ERROR_KEYS[command]
+              ? t(COMMAND_ERROR_KEYS[command] as TranslationKey)
+              : COMMAND_ERROR_MESSAGES[command],
+            tone: "error",
+          },
         });
       }
       return null;
     } finally {
-      if (isCurrentToken(token)) {
-        activeTokenRef.current = null;
-        setState((current) => ({...current, activeCommand: null}));
+      finishCommand(token);
+    }
+  }, [beginCommand, finishCommand, isCurrentToken, t]);
+
+  const recoverMutation = useCallback(async (
+    token: WorkspaceCommandToken,
+    recoveryKey: string,
+    recovery: PendingWorkspaceRecovery,
+  ): Promise<WorkspaceReconciledMutation | null> => {
+    recoveryLocksRef.current.set(recoveryKey, recovery);
+    const files = await safeRefreshFiles();
+    if (!isCurrentToken(token)) {
+      return null;
+    }
+    if (files !== null && recovery.intent.command !== "upload") {
+      const reconciled = reconcileWorkspaceMutation(recovery.intent, files);
+      if (reconciled) {
+        recoveryLocksRef.current.delete(recoveryKey);
+        setState((current) => ({
+          ...current,
+          feedback: {
+            action: null,
+            impact: t("room.workspace_reconciled_impact"),
+            message: t("room.workspace_reconciled_message", {
+              action: mutationActionLabel(recovery.intent),
+            }),
+            nextStep: t("room.workspace_reconciled_next"),
+            recoveryKey: null,
+            title: t("room.workspace_reconciled_title"),
+            tone: "success",
+          },
+        }));
+        return reconciled;
       }
     }
-  }, [agentId, isCurrentToken, refreshFiles, t]);
+    const checkedRecovery = {...recovery, listChecked: files !== null};
+    recoveryLocksRef.current.set(recoveryKey, checkedRecovery);
+    setState((current) => ({
+      ...current,
+      feedback: unknownFeedback(recoveryKey, checkedRecovery),
+    }));
+    return null;
+  }, [
+    isCurrentToken,
+    mutationActionLabel,
+    safeRefreshFiles,
+    t,
+    unknownFeedback,
+  ]);
 
-  const uploadFiles = useCallback((
+  const runMutationCommand = useCallback(async <Result,>(
+    command: Extract<WorkspaceCommand, "create" | "delete" | "rename">,
+    intent: WorkspaceMutationIntent,
+    mutation: (scopeKey: string) => Promise<Result>,
+  ): Promise<Result | null> => {
+    const recoveryKey = getWorkspaceMutationIntentKey(intent);
+    const existingRecovery = recoveryLocksRef.current.get(recoveryKey);
+    if (existingRecovery) {
+      setState({
+        scopeKey: agentId,
+        activeCommand: null,
+        feedback: unknownFeedback(recoveryKey, existingRecovery),
+      });
+      return null;
+    }
+    const token = beginCommand(command);
+    if (!token) {
+      return null;
+    }
+    try {
+      const result = await mutation(token.scopeKey);
+      await refreshAfterCommittedMutation(command, token);
+      return isCurrentToken(token) ? result : null;
+    } catch (error) {
+      if (!isCurrentToken(token)) {
+        return null;
+      }
+      const failure = projectMutationFailure(
+        error,
+        COMMAND_ERROR_MESSAGES[command],
+      );
+      if (failure.effect === "not_applied") {
+        setState((current) => ({
+          ...current,
+          feedback: {
+            action: null,
+            impact: t("room.workspace_mutation_not_applied_impact"),
+            message: failure.message,
+            nextStep: t("room.workspace_mutation_not_applied_next"),
+            recoveryKey: null,
+            title: t("room.workspace_mutation_not_applied_title", {
+              action: mutationActionLabel(intent),
+            }),
+            tone: "error",
+          },
+        }));
+        return null;
+      }
+      const reconciled = await recoverMutation(token, recoveryKey, {
+        canStartNewIntent: failure.effect === "unknown",
+        failureMessage: failure.message,
+        intent,
+        listChecked: false,
+        uploadOutcomes: null,
+      });
+      return reconciled ? reconciled.result as Result : null;
+    } finally {
+      finishCommand(token);
+    }
+  }, [
+    agentId,
+    beginCommand,
+    finishCommand,
+    isCurrentToken,
+    mutationActionLabel,
+    recoverMutation,
+    refreshAfterCommittedMutation,
+    t,
+    unknownFeedback,
+  ]);
+
+  const uploadFiles = useCallback(async (
     files: File[],
     targetDirectory: string | null,
-  ): Promise<true | null> => runCommand("upload", async (scopeKey) => {
-    const targetPath = targetDirectory ? `${targetDirectory}/` : undefined;
-    for (const file of files) {
-      await uploadWorkspaceFileApi(scopeKey, file, targetPath);
+  ): Promise<true | null> => {
+    const token = beginCommand("upload");
+    if (!token) {
+      return null;
     }
-    return true as const;
-  }), [runCommand]);
+    const targetPath = targetDirectory ? `${targetDirectory}/` : undefined;
+    const outcomes: WorkspaceUploadOutcome[] = files.map((file) => ({
+      name: file.name,
+      status: "not_started",
+    }));
+    let committedWithoutResponse = false;
+    try {
+      for (const [index, file] of files.entries()) {
+        if (!isCurrentToken(token)) {
+          return null;
+        }
+        const intent: WorkspaceMutationIntent = {
+          agentId: token.scopeKey,
+          command: "upload",
+          file: asUploadFileIdentity(file),
+          targetDirectory,
+        };
+        const recoveryKey = getWorkspaceMutationIntentKey(intent);
+        const existingRecovery = recoveryLocksRef.current.get(recoveryKey);
+        if (existingRecovery) {
+          outcomes[index] = {name: file.name, status: "unconfirmed"};
+          const pending = {...existingRecovery, uploadOutcomes: outcomes};
+          recoveryLocksRef.current.set(recoveryKey, pending);
+          setState((current) => ({
+            ...current,
+            feedback: unknownFeedback(recoveryKey, pending),
+          }));
+          return null;
+        }
+        try {
+          await uploadWorkspaceFileApi(token.scopeKey, file, targetPath);
+          outcomes[index] = {name: file.name, status: "completed"};
+        } catch (error) {
+          if (!isCurrentToken(token)) {
+            return null;
+          }
+          const failure = projectMutationFailure(error, COMMAND_ERROR_MESSAGES.upload);
+          if (failure.effect === "committed") {
+            outcomes[index] = {name: file.name, status: "completed"};
+            committedWithoutResponse = true;
+            continue;
+          }
+          if (failure.effect === "not_applied") {
+            outcomes[index] = {name: file.name, status: "not_applied"};
+            if (outcomes.some((outcome) => outcome.status === "completed")) {
+              await safeRefreshFiles();
+            }
+            if (isCurrentToken(token)) {
+              setState((current) => ({
+                ...current,
+                feedback: {
+                  action: null,
+                  impact: t("room.workspace_upload_partial_impact"),
+                  message: uploadOutcomeMessage(outcomes),
+                  nextStep: t("room.workspace_upload_not_applied_next"),
+                  recoveryKey: null,
+                  title: t("room.workspace_upload_partial_title"),
+                  tone: "error",
+                },
+              }));
+            }
+            return null;
+          }
+          outcomes[index] = {name: file.name, status: "unconfirmed"};
+          const recovery: PendingWorkspaceRecovery = {
+            canStartNewIntent: failure.effect === "unknown",
+            failureMessage: failure.message,
+            intent,
+            listChecked: false,
+            uploadOutcomes: outcomes,
+          };
+          await recoverMutation(token, recoveryKey, recovery);
+          return null;
+        }
+      }
+      const refreshed = await refreshAfterCommittedMutation("upload", token);
+      if (committedWithoutResponse && refreshed && isCurrentToken(token)) {
+        setState((current) => ({
+          ...current,
+          feedback: {
+            action: null,
+            impact: t("room.workspace_upload_committed_impact"),
+            message: uploadOutcomeMessage(outcomes),
+            nextStep: t("room.workspace_upload_committed_next"),
+            recoveryKey: null,
+            title: t("room.workspace_upload_committed_title"),
+            tone: "success",
+          },
+        }));
+      }
+      return isCurrentToken(token) ? true : null;
+    } finally {
+      finishCommand(token);
+    }
+  }, [
+    beginCommand,
+    finishCommand,
+    isCurrentToken,
+    recoverMutation,
+    refreshAfterCommittedMutation,
+    safeRefreshFiles,
+    t,
+    unknownFeedback,
+    uploadOutcomeMessage,
+  ]);
 
   const createEntry = useCallback((
     entryType: "file" | "directory",
     parentPath: string | null,
     name: string,
-  ): Promise<WorkspaceEntryMutationResponse | null> => runCommand(
-    "create",
-    (scopeKey) => createWorkspaceEntryApi(
-      scopeKey,
-      joinWorkspacePath(parentPath, name),
+  ): Promise<WorkspaceEntryMutationResponse | null> => {
+    const path = joinWorkspacePath(parentPath, name);
+    const intent: WorkspaceMutationIntent = {
+      agentId,
+      command: "create",
       entryType,
-    ),
-  ), [runCommand]);
+      path,
+    };
+    return runMutationCommand(
+    "create",
+      intent,
+      (scopeKey) => createWorkspaceEntryApi(scopeKey, path, entryType),
+    );
+  }, [agentId, runMutationCommand]);
 
   const renameEntry = useCallback((
     entry: WorkspaceFileEntry,
     name: string,
-  ): Promise<WorkspaceEntryRenameResponse | null> => runCommand(
-    "rename",
-    (scopeKey) => renameWorkspaceEntryApi(
-      scopeKey,
-      entry.path,
-      joinWorkspacePath(getParentWorkspacePath(entry.path), name),
-    ),
-  ), [runCommand]);
+  ): Promise<WorkspaceEntryRenameResponse | null> => {
+    const newPath = joinWorkspacePath(getParentWorkspacePath(entry.path), name);
+    const intent: WorkspaceMutationIntent = {
+      agentId,
+      command: "rename",
+      isDirectory: entry.is_dir,
+      newPath,
+      path: entry.path,
+    };
+    return runMutationCommand(
+      "rename",
+      intent,
+      (scopeKey) => renameWorkspaceEntryApi(scopeKey, entry.path, newPath),
+    );
+  }, [agentId, runMutationCommand]);
 
   const deleteEntry = useCallback((
     entry: WorkspaceFileEntry,
-  ): Promise<WorkspaceEntryMutationResponse | null> => runCommand(
+  ): Promise<WorkspaceEntryMutationResponse | null> => runMutationCommand(
     "delete",
+    {agentId, command: "delete", path: entry.path},
     (scopeKey) => deleteWorkspaceEntryApi(scopeKey, entry.path),
-  ), [runCommand]);
+  ), [agentId, runMutationCommand]);
 
   const downloadEntry = useCallback((
     entry: WorkspaceFileEntry,
@@ -342,22 +750,150 @@ export function useWorkspaceCommands({
     return true as const;
   }), [composerDraftScopeKey, runCommand, t]);
 
-  const clearError = useCallback(() => {
+  const clearFeedback = useCallback(() => {
     setState((current) => (
-      current.scopeKey === agentId ? {...current, errorMessage: null} : current
+      current.scopeKey === agentId ? {...current, feedback: null} : current
     ));
   }, [agentId]);
 
+  const reconcilePendingRecovery = useCallback(async (
+    recoveryKey: string,
+  ): Promise<void> => {
+    const recovery = recoveryLocksRef.current.get(recoveryKey);
+    if (
+      !recovery
+      || recovery.intent.agentId !== agentId
+      || !recovery.canStartNewIntent
+    ) {
+      return;
+    }
+    const requestId = ++recoveryRequestSequenceRef.current;
+    const files = await safeRefreshFiles();
+    if (
+      scopeRef.current !== recovery.intent.agentId
+      || recoveryRequestSequenceRef.current !== requestId
+      || recoveryLocksRef.current.get(recoveryKey) !== recovery
+    ) {
+      return;
+    }
+    if (files !== null && recovery.intent.command !== "upload") {
+      const reconciled = reconcileWorkspaceMutation(recovery.intent, files);
+      if (reconciled) {
+        recoveryLocksRef.current.delete(recoveryKey);
+        setState((current) => ({
+          ...current,
+          feedback: {
+            action: null,
+            impact: t("room.workspace_reconciled_impact"),
+            message: t("room.workspace_reconciled_message", {
+              action: mutationActionLabel(recovery.intent),
+            }),
+            nextStep: t("room.workspace_reconciled_finish_next"),
+            recoveryKey: null,
+            title: t("room.workspace_reconciled_title"),
+            tone: "success",
+          },
+        }));
+        return;
+      }
+    }
+    const checkedRecovery = {...recovery, listChecked: files !== null};
+    recoveryLocksRef.current.set(recoveryKey, checkedRecovery);
+    setState((current) => ({
+      ...current,
+      feedback: unknownFeedback(recoveryKey, checkedRecovery),
+    }));
+  }, [
+    agentId,
+    mutationActionLabel,
+    safeRefreshFiles,
+    t,
+    unknownFeedback,
+  ]);
+
+  const allowNewIntent = useCallback((recoveryKey: string): void => {
+    const recovery = recoveryLocksRef.current.get(recoveryKey);
+    if (!recovery || recovery.intent.agentId !== agentId) {
+      return;
+    }
+    recoveryLocksRef.current.delete(recoveryKey);
+    setState((current) => ({
+      ...current,
+      feedback: {
+        action: null,
+        impact: t("room.workspace_new_intent_impact"),
+        message: t("room.workspace_new_intent_message"),
+        nextStep: t("room.workspace_new_intent_next"),
+        recoveryKey: null,
+        title: t("room.workspace_new_intent_title"),
+        tone: "info",
+      },
+    }));
+  }, [agentId, t]);
+
+  const refreshCommittedList = useCallback(async (): Promise<void> => {
+    const requestId = ++recoveryRequestSequenceRef.current;
+    const scopeKey = agentId;
+    const files = await safeRefreshFiles();
+    if (
+      files !== null
+      && scopeRef.current === scopeKey
+      && recoveryRequestSequenceRef.current === requestId
+    ) {
+      setState((current) => (
+        current.scopeKey === scopeKey ? {...current, feedback: null} : current
+      ));
+    }
+  }, [agentId, safeRefreshFiles]);
+
   const currentState = state.scopeKey === agentId
     ? state
-    : {scopeKey: agentId, activeCommand: null, errorMessage: null};
+    : {scopeKey: agentId, activeCommand: null, feedback: null};
   const currentOpenApplications = openApplicationsState?.scopeKey === agentId
     ? openApplicationsState
     : null;
+  const feedback = useMemo<FeedbackBannerProps | null>(() => {
+    const item = currentState.feedback;
+    if (!item) {
+      return null;
+    }
+    const onClick = item.action === "allow-new-intent" && item.recoveryKey
+      ? () => allowNewIntent(item.recoveryKey as string)
+      : item.action === "refresh" && item.recoveryKey
+        ? () => void reconcilePendingRecovery(item.recoveryKey as string)
+        : item.action === "refresh"
+          ? () => void refreshCommittedList()
+          : null;
+    return {
+      impact: item.impact,
+      message: item.message,
+      nextStep: item.nextStep,
+      onDismiss: clearFeedback,
+      title: item.title,
+      tone: item.tone,
+      ...(onClick
+        ? {
+            action: {
+              label: item.action === "allow-new-intent"
+                ? t("room.workspace_allow_new_intent_action")
+                : t("room.workspace_refresh_action"),
+              onClick,
+            },
+          }
+        : {}),
+    } as FeedbackBannerProps;
+  }, [
+    allowNewIntent,
+    clearFeedback,
+    currentState.feedback,
+    reconcilePendingRecovery,
+    refreshCommittedList,
+    t,
+  ]);
 
   return {
     activeCommand: currentState.activeCommand,
-    errorMessage: currentState.errorMessage,
+    feedback,
     uploadFiles,
     createEntry,
     renameEntry,
@@ -368,6 +904,6 @@ export function useWorkspaceCommands({
     loadOpenApplications,
     openApplications: currentOpenApplications,
     addEntryToChat,
-    clearError,
+    clearFeedback,
   };
 }

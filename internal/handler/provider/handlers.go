@@ -1,11 +1,13 @@
 package provider
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
@@ -29,9 +31,10 @@ func New(api *handlershared.API, providers *providercfg.Service, prefs ...*prefe
 
 // HandleListProviderConfigs 返回 provider 配置列表。
 func (h *Handlers) HandleListProviderConfigs(writer http.ResponseWriter, request *http.Request) {
+	writer.Header().Set("Cache-Control", "no-store")
 	items, err := h.providers.List(request.Context())
 	if err != nil {
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		h.writeProviderReadFailure(writer, request, err)
 		return
 	}
 	h.api.WriteSuccess(writer, items)
@@ -45,18 +48,18 @@ func (h *Handlers) HandleListProviderPresets(writer http.ResponseWriter, request
 // HandlePreviewCCSwitch 只读返回本机 CC Switch Provider 同步预览。
 func (h *Handlers) HandlePreviewCCSwitch(writer http.ResponseWriter, request *http.Request) {
 	var payload providercfg.CCSwitchPreviewInput
-	if !h.api.BindJSON(writer, request, &payload) {
+	if !h.api.BindJSONError(writer, request, &payload, providerPreviewRequestInvalidFailure()) {
 		return
 	}
 	prefs, err := h.currentPreferences(request)
 	if err != nil {
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		h.writeProviderReadFailure(writer, request, err)
 		return
 	}
 	payload.RuntimeKind = prefs.AgentRuntimeKind
 	result, err := h.providers.PreviewCCSwitch(request.Context(), payload)
 	if err != nil {
-		h.api.WriteFailure(writer, providerMutationErrorStatus(err), err.Error())
+		h.api.WriteError(writer, request, http.StatusBadRequest, providerImportPreviewFailure(err))
 		return
 	}
 	h.api.WriteSuccess(writer, result)
@@ -65,18 +68,18 @@ func (h *Handlers) HandlePreviewCCSwitch(writer http.ResponseWriter, request *ht
 // HandleSyncCCSwitch 把所选 CC Switch Provider 同步到当前用户私有配置。
 func (h *Handlers) HandleSyncCCSwitch(writer http.ResponseWriter, request *http.Request) {
 	var payload providercfg.CCSwitchSyncInput
-	if !h.api.BindJSON(writer, request, &payload) {
+	if !h.api.BindJSONError(writer, request, &payload, providerRequestInvalidFailure("sync_import")) {
 		return
 	}
 	prefs, err := h.currentPreferences(request)
 	if err != nil {
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		h.writeProviderReadFailure(writer, request, err)
 		return
 	}
 	payload.RuntimeKind = prefs.AgentRuntimeKind
 	result, err := h.providers.SyncCCSwitch(request.Context(), payload)
 	if err != nil {
-		h.api.WriteFailure(writer, providerMutationErrorStatus(err), err.Error())
+		h.writeProviderMutationFailure(writer, request, "sync_import", err)
 		return
 	}
 	if result.DefaultSelection != nil && h.prefs != nil {
@@ -85,7 +88,11 @@ func (h *Handlers) HandleSyncCCSwitch(writer http.ResponseWriter, request *http.
 			authsvc.OwnerUserID(request.Context()),
 			ccSwitchDefaultPreferencesUpdate(prefs, *result.DefaultSelection),
 		); err != nil {
-			h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+			_, failure := providerMutationFailure(
+				"sync_import",
+				errors.Join(providercfg.ErrMutationCommitted, err),
+			)
+			h.api.WriteError(writer, request, http.StatusInternalServerError, failure)
 			return
 		}
 	}
@@ -118,7 +125,7 @@ func (h *Handlers) HandleListProviderOptions(writer http.ResponseWriter, request
 	}
 	prefs, err := h.currentPreferences(request)
 	if err != nil {
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		h.writeProviderReadFailure(writer, request, err)
 		return
 	}
 	if runtimeKind == "" {
@@ -126,7 +133,7 @@ func (h *Handlers) HandleListProviderOptions(writer http.ResponseWriter, request
 	}
 	item, err := h.providers.ListOptionsForRuntime(request.Context(), runtimeKind)
 	if err != nil {
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		h.writeProviderReadFailure(writer, request, err)
 		return
 	}
 	// 覆盖默认值为用户偏好的 Provider/Model
@@ -149,11 +156,7 @@ func (h *Handlers) HandleListProviderOptions(writer http.ResponseWriter, request
 func (h *Handlers) HandleFetchProviderModels(writer http.ResponseWriter, request *http.Request) {
 	item, err := h.providers.FetchModels(request.Context(), chi.URLParam(request, "provider"))
 	if err != nil {
-		if strings.Contains(strings.ToLower(err.Error()), "不存在") {
-			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
-			return
-		}
-		h.api.WriteFailure(writer, providerMutationErrorStatus(err), err.Error())
+		h.writeProviderMutationFailure(writer, request, "fetch_models", err)
 		return
 	}
 	h.api.WriteSuccess(writer, item)
@@ -162,7 +165,7 @@ func (h *Handlers) HandleFetchProviderModels(writer http.ResponseWriter, request
 // HandleUpdateProviderModel 更新 Provider 模型卡。
 func (h *Handlers) HandleUpdateProviderModel(writer http.ResponseWriter, request *http.Request) {
 	var payload providercfg.UpdateModelInput
-	if !h.api.BindJSON(writer, request, &payload) {
+	if !h.api.BindJSONError(writer, request, &payload, providerRequestInvalidFailure("update_model")) {
 		return
 	}
 	item, err := h.providers.UpdateModel(
@@ -172,11 +175,7 @@ func (h *Handlers) HandleUpdateProviderModel(writer http.ResponseWriter, request
 		payload,
 	)
 	if err != nil {
-		if strings.Contains(strings.ToLower(err.Error()), "不存在") {
-			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
-			return
-		}
-		h.api.WriteFailure(writer, providerMutationErrorStatus(err), err.Error())
+		h.writeProviderMutationFailure(writer, request, "update_model", err)
 		return
 	}
 	h.api.WriteSuccess(writer, item)
@@ -190,11 +189,7 @@ func (h *Handlers) HandleSetDefaultProviderModel(writer http.ResponseWriter, req
 		chi.URLParam(request, "model_id"),
 	)
 	if err != nil {
-		if strings.Contains(strings.ToLower(err.Error()), "不存在") {
-			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
-			return
-		}
-		h.api.WriteFailure(writer, providerMutationErrorStatus(err), err.Error())
+		h.writeProviderMutationFailure(writer, request, "set_default_model", err)
 		return
 	}
 	h.api.WriteSuccess(writer, item)
@@ -202,80 +197,116 @@ func (h *Handlers) HandleSetDefaultProviderModel(writer http.ResponseWriter, req
 
 // HandleTestProviderConfig 执行 Provider 连通性测试。
 func (h *Handlers) HandleTestProviderConfig(writer http.ResponseWriter, request *http.Request) {
-	item, err := h.providers.TestProvider(request.Context(), chi.URLParam(request, "provider"))
+	expectedVersion, err := parseProviderIfMatch(request.Header.Get("If-Match"))
 	if err != nil {
-		if strings.Contains(strings.ToLower(err.Error()), "不存在") {
-			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
-			return
-		}
-		h.api.WriteFailure(writer, providerMutationErrorStatus(err), err.Error())
+		h.writeProviderPreconditionFailure(writer, request, err)
 		return
 	}
+	var item *providercfg.TestResult
+	if expectedVersion == nil {
+		item, err = h.providers.TestProvider(request.Context(), chi.URLParam(request, "provider"))
+	} else {
+		item, err = h.providers.TestProviderAtVersion(
+			request.Context(), chi.URLParam(request, "provider"), *expectedVersion,
+		)
+	}
+	if err != nil {
+		h.writeProviderMutationFailure(writer, request, "test", err, expectedVersion != nil)
+		return
+	}
+	writeProviderETag(writer, item.ConfigurationVersion)
 	h.api.WriteSuccess(writer, item)
 }
 
 // HandleTestProviderModel 执行指定模型的连通性测试。
 func (h *Handlers) HandleTestProviderModel(writer http.ResponseWriter, request *http.Request) {
-	item, err := h.providers.TestModel(
-		request.Context(),
-		chi.URLParam(request, "provider"),
-		chi.URLParam(request, "model_id"),
-	)
+	expectedVersion, err := parseProviderIfMatch(request.Header.Get("If-Match"))
 	if err != nil {
-		if strings.Contains(strings.ToLower(err.Error()), "不存在") {
-			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
-			return
-		}
-		h.api.WriteFailure(writer, providerMutationErrorStatus(err), err.Error())
+		h.writeProviderPreconditionFailure(writer, request, err)
 		return
 	}
+	var item *providercfg.TestResult
+	if expectedVersion == nil {
+		item, err = h.providers.TestModel(
+			request.Context(),
+			chi.URLParam(request, "provider"),
+			chi.URLParam(request, "model_id"),
+		)
+	} else {
+		item, err = h.providers.TestModelAtVersion(
+			request.Context(),
+			chi.URLParam(request, "provider"),
+			chi.URLParam(request, "model_id"),
+			*expectedVersion,
+		)
+	}
+	if err != nil {
+		h.writeProviderMutationFailure(writer, request, "test_model", err, expectedVersion != nil)
+		return
+	}
+	writeProviderETag(writer, item.ConfigurationVersion)
 	h.api.WriteSuccess(writer, item)
 }
 
 // HandleCreateProviderConfig 创建 provider 配置。
 func (h *Handlers) HandleCreateProviderConfig(writer http.ResponseWriter, request *http.Request) {
 	var payload providercfg.CreateInput
-	if !h.api.BindJSON(writer, request, &payload) {
+	if !h.api.BindJSONError(writer, request, &payload, providerRequestInvalidFailure("create")) {
 		return
 	}
 	item, err := h.providers.Create(request.Context(), payload)
 	if err != nil {
-		h.api.WriteFailure(writer, providerMutationErrorStatus(err), err.Error())
+		h.writeProviderMutationFailure(writer, request, "create", err)
 		return
 	}
+	writeProviderETag(writer, item.ConfigurationVersion)
 	h.api.WriteSuccess(writer, item)
 }
 
 // HandleUpdateProviderConfig 更新 provider 配置。
 func (h *Handlers) HandleUpdateProviderConfig(writer http.ResponseWriter, request *http.Request) {
 	var payload providercfg.UpdateInput
-	if !h.api.BindJSON(writer, request, &payload) {
+	if !h.api.BindJSONError(writer, request, &payload, providerRequestInvalidFailure("update")) {
 		return
 	}
-	item, err := h.providers.Update(request.Context(), chi.URLParam(request, "provider"), payload)
+	expectedVersion, err := parseProviderIfMatch(request.Header.Get("If-Match"))
 	if err != nil {
-		if strings.Contains(strings.ToLower(err.Error()), "不存在") {
-			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
-			return
-		}
-		h.api.WriteFailure(writer, providerMutationErrorStatus(err), err.Error())
+		h.writeProviderPreconditionFailure(writer, request, err)
 		return
 	}
+	var item *providercfg.Record
+	if expectedVersion == nil {
+		item, err = h.providers.Update(request.Context(), chi.URLParam(request, "provider"), payload)
+	} else {
+		item, err = h.providers.UpdateAtVersion(
+			request.Context(), chi.URLParam(request, "provider"), payload, *expectedVersion,
+		)
+	}
+	if err != nil {
+		h.writeProviderMutationFailure(writer, request, "update", err, expectedVersion != nil)
+		return
+	}
+	writeProviderETag(writer, item.ConfigurationVersion)
 	h.api.WriteSuccess(writer, item)
 }
 
 // HandleDeleteProviderConfig 删除 provider 配置。
 func (h *Handlers) HandleDeleteProviderConfig(writer http.ResponseWriter, request *http.Request) {
 	provider := chi.URLParam(request, "provider")
-	result, err := h.providers.Delete(request.Context(), provider, providercfg.DeleteInput{
-		Force: parseBoolQuery(request.URL.Query().Get("force")),
-	})
+	expectedVersion, err := parseProviderIfMatch(request.Header.Get("If-Match"))
 	if err != nil {
-		if strings.Contains(strings.ToLower(err.Error()), "不存在") {
-			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
-			return
-		}
-		h.api.WriteFailure(writer, providerMutationErrorStatus(err), err.Error())
+		h.writeProviderPreconditionFailure(writer, request, err)
+		return
+	}
+	input := providercfg.DeleteInput{Force: parseBoolQuery(request.URL.Query().Get("force"))}
+	var result *providercfg.DeleteResult
+	if expectedVersion == nil {
+		result, err = h.providers.Delete(request.Context(), provider, input)
+	} else {
+		result, err = h.providers.DeleteAtVersion(request.Context(), provider, input, *expectedVersion)
+	}
+	if err != nil {
+		h.writeProviderMutationFailure(writer, request, "delete", err, expectedVersion != nil)
 		return
 	}
 	h.api.WriteSuccess(writer, result)
@@ -297,9 +328,28 @@ func parseBoolQuery(value string) bool {
 	}
 }
 
-func providerMutationErrorStatus(err error) int {
-	if err != nil && strings.Contains(err.Error(), "只有管理员") {
-		return http.StatusForbidden
+func providerRequestInvalidFailure(operation string) handlershared.FailureSpec {
+	return handlershared.FailureSpec{
+		Code:     "provider." + operation + "_request_invalid",
+		Category: protocol.FailureCategoryValidation,
+		Effect:   protocol.FailureEffectNotApplied,
+		Detail:   "模型服务设置格式不正确",
+		Resolution: &protocol.FailureResolution{
+			Actor:  protocol.FailureRecoveryActorUser,
+			Action: "provider.review_values",
+		},
 	}
-	return http.StatusBadRequest
+}
+
+func providerPreviewRequestInvalidFailure() handlershared.FailureSpec {
+	return handlershared.FailureSpec{
+		Code:     "provider.preview_import_request_invalid",
+		Category: protocol.FailureCategoryValidation,
+		Effect:   protocol.FailureEffectNotApplicable,
+		Detail:   "本机模型服务配置的读取条件不完整",
+		Resolution: &protocol.FailureResolution{
+			Actor:  protocol.FailureRecoveryActorUser,
+			Action: "provider.review_import_source",
+		},
+	}
 }

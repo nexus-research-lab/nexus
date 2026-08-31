@@ -5,7 +5,7 @@
  */
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import {
   Check,
   ChevronDown,
@@ -13,16 +13,18 @@ import {
   Clock3,
   GitBranchPlus,
   LoaderCircle,
-  RotateCw,
   Workflow,
 } from "lucide-react";
 
 import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
+import { ReadResourceReliabilityNotice } from "@/features/conversation/shared/read-resource-reliability-notice";
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { previewWorkGraphWorkflowApi } from "@/lib/api/conversation/execution-api";
 import { getErrorMessage } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 import {
   UiActionMenu,
   type UiActionMenuItem,
@@ -71,12 +73,18 @@ export function ExecutionWorkGraphSurface({
   taskRuns: readonly ConversationTaskRun[];
 }) {
   const { locale, t } = useI18n();
-  const [mode, setMode] = useState<WorkGraphSurfaceMode>("current");
-  const [historyMenuOpen, setHistoryMenuOpen] = useState(false);
-  const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null);
-  const [sketchPreview, setSketchPreview] = useState<WorkGraphWorkflowPreview | null>(null);
-  const [sketchLoading, setSketchLoading] = useState(false);
-  const [sketchError, setSketchError] = useState<string | null>(null);
+  const sessionScopeKey = resource.sessionKey ?? "";
+  const [mode, setMode] = useResettableState<WorkGraphSurfaceMode>(
+    "current",
+    sessionScopeKey,
+  );
+  const [historyMenuOpen, setHistoryMenuOpen] = useResettableState(
+    false,
+    sessionScopeKey,
+  );
+  const [selectedHistoryId, setSelectedHistoryId] = useResettableState<
+    string | null
+  >(null, sessionScopeKey);
   const sketchSessionKey = resource.sessionKey ?? "";
   const historyTriggerRef = useRef<HTMLButtonElement>(null);
   const historyResource = useWorkGraphHistoryResource(
@@ -87,7 +95,7 @@ export function ExecutionWorkGraphSurface({
     if (!selectedHistoryId && historyResource.history.length > 0) {
       setSelectedHistoryId(historyResource.history[0].id);
     }
-  }, [historyResource.history, selectedHistoryId]);
+  }, [historyResource.history, selectedHistoryId, setSelectedHistoryId]);
   const currentExecution = hasManagedExecutionGraph(resource.execution)
     ? resource.execution
     : null;
@@ -95,10 +103,20 @@ export function ExecutionWorkGraphSurface({
     (item) => item.id === selectedHistoryId,
   ) ?? historyResource.history[0] ?? null;
   const execution = mode === "history" ? historyExecution : currentExecution;
-  useEffect(() => {
-    setSketchPreview(null);
-    setSketchError(null);
-  }, [execution?.id, resource.sessionKey]);
+  const sketchScopeKey = `${sessionScopeKey}\u0000${execution?.id ?? ""}`;
+  const [sketchPreview, setSketchPreview] = useResettableState<
+    WorkGraphWorkflowPreview | null
+  >(null, sketchScopeKey);
+  const [sketchLoading, setSketchLoading] = useResettableState(
+    false,
+    sketchScopeKey,
+  );
+  const [sketchError, setSketchError] = useResettableState<string | null>(
+    null,
+    sketchScopeKey,
+  );
+  const sketchScopeRef = useRef(sketchScopeKey);
+  sketchScopeRef.current = sketchScopeKey;
   const header = execution
     ? resolveExecutionWorkGraphHeaderModel(execution)
     : null;
@@ -146,6 +164,31 @@ export function ExecutionWorkGraphSurface({
       value: "loading",
     });
   }
+
+  const handleOpenSketch = () => {
+    if (!execution || !sketchSessionKey || sketchLoading) {
+      return;
+    }
+    const requestedScope = sketchScopeKey;
+    setSketchLoading(true);
+    setSketchError(null);
+    void previewWorkGraphWorkflowApi(sketchSessionKey, execution.id, locale)
+      .then((preview) => {
+        if (sketchScopeRef.current === requestedScope) {
+          setSketchPreview(preview);
+        }
+      })
+      .catch((reason: unknown) => {
+        if (sketchScopeRef.current === requestedScope) {
+          setSketchError(getErrorMessage(reason, t("execution.workflow_preview_failed")));
+        }
+      })
+      .finally(() => {
+        if (sketchScopeRef.current === requestedScope) {
+          setSketchLoading(false);
+        }
+      });
+  };
 
   return (
     <section
@@ -221,16 +264,7 @@ export function ExecutionWorkGraphSurface({
               className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-[7px] border border-[color:color-mix(in_srgb,var(--primary)_24%,var(--surface-control-border))] bg-[color:color-mix(in_srgb,var(--primary)_6%,var(--surface-control-background))] px-2.5 text-[11px] font-semibold text-(--primary) transition-colors hover:bg-[color:color-mix(in_srgb,var(--primary)_11%,var(--surface-control-background))] disabled:cursor-wait disabled:opacity-60"
               data-workgraph-save-sketch
               disabled={sketchLoading}
-              onClick={() => {
-                setSketchLoading(true);
-                setSketchError(null);
-                void previewWorkGraphWorkflowApi(sketchSessionKey, execution.id, locale)
-                  .then(setSketchPreview)
-                  .catch((reason: unknown) => {
-                    setSketchError(getErrorMessage(reason, t("execution.workflow_preview_failed")));
-                  })
-                  .finally(() => setSketchLoading(false));
-              }}
+              onClick={handleOpenSketch}
               type="button"
             >
               {sketchLoading
@@ -240,9 +274,6 @@ export function ExecutionWorkGraphSurface({
                 ? "execution.workflow_extracting_sketch"
                 : "execution.workflow_save_as_sketch")}
             </button>
-          ) : null}
-          {sketchError ? (
-            <span className="max-w-56 truncate text-[10px] text-(--destructive)" title={sketchError}>{sketchError}</span>
           ) : null}
           {runtimeProjectionPartial ? (
             <span
@@ -272,19 +303,56 @@ export function ExecutionWorkGraphSurface({
               <span>{t("execution.surface_stale_short")}</span>
             </span>
           ) : null}
-          {mode === "current" && resource.error ? (
-            <UiIconButton
-              aria-label={t("execution.refresh")}
-              onClick={resource.refresh}
-              size="sm"
-              title={t("execution.refresh")}
-              variant="ghost"
-            >
-              <RotateCw className="h-3.5 w-3.5" />
-            </UiIconButton>
-          ) : null}
         </div>
       </header>
+
+      {sketchError ? (
+        <UiResourceState
+          className="min-h-0 border-b dialog-divider px-4 py-3"
+          description={sketchError}
+          impact={t("execution.workflow_preview_failed_impact")}
+          nextStep={t("execution.workflow_preview_failed_next_step")}
+          primaryAction={{
+            busy: sketchLoading,
+            busyLabel: t("execution.workflow_extracting_sketch"),
+            label: t("execution.workflow_preview_retry"),
+            onClick: handleOpenSketch,
+          }}
+          size="sm"
+          state="error"
+          title={t("execution.workflow_preview_failed_title")}
+          urgency="polite"
+          variant="plain"
+        />
+      ) : null}
+
+      {mode === "current" && resource.error ? (
+        <ReadResourceReliabilityNotice
+          impact={t(resource.isStale
+            ? "execution.surface_stale_impact"
+            : "execution.surface_unavailable_impact")}
+          isRefreshing={resource.isLoading}
+          nextStep={t("execution.surface_failure_next_step")}
+          onRefresh={resource.refresh}
+          problem={t("execution.surface_load_failed")}
+          resource="workgraph-current"
+          stale={resource.isStale}
+        />
+      ) : null}
+
+      {mode === "history" && historyResource.error ? (
+        <ReadResourceReliabilityNotice
+          impact={t(historyResource.isStale
+            ? "execution.surface_history_stale_impact"
+            : "execution.surface_history_unavailable_impact")}
+          isRefreshing={historyResource.isLoading}
+          nextStep={t("execution.surface_history_failure_next_step")}
+          onRefresh={historyResource.refresh}
+          problem={t("execution.surface_history_load_failed")}
+          resource="workgraph-history"
+          stale={historyResource.isStale}
+        />
+      ) : null}
 
       {execution && hasNodes ? (
         <ExecutionWorkGraphCanvas

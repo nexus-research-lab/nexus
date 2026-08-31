@@ -109,7 +109,15 @@ export interface AgentOptionsControllerOptions extends AgentOptionsFormProps {
   saveMode?: AgentOptionsSaveMode;
 }
 
-export type SaveFeedback = {
-  tone: "success" | "error";
-  message: string;
-};
+export type SaveFeedback =
+  | {
+    tone: "success";
+    message: string;
+  }
+  | {
+    blocksRepeat: boolean;
+    tone: "error" | "warning";
+    message: string;
+    impact: string;
+    nextStep: string;
+  };

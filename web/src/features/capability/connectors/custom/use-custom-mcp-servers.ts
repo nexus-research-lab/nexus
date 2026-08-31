@@ -9,7 +9,7 @@ import {
   getCustomMCPServersApi,
   updateCustomMCPServerApi,
 } from "@/lib/api/capability/connector-api";
-import { getErrorMessage } from "@/lib/error-message";
+import { getErrorMessage, projectMutationFailure } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type {
   CustomMCPServer,
@@ -43,7 +43,9 @@ export function useCustomMCPServers({
   const [dialogState, setDialogState] = useState<CustomMCPDialogState>(null);
   const [deleteTarget, setDeleteTarget] = useState<CustomMCPServer | null>(null);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (
+    onFailure?: () => void,
+  ): Promise<boolean> => {
     const requestId = ++requestIdRef.current;
     setLoading(true);
     try {
@@ -51,14 +53,26 @@ export function useCustomMCPServers({
       if (requestId === requestIdRef.current) {
         setServers(items);
       }
+      return requestId === requestIdRef.current;
     } catch (error) {
       if (requestId === requestIdRef.current) {
-        reportFeedback({
-          message: getErrorMessage(error, t("capability.custom_mcp_load_failed")),
-          title: t("capability.custom_mcp_operation_failed"),
-          tone: "error",
-        });
+        if (onFailure) {
+          onFailure();
+        } else {
+          reportFeedback({
+            action: {
+              label: t("state.retry"),
+              onClick: () => window.location.reload(),
+            },
+            impact: t("state.read_failure_impact"),
+            message: getErrorMessage(error, t("capability.custom_mcp_load_failed")),
+            nextStep: t("state.retry_next_step"),
+            title: t("capability.custom_mcp_operation_failed"),
+            tone: "error",
+          });
+        }
       }
+      return false;
     } finally {
       if (requestId === requestIdRef.current) {
         setLoading(false);
@@ -85,17 +99,48 @@ export function useCustomMCPServers({
       await command();
       return true;
     } catch (error) {
-      reportFeedback({
-        message: getErrorMessage(error, fallbackMessage),
-        title: t("capability.custom_mcp_operation_failed"),
-        tone: "error",
-      });
+      const failure = projectMutationFailure(error, fallbackMessage);
+      const notApplied = failure.effect === "not_applied";
+      function reconcile() {
+        void refresh(() => reportFailure(true));
+      }
+      function reportFailure(refreshFailed: boolean) {
+        reportFeedback({
+          action: notApplied
+            ? undefined
+            : {
+                label: t("state.reload_check"),
+                onClick: reconcile,
+              },
+          impact: notApplied
+            ? t("capability.custom_mcp_not_applied_impact")
+            : failure.effect === "committed"
+              ? t("state.committed_refresh_impact")
+              : t("feedback.unconfirmed_impact"),
+          message: refreshFailed
+            ? `${failure.message} ${t("capability.custom_mcp_reconcile_failed_message")}`
+            : failure.message,
+          nextStep: notApplied
+            ? t("capability.custom_mcp_not_applied_next_step")
+            : failure.effect === "committed"
+              ? t("state.committed_refresh_next_step")
+              : t("feedback.unconfirmed_next_step"),
+          persistent: !notApplied,
+          title: notApplied
+            ? t("capability.custom_mcp_operation_failed")
+            : failure.effect === "committed"
+              ? t("capability.custom_mcp_committed_title")
+              : t("capability.custom_mcp_unknown_title"),
+          tone: notApplied ? "error" : "warning",
+        });
+      }
+      reportFailure(false);
       return false;
     } finally {
       commandRef.current = false;
       setBusy(false);
     }
-  }, [reportFeedback, t]);
+  }, [refresh, reportFeedback, t]);
 
   const save = useCallback(async (
     input: CustomMCPServerInput,

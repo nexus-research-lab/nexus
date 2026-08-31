@@ -11,7 +11,6 @@ import {
   LoaderCircle,
 } from "lucide-react";
 
-import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
@@ -33,6 +32,7 @@ export interface UiResourceStateAction {
   icon?: ReactNode;
   label: ReactNode;
   onClick: () => void;
+  tone?: "danger" | "primary";
 }
 
 interface UiResourceStateBaseProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
@@ -41,6 +41,7 @@ interface UiResourceStateBaseProps extends Omit<HTMLAttributes<HTMLDivElement>, 
   icon?: ReactNode;
   size?: UiStateBlockSize;
   title: ReactNode;
+  urgency?: "assertive" | "polite";
   variant?: UiStateBlockVariant;
 }
 
@@ -85,7 +86,7 @@ export type UiResourceStateProps =
 const DEFAULT_STATE_ICONS: Record<UiResourceStateKind, ReactNode> = {
   empty: <Inbox className="h-5 w-5 text-(--icon-default)" />,
   error: <CircleAlert className="h-5 w-5 text-(--destructive)" />,
-  loading: <LoaderCircle className="h-5 w-5 animate-spin text-(--icon-muted)" />,
+  loading: <LoaderCircle className="h-5 w-5 animate-spin text-(--icon-muted) motion-reduce:animate-none" />,
   success: <CheckCircle2 className="h-5 w-5 text-(--success)" />,
 };
 
@@ -100,21 +101,22 @@ export function UiResourceState({
   size,
   state,
   title,
+  urgency = "polite",
   variant,
   ...props
 }: UiResourceStateProps) {
-  const { t } = useI18n();
   const failure = state === "error";
-  const liveRole = failure ? "alert" : "status";
 
   return (
     <UiStateBlock
+      aria-atomic="true"
+      aria-live={urgency}
       aria-busy={state === "loading"}
       className={className}
       data-resource-state={state}
       description={description}
       icon={icon ?? DEFAULT_STATE_ICONS[state]}
-      role={liveRole}
+      role={urgency === "assertive" ? "alert" : "status"}
       size={size}
       title={title}
       tone={failure ? "danger" : "default"}
@@ -122,27 +124,21 @@ export function UiResourceState({
       {...props}
     >
       {impact || nextStep ? (
-        <dl className="mt-4 w-full max-w-md space-y-2 rounded-[8px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-panel-background)_72%,transparent)] px-3 py-2.5 text-left text-xs leading-5 text-(--text-muted)">
+        <div className="mt-3 w-full max-w-md space-y-1.5 break-words text-center text-xs leading-5 [overflow-wrap:anywhere]">
           {impact ? (
-            <div className="flex items-start gap-2" data-resource-state-impact>
-              <dt className="shrink-0 font-semibold text-(--text-default)">
-                {t("state.existing_data")}
-              </dt>
-              <dd className="min-w-0">{impact}</dd>
-            </div>
+            <p className="text-(--text-muted)" data-resource-state-impact>
+              {impact}
+            </p>
           ) : null}
           {nextStep ? (
-            <div className="flex items-start gap-2" data-resource-state-next-step>
-              <dt className="shrink-0 font-semibold text-(--text-default)">
-                {t("state.next_step")}
-              </dt>
-              <dd className="min-w-0">{nextStep}</dd>
-            </div>
+            <p className="font-medium text-(--text-default)" data-resource-state-next-step>
+              {nextStep}
+            </p>
           ) : null}
-        </dl>
+        </div>
       ) : null}
       {primaryAction || secondaryAction ? (
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+        <div className="mt-4 flex w-full flex-col items-center justify-center gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
           {primaryAction ? (
             <ResourceStateAction action={primaryAction} primary />
           ) : null}
@@ -169,11 +165,15 @@ function ResourceStateAction({
       disabled={action.disabled || action.busy}
       onClick={action.onClick}
       size="sm"
-      tone={primary ? "primary" : "default"}
+      tone={action.tone === "danger"
+        ? "danger"
+        : primary
+          ? "primary"
+          : "default"}
       variant={primary ? "surface" : "text"}
     >
       {action.busy ? (
-        <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+        <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
       ) : action.icon}
       {action.busy ? action.busyLabel ?? action.label : action.label}
     </UiButton>

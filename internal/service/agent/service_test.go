@@ -423,8 +423,10 @@ func TestServiceRejectsMainAgentDeletionBeforeCoordinator(t *testing.T) {
 	if _, err = service.ListAgents(ctx); err != nil {
 		t.Fatalf("初始化主智能体失败: %v", err)
 	}
-	if err = service.DeleteAgent(ctx, cfg.DefaultAgentID); err == nil ||
-		!strings.Contains(err.Error(), "主智能体不可删除") {
+	if err = service.DeleteAgent(ctx, cfg.DefaultAgentID); !errors.Is(
+		err,
+		agentpkg.ErrAgentDeletionNotAllowed,
+	) {
 		t.Fatalf("主智能体删除必须在协调前拒绝: %v", err)
 	}
 	mainAgent, err := service.GetAgent(ctx, cfg.DefaultAgentID)

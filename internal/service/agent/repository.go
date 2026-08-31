@@ -19,6 +19,11 @@ type Repository interface {
 	DeleteAgentContactPair(context.Context, string, string) error
 	SetAgentContactDirectRoom(context.Context, string, string, string) error
 	CreateAgent(context.Context, agentrepo.CreateRecord) (*protocol.Agent, error)
+	ClaimAgentCreation(context.Context, agentrepo.CreationRequestRecord, int64) (*agentrepo.CreationRequestRecord, bool, error)
+	GetAgentCreationRequest(context.Context, string, string) (*agentrepo.CreationRequestRecord, error)
+	MarkAgentCreationWorkspacePrepared(context.Context, agentrepo.CreationRequestRecord) (bool, error)
+	CommitAgentCreation(context.Context, agentrepo.CreationRequestRecord, agentrepo.CreateRecord) error
+	FailAgentCreation(context.Context, agentrepo.CreationRequestRecord, string) (bool, error)
 	UpdateAgent(context.Context, agentrepo.UpdateRecord) (*protocol.Agent, error)
 	UpdateAgentSkillSelection(context.Context, string, string, string, string) (*protocol.Agent, error)
 	UpdateAgentSkillIDsAtVersion(context.Context, string, string, string, int64) (*protocol.Agent, error)

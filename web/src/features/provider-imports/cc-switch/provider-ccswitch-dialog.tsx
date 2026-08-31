@@ -1,7 +1,7 @@
 /**
  * INPUT: CC Switch 本地配置预览、选择状态与同步命令。
- * OUTPUT: plain 服务选择器、路径切换和同步反馈。
- * POS: Provider 导入边界；内部路径按需展示，不制造向导式说明。
+ * OUTPUT: plain 服务选择器、路径切换，以及区分只读、同步结果未知和已提交后刷新失败的完整反馈。
+ * POS: Provider 导入边界；相同来源同步保持幂等，已提交后的页面刷新失败不得重放同步写入。
  */
 "use client";
 
@@ -16,6 +16,11 @@ import {
   previewCCSwitchApi,
   syncCCSwitchApi,
 } from "@/lib/api/settings/provider-api";
+import {
+  getErrorMessage,
+  projectMutationFailure,
+  type MutationFailureEffect,
+} from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
@@ -28,6 +33,7 @@ import {
   UiDialogPortal,
 } from "@/shared/ui/dialog/dialog";
 import { UiInput } from "@/shared/ui/form/form-control";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 import type {
   CCSwitchPreview,
   CCSwitchProviderPreview,
@@ -40,6 +46,22 @@ interface ProviderCCSwitchDialogProps {
   onSynced: (result: CCSwitchSyncResult) => Promise<void> | void;
   requireDefault?: boolean;
 }
+
+type CCSwitchFailure =
+  | {
+      kind: "read";
+      message: string;
+    }
+  | {
+      effect: MutationFailureEffect;
+      kind: "sync";
+      message: string;
+    }
+  | {
+      kind: "committed_refresh";
+      message: string;
+      result: CCSwitchSyncResult;
+    };
 
 export function ProviderCCSwitchDialog({
   isOpen,
@@ -55,13 +77,13 @@ export function ProviderCCSwitchDialog({
   const [editingPath, setEditingPath] = useState(false);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [error, setError] = useState("");
+  const [failure, setFailure] = useState<CCSwitchFailure | null>(null);
   const requestIdRef = useRef(0);
 
   const loadPreview = useCallback(async (requestedPath?: string) => {
     const requestId = ++requestIdRef.current;
     setLoading(true);
-    setError("");
+    setFailure(null);
     try {
       const result = await previewCCSwitchApi(requestedPath);
       if (requestId !== requestIdRef.current) {
@@ -77,9 +99,13 @@ export function ProviderCCSwitchDialog({
         return;
       }
       setPreview(null);
-      setError(reason instanceof Error
-        ? reason.message
-        : t("settings.providers.ccswitch_detect_failed"));
+      setFailure({
+        kind: "read",
+        message: getErrorMessage(
+          reason,
+          t("settings.providers.ccswitch_detect_failed"),
+        ),
+      });
       setEditingPath(true);
     } finally {
       if (requestId === requestIdRef.current) {
@@ -99,7 +125,7 @@ export function ProviderCCSwitchDialog({
     setSetDefault(false);
     setEditingPath(false);
     setSyncing(false);
-    setError("");
+    setFailure(null);
     void loadPreview();
   }, [isOpen, loadPreview]);
 
@@ -135,23 +161,65 @@ export function ProviderCCSwitchDialog({
       return;
     }
     setSyncing(true);
-    setError("");
+    setFailure(null);
     try {
       const result = await syncCCSwitchApi({
         config_dir: configDir.trim() || undefined,
         source_keys: [...selectedSources],
         set_default: requireDefault || (setDefault && canSetDefault),
       });
-      await onSynced(result);
-      onClose();
+      try {
+        await onSynced(result);
+        onClose();
+      } catch (reason: unknown) {
+        setFailure({
+          kind: "committed_refresh",
+          message: getErrorMessage(
+            reason,
+            t("settings.providers.ccswitch_refresh_after_sync_failed"),
+          ),
+          result,
+        });
+      }
     } catch (reason) {
-      setError(reason instanceof Error
-        ? reason.message
-        : t("settings.providers.ccswitch_sync_failed"));
+      const mutation = projectMutationFailure(
+        reason,
+        t("settings.providers.ccswitch_sync_failed"),
+      );
+      setFailure({
+        effect: mutation.effect,
+        kind: "sync",
+        message: mutation.message,
+      });
     } finally {
       setSyncing(false);
     }
   };
+
+  const handleRefreshAfterSync = async () => {
+    if (!failure || failure.kind !== "committed_refresh" || syncing) return;
+    setSyncing(true);
+    try {
+      await onSynced(failure.result);
+      onClose();
+    } catch (reason: unknown) {
+      setFailure({
+        ...failure,
+        message: getErrorMessage(
+          reason,
+          t("settings.providers.ccswitch_refresh_after_sync_failed"),
+        ),
+      });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const syncResultPending = failure?.kind === "sync"
+    && (failure.effect === "accepted" || failure.effect === "committed");
+  const controlsLocked = failure?.kind === "committed_refresh" || (
+    failure?.kind === "sync" && failure.effect !== "not_applied"
+  );
 
   return (
     <UiDialogPortal>
@@ -165,7 +233,11 @@ export function ProviderCCSwitchDialog({
           className="max-h-[min(82dvh,680px)] !max-w-[620px]"
           onSubmit={(event) => {
             event.preventDefault();
-            void handleSync();
+            if (failure?.kind === "committed_refresh") {
+              void handleRefreshAfterSync();
+            } else {
+              void handleSync();
+            }
           }}
           size="lg"
         >
@@ -183,6 +255,7 @@ export function ProviderCCSwitchDialog({
             databasePath={preview?.database_path}
             editingPath={editingPath}
             loading={loading}
+            locked={controlsLocked || syncing}
             onConfigDirChange={setConfigDir}
             onDetect={() => void loadPreview(configDir)}
             onEditPath={() => setEditingPath(true)}
@@ -196,26 +269,31 @@ export function ProviderCCSwitchDialog({
               </div>
             ) : null}
 
-            {!loading && preview && !preview.detected ? (
+            {!loading && failure ? (
+              <CCSwitchFailureState failure={failure} />
+            ) : null}
+
+            {!loading && failure?.kind !== "read" && preview && !preview.detected ? (
               <CCSwitchEmptyState
                 description={t("settings.providers.ccswitch_not_found_hint")}
                 title={t("settings.providers.ccswitch_not_found")}
               />
             ) : null}
 
-            {!loading && preview?.detected && preview.providers.length === 0 ? (
+            {!loading && failure?.kind !== "read" && preview?.detected && preview.providers.length === 0 ? (
               <CCSwitchEmptyState
                 description={t("settings.providers.ccswitch_empty_hint")}
                 title={t("settings.providers.ccswitch_empty")}
               />
             ) : null}
 
-            {!loading && preview?.detected && preview.providers.length > 0 ? (
+            {!loading && failure?.kind !== "read" && preview?.detected && preview.providers.length > 0 ? (
               <div className="divide-y divide-(--divider-subtle-color)">
                 {preview.providers.map((item) => (
                   <CCSwitchProviderRow
                     key={item.source_key}
                     checked={selectedSources.has(item.source_key)}
+                    disabled={controlsLocked || syncing}
                     item={item}
                     onChange={(checked) => toggleSource(item.source_key, checked)}
                   />
@@ -223,15 +301,6 @@ export function ProviderCCSwitchDialog({
               </div>
             ) : null}
           </UiDialogBody>
-
-          {error ? (
-            <div
-              className="border-t border-[color:color-mix(in_srgb,var(--destructive)_20%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--destructive)_6%,transparent)] px-5 py-2.5 text-xs text-(--destructive)"
-              role="alert"
-            >
-              {error}
-            </div>
-          ) : null}
 
           <UiDialogFooter appearance="plain" className="justify-between gap-4">
             <div className="min-w-0">
@@ -251,7 +320,7 @@ export function ProviderCCSwitchDialog({
                   <input
                     checked={setDefault && canSetDefault}
                     className="h-3.5 w-3.5 accent-(--primary)"
-                    disabled={!canSetDefault}
+                    disabled={!canSetDefault || controlsLocked || syncing}
                     onChange={(event) => setSetDefault(event.target.checked)}
                     type="checkbox"
                   />
@@ -276,7 +345,7 @@ export function ProviderCCSwitchDialog({
                 {t("common.cancel")}
               </UiButton>
               <UiButton
-                disabled={loading || syncing || !canSync}
+                disabled={loading || syncing || (!canSync && failure?.kind !== "committed_refresh") || syncResultPending}
                 tone="primary"
                 type="submit"
                 variant="solid"
@@ -286,9 +355,13 @@ export function ProviderCCSwitchDialog({
                   ? t(requireDefault
                     ? "settings.providers.ccswitch_importing"
                     : "settings.providers.ccswitch_syncing")
-                  : t(requireDefault
-                    ? "settings.providers.ccswitch_import_action"
-                    : "settings.providers.ccswitch_sync_action")}
+                  : failure?.kind === "committed_refresh"
+                    ? t("settings.providers.ccswitch_refresh_settings")
+                    : failure?.kind === "sync"
+                      ? t("settings.providers.ccswitch_sync_again")
+                      : t(requireDefault
+                        ? "settings.providers.ccswitch_import_action"
+                        : "settings.providers.ccswitch_sync_action")}
               </UiButton>
             </div>
           </UiDialogFooter>
@@ -298,11 +371,74 @@ export function ProviderCCSwitchDialog({
   );
 }
 
+function CCSwitchFailureState({ failure }: { failure: CCSwitchFailure }) {
+  const { t } = useI18n();
+  if (failure.kind === "read") {
+    return (
+      <UiResourceState
+        className="m-5 min-h-0 py-5"
+        description={failure.message}
+        impact={t("settings.providers.ccswitch_detect_failed_impact")}
+        nextStep={t("settings.providers.ccswitch_detect_failed_next_step")}
+        size="sm"
+        state="error"
+        title={t("settings.providers.ccswitch_detect_failed")}
+        urgency="polite"
+        variant="card"
+      />
+    );
+  }
+  if (failure.kind === "committed_refresh") {
+    return (
+      <UiResourceState
+        className="m-5 min-h-0 py-5"
+        description={failure.message}
+        impact={t("settings.providers.ccswitch_refresh_after_sync_failed_impact")}
+        nextStep={t("settings.providers.ccswitch_refresh_after_sync_failed_next_step")}
+        size="sm"
+        state="error"
+        title={t("settings.providers.ccswitch_refresh_after_sync_failed_title")}
+        urgency="polite"
+        variant="card"
+      />
+    );
+  }
+
+  const notApplied = failure.effect === "not_applied";
+  const pending = failure.effect === "accepted" || failure.effect === "committed";
+  return (
+    <UiResourceState
+      className="m-5 min-h-0 py-5"
+      description={failure.message}
+      impact={t(notApplied
+        ? "settings.providers.ccswitch_sync_not_applied_impact"
+        : pending
+          ? "settings.providers.ccswitch_sync_pending_impact"
+          : "settings.providers.ccswitch_sync_unknown_impact")}
+      nextStep={t(notApplied
+        ? "settings.providers.ccswitch_sync_not_applied_next_step"
+        : pending
+          ? "settings.providers.ccswitch_sync_pending_next_step"
+          : "settings.providers.ccswitch_sync_unknown_next_step")}
+      size="sm"
+      state="error"
+      title={t(notApplied
+        ? "settings.providers.ccswitch_sync_not_applied_title"
+        : pending
+          ? "settings.providers.ccswitch_sync_pending_title"
+          : "settings.providers.ccswitch_sync_unknown_title")}
+      urgency="polite"
+      variant="card"
+    />
+  );
+}
+
 function CCSwitchSourceBar({
   configDir,
   databasePath,
   editingPath,
   loading,
+  locked,
   onConfigDirChange,
   onDetect,
   onEditPath,
@@ -311,6 +447,7 @@ function CCSwitchSourceBar({
   databasePath?: string;
   editingPath: boolean;
   loading: boolean;
+  locked: boolean;
   onConfigDirChange: (value: string) => void;
   onDetect: () => void;
   onEditPath: () => void;
@@ -323,11 +460,12 @@ function CCSwitchSourceBar({
           aria-label={t("settings.providers.ccswitch_path")}
           className="min-w-0 flex-1 font-mono text-xs"
           controlSize="sm"
+          disabled={locked}
           onChange={(event) => onConfigDirChange(event.target.value)}
           placeholder="~/.cc-switch"
           value={configDir}
         />
-        <UiButton disabled={loading || !configDir.trim()} onClick={onDetect} size="sm" variant="surface">
+        <UiButton disabled={loading || locked || !configDir.trim()} onClick={onDetect} size="sm" variant="surface">
           {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
           {t("settings.providers.ccswitch_detect")}
         </UiButton>
@@ -340,10 +478,10 @@ function CCSwitchSourceBar({
       <span className="min-w-0 flex-1 truncate font-mono text-xs text-(--text-muted)" title={databasePath}>
         {databasePath}
       </span>
-      <UiButton onClick={onEditPath} size="xs" variant="ghost">
+      <UiButton disabled={locked} onClick={onEditPath} size="xs" variant="ghost">
         {t("settings.providers.ccswitch_change_path")}
       </UiButton>
-      <UiButton disabled={loading} onClick={onDetect} size="xs" variant="ghost">
+      <UiButton disabled={loading || locked} onClick={onDetect} size="xs" variant="ghost">
         <RotateCcw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
         {t("settings.providers.ccswitch_refresh")}
       </UiButton>
@@ -353,10 +491,12 @@ function CCSwitchSourceBar({
 
 function CCSwitchProviderRow({
   checked,
+  disabled,
   item,
   onChange,
 }: {
   checked: boolean;
+  disabled: boolean;
   item: CCSwitchProviderPreview;
   onChange: (checked: boolean) => void;
 }) {
@@ -367,7 +507,7 @@ function CCSwitchProviderRow({
   return (
     <label className={cn(
       "flex min-h-[72px] items-center gap-3 px-5 py-3 transition-colors",
-      item.can_sync
+      item.can_sync && !disabled
         ? "cursor-pointer hover:bg-(--surface-interactive-hover-background)"
         : "cursor-not-allowed bg-(--surface-muted-background) opacity-70",
       checked && "bg-[color:color-mix(in_srgb,var(--brand)_5%,transparent)]",
@@ -375,7 +515,7 @@ function CCSwitchProviderRow({
       <input
         checked={checked}
         className="h-4 w-4 shrink-0 accent-(--primary)"
-        disabled={!item.can_sync}
+        disabled={!item.can_sync || disabled}
         onChange={(event) => onChange(event.target.checked)}
         type="checkbox"
       />

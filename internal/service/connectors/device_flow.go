@@ -1,10 +1,11 @@
-// INPUT: Connector 目录、显式飞书连接方式、owner 级临时 OAuth 应用凭据与官方 Device Flow 响应。
-// OUTPUT: GitHub/飞书设备授权会话；飞书官方扫码为主路径，手工应用凭据为兜底。
+// INPUT: Connector 目录、显式飞书连接方式、owner 级配置版本与官方 Device Flow 响应。
+// OUTPUT: 精确绑定本次 OAuth client 的 GitHub/飞书授权会话；成功时原子切换 client 与连接。
 // POS: connectors 服务的设备授权编排，协议细节与持久化分别下沉到 provider/store。
 package connectors
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"strings"
 
@@ -34,24 +35,38 @@ func (s *Service) StartDeviceAuth(
 	if entry.Status != "available" {
 		return nil, errors.New("连接器暂不可用")
 	}
+	state, err := s.GetConfigurationState(
+		ctx, ownerUserID, entry.ConnectorID,
+	)
+	if err != nil {
+		return nil, err
+	}
 	if entry.AutoOAuthClient {
 		switch mode {
 		case DeviceAuthStartModeOfficialQR:
-			if _, err := s.DeleteOAuthClientConfig(ctx, ownerUserID, entry.ConnectorID); err != nil {
-				return nil, err
+			started, startErr := s.startFeishuAppRegistration(ctx, entry)
+			if startErr != nil {
+				return nil, startErr
 			}
-			return s.startFeishuAppRegistration(ctx, entry)
+			return s.bindDeviceAuthAttempt(
+				ctx, ownerUserID, entry, started, "", "",
+				state.ConfigurationVersion, false,
+			)
 		case DeviceAuthStartModeManualCredentials:
 			clientID, clientSecret, credentialsErr := s.oauthCredentials(ctx, ownerUserID, entry.ConnectorID)
 			if credentialsErr != nil {
 				return nil, credentialsErr
 			}
-			started, startErr := s.startOAuthDeviceAuth(ctx, entry, clientID, clientSecret)
-			if startErr == nil {
-				return started, nil
+			started, startErr := s.startOAuthDeviceAuth(
+				ctx, entry, clientID, clientSecret,
+			)
+			if startErr != nil {
+				return nil, startErr
 			}
-			_, cleanupErr := s.DeleteOAuthClientConfig(ctx, ownerUserID, entry.ConnectorID)
-			return nil, errors.Join(startErr, cleanupErr)
+			return s.bindDeviceAuthAttempt(
+				ctx, ownerUserID, entry, started, clientID, clientSecret,
+				state.ConfigurationVersion, false,
+			)
 		default:
 			return nil, errors.New("请选择官方扫码连接或手工应用凭据兜底")
 		}
@@ -67,7 +82,16 @@ func (s *Service) StartDeviceAuth(
 	if err != nil {
 		return nil, err
 	}
-	return s.startOAuthDeviceAuthWithProvider(ctx, entry, provider, clientID, "")
+	started, err := s.startOAuthDeviceAuthWithProvider(
+		ctx, entry, provider, clientID, "",
+	)
+	if err != nil {
+		return nil, err
+	}
+	return s.bindDeviceAuthAttempt(
+		ctx, ownerUserID, entry, started, clientID, "",
+		state.ConfigurationVersion, false,
+	)
 }
 
 func (s *Service) startOAuthDeviceAuth(
@@ -126,44 +150,36 @@ func (s *Service) PollDeviceAuth(ctx context.Context, ownerUserID string, connec
 	if strings.TrimSpace(deviceCode) == "" {
 		return nil, errors.New("device_code 不能为空")
 	}
-	if strings.HasPrefix(deviceCode, feishuAppRegistrationDevicePrefix) {
-		if !entry.AutoOAuthClient {
-			return nil, errors.New("当前连接器不支持自动配置 OAuth 应用")
-		}
-		return s.pollFeishuAppRegistration(
-			ctx,
-			ownerUserID,
-			entry,
-			strings.TrimPrefix(deviceCode, feishuAppRegistrationDevicePrefix),
-		)
+	attempt, err := s.openDeviceAuthAttempt(
+		ctx, ownerUserID, entry, deviceCode,
+	)
+	if err != nil {
+		return nil, err
+	}
+	state, err := s.GetConfigurationState(
+		ctx, ownerUserID, entry.ConnectorID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if state.ConfigurationVersion != attempt.ExpectedConfigurationVersion {
+		return nil, ErrConfigurationConflict
+	}
+	if attempt.Stage == deviceAuthStageAppSelection {
+		return s.pollFeishuAppRegistration(ctx, ownerUserID, entry, attempt)
 	}
 	provider, err := s.deviceProvider(entry)
 	if err != nil {
 		return nil, err
 	}
-	clientID := ""
-	clientSecret := ""
-	if entry.AutoOAuthClient {
-		clientID, clientSecret, err = s.oauthCredentials(ctx, ownerUserID, entry.ConnectorID)
-	} else {
-		clientID, err = s.oauthPublicClientID(ctx, ownerUserID, entry.ConnectorID, entry.Title)
-	}
-	if err != nil {
-		return nil, err
-	}
 	payload, err := provider.ExchangeDeviceToken(ctx, s.httpClient, providers.DeviceTokenRequest{
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		DeviceCode:   deviceCode,
+		ClientID:     attempt.ClientID,
+		ClientSecret: attempt.ClientSecret,
+		DeviceCode:   attempt.DeviceCode,
 	})
 	if err != nil {
 		status := deviceAuthStatusFromError(err)
 		if status != "" {
-			if entry.AutoOAuthClient && (status == deviceAuthStatusExpired || status == deviceAuthStatusDenied) {
-				if _, cleanupErr := s.DeleteOAuthClientConfig(ctx, ownerUserID, entry.ConnectorID); cleanupErr != nil {
-					return nil, cleanupErr
-				}
-			}
 			return &DeviceAuthPollResult{
 				Status:  status,
 				Message: deviceAuthMessage(status, entry.Title),
@@ -172,13 +188,9 @@ func (s *Service) PollDeviceAuth(ctx context.Context, ownerUserID string, connec
 		return nil, friendlyDeviceAuthError(err)
 	}
 	credentials := normalizeOAuthPayload(payload)
-	if err = s.upsertConnection(ctx, connectionRecord{
-		OwnerUserID: ownerUserID,
-		ConnectorID: entry.ConnectorID,
-		State:       "connected",
-		Credentials: credentials,
-		AuthType:    entry.AuthType,
-	}); err != nil {
+	if err = s.commitDeviceAuthConnection(
+		ctx, ownerUserID, entry, attempt, credentials,
+	); err != nil {
 		return nil, err
 	}
 	info := s.toInfo(ctx, ownerUserID, entry, "connected")
@@ -198,7 +210,7 @@ func (s *Service) startFeishuAppRegistration(
 	}
 	return &DeviceAuthStartResult{
 		ConnectorID:             entry.ConnectorID,
-		DeviceCode:              feishuAppRegistrationDevicePrefix + started.DeviceCode,
+		DeviceCode:              started.DeviceCode,
 		UserCode:                started.UserCode,
 		VerificationURI:         started.VerificationURI,
 		VerificationURIComplete: started.VerificationURIComplete,
@@ -212,9 +224,11 @@ func (s *Service) pollFeishuAppRegistration(
 	ctx context.Context,
 	ownerUserID string,
 	entry CatalogEntry,
-	deviceCode string,
+	attempt deviceAuthAttempt,
 ) (*DeviceAuthPollResult, error) {
-	result, err := s.feishuRegistrationClient(entry).Poll(ctx, deviceCode)
+	result, err := s.feishuRegistrationClient(entry).Poll(
+		ctx, attempt.DeviceCode,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -233,22 +247,16 @@ func (s *Service) pollFeishuAppRegistration(
 		if clientID == "" || clientSecret == "" {
 			return nil, errors.New("飞书应用配置成功但未返回应用凭据")
 		}
-		store, storeErr := s.oauthClientStore()
-		if storeErr != nil {
-			return nil, storeErr
-		}
-		if storeErr = store.Upsert(ctx, connectorstore.OAuthClient{
-			OwnerUserID:  ownerUserID,
-			ConnectorID:  entry.ConnectorID,
-			ClientID:     clientID,
-			ClientSecret: clientSecret,
-		}); storeErr != nil {
-			return nil, storeErr
-		}
 		next, startErr := s.startOAuthDeviceAuth(ctx, entry, clientID, clientSecret)
 		if startErr != nil {
-			_, cleanupErr := s.DeleteOAuthClientConfig(ctx, ownerUserID, entry.ConnectorID)
-			return nil, errors.Join(startErr, cleanupErr)
+			return nil, startErr
+		}
+		next, startErr = s.bindDeviceAuthAttempt(
+			ctx, ownerUserID, entry, next, clientID, clientSecret,
+			attempt.ExpectedConfigurationVersion, true,
+		)
+		if startErr != nil {
+			return nil, startErr
 		}
 		return &DeviceAuthPollResult{
 			Status:  deviceAuthStatusPending,
@@ -258,6 +266,53 @@ func (s *Service) pollFeishuAppRegistration(
 	default:
 		return nil, errors.New("未知飞书应用注册状态")
 	}
+}
+
+func (s *Service) commitDeviceAuthConnection(
+	ctx context.Context,
+	ownerUserID string,
+	entry CatalogEntry,
+	attempt deviceAuthAttempt,
+	credentials string,
+) error {
+	record := connectionRecord{
+		OwnerUserID: ownerUserID,
+		ConnectorID: entry.ConnectorID,
+		State:       "connected",
+		Credentials: credentials,
+		AuthType:    entry.AuthType,
+	}
+	if err := s.encryptConnectionCredentials(&record); err != nil {
+		return err
+	}
+	var oauthStore *connectorstore.OAuthClientStore
+	var err error
+	if attempt.CommitOAuthClient {
+		oauthStore, err = s.oauthClientStore()
+		if err != nil {
+			return err
+		}
+	}
+	_, err = s.mutateConnector(
+		ctx, ownerUserID, entry.ConnectorID,
+		&attempt.ExpectedConfigurationVersion,
+		func(tx *sql.Tx) error {
+			if oauthStore != nil {
+				if upsertErr := oauthStore.UpsertTx(
+					ctx, tx, connectorstore.OAuthClient{
+						OwnerUserID:  ownerUserID,
+						ConnectorID:  entry.ConnectorID,
+						ClientID:     attempt.ClientID,
+						ClientSecret: attempt.ClientSecret,
+					},
+				); upsertErr != nil {
+					return upsertErr
+				}
+			}
+			return s.writeConnection(ctx, tx, record)
+		},
+	)
+	return err
 }
 
 func (s *Service) feishuRegistrationClient(entry CatalogEntry) appregistration.Client {

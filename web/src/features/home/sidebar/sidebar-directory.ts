@@ -8,7 +8,11 @@ import type {
   LauncherConversationSummary,
   LauncherRoomSummary,
 } from "@/types/app/launcher";
-import { refreshHomeDirectory, useHomeDirectory } from "../home-directory-resource";
+import {
+  reconcileHomeDirectory,
+  refreshHomeDirectory,
+  useHomeDirectory,
+} from "../home-directory-resource";
 
 export interface SidebarDirectoryState {
   agents: LauncherAgentSummary[];
@@ -16,6 +20,7 @@ export interface SidebarDirectoryState {
   hasError: boolean;
   hasLoaded: boolean;
   isLoading: boolean;
+  reconcileRoomTarget: (roomId: string) => Promise<boolean>;
   refreshDirectory: () => void;
   rooms: LauncherRoomSummary[];
 }
@@ -25,6 +30,10 @@ export function useSidebarDirectory(): SidebarDirectoryState {
 
   return {
     ...directory,
+    reconcileRoomTarget: async (roomId: string) => {
+      const refreshed = await reconcileHomeDirectory();
+      return refreshed.rooms.some((room) => room.id === roomId);
+    },
     refreshDirectory: refreshHomeDirectory,
   };
 }

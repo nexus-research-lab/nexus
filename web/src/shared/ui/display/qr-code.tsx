@@ -1,24 +1,39 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 
 export function UiQRCode({
   alt,
+  failureFallback,
+  loadingLabel = "正在生成二维码…",
   payload,
   showPayload = true,
 }: {
   alt: string;
+  failureFallback?: ReactNode;
+  loadingLabel?: string;
   payload: string;
   showPayload?: boolean;
 }) {
   const value = payload.trim();
-  const [generatedImageUrl, setGeneratedImageUrl] = useResettableState("", value);
-  const imageUrl = value.startsWith("data:image/") ? value : generatedImageUrl;
+  const embeddedImage = value.startsWith("data:image/");
+  const [generation, setGeneration] = useResettableState<{
+    imageUrl: string;
+    status: "failed" | "idle" | "loading" | "ready";
+  }>({
+    imageUrl: "",
+    status: value && !embeddedImage ? "loading" : "idle",
+  }, value);
+  const imageUrl = embeddedImage
+    ? value
+    : generation.status === "ready"
+      ? generation.imageUrl
+      : "";
 
   useEffect(() => {
-    if (!value || value.startsWith("data:image/")) {
+    if (!value || embeddedImage) {
       return;
     }
     let cancelled = false;
@@ -31,18 +46,20 @@ export function UiQRCode({
       }))
       .then((url) => {
         if (!cancelled) {
-          setGeneratedImageUrl(url);
+          setGeneration(url
+            ? { imageUrl: url, status: "ready" }
+            : { imageUrl: "", status: "failed" });
         }
       })
       .catch(() => {
         if (!cancelled) {
-          setGeneratedImageUrl("");
+          setGeneration({ imageUrl: "", status: "failed" });
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [setGeneratedImageUrl, value]);
+  }, [embeddedImage, setGeneration, value]);
 
   if (!value) {
     return null;
@@ -56,9 +73,20 @@ export function UiQRCode({
           className="h-[220px] w-[220px] rounded-[8px] bg-(--surface-paper-background) p-2"
           src={imageUrl}
         />
+      ) : generation.status === "loading" ? (
+        <div
+          aria-live="polite"
+          className="flex h-[220px] w-[220px] items-center justify-center rounded-[8px] bg-(--surface-paper-background) p-4 text-center text-compact leading-5 text-(--surface-paper-muted)"
+          role="status"
+        >
+          {loadingLabel}
+        </div>
       ) : (
-        <div className="flex h-[220px] w-[220px] items-center justify-center rounded-[8px] bg-(--surface-paper-background) p-4 text-center text-compact leading-5 text-(--surface-paper-muted)">
-          {showPayload ? "二维码生成失败，请使用下方链接" : "二维码生成失败，请重新发起授权"}
+        <div className="flex min-h-[220px] w-[220px] items-center justify-center rounded-[8px] bg-(--surface-paper-background) p-4 text-center text-compact leading-5 text-(--surface-paper-muted)">
+          {failureFallback
+            ?? (showPayload
+              ? "二维码生成失败，请使用下方链接"
+              : "二维码生成失败，请重新发起授权")}
         </div>
       )}
       {showPayload ? (

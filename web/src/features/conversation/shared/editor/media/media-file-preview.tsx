@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import {
   Eye,
   EyeOff,
@@ -13,6 +13,8 @@ import {
 } from "@/lib/api/agent/agent-api";
 import { getWorkspaceFileExternalActionCopy } from "@/lib/workspace-file-action";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import type { TranslationKey } from "@/shared/i18n/messages";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 import {
   WorkspaceFileDownloadButton,
   WorkspaceFilePreviewFocusButton,
@@ -27,8 +29,14 @@ export function PdfPreview({
   isPreviewFocused,
   onTogglePreviewFocus,
 }: WorkspaceFilePreviewProps) {
-  const [isLoaded, setIsLoaded] = useState(false);
+  const { t } = useI18n();
+  const [loadState, setLoadState] = useState<"error" | "loaded" | "loading">("loading");
+  const [retryRevision, setRetryRevision] = useState(0);
   const previewUrl = getWorkspaceFilePreviewUrl(agentId, path);
+  const retryPreview = useCallback(() => {
+    setLoadState("loading");
+    setRetryRevision((current) => current + 1);
+  }, []);
 
   return (
     <>
@@ -43,15 +51,20 @@ export function PdfPreview({
           </>
         )}
         meta={(
-          isLoaded ? (
+          loadState === "error" ? (
+            <span className="flex items-center gap-1 text-destructive">
+              <EyeOff className="h-3 w-3" />
+              {t("workspace_file.preview_failed_status")}
+            </span>
+          ) : loadState === "loaded" ? (
             <span className="flex items-center gap-1 text-(--success)">
               <Eye className="h-3 w-3" />
-              已加载
+              {t("workspace_file.preview_loaded")}
             </span>
           ) : (
             <span className="flex items-center gap-1">
               <LoaderCircle className="h-3 w-3 animate-spin" />
-              加载中
+              {t("workspace_file.preview_loading")}
             </span>
           )
         )}
@@ -59,13 +72,22 @@ export function PdfPreview({
       />
 
       <div className="min-h-0 flex-1 overflow-hidden bg-[var(--surface-panel-subtle-background)]">
-        <iframe
-          className="h-full w-full"
-          sandbox="allow-downloads allow-same-origin"
-          src={previewUrl}
-          title={fileName}
-          onLoad={() => setIsLoaded(true)}
-        />
+        {loadState === "error" ? (
+          <MediaPreviewFailure
+            onRetry={retryPreview}
+            titleKey="workspace_file.pdf_preview_failed"
+          />
+        ) : (
+          <iframe
+            className="h-full w-full"
+            key={retryRevision}
+            onError={() => setLoadState("error")}
+            onLoad={() => setLoadState("loaded")}
+            sandbox="allow-downloads allow-same-origin"
+            src={previewUrl}
+            title={fileName}
+          />
+        )}
       </div>
     </>
   );
@@ -79,10 +101,13 @@ export function ImagePreview({
   onTogglePreviewFocus,
 }: WorkspaceFilePreviewProps) {
   const { t } = useI18n();
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [hasError, setHasError] = useState(false);
-  const fileActionCopy = getWorkspaceFileExternalActionCopy(t, fileName);
+  const [loadState, setLoadState] = useState<"error" | "loaded" | "loading">("loading");
+  const [retryRevision, setRetryRevision] = useState(0);
   const previewUrl = getWorkspaceFilePreviewUrl(agentId, path);
+  const retryPreview = useCallback(() => {
+    setLoadState("loading");
+    setRetryRevision((current) => current + 1);
+  }, []);
 
   return (
     <>
@@ -97,20 +122,20 @@ export function ImagePreview({
           </>
         )}
         meta={(
-          hasError ? (
+          loadState === "error" ? (
             <span className="flex items-center gap-1 text-destructive">
               <EyeOff className="h-3 w-3" />
-              加载失败
+              {t("workspace_file.preview_failed_status")}
             </span>
-          ) : isLoaded ? (
+          ) : loadState === "loaded" ? (
             <span className="flex items-center gap-1 text-(--success)">
               <Eye className="h-3 w-3" />
-              已加载
+              {t("workspace_file.preview_loaded")}
             </span>
           ) : (
             <span className="flex items-center gap-1">
               <LoaderCircle className="h-3 w-3 animate-spin" />
-              加载中
+              {t("workspace_file.preview_loading")}
             </span>
           )
         )}
@@ -118,28 +143,51 @@ export function ImagePreview({
       />
 
       <div className="min-h-0 flex-1 overflow-hidden bg-[var(--surface-panel-subtle-background)] p-6">
-        {hasError ? (
-          <div className="m-auto text-center">
-            <FileWarning className="mx-auto h-12 w-12 text-(--icon-muted)" />
-            <p className="mt-4 text-sm font-medium text-(--text-strong)">图片加载失败</p>
-            <p className="mt-2 text-xs text-(--text-soft)">
-              请尝试{fileActionCopy.label}文件
-            </p>
-          </div>
+        {loadState === "error" ? (
+          <MediaPreviewFailure
+            onRetry={retryPreview}
+            titleKey="workspace_file.image_preview_failed"
+          />
         ) : (
           <img
             className="max-h-full max-w-full radius-control-sm object-contain"
+            key={retryRevision}
             src={previewUrl}
             alt={fileName}
-            onLoad={() => setIsLoaded(true)}
-            onError={() => {
-              setIsLoaded(true);
-              setHasError(true);
-            }}
+            onLoad={() => setLoadState("loaded")}
+            onError={() => setLoadState("error")}
           />
         )}
       </div>
     </>
+  );
+}
+
+function MediaPreviewFailure({
+  onRetry,
+  titleKey,
+}: {
+  onRetry: () => void;
+  titleKey: TranslationKey;
+}) {
+  const { t } = useI18n();
+  return (
+    <div className="flex h-full min-h-[240px] w-full items-center justify-center p-6">
+      <UiResourceState
+        className="min-h-0 w-full max-w-lg py-5"
+        impact={t("workspace_file.media_preview_failed_impact")}
+        nextStep={t("workspace_file.media_preview_failed_next_step")}
+        primaryAction={{
+          label: t("workspace_file.retry_preview"),
+          onClick: onRetry,
+        }}
+        size="sm"
+        state="error"
+        title={t(titleKey)}
+        urgency="polite"
+        variant="card"
+      />
+    </div>
   );
 }
 

@@ -1,5 +1,5 @@
 // INPUT: 已认证 owner、session_key/exact Execution/草图确认与命名工作图查询参数。
-// OUTPUT: 当前/历史安全 WorkGraph、durable Draft/版本编辑、隐藏后台保存调度及命名工作图目录读取/删除。
+// OUTPUT: 当前/历史安全 WorkGraph、durable Draft/版本编辑、隐藏后台保存调度、命名目录读取/删除及 Apply 结构化失败。
 // POS: Web/桌面端 WorkGraph 管理 HTTP 边界；草图持久化只允许后台 Agent 的 Skill + CLI。
 package execution
 
@@ -324,7 +324,12 @@ func (h *Handlers) HandleApplyWorkGraphWorkflowEditor(writer http.ResponseWriter
 		return
 	}
 	var payload protocol.ApplyWorkGraphWorkflowEditorRequest
-	if !h.api.BindJSON(writer, request, &payload) {
+	if !h.api.BindJSONError(writer, request, &payload, handlershared.FailureSpec{
+		Code:     "workgraph.editor_invalid_request",
+		Category: protocol.FailureCategoryValidation,
+		Effect:   protocol.FailureEffectNotApplied,
+		Detail:   "请求参数错误",
+	}) {
 		return
 	}
 	payload.EditorID = strings.TrimSpace(chi.URLParam(request, "editor_id"))

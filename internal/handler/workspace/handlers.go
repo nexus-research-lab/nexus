@@ -1,3 +1,6 @@
+// INPUT: 已鉴权的 workspace HTTP 请求、路径、正文与可选 revision 前提。
+// OUTPUT: 旧 envelope 兼容响应；文件修改携带可证明的数据影响与恢复动作。
+// POS: workspace HTTP 边界；不从传输错误猜测提交结果，也不改变 Agent/path 身份。
 package workspace
 
 import (
@@ -7,6 +10,7 @@ import (
 	"strings"
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 
@@ -16,6 +20,15 @@ import (
 const (
 	workspaceFileDispositionAttachment = "attachment"
 	workspaceFileDispositionInline     = "inline"
+)
+
+type workspaceMutationOperation string
+
+const (
+	workspaceMutationCreate workspaceMutationOperation = "create"
+	workspaceMutationDelete workspaceMutationOperation = "delete"
+	workspaceMutationRename workspaceMutationOperation = "rename"
+	workspaceMutationUpload workspaceMutationOperation = "upload"
 )
 
 // Handlers 封装工作区 HTTP handlers。
@@ -105,15 +118,26 @@ func (h *Handlers) HandleWorkspaceFile(writer http.ResponseWriter, request *http
 // HandleUpdateWorkspaceFile 更新工作区文件内容。
 func (h *Handlers) HandleUpdateWorkspaceFile(writer http.ResponseWriter, request *http.Request) {
 	var payload struct {
-		Path    string `json:"path"`
-		Content string `json:"content"`
+		Path             string  `json:"path"`
+		Content          string  `json:"content"`
+		ExpectedRevision *string `json:"expected_revision"`
 	}
 	if !h.api.BindJSON(writer, request, &payload) {
 		return
 	}
-	item, err := h.workspace.UpdateFile(request.Context(), chi.URLParam(request, "agent_id"), payload.Path, payload.Content)
+	item, err := h.workspace.UpdateFileIfRevision(
+		request.Context(),
+		chi.URLParam(request, "agent_id"),
+		payload.Path,
+		payload.Content,
+		payload.ExpectedRevision,
+	)
 	if errors.Is(err, agentpkg.ErrAgentNotFound) {
 		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+		return
+	}
+	if errors.Is(err, workspacepkg.ErrFileRevisionConflict) {
+		h.api.WriteError(writer, request, http.StatusConflict, workspaceFileRevisionConflict())
 		return
 	}
 	if err != nil {
@@ -127,6 +151,19 @@ func (h *Handlers) HandleUpdateWorkspaceFile(writer http.ResponseWriter, request
 	h.api.WriteSuccess(writer, item)
 }
 
+func workspaceFileRevisionConflict() handlershared.FailureSpec {
+	return handlershared.FailureSpec{
+		Code:     "workspace.file_revision_conflict",
+		Category: protocol.FailureCategoryConflict,
+		Effect:   protocol.FailureEffectNotApplied,
+		Detail:   "文件已在其他位置更新",
+		Resolution: &protocol.FailureResolution{
+			Actor:  protocol.FailureRecoveryActorUser,
+			Action: "workspace.reload_file",
+		},
+	}
+}
+
 // HandleCreateWorkspaceEntry 创建工作区条目。
 func (h *Handlers) HandleCreateWorkspaceEntry(writer http.ResponseWriter, request *http.Request) {
 	var payload struct {
@@ -134,20 +171,12 @@ func (h *Handlers) HandleCreateWorkspaceEntry(writer http.ResponseWriter, reques
 		EntryType string `json:"entry_type"`
 		Content   string `json:"content"`
 	}
-	if !h.api.BindJSON(writer, request, &payload) {
+	if !h.api.BindJSONError(writer, request, &payload, workspaceMutationRequestFailure(workspaceMutationCreate)) {
 		return
 	}
 	item, err := h.workspace.CreateEntry(request.Context(), chi.URLParam(request, "agent_id"), payload.Path, payload.EntryType, payload.Content)
-	if errors.Is(err, agentpkg.ErrAgentNotFound) {
-		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
-		return
-	}
 	if err != nil {
-		if strings.Contains(err.Error(), "路径") || strings.Contains(err.Error(), "存在") || strings.Contains(err.Error(), "仅支持") {
-			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
-			return
-		}
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		h.writeWorkspaceMutationError(writer, request, workspaceMutationCreate, err)
 		return
 	}
 	h.api.WriteSuccess(writer, item)
@@ -159,20 +188,12 @@ func (h *Handlers) HandleRenameWorkspaceEntry(writer http.ResponseWriter, reques
 		Path    string `json:"path"`
 		NewPath string `json:"new_path"`
 	}
-	if !h.api.BindJSON(writer, request, &payload) {
+	if !h.api.BindJSONError(writer, request, &payload, workspaceMutationRequestFailure(workspaceMutationRename)) {
 		return
 	}
 	item, err := h.workspace.RenameEntry(request.Context(), chi.URLParam(request, "agent_id"), payload.Path, payload.NewPath)
-	if errors.Is(err, agentpkg.ErrAgentNotFound) || errors.Is(err, workspacepkg.ErrFileNotFound) {
-		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
-		return
-	}
 	if err != nil {
-		if strings.Contains(err.Error(), "路径") || strings.Contains(err.Error(), "相同") || strings.Contains(err.Error(), "存在") {
-			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
-			return
-		}
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		h.writeWorkspaceMutationError(writer, request, workspaceMutationRename, err)
 		return
 	}
 	h.api.WriteSuccess(writer, item)
@@ -181,16 +202,8 @@ func (h *Handlers) HandleRenameWorkspaceEntry(writer http.ResponseWriter, reques
 // HandleDeleteWorkspaceEntry 删除工作区条目。
 func (h *Handlers) HandleDeleteWorkspaceEntry(writer http.ResponseWriter, request *http.Request) {
 	item, err := h.workspace.DeleteEntry(request.Context(), chi.URLParam(request, "agent_id"), request.URL.Query().Get("path"))
-	if errors.Is(err, agentpkg.ErrAgentNotFound) || errors.Is(err, workspacepkg.ErrFileNotFound) {
-		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
-		return
-	}
 	if err != nil {
-		if strings.Contains(err.Error(), "路径") {
-			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
-			return
-		}
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		h.writeWorkspaceMutationError(writer, request, workspaceMutationDelete, err)
 		return
 	}
 	h.api.WriteSuccess(writer, item)
@@ -200,7 +213,10 @@ func (h *Handlers) HandleDeleteWorkspaceEntry(writer http.ResponseWriter, reques
 func (h *Handlers) HandleUploadWorkspaceFile(writer http.ResponseWriter, request *http.Request) {
 	file, header, err := request.FormFile("file")
 	if err != nil {
-		h.api.WriteFailure(writer, http.StatusBadRequest, "缺少上传文件")
+		spec := workspaceMutationRequestFailure(workspaceMutationUpload)
+		spec.Detail = "缺少上传文件"
+		spec.Cause = err
+		h.api.WriteError(writer, request, http.StatusBadRequest, spec)
 		return
 	}
 	defer file.Close()
@@ -212,19 +228,108 @@ func (h *Handlers) HandleUploadWorkspaceFile(writer http.ResponseWriter, request
 		request.FormValue("path"),
 		file,
 	)
-	if errors.Is(err, agentpkg.ErrAgentNotFound) {
-		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
-		return
-	}
 	if err != nil {
-		if strings.Contains(err.Error(), "路径") || strings.Contains(err.Error(), "限制") {
-			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
-			return
-		}
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		h.writeWorkspaceMutationError(writer, request, workspaceMutationUpload, err)
 		return
 	}
 	h.api.WriteSuccess(writer, item)
+}
+
+func workspaceMutationRequestFailure(operation workspaceMutationOperation) handlershared.FailureSpec {
+	return handlershared.FailureSpec{
+		Code:     "workspace." + string(operation) + "_request_invalid",
+		Category: protocol.FailureCategoryValidation,
+		Effect:   protocol.FailureEffectNotApplied,
+		Detail:   "请求参数错误",
+		Resolution: &protocol.FailureResolution{
+			Actor:  protocol.FailureRecoveryActorUser,
+			Action: "workspace.review_request",
+		},
+	}
+}
+
+func (h *Handlers) writeWorkspaceMutationError(
+	writer http.ResponseWriter,
+	request *http.Request,
+	operation workspaceMutationOperation,
+	err error,
+) {
+	status, spec := workspaceMutationFailure(operation, err)
+	h.api.WriteError(writer, request, status, spec)
+}
+
+func workspaceMutationFailure(
+	operation workspaceMutationOperation,
+	err error,
+) (int, handlershared.FailureSpec) {
+	prefix := "workspace." + string(operation)
+	if errors.Is(err, agentpkg.ErrAgentNotFound) ||
+		((operation == workspaceMutationRename || operation == workspaceMutationDelete) &&
+			errors.Is(err, workspacepkg.ErrFileNotFound)) {
+		return http.StatusNotFound, handlershared.FailureSpec{
+			Code:     prefix + "_not_found",
+			Category: protocol.FailureCategoryNotFound,
+			Effect:   protocol.FailureEffectNotApplied,
+			Detail:   "资源不存在",
+			Resolution: &protocol.FailureResolution{
+				Actor:  protocol.FailureRecoveryActorUser,
+				Action: "workspace.reload_files",
+			},
+		}
+	}
+	if errors.Is(err, workspacepkg.ErrMutationInvalid) {
+		return http.StatusBadRequest, handlershared.FailureSpec{
+			Code:     prefix + "_invalid",
+			Category: protocol.FailureCategoryValidation,
+			Effect:   protocol.FailureEffectNotApplied,
+			Detail:   workspaceMutationInvalidDetail(operation),
+			Resolution: &protocol.FailureResolution{
+				Actor:  protocol.FailureRecoveryActorUser,
+				Action: "workspace.review_request",
+			},
+		}
+	}
+	return http.StatusInternalServerError, handlershared.FailureSpec{
+		Code:     prefix + "_failed",
+		Category: protocol.FailureCategoryInternal,
+		Effect:   protocol.FailureEffectUnknown,
+		Detail:   workspaceMutationFailureDetail(operation),
+		Cause:    err,
+		Resolution: &protocol.FailureResolution{
+			Actor:  protocol.FailureRecoveryActorUser,
+			Action: "workspace.reload_files",
+		},
+	}
+}
+
+func workspaceMutationInvalidDetail(operation workspaceMutationOperation) string {
+	switch operation {
+	case workspaceMutationCreate:
+		return "文件名称或位置不符合要求"
+	case workspaceMutationRename:
+		return "新的文件名称或位置不符合要求"
+	case workspaceMutationDelete:
+		return "要删除的文件位置不符合要求"
+	case workspaceMutationUpload:
+		return "上传位置不符合要求"
+	default:
+		return "请求内容不符合要求"
+	}
+}
+
+func workspaceMutationFailureDetail(operation workspaceMutationOperation) string {
+	switch operation {
+	case workspaceMutationCreate:
+		return "创建失败"
+	case workspaceMutationRename:
+		return "重命名失败"
+	case workspaceMutationDelete:
+		return "删除失败"
+	case workspaceMutationUpload:
+		return "上传失败"
+	default:
+		return "文件操作失败"
+	}
 }
 
 // HandleDownloadWorkspaceFile 下载工作区文件。

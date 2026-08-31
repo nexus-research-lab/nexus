@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { fetchOfficePreviewBuffer } from "../office-preview-resource";
@@ -59,8 +59,11 @@ export function useDocumentPreview({
   const [previewScale, setPreviewScale] = useResettableState(1, previewKey);
   const [status, setStatus] = useResettableState<DocumentPreviewStatus>({
     state: "loading",
-    message: "加载文档预览中",
   }, previewKey);
+  const [retryRevision, setRetryRevision] = useState(0);
+  const retryPreview = useCallback(() => {
+    setRetryRevision((current) => current + 1);
+  }, []);
 
   const updatePreviewScale = useCallback(() => {
     const viewport = viewportRef.current;
@@ -83,6 +86,7 @@ export function useDocumentPreview({
     let active = true;
 
     clearPreviewHosts(container, styleContainer);
+    setStatus({ state: "loading" });
 
     const loadPreview = async (): Promise<void> => {
       if (!container || !styleContainer) {
@@ -100,7 +104,7 @@ export function useDocumentPreview({
           return;
         }
 
-        setStatus({ state: "loading", message: "解析 docx 文件中" });
+        setStatus({ state: "loading" });
         const rendered = await renderDocumentBuffer(buffer);
         if (!active) {
           return;
@@ -117,7 +121,7 @@ export function useDocumentPreview({
           updatePreviewScale();
         });
         setStatus({ state: "loaded" });
-      } catch (error) {
+      } catch {
         if (!active || abortController.signal.aborted) {
           return;
         }
@@ -125,7 +129,6 @@ export function useDocumentPreview({
         setPreviewScale(1);
         setStatus({
           state: "error",
-          message: error instanceof Error ? error.message : "docx 预览失败",
         });
       }
     };
@@ -141,7 +144,7 @@ export function useDocumentPreview({
       clearPreviewHosts(container, styleContainer);
       setPreviewScale(1);
     };
-  }, [agentId, path, setPreviewScale, setStatus, updatePreviewScale]);
+  }, [agentId, path, retryRevision, setPreviewScale, setStatus, updatePreviewScale]);
 
   useEffect(() => {
     if (status.state !== "loaded") {
@@ -169,6 +172,7 @@ export function useDocumentPreview({
   return {
     containerRef,
     previewScale,
+    retryPreview,
     status,
     styleContainerRef,
     viewportRef,

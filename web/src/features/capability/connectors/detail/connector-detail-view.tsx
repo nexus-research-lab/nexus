@@ -1,8 +1,11 @@
 "use client";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import type { ResourceFailure } from "@/lib/error-message";
 import { UiButton } from "@/shared/ui/button/button";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import type {
   ConnectorDetail,
@@ -21,6 +24,7 @@ import { ConnectorFeatureDialog } from "./connector-feature-dialog";
 interface ConnectorDetailViewProps {
   busy: boolean;
   detail: ConnectorDetail | null;
+  failure: ResourceFailure | null;
   loading: boolean;
   onBack: () => void;
   onConfigureCredential: (detail: ConnectorDetail) => void;
@@ -28,6 +32,7 @@ interface ConnectorDetailViewProps {
   onConnect: (connectorId: string) => void;
   onDisconnect: (connectorId: string) => void;
   onReplaceOauthClient: (detail: ConnectorDetail) => void;
+  onRetry: () => void;
 }
 
 function detailIdentity(detail: ConnectorDetail | null): string | null {
@@ -77,10 +82,40 @@ function ConnectorDetailMissing({ onBack }: { onBack: () => void }) {
   );
 }
 
+function ConnectorDetailFailure({
+  failure,
+  onBack,
+  onRetry,
+}: {
+  failure: ResourceFailure;
+  onBack: () => void;
+  onRetry: () => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <div className={WORKSPACE_CONTENT_PAGE_CLASS_NAME}>
+      <ConnectorDetailBreadcrumb detail={null} onBack={onBack} />
+      <UiResourceState
+        className="min-h-[420px]"
+        description={failure.message}
+        impact={t("capability.connector_detail_load_failed_impact")}
+        nextStep={t("capability.connector_detail_load_failed_next_step")}
+        primaryAction={{
+          label: t("capability.connector_detail_refresh"),
+          onClick: onRetry,
+        }}
+        state="error"
+        title={t("capability.connector_detail_load_failed_title")}
+      />
+    </div>
+  );
+}
+
 /** 详情入口只协调资源状态和当前能力弹窗，不解释连接器动作。 */
 export function ConnectorDetailView({
   busy,
   detail,
+  failure,
   loading,
   onBack,
   onConfigureCredential,
@@ -88,7 +123,9 @@ export function ConnectorDetailView({
   onConnect,
   onDisconnect,
   onReplaceOauthClient,
+  onRetry,
 }: ConnectorDetailViewProps) {
+  const { t } = useI18n();
   const [selectedFeature, setSelectedFeature] = useResettableState<string | null>(
     null,
     detailIdentity(detail),
@@ -96,6 +133,15 @@ export function ConnectorDetailView({
 
   if (loading) {
     return <ConnectorDetailLoading detail={detail} onBack={onBack} />;
+  }
+  if (failure && !detail) {
+    return (
+      <ConnectorDetailFailure
+        failure={failure}
+        onBack={onBack}
+        onRetry={onRetry}
+      />
+    );
   }
   if (!detail) {
     return <ConnectorDetailMissing onBack={onBack} />;
@@ -106,6 +152,21 @@ export function ConnectorDetailView({
   return (
     <div className={WORKSPACE_CONTENT_PAGE_CLASS_NAME}>
       <ConnectorDetailBreadcrumb detail={detail} onBack={onBack} />
+      {failure ? (
+        <UiResourceState
+          className="mt-4"
+          description={failure.message}
+          impact={t("capability.connector_detail_stale_impact")}
+          nextStep={t("capability.connector_detail_load_failed_next_step")}
+          primaryAction={{
+            label: t("capability.connector_detail_refresh"),
+            onClick: onRetry,
+          }}
+          size="sm"
+          state="error"
+          title={t("capability.connector_detail_load_failed_title")}
+        />
+      ) : null}
       <div className="pt-5">
         <ConnectorDetailHeader
           busy={busy}

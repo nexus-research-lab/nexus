@@ -1,3 +1,7 @@
+// INPUT: Update-check reasons, release metadata, download progress, and verified package facts.
+// OUTPUT: Stage-specific update behavior and safe native feedback with raw causes kept in diagnostics.
+// POS: macOS update coordinator; check, download/verification, and installation preparation stay distinct.
+
 import AppKit
 import CryptoKit
 import Foundation
@@ -159,13 +163,13 @@ final class DesktopUpdateChecker {
       }
     } catch {
       defaults.set("failed", forKey: DefaultsKey.lastResult)
-      defaults.set(error.localizedDescription, forKey: DefaultsKey.lastErrorMessage)
+      defaults.set(DesktopFailureCopy.updateCheckMessage, forKey: DefaultsKey.lastErrorMessage)
       startupTimeline.mark("update_check.failed", metadata: [
         "reason": reason.rawValue,
         "error": error.localizedDescription,
       ])
       if showsUpToDateAlert {
-        showCheckFailedAlert(error)
+        showCheckFailedAlert()
       }
     }
   }
@@ -333,7 +337,7 @@ final class DesktopUpdateChecker {
       startupTimeline.mark("update_check.update_request_failed", metadata: [
         "error": error.localizedDescription,
       ])
-      showCheckFailedAlert(error)
+      showCheckFailedAlert()
     }
   }
 
@@ -361,10 +365,10 @@ final class DesktopUpdateChecker {
     alert.runModal()
   }
 
-  private func showCheckFailedAlert(_ error: Error) {
+  private func showCheckFailedAlert() {
     let alert = NSAlert()
-    alert.messageText = "检查更新失败"
-    alert.informativeText = error.localizedDescription
+    alert.messageText = DesktopFailureCopy.updateCheckTitle
+    alert.informativeText = DesktopFailureCopy.updateCheckMessage
     alert.alertStyle = .warning
     alert.addButton(withTitle: "好")
     alert.runModal()
@@ -432,7 +436,7 @@ final class DesktopUpdateChecker {
         "latest_version": latest.version,
         "error": error.localizedDescription,
       ])
-      showDownloadFailedAlert(latest, error: error)
+      showDownloadFailedAlert(latest)
     }
   }
 
@@ -651,12 +655,8 @@ final class DesktopUpdateChecker {
 
   private func showManualDownloadOnlyAlert(_ latest: DesktopReleaseInfo) {
     let alert = NSAlert()
-    alert.messageText = "Nexus 更新暂不可自动安装"
-    let reason = latest.automaticInstallUnavailableReason ?? "当前 Nexus.app 所在位置不可替换。"
-    alert.informativeText = """
-    \(reason)
-    是否打开下载页手动处理？
-    """
+    alert.messageText = DesktopFailureCopy.automaticUpdateUnavailableTitle
+    alert.informativeText = DesktopFailureCopy.automaticUpdateUnavailableMessage
     alert.alertStyle = .informational
     alert.addButton(withTitle: "打开下载页")
     alert.addButton(withTitle: "稍后")
@@ -665,14 +665,10 @@ final class DesktopUpdateChecker {
     }
   }
 
-  private func showDownloadFailedAlert(_ latest: DesktopReleaseInfo, error: Error) {
+  private func showDownloadFailedAlert(_ latest: DesktopReleaseInfo) {
     let alert = NSAlert()
-    alert.messageText = "Nexus 更新下载失败"
-    alert.informativeText = """
-    更新下载、校验或准备安装失败：\(error.localizedDescription)
-
-    是否打开 Release 页面手动下载？
-    """
+    alert.messageText = DesktopFailureCopy.updateIncompleteTitle
+    alert.informativeText = DesktopFailureCopy.updateIncompleteMessage
     alert.alertStyle = .warning
     alert.addButton(withTitle: "打开下载页")
     alert.addButton(withTitle: "稍后")
@@ -701,18 +697,17 @@ final class DesktopUpdateChecker {
       lines.append("这是一个预发布版本。")
     }
     if Self.formatReleaseNotes(latest.releaseNotes) != nil {
-      lines.append("更新内容请在下方查看，完整内容可打开 Release 页面。")
+      lines.append("更新内容显示在下方，完整内容可打开官方下载页查看。")
     }
     lines.append("")
     if latest.canAutoInstallPackage && currentInstallTargetURL() != nil {
-      lines.append("选择“下载并更新”会下载安装包和 sha256 文件，通过 macOS 本地信任校验后再询问是否退出并替换当前 App。")
-    } else if let reason = latest.automaticInstallUnavailableReason {
-      lines.append(reason)
-      lines.append("可打开下载页手动下载安装。")
+      lines.append("选择“下载并更新”后，Nexus 会先验证更新包安全性，再询问是否退出并安装。")
+    } else if latest.automaticInstallUnavailableReason != nil {
+      lines.append("这个版本暂时不能通过应用内更新。可以打开官方下载页手动安装。")
     } else if latest.canDownloadPackage {
-      lines.append("当前 Nexus.app 所在位置不可自动替换。")
+      lines.append("当前安装位置不支持应用内更新。可以打开官方下载页手动安装。")
     } else {
-      lines.append("当前 Release 缺少可自动校验的 macOS 安装包或 sha256 文件。")
+      lines.append("这个版本暂时不能通过应用内更新。可以打开官方下载页手动安装。")
     }
     return lines.joined(separator: "\n")
   }
@@ -867,7 +862,7 @@ private extension DesktopUpdateChecker {
     let endIndex = normalized.index(normalized.startIndex, offsetBy: releaseNotesMaxCharacters)
     let clipped = String(normalized[..<endIndex])
       .trimmingCharacters(in: .whitespacesAndNewlines)
-    return "\(clipped)\n\n...\n完整更新内容请打开 Release 页面查看。"
+    return "\(clipped)\n\n...\n完整更新内容可在官方下载页查看。"
   }
 
   static func releaseNotesAccessoryView(_ rawNotes: String?) -> NSView? {

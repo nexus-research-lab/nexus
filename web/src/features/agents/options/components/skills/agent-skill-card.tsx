@@ -17,6 +17,7 @@ import type { AgentSkillEntry } from "@/types/capability/skill";
 
 interface AgentSkillCardProps {
   actionLabel: string;
+  blocked: boolean;
   busy: boolean;
   commandBusy: boolean;
   onAction: (skill: AgentSkillEntry) => void;
@@ -30,6 +31,7 @@ function isAgentWorkspaceSource(skill: AgentSkillEntry): boolean {
 
 export function AgentSkillCard({
   actionLabel,
+  blocked,
   busy,
   commandBusy,
   onAction,
@@ -90,7 +92,7 @@ export function AgentSkillCard({
           <GlassSwitch
             aria-label={`${actionLabel} ${title}`}
             checked={skill.enabled_for_agent}
-            disabled={commandBusy}
+            disabled={commandBusy || blocked}
             onChange={() => onAction(skill)}
             size="xs"
           />

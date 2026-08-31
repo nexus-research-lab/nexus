@@ -6,6 +6,7 @@ package shared
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -14,6 +15,8 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
+
+const maxFailureSemanticKeyLength = 128
 
 // FailureSpec 只接受 Handler 已经确认的公开失败事实。
 // Cause 只进入内部日志，不能进入响应；Resolution 必须来自领域规则，公共层不推断动作。
@@ -52,13 +55,17 @@ func (a *API) WriteError(
 		logger = logx.FromContext(request.Context())
 	}
 
+	normalizedCode, codeValid := normalizeFailureSemanticKey(spec.Code)
+	normalizedResolution, resolutionValid := normalizeFailureResolution(spec.Resolution)
+	categoryValid := knownFailureCategory(spec.Category)
+	effectValid := knownFailureEffect(spec.Effect)
 	failure := protocol.FailureCore{
 		Version:            protocol.FailureCoreVersion,
-		Code:               strings.TrimSpace(spec.Code),
+		Code:               normalizedCode,
 		Category:           spec.Category,
 		Effect:             spec.Effect,
 		TransportRequestID: transportRequestID,
-		Resolution:         normalizeFailureResolution(spec.Resolution),
+		Resolution:         normalizedResolution,
 	}
 	if failure.Code == "" {
 		failure.Code = "common.request_failed"
@@ -67,24 +74,36 @@ func (a *API) WriteError(
 		failure.Category = protocol.FailureCategoryCanceled
 	} else if timedOut {
 		failure.Category = protocol.FailureCategoryTimeout
-	} else if failure.Category == "" {
+	} else if !categoryValid {
 		failure.Category = failureCategoryForStatus(status)
 	}
-	if failure.Effect == "" {
+	if !effectValid {
 		failure.Effect = protocol.FailureEffectUnknown
 	}
 
-	if spec.Cause != nil || clientDetail != "" {
+	if spec.Cause != nil || clientDetail != "" || !codeValid || !categoryValid || !effectValid || !resolutionValid {
 		fields := []any{
 			"status", status,
 			"failure_code", failure.Code,
 			"failure_category", failure.Category,
 			"failure_effect", failure.Effect,
+			"failure_category_valid", categoryValid,
+			"failure_effect_valid", effectValid,
+			"failure_code_valid", codeValid,
+			"failure_resolution_valid", resolutionValid,
 		}
 		if spec.Cause != nil {
-			fields = append(fields, "err", spec.Cause)
+			// 共享 writer 无法知道第三方/Provider error 是否夹带 token、路径或正文。
+			// 这里只记录可关联的结构化事实和类型；需要 cause 细节的领域必须在
+			// 自己的安全边界先脱敏，再单独记录。
+			fields = append(fields,
+				"has_cause", true,
+				"cause_type", fmt.Sprintf("%T", spec.Cause),
+			)
 		} else {
-			fields = append(fields, "detail", clientDetail)
+			// 面向用户的 detail 可能包含资源名或用户输入。日志只记录其存在，
+			// 内部定位依赖稳定 code、诊断请求身份和显式 Cause。
+			fields = append(fields, "has_client_detail", clientDetail != "")
 		}
 		if status == 499 {
 			logger.Debug("HTTP 请求已取消", fields...)
@@ -113,11 +132,54 @@ func (a *API) WriteError(
 	})
 }
 
+func knownFailureCategory(category protocol.FailureCategory) bool {
+	if category == "" {
+		return false
+	}
+	switch category {
+	case protocol.FailureCategoryValidation,
+		protocol.FailureCategoryAuthentication,
+		protocol.FailureCategoryAuthorization,
+		protocol.FailureCategoryNotFound,
+		protocol.FailureCategoryConflict,
+		protocol.FailureCategoryRateLimited,
+		protocol.FailureCategoryUnavailable,
+		protocol.FailureCategoryTimeout,
+		protocol.FailureCategoryCanceled,
+		protocol.FailureCategoryInternal:
+		return true
+	default:
+		return false
+	}
+}
+
+func knownFailureEffect(effect protocol.FailureEffect) bool {
+	switch effect {
+	case protocol.FailureEffectNotApplicable,
+		protocol.FailureEffectNotApplied,
+		protocol.FailureEffectAccepted,
+		protocol.FailureEffectCommitted,
+		protocol.FailureEffectUnknown:
+		return true
+	default:
+		return false
+	}
+}
+
 func failureClientDetail(status int, detail string) string {
+	if status == 499 {
+		return "请求已取消"
+	}
 	if status == http.StatusRequestTimeout || status == http.StatusGatewayTimeout {
 		return "请求超时"
 	}
-	return GatewayClientErrorDetail(status, detail)
+	// 与旧 WriteFailure 不同，FailureSpec.Detail 是 Handler 明确确认过的
+	// 用户文案。保留它才能让 HTTP/CLI 等非 Web 消费方得到具体问题，
+	// 同时 Cause 继续完全隔离在响应之外。
+	if detail = strings.TrimSpace(detail); detail != "" {
+		return detail
+	}
+	return GatewayClientErrorDetail(status, "")
 }
 
 func failureCategoryForStatus(status int) protocol.FailureCategory {
@@ -171,16 +233,66 @@ func failureRetryAfter(status int, retryAfter time.Duration) (int64, bool) {
 
 func normalizeFailureResolution(
 	resolution *protocol.FailureResolution,
-) *protocol.FailureResolution {
+) (*protocol.FailureResolution, bool) {
 	if resolution == nil {
-		return nil
+		return nil, true
 	}
 	normalized := &protocol.FailureResolution{
 		Actor:  protocol.FailureRecoveryActor(strings.TrimSpace(string(resolution.Actor))),
-		Action: strings.TrimSpace(resolution.Action),
+		Action: "",
 	}
-	if normalized.Actor == "" || normalized.Action == "" {
-		return nil
+	action, actionValid := normalizeFailureSemanticKey(resolution.Action)
+	normalized.Action = action
+	if !knownFailureRecoveryActor(normalized.Actor) || !actionValid || normalized.Action == "" {
+		return nil, false
 	}
-	return normalized
+	return normalized, true
+}
+
+// normalizeFailureSemanticKey 只接受稳定的 domain.reason 语义名。
+// 用户文案、URL、命令、路径或秘密必须留在该字段之外。
+func normalizeFailureSemanticKey(value string) (string, bool) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", true
+	}
+	if len(value) > maxFailureSemanticKeyLength || value[0] < 'a' || value[0] > 'z' {
+		return "", false
+	}
+	hasSeparator := false
+	segmentStart := true
+	for _, character := range value {
+		switch {
+		case character == '.':
+			if segmentStart {
+				return "", false
+			}
+			hasSeparator = true
+			segmentStart = true
+		case character >= 'a' && character <= 'z':
+			segmentStart = false
+		case character >= '0' && character <= '9', character == '_':
+			if segmentStart {
+				return "", false
+			}
+		default:
+			return "", false
+		}
+	}
+	if segmentStart || !hasSeparator {
+		return "", false
+	}
+	return value, true
+}
+
+func knownFailureRecoveryActor(actor protocol.FailureRecoveryActor) bool {
+	switch actor {
+	case protocol.FailureRecoveryActorUser,
+		protocol.FailureRecoveryActorSystem,
+		protocol.FailureRecoveryActorExternal,
+		protocol.FailureRecoveryActorNone:
+		return true
+	default:
+		return false
+	}
 }

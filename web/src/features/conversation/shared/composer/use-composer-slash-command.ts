@@ -1,5 +1,9 @@
 "use client";
 
+// INPUT: Composer Slash 命令输入与 Skill/Model 只读目录请求。
+// OUTPUT: 保留草稿的 picker 状态、三问读取失败和显式重载动作。
+// POS: Composer Slash picker 编排边界；目录失败从不解释为草稿或设置修改。
+
 import {
   useCallback,
   useEffect,
@@ -25,6 +29,10 @@ import type {
 } from "@/types/generated/protocol";
 import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
+import {
+  buildComposerReadFailure,
+  type ComposerReadFailure,
+} from "./controller/composer-settings-reliability";
 import {
   buildSlashModelOptions,
   filterSlashCommands,
@@ -71,13 +79,15 @@ export function useComposerSlashCommand({
   const [skillQuery, setSkillQuery] = useState("");
   const [skillItems, setSkillItems] = useState<SkillInfo[]>([]);
   const [skillsLoading, setSkillsLoading] = useState(false);
-  const [skillsError, setSkillsError] = useState<string | null>(null);
+  const [skillsError, setSkillsError] =
+    useState<ComposerReadFailure | null>(null);
   const [loadedSkillsAgentID, setLoadedSkillsAgentID] = useState<string | null>(
     null,
   );
   const [modelItems, setModelItems] = useState<SlashModelOption[]>([]);
   const [modelLoading, setModelLoading] = useState(false);
-  const [modelError, setModelError] = useState<string | null>(null);
+  const [modelError, setModelError] =
+    useState<ComposerReadFailure | null>(null);
   const [modelQuery, setModelQuery] = useState("");
   const [loadedModelRuntimeKind, setLoadedModelRuntimeKind] = useState("");
   const skillSearchRef = useRef<HTMLInputElement>(null);
@@ -167,8 +177,10 @@ export function useComposerSlashCommand({
     }
     const requestID = ++skillsRequestRef.current;
     setSkillsLoading(true);
-    setSkillsError(null);
-    setSkillItems([]);
+    if (loadedSkillsAgentID !== null && loadedSkillsAgentID !== skillsAgentID) {
+      setSkillItems([]);
+      setSkillsError(null);
+    }
     void (async () => {
       try {
         const nextSkills = await getAvailableSkillsApi(
@@ -176,10 +188,16 @@ export function useComposerSlashCommand({
         );
         if (requestID === skillsRequestRef.current) {
           setSkillItems(nextSkills);
+          setSkillsError(null);
         }
       } catch (error) {
         if (requestID === skillsRequestRef.current) {
-          setSkillsError(error instanceof Error ? error.message : "技能列表加载失败");
+          setSkillsError(buildComposerReadFailure(
+            error,
+            "skills",
+            t("composer.skills_load_failed"),
+            t,
+          ));
         }
       } finally {
         if (requestID === skillsRequestRef.current) {
@@ -193,6 +211,7 @@ export function useComposerSlashCommand({
     mode,
     skillsAgentID,
     skillsLoading,
+    t,
   ]);
 
   useEffect(() => {
@@ -205,19 +224,28 @@ export function useComposerSlashCommand({
     }
     const requestID = ++modelsRequestRef.current;
     setModelLoading(true);
-    setModelError(null);
-    setModelItems([]);
+    if (
+      loadedModelRuntimeKind
+      && loadedModelRuntimeKind !== modelRuntimeKind
+    ) {
+      setModelItems([]);
+      setModelError(null);
+    }
     void (async () => {
       try {
         const response = await listProviderOptionsApi(modelRuntimeKind);
         if (requestID === modelsRequestRef.current) {
           setModelItems(buildSlashModelOptions(response));
+          setModelError(null);
         }
       } catch (error) {
         if (requestID === modelsRequestRef.current) {
-          setModelError(
-            error instanceof Error ? error.message : "模型列表加载失败",
-          );
+          setModelError(buildComposerReadFailure(
+            error,
+            "models",
+            t("composer.models_load_failed"),
+            t,
+          ));
         }
       } finally {
         if (requestID === modelsRequestRef.current) {
@@ -231,7 +259,15 @@ export function useComposerSlashCommand({
     mode,
     modelLoading,
     modelRuntimeKind,
+    t,
   ]);
+
+  const retrySkills = useCallback(() => {
+    setLoadedSkillsAgentID(null);
+  }, []);
+  const retryModels = useCallback(() => {
+    setLoadedModelRuntimeKind("");
+  }, []);
 
   const close = useCallback(() => {
     setMatch(null);
@@ -447,6 +483,7 @@ export function useComposerSlashCommand({
     modelItems: filteredModels,
     modelLoading,
     modelQuery,
+    retryModels,
     modelSearchRef,
     query: match?.query ?? "",
     selectCommand,
@@ -457,6 +494,7 @@ export function useComposerSlashCommand({
     skillItems: filteredSkills,
     skillLoading: skillsLoading,
     skillQuery,
+    retrySkills,
     skillSearchRef,
     setSkillQuery,
     setModelQuery,

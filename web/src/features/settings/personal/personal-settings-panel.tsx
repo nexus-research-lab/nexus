@@ -34,7 +34,7 @@ export function PersonalSettingsPanel() {
           title={t("settings.personal.section_title")}
         />
         <div className="flex flex-col gap-3">
-          {controller.profile.isLoading ? (
+          {controller.profile.isLoading && !controller.profile.value ? (
             <section className="flex min-h-[220px] items-center justify-center rounded-[12px] border border-(--divider-subtle-color) bg-transparent text-(--text-soft)">
               <Loader2 className="h-5 w-5 animate-spin" />
             </section>
@@ -56,6 +56,7 @@ export function PersonalSettingsPanel() {
                 draft={controller.password.draft}
                 hasInput={controller.password.hasInput}
                 isSubmitting={controller.password.isSubmitting}
+                mutationBlocked={controller.password.mutationBlocked}
                 onFieldChange={controller.password.setField}
                 onSubmit={() => {
                   void controller.password.submit();
@@ -68,12 +69,14 @@ export function PersonalSettingsPanel() {
       </div>
 
       <FeedbackBannerViewport
-        item={controller.feedback.value ? {
-          message: controller.feedback.value.message,
-          onDismiss: controller.feedback.dismiss,
-          title: controller.feedback.value.title,
-          tone: controller.feedback.value.tone,
-        } : null}
+        item={controller.feedback.value
+          ? {
+              ...controller.feedback.value,
+              onDismiss: controller.feedback.value.tone === "success"
+                ? controller.feedback.dismiss
+                : undefined,
+            }
+          : null}
       />
     </>
   );

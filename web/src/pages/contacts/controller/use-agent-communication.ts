@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前详情 Agent id、好友私域记录 API 与通讯发送命令。
- * OUTPUT: Agent 视角的好友目录、Session、私信时间线和发送事务。
+ * OUTPUT: Agent 视角的好友目录、Session、私信时间线、分阶段读取快照和发送事务。
  * POS: Contacts 页面好友私聊客户端的数据与命令边界。
  */
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -23,11 +23,23 @@ import {
 import { createRoomConversation } from "@/lib/api/conversation/room-command-api";
 import { getRoomContexts } from "@/lib/api/conversation/room-resource-api";
 import { ApiRequestError } from "@/lib/api/core/http-error";
+import { getErrorMessage, getResourceFailure } from "@/lib/error-message";
 import { useAppEventSubscription, useWebSocket } from "@/lib/websocket";
 import { parseEventMessage } from "@/lib/websocket/protocol/event-message";
 import type { AgentContact } from "@/types/agent/agent";
+import type {
+  AgentCommunicationMutationFailure,
+  AgentCommunicationReadFailure,
+  AgentCommunicationReadFailureKind,
+} from "@/types/agent/communication";
 import type { AgentPrivateEvent } from "@/types/agent/private-domain";
 import type { RoomContextAggregate } from "@/types/conversation/room";
+
+import {
+  blocksAgentCommunicationIntent,
+  buildAgentCommunicationMutationFailure,
+  reconcileContactDirectoryMutation,
+} from "./agent-communication-recovery";
 
 const MESSAGE_LIMIT = 160;
 const EMPTY_HISTORY_CURSOR = {
@@ -45,23 +57,26 @@ interface MessageHistoryCursor {
 export interface AgentCommunicationResource {
   contacts: AgentContact[];
   conversationId: string | null;
+  conversationFailure: AgentCommunicationReadFailure | null;
   directEvents: AgentPrivateEvent[];
-  error: string | null;
+  directoryFailure: AgentCommunicationReadFailure | null;
   hasMoreHistory: boolean;
   historyPrependToken: number;
   isDirectoryLoading: boolean;
   isHistoryLoading: boolean;
   isMessagesLoading: boolean;
   isSending: boolean;
+  mutationFailure: AgentCommunicationMutationFailure | null;
   pendingAgentId: string | null;
   roomContexts: RoomContextAggregate[];
   selectedContactId: string | null;
   addContact: (contactAgentId: string, alias: string) => Promise<boolean>;
+  clearMutationFailure: () => void;
   clearSelection: () => void;
   createConversation: (title?: string) => Promise<string | null>;
   loadOlderMessages: () => Promise<boolean>;
   removeContact: (contactAgentId: string) => Promise<boolean>;
-  refresh: () => void;
+  refresh: (kind?: AgentCommunicationReadFailureKind) => void;
   selectContact: (contactAgentId: string) => void;
   selectConversation: (conversationId: string) => void;
   sendMessage: (content: string) => Promise<void>;
@@ -78,7 +93,12 @@ export function useAgentCommunication(
   const [roomContexts, setRoomContexts] = useState<RoomContextAggregate[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [directEvents, setDirectEvents] = useState<AgentPrivateEvent[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [directoryFailure, setDirectoryFailure] =
+    useState<AgentCommunicationReadFailure | null>(null);
+  const [conversationFailure, setConversationFailure] =
+    useState<AgentCommunicationReadFailure | null>(null);
+  const [mutationFailure, setMutationFailure] =
+    useState<AgentCommunicationMutationFailure | null>(null);
   const [isDirectoryLoading, setIsDirectoryLoading] = useState(Boolean(scopeAgentId));
   const [isMessagesLoading, setIsMessagesLoading] = useState(false);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
@@ -95,6 +115,9 @@ export function useAgentCommunication(
   const activeTargetKeyRef = useRef(targetKey);
   const activeMessageKeyRef = useRef(messageKey);
   const historyLoadingRef = useRef(false);
+  const directorySnapshotAgentIdRef = useRef<string | null>(null);
+  const targetSnapshotKeyRef = useRef<string | null>(null);
+  const messageSnapshotKeyRef = useRef<string | null>(null);
   activeTargetKeyRef.current = targetKey;
   activeMessageKeyRef.current = messageKey;
 
@@ -103,13 +126,18 @@ export function useAgentCommunication(
       return;
     }
     setIsDirectoryLoading(true);
-    setError(null);
+    setDirectoryFailure(null);
     try {
       const nextContacts = await listAgentContactsApi(scopeAgentId);
       if (activeAgentIdRef.current !== scopeAgentId) {
         return;
       }
+      directorySnapshotAgentIdRef.current = scopeAgentId;
       setContacts(nextContacts);
+      setMutationFailure((current) => reconcileContactDirectoryMutation(
+        current,
+        new Set(nextContacts.map((item) => item.contact_agent_id)),
+      ));
       setSelectedContactId((current) => (
         current && nextContacts.some((item) => item.contact_agent_id === current)
           ? current
@@ -117,7 +145,23 @@ export function useAgentCommunication(
       ));
     } catch (loadError) {
       if (activeAgentIdRef.current === scopeAgentId) {
-        setError(errorMessage(loadError, "加载联系人失败"));
+        const invalidated = invalidatesReadSnapshot(loadError);
+        if (invalidated) {
+          directorySnapshotAgentIdRef.current = null;
+          targetSnapshotKeyRef.current = null;
+          messageSnapshotKeyRef.current = null;
+          setContacts([]);
+          setSelectedContactId(null);
+          setRoomContexts([]);
+          setConversationId(null);
+          setDirectEvents([]);
+        }
+        setDirectoryFailure({
+          kind: "directory",
+          message: getErrorMessage(loadError, "加载联系人失败"),
+          stale: !invalidated
+            && directorySnapshotAgentIdRef.current === scopeAgentId,
+        });
       }
     } finally {
       if (activeAgentIdRef.current === scopeAgentId) {
@@ -132,7 +176,9 @@ export function useAgentCommunication(
     setRoomContexts([]);
     setConversationId(null);
     setDirectEvents([]);
-    setError(null);
+    setDirectoryFailure(null);
+    setConversationFailure(null);
+    setMutationFailure(null);
     setIsDirectoryLoading(Boolean(scopeAgentId));
     setIsMessagesLoading(false);
     setIsHistoryLoading(false);
@@ -143,6 +189,9 @@ export function useAgentCommunication(
     setIsSending(false);
     setPendingAgentId(null);
     setIsRemoving(false);
+    directorySnapshotAgentIdRef.current = null;
+    targetSnapshotKeyRef.current = null;
+    messageSnapshotKeyRef.current = null;
     void loadDirectory();
   }, [loadDirectory, scopeAgentId]);
 
@@ -154,7 +203,7 @@ export function useAgentCommunication(
       return;
     }
     setIsMessagesLoading(true);
-    setError(null);
+    setConversationFailure(null);
     try {
       const opened = await openAgentContactChannelApi(scopeAgentId, selectedContactId);
       const loadedContexts = await getRoomContexts(opened.room.id);
@@ -162,6 +211,7 @@ export function useAgentCommunication(
       if (activeTargetKeyRef.current !== requestKey) {
         return;
       }
+      targetSnapshotKeyRef.current = requestKey;
       setContacts((current) => current.map((contact) => (
         contact.contact_agent_id === selectedContactId
           ? { ...contact, direct_room_id: opened.room.id }
@@ -175,12 +225,23 @@ export function useAgentCommunication(
       ));
     } catch (loadError) {
       if (activeTargetKeyRef.current === requestKey) {
-        setRoomContexts([]);
-        setConversationId(null);
-        setDirectEvents([]);
-        setError(loadError instanceof ApiRequestError && loadError.status === 404
+        const notFound = isNotFound(loadError);
+        const invalidated = notFound || invalidatesReadSnapshot(loadError);
+        if (invalidated) {
+          targetSnapshotKeyRef.current = null;
+          messageSnapshotKeyRef.current = null;
+          setRoomContexts([]);
+          setConversationId(null);
+          setDirectEvents([]);
+        }
+        setConversationFailure(notFound
           ? null
-          : errorMessage(loadError, "打开联络会话失败"));
+          : {
+              kind: "channel",
+              message: getErrorMessage(loadError, "打开联络会话失败"),
+              stale: !invalidated
+                && targetSnapshotKeyRef.current === requestKey,
+            });
       }
     } finally {
       if (activeTargetKeyRef.current === requestKey) {
@@ -190,9 +251,12 @@ export function useAgentCommunication(
   }, [scopeAgentId, selectedContactId, targetKey]);
 
   useEffect(() => {
+    targetSnapshotKeyRef.current = null;
+    messageSnapshotKeyRef.current = null;
     setRoomContexts([]);
     setConversationId(null);
     setDirectEvents([]);
+    setConversationFailure(null);
     void loadTarget();
   }, [loadTarget]);
 
@@ -207,6 +271,9 @@ export function useAgentCommunication(
     if (showLoading) {
       setIsMessagesLoading(true);
     }
+    setConversationFailure((current) => (
+      current?.kind === "channel" ? current : null
+    ));
     try {
       const query = {
         conversation_id: conversationId,
@@ -226,6 +293,7 @@ export function useAgentCommunication(
         ))
         : null;
       if (activeMessageKeyRef.current === requestKey) {
+        messageSnapshotKeyRef.current = requestKey;
         const events = eventPage?.items ?? [];
         setDirectEvents((current) => replaceHistory
           ? events
@@ -238,11 +306,25 @@ export function useAgentCommunication(
           });
           setHasMoreHistory(eventPage?.has_more ?? false);
         }
-        setError(null);
       }
     } catch (loadError) {
       if (activeMessageKeyRef.current === requestKey) {
-        setError(errorMessage(loadError, "加载消息失败"));
+        const invalidated = invalidatesReadSnapshot(loadError);
+        if (invalidated) {
+          targetSnapshotKeyRef.current = null;
+          messageSnapshotKeyRef.current = null;
+          setRoomContexts([]);
+          setConversationId(null);
+          setDirectEvents([]);
+          setHasMoreHistory(false);
+          setHistoryCursor(EMPTY_HISTORY_CURSOR);
+        }
+        setConversationFailure({
+          kind: "messages",
+          message: getErrorMessage(loadError, "加载消息失败"),
+          stale: !invalidated
+            && messageSnapshotKeyRef.current === requestKey,
+        });
       }
     } finally {
       if (showLoading && activeMessageKeyRef.current === requestKey) {
@@ -260,6 +342,9 @@ export function useAgentCommunication(
     }
     historyLoadingRef.current = true;
     setIsHistoryLoading(true);
+    setConversationFailure((current) => (
+      current?.kind === "history" ? null : current
+    ));
     try {
       const page = await listAgentPrivateEventsApi(
         scopeAgentId,
@@ -275,22 +360,40 @@ export function useAgentCommunication(
       if (activeMessageKeyRef.current !== requestKey) {
         return false;
       }
+      messageSnapshotKeyRef.current = requestKey;
       setHasMoreHistory(page.has_more);
       setHistoryCursor({
         beforeMessageId: page.next_before_message_id ?? null,
         beforeTimestamp: page.next_before_timestamp ?? null,
         threadId: historyCursor.threadId,
       });
+      setConversationFailure((current) => (
+        current?.kind === "history" ? null : current
+      ));
       if (page.items.length === 0) {
         return false;
       }
       setDirectEvents((current) => mergePrivateEvents(page.items, current));
       setHistoryPrependToken((current) => current + 1);
-      setError(null);
       return true;
     } catch (loadError) {
       if (activeMessageKeyRef.current === requestKey) {
-        setError(errorMessage(loadError, "加载更早消息失败"));
+        const invalidated = invalidatesReadSnapshot(loadError);
+        if (invalidated) {
+          targetSnapshotKeyRef.current = null;
+          messageSnapshotKeyRef.current = null;
+          setRoomContexts([]);
+          setConversationId(null);
+          setDirectEvents([]);
+          setHasMoreHistory(false);
+          setHistoryCursor(EMPTY_HISTORY_CURSOR);
+        }
+        setConversationFailure({
+          kind: "history",
+          message: getErrorMessage(loadError, "加载更早消息失败"),
+          stale: !invalidated
+            && messageSnapshotKeyRef.current === requestKey,
+        });
       }
       return false;
     } finally {
@@ -309,6 +412,7 @@ export function useAgentCommunication(
   ]);
 
   useEffect(() => {
+    messageSnapshotKeyRef.current = null;
     setDirectEvents([]);
     setHasMoreHistory(false);
     setHistoryCursor(EMPTY_HISTORY_CURSOR);
@@ -388,8 +492,12 @@ export function useAgentCommunication(
     if (!scopeAgentId || !targetAgentId || pendingAgentId) {
       return false;
     }
+    const intentKey = ["add", scopeAgentId, targetAgentId, alias.trim()].join(":");
+    if (blocksAgentCommunicationIntent(mutationFailure, "add_contact", intentKey)) {
+      return false;
+    }
     setPendingAgentId(targetAgentId);
-    setError(null);
+    clearMatchingMutationFailure(setMutationFailure, "add_contact", intentKey);
     try {
       const item = await upsertAgentContactApi(scopeAgentId, targetAgentId, alias);
       if (activeAgentIdRef.current === scopeAgentId) {
@@ -398,44 +506,77 @@ export function useAgentCommunication(
           item,
         ]);
         setSelectedContactId(targetAgentId);
+        clearMatchingMutationFailure(setMutationFailure, "add_contact", intentKey);
       }
       return true;
     } catch (mutationError) {
-      setError(errorMessage(mutationError, "添加联系人失败"));
+      if (activeAgentIdRef.current === scopeAgentId) {
+        setMutationFailure(buildAgentCommunicationMutationFailure(
+          mutationError,
+          "add_contact",
+          intentKey,
+          "添加联系人没有完成",
+          targetAgentId,
+        ));
+      }
       return false;
     } finally {
       if (activeAgentIdRef.current === scopeAgentId) {
         setPendingAgentId(null);
       }
     }
-  }, [pendingAgentId, scopeAgentId]);
+  }, [mutationFailure, pendingAgentId, scopeAgentId]);
 
   const createConversation = useCallback(async (title?: string): Promise<string | null> => {
     const roomId = roomContexts[0]?.room.id;
     if (!roomId) {
       return null;
     }
+    const intentKey = ["conversation", roomId, title?.trim() ?? ""].join(":");
+    if (blocksAgentCommunicationIntent(
+      mutationFailure,
+      "create_conversation",
+      intentKey,
+    )) {
+      return null;
+    }
+    clearMatchingMutationFailure(setMutationFailure, "create_conversation", intentKey);
     try {
       const created = await createRoomConversation(roomId, { title });
+      if (activeAgentIdRef.current !== scopeAgentId) {
+        return null;
+      }
       setRoomContexts((current) => [
         created,
         ...current.filter((item) => item.conversation.id !== created.conversation.id),
       ]);
       setConversationId(created.conversation.id);
+      clearMatchingMutationFailure(setMutationFailure, "create_conversation", intentKey);
       return created.conversation.id;
     } catch (mutationError) {
-      setError(errorMessage(mutationError, "创建会话失败"));
+      if (activeAgentIdRef.current === scopeAgentId) {
+        setMutationFailure(buildAgentCommunicationMutationFailure(
+          mutationError,
+          "create_conversation",
+          intentKey,
+          "创建会话没有完成",
+        ));
+      }
       return null;
     }
-  }, [roomContexts]);
+  }, [mutationFailure, roomContexts, scopeAgentId]);
 
   const removeContact = useCallback(async (contactAgentId: string): Promise<boolean> => {
     const targetAgentId = contactAgentId.trim();
     if (!scopeAgentId || !targetAgentId || isRemoving) {
       return false;
     }
+    const intentKey = ["remove", scopeAgentId, targetAgentId].join(":");
+    if (blocksAgentCommunicationIntent(mutationFailure, "remove_contact", intentKey)) {
+      return false;
+    }
     setIsRemoving(true);
-    setError(null);
+    clearMatchingMutationFailure(setMutationFailure, "remove_contact", intentKey);
     try {
       await deleteAgentContactApi(scopeAgentId, targetAgentId);
       if (activeAgentIdRef.current === scopeAgentId) {
@@ -446,31 +587,55 @@ export function useAgentCommunication(
         setRoomContexts([]);
         setConversationId(null);
         setDirectEvents([]);
+        clearMatchingMutationFailure(setMutationFailure, "remove_contact", intentKey);
       }
       return true;
     } catch (mutationError) {
-      setError(errorMessage(mutationError, "删除好友失败"));
+      if (activeAgentIdRef.current === scopeAgentId) {
+        setMutationFailure(buildAgentCommunicationMutationFailure(
+          mutationError,
+          "remove_contact",
+          intentKey,
+          "删除联系人没有完成",
+          targetAgentId,
+        ));
+      }
       return false;
     } finally {
       if (activeAgentIdRef.current === scopeAgentId) {
         setIsRemoving(false);
       }
     }
-  }, [isRemoving, scopeAgentId]);
+  }, [isRemoving, mutationFailure, scopeAgentId]);
 
   const sendMessage = useCallback(async (content: string): Promise<void> => {
-    if (!scopeAgentId || !selectedContactId || isSending) {
-      throw new Error("当前联络会话尚未就绪");
+    const normalizedContent = content.trim();
+    if (!scopeAgentId || !selectedContactId || !normalizedContent || isSending) {
+      return;
+    }
+    const intentKey = [
+      "send",
+      scopeAgentId,
+      selectedContactId,
+      conversationId ?? "new",
+      normalizedContent,
+    ].join(":");
+    if (blocksAgentCommunicationIntent(mutationFailure, "send_message", intentKey)) {
+      throw requestAcceptanceUnknownError("消息结果仍在核对中");
     }
     setIsSending(true);
-    setError(null);
+    clearMatchingMutationFailure(setMutationFailure, "send_message", intentKey);
     try {
       const result = await sendAgentCommunicationMessageApi(scopeAgentId, {
-        content,
+        content: normalizedContent,
         conversation_id: conversationId ?? undefined,
         target_id: selectedContactId,
-        target_type: "agent",
+          target_type: "agent",
       });
+      if (activeAgentIdRef.current !== scopeAgentId) {
+        return;
+      }
+      clearMatchingMutationFailure(setMutationFailure, "send_message", intentKey);
       if (conversationId) {
         await loadMessages(false);
       } else {
@@ -483,33 +648,79 @@ export function useAgentCommunication(
         void loadTarget();
       }
     } catch (mutationError) {
-      setError(errorMessage(mutationError, "发送消息失败"));
-      throw mutationError;
+      const failure = buildAgentCommunicationMutationFailure(
+        mutationError,
+        "send_message",
+        intentKey,
+        "消息没有发送完成",
+      );
+      if (activeAgentIdRef.current === scopeAgentId) {
+        setMutationFailure(failure);
+      }
+      throw failure.blocksRepeat
+        ? requestAcceptanceUnknownError(failure.message)
+        : new Error(failure.message);
     } finally {
-      setIsSending(false);
+      if (activeAgentIdRef.current === scopeAgentId) {
+        setIsSending(false);
+      }
     }
-  }, [conversationId, isSending, loadMessages, loadTarget, scopeAgentId, selectedContactId]);
+  }, [
+    conversationId,
+    isSending,
+    loadMessages,
+    loadTarget,
+    mutationFailure,
+    scopeAgentId,
+    selectedContactId,
+  ]);
 
   return {
     addContact,
+    clearMutationFailure: () => setMutationFailure(null),
     clearSelection: () => setSelectedContactId(null),
     contacts,
     conversationId,
+    conversationFailure,
     createConversation,
     directEvents,
-    error,
+    directoryFailure,
     hasMoreHistory,
     historyPrependToken,
     isDirectoryLoading,
     isHistoryLoading,
     isMessagesLoading,
     isSending,
+    mutationFailure,
     pendingAgentId,
     loadOlderMessages,
-    refresh: () => {
-      void loadDirectory();
-      void loadTarget();
-      void loadMessages(true);
+    refresh: (kind) => {
+      switch (kind) {
+        case "directory":
+          void loadDirectory();
+          return;
+        case "channel":
+          void loadTarget();
+          return;
+        case "history":
+          if (roomId && conversationId) {
+            void loadOlderMessages();
+          } else {
+            void loadTarget();
+          }
+          return;
+        case "messages":
+          if (roomId && conversationId) {
+            void loadMessages(true, true);
+          } else {
+            void loadTarget();
+          }
+          return;
+        default:
+          void loadDirectory();
+          void loadTarget();
+          void loadMessages(true, true);
+      }
     },
     roomContexts,
     removeContact,
@@ -520,8 +731,28 @@ export function useAgentCommunication(
   };
 }
 
-function errorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error && error.message.trim() ? error.message : fallback;
+function requestAcceptanceUnknownError(message: string): Error {
+  const error = new Error(message);
+  error.name = "RequestAcceptanceUnknownError";
+  return error;
+}
+
+function clearMatchingMutationFailure(
+  setFailure: React.Dispatch<React.SetStateAction<AgentCommunicationMutationFailure | null>>,
+  kind: AgentCommunicationMutationFailure["kind"],
+  intentKey: string,
+) {
+  setFailure((current) => (
+    current?.kind === kind && current.intentKey === intentKey ? null : current
+  ));
+}
+
+function invalidatesReadSnapshot(error: unknown): boolean {
+  return Boolean(getResourceFailure(error, "").access) || isNotFound(error);
+}
+
+function isNotFound(error: unknown): boolean {
+  return error instanceof ApiRequestError && error.status === 404;
 }
 
 function mergePrivateEvents(

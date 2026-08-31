@@ -1,3 +1,6 @@
+// INPUT: Provider SQL database, dialect and stable aggregate mutation outcomes.
+// OUTPUT: Repository plus exact not-found, CAS, rollback and model-miss sentinels.
+// POS: Provider persistence evidence boundary; only a confirmed rollback may claim not-applied.
 package provider
 
 import (
@@ -15,6 +18,8 @@ var (
 	ErrConfigurationVersionConflict = errors.New("provider configuration version conflict")
 	// ErrModelNotFound 表示条件写入的模型卡不存在。
 	ErrModelNotFound = errors.New("provider model not found")
+	// ErrMutationNotApplied 表示事务未提交且回滚已确认。
+	ErrMutationNotApplied = errors.New("provider mutation not applied")
 )
 
 // Repository 封装 provider 配置的 SQL 读写。

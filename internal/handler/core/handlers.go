@@ -1,5 +1,5 @@
 // INPUT: 核心 HTTP 请求、owner 身份、Preferences/Provider/runtime 服务。
-// OUTPUT: 健康、运行选项、偏好设置与主机设置响应。
+// OUTPUT: 健康、运行选项、带 ETag/CAS 的偏好设置与主机设置响应。
 // POS: Web Preferences 写入口；RMW 委托 Service owner 锁，热同步失败仅做 version 条件回滚。
 package core
 
@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	clientopts "github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
@@ -114,27 +115,56 @@ func (h *Handlers) HandleRuntimeOptions(writer http.ResponseWriter, request *htt
 
 // HandleGetPreferences 返回当前用户偏好。
 func (h *Handlers) HandleGetPreferences(writer http.ResponseWriter, request *http.Request) {
+	writePreferencesNoStore(writer)
 	prefs, err := h.currentPreferences(request)
 	if err != nil {
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		h.writePreferencesReadFailure(writer, request, err)
 		return
 	}
 	prefs, err = h.withProviderPreferenceDefaults(request, prefs)
 	if err != nil {
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		h.writePreferencesReadFailure(writer, request, err)
 		return
 	}
+	writePreferencesETag(writer, prefs.Version)
 	h.api.WriteSuccess(writer, prefs)
 }
 
 // HandleUpdatePreferences 更新当前用户偏好。
 func (h *Handlers) HandleUpdatePreferences(writer http.ResponseWriter, request *http.Request) {
+	writePreferencesNoStore(writer)
 	if h.prefs == nil {
-		h.api.WriteSuccess(writer, preferencessvc.DefaultPreferences())
+		defaults := preferencessvc.DefaultPreferences()
+		writePreferencesETag(writer, defaults.Version)
+		h.api.WriteSuccess(writer, defaults)
 		return
 	}
 	var payload preferencessvc.UpdateRequest
-	if !h.api.BindJSON(writer, request, &payload) {
+	if !h.api.BindJSONError(writer, request, &payload, handlershared.FailureSpec{
+		Code:     "preferences.request_invalid",
+		Category: protocol.FailureCategoryValidation,
+		Effect:   protocol.FailureEffectNotApplied,
+		Detail:   "偏好设置格式不正确",
+		Resolution: &protocol.FailureResolution{
+			Actor:  protocol.FailureRecoveryActorUser,
+			Action: "preferences.review_values",
+		},
+	}) {
+		return
+	}
+	expectedVersion, err := parsePreferencesIfMatch(request.Header.Get("If-Match"))
+	if err != nil {
+		h.api.WriteError(writer, request, http.StatusBadRequest, handlershared.FailureSpec{
+			Code:     "preferences.precondition_invalid",
+			Category: protocol.FailureCategoryValidation,
+			Effect:   protocol.FailureEffectNotApplied,
+			Detail:   "偏好设置版本条件无效",
+			Cause:    err,
+			Resolution: &protocol.FailureResolution{
+				Actor:  protocol.FailureRecoveryActorUser,
+				Action: "preferences.reload",
+			},
+		})
 		return
 	}
 	ownerUserID := currentOwnerUserID(request)
@@ -142,32 +172,69 @@ func (h *Handlers) HandleUpdatePreferences(writer http.ResponseWriter, request *
 	var previous preferencessvc.Preferences
 	var defaultSelection providercfg.DefaultAgentSelection
 	var defaultSelectionChanged bool
+	var preparationErr error
 	var validationErr error
-	item, err := h.prefs.UpdatePrepared(
-		request.Context(),
-		ownerUserID,
-		func(current preferencessvc.Preferences) (preferencessvc.UpdateRequest, error) {
-			previous = current
-			prepared, prepareErr := h.prepareProviderPreferenceDefaults(request, current, payload)
-			if prepareErr != nil {
-				return preferencessvc.UpdateRequest{}, prepareErr
+	prepare := func(current preferencessvc.Preferences) (preferencessvc.UpdateRequest, error) {
+		previous = current
+		prepared, prepareErr := h.prepareProviderPreferenceDefaults(request, current, payload)
+		if prepareErr != nil {
+			preparationErr = prepareErr
+			return preferencessvc.UpdateRequest{}, prepareErr
+		}
+		defaultSelection, defaultSelectionChanged = updatedDefaultAgentSelection(current, prepared)
+		if defaultSelectionChanged && h.providers != nil {
+			if validateErr := h.providers.ValidateDefaultAgentSelection(request.Context(), defaultSelection); validateErr != nil {
+				validationErr = validateErr
+				return preferencessvc.UpdateRequest{}, validateErr
 			}
-			defaultSelection, defaultSelectionChanged = updatedDefaultAgentSelection(current, prepared)
-			if defaultSelectionChanged && h.providers != nil {
-				if validateErr := h.providers.ValidateDefaultAgentSelection(request.Context(), defaultSelection); validateErr != nil {
-					validationErr = validateErr
-					return preferencessvc.UpdateRequest{}, validateErr
-				}
-			}
-			return prepared, nil
-		},
-	)
+		}
+		return prepared, nil
+	}
+	var item preferencessvc.Preferences
+	if expectedVersion == nil {
+		item, err = h.prefs.UpdatePrepared(request.Context(), ownerUserID, prepare)
+	} else {
+		item, err = h.prefs.UpdatePreparedAtVersion(
+			request.Context(), ownerUserID, *expectedVersion, prepare,
+		)
+	}
 	if err != nil {
+		if errors.Is(err, preferencessvc.ErrVersionConflict) {
+			h.writePreferencesVersionConflict(writer, request, err)
+			return
+		}
 		status := http.StatusInternalServerError
 		if validationErr != nil {
 			status = http.StatusBadRequest
 		}
-		h.api.WriteFailure(writer, status, err.Error())
+		effect := protocol.FailureEffectUnknown
+		category := protocol.FailureCategoryInternal
+		code := "preferences.update_result_unknown"
+		if validationErr != nil {
+			effect = protocol.FailureEffectNotApplied
+			category = protocol.FailureCategoryValidation
+			code = "preferences.selection_invalid"
+		} else if preparationErr != nil {
+			effect = protocol.FailureEffectNotApplied
+			code = "preferences.preparation_failed"
+		}
+		detail := "暂时无法确认偏好设置是否已经保存"
+		if validationErr != nil {
+			detail = "偏好设置的内容不符合要求"
+		} else if preparationErr != nil {
+			detail = "暂时无法准备偏好设置更新"
+		}
+		h.api.WriteError(writer, request, status, handlershared.FailureSpec{
+			Code:     code,
+			Category: category,
+			Effect:   effect,
+			Detail:   detail,
+			Cause:    err,
+			Resolution: &protocol.FailureResolution{
+				Actor:  protocol.FailureRecoveryActorUser,
+				Action: "preferences.reload",
+			},
+		})
 		return
 	}
 	if defaultSelectionChanged && h.providers != nil {
@@ -175,7 +242,7 @@ func (h *Handlers) HandleUpdatePreferences(writer http.ResponseWriter, request *
 			err = errors.Join(err, h.rollbackPreferencesMutation(
 				request.Context(), ownerUserID, item, previous, defaultSelectionChanged, false,
 			))
-			h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+			h.writePreferencesPostCommitFailure(writer, request, err)
 			return
 		}
 	}
@@ -184,10 +251,11 @@ func (h *Handlers) HandleUpdatePreferences(writer http.ResponseWriter, request *
 			err = errors.Join(err, h.rollbackPreferencesMutation(
 				request.Context(), ownerUserID, item, previous, defaultSelectionChanged, true,
 			))
-			h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+			h.writePreferencesPostCommitFailure(writer, request, err)
 			return
 		}
 	}
+	writePreferencesETag(writer, item.Version)
 	h.api.WriteSuccess(writer, item)
 }
 

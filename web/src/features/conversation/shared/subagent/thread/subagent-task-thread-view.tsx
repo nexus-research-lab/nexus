@@ -1,3 +1,8 @@
+/**
+ * INPUT: exact 子智能体任务、只读 transcript 资源和任务控制结果。
+ * OUTPUT: 线程内容、精确控制，以及完整说明发生事项、数据影响和恢复动作的原位异常面。
+ * POS: 子智能体详情纯视图；不根据文案推断写入结果，停止结果未知时禁止普通重复停止。
+ */
 "use client";
 
 import { Loader2, MessageSquareMore, Square } from "lucide-react";
@@ -7,6 +12,7 @@ import type { ConversationThreadRound } from "@/features/conversation/shared/thr
 import { getSeededAvatarDataUrl } from "@/lib/seeded-avatar";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { getUiButtonClassName } from "@/shared/ui/button/button-styles";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 import type { Message } from "@/types/conversation/message/entity";
 import type {
   SubagentTask,
@@ -21,7 +27,10 @@ import {
   subagentTaskTitle,
 } from "../subagent-task-model";
 import type { SubagentTaskThreadError } from "./subagent-task-thread-model";
-import type { SubagentTaskActions } from "./use-subagent-task-actions";
+import type {
+  SubagentTaskActionFailure,
+  SubagentTaskActions,
+} from "./use-subagent-task-actions";
 
 interface SubagentTaskThreadViewModel {
 	actions: SubagentTaskActions;
@@ -70,6 +79,7 @@ export function SubagentTaskThreadView({
 			footer={(
 				<SubagentTaskControls
 					actions={model.actions}
+					onRefresh={model.onRetry}
 					onSendRequest={model.onSendRequest}
 					onStopRequest={model.onStopRequest}
 					task={model.task}
@@ -101,11 +111,13 @@ export function SubagentTaskThreadView({
 
 function SubagentTaskControls({
 	actions,
+	onRefresh,
 	onSendRequest,
 	onStopRequest,
 	task,
 }: {
 	actions: SubagentTaskActions;
+	onRefresh: () => void;
 	onSendRequest: () => void;
 	onStopRequest: () => void;
 	task: SubagentTask;
@@ -114,6 +126,8 @@ function SubagentTaskControls({
 	const active = isSubagentTaskActive(task);
 	const canSend = canSendSubagentTaskMessage(task);
 	const canStop = active && task.capabilities.stop;
+	const stopResultUnconfirmed = actions.error?.action === "stop"
+		&& actions.error.effect !== "not_applied";
 	const pending = actions.pendingAction !== null;
 	const unsupportedKey = task.status.trim().toLowerCase() === "deleted"
 		? "subagents.deleted_unsupported"
@@ -123,9 +137,10 @@ function SubagentTaskControls({
 	return (
 		<footer className="shrink-0 border-t border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-panel-background)_88%,transparent)] px-3 py-2.5 backdrop-blur-[14px]">
 			{actions.error ? (
-				<p className="mb-2 rounded-[8px] border border-[color:color-mix(in_srgb,var(--destructive)_20%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--destructive)_6%,transparent)] px-2.5 py-1.5 text-xs leading-5 text-(--destructive)" role="alert">
-					{actions.error}
-				</p>
+				<SubagentActionFailureState
+					failure={actions.error}
+					onRefresh={onRefresh}
+				/>
 			) : actions.feedback ? (
 				<p className="mb-2 px-1 text-xs leading-5 text-(--text-muted)" role="status">
 					{t(actions.feedback)}
@@ -141,7 +156,7 @@ function SubagentTaskControls({
 					{canStop ? (
 						<button
 							className={getUiButtonClassName({ size: "sm", tone: "danger", variant: "ghost" })}
-							disabled={pending}
+							disabled={pending || stopResultUnconfirmed}
 							onClick={onStopRequest}
 							type="button"
 						>
@@ -186,18 +201,67 @@ function ThreadNotice({
     return null;
   }
   return (
-    <div className="flex shrink-0 items-start gap-3 border-b border-(--divider-subtle-color) px-4 py-2 text-xs leading-5 text-(--destructive)">
-      <p className="min-w-0 flex-1">{error.message}</p>
-      {error.retryable ? (
-        <button
-          className="shrink-0 font-semibold hover:underline"
-          onClick={onRetry}
-          type="button"
-        >
-          {t("subagents.retry")}
-        </button>
-      ) : null}
+    <div className="shrink-0 border-b border-(--divider-subtle-color) px-3 py-2">
+      <UiResourceState
+        className="min-h-0 py-3"
+        description={error.message}
+        impact={t("subagents.transcript_load_failed_impact")}
+        nextStep={t("subagents.transcript_load_failed_next_step")}
+        primaryAction={error.retryable ? {
+          label: t("subagents.retry"),
+          onClick: onRetry,
+        } : undefined}
+        size="sm"
+        state="error"
+        title={t("subagents.transcript_load_failed_title")}
+        urgency="polite"
+        variant="card"
+      />
     </div>
+  );
+}
+
+function SubagentActionFailureState({
+  failure,
+  onRefresh,
+}: {
+  failure: SubagentTaskActionFailure;
+  onRefresh: () => void;
+}) {
+  const { t } = useI18n();
+  const operation = failure.action === "stop"
+    ? t("subagents.stop")
+    : t("subagents.send_message");
+  const isNotApplied = failure.effect === "not_applied";
+  const title = isNotApplied
+    ? t("subagents.action_not_applied_title", { operation })
+    : failure.effect === "accepted"
+      ? t("subagents.action_accepted_title", { operation })
+      : failure.effect === "committed"
+        ? t("subagents.action_committed_title", { operation })
+        : t("subagents.action_unknown_title", { operation });
+  return (
+    <UiResourceState
+      className="mb-2 min-h-0 py-3"
+      description={failure.message}
+      impact={t(isNotApplied
+        ? "subagents.action_not_applied_impact"
+        : "subagents.action_unknown_impact", { operation })}
+      nextStep={t(isNotApplied
+        ? "subagents.action_not_applied_next_step"
+        : failure.action === "stop"
+          ? "subagents.stop_unknown_next_step"
+          : "subagents.message_unknown_next_step")}
+      primaryAction={isNotApplied ? undefined : {
+        label: t("subagents.refresh_task"),
+        onClick: onRefresh,
+      }}
+      size="sm"
+      state="error"
+      title={title}
+      urgency="polite"
+      variant="card"
+    />
   );
 }
 

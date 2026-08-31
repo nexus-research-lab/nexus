@@ -13,7 +13,14 @@ import type {
   SkillInfo,
 } from "@/types/capability/skill";
 
-import type { SkillDetailSnapshot } from "./skill-detail-model";
+import {
+  buildSkillAgentBindingsReadFailure,
+  buildSkillAgentToggleFailure,
+  buildSkillAgentToggleFollowupFailure,
+  type SkillAgentBindingsReadFailure,
+  type SkillAgentToggleFailure,
+  type SkillDetailSnapshot,
+} from "./skill-detail-model";
 
 type SkillDetailAction = "delete" | "update" | "toggle";
 
@@ -34,10 +41,6 @@ export function useSkillDetailController({
 }: UseSkillDetailControllerOptions) {
   const { t } = useI18n();
   const detailLoadFailed = t("capability.skills_detail_load_failed");
-  const bindingsLoadFailed = t(
-    "capability.skills_detail_bindings_load_failed",
-  );
-  const toggleFailed = t("capability.skills_detail_toggle_failed");
   const [snapshot, setSnapshot] = useState<SkillDetailSnapshot>({
     errorMessage: null,
     skill: null,
@@ -47,15 +50,41 @@ export function useSkillDetailController({
   const [agentBindings, setAgentBindings] = useState<SkillAgentBinding[]>([]);
   const [agentsLoading, setAgentsLoading] = useState(true);
   const [busyAgentId, setBusyAgentId] = useState<string | null>(null);
-  const [agentToggleError, setAgentToggleError] = useState<string | null>(null);
+  const [bindingsFailure, setBindingsFailure] = useState<
+    SkillAgentBindingsReadFailure | null
+  >(null);
+  const [toggleFailures, setToggleFailures] = useState<Record<
+    string,
+    SkillAgentToggleFailure
+  >>({});
   const requestGenerationRef = useRef(0);
+
+  const loadBindings = useCallback(async (
+    generation: number,
+    targetSkillName: string,
+  ) => {
+    setAgentsLoading(true);
+    setBindingsFailure(null);
+    try {
+      const bindings = await getSkillAgentsApi(targetSkillName);
+      if (generation !== requestGenerationRef.current) return;
+      setAgentBindings(bindings);
+    } catch (error) {
+      if (generation !== requestGenerationRef.current) return;
+      setBindingsFailure(buildSkillAgentBindingsReadFailure(error, t));
+    } finally {
+      if (generation === requestGenerationRef.current) {
+        setAgentsLoading(false);
+      }
+    }
+  }, [t]);
 
   const loadDetail = useCallback(async () => {
     const generation = ++requestGenerationRef.current;
     setSnapshot({ errorMessage: null, skill: null, status: "loading" });
     setAgentBindings([]);
     setAgentsLoading(true);
-    setAgentToggleError(null);
+    setBindingsFailure(null);
     let skill: SkillDetail;
     try {
       skill = await getSkillDetailApi(skillName);
@@ -75,19 +104,16 @@ export function useSkillDetailController({
       setAgentsLoading(false);
       return;
     }
-    try {
-      const bindings = await getSkillAgentsApi(skillName);
-      if (generation !== requestGenerationRef.current) return;
-      setAgentBindings(bindings);
-    } catch (error) {
-      if (generation !== requestGenerationRef.current) return;
-      setAgentToggleError(getErrorMessage(error, bindingsLoadFailed));
-    } finally {
-      if (generation === requestGenerationRef.current) {
-        setAgentsLoading(false);
-      }
+    await loadBindings(generation, skillName);
+  }, [detailLoadFailed, loadBindings, skillName]);
+
+  const retryBindings = useCallback(async () => {
+    if (snapshot.status !== "ready" || snapshot.skill.scope === "room") {
+      return;
     }
-  }, [bindingsLoadFailed, detailLoadFailed, skillName]);
+    const generation = ++requestGenerationRef.current;
+    await loadBindings(generation, snapshot.skill.name);
+  }, [loadBindings, snapshot]);
 
   useEffect(() => {
     void loadDetail();
@@ -95,6 +121,10 @@ export function useSkillDetailController({
       requestGenerationRef.current += 1;
     };
   }, [loadDetail]);
+
+  useEffect(() => {
+    setToggleFailures({});
+  }, [skillName]);
 
   const handleUpdate = useCallback(async () => {
     if (snapshot.status !== "ready" || activeAction) return;
@@ -128,11 +158,19 @@ export function useSkillDetailController({
     if (snapshot.status !== "ready" || activeAction || snapshot.skill.locked) {
       return;
     }
+    const existingFailure = toggleFailures[binding.agent_id];
+    if (existingFailure?.blocksRepeat) {
+      return;
+    }
     setActiveAction("toggle");
     setBusyAgentId(binding.agent_id);
-    setAgentToggleError(null);
+    setToggleFailures((current) => {
+      const next = { ...current };
+      delete next[binding.agent_id];
+      return next;
+    });
     try {
-      await setAgentSkillEnabledApi(
+      const updated = await setAgentSkillEnabledApi(
         binding.agent_id,
         snapshot.skill.name,
         !binding.enabled,
@@ -140,27 +178,60 @@ export function useSkillDetailController({
       );
       setAgentBindings((current) => current.map((item) => (
         item.agent_id === binding.agent_id
-          ? { ...item, enabled: !binding.enabled }
+          ? { ...item, enabled: updated.enabled_for_agent }
           : item
       )));
+    } catch (error) {
+      setToggleFailures((current) => ({
+        ...current,
+        [binding.agent_id]: buildSkillAgentToggleFailure(
+          error,
+          binding.agent_id,
+          t,
+        ),
+      }));
+      setBusyAgentId(null);
+      setActiveAction(null);
+      return;
+    }
+    try {
       await Promise.resolve(onAgentBindingChanged());
     } catch (error) {
-      setAgentToggleError(getErrorMessage(error, toggleFailed));
+      setToggleFailures((current) => ({
+        ...current,
+        [binding.agent_id]: buildSkillAgentToggleFollowupFailure(
+          error,
+          binding.agent_id,
+          t,
+        ),
+      }));
     } finally {
       setBusyAgentId(null);
       setActiveAction(null);
     }
-  }, [activeAction, onAgentBindingChanged, snapshot, toggleFailed]);
+  }, [activeAction, onAgentBindingChanged, snapshot, t, toggleFailures]);
+
+  const startNewToggleIntent = useCallback((agentId: string) => {
+    setToggleFailures((current) => {
+      const next = { ...current };
+      delete next[agentId];
+      return next;
+    });
+  }, []);
 
   return {
     activeAction,
     agentBindings,
-    agentToggleError,
     agentsLoading,
+    bindingsFailure,
     busyAgentId,
     deleteSkill: handleDelete,
     toggleAgent: handleAgentToggle,
+    retry: loadDetail,
+    retryBindings,
     snapshot,
+    startNewToggleIntent,
+    toggleFailures,
     updateSkill: handleUpdate,
   };
 }

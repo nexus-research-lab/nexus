@@ -49,6 +49,9 @@ func TestControlServiceReturnsHotReloadFailureWithoutPersistingBrokenConfig(t *t
 	if err == nil || !strings.Contains(err.Error(), "telegram runtime start failed") {
 		t.Fatalf("runtime 启动失败必须返回调用者: %v", err)
 	}
+	if effect, ok := ChannelControlMutationEffect(err); !ok || effect != ControlMutationNotApplied {
+		t.Fatalf("已成功补偿的热重载失败 effect = %q ok=%v", effect, ok)
+	}
 	row, rowErr := service.getChannelConfigRow(context.Background(), "owner-a", ChannelTypeTelegram)
 	if rowErr != nil {
 		t.Fatalf("读取写后配置失败: %v", rowErr)
@@ -134,6 +137,8 @@ func TestControlServiceFailedReplacementKeepsLastKnownGoodConfigAndRuntime(t *te
 		2,
 	); err == nil || !strings.Contains(err.Error(), "上一份可运行配置已保留") {
 		t.Fatalf("失败替换结果 = %v", err)
+	} else if effect, ok := ChannelControlMutationEffect(err); !ok || effect != ControlMutationNotApplied {
+		t.Fatalf("失败替换 effect = %q ok=%v", effect, ok)
 	}
 	if got := router.GetForOwner("owner-a", ChannelTypeTelegram); got != good {
 		t.Fatalf("失败候选替换了已知可运行 runtime: got=%T %p want=%p", got, got, good)

@@ -133,7 +133,7 @@ export function useConversationSession({
     session_key: sessionKey,
   });
 
-  const rawRoundIndexItems = useSessionRoundIndex(sessionKey);
+  const roundIndexResource = useSessionRoundIndex(sessionKey);
   const timeline = useConversationTimeline({
     chat_type: chatType,
     live_round_ids: conversation.live_round_ids,
@@ -142,10 +142,14 @@ export function useConversationSession({
     pending_permissions: conversation.pending_permissions,
     room_agent_execution_states: conversation.room_agent_execution_states,
     resolved_history_round_ids: conversation.resolved_history_round_ids,
-    round_index_items: rawRoundIndexItems,
+    round_index_items: roundIndexResource.items,
   });
   const roundIndexItems = timeline.round_index_items;
-  const useIndexedTimeline = roundIndexItems.length > 0;
+  const useIndexedTimeline = Boolean(sessionKey) && (
+    roundIndexResource.isLoading
+    || roundIndexResource.error !== null
+    || roundIndexItems.length > 0
+  );
   const indexedHistory = useVisibleRoundWindowLoader({
     enabled: useIndexedTimeline,
     loadRoundWindow: conversation.load_round_window,
@@ -190,6 +194,7 @@ export function useConversationSession({
   return {
     conversation: visibleConversation,
     history,
+    roundIndexResource,
     roundIndexItems,
     roundScrollRef,
     scroll,

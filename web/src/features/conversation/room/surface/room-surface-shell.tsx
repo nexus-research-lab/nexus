@@ -24,6 +24,7 @@ import { TodoItem } from "@/types/conversation/todo";
 
 import { RoomMobileSurface } from "./mobile/room-mobile-surface";
 import { RoomSurfaceLayout } from "./layout/room-surface-layout";
+import type { RoomExternalSessionsReliability } from "./layout/room-surface-layout-types";
 
 interface RoomSurfaceShellProps {
   currentAgent: Agent;
@@ -47,6 +48,7 @@ interface RoomSurfaceShellProps {
   sidePanelWidthPercent: number;
   isResizingSidePanel: boolean;
   currentTodos: TodoItem[];
+  externalSessionsReliability: RoomExternalSessionsReliability;
   surfaceSplitRef: React.RefObject<HTMLElement | null>;
   onBackToDirectory: () => void;
   onCreateConversation: (title?: string) => Promise<string | null>;
@@ -92,6 +94,7 @@ export function RoomSurfaceShell({
   sidePanelWidthPercent,
   isResizingSidePanel,
   currentTodos,
+  externalSessionsReliability,
   surfaceSplitRef,
   onBackToDirectory,
   onCreateConversation,
@@ -207,6 +210,7 @@ export function RoomSurfaceShell({
         currentTodos={currentTodos}
         executionResource={executionResource}
         executionTaskRuns={executionTaskRuns}
+        externalSessionsReliability={externalSessionsReliability}
         initialDraft={initialDraft}
         onExecutionTaskRunsChange={handleExecutionTaskRunsChange}
         onInitialDraftConsumed={onInitialDraftConsumed}
@@ -252,6 +256,7 @@ export function RoomSurfaceShell({
       currentRoomConversations={currentRoomConversations}
       executionResource={executionResource}
       executionTaskRuns={executionTaskRuns}
+      externalSessionsReliability={externalSessionsReliability}
       initialDraft={initialDraft}
       onExecutionTaskRunsChange={handleExecutionTaskRunsChange}
       onInitialDraftConsumed={onInitialDraftConsumed}

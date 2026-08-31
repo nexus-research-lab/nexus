@@ -18,22 +18,22 @@ func (s *ControlService) buildPairingRow(ctx context.Context, ownerUserID string
 	chatType := protocol.NormalizeSessionChatType(request.ChatType)
 	externalRef := strings.TrimSpace(request.ExternalRef)
 	if externalRef == "" {
-		return pairingRow{}, errors.New("external_ref is required")
+		return pairingRow{}, invalidChannelControl(errors.New("external_ref is required"))
 	}
 	agentID := strings.TrimSpace(request.AgentID)
 	if agentID == "" {
-		return pairingRow{}, errors.New("agent_id is required")
+		return pairingRow{}, invalidChannelControl(errors.New("agent_id is required"))
 	}
 	if err := s.ensureAgent(ctx, agentID); err != nil {
 		return pairingRow{}, err
 	}
 	status := normalizePairingStatus(request.Status, PairingStatusActive)
 	if status == "" {
-		return pairingRow{}, errors.New("status is invalid")
+		return pairingRow{}, invalidChannelControl(errors.New("status is invalid"))
 	}
 	source := normalizePairingSource(request.Source, PairingSourceManual)
 	if source == "" {
-		return pairingRow{}, errors.New("source is invalid")
+		return pairingRow{}, invalidChannelControl(errors.New("source is invalid"))
 	}
 	return pairingRow{
 		PairingID:    s.idFactory("pair"),

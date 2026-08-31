@@ -25,6 +25,7 @@ interface PersonalPasswordSectionProps {
   draft: PasswordDraft;
   hasInput: boolean;
   isSubmitting: boolean;
+  mutationBlocked: boolean;
   onFieldChange: (field: PasswordField, value: string) => void;
   onSubmit: () => void;
   validationError: string | null;
@@ -63,6 +64,7 @@ export function PersonalPasswordSection({
   draft,
   hasInput,
   isSubmitting,
+  mutationBlocked,
   onFieldChange,
   onSubmit,
   validationError,
@@ -95,7 +97,7 @@ export function PersonalPasswordSection({
               <input
                 autoComplete={input.autoComplete}
                 className="dialog-input h-9 w-full radius-control-md px-3 text-sm text-(--text-strong) outline-none disabled:opacity-(--disabled-opacity)"
-                disabled={isSubmitting}
+                disabled={isSubmitting || mutationBlocked}
                 onChange={(event) => onFieldChange(input.field, event.target.value)}
                 type="password"
                 value={draft[input.field]}
@@ -154,9 +156,32 @@ function PasswordSubmitActions({
     hasInput,
     t("settings.personal.password_rule"),
   );
+  const showValidation = Boolean(validationError && canChange && hasInput);
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <p className="min-w-0 text-xs text-(--text-soft)">{helperText}</p>
+      <div
+        aria-atomic={showValidation ? "true" : undefined}
+        aria-live={showValidation ? "polite" : undefined}
+        className="min-w-0 flex-1 text-xs leading-5"
+        role={showValidation ? "status" : undefined}
+      >
+        <p className={showValidation
+          ? "font-medium text-(--danger-text-color)"
+          : "text-(--text-soft)"}
+        >
+          {helperText}
+        </p>
+        {showValidation ? (
+          <>
+            <p className="text-(--text-muted)">
+              {t("state.validation_failure_impact")}
+            </p>
+            <p className="text-(--text-default)">
+              {t("state.validation_failure_next_step")}
+            </p>
+          </>
+        ) : null}
+      </div>
       <button
         className={cn(
           canSubmit ? PRIMARY_BUTTON_CLASS_NAME : SECONDARY_BUTTON_CLASS_NAME,

@@ -23,7 +23,7 @@ interface ProviderConfigContext {
   isEditing: boolean;
   isEmptyMode: boolean;
   providers: ProviderConfigRecord[];
-  refreshAll: (preferredProvider?: string | null) => Promise<void>;
+  refreshAll: (preferredProvider?: string | null) => Promise<boolean>;
   selectedCanManage: boolean;
   selectedRecord: ProviderConfigRecord | null;
   updateDraft: (patch: Partial<ProviderDraft>) => void;

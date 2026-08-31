@@ -1,26 +1,31 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
-import { getErrorMessage } from "@/lib/error-message";
+import { useCallback, useEffect, useState } from "react";
 
 export interface DialogResourceStatus {
   error: string | null;
   loading: boolean;
+  retry: () => void;
 }
 
 export interface DialogResource<T> extends DialogResourceStatus {
   items: T[];
 }
 
-interface ResourceSnapshot<T> extends DialogResource<T> {
+interface ResourceSnapshot<T> {
+  error: string | null;
+  items: T[];
   key: string | null;
+  loading: boolean;
 }
+
+const IGNORE_RETRY = () => undefined;
 
 const IDLE_RESOURCE: DialogResource<never> = {
   error: null,
   items: [],
   loading: false,
+  retry: IGNORE_RETRY,
 };
 
 export function useDialogResource<T>(
@@ -29,9 +34,15 @@ export function useDialogResource<T>(
   fallbackError: string,
 ): DialogResource<T> {
   const [snapshot, setSnapshot] = useState<ResourceSnapshot<T>>({
-    ...IDLE_RESOURCE,
+    error: null,
+    items: [],
     key: null,
+    loading: false,
   });
+  const [retryRevision, setRetryRevision] = useState(0);
+  const retry = useCallback(() => {
+    setRetryRevision((current) => current + 1);
+  }, []);
 
   useEffect(() => {
     if (!requestKey) {
@@ -39,34 +50,38 @@ export function useDialogResource<T>(
     }
 
     let active = true;
-    setSnapshot({ error: null, items: [], key: requestKey, loading: true });
+    setSnapshot((current) => current.key === requestKey
+      ? { ...current, error: null, loading: true }
+      : { error: null, items: [], key: requestKey, loading: true });
     void load(requestKey)
       .then((items) => {
         if (active) {
           setSnapshot({ error: null, items, key: requestKey, loading: false });
         }
       })
-      .catch((error: unknown) => {
+      .catch(() => {
         if (active) {
-          setSnapshot({
-            error: getErrorMessage(error, fallbackError),
-            items: [],
-            key: requestKey,
-            loading: false,
-          });
+          setSnapshot((current) => current.key === requestKey
+            ? { ...current, error: fallbackError, loading: false }
+            : {
+                error: fallbackError,
+                items: [],
+                key: requestKey,
+                loading: false,
+              });
         }
       });
 
     return () => {
       active = false;
     };
-  }, [fallbackError, load, requestKey]);
+  }, [fallbackError, load, requestKey, retryRevision]);
 
   if (!requestKey) {
     return IDLE_RESOURCE;
   }
   if (snapshot.key !== requestKey) {
-    return { error: null, items: [], loading: true };
+    return { error: null, items: [], loading: true, retry };
   }
-  return snapshot;
+  return { ...snapshot, retry };
 }

@@ -11,7 +11,10 @@ import type {
   TargetType,
   TaskFormDraft,
 } from "../scheduled-task-dialog-types";
-import { TaskBasicsAdvanced } from "./task-basics-advanced";
+import {
+  TaskBasicsAdvanced,
+  TaskResourceFailure,
+} from "./task-basics-advanced";
 import {
   buildTaskDeliveryTargetPresentation,
   buildTaskTargetPresentation,
@@ -87,22 +90,29 @@ export function TaskBasicsPanel({
         </p>
       </div>
 
-      <UiField
-        error={target.error}
-        htmlFor="task-target-object"
-        label={target.label}
-        required
-      >
-        <UiSelectMenu
-          ariaLabel={target.ariaLabel}
-          disabled={target.disabled}
-          id="task-target-object"
-          onChange={setTarget}
-          options={target.options}
-          surface="dialog"
-          value={target.value}
-        />
-      </UiField>
+      <div className="space-y-2">
+        <UiField
+          htmlFor="task-target-object"
+          label={target.label}
+          required
+        >
+          <UiSelectMenu
+            ariaLabel={target.ariaLabel}
+            disabled={target.disabled}
+            id="task-target-object"
+            onChange={setTarget}
+            options={target.options}
+            surface="dialog"
+            value={target.value}
+          />
+        </UiField>
+        {target.error && target.retry ? (
+          <TaskResourceFailure
+            message={target.error}
+            onRetry={target.retry}
+          />
+        ) : null}
+      </div>
 
       <TaskBasicsAdvanced
         actions={actions}

@@ -34,6 +34,8 @@ var (
 	ErrProviderNotFound = providerstore.ErrProviderNotFound
 	// ErrModelNotFound 表示条件模型写入没有命中持久化模型卡。
 	ErrModelNotFound = providerstore.ErrModelNotFound
+	// ErrMutationNotApplied 表示 Provider 事务已确认回滚或尚未开始。
+	ErrMutationNotApplied = providerstore.ErrMutationNotApplied
 )
 
 // Service 提供 Provider 配置管理与运行时解析。

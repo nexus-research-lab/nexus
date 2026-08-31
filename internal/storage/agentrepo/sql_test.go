@@ -181,6 +181,22 @@ func newAgentRepositoryTestDB(t *testing.T) *sql.DB {
 	})
 
 	schema := []string{
+		`CREATE TABLE agent_creation_requests (
+			owner_user_id TEXT NOT NULL,
+			creation_request_id TEXT NOT NULL,
+			intent_digest TEXT NOT NULL,
+			agent_id TEXT NOT NULL,
+			workspace_path TEXT NOT NULL,
+			status TEXT NOT NULL,
+			stage TEXT NOT NULL DEFAULT 'reserved',
+			claim_token TEXT,
+			lease_expires_at_ms INTEGER NOT NULL DEFAULT 0,
+			failure_code TEXT NOT NULL DEFAULT '',
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (owner_user_id, creation_request_id),
+			UNIQUE (owner_user_id, agent_id)
+		)`,
 		`CREATE TABLE agents (
 			id TEXT PRIMARY KEY,
 			owner_user_id TEXT NOT NULL,

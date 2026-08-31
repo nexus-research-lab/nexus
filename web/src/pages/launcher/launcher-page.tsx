@@ -2,13 +2,13 @@
 
 /**
  * INPUT: 共享 Home 目录、主题、当前 Agent、可选初始草稿与 Launcher 导航命令。
- * OUTPUT: 加载、首次失败、stale 降级和带可确认草稿的正常 Console 页面状态。
- * POS: Launcher 页面装配层；目录请求与重试状态仍归 Home 共享资源。
+ * OUTPUT: 加载、目录降级、DM ensure 结果核对和带可确认草稿的正常 Console 页面状态。
+ * POS: Launcher 页面装配层；目录请求归 Home 资源，结果未知的私聊准备不得直接重放。
  */
-import { CircleAlert } from "lucide-react";
-import { useCallback } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
+import { AppRouteBuilders } from "@/app/router/route-paths";
 import { getDefaultAgentId } from "@/config/runtime-options";
 import { HomeDirectoryRefreshErrorNotice } from "@/features/home/home-directory-refresh-error-notice";
 import {
@@ -16,15 +16,23 @@ import {
   useHomeDirectory,
 } from "@/features/home/home-directory-resource";
 import { LauncherConsole } from "@/features/launcher/console/launcher-console";
+import {
+  projectLauncherOperationFailure,
+  type LauncherOperationFailure,
+} from "@/features/launcher/console/launcher-operation-failure";
 import { getLauncherSurfaceThemeStyle } from "@/features/launcher/hero/launcher-surface-theme";
 import { resolveDirectRoomNavigationTarget } from "@/features/navigation/direct-room/direct-room-navigation";
+import { projectMutationFailure } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { useTheme } from "@/shared/theme/theme-context";
-import { UiButton } from "@/shared/ui/button/button";
-import { UiStateBlock } from "@/shared/ui/display/state-block";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { AppLoadingScreen } from "@/shared/ui/layout/app-loading-screen";
 import { useAgentStore } from "@/store/agent";
 import { useSidebarStore } from "@/store/sidebar";
+
+type LauncherNavigationFailure =
+  | Extract<LauncherOperationFailure, { kind: "main_agent_missing" }>
+  | ({ agentId: string; initialPrompt?: string } & Extract<LauncherOperationFailure, { kind: "direct_room" }>);
 
 export function LauncherPage() {
   const { t } = useI18n();
@@ -41,6 +49,7 @@ export function LauncherPage() {
   const setCurrentAgent = useAgentStore((state) => state.set_current_agent);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const [navigationFailure, setNavigationFailure] = useState<LauncherNavigationFailure | null>(null);
   const initialQuery = (searchParams.get("initial") ?? "").trim().slice(0, 4000);
   const setActivePanelItem = useSidebarStore(
     (state) => state.set_active_panel_item,
@@ -55,36 +64,73 @@ export function LauncherPage() {
   );
 
   const openAgentDm = useCallback(
-    (agentId: string, initialPrompt?: string) => {
-      void resolveDirectRoomNavigationTarget(agentId, initialPrompt)
-        .then(({ context, route }) => {
-          setCurrentAgent(agentId);
-          setActivePanelItem(context.room.id);
-          openNavigationRoute(route);
-        })
-        .catch((error) => {
-          console.error("[LauncherPage] 打开 Agent DM 失败:", error);
+    async (agentId: string, initialPrompt?: string) => {
+      try {
+        const { context, route } = await resolveDirectRoomNavigationTarget(
+          agentId,
+          initialPrompt,
+        );
+        setCurrentAgent(agentId);
+        setActivePanelItem(context.room.id);
+        setNavigationFailure(null);
+        openNavigationRoute(route);
+      } catch (error) {
+        const projected = projectMutationFailure(
+          error,
+          t("launcher.failure.direct_room_message"),
+        );
+        setNavigationFailure({
+          agentId,
+          effect: projected.effect,
+          initialPrompt,
+          kind: "direct_room",
         });
+      }
     },
-    [openNavigationRoute, setActivePanelItem, setCurrentAgent],
+    [openNavigationRoute, setActivePanelItem, setCurrentAgent, t],
   );
 
   const handleOpenMainAgentDm = useCallback(
     (initialPrompt?: string) => {
       if (!defaultAgentId) {
-        console.error("[LauncherPage] 主智能体 ID 未就绪，无法打开 DM。");
+        setNavigationFailure({ kind: "main_agent_missing" });
         return;
       }
-      openAgentDm(defaultAgentId, initialPrompt);
+      void openAgentDm(defaultAgentId, initialPrompt);
     },
     [defaultAgentId, openAgentDm],
   );
 
   const handleSelectAgent = useCallback(
     (agentId: string) => {
-      openAgentDm(agentId);
+      void openAgentDm(agentId);
     },
     [openAgentDm],
+  );
+
+  const recoverNavigationFailure = useCallback(() => {
+    if (
+      navigationFailure?.kind === "direct_room" &&
+      navigationFailure.effect === "not_applied"
+    ) {
+      void openAgentDm(
+        navigationFailure.agentId,
+        navigationFailure.initialPrompt,
+      );
+      return;
+    }
+    openNavigationRoute(AppRouteBuilders.home());
+  }, [navigationFailure, openAgentDm, openNavigationRoute]);
+
+  const navigationFeedback = useMemo(
+    () => navigationFailure
+      ? projectLauncherOperationFailure(
+          t,
+          navigationFailure,
+          recoverNavigationFailure,
+        )
+      : null,
+    [navigationFailure, recoverNavigationFailure, t],
   );
 
   if (isLoading) {
@@ -97,18 +143,18 @@ export function LauncherPage() {
         className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden px-6"
         style={getLauncherSurfaceThemeStyle(theme)}
       >
-        <UiStateBlock
-          actions={(
-            <UiButton onClick={refreshHomeDirectory} size="sm">
-              {t("sidebar.retry")}
-            </UiButton>
-          )}
+        <UiResourceState
           className="w-full max-w-lg"
           description={t("sidebar.directory_load_failed_description")}
-          icon={<CircleAlert className="h-6 w-6" />}
-          role="alert"
+          impact={t("sidebar.directory_load_failed_impact")}
+          nextStep={t("sidebar.directory_load_failed_next_step")}
+          primaryAction={{
+            label: t("sidebar.retry"),
+            onClick: refreshHomeDirectory,
+          }}
+          state="error"
           title={t("sidebar.directory_load_failed")}
-          tone="danger"
+          urgency="polite"
           variant="card"
         />
       </div>
@@ -130,6 +176,7 @@ export function LauncherPage() {
         agents={agents}
         conversations={conversations}
         currentAgentId={currentAgentId}
+        feedback={navigationFeedback}
         initialQuery={initialQuery}
         onOpenMainAgentDm={handleOpenMainAgentDm}
         onOpenRoute={openNavigationRoute}

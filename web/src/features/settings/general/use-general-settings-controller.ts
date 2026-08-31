@@ -1,37 +1,52 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+/**
+ * INPUT: Preferences、Echo 和默认模型目录的分域控制器状态。
+ * OUTPUT: General/Permissions 页面所需的稳定视图模型和恢复动作。
+ * POS: 通用设置装配层；不复制各领域的读写与对账逻辑。
+ */
+import { useCallback } from "react";
 
 import { DEFAULT_AGENT_PERMISSION_MODE } from "@/lib/agent-options";
-import { getEchoApi, updateEchoApi } from "@/lib/api/settings/echo-api";
-import { useI18n } from "@/shared/i18n/i18n-context";
 import { useOnboardingTour } from "@/shared/ui/onboarding/use-onboarding-tour";
 import type { AgentConversationDefaultDeliveryPolicy } from "@/types/agent/agent-conversation";
 import { normalizeAgentRuntimeKind } from "@/types/settings/preferences";
 
 import { useDefaultModelPreferences } from "./use-default-model-preferences";
+import { useEchoSettings } from "./use-echo-settings";
 import { useUserPreferences } from "./use-user-preferences";
 
 export function useGeneralSettingsController() {
-  const { t } = useI18n();
   const { resetAllTours } = useOnboardingTour();
   const preferencesStore = useUserPreferences();
   const {
+    acceptExternalAggregateRevision,
     feedback,
     getCurrentPreferences,
+    hasUnresolvedMutation,
     loading,
     persistPreferences,
     preferences,
+    recovery,
     saving,
     updatePreferences,
+    writable,
   } = preferencesStore;
-  const preferencesBusy = saving;
-  const [echoEnabled, setEchoEnabled] = useState(false);
-  const [echoLoading, setEchoLoading] = useState(true);
-  const [echoSaving, setEchoSaving] = useState(false);
-  const [echoFeedbackMessage, setEchoFeedbackMessage] = useState<string | null>(
-    null,
-  );
-  const echoEnabledRef = useRef(false);
-  const echoSavingRef = useRef(false);
+  const preferencesBusy = saving || !writable;
+  const handleEchoAggregateCommitted = useCallback((
+    expectedVersion: number,
+    committedVersion: number,
+  ) => {
+    if (!acceptExternalAggregateRevision(
+      expectedVersion,
+      committedVersion,
+    )) {
+      recovery.checkLatest();
+    }
+  }, [acceptExternalAggregateRevision, recovery]);
+  const echo = useEchoSettings({
+    aggregateVersion: preferences.version,
+    blocked: loading || saving || recovery.checking || hasUnresolvedMutation,
+    onAggregateCommitted: handleEchoAggregateCommitted,
+  });
   const agentRuntimeKind = normalizeAgentRuntimeKind(
     preferences.agent_runtime_kind,
   );
@@ -42,58 +57,6 @@ export function useGeneralSettingsController() {
     preferences,
     preferencesSaving: preferencesBusy,
   });
-
-  useEffect(() => {
-    let cancelled = false;
-    void getEchoApi()
-      .then((settings) => {
-        if (cancelled) {
-          return;
-        }
-        echoEnabledRef.current = settings.enabled;
-        setEchoEnabled(settings.enabled);
-        setEchoFeedbackMessage(null);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setEchoFeedbackMessage(t("settings.general.echo_load_failed"));
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setEchoLoading(false);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [t]);
-
-  const handleEchoEnabledChange = useCallback((enabled: boolean) => {
-    if (echoSavingRef.current || enabled === echoEnabledRef.current) {
-      return;
-    }
-    const previous = echoEnabledRef.current;
-    echoSavingRef.current = true;
-    echoEnabledRef.current = enabled;
-    setEchoEnabled(enabled);
-    setEchoSaving(true);
-    setEchoFeedbackMessage(null);
-    void updateEchoApi({ enabled })
-      .then((settings) => {
-        echoEnabledRef.current = settings.enabled;
-        setEchoEnabled(settings.enabled);
-      })
-      .catch(() => {
-        echoEnabledRef.current = previous;
-        setEchoEnabled(previous);
-        setEchoFeedbackMessage(t("settings.general.echo_save_failed"));
-      })
-      .finally(() => {
-        echoSavingRef.current = false;
-        setEchoSaving(false);
-      });
-  }, [t]);
 
   const handleDeliveryPolicyChange = useCallback(
     (value: AgentConversationDefaultDeliveryPolicy) => {
@@ -138,32 +101,38 @@ export function useGeneralSettingsController() {
         preferences.agent_sdk_diagnostics_enabled === true,
       chatDefaultDeliveryPolicy: preferences.chat_default_delivery_policy,
       emotionEnabled: preferences.emotion_enabled === true,
-      echoEnabled,
-      echoFeedbackMessage,
-      echoLoading,
-      echoSaving,
+      echoDisabled: echo.disabled,
+      echoEnabled: echo.enabled,
+      echoFeedback: echo.feedback,
+      echoLoading: echo.loading,
+      echoRecovery: echo.recovery,
+      echoSaving: echo.saving,
       defaultBackgroundModelOptions: defaultModels.options.background,
       defaultBackgroundModelValue: defaultModels.values.background,
       defaultImageModelOptions: defaultModels.options.image,
       defaultImageModelValue: defaultModels.values.image,
       defaultVisionModelOptions: defaultModels.options.vision,
       defaultVisionModelValue: defaultModels.values.vision,
-      defaultModelFeedbackMessage: defaultModels.feedbackMessage,
+      defaultModelCatalogFailed: defaultModels.catalogFailed,
       defaultModelOptions: defaultModels.options.agent,
       defaultModelSavingRole: defaultModels.savingRole,
       defaultModelValue: defaultModels.values.agent,
       onAgentSdkDiagnosticsChange: handleAgentSdkDiagnosticsChange,
       onEmotionEnabledChange: handleEmotionEnabledChange,
-      onEchoEnabledChange: handleEchoEnabledChange,
+      onEchoEnabledChange: echo.handleEnabledChange,
       onDefaultDeliveryPolicyChange: handleDeliveryPolicyChange,
       onDefaultModelChange: defaultModels.handleChange,
+      onRetryDefaultModelCatalog: defaultModels.retryCatalog,
       onResetTours: resetAllTours,
       preferencesLoading: loading,
       preferencesSaving: preferencesBusy,
+      preferencesFeedback: feedback,
+      preferencesRecovery: recovery,
       providerOptionsLoading: defaultModels.loading,
     },
     permissions: {
-      feedbackMessage: feedback?.message,
+      preferencesFeedback: feedback,
+      preferencesRecovery: recovery,
       onPermissionModeChange: handlePermissionModeChange,
       permissionMode:
         preferences.default_agent_options.permission_mode
