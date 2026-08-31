@@ -1,5 +1,5 @@
 // INPUT: 已由业务方确认的结果、当前影响、下一步和可选动作。
-// OUTPUT: 不丢正文、按紧急程度播报且遵守持久性规则的全局反馈条。
+// OUTPUT: 标题、一句用户可执行说明和至多一个动作的全局反馈条。
 // POS: 反馈展示边界；不推测请求结果，也不发起恢复请求。
 import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
@@ -67,7 +67,7 @@ export function FeedbackBanner({
         {impact && nextStep ? (
           <RecoverySummary
             className="mt-0.5"
-            impact={<><span className="text-(--text-default)">{message}</span>{" "}{impact}</>}
+            impact={impact}
             nextStep={nextStep}
           />
         ) : (

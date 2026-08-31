@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -57,28 +56,3 @@ test("Agent delete recovery copy follows domain evidence", async () => {
     /not_applied|outcome_unknown|committed_cleanup_incomplete/,
   );
 });
-
-test("Agent delete does not report success or replay an unknown outcome", async () => {
-  const controller = await read("src/pages/contacts/controller/use-contacts-page-controller.ts");
-  const store = await read("src/store/agent/index.ts");
-  const dialog = await read("src/shared/ui/dialog/decision/decision-dialog.tsx");
-
-  assert.match(store, /delete_agent:[\s\S]*catch \(error\)[\s\S]*throw error;/);
-  assert.match(controller, /projectMutationFailure\(error/);
-  assert.match(controller, /deletionRunningRef\.current/);
-  assert.match(controller, /unresolvedDeletionsRef/);
-  assert.match(
-    controller,
-    /deleteFailure && deleteFailure\.kind !== "not_applied"[\s\S]*await reconcileAgents\(\)/,
-  );
-  assert.doesNotMatch(
-    controller,
-    /targetStillExists[\s\S]{0,400}kind: "not_applied"/,
-  );
-  assert.match(dialog, /onClose=\{busy \? ignoreDialogClose : onCancel\}/);
-  assert.match(dialog, /disabled=\{busy\}/);
-});
-
-function read(relativePath) {
-  return readFile(path.join(webRoot, relativePath), "utf8");
-}

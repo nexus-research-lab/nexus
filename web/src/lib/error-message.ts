@@ -25,7 +25,14 @@ export function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof ApiTransportError) {
     return fallback;
   }
-  // 只有经过 HTTP envelope 安全解析的文案才允许跨共享边界展示。
+  // FailureCore 只提供机器事实；用户文案始终由当前页面本地化。
+  if (
+    (error instanceof ApiRequestError || error instanceof UnauthorizedError)
+    && error.failure
+  ) {
+    return fallback;
+  }
+  // 兼容尚未接入 FailureCore 的旧 HTTP envelope。
   // 普通 Error 可能来自浏览器、原生 bridge、第三方 SDK 或响应校验，
   // 其中可能包含路径、堆栈、Provider 正文或其他内部细节。
   if (!(error instanceof ApiRequestError) && !(error instanceof UnauthorizedError)) {
@@ -73,8 +80,8 @@ export function getResourceFailure(
 /**
  * 把服务端 FailureCore 或本地传输失败投影为修改结果事实。
  *
- * 未识别的 effect 与普通异常一律保守降级为 unknown。这里不解释、更不会执行
- * resolution.action；具体恢复动作只能由持有领域状态的调用方显式决定。
+ * 未识别的 effect 与普通异常一律保守降级为 unknown。具体恢复动作
+ * 只能由持有领域状态的调用方显式决定。
  */
 export function projectMutationFailure(
   error: unknown,
@@ -101,13 +108,6 @@ export function projectMutationFailure(
     message: getErrorMessage(error, fallback),
     transportRequestId: structured?.transportRequestId ?? null,
   };
-}
-
-export function getMutationFailure(
-  error: unknown,
-  fallback: string,
-): MutationFailure {
-  return projectMutationFailure(error, fallback);
 }
 
 function knownMutationEffect(value: string | undefined): MutationFailureEffect {

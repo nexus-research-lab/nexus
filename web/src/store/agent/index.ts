@@ -3,9 +3,9 @@
  *
  * 使用 Zustand 管理 Agent 状态
  *
- * [INPUT]: Agent API、当前 owner scope 与创建领域 journal
+ * [INPUT]: Agent API、当前 owner scope 与可选创建 request ID
  * [OUTPUT]: useAgentStore，以及创建/删除对账、兼容加载与 owner reset 入口
- * [POS]: owner-scoped Agent 目录与副作用恢复边界；目录刷新不解锁 pending 创建。
+ * [POS]: owner-scoped Agent 目录与副作用恢复边界；服务端 receipt 是创建结果真相。
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 
@@ -29,13 +29,11 @@ import { getErrorMessage } from "@/lib/error-message";
 import type { FailureCore } from "@/types/generated/protocol";
 
 import {
-  AgentCreationCoordinationUnavailableError,
-  clearAgentCreationJournal,
+  clearAgentCreationRequestId,
   createAgentCreationRequestId,
-  readAgentCreationJournal,
-  withAgentCreationJournalLock,
-  writeAgentCreationJournal,
-} from "./agent-creation-journal";
+  readAgentCreationRequestId,
+  saveAgentCreationRequestId,
+} from "./agent-creation-intent";
 
 export const AGENT_LIST_UPDATED_EVENT_NAME = "nexus:agent-list-updated";
 
@@ -118,145 +116,91 @@ export const useAgentStore = create<AgentStoreState>()(
         const ownerRevision = agentOwnerScopeRevision;
         const ownerScope = activeAgentOwnerScope;
         try {
-          return await withAgentCreationJournalLock(ownerScope, async () => {
+          assertAgentCreationOwnerScope(ownerScope, ownerRevision);
+          let creationRequestId = readAgentCreationRequestId(ownerScope);
+          if (creationRequestId) {
+            const result = await getAgentCreationRequestApi(creationRequestId);
             assertAgentCreationOwnerScope(ownerScope, ownerRevision);
-            const snapshot = readAgentCreationJournal(ownerScope);
-            if (!snapshot.available) {
+            if (result.creationRequestId !== creationRequestId) {
               throw agentCreationClientError(
-                "agent.creation_journal_unavailable",
+                "agent.creation_receipt_invalid",
+                "unknown",
+                "Agent 创建记录与当前请求不匹配",
+              );
+            }
+            if (result.status === "committed") {
+              if (!result.agent) {
+                throw agentCreationClientError(
+                  "agent.creation_projection_incomplete",
+                  "committed",
+                  "Agent 已创建，但页面还没有拿到完整结果",
+                );
+              }
+              recordCreatedAgent(result.agent);
+              clearAgentCreationRequestId(ownerScope);
+              dispatchAgentListUpdated();
+              return result.agent.agent_id;
+            }
+            if (result.status === "deleted" || result.status === "failed") {
+              clearAgentCreationRequestId(ownerScope);
+              throw agentCreationClientError(
+                result.status === "deleted"
+                  ? "agent.creation_result_deleted"
+                  : "agent.creation_failed",
                 "not_applied",
-                "当前无法安全保留创建记录",
+                result.status === "deleted"
+                  ? "上次创建的 Agent 之后已被删除，本次没有重新创建"
+                  : "上次 Agent 创建没有完成",
               );
             }
-
-            let creationRequestId = snapshot.entry?.requestId ?? null;
-            if (creationRequestId) {
-              const result = await getAgentCreationRequestApi(creationRequestId);
-              assertAgentCreationOwnerScope(ownerScope, ownerRevision);
-              if (result.creationRequestId !== creationRequestId) {
-                throw agentCreationClientError(
-                  "agent.creation_receipt_invalid",
-                  "unknown",
-                  "Agent 创建记录与当前请求不匹配",
-                );
-              }
-              if (result.status === "committed") {
-                if (!result.agent) {
-                  throw agentCreationClientError(
-                    "agent.creation_projection_incomplete",
-                    "committed",
-                    "Agent 已创建，但页面还没有拿到完整结果",
-                  );
-                }
-                recordCreatedAgent(result.agent);
-                if (!clearAgentCreationJournal(ownerScope)) {
-                  throw agentCreationClientError(
-                    "agent.creation_journal_cleanup_failed",
-                    "committed",
-                    "Agent 已创建，但本地创建记录还没有收口",
-                  );
-                }
-                dispatchAgentListUpdated();
-                return result.agent.agent_id;
-              }
-              if (result.status === "deleted" || result.status === "failed") {
-                if (!clearAgentCreationJournal(ownerScope)) {
-                  throw agentCreationClientError(
-                    "agent.creation_journal_unavailable",
-                    "not_applied",
-                    "已确认上次创建没有可用结果，但本地记录无法安全更新",
-                  );
-                }
-                throw agentCreationClientError(
-                  result.status === "deleted"
-                    ? "agent.creation_result_deleted"
-                    : "agent.creation_failed",
-                  "not_applied",
-                  result.status === "deleted"
-                    ? "上次创建的 Agent 之后已被删除，本次没有重新创建"
-                    : "上次 Agent 创建没有完成",
-                );
-              }
-              if (result.status === "pending") {
-                throw agentCreationClientError(
-                  "agent.creation_in_progress",
-                  "accepted",
-                  "Agent 创建请求已受理，但还没有完成",
-                );
-              }
-              if (result.status !== "not_found") {
-                throw agentCreationClientError(
-                  "agent.creation_receipt_invalid",
-                  "unknown",
-                  "Agent 创建记录状态无法识别",
-                );
-              }
-            } else {
-              creationRequestId = createAgentCreationRequestId();
-              if (!creationRequestId || !writeAgentCreationJournal(ownerScope, {
-                requestId: creationRequestId,
-                status: "pending",
-              })) {
-                throw agentCreationClientError(
-                  "agent.creation_journal_unavailable",
-                  "not_applied",
-                  "当前无法安全保留创建记录",
-                );
-              }
-            }
-
-            if (!writeAgentCreationJournal(ownerScope, {
-              requestId: creationRequestId,
-              status: "pending",
-            })) {
+            if (result.status === "pending") {
               throw agentCreationClientError(
-                "agent.creation_journal_unavailable",
-                "not_applied",
-                "当前无法安全更新创建记录",
+                "agent.creation_in_progress",
+                "accepted",
+                "Agent 创建请求已受理，但还没有完成",
               );
             }
-
-            let agent: Agent;
-            try {
-              agent = await createAgentApi({
-                ...params,
-                creation_request_id: creationRequestId,
-              });
-            } catch (error) {
-              if (ownerScopeIsCurrent(ownerRevision) && activeAgentOwnerScope === ownerScope) {
-                writeAgentCreationJournal(ownerScope, {
-                  requestId: creationRequestId,
-                  status: "unconfirmed",
-                });
-                if (isTerminalAgentCreationFailure(error)) {
-                  clearAgentCreationJournal(ownerScope);
-                }
-              }
-              throw error;
-            }
-            assertAgentCreationOwnerScope(ownerScope, ownerRevision);
-            recordCreatedAgent(agent);
-            if (!clearAgentCreationJournal(ownerScope)) {
+            if (result.status !== "not_found") {
               throw agentCreationClientError(
-                "agent.creation_journal_cleanup_failed",
-                "committed",
-                "Agent 已创建，但本地创建记录还没有收口",
+                "agent.creation_receipt_invalid",
+                "unknown",
+                "Agent 创建记录状态无法识别",
               );
             }
-            dispatchAgentListUpdated();
-            return agent.agent_id;
-          });
+          } else {
+            creationRequestId = createAgentCreationRequestId();
+          }
+
+          if (creationRequestId) {
+            saveAgentCreationRequestId(ownerScope, creationRequestId);
+          }
+
+          let agent: Agent;
+          try {
+            agent = await createAgentApi({
+              ...params,
+              ...(creationRequestId ? { creation_request_id: creationRequestId } : {}),
+            });
+          } catch (error) {
+            if (
+              creationRequestId
+              && ownerScopeIsCurrent(ownerRevision)
+              && activeAgentOwnerScope === ownerScope
+              && isTerminalAgentCreationFailure(error)
+            ) {
+              clearAgentCreationRequestId(ownerScope);
+            }
+            throw error;
+          }
+          assertAgentCreationOwnerScope(ownerScope, ownerRevision);
+          recordCreatedAgent(agent);
+          clearAgentCreationRequestId(ownerScope);
+          dispatchAgentListUpdated();
+          return agent.agent_id;
         } catch (error) {
           console.error("[AgentStore] Failed to create agent:", error);
           if (ownerScopeIsCurrent(ownerRevision)) {
             set({ error: "Failed to create agent" });
-          }
-          if (error instanceof AgentCreationCoordinationUnavailableError) {
-            throw agentCreationClientError(
-              "agent.creation_coordination_unavailable",
-              "not_applied",
-              error.message,
-            );
           }
           throw error;
         }

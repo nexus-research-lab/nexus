@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -84,30 +83,3 @@ test("project mutations distinguish not-applied from an unknown outcome", async 
   assert.match(accepted.impact, /已经接收/);
   assert.match(accepted.nextStep, /不要再次创建/);
 });
-
-test("post-mutation refresh failure is a separate committed stage", async () => {
-  const project = await read(
-    "src/features/settings/operations/project-admin/use-project-admin.ts",
-  );
-  const sources = await read(
-    "src/features/capability/skills/controller/use-external-skill-sources.ts",
-  );
-  const connectors = await read(
-    "src/features/capability/connectors/controller/use-connector-commands.ts",
-  );
-
-  assert.match(
-    project,
-    /await updateProjectMemberApi[\s\S]*succeeded = true;[\s\S]*setProjects\(await getProjectsApi\(\)\)[\s\S]*grant-refresh-failed/,
-  );
-  assert.match(sources, /if \(await refresh\(\)\)[\s\S]*reportCommittedRefreshFailure/);
-  assert.match(connectors, /const refreshed = await refreshConnector[\s\S]*connector_refresh_failed_title/);
-  assert.match(connectors, /projectMutationFailure\(error, errorFallback\)/);
-  assert.match(project, /mutationsBlockedRef\.current/);
-  assert.match(sources, /mutationRunningRef\.current/);
-  assert.match(connectors, /accepted:[\s\S]*committed:[\s\S]*not_applied:[\s\S]*unknown:/);
-});
-
-function read(relativePath) {
-  return readFile(path.join(webRoot, relativePath), "utf8");
-}

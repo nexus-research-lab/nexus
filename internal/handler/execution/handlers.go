@@ -395,20 +395,12 @@ func (h *Handlers) writeApplyWorkflowEditorError(
 		spec.Category = protocol.FailureCategoryConflict
 		spec.Effect = protocol.FailureEffectNotApplied
 		spec.Detail = "工作图编辑请求无效或版本已变化"
-		spec.Resolution = &protocol.FailureResolution{
-			Actor:  protocol.FailureRecoveryActorUser,
-			Action: "workgraph.refresh_editor",
-		}
 	case errors.Is(err, workgraphworkflowsvc.ErrNotFound):
 		status = http.StatusNotFound
 		spec.Code = "workgraph.editor_not_found"
 		spec.Category = protocol.FailureCategoryNotFound
 		spec.Effect = protocol.FailureEffectNotApplied
 		spec.Detail = "工作图编辑会话不存在或已过期"
-		spec.Resolution = &protocol.FailureResolution{
-			Actor:  protocol.FailureRecoveryActorUser,
-			Action: "workgraph.reopen_editor",
-		}
 	case errors.Is(err, workgraphworkflowsvc.ErrInvalidInput):
 		status = http.StatusUnprocessableEntity
 		spec.Code = "workgraph.editor_invalid_request"

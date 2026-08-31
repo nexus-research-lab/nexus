@@ -59,10 +59,6 @@ func projectSkillMutationFailure(
 	}
 
 	spec.Category = protocol.FailureCategoryInternal
-	spec.Resolution = &protocol.FailureResolution{
-		Actor:  protocol.FailureRecoveryActorUser,
-		Action: "skill.refresh_catalog",
-	}
 	if applied {
 		spec.Code = code + ".reconcile_required"
 		spec.Effect = protocol.FailureEffectCommitted

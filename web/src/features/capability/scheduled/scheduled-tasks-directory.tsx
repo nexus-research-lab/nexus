@@ -33,8 +33,8 @@ import { isScheduledTaskDeleting } from "./board/scheduled-task-board-model";
 import { hasScheduledTaskCommandForJob } from "./controller/scheduled-task-directory-model";
 import {
   loadScheduledTaskCreateRequestId,
-  subscribeScheduledTaskMutationJournal,
-} from "./controller/scheduled-task-mutation-journal";
+  subscribeScheduledTaskCreateIntents,
+} from "./controller/scheduled-task-create-intent";
 import { useScheduledTaskCommands } from "./controller/use-scheduled-task-commands";
 import { useScheduledTasksResource } from "./controller/use-scheduled-tasks-resource";
 import { ScheduledTaskDialog } from "./dialog/scheduled-task-dialog";
@@ -186,7 +186,7 @@ export function ScheduledTasksDirectory() {
     setDeletionStoppedTarget(null);
   }, [ownerScopeKey]);
 
-  useEffect(() => subscribeScheduledTaskMutationJournal(ownerScopeKey, () => {
+  useEffect(() => subscribeScheduledTaskCreateIntents(ownerScopeKey, () => {
     if (visibleScopeKeyRef.current !== ownerScopeKey) {
       return;
     }

@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -19,15 +18,13 @@ import (
 const maxFailureSemanticKeyLength = 128
 
 // FailureSpec 只接受 Handler 已经确认的公开失败事实。
-// Cause 只进入内部日志，不能进入响应；Resolution 必须来自领域规则，公共层不推断动作。
+// Cause 只进入内部日志，不能进入响应。
 type FailureSpec struct {
-	Code       string
-	Category   protocol.FailureCategory
-	Effect     protocol.FailureEffect
-	Detail     string
-	Cause      error
-	RetryAfter time.Duration
-	Resolution *protocol.FailureResolution
+	Code     string
+	Category protocol.FailureCategory
+	Effect   protocol.FailureEffect
+	Detail   string
+	Cause    error
 }
 
 // WriteError 写入显式选择 FailureCore v1 的失败响应。
@@ -56,7 +53,6 @@ func (a *API) WriteError(
 	}
 
 	normalizedCode, codeValid := normalizeFailureSemanticKey(spec.Code)
-	normalizedResolution, resolutionValid := normalizeFailureResolution(spec.Resolution)
 	categoryValid := knownFailureCategory(spec.Category)
 	effectValid := knownFailureEffect(spec.Effect)
 	failure := protocol.FailureCore{
@@ -65,7 +61,6 @@ func (a *API) WriteError(
 		Category:           spec.Category,
 		Effect:             spec.Effect,
 		TransportRequestID: transportRequestID,
-		Resolution:         normalizedResolution,
 	}
 	if failure.Code == "" {
 		failure.Code = "common.request_failed"
@@ -81,7 +76,7 @@ func (a *API) WriteError(
 		failure.Effect = protocol.FailureEffectUnknown
 	}
 
-	if spec.Cause != nil || clientDetail != "" || !codeValid || !categoryValid || !effectValid || !resolutionValid {
+	if spec.Cause != nil || clientDetail != "" || !codeValid || !categoryValid || !effectValid {
 		fields := []any{
 			"status", status,
 			"failure_code", failure.Code,
@@ -90,7 +85,6 @@ func (a *API) WriteError(
 			"failure_category_valid", categoryValid,
 			"failure_effect_valid", effectValid,
 			"failure_code_valid", codeValid,
-			"failure_resolution_valid", resolutionValid,
 		}
 		if spec.Cause != nil {
 			// 共享 writer 无法知道第三方/Provider error 是否夹带 token、路径或正文。
@@ -111,12 +105,6 @@ func (a *API) WriteError(
 			logger.Warn("HTTP 请求失败", fields...)
 		}
 	}
-	if retryAfterMS, ok := failureRetryAfter(status, spec.RetryAfter); ok {
-		failure.RetryAfterMS = retryAfterMS
-		seconds := (retryAfterMS + 999) / 1000
-		writer.Header().Set("Retry-After", strconv.FormatInt(seconds, 10))
-	}
-
 	data := map[string]any{
 		"detail":  failureClientDetail(status, clientDetail),
 		"failure": failure,
@@ -220,35 +208,6 @@ func failureEffectBeforeHandler(request *http.Request) protocol.FailureEffect {
 	}
 }
 
-func failureRetryAfter(status int, retryAfter time.Duration) (int64, bool) {
-	if retryAfter <= 0 || (status != http.StatusTooManyRequests && status != http.StatusServiceUnavailable) {
-		return 0, false
-	}
-	milliseconds := retryAfter.Milliseconds()
-	if milliseconds <= 0 {
-		milliseconds = 1
-	}
-	return milliseconds, true
-}
-
-func normalizeFailureResolution(
-	resolution *protocol.FailureResolution,
-) (*protocol.FailureResolution, bool) {
-	if resolution == nil {
-		return nil, true
-	}
-	normalized := &protocol.FailureResolution{
-		Actor:  protocol.FailureRecoveryActor(strings.TrimSpace(string(resolution.Actor))),
-		Action: "",
-	}
-	action, actionValid := normalizeFailureSemanticKey(resolution.Action)
-	normalized.Action = action
-	if !knownFailureRecoveryActor(normalized.Actor) || !actionValid || normalized.Action == "" {
-		return nil, false
-	}
-	return normalized, true
-}
-
 // normalizeFailureSemanticKey 只接受稳定的 domain.reason 语义名。
 // 用户文案、URL、命令、路径或秘密必须留在该字段之外。
 func normalizeFailureSemanticKey(value string) (string, bool) {
@@ -283,16 +242,4 @@ func normalizeFailureSemanticKey(value string) (string, bool) {
 		return "", false
 	}
 	return value, true
-}
-
-func knownFailureRecoveryActor(actor protocol.FailureRecoveryActor) bool {
-	switch actor {
-	case protocol.FailureRecoveryActorUser,
-		protocol.FailureRecoveryActorSystem,
-		protocol.FailureRecoveryActorExternal,
-		protocol.FailureRecoveryActorNone:
-		return true
-	default:
-		return false
-	}
 }

@@ -121,10 +121,6 @@ func (h *Handlers) HandleCreateAgent(writer http.ResponseWriter, request *http.R
 		Category: protocol.FailureCategoryValidation,
 		Effect:   protocol.FailureEffectNotApplied,
 		Detail:   "创建 Agent 的内容格式不正确",
-		Resolution: &protocol.FailureResolution{
-			Actor:  protocol.FailureRecoveryActorUser,
-			Action: "agent.review_creation",
-		},
 	}) {
 		return
 	}
@@ -137,10 +133,6 @@ func (h *Handlers) HandleCreateAgent(writer http.ResponseWriter, request *http.R
 				Effect:   protocol.FailureEffectNotApplied,
 				Detail:   "无法读取创建 Agent 所需的默认设置",
 				Cause:    prefErr,
-				Resolution: &protocol.FailureResolution{
-					Actor:  protocol.FailureRecoveryActorUser,
-					Action: "agent.retry_creation",
-				},
 			})
 			return
 		}

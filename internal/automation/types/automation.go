@@ -176,6 +176,10 @@ var (
 	ErrPermissionConnectorNotReady = errors.New("automation permission connector is not ready")
 	// ErrHeartbeatConfigInvalid 表示 heartbeat 配置非法。
 	ErrHeartbeatConfigInvalid = errors.New("heartbeat config is invalid")
+	// ErrDailyReportDateInvalid 表示日报日期不符合查询契约。
+	ErrDailyReportDateInvalid = errors.New("daily report date is invalid")
+	// ErrDailyReportTimezoneInvalid 表示日报时区无法解析。
+	ErrDailyReportTimezoneInvalid = errors.New("daily report timezone is invalid")
 	// ErrHeartbeatWakeRequestConflict 表示同 owner 的 durable wake request_id 被复用于不同意图。
 	ErrHeartbeatWakeRequestConflict = errors.New("heartbeat wake request conflicts with an existing intent")
 )

@@ -11,7 +11,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
@@ -86,10 +85,6 @@ func TestWriteErrorAddsOptionalFailureCoreWithoutChangingEnvelope(t *testing.T) 
 				Category: protocol.FailureCategoryConflict,
 				Effect:   protocol.FailureEffectNotApplied,
 				Detail:   "工作图已被其他操作更新",
-				Resolution: &protocol.FailureResolution{
-					Actor:  protocol.FailureRecoveryActorUser,
-					Action: "workgraph.refresh_editor",
-				},
 			})
 		},
 	))
@@ -196,7 +191,7 @@ func TestWriteErrorDoesNotCopyRawCauseIntoSharedLogs(t *testing.T) {
 	}
 }
 
-func TestWriteErrorRejectsUnstableCodeAndRecoveryAction(t *testing.T) {
+func TestWriteErrorRejectsUnstableCode(t *testing.T) {
 	api := newFailureTestAPI()
 	request := httptest.NewRequest(http.MethodPost, "/scheduled-tasks", nil)
 	recorder := httptest.NewRecorder()
@@ -206,18 +201,14 @@ func TestWriteErrorRejectsUnstableCodeAndRecoveryAction(t *testing.T) {
 		Category: protocol.FailureCategoryConflict,
 		Effect:   protocol.FailureEffectUnknown,
 		Detail:   "请求结果尚未确认",
-		Resolution: &protocol.FailureResolution{
-			Actor:  protocol.FailureRecoveryActorUser,
-			Action: "curl https://internal.example/secret",
-		},
 	})
 
 	body := recorder.Body.String()
 	if !strings.Contains(body, `"code":"common.request_failed"`) {
 		t.Fatalf("非稳定 code 没有安全降级: %s", body)
 	}
-	if strings.Contains(body, "internal.example") || strings.Contains(body, `"resolution"`) {
-		t.Fatalf("非稳定 code/action 泄露到 wire: %s", body)
+	if strings.Contains(body, "internal.example") {
+		t.Fatalf("非稳定 code 泄露到 wire: %s", body)
 	}
 }
 
@@ -242,16 +233,6 @@ func TestNormalizeFailureSemanticKeyRequiresDomainReasonShape(t *testing.T) {
 		if got != test.want || valid != test.valid {
 			t.Fatalf("normalizeFailureSemanticKey(%q)=(%q,%t) want=(%q,%t)", test.value, got, valid, test.want, test.valid)
 		}
-	}
-}
-
-func TestNormalizeFailureResolutionRejectsUnknownActor(t *testing.T) {
-	resolution, valid := normalizeFailureResolution(&protocol.FailureResolution{
-		Actor:  "future_actor",
-		Action: "workgraph.refresh_editor",
-	})
-	if resolution != nil || valid {
-		t.Fatalf("服务端不应写出未知 recovery actor: %#v valid=%t", resolution, valid)
 	}
 }
 
@@ -338,35 +319,6 @@ func TestFailureEffectBeforeHandlerUsesOnlyRequestSemantics(t *testing.T) {
 		if got := failureEffectBeforeHandler(request); got != protocol.FailureEffectNotApplied {
 			t.Fatalf("%s pre-handler effect=%q", method, got)
 		}
-	}
-}
-
-func TestWriteErrorOnlyPublishesRetryAfterForExplicitTransientStatus(t *testing.T) {
-	api := newFailureTestAPI()
-	request := httptest.NewRequest(http.MethodGet, "/loops", nil)
-
-	limited := httptest.NewRecorder()
-	api.WriteError(limited, request, http.StatusTooManyRequests, FailureSpec{
-		Code:       "provider.rate_limited",
-		Category:   protocol.FailureCategoryRateLimited,
-		Effect:     protocol.FailureEffectNotApplicable,
-		RetryAfter: 1500 * time.Millisecond,
-	})
-	if limited.Header().Get("Retry-After") != "2" ||
-		!strings.Contains(limited.Body.String(), `"retry_after_ms":1500`) {
-		t.Fatalf("429 Retry-After 不正确: headers=%v body=%s", limited.Header(), limited.Body.String())
-	}
-
-	conflict := httptest.NewRecorder()
-	api.WriteError(conflict, request, http.StatusConflict, FailureSpec{
-		Code:       "workgraph.revision_conflict",
-		Category:   protocol.FailureCategoryConflict,
-		Effect:     protocol.FailureEffectNotApplied,
-		RetryAfter: time.Minute,
-	})
-	if conflict.Header().Get("Retry-After") != "" ||
-		strings.Contains(conflict.Body.String(), "retry_after_ms") {
-		t.Fatalf("非瞬时状态不应发布 Retry-After: headers=%v body=%s", conflict.Header(), conflict.Body.String())
 	}
 }
 

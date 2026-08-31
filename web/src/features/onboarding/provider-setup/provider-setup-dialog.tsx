@@ -1,6 +1,6 @@
 /**
  * INPUT: Owner 作用域、Provider 精确 key/version、连接测试与默认偏好命令。
- * OUTPUT: 可恢复的保存、测试、默认选择三阶段单栏连接向导及普通语言失败三段式。
+ * OUTPUT: 可恢复的保存、测试、默认选择三阶段单栏连接向导及精简失败提示。
  * POS: 首次 Provider 配置编排边界；写前 journal 不保存密钥、Base URL、请求正文或 HTTP 身份。
  */
 "use client";

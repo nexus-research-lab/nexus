@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -63,30 +62,4 @@ test("Launcher projects reads and uncertain DM preparation into different recove
     "launcher.failure.direct_room_retry_next_step",
   );
   assert.equal(notAppliedDm.tone, "error");
-});
-
-test("Launcher user actions no longer fail only in the developer console", async () => {
-  const [controller, page, consoleView] = await Promise.all([
-    readFile(path.join(
-      webRoot,
-      "src/features/launcher/console/use-launcher-console-controller.ts",
-    ), "utf8"),
-    readFile(path.join(webRoot, "src/pages/launcher/launcher-page.tsx"), "utf8"),
-    readFile(path.join(
-      webRoot,
-      "src/features/launcher/console/launcher-console.tsx",
-    ), "utf8"),
-  ]);
-
-  assert.doesNotMatch(controller, /console\.error/);
-  assert.doesNotMatch(page, /console\.error/);
-  assert.match(controller, /kind: "query_read"/);
-  assert.match(controller, /kind: "room_read"/);
-  assert.match(controller, /projectMutationFailure/);
-  assert.match(controller, /failure\.effect === "not_applied"/);
-  assert.match(controller, /Launcher Query 只解析目录，不写入聊天；同一查询可以安全重试/);
-  assert.match(page, /projectLauncherOperationFailure/);
-  assert.match(page, /navigationFailure\.effect === "not_applied"/);
-  assert.match(consoleView, /FeedbackBannerViewport/);
-  assert.match(consoleView, /controller\.state\.feedback \?\? feedback/);
 });

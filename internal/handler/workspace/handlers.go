@@ -157,10 +157,6 @@ func workspaceFileRevisionConflict() handlershared.FailureSpec {
 		Category: protocol.FailureCategoryConflict,
 		Effect:   protocol.FailureEffectNotApplied,
 		Detail:   "文件已在其他位置更新",
-		Resolution: &protocol.FailureResolution{
-			Actor:  protocol.FailureRecoveryActorUser,
-			Action: "workspace.reload_file",
-		},
 	}
 }
 
@@ -241,10 +237,6 @@ func workspaceMutationRequestFailure(operation workspaceMutationOperation) handl
 		Category: protocol.FailureCategoryValidation,
 		Effect:   protocol.FailureEffectNotApplied,
 		Detail:   "请求参数错误",
-		Resolution: &protocol.FailureResolution{
-			Actor:  protocol.FailureRecoveryActorUser,
-			Action: "workspace.review_request",
-		},
 	}
 }
 
@@ -271,10 +263,6 @@ func workspaceMutationFailure(
 			Category: protocol.FailureCategoryNotFound,
 			Effect:   protocol.FailureEffectNotApplied,
 			Detail:   "资源不存在",
-			Resolution: &protocol.FailureResolution{
-				Actor:  protocol.FailureRecoveryActorUser,
-				Action: "workspace.reload_files",
-			},
 		}
 	}
 	if errors.Is(err, workspacepkg.ErrMutationInvalid) {
@@ -283,10 +271,6 @@ func workspaceMutationFailure(
 			Category: protocol.FailureCategoryValidation,
 			Effect:   protocol.FailureEffectNotApplied,
 			Detail:   workspaceMutationInvalidDetail(operation),
-			Resolution: &protocol.FailureResolution{
-				Actor:  protocol.FailureRecoveryActorUser,
-				Action: "workspace.review_request",
-			},
 		}
 	}
 	return http.StatusInternalServerError, handlershared.FailureSpec{
@@ -295,10 +279,6 @@ func workspaceMutationFailure(
 		Effect:   protocol.FailureEffectUnknown,
 		Detail:   workspaceMutationFailureDetail(operation),
 		Cause:    err,
-		Resolution: &protocol.FailureResolution{
-			Actor:  protocol.FailureRecoveryActorUser,
-			Action: "workspace.reload_files",
-		},
 	}
 }
 

@@ -55,12 +55,6 @@ func TestProjectSkillMutationFailurePreservesOutcomeEvidence(t *testing.T) {
 			if spec.Detail == "internal detail" {
 				t.Fatalf("internal cause must not become user detail: %+v", spec)
 			}
-			if test.needsReconcile && (spec.Resolution == nil || spec.Resolution.Action != "skill.refresh_catalog") {
-				t.Fatalf("reconcile resolution=%+v", spec.Resolution)
-			}
-			if !test.needsReconcile && spec.Resolution != nil {
-				t.Fatalf("pre-commit failure must not invent recovery action: %+v", spec.Resolution)
-			}
 		})
 	}
 }

@@ -3,11 +3,7 @@
 // POS: HTTP 响应解析边界；transport/request identity 只保留在结构化错误对象。
 
 import type { ApiResponse } from "@/types/system/api";
-import type {
-  FailureCore,
-  FailureRecoveryActor,
-  FailureResolution,
-} from "@/types/generated/protocol";
+import type { FailureCore } from "@/types/generated/protocol";
 
 interface ApiErrorPayload {
   detail?: unknown;
@@ -118,28 +114,7 @@ export function parseFailureCore(value: unknown): FailureCore | null {
   if (transportRequestID !== null) {
     failure.transport_request_id = transportRequestID;
   }
-  const retryAfterMS = readFiniteNumber(record.retry_after_ms);
-  if (retryAfterMS !== null && retryAfterMS > 0) {
-    failure.retry_after_ms = retryAfterMS;
-  }
-  const resolution = parseFailureResolution(record.resolution);
-  if (resolution) {
-    failure.resolution = resolution;
-  }
   return failure;
-}
-
-function parseFailureResolution(value: unknown): FailureResolution | null {
-  const record = toRecord(value);
-  if (!record) {
-    return null;
-  }
-  const actor = readNonEmptyString(record.actor);
-  const action = readNonEmptyString(record.action);
-  if (actor === null || action === null) {
-    return null;
-  }
-  return { actor: actor as FailureRecoveryActor, action };
 }
 
 function readNestedErrorValue(

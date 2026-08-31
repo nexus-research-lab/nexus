@@ -144,10 +144,6 @@ func (h *Handlers) HandleUpdatePreferences(writer http.ResponseWriter, request *
 		Category: protocol.FailureCategoryValidation,
 		Effect:   protocol.FailureEffectNotApplied,
 		Detail:   "偏好设置格式不正确",
-		Resolution: &protocol.FailureResolution{
-			Actor:  protocol.FailureRecoveryActorUser,
-			Action: "preferences.review_values",
-		},
 	}) {
 		return
 	}
@@ -159,10 +155,6 @@ func (h *Handlers) HandleUpdatePreferences(writer http.ResponseWriter, request *
 			Effect:   protocol.FailureEffectNotApplied,
 			Detail:   "偏好设置版本条件无效",
 			Cause:    err,
-			Resolution: &protocol.FailureResolution{
-				Actor:  protocol.FailureRecoveryActorUser,
-				Action: "preferences.reload",
-			},
 		})
 		return
 	}
@@ -230,10 +222,6 @@ func (h *Handlers) HandleUpdatePreferences(writer http.ResponseWriter, request *
 			Effect:   effect,
 			Detail:   detail,
 			Cause:    err,
-			Resolution: &protocol.FailureResolution{
-				Actor:  protocol.FailureRecoveryActorUser,
-				Action: "preferences.reload",
-			},
 		})
 		return
 	}

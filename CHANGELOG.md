@@ -9,12 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added a backward-compatible FailureCore v1 foundation for machine-readable
-  failure facts, transport-only diagnostic IDs, safe user messaging, and
-  explicit low-risk adoption without changing existing business identities.
-- Added evidence-based scheduled-task recovery states for loading, stale data,
-  access loss, rejected changes, and outcomes that still need confirmation,
-  including domain-scoped safe replay for page-created tasks.
+- Added a backward-compatible minimal FailureCore v1 for stable machine
+  classification, effect evidence, and optional transport diagnostics without
+  changing existing business identities.
 - Added grid/list switching and business-tag, Provider, and permission filters to Agent Management, with business-tag-aware search and compact tag summaries for large directories.
 - Added default-on General settings for automatic long-term memory extraction and background memory consolidation across nxs conversations and host maintenance.
 - Expanded the built-in model catalog with current OpenAI, Anthropic, Gemini, Grok, Kimi, Qwen, MiniMax, Doubao, ERNIE, Hunyuan, StepFun, Mistral, Llama, Cohere, and Amazon Nova limits and capabilities.
@@ -31,15 +28,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   near-fullscreen detail dialog with a distinct fit-to-view action, exact edge
   midpoint controls, and full upstream/downstream path focus that dims
   unrelated graph content without hiding durable Tool runs.
-- Standardized shared failure banners and resource states around a persistent
-  result, current-state impact, and explicit next action contract, with
-  independent screen-reader urgency and responsive mobile reflow.
-- Refined shared failure presentation into a quiet result title, one natural
-  recovery sentence, and only the actions users can safely take. Uncertain,
+- Simplified shared failure presentation to a concrete title, one localized
+  impact/recovery sentence, and at most one safe primary action. Server details,
+  protocol recovery directives, and diagnostic IDs no longer drive user copy.
+  Uncertain,
   stale, and conflicting states now use warning emphasis while confirmed
   failures retain destructive emphasis. Unknown results state confirmed facts
   and concrete repeat risks instead of listing hypothetical outcome branches,
   without changing recovery behavior.
+- Removed the scheduled-task browser mutation journal, Agent-creation Web Locks
+  availability gate, implementation-shape reliability suites, and standalone
+  failure-state screenshot gallery. Browser storage is now only a best-effort
+  request-ID recovery aid; server revisions, receipts, runs, and deletion state
+  remain authoritative.
 - Model discovery and manual model addition now fill missing LLM card metadata from the built-in catalog and stable runtime defaults, so settings show concrete limits instead of `auto` whenever the Provider omits them.
 - Aligned host-provided internal context with Claude Code attachment semantics: NXS keeps it in non-persistent live history, while the Claude runtime receives it through its native `UserPromptSubmit` hook attachment path.
 - Made the Agent SDK the sole loader for workspace `AGENTS.md` instructions, removing their duplicate Nexus prompt projection.

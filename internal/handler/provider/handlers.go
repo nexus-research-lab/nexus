@@ -348,10 +348,6 @@ func providerRequestInvalidFailure(operation string) handlershared.FailureSpec {
 		Category: protocol.FailureCategoryValidation,
 		Effect:   protocol.FailureEffectNotApplied,
 		Detail:   "模型服务设置格式不正确",
-		Resolution: &protocol.FailureResolution{
-			Actor:  protocol.FailureRecoveryActorUser,
-			Action: "provider.review_values",
-		},
 	}
 }
 
@@ -361,10 +357,6 @@ func providerPreviewRequestInvalidFailure() handlershared.FailureSpec {
 		Category: protocol.FailureCategoryValidation,
 		Effect:   protocol.FailureEffectNotApplicable,
 		Detail:   "本机模型服务配置的读取条件不完整",
-		Resolution: &protocol.FailureResolution{
-			Actor:  protocol.FailureRecoveryActorUser,
-			Action: "provider.review_import_source",
-		},
 	}
 }
 

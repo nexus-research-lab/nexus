@@ -85,36 +85,32 @@ func (f *fakeControl) PrepareFeishuIngress(context.Context, []byte, http.Header)
 
 func TestChannelMutationFailureUsesStableServiceFactsWithoutExposingCause(t *testing.T) {
 	tests := []struct {
-		name       string
-		cause      error
-		status     int
-		code       string
-		effect     protocol.FailureEffect
-		resolution string
+		name   string
+		cause  error
+		status int
+		code   string
+		effect protocol.FailureEffect
 	}{
 		{
-			name:       "validation",
-			cause:      errors.Join(channelspkg.ErrChannelControlInvalid, errors.New("secret-field is required")),
-			status:     http.StatusBadRequest,
-			code:       "channel.save_config_invalid",
-			effect:     protocol.FailureEffectNotApplied,
-			resolution: "channel.review_input",
+			name:   "validation",
+			cause:  errors.Join(channelspkg.ErrChannelControlInvalid, errors.New("secret-field is required")),
+			status: http.StatusBadRequest,
+			code:   "channel.save_config_invalid",
+			effect: protocol.FailureEffectNotApplied,
 		},
 		{
-			name:       "version conflict",
-			cause:      channelspkg.ErrChannelControlVersionConflict,
-			status:     http.StatusConflict,
-			code:       "channel.save_config_version_conflict",
-			effect:     protocol.FailureEffectNotApplied,
-			resolution: "channel.reload_configs",
+			name:   "version conflict",
+			cause:  channelspkg.ErrChannelControlVersionConflict,
+			status: http.StatusConflict,
+			code:   "channel.save_config_version_conflict",
+			effect: protocol.FailureEffectNotApplied,
 		},
 		{
-			name:       "unclassified mutation",
-			cause:      errors.New("sql failed at /private/state.db token=secret"),
-			status:     http.StatusInternalServerError,
-			code:       "channel.save_config_result_unknown",
-			effect:     protocol.FailureEffectUnknown,
-			resolution: "channel.reload_configs",
+			name:   "unclassified mutation",
+			cause:  errors.New("sql failed at /private/state.db token=secret"),
+			status: http.StatusInternalServerError,
+			code:   "channel.save_config_result_unknown",
+			effect: protocol.FailureEffectUnknown,
 		},
 	}
 	for _, test := range tests {
@@ -122,9 +118,6 @@ func TestChannelMutationFailureUsesStableServiceFactsWithoutExposingCause(t *tes
 			status, spec := channelMutationFailure(channelOperationSaveConfig, test.cause)
 			if status != test.status || spec.Code != test.code || spec.Effect != test.effect {
 				t.Fatalf("failure = status %d spec %+v", status, spec)
-			}
-			if spec.Resolution == nil || spec.Resolution.Action != test.resolution {
-				t.Fatalf("resolution = %+v", spec.Resolution)
 			}
 			if strings.Contains(spec.Detail, "secret-field") || strings.Contains(spec.Detail, "/private/") {
 				t.Fatalf("client detail leaked cause: %q", spec.Detail)
@@ -147,7 +140,7 @@ func TestHandleUpsertChannelConfigUnknownFailureRequiresReconciliation(t *testin
 	handler.HandleUpsertChannelConfig(recorder, request)
 
 	assertChannelFailure(t, recorder, http.StatusInternalServerError,
-		"channel.save_config_result_unknown", protocol.FailureEffectUnknown, "channel.reload_configs")
+		"channel.save_config_result_unknown", protocol.FailureEffectUnknown)
 	if strings.Contains(recorder.Body.String(), "/private/") || strings.Contains(recorder.Body.String(), "secret") {
 		t.Fatalf("response leaked internal cause: %s", recorder.Body.String())
 	}
@@ -164,7 +157,7 @@ func TestHandleCreatePairingMalformedJSONIsProvenNotApplied(t *testing.T) {
 	handler.HandleCreatePairing(recorder, request)
 
 	assertChannelFailure(t, recorder, http.StatusBadRequest,
-		"channel.create_pairing_request_invalid", protocol.FailureEffectNotApplied, "channel.review_input")
+		"channel.create_pairing_request_invalid", protocol.FailureEffectNotApplied)
 }
 
 func TestHandleListPairingsReadFailureNeverClaimsDataChanged(t *testing.T) {
@@ -176,7 +169,7 @@ func TestHandleListPairingsReadFailureNeverClaimsDataChanged(t *testing.T) {
 	handler.HandleListPairings(recorder, request)
 
 	assertChannelFailure(t, recorder, http.StatusInternalServerError,
-		"channel.list_pairings_failed", protocol.FailureEffectNotApplicable, "channel.reload_pairings")
+		"channel.list_pairings_failed", protocol.FailureEffectNotApplicable)
 }
 
 func TestHandleGetCurrentChannelLoginFailsClosedWithoutExposingBinding(t *testing.T) {
@@ -200,7 +193,7 @@ func TestHandleGetCurrentChannelLoginFailsClosedWithoutExposingBinding(t *testin
 	handler.HandleGetCurrentChannelLogin(recorder, request)
 
 	assertChannelFailure(t, recorder, http.StatusConflict,
-		"channel.read_login_state_ambiguous", protocol.FailureEffectNotApplicable, "channel.reload_login")
+		"channel.read_login_state_ambiguous", protocol.FailureEffectNotApplicable)
 	if strings.Contains(recorder.Body.String(), "private-conversation-id") ||
 		strings.Contains(recorder.Body.String(), "authorization_binding") {
 		t.Fatalf("response leaked authorization binding: %s", recorder.Body.String())
@@ -225,7 +218,7 @@ func TestHandleGetCurrentChannelLoginAbsenceIsReadFactNotWriteOutcome(t *testing
 	handler.HandleGetCurrentChannelLogin(recorder, request)
 
 	assertChannelFailure(t, recorder, http.StatusNotFound,
-		"channel.read_login_not_found", protocol.FailureEffectNotApplicable, "channel.reload_login")
+		"channel.read_login_not_found", protocol.FailureEffectNotApplicable)
 }
 
 func assertChannelFailure(
@@ -234,7 +227,6 @@ func assertChannelFailure(
 	wantStatus int,
 	wantCode string,
 	wantEffect protocol.FailureEffect,
-	wantAction string,
 ) {
 	t.Helper()
 	if recorder.Code != wantStatus {
@@ -250,8 +242,5 @@ func assertChannelFailure(
 	}
 	if response.Data.Failure.Code != wantCode || response.Data.Failure.Effect != wantEffect {
 		t.Fatalf("failure = %+v", response.Data.Failure)
-	}
-	if response.Data.Failure.Resolution == nil || response.Data.Failure.Resolution.Action != wantAction {
-		t.Fatalf("resolution = %+v", response.Data.Failure.Resolution)
 	}
 }

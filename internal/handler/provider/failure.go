@@ -1,5 +1,5 @@
 // INPUT: Provider handler operation, stable service error and optional aggregate version precondition.
-// OUTPUT: Legacy-compatible HTTP status plus FailureCore problem/effect/recovery facts and strong ETag helpers.
+// OUTPUT: Legacy-compatible HTTP status plus FailureCore problem/effect facts and strong ETag helpers.
 // POS: Provider HTTP failure projection boundary; it never classifies by error text or transport request ID.
 package provider
 
@@ -62,10 +62,6 @@ func providerReadFailure(cause error) handlershared.FailureSpec {
 		Effect:   protocol.FailureEffectNotApplicable,
 		Detail:   "暂时无法读取模型服务设置",
 		Cause:    cause,
-		Resolution: &protocol.FailureResolution{
-			Actor:  protocol.FailureRecoveryActorUser,
-			Action: "provider.reload",
-		},
 	}
 }
 
@@ -76,10 +72,6 @@ func providerImportPreviewFailure(cause error) handlershared.FailureSpec {
 		Effect:   protocol.FailureEffectNotApplicable,
 		Detail:   "暂时无法读取本机模型服务配置",
 		Cause:    cause,
-		Resolution: &protocol.FailureResolution{
-			Actor:  protocol.FailureRecoveryActorUser,
-			Action: "provider.review_import_source",
-		},
 	}
 }
 
@@ -94,10 +86,6 @@ func (h *Handlers) writeProviderPreconditionFailure(
 		Effect:   protocol.FailureEffectNotApplied,
 		Detail:   "模型服务版本条件无效",
 		Cause:    cause,
-		Resolution: &protocol.FailureResolution{
-			Actor:  protocol.FailureRecoveryActorUser,
-			Action: "provider.reload",
-		},
 	})
 }
 
@@ -127,38 +115,30 @@ func providerMutationFailure(
 		Effect:   protocol.FailureEffectUnknown,
 		Detail:   "暂时无法确认模型服务操作结果",
 		Cause:    cause,
-		Resolution: &protocol.FailureResolution{
-			Actor:  protocol.FailureRecoveryActorUser,
-			Action: "provider.reconcile",
-		},
 	}
 	switch {
 	case errors.Is(cause, providercfg.ErrMutationCommitted):
 		spec.Code = "provider." + operation + "_committed"
 		spec.Effect = protocol.FailureEffectCommitted
 		spec.Detail = "模型服务更改已保存，但页面暂时无法读取最新状态"
-		spec.Resolution.Action = "provider.reload"
 		return http.StatusBadRequest, spec
 	case errors.Is(cause, providercfg.ErrProviderManagementForbidden):
 		spec.Code = "provider.management_forbidden"
 		spec.Category = protocol.FailureCategoryAuthorization
 		spec.Effect = protocol.FailureEffectNotApplied
 		spec.Detail = "当前账号不能修改这个模型服务"
-		spec.Resolution.Action = "provider.review_access"
 		return http.StatusForbidden, spec
 	case errors.Is(cause, providercfg.ErrProviderNotFound):
 		spec.Code = "provider.not_found"
 		spec.Category = protocol.FailureCategoryNotFound
 		spec.Effect = protocol.FailureEffectNotApplied
 		spec.Detail = "模型服务不存在或已被删除"
-		spec.Resolution.Action = "provider.reload"
 		return http.StatusNotFound, spec
 	case errors.Is(cause, providercfg.ErrConfigurationVersionConflict):
 		spec.Code = "provider.version_conflict"
 		spec.Category = protocol.FailureCategoryConflict
 		spec.Effect = protocol.FailureEffectNotApplied
 		spec.Detail = "模型服务已在其他页面更新"
-		spec.Resolution.Action = "provider.reload"
 		if len(preconditioned) > 0 && preconditioned[0] {
 			return http.StatusPreconditionFailed, spec
 		}
@@ -168,27 +148,23 @@ func providerMutationFailure(
 		spec.Category = protocol.FailureCategoryConflict
 		spec.Effect = protocol.FailureEffectNotApplied
 		spec.Detail = "同一模型服务已经存在"
-		spec.Resolution.Action = "provider.reload"
 		return http.StatusBadRequest, spec
 	case errors.Is(cause, providercfg.ErrProviderInUse):
 		spec.Code = "provider.in_use"
 		spec.Category = protocol.FailureCategoryConflict
 		spec.Effect = protocol.FailureEffectNotApplied
 		spec.Detail = "这个模型服务仍在使用中，暂时不能删除"
-		spec.Resolution.Action = "provider.review_usage"
 		return http.StatusBadRequest, spec
 	case errors.Is(cause, providercfg.ErrInvalidInput), errors.Is(cause, providercfg.ErrModelNotFound):
 		spec.Code = "provider." + operation + "_invalid"
 		spec.Category = protocol.FailureCategoryValidation
 		spec.Effect = protocol.FailureEffectNotApplied
 		spec.Detail = "模型服务设置不完整或格式不正确"
-		spec.Resolution.Action = "provider.review_values"
 		return http.StatusBadRequest, spec
 	case errors.Is(cause, providercfg.ErrMutationNotApplied):
 		spec.Code = "provider." + operation + "_not_applied"
 		spec.Effect = protocol.FailureEffectNotApplied
 		spec.Detail = "模型服务更改没有保存"
-		spec.Resolution.Action = "provider.retry_change"
 		return http.StatusBadRequest, spec
 	default:
 		// Existing Provider handlers returned 400 for unclassified service failures.

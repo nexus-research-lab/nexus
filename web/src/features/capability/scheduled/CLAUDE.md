@@ -12,8 +12,8 @@
 
 - 页面只加载定时任务资源，不附带 Heartbeat 或其他自动化资源。
 - 实时列表由 `scheduled_task_changed` 驱动，WebSocket 连接建立或重连后补拉一次；断线期间不启动 HTTP 定时轮询。
-- 任务主快照与待处理权限查询独立发起、独立落状态：主列表的 401/403 清空全部敏感快照并关闭已打开的编辑、历史和删除层；权限辅助查询的 401/403 只清审批详情，不能延迟或否定主列表。访问失效不能清空其他 exact mutation journal；当前动作只按 FailureCore effect 清理或保留，重新取得同一 owner 的访问权后必须先恢复保护并对账。任一旧 owner 响应都必须受 scope/请求代次栅栏约束。
-- 写命令先按 owner/intent 独立记录无正文的持久 journal，跨标签页和桌面 App 重启保留，再提交 API 返回的权威对象并静默刷新。同一 Job 的跨页面写操作由短生命周期 Web Lock 串行化，storage event 只同步保护状态，不触发自动请求；不同 Job 不互相阻塞。缺少 Web Locks 时在发送前明确停止并提示升级受支持环境。只有显式 `not_applied` 或领域快照能够证明旧版本命令已提交/已被 CAS 栅栏时才解除 exact 动作；一次 GET 成功本身不是副作用证据，客户端绝不自动重放。
+- 任务主快照与待处理权限查询独立发起、独立落状态：主列表的 401/403 清空全部敏感快照并关闭已打开的编辑、历史和删除层；权限辅助查询的 401/403 只清审批详情，不能延迟或否定主列表。当前页面只按 FailureCore effect 保留或解除同一动作保护；重新进入页面直接读取服务端权威状态。任一旧 owner 响应都必须受 scope/请求代次栅栏约束。
+- 写命令以服务端 configuration version、request receipt 和 durable 状态为正确性边界；浏览器只做当前页面在途去重和结果未知提示，不保存通用 mutation journal，不用 Web Lock 拒绝业务操作。只有显式 `not_applied` 或领域状态能够证明结果时才允许安全重试；一次 GET 成功本身不是副作用证据，客户端绝不自动重放。
 - 页面“立即运行”使用独立于 HTTP trace 的 durable client request identity；运行历史只按该 identity 证明同一次启动已经进入 run ledger。投递等仍无法从读模型证明 exact 副作用的动作保持锁定，用户刷新运行历史并核对后只能显式处理；恢复占用必须由同一 run 的终态历史与任务不再指向该 run 共同证明。
 - `deletion_state=deleting` 表示删除已被服务端 durable claim；`review_required` 表示系统无法证明原执行已停止，任务数据尚未删除且必须人工处理。两者都不是普通停用或错误：任务必须进入“需处理”，`deleting` 仅允许查看历史/刷新，`review_required` 额外只允许在明确确认原执行端已停止并通过二次危险确认后调用 `confirm-stopped`；运行、编辑、开关、权限、投递、恢复和再次删除在视图与事件处理层同时禁用。只有任务从权威列表消失才证明删除完成，内部 deletion token 永不进入 Web 协议。
 - 创建使用 Automation 领域 `request_id`，发送前按 request 单独持久化且同一意图保持稳定；多个页面产生的未确认创建不得互相覆盖。重载后若只有 request ID、无法恢复原表单，页面必须展示“结果待确认”并禁止把旧 ID 配新正文重放；用户可明确开始新任务，但系统不得自动替他作此决定。

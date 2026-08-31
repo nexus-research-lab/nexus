@@ -60,7 +60,7 @@ test("subscription mutation feedback blocks an unknown repeat and keeps raw exce
   assert.equal(rejected.blocksMutation, false);
   assert.equal(rejected.recoveryAction, undefined);
   assert.equal(rejected.tone, "error");
-  assert.equal(rejected.message, "权限不足");
+  assert.equal(rejected.message, "settings.subscription.plan_save_failed_message");
 });
 
 test("project reads never expose ordinary Error details", async () => {

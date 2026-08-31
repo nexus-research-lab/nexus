@@ -1,5 +1,5 @@
 // INPUT: 上层已经确定的加载、空、失败或完成展示内容与可选动作。
-// OUTPUT: 统一回答“发生了什么、已有内容是否受影响、现在能做什么”的可访问展示面。
+// OUTPUT: 以标题、一句影响/下一步说明和可选动作呈现的可访问展示面。
 // POS: 纯展示组件；不判断 query、mutation、access、离线或重试语义。
 "use client";
 
@@ -144,12 +144,7 @@ export function UiResourceState({
             "mt-1.5 w-full max-w-md",
             compactFailure ? "text-left" : "text-center",
           )}
-          impact={(
-            <>
-              {description ? <span className="text-(--text-default)">{description} </span> : null}
-              <span data-resource-state-impact>{impact}</span>
-            </>
-          )}
+          impact={<span data-resource-state-impact>{impact}</span>}
           nextStep={<span data-resource-state-next-step>{nextStep}</span>}
         />
       ) : impact || nextStep ? (

@@ -1,5 +1,5 @@
-// INPUT: 业务反馈事实，以及为旧反馈模型显式提供的恢复文案。
-// OUTPUT: error、warning 必含当前影响和下一步的严格反馈展示合同。
+// INPUT: 业务反馈事实，以及旧调用方尚未提供时的兜底恢复文案。
+// OUTPUT: 标题、一句影响/下一步说明和至多一个动作的反馈合同。
 // POS: 业务反馈到共享展示的类型适配边界；不推测请求结果。
 import type { FeedbackBannerTone } from "./feedback-banner-model";
 

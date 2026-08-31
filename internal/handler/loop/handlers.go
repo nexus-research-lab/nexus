@@ -40,10 +40,6 @@ func (h *Handlers) HandleGetLoopDetail(writer http.ResponseWriter, request *http
 			Category: protocol.FailureCategoryNotFound,
 			Effect:   protocol.FailureEffectNotApplicable,
 			Detail:   "资源不存在",
-			Resolution: &protocol.FailureResolution{
-				Actor:  protocol.FailureRecoveryActorUser,
-				Action: "loop.return_to_directory",
-			},
 		})
 		return
 	}
