@@ -1,4 +1,4 @@
-// INPUT: 带 owner-scoped creation_request_id 的 Agent 创建意图、持久 claim 与 workspace 初始化阶段。
+// INPUT: 带 owner-scoped creation_request_id 的 Agent 创建意图、按落库规则归一化的业务标签、持久 claim 与 workspace 初始化阶段。
 // OUTPUT: 同 request/digest 的 exact Agent 回放、pending/failed/deleted 墓碑与可识别的提交事实。
 // POS: Agent 创建可恢复主链；旧无 request ID 创建仍由 crud.go 原路径处理。
 package agent
@@ -368,6 +368,7 @@ func agentCreationIntentDigest(request protocol.CreateRequest, normalizedName st
 		Avatar          string           `json:"avatar"`
 		Description     string           `json:"description"`
 		ProfileTemplate string           `json:"profile_template"`
+		BusinessTags    []string         `json:"business_tags"`
 		VibeTags        []string         `json:"vibe_tags"`
 	}{
 		Name:            normalizedName,
@@ -375,6 +376,7 @@ func agentCreationIntentDigest(request protocol.CreateRequest, normalizedName st
 		Avatar:          strings.TrimSpace(request.Avatar),
 		Description:     request.Description,
 		ProfileTemplate: request.ProfileTemplate,
+		BusinessTags:    normalizeStringList(request.BusinessTags),
 		VibeTags:        request.VibeTags,
 	}
 	encoded, err := json.Marshal(payload)

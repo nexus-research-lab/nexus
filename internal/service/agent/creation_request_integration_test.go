@@ -57,6 +57,56 @@ func TestAgentCreationRequestReplaysExactResultAndSurvivesDeletion(t *testing.T)
 	}
 }
 
+func TestAgentCreationRequestBusinessTagChangeConflicts(t *testing.T) {
+	cfg := newTestConfig(t)
+	migrateSQLite(t, cfg.DatabaseURL)
+	service, _ := newAgentTestService(t, cfg)
+	ctx := context.Background()
+	request := protocol.CreateRequest{
+		Name:              "Tagged Recovery Agent",
+		BusinessTags:      []string{"engineering"},
+		CreationRequestID: "web-create:tag-change",
+	}
+
+	if _, err := service.CreateAgent(ctx, request); err != nil {
+		t.Fatalf("first CreateAgent() error = %v", err)
+	}
+	conflict := request
+	conflict.BusinessTags = []string{"finance"}
+	if _, err := service.CreateAgent(ctx, conflict); !errors.Is(err, agentpkg.ErrAgentCreationRequestConflict) {
+		t.Fatalf("business tag replay error = %v, want conflict", err)
+	}
+}
+
+func TestAgentCreationRequestEquivalentBusinessTagsReplayExactResult(t *testing.T) {
+	cfg := newTestConfig(t)
+	migrateSQLite(t, cfg.DatabaseURL)
+	service, _ := newAgentTestService(t, cfg)
+	ctx := context.Background()
+	request := protocol.CreateRequest{
+		Name:              "Normalized Tag Agent",
+		BusinessTags:      []string{"Research"},
+		CreationRequestID: "web-create:normalized-tags",
+	}
+
+	created, err := service.CreateAgent(ctx, request)
+	if err != nil {
+		t.Fatalf("first CreateAgent() error = %v", err)
+	}
+	equivalent := request
+	equivalent.BusinessTags = []string{" Research ", "research", "", "RESEARCH"}
+	replayed, err := service.CreateAgent(ctx, equivalent)
+	if err != nil {
+		t.Fatalf("equivalent CreateAgent() error = %v", err)
+	}
+	if replayed.AgentID != created.AgentID {
+		t.Fatalf("replayed agent_id = %q, want %q", replayed.AgentID, created.AgentID)
+	}
+	if len(replayed.BusinessTags) != 1 || replayed.BusinessTags[0] != "Research" {
+		t.Fatalf("replayed business_tags = %#v, want normalized tag", replayed.BusinessTags)
+	}
+}
+
 func TestAgentCreationWorkspaceFailureBecomesTerminalWithoutAgent(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)

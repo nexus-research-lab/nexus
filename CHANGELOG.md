@@ -43,6 +43,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Repaired the shifted migration-number collision across Agent business tags,
+  Automation recovery, and Agent creation receipts, preserving existing data
+  while replaying the missing schema during upgrades.
 - Split first-time model-provider setup into independently recoverable save,
   connection-test, and default-selection stages. Lost responses now reconcile
   exact Provider keys, aggregate versions, non-secret configuration fingerprints,

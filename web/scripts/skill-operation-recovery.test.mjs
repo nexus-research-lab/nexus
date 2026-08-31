@@ -4,20 +4,9 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { createServer } from "vite";
+import { importLeafTypeScriptModule } from "./import-leaf-typescript-module.mjs";
 
 const webRoot = fileURLToPath(new URL("..", import.meta.url));
-const server = await createServer({
-  configFile: false,
-  logLevel: "silent",
-  resolve: { alias: { "@": path.join(webRoot, "src") } },
-  root: webRoot,
-  server: { middlewareMode: true },
-});
-
-test.after(async () => {
-  await server.close();
-});
 
 test("Skill recovery locks are exact to operation, Skill, and source", async () => {
   const { skillOperationIntentKey } = await recoveryModule();
@@ -153,7 +142,8 @@ function read(relativePath) {
 }
 
 function recoveryModule() {
-  return server.ssrLoadModule(
-    "/src/features/capability/skills/controller/skill-operation-recovery.ts",
+  return importLeafTypeScriptModule(
+    webRoot,
+    "src/features/capability/skills/controller/skill-operation-recovery.ts",
   );
 }
