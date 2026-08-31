@@ -4,20 +4,9 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { createServer } from "vite";
+import { importLeafTypeScriptModule } from "./import-leaf-typescript-module.mjs";
 
 const webRoot = fileURLToPath(new URL("..", import.meta.url));
-const server = await createServer({
-  configFile: false,
-  logLevel: "silent",
-  resolve: { alias: { "@": path.join(webRoot, "src") } },
-  root: webRoot,
-  server: { middlewareMode: true },
-});
-
-test.after(async () => {
-  await server.close();
-});
 
 test("Agent creation journal stores only exact request identity and status", async () => {
   const values = new Map();
@@ -38,8 +27,9 @@ test("Agent creation journal stores only exact request identity and status", asy
       },
     },
   });
-  const journal = await server.ssrLoadModule(
-    "/src/store/agent/agent-creation-journal.ts",
+  const journal = await importLeafTypeScriptModule(
+    webRoot,
+    "src/store/agent/agent-creation-journal.ts",
   );
 
   assert.equal(journal.writeAgentCreationJournal("owner:a", {
@@ -113,8 +103,8 @@ test("Agent create reconciles exact receipt before reusing the same request ID",
 
 test("Agent create feedback answers problem, impact, and next step in both languages", async () => {
   const [{ zhAgentMessages }, { enAgentMessages }] = await Promise.all([
-    server.ssrLoadModule("/src/shared/i18n/catalog/zh/agent.ts"),
-    server.ssrLoadModule("/src/shared/i18n/catalog/en/agent.ts"),
+    importLeafTypeScriptModule(webRoot, "src/shared/i18n/catalog/zh/agent.ts"),
+    importLeafTypeScriptModule(webRoot, "src/shared/i18n/catalog/en/agent.ts"),
   ]);
   for (const catalog of [zhAgentMessages, enAgentMessages]) {
     for (const effect of ["not_applied", "accepted", "committed", "unknown"]) {

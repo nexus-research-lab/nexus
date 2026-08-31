@@ -4,24 +4,14 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { createServer } from "vite";
+import { importLeafTypeScriptModule } from "./import-leaf-typescript-module.mjs";
 
 const webRoot = fileURLToPath(new URL("..", import.meta.url));
-const server = await createServer({
-  configFile: false,
-  logLevel: "silent",
-  resolve: { alias: { "@": path.join(webRoot, "src") } },
-  root: webRoot,
-  server: { middlewareMode: true },
-});
-
-test.after(async () => {
-  await server.close();
-});
 
 test("Agent delete recovery copy follows domain evidence", async () => {
-  const { getContactsPagePresentation } = await server.ssrLoadModule(
-    "/src/pages/contacts/contacts-page-model.ts",
+  const { getContactsPagePresentation } = await importLeafTypeScriptModule(
+    webRoot,
+    "src/pages/contacts/contacts-page-model.ts",
   );
   const present = (deleteFailure) => getContactsPagePresentation({
     contactCount: 1,
