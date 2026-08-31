@@ -24,9 +24,7 @@ func TestRoomConfigurationVersionsPersistAndAdvance(t *testing.T) {
 	}
 	defer func() { _ = db.Close() }()
 
-	if err = goose.SetDialect("sqlite3"); err != nil {
-		t.Fatalf("设置 goose 方言失败: %v", err)
-	}
+	ensureGooseSQLiteDialect(t)
 	if err = goose.Up(db, roomrepoMigrationDir(t)); err != nil {
 		t.Fatalf("执行 migration 失败: %v", err)
 	}

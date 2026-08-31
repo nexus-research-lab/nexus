@@ -288,9 +288,7 @@ func newQueueAdmissionTestRepository(t *testing.T) (*Repository, *sql.DB) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	if err = goose.SetDialect("sqlite3"); err != nil {
-		t.Fatal(err)
-	}
+	ensureGooseSQLiteDialect(t)
 	if err = goose.Up(db, "../../../db/migrations/sqlite"); err != nil {
 		t.Fatal(err)
 	}
