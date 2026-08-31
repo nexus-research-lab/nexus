@@ -1,6 +1,6 @@
 /**
  * INPUT: Tool use/result、运行状态、权限请求与本地化上下文。
- * OUTPUT: 区分 transport error、semantic rejection、superseded 与 success 的工具卡片视图模型。
+ * OUTPUT: 区分 transport error、semantic rejection、superseded 与 success 的工具执行行视图模型。
  * POS: DM/Room 共用 ToolBlock 的纯展示投影，不决定 Agent 的恢复路线。
  */
 import type { PermissionUpdate } from "@/types/conversation/interaction/permission";
@@ -15,6 +15,7 @@ import {
   getLocalizedToolTitle as resolveLocalizedToolTitle,
 } from "../../tool-activity";
 import { projectToolResultMutation } from "../../tool-result-semantic-model";
+import { resolveExecutionToolVisualKind } from "../../../execution/execution-tool-visual";
 import type {
   ToolBlockProps,
   ToolBlockStatus,
@@ -67,45 +68,37 @@ const BEHAVIOR_LABEL_KEY_MAP: Readonly<Record<string, TranslationKey>> = {
 
 const STATUS_META: Readonly<Record<
   ToolBlockStatus,
-  { badgeClassName: string; labelKey: TranslationKey; tone: ToolStatusTone }
+  { labelKey: TranslationKey; tone: ToolStatusTone }
 >> = {
   error: {
-    badgeClassName: "bg-[color:color-mix(in_srgb,var(--destructive)_10%,transparent)] text-(--destructive)",
     labelKey: "message.tool_status_error",
     tone: "error",
   },
   pending: {
-    badgeClassName: "bg-primary/10 text-primary",
     labelKey: "message.tool_status_pending",
     tone: "default",
   },
   running: {
-    badgeClassName: "bg-primary/10 text-primary",
     labelKey: "message.tool_status_running",
     tone: "running",
   },
   rejected: {
-    badgeClassName: "bg-[color:color-mix(in_srgb,var(--destructive)_10%,transparent)] text-(--destructive)",
     labelKey: "message.tool_status_rejected",
     tone: "error",
   },
   superseded: {
-    badgeClassName: "bg-(--surface-muted-background) text-(--text-muted)",
     labelKey: "message.tool_status_superseded",
     tone: "default",
   },
   stopped: {
-    badgeClassName: "bg-(--surface-muted-background) text-(--text-muted)",
     labelKey: "message.tool_status_stopped",
     tone: "default",
   },
   success: {
-    badgeClassName: "bg-[color:color-mix(in_srgb,var(--success)_10%,transparent)] text-(--success)",
     labelKey: "message.tool_status_success",
     tone: "success",
   },
   waiting_permission: {
-    badgeClassName: "border border-(--divider-subtle-color) bg-transparent text-(--text-muted)",
     labelKey: "message.tool_status_waiting_permission",
     tone: "waiting",
   },
@@ -163,20 +156,6 @@ const PERMISSION_VALUE_FORMATTERS: ReadonlyArray<PermissionValueFormatter> = [
   },
 ];
 
-const WAITING_DETAIL_BY_STATUS: Readonly<Record<
-  ToolBlockStatus,
-  (permission: PermissionProjection) => string | null
->> = {
-  error: () => null,
-  pending: () => null,
-  running: () => null,
-  rejected: () => null,
-  superseded: () => null,
-  stopped: () => null,
-  success: () => null,
-  waiting_permission: (permission) => permission.fieldSummary,
-};
-
 export function buildToolBlockViewModel({
   toolUse,
   toolResult,
@@ -214,7 +193,9 @@ export function buildToolBlockViewModel({
     toolUse.input,
     localization,
   );
-  const waitingDetail = WAITING_DETAIL_BY_STATUS[finalStatus](permission);
+  const waitingDetail = finalStatus === "waiting_permission"
+    ? permission.fieldSummary
+    : null;
   const terminalDetail = ["rejected", "superseded"].includes(finalStatus)
     ? resultSummary
     : null;
@@ -239,10 +220,10 @@ export function buildToolBlockViewModel({
     primaryInputDetail: permission.primaryInputDetail,
     readableSuggestions: permission.readableSuggestions,
     status: finalStatus,
-    statusBadgeClassName: statusMeta.badgeClassName,
     statusText: t(statusMeta.labelKey),
     statusTone: statusMeta.tone,
     toolTitle: getLocalizedToolTitle(toolUse.name, localization, toolUse.input),
+    toolVisualKind: resolveExecutionToolVisualKind(toolUse.name),
     waitingActionHint: formatWaitingActionHint(
       interactionDisabled,
       interactionDisabledReason,
@@ -256,19 +237,13 @@ function resolveFinalStatus(
   result: ToolResultContent | undefined,
   status: ToolBlockStatus,
 ): ToolBlockStatus {
-  const rules = [
-    { matches: Boolean(result?.is_error), value: "error" as const },
-    {
-      matches: projectToolResultMutation(result)?.outcome === "rejected",
-      value: "rejected" as const,
-    },
-    {
-      matches: projectToolResultMutation(result)?.outcome === "superseded",
-      value: "superseded" as const,
-    },
-    { matches: true, value: status },
-  ];
-  return rules.find((rule) => rule.matches)!.value;
+  if (result?.is_error) {
+    return "error";
+  }
+  const outcome = projectToolResultMutation(result)?.outcome;
+  return outcome === "rejected" || outcome === "superseded"
+    ? outcome
+    : status;
 }
 
 function formatPermissionValue(

@@ -1918,6 +1918,7 @@ async function createProviderSetupJournal(
     model: draft.modelID,
     outcome: "ready",
     ownerScope: normalizedOwnerScope,
+    preferencesBaselineVersion: null,
     presetKey: draft.presetKey,
     providerDisplayName: draft.displayName,
     providerKey: draft.providerKey,

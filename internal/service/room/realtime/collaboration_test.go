@@ -2,6 +2,7 @@ package realtime
 
 import (
 	"context"
+	"errors"
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
@@ -16,6 +17,64 @@ import (
 	"testing"
 	"time"
 )
+
+type systemOnlyRoomContextStore struct {
+	contextValue *protocol.ConversationContextAggregate
+	userCalls    int
+	systemCalls  int
+	startedCalls int
+	startedID    string
+}
+
+func (s *systemOnlyRoomContextStore) GetConversationContext(
+	context.Context,
+	string,
+) (*protocol.ConversationContextAggregate, error) {
+	s.userCalls++
+	return nil, errors.New("request-scoped lookup must not be used by startup recovery")
+}
+
+func (s *systemOnlyRoomContextStore) GetConversationContextForSystem(
+	context.Context,
+	string,
+) (*protocol.ConversationContextAggregate, error) {
+	s.systemCalls++
+	return s.contextValue, nil
+}
+
+func (*systemOnlyRoomContextStore) UpdateSessionRuntimeIdentity(
+	context.Context,
+	string,
+	string,
+	string,
+) error {
+	return nil
+}
+
+func (*systemOnlyRoomContextStore) TouchConversationActivity(
+	context.Context,
+	string,
+	time.Time,
+) error {
+	return nil
+}
+
+func (s *systemOnlyRoomContextStore) MarkConversationStarted(
+	_ context.Context,
+	conversationID string,
+	_ time.Time,
+) error {
+	s.startedCalls++
+	s.startedID = conversationID
+	return nil
+}
+
+func (*systemOnlyRoomContextStore) BuildRoomSkillPrompt(
+	context.Context,
+	[]string,
+) (string, error) {
+	return "", nil
+}
 
 func TestPublicHandoffReconcilerRestoresNonSystemOwnerForQueuedDelivery(t *testing.T) {
 	const (

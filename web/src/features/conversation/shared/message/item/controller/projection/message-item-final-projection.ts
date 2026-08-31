@@ -81,6 +81,7 @@ export function resolveMessageItemFinalProjection({
     roundId,
     userMessageId ?? null,
     visibleAssistantTurns,
+    assistantContentMode === "room_result",
   );
   const finalTailEntries = resolveFinalTailEntries(
     finalAssistantTurn,
@@ -89,21 +90,27 @@ export function resolveMessageItemFinalProjection({
   const generativeUIEntries = resolveGenerativeUIEntries(
     visibleOrderedAssistantEntries,
   );
-  const archivedProcessProjection = buildArchivedProcessProjection({
+  const finalSurfaceAssistantTurn = resolveFinalSurfaceAssistantTurn({
+    assistantContentMode,
     finalAssistantTurn,
+    finalTailEntries,
+    generativeUIEntries,
+  });
+  const archivedProcessProjection = buildArchivedProcessProjection({
+    finalAssistantTurn: finalSurfaceAssistantTurn,
     finalTailEntries,
     generativeUIEntries,
     streamingBlockIndexes,
     visibleOrderedAssistantEntries,
   });
   const fallbackFinalAssistantContent = resolveFallbackFinalAssistantContent(
-    finalAssistantTurn,
+    finalSurfaceAssistantTurn,
     finalTailEntries,
     generativeUIEntries,
   );
   const fallbackFinalAssistantStreamingIndexes =
     resolveFallbackFinalAssistantStreamingIndexes(
-      finalAssistantTurn,
+      finalSurfaceAssistantTurn,
       finalTailEntries,
       generativeUIEntries,
       streamingBlockIndexes,
@@ -121,7 +128,7 @@ export function resolveMessageItemFinalProjection({
   const finalAssistantContent = resolveFinalAssistantContent({
     assistantContentMode,
     fallbackFinalAssistantContent,
-    finalAssistantTurn,
+    finalAssistantTurn: finalSurfaceAssistantTurn,
     finalTailEntries,
     generativeUIContent: generativeUIEntries.map((entry) => entry.block),
     resultSummary,
@@ -134,7 +141,7 @@ export function resolveMessageItemFinalProjection({
   const finalAssistantText = resolveFinalAssistantText(finalAssistantContent);
   const finalAssistantMentions = resolveFinalAssistantMentions(
     assistantMessages,
-    finalAssistantTurn?.messageId ?? null,
+    finalSurfaceAssistantTurn?.messageId ?? null,
     countLeadingGenerativeUIEntries(generativeUIEntries),
   );
   const finalAssistantHandoffReply = resolveFinalAssistantHandoffReply(
@@ -151,6 +158,40 @@ export function resolveMessageItemFinalProjection({
     finalAssistantMentions,
     finalAssistantHandoffReply,
   };
+}
+
+function resolveFinalSurfaceAssistantTurn({
+  assistantContentMode,
+  finalAssistantTurn,
+  finalTailEntries,
+  generativeUIEntries,
+}: {
+  assistantContentMode: AssistantContentMode;
+  finalAssistantTurn: AssistantTurnEntry | null;
+  finalTailEntries: OrderedAssistantEntry[];
+  generativeUIEntries: OrderedAssistantEntry[];
+}): AssistantTurnEntry | null {
+  if (
+    assistantContentMode !== "dm_live"
+    || !finalAssistantTurn
+    || finalTailEntries.length > 0
+  ) {
+    return finalAssistantTurn;
+  }
+  const lastTextIndex = finalAssistantTurn.content.findLastIndex(
+    (block) => block.type === "text" && Boolean(block.text.trim()),
+  );
+  if (lastTextIndex < 0) {
+    return finalAssistantTurn;
+  }
+  const promotedBlocks = new Set(
+    generativeUIEntries.map((entry) => entry.block),
+  );
+  const processContinues = finalAssistantTurn.content
+    .slice(lastTextIndex + 1)
+    .some((block) => !promotedBlocks.has(block));
+  // 普通工具跟在正文后时，这段正文是过程边界，必须留在 direct 时间线。
+  return processContinues ? null : finalAssistantTurn;
 }
 
 function resolveFinalAssistantHandoffReply(
@@ -256,6 +297,7 @@ function resolveFinalAssistantTurn(
   roundId: string,
   userMessageId: string | null,
   visibleAssistantTurns: AssistantTurnEntry[],
+  preferText: boolean,
 ) {
   // 顶层 assistant 的 parent 指向本轮 user message（旧数据指向 round_id）；
   // 其他 parent（tool_use / slot msg）属于子执行，不能当最终回复。
@@ -263,17 +305,27 @@ function resolveFinalAssistantTurn(
     !parentId ||
     parentId === roundId ||
     (userMessageId != null && parentId === userMessageId);
+  let latestTopLevelTurn: AssistantTurnEntry | null = null;
   for (let index = assistantMessages.length - 1; index >= 0; index -= 1) {
     const message = assistantMessages[index] as AssistantMessage;
     if (isTopLevelParent(message.parent_id)) {
-      return (
-        visibleAssistantTurns.find(
-          (turn) => turn.messageId === message.message_id,
-        ) ?? null
-      );
+      const turn = visibleAssistantTurns.find(
+        (candidate) => candidate.messageId === message.message_id,
+      ) ?? null;
+      latestTopLevelTurn ??= turn;
+      if (!preferText || turn?.textContent.length) {
+        return turn;
+      }
     }
   }
-  return visibleAssistantTurns.at(-1) ?? null;
+  if (latestTopLevelTurn) {
+    return latestTopLevelTurn;
+  }
+  return preferText
+    ? visibleAssistantTurns.findLast((turn) => turn.textContent.length > 0)
+      ?? visibleAssistantTurns.at(-1)
+      ?? null
+    : visibleAssistantTurns.at(-1) ?? null;
 }
 
 function resolveFinalTailEntries(

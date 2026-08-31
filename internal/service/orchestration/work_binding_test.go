@@ -1210,11 +1210,13 @@ func TestRoomCoordinatorKeepsAuthorityWhileUnboundMemberStaysConversationOnly(t 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(rendered, `role="coordinator" lane="conversation"`) ||
-		!strings.Contains(rendered, `<coordination_transition available="true">`) ||
-		!strings.Contains(rendered, `<action>plan_execution</action>`) ||
-		strings.Contains(rendered, "<assigned_work>") {
-		t.Fatalf("unbound Room coordinator context = %s", rendered)
+	wantConversationCoordinator := `<nexus_round lane="conversation" role="coordinator" execution="background" />`
+	if rendered != wantConversationCoordinator {
+		t.Fatalf(
+			"unbound Room coordinator context = %q, want %q",
+			rendered,
+			wantConversationCoordinator,
+		)
 	}
 	explicitSnapshot, err := service.GetSnapshot(
 		context.Background(),
@@ -1281,9 +1283,13 @@ func TestRoomCoordinatorKeepsAuthorityWhileUnboundMemberStaysConversationOnly(t 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(rendered, `lane="conversation"`) ||
-		strings.Contains(rendered, "<assigned_work>") {
-		t.Fatalf("unbound Room member context = %s", rendered)
+	wantConversationMember := `<nexus_round lane="conversation" role="member" execution="background" />`
+	if rendered != wantConversationMember {
+		t.Fatalf(
+			"unbound Room member context = %q, want %q",
+			rendered,
+			wantConversationMember,
+		)
 	}
 }
 

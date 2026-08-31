@@ -1,5 +1,5 @@
-// INPUT: owner/session-scoped Runtime Graph、当前 actor identity 与已授权 Execution snapshot。
-// OUTPUT: 仅包含当前 Agent 可见的 active/recent/error/Artifact/control-return 观测事实。
+// INPUT: owner/session-scoped Runtime Graph、当前 actor identity 与已授权的 managed Execution snapshot。
+// OUTPUT: 只含当前 Agent 的 active/异常/Artifact/control-return，不回放成功工具历史。
 // POS: Runtime Graph 到 <nexus_execution_context> 的有界事实反馈层；不生成路线、重试或工具建议。
 package orchestration
 
@@ -21,27 +21,19 @@ func (s *Service) populateRuntimeGraphContext(
 	snapshot *protocol.ExecutionSnapshot,
 	options *ExecutionContextOptions,
 ) {
-	if options == nil {
+	if options == nil || snapshot == nil || strings.TrimSpace(snapshot.Execution.ID) == "" {
 		return
 	}
 	repository, ok := s.repository.(runtimeGraphRepository)
 	if !ok || repository == nil {
 		return
 	}
-	executionID := ""
-	executionRootRoundID := ""
-	relation := "latest_session_round"
-	if snapshot != nil && strings.TrimSpace(snapshot.Execution.ID) != "" {
-		executionID = strings.TrimSpace(snapshot.Execution.ID)
-		executionRootRoundID = strings.TrimSpace(snapshot.Execution.RootRoundID)
-		relation = "current_execution"
-	}
 	graph, err := repository.GetRuntimeGraph(
 		ctx,
 		strings.TrimSpace(actor.OwnerUserID),
 		strings.TrimSpace(actor.SessionKey),
-		executionID,
-		executionRootRoundID,
+		strings.TrimSpace(snapshot.Execution.ID),
+		strings.TrimSpace(snapshot.Execution.RootRoundID),
 	)
 	if err != nil {
 		options.RuntimeGraphUnavailable = true
@@ -51,7 +43,7 @@ func (s *Service) populateRuntimeGraphContext(
 		return
 	}
 	options.RuntimeGraph = &graph
-	options.RuntimeGraphRelation = relation
+	options.RuntimeGraphRelation = "current_execution"
 }
 
 func renderRuntimeGraphFacts(
@@ -76,6 +68,11 @@ func renderRuntimeGraphFacts(
 		if actorAgentID == "" || strings.TrimSpace(node.AgentID) != actorAgentID {
 			continue
 		}
+		// nexus.command 的结果已经由权威 context/outcome 投影，不能再递归带回模型。
+		if node.Kind == protocol.ExecutionRuntimeNodeTool &&
+			runtimeGraphIsCommandTransport(node) {
+			continue
+		}
 		visibleNodes = append(visibleNodes, node)
 		visibleNodeByID[node.ID] = node
 	}
@@ -93,6 +90,29 @@ func renderRuntimeGraphFacts(
 	if edgeTotal == 0 {
 		edgeTotal = len(graph.Edges)
 	}
+	active := make([]protocol.ExecutionRuntimeNodeRun, 0)
+	attention := make([]protocol.ExecutionRuntimeNodeRun, 0)
+	for _, node := range visibleNodes {
+		if node.Kind == protocol.ExecutionRuntimeNodeAgent {
+			continue
+		}
+		switch node.Status {
+		case protocol.ExecutionRuntimeNodeRunning:
+			active = append(active, node)
+		case protocol.ExecutionRuntimeNodeSucceeded:
+			continue
+		default:
+			attention = append(attention, node)
+		}
+	}
+	var facts strings.Builder
+	renderRuntimeFactNodes(&facts, "active_nodes", active)
+	renderRuntimeFactNodes(&facts, "attention_nodes", attention)
+	renderRuntimeFactArtifacts(&facts, visibleNodes)
+	renderRuntimeFactControlEdges(&facts, graph.Edges, visibleNodeByID)
+	if facts.Len() == 0 {
+		return
+	}
 	fmt.Fprintf(
 		output,
 		"\n  <runtime_facts available=\"true\" mode=\"observed_facts_only\" relation=\"%s\" graph_id=\"%s\" partial=\"%t\" node_total=\"%d\" edge_total=\"%d\" visible_node_total=\"%d\">",
@@ -103,23 +123,7 @@ func renderRuntimeGraphFacts(
 		edgeTotal,
 		len(visibleNodes),
 	)
-
-	active := make([]protocol.ExecutionRuntimeNodeRun, 0)
-	recent := make([]protocol.ExecutionRuntimeNodeRun, 0)
-	for _, node := range visibleNodes {
-		if node.Kind == protocol.ExecutionRuntimeNodeAgent {
-			continue
-		}
-		if node.Status == protocol.ExecutionRuntimeNodeRunning {
-			active = append(active, node)
-			continue
-		}
-		recent = append(recent, node)
-	}
-	renderRuntimeFactNodes(output, "active_nodes", active)
-	renderRuntimeFactNodes(output, "recent_nodes", recent)
-	renderRuntimeFactArtifacts(output, visibleNodes)
-	renderRuntimeFactControlEdges(output, graph.Edges, visibleNodeByID)
+	output.WriteString(facts.String())
 	output.WriteString("\n  </runtime_facts>")
 }
 

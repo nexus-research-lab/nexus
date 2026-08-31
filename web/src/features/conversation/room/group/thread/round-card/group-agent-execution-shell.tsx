@@ -116,6 +116,11 @@ function GroupAgentExecutionShellInner({
   const showThread = isActive
     || pendingPermissions.length > 0
     || hasRoomAgentExecutionDetails(messages);
+  const terminalLabel = status === "cancelled"
+    ? t("room.agent_status_stopped")
+    : status === "error"
+      ? t("room.agent_status_failed")
+      : null;
   const stopLabel = t(isStopping
     ? "room.agent_stopping"
     : "room.agent_stop");
@@ -139,13 +144,18 @@ function GroupAgentExecutionShellInner({
         agentMentionDirectory={agentMentionDirectory}
         animateEntry={false}
         assistantContentMode="room_result"
-        assistantHeaderAction={showThread || showStop ? (
+        assistantHeaderAction={showThread || showStop || terminalLabel ? (
           <div
             aria-label={t("room.agent_actions")}
             className="inline-flex h-7 items-center rounded-lg bg-(--surface-control-field-background) p-0.5"
             data-room-agent-execution-actions
             role="group"
           >
+            {terminalLabel ? (
+              <span className="px-1.5 text-xs text-(--text-muted)">
+                {terminalLabel}
+              </span>
+            ) : null}
             {showStop ? (
               <button
                 aria-label={stopActionLabel}
@@ -160,7 +170,7 @@ function GroupAgentExecutionShellInner({
                 <span className="hidden sm:inline">{stopLabel}</span>
               </button>
             ) : null}
-            {showStop && showThread ? (
+            {(showStop || terminalLabel) && showThread ? (
               <span
                 aria-hidden="true"
                 className="mx-0.5 h-3.5 w-px bg-(--divider-subtle-color)"

@@ -3,7 +3,7 @@
 - `sidebar-directory.ts` 只提供共享 Home 目录；聊天和联系人入口都不得在侧栏订阅 Agent runtime。
 - `../room-activity-resource.ts` 在每个 Room ID 内按精确 Conversation/Session source 隔离瞬时执行集合，再为聊天行取并集；DM 与群组不分叉，另一个空会话不得清掉仍运行的会话，待确认优先于工作中。
 - `sidebar-conversation-model.ts` 只投影真实 Room/DM 目录项；主智能体 DM 固定置顶且不可删除，其他条目仍按最近活动排序，活动时间按当前界面语言格式化；未读状态由 `sidebar-unread-model.ts` 统一聚合。
-- 聊天行摘要只复用 bootstrap 已有的会话标题，目录首屏不得为预览读取完整消息历史；目录首次失败必须与真实空目录分开展示并提供重试，后续刷新失败继续展示最后成功目录并使用非阻塞提示。
+- 聊天行摘要显示 bootstrap 提供的最新 assistant 回复预览，不能用会话标题冒充消息；后端只读取最近两个 round，单个历史损坏不得阻断目录。目录首次失败必须与真实空目录分开展示并提供重试，后续刷新失败继续展示最后成功目录并使用非阻塞提示。
 - `use-chat-sidebar-controller.ts` 负责聊天列表导航、Room 创建和删除事务，视图不得直接调用 API 或 Store 命令。
 - Room 删除确认必须以同步锁阻止重复提交；只有 FailureCore 或 exact 目录对账明确证明 `not_applied` 才能再次 DELETE。传输中断、旧接口失败或提交证据不明一律保留确认面，先通过 Launcher 权威目录核对 exact Room；核对失败只能再次读取，不能重放删除。界面只说明结果、已有数据影响和下一步，不展示内部 effect、code、请求 ID 或清理阶段。
 - `chat-sidebar-panel.tsx` 与 `contacts-sidebar-panel.tsx` 是两个独立入口，不再通过聚合文件互相耦合。

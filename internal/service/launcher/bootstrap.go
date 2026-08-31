@@ -1,6 +1,6 @@
-// INPUT: Agent/Room 持久摘要与只读 Session metadata 目录。
+// INPUT: Agent/Room 持久摘要、只读 Session metadata 目录与有界最新消息页。
 // OUTPUT: 保持 wire 兼容的 Launcher 首屏 agents、rooms 与 conversations 摘要。
-// POS: Launcher 首屏投影；禁止读取 transcript、overlay 或按会话计算回复预览。
+// POS: Launcher 首屏投影；回复预览只读最近两个 round，单个历史失败不得阻断目录。
 package launcher
 
 import (
@@ -9,11 +9,16 @@ import (
 	"strings"
 	"time"
 
+	messageutil "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
+	sessionsvc "github.com/nexus-research-lab/nexus/internal/service/session"
 )
 
-const slowBootstrapLogThreshold = 500 * time.Millisecond
+const (
+	latestReplyPreviewRuneLimit = 160
+	slowBootstrapLogThreshold   = 500 * time.Millisecond
+)
 
 // Bootstrap 幂等保证主智能体默认聊天存在，并返回 Launcher 首屏最小必要数据。
 func (s *Service) Bootstrap(ctx context.Context) (BootstrapResponse, error) {
@@ -84,6 +89,9 @@ func (s *Service) Bootstrap(ctx context.Context) (BootstrapResponse, error) {
 		return BootstrapResponse{}, listErr
 	}
 	conversationItems := buildBootstrapConversations(sessions, roomTypeByID)
+	previewsStartedAt := time.Now()
+	s.attachLatestReplyPreviews(ctx, conversationItems)
+	previewsDuration := time.Since(previewsStartedAt)
 	duration := time.Since(startedAt)
 	if duration >= slowBootstrapLogThreshold {
 		slog.InfoContext(
@@ -94,6 +102,7 @@ func (s *Service) Bootstrap(ctx context.Context) (BootstrapResponse, error) {
 			"ensure_dm_ms", ensureDirectRoomDuration.Milliseconds(),
 			"rooms_ms", roomsDuration.Milliseconds(),
 			"sessions_ms", sessionsDuration.Milliseconds(),
+			"previews_ms", previewsDuration.Milliseconds(),
 			"agent_count", len(agents),
 			"room_count", len(roomItems),
 			"conversation_count", len(conversationItems),
@@ -105,6 +114,118 @@ func (s *Service) Bootstrap(ctx context.Context) (BootstrapResponse, error) {
 		Rooms:         roomItems,
 		Conversations: conversationItems,
 	}, nil
+}
+
+func (s *Service) attachLatestReplyPreviews(
+	ctx context.Context,
+	items []BootstrapConversation,
+) {
+	seenPreviewKeys := make(map[string]struct{}, len(items))
+	for index := range items {
+		if ctx.Err() != nil {
+			return
+		}
+		if isExternalLauncherConversation(items[index]) {
+			continue
+		}
+		sessionKey := previewSessionKey(items[index])
+		roomID := strings.TrimSpace(items[index].RoomID)
+		previewKey := roomID
+		if previewKey == "" {
+			previewKey = strings.TrimSpace(sessionKey)
+		}
+		if previewKey == "" {
+			continue
+		}
+		if _, exists := seenPreviewKeys[previewKey]; exists {
+			continue
+		}
+		seenPreviewKeys[previewKey] = struct{}{}
+
+		page, err := s.session.GetSessionMessagesPage(
+			ctx,
+			sessionKey,
+			sessionsvc.MessagePageRequest{Limit: 2},
+		)
+		if err != nil {
+			slog.WarnContext(
+				ctx,
+				"Launcher 最新回复预览读取失败",
+				"room_id", roomID,
+				"session_key", sessionKey,
+				"err", err,
+			)
+			continue
+		}
+		if page != nil {
+			items[index].LastReplyPreview = latestReplyPreview(page.Items)
+		}
+	}
+}
+
+func isExternalLauncherConversation(item BootstrapConversation) bool {
+	switch protocol.NormalizeStoredChannelType(item.ChannelType) {
+	case protocol.SessionChannelDiscord,
+		protocol.SessionChannelTelegram,
+		protocol.SessionChannelDingTalk,
+		protocol.SessionChannelWeChat,
+		protocol.SessionChannelWeixinPersonal,
+		protocol.SessionChannelFeishu:
+		return true
+	default:
+		return false
+	}
+}
+
+// previewSessionKey 返回摘要读取入口：群聊使用共享历史，DM 使用成员历史。
+func previewSessionKey(item BootstrapConversation) string {
+	conversationID := strings.TrimSpace(item.ConversationID)
+	if item.RoomType == protocol.RoomTypeDM || conversationID == "" {
+		return item.SessionKey
+	}
+	return protocol.BuildRoomSharedSessionKey(conversationID)
+}
+
+func latestReplyPreview(messages []protocol.Message) string {
+	for index := len(messages) - 1; index >= 0; index-- {
+		item := messages[index]
+		if protocol.MessageRole(item) != "assistant" {
+			continue
+		}
+		resultSummary, _ := item["result_summary"].(map[string]any)
+		if replySummaryString(resultSummary["subtype"]) == "interrupted" {
+			continue
+		}
+
+		text := messageutil.ExtractAssistantDisplayText(item)
+		if text == "" {
+			text = replySummaryString(item["content"])
+		}
+		if text == "" {
+			text = replySummaryString(resultSummary["result"])
+		}
+		if preview := compactReplyPreview(text); preview != "" {
+			return preview
+		}
+	}
+	return ""
+}
+
+func compactReplyPreview(value string) string {
+	normalized := strings.Join(strings.Fields(value), " ")
+	if normalized == "" {
+		return ""
+	}
+	runes := []rune(normalized)
+	if len(runes) <= latestReplyPreviewRuneLimit {
+		return normalized
+	}
+	return string(runes[:latestReplyPreviewRuneLimit-1]) + "…"
+}
+
+func replySummaryString(value any) string {
+	text, _ := value.(string)
+	return strings.TrimSpace(text)
 }
 
 func buildBootstrapRoomMembers(

@@ -8,6 +8,7 @@ create 需要 `name`、`instruction`、`schedule`。常用可选决策：
 
 - `context_mode=current|isolated`；默认 isolated，只有任务确实需要沿用当前会话上下文才选择 current。
 - `deliver_result` 控制是否回到当前可信会话；有当前会话时通常保持投递。
+- 用户要求把结果发到同一 Agent 的另一个外部私聊时，先 inspect `delivery_targets`。可用 `delivery_channel` 过滤，其中个人微信使用 `weixin-personal`，企业微信机器人使用 `wechat`；按返回的 label 选择目标，把其 `session_key` 原样作为 create/update 的 `delivery_session_key`。不要从联系人名称、账号或平台 ID 自行拼装 SessionKey；零结果时说明尚无可用会话，多结果且无法确认联系人时请用户明确选择。
 - `permission_mode` 只能是 `default|plan|acceptEdits|bypassPermissions|dontAsk`。省略时复制创建时 Session/Agent 的有效权限和工具 allow/deny；只有用户明确要求并理解风险时才选择更宽模式。
 - `overlap_policy=skip|allow`；默认 skip。只有运行互不干扰且用户接受重叠时才 allow。
 - `expires_at` 使用 RFC3339；`enabled` 默认 true。

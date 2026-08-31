@@ -19,7 +19,7 @@ control response 与 nxs 的同形能力仍可供 bridge 的其他宿主使用�
 | 层 | 责任 | 不负责 |
 | --- | --- | --- |
 | nxs / Claude Code | 解析收到的 `/name args` 普通用户文本；解析并展开各自的 Skill Slash | 维护 Nexus Composer 目录；识别或执行 Nexus host 指令 |
-| `nexus-agent-sdk-bridge` | 统一普通文本发送和单轮隐藏上下文清理；保留通用初始化能力读取 | 合并或同步 Nexus Composer 目录；发明 Slash RPC |
+| `nexus-agent-sdk-bridge` | 统一普通文本发送和待发送内部上下文缓冲清理；保留通用初始化能力读取 | 合并或同步 Nexus Composer 目录；发明 Slash RPC |
 | Nexus `runtime.Manager` | 管理业务 session/runtime 连接与 round 生命周期 | 持有 Slash 目录或为补全请求启动子进程 |
 | Nexus `service/slashcommand` | 持有当前 Nexus 版本的 nxs/Claude 静态清单与 `/visualize`、`/workgraph` 固定产品提示 | 读取 runtime 私有 metadata；保存命名工作图；绑定 session |
 | Nexus `service/workgraphworkflow` | 维护只读内置 WorkGraph 模板；从 exact 完成态 managed Execution 生成/复用 durable Draft；统一 UI 与普通对话的查询、版本化编辑、选择和确认保存；在 runtime 投递时展开动态 Slash | 让模型伪造 owner/session/source；把内置模板写进 owner 数据；通过 UI HTTP 直接持久化命名图；保存 Tool、Assignment、Attempt、Submission、Review、Acceptance 或旧运行身份；在抽取失败时回退保存原始语义 |

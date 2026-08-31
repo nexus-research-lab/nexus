@@ -162,6 +162,8 @@ type CreateRoomDirectedMessageRequest struct {
 type CreateRoomPublicMessageRequest struct {
 	// SourceAgentID 只能由受控运行时注入，不能从 JSON body 写入。
 	SourceAgentID string `json:"-"`
+	// SourceAgentRoundID 由受控运行时注入，用于把工具广播归并到当前 Agent 执行。
+	SourceAgentRoundID string `json:"-"`
 	// RootRoundID 由受控运行时注入，用于保证主动广播属于当前 slot 轮次。
 	RootRoundID string `json:"-"`
 	// GoalCollaborationBinding 由受控 runtime 注入；只用于 durable handoff 归因。

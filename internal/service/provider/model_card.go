@@ -14,18 +14,51 @@ type remoteModel struct {
 	MaxOutputTokens *int
 }
 
-func defaultModelCard(modelID string) (ModelCapabilities, string, *int, *int) {
-	return ModelCapabilities{}, "chat", contextWindowOrKnown(modelID, nil), maxOutputTokensOrKnown(modelID, nil)
+func defaultModelCard(modelID string, providerKind string) (ModelCapabilities, string, *int, *int) {
+	category := "chat"
+	if normalizeProviderKind(providerKind) == ProviderKindImageGeneration {
+		category = "image"
+		return modelCapabilitiesWithDefaults(modelID, ModelCapabilities{}), category, nil, nil
+	}
+	return modelCapabilitiesWithDefaults(modelID, ModelCapabilities{}), category,
+		contextWindowOrDefault(modelID, nil), maxOutputTokensOrDefault(modelID, nil)
 }
 
-func (model remoteModel) modelCard() (ModelCapabilities, string, *int, *int) {
+func (model remoteModel) modelCard(providerKind string) (ModelCapabilities, string, *int, *int) {
 	category := strings.TrimSpace(model.Category)
 	if category == "" {
-		category = "chat"
+		_, category, _, _ = defaultModelCard(model.ID, providerKind)
 	}
-	contextWindow := contextWindowOrKnown(model.ID, model.ContextWindow)
-	maxOutputTokens := maxOutputTokensOrKnown(model.ID, model.MaxOutputTokens)
-	return model.Capabilities, category, contextWindow, maxOutputTokens
+	contextWindow := model.ContextWindow
+	maxOutputTokens := model.MaxOutputTokens
+	if normalizeProviderKind(providerKind) == ProviderKindLLM && category == "chat" {
+		contextWindow = contextWindowOrDefault(model.ID, contextWindow)
+		maxOutputTokens = maxOutputTokensOrDefault(model.ID, maxOutputTokens)
+	}
+	return modelCapabilitiesWithDefaults(model.ID, model.Capabilities), category, contextWindow, maxOutputTokens
+}
+
+func modelCapabilitiesWithDefaults(modelID string, capabilities ModelCapabilities) ModelCapabilities {
+	result := ModelCapabilities{
+		Vision:    knownVisionCapability(modelID),
+		Reasoning: knownReasoningCapability(modelID),
+	}
+	if capabilities.Vision != nil {
+		result.Vision = capabilities.Vision
+	}
+	if capabilities.ImageOutput != nil {
+		result.ImageOutput = capabilities.ImageOutput
+	}
+	if capabilities.ToolCalling != nil {
+		result.ToolCalling = capabilities.ToolCalling
+	}
+	if capabilities.Reasoning != nil {
+		result.Reasoning = capabilities.Reasoning
+	}
+	if capabilities.Embedding != nil {
+		result.Embedding = capabilities.Embedding
+	}
+	return result
 }
 
 func remoteModelFromCard(card map[string]any) remoteModel {
@@ -123,7 +156,7 @@ func modelCategoryFromCard(card map[string]any, capabilities ModelCapabilities) 
 	if capabilities.ImageOutput != nil && *capabilities.ImageOutput {
 		return "image"
 	}
-	return "chat"
+	return ""
 }
 
 func normalizeModelCategory(value string) string {

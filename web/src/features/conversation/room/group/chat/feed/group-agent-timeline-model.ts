@@ -210,13 +210,41 @@ function buildRootTimelineNodes({
       nodeId: buildGroupAgentTimelineNodeId(rootRoundId, entry.entry_id),
       pendingPermissions: entry.pendingPermissions,
       pendingSlots: entry.pending_slot ? [entry.pending_slot] : [],
-      roomAgentExecutionStates: roomAgentExecutionStates.filter((state) => (
-        buildSlotKey(state.agent_id, state.agent_round_id)
-          === buildEntrySlotKey(entry)
-      )),
+      roomAgentExecutionStates: resolveEntryExecutionStates(
+        entry,
+        roomAgentExecutionStates,
+        rootRoundId,
+      ),
       rootRoundId,
     })));
   return restoreMissingVisibleUserMessages(rootRoundId, messages, nodes);
+}
+
+function resolveEntryExecutionStates(
+  entry: GroupRoundAgentCardModel,
+  states: RoomAgentExecutionState[],
+  rootRoundId: string,
+): RoomAgentExecutionState[] {
+  const matched = states.filter((state) => (
+    buildSlotKey(state.agent_id, state.agent_round_id)
+      === buildEntrySlotKey(entry)
+  ));
+  if (matched.length > 0 || entry.status !== "cancelled") {
+    return matched;
+  }
+  const agentRoundId = entry.agent_round_id?.trim();
+  if (!agentRoundId) {
+    return [];
+  }
+  return [{
+    agent_id: entry.agent_id,
+    agent_round_id: agentRoundId,
+    display_order: entry.display_order,
+    first_seen_at: entry.assistant_messages[0]?.timestamp ?? entry.timestamp,
+    phase: "terminal",
+    round_id: entry.assistant_messages.at(-1)?.round_id ?? rootRoundId,
+    status: "cancelled",
+  }];
 }
 
 /**

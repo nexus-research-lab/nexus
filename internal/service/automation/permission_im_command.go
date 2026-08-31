@@ -258,7 +258,7 @@ func (s *Service) validatePermissionIMPairing(
 	if s.deliveryGrants == nil {
 		return errors.New("automation IM delivery grant resolver is not configured")
 	}
-	return s.deliveryGrants.ValidateAutomationDeliveryGrant(
+	return s.deliveryGrants.ValidateExternalSessionGrant(
 		ctx,
 		ingress.OwnerUserID,
 		job.AgentID,

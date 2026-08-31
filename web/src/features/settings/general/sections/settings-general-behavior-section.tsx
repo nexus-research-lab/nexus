@@ -6,11 +6,13 @@
 "use client";
 
 import {
+  Brain,
   Bug,
   HeartPulse,
   Image,
   MessageSquareText,
   MonitorCog,
+  Moon,
   RadioTower,
   ScanEye,
   Sparkles,
@@ -49,6 +51,8 @@ import type {
 
 interface SettingsGeneralBehaviorSectionProps {
   agentSdkDiagnosticsEnabled: boolean;
+  autoMemoryEnabled: boolean;
+  autoDreamEnabled: boolean;
   chatDefaultDeliveryPolicy: AgentConversationDefaultDeliveryPolicy;
   emotionEnabled: boolean;
   echoDisabled: boolean;
@@ -68,6 +72,8 @@ interface SettingsGeneralBehaviorSectionProps {
   defaultModelSavingRole: DefaultModelPreferenceRole | null;
   defaultModelValue: string;
   onAgentSdkDiagnosticsChange: (checked: boolean) => void;
+  onAutoMemoryEnabledChange: (checked: boolean) => void;
+  onAutoDreamEnabledChange: (checked: boolean) => void;
   onEmotionEnabledChange: (checked: boolean) => void;
   onEchoEnabledChange: (checked: boolean) => void;
   onDefaultDeliveryPolicyChange: (
@@ -88,6 +94,8 @@ interface SettingsGeneralBehaviorSectionProps {
 
 export function SettingsGeneralBehaviorSection({
   agentSdkDiagnosticsEnabled,
+  autoMemoryEnabled,
+  autoDreamEnabled,
   chatDefaultDeliveryPolicy,
   emotionEnabled,
   echoDisabled,
@@ -107,6 +115,8 @@ export function SettingsGeneralBehaviorSection({
   defaultModelSavingRole,
   defaultModelValue,
   onAgentSdkDiagnosticsChange,
+  onAutoMemoryEnabledChange,
+  onAutoDreamEnabledChange,
   onEmotionEnabledChange,
   onEchoEnabledChange,
   onDefaultDeliveryPolicyChange,
@@ -170,6 +180,66 @@ export function SettingsGeneralBehaviorSection({
               checked={agentSdkDiagnosticsEnabled}
               disabled={preferencesLoading || preferencesSaving}
               onChange={onAgentSdkDiagnosticsChange}
+              size="sm"
+            />
+          </div>
+        </div>
+
+        <div className="border-t border-(--divider-subtle-color)" />
+
+        <div className={SETTINGS_ROW_CLASS_NAME}>
+          <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
+            <div className={SETTINGS_ICON_CLASS_NAME}>
+              <Brain className="h-3.5 w-3.5" />
+            </div>
+            <div className="min-w-0">
+              <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
+                {t("settings.general.auto_memory_title")}
+              </h3>
+              <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
+                {t("settings.general.auto_memory_description")}
+              </p>
+            </div>
+          </div>
+          <div className="flex min-w-0 items-center justify-between gap-3 md:justify-end">
+            <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
+              {t("settings.general.auto_memory_label")}
+            </span>
+            <GlassSwitch
+              aria-label={t("settings.general.auto_memory_title")}
+              checked={autoMemoryEnabled}
+              disabled={preferencesLoading || preferencesSaving}
+              onChange={onAutoMemoryEnabledChange}
+              size="sm"
+            />
+          </div>
+        </div>
+
+        <div className="border-t border-(--divider-subtle-color)" />
+
+        <div className={SETTINGS_ROW_CLASS_NAME}>
+          <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
+            <div className={SETTINGS_ICON_CLASS_NAME}>
+              <Moon className="h-3.5 w-3.5" />
+            </div>
+            <div className="min-w-0">
+              <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
+                {t("settings.general.auto_dream_title")}
+              </h3>
+              <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
+                {t("settings.general.auto_dream_description")}
+              </p>
+            </div>
+          </div>
+          <div className="flex min-w-0 items-center justify-between gap-3 md:justify-end">
+            <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
+              {t("settings.general.auto_dream_label")}
+            </span>
+            <GlassSwitch
+              aria-label={t("settings.general.auto_dream_title")}
+              checked={autoDreamEnabled}
+              disabled={preferencesLoading || preferencesSaving}
+              onChange={onAutoDreamEnabledChange}
               size="sm"
             />
           </div>

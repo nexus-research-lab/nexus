@@ -312,6 +312,8 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 			"take_over_work",
 			"WorkBinding",
 			"self Assignment applied",
+			"Room conversational round",
+			"`action=inspect`（`get_execution`）",
 		},
 		filepath.Join("execution-orchestrator", "references", "recovery-and-alignment.md"): {
 			"block_work",
@@ -319,6 +321,7 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 			"audit_execution_alignment",
 			"promote_execution_to_goal",
 			"Goal + WorkGraph 收口",
+			"Room conversational round",
 		},
 		filepath.Join("execution-orchestrator", "references", "workgraph-distillation.md"): {
 			"distill_workgraph",

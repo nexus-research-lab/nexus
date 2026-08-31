@@ -24,6 +24,7 @@ import (
 const (
 	destinationContact     = "contact"
 	destinationRoom        = "room"
+	destinationExternalDM  = "external_session"
 	destinationCurrentRoom = "current_room"
 	visibilityPrivate      = "private"
 	visibilityPublic       = "public"
@@ -68,8 +69,8 @@ func BuildTools(
 func listTargetsTool(svc *communicationsvc.Service, actor communicationsvc.Actor) sdktool.Tool {
 	return sdktool.Tool{
 		Name:        "list_targets",
-		Description: "列出当前 Agent 可联系的好友与群。返回稳定 ID；发送目标不明确时先调用。",
-		SearchHint:  "Nexus 通讯目标 联系人 好友 群 contacts rooms list targets",
+		Description: "列出当前 Agent 可联系的好友、群与已配对外部私聊。返回稳定 ID；发送目标不明确时先调用。",
+		SearchHint:  "Nexus 通讯目标 联系人 好友 群 微信 外部私聊 contacts rooms list targets",
 		AlwaysLoad:  true,
 		InputSchema: objectSchema(map[string]any{}, nil),
 		Annotations: &sdktool.ToolAnnotations{ReadOnly: true},
@@ -91,15 +92,15 @@ func sendMessageTool(
 	room RoomService,
 	sctx RuntimeContext,
 ) sdktool.Tool {
-	description := "给通讯录联系人或群发消息。contact 进入好友私聊，room 发布到目标群。"
+	description := "给通讯录联系人、群或已配对外部私聊发消息。contact 进入好友私聊，room 发布到目标群。"
 	if sctx.CurrentRoomAvailable {
 		description = "发送消息。current_room 使用当前 Room：private 发给指定成员，public 只用于私域或工具流程额外广播；" +
-			"contact 和 room 用于跨会话通讯录目标。普通当前 Room 公区回复直接使用 final reply。"
+			"contact、room 和 external_session 用于跨会话通讯录目标。普通当前 Room 公区回复直接使用 final reply。"
 	}
 	return sdktool.Tool{
 		Name:        "send_message",
 		Description: description,
-		SearchHint:  "Nexus 发消息 联系人 群聊 Room 私信 公开 广播 send message",
+		SearchHint:  "Nexus 发消息 联系人 群聊 Room 微信 外部私信 公开 广播 send message",
 		AlwaysLoad:  true,
 		InputSchema: sendMessageSchema(sctx.CurrentRoomAvailable),
 		ContextHandler: func(
@@ -139,13 +140,20 @@ func sendMessage(
 			return nil, errors.New("当前 Room 必须使用 destination=current_room")
 		}
 		return sendToAddressBook(ctx, svc, sctx.Actor, communicationsvc.TargetTypeRoom, args)
+	case destinationExternalDM:
+		if err := allowOnly(args, "destination", "target_id", "content"); err != nil {
+			return nil, err
+		}
+		return sendToAddressBook(
+			ctx, svc, sctx.Actor, communicationsvc.TargetTypeExternalSession, args,
+		)
 	case destinationCurrentRoom:
 		if !sctx.CurrentRoomAvailable {
 			return nil, errors.New("current_room 只支持 Room runtime")
 		}
 		return sendToCurrentRoom(ctx, room, sctx, args, callContext)
 	default:
-		return nil, errors.New("destination 只支持 contact、room 或 current_room")
+		return nil, errors.New("destination 只支持 contact、room、external_session 或 current_room")
 	}
 }
 
@@ -257,10 +265,11 @@ func sendPublicRoomMessage(
 		sctx.Actor.RoomID,
 		sctx.Actor.ConversationID,
 		protocol.CreateRoomPublicMessageRequest{
-			SourceAgentID: sctx.Actor.AgentID,
-			RootRoundID:   sctx.Actor.RoundID,
-			Content:       stringArg(args, "content"),
-			CorrelationID: stringArg(args, "correlation_id"),
+			SourceAgentID:      sctx.Actor.AgentID,
+			SourceAgentRoundID: strings.TrimSpace(sctx.CurrentAgentRoundID),
+			RootRoundID:        sctx.Actor.RoundID,
+			Content:            stringArg(args, "content"),
+			CorrelationID:      stringArg(args, "correlation_id"),
 			GoalCollaborationBinding: currentGoalCollaborationBinding(
 				sctx.Actor,
 			),
@@ -390,8 +399,8 @@ func objectSchema(properties map[string]any, required []string) map[string]any {
 }
 
 func sendMessageSchema(currentRoomAvailable bool) map[string]any {
-	destinations := []string{destinationContact, destinationRoom}
-	destinationDescription := "contact=好友私聊；room=目标群公区"
+	destinations := []string{destinationContact, destinationRoom, destinationExternalDM}
+	destinationDescription := "contact=好友私聊；room=目标群公区；external_session=已配对外部私聊"
 	if currentRoomAvailable {
 		destinations = append([]string{destinationCurrentRoom}, destinations...)
 		destinationDescription += "；current_room=当前 Room"
@@ -402,7 +411,7 @@ func sendMessageSchema(currentRoomAvailable bool) map[string]any {
 			"description": destinationDescription,
 		},
 		"target_id": map[string]any{
-			"type": "string", "description": "contact 的 agent_id 或 room 的 room_id",
+			"type": "string", "description": "contact 的 agent_id、room 的 room_id，或 external_session 的 session_key",
 		},
 		"conversation_id": map[string]any{
 			"type": "string", "description": "仅跨 Room 指定 conversation；当前 Room 由宿主固定",
@@ -412,6 +421,7 @@ func sendMessageSchema(currentRoomAvailable bool) map[string]any {
 	alternatives := []any{
 		messageSchemaAlternative(destinationContact, []string{"destination", "target_id", "content"}),
 		messageSchemaAlternative(destinationRoom, []string{"destination", "target_id", "content"}),
+		messageSchemaAlternative(destinationExternalDM, []string{"destination", "target_id", "content"}),
 	}
 	if currentRoomAvailable {
 		properties["visibility"] = map[string]any{

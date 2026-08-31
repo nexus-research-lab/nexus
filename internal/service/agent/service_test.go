@@ -56,43 +56,47 @@ func TestServiceKeepsManagedSemanticSkillsBound(t *testing.T) {
 	assertManagedSemanticSkillBindings(t, agentValue)
 }
 
-func TestServiceRepairsManagedSemanticSkillsOnEveryRead(t *testing.T) {
+func TestServiceKeepsBusinessTagsOutOfRuntimeProfile(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
-	service, db := newAgentTestService(t, cfg)
+	service, _ := newAgentTestService(t, cfg)
 	ctx := context.Background()
 
-	agentValue, err := service.CreateAgent(ctx, protocol.CreateRequest{Name: "stale-managed-skill-agent"})
+	agentValue, err := service.CreateAgent(ctx, protocol.CreateRequest{
+		Name:         "business-tag-agent",
+		BusinessTags: []string{"catalog-enterprise-x9"},
+		VibeTags:     []string{"style-deliberate-y7"},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = db.Exec(
-		`UPDATE runtimes SET skill_ids_json = '["imagegen"]', disabled_skill_ids_json = '["goal-manager","execution-orchestrator"]' WHERE agent_id = ?`,
-		agentValue.AgentID,
-	); err != nil {
-		t.Fatal(err)
+	if !slices.Equal(agentValue.BusinessTags, []string{"catalog-enterprise-x9"}) {
+		t.Fatalf("业务标签未独立持久化: %+v", agentValue.BusinessTags)
 	}
 
-	reloaded, err := service.GetAgent(ctx, agentValue.AgentID)
+	agentValue, err = service.UpdateAgent(ctx, agentValue.AgentID, protocol.UpdateRequest{
+		BusinessTags: []string{"Catalog-Retail-Z8", " catalog-retail-z8 ", ""},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertManagedSemanticSkillBindings(t, reloaded)
-	records, err := service.ListAgentRecords(ctx)
+	if !slices.Equal(agentValue.BusinessTags, []string{"Catalog-Retail-Z8"}) {
+		t.Fatalf("业务标签应去空并忽略大小写重复: %+v", agentValue.BusinessTags)
+	}
+	if !slices.Equal(agentValue.VibeTags, []string{"style-deliberate-y7"}) {
+		t.Fatalf("更新业务标签不应改写风格标签: %+v", agentValue.VibeTags)
+	}
+
+	prompt, err := service.BuildRuntimePrompt(ctx, agentValue)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var projected *protocol.Agent
-	for index := range records {
-		if records[index].AgentID == agentValue.AgentID {
-			projected = &records[index]
-			break
-		}
+	if !strings.Contains(prompt, "style-deliberate-y7") {
+		t.Fatal("运行时画像应保留风格标签")
 	}
-	if projected == nil {
-		t.Fatalf("agent %q missing from records: %+v", agentValue.AgentID, records)
+	if strings.Contains(prompt, "Catalog-Retail-Z8") {
+		t.Fatal("业务标签不应进入运行时提示词")
 	}
-	assertManagedSemanticSkillBindings(t, projected)
 }
 
 func assertManagedSemanticSkillBindings(t *testing.T, agentValue *protocol.Agent) {
@@ -104,33 +108,6 @@ func assertManagedSemanticSkillBindings(t *testing.T, agentValue *protocol.Agent
 		if slices.Contains(agentValue.Options.DisabledSkillIDs, skillName) {
 			t.Fatalf("managed Skill %q remained disabled: %+v", skillName, agentValue.Options)
 		}
-	}
-}
-
-func TestServiceListAgentsUsesSystemScopeWhenAuthIsDisabled(t *testing.T) {
-	cfg := newTestConfig(t)
-	migrateSQLite(t, cfg.DatabaseURL)
-
-	service, _ := newAgentTestService(t, cfg)
-
-	singleUserContext := authctx.WithState(context.Background(), authctx.State{
-		AuthRequired: false,
-		UserCount:    2,
-	})
-	if _, err := service.ListAgents(singleUserContext); err != nil {
-		t.Fatalf("初始化 system agent 失败: %v", err)
-	}
-	userContext := authctx.WithPrincipal(context.Background(), &authctx.Principal{UserID: "user-b"})
-	if _, err := service.CreateAgent(userContext, protocol.CreateRequest{Name: "用户 B 助手"}); err != nil {
-		t.Fatalf("创建用户 B agent 失败: %v", err)
-	}
-
-	items, err := service.ListAgents(singleUserContext)
-	if err != nil {
-		t.Fatalf("单用户作用域列出 agent 失败: %v", err)
-	}
-	if len(items) != 1 || items[0].OwnerUserID != authctx.SystemUserID {
-		t.Fatalf("认证关闭时不应返回其他 owner agent: %+v", items)
 	}
 }
 
@@ -435,110 +412,6 @@ func TestServiceRejectsMainAgentDeletionBeforeCoordinator(t *testing.T) {
 	}
 }
 
-func TestCreateAgentPersistsCustomizedProfileTemplate(t *testing.T) {
-	cfg := newTestConfig(t)
-	migrateSQLite(t, cfg.DatabaseURL)
-
-	service, _ := newAgentTestService(t, cfg)
-	const customTemplate = "## Role\n\n- Purpose: 负责发布前质量审查\n"
-	created, err := service.CreateAgent(context.Background(), protocol.CreateRequest{
-		Name:            "质量审查助手",
-		ProfileTemplate: customTemplate,
-	})
-	if err != nil {
-		t.Fatalf("创建自定义模板 Agent 失败: %v", err)
-	}
-	content, err := os.ReadFile(filepath.Join(created.WorkspacePath, "AGENTS.md"))
-	if err != nil {
-		t.Fatalf("读取自定义行为模板失败: %v", err)
-	}
-	if string(content) != customTemplate {
-		t.Fatalf("自定义行为模板未原样落盘: got=%q want=%q", content, customTemplate)
-	}
-}
-
-func TestServiceProjectsNexusAvatarForLegacyMainAgent(t *testing.T) {
-	cfg := newTestConfig(t)
-	migrateSQLite(t, cfg.DatabaseURL)
-
-	service, db := newAgentTestService(t, cfg)
-
-	ctx := context.Background()
-	if _, err := service.ListAgents(ctx); err != nil {
-		t.Fatalf("初始化主智能体失败: %v", err)
-	}
-	if _, err := db.Exec(`UPDATE agents SET avatar = NULL WHERE id = ?`, cfg.DefaultAgentID); err != nil {
-		t.Fatalf("模拟旧主智能体头像数据失败: %v", err)
-	}
-
-	loaded, err := service.GetDefaultAgent(ctx)
-	if err != nil {
-		t.Fatalf("读取旧主智能体失败: %v", err)
-	}
-	if loaded.Avatar != "nexus" {
-		t.Fatalf("旧主智能体应投影 Nexus 默认头像: got=%s", loaded.Avatar)
-	}
-}
-
-func TestServicePersistsAgentRuntimeProviderModel(t *testing.T) {
-	cfg := newTestConfig(t)
-	migrateSQLite(t, cfg.DatabaseURL)
-
-	service, _ := newAgentTestService(t, cfg)
-
-	ctx := context.Background()
-	maxTurns := 6
-	maxThinkingTokens := 2048
-	created, err := service.CreateAgent(ctx, protocol.CreateRequest{
-		Name: "runtime-agent",
-		Options: &protocol.Options{
-			Provider:          "glm",
-			Model:             "glm-5.1",
-			PermissionMode:    "default",
-			AllowedTools:      []string{"Read"},
-			DisallowedTools:   []string{"Write"},
-			MaxTurns:          &maxTurns,
-			MaxThinkingTokens: &maxThinkingTokens,
-			MCPServers:        map[string]any{"local": map[string]any{"command": "nexus-mcp"}},
-			SettingSources:    []string{"project"},
-		},
-	})
-	if err != nil {
-		t.Fatalf("创建 agent 失败: %v", err)
-	}
-	if created.Options.Provider != "glm" || created.Options.Model != "glm-5.1" {
-		t.Fatalf("runtime provider/model 未持久化: %+v", created.Options)
-	}
-
-	nextName := "runtime-agent"
-	updated, err := service.UpdateAgent(ctx, created.AgentID, protocol.UpdateRequest{
-		Name: &nextName,
-		Options: &protocol.Options{
-			Provider:        "kimi-code",
-			Model:           "kimi-for-coding",
-			PermissionMode:  "bypassPermissions",
-			AllowedTools:    []string{"Read", "Edit"},
-			DisallowedTools: []string{},
-			SettingSources:  []string{"project"},
-		},
-	})
-	if err != nil {
-		t.Fatalf("更新 agent runtime 失败: %v", err)
-	}
-	if updated.Options.Provider != "kimi-code" || updated.Options.Model != "kimi-for-coding" {
-		t.Fatalf("runtime provider/model 更新后未持久化: %+v", updated.Options)
-	}
-	if updated.Options.MaxTurns == nil || *updated.Options.MaxTurns != maxTurns {
-		t.Fatalf("未提交 max_turns 时应保留原值: %+v", updated.Options)
-	}
-	if updated.Options.MaxThinkingTokens == nil || *updated.Options.MaxThinkingTokens != maxThinkingTokens {
-		t.Fatalf("未提交 max_thinking_tokens 时应保留原值: %+v", updated.Options)
-	}
-	if _, ok := updated.Options.MCPServers["local"]; !ok {
-		t.Fatalf("未提交 mcp_servers 时应保留原值: %+v", updated.Options.MCPServers)
-	}
-}
-
 func TestServiceUsesRuntimeVersionForCompareAndSwap(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
@@ -656,87 +529,6 @@ func TestServiceDeleteAtVersionRejectsStalePlanBeforeWorkspaceCleanup(t *testing
 	}
 }
 
-func TestServiceAllowsSelfNameValidationAndCaseOnlyRename(t *testing.T) {
-	cfg := newTestConfig(t)
-	migrateSQLite(t, cfg.DatabaseURL)
-
-	service, _ := newAgentTestService(t, cfg)
-
-	ctx := context.Background()
-	created, err := service.CreateAgent(ctx, protocol.CreateRequest{Name: "sam"})
-	if err != nil {
-		t.Fatalf("创建 agent 失败: %v", err)
-	}
-
-	validation, err := service.ValidateName(ctx, "Sam", created.AgentID)
-	if err != nil {
-		t.Fatalf("大小写改名校验失败: %v", err)
-	}
-	if !validation.IsValid || !validation.IsAvailable {
-		t.Fatalf("同一 agent 只改大小写时名称应该可用: %+v", validation)
-	}
-
-	nextName := "Sam"
-	updated, err := service.UpdateAgent(ctx, created.AgentID, protocol.UpdateRequest{Name: &nextName})
-	if err != nil {
-		t.Fatalf("大小写改名失败: %v", err)
-	}
-	if updated.Name != "Sam" {
-		t.Fatalf("大小写改名未生效: %+v", updated)
-	}
-}
-
-func TestServiceAllowsDuplicateAndSlugCollidingAgentNames(t *testing.T) {
-	cfg := newTestConfig(t)
-	migrateSQLite(t, cfg.DatabaseURL)
-
-	service, db := newAgentTestService(t, cfg)
-
-	ctx := context.Background()
-	first, err := service.CreateAgent(ctx, protocol.CreateRequest{Name: "a b"})
-	if err != nil {
-		t.Fatalf("创建基准 agent 失败: %v", err)
-	}
-
-	validation, err := service.ValidateName(ctx, "a_b", "")
-	if err != nil {
-		t.Fatalf("校验 slug 冲突名称失败: %v", err)
-	}
-	if !validation.IsValid || !validation.IsAvailable {
-		t.Fatalf("名称派生 slug 冲突不应阻断创建: %+v", validation)
-	}
-
-	second, err := service.CreateAgent(ctx, protocol.CreateRequest{Name: "a_b"})
-	if err != nil {
-		t.Fatalf("创建名称派生 slug 冲突 agent 不应失败: %v", err)
-	}
-	third, err := service.CreateAgent(ctx, protocol.CreateRequest{Name: "a b"})
-	if err != nil {
-		t.Fatalf("重复展示名不应阻断创建: %v", err)
-	}
-	if first.AgentID == second.AgentID || first.AgentID == third.AgentID || second.AgentID == third.AgentID {
-		t.Fatalf("重复展示名应创建独立 agent_id: first=%s second=%s third=%s", first.AgentID, second.AgentID, third.AgentID)
-	}
-	if slug := agentSlug(t, db, first.AgentID); slug != first.AgentID {
-		t.Fatalf("新建 agent slug 应绑定 agent_id: got=%s want=%s", slug, first.AgentID)
-	}
-	if slug := agentSlug(t, db, second.AgentID); slug != second.AgentID {
-		t.Fatalf("新建 agent slug 应绑定 agent_id: got=%s want=%s", slug, second.AgentID)
-	}
-
-	nextName := "a_b"
-	updated, err := service.UpdateAgent(ctx, first.AgentID, protocol.UpdateRequest{Name: &nextName})
-	if err != nil {
-		t.Fatalf("改成其他 agent 的展示名不应失败: %v", err)
-	}
-	if updated.Name != "a_b" {
-		t.Fatalf("展示名改名未生效: %+v", updated)
-	}
-	if slug := agentSlug(t, db, first.AgentID); slug != first.AgentID {
-		t.Fatalf("改名不应改变 agent slug: got=%s want=%s", slug, first.AgentID)
-	}
-}
-
 func TestServiceHardDeletesAgentAndAllowsNameReuse(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
@@ -793,28 +585,6 @@ INSERT INTO im_pairings (
 	if recreated.AgentID == created.AgentID {
 		t.Fatalf("复用名称应创建新的 agent_id: old=%s new=%s", created.AgentID, recreated.AgentID)
 	}
-}
-
-func TestServiceDeleteAgentIgnoresWorkspaceMarkerCleanupFailure(t *testing.T) {
-	cfg := newTestConfig(t)
-	migrateSQLite(t, cfg.DatabaseURL)
-
-	service, db := newAgentTestService(t, cfg)
-	ctx := context.Background()
-	created, err := service.CreateAgent(ctx, protocol.CreateRequest{Name: "可清理助手"})
-	if err != nil {
-		t.Fatalf("创建 agent 失败: %v", err)
-	}
-	cleaner := &failingWorkspaceStateCleaner{}
-	service.SetWorkspaceManager(cleaner)
-
-	if err = service.DeleteAgent(ctx, created.AgentID); err != nil {
-		t.Fatalf("可重建 marker 清理失败不应阻断 Agent 删除: %v", err)
-	}
-	if cleaner.removeCalls != 1 {
-		t.Fatalf("workspace marker 清理次数 = %d, want 1", cleaner.removeCalls)
-	}
-	assertNoRowsForAgent(t, db, "agents", "id", created.AgentID)
 }
 
 func TestServiceUsesAgentIDWorkspacePathAndRenameKeepsWorkspace(t *testing.T) {

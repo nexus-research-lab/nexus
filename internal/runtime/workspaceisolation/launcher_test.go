@@ -35,8 +35,9 @@ func TestApplyOffStillInstallsRawNexusctlDeny(t *testing.T) {
 	}
 	if output.SpecificOutput == nil ||
 		output.SpecificOutput.PermissionDecision != sdkpermission.BehaviorDeny ||
-		output.Continue == nil ||
-		*output.Continue {
+		output.SpecificOutput.PermissionDecisionReason != ordinaryAgentNexusctlDenial ||
+		output.Continue != nil ||
+		output.StopReason != "" {
 		t.Fatalf("off mode raw nexusctl decision = %#v", output)
 	}
 }

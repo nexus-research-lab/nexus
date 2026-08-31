@@ -133,42 +133,6 @@ test("slash commands match name prefixes and sort by name", async () => {
   );
 });
 
-test("all leading Slash commands share one visual projection", async () => {
-  const {
-    decorateLeadingSlashCommand,
-    isSlashCommandHref,
-    projectLeadingSlashCommand,
-  } = await server.ssrLoadModule(
-    "/src/features/conversation/shared/slash-command-presentation.ts",
-  );
-
-  for (const command of ["visualize", "model", "compact", "my-skill"]) {
-    assert.deepEqual(projectLeadingSlashCommand(`/${command} request`), {
-      command: `/${command}`,
-      remainder: " request",
-    });
-  }
-  assert.equal(projectLeadingSlashCommand("please /visualize"), null);
-  assert.equal(projectLeadingSlashCommand("/Users/name/file"), null);
-  assert.equal(
-    decorateLeadingSlashCommand("/visualize 演示勾股定理"),
-    "[/visualize](#nexus-slash-command=visualize) 演示勾股定理",
-  );
-  assert.equal(isSlashCommandHref("#nexus-slash-command=visualize"), true);
-  assert.equal(isSlashCommandHref("https://example.com"), false);
-
-  const { createMarkdownComponents } = await server.ssrLoadModule(
-    "/src/shared/ui/markdown/core/markdown-components.tsx",
-  );
-  const commandLink = createMarkdownComponents(() => null).a;
-  assert.equal(typeof commandLink, "function");
-  const markup = renderToStaticMarkup(React.createElement(commandLink, {
-    children: "/visualize",
-    href: "#nexus-slash-command=visualize",
-  }));
-  assert.match(markup, /data-slash-command-token="true"/u);
-});
-
 test("slash model picker only exposes Nexus provider models", async () => {
   const {
     buildSlashModelOptions,

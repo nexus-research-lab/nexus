@@ -1483,10 +1483,9 @@ func TestServiceRuntimeContextExposesUnmanagedBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(contextValue, `<execution state="unmanaged" />`) ||
-		!strings.Contains(contextValue, `role="coordinator"`) ||
-		!strings.Contains(contextValue, `<action>plan_execution</action>`) {
-		t.Fatalf("runtime context = %s", contextValue)
+	want := `<nexus_round lane="coordination" role="coordinator" />`
+	if contextValue != want {
+		t.Fatalf("runtime context = %q, want %q", contextValue, want)
 	}
 }
 

@@ -1,7 +1,9 @@
 import {
   createProviderConfigApi,
   createSubscriptionProviderConfigApi,
+  deleteProviderModelApi,
   deleteProviderConfigApi,
+  deleteSubscriptionProviderModelApi,
   deleteSubscriptionProviderConfigApi,
   fetchProviderModelsApi,
   fetchSubscriptionProviderModelsApi,
@@ -17,6 +19,7 @@ import {
   updateSubscriptionProviderModelApi,
 } from "@/lib/api/settings/provider-api";
 import type {
+  DeleteProviderModelResponse,
   FetchProviderModelsResponse,
   ProviderConfigRecord,
   ProviderModelRecord,
@@ -26,6 +29,10 @@ import type {
 
 export interface ProviderModelApi {
   fetchModels: (provider: string) => Promise<FetchProviderModelsResponse>;
+  deleteModel: (
+    provider: string,
+    modelId: string,
+  ) => Promise<DeleteProviderModelResponse>;
   updateModel: (
     provider: string,
     modelId: string,
@@ -53,6 +60,7 @@ const PROVIDER_SETTINGS_APIS: Record<
     updateConfig: updateProviderConfigApi,
     deleteConfig: deleteProviderConfigApi,
     model: {
+      deleteModel: deleteProviderModelApi,
       fetchModels: fetchProviderModelsApi,
       updateModel: updateProviderModelApi,
       testProvider: testProviderConfigApi,
@@ -65,6 +73,7 @@ const PROVIDER_SETTINGS_APIS: Record<
     updateConfig: updateSubscriptionProviderConfigApi,
     deleteConfig: deleteSubscriptionProviderConfigApi,
     model: {
+      deleteModel: deleteSubscriptionProviderModelApi,
       fetchModels: fetchSubscriptionProviderModelsApi,
       updateModel: updateSubscriptionProviderModelApi,
       testProvider: testSubscriptionProviderConfigApi,

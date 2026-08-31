@@ -30,7 +30,7 @@ func TestRenderExecutionContextMarksAbnormalHistoricalProjectionTruncation(t *te
 	}
 }
 
-func TestRenderExecutionContextScopesObservedRuntimeFactsWithoutChoosingNextAction(t *testing.T) {
+func TestRenderExecutionContextProjectsOnlyActionableRuntimeFacts(t *testing.T) {
 	now := time.Date(2026, 8, 5, 11, 0, 0, 0, time.UTC)
 	failed := protocol.ExecutionRuntimeNodeRun{
 		ID: "runtime-tool-failed", GraphID: "execution:execution-context",
@@ -58,9 +58,14 @@ func TestRenderExecutionContextScopesObservedRuntimeFactsWithoutChoosingNextActi
 	otherAgent.SubjectID = "tool-private"
 	otherAgent.AgentID = "lead"
 	otherAgent.ErrorSummary = "OTHER AGENT PRIVATE INTERMEDIATE"
+	commandNode := retried
+	commandNode.ID = "runtime-command-inspect"
+	commandNode.SubjectID = "tool-command-inspect"
+	commandNode.ResultSummary = "RECURSIVE INSPECT CONTEXT"
+	commandNode.Metadata = map[string]any{runtimeGraphCommandTransportMetadataKey: true}
 	runtimeGraph := protocol.ExecutionRuntimeGraph{
 		GraphID: "execution:execution-context",
-		Nodes:   []protocol.ExecutionRuntimeNodeRun{failed, retried, otherAgent},
+		Nodes:   []protocol.ExecutionRuntimeNodeRun{failed, retried, otherAgent, commandNode},
 		Edges: []protocol.ExecutionRuntimeEdgeRun{{
 			ID: "runtime-retry", Kind: protocol.ExecutionRuntimeEdgeRetry,
 			SourceNodeID: failed.ID, TargetNodeID: retried.ID, CreatedAt: now.Add(time.Second),
@@ -81,8 +86,8 @@ func TestRenderExecutionContextScopesObservedRuntimeFactsWithoutChoosingNextActi
 	)
 	for _, expected := range []string{
 		`<runtime_facts available="true" mode="observed_facts_only" relation="current_execution" graph_id="execution:execution-context" partial="true" node_total="40" edge_total="45" visible_node_total="2">`,
+		`<attention_nodes>`,
 		`code="page_unavailable">The requested page was unavailable</error>`,
-		`<result_summary>The page was retrieved</result_summary>`,
 		`tool_use_id="tool-search-retried" path="reports/source.md"`,
 		`kind="retry" source_node_id="runtime-tool-failed"`,
 	} {
@@ -92,6 +97,9 @@ func TestRenderExecutionContextScopesObservedRuntimeFactsWithoutChoosingNextActi
 	}
 	for _, forbidden := range []string{
 		"OTHER AGENT PRIVATE INTERMEDIATE",
+		"RECURSIVE INSPECT CONTEXT",
+		"The page was retrieved",
+		"successful_nodes",
 		"next_action",
 		"retry this tool",
 	} {
@@ -276,71 +284,85 @@ func TestRenderExecutionContextReturnsEmptyWithoutManagedExecution(t *testing.T)
 	}
 }
 
-func TestRenderUnmanagedExecutionContextMakesRoleAndActionsExplicit(t *testing.T) {
-	coordinator := RenderUnmanagedExecutionContext(ExecutionContextOptions{
-		ActorAgentID: "lead",
-		Role:         ExecutionActorCoordinator,
-		ScopeKind:    protocol.ExecutionScopeRoom,
-	})
-	for _, expected := range []string{
-		`<execution state="unmanaged" />`,
-		`<actor agent_id="lead" role="coordinator" />`,
-		`<action>plan_execution</action>`,
-		`<action>Agent</action>`,
-		`<action>assign_work</action>`,
-	} {
-		if !strings.Contains(coordinator, expected) {
-			t.Fatalf("unmanaged coordinator context missing %q:\n%s", expected, coordinator)
-		}
+func TestRenderUnmanagedExecutionContextUsesCompactRoundMarker(t *testing.T) {
+	tests := []struct {
+		name    string
+		options ExecutionContextOptions
+		want    string
+	}{
+		{
+			name: "coordinator",
+			options: ExecutionContextOptions{
+				Role: ExecutionActorCoordinator,
+			},
+			want: `<nexus_round lane="coordination" role="coordinator" />`,
+		},
+		{
+			name: "Room member",
+			options: ExecutionContextOptions{
+				ScopeKind: protocol.ExecutionScopeRoom,
+			},
+			want: `<nexus_round lane="conversation" role="member" />`,
+		},
+		{
+			name: "Plan Mode",
+			options: ExecutionContextOptions{
+				Role:     ExecutionActorCoordinator,
+				PlanMode: true,
+			},
+			want: `<nexus_round lane="coordination" role="coordinator" plan_only="true" />`,
+		},
 	}
-	allowed := coordinator[strings.Index(coordinator, "<allowed_actions>"):strings.Index(coordinator, "</allowed_actions>")]
-	if strings.Contains(allowed, "<action>assign_work</action>") {
-		t.Fatalf("unmanaged coordinator may not assign before a Plan exists:\n%s", coordinator)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := RenderUnmanagedExecutionContext(test.options); got != test.want {
+				t.Fatalf("round context = %q, want %q", got, test.want)
+			}
+		})
 	}
+}
 
-	member := RenderUnmanagedExecutionContext(ExecutionContextOptions{
-		ActorAgentID: "worker",
-		ScopeKind:    protocol.ExecutionScopeRoom,
-	})
-	memberAllowed := member[strings.Index(member, "<allowed_actions>"):strings.Index(member, "</allowed_actions>")]
-	if !strings.Contains(member, `role="member"`) ||
-		!strings.Contains(member, `<action>create_shared_execution</action>`) ||
-		!strings.Contains(memberAllowed, `<action>Agent</action>`) ||
-		!strings.Contains(memberAllowed, "<action>get_execution</action>") ||
-		strings.Contains(memberAllowed, "<action>plan_execution</action>") {
-		t.Fatalf("unmanaged Room member context = %s", member)
+func TestStablePromptDefinesCompactRoundPolicy(t *testing.T) {
+	prompt := StablePrompt()
+	for _, expected := range []string{
+		"`<nexus_round>` is authoritative for an ordinary round",
+		"An absent `execution` means none; `execution=\"background\"` is visible but grants no authority",
+		"an unbound member or subagent may only inspect",
+		"first use execution inspect (`get_execution`) to enter coordination before any mutation",
+		"Explicit locators never replace this transition",
+		"`plan_only=\"true\"` permits inspection and Plan preparation, never execution",
+	} {
+		if !strings.Contains(prompt, expected) {
+			t.Fatalf("stable prompt missing %q:\n%s", expected, prompt)
+		}
 	}
 }
 
 func TestRenderConversationExecutionContextKeepsBackgroundWorkGraphUnbound(t *testing.T) {
 	snapshot := executionContextTestSnapshot()
-	rendered := RenderConversationExecutionContext(
-		&snapshot,
-		ExecutionContextOptions{
-			ActorAgentID: "observer",
-			ScopeKind:    protocol.ExecutionScopeRoom,
+	tests := []struct {
+		name    string
+		options ExecutionContextOptions
+		want    string
+	}{
+		{
+			name: "member",
+			want: `<nexus_round lane="conversation" role="member" execution="background" />`,
 		},
-	)
-	for _, expected := range []string{
-		`lane="conversation"`,
-		`relation="background"`,
-		`no trusted WorkBinding or ReviewBinding`,
-		`<action>submit_work</action>`,
-		`<action>Agent</action>`,
-	} {
-		if !strings.Contains(rendered, expected) {
-			t.Fatalf("conversation context missing %q:\n%s", expected, rendered)
-		}
+		{
+			name: "coordinator",
+			options: ExecutionContextOptions{
+				Role: ExecutionActorCoordinator,
+			},
+			want: `<nexus_round lane="conversation" role="coordinator" execution="background" />`,
+		},
 	}
-	allowedStart := strings.Index(rendered, "<allowed_actions>")
-	allowedEnd := strings.Index(rendered, "</allowed_actions>")
-	allowed := rendered[allowedStart:allowedEnd]
-	if !strings.Contains(allowed, "<action>Agent</action>") ||
-		!strings.Contains(allowed, "<action>get_execution</action>") ||
-		strings.Contains(allowed, "<action>submit_work</action>") ||
-		strings.Contains(rendered, "<assigned_work>") ||
-		strings.Contains(rendered, "<active_assignments>") {
-		t.Fatalf("conversation round received WorkGraph authority:\n%s", rendered)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := RenderConversationExecutionContext(&snapshot, test.options); got != test.want {
+				t.Fatalf("round context = %q, want %q", got, test.want)
+			}
+		})
 	}
 }
 
@@ -375,50 +397,6 @@ func TestRenderExecutionContextMakesRoomObservationFullAndReadOnly(t *testing.T)
 		strings.Contains(rendered, "<assigned_work>") ||
 		strings.Contains(rendered, "<active_assignments>") {
 		t.Fatalf("Room observation leaked mutation authority:\n%s", rendered)
-	}
-}
-
-func TestRenderConversationExecutionContextGivesOnlyCoordinatorBootstrapActions(t *testing.T) {
-	snapshot := executionContextTestSnapshot()
-	rendered := RenderConversationExecutionContext(
-		&snapshot,
-		ExecutionContextOptions{
-			ActorAgentID: "lead",
-			Role:         ExecutionActorCoordinator,
-			ScopeKind:    protocol.ExecutionScopeRoom,
-		},
-	)
-	for _, expected := range []string{
-		`role="coordinator" lane="conversation"`,
-		`<coordination_transition available="true">`,
-		`<action>get_execution</action>`,
-		`<action>plan_execution</action>`,
-		`participant count and raw mentions are never sufficient`,
-	} {
-		if !strings.Contains(rendered, expected) {
-			t.Fatalf("conversation coordinator context missing %q:\n%s", expected, rendered)
-		}
-	}
-	allowed := rendered[strings.Index(
-		rendered,
-		"<allowed_actions>",
-	):strings.Index(rendered, "</allowed_actions>")]
-	for _, forbidden := range []string{
-		"assign_work",
-		"submit_work",
-		"review_work",
-		"promote_execution_to_goal",
-	} {
-		if strings.Contains(allowed, "<action>"+forbidden+"</action>") {
-			t.Fatalf("conversation coordinator received %q:\n%s", forbidden, rendered)
-		}
-	}
-	if !strings.Contains(allowed, "<action>Agent</action>") {
-		t.Fatalf("conversation coordinator lost native subagent affordance:\n%s", rendered)
-	}
-	if strings.Contains(rendered, "<assigned_work>") ||
-		strings.Contains(rendered, "<active_assignments>") {
-		t.Fatalf("conversation coordinator received WorkGraph projection:\n%s", rendered)
 	}
 }
 
@@ -603,10 +581,7 @@ func TestRenderExecutionContextPublishesOnlyCurrentlyCallableOrchestrationAction
 		member,
 		"<allowed_actions>",
 	):strings.Index(member, "</allowed_actions>")]
-	if !strings.Contains(
-		member,
-		"<action_scope>Use only allowed_actions; load execution-orchestrator and follow the exact round-scoped execution contract for the selected action.</action_scope>",
-	) ||
+	if strings.Contains(member, "<action_scope>") ||
 		strings.Contains(memberAllowed, "<action>submit_work</action>") ||
 		strings.Contains(memberAllowed, "<action>block_work</action>") {
 		t.Fatalf("unassigned member actions are not exact:\n%s", member)

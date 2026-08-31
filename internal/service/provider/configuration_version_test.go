@@ -261,6 +261,10 @@ func TestProviderFetchModelsAdvancesVersionExactlyOnce(t *testing.T) {
 	if result.Count != 1 || len(result.Models) != 1 || result.Models[0].ModelID != "remote-model" {
 		t.Fatalf("fetch result = %+v", result)
 	}
+	if result.Models[0].ContextWindow == nil || *result.Models[0].ContextWindow != defaultModelContextWindow ||
+		result.Models[0].MaxOutputTokens == nil || *result.Models[0].MaxOutputTokens != defaultModelMaxOutputTokens {
+		t.Fatalf("远端模型缺少卡片信息时未应用默认值: %+v", result.Models[0])
+	}
 	current, err := service.Get(ctx, created.Provider)
 	if err != nil {
 		t.Fatal(err)

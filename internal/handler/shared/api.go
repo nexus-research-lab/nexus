@@ -216,6 +216,8 @@ func IsClientMessageText(message string) bool {
 		strings.Contains(message, "不支持") ||
 		strings.Contains(message, "不能作为") ||
 		strings.Contains(message, "不能超过") ||
+		(strings.Contains(message, "默认模型仍使用 Provider") &&
+			strings.Contains(message, "请先在设置中切换默认模型")) ||
 		strings.Contains(message, " is required") ||
 		strings.Contains(message, " must be ") ||
 		strings.Contains(message, "正在运行中")

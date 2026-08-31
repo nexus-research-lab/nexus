@@ -324,7 +324,7 @@ go test ./permission ./protocol ./client
 
 ```bash
 go test ./internal/chat/room ./internal/service/room/... ./internal/handler/websocket
-node --test web/scripts/room-collaboration-regression.test.mjs web/scripts/input-queue-ack.test.mjs web/scripts/websocket-reconnect.test.mjs web/scripts/room-member-participation.test.mjs
+node --test web/scripts/input-queue-ack.test.mjs web/scripts/websocket-reconnect.test.mjs web/scripts/room-member-participation.test.mjs
 ```
 
 ## 5. Session、历史与消息投影

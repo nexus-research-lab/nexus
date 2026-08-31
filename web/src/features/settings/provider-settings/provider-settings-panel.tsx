@@ -141,6 +141,9 @@ export function ProviderSettingsPanel({
                   onModelOptions={modelActions.setModelOptionsFromRecord}
                   onModelQueryChange={modelActions.setModelQuery}
                   onOpenAddModel={modelActions.handleOpenAddModel}
+                  onRequestDeleteModel={
+                    modelActions.handleRequestDeleteModel
+                  }
                   onToggleModel={modelActions.handleToggleModel}
                   pendingAction={state.pendingAction}
                   selectedCanManage={state.selectedCanManage}
@@ -234,6 +237,20 @@ export function ProviderSettingsPanel({
         selectedCanManage={state.selectedCanManage}
         setManualModelEnabled={modelActions.setManualModelEnabled}
         setManualModelId={modelActions.setManualModelId}
+      />
+
+      <ConfirmDialog
+        confirmText={t("common.delete")}
+        isOpen={modelActions.deleteModelTarget !== null}
+        message={t("settings.providers.delete_model_confirm_message", {
+          model: modelActions.deleteModelTarget?.display_name
+            || modelActions.deleteModelTarget?.model_id
+            || "",
+        })}
+        onCancel={modelActions.closeDeleteModelDialog}
+        onConfirm={modelActions.handleDeleteModel}
+        title={t("settings.providers.delete_model")}
+        variant="danger"
       />
 
       <ProviderModelOptionsDialog

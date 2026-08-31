@@ -291,7 +291,7 @@ func (r *Repository) updateExactTaskLastDeliveryStatus(
 	runID string,
 	deliveryStatus string,
 ) error {
-	// Migration 00121 backfills this identity from the latest authoritative
+	// Migration 00122 backfills this identity from the latest authoritative
 	// succeeded/failed/cancelled run (finished_at DESC, run_id DESC). New
 	// completions maintain it transactionally, so an older historical retry
 	// can update its own run without overwriting the task's current summary.

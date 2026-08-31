@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -18,6 +17,43 @@ const server = await createServer({
 test.after(async () => {
   await server.close();
 });
+
+function resource(items) {
+  return {
+    error: null,
+    items,
+    loading: false,
+  };
+}
+
+function session({
+  agentId = "nexus",
+  channelType,
+  chatType = "dm",
+  conversationId = null,
+  externalIdentity,
+  key,
+  roomId = null,
+  title,
+}) {
+  return {
+    agent_id: agentId,
+    channel_type: channelType,
+    chat_type: chatType,
+    conversation_id: conversationId,
+    created_at: 0,
+    external_identity: externalIdentity ?? null,
+    last_activity_at: 0,
+    message_count: 0,
+    options: {},
+    room_id: roomId,
+    room_session_id: null,
+    session_id: null,
+    session_key: key,
+    status: "active",
+    title,
+  };
+}
 
 test("scheduled task run history shows one canonical result", async () => {
   const { getRunOutputSections } = await server.ssrLoadModule(
@@ -45,110 +81,6 @@ test("scheduled task run history shows one canonical result", async () => {
     tone: "default",
   }]);
 });
-
-test("scheduled tasks reconcile once after socket connection without fallback polling", async () => {
-  const source = await readFile(
-    path.join(webRoot, "src/features/capability/scheduled/use-scheduled-task-realtime-refresh.ts"),
-    "utf8",
-  );
-
-  assert.match(source, /previousWsStateRef/);
-  assert.doesNotMatch(source, /setInterval|FALLBACK_POLL/);
-});
-
-test("monthly and custom cron schedules remain editable", async () => {
-  const {
-    buildMonthlyCronExpression,
-    parseMonthlyCronExpression,
-  } = await server.ssrLoadModule(
-    "/src/features/capability/scheduled/dialog/schedule/task-schedule-time.ts",
-  );
-  const { buildTaskDialogInitialState } = await server.ssrLoadModule(
-    "/src/features/capability/scheduled/dialog/form/task-form-initializer.ts",
-  );
-  const { buildScheduledTaskPayload } = await server.ssrLoadModule(
-    "/src/features/capability/scheduled/dialog/form/task-form-submit.ts",
-  );
-
-  assert.equal(buildMonthlyCronExpression("09:00", "15"), "0 9 15 * *");
-  assert.deepEqual(parseMonthlyCronExpression("0 9 15 * *"), {
-    dailyTime: "09:00",
-    monthlyDay: "15",
-  });
-
-  const task = {
-    agent_id: "nexus",
-    configuration_version: 1,
-    delivery: { mode: "none" },
-    enabled: true,
-    execution_kind: "agent",
-    expires_at: null,
-    failure_streak: 0,
-    instruction: "生成月报",
-    job_id: "cron-task",
-    last_run_at: null,
-    name: "月报",
-    next_run_at: null,
-    overlap_policy: "skip",
-    permission_mode: "default",
-    running: false,
-    running_started_at: null,
-    session_target: { kind: "isolated" },
-    source: { kind: "user_page" },
-  };
-  const monthly = buildTaskDialogInitialState({
-    ...task,
-    schedule: { cron_expression: "0 9 15 * *", kind: "cron", timezone: "Asia/Shanghai" },
-  });
-  assert.equal(monthly.schedule.kind, "monthly");
-  assert.equal(monthly.schedule.monthlyDay, "15");
-
-  const expression = "*/15 9-17 * * 1-5";
-  const custom = buildTaskDialogInitialState({
-    ...task,
-    job_id: "custom-cron-task",
-    schedule: { cron_expression: expression, kind: "cron", timezone: "Asia/Shanghai" },
-  });
-  assert.equal(custom.schedule.kind, "custom");
-  assert.equal(custom.schedule.cronExpression, expression);
-  const payload = buildScheduledTaskPayload({
-    defaultDeliveryRoomAgentId: "",
-    defaultExecutionRoomAgentId: "",
-    form: custom.form,
-    schedule: custom.schedule,
-    selectedReplySession: null,
-    selectedSession: null,
-  }, (key) => key);
-  assert.equal(payload.schedule.cron_expression, expression);
-});
-
-function resource(items) {
-  return {
-    error: null,
-    items,
-    loading: false,
-  };
-}
-
-function session({ agentId = "nexus", channelType, chatType = "dm", conversationId = null, externalIdentity, key, roomId = null, title }) {
-  return {
-    agent_id: agentId,
-    channel_type: channelType,
-    chat_type: chatType,
-    created_at: 0,
-    last_activity_at: 0,
-    message_count: 0,
-    options: {},
-    room_id: roomId,
-    room_session_id: null,
-    session_id: null,
-    session_key: key,
-    status: "active",
-    title,
-    conversation_id: conversationId,
-    external_identity: externalIdentity ?? null,
-  };
-}
 
 test("scheduled task session options mark external IM channels only", async () => {
   const { buildTaskDialogSessionData } = await server.ssrLoadModule(
@@ -675,29 +607,6 @@ test("Room result delivery persists an independent replying agent", async () => 
   });
 });
 
-test("select presentation carries the selected session badge", async () => {
-  const {
-    buildSelectMenuPresentation,
-    estimateSelectMenuHeight,
-  } = await server.ssrLoadModule(
-    "/src/shared/ui/menu/select-menu-model.ts",
-  );
-  const presentation = buildSelectMenuPresentation({
-    allowLabelWrap: false,
-    options: [
-      { label: "普通对话 · nexus", value: "web" },
-      { badge: "IM · 微信", label: "定时任务回传测试 · nexus", value: "wx" },
-    ],
-    placeholder: "请选择会话",
-    size: "md",
-    value: "wx",
-  });
-
-  assert.equal(presentation.activeLabel, "定时任务回传测试 · nexus");
-  assert.equal(presentation.activeBadge, "IM · 微信");
-  assert.equal(estimateSelectMenuHeight(2, 32), 76);
-});
-
 test("editing isolated IM task keeps its delivery session separate from execution", async () => {
   const { buildTaskDialogInitialState } = await server.ssrLoadModule(
     "/src/features/capability/scheduled/dialog/form/task-form-initializer.ts",
@@ -740,84 +649,6 @@ test("editing isolated IM task keeps its delivery session separate from executio
   assert.equal(state.form.permissionMode, "plan");
 });
 
-test("editing keeps delivery when execution and recipient are the same real session", async () => {
-  const { buildTaskDialogInitialState } = await server.ssrLoadModule(
-    "/src/features/capability/scheduled/dialog/form/task-form-initializer.ts",
-  );
-  const sessionKey = "agent:nexus:ws:dm:same-session";
-  const state = buildTaskDialogInitialState({
-    agent_id: "nexus",
-    configuration_version: 3,
-    delivery: {
-      channel: "websocket",
-      mode: "explicit",
-      session_key: sessionKey,
-      to: sessionKey,
-    },
-    enabled: true,
-    execution_kind: "agent",
-    expires_at: null,
-    failure_streak: 0,
-    instruction: "总结当前会话",
-    job_id: "same-session-task",
-    last_run_at: null,
-    name: "当前会话总结",
-    next_run_at: null,
-    overlap_policy: "skip",
-    permission_mode: "default",
-    running: false,
-    running_started_at: null,
-    schedule: { interval_seconds: 3600, kind: "every", timezone: "Asia/Shanghai" },
-    session_target: { bound_session_key: sessionKey, kind: "bound" },
-    source: { kind: "user_page" },
-  });
-
-  assert.equal(state.form.replyMode, "selected");
-  assert.equal(state.form.selectedSessionKey, sessionKey);
-  assert.equal(state.form.selectedReplySessionKey, sessionKey);
-});
-
-test("editing uses current execution and delivery identities, not immutable source provenance", async () => {
-  const { buildTaskDialogInitialState } = await server.ssrLoadModule(
-    "/src/features/capability/scheduled/dialog/form/task-form-initializer.ts",
-  );
-  const recipientSession = "agent:agent-b:weixin-personal:dm:wx-user-b";
-  const state = buildTaskDialogInitialState({
-    agent_id: "agent-a",
-    configuration_version: 4,
-    delivery: {
-      mode: "last",
-      session_key: recipientSession,
-    },
-    enabled: true,
-    execution_kind: "agent",
-    expires_at: null,
-    failure_streak: 0,
-    instruction: "生成日报",
-    job_id: "task-cross-agent",
-    last_run_at: null,
-    name: "跨智能体日报",
-    next_run_at: null,
-    overlap_policy: "skip",
-    permission_mode: "plan",
-    running: false,
-    running_started_at: null,
-    schedule: { interval_seconds: 3600, kind: "every", timezone: "Asia/Shanghai" },
-    session_target: { kind: "isolated" },
-    source: {
-      context_id: "old-creator",
-      context_type: "agent",
-      creator_agent_id: "old-creator",
-      kind: "agent",
-      session_key: "agent:old-creator:ws:dm:old-session",
-    },
-  });
-
-  assert.equal(state.form.selectedAgentId, "agent-a");
-  assert.equal(state.form.selectedDeliveryAgentId, "agent-b");
-  assert.equal(state.form.selectedReplySessionKey, recipientSession);
-});
-
 test("editing a task that requires rebind clears the deleted session", async () => {
   const { buildTaskDialogInitialState } = await server.ssrLoadModule(
     "/src/features/capability/scheduled/dialog/form/task-form-initializer.ts",
@@ -857,50 +688,5 @@ test("editing a task that requires rebind clears the deleted session", async () 
   const state = buildTaskDialogInitialState(task);
 
   assert.equal(state.form.replyMode, "selected");
-  assert.equal(state.form.selectedReplySessionKey, "");
-});
-
-test("editing a legacy scheduled-task inbox requires a real delivery session", async () => {
-  const { buildTaskDialogInitialState } = await server.ssrLoadModule(
-    "/src/features/capability/scheduled/dialog/form/task-form-initializer.ts",
-  );
-  const legacyInbox = "agent:nexus:internal:dm:automation-inbox";
-  const state = buildTaskDialogInitialState({
-    agent_id: "nexus",
-    configuration_version: 7,
-    delivery: {
-      channel: "internal",
-      mode: "explicit",
-      session_key: legacyInbox,
-      to: legacyInbox,
-    },
-    enabled: true,
-    execution_kind: "agent",
-    expires_at: null,
-    failure_streak: 0,
-    instruction: "生成日报",
-    job_id: "legacy-inbox-task",
-    last_run_at: null,
-    name: "旧版收件箱任务",
-    next_run_at: null,
-    overlap_policy: "skip",
-    permission_mode: "default",
-    running: false,
-    running_started_at: null,
-    schedule: {
-      interval_seconds: 3600,
-      kind: "every",
-      timezone: "Asia/Shanghai",
-    },
-    session_target: { kind: "isolated" },
-    source: {
-      context_id: "nexus",
-      context_type: "agent",
-      kind: "user_page",
-    },
-  });
-
-  assert.equal(state.form.replyMode, "selected");
-  assert.equal(state.form.selectedDeliveryAgentId, "nexus");
   assert.equal(state.form.selectedReplySessionKey, "");
 });

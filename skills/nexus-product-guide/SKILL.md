@@ -66,6 +66,6 @@ description: Explain current Nexus product features, entry locations, ordinary u
 - 工作图的创建、编辑、保存和复用交给 `execution-orchestrator`。
 - 定时任务的创建、修改、运行和删除交给 `automation`。
 - Nexus 设置变更交给 `nexus-configuration`。
-- 智能体、房间、Skill、连接器和其他资源管理交给 `nexus-manager`。
+- 当前智能体或 Room 有权修改的设置交给 `nexus-configuration`；跨智能体和 owner 资源管理仅由主智能体使用 `nexus-manager`。
 
 在用户没有要求实际修改时，只提供说明，不主动改变设置或资源。

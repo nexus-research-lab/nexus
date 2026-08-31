@@ -127,6 +127,8 @@ export const enAgentMessages = {
   "agent_options.identity.change_avatar": "Change avatar",
   "agent_options.identity.vibe_tags": "Vibe tags",
   "agent_options.identity.add_tag": "Add tag",
+  "agent_options.identity.business_tags": "Business tags",
+  "agent_options.identity.add_business_tag": "Add business tag",
   "agent_options.identity.provider": "Provider",
   "agent_options.identity.model": "Model",
   "agent_options.identity.follow_default_provider": "Follow default model",

@@ -171,6 +171,11 @@ export interface UpdateProviderModelPayload {
   provider_options: Record<string, unknown>;
 }
 
+export interface DeleteProviderModelResponse {
+  provider: string;
+  model: string;
+}
+
 export interface ProviderTestResult {
   provider: string;
   model?: string;

@@ -2,16 +2,86 @@ package channel
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	channelspkg "github.com/nexus-research-lab/nexus/internal/service/channels"
 )
+
+func withRouteParam(ctx context.Context, key string, value string) context.Context {
+	routeContext := chi.NewRouteContext()
+	routeContext.URLParams.Add(key, value)
+	return context.WithValue(ctx, chi.RouteCtxKey, routeContext)
+}
+
+type fakeControl struct {
+	currentLoginErr error
+	listPairingsErr error
+	upsertErr       error
+}
+
+func (f *fakeControl) ListChannels(context.Context, string) ([]channelspkg.ChannelConfigView, error) {
+	return nil, nil
+}
+
+func (f *fakeControl) UpsertChannelConfig(context.Context, string, string, channelspkg.UpsertChannelConfigRequest) (*channelspkg.ChannelConfigView, error) {
+	return nil, f.upsertErr
+}
+
+func (f *fakeControl) DeleteChannelConfig(context.Context, string, string) error {
+	return nil
+}
+
+func (f *fakeControl) DeleteChannelAccount(context.Context, string, string, string) (*channelspkg.ChannelConfigView, error) {
+	return nil, nil
+}
+
+func (f *fakeControl) StartChannelLogin(context.Context, string, string) (*channelspkg.ChannelLoginView, error) {
+	return nil, nil
+}
+
+func (f *fakeControl) GetCurrentChannelLogin(context.Context, string, string) (*channelspkg.ChannelLoginView, error) {
+	return nil, f.currentLoginErr
+}
+
+func (f *fakeControl) GetChannelLogin(context.Context, string, string, string) (*channelspkg.ChannelLoginView, error) {
+	return nil, nil
+}
+
+func (f *fakeControl) SubmitChannelLoginVerifyCode(context.Context, string, string, string, channelspkg.SubmitChannelLoginVerifyCodeRequest) (*channelspkg.ChannelLoginView, error) {
+	return nil, nil
+}
+
+func (f *fakeControl) ListPairings(context.Context, string, channelspkg.PairingQuery) ([]channelspkg.PairingView, error) {
+	return nil, f.listPairingsErr
+}
+
+func (f *fakeControl) CreatePairing(context.Context, string, channelspkg.CreatePairingRequest) (*channelspkg.PairingView, error) {
+	return nil, nil
+}
+
+func (f *fakeControl) UpdatePairing(context.Context, string, string, channelspkg.UpdatePairingRequest) (*channelspkg.PairingView, error) {
+	return nil, nil
+}
+
+func (f *fakeControl) DeletePairing(context.Context, string, string) error {
+	return nil
+}
+
+func (f *fakeControl) ResolveChannelOwnerByConfig(context.Context, string, string, string) (string, error) {
+	return "", nil
+}
+
+func (f *fakeControl) PrepareFeishuIngress(context.Context, []byte, http.Header) (channelspkg.FeishuIngressPreparation, error) {
+	return channelspkg.FeishuIngressPreparation{}, nil
+}
 
 func TestChannelMutationFailureUsesStableServiceFactsWithoutExposingCause(t *testing.T) {
 	tests := []struct {

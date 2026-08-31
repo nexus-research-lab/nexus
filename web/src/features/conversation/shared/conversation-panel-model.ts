@@ -56,7 +56,10 @@ interface ConversationScrollToLatestSessionSource {
 }
 
 interface ConversationRuntimeSessionSource {
-  conversation: Pick<UseAgentConversationReturn, "is_loading">;
+  conversation: Pick<
+    UseAgentConversationReturn,
+    "is_loading" | "is_session_loading"
+  >;
 }
 
 interface ConversationRoundIndexSessionSource {
@@ -104,6 +107,7 @@ export interface ConversationPanelEnvironment {
 
 export interface ConversationPanelFrameModel {
   isMobileLayout: boolean;
+  isSessionLoading: boolean;
   navigator: ConversationNavigatorModel;
   providerWarningVisible: boolean;
   reliability: UseAgentConversationReturn["reliability"];
@@ -119,6 +123,7 @@ export function buildConversationPanelFrameModel(
 ): ConversationPanelFrameModel {
   return {
     isMobileLayout: environment.isMobileLayout,
+    isSessionLoading: session.conversation.is_session_loading,
     navigator: buildConversationNavigatorModel(session),
     providerWarningVisible: environment.providerWarningVisible,
     reliability: session.conversation.reliability,

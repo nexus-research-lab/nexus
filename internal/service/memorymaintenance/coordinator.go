@@ -13,6 +13,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 )
 
 const (
@@ -28,6 +29,10 @@ type agentCatalog interface {
 
 type dreamRunner interface {
 	tryAutoDream(context.Context, protocol.Agent) (agentclient.AutoDreamResult, error)
+}
+
+type preferencesService interface {
+	Get(context.Context, string) (preferencessvc.Preferences, error)
 }
 
 // autoDreamEnabled 只做宿主侧廉价预检，nxs 仍会再次执行完整 gate 判断。
@@ -55,11 +60,12 @@ func autoDreamEnabled(catalog agentCatalog, agentValue protocol.Agent) (bool, er
 
 // Coordinator 是 Nexus 托管模式下唯一的 AutoDream 唤醒者。
 type Coordinator struct {
-	agents agentCatalog
-	config config.MemoryMaintenanceConfig
-	logger *slog.Logger
-	runner dreamRunner
-	now    func() time.Time
+	agents      agentCatalog
+	preferences preferencesService
+	config      config.MemoryMaintenanceConfig
+	logger      *slog.Logger
+	runner      dreamRunner
+	now         func() time.Time
 
 	mu         sync.Mutex
 	cancel     context.CancelFunc
@@ -70,20 +76,26 @@ type Coordinator struct {
 	wg         sync.WaitGroup
 }
 
-func newCoordinator(cfg config.MemoryMaintenanceConfig, agents agentCatalog, runner dreamRunner) *Coordinator {
+func newCoordinator(
+	cfg config.MemoryMaintenanceConfig,
+	agents agentCatalog,
+	preferences preferencesService,
+	runner dreamRunner,
+) *Coordinator {
 	concurrency := cfg.MaxConcurrent
 	if concurrency <= 0 {
 		concurrency = 1
 	}
 	return &Coordinator{
-		agents:     agents,
-		config:     cfg,
-		logger:     logx.NewDiscardLogger(),
-		runner:     runner,
-		now:        time.Now,
-		running:    map[string]struct{}{},
-		nextChecks: map[string]time.Time{},
-		semaphore:  make(chan struct{}, concurrency),
+		agents:      agents,
+		preferences: preferences,
+		config:      cfg,
+		logger:      logx.NewDiscardLogger(),
+		runner:      runner,
+		now:         time.Now,
+		running:     map[string]struct{}{},
+		nextChecks:  map[string]time.Time{},
+		semaphore:   make(chan struct{}, concurrency),
 	}
 }
 
@@ -144,6 +156,16 @@ func (c *Coordinator) runOnce(ctx context.Context) error {
 	now := c.nowTime()
 	for _, item := range agents {
 		agentValue := item
+		if c.preferences != nil {
+			preferences, preferenceErr := c.preferences.Get(ctx, agentValue.OwnerUserID)
+			if preferenceErr != nil {
+				c.logger.Warn("读取用户 AutoDream 设置失败", "agent_id", agentValue.AgentID, "err", preferenceErr)
+				continue
+			}
+			if !preferences.AutoDreamEnabledForRuntime("nxs") {
+				continue
+			}
+		}
 		enabled, settingsErr := autoDreamEnabled(c.agents, agentValue)
 		if settingsErr != nil {
 			c.logger.Warn("读取 Agent AutoDream 设置失败", "agent_id", agentValue.AgentID, "err", settingsErr)

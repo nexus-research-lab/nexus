@@ -55,7 +55,9 @@ type RuntimeSettings map[string]RuntimeSettingsForKind
 
 // RuntimeSettingsForKind 表示一个 runtime 当前可配置的选项。
 type RuntimeSettingsForKind struct {
-	ToolSearch bool `json:"tool_search"`
+	AutoMemoryEnabled *bool `json:"auto_memory_enabled,omitempty"`
+	AutoDreamEnabled  *bool `json:"auto_dream_enabled,omitempty"`
+	ToolSearch        bool  `json:"tool_search"`
 }
 
 // WebSearchSettings 描述 SDK 内置 WebSearch 的可持久化配置。
@@ -317,15 +319,30 @@ func validateWebSearchSettings(settings WebSearchSettings) error {
 
 func normalizeRuntimeSettings(settings RuntimeSettings) RuntimeSettings {
 	result := make(RuntimeSettings, len(settings)+1)
-	result[runtimeprovider.RuntimeKindNXS] = RuntimeSettingsForKind{}
+	result[runtimeprovider.RuntimeKindNXS] = RuntimeSettingsForKind{
+		AutoMemoryEnabled: boolSettingPointer(true),
+		AutoDreamEnabled:  boolSettingPointer(true),
+	}
 	for kind, item := range settings {
 		normalizedKind := normalizeRuntimeSettingKind(kind)
 		if normalizedKind == "" {
 			continue
 		}
+		if normalizedKind == runtimeprovider.RuntimeKindNXS {
+			if item.AutoMemoryEnabled == nil {
+				item.AutoMemoryEnabled = boolSettingPointer(true)
+			}
+			if item.AutoDreamEnabled == nil {
+				item.AutoDreamEnabled = boolSettingPointer(true)
+			}
+		}
 		result[normalizedKind] = item
 	}
 	return result
+}
+
+func boolSettingPointer(value bool) *bool {
+	return &value
 }
 
 func normalizeRuntimeSettingKind(kind string) string {
@@ -345,6 +362,24 @@ func (p Preferences) ToolSearchEnabledForRuntime(runtimeKind string) bool {
 		return false
 	}
 	return p.RuntimeSettings[runtimeprovider.RuntimeKindNXS].ToolSearch
+}
+
+// AutoMemoryEnabledForRuntime 返回指定 runtime 是否自动抽取长期记忆。
+func (p Preferences) AutoMemoryEnabledForRuntime(runtimeKind string) bool {
+	if normalizeRuntimeSettingKind(runtimeKind) != runtimeprovider.RuntimeKindNXS {
+		return false
+	}
+	enabled := p.RuntimeSettings[runtimeprovider.RuntimeKindNXS].AutoMemoryEnabled
+	return enabled == nil || *enabled
+}
+
+// AutoDreamEnabledForRuntime 返回指定 runtime 是否允许后台整理长期记忆。
+func (p Preferences) AutoDreamEnabledForRuntime(runtimeKind string) bool {
+	if normalizeRuntimeSettingKind(runtimeKind) != runtimeprovider.RuntimeKindNXS {
+		return false
+	}
+	enabled := p.RuntimeSettings[runtimeprovider.RuntimeKindNXS].AutoDreamEnabled
+	return enabled == nil || *enabled
 }
 
 func normalizeModelSelection(selection ModelSelection) ModelSelection {

@@ -19,7 +19,11 @@ import type { ContentBlock } from "@/types/conversation/message/content";
 
 import { WorkspaceFileArtifactList } from "../../../blocks/artifact/workspace-file-artifacts";
 import { useWorkspaceFileArtifactsFromContent } from "../../../blocks/artifact/workspace-file-artifact-utils";
-import { getLocalizedToolTitle } from "../../../tool-activity";
+import {
+  getLocalizedToolActivityLabel,
+} from "../../../tool-activity";
+import { MessageDetailScroll } from "../../../ui/message-rail";
+import { ProcessActivityIconStack } from "../../../ui/activity-icon";
 import {
   projectToolRunSegments,
   type ToolProcessSegment,
@@ -30,12 +34,16 @@ import {
   TIMELINE_LINE_CLASS_NAME,
   TimelineBlock,
 } from "../content/content-renderer-timeline";
+import { LocalizedMessageActivityStatus } from "../message-activity-status";
 import type {
   AssistantActivityState,
   AssistantContentEnvironment,
   AssistantPermissionState,
 } from "./assistant-message-model";
-import type { ContentProjection } from "../../message-item-projection";
+import {
+  shouldShowAssistantTimeline,
+  type ContentProjection,
+} from "../../message-item-projection";
 
 interface AssistantToolRunsProps {
   activity: AssistantActivityState;
@@ -78,12 +86,13 @@ export function AssistantToolRuns({
       activity.toolUseSummary,
     ],
   );
+  const showTimeline = shouldShowAssistantTimeline(environment.mode);
 
   return (
     <div
       className={cn(
-        "nexus-chat-block-stack min-w-0 space-y-2.5",
-        TIMELINE_LINE_CLASS_NAME,
+        "nexus-chat-block-stack min-w-0 space-y-0.5",
+        showTimeline && TIMELINE_LINE_CLASS_NAME,
       )}
       data-tool-run-list="true"
     >
@@ -101,6 +110,7 @@ export function AssistantToolRuns({
             key={segment.id}
             permissions={permissions}
             segment={segment}
+            showTimeline={showTimeline}
             streaming={streaming}
           />
         );
@@ -115,6 +125,7 @@ function ToolProcessSegmentView({
   generatedFilesLabel,
   permissions,
   segment,
+  showTimeline,
   streaming,
 }: {
   activity: AssistantActivityState;
@@ -122,9 +133,10 @@ function ToolProcessSegmentView({
   generatedFilesLabel: string;
   permissions: AssistantPermissionState;
   segment: ToolProcessSegment;
+  showTimeline: boolean;
   streaming: boolean;
 }) {
-  if (segment.kind === "tool_run") {
+  if (segment.kind === "tool_run" && shouldCollapseToolRun(segment)) {
     return (
       <ToolRun
         activity={activity}
@@ -132,12 +144,13 @@ function ToolProcessSegmentView({
         generatedFilesLabel={generatedFilesLabel}
         permissions={permissions}
         segment={segment}
+        showTimeline={showTimeline}
         streaming={streaming}
       />
     );
   }
   return (
-    <TimelineBlock active={streaming}>
+    <TimelineBlock active={streaming} showRail={showTimeline}>
       <ToolProcessSegmentContent
         activity={activity}
         environment={environment}
@@ -150,12 +163,20 @@ function ToolProcessSegmentView({
   );
 }
 
+function shouldCollapseToolRun(segment: ToolRunSegment): boolean {
+  return segment.toolUseIds.length > 1
+    || segment.projection.content.some((block) => (
+      block.type === "thinking" && Boolean(block.thinking.trim())
+    ));
+}
+
 function ToolRun({
   activity,
   environment,
   generatedFilesLabel,
   permissions,
   segment,
+  showTimeline,
   streaming,
 }: {
   activity: AssistantActivityState;
@@ -163,10 +184,14 @@ function ToolRun({
   generatedFilesLabel: string;
   permissions: AssistantPermissionState;
   segment: ToolRunSegment;
+  showTimeline: boolean;
   streaming: boolean;
 }) {
   const { t } = useI18n();
-  const expansion = useScrollAnchoredState(false);
+  const expansion = useScrollAnchoredState(
+    environment.mode === "room_thread"
+      || environment.mode === "room_thread_process",
+  );
   const [closedToolUseCount, setClosedToolUseCount] = useResettableState(
     0,
     segment.id,
@@ -204,8 +229,9 @@ function ToolRun({
   );
 
   return (
-    <TimelineBlock active={streaming && active}>
+    <TimelineBlock active={streaming && active} showRail={showTimeline}>
       <div
+        className="py-1.5"
         data-conversation-process-group-id={segment.id}
         data-tool-run-id={segment.id}
         data-tool-run-phase={phase}
@@ -215,7 +241,7 @@ function ToolRun({
           aria-controls={contentId}
           aria-expanded={expanded}
           className={cn(
-            "flex w-full items-center gap-2 py-1 text-left text-sm font-medium transition-colors duration-(--motion-duration-fast)",
+            "flex min-h-7 w-full items-center gap-1.5 py-0.5 text-left text-sm font-normal leading-5 transition-colors duration-(--motion-duration-fast)",
             active
               ? "text-primary hover:text-primary"
               : "text-(--text-muted) hover:text-(--text-strong)",
@@ -226,40 +252,60 @@ function ToolRun({
           onClick={expansion.toggle}
           type="button"
         >
-          <Wrench
+          {expanded ? (
+            <Wrench
+              className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)"
+            />
+          ) : (
+            <ProcessActivityIconStack
+              content={segment.projection.content}
+            />
+          )}
+          <span
+            aria-live={active ? "polite" : undefined}
             className={cn(
-              "h-3.5 w-3.5 shrink-0",
-              active && "animate-pulse",
+              "min-w-0 flex-1 truncate",
+              active && "nexus-live-tool-text",
             )}
-          />
-          <span className="min-w-0 flex-1 truncate">
+            data-live-tool-text={active || undefined}
+          >
             {summary}
           </span>
           {expanded ? (
-            <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
           ) : (
-            <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
           )}
         </button>
 
         {expanded ? (
-          <div className="pt-1" id={contentId}>
-            <ToolProcessSegmentContent
-              activity={activity}
-              environment={environment}
-              permissions={permissions}
-              projection={segment.projection}
-              showTrailingActivity={false}
-              streaming={streaming && active}
-            />
+          <div data-tool-run-detail-list className="pt-1" id={contentId}>
+            <MessageDetailScroll followContent={streaming && active}>
+              <ToolProcessSegmentContent
+                activity={activity}
+                environment={environment}
+                permissions={permissions}
+                projection={segment.projection}
+                showTrailingActivity={false}
+                streaming={streaming && active}
+              />
+            </MessageDetailScroll>
           </div>
         ) : (
-          <WorkspaceFileArtifactList
-            artifacts={artifacts}
-            className="ml-5 pt-1"
-            label={generatedFilesLabel}
-            onOpenWorkspaceFile={environment.onOpenWorkspaceFile}
-          />
+          <>
+            <WorkspaceFileArtifactList
+              artifacts={artifacts}
+              className="ml-5 pt-1"
+              label={generatedFilesLabel}
+              onOpenWorkspaceFile={environment.onOpenWorkspaceFile}
+            />
+            {streaming && activity.state ? (
+              <LocalizedMessageActivityStatus
+                className="pt-1"
+                state={activity.state}
+              />
+            ) : null}
+          </>
         )}
       </div>
     </TimelineBlock>
@@ -271,30 +317,32 @@ function formatToolRunSummary(
   phase: ToolRunSegment["phase"],
   t: I18nContextValue["t"],
 ): string {
-  const toolUseCount = segment.toolUseIds.length;
   let statusKey: TranslationKey | null = null;
-  if (phase === "active") {
-    statusKey = "message.tool_run_active";
-  } else if (phase === "error") {
+  if (phase === "error") {
     statusKey = "message.tool_run_failed";
   } else if (phase === "rejected") {
     statusKey = "message.tool_run_rejected";
   } else if (phase === "superseded") {
     statusKey = "message.tool_run_superseded";
   }
-  const firstToolUse = segment.projection.content.find(
-    (block) => block.type === "tool_use",
+  const latestToolUse = segment.projection.content.findLast(
+    (block): block is Extract<ContentBlock, { type: "tool_use" }> => (
+      block.type === "tool_use"
+    ),
   );
   const naturalSummary = segment.summaryText?.trim() || null;
-  const activeFallback = toolUseCount === 1 && firstToolUse?.type === "tool_use"
-    ? getLocalizedToolTitle(firstToolUse.name, t, firstToolUse.input)
+  const activeFallback = latestToolUse
+    ? getLocalizedToolActivityLabel(
+        latestToolUse.name,
+        t,
+        latestToolUse.input,
+      )
     : t("message.tool_run_active");
   const parts = [phase === "active"
     ? naturalSummary ?? activeFallback
     : t("message.tool_run_history")];
   if (
     statusKey
-    && !(phase === "active" && naturalSummary)
     && parts[0] !== t(statusKey)
   ) {
     parts.push(t(statusKey));
@@ -326,7 +374,9 @@ function ToolProcessSegmentContent({
   return (
     <ContentRenderer
       canRespondToPermissions={environment.canRespondToPermissions}
+      className="space-y-0.5"
       content={projection.content}
+      defaultThinkingExpanded={false}
       fallbackActivityLabel={activity.label}
       fallbackActivityState={activity.state}
       hiddenToolNames={environment.hiddenToolNames}

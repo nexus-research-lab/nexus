@@ -3,7 +3,7 @@
  * OUTPUT: 普通结果明细、按需完整大结果，或有界的 mutation 拒绝/过期原因与稳定 reason code。
  * POS: ToolBlock 展开内容；历史大结果只在展开后读取，复制动作独立读取完整内容。
  */
-import { useEffect, useState, type PropsWithChildren } from "react";
+import { useEffect, useState } from "react";
 
 import type {
   ImageContent,
@@ -15,9 +15,7 @@ import { CodeBlock } from "@/shared/ui/markdown/code/code-block";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { projectToolResultMutation } from "../../tool-result-semantic-model";
 import { getSessionMessageDetailApi } from "@/lib/api/conversation/session-api";
-
-const TOOL_DETAIL_SCROLL_CLASS_NAME =
-  "min-w-0 max-h-[18rem] overflow-auto overscroll-contain custom-scrollbar";
+import { MessageDetailScroll } from "../../ui/message-rail";
 
 interface ToolBlockResultProps {
   onOpenWorkspaceFile?: (path: string) => void;
@@ -33,8 +31,8 @@ export function ToolBlockResult({
   const { t } = useI18n();
   const detail = useToolResultDetail(toolResult);
   return (
-    <div className="message-cjk-font ml-7 mt-2 min-w-0">
-      <ToolBlockDetailScroll>
+    <div className="message-cjk-font min-w-0">
+      <MessageDetailScroll>
         {detail.loading && detail.toolResult.content != null ? (
           <p className="mb-1 text-xs text-(--text-muted)">
             {t("message.tool_detail_loading")}
@@ -52,13 +50,9 @@ export function ToolBlockResult({
           toolResult={detail.toolResult}
           workspaceAgentId={workspaceAgentId}
         />
-      </ToolBlockDetailScroll>
+      </MessageDetailScroll>
     </div>
   );
-}
-
-export function ToolBlockDetailScroll({ children }: PropsWithChildren) {
-  return <div className={TOOL_DETAIL_SCROLL_CLASS_NAME}>{children}</div>;
 }
 
 function ToolResultContentView({

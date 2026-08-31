@@ -437,9 +437,6 @@ export function resolveAssistantModel(
   messages: AssistantMessage[],
   identity: AssistantMessage,
 ): string | undefined {
-  if (identity.metadata?.subtype === "conversation_welcome") {
-    return undefined;
-  }
   if (identity.model?.trim()) {
     return identity.model;
   }

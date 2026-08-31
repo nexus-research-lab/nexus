@@ -13,6 +13,7 @@ import (
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/mcp/command"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 var runtimeAutomationQueryOperations = []string{
@@ -43,12 +44,14 @@ func (s *Service) RuntimeCommandContract(
 	if err := s.validateRuntimeCommandActor(ctx, actor); err != nil {
 		return automationdomain.AutomationCommandContract{}, err
 	}
+	queries := append([]string(nil), runtimeAutomationQueryOperations...)
 	mutations := []string{}
 	if actor.MutationAllowed() {
+		queries = append(queries, automationdomain.AutomationCommandOperationDeliveryTargets)
 		mutations = append(mutations, runtimeAutomationMutationOperations...)
 	}
 	return automationdomain.AutomationCommandContract{
-		QueryOperations:    runtimeAutomationQueryOperations,
+		QueryOperations:    queries,
 		MutationOperations: mutations,
 		MutationAllowed:    actor.MutationAllowed(),
 		CrossAgentAllowed:  actor.CrossAgentAllowed(),
@@ -69,13 +72,21 @@ func runtimeAutomationOperationContracts(
 	if !actor.MutationAllowed() {
 		return contracts
 	}
+	contracts[automationdomain.AutomationCommandOperationDeliveryTargets] = automationdomain.AutomationCommandOperationContract{
+		Kind:     "query",
+		Optional: []string{"agent_id", "delivery_channel"},
+		Notes: []string{
+			"returns existing active-paired DM Sessions only",
+			"use the returned session_key as delivery_session_key; do not construct one",
+		},
+	}
 	contracts["create"] = automationdomain.AutomationCommandOperationContract{
 		Kind: "mutation", Required: []string{"name", "instruction", "schedule"},
-		Optional: []string{"context_mode", "deliver_result", "permission_mode", "overlap_policy", "expires_at", "enabled"},
+		Optional: []string{"context_mode", "deliver_result", "delivery_session_key", "permission_mode", "overlap_policy", "expires_at", "enabled"},
 		Notes:    []string{"schedule.kind=single|daily|interval|cron", "apply requires request_id and native confirmation"},
 	}
 	contracts["update"] = automationdomain.AutomationCommandOperationContract{
-		Kind: "mutation", Optional: []string{"job_id", "query", "name", "instruction", "instruction_append", "schedule", "context_mode", "deliver_result", "permission_mode", "overlap_policy", "expires_at", "clear_expires_at", "enabled", "cancel_active_run", "run_id"},
+		Kind: "mutation", Optional: []string{"job_id", "query", "name", "instruction", "instruction_append", "schedule", "context_mode", "deliver_result", "delivery_session_key", "permission_mode", "overlap_policy", "expires_at", "clear_expires_at", "enabled", "cancel_active_run", "run_id"},
 		Notes: []string{"job_id or a unique query is required", "instruction and instruction_append are mutually exclusive"},
 	}
 	contracts["delete"] = automationdomain.AutomationCommandOperationContract{Kind: "mutation", Optional: []string{"job_id", "query"}}
@@ -139,6 +150,8 @@ func (s *Service) InspectRuntimeCommand(
 		return s.ListTaskEvents(ctx, scope.JobID, commandLimit(input.EventLimit, 10, 50))
 	case automationdomain.AutomationCommandOperationReport:
 		return s.runtimeCommandReport(ctx, actor, input)
+	case automationdomain.AutomationCommandOperationDeliveryTargets:
+		return s.runtimeCommandDeliveryTargets(ctx, actor, input)
 	case automationdomain.AutomationCommandOperationHeartbeat:
 		if strings.TrimSpace(actor.SourceContextType) == "agent_paired" {
 			return nil, errors.New("外部 IM round 不开放 Agent heartbeat 配置查询")
@@ -154,6 +167,42 @@ func (s *Service) InspectRuntimeCommand(
 	default:
 		return nil, fmt.Errorf("未知 Automation inspect operation %q", operation)
 	}
+}
+
+func (s *Service) runtimeCommandDeliveryTargets(
+	ctx context.Context,
+	actor command.Actor,
+	input automationdomain.AutomationCommandInput,
+) ([]automationdomain.AutomationCommandDeliverySession, error) {
+	if !actor.MutationAllowed() {
+		return nil, errors.New("当前 runtime round 不能选择 Automation 投递会话")
+	}
+	agentID, err := runtimeCommandAgentID(actor, input.AgentID)
+	if err != nil {
+		return nil, err
+	}
+	if s.deliveryGrants == nil {
+		return nil, errors.New("Automation 投递会话目录尚未装配")
+	}
+	candidates, err := s.deliveryGrants.ListAgentExternalSessions(
+		ctx,
+		actor.OwnerUserID,
+		agentID,
+		strings.TrimSpace(input.DeliveryChannel),
+	)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]automationdomain.AutomationCommandDeliverySession, 0, len(candidates))
+	for _, candidate := range candidates {
+		result = append(result, automationdomain.AutomationCommandDeliverySession{
+			SessionKey: strings.TrimSpace(candidate.SessionKey),
+			Channel:    protocol.NormalizeStoredChannelType(candidate.Channel),
+			Label:      strings.TrimSpace(candidate.Label),
+			AgentID:    agentID,
+		})
+	}
+	return result, nil
 }
 
 func (s *Service) validateRuntimeCommandActor(ctx context.Context, actor command.Actor) error {

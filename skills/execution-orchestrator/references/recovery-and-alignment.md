@@ -6,7 +6,7 @@
 
 - block 只用于缺少具体外部输入或 authority；Plan dependency 由图自动管理，不是 blocker。由 current Assignment owner 或 coordinator 提交具体 `reason` 与 `needed_input`。存在未审核 Submission 时先 review，不能用 block 催审。
 - resume 只针对 `waiting_input` Work Item，提交 blocker 已解决的 `resolution` 和至少一项真实 `evidence`。Work 已 open 时的 no-op 不是新 Attempt；resume 不创建 Assignment，也不复活旧 Attempt。
-- exact WorkBinding 可按 contract 供应 locator；unbound round 必须显式定位 Work Item。显式 locator 必须相互一致并匹配当前图。
+- exact WorkBinding 可按 contract 供应 locator；unbound DM round 必须显式定位 Work Item。Room conversational round 的显式 locator 不授予 mutation authority：verified coordinator 先调用 execution `action=inspect`（`get_execution`）进入 coordination，其他成员必须持有 exact WorkBinding。显式 locator 必须相互一致并匹配当前图。
 
 ## audit_execution_alignment
 

@@ -69,6 +69,9 @@ func TestBuildToolsExposeOnlyTargetsAndSend(t *testing.T) {
 		t.Fatalf("DM communication tools = %v", got)
 	}
 	dmDestinations := toolProperty(t, dmTools, "send_message", "destination")["enum"].([]string)
+	if !slices.Contains(dmDestinations, destinationExternalDM) {
+		t.Fatalf("DM schema 缺少外部私聊目标: %v", dmDestinations)
+	}
 	if slices.Contains(dmDestinations, destinationCurrentRoom) {
 		t.Fatalf("DM schema 不应暴露当前 Room 目标: %v", dmDestinations)
 	}
@@ -140,6 +143,7 @@ func TestSendMessageRoutesCurrentRoomPublicAndSuppressesFinal(t *testing.T) {
 		t.Fatalf("Room 公区发送不应失败: %s", extractText(t, result))
 	}
 	if svc.publicRequest.SourceAgentID != "agent-host" ||
+		svc.publicRequest.SourceAgentRoundID != "agent-round-1" ||
 		svc.publicRequest.RootRoundID != "root-round-1" ||
 		!svc.publicMessagePublished {
 		t.Fatalf("Room 公区发送未完整收口: %+v", svc)

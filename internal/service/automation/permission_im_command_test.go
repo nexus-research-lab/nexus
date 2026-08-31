@@ -23,7 +23,16 @@ type mutableAutomationDeliveryGrant struct {
 	calls    []string
 }
 
-func (g *mutableAutomationDeliveryGrant) ValidateAutomationDeliveryGrant(
+func (g *mutableAutomationDeliveryGrant) ListAgentExternalSessions(
+	context.Context,
+	string,
+	string,
+	string,
+) ([]channels.AgentExternalSession, error) {
+	return nil, nil
+}
+
+func (g *mutableAutomationDeliveryGrant) ValidateExternalSessionGrant(
 	ctx context.Context,
 	_ string,
 	agentID string,

@@ -22,6 +22,7 @@ func ScanAgent(scanner Scanner) (protocol.Agent, error) {
 	var (
 		item                 protocol.Agent
 		vibeTagsJSON         string
+		businessTagsJSON     string
 		allowedToolsJSON     string
 		disallowedToolsJSON  string
 		mcpServersJSON       string
@@ -44,6 +45,7 @@ func ScanAgent(scanner Scanner) (protocol.Agent, error) {
 		&item.Avatar,
 		&item.Description,
 		&vibeTagsJSON,
+		&businessTagsJSON,
 		&item.DisplayName,
 		&item.Headline,
 		&item.ProfileMarkdown,
@@ -68,6 +70,7 @@ func ScanAgent(scanner Scanner) (protocol.Agent, error) {
 
 	item.CreatedAt = createdAt
 	item.VibeTags = decodeStringSlice(vibeTagsJSON)
+	item.BusinessTags = decodeStringSlice(businessTagsJSON)
 	item.Options.AllowedTools = jsoncodec.ParseStringSlice(allowedToolsJSON)
 	item.Options.DisallowedTools = jsoncodec.ParseStringSlice(disallowedToolsJSON)
 	item.Options.MCPServers = jsoncodec.ParseMap(mcpServersJSON)

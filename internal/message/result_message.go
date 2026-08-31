@@ -12,7 +12,7 @@ import (
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
-const hookStoppedDisplayError = "该操作被当前运行时规则拦截，本轮已停止。"
+const hookStoppedDisplayText = "该操作被当前运行时规则拦截，本轮已停止。"
 
 const (
 	contentFilteredTerminalReason = protocol.ProviderFailureContentFiltered
@@ -92,8 +92,8 @@ func (p *Processor) buildResultMessage(
 			stopReason = "error"
 		}
 		if runtimeSubtype == "error_hook_stopped" {
-			resultText = ""
-			errors = []string{hookStoppedDisplayError}
+			resultText = hookStoppedDisplayText
+			errors = []string{hookStoppedDisplayText}
 		}
 	}
 	payload["result"] = resultText

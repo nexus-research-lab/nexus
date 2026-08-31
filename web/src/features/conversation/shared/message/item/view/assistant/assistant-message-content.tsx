@@ -6,8 +6,14 @@
 import { AlertTriangle } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import type {
+  ContentBlock,
+  ToolUseContent,
+} from "@/types/conversation/message/content";
 
 import { shouldShowAssistantTimeline } from "../../message-item-projection";
+import { getLocalizedToolActivityLabel } from "../../../tool-activity";
+import { ProcessActivityIconStack } from "../../../ui/activity-icon";
 import { LocalizedMessageActivityStatus } from "../message-activity-status";
 import { ContentRenderer } from "../content/content-renderer";
 import type {
@@ -45,11 +51,6 @@ export function AssistantMessageContent({
     <>
       <StandaloneActivity activity={activity} />
       <EmptyStreamStatus status={activity.emptyStreamStatus} />
-      <RoomResultProcessActivity
-        activity={activity}
-        direct={direct}
-        environment={environment}
-      />
       <AssistantDirectContent
         activity={activity}
         direct={direct}
@@ -73,6 +74,11 @@ export function AssistantMessageContent({
         permissions={permissions}
         showTrailingActivity={!direct.visible}
       />
+      <RoomResultProcessActivity
+        activity={activity}
+        direct={direct}
+        environment={environment}
+      />
       <RoomResultTrailingActivity
         activity={activity}
         direct={direct}
@@ -93,6 +99,7 @@ function RoomResultProcessActivity({
   direct: AssistantDirectState;
   environment: AssistantContentEnvironment;
 }) {
+  const { t } = useI18n();
   if (
     environment.mode !== "room_result"
     || !direct.visible
@@ -100,14 +107,53 @@ function RoomResultProcessActivity({
   ) {
     return null;
   }
+  const runningTool = findLatestRunningTool(
+    direct.projection.content,
+    activity.state,
+  );
+  if (runningTool) {
+    return (
+      <div
+        className="flex min-h-7 min-w-0 items-center gap-1.5 py-1 text-sm font-normal leading-5 text-primary"
+        data-room-tool-activity
+      >
+        <ProcessActivityIconStack content={direct.projection.content} />
+        <span
+          aria-live="polite"
+          className="nexus-live-tool-text min-w-0 flex-1 truncate"
+        >
+          {getLocalizedToolActivityLabel(
+            runningTool.name,
+            t,
+            runningTool.input,
+          )}
+        </span>
+      </div>
+    );
+  }
   return (
     <LocalizedMessageActivityStatus
       className="py-1"
-      label={activity.label}
       state={activity.state}
       uniformTone
     />
   );
+}
+
+function findLatestRunningTool(
+  content: readonly ContentBlock[],
+  activityState: AssistantActivityState["state"],
+): ToolUseContent | null {
+  if (activityState !== "browsing" && activityState !== "executing") {
+    return null;
+  }
+  const resolvedToolUseIds = new Set(content.flatMap((block) => (
+    block.type === "tool_result" ? [block.tool_use_id] : []
+  )));
+  return content.findLast(
+    (block): block is ToolUseContent => block.type === "tool_use"
+      && !resolvedToolUseIds.has(block.id),
+  ) ?? null;
 }
 
 function RoomResultTrailingActivity({
@@ -234,6 +280,7 @@ function AssistantFinalContent({
   return (
     <ContentRenderer
       canRespondToPermissions={environment.canRespondToPermissions}
+      className="nexus-chat-final-content mt-3.5 first:mt-0"
       content={final.content ?? []}
       fallbackActivityLabel={activity.label}
       fallbackActivityState={activity.state}

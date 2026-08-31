@@ -118,7 +118,7 @@ func TestSQLiteDeliveryAttemptMigrationBackfillsLatestAuthoritativeTerminalRun(t
 			t.Fatalf("insert legacy run %s: %v", run.runID, err)
 		}
 	}
-	if err = goose.UpTo(db, dir, 121); err != nil {
+	if err = goose.UpTo(db, dir, 122); err != nil {
 		t.Fatalf("apply delivery attempt migration: %v", err)
 	}
 	var latest sql.NullString

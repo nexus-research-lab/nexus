@@ -27,7 +27,6 @@ import (
 )
 
 const (
-	goalContextualInputName    = "goal"
 	goalUsagePersistAttempts   = 5
 	roomGoalUsageRetryMaxDelay = 5 * time.Second
 )
@@ -167,7 +166,12 @@ func goalContextualInputs(contextText string, goalID string, sessionKey string) 
 		metadata["session_key"] = sessionKey
 	}
 	return []runtimectx.ContextualInputBlock{
-		runtimectx.NewContextualInputBlock(goalContextualInputName, contextText, 0, metadata),
+		runtimectx.NewContextualInputBlock(
+			runtimectx.ContextualInputNameGoal,
+			contextText,
+			runtimectx.ContextualInputPriorityGoal,
+			metadata,
+		),
 	}
 }
 

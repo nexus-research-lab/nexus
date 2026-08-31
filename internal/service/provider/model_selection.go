@@ -112,7 +112,11 @@ func modelHasReasoningCapability(model providerstore.ModelEntity) bool {
 		return *overrideCapabilities.Reasoning
 	}
 	autoCapabilities := decodeModelCapabilities(model.CapabilitiesAutoJSON)
-	return autoCapabilities.Reasoning != nil && *autoCapabilities.Reasoning
+	if autoCapabilities.Reasoning != nil {
+		return *autoCapabilities.Reasoning
+	}
+	known := knownReasoningCapability(model.ModelID)
+	return known != nil && *known
 }
 
 // modelHasVisionCapability 以用户覆盖优先，判断模型是否能接收图片输入。

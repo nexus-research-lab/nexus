@@ -16,19 +16,6 @@ import (
 
 // EnsureDirectRoom 获取或创建直聊房间，并返回最近活跃的对话上下文。
 func (s *Service) EnsureDirectRoom(ctx context.Context, agentID string) (*protocol.ConversationContextAggregate, error) {
-	return s.ensureDirectRoom(ctx, agentID, false)
-}
-
-// EnsureDirectRoomWithWelcome 获取或创建用户主动打开的直聊，并调度首次欢迎语。
-func (s *Service) EnsureDirectRoomWithWelcome(ctx context.Context, agentID string) (*protocol.ConversationContextAggregate, error) {
-	return s.ensureDirectRoom(ctx, agentID, true)
-}
-
-func (s *Service) ensureDirectRoom(
-	ctx context.Context,
-	agentID string,
-	welcomeRequested bool,
-) (*protocol.ConversationContextAggregate, error) {
 	agentValue, err := s.resolveRoomAgent(ctx, agentID)
 	if err != nil {
 		return nil, err
@@ -39,27 +26,23 @@ func (s *Service) ensureDirectRoom(
 		return nil, err
 	}
 	if existing != nil {
-		if welcomeRequested && s.initialObserver != nil {
-			s.initialObserver.Schedule(ctx, *existing)
-		}
 		return existing, nil
 	}
 
 	return s.createRoom(ctx, protocol.CreateRoomRequest{
 		AgentIDs: []string{normalizedAgentID},
-	}, protocol.RoomTypeDM, welcomeRequested)
+	}, protocol.RoomTypeDM)
 }
 
 // CreateRoom 创建房间。
 func (s *Service) CreateRoom(ctx context.Context, request protocol.CreateRoomRequest) (*protocol.ConversationContextAggregate, error) {
-	return s.createRoom(ctx, request, protocol.RoomTypeGroup, true)
+	return s.createRoom(ctx, request, protocol.RoomTypeGroup)
 }
 
 func (s *Service) createRoom(
 	ctx context.Context,
 	request protocol.CreateRoomRequest,
 	roomType string,
-	welcomeRequested bool,
 ) (*protocol.ConversationContextAggregate, error) {
 	ownerUserID := authctx.OwnerUserID(ctx)
 	normalizedRoomType, err := s.normalizeRoomType(roomType)
@@ -129,14 +112,7 @@ func (s *Service) createRoom(
 		Sessions: roomdomain.BuildSessions(conversationID, agentRefs),
 	}
 
-	created, err := s.repository.CreateRoom(ctx, bundle)
-	if err != nil || created == nil {
-		return created, err
-	}
-	if welcomeRequested && s.initialObserver != nil {
-		s.initialObserver.Schedule(ctx, *created)
-	}
-	return created, nil
+	return s.repository.CreateRoom(ctx, bundle)
 }
 
 // UpdateRoom 更新房间信息。

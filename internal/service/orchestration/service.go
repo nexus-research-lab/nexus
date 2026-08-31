@@ -576,14 +576,17 @@ func (s *Service) RuntimeContext(ctx context.Context, actor ActorContext) (strin
 		PlanMode:     actor.PlanMode,
 		ObserveOnly:  actor.ObservationOnly,
 	}
-	s.populateRuntimeGraphContext(ctx, actor, snapshot, &options)
 	if snapshot == nil {
 		return RenderUnmanagedExecutionContext(options), nil
 	}
 	options.ScopeKind = snapshot.Execution.ScopeKind
+	renderManagedExecutionContext := func() string {
+		s.populateRuntimeGraphContext(ctx, actor, snapshot, &options)
+		return RenderExecutionContext(snapshot, options)
+	}
 	if actor.ObservationOnly {
 		options.Role = ExecutionActorMember
-		return RenderExecutionContext(snapshot, options), nil
+		return renderManagedExecutionContext(), nil
 	}
 	if strings.TrimSpace(actor.GoalID) != "" &&
 		actor.GoalObjectiveRevision > 0 &&
@@ -625,7 +628,7 @@ func (s *Service) RuntimeContext(ctx context.Context, actor ActorContext) (strin
 				[]string(nil),
 				promotion.Blockers...,
 			)
-			return RenderExecutionContext(snapshot, options), nil
+			return renderManagedExecutionContext(), nil
 		}
 		options.Role = ExecutionActorMember
 		if strings.TrimSpace(actor.AgentID) ==
@@ -661,7 +664,7 @@ func (s *Service) RuntimeContext(ctx context.Context, actor ActorContext) (strin
 	promotion := EvaluateAdaptiveGoalPromotion(evidence)
 	options.GoalPromotionReasons = activationReasonsForSignals(promotion.Signals)
 	options.GoalPromotionBlockers = append([]string(nil), promotion.Blockers...)
-	return RenderExecutionContext(snapshot, options), nil
+	return renderManagedExecutionContext(), nil
 }
 
 // RuntimeGoalBinding 返回当前 actor 的 exact Work/Review Execution 所绑定的

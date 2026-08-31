@@ -165,6 +165,8 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 		"members may use local subagents",
 		"not the word “collaborate” or participant count",
 		"Authority is per round",
+		"Coordinator identity permits an explicit Execution inspect that enters graph coordination",
+		`does not authorize direct mutation from lane="conversation"`,
 		"Do not duplicate or take over assigned work outside the authorized Execution flow",
 		"Never publish private content unless required",
 		"submit_work returns managed results automatically",

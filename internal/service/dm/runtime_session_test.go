@@ -217,8 +217,8 @@ func TestServiceEnsureClientInjectsRuntimePrompt(t *testing.T) {
 			t.Fatalf("DM 固定 execution contract 缺少全 Agent 自适应分解规则 %q: %s", expected, promptOptions.AppendStatic)
 		}
 	}
-	if !strings.Contains(appendSystemPrompt, "执行规则：必须先加载工作区规则") {
-		t.Fatalf("runtime prompt 未注入 AGENTS.md 内容: %s", appendSystemPrompt)
+	if strings.Contains(appendSystemPrompt, "执行规则：必须先加载工作区规则") {
+		t.Fatalf("Nexus runtime prompt 不应重复注入由 SDK 加载的 AGENTS.md: %s", appendSystemPrompt)
 	}
 	if !strings.Contains(appendSystemPrompt, "Description: 负责执行工作区规则") {
 		t.Fatalf("runtime prompt 未注入 Agent description: %s", appendSystemPrompt)
@@ -227,7 +227,6 @@ func TestServiceEnsureClientInjectsRuntimePrompt(t *testing.T) {
 		t.Fatalf("runtime prompt 未注入 Agent vibe_tags: %s", appendSystemPrompt)
 	}
 	for _, expected := range []string{
-		"执行规则：必须先加载工作区规则",
 		"Description: 负责执行工作区规则",
 		"Vibe Tags: 规则优先, 稳健",
 	} {

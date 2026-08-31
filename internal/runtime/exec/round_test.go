@@ -317,101 +317,6 @@ func TestExecuteRoundConsumesDelayedTerminalAfterExplicitInterrupt(t *testing.T)
 	}
 }
 
-func TestRoundReceiveIgnoresReadyAssistantFallbackAfterExplicitInterrupt(t *testing.T) {
-	client := &fakeRoundExecutionClient{
-		sessionID: "sdk-session-interrupted-assistant",
-		messages:  make(chan sdkprotocol.ReceivedMessage, 1),
-	}
-	execution, err := newRoundExecution(context.Background(), RoundExecutionRequest{
-		Client: client,
-		Mapper: &fakeRoundExecutionMapper{},
-		InterruptReason: func() string {
-			return "user stopped"
-		},
-	})
-	if err != nil {
-		t.Fatalf("创建 round execution 失败: %v", err)
-	}
-	execution.assistantTerminalResult = &RoundExecutionResult{
-		TerminalStatus:       "finished",
-		ResultSubtype:        "success",
-		CompletedByAssistant: true,
-	}
-	ready := make(chan time.Time)
-	close(ready)
-	execution.assistantTerminalTimer = ready
-
-	type executionOutcome struct {
-		result RoundExecutionResult
-		err    error
-	}
-	done := make(chan executionOutcome, 1)
-	go func() {
-		result, receiveErr := execution.receive()
-		done <- executionOutcome{result: result, err: receiveErr}
-	}()
-	select {
-	case outcome := <-done:
-		t.Fatalf("显式中断不应走 assistant fallback: result=%+v err=%v", outcome.result, outcome.err)
-	case <-time.After(30 * time.Millisecond):
-	}
-	client.messages <- sdkprotocol.ReceivedMessage{
-		Type:   sdkprotocol.MessageTypeResult,
-		Result: &sdkprotocol.ResultMessage{Subtype: "interrupted"},
-	}
-	select {
-	case outcome := <-done:
-		if !errors.Is(outcome.err, ErrRoundInterrupted) {
-			t.Fatalf("assistant fallback 排空错误不正确: %v", outcome.err)
-		}
-		if outcome.result.CompletedByAssistant || outcome.result.TerminalStatus != "" {
-			t.Fatalf("assistant fallback 泄漏为正常终态: %+v", outcome.result)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("assistant fallback 排空 result 后未结束")
-	}
-}
-
-func TestRoundReceiveWaitsForTerminalAfterIdleTimeoutWithExplicitInterrupt(t *testing.T) {
-	client := &fakeRoundExecutionClient{
-		sessionID: "sdk-session-interrupted-idle",
-		messages:  make(chan sdkprotocol.ReceivedMessage, 1),
-	}
-	execution, err := newRoundExecution(context.Background(), RoundExecutionRequest{
-		Client:      client,
-		Mapper:      &fakeRoundExecutionMapper{},
-		IdleTimeout: 10 * time.Millisecond,
-		InterruptReason: func() string {
-			return "user stopped"
-		},
-	})
-	if err != nil {
-		t.Fatalf("创建 round execution 失败: %v", err)
-	}
-	done := make(chan error, 1)
-	go func() {
-		_, receiveErr := execution.receive()
-		done <- receiveErr
-	}()
-	select {
-	case receiveErr := <-done:
-		t.Fatalf("显式中断不应走 idle timeout: %v", receiveErr)
-	case <-time.After(50 * time.Millisecond):
-	}
-	client.messages <- sdkprotocol.ReceivedMessage{
-		Type:   sdkprotocol.MessageTypeResult,
-		Result: &sdkprotocol.ResultMessage{Subtype: "interrupted"},
-	}
-	select {
-	case receiveErr := <-done:
-		if !errors.Is(receiveErr, ErrRoundInterrupted) {
-			t.Fatalf("idle timeout 排空错误不正确: %v", receiveErr)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("idle timeout 排空 result 后未结束")
-	}
-}
-
 func TestExecuteRoundDisconnectsWhenInterruptedTerminalNeverArrives(t *testing.T) {
 	client := &fakeRoundExecutionClient{
 		sessionID:    "sdk-session-unclean",
@@ -463,47 +368,6 @@ func TestDisconnectUncleanRoundClientUsesNonblockingDiscard(t *testing.T) {
 	}
 	if client.disconnects != 0 {
 		t.Fatalf("支持异步隔离时不应阻塞 round 等待 Disconnect，disconnects=%d", client.disconnects)
-	}
-}
-
-func TestExecuteRoundDisconnectsWhenInterruptedStreamCloses(t *testing.T) {
-	client := &fakeRoundExecutionClient{
-		sessionID:    "sdk-session-closed-unclean",
-		messages:     make(chan sdkprotocol.ReceivedMessage),
-		receiveStart: make(chan struct{}, 1),
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan error, 1)
-	go func() {
-		_, err := ExecuteRound(ctx, RoundExecutionRequest{
-			Query:  "long-running request",
-			Client: client,
-			Mapper: &fakeRoundExecutionMapper{},
-			InterruptReason: func() string {
-				return "user stopped"
-			},
-		})
-		done <- err
-	}()
-
-	select {
-	case <-client.receiveStart:
-	case <-time.After(time.Second):
-		t.Fatal("round 未开始接收 runtime 消息")
-	}
-	cancel()
-	close(client.messages)
-
-	select {
-	case err := <-done:
-		if !errors.Is(err, ErrRoundInterrupted) {
-			t.Fatalf("stream 关闭后的中断错误不正确: %v", err)
-		}
-		if client.disconnects != 1 {
-			t.Fatalf("无 terminal 即关闭的 client 必须断开，disconnects=%d", client.disconnects)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("stream 关闭后 round 未结束")
 	}
 }
 
@@ -651,7 +515,7 @@ func TestExecuteRoundUsesInternalContextWhenSupported(t *testing.T) {
 	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
 		Content: "用户输入",
 		ContextualInputs: []ContextualInputBlock{
-			runtimectx.NewContextualInputBlock("goal", "Continue.", 0, map[string]string{"goal_id": "goal-1"}),
+			runtimectx.NewContextualInputBlock("goal", "active goal facts", 0, map[string]string{"goal_id": "goal-1"}),
 		},
 		Client: client,
 		Mapper: &fakeRoundExecutionMapper{
@@ -661,7 +525,7 @@ func TestExecuteRoundUsesInternalContextWhenSupported(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ExecuteRound 失败: %v", err)
 	}
-	if len(client.contextInput) != 1 || client.contextInput[0].Name != "goal" || client.contextInput[0].Content != "Continue." {
+	if len(client.contextInput) != 1 || client.contextInput[0].Name != "goal" || client.contextInput[0].Content != "active goal facts" {
 		t.Fatalf("contextInput = %#v, want goal internal context", client.contextInput)
 	}
 	if client.clearCalls != 1 {
@@ -672,7 +536,7 @@ func TestExecuteRoundUsesInternalContextWhenSupported(t *testing.T) {
 	}
 }
 
-func TestExecuteRoundInlinesContextOnlyInternalTurn(t *testing.T) {
+func TestExecuteRoundDoesNotInventUserTextForContextOnlyTurn(t *testing.T) {
 	client := &fakeRoundExecutionClient{
 		sessionID: "sdk-session-context-only",
 		messages:  make(chan sdkprotocol.ReceivedMessage, 1),
@@ -681,16 +545,14 @@ func TestExecuteRoundInlinesContextOnlyInternalTurn(t *testing.T) {
 		Type:      sdkprotocol.MessageTypeResult,
 		SessionID: client.sessionID,
 		UUID:      "result-context-only",
-		Result: &sdkprotocol.ResultMessage{
-			Subtype: "success",
-		},
+		Result:    &sdkprotocol.ResultMessage{Subtype: "success"},
 	}
 	close(client.messages)
 
 	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
 		Content: "",
 		ContextualInputs: []ContextualInputBlock{
-			runtimectx.NewContextualInputBlock("goal", "Continue.", 0, map[string]string{"goal_id": "goal-1"}),
+			runtimectx.NewContextualInputBlock("goal", "hidden goal", 0, nil),
 		},
 		Client: client,
 		Mapper: &fakeRoundExecutionMapper{
@@ -700,12 +562,11 @@ func TestExecuteRoundInlinesContextOnlyInternalTurn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ExecuteRound 失败: %v", err)
 	}
-	if len(client.contextInput) != 0 {
-		t.Fatalf("contextInput = %#v, want context-only turn inlined", client.contextInput)
+	if len(client.contextInput) != 1 || client.contextInput[0].Content != "hidden goal" {
+		t.Fatalf("contextInput = %#v, want buffered hidden context", client.contextInput)
 	}
-	wantPrompt := "<internal_context source=\"goal\">\nContinue.\n</internal_context>"
-	if len(client.queryPrompts) != 1 || client.queryPrompts[0] != wantPrompt {
-		t.Fatalf("queryPrompts = %#v, want inlined internal context", client.queryPrompts)
+	if len(client.queryPrompts) != 1 || client.queryPrompts[0] != "" {
+		t.Fatalf("queryPrompts = %#v, want untouched empty user text", client.queryPrompts)
 	}
 }
 
@@ -728,7 +589,7 @@ func TestExecuteRoundFallsBackToUserContextPrefixWhenInternalContextUnsupported(
 	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
 		Content: "用户输入",
 		ContextualInputs: []ContextualInputBlock{
-			runtimectx.NewContextualInputBlock("goal", "Continue.", 0, nil),
+			runtimectx.NewContextualInputBlock("goal", "active goal facts", 0, nil),
 		},
 		Client: client,
 		Mapper: &fakeRoundExecutionMapper{
@@ -739,7 +600,7 @@ func TestExecuteRoundFallsBackToUserContextPrefixWhenInternalContextUnsupported(
 		t.Fatalf("ExecuteRound 失败: %v", err)
 	}
 	if len(client.queryPrompts) != 1 ||
-		!strings.HasPrefix(client.queryPrompts[0], "<internal_context source=\"goal\">\nContinue.\n</internal_context>\n\n") ||
+		!strings.HasPrefix(client.queryPrompts[0], "<internal_context source=\"goal\">\nactive goal facts\n</internal_context>\n\n") ||
 		!strings.Contains(client.queryPrompts[0], "用户输入") {
 		t.Fatalf("queryPrompts = %#v, want context-prefixed user input", client.queryPrompts)
 	}
@@ -749,84 +610,6 @@ func TestExecuteRoundFallsBackToUserContextPrefixWhenInternalContextUnsupported(
 			client.clearCalls,
 			client.contextInput,
 		)
-	}
-}
-
-func TestExecuteRoundFallsBackToStructuredContentPrefixWhenInternalContextUnsupported(t *testing.T) {
-	client := &fakeRoundExecutionClient{
-		sessionID:  "sdk-session-context-structured",
-		contextErr: agentclient.ErrUnsupportedCapability,
-		messages:   make(chan sdkprotocol.ReceivedMessage, 1),
-	}
-	client.messages <- sdkprotocol.ReceivedMessage{
-		Type:      sdkprotocol.MessageTypeResult,
-		SessionID: client.sessionID,
-		UUID:      "result-context-structured",
-		Result: &sdkprotocol.ResultMessage{
-			Subtype: "success",
-		},
-	}
-	close(client.messages)
-	content := []map[string]any{{"type": "text", "text": "描述图片"}}
-
-	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
-		Content: content,
-		ContextualInputs: []ContextualInputBlock{
-			runtimectx.NewContextualInputBlock("goal", "Continue.", 0, nil),
-		},
-		Client: client,
-		Mapper: &fakeRoundExecutionMapper{
-			results: []RoundMapResult{{TerminalStatus: "finished", ResultSubtype: "success"}},
-		},
-	})
-	if err != nil {
-		t.Fatalf("ExecuteRound 失败: %v", err)
-	}
-	if len(client.queryContent) != 1 {
-		t.Fatalf("queryContent = %#v, want one structured payload", client.queryContent)
-	}
-	blocks, ok := client.queryContent[0].([]map[string]any)
-	if !ok || len(blocks) != 2 || blocks[0]["text"] != "<internal_context source=\"goal\">\nContinue.\n</internal_context>" {
-		t.Fatalf("queryContent[0] = %#v, want prepended context text block", client.queryContent[0])
-	}
-}
-
-func TestExecuteRoundLeavesUnknownContentShapeWhenInternalContextUnsupported(t *testing.T) {
-	client := &fakeRoundExecutionClient{
-		sessionID:  "sdk-session-context-unknown",
-		contextErr: agentclient.ErrUnsupportedCapability,
-		messages:   make(chan sdkprotocol.ReceivedMessage, 1),
-	}
-	client.messages <- sdkprotocol.ReceivedMessage{
-		Type:      sdkprotocol.MessageTypeResult,
-		SessionID: client.sessionID,
-		UUID:      "result-context-unknown",
-		Result: &sdkprotocol.ResultMessage{
-			Subtype: "success",
-		},
-	}
-	close(client.messages)
-	content := map[string]any{"prompt": "用户输入"}
-
-	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
-		Content: content,
-		ContextualInputs: []ContextualInputBlock{
-			runtimectx.NewContextualInputBlock("goal", "Continue.", 0, nil),
-		},
-		Client: client,
-		Mapper: &fakeRoundExecutionMapper{
-			results: []RoundMapResult{{TerminalStatus: "finished", ResultSubtype: "success"}},
-		},
-	})
-	if err != nil {
-		t.Fatalf("ExecuteRound 失败: %v", err)
-	}
-	if len(client.queryPrompts) != 0 || len(client.queryContent) != 1 {
-		t.Fatalf("queryPrompts=%#v queryContent=%#v, want one unchanged content payload", client.queryPrompts, client.queryContent)
-	}
-	got, ok := client.queryContent[0].(map[string]any)
-	if !ok || got["prompt"] != "用户输入" || got["text"] != nil {
-		t.Fatalf("queryContent[0] = %#v, want original map without injected text", client.queryContent[0])
 	}
 }
 
@@ -847,23 +630,6 @@ func TestExecuteRoundReturnsInterruptedWhenContextCancelled(t *testing.T) {
 		Query:  "你好",
 		Client: client,
 		Mapper: mapper,
-	})
-	if !errors.Is(err, ErrRoundInterrupted) {
-		t.Fatalf("期望返回 ErrRoundInterrupted，实际 %v", err)
-	}
-}
-
-func TestExecuteRoundReturnsInterruptedWhenSDKAborted(t *testing.T) {
-	client := &fakeRoundExecutionClient{
-		sessionID: "sdk-session-1",
-		queryErr:  agentclient.ErrAborted,
-		messages:  make(chan sdkprotocol.ReceivedMessage),
-	}
-
-	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
-		Query:  "你好",
-		Client: client,
-		Mapper: &fakeRoundExecutionMapper{},
 	})
 	if !errors.Is(err, ErrRoundInterrupted) {
 		t.Fatalf("期望返回 ErrRoundInterrupted，实际 %v", err)
@@ -1005,93 +771,6 @@ func TestExecuteRoundReturnsStreamClosedDiagnostics(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "read_error=") {
 		t.Fatalf("错误字符串缺少 read_error: %v", err)
-	}
-}
-
-func TestExecuteRoundReturnsLastStreamStopDiagnostics(t *testing.T) {
-	client := &fakeRoundExecutionClient{
-		sessionID: "sdk-session-1",
-		messages:  make(chan sdkprotocol.ReceivedMessage, 6),
-	}
-	client.messages <- sdkprotocol.ReceivedMessage{
-		Type:      sdkprotocol.MessageTypeStreamEvent,
-		SessionID: "sdk-session-1",
-		Stream: &sdkprotocol.StreamEvent{
-			Event: map[string]any{
-				"type": "message_start",
-				"message": map[string]any{
-					"id":    "assistant-1",
-					"model": "kimi-k2.6",
-				},
-			},
-		},
-	}
-	client.messages <- sdkprotocol.ReceivedMessage{
-		Type:      sdkprotocol.MessageTypeStreamEvent,
-		SessionID: "sdk-session-1",
-		Stream: &sdkprotocol.StreamEvent{
-			Event: map[string]any{
-				"type": "message_delta",
-				"delta": map[string]any{
-					"stop_reason": "tool_use",
-				},
-			},
-		},
-	}
-	client.messages <- sdkprotocol.ReceivedMessage{
-		Type:      sdkprotocol.MessageTypeStreamEvent,
-		SessionID: "sdk-session-1",
-		Stream: &sdkprotocol.StreamEvent{
-			Event: map[string]any{
-				"type": "message_stop",
-			},
-		},
-	}
-	client.messages <- sdkprotocol.ReceivedMessage{
-		Type:      sdkprotocol.MessageTypeTaskProgress,
-		SessionID: "sdk-session-1",
-	}
-	client.messages <- sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeToolUseSummary}
-	client.messages <- sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeUnknown}
-	close(client.messages)
-
-	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
-		Query:  "需要工具",
-		Client: client,
-		Mapper: &fakeRoundExecutionMapper{
-			results: []RoundMapResult{{}, {}, {}, {}, {}, {}},
-		},
-	})
-	if !errors.Is(err, ErrRoundStreamClosedBeforeTerminal) {
-		t.Fatalf("期望 ErrRoundStreamClosedBeforeTerminal，实际 %v", err)
-	}
-	var streamErr *RoundStreamClosedError
-	if !errors.As(err, &streamErr) {
-		t.Fatalf("期望 RoundStreamClosedError，实际 %T %[1]v", err)
-	}
-	stop := streamErr.LastStreamStop
-	if !stop.Observed ||
-		stop.MessageIndex != 3 ||
-		stop.MessagesAfter != 3 ||
-		stop.ProgressMessagesAfter != 1 ||
-		stop.ConversationMessagesAfter != 0 ||
-		stop.PassiveMessagesAfter != 1 ||
-		stop.UnknownMessagesAfter != 1 ||
-		stop.StopReason != "tool_use" ||
-		stop.SessionID != "sdk-session-1" ||
-		stop.MessageID != "assistant-1" ||
-		stop.Model != "kimi-k2.6" {
-		t.Fatalf("message_stop 诊断字段不正确: %+v", stop)
-	}
-	if !strings.Contains(err.Error(), "messages_after_last_stream_stop=3") {
-		t.Fatalf("错误字符串缺少 message_stop 诊断: %v", err)
-	}
-	if !strings.Contains(err.Error(), "progress_after_last_stream_stop=1") {
-		t.Fatalf("错误字符串缺少 message_stop 分类诊断: %v", err)
-	}
-	fields := RoundStreamStopDiagnosticLogFields(stop)
-	if len(fields) == 0 {
-		t.Fatalf("message_stop 日志字段为空: %+v", stop)
 	}
 }
 

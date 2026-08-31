@@ -206,8 +206,9 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
       [browser.extensionsURL],
       withApplicationAt: browser.applicationURL,
       configuration: configuration
-    ) { _, _ in }
-    NSWorkspace.shared.activateFileViewerSelecting([extensionURL])
+    ) { _, _ in
+      NSWorkspace.shared.activateFileViewerSelecting([extensionURL])
+    }
     return [
       "browser": browser.kind,
       "browser_name": browser.name,

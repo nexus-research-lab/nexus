@@ -11,8 +11,15 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
+
+	_ "modernc.org/sqlite"
 )
 
 func TestCLIJSONFlagOutputsCompactJSON(t *testing.T) {
@@ -141,6 +148,42 @@ func captureCLIStreams(t *testing.T, command interface{ Execute() error }) (stri
 	stderr := finishCLIPipeCapture(t, stderrWriter, stderrCapture)
 
 	return strings.TrimSpace(string(stdout)), strings.TrimSpace(string(stderr)), executeErr
+}
+
+func newCLITestConfig(t *testing.T) config.Config {
+	t.Helper()
+
+	root := t.TempDir()
+	stateRoot := filepath.Join(root, ".nexus")
+	t.Setenv("HOME", root)
+	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", stateRoot)
+	return config.Config{
+		Host:           "127.0.0.1",
+		Port:           18032,
+		ProjectName:    "nexus-cli-test",
+		APIPrefix:      "/nexus/v1",
+		WebSocketPath:  "/nexus/v1/chat/ws",
+		DefaultAgentID: "nexus",
+		WorkspacePath:  filepath.Join(root, "workspace"),
+		DatabaseDriver: "sqlite",
+		DatabaseURL:    filepath.Join(root, "nexus.db"),
+	}
+}
+
+func migrateCLISQLite(t *testing.T, databaseURL string) {
+	t.Helper()
+	handlertest.MigrateSQLiteFromDir(t, databaseURL, cliMigrationDir(t))
+}
+
+func cliMigrationDir(t *testing.T) string {
+	t.Helper()
+
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("定位 CLI 测试文件失败")
+	}
+	return filepath.Join(filepath.Dir(file), "..", "..", "db", "migrations", "sqlite")
 }
 
 type cliPipeCapture struct {

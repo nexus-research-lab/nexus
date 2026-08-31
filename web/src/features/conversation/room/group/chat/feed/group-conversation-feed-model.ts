@@ -3,7 +3,7 @@
  * OUTPUT: static/virtual feed 共用的单轮 loaded/live 状态、未读标记与稳定源切片。
  * POS: Room feed 的纯轮次解析边界，不拥有 Agent 排序或 runtime 状态。
  */
-import type { RefObject } from "react";
+import type { ReactNode, RefObject } from "react";
 
 import type {
   AgentConversationRuntimePhase,
@@ -62,6 +62,7 @@ export interface GroupConversationRoundRenderer {
 
 export interface GroupConversationFeedProps {
   isMobileLayout: boolean;
+  leadingContent?: ReactNode;
   refs: GroupConversationFeedRefs;
   renderer: GroupConversationRoundRenderer;
   source: GroupConversationRoundSource;

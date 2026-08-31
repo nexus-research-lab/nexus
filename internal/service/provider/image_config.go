@@ -20,7 +20,7 @@ func (s *Service) ResolveImageModelConfig(ctx context.Context, provider string, 
 	if err != nil {
 		return nil, err
 	}
-	targetProvider, err := NormalizeProvider(provider, true)
+	targetProvider, err := normalizeProviderReference(provider, true)
 	if err != nil {
 		return nil, err
 	}

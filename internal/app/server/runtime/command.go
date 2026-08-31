@@ -19,6 +19,7 @@ import (
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	executioncontract "github.com/nexus-research-lab/nexus/internal/mcp/command/execution/contract"
 	executionoperation "github.com/nexus-research-lab/nexus/internal/mcp/command/execution/operation"
@@ -85,10 +86,13 @@ func NewServerBuilder(
 		if len(definitions) == 0 {
 			return nil, nil
 		}
-		server := sdktool.NewSimpleSDKMCPServer(
-			nexusMCPServerName,
-			"1.0.0",
-			definitions,
+		server := newRoundScopedMCPServer(
+			ctx,
+			sdktool.NewSimpleSDKMCPServer(
+				nexusMCPServerName,
+				"1.0.0",
+				definitions,
+			),
 		)
 		return map[string]sdkmcp.ServerConfig{
 			nexusMCPServerName: sdkmcp.SDKServerConfig{
@@ -96,6 +100,49 @@ func NewServerBuilder(
 			},
 		}, nil
 	}
+}
+
+// roundScopedMCPServer 把宿主已核验的真人身份带回 bridge 发起的工具调用，
+// 同时保留控制请求自身的取消信号。服务层仍会重新验证 Session、角色与 round lease。
+type roundScopedMCPServer struct {
+	server              sdkmcp.SDKMCPServer
+	principal           *authctx.Principal
+	humanEvidenceSource string
+}
+
+func newRoundScopedMCPServer(
+	ctx context.Context,
+	server sdkmcp.SDKMCPServer,
+) sdkmcp.SDKMCPServer {
+	scoped := &roundScopedMCPServer{
+		server:    server,
+		principal: clonePrincipal(authctx.PrincipalFromContext(ctx)),
+	}
+	if evidence, ok := authctx.InteractiveHumanEvidenceFromContext(ctx); ok {
+		scoped.humanEvidenceSource = evidence.Source
+	}
+	return scoped
+}
+
+func (s *roundScopedMCPServer) HandleMessage(
+	ctx context.Context,
+	message map[string]any,
+) (map[string]any, error) {
+	ctx = authctx.WithPrincipal(ctx, clonePrincipal(s.principal))
+	ctx = authctx.WithInteractiveHumanEvidence(ctx, s.humanEvidenceSource)
+	return s.server.HandleMessage(ctx, message)
+}
+
+func clonePrincipal(principal *authctx.Principal) *authctx.Principal {
+	if principal == nil {
+		return nil
+	}
+	cloned := *principal
+	if principal.SessionID != nil {
+		sessionID := *principal.SessionID
+		cloned.SessionID = &sessionID
+	}
+	return &cloned
 }
 
 func isolatedWorkGraphMCPRound(sourceContextType string) bool {
@@ -542,6 +589,7 @@ func automationConfirmationInput(plan automationdomain.AutomationCommandPlan) ma
 	add("agent_id", command.AgentID, strings.TrimSpace(command.AgentID) != "")
 	add("context_mode", command.ContextMode, strings.TrimSpace(command.ContextMode) != "")
 	add("deliver_result", command.DeliverResult, command.DeliverResult != nil)
+	add("delivery_session_key", command.DeliverySessionKey, strings.TrimSpace(command.DeliverySessionKey) != "")
 	add("permission_mode", command.PermissionMode, strings.TrimSpace(command.PermissionMode) != "")
 	add("overlap_policy", command.OverlapPolicy, strings.TrimSpace(command.OverlapPolicy) != "")
 	add("expires_at", command.ExpiresAt, strings.TrimSpace(command.ExpiresAt) != "")

@@ -19,7 +19,7 @@ export interface ContentRendererProps {
   canRespondToPermissions?: boolean;
   className?: string;
   content: string | ContentBlock[];
-  defaultToolDetailsExpanded?: boolean;
+  defaultThinkingExpanded?: boolean;
   fallbackActivityLabel?: string | null;
   fallbackActivityState?: MessageActivityState | null;
   hiddenToolNames?: readonly string[];

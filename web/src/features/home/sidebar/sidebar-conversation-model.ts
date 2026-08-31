@@ -104,7 +104,6 @@ function projectConversationItem(
     : undefined;
   const lastActivityAt = toTimestamp(latest.last_activity);
   const title = resolveConversationTitle(room, dmAgent, context.untitledRoomLabel);
-  const conversationTitle = latest.title.trim();
 
   return {
     agentId: room.dm_target_agent_id,
@@ -121,7 +120,7 @@ function projectConversationItem(
     routeRoomId: room.id,
     activityStatus: context.roomActivity.get(room.id) ?? null,
     sessionKey: latest.session_key,
-    summary: conversationTitle === title ? "" : conversationTitle,
+    summary: latest.last_reply_preview?.trim() ?? "",
     timeLabel: formatSidebarTime(lastActivityAt, context.locale),
     title,
   };

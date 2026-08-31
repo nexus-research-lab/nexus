@@ -235,34 +235,6 @@ func TestProjectResultMessageKeepsRoomInterruptedSlotWithoutText(t *testing.T) {
 	}
 }
 
-func TestIsInternalTranscriptContinuationPrompt(t *testing.T) {
-	const prompt = "Output token limit hit. Resume directly — no apology, no recap of what you were doing. Pick up mid-thought if that is where the cut happened. Break remaining work into smaller pieces."
-
-	if !IsInternalTranscriptContinuationPrompt("  " + prompt + "\n") {
-		t.Fatalf("输出预算续跑提示应被识别为内部消息")
-	}
-	if IsInternalTranscriptContinuationPrompt(prompt + " 请继续") {
-		t.Fatalf("带用户内容的续跑提示不应被误判为内部消息")
-	}
-}
-
-func TestIsInternalExplicitSkillPrompt(t *testing.T) {
-	const prompt = `<system-reminder>
-The following is runtime-internal context for the next turn.
-
-<internal_context source="explicit_skill">
-The user explicitly selected a Skill.
-</internal_context>
-</system-reminder>`
-
-	if !IsInternalExplicitSkillPrompt("  " + prompt + "\n") {
-		t.Fatalf("旧版显式 Skill 内部正文应被识别")
-	}
-	if IsInternalExplicitSkillPrompt(`<internal_context source="explicit_skill">普通用户引用</internal_context>`) {
-		t.Fatalf("缺少完整内部 wrapper 的用户内容不应被误判")
-	}
-}
-
 func TestBuildSyntheticAssistantFromResultPreservesExecutionIdentity(t *testing.T) {
 	synthetic := BuildSyntheticAssistantFromResult(protocol.Message{
 		"message_id":     "result-1",

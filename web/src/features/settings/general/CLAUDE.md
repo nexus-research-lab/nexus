@@ -26,6 +26,8 @@ Preferences 首次 GET 成功并取得持久 version 前禁止写入，不得用
 
 主动跟进开关复用 Preferences 单调 version，但通过独立 Echo 服务完成停用后的 attempt 收口。PUT 必须携带读取到的 Echo ETag；同页其他 Preferences 写入成功后只同步已证明的 aggregate revision，不猜测或改写 Echo 开关。冲突和结果未知先 GET 对账，关闭请求丢失回执时仍需显式重跑幂等的“停止在途跟进”阶段，不能仅凭开关已为关闭就宣告整个流程完成。
 
+自动记忆与自动整理记忆是 nxs 的用户级显式偏好，默认开启；前者控制新对话的长期记忆抽取，后者作为 AutoDream 总开关阻止宿主后台唤醒，均不删除已有记忆或会话摘要。
+
 默认模型行在桌面端为 Provider / Model 控件保留 300–360px 列宽，窄屏回落为整行宽度；触发器保持单行并使用足以容纳英文下行字形的行盒，展开菜单通过锚点定位的 `menuMinWidth` 保证完整名称可读。
 
 常规页只展示桌面宿主 Bridge 返回的应用版本与构建号，并在同一区域提供日志导出；Go sidecar 的服务版本不再投影成用户可见的应用版本。Web 模式没有 Desktop Bridge 时隐藏整个桌面应用区域。

@@ -8,12 +8,12 @@ import { cn } from "@/shared/ui/class-name";
 
 import { MarkdownRenderer } from "../markdown-renderer";
 import {
-  MessageRail,
-  MessageRailBody,
-  MessageRailLabel,
+  MessageDetailFrame,
+  MessageDetailScroll,
 } from "../ui/message-rail";
 
 interface ThinkingBlockProps {
+  defaultExpanded?: boolean;
   thinking: string;
   initialRevealFromEmpty?: boolean;
   isStreaming?: boolean;
@@ -21,7 +21,7 @@ interface ThinkingBlockProps {
 }
 
 interface ThinkingPresentation {
-  iconClassName: string;
+  className: string;
   label: string;
 }
 
@@ -30,16 +30,17 @@ const THINKING_PRESENTATIONS: Readonly<Record<
   ThinkingPresentation
 >> = {
   idle: {
-    iconClassName: "h-3 w-3 text-(--icon-muted)",
+    className: "text-(--icon-muted)",
     label: "Thought",
   },
   streaming: {
-    iconClassName: "h-3 w-3 animate-pulse text-(--primary)",
+    className: "animate-pulse text-(--primary)",
     label: "Thinking……",
   },
 };
 
 export function ThinkingBlock({
+  defaultExpanded,
   thinking,
   initialRevealFromEmpty = false,
   isStreaming = false,
@@ -47,32 +48,56 @@ export function ThinkingBlock({
 }: ThinkingBlockProps) {
   // 流式边界是展开状态的重置域；同一阶段内仍允许用户手动切换。
   const expansion = useScrollAnchoredState(
-    isStreaming,
+    defaultExpanded ?? isStreaming,
     isStreaming,
   );
   const isExpanded = expansion.isOpen;
   const presentation = resolveThinkingPresentation(isStreaming);
+  const preview = thinking.replace(/\s+/g, " ").trim();
   if (!thinking) {
     return null;
   }
 
   return (
-    <MessageRail ref={expansion.anchorRef as RefObject<HTMLDivElement>}>
+    <div
+      className="min-w-0"
+      ref={expansion.anchorRef as RefObject<HTMLDivElement>}
+    >
       <button
-        className="flex w-full items-center gap-2 text-left"
+        aria-expanded={isExpanded}
+        className="grid min-h-7 w-full min-w-0 grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-1.5 radius-control-sm px-1.5 py-0.5 text-left text-sm font-normal leading-5 text-(--text-soft) transition-colors hover:bg-(--surface-interactive-hover-background)"
+        data-activity-row="thinking"
+        data-message-detail-sticky-header={isExpanded || undefined}
         onClick={expansion.toggle}
         type="button"
       >
-        <MessageRailLabel active={isStreaming} className="flex-1">
+        <span
+          className={cn(
+            "flex h-5 w-5 shrink-0 items-center justify-center",
+            presentation.className,
+          )}
+          data-thinking-block-icon="thinking"
+          data-timeline-anchor
+          data-timeline-anchor-mode="box"
+        >
+          <Brain aria-hidden className="h-3.5 w-3.5" strokeWidth={1.8} />
+        </span>
+        <span className="flex min-w-0 items-baseline gap-1.5">
           <span
-            className="flex h-4 w-4 shrink-0 items-center justify-center"
-            data-timeline-anchor
-            data-timeline-anchor-mode="box"
+            className={cn(
+              "shrink-0",
+              isStreaming && "text-(--primary)",
+            )}
           >
-            <Brain className={presentation.iconClassName} />
+            {presentation.label}
           </span>
-          <span>{presentation.label}</span>
-        </MessageRailLabel>
+          <span
+            className="min-w-0 flex-1 truncate text-(--text-soft)"
+            data-thinking-block-preview
+          >
+            {preview}
+          </span>
+        </span>
         <ChevronRight
           className={cn(
             "h-3.5 w-3.5 shrink-0 text-(--icon-muted) transition-transform duration-(--motion-duration-fast)",
@@ -81,17 +106,20 @@ export function ThinkingBlock({
         />
       </button>
       {isExpanded ? (
-        <MessageRailBody className="pt-1">
-          <MarkdownRenderer
-            className="min-w-0 max-w-full overflow-hidden break-all"
-            content={thinking}
-            initialRevealFromEmpty={initialRevealFromEmpty}
-            isStreaming={isStreaming}
-            workspaceAgentId={workspaceAgentId}
-          />
-        </MessageRailBody>
+        <MessageDetailFrame>
+          <MessageDetailScroll followContent={isStreaming}>
+            <MarkdownRenderer
+              key={isStreaming ? "streaming" : "complete"}
+              className="nexus-message-detail-markdown min-w-0 max-w-full overflow-hidden break-all text-(--text-muted)"
+              content={thinking}
+              initialRevealFromEmpty={initialRevealFromEmpty}
+              isStreaming={isStreaming}
+              workspaceAgentId={workspaceAgentId}
+            />
+          </MessageDetailScroll>
+        </MessageDetailFrame>
       ) : null}
-    </MessageRail>
+    </div>
   );
 }
 

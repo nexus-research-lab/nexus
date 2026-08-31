@@ -43,6 +43,34 @@ func (provider runtimeGraphSubagentHistoryProviderFunc) ListRuntimeGraphSubagent
 	return provider(ctx, ownerUserID, sessionKey)
 }
 
+func graphNodeByID(
+	nodes []protocol.ExecutionGraphNodeView,
+	id string,
+) protocol.ExecutionGraphNodeView {
+	for _, node := range nodes {
+		if node.ID == id {
+			return node
+		}
+	}
+	return protocol.ExecutionGraphNodeView{}
+}
+
+func hasExecutionGraphEdge(
+	edges []protocol.ExecutionGraphEdgeView,
+	kind protocol.ExecutionGraphEdgeKind,
+	sourceID string,
+	targetID string,
+) bool {
+	for _, edge := range edges {
+		if edge.Kind == kind &&
+			edge.SourceNodeID == sourceID &&
+			edge.TargetNodeID == targetID {
+			return true
+		}
+	}
+	return false
+}
+
 func (f *runtimeGraphRepositoryFake) UpsertRuntimeGraphNode(
 	_ context.Context,
 	item protocol.ExecutionRuntimeNodeRun,
@@ -114,6 +142,125 @@ func (f *runtimeGraphRepositoryFake) GetRuntimeGraph(
 	f.graphExecutionID = executionID
 	f.graphRootRoundID = rootRoundID
 	return f.graph, nil
+}
+
+func TestRuntimeContextLoadsRuntimeFactsOnlyForManagedExecution(t *testing.T) {
+	roomSnapshot, binding := structuredRoomWorkBindingSnapshot()
+	conversationActor := structuredRoomMemberActor(binding)
+	conversationActor.WorkBinding = nil
+	observationActor := conversationActor
+	observationActor.ObservationOnly = true
+	tests := []struct {
+		name       string
+		snapshot   *protocol.ExecutionSnapshot
+		actor      ActorContext
+		wantGraph  bool
+		contextTag string
+	}{
+		{
+			name:       "unmanaged DM",
+			actor:      coordinatorActor(),
+			contextTag: `<nexus_round lane="coordination" role="coordinator" />`,
+		},
+		{
+			name:       "Room conversation with background Execution",
+			snapshot:   roomSnapshot,
+			actor:      conversationActor,
+			contextTag: `<nexus_round lane="conversation" role="member" execution="background" />`,
+		},
+		{
+			name:       "bound Room work",
+			snapshot:   roomSnapshot,
+			actor:      structuredRoomMemberActor(binding),
+			wantGraph:  true,
+			contextTag: `<assigned_work>`,
+		},
+		{
+			name:       "Room observation",
+			snapshot:   roomSnapshot,
+			actor:      observationActor,
+			wantGraph:  true,
+			contextTag: `<lane type="observation" />`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			repository := &runtimeGraphRepositoryFake{
+				fakeRepository: &fakeRepository{snapshot: test.snapshot},
+				graph: protocol.ExecutionRuntimeGraph{
+					GraphID: "execution:execution-1",
+					Nodes: []protocol.ExecutionRuntimeNodeRun{{
+						ID:      "runtime-tool-1",
+						Kind:    protocol.ExecutionRuntimeNodeTool,
+						AgentID: test.actor.AgentID,
+						Name:    "search",
+						Status:  protocol.ExecutionRuntimeNodeRunning,
+					}},
+					NodeTotal: 1,
+				},
+			}
+
+			rendered, err := NewService(repository).RuntimeContext(
+				context.Background(),
+				test.actor,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(rendered, test.contextTag) {
+				t.Fatalf("runtime context missing %q:\n%s", test.contextTag, rendered)
+			}
+			if got := strings.Contains(rendered, "<runtime_facts"); got != test.wantGraph {
+				t.Fatalf("runtime facts present = %t, want %t:\n%s", got, test.wantGraph, rendered)
+			}
+			wantCalls := 0
+			if test.wantGraph {
+				wantCalls = 1
+				if !strings.Contains(rendered, `id="runtime-tool-1"`) ||
+					repository.graphExecutionID != test.snapshot.Execution.ID {
+					t.Fatalf("managed Runtime Graph was not preserved:\n%s", rendered)
+				}
+			}
+			if repository.getGraphCalls != wantCalls {
+				t.Fatalf("GetRuntimeGraph calls = %d, want %d", repository.getGraphCalls, wantCalls)
+			}
+		})
+	}
+}
+
+func TestRuntimeContextOmitsSuccessfulHistory(t *testing.T) {
+	snapshot, binding := structuredRoomWorkBindingSnapshot()
+	actor := structuredRoomMemberActor(binding)
+	repository := &runtimeGraphRepositoryFake{
+		fakeRepository: &fakeRepository{snapshot: snapshot},
+		graph: protocol.ExecutionRuntimeGraph{
+			GraphID: "execution:execution-1",
+			Nodes: []protocol.ExecutionRuntimeNodeRun{{
+				ID:            "runtime-tool-1",
+				Kind:          protocol.ExecutionRuntimeNodeTool,
+				AgentID:       actor.AgentID,
+				Name:          "search",
+				Status:        protocol.ExecutionRuntimeNodeSucceeded,
+				ResultSummary: "finished research",
+			}},
+			NodeTotal: 1,
+		},
+	}
+	service := NewService(repository)
+
+	rendered, err := service.RuntimeContext(context.Background(), actor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(rendered, "finished research") ||
+		strings.Contains(rendered, "<runtime_facts") {
+		t.Fatalf("automatic context replayed successful history:\n%s", rendered)
+	}
+
+	if repository.getGraphCalls != 1 {
+		t.Fatalf("GetRuntimeGraph calls = %d, want 1", repository.getGraphCalls)
+	}
 }
 
 func TestRuntimeCommandReceiptsReconcileCLITransportInOneGraphRead(t *testing.T) {

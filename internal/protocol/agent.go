@@ -1,5 +1,5 @@
-// INPUT: Agent 资料、联系人、runtime 选项以及带可选预期版本/创建请求身份的 CRUD 请求。
-// OUTPUT: 跨 HTTP/服务/运行时共享的 Agent、联系人模型、创建对账结果、受控工具快照与 runtime_version CAS 协议。
+// INPUT: Agent 资料、业务标签、联系人、runtime 选项以及带可选预期版本/创建请求身份的 CRUD 请求。
+// OUTPUT: 跨 HTTP/服务/运行时共享的 Agent、联系人模型、创建对账结果、管理元数据、受控工具快照与 runtime_version CAS 协议。
 // POS: Agent 配置、owner-scoped 创建回执、同 owner 通讯录及乐观并发令牌的协议真相源。
 package protocol
 
@@ -57,6 +57,7 @@ type Agent struct {
 	Status         string    `json:"status"`
 	Avatar         string    `json:"avatar,omitempty"`
 	Description    string    `json:"description,omitempty"`
+	BusinessTags   []string  `json:"business_tags,omitempty"`
 	VibeTags       []string  `json:"vibe_tags,omitempty"`
 	SkillsCount    int       `json:"skills_count"`
 	OwnerUserID    string    `json:"-"`
@@ -89,6 +90,7 @@ type CreateRequest struct {
 	Avatar            string   `json:"avatar,omitempty"`
 	Description       string   `json:"description,omitempty"`
 	ProfileTemplate   string   `json:"profile_template,omitempty"`
+	BusinessTags      []string `json:"business_tags,omitempty"`
 	VibeTags          []string `json:"vibe_tags,omitempty"`
 	CreationRequestID string   `json:"creation_request_id,omitempty"`
 }
@@ -113,11 +115,12 @@ type AgentCreationRequestResult struct {
 
 // UpdateRequest 表示更新 Agent 请求。
 type UpdateRequest struct {
-	Name        *string  `json:"name,omitempty"`
-	Options     *Options `json:"options,omitempty"`
-	Avatar      *string  `json:"avatar,omitempty"`
-	Description *string  `json:"description,omitempty"`
-	VibeTags    []string `json:"vibe_tags,omitempty"`
+	Name         *string  `json:"name,omitempty"`
+	Options      *Options `json:"options,omitempty"`
+	Avatar       *string  `json:"avatar,omitempty"`
+	Description  *string  `json:"description,omitempty"`
+	BusinessTags []string `json:"business_tags,omitempty"`
+	VibeTags     []string `json:"vibe_tags,omitempty"`
 	// ExpectedRuntimeVersion 可选；设置后仅在当前版本匹配时更新 Agent。
 	ExpectedRuntimeVersion *int64 `json:"expected_runtime_version,omitempty"`
 }

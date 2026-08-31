@@ -83,7 +83,7 @@ func TestCoordinatorRunOnceRespectsEnabledAndNextCheck(t *testing.T) {
 		MaxConcurrent: 1,
 		RunTimeout:    time.Minute,
 		SweepInterval: 10 * time.Minute,
-	}, fakeAgentCatalog{agents: []protocol.Agent{enabledAgent, disabledAgent}}, runner)
+	}, fakeAgentCatalog{agents: []protocol.Agent{enabledAgent, disabledAgent}}, fakePreferencesService{}, runner)
 	coordinator.now = func() time.Time { return now }
 
 	if err := coordinator.runOnce(context.Background()); err != nil {
@@ -115,7 +115,7 @@ func TestCoordinatorBacksOffUnavailableProvider(t *testing.T) {
 		MaxConcurrent: 1,
 		RunTimeout:    time.Minute,
 		SweepInterval: 10 * time.Minute,
-	}, fakeAgentCatalog{agents: []protocol.Agent{agentValue}}, runner)
+	}, fakeAgentCatalog{agents: []protocol.Agent{agentValue}}, fakePreferencesService{}, runner)
 	coordinator.now = func() time.Time { return now }
 
 	if err := coordinator.runOnce(context.Background()); err != nil {
@@ -138,6 +138,30 @@ func TestCoordinatorBacksOffUnavailableProvider(t *testing.T) {
 	}
 	if got := runner.callCount(); got != 1 {
 		t.Fatalf("call count = %d, want provider backoff suppression", got)
+	}
+}
+
+func TestCoordinatorRunOnceRespectsUserAutoDreamPreference(t *testing.T) {
+	agentValue := newDreamTestAgent(t, "agent-disabled-by-user", true)
+	disabled := false
+	runner := &fakeDreamRunner{done: make(chan struct{}, 1)}
+	coordinator := newCoordinator(config.MemoryMaintenanceConfig{
+		MaxConcurrent: 1,
+		RunTimeout:    time.Minute,
+		SweepInterval: 10 * time.Minute,
+	}, fakeAgentCatalog{agents: []protocol.Agent{agentValue}}, fakePreferencesService{
+		preferences: preferencessvc.Preferences{
+			RuntimeSettings: preferencessvc.RuntimeSettings{
+				"nxs": {AutoDreamEnabled: &disabled},
+			},
+		},
+	}, runner)
+
+	if err := coordinator.runOnce(context.Background()); err != nil {
+		t.Fatalf("runOnce() error = %v", err)
+	}
+	if got := runner.callCount(); got != 0 {
+		t.Fatalf("call count = %d, want user preference suppression", got)
 	}
 }
 
@@ -186,6 +210,27 @@ func TestRuntimeDreamRunnerSkipsUnavailableSelection(t *testing.T) {
 	}
 	if available || provider != "" || model != "" {
 		t.Fatalf("background selection = %s/%s available=%t, want unavailable", provider, model, available)
+	}
+}
+
+func TestRuntimeDreamRunnerSkipsDisabledAutoDreamBeforeWorkspaceSetup(t *testing.T) {
+	disabled := false
+	preferences := fakePreferencesService{preferences: preferencessvc.Preferences{
+		RuntimeSettings: preferencessvc.RuntimeSettings{
+			"nxs": {AutoDreamEnabled: &disabled},
+		},
+	}}
+	runner := &runtimeDreamRunner{
+		preferences: preferences,
+		selector:    runtimeselectionsvc.NewService(preferences),
+	}
+
+	result, err := runner.tryAutoDream(context.Background(), protocol.Agent{OwnerUserID: "owner-1"})
+	if err != nil {
+		t.Fatalf("tryAutoDream() error = %v", err)
+	}
+	if result.Status != agentclient.AutoDreamStatusSkipped || result.Reason != "gate_closed" {
+		t.Fatalf("tryAutoDream() result = %+v, want disabled gate", result)
 	}
 }
 

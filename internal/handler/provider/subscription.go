@@ -76,6 +76,23 @@ func (h *Handlers) HandleUpdateSubscriptionProviderModel(writer http.ResponseWri
 	h.api.WriteSuccess(writer, item)
 }
 
+// HandleDeleteSubscriptionProviderModel 删除订阅 Provider 模型卡。
+func (h *Handlers) HandleDeleteSubscriptionProviderModel(writer http.ResponseWriter, request *http.Request) {
+	if !h.requireSubscriptionProviderAdmin(writer, request) {
+		return
+	}
+	item, err := h.providers.DeletePublicModel(
+		request.Context(),
+		chi.URLParam(request, "provider"),
+		chi.URLParam(request, "model_id"),
+	)
+	if err != nil {
+		h.api.WriteFailure(writer, providerMutationErrorStatus(err), err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, item)
+}
+
 // HandleTestSubscriptionProviderConfig 执行订阅 provider 连通性测试。
 func (h *Handlers) HandleTestSubscriptionProviderConfig(writer http.ResponseWriter, request *http.Request) {
 	if !h.requireSubscriptionProviderAdmin(writer, request) {
