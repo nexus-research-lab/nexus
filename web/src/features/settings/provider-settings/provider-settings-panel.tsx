@@ -143,6 +143,7 @@ export function ProviderSettingsPanel({
                   onRequestDeleteModel={
                     modelActions.handleRequestDeleteModel
                   }
+                  onSetDefaultModel={modelActions.handleSetDefaultModel}
                   onToggleModel={modelActions.handleToggleModel}
                   pendingAction={state.pendingAction}
                   selectedCanManage={state.selectedCanManage}

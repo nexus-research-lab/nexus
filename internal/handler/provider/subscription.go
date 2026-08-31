@@ -83,6 +83,27 @@ func (h *Handlers) HandleUpdateSubscriptionProviderModel(writer http.ResponseWri
 	h.api.WriteSuccess(writer, item)
 }
 
+// HandleSetSubscriptionDefaultProviderModel 设置订阅用户的默认模型。
+func (h *Handlers) HandleSetSubscriptionDefaultProviderModel(writer http.ResponseWriter, request *http.Request) {
+	if !h.requireSubscriptionProviderAdmin(writer, request) {
+		return
+	}
+	item, err := h.providers.SetPublicDefaultModel(
+		request.Context(),
+		chi.URLParam(request, "provider"),
+		chi.URLParam(request, "model_id"),
+	)
+	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "不存在") {
+			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+			return
+		}
+		h.api.WriteFailure(writer, providerMutationErrorStatus(err), err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, item)
+}
+
 // HandleDeleteSubscriptionProviderModel 删除订阅 Provider 模型卡。
 func (h *Handlers) HandleDeleteSubscriptionProviderModel(writer http.ResponseWriter, request *http.Request) {
 	if !h.requireSubscriptionProviderAdmin(writer, request) {

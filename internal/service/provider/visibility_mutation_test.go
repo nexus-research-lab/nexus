@@ -202,6 +202,69 @@ func TestProviderPublicAdminMethodsUsePublicScope(t *testing.T) {
 	}
 }
 
+func TestSubscriptionDefaultModelBecomesNewUserFallback(t *testing.T) {
+	service, _ := newTestService(t)
+	adminCtx := providerTestContext("admin-user", authctx.RoleAdmin)
+	newUserCtx := providerTestContext("new-user", authctx.RoleMember)
+
+	first, err := service.CreatePublic(adminCtx, CreateInput{
+		Provider:    "subscription-first",
+		PresetKey:   presetCustom,
+		APIFormat:   APIFormatAnthropicMessages,
+		AuthToken:   "first-key",
+		BaseURL:     "https://first.example.com",
+		Enabled:     true,
+		DisplayName: "First",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := service.CreatePublic(adminCtx, CreateInput{
+		Provider:    "subscription-second",
+		PresetKey:   presetCustom,
+		APIFormat:   APIFormatAnthropicMessages,
+		AuthToken:   "second-key",
+		BaseURL:     "https://second.example.com",
+		Enabled:     true,
+		DisplayName: "Second",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.UpdatePublicModel(adminCtx, first.Provider, "first-model", UpdateModelInput{Enabled: true}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.UpdatePublicModel(adminCtx, second.Provider, "second-model", UpdateModelInput{Enabled: true}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.SetPublicDefaultModel(adminCtx, first.Provider, "first-model"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.SetPublicDefaultModel(adminCtx, second.Provider, "second-model"); err != nil {
+		t.Fatal(err)
+	}
+
+	config, err := service.ResolveRuntimeConfigForRuntime(newUserCtx, "", "", "nxs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.Provider != second.Provider || config.Model != "second-model" {
+		t.Fatalf("new user fallback = %s/%s, want %s/second-model", config.Provider, config.Model, second.Provider)
+	}
+	records, err := service.ListPublic(adminCtx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, record := range records {
+		for _, model := range record.Models {
+			wantDefault := record.Provider == second.Provider && model.ModelID == "second-model"
+			if model.IsDefault != wantDefault {
+				t.Fatalf("unexpected subscription default: provider=%s model=%s default=%v", record.Provider, model.ModelID, model.IsDefault)
+			}
+		}
+	}
+}
+
 func TestProviderPublicCreateRequiresAdmin(t *testing.T) {
 	service, _ := newTestService(t)
 	adminCtx := providerTestContext("admin-user", authctx.RoleAdmin)

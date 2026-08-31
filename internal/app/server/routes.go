@@ -59,6 +59,7 @@ func (s *Server) mountAdminRoutes() {
 	s.router.Post(s.prefixPath("/admin/subscription/providers/{provider}/models/fetch"), s.handlers.provider.HandleFetchSubscriptionProviderModels)
 	s.router.Put(s.prefixPath("/admin/subscription/providers/{provider}/models/{model_id}"), s.handlers.provider.HandleUpdateSubscriptionProviderModel)
 	s.router.Delete(s.prefixPath("/admin/subscription/providers/{provider}/models/{model_id}"), s.handlers.provider.HandleDeleteSubscriptionProviderModel)
+	s.router.Post(s.prefixPath("/admin/subscription/providers/{provider}/models/{model_id}/default"), s.handlers.provider.HandleSetSubscriptionDefaultProviderModel)
 	s.router.Post(s.prefixPath("/admin/subscription/providers/{provider}/test"), s.handlers.provider.HandleTestSubscriptionProviderConfig)
 	s.router.Post(s.prefixPath("/admin/subscription/providers/{provider}/models/{model_id}/test"), s.handlers.provider.HandleTestSubscriptionProviderModel)
 	s.router.Put(s.prefixPath("/admin/subscription/providers/{provider}"), s.handlers.provider.HandleUpdateSubscriptionProviderConfig)

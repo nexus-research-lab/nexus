@@ -8,6 +8,7 @@ import {
   Plus,
   RefreshCw,
   SlidersHorizontal,
+  Star,
   Trash2,
   Wrench,
   type LucideIcon,
@@ -15,6 +16,7 @@ import {
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
+import { UiBadge } from "@/shared/ui/display/badge";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import type {
@@ -41,6 +43,7 @@ interface ProviderSettingsModelListProps {
   onModelQueryChange: (query: string) => void;
   onOpenAddModel: () => void;
   onRequestDeleteModel: (model: ProviderModelRecord) => void;
+  onSetDefaultModel: (model: ProviderModelRecord) => void;
   onToggleModel: (model: ProviderModelRecord, enabled: boolean) => void;
   pendingAction: ProviderPendingAction | null;
   selectedCanManage: boolean;
@@ -228,22 +231,32 @@ function ProviderModelRow({
   onDefaultModelDisableAttempt,
   onModelOptions,
   onRequestDeleteModel,
+  onSetDefaultModel,
   onToggleModel,
   pendingAction,
   selectedCanManage,
+  selectedRecord,
 }: Pick<
   ProviderSettingsModelListProps,
   | "onDefaultModelDisableAttempt"
   | "onModelOptions"
   | "onRequestDeleteModel"
+  | "onSetDefaultModel"
   | "onToggleModel"
   | "pendingAction"
   | "selectedCanManage"
+  | "selectedRecord"
 > & { model: ProviderModelRecord }) {
   const { t } = useI18n();
   const displayName = model.display_name || model.model_id;
   const isDeletePending = pendingAction?.kind === "delete-model"
     && pendingAction.modelId === model.model_id;
+  const isDefaultPending = pendingAction?.kind === "set-default-model"
+    && pendingAction.modelId === model.model_id;
+  const showSubscriptionDefault = selectedRecord?.visibility === "public"
+    && selectedRecord.provider_kind === "llm"
+    && selectedRecord.agent_runtime_supported
+    && !getEffectiveCapabilities(model).image_output;
   return (
     <div className="grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b border-(--divider-subtle-color) px-2.5 py-1 last:border-b-0">
       <div className="flex min-w-0 items-center gap-2">
@@ -253,6 +266,33 @@ function ProviderModelRow({
         <ProviderModelCapabilities model={model} />
       </div>
       <div className="flex min-w-0 items-center gap-2">
+        {showSubscriptionDefault ? (
+          model.is_default ? (
+            <UiBadge
+              icon={<Star className="h-3 w-3 fill-current" />}
+              size="xs"
+              tone="primary"
+            >
+              {t("settings.providers.subscription_default_model")}
+            </UiBadge>
+          ) : (
+            <UiButton
+              disabled={pendingAction !== null || !selectedCanManage}
+              onClick={() => onSetDefaultModel(model)}
+              size="xs"
+              tone="primary"
+              type="button"
+              variant="ghost"
+            >
+              {isDefaultPending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Star className="h-3.5 w-3.5" />
+              )}
+              {t("settings.providers.set_subscription_default")}
+            </UiButton>
+          )
+        ) : null}
         {model.model_id !== displayName ? (
           <span className="hidden max-w-[120px] truncate font-mono text-xs text-(--text-soft) xl:inline">
             {model.model_id}
@@ -304,6 +344,7 @@ function ProviderModelListBody({
   onDefaultModelDisableAttempt,
   onModelOptions,
   onRequestDeleteModel,
+  onSetDefaultModel,
   onToggleModel,
   pendingAction,
   selectedCanManage,
@@ -314,6 +355,7 @@ function ProviderModelListBody({
   | "onDefaultModelDisableAttempt"
   | "onModelOptions"
   | "onRequestDeleteModel"
+  | "onSetDefaultModel"
   | "onToggleModel"
   | "pendingAction"
   | "selectedCanManage"
@@ -336,9 +378,11 @@ function ProviderModelListBody({
       onDefaultModelDisableAttempt={onDefaultModelDisableAttempt}
       onModelOptions={onModelOptions}
       onRequestDeleteModel={onRequestDeleteModel}
+      onSetDefaultModel={onSetDefaultModel}
       onToggleModel={onToggleModel}
       pendingAction={pendingAction}
       selectedCanManage={selectedCanManage}
+      selectedRecord={selectedRecord}
     />
   ));
 }
@@ -355,6 +399,7 @@ export function ProviderSettingsModelList({
   onModelQueryChange,
   onOpenAddModel,
   onRequestDeleteModel,
+  onSetDefaultModel,
   onToggleModel,
   pendingAction,
   selectedCanManage,
@@ -391,6 +436,7 @@ export function ProviderSettingsModelList({
           onDefaultModelDisableAttempt={onDefaultModelDisableAttempt}
           onModelOptions={onModelOptions}
           onRequestDeleteModel={onRequestDeleteModel}
+          onSetDefaultModel={onSetDefaultModel}
           onToggleModel={onToggleModel}
           pendingAction={pendingAction}
           selectedCanManage={selectedCanManage}
