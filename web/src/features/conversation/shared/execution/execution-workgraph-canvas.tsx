@@ -1,6 +1,6 @@
 /**
  * INPUT: 权威 Execution Graph、Agent 目录、当前 Graph 节点、节点展示密度与精确 Agent round Task run。
- * OUTPUT: 在焦点稳定、全边界可达且不叠加伪主图底框的工作板上显示图标或可读摘要卡片、可整体悬停聚焦的子图、跨子图边框端口、带语义分叉点的中性正交流程边、按需展开的精确端点短引线、降饱和控制回连、节点完整上下游路径聚焦，以及复用全部交互能力的大图弹窗。
+ * OUTPUT: 在焦点稳定、全边界可达且不叠加伪主图底框的工作板上显示图标或可读摘要卡片、可整体悬停聚焦的子图、跨子图边框端口、带语义分叉点的中性正交流程边、按需展开的精确端点短引线、降饱和控制回连、节点完整上下游路径聚焦，以及无可见标题栏并复用全部交互能力的大图弹窗。
  * POS: DM/Room 共用的只读 Execution Graph 主视图；一级运行树外框与内部方向边只按结构化父身份投影，不从自由文本反推关系。
  */
 "use client";
@@ -29,7 +29,7 @@ import { cn } from "@/shared/ui/class-name";
 import {
   UiDialogBackdrop,
   UiDialogBody,
-  UiDialogHeader,
+  UiDialogCloseButton,
   UiDialogPortal,
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
@@ -1433,15 +1433,16 @@ function ExecutionWorkGraphExpandedDialog({
         onClose={onClose}
       >
         <UiDialogShell
-          className="h-[calc(100dvh-32px)]"
+          className="relative h-[calc(100dvh-32px)]"
           size="wide"
           style={{ maxWidth: "calc(100vw - 32px)" }}
         >
-          <UiDialogHeader
+          <h2 className="sr-only" id={titleId}>
+            {t("execution.label")}
+          </h2>
+          <UiDialogCloseButton
+            className="absolute right-3 top-3 z-50 border border-(--surface-control-border) bg-(--surface-panel-background) shadow-(--surface-control-shadow)"
             onClose={onClose}
-            subtitle={execution.objective.trim() || undefined}
-            title={t("execution.label")}
-            titleId={titleId}
           />
           <UiDialogBody className="flex min-h-0 flex-1 overflow-hidden bg-(--surface-canvas-background) p-0">
             <ExecutionWorkGraphCanvas
