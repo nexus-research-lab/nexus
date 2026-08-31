@@ -77,7 +77,7 @@ export interface ToolPrimaryInputDetail {
 export interface ToolBlockViewModel {
   collapsedDetailText: string | null;
   durationText: string;
-  expandedDetailText: string | null;
+  expandedInputText: string | null;
   hasResult: boolean;
   liveStatusText: string | null;
   primaryInputDetail: ToolPrimaryInputDetail | null;

@@ -47,7 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Removed the duplicate inline Thought preview from expanded process details while preserving it as a scannable collapsed-row summary.
+- Removed duplicate inline Thought and tool-result previews from expanded process details while preserving them as scannable collapsed-row summaries and moving distinct tool inputs into the detail body.
 - Kept Room tool, thinking, and replying activity rows on one stable geometry,
   preventing live tool transitions from nudging the conversation viewport.
 - Repaired the shifted migration-number collision across Agent business tags,
