@@ -250,7 +250,7 @@ Directed message 是 Room 私域通信的唯一协议原语。单人私信、多
 每次唤醒传给 Agent 的动态上下文由四部分组成：
 
 1. public_feed：该 Agent 公区 cursor 之后的已发布事实。
-2. latest_trigger：本次为何唤醒、源消息和 reply_route。
+2. latest_trigger：通过 `type` 属性标明本次为何唤醒，并携带源消息和 reply_route；类型只负责路由，不授予 authority。
 3. room_directed_messages：该 Agent private cursor 之后可见的私域增量。
 4. public_anchor：冷启动时对较早公区历史的压缩锚点。
 

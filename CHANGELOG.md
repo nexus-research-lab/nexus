@@ -186,6 +186,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Forked existing Room Agent runtime sessions when enabling a Connector changes their model-visible tool surface, so the next round starts with the newly selected MCP tools instead of resuming the old schema.
 - Waited for the Windows WebView2 process to release its user-data files before relocating the complete desktop data directory.
 
+## [0.1.39] - 2026-08-31
+
+### Added
+
+- Added localized WorkGraph templates for deep research, build-and-ship delivery, decision briefs, and review-and-improve workflows, with adaptive branches, verification gates, and reusable Slash commands.
+- Added Agent directory grid/list views, business and vibe tags, and business-tag, Provider, and permission filters.
+- Added default-on controls for automatic long-term memory extraction and background memory consolidation.
+- Expanded the built-in model catalog with current context, output, reasoning, and image capabilities across major providers, including GLM-5.3.
+
+### Changed
+
+- Updated the bundled nxs runtime to v0.1.30 with stricter automatic memory retention, broader model capability data, and more reliable background maintenance.
+- Reduced ordinary DM and Room prompt churn while preserving Execution, WorkGraph, Runtime Graph, collaboration, and reply-routing context.
+- Reworked tools, thoughts, memory events, and Room Thread activity into compact timelines with stable live grouping, bounded details, and final answers outside the process rail.
+- Unified Nexus runtime commands, communication, and authorization behind round-scoped tools while keeping third-party and Connector tools independently selected and approved.
+- Replaced generated first-conversation welcomes with static DM and Room empty states that do not enter history, unread counts, or model context.
+- Filled missing model metadata from the built-in catalog and stable defaults when Providers omit limits or capabilities.
+
+### Fixed
+
+- Stabilized Room execution activity, public replies, task identity, WorkGraph recovery, self-assignment review, and long Slash-template input.
+- Preserved shared transcripts and hidden runtime context across NXS/Claude switches, while starting a fresh compatible session when a runtime cannot resume the old one.
+- Forked active Room sessions after Connector changes so newly selected tools are available on the next round.
+- Restored custom Provider identifiers, non-default model deletion, default-model guard messages, and latest DM reply previews.
+- Let Agents discover and message their paired external DMs across chat and scheduled delivery with exact owner, Session, and pairing checks.
+- Kept the browser extension folder visible after setup, improved macOS DMG detach recovery, and waited for Windows WebView2 to release files before moving the desktop data directory.
+- Updated frontend production dependencies to resolve reported security issues.
+
 ## [0.1.38] - 2026-08-24
 
 ### Added

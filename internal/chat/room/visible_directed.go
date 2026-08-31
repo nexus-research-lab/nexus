@@ -37,7 +37,7 @@ func formatRoomDirectedMessageLine(
 	return fmt.Sprintf(
 		"[directed_message recipients=%s reply_route=%s] %s: %s",
 		recipients,
-		formatReplyRoute(message.ReplyRoute, message.SourceAgentID, agentNameByID),
+		formatReplyRoute(message.ReplyRoute, agentNameByID),
 		sourceName,
 		content,
 	)

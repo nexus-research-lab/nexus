@@ -351,7 +351,7 @@ func TestRoomSlotGuidanceHookPreservesBusyPublicMentionSource(t *testing.T) {
 		additionalContext = output.SpecificOutput.AdditionalContext
 	}
 	if !strings.Contains(additionalContext, "Source: @Target 请补充安全建议") ||
-		!strings.Contains(additionalContext, "This source message is already published in the Room") ||
+		!strings.Contains(additionalContext, `<latest_trigger type="public_mention">`) ||
 		strings.Contains(additionalContext, "User: @Target 请补充安全建议") {
 		t.Fatalf("busy 公区 @ 丢失 source/public_mention 语义: %q", additionalContext)
 	}
