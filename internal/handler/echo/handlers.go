@@ -59,10 +59,6 @@ func (h *Handlers) HandleUpdateEcho(writer http.ResponseWriter, request *http.Re
 		Category: protocol.FailureCategoryValidation,
 		Effect:   protocol.FailureEffectNotApplied,
 		Detail:   "主动跟进设置格式不正确",
-		Resolution: &protocol.FailureResolution{
-			Actor:  protocol.FailureRecoveryActorUser,
-			Action: "echo.review_setting",
-		},
 	}) {
 		return
 	}
@@ -72,10 +68,6 @@ func (h *Handlers) HandleUpdateEcho(writer http.ResponseWriter, request *http.Re
 			Category: protocol.FailureCategoryValidation,
 			Effect:   protocol.FailureEffectNotApplied,
 			Detail:   "需要选择是否启用主动跟进",
-			Resolution: &protocol.FailureResolution{
-				Actor:  protocol.FailureRecoveryActorUser,
-				Action: "echo.review_setting",
-			},
 		})
 		return
 	}
@@ -87,10 +79,6 @@ func (h *Handlers) HandleUpdateEcho(writer http.ResponseWriter, request *http.Re
 			Effect:   protocol.FailureEffectNotApplied,
 			Detail:   "主动跟进设置版本条件无效",
 			Cause:    err,
-			Resolution: &protocol.FailureResolution{
-				Actor:  protocol.FailureRecoveryActorUser,
-				Action: "echo.reload",
-			},
 		})
 		return
 	}
@@ -122,10 +110,6 @@ func (h *Handlers) writeReadError(
 		Effect:   protocol.FailureEffectNotApplicable,
 		Detail:   "暂时无法读取主动跟进设置",
 		Cause:    err,
-		Resolution: &protocol.FailureResolution{
-			Actor:  protocol.FailureRecoveryActorUser,
-			Action: "echo.reload",
-		},
 	})
 }
 
@@ -141,10 +125,6 @@ func (h *Handlers) writeUpdateError(
 			Effect:   protocol.FailureEffectNotApplied,
 			Detail:   "主动跟进设置已在其他页面更新",
 			Cause:    err,
-			Resolution: &protocol.FailureResolution{
-				Actor:  protocol.FailureRecoveryActorUser,
-				Action: "echo.reload",
-			},
 		})
 		return
 	}
@@ -155,10 +135,6 @@ func (h *Handlers) writeUpdateError(
 			Effect:   protocol.FailureEffectCommitted,
 			Detail:   "主动跟进已关闭，但在途跟进还没有全部停止",
 			Cause:    err,
-			Resolution: &protocol.FailureResolution{
-				Actor:  protocol.FailureRecoveryActorUser,
-				Action: "echo.finish_disabling",
-			},
 		})
 		return
 	}
@@ -168,10 +144,6 @@ func (h *Handlers) writeUpdateError(
 		Effect:   protocol.FailureEffectUnknown,
 		Detail:   "还无法确认主动跟进设置是否已更新",
 		Cause:    err,
-		Resolution: &protocol.FailureResolution{
-			Actor:  protocol.FailureRecoveryActorUser,
-			Action: "echo.reload",
-		},
 	})
 }
 

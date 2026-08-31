@@ -397,9 +397,7 @@ func TestDeleteTaskPreparedFailureExplainsDurableCleanup(t *testing.T) {
 		automationFailureDeleteTask,
 		automationsvc.MarkTaskDeletionPrepared(errors.New("cleanup unavailable")),
 	)
-	if failure.spec.Effect != protocol.FailureEffectAccepted ||
-		failure.spec.Resolution == nil ||
-		failure.spec.Resolution.Action != "automation.reload_tasks" {
+	if failure.spec.Effect != protocol.FailureEffectAccepted {
 		t.Fatalf("unexpected durable delete failure: %+v", failure.spec)
 	}
 	for _, phrase := range []string{"已停止接受新运行", "不会撤回", "不会自动重放", "稍后刷新"} {
@@ -417,9 +415,7 @@ func TestDeleteTaskReviewRequiredFailureDoesNotPromiseAutomaticRecovery(t *testi
 		automationsvc.MarkTaskDeletionPrepared(automationsvc.ErrExecutionAttemptOwnershipUnconfirmed),
 	)
 	if failure.spec.Code != "automation.delete_task_review_required" ||
-		failure.spec.Effect != protocol.FailureEffectAccepted ||
-		failure.spec.Resolution == nil ||
-		failure.spec.Resolution.Action != "automation.review_task_deletion" {
+		failure.spec.Effect != protocol.FailureEffectAccepted {
 		t.Fatalf("unexpected review-required failure: %+v", failure.spec)
 	}
 	for _, phrase := range []string{"暂时无法确认", "尚未删除", "管理员处理", "不会自动重放"} {

@@ -20,10 +20,6 @@ func roomDeleteFailure(err error) (int, handlershared.FailureSpec) {
 		Effect:   protocol.FailureEffectUnknown,
 		Detail:   "Room 删除结果暂时无法确认",
 		Cause:    err,
-		Resolution: &protocol.FailureResolution{
-			Actor:  protocol.FailureRecoveryActorUser,
-			Action: "room.refresh_directory",
-		},
 	}
 
 	switch {

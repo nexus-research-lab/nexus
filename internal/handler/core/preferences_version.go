@@ -65,10 +65,6 @@ func (h *Handlers) writePreferencesReadFailure(
 		Effect:   protocol.FailureEffectNotApplicable,
 		Detail:   "暂时无法读取最新偏好设置",
 		Cause:    cause,
-		Resolution: &protocol.FailureResolution{
-			Actor:  protocol.FailureRecoveryActorUser,
-			Action: "preferences.reload",
-		},
 	})
 }
 
@@ -83,10 +79,6 @@ func (h *Handlers) writePreferencesVersionConflict(
 		Effect:   protocol.FailureEffectNotApplied,
 		Detail:   "偏好设置版本与服务端最新版本不一致",
 		Cause:    cause,
-		Resolution: &protocol.FailureResolution{
-			Actor:  protocol.FailureRecoveryActorUser,
-			Action: "preferences.reload",
-		},
 	})
 }
 
@@ -103,9 +95,5 @@ func (h *Handlers) writePreferencesPostCommitFailure(
 		Effect:   protocol.FailureEffectUnknown,
 		Detail:   "偏好设置的后续同步未完成",
 		Cause:    cause,
-		Resolution: &protocol.FailureResolution{
-			Actor:  protocol.FailureRecoveryActorUser,
-			Action: "preferences.reload",
-		},
 	})
 }

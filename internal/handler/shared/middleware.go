@@ -216,10 +216,6 @@ func AuthMiddleware(api *API, auth *authsvc.Service) func(http.Handler) http.Han
 					Effect:   failureEffectBeforeHandler(request),
 					Detail:   "认证状态检查失败",
 					Cause:    err,
-					Resolution: &protocol.FailureResolution{
-						Actor:  protocol.FailureRecoveryActorUser,
-						Action: "auth.retry_request",
-					},
 				})
 				return
 			}
@@ -236,10 +232,6 @@ func AuthMiddleware(api *API, auth *authsvc.Service) func(http.Handler) http.Han
 					Category: protocol.FailureCategoryAuthentication,
 					Effect:   failureEffectBeforeHandler(request),
 					Detail:   "未登录或登录状态已过期",
-					Resolution: &protocol.FailureResolution{
-						Actor:  protocol.FailureRecoveryActorUser,
-						Action: "auth.sign_in",
-					},
 				})
 				return
 			}

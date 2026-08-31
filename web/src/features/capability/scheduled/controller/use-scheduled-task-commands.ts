@@ -1,10 +1,10 @@
-// INPUT: owner-scoped Scheduled 资源、exact mutation journal 与 FailureCore 结果。
-// OUTPUT: 运行/配置/权限/删除命令、人工停止确认、权威对账与三段式反馈。
-// POS: Scheduled 写命令控制器；不以 HTTP trace ID 推测业务结果，不重放未确认副作用。
+// INPUT: owner-scoped Scheduled 资源、服务端版本/回执与 FailureCore 结果。
+// OUTPUT: 运行/配置/权限/删除命令、人工停止确认、权威对账与精简反馈。
+// POS: Scheduled 写命令控制器；页面内防重复，跨页面结果只以服务端事实为准。
 
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 
 import {
   confirmScheduledTaskDeletionStoppedApi,
@@ -53,16 +53,6 @@ import {
   createPendingCommandState,
   setPendingCommand,
 } from "./pending-command-model";
-import {
-  loadScheduledTaskMutationJournal,
-  removeScheduledTaskMutationJournalEntry,
-  ScheduledTaskMutationCoordinationUnavailableError,
-  ScheduledTaskMutationLockUnavailableError,
-  subscribeScheduledTaskMutationJournal,
-  upsertScheduledTaskMutationJournalEntry,
-  withScheduledTaskMutationGate,
-  type ScheduledTaskMutationJournalEntry,
-} from "./scheduled-task-mutation-journal";
 import {
   projectScheduledTaskMutationFailure,
   type ScheduledTaskMutationFailureProjection,
@@ -276,20 +266,6 @@ function hasUnconfirmedCommands(
   ));
 }
 
-function restoreUnconfirmedCommands(
-  entries: ScheduledTaskMutationJournalEntry[],
-): ScheduledTaskUnconfirmedCommands {
-  return entries.reduce<ScheduledTaskUnconfirmedCommands>(
-    (current, entry) => setPendingCommand(
-      current,
-      entry.command,
-      entry.targetId,
-      true,
-    ),
-    createPendingCommandState(SCHEDULED_TASK_COMMAND_KINDS),
-  );
-}
-
 function taskFromPermissionResult(
   result: AutomationPermissionDecisionResult,
 ): ScheduledTaskItem {
@@ -333,87 +309,29 @@ export function useScheduledTaskCommands(
   const [pending, setPending] = useState(() => (
     createPendingCommandState(SCHEDULED_TASK_COMMAND_KINDS)
   ));
-  const initialJournalEntriesRef = useRef<ScheduledTaskMutationJournalEntry[] | null>(
-    null,
-  );
-  if (initialJournalEntriesRef.current === null) {
-    initialJournalEntriesRef.current = loadScheduledTaskMutationJournal(scopeKey);
-  }
   const [unconfirmed, setUnconfirmed] = useState<ScheduledTaskUnconfirmedCommands>(() => (
-    restoreUnconfirmedCommands(initialJournalEntriesRef.current ?? [])
+    createPendingCommandState(SCHEDULED_TASK_COMMAND_KINDS)
   ));
   const pendingPromisesRef = useRef(new Map<string, Promise<unknown>>());
   const pendingRef = useRef(pending);
   const accessBlockedRef = useRef(false);
   const activeScopeKeyRef = useRef(scopeKey);
-  const reconcileExpectationsRef = useRef(new Map(
-    (initialJournalEntriesRef.current ?? []).flatMap((entry) => (
-      entry.expectation
-        ? [[
-            scheduledTaskCommandKey(entry.command, entry.targetId),
-            entry.expectation,
-          ] as const]
-        : []
-    )),
-  ));
+  const reconcileExpectationsRef = useRef(
+    new Map<string, ScheduledTaskReconcileExpectation>(),
+  );
   const unconfirmedRef = useRef(unconfirmed);
 
   useLayoutEffect(() => {
     activeScopeKeyRef.current = scopeKey;
-    const entries = loadScheduledTaskMutationJournal(scopeKey);
-    const restored = restoreUnconfirmedCommands(entries);
-    pendingRef.current = createPendingCommandState(SCHEDULED_TASK_COMMAND_KINDS);
-    unconfirmedRef.current = restored;
-    reconcileExpectationsRef.current = new Map(entries.flatMap((entry) => (
-      entry.expectation
-        ? [[
-            scheduledTaskCommandKey(entry.command, entry.targetId),
-            entry.expectation,
-          ] as const]
-        : []
-    )));
-    setPending(pendingRef.current);
-    setUnconfirmed(restored);
-    setFeedback(entries.length > 0
-      ? {
-          impact: t("capability.scheduled_restored_unknown_impact"),
-          message: t("capability.scheduled_restored_unknown_message"),
-          nextStep: t("capability.scheduled_restored_unknown_next_step"),
-          title: t("capability.scheduled_restored_unknown_title"),
-          tone: "warning",
-        }
-      : null);
-  }, [scopeKey, t]);
-
-  useEffect(() => subscribeScheduledTaskMutationJournal(scopeKey, () => {
-    if (activeScopeKeyRef.current !== scopeKey) {
-      return;
-    }
-    const entries = loadScheduledTaskMutationJournal(scopeKey);
-    const restored = restoreUnconfirmedCommands(entries);
-    unconfirmedRef.current = restored;
-    reconcileExpectationsRef.current = new Map(entries.flatMap((entry) => (
-      entry.expectation
-        ? [[
-            scheduledTaskCommandKey(entry.command, entry.targetId),
-            entry.expectation,
-          ] as const]
-        : []
-    )));
-    setUnconfirmed(restored);
-    const restoredTitle = t("capability.scheduled_restored_unknown_title");
-    setFeedback((current) => entries.length > 0
-      ? {
-        impact: t("capability.scheduled_restored_unknown_impact"),
-        message: t("capability.scheduled_restored_unknown_message"),
-        nextStep: t("capability.scheduled_restored_unknown_next_step"),
-        title: restoredTitle,
-        tone: "warning",
-      }
-      : current?.title === restoredTitle
-        ? null
-        : current);
-  }), [scopeKey, t]);
+    const nextPending = createPendingCommandState(SCHEDULED_TASK_COMMAND_KINDS);
+    const nextUnconfirmed = createPendingCommandState(SCHEDULED_TASK_COMMAND_KINDS);
+    pendingRef.current = nextPending;
+    unconfirmedRef.current = nextUnconfirmed;
+    reconcileExpectationsRef.current = new Map();
+    setPending(nextPending);
+    setUnconfirmed(nextUnconfirmed);
+    setFeedback(null);
+  }, [scopeKey]);
 
   const updateUnconfirmed = useCallback((
     command: ScheduledTaskCommandKind,
@@ -456,9 +374,8 @@ export function useScheduledTaskCommands(
     ) {
       return unconfirmedRef.current;
     }
-    const previous = unconfirmedRef.current;
     const reconciled = reconcileScheduledTaskUnconfirmed(
-      previous,
+      unconfirmedRef.current,
       {
         expectations: reconcileExpectationsRef.current,
         ...snapshot,
@@ -472,13 +389,6 @@ export function useScheduledTaskCommands(
       ));
       if (!stillLocked) {
         reconcileExpectationsRef.current.delete(key);
-      }
-    }
-    for (const command of SCHEDULED_TASK_COMMAND_KINDS) {
-      for (const targetId of previous.get(command) ?? []) {
-        if (!reconciled.get(command)?.has(targetId)) {
-          removeScheduledTaskMutationJournalEntry(scopeKey, command, targetId);
-        }
       }
     }
     unconfirmedRef.current = reconciled;
@@ -504,7 +414,6 @@ export function useScheduledTaskCommands(
     reconcileExpectationsRef.current.delete(
       scheduledTaskCommandKey(command, targetId),
     );
-    removeScheduledTaskMutationJournalEntry(scopeKey, command, targetId);
     unconfirmedRef.current = reconciled;
     setUnconfirmed(reconciled);
     setFeedback({
@@ -692,11 +601,6 @@ export function useScheduledTaskCommands(
                 reconcileExpectationsRef.current.delete(
                   scheduledTaskCommandKey(target.command, target.targetId),
                 );
-                removeScheduledTaskMutationJournalEntry(
-                  scopeKey,
-                  target.command,
-                  target.targetId,
-                );
                 unconfirmedRef.current = reconciled;
                 setUnconfirmed(reconciled);
                 notifyCapabilitySummaryMutated({
@@ -753,11 +657,6 @@ export function useScheduledTaskCommands(
                   reconcileExpectationsRef.current.delete(
                     scheduledTaskCommandKey(target.command, target.targetId),
                   );
-                  removeScheduledTaskMutationJournalEntry(
-                    scopeKey,
-                    target.command,
-                    target.targetId,
-                  );
                   unconfirmedRef.current = reconciled;
                   setUnconfirmed(reconciled);
                 }
@@ -782,11 +681,6 @@ export function useScheduledTaskCommands(
             );
             reconcileExpectationsRef.current.delete(
               scheduledTaskCommandKey(target.command, target.targetId),
-            );
-            removeScheduledTaskMutationJournalEntry(
-              scopeKey,
-              target.command,
-              target.targetId,
             );
             unconfirmedRef.current = reconciled;
             setUnconfirmed(reconciled);
@@ -860,29 +754,15 @@ export function useScheduledTaskCommands(
   const setAccessBlocked = useCallback((blocked: boolean): void => {
     accessBlockedRef.current = blocked;
     if (!blocked) {
-      // 同一 owner 重新取得访问权时，从 durable journal 恢复在失效期间
-      // 保留的 exact 保护；访问失败只能隐藏快照，不能证明其他动作未执行。
-      const entries = loadScheduledTaskMutationJournal(scopeKey);
-      const restored = restoreUnconfirmedCommands(entries);
-      unconfirmedRef.current = restored;
-      reconcileExpectationsRef.current = new Map(entries.flatMap((entry) => (
-        entry.expectation
-          ? [[
-              scheduledTaskCommandKey(entry.command, entry.targetId),
-              entry.expectation,
-            ] as const]
-          : []
-      )));
-      setUnconfirmed(restored);
       return;
     }
-    // 只清当前页面的瞬时 pending 投影。owner-scoped journal 与既有
-    // unconfirmed identity 必须保留到重新鉴权后的领域对账。
+    // 访问权失效后只清在途按钮状态；结果未知仍由当前页面对账，重新进入
+    // 页面则直接读取服务端事实，不恢复浏览器侧影子日志。
     const clearedPending = createPendingCommandState(SCHEDULED_TASK_COMMAND_KINDS);
     pendingRef.current = clearedPending;
     setPending(clearedPending);
     setFeedback(null);
-  }, [scopeKey]);
+  }, []);
 
   const runPending = useCallback(<Result,>(
     command: ScheduledTaskCommandKind,
@@ -933,39 +813,7 @@ export function useScheduledTaskCommands(
     );
     pendingRef.current = nextPending;
     setPending(nextPending);
-    const nextPromise = withScheduledTaskMutationGate(
-      commandScopeKey,
-      jobId,
-      execute,
-      options.ignoreUnconfirmedCommands,
-    ).catch((error: unknown) => {
-      if (
-        error instanceof ScheduledTaskMutationLockUnavailableError
-        && activeScopeKeyRef.current === commandScopeKey
-        && !accessBlockedRef.current
-      ) {
-        setFeedback({
-          impact: t("capability.scheduled_cross_window_lock_impact"),
-          message: t("capability.scheduled_cross_window_lock_message"),
-          nextStep: t("capability.scheduled_cross_window_lock_next_step"),
-          title: t("capability.scheduled_cross_window_lock_title"),
-          tone: "warning",
-        });
-      } else if (
-        error instanceof ScheduledTaskMutationCoordinationUnavailableError
-        && activeScopeKeyRef.current === commandScopeKey
-        && !accessBlockedRef.current
-      ) {
-        setFeedback({
-          impact: t("capability.scheduled_coordination_unavailable_impact"),
-          message: t("capability.scheduled_coordination_unavailable_message"),
-          nextStep: t("capability.scheduled_coordination_unavailable_next_step"),
-          title: t("capability.scheduled_coordination_unavailable_title"),
-          tone: "error",
-        });
-      }
-      throw error;
-    }).finally(() => {
+    const nextPromise = execute().finally(() => {
       pendingPromisesRef.current.delete(commandKey);
       if (activeScopeKeyRef.current !== commandScopeKey) {
         return;
@@ -990,26 +838,8 @@ export function useScheduledTaskCommands(
     failure: CommandFailureFeedback,
   ): Promise<Result> => {
     const commandScopeKey = scopeKey;
-    const journalReady = upsertScheduledTaskMutationJournalEntry(scopeKey, {
-      command,
-      expectation: failure.expectation,
-      phase: "pending",
-      targetId,
-      updatedAt: Date.now(),
-    });
-    if (!journalReady) {
-      setFeedback({
-        impact: t("capability.scheduled_journal_unavailable_impact"),
-        message: t("capability.scheduled_journal_unavailable_message"),
-        nextStep: t("capability.scheduled_journal_unavailable_next_step"),
-        title: t("capability.scheduled_journal_unavailable_title"),
-        tone: "error",
-      });
-      throw new Error(t("capability.scheduled_journal_unavailable_message"));
-    }
     try {
       const result = await execute();
-      removeScheduledTaskMutationJournalEntry(scopeKey, command, targetId);
       if (
         isAccessInvalidated()
         || activeScopeKeyRef.current !== commandScopeKey
@@ -1027,13 +857,6 @@ export function useScheduledTaskCommands(
       );
       if (projection.access) {
         if (projection.blocksRepeat) {
-          upsertScheduledTaskMutationJournalEntry(commandScopeKey, {
-            command,
-            expectation: failure.expectation,
-            phase: "unconfirmed",
-            targetId,
-            updatedAt: Date.now(),
-          });
           if (failure.expectation) {
             reconcileExpectationsRef.current.set(
               scheduledTaskCommandKey(command, targetId),
@@ -1042,11 +865,6 @@ export function useScheduledTaskCommands(
           }
           updateUnconfirmed(command, targetId, true);
         } else {
-          removeScheduledTaskMutationJournalEntry(
-            commandScopeKey,
-            command,
-            targetId,
-          );
           reconcileExpectationsRef.current.delete(
             scheduledTaskCommandKey(command, targetId),
           );
@@ -1062,17 +880,6 @@ export function useScheduledTaskCommands(
           });
         }
         throw error;
-      }
-      if (projection.blocksRepeat) {
-        upsertScheduledTaskMutationJournalEntry(commandScopeKey, {
-          command,
-          expectation: failure.expectation,
-          phase: "unconfirmed",
-          targetId,
-          updatedAt: Date.now(),
-        });
-      } else {
-        removeScheduledTaskMutationJournalEntry(commandScopeKey, command, targetId);
       }
       if (
         accessBlockedRef.current
@@ -1371,16 +1178,11 @@ export function useScheduledTaskCommands(
             task.configuration_version,
           );
           // confirm-stopped 的成功回执同时证明原删除 intent 已完成；清掉
-          // review_required 期间保留的旧 delete 保护，避免重载后出现幽灵待核对项。
+          // 当前页面 review_required 期间保留的旧 delete 保护。
           for (const deleteTargetId of unconfirmedRef.current.get("delete") ?? []) {
             if (!scheduledTaskCommandTargetsJob(deleteTargetId, task.job_id)) {
               continue;
             }
-            removeScheduledTaskMutationJournalEntry(
-              scopeKey,
-              "delete",
-              deleteTargetId,
-            );
             reconcileExpectationsRef.current.delete(
               scheduledTaskCommandKey("delete", deleteTargetId),
             );

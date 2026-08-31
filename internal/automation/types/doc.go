@@ -9,7 +9,7 @@
 // 的行为代码（调度计算、会话解析、执行观测等）依赖本包，反向不依赖。
 //
 // 成员清单：
-//   - automation.go：调度/目标/唤醒/投递/执行/来源/运行状态等枚举常量。
+//   - automation.go：调度/目标/唤醒/投递/执行/来源/运行状态等枚举常量，以及日报输入的 typed 错误。
 //   - task.go / report.go：带 configuration_version、durable deletion/review 状态、不可见 delivery grant 的 ScheduledTask，以及携带人工 client request 对账身份的 ScheduledTaskRun、日报等对外视图。
 //   - permission.go：SDK 权限模式、工具 allow/deny 创建快照的任务 grant、run 阻塞、持久审批请求与决策协议。
 //   - input.go：CreateJobInput（含可选创建幂等键）/ UpdateJobInput（含目标 Agent 重绑）及校验、归一。

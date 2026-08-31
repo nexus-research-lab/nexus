@@ -49,6 +49,7 @@ src/
 - 翻译文案按 `shared/i18n/catalog/{zh,en}/` 的同名领域分片维护；中文定义键集合，英文必须通过 `MessageSegment` 精确覆盖，不恢复巨型语言文件
 - Room API 按纯模型、查询和命令拆分，目录失效事件归 `lib/conversation/`；API 不得读取 Store，Direct Room 跳转与缺失 Agent 恢复归 `features/navigation/direct-room/`
 - `unknown` 错误到用户消息的基础投影只由 `lib/error-message.ts` 定义；Feature 保留领域默认文案和反馈结构，不复制同义包装函数
+- 用户可见错误收敛为具体标题、一句影响/下一步说明和至多一个主动作；结构化 FailureCore 只提供机器事实，当前界面负责本地化文案，不展示服务端 detail 或内部 ID
 - 外部 Session 通道别名、标签与合成会话 ID 只由 `lib/conversation/external-session.ts` 定义；内部 Conversation 与外部 Session 的 canonical Room 路由只由 `app/router/route-paths.ts` 投影，页面、固定入口和标签视图不得复制解释规则
 - 权限与问答协议归 `types/conversation/interaction/`；权限和未完成工具调用的共享匹配归 `lib/conversation/`，问答超时与系统事件展示规则归消息 Feature
 - 会话消息协议按 `types/conversation/message/{attachment,content,entity,event}.ts` 分离；WebSocket 信封和通用事件结构直接使用生成协议，消费者不得通过根 `types` barrel 或 `data: any` 绕过领域解码。`delivery_mode` 明确区分可恢复的 `durable`、随 round 收口的 `ephemeral` 与只留在当前时间线的 `transient`；只有 durable 消息可进入后台缓存和未读

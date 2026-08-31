@@ -153,7 +153,6 @@ export function TaskSchedulePanel({
 }: TaskSchedulePanelProps) {
   const { locale, t } = useI18n();
   const instructionLabel = t("capability.scheduled_dialog_instruction");
-  const journalUnavailable = mutationFailure?.code === "scheduled.journal_unavailable";
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
@@ -356,18 +355,14 @@ export function TaskSchedulePanel({
         <UiResourceState
           className="min-h-0 py-3"
           description={errorMessage ?? mutationFailure.message}
-          impact={t(journalUnavailable
-            ? "capability.scheduled_journal_unavailable_impact"
-            : mutationFailure.effect === "not_applied"
+          impact={t(mutationFailure.effect === "not_applied"
               ? "capability.scheduled_mutation_not_applied_impact"
             : mutationFailure.effect === "accepted"
               ? "capability.scheduled_mutation_accepted_impact"
               : mutationFailure.effect === "committed"
                 ? "capability.scheduled_mutation_committed_impact"
                 : "capability.scheduled_mutation_unknown_impact")}
-          nextStep={t(journalUnavailable
-            ? "capability.scheduled_journal_unavailable_next_step"
-            : mutationFailure.effect === "not_applied"
+          nextStep={t(mutationFailure.effect === "not_applied"
               ? "capability.scheduled_mutation_not_applied_next_step"
             : isRestoredCreateIntent
               ? "capability.scheduled_dialog_create_restored_next_step"
@@ -393,9 +388,7 @@ export function TaskSchedulePanel({
               : undefined}
           size="sm"
           state="error"
-          title={t(journalUnavailable
-            ? "capability.scheduled_journal_unavailable_title"
-            : mutationFailure.effect === "not_applied"
+          title={t(mutationFailure.effect === "not_applied"
               ? "capability.scheduled_mutation_not_applied_title"
             : mutationFailure.effect === "accepted"
               ? "capability.scheduled_mutation_accepted_title"

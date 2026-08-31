@@ -31,28 +31,11 @@ export type FailureEffect =
   | KnownFailureEffect
   | (string & Record<never, never>);
 
-export type KnownFailureRecoveryActor =
-  | 'user'
-  | 'system'
-  | 'external'
-  | 'none';
-
-export type FailureRecoveryActor =
-  | KnownFailureRecoveryActor
-  | (string & Record<never, never>);
-
-export interface FailureResolution {
-  actor: FailureRecoveryActor;
-  action: string;
-}
-
 export interface FailureCore {
   version: number;
   code: string;
   category: FailureCategory;
   effect: FailureEffect;
   transport_request_id?: string;
-  retry_after_ms?: number;
-  resolution?: FailureResolution;
 }
 `

@@ -151,19 +151,18 @@ func TestApplyWorkGraphWorkflowEditorMapsOnlyProvenFailureEffects(t *testing.T) 
 		status     int
 		code       string
 		effect     protocol.FailureEffect
-		action     string
 		wantDetail string
 	}{
 		{
 			name: "revision conflict", err: workgraphworkflowsvc.ErrRevisionConflict,
 			status: http.StatusUnprocessableEntity, code: "workgraph.revision_conflict",
-			effect: protocol.FailureEffectNotApplied, action: "workgraph.refresh_editor",
+			effect:     protocol.FailureEffectNotApplied,
 			wantDetail: "工作图编辑请求无效或版本已变化",
 		},
 		{
 			name: "editor not found", err: workgraphworkflowsvc.ErrNotFound,
 			status: http.StatusNotFound, code: "workgraph.editor_not_found",
-			effect: protocol.FailureEffectNotApplied, action: "workgraph.reopen_editor",
+			effect:     protocol.FailureEffectNotApplied,
 			wantDetail: "工作图编辑会话不存在或已过期",
 		},
 		{
@@ -221,14 +220,6 @@ func TestApplyWorkGraphWorkflowEditorMapsOnlyProvenFailureEffects(t *testing.T) 
 				payload.Data.Failure.Code != test.code ||
 				payload.Data.Failure.Effect != test.effect {
 				t.Fatalf("FailureCore mismatch: %#v", payload.Data)
-			}
-			if test.action == "" {
-				if payload.Data.Failure.Resolution != nil {
-					t.Fatalf("unexpected recovery action: %#v", payload.Data.Failure.Resolution)
-				}
-			} else if payload.Data.Failure.Resolution == nil ||
-				payload.Data.Failure.Resolution.Action != test.action {
-				t.Fatalf("recovery action mismatch: %#v", payload.Data.Failure.Resolution)
 			}
 			if strings.Contains(recorder.Body.String(), "sqlite secret") {
 				t.Fatalf("internal cause leaked: %s", recorder.Body.String())

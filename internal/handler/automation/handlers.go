@@ -422,10 +422,6 @@ func (h *Handlers) HandleListScheduledTaskRuns(writer http.ResponseWriter, reque
 				Effect:   protocol.FailureEffectNotApplicable,
 				Detail:   "资源不存在",
 				Cause:    err,
-				Resolution: &protocol.FailureResolution{
-					Actor:  protocol.FailureRecoveryActorUser,
-					Action: "automation.return_to_tasks",
-				},
 			})
 			return
 		}
@@ -435,10 +431,6 @@ func (h *Handlers) HandleListScheduledTaskRuns(writer http.ResponseWriter, reque
 			Effect:   protocol.FailureEffectNotApplicable,
 			Detail:   "运行历史读取失败",
 			Cause:    err,
-			Resolution: &protocol.FailureResolution{
-				Actor:  protocol.FailureRecoveryActorUser,
-				Action: "automation.reload_run_history",
-			},
 		})
 		return
 	}

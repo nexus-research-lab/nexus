@@ -283,7 +283,6 @@ test("mutation failure projection keeps evidence and downgrades unknown effects"
     ApiTransportError,
   } = await server.ssrLoadModule("/src/lib/api/core/http-error.ts");
   const {
-    getMutationFailure,
     projectMutationFailure,
   } = await server.ssrLoadModule("/src/lib/error-message.ts");
 
@@ -293,21 +292,15 @@ test("mutation failure projection keeps evidence and downgrades unknown effects"
     category: "conflict",
     effect: "not_applied",
     transport_request_id: "mutation-attempt",
-    resolution: {
-      actor: "user",
-      action: "workgraph.refresh_editor",
-    },
   }), "fallback");
   assert.deepEqual(rejected, {
     category: "conflict",
     code: "workgraph.revision_conflict",
     effect: "not_applied",
-    message: "conflict",
+    message: "fallback",
     transportRequestId: "mutation-attempt",
   });
-  assert.equal("resolution" in rejected, false, "generic projection must not execute or expose an action");
-
-  const future = getMutationFailure(new ApiRequestError("future", 500, {
+  const future = projectMutationFailure(new ApiRequestError("future", 500, {
     version: 7,
     code: "future.failure",
     category: "future_category",
@@ -315,7 +308,7 @@ test("mutation failure projection keeps evidence and downgrades unknown effects"
   }), "fallback");
   assert.equal(future.effect, "unknown");
 
-  const interrupted = getMutationFailure(new ApiTransportError(
+  const interrupted = projectMutationFailure(new ApiTransportError(
     "response interrupted",
     "response_interrupted",
     "unknown",
@@ -369,8 +362,6 @@ test("sensitive snapshots are blocked by access state and refresh stays non-dest
     loopController,
     memoryDocumentResource,
     scheduledDialog,
-    scheduledCommands,
-    scheduledFormController,
   ] = await Promise.all([
     read("src/features/memory/agent-memory-view.tsx"),
     read("src/features/memory/document/memory-document-panel.tsx"),
@@ -380,8 +371,6 @@ test("sensitive snapshots are blocked by access state and refresh stays non-dest
     read("src/features/conversation/shared/composer/components/loop-picker/use-loop-picker-controller.ts"),
     read("src/features/memory/document/use-memory-document-resource.ts"),
     read("src/features/capability/scheduled/history/scheduled-task-run-history-dialog.tsx"),
-    read("src/features/capability/scheduled/controller/use-scheduled-task-commands.ts"),
-    read("src/features/capability/scheduled/dialog/use-task-dialog-controller.ts"),
   ]);
 
   assert.ok(
@@ -415,24 +404,6 @@ test("sensitive snapshots are blocked by access state and refresh stays non-dest
   assert.match(
     memoryDocumentResource,
     /current\.resourceError\?\.access[\s\S]*\? current/,
-  );
-  assert.doesNotMatch(
-    scheduledCommands,
-    /clearScheduledTaskMutationJournal/,
-    "access loss must not erase unrelated exact mutation evidence",
-  );
-  assert.match(
-    scheduledCommands,
-    /if \(projection\.access\) \{[\s\S]*projection\.blocksRepeat[\s\S]*removeScheduledTaskMutationJournalEntry/,
-  );
-  assert.doesNotMatch(
-    scheduledFormController,
-    /clearScheduledTaskMutationJournal/,
-    "form access loss must only settle its own create or update journal entry",
-  );
-  assert.match(
-    scheduledFormController,
-    /if \(projection\.access\) \{[\s\S]*projection\.blocksRepeat[\s\S]*removeScheduledTaskMutationJournalEntry/,
   );
 });
 

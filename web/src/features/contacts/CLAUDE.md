@@ -9,7 +9,7 @@
 - 联系人目录已提供当前 Agent 的头像与名称，详情 Header 只承载栏目和协作动作，不重复身份；栏目顺序固定为身份、技能、记忆、工具、联络。Echo 是用户级设置，不进入 Agent 详情。
 - 既有 Agent 的联系人详情采用延迟自动保存并在 Header 给出轻量状态，不保留底部保存按钮；删除是独立危险操作，桌面固定在 Header 最右侧，窄窗进入同一右上角动作菜单并继续复用页面确认链路。
 - 删除确认必须准确说明 Session、workspace、Goal、Automation 和相关绑定会随 Agent 清理或失效；请求执行中锁定关闭和重复提交。响应丢失时保留弹窗并先刷新权威 Agent 目录，只有明确 `not_applied` 才允许再次删除。
-- 创建 Agent 在发出 POST 前必须先持久化 owner-scoped 业务 request ID；存储或跨标签页协调不可用时 fail closed。journal 只保存 request ID 与 pending/unconfirmed，不保存名称、表单、秘密、API body 或 HTTP 诊断 ID；恢复不能靠名称或列表刷新猜测。
+- 创建 Agent 使用 owner-scoped 业务 request ID 和服务端 receipt；浏览器尽力保存该 ID 以便重载后查询，但存储或跨标签页协调不可用不能阻止创建。记录不保存名称、表单、秘密、API body 或 HTTP 诊断 ID；恢复不能靠名称或时间邻近猜测。
 - 桌面详情把聊天与发起群聊投影为同尺度的中性 ghost 工具，手机收进 `contacts-agent-detail-actions-menu.tsx`；普通协作入口不得伪装成蓝色 primary 或带外框的分段控件。
 - 视图回调由页面消费者定义，保持具体且不暴露整页控制器。
 - “联络”栏目由 `agent-communication-view.tsx` 直接呈现 Agent 视角的好友私聊客户端：左侧只列好友并提供搜索/添加，普通群聊继续使用“聊天”入口；右侧必须用 `WorkspaceSurfaceHeader` 与 `WorkspaceConversationTabs` 组成和聊天页同构的单行 Header，并复用 `ConversationPanelLayout`、`MessageItem` 和 `ComposerPanel`，不得复制消息气泡、输入壳、通讯录配置页或独立记录页。

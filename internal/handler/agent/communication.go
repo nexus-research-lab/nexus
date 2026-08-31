@@ -24,9 +24,6 @@ func (h *Handlers) HandleOpenAgentContactChannel(writer http.ResponseWriter, req
 			Category: protocol.FailureCategoryUnavailable,
 			Effect:   protocol.FailureEffectNotApplied,
 			Detail:   "联络会话暂时无法打开",
-			Resolution: &protocol.FailureResolution{
-				Actor: protocol.FailureRecoveryActorUser, Action: "communication.retry_channel",
-			},
 		})
 		return
 	}
@@ -52,9 +49,6 @@ func (h *Handlers) HandleSendAgentCommunicationMessage(writer http.ResponseWrite
 			Category: protocol.FailureCategoryUnavailable,
 			Effect:   protocol.FailureEffectNotApplied,
 			Detail:   "消息暂时无法发送",
-			Resolution: &protocol.FailureResolution{
-				Actor: protocol.FailureRecoveryActorUser, Action: "communication.retry_message",
-			},
 		})
 		return
 	}
@@ -93,9 +87,6 @@ func (h *Handlers) writeCommunicationFailure(
 		Effect:   protocol.FailureEffectUnknown,
 		Detail:   detail,
 		Cause:    err,
-		Resolution: &protocol.FailureResolution{
-			Actor: protocol.FailureRecoveryActorUser, Action: "communication.check_latest_state",
-		},
 	}
 	var inputError *communicationsvc.InputError
 	switch {
@@ -109,21 +100,18 @@ func (h *Handlers) writeCommunicationFailure(
 		spec.Category = protocol.FailureCategoryNotFound
 		spec.Effect = protocol.FailureEffectNotApplied
 		spec.Detail = "联系人或会话不存在，本次操作没有执行"
-		spec.Resolution.Action = "communication.refresh_contacts"
 	case errors.Is(err, channels.ErrExternalSessionGrantUnavailable):
 		status = http.StatusForbidden
 		spec.Code = "communication.external_session_unavailable"
 		spec.Category = protocol.FailureCategoryAuthorization
 		spec.Effect = protocol.FailureEffectNotApplied
 		spec.Detail = "外部私聊已解绑或不属于当前 Agent，本次操作没有执行"
-		spec.Resolution.Action = "communication.refresh_contacts"
 	case errors.As(err, &inputError):
 		status = http.StatusBadRequest
 		spec.Code = "communication.request_invalid"
 		spec.Category = protocol.FailureCategoryValidation
 		spec.Effect = protocol.FailureEffectNotApplied
 		spec.Detail = inputError.Error()
-		spec.Resolution.Action = "communication.review_request"
 	}
 	h.api.WriteError(writer, request, status, spec)
 }

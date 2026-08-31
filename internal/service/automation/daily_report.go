@@ -2,7 +2,6 @@ package automation
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -21,7 +20,7 @@ func (s *Service) GetDailyReport(ctx context.Context, input automationdomain.Sch
 	timezone := firstNonEmpty(input.Timezone, s.config.DefaultTimezone, "Asia/Shanghai")
 	loc, err := time.LoadLocation(timezone)
 	if err != nil {
-		return nil, fmt.Errorf("invalid timezone: %s", timezone)
+		return nil, fmt.Errorf("%w: %s", automationdomain.ErrDailyReportTimezoneInvalid, timezone)
 	}
 	date, startAt, endAt, err := resolveDailyReportDate(input.Date, loc, s.nowFn())
 	if err != nil {
@@ -206,7 +205,7 @@ func resolveDailyReportDate(raw string, loc *time.Location, now time.Time) (stri
 	}
 	day, err := time.ParseInLocation("2006-01-02", normalized, loc)
 	if err != nil {
-		return "", time.Time{}, time.Time{}, errors.New("date must be YYYY-MM-DD, today, or 今天")
+		return "", time.Time{}, time.Time{}, automationdomain.ErrDailyReportDateInvalid
 	}
 	startAt := time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, loc)
 	return normalized, startAt, startAt.AddDate(0, 0, 1), nil

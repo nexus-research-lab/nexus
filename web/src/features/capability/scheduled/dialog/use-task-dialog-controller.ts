@@ -1,6 +1,6 @@
-// INPUT: Scheduled 创建/编辑表单、owner scope、mutation journal 与 FailureCore。
-// OUTPUT: 表单资源、提交命令、三段式失败事实和显式对账动作。
-// POS: Scheduled 表单控制器；副作用前先持久化恢复记录，结果未知时不自动重放。
+// INPUT: Scheduled 创建/编辑表单、owner scope、服务端版本/回执与 FailureCore。
+// OUTPUT: 表单资源、提交命令、精简失败事实和显式对账动作。
+// POS: Scheduled 表单控制器；创建 ID 可跨重载恢复，更新结果以服务端事实为准。
 
 "use client";
 
@@ -45,13 +45,8 @@ import {
 import {
   clearScheduledTaskCreateRequestId,
   loadScheduledTaskCreateRequestId,
-  removeScheduledTaskMutationJournalEntry,
   saveScheduledTaskCreateRequestId,
-  ScheduledTaskMutationCoordinationUnavailableError,
-  ScheduledTaskMutationLockUnavailableError,
-  upsertScheduledTaskMutationJournalEntry,
-  withScheduledTaskMutationGate,
-} from "../controller/scheduled-task-mutation-journal";
+} from "../controller/scheduled-task-create-intent";
 import {
   buildDefaultTaskDialogInitialState,
   buildTaskDialogInitialState,
@@ -363,32 +358,10 @@ export function useTaskDialogController({
     updateMutationFailure(null);
     setIsMutationReviewed(false);
     const submit = async (): Promise<void> => {
-    let journalReady: boolean;
     if (!initialTask) {
-      journalReady = saveScheduledTaskCreateRequestId(scopeKey, createRequestId);
-    } else {
-      journalReady = upsertScheduledTaskMutationJournalEntry(scopeKey, {
-        command: "update",
-        expectation: {
-          baseConfigurationVersion: initialTask.configuration_version,
-          jobId: initialTask.job_id,
-          kind: "update",
-        },
-        phase: "pending",
-        targetId: updateTargetId ?? initialTask.job_id,
-        updatedAt: Date.now(),
-      });
-    }
-    if (!journalReady) {
-      submitInFlightRef.current = false;
-      setIsSubmitting(false);
-      const failure = notAppliedMutationFailure(
-        t("capability.scheduled_journal_unavailable_message"),
-        "scheduled.journal_unavailable",
-      );
-      setErrorMessage(failure.message);
-      updateMutationFailure(failure);
-      return;
+      // 创建回执依赖 exact request ID；浏览器持久化只是重载恢复增强，
+      // 不能成为提交动作的额外可用性门槛。
+      saveScheduledTaskCreateRequestId(scopeKey, createRequestId);
     }
     try {
       await submitTaskDialog({
@@ -401,12 +374,6 @@ export function useTaskDialogController({
       });
       if (!initialTask) {
         clearScheduledTaskCreateRequestId(submissionScopeKey, createRequestId);
-      } else {
-        removeScheduledTaskMutationJournalEntry(
-          submissionScopeKey,
-          "update",
-          updateTargetId ?? initialTask.job_id,
-        );
       }
       if (activeScopeKeyRef.current !== submissionScopeKey) {
         return;
@@ -427,24 +394,6 @@ export function useTaskDialogController({
             clearScheduledTaskCreateRequestId(submissionScopeKey, createRequestId);
             onCreateIntentResolved?.();
           }
-        } else if (projection.blocksRepeat) {
-          upsertScheduledTaskMutationJournalEntry(submissionScopeKey, {
-            command: "update",
-            expectation: {
-              baseConfigurationVersion: initialTask.configuration_version,
-              jobId: initialTask.job_id,
-              kind: "update",
-            },
-            phase: "unconfirmed",
-            targetId: updateTargetId ?? initialTask.job_id,
-            updatedAt: Date.now(),
-          });
-        } else {
-          removeScheduledTaskMutationJournalEntry(
-            submissionScopeKey,
-            "update",
-            updateTargetId ?? initialTask.job_id,
-          );
         }
         if (activeScopeKeyRef.current === submissionScopeKey) {
           onAccessFailure?.({
@@ -456,26 +405,7 @@ export function useTaskDialogController({
       }
       if (projection.blocksRepeat) {
         setIsMutationReviewed(false);
-        if (initialTask) {
-          upsertScheduledTaskMutationJournalEntry(submissionScopeKey, {
-            command: "update",
-            expectation: {
-              baseConfigurationVersion: initialTask.configuration_version,
-              jobId: initialTask.job_id,
-              kind: "update",
-            },
-            phase: "unconfirmed",
-            targetId: updateTargetId ?? initialTask.job_id,
-            updatedAt: Date.now(),
-          });
-        }
-      } else if (initialTask) {
-        removeScheduledTaskMutationJournalEntry(
-          submissionScopeKey,
-          "update",
-          updateTargetId ?? initialTask.job_id,
-        );
-      } else {
+      } else if (!initialTask) {
         // 服务端已明确证明旧创建没有提交；立刻清除旧 request_id，避免
         // 用户直接关闭后，下一次打开又把它误恢复成“结果未知”。
         clearScheduledTaskCreateRequestId(submissionScopeKey, createRequestId);
@@ -506,37 +436,7 @@ export function useTaskDialogController({
       }
     }
     };
-    if (!initialTask) {
-      await submit();
-      return;
-    }
-    try {
-      await withScheduledTaskMutationGate(
-        submissionScopeKey,
-        initialTask.job_id,
-        submit,
-      );
-    } catch (error) {
-      if (
-        !(error instanceof ScheduledTaskMutationLockUnavailableError)
-        && !(error instanceof ScheduledTaskMutationCoordinationUnavailableError)
-      ) {
-        throw error;
-      }
-      submitInFlightRef.current = false;
-      setIsSubmitting(false);
-      const unavailable = error instanceof ScheduledTaskMutationCoordinationUnavailableError;
-      const failure = notAppliedMutationFailure(
-        t(unavailable
-          ? "capability.scheduled_coordination_unavailable_message"
-          : "capability.scheduled_cross_window_lock_message"),
-        unavailable
-          ? "scheduled.coordination_unavailable"
-          : "scheduled.cross_window_lock",
-      );
-      setErrorMessage(failure.message);
-      updateMutationFailure(failure);
-    }
+    await submit();
   }, [
     createRequestId,
     initialTask,
@@ -549,7 +449,6 @@ export function useTaskDialogController({
     scopeKey,
     submitContext,
     t,
-    updateTargetId,
     updateMutationFailure,
   ]);
 
@@ -678,15 +577,7 @@ export function useTaskDialogController({
     }
     const reviewedScopeKey = scopeKey;
     const targetId = updateTargetId ?? initialTask.job_id;
-    if (onConfirmMutationReviewed) {
-      onConfirmMutationReviewed("update", targetId);
-    } else {
-      removeScheduledTaskMutationJournalEntry(
-        reviewedScopeKey,
-        "update",
-        targetId,
-      );
-    }
+    onConfirmMutationReviewed?.("update", targetId);
     if (activeScopeKeyRef.current !== reviewedScopeKey) {
       return;
     }
@@ -728,7 +619,7 @@ export function useTaskDialogController({
         return;
       }
       // 同一版本的权威读取仍不能排除旧请求稍后提交。刷新只完成核对，
-      // 不自动解锁；由用户明确接受重复修改风险后再清 exact journal。
+      // 当前页面继续保护，直到用户明确接受重复修改风险。
       setIsMutationReviewed(true);
       setErrorMessage(t("capability.scheduled_dialog_reconcile_unproven"));
     } catch (error) {

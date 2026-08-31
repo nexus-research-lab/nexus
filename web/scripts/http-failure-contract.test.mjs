@@ -87,7 +87,7 @@ test("unknown HTTP bodies never become user-facing error copy", async () => {
   );
 });
 
-test("FailureCore exposes a distinct transport diagnostic identity", async () => {
+test("FailureCore keeps only result facts and a diagnostic identity", async () => {
   const { buildApiErrorMessage, getApiFailure } = httpResponse;
   const payload = {
     data: {
@@ -99,17 +99,12 @@ test("FailureCore exposes a distinct transport diagnostic identity", async () =>
         category: "conflict",
         effect: "not_applied",
         transport_request_id: "http-attempt-1",
-        resolution: {
-          actor: "user",
-          action: "workgraph.refresh_editor",
-        },
       },
     },
   };
 
   const failure = getApiFailure(payload);
   assert.equal(failure?.transport_request_id, "http-attempt-1");
-  assert.equal(failure?.resolution?.action, "workgraph.refresh_editor");
   assert.equal(
     buildApiErrorMessage({ status: 409, statusText: "Conflict" }, payload),
     "工作图已被其他操作更新",
@@ -124,10 +119,6 @@ test("future FailureCore values decode without inventing behavior", async () => 
     category: "future_category",
     effect: "future_effect",
     future_field: true,
-    resolution: {
-      actor: "future_actor",
-      action: "future.action",
-    },
   });
 
   assert.deepEqual(failure, {
@@ -135,10 +126,6 @@ test("future FailureCore values decode without inventing behavior", async () => 
     code: "future.new_failure",
     category: "future_category",
     effect: "future_effect",
-    resolution: {
-      actor: "future_actor",
-      action: "future.action",
-    },
   });
   assert.equal(parseFailureCore({ version: 1, code: "incomplete" }), null);
   assert.equal(parseFailureCore({
@@ -173,12 +160,12 @@ test("future FailureCore known values remain diagnostic-only", () => {
     category: null,
     code: null,
     effect: "unknown",
-    message: "future failure",
+    message: "fallback",
     transportRequestId: "future-http-attempt",
   });
   assert.deepEqual(getResourceFailure(error, "fallback"), {
     access: null,
-    message: "future failure",
+    message: "fallback",
   });
 });
 

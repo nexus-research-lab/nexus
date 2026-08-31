@@ -1,6 +1,6 @@
 // INPUT: HTTP 或其他产品边界已确认的失败事实。
 // OUTPUT: 不包含内部诊断、路由或业务身份的 FailureCore v1 wire 模型。
-// POS: 全产品失败事实的最小协议真相；领域状态机仍拥有结果、阶段与恢复动作的决定权。
+// POS: 全产品失败事实的最小协议真相；领域状态机仍拥有结果与阶段的决定权。
 package protocol
 
 const FailureCoreVersion = 1
@@ -37,33 +37,14 @@ const (
 	FailureEffectUnknown       FailureEffect = "unknown"
 )
 
-// FailureRecoveryActor 表示下一步由谁推进，不代表公共层可以自行执行动作。
-type FailureRecoveryActor string
-
-const (
-	FailureRecoveryActorUser     FailureRecoveryActor = "user"
-	FailureRecoveryActorSystem   FailureRecoveryActor = "system"
-	FailureRecoveryActorExternal FailureRecoveryActor = "external"
-	FailureRecoveryActorNone     FailureRecoveryActor = "none"
-)
-
-// FailureResolution 是业务域明确投影的安全恢复提示。
-// Action 是稳定语义名，不得携带 URL、命令、秘密或未验证的自由文本。
-type FailureResolution struct {
-	Actor  FailureRecoveryActor `json:"actor"`
-	Action string               `json:"action"`
-}
-
 // FailureCore 是失败响应可选携带的最小机器可读事实。
 //
 // TransportRequestID 只关联一次传输尝试，不参与持久化、授权、路由、缓存、幂等或业务身份。
 // Code 是带领域前缀的开放字符串；客户端不认识时必须按 Category 安全回退。
 type FailureCore struct {
-	Version            int                `json:"version"`
-	Code               string             `json:"code"`
-	Category           FailureCategory    `json:"category"`
-	Effect             FailureEffect      `json:"effect"`
-	TransportRequestID string             `json:"transport_request_id,omitempty"`
-	RetryAfterMS       int64              `json:"retry_after_ms,omitempty"`
-	Resolution         *FailureResolution `json:"resolution,omitempty"`
+	Version            int             `json:"version"`
+	Code               string          `json:"code"`
+	Category           FailureCategory `json:"category"`
+	Effect             FailureEffect   `json:"effect"`
+	TransportRequestID string          `json:"transport_request_id,omitempty"`
 }

@@ -113,9 +113,6 @@ func TestProviderMutationFailureUsesStableEvidence(t *testing.T) {
 			if failure.Code != tt.code || failure.Effect != tt.effect {
 				t.Fatalf("failure = code %q effect %q", failure.Code, failure.Effect)
 			}
-			if failure.Resolution == nil || failure.Resolution.Action == "" {
-				t.Fatal("failure must tell the client what it can do next")
-			}
 		})
 	}
 }
@@ -125,9 +122,6 @@ func TestProviderImportPreviewFailureIsReadOnly(t *testing.T) {
 	if failure.Code != "provider.preview_import_failed" ||
 		failure.Effect != protocol.FailureEffectNotApplicable {
 		t.Fatalf("preview failure = code %q effect %q", failure.Code, failure.Effect)
-	}
-	if failure.Resolution == nil || failure.Resolution.Action != "provider.review_import_source" {
-		t.Fatalf("preview resolution = %#v", failure.Resolution)
 	}
 }
 
@@ -142,9 +136,6 @@ func TestProviderImportPreviewInvalidRequestRemainsReadOnly(t *testing.T) {
 			failure.Category,
 			failure.Effect,
 		)
-	}
-	if failure.Resolution == nil || failure.Resolution.Action != "provider.review_import_source" {
-		t.Fatalf("preview request resolution = %#v", failure.Resolution)
 	}
 }
 

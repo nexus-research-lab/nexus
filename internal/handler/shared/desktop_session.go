@@ -58,10 +58,6 @@ func DesktopSessionTokenMiddleware(api *API, token string, apiPrefix string) fun
 					Category: protocol.FailureCategoryAuthentication,
 					Effect:   failureEffectBeforeHandler(request),
 					Detail:   "桌面登录状态已失效",
-					Resolution: &protocol.FailureResolution{
-						Actor:  protocol.FailureRecoveryActorSystem,
-						Action: "auth.refresh_desktop_session",
-					},
 				})
 				return
 			}

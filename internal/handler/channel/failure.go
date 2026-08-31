@@ -1,5 +1,5 @@
 // INPUT: Channel HTTP operation、稳定 service error 与 service 提供的数据影响证据。
-// OUTPUT: 不暴露内部文案或资源身份的 FailureCore、HTTP 状态与领域恢复动作。
+// OUTPUT: 不暴露内部文案或资源身份的 FailureCore 与 HTTP 状态。
 // POS: Channel 控制面的唯一失败投影；禁止通过 err.Error 文本猜测提交结果。
 package channel
 
@@ -49,28 +49,12 @@ func (operation channelControlOperation) subject() string {
 	}
 }
 
-func (operation channelControlOperation) reconcileAction() string {
-	switch operation {
-	case channelOperationListPairings, channelOperationCreatePairing,
-		channelOperationUpdatePairing, channelOperationDeletePairing:
-		return "channel.reload_pairings"
-	case channelOperationStartLogin, channelOperationReadLogin, channelOperationSubmitVerifyCode:
-		return "channel.reload_login"
-	default:
-		return "channel.reload_configs"
-	}
-}
-
 func channelControlRequestFailure(operation channelControlOperation) handlershared.FailureSpec {
 	return handlershared.FailureSpec{
 		Code:     operation.code("request_invalid"),
 		Category: protocol.FailureCategoryValidation,
 		Effect:   protocol.FailureEffectNotApplied,
 		Detail:   "提交的信息格式不正确",
-		Resolution: &protocol.FailureResolution{
-			Actor:  protocol.FailureRecoveryActorUser,
-			Action: "channel.review_input",
-		},
 	}
 }
 
@@ -89,10 +73,6 @@ func (h *Handlers) writeChannelControlUnavailable(
 		Category: protocol.FailureCategoryUnavailable,
 		Effect:   effect,
 		Detail:   "频道服务暂时不可用",
-		Resolution: &protocol.FailureResolution{
-			Actor:  protocol.FailureRecoveryActorUser,
-			Action: operation.reconcileAction(),
-		},
 	})
 }
 
@@ -106,7 +86,6 @@ func (h *Handlers) writeChannelReadFailure(
 	code := operation.code("failed")
 	category := protocol.FailureCategoryInternal
 	detail := "暂时无法读取" + operation.subject()
-	action := operation.reconcileAction()
 	switch {
 	case errors.Is(cause, channelspkg.ErrChannelNotFound),
 		errors.Is(cause, channelspkg.ErrChannelLoginNotFound),
@@ -132,10 +111,6 @@ func (h *Handlers) writeChannelReadFailure(
 		Effect:   protocol.FailureEffectNotApplicable,
 		Detail:   detail,
 		Cause:    cause,
-		Resolution: &protocol.FailureResolution{
-			Actor:  protocol.FailureRecoveryActorUser,
-			Action: action,
-		},
 	})
 }
 
@@ -159,10 +134,6 @@ func channelMutationFailure(
 		Effect:   protocol.FailureEffectUnknown,
 		Detail:   "暂时无法确认" + operation.subject() + "是否已经改变",
 		Cause:    cause,
-		Resolution: &protocol.FailureResolution{
-			Actor:  protocol.FailureRecoveryActorUser,
-			Action: operation.reconcileAction(),
-		},
 	}
 
 	switch {
@@ -171,21 +142,18 @@ func channelMutationFailure(
 		spec.Category = protocol.FailureCategoryValidation
 		spec.Effect = protocol.FailureEffectNotApplied
 		spec.Detail = "提交的" + operation.subject() + "信息不完整或无效"
-		spec.Resolution.Action = "channel.review_input"
 		return http.StatusBadRequest, spec
 	case errors.Is(cause, channelspkg.ErrChannelCredentialStoreUnavailable):
 		spec.Code = operation.code("credential_store_unavailable")
 		spec.Category = protocol.FailureCategoryUnavailable
 		spec.Effect = protocol.FailureEffectNotApplied
 		spec.Detail = "当前设备尚不能安全保存频道凭据"
-		spec.Resolution.Action = "channel.review_host_settings"
 		return http.StatusServiceUnavailable, spec
 	case errors.Is(cause, channelspkg.ErrChannelConfigRequired):
 		spec.Code = operation.code("config_required")
 		spec.Category = protocol.FailureCategoryConflict
 		spec.Effect = protocol.FailureEffectNotApplied
 		spec.Detail = "请先保存频道配置，再开始连接"
-		spec.Resolution.Action = "channel.review_config"
 		return http.StatusConflict, spec
 	case errors.Is(cause, channelspkg.ErrChannelNotFound),
 		errors.Is(cause, channelspkg.ErrChannelAccountNotFound),
@@ -207,7 +175,6 @@ func channelMutationFailure(
 		spec.Category = protocol.FailureCategoryValidation
 		spec.Effect = protocol.FailureEffectNotApplied
 		spec.Detail = "当前频道不支持这种连接方式"
-		spec.Resolution.Action = "channel.review_connection_method"
 		return http.StatusBadRequest, spec
 	case errors.Is(cause, channelspkg.ErrChannelLoginState) && operation == channelOperationStartLogin:
 		spec.Code = operation.code("state_changed")
@@ -231,7 +198,6 @@ func channelMutationFailure(
 			spec.Code = operation.code("not_applied")
 			spec.Effect = protocol.FailureEffectNotApplied
 			spec.Detail = operation.subject() + "没有改变，原有数据仍然保留"
-			spec.Resolution.Action = "channel.retry_after_review"
 		case channelspkg.ControlMutationCommitted:
 			spec.Code = operation.code("committed")
 			spec.Effect = protocol.FailureEffectCommitted
