@@ -654,6 +654,9 @@ test("WorkGraph expand control opens a large modal canvas with a separate fit ac
   assert.match(canvasSource, /data-execution-workgraph-expanded-dialog/);
   assert.match(canvasSource, /<UiDialogBackdrop[\s\S]*?<UiDialogShell/);
   assert.match(canvasSource, /h-\[calc\(100dvh-32px\)\]/);
+  assert.doesNotMatch(canvasSource, /<UiDialogHeader/);
+  assert.match(canvasSource, /<h2 className="sr-only" id=\{titleId\}>/);
+  assert.match(canvasSource, /<UiDialogCloseButton[\s\S]*?onClose=\{onClose\}/);
   assert.match(
     canvasSource,
     /onOpenExpanded=\{expandedMode \? undefined : \(\) => setExpandedOpen\(true\)\}/,
