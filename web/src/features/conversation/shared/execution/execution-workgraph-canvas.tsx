@@ -1,6 +1,6 @@
 /**
  * INPUT: 权威 Execution Graph、Agent 目录、当前 Graph 节点、节点展示密度与精确 Agent round Task run。
- * OUTPUT: 在焦点稳定、全边界可达且不叠加伪主图底框的工作板上显示图标或可读摘要卡片、带语义分叉点的中性正交流程边、降饱和控制回连，以及节点完整上下游路径聚焦。
+ * OUTPUT: 在焦点稳定、全边界可达且不叠加伪主图底框的工作板上显示图标或可读摘要卡片、可整体悬停聚焦的子图、跨子图边框端口、带语义分叉点的中性正交流程边、按需展开的精确端点短引线、降饱和控制回连，以及节点完整上下游路径聚焦。
  * POS: DM/Room 共用的只读 Execution Graph 主视图；一级运行树外框与内部方向边只按结构化父身份投影，不从自由文本反推关系。
  */
 "use client";
@@ -60,6 +60,7 @@ import {
   projectExecutionGraphCollapse,
   resolveExecutionGraphAnchoredScroll,
   resolveExecutionGraphFitZoom,
+  resolveExecutionGraphGroupTrace,
   resolveExecutionGraphInitialScroll,
   resolveExecutionGraphNodeAncestors,
   resolveExecutionGraphPanPadding,
@@ -203,6 +204,7 @@ export function ExecutionWorkGraphCanvas({
     () => new Set(),
   );
   const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
+  const [hoveredGroupId, setHoveredGroupId] = useState<string | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [pendingFocusId, setPendingFocusId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -252,12 +254,28 @@ export function ExecutionWorkGraphCanvas({
   const activeTraceEdge = activeTraceEdgeId
     ? layout.edges.find((edge) => edge.id === activeTraceEdgeId) ?? null
     : null;
-  const traceActive = activeTraceNodeId !== null || activeTraceEdge !== null;
+  const activeTraceGroup = activeTraceNodeId === null && activeTraceEdge === null
+    ? layout.groups.find((group) => group.id === hoveredGroupId) ?? null
+    : null;
+  const groupTrace = useMemo(
+    () => resolveExecutionGraphGroupTrace(
+      layout.edges,
+      activeTraceGroup?.nodeIds ?? [],
+    ),
+    [activeTraceGroup?.nodeIds, layout.edges],
+  );
+  const traceActive = activeTraceNodeId !== null
+    || activeTraceEdge !== null
+    || activeTraceGroup !== null;
   const tracedNodeIds = activeTraceEdge
     ? new Set([activeTraceEdge.sourceId, activeTraceEdge.targetId])
+    : activeTraceGroup
+    ? groupTrace.nodeIds
     : graphTrace.nodeIds;
   const tracedEdgeIds = activeTraceEdge
     ? new Set([activeTraceEdge.id])
+    : activeTraceGroup
+    ? groupTrace.edgeIds
     : graphTrace.edgeIds;
   const selectedItem = selectedLayoutNode?.item ?? null;
   const selectedAttempt = selectedLayoutNode?.node.attempt_id
@@ -301,6 +319,12 @@ export function ExecutionWorkGraphCanvas({
       setSelectedEdgeId(null);
     }
   }, [layout.edges, selectedEdgeId]);
+
+  useEffect(() => {
+    if (hoveredGroupId && !layout.groups.some((group) => group.id === hoveredGroupId)) {
+      setHoveredGroupId(null);
+    }
+  }, [hoveredGroupId, layout.groups]);
 
   useEffect(() => {
     zoomRef.current = zoom;
@@ -917,13 +941,23 @@ export function ExecutionWorkGraphCanvas({
         >
           {layout.groups.map((group) => {
             const traced = group.nodeIds.some((nodeId) => tracedNodeIds.has(nodeId));
+            const hovered = activeTraceGroup?.id === group.id;
             return (
               <div
                 aria-hidden="true"
-                className="pointer-events-none absolute z-0 rounded-[18px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_78%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-control-background)_48%,transparent)] transition-opacity duration-150"
+                className={cn(
+                  "pointer-events-auto absolute z-0 rounded-[18px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_78%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-control-background)_48%,transparent)] transition-[border-color,background-color,box-shadow,opacity] duration-150",
+                  hovered
+                    && "border-[color:color-mix(in_srgb,var(--primary)_48%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_4%,var(--surface-control-background))] shadow-[0_0_0_2px_color-mix(in_srgb,var(--primary)_8%,transparent)]",
+                )}
+                data-execution-subgraph-hovered={hovered ? "true" : undefined}
                 data-execution-subgraph-root={group.id}
                 data-execution-subgraph-traced={traceActive && traced ? "true" : undefined}
                 key={group.id}
+                onMouseEnter={() => setHoveredGroupId(group.id)}
+                onMouseLeave={() => setHoveredGroupId((current) => (
+                  current === group.id ? null : current
+                ))}
                 style={{
                   height: group.height,
                   left: group.x,
@@ -982,6 +1016,28 @@ export function ExecutionWorkGraphCanvas({
                 <path d="M 0 0 L 5 2.5 L 0 5 z" fill="var(--primary)" />
               </marker>
             </defs>
+            {layout.ports.map((port) => {
+              const traced = port.edgeIds.some((edgeId) => tracedEdgeIds.has(edgeId));
+              return (
+                <circle
+                  aria-hidden="true"
+                  cx={port.x}
+                  cy={port.y}
+                  data-execution-boundary-port={port.id}
+                  data-execution-boundary-port-role={port.role}
+                  data-execution-boundary-port-side={port.side}
+                  fill={traceActive && traced
+                    ? "var(--primary)"
+                    : "var(--surface-panel-background)"}
+                  key={port.id}
+                  opacity={traceActive && !traced ? 0.16 : 0.9}
+                  r={traceActive && traced ? 3 : 2.5}
+                  stroke={traceActive && traced ? "var(--primary)" : "var(--icon-muted)"}
+                  strokeWidth="1.2"
+                  style={{ transition: "opacity 150ms ease, fill 150ms ease" }}
+                />
+              );
+            })}
             {layout.edges.map((edge) => {
               const selected = edge.id === selectedEdgeId;
               const hovered = edge.id === hoveredEdgeId;
@@ -994,6 +1050,36 @@ export function ExecutionWorkGraphCanvas({
               const paired = edge.paired;
               return (
                 <Fragment key={edge.id}>
+                  {traceActive && traced && edge.sourceTailPath ? (
+                    <path
+                      aria-hidden="true"
+                      d={edge.sourceTailPath}
+                      data-execution-edge-endpoint-tail="source"
+                      data-execution-edge-endpoint-tail-for={edge.id}
+                      fill="none"
+                      opacity="0.72"
+                      stroke="var(--primary)"
+                      strokeDasharray="2 3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="1.1"
+                    />
+                  ) : null}
+                  {traceActive && traced && edge.targetTailPath ? (
+                    <path
+                      aria-hidden="true"
+                      d={edge.targetTailPath}
+                      data-execution-edge-endpoint-tail="target"
+                      data-execution-edge-endpoint-tail-for={edge.id}
+                      fill="none"
+                      opacity="0.72"
+                      stroke="var(--primary)"
+                      strokeDasharray="2 3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="1.1"
+                    />
+                  ) : null}
                   <path
                     aria-hidden="true"
                     d={edge.path}

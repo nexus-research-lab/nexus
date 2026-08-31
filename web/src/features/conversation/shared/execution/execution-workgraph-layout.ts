@@ -1,6 +1,6 @@
 /**
  * INPUT: 权威 Execution Graph 节点/边、当前画布可用宽度、节点展示密度与纯 UI 隐藏节点集合。
- * OUTPUT: 主责任图自上而下展开；节点图标与摘要卡片共享矩形避让和固定端口；稳定交叉最小化只在确实减少交叉时调整主层顺序；普通边按层间走廊分配轨道并只在同源或同目标时形成带真实分叉点的局部总线；真正成环的控制回连继续在所属子图框内避让节点并合流到共享 U 形正交总线。
+ * OUTPUT: 主责任图自上而下展开；节点图标与摘要卡片共享矩形避让和固定端口；稳定交叉最小化只在确实减少交叉时调整主层顺序；子图内部普通边按层间走廊分配轨道，跨子图边改从边框代理端口连接、把所有子图安全外扩区作为硬障碍并保留按需展示的精确节点短引线；真正成环的控制回连继续在所属子图框内避让节点并合流到共享 U 形正交总线。
  * POS: 后端 Agent/Subagent/Tool/Gate Graph View 到交互画布之间的无状态树形投影；只为一级 Agent/Gate 的完整运行树绘制外框，Subagent 层级只由树线表达，不再嵌套子图框。
  */
 import type {
@@ -28,6 +28,11 @@ const NESTED_SUBGRAPH_HORIZONTAL_GAP = 40;
 const NESTED_LAYER_VERTICAL_GAP = 46;
 const PROCESS_EDGE_LANE_GAP = 7;
 const PROCESS_EDGE_CORRIDOR_PADDING = 10;
+const BOUNDARY_PORT_SAFE_INSET = 22;
+const BOUNDARY_PORT_MIN_GAP = 14;
+const BOUNDARY_PORT_TAIL_GUTTER = 10;
+const PROCESS_EDGE_GROUP_CLEARANCE = 10;
+const PROCESS_EDGE_BEND_COST = 18;
 const CONTROL_EDGE_GUTTER = 18;
 const CONTROL_EDGE_KIND_LANE_GAP = 8;
 const CONTROL_EDGE_ROUTE_LANE_COUNT = 8;
@@ -57,7 +62,9 @@ interface ExecutionGraphEdgeLayout {
   kind: ExecutionGraphEdgeKind;
   paired: boolean;
   path: string;
+  sourceTailPath: string | null;
   sourceId: string;
+  targetTailPath: string | null;
   targetId: string;
   x: number;
   y: number;
@@ -71,11 +78,65 @@ interface ExecutionGraphJunctionLayout {
   y: number;
 }
 
+interface ExecutionGraphBoundaryPortLayout {
+  edgeIds: string[];
+  groupId: string;
+  id: string;
+  role: "source" | "target";
+  side: "bottom" | "left" | "right" | "top";
+  x: number;
+  y: number;
+}
+
+interface ExecutionGraphBoundaryPortProjection {
+  ports: ExecutionGraphBoundaryPortLayout[];
+  sourcePortByEdgeId: Map<string, ExecutionGraphBoundaryPortLayout>;
+  targetPortByEdgeId: Map<string, ExecutionGraphBoundaryPortLayout>;
+}
+
+interface ExecutionGraphBoundaryPortRequest {
+  desiredAxis: number;
+  edgeId: string;
+  group: ExecutionGraphGroupLayout;
+  key: string;
+  role: "source" | "target";
+  side: "bottom" | "left" | "right" | "top";
+}
+
+interface ExecutionGraphBoundaryPortBundle {
+  desiredAxis: number;
+  edgeIds: string[];
+  group: ExecutionGraphGroupLayout;
+  key: string;
+  role: "source" | "target";
+  side: "bottom" | "left" | "right" | "top";
+}
+
 interface ExecutionGraphPathSegment {
   axis: "horizontal" | "vertical";
   fixed: number;
   start: number;
   end: number;
+}
+
+interface ExecutionGraphRoutePoint {
+  x: number;
+  y: number;
+}
+
+interface ExecutionGraphRouteObstacle {
+  bottom: number;
+  id: string;
+  left: number;
+  right: number;
+  top: number;
+}
+
+interface ExecutionGraphRouteState {
+  cost: number;
+  direction: "horizontal" | "start" | "vertical";
+  key: string;
+  pointIndex: number;
 }
 
 interface ExecutionControlRouteContext {
@@ -106,6 +167,7 @@ interface ExecutionGraphLayout {
   height: number;
   junctions: ExecutionGraphJunctionLayout[];
   nodes: ExecutionGraphNodeLayout[];
+  ports: ExecutionGraphBoundaryPortLayout[];
   width: number;
 }
 
@@ -166,6 +228,7 @@ export function buildExecutionGraphLayout(
       height: MIN_CANVAS_HEIGHT,
       junctions: [],
       nodes: [],
+      ports: [],
       width: constrainedWidth === null
         ? MIN_CANVAS_WIDTH
         : Math.min(MIN_CANVAS_WIDTH, constrainedWidth),
@@ -308,10 +371,18 @@ export function buildExecutionGraphLayout(
     layoutNodeById,
     ownership.childrenByOwnerId,
   );
+  const boundaryPorts = buildExecutionGraphBoundaryPorts(
+    graphEdges,
+    layoutNodeById,
+    rootByNodeId,
+    groups,
+  );
   const processRoutes = buildProcessEdgeRoutes(
     graphEdges,
     layoutNodeById,
     rootByNodeId,
+    boundaryPorts,
+    groups,
   );
   const edgePathById = processRoutes.pathById;
   for (const edge of graphEdges) {
@@ -323,13 +394,46 @@ export function buildExecutionGraphLayout(
     if (!source || !target) {
       continue;
     }
-    const path = buildControlEdgePath(source, target, edge.kind, {
-      group: groups.find((group) => (
-        group.nodeIds.includes(source.node.id)
-          && group.nodeIds.includes(target.node.id)
-      )) ?? null,
-      nodes,
-    });
+    const sharedGroup = groups.find((group) => (
+      group.nodeIds.includes(source.node.id)
+        && group.nodeIds.includes(target.node.id)
+    )) ?? null;
+    const sourceRoot = rootByNodeId.get(source.node.id) ?? source.node.id;
+    const targetRoot = rootByNodeId.get(target.node.id) ?? target.node.id;
+    let path: string;
+    if (sourceRoot !== targetRoot) {
+      const sourcePort = boundaryPorts.sourcePortByEdgeId.get(edge.id) ?? null;
+      const targetPort = boundaryPorts.targetPortByEdgeId.get(edge.id) ?? null;
+      const sides = executionGraphBoundaryPortSides(source, target);
+      const sourcePoint = sourcePort
+        ?? executionGraphNodeSideAnchor(source, sides.source);
+      const targetPoint = targetPort
+        ?? executionGraphNodeSideAnchor(target, sides.target);
+      if (sourcePort) {
+        processRoutes.sourceTailPathById.set(
+          edge.id,
+          buildExecutionGraphBoundaryPortTail(source, sourcePort),
+        );
+      }
+      if (targetPort) {
+        processRoutes.targetTailPathById.set(
+          edge.id,
+          buildExecutionGraphBoundaryPortTail(target, targetPort),
+        );
+      }
+      path = buildObstacleAvoidingGraphEdgePath(
+        sourcePoint,
+        targetPoint,
+        sourcePort,
+        targetPort,
+        groups,
+      );
+    } else {
+      path = buildControlEdgePath(source, target, edge.kind, {
+        group: sharedGroup,
+        nodes,
+      });
+    }
     edgePathById.set(edge.id, path);
   }
 
@@ -359,7 +463,9 @@ export function buildExecutionGraphLayout(
       kind: edge.kind,
       paired: hasReverseProcessEdge || hasReverseControlEdge,
       path,
+      sourceTailPath: processRoutes.sourceTailPathById.get(edge.id) ?? null,
       sourceId: edge.source_node_id,
+      targetTailPath: processRoutes.targetTailPathById.get(edge.id) ?? null,
       targetId: edge.target_node_id,
       x: midpoint.x,
       y: midpoint.y,
@@ -372,6 +478,7 @@ export function buildExecutionGraphLayout(
     height,
     junctions: processRoutes.junctions,
     nodes,
+    ports: boundaryPorts.ports,
     width,
   };
 }
@@ -742,6 +849,199 @@ function buildExecutionGraphGroups(
   return result;
 }
 
+function buildExecutionGraphBoundaryPorts(
+  edges: ExecutionGraphEdgeView[],
+  nodeById: Map<string, ExecutionGraphNodeLayout>,
+  rootByNodeId: Map<string, string>,
+  groups: ExecutionGraphGroupLayout[],
+): ExecutionGraphBoundaryPortProjection {
+  const groupById = new Map(groups.map((group) => [group.id, group]));
+  const requests: ExecutionGraphBoundaryPortRequest[] = [];
+  for (const edge of edges) {
+    const source = nodeById.get(edge.source_node_id);
+    const target = nodeById.get(edge.target_node_id);
+    if (!source || !target) {
+      continue;
+    }
+    const sourceRoot = rootByNodeId.get(source.node.id) ?? source.node.id;
+    const targetRoot = rootByNodeId.get(target.node.id) ?? target.node.id;
+    if (sourceRoot === targetRoot) {
+      continue;
+    }
+    const sides = executionGraphBoundaryPortSides(source, target);
+    const sourceGroup = groupById.get(sourceRoot);
+    if (sourceGroup) {
+      requests.push(executionGraphBoundaryPortRequest(
+        edge,
+        source,
+        sourceGroup,
+        "source",
+        sides.source,
+      ));
+    }
+    const targetGroup = groupById.get(targetRoot);
+    if (targetGroup) {
+      requests.push(executionGraphBoundaryPortRequest(
+        edge,
+        target,
+        targetGroup,
+        "target",
+        sides.target,
+      ));
+    }
+  }
+  const requestsBySide = new Map<string, ExecutionGraphBoundaryPortRequest[]>();
+  for (const request of requests) {
+    const sideKey = `${request.group.id}:${request.side}`;
+    const sideRequests = requestsBySide.get(sideKey) ?? [];
+    sideRequests.push(request);
+    requestsBySide.set(sideKey, sideRequests);
+  }
+  const ports: ExecutionGraphBoundaryPortLayout[] = [];
+  const sourcePortByEdgeId = new Map<string, ExecutionGraphBoundaryPortLayout>();
+  const targetPortByEdgeId = new Map<string, ExecutionGraphBoundaryPortLayout>();
+  for (const sideRequests of requestsBySide.values()) {
+    const bundleByKey = new Map<string, ExecutionGraphBoundaryPortBundle>();
+    for (const request of sideRequests) {
+      const bundle = bundleByKey.get(request.key) ?? {
+        desiredAxis: request.desiredAxis,
+        edgeIds: [],
+        group: request.group,
+        key: request.key,
+        role: request.role,
+        side: request.side,
+      };
+      bundle.edgeIds.push(request.edgeId);
+      bundleByKey.set(request.key, bundle);
+    }
+    const bundles = [...bundleByKey.values()].sort((left, right) => (
+      left.desiredAxis - right.desiredAxis || left.key.localeCompare(right.key)
+    ));
+    const axes = executionGraphBoundaryPortAxes(bundles);
+    for (let index = 0; index < bundles.length; index += 1) {
+      const bundle = bundles[index];
+      const port = executionGraphBoundaryPortLayout(bundle, axes[index]);
+      ports.push(port);
+      for (const edgeId of port.edgeIds) {
+        if (port.role === "source") {
+          sourcePortByEdgeId.set(edgeId, port);
+        } else {
+          targetPortByEdgeId.set(edgeId, port);
+        }
+      }
+    }
+  }
+  return { ports, sourcePortByEdgeId, targetPortByEdgeId };
+}
+
+function executionGraphBoundaryPortSides(
+  source: ExecutionGraphNodeLayout,
+  target: ExecutionGraphNodeLayout,
+): {
+  source: "bottom" | "left" | "right" | "top";
+  target: "bottom" | "left" | "right" | "top";
+} {
+  if (target.y > source.y + 1) {
+    return { source: "bottom", target: "top" };
+  }
+  if (target.y < source.y - 1) {
+    return { source: "top", target: "bottom" };
+  }
+  return source.x <= target.x
+    ? { source: "right", target: "left" }
+    : { source: "left", target: "right" };
+}
+
+function executionGraphBoundaryPortRequest(
+  edge: ExecutionGraphEdgeView,
+  node: ExecutionGraphNodeLayout,
+  group: ExecutionGraphGroupLayout,
+  role: "source" | "target",
+  side: "bottom" | "left" | "right" | "top",
+): ExecutionGraphBoundaryPortRequest {
+  return {
+    desiredAxis: side === "bottom" || side === "top" ? node.x : node.y,
+    edgeId: edge.id,
+    group,
+    key: [
+      group.id,
+      side,
+      role,
+      executionProcessRouteClass(edge.kind),
+      node.node.id,
+    ].join(":"),
+    role,
+    side,
+  };
+}
+
+function executionGraphBoundaryPortAxes(
+  bundles: ExecutionGraphBoundaryPortBundle[],
+): number[] {
+  if (bundles.length === 0) {
+    return [];
+  }
+  const { group, side } = bundles[0];
+  const minimum = (side === "bottom" || side === "top" ? group.x : group.y)
+    + BOUNDARY_PORT_SAFE_INSET;
+  const maximum = minimum
+    + (side === "bottom" || side === "top" ? group.width : group.height)
+    - BOUNDARY_PORT_SAFE_INSET * 2;
+  if (bundles.length === 1 || maximum <= minimum) {
+    return [Math.max(minimum, Math.min(maximum, bundles[0].desiredAxis))];
+  }
+  const gap = Math.min(
+    BOUNDARY_PORT_MIN_GAP,
+    (maximum - minimum) / (bundles.length - 1),
+  );
+  const axes = bundles.map((bundle) => (
+    Math.max(minimum, Math.min(maximum, bundle.desiredAxis))
+  ));
+  for (let index = 1; index < axes.length; index += 1) {
+    axes[index] = Math.max(axes[index], axes[index - 1] + gap);
+  }
+  const overflow = Math.max(0, axes[axes.length - 1] - maximum);
+  if (overflow > 0) {
+    for (let index = 0; index < axes.length; index += 1) {
+      axes[index] -= overflow;
+    }
+  }
+  for (let index = axes.length - 2; index >= 0; index -= 1) {
+    axes[index] = Math.min(axes[index], axes[index + 1] - gap);
+  }
+  const underflow = Math.max(0, minimum - axes[0]);
+  if (underflow > 0) {
+    for (let index = 0; index < axes.length; index += 1) {
+      axes[index] += underflow;
+    }
+  }
+  return axes;
+}
+
+function executionGraphBoundaryPortLayout(
+  bundle: ExecutionGraphBoundaryPortBundle,
+  axis: number,
+): ExecutionGraphBoundaryPortLayout {
+  const { group, side } = bundle;
+  return {
+    edgeIds: bundle.edgeIds,
+    groupId: group.id,
+    id: `port:${bundle.key}`,
+    role: bundle.role,
+    side,
+    x: side === "left"
+      ? group.x
+      : side === "right"
+      ? group.x + group.width
+      : axis,
+    y: side === "top"
+      ? group.y
+      : side === "bottom"
+      ? group.y + group.height
+      : axis,
+  };
+}
+
 function collectExecutionSubgraphNodes(
   owner: ExecutionGraphNodeView,
   childrenByOwnerId: Map<string, ExecutionGraphNodeView[]>,
@@ -1086,11 +1386,17 @@ function buildProcessEdgeRoutes(
   edges: ExecutionGraphEdgeView[],
   nodeById: Map<string, ExecutionGraphNodeLayout>,
   rootByNodeId: Map<string, string>,
+  boundaryPorts: ExecutionGraphBoundaryPortProjection,
+  groups: ExecutionGraphGroupLayout[],
 ): {
   junctions: ExecutionGraphJunctionLayout[];
   pathById: Map<string, string>;
+  sourceTailPathById: Map<string, string>;
+  targetTailPathById: Map<string, string>;
 } {
   const pathById = new Map<string, string>();
+  const sourceTailPathById = new Map<string, string>();
+  const targetTailPathById = new Map<string, string>();
   const requests: ExecutionProcessRouteRequest[] = [];
   for (const edge of edges) {
     if (isExecutionControlEdge(edge.kind)) {
@@ -1101,24 +1407,52 @@ function buildProcessEdgeRoutes(
     if (!source || !target) {
       continue;
     }
-    const sourceY = source.y + source.height / 2;
-    const targetY = target.y - target.height / 2;
+    const sourcePort = boundaryPorts.sourcePortByEdgeId.get(edge.id) ?? null;
+    const targetPort = boundaryPorts.targetPortByEdgeId.get(edge.id) ?? null;
+    if (sourcePort) {
+      sourceTailPathById.set(
+        edge.id,
+        buildExecutionGraphBoundaryPortTail(source, sourcePort),
+      );
+    }
+    if (targetPort) {
+      targetTailPathById.set(
+        edge.id,
+        buildExecutionGraphBoundaryPortTail(target, targetPort),
+      );
+    }
+    const sourceX = sourcePort?.x ?? source.x;
+    const sourceY = sourcePort?.y ?? source.y + source.height / 2;
+    const targetX = targetPort?.x ?? target.x;
+    const targetY = targetPort?.y ?? target.y - target.height / 2;
+    const sourceRoot = rootByNodeId.get(source.node.id) ?? source.node.id;
+    const targetRoot = rootByNodeId.get(target.node.id) ?? target.node.id;
+    if (sourceRoot !== targetRoot) {
+      pathById.set(
+        edge.id,
+        buildObstacleAvoidingGraphEdgePath(
+          { x: sourceX, y: sourceY },
+          { x: targetX, y: targetY },
+          sourcePort,
+          targetPort,
+          groups,
+        ),
+      );
+      continue;
+    }
     if (targetY <= sourceY) {
       pathById.set(edge.id, buildMainEdgePath(source, target));
       continue;
     }
-    const sourceRoot = rootByNodeId.get(source.node.id) ?? source.node.id;
-    const targetRoot = rootByNodeId.get(target.node.id) ?? target.node.id;
-    const scope = sourceRoot === targetRoot ? sourceRoot : "main";
     requests.push({
-      corridorKey: `${scope}:${sourceY.toFixed(2)}:${targetY.toFixed(2)}`,
+      corridorKey: `${sourceRoot}:${sourceY.toFixed(2)}:${targetY.toFixed(2)}`,
       edge,
       routeClass: executionProcessRouteClass(edge.kind),
       source,
-      sourceX: source.x,
+      sourceX,
       sourceY,
       target,
-      targetX: target.x,
+      targetX,
       targetY,
     });
   }
@@ -1195,10 +1529,417 @@ function buildProcessEdgeRoutes(
       }
     }
   }
-  return { junctions, pathById };
+  return {
+    junctions,
+    pathById,
+    sourceTailPathById,
+    targetTailPathById,
+  };
+}
+
+function buildExecutionGraphBoundaryPortTail(
+  node: ExecutionGraphNodeLayout,
+  port: ExecutionGraphBoundaryPortLayout,
+): string {
+  if (port.side === "bottom" || port.side === "top") {
+    const nodeY = node.y + (port.side === "bottom" ? 1 : -1) * node.height / 2;
+    const innerY = port.y + (port.side === "bottom" ? -1 : 1)
+      * BOUNDARY_PORT_TAIL_GUTTER;
+    return [
+      `M ${node.x} ${nodeY}`,
+      `L ${node.x} ${innerY}`,
+      `L ${port.x} ${innerY}`,
+      `L ${port.x} ${port.y}`,
+    ].join(" ");
+  }
+  const nodeX = node.x + (port.side === "right" ? 1 : -1) * node.width / 2;
+  const innerX = port.x + (port.side === "right" ? -1 : 1)
+    * BOUNDARY_PORT_TAIL_GUTTER;
+  return [
+    `M ${nodeX} ${node.y}`,
+    `L ${innerX} ${node.y}`,
+    `L ${innerX} ${port.y}`,
+    `L ${port.x} ${port.y}`,
+  ].join(" ");
+}
+
+function buildObstacleAvoidingGraphEdgePath(
+  source: ExecutionGraphRoutePoint,
+  target: ExecutionGraphRoutePoint,
+  sourcePort: ExecutionGraphBoundaryPortLayout | null,
+  targetPort: ExecutionGraphBoundaryPortLayout | null,
+  groups: ExecutionGraphGroupLayout[],
+): string {
+  const obstacles = groups.map((group) => ({
+    bottom: group.y + group.height + PROCESS_EDGE_GROUP_CLEARANCE,
+    id: group.id,
+    left: group.x - PROCESS_EDGE_GROUP_CLEARANCE,
+    right: group.x + group.width + PROCESS_EDGE_GROUP_CLEARANCE,
+    top: group.y - PROCESS_EDGE_GROUP_CLEARANCE,
+  }));
+  const sourceEscape = sourcePort
+    ? executionGraphBoundaryPortEscape(sourcePort)
+    : source;
+  const targetEscape = targetPort
+    ? executionGraphBoundaryPortEscape(targetPort)
+    : target;
+  const routed = findExecutionGraphOrthogonalRoute(
+    sourceEscape,
+    targetEscape,
+    obstacles,
+  );
+  const points = compactExecutionGraphRoutePoints([
+    source,
+    sourceEscape,
+    ...routed,
+    targetEscape,
+    target,
+  ]);
+  return points.map((point, index) => (
+    `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`
+  )).join(" ");
+}
+
+function executionGraphBoundaryPortEscape(
+  port: ExecutionGraphBoundaryPortLayout,
+): ExecutionGraphRoutePoint {
+  if (port.side === "top") {
+    return { x: port.x, y: port.y - PROCESS_EDGE_GROUP_CLEARANCE };
+  }
+  if (port.side === "bottom") {
+    return { x: port.x, y: port.y + PROCESS_EDGE_GROUP_CLEARANCE };
+  }
+  if (port.side === "left") {
+    return { x: port.x - PROCESS_EDGE_GROUP_CLEARANCE, y: port.y };
+  }
+  return { x: port.x + PROCESS_EDGE_GROUP_CLEARANCE, y: port.y };
+}
+
+function executionGraphNodeSideAnchor(
+  node: ExecutionGraphNodeLayout,
+  side: "bottom" | "left" | "right" | "top",
+): ExecutionGraphRoutePoint {
+  if (side === "top") {
+    return { x: node.x, y: node.y - node.height / 2 };
+  }
+  if (side === "bottom") {
+    return { x: node.x, y: node.y + node.height / 2 };
+  }
+  if (side === "left") {
+    return { x: node.x - node.width / 2, y: node.y };
+  }
+  return { x: node.x + node.width / 2, y: node.y };
+}
+
+function findExecutionGraphOrthogonalRoute(
+  source: ExecutionGraphRoutePoint,
+  target: ExecutionGraphRoutePoint,
+  obstacles: ExecutionGraphRouteObstacle[],
+): ExecutionGraphRoutePoint[] {
+  const horizontalCoordinates = new Set([source.x, target.x]);
+  const verticalCoordinates = new Set([source.y, target.y]);
+  for (const obstacle of obstacles) {
+    horizontalCoordinates.add(obstacle.left);
+    horizontalCoordinates.add(obstacle.right);
+    verticalCoordinates.add(obstacle.top);
+    verticalCoordinates.add(obstacle.bottom);
+  }
+  if (obstacles.length > 0) {
+    horizontalCoordinates.add(
+      Math.min(...obstacles.map((obstacle) => obstacle.left))
+        - PROCESS_EDGE_GROUP_CLEARANCE,
+    );
+    horizontalCoordinates.add(
+      Math.max(...obstacles.map((obstacle) => obstacle.right))
+        + PROCESS_EDGE_GROUP_CLEARANCE,
+    );
+    verticalCoordinates.add(
+      Math.min(...obstacles.map((obstacle) => obstacle.top))
+        - PROCESS_EDGE_GROUP_CLEARANCE,
+    );
+    verticalCoordinates.add(
+      Math.max(...obstacles.map((obstacle) => obstacle.bottom))
+        + PROCESS_EDGE_GROUP_CLEARANCE,
+    );
+  }
+  const xs = [...horizontalCoordinates].sort((left, right) => left - right);
+  const ys = [...verticalCoordinates].sort((left, right) => left - right);
+  const points: ExecutionGraphRoutePoint[] = [];
+  const pointIndexByCoordinate = new Map<string, number>();
+  for (const y of ys) {
+    for (const x of xs) {
+      const point = { x, y };
+      if (obstacles.some((obstacle) => executionGraphPointInsideObstacle(
+        point,
+        obstacle,
+      ))) {
+        continue;
+      }
+      pointIndexByCoordinate.set(executionGraphRoutePointKey(point), points.length);
+      points.push(point);
+    }
+  }
+  const sourceIndex = pointIndexByCoordinate.get(executionGraphRoutePointKey(source));
+  const targetIndex = pointIndexByCoordinate.get(executionGraphRoutePointKey(target));
+  if (sourceIndex === undefined || targetIndex === undefined) {
+    return [source, target];
+  }
+  const neighbors = new Map<number, Array<{
+    direction: "horizontal" | "vertical";
+    distance: number;
+    pointIndex: number;
+  }>>();
+  const addNeighbor = (
+    from: number,
+    to: number,
+    direction: "horizontal" | "vertical",
+  ) => {
+    const fromPoint = points[from];
+    const toPoint = points[to];
+    if (!executionGraphRouteSegmentClear(fromPoint, toPoint, obstacles)) {
+      return;
+    }
+    const distance = Math.abs(fromPoint.x - toPoint.x)
+      + Math.abs(fromPoint.y - toPoint.y);
+    neighbors.set(from, [
+      ...(neighbors.get(from) ?? []),
+      { direction, distance, pointIndex: to },
+    ]);
+    neighbors.set(to, [
+      ...(neighbors.get(to) ?? []),
+      { direction, distance, pointIndex: from },
+    ]);
+  };
+  for (const y of ys) {
+    const row = xs.flatMap((x) => {
+      const index = pointIndexByCoordinate.get(executionGraphRoutePointKey({ x, y }));
+      return index === undefined ? [] : [index];
+    });
+    for (let index = 1; index < row.length; index += 1) {
+      addNeighbor(row[index - 1], row[index], "horizontal");
+    }
+  }
+  for (const x of xs) {
+    const column = ys.flatMap((y) => {
+      const index = pointIndexByCoordinate.get(executionGraphRoutePointKey({ x, y }));
+      return index === undefined ? [] : [index];
+    });
+    for (let index = 1; index < column.length; index += 1) {
+      addNeighbor(column[index - 1], column[index], "vertical");
+    }
+  }
+  return resolveExecutionGraphShortestRoute(
+    points,
+    neighbors,
+    sourceIndex,
+    targetIndex,
+  );
+}
+
+function resolveExecutionGraphShortestRoute(
+  points: ExecutionGraphRoutePoint[],
+  neighbors: Map<number, Array<{
+    direction: "horizontal" | "vertical";
+    distance: number;
+    pointIndex: number;
+  }>>,
+  sourceIndex: number,
+  targetIndex: number,
+): ExecutionGraphRoutePoint[] {
+  const startKey = `${sourceIndex}:start`;
+  const distanceByKey = new Map([[startKey, 0]]);
+  const previousByKey = new Map<string, string>();
+  const stateByKey = new Map<string, ExecutionGraphRouteState>();
+  const queue: ExecutionGraphRouteState[] = [{
+    cost: 0,
+    direction: "start",
+    key: startKey,
+    pointIndex: sourceIndex,
+  }];
+  stateByKey.set(startKey, queue[0]);
+  let targetState: ExecutionGraphRouteState | null = null;
+  while (queue.length > 0) {
+    const current = executionGraphRouteQueuePop(queue);
+    if (!current || current.cost !== distanceByKey.get(current.key)) {
+      continue;
+    }
+    if (current.pointIndex === targetIndex) {
+      targetState = current;
+      break;
+    }
+    for (const neighbor of neighbors.get(current.pointIndex) ?? []) {
+      const bendCost = current.direction !== "start"
+        && current.direction !== neighbor.direction
+        ? PROCESS_EDGE_BEND_COST
+        : 0;
+      const nextCost = current.cost + neighbor.distance + bendCost;
+      const nextKey = `${neighbor.pointIndex}:${neighbor.direction}`;
+      if (nextCost >= (distanceByKey.get(nextKey) ?? Number.POSITIVE_INFINITY)) {
+        continue;
+      }
+      const nextState: ExecutionGraphRouteState = {
+        cost: nextCost,
+        direction: neighbor.direction,
+        key: nextKey,
+        pointIndex: neighbor.pointIndex,
+      };
+      distanceByKey.set(nextKey, nextCost);
+      previousByKey.set(nextKey, current.key);
+      stateByKey.set(nextKey, nextState);
+      executionGraphRouteQueuePush(queue, nextState);
+    }
+  }
+  if (!targetState) {
+    return [points[sourceIndex], points[targetIndex]];
+  }
+  const route: ExecutionGraphRoutePoint[] = [];
+  let currentKey: string | undefined = targetState.key;
+  while (currentKey) {
+    const state = stateByKey.get(currentKey);
+    if (!state) {
+      break;
+    }
+    route.push(points[state.pointIndex]);
+    currentKey = previousByKey.get(currentKey);
+  }
+  return compactExecutionGraphRoutePoints(route.reverse());
+}
+
+function executionGraphRouteQueuePush(
+  queue: ExecutionGraphRouteState[],
+  state: ExecutionGraphRouteState,
+): void {
+  queue.push(state);
+  let index = queue.length - 1;
+  while (index > 0) {
+    const parent = Math.floor((index - 1) / 2);
+    if (!executionGraphRouteStateBefore(queue[index], queue[parent])) {
+      break;
+    }
+    [queue[index], queue[parent]] = [queue[parent], queue[index]];
+    index = parent;
+  }
+}
+
+function executionGraphRouteQueuePop(
+  queue: ExecutionGraphRouteState[],
+): ExecutionGraphRouteState | undefined {
+  const first = queue[0];
+  const last = queue.pop();
+  if (!first || !last || queue.length === 0) {
+    return first;
+  }
+  queue[0] = last;
+  let index = 0;
+  while (true) {
+    const left = index * 2 + 1;
+    const right = left + 1;
+    let next = index;
+    if (left < queue.length && executionGraphRouteStateBefore(queue[left], queue[next])) {
+      next = left;
+    }
+    if (right < queue.length && executionGraphRouteStateBefore(queue[right], queue[next])) {
+      next = right;
+    }
+    if (next === index) {
+      return first;
+    }
+    [queue[index], queue[next]] = [queue[next], queue[index]];
+    index = next;
+  }
+}
+
+function executionGraphRouteStateBefore(
+  left: ExecutionGraphRouteState,
+  right: ExecutionGraphRouteState,
+): boolean {
+  return left.cost < right.cost
+    || (left.cost === right.cost && left.key.localeCompare(right.key) < 0);
+}
+
+function executionGraphPointInsideObstacle(
+  point: ExecutionGraphRoutePoint,
+  obstacle: ExecutionGraphRouteObstacle,
+): boolean {
+  return point.x > obstacle.left
+    && point.x < obstacle.right
+    && point.y > obstacle.top
+    && point.y < obstacle.bottom;
+}
+
+function executionGraphRouteSegmentClear(
+  source: ExecutionGraphRoutePoint,
+  target: ExecutionGraphRoutePoint,
+  obstacles: ExecutionGraphRouteObstacle[],
+): boolean {
+  const segment: ExecutionGraphPathSegment = Math.abs(source.x - target.x) < 0.5
+    ? {
+        axis: "vertical",
+        fixed: source.x,
+        start: Math.min(source.y, target.y),
+        end: Math.max(source.y, target.y),
+      }
+    : {
+        axis: "horizontal",
+        fixed: source.y,
+        start: Math.min(source.x, target.x),
+        end: Math.max(source.x, target.x),
+      };
+  return obstacles.every((obstacle) => {
+    if (segment.axis === "vertical") {
+      return segment.fixed <= obstacle.left
+        || segment.fixed >= obstacle.right
+        || executionGraphRangeOverlap(
+          segment.start,
+          segment.end,
+          obstacle.top,
+          obstacle.bottom,
+        ) <= 0;
+    }
+    return segment.fixed <= obstacle.top
+      || segment.fixed >= obstacle.bottom
+      || executionGraphRangeOverlap(
+        segment.start,
+        segment.end,
+        obstacle.left,
+        obstacle.right,
+      ) <= 0;
+  });
+}
+
+function executionGraphRoutePointKey(point: ExecutionGraphRoutePoint): string {
+  return `${point.x}:${point.y}`;
+}
+
+function compactExecutionGraphRoutePoints(
+  points: ExecutionGraphRoutePoint[],
+): ExecutionGraphRoutePoint[] {
+  const result: ExecutionGraphRoutePoint[] = [];
+  for (const point of points) {
+    const previous = result[result.length - 1];
+    if (previous && previous.x === point.x && previous.y === point.y) {
+      continue;
+    }
+    const beforePrevious = result[result.length - 2];
+    if (
+      beforePrevious
+      && (
+        beforePrevious.x === previous.x && previous.x === point.x
+        || beforePrevious.y === previous.y && previous.y === point.y
+      )
+    ) {
+      result[result.length - 1] = point;
+      continue;
+    }
+    result.push(point);
+  }
+  return result;
 }
 
 function executionProcessRouteClass(kind: ExecutionGraphEdgeKind): string {
+  if (isExecutionControlEdge(kind)) {
+    return "control";
+  }
   if (kind === "invoke" || kind === "spawn" || kind === "guard") {
     return "ownership";
   }
