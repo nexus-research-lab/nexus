@@ -1,6 +1,6 @@
 /**
- * INPUT: 会话 runtime/interrupt ACK 事件、消息集合与易失 Room slot/权限/execution/stopping 状态。
- * OUTPUT: 单调运行快照、消息状态、首次展示锚点与由 stopping/权限/slot 平滑接棒到终态结果的协调动作。
+ * INPUT: 会话 runtime/interrupt ACK 事件、消息集合与易失 Room 增量 slot/权威 slot snapshot/权限/execution/stopping 状态。
+ * OUTPUT: 单调运行快照、消息状态、首次展示锚点，以及由 stopping/权限/slot/空快照平滑接棒到终态结果的协调动作。
  * POS: transport 事件和纯 reconciliation 模型之间的 React 编排边界。
  */
 import { useCallback, type Dispatch, type SetStateAction } from "react";
@@ -102,6 +102,7 @@ export function useAgentConversationRuntime({
     readPendingAgentSlots,
     readPendingPermissions,
     readStoppingAgentRoundIds,
+    reconcilePendingAgentSlotSnapshot,
     setPendingAgentSlots,
     setPendingPermissions,
     setRoomAgentExecutionStates,
@@ -245,8 +246,13 @@ export function useAgentConversationRuntime({
         ack.user_message_delivery_mode,
       ));
     }
+    if (ack.pending_snapshot) {
+      reconcilePendingAgentSlotSnapshot(mergeChatAckPendingSlots([], ack));
+      return;
+    }
     setPendingAgentSlots((slots) => mergeChatAckPendingSlots(slots, ack));
   }, [
+    reconcilePendingAgentSlotSnapshot,
     resolvePendingRequestAck,
     setMessages,
     setPendingAgentSlots,

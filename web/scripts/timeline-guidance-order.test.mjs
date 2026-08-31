@@ -4856,6 +4856,160 @@ test("Room Assistant turn completion keeps its Agent execution active", async ()
   );
 });
 
+test("Room authoritative pending snapshots settle only missing executions", async () => {
+  const { buildRoomAgentRoundEntries, isAgentRoundActive } =
+    await server.ssrLoadModule(
+      "/src/features/conversation/room/group/round/round-agent-model.ts",
+    );
+  const {
+    applyRoomAgentExecutionStatus,
+    reconcileRoomAgentExecutionsFromSlotSnapshot,
+    syncRoomAgentExecutionsFromMessages,
+    syncRoomAgentExecutionsFromSlots,
+  } = await server.ssrLoadModule(
+    "/src/hooks/agent/runtime/model/room-agent-execution-state.ts",
+  );
+  const roundId = "round-authoritative-slot-snapshot";
+  const slots = [
+    {
+      agent_id: "agent-kept",
+      agent_round_id: "agent-round-kept",
+      index: 0,
+      msg_id: "slot-kept",
+      round_id: roundId,
+      status: "streaming",
+      timestamp: 1,
+    },
+    {
+      agent_id: "agent-missing",
+      agent_round_id: "agent-round-missing",
+      index: 1,
+      msg_id: "slot-missing",
+      round_id: roundId,
+      status: "streaming",
+      timestamp: 2,
+    },
+    {
+      agent_id: "agent-terminal",
+      agent_round_id: "agent-round-terminal",
+      index: 2,
+      msg_id: "slot-terminal",
+      round_id: roundId,
+      status: "streaming",
+      timestamp: 3,
+    },
+  ];
+  const active = syncRoomAgentExecutionsFromSlots([], slots);
+  const withExactTerminal = applyRoomAgentExecutionStatus(active, {
+    agent_id: "agent-terminal",
+    agent_round_id: "agent-round-terminal",
+    is_terminal: true,
+    round_id: roundId,
+    status: "error",
+  });
+  const reconciled = reconcileRoomAgentExecutionsFromSlotSnapshot(
+    withExactTerminal,
+    [slots[0]],
+  );
+  const byAgentRound = new Map(reconciled.map((state) => [
+    state.agent_round_id,
+    state,
+  ]));
+
+  assert.deepEqual(
+    {
+      phase: byAgentRound.get("agent-round-kept")?.phase,
+      status: byAgentRound.get("agent-round-kept")?.status,
+    },
+    { phase: "active", status: "streaming" },
+    "an execution present in the authoritative snapshot must stay active",
+  );
+  assert.deepEqual(
+    {
+      phase: byAgentRound.get("agent-round-missing")?.phase,
+      status: byAgentRound.get("agent-round-missing")?.status,
+    },
+    { phase: "terminal", status: "done" },
+    "a missing execution is no longer active without inventing interruption or failure",
+  );
+  assert.deepEqual(
+    {
+      phase: byAgentRound.get("agent-round-terminal")?.phase,
+      status: byAgentRound.get("agent-round-terminal")?.status,
+    },
+    { phase: "terminal", status: "error" },
+    "an authoritative active-slot snapshot cannot weaken exact terminal evidence",
+  );
+  assert.deepEqual(
+    reconciled.map((state) => state.display_order),
+    withExactTerminal.map((state) => state.display_order),
+    "snapshot reconciliation must preserve canonical execution shell order",
+  );
+
+  const afterLateRunning = applyRoomAgentExecutionStatus(reconciled, {
+    agent_id: "agent-missing",
+    agent_round_id: "agent-round-missing",
+    is_terminal: false,
+    round_id: roundId,
+    status: "running",
+  });
+  assert.deepEqual(
+    {
+      phase: afterLateRunning[1]?.phase,
+      status: afterLateRunning[1]?.status,
+    },
+    { phase: "terminal", status: "done" },
+    "a replayed active event older than the snapshot must not revive the execution",
+  );
+  const afterLateError = applyRoomAgentExecutionStatus(afterLateRunning, {
+    agent_id: "agent-missing",
+    agent_round_id: "agent-round-missing",
+    is_terminal: true,
+    round_id: roundId,
+    status: "error",
+  });
+  assert.equal(
+    afterLateError[1]?.status,
+    "error",
+    "later exact failure evidence must refine the neutral snapshot settlement",
+  );
+
+  const completedTurn = assistantMessage({
+    agentId: "agent-missing",
+    agentRoundId: "agent-round-missing",
+    isComplete: true,
+    messageId: "assistant-missing-complete",
+    roundId,
+    status: "done",
+    stopReason: "end_turn",
+    text: "已经完成。",
+    timestamp: 4,
+  });
+  const activeBeforeSnapshot = syncRoomAgentExecutionsFromMessages(
+    active,
+    [completedTurn],
+  );
+  assert.equal(
+    activeBeforeSnapshot[1]?.phase,
+    "active",
+    "a completed Assistant turn alone still cannot close its enclosing execution",
+  );
+  const afterEmptySnapshot = reconcileRoomAgentExecutionsFromSlotSnapshot(
+    activeBeforeSnapshot,
+    [],
+  );
+  const [completedEntry] = buildRoomAgentRoundEntries(
+    [completedTurn],
+    [],
+    [],
+    afterEmptySnapshot.filter(
+      (state) => state.agent_round_id === "agent-round-missing",
+    ),
+  );
+  assert.equal(completedEntry?.status, "done");
+  assert.equal(isAgentRoundActive(completedEntry?.status), false);
+});
+
 test("canonical timeline hides private Room execution evidence", async () => {
   const {
     buildRoomAgentRoundEntries,

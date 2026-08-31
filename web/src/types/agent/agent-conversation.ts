@@ -49,7 +49,8 @@ export interface RoomPendingAgentSlotState {
  *
  * permission 决策成功后会先进入 acknowledged；在 slot / message / terminal
  * 证据接棒前，它只维持 execution shell，不再代表可响应权限。实时首见顺序
- * 默认不可变，但持久 message 的显式 display_order 可在快照回填时纠正该锚点。
+ * 默认不可变，但持久 message 的显式 display_order 可在快照回填时纠正该锚点；
+ * 订阅恢复的权威 pending snapshot 会把其中缺失的非终态锚点中性收口。
  */
 export interface RoomAgentExecutionState {
   agent_id: string;
