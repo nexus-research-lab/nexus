@@ -1,3 +1,8 @@
+/**
+ * INPUT: Thought 正文、流式状态与展开默认值。
+ * OUTPUT: 收起时显示单行正文预览，展开时仅保留状态标题并呈现完整明细。
+ * POS: Assistant 执行过程中的 Thought 二级明细入口。
+ */
 "use client";
 
 import { Brain, ChevronRight } from "lucide-react";
@@ -91,12 +96,14 @@ export function ThinkingBlock({
           >
             {presentation.label}
           </span>
-          <span
-            className="min-w-0 flex-1 truncate text-(--text-soft)"
-            data-thinking-block-preview
-          >
-            {preview}
-          </span>
+          {!isExpanded ? (
+            <span
+              className="min-w-0 flex-1 truncate text-(--text-soft)"
+              data-thinking-block-preview
+            >
+              {preview}
+            </span>
+          ) : null}
         </span>
         <ChevronRight
           className={cn(
