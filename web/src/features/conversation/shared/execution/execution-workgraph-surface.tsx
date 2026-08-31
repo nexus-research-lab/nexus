@@ -1,6 +1,6 @@
 /**
  * INPUT: Room/DM 共用 Execution resource、Agent 目录与精确 Agent round Task run。
- * OUTPUT: 以标题旁唯一的下拉入口展示当前项并切换已有历史的 WorkGraph 主视图。
+ * OUTPUT: 以标题旁唯一的下拉入口展示当前项、明确的历史空态，并切换已有历史的 WorkGraph 主视图。
  * POS: 底部节点轨迹之外的完整图入口；只消费同一权威 ExecutionView，不解析 metadata 或另起状态机。
  */
 "use client";
@@ -163,6 +163,20 @@ export function ExecutionWorkGraphSurface({
       label: t("execution.surface_loading"),
       value: "loading",
     });
+  } else if (historyResource.error) {
+    historyMenuItems.push({
+      disabled: true,
+      icon: <CircleAlert className="h-3.5 w-3.5 text-(--warning)" />,
+      label: t("execution.surface_history_load_failed"),
+      value: "history-error",
+    });
+  } else if (historicalExecutions.length === 0) {
+    historyMenuItems.push({
+      disabled: true,
+      icon: <Workflow className="h-3.5 w-3.5" />,
+      label: t("execution.surface_history_menu_empty"),
+      value: "history-empty",
+    });
   }
 
   const handleOpenSketch = () => {
@@ -230,6 +244,7 @@ export function ExecutionWorkGraphSurface({
             ariaLabel={t("execution.surface_history")}
             density="compact"
             isOpen={historyMenuOpen}
+            itemSpacing="sm"
             items={historyMenuItems}
             minWidth={280}
             onClose={() => setHistoryMenuOpen(false)}

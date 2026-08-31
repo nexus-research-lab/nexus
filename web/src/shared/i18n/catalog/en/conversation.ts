@@ -206,6 +206,7 @@ export const enConversationMessages = {
   "execution.surface_history": "History",
   "execution.surface_workflows": "WorkGraphs",
   "execution.surface_history_empty": "No historical WorkGraphs for this session yet",
+  "execution.surface_history_menu_empty": "No history yet",
   "execution.surface_history_load_failed": "WorkGraph history did not load",
   "execution.surface_history_unavailable_impact": "This read did not change any WorkGraph. History for the current session is temporarily unavailable.",
   "execution.surface_history_stale_impact": "This view shows the last history successfully loaded for this session. This read did not change any WorkGraph.",

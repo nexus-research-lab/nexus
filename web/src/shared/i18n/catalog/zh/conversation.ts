@@ -203,6 +203,7 @@ export const zhConversationMessages = {
   "execution.surface_history": "历史",
   "execution.surface_workflows": "工作图",
   "execution.surface_history_empty": "当前会话还没有历史工作图",
+  "execution.surface_history_menu_empty": "暂无历史",
   "execution.surface_history_load_failed": "历史工作图没有加载成功",
   "execution.surface_history_unavailable_impact": "这次读取没有修改任何工作图；当前会话的历史列表暂时不可用。",
   "execution.surface_history_stale_impact": "当前显示同一会话上次成功加载的历史；这次读取没有修改任何工作图。",
