@@ -1,10 +1,16 @@
-/** Agent 与 workspace 的 HTTP 边界。 */
+/**
+ * INPUT: Agent 领域参数、workspace 路径/正文与可选读取 revision。
+ * OUTPUT: Agent HTTP 资源、owner-scoped 创建回执与可条件提交的 workspace 文件内容。
+ * POS: Agent/workspace HTTP 边界；创建对账只使用领域 request ID，不复用 HTTP 诊断 ID。
+ */
 
 import {
   Agent,
+  AgentCreationRequestResult,
   AgentContact,
   AgentProfileTemplateResponse,
   ApiAgent,
+  ApiAgentCreationRequestResult,
   CreateAgentParams,
   UpdateAgentParams,
   WorkspaceFileContent,
@@ -45,9 +51,25 @@ export const createAgentApi = async (
       description: params.description ?? null,
       profile_template: params.profile_template ?? null,
       vibe_tags: params.vibe_tags ?? [],
+      creation_request_id: params.creation_request_id ?? null,
     }),
   });
   return transformApiAgent(result);
+};
+
+/** 按当前 owner 与 exact 领域请求 ID 对账，不会触发创建。 */
+export const getAgentCreationRequestApi = async (
+  creationRequestId: string,
+): Promise<AgentCreationRequestResult> => {
+  const result = await requestApi<ApiAgentCreationRequestResult>(
+    `${AGENT_API_BASE_URL}/agents/create-requests/${encodeURIComponent(creationRequestId)}`,
+    { method: "GET" },
+  );
+  return {
+    agent: result.agent ? transformApiAgent(result.agent) : null,
+    creationRequestId: result.creation_request_id,
+    status: result.status,
+  };
 };
 
 /** 获取创建 Agent 时的默认行为模板。 */
@@ -159,12 +181,17 @@ export const updateWorkspaceFileContentApi = async (
   agentId: string,
   path: string,
   content: string,
+  expectedRevision?: string,
 ): Promise<WorkspaceFileContent> => {
   return requestApi<WorkspaceFileContent>(
     `${AGENT_API_BASE_URL}/agents/${agentId}/workspace/file`,
     {
       method: "PUT",
-      body: JSON.stringify({ path, content }),
+      body: JSON.stringify({
+        path,
+        content,
+        ...(expectedRevision ? { expected_revision: expectedRevision } : {}),
+      }),
     },
   );
 };

@@ -1,3 +1,6 @@
+// INPUT: workspace 文件系统中已经校验的路径、正文与内容 revision。
+// OUTPUT: HTTP/服务层共享的文件树、正文与修改结果模型。
+// POS: workspace 传输模型；revision 只描述正文版本，不承担业务身份。
 package workspace
 
 // FileEntry 表示 workspace 文件树条目。
@@ -12,8 +15,9 @@ type FileEntry struct {
 
 // FileContent 表示 workspace 文件内容。
 type FileContent struct {
-	Path    string `json:"path"`
-	Content string `json:"content"`
+	Path     string `json:"path"`
+	Content  string `json:"content"`
+	Revision string `json:"revision"`
 }
 
 // EntryMutationResponse 表示创建/删除返回。

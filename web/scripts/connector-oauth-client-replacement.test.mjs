@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -220,3 +221,134 @@ test("Device auth closes immediately when connection succeeds", async () => {
     "refresh-finished",
   ]);
 });
+
+test("Device auth distinguishes a confirmed rejection from an unknown poll result", async () => {
+  const { ConnectorDeviceAuthPoller } = await server.ssrLoadModule(
+    "/src/features/capability/connectors/auth/device-flow/connector-device-auth-poller.ts",
+  );
+  const session = {
+    connector_id: "feishu-docx",
+    device_code: "device-code",
+    user_code: "user-code",
+    verification_uri: "https://accounts.feishu.test/device",
+    expires_in: 600,
+    interval: 1,
+    stage: "user_authorization",
+  };
+  const failures = [];
+  const callbacks = {
+    onClose: () => {},
+    onConnected: async () => {},
+    onError: (message, kind) => failures.push({ kind, message }),
+    onMessage: () => {},
+    onNext: () => {},
+  };
+
+  const denied = new ConnectorDeviceAuthPoller(
+    session,
+    callbacks,
+    async () => ({ status: "denied", message: "用户拒绝授权" }),
+  );
+  await denied.poll();
+  assert.deepEqual(failures, [{
+    kind: "not_connected",
+    message: "用户拒绝授权",
+  }]);
+
+  failures.length = 0;
+  const transportFailure = new ConnectorDeviceAuthPoller(
+    session,
+    callbacks,
+    async () => {
+      throw new Error("连接已中断");
+    },
+  );
+  await transportFailure.poll();
+  assert.deepEqual(failures, [{
+    kind: "outcome_unknown",
+    message: "飞书授权状态暂时无法确认",
+  }]);
+});
+
+test("Feishu manual setup and Device Flow close never compensate with OAuth deletion", async () => {
+  const commands = await read(
+    "src/features/capability/connectors/controller/use-connector-commands.ts",
+  );
+  const directory = await read(
+    "src/features/capability/connectors/connectors-directory.tsx",
+  );
+  const manualFlow = commands.match(
+    /const handleConnectFeishuManually[\s\S]*?const handleSaveOauthClient/,
+  )?.[0] ?? "";
+  const cancelFlow = commands.match(
+    /const cancelDeviceAuthSession[\s\S]*?const handleDeviceAuthFailure/,
+  )?.[0] ?? "";
+
+  assert.match(manualFlow, /runMutation\([\s\S]*save-oauth-client/);
+  assert.match(manualFlow, /if \(!saved\)[\s\S]*return false/);
+  assert.doesNotMatch(manualFlow, /deleteConnectorOauthClientApi/);
+  assert.doesNotMatch(cancelFlow, /deleteConnectorOauthClientApi/);
+  assert.doesNotMatch(
+    directory,
+    /onError=\{\(message, kind\)[\s\S]{0,500}cancelDeviceAuthSession/,
+  );
+});
+
+test("unresolved connector outcomes remain locked independently", async () => {
+  const [command, controller, directory] = await Promise.all([
+    read("src/features/capability/connectors/controller/use-connector-command.ts"),
+    read("src/features/capability/connectors/controller/use-connector-controller.ts"),
+    read("src/features/capability/connectors/connectors-directory.tsx"),
+  ]);
+
+  assert.match(command, /new Map<string, ConnectorPendingAction>/);
+  assert.match(command, /reconciliationRef\.current\.has\(action\.connectorId\)/);
+  assert.match(command, /reconciliationRef\.current\.set\(action\.connectorId, action\)/);
+  assert.match(command, /reconciliationRef\.current\.delete\(connectorId\)/);
+  assert.match(directory, /controller\.reconciliationActions\.some/);
+  assert.match(controller, /new Map<string, ConnectorFeedback>/);
+  assert.match(controller, /upsertConnectorReconciliationFeedback/);
+  assert.match(controller, /removeConnectorReconciliationFeedback/);
+  assert.match(
+    directory,
+    /controller\.reconciliationFeedbacks\[0\][\s\S]*\?\? controller\.feedback/,
+  );
+  assert.doesNotMatch(command, /reconciliationRef = useRef<ConnectorPendingAction \| null>/);
+});
+
+test("reconciling B never removes A's reachable recovery feedback", async () => {
+  const {
+    removeConnectorReconciliationFeedback,
+    upsertConnectorReconciliationFeedback,
+  } = await server.ssrLoadModule(
+    "/src/features/capability/connectors/controller/connector-reconciliation-model.ts",
+  );
+  const feedbackA = {
+    message: "A unknown",
+    reconciliationConnectorId: "a",
+    title: "A",
+    tone: "warning",
+  };
+  const feedbackB = {
+    message: "B unknown",
+    reconciliationConnectorId: "b",
+    title: "B",
+    tone: "warning",
+  };
+
+  let pending = upsertConnectorReconciliationFeedback(
+    new Map(),
+    "a",
+    feedbackA,
+  );
+  pending = upsertConnectorReconciliationFeedback(pending, "b", feedbackB);
+  assert.deepEqual([...pending.keys()], ["a", "b"]);
+
+  pending = removeConnectorReconciliationFeedback(pending, "b");
+  assert.equal(pending.get("a"), feedbackA);
+  assert.deepEqual([...pending.keys()], ["a"]);
+});
+
+function read(relativePath) {
+  return readFile(path.join(webRoot, relativePath), "utf8");
+}

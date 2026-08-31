@@ -21,13 +21,17 @@ import {
   ConversationRow,
   SidebarListLoadingRows,
 } from "./sidebar-list-rows";
+import { getRoomDeletionRecoveryPresentation } from "./room-deletion-recovery";
 import { useChatSidebarController } from "./use-chat-sidebar-controller";
 
 export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const controller = useChatSidebarController({
     untitledRoomLabel: t("home.untitled_room"),
   });
+  const deletionRecovery = controller.deletion.failure
+    ? getRoomDeletionRecoveryPresentation(controller.deletion.failure, locale)
+    : null;
 
   return (
     <div
@@ -73,7 +77,9 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
             <SidebarEmptyGuide
               actionLabel={t("sidebar.retry")}
               description={t("sidebar.directory_load_failed_description")}
+              impact={t("sidebar.directory_load_failed_impact")}
               icon={CircleAlert}
+              nextStep={t("sidebar.directory_load_failed_next_step")}
               onAction={controller.list.retry}
               title={t("sidebar.directory_load_failed")}
             />
@@ -98,7 +104,9 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
       )}
 
       <ConfirmDialog
-        confirmText={t("common.delete")}
+        busy={controller.deletion.action !== null}
+        confirmText={deletionRecovery?.confirmText ?? t("common.delete")}
+        failure={deletionRecovery?.failure}
         isOpen={controller.deletion.target !== null}
         message={t("home.delete_message", {
           name: controller.deletion.target?.name ?? "",
@@ -106,7 +114,7 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
         onCancel={controller.deletion.cancel}
         onConfirm={controller.deletion.confirm}
         title={t("home.delete_confirm")}
-        variant="danger"
+        variant={deletionRecovery?.variant ?? "danger"}
       />
 
       <CreateRoomDialog

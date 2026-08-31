@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -72,6 +73,139 @@ func TestHandleNXSRuntimeStatus(t *testing.T) {
 	}
 	if !payload.Data.Available && (payload.Data.CanDownload || payload.Data.Message == "") {
 		t.Fatalf("不可用时应给出明确路径配置提示且不允许下载: %+v", payload.Data)
+	}
+}
+
+func TestPreferencesHTTPUsesETagCASAndPreservesNewerSettings(t *testing.T) {
+	cfg := handlertest.NewConfig(t)
+	prefs := preferencessvc.NewService(cfg)
+	handler := corehandler.New(handlershared.NewAPI(nil), nil, nil, prefs)
+
+	getRequest := httptest.NewRequest(http.MethodGet, "/nexus/v1/settings/preferences", nil)
+	getRecorder := httptest.NewRecorder()
+	handler.HandleGetPreferences(getRecorder, getRequest)
+	if getRecorder.Code != http.StatusOK {
+		t.Fatalf("初始读取失败: status=%d body=%s", getRecorder.Code, getRecorder.Body.String())
+	}
+	initialETag := getRecorder.Header().Get("ETag")
+	if initialETag != `"preferences-1"` {
+		t.Fatalf("初始 ETag = %q, want preferences version 1", initialETag)
+	}
+	if getRecorder.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("Preferences 派生展示响应不应被缓存: %q", getRecorder.Header().Get("Cache-Control"))
+	}
+
+	firstRequest := httptest.NewRequest(
+		http.MethodPatch,
+		"/nexus/v1/settings/preferences",
+		strings.NewReader(`{"agent_sdk_diagnostics_enabled":true}`),
+	)
+	firstRequest.Header.Set("Content-Type", "application/json")
+	firstRequest.Header.Set("If-Match", initialETag)
+	firstRecorder := httptest.NewRecorder()
+	handler.HandleUpdatePreferences(firstRecorder, firstRequest)
+	if firstRecorder.Code != http.StatusOK || firstRecorder.Header().Get("ETag") != `"preferences-2"` {
+		t.Fatalf("首个 CAS 更新失败: status=%d etag=%q body=%s",
+			firstRecorder.Code, firstRecorder.Header().Get("ETag"), firstRecorder.Body.String())
+	}
+	if firstRecorder.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("Preferences PATCH 成功响应应禁止缓存: %q", firstRecorder.Header().Get("Cache-Control"))
+	}
+
+	staleRequest := httptest.NewRequest(
+		http.MethodPatch,
+		"/nexus/v1/settings/preferences",
+		strings.NewReader(`{"emotion_enabled":true}`),
+	)
+	staleRequest.Header.Set("Content-Type", "application/json")
+	staleRequest.Header.Set("If-Match", initialETag)
+	staleRecorder := httptest.NewRecorder()
+	handler.HandleUpdatePreferences(staleRecorder, staleRequest)
+	if staleRecorder.Code != http.StatusPreconditionFailed {
+		t.Fatalf("陈旧 CAS status=%d body=%s", staleRecorder.Code, staleRecorder.Body.String())
+	}
+	if !strings.Contains(staleRecorder.Body.String(), "偏好设置版本与服务端最新版本不一致") ||
+		strings.Contains(staleRecorder.Body.String(), `"detail":"请求失败"`) {
+		t.Fatalf("412 文案退化为通用请求失败: %s", staleRecorder.Body.String())
+	}
+	if staleRecorder.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("412 Preferences 响应应禁止缓存: %q", staleRecorder.Header().Get("Cache-Control"))
+	}
+	var stalePayload struct {
+		Data struct {
+			Failure protocol.FailureCore `json:"failure"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(staleRecorder.Body.Bytes(), &stalePayload); err != nil {
+		t.Fatalf("解析冲突响应: %v", err)
+	}
+	if stalePayload.Data.Failure.Code != "preferences.version_conflict" ||
+		stalePayload.Data.Failure.Effect != protocol.FailureEffectNotApplied {
+		t.Fatalf("冲突 FailureCore 不正确: %+v", stalePayload.Data.Failure)
+	}
+
+	stored, err := prefs.Get(context.Background(), authsvc.SystemUserID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !stored.AgentSDKDiagnosticsEnabled || stored.EmotionEnabled || stored.Version != 2 {
+		t.Fatalf("陈旧写覆盖了最新偏好: %+v", stored)
+	}
+}
+
+func TestPreferencesHTTPRejectsInvalidIfMatchBeforeMutation(t *testing.T) {
+	cfg := handlertest.NewConfig(t)
+	prefs := preferencessvc.NewService(cfg)
+	handler := corehandler.New(handlershared.NewAPI(nil), nil, nil, prefs)
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/nexus/v1/settings/preferences",
+		strings.NewReader(`{"emotion_enabled":true}`),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("If-Match", `W/"preferences-1"`)
+	recorder := httptest.NewRecorder()
+
+	handler.HandleUpdatePreferences(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest ||
+		!strings.Contains(recorder.Body.String(), `"code":"preferences.precondition_invalid"`) ||
+		!strings.Contains(recorder.Body.String(), `"effect":"not_applied"`) {
+		t.Fatalf("无效 If-Match 没有在写入前拒绝: status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	stored, err := prefs.Get(context.Background(), authsvc.SystemUserID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.Version != 1 || stored.EmotionEnabled {
+		t.Fatalf("无效 If-Match 改写了偏好: %+v", stored)
+	}
+}
+
+func TestPreferencesHTTPKeepsUnconditionalPatchForLegacyClients(t *testing.T) {
+	cfg := handlertest.NewConfig(t)
+	prefs := preferencessvc.NewService(cfg)
+	handler := corehandler.New(handlershared.NewAPI(nil), nil, nil, prefs)
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/nexus/v1/settings/preferences",
+		strings.NewReader(`{"emotion_enabled":true}`),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	handler.HandleUpdatePreferences(recorder, request)
+
+	if recorder.Code != http.StatusOK || recorder.Header().Get("ETag") != `"preferences-2"` {
+		t.Fatalf("旧客户端无 If-Match PATCH 不兼容: status=%d etag=%q body=%s",
+			recorder.Code, recorder.Header().Get("ETag"), recorder.Body.String())
+	}
+	stored, err := prefs.Get(context.Background(), authsvc.SystemUserID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !stored.EmotionEnabled || stored.Version != 2 {
+		t.Fatalf("旧客户端 PATCH 没有保持原行为: %+v", stored)
 	}
 }
 

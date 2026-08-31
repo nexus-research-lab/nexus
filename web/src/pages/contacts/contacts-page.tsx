@@ -50,6 +50,7 @@ export function ContactsPage() {
 
   const presentation = getContactsPagePresentation({
     contactCount: controller.contactAgents.length,
+    deleteFailure: controller.deleteFailure,
     loading: controller.loading,
     pendingDeleteAgent: controller.pendingDeleteAgent,
     selectedAgent: navigation.selectedAgent,
@@ -58,6 +59,7 @@ export function ContactsPage() {
     onAddContact: communication.addContact,
     onBackToAgentDirectory: navigation.openDirectory,
     onBackToCommunicationDirectory: communication.clearSelection,
+    onClearCommunicationMutationFailure: communication.clearMutationFailure,
     onCreateCommunicationConversation: communication.createConversation,
     onLoadOlderCommunicationMessages: communication.loadOlderMessages,
     onCreateAgent: controller.editor.openCreate,
@@ -103,7 +105,9 @@ export function ContactsPage() {
       />
 
       <ConfirmDialog
-        confirmText="删除成员"
+        busy={controller.deleteAction !== null}
+        confirmText={presentation.deleteDialog.confirmText}
+        failure={presentation.deleteDialog.failure ?? undefined}
         isOpen={presentation.deleteDialog.isOpen}
         message={presentation.deleteDialog.message}
         onCancel={controller.cancelDeleteAgent}
@@ -111,7 +115,7 @@ export function ContactsPage() {
           void navigation.confirmDelete();
         }}
         title="删除成员"
-        variant="danger"
+        variant={presentation.deleteDialog.variant}
       />
     </>
   );
@@ -145,6 +149,7 @@ function ContactsPageContent({
             onAddContact={actions.onAddContact}
             onBackToAgentDirectory={actions.onBackToAgentDirectory}
             onBackToCommunicationDirectory={actions.onBackToCommunicationDirectory}
+            onClearCommunicationMutationFailure={actions.onClearCommunicationMutationFailure}
             onCreateCommunicationConversation={actions.onCreateCommunicationConversation}
             onLoadOlderCommunicationMessages={actions.onLoadOlderCommunicationMessages}
             onCreateTeam={actions.onCreateTeam}

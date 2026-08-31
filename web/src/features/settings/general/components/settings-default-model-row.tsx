@@ -1,3 +1,8 @@
+/**
+ * INPUT: 一个默认模型角色的选项、当前值和保存状态。
+ * OUTPUT: 不承载异常文案的模型选择行。
+ * POS: 默认模型纯展示组件；目录失败由分区级资源状态统一展示。
+ */
 "use client";
 
 import type { ReactNode } from "react";
@@ -25,7 +30,6 @@ interface SettingsDefaultModelRowProps {
   disabled: boolean;
   descriptionKey: TranslationKey;
   emptyPlaceholderKey: TranslationKey;
-  feedbackMessage?: string | null;
   icon: ReactNode;
   onChange: (value: string, role: DefaultModelPreferenceRole) => void;
   options: UiSelectMenuOption[];
@@ -40,7 +44,6 @@ export function SettingsDefaultModelRow({
   disabled,
   descriptionKey,
   emptyPlaceholderKey,
-  feedbackMessage,
   icon,
   onChange,
   options,
@@ -90,11 +93,6 @@ export function SettingsDefaultModelRow({
           size="xs"
           value={value}
         />
-        {feedbackMessage ? (
-          <span className="truncate text-xs text-(--text-soft)">
-            {feedbackMessage}
-          </span>
-        ) : null}
       </div>
     </div>
   );

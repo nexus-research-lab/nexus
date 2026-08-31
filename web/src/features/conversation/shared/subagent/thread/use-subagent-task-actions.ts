@@ -2,8 +2,8 @@
 
 /**
  * INPUT: exact task source/id, server capabilities and transcript refresh.
- * OUTPUT: scope-fenced stop/send mutations with duplicate suppression and user-visible result state.
- * POS: Subagent thread action controller; views never construct routes or infer runtime support.
+ * OUTPUT: scope-fenced stop/send mutations、重复抑制与保守的 FailureCore 写入结果事实。
+ * POS: 子智能体线程动作控制器；旧响应和传输失败保持 unknown，视图不构造路由或猜测 runtime 能力。
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -11,6 +11,11 @@ import {
   sendSubagentTaskMessageApi,
   stopSubagentTaskApi,
 } from "@/lib/api/conversation/subagent-task-api";
+import {
+  projectMutationFailure,
+  type MutationFailureEffect,
+} from "@/lib/error-message";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import type {
   SubagentTask,
   SubagentTaskSource,
@@ -21,14 +26,19 @@ import type { TranslationKey } from "@/shared/i18n/messages";
 import {
   canSendSubagentTaskMessage,
   isSubagentTaskActive,
-  subagentTaskErrorMessage,
   subagentTaskSourceKey,
 } from "../subagent-task-model";
 
 export type SubagentTaskPendingAction = "send" | "stop" | null;
 
+export interface SubagentTaskActionFailure {
+  action: Exclude<SubagentTaskPendingAction, null>;
+  effect: MutationFailureEffect;
+  message: string;
+}
+
 export interface SubagentTaskActions {
-  error: string | null;
+  error: SubagentTaskActionFailure | null;
   feedback: TranslationKey | null;
   pendingAction: SubagentTaskPendingAction;
   send: (message: string) => Promise<boolean>;
@@ -50,10 +60,11 @@ export function useSubagentTaskActions({
   source: SubagentTaskSource;
   task: SubagentTask;
 }): SubagentTaskActions {
+  const { t } = useI18n();
   const scopeKey = `${subagentTaskSourceKey(source)}:${task.task_id}`;
   const generationRef = useRef(0);
   const controllerRef = useRef<AbortController | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<SubagentTaskActionFailure | null>(null);
   const [feedback, setFeedback] = useState<TranslationKey | null>(null);
   const [pendingAction, setPendingAction] = useState<SubagentTaskPendingAction>(null);
 
@@ -69,6 +80,11 @@ export function useSubagentTaskActions({
       controllerRef.current?.abort();
     };
   }, [scopeKey]);
+
+  useEffect(() => {
+    if (isSubagentTaskActive(task)) return;
+    setError((current) => current?.action === "stop" ? null : current);
+  }, [task]);
 
   const run = useCallback(async ({
     action,
@@ -100,7 +116,17 @@ export function useSubagentTaskActions({
       if (generation !== generationRef.current || controller.signal.aborted) {
         return false;
       }
-      setError(subagentTaskErrorMessage(requestError));
+      const failure = projectMutationFailure(
+        requestError,
+        t(action === "stop"
+          ? "subagents.stop_failed_detail"
+          : "subagents.message_failed_detail"),
+      );
+      setError({
+        action,
+        effect: failure.effect,
+        message: failure.message,
+      });
       return false;
     } finally {
       if (generation === generationRef.current && controllerRef.current === controller) {
@@ -108,7 +134,7 @@ export function useSubagentTaskActions({
         setPendingAction(null);
       }
     }
-  }, [pendingAction, refresh]);
+  }, [pendingAction, refresh, t]);
 
   const stop = useCallback(() => {
     if (!isSubagentTaskActive(task) || !task.capabilities.stop) {

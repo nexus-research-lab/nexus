@@ -1,4 +1,7 @@
-import { useEffect } from "react";
+// INPUT: 已由业务方确认的结果、当前影响、下一步和可选动作。
+// OUTPUT: 不丢正文、按紧急程度播报且遵守持久性规则的全局反馈条。
+// POS: 反馈展示边界；不推测请求结果，也不发起恢复请求。
+import { useEffect, useRef } from "react";
 import { ArrowRight, X } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
@@ -6,22 +9,9 @@ import { UiButton } from "@/shared/ui/button/button";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
 import {
-  type FeedbackBannerTone,
   projectFeedbackBanner,
 } from "./feedback-banner-model";
-
-export interface FeedbackBannerProps {
-  action?: {
-    label: string;
-    onClick: () => void;
-  };
-  impact?: string;
-  message: string;
-  nextStep?: string;
-  onDismiss?: () => void;
-  title: string;
-  tone: FeedbackBannerTone;
-}
+import type { FeedbackBannerProps } from "./feedback-banner-contract";
 
 export function FeedbackBanner({
   action,
@@ -31,28 +21,42 @@ export function FeedbackBanner({
   onDismiss,
   title,
   tone,
+  urgency = "polite",
 }: FeedbackBannerProps) {
   const { t } = useI18n();
-  const presentation = projectFeedbackBanner(tone, message);
+  const presentation = projectFeedbackBanner(tone, Boolean(action));
   const Icon = presentation.icon;
+  const onDismissRef = useRef(onDismiss);
+  const canAutoDismiss = Boolean(onDismiss)
+    && presentation.autoDismissMs !== null
+    && !impact
+    && !nextStep;
 
   useEffect(() => {
-    if (!onDismiss || action) {
+    onDismissRef.current = onDismiss;
+  }, [onDismiss]);
+
+  useEffect(() => {
+    if (!canAutoDismiss || presentation.autoDismissMs === null) {
       return;
     }
-    const timer = window.setTimeout(onDismiss, presentation.autoDismissMs);
+    const timer = window.setTimeout(() => {
+      onDismissRef.current?.();
+    }, presentation.autoDismissMs);
     return () => {
       window.clearTimeout(timer);
     };
-  }, [action, message, onDismiss, presentation.autoDismissMs, title]);
+  }, [canAutoDismiss, impact, message, nextStep, presentation.autoDismissMs, title]);
 
   return (
     <div
+      aria-atomic="true"
+      aria-live={urgency}
       className={cn(
-        "pointer-events-auto flex min-w-[280px] max-w-[420px] items-start gap-3 rounded-[12px] border bg-[color:color-mix(in_srgb,var(--background)_94%,white)] px-4 py-3 shadow-(--surface-popover-shadow)",
+        "pointer-events-auto flex max-h-[calc(100dvh-6rem)] w-full min-w-0 max-w-[460px] items-start gap-3 overflow-y-auto rounded-[12px] border bg-[color:color-mix(in_srgb,var(--background)_94%,white)] px-4 py-3 shadow-(--surface-popover-shadow) sm:max-h-[calc(100dvh-7.5rem)] sm:min-w-[320px]",
         presentation.shellClassName,
       )}
-      role={tone === "error" ? "alert" : "status"}
+      role={urgency === "assertive" ? "alert" : "status"}
     >
       <div
         className={cn(
@@ -63,46 +67,30 @@ export function FeedbackBanner({
         <Icon className="h-3.5 w-3.5" />
       </div>
       <div className="min-w-0 flex-1">
-        <p className={cn("text-compact font-semibold", presentation.titleClassName)}>
+        <p className={cn("break-words text-compact font-semibold [overflow-wrap:anywhere]", presentation.titleClassName)}>
           {title}
         </p>
-        {presentation.items.length > 1 ? (
-          <div className="mt-1.5 flex flex-wrap gap-1.5">
-            {presentation.items.map((item) => (
-              <span
-                className={cn(
-                  "inline-flex rounded-[6px] border bg-transparent px-2 py-0.5 text-2xs font-medium",
-                  presentation.itemClassName,
-                )}
-                key={item}
-              >
-                {item}
-              </span>
-            ))}
-          </div>
-        ) : (
-          <p className="mt-0.5 text-xs text-(--text-soft)">
+        <div className="mt-1 space-y-1.5 break-words [overflow-wrap:anywhere]">
+          <p className="text-xs leading-5 text-(--text-default)">
             {message}
           </p>
-        )}
-        {impact ? (
-          <p className="mt-1.5 text-2xs leading-4 text-(--text-muted)">
-            <span className="font-semibold text-(--text-default)">{t("state.existing_data")}：</span>
-            {impact}
-          </p>
-        ) : null}
-        {nextStep ? (
-          <p className="mt-0.5 text-2xs leading-4 text-(--text-muted)">
-            <span className="font-semibold text-(--text-default)">{t("state.next_step")}：</span>
-            {nextStep}
-          </p>
-        ) : null}
+          {impact ? (
+            <p className="text-xs leading-5 text-(--text-muted)">
+              {impact}
+            </p>
+          ) : null}
+          {nextStep ? (
+            <p className="text-xs font-medium leading-5 text-(--text-default)">
+              {nextStep}
+            </p>
+          ) : null}
+        </div>
         {action ? (
           <UiButton
-            className="mt-2"
+            className="mt-3 max-w-full whitespace-normal text-left"
             onClick={action.onClick}
             size="xs"
-            tone={tone === "error" ? "danger" : "primary"}
+            tone={action.tone === "danger" ? "danger" : "primary"}
             variant="text"
           >
             {action.label}
@@ -112,8 +100,8 @@ export function FeedbackBanner({
       </div>
       {onDismiss ? (
         <button
-          aria-label="关闭反馈"
-          className="shrink-0 rounded-[6px] p-0.5 text-(--icon-muted) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)"
+          aria-label={t("common.close")}
+          className="-mr-1 -mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] text-(--icon-muted) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default) motion-reduce:transition-none"
           onClick={onDismiss}
           type="button"
         >

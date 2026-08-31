@@ -1,3 +1,7 @@
+// INPUT: Schema-versioned requests from the embedded Nexus web UI.
+// OUTPUT: Native operation results or operation-specific safe failures; raw causes stay in diagnostics.
+// POS: Windows web/native trust boundary and the only rejection path visible to the embedded UI.
+
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
@@ -5,6 +9,7 @@ using System.Text.Json;
 using System.Windows;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Win32;
+using Nexus.Desktop.Dialog;
 using Nexus.Desktop.Diagnostics;
 using Nexus.Desktop.Lifecycle;
 using Nexus.Desktop.Runtime;
@@ -54,7 +59,7 @@ internal sealed class DesktopBridgeHandler
                     build_number = runtime.BuildNumber,
                     platform = runtime.Platform,
                 },
-                "app.get_state_root" => DesktopStateRootStore.StatusPayload(),
+                "app.get_state_root" => SafeStateRootStatus(),
                 "app.choose_state_root" => ChooseStateRoot(payload),
                 "app.relocate_state_root" => RelocateStateRoot(payload),
                 "app.open_external_url" => OpenExternalUrl(payload),
@@ -110,7 +115,13 @@ internal sealed class DesktopBridgeHandler
         }
         catch (Exception exception)
         {
-            await RejectAsync(requestID, exception.Message);
+            startupTimeline.Mark("desktop_bridge.operation_failed", new Dictionary<string, string>
+            {
+                ["kind"] = kind,
+                ["error"] = exception.Message,
+            });
+            Trace.WriteLine($"[Nexus DesktopBridge] {kind} failed: {exception.Message}");
+            await RejectAsync(requestID, DesktopFailureCopy.BridgeMessage(kind));
         }
     }
 
@@ -131,6 +142,16 @@ internal sealed class DesktopBridgeHandler
             UseShellExecute = true,
         });
         return new { opened = true };
+    }
+
+    private static Dictionary<string, object?> SafeStateRootStatus()
+    {
+        Dictionary<string, object?> status = DesktopStateRootStore.StatusPayload();
+        if (status["migration_error"] is string)
+        {
+            status["migration_error"] = DesktopFailureCopy.StateRootMigrationMessage;
+        }
+        return status;
     }
 
     private object StartBrowserExtensionSetup()

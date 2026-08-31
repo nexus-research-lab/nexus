@@ -8,7 +8,7 @@
 //   - model.go：含持久化 version 的偏好模型、规范化和 WebSearch 校验。
 //   - imagegen_tool.go：Web 与对话配置共用的默认图片工具投影。
 //
-// 暴露接口：NewService、Get、Update、SetEchoEnabled、UpdateAtVersion、
+// 暴露接口：NewService、Get、Update、SetEchoEnabled、SetEchoEnabledAtVersion、UpdateAtVersion、
 // UpdatePrepared、UpdatePreparedAtVersion、RestoreIfVersion、DefaultPreferences、
 // ReconcileImagegenDefaultTool。
 //

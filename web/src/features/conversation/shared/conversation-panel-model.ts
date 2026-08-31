@@ -12,6 +12,7 @@ import type {
 } from "react";
 
 import type { UseAgentConversationReturn } from "@/types/agent/agent-conversation";
+import type { SessionRoundIndexResource } from "@/hooks/conversation/use-session-round-index";
 
 import type { ConversationSessionNavigator } from "./session-navigator/conversation-session-navigator";
 import type {
@@ -58,6 +59,13 @@ interface ConversationRuntimeSessionSource {
   conversation: Pick<UseAgentConversationReturn, "is_loading">;
 }
 
+interface ConversationRoundIndexSessionSource {
+  roundIndexResource: Pick<
+    SessionRoundIndexResource,
+    "access" | "error" | "isLoading" | "isStale" | "retry"
+  >;
+}
+
 interface ConversationViewportSessionSource {
   conversation: Pick<
     UseAgentConversationReturn,
@@ -79,6 +87,7 @@ interface ConversationViewportSessionSource {
 
 export type ConversationPanelSessionSource =
   & ConversationNavigatorSessionSource
+  & ConversationRoundIndexSessionSource
   & ConversationRuntimeSessionSource
   & ConversationScrollToLatestSessionSource
   & ConversationViewportSessionSource;
@@ -98,6 +107,7 @@ export interface ConversationPanelFrameModel {
   navigator: ConversationNavigatorModel;
   providerWarningVisible: boolean;
   reliability: UseAgentConversationReturn["reliability"];
+  roundIndexResource: ConversationRoundIndexSessionSource["roundIndexResource"];
   scrollToLatest: ConversationScrollToLatestModel;
   sessionKey: string | null;
   viewport: ConversationViewportModel;
@@ -112,6 +122,7 @@ export function buildConversationPanelFrameModel(
     navigator: buildConversationNavigatorModel(session),
     providerWarningVisible: environment.providerWarningVisible,
     reliability: session.conversation.reliability,
+    roundIndexResource: session.roundIndexResource,
     scrollToLatest: buildConversationScrollToLatestModel(session),
     sessionKey: session.sessionKey,
     viewport: buildConversationViewportModel(session),

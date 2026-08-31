@@ -1,9 +1,15 @@
+/**
+ * INPUT: 个人资料、密码草稿、用量资源与翻译函数。
+ * OUTPUT: 严格反馈类型、校验结果和纯展示模型。
+ * POS: Personal 设置纯模型；不访问网络或认证状态。
+ */
 import type {
   PersonalProfile,
   TokenUsageSummary,
 } from "@/lib/api/account/auth-api";
 import { formatTokens } from "@/lib/format/token-count";
 import type { TranslationKey } from "@/shared/i18n/messages";
+import type { FeedbackBannerProps } from "@/shared/ui/feedback/feedback-banner-contract";
 
 export interface PasswordDraft {
   currentPassword: string;
@@ -13,11 +19,7 @@ export interface PasswordDraft {
 
 export type PasswordField = keyof PasswordDraft;
 
-export interface PersonalSettingsFeedback {
-  message: string;
-  title: string;
-  tone: "success" | "error";
-}
+export type PersonalSettingsFeedback = FeedbackBannerProps;
 
 export interface PersonalProfilePresentation {
   authMethodLabel: string;

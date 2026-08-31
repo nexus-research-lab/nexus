@@ -198,7 +198,7 @@ func mapAutomationDailyReportFailure(err error) automationHTTPFailure {
 			"automation.daily_report_invalid",
 			protocol.FailureCategoryValidation,
 			protocol.FailureEffectNotApplicable,
-			err.Error(),
+			"日报日期或时区不符合要求",
 			err,
 			"automation.review_report_filters",
 		)
@@ -240,19 +240,32 @@ func mapCreateTaskFailure(err error, replayable bool) automationHTTPFailure {
 			"",
 		)
 	}
+	if errors.Is(err, automationdomain.ErrTaskDeliverySessionUnavailable) {
+		return automationFailure(
+			http.StatusBadRequest,
+			"automation.task_create_delivery_unavailable",
+			protocol.FailureCategoryValidation,
+			protocol.FailureEffectNotApplied,
+			automationdomain.ErrTaskDeliverySessionUnavailable.Error(),
+			err,
+			"automation.edit_task",
+		)
+	}
 	if handlershared.IsClientMessageError(err) || handlershared.IsStructuredSessionKeyError(err) {
 		effect := protocol.FailureEffectNotApplied
+		detail := "定时任务内容不符合要求，任务没有创建"
 		if replayable {
 			// A ledger entry may precede mutable Session/Room/delivery preflight;
 			// readable validation text alone cannot disprove that earlier commit.
 			effect = protocol.FailureEffectUnknown
+			detail = "创建请求不符合当前状态，暂时无法确认任务是否已经创建"
 		}
 		return automationFailure(
 			http.StatusBadRequest,
 			"automation.task_create_invalid",
 			protocol.FailureCategoryValidation,
 			effect,
-			err.Error(),
+			detail,
 			err,
 			"automation.edit_task",
 		)
@@ -301,9 +314,20 @@ func mapTaskDefinitionFailure(kind string, err error) automationHTTPFailure {
 			"automation.session_rebind_required",
 			protocol.FailureCategoryConflict,
 			protocol.FailureEffectNotApplied,
-			err.Error(),
+			"任务关联的会话已失效，需要重新选择",
 			err,
 			"automation.rebind_session",
+		)
+	}
+	if errors.Is(err, automationdomain.ErrTaskDeliverySessionUnavailable) {
+		return automationFailure(
+			http.StatusBadRequest,
+			prefix+"_delivery_unavailable",
+			protocol.FailureCategoryValidation,
+			protocol.FailureEffectNotApplied,
+			automationdomain.ErrTaskDeliverySessionUnavailable.Error(),
+			err,
+			"automation.edit_task",
 		)
 	}
 	if errors.Is(err, automationdomain.ErrConfigurationVersionConflict) {
@@ -323,7 +347,7 @@ func mapTaskDefinitionFailure(kind string, err error) automationHTTPFailure {
 			prefix+"_invalid",
 			protocol.FailureCategoryValidation,
 			protocol.FailureEffectNotApplied,
-			err.Error(),
+			"定时任务设置不符合要求",
 			err,
 			"automation.edit_task",
 		)
@@ -351,13 +375,13 @@ func mapResolvePermissionFailure(err error) automationHTTPFailure {
 		return automationFailure(http.StatusNotFound, "automation.permission_not_found", protocol.FailureCategoryNotFound, protocol.FailureEffectNotApplied, "审批请求不存在", err, "automation.reload_permissions")
 	case errors.Is(err, automationdomain.ErrPermissionRequestResolved),
 		errors.Is(err, automationdomain.ErrPermissionRequestStale):
-		return automationFailure(http.StatusConflict, "automation.permission_conflict", protocol.FailureCategoryConflict, protocol.FailureEffectNotApplied, err.Error(), err, "automation.reload_permissions")
+		return automationFailure(http.StatusConflict, "automation.permission_conflict", protocol.FailureCategoryConflict, protocol.FailureEffectNotApplied, "审批状态已变化，本次决定没有应用", err, "automation.reload_permissions")
 	case errors.Is(err, automationdomain.ErrPermissionDecisionInvalid):
-		return automationFailure(http.StatusBadRequest, "automation.permission_decision_invalid", protocol.FailureCategoryValidation, protocol.FailureEffectNotApplied, err.Error(), err, "automation.review_permission")
+		return automationFailure(http.StatusBadRequest, "automation.permission_decision_invalid", protocol.FailureCategoryValidation, protocol.FailureEffectNotApplied, "这个审批决定不适用于当前请求", err, "automation.review_permission")
 	case errors.Is(err, automationdomain.ErrPermissionConnectorNotReady):
-		return automationFailure(http.StatusConflict, "automation.permission_connector_unavailable", protocol.FailureCategoryUnavailable, protocol.FailureEffectNotApplied, err.Error(), err, "automation.reconnect_connector")
+		return automationFailure(http.StatusConflict, "automation.permission_connector_unavailable", protocol.FailureCategoryUnavailable, protocol.FailureEffectNotApplied, "接收审批结果的连接当前不可用", err, "automation.reconnect_connector")
 	case handlershared.IsClientMessageError(err):
-		return automationFailure(http.StatusBadRequest, "automation.permission_decision_invalid", protocol.FailureCategoryValidation, protocol.FailureEffectNotApplied, err.Error(), err, "automation.review_permission")
+		return automationFailure(http.StatusBadRequest, "automation.permission_decision_invalid", protocol.FailureCategoryValidation, protocol.FailureEffectNotApplied, "审批内容不符合要求", err, "automation.review_permission")
 	default:
 		return automationFailure(http.StatusInternalServerError, "automation.permission_decision_failed", protocol.FailureCategoryInternal, protocol.FailureEffectUnknown, "权限操作失败", err, "automation.reload_permissions")
 	}
@@ -370,18 +394,18 @@ func mapResumePermissionFailure(err error) automationHTTPFailure {
 	case errors.Is(err, automationdomain.ErrJobNotFound), errors.Is(err, automationdomain.ErrRunNotFound):
 		return automationFailure(http.StatusNotFound, "automation.permission_resume_not_found", protocol.FailureCategoryNotFound, protocol.FailureEffectNotApplied, "资源不存在", err, "automation.reload_task")
 	case errors.Is(err, automationdomain.ErrPermissionRunNotResumable):
-		return automationFailure(http.StatusConflict, "automation.permission_resume_conflict", protocol.FailureCategoryConflict, protocol.FailureEffectNotApplied, err.Error(), err, "automation.reload_task")
+		return automationFailure(http.StatusConflict, "automation.permission_resume_conflict", protocol.FailureCategoryConflict, protocol.FailureEffectNotApplied, "这次运行当前不能继续", err, "automation.reload_task")
 	case errors.Is(err, automationdomain.ErrPermissionRequestStale):
 		// stale 也可能由 ready 状态写入后的 run 复核返回，不能只凭 sentinel 声明未应用。
-		return automationFailure(http.StatusConflict, "automation.permission_resume_conflict", protocol.FailureCategoryConflict, protocol.FailureEffectUnknown, err.Error(), err, "automation.reload_task")
+		return automationFailure(http.StatusConflict, "automation.permission_resume_conflict", protocol.FailureCategoryConflict, protocol.FailureEffectUnknown, "权限状态已变化，暂时无法确认恢复是否已经生效", err, "automation.reload_task")
 	case errors.Is(err, automationdomain.ErrPermissionDecisionInvalid):
-		return automationFailure(http.StatusBadRequest, "automation.permission_resume_invalid", protocol.FailureCategoryValidation, protocol.FailureEffectNotApplied, err.Error(), err, "automation.reload_task")
+		return automationFailure(http.StatusBadRequest, "automation.permission_resume_invalid", protocol.FailureCategoryValidation, protocol.FailureEffectNotApplied, "审批决定不符合当前运行状态", err, "automation.reload_task")
 	case handlershared.IsClientMessageError(err):
 		// 保留既有 400，但文本可读不能证明 resume 处在写入前。
-		return automationFailure(http.StatusBadRequest, "automation.permission_resume_invalid", protocol.FailureCategoryValidation, protocol.FailureEffectUnknown, err.Error(), err, "automation.reload_task")
+		return automationFailure(http.StatusBadRequest, "automation.permission_resume_invalid", protocol.FailureCategoryValidation, protocol.FailureEffectUnknown, "恢复请求不符合当前状态，暂时无法确认是否已经推进", err, "automation.reload_task")
 	default:
 		// 保留既有 409；未知错误可能发生在 ready 状态写入或 run claim 之后。
-		return automationFailure(http.StatusConflict, "automation.permission_resume_failed", protocol.FailureCategoryConflict, protocol.FailureEffectUnknown, err.Error(), err, "automation.reload_task")
+		return automationFailure(http.StatusConflict, "automation.permission_resume_failed", protocol.FailureCategoryConflict, protocol.FailureEffectUnknown, "暂时无法确认任务是否已经恢复", err, "automation.reload_task")
 	}
 }
 
@@ -398,9 +422,9 @@ func mapRunTaskFailure(err error) automationHTTPFailure {
 	case errors.Is(err, automationdomain.ErrJobNotFound):
 		return automationFailure(http.StatusNotFound, "automation.run_task_not_found", protocol.FailureCategoryNotFound, protocol.FailureEffectNotApplied, "资源不存在", err, "automation.return_to_tasks")
 	case errors.Is(err, automationdomain.ErrTaskSessionRebindRequired):
-		return automationFailure(http.StatusConflict, "automation.run_session_rebind_required", protocol.FailureCategoryConflict, protocol.FailureEffectNotApplied, err.Error(), err, "automation.rebind_session")
+		return automationFailure(http.StatusConflict, "automation.run_session_rebind_required", protocol.FailureCategoryConflict, protocol.FailureEffectNotApplied, "任务关联的会话已失效，需要重新选择", err, "automation.rebind_session")
 	case handlershared.IsClientMessageError(err), handlershared.IsStructuredSessionKeyError(err):
-		return automationFailure(http.StatusBadRequest, "automation.run_task_invalid", protocol.FailureCategoryValidation, protocol.FailureEffectUnknown, err.Error(), err, "automation.reload_runs")
+		return automationFailure(http.StatusBadRequest, "automation.run_task_invalid", protocol.FailureCategoryValidation, protocol.FailureEffectUnknown, "启动请求不符合当前任务状态，暂时无法确认是否已经启动", err, "automation.reload_runs")
 	default:
 		return automationFailure(http.StatusInternalServerError, "automation.run_task_failed", protocol.FailureCategoryInternal, protocol.FailureEffectUnknown, "定时任务启动失败", err, "automation.reload_runs")
 	}
@@ -416,7 +440,7 @@ func mapRecoverTaskFailure(err error) automationHTTPFailure {
 		return automationFailure(http.StatusConflict, "automation.recover_task_conflict", protocol.FailureCategoryConflict, protocol.FailureEffectUnknown, "运行状态已变化，请刷新任务", err, "automation.reload_runs")
 	}
 	if handlershared.IsClientMessageError(err) || handlershared.IsStructuredSessionKeyError(err) {
-		return automationFailure(http.StatusBadRequest, "automation.recover_task_conflict", protocol.FailureCategoryConflict, protocol.FailureEffectUnknown, err.Error(), err, "automation.reload_runs")
+		return automationFailure(http.StatusBadRequest, "automation.recover_task_conflict", protocol.FailureCategoryConflict, protocol.FailureEffectUnknown, "恢复请求不符合当前运行状态，暂时无法确认是否已经执行", err, "automation.reload_runs")
 	}
 	return automationFailure(http.StatusInternalServerError, "automation.recover_task_failed", protocol.FailureCategoryInternal, protocol.FailureEffectUnknown, "运行恢复失败", err, "automation.reload_runs")
 }
@@ -440,9 +464,9 @@ func mapRetryDeliveryFailure(err error) automationHTTPFailure {
 		// MarkRunDelivery 之后的 reload；没有阶段化错误前必须保守处理。
 		return automationFailure(http.StatusNotFound, "automation.delivery_retry_not_found", protocol.FailureCategoryNotFound, protocol.FailureEffectUnknown, "资源不存在", err, "automation.reload_runs")
 	case errors.Is(err, automationdomain.ErrTaskSessionRebindRequired):
-		return automationFailure(http.StatusConflict, "automation.delivery_session_rebind_required", protocol.FailureCategoryConflict, protocol.FailureEffectNotApplied, err.Error(), err, "automation.rebind_session")
+		return automationFailure(http.StatusConflict, "automation.delivery_session_rebind_required", protocol.FailureCategoryConflict, protocol.FailureEffectNotApplied, "结果接收会话已失效，需要重新选择", err, "automation.rebind_session")
 	case handlershared.IsClientMessageError(err), handlershared.IsStructuredSessionKeyError(err):
-		return automationFailure(http.StatusBadRequest, "automation.delivery_retry_invalid", protocol.FailureCategoryValidation, protocol.FailureEffectUnknown, err.Error(), err, "automation.reload_runs")
+		return automationFailure(http.StatusBadRequest, "automation.delivery_retry_invalid", protocol.FailureCategoryValidation, protocol.FailureEffectUnknown, "投递请求不符合当前状态，暂时无法确认是否已经发送", err, "automation.reload_runs")
 	default:
 		return automationFailure(http.StatusInternalServerError, "automation.delivery_retry_failed", protocol.FailureCategoryInternal, protocol.FailureEffectUnknown, "结果投递重试失败", err, "automation.reload_runs")
 	}

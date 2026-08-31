@@ -1,3 +1,6 @@
+// INPUT: 当前 scope 的子智能体任务快照、读取状态与刷新动作。
+// OUTPUT: 保留已有任务快照并完整说明读取失败影响和恢复路径的任务列表。
+// POS: 子智能体目录纯视图；不解释底层异常，也不改变任务执行状态。
 "use client";
 
 import type { ReactNode } from "react";
@@ -92,10 +95,23 @@ export function SubagentTaskList({
       />
 
       {error ? (
-        <div className="mt-3 flex items-start gap-3 text-xs leading-5 text-(--destructive)">
-          <p className="min-w-0 flex-1">{error}</p>
+        <div
+          aria-atomic="true"
+          aria-live="polite"
+          className="mt-3 rounded-[10px] border border-[color:color-mix(in_srgb,var(--destructive)_24%,transparent)] px-3 py-2.5"
+          role="status"
+        >
+          <p className="text-xs font-semibold leading-5 text-(--destructive)">
+            {t("subagents.list_load_failed_title")}
+          </p>
+          <p className="mt-1 text-xs leading-5 text-(--text-muted)">
+            {t("subagents.list_load_failed_impact")}
+          </p>
+          <p className="mt-1 text-xs font-medium leading-5 text-(--text-default)">
+            {t("subagents.list_load_failed_next_step")}
+          </p>
           <button
-            className="shrink-0 font-semibold hover:underline"
+            className="mt-2 text-xs font-semibold text-(--brand-action) hover:underline"
             onClick={onRefresh}
             type="button"
           >

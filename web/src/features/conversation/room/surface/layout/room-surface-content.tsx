@@ -10,6 +10,8 @@ import { cn } from "@/shared/ui/class-name";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import { buildComposerDraftScopeKey } from "@/features/conversation/shared/composer/composer-draft-scope";
 import { buildRoomSharedSessionKey } from "@/lib/conversation/session-key";
+import { useI18n } from "@/shared/i18n/i18n-context";
+import { ReadResourceReliabilityNotice } from "@/features/conversation/shared/read-resource-reliability-notice";
 
 import { RoomChatSurface } from "../room-chat-surface";
 import { RoomSurfaceAuxiliaryPanel } from "./room-surface-auxiliary-panel";
@@ -38,6 +40,7 @@ export function RoomSurfaceContent({
   currentTodos,
   executionResource,
   executionTaskRuns,
+  externalSessionsReliability,
   sidePanelWidthPercent,
   initialDraft = null,
   isResizingSidePanel,
@@ -70,6 +73,7 @@ export function RoomSurfaceContent({
   roomSkillNames,
   surfaceSplitRef,
 }: RoomSurfaceContentProps) {
+  const { t } = useI18n();
   const isDm = currentRoomType === "dm";
   const composerSessionKey = isDm
     ? currentAgentSessionIdentity?.session_key?.trim() || null
@@ -104,32 +108,51 @@ export function RoomSurfaceContent({
         <WorkspaceSurfaceScaffold
           bodyClassName="relative"
           header={(
-            <RoomSurfaceHeader
-              activeSurfaceTab={activeSurfaceTab}
-              availableRoomAgents={availableRoomAgents}
-              conversationId={conversationId}
-              conversations={currentRoomConversations}
-              currentAgent={currentAgent}
-              currentRoomTitle={currentRoomTitle}
-              isDm={isDm}
-              onChangeSurfaceTab={layout.handleChangeSurfaceTab}
-              onCloseAuxiliaryPanel={layout.handleCloseAuxiliaryPanel}
-              onCloseConversation={onCloseConversation}
-              onCreateConversation={onCreateConversation}
-              onReplaceFinalConversation={onReplaceFinalConversation}
-              onDeleteConversation={onDeleteConversation}
-              onManageRoom={onManageRoom}
-              onOpenMemberManager={onOpenMemberManager}
-              onSelectConversation={onSelectConversation}
-              onUpdateConversationTitle={onUpdateConversationTitle}
-              roomAvatar={roomAvatar}
-              roomHostAgentId={roomHostAgentId}
-              roomHostAutoReplyEnabled={roomHostAutoReplyEnabled}
-              roomId={roomId}
-              roomMembers={roomMembers}
-              roomPrivateMessagesEnabled={roomPrivateMessagesEnabled}
-              roomSkillNames={roomSkillNames}
-            />
+            <>
+              <RoomSurfaceHeader
+                activeSurfaceTab={activeSurfaceTab}
+                availableRoomAgents={availableRoomAgents}
+                conversationId={conversationId}
+                conversations={currentRoomConversations}
+                currentAgent={currentAgent}
+                currentRoomTitle={currentRoomTitle}
+                isDm={isDm}
+                onChangeSurfaceTab={layout.handleChangeSurfaceTab}
+                onCloseAuxiliaryPanel={layout.handleCloseAuxiliaryPanel}
+                onCloseConversation={onCloseConversation}
+                onCreateConversation={onCreateConversation}
+                onReplaceFinalConversation={onReplaceFinalConversation}
+                onDeleteConversation={onDeleteConversation}
+                onManageRoom={onManageRoom}
+                onOpenMemberManager={onOpenMemberManager}
+                onSelectConversation={onSelectConversation}
+                onUpdateConversationTitle={onUpdateConversationTitle}
+                roomAvatar={roomAvatar}
+                roomHostAgentId={roomHostAgentId}
+                roomHostAutoReplyEnabled={roomHostAutoReplyEnabled}
+                roomId={roomId}
+                roomMembers={roomMembers}
+                roomPrivateMessagesEnabled={roomPrivateMessagesEnabled}
+                roomSkillNames={roomSkillNames}
+              />
+              {isDm && externalSessionsReliability.failure ? (
+                <ReadResourceReliabilityNotice
+                  impact={t(externalSessionsReliability.failure.access
+                    ? "conversation.external_sessions_access_impact"
+                    : externalSessionsReliability.isStale
+                    ? "conversation.external_sessions_stale_impact"
+                    : "conversation.external_sessions_unavailable_impact")}
+                  isRefreshing={externalSessionsReliability.isLoading}
+                  nextStep={t(externalSessionsReliability.failure.access
+                    ? "conversation.external_sessions_access_next_step"
+                    : "conversation.external_sessions_next_step")}
+                  onRefresh={externalSessionsReliability.refresh}
+                  problem={t("conversation.external_sessions_refresh_failed")}
+                  resource="room-external-sessions"
+                  stale={externalSessionsReliability.isStale}
+                />
+              ) : null}
+            </>
           )}
         >
           <div className="nexus-room-surface-split flex h-full min-h-0 min-w-0">

@@ -1,7 +1,7 @@
 /**
  * INPUT: 侧栏布局命令、聊天完成通知及其目标路由顺序信息。
- * OUTPUT: 导航高亮、聊天入口红点、会话未读导航数据、分区折叠和面板宽度状态。
- * POS: 侧栏运行态 Store；进入精确目标即清除该目标未读，未读状态不持久化，布局偏好由 persist 单独保存。
+ * OUTPUT: 导航高亮、聊天入口红点、会话未读导航数据、分区折叠、面板宽度与 owner reset。
+ * POS: 侧栏运行态 Store；owner 切换清除路由/未读，布局偏好由 persist 单独保存。
  */
 
 import { create } from "zustand";
@@ -424,3 +424,17 @@ export const useSidebarStore = create<SidebarState & SidebarActions>()(
     },
   ),
 );
+
+/** Auth owner 变化时只清除身份相关运行态，保留纯布局偏好。 */
+export function resetSidebarOwnerScope(): void {
+  useSidebarStore.setState({
+    active_panel_item_id: null,
+    chat_badge_count: 0,
+    chat_tab_unseen_counts: {},
+    chat_unread_counts: {},
+    chat_unread_targets: {},
+    chat_unread_timestamps: {},
+    chat_unread_anchors: {},
+    notified_chat_message_ids: [],
+  });
+}

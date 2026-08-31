@@ -37,7 +37,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
-import type { FeedbackBannerProps } from "@/shared/ui/feedback/feedback-banner";
+import type { FeedbackBannerProps } from "@/shared/ui/feedback/feedback-banner-contract";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
 import { UiListRow } from "@/shared/ui/list/list-row";

@@ -93,6 +93,29 @@ func TestServicePersistsEchoEnabled(t *testing.T) {
 	}
 }
 
+func TestServiceSetEchoEnabledAtVersionRejectsStaleAggregate(t *testing.T) {
+	service := NewService(config.Config{WorkspacePath: filepath.Join(t.TempDir(), "workspace")})
+	base, err := service.Get(context.Background(), "user/1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	updated, err := service.SetEchoEnabledAtVersion(
+		context.Background(), "user/1", true, base.Version,
+	)
+	if err != nil || !updated.EchoEnabled || updated.Version <= base.Version {
+		t.Fatalf("updated=%+v err=%v", updated, err)
+	}
+	if _, err = service.SetEchoEnabledAtVersion(
+		context.Background(), "user/1", false, base.Version,
+	); !errors.Is(err, ErrVersionConflict) {
+		t.Fatalf("stale update error=%v, want ErrVersionConflict", err)
+	}
+	latest, err := service.Get(context.Background(), "user/1")
+	if err != nil || !latest.EchoEnabled || latest.Version != updated.Version {
+		t.Fatalf("latest=%+v err=%v", latest, err)
+	}
+}
+
 func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 	root := t.TempDir()
 	service := NewService(config.Config{WorkspacePath: filepath.Join(root, "workspace")})

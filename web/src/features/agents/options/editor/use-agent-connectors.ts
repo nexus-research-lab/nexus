@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { getConnectorsApi } from "@/lib/api/capability/connector-api";
 import type { ConnectorInfo } from "@/types/capability/connector";
@@ -17,6 +17,10 @@ const EMPTY_STATE: AgentConnectorsState = {
 
 export function useAgentConnectors(isVisible: boolean, fallbackError: string) {
   const [state, setState] = useState<AgentConnectorsState>(EMPTY_STATE);
+  const [refreshRevision, setRefreshRevision] = useState(0);
+  const retry = useCallback(() => {
+    setRefreshRevision((current) => current + 1);
+  }, []);
 
   useEffect(() => {
     if (!isVisible) return undefined;
@@ -26,18 +30,20 @@ export function useAgentConnectors(isVisible: boolean, fallbackError: string) {
       .then((items) => {
         if (active) setState({ error: null, items, loading: false });
       })
-      .catch((error: unknown) => {
+      .catch(() => {
         if (!active) return;
-        setState({
-          error: error instanceof Error ? error.message : fallbackError,
-          items: [],
+        setState((current) => ({
+          error: fallbackError,
+          items: current.items,
           loading: false,
-        });
+        }));
       });
     return () => {
       active = false;
     };
-  }, [fallbackError, isVisible]);
+  }, [fallbackError, isVisible, refreshRevision]);
 
-  return isVisible ? state : { ...state, loading: false };
+  return isVisible
+    ? { ...state, retry }
+    : { ...state, loading: false, retry };
 }

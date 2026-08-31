@@ -1,4 +1,8 @@
-/** Provider 配置、模型目录和订阅 Provider 的 HTTP 边界。 */
+/**
+ * INPUT: Provider 配置、可选 configuration_version 与模型/测试命令。
+ * OUTPUT: 旧响应体兼容的 Provider 结果；条件写通过强 If-Match 发送精确聚合版本。
+ * POS: Provider/订阅 Provider HTTP transport 边界；版本不替代 owner、Provider key 或请求身份。
+ */
 
 import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
 import { requestApi } from "@/lib/api/core/http";
@@ -110,12 +114,14 @@ export async function createSubscriptionProviderConfigApi(
 export async function updateProviderConfigApi(
   provider: string,
   payload: UpdateProviderConfigPayload,
+  options?: { expectedVersion?: number },
 ): Promise<ProviderConfigRecord> {
   return requestApi<ProviderConfigRecord>(
     `${PROVIDER_CONFIG_BASE_URL}/${encodeURIComponent(provider)}`,
     {
       method: "PUT",
       body: JSON.stringify(payload),
+      headers: providerIfMatchHeaders(options?.expectedVersion),
     },
   );
 }
@@ -185,11 +191,13 @@ export async function updateSubscriptionProviderModelApi(
 
 export async function testProviderConfigApi(
   provider: string,
+  options?: { expectedVersion?: number },
 ): Promise<ProviderTestResult> {
   return requestApi<ProviderTestResult>(
     `${PROVIDER_CONFIG_BASE_URL}/${encodeURIComponent(provider)}/test`,
     {
       method: "POST",
+      headers: providerIfMatchHeaders(options?.expectedVersion),
     },
   );
 }
@@ -208,11 +216,13 @@ export async function testSubscriptionProviderConfigApi(
 export async function testProviderModelApi(
   provider: string,
   modelId: string,
+  options?: { expectedVersion?: number },
 ): Promise<ProviderTestResult> {
   return requestApi<ProviderTestResult>(
     `${PROVIDER_CONFIG_BASE_URL}/${encodeURIComponent(provider)}/models/${encodeURIComponent(modelId)}/test`,
     {
       method: "POST",
+      headers: providerIfMatchHeaders(options?.expectedVersion),
     },
   );
 }
@@ -231,7 +241,7 @@ export async function testSubscriptionProviderModelApi(
 
 export async function deleteProviderConfigApi(
   provider: string,
-  options: { force?: boolean } = {},
+  options: { expectedVersion?: number; force?: boolean } = {},
 ): Promise<DeleteProviderConfigResponse> {
   const searchParams = new URLSearchParams();
   if (options.force) {
@@ -242,8 +252,15 @@ export async function deleteProviderConfigApi(
     `${PROVIDER_CONFIG_BASE_URL}/${encodeURIComponent(provider)}${query ? `?${query}` : ""}`,
     {
       method: "DELETE",
+      headers: providerIfMatchHeaders(options.expectedVersion),
     },
   );
+}
+
+function providerIfMatchHeaders(expectedVersion: number | undefined) {
+  return Number.isSafeInteger(expectedVersion) && (expectedVersion ?? 0) > 0
+    ? { "If-Match": `"provider-${expectedVersion}"` }
+    : undefined;
 }
 
 export async function deleteSubscriptionProviderConfigApi(

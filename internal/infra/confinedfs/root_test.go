@@ -230,6 +230,50 @@ func TestWriteFileAtomicAndRenameRemainWithinRoot(t *testing.T) {
 	}
 }
 
+func TestWriteFileAtomicIfContentRejectsChangedTarget(t *testing.T) {
+	root, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+
+	if err = root.WriteFileAtomic("value.md", []byte("baseline"), 0o660); err != nil {
+		t.Fatal(err)
+	}
+	committed, err := root.WriteFileAtomicIfContent(
+		"value.md",
+		[]byte("new draft"),
+		[]byte("stale baseline"),
+		0o660,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if committed {
+		t.Fatal("过期正文不应替换目标")
+	}
+	content, err := root.ReadFile("value.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(content) != "baseline" {
+		t.Fatalf("冲突后 content = %q", content)
+	}
+
+	committed, err = root.WriteFileAtomicIfContent(
+		"value.md",
+		[]byte("new draft"),
+		[]byte("baseline"),
+		0o660,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !committed {
+		t.Fatal("匹配正文应原子替换目标")
+	}
+}
+
 func TestReadFileSurvivesAtomicReplacement(t *testing.T) {
 	rootPath := t.TempDir()
 	target := filepath.Join(rootPath, "value.json")

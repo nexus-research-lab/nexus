@@ -122,10 +122,16 @@ func (s *ControlService) encryptCredentials(values map[string]string) (string, e
 		return "", nil
 	}
 	if s.keyErr != nil && strings.TrimSpace(s.config.ConnectorCredentialsKey) != "" {
-		return "", fmt.Errorf("CONNECTOR_CREDENTIALS_KEY 解析失败: %w", s.keyErr)
+		return "", classifyChannelControlError(
+			ErrChannelCredentialStoreUnavailable,
+			fmt.Errorf("CONNECTOR_CREDENTIALS_KEY 解析失败: %w", s.keyErr),
+		)
 	}
 	if len(s.key) == 0 {
-		return "", errors.New("CONNECTOR_CREDENTIALS_KEY 未配置，无法保存 IM 通道凭据")
+		return "", classifyChannelControlError(
+			ErrChannelCredentialStoreUnavailable,
+			errors.New("CONNECTOR_CREDENTIALS_KEY 未配置，无法保存 IM 通道凭据"),
+		)
 	}
 	payload, err := json.Marshal(values)
 	if err != nil {
@@ -139,10 +145,16 @@ func (s *ControlService) decryptCredentials(encrypted sql.NullString) (map[strin
 		return nil, nil
 	}
 	if s.keyErr != nil && strings.TrimSpace(s.config.ConnectorCredentialsKey) != "" {
-		return nil, fmt.Errorf("CONNECTOR_CREDENTIALS_KEY 解析失败: %w", s.keyErr)
+		return nil, classifyChannelControlError(
+			ErrChannelCredentialStoreUnavailable,
+			fmt.Errorf("CONNECTOR_CREDENTIALS_KEY 解析失败: %w", s.keyErr),
+		)
 	}
 	if len(s.key) == 0 {
-		return nil, errors.New("CONNECTOR_CREDENTIALS_KEY 未配置，无法读取 IM 通道凭据")
+		return nil, classifyChannelControlError(
+			ErrChannelCredentialStoreUnavailable,
+			errors.New("CONNECTOR_CREDENTIALS_KEY 未配置，无法读取 IM 通道凭据"),
+		)
 	}
 	payload, err := credentials.DecryptPayload(s.key, encrypted.String)
 	if err != nil {

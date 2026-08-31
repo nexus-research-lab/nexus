@@ -38,31 +38,39 @@ func (f *fakeIngress) Accept(_ context.Context, request channelspkg.IngressReque
 }
 
 type fakeControl struct {
-	prepared          channelspkg.FeishuIngressPreparation
-	prepareErr        error
-	ownerByConfig     string
-	ownerErr          error
-	startLoginChannel string
-	startLoginView    *channelspkg.ChannelLoginView
-	getLoginChannel   string
-	getLoginID        string
-	getLoginView      *channelspkg.ChannelLoginView
-	verifyLoginID     string
-	verifyCode        string
-	deleteAccount     string
-	deleteChannel     string
+	prepared            channelspkg.FeishuIngressPreparation
+	prepareErr          error
+	ownerByConfig       string
+	ownerErr            error
+	startLoginChannel   string
+	startLoginView      *channelspkg.ChannelLoginView
+	currentLoginChannel string
+	currentLoginView    *channelspkg.ChannelLoginView
+	currentLoginErr     error
+	getLoginChannel     string
+	getLoginID          string
+	getLoginView        *channelspkg.ChannelLoginView
+	verifyLoginID       string
+	verifyCode          string
+	deleteAccount       string
+	deleteChannel       string
+	listChannelsErr     error
+	upsertErr           error
+	deleteConfigErr     error
+	listPairingsErr     error
+	verifyErr           error
 }
 
 func (f *fakeControl) ListChannels(context.Context, string) ([]channelspkg.ChannelConfigView, error) {
-	return nil, nil
+	return nil, f.listChannelsErr
 }
 
 func (f *fakeControl) UpsertChannelConfig(context.Context, string, string, channelspkg.UpsertChannelConfigRequest) (*channelspkg.ChannelConfigView, error) {
-	return nil, nil
+	return nil, f.upsertErr
 }
 
 func (f *fakeControl) DeleteChannelConfig(context.Context, string, string) error {
-	return nil
+	return f.deleteConfigErr
 }
 
 func (f *fakeControl) DeleteChannelAccount(_ context.Context, _ string, channelType string, accountID string) (*channelspkg.ChannelConfigView, error) {
@@ -84,6 +92,21 @@ func (f *fakeControl) StartChannelLogin(_ context.Context, _ string, channelType
 		ChannelType: channelType,
 		Status:      channelspkg.ChannelLoginStatusRunning,
 		Command:     "Nexus iLink QR login",
+	}, nil
+}
+
+func (f *fakeControl) GetCurrentChannelLogin(_ context.Context, _ string, channelType string) (*channelspkg.ChannelLoginView, error) {
+	f.currentLoginChannel = channelType
+	if f.currentLoginErr != nil {
+		return nil, f.currentLoginErr
+	}
+	if f.currentLoginView != nil {
+		return f.currentLoginView, nil
+	}
+	return &channelspkg.ChannelLoginView{
+		LoginID:     "login-current",
+		ChannelType: channelType,
+		Status:      channelspkg.ChannelLoginStatusRunning,
 	}, nil
 }
 
@@ -111,6 +134,9 @@ func (f *fakeControl) SubmitChannelLoginVerifyCode(
 	f.getLoginChannel = channelType
 	f.verifyLoginID = loginID
 	f.verifyCode = request.VerifyCode
+	if f.verifyErr != nil {
+		return nil, f.verifyErr
+	}
 	return &channelspkg.ChannelLoginView{
 		LoginID:     loginID,
 		ChannelType: channelType,
@@ -120,7 +146,7 @@ func (f *fakeControl) SubmitChannelLoginVerifyCode(
 }
 
 func (f *fakeControl) ListPairings(context.Context, string, channelspkg.PairingQuery) ([]channelspkg.PairingView, error) {
-	return nil, nil
+	return nil, f.listPairingsErr
 }
 
 func (f *fakeControl) CreatePairing(context.Context, string, channelspkg.CreatePairingRequest) (*channelspkg.PairingView, error) {
@@ -160,6 +186,26 @@ func TestHandleStartChannelLogin(t *testing.T) {
 	}
 	if !strings.Contains(recorder.Body.String(), "login-1") {
 		t.Fatalf("登录响应缺少 login_id: %s", recorder.Body.String())
+	}
+}
+
+func TestHandleGetCurrentChannelLogin(t *testing.T) {
+	control := &fakeControl{}
+	handler := New(handlershared.NewAPI(nil), &fakeIngress{}, control)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/nexus/v1/capability/channels/weixin-personal/login", nil)
+	request = request.WithContext(withRouteParam(request.Context(), "channel_type", channelspkg.ChannelTypeWeixinPersonal))
+	handler.HandleGetCurrentChannelLogin(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("状态码不正确: %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if control.currentLoginChannel != channelspkg.ChannelTypeWeixinPersonal {
+		t.Fatalf("当前登录通道参数不正确: %q", control.currentLoginChannel)
+	}
+	if !strings.Contains(recorder.Body.String(), "login-current") {
+		t.Fatalf("当前登录响应缺少 login_id: %s", recorder.Body.String())
 	}
 }
 

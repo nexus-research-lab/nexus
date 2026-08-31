@@ -1,3 +1,6 @@
+// INPUT: Room Skill 目录 API 与当前搜索词。
+// OUTPUT: 保留用户表单选择的可筛选 Skill 选项和安全读取失败标记。
+// POS: 创建/管理 Room 的 Skill 资源控制器；不展示底层 Skill 或传输异常。
 import { useEffect, useMemo, useState } from "react";
 
 import { getAvailableSkillsApi } from "@/lib/api/capability/skill-api";
@@ -29,12 +32,10 @@ export function useRoomSkillOptions(query: string) {
           setState({ error: null, items, loading: false });
         }
       })
-      .catch((error: unknown) => {
+      .catch(() => {
         if (active) {
           setState({
-            error: error instanceof Error
-              ? error.message
-              : t("room.skills_load_error"),
+            error: t("room.skills_load_error"),
             items: [],
             loading: false,
           });

@@ -14,7 +14,7 @@ import (
 // Create 新增 Provider 配置。
 func (s *Service) Create(ctx context.Context, input CreateInput) (*Record, error) {
 	if strings.TrimSpace(input.Visibility) == providerstore.VisibilityPublic {
-		return nil, fmt.Errorf("普通设置只能创建私有 Provider，请使用运营页面创建订阅 Provider")
+		return nil, fmt.Errorf("%w: 普通设置只能创建私有 Provider，请使用运营页面创建订阅 Provider", ErrInvalidInput)
 	}
 	input.Visibility = providerstore.VisibilityPrivate
 	return s.createScoped(ctx, input)
@@ -29,7 +29,7 @@ func (s *Service) CreatePublic(ctx context.Context, input CreateInput) (*Record,
 func (s *Service) createScoped(ctx context.Context, input CreateInput) (*Record, error) {
 	normalized, err := normalizeCreateInput(input)
 	if err != nil {
-		return nil, err
+		return nil, invalidInputError(err)
 	}
 	visibility, ownerUserID, err := s.createVisibility(ctx, normalized.Visibility)
 	if err != nil {
@@ -37,10 +37,10 @@ func (s *Service) createScoped(ctx context.Context, input CreateInput) (*Record,
 	}
 	existing, err := s.repository.GetScopedByProvider(ctx, visibility, ownerUserID, normalized.Provider)
 	if err != nil {
-		return nil, err
+		return nil, mutationNotAppliedError(err)
 	}
 	if existing != nil {
-		return nil, fmt.Errorf("provider 已存在: %s", normalized.Provider)
+		return nil, fmt.Errorf("%w: %s", ErrProviderAlreadyExists, normalized.Provider)
 	}
 	now := s.now()
 	item := providerstore.Entity{
@@ -65,18 +65,41 @@ func (s *Service) createScoped(ctx context.Context, input CreateInput) (*Record,
 	if err = s.repository.Create(ctx, item); err != nil {
 		return nil, err
 	}
-	return s.recordForScopedItem(ctx, item)
+	record, err := s.recordForScopedItem(ctx, item)
+	if err != nil {
+		return nil, mutationCommittedError(err)
+	}
+	return record, nil
 }
 
 // Update 更新 Provider 配置，并以读取到的 configuration_version 执行 CAS。
 func (s *Service) Update(ctx context.Context, provider string, input UpdateInput) (*Record, error) {
+	return s.updateAtVersion(ctx, provider, input, nil)
+}
+
+// UpdateAtVersion updates the exact Provider aggregate only while its configuration version still matches.
+func (s *Service) UpdateAtVersion(
+	ctx context.Context,
+	provider string,
+	input UpdateInput,
+	expectedVersion int64,
+) (*Record, error) {
+	return s.updateAtVersion(ctx, provider, input, &expectedVersion)
+}
+
+func (s *Service) updateAtVersion(
+	ctx context.Context,
+	provider string,
+	input UpdateInput,
+	expectedVersion *int64,
+) (*Record, error) {
 	normalizedProvider, err := NormalizeProvider(provider, false)
 	if err != nil {
-		return nil, err
+		return nil, invalidInputError(err)
 	}
 	current, err := s.repository.GetVisibleByProvider(ctx, ownerUserIDFromContext(ctx), normalizedProvider)
 	if err != nil {
-		return nil, err
+		return nil, mutationNotAppliedError(err)
 	}
 	if current == nil {
 		return nil, fmt.Errorf("%w: %s", ErrProviderNotFound, normalizedProvider)
@@ -84,12 +107,16 @@ func (s *Service) Update(ctx context.Context, provider string, input UpdateInput
 	if err = s.requireProviderManagement(ctx, *current); err != nil {
 		return nil, err
 	}
+	version := current.ConfigurationVersion
+	if expectedVersion != nil {
+		version = *expectedVersion
+	}
 	return s.updateProviderAtVersion(
 		ctx,
 		normalizedProvider,
 		*current,
 		input,
-		current.ConfigurationVersion,
+		version,
 		false,
 	)
 }
@@ -103,11 +130,11 @@ func (s *Service) PatchAtVersion(
 ) (*Record, error) {
 	normalizedProvider, err := NormalizeProvider(provider, false)
 	if err != nil {
-		return nil, err
+		return nil, invalidInputError(err)
 	}
 	current, err := s.repository.GetVisibleByProvider(ctx, ownerUserIDFromContext(ctx), normalizedProvider)
 	if err != nil {
-		return nil, err
+		return nil, mutationNotAppliedError(err)
 	}
 	if current == nil {
 		return nil, fmt.Errorf("%w: %s", ErrProviderNotFound, normalizedProvider)
@@ -135,12 +162,12 @@ func (s *Service) updateProviderAtVersion(
 ) (*Record, error) {
 	updated, err := normalizeUpdateInput(current, input)
 	if err != nil {
-		return nil, err
+		return nil, invalidInputError(err)
 	}
 	updated.UpdatedAt = s.now()
 	if providerBecameUnavailable(current, updated) {
 		if err = s.validateProviderInvalidationFallback(ctx, current); err != nil {
-			return nil, err
+			return nil, mutationNotAppliedError(err)
 		}
 	}
 	if _, err = s.repository.WithProviderMutation(
@@ -153,10 +180,16 @@ func (s *Service) updateProviderAtVersion(
 	); err != nil {
 		return nil, err
 	}
+	var record *Record
 	if public {
-		return s.GetPublic(ctx, normalizedProvider)
+		record, err = s.GetPublic(ctx, normalizedProvider)
+	} else {
+		record, err = s.Get(ctx, normalizedProvider)
 	}
-	return s.Get(ctx, normalizedProvider)
+	if err != nil {
+		return nil, mutationCommittedError(err)
+	}
+	return record, nil
 }
 
 // UpdatePublic 更新订阅运营使用的公共 Provider 配置。
@@ -179,11 +212,11 @@ func (s *Service) UpdatePublic(ctx context.Context, provider string, input Updat
 func (s *Service) Delete(ctx context.Context, provider string, input DeleteInput) (*DeleteResult, error) {
 	normalizedProvider, err := NormalizeProvider(provider, false)
 	if err != nil {
-		return nil, err
+		return nil, invalidInputError(err)
 	}
 	current, err := s.repository.GetVisibleByProvider(ctx, ownerUserIDFromContext(ctx), normalizedProvider)
 	if err != nil {
-		return nil, err
+		return nil, mutationNotAppliedError(err)
 	}
 	if current == nil {
 		return nil, fmt.Errorf("%w: %s", ErrProviderNotFound, normalizedProvider)
@@ -203,11 +236,11 @@ func (s *Service) DeleteAtVersion(
 ) (*DeleteResult, error) {
 	normalizedProvider, err := NormalizeProvider(provider, false)
 	if err != nil {
-		return nil, err
+		return nil, invalidInputError(err)
 	}
 	current, err := s.repository.GetVisibleByProvider(ctx, ownerUserIDFromContext(ctx), normalizedProvider)
 	if err != nil {
-		return nil, err
+		return nil, mutationNotAppliedError(err)
 	}
 	if current == nil {
 		return nil, fmt.Errorf("%w: %s", ErrProviderNotFound, normalizedProvider)
@@ -239,14 +272,14 @@ func (s *Service) deleteProviderAtVersion(
 	}
 	bindingCount, err := s.runtimeBindingCountForMutation(ctx, current)
 	if err != nil {
-		return nil, err
+		return nil, mutationNotAppliedError(err)
 	}
 	if current.ProviderKind == ProviderKindLLM && bindingCount > 0 && !input.Force {
-		return nil, fmt.Errorf("provider=%s 仍被 %d 个 Agent 使用，不能删除", normalizedProvider, bindingCount)
+		return nil, fmt.Errorf("%w: provider=%s 仍被 %d 个 Agent 使用，不能删除", ErrProviderInUse, normalizedProvider, bindingCount)
 	}
 	if current.ProviderKind == ProviderKindLLM {
 		if err = s.validateProviderInvalidationFallback(ctx, current); err != nil {
-			return nil, err
+			return nil, mutationNotAppliedError(err)
 		}
 	}
 	result := &DeleteResult{Provider: normalizedProvider}
@@ -262,7 +295,8 @@ func (s *Service) deleteProviderAtVersion(
 			if current.ProviderKind == ProviderKindLLM && currentUsage > 0 {
 				if !input.Force {
 					return fmt.Errorf(
-						"provider=%s 仍被 %d 个 Agent 使用，不能删除",
+						"%w: provider=%s 仍被 %d 个 Agent 使用，不能删除",
+						ErrProviderInUse,
 						normalizedProvider,
 						currentUsage,
 					)

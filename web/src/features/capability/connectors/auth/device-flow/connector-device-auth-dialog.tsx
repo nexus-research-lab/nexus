@@ -28,6 +28,7 @@ import {
   getFeishuDeviceAuthPresentation,
   shouldAutoOpenFeishuUserAuthorization,
 } from "../feishu/feishu-app-connection-model";
+import type { ConnectorDeviceAuthFailureKind } from "./connector-device-auth-poller";
 import { useConnectorDeviceAuth } from "./use-connector-device-auth";
 
 interface ConnectorDeviceAuthDialogProps {
@@ -35,7 +36,10 @@ interface ConnectorDeviceAuthDialogProps {
   onCancel: () => void;
   onClose: () => void;
   onConnected: (connectorId: string) => Promise<void>;
-  onError: (message: string) => void;
+  onError: (
+    message: string,
+    kind?: ConnectorDeviceAuthFailureKind,
+  ) => void;
   onNext: (session: ConnectorDeviceAuthStart) => void;
   onOpenWebAuthUrl: (url: string) => boolean;
 }

@@ -7,7 +7,6 @@
  */
 
 import {
-  CircleAlert,
   ChevronDown,
   ShieldCheck,
 } from "lucide-react";
@@ -56,7 +55,6 @@ export function ComposerSessionControls({
             disabled={disabled}
             roomWide
           />
-          <ComposerSessionSettingsError error={controller.error} />
         </div>
       );
     }
@@ -75,7 +73,6 @@ export function ComposerSessionControls({
           controller={controller}
           disabled={disabled}
         />
-        <ComposerSessionSettingsError error={controller.error} />
       </div>
     );
   }
@@ -84,26 +81,6 @@ export function ComposerSessionControls({
       controller={controller}
       disabled={disabled}
     />
-  );
-}
-
-function ComposerSessionSettingsError({
-  error,
-}: {
-  error: string | null;
-}) {
-  if (!error) {
-    return null;
-  }
-  return (
-    <span
-      aria-label={error}
-      className="flex h-7 items-center text-(--destructive)"
-      role="status"
-      title={error}
-    >
-      <CircleAlert className="h-3.5 w-3.5" />
-    </span>
   );
 }
 
@@ -142,7 +119,7 @@ function ComposerPermissionControl({
         )}
         disabled={disabled || controller.busy}
         onClick={() => setIsOpen((current) => !current)}
-        title={controller.error ?? t("composer.session_permission")}
+        title={t("composer.session_permission")}
         type="button"
       >
         <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
@@ -209,7 +186,7 @@ function ComposerModelControl({
         )}
         disabled={disabled || controller.modelBusy}
         onClick={() => setIsOpen((current) => !current)}
-        title={controller.error ?? t("composer.session_model")}
+        title={t("composer.session_model")}
         type="button"
       >
         <span className="truncate">{controller.modelLabel}</span>

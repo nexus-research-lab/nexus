@@ -1,6 +1,9 @@
 import { useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
+
+import { buildProviderFollowupRefreshFailureFeedback } from "../../model/provider-feedback-model";
 import type { FeedbackState } from "../../model/provider-settings-types";
 import type { PersistProvider } from "../config/use-provider-persistence";
 import type {
@@ -10,9 +13,10 @@ import type {
 
 interface UseProviderPersistedModelCommandOptions {
   persistProvider: PersistProvider;
-  refreshAll: (preferredProvider?: string | null) => Promise<void>;
+  refreshAll: (preferredProvider?: string | null) => Promise<boolean>;
   runCommand: RunProviderCommand;
   setFeedback: Dispatch<SetStateAction<FeedbackState | null>>;
+  t: I18nContextValue["t"];
 }
 
 type RunPersistedModelCommand = (
@@ -26,11 +30,13 @@ export function useProviderPersistedModelCommand({
   refreshAll,
   runCommand,
   setFeedback,
+  t,
 }: UseProviderPersistedModelCommandOptions): RunPersistedModelCommand {
   return useCallback((action, request, buildFailure) => {
     void runCommand(action, async () => {
       let targetProvider: string | null = null;
       let outcome: FeedbackState | null = null;
+      let requestCompleted = false;
       try {
         const persisted = await persistProvider({ showError: true });
         if (!persisted) {
@@ -38,16 +44,21 @@ export function useProviderPersistedModelCommand({
         }
         targetProvider = persisted.record.provider;
         outcome = await request(targetProvider);
+        requestCompleted = true;
       } catch (error) {
         outcome = buildFailure(error);
       } finally {
         if (targetProvider) {
-          await refreshAll(targetProvider);
+          const refreshed = await refreshAll(targetProvider);
+          if (!refreshed && requestCompleted) {
+            setFeedback(buildProviderFollowupRefreshFailureFeedback(t));
+            return;
+          }
         }
         if (outcome) {
           setFeedback(outcome);
         }
       }
     });
-  }, [persistProvider, refreshAll, runCommand, setFeedback]);
+  }, [persistProvider, refreshAll, runCommand, setFeedback, t]);
 }

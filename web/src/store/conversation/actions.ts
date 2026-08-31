@@ -1,14 +1,15 @@
 /**
  * Conversation Store Actions
  *
- * [INPUT]: 依赖 @/types, @/lib/api/conversation/session-api
- * [OUTPUT]: 对外提供 conversation 元数据同步 actions
+ * [INPUT]: 依赖 @/types、Session API 与当前 owner scope revision
+ * [OUTPUT]: 对外提供 conversation 元数据同步 actions，迟到的旧 owner 读取不得提交
  * [POS]: store/conversation 模块的操作函数
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 
 import { Conversation, ConversationStoreState } from '@/types/conversation/conversation';
 import { getConversations } from "@/lib/api/conversation/session-api";
+import { getErrorMessage } from "@/lib/error-message";
 
 type ConversationStoreSetter = (
   update:
@@ -83,11 +84,16 @@ export const syncConversationSnapshotAction = (
 
 export const loadConversationsFromServerAction = (
   set: ConversationStoreSetter,
+  getOwnerScopeRevision: () => number,
 ) => async (): Promise<void> => {
+  const ownerScopeRevision = getOwnerScopeRevision();
   try {
     set({ loading: true, error: null });
 
     const conversations = await getConversations();
+    if (getOwnerScopeRevision() !== ownerScopeRevision) {
+      return;
+    }
 
     if (conversations && Array.isArray(conversations)) {
       const sortedConversations = dedupeConversationsBySessionKey(conversations)
@@ -98,10 +104,13 @@ export const loadConversationsFromServerAction = (
       set({ loading: false, error: 'Invalid response format' });
     }
   } catch (err) {
+    if (getOwnerScopeRevision() !== ownerScopeRevision) {
+      return;
+    }
     console.error('[ConversationStore] Failed to load conversations:', err);
     set({
       loading: false,
-      error: err instanceof Error ? err.message : 'Unknown error',
+      error: getErrorMessage(err, "会话列表暂时无法更新"),
     });
   }
 };

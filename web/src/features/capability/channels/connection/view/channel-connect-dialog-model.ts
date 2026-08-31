@@ -44,13 +44,13 @@ export function getChannelDeleteDialogCopy(
   if (target.kind === "channel") {
     return {
       confirmText: "断开频道",
-      message: `确认断开 ${item.title} 吗？这会停止该频道的机器人连接，但不会删除已有配对。`,
+      message: `确认断开 ${item.title} 吗？这会删除该频道的配置、已连接账号和配对，并停止消息收发；其他频道不受影响。`,
       title: "断开频道",
     };
   }
   return {
     confirmText: "删除账号",
-    message: `确认删除微信账号 ${target.account.user_id || target.account.account_id} 吗？已有配对不会删除，但该账号会停止接收和回投消息。`,
+    message: `确认删除微信账号 ${target.account.user_id || target.account.account_id} 吗？该账号及使用它的配对会被删除并停止消息收发；其他账号不受影响。`,
     title: "删除微信账号",
   };
 }

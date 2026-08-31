@@ -9,19 +9,23 @@ import {
 } from "lucide-react";
 
 import type { ChannelAccountView } from "@/lib/api/capability/channel-api";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiListActionButton } from "@/shared/ui/list/list-action";
 import { channelAccountStatusLabel } from "./channel-connection-model";
 
 export function ChannelAccountsPanel({
   accounts,
+  busy,
   deletingAccountId,
   onDelete,
 }: {
   accounts: ChannelAccountView[];
+  busy: boolean;
   deletingAccountId: string;
   onDelete: (account: ChannelAccountView) => void;
 }) {
+  const { t } = useI18n();
   return (
     <div className="rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-3 py-3">
       <div className="flex min-w-0 items-center justify-between gap-3">
@@ -60,20 +64,36 @@ export function ChannelAccountsPanel({
                   更新于 {new Date(account.updated_at).toLocaleString()}
                 </div>
                 {account.last_error ? (
-                  <div className="mt-0.5 truncate text-xs text-(--destructive)" title={account.last_error}>
-                    {account.last_error}
+                  <div
+                    aria-atomic="true"
+                    aria-live="polite"
+                    className="mt-2 space-y-1 rounded-[8px] border border-[color:color-mix(in_srgb,var(--destructive)_20%,transparent)] px-2 py-1.5 text-xs leading-5"
+                    role="status"
+                  >
+                    <p className="font-semibold text-(--destructive)">
+                      {t("capability.channel_account_error_title")}
+                    </p>
+                    <p className="text-(--text-default)">
+                      {t("capability.channel_account_error_message")}
+                    </p>
+                    <p className="text-(--text-muted)">
+                      {t("capability.channel_account_error_impact")}
+                    </p>
+                    <p className="font-medium text-(--text-default)">
+                      {t("capability.channel_account_error_next_step")}
+                    </p>
                   </div>
                 ) : null}
               </div>
               <UiListActionButton
-                disabled={deletingAccountId === account.account_id}
+                disabled={busy || deletingAccountId === account.account_id}
                 onClick={() => onDelete(account)}
                 size="sm"
                 stopPropagation
                 title="删除该账号"
               >
                 {deletingAccountId === account.account_id ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <Loader2 className="h-3 w-3 animate-spin motion-reduce:animate-none" />
                 ) : (
                   <Trash2 className="h-3 w-3" />
                 )}

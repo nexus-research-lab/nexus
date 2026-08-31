@@ -1,4 +1,6 @@
-// 该文件实现以目录文件描述符为边界的文件访问门面。
+// INPUT: 经 owner/workspace 校验的相对路径、文件内容与可选旧正文。
+// OUTPUT: 以目录 fd 为边界的读写、原子替换和替换前内容复核。
+// POS: 宿主 confined filesystem 门面；不解释业务 revision 或身份。
 package confinedfs
 
 import (
@@ -449,17 +451,54 @@ func (r *Root) WriteFileAtomicFrom(name string, source io.Reader, perm os.FileMo
 		return err
 	}
 	defer parentRoot.Close()
-	return parentRoot.writeFileAtomic(path.Base(name), source, perm)
+	_, err = parentRoot.writeFileAtomic(path.Base(name), source, perm, nil, false)
+	return err
 }
 
-func (r *Root) writeFileAtomic(name string, source io.Reader, perm os.FileMode) error {
+// WriteFileAtomicIfContent 先完整写入并同步临时文件，再在最终 rename 前
+// 复核目标正文。返回 false, nil 表示目标已变更且本次没有替换。
+func (r *Root) WriteFileAtomicIfContent(
+	name string,
+	data []byte,
+	expectedContent []byte,
+	perm os.FileMode,
+) (bool, error) {
+	name, err := normalize(name)
+	if err != nil {
+		return false, err
+	}
+	if name == "." {
+		return false, errors.New("cannot write confined root")
+	}
+	parent := path.Dir(name)
+	parentRoot, err := r.OpenOrCreateRootNoSymlink(parent, 0o770)
+	if err != nil {
+		return false, err
+	}
+	defer parentRoot.Close()
+	return parentRoot.writeFileAtomic(
+		path.Base(name),
+		bytes.NewReader(data),
+		perm,
+		expectedContent,
+		true,
+	)
+}
+
+func (r *Root) writeFileAtomic(
+	name string,
+	source io.Reader,
+	perm os.FileMode,
+	expectedContent []byte,
+	conditional bool,
+) (bool, error) {
 	var temporaryName string
 	var file *os.File
 	var err error
 	for attempt := 0; attempt < 16; attempt++ {
 		suffix, randomErr := randomSuffix()
 		if randomErr != nil {
-			return randomErr
+			return false, randomErr
 		}
 		temporaryName = ".nexus-confined-" + suffix + ".tmp"
 		file, err = r.OpenFile(
@@ -471,12 +510,12 @@ func (r *Root) writeFileAtomic(name string, source io.Reader, perm os.FileMode) 
 			continue
 		}
 		if err != nil {
-			return err
+			return false, err
 		}
 		break
 	}
 	if file == nil {
-		return errors.New("unable to allocate confined temporary file")
+		return false, errors.New("unable to allocate confined temporary file")
 	}
 	committed := false
 	defer func() {
@@ -487,22 +526,34 @@ func (r *Root) writeFileAtomic(name string, source io.Reader, perm os.FileMode) 
 	}()
 
 	if _, err = io.Copy(file, source); err != nil {
-		return err
+		return false, err
 	}
 	if err = file.Chmod(perm.Perm()); err != nil {
-		return err
+		return false, err
 	}
 	if err = file.Sync(); err != nil {
-		return err
+		return false, err
 	}
 	if err = file.Close(); err != nil {
-		return err
+		return false, err
+	}
+	if conditional {
+		currentContent, readErr := r.ReadFile(name)
+		if errors.Is(readErr, fs.ErrNotExist) {
+			return false, nil
+		}
+		if readErr != nil {
+			return false, readErr
+		}
+		if !bytes.Equal(currentContent, expectedContent) {
+			return false, nil
+		}
 	}
 	if err = r.root.Rename(temporaryName, name); err != nil {
-		return err
+		return false, err
 	}
 	committed = true
-	return nil
+	return true, nil
 }
 
 // ChmodRoot 通过已固定的目录句柄修改根目录自身权限。

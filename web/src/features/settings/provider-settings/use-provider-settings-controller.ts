@@ -99,6 +99,36 @@ export function useProviderSettingsController(
   ]);
 
   const dismissFeedback = useCallback(() => setFeedback(null), []);
+  const reconcileFeedback = useCallback(async () => {
+    const previousFeedback = feedback;
+    const keepsUnconfirmedMutation = previousFeedback?.mutationEffect === "accepted"
+      || previousFeedback?.mutationEffect === "unknown";
+    if (!await refreshAll(workspace.selectedProvider)) {
+      if (keepsUnconfirmedMutation && previousFeedback) {
+        setFeedback({
+          ...previousFeedback,
+          message: `${previousFeedback.message} ${t("settings.providers.latest_state_refresh_failed_message")}`,
+        });
+      }
+      return;
+    }
+    if (keepsUnconfirmedMutation && previousFeedback) {
+      setFeedback({
+        impact: t("settings.providers.latest_state_unconfirmed_impact"),
+        message: t("settings.providers.latest_state_unconfirmed_message"),
+        mutationEffect: previousFeedback.mutationEffect,
+        nextStep: t("settings.providers.latest_state_unconfirmed_next_step"),
+        tone: "warning",
+        title: t("settings.providers.latest_state_loaded_title"),
+      });
+      return;
+    }
+    setFeedback({
+      message: t("settings.providers.latest_state_loaded_message"),
+      title: t("settings.providers.latest_state_loaded_title"),
+      tone: "success",
+    });
+  }, [feedback, refreshAll, t, workspace.selectedProvider]);
   const handleCCSwitchSynced = useCallback(async (result: CCSwitchSyncResult) => {
     if (result.default_selection) {
       setUserPreferences(await getUserPreferencesApi());
@@ -134,6 +164,7 @@ export function useProviderSettingsController(
     actions: {
       closeDeleteDialog: configActions.closeDeleteDialog,
       dismissFeedback,
+      reconcileFeedback,
       handleApiFormatChange: configActions.handleApiFormatChange,
       handleCCSwitchSynced,
       handleCreateFromPreset,

@@ -15,8 +15,9 @@ import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import {
+  completeFeedbackBanner,
   type FeedbackBannerProps,
-} from "@/shared/ui/feedback/feedback-banner";
+} from "@/shared/ui/feedback/feedback-banner-contract";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
@@ -103,10 +104,16 @@ export function ScheduledTasksDirectory() {
   const feedbackItem: FeedbackBannerProps | null = accessBlocked
     ? null
     : commands.feedback
-      ? {
-          ...commands.feedback,
-          onDismiss: commands.dismissFeedback,
-        }
+      ? completeFeedbackBanner(
+          {
+            ...commands.feedback,
+            onDismiss: commands.dismissFeedback,
+          },
+          {
+            impact: t("feedback.unconfirmed_impact"),
+            nextStep: t("feedback.unconfirmed_next_step"),
+          },
+        )
       : hasPendingCreateIntent
         ? {
             action: {

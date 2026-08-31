@@ -11,7 +11,10 @@ import { useNavigate, useParams } from "react-router-dom";
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { CapabilityPageLayout } from "@/features/capability/shared/capability-page-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import type { FeedbackBannerProps } from "@/shared/ui/feedback/feedback-banner";
+import {
+  completeFeedbackBanner,
+  type FeedbackBannerProps,
+} from "@/shared/ui/feedback/feedback-banner-contract";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 
@@ -94,7 +97,9 @@ export function SkillsDirectory({ onReplayTour }: SkillsDirectoryProps) {
           <SkillDetailRoute
             deleteSkill={operations.deleteSkill}
             key={skillName}
-            onAgentBindingChanged={catalog.refresh}
+            onAgentBindingChanged={async () => {
+              await catalog.refresh();
+            }}
             skillName={skillName}
             onBack={backToSkills}
             onDeleted={backToSkills}
@@ -229,10 +234,32 @@ function buildFeedbackItem(
       ? t("capability.skills_feedback_processing")
       : t("capability.skills_feedback_partial"),
   } as const;
-  return {
-    message: feedback.message,
-    onDismiss: feedback.pending ? undefined : feedback.dismiss,
-    title: titles[feedback.tone],
-    tone: feedback.tone,
-  };
+  const recovery = feedback.pending
+    ? {
+        impact: t("feedback.processing_impact"),
+        nextStep: t("feedback.processing_next_step"),
+      }
+    : feedback.tone === "warning"
+      ? {
+          impact: t("feedback.partial_impact"),
+          nextStep: t("feedback.partial_next_step"),
+        }
+      : {
+          impact: t("feedback.unconfirmed_impact"),
+          nextStep: t("feedback.unconfirmed_next_step"),
+        };
+  return completeFeedbackBanner(
+    {
+      action: feedback.action,
+      impact: feedback.impact,
+      message: feedback.message,
+      nextStep: feedback.nextStep,
+      onDismiss: feedback.pending || feedback.persistent
+        ? undefined
+        : feedback.dismiss,
+      title: feedback.title ?? titles[feedback.tone],
+      tone: feedback.tone,
+    },
+    recovery,
+  );
 }

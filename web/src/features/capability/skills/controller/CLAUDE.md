@@ -5,8 +5,8 @@
 - `use-skill-marketplace.ts` 只装配各状态域和发现模式。
 - `use-skill-catalog.ts` 独占目录查询、分类归一化和目录派生数据。
 - `use-external-skill-search.ts` 独占外部搜索、服务端来源作用域、预览和请求竞态。
-- `use-external-skill-sources.ts` 独占来源清单、私有来源增删改、开关动作和搜索修订号。
-- `use-skill-operations.ts` 独占导入、更新、删除和定时更新检查。
+- `use-external-skill-sources.ts` 独占来源清单、私有来源增删改、开关动作和搜索修订号；写响应成功与后续列表刷新是两个阶段，刷新失败不能把已保存更改误报为失败，结果未知只能先刷新对账。
+- `use-skill-operations.ts` 独占导入、更新、删除和定时更新检查；写响应与目录刷新分阶段，`skill-operation-recovery.ts` 只按 exact 操作、Skill/来源和权威详情核对结果。
 - `skill-update-check-model.ts` 把批量检查结果投影为明确的 current / updates / failure 通知；视图不得通过匹配文案推断状态，部分失败不得伪装成“暂无更新”。
 - `use-skill-marketplace-feedback.ts` 用单一反馈状态表达处理中、成功、部分完成和失败。
 
@@ -19,3 +19,5 @@
 - controller 返回具体状态模型；消费者自行定义窄 Props，不依赖完整控制器类型。
 - 外部技能身份、来源和导入展示状态属于 `external/` 纯模型；controller 只管理请求与命令生命周期。
 - 外部搜索、预览和来源开关的缺省反馈必须使用当前界面语言；第三方或服务端返回的具体错误仍作为诊断原因保留。
+- Skill 写结果为 `unknown` 时，当前页面只锁定同一 exact 意图；重新点击和反馈动作只能读取目录/详情，不能重放写入。权威读取仍不能证明结果时，必须由用户显式开始新意图后才解锁。
+- 写响应已证明 `committed` 后，目录刷新失败只表示当前列表可能过期；恢复动作只能刷新目录，不能把已完成写入误报为失败或再次提交。

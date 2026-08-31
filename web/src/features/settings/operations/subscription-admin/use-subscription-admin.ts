@@ -1,3 +1,6 @@
+// INPUT: Subscription API、当前 overview 草稿与 FailureCore。
+// OUTPUT: 保留最后快照、阻止未知结果重复写入的运营控制器。
+// POS: Subscription Admin 业务编排边界；只有重新读取 overview 才解除未知锁。
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
@@ -16,6 +19,8 @@ import {
   buildPlanPayload,
   buildSubscriptionAdminViewModels,
   buildSubscriptionFeedback,
+  buildSubscriptionMutationFailure,
+  buildSubscriptionReadFailure,
   buildSubscriptionSnapshot,
   createEmptyPlanDraft,
 } from "./subscription-admin-model";
@@ -39,11 +44,11 @@ export function useSubscriptionAdmin() {
 
   const loadOverview = useCallback(async () => {
     await transactionCoordinator.load({
-      failure: buildSubscriptionFeedback(t, "load-failed"),
+      failure: (error) => buildSubscriptionReadFailure(t, error),
       onFinish: () => setLoading(false),
       onStart: () => setLoading(true),
       onSuccess: () => setFeedback((current) => (
-        current?.tone === "error" ? null : current
+        current?.blocksMutation || current?.tone === "error" ? null : current
       )),
       request: getSubscriptionOverviewApi,
     });
@@ -96,6 +101,9 @@ export function useSubscriptionAdmin() {
   }, []);
 
   const saveAccount = useCallback(async (ownerUserId: string) => {
+    if (feedback?.blocksMutation) {
+      return;
+    }
     const draft = snapshot.accountDrafts[ownerUserId];
     if (!draft) {
       return;
@@ -106,11 +114,18 @@ export function useSubscriptionAdmin() {
         plan_key: draft.planKey,
       }),
       success: buildSubscriptionFeedback(t, "account-save-succeeded"),
-      failure: buildSubscriptionFeedback(t, "account-save-failed"),
+      failure: (error) => buildSubscriptionMutationFailure(
+        t,
+        "account-save",
+        error,
+      ),
     });
-  }, [snapshot.accountDrafts, t, transactionCoordinator]);
+  }, [feedback?.blocksMutation, snapshot.accountDrafts, t, transactionCoordinator]);
 
   const savePlan = useCallback(async (planKey: string) => {
+    if (feedback?.blocksMutation) {
+      return;
+    }
     const draft = snapshot.planDrafts[planKey];
     if (!draft) {
       return;
@@ -124,11 +139,18 @@ export function useSubscriptionAdmin() {
       pending: { kind: "plan", planKey },
       request: () => updateSubscriptionPlanApi(planKey, payload),
       success: buildSubscriptionFeedback(t, "plan-save-succeeded"),
-      failure: buildSubscriptionFeedback(t, "plan-save-failed"),
+      failure: (error) => buildSubscriptionMutationFailure(
+        t,
+        "plan-save",
+        error,
+      ),
     });
-  }, [snapshot.planDrafts, t, transactionCoordinator]);
+  }, [feedback?.blocksMutation, snapshot.planDrafts, t, transactionCoordinator]);
 
   const createPlan = useCallback(async () => {
+    if (feedback?.blocksMutation) {
+      return;
+    }
     const payload = buildPlanPayload(newPlanDraft.planKey, newPlanDraft);
     if (!payload) {
       setFeedback(buildSubscriptionFeedback(t, "plan-create-invalid"));
@@ -139,9 +161,13 @@ export function useSubscriptionAdmin() {
       request: () => createSubscriptionPlanApi(payload),
       onSuccess: () => setNewPlanDraft(createEmptyPlanDraft()),
       success: buildSubscriptionFeedback(t, "plan-create-succeeded"),
-      failure: buildSubscriptionFeedback(t, "plan-create-failed"),
+      failure: (error) => buildSubscriptionMutationFailure(
+        t,
+        "plan-create",
+        error,
+      ),
     });
-  }, [newPlanDraft, t, transactionCoordinator]);
+  }, [feedback?.blocksMutation, newPlanDraft, t, transactionCoordinator]);
 
   const refreshOverview = useCallback(async () => {
     await loadOverview();
@@ -153,8 +179,9 @@ export function useSubscriptionAdmin() {
       newPlanDraft,
       loading,
       pendingMutation,
+      Boolean(feedback?.blocksMutation),
     ),
-    [loading, newPlanDraft, pendingMutation, snapshot],
+    [feedback?.blocksMutation, loading, newPlanDraft, pendingMutation, snapshot],
   );
 
   return {

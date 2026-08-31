@@ -3,7 +3,9 @@
 // L2 | 父级: internal/service（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - service.go / file.go / memory.go / mutation.go / upload.go / path.go：Service、基于 confined-fd 的文件/记忆/条目/上传访问与路径。
+//   - service.go / file.go / memory.go / mutation.go / upload.go / path.go：Service、基于 confined-fd 的文件/记忆/条目/上传访问与路径；
+//     文件正文返回稳定内容 revision，并为并发敏感的编辑提供不自动重放的条件写入；
+//     文件修改只在任何落盘前已拒绝时返回可识别的 ErrMutationInvalid。
 //   - agent.go / model.go / reveal.go：Agent workspace、模型、本机定位。
 //   - initializer.go / initializer_*.go：workspace 初始化阶段、主 Agent 文件策略，
 //     全局绑定/显式停用与 workspace 动态 Skill 的运行时投影，以及共享 nexusctl、

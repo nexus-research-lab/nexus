@@ -1,5 +1,5 @@
 // INPUT: Connector 对话授权流程记录、CAS 状态和 Connector credentials key。
-// OUTPUT: 跨 SQLite/Postgres 的流程持久化、领取、终态及秘密加解密操作。
+// OUTPUT: 跨 SQLite/Postgres 的流程持久化、领取、不改 canonical 配置的阶段推进、终态及秘密加解密。
 // POS: OAuth/Device 对话授权的 SQL 存储边界；业务权限与 provider 调用留在 service。
 package connectors
 
@@ -296,18 +296,15 @@ WHERE owner_user_id = %s AND flow_id = %s AND status = 'polling'`,
 	return oneRowAffected(result, err)
 }
 
-// AdvanceDeviceStageTx 在 Connector version CAS 事务里替换加密 device_code。
-func (s *AuthorizationFlowStore) AdvanceDeviceStageTx(
+// AdvanceDeviceStage 在不改动 canonical Connector 配置的前提下，
+// 原子替换为下一阶段的加密 device_code 与本次 OAuth client。
+func (s *AuthorizationFlowStore) AdvanceDeviceStage(
 	ctx context.Context,
-	tx *sql.Tx,
 	ownerUserID string,
 	flowID string,
 	stage AuthorizationFlowDeviceStage,
 	now time.Time,
 ) error {
-	if tx == nil {
-		return errors.New("Connector authorization transaction 不能为空")
-	}
 	query := fmt.Sprintf(`
 UPDATE connector_authorization_flows SET
     expected_configuration_version = %s,
@@ -328,7 +325,7 @@ WHERE owner_user_id = %s AND flow_id = %s AND status = 'polling'`,
 		s.bind(6), s.bind(7), s.bind(8), s.bind(9), s.bind(10),
 		s.bind(11), s.bind(12),
 	)
-	result, err := tx.ExecContext(
+	result, err := s.db.ExecContext(
 		ctx, query,
 		stage.ExpectedConfigurationVersion,
 		stage.Stage,

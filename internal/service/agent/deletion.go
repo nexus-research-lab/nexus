@@ -46,7 +46,7 @@ func (s *Service) applyAgentDeletion(
 		}
 	}
 	if s.sessions != nil {
-		if err := s.sessions.DeleteAgentSessionArtifacts(ctx, agentValue, sessions); err != nil {
+		if err := s.sessions.DeleteAgentSessionArtifacts(cleanupCtx, agentValue, sessions); err != nil {
 			cleanupErrs = append(cleanupErrs, fmt.Errorf("清理 Agent Session: %w", err))
 		}
 	}

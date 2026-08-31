@@ -1,5 +1,4 @@
 import {
-  AlertTriangle,
   LoaderCircle,
   Maximize2,
 } from "lucide-react";
@@ -7,11 +6,13 @@ import type { KeyboardEvent, ReactNode } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 
 import {
   getMermaidBodyClassName,
   getMermaidSvgClassName,
 } from "./mermaid-view-layout";
+import type { MermaidRenderFailure } from "./use-mermaid-svg";
 
 export function MermaidModeButton({
   active,
@@ -75,7 +76,7 @@ export function MermaidRenderedPreview({
 }: {
   compact: boolean;
   constrainHeight: boolean;
-  error: string | null;
+  error: MermaidRenderFailure | null;
   isRendering: boolean;
   isStreaming: boolean;
   onOpenPreview: () => void;
@@ -93,13 +94,18 @@ export function MermaidRenderedPreview({
   }
   if (error) {
     return (
-      <div className="m-3 rounded-[8px] border border-destructive/20 bg-destructive/6 px-3 py-2 text-sm text-destructive">
-        <div className="flex items-center gap-2 font-medium">
-          <AlertTriangle className="h-4 w-4" />
-          {t("markdown.mermaid.render_failed")}
-        </div>
-        <pre className="mt-2 whitespace-pre-wrap break-words text-xs leading-5">{error}</pre>
-      </div>
+      <UiResourceState
+        className="m-3 min-h-0 py-4"
+        impact={t("markdown.mermaid.render_failed_impact")}
+        nextStep={t("markdown.mermaid.render_failed_next_step")}
+        size="sm"
+        state="error"
+        title={t(error === "invalid_syntax"
+          ? "markdown.mermaid.invalid_syntax"
+          : "markdown.mermaid.render_failed")}
+        urgency="polite"
+        variant="card"
+      />
     );
   }
   if (!svg) {

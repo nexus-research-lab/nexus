@@ -1,12 +1,12 @@
 /**
  * INPUT: exact WorkGraph preview、源 Session 与源会话可见 Agent。
- * OUTPUT: 补载全局 Agent 目录解析隐藏编辑 Agent，左侧用一段短接待说明衔接专用 DM，右侧展示共用画布和版本选择。
- * POS: 关闭页面不删除会话；应用只投影所选版本，画布容器保持 flex 高度且不改写源 Execution/聊天。
+ * OUTPUT: 补载全局 Agent 目录解析隐藏编辑 Agent，展示专用 DM、画布、版本选择和区分读取/写入结果的恢复状态。
+ * POS: 关闭页面不删除会话；应用只投影所选版本，unknown 写入在当前页面锁定且不改写源 Execution/聊天。
  */
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, History, LoaderCircle } from "lucide-react";
+import { Check, History, LoaderCircle, RefreshCw } from "lucide-react";
 
 import { DmChatPanel } from "@/features/conversation/room/dm/panel/dm-chat-panel";
 import { useDefaultAgentRuntimeKind } from "@/hooks/settings/use-default-agent-runtime-kind";
@@ -16,7 +16,11 @@ import {
   selectWorkGraphWorkflowEditorVersionApi,
   startWorkGraphWorkflowEditorApi,
 } from "@/lib/api/conversation/execution-api";
-import { getErrorMessage } from "@/lib/error-message";
+import {
+  getErrorMessage,
+  projectMutationFailure,
+  type MutationFailureEffect,
+} from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { useAgentStore } from "@/store/agent";
 import {
@@ -27,6 +31,7 @@ import {
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
 import { getDialogActionClassName } from "@/shared/ui/dialog/dialog-styles";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 import type { Agent } from "@/types/agent/agent";
 import type { SessionSnapshotPayload } from "@/types/conversation/conversation";
 import type { ExecutionResource } from "./use-execution-resource";
@@ -45,6 +50,28 @@ interface WorkGraphMetadataEditorDialogProps {
   preview: WorkGraphWorkflowPreview;
   sessionKey: string;
 }
+
+type WorkGraphEditorFailure =
+  | {
+      kind: "refresh";
+      message: string;
+    }
+  | {
+      kind: "start";
+      message: string;
+    }
+  | {
+      effect: MutationFailureEffect;
+      kind: "apply" | "select";
+      message: string;
+      reconcileMessage?: string;
+      selectedRevision?: number;
+    }
+  | {
+      appliedPreview: WorkGraphWorkflowPreview;
+      kind: "apply_projection";
+      message: string;
+    };
 
 const EMPTY_EXECUTION_RESOURCE: ExecutionResource = {
   dismiss: () => undefined,
@@ -80,7 +107,7 @@ export function WorkGraphMetadataEditorDialog({
   const [applying, setApplying] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selectingRevision, setSelectingRevision] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [failure, setFailure] = useState<WorkGraphEditorFailure | null>(null);
   const [startAttempt, setStartAttempt] = useState(0);
 
   const updateEditor = useCallback((next: WorkGraphWorkflowEditorSession) => {
@@ -106,7 +133,10 @@ export function WorkGraphMetadataEditorDialog({
       })
       .catch((reason: unknown) => {
         if (active) {
-          setError(getErrorMessage(reason, startContext.failureMessage));
+          setFailure({
+            kind: "start",
+            message: getErrorMessage(reason, startContext.failureMessage),
+          });
         }
       })
       .finally(() => {
@@ -118,7 +148,7 @@ export function WorkGraphMetadataEditorDialog({
   }, [loadAgents, sessionKey, startAttempt, updateEditor]);
 
   const handleRetryStart = useCallback(() => {
-    setError(null);
+    setFailure(null);
     setLoading(true);
     setStartAttempt((attempt) => attempt + 1);
   }, []);
@@ -129,11 +159,34 @@ export function WorkGraphMetadataEditorDialog({
     try {
       const next = await getWorkGraphWorkflowEditorApi(sessionKey, current.editor_id);
       updateEditor(next);
-      setError(null);
+      setFailure((existing) => {
+        if (!existing || existing.kind === "refresh") {
+          return null;
+        }
+        if (
+          existing.kind === "select"
+          && existing.selectedRevision === next.selected_revision
+        ) {
+          return null;
+        }
+        return existing;
+      });
       return next;
     } catch (reason: unknown) {
-      setError(getErrorMessage(reason, t("execution.workflow_editor_refresh_failed")));
-      return current;
+      const message = getErrorMessage(
+        reason,
+        t("execution.workflow_editor_refresh_failed"),
+      );
+      setFailure((existing) => {
+        if (existing?.kind === "apply" || existing?.kind === "select") {
+          return { ...existing, reconcileMessage: message };
+        }
+        if (existing?.kind === "apply_projection") {
+          return existing;
+        }
+        return { kind: "refresh", message };
+      });
+      return null;
     }
   }, [sessionKey, t, updateEditor]);
 
@@ -147,7 +200,7 @@ export function WorkGraphMetadataEditorDialog({
     const current = editorRef.current;
     if (!current || busy || applying || selectingRevision !== null || current.selected_revision === selectedRevision) return;
     setSelectingRevision(selectedRevision);
-    setError(null);
+    setFailure(null);
     try {
       const next = await selectWorkGraphWorkflowEditorVersionApi(
         sessionKey,
@@ -157,30 +210,83 @@ export function WorkGraphMetadataEditorDialog({
       );
       updateEditor(next);
     } catch (reason: unknown) {
-      setError(getErrorMessage(reason, t("execution.workflow_editor_version_failed")));
+      const mutation = projectMutationFailure(
+        reason,
+        t("execution.workflow_editor_version_failed"),
+      );
+      setFailure({
+        effect: mutation.effect,
+        kind: "select",
+        message: mutation.message,
+        selectedRevision,
+      });
     } finally {
       setSelectingRevision(null);
     }
   }, [applying, busy, selectingRevision, sessionKey, t, updateEditor]);
 
   const handleApply = useCallback(async () => {
+    if (failure && (
+      failure.kind === "apply_projection" || (
+        (failure.kind === "apply" || failure.kind === "select")
+        && failure.effect !== "not_applied"
+      )
+    )) return;
     const current = await refreshEditor();
     if (!current || busy || applying) return;
     setApplying(true);
-    setError(null);
+    setFailure(null);
     try {
       const applied = await applyWorkGraphWorkflowEditorApi(
         sessionKey,
         current.editor_id,
         current.revision,
       );
-      await onApply(applied);
+      try {
+        await onApply(applied);
+      } catch (reason: unknown) {
+        setFailure({
+          appliedPreview: applied,
+          kind: "apply_projection",
+          message: getErrorMessage(
+            reason,
+            t("execution.workflow_editor_projection_failed"),
+          ),
+        });
+      }
     } catch (reason: unknown) {
-      setError(getErrorMessage(reason, t("execution.workflow_editor_apply_failed")));
+      const mutation = projectMutationFailure(
+        reason,
+        t("execution.workflow_editor_apply_failed"),
+      );
+      setFailure({
+        effect: mutation.effect,
+        kind: "apply",
+        message: mutation.message,
+      });
     } finally {
       setApplying(false);
     }
-  }, [applying, busy, onApply, refreshEditor, sessionKey, t]);
+  }, [applying, busy, failure, onApply, refreshEditor, sessionKey, t]);
+
+  const handleRetryProjection = useCallback(async () => {
+    if (!failure || failure.kind !== "apply_projection" || applying) return;
+    setApplying(true);
+    try {
+      await onApply(failure.appliedPreview);
+      setFailure(null);
+    } catch (reason: unknown) {
+      setFailure({
+        ...failure,
+        message: getErrorMessage(
+          reason,
+          t("execution.workflow_editor_projection_failed"),
+        ),
+      });
+    } finally {
+      setApplying(false);
+    }
+  }, [applying, failure, onApply, t]);
 
   const sessionIdentity = useMemo(() => editor ? {
     agent_id: editor.agent_id,
@@ -196,6 +302,10 @@ export function WorkGraphMetadataEditorDialog({
     [agents, catalogAgents, editor],
   );
   const currentPreview = editor?.preview ?? preview;
+  const mutationBlocked = failure?.kind === "apply_projection" || (
+    (failure?.kind === "apply" || failure?.kind === "select")
+    && failure.effect !== "not_applied"
+  );
   const canvasExecution = useMemo(
     () => projectWorkGraphWorkflowCanvasExecution(
       currentPreview,
@@ -257,16 +367,21 @@ export function WorkGraphMetadataEditorDialog({
               ) : (
                 <div className="grid min-h-0 flex-1 place-items-center px-5 text-center">
                   <div className="flex max-w-72 flex-col items-center gap-3">
-                    <p className="text-xs leading-5 text-(--destructive)" role="alert">
-                      {error ?? t("execution.workflow_editor_start_failed")}
-                    </p>
-                    <button
-                      className={getDialogActionClassName("default", "compact")}
-                      type="button"
-                      onClick={handleRetryStart}
-                    >
-                      {t("execution.workflow_editor_retry")}
-                    </button>
+                    <UiResourceState
+                      className="min-h-0 py-4"
+                      description={failure?.message ?? t("execution.workflow_editor_start_failed")}
+                      impact={t("execution.workflow_editor_start_failed_impact")}
+                      nextStep={t("execution.workflow_editor_start_failed_next_step")}
+                      primaryAction={{
+                        label: t("execution.workflow_editor_retry"),
+                        onClick: handleRetryStart,
+                      }}
+                      size="sm"
+                      state="error"
+                      title={t("execution.workflow_editor_start_failed")}
+                      urgency="polite"
+                      variant="plain"
+                    />
                   </div>
                 </div>
               )}
@@ -281,7 +396,7 @@ export function WorkGraphMetadataEditorDialog({
                   </div>
                   <button
                     className={getDialogActionClassName("primary", "compact")}
-                    disabled={!editor || busy || applying}
+                    disabled={!editor || busy || applying || mutationBlocked}
                     type="button"
                     onClick={() => void handleApply()}
                   >
@@ -305,7 +420,7 @@ export function WorkGraphMetadataEditorDialog({
                               ? "border-[color:color-mix(in_srgb,var(--primary)_36%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] font-semibold text-(--primary)"
                               : "border-(--divider-subtle-color) bg-(--surface-control-background) text-(--text-muted) hover:text-(--text-strong)"
                           }`}
-                          disabled={busy || applying || selectingRevision !== null}
+                          disabled={busy || applying || selectingRevision !== null || mutationBlocked}
                           title={`${version.title} · ${version.node_count} ${t("execution.workflow_editor_version_nodes")}`}
                           type="button"
                           onClick={() => void handleSelectRevision(version.revision)}
@@ -318,8 +433,13 @@ export function WorkGraphMetadataEditorDialog({
                     </div>
                   </div>
                 ) : null}
-                {error && editor ? (
-                  <p className="mt-3 text-xs text-(--destructive)" role="alert">{error}</p>
+                {failure && editor ? (
+                  <WorkGraphEditorFailureState
+                    applying={applying}
+                    failure={failure}
+                    onRefresh={() => void refreshEditor()}
+                    onRetryProjection={() => void handleRetryProjection()}
+                  />
                 ) : null}
               </div>
               <div className="flex min-h-0 flex-1">
@@ -336,5 +456,105 @@ export function WorkGraphMetadataEditorDialog({
         </UiDialogShell>
       </UiDialogBackdrop>
     </UiDialogPortal>
+  );
+}
+
+function WorkGraphEditorFailureState({
+  applying,
+  failure,
+  onRefresh,
+  onRetryProjection,
+}: {
+  applying: boolean;
+  failure: WorkGraphEditorFailure;
+  onRefresh: () => void;
+  onRetryProjection: () => void;
+}) {
+  const { t } = useI18n();
+  const description = failure.kind === "apply" || failure.kind === "select"
+    ? [failure.message, failure.reconcileMessage].filter(Boolean).join(" ")
+    : failure.message;
+  if (failure.kind === "refresh") {
+    return (
+      <UiResourceState
+        className="mt-3 min-h-0 py-3"
+        description={description}
+        impact={t("execution.workflow_editor_refresh_failed_impact")}
+        nextStep={t("execution.workflow_editor_refresh_failed_next_step")}
+        primaryAction={{
+          icon: <RefreshCw className="h-3.5 w-3.5" />,
+          label: t("execution.workflow_editor_refresh_action"),
+          onClick: onRefresh,
+        }}
+        size="sm"
+        state="error"
+        title={t("execution.workflow_editor_refresh_failed")}
+        urgency="polite"
+        variant="card"
+      />
+    );
+  }
+  if (failure.kind === "apply_projection") {
+    return (
+      <UiResourceState
+        className="mt-3 min-h-0 py-3"
+        description={description}
+        impact={t("execution.workflow_editor_projection_failed_impact")}
+        nextStep={t("execution.workflow_editor_projection_failed_next_step")}
+        primaryAction={{
+          busy: applying,
+          label: t("execution.workflow_editor_projection_retry"),
+          onClick: onRetryProjection,
+        }}
+        size="sm"
+        state="error"
+        title={t("execution.workflow_editor_projection_failed_title")}
+        urgency="polite"
+        variant="card"
+      />
+    );
+  }
+  if (failure.kind === "start") return null;
+
+  const notApplied = failure.effect === "not_applied";
+  const selecting = failure.kind === "select";
+  const impactKey = selecting
+    ? notApplied
+      ? "execution.workflow_editor_select_not_applied_impact"
+      : "execution.workflow_editor_select_unknown_impact"
+    : notApplied
+      ? "execution.workflow_editor_apply_not_applied_impact"
+      : "execution.workflow_editor_apply_unknown_impact";
+  const nextStepKey = selecting
+    ? notApplied
+      ? "execution.workflow_editor_select_not_applied_next_step"
+      : "execution.workflow_editor_select_unknown_next_step"
+    : notApplied
+      ? "execution.workflow_editor_apply_not_applied_next_step"
+      : "execution.workflow_editor_apply_unknown_next_step";
+  const titleKey = selecting
+    ? notApplied
+      ? "execution.workflow_editor_select_not_applied_title"
+      : "execution.workflow_editor_select_unknown_title"
+    : notApplied
+      ? "execution.workflow_editor_apply_not_applied_title"
+      : "execution.workflow_editor_apply_unknown_title";
+  return (
+    <UiResourceState
+      className="mt-3 min-h-0 py-3"
+      description={description}
+      impact={t(impactKey)}
+      nextStep={t(nextStepKey)}
+      primaryAction={!notApplied && selecting ? {
+        icon: <RefreshCw className="h-3.5 w-3.5" />,
+        label: t("execution.workflow_editor_refresh_action"),
+        onClick: onRefresh,
+      } : undefined}
+      size="sm"
+      state="error"
+      title={t(titleKey)}
+      urgency="polite"
+      variant="card"
+    />
   );
 }

@@ -2,6 +2,8 @@ import type { CSSProperties, ReactNode, RefObject } from "react";
 import { Eye, FileWarning, LoaderCircle } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
+import { useI18n } from "@/shared/i18n/i18n-context";
+import { OfficePreviewFailureState } from "../office-preview-fallbacks";
 import {
   WorkspaceFileDownloadButton,
   WorkspaceFilePreviewFocusButton,
@@ -51,6 +53,7 @@ interface DocumentPreviewViewProps {
   onTogglePreviewFocus: () => void;
   path: string;
   previewScale: number;
+  retryPreview: () => void;
   status: DocumentPreviewStatus;
   styleContainerRef: RefObject<HTMLDivElement | null>;
   viewportRef: RefObject<HTMLDivElement | null>;
@@ -64,6 +67,7 @@ export function DocumentPreviewView({
   onTogglePreviewFocus,
   path,
   previewScale,
+  retryPreview,
   status,
   styleContainerRef,
   viewportRef,
@@ -81,6 +85,7 @@ export function DocumentPreviewView({
       <DocumentPreviewViewport
         containerRef={containerRef}
         previewScale={previewScale}
+        retryPreview={retryPreview}
         status={status}
         styleContainerRef={styleContainerRef}
         viewportRef={viewportRef}
@@ -130,23 +135,24 @@ function DocumentPreviewHeader({
 function DocumentPreviewStatusMeta({
   status,
 }: { status: DocumentPreviewStatus }) {
+  const { t } = useI18n();
   const statusViews = {
     error: (
       <span className="flex items-center gap-1 text-destructive">
         <FileWarning className="h-3 w-3" />
-        加载失败
+        {t("workspace_file.preview_failed_status")}
       </span>
     ),
     loaded: (
       <span className="flex items-center gap-1 text-(--success)">
         <Eye className="h-3 w-3" />
-        已加载
+        {t("workspace_file.preview_loaded")}
       </span>
     ),
     loading: (
       <span className="flex items-center gap-1">
         <LoaderCircle className="h-3 w-3 animate-spin" />
-        加载中
+        {t("workspace_file.preview_loading")}
       </span>
     ),
   } satisfies Record<DocumentPreviewStatus["state"], ReactNode>;
@@ -157,6 +163,7 @@ function DocumentPreviewStatusMeta({
 interface DocumentPreviewViewportProps {
   containerRef: RefObject<HTMLDivElement | null>;
   previewScale: number;
+  retryPreview: () => void;
   status: DocumentPreviewStatus;
   styleContainerRef: RefObject<HTMLDivElement | null>;
   viewportRef: RefObject<HTMLDivElement | null>;
@@ -165,6 +172,7 @@ interface DocumentPreviewViewportProps {
 function DocumentPreviewViewport({
   containerRef,
   previewScale,
+  retryPreview,
   status,
   styleContainerRef,
   viewportRef,
@@ -181,7 +189,7 @@ function DocumentPreviewViewport({
       <style>{DOCUMENT_PREVIEW_STYLES}</style>
       <div ref={styleContainerRef} aria-hidden="true" className="contents" />
       {status.state === "error" ? (
-        <DocumentPreviewError message={status.message} />
+        <OfficePreviewFailureState kind="document" onRetry={retryPreview} />
       ) : (
         <div
           ref={containerRef}
@@ -193,32 +201,19 @@ function DocumentPreviewViewport({
         />
       )}
       {status.state === "loading" ? (
-        <DocumentPreviewLoading message={status.message} />
+        <DocumentPreviewLoading />
       ) : null}
     </div>
   );
 }
 
-function DocumentPreviewError({ message }: { message: string }) {
-  return (
-    <div className="flex h-full min-h-[240px] items-center justify-center text-center">
-      <div className="max-w-sm">
-        <FileWarning className="mx-auto h-12 w-12 text-(--icon-muted)" />
-        <p className="mt-4 text-sm font-medium text-(--text-strong)">
-          docx 预览失败
-        </p>
-        <p className="mt-2 text-xs leading-5 text-(--text-soft)">{message}</p>
-      </div>
-    </div>
-  );
-}
-
-function DocumentPreviewLoading({ message }: { message: string }) {
+function DocumentPreviewLoading() {
+  const { t } = useI18n();
   return (
     <div className="pointer-events-none absolute inset-x-0 top-24 flex justify-center">
       <div className="inline-flex items-center gap-2 rounded-full border border-(--divider-subtle-color) bg-(--surface-panel-background) px-3 py-1.5 text-xs text-(--text-muted) shadow-sm">
         <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-        <span>{message}</span>
+        <span>{t("workspace_file.preview_loading")}</span>
       </div>
     </div>
   );

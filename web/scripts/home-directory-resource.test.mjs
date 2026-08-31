@@ -142,6 +142,58 @@ test("last subscriber cleanup aborts I/O without surfacing a user error", async 
   assert.equal(requests.length, 1);
 });
 
+test("authoritative reconciliation replaces stale data and fences an older refresh", async () => {
+  const requests = [];
+  const store = createHomeDirectoryStore({
+    load: (signal) => {
+      const request = deferred();
+      requests.push({ ...request, signal });
+      return request.promise;
+    },
+    reportError: () => {},
+  });
+
+  store.refresh();
+  const reconciled = store.acceptAuthoritativePayload(directoryPayload("reconciled"));
+  assert.equal(requests[0].signal.aborted, true);
+  assert.equal(reconciled.agents[0].id, "reconciled");
+
+  requests[0].resolve(directoryPayload("stale"));
+  await flushPromises();
+  assert.equal(store.getSnapshot().agents[0].id, "reconciled");
+  assert.equal(store.getSnapshot().hasError, false);
+});
+
+test("owner scope reset clears the directory and fences an older response", async () => {
+  const requests = [];
+  const store = createHomeDirectoryStore({
+    load: (signal) => {
+      const request = deferred();
+      requests.push({ ...request, signal });
+      return request.promise;
+    },
+    reportError: () => {},
+  });
+
+  store.acceptAuthoritativePayload(directoryPayload("owner-a"));
+  store.refresh();
+  store.resetOwnerScope();
+
+  assert.equal(requests[0].signal.aborted, true);
+  assert.deepEqual(store.getSnapshot(), {
+    agents: [],
+    conversations: [],
+    hasError: false,
+    hasLoaded: false,
+    isLoading: true,
+    rooms: [],
+  });
+
+  requests[0].resolve(directoryPayload("owner-a-late"));
+  await flushPromises();
+  assert.deepEqual(store.getSnapshot().agents, []);
+});
+
 test("directory consumers expose blocking initial failure and non-blocking stale failure", async () => {
   const [
     launcherPage,

@@ -3,14 +3,11 @@ import { useCallback, useMemo, useState } from "react";
 import type {
   SkillMarketplaceFeedback,
   SkillMarketplaceFeedbackActions,
+  SkillMarketplaceFeedbackInput,
   SkillMarketplaceFeedbackTone,
 } from "./skill-marketplace-controller";
 
-interface FeedbackState {
-  message: string;
-  pending: boolean;
-  tone: SkillMarketplaceFeedbackTone;
-}
+type FeedbackState = SkillMarketplaceFeedbackInput;
 
 export function useSkillMarketplaceFeedback(): {
   actions: SkillMarketplaceFeedbackActions;
@@ -24,15 +21,19 @@ export function useSkillMarketplaceFeedback(): {
     },
     [],
   );
+  const report = useCallback((next: SkillMarketplaceFeedbackInput) => {
+    setState(next);
+  }, []);
   const actions = useMemo<SkillMarketplaceFeedbackActions>(
     () => ({
       clear,
       error: (message) => publish("error", message),
+      report,
       start: (message) => publish("warning", message, true),
       success: (message) => publish("success", message),
       warning: (message) => publish("warning", message),
     }),
-    [clear, publish],
+    [clear, publish, report],
   );
   const feedback = useMemo<SkillMarketplaceFeedback | null>(
     () => state ? { ...state, dismiss: clear } : null,

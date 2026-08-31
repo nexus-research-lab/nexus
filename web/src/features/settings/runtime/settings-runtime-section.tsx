@@ -25,6 +25,8 @@ import {
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
+
+import { PreferencesReliabilityNotice } from "../general/components/preferences-reliability-notice";
 import { WorkspaceContentHeader } from "@/shared/ui/layout/workspace-content-header";
 import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
@@ -123,6 +125,12 @@ export function SettingsRuntimeSection() {
         title={t("settings.runtime.section_title")}
       />
       <section className="space-y-2.5">
+        <PreferencesReliabilityNotice
+          feedback={settings.preferencesFeedback ?? settings.runtimeFeedback}
+          recovery={settings.preferencesFeedback
+            ? settings.preferencesRecovery
+            : undefined}
+        />
         <div className={SETTINGS_CARD_CLASS_NAME}>
           <div className={SETTINGS_ROW_CLASS_NAME}>
             <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
@@ -187,11 +195,6 @@ export function SettingsRuntimeSection() {
             </>
           )}
         </div>
-        {settings.feedbackMessage ? (
-          <p className="px-1 text-xs text-(--danger-text-color)">
-            {settings.feedbackMessage}
-          </p>
-        ) : null}
       </section>
     </div>
   );
@@ -567,6 +570,9 @@ function WebSearchRow({
                   label={t("settings.runtime.web_search_anysearch_params")}
                 >
                   <textarea
+                    aria-describedby={anySearchParamsError
+                      ? "runtime-anysearch-params-error"
+                      : undefined}
                     aria-invalid={anySearchParamsError}
                     className="input-shell min-h-16 w-full resize-y rounded-[8px] bg-transparent px-2.5 py-1.5 font-mono text-2xs leading-4 text-(--text-strong) outline-none placeholder:text-(--text-soft)"
                     disabled={disabled}
@@ -593,8 +599,22 @@ function WebSearchRow({
                     value={anySearchParamsText}
                   />
                   {anySearchParamsError ? (
-                    <span className="text-2xs text-(--danger-text-color)">
-                      {t("settings.runtime.web_search_anysearch_params_invalid")}
+                    <span
+                      aria-atomic="true"
+                      aria-live="polite"
+                      className="block space-y-0.5 text-2xs leading-4"
+                      id="runtime-anysearch-params-error"
+                      role="status"
+                    >
+                      <span className="block font-medium text-(--danger-text-color)">
+                        {t("settings.runtime.web_search_anysearch_params_invalid")}
+                      </span>
+                      <span className="block text-(--text-muted)">
+                        {t("settings.runtime.web_search_anysearch_params_invalid_impact")}
+                      </span>
+                      <span className="block text-(--text-default)">
+                        {t("settings.runtime.web_search_anysearch_params_invalid_next_step")}
+                      </span>
                     </span>
                   ) : null}
                 </SettingsField>

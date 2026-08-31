@@ -1,7 +1,7 @@
 /**
- * INPUT: Goal 草稿、预算、校验结果与提交命令。
- * OUTPUT: 无装饰标题的 plain Goal 编辑表单。
- * POS: Conversation Goal 编辑边界；只保留目标和可选预算。
+ * INPUT: Goal 草稿、预算、可靠性事实、修改门禁与提交/只读核对命令。
+ * OUTPUT: 保留草稿、阻止未知结果重复提交并展示完整恢复信息的 plain 编辑表单。
+ * POS: Conversation Goal 编辑边界；不解释 mutation 结果或自动重发修改。
  */
 "use client";
 
@@ -19,38 +19,45 @@ import {
 import { getDialogActionClassName } from "@/shared/ui/dialog/dialog-styles";
 import { UiField, UiInput, UiTextarea } from "@/shared/ui/form/form-control";
 
+import type { GoalReliabilityState } from "./goal-lifecycle-recovery";
 import { buildGoalDraftFormModel } from "./goal-model";
+import { GoalReliabilityNotice } from "./goal-reliability-notice";
 
 interface GoalDraftFormProps {
   budget: string;
   disabled: boolean;
-  error: string | null;
   isLoading: boolean;
   loadingLabel?: string | null;
+  mutationBlocked: boolean;
   objective: string;
   onBudgetChange: (value: string) => void;
   onCancel: () => void;
   onObjectiveChange: (value: string) => void;
+  onRefresh: () => void;
   onSubmit: (event: FormEvent) => void;
+  reliability: GoalReliabilityState | null;
 }
 
 export function GoalDraftForm({
   budget,
   disabled,
-  error,
   isLoading,
   loadingLabel = null,
+  mutationBlocked,
   objective,
   onBudgetChange,
   onCancel,
   onObjectiveChange,
+  onRefresh,
   onSubmit,
+  reliability,
 }: GoalDraftFormProps) {
   const objectiveRef = useRef<HTMLTextAreaElement | null>(null);
   const model = buildGoalDraftFormModel({
     disabled,
     isLoading,
     loadingLabel,
+    mutationBlocked,
     objective,
   });
 
@@ -75,8 +82,15 @@ export function GoalDraftForm({
           />
 
           <UiDialogBody className="flex flex-col gap-4">
+            {reliability ? (
+              <GoalReliabilityNotice
+                isRefreshing={isLoading}
+                mutationBlocked={mutationBlocked}
+                state={reliability}
+                onRefresh={onRefresh}
+              />
+            ) : null}
             <UiField
-              error={error}
               htmlFor="goal-objective-input"
               label="目标"
             >
@@ -113,7 +127,7 @@ export function GoalDraftForm({
           <UiDialogFooter appearance="plain" className="justify-end gap-3">
             <button
               className={getDialogActionClassName("default")}
-              disabled={model.fieldsDisabled}
+              disabled={!model.canClose}
               type="button"
               onClick={onCancel}
             >
@@ -126,7 +140,7 @@ export function GoalDraftForm({
             >
               {model.isLoading ? (
                 <span className="inline-flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
                   {model.submitLabel}
                 </span>
               ) : (

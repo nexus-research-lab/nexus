@@ -53,6 +53,9 @@ func TestServicePublishesWorkspaceLiveEvents(t *testing.T) {
 	if apiEvent.ContentSnapshot == nil || *apiEvent.ContentSnapshot != "hello live" {
 		t.Fatalf("API live 事件内容不正确: %+v", apiEvent)
 	}
+	if apiEvent.ContentRevision != workspaceFileRevision([]byte("hello live")) {
+		t.Fatalf("API live 事件 revision 不正确: %+v", apiEvent)
+	}
 
 	agentFilePath := filepath.Join(agentValue.WorkspacePath, "notes", "agent.txt")
 	if err = os.MkdirAll(filepath.Dir(agentFilePath), 0o755); err != nil {
@@ -73,6 +76,9 @@ func TestServicePublishesWorkspaceLiveEvents(t *testing.T) {
 	})
 	if agentEvent.ContentSnapshot == nil || *agentEvent.ContentSnapshot != "agent write" {
 		t.Fatalf("Agent live 事件内容不正确: %+v", agentEvent)
+	}
+	if agentEvent.ContentRevision != workspaceFileRevision([]byte("agent write")) {
+		t.Fatalf("Agent live 事件 revision 不正确: %+v", agentEvent)
 	}
 }
 

@@ -1,3 +1,8 @@
+/**
+ * INPUT: 规范化 Socket 配置、订阅者、Session/请求 lease 与 owner reset。
+ * OUTPUT: 共享物理通道、引用计数生命周期和跨 owner 强制摘除/断连。
+ * POS: WebSocket 连接注册中心；旧 channel cleanup 永远不能影响同 key 的新 owner 通道。
+ */
 import type {
   WebSocketMessage,
   WebSocketSendResult,
@@ -111,6 +116,17 @@ export class SharedWebSocketChannel {
     return { error: this.error, state: this.state };
   }
 
+  /**
+   * Auth owner 变化时永久废弃本通道。先断开网络，再静默清空请求、Session
+   * 与订阅租约，避免旧身份的 binding 被新连接重放。
+   */
+  disposeOwnerScope(): void {
+    this.client.disconnect();
+    this.requestTransports.resetOwnerScope();
+    this.sessionBindings.resetOwnerScope();
+    this.subscribers.clear();
+  }
+
   private publishMessage(message: unknown): void {
     this.requestTransports.handleMessage(message);
     for (const subscriber of this.subscribers.values()) {
@@ -142,7 +158,7 @@ export class SharedWebSocketChannel {
   }
 }
 
-class SharedWebSocketRegistry {
+export class SharedWebSocketRegistry {
   private readonly channels = new Map<string, SharedWebSocketChannel>();
   private readonly cleanupTimers = new Map<string, number>();
 
@@ -174,16 +190,17 @@ class SharedWebSocketRegistry {
   }
 
   release(channelKey: string, channel: SharedWebSocketChannel): void {
+    // owner reset 后旧 Hook cleanup 仍可能迟到；它没有权限触碰同 key 的新通道或其 timer。
+    if (this.channels.get(channelKey) !== channel) {
+      return;
+    }
     if (channel.hasConsumers()) {
       return;
     }
     this.cancelRelease(channelKey);
     const timerId = window.setTimeout(() => {
       this.cleanupTimers.delete(channelKey);
-      if (
-        channel.hasConsumers() ||
-        this.channels.get(channelKey) !== channel
-      ) {
+      if (channel.hasConsumers() || this.channels.get(channelKey) !== channel) {
         return;
       }
       console.debug("[useWebSocket] Cleaning up shared WebSocket client");
@@ -191,6 +208,19 @@ class SharedWebSocketRegistry {
       this.channels.delete(channelKey);
     }, SHARED_SOCKET_RELEASE_DELAY_MS);
     this.cleanupTimers.set(channelKey, timerId);
+  }
+
+  /** 原子摘除并断开全部旧 owner 通道；后续相同 key 必须创建新握手。 */
+  resetOwnerScope(): void {
+    for (const timerId of this.cleanupTimers.values()) {
+      window.clearTimeout(timerId);
+    }
+    this.cleanupTimers.clear();
+    const channels = Array.from(this.channels.values());
+    this.channels.clear();
+    for (const channel of channels) {
+      channel.disposeOwnerScope();
+    }
   }
 
   private cancelRelease(channelKey: string): void {
@@ -204,3 +234,8 @@ class SharedWebSocketRegistry {
 }
 
 export const sharedWebSocketRegistry = new SharedWebSocketRegistry();
+
+/** Auth owner scope reset 的应用装配入口。 */
+export function resetSharedWebSocketsOwnerScope(): void {
+  sharedWebSocketRegistry.resetOwnerScope();
+}

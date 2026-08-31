@@ -8,6 +8,7 @@
 import { useEffect } from "react";
 import { RefreshCw } from "lucide-react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
@@ -70,6 +71,7 @@ export function ScheduledTaskRunHistoryDialog({
   task,
   unconfirmed,
 }: ScheduledTaskRunHistoryDialogProps) {
+  const { t } = useI18n();
   const activeTask = isOpen ? task : null;
   const resource = useScheduledTaskRunHistoryResource(
     activeTask?.job_id ?? null,
@@ -146,9 +148,8 @@ export function ScheduledTaskRunHistoryDialog({
                 <UiResourceState
                   className="mb-3 min-h-0 py-4"
                   description={actions.feedback.message}
-                  impact={actions.feedback.impact ?? "已有任务和运行记录保持不变。"}
-                  nextStep={actions.feedback.nextStep ?? "刷新运行历史后再决定下一步。"}
-                  role={actions.feedback.tone === "error" ? "alert" : "status"}
+                  impact={actions.feedback.impact ?? t("capability.scheduled_history_feedback_fallback_impact")}
+                  nextStep={actions.feedback.nextStep ?? t("capability.scheduled_history_feedback_fallback_next_step")}
                   size="sm"
                   state={actions.feedback.tone === "success" ? "success" : "error"}
                   title={actions.feedback.title}

@@ -14,11 +14,10 @@ import {
 } from "react";
 
 import {
-  createPairingApi,
+  type CreatePairingPayload,
   type ImChannelType,
   type ImChatType,
   type ImPairingStatus,
-  type PairingView,
 } from "@/lib/api/capability/channel-api";
 import { UiButton } from "@/shared/ui/button/button";
 import {
@@ -30,6 +29,8 @@ import {
   UiDialogPortal,
 } from "@/shared/ui/dialog/dialog";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
+import { FeedbackBanner } from "@/shared/ui/feedback/feedback-banner";
+import type { FeedbackBannerProps } from "@/shared/ui/feedback/feedback-banner-contract";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import type { Agent } from "@/types/agent/agent";
 
@@ -46,16 +47,18 @@ import {
 
 interface CreatePairingDialogProps {
   agents: Agent[];
+  blocked: boolean;
+  failure: FeedbackBannerProps | null;
   onClose: () => void;
-  onCreated: (item: PairingView) => void;
-  onError: (message: string) => void;
+  onCreate: (payload: CreatePairingPayload) => Promise<boolean>;
 }
 
 export function CreatePairingDialog({
   agents,
+  blocked,
+  failure,
   onClose,
-  onCreated,
-  onError,
+  onCreate,
 }: CreatePairingDialogProps) {
   const savingRef = useRef(false);
   const [draft, setDraft] = useState(() => createPairingDraft(
@@ -85,16 +88,15 @@ export function CreatePairingDialog({
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     const payload = buildCreatePairingPayload(draft);
-    if (!payload || savingRef.current) {
+    if (!payload || savingRef.current || blocked) {
       return;
     }
     savingRef.current = true;
     setSaving(true);
     try {
-      onCreated(await createPairingApi(payload));
-      onClose();
-    } catch (error) {
-      onError(error instanceof Error ? error.message : "新增配对失败");
+      if (await onCreate(payload)) {
+        onClose();
+      }
     } finally {
       savingRef.current = false;
       setSaving(false);
@@ -121,6 +123,7 @@ export function CreatePairingDialog({
           />
 
           <UiDialogBody className="space-y-4" scrollable>
+            {failure ? <FeedbackBanner {...failure} /> : null}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <UiField label="渠道">
                 <UiSelectMenu
@@ -235,19 +238,21 @@ export function CreatePairingDialog({
 
           <UiDialogFooter appearance="plain">
             <UiButton
-              disabled={saving}
+              disabled={saving || blocked}
               onClick={onClose}
               type="button"
             >
               取消
             </UiButton>
             <UiButton
-              disabled={saving || !draft.agentId}
+              disabled={saving || blocked || !draft.agentId}
               tone="primary"
               type="submit"
               variant="solid"
             >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {saving ? (
+                <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+              ) : null}
               {saving ? "创建中..." : "新增配对"}
             </UiButton>
           </UiDialogFooter>

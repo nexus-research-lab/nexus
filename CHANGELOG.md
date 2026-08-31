@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Standardized shared failure banners and resource states around a persistent
+  result, current-state impact, and explicit next action contract, with
+  independent screen-reader urgency and responsive mobile reflow.
 - Updated the bundled six-player Werewolf Room Skill so the permanent Agent host asks whether the user wants to play, keeps spectators out of the role pool, and randomly assigns the user a player role only after opt-in.
 - Disabled model-generated tool-use summaries by default while retaining explicit runtime opt-in and the existing deterministic activity labels.
 - Consolidated Nexus-owned in-process runtime tools under one round-scoped `nexus` MCP server while keeping third-party, custom, and Connector MCP servers independently selected and authorized.
@@ -27,6 +30,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Split first-time model-provider setup into independently recoverable save,
+  connection-test, and default-selection stages. Lost responses now reconcile
+  exact Provider keys, aggregate versions, non-secret configuration fingerprints,
+  test timestamps, and preference state without storing credentials or repeating
+  a completed stage; Provider HTTP failures also expose stable FailureCore facts.
+- Prevented duplicate Agent creation after a lost response by adding an
+  owner-scoped creation receipt, exact intent conflict detection, atomic
+  Agent/profile/runtime commit, deletion tombstones, and reload-safe client
+  reconciliation without reusing HTTP diagnostic IDs or storing form secrets.
+- Replaced raw macOS, Windows, and browser-extension error text with
+  stage-specific recovery copy that explains the failure, its effect on
+  existing data, and the next safe action while keeping internal causes in
+  diagnostics.
+- Hardened Channel configuration, account, QR login, and Pairing failures with
+  stale-safe reads, machine-evidence copy, read-only reconciliation for
+  uncertain writes, and fixed recovery guidance that hides provider details.
+- Prevented Skill update, delete, import, and update-check writes from being
+  repeated when their result is uncertain. Confirmed writes now remain complete
+  if only the catalog refresh fails, while exact in-page intents stay locked
+  until an authoritative read or an explicit new user action resolves them.
+- Prevented workspace create, rename, delete, and multi-file upload commands
+  from being repeated after an uncertain response. Confirmed file changes now
+  remain successful when only the list refresh fails, while uncertain results
+  are checked against the exact Agent and paths and uploads retain per-file
+  completed, unconfirmed, rejected, and not-started outcomes.
+- Kept uncertain Goal lifecycle changes locked to the exact in-page account,
+  Session, and Goal intent, reconciled only from authoritative current state,
+  separated a confirmed write from a later refresh failure, and cleared stale
+  Goal data when conversation scope or access changes.
+- Prevented stale or fallback preference snapshots from overwriting newer
+  settings. Preference writes now use the existing monotonic version as an
+  optional HTTP precondition, preserve unresolved page drafts, and reconcile
+  conflicts or unknown outcomes before an explicit reapply.
+- Prevented Memory edits from silently overwriting Agent or concurrent browser
+  updates. Memory files now use backward-compatible content revisions and
+  conditional writes, preserve drafts across conflicts, reconcile unknown save
+  outcomes before another write, and require an explicit choice before replacing
+  the latest saved version.
+- Prevented workspace text editors from opening before a versioned read or
+  overwriting concurrent Agent and browser updates. Local drafts now survive live
+  changes, revision conflicts, and uncertain save responses until the latest file
+  is checked and the user explicitly chooses which content to keep.
+- Bound each Feishu Device Flow attempt to the exact OAuth app credentials that
+  started it. Cancellation, polling failures, expiry, overlapping QR attempts,
+  and manual setup errors no longer replace the active app or connection; a new
+  app and its token switch together only after successful authorization.
+- Cleared owner-scoped Home directories, conversation metadata, Room tabs,
+  pinned conversations, and local Composer history before exposing a different
+  signed-in user, including cross-tab login changes and late directory reads.
+- Kept uncertain Room deletions inside a locked confirmation flow, reconciled
+  the exact Room against the authoritative directory before any retry, and
+  allowed another DELETE only after a confirmed not-applied result.
+- Prevented Agent deletion failures from closing the confirmation flow or
+  navigating as success. The UI now distinguishes a rejected deletion, a
+  committed deletion with incomplete cleanup, an already absent Agent, and an
+  outcome that must be checked before any retry.
 - Committed each scheduled-task runtime claim and its initial run ledger in one
   transaction before dispatch. Manual run requests now keep a durable
   owner-scoped identity, replay the exact accepted run after a lost response,

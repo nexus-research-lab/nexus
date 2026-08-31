@@ -950,6 +950,7 @@ test("工作区文件操作跟随界面语言", async () => {
     );
     const presentation = buildTextFileEditorPresentation({
       fileType: "markdown",
+      isAvailable: true,
       isDirty: true,
       isEditing: false,
       isExternalWriting: false,

@@ -1,4 +1,101 @@
+// INPUT: Agent Skill 列表、搜索条件，以及 exact Agent+Skill 读取/修改失败事实。
+// OUTPUT: 列表分组投影与不猜测 mutation 结果的可见恢复模型。
+// POS: Agent Options Skill 子域的纯模型；不发请求、不自动重放开关。
+import {
+  getErrorMessage,
+  projectMutationFailure,
+  type MutationFailureEffect,
+} from "@/lib/error-message";
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type { AgentSkillEntry } from "@/types/capability/skill";
+
+export interface AgentSkillMutationTarget {
+  agentId: string;
+  desiredEnabled: boolean;
+  skillName: string;
+}
+
+export interface AgentSkillsReadFailure {
+  impact: string;
+  message: string;
+  nextStep: string;
+  title: string;
+}
+
+export interface AgentSkillMutationFailure {
+  blocksRepeat: boolean;
+  effect: MutationFailureEffect;
+  impact: string;
+  message: string;
+  nextStep: string;
+  target: AgentSkillMutationTarget;
+  title: string;
+}
+
+export function buildAgentSkillsReadFailure(
+  error: unknown,
+  t: I18nContextValue["t"],
+): AgentSkillsReadFailure {
+  return {
+    impact: t("agent_options.skills.load_failed_impact"),
+    message: getErrorMessage(error, t("agent_options.skills.load_failed")),
+    nextStep: t("agent_options.skills.load_failed_next_step"),
+    title: t("agent_options.skills.load_failed"),
+  };
+}
+
+export function buildAgentSkillMutationFailure(
+  error: unknown,
+  target: AgentSkillMutationTarget,
+  t: I18nContextValue["t"],
+): AgentSkillMutationFailure {
+  const failure = projectMutationFailure(
+    error,
+    t("agent_options.skills.toggle_failed"),
+  );
+  const notApplied = failure.effect === "not_applied";
+  const committed = failure.effect === "committed";
+  return {
+    blocksRepeat: !notApplied,
+    effect: failure.effect,
+    impact: notApplied
+      ? t("agent_options.skills.toggle_not_applied_impact")
+      : committed
+        ? t("state.committed_refresh_impact")
+        : t("agent_options.skills.toggle_unknown_impact"),
+    message: failure.message,
+    nextStep: notApplied
+      ? t("agent_options.skills.toggle_not_applied_next_step")
+      : committed
+        ? t("state.committed_refresh_next_step")
+        : t("agent_options.skills.toggle_unknown_next_step"),
+    target,
+    title: notApplied
+      ? t("agent_options.skills.toggle_failed")
+      : committed
+        ? t("agent_options.skills.toggle_committed_title")
+        : t("agent_options.skills.toggle_unknown_title"),
+  };
+}
+
+export function buildAgentSkillRefreshAfterMutationFailure(
+  error: unknown,
+  target: AgentSkillMutationTarget,
+  t: I18nContextValue["t"],
+): AgentSkillMutationFailure {
+  return {
+    blocksRepeat: true,
+    effect: "committed",
+    impact: t("state.committed_refresh_impact"),
+    message: getErrorMessage(
+      error,
+      t("agent_options.skills.refresh_after_toggle_failed"),
+    ),
+    nextStep: t("state.committed_refresh_next_step"),
+    target,
+    title: t("agent_options.skills.toggle_committed_title"),
+  };
+}
 
 type AvailableSkillsEmptyState =
   | "catalog_empty"

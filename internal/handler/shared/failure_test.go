@@ -1,6 +1,7 @@
 package shared
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -60,6 +61,22 @@ func TestWriteFailureKeepsLegacyCancellationAndSanitization(t *testing.T) {
 	}
 }
 
+func TestWriteFailureDoesNotCopyRawDetailIntoSharedLogs(t *testing.T) {
+	var logOutput bytes.Buffer
+	api := NewAPI(slog.New(slog.NewJSONHandler(&logOutput, nil)))
+	recorder := httptest.NewRecorder()
+
+	api.WriteFailure(recorder, http.StatusInternalServerError, "provider-token private/path sql statement")
+
+	logs := logOutput.String()
+	if strings.Contains(logs, "provider-token") || strings.Contains(logs, "private/path") {
+		t.Fatalf("旧失败日志泄露了未经分类的 detail: %s", logs)
+	}
+	if !strings.Contains(logs, `"has_detail":true`) {
+		t.Fatalf("旧失败日志应保留非敏感的 detail 存在性: %s", logs)
+	}
+}
+
 func TestWriteErrorAddsOptionalFailureCoreWithoutChangingEnvelope(t *testing.T) {
 	api := newFailureTestAPI()
 	handler := RequestContextMiddleware(api.BaseLogger())(http.HandlerFunc(
@@ -109,6 +126,9 @@ func TestWriteErrorAddsOptionalFailureCoreWithoutChangingEnvelope(t *testing.T) 
 		payload.Data.Failure.Effect != protocol.FailureEffectNotApplied {
 		t.Fatalf("FailureCore 事实不正确: %#v", payload.Data.Failure)
 	}
+	if payload.Data.Detail != "工作图已被其他操作更新" {
+		t.Fatalf("显式安全 detail 不应被压成通用 HTTP 文案: %q", payload.Data.Detail)
+	}
 }
 
 func TestWriteErrorDoesNotExposeCauseOrInventRequestID(t *testing.T) {
@@ -130,6 +150,141 @@ func TestWriteErrorDoesNotExposeCauseOrInventRequestID(t *testing.T) {
 	if !strings.Contains(body, `"code":"common.request_failed"`) ||
 		!strings.Contains(body, `"effect":"unknown"`) {
 		t.Fatalf("空结构化事实没有安全回退: %s", body)
+	}
+}
+
+func TestWriteErrorDoesNotCopyClientDetailIntoLogs(t *testing.T) {
+	var logOutput bytes.Buffer
+	api := NewAPI(slog.New(slog.NewJSONHandler(&logOutput, nil)))
+	recorder := httptest.NewRecorder()
+
+	api.WriteError(recorder, nil, http.StatusBadRequest, FailureSpec{
+		Code:     "agent.create_request_invalid",
+		Category: protocol.FailureCategoryValidation,
+		Effect:   protocol.FailureEffectNotApplied,
+		Detail:   "资源名称包含用户私密内容",
+	})
+
+	logs := logOutput.String()
+	if strings.Contains(logs, "资源名称包含用户私密内容") {
+		t.Fatalf("用户文案不得复制到结构化日志: %s", logs)
+	}
+	if !strings.Contains(logs, `"has_client_detail":true`) ||
+		!strings.Contains(logs, `"failure_code":"agent.create_request_invalid"`) {
+		t.Fatalf("日志应保留非敏感失败事实: %s", logs)
+	}
+}
+
+func TestWriteErrorDoesNotCopyRawCauseIntoSharedLogs(t *testing.T) {
+	var logOutput bytes.Buffer
+	api := NewAPI(slog.New(slog.NewJSONHandler(&logOutput, nil)))
+	recorder := httptest.NewRecorder()
+
+	api.WriteError(recorder, nil, http.StatusInternalServerError, FailureSpec{
+		Code:     "provider.connection_failed",
+		Category: protocol.FailureCategoryInternal,
+		Effect:   protocol.FailureEffectUnknown,
+		Cause:    errors.New("provider-token private/path sql statement"),
+	})
+
+	logs := logOutput.String()
+	if strings.Contains(logs, "provider-token") || strings.Contains(logs, "private/path") {
+		t.Fatalf("共享失败日志泄露了未经脱敏的 cause: %s", logs)
+	}
+	if !strings.Contains(logs, `"has_cause":true`) || !strings.Contains(logs, `"cause_type"`) {
+		t.Fatalf("共享失败日志应保留 cause 存在性和类型: %s", logs)
+	}
+}
+
+func TestWriteErrorRejectsUnstableCodeAndRecoveryAction(t *testing.T) {
+	api := newFailureTestAPI()
+	request := httptest.NewRequest(http.MethodPost, "/scheduled-tasks", nil)
+	recorder := httptest.NewRecorder()
+
+	api.WriteError(recorder, request, http.StatusConflict, FailureSpec{
+		Code:     "https://internal.example/secret",
+		Category: protocol.FailureCategoryConflict,
+		Effect:   protocol.FailureEffectUnknown,
+		Detail:   "请求结果尚未确认",
+		Resolution: &protocol.FailureResolution{
+			Actor:  protocol.FailureRecoveryActorUser,
+			Action: "curl https://internal.example/secret",
+		},
+	})
+
+	body := recorder.Body.String()
+	if !strings.Contains(body, `"code":"common.request_failed"`) {
+		t.Fatalf("非稳定 code 没有安全降级: %s", body)
+	}
+	if strings.Contains(body, "internal.example") || strings.Contains(body, `"resolution"`) {
+		t.Fatalf("非稳定 code/action 泄露到 wire: %s", body)
+	}
+}
+
+func TestNormalizeFailureSemanticKeyRequiresDomainReasonShape(t *testing.T) {
+	tests := []struct {
+		value string
+		want  string
+		valid bool
+	}{
+		{value: " workgraph.refresh_editor ", want: "workgraph.refresh_editor", valid: true},
+		{value: "automation.delivery_retry_2", want: "automation.delivery_retry_2", valid: true},
+		{value: "", want: "", valid: true},
+		{value: "request_failed", valid: false},
+		{value: "WorkGraph.refresh", valid: false},
+		{value: "workgraph..refresh", valid: false},
+		{value: "workgraph.-refresh", valid: false},
+		{value: "workgraph.refresh/editor", valid: false},
+		{value: strings.Repeat("a", maxFailureSemanticKeyLength+1) + ".reason", valid: false},
+	}
+	for _, test := range tests {
+		got, valid := normalizeFailureSemanticKey(test.value)
+		if got != test.want || valid != test.valid {
+			t.Fatalf("normalizeFailureSemanticKey(%q)=(%q,%t) want=(%q,%t)", test.value, got, valid, test.want, test.valid)
+		}
+	}
+}
+
+func TestNormalizeFailureResolutionRejectsUnknownActor(t *testing.T) {
+	resolution, valid := normalizeFailureResolution(&protocol.FailureResolution{
+		Actor:  "future_actor",
+		Action: "workgraph.refresh_editor",
+	})
+	if resolution != nil || valid {
+		t.Fatalf("服务端不应写出未知 recovery actor: %#v valid=%t", resolution, valid)
+	}
+}
+
+func TestWriteErrorDegradesUnknownEffectWithoutPublishingIt(t *testing.T) {
+	api := newFailureTestAPI()
+	request := httptest.NewRequest(http.MethodPost, "/scheduled-tasks", nil)
+	recorder := httptest.NewRecorder()
+
+	api.WriteError(recorder, request, http.StatusInternalServerError, FailureSpec{
+		Code:   "automation.task_update_failed",
+		Effect: protocol.FailureEffect("partially_maybe_saved"),
+	})
+
+	body := recorder.Body.String()
+	if !strings.Contains(body, `"effect":"unknown"`) || strings.Contains(body, "partially_maybe_saved") {
+		t.Fatalf("未知 effect 没有安全降级: %s", body)
+	}
+}
+
+func TestWriteErrorDegradesUnknownCategoryFromHTTPStatus(t *testing.T) {
+	api := newFailureTestAPI()
+	request := httptest.NewRequest(http.MethodPost, "/scheduled-tasks", nil)
+	recorder := httptest.NewRecorder()
+
+	api.WriteError(recorder, request, http.StatusConflict, FailureSpec{
+		Code:     "automation.task_update_failed",
+		Category: protocol.FailureCategory("provider_secret_category"),
+		Effect:   protocol.FailureEffectNotApplied,
+	})
+
+	body := recorder.Body.String()
+	if !strings.Contains(body, `"category":"conflict"`) || strings.Contains(body, "provider_secret_category") {
+		t.Fatalf("未知 category 没有按 HTTP 语义安全降级: %s", body)
 	}
 }
 

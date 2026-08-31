@@ -1,3 +1,6 @@
+// INPUT: 当前 Device Flow 会话及轮询终态回调。
+// OUTPUT: 会话级轮询器生命周期；卸载只停止轮询，不删除 Connector 配置。
+// POS: React 与 ConnectorDeviceAuthPoller 之间的窄适配层。
 import { useEffect, useRef } from "react";
 
 import { pollConnectorDeviceAuthApi } from "@/lib/api/capability/connector-api";
@@ -47,7 +50,7 @@ export function useConnectorDeviceAuth({
         onConnected: (connectorId) => (
           callbacksRef.current.onConnected(connectorId)
         ),
-        onError: (message) => callbacksRef.current.onError(message),
+        onError: (message, kind) => callbacksRef.current.onError(message, kind),
         onMessage: (message) => callbacksRef.current.onMessage(message),
         onNext: (nextSession) => callbacksRef.current.onNext(nextSession),
       },

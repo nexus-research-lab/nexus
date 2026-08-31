@@ -22,6 +22,7 @@ import {
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { SIDEBAR_SELECTION_CLASS_NAME } from "@/shared/ui/sidebar/sidebar-selection";
 import { ConnectorIcon } from "@/features/capability/connectors/connector-icon";
 import type { ConnectorInfo } from "@/types/capability/connector";
@@ -40,6 +41,7 @@ interface AgentOptionsAdvancedTabProps {
   connectors: ConnectorInfo[];
   connectorsError: string | null;
   connectorsLoading: boolean;
+  onRetryConnectors: () => void;
   onToggleConnector: (connectorId: string) => void;
 }
 
@@ -65,6 +67,7 @@ export function AgentOptionsAdvancedTab({
   connectors,
   connectorsError,
   connectorsLoading,
+  onRetryConnectors,
   onToggleConnector,
 }: AgentOptionsAdvancedTabProps) {
   const { t } = useI18n();
@@ -145,17 +148,36 @@ export function AgentOptionsAdvancedTab({
             count: connectorIds.length,
           })}
         />
-        {connectorsLoading ? (
+        {connectorsLoading && connectors.length === 0 ? (
           <div className="flex h-16 items-center justify-center text-(--icon-muted)">
             <Loader2 className="h-4 w-4 animate-spin" />
           </div>
-        ) : connectorsError ? (
-          <p className="text-xs text-(--destructive)">{connectorsError}</p>
-        ) : connectors.length === 0 ? (
+        ) : null}
+        {connectorsError ? (
+          <UiResourceState
+            className="min-h-0 py-3"
+            impact={t(connectors.length > 0
+              ? "agent_options.advanced.connector_load_failed_stale_impact"
+              : "agent_options.advanced.connector_load_failed_empty_impact")}
+            nextStep={t("agent_options.advanced.connector_load_failed_next_step")}
+            primaryAction={{
+              busy: connectorsLoading,
+              label: t("state.retry"),
+              onClick: onRetryConnectors,
+            }}
+            size="sm"
+            state="error"
+            title={connectorsError}
+            urgency="polite"
+            variant="card"
+          />
+        ) : null}
+        {!connectorsLoading && !connectorsError && connectors.length === 0 ? (
           <p className="text-xs text-(--text-soft)">
             {t("agent_options.advanced.connector_empty")}
           </p>
-        ) : (
+        ) : null}
+        {connectors.length > 0 ? (
           <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3 [overflow-anchor:none]">
             {connectors.map((connector) => (
               <ConnectorAuthorizationRow
@@ -166,7 +188,7 @@ export function AgentOptionsAdvancedTab({
               />
             ))}
           </div>
-        )}
+        ) : null}
       </section>
     </div>
   );

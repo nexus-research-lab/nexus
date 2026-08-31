@@ -7,6 +7,7 @@ import type { FormEvent } from "react";
 
 import type { ChannelConfigView } from "@/lib/api/capability/channel-api";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -15,6 +16,7 @@ import {
   UiDialogPortal,
 } from "@/shared/ui/dialog/dialog";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
+import { FeedbackBanner } from "@/shared/ui/feedback/feedback-banner";
 import type { Agent } from "@/types/agent/agent";
 
 import { useChannelConnectionController } from "./use-channel-connection-controller";
@@ -27,7 +29,6 @@ interface ChannelConnectDialogProps {
   item: ChannelConfigView;
   onClose: () => void;
   onDeleted: (item: ChannelConfigView) => Promise<void> | void;
-  onError: (message: string) => void;
   onSaved: (item: ChannelConfigView, announce?: boolean) => void;
 }
 
@@ -36,21 +37,25 @@ export function ChannelConnectDialog({
   item,
   onClose,
   onDeleted,
-  onError,
   onSaved,
 }: ChannelConnectDialogProps) {
+  const { t } = useI18n();
   const controller = useChannelConnectionController({
     agents,
     item,
     onClose,
     onDeleted,
-    onError,
     onSaved,
   });
   const deleteCopy = getChannelDeleteDialogCopy(
     controller.pendingDelete,
     controller.currentItem,
   );
+  const hasConnectionProblem = controller.currentItem.configured
+    && (
+      controller.currentItem.connection_state === "error"
+      || Boolean(controller.currentItem.last_error)
+    );
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
@@ -63,7 +68,7 @@ export function ChannelConnectDialog({
         <UiDialogBackdrop
           className="z-[9999]"
           labelledBy="channel-connect-dialog-title"
-          onClose={onClose}
+          onClose={controller.close}
         >
           <UiDialogFormShell
             autoComplete="off"
@@ -73,12 +78,24 @@ export function ChannelConnectDialog({
           >
             <UiDialogHeader
               appearance="plain"
-              onClose={onClose}
+              onClose={controller.close}
               title={`连接 ${controller.currentItem.title}`}
               titleId="channel-connect-dialog-title"
             />
 
             <UiDialogBody className="space-y-5 px-5" scrollable>
+              {controller.connectionRecoveryNotice ? (
+                <FeedbackBanner {...controller.connectionRecoveryNotice} />
+              ) : null}
+              {hasConnectionProblem && !controller.connectionRecoveryNotice ? (
+                <FeedbackBanner
+                  impact={t("capability.channel_connection_error_impact")}
+                  message={t("capability.channel_connection_error_message")}
+                  nextStep={t("capability.channel_connection_error_next_step")}
+                  title={t("capability.channel_connection_error_title")}
+                  tone="error"
+                />
+              ) : null}
               {controller.planned ? (
                 <UiStateBlock
                   description="频道接入将在后续版本补充，当前版本暂不支持配置机器人或配对。"
@@ -97,11 +114,12 @@ export function ChannelConnectDialog({
             <ChannelConnectDialogFooter
               agentId={controller.draft.agentId}
               busy={controller.busy}
+              closeBlocked={controller.closeBlocked}
               configured={controller.currentItem.configured}
               deleting={controller.deleting}
               loginLoading={controller.loginLoading}
               loginRunning={controller.loginRunning}
-              onCancel={onClose}
+              onCancel={controller.close}
               onRequestDelete={controller.requestDeleteChannel}
               planned={controller.planned}
               saving={controller.saving}

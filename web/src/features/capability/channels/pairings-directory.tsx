@@ -15,8 +15,12 @@ import { CapabilityPageLayout } from "@/features/capability/shared/capability-pa
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
-import type { FeedbackBannerProps } from "@/shared/ui/feedback/feedback-banner";
+import {
+  completeFeedbackBanner,
+  type FeedbackBannerProps,
+} from "@/shared/ui/feedback/feedback-banner-contract";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
 import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
@@ -30,12 +34,18 @@ export function PairingsDirectory() {
   const { t } = useI18n();
   const controller = usePairingsController();
   const feedbackItem: FeedbackBannerProps | null = controller.feedback
-    ? {
-        message: controller.feedback.message,
-        onDismiss: controller.clearFeedback,
-        title: controller.feedback.title,
-        tone: controller.feedback.tone,
-      }
+    ? completeFeedbackBanner(
+        {
+          ...controller.feedback,
+          onDismiss: controller.feedback.dismissible === false
+            ? undefined
+            : controller.clearFeedback,
+        },
+        {
+          impact: t("feedback.unconfirmed_impact"),
+          nextStep: t("feedback.unconfirmed_next_step"),
+        },
+      )
     : null;
 
   return (
@@ -74,6 +84,18 @@ export function PairingsDirectory() {
               size="sm"
               title={t("capability.pairings_loading_title")}
             />
+          ) : controller.readFailed && controller.items.length === 0 ? (
+            <UiResourceState
+              description={t("capability.channel_pairing_catalog_load_failed_message")}
+              impact={t("capability.channel_pairing_catalog_load_failed_impact")}
+              nextStep={t("capability.channel_pairing_catalog_load_failed_next_step")}
+              primaryAction={{
+                label: t("capability.channel_reconcile_action"),
+                onClick: () => void controller.refresh(),
+              }}
+              state="error"
+              title={t("capability.channel_pairing_catalog_load_failed_title")}
+            />
           ) : controller.items.length === 0 ? (
             <PairingEmptyState
               busy={controller.busy}
@@ -110,9 +132,18 @@ export function PairingsDirectory() {
       {controller.createOpen ? (
         <CreatePairingDialog
           agents={controller.agents}
+          blocked={controller.busy}
+          failure={controller.createRecoveryFeedback
+            ? completeFeedbackBanner(
+                controller.createRecoveryFeedback,
+                {
+                  impact: t("feedback.unconfirmed_impact"),
+                  nextStep: t("feedback.unconfirmed_next_step"),
+                },
+              )
+            : null}
           onClose={controller.closeCreate}
-          onCreated={controller.pairingCreated}
-          onError={controller.reportCreateError}
+          onCreate={controller.createPairing}
         />
       ) : null}
 

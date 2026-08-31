@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * INPUT: 当前 Agent、owner-scoped Memory 目录和 path-scoped 删除恢复状态。
+ * OUTPUT: 目录/正文工作面、删除确认及持久 Problem / Impact / Recovery。
+ * POS: Memory 页面装配层；删除结果分类和对账归 Catalog 控制器。
+ */
 import { useEffect } from "react";
 import { LoaderCircle, RefreshCw } from "lucide-react";
 
@@ -9,6 +14,7 @@ import { UiResourceState } from "@/shared/ui/display/resource-state";
 import type { Agent } from "@/types/agent/agent";
 
 import { AgentMemoryCatalog } from "./catalog/agent-memory-catalog";
+import { MemoryDeletionIssueNotices } from "./catalog/memory-deletion-issue-notice";
 import { useAgentMemory } from "./catalog/use-agent-memory";
 import { MemoryDocumentPanel } from "./document/memory-document-panel";
 import "./memory-view.css";
@@ -43,10 +49,14 @@ export function AgentMemoryView({ agent }: AgentMemoryViewProps) {
         <MemoryContent agentId={agent.agent_id} memory={memory} />
       </div>
       <ConfirmDialog
-        confirmText={t("capability.memory_delete")}
+        confirmText={t(memory.document.deleteIntent === "new"
+          ? "capability.memory_delete_confirm_new_intent_action"
+          : "capability.memory_delete")}
         isOpen={!accessBlocked && deleteTarget !== null}
         message={!accessBlocked && deleteTarget
-          ? t("capability.memory_delete_confirm", { name: deleteTarget.title })
+          ? t(memory.document.deleteIntent === "new"
+            ? "capability.memory_delete_confirm_new_intent"
+            : "capability.memory_delete_confirm", { name: deleteTarget.title })
           : ""}
         onCancel={cancelDeleteDocument}
         onConfirm={() => {
@@ -56,7 +66,9 @@ export function AgentMemoryView({ agent }: AgentMemoryViewProps) {
           }
           void memory.document.confirmDeleteDocument();
         }}
-        title={t("capability.memory_delete")}
+        title={t(memory.document.deleteIntent === "new"
+          ? "capability.memory_delete_new_intent_title"
+          : "capability.memory_delete")}
         variant="danger"
       />
     </>
@@ -131,6 +143,16 @@ function MemoryContent({
           title={t("capability.memory_refresh_failed")}
         />
       ) : null}
+      <MemoryDeletionIssueNotices
+        action={memory.document.deleteAction}
+        commandPath={memory.document.deletingPath}
+        issues={memory.document.deleteIssues}
+        onBeginNewIntent={memory.document.beginNewDeleteIntent}
+        onReconcile={(path) => {
+          void memory.document.reconcileDeleteDocument(path);
+        }}
+        onRetry={memory.document.retryDeleteDocument}
+      />
       <div className="nexus-memory-layout min-h-0 min-w-0 flex-1">
         <AgentMemoryCatalog
           emptyFilterVisible={memory.catalog.emptyFilterVisible}
@@ -148,8 +170,10 @@ function MemoryContent({
         <MemoryDocumentPanel
           agentId={agentId}
           deleteBusy={Boolean(memory.document.deletingPath)}
-          deleteError={memory.document.deleteError}
-          deleting={memory.document.deletingPath === memory.document.selectedDocument?.path}
+          deleting={
+            memory.document.deleteAction === "delete"
+            && memory.document.deletingPath === memory.document.selectedDocument?.path
+          }
           document={memory.document.selectedDocument}
           onBack={memory.document.closeCompactDocument}
           onDelete={() => {

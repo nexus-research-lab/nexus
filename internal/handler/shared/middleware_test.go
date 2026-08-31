@@ -305,7 +305,7 @@ func TestDesktopSessionTokenFailureIsStructuredBeforeHandler(t *testing.T) {
 			t.Fatalf("解析 desktop auth failure: %v", err)
 		}
 		if payload.Code != "401" || payload.Message != "failed" || payload.Success ||
-			payload.Data.Detail != "未授权" ||
+			payload.Data.Detail != "桌面登录状态已失效" ||
 			payload.Data.Failure.Code != "auth.desktop_session_invalid" ||
 			payload.Data.Failure.Category != protocol.FailureCategoryAuthentication ||
 			payload.Data.Failure.Effect != test.effect {

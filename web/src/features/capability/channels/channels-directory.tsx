@@ -21,9 +21,11 @@ import {
 } from "@/features/capability/shared/capability-page-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
+  completeFeedbackBanner,
   type FeedbackBannerProps,
-} from "@/shared/ui/feedback/feedback-banner";
+} from "@/shared/ui/feedback/feedback-banner-contract";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
 import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
@@ -48,12 +50,18 @@ export function ChannelsDirectory() {
   const { t } = useI18n();
   const controller = useChannelsController();
   const feedbackItem: FeedbackBannerProps | null = controller.feedback
-    ? {
-        message: controller.feedback.message,
-        onDismiss: controller.clearFeedback,
-        title: controller.feedback.title,
-        tone: controller.feedback.tone,
-      }
+    ? completeFeedbackBanner(
+        {
+          ...controller.feedback,
+          onDismiss: controller.feedback.dismissible === false
+            ? undefined
+            : controller.clearFeedback,
+        },
+        {
+          impact: t("feedback.unconfirmed_impact"),
+          nextStep: t("feedback.unconfirmed_next_step"),
+        },
+      )
     : null;
 
   return (
@@ -95,8 +103,21 @@ export function ChannelsDirectory() {
             />
           </CapabilityFilterBar>
 
-          {controller.loading ? (
+          {controller.loading && controller.channels.length === 0 ? (
             <ChannelLoadingGrid />
+          ) : controller.readFailed && controller.channels.length === 0 ? (
+            <UiResourceState
+              description={t("capability.channel_catalog_load_failed_message")}
+              impact={t("capability.channel_catalog_load_failed_impact")}
+              nextStep={t("capability.channel_catalog_load_failed_next_step")}
+              primaryAction={{
+                label: t("capability.channel_reconcile_action"),
+                onClick: () => void controller.refresh(),
+              }}
+              size="md"
+              state="error"
+              title={t("capability.channel_catalog_load_failed_title")}
+            />
           ) : controller.visibleChannels.length === 0 ? (
             <UiStateBlock
               description={t("capability.channels_empty_description")}
@@ -127,7 +148,6 @@ export function ChannelsDirectory() {
           key={controller.selectedChannel.channel_type}
           onClose={controller.closeChannel}
           onDeleted={controller.deleteChannel}
-          onError={controller.reportError}
           onSaved={controller.saveChannel}
         />
       ) : null}

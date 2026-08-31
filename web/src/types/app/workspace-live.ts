@@ -2,8 +2,8 @@
  * Workspace Live 类型定义
  *
  * [INPUT]: 无外部依赖
- * [OUTPUT]: 对外提供 WorkspaceLiveEvent / WorkspaceLiveFileState
- * [POS]: types 模块的 workspace 实时事件协议
+ * [OUTPUT]: 对外提供 WorkspaceLiveEvent / WorkspaceLiveFileState 与可选正文 revision
+ * [POS]: types 模块的 workspace 实时事件协议；revision 不是业务身份
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 
@@ -22,6 +22,7 @@ export interface WorkspaceLiveEvent {
   session_key?: string | null;
   tool_use_id?: string | null;
   content_snapshot?: string | null;
+  content_revision?: string | null;
   appended_text?: string | null;
   diff_stats?: WorkspaceDiffStats | null;
   timestamp: string;
@@ -36,6 +37,7 @@ export interface WorkspaceLiveFileState {
   version: number;
   source: WorkspaceLiveEvent['source'];
   live_content?: string | null;
+  content_revision?: string | null;
   diff_stats?: WorkspaceDiffStats | null;
   updated_at: number;
 }

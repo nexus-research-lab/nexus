@@ -63,6 +63,8 @@ export interface ProviderConfigRecord {
   last_test_status: string;
   last_test_error: string;
   last_test_at?: string | null;
+  /** Server-owned monotonic aggregate revision used only for conditional writes. */
+  configuration_version: number;
   can_manage: boolean;
   agent_runtime_supported: boolean;
   models: ProviderModelRecord[];
@@ -176,6 +178,7 @@ export interface ProviderTestResult {
   status: string;
   error?: string;
   tested_at?: string | null;
+  configuration_version: number;
 }
 
 export type CCSwitchAppType = "claude" | "codex";

@@ -1,10 +1,11 @@
 /**
  * INPUT: 业务提供的明确标题、后果文案、输入值与确认/取消动作。
- * OUTPUT: 无默认警告套话、无装饰图标和消息卡片的紧凑决策弹窗。
- * POS: 全站轻量确认框与输入框；业务风险只能由调用方具体说明。
+ * OUTPUT: 紧凑决策弹窗；异步期间防重复提交，并可就地呈现结果、影响和下一步。
+ * POS: 全站轻量确认框与输入框；业务风险和失败事实只能由调用方具体说明。
  */
 "use client";
 
+import { CircleAlert } from "lucide-react";
 import {
   type FocusEvent,
   type KeyboardEvent,
@@ -30,8 +31,15 @@ import {
 } from "./decision-dialog-model";
 
 interface ConfirmDialogProps {
+  busy?: boolean;
   cancelText?: string;
   confirmText?: string;
+  failure?: {
+    impact: string;
+    nextStep: string;
+    title: string;
+    urgency?: "assertive" | "polite";
+  };
   isOpen: boolean;
   message: string;
   onCancel: () => void;
@@ -57,8 +65,10 @@ interface PromptDialogProps {
 }
 
 export function ConfirmDialog({
+  busy = false,
   cancelText = "取消",
   confirmText = "确认",
+  failure,
   isOpen,
   message,
   onCancel,
@@ -79,10 +89,11 @@ export function ConfirmDialog({
       describedBy={messageId}
       initialFocusRef={confirmButtonRef}
       labelledBy={titleId}
-      onClose={onCancel}
+      onClose={busy ? ignoreDialogClose : onCancel}
     >
       <UiDialogCloseButton
         className="absolute right-3 top-3 z-10"
+        disabled={busy}
         onClose={onCancel}
       />
       <UiDialogBody className="px-5 pb-4 pt-5 pr-14">
@@ -98,8 +109,32 @@ export function ConfirmDialog({
         >
           {message}
         </p>
+        {failure ? (
+          <div
+            aria-atomic="true"
+            aria-live={failure.urgency ?? "polite"}
+            className="mt-3 rounded-[8px] border border-[color:color-mix(in_srgb,var(--destructive)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_5%,transparent)] px-3 py-2.5"
+            role={failure.urgency === "assertive" ? "alert" : "status"}
+          >
+            <div className="flex items-start gap-2">
+              <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-(--destructive)" />
+              <div className="min-w-0 space-y-1">
+                <p className="text-compact font-semibold text-(--text-strong)">
+                  {failure.title}
+                </p>
+                <p className="text-xs leading-5 text-(--text-muted)">
+                  {failure.impact}
+                </p>
+                <p className="text-xs font-medium leading-5 text-(--text-default)">
+                  {failure.nextStep}
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </UiDialogBody>
       <DecisionDialogActions
+        busy={busy}
         cancelText={cancelText}
         confirmButtonRef={confirmButtonRef}
         confirmClassName="min-w-[110px]"
@@ -111,6 +146,8 @@ export function ConfirmDialog({
     </DecisionDialogFrame>
   );
 }
+
+function ignoreDialogClose(): void {}
 
 export function PromptDialog({
   cancelText = "取消",

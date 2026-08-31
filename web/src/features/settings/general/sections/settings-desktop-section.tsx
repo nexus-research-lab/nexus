@@ -1,8 +1,15 @@
+/**
+ * INPUT: 桌面版本资源与日志导出反馈。
+ * OUTPUT: 可重试版本状态、日志导出按钮及不裁切的全局反馈。
+ * POS: General 桌面分区视图；不读取原生异常或改变 bridge 命令。
+ */
 "use client";
 
 import { Download, Loader2, MonitorCog } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 
 import {
   SETTINGS_CARD_CLASS_NAME,
@@ -26,16 +33,12 @@ export function SettingsDesktopSection() {
   }
 
   return (
-    <section className="space-y-2.5">
+    <>
+      <section className="space-y-2.5">
       <div className="flex items-center justify-between gap-3 px-1">
         <h2 className={SETTINGS_SECTION_TITLE_CLASS_NAME}>
           {t("settings.desktop.section_title")}
         </h2>
-        {controller.feedbackMessage ? (
-          <span className="min-w-0 truncate text-xs text-(--text-soft)">
-            {controller.feedbackMessage}
-          </span>
-        ) : null}
       </div>
       <div className={SETTINGS_CARD_CLASS_NAME}>
         <div className={SETTINGS_ROW_CLASS_NAME}>
@@ -64,7 +67,30 @@ export function SettingsDesktopSection() {
             </button>
           </div>
         </div>
+        {controller.versionFailed ? (
+          <>
+            <div className="border-t border-(--divider-subtle-color)" />
+            <UiResourceState
+              className="border-0 bg-transparent"
+              description={t("settings.desktop.version_failed")}
+              impact={t("settings.desktop.version_failed_impact")}
+              nextStep={t("settings.desktop.version_failed_next_step")}
+              primaryAction={{
+                busy: controller.versionLoading,
+                busyLabel: t("settings.desktop.version_loading"),
+                label: t("settings.desktop.version_retry"),
+                onClick: controller.retryVersion,
+              }}
+              size="sm"
+              state="error"
+              title={t("settings.desktop.version_failed_title")}
+              urgency="polite"
+            />
+          </>
+        ) : null}
       </div>
-    </section>
+      </section>
+      <FeedbackBannerViewport item={controller.feedback} />
+    </>
   );
 }

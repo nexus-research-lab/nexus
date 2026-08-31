@@ -1,5 +1,5 @@
 // INPUT: 已持久化人工批准、当前 owner-main DM Actor 与 OAuth/Device 启动请求。
-// OUTPUT: opaque flow_id、公开奖励信息、跨 round 状态/取消与安全浏览器跳转。
+// OUTPUT: opaque flow_id、加密绑定本次 OAuth client 的跨 round 状态/取消与安全浏览器跳转。
 // POS: Connector 对话授权的持久生命周期编排。
 package connectors
 
@@ -19,8 +19,11 @@ import (
 )
 
 type authorizationFlowSecret struct {
-	AuthorizationURL string `json:"authorization_url,omitempty"`
-	DeviceCode       string `json:"device_code,omitempty"`
+	AuthorizationURL  string `json:"authorization_url,omitempty"`
+	DeviceCode        string `json:"device_code,omitempty"`
+	ClientID          string `json:"client_id,omitempty"`
+	ClientSecret      string `json:"client_secret,omitempty"`
+	CommitOAuthClient bool   `json:"commit_oauth_client,omitempty"`
 }
 
 // Start 执行已经被真实 permission allow 精确批准的 OAuth/Device 启动意图。
@@ -636,15 +639,16 @@ func (c *AuthorizationControl) startDevice(
 	mode DeviceAuthStartMode,
 ) (connectorstore.AuthorizationFlowActivation, error) {
 	var (
-		started *DeviceAuthStartResult
-		err     error
+		started      *DeviceAuthStartResult
+		clientID     string
+		clientSecret string
+		err          error
 	)
 	if entry.AutoOAuthClient {
 		switch mode {
 		case DeviceAuthStartModeOfficialQR:
 			started, err = c.connectors.startFeishuAppRegistration(ctx, entry)
 		case DeviceAuthStartModeManualCredentials:
-			var clientID, clientSecret string
 			clientID, clientSecret, err = c.connectors.oauthCredentials(
 				ctx, flow.OwnerUserID, entry.ConnectorID,
 			)
@@ -657,13 +661,12 @@ func (c *AuthorizationControl) startDevice(
 			err = errors.New("Device Flow mode 无效")
 		}
 	} else {
-		var providerClientID string
-		providerClientID, err = c.connectors.oauthPublicClientID(
+		clientID, err = c.connectors.oauthPublicClientID(
 			ctx, flow.OwnerUserID, entry.ConnectorID, entry.Title,
 		)
 		if err == nil {
 			started, err = c.connectors.startOAuthDeviceAuthWithPublicClient(
-				ctx, entry, providerClientID,
+				ctx, entry, clientID,
 			)
 		}
 	}
@@ -676,7 +679,9 @@ func (c *AuthorizationControl) startDevice(
 		)
 	}
 	encrypted, err := c.encryptFlowSecret(authorizationFlowSecret{
-		DeviceCode: strings.TrimSpace(started.DeviceCode),
+		DeviceCode:   strings.TrimSpace(started.DeviceCode),
+		ClientID:     strings.TrimSpace(clientID),
+		ClientSecret: strings.TrimSpace(clientSecret),
 	})
 	if err != nil {
 		return connectorstore.AuthorizationFlowActivation{}, err

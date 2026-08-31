@@ -1,3 +1,6 @@
+// INPUT: Safe Channel login projection, controller recovery notice, and verification action.
+// OUTPUT: QR/status UI with complete result-impact-next-step failure surfaces.
+// POS: Channel login view; it never renders raw provider output, errors, or login IDs.
 "use client";
 
 import { useState } from "react";
@@ -12,8 +15,11 @@ import type {
   ChannelLoginView,
   ImChannelType,
 } from "@/lib/api/capability/channel-api";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiButton } from "@/shared/ui/button/button";
+import { FeedbackBanner } from "@/shared/ui/feedback/feedback-banner";
+import type { FeedbackBannerProps } from "@/shared/ui/feedback/feedback-banner-contract";
 import { UiInput } from "@/shared/ui/form/form-control";
 import {
   buildChannelLoginPanelModel,
@@ -64,16 +70,19 @@ function ChannelLoginHeader({
 function ChannelLoginVerifyCode({
   hint,
   loading,
+  blocked,
   onSubmit,
 }: {
   hint: string;
   loading: boolean;
-  onSubmit: (value: string) => void;
+  blocked: boolean;
+  onSubmit: (value: string) => Promise<boolean>;
 }) {
   const [verifyCode, setVerifyCode] = useState("");
-  const submit = () => {
-    onSubmit(verifyCode);
-    setVerifyCode("");
+  const submit = async () => {
+    if (await onSubmit(verifyCode)) {
+      setVerifyCode("");
+    }
   };
 
   return (
@@ -89,8 +98,8 @@ function ChannelLoginVerifyCode({
           variant="dialog"
         />
         <UiButton
-          disabled={!verifyCode.trim() || loading}
-          onClick={submit}
+          disabled={!verifyCode.trim() || loading || blocked}
+          onClick={() => void submit()}
           size="sm"
           tone="primary"
           type="button"
@@ -105,12 +114,14 @@ function ChannelLoginVerifyCode({
 
 function ChannelLoginSession({
   loading,
+  mutationBlocked,
   model,
   onSubmitVerifyCode,
 }: {
   loading: boolean;
+  mutationBlocked: boolean;
   model: Extract<ChannelLoginPanelModel, { kind: "session" }>;
-  onSubmitVerifyCode: (value: string) => void;
+  onSubmitVerifyCode: (value: string) => Promise<boolean>;
 }) {
   const StatusIcon = LOGIN_STATUS_ICONS[model.status.icon];
   return (
@@ -124,19 +135,20 @@ function ChannelLoginSession({
           {model.identity}
         </code>
       </div>
-      <LoginQRCode payload={model.qrPayload} />
+      <LoginQRCode payload={model.qrPayload} required={model.qrRequired} />
       {model.verifyCodeHint ? (
         <ChannelLoginVerifyCode
+          blocked={mutationBlocked}
           hint={model.verifyCodeHint}
           loading={loading}
           onSubmit={onSubmitVerifyCode}
         />
       ) : null}
-      <pre className="max-h-[280px] min-h-[132px] overflow-auto whitespace-pre-wrap break-words rounded-[10px] bg-[#101418] px-3 py-3 font-mono text-compact leading-5 text-[#d7f8de]">{model.output}</pre>
-      {model.error ? (
-        <div className="rounded-[10px] border border-[color:color-mix(in_srgb,var(--destructive)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] px-3 py-2 text-compact leading-5 text-(--destructive)">
-          {model.error}
-        </div>
+      <p className="rounded-[10px] border border-(--divider-subtle-color) px-3 py-2 text-compact leading-5 text-(--text-muted)">
+        {model.progress}
+      </p>
+      {model.failure ? (
+        <FeedbackBanner {...model.failure} />
       ) : null}
     </div>
   );
@@ -147,22 +159,33 @@ export function ChannelLoginPanel({
   channelType,
   loading,
   loginView,
+  mutationBlocked,
   onSubmitVerifyCode,
+  recoveryNotice,
 }: {
   channelTitle: string;
   channelType: ImChannelType;
   loading: boolean;
   loginView: ChannelLoginView | null;
-  onSubmitVerifyCode: (value: string) => void;
+  mutationBlocked: boolean;
+  onSubmitVerifyCode: (value: string) => Promise<boolean>;
+  recoveryNotice: FeedbackBannerProps | null;
 }) {
-  const model = buildChannelLoginPanelModel(loginView);
+  const { t } = useI18n();
+  const model = buildChannelLoginPanelModel(loginView, t);
 
   return (
     <div className="rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-3 py-3">
       <ChannelLoginHeader channelTitle={channelTitle} channelType={channelType} />
+      {recoveryNotice ? (
+        <div className="mt-3">
+          <FeedbackBanner {...recoveryNotice} />
+        </div>
+      ) : null}
       {model.kind === "session" ? (
         <ChannelLoginSession
           loading={loading}
+          mutationBlocked={mutationBlocked}
           model={model}
           onSubmitVerifyCode={onSubmitVerifyCode}
         />

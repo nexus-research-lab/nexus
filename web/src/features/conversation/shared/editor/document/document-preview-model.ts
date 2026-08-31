@@ -1,9 +1,9 @@
 import type { Options as DocxPreviewOptions } from "docx-preview";
 
 export type DocumentPreviewStatus =
-  | { state: "loading"; message: string }
+  | { state: "loading" }
   | { state: "loaded" }
-  | { state: "error"; message: string };
+  | { state: "error" };
 
 export const DOCX_RENDER_OPTIONS: Partial<DocxPreviewOptions> = {
   breakPages: true,

@@ -23,6 +23,7 @@
 - Shell 会按窗口职责加载 `app.html`、`settings.html`、`oauth-callback.html`，并用 `desktop_route` 把原始业务路由交给前端；`/launcher` 由主窗口 `app.html` 承载，sidecar 静态 fallback 支持直接刷新 `/launcher`、`/app`、`/settings` 和 OAuth callback。
 - 最小 native bridge 已支持版本读取、状态根目录选择与完整迁移、外链打开、日志导出、主窗口路由打开和全局快捷键状态读写。
 - 日志导出包会包含 `diagnostics.json`，记录版本、系统、bundle、runtime URL、关键目录和本地文件存在性；启动失败会在 `~/.nexus/app/logs` 写入 `startup-failure-*.json`。
+- 启动、主窗口和更新失败统一说明“发生了什么、已有数据是否受影响、接下来能做什么”；底层错误、诊断路径和进程输出只进入日志或诊断报告，不直接显示给用户。更新检查与下载/校验失败按实际阶段分别说明，后者在安装程序启动前不会替换当前 App。
 - Shell 会写 `[Nexus Startup]` 冷启动时间线，覆盖 sidecar、窗口、WebView navigation、Web ready 和 reveal；日志导出的 `diagnostics.json` 会带上 `startup_timeline`。
 - 窗口遮挡、最小化和恢复事件会进入启动时间线；恢复探针受导航代次栅栏保护，不会在显式路由仍启动时二次 reload。
 - WebView 内容进程终止时，Shell 会记录 `webview.content_process_terminated`、写入 `~/.nexus/app/logs/webcontent-terminated-*.json` 并 reload 当前路由，避免 WebContent crash 后停在空白窗口。

@@ -1,0 +1,92 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import test from "node:test";
+import { fileURLToPath } from "node:url";
+
+import { createServer } from "vite";
+
+const webRoot = fileURLToPath(new URL("..", import.meta.url));
+const server = await createServer({
+  configFile: false,
+  logLevel: "silent",
+  resolve: { alias: { "@": path.join(webRoot, "src") } },
+  root: webRoot,
+  server: { middlewareMode: true },
+});
+
+test.after(async () => {
+  await server.close();
+});
+
+test("Agent delete recovery copy follows domain evidence", async () => {
+  const { getContactsPagePresentation } = await server.ssrLoadModule(
+    "/src/pages/contacts/contacts-page-model.ts",
+  );
+  const present = (deleteFailure) => getContactsPagePresentation({
+    contactCount: 1,
+    deleteFailure,
+    loading: false,
+    pendingDeleteAgent: { name: "Researcher" },
+    selectedAgent: null,
+  }).deleteDialog;
+
+  const notApplied = present({ directoryCheck: "not_checked", kind: "not_applied" });
+  assert.equal(notApplied.failure.title, "成员没有删除");
+  assert.match(notApplied.failure.impact, /仍然保留/);
+  assert.equal(notApplied.confirmText, "删除成员");
+  assert.equal(notApplied.variant, "danger");
+
+  const unknown = present({ directoryCheck: "not_checked", kind: "outcome_unknown" });
+  assert.match(unknown.failure.title, /无法确认/);
+  assert.match(unknown.failure.impact, /可能已被删除，也可能仍然保留/);
+  assert.match(unknown.failure.nextStep, /不要再次删除/);
+  assert.equal(unknown.confirmText, "刷新成员列表");
+  assert.equal(unknown.variant, "default");
+
+  const committed = present({
+    directoryCheck: "failed",
+    kind: "committed_cleanup_incomplete",
+  });
+  assert.match(committed.failure.title, /已删除/);
+  assert.match(committed.failure.impact, /删除已经提交/);
+  assert.match(committed.failure.nextStep, /不要再次删除/);
+
+  const stillPresent = present({
+    directoryCheck: "target_present",
+    kind: "outcome_unknown",
+  });
+  assert.match(stillPresent.failure.title, /仍在列表中/);
+  assert.match(stillPresent.failure.impact, /不能证明删除没有执行/);
+  assert.match(stillPresent.failure.nextStep, /不要重新删除/);
+
+  assert.doesNotMatch(
+    JSON.stringify([notApplied, unknown, committed, stillPresent]),
+    /not_applied|outcome_unknown|committed_cleanup_incomplete/,
+  );
+});
+
+test("Agent delete does not report success or replay an unknown outcome", async () => {
+  const controller = await read("src/pages/contacts/controller/use-contacts-page-controller.ts");
+  const store = await read("src/store/agent/index.ts");
+  const dialog = await read("src/shared/ui/dialog/decision/decision-dialog.tsx");
+
+  assert.match(store, /delete_agent:[\s\S]*catch \(error\)[\s\S]*throw error;/);
+  assert.match(controller, /projectMutationFailure\(error/);
+  assert.match(controller, /deletionRunningRef\.current/);
+  assert.match(controller, /unresolvedDeletionsRef/);
+  assert.match(
+    controller,
+    /deleteFailure && deleteFailure\.kind !== "not_applied"[\s\S]*await reconcileAgents\(\)/,
+  );
+  assert.doesNotMatch(
+    controller,
+    /targetStillExists[\s\S]{0,400}kind: "not_applied"/,
+  );
+  assert.match(dialog, /onClose=\{busy \? ignoreDialogClose : onCancel\}/);
+  assert.match(dialog, /disabled=\{busy\}/);
+});
+
+function read(relativePath) {
+  return readFile(path.join(webRoot, relativePath), "utf8");
+}

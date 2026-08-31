@@ -158,25 +158,25 @@ func TestApplyWorkGraphWorkflowEditorMapsOnlyProvenFailureEffects(t *testing.T) 
 			name: "revision conflict", err: workgraphworkflowsvc.ErrRevisionConflict,
 			status: http.StatusUnprocessableEntity, code: "workgraph.revision_conflict",
 			effect: protocol.FailureEffectNotApplied, action: "workgraph.refresh_editor",
-			wantDetail: "请求无效",
+			wantDetail: "工作图编辑请求无效或版本已变化",
 		},
 		{
 			name: "editor not found", err: workgraphworkflowsvc.ErrNotFound,
 			status: http.StatusNotFound, code: "workgraph.editor_not_found",
 			effect: protocol.FailureEffectNotApplied, action: "workgraph.reopen_editor",
-			wantDetail: "资源不存在",
+			wantDetail: "工作图编辑会话不存在或已过期",
 		},
 		{
 			name: "invalid request", err: workgraphworkflowsvc.ErrInvalidInput,
 			status: http.StatusUnprocessableEntity, code: "workgraph.editor_invalid_request",
 			effect:     protocol.FailureEffectNotApplied,
-			wantDetail: "请求无效",
+			wantDetail: "工作图编辑请求无效或版本已变化",
 		},
 		{
 			name: "unclassified failure", err: errors.New("sqlite secret"),
 			status: http.StatusInternalServerError, code: "workgraph.editor_apply_failed",
 			effect:     protocol.FailureEffectUnknown,
-			wantDetail: "服务内部错误",
+			wantDetail: "工作图编辑失败",
 		},
 	}
 
@@ -214,7 +214,7 @@ func TestApplyWorkGraphWorkflowEditorMapsOnlyProvenFailureEffects(t *testing.T) 
 				t.Fatalf("legacy status code=%q want=%q", payload.Code, strconv.Itoa(test.status))
 			}
 			if payload.Message != "failed" || payload.Success || payload.Data.Detail != test.wantDetail {
-				t.Fatalf("legacy failure envelope changed: %#v", payload)
+				t.Fatalf("failure envelope or safe detail changed: %#v", payload)
 			}
 			if payload.Data.RequestID != "workgraph-http-attempt" ||
 				payload.Data.Failure.TransportRequestID != "workgraph-http-attempt" ||
@@ -234,6 +234,51 @@ func TestApplyWorkGraphWorkflowEditorMapsOnlyProvenFailureEffects(t *testing.T) 
 				t.Fatalf("internal cause leaked: %s", recorder.Body.String())
 			}
 		})
+	}
+}
+
+func TestApplyWorkGraphWorkflowEditorUsesStructuredFailureBeforeServiceCall(t *testing.T) {
+	stub := &applyWorkflowStub{}
+	router := newApplyWorkflowTestRouter(stub)
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/workgraph/editors/editor-a/apply",
+		strings.NewReader(`{"source_session_key":`),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-Request-ID", "invalid-json-attempt")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("invalid JSON status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if stub.applyCalls != 0 {
+		t.Fatalf("invalid JSON must fail before service call: calls=%d", stub.applyCalls)
+	}
+	var payload struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+		Success bool   `json:"success"`
+		Data    struct {
+			Detail    string               `json:"detail"`
+			RequestID string               `json:"request_id"`
+			Failure   protocol.FailureCore `json:"failure"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode invalid JSON failure: %v", err)
+	}
+	if payload.Code != "400" || payload.Message != "failed" || payload.Success ||
+		payload.Data.Detail != "请求参数错误" ||
+		payload.Data.RequestID != "invalid-json-attempt" ||
+		payload.Data.Failure.Code != "workgraph.editor_invalid_request" ||
+		payload.Data.Failure.Category != protocol.FailureCategoryValidation ||
+		payload.Data.Failure.Effect != protocol.FailureEffectNotApplied {
+		t.Fatalf("invalid JSON FailureCore mismatch: %#v", payload)
+	}
+	if strings.Contains(recorder.Body.String(), "unexpected end") {
+		t.Fatalf("JSON decoder detail leaked: %s", recorder.Body.String())
 	}
 }
 

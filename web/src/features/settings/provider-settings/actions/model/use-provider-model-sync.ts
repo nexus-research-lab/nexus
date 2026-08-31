@@ -1,11 +1,11 @@
 import { useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
-import { getErrorMessage } from "@/lib/error-message";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type { ProviderConfigRecord } from "@/types/capability/provider";
 
 import type { ProviderModelApi } from "../../provider-settings-api";
+import { buildProviderErrorFeedback } from "../../model/provider-feedback-model";
 import type { FeedbackState } from "../../model/provider-settings-types";
 import type { PersistProvider } from "../config/use-provider-persistence";
 import type { RunProviderCommand } from "../use-provider-command";
@@ -14,7 +14,7 @@ import { useProviderPersistedModelCommand } from "./use-provider-persisted-model
 interface UseProviderModelSyncOptions {
   modelApi: Pick<ProviderModelApi, "fetchModels">;
   persistProvider: PersistProvider;
-  refreshAll: (preferredProvider?: string | null) => Promise<void>;
+  refreshAll: (preferredProvider?: string | null) => Promise<boolean>;
   runCommand: RunProviderCommand;
   selectedCanManage: boolean;
   selectedRecord: ProviderConfigRecord | null;
@@ -37,6 +37,7 @@ export function useProviderModelSync({
     refreshAll,
     runCommand,
     setFeedback,
+    t,
   });
 
   const handleFetchModels = useCallback(() => {
@@ -55,14 +56,12 @@ export function useProviderModelSync({
           }),
         };
       },
-      (error) => ({
-        tone: "error",
-        title: t("settings.providers.models_sync_failed_title"),
-        message: getErrorMessage(
-          error,
-          t("settings.providers.models_sync_failed_message"),
-        ),
-      }),
+      (error) => buildProviderErrorFeedback(
+        error,
+        t("settings.providers.models_sync_failed_title"),
+        t("settings.providers.models_sync_failed_message"),
+        t,
+      ),
     );
   }, [
     modelApi,

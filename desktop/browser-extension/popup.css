@@ -176,6 +176,10 @@ button.danger {
   font-size: 12px;
 }
 
+#message[data-state="error"] {
+  color: #b42318;
+}
+
 .version {
   color: #94a3b8;
   font-size: 11px;
@@ -202,5 +206,9 @@ button.danger {
 
   button:hover {
     background: #2c313a;
+  }
+
+  #message[data-state="error"] {
+    color: #ffb4ab;
   }
 }

@@ -16,18 +16,19 @@ import {
 } from "lucide-react";
 
 import { getBrowserExtensionStatusApi, type BrowserExtensionStatus } from "@/lib/api/settings/browser-api";
-import { getUserPreferencesApi, updateUserPreferencesApi } from "@/lib/api/settings/preferences-api";
 import {
   startDesktopBrowserExtensionSetup,
   type DesktopBrowserExtensionSetupResult,
 } from "@/lib/desktop-bridge/desktop-bridge";
-import { getErrorMessage } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import { UiButton } from "@/shared/ui/button/button";
 import { WorkspaceContentHeader } from "@/shared/ui/layout/workspace-content-header";
 import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
+
+import { PreferencesReliabilityNotice } from "../general/components/preferences-reliability-notice";
+import { useUserPreferences } from "../general/use-user-preferences";
 
 const STATUS_POLL_INTERVAL_MS = 2_000;
 
@@ -52,15 +53,13 @@ const INSTALL_STEPS: ReadonlyArray<{
 export function BrowserSettingsSection() {
   const { t } = useI18n();
   const [status, setStatus] = useState<BrowserExtensionStatus | null>(null);
-  const [statusError, setStatusError] = useState("");
+  const [statusError, setStatusError] = useState(false);
   const [statusRefresh, setStatusRefresh] = useState(0);
   const [setup, setSetup] = useState<DesktopBrowserExtensionSetupResult | null>(null);
   const [openingSetup, setOpeningSetup] = useState(false);
-  const [setupError, setSetupError] = useState("");
-  const [cdpEnabled, setCDPEnabled] = useState(false);
-  const [cdpLoading, setCDPLoading] = useState(true);
-  const [cdpSaving, setCDPSaving] = useState(false);
-  const [cdpError, setCDPError] = useState("");
+  const [setupError, setSetupError] = useState(false);
+  const preferences = useUserPreferences();
+  const cdpEnabled = preferences.preferences.browser_cdp_enabled === true;
 
   useEffect(() => {
     let active = true;
@@ -69,10 +68,10 @@ export function BrowserSettingsSection() {
         const next = await getBrowserExtensionStatusApi();
         if (!active) return;
         setStatus(next);
-        setStatusError("");
-      } catch (error) {
+        setStatusError(false);
+      } catch {
         if (!active) return;
-        setStatusError(getErrorMessage(error, t("settings.browser.status_failed")));
+        setStatusError(true);
       }
     };
     void load();
@@ -81,59 +80,31 @@ export function BrowserSettingsSection() {
       active = false;
       window.clearInterval(interval);
     };
-  }, [statusRefresh, t]);
-
-  useEffect(() => {
-    let active = true;
-    void getUserPreferencesApi()
-      .then((preferences) => {
-        if (active) setCDPEnabled(preferences.browser_cdp_enabled === true);
-      })
-      .catch((error: unknown) => {
-        if (active) {
-          setCDPError(getErrorMessage(error, t("settings.browser.cdp_load_failed")));
-        }
-      })
-      .finally(() => {
-        if (active) setCDPLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [t]);
+  }, [statusRefresh]);
 
   const openSetup = useCallback(async () => {
     setOpeningSetup(true);
-    setSetupError("");
+    setSetupError(false);
     try {
       setSetup(await startDesktopBrowserExtensionSetup());
-    } catch (error) {
-      setSetupError(getErrorMessage(error, t("settings.browser.install_failed")));
+    } catch {
+      setSetupError(true);
     } finally {
       setOpeningSetup(false);
     }
-  }, [t]);
+  }, []);
 
-  const updateCDPAccess = useCallback(async (enabled: boolean) => {
-    const previous = cdpEnabled;
-    setCDPEnabled(enabled);
-    setCDPSaving(true);
-    setCDPError("");
-    try {
-      const preferences = await updateUserPreferencesApi({ browser_cdp_enabled: enabled });
-      setCDPEnabled(preferences.browser_cdp_enabled === true);
-    } catch (error) {
-      setCDPEnabled(previous);
-      setCDPError(getErrorMessage(error, t("settings.browser.cdp_save_failed")));
-    } finally {
-      setCDPSaving(false);
-    }
-  }, [cdpEnabled, t]);
+  const updateCDPAccess = useCallback((enabled: boolean) => {
+    preferences.updatePreferences((current) => ({
+      ...current,
+      browser_cdp_enabled: enabled,
+    }));
+  }, [preferences]);
 
   const connected = status?.connected === true;
   const incompatible = status?.connection_state === "incompatible";
   const browserName = status?.browser_name ?? setup?.browser_name ?? t("settings.browser.chromium_title");
-  const statusLabel = status === null && statusError === ""
+  const statusLabel = status === null && !statusError
     ? t("settings.browser.status_checking")
     : connected
       ? t("settings.browser.status_connected")
@@ -212,18 +183,21 @@ export function BrowserSettingsSection() {
                 <span>{t("settings.browser.install_success", { browser: browserName })}</span>
               </div>
             ) : incompatible ? (
-              <div className="flex items-start gap-2.5 text-(--warning)" role="alert">
+              <div
+                aria-atomic="true"
+                className="flex items-start gap-2.5 text-(--warning)"
+                role="status"
+              >
                 <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
                 <div>
                   <p className="text-compact font-semibold">
                     {t("settings.browser.incompatible_title")}
                   </p>
                   <p className="mt-1 text-xs leading-5 text-(--text-soft)">
-                    {t("settings.browser.incompatible_description", {
-                      current: status?.observed_protocol_version ?? "?",
-                      expected: status?.protocol_version ?? "?",
-                      version: status?.observed_extension_version ?? "?",
-                    })}
+                    {t("settings.browser.incompatible_impact")}
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-(--text-soft)">
+                    {t("settings.browser.incompatible_next_step")}
                   </p>
                 </div>
               </div>
@@ -255,24 +229,47 @@ export function BrowserSettingsSection() {
             )}
 
             {setupError || statusError ? (
-              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-(--destructive)" role="alert">
-                <span>{setupError || statusError}</span>
-                <UiButton
-                  onClick={() => {
-                    if (setupError) {
-                      void openSetup();
-                      return;
-                    }
-                    setStatusRefresh((value) => value + 1);
-                  }}
-                  size="xs"
-                  variant="text"
-                >
-                  <RefreshCw className="h-3 w-3" />
-                  {setupError
-                    ? t("settings.browser.install_action")
-                    : t("settings.browser.refresh")}
-                </UiButton>
+              <div
+                aria-atomic="true"
+                aria-live="polite"
+                className="mt-3 flex items-start gap-2.5 text-(--destructive)"
+                role="status"
+              >
+                <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-compact font-semibold text-(--text-strong)">
+                    {t(setupError
+                      ? "settings.browser.install_failed"
+                      : "settings.browser.status_failed")}
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-(--text-soft)">
+                    {t(setupError
+                      ? "settings.browser.install_failed_impact"
+                      : "settings.browser.status_failed_impact")}
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-(--text-soft)">
+                    {t(setupError
+                      ? "settings.browser.install_failed_next_step"
+                      : "settings.browser.status_failed_next_step")}
+                  </p>
+                  <UiButton
+                    className="mt-2"
+                    onClick={() => {
+                      if (setupError) {
+                        void openSetup();
+                        return;
+                      }
+                      setStatusRefresh((value) => value + 1);
+                    }}
+                    size="xs"
+                    variant="text"
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                    {setupError
+                      ? t("settings.browser.install_action")
+                      : t("settings.browser.refresh")}
+                  </UiButton>
+                </div>
               </div>
             ) : null}
           </div>
@@ -283,6 +280,10 @@ export function BrowserSettingsSection() {
         <h2 className="px-1 text-md font-semibold tracking-tight text-(--text-strong)">
           {t("settings.browser.developer_title")}
         </h2>
+        <PreferencesReliabilityNotice
+          feedback={preferences.feedback}
+          recovery={preferences.recovery}
+        />
         <div className="rounded-[12px] border border-(--divider-subtle-color) bg-transparent px-4 py-4">
           <div className="flex items-start justify-between gap-4">
             <div className="flex min-w-0 items-start gap-3">
@@ -297,14 +298,13 @@ export function BrowserSettingsSection() {
                 <p className="mt-1 max-w-[720px] text-compact leading-5 text-(--text-soft)">
                   {t("settings.browser.cdp_description")}
                 </p>
-                {cdpError ? <p className="mt-2 text-xs text-(--destructive)" role="alert">{cdpError}</p> : null}
               </div>
             </div>
             <GlassSwitch
               aria-label={t("settings.browser.cdp_toggle")}
               checked={cdpEnabled}
-              disabled={cdpLoading || cdpSaving}
-              onChange={(enabled) => void updateCDPAccess(enabled)}
+              disabled={preferences.loading || preferences.saving || !preferences.writable}
+              onChange={updateCDPAccess}
               size="sm"
             />
           </div>

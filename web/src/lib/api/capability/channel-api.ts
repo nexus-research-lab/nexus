@@ -1,3 +1,8 @@
+/**
+ * INPUT: Channel catalog/config/login/pairing HTTP resources.
+ * OUTPUT: Typed Channel read models and explicit mutation commands.
+ * POS: Channel HTTP adapter; current-login reconciliation is read-only and never starts a QR flow.
+ */
 import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
 import { requestApi } from "@/lib/api/core/http";
 
@@ -207,6 +212,17 @@ export async function startChannelLoginApi(
     `${CHANNEL_API_BASE_URL}/channels/${encodeURIComponent(channelType)}/login`,
     {
       method: "POST",
+    },
+  );
+}
+
+export async function getCurrentChannelLoginApi(
+  channelType: ImChannelType,
+): Promise<ChannelLoginView> {
+  return requestApi<ChannelLoginView>(
+    `${CHANNEL_API_BASE_URL}/channels/${encodeURIComponent(channelType)}/login`,
+    {
+      method: "GET",
     },
   );
 }

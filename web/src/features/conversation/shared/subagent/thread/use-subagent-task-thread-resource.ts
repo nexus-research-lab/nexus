@@ -1,14 +1,18 @@
+/**
+ * INPUT: exact 子智能体来源、任务身份与 transcript 读取信号。
+ * OUTPUT: 作用域隔离的最后成功 transcript、加载态和普通用户可读的读取失败。
+ * POS: 只读线程资源；失败不清除已保存记录，也不触发任何任务控制命令。
+ */
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
 
 import { getSubagentTaskMessagesApi } from "@/lib/api/conversation/subagent-task-api";
+import { getErrorMessage } from "@/lib/error-message";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import type { SubagentTaskMessagesResponse } from "@/types/conversation/subagent-task";
 
-import {
-  normalizeSubagentTask,
-  subagentTaskErrorMessage,
-} from "../subagent-task-model";
+import { normalizeSubagentTask } from "../subagent-task-model";
 import { useScopedResource } from "../use-scoped-resource";
 import { useSubagentTaskRealtimeRefresh } from "../use-subagent-task-realtime-refresh";
 import {
@@ -26,6 +30,7 @@ interface SubagentTaskThreadResource {
 export function useSubagentTaskThreadResource(
   scope: SubagentTaskThreadScope,
 ): SubagentTaskThreadResource {
+  const { t } = useI18n();
   const scopeRef = useRef(scope);
   scopeRef.current = scope;
   const createSnapshot = useCallback(
@@ -88,11 +93,14 @@ export function useSubagentTaskThreadResource(
       }
       commit(scope.key, (current) => ({
         ...current,
-        error: subagentTaskErrorMessage(requestError),
+        error: getErrorMessage(
+          requestError,
+          t("subagents.transcript_load_failed_detail"),
+        ),
         isLoading: false,
       }));
     }
-  }, [beginRequest, commit, isCurrentRequest, scope.key]);
+  }, [beginRequest, commit, isCurrentRequest, scope.key, t]);
 
   useEffect(() => {
     invalidateRequests();

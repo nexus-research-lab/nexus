@@ -1,9 +1,15 @@
+/**
+ * INPUT: 当前数据目录快照、用户草稿和迁移恢复反馈。
+ * OUTPUT: 数据目录表单、迁移确认及结果未知时的对账入口。
+ * POS: General 工作区分区视图；不推断迁移结果或重复发起迁移。
+ */
 "use client";
 
 import { useState } from "react";
 import { Folder, FolderOpen, Loader2, RefreshCw } from "lucide-react";
 
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
+import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import { UiInput } from "@/shared/ui/form/form-control";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
@@ -27,13 +33,6 @@ export function SettingsWorkspaceSection() {
   return (
     <>
       <section className="space-y-2.5">
-        {controller.feedbackMessage ? (
-          <div className="flex items-center justify-end gap-3 px-1">
-            <span className="min-w-0 truncate text-xs text-(--text-soft)">
-              {controller.feedbackMessage}
-            </span>
-          </div>
-        ) : null}
         <div className={SETTINGS_CARD_CLASS_NAME}>
           <div className="grid gap-3 px-4 py-3 md:grid-cols-[minmax(0,1fr)_minmax(260px,360px)] md:items-center">
             <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
@@ -49,7 +48,7 @@ export function SettingsWorkspaceSection() {
                 </p>
                 {controller.currentPath ? (
                   <p
-                    className="mt-1 max-w-[520px] truncate font-mono text-xs text-(--text-muted)"
+                    className="mt-1 max-w-[520px] break-all font-mono text-xs leading-5 text-(--text-muted)"
                     title={controller.currentPath}
                   >
                     {t("settings.general.state_root_current", {
@@ -118,6 +117,7 @@ export function SettingsWorkspaceSection() {
         }}
         title={t("settings.general.state_root_confirm_title")}
       />
+      <FeedbackBannerViewport item={controller.feedback} />
     </>
   );
 }

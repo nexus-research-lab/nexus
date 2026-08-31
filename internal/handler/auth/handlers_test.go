@@ -115,7 +115,7 @@ func assertAuthenticationRequiredFailure(
 		t.Fatalf("解析认证失败响应: %v", err)
 	}
 	if payload.Code != "401" || payload.Message != "failed" || payload.Success ||
-		payload.Data.Detail != "未授权" || payload.Data.RequestID != requestID ||
+		payload.Data.Detail != "未登录或登录状态已过期" || payload.Data.RequestID != requestID ||
 		payload.Data.Failure.Code != "auth.authentication_required" ||
 		payload.Data.Failure.Category != protocol.FailureCategoryAuthentication ||
 		payload.Data.Failure.Effect != effect ||

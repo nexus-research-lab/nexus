@@ -14,15 +14,29 @@ export type SkillImportDialogMode = "local" | "git";
 export type SkillMarketplaceFeedbackTone = "error" | "success" | "warning";
 
 export interface SkillMarketplaceFeedback {
+  action?: {
+    label: string;
+    onClick: () => void;
+  };
   dismiss: () => void;
+  impact?: string;
   message: string;
+  nextStep?: string;
   pending: boolean;
+  persistent?: boolean;
+  title?: string;
   tone: SkillMarketplaceFeedbackTone;
 }
+
+export interface SkillMarketplaceFeedbackInput extends Omit<
+  SkillMarketplaceFeedback,
+  "dismiss"
+> {}
 
 export interface SkillMarketplaceFeedbackActions {
   clear: () => void;
   error: (message: string) => void;
+  report: (feedback: SkillMarketplaceFeedbackInput) => void;
   start: (message: string) => void;
   success: (message: string) => void;
   warning: (message: string) => void;
@@ -35,7 +49,7 @@ export interface SkillCatalogController {
   importedExternalSources: Map<string, Set<string>>;
   loading: boolean;
   query: string;
-  refresh: () => Promise<void>;
+  refresh: () => Promise<boolean>;
   setActiveCategory: (category: string) => void;
   setQuery: (query: string) => void;
   skills: SkillInfo[];

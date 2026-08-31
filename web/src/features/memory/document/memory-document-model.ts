@@ -1,3 +1,6 @@
+// INPUT: Memory Header 状态、已消费 live 版本和正文 revision。
+// OUTPUT: 可执行 Header 动作与 ignore/consume/apply/reload/conflict 实时意图。
+// POS: Memory 纯状态投影；不执行 HTTP 或推断提交结果。
 import type { WorkspaceLiveFileState } from "@/types/app/workspace-live";
 import type { MemoryDocumentKind } from "@/types/memory/memory";
 
@@ -23,13 +26,16 @@ export interface MemoryDocumentHeaderModel {
 }
 
 interface MemoryDocumentHeaderState {
+  commandBusy: boolean;
   deleteBusy: boolean;
   deleting: boolean;
   dirty: boolean;
   documentKind: MemoryDocumentKind;
   editing: boolean;
   isSaving: boolean;
+  revisionReady: boolean;
   runtimeWriting: boolean;
+  saveBlocked: boolean;
 }
 
 export function buildMemoryDocumentHeaderModel(
@@ -38,13 +44,17 @@ export function buildMemoryDocumentHeaderModel(
   return {
     action: state.editing
       ? {
-          cancelDisabled: state.isSaving,
+          cancelDisabled: state.commandBusy,
           kind: "editing",
-          saveDisabled: !state.dirty || state.isSaving || state.runtimeWriting,
+          saveDisabled: !state.dirty
+            || state.commandBusy
+            || state.runtimeWriting
+            || state.saveBlocked
+            || !state.revisionReady,
           saving: state.isSaving,
         }
       : {
-          disabled: state.runtimeWriting,
+          disabled: state.runtimeWriting || !state.revisionReady,
           kind: "edit",
         },
     deleteAction: {
@@ -62,13 +72,17 @@ export interface ConsumedMemoryLiveVersion {
 
 export type MemoryLiveUpdateIntent =
   | { kind: "ignore" }
-  | { content: string; kind: "apply"; version: number }
+  | { kind: "consume"; version: number }
+  | { kind: "conflict"; version: number }
+  | { content: string; kind: "apply"; revision: string; version: number }
   | { kind: "reload"; version: number };
 
 interface MemoryLiveUpdateState {
   consumed: ConsumedMemoryLiveVersion;
+  contentRevision: string | null;
   editing: boolean;
   liveState?: WorkspaceLiveFileState;
+  saving: boolean;
   scopeKey: string;
 }
 
@@ -76,39 +90,59 @@ const IGNORE_LIVE_UPDATE: MemoryLiveUpdateIntent = { kind: "ignore" };
 
 export function resolveMemoryLiveUpdateIntent({
   consumed,
+  contentRevision,
   editing,
   liveState,
+  saving,
   scopeKey,
 }: MemoryLiveUpdateState): MemoryLiveUpdateIntent {
-  const activeLiveState = getActiveMemoryLiveState(editing, liveState, scopeKey);
+  const activeLiveState = getActiveMemoryLiveState(
+    consumed,
+    liveState,
+    scopeKey,
+  );
   if (!activeLiveState) {
     return IGNORE_LIVE_UPDATE;
   }
-  if (typeof activeLiveState.live_content === "string") {
+  if (saving) {
+    return IGNORE_LIVE_UPDATE;
+  }
+  if (
+    contentRevision
+    && activeLiveState.content_revision === contentRevision
+  ) {
+    return { kind: "consume", version: activeLiveState.version };
+  }
+  if (editing) {
+    return { kind: "conflict", version: activeLiveState.version };
+  }
+  if (
+    typeof activeLiveState.live_content === "string"
+    && typeof activeLiveState.content_revision === "string"
+    && activeLiveState.content_revision
+  ) {
     return {
       content: activeLiveState.live_content,
       kind: "apply",
+      revision: activeLiveState.content_revision,
       version: activeLiveState.version,
     };
   }
-  return shouldReloadMemoryLiveState(activeLiveState, scopeKey, consumed)
-    ? { kind: "reload", version: activeLiveState.version }
-    : IGNORE_LIVE_UPDATE;
+  return { kind: "reload", version: activeLiveState.version };
 }
 
 function getActiveMemoryLiveState(
-  editing: boolean,
+  consumed: ConsumedMemoryLiveVersion,
   liveState: WorkspaceLiveFileState | undefined,
   scopeKey: string,
 ): WorkspaceLiveFileState | null {
-  return editing || !liveState || !scopeKey ? null : liveState;
-}
-
-function shouldReloadMemoryLiveState(
-  liveState: WorkspaceLiveFileState,
-  scopeKey: string,
-  consumed: ConsumedMemoryLiveVersion,
-): boolean {
-  return liveState.status === "updated"
-    && (consumed.scopeKey !== scopeKey || liveState.version > consumed.version);
+  if (
+    !liveState
+    || !scopeKey
+    || liveState.status !== "updated"
+    || (consumed.scopeKey === scopeKey && liveState.version <= consumed.version)
+  ) {
+    return null;
+  }
+  return liveState;
 }

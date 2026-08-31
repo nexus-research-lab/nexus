@@ -4,13 +4,18 @@ import type {
   ProviderModelCapabilities,
   ProviderModelRecord,
 } from "@/types/capability/provider";
+import type { MutationFailureEffect } from "@/lib/error-message";
 
 export type FormMode = "empty" | "create" | "edit";
 
 export interface FeedbackState {
-  tone: "success" | "error";
-  title: string;
+  impact?: string;
   message: string;
+  mutationEffect?: MutationFailureEffect;
+  nextStep?: string;
+  recoveryAction?: "refresh";
+  title: string;
+  tone: "success" | "error" | "warning";
 }
 
 export interface ProviderDraft {

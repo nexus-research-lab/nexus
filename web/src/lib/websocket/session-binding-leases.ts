@@ -1,6 +1,6 @@
 /**
- * INPUT: 共享 WebSocket 上的 session bind 消息与逻辑消费者租约。
- * OUTPUT: 按 session 引用计数发送 bind/unbind，并在重连后重放仍有效的绑定。
+ * INPUT: 共享 WebSocket 上的 session bind、逻辑消费者租约与 owner reset。
+ * OUTPUT: 按 session 引用计数发送 bind/unbind，并只在同 owner 重连后重放有效绑定。
  * POS: 共享物理连接与会话级业务订阅之间的生命周期仲裁层。
  */
 
@@ -80,6 +80,11 @@ export class SessionBindingLeaseRegistry {
         this.send(binding);
       }
     }
+  }
+
+  /** Owner 变化时丢弃全部旧 Session lease；连接已先断开，因此不发送 unbind。 */
+  resetOwnerScope(): void {
+    this.bindings.clear();
   }
 
   private release(

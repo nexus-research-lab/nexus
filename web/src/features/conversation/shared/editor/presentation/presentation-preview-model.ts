@@ -27,9 +27,9 @@ export const SCHEME_COLORS: Record<string, string> = {
 };
 
 export type PresentationPreviewStatus =
-  | { state: "loading"; message: string }
+  | { state: "loading" }
   | { state: "loaded"; slideCount: number }
-  | { state: "error"; message: string };
+  | { state: "error" };
 
 export type PresentationShapeGeometry =
   | "diamond"

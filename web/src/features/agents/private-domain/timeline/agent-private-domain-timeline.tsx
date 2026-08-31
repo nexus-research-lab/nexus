@@ -1,12 +1,19 @@
+/**
+ * INPUT: 已确认的联络消息快照、读取失败事实与重试命令。
+ * OUTPUT: 可保留旧消息的 Problem/Impact/Recovery 时间线状态。
+ * POS: 私域消息纯展示边界；不发起读取或推断业务结果。
+ */
 import {
   Inbox,
   Loader2,
   MessageCircle,
+  RefreshCw,
   type LucideIcon,
 } from "lucide-react";
 import { type ComponentType } from "react";
 
 import { cn } from "@/shared/ui/class-name";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 import type {
   AgentPrivateEvent,
   AgentPrivateThread,
@@ -26,11 +33,17 @@ interface PrivateTimelineProps {
   agentId: string;
   className?: string;
   compact?: boolean;
-  error: string | null;
+  failure: PrivateDomainReadFailure | null;
   events: AgentPrivateEvent[];
   isLoading: boolean;
   localization: PrivateDomainLocalization;
+  onRetry: () => void;
   thread: AgentPrivateThread | null;
+}
+
+export interface PrivateDomainReadFailure {
+  message: string;
+  stale: boolean;
 }
 
 interface TimelineDensityStyle {
@@ -68,14 +81,6 @@ const TIMELINE_DENSITY_STYLES: Record<
     title: "text-sm",
   },
 };
-
-function ErrorTimelineBody({ presentation }: TimelineBodyViewProps) {
-  return (
-    <p className="surface-radius-md border border-[color:color-mix(in_srgb,var(--destructive)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_7%,transparent)] px-3 py-2 text-compact font-semibold text-(--destructive)">
-      {presentation.message}
-    </p>
-  );
-}
 
 function EmptyTimelineBody({
   icon: Icon,
@@ -118,7 +123,6 @@ const TIMELINE_BODY_VIEWS: Record<
   ComponentType<TimelineBodyViewProps>
 > = {
   empty: NoEventsTimelineBody,
-  error: ErrorTimelineBody,
   events: EventsTimelineBody,
   select: SelectTimelineBody,
 };
@@ -135,10 +139,11 @@ export function PrivateEventTimeline({
   agentId,
   className,
   compact = false,
-  error,
+  failure,
   events,
   isLoading,
   localization,
+  onRetry,
   thread,
 }: PrivateTimelineProps) {
   const density: PrivateTimelineDensity = compact ? "compact" : "regular";
@@ -146,7 +151,6 @@ export function PrivateEventTimeline({
   const header = buildPrivateTimelineHeader(thread, agentId, localization);
   const body = buildPrivateTimelineBody({
     agentId,
-    error,
     events,
     isLoading,
     localization,
@@ -182,8 +186,30 @@ export function PrivateEventTimeline({
         </div>
       </div>
       <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto">
-        <div className={style.body}>
-          <PrivateTimelineBody density={density} presentation={body} />
+        <div className={cn(style.body, "space-y-3")}>
+          {failure ? (
+            <UiResourceState
+              className="min-h-0 py-3"
+              description={failure.message}
+              impact={failure.stale
+                ? localization.t("agent_options.contact.private_messages_stale_impact")
+                : localization.t("agent_options.contact.private_messages_unavailable_impact")}
+              nextStep={localization.t("agent_options.contact.private_messages_failure_next_step")}
+              primaryAction={{
+                busy: isLoading,
+                busyLabel: localization.t("common.loading"),
+                icon: <RefreshCw className="h-3.5 w-3.5" />,
+                label: localization.t("agent_options.contact.retry_private_messages"),
+                onClick: onRetry,
+              }}
+              size="sm"
+              state="error"
+              title={localization.t("agent_options.contact.private_messages_load_failed")}
+            />
+          ) : null}
+          {failure && !failure.stale && events.length === 0 ? null : (
+            <PrivateTimelineBody density={density} presentation={body} />
+          )}
         </div>
       </div>
     </section>

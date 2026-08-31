@@ -95,7 +95,7 @@ export function useAgentNameValidation({
     commit(scope.key, (current) => ({ ...current, pendingName: name }));
 
     const request = scope.validator(name)
-      .catch((error: unknown) => buildFailedValidation(name, error, fallbackError))
+      .catch(() => buildFailedValidation(name, fallbackError))
       .then((result) => {
         if (
           scopeRef.current.key === scope.key
@@ -170,7 +170,6 @@ function createValidationState(scopeKey: string): ValidationState {
 
 function buildFailedValidation(
   name: string,
-  error: unknown,
   fallbackError: string,
 ): AgentNameValidationResult {
   return {
@@ -178,7 +177,7 @@ function buildFailedValidation(
     normalized_name: name,
     is_valid: false,
     is_available: false,
-    reason: error instanceof Error ? error.message : fallbackError,
+    reason: fallbackError,
     workspace_path: null,
   };
 }

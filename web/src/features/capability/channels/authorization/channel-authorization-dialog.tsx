@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 
 import { UiButton } from "@/shared/ui/button/button";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiQRCode } from "@/shared/ui/display/qr-code";
 import { UiInput } from "@/shared/ui/form/form-control";
@@ -28,14 +29,16 @@ import {
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
 import type { ChannelAuthorizationData } from "@/types/generated/protocol";
+import type { ChannelAuthorizationFailure } from "./channel-authorization-model";
 
 interface ChannelAuthorizationDialogProps {
   busy: boolean;
-  error: string;
+  error: ChannelAuthorizationFailure | null;
   onCancelAuthorization: () => void;
   onClose: () => void;
   onSubmitCode: (code: string) => void;
   presentation: ChannelAuthorizationData | null;
+  writeLocked: boolean;
 }
 
 export function ChannelAuthorizationDialog({
@@ -45,6 +48,7 @@ export function ChannelAuthorizationDialog({
   onClose,
   onSubmitCode,
   presentation,
+  writeLocked,
 }: ChannelAuthorizationDialogProps) {
   if (!presentation) {
     return null;
@@ -57,6 +61,7 @@ export function ChannelAuthorizationDialog({
       onClose={onClose}
       onSubmitCode={onSubmitCode}
       presentation={presentation}
+      writeLocked={writeLocked}
     />
   ) : (
     <ChannelAuthorizationQRCodeDialog
@@ -65,6 +70,7 @@ export function ChannelAuthorizationDialog({
       onCancelAuthorization={onCancelAuthorization}
       onClose={onClose}
       presentation={presentation}
+      writeLocked={writeLocked}
     />
   );
 }
@@ -75,12 +81,14 @@ function ChannelAuthorizationQRCodeDialog({
   onCancelAuthorization,
   onClose,
   presentation,
+  writeLocked,
 }: {
   busy: boolean;
-  error: string;
+  error: ChannelAuthorizationFailure | null;
   onCancelAuthorization: () => void;
   onClose: () => void;
   presentation: ChannelAuthorizationData;
+  writeLocked: boolean;
 }) {
   const expiry = useAuthorizationExpiry(presentation.expires_at);
   return (
@@ -117,7 +125,8 @@ function ChannelAuthorizationQRCodeDialog({
                 showPayload={false}
               />
             </div>
-            {error ? <AuthorizationError message={error} /> : null}
+            {error ? <AuthorizationError failure={error} /> : null}
+            {expiry.expired ? <AuthorizationExpired /> : null}
             <SecurityBoundaryNote>授权信息只用于本次连接。</SecurityBoundaryNote>
           </UiDialogBody>
           <UiDialogFooter appearance="plain">
@@ -125,7 +134,7 @@ function ChannelAuthorizationQRCodeDialog({
               关闭
             </UiButton>
             <UiButton
-              disabled={busy}
+              disabled={busy || writeLocked}
               onClick={onCancelAuthorization}
               tone="danger"
               variant="solid"
@@ -146,13 +155,15 @@ function ChannelAuthorizationCodeDialog({
   onClose,
   onSubmitCode,
   presentation,
+  writeLocked,
 }: {
   busy: boolean;
-  error: string;
+  error: ChannelAuthorizationFailure | null;
   onCancelAuthorization: () => void;
   onClose: () => void;
   onSubmitCode: (code: string) => void;
   presentation: ChannelAuthorizationData;
+  writeLocked: boolean;
 }) {
   const [code, setCode] = useState("");
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -165,7 +176,7 @@ function ChannelAuthorizationCodeDialog({
   const submit = (event: FormEvent) => {
     event.preventDefault();
     const value = code.trim();
-    if (!value || busy || expiry.expired) {
+    if (!value || busy || expiry.expired || writeLocked) {
       return;
     }
     onSubmitCode(value);
@@ -209,7 +220,7 @@ function ChannelAuthorizationCodeDialog({
                 autoCapitalize="none"
                 autoComplete="one-time-code"
                 className="h-12 text-center font-mono text-lg tracking-[0.22em]"
-                disabled={busy || expiry.expired}
+                disabled={busy || expiry.expired || writeLocked}
                 id="channel-authorization-code"
                 inputMode="numeric"
                 maxLength={256}
@@ -221,8 +232,9 @@ function ChannelAuthorizationCodeDialog({
               />
             </label>
             {error ? (
-              <AuthorizationError message={error} />
+              <AuthorizationError failure={error} />
             ) : null}
+            {expiry.expired ? <AuthorizationExpired /> : null}
             <SecurityBoundaryNote>验证码只用于本次连接。</SecurityBoundaryNote>
           </UiDialogBody>
           <UiDialogFooter appearance="plain">
@@ -230,7 +242,7 @@ function ChannelAuthorizationCodeDialog({
               关闭
             </UiButton>
             <UiButton
-              disabled={busy}
+              disabled={busy || writeLocked}
               onClick={onCancelAuthorization}
               tone="danger"
               variant="surface"
@@ -238,7 +250,7 @@ function ChannelAuthorizationCodeDialog({
               取消连接
             </UiButton>
             <UiButton
-              disabled={!code.trim() || busy || expiry.expired}
+              disabled={!code.trim() || busy || expiry.expired || writeLocked}
               tone="primary"
               type="submit"
               variant="solid"
@@ -252,14 +264,48 @@ function ChannelAuthorizationCodeDialog({
   );
 }
 
-function AuthorizationError({ message }: { message: string }) {
+function AuthorizationError({
+  failure,
+}: {
+  failure: ChannelAuthorizationFailure;
+}) {
   return (
-    <p
-      className="text-xs leading-5 text-(--destructive)"
-      role="alert"
+    <div
+      aria-atomic="true"
+      aria-live="polite"
+      className="space-y-1 rounded-[8px] border border-[color:color-mix(in_srgb,var(--destructive)_22%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_7%,transparent)] px-3 py-2"
+      role="status"
     >
-      {message}
-    </p>
+      <p className="text-xs font-semibold leading-5 text-(--destructive)">
+        {failure.title}
+      </p>
+      <p className="text-xs leading-5 text-(--text-muted)">{failure.impact}</p>
+      <p className="text-xs font-medium leading-5 text-(--text-default)">
+        {failure.nextStep}
+      </p>
+    </div>
+  );
+}
+
+function AuthorizationExpired() {
+  const { t } = useI18n();
+  return (
+    <div
+      aria-atomic="true"
+      aria-live="polite"
+      className="space-y-1 rounded-[8px] border border-[color:color-mix(in_srgb,var(--warning)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_7%,transparent)] px-3 py-2"
+      role="status"
+    >
+      <p className="text-xs font-semibold leading-5 text-(--text-strong)">
+        {t("capability.channel_authorization_expired_title")}
+      </p>
+      <p className="text-xs leading-5 text-(--text-muted)">
+        {t("capability.channel_authorization_expired_impact")}
+      </p>
+      <p className="text-xs font-medium leading-5 text-(--text-default)">
+        {t("capability.channel_authorization_expired_next_step")}
+      </p>
+    </div>
   );
 }
 

@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * INPUT: Goal/binding resource, UI draft/dialog state and user lifecycle actions.
- * OUTPUT: Goal panel controller whose clear command is gated by server-derived binding state.
+ * INPUT: Goal/binding/reliability resource, scope-bound UI draft/dialog state and user lifecycle actions.
+ * OUTPUT: Goal panel controller with exact mutation intents, stale-read gates and safe read-only recovery.
  * POS: Goal interaction orchestrator; the backend remains the final mutation authority.
  */
 
@@ -58,13 +58,15 @@ export function useGoalController({
     sessionKey,
   });
   const {
-    available,
-    error,
     executionBinding,
     goal,
     isLoading,
+    mutationBlockReason,
+    mutationsBlocked,
+    ownerScopeGeneration,
     phase,
     refresh,
+    reliability,
     runCommand,
   } = resource;
   const projection = buildGoalControllerProjection({
@@ -76,40 +78,62 @@ export function useGoalController({
   });
 
   const clearGoal = useCallback(async () => {
-    if (!goal || disabled || projection.clearDisabledReason) {
+    if (
+      !goal
+      || disabled
+      || mutationsBlocked
+      || projection.clearDisabledReason
+    ) {
       return;
     }
     const outcome = await runCommand(
-      "clearing",
+      { operation: "clear" },
       async (goalId) => {
-        const result = await clearGoalApi(goalId);
-        return result.cleared ? null : goal;
+        await clearGoalApi(goalId);
+        // A successful response means the exact target is no longer available:
+        // `cleared=false` is the service's concurrent-already-absent outcome.
+        return null;
       },
-      "Goal 操作失败",
     );
     if (outcome.ok && !outcome.goal) {
       setDraft(null);
     }
-  }, [disabled, goal, projection.clearDisabledReason, runCommand]);
+  }, [
+    disabled,
+    goal,
+    mutationsBlocked,
+    projection.clearDisabledReason,
+    runCommand,
+  ]);
 
   const submit = useCallback(async (event: FormEvent) => {
     event.preventDefault();
     const currentDraft = projection.draft;
-    if (!goal || !currentDraft?.objective.trim() || disabled) {
+    if (
+      !goal
+      || !currentDraft?.objective.trim()
+      || disabled
+      || mutationsBlocked
+    ) {
       return;
     }
+    const objective = currentDraft.objective.trim();
+    const tokenBudget = nextGoalBudgetInput(goal, currentDraft.budget);
     const outcome = await runCommand(
-      "updating",
+      {
+        objective,
+        operation: "update",
+        tokenBudget,
+      },
       (goalId) => updateGoalApi(goalId, {
-        objective: currentDraft.objective.trim(),
-        token_budget: nextGoalBudgetInput(goal, currentDraft.budget),
+        objective,
+        token_budget: tokenBudget,
       }),
-      "Goal 保存失败",
     );
     if (outcome.ok) {
       setDraft(null);
     }
-  }, [disabled, goal, projection.draft, runCommand]);
+  }, [disabled, goal, mutationsBlocked, projection.draft, runCommand]);
 
   const confirmDialog = useCallback(() => {
     const currentDialog = projection.dialog;
@@ -124,6 +148,25 @@ export function useGoalController({
   }, [activityKey, refresh]);
 
   useEffect(() => {
+    setDraft(null);
+    setDialog(EMPTY_GOAL_DIALOG);
+  }, [ownerScopeGeneration, sessionKey]);
+
+  useEffect(() => {
+    if (
+      reliability?.operation === "update"
+      && (
+        reliability.kind === "mutation_applied"
+        || reliability.kind === "mutation_committed"
+        || reliability.kind === "mutation_committed_refresh_failed"
+        || reliability.kind === "mutation_target_not_current"
+      )
+    ) {
+      setDraft(null);
+    }
+  }, [reliability?.kind, reliability?.operation]);
+
+  useEffect(() => {
     if (!isLoading) {
       onGoalChange?.(goal);
     }
@@ -135,14 +178,14 @@ export function useGoalController({
       cancelEditing: () => setDraft(null),
       confirmDialog,
       pause: () => {
-        if (!disabled) {
-          void runCommand("pausing", pauseGoalApi, "Goal 操作失败");
+        if (!disabled && !mutationsBlocked) {
+          void runCommand({ operation: "pause" }, pauseGoalApi);
         }
       },
       refresh: () => void refresh(),
       resume: () => {
-        if (!disabled) {
-          void runCommand("resuming", resumeGoalApi, "Goal 操作失败");
+        if (!disabled && !mutationsBlocked) {
+          void runCommand({ operation: "resume" }, resumeGoalApi);
         }
       },
       setBudget: (budget: string) => setDraft((current) => (
@@ -152,22 +195,27 @@ export function useGoalController({
         updateGoalDraft(current, { objective })
       )),
       startClearing: () => {
-        if (goal && !projection.clearDisabledReason) {
+        if (goal && !mutationsBlocked && !projection.clearDisabledReason) {
           setDialog({ goal, kind: "clear" });
         }
       },
-      startEditing: () => goal && setDraft(createGoalDraft(goal)),
+      startEditing: () => {
+        if (goal && !mutationsBlocked) {
+          setDraft(createGoalDraft(goal));
+        }
+      },
       submit,
     },
     canResume: projection.canResume,
     clearDisabledReason: projection.clearDisabledReason,
     dialog: projection.dialog,
     draft: projection.draft,
-    error,
     executionBinding,
     goal,
-    isAvailable: available,
     isLoading,
     loadingLabel: projection.loadingLabel,
+    mutationBlockReason,
+    mutationsBlocked,
+    reliability,
   };
 }

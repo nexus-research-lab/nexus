@@ -13,9 +13,13 @@
 //   - login*.go / pairing*.go / pairing_delivery.go：微信登录、官方应用扫码注册、字段 patch 配对与所有外部 IM ingress/Automation 共用的 active pairing 实时授权及稳定不可用错误；
 //     登录完成绑定启动时 control version 和可选账号，凭据写入使用 CAS，候选
 //     runtime 启动失败恢复授权前配置；对话授权凭据提交持有可撤销 lease，
-//     精确取消可等待 poller 离开写路径；所有 pairing writer 共用 owner 锁。
+//     精确取消可等待 poller 离开写路径；当前 Web 登录只读对账只返回 exact
+//     owner + channel 下唯一 active 且未绑定对话授权的会话，歧义状态 fail closed，
+//     不启动平台注册或生成 login_id；所有 pairing writer 共用 owner 锁。
 //   - control.go / control_*.go / mutation_lock.go：通道控制、凭据与值归一化及
-//     owner + channel 串行写边界。
+//     owner + channel 串行写边界；control_failure.go 只保留事务、
+//     补偿与写后投影已证明的 not_applied/committed/unknown 事实，
+//     不引入 HTTP 文案或从 error 文本猜测结果。
 //   - external_session_identity.go：把 pairing/account 真相投影为不泄露账号原值的 Session 短标识、当前/历史状态与初始删除资格。
 //   - session_delivery.go / room_delivery.go / automation_delivery.go：会话与房间主动投递；Automation 结果用 run_id 幂等投影到接收 Agent 所属的真实逻辑会话，数据库 Room-backed DM/成员 Session 经统一读模型验证后首次物化 workspace 投影，保留 producer Agent metadata，再发送外部 IM 并关联平台回执；合成收件箱只保留旧任务兼容。
 //   - channel.go / control_types.go：通道与控制模型。

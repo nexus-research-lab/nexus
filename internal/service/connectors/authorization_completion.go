@@ -1,5 +1,5 @@
-// INPUT: 加密 device_code、OAuth callback state 与启动时 Connector version。
-// OUTPUT: provider 轮询/交换、CAS 连接写入、多阶段飞书应用推进及 durable 终态。
+// INPUT: 加密 device_code/本次 OAuth client、callback state 与启动时 Connector version。
+// OUTPUT: provider 轮询/交换、client+连接的单事务 CAS 切换、多阶段飞书推进及 durable 终态。
 // POS: Connector 对话授权的秘密消费和最终提交边界。
 package connectors
 
@@ -57,10 +57,10 @@ func (c *AuthorizationControl) pollDevice(
 		return errors.New("Connector authorization target 已不可用")
 	}
 	if flow.Stage == deviceAuthStageAppSelection {
-		return c.pollAppRegistration(ctx, flow, entry, secret.DeviceCode)
+		return c.pollAppRegistration(ctx, flow, entry, secret)
 	}
 	return c.pollUserDeviceAuthorization(
-		ctx, flow, entry, secret.DeviceCode,
+		ctx, flow, entry, secret,
 	)
 }
 
@@ -68,14 +68,10 @@ func (c *AuthorizationControl) pollAppRegistration(
 	ctx context.Context,
 	flow *connectorstore.AuthorizationFlow,
 	entry CatalogEntry,
-	deviceCode string,
+	secret authorizationFlowSecret,
 ) error {
-	deviceCode = strings.TrimPrefix(
-		strings.TrimSpace(deviceCode),
-		feishuAppRegistrationDevicePrefix,
-	)
 	result, err := c.connectors.feishuRegistrationClient(entry).Poll(
-		ctx, deviceCode,
+		ctx, strings.TrimSpace(secret.DeviceCode),
 	)
 	if err != nil {
 		_ = c.releaseDevicePoll(
@@ -132,80 +128,43 @@ func (c *AuthorizationControl) pollAppRegistration(
 		return authorizationProviderFailure("启动用户授权", err)
 	}
 	encrypted, err := c.encryptFlowSecret(authorizationFlowSecret{
-		DeviceCode: strings.TrimSpace(started.DeviceCode),
+		DeviceCode:        strings.TrimSpace(started.DeviceCode),
+		ClientID:          clientID,
+		ClientSecret:      clientSecret,
+		CommitOAuthClient: true,
 	})
 	if err != nil {
 		return err
 	}
-	oauthStore, err := c.connectors.oauthClientStore()
-	if err != nil {
-		return err
-	}
-	disconnected := connectionRecord{
-		OwnerUserID: flow.OwnerUserID,
-		ConnectorID: flow.ConnectorID,
-		State:       "disconnected", Credentials: "",
-		AuthType: entry.AuthType,
-	}
-	if err = c.connectors.encryptConnectionCredentials(&disconnected); err != nil {
-		return err
-	}
-	nextVersion := flow.ExpectedConfigurationVersion + 1
 	interval := normalizedDevicePollInterval(started.Interval)
 	now := c.now()
 	expiresAt := now.Add(
 		time.Duration(normalizedDeviceExpiry(started.ExpiresIn)) * time.Second,
 	)
-	_, err = c.connectors.mutateConnector(
-		ctx, flow.OwnerUserID, flow.ConnectorID,
-		&flow.ExpectedConfigurationVersion,
-		func(tx *sql.Tx) error {
-			if upsertErr := oauthStore.UpsertTx(
-				ctx, tx, connectorstore.OAuthClient{
-					OwnerUserID: flow.OwnerUserID,
-					ConnectorID: flow.ConnectorID,
-					ClientID:    clientID, ClientSecret: clientSecret,
-				},
-			); upsertErr != nil {
-				return upsertErr
-			}
-			if writeErr := c.connectors.writeConnection(
-				ctx, tx, disconnected,
-			); writeErr != nil {
-				return writeErr
-			}
-			return c.flows.AdvanceDeviceStageTx(
-				ctx, tx, flow.OwnerUserID, flow.FlowID,
-				connectorstore.AuthorizationFlowDeviceStage{
-					ExpectedConfigurationVersion: nextVersion,
-					Stage:                        deviceAuthStageUserAuthorization,
-					SecretEncrypted:              encrypted,
-					PublicUserCode:               strings.TrimSpace(started.UserCode),
-					PublicVerificationURI: strings.TrimSpace(
-						started.VerificationURI,
-					),
-					PublicVerificationURIComplete: strings.TrimSpace(
-						started.VerificationURIComplete,
-					),
-					PollIntervalSeconds: interval,
-					NextPollAt:          now.Add(time.Duration(interval) * time.Second),
-					ExpiresAt:           expiresAt,
-				},
-				now,
-			)
+	err = c.flows.AdvanceDeviceStage(
+		ctx, flow.OwnerUserID, flow.FlowID,
+		connectorstore.AuthorizationFlowDeviceStage{
+			ExpectedConfigurationVersion: flow.ExpectedConfigurationVersion,
+			Stage:                        deviceAuthStageUserAuthorization,
+			SecretEncrypted:              encrypted,
+			PublicUserCode:               strings.TrimSpace(started.UserCode),
+			PublicVerificationURI: strings.TrimSpace(
+				started.VerificationURI,
+			),
+			PublicVerificationURIComplete: strings.TrimSpace(
+				started.VerificationURIComplete,
+			),
+			PollIntervalSeconds: interval,
+			NextPollAt:          now.Add(time.Duration(interval) * time.Second),
+			ExpiresAt:           expiresAt,
 		},
+		now,
 	)
-	if errors.Is(err, ErrConfigurationConflict) {
-		_, _ = c.flows.MarkTerminal(
-			ctx, flow.OwnerUserID, flow.FlowID,
-			AuthorizationStatusConflict,
-			"Connector 配置已变化，请重新开始授权", now,
-		)
-	} else if err != nil {
-		_, _ = c.flows.MarkTerminal(
-			ctx, flow.OwnerUserID, flow.FlowID,
-			AuthorizationStatusFailed,
-			"Connector 应用配置提交失败", now,
+	if err != nil {
+		// 未能证明阶段更新未落库时不擦除流程秘密；
+		// 释放成功则可安全重试，并发胜者已推进时该释放是 no-op。
+		_ = c.releaseDevicePoll(
+			ctx, flow, "Connector 授权阶段尚未确认，请稍后重试", false,
 		)
 	}
 	return err
@@ -215,7 +174,7 @@ func (c *AuthorizationControl) pollUserDeviceAuthorization(
 	ctx context.Context,
 	flow *connectorstore.AuthorizationFlow,
 	entry CatalogEntry,
-	deviceCode string,
+	secret authorizationFlowSecret,
 ) error {
 	provider, err := c.connectors.deviceProvider(entry)
 	if err != nil {
@@ -223,26 +182,18 @@ func (c *AuthorizationControl) pollUserDeviceAuthorization(
 			ctx, flow, "Connector 不再支持 Device Flow", err,
 		)
 	}
-	clientID := ""
-	clientSecret := ""
-	if entry.AutoOAuthClient {
-		clientID, clientSecret, err = c.connectors.oauthCredentials(
-			ctx, flow.OwnerUserID, entry.ConnectorID,
-		)
-	} else {
-		clientID, err = c.connectors.oauthPublicClientID(
-			ctx, flow.OwnerUserID, entry.ConnectorID, entry.Title,
-		)
-	}
-	if err != nil {
+	clientID := strings.TrimSpace(secret.ClientID)
+	clientSecret := strings.TrimSpace(secret.ClientSecret)
+	if clientID == "" {
 		return c.failClaimedDeviceFlow(
-			ctx, flow, "Connector OAuth 应用配置不可用", err,
+			ctx, flow, "Connector OAuth 应用绑定无法恢复",
+			errors.New("Connector authorization OAuth client 绑定缺失"),
 		)
 	}
 	payload, err := provider.ExchangeDeviceToken(
 		ctx, c.connectors.httpClient, providers.DeviceTokenRequest{
 			ClientID: clientID, ClientSecret: clientSecret,
-			DeviceCode: strings.TrimSpace(deviceCode),
+			DeviceCode: strings.TrimSpace(secret.DeviceCode),
 		},
 	)
 	if err != nil {
@@ -278,7 +229,7 @@ func (c *AuthorizationControl) pollUserDeviceAuthorization(
 	}
 	credentials := normalizeOAuthPayload(payload)
 	_, err = c.connectFlowAtVersion(
-		ctx, flow, entry, credentials,
+		ctx, flow, entry, credentials, secret,
 	)
 	return err
 }
@@ -448,7 +399,9 @@ func (c *AuthorizationControl) completeOAuthCallback(
 	credentials := mergeCredentialExtras(
 		normalizeOAuthPayload(payload), extra,
 	)
-	_, err = c.connectFlowAtVersion(ctx, flow, entry, credentials)
+	_, err = c.connectFlowAtVersion(
+		ctx, flow, entry, credentials, authorizationFlowSecret{},
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -500,6 +453,7 @@ func (c *AuthorizationControl) connectFlowAtVersion(
 	flow *connectorstore.AuthorizationFlow,
 	entry CatalogEntry,
 	credentials string,
+	secret authorizationFlowSecret,
 ) (int64, error) {
 	record := connectionRecord{
 		OwnerUserID: flow.OwnerUserID,
@@ -512,10 +466,37 @@ func (c *AuthorizationControl) connectFlowAtVersion(
 	}
 	completedVersion := flow.ExpectedConfigurationVersion + 1
 	now := c.now()
+	var oauthStore *connectorstore.OAuthClientStore
+	var err error
+	if secret.CommitOAuthClient {
+		clientID := strings.TrimSpace(secret.ClientID)
+		clientSecret := strings.TrimSpace(secret.ClientSecret)
+		if !entry.UserOAuthClient || clientID == "" || clientSecret == "" {
+			return 0, errors.New(
+				"Connector authorization OAuth client 切换绑定无效",
+			)
+		}
+		oauthStore, err = c.connectors.oauthClientStore()
+		if err != nil {
+			return 0, err
+		}
+	}
 	version, err := c.connectors.mutateConnector(
 		ctx, flow.OwnerUserID, flow.ConnectorID,
 		&flow.ExpectedConfigurationVersion,
 		func(tx *sql.Tx) error {
+			if oauthStore != nil {
+				if upsertErr := oauthStore.UpsertTx(
+					ctx, tx, connectorstore.OAuthClient{
+						OwnerUserID:  flow.OwnerUserID,
+						ConnectorID:  flow.ConnectorID,
+						ClientID:     strings.TrimSpace(secret.ClientID),
+						ClientSecret: strings.TrimSpace(secret.ClientSecret),
+					},
+				); upsertErr != nil {
+					return upsertErr
+				}
+			}
 			if writeErr := c.connectors.writeConnection(
 				ctx, tx, record,
 			); writeErr != nil {

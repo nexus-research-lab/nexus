@@ -4,6 +4,7 @@
 //
 // 成员清单：
 //   - service.go：通讯专属 runtime Actor、身份重校验、通讯录投影、联系人私信 Room 复用，以及可信 current-conversation/root/Goal revision 归因下的群消息发送。
+//   - errors.go：在副作用前拒绝通讯输入的 typed error，供 transport 映射 not_applied。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package communication

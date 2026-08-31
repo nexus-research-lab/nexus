@@ -21,6 +21,7 @@ type Translate = I18nContextValue["t"];
 interface ResourceStatus {
   error: string | null;
   loading: boolean;
+  retry: () => void;
 }
 
 export interface TaskBasicsData {
@@ -64,6 +65,7 @@ export interface TaskSelectPresentation {
   error: string | null;
   label: string;
   options: TaskDialogLabelOption[];
+  retry?: () => void;
   value: string;
 }
 
@@ -184,6 +186,7 @@ export function buildTaskTargetPresentation(
     error: source.resource.error,
     label: copy.label,
     options: buildTaskSelectOptions(placeholder, source.options),
+    retry: source.resource.retry,
     targetType,
     value: source.value,
   };
@@ -220,6 +223,7 @@ export function buildTaskDeliveryTargetPresentation(
     error: source.resource.error,
     label,
     options: buildTaskSelectOptions(placeholder, source.options),
+    retry: source.resource.retry,
     targetType,
     value: source.value,
   };
@@ -304,6 +308,7 @@ export function buildExecutionSessionPresentation(
       sessionPlaceholder(data.sessions.loading, copy.emptyPlaceholder, t),
       data.sessionOptions,
     ),
+    retry: data.sessions.retry,
     value: form.selectedSessionKey,
   };
 }
@@ -337,6 +342,7 @@ export function buildReplySessionPresentation(
       ),
       data.deliverySessionOptions,
     ),
+    retry: data.deliverySessions.retry,
     value: form.selectedReplySessionKey,
   };
 }
