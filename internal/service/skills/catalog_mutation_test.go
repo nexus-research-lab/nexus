@@ -2,7 +2,6 @@ package skills
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -40,11 +39,7 @@ description: revision ` + string(rune('0'+current)) + `
 	cfg := newSkillsTestConfig(t)
 	cfg.SkillsSourceURLs = "Atomic|" + server.URL
 	migrateSkillsSQLite(t, cfg.DatabaseURL)
-	db, err := sql.Open("sqlite", cfg.DatabaseURL)
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	defer func() { _ = db.Close() }()
+	db := openSkillsTestDB(t, cfg)
 	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
 	workspaceService := workspacepkg.NewService(cfg, agentService)
 	service := NewServiceWithDB(cfg, db, agentService, workspaceService)
@@ -176,11 +171,7 @@ func TestCatalogVersionRejectsStaleRemoteImportAndSourceUpdate(t *testing.T) {
 	cfg := newSkillsTestConfig(t)
 	cfg.SkillsSourceURLs = "Test|" + server.URL
 	migrateSkillsSQLite(t, cfg.DatabaseURL)
-	db, err := sql.Open("sqlite", cfg.DatabaseURL)
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	defer func() { _ = db.Close() }()
+	db := openSkillsTestDB(t, cfg)
 	service := NewServiceWithDB(cfg, db, nil, nil)
 	ctx := context.Background()
 	state, err := service.GetCatalogState(ctx)
@@ -246,11 +237,7 @@ func TestConcurrentVersionedRemoteImportsHaveSingleWinner(t *testing.T) {
 	cfg := newSkillsTestConfig(t)
 	cfg.SkillsSourceURLs = "Race|" + server.URL
 	migrateSkillsSQLite(t, cfg.DatabaseURL)
-	db, err := sql.Open("sqlite", cfg.DatabaseURL)
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	defer func() { _ = db.Close() }()
+	db := openSkillsTestDB(t, cfg)
 	service := NewServiceWithDB(cfg, db, nil, nil)
 	state, err := service.GetCatalogState(context.Background())
 	if err != nil {

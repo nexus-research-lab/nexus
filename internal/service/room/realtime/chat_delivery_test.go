@@ -135,7 +135,7 @@ func TestRealtimeServiceHandleChatWithSingleAgentRoomFallbackTarget(t *testing.T
 	for _, expected := range []string{
 		"<public_anchor>",
 		"<public_feed>",
-		"<latest_trigger>",
+		`<latest_trigger type="public_chat">`,
 	} {
 		if !strings.Contains(queryPrompts[0], expected) {
 			t.Fatalf("Room runtime query 缺少动态上下文 %q:\n%s", expected, queryPrompts[0])
@@ -192,7 +192,7 @@ func TestRealtimeServiceHandleChatWithSingleAgentRoomFallbackTarget(t *testing.T
 		"Before substantial execution, assess separability",
 		"members may use local subagents",
 		"Current-Room private messaging is disabled",
-		`"room host default takeover"`,
+		"room_host_default routes an unaddressed turn to the host",
 		"managed Plan and assign_work through execution-orchestrator",
 		"never substitute raw @",
 		"If a private message wakes you, answer once in the final reply",
@@ -378,7 +378,8 @@ func TestRealtimeServiceRoutesUnmentionedGroupMessageToRoomHost(t *testing.T) {
 	})
 	select {
 	case prompt := <-hostPrompt:
-		if !strings.Contains(prompt, "room host default takeover") || !strings.Contains(prompt, "帮我拆一下这个需求") {
+		if !strings.Contains(prompt, `<latest_trigger type="room_host_default">`) ||
+			!strings.Contains(prompt, "帮我拆一下这个需求") {
 			t.Fatalf("群主 prompt 缺少默认接管上下文: %s", prompt)
 		}
 	case <-time.After(time.Second):
@@ -919,7 +920,7 @@ func TestRealtimeServiceWakesMentionedAgentFromPublicAssistantReply(t *testing.T
 	for range 2 {
 		select {
 		case prompt := <-targetPrompts:
-			if !strings.Contains(prompt, "<latest_trigger>\nAmy: @Devin 请查询天气，@Casey 请检查穿衣建议") {
+			if !strings.Contains(prompt, "<latest_trigger type=\"public_mention\">\nAmy: @Devin 请查询天气，@Casey 请检查穿衣建议") {
 				t.Fatalf("目标 prompt 缺少完整的多 @ 触发上下文: %s", prompt)
 			}
 			if strings.Contains(prompt, "type:") || strings.Contains(prompt, "fanout_targets:") {
@@ -1065,7 +1066,7 @@ func TestRealtimeServiceAllowsReciprocalPublicMentionHandoff(t *testing.T) {
 
 	select {
 	case prompt := <-amySecondPrompt:
-		if !strings.Contains(prompt, "<latest_trigger>\nDevin: @Amy 我接完了，你继续。") {
+		if !strings.Contains(prompt, "<latest_trigger type=\"public_mention\">\nDevin: @Amy 我接完了，你继续。") {
 			t.Fatalf("reciprocal handoff 缺少 Devin 的明确触发: %s", prompt)
 		}
 	case <-time.After(2 * time.Second):
@@ -1240,7 +1241,7 @@ func TestRealtimeServiceSerializesSiblingPublicMentionReturnsToFinishedHost(t *t
 	var firstReturnPrompt string
 	select {
 	case firstReturnPrompt = <-hostReturnPrompts:
-		if !strings.Contains(firstReturnPrompt, "<latest_trigger>\n") ||
+		if !strings.Contains(firstReturnPrompt, "<latest_trigger type=\"public_mention\">\n") ||
 			!strings.Contains(firstReturnPrompt, "@Host 第一份成员回交。") {
 			t.Fatalf("Host 首次回交 prompt 缺少第一位成员触发: %s", firstReturnPrompt)
 		}
@@ -1301,7 +1302,7 @@ func TestRealtimeServiceSerializesSiblingPublicMentionReturnsToFinishedHost(t *t
 	var secondReturnPrompt string
 	select {
 	case secondReturnPrompt = <-hostReturnPrompts:
-		if !strings.Contains(secondReturnPrompt, "<latest_trigger>\n") ||
+		if !strings.Contains(secondReturnPrompt, "<latest_trigger type=\"public_mention\">\n") ||
 			!strings.Contains(secondReturnPrompt, "@Host 第二份成员回交。") {
 			t.Fatalf("Host 第二次回交 prompt 缺少排队成员触发: %s", secondReturnPrompt)
 		}
@@ -1494,7 +1495,7 @@ func TestRealtimeServiceQueuesPublicMentionWhenTargetRunning(t *testing.T) {
 	go sendFakeAssistantResult(devinCurrentClient, "devin-current-task-done", "当前长任务完成。")
 	select {
 	case prompt := <-devinQueuedPrompt:
-		if !strings.Contains(prompt, "<latest_trigger>\nAmy: @Devin 当前天气任务交给你。") {
+		if !strings.Contains(prompt, "<latest_trigger type=\"public_mention\">\nAmy: @Devin 当前天气任务交给你。") {
 			t.Fatalf("queued mention prompt 缺少公区 @ 触发上下文: %s", prompt)
 		}
 		if strings.Contains(prompt, "type:") || strings.Contains(prompt, "fanout_targets:") {

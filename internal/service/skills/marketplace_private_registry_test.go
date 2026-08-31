@@ -3,7 +3,6 @@ package skills
 import (
 	"context"
 	"crypto/sha256"
-	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
@@ -94,11 +93,7 @@ func TestPrivateRegistrySourceSearchImportAndUpdate(t *testing.T) {
 	cfg.SkillsAPIURL = ""
 	cfg.SkillsSourceURLs = "Public Test|" + server.URL + "/public-index.json"
 	migrateSkillsSQLite(t, cfg.DatabaseURL)
-	db, err := sql.Open("sqlite", cfg.DatabaseURL)
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	defer func() { _ = db.Close() }()
+	db := openSkillsTestDB(t, cfg)
 	service := NewServiceWithDB(cfg, db, nil, nil)
 	ctx := context.Background()
 	beforeCreate, err := service.GetCatalogState(ctx)

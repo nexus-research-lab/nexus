@@ -1709,9 +1709,7 @@ func newRepositoryTestStore(t *testing.T) *Repository {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = goose.SetDialect("sqlite3"); err != nil {
-		t.Fatal(err)
-	}
+	ensureGooseSQLiteDialect(t)
 	if err = goose.Up(migrationDB, "../../../db/migrations/sqlite"); err != nil {
 		t.Fatal(err)
 	}

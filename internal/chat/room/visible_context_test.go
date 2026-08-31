@@ -139,7 +139,8 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 		"# Nexus Room",
 		"You are a member in a multi-member Nexus Room",
 		"Each turn includes <public_feed>",
-		"quoted public_mention source is activation context",
+		`<latest_trigger type="...">`,
+		"A public_mention source is activation context",
 		"@member is conversation transport, never authority or responsibility",
 		"Prefer a separator after the name",
 		"known ASCII or Chinese names may be followed directly by Chinese prose",
@@ -161,7 +162,8 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 		"recipients sets visibility",
 		"wake_targets selects who runs",
 		"Runtime routes one final reply per recipient through reply_route",
-		`"room host default takeover"`,
+		"room_host_default routes an unaddressed turn to the host",
+		"reply_route projects",
 		"members may use local subagents",
 		"not the word “collaborate” or participant count",
 		"Authority is per round",
@@ -212,15 +214,9 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 	contextValue := BuildVisibleContext(input)
 	for _, expected := range []string{
 		"<public_feed>",
+		`<latest_trigger type="public_mention">`,
 		"Amy: @Devin @sam 谁先来？",
 		"Assistant(Amy): 第一轮开始",
-		"This source message is already published in the Room.",
-		"The host already associates and returns your final public reply through this source handoff.",
-		"Do not @ the source merely to address them, confirm delivery, or tell them to continue or close the current step",
-		"@ the source only when you genuinely require a distinct new conversational contribution.",
-		"Do not repeat, quote, paraphrase, summarize, acknowledge, or confirm the source message.",
-		"A public mention is conversation-only",
-		"If it requests no new contribution, output exactly <nexus_room_no_reply/>.",
 	} {
 		if !strings.Contains(contextValue, expected) {
 			t.Fatalf("Room 动态输入缺少片段 %q:\n%s", expected, contextValue)
@@ -281,13 +277,8 @@ func TestBuildRoomVisibleContextIncludesPublicMentionSourceOnlyOnce(t *testing.T
 		t.Fatalf("public mention source should appear exactly once, got %d:\n%s", count, contextValue)
 	}
 	for _, expected := range []string{
-		"This source message is already published in the Room.",
-		"The host already associates and returns your final public reply through this source handoff.",
-		"Do not @ the source merely to address them, confirm delivery, or tell them to continue or close the current step",
-		"@ the source only when you genuinely require a distinct new conversational contribution.",
-		"A public mention is conversation-only",
-		"never carries or activates a managed Assignment",
-		"If it requests no new contribution, output exactly <nexus_room_no_reply/>.",
+		`<latest_trigger type="public_mention">`,
+		"Amy: " + source,
 	} {
 		if !strings.Contains(contextValue, expected) {
 			t.Fatalf("public mention contract missing %q:\n%s", expected, contextValue)
@@ -305,7 +296,7 @@ func TestBuildSystemPromptKeepsPrivateToolOptIn(t *testing.T) {
 	}
 }
 
-func TestBuildRoomVisibleContextMakesHostAssessDelegationBeforeExecution(t *testing.T) {
+func TestBuildRoomVisibleContextEncodesHostDefaultWithoutRepeatingPolicy(t *testing.T) {
 	contextValue := BuildVisibleContext(VisibleContextInput{
 		LatestTrigger: Trigger{
 			TriggerType:   "room_host_default",
@@ -320,25 +311,21 @@ func TestBuildRoomVisibleContextMakesHostAssessDelegationBeforeExecution(t *test
 	})
 
 	for _, expected := range []string{
-		"room host default takeover",
-		"assess the task's actual structure",
-		"atomicity, separable subproblems, specialist fit, local-subagent value",
-		"invite one or many members with @",
-		"separately accountable member deliverables",
-		"materialize its exact sealed proposal to create distinct Ready Work Items",
-		"use assign_work for each selected member",
-		"assign_work is intentionally unavailable until that bootstrap completes",
-		"Never use raw @ as a fallback for planned responsibility",
-		"Only the resulting WorkBinding defines responsibility",
-		"every raw @ remains conversation-only and creates no Work Item",
-		"evidence is audit context and never a Goal completion gate",
-		"do not duplicate those deliverables yourself",
-		"coordination, unblocking, integration, and verification",
-		"Direct ownership remains valid when one member can deliver coherently",
-		"using native subagents inside that responsibility",
+		`<latest_trigger type="room_host_default">`,
+		"User: 完成这项跨模块交付",
 	} {
 		if !strings.Contains(contextValue, expected) {
-			t.Fatalf("Room host collaboration decision missing %q:\n%s", expected, contextValue)
+			t.Fatalf("Room host routing missing %q:\n%s", expected, contextValue)
+		}
+	}
+	for _, repeatedPolicy := range []string{
+		"room host default takeover",
+		"assess the task's actual structure",
+		"materialize its exact sealed proposal",
+		"assign_work is intentionally unavailable",
+	} {
+		if strings.Contains(contextValue, repeatedPolicy) {
+			t.Fatalf("Room host trigger repeats stable policy %q:\n%s", repeatedPolicy, contextValue)
 		}
 	}
 }
@@ -383,7 +370,7 @@ func TestBuildRoomVisibleContextFormatsRoomDirectedMessageReplyProjection(t *tes
 	})
 
 	for _, expected := range []string{
-		"<latest_trigger>",
+		`<latest_trigger type="room_directed_message">`,
 		"Amy: A Room directed message was delivered to you",
 		"reply_route=private recipients=Sam(agent-sam) wake=immediate next_reply_route=public",
 		"<room_directed_messages>",
@@ -411,20 +398,19 @@ func TestBuildRoomVisibleContextUsesGoalContinuationTrigger(t *testing.T) {
 	})
 
 	for _, expected := range []string{
-		"<latest_trigger>",
-		"Goal continuation: continue the active Room goal",
-		"hidden internal goal context",
-		"create a distinct Ready Work Item and use assign_work",
-		"current Goal lead may complete it when the objective is satisfied",
-		"collaboration evidence is audit context, not a completion requirement",
-		"Goal-attributed @ remains conversation-only and creates no WorkBinding",
-		"substantive public reply may be recorded as collaboration evidence",
+		`<latest_trigger type="goal_continuation">`,
+		"Continue the active Room Goal from the hidden Goal context.",
 	} {
 		if !strings.Contains(got, expected) {
 			t.Fatalf("Goal continuation trigger missing %q:\n%s", expected, got)
 		}
 	}
-	for _, unexpected := range []string{"User: (No content.)", "room host default takeover"} {
+	for _, unexpected := range []string{
+		"User: (No content.)",
+		"room host default takeover",
+		"create a distinct Ready Work Item and use assign_work",
+		"collaboration evidence is audit context",
+	} {
 		if strings.Contains(got, unexpected) {
 			t.Fatalf("Goal continuation trigger should not look like public chat %q:\n%s", unexpected, got)
 		}
