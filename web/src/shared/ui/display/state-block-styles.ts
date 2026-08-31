@@ -1,7 +1,7 @@
 import { cn } from "@/shared/ui/class-name";
 
 export type UiStateBlockSize = "sm" | "md" | "lg";
-export type UiStateBlockTone = "default" | "danger";
+export type UiStateBlockTone = "default" | "danger" | "warning";
 export type UiStateBlockVariant = "inset" | "card" | "plain";
 
 interface UiStateBlockStyleOptions {
@@ -22,15 +22,18 @@ const STATE_BLOCK_SIZE_CLASS_MAP: Record<UiStateBlockSize, string> = {
 const STATE_BLOCK_VARIANT_CLASS_MAP: Record<UiStateBlockVariant, Record<UiStateBlockTone, string>> = {
   inset: {
     default: "border border-dashed border-(--divider-subtle-color) bg-transparent",
-    danger: "border border-[color:color-mix(in_srgb,var(--destructive)_15%,transparent)] bg-transparent",
+    danger: "border border-(--divider-subtle-color) bg-transparent",
+    warning: "border border-(--divider-subtle-color) bg-transparent",
   },
   card: {
     default: "border border-(--divider-subtle-color) bg-transparent",
-    danger: "border border-[color:color-mix(in_srgb,var(--destructive)_15%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_4%,transparent)]",
+    danger: "border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--destructive)_2%,transparent)]",
+    warning: "border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--warning)_2%,transparent)]",
   },
   plain: {
     default: "",
     danger: "",
+    warning: "",
   },
 };
 

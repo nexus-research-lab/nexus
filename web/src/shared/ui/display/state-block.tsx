@@ -42,15 +42,24 @@ export function UiStateBlock({
       {...props}
     >
       {icon ? (
-        <div className="chip-default flex h-14 w-14 items-center justify-center surface-radius-md">
+        <div
+          className={cn(
+            "chip-default flex items-center justify-center",
+            tone === "default"
+              ? "h-14 w-14 surface-radius-md"
+              : "h-9 w-9 rounded-[9px]",
+          )}
+        >
           {icon}
         </div>
       ) : null}
       {title ? (
         <h3
           className={cn(
-            "mt-5 text-lg font-semibold tracking-[-0.03em]",
-            tone === "danger" ? "text-(--destructive)" : "text-(--text-strong)",
+            tone === "default"
+              ? "mt-5 text-lg font-semibold tracking-[-0.03em]"
+              : "mt-3 text-sm font-semibold tracking-[-0.015em]",
+            "text-(--text-strong)",
             !icon && "mt-0",
           )}
         >
@@ -58,7 +67,14 @@ export function UiStateBlock({
         </h3>
       ) : null}
       {description ? (
-        <p className="mt-2 max-w-md text-sm leading-6 text-(--text-default)">
+        <p
+          className={cn(
+            "max-w-md text-(--text-default)",
+            tone === "default"
+              ? "mt-2 text-sm leading-6"
+              : "mt-1.5 text-xs leading-5",
+          )}
+        >
           {description}
         </p>
       ) : null}

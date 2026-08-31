@@ -454,7 +454,7 @@ func mapRetryDeliveryFailure(err error) automationHTTPFailure {
 	case errors.Is(err, automationdomain.ErrDeliveryRetryConflict):
 		return automationFailure(http.StatusConflict, "automation.delivery_retry_conflict", protocol.FailureCategoryConflict, protocol.FailureEffectNotApplied, "投递状态已变化，请刷新运行记录后再操作", err, "automation.reload_runs")
 	case errors.Is(err, automationdomain.ErrDeliveryRetryCompletionUnconfirmed):
-		return automationFailure(http.StatusConflict, "automation.delivery_retry_completion_unconfirmed", protocol.FailureCategoryConflict, protocol.FailureEffectUnknown, "投递可能已经完成，但结果尚未确认，请先核对接收端和运行记录", err, "automation.review_delivery")
+		return automationFailure(http.StatusConflict, "automation.delivery_retry_completion_unconfirmed", protocol.FailureCategoryConflict, protocol.FailureEffectUnknown, "投递结果待确认，请先核对接收端和运行记录", err, "automation.review_delivery")
 	case errors.Is(err, automationdomain.ErrConfigurationVersionConflict):
 		return automationFailure(http.StatusConflict, "automation.delivery_configuration_conflict", protocol.FailureCategoryConflict, protocol.FailureEffectNotApplied, "任务投递配置已变化，请刷新后再重试", err, "automation.reload_task")
 	case errors.Is(err, automationdomain.ErrJobNotFound):

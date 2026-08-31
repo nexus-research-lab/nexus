@@ -18,6 +18,8 @@ import {
   UiDialogBody,
   UiDialogCloseButton,
 } from "@/shared/ui/dialog/dialog";
+import { cn } from "@/shared/ui/class-name";
+import { RecoverySummary } from "@/shared/ui/feedback/recovery-summary";
 
 import {
   DecisionDialogActions,
@@ -38,6 +40,7 @@ interface ConfirmDialogProps {
     impact: string;
     nextStep: string;
     title: string;
+    tone?: "danger" | "warning";
     urgency?: "assertive" | "polite";
   };
   isOpen: boolean;
@@ -113,22 +116,27 @@ export function ConfirmDialog({
           <div
             aria-atomic="true"
             aria-live={failure.urgency ?? "polite"}
-            className="mt-3 rounded-[8px] border border-[color:color-mix(in_srgb,var(--destructive)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_5%,transparent)] px-3 py-2.5"
+            className={cn(
+              "mt-3 flex items-start gap-2.5 border-l-2 py-1 pl-3",
+              failure.tone === "warning"
+                ? "border-[color:color-mix(in_srgb,var(--warning)_42%,transparent)]"
+                : "border-[color:color-mix(in_srgb,var(--destructive)_38%,transparent)]",
+            )}
             role={failure.urgency === "assertive" ? "alert" : "status"}
           >
-            <div className="flex items-start gap-2">
-              <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-(--destructive)" />
-              <div className="min-w-0 space-y-1">
-                <p className="text-compact font-semibold text-(--text-strong)">
-                  {failure.title}
-                </p>
-                <p className="text-xs leading-5 text-(--text-muted)">
-                  {failure.impact}
-                </p>
-                <p className="text-xs font-medium leading-5 text-(--text-default)">
-                  {failure.nextStep}
-                </p>
-              </div>
+            <CircleAlert className={cn(
+              "mt-0.5 h-3.5 w-3.5 shrink-0",
+              failure.tone === "warning" ? "text-(--warning)" : "text-(--destructive)",
+            )} />
+            <div className="min-w-0 flex-1">
+              <p className="text-[13px] font-medium leading-5 text-(--text-strong)">
+                {failure.title}
+              </p>
+              <RecoverySummary
+                className="mt-0.5"
+                impact={failure.impact}
+                nextStep={failure.nextStep}
+              />
             </div>
           </div>
         ) : null}

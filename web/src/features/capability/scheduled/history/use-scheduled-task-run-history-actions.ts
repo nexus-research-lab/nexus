@@ -188,7 +188,7 @@ export function useScheduledTaskRunHistoryActions({
           updateActiveState(activeTask.job_id, (current) => ({
             ...current,
             feedback: {
-              impact: "操作已经提交；下方历史可能仍是上次加载的内容，请勿重复操作。",
+              impact: "操作已经提交；下方仍显示提交前加载的历史，请勿重复操作。",
               message: `${copy.success}；${projection.message}`,
               nextStep: "点击右上角“刷新”核对最新运行记录。",
               title: "操作已提交，历史尚未刷新",

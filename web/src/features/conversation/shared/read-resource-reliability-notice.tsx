@@ -9,6 +9,7 @@ import { CircleAlert, RefreshCw } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
+import { RecoverySummary } from "@/shared/ui/feedback/recovery-summary";
 
 export function ReadResourceReliabilityNotice({
   className,
@@ -34,7 +35,7 @@ export function ReadResourceReliabilityNotice({
     <section
       aria-label={problem}
       className={cn(
-        "flex min-w-0 items-start gap-2.5 border-y border-[color:color-mix(in_srgb,var(--warning)_18%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_5%,var(--surface-control-background))] px-3 py-2 text-xs text-(--text-muted)",
+        "flex min-w-0 flex-wrap items-start gap-x-2.5 gap-y-1 border-y border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--warning)_2%,var(--surface-control-background))] px-3 py-2 text-xs text-(--text-muted) sm:flex-nowrap",
         className,
       )}
       data-read-resource={resource}
@@ -43,22 +44,21 @@ export function ReadResourceReliabilityNotice({
     >
       <CircleAlert
         aria-hidden="true"
-        className="mt-0.5 h-4 w-4 shrink-0 text-(--warning)"
+        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-(--warning)"
       />
-      <div className="min-w-0 flex-1">
-        <p className="font-semibold leading-5 text-(--text-strong)">{problem}</p>
-        <p className="mt-0.5 leading-5">{impact}</p>
-        <p className="leading-5">{nextStep}</p>
+      <div className="w-[calc(100%-1.5rem)] min-w-0 flex-none sm:w-auto sm:flex-1">
+        <p className="shrink-0 font-medium leading-5 text-(--text-strong)">{problem}</p>
+        <RecoverySummary className="mt-0.5 min-w-0" impact={impact} nextStep={nextStep} />
       </div>
       <button
-        className="inline-flex h-7 shrink-0 items-center gap-1 rounded-[7px] px-2 font-medium text-(--primary) transition-colors hover:bg-[color:color-mix(in_srgb,var(--primary)_8%,transparent)] disabled:cursor-wait disabled:opacity-60"
+        className="ml-6 inline-flex h-7 shrink-0 items-center gap-1 rounded-[7px] px-1.5 font-medium text-(--primary) transition-colors hover:bg-[color:color-mix(in_srgb,var(--primary)_7%,transparent)] disabled:cursor-wait disabled:opacity-60 motion-reduce:transition-none sm:ml-0"
         disabled={isRefreshing}
         onClick={onRefresh}
         type="button"
       >
         <RefreshCw
           aria-hidden="true"
-          className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin")}
+          className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin motion-reduce:animate-none")}
         />
         {t("state.reload_check")}
       </button>

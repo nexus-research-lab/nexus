@@ -18,7 +18,6 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  CircleAlert,
   ExternalLink,
   Loader2,
   Settings2,
@@ -79,6 +78,7 @@ import {
   selectInitialProviderSetupPreset,
   type ProviderSetupPreset,
 } from "./provider-setup-model";
+import { ProviderSetupFailureView } from "./provider-setup-failure";
 import {
   fingerprintProviderSetup,
   preferencesUseProviderSelection,
@@ -1268,18 +1268,12 @@ function ProviderSetupFailure({
       break;
   }
   return (
-    <div
-      aria-live="polite"
-      className={`${getDialogNoteClassName("danger")} space-y-1`}
-      role="status"
-    >
-      <div className="flex items-start gap-2">
-        <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-(--destructive)" />
-        <span>{message}</span>
-      </div>
-      <p className="pl-6 text-xs leading-5 text-(--text-muted)">{recovery.impact}</p>
-      <p className="pl-6 text-xs font-medium leading-5 text-(--text-default)">{recovery.nextStep}</p>
-    </div>
+    <ProviderSetupFailureView
+      impact={recovery.impact}
+      message={message}
+      nextStep={recovery.nextStep}
+      tone={kind.endsWith("unknown") || kind === "journal_after_save" ? "warning" : "danger"}
+    />
   );
 }
 

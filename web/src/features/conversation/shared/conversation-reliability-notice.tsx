@@ -10,6 +10,7 @@ import { LoaderCircle, TriangleAlert, WifiOff } from "lucide-react";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import { cn } from "@/shared/ui/class-name";
+import { RecoverySummary } from "@/shared/ui/feedback/recovery-summary";
 import type {
   ConversationFailureCode,
   ConversationReliabilitySnapshot,
@@ -81,6 +82,14 @@ const FAILURE_COPY_KEYS: Record<ConversationFailureCode, ConversationFailureCopy
   },
 };
 
+const WARNING_FAILURE_CODES = new Set<ConversationFailureCode>([
+  "connection_unavailable",
+  "delivery_unknown",
+  "provider_unavailable",
+  "session_load_failed",
+  "usage_limited",
+]);
+
 export function ConversationReliabilityNotice({
   compact,
   reliability,
@@ -128,6 +137,9 @@ export function ConversationReliabilityNotice({
   const failureCopy = presentation.failureCode
     ? FAILURE_COPY_KEYS[presentation.failureCode]
     : null;
+  const warningFailure = presentation.failureCode
+    ? WARNING_FAILURE_CODES.has(presentation.failureCode)
+    : false;
   return (
     <div
       className={cn(
@@ -142,38 +154,33 @@ export function ConversationReliabilityNotice({
         aria-atomic="true"
         aria-live="polite"
         className={cn(
-          "flex min-h-9 w-full items-center gap-2 rounded-[10px] border px-2.5 py-1.5 text-xs shadow-[0_1px_2px_color-mix(in_srgb,var(--shadow-color)_6%,transparent)]",
-        presentation.tone === "failure"
-          ? "border-[color:color-mix(in_srgb,var(--destructive)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_5%,var(--surface-control-background))] text-(--destructive)"
-          : "border-(--surface-control-border) bg-(--surface-control-background) text-(--text-muted)",
+          "flex min-h-8 w-full items-start gap-2 rounded-[9px] border border-(--surface-control-border) bg-(--surface-control-background) px-2.5 py-1.5 text-xs text-(--text-muted)",
         )}
         role="status"
       >
-        <span
+        <Icon
           aria-hidden="true"
           className={cn(
-            "flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px]",
-            presentation.tone === "failure"
-              ? "bg-[color:color-mix(in_srgb,var(--destructive)_9%,transparent)]"
-              : "bg-(--surface-control-field-background)",
+            "mt-0.5 h-3.5 w-3.5 shrink-0",
+            presentation.tone !== "failure"
+              ? "text-(--icon-muted)"
+              : warningFailure
+                ? "text-(--warning)"
+                : "text-(--destructive)",
+            presentation.spinning && "animate-spin motion-reduce:animate-none",
           )}
-        >
-          <Icon
-            className={cn("h-3.5 w-3.5", presentation.spinning && "animate-spin")}
-          />
-        </span>
+        />
         {failureCopy ? (
-          <span className="min-w-0 flex-1 space-y-0.5 leading-5">
-            <span className="block font-semibold text-(--text-strong)">
+          <div className="min-w-0 flex-1">
+            <span className="block font-medium leading-5 text-(--text-strong)">
               {t(failureCopy.title)}
             </span>
-            <span className="block text-(--text-muted)">
-              {t(failureCopy.impact)}
-            </span>
-            <span className="block font-medium text-(--text-default)">
-              {t(failureCopy.nextStep)}
-            </span>
-          </span>
+            <RecoverySummary
+              className="mt-0.5 min-w-0"
+              impact={t(failureCopy.impact)}
+              nextStep={t(failureCopy.nextStep)}
+            />
+          </div>
         ) : (
           <span className="min-w-0 flex-1 leading-5">{presentation.message}</span>
         )}

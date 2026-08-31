@@ -344,8 +344,8 @@ test("unknown message receipt warns against duplicate submission", async () => {
       }),
     ),
   );
-  assert.match(html, /尚未确认是否已经受理/);
-  assert.match(html, /重复发送相同内容可能产生两次回复/);
-  assert.match(html, /确认没有受理后再重新发送/);
+  assert.match(html, /消息状态待确认/);
+  assert.match(html, /重复发送有重复回复风险/);
+  assert.match(html, /先看最新消息，再决定是否重发/);
   assert.doesNotMatch(html, /请稍后重试/);
 });

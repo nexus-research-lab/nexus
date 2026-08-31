@@ -82,18 +82,18 @@ function getChinesePresentation(
       failure: failure.directoryCheck === "failed"
         ? {
             title: "Room 已删除，列表暂时无法更新",
-            impact: "删除已经提交，但部分关联内容没有完全清理；当前列表仍可能显示旧项。",
+            impact: "删除已经提交，但部分关联内容没有完全清理；当前列表仍显示上次内容。",
             nextStep: "检查网络连接后重新核对 Room 列表，不要再次删除。",
           }
         : directoryConfirmed
           ? {
               title: "Room 已删除，关联内容未完全清理",
-              impact: "权威列表已确认 Room 不再存在；部分会话、工作内容或运行状态仍可能需要处理。",
+              impact: "权威列表已确认 Room 不再存在；部分会话、工作内容或运行状态仍需处理。",
               nextStep: "可以关闭此提示，不要再次删除。",
             }
           : {
             title: "Room 已删除，关联内容未完全清理",
-            impact: "删除已经提交；部分会话、工作内容或运行状态仍可能需要处理。",
+            impact: "删除已经提交；部分会话、工作内容或运行状态仍需处理。",
             nextStep: "核对 Room 列表确认最新状态，不要再次删除。",
           },
       variant: "default",
@@ -116,7 +116,7 @@ function getChinesePresentation(
             }
           : {
             title: "Room 已经不存在",
-            impact: "服务端没有找到这个 Room；这次请求没有删除其他 Room，当前列表可能仍显示旧项。",
+            impact: "服务端没有找到这个 Room；这次请求没有删除其他 Room，当前列表尚未核对。",
             nextStep: "正在核对 Room 列表，不要再次删除。",
           },
       variant: "default",
@@ -127,18 +127,18 @@ function getChinesePresentation(
     failure: failure.directoryCheck === "failed"
       ? {
           title: "Room 状态仍无法确认",
-          impact: "删除结果仍未确认，当前列表显示的是上次内容；再次删除可能重复触发清理。",
+          impact: "删除结果未确认，当前列表显示上次内容；重复删除有重复清理风险。",
           nextStep: "检查网络连接后重新核对 Room 列表，不要再次删除。",
         }
       : failure.directoryCheck === "target_present"
         ? {
             title: "Room 仍在列表中，但删除过程未完全确认",
-            impact: "当前列表仍包含 Room，但先前请求可能仍在处理；一次读取不能证明删除没有执行。",
+            impact: "当前列表仍有 Room，但一次读取不能证明先前删除结果；确认前保持保护。",
             nextStep: "稍后再次核对 Room 列表；确认前不要重新删除。",
           }
         : {
           title: "还无法确认 Room 是否已删除",
-          impact: "当前没有收到完整结果。Room 及其中的会话和内容可能已删除，也可能仍然保留。",
+          impact: "未收到完整结果；Room 删除结果待核对，系统没有自动再次删除。",
           nextStep: "正在核对 Room 列表；确认状态前不要再次删除。",
         },
     variant: "default",
@@ -166,18 +166,18 @@ function getEnglishPresentation(
       failure: failure.directoryCheck === "failed"
         ? {
             title: "The Room was deleted, but the list can’t be updated",
-            impact: "The deletion was committed, but some related content was not fully cleaned up. The list may still show an old item.",
+            impact: "The deletion was committed, but some related content was not fully cleaned up. The list shows its previous state.",
             nextStep: "Check your connection, then check the Room list again. Don’t delete it again.",
           }
         : directoryConfirmed
           ? {
               title: "The Room was deleted, but cleanup is incomplete",
-              impact: "The authoritative list confirms that the Room no longer exists. Some conversations, work, or running state may still need attention.",
+              impact: "The authoritative list confirms that the Room no longer exists. Some conversations, work, or running state still need attention.",
               nextStep: "You can close this message. Don’t delete the Room again.",
             }
           : {
             title: "The Room was deleted, but cleanup is incomplete",
-            impact: "The deletion was committed. Some conversations, work, or running state may still need attention.",
+            impact: "The deletion was committed. Some conversations, work, or running state still need attention.",
             nextStep: "Check the Room list for the latest state. Don’t delete it again.",
           },
       variant: "default",
@@ -200,7 +200,7 @@ function getEnglishPresentation(
             }
           : {
             title: "The Room no longer exists",
-            impact: "The server could not find this Room. No other Room was deleted, and the list may still show an old item.",
+            impact: "The server could not find this Room. No other Room was deleted, and the list has not yet been checked.",
             nextStep: "Nexus is checking the Room list. Don’t delete it again.",
           },
       variant: "default",
@@ -211,18 +211,18 @@ function getEnglishPresentation(
     failure: failure.directoryCheck === "failed"
       ? {
           title: "The Room’s status still can’t be confirmed",
-          impact: "The deletion result is still unknown, and the list shows its previous state. Deleting again could repeat cleanup work.",
+          impact: "The deletion result is unconfirmed and the list shows its previous state. Deleting again carries a duplicate-cleanup risk.",
           nextStep: "Check your connection, then check the Room list again. Don’t delete it again.",
         }
       : failure.directoryCheck === "target_present"
         ? {
             title: "The Room is still listed, but the deletion is not fully confirmed",
-            impact: "The Room is still listed, but the earlier request may still be running. One read does not prove that the deletion did not happen.",
+            impact: "The Room is still listed, but one read cannot prove the earlier deletion result. Protection remains until it is confirmed.",
             nextStep: "Check the Room list again later. Don’t delete it again until the result is confirmed.",
           }
         : {
           title: "We can’t confirm whether the Room was deleted",
-          impact: "Nexus did not receive a complete result. The Room and its conversations may have been deleted, or they may still remain.",
+          impact: "Nexus did not receive a complete result. The Room deletion result needs verification, and Nexus did not delete it again.",
           nextStep: "Nexus is checking the Room list. Don’t delete it again until its state is confirmed.",
         },
     variant: "default",
