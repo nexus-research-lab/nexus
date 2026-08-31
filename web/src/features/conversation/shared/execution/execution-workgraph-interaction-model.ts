@@ -1,6 +1,6 @@
 /**
  * INPUT: 权威 Execution Graph 与用户本地的折叠、搜索、平移、缩放及焦点意图。
- * OUTPUT: 可隐藏节点、祖先路径、完整上下游聚焦路径、全文检索结果、有界 viewport 比例、首次居中锚点、对称平移留白与焦点稳定的缩放滚动位置。
+ * OUTPUT: 可隐藏节点、祖先路径、完整上下游聚焦路径、子图整体及其直接边界关系聚焦、全文检索结果、有界 viewport 比例、首次居中锚点、对称平移留白与焦点稳定的缩放滚动位置。
  * POS: WorkGraph 画布的纯交互模型；不改变后端拓扑、节点状态或 Agent 路线。
  */
 import type {
@@ -116,6 +116,24 @@ export function resolveExecutionGraphTrace(
     if (nodeIds.has(edge.sourceId) && nodeIds.has(edge.targetId)) {
       edgeIds.add(edge.id);
     }
+  }
+  return { edgeIds, nodeIds };
+}
+
+export function resolveExecutionGraphGroupTrace(
+  edges: readonly ExecutionGraphTraceEdge[],
+  groupNodeIds: readonly string[],
+): ExecutionGraphTrace {
+  const groupNodes = new Set(groupNodeIds);
+  const nodeIds = new Set(groupNodeIds);
+  const edgeIds = new Set<string>();
+  for (const edge of edges) {
+    if (!groupNodes.has(edge.sourceId) && !groupNodes.has(edge.targetId)) {
+      continue;
+    }
+    edgeIds.add(edge.id);
+    nodeIds.add(edge.sourceId);
+    nodeIds.add(edge.targetId);
   }
   return { edgeIds, nodeIds };
 }

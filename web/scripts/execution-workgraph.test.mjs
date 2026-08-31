@@ -118,6 +118,23 @@ function orthogonalPathCrossesNode(pathValue, node) {
   });
 }
 
+function orthogonalPathCrossesGroupInterior(pathValue, group) {
+  const left = group.x;
+  const right = group.x + group.width;
+  const top = group.y;
+  const bottom = group.y + group.height;
+  return orthogonalPathSegments(pathValue).some((segment) => {
+    if (segment.axis === "vertical") {
+      return segment.fixed > left
+        && segment.fixed < right
+        && Math.min(segment.end, bottom) - Math.max(segment.start, top) > 0.5;
+    }
+    return segment.fixed > top
+      && segment.fixed < bottom
+      && Math.min(segment.end, right) - Math.max(segment.start, left) > 0.5;
+  });
+}
+
 const execution = {
   id: "execution-1",
   session_key: "room:conversation-1",
@@ -713,29 +730,88 @@ test("WorkGraph layout reflows without treating containment as dependency", asyn
     addedLayout.nodes.find((node) => node.node.id === "review").y,
   );
   assert.deepEqual(
-    addedLayout.junctions.map((junction) => ({
-      edges: junction.edgeIds,
-      kind: junction.kind,
+    addedLayout.ports.map((port) => ({
+      edges: port.edgeIds,
+      group: port.groupId,
+      role: port.role,
+      side: port.side,
     })),
     [
       {
-        edges: ["dependency:research:build", "dependency:research:review"],
-        kind: "fan-out",
+        edges: ["dependency:research:build"],
+        group: "build",
+        role: "target",
+        side: "top",
       },
       {
-        edges: ["dependency:build:integrate", "dependency:review:integrate"],
-        kind: "fan-in",
+        edges: ["dependency:build:integrate"],
+        group: "build",
+        role: "source",
+        side: "bottom",
       },
     ],
-    "only edges with one semantic source or target share a marked local bus",
+    "cross-subgraph edges attach to stable frame ports instead of the core node",
   );
+  const buildFrame = addedLayout.groups.find((group) => group.id === "build");
+  const buildIncomingPort = addedLayout.ports.find((port) => port.role === "target");
+  const buildOutgoingPort = addedLayout.ports.find((port) => port.role === "source");
+  assert.equal(buildIncomingPort.y, buildFrame.y);
+  assert.equal(buildOutgoingPort.y, buildFrame.y + buildFrame.height);
+  const incomingFrameEdge = addedLayout.edges.find(
+    (edge) => edge.id === "dependency:research:build",
+  );
+  const outgoingFrameEdge = addedLayout.edges.find(
+    (edge) => edge.id === "dependency:build:integrate",
+  );
+  assert.deepEqual(orthogonalPathPoints(incomingFrameEdge.path).at(-1), {
+    x: buildIncomingPort.x,
+    y: buildIncomingPort.y,
+  });
+  assert.deepEqual(orthogonalPathPoints(outgoingFrameEdge.path)[0], {
+    x: buildOutgoingPort.x,
+    y: buildOutgoingPort.y,
+  });
+  assert.ok(
+    incomingFrameEdge.targetTailPath && outgoingFrameEdge.sourceTailPath,
+    "frame ports retain on-demand tails to the exact semantic endpoints",
+  );
+  for (const edge of addedLayout.edges) {
+    for (const group of addedLayout.groups) {
+      if (group.nodeIds.includes(edge.sourceId) && group.nodeIds.includes(edge.targetId)) {
+        continue;
+      }
+      assert.equal(
+        orthogonalPathCrossesGroupInterior(edge.path, group),
+        false,
+        `${edge.id} must treat unrelated subgraph ${group.id} as a hard obstacle`,
+      );
+    }
+  }
+  const crossSubgraphControl = structuredClone(branched);
+  crossSubgraphControl.graph.edges.push({
+    id: "retry:integrate:attempt-child",
+    kind: "retry",
+    source_node_id: "integrate",
+    target_node_id: "attempt-child",
+  });
+  const crossSubgraphControlLayout = buildExecutionGraphLayout(
+    crossSubgraphControl,
+  );
+  const crossControlEdge = crossSubgraphControlLayout.edges.find(
+    (edge) => edge.id === "retry:integrate:attempt-child",
+  );
+  const crossControlPort = crossSubgraphControlLayout.ports.find(
+    (port) => port.edgeIds.includes("retry:integrate:attempt-child"),
+  );
+  assert.ok(crossControlPort, "cross-subgraph control edges also use frame ports");
+  assert.ok(crossControlEdge.targetTailPath);
   assert.equal(
-    orthogonalPathsShareNonTerminalSegment(
-      addedLayout.edges.find((edge) => edge.id === "dependency:research:build").path,
-      addedLayout.edges.find((edge) => edge.id === "dependency:research:review").path,
+    orthogonalPathCrossesGroupInterior(
+      crossControlEdge.path,
+      crossSubgraphControlLayout.groups.find((group) => group.id === "build"),
     ),
-    true,
-    "same-source branches share a visible fan-out bus",
+    false,
+    "cross-subgraph control edges obey the same hard frame obstacle",
   );
 
   const crossing = structuredClone(execution);
@@ -852,6 +928,31 @@ test("WorkGraph layout reflows without treating containment as dependency", asyn
     },
   );
   const nestedLayout = buildExecutionGraphLayout(nestedOwnership);
+  assert.deepEqual(
+    nestedLayout.junctions.map((junction) => ({
+      edges: junction.edgeIds,
+      kind: junction.kind,
+    })),
+    [{
+      edges: [
+        "spawn:build:attempt-child",
+        "spawn:build:attempt-child-second",
+      ],
+      kind: "fan-out",
+    }],
+    "same-source edges still share a marked local bus inside one subgraph",
+  );
+  assert.equal(
+    orthogonalPathsShareNonTerminalSegment(
+      nestedLayout.edges.find(
+        (edge) => edge.id === "spawn:build:attempt-child",
+      ).path,
+      nestedLayout.edges.find(
+        (edge) => edge.id === "spawn:build:attempt-child-second",
+      ).path,
+    ),
+    true,
+  );
   assert.deepEqual(
     nestedLayout.groups.map((group) => [group.id, group.nodeIds]),
     [
@@ -1628,6 +1729,7 @@ test("WorkGraph interaction model collapses, searches, and fits large graphs wit
     projectExecutionGraphCollapse,
     resolveExecutionGraphAnchoredScroll,
     resolveExecutionGraphFitZoom,
+    resolveExecutionGraphGroupTrace,
     resolveExecutionGraphInitialScroll,
     resolveExecutionGraphNodeAncestors,
     resolveExecutionGraphPanPadding,
@@ -1676,6 +1778,21 @@ test("WorkGraph interaction model collapses, searches, and fits large graphs wit
     "spawn:build:attempt-child",
     "dependency:research:build",
     "loop:attempt-child:build",
+  ]);
+  const groupTrace = resolveExecutionGraphGroupTrace(
+    buildExecutionGraphLayout(searchable).edges,
+    ["build", "attempt-child"],
+  );
+  assert.deepEqual([...groupTrace.nodeIds], [
+    "build",
+    "attempt-child",
+    "research",
+    "integrate",
+  ]);
+  assert.deepEqual([...groupTrace.edgeIds], [
+    "dependency:research:build",
+    "spawn:build:attempt-child",
+    "dependency:build:integrate",
   ]);
   const collapsedLayout = buildExecutionGraphLayout(
     searchable,
