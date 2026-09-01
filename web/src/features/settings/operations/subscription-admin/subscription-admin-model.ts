@@ -28,7 +28,6 @@ export interface PlanDraft {
 }
 
 interface FeedbackStateBase {
-  blocksMutation?: boolean;
   recoveryAction?: "refresh";
   title: string;
 }
@@ -86,6 +85,11 @@ export interface PlanViewModel {
 export interface SubscriptionAdminViewModels {
   accountView: AccountViewModel;
   planView: PlanViewModel;
+}
+
+export interface SubscriptionMutationFailureProjection {
+  effect: "accepted" | "committed" | "not_applied" | "unknown";
+  feedback: FeedbackState;
 }
 
 export type PendingSubscriptionMutation =
@@ -338,7 +342,7 @@ export function buildSubscriptionMutationFailure(
   t: I18nContextValue["t"],
   operation: SubscriptionMutationOperation,
   error: unknown,
-): FeedbackState {
+): SubscriptionMutationFailureProjection {
   const failure = projectMutationFailure(
     error,
     t(SUBSCRIPTION_MUTATION_FALLBACK_KEYS[operation]),
@@ -352,18 +356,20 @@ export function buildSubscriptionMutationFailure(
   const notApplied = outcome === "not_applied";
   const copy = SUBSCRIPTION_MUTATION_COPY[outcome];
   return {
-    blocksMutation: !notApplied,
-    impact: t(copy.impact, {
-      operation: operationLabel,
-    }),
-    nextStep: t(copy.nextStep, {
-      operation: operationLabel,
-    }),
-    recoveryAction: notApplied ? undefined : "refresh",
-    title: t(copy.title, {
-      operation: operationLabel,
-    }),
-    tone: notApplied ? "error" : "warning",
+    effect: outcome,
+    feedback: {
+      impact: t(copy.impact, {
+        operation: operationLabel,
+      }),
+      nextStep: t(copy.nextStep, {
+        operation: operationLabel,
+      }),
+      recoveryAction: notApplied ? undefined : "refresh",
+      title: t(copy.title, {
+        operation: operationLabel,
+      }),
+      tone: notApplied ? "error" : "warning",
+    },
   };
 }
 

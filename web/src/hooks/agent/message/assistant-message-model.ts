@@ -1,6 +1,6 @@
 /**
  * INPUT: Assistant 实时增量、终态/历史快照与 ContentBlock。
- * OUTPUT: 内容不回退、durable annotation 不丢失的 Assistant 消息，以及不含内部详情的终态失败身份/分类。
+ * OUTPUT: 内容不回退、内容专有规范化不丢失、durable annotation 不丢失的 Assistant 消息及安全终态失败。
  * POS: 会话 transport 汇流前的 Assistant 单消息归一/合并边界。
  */
 import type {
@@ -118,12 +118,15 @@ export function normalizeAssistantMessage(
   incoming: AssistantMessage,
 ): AssistantMessage {
   const content = hideTerminalResultEcho(incoming);
+  const streamStatus = incoming.stream_status
+    ?? (incoming.stop_reason || incoming.is_complete ? "done" : "streaming");
+  if (content === incoming.content && streamStatus === incoming.stream_status) {
+    return incoming;
+  }
   return {
     ...incoming,
     content,
-    stream_status:
-      incoming.stream_status ??
-      (incoming.stop_reason || incoming.is_complete ? "done" : "streaming"),
+    stream_status: streamStatus,
   };
 }
 
@@ -153,10 +156,9 @@ export function normalizeAssistantMessages(messages: Message[]): Message[] {
       return message;
     }
     const normalized = normalizeAssistantMessage(message);
-    if (normalized.stream_status === message.stream_status) {
-      return message;
+    if (normalized !== message) {
+      hasChanges = true;
     }
-    hasChanges = true;
     return normalized;
   });
   return hasChanges ? normalizedMessages : messages;

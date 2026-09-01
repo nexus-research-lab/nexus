@@ -58,6 +58,11 @@ test("resource failures only project access loss from HTTP facts", async () => {
   assert.doesNotMatch(errorSource, /navigator\.onLine/);
   assert.doesNotMatch(resourceStateSource, /"offline"|"permission"/);
   assert.match(resourceStateSource, /primaryAction\?: UiResourceStateAction/);
+  assert.match(
+    resourceStateSource,
+    /interface UiResourceFailureStateProps[\s\S]*secondaryAction\?: never/,
+  );
+  assert.match(resourceStateSource, /state: "decision"/);
 });
 
 test("requestApi preserves structured 401 facts through the real request path", async () => {

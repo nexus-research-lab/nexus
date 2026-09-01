@@ -46,8 +46,7 @@ test("Memory deletion recovery only retries not-applied and requires a new inten
   const presentRecovery = recovery.getMemoryDeletionRecoveryPresentation(
     unknownPresent,
   );
-  assert.equal(presentRecovery.primaryAction, "reconcile");
-  assert.equal(presentRecovery.secondaryAction, "start_new_intent");
+  assert.equal(presentRecovery.primaryAction, "start_new_intent");
   assert.equal(
     recovery.canStartNewMemoryDeletionIntent(unknownPresent),
     true,
@@ -56,8 +55,12 @@ test("Memory deletion recovery only retries not-applied and requires a new inten
   const unknownFailed = { ...unknownPresent, directoryCheck: "failed" };
   assert.equal(
     recovery.getMemoryDeletionRecoveryPresentation(unknownFailed)
-      .secondaryAction,
-    "start_new_intent",
+      .primaryAction,
+    "reconcile",
+  );
+  assert.equal(
+    recovery.canStartNewMemoryDeletionIntent(unknownFailed),
+    false,
   );
 
   const committedFailed = {
@@ -68,7 +71,6 @@ test("Memory deletion recovery only retries not-applied and requires a new inten
     committedFailed,
   );
   assert.equal(committedRecovery.primaryAction, "reconcile");
-  assert.equal(committedRecovery.secondaryAction, null);
   assert.equal(
     recovery.canStartNewMemoryDeletionIntent(committedFailed),
     false,
@@ -116,7 +118,7 @@ test("Memory catalog fences delete and reconciliation by owner, Agent, path, and
 
   assert.match(notice, /impact=\{t\(presentation\.impactKey/);
   assert.match(notice, /primaryAction=\{getRecoveryAction/);
-  assert.match(notice, /secondaryAction=\{presentation\.secondaryAction/);
+  assert.doesNotMatch(notice, /secondaryAction=/);
   assert.match(view, /MemoryDeletionIssueNotices/);
   assert.match(view, /memory_delete_confirm_new_intent/);
 });

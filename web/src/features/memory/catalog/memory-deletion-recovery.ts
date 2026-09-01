@@ -47,7 +47,6 @@ export interface MemoryDeletionRecoveryPresentation {
     | "capability.memory_delete_unknown_next_step"
     | "capability.memory_delete_unknown_target_present_next_step";
   primaryAction: MemoryDeletionRecoveryAction;
-  secondaryAction: MemoryDeletionRecoveryAction | null;
   titleKey:
     | "capability.memory_delete_committed_checking_title"
     | "capability.memory_delete_committed_refresh_failed_title"
@@ -92,7 +91,6 @@ export function getMemoryDeletionRecoveryPresentation(
       impactKey: "capability.memory_delete_not_applied_impact",
       nextStepKey: "capability.memory_delete_not_applied_next_step",
       primaryAction: "retry",
-      secondaryAction: null,
       titleKey: "capability.memory_delete_not_applied_title",
       tone: "error",
     };
@@ -102,8 +100,7 @@ export function getMemoryDeletionRecoveryPresentation(
       return {
         impactKey: "capability.memory_delete_committed_target_present_impact",
         nextStepKey: "capability.memory_delete_committed_target_present_next_step",
-        primaryAction: "reconcile",
-        secondaryAction: "start_new_intent",
+        primaryAction: "start_new_intent",
         titleKey: "capability.memory_delete_committed_target_present_title",
         tone: "warning",
       };
@@ -113,7 +110,6 @@ export function getMemoryDeletionRecoveryPresentation(
         impactKey: "capability.memory_delete_committed_checking_impact",
         nextStepKey: "capability.memory_delete_committed_checking_next_step",
         primaryAction: "reconcile",
-        secondaryAction: null,
         titleKey: "capability.memory_delete_committed_checking_title",
         tone: "warning",
       };
@@ -122,7 +118,6 @@ export function getMemoryDeletionRecoveryPresentation(
       impactKey: "capability.memory_delete_committed_refresh_failed_impact",
       nextStepKey: "capability.memory_delete_committed_refresh_failed_next_step",
       primaryAction: "reconcile",
-      secondaryAction: null,
       titleKey: "capability.memory_delete_committed_refresh_failed_title",
       tone: "warning",
     };
@@ -131,8 +126,7 @@ export function getMemoryDeletionRecoveryPresentation(
     return {
       impactKey: "capability.memory_delete_unknown_target_present_impact",
       nextStepKey: "capability.memory_delete_unknown_target_present_next_step",
-      primaryAction: "reconcile",
-      secondaryAction: "start_new_intent",
+      primaryAction: "start_new_intent",
       titleKey: "capability.memory_delete_unknown_target_present_title",
       tone: "warning",
     };
@@ -142,7 +136,6 @@ export function getMemoryDeletionRecoveryPresentation(
       impactKey: "capability.memory_delete_unknown_check_failed_impact",
       nextStepKey: "capability.memory_delete_unknown_check_failed_next_step",
       primaryAction: "reconcile",
-      secondaryAction: "start_new_intent",
       titleKey: "capability.memory_delete_unknown_check_failed_title",
       tone: "warning",
     };
@@ -151,7 +144,6 @@ export function getMemoryDeletionRecoveryPresentation(
     impactKey: "capability.memory_delete_unknown_impact",
     nextStepKey: "capability.memory_delete_unknown_next_step",
     primaryAction: "reconcile",
-    secondaryAction: null,
     titleKey: "capability.memory_delete_unknown_title",
     tone: "warning",
   };
@@ -160,8 +152,7 @@ export function getMemoryDeletionRecoveryPresentation(
 export function canStartNewMemoryDeletionIntent(
   issue: MemoryDeletionIssue,
 ): boolean {
-  return issue.directoryCheck === "target_present"
-    || (issue.kind === "outcome_unknown" && issue.directoryCheck === "failed");
+  return issue.directoryCheck === "target_present";
 }
 
 export function upsertMemoryDeletionIssue(

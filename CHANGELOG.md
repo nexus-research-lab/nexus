@@ -77,10 +77,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Edge extensions page and bundled extension directory instead of a blank tab
   and the default Documents folder.
 - Reconciled Room Agent execution cards against authoritative reconnect
-  snapshots, so executions absent from the server's active-slot set no longer
-  remain stuck on thinking with a stale Stop action; incremental ACKs still
-  preserve unrelated work, and late exact failure or interruption evidence can
-  refine the neutral terminal state without reordering replies.
+  snapshots and their durable Room sequence fence, so history or replay events
+  older than the snapshot can no longer revive an execution that the server has
+  already stopped. Persisted partial Assistant rows remain visible as history
+  without producing a stale thinking state or Stop action.
+- Made password changes safely reconcilable with a user-scoped exact request
+  terminal receipt. Credential CAS and `committed` are one transaction, while
+  an explicit `not_applied` settlement fences late writes after a lost draft;
+  unknown results persist across reloads without storing passwords or creating
+  a fresh mutation.
+- Kept Subscription Admin mutation locks independent from dismissible feedback,
+  classified subscription/password failures from proven write stages, preserved
+  content-only Assistant normalization, and prevented legacy error details from
+  becoming user-visible copy. Error-state types now allow only one safe recovery
+  action, while explicit two-way conflict choices use a separate decision state.
 - Prevented the WorkGraph history dropdown from opening as an empty strip when
   a conversation has no current or historical graph; it now shows an explicit
   empty or load-failure state, grows with its history through seven entries,

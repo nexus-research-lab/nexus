@@ -134,39 +134,45 @@ function TextFileSaveIssueNotice({
   const { t } = useI18n();
   if (issue.kind === "conflict") {
     const reviewing = issue.phase === "review";
+    if (reviewing) {
+      return (
+        <UiResourceState
+          className="min-h-0 w-full px-3 py-3 [overflow-wrap:anywhere]"
+          impact={t("workspace_file.conflict_review_impact")}
+          primaryAction={{
+            label: t("workspace_file.adopt_latest"),
+            onClick: onAdoptLatest,
+          }}
+          secondaryAction={{
+            busy: isSaving,
+            busyLabel: t("workspace_file.overwriting"),
+            disabled: !revisionReady,
+            label: t("workspace_file.overwrite_latest"),
+            onClick: onOverwrite,
+            tone: "danger",
+          }}
+          size="sm"
+          state="decision"
+          title={t("workspace_file.conflict_review_title")}
+          tone="warning"
+          variant="card"
+        />
+      );
+    }
     return (
       <UiResourceState
         className="min-h-0 w-full px-3 py-3 [overflow-wrap:anywhere]"
-        impact={t(reviewing
-          ? "workspace_file.conflict_review_impact"
-          : "workspace_file.conflict_impact")}
-        primaryAction={reviewing
-          ? {
-              label: t("workspace_file.adopt_latest"),
-              onClick: onAdoptLatest,
-            }
-          : {
-              busy: isLoading,
-              busyLabel: t("workspace_file.loading_latest"),
-              icon: <RefreshCw className="h-3.5 w-3.5" />,
-              label: t("workspace_file.load_latest"),
-              onClick: onLoadLatest,
-            }}
-        secondaryAction={reviewing
-          ? {
-              busy: isSaving,
-              busyLabel: t("workspace_file.overwriting"),
-              disabled: !revisionReady,
-              label: t("workspace_file.overwrite_latest"),
-              onClick: onOverwrite,
-              tone: "danger",
-            }
-          : undefined}
+        impact={t("workspace_file.conflict_impact")}
+        primaryAction={{
+          busy: isLoading,
+          busyLabel: t("workspace_file.loading_latest"),
+          icon: <RefreshCw className="h-3.5 w-3.5" />,
+          label: t("workspace_file.load_latest"),
+          onClick: onLoadLatest,
+        }}
         size="sm"
         state="error"
-        title={t(reviewing
-          ? "workspace_file.conflict_review_title"
-          : "workspace_file.conflict_title")}
+        title={t("workspace_file.conflict_title")}
         tone="warning"
         variant="card"
       />

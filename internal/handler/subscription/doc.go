@@ -4,6 +4,7 @@
 //
 // 成员清单：
 //   - handlers.go：Handlers 及订阅额度路由。
+//   - failure.go：读取与 mutation 阶段的 FailureCore 证据投影。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package subscription

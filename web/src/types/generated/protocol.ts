@@ -225,6 +225,7 @@ export interface ChatAckData {
   user_message_delivery_mode?: DeliveryMode;
   pending: ChatAckPendingSlot[];
   pending_snapshot: boolean;
+  snapshot_room_seq?: number;
   pending_interaction_snapshot?: boolean;
   pending_interaction_request_ids?: string[];
   activity_snapshot?: boolean;

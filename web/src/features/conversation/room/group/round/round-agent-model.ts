@@ -1,6 +1,6 @@
 /**
  * INPUT: Room 根轮次消息、agent slot、人工介入请求与当前 Session 的 execution 首见锚点。
- * OUTPUT: 任一证据先到都按 agent_round_id 聚合、首次展示顺序不可变且 acknowledged 权限保持非交互 shell 的回复卡片。
+ * OUTPUT: 证据按 agent_round_id 聚合且顺序不变；历史消息不建活动态，live slot/interaction/lifecycle 仍保留 shell。
  * POS: Room feed 与 thread 共用的 Agent 执行轮次投影。
  */
 import type {
@@ -391,6 +391,7 @@ function boundStatusByExecutionLifecycle(
   status: AgentRoundStatus,
   executionState?: RoomAgentExecutionState,
   hasTerminalResult: boolean = false,
+  hasLiveActivityEvidence: boolean = false,
 ): AgentRoundStatus {
   if (executionState?.phase === "active" && !hasTerminalResult) {
     // Thread lifecycle 仍 active 时，一次 Assistant message_stop / is_complete
@@ -398,7 +399,10 @@ function boundStatusByExecutionLifecycle(
     return executionState.status;
   }
   if (executionState?.phase !== "terminal") {
-    return status;
+    // Message history can contain an interrupted Assistant row whose persisted
+    // stream_status was never rewritten. Without a live slot or execution
+    // lifecycle that row is structural history, not evidence of current work.
+    return !hasLiveActivityEvidence && ACTIVE_STATUSES.has(status) ? "done" : status;
   }
   const executionStatus = executionState.status;
   if (!TERMINAL_SLOT_STATUSES.has(status)) {
@@ -513,6 +517,7 @@ function buildRoomAgentRoundEntry(
     projectedStatus,
     executionState,
     Boolean(resultSummary),
+    Boolean(pendingSlot || permissionIdentity),
   );
   return {
     entry_id: entryId,

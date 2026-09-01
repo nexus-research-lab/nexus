@@ -19,6 +19,12 @@ var (
 	ErrPasswordLoginDisabled = errors.New("服务端未启用密码登录")
 	// ErrInvalidCredentials 表示用户名或密码无效。
 	ErrInvalidCredentials = errors.New("用户名或密码错误")
+	// ErrPasswordChangeCommitted 表示密码凭据已提交，但后续响应投影失败。
+	ErrPasswordChangeCommitted = errors.New("password change committed")
+	// ErrPasswordChangeNotApplied 表示 exact request 已被 durable 终态收口为未执行。
+	ErrPasswordChangeNotApplied = errors.New("password change not applied")
+	// ErrPasswordChangeInvalidInput 表示密码修改协议字段校验失败。
+	ErrPasswordChangeInvalidInput = errors.New("invalid password change input")
 	// ErrOwnerAlreadyInitialized 表示 owner 已经创建，不能重复初始化。
 	ErrOwnerAlreadyInitialized = errors.New("owner 用户已初始化")
 	// ErrUsernameAlreadyExists 表示用户名已被占用。

@@ -190,31 +190,57 @@ func (s *Service) ChangePassword(ctx context.Context, input ChangePasswordInput)
 	if userID == "" {
 		return nil, errors.New("user_id 不能为空")
 	}
+	requestID, err := normalizePasswordChangeRequestID(input.RequestID)
+	if err != nil {
+		return nil, errors.Join(ErrPasswordChangeInvalidInput, err)
+	}
+	outcome, err := s.repository.PasswordChangeOutcome(ctx, userID, requestID)
+	if err != nil {
+		return nil, err
+	}
+	switch outcome {
+	case authstore.PasswordChangeOutcomeCommitted:
+		return s.passwordChangeCommittedUser(ctx, userID)
+	case authstore.PasswordChangeOutcomeNotApplied:
+		return nil, ErrPasswordChangeNotApplied
+	}
 	if strings.TrimSpace(input.CurrentPassword) == "" {
-		return nil, errors.New("当前密码不能为空")
+		return s.rejectPasswordChange(
+			ctx,
+			userID,
+			requestID,
+			errors.Join(ErrPasswordChangeInvalidInput, errors.New("当前密码不能为空")),
+			true,
+		)
 	}
 	if err := validatePassword(input.NewPassword); err != nil {
-		return nil, err
+		return s.rejectPasswordChange(
+			ctx,
+			userID,
+			requestID,
+			errors.Join(ErrPasswordChangeInvalidInput, err),
+			true,
+		)
 	}
 
 	user, credential, err := s.repository.GetUserWithPasswordByID(ctx, userID)
 	if err != nil {
-		return nil, err
+		return s.rejectPasswordChange(ctx, userID, requestID, err, false)
 	}
 	if user == nil || credential == nil || user.Status != UserStatusActive {
-		return nil, ErrInvalidCredentials
+		return s.rejectPasswordChange(ctx, userID, requestID, ErrInvalidCredentials, true)
 	}
 	matched, err := VerifyPassword(input.CurrentPassword, credential.PasswordHash)
 	if err != nil {
-		return nil, err
+		return s.rejectPasswordChange(ctx, userID, requestID, err, false)
 	}
 	if !matched {
-		return nil, ErrInvalidCredentials
+		return s.rejectPasswordChange(ctx, userID, requestID, ErrInvalidCredentials, true)
 	}
 
 	passwordHash, err := HashPassword(input.NewPassword)
 	if err != nil {
-		return nil, err
+		return s.rejectPasswordChange(ctx, userID, requestID, err, false)
 	}
 	now := s.now()
 	nextCredential := authstore.PasswordCredential{
@@ -226,10 +252,119 @@ func (s *Service) ChangePassword(ctx context.Context, input ChangePasswordInput)
 		CreatedAt:         now,
 		UpdatedAt:         now,
 	}
-	if err = s.repository.UpsertPasswordCredential(ctx, nextCredential); err != nil {
+	if _, err = s.repository.CommitPasswordChange(
+		ctx,
+		nextCredential,
+		credential.PasswordHash,
+		requestID,
+	); err != nil {
+		if errors.Is(err, authstore.ErrPasswordCredentialChanged) {
+			return s.rejectPasswordChange(ctx, userID, requestID, ErrInvalidCredentials, true)
+		}
+		if errors.Is(err, authstore.ErrPasswordChangeNotApplied) {
+			return nil, ErrPasswordChangeNotApplied
+		}
+		if authstore.IsPasswordChangeOutcomeUnknown(err) {
+			return nil, err
+		}
 		return nil, err
 	}
-	return s.userByID(ctx, user.UserID)
+	updatedUser, err := s.userByID(ctx, user.UserID)
+	if err != nil {
+		return nil, errors.Join(ErrPasswordChangeCommitted, err)
+	}
+	return updatedUser, nil
+}
+
+// PasswordChangeOutcome 返回 exact user/request 的 durable 终态；无回执时为 unknown。
+func (s *Service) PasswordChangeOutcome(
+	ctx context.Context,
+	userID string,
+	requestID string,
+) (PasswordChangeOutcome, error) {
+	normalizedUserID := strings.TrimSpace(userID)
+	if normalizedUserID == "" {
+		return "", errors.New("user_id 不能为空")
+	}
+	normalizedRequestID, err := normalizePasswordChangeRequestID(requestID)
+	if err != nil {
+		return "", errors.Join(ErrPasswordChangeInvalidInput, err)
+	}
+	outcome, err := s.repository.PasswordChangeOutcome(ctx, normalizedUserID, normalizedRequestID)
+	if err != nil {
+		return "", err
+	}
+	return projectPasswordChangeOutcome(outcome), nil
+}
+
+// SettlePasswordChangeNotApplied 原子放弃尚未提交的 exact request，并阻止迟到写入。
+func (s *Service) SettlePasswordChangeNotApplied(
+	ctx context.Context,
+	userID string,
+	requestID string,
+) (PasswordChangeOutcome, error) {
+	normalizedUserID := strings.TrimSpace(userID)
+	if normalizedUserID == "" {
+		return "", errors.New("user_id 不能为空")
+	}
+	normalizedRequestID, err := normalizePasswordChangeRequestID(requestID)
+	if err != nil {
+		return "", errors.Join(ErrPasswordChangeInvalidInput, err)
+	}
+	outcome, err := s.repository.SettlePasswordChangeNotApplied(
+		ctx,
+		normalizedUserID,
+		normalizedRequestID,
+		s.now(),
+	)
+	if err != nil {
+		return "", err
+	}
+	return projectPasswordChangeOutcome(outcome), nil
+}
+
+func (s *Service) rejectPasswordChange(
+	ctx context.Context,
+	userID string,
+	requestID string,
+	rejection error,
+	clientSafe bool,
+) (*User, error) {
+	outcome, err := s.repository.SettlePasswordChangeNotApplied(
+		ctx,
+		userID,
+		requestID,
+		s.now(),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if outcome == authstore.PasswordChangeOutcomeCommitted {
+		return s.passwordChangeCommittedUser(ctx, userID)
+	}
+	if clientSafe {
+		return nil, rejection
+	}
+	return nil, errors.Join(ErrPasswordChangeNotApplied, rejection)
+}
+
+func (s *Service) passwordChangeCommittedUser(ctx context.Context, userID string) (*User, error) {
+	user, err := s.userByID(ctx, userID)
+	if err != nil {
+		return nil, errors.Join(ErrPasswordChangeCommitted, err)
+	}
+	return user, nil
+}
+
+func projectPasswordChangeOutcome(outcome authstore.PasswordChangeOutcome) PasswordChangeOutcome {
+	switch outcome {
+	case authstore.PasswordChangeOutcomeCommitted:
+		return PasswordChangeOutcomeCommitted
+	case authstore.PasswordChangeOutcomeNotApplied:
+		return PasswordChangeOutcomeNotApplied
+	default:
+		return PasswordChangeOutcomeUnknown
+	}
 }
 
 // UpdateProfile 更新当前用户的个人资料。

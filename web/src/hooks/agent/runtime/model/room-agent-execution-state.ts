@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前 Session 的 Room execution 顺序锚点，以及 permission / 增量 slot / 权威 slot snapshot / message / lifecycle 证据。
- * OUTPUT: keyed by root round + agent_round 的 execution 锚点；持久 message display_order 可纠正快照竞态，权威空快照收口缺失的活动 execution，易失证据保持首次可见顺序且不复活终态。
+ * OUTPUT: keyed by root round + agent_round 的 execution 锚点；只有 live slot/lifecycle/interaction 可建活动态，历史只提供结构与终态。
  * POS: Room execution shell 连续性的纯状态转换；React 状态与协议发送只负责调用。
  */
 import type {
@@ -446,10 +446,17 @@ function resolveLiveMessageStatus(
 function resolveSnapshotMessageStatus(
   message: AssistantMessage,
   currentState?: RoomAgentExecutionState,
-): AssistantMessageStatus {
-  return currentState && currentState.phase !== "terminal"
-    ? resolveLiveMessageStatus(message)
-    : resolveMessageStatus(message);
+): AssistantMessageStatus | null {
+  if (currentState?.phase !== undefined && currentState.phase !== "terminal") {
+    return resolveLiveMessageStatus(message);
+  }
+  const status = resolveMessageStatus(message);
+  // Durable history supplies structure, content and exact terminal evidence. It
+  // never proves that an execution is active: only a live event or the Room
+  // pending snapshot owns that fact. Old/incomplete Assistant rows are skipped
+  // here and remain visible through the message projection without reviving a
+  // stopped execution.
+  return TERMINAL_STATUSES.has(status) ? status : null;
 }
 
 function syncRoomAgentExecutionMessageEvidence(
@@ -458,7 +465,7 @@ function syncRoomAgentExecutionMessageEvidence(
   statusForMessage: (
     message: AssistantMessage,
     currentState?: RoomAgentExecutionState,
-  ) => AssistantMessageStatus,
+  ) => AssistantMessageStatus | null,
 ): RoomAgentExecutionState[] {
   const currentByExecution = new Map(
     current.map((state) => [executionKey(state), state]),
@@ -482,6 +489,9 @@ function syncRoomAgentExecutionMessageEvidence(
         identity.agentRoundId,
       )),
     );
+    if (!status) {
+      return [];
+    }
     const canonicalDisplayOrder = isFiniteDisplayOrder(message.display_order)
       ? message.display_order
       : undefined;

@@ -20,6 +20,80 @@ test.after(async () => {
   await server.close();
 });
 
+test("password unknown outcomes persist only an exact receipt pointer", async () => {
+  const receipts = await server.ssrLoadModule(
+    "/src/features/settings/personal/password-change-receipt.ts",
+  );
+  const values = new Map();
+  const previousWindow = globalThis.window;
+  globalThis.window = {
+    localStorage: {
+      getItem: (key) => values.get(key) ?? null,
+      removeItem: (key) => values.delete(key),
+      setItem: (key, value) => values.set(key, String(value)),
+    },
+  };
+  try {
+    const requestID = receipts.createPasswordChangeRequestID();
+    receipts.rememberPendingPasswordChangeRequest("user-1", requestID);
+    assert.equal(
+      receipts.readPendingPasswordChangeRequest("user-1"),
+      requestID,
+    );
+    assert.equal(values.size, 1);
+    assert.doesNotMatch(JSON.stringify([...values]), /current_password|new_password/);
+    receipts.forgetPendingPasswordChangeRequest("user-1", "another-request-id");
+    assert.equal(
+      receipts.readPendingPasswordChangeRequest("user-1"),
+      requestID,
+      "a stale response must not erase a newer exact request pointer",
+    );
+    receipts.forgetPendingPasswordChangeRequest("user-1", requestID);
+    assert.equal(receipts.readPendingPasswordChangeRequest("user-1"), null);
+  } finally {
+    if (previousWindow === undefined) {
+      delete globalThis.window;
+    } else {
+      globalThis.window = previousWindow;
+    }
+  }
+});
+
+test("subscription mutation locking is independent from visible feedback", async () => {
+  const { buildSubscriptionMutationFailure } = await server.ssrLoadModule(
+    "/src/features/settings/operations/subscription-admin/subscription-admin-model.ts",
+  );
+  const { ApiRequestError, ApiTransportError } = await server.ssrLoadModule(
+    "/src/lib/api/core/http-error.ts",
+  );
+  const { zhMessages } = await server.ssrLoadModule(
+    "/src/shared/i18n/catalog/zh/index.ts",
+  );
+  const t = (key, params = {}) => Object.entries(params).reduce(
+    (message, [name, value]) => message.replaceAll(`{${name}}`, String(value)),
+    zhMessages[key] ?? key,
+  );
+  const unknown = buildSubscriptionMutationFailure(
+    t,
+    "account",
+    new ApiTransportError("network details", "network", "unknown"),
+  );
+  assert.equal(unknown.effect, "unknown");
+  assert.equal("blocksMutation" in unknown.feedback, false);
+
+  const rejected = buildSubscriptionMutationFailure(
+    t,
+    "account",
+    new ApiRequestError("details", 409, {
+      category: "conflict",
+      code: "subscription.not_applied",
+      effect: "not_applied",
+      version: 1,
+    }),
+  );
+  assert.equal(rejected.effect, "not_applied");
+});
+
 test("project mutations distinguish not-applied from an unknown outcome", async () => {
   const { buildProjectMutationFeedback } = await server.ssrLoadModule(
     "/src/features/settings/operations/project-admin/project-admin-model.ts",

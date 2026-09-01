@@ -122,17 +122,46 @@ func TestServiceSetupOwnerLoginLogoutAndResetPassword(t *testing.T) {
 
 	if _, err = service.ChangePassword(ctx, ChangePasswordInput{
 		UserID:          user.UserID,
+		RequestID:       "test-password:invalid-current",
 		CurrentPassword: "password123",
 		NewPassword:     "password789",
 	}); !errors.Is(err, ErrInvalidCredentials) {
 		t.Fatalf("个人改密应校验当前密码，实际: %v", err)
 	}
+	if outcome, outcomeErr := service.PasswordChangeOutcome(
+		ctx,
+		user.UserID,
+		"test-password:invalid-current",
+	); outcomeErr != nil || outcome != PasswordChangeOutcomeNotApplied {
+		t.Fatalf("明确拒绝必须留下 not_applied 回执: outcome=%q err=%v", outcome, outcomeErr)
+	}
 	if _, err = service.ChangePassword(ctx, ChangePasswordInput{
 		UserID:          user.UserID,
+		RequestID:       "test-password:invalid-current",
+		CurrentPassword: "password456",
+		NewPassword:     "password789",
+	}); !errors.Is(err, ErrPasswordChangeNotApplied) {
+		t.Fatalf("not_applied request 不得以新输入复用: %v", err)
+	}
+	if _, err = service.ChangePassword(ctx, ChangePasswordInput{
+		UserID:          user.UserID,
+		RequestID:       "test-password:committed",
 		CurrentPassword: "password456",
 		NewPassword:     "password789",
 	}); err != nil {
 		t.Fatalf("个人改密失败: %v", err)
+	}
+	if _, err = service.ChangePassword(ctx, ChangePasswordInput{
+		UserID:          user.UserID,
+		RequestID:       "test-password:committed",
+		CurrentPassword: "password456",
+		NewPassword:     "must-not-replace-password789",
+	}); err != nil {
+		t.Fatalf("同一 exact request 应返回已提交回执而不是再次改密: %v", err)
+	}
+	outcome, err := service.PasswordChangeOutcome(ctx, user.UserID, "test-password:committed")
+	if err != nil || outcome != PasswordChangeOutcomeCommitted {
+		t.Fatalf("改密回执应与凭据同事务提交: outcome=%q err=%v", outcome, err)
 	}
 	if _, err = service.Login(ctx, LoginInput{
 		Username: "admin",

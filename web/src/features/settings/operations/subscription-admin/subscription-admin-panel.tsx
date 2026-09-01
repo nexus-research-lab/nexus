@@ -1,3 +1,8 @@
+/**
+ * INPUT: Subscription 权威快照、独立 mutation 锁与可见反馈。
+ * OUTPUT: dismiss 只影响反馈，不得解除未对账 mutation 锁的运营界面。
+ * POS: Subscription Admin 页面装配层。
+ */
 "use client";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -59,7 +64,7 @@ export function SubscriptionAdminPanel({ view }: SubscriptionAdminPanelProps) {
                         },
                       }
                     : undefined,
-                  onDismiss: controller.feedback.blocksMutation
+                  onDismiss: controller.mutationBlocked
                     ? undefined
                     : controller.dismissFeedback,
                   title: controller.feedback.title,
