@@ -16,6 +16,7 @@ import {
   getInitialAgentOptions,
   USER_PREFERENCES_CHANGED_EVENT,
 } from "@/config/runtime-options";
+import { CAPABILITY_SUMMARY_MUTATED_EVENT } from "@/features/capability/capability-summary-events";
 import {
   AGENT_PERMISSION_MODES,
   DEFAULT_AGENT_PERMISSION_MODE,
@@ -204,6 +205,25 @@ export function useComposerSessionSettings(
       window.removeEventListener(
         USER_PREFERENCES_CHANGED_EVENT,
         handlePreferencesChange,
+      );
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleCapabilityMutation = (event: Event) => {
+      const detail = (event as CustomEvent<Record<string, unknown>>).detail;
+      if (detail?.source === "custom-mcp") {
+        setConnectorsRevision((current) => current + 1);
+      }
+    };
+    window.addEventListener(
+      CAPABILITY_SUMMARY_MUTATED_EVENT,
+      handleCapabilityMutation,
+    );
+    return () => {
+      window.removeEventListener(
+        CAPABILITY_SUMMARY_MUTATED_EVENT,
+        handleCapabilityMutation,
       );
     };
   }, []);

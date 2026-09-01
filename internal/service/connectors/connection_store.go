@@ -1,3 +1,6 @@
+// INPUT: Connector 配置记录、可选 availability 与期望配置版本。
+// OUTPUT: 加密凭据及原子保留/更新 availability 的 owner 级连接记录。
+// POS: 所有 Connector 持久写入的唯一 SQL 装配边界。
 package connectors
 
 import (
@@ -48,8 +51,9 @@ func (s *Service) writeConnection(
 	if s.driver == "pgx" {
 		query := `
 INSERT INTO connector_connections (
-    owner_user_id, connector_id, state, credentials, credentials_encrypted, auth_type, oauth_state, oauth_state_expires_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    owner_user_id, connector_id, state, credentials, credentials_encrypted, auth_type,
+    oauth_state, oauth_state_expires_at, enabled
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, TRUE))
 ON CONFLICT (owner_user_id, connector_id) DO UPDATE SET
     state = EXCLUDED.state,
     credentials = EXCLUDED.credentials,
@@ -57,6 +61,7 @@ ON CONFLICT (owner_user_id, connector_id) DO UPDATE SET
     auth_type = EXCLUDED.auth_type,
     oauth_state = EXCLUDED.oauth_state,
     oauth_state_expires_at = EXCLUDED.oauth_state_expires_at,
+    enabled = COALESCE($9, connector_connections.enabled),
     updated_at = CURRENT_TIMESTAMP`
 		_, err := executor.ExecContext(
 			ctx,
@@ -69,13 +74,15 @@ ON CONFLICT (owner_user_id, connector_id) DO UPDATE SET
 			record.AuthType,
 			nil,
 			nil,
+			nullBool(record.AvailabilityEnabled),
 		)
 		return err
 	}
 	query := `
 INSERT INTO connector_connections (
-    owner_user_id, connector_id, state, credentials, credentials_encrypted, auth_type, oauth_state, oauth_state_expires_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    owner_user_id, connector_id, state, credentials, credentials_encrypted, auth_type,
+    oauth_state, oauth_state_expires_at, enabled
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, TRUE))
 ON CONFLICT(owner_user_id, connector_id) DO UPDATE SET
     state = excluded.state,
     credentials = excluded.credentials,
@@ -83,6 +90,7 @@ ON CONFLICT(owner_user_id, connector_id) DO UPDATE SET
     auth_type = excluded.auth_type,
     oauth_state = excluded.oauth_state,
     oauth_state_expires_at = excluded.oauth_state_expires_at,
+    enabled = COALESCE(?, connector_connections.enabled),
     updated_at = CURRENT_TIMESTAMP`
 	_, err := executor.ExecContext(
 		ctx,
@@ -95,6 +103,8 @@ ON CONFLICT(owner_user_id, connector_id) DO UPDATE SET
 		record.AuthType,
 		nil,
 		nil,
+		nullBool(record.AvailabilityEnabled),
+		nullBool(record.AvailabilityEnabled),
 	)
 	return err
 }
@@ -142,6 +152,13 @@ func (s *Service) connectionCredentialsPayload(record connectionRecord) ([]byte,
 func nullString(value sql.NullString) any {
 	if value.Valid {
 		return value.String
+	}
+	return nil
+}
+
+func nullBool(value sql.NullBool) any {
+	if value.Valid {
+		return value.Bool
 	}
 	return nil
 }

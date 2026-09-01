@@ -1,3 +1,6 @@
+// INPUT: Connector 目录、认证、连接与持久化领域事实。
+// OUTPUT: handler、service 阶段和存储装配共用的窄类型。
+// POS: Connector 领域模型定义；不承载读取或写入策略。
 package connectors
 
 import (
@@ -128,6 +131,7 @@ type connectionRecord struct {
 	OwnerUserID          string
 	ConnectorID          string
 	State                string
+	AvailabilityEnabled  sql.NullBool
 	Credentials          string
 	CredentialsEncrypted sql.NullString
 	AuthType             string

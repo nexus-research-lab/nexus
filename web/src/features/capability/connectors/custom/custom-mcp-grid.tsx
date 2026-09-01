@@ -5,18 +5,26 @@
  */
 "use client";
 
-import { Pencil, Plus, Server, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
+import type { MouseEvent } from "react";
 
 import {
   CAPABILITY_DIRECTORY_GRID_CLASS_NAME,
   CAPABILITY_DIRECTORY_ROW_CLASS_NAME,
-  CapabilityItemIcon,
 } from "@/features/capability/shared/capability-page-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { UiBadge } from "@/shared/ui/display/badge";
-import { UiPanel } from "@/shared/ui/panel";
+import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
+import { UiListRow } from "@/shared/ui/list/list-row";
 import type { CustomMCPServer } from "@/types/capability/connector";
+
+import { ConnectorIcon } from "../connector-icon";
+import {
+  getCustomMCPConnectionTarget,
+  getCustomMCPDisplayName,
+  isCustomMCPRecoveryRequired,
+} from "./custom-mcp-model";
 
 interface CustomMCPGridProps {
   busy: boolean;
@@ -25,6 +33,8 @@ interface CustomMCPGridProps {
   onAdd: () => void;
   onDelete: (server: CustomMCPServer) => void;
   onEdit: (server: CustomMCPServer) => void;
+  onOpen: (server: CustomMCPServer) => void;
+  onToggle: (server: CustomMCPServer, enabled: boolean) => void;
   servers: CustomMCPServer[];
 }
 
@@ -35,6 +45,8 @@ export function CustomMCPGrid({
   onAdd,
   onDelete,
   onEdit,
+  onOpen,
+  onToggle,
   servers,
 }: CustomMCPGridProps) {
   const { t } = useI18n();
@@ -74,56 +86,103 @@ export function CustomMCPGrid({
   return (
     <section>
       <div className={CAPABILITY_DIRECTORY_GRID_CLASS_NAME}>
-        {servers.map((server) => (
-          <UiPanel
+        {servers.map((server) => {
+          const recoveryRequired = isCustomMCPRecoveryRequired(server);
+          const displayName = getCustomMCPDisplayName(
+            server,
+            t("capability.custom_mcp_recovery_name"),
+          );
+          return (
+          <UiListRow
             className={CAPABILITY_DIRECTORY_ROW_CLASS_NAME}
             key={server.connector_id}
-            padding="none"
-            radius="sm"
-          >
-            <div className="flex h-full min-w-0 items-start gap-3">
-              <CapabilityItemIcon>
-                <Server className="h-4 w-4" />
-              </CapabilityItemIcon>
-              <div className="min-w-0 flex-1">
-                <div className="flex min-w-0 items-center gap-2">
-                  <h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-(--text-strong)">
-                    {server.name}
-                  </h3>
-                  <UiBadge>{server.type.toUpperCase()}</UiBadge>
-                </div>
-                <p
-                  className="mt-1 truncate font-mono text-xs text-(--text-muted)"
-                  title={server.type === "stdio" ? server.command : server.url}
+            leading={(
+              <ConnectorIcon
+                icon="custom-mcp"
+                title={recoveryRequired ? server.connector_id : server.name}
+              />
+            )}
+            onClick={() => onOpen(server)}
+            right={(
+              <div
+                className="flex shrink-0 items-center gap-1"
+                onClick={(event) => event.stopPropagation()}
+                role="presentation"
+              >
+                <GlassSwitch
+                  aria-label={t("capability.custom_mcp_available_in_chat")}
+                  checked={!recoveryRequired && server.enabled}
+                  disabled={busy || recoveryRequired}
+                  onChange={(enabled) => onToggle(server, enabled)}
+                  size="xs"
+                />
+                <UiIconButton
+                  aria-label={t(recoveryRequired
+                    ? "capability.custom_mcp_recover_action"
+                    : "common.edit")}
+                  disabled={busy}
+                  onClick={(event) => handleAction(event, () => onEdit(server))}
+                  size="sm"
+                  type="button"
                 >
-                  {server.type === "stdio" ? server.command : server.url}
-                </p>
-                <div className="mt-2 flex items-center gap-1">
-                  <UiIconButton
-                    disabled={busy}
-                    onClick={() => onEdit(server)}
-                    size="sm"
-                    title={t("common.edit")}
-                    type="button"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </UiIconButton>
-                  <UiIconButton
-                    disabled={busy}
-                    onClick={() => onDelete(server)}
-                    size="sm"
-                    title={t("common.delete")}
-                    tone="danger"
-                    type="button"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </UiIconButton>
-                </div>
+                  <Pencil className="h-3.5 w-3.5" />
+                </UiIconButton>
+                <UiIconButton
+                  aria-label={t("common.delete")}
+                  disabled={busy}
+                  onClick={(event) => handleAction(event, () => onDelete(server))}
+                  size="sm"
+                  tone="danger"
+                  type="button"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </UiIconButton>
               </div>
+            )}
+          >
+            <div className="min-w-0 flex-1">
+              <div className="flex min-w-0 items-center gap-2">
+                <h3 className="min-w-0 truncate text-base font-medium text-(--text-strong)">
+                  {displayName}
+                </h3>
+                {recoveryRequired ? (
+                  <UiBadge size="xs" tone="warning">
+                    {t("capability.custom_mcp_recovery_badge")}
+                  </UiBadge>
+                ) : (
+                  <UiBadge size="xs">{server.type.toUpperCase()}</UiBadge>
+                )}
+                {!recoveryRequired && !server.enabled ? (
+                  <UiBadge size="xs" tone="idle">
+                    {t("capability.custom_mcp_disabled")}
+                  </UiBadge>
+                ) : null}
+              </div>
+              {recoveryRequired ? (
+                <p className="mt-0.5 truncate text-xs leading-[1.125rem] text-(--text-muted)">
+                  {t("capability.custom_mcp_recovery_summary")}
+                </p>
+              ) : (
+                <p
+                  className="mt-0.5 truncate font-mono text-xs leading-[1.125rem] text-(--text-muted)"
+                  title={getCustomMCPConnectionTarget(server)}
+                >
+                  {getCustomMCPConnectionTarget(server)}
+                </p>
+              )}
             </div>
-          </UiPanel>
-        ))}
+          </UiListRow>
+          );
+        })}
       </div>
     </section>
   );
+}
+
+function handleAction(
+  event: MouseEvent<HTMLButtonElement>,
+  action: () => void,
+): void {
+  event.stopPropagation();
+  action();
 }
