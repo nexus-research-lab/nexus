@@ -1,9 +1,11 @@
 // INPUT: owner-confined workspace、精确 session_key、配置版本与删除清理引用。
-// OUTPUT: 持久 deleting/deleted tombstone、一次性删除 lease 与普通 writer admission。
-// POS: session 目录之外的删除真相源；删除后晚到 runtime writer 不得以 version=1 复活。
+// OUTPUT: 持久 deleting/deleted tombstone、一次性删除 lease、状态根重定位与普通 writer admission。
+// POS: session 目录之外的删除真相源；路径派生文件名随状态根迁移，删除后晚到 runtime writer 不得复活。
 package workspace
 
 import (
+	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -402,6 +404,171 @@ func sessionLifecycleFileName(workspacePath string, sessionKey string) string {
 		encodeSessionDirName(strings.TrimSpace(sessionKey))
 	sum := sha256.Sum256([]byte(physicalIdentity))
 	return hex.EncodeToString(sum[:]) + ".json"
+}
+
+// RebaseSessionLifecycleRecords 在桌面状态根切换时同步 workspace 路径与派生文件名。
+// 新文件先原子落盘再删除旧文件，进程中断后重复执行即可收口。
+func (s *SessionFileStore) RebaseSessionLifecycleRecords(
+	ctx context.Context,
+	previousRoot string,
+	currentRoot string,
+) error {
+	if s == nil || s.paths == nil {
+		return errors.New("workspace storage root is nil")
+	}
+	usersRoot, err := openManagedSubtree(
+		s.paths.StateRoot,
+		filepath.Join(s.paths.StateRoot, "users"),
+		false,
+		0o700,
+	)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	defer usersRoot.Close()
+	owners, err := fs.ReadDir(usersRoot.FS(), ".")
+	if err != nil {
+		return err
+	}
+	for _, owner := range owners {
+		if err = ctx.Err(); err != nil {
+			return err
+		}
+		if !owner.IsDir() {
+			continue
+		}
+		lifecycleRoot, openErr := usersRoot.OpenRootNoSymlink(filepath.ToSlash(filepath.Join(
+			owner.Name(),
+			"state",
+			"session-lifecycle",
+		)))
+		if errors.Is(openErr, os.ErrNotExist) {
+			continue
+		}
+		if openErr != nil {
+			return openErr
+		}
+		rebaseErr := s.rebaseSessionLifecycleOwner(
+			ctx,
+			lifecycleRoot,
+			owner.Name(),
+			previousRoot,
+			currentRoot,
+		)
+		closeErr := lifecycleRoot.Close()
+		if rebaseErr != nil {
+			return rebaseErr
+		}
+		if closeErr != nil {
+			return closeErr
+		}
+	}
+	return nil
+}
+
+func (s *SessionFileStore) rebaseSessionLifecycleOwner(
+	ctx context.Context,
+	root *confinedfs.Root,
+	ownerName string,
+	previousRoot string,
+	currentRoot string,
+) error {
+	entries, err := fs.ReadDir(root.FS(), ".")
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if err = ctx.Err(); err != nil {
+			return err
+		}
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
+			continue
+		}
+		if err = s.rebaseSessionLifecycleRecord(
+			root,
+			ownerName,
+			entry.Name(),
+			previousRoot,
+			currentRoot,
+		); err != nil {
+			return fmt.Errorf("重映射 Session 删除恢复记录 %s/%s: %w", ownerName, entry.Name(), err)
+		}
+	}
+	return nil
+}
+
+func (s *SessionFileStore) rebaseSessionLifecycleRecord(
+	root *confinedfs.Root,
+	ownerName string,
+	sourceName string,
+	previousRoot string,
+	currentRoot string,
+) error {
+	payload, err := root.ReadFile(sourceName)
+	if err != nil {
+		return err
+	}
+	var record sessionLifecycleRecord
+	if err = json.Unmarshal(payload, &record); err != nil {
+		return err
+	}
+	workspacePath := filepath.Clean(strings.TrimSpace(record.WorkspacePath))
+	if appfs.UserPathSegment(record.OwnerUserID) != ownerName ||
+		sourceName != sessionLifecycleFileName(workspacePath, record.SessionKey) {
+		return ErrSessionStorageIdentityMismatch
+	}
+	targetWorkspace, changed := appfs.RebaseStateRootPath(
+		workspacePath,
+		previousRoot,
+		currentRoot,
+	)
+	if !changed {
+		if !s.paths.workspacePathBelongsToOwner(record.OwnerUserID, workspacePath) {
+			return ErrSessionStorageIdentityMismatch
+		}
+		return nil
+	}
+	if !directChildPath(
+		appfs.UserWorkspaceRootAt(previousRoot, record.OwnerUserID),
+		workspacePath,
+	) || !s.paths.workspacePathBelongsToOwner(record.OwnerUserID, targetWorkspace) {
+		return ErrSessionStorageIdentityMismatch
+	}
+	record.WorkspacePath = targetWorkspace
+	targetName := sessionLifecycleFileName(targetWorkspace, record.SessionKey)
+	if targetName == sourceName {
+		return errors.New("Session 删除恢复记录文件名冲突")
+	}
+	targetPayload, err := json.MarshalIndent(record, "", "  ")
+	if err != nil {
+		return err
+	}
+	existingPayload, readErr := root.ReadFile(targetName)
+	switch {
+	case readErr == nil:
+		var existing sessionLifecycleRecord
+		if err = json.Unmarshal(existingPayload, &existing); err != nil {
+			return errors.New("目标 Session 删除恢复记录无效")
+		}
+		existingPayload, err = json.MarshalIndent(existing, "", "  ")
+		if err != nil || !bytes.Equal(existingPayload, targetPayload) {
+			return errors.New("目标 Session 删除恢复记录已存在且内容不同")
+		}
+	case errors.Is(readErr, os.ErrNotExist):
+		if err = root.WriteFileAtomic(targetName, targetPayload, storageFileMode(0o600)); err != nil {
+			return err
+		}
+	default:
+		return readErr
+	}
+	err = root.Remove(sourceName)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	return err
 }
 
 func (s *SessionFileStore) openSessionLifecycleRoot(create bool) (*confinedfs.Root, error) {

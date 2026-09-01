@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 )
 
@@ -227,7 +228,11 @@ func rewriteStructuredStateRootPaths(value any, previousRoot string, targetRoot 
 		for key, item := range typed {
 			if isStateRootPathField(key) {
 				if path, ok := item.(string); ok {
-					if rewritten, matched := rewriteStateRootPath(path, previousRoot, targetRoot); matched {
+					if rewritten, matched := appfs.RebaseStateRootPath(
+						path,
+						previousRoot,
+						targetRoot,
+					); matched {
 						typed[key] = rewritten
 						changed = true
 					}

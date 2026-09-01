@@ -199,6 +199,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added an administrator-selectable subscription default model that new web users inherit until they choose their own default.
 
+### Fixed
+
+- Rebased Session deletion recovery records during desktop data-directory migration and warned Windows users to run Nexus as administrator before moving data.
+
 ## [0.1.39] - 2026-08-31
 
 ### Added

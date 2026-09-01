@@ -26,6 +26,8 @@ export function useWorkspaceSettings() {
   const { t } = useI18n();
   const runtime = getDesktopRuntimeConfig();
   const placeholder = t(getStateRootPlaceholderKey(runtime?.platform));
+  const showAdministratorNotice =
+    runtime?.platform?.trim().toLowerCase() === "windows";
   const [snapshot, setSnapshot] = useState(
     EMPTY_WORKSPACE_SETTINGS_SNAPSHOT,
   );
@@ -204,6 +206,7 @@ export function useWorkspaceSettings() {
     selectDirectory,
     selecting,
     saving,
+    showAdministratorNotice,
     setDraftPath: (value: string) => {
       setSnapshot((current) => replaceWorkspaceDraft(current, value));
     },

@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
@@ -26,6 +27,31 @@ func StateRoot() string {
 		return resolveDefaultConfigDir()
 	}
 	return normalizeStateRoot(value)
+}
+
+// RebaseStateRootPath 把旧状态根内的绝对路径映射到新状态根。
+func RebaseStateRootPath(value string, previousRoot string, currentRoot string) (string, bool) {
+	value = filepath.Clean(strings.TrimSpace(value))
+	previousRoot = filepath.Clean(strings.TrimSpace(previousRoot))
+	currentRoot = filepath.Clean(strings.TrimSpace(currentRoot))
+	if value == "." || previousRoot == "." || currentRoot == "." || !filepath.IsAbs(value) {
+		return value, false
+	}
+	equalPath := func(left string, right string) bool {
+		if runtime.GOOS == "windows" {
+			return strings.EqualFold(left, right)
+		}
+		return left == right
+	}
+	if equalPath(value, previousRoot) {
+		return currentRoot, true
+	}
+	relative, err := filepath.Rel(previousRoot, value)
+	if err != nil || relative == "." || relative == ".." ||
+		strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return value, false
+	}
+	return filepath.Join(currentRoot, relative), true
 }
 
 // AppDir 返回 Nexus 宿主控制面目录。

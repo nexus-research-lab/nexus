@@ -6,7 +6,13 @@
 "use client";
 
 import { useState } from "react";
-import { Folder, FolderOpen, Loader2, RefreshCw } from "lucide-react";
+import {
+  Folder,
+  FolderOpen,
+  Loader2,
+  RefreshCw,
+  ShieldAlert,
+} from "lucide-react";
 
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
@@ -46,6 +52,17 @@ export function SettingsWorkspaceSection() {
                 <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
                   {t("settings.general.state_root_description")}
                 </p>
+                {controller.showAdministratorNotice ? (
+                  <p
+                    className="mt-1 flex max-w-[520px] items-start gap-1.5 text-xs leading-5 text-(--warning)"
+                    role="alert"
+                  >
+                    <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <span>
+                      {t("settings.general.state_root_windows_admin_notice")}
+                    </span>
+                  </p>
+                ) : null}
                 {controller.currentPath ? (
                   <p
                     className="mt-1 max-w-[520px] break-all font-mono text-xs leading-5 text-(--text-muted)"
