@@ -104,20 +104,12 @@ export function useProviderSettingsController(
     const keepsUnconfirmedMutation = previousFeedback?.mutationEffect === "accepted"
       || previousFeedback?.mutationEffect === "unknown";
     if (!await refreshAll(workspace.selectedProvider)) {
-      if (keepsUnconfirmedMutation && previousFeedback) {
-        setFeedback({
-          ...previousFeedback,
-          message: `${previousFeedback.message} ${t("settings.providers.latest_state_refresh_failed_message")}`,
-        });
-      }
       return;
     }
     if (keepsUnconfirmedMutation && previousFeedback) {
       setFeedback({
         impact: t("settings.providers.latest_state_unconfirmed_impact"),
-        message: t("settings.providers.latest_state_unconfirmed_message"),
         mutationEffect: previousFeedback.mutationEffect,
-        nextStep: t("settings.providers.latest_state_unconfirmed_next_step"),
         tone: "warning",
         title: t("settings.providers.latest_state_loaded_title"),
       });

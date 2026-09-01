@@ -420,8 +420,8 @@ test("uncertain mutation copy names the affected resource without enumerating ou
   assert.match(copy, /cannot yet confirm whether deletion took effect/);
   assert.match(copy, /操作结果待核对，同一 Agent、路径和操作已暂停/);
   assert.match(copy, /operation result needs verification, and the same Agent, path, and action are paused/i);
-  assert.match(copy, /消息仍在；状态待确认/);
-  assert.match(copy, /message remains and its status needs confirmation/i);
+  assert.match(copy, /消息状态未确认/);
+  assert.match(copy, /message status isn't confirmed/i);
   assert.doesNotMatch(copy, /可能[^。；]*也可能|may or may not/i);
 });
 
@@ -457,7 +457,8 @@ test("Room external tabs and round indexes retain only same-scope read snapshots
   assert.match(conversationSessionSource, /roundIndexResource\.error !== null/);
   assert.match(conversationSessionSource, /roundIndexResource\.items/);
   assert.match(noticeSource, /data-read-resource-state/);
-  assert.match(noticeSource, /<RecoverySummary[\s\S]*impact=\{impact\}[\s\S]*nextStep=\{nextStep\}/);
+  assert.match(noticeSource, /<RecoverySummary[\s\S]*impact=\{impact\}/);
+  assert.match(noticeSource, /onClick=\{onRefresh\}/);
   assert.match(panelLayoutSource, /resource="session-round-index"/);
   assert.match(desktopRoomSource, /resource="room-external-sessions"/);
   assert.match(mobileRoomSource, /resource="room-external-sessions"/);

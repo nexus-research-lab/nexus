@@ -212,7 +212,6 @@ function AttachmentPreviewFailure({ onClose }: { onClose: () => void }) {
     <UiResourceState
       className="m-auto min-h-0 w-full max-w-md py-5"
       impact={t("composer.attachment_preview_failed_impact")}
-      nextStep={t("composer.attachment_preview_failed_next_step")}
       primaryAction={{
         label: t("composer.close_attachment_preview"),
         onClick: onClose,

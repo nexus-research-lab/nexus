@@ -90,7 +90,6 @@ export function ChannelConnectDialog({
               {hasConnectionProblem && !controller.connectionRecoveryNotice ? (
                 <FeedbackBanner
                   impact={t("capability.channel_connection_error_impact")}
-                  message={t("capability.channel_connection_error_message")}
                   nextStep={t("capability.channel_connection_error_next_step")}
                   title={t("capability.channel_connection_error_title")}
                   tone="error"

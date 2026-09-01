@@ -21,35 +21,31 @@ export function ComposerSessionSettingsReliability({
   if (readFailures.length === 0 && !controller.mutationFailure) {
     return null;
   }
+  const activeReadFailure = controller.mutationFailure ? null : readFailures[0] ?? null;
 
   return (
-    <div className="space-y-2 px-2" data-composer-settings-reliability>
-      {readFailures.map((failure) => (
+    <div className="px-2" data-composer-settings-reliability>
+      {activeReadFailure ? (
         <UiResourceState
-          description={failure.message}
-          impact={failure.impact}
-          key={failure.resource}
-          nextStep={failure.nextStep}
+          impact={activeReadFailure.impact}
           primaryAction={{
-            busy: isReadRetrying(controller, failure),
+            busy: isReadRetrying(controller, activeReadFailure),
             label: t("state.retry"),
-            onClick: () => retryReadFailure(controller, failure),
+            onClick: () => retryReadFailure(controller, activeReadFailure),
           }}
           size="sm"
           state="error"
-          title={failure.title}
+          title={activeReadFailure.title}
           variant="inset"
         />
-      ))}
+      ) : null}
       {controller.mutationFailure ? (
         <UiResourceState
-          description={controller.mutationFailure.message}
           impact={controller.mutationFailure.impact}
-          nextStep={controller.mutationFailure.nextStep}
-          primaryAction={{
-            label: t("composer.session_settings_start_new_change"),
-            onClick: controller.startNewSettingsIntent,
-          }}
+          primaryAction={controller.mutationFailure.blocksRepeat ? {
+            label: t("state.reload_check"),
+            onClick: () => void controller.retrySessionSettings(),
+          } : undefined}
           size="sm"
           state="error"
           title={controller.mutationFailure.title}

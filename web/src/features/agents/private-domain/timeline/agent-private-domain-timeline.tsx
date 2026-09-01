@@ -42,7 +42,6 @@ interface PrivateTimelineProps {
 }
 
 export interface PrivateDomainReadFailure {
-  message: string;
   stale: boolean;
 }
 
@@ -190,11 +189,9 @@ export function PrivateEventTimeline({
           {failure ? (
             <UiResourceState
               className="min-h-0 py-3"
-              description={failure.message}
               impact={failure.stale
                 ? localization.t("agent_options.contact.private_messages_stale_impact")
                 : localization.t("agent_options.contact.private_messages_unavailable_impact")}
-              nextStep={localization.t("agent_options.contact.private_messages_failure_next_step")}
               primaryAction={{
                 busy: isLoading,
                 busyLabel: localization.t("common.loading"),

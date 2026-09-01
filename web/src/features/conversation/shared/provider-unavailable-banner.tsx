@@ -2,9 +2,7 @@
 
 import { useState } from "react";
 import { AlertTriangle } from "lucide-react";
-import { Link } from "react-router-dom";
 
-import { AppRouteBuilders } from "@/app/router/route-paths";
 import { ProviderSetupDialog } from "@/features/onboarding/provider-setup/provider-setup-dialog";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { getUiButtonClassName } from "@/shared/ui/button/button-styles";
@@ -42,12 +40,6 @@ export function ProviderUnavailableBanner({ compact = false }: ProviderUnavailab
           >
             {t("onboarding.provider_setup_action")}
           </button>
-          <Link
-            to={AppRouteBuilders.settings("providers")}
-            className="hidden shrink-0 font-medium text-(--text-muted) underline-offset-2 hover:text-(--text-strong) hover:underline sm:inline"
-          >
-            {t("onboarding.provider_setup_advanced")}
-          </Link>
         </div>
       </div>
       <ProviderSetupDialog

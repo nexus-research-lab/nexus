@@ -36,7 +36,7 @@ export function RoomSkillsSelector({
         ariaLabel={label}
         disabled={disabled}
         emptyText={t("room.skills_empty")}
-        errorText={error}
+        errorText={error ? t("room.skills_load_error") : null}
         isLoading={isLoading}
         loadingText={t("room.skills_loading")}
         onChange={onChange}
@@ -59,9 +59,6 @@ export function RoomSkillsSelector({
           </p>
           <p className="mt-1 leading-5 text-(--text-muted)">
             {t("room.skills_load_error_impact")}
-          </p>
-          <p className="mt-1 font-medium leading-5 text-(--text-default)">
-            {t("room.skills_load_error_next_step")}
           </p>
         </div>
       ) : null}

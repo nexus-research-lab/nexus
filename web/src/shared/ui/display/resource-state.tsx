@@ -1,5 +1,5 @@
 // INPUT: 上层已经确定的加载、空、失败或完成展示内容与可选动作。
-// OUTPUT: 以标题、一句影响/下一步说明和可选动作呈现的可访问展示面。
+// OUTPUT: 以标题、当前影响、必要时的恢复说明和可选动作呈现的可访问展示面。
 // POS: 纯展示组件；不判断 query、mutation、access、离线或重试语义。
 "use client";
 
@@ -38,7 +38,6 @@ export interface UiResourceStateAction {
 
 interface UiResourceStateBaseProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
   className?: string;
-  description?: ReactNode;
   icon?: ReactNode;
   size?: UiStateBlockSize;
   title: ReactNode;
@@ -47,6 +46,7 @@ interface UiResourceStateBaseProps extends Omit<HTMLAttributes<HTMLDivElement>, 
 }
 
 interface UiResourceLoadingStateProps extends UiResourceStateBaseProps {
+  description?: ReactNode;
   impact?: ReactNode;
   nextStep?: ReactNode;
   primaryAction?: UiResourceStateAction;
@@ -56,8 +56,9 @@ interface UiResourceLoadingStateProps extends UiResourceStateBaseProps {
 }
 
 interface UiResourceEmptyStateProps extends UiResourceStateBaseProps {
+  description?: ReactNode;
   impact?: ReactNode;
-  nextStep: ReactNode;
+  nextStep?: ReactNode;
   primaryAction?: UiResourceStateAction;
   secondaryAction?: UiResourceStateAction;
   state: "empty";
@@ -65,8 +66,9 @@ interface UiResourceEmptyStateProps extends UiResourceStateBaseProps {
 }
 
 interface UiResourceFailureStateProps extends UiResourceStateBaseProps {
+  description?: never;
   impact: ReactNode;
-  nextStep: ReactNode;
+  nextStep?: ReactNode;
   primaryAction?: UiResourceStateAction;
   secondaryAction?: UiResourceStateAction;
   state: "error";
@@ -74,6 +76,7 @@ interface UiResourceFailureStateProps extends UiResourceStateBaseProps {
 }
 
 interface UiResourceSuccessStateProps extends UiResourceStateBaseProps {
+  description?: ReactNode;
   impact?: ReactNode;
   nextStep: ReactNode;
   primaryAction?: UiResourceStateAction;
@@ -145,7 +148,9 @@ export function UiResourceState({
             compactFailure ? "text-left" : "text-center",
           )}
           impact={<span data-resource-state-impact>{impact}</span>}
-          nextStep={<span data-resource-state-next-step>{nextStep}</span>}
+          nextStep={!primaryAction && !secondaryAction && nextStep
+            ? <span data-resource-state-next-step>{nextStep}</span>
+            : undefined}
         />
       ) : impact || nextStep ? (
         <div className="mt-3 w-full max-w-md space-y-1.5 break-words text-center text-xs leading-5 [overflow-wrap:anywhere]">

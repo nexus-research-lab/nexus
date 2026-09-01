@@ -37,7 +37,7 @@ interface ConversationPanelScrollSource {
 interface ConversationNavigatorSessionSource {
   conversation: Pick<
     UseAgentConversationReturn,
-    "load_round_window"
+    "load_round_window" | "load_session"
   >;
   roundScrollRef: RefObject<ConversationRoundScrollHandle | null>;
   scroll: Pick<
@@ -110,6 +110,7 @@ export interface ConversationPanelFrameModel {
   isSessionLoading: boolean;
   navigator: ConversationNavigatorModel;
   providerWarningVisible: boolean;
+  reconcileConversation: () => void;
   reliability: UseAgentConversationReturn["reliability"];
   roundIndexResource: ConversationRoundIndexSessionSource["roundIndexResource"];
   scrollToLatest: ConversationScrollToLatestModel;
@@ -126,6 +127,11 @@ export function buildConversationPanelFrameModel(
     isSessionLoading: session.conversation.is_session_loading,
     navigator: buildConversationNavigatorModel(session),
     providerWarningVisible: environment.providerWarningVisible,
+    reconcileConversation: () => {
+      if (session.sessionKey) {
+        void session.conversation.load_session(session.sessionKey);
+      }
+    },
     reliability: session.conversation.reliability,
     roundIndexResource: session.roundIndexResource,
     scrollToLatest: buildConversationScrollToLatestModel(session),

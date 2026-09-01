@@ -1,3 +1,8 @@
+/**
+ * INPUT: 启动或根渲染已经确认的失败标题与单句恢复说明。
+ * OUTPUT: 不泄露底层原因、只提供刷新动作的全屏失败面。
+ * POS: React 根边界的最后用户可见恢复入口；诊断只写宿主日志。
+ */
 import { Component, type ErrorInfo, type ReactNode } from "react";
 
 import { notifyDesktopWebFatal } from "@/config/desktop-runtime";
@@ -6,9 +11,7 @@ import { recoverFromChunkLoadError } from "./recovery/chunk-error-recovery";
 
 interface RootFailureScreenProps {
   title: string;
-  description: ReactNode;
-  impact: ReactNode;
-  nextStep: ReactNode;
+  message: ReactNode;
   size?: "compact" | "wide";
 }
 
@@ -27,9 +30,7 @@ const ROOT_FAILURE_WIDTH_CLASSES = {
 
 export function RootFailureScreen({
   title,
-  description,
-  impact,
-  nextStep,
+  message,
   size = "wide",
 }: RootFailureScreenProps) {
   return (
@@ -39,17 +40,15 @@ export function RootFailureScreen({
           N
         </div>
         <h1 className="text-lg font-semibold text-(--text-strong)">{title}</h1>
-        <p className="mt-2 text-base leading-6 text-(--text-muted)">{description}</p>
-        <p className="mt-3 text-sm leading-6 text-(--text-muted)">{impact}</p>
-        <p className="mt-1 text-sm font-medium leading-6 text-(--text-default)">
-          {nextStep}
+        <p className="mx-auto mt-3 max-w-[420px] text-sm leading-6 text-(--text-muted)">
+          {message}
         </p>
         <button
           className="mt-5 inline-flex h-10 items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground transition hover:opacity-90 motion-reduce:transition-none"
           onClick={() => window.location.reload()}
           type="button"
         >
-          刷新页面
+          重试
         </button>
       </section>
     </main>
@@ -75,10 +74,8 @@ export class RootErrorBoundary extends Component<RootErrorBoundaryProps, RootErr
     if (this.state.hasError) {
       return (
         <RootFailureScreen
-          description="当前页面在显示内容时发生异常。"
-          impact="已经确认保存的内容不会因此被撤销；尚未确认结果的操作需要刷新后核对。"
-          nextStep="刷新页面重新加载当前状态。若刚刚安装了新版本，刷新也会载入最新资源。"
-          title="界面渲染失败"
+          message="请稍后重试。"
+          title="页面暂时无法显示"
         />
       );
     }

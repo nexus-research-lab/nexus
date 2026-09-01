@@ -28,14 +28,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   near-fullscreen detail dialog with a distinct fit-to-view action, exact edge
   midpoint controls, and full upstream/downstream path focus that dims
   unrelated graph content without hiding durable Tool runs.
-- Simplified shared failure presentation to a concrete title, one localized
-  impact/recovery sentence, and at most one safe primary action. Server details,
+- Simplified shared failure presentation to a concrete title, one short
+  instruction, and at most one direct action. Error views no longer require
+  separate impact and next-step copy, buttons use short labels, and existing
+  send/save/refresh controls are not duplicated. Server details,
   protocol recovery directives, and diagnostic IDs no longer drive user copy.
   Uncertain,
   stale, and conflicting states now use warning emphasis while confirmed
   failures retain destructive emphasis. Unknown results state confirmed facts
   and concrete repeat risks instead of listing hypothetical outcome branches,
   without changing recovery behavior.
+- Reduced conversation recovery to one prioritized, single-sentence Composer
+  status. Only message reconciliation and incomplete history loading expose a
+  refresh action; other failures reuse the existing Composer, permission card,
+  or settings controls. New submissions no longer erase unresolved delivery or Provider facts,
+  terminal runtime text no longer masquerades as an assistant reply, Goal notices
+  no longer expose internal detail, and root failure screens use one recovery line.
+- Removed unused error `message` and `description` channels from shared feedback,
+  resource-state, settings, Skill, Composer, OAuth, and Agent-editor paths so
+  product code cannot build duplicate hidden copy or surface provider details.
 - Removed the scheduled-task browser mutation journal, Agent-creation Web Locks
   availability gate, implementation-shape reliability suites, and standalone
   failure-state screenshot gallery. Browser storage is now only a best-effort

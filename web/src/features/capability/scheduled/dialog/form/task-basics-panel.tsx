@@ -107,10 +107,7 @@ export function TaskBasicsPanel({
           />
         </UiField>
         {target.error && target.retry ? (
-          <TaskResourceFailure
-            message={target.error}
-            onRetry={target.retry}
-          />
+          <TaskResourceFailure onRetry={target.retry} />
         ) : null}
       </div>
 

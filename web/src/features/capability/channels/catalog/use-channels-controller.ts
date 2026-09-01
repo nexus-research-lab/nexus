@@ -57,7 +57,6 @@ export function useChannelsController() {
           nextStep: t("capability.channel_catalog_load_failed_next_step"),
           tone: "error",
           title: t("capability.channel_catalog_load_failed_title"),
-          message: t("capability.channel_catalog_load_failed_message"),
         });
       } else {
         setFeedback(null);
@@ -73,7 +72,6 @@ export function useChannelsController() {
           nextStep: t("capability.channel_catalog_load_failed_next_step"),
           tone: "error",
           title: t("capability.channel_catalog_load_failed_title"),
-          message: t("capability.channel_catalog_load_failed_message"),
         });
       }
       return false;
@@ -132,7 +130,6 @@ export function useChannelsController() {
           nextStep: t("state.committed_refresh_next_step"),
           tone: "error",
           title: "频道已断开，刷新失败",
-          message: "请手动刷新频道列表确认最新状态",
         });
   }, [refresh, t]);
 

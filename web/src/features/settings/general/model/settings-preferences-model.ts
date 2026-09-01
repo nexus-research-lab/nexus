@@ -15,13 +15,19 @@ import {
   type UserPreferences,
 } from "@/types/settings/preferences";
 
-export interface PreferenceFeedback {
-  impact: string;
-  message: string;
-  nextStep: string;
-  title: string;
-  tone: "error" | "success" | "warning";
-}
+export type PreferenceFeedback =
+  | {
+    impact: string;
+    message?: never;
+    title: string;
+    tone: "error" | "warning";
+  }
+  | {
+    impact?: never;
+    message: string;
+    title: string;
+    tone: "success";
+  };
 
 export interface PreferenceRecoveryControls {
   canCompare: boolean;
@@ -29,7 +35,6 @@ export interface PreferenceRecoveryControls {
   checking: boolean;
   checkLatest: () => void;
   repairProjection: () => void;
-  reapplyDraft: () => void;
   repairing: boolean;
   useLatest: () => void;
 }

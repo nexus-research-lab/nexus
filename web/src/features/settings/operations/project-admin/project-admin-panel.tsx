@@ -279,27 +279,32 @@ export function ProjectAdminPanel() {
       <FeedbackBannerViewport
         item={viewModel.feedback
           ? completeFeedbackBanner(
-            {
-              action: viewModel.feedback.recoveryAction === "refresh"
-                ? {
-                    label: t("state.retry"),
-                    onClick: () => {
-                      void controller.refreshProjects();
-                    },
-                  }
-                : undefined,
-              impact: viewModel.feedback.impact,
-              message: viewModel.feedback.message,
-              nextStep: viewModel.feedback.nextStep,
-              onDismiss: viewModel.feedback.blocksMutation
-                ? undefined
-                : controller.dismissFeedback,
-              title: viewModel.feedback.title,
-              tone: viewModel.feedback.tone,
-            },
+            viewModel.feedback.tone === "success"
+              ? {
+                  message: viewModel.feedback.message,
+                  onDismiss: controller.dismissFeedback,
+                  title: viewModel.feedback.title,
+                  tone: "success",
+                }
+              : {
+                  action: viewModel.feedback.recoveryAction === "refresh"
+                    ? {
+                        label: t("state.retry"),
+                        onClick: () => {
+                          void controller.refreshProjects();
+                        },
+                      }
+                    : undefined,
+                  impact: viewModel.feedback.impact,
+                  nextStep: viewModel.feedback.nextStep,
+                  onDismiss: viewModel.feedback.blocksMutation
+                    ? undefined
+                    : controller.dismissFeedback,
+                  title: viewModel.feedback.title,
+                  tone: viewModel.feedback.tone,
+                },
             {
               impact: t("feedback.unconfirmed_impact"),
-              nextStep: t("feedback.unconfirmed_next_step"),
             },
           )
           : null}

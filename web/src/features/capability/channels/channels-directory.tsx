@@ -59,7 +59,6 @@ export function ChannelsDirectory() {
         },
         {
           impact: t("feedback.unconfirmed_impact"),
-          nextStep: t("feedback.unconfirmed_next_step"),
         },
       )
     : null;
@@ -107,9 +106,7 @@ export function ChannelsDirectory() {
             <ChannelLoadingGrid />
           ) : controller.readFailed && controller.channels.length === 0 ? (
             <UiResourceState
-              description={t("capability.channel_catalog_load_failed_message")}
               impact={t("capability.channel_catalog_load_failed_impact")}
-              nextStep={t("capability.channel_catalog_load_failed_next_step")}
               primaryAction={{
                 label: t("capability.channel_reconcile_action"),
                 onClick: () => void controller.refresh(),

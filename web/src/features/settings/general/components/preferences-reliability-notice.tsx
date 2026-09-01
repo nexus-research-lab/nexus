@@ -10,6 +10,7 @@ import { CircleAlert, CircleCheck, RefreshCw } from "lucide-react";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
+import { RecoverySummary } from "@/shared/ui/feedback/recovery-summary";
 
 import type {
   PreferenceFeedback,
@@ -48,11 +49,11 @@ export function PreferencesReliabilityNotice({
       )}
       <div className="min-w-0 flex-1">
         <p className="font-semibold leading-5 text-(--text-strong)">{feedback.title}</p>
-        <p className="mt-0.5 break-words leading-5 text-(--text-default)">
-          {feedback.message}
-        </p>
-        <p className="leading-5 text-(--text-muted)">{feedback.impact}</p>
-        <p className="font-medium leading-5 text-(--text-default)">{feedback.nextStep}</p>
+        {success ? (
+          <p className="mt-0.5 break-words leading-5 text-(--text-muted)">
+            {feedback.message}
+          </p>
+        ) : <RecoverySummary className="mt-0.5" impact={feedback.impact} />}
         {!success && recovery ? (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {recovery.canRepairProjection ? (
@@ -73,25 +74,14 @@ export function PreferencesReliabilityNotice({
                   : t("settings.general.preferences_repair_projection")}
               </UiButton>
             ) : recovery.canCompare ? (
-              <>
-                <UiButton
-                  disabled={recovery.checking}
-                  onClick={recovery.useLatest}
-                  size="xs"
-                  variant="text"
-                >
-                  {t("settings.general.preferences_use_latest")}
-                </UiButton>
-                <UiButton
-                  disabled={recovery.checking}
-                  onClick={recovery.reapplyDraft}
-                  size="xs"
-                  tone="primary"
-                  variant="surface"
-                >
-                  {t("settings.general.preferences_reapply_draft")}
-                </UiButton>
-              </>
+              <UiButton
+                disabled={recovery.checking}
+                onClick={recovery.useLatest}
+                size="xs"
+                variant="text"
+              >
+                {t("settings.general.preferences_use_latest")}
+              </UiButton>
             ) : (
               <UiButton
                 aria-busy={recovery.checking}

@@ -11,7 +11,6 @@ export interface SkillUpdateCheckNotice {
 
 interface SkillUpdateCheckFailure {
   additionalCount: number;
-  reason: string | null;
   skillName: string;
 }
 
@@ -49,7 +48,6 @@ function buildFailure(
   const failure = failures[0];
   return {
     additionalCount: Math.max(0, failures.length - 1),
-    reason: failure?.error.trim() || null,
     skillName: failure?.skill_name.trim() || "Skill",
   };
 }
@@ -79,12 +77,7 @@ function formatFailure(
   failure: SkillUpdateCheckFailure,
   t: I18nContextValue["t"],
 ): string {
-  const message = failure.reason
-    ? t("capability.skills_check_failed_with_reason", {
-      name: failure.skillName,
-      reason: failure.reason,
-    })
-    : t("capability.skills_check_failed", { name: failure.skillName });
+  const message = t("capability.skills_check_failed", { name: failure.skillName });
   return failure.additionalCount > 0
     ? t("capability.skills_check_failed_more", {
       count: failure.additionalCount,

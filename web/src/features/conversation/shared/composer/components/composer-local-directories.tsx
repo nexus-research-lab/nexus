@@ -69,9 +69,7 @@ export function ComposerLocalDirectories({
       </div>
       {controller.failure ? (
         <UiResourceState
-          description={controller.failure.message}
           impact={controller.failure.impact}
-          nextStep={controller.failure.nextStep}
           primaryAction={{
             label: t("composer.local_directories_reload"),
             onClick: controller.reload,

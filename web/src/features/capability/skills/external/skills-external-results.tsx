@@ -188,7 +188,7 @@ function ExternalSourceFilters({
           disabled={group.status === "disabled"}
           selected={selectedSourceKey === group.key}
           summary={sourceGroupSummaryLabel(group, { t })}
-          title={group.error || group.label}
+          title={group.label}
         />
       ))}
     </div>

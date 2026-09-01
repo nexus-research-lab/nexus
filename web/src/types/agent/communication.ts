@@ -9,7 +9,6 @@ export type AgentCommunicationReadFailureKind =
 
 export interface AgentCommunicationReadFailure {
   kind: AgentCommunicationReadFailureKind;
-  message: string;
   stale: boolean;
 }
 

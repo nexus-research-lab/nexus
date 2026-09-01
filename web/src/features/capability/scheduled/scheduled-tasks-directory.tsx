@@ -105,13 +105,23 @@ export function ScheduledTasksDirectory() {
     ? null
     : commands.feedback
       ? completeFeedbackBanner(
-          {
-            ...commands.feedback,
-            onDismiss: commands.dismissFeedback,
-          },
+          commands.feedback.tone === "success"
+            ? {
+                message: commands.feedback.message ?? commands.feedback.title,
+                onDismiss: commands.dismissFeedback,
+                title: commands.feedback.title,
+                tone: "success",
+              }
+            : {
+                action: commands.feedback.action,
+                impact: commands.feedback.impact,
+                nextStep: commands.feedback.nextStep,
+                onDismiss: commands.dismissFeedback,
+                title: commands.feedback.title,
+                tone: commands.feedback.tone,
+              },
           {
             impact: t("feedback.unconfirmed_impact"),
-            nextStep: t("feedback.unconfirmed_next_step"),
           },
         )
       : hasPendingCreateIntent
@@ -121,17 +131,12 @@ export function ScheduledTasksDirectory() {
               onClick: () => setDialog({ kind: "create", preset: null }),
             },
             impact: t("capability.scheduled_create_pending_impact"),
-            message: t("capability.scheduled_create_pending_message"),
-            nextStep: t("capability.scheduled_create_pending_next_step"),
             title: t("capability.scheduled_create_pending_title"),
             tone: "warning",
           }
         : createRequestResolution
           ? {
               impact: t("capability.scheduled_create_checked_impact"),
-              message: t(createRequestResolution === "gone"
-                ? "capability.scheduled_create_checked_gone_message"
-                : "capability.scheduled_create_checked_not_found_message"),
               nextStep: t("capability.scheduled_create_checked_next_step"),
               onDismiss: () => setCreateRequestResolution(null),
               title: t("capability.scheduled_create_checked_title"),

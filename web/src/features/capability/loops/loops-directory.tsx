@@ -158,13 +158,9 @@ export function LoopsDirectory() {
           ) : error && (error.access || !hasSnapshot) ? (
             <UiResourceState
               className="min-h-48"
-              description={error.message}
               impact={t(error.access
                 ? "state.access_failure_impact"
                 : "state.read_failure_impact")}
-              nextStep={t(error.access
-                ? "state.permission_next_step"
-                : "state.retry_next_step")}
               primaryAction={{
                 icon: <RotateCcw className="h-3.5 w-3.5" />,
                 label: t("state.retry"),
@@ -181,9 +177,7 @@ export function LoopsDirectory() {
               {error ? (
                 <UiResourceState
                   className="mb-3 min-h-0 py-3"
-                  description={error.message}
                   impact={t("state.stale_snapshot_impact")}
-                  nextStep={t("state.retry_next_step")}
                   primaryAction={{
                     icon: <RotateCcw className="h-3.5 w-3.5" />,
                     label: t("state.retry"),
@@ -201,9 +195,6 @@ export function LoopsDirectory() {
                   description={t("capability.loops_empty_description")}
                   icon={<Repeat2 className="h-5 w-5 text-(--icon-default)" />}
                   impact={loops.length > 0 ? t("state.filter_impact") : undefined}
-                  nextStep={loops.length > 0
-                    ? t("state.clear_filters_next_step")
-                    : t("state.retry_next_step")}
                   primaryAction={loops.length > 0 ? {
                     label: t("state.clear_filters"),
                     onClick: clearFilters,

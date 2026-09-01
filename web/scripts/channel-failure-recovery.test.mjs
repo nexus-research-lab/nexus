@@ -44,8 +44,8 @@ test("Channel mutation copy uses machine evidence and never raw error text", asy
   );
   assert.equal(unknown.effect, "unknown");
   assert.match(unknown.title, /无法确认/);
-  assert.match(unknown.impact, /配置、账号和配对状态待核对/);
-  assert.match(unknown.impact, /其他频道不受影响/);
+  assert.match(unknown.impact, /无法确认频道是否已断开/);
+  assert.match(unknown.impact, /刷新频道信息/);
   assert.match(unknown.nextStep, /不要重复/);
   assert.doesNotMatch(unknown.impact, /可能[^。；]*也可能/);
   assert.doesNotMatch(JSON.stringify(unknown), /raw-secret|request_id|provider failed/);
@@ -62,7 +62,7 @@ test("Channel mutation copy uses machine evidence and never raw error text", asy
   );
   assert.equal(rejected.effect, "not_applied");
   assert.match(rejected.title, /did not finish/);
-  assert.match(rejected.impact, /remain unchanged/);
+  assert.match(rejected.impact, /wasn't updated/);
   assert.match(rejected.nextStep, /try again/);
   assert.doesNotMatch(JSON.stringify(rejected), /SQL|private|pairing_conflict/);
 });
@@ -230,7 +230,6 @@ test("Channel login and account views hide raw provider diagnostics and QR paylo
   assert.match(fields, /rel="noopener noreferrer"/);
   assert.doesNotMatch(card, /window\.open/);
   assert.match(card, /rel="noopener noreferrer"/);
-  assert.match(connectionDialog, /channel_connection_error_message/);
   assert.match(connectionDialog, /channel_connection_error_impact/);
   assert.doesNotMatch(connectionDialog, /\{controller\.currentItem\.last_error\}/);
   assert.match(catalogModel, /Boolean\(item\.last_error\)/);

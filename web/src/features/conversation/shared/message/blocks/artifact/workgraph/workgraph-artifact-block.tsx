@@ -18,7 +18,6 @@ import { ExecutionWorkGraphCanvas } from "@/features/conversation/shared/executi
 import { NamedWorkGraphSketch } from "@/features/conversation/shared/execution/named-workgraph-sketch";
 import { projectWorkGraphWorkflowCanvasExecution } from "@/features/conversation/shared/execution/workgraph-workflow-canvas-model";
 import { getExecutionApi } from "@/lib/api/conversation/execution-api";
-import { getErrorMessage } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
   UiDialogBackdrop,
@@ -123,7 +122,7 @@ function WorkGraphCompareDialog({
   const [activePane, setActivePane] = useState<ComparePane>("draft");
   const [source, setSource] = useState<ExecutionView | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
   const revision = artifact.selected_revision
     ?? (graph && "version" in graph ? graph.version : 1);
   const preview = useMemo(
@@ -138,11 +137,12 @@ function WorkGraphCompareDialog({
   const loadSource = async () => {
     if (!graph) return;
     setLoading(true);
-    setError(null);
+    setFailed(false);
     try {
       setSource(await getExecutionApi(graph.source_session_key, graph.source_execution_id));
     } catch (reason: unknown) {
-      setError(getErrorMessage(reason, t("execution.workflow_artifact_source_failed")));
+      console.error("[WorkGraphArtifact] source load failed", reason);
+      setFailed(true);
     } finally {
       setLoading(false);
     }
@@ -167,13 +167,11 @@ function WorkGraphCompareDialog({
         </div>
       ) : source ? (
         <ExecutionWorkGraphCanvas currentId={null} directory={{}} execution={source} taskRuns={[]} />
-      ) : (
+      ) : failed ? (
         <div className="grid h-full place-items-center px-6">
           <UiResourceState
             className="w-full max-w-md min-h-0 py-5"
-            description={error ?? t("execution.workflow_artifact_source_failed")}
             impact={t("execution.workflow_artifact_source_failed_impact")}
-            nextStep={t("execution.workflow_artifact_source_failed_next_step")}
             primaryAction={{
               icon: <RotateCcw className="h-3.5 w-3.5" />,
               label: t("execution.workflow_artifact_source_retry"),
@@ -186,7 +184,7 @@ function WorkGraphCompareDialog({
             variant="card"
           />
         </div>
-      )}
+      ) : null}
     </CompareCanvasPanel>
   );
   const draftPane = (

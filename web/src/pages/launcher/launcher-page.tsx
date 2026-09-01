@@ -145,9 +145,7 @@ export function LauncherPage() {
       >
         <UiResourceState
           className="w-full max-w-lg"
-          description={t("sidebar.directory_load_failed_description")}
           impact={t("sidebar.directory_load_failed_impact")}
-          nextStep={t("sidebar.directory_load_failed_next_step")}
           primaryAction={{
             label: t("sidebar.retry"),
             onClick: refreshHomeDirectory,

@@ -123,8 +123,6 @@ export function usePersonalSettingsController() {
             onClick: () => reloadProfileRef.current(),
           },
           impact: t("settings.personal.load_failed_impact"),
-          message: t("settings.personal.load_failed_message"),
-          nextStep: t("settings.personal.load_failed_next_step"),
           title: t("settings.personal.load_failed_title"),
           tone: "error",
         });
@@ -220,7 +218,6 @@ export function usePersonalSettingsController() {
       }
       setFeedback({
         impact: t("state.committed_refresh_impact"),
-        message: t("settings.personal.profile_refresh_failed_message"),
         nextStep: t("state.committed_refresh_next_step"),
         title: t("settings.personal.profile_refresh_failed_title"),
         tone: "warning",
@@ -252,7 +249,6 @@ export function usePersonalSettingsController() {
       if (presentation.validationError) {
         setFeedback({
           impact: t("state.validation_failure_impact"),
-          message: presentation.validationError,
           nextStep: t("state.validation_failure_next_step"),
           title: t("settings.personal.save_failed_title"),
           tone: "error",
@@ -310,7 +306,6 @@ export function usePersonalSettingsController() {
       }
       setFeedback({
         impact: t("settings.personal.password_committed_impact"),
-        message: t("settings.personal.password_refresh_failed_message"),
         nextStep: t("settings.personal.password_committed_next_step"),
         title: t("settings.personal.password_refresh_failed_title"),
         tone: "warning",
@@ -366,21 +361,22 @@ export function usePersonalSettingsController() {
 }
 
 type PersonalMutationKind = "avatar" | "password";
+type PersonalSettingsFailureFeedback = Extract<
+  PersonalSettingsFeedback,
+  { tone: "error" | "warning" }
+>;
 type Translate = ReturnType<typeof useI18n>["t"];
 
 export function buildPersonalMutationFailure(
   failure: MutationFailure,
   kind: PersonalMutationKind,
   t: Translate,
-): PersonalSettingsFeedback {
+): PersonalSettingsFailureFeedback {
   if (failure.effect === "not_applied") {
     return {
       impact: t(kind === "password"
         ? "settings.personal.password_not_applied_impact"
         : "settings.personal.avatar_not_applied_impact"),
-      message: t(kind === "password"
-        ? "settings.personal.save_failed_message"
-        : "settings.personal.avatar_save_failed_message"),
       nextStep: t(kind === "password"
         ? "settings.personal.password_not_applied_next_step"
         : "settings.personal.avatar_not_applied_next_step"),
@@ -393,9 +389,6 @@ export function buildPersonalMutationFailure(
       impact: t(kind === "password"
         ? "settings.personal.password_committed_impact"
         : "settings.personal.avatar_committed_impact"),
-      message: t(kind === "password"
-        ? "settings.personal.password_committed_message"
-        : "settings.personal.avatar_committed_message"),
       nextStep: t(kind === "password"
         ? "settings.personal.password_committed_next_step"
         : "state.committed_refresh_next_step"),
@@ -408,7 +401,6 @@ export function buildPersonalMutationFailure(
   if (kind === "password") {
     return {
       impact: t("settings.personal.password_unknown_impact"),
-      message: t("settings.personal.password_unknown_message"),
       nextStep: t("settings.personal.password_unknown_next_step"),
       title: t("settings.personal.password_unknown_title"),
       tone: "warning",
@@ -416,7 +408,6 @@ export function buildPersonalMutationFailure(
   }
   return {
     impact: t("settings.personal.avatar_unknown_impact"),
-    message: t("settings.personal.avatar_unknown_message"),
     nextStep: t("settings.personal.avatar_unknown_next_step"),
     title: t("settings.personal.avatar_unknown_title"),
     tone: "warning",
@@ -424,8 +415,15 @@ export function buildPersonalMutationFailure(
 }
 
 function withNewIntentAction(
-  feedback: PersonalSettingsFeedback,
+  feedback: PersonalSettingsFailureFeedback,
   action?: NonNullable<PersonalSettingsFeedback["action"]>,
-): PersonalSettingsFeedback {
-  return action ? { ...feedback, action } : feedback;
+): PersonalSettingsFailureFeedback {
+  if (!action) {
+    return feedback;
+  }
+  if ("nextStep" in feedback) {
+    const { nextStep: _nextStep, ...withoutGuidance } = feedback;
+    return { ...withoutGuidance, action };
+  }
+  return { ...feedback, action };
 }

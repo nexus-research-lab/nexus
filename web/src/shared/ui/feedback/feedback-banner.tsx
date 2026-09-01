@@ -1,5 +1,5 @@
-// INPUT: 已由业务方确认的结果、当前影响、下一步和可选动作。
-// OUTPUT: 标题、一句用户可执行说明和至多一个动作的全局反馈条。
+// INPUT: 已由业务方确认的结果、单句说明和可选直接动作。
+// OUTPUT: 标题、一句说明和至多一个动作的全局反馈条。
 // POS: 反馈展示边界；不推测请求结果，也不发起恢复请求。
 import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
@@ -15,15 +15,18 @@ import type { FeedbackBannerProps } from "./feedback-banner-contract";
 import { RecoverySummary } from "./recovery-summary";
 
 export function FeedbackBanner({
-  action,
-  impact,
-  message,
-  nextStep,
-  onDismiss,
-  title,
-  tone,
-  urgency = "polite",
+  ...props
 }: FeedbackBannerProps) {
+  const {
+    action,
+    impact,
+    nextStep,
+    onDismiss,
+    title,
+    tone,
+    urgency = "polite",
+  } = props;
+  const noticeMessage = "message" in props ? props.message : null;
   const { t } = useI18n();
   const presentation = projectFeedbackBanner(tone, Boolean(action));
   const Icon = presentation.icon;
@@ -47,7 +50,7 @@ export function FeedbackBanner({
     return () => {
       window.clearTimeout(timer);
     };
-  }, [canAutoDismiss, impact, message, nextStep, presentation.autoDismissMs, title]);
+  }, [canAutoDismiss, impact, nextStep, noticeMessage, presentation.autoDismissMs, title]);
 
   return (
     <div
@@ -64,15 +67,15 @@ export function FeedbackBanner({
         <p className={cn("break-words text-[13px] font-medium leading-5 [overflow-wrap:anywhere]", presentation.titleClassName)}>
           {title}
         </p>
-        {impact && nextStep ? (
+        {impact ? (
           <RecoverySummary
             className="mt-0.5"
             impact={impact}
-            nextStep={nextStep}
+            nextStep={action ? undefined : nextStep}
           />
         ) : (
           <p className="mt-0.5 break-words text-xs leading-5 text-(--text-muted) [overflow-wrap:anywhere]">
-            {message}
+            {noticeMessage}
           </p>
         )}
         {action ? (
