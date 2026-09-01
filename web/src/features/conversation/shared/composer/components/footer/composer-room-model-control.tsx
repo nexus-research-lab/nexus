@@ -32,6 +32,9 @@ import {
 import {
   getMenuItemStateClassName,
   MENU_ITEM_BASE_CLASS_NAME,
+  MENU_ITEM_GAP_PX,
+  MENU_LIST_CLASS_NAME,
+  MENU_SURFACE_VERTICAL_PADDING_PX,
 } from "@/shared/ui/menu/menu-styles";
 import { useAnchoredOverlayLayer } from "@/shared/ui/overlay/anchored-overlay-layer";
 import { resolveAnchoredOverlayPosition } from "@/shared/ui/overlay/anchored-overlay-model";
@@ -334,7 +337,10 @@ function RoomModelAgentList({
 }) {
   const { t } = useI18n();
   return (
-    <div className="soft-scrollbar min-h-0 overflow-y-auto overscroll-contain p-1">
+    <div className={cn(
+      MENU_LIST_CLASS_NAME,
+      "soft-scrollbar min-h-0 overflow-y-auto overscroll-contain p-1",
+    )}>
       {controller.targetViews.map((targetView) => {
         const isActive = targetView.target.agentId === activeAgentId;
         const select = () => onSelect(targetView.target.agentId);
@@ -454,8 +460,13 @@ function estimateRoomModelMenuHeight({
   agentCount: number;
   modelCount: number;
 }): number {
-  const agentHeight = 8 + agentCount * ROOM_MODEL_AGENT_ROW_HEIGHT;
-  const modelHeight = 17 + (modelCount + 1) * ROOM_MODEL_ITEM_HEIGHT;
+  const agentHeight = MENU_SURFACE_VERTICAL_PADDING_PX
+    + agentCount * ROOM_MODEL_AGENT_ROW_HEIGHT
+    + Math.max(0, agentCount - 1) * MENU_ITEM_GAP_PX;
+  const modelItemCount = modelCount + 1;
+  const modelHeight = 17
+    + modelItemCount * ROOM_MODEL_ITEM_HEIGHT
+    + modelItemCount * MENU_ITEM_GAP_PX;
   return Math.min(
     ROOM_MODEL_MENU_MAX_HEIGHT,
     Math.max(agentHeight, modelHeight),

@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   metadata beside the Agent name and permission state.
 - Simplified the Skill update surface into aligned compact rows with one clear
   update action and less repetitive iconography.
+- Unified menu-style floating surfaces around a shared 4px content inset and
+  2px item rhythm across action, select, mention, Slash, cascade, and workspace
+  context menus, including consistent selected-row separation and height
+  estimation.
 - Improved dense WorkGraph readability with stable crossing reduction,
   corridor-aware orthogonal routing, semantic fan-in/fan-out junctions,
   frame-boundary proxy ports and hard subgraph obstacle avoidance for

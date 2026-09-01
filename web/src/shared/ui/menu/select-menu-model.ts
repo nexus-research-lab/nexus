@@ -1,5 +1,9 @@
 import { cn } from "@/shared/ui/class-name";
-import { getMenuItemStateClassName } from "@/shared/ui/menu/menu-styles";
+import {
+  getMenuItemStateClassName,
+  MENU_ITEM_GAP_PX,
+  MENU_SURFACE_VERTICAL_PADDING_PX,
+} from "@/shared/ui/menu/menu-styles";
 
 import {
   resolveAnchoredOverlayPosition,
@@ -33,7 +37,6 @@ export interface SelectMenuPresentation {
 }
 
 const SELECT_MENU_MAX_HEIGHT = 280;
-const SELECT_MENU_OPTION_GAP = 4;
 
 export const SELECT_MENU_SEARCH_ROW_HEIGHT = 44;
 
@@ -154,13 +157,17 @@ export function resolveNextSelectMenuValue({
   return enabledOptions[nextIndex].value;
 }
 
-export function estimateSelectMenuHeight(optionCount: number, optionHeight: number, extraHeight = 8): number {
+export function estimateSelectMenuHeight(
+  optionCount: number,
+  optionHeight: number,
+  extraHeight = MENU_SURFACE_VERTICAL_PADDING_PX,
+): number {
   return Math.min(
     SELECT_MENU_MAX_HEIGHT,
     Math.max(
       optionHeight + 8,
       optionCount * optionHeight
-        + Math.max(0, optionCount - 1) * SELECT_MENU_OPTION_GAP
+        + Math.max(0, optionCount - 1) * MENU_ITEM_GAP_PX
         + extraHeight,
     ),
   );

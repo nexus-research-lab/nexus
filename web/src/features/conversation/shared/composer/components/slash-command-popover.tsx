@@ -24,6 +24,7 @@ import { UiSearchInput } from "@/shared/ui/form/form-control";
 import {
   getMenuItemStateClassName,
   MENU_ITEM_BASE_CLASS_NAME,
+  MENU_LIST_CLASS_NAME,
 } from "@/shared/ui/menu/menu-styles";
 import { SelectMenuPanel } from "@/shared/ui/menu/select-menu-primitives";
 import { useAnchoredOverlayLayer } from "@/shared/ui/overlay/anchored-overlay-layer";
@@ -45,8 +46,10 @@ import type { ComposerReadFailure } from "../controller/composer-settings-reliab
 
 const SLASH_COMMAND_PANEL_MAX_HEIGHT_PX = 296;
 const SLASH_PICKER_PANEL_MAX_HEIGHT_PX = 336;
-const SLASH_LIST_CLASS_NAME =
-  "soft-scrollbar min-h-0 max-h-72 flex-1 overflow-y-auto overscroll-contain p-1";
+const SLASH_LIST_CLASS_NAME = cn(
+  MENU_LIST_CLASS_NAME,
+  "soft-scrollbar min-h-0 max-h-72 flex-1 overflow-y-auto overscroll-contain p-1",
+);
 
 const SLASH_COMMAND_DESCRIPTION_KEYS: Record<string, TranslationKey> = {
   browser: "composer.slash_command_description_browser",

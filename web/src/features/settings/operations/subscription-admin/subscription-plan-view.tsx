@@ -93,7 +93,7 @@ function SubscriptionPlanRow({
           <UiSelectMenu
             ariaLabel={t("settings.subscription.plan_status")}
             disabled={disabled}
-            menuClassName="min-w-[160px]"
+            menuMinWidth={160}
             onChange={(value) => onChangeDraft(plan.plan_key, {
               status: normalizePlanStatus(value),
             })}

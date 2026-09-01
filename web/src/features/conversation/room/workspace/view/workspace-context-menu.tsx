@@ -38,6 +38,7 @@ import { cn } from "@/shared/ui/class-name";
 import {
   getMenuItemStateClassName,
   MENU_ITEM_BASE_CLASS_NAME,
+  MENU_LIST_CLASS_NAME,
 } from "@/shared/ui/menu/menu-styles";
 import { OVERLAY_SURFACE_CLASS_NAME } from "@/shared/ui/overlay/overlay-styles";
 import type { WorkspaceFileEntry } from "@/types/agent/agent";
@@ -158,11 +159,11 @@ export function WorkspaceContextMenu({
         top: `${position.y}px`,
       }}
     >
-      <div className="py-1">
+      <div className="p-1">
         {actionGroups.map((actions, index) => (
           <div key={actions[0]?.id}>
             {index > 0 ? (
-              <div className="my-1 h-px bg-(--divider-subtle-color)" />
+              <div className="mx-1 my-1 h-px bg-(--divider-subtle-color)" />
             ) : null}
             <WorkspaceContextMenuActions
               actions={actions}
@@ -363,76 +364,80 @@ function WorkspaceContextMenuActions({
   position: { x: number; y: number };
   setOpenSubmenuId: (value: string | null) => void;
 }) {
-  return actions.map((action) => {
-    const {
-      ariaLabel,
-      disabled,
-      Icon,
-      id,
-      label,
-      onSelect,
-      submenu,
-      title,
-      tone,
-    } = action;
-    const isSubmenuOpen = openSubmenuId === id;
-    return (
-      <div
-        className="relative px-1"
-        key={id}
-        onPointerLeave={() => submenu && setOpenSubmenuId(null)}
-      >
-        <button
-          aria-expanded={submenu ? isSubmenuOpen : undefined}
-          aria-haspopup={submenu ? "menu" : undefined}
-          aria-label={ariaLabel}
-          className={cn(
-            MENU_ITEM_BASE_CLASS_NAME,
-            "flex min-h-9 items-center gap-2 px-2.5 py-1.5 text-sm",
-            getMenuItemStateClassName({
-              active: isSubmenuOpen,
-              tone: tone ?? "default",
-            }),
-          )}
-          onClick={() => {
-            if (disabled) {
-              return;
-            }
-            if (submenu) {
-              setOpenSubmenuId(isSubmenuOpen ? null : id);
-              return;
-            }
-            onSelect?.();
-            onClose();
-          }}
-          onKeyDown={(event) => {
-            if (submenu && event.key === "ArrowRight") {
-              event.preventDefault();
-              setOpenSubmenuId(id);
-            }
-          }}
-          onPointerEnter={() => setOpenSubmenuId(submenu ? id : null)}
-          role="menuitem"
-          title={title}
-          type="button"
-          disabled={disabled}
-        >
-          {Icon ? <Icon className="h-4 w-4" /> : null}
-          <span className="min-w-0 flex-1 truncate">{label}</span>
-          {submenu ? <ChevronRight className="h-4 w-4 shrink-0" /> : null}
-        </button>
+  return (
+    <div className={MENU_LIST_CLASS_NAME} role="none">
+      {actions.map((action) => {
+        const {
+          ariaLabel,
+          disabled,
+          Icon,
+          id,
+          label,
+          onSelect,
+          submenu,
+          title,
+          tone,
+        } = action;
+        const isSubmenuOpen = openSubmenuId === id;
+        return (
+          <div
+            className="relative"
+            key={id}
+            onPointerLeave={() => submenu && setOpenSubmenuId(null)}
+          >
+            <button
+              aria-expanded={submenu ? isSubmenuOpen : undefined}
+              aria-haspopup={submenu ? "menu" : undefined}
+              aria-label={ariaLabel}
+              className={cn(
+                MENU_ITEM_BASE_CLASS_NAME,
+                "flex min-h-9 items-center gap-2 px-2.5 py-1.5 text-sm",
+                getMenuItemStateClassName({
+                  active: isSubmenuOpen,
+                  tone: tone ?? "default",
+                }),
+              )}
+              disabled={disabled}
+              onClick={() => {
+                if (disabled) {
+                  return;
+                }
+                if (submenu) {
+                  setOpenSubmenuId(isSubmenuOpen ? null : id);
+                  return;
+                }
+                onSelect?.();
+                onClose();
+              }}
+              onKeyDown={(event) => {
+                if (submenu && event.key === "ArrowRight") {
+                  event.preventDefault();
+                  setOpenSubmenuId(id);
+                }
+              }}
+              onPointerEnter={() => setOpenSubmenuId(submenu ? id : null)}
+              role="menuitem"
+              title={title}
+              type="button"
+            >
+              {Icon ? <Icon className="h-4 w-4" /> : null}
+              <span className="min-w-0 flex-1 truncate">{label}</span>
+              {submenu ? <ChevronRight className="h-4 w-4 shrink-0" /> : null}
+            </button>
 
-        {submenu && isSubmenuOpen ? (
-          <WorkspaceContextSubmenu
-            actions={submenu}
-            maxHeight={window.innerHeight - position.y - 8}
-            onClose={onClose}
-            openOnLeft={position.x + 384 > window.innerWidth}
-          />
-        ) : null}
-      </div>
-    );
-  });
+            {submenu && isSubmenuOpen ? (
+              <WorkspaceContextSubmenu
+                actions={submenu}
+                maxHeight={window.innerHeight - position.y - 8}
+                onClose={onClose}
+                openOnLeft={position.x + 384 > window.innerWidth}
+              />
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 function WorkspaceContextSubmenu({
@@ -449,6 +454,7 @@ function WorkspaceContextSubmenu({
   return (
     <div
       className={cn(
+        MENU_LIST_CLASS_NAME,
         "absolute -top-9 w-[180px] overflow-y-auto p-1",
         openOnLeft ? "right-[calc(100%+4px)]" : "left-[calc(100%+4px)]",
         OVERLAY_SURFACE_CLASS_NAME,

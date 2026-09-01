@@ -29,7 +29,6 @@ interface UiSelectMenuProps {
   id?: string;
   label?: ReactNode;
   leading?: ReactNode;
-  menuClassName?: string;
   menuMinWidth?: number;
   onChange: (value: string) => void;
   options: UiSelectMenuOption[];
@@ -77,7 +76,6 @@ function UiSelectMenuController({
   id,
   label,
   leading,
-  menuClassName,
   menuMinWidth,
   onChange,
   options,
@@ -160,7 +158,6 @@ function UiSelectMenuController({
       isOpen={isOpen}
       label={label}
       leading={leading}
-      menuClassName={menuClassName}
       menuId={menuId}
       menuPlacement={menuPosition?.placement}
       menuRef={menuRef}

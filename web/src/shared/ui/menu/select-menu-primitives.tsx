@@ -57,7 +57,6 @@ export function SelectMenuPanel({
   children,
   id,
   layoutClassName,
-  menuClassName,
   panelRef,
   placement,
   style,
@@ -67,7 +66,6 @@ export function SelectMenuPanel({
   children: ReactNode;
   id: string;
   layoutClassName: string;
-  menuClassName?: string;
   panelRef: RefObject<HTMLDivElement | null>;
   placement?: UiAnchoredOverlayPosition["placement"];
   style: CSSProperties;
@@ -82,7 +80,6 @@ export function SelectMenuPanel({
         OVERLAY_SURFACE_CLASS_NAME,
         ANCHORED_OVERLAY_MOTION_CLASS_NAME,
         layoutClassName,
-        menuClassName,
       )}
       data-placement={placement ?? "bottom"}
       data-state="open"

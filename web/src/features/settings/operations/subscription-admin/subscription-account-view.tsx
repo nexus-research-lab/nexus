@@ -160,7 +160,7 @@ function SubscriptionAccountRow({
           <UiSelectMenu
             ariaLabel={t("settings.subscription.plan")}
             disabled={disabled || plans.length === 0}
-            menuClassName="min-w-[180px]"
+            menuMinWidth={180}
             onChange={(value) => onChangeDraft(account.owner_user_id, {
               planKey: value,
             })}
