@@ -11,6 +11,7 @@ import { Link } from "react-router-dom";
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { SIDEBAR_TOUR_ANCHORS } from "@/features/onboarding/tours/sidebar-navigation-tour";
 import { cn } from "@/shared/ui/class-name";
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 
 import { SidebarUpdateIndicator } from "./sidebar-update-indicator";
 import type { SidebarUtilityLabels } from "./sidebar-wide-panel-types";
@@ -141,14 +142,15 @@ function UtilityLink({
   to: string;
 }) {
   return (
-    <Link
-      aria-label={label}
-      className={utilityActionClassName(active)}
-      title={label}
-      to={to}
-    >
-      <Icon className="h-[18px] w-[18px]" />
-    </Link>
+    <UiTooltip label={label}>
+      <Link
+        aria-label={label}
+        className={utilityActionClassName(active)}
+        to={to}
+      >
+        <Icon className="h-[18px] w-[18px]" />
+      </Link>
+    </UiTooltip>
   );
 }
 
@@ -168,16 +170,17 @@ function UtilityButton({
   onClick: () => void;
 }) {
   return (
-    <button
-      aria-label={label}
-      className={utilityActionClassName(active)}
-      data-tour-anchor={anchor}
-      onClick={onClick}
-      title={label}
-      type="button"
-    >
-      <Icon className={iconClassName} />
-    </button>
+    <UiTooltip label={label}>
+      <button
+        aria-label={label}
+        className={utilityActionClassName(active)}
+        data-tour-anchor={anchor}
+        onClick={onClick}
+        type="button"
+      >
+        <Icon className={iconClassName} />
+      </button>
+    </UiTooltip>
   );
 }
 

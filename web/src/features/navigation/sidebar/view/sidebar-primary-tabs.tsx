@@ -54,7 +54,6 @@ function PrimaryTabButton({
       className={presentation.buttonClassName}
       data-tour-anchor={item.anchor}
       onClick={() => onSelect(item.key)}
-      title={item.label}
       type="button"
     >
       <span className={presentation.iconFrameClassName}>

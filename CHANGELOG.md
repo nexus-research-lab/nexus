@@ -44,6 +44,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Unified sidebar action icon sizing and aligned contact chat controls with the
   header and search action axis.
+- Replaced native hover titles on shared icon buttons and the desktop sidebar
+  with a restrained anchored tooltip, while refining default Lucide stroke weight.
 - Limited Room AutoMemory extraction to user-triggered turns; Agent public
   mentions, private directed messages, and internal continuations no longer
   start separate extraction turns.

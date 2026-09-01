@@ -11,6 +11,7 @@ import {
   type UiButtonVariant,
   type UiIconButtonSize,
 } from "@/shared/ui/button/button-styles";
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 
 interface UiButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode;
@@ -33,6 +34,8 @@ interface UiIconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   className?: string;
   size?: UiIconButtonSize;
   tone?: UiButtonTone;
+  tooltip?: string | null;
+  tooltipShortcut?: string;
   variant?: Exclude<UiButtonVariant, "text">;
 }
 
@@ -84,19 +87,27 @@ export const UiLinkButton = forwardRef<HTMLAnchorElement, UiLinkButtonProps>(fun
 
 export const UiIconButton = forwardRef<HTMLButtonElement, UiIconButtonProps>(function UiIconButton(
   {
+    "aria-label": ariaLabel,
     children,
     className,
     size,
     tone,
+    title,
+    tooltip,
+    tooltipShortcut,
     type = "button",
     variant,
     ...props
   },
   ref,
 ) {
-  return (
+  const tooltipLabel = tooltip
+    ?? (typeof title === "string" ? title : null)
+    ?? (typeof ariaLabel === "string" ? ariaLabel : null);
+  const button = (
     <button
       ref={ref}
+      aria-label={ariaLabel ?? tooltipLabel ?? undefined}
       className={getUiIconButtonClassName({ size, tone, variant }, cn(className))}
       type={type}
       {...props}
@@ -104,4 +115,9 @@ export const UiIconButton = forwardRef<HTMLButtonElement, UiIconButtonProps>(fun
       {children}
     </button>
   );
+  return tooltipLabel ? (
+    <UiTooltip label={tooltipLabel} shortcut={tooltipShortcut}>
+      {button}
+    </UiTooltip>
+  ) : button;
 });

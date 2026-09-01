@@ -1,5 +1,5 @@
 export type UiAnchoredOverlayPlacement = "auto" | "bottom" | "top";
-export type UiAnchoredOverlayAlignment = "end" | "start";
+export type UiAnchoredOverlayAlignment = "center" | "end" | "start";
 
 export interface UiAnchoredOverlayPosition {
   bottom?: number;
@@ -79,7 +79,9 @@ export function resolveAnchoredOverlayPosition({
   );
   const preferredLeft = align === "end"
     ? rect.right - width
-    : rect.left;
+    : align === "center"
+      ? rect.left + (rect.width - width) / 2
+      : rect.left;
   const left = Math.min(
     Math.max(viewportMargin, preferredLeft),
     Math.max(viewportMargin, viewportWidth - width - viewportMargin),
