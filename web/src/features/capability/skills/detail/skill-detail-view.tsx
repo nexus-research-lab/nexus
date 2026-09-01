@@ -22,7 +22,9 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
+import { RecoverySummary } from "@/shared/ui/feedback/recovery-summary";
 import { WorkspaceContentDetailHeader } from "@/shared/ui/layout/workspace-content-header";
 import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import { UiPanel } from "@/shared/ui/panel";
@@ -53,7 +55,6 @@ interface SkillDetailViewProps {
   onDelete: () => void;
   onRetry: () => void;
   onRetryBindings: () => void;
-  onStartNewToggleIntent: (agentId: string) => void;
   onUpdate: () => void;
   snapshot: SkillDetailSnapshot;
   toggleFailures: Readonly<Record<string, SkillAgentToggleFailure>>;
@@ -70,7 +71,6 @@ export function SkillDetailView({
   onDelete,
   onRetry,
   onRetryBindings,
-  onStartNewToggleIntent,
   onUpdate,
   snapshot,
   toggleFailures,
@@ -87,12 +87,10 @@ export function SkillDetailView({
         agentsLoading={agentsLoading}
         bindingsFailure={bindingsFailure}
         busyAgentId={busyAgentId}
-        onBack={onBack}
         onAgentToggle={onAgentToggle}
         onDelete={onDelete}
         onRetry={onRetry}
         onRetryBindings={onRetryBindings}
-        onStartNewToggleIntent={onStartNewToggleIntent}
         onUpdate={onUpdate}
         snapshot={snapshot}
         toggleFailures={toggleFailures}
@@ -137,16 +135,14 @@ function SkillDetailContent({
   agentsLoading,
   bindingsFailure,
   busyAgentId,
-  onBack,
   onAgentToggle,
   onDelete,
   onRetry,
   onRetryBindings,
-  onStartNewToggleIntent,
   onUpdate,
   snapshot,
   toggleFailures,
-}: SkillDetailViewProps) {
+}: Omit<SkillDetailViewProps, "onBack">) {
   const { t } = useI18n();
   if (snapshot.status === "loading") {
     return (
@@ -161,22 +157,16 @@ function SkillDetailContent({
   }
   if (snapshot.status === "error") {
     return (
-      <UiStateBlock
-        actions={(
-          <div className="flex flex-wrap justify-center gap-2">
-            <UiButton onClick={onRetry} size="sm" tone="primary" type="button">
-              {t("state.retry")}
-            </UiButton>
-            <UiButton onClick={onBack} size="sm" type="button">
-              {t("capability.skills_detail_back_action")}
-            </UiButton>
-          </div>
-        )}
+      <UiResourceState
         className="min-h-[420px]"
-        description={`${snapshot.errorMessage} ${t("state.read_failure_impact")} ${t("state.retry_next_step")}`}
+        impact={t("state.read_failure_impact")}
+        primaryAction={{
+          label: t("state.retry"),
+          onClick: onRetry,
+        }}
         size="md"
+        state="error"
         title={t("capability.skills_detail_load_failed")}
-        tone="danger"
         variant="plain"
       />
     );
@@ -201,7 +191,6 @@ function SkillDetailContent({
       onDelete={onDelete}
       onUpdate={onUpdate}
       onRetryBindings={onRetryBindings}
-      onStartNewToggleIntent={onStartNewToggleIntent}
       toggleFailures={toggleFailures}
     />
   );
@@ -218,7 +207,6 @@ function SkillDetailReady({
   onDelete,
   onUpdate,
   onRetryBindings,
-  onStartNewToggleIntent,
   toggleFailures,
 }: {
   activeAction: SkillDetailAction | null;
@@ -231,7 +219,6 @@ function SkillDetailReady({
   onDelete: () => void;
   onUpdate: () => void;
   onRetryBindings: () => void;
-  onStartNewToggleIntent: (agentId: string) => void;
   toggleFailures: Readonly<Record<string, SkillAgentToggleFailure>>;
 }) {
   const { t } = useI18n();
@@ -256,7 +243,6 @@ function SkillDetailReady({
             locked={model.locked}
             onToggle={onAgentToggle}
             onRetryBindings={onRetryBindings}
-            onStartNewToggleIntent={onStartNewToggleIntent}
             toggleFailures={toggleFailures}
           />
         )}
@@ -299,7 +285,6 @@ function SkillAgentBindings({
   busyAgentId,
   locked,
   onRetryBindings,
-  onStartNewToggleIntent,
   onToggle,
   toggleFailures,
 }: {
@@ -309,7 +294,6 @@ function SkillAgentBindings({
   busyAgentId: string | null;
   locked: boolean;
   onRetryBindings: () => void;
-  onStartNewToggleIntent: (agentId: string) => void;
   onToggle: (binding: SkillAgentBinding) => void;
   toggleFailures: Readonly<Record<string, SkillAgentToggleFailure>>;
 }) {
@@ -395,9 +379,6 @@ function SkillAgentBindings({
                       className="mx-3 mb-3"
                       failure={failure}
                       onRefresh={failure.blocksRepeat ? onRetryBindings : undefined}
-                      onStartNewIntent={failure.blocksRepeat
-                        ? () => onStartNewToggleIntent(binding.agent_id)
-                        : undefined}
                       refreshLabel={t("state.reload_check")}
                     />
                   ) : null}
@@ -415,43 +396,27 @@ function SkillAgentFailureNotice({
   className = "mb-2",
   failure,
   onRefresh,
-  onStartNewIntent,
   refreshLabel,
 }: {
   className?: string;
   failure: SkillAgentBindingsReadFailure | SkillAgentToggleFailure;
   onRefresh?: () => void;
-  onStartNewIntent?: () => void;
   refreshLabel: string;
 }) {
-  const { t } = useI18n();
   return (
     <div
       aria-live="polite"
-      className={`${className} space-y-1 rounded-[8px] border border-[color:color-mix(in_srgb,var(--destructive)_18%,transparent)] bg-(--status-danger-soft-background) px-3 py-2`}
+      className={`${className} rounded-[8px] border px-3 py-2 ${failure.tone === "warning" ? "border-[color:color-mix(in_srgb,var(--warning)_22%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_5%,transparent)]" : "border-[color:color-mix(in_srgb,var(--destructive)_18%,transparent)] bg-(--status-danger-soft-background)"}`}
       role="status"
     >
-      <p className="text-xs font-semibold text-(--status-danger-soft-text)">
+      <p className="text-xs font-semibold text-(--text-strong)">
         {failure.title}
       </p>
-      <p className="text-xs leading-5 text-(--text-default)">{failure.message}</p>
-      <p className="text-xs leading-5 text-(--text-muted)">{failure.impact}</p>
-      <p className="text-xs font-medium leading-5 text-(--text-default)">
-        {failure.nextStep}
-      </p>
-      {onRefresh || onStartNewIntent ? (
-        <div className="flex flex-wrap gap-2 pt-1">
-          {onRefresh ? (
-            <UiButton onClick={onRefresh} size="xs" type="button" variant="text">
-              {refreshLabel}
-            </UiButton>
-          ) : null}
-          {onStartNewIntent ? (
-            <UiButton onClick={onStartNewIntent} size="xs" type="button" variant="text">
-              {t("capability.skills_detail_start_new_change")}
-            </UiButton>
-          ) : null}
-        </div>
+      <RecoverySummary className="mt-0.5" impact={failure.impact} />
+      {onRefresh ? (
+        <UiButton className="mt-1" onClick={onRefresh} size="xs" type="button" variant="text">
+          {refreshLabel}
+        </UiButton>
       ) : null}
     </div>
   );

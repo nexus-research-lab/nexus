@@ -1,5 +1,5 @@
 // INPUT: 业务反馈事实，以及旧调用方尚未提供时的兜底恢复文案。
-// OUTPUT: 标题、一句影响/下一步说明和至多一个动作的反馈合同。
+// OUTPUT: 标题、一句说明和至多一个直接动作的反馈合同。
 // POS: 业务反馈到共享展示的类型适配边界；不推测请求结果。
 import type { FeedbackBannerTone } from "./feedback-banner-model";
 
@@ -12,38 +12,62 @@ export interface FeedbackBannerAction {
 }
 
 interface FeedbackBannerBaseProps {
-  action?: FeedbackBannerAction;
-  message: string;
   onDismiss?: () => void;
   title: string;
   urgency?: FeedbackBannerUrgency;
 }
 
 interface FeedbackBannerRecoveryProps extends FeedbackBannerBaseProps {
+  action?: FeedbackBannerAction;
   impact: string;
-  nextStep: string;
+  message?: never;
+  nextStep?: string;
   tone: "error" | "warning";
 }
 
-interface FeedbackBannerNoticeProps extends FeedbackBannerBaseProps {
-  impact?: string;
-  nextStep?: string;
+interface FeedbackBannerMessageNoticeProps extends FeedbackBannerBaseProps {
+  action?: FeedbackBannerAction;
+  impact?: never;
+  message: string;
+  nextStep?: never;
+  tone: "info" | "success";
+}
+
+interface FeedbackBannerGuidedNoticeProps extends FeedbackBannerBaseProps {
+  action?: never;
+  impact: string;
+  message?: never;
+  nextStep: string;
   tone: "info" | "success";
 }
 
 export type FeedbackBannerProps =
   | FeedbackBannerRecoveryProps
-  | FeedbackBannerNoticeProps;
+  | FeedbackBannerMessageNoticeProps
+  | FeedbackBannerGuidedNoticeProps;
 
-export interface FeedbackBannerInput extends FeedbackBannerBaseProps {
+interface FeedbackBannerRecoveryInput extends FeedbackBannerBaseProps {
+  action?: FeedbackBannerAction;
   impact?: string;
   nextStep?: string;
-  tone: FeedbackBannerTone;
+  message?: never;
+  tone: Extract<FeedbackBannerTone, "error" | "warning">;
 }
+
+interface FeedbackBannerNoticeInput extends FeedbackBannerBaseProps {
+  action?: FeedbackBannerAction;
+  impact?: string;
+  message?: string;
+  nextStep?: string;
+  tone: Extract<FeedbackBannerTone, "info" | "success">;
+}
+
+export type FeedbackBannerInput =
+  | FeedbackBannerRecoveryInput
+  | FeedbackBannerNoticeInput;
 
 export interface FeedbackBannerRecoveryCopy {
   impact: string;
-  nextStep: string;
 }
 
 export function completeFeedbackBanner(
@@ -51,15 +75,39 @@ export function completeFeedbackBanner(
   recovery: FeedbackBannerRecoveryCopy,
 ): FeedbackBannerProps {
   if (input.tone === "error" || input.tone === "warning") {
+    const { action, nextStep, ...recoveryInput } = input;
+    const impact = input.impact?.trim() || recovery.impact;
+    if (action) {
+      return {
+        ...recoveryInput,
+        action,
+        impact,
+        tone: input.tone,
+      };
+    }
+    const guidance = nextStep?.trim();
     return {
-      ...input,
-      impact: input.impact?.trim() || recovery.impact,
-      nextStep: input.nextStep?.trim() || recovery.nextStep,
+      ...recoveryInput,
+      impact,
+      tone: input.tone,
+      ...(guidance
+        ? { nextStep: guidance }
+        : {}),
+    };
+  }
+  if (!input.action && input.impact?.trim() && input.nextStep?.trim()) {
+    const { action: _action, message: _message, ...guidedInput } = input;
+    return {
+      ...guidedInput,
+      impact: input.impact.trim(),
+      nextStep: input.nextStep.trim(),
       tone: input.tone,
     };
   }
+  const { impact: _impact, nextStep: _nextStep, ...messageInput } = input;
   return {
-    ...input,
+    ...messageInput,
+    message: input.message?.trim() || input.title,
     tone: input.tone,
   };
 }

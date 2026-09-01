@@ -229,25 +229,12 @@ export function useChannelLoginController({
       const needsReconciliation = channelOperationNeedsReconciliation(
         recovery.issue,
       );
-      const checkingFailed = recovery.check === "failed";
       const unproven = recovery.check === "unproven";
       const startCanRetry = recovery.kind === "start"
         && recovery.issue.effect === "not_applied";
-      const message = checkingFailed
-        ? t("capability.channel_reconcile_failed_message")
-        : unproven
-          ? t("capability.channel_reconcile_unproven_message")
-          : recovery.issue.message;
       const impact = unproven
         ? t("capability.channel_reconcile_unproven_impact")
         : recovery.issue.impact;
-      const nextStep = checkingFailed
-        ? t("capability.channel_reconcile_failed_next_step")
-        : unproven
-          ? t("capability.channel_reconcile_unproven_next_step")
-          : startCanRetry
-            ? t("capability.channel_login_start_recovery_next_step")
-            : recovery.issue.nextStep;
       return {
         action: {
           label: startCanRetry
@@ -268,8 +255,6 @@ export function useChannelLoginController({
           },
         },
         impact,
-        message,
-        nextStep,
         onDismiss: needsReconciliation ? undefined : () => setRecovery(null),
         title: recovery.issue.title,
         tone: recovery.issue.tone,
@@ -282,8 +267,6 @@ export function useChannelLoginController({
           onClick: () => void refreshCompletedChannel(),
         },
         impact: t("capability.channel_login_refresh_failed_impact"),
-        message: t("capability.channel_login_refresh_failed_message"),
-        nextStep: t("capability.channel_login_refresh_failed_next_step"),
         title: t("capability.channel_login_refresh_failed_title"),
         tone: "warning",
       };
@@ -298,8 +281,6 @@ export function useChannelLoginController({
           },
         },
         impact: t("capability.channel_login_poll_failed_impact"),
-        message: t("capability.channel_login_poll_failed_message"),
-        nextStep: t("capability.channel_login_poll_failed_next_step"),
         title: t("capability.channel_login_poll_failed_title"),
         tone: "error",
       };

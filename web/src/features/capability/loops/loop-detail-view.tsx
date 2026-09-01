@@ -101,13 +101,9 @@ export function LoopDetailView({ slug, onBack: onBack }: LoopDetailViewProps) {
       ) : error ? (
         <UiResourceState
           className="min-h-[320px]"
-          description={error.message}
           impact={t(error.access
             ? "state.access_failure_impact"
             : "state.read_failure_impact")}
-          nextStep={t(error.access
-            ? "state.permission_next_step"
-            : "state.retry_next_step")}
           primaryAction={{
             icon: <RotateCcw className="h-3.5 w-3.5" />,
             label: t("state.retry"),

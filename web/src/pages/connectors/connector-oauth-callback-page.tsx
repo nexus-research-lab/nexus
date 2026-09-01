@@ -23,12 +23,9 @@ import {
   type ConnectorOAuthEventType,
 } from "@/features/capability/connectors/auth/connector-oauth-events";
 
-interface OAuthCallbackStatus {
-  impact?: string;
-  message: string;
-  nextStep?: string;
-  title: string;
-}
+type OAuthCallbackStatus =
+  | { impact: string; message?: never; title: string }
+  | { impact?: never; message: string; title: string };
 
 const INITIAL_STATUS: OAuthCallbackStatus = {
   message: "Nexus 正在核对这次授权。",
@@ -71,10 +68,14 @@ export function ConnectorOAuthCallbackPage() {
       failureKind?: ConnectorOAuthFailureKind,
       connectorId: string | null = pendingConnectorId,
     ) => {
-      publishConnectorOauthEvent(type, nextStatus.message, {
-        connectorId,
-        failureKind,
-      });
+      publishConnectorOauthEvent(
+        type,
+        nextStatus.message ?? nextStatus.title,
+        {
+          connectorId,
+          failureKind,
+        },
+      );
       if (failureKind !== "outcome_unknown") {
         clearPendingConnectorOauth(connectorId);
       }
@@ -122,11 +123,7 @@ export function ConnectorOAuthCallbackPage() {
         "connector-oauth:error",
         {
           impact: "没有保存新的连接；已有连接和应用配置没有被删除。",
-          message: error === "access_denied"
-            ? "你取消了授权，或服务拒绝了这次授权。"
-            : "授权服务没有完成这次连接。",
-          nextStep: "返回 Nexus 检查连接器设置；需要时可以重新开始授权。",
-          title: "连接没有完成",
+          title: error === "access_denied" ? "授权已取消" : "连接没有完成",
         },
         "not_connected",
       );
@@ -137,9 +134,7 @@ export function ConnectorOAuthCallbackPage() {
         "connector-oauth:error",
         {
           impact: "没有提交连接信息；已有连接和应用配置保持不变。",
-          message: "授权服务返回的信息不完整，Nexus 无法完成连接。",
-          nextStep: "返回 Nexus 检查连接器设置后，重新开始授权。",
-          title: "连接没有完成",
+          title: "授权信息不完整",
         },
         "not_connected",
       );
@@ -159,14 +154,10 @@ export function ConnectorOAuthCallbackPage() {
           notConnected
             ? {
                 impact: "这次连接没有保存；已有连接和应用配置保持不变。",
-                message: failure.message,
-                nextStep: "返回 Nexus 检查连接器设置后，可以重新开始授权。",
                 title: "连接没有完成",
               }
             : {
                 impact: "已有连接和应用配置没有被删除；新连接结果待核对。",
-                message: failure.message,
-                nextStep: "返回 Nexus 并重新加载连接器状态；确认结果前不要再次授权。",
                 title: "连接结果待确认",
               },
           notConnected ? "not_connected" : "outcome_unknown",
@@ -184,17 +175,14 @@ export function ConnectorOAuthCallbackPage() {
         <h1 className="text-lg font-semibold text-(--text-strong)">
           {status.title}
         </h1>
-        <p className="mt-2 text-sm leading-6 text-(--text-muted)">
-          {status.message}
-        </p>
+        {"message" in status ? (
+          <p className="mt-2 text-sm leading-6 text-(--text-muted)">
+            {status.message}
+          </p>
+        ) : null}
         {status.impact ? (
           <p className="mt-3 text-sm leading-6 text-(--text-muted)">
             {status.impact}
-          </p>
-        ) : null}
-        {status.nextStep ? (
-          <p className="mt-2 text-sm font-medium leading-6 text-(--text-default)">
-            {status.nextStep}
           </p>
         ) : null}
         {closingHint ? (

@@ -1,6 +1,6 @@
 /**
  * INPUT: 服务端 Preferences、本页草稿与对账后的最新版本。
- * OUTPUT: 规范化偏好、PATCH 正文、叶子变更重应用与完整恢复反馈类型。
+ * OUTPUT: 规范化偏好、PATCH 正文、叶子变更重应用与单一恢复动作类型。
  * POS: Preferences 纯模型边界；不访问 React、HTTP 或全局 runtime 状态写入。
  */
 import { getUserPreferences } from "@/config/runtime-options";
@@ -15,23 +15,28 @@ import {
   type UserPreferences,
 } from "@/types/settings/preferences";
 
-export interface PreferenceFeedback {
-  impact: string;
-  message: string;
-  nextStep: string;
-  title: string;
-  tone: "error" | "success" | "warning";
-}
+export type PreferenceFeedback =
+  | {
+    impact: string;
+    message?: never;
+    title: string;
+    tone: "error" | "warning";
+  }
+  | {
+    impact?: never;
+    message: string;
+    title: string;
+    tone: "success";
+  };
 
 export interface PreferenceRecoveryControls {
   canCompare: boolean;
   canRepairProjection: boolean;
   checking: boolean;
   checkLatest: () => void;
-  repairProjection: () => void;
   reapplyDraft: () => void;
+  repairProjection: () => void;
   repairing: boolean;
-  useLatest: () => void;
 }
 
 export function buildPreferencesUpdatePayload(

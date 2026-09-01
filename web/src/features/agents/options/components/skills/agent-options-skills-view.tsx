@@ -29,7 +29,6 @@ interface AgentOptionsSkillsViewProps {
   requestSkillAction: (skill: AgentSkillEntry) => void;
   searchQuery: string;
   setSearchQuery: (value: string) => void;
-  startNewSkillIntent: (skillName: string) => void;
   blockedSkillNames: ReadonlySet<string>;
 }
 
@@ -45,9 +44,7 @@ function SkillsLoadError({
   const { t } = useI18n();
   return failure ? (
     <UiResourceState
-      description={failure.message}
       impact={failure.impact}
-      nextStep={failure.nextStep}
       primaryAction={{
         busy: loading,
         label: t("state.retry"),
@@ -64,37 +61,25 @@ function SkillsLoadError({
 function SkillMutationFailures({
   failures,
   refresh,
-  startNewSkillIntent,
 }: {
   failures: AgentSkillMutationFailure[];
   refresh: () => Promise<unknown>;
-  startNewSkillIntent: (skillName: string) => void;
 }) {
   const { t } = useI18n();
-  return failures.map((failure) => (
+  const failure = failures[0];
+  return failure ? (
     <UiResourceState
-      description={failure.message}
       impact={failure.impact}
-      key={`${failure.target.agentId}:${failure.target.skillName}`}
-      nextStep={failure.nextStep}
-      primaryAction={{
-        label: failure.blocksRepeat
-          ? t("state.reload_check")
-          : t("agent_options.skills.start_new_change"),
-        onClick: failure.blocksRepeat
-          ? () => void refresh()
-          : () => startNewSkillIntent(failure.target.skillName),
-      }}
-      secondaryAction={failure.blocksRepeat ? {
-        label: t("agent_options.skills.start_new_change"),
-        onClick: () => startNewSkillIntent(failure.target.skillName),
+      primaryAction={failure.blocksRepeat ? {
+        label: t("state.reload_check"),
+        onClick: () => void refresh(),
       } : undefined}
       size="sm"
       state="error"
       title={failure.title}
       variant="inset"
     />
-  ));
+  ) : null;
 }
 
 export function AgentOptionsSkillsView({
@@ -113,7 +98,6 @@ export function AgentOptionsSkillsView({
   requestSkillAction,
   searchQuery,
   setSearchQuery,
-  startNewSkillIntent,
 }: AgentOptionsSkillsViewProps) {
   const { t } = useI18n();
 
@@ -127,7 +111,6 @@ export function AgentOptionsSkillsView({
       <SkillMutationFailures
         failures={mutationFailures}
         refresh={refresh}
-        startNewSkillIntent={startNewSkillIntent}
       />
       <AgentOptionsSkillsContent
         agentId={agentId}

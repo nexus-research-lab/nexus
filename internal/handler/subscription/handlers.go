@@ -1,7 +1,6 @@
 package subscription
 
 import (
-	"errors"
 	"net/http"
 	"strings"
 
@@ -9,6 +8,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/handler/shared"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	subscriptionsvc "github.com/nexus-research-lab/nexus/internal/service/subscription"
 )
 
@@ -23,13 +23,15 @@ func New(api *shared.API, subscription *subscriptionsvc.Service) *Handlers {
 
 func (h *Handlers) HandleOverview(w http.ResponseWriter, r *http.Request) {
 	if !canManageSubscription(r) {
-		h.api.WriteFailure(w, http.StatusForbidden, "subscription admin access required")
+		h.api.WriteError(w, r, http.StatusForbidden, subscriptionAccessFailure(
+			protocol.FailureEffectNotApplicable,
+		))
 		return
 	}
 
 	overview, err := h.subscription.Overview(r.Context())
 	if err != nil {
-		h.api.WriteFailure(w, http.StatusInternalServerError, err.Error())
+		h.api.WriteError(w, r, http.StatusInternalServerError, subscriptionReadFailure(err))
 		return
 	}
 	h.api.WriteSuccess(w, overview)
@@ -37,7 +39,9 @@ func (h *Handlers) HandleOverview(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handlers) HandleUpdateUserSubscription(w http.ResponseWriter, r *http.Request) {
 	if !canManageSubscription(r) {
-		h.api.WriteFailure(w, http.StatusForbidden, "subscription admin access required")
+		h.api.WriteError(w, r, http.StatusForbidden, subscriptionAccessFailure(
+			protocol.FailureEffectNotApplied,
+		))
 		return
 	}
 
@@ -45,7 +49,7 @@ func (h *Handlers) HandleUpdateUserSubscription(w http.ResponseWriter, r *http.R
 	var payload struct {
 		PlanKey string `json:"plan_key"`
 	}
-	if !h.api.BindJSON(w, r, &payload) {
+	if !h.api.BindJSONError(w, r, &payload, subscriptionBodyFailure()) {
 		return
 	}
 
@@ -53,12 +57,9 @@ func (h *Handlers) HandleUpdateUserSubscription(w http.ResponseWriter, r *http.R
 		OwnerUserID: ownerUserID,
 		PlanKey:     payload.PlanKey,
 	})
-	if errors.Is(err, subscriptionsvc.ErrInvalidInput) {
-		h.api.WriteFailure(w, http.StatusBadRequest, err.Error())
-		return
-	}
 	if err != nil {
-		h.api.WriteFailure(w, http.StatusInternalServerError, err.Error())
+		status, failure := subscriptionMutationFailure("account_update", err)
+		h.api.WriteError(w, r, status, failure)
 		return
 	}
 	h.api.WriteSuccess(w, overview)
@@ -66,7 +67,9 @@ func (h *Handlers) HandleUpdateUserSubscription(w http.ResponseWriter, r *http.R
 
 func (h *Handlers) HandleUpsertPlan(w http.ResponseWriter, r *http.Request) {
 	if !canManageSubscription(r) {
-		h.api.WriteFailure(w, http.StatusForbidden, "subscription admin access required")
+		h.api.WriteError(w, r, http.StatusForbidden, subscriptionAccessFailure(
+			protocol.FailureEffectNotApplied,
+		))
 		return
 	}
 
@@ -79,7 +82,7 @@ func (h *Handlers) HandleUpsertPlan(w http.ResponseWriter, r *http.Request) {
 		Notes             string `json:"notes"`
 		SortOrder         int    `json:"sort_order"`
 	}
-	if !h.api.BindJSON(w, r, &payload) {
+	if !h.api.BindJSONError(w, r, &payload, subscriptionBodyFailure()) {
 		return
 	}
 	if planKey != "" {
@@ -94,12 +97,13 @@ func (h *Handlers) HandleUpsertPlan(w http.ResponseWriter, r *http.Request) {
 		Notes:             payload.Notes,
 		SortOrder:         payload.SortOrder,
 	})
-	if errors.Is(err, subscriptionsvc.ErrInvalidInput) {
-		h.api.WriteFailure(w, http.StatusBadRequest, err.Error())
-		return
-	}
 	if err != nil {
-		h.api.WriteFailure(w, http.StatusInternalServerError, err.Error())
+		operation := "plan_create"
+		if planKey != "" {
+			operation = "plan_update"
+		}
+		status, failure := subscriptionMutationFailure(operation, err)
+		h.api.WriteError(w, r, status, failure)
 		return
 	}
 	h.api.WriteSuccess(w, overview)

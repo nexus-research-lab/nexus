@@ -40,7 +40,6 @@ export function SkillDetailRoute({
       onAgentToggle={(binding) => void controller.toggleAgent(binding)}
       onRetry={() => void controller.retry()}
       onRetryBindings={() => void controller.retryBindings()}
-      onStartNewToggleIntent={controller.startNewToggleIntent}
       onUpdate={() => void controller.updateSkill()}
       snapshot={controller.snapshot}
       toggleFailures={controller.toggleFailures}

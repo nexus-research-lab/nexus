@@ -183,23 +183,27 @@ export function ProviderSettingsPanel({
       <FeedbackBannerViewport
         item={state.feedback
           ? completeFeedbackBanner(
-            {
-              action: state.feedback.recoveryAction === "refresh"
-                ? {
-                    label: t("state.reload_check"),
-                    onClick: () => void actions.reconcileFeedback(),
-                  }
-                : undefined,
-              impact: state.feedback.impact,
-              message: state.feedback.message,
-              nextStep: state.feedback.nextStep,
-              onDismiss: actions.dismissFeedback,
-              title: state.feedback.title,
-              tone: state.feedback.tone,
-            },
+            state.feedback.tone === "success"
+              ? {
+                  message: state.feedback.message,
+                  onDismiss: actions.dismissFeedback,
+                  title: state.feedback.title,
+                  tone: "success",
+                }
+              : {
+                  action: state.feedback.recoveryAction === "refresh"
+                    ? {
+                        label: t("settings.providers.ccswitch_refresh_settings"),
+                        onClick: () => void actions.reconcileFeedback(),
+                      }
+                    : undefined,
+                  impact: state.feedback.impact,
+                  onDismiss: actions.dismissFeedback,
+                  title: state.feedback.title,
+                  tone: state.feedback.tone,
+                },
             {
               impact: t("feedback.unconfirmed_impact"),
-              nextStep: t("feedback.unconfirmed_next_step"),
             },
           )
           : null}

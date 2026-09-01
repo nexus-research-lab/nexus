@@ -1,5 +1,5 @@
-// INPUT: 侧栏空状态或读取失败的标题、影响、下一步和可选动作。
-// OUTPUT: 符合侧栏密度的引导卡；失败态以 polite 方式完整播报。
+// INPUT: 侧栏空状态或读取失败的标题、影响、必要说明和可选动作。
+// OUTPUT: 符合侧栏密度的引导卡；失败态不重复动作已经表达的恢复说明。
 // POS: 侧栏紧凑状态视图；不判断资源或修改结果。
 
 import type { LucideIcon } from "lucide-react";
@@ -40,13 +40,15 @@ export function SidebarEmptyGuide({
         <Icon className="h-3.5 w-3.5 shrink-0" />
         <span className="text-xs font-semibold">{title}</span>
       </div>
-      <p className="text-xs leading-relaxed text-(--text-soft)">
-        {description}
-      </p>
+      {!impact ? (
+        <p className="text-xs leading-relaxed text-(--text-soft)">
+          {description}
+        </p>
+      ) : null}
       {impact ? (
         <p className="text-xs leading-relaxed text-(--text-muted)">{impact}</p>
       ) : null}
-      {nextStep ? (
+      {nextStep && !(actionLabel && onAction) ? (
         <p className="text-xs font-medium leading-relaxed text-(--text-default)">
           {nextStep}
         </p>

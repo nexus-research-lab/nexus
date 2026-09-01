@@ -20,7 +20,7 @@ export interface SkillMarketplaceFeedback {
   };
   dismiss: () => void;
   impact?: string;
-  message: string;
+  message?: string;
   nextStep?: string;
   pending: boolean;
   persistent?: boolean;

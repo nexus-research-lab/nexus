@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -169,17 +170,37 @@ func TestPersonalProfileAndChangePassword(t *testing.T) {
 		t.Fatalf("auth status 应返回最新头像: %+v", statusWithAvatar)
 	}
 
-	if status := changePasswordStatus(t, httpServer.URL, cookie, "wrong-password", "password456"); status != http.StatusUnprocessableEntity {
+	if status := changePasswordStatus(t, httpServer.URL, cookie, "password-change:invalid", "wrong-password", "password456"); status != http.StatusUnprocessableEntity {
 		t.Fatalf("错误当前密码应返回 422，实际: %d", status)
 	}
-	if status := changePasswordStatus(t, httpServer.URL, cookie, "password123", "password456"); status != http.StatusOK {
+	if outcome := passwordChangeOutcome(t, httpServer.URL, cookie, "password-change:invalid"); outcome != "not_applied" {
+		t.Fatalf("明确拒绝的改密请求必须持久化 not_applied，实际: %q", outcome)
+	}
+	const abandonedRequestID = "password-change:abandoned"
+	if outcome := settlePasswordChangeNotApplied(t, httpServer.URL, cookie, abandonedRequestID); outcome != "not_applied" {
+		t.Fatalf("放弃 unknown 请求必须原子收口，实际: %q", outcome)
+	}
+	if status := changePasswordStatus(t, httpServer.URL, cookie, abandonedRequestID, "password123", "password456"); status != http.StatusConflict {
+		t.Fatalf("已放弃 request 不得迟到修改密码，实际: %d", status)
+	}
+	const committedRequestID = "password-change:committed"
+	if status := changePasswordStatus(t, httpServer.URL, cookie, committedRequestID, "password123", "password456"); status != http.StatusOK {
 		t.Fatalf("正确当前密码应改密成功，实际: %d", status)
+	}
+	if passwordChangeOutcome(t, httpServer.URL, cookie, committedRequestID) != "committed" {
+		t.Fatal("改密成功后 exact request 回执应可对账")
+	}
+	if status := changePasswordStatus(t, httpServer.URL, cookie, committedRequestID, "password123", "password789"); status != http.StatusOK {
+		t.Fatalf("重放同一 exact request 应返回已提交而不再改密，实际: %d", status)
 	}
 	if status := loginStatus(t, httpServer.URL, "admin", "password123"); status != http.StatusUnauthorized {
 		t.Fatalf("改密后旧密码应失败，实际: %d", status)
 	}
 	if status := loginStatus(t, httpServer.URL, "admin", "password456"); status != http.StatusOK {
 		t.Fatalf("改密后新密码应成功，实际: %d", status)
+	}
+	if status := loginStatus(t, httpServer.URL, "admin", "password789"); status != http.StatusUnauthorized {
+		t.Fatalf("同一 request_id 重放不得应用第二个密码，实际: %d", status)
 	}
 }
 
@@ -388,12 +409,14 @@ func changePasswordStatus(
 	t *testing.T,
 	baseURL string,
 	cookie *http.Cookie,
+	requestID string,
 	currentPassword string,
 	newPassword string,
 ) int {
 	t.Helper()
 
 	body, err := json.Marshal(map[string]string{
+		"request_id":       requestID,
 		"current_password": currentPassword,
 		"new_password":     newPassword,
 	})
@@ -409,6 +432,85 @@ func changePasswordStatus(
 	}
 	defer func() { _ = response.Body.Close() }()
 	return response.StatusCode
+}
+
+func passwordChangeOutcome(
+	t *testing.T,
+	baseURL string,
+	cookie *http.Cookie,
+	requestID string,
+) string {
+	t.Helper()
+	request := mustNewRequest(
+		t,
+		http.MethodGet,
+		baseURL+"/nexus/v1/settings/profile/password/receipt?request_id="+url.QueryEscape(requestID),
+		nil,
+	)
+	request.AddCookie(cookie)
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatalf("核对改密回执失败: %v", err)
+	}
+	defer func() { _ = response.Body.Close() }()
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("核对改密回执应成功，实际: %d", response.StatusCode)
+	}
+	var payload struct {
+		Data struct {
+			RequestID string `json:"request_id"`
+			Effect    string `json:"effect"`
+		} `json:"data"`
+	}
+	if err = json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		t.Fatalf("解析改密回执失败: %v", err)
+	}
+	if payload.Data.RequestID != requestID {
+		t.Fatalf("回执 request_id 不匹配: %+v", payload.Data)
+	}
+	return payload.Data.Effect
+}
+
+func settlePasswordChangeNotApplied(
+	t *testing.T,
+	baseURL string,
+	cookie *http.Cookie,
+	requestID string,
+) string {
+	t.Helper()
+	body, err := json.Marshal(map[string]string{"request_id": requestID})
+	if err != nil {
+		t.Fatalf("编码改密放弃请求失败: %v", err)
+	}
+	request := mustNewRequest(
+		t,
+		http.MethodPost,
+		baseURL+"/nexus/v1/settings/profile/password/receipt/not-applied",
+		bytes.NewReader(body),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	request.AddCookie(cookie)
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatalf("放弃改密请求失败: %v", err)
+	}
+	defer func() { _ = response.Body.Close() }()
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("放弃改密请求应成功，实际: %d", response.StatusCode)
+	}
+	var payload struct {
+		Data struct {
+			RequestID string `json:"request_id"`
+			Effect    string `json:"effect"`
+		} `json:"data"`
+	}
+	if err = json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		t.Fatalf("解析改密放弃回执失败: %v", err)
+	}
+	if payload.Data.RequestID != requestID {
+		t.Fatalf("放弃回执 request_id 不匹配: %+v", payload.Data)
+	}
+	return payload.Data.Effect
 }
 
 func mustNewRequest(t *testing.T, method string, url string, body io.Reader) *http.Request {

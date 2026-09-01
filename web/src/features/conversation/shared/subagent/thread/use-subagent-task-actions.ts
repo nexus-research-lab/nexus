@@ -34,7 +34,6 @@ export type SubagentTaskPendingAction = "send" | "stop" | null;
 export interface SubagentTaskActionFailure {
   action: Exclude<SubagentTaskPendingAction, null>;
   effect: MutationFailureEffect;
-  message: string;
 }
 
 export interface SubagentTaskActions {
@@ -125,7 +124,6 @@ export function useSubagentTaskActions({
       setError({
         action,
         effect: failure.effect,
-        message: failure.message,
       });
       return false;
     } finally {

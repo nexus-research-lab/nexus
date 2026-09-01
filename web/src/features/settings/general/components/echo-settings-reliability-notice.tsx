@@ -53,35 +53,33 @@ export function EchoSettingsReliabilityNotice({
               onClick: recovery.checkLatest,
             }
           : undefined;
-  const secondaryAction = !success && recovery.canCompare
-    ? {
-        disabled: recovery.checking,
-        label: t("settings.general.echo_use_latest"),
-        onClick: recovery.useLatest,
-      }
-    : undefined;
-  const commonProps = {
-    className: "min-h-0 px-3 py-2.5",
-    "data-echo-reliability": feedback.tone,
-    description: feedback.message,
-    impact: feedback.impact,
-    nextStep: feedback.nextStep,
-    size: "sm" as const,
-    title: feedback.title,
-    urgency: "polite" as const,
-    variant: "card" as const,
-  };
   if (success) {
-    return <UiResourceState {...commonProps} state="success" />;
+    return (
+      <UiResourceState
+        className="min-h-0 px-3 py-2.5"
+        data-echo-reliability={feedback.tone}
+        description={feedback.message}
+        size="sm"
+        state="success"
+        title={feedback.title}
+        urgency="polite"
+        variant="card"
+      />
+    );
   }
 
   return (
     <UiResourceState
-      {...commonProps}
+      className="min-h-0 px-3 py-2.5"
+      data-echo-reliability={feedback.tone}
+      impact={feedback.impact}
       primaryAction={primaryAction}
-      secondaryAction={secondaryAction}
+      size="sm"
       state="error"
+      title={feedback.title}
       tone={feedback.tone === "warning" ? "warning" : "danger"}
+      urgency="polite"
+      variant="card"
     />
   );
 }

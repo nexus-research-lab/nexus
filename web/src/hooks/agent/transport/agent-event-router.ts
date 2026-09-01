@@ -1,3 +1,8 @@
+/**
+ * INPUT: 未知 WebSocket 事件、当前 Session/Room scope 与 durable 游标。
+ * OUTPUT: 先丢弃不新于 Room 权威快照的事件，再按唯一处理器路由其余事件。
+ * POS: Agent transport 信封校验、重放栅栏与事件所有权边界。
+ */
 import { parseEventMessage } from "@/lib/websocket/protocol/event-message";
 import type { EventMessage } from "@/types/generated/protocol";
 
@@ -61,6 +66,18 @@ function updateEventCursors(
   }
 }
 
+function isSupersededRoomEvent(
+  event: EventMessage,
+  context: AgentEventContext,
+): boolean {
+  return Boolean(
+    context.scope.roomId
+    && event.room_id === context.scope.roomId
+    && typeof event.room_seq === "number"
+    && event.room_seq <= context.transport.roomSeqCursorRef.current,
+  );
+}
+
 /**
  * WebSocket 层只校验信封并路由，业务事件由各自处理器维护。
  * 未知事件保持忽略，允许后端先发布不影响旧前端的新事件。
@@ -75,6 +92,10 @@ export function routeAgentConversationEvent(
       "[agent-event-router] Received unexpected message shape:",
       backendMessage,
     );
+    return;
+  }
+
+  if (isSupersededRoomEvent(event, context)) {
     return;
   }
 

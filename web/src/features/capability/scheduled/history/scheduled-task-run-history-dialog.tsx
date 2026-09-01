@@ -147,7 +147,6 @@ export function ScheduledTaskRunHistoryDialog({
               {actions.feedback ? (
                 <UiResourceState
                   className="mb-3 min-h-0 py-4"
-                  description={actions.feedback.message}
                   impact={actions.feedback.impact ?? t("capability.scheduled_history_feedback_fallback_impact")}
                   nextStep={actions.feedback.nextStep ?? t("capability.scheduled_history_feedback_fallback_next_step")}
                   size="sm"

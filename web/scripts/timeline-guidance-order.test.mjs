@@ -3217,6 +3217,7 @@ test("history restores only the latest assistant round error", async () => {
   const {
     DEFAULT_ASSISTANT_ERROR_MESSAGE,
     latestAssistantResultErrorMessage,
+    normalizeAssistantMessages,
     resolveAssistantResultErrorMessage,
   } = await server.ssrLoadModule(
     "/src/hooks/agent/message/assistant-message-model.ts",
@@ -3236,6 +3237,31 @@ test("history restores only the latest assistant round error", async () => {
     text: "",
     timestamp: 2,
   });
+
+  const echoedFailure = assistantMessage({
+    isComplete: true,
+    messageId: "assistant-echoed-failure",
+    resultSummary: {
+      duration_api_ms: 10,
+      duration_ms: 20,
+      is_error: true,
+      num_turns: 1,
+      result: "provider failed",
+      subtype: "error",
+      timestamp: 2,
+    },
+    roundId: "round-echoed-failure",
+    status: "done",
+    stopReason: "end_turn",
+    text: "provider failed",
+    timestamp: 2,
+  });
+  const normalizedEcho = normalizeAssistantMessages([echoedFailure]);
+  assert.deepEqual(
+    normalizedEcho[0].content,
+    [],
+    "content-only normalization must not be discarded when stream status is already terminal",
+  );
 
   assert.equal(
     latestAssistantResultErrorMessage([failed]),
@@ -3259,8 +3285,8 @@ test("history restores only the latest assistant round error", async () => {
       text: "",
       timestamp: 2,
     })]),
-    null,
-    "result-only failure is already visible as the final assistant reply",
+    runtimeExitMessage,
+    "result-only runtime failure must use the structured reliability notice",
   );
   assert.equal(
     latestAssistantResultErrorMessage([assistantMessage({
@@ -3339,6 +3365,28 @@ test("history restores only the latest assistant round error", async () => {
     }),
     DEFAULT_ASSISTANT_ERROR_MESSAGE,
   );
+});
+
+test("Room history cannot recreate a live Agent execution without live evidence", async () => {
+  const { buildRoomAgentRoundEntries } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/round/round-agent-model.ts",
+  );
+  const historicalPartial = assistantMessage({
+    agentId: "agent-stale",
+    agentRoundId: "agent-round-stale",
+    messageId: "assistant-stale",
+    roundId: "round-stale",
+    status: "streaming",
+    text: "stale partial",
+    timestamp: 1,
+  });
+  const [entry] = buildRoomAgentRoundEntries(
+    [historicalPartial],
+    [],
+    [],
+    [],
+  );
+  assert.equal(entry.status, "done");
 });
 
 test("round status updates lifecycle without duplicating durable error copy", async () => {

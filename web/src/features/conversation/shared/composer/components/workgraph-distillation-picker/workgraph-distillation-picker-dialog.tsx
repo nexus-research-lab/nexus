@@ -120,9 +120,7 @@ function OpenWorkGraphDistillationPickerDialog({
             {failure && hasSnapshot && !failure.access ? (
               <UiResourceState
                 className="min-h-0 py-3"
-                description={failure.message}
                 impact={t("state.stale_snapshot_impact")}
-                nextStep={t("state.retry_next_step")}
                 primaryAction={{
                   icon: <RotateCcw className="h-3.5 w-3.5" />,
                   label: t("state.retry"),
@@ -146,13 +144,9 @@ function OpenWorkGraphDistillationPickerDialog({
             ) : failure && (failure.access || !hasSnapshot) ? (
               <UiResourceState
                 className="min-h-48"
-                description={failure.message}
                 impact={t(failure.access
                   ? "state.access_failure_impact"
                   : "state.read_failure_impact")}
-                nextStep={t(failure.access
-                  ? "state.permission_next_step"
-                  : "state.retry_next_step")}
                 primaryAction={{
                   icon: <RotateCcw className="h-3.5 w-3.5" />,
                   label: t("state.retry"),
@@ -169,13 +163,14 @@ function OpenWorkGraphDistillationPickerDialog({
               <UiResourceState
                 className="min-h-48"
                 impact={items.length > 0 ? t("state.filter_impact") : undefined}
-                nextStep={items.length > 0
-                  ? t("state.clear_filters_next_step")
-                  : t("capability.workgraph_empty_description")}
-                primaryAction={items.length > 0 ? {
-                  label: t("state.clear_filters"),
-                  onClick: () => setQuery(""),
-                } : undefined}
+                {...(items.length > 0
+                  ? {
+                      primaryAction: {
+                        label: t("state.clear_filters"),
+                        onClick: () => setQuery(""),
+                      },
+                    }
+                  : { nextStep: t("capability.workgraph_empty_description") })}
                 size="sm"
                 state="empty"
                 title={t("composer.workgraph_picker_empty")}

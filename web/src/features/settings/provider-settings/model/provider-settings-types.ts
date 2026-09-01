@@ -8,15 +8,23 @@ import type { MutationFailureEffect } from "@/lib/error-message";
 
 export type FormMode = "empty" | "create" | "edit";
 
-export interface FeedbackState {
-  impact?: string;
-  message: string;
+interface FeedbackStateBase {
   mutationEffect?: MutationFailureEffect;
-  nextStep?: string;
   recoveryAction?: "refresh";
   title: string;
-  tone: "success" | "error" | "warning";
 }
+
+export type FeedbackState =
+  | FeedbackStateBase & {
+    impact: string;
+    message?: never;
+    tone: "error" | "warning";
+  }
+  | FeedbackStateBase & {
+    impact?: never;
+    message: string;
+    tone: "success";
+  };
 
 export interface ProviderDraft {
   provider_kind: ProviderKind;

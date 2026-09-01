@@ -289,22 +289,11 @@ export function useChannelConnectionController({
     const needsReconciliation = channelOperationNeedsReconciliation(
       recovery.issue,
     );
-    const failed = recovery.check === "failed";
     const unproven = recovery.check === "unproven";
     const base = {
       impact: unproven
         ? t("capability.channel_reconcile_unproven_impact")
         : recovery.issue.impact,
-      message: failed
-        ? t("capability.channel_reconcile_failed_message")
-        : unproven
-          ? t("capability.channel_reconcile_unproven_message")
-          : recovery.issue.message,
-      nextStep: failed
-        ? t("capability.channel_reconcile_failed_next_step")
-        : unproven
-          ? t("capability.channel_reconcile_unproven_next_step")
-          : recovery.issue.nextStep,
       title: recovery.issue.title,
       tone: recovery.issue.tone,
     } as const;

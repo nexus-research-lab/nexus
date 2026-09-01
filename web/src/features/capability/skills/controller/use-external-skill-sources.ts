@@ -268,9 +268,8 @@ function reportSourceMutationFailure(
           onClick: () => {
             void refresh();
           },
-        },
+    },
     impact: t(selectedCopy.impact, { name: sourceName }),
-    message: failure.message,
     nextStep: t(selectedCopy.nextStep),
     pending: false,
     persistent: !notApplied,

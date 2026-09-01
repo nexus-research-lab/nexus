@@ -63,7 +63,6 @@ interface PendingSkillRecovery {
   key: string;
   onCommitted?: () => void;
   presentSuccess: () => void;
-  reason: string;
 }
 
 interface ExecuteSkillMutationOptions<T> {
@@ -300,7 +299,6 @@ export function useSkillOperations({
           },
         },
         impact: t("capability.skill_operation_accepted_impact"),
-        message: t("capability.skill_operation_accepted_message", { operation }),
         nextStep: t("capability.skill_operation_accepted_next_step"),
         pending: false,
         persistent: true,
@@ -319,10 +317,6 @@ export function useSkillOperations({
         },
       },
       impact: t("capability.skill_operation_unknown_impact"),
-      message: t("capability.skill_operation_unknown_message", {
-        operation,
-        reason: recovery.reason,
-      }),
       nextStep: t("capability.skill_operation_unknown_next_step"),
       pending: false,
       persistent: true,
@@ -367,7 +361,6 @@ export function useSkillOperations({
         if (failure.effect === "not_applied") {
           feedback.report({
             impact: t("capability.skill_operation_not_applied_impact"),
-            message: failure.message,
             nextStep: t("capability.skill_operation_not_applied_next_step"),
             pending: false,
             title: t("capability.skill_operation_not_applied_title", {
@@ -384,7 +377,6 @@ export function useSkillOperations({
           key,
           onCommitted,
           presentSuccess: presentCommitted,
-          reason: failure.message,
         };
         pendingRecoveriesRef.current.set(key, recovery);
         if (failure.effect === "committed") {
@@ -402,7 +394,6 @@ export function useSkillOperations({
         key,
         onCommitted,
         presentSuccess: () => presentSuccess(result),
-        reason: t("capability.skill_operation_catalog_refresh_failed"),
       };
       pendingRecoveriesRef.current.set(key, recovery);
       applyCommittedUI(recovery);

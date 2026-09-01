@@ -127,9 +127,7 @@ function ScheduledTaskErrorState({
   return (
     <UiResourceState
       className="min-h-0 flex-1 border-y border-(--divider-subtle-color)"
-      description={failure.message}
       impact={t(accessBlocked ? "state.access_failure_impact" : "state.read_failure_impact")}
-      nextStep={t(accessBlocked ? "state.permission_next_step" : "state.retry_next_step")}
       primaryAction={{
         busy: isLoading,
         busyLabel: t("capability.scheduled_refreshing"),
@@ -393,9 +391,7 @@ export function ScheduledTaskBoard(props: ScheduledTaskBoardProps) {
       {props.failure && props.hasSnapshot ? (
         <UiResourceState
           className="mb-3 min-h-0 py-3"
-          description={props.failure.message}
           impact={t("state.stale_snapshot_impact")}
-          nextStep={t("state.retry_next_step")}
           primaryAction={{
             busy: props.isLoading,
             busyLabel: t("capability.scheduled_refreshing"),
@@ -412,13 +408,9 @@ export function ScheduledTaskBoard(props: ScheduledTaskBoardProps) {
       {props.permissionFailure ? (
         <UiResourceState
           className="mb-3 min-h-0 py-3"
-          description={props.permissionFailure.message}
           impact={t(props.permissionFailure.access
             ? "capability.scheduled_permission_access_impact"
             : "capability.scheduled_permission_stale_impact")}
-          nextStep={t(props.permissionFailure.access
-            ? "state.permission_next_step"
-            : "capability.scheduled_permission_stale_next_step")}
           primaryAction={{
             busy: props.isLoading || props.isPermissionLoading,
             busyLabel: t("capability.scheduled_refreshing"),

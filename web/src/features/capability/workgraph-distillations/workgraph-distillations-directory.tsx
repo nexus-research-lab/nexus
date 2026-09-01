@@ -29,7 +29,6 @@ import {
   scheduleWorkGraphWorkflowSaveApi,
 } from "@/lib/api/conversation/execution-api";
 import {
-  getErrorMessage,
   getResourceFailure,
   type ResourceFailure,
 } from "@/lib/error-message";
@@ -126,15 +125,13 @@ export function WorkGraphDistillationsDirectory() {
       if (accessBlockedRef.current) return;
       setEditingWorkflowId(item.id);
       setEditingPreview(preview);
-    } catch (reason: unknown) {
+    } catch {
       setCommandFailure({
         action: {
           label: t("state.reload_check"),
           onClick: () => setLoadRevision((current) => current + 1),
         },
         impact: t("capability.workgraph_edit_failure_impact"),
-        message: getErrorMessage(reason, t("capability.workgraph_edit_failed")),
-        nextStep: t("capability.workgraph_edit_failure_next_step"),
         onDismiss: () => setCommandFailure(null),
         title: t("capability.workgraph_edit_failed"),
         tone: "error",
@@ -165,9 +162,7 @@ export function WorkGraphDistillationsDirectory() {
         {loadFailure && hasSnapshot && !loadFailure.access ? (
           <UiResourceState
             className="mb-3 min-h-0 py-3"
-            description={loadFailure.message}
             impact={t("state.stale_snapshot_impact")}
-            nextStep={t("state.retry_next_step")}
             primaryAction={{
               icon: <RotateCcw className="h-3.5 w-3.5" />,
               label: t("state.retry"),
@@ -189,13 +184,9 @@ export function WorkGraphDistillationsDirectory() {
         ) : loadFailure && (loadFailure.access || !hasSnapshot) ? (
           <UiResourceState
             className="min-h-48"
-            description={loadFailure.message}
             impact={t(loadFailure.access
               ? "state.access_failure_impact"
               : "state.read_failure_impact")}
-            nextStep={t(loadFailure.access
-              ? "state.permission_next_step"
-              : "state.retry_next_step")}
             primaryAction={{
               icon: <RotateCcw className="h-3.5 w-3.5" />,
               label: t("state.retry"),
@@ -220,13 +211,14 @@ export function WorkGraphDistillationsDirectory() {
             description={items.length === 0 ? t("capability.workgraph_empty_description") : undefined}
             icon={<GitBranchPlus className="h-5 w-5 text-(--icon-default)" />}
             impact={items.length > 0 ? t("state.filter_impact") : undefined}
-            nextStep={items.length > 0
-              ? t("state.clear_filters_next_step")
-              : t("capability.workgraph_empty_description")}
-            primaryAction={items.length > 0 ? {
-              label: t("state.clear_filters"),
-              onClick: () => setQuery(""),
-            } : undefined}
+            {...(items.length > 0
+              ? {
+                  primaryAction: {
+                    label: t("state.clear_filters"),
+                    onClick: () => setQuery(""),
+                  },
+                }
+              : { nextStep: t("capability.workgraph_empty_description") })}
             size="sm"
             state="empty"
             title={t(items.length === 0 ? "capability.workgraph_empty" : "capability.workgraph_no_matches")}
@@ -283,14 +275,12 @@ export function WorkGraphDistillationsDirectory() {
             setItems((current) => current.filter((item) => item.id !== candidate.id));
             notifyCapabilitySummaryMutated({ domain: "workgraph_distillation" });
             window.dispatchEvent(new CustomEvent(WORKGRAPH_WORKFLOWS_CHANGED_EVENT));
-          }).catch((reason: unknown) => setCommandFailure({
+          }).catch(() => setCommandFailure({
             action: {
               label: t("state.reload_check"),
               onClick: () => setLoadRevision((current) => current + 1),
             },
             impact: t("capability.workgraph_delete_failure_impact"),
-            message: getErrorMessage(reason, t("capability.workgraph_delete_failed")),
-            nextStep: t("capability.workgraph_delete_failure_next_step"),
             onDismiss: () => setCommandFailure(null),
             title: t("capability.workgraph_delete_failed"),
             tone: "error",

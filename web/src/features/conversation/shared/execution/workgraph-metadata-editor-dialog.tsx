@@ -17,7 +17,6 @@ import {
   startWorkGraphWorkflowEditorApi,
 } from "@/lib/api/conversation/execution-api";
 import {
-  getErrorMessage,
   projectMutationFailure,
   type MutationFailureEffect,
 } from "@/lib/error-message";
@@ -52,25 +51,16 @@ interface WorkGraphMetadataEditorDialogProps {
 }
 
 type WorkGraphEditorFailure =
-  | {
-      kind: "refresh";
-      message: string;
-    }
-  | {
-      kind: "start";
-      message: string;
-    }
+  | { kind: "refresh" }
+  | { kind: "start" }
   | {
       effect: MutationFailureEffect;
       kind: "apply" | "select";
-      message: string;
-      reconcileMessage?: string;
       selectedRevision?: number;
     }
   | {
       appliedPreview: WorkGraphWorkflowPreview;
       kind: "apply_projection";
-      message: string;
     };
 
 const EMPTY_EXECUTION_RESOURCE: ExecutionResource = {
@@ -99,7 +89,6 @@ export function WorkGraphMetadataEditorDialog({
   const loadAgents = useAgentStore((state) => state.load_agents_from_server);
   const startContextRef = useRef({
     locale,
-    failureMessage: t("execution.workflow_editor_start_failed"),
   });
   const editorRef = useRef<WorkGraphWorkflowEditorSession | null>(null);
   const [editor, setEditor] = useState<WorkGraphWorkflowEditorSession | null>(null);
@@ -131,12 +120,9 @@ export function WorkGraphMetadataEditorDialog({
         if (!active) return;
         updateEditor(session);
       })
-      .catch((reason: unknown) => {
+      .catch(() => {
         if (active) {
-          setFailure({
-            kind: "start",
-            message: getErrorMessage(reason, startContext.failureMessage),
-          });
+          setFailure({ kind: "start" });
         }
       })
       .finally(() => {
@@ -172,23 +158,19 @@ export function WorkGraphMetadataEditorDialog({
         return existing;
       });
       return next;
-    } catch (reason: unknown) {
-      const message = getErrorMessage(
-        reason,
-        t("execution.workflow_editor_refresh_failed"),
-      );
+    } catch {
       setFailure((existing) => {
         if (existing?.kind === "apply" || existing?.kind === "select") {
-          return { ...existing, reconcileMessage: message };
+          return existing;
         }
         if (existing?.kind === "apply_projection") {
           return existing;
         }
-        return { kind: "refresh", message };
+        return { kind: "refresh" };
       });
       return null;
     }
-  }, [sessionKey, t, updateEditor]);
+  }, [sessionKey, updateEditor]);
 
   const handleSnapshotChange = useCallback((_snapshot: SessionSnapshotPayload) => {
     void refreshEditor();
@@ -217,7 +199,6 @@ export function WorkGraphMetadataEditorDialog({
       setFailure({
         effect: mutation.effect,
         kind: "select",
-        message: mutation.message,
         selectedRevision,
       });
     } finally {
@@ -244,14 +225,10 @@ export function WorkGraphMetadataEditorDialog({
       );
       try {
         await onApply(applied);
-      } catch (reason: unknown) {
+      } catch {
         setFailure({
           appliedPreview: applied,
           kind: "apply_projection",
-          message: getErrorMessage(
-            reason,
-            t("execution.workflow_editor_projection_failed"),
-          ),
         });
       }
     } catch (reason: unknown) {
@@ -262,7 +239,6 @@ export function WorkGraphMetadataEditorDialog({
       setFailure({
         effect: mutation.effect,
         kind: "apply",
-        message: mutation.message,
       });
     } finally {
       setApplying(false);
@@ -275,18 +251,12 @@ export function WorkGraphMetadataEditorDialog({
     try {
       await onApply(failure.appliedPreview);
       setFailure(null);
-    } catch (reason: unknown) {
-      setFailure({
-        ...failure,
-        message: getErrorMessage(
-          reason,
-          t("execution.workflow_editor_projection_failed"),
-        ),
-      });
+    } catch {
+      setFailure(failure);
     } finally {
       setApplying(false);
     }
-  }, [applying, failure, onApply, t]);
+  }, [applying, failure, onApply]);
 
   const sessionIdentity = useMemo(() => editor ? {
     agent_id: editor.agent_id,
@@ -369,9 +339,7 @@ export function WorkGraphMetadataEditorDialog({
                   <div className="flex max-w-72 flex-col items-center gap-3">
                     <UiResourceState
                       className="min-h-0 py-4"
-                      description={failure?.message ?? t("execution.workflow_editor_start_failed")}
                       impact={t("execution.workflow_editor_start_failed_impact")}
-                      nextStep={t("execution.workflow_editor_start_failed_next_step")}
                       primaryAction={{
                         label: t("execution.workflow_editor_retry"),
                         onClick: handleRetryStart,
@@ -471,16 +439,11 @@ function WorkGraphEditorFailureState({
   onRetryProjection: () => void;
 }) {
   const { t } = useI18n();
-  const description = failure.kind === "apply" || failure.kind === "select"
-    ? [failure.message, failure.reconcileMessage].filter(Boolean).join(" ")
-    : failure.message;
   if (failure.kind === "refresh") {
     return (
       <UiResourceState
         className="mt-3 min-h-0 py-3"
-        description={description}
         impact={t("execution.workflow_editor_refresh_failed_impact")}
-        nextStep={t("execution.workflow_editor_refresh_failed_next_step")}
         primaryAction={{
           icon: <RefreshCw className="h-3.5 w-3.5" />,
           label: t("execution.workflow_editor_refresh_action"),
@@ -498,9 +461,7 @@ function WorkGraphEditorFailureState({
     return (
       <UiResourceState
         className="mt-3 min-h-0 py-3"
-        description={description}
         impact={t("execution.workflow_editor_projection_failed_impact")}
-        nextStep={t("execution.workflow_editor_projection_failed_next_step")}
         primaryAction={{
           busy: applying,
           label: t("execution.workflow_editor_projection_retry"),
@@ -542,14 +503,16 @@ function WorkGraphEditorFailureState({
   return (
     <UiResourceState
       className="mt-3 min-h-0 py-3"
-      description={description}
       impact={t(impactKey)}
-      nextStep={t(nextStepKey)}
-      primaryAction={!notApplied && selecting ? {
-        icon: <RefreshCw className="h-3.5 w-3.5" />,
-        label: t("execution.workflow_editor_refresh_action"),
-        onClick: onRefresh,
-      } : undefined}
+      {...(!notApplied && selecting
+        ? {
+            primaryAction: {
+              icon: <RefreshCw className="h-3.5 w-3.5" />,
+              label: t("execution.workflow_editor_refresh_action"),
+              onClick: onRefresh,
+            },
+          }
+        : { nextStep: t(nextStepKey) })}
       size="sm"
       state="error"
       title={t(titleKey)}

@@ -47,6 +47,23 @@ func validatePassword(password string) error {
 	return nil
 }
 
+func normalizePasswordChangeRequestID(value string) (string, error) {
+	normalized := strings.TrimSpace(value)
+	if len(normalized) < 8 || len(normalized) > 128 {
+		return "", errors.New("request_id 必须为 8-128 位字母、数字、点、下划线、冒号或连字符")
+	}
+	for _, item := range normalized {
+		if (item >= 'a' && item <= 'z') ||
+			(item >= 'A' && item <= 'Z') ||
+			(item >= '0' && item <= '9') ||
+			item == '.' || item == '_' || item == ':' || item == '-' {
+			continue
+		}
+		return "", errors.New("request_id 必须为 8-128 位字母、数字、点、下划线、冒号或连字符")
+	}
+	return normalized, nil
+}
+
 func normalizeAvatar(avatar string) (string, error) {
 	normalized := strings.TrimSpace(avatar)
 	if len(normalized) > 255 {

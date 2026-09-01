@@ -61,7 +61,7 @@ test("Feishu Docs presents official QR as the primary choose-or-create flow", as
   );
   assert.equal(userAuthorization.title, "连接飞书云文档");
   assert.equal(userAuthorization.showQRCode, false);
-  assert.equal(userAuthorization.actionLabel, "继续飞书授权");
+  assert.equal(userAuthorization.actionLabel, "继续授权");
 
   const appSelectionSession = {
     connector_id: "feishu-docx",

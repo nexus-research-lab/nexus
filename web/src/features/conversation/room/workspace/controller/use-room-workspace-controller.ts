@@ -85,7 +85,9 @@ export function useRoomWorkspaceController({
   const reloadFiles = resource.reload;
   const feedback = useMemo<FeedbackBannerProps | null>(() => {
     if (commands.feedback) {
-      return {...commands.feedback, onDismiss: clearFeedback};
+      const feedbackWithDismiss: FeedbackBannerProps = { ...commands.feedback };
+      feedbackWithDismiss.onDismiss = clearFeedback;
+      return feedbackWithDismiss;
     }
     if (!resource.errorMessage) {
       return null;
@@ -96,8 +98,6 @@ export function useRoomWorkspaceController({
         onClick: () => void reloadFiles(),
       },
       impact: t("room.workspace_list_failed_impact"),
-      message: resource.errorMessage,
-      nextStep: t("room.workspace_list_failed_next"),
       onDismiss: clearFeedback,
       title: t("room.workspace_list_failed_title"),
       tone: "error",

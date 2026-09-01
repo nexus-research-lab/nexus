@@ -68,7 +68,6 @@ export function useWorkspaceSettings() {
         if (result.migration_error) {
           setFeedback({
             impact: t("settings.general.state_root_previous_failed_impact"),
-            message: t("settings.general.state_root_previous_failed_message"),
             nextStep: t("settings.general.state_root_previous_failed_next_step"),
             title: t("settings.general.state_root_previous_failed_title"),
             tone: "error",
@@ -78,7 +77,6 @@ export function useWorkspaceSettings() {
         setFeedback(wasReconciling
           ? {
               impact: t("settings.general.state_root_reconciled_impact"),
-              message: t("settings.general.state_root_reconciled_message"),
               nextStep: t("settings.general.state_root_reconciled_next_step"),
               onDismiss: () => setFeedback(null),
               title: t("settings.general.state_root_reconciled_title"),
@@ -96,10 +94,6 @@ export function useWorkspaceSettings() {
             impact: migrationUnconfirmedRef.current
               ? t("settings.general.state_root_unknown_impact")
               : t("settings.general.state_root_load_failed_impact"),
-            message: t("settings.general.state_root_load_failed"),
-            nextStep: migrationUnconfirmedRef.current
-              ? t("settings.general.state_root_unknown_next_step")
-              : t("settings.general.state_root_load_failed_next_step"),
             title: migrationUnconfirmedRef.current
               ? t("settings.general.state_root_unknown_title")
               : t("settings.general.state_root_load_failed_title"),
@@ -144,7 +138,6 @@ export function useWorkspaceSettings() {
     } catch {
       setFeedback({
         impact: t("settings.general.state_root_select_failed_impact"),
-        message: t("settings.general.state_root_select_failed"),
         nextStep: t("settings.general.state_root_select_failed_next_step"),
         title: t("settings.general.state_root_select_failed_title"),
         tone: "error",
@@ -180,8 +173,6 @@ export function useWorkspaceSettings() {
           onClick: () => loadCurrentStateRef.current(),
         },
         impact: t("settings.general.state_root_unknown_impact"),
-        message: t("settings.general.state_root_save_failed"),
-        nextStep: t("settings.general.state_root_unknown_next_step"),
         title: t("settings.general.state_root_unknown_title"),
         tone: "warning",
       });

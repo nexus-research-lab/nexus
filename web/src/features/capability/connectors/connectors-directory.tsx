@@ -11,7 +11,6 @@ import { useNavigate, useParams } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { CapabilityPageLayout } from "@/features/capability/shared/capability-page-layout";
-import { getErrorMessage } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { completeFeedbackBanner } from "@/shared/ui/feedback/feedback-banner-contract";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
@@ -284,16 +283,12 @@ export function ConnectorsDirectory() {
             await handleDeviceConnected();
             navigate(AppRouteBuilders.connectorDetail(id));
             await openDetail(id);
-          } catch (error) {
+          } catch {
             reportFeedback({
               impact: t("capability.connector_connected_refresh_failed_impact"),
               nextStep: t("capability.connector_connected_refresh_failed_next_step"),
               tone: "error",
               title: t("capability.connector_connected_refresh_failed_title"),
-              message: getErrorMessage(
-                error,
-                t("capability.connector_connected_refresh_failed_message"),
-              ),
             });
           }
         }}
@@ -348,20 +343,23 @@ export function ConnectorsDirectory() {
       <FeedbackBannerViewport
         item={activeFeedback
           ? completeFeedbackBanner(
-            {
-              action: activeFeedback.action,
-              impact: activeFeedback.impact,
-              message: activeFeedback.message,
-              nextStep: activeFeedback.nextStep,
-              onDismiss: activeFeedback.persistent
-                ? undefined
-                : clearFeedback,
-              title: activeFeedback.title,
-              tone: activeFeedback.tone,
-            },
+            activeFeedback.tone === "success"
+              ? {
+                  message: activeFeedback.message ?? activeFeedback.title,
+                  onDismiss: activeFeedback.persistent ? undefined : clearFeedback,
+                  title: activeFeedback.title,
+                  tone: "success",
+                }
+              : {
+                  action: activeFeedback.action,
+                  impact: activeFeedback.impact,
+                  nextStep: activeFeedback.nextStep,
+                  onDismiss: activeFeedback.persistent ? undefined : clearFeedback,
+                  title: activeFeedback.title,
+                  tone: activeFeedback.tone,
+                },
             {
               impact: t("feedback.unconfirmed_impact"),
-              nextStep: t("feedback.unconfirmed_next_step"),
             },
           )
           : null}

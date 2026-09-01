@@ -182,7 +182,6 @@ export function GenerativeUIBlock({
       {missingWidgetCode ? (
         <UiResourceState
           className="min-h-0 rounded-none border-x-0 px-4 py-5"
-          description={t("generative_ui.missing_detail")}
           impact={t("generative_ui.failure_impact")}
           nextStep={t("generative_ui.missing_next_step")}
           size="sm"
@@ -194,9 +193,7 @@ export function GenerativeUIBlock({
       ) : renderState.status === "error" ? (
         <UiResourceState
           className="min-h-0 rounded-none border-x-0 px-4 py-5"
-          description={t("generative_ui.render_failed_detail")}
           impact={t("generative_ui.failure_impact")}
-          nextStep={t("generative_ui.render_failed_next_step")}
           primaryAction={{
             icon: <RotateCcw className="h-3.5 w-3.5" />,
             label: t("generative_ui.retry"),

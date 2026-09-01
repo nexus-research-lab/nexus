@@ -14,7 +14,7 @@ import {
   getUserPreferencesApi,
   updateUserPreferencesApi,
 } from "@/lib/api/settings/preferences-api";
-import { getErrorMessage, projectMutationFailure } from "@/lib/error-message";
+import { projectMutationFailure } from "@/lib/error-message";
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { UserPreferences } from "@/types/settings/preferences";
@@ -40,6 +40,7 @@ interface PendingPreferenceDraft {
 export function useUserPreferences() {
   const { t } = useI18n();
   const { status: authStatus } = useAuth();
+  const authOwnerReloadKey = preferencesAuthOwnerReloadKey(authStatus);
   const [preferences, setPreferences] = useState<UserPreferences>(() =>
     normalizePreferences(null),
   );
@@ -109,16 +110,13 @@ export function useUserPreferences() {
         setFeedback(null);
         setWritable(true);
       })
-      .catch((error: unknown) => {
+      .catch(() => {
         if (
           !cancelled
           && isAuthOwnerScopeGenerationCurrent(ownerGeneration)
         ) {
           const translate = translateRef.current;
-          setFeedback(loadFailureFeedback(
-            getErrorMessage(error, translate("settings.general.preferences_load_failed")),
-            translate,
-          ));
+          setFeedback(loadFailureFeedback(translate));
         }
       })
       .finally(() => {
@@ -132,13 +130,7 @@ export function useUserPreferences() {
     return () => {
       cancelled = true;
     };
-  }, [
-    authStatus?.authenticated,
-    authStatus?.user_id,
-    authStatus?.username,
-    publishAuthoritative,
-    showDraft,
-  ]);
+  }, [authOwnerReloadKey, publishAuthoritative, showDraft]);
 
   const persistAtVersion = useCallback(async (
     draft: UserPreferences,
@@ -197,15 +189,15 @@ export function useUserPreferences() {
         setProjectionRepairReady(false);
         setWritable(false);
         setFeedback(failure.code === "preferences.version_conflict"
-          ? conflictFeedback(failure.message, t)
-          : unknownResultFeedback(failure.message, t));
+          ? conflictFeedback(t)
+          : unknownResultFeedback(t));
       } else {
         // 已确认未写入时仍保留本页草稿；lastSaved/global runtime
         // 继续指向服务端基线，避免未确认值影响其他页面。
         showDraft(optimistic);
         setProjectionRepairReady(false);
         setWritable(true);
-        setFeedback(notAppliedFeedback(failure.message, t));
+        setFeedback(notAppliedFeedback(t));
       }
       throw normalizeError(error, t("settings.general.preferences_save_failed"));
     } finally {
@@ -225,10 +217,7 @@ export function useUserPreferences() {
     const base = lastSavedRef.current;
     if (!base || !validPreferencesVersion(base.version)) {
       setWritable(false);
-      setFeedback(loadFailureFeedback(
-        t("settings.general.preferences_version_missing_message"),
-        t,
-      ));
+      setFeedback(loadFailureFeedback(t));
       return null;
     }
     return persistAtVersion(next, base);
@@ -287,7 +276,7 @@ export function useUserPreferences() {
           ? reconciledNotAppliedFeedback(t)
           : reconciledDifferenceFeedback(t));
       })
-      .catch((error: unknown) => {
+      .catch(() => {
         if (
           checkRequestRef.current !== requestId
           || !isAuthOwnerScopeGenerationCurrent(ownerGeneration)
@@ -295,11 +284,7 @@ export function useUserPreferences() {
           return;
         }
         const hasDraft = pendingRef.current !== null;
-        setFeedback(checkFailureFeedback(
-          getErrorMessage(error, t("settings.general.preferences_load_failed")),
-          hasDraft,
-          t,
-        ));
+        setFeedback(checkFailureFeedback(hasDraft, t));
         setWritable(!hasDraft && lastSavedRef.current !== null);
       })
       .finally(() => {
@@ -312,9 +297,7 @@ export function useUserPreferences() {
       });
   }, [publishAuthoritative, t]);
 
-  const commitLatestSnapshot = useCallback(async (
-    mode: "discard-draft" | "repair-projection",
-  ) => {
+  const repairProjectionSnapshot = useCallback(async () => {
     const pending = pendingRef.current;
     if (!pending?.latest || savingRef.current) {
       return null;
@@ -324,7 +307,7 @@ export function useUserPreferences() {
     saveRequestRef.current = requestId;
     savingRef.current = true;
     setSaving(true);
-    setRepairing(mode === "repair-projection");
+    setRepairing(true);
     setProjectionRepairReady(false);
     setFeedback(null);
     const latest = pending.latest;
@@ -340,14 +323,6 @@ export function useUserPreferences() {
         return null;
       }
       const saved = publishAuthoritative(requirePreferencesVersion(result));
-      if (mode === "discard-draft") {
-        pendingRef.current = null;
-        setComparisonReady(false);
-        setProjectionRepairReady(false);
-        setWritable(true);
-        setFeedback(latestSelectionConfirmedFeedback(t));
-        return saved;
-      }
       const rebasedDraft = rebasePreferenceDraft(
         pending.base,
         pending.draft,
@@ -387,16 +362,15 @@ export function useUserPreferences() {
       if (currentPending) {
         currentPending.latest = null;
         currentPending.projectionRepairRequired =
-          mode === "repair-projection"
-          || failure.code === "preferences.projection_result_unknown"
+          failure.code === "preferences.projection_result_unknown"
           || currentPending.projectionRepairRequired;
       }
       setComparisonReady(false);
       setProjectionRepairReady(false);
       setWritable(false);
       setFeedback(failure.code === "preferences.version_conflict"
-        ? conflictFeedback(failure.message, t)
-        : unknownResultFeedback(failure.message, t));
+        ? conflictFeedback(t)
+        : unknownResultFeedback(t));
       throw normalizeError(error, t("settings.general.preferences_save_failed"));
     } finally {
       if (saveRequestRef.current === requestId) {
@@ -409,13 +383,9 @@ export function useUserPreferences() {
     }
   }, [publishAuthoritative, showDraft, t]);
 
-  const useLatest = useCallback(() => {
-    void commitLatestSnapshot("discard-draft").catch(() => {});
-  }, [commitLatestSnapshot]);
-
   const repairProjection = useCallback(() => {
-    void commitLatestSnapshot("repair-projection").catch(() => {});
-  }, [commitLatestSnapshot]);
+    void repairProjectionSnapshot().catch(() => {});
+  }, [repairProjectionSnapshot]);
 
   const reapplyDraft = useCallback(() => {
     const pending = pendingRef.current;
@@ -478,10 +448,9 @@ export function useUserPreferences() {
     canRepairProjection: projectionRepairReady,
     checking,
     checkLatest,
-    repairProjection,
     reapplyDraft,
+    repairProjection,
     repairing,
-    useLatest,
   };
 
   return {
@@ -517,48 +486,55 @@ function normalizeError(error: unknown, fallback: string): Error {
 
 type Translate = ReturnType<typeof useI18n>["t"];
 
-function loadFailureFeedback(message: string, t: Translate): PreferenceFeedback {
+function preferencesAuthOwnerReloadKey(
+  status: ReturnType<typeof useAuth>["status"],
+): string {
+  if (!status) {
+    return "pending";
+  }
+  if (!status.authenticated) {
+    return "signed-out";
+  }
+  return [
+    "signed-in",
+    status.user_id?.trim() ?? "",
+    status.username?.trim() ?? "",
+  ].join("\u001f");
+}
+
+function loadFailureFeedback(t: Translate): PreferenceFeedback {
   return {
     impact: t("settings.general.preferences_load_impact"),
-    message,
-    nextStep: t("settings.general.preferences_load_next_step"),
     title: t("settings.general.preferences_load_title"),
     tone: "error",
   };
 }
 
-function conflictFeedback(message: string, t: Translate): PreferenceFeedback {
+function conflictFeedback(t: Translate): PreferenceFeedback {
   return {
     impact: t("settings.general.preferences_conflict_impact"),
-    message,
-    nextStep: t("settings.general.preferences_conflict_next_step"),
     title: t("settings.general.preferences_conflict_title"),
     tone: "warning",
   };
 }
 
-function unknownResultFeedback(message: string, t: Translate): PreferenceFeedback {
+function unknownResultFeedback(t: Translate): PreferenceFeedback {
   return {
     impact: t("settings.general.preferences_unknown_impact"),
-    message,
-    nextStep: t("settings.general.preferences_unknown_next_step"),
     title: t("settings.general.preferences_unknown_title"),
     tone: "warning",
   };
 }
 
-function notAppliedFeedback(message: string, t: Translate): PreferenceFeedback {
+function notAppliedFeedback(t: Translate): PreferenceFeedback {
   return {
     impact: t("settings.general.preferences_not_applied_impact"),
-    message,
-    nextStep: t("settings.general.preferences_not_applied_next_step"),
     title: t("settings.general.preferences_not_applied_title"),
     tone: "error",
   };
 }
 
 function checkFailureFeedback(
-  message: string,
   hasDraft: boolean,
   t: Translate,
 ): PreferenceFeedback {
@@ -566,8 +542,6 @@ function checkFailureFeedback(
     impact: hasDraft
       ? t("settings.general.preferences_check_failed_draft_impact")
       : t("settings.general.preferences_load_impact"),
-    message,
-    nextStep: t("settings.general.preferences_check_failed_next_step"),
     title: t("settings.general.preferences_check_failed_title"),
     tone: "error",
   };
@@ -575,9 +549,7 @@ function checkFailureFeedback(
 
 function reconciledCommittedFeedback(t: Translate): PreferenceFeedback {
   return {
-    impact: t("settings.general.preferences_committed_impact"),
     message: t("settings.general.preferences_committed_message"),
-    nextStep: t("settings.general.preferences_committed_next_step"),
     title: t("settings.general.preferences_committed_title"),
     tone: "success",
   };
@@ -586,8 +558,6 @@ function reconciledCommittedFeedback(t: Translate): PreferenceFeedback {
 function reconciledNotAppliedFeedback(t: Translate): PreferenceFeedback {
   return {
     impact: t("settings.general.preferences_reconciled_not_applied_impact"),
-    message: t("settings.general.preferences_reconciled_not_applied_message"),
-    nextStep: t("settings.general.preferences_reconciled_next_step"),
     title: t("settings.general.preferences_reconciled_not_applied_title"),
     tone: "warning",
   };
@@ -596,8 +566,6 @@ function reconciledNotAppliedFeedback(t: Translate): PreferenceFeedback {
 function reconciledDifferenceFeedback(t: Translate): PreferenceFeedback {
   return {
     impact: t("settings.general.preferences_reconciled_difference_impact"),
-    message: t("settings.general.preferences_reconciled_difference_message"),
-    nextStep: t("settings.general.preferences_reconciled_next_step"),
     title: t("settings.general.preferences_reconciled_difference_title"),
     tone: "warning",
   };
@@ -606,8 +574,6 @@ function reconciledDifferenceFeedback(t: Translate): PreferenceFeedback {
 function projectionRepairRequiredFeedback(t: Translate): PreferenceFeedback {
   return {
     impact: t("settings.general.preferences_projection_repair_impact"),
-    message: t("settings.general.preferences_projection_repair_message"),
-    nextStep: t("settings.general.preferences_projection_repair_next_step"),
     title: t("settings.general.preferences_projection_repair_title"),
     tone: "warning",
   };
@@ -615,9 +581,7 @@ function projectionRepairRequiredFeedback(t: Translate): PreferenceFeedback {
 
 function projectionRepairCompletedFeedback(t: Translate): PreferenceFeedback {
   return {
-    impact: t("settings.general.preferences_projection_repaired_impact"),
     message: t("settings.general.preferences_projection_repaired_message"),
-    nextStep: t("settings.general.preferences_projection_repaired_next_step"),
     title: t("settings.general.preferences_projection_repaired_title"),
     tone: "success",
   };
@@ -628,19 +592,7 @@ function projectionRepairCompletedWithDraftFeedback(
 ): PreferenceFeedback {
   return {
     impact: t("settings.general.preferences_projection_repaired_draft_impact"),
-    message: t("settings.general.preferences_projection_repaired_message"),
-    nextStep: t("settings.general.preferences_reconciled_next_step"),
     title: t("settings.general.preferences_projection_repaired_title"),
     tone: "warning",
-  };
-}
-
-function latestSelectionConfirmedFeedback(t: Translate): PreferenceFeedback {
-  return {
-    impact: t("settings.general.preferences_latest_selected_impact"),
-    message: t("settings.general.preferences_latest_selected_message"),
-    nextStep: t("settings.general.preferences_latest_selected_next_step"),
-    title: t("settings.general.preferences_latest_selected_title"),
-    tone: "success",
   };
 }

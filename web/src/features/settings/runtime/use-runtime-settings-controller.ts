@@ -54,16 +54,12 @@ export function useRuntimeSettingsController() {
       }
       setRuntimeFeedback({
         impact: t("settings.runtime.kernel_check_not_changed_impact"),
-        message: t("settings.runtime.kernel_nxs_unavailable"),
-        nextStep: t("settings.runtime.kernel_check_next_step"),
         title: t("settings.runtime.kernel_check_failed_title"),
         tone: "error",
       });
     } catch {
       setRuntimeFeedback({
         impact: t("settings.runtime.kernel_check_not_changed_impact"),
-        message: t("settings.runtime.kernel_check_failed"),
-        nextStep: t("settings.runtime.kernel_check_next_step"),
         title: t("settings.runtime.kernel_check_failed_title"),
         tone: "error",
       });

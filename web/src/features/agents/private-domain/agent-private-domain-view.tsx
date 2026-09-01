@@ -22,7 +22,6 @@ import {
   listAgentPrivateThreadsApi,
 } from "@/lib/api/agent/private-domain-api";
 import { isExternalSessionConversationId } from "@/lib/conversation/external-session";
-import { getErrorMessage } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { Agent } from "@/types/agent/agent";
@@ -71,8 +70,6 @@ export function AgentPrivateDomainView({
   eventsRef.current = events;
   activeQueryKeyRef.current = queryResetKey;
   activeEventsKeyRef.current = eventsResetKey;
-  const recordsLoadError = t("agent_options.contact.load_records_failed");
-  const messagesLoadError = t("agent_options.contact.load_messages_failed");
   const localization = useMemo(() => ({ locale, t }), [locale, t]);
 
   const query = useMemo<AgentPrivateDomainQuery>(() => ({
@@ -102,7 +99,6 @@ export function AgentPrivateDomainView({
     } catch (loadError) {
       if (activeQueryKeyRef.current === requestKey) {
         setThreadsFailure({
-          message: getErrorMessage(loadError, recordsLoadError),
           stale: threadsRef.current.length > 0,
         });
       }
@@ -115,7 +111,6 @@ export function AgentPrivateDomainView({
     agent.agent_id,
     query,
     queryResetKey,
-    recordsLoadError,
     setSelectedThreadId,
     setThreads,
     setThreadsFailure,
@@ -143,7 +138,6 @@ export function AgentPrivateDomainView({
     } catch (loadError) {
       if (activeEventsKeyRef.current === requestKey) {
         setEventsFailure({
-          message: getErrorMessage(loadError, messagesLoadError),
           stale: eventsRef.current.length > 0,
         });
       }
@@ -156,7 +150,6 @@ export function AgentPrivateDomainView({
     agent.agent_id,
     eventsResetKey,
     isPreview,
-    messagesLoadError,
     query,
     setEvents,
     setEventsFailure,
@@ -291,11 +284,9 @@ function PrivateRecordsFailure({
   return (
     <UiResourceState
       className={compact ? "mx-2 min-h-0 py-3" : "mx-3 min-h-0 py-3"}
-      description={failure.message}
       impact={failure.stale
         ? localization.t("agent_options.contact.private_records_stale_impact")
         : localization.t("agent_options.contact.private_records_unavailable_impact")}
-      nextStep={localization.t("agent_options.contact.private_records_failure_next_step")}
       primaryAction={{
         busy: isLoading,
         busyLabel: localization.t("common.loading"),
