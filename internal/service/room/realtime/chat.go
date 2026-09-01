@@ -762,6 +762,7 @@ func (e *roomChatExecution) buildRound() (*activeRoomRound, []protocol.ChatAckPe
 			MsgID:          msgID,
 			RoundID:        roomRootRoundID(activeRound),
 			HiddenFromUser: roomSlotHiddenFromUser(slot),
+			Source:         slot.QueueSource,
 			Status:         "pending",
 			Timestamp:      normalizeInt64(e.userMessage["timestamp"]),
 			Index:          index,

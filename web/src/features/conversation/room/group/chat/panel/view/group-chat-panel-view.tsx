@@ -5,6 +5,7 @@
  */
 
 import type { ComponentProps } from "react";
+import { LoaderCircle, LockKeyhole } from "lucide-react";
 
 import type { ConversationTodoProcess } from "@/features/conversation/shared/todos/todo-projection-model";
 import { ExecutionProcessPanel } from "@/features/conversation/shared/execution/execution-process-panel";
@@ -26,6 +27,7 @@ import {
 import type { ConversationPanelFrameModel } from "@/features/conversation/shared/conversation-panel-model";
 import { ConversationEmptyIntroduction } from "@/features/conversation/shared/conversation-empty-introduction";
 import { ConversationSessionNavigator } from "@/features/conversation/shared/session-navigator/conversation-session-navigator";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import type { Agent } from "@/types/agent/agent";
 
 import { GroupConversationFeed } from "../../feed/group-conversation-feed";
@@ -48,6 +50,7 @@ type GoalPanelModel = Omit<
 >;
 
 export interface GroupChatPanelViewModel extends ConversationPanelFrameModel {
+  collaborationActivity: "active" | "queued" | null;
   composer: GroupChatComposerModel;
   composerInteraction: ComposerInteractionSurfaceProps;
   feed: GroupConversationFeedProps;
@@ -120,6 +123,7 @@ function ActiveGroupConversation({
           floatingDockOccupied={
             model.executionPanel !== null
             || model.taskProcesses.length > 0
+            || model.collaborationActivity !== null
             || model.scrollToLatest.visible
           }
           isMobileLayout={isMobileLayout}
@@ -145,6 +149,8 @@ function ActiveGroupConversation({
                   scopeKey={model.sessionKey}
                 />
               )
+            : model.collaborationActivity
+            ? <RoomCollaborationActivity state={model.collaborationActivity} />
             : undefined
         }
         goal={(
@@ -168,5 +174,32 @@ function ActiveGroupConversation({
         />
       </ConversationPanelBottomArea>
     </>
+  );
+}
+
+function RoomCollaborationActivity({
+  state,
+}: {
+  state: "active" | "queued";
+}) {
+  const { t } = useI18n();
+  return (
+    <aside
+      aria-label={t("room.collaboration_activity_label")}
+      aria-live="polite"
+      className="flex min-w-0 max-w-[460px] items-center gap-2 rounded-[14px] border border-(--surface-control-border) bg-(--surface-control-background) px-3 py-2 text-sm text-(--text-muted) shadow-(--surface-control-shadow)"
+      data-room-collaboration-activity={state}
+    >
+      <LockKeyhole aria-hidden="true" className="h-4 w-4 shrink-0" />
+      <span className="truncate">
+        {t(state === "active"
+          ? "room.collaboration_activity_active"
+          : "room.collaboration_activity_queued")}
+      </span>
+      <LoaderCircle
+        aria-hidden="true"
+        className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none"
+      />
+    </aside>
   );
 }

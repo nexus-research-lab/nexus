@@ -46,6 +46,8 @@ Private context 是某个 Agent 可见的定向上下文，来源包括：
 
 Private context 不进入 public feed；checkpoint 只控制消费边界，不作为正文注入；其余权限边界不由本协议定义。
 
+前端可以在公区历史之外，根据 `agent_room_directed_message` 队列项与同来源的非终态 slot 投影一个 conversation 级协作状态。该状态只表示“等待协作”或“正在协作”，不展示参与者、数量或私域正文；派发时必须先发布新 slot 再移除队列投影，队列出队、slot 终态和重连权威快照共同决定其生命周期，前端不得用业务文案、计时器或 `correlation_id` 猜测。
+
 ### 3.3 Wake
 
 Wake 是让目标 Agent 获得一次运行机会的调度动作。Wake 不是业务消息，也不改变已经写入的 public/private 事实。

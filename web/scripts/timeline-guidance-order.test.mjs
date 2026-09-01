@@ -1631,8 +1631,11 @@ test("Room no-reply terminal status closes its published thinking snapshot", asy
   );
 });
 
-test("Room pending queue shows only user-authored guidance", async () => {
-  const { projectRoomPendingInputQueueItems } = await server.ssrLoadModule(
+test("Room queue separates user guidance from private collaboration activity", async () => {
+  const {
+    projectRoomCollaborationActivity,
+    projectRoomPendingInputQueueItems,
+  } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/chat/panel/controller/group-chat-panel-projection.ts",
   );
   const items = [
@@ -1645,6 +1648,15 @@ test("Room pending queue shows only user-authored guidance", async () => {
     projectRoomPendingInputQueueItems(items).map((item) => item.id),
     ["user"],
   );
+  assert.equal(projectRoomCollaborationActivity(items, []), "queued");
+  assert.equal(projectRoomCollaborationActivity([], [{
+    source: "agent_room_directed_message",
+    status: "streaming",
+  }]), "active");
+  assert.equal(projectRoomCollaborationActivity([], [{
+    source: "agent_room_directed_message",
+    status: "done",
+  }]), null);
 });
 
 test("Room orchestration control markers never become visible assistant blocks", async () => {

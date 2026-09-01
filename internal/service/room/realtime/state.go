@@ -225,6 +225,7 @@ type activeRoomSlot struct {
 	Index                 int
 	TimestampMS           int64
 	HiddenFromUser        bool
+	QueueSource           protocol.InputQueueSource
 	Trigger               roomTrigger
 	TriggerAttachments    []protocol.ChatAttachment
 	AtomicRuntimeInput    string

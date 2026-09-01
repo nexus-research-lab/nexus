@@ -40,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Kept Room collaboration visibly active while private directed work is queued
+  or running, without exposing participants or private content.
 - Fixed the Windows browser extension setup so it opens the actual Chrome or
   Edge extensions page and bundled extension directory instead of a blank tab
   and the default Documents folder.
