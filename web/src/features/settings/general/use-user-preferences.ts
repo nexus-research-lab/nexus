@@ -297,9 +297,7 @@ export function useUserPreferences() {
       });
   }, [publishAuthoritative, t]);
 
-  const commitLatestSnapshot = useCallback(async (
-    mode: "discard-draft" | "repair-projection",
-  ) => {
+  const repairProjectionSnapshot = useCallback(async () => {
     const pending = pendingRef.current;
     if (!pending?.latest || savingRef.current) {
       return null;
@@ -309,7 +307,7 @@ export function useUserPreferences() {
     saveRequestRef.current = requestId;
     savingRef.current = true;
     setSaving(true);
-    setRepairing(mode === "repair-projection");
+    setRepairing(true);
     setProjectionRepairReady(false);
     setFeedback(null);
     const latest = pending.latest;
@@ -325,14 +323,6 @@ export function useUserPreferences() {
         return null;
       }
       const saved = publishAuthoritative(requirePreferencesVersion(result));
-      if (mode === "discard-draft") {
-        pendingRef.current = null;
-        setComparisonReady(false);
-        setProjectionRepairReady(false);
-        setWritable(true);
-        setFeedback(latestSelectionConfirmedFeedback(t));
-        return saved;
-      }
       const rebasedDraft = rebasePreferenceDraft(
         pending.base,
         pending.draft,
@@ -372,8 +362,7 @@ export function useUserPreferences() {
       if (currentPending) {
         currentPending.latest = null;
         currentPending.projectionRepairRequired =
-          mode === "repair-projection"
-          || failure.code === "preferences.projection_result_unknown"
+          failure.code === "preferences.projection_result_unknown"
           || currentPending.projectionRepairRequired;
       }
       setComparisonReady(false);
@@ -394,13 +383,25 @@ export function useUserPreferences() {
     }
   }, [publishAuthoritative, showDraft, t]);
 
-  const useLatest = useCallback(() => {
-    void commitLatestSnapshot("discard-draft").catch(() => {});
-  }, [commitLatestSnapshot]);
-
   const repairProjection = useCallback(() => {
-    void commitLatestSnapshot("repair-projection").catch(() => {});
-  }, [commitLatestSnapshot]);
+    void repairProjectionSnapshot().catch(() => {});
+  }, [repairProjectionSnapshot]);
+
+  const reapplyDraft = useCallback(() => {
+    const pending = pendingRef.current;
+    if (!pending?.latest || savingRef.current) {
+      return;
+    }
+    const rebased = rebasePreferenceDraft(
+      pending.base,
+      pending.draft,
+      pending.latest,
+    );
+    pendingRef.current = null;
+    setComparisonReady(false);
+    setProjectionRepairReady(false);
+    void persistAtVersion(rebased, pending.latest).catch(() => {});
+  }, [persistAtVersion]);
 
   const updatePreferences = useCallback((mutate: PreferenceMutation) => {
     void persistPreferences(mutate(preferencesRef.current)).catch(() => {});
@@ -442,9 +443,9 @@ export function useUserPreferences() {
     canRepairProjection: projectionRepairReady,
     checking,
     checkLatest,
+    reapplyDraft,
     repairProjection,
     repairing,
-    useLatest,
   };
 
   return {
@@ -588,13 +589,5 @@ function projectionRepairCompletedWithDraftFeedback(
     impact: t("settings.general.preferences_projection_repaired_draft_impact"),
     title: t("settings.general.preferences_projection_repaired_title"),
     tone: "warning",
-  };
-}
-
-function latestSelectionConfirmedFeedback(t: Translate): PreferenceFeedback {
-  return {
-    message: t("settings.general.preferences_latest_selected_message"),
-    title: t("settings.general.preferences_latest_selected_title"),
-    tone: "success",
   };
 }

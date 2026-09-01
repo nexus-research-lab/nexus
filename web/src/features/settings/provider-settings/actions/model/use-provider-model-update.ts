@@ -62,7 +62,6 @@ export function useProviderModelUpdate({
       t("settings.providers.default_model_disable_message", {
         model: model.display_name || model.model_id,
       }),
-      t,
     ));
   }, [setFeedback, t]);
 
@@ -178,7 +177,6 @@ export function useProviderModelUpdate({
       setFeedback(buildProviderValidationFeedback(
         t("settings.providers.model_options_save_failed_title"),
         t("settings.providers.check_json_format"),
-        t,
       ));
       return;
     }

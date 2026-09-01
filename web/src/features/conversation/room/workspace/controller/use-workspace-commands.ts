@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前 Agent、精确 workspace 命令、文件选择与权威列表刷新函数。
- * OUTPUT: 串行命令、按 Agent/路径/命令隔离的未知结果锁，以及精简恢复反馈。
+ * OUTPUT: 串行命令、精确未知结果锁，以及保留逐文件结果证据的精简恢复反馈。
  * POS: workspace 文件命令控制器；已提交结果与列表刷新分阶段，未知副作用不自动重放。
  */
 
@@ -42,6 +42,7 @@ import {
 } from "./workspace-path-model";
 import {
   getWorkspaceMutationIntentKey,
+  groupWorkspaceUploadOutcomes,
   reconcileWorkspaceMutation,
   type WorkspaceMutationIntent,
   type WorkspaceReconciledMutation,
@@ -173,6 +174,31 @@ export function useWorkspaceCommands({
     }
   }, [t]);
 
+  const formatUploadNames = useCallback((names: string[]): string => {
+    if (names.length === 0) {
+      return t("room.workspace_upload_status_none");
+    }
+    const visibleNames = names.slice(0, 5).join(", ");
+    return names.length > 5
+      ? t("room.workspace_upload_status_more", {
+          count: names.length - 5,
+          names: visibleNames,
+        })
+      : visibleNames;
+  }, [t]);
+
+  const uploadOutcomeSummary = useCallback((
+    outcomes: WorkspaceUploadOutcome[],
+  ): string => {
+    const grouped = groupWorkspaceUploadOutcomes(outcomes);
+    return t("room.workspace_upload_status_summary", {
+      completed: formatUploadNames(grouped.completed),
+      notApplied: formatUploadNames(grouped.not_applied),
+      notStarted: formatUploadNames(grouped.not_started),
+      unconfirmed: formatUploadNames(grouped.unconfirmed),
+    });
+  }, [formatUploadNames, t]);
+
   const unknownFeedback = useCallback((
     recoveryKey: string,
     recovery: PendingWorkspaceRecovery,
@@ -183,7 +209,9 @@ export function useWorkspaceCommands({
         ? "allow-new-intent"
         : "refresh",
       impact: recovery.uploadOutcomes
-        ? t("room.workspace_upload_unknown_impact")
+        ? t("room.workspace_upload_unknown_impact", {
+            summary: uploadOutcomeSummary(recovery.uploadOutcomes),
+          })
         : t("room.workspace_mutation_unknown_impact", {action: actionLabel}),
       nextStep: recovery.listChecked
         ? t(recovery.canStartNewIntent
@@ -194,7 +222,7 @@ export function useWorkspaceCommands({
       title: t("room.workspace_mutation_unknown_title"),
       tone: "warning",
     };
-  }, [mutationActionLabel, t]);
+  }, [mutationActionLabel, t, uploadOutcomeSummary]);
 
   const safeRefreshFiles = useCallback(async (): Promise<WorkspaceFileEntry[] | null> => {
     try {
@@ -452,7 +480,9 @@ export function useWorkspaceCommands({
                 ...current,
                 feedback: {
                   action: null,
-                  impact: t("room.workspace_upload_partial_impact"),
+                  impact: t("room.workspace_upload_partial_impact", {
+                    summary: uploadOutcomeSummary(outcomes),
+                  }),
                   nextStep: t("room.workspace_upload_not_applied_next"),
                   recoveryKey: null,
                   title: t("room.workspace_upload_partial_title"),
@@ -479,7 +509,13 @@ export function useWorkspaceCommands({
           ...current,
           feedback: {
             action: null,
-            impact: t("room.workspace_upload_committed_impact"),
+            impact: t("room.workspace_upload_committed_impact", {
+              names: formatUploadNames(
+                outcomes
+                  .filter((outcome) => outcome.status === "completed")
+                  .map((outcome) => outcome.name),
+              ),
+            }),
             nextStep: t("room.workspace_upload_committed_next"),
             recoveryKey: null,
             title: t("room.workspace_upload_committed_title"),
@@ -494,12 +530,14 @@ export function useWorkspaceCommands({
   }, [
     beginCommand,
     finishCommand,
+    formatUploadNames,
     isCurrentToken,
     recoverMutation,
     refreshAfterCommittedMutation,
     safeRefreshFiles,
     t,
     unknownFeedback,
+    uploadOutcomeSummary,
   ]);
 
   const createEntry = useCallback((

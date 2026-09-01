@@ -257,7 +257,6 @@ function resolvePersistenceStop(
     setFeedback(buildProviderValidationFeedback(
       translate("settings.providers.config_incomplete_title"),
       stop.message,
-      translate,
     ));
   }
   return null;
