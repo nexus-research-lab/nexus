@@ -205,6 +205,7 @@ export interface ChatAckPendingSlot {
   round_id?: string;
   handoff_id?: string;
   hidden_from_user?: boolean;
+  source?: 'user' | 'agent_public_mention' | 'agent_room_directed_message';
   status: string;
   timestamp: number;
   index: number;

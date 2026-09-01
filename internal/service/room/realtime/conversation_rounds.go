@@ -614,6 +614,7 @@ func (s *Service) GetActiveRoundSnapshot(conversationID string) *ActiveRoundSnap
 				RoundID:        rootRoundID,
 				HandoffID:      slot.handoffID(),
 				HiddenFromUser: roomSlotHiddenFromUser(slot),
+				Source:         slot.QueueSource,
 				Status:         status,
 				Timestamp:      slot.TimestampMS,
 				Index:          slot.Index,

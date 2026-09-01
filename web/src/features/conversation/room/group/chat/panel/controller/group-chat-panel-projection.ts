@@ -23,6 +23,7 @@ import { coalescePendingPermissions } from "@/lib/conversation/pending-permissio
 import type { Agent } from "@/types/agent/agent";
 import type {
   InputQueueItem,
+  RoomPendingAgentSlotState,
   UseAgentConversationReturn,
 } from "@/types/agent/agent-conversation";
 import type { SessionRoundIndexItem } from "@/types/conversation/history";
@@ -48,6 +49,21 @@ export function projectRoomPendingInputQueueItems(
   items: InputQueueItem[],
 ): InputQueueItem[] {
   return items.filter((item) => item.source === "user");
+}
+
+export function projectRoomCollaborationActivity(
+  items: readonly InputQueueItem[],
+  slots: readonly RoomPendingAgentSlotState[],
+): "active" | "queued" | null {
+  if (slots.some((slot) => (
+    slot.source === "agent_room_directed_message"
+    && (slot.status === "pending" || slot.status === "streaming")
+  ))) {
+    return "active";
+  }
+  return items.some((item) => item.source === "agent_room_directed_message")
+    ? "queued"
+    : null;
 }
 
 type GroupChatSession = Omit<
@@ -132,6 +148,10 @@ export function buildGroupChatPanelViewModel({
   const frame = buildConversationPanelFrameModel(session, environment);
   return {
     ...frame,
+    collaborationActivity: projectRoomCollaborationActivity(
+      session.conversation.input_queue_items,
+      session.conversation.pending_agent_slots,
+    ),
     composer,
     composerInteraction: {
       agentAvatarMap: directory.avatars,

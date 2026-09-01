@@ -37,6 +37,7 @@ export interface RoomPendingAgentSlotState {
   agent_round_id: string;
   handoff_id?: string;
   hidden_from_user?: boolean;
+  source?: InputQueueSource;
   msg_id: string;
   round_id: string;
   status: AssistantMessageStatus;

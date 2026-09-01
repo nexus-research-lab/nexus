@@ -120,9 +120,6 @@ func (s *Service) dispatchNextInputQueueItemLocked(ctx context.Context, sessionK
 		return
 	}
 	dispatchedItem := entry.Item
-	if err = s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); err != nil {
-		s.loggerFor(ctx).Warn("广播 Room 待发送队列快照失败", "session_key", sessionKey, "err", err)
-	}
 	err = s.dispatchInputQueueItemLocked(
 		ctx,
 		sessionKey,
@@ -132,6 +129,10 @@ func (s *Service) dispatchNextInputQueueItemLocked(ctx context.Context, sessionK
 		dispatchedItem,
 	)
 	if err == nil {
+		// 先广播新 slot，再移除前端队列占位，保证协作状态无空窗。
+		if snapshotErr := s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); snapshotErr != nil {
+			s.loggerFor(ctx).Warn("广播 Room 待发送队列快照失败", "session_key", sessionKey, "err", snapshotErr)
+		}
 		if s.canDispatchMoreInputQueueItems(ctx, sessionKey, conversationID) {
 			s.startSessionBackgroundTask(
 				sessionKey,

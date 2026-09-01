@@ -2162,6 +2162,9 @@ func TestBuildPublicMentionSlotKeepsPublicTriggerMessage(t *testing.T) {
 	if roomSlotHiddenFromUser(slot) {
 		t.Fatal("公区 @ slot 不应隐藏")
 	}
+	if slot.QueueSource != protocol.InputQueueSourceAgentPublicMention {
+		t.Fatalf("公区 @ slot source = %q, want public mention", slot.QueueSource)
+	}
 	privateSlot := buildPublicMentionSlot(
 		roundValue,
 		contextValue,
@@ -2169,6 +2172,7 @@ func TestBuildPublicMentionSlotKeepsPublicTriggerMessage(t *testing.T) {
 		&protocol.Agent{AgentID: "agent-devin", WorkspacePath: t.TempDir()},
 		publicMentionWake{
 			TriggerType:   roomDirectedMessageTriggerType,
+			QueueSource:   protocol.InputQueueSourceAgentRoomMessage,
 			TargetAgentID: "agent-devin",
 			Content:       "只在私域消费",
 		},
@@ -2178,6 +2182,9 @@ func TestBuildPublicMentionSlotKeepsPublicTriggerMessage(t *testing.T) {
 	)
 	if !roomSlotHiddenFromUser(privateSlot) {
 		t.Fatal("私域 directed-message slot 应显式隐藏")
+	}
+	if privateSlot.QueueSource != protocol.InputQueueSourceAgentRoomMessage {
+		t.Fatalf("私域 directed-message slot source = %q, want directed message", privateSlot.QueueSource)
 	}
 	internalSlot := &activeRoomSlot{HiddenFromUser: true, Trigger: roomTrigger{TriggerType: "public_chat"}}
 	if !roomSlotHiddenFromUser(internalSlot) {
