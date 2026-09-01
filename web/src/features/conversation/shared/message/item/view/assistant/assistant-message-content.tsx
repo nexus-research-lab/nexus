@@ -27,6 +27,9 @@ import type {
 import { AssistantToolRuns } from "./assistant-dm-tool-runs";
 import { AssistantProcessCallchain } from "./assistant-process-callchain";
 
+const ROOM_RESULT_ACTIVITY_ALIGNMENT_CLASS_NAME =
+  "px-0 [&_[data-message-activity-icon]]:justify-start";
+
 interface AssistantMessageContentProps {
   activity: AssistantActivityState;
   direct: AssistantDirectState;
@@ -117,7 +120,7 @@ function RoomResultProcessActivity({
   if (runningTool) {
     return (
       <div
-        className="flex h-7 min-w-0 items-center gap-1.5 px-1.5 py-1 text-sm font-normal leading-5 text-primary"
+        className="flex h-7 min-w-0 items-center gap-1.5 py-1 text-sm font-normal leading-5 text-primary"
         data-room-tool-activity
       >
         <ProcessActivityIconStack content={direct.projection.content} />
@@ -136,6 +139,7 @@ function RoomResultProcessActivity({
   }
   return (
     <LocalizedMessageActivityStatus
+      className={ROOM_RESULT_ACTIVITY_ALIGNMENT_CLASS_NAME}
       stableSlot
       state={activity.state}
       uniformTone
@@ -181,6 +185,7 @@ function RoomResultTrailingActivity({
   }
   return (
     <LocalizedMessageActivityStatus
+      className={ROOM_RESULT_ACTIVITY_ALIGNMENT_CLASS_NAME}
       label={activity.label}
       stableSlot
       state={activity.state}
@@ -200,7 +205,9 @@ function StandaloneActivity({
   }
   return (
     <LocalizedMessageActivityStatus
-      className={stableSlot ? undefined : "py-1"}
+      className={stableSlot
+        ? ROOM_RESULT_ACTIVITY_ALIGNMENT_CLASS_NAME
+        : "py-1"}
       label={activity.label}
       stableSlot={stableSlot}
       state={activity.state}

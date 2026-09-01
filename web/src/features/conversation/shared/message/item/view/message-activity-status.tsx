@@ -140,7 +140,10 @@ export function MessageActivityStatus({
         stableSlot ? "py-0 font-normal leading-5" : "py-1 font-medium",
         uniformTone ? "text-primary" : presentation.toneClassName,
       )}>
-        <span className="flex h-5 w-5 shrink-0 items-center justify-center opacity-75">
+        <span
+          className="flex h-5 w-5 shrink-0 items-center justify-center opacity-75"
+          data-message-activity-icon
+        >
           <ActivityIcon className="h-3.5 w-3.5" />
         </span>
         <MessageActivityLabel label={label} />

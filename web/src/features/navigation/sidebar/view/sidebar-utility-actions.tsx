@@ -6,7 +6,6 @@ import {
   Settings,
   type LucideIcon,
 } from "lucide-react";
-import type { CSSProperties } from "react";
 import { Link } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
@@ -18,7 +17,6 @@ import type { SidebarUtilityLabels } from "./sidebar-wide-panel-types";
 import { useSidebarUpdateVersion } from "./use-sidebar-update-version";
 
 interface SidebarUtilityActionsProps {
-  collapsed: boolean;
   guideOpen: boolean;
   labels: SidebarUtilityLabels;
   onCollapse: () => void;
@@ -65,31 +63,13 @@ export function SidebarPanelToggleAction(
 
 export function SidebarFooterActions(props: SidebarUtilityActionsProps) {
   const updateVersion = useSidebarUpdateVersion();
-  const navigationActionCount = props.showSettings ? 2 : 1;
-  const updateActionCount = updateVersion ? 1 : 0;
-  const actionRowCount =
-    navigationActionCount + updateActionCount + (props.showLogout ? 1 : 0);
-  const guideIndex = props.showSettings ? 1 : 0;
-  const updateIndex = navigationActionCount;
-  const logoutIndex = navigationActionCount + updateActionCount;
-  const collapsedHeight =
-    FOOTER_PADDING * 2
-    + actionRowCount * FOOTER_ACTION_SIZE
-    + Math.max(0, actionRowCount - 1) * FOOTER_ACTION_GAP;
 
   return (
-    <div
-      className="sidebar-panel-footer shell-region-footer relative -mr-1.5 h-14 shrink-0 overflow-hidden max-lg:h-16"
-      style={{ height: props.collapsed ? collapsedHeight : undefined }}
-    >
+    <div className="sidebar-panel-footer shell-region-footer relative -mr-1.5 h-14 shrink-0 overflow-hidden max-lg:h-16">
       {props.showSettings ? (
         <div
           className="sidebar-panel-footer-action"
-          style={getNavigationActionStyle({
-            collapsed: props.collapsed,
-            index: 0,
-            rowCount: actionRowCount,
-          })}
+          style={{ bottom: FOOTER_PADDING, left: FOOTER_LEFT }}
         >
           <UtilityLink
             active={props.settingsActive}
@@ -101,11 +81,12 @@ export function SidebarFooterActions(props: SidebarUtilityActionsProps) {
       ) : null}
       <div
         className="sidebar-panel-footer-action"
-        style={getNavigationActionStyle({
-          collapsed: props.collapsed,
-          index: guideIndex,
-          rowCount: actionRowCount,
-        })}
+        style={{
+          bottom: FOOTER_PADDING,
+          left: FOOTER_LEFT + (props.showSettings
+            ? FOOTER_ACTION_SIZE + FOOTER_HORIZONTAL_GAP
+            : 0),
+        }}
       >
         <UtilityButton
           active={props.guideOpen}
@@ -118,14 +99,12 @@ export function SidebarFooterActions(props: SidebarUtilityActionsProps) {
       {updateVersion ? (
         <div
           className="sidebar-panel-footer-action"
-          style={getTrailingActionStyle({
-            collapsed: props.collapsed,
-            expandedRight: props.showLogout
+          style={{
+            bottom: FOOTER_PADDING,
+            right: props.showLogout
               ? FOOTER_LEFT + FOOTER_ACTION_STRIDE
               : FOOTER_LEFT,
-            index: updateIndex,
-            rowCount: actionRowCount,
-          })}
+          }}
         >
           <SidebarUpdateIndicator
             className={utilityActionClassName(false)}
@@ -136,12 +115,7 @@ export function SidebarFooterActions(props: SidebarUtilityActionsProps) {
       {props.showLogout ? (
         <div
           className="sidebar-panel-footer-action"
-          style={getTrailingActionStyle({
-            collapsed: props.collapsed,
-            expandedRight: FOOTER_LEFT,
-            index: logoutIndex,
-            rowCount: actionRowCount,
-          })}
+          style={{ bottom: FOOTER_PADDING, right: FOOTER_LEFT }}
         >
           <UtilityButton
             icon={LogOut}
@@ -152,52 +126,6 @@ export function SidebarFooterActions(props: SidebarUtilityActionsProps) {
       ) : null}
     </div>
   );
-}
-
-function getNavigationActionStyle({
-  collapsed,
-  index,
-  rowCount,
-}: {
-  collapsed: boolean;
-  index: number;
-  rowCount: number;
-}): CSSProperties {
-  return {
-    bottom: collapsed
-      ? getCollapsedActionBottom(index, rowCount)
-      : FOOTER_PADDING,
-    left: collapsed
-      ? FOOTER_LEFT
-      : FOOTER_LEFT + index * (FOOTER_ACTION_SIZE + FOOTER_HORIZONTAL_GAP),
-  };
-}
-
-function getTrailingActionStyle({
-  collapsed,
-  expandedRight,
-  index,
-  rowCount,
-}: {
-  collapsed: boolean;
-  expandedRight: number;
-  index: number;
-  rowCount: number;
-}): CSSProperties {
-  if (collapsed) {
-    return {
-      bottom: getCollapsedActionBottom(index, rowCount),
-      left: FOOTER_LEFT,
-    };
-  }
-  return {
-    bottom: FOOTER_PADDING,
-    right: expandedRight,
-  };
-}
-
-function getCollapsedActionBottom(index: number, rowCount: number): number {
-  return FOOTER_PADDING + (rowCount - index - 1) * FOOTER_ACTION_STRIDE;
 }
 
 function UtilityLink({

@@ -1184,8 +1184,8 @@ test("Room public activity survives the pause between reply text and tool work",
   );
   assert.match(
     continuedHtml,
-    /class="flex min-w-0 items-center px-1\.5 h-7" data-message-activity-stable-slot="true"/,
-    "Room thinking and replying reuse the fixed-height public activity slot",
+    /class="flex min-w-0 items-center h-7 px-0 \[&amp;_\[data-message-activity-icon\]\]:justify-start" data-message-activity-stable-slot="true"/,
+    "Room thinking and replying reuse the fixed-height flush-left public activity slot",
   );
 
   const toolContinuation = {
@@ -1230,8 +1230,8 @@ test("Room public activity survives the pause between reply text and tool work",
   assert.match(workingHtml, /data-room-tool-activity/);
   assert.match(
     workingHtml,
-    /class="[^"]*h-7[^"]*px-1\.5[^"]*"[^>]*data-room-tool-activity/,
-    "Room tools keep the same fixed-height geometry as thinking and replying",
+    /class="flex h-7 min-w-0 items-center gap-1\.5 py-1[^"]*"[^>]*data-room-tool-activity/,
+    "Room tools keep the same fixed-height flush-left geometry as thinking and replying",
   );
   assert.match(workingHtml, /data-process-activity-icon="search"/);
   assert.match(
