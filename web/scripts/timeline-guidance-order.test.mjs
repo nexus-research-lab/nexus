@@ -1936,7 +1936,7 @@ test("live conversations keep one stable tool segment across consecutive patches
   assert.equal(terminal.phase, "complete");
 });
 
-test("tool segments absorb reasoning but preserve interactions and errors", async () => {
+test("tool segments absorb completed questions but preserve active interactions", async () => {
   const { projectToolRunSegments } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/item/process/dm-tool-run-segments.ts",
   );
@@ -2038,11 +2038,6 @@ test("tool segments absorb reasoning but preserve interactions and errors", asyn
       {
         id: "tool-run:tool-failed",
         kind: "tool_run",
-        phase: "error",
-      },
-      {
-        id: "tool-run:tool-question-boundary",
-        kind: "tool_run",
         phase: "complete",
       },
       {
@@ -2068,6 +2063,8 @@ test("tool segments absorb reasoning but preserve interactions and errors", asyn
       "system_event",
       "workspace_file_artifact",
       "thinking",
+      "tool_use",
+      "tool_result",
     ],
   );
   assert.deepEqual(
@@ -2077,11 +2074,6 @@ test("tool segments absorb reasoning but preserve interactions and errors", asyn
   );
   assert.deepEqual(
     segments[1].projection.content.map(({ type }) => type),
-    ["tool_use", "tool_result"],
-    "a completed question starts a normal tool run without merging backward",
-  );
-  assert.deepEqual(
-    segments[2].projection.content.map(({ type }) => type),
     ["tool_use", "tool_result"],
     "a pending permission tool stays outside the collapsible run",
   );
