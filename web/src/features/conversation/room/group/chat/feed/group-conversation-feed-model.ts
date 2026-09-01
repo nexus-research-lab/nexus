@@ -1,6 +1,6 @@
 /**
  * INPUT: Room 根轮次顺序及按轮次分组的 message/permission/slot/execution 数据。
- * OUTPUT: static/virtual feed 共用的单轮 loaded/live 状态、未读标记与稳定源切片。
+ * OUTPUT: static/virtual feed 共用的单轮 loaded/live 状态；历史 Assistant 行不得独立宣告正在增长。
  * POS: Room feed 的纯轮次解析边界，不拥有 Agent 排序或 runtime 状态。
  */
 import type { ReactNode, RefObject } from "react";
@@ -133,13 +133,9 @@ export function isGroupConversationRoundActivelyGrowing(
   ))) {
     return true;
   }
-  return state.messages.some((message) => (
-    message.role === "assistant"
-    && (message.stream_status === "pending"
-      || message.stream_status === "streaming")
-    && message.is_complete !== true
-    && !message.result_summary
-  ));
+  // Persisted Assistant rows are structural history. Only a live slot or
+  // execution lifecycle can assert that the Room is currently growing.
+  return false;
 }
 
 /** canonical root 导航到它保留的 root node；无 root 正文时落到首个 Agent node。 */

@@ -7,41 +7,13 @@ import {
   UnauthorizedError,
 } from "@/lib/api/core/http-error";
 
-const INTERNAL_ERROR_PLACEHOLDERS = new Set([
-  "服务内部错误",
-  "内部服务错误",
-  "服务暂时无法完成请求",
-  "Internal server error",
-  "Internal Server Error",
-]);
-
 export function getErrorMessage(error: unknown, fallback: string): string {
-  if (!(error instanceof Error)) {
-    return fallback;
-  }
-
-  // 传输错误的 kind/effect 供业务层决定影响和恢复；用户正文必须使用
-  // 当前页面提供的本地化、操作相关文案，不能显示共享层固定语言。
-  if (error instanceof ApiTransportError) {
-    return fallback;
-  }
-  // FailureCore 只提供机器事实；用户文案始终由当前页面本地化。
-  if (
-    (error instanceof ApiRequestError || error instanceof UnauthorizedError)
-    && error.failure
-  ) {
-    return fallback;
-  }
-  // 兼容尚未接入 FailureCore 的旧 HTTP envelope。
-  // 普通 Error 可能来自浏览器、原生 bridge、第三方 SDK 或响应校验，
-  // 其中可能包含路径、堆栈、Provider 正文或其他内部细节。
-  if (!(error instanceof ApiRequestError) && !(error instanceof UnauthorizedError)) {
-    return fallback;
-  }
-  const message = error.message.trim();
-  return message && !INTERNAL_ERROR_PLACEHOLDERS.has(message)
-    ? message
-    : fallback;
+  // Error.message can originate from a legacy HTTP detail, native bridge,
+  // Provider, browser, SDK or response validator. None of those are a safe
+  // localization boundary. Machine facts remain available on the typed error;
+  // user-visible copy always belongs to the current product surface.
+  void error;
+  return fallback;
 }
 
 export type ResourceAccessFailure =

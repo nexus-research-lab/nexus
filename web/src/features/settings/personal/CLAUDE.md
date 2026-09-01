@@ -7,3 +7,4 @@
 - 密码规则通过有序规则表表达；新增规则不得在视图或提交函数中复制条件分支。
 - 资料与用量缺省值只在展示模型解释；Section 不得重复读取可空 API 字段。
 - 头像与密码命令必须经过控制器互斥状态，视图不得直接调用 Auth API。
+- 密码修改每次生成 exact `request_id`；服务端以 `committed|not_applied` 终态回执在同一身份上提交或阻止迟到写入。前端只持久 user-scoped request 指针，不保存密码草稿；unknown 不创建 fresh request，有原草稿时显式续行同一 request，草稿丢失时必须先由服务端原子放弃再解锁。

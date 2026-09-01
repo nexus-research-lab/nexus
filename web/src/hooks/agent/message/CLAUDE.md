@@ -1,6 +1,6 @@
 # Agent Message
 
-- `assistant-message-model.ts` 负责 Assistant 快照规范化、同消息合并、内容块身份和 durable 错误展示去重；错误 result 已作为最终正文时不再投影第二个系统气泡。实时 placeholder 与 canonical snapshot 合并时保留尚未提交的首帧 reveal 标记，但不处理集合顺序。
+- `assistant-message-model.ts` 负责 Assistant 快照规范化、同消息合并、内容块身份和 durable 错误展示去重；内容专有变化与状态变化同等重要，不得因 `stream_status` 未变而丢弃。错误 result 已作为最终正文时不再投影第二个系统气泡。
 - `message-collection-model.ts` 负责消息唯一性、集合 upsert、时间排序和历史快照合并。
 - `stream-message-reducer.ts` 分离流式元数据投影和索引内容块更新，只把单条事件归约到消息集合；仅新建 live placeholder 可为首次出现的 text/thinking 写入本地首帧标记，历史/恢复消息不得补标；完整 message 快照提交前由 transport 同步 flush 已排队 stream event，终态快照进入集合后旧 event 也不得再改写其内容或 metadata。
 - `use-agent-message-collection.ts` 是消息集合的 React 状态边界，所有写入统一执行 `message_id` 去重。

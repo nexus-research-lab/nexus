@@ -62,8 +62,14 @@ export interface PersonalProfile {
 }
 
 export interface ChangePasswordParams {
+  request_id: string;
   current_password: string;
   new_password: string;
+}
+
+export interface PasswordChangeReceipt {
+  request_id: string;
+  effect: "committed" | "not_applied" | "unknown";
 }
 
 export interface UpdatePersonalProfileParams {
@@ -111,8 +117,31 @@ export async function changePasswordApi(params: ChangePasswordParams): Promise<A
   return requestApi<AuthStatus>(`${AUTH_API_BASE_URL}/settings/profile/password`, {
     method: "POST",
     body: {
+      request_id: params.request_id,
       current_password: params.current_password,
       new_password: params.new_password,
     },
   });
+}
+
+export async function getPasswordChangeReceiptApi(
+  requestID: string,
+): Promise<PasswordChangeReceipt> {
+  const query = new URLSearchParams({ request_id: requestID });
+  return requestApi<PasswordChangeReceipt>(
+    `${AUTH_API_BASE_URL}/settings/profile/password/receipt?${query.toString()}`,
+    { method: "GET" },
+  );
+}
+
+export async function settlePasswordChangeNotAppliedApi(
+  requestID: string,
+): Promise<PasswordChangeReceipt> {
+  return requestApi<PasswordChangeReceipt>(
+    `${AUTH_API_BASE_URL}/settings/profile/password/receipt/not-applied`,
+    {
+      method: "POST",
+      body: { request_id: requestID },
+    },
+  );
 }

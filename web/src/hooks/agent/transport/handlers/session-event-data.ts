@@ -1,6 +1,6 @@
 /**
  * INPUT: Session/runtime/queue/round/chat/interrupt ACK 的未知 WebSocket 载荷。
- * OUTPUT: 经字段级校验且保留 public handoff 与精确停止关联的窄事件数据。
+ * OUTPUT: 经字段级校验且保留 public handoff、快照 Room 序号与精确停止关联的窄事件数据。
  * POS: Agent Session 事件副作用前的协议解码边界。
  */
 import {
@@ -356,12 +356,23 @@ export function parseChatAckData(data: UnknownRecord): ChatAckData | null {
       CHAT_ACK_USER_MESSAGE_DELIVERY_MODES,
     ) === null
   );
+  const snapshotRoomSeq = data.snapshot_room_seq === undefined
+    ? null
+    : readNumber(data, "snapshot_room_seq");
   if (
     typeof data.user_message_committed !== "boolean"
     || typeof data.pending_snapshot !== "boolean"
     || !Array.isArray(data.pending)
     || !data.pending.every(isChatAckPendingSlot)
     || readNumber(data, "ack_timeout_ms") === null
+    || (
+      data.snapshot_room_seq !== undefined
+      && (
+        snapshotRoomSeq === null
+        || !Number.isSafeInteger(snapshotRoomSeq)
+        || snapshotRoomSeq < 0
+      )
+    )
     || invalidUserMessageDeliveryMode
   ) {
     return null;

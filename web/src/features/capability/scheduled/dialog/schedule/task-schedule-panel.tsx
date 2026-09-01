@@ -361,23 +361,24 @@ export function TaskSchedulePanel({
               : mutationFailure.effect === "committed"
                 ? "capability.scheduled_mutation_committed_impact"
                 : "capability.scheduled_mutation_unknown_impact")}
-          primaryAction={mutationFailure.blocksRepeat ? {
-            busy: isReconciling,
-            busyLabel: t("capability.scheduled_dialog_reconciling"),
-            label: t("capability.scheduled_dialog_reconcile"),
-            onClick: onReconcile,
-          } : undefined}
-          secondaryAction={mutationFailure.blocksRepeat && isRestoredCreateIntent
-            ? {
-                label: t("capability.scheduled_dialog_create_start_new"),
-                onClick: onStartNewCreateIntent,
-              }
-            : mutationFailure.blocksRepeat && isMutationReviewed
+          primaryAction={mutationFailure.blocksRepeat
+            ? isRestoredCreateIntent
               ? {
-                  label: t("capability.scheduled_mutation_review_unlock_action"),
-                  onClick: onConfirmMutationReviewed,
+                  label: t("capability.scheduled_dialog_create_start_new"),
+                  onClick: onStartNewCreateIntent,
                 }
-              : undefined}
+              : isMutationReviewed
+                ? {
+                    label: t("capability.scheduled_mutation_review_unlock_action"),
+                    onClick: onConfirmMutationReviewed,
+                  }
+                : {
+                    busy: isReconciling,
+                    busyLabel: t("capability.scheduled_dialog_reconciling"),
+                    label: t("capability.scheduled_dialog_reconcile"),
+                    onClick: onReconcile,
+                  }
+            : undefined}
           size="sm"
           state="error"
           title={t(mutationFailure.effect === "not_applied"

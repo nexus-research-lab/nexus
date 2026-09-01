@@ -74,10 +74,6 @@ export function MemoryDocumentPanel({
             label: t("state.retry"),
             onClick: () => void controller.reload(),
           }}
-          secondaryAction={{
-            label: t("common.back"),
-            onClick: onBack,
-          }}
           size="sm"
           state="error"
           title={t("state.permission_title")}
@@ -216,38 +212,43 @@ function MemorySaveIssueNotice({
   }
   if (issue.kind === "conflict") {
     const reviewing = issue.phase === "review";
+    if (reviewing) {
+      return (
+        <UiResourceState
+          className="min-h-0 py-3"
+          impact={t("capability.memory_conflict_review_impact")}
+          primaryAction={{
+            label: t("capability.memory_use_latest"),
+            onClick: controller.adoptLatest,
+          }}
+          secondaryAction={{
+            busy: controller.isSaving,
+            disabled: !controller.revision,
+            label: t("capability.memory_overwrite_draft"),
+            onClick: () => void controller.overwriteConflict(),
+            tone: "danger",
+          }}
+          size="sm"
+          state="decision"
+          title={t("capability.memory_conflict_review_title")}
+          tone="warning"
+        />
+      );
+    }
     return (
       <UiResourceState
         className="min-h-0 py-3"
-        impact={t(reviewing
-          ? "capability.memory_conflict_review_impact"
-          : "capability.memory_conflict_impact")}
-        primaryAction={reviewing
-          ? {
-              label: t("capability.memory_use_latest"),
-              onClick: controller.adoptLatest,
-            }
-          : {
-              busy: controller.isLoading,
-              busyLabel: t("capability.memory_loading_latest"),
-              icon: <RefreshCw className="h-3.5 w-3.5" />,
-              label: t("capability.memory_load_latest"),
-              onClick: () => void controller.reload(),
-            }}
-        secondaryAction={reviewing
-          ? {
-              busy: controller.isSaving,
-              disabled: !controller.revision,
-              label: t("capability.memory_overwrite_draft"),
-              onClick: () => void controller.overwriteConflict(),
-              tone: "danger",
-            }
-          : undefined}
+        impact={t("capability.memory_conflict_impact")}
+        primaryAction={{
+          busy: controller.isLoading,
+          busyLabel: t("capability.memory_loading_latest"),
+          icon: <RefreshCw className="h-3.5 w-3.5" />,
+          label: t("capability.memory_load_latest"),
+          onClick: () => void controller.reload(),
+        }}
         size="sm"
         state="error"
-        title={t(reviewing
-          ? "capability.memory_conflict_review_title"
-          : "capability.memory_conflict_title")}
+        title={t("capability.memory_conflict_title")}
       />
     );
   }

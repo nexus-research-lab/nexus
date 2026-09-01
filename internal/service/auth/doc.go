@@ -4,7 +4,7 @@
 //
 // 成员清单：
 //   - service.go / cookie.go / desktop.go / principal.go /
-//     session.go / token.go / user.go / validate.go：Service 各切面。
+//     session.go / token.go / user.go / validate.go：Service 各切面，含密码修改 exact request 终态回执对账与收口。
 //   - password.go：密码校验/哈希。
 //   - model.go / context.go：认证模型与请求上下文（含客户端 IP 解析）。
 //   - runtime_admission.go：认证启用转场与 Agent runtime admission/强隔离的动态边界。
