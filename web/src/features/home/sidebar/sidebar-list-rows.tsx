@@ -216,7 +216,7 @@ export function ContactRow({
     <UiListRow
       active={isActive}
       activeTone="sidebar"
-      className="min-h-[54px] gap-2.5 rounded-[10px] px-2 py-1.5 max-lg:min-h-[72px] max-lg:gap-3 max-lg:rounded-[12px] max-lg:px-3 max-lg:py-2.5"
+      className="min-h-[54px] gap-2.5 rounded-[10px] py-1.5 pl-2 pr-[3px] max-lg:min-h-[72px] max-lg:gap-3 max-lg:rounded-[12px] max-lg:px-3 max-lg:py-2.5"
       description={subtitle}
       inactiveTone="muted"
       leading={(
@@ -238,7 +238,7 @@ export function ContactRow({
           type="button"
           variant="ghost"
         >
-          <MessageCircle className="h-4 w-4" />
+          <MessageCircle className="h-[18px] w-[18px]" />
         </UiIconButton>
       )}
       title={agent.name}

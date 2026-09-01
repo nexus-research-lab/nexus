@@ -94,7 +94,7 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
             onClick={openAgentCreation}
             title={t("contacts.new_agent")}
           >
-            <CirclePlus className="h-[22px] w-[22px]" />
+            <CirclePlus />
           </SidebarSearchAction>
         )}
         onChange={setQuery}

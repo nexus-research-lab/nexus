@@ -42,7 +42,7 @@ export function SidebarSearchAction({
   return (
     <button
       className={cn(
-        "flex h-9 w-9 items-center justify-center radius-control-md text-(--icon-muted) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default) max-lg:h-12 max-lg:w-12 max-lg:rounded-[12px]",
+        "flex h-9 w-9 items-center justify-center radius-control-md text-(--icon-muted) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default) [&>svg]:h-[18px] [&>svg]:w-[18px] max-lg:h-12 max-lg:w-12 max-lg:rounded-[12px]",
         className,
       )}
       type={type}
