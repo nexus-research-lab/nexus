@@ -2,6 +2,8 @@ package migration
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -11,6 +13,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/storage"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
@@ -33,7 +36,14 @@ func TestRunDesktopStateRootRebaseCommitsCopiedState(t *testing.T) {
 		WorkspacePath:  filepath.Join(currentRoot, "users"),
 	}
 	seedStateRootMigrationDatabase(t, cfg, agentID, ownerUserID, oldWorkspace, previousRoot)
-	seedStateRootMigrationFiles(t, previousRoot, currentRoot, ownerUserID, oldWorkspace)
+	seedStateRootMigrationFiles(
+		t,
+		previousRoot,
+		currentRoot,
+		ownerUserID,
+		oldWorkspace,
+		newWorkspace,
+	)
 	if err := RunDesktopStateRootRebase(
 		context.Background(),
 		cfg,
@@ -45,6 +55,7 @@ func TestRunDesktopStateRootRebaseCommitsCopiedState(t *testing.T) {
 	assertRebasedDatabasePaths(t, cfg, newWorkspace, currentRoot)
 	assertRebasedTranscriptProject(t, previousRoot, currentRoot, ownerUserID, oldWorkspace, newWorkspace)
 	assertRebasedRoomMetadata(t, previousRoot, currentRoot, ownerUserID, oldWorkspace, newWorkspace)
+	assertRebasedSessionLifecycle(t, cfg, currentRoot, ownerUserID, oldWorkspace, newWorkspace)
 	// 桌面宿主若在健康回执前中断，会以同一 previous root 重试；提交必须幂等。
 	if err := RunDesktopStateRootRebase(context.Background(), cfg, nil); err != nil {
 		t.Fatalf("重复提交状态根迁移失败: %v", err)
@@ -161,6 +172,7 @@ func seedStateRootMigrationFiles(
 	currentRoot string,
 	ownerUserID string,
 	oldWorkspace string,
+	newWorkspace string,
 ) {
 	t.Helper()
 	projectsRoot := filepath.Join(currentRoot, "users", ownerUserID, "runtime", "projects")
@@ -216,6 +228,65 @@ func seedStateRootMigrationFiles(
 	); err != nil {
 		t.Fatal(err)
 	}
+	seedStateRootMigrationLifecycle(
+		t,
+		currentRoot,
+		ownerUserID,
+		oldWorkspace,
+		newWorkspace,
+	)
+}
+
+func seedStateRootMigrationLifecycle(
+	t *testing.T,
+	currentRoot string,
+	ownerUserID string,
+	oldWorkspace string,
+	newWorkspace string,
+) {
+	t.Helper()
+	lifecycleRoot := filepath.Join(
+		currentRoot,
+		"users",
+		ownerUserID,
+		"state",
+		"session-lifecycle",
+	)
+	if err := os.MkdirAll(lifecycleRoot, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	writeRecord := func(sessionKey string, workspacePath string) {
+		payload, err := json.MarshalIndent(map[string]any{
+			"session_key":           sessionKey,
+			"owner_user_id":         ownerUserID,
+			"workspace_path":        workspacePath,
+			"state":                 "deleted",
+			"generation":            2,
+			"configuration_version": 1,
+			"updated_at":            "2026-09-01T00:00:00Z",
+		}, "", "  ")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = os.WriteFile(
+			filepath.Join(lifecycleRoot, stateRootMigrationLifecycleFileName(workspacePath, sessionKey)),
+			payload,
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeRecord("agent:agent-a:ws:dm:migration", oldWorkspace)
+	// 模拟上次迁移已写入新文件、但尚未来得及删除旧文件时进程退出。
+	writeRecord("agent:agent-a:ws:dm:interrupted", oldWorkspace)
+	writeRecord("agent:agent-a:ws:dm:interrupted", newWorkspace)
+}
+
+func stateRootMigrationLifecycleFileName(workspacePath string, sessionKey string) string {
+	physicalIdentity := filepath.Clean(workspacePath) + "\x00" +
+		protocol.LegacySessionDirectoryIdentity(sessionKey)
+	sum := sha256.Sum256([]byte(physicalIdentity))
+	return hex.EncodeToString(sum[:]) + ".json"
 }
 
 func assertRebasedDatabasePaths(t *testing.T, cfg config.Config, workspacePath string, currentRoot string) {
@@ -318,5 +389,57 @@ func assertRebasedRoomMetadata(
 	}
 	if sessionRow["text"] != "正文保留 "+previousRoot {
 		t.Fatalf("Agent session 正文被路径重写: %#v", sessionRow["text"])
+	}
+}
+
+func assertRebasedSessionLifecycle(
+	t *testing.T,
+	cfg config.Config,
+	currentRoot string,
+	ownerUserID string,
+	oldWorkspace string,
+	newWorkspace string,
+) {
+	t.Helper()
+	lifecycleRoot := filepath.Join(
+		currentRoot,
+		"users",
+		ownerUserID,
+		"state",
+		"session-lifecycle",
+	)
+	for _, sessionKey := range []string{
+		"agent:agent-a:ws:dm:migration",
+		"agent:agent-a:ws:dm:interrupted",
+	} {
+		if _, err := os.Stat(filepath.Join(
+			lifecycleRoot,
+			stateRootMigrationLifecycleFileName(oldWorkspace, sessionKey),
+		)); !os.IsNotExist(err) {
+			t.Fatalf("旧 Session 删除恢复记录仍存在: %v", err)
+		}
+		payload, err := os.ReadFile(filepath.Join(
+			lifecycleRoot,
+			stateRootMigrationLifecycleFileName(newWorkspace, sessionKey),
+		))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var record map[string]any
+		if err = json.Unmarshal(payload, &record); err != nil {
+			t.Fatal(err)
+		}
+		if record["workspace_path"] != newWorkspace {
+			t.Fatalf("Session 删除恢复路径 = %#v, want %q", record["workspace_path"], newWorkspace)
+		}
+	}
+	records, err := workspacestore.NewSessionFileStore(
+		cfg.WorkspacePath,
+	).ListSessionDeletionRecords()
+	if err != nil {
+		t.Fatalf("扫描迁移后的 Session 删除恢复记录失败: %v", err)
+	}
+	if len(records) != 2 {
+		t.Fatalf("Session 删除恢复记录数量 = %d, want 2", len(records))
 	}
 }

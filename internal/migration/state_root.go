@@ -68,6 +68,10 @@ func RunDesktopStateRootRebase(ctx context.Context, cfg config.Config, logger *s
 	if err = rewriteManagedStateRootPaths(ctx, currentRoot, previousRoot, currentRoot); err != nil {
 		return fmt.Errorf("重映射文件状态路径: %w", err)
 	}
+	if err = workspacestore.NewSessionFileStore(cfg.WorkspacePath).
+		RebaseSessionLifecycleRecords(ctx, previousRoot, currentRoot); err != nil {
+		return fmt.Errorf("重映射 Session 删除恢复记录: %w", err)
+	}
 	if err = rebaseSQLitePathColumns(ctx, db, previousRoot, currentRoot); err != nil {
 		return fmt.Errorf("重映射数据库路径: %w", err)
 	}
@@ -125,7 +129,11 @@ func rebaseTranscriptProjectDirectories(
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		workspacePath, changed := rewriteStateRootPath(agent.workspacePath, previousRoot, currentRoot)
+		workspacePath, changed := appfs.RebaseStateRootPath(
+			agent.workspacePath,
+			previousRoot,
+			currentRoot,
+		)
 		if !changed {
 			continue
 		}
@@ -300,24 +308,6 @@ WHERE typeof(` + columnName + `) = 'text'
 
 func quoteSQLiteIdentifier(value string) string {
 	return `"` + strings.ReplaceAll(value, `"`, `""`) + `"`
-}
-
-func rewriteStateRootPath(path string, previousRoot string, currentRoot string) (string, bool) {
-	path = filepath.Clean(strings.TrimSpace(path))
-	if path == "." || !filepath.IsAbs(path) {
-		return path, false
-	}
-	if sameStateRootPath(path, previousRoot) {
-		return currentRoot, true
-	}
-	if !stateRootPathContains(previousRoot, path) {
-		return path, false
-	}
-	relative, err := filepath.Rel(previousRoot, path)
-	if err != nil {
-		return path, false
-	}
-	return filepath.Join(currentRoot, relative), true
 }
 
 func sameStateRootPath(left string, right string) bool {

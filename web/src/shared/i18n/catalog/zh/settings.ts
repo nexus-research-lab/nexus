@@ -268,6 +268,7 @@ export const zhSettingsMessages = {
   "settings.general.preferences_latest_selected_next_step": "可以继续修改其他设置。",
   "settings.general.state_root_title": "Nexus 数据目录",
   "settings.general.state_root_description": "包含应用数据、用户文件、会话与日志。迁移后 Nexus 会立即重启。",
+  "settings.general.state_root_windows_admin_notice": "Windows 上请以管理员身份启动 Nexus 后再迁移，否则可能没有权限写入目标目录。",
   "settings.general.state_root_placeholder_macos": "例如 /Volumes/NexusData",
   "settings.general.state_root_placeholder_posix": "例如 /data/NexusData",
   "settings.general.state_root_placeholder_windows": "例如 D:\\NexusData",

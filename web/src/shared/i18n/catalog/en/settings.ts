@@ -271,6 +271,7 @@ export const enSettingsMessages = {
   "settings.general.preferences_latest_selected_next_step": "You can continue changing other settings.",
   "settings.general.state_root_title": "Nexus data directory",
   "settings.general.state_root_description": "Contains app data, every user's workspace, runtimes, conversations, and logs. Confirming moves the complete directory and restarts Nexus immediately.",
+  "settings.general.state_root_windows_admin_notice": "On Windows, start Nexus as an administrator before migrating or the destination may not be writable.",
   "settings.general.state_root_placeholder_macos": "e.g. /Volumes/NexusData",
   "settings.general.state_root_placeholder_posix": "e.g. /data/NexusData",
   "settings.general.state_root_placeholder_windows": "e.g. D:\\NexusData",
