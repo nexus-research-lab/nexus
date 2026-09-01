@@ -101,7 +101,7 @@ function OpenWorkGraphDistillationPickerDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop onClose={onClose}>
-        <UiDialogShell size="lg" style={{ maxHeight: "min(680px, calc(100vh - 72px))" }}>
+        <UiDialogShell className="h-[min(620px,calc(100dvh-72px))]" size="lg">
           <UiDialogHeader
             appearance="plain"
             onClose={onClose}
@@ -201,13 +201,8 @@ function OpenWorkGraphDistillationPickerDialog({
                 </div>
                 {selected ? (
                   <div className="soft-scrollbar min-h-0 overflow-y-auto border-t border-(--divider-subtle-color) bg-(--surface-raised-background) p-4 md:border-t-0">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <h3 className="text-sm font-semibold text-(--text-strong)">{selected.title}</h3>
-                        {selected.description ? (
-                          <p className="mt-1 text-compact leading-5 text-(--text-muted)">{selected.description}</p>
-                        ) : null}
-                      </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="min-w-0 flex-1 text-sm font-semibold text-(--text-strong)">{selected.title}</h3>
                       <UiButton
                         onClick={() => { onUseCommand(`/${selected.slash_name} `); onClose(); }}
                         size="xs"
@@ -217,6 +212,9 @@ function OpenWorkGraphDistillationPickerDialog({
                         {t("composer.use_workgraph_command")}
                       </UiButton>
                     </div>
+                    {selected.description ? (
+                      <p className="mt-1 text-compact leading-5 text-(--text-muted)">{selected.description}</p>
+                    ) : null}
                     <NamedWorkGraphSketch
                       className="mt-4"
                       dependencies={selected.dependencies}
