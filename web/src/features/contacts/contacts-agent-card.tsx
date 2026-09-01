@@ -106,7 +106,7 @@ function ContactsAgentListRow({
 
   return (
     <UiListRow
-      className="min-h-[76px] rounded-none px-3 py-2.5"
+      className="min-h-[64px] rounded-none px-3 py-2.5"
       leading={<UiAgentAvatar avatar={agent.avatar} name={agent.name} size="md" />}
       onClick={onOpenProfile}
       right={(
@@ -144,19 +144,17 @@ function ContactsAgentListRow({
             {permissionMode}
           </span>
           <ContactsAgentBusinessTags className="hidden md:flex" tags={businessTags} />
+          <span className="min-w-0 flex-1 truncate text-2xs font-normal text-(--text-soft)">
+            {t("contacts.metadata.provider")}: {provider}
+            {" · "}
+            {t("contacts.metadata.tools")} {allowedToolsCount}
+            {" · "}
+            {t("contacts.metadata.skills")} {skillsCount}
+          </span>
         </div>
         <p className="mt-0.5 truncate text-compact text-(--text-muted)">
           {agent.description || t("contacts.no_description")}
         </p>
-        <div className="mt-1 flex min-w-0 items-center gap-2 text-2xs text-(--text-soft)">
-          <span className="max-w-[280px] truncate">
-            {t("contacts.metadata.provider")}: {provider}
-          </span>
-          <span>·</span>
-          <span>{t("contacts.metadata.tools")} {allowedToolsCount}</span>
-          <span>·</span>
-          <span>{t("contacts.metadata.skills")} {skillsCount}</span>
-        </div>
       </div>
     </UiListRow>
   );

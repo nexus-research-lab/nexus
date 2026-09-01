@@ -17,10 +17,10 @@ export function SidebarSearchField({
   value: string;
 }) {
   return (
-    <div className="flex items-center gap-2 px-2.5 pb-1.5 max-lg:gap-3 max-lg:px-4 max-lg:pb-3">
+    <div className="flex items-center gap-2 px-2.5 pb-1.5 max-[559px]:gap-3 max-[559px]:px-4 max-[559px]:pb-3">
       <UiSearchInput
-        className="flex-1 max-lg:h-12 max-lg:rounded-[12px] max-lg:px-4"
-        inputClassName="text-sm max-lg:text-base"
+        className="flex-1 max-[559px]:h-12 max-[559px]:rounded-[12px] max-[559px]:px-4"
+        inputClassName="text-sm max-[559px]:text-base"
         onChange={onChange}
         placeholder={placeholder}
         value={value}
@@ -42,7 +42,7 @@ export function SidebarSearchAction({
   return (
     <button
       className={cn(
-        "flex h-9 w-9 items-center justify-center radius-control-md text-(--icon-muted) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default) [&>svg]:h-[18px] [&>svg]:w-[18px] max-lg:h-12 max-lg:w-12 max-lg:rounded-[12px]",
+        "flex h-9 w-9 items-center justify-center radius-control-md text-(--icon-muted) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default) [&>svg]:h-[18px] [&>svg]:w-[18px] max-[559px]:h-12 max-[559px]:w-12 max-[559px]:rounded-[12px]",
         className,
       )}
       type={type}
