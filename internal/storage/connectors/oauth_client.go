@@ -1,8 +1,12 @@
+// INPUT: owner Connector OAuth client、active/legacy credentials keyring 与 SQL transaction。
+// OUTPUT: 用自带 key identity envelope 加密保存并兼容读取旧 v1 secret 的 OAuth client。
+// POS: Connector OAuth client secret 的唯一 SQL 加密存储边界。
 package connectors
 
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"strings"
@@ -23,14 +27,30 @@ type OAuthClient struct {
 
 // OAuthClientStore 封装 connector OAuth client 的 SQL 读写。
 type OAuthClientStore struct {
-	db     *sql.DB
-	driver string
-	key    []byte
+	db         *sql.DB
+	driver     string
+	keyring    *credentials.Keyring
+	keyringErr error
 }
 
 // NewOAuthClientStore 创建 connector OAuth client 仓储。
 func NewOAuthClientStore(db *sql.DB, driver string, key []byte) *OAuthClientStore {
-	return &OAuthClientStore{db: db, driver: driver, key: key}
+	raw := ""
+	if len(key) > 0 {
+		raw = base64.StdEncoding.EncodeToString(key)
+	}
+	keyring, keyringErr := credentials.NewKeyring(raw, nil)
+	return NewOAuthClientStoreWithKeyring(db, driver, keyring, keyringErr)
+}
+
+// NewOAuthClientStoreWithKeyring 让 OAuth client 与 Connector connection 共享 active/legacy keyring。
+func NewOAuthClientStoreWithKeyring(
+	db *sql.DB,
+	driver string,
+	keyring *credentials.Keyring,
+	keyringErr error,
+) *OAuthClientStore {
+	return &OAuthClientStore{db: db, driver: driver, keyring: keyring, keyringErr: keyringErr}
 }
 
 func (s *OAuthClientStore) Get(ctx context.Context, ownerUserID, connectorID string) (*OAuthClient, error) {
@@ -84,10 +104,10 @@ func (s *OAuthClientStore) upsert(
 	executor oauthClientExecer,
 	record OAuthClient,
 ) error {
-	if len(s.key) == 0 {
+	if s.keyringErr != nil || s.keyring == nil {
 		return errors.New("CONNECTOR_CREDENTIALS_KEY 未配置，无法保存 OAuth 应用凭据")
 	}
-	encryptedSecret, err := credentials.EncryptPayload(s.key, []byte(strings.TrimSpace(record.ClientSecret)))
+	encryptedSecret, err := s.keyring.EncryptEnvelope([]byte(strings.TrimSpace(record.ClientSecret)))
 	if err != nil {
 		return err
 	}
@@ -169,8 +189,8 @@ func (s *OAuthClientStore) bind(index int) string {
 }
 
 func (s *OAuthClientStore) decryptSecret(encryptedSecret string) ([]byte, error) {
-	if len(s.key) == 0 {
+	if s.keyringErr != nil || s.keyring == nil {
 		return nil, errors.New("CONNECTOR_CREDENTIALS_KEY 未配置，无法读取 OAuth 应用凭据")
 	}
-	return credentials.DecryptPayload(s.key, encryptedSecret)
+	return s.keyring.DecryptEnvelope(encryptedSecret)
 }

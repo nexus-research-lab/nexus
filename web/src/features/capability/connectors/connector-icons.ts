@@ -17,6 +17,7 @@ const CONNECTOR_ICON_LETTERS: Record<string, string> = {
   dingtalk: "钉",
   "tencent-docs": "腾",
   yuque: "语",
+  richmail: "RM",
   "google-calendar": "GC",
   "google-drive": "GD",
   youtube: "YT",

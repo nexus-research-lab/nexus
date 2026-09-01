@@ -3,7 +3,13 @@
  */
 
 /** 授权方式 */
-export type ConnectorAuthType = "oauth2" | "api_key" | "token" | "none" | "custom_mcp";
+export type ConnectorAuthType =
+  | "oauth2"
+  | "api_key"
+  | "token"
+  | "none"
+  | "custom_mcp"
+  | "local_pairing";
 
 /** 目录来源 */
 export type ConnectorKind = "connector" | "custom_mcp";
@@ -137,6 +143,27 @@ export interface ConnectorDeviceAuthPollResult {
   message?: string;
   connector?: ConnectorInfo;
   next?: ConnectorDeviceAuthStart;
+}
+
+/** 本机应用批准式配对。attempt_token 是 owner-bound opaque 能力，不包含可读 Token。 */
+export interface ConnectorLocalPairingStart {
+  connector_id: string;
+  attempt_token: string;
+  endpoint: string;
+  expires_in: number;
+  interval: number;
+}
+
+export type ConnectorLocalPairingStatus =
+  | "pending"
+  | "connected"
+  | "expired"
+  | "denied";
+
+export interface ConnectorLocalPairingPollResult {
+  status: ConnectorLocalPairingStatus;
+  message?: string;
+  connector?: ConnectorInfo;
 }
 
 /** 连接器类别 */

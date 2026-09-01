@@ -20,6 +20,7 @@ import {
 } from "./connector-detail-header";
 import { getConnectorFeatureDetails } from "./connector-detail-model";
 import { ConnectorFeatureDialog } from "./connector-feature-dialog";
+import { useConnectorMCPTools } from "./use-connector-mcp-tools";
 
 interface ConnectorDetailViewProps {
   busy: boolean;
@@ -126,6 +127,7 @@ export function ConnectorDetailView({
     null,
     detailIdentity(detail),
   );
+  const mcpTools = useConnectorMCPTools(detail);
 
   if (loading) {
     return <ConnectorDetailLoading detail={detail} onBack={onBack} />;
@@ -174,6 +176,7 @@ export function ConnectorDetailView({
         <ConnectorDetailContent
           detail={detail}
           features={features}
+          mcpTools={mcpTools}
           onSelectFeature={setSelectedFeature}
           state={state}
         />

@@ -11,12 +11,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added an 8–10-player Avalon Room Skill with a permanent Agent moderator, randomized user participation, private role, vote, mission routing, and complete proposal, quest, rejection, and assassination flow.
 - Added an administrator-selectable subscription default model that new web users inherit until they choose their own default.
+- Added RichMail as a fixed local Connector with a loopback-only approval
+  handshake, opaque owner-bound pairing attempts, encrypted Bearer Token
+  storage, exact retry reconciliation, live MCP tool discovery, and explicit
+  Agent/Session selection through the existing Connector path, using a
+  monochrome RichMail mark consistent with the existing Connector icon system
+  and a connector-specific setup path for enabling its Agent MCP service.
 - Added default-on owner availability controls, WorkGraph-style seeded icons,
   and a Claude-style detail page for custom MCP servers, including remote
   server information and discovered tools while keeping Prompts/Resources out
   of the product surface and stdio execution inside the Agent runtime.
 - Added a versioned custom MCP availability migration so existing servers stay
   enabled by default while previously disabled preview records remain disabled.
+- Added stable Connector credential key identities, an active/legacy keyring,
+  and an idempotent per-record migration that preserves unknown historical
+  ciphertext for recovery while re-encrypting known legacy records.
 - Added a backward-compatible minimal FailureCore v1 for stable machine
   classification, effect evidence, and optional transport diagnostics without
   changing existing business identities.
@@ -94,9 +103,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   chats and runtime mounting until the user replaces the complete encrypted
   configuration, while retaining the original Connector identity and enabled
   state.
-- Aligned `make dev` with the desktop host's persistent Connector credentials
-  key source (macOS Keychain first, then the state-root fallback file), so the
-  two hosts no longer interpret the same encrypted records with different keys.
+- Centralized desktop and development Connector key selection in the server
+  startup boundary (macOS Keychain, canonical state-root fallback, then
+  explicit configuration), so Make no longer reads platform secrets and
+  mixed-key historical records remain readable during rotation.
 - Preserved the canonical state-root Connector fallback key when a signed
   macOS host initializes its Keychain item, instead of generating an unrelated
   key after the state-layout migration had already moved the fallback file.

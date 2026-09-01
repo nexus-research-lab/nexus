@@ -50,6 +50,7 @@ const CONNECTOR_ICON_SRC: Record<string, string> = {
   odoo: "/icon/connector/odoo.svg",
   outlook: "/icon/connector/outlook.svg",
   reddit: "/icon/connector/reddit.svg",
+  richmail: "/icon/connector/richmail.svg",
   shopify: "/icon/connector/shopify.svg",
   similarweb: "/icon/connector/similarweb.svg",
   slack: "/icon/connector/slack.svg",

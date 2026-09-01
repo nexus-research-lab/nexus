@@ -1,3 +1,6 @@
+// INPUT: 桌面路径、sidecar bundle、宿主配置与 active/legacy Connector credentials keys。
+// OUTPUT: 受控启动、监测并停止的本机 nexus-server 进程与运行时地址。
+// POS: macOS 宿主 sidecar 生命周期及显式环境注入边界；不承载业务规则。
 import Darwin
 import Foundation
 
@@ -140,7 +143,14 @@ final class SidecarSupervisor {
     ])
     let credentialsKey = try DesktopKeychainStore.connectorCredentialsKey(mode: credentialsKeyMode)
     environment["CONNECTOR_CREDENTIALS_KEY"] = credentialsKey.value
+    if credentialsKey.legacyValues.isEmpty {
+      environment.removeValue(forKey: "CONNECTOR_CREDENTIALS_LEGACY_KEYS")
+    } else {
+      environment["CONNECTOR_CREDENTIALS_LEGACY_KEYS"] = credentialsKey.legacyValues.joined(separator: ",")
+    }
+    environment["CONNECTOR_CREDENTIALS_HOST_KEY_MODE"] = "explicit"
     startupTimeline?.mark("sidecar.credentials_key_ready", metadata: [
+      "legacy_keys": "\(credentialsKey.legacyValues.count)",
       "mode": credentialsKeyMode.rawValue,
       "reason": credentialsKey.reason,
       "storage": credentialsKey.storage,

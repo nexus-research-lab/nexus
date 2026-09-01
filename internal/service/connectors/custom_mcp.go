@@ -298,7 +298,8 @@ func (s *Service) listCustomMCPServerRecords(
 ) ([]customMCPServerRecord, error) {
 	ownerUserID = normalizeConnectorOwnerUserID(ctx, ownerUserID)
 	query := fmt.Sprintf(
-		`SELECT owner_user_id, connector_id, state, enabled, credentials, credentials_encrypted, auth_type
+		`SELECT owner_user_id, connector_id, state, enabled, credentials, credentials_encrypted,
+		        credentials_key_id, auth_type
 		   FROM connector_connections
 		  WHERE owner_user_id = %s AND auth_type = %s`,
 		s.bind(1),
@@ -320,6 +321,7 @@ func (s *Service) listCustomMCPServerRecords(
 			&record.AvailabilityEnabled,
 			&record.Credentials,
 			&record.CredentialsEncrypted,
+			&record.CredentialsKeyID,
 			&record.AuthType,
 		); err != nil {
 			return nil, err
@@ -344,7 +346,8 @@ func (s *Service) loadCustomMCPConnectionRecord(
 		return nil, ErrCustomMCPServerNotFound
 	}
 	query := fmt.Sprintf(
-		`SELECT owner_user_id, connector_id, state, enabled, credentials, credentials_encrypted, auth_type
+		`SELECT owner_user_id, connector_id, state, enabled, credentials, credentials_encrypted,
+		        credentials_key_id, auth_type
 		   FROM connector_connections
 		  WHERE owner_user_id = %s AND connector_id = %s AND auth_type = %s`,
 		s.bind(1),
@@ -365,6 +368,7 @@ func (s *Service) loadCustomMCPConnectionRecord(
 		&record.AvailabilityEnabled,
 		&record.Credentials,
 		&record.CredentialsEncrypted,
+		&record.CredentialsKeyID,
 		&record.AuthType,
 	)
 	if errors.Is(err, sql.ErrNoRows) {

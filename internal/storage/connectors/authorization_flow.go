@@ -6,6 +6,7 @@ package connectors
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"strings"
@@ -16,9 +17,10 @@ import (
 
 // AuthorizationFlowStore 持久化 owner/session/Connector 绑定的授权流程。
 type AuthorizationFlowStore struct {
-	db     *sql.DB
-	driver string
-	key    []byte
+	db         *sql.DB
+	driver     string
+	keyring    *credentials.Keyring
+	keyringErr error
 }
 
 // NewAuthorizationFlowStore 创建授权流程仓储。
@@ -27,26 +29,43 @@ func NewAuthorizationFlowStore(
 	driver string,
 	key []byte,
 ) *AuthorizationFlowStore {
-	return &AuthorizationFlowStore{db: db, driver: driver, key: key}
+	raw := ""
+	if len(key) > 0 {
+		raw = base64.StdEncoding.EncodeToString(key)
+	}
+	keyring, keyringErr := credentials.NewKeyring(raw, nil)
+	return NewAuthorizationFlowStoreWithKeyring(db, driver, keyring, keyringErr)
+}
+
+// NewAuthorizationFlowStoreWithKeyring 让持久授权流程读取显式 legacy key，并用 active key 写入。
+func NewAuthorizationFlowStoreWithKeyring(
+	db *sql.DB,
+	driver string,
+	keyring *credentials.Keyring,
+	keyringErr error,
+) *AuthorizationFlowStore {
+	return &AuthorizationFlowStore{
+		db: db, driver: driver, keyring: keyring, keyringErr: keyringErr,
+	}
 }
 
 // EncryptSecret 加密 provider state URL、device_code 或临时应用凭据。
 func (s *AuthorizationFlowStore) EncryptSecret(plain []byte) (string, error) {
-	if len(s.key) == 0 {
+	if s.keyringErr != nil || s.keyring == nil {
 		return "", errors.New("CONNECTOR_CREDENTIALS_KEY 未配置，无法保存 Connector 授权流程")
 	}
-	return credentials.EncryptPayload(s.key, plain)
+	return s.keyring.EncryptEnvelope(plain)
 }
 
 // DecryptSecret 解密仅供 provider 调用使用的流程秘密。
 func (s *AuthorizationFlowStore) DecryptSecret(encrypted string) ([]byte, error) {
-	if len(s.key) == 0 {
+	if s.keyringErr != nil || s.keyring == nil {
 		return nil, errors.New("CONNECTOR_CREDENTIALS_KEY 未配置，无法恢复 Connector 授权流程")
 	}
 	if strings.TrimSpace(encrypted) == "" {
 		return nil, errors.New("Connector 授权流程缺少加密临时凭据")
 	}
-	return credentials.DecryptPayload(s.key, encrypted)
+	return s.keyring.DecryptEnvelope(encrypted)
 }
 
 // CreateApproved 创建 durable 人工批准记录。相同 owner/request_id 只返回已有记录，
