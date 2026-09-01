@@ -69,7 +69,6 @@ export function SettingsSidebarNavigation({
           label={t("settings.back_to_workspace")}
           onClick={backToWorkspace}
         />
-        <div className="my-1 h-px w-6 bg-(--divider-subtle-color)" />
         {navigationGroups.flatMap((group) => group.items).map(
           (item) => (
             <SettingsRailButton

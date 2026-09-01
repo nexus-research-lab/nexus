@@ -142,6 +142,7 @@ export function SidebarPinnedConversations({
         <div
           aria-hidden="true"
           className="h-px w-10 shrink-0 bg-(--divider-subtle-color)"
+          data-sidebar-rail-divider
         />
         {items.map((item) => (
           <div

@@ -43,6 +43,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Limited Room AutoMemory extraction to user-triggered turns; Agent public
   mentions, private directed messages, and internal continuations no longer
   start separate extraction turns.
+- Aligned live Room activity icons with the Agent avatar and message content.
+- Unified the collapsed web sidebar into one neutral rail, aligned its expand
+  control with the navigation icons, and removed its footer actions and dividers.
 - Kept completed confirmation tools inside their surrounding Room execution
   group and increased the spacing between assistant headers and message bodies.
 - Kept Room collaboration visibly active while private directed work is queued

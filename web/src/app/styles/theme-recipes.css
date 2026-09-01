@@ -158,7 +158,7 @@
     position: fixed;
     z-index: 70;
     top: 14px;
-    left: 12px;
+    left: 20px;
     display: flex;
   }
 
@@ -297,6 +297,19 @@
     transition: padding var(--motion-duration-layout) var(--motion-ease-layout);
   }
 
+  .sidebar-panel-shell[data-sidebar-collapsed="true"] .sidebar-panel-header {
+    background: var(--surface-shell-navigation-background);
+    box-shadow: none;
+  }
+
+  .sidebar-panel-shell[data-sidebar-collapsed="true"] {
+    background: var(--surface-shell-navigation-background);
+  }
+
+  .sidebar-panel-shell[data-sidebar-collapsed="true"] [data-sidebar-rail-divider] {
+    display: none;
+  }
+
   @media (width < 64rem) {
     :root[data-desktop-platform="macos"]
       .sidebar-panel-header[data-desktop-window-controls-leading]::before {
@@ -308,16 +321,8 @@
     transition-delay: 80ms;
   }
 
-  .sidebar-panel-footer {
-    transition: height var(--motion-duration-layout) var(--motion-ease-layout);
-  }
-
   .sidebar-panel-footer-action {
     position: absolute;
-    transition:
-      bottom var(--motion-duration-layout) var(--motion-ease-layout),
-      left var(--motion-duration-layout) var(--motion-ease-layout),
-      right var(--motion-duration-layout) var(--motion-ease-layout);
   }
 
   .desktop-rail[data-shell-split-edge="true"]::after {
