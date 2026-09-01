@@ -134,7 +134,13 @@ export function useProviderModelUpdate({
           selectedRecord.provider,
           model.model_id,
         );
-        await refreshAll(selectedRecord.provider);
+        if (!await refreshAll(selectedRecord.provider)) {
+          setFeedback(buildProviderCommittedRefreshFeedback(
+            t("settings.providers.refresh_after_change_failed_message"),
+            t,
+          ));
+          return;
+        }
         setFeedback({
           tone: "success",
           title: t("settings.providers.subscription_default_updated_title"),
@@ -143,14 +149,12 @@ export function useProviderModelUpdate({
           }),
         });
       } catch (error) {
-        setFeedback({
-          tone: "error",
-          title: t("settings.providers.subscription_default_update_failed_title"),
-          message: getErrorMessage(
-            error,
-            t("settings.providers.retry_later"),
-          ),
-        });
+        setFeedback(buildProviderErrorFeedback(
+          error,
+          t("settings.providers.subscription_default_update_failed_title"),
+          t("settings.providers.retry_later"),
+          t,
+        ));
       }
     });
   }, [

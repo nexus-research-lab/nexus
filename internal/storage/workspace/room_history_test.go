@@ -283,3 +283,38 @@ func TestRoomHistoryStoreMergesLateHostAnnotationsReference(t *testing.T) {
 		t.Fatalf("迟到的 handoff_reply 应与 mention 同构保留: %+v", rows[0])
 	}
 }
+
+func TestIndexRoomTranscriptMessagesMergesAssistantChunks(t *testing.T) {
+	indexed := indexRoomTranscriptMessages([]protocol.Message{
+		{
+			"message_id": "assistant-1",
+			"role":       "assistant",
+			"content": []map[string]any{
+				{"type": "thinking", "thinking": "先想一下"},
+			},
+		},
+		{
+			"message_id": "assistant-1",
+			"role":       "assistant",
+			"content": []map[string]any{
+				{"type": "text", "text": "正文不能消失"},
+			},
+		},
+		{
+			"message_id": "assistant-1",
+			"role":       "assistant",
+			"content": []map[string]any{
+				{"type": "tool_use", "id": "tool-1", "name": "Bash"},
+			},
+		},
+	})
+
+	message := indexed["assistant-1"]
+	blocks := normalizeMessageContentBlocks(message["content"])
+	if len(blocks) != 3 ||
+		stringFromAny(blocks[0]["type"]) != "thinking" ||
+		stringFromAny(blocks[1]["text"]) != "正文不能消失" ||
+		stringFromAny(blocks[2]["id"]) != "tool-1" {
+		t.Fatalf("Room transcript 分块没有完整合并: %+v", blocks)
+	}
+}
