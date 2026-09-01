@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Condensed Agent list rows to two lines by moving Provider, tool, and Skill
+  metadata beside the Agent name and permission state.
 - Simplified the Skill update surface into aligned compact rows with one clear
   update action and less repetitive iconography.
 - Improved dense WorkGraph readability with stable crossing reduction,
@@ -54,6 +56,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Kept compact sidebar gutters when desktop windows narrow, reserving the
+  larger touch spacing for the true phone layout.
 - Kept the WorkGraph picker at a stable viewport-bounded height while switching
   between workflows with different descriptions and graph shapes.
 - Unified sidebar action icon sizing and aligned contact chat controls with the
