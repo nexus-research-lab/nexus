@@ -119,11 +119,52 @@ export function filterCustomMCPServers(
   const query = rawQuery.trim().toLowerCase();
   if (!query) return servers;
   return servers.filter((server) => [
+    server.connector_id,
+    server.configuration_state,
     server.name,
     server.type,
     server.command ?? "",
     server.url ?? "",
   ].some((value) => value.toLowerCase().includes(query)));
+}
+
+export function isCustomMCPConnectorId(
+  connectorId: string | null | undefined,
+): boolean {
+  return connectorId?.startsWith("custom-mcp:") ?? false;
+}
+
+export function getCustomMCPConnectionTarget(
+  server: CustomMCPServer,
+): string {
+  if (isCustomMCPRecoveryRequired(server)) return "";
+  if (server.type !== "stdio") {
+    return server.url?.trim() ?? "";
+  }
+  return [server.command?.trim(), ...(server.args ?? [])]
+    .filter(Boolean)
+    .join(" ");
+}
+
+export function isCustomMCPRecoveryRequired(
+  server: CustomMCPServer,
+): boolean {
+  return server.configuration_state === "recovery_required";
+}
+
+export function getCustomMCPRecoveryIdentity(
+  server: CustomMCPServer,
+): string {
+  return server.connector_id.slice(-8);
+}
+
+export function getCustomMCPDisplayName(
+  server: CustomMCPServer,
+  recoveryLabel: string,
+): string {
+  return isCustomMCPRecoveryRequired(server)
+    ? `${recoveryLabel} · ${getCustomMCPRecoveryIdentity(server)}`
+    : server.name;
 }
 
 function secretMapToDraft(

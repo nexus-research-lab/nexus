@@ -57,6 +57,7 @@ export function CustomMCPDialog({
   const [draft, setDraft] = useState(() => createCustomMCPDraft(server));
   const [validationError, setValidationError] =
     useState<CustomMCPDraftError | null>(null);
+  const recoveryRequired = server?.configuration_state === "recovery_required";
 
   const updateDraft = <Key extends keyof CustomMCPDraft>(
     key: Key,
@@ -91,11 +92,18 @@ export function CustomMCPDialog({
             appearance="plain"
             onClose={busy ? undefined : onClose}
             title={server
-              ? t("capability.custom_mcp_edit_title")
+              ? t(recoveryRequired
+                ? "capability.custom_mcp_recovery_title"
+                : "capability.custom_mcp_edit_title")
               : t("capability.custom_mcp_add_title")}
             titleId="custom-mcp-dialog-title"
           />
           <UiDialogBody className="space-y-5" scrollable>
+            {recoveryRequired ? (
+              <p className="rounded-[8px] border border-[color:color-mix(in_srgb,var(--warning)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_6%,transparent)] px-3 py-2 text-xs leading-5 text-(--text-muted)">
+                {t("capability.custom_mcp_recovery_form_description")}
+              </p>
+            ) : null}
             {validationError ? (
               <p className="rounded-[8px] bg-[color:color-mix(in_srgb,var(--destructive)_7%,transparent)] px-3 py-2 text-xs leading-5 text-(--destructive)">
                 {t(`capability.custom_mcp_error_${validationError}`)}

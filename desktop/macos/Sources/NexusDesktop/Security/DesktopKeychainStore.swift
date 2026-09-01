@@ -1,3 +1,6 @@
+// INPUT: macOS 签名模式、Keychain 条目及 canonical/legacy fallback key 文件。
+// OUTPUT: 对同一状态根稳定复用的 Connector credentials key 与来源诊断。
+// POS: 桌面宿主启动 sidecar 前唯一的 Connector 加密密钥选择边界。
 import Foundation
 import LocalAuthentication
 import Security
@@ -72,9 +75,9 @@ enum DesktopKeychainStore {
       if let existing = try readWithTimeout(account: connectorCredentialsKeyAccount) {
         return existing
       }
-      if let legacy = try legacyFallbackKey() {
-        try write(legacy, account: connectorCredentialsKeyAccount)
-        return legacy
+      if let fallback = existingFallbackKey() {
+        try write(fallback, account: connectorCredentialsKeyAccount)
+        return fallback
       }
       let generated = try generateBase64Key()
       try write(generated, account: connectorCredentialsKeyAccount)
@@ -180,13 +183,11 @@ enum DesktopKeychainStore {
     try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
     try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directoryURL.path)
 
-    if let existing = try? String(contentsOf: fileURL, encoding: .utf8)
-      .trimmingCharacters(in: .whitespacesAndNewlines),
-      !existing.isEmpty {
+    if let existing = readFallbackKey(at: fileURL) {
       return existing
     }
 
-    if let legacy = try legacyFallbackKey() {
+    if let legacy = readFallbackKey(at: legacyFallbackKeyURL()) {
       try legacy.write(to: fileURL, atomically: true, encoding: .utf8)
       try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: fileURL.path)
       return legacy
@@ -198,15 +199,23 @@ enum DesktopKeychainStore {
     return generated
   }
 
-  private static func legacyFallbackKey() throws -> String? {
-    let legacyURL = DesktopPaths.rootDirectory
-      .appendingPathComponent("config", isDirectory: true)
-      .appendingPathComponent("connector-credentials.key", isDirectory: false)
-    guard let value = try? String(contentsOf: legacyURL, encoding: .utf8) else {
+  private static func existingFallbackKey() -> String? {
+    readFallbackKey(at: localFallbackKeyURL())
+      ?? readFallbackKey(at: legacyFallbackKeyURL())
+  }
+
+  private static func readFallbackKey(at fileURL: URL) -> String? {
+    guard let value = try? String(contentsOf: fileURL, encoding: .utf8) else {
       return nil
     }
     let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
     return trimmed.isEmpty ? nil : trimmed
+  }
+
+  private static func legacyFallbackKeyURL() -> URL {
+    DesktopPaths.rootDirectory
+      .appendingPathComponent("config", isDirectory: true)
+      .appendingPathComponent("connector-credentials.key", isDirectory: false)
   }
 
   private static func localFallbackKeyURL() -> URL {

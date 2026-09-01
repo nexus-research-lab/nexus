@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added an 8–10-player Avalon Room Skill with a permanent Agent moderator, randomized user participation, private role, vote, mission routing, and complete proposal, quest, rejection, and assassination flow.
 - Added an administrator-selectable subscription default model that new web users inherit until they choose their own default.
+- Added default-on owner availability controls, WorkGraph-style seeded icons,
+  and a Claude-style detail page for custom MCP servers, including remote
+  server information and discovered tools while keeping Prompts/Resources out
+  of the product surface and stdio execution inside the Agent runtime.
+- Added a versioned custom MCP availability migration so existing servers stay
+  enabled by default while previously disabled preview records remain disabled.
 - Added a backward-compatible minimal FailureCore v1 for stable machine
   classification, effect evidence, and optional transport diagnostics without
   changing existing business identities.
@@ -74,6 +80,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   group and increased the spacing between assistant headers and message bodies.
 - Kept Room collaboration visibly active while private directed work is queued
   or running, without exposing participants or private content.
+- Decoded escaped custom MCP connector IDs consistently across detail, edit,
+  availability, discovery, and deletion routes, so adding or replacing a Token
+  no longer reports that the saved server does not exist.
+- Kept the built-in Connector catalog available when an independently managed
+  legacy custom MCP payload cannot be decrypted or decoded.
+- Preserved each unreadable legacy custom MCP record as an isolated recovery
+  item instead of showing an empty directory. Recovery records stay out of
+  chats and runtime mounting until the user replaces the complete encrypted
+  configuration, while retaining the original Connector identity and enabled
+  state.
+- Aligned `make dev` with the desktop host's persistent Connector credentials
+  key source (macOS Keychain first, then the state-root fallback file), so the
+  two hosts no longer interpret the same encrypted records with different keys.
+- Preserved the canonical state-root Connector fallback key when a signed
+  macOS host initializes its Keychain item, instead of generating an unrelated
+  key after the state-layout migration had already moved the fallback file.
 - Preserved concise failure guidance without weakening recovery: Provider
   validation now keeps its field-specific correction, reconciled Preferences and
   Echo changes expose one safe reapply action, and multi-file workspace uploads

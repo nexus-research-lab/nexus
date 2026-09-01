@@ -6,7 +6,13 @@
 "use client";
 
 import { Plus } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
@@ -33,8 +39,14 @@ import {
 import { useConnectorController } from "./controller/use-connector-controller";
 import { useConnectorOauthEvents } from "./controller/use-connector-oauth-events";
 import { CustomMCPDialog } from "./custom/custom-mcp-dialog";
+import { CustomMCPDetailView } from "./custom/detail/custom-mcp-detail-view";
+import { useCustomMCPTools } from "./custom/detail/use-custom-mcp-tools";
 import { CustomMCPGrid } from "./custom/custom-mcp-grid";
-import { filterCustomMCPServers } from "./custom/custom-mcp-model";
+import {
+  filterCustomMCPServers,
+  getCustomMCPDisplayName,
+  isCustomMCPConnectorId,
+} from "./custom/custom-mcp-model";
 import { useCustomMCPServers } from "./custom/use-custom-mcp-servers";
 import { ConnectorDetailView } from "./detail/connector-detail-view";
 
@@ -54,6 +66,9 @@ export function ConnectorsDirectory() {
   const [configDialog, setConfigDialog] =
     useState<ConnectorConfigDialog>(null);
   const [feishuConnectionOpen, setFeishuConnectionOpen] = useState(false);
+  const customMCPRoute = Boolean(
+    connectorId && isCustomMCPConnectorId(connectorId),
+  );
   const {
     cancelDeviceAuthSession,
     clearFeedback,
@@ -72,7 +87,7 @@ export function ConnectorsDirectory() {
     reportFeedback,
   } = controller;
   const customMCP = useCustomMCPServers({
-    enabled: !connectorId && directoryMode === "custom_mcp",
+    enabled: customMCPRoute || (!connectorId && directoryMode === "custom_mcp"),
     onCatalogChanged: refreshCatalog,
     reportFeedback,
   });
@@ -80,6 +95,13 @@ export function ConnectorsDirectory() {
     () => filterCustomMCPServers(customMCP.servers, customSearchQuery),
     [customMCP.servers, customSearchQuery],
   );
+  const selectedCustomMCPServer = useMemo(() => (
+    customMCPRoute
+      ? customMCP.servers.find((server) => server.connector_id === connectorId)
+        ?? null
+      : null
+  ), [connectorId, customMCP.servers, customMCPRoute]);
+  const customMCPTools = useCustomMCPTools(selectedCustomMCPServer);
   const activeFeedback = controller.reconciliationFeedbacks[0]
     ?? controller.feedback;
 
@@ -88,8 +110,12 @@ export function ConnectorsDirectory() {
       closeDetail();
       return;
     }
+    if (customMCPRoute) {
+      closeDetail();
+      return;
+    }
     void openDetail(connectorId);
-  }, [closeDetail, connectorId, openDetail]);
+  }, [closeDetail, connectorId, customMCPRoute, openDetail]);
 
   useConnectorOauthEvents({
     completeReconciliation: controller.completeReconciliation,
@@ -151,7 +177,126 @@ export function ConnectorsDirectory() {
   const busy = controller.pendingAction !== null
     || controller.reconciliationActions.some((action) => (
       action.connectorId === activeConnectorId
-    ));
+    ))
+    || customMCP.busy;
+  const confirmCustomMCPDelete = useCallback(async () => {
+    const target = customMCP.deleteTarget;
+    if (
+      await customMCP.confirmDelete()
+      && target?.connector_id === connectorId
+    ) {
+      backToConnectors();
+    }
+  }, [backToConnectors, connectorId, customMCP]);
+
+  let surfaceContent: ReactNode;
+  if (customMCPRoute) {
+    surfaceContent = (
+      <CustomMCPDetailView
+        busy={busy}
+        catalog={customMCPTools.catalog}
+        failure={customMCPTools.failure}
+        loading={customMCPTools.loading}
+        onBack={backToConnectors}
+        onDelete={customMCP.requestDelete}
+        onEdit={customMCP.openEdit}
+        onRetry={customMCPTools.refresh}
+        onToggle={(enabled) => {
+          if (selectedCustomMCPServer) {
+            void customMCP.setEnabled(selectedCustomMCPServer, enabled);
+          }
+        }}
+        server={selectedCustomMCPServer}
+        serverLoading={customMCP.loading}
+      />
+    );
+  } else if (connectorId) {
+    surfaceContent = (
+      <ConnectorDetailView
+        busy={busy}
+        detail={controller.selectedDetail}
+        failure={controller.detailFailure}
+        loading={controller.detailLoading}
+        onBack={backToConnectors}
+        onConfigureCredential={(detail) => setConfigDialog({
+          detail,
+          kind: "credential",
+        })}
+        onConfigureOauthClient={(detail) => setConfigDialog({
+          detail,
+          kind: "oauth-client",
+        })}
+        onConnect={requestConnectorConnect}
+        onDisconnect={(id) => void handleDisconnect(id)}
+        onReplaceOauthClient={() => setFeishuConnectionOpen(true)}
+        onRetry={() => {
+          void openDetail(connectorId);
+        }}
+      />
+    );
+  } else {
+    const directoryGrid = directoryMode === "catalog" ? (
+      <ConnectorsGrid
+        activeCategory={controller.activeCategory}
+        connectors={controller.connectors}
+        failure={controller.catalogFailure}
+        loading={controller.loading}
+        onConnect={requestConnectorConnect}
+        onDisconnect={(id) => void handleDisconnect(id)}
+        onOpenConnector={openConnectorPage}
+        onRefresh={() => {
+          void refreshCatalog();
+        }}
+        pendingAction={controller.pendingAction}
+        reconciliationActions={controller.reconciliationActions}
+        searchQuery={controller.searchQuery}
+      />
+    ) : (
+      <CustomMCPGrid
+        busy={customMCP.busy}
+        hasServers={customMCP.servers.length > 0}
+        loading={customMCP.loading}
+        onAdd={customMCP.openCreate}
+        onDelete={customMCP.requestDelete}
+        onEdit={customMCP.openEdit}
+        onOpen={(server) => openConnectorPage(server.connector_id)}
+        onToggle={(server, enabled) => {
+          void customMCP.setEnabled(server, enabled);
+        }}
+        servers={visibleCustomMCPServers}
+      />
+    );
+    surfaceContent = (
+      <CapabilityPageLayout
+        actions={directoryMode === "custom_mcp" ? (
+          <WorkspaceSurfaceToolbarAction
+            disabled={customMCP.busy}
+            onClick={customMCP.openCreate}
+            tone="primary"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            {t("capability.custom_mcp_add")}
+          </WorkspaceSurfaceToolbarAction>
+        ) : undefined}
+        description={t("capability.connectors_intro_description")}
+        title={t("capability.connectors_intro_title")}
+      >
+        <ConnectorsSearchBar
+          activeCategory={controller.activeCategory}
+          mode={directoryMode}
+          onCategoryChange={controller.setActiveCategory}
+          onModeChange={setDirectoryMode}
+          onQueryChange={directoryMode === "catalog"
+            ? controller.setSearchQuery
+            : setCustomSearchQuery}
+          searchQuery={directoryMode === "catalog"
+            ? controller.searchQuery
+            : customSearchQuery}
+        />
+        {directoryGrid}
+      </CapabilityPageLayout>
+    );
+  }
 
   return (
     <>
@@ -159,84 +304,7 @@ export function ConnectorsDirectory() {
         bodyScrollable
         stableGutter
       >
-        {connectorId ? (
-          <ConnectorDetailView
-            busy={busy}
-            detail={controller.selectedDetail}
-            failure={controller.detailFailure}
-            loading={controller.detailLoading}
-            onBack={backToConnectors}
-            onConfigureCredential={(detail) => setConfigDialog({
-              detail,
-              kind: "credential",
-            })}
-            onConfigureOauthClient={(detail) => setConfigDialog({
-              detail,
-              kind: "oauth-client",
-            })}
-            onConnect={requestConnectorConnect}
-            onDisconnect={(id) => void handleDisconnect(id)}
-            onReplaceOauthClient={() => setFeishuConnectionOpen(true)}
-            onRetry={() => {
-              void openDetail(connectorId);
-            }}
-          />
-        ) : (
-          <CapabilityPageLayout
-            actions={directoryMode === "custom_mcp" ? (
-              <WorkspaceSurfaceToolbarAction
-                disabled={customMCP.busy}
-                onClick={customMCP.openCreate}
-                tone="primary"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                {t("capability.custom_mcp_add")}
-              </WorkspaceSurfaceToolbarAction>
-            ) : undefined}
-            description={t("capability.connectors_intro_description")}
-            title={t("capability.connectors_intro_title")}
-          >
-            <ConnectorsSearchBar
-              activeCategory={controller.activeCategory}
-              mode={directoryMode}
-              onCategoryChange={controller.setActiveCategory}
-              onModeChange={setDirectoryMode}
-              onQueryChange={directoryMode === "catalog"
-                ? controller.setSearchQuery
-                : setCustomSearchQuery}
-              searchQuery={directoryMode === "catalog"
-                ? controller.searchQuery
-                : customSearchQuery}
-            />
-            {directoryMode === "catalog" ? (
-              <ConnectorsGrid
-                activeCategory={controller.activeCategory}
-                connectors={controller.connectors}
-                failure={controller.catalogFailure}
-                loading={controller.loading}
-                onConnect={requestConnectorConnect}
-                onDisconnect={(id) => void handleDisconnect(id)}
-                onOpenConnector={openConnectorPage}
-                onRefresh={() => {
-                  void refreshCatalog();
-                }}
-                pendingAction={controller.pendingAction}
-                reconciliationActions={controller.reconciliationActions}
-                searchQuery={controller.searchQuery}
-              />
-            ) : (
-              <CustomMCPGrid
-                busy={customMCP.busy}
-                hasServers={customMCP.servers.length > 0}
-                loading={customMCP.loading}
-                onAdd={customMCP.openCreate}
-                onDelete={customMCP.requestDelete}
-                onEdit={customMCP.openEdit}
-                servers={visibleCustomMCPServers}
-              />
-            )}
-          </CapabilityPageLayout>
-        )}
+        {surfaceContent}
       </WorkspaceSurfaceScaffold>
 
       <ConnectorOAuthClientDialog
@@ -332,11 +400,14 @@ export function ConnectorsDirectory() {
         isOpen={customMCP.deleteTarget !== null}
         message={customMCP.deleteTarget
           ? t("capability.custom_mcp_delete_message", {
-              name: customMCP.deleteTarget.name,
+              name: getCustomMCPDisplayName(
+                customMCP.deleteTarget,
+                t("capability.custom_mcp_recovery_name"),
+              ),
             })
           : ""}
         onCancel={() => customMCP.requestDelete(null)}
-        onConfirm={() => void customMCP.confirmDelete()}
+        onConfirm={() => void confirmCustomMCPDelete()}
         title={t("capability.custom_mcp_delete_title")}
         variant="danger"
       />

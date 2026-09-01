@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/shared/ui/class-name";
+import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
 
 import { getConnectorLetter } from "./connector-icons";
 
@@ -71,6 +72,15 @@ export function ConnectorIcon({
   size = "md",
   className,
 }: ConnectorIconProps) {
+  if (icon === "custom-mcp") {
+    return (
+      <UiSeededAvatar
+        className={cn(ICON_SIZE_CLASS[size], className)}
+        seed={title}
+        size={size === "sm" ? "2xs" : size === "md" ? "sm" : "lg"}
+      />
+    );
+  }
   const staticIconSrc = getStaticConnectorIconSrc(icon);
   const letter = getConnectorLetter(icon, title);
 

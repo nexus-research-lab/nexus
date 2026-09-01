@@ -37,6 +37,7 @@ export interface ConnectorInfo {
 
 export type CustomMCPServerType = "stdio" | "http" | "sse";
 export type CustomMCPAuthType = "none" | "bearer" | "headers";
+export type CustomMCPConfigurationState = "ready" | "recovery_required";
 
 /** null 表示该秘密已配置但不会回传明文。 */
 export type CustomMCPSecretMap = Record<string, string | null>;
@@ -55,6 +56,38 @@ export interface CustomMCPServerInput {
 
 export interface CustomMCPServer extends CustomMCPServerInput {
   connector_id: string;
+  configuration_state: CustomMCPConfigurationState;
+  enabled: boolean;
+}
+
+export type CustomMCPInspectionState =
+  | "connected"
+  | "disabled"
+  | "runtime_only";
+
+export interface CustomMCPToolArgument {
+  name: string;
+  description?: string;
+  required?: boolean;
+}
+
+export interface CustomMCPTool {
+  name: string;
+  title: string;
+  description?: string;
+  arguments: CustomMCPToolArgument[];
+  read_only?: boolean;
+}
+
+export interface CustomMCPToolCatalog {
+  inspection_state: CustomMCPInspectionState;
+  protocol_version?: string;
+  server_name?: string;
+  server_title?: string;
+  server_version?: string;
+  instructions?: string;
+  supports_tools: boolean;
+  tools: CustomMCPTool[];
 }
 
 /** 连接器详情 */
