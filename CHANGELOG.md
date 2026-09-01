@@ -43,6 +43,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Kept the WorkGraph picker at a stable viewport-bounded height while switching
+  between workflows with different descriptions and graph shapes.
 - Unified sidebar action icon sizing and aligned contact chat controls with the
   header and search action axis.
 - Replaced native hover titles on shared icon buttons and the desktop sidebar
