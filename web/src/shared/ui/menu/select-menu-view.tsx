@@ -8,7 +8,10 @@ import { createPortal } from "react-dom";
 import { Check } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
-import { MENU_ITEM_BASE_CLASS_NAME } from "@/shared/ui/menu/menu-styles";
+import {
+  MENU_ITEM_BASE_CLASS_NAME,
+  MENU_LIST_CLASS_NAME,
+} from "@/shared/ui/menu/menu-styles";
 
 import type { UiAnchoredOverlayPosition } from "../overlay/anchored-overlay-model";
 import {
@@ -33,7 +36,6 @@ interface SelectMenuViewProps {
   isOpen: boolean;
   label?: ReactNode;
   leading?: ReactNode;
-  menuClassName?: string;
   menuId: string;
   menuPlacement?: UiAnchoredOverlayPosition["placement"];
   menuRef: RefObject<HTMLDivElement | null>;
@@ -58,7 +60,6 @@ export function SelectMenuView({
   isOpen,
   label,
   leading,
-  menuClassName,
   menuId,
   menuPlacement,
   menuRef,
@@ -114,7 +115,6 @@ export function SelectMenuView({
       <SelectMenuPortal
         ariaLabel={ariaLabel}
         isOpen={isOpen}
-        menuClassName={menuClassName}
         menuId={menuId}
         menuPlacement={menuPlacement}
         menuRef={menuRef}
@@ -133,7 +133,6 @@ export function SelectMenuView({
 function SelectMenuPortal({
   ariaLabel,
   isOpen,
-  menuClassName,
   menuId,
   menuPlacement,
   menuRef,
@@ -148,7 +147,6 @@ function SelectMenuPortal({
   SelectMenuViewProps,
   | "ariaLabel"
   | "isOpen"
-  | "menuClassName"
   | "menuId"
   | "menuPlacement"
   | "menuRef"
@@ -168,8 +166,7 @@ function SelectMenuPortal({
     <SelectMenuPanel
       ariaLabel={ariaLabel}
       id={menuId}
-      layoutClassName="flex flex-col gap-1 overflow-y-auto p-1"
-      menuClassName={menuClassName}
+      layoutClassName={cn(MENU_LIST_CLASS_NAME, "overflow-y-auto p-1")}
       panelRef={menuRef}
       placement={menuPlacement}
       style={menuStyle}

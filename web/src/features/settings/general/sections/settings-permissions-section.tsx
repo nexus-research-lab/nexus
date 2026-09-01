@@ -78,7 +78,6 @@ export function SettingsPermissionsSection({
               className={SETTINGS_CONTROL_HEIGHT_CLASS_NAME}
               disabled={preferencesLoading || preferencesSaving}
               id="default-permission-mode"
-              menuClassName="rounded-[12px]"
               onChange={onPermissionModeChange}
               options={AGENT_PERMISSION_MODES.map((mode) => ({
                 value: mode.value,
