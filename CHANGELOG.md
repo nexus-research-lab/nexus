@@ -13,11 +13,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a backward-compatible minimal FailureCore v1 for stable machine
   classification, effect evidence, and optional transport diagnostics without
   changing existing business identities.
-- Added grid/list switching and business-tag, Provider, and permission filters to Agent Management, with business-tag-aware search and compact tag summaries for large directories.
-- Added default-on General settings for automatic long-term memory extraction and background memory consolidation across nxs conversations and host maintenance.
-- Expanded the built-in model catalog with current OpenAI, Anthropic, Gemini, Grok, Kimi, Qwen, MiniMax, Doubao, ERNIE, Hunyuan, StepFun, Mistral, Llama, Cohere, and Amazon Nova limits and capabilities.
-- Added official GLM-5.3 and GLM-5.3-Flash limits, required reasoning, and GLM-5.3-Flash vision capability to the built-in model catalog.
-- Added localized built-in WorkGraph templates for deep research, build-and-ship delivery, decision briefs, and review-and-improve workflows, with explicit parallel branches, convergence gates, independent verification, and terminal deliverables, available from the capability directory, Composer, and Slash commands. Every template now expands the same Execution/WorkGraph adaptively according to its own gate: research changes collection strategy, delivery classifies and remediates blockers before revalidation/rereview, decision work selects evidence/criteria/option/experiment branches, and improvement work selects targeted revision, reaudit, or rebaseline paths. Iteration count is evidence- and outcome-driven rather than fixed.
 
 ### Changed
 
@@ -42,20 +37,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   failure-state screenshot gallery. Browser storage is now only a best-effort
   request-ID recovery aid; server revisions, receipts, runs, and deletion state
   remain authoritative.
-- Model discovery and manual model addition now fill missing LLM card metadata from the built-in catalog and stable runtime defaults, so settings show concrete limits instead of `auto` whenever the Provider omits them.
-- Aligned host-provided internal context with Claude Code attachment semantics: NXS keeps it in non-persistent live history, while the Claude runtime receives it through its native `UserPromptSubmit` hook attachment path.
-- Made the Agent SDK the sole loader for workspace `AGENTS.md` instructions, removing their duplicate Nexus prompt projection.
-- Moved ordinary DM and Room execution policy into the stable cached prompt and reduced each ordinary round to a compact lane marker while preserving the managed Execution, WorkGraph, and Runtime Graph projections.
-- Condensed tools, thoughts, and memory events into quiet, tightly spaced single-line activity records with aligned action icons and shared 20px activity columns, regular-weight labels, inline thought previews, readable details under one bounded outer scroll owner, and targets, keeping expanded child headers pinned while the audit list scrolls around one continuous timeline without repeated failure labels or scroll jumps; DM and Room Thread Thought details default to collapsed while Room Thread process groups remain open and follow new content until the reader scrolls away, collapsed live tool groups retain the actual thinking, tool, or reply activity until the final answer begins, archived process summaries stay stable while expanded, final replies remain outside the process rail, and result metadata waits for smooth text output to finish, while single activities remain inline, two or more uninterrupted activities share a latest-action ticker, bounded audit list, and slightly roomier group spacing, and Room activity mirrors the current tool header without exposing provider summaries.
-- Preserved live commentary as the boundary between completed and newly running tool groups, while changing running text shimmer and activity icons from primary blue to neutral contrast and centering animated status dots with their labels.
-- Tightened two-line sidebar list typography to stay within the 40px avatar boundary and restored latest reply previews instead of repeating conversation titles.
-- Opened Room Thread process and activity groups by default, reused DM Thought typography and streaming follow behavior inside the shared bounded detail list, and removed final-reply rails and nodes while keeping symmetric answer spacing and individual tool details collapsed.
-- Updated the bundled six-player Werewolf Room Skill so the permanent Agent host asks whether the user wants to play, keeps spectators out of the role pool, and randomly assigns the user a player role only after opt-in.
-- Disabled model-generated tool-use summaries by default while retaining explicit runtime opt-in and the existing deterministic activity labels.
-- Consolidated Nexus-owned in-process runtime tools under one round-scoped `nexus` MCP server while keeping third-party, custom, and Connector MCP servers independently selected and authorized.
-- Collapsed Connector and Channel authorization into one action-based `nexus` MCP tool per authorization domain while preserving human approval and native secret-entry boundaries.
-- Unified Agent and Room communication under `list_targets` and one context-aware `send_message` tool while preserving private visibility, wake, reply-route, public-feed, and cross-session behavior.
-- Replaced model-generated first-conversation welcome messages with a static DM/Room empty-state prompt that stays out of history, runtime, unread counts, and active replies, while hiding legacy welcome records at the shared timeline boundary.
 
 ### Fixed
 
@@ -167,40 +148,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   retrying an older run cannot replace the current task status.
 - Distinguished client cancellation, request timeout, connection loss, and
   interrupted response bodies without retrying writes whose outcome is unknown.
-- Rebuilt Agent identity metadata as a compact form with inline token inputs for business and vibe tags, removing empty tag rails and keeping model and behavior settings close to the identity fields.
-- Aligned WorkGraph prompts, Skill guidance, and submission/review command contracts so Room conversational rounds enter coordination through `get_execution` instead of treating explicit identifiers as mutation authority.
-- Kept the latest Room public assistant text beside the active tool group until a newer assistant text replaces it.
-- Allowed Room coordinators to submit self-assigned WorkGraph deliverables to an independent reviewer without the review-return transaction rejecting the valid Assignment strategy.
-- Localized first-party Slash command descriptions according to the current interface language and widened the command-name column to keep built-in names readable.
-- Reconciled restarted Room Agent executions so orphaned runs settle as stopped, and closed an earlier streamed Thought as soon as a later semantic block appears.
-- Preserved actionable default-model guard messages in Provider settings instead of replacing them with a generic request error.
-- Restored Launcher latest-reply previews for DM conversations while continuing to exclude external IM sessions.
-- Updated frontend production dependencies and forced patched `brace-expansion` versions to clear reported production CVEs.
-- Let an Agent discover and address its existing active-paired external DMs from any of its chat transports, including direct messages and scheduled-task delivery, while preserving exact Session, owner, and pairing revalidation through sending, creation, execution, approval, and retry.
-- Deterministically ordered DM and Room internal context while keeping it in the runtime's append-only history and out of Nexus's visible conversation projection.
-- Preserved persisted custom Provider identifiers during save and deletion, and added deletion controls for non-default models.
-- Kept `nexusctl` exclusive to the main Agent by removing it from ordinary Agent and Room prompts, shared runtime PATH discovery, and shared Skills while retaining round-scoped `nexuscfg` and `nexus.command` capabilities.
-- Returned ordinary Agent `nexusctl` denials to the model as recoverable tool feedback and projected explicit terminal Hook stops as result messages instead of generic execution failures.
-- Kept the browser extension folder visible after reopening the macOS installation windows instead of letting Chrome or Edge cover Finder as their extensions page finishes opening.
-- Stopped ordinary, managed, and explicit Execution inspection from replaying completed Runtime Graph summaries into model requests, while active failures, artifacts, WorkGraph, Trace, and audit projections remain available.
-- Preserved task identity when terminal subagent notifications include full result bodies, preventing the floating Room task strip from expanding across the conversation.
-- Preserved the verified interactive human identity across in-process MCP control callbacks so Connector and Channel authorization can revalidate the active principal.
-- Kept explicit Room public messages inside their source Agent execution and completed the matching tool activity in Thread without duplicating the public reply.
-- Kept NXS and Claude runtime switches on the same compatible transcript instead of forking solely because their native tool surfaces differ.
-- Recovered DM and Room conversations with a fresh runtime session when an automatic tool-surface fork references a transcript that the selected runtime cannot resume.
-- Moved Goal, Execution, and Automation model commands to the round-scoped structured `nexus.command` MCP tool, removing temporary JSON input files, shell shims, loopback brokers, command tokens, and extra writable roots while keeping nxs reusable across rounds.
-- Released the held live-feed height when collapsing a streaming Thought, removing the empty space left below its collapsed row.
-- Reused the full interactive WorkGraph preview across save dialogs and capability details, with responsive sizing, centered initial graph anchors, and readable node summaries for titles, objectives, required steps, and final delivery.
-- Preserved complete atomic Slash runtime input in Rooms so long built-in WorkGraph templates cannot lose terminal nodes to public-context compaction.
-- Forked existing Room Agent runtime sessions when enabling a Connector changes their model-visible tool surface, so the next round starts with the newly selected MCP tools instead of resuming the old schema.
-- Waited for the Windows WebView2 process to release its user-data files before relocating the complete desktop data directory.
-
-### Added
-
-- Added an administrator-selectable subscription default model that new web users inherit until they choose their own default.
-
-### Fixed
-
+- Kept the latest Room public reply visible while later thought and tool chunks continue in the same Agent execution.
 - Rebased Session deletion recovery records during desktop data-directory migration and warned Windows users to run Nexus as administrator before moving data.
 
 ## [0.1.39] - 2026-08-31

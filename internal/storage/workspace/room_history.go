@@ -440,6 +440,10 @@ func indexRoomTranscriptMessages(rows []protocol.Message) map[string]protocol.Me
 		if messageID == "" {
 			continue
 		}
+		if current, exists := result[messageID]; exists {
+			result[messageID] = mergeCompactedMessage(current, protocol.Clone(row))
+			continue
+		}
 		result[messageID] = protocol.Clone(row)
 	}
 	return result
