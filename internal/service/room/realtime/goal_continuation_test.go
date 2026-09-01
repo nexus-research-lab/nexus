@@ -386,6 +386,31 @@ func TestRoomRoundContinuationOptionsMarkedHiddenSynthetic(t *testing.T) {
 	}
 }
 
+func TestRoomSlotRuntimeInputOptionsSkipsAutoMemoryUnlessUserTriggered(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		internal    bool
+		source      protocol.InputQueueSource
+		wantSkipped bool
+	}{
+		{name: "user", source: protocol.InputQueueSourceUser},
+		{name: "legacy user", source: ""},
+		{name: "public mention", source: protocol.InputQueueSourceAgentPublicMention, wantSkipped: true},
+		{name: "directed message", source: protocol.InputQueueSourceAgentRoomMessage, wantSkipped: true},
+		{name: "internal continuation", internal: true, source: protocol.InputQueueSourceUser, wantSkipped: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			options := roomSlotRuntimeInputOptions(
+				&activeRoomRound{Internal: test.internal},
+				&activeRoomSlot{QueueSource: test.source},
+			)
+			if options.SkipAutoMemory != test.wantSkipped {
+				t.Fatalf("SkipAutoMemory = %t, want %t", options.SkipAutoMemory, test.wantSkipped)
+			}
+		})
+	}
+}
+
 func TestInitialRoomTriggerTypeUsesGoalContinuationForInternalContinuation(t *testing.T) {
 	triggerType := initialRoomTriggerType(ChatRequest{
 		Internal: true,

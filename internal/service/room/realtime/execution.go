@@ -394,6 +394,10 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 	if err != nil {
 		return exec.RoundExecutionResult{}, err
 	}
+	inputOptions := roomSlotRuntimeInputOptions(e.round, e.slot)
+	if inputOptions.SkipAutoMemory && !runtimectx.SupportsMessageExecutionPolicy(client) {
+		inputOptions.SkipAutoMemory = false
+	}
 	if e.service.subagentAdmission != nil {
 		e.service.runtime.SetSubagentHookCallbacks(
 			e.slot.RuntimeSessionKey,
@@ -419,7 +423,7 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 	result, executeErr := exec.ExecuteRound(e.ctx, exec.RoundExecutionRequest{
 		Content:          payload,
 		ContextualInputs: append(executionInputs, e.contextualInputs()...),
-		InputOptions:     roomSlotRuntimeInputOptions(e.round, e.slot),
+		InputOptions:     inputOptions,
 		Client:           client,
 		Mapper:           roomRoundMapperAdapter{mapper: e.mapper},
 		IdleTimeout:      e.service.config.RuntimeRoundIdleTimeout(),
@@ -838,10 +842,14 @@ func roomRoundInputOptions(roundValue *activeRoomRound) sdkprotocol.OutboundMess
 	return options
 }
 
-// roomSlotRuntimeInputOptions 让 Recall 只搜索直接唤醒该 slot 的原始语义。
+// roomSlotRuntimeInputOptions 投影一次 slot 的 Recall 与后台维护策略。
 func roomSlotRuntimeInputOptions(roundValue *activeRoomRound, slot *activeRoomSlot) sdkprotocol.OutboundMessageOptions {
 	options := runtimectx.RuntimeInputOptionsForPurpose(roomRoundInputOptions(roundValue), "goal_continuation")
 	options.RecallQuery = ""
+	if (roundValue != nil && roundValue.Internal) ||
+		(slot != nil && slot.QueueSource != "" && slot.QueueSource != protocol.InputQueueSourceUser) {
+		options.SkipAutoMemory = true
+	}
 	if roundValue == nil || slot == nil || roundValue.Internal ||
 		options.Meta || options.Synthetic || options.HiddenFromUser {
 		return options
