@@ -5,12 +5,13 @@
  */
 "use client";
 
-import { CircleAlert, CircleCheck, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import { cn } from "@/shared/ui/class-name";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 
 import type {
   GoalLifecycleOperation,
@@ -59,61 +60,36 @@ export function GoalReliabilityNotice({
 }) {
   const { t } = useI18n();
   const copy = resolveGoalReliabilityCopy(t, state);
-  const Icon = copy.tone === "info" ? CircleCheck : CircleAlert;
   const canRefresh = state.stale || RECONCILABLE_KINDS.has(state.kind);
+  const commonProps = {
+    "aria-label": copy.problem,
+    className: cn("min-h-0 px-3 py-2", className),
+    "data-goal-mutation-blocked": mutationBlocked ? "true" : undefined,
+    "data-goal-reliability-kind": state.kind,
+    impact: copy.impact,
+    nextStep: copy.nextStep,
+    size: "sm" as const,
+    title: copy.problem,
+    urgency: "polite" as const,
+    variant: "card" as const,
+  };
+  if (copy.tone === "info") {
+    return <UiResourceState {...commonProps} state="success" />;
+  }
   return (
-    <section
-      aria-atomic="true"
-      aria-label={copy.problem}
-      aria-live="polite"
-      className={cn(
-        "flex min-w-0 items-start gap-2.5 rounded-[12px] border px-3 py-2 text-xs max-sm:flex-wrap",
-        copy.tone === "info"
-          ? "border-[color:color-mix(in_srgb,var(--success)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--success)_5%,var(--surface-control-background))]"
-          : copy.tone === "error"
-            ? "border-[color:color-mix(in_srgb,var(--destructive)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_5%,var(--surface-control-background))]"
-            : "border-[color:color-mix(in_srgb,var(--warning)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_5%,var(--surface-control-background))]",
-        className,
-      )}
-      data-goal-mutation-blocked={mutationBlocked ? "true" : undefined}
-      data-goal-reliability-kind={state.kind}
-      role="status"
-    >
-      <Icon
-        aria-hidden="true"
-        className={cn(
-          "mt-0.5 h-4 w-4 shrink-0",
-          copy.tone === "info"
-            ? "text-(--success)"
-            : copy.tone === "error" ? "text-(--destructive)" : "text-(--warning)",
-        )}
-      />
-      <div className="min-w-0 flex-1 text-(--text-muted)">
-        <p className="font-semibold leading-5 text-(--text-strong)">{copy.problem}</p>
-        {copy.tone === "info" ? null : (
-          <p className="mt-0.5 leading-5">{state.detail}</p>
-        )}
-        <p className="leading-5">{copy.impact}</p>
-        <p className="font-medium leading-5 text-(--text-default)">{copy.nextStep}</p>
-      </div>
-      {canRefresh ? (
-        <button
-          className="ml-6 inline-flex min-h-7 shrink-0 items-center gap-1 rounded-[7px] px-2 font-medium text-(--primary) transition-colors hover:bg-[color:color-mix(in_srgb,var(--primary)_8%,transparent)] disabled:cursor-wait disabled:opacity-60 sm:ml-0"
-          disabled={isRefreshing}
-          onClick={onRefresh}
-          type="button"
-        >
-          <RefreshCw
-            aria-hidden="true"
-            className={cn(
-              "h-3.5 w-3.5",
-              isRefreshing && "animate-spin motion-reduce:animate-none",
-            )}
-          />
-          {t("state.reload_check")}
-        </button>
-      ) : null}
-    </section>
+    <UiResourceState
+      {...commonProps}
+      description={state.detail}
+      primaryAction={canRefresh ? {
+        busy: isRefreshing,
+        busyLabel: t("state.reload_check"),
+        icon: <RefreshCw className="h-3.5 w-3.5" />,
+        label: t("state.reload_check"),
+        onClick: onRefresh,
+      } : undefined}
+      state="error"
+      tone={copy.tone === "error" ? "danger" : "warning"}
+    />
   );
 }
 

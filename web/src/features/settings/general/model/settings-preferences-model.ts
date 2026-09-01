@@ -72,6 +72,9 @@ export function normalizePreferences(preferences: UserPreferences | null): UserP
     ),
     emotion_enabled: resolveEmotionEnabled(preferences, fallback),
     browser_cdp_enabled: resolveBrowserCDPEnabled(preferences, fallback),
+    echo_enabled: preferences === null
+      ? fallback.echo_enabled === true
+      : preferences.echo_enabled === true,
     runtime_settings: normalizeRuntimeSettings(
       source.runtime_settings,
       fallback.runtime_settings,

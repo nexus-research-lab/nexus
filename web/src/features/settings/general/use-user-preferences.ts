@@ -1,6 +1,6 @@
 /**
  * INPUT: owner-scoped Preferences GET/PATCH、服务端 version 与本页偏好草稿。
- * OUTPUT: 首次读取门禁、If-Match CAS、未知结果对账和可显式重应用的偏好状态。
+ * OUTPUT: 完整权威快照、首次读取门禁、If-Match CAS、未知结果对账和可显式重应用的偏好状态。
  * POS: General/Runtime 共用的 Preferences 交互事务边界；草稿未确认前不发布为全局 runtime 默认值。
  */
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -40,7 +40,6 @@ interface PendingPreferenceDraft {
 export function useUserPreferences() {
   const { t } = useI18n();
   const { status: authStatus } = useAuth();
-  const authOwnerReloadKey = preferencesAuthOwnerReloadKey(authStatus);
   const [preferences, setPreferences] = useState<UserPreferences>(() =>
     normalizePreferences(null),
   );
@@ -133,7 +132,13 @@ export function useUserPreferences() {
     return () => {
       cancelled = true;
     };
-  }, [authOwnerReloadKey, publishAuthoritative, showDraft]);
+  }, [
+    authStatus?.authenticated,
+    authStatus?.user_id,
+    authStatus?.username,
+    publishAuthoritative,
+    showDraft,
+  ]);
 
   const persistAtVersion = useCallback(async (
     draft: UserPreferences,
@@ -437,15 +442,15 @@ export function useUserPreferences() {
     [],
   );
 
-  const acceptExternalAggregateRevision = useCallback((
+  const acceptExternalAggregateSnapshot = useCallback((
     expectedVersion: number,
-    committedVersion: number,
+    snapshot: { enabled: boolean; version: number },
   ): boolean => {
     if (
       savingRef.current
       || pendingRef.current
       || !validPreferencesVersion(expectedVersion)
-      || !validPreferencesVersion(committedVersion)
+      || !validPreferencesVersion(snapshot.version)
     ) {
       return false;
     }
@@ -453,13 +458,18 @@ export function useUserPreferences() {
     if (!current) {
       return false;
     }
-    if (current.version === committedVersion) {
+    if (current.version === snapshot.version) {
+      publishAuthoritative({ ...current, echo_enabled: snapshot.enabled });
       return true;
     }
-    if (current.version !== expectedVersion || committedVersion <= expectedVersion) {
+    if (current.version !== expectedVersion || snapshot.version <= expectedVersion) {
       return false;
     }
-    publishAuthoritative({ ...current, version: committedVersion });
+    publishAuthoritative({
+      ...current,
+      echo_enabled: snapshot.enabled,
+      version: snapshot.version,
+    });
     return true;
   }, [publishAuthoritative]);
 
@@ -475,7 +485,7 @@ export function useUserPreferences() {
   };
 
   return {
-    acceptExternalAggregateRevision,
+    acceptExternalAggregateSnapshot,
     feedback,
     getCurrentPreferences,
     hasUnresolvedMutation: pendingRef.current !== null,
@@ -506,22 +516,6 @@ function normalizeError(error: unknown, fallback: string): Error {
 }
 
 type Translate = ReturnType<typeof useI18n>["t"];
-
-function preferencesAuthOwnerReloadKey(
-  status: ReturnType<typeof useAuth>["status"],
-): string {
-  if (!status) {
-    return "pending";
-  }
-  if (!status.authenticated) {
-    return "signed-out";
-  }
-  return [
-    "signed-in",
-    status.user_id?.trim() ?? "",
-    status.username?.trim() ?? "",
-  ].join("\u001f");
-}
 
 function loadFailureFeedback(message: string, t: Translate): PreferenceFeedback {
   return {

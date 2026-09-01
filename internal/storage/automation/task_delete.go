@@ -135,12 +135,26 @@ WHERE owner_user_id = `+r.bind(2)+` AND job_id = `+r.bind(3)+`
 
 // ListTaskDeletionCleanupRuns 只读取删除清理需要的非终态 run，不扫描历史。
 func (r *Repository) ListTaskDeletionCleanupRuns(ctx context.Context, ownerUserID string, jobID string) ([]automationdomain.ScheduledTaskRun, error) {
+	return r.listTaskDeletionCleanupRuns(
+		ctx,
+		r.db.QueryContext,
+		ownerUserID,
+		jobID,
+	)
+}
+
+func (r *Repository) listTaskDeletionCleanupRuns(
+	ctx context.Context,
+	queryContext func(context.Context, string, ...any) (*sql.Rows, error),
+	ownerUserID string,
+	jobID string,
+) ([]automationdomain.ScheduledTaskRun, error) {
 	query := `SELECT` + scheduledTaskRunSelectColumns + `
 FROM automation_task_runs
 WHERE owner_user_id = ` + r.bind(1) + ` AND job_id = ` + r.bind(2) + `
 	  AND status IN (` + r.bind(3) + `, ` + r.bind(4) + `, ` + r.bind(5) + `)
 ORDER BY created_at ASC, run_id ASC`
-	rows, err := r.db.QueryContext(ctx, query, strings.TrimSpace(ownerUserID), strings.TrimSpace(jobID),
+	rows, err := queryContext(ctx, query, strings.TrimSpace(ownerUserID), strings.TrimSpace(jobID),
 		automationdomain.RunStatusPending, automationdomain.RunStatusRunning, automationdomain.RunStatusQueuedToMain)
 	if err != nil {
 		return nil, err
@@ -243,7 +257,12 @@ func (r *Repository) finalizeScheduledTaskDeletionOnce(ctx context.Context, inpu
 		return TaskDeleteFinalizationResult{}, err
 	}
 	result := TaskDeleteFinalizationResult{}
-	result.CancelledRuns, err = r.listDeletionRunsTx(ctx, tx, ownerUserID, jobID)
+	result.CancelledRuns, err = r.listTaskDeletionCleanupRuns(
+		ctx,
+		tx.QueryContext,
+		ownerUserID,
+		jobID,
+	)
 	if err != nil {
 		return TaskDeleteFinalizationResult{}, err
 	}
@@ -352,28 +371,6 @@ WHERE owner_user_id = ` + r.bind(1) + ` AND job_id = ` + r.bind(2) + ` AND delet
 		return automationdomain.ErrConfigurationVersionConflict
 	}
 	return nil
-}
-
-func (r *Repository) listDeletionRunsTx(ctx context.Context, tx *sql.Tx, ownerUserID string, jobID string) ([]automationdomain.ScheduledTaskRun, error) {
-	query := `SELECT` + scheduledTaskRunSelectColumns + ` FROM automation_task_runs
-WHERE owner_user_id = ` + r.bind(1) + ` AND job_id = ` + r.bind(2) + `
-	  AND status IN (` + r.bind(3) + `, ` + r.bind(4) + `, ` + r.bind(5) + `)
-ORDER BY created_at ASC, run_id ASC`
-	rows, err := tx.QueryContext(ctx, query, ownerUserID, jobID,
-		automationdomain.RunStatusPending, automationdomain.RunStatusRunning, automationdomain.RunStatusQueuedToMain)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := make([]automationdomain.ScheduledTaskRun, 0)
-	for rows.Next() {
-		item, scanErr := scanScheduledTaskRun(rows)
-		if scanErr != nil {
-			return nil, scanErr
-		}
-		items = append(items, item)
-	}
-	return items, rows.Err()
 }
 
 func (r *Repository) listDeletionDeliveryRunIDsTx(ctx context.Context, tx *sql.Tx, ownerUserID string, jobID string) ([]string, []string, []string, error) {

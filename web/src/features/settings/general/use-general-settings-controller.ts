@@ -18,7 +18,7 @@ export function useGeneralSettingsController() {
   const { resetAllTours } = useOnboardingTour();
   const preferencesStore = useUserPreferences();
   const {
-    acceptExternalAggregateRevision,
+    acceptExternalAggregateSnapshot,
     feedback,
     getCurrentPreferences,
     hasUnresolvedMutation,
@@ -30,23 +30,40 @@ export function useGeneralSettingsController() {
     updatePreferences,
     writable,
   } = preferencesStore;
-  const preferencesBusy = saving || !writable;
-  const handleEchoAggregateCommitted = useCallback((
+  const handleEchoAggregateSnapshot = useCallback((
     expectedVersion: number,
-    committedVersion: number,
+    snapshot: { enabled: boolean; version: number },
   ) => {
-    if (!acceptExternalAggregateRevision(
+    if (!acceptExternalAggregateSnapshot(
       expectedVersion,
-      committedVersion,
+      snapshot,
     )) {
       recovery.checkLatest();
     }
-  }, [acceptExternalAggregateRevision, recovery]);
+  }, [acceptExternalAggregateSnapshot, recovery]);
+  const preferencesVersion = preferences.version;
   const echo = useEchoSettings({
-    aggregateVersion: preferences.version,
-    blocked: loading || saving || recovery.checking || hasUnresolvedMutation,
-    onAggregateCommitted: handleEchoAggregateCommitted,
+    aggregate: typeof preferencesVersion === "number"
+      && Number.isSafeInteger(preferencesVersion)
+      && preferencesVersion > 0
+      ? {
+          enabled: preferences.echo_enabled === true,
+          version: preferencesVersion,
+        }
+      : null,
+    aggregateLoading: loading,
+    blocked: loading
+      || saving
+      || !writable
+      || recovery.checking
+      || hasUnresolvedMutation,
+    onAggregateSnapshot: handleEchoAggregateSnapshot,
   });
+  const preferencesBusy = saving
+    || !writable
+    || echo.saving
+    || echo.recovery.checking
+    || echo.hasUnresolvedMutation;
   const agentRuntimeKind = normalizeAgentRuntimeKind(
     preferences.agent_runtime_kind,
   );

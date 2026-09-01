@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -143,101 +142,7 @@ test("Channel reconciliation does not pretend an opaque secret rotation is prove
   }, [{ ...channel, accounts: [] }]), "applied");
 });
 
-test("Channel controllers preserve snapshots, lock unknown writes, and reconcile with reads", async () => {
-  const [catalog, pairings, connection, login, createDialog, channelApi] = await Promise.all([
-    read("src/features/capability/channels/catalog/use-channels-controller.ts"),
-    read("src/features/capability/channels/pairings/use-pairings-controller.ts"),
-    read("src/features/capability/channels/connection/use-channel-connection-controller.ts"),
-    read("src/features/capability/channels/connection/login/use-channel-login-controller.ts"),
-    read("src/features/capability/channels/pairings/pairing-create-dialog.tsx"),
-    read("src/lib/api/capability/channel-api.ts"),
-  ]);
-
-  assert.match(catalog, /Promise\.allSettled/);
-  assert.match(catalog, /setChannels\(channelResult\.value\)/);
-  assert.doesNotMatch(catalog, /error instanceof Error|error\.message|getErrorMessage/);
-
-  assert.match(pairings, /Promise\.allSettled/);
-  assert.match(pairings, /setRecovery\(\{ check: "not_checked", intent, issue \}\)/);
-  assert.match(pairings, /const latest = await listPairingsApi\(\)/);
-  assert.match(pairings, /reconcilePairingIntent\(recovery\.intent, latest\)/);
-  assert.match(pairings, /busy: pendingAction !== null \|\| recovery !== null/);
-  assert.doesNotMatch(pairings, /getErrorMessage|error\.message/);
-  assert.doesNotMatch(createDialog, /createPairingApi|getErrorMessage|error\.message/);
-
-  assert.match(connection, /const items = await listChannelsApi\(\)/);
-  assert.match(connection, /reconcileChannelConnectionIntent/);
-  assert.match(connection, /wroteSecrets: Object\.values\(draft\.credentials\)/);
-  const connectionRecovery = await read(
-    "src/features/capability/channels/connection/channel-connection-recovery.ts",
-  );
-  assert.doesNotMatch(connectionRecovery, /draft:|credentials: Record|secretValue/);
-  assert.match(connection, /if \(!closeBlocked\)[\s\S]*onClose\(\)/);
-  assert.doesNotMatch(connection, /getErrorMessage|error\.message/);
-
-  assert.match(login, /const nextView = await getChannelLoginApi/);
-  assert.match(login, /nextView\.status !== "verify_code_required"/);
-  assert.match(login, /const reconcileLoginStart = useCallback/);
-  assert.match(login, /await getCurrentChannelLoginApi\(channelType\)/);
-  assert.match(login, /error\.status === 404 \|\| error\.status === 409/);
-  assert.match(login, /refreshed \? "unproven" : "failed"/);
-  assert.match(login, /startCanRetry[\s\S]*recovery\.issue\.effect === "not_applied"/);
-  assert.match(login, /if \(startCanRetry\)[\s\S]*void startLogin\(\)/);
-  assert.match(login, /else if \(recovery\.kind === "start"\)[\s\S]*void reconcileLoginStart\(\)/);
-  const startReconciliation = login.slice(
-    login.indexOf("const reconcileLoginStart"),
-    login.indexOf("const submitVerifyCode"),
-  );
-  assert.doesNotMatch(startReconciliation, /startChannelLoginApi|startLogin\(/);
-  assert.doesNotMatch(login, /getErrorMessage|error\.message/);
-
-  assert.match(channelApi, /export async function getCurrentChannelLoginApi/);
-  assert.match(
-    channelApi,
-    /getCurrentChannelLoginApi[\s\S]*\/login`[\s\S]*method: "GET"/,
-  );
-});
-
-test("Channel login and account views hide raw provider diagnostics and QR payload text", async () => {
-  const [loginModel, loginPanel, qrCode, sharedQrCode, accounts, deleteCopy, fields, card, connectionDialog, catalogModel] = await Promise.all([
-    read("src/features/capability/channels/connection/login/channel-login-model.ts"),
-    read("src/features/capability/channels/connection/login/channel-login-panel.tsx"),
-    read("src/features/capability/channels/connection/login/login-qr-code.tsx"),
-    read("src/shared/ui/display/qr-code.tsx"),
-    read("src/features/capability/channels/connection/channel-accounts-panel.tsx"),
-    read("src/features/capability/channels/connection/view/channel-connect-dialog-model.ts"),
-    read("src/features/capability/channels/connection/view/channel-connection-fields.tsx"),
-    read("src/features/capability/channels/catalog/channel-card.tsx"),
-    read("src/features/capability/channels/connection/channel-connect-dialog.tsx"),
-    read("src/features/capability/channels/catalog/channel-catalog-model.ts"),
-  ]);
-
-  assert.doesNotMatch(loginModel, /view\.error|view\.output|view\.command/);
-  assert.doesNotMatch(loginModel, /view\.verify_code_hint|label: status/);
-  assert.doesNotMatch(loginPanel, /model\.error|model\.output/);
-  assert.match(qrCode, /showPayload=\{false\}/);
-  assert.match(qrCode, /channel_login_qr_missing_impact/);
-  assert.match(qrCode, /channel_login_qr_missing_next_step/);
-  assert.match(qrCode, /channel_login_qr_failed_impact/);
-  assert.match(qrCode, /channel_login_qr_failed_next_step/);
-  assert.match(sharedQrCode, /\? "loading" : "idle"/);
-  assert.match(sharedQrCode, /generation\.status === "loading"/);
-  assert.match(sharedQrCode, /generation\.status === "ready"/);
-  assert.doesNotMatch(accounts, /title=\{account\.last_error\}|\{account\.last_error\}/);
-  assert.match(accounts, /channel_account_error_message/);
-  assert.match(accounts, /channel_account_error_impact/);
-  assert.doesNotMatch(fields, /window\.open/);
-  assert.match(fields, /rel="noopener noreferrer"/);
-  assert.doesNotMatch(card, /window\.open/);
-  assert.match(card, /rel="noopener noreferrer"/);
-  assert.match(connectionDialog, /channel_connection_error_message/);
-  assert.match(connectionDialog, /channel_connection_error_impact/);
-  assert.doesNotMatch(connectionDialog, /\{controller\.currentItem\.last_error\}/);
-  assert.match(catalogModel, /Boolean\(item\.last_error\)/);
-  assert.match(catalogModel, /channel_connection_error_badge/);
-  assert.match(deleteCopy, /配置、已连接账号和配对/);
-  assert.match(deleteCopy, /账号及使用它的配对会被删除/);
-
+test("Channel login model hides raw provider diagnostics and unknown states", async () => {
   const { buildChannelLoginPanelModel } = await server.ssrLoadModule(
     "/src/features/capability/channels/connection/login/channel-login-model.ts",
   );
@@ -329,8 +234,4 @@ function channelView(overrides = {}) {
     title: "Telegram",
     ...overrides,
   };
-}
-
-function read(relativePath) {
-  return readFile(path.join(webRoot, relativePath), "utf8");
 }

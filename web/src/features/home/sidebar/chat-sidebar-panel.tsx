@@ -25,13 +25,20 @@ import { getRoomDeletionRecoveryPresentation } from "./room-deletion-recovery";
 import { useChatSidebarController } from "./use-chat-sidebar-controller";
 
 export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
-  const { locale, t } = useI18n();
+  const { t } = useI18n();
   const controller = useChatSidebarController({
     untitledRoomLabel: t("home.untitled_room"),
   });
   const deletionRecovery = controller.deletion.failure
-    ? getRoomDeletionRecoveryPresentation(controller.deletion.failure, locale)
+    ? getRoomDeletionRecoveryPresentation(controller.deletion.failure)
     : null;
+  const deletionFailure = deletionRecovery
+    ? {
+        impact: t(deletionRecovery.failure.impactKey),
+        nextStep: t(deletionRecovery.failure.nextStepKey),
+        title: t(deletionRecovery.failure.titleKey),
+      }
+    : undefined;
 
   return (
     <div
@@ -105,8 +112,10 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
 
       <ConfirmDialog
         busy={controller.deletion.action !== null}
-        confirmText={deletionRecovery?.confirmText ?? t("common.delete")}
-        failure={deletionRecovery?.failure}
+        confirmText={deletionRecovery
+          ? t(deletionRecovery.confirmTextKey)
+          : t("common.delete")}
+        failure={deletionFailure}
         isOpen={controller.deletion.target !== null}
         message={t("home.delete_message", {
           name: controller.deletion.target?.name ?? "",

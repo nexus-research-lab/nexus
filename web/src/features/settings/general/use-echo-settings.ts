@@ -1,5 +1,5 @@
 /**
- * INPUT: owner-scoped Echo GET/PUT、Preferences revision、领域 failure effect 与外部 aggregate 同步回调。
+ * INPUT: owner-scoped Echo PUT/对账 GET、Preferences 权威快照与领域 failure effect。
  * OUTPUT: CAS 保存、结果未知对账、关闭后收口修复和完整恢复提示。
  * POS: 主动跟进设置的唯一前端事务边界；未知写入不自动重放且不被其他资源刷新解锁。
  */
@@ -15,7 +15,6 @@ import {
   captureAuthOwnerScopeGeneration,
   isAuthOwnerScopeGenerationCurrent,
 } from "@/shared/auth/auth-owner-generation";
-import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
 import type {
@@ -28,19 +27,18 @@ import { validEchoSettings } from "./model/echo-settings-reliability-model";
 type RecoveryPurpose = "finish-disabling" | "normal" | "reapply" | "use-latest";
 
 export function useEchoSettings({
-  aggregateVersion,
+  aggregate,
+  aggregateLoading,
   blocked,
-  onAggregateCommitted,
+  onAggregateSnapshot,
 }: {
-  aggregateVersion?: number;
+  aggregate: EchoSettings | null;
+  aggregateLoading: boolean;
   blocked: boolean;
-  onAggregateCommitted: (expectedVersion: number, committedVersion: number) => void;
+  onAggregateSnapshot: (expectedVersion: number, snapshot: EchoSettings) => void;
 }) {
   const { t } = useI18n();
-  const { status: authStatus } = useAuth();
-  const authOwnerReloadKey = echoAuthOwnerReloadKey(authStatus);
   const [enabled, setEnabled] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [checking, setChecking] = useState(false);
   const [repairing, setRepairing] = useState(false);
@@ -66,70 +64,37 @@ export function useEchoSettings({
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    const ownerGeneration = captureAuthOwnerScopeGeneration();
-    saveRequestRef.current += 1;
-    checkRequestRef.current += 1;
-    savingRef.current = false;
-    checkingRef.current = false;
-    authoritativeRef.current = null;
-    pendingRef.current = null;
-    setEnabled(false);
-    setLoading(true);
-    setSaving(false);
-    setChecking(false);
-    setRepairing(false);
-    setWritable(false);
-    setComparisonReady(false);
-    setCleanupRepairReady(false);
-    setCheckReady(false);
-    setFeedback(null);
-    void getEchoApi()
-      .then((settings) => {
-        if (cancelled || !isAuthOwnerScopeGenerationCurrent(ownerGeneration)) {
-          return;
-        }
-        publishAuthoritative(settings);
-        setCheckReady(false);
-        setWritable(true);
-      })
-      .catch((error: unknown) => {
-        if (!cancelled && isAuthOwnerScopeGenerationCurrent(ownerGeneration)) {
-          setFeedback(echoLoadFailure(
-            getErrorMessage(error, t("settings.general.echo_load_failed")),
-            t,
-          ));
-          setCheckReady(true);
-        }
-      })
-      .finally(() => {
-        if (!cancelled && isAuthOwnerScopeGenerationCurrent(ownerGeneration)) {
-          setLoading(false);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [authOwnerReloadKey, publishAuthoritative, t]);
-
-  useEffect(() => {
-    const current = authoritativeRef.current;
+    if (aggregateLoading) {
+      saveRequestRef.current += 1;
+      checkRequestRef.current += 1;
+      savingRef.current = false;
+      checkingRef.current = false;
+      authoritativeRef.current = null;
+      pendingRef.current = null;
+      setEnabled(false);
+      setSaving(false);
+      setChecking(false);
+      setRepairing(false);
+      setWritable(false);
+      setComparisonReady(false);
+      setCleanupRepairReady(false);
+      setCheckReady(false);
+      setFeedback(null);
+      return;
+    }
     if (
       blocked
       || savingRef.current
       || checkingRef.current
       || pendingRef.current
-      || !current
-      || !Number.isSafeInteger(aggregateVersion)
-      || (aggregateVersion ?? 0) <= current.version
+      || !aggregate
+      || !validEchoSettings(aggregate)
     ) {
       return;
     }
-    // Echo and General settings share one Preferences aggregate. A successful
-    // non-Echo write advances that aggregate revision without changing Echo,
-    // so carry the proven revision forward before the next conditional write.
-    authoritativeRef.current = echoSettingsAtAggregateVersion(current, aggregateVersion);
-  }, [aggregateVersion, blocked]);
+    publishAuthoritative(aggregate);
+    setWritable(true);
+  }, [aggregate, aggregateLoading, blocked, publishAuthoritative]);
 
   const submitAtVersion = useCallback(async (
     desired: boolean,
@@ -166,7 +131,7 @@ export function useEchoSettings({
       const saved = publishAuthoritative(settings);
       pendingRef.current = null;
       setWritable(true);
-      onAggregateCommitted(base.version, saved.version);
+      onAggregateSnapshot(base.version, saved);
       setFeedback(successFeedback(purpose, t));
       return saved;
     } catch (error) {
@@ -221,7 +186,7 @@ export function useEchoSettings({
         }
       }
     }
-  }, [onAggregateCommitted, publishAuthoritative, t]);
+  }, [onAggregateSnapshot, publishAuthoritative, t]);
 
   const checkLatest = useCallback(() => {
     if (checkingRef.current) {
@@ -248,6 +213,10 @@ export function useEchoSettings({
           throw new Error("Echo response is missing a valid version");
         }
         const pending = pendingRef.current;
+        const expectedVersion = pending?.base.version
+          ?? authoritativeRef.current?.version
+          ?? settings.version;
+        onAggregateSnapshot(expectedVersion, settings);
         if (!pending) {
           publishAuthoritative(settings);
           setWritable(true);
@@ -316,7 +285,7 @@ export function useEchoSettings({
           }
         }
       });
-  }, [publishAuthoritative, t]);
+  }, [onAggregateSnapshot, publishAuthoritative, t]);
 
   const useLatest = useCallback(() => {
     const pending = pendingRef.current;
@@ -349,10 +318,10 @@ export function useEchoSettings({
     }
     void submitAtVersion(
       desired,
-      echoSettingsAtAggregateVersion(base, aggregateVersion),
+      base,
       "normal",
     );
-  }, [aggregateVersion, blocked, enabled, submitAtVersion, writable]);
+  }, [blocked, enabled, submitAtVersion, writable]);
 
   const recovery: EchoSettingsRecoveryControls = {
     canCheckLatest: checkReady,
@@ -367,11 +336,12 @@ export function useEchoSettings({
   };
 
   return {
-    disabled: blocked || loading || saving || !writable,
+    disabled: blocked || aggregateLoading || saving || !writable,
     enabled,
     feedback,
     handleEnabledChange,
-    loading,
+    hasUnresolvedMutation: pendingRef.current !== null,
+    loading: aggregateLoading,
     recovery,
     saving,
   };
@@ -395,26 +365,6 @@ type EchoFeedbackPrefix =
   | "echo_recovery_not_applied"
   | "echo_unknown";
 
-function echoAuthOwnerReloadKey(status: ReturnType<typeof useAuth>["status"]): string {
-  if (!status) return "pending";
-  if (!status.authenticated) return "signed-out";
-  return ["signed-in", status.user_id?.trim() ?? "", status.username?.trim() ?? ""].join("\u001f");
-}
-
-function echoSettingsAtAggregateVersion(
-  current: EchoSettings,
-  aggregateVersion?: number,
-): EchoSettings {
-  if (
-    typeof aggregateVersion !== "number"
-    || !Number.isSafeInteger(aggregateVersion)
-    || aggregateVersion <= current.version
-  ) {
-    return current;
-  }
-  return { ...current, version: aggregateVersion };
-}
-
 function feedback(
   prefix: EchoFeedbackPrefix,
   t: Translate,
@@ -430,8 +380,6 @@ function feedback(
   };
 }
 
-const echoLoadFailure = (message: string, t: Translate) =>
-  feedback("echo_load_failure", t, "error", message);
 const echoConflict = (message: string, t: Translate) =>
   feedback("echo_conflict", t, "warning", message);
 const echoUnknown = (message: string, t: Translate) =>
