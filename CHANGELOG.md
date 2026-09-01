@@ -69,6 +69,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed the Windows browser extension setup so it opens the actual Chrome or
+  Edge extensions page and bundled extension directory instead of a blank tab
+  and the default Documents folder.
 - Reconciled Room Agent execution cards against authoritative reconnect
   snapshots, so executions absent from the server's active-slot set no longer
   remain stuck on thinking with a stale Stop action; incremental ACKs still
