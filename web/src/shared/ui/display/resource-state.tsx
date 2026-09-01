@@ -113,6 +113,8 @@ export function UiResourceState({
 }: UiResourceStateProps) {
   const failure = state === "error";
   const compactFailure = failure && size === "sm";
+  const compactState = compactFailure
+    || (state === "success" && size === "sm" && variant === "card");
   const resolvedIcon = icon ?? (failure && tone === "warning"
     ? <CircleAlert className="h-4 w-4 text-(--warning)" />
     : DEFAULT_STATE_ICONS[state]);
@@ -122,13 +124,13 @@ export function UiResourceState({
       aria-atomic="true"
       aria-live={urgency}
       aria-busy={state === "loading"}
-      className={cn(className, compactFailure && "items-start text-left")}
+      className={cn(className, compactState && "items-start text-left")}
       data-resource-state={state}
-      description={failure ? undefined : description}
-      icon={compactFailure ? undefined : resolvedIcon}
+      description={description}
+      icon={compactState ? undefined : resolvedIcon}
       role={urgency === "assertive" ? "alert" : "status"}
       size={size}
-      title={compactFailure ? (
+      title={compactState ? (
         <span className="inline-flex items-center gap-2">
           {resolvedIcon}
           <span>{title}</span>
@@ -142,13 +144,16 @@ export function UiResourceState({
         <RecoverySummary
           className={cn(
             "mt-1.5 w-full max-w-md",
-            compactFailure ? "text-left" : "text-center",
+            compactState ? "text-left" : "text-center",
           )}
           impact={<span data-resource-state-impact>{impact}</span>}
           nextStep={<span data-resource-state-next-step>{nextStep}</span>}
         />
       ) : impact || nextStep ? (
-        <div className="mt-3 w-full max-w-md space-y-1.5 break-words text-center text-xs leading-5 [overflow-wrap:anywhere]">
+        <div className={cn(
+          "mt-3 w-full max-w-md space-y-1.5 break-words text-xs leading-5 [overflow-wrap:anywhere]",
+          compactState ? "text-left" : "text-center",
+        )}>
           {impact ? (
             <p className="text-(--text-muted)" data-resource-state-impact>
               {impact}
@@ -164,7 +169,7 @@ export function UiResourceState({
       {primaryAction || secondaryAction ? (
         <div className={cn(
           "flex w-full flex-col items-center justify-center gap-2 sm:w-auto sm:flex-row sm:flex-wrap",
-          compactFailure
+          compactState
             ? "mt-2.5 flex-row flex-wrap justify-start sm:w-full sm:justify-start"
             : failure
               ? "mt-2.5"

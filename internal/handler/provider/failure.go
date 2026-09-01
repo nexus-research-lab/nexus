@@ -5,9 +5,7 @@ package provider
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
@@ -18,33 +16,16 @@ import (
 const providerETagPrefix = "provider-"
 
 func writeProviderETag(writer http.ResponseWriter, version int64) {
-	if writer == nil || version < 1 {
-		return
-	}
-	writer.Header().Set("ETag", fmt.Sprintf(`"%s%d"`, providerETagPrefix, version))
-	writer.Header().Set("Cache-Control", "no-store")
+	handlershared.WriteStrongETag(writer, providerETagPrefix, version)
 }
 
 func parseProviderIfMatch(value string) (*int64, error) {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return nil, nil
-	}
-	if strings.Contains(value, ",") || value == "*" || strings.HasPrefix(value, "W/") {
-		return nil, errors.New("Provider If-Match 必须是单个强 ETag")
-	}
-	if len(value) < 3 || value[0] != '"' || value[len(value)-1] != '"' {
-		return nil, errors.New("Provider If-Match 缺少强 ETag 引号")
-	}
-	opaque := strings.TrimSpace(value[1 : len(value)-1])
-	if !strings.HasPrefix(opaque, providerETagPrefix) {
-		return nil, errors.New("Provider If-Match 不属于 Provider 配置")
-	}
-	version, err := strconv.ParseInt(strings.TrimPrefix(opaque, providerETagPrefix), 10, 64)
-	if err != nil || version < 1 {
-		return nil, errors.New("Provider If-Match version 无效")
-	}
-	return &version, nil
+	return handlershared.ParseStrongIfMatch(
+		value,
+		providerETagPrefix,
+		"Provider",
+		"Provider 配置",
+	)
 }
 
 func (h *Handlers) writeProviderReadFailure(

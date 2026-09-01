@@ -5,11 +5,10 @@
  */
 "use client";
 
-import { CircleAlert, CircleCheck, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiButton } from "@/shared/ui/button/button";
-import { cn } from "@/shared/ui/class-name";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 
 import type {
   PreferenceFeedback,
@@ -28,91 +27,59 @@ export function PreferencesReliabilityNotice({
     return null;
   }
   const success = feedback.tone === "success";
+  const primaryAction = !success && recovery
+    ? recovery.canRepairProjection
+      ? {
+          busy: recovery.repairing,
+          busyLabel: t("settings.general.preferences_repairing_projection"),
+          disabled: recovery.checking,
+          icon: <RefreshCw className="h-3.5 w-3.5" />,
+          label: t("settings.general.preferences_repair_projection"),
+          onClick: recovery.repairProjection,
+        }
+      : recovery.canCompare
+        ? {
+            disabled: recovery.checking,
+            label: t("settings.general.preferences_reapply_draft"),
+            onClick: recovery.reapplyDraft,
+          }
+        : {
+            busy: recovery.checking,
+            busyLabel: t("settings.general.preferences_checking"),
+            icon: <RefreshCw className="h-3.5 w-3.5" />,
+            label: t("settings.general.preferences_check_latest"),
+            onClick: recovery.checkLatest,
+          }
+    : undefined;
+  const secondaryAction = !success && recovery?.canCompare
+    ? {
+        disabled: recovery.checking,
+        label: t("settings.general.preferences_use_latest"),
+        onClick: recovery.useLatest,
+      }
+    : undefined;
+  const commonProps = {
+    className: "min-h-0 px-3 py-2.5",
+    "data-preferences-reliability": feedback.tone,
+    description: feedback.message,
+    impact: feedback.impact,
+    nextStep: feedback.nextStep,
+    size: "sm" as const,
+    title: feedback.title,
+    urgency: "polite" as const,
+    variant: "card" as const,
+  };
+  if (success) {
+    return <UiResourceState {...commonProps} state="success" />;
+  }
 
   return (
-    <section
-      aria-live="polite"
-      className={cn(
-        "flex min-w-0 items-start gap-2.5 rounded-[10px] border px-3 py-2.5 text-xs",
-        success
-          ? "border-[color:color-mix(in_srgb,var(--success)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--success)_5%,transparent)]"
-          : "border-[color:color-mix(in_srgb,var(--warning)_22%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_5%,transparent)]",
-      )}
-      data-preferences-reliability={feedback.tone}
-      role="status"
-    >
-      {success ? (
-        <CircleCheck aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-(--success)" />
-      ) : (
-        <CircleAlert aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-(--warning)" />
-      )}
-      <div className="min-w-0 flex-1">
-        <p className="font-semibold leading-5 text-(--text-strong)">{feedback.title}</p>
-        <p className="mt-0.5 break-words leading-5 text-(--text-default)">
-          {feedback.message}
-        </p>
-        <p className="leading-5 text-(--text-muted)">{feedback.impact}</p>
-        <p className="font-medium leading-5 text-(--text-default)">{feedback.nextStep}</p>
-        {!success && recovery ? (
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {recovery.canRepairProjection ? (
-              <UiButton
-                aria-busy={recovery.repairing}
-                disabled={recovery.repairing || recovery.checking}
-                onClick={recovery.repairProjection}
-                size="xs"
-                tone="primary"
-                variant="surface"
-              >
-                <RefreshCw
-                  aria-hidden="true"
-                  className={cn("h-3.5 w-3.5", recovery.repairing && "animate-spin")}
-                />
-                {recovery.repairing
-                  ? t("settings.general.preferences_repairing_projection")
-                  : t("settings.general.preferences_repair_projection")}
-              </UiButton>
-            ) : recovery.canCompare ? (
-              <>
-                <UiButton
-                  disabled={recovery.checking}
-                  onClick={recovery.useLatest}
-                  size="xs"
-                  variant="text"
-                >
-                  {t("settings.general.preferences_use_latest")}
-                </UiButton>
-                <UiButton
-                  disabled={recovery.checking}
-                  onClick={recovery.reapplyDraft}
-                  size="xs"
-                  tone="primary"
-                  variant="surface"
-                >
-                  {t("settings.general.preferences_reapply_draft")}
-                </UiButton>
-              </>
-            ) : (
-              <UiButton
-                aria-busy={recovery.checking}
-                disabled={recovery.checking}
-                onClick={recovery.checkLatest}
-                size="xs"
-                tone="primary"
-                variant="surface"
-              >
-                <RefreshCw
-                  aria-hidden="true"
-                  className={cn("h-3.5 w-3.5", recovery.checking && "animate-spin")}
-                />
-                {recovery.checking
-                  ? t("settings.general.preferences_checking")
-                  : t("settings.general.preferences_check_latest")}
-              </UiButton>
-            )}
-          </div>
-        ) : null}
-      </div>
-    </section>
+    <UiResourceState
+      {...commonProps}
+      primaryAction={primaryAction}
+      secondaryAction={secondaryAction}
+      state="error"
+      tone={feedback.tone === "warning" ? "warning" : "danger"}
+    />
   );
 }

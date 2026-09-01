@@ -6,10 +6,7 @@ package echo
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
-	"strconv"
-	"strings"
 
 	echodomain "github.com/nexus-research-lab/nexus/internal/echo"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
@@ -148,11 +145,7 @@ func (h *Handlers) writeUpdateError(
 }
 
 func writeEchoETag(writer http.ResponseWriter, version int64) {
-	if writer == nil || version < 1 {
-		return
-	}
-	writer.Header().Set("ETag", fmt.Sprintf(`"%s%d"`, echoETagPrefix, version))
-	writeEchoNoStore(writer)
+	handlershared.WriteStrongETag(writer, echoETagPrefix, version)
 }
 
 func writeEchoNoStore(writer http.ResponseWriter) {
@@ -162,23 +155,10 @@ func writeEchoNoStore(writer http.ResponseWriter) {
 }
 
 func parseEchoIfMatch(value string) (*int64, error) {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return nil, nil
-	}
-	if strings.Contains(value, ",") || value == "*" || strings.HasPrefix(value, "W/") {
-		return nil, errors.New("Echo If-Match 必须是单个强 ETag")
-	}
-	if len(value) < 3 || value[0] != '"' || value[len(value)-1] != '"' {
-		return nil, errors.New("Echo If-Match 缺少强 ETag 引号")
-	}
-	opaque := strings.TrimSpace(value[1 : len(value)-1])
-	if !strings.HasPrefix(opaque, echoETagPrefix) {
-		return nil, errors.New("Echo If-Match 不属于主动跟进设置")
-	}
-	version, err := strconv.ParseInt(strings.TrimPrefix(opaque, echoETagPrefix), 10, 64)
-	if err != nil || version < 1 {
-		return nil, errors.New("Echo If-Match version 无效")
-	}
-	return &version, nil
+	return handlershared.ParseStrongIfMatch(
+		value,
+		echoETagPrefix,
+		"Echo",
+		"主动跟进设置",
+	)
 }
