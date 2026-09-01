@@ -9,6 +9,7 @@ import type { SkillInfo } from "@/types/capability/skill";
 type Translate = (key: TranslationKey) => string;
 
 const NEXUS_SKILL_DESCRIPTION_KEY_BY_NAME = {
+  "avalon-8-10p": "capability.skill_description.avalon_8_10p",
   automation: "capability.skill_description.automation",
   docx: "capability.skill_description.docx",
   "execution-orchestrator": "capability.skill_description.execution_orchestrator",
@@ -26,6 +27,7 @@ const NEXUS_SKILL_DESCRIPTION_KEY_BY_NAME = {
 } as const satisfies Readonly<Record<string, TranslationKey>>;
 
 const NEXUS_SKILL_TITLE_KEY_BY_NAME = {
+  "avalon-8-10p": "capability.skill_title.avalon_8_10p",
   automation: "capability.skill_title.automation",
   docx: "capability.skill_title.docx",
   "execution-orchestrator": "capability.skill_title.execution_orchestrator",

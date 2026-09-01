@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added an 8–10-player Avalon Room Skill with a permanent Agent moderator, randomized user participation, private role, vote, mission routing, and complete proposal, quest, rejection, and assassination flow.
 - Added an administrator-selectable subscription default model that new web users inherit until they choose their own default.
 - Added a backward-compatible minimal FailureCore v1 for stable machine
   classification, effect evidence, and optional transport diagnostics without

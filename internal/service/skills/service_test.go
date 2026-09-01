@@ -29,6 +29,7 @@ import (
 func TestMain(m *testing.M) {
 	os.Exit(handlertest.RunWithSelectedAppSkills(
 		m,
+		"avalon-8-10p",
 		"execution-orchestrator",
 		"goal-manager",
 		"docx",
@@ -126,6 +127,41 @@ func TestServiceImportsAndEnablesSkill(t *testing.T) {
 	}
 	if roomSkill.Scope != ScopeRoom {
 		t.Fatalf("room skill scope 不正确: %+v", roomSkill)
+	}
+	avalonSkill, ok := findSkill(roomSkills, "avalon-8-10p")
+	if !ok {
+		t.Fatalf("未读取到阿瓦隆 room skill: %+v", roomSkills)
+	}
+	if avalonSkill.Scope != ScopeRoom {
+		t.Fatalf("阿瓦隆 room skill scope 不正确: %+v", avalonSkill)
+	}
+	avalonDetail, err := service.GetSkillDetail(ctx, "avalon-8-10p", "")
+	if err != nil {
+		t.Fatalf("读取阿瓦隆 skill 详情失败: %v", err)
+	}
+	for _, rule := range []string{
+		"The host Agent is always the moderator and never a player",
+		"Ask the user exactly once whether to join as a player or spectate",
+		"A participating user enters the same randomized role pool as every Agent player",
+		"largest supported count in the order `10, 9, 8`",
+		"Morgana, Assassin, Minion",
+		"Mordred, Morgana, Oberon, Assassin",
+		"`用户玩家` is not an Agent recipient or wake target",
+		"only the host uses `AskUserQuestion`",
+		"Spectator comments and out-of-turn messages never change game state",
+		"If the final hidden actor is the user and an Agent acts immediately before it",
+		"All supported player counts use quest teams `3, 4, 4, 5, 5`",
+		"Quest 4 requires at least two `失败` cards",
+		"Good players must submit `成功`",
+		"A strict majority approves. A tie or a majority of `反对` rejects",
+		"shuffle their order before publishing only",
+		"Four consecutive rejected proposals make the fifth leader",
+		"If Assassin identifies Merlin",
+		"Lake Lady, Lancelot, and Excalibur are optional variants and are not enabled",
+	} {
+		if !strings.Contains(avalonDetail.ReadmeMarkdown, rule) {
+			t.Fatalf("阿瓦隆 skill 缺少闭环约束 %q", rule)
+		}
 	}
 	werewolfSkill, ok := findSkill(roomSkills, "werewolf-6p")
 	if !ok {
