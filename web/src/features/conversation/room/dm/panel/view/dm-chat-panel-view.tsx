@@ -130,6 +130,8 @@ export function DmChatPanelView({
         ) : undefined}
         goal={!model.embedded ? <GoalPanel {...model.goalPanel} compact={isMobileLayout} /> : undefined}
         isMobileLayout={isMobileLayout}
+        isReconciling={model.isSessionLoading}
+        onReconcile={model.reconcileConversation}
         providerWarningVisible={model.providerWarningVisible}
         reliability={model.reliability}
         roundIndexResource={model.roundIndexResource}

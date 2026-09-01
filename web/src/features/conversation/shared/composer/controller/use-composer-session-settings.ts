@@ -253,11 +253,9 @@ export function useComposerSessionSettings(
     ));
     try {
       const result = await getSessionRuntimeSettingsApi(sessionKey);
-      if (
-        !savingSessionKeysRef.current.has(sessionKey)
-        && !mutationFailuresRef.current[sessionKey]?.blocksRepeat
-      ) {
+      if (!savingSessionKeysRef.current.has(sessionKey)) {
         cacheSettings(sessionKey, result);
+        cacheMutationFailure(sessionKey, null);
       }
       setSettingsReadFailures((current) => {
         const next = { ...current };
@@ -280,7 +278,7 @@ export function useComposerSessionSettings(
         current.filter((candidate) => candidate !== sessionKey)
       ));
     }
-  }, [cacheSettings, t]);
+  }, [cacheMutationFailure, cacheSettings, t]);
 
   useEffect(() => subscribeSessionRuntimeSettingsUpdated((sessionKey) => {
     if (!settingsBySessionRef.current[sessionKey]) {
@@ -448,11 +446,6 @@ export function useComposerSessionSettings(
     retrySessionSettings: () => target
       ? loadSettings(target.sessionKey, true)
       : Promise.resolve(),
-    startNewSettingsIntent: () => {
-      if (target) {
-        cacheMutationFailure(target.sessionKey, null);
-      }
-    },
     resetModel: () => updateSettings("model", {
       ...settings,
       model: "",

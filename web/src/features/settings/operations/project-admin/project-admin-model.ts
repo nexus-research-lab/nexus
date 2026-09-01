@@ -1,22 +1,29 @@
 // INPUT: 项目目录读取结果、权限修改证据和当前语言。
 // OUTPUT: 区分未应用、结果未知、已保存但刷新失败的项目管理反馈。
 // POS: Project Admin 的纯失败展示模型；不执行刷新或重复 mutation。
-import {
-  getErrorMessage,
-  projectMutationFailure,
-} from "@/lib/error-message";
+import { projectMutationFailure } from "@/lib/error-message";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import type { ProjectAccess, SharedProject } from "@/types/settings/project";
 
-export interface ProjectFeedback {
+interface ProjectFeedbackBase {
   blocksMutation?: boolean;
-  impact?: string;
-  message: string;
-  nextStep?: string;
   recoveryAction?: "refresh";
   title: string;
-  tone: "success" | "error" | "warning";
 }
+
+export type ProjectFeedback =
+  | ProjectFeedbackBase & {
+    impact: string;
+    message?: never;
+    nextStep: string;
+    tone: "error" | "warning";
+  }
+  | ProjectFeedbackBase & {
+    impact?: never;
+    message: string;
+    nextStep?: never;
+    tone: "success";
+  };
 
 export interface ProjectAdminViewModel {
   canManageMembers: boolean;
@@ -48,22 +55,20 @@ const FEEDBACK_COPY: Record<
   ProjectFeedbackEvent,
   {
     impact?: TranslationKey;
-    message: TranslationKey;
+    message?: TranslationKey;
     nextStep?: TranslationKey;
-    recoveryAction?: ProjectFeedback["recoveryAction"];
+    recoveryAction?: "refresh";
     title: TranslationKey;
-    tone: ProjectFeedback["tone"];
+    tone: "success" | "error" | "warning";
   }
 > = {
   "create-invalid": {
     impact: "settings.projects.create_invalid_impact",
-    message: "settings.projects.create_invalid_message",
     nextStep: "settings.projects.create_invalid_next_step",
     title: "settings.projects.create_invalid_title",
     tone: "error",
   },
   "create-failed": {
-    message: "settings.projects.create_failed_message",
     title: "settings.projects.create_failed_title",
     tone: "error",
   },
@@ -73,13 +78,11 @@ const FEEDBACK_COPY: Record<
     tone: "success",
   },
   "grant-failed": {
-    message: "settings.projects.grant_failed_message",
     title: "settings.projects.grant_failed_title",
     tone: "error",
   },
   "grant-refresh-failed": {
     impact: "settings.projects.grant_refresh_failed_impact",
-    message: "settings.projects.grant_refresh_failed_message",
     nextStep: "settings.projects.grant_refresh_failed_next_step",
     recoveryAction: "refresh",
     title: "settings.projects.grant_refresh_failed_title",
@@ -92,7 +95,6 @@ const FEEDBACK_COPY: Record<
   },
   "load-failed": {
     impact: "state.read_failure_impact",
-    message: "settings.projects.load_failed_message",
     nextStep: "state.retry_next_step",
     recoveryAction: "refresh",
     title: "settings.projects.load_failed_title",
@@ -157,13 +159,19 @@ const PROJECT_MUTATION_COPY = {
 export function buildProjectFeedback(
   translate: (key: TranslationKey) => string,
   event: ProjectFeedbackEvent,
-  error?: unknown,
+  _error?: unknown,
 ): ProjectFeedback {
   const copy = FEEDBACK_COPY[event];
+  if (copy.tone === "success") {
+    return {
+      message: translate(copy.message ?? copy.title),
+      title: translate(copy.title),
+      tone: "success",
+    };
+  }
   return {
-    impact: copy.impact ? translate(copy.impact) : undefined,
-    message: getErrorMessage(error, translate(copy.message)),
-    nextStep: copy.nextStep ? translate(copy.nextStep) : undefined,
+    impact: translate(copy.impact ?? "state.local_failure_impact"),
+    nextStep: translate(copy.nextStep ?? "state.local_failure_next_step"),
     recoveryAction: copy.recoveryAction,
     title: translate(copy.title),
     tone: copy.tone,
@@ -189,7 +197,6 @@ export function buildProjectMutationFeedback(
   return {
     blocksMutation: !notApplied,
     impact: translate(copy.impact),
-    message: failure.message,
     nextStep: translate(copy.nextStep),
     recoveryAction: notApplied ? undefined : "refresh",
     title: translate(copy.title),

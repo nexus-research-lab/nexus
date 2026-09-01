@@ -51,9 +51,6 @@ export function LoopPickerContent({
       <UiResourceState
         className="min-h-48"
         impact={hasCatalogItems ? t("state.filter_impact") : undefined}
-        nextStep={hasCatalogItems
-          ? t("state.clear_filters_next_step")
-          : t("state.retry_next_step")}
         primaryAction={hasCatalogItems ? {
           label: t("state.clear_filters"),
           onClick: onClearFilters,
@@ -71,13 +68,9 @@ export function LoopPickerContent({
     error: error ? (
       <UiResourceState
         className="min-h-48"
-        description={error.message}
         impact={t(error.access
           ? "state.access_failure_impact"
           : "state.read_failure_impact")}
-        nextStep={t(error.access
-          ? "state.permission_next_step"
-          : "state.retry_next_step")}
         primaryAction={{
           icon: <RotateCcw className="h-3.5 w-3.5" />,
           label: t("state.retry"),
@@ -121,9 +114,7 @@ export function LoopPickerContent({
       {staleFailure ? (
         <UiResourceState
           className="min-h-0 py-3"
-          description={error.message}
           impact={t("state.stale_snapshot_impact")}
-          nextStep={t("state.retry_next_step")}
           primaryAction={{
             icon: <RotateCcw className="h-3.5 w-3.5" />,
             label: t("state.retry"),

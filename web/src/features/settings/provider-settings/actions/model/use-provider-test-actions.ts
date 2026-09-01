@@ -43,14 +43,17 @@ function buildTestFeedback(
   messages: TestMessages,
   formatSuccess: (model: string) => string,
 ): FeedbackState {
+  if (result.success) {
+    return {
+      message: formatSuccess(result.model || messages.successFallbackModel),
+      title: messages.successTitle,
+      tone: "success",
+    };
+  }
   return {
-    impact: result.success ? undefined : messages.failureImpact,
-    tone: result.success ? "success" : "error",
-    title: result.success ? messages.successTitle : messages.failureTitle,
-    message: result.success
-      ? formatSuccess(result.model || messages.successFallbackModel)
-      : result.error || messages.failureFallback,
-    nextStep: result.success ? undefined : messages.failureNextStep,
+    impact: messages.failureImpact,
+    tone: "error",
+    title: messages.failureTitle,
   };
 }
 

@@ -6,6 +6,7 @@ import type { FormEvent } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
+import { RecoverySummary } from "@/shared/ui/feedback/recovery-summary";
 import { UiInput } from "@/shared/ui/form/form-control";
 
 import type { LoginFormMode } from "./login-page-model";
@@ -43,9 +44,11 @@ function LoginErrorBanner({
       role="status"
     >
       <p className="text-sm font-semibold text-(--destructive)">{notice.title}</p>
-      <p className="mt-1 text-sm leading-6 text-(--text-default)">{notice.message}</p>
-      <p className="mt-1 text-xs leading-5 text-(--text-muted)">{notice.impact}</p>
-      <p className="mt-1 text-xs font-medium leading-5 text-(--text-default)">{notice.nextStep}</p>
+      <RecoverySummary
+        className="mt-1"
+        impact={notice.impact}
+        nextStep={notice.action ? undefined : notice.nextStep}
+      />
       {notice.action === "check_status" ? (
         <UiButton
           className="mt-2"

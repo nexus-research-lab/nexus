@@ -17,7 +17,6 @@ export function LoginQRCode({
     return required ? (
       <FeedbackBanner
         impact={t("capability.channel_login_qr_missing_impact")}
-        message={t("capability.channel_login_qr_missing_message")}
         nextStep={t("capability.channel_login_qr_missing_next_step")}
         title={t("capability.channel_login_qr_missing_title")}
         tone="warning"

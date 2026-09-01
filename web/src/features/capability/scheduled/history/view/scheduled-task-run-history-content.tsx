@@ -64,9 +64,7 @@ export function ScheduledTaskRunHistoryContent({
       {failure && hasSnapshot && !failure.access ? (
         <UiResourceState
           className="mb-3 min-h-0 py-4"
-          description={failure.message}
           impact={t("capability.scheduled_history_stale_impact")}
-          nextStep={t("state.retry_next_step")}
           primaryAction={{
             icon: <RefreshCw className="h-3.5 w-3.5" />,
             label: t("state.retry"),
@@ -80,9 +78,7 @@ export function ScheduledTaskRunHistoryContent({
       ) : null}
       {accessBlocked && failure ? (
         <UiResourceState
-          description={failure.message}
           impact={t("state.access_failure_impact")}
-          nextStep={t("state.permission_next_step")}
           primaryAction={{
             icon: <RefreshCw className="h-3.5 w-3.5" />,
             label: t("state.retry"),
@@ -95,9 +91,7 @@ export function ScheduledTaskRunHistoryContent({
         <UiSkeletonCardList cardClassName="min-h-[108px]" count={4} />
       ) : failure && !hasSnapshot ? (
         <UiResourceState
-          description={failure.message}
           impact={t("state.read_failure_impact")}
-          nextStep={t("state.retry_next_step")}
           primaryAction={{
             icon: <RefreshCw className="h-3.5 w-3.5" />,
             label: t("state.retry"),

@@ -6,6 +6,7 @@
 import type { ComponentProps, ReactNode, RefObject } from "react";
 
 import type { SessionRoundIndexResource } from "@/hooks/conversation/use-session-round-index";
+import { hasConversationReliabilityNotice } from "@/hooks/agent/reliability/conversation-reliability-model";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
 import { ConversationReliabilityNotice } from "./conversation-reliability-notice";
@@ -158,6 +159,8 @@ export function ConversationPanelBottomArea({
   children,
   goal,
   isMobileLayout,
+  isReconciling,
+  onReconcile,
   providerWarningVisible,
   reliability,
   roundIndexResource,
@@ -167,6 +170,8 @@ export function ConversationPanelBottomArea({
   children: ReactNode;
   goal?: ReactNode;
   isMobileLayout: boolean;
+  isReconciling: boolean;
+  onReconcile: () => void;
   providerWarningVisible: boolean;
   reliability: ComponentProps<typeof ConversationReliabilityNotice>["reliability"];
   roundIndexResource?: Pick<
@@ -176,6 +181,12 @@ export function ConversationPanelBottomArea({
   scrollToLatest: ConversationScrollToLatestModel;
 }) {
   const { t } = useI18n();
+  const conversationStatusVisible = hasConversationReliabilityNotice(reliability);
+  const roundIndexStatusVisible = !conversationStatusVisible
+    && Boolean(roundIndexResource?.error);
+  const providerStatusVisible = !conversationStatusVisible
+    && !roundIndexStatusVisible
+    && providerWarningVisible;
   return (
     <div
       className="relative z-10 shrink-0"
@@ -191,7 +202,14 @@ export function ConversationPanelBottomArea({
           scrollToLatest={scrollToLatest}
         />
         <div data-conversation-status-stack>
-          {roundIndexResource?.error ? (
+          {conversationStatusVisible ? (
+            <ConversationReliabilityNotice
+              compact={isMobileLayout}
+              isReconciling={isReconciling}
+              onReconcile={onReconcile}
+              reliability={reliability}
+            />
+          ) : roundIndexStatusVisible && roundIndexResource?.error ? (
             <div
               className={isMobileLayout
                 ? "px-4 pt-1"
@@ -205,24 +223,15 @@ export function ConversationPanelBottomArea({
                   ? "conversation.round_index_stale_impact"
                   : "conversation.round_index_unavailable_impact")}
                 isRefreshing={roundIndexResource.isLoading}
-                nextStep={t(roundIndexResource.access
-                  ? "conversation.round_index_access_next_step"
-                  : "conversation.round_index_next_step")}
                 onRefresh={roundIndexResource.retry}
                 problem={t("conversation.round_index_refresh_failed")}
                 resource="session-round-index"
                 stale={roundIndexResource.isStale}
               />
             </div>
-          ) : null}
-          <ConversationReliabilityNotice
-            compact={isMobileLayout}
-            reliability={reliability}
-          />
-          {providerWarningVisible ? (
+          ) : providerStatusVisible ? (
             <ProviderUnavailableBanner compact={isMobileLayout} />
-          ) : null}
-          {goal}
+          ) : goal}
         </div>
         <div data-conversation-composer-anchor>
           {children}

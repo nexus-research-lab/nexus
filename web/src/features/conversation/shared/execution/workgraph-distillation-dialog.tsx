@@ -41,7 +41,6 @@ const WORKGRAPH_SLASH_NAME_PATTERN = /^[a-z][a-z0-9-]{0,63}$/;
 
 interface WorkGraphSaveFailure {
   effect: MutationFailureEffect;
-  message: string;
 }
 
 export function WorkGraphDistillationDialog({
@@ -107,7 +106,7 @@ export function WorkGraphDistillationDialog({
           reason,
           t("execution.workflow_schedule_failed"),
         );
-        setSaveFailure({ effect: failure.effect, message: failure.message });
+        setSaveFailure({ effect: failure.effect });
       }
       setSaveState("idle");
     }
@@ -240,7 +239,7 @@ export function WorkGraphDistillationDialog({
                 {saveFailure ? (
                   <WorkGraphSaveFailureState failure={saveFailure} />
                 ) : null}
-                {saveState === "scheduled" ? (
+                {saveState === "scheduled" || (saveFailure && saveFailure.effect !== "not_applied") ? (
                   <button className={`${getDialogActionClassName("primary", "compact")} w-full`} type="button" onClick={onClose}>
                     {t("common.close")}
                   </button>
@@ -250,7 +249,7 @@ export function WorkGraphDistillationDialog({
                     {t(saveState === "saving"
                       ? "execution.workflow_scheduling"
                       : saveFailure
-                        ? "execution.workflow_save_confirm_again"
+                        ? "state.retry"
                         : "execution.workflow_save_sketch")}
                   </button>
                 )}
@@ -323,13 +322,9 @@ function WorkGraphSaveFailureState({
   return (
     <UiResourceState
       className="min-h-0 py-3"
-      description={failure.message}
       impact={t(notApplied
         ? "execution.workflow_save_not_applied_impact"
         : "execution.workflow_save_unknown_impact")}
-      nextStep={t(notApplied
-        ? "execution.workflow_save_not_applied_next_step"
-        : "execution.workflow_save_unknown_next_step")}
       size="sm"
       state="error"
       title={title}

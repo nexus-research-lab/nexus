@@ -204,13 +204,15 @@ function ThreadNotice({
     <div className="shrink-0 border-b border-(--divider-subtle-color) px-3 py-2">
       <UiResourceState
         className="min-h-0 py-3"
-        description={error.message}
         impact={t("subagents.transcript_load_failed_impact")}
-        nextStep={t("subagents.transcript_load_failed_next_step")}
-        primaryAction={error.retryable ? {
-          label: t("subagents.retry"),
-          onClick: onRetry,
-        } : undefined}
+        {...(error.retryable
+          ? {
+              primaryAction: {
+                label: t("subagents.retry"),
+                onClick: onRetry,
+              },
+            }
+          : { nextStep: t("subagents.transcript_load_failed_next_step") })}
         size="sm"
         state="error"
         title={t("subagents.transcript_load_failed_title")}
@@ -243,19 +245,17 @@ function SubagentActionFailureState({
   return (
     <UiResourceState
       className="mb-2 min-h-0 py-3"
-      description={failure.message}
       impact={t(isNotApplied
         ? "subagents.action_not_applied_impact"
         : "subagents.action_unknown_impact", { operation })}
-      nextStep={t(isNotApplied
-        ? "subagents.action_not_applied_next_step"
-        : failure.action === "stop"
-          ? "subagents.stop_unknown_next_step"
-          : "subagents.message_unknown_next_step")}
-      primaryAction={isNotApplied ? undefined : {
-        label: t("subagents.refresh_task"),
-        onClick: onRefresh,
-      }}
+      {...(isNotApplied
+        ? { nextStep: t("subagents.action_not_applied_next_step") }
+        : {
+            primaryAction: {
+              label: t("subagents.refresh_task"),
+              onClick: onRefresh,
+            },
+          })}
       size="sm"
       state="error"
       title={title}

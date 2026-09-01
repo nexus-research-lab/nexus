@@ -143,9 +143,7 @@ export function SettingsGeneralBehaviorSection({
       />
       {defaultModelCatalogFailed ? (
         <UiResourceState
-          description={t("settings.general.default_model_catalog_failed_message")}
           impact={t("settings.general.default_model_catalog_failed_impact")}
-          nextStep={t("settings.general.default_model_catalog_failed_next_step")}
           primaryAction={{
             label: t("settings.general.default_model_catalog_retry"),
             onClick: onRetryDefaultModelCatalog,

@@ -115,7 +115,7 @@ test("Memory catalog fences delete and reconciliation by owner, Agent, path, and
   );
 
   assert.match(notice, /impact=\{t\(presentation\.impactKey/);
-  assert.match(notice, /nextStep=\{t\(presentation\.nextStepKey/);
+  assert.match(notice, /primaryAction=\{getRecoveryAction/);
   assert.match(notice, /secondaryAction=\{presentation\.secondaryAction/);
   assert.match(view, /MemoryDeletionIssueNotices/);
   assert.match(view, /memory_delete_confirm_new_intent/);

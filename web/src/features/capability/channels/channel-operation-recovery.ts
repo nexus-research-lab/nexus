@@ -25,7 +25,6 @@ export type ChannelMutationEvidence =
 export interface ChannelOperationIssue {
   effect: ChannelMutationEvidence;
   impact: string;
-  message: string;
   nextStep: string;
   operation: ChannelMutationOperation;
   title: string;
@@ -96,22 +95,18 @@ const IMPACT_KEYS = {
 
 const EFFECT_COPY_KEYS = {
   accepted: {
-    message: "capability.channel_operation_accepted_message",
     nextStep: "capability.channel_operation_accepted_next_step",
     title: "capability.channel_operation_accepted_title",
   },
   committed: {
-    message: "capability.channel_operation_committed_message",
     nextStep: "capability.channel_operation_committed_next_step",
     title: "capability.channel_operation_committed_title",
   },
   not_applied: {
-    message: "capability.channel_operation_not_applied_message",
     nextStep: "capability.channel_operation_not_applied_next_step",
     title: "capability.channel_operation_not_applied_title",
   },
   unknown: {
-    message: "capability.channel_operation_unknown_message",
     nextStep: "capability.channel_operation_unknown_next_step",
     title: "capability.channel_operation_unknown_title",
   },
@@ -135,7 +130,6 @@ export function buildChannelOperationIssue(
   return {
     effect,
     impact: t(IMPACT_KEYS[operation][effect]),
-    message: t(copy.message, { operation: operationLabel }),
     nextStep: t(copy.nextStep),
     operation,
     title: t(copy.title, { operation: operationLabel }),

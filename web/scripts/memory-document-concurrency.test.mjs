@@ -179,7 +179,8 @@ test("Memory writes send the read revision and never replay conflicts implicitly
   assert.match(saveSource, /reconcileRunningRef\.current/);
   assert.doesNotMatch(saveSource, /setTimeout|retry\(/);
   assert.match(panelSource, /memory_conflict_impact/);
-  assert.match(panelSource, /memory_conflict_review_next_step/);
+  assert.match(panelSource, /memory_conflict_review_impact/);
+  assert.match(panelSource, /memory_use_latest/);
   assert.match(panelSource, /overwriteConflict/);
 });
 

@@ -143,7 +143,7 @@ export function ScheduledTaskDialog({
             {!isLegacyScriptTask ? (
               <TaskSchedulePanel
                 actions={controller.schedule.actions}
-                errorMessage={controller.errorMessage}
+                formError={controller.formError}
                 form={controller.form.draft}
                 formActions={controller.form.actions}
                 isReconciling={controller.isReconciling}

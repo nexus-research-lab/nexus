@@ -144,9 +144,11 @@ function ChannelLoginSession({
           onSubmit={onSubmitVerifyCode}
         />
       ) : null}
-      <p className="rounded-[10px] border border-(--divider-subtle-color) px-3 py-2 text-compact leading-5 text-(--text-muted)">
-        {model.progress}
-      </p>
+      {model.progress ? (
+        <p className="rounded-[10px] border border-(--divider-subtle-color) px-3 py-2 text-compact leading-5 text-(--text-muted)">
+          {model.progress}
+        </p>
+      ) : null}
       {model.failure ? (
         <FeedbackBanner {...model.failure} />
       ) : null}

@@ -74,7 +74,6 @@ function ConnectorConfigurationError({
   }
   return (
     <UiResourceState
-      description={t("capability.connector_configuration_unavailable_description")}
       impact={t("capability.connector_configuration_unavailable_impact")}
       nextStep={t("capability.connector_configuration_unavailable_next_step")}
       size="sm"

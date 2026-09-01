@@ -324,9 +324,7 @@ export function ExecutionWorkGraphSurface({
       {sketchError ? (
         <UiResourceState
           className="min-h-0 border-b dialog-divider px-4 py-3"
-          description={sketchError}
           impact={t("execution.workflow_preview_failed_impact")}
-          nextStep={t("execution.workflow_preview_failed_next_step")}
           primaryAction={{
             busy: sketchLoading,
             busyLabel: t("execution.workflow_extracting_sketch"),
@@ -347,7 +345,6 @@ export function ExecutionWorkGraphSurface({
             ? "execution.surface_stale_impact"
             : "execution.surface_unavailable_impact")}
           isRefreshing={resource.isLoading}
-          nextStep={t("execution.surface_failure_next_step")}
           onRefresh={resource.refresh}
           problem={t("execution.surface_load_failed")}
           resource="workgraph-current"
@@ -361,7 +358,6 @@ export function ExecutionWorkGraphSurface({
             ? "execution.surface_history_stale_impact"
             : "execution.surface_history_unavailable_impact")}
           isRefreshing={historyResource.isLoading}
-          nextStep={t("execution.surface_history_failure_next_step")}
           onRefresh={historyResource.refresh}
           problem={t("execution.surface_history_load_failed")}
           resource="workgraph-history"

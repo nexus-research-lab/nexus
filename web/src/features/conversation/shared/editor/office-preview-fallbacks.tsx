@@ -94,7 +94,6 @@ export function OfficePreviewFailureState({
     <UiResourceState
       className="m-auto min-h-0 w-full max-w-lg py-5"
       impact={t("workspace_file.office_preview_failed_impact")}
-      nextStep={t("workspace_file.office_preview_failed_next_step")}
       primaryAction={{
         label: t("workspace_file.retry_preview"),
         onClick: onRetry,

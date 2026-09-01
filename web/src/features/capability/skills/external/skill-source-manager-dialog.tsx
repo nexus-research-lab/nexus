@@ -251,7 +251,7 @@ function SourceRow({
         ) : null}
         {source.last_error ? (
           <div className="mt-1 truncate text-xs text-(--destructive)">
-            {source.last_error}
+            {t("capability.skills_external_source_failed_description")}
           </div>
         ) : null}
       </div>

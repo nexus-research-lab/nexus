@@ -142,7 +142,7 @@ test("workspace mutations separate committed API results from list refresh and n
 
   assert.match(
     source,
-    /const result = await mutation\(token\.scopeKey\);[\s\S]*await refreshAfterCommittedMutation\(command, token\);[\s\S]*return isCurrentToken\(token\) \? result : null/,
+    /const result = await mutation\(token\.scopeKey\);[\s\S]*await refreshAfterCommittedMutation\(token\);[\s\S]*return isCurrentToken\(token\) \? result : null/,
   );
   assert.match(source, /recoveryLocksRef\.current\.get\(recoveryKey\)/);
   assert.match(source, /failure\.effect === "not_applied"/);

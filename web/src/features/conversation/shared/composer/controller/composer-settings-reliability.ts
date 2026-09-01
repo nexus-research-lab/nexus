@@ -3,7 +3,6 @@
 // POS: Composer 设置可靠性的纯模型；不读取业务状态，也不执行重试。
 import type { SessionRuntimeSettings } from "@/lib/api/conversation/session-api";
 import {
-  getErrorMessage,
   projectMutationFailure,
   type MutationFailureEffect,
 } from "@/lib/error-message";
@@ -18,8 +17,6 @@ export type ComposerReadResource =
 
 export interface ComposerReadFailure {
   impact: string;
-  message: string;
-  nextStep: string;
   resource: ComposerReadResource;
   title: string;
 }
@@ -37,13 +34,11 @@ export interface ComposerSettingsMutationFailure {
   effect: MutationFailureEffect;
   impact: string;
   intent: ComposerSettingsMutationIntent;
-  message: string;
-  nextStep: string;
   title: string;
 }
 
 export function buildComposerReadFailure(
-  error: unknown,
+  _error: unknown,
   resource: ComposerReadResource,
   fallback: string,
   t: I18nContextValue["t"],
@@ -52,10 +47,6 @@ export function buildComposerReadFailure(
     impact: resource === "session_settings"
       ? t("composer.session_settings_read_impact")
       : t("composer.selection_read_impact"),
-    message: getErrorMessage(error, fallback),
-    nextStep: resource === "session_settings"
-      ? t("composer.session_settings_read_next_step")
-      : t("composer.selection_read_next_step"),
     resource,
     title: fallback,
   };
@@ -109,12 +100,6 @@ export function buildComposerSettingsMutationFailure(
         ? t("composer.session_settings_committed_impact")
         : t("composer.session_settings_unknown_impact"),
     intent,
-    message: failure.message,
-    nextStep: notApplied
-      ? t("composer.session_settings_not_applied_next_step")
-      : committed
-        ? t("composer.session_settings_committed_next_step")
-        : t("composer.session_settings_unknown_next_step"),
     title: notApplied
       ? t("composer.session_settings_save_failed")
       : committed

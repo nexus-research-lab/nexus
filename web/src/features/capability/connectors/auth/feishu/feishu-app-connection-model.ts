@@ -26,7 +26,7 @@ const FEISHU_DEVICE_AUTH_PRESENTATION: Record<
     title: "选择飞书应用",
   },
   user_authorization: {
-    actionLabel: "继续飞书授权",
+    actionLabel: "继续授权",
     initialMessage: "等待授权",
     showQRCode: false,
     title: "连接飞书云文档",

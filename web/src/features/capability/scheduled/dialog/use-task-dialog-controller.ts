@@ -199,7 +199,7 @@ export function useTaskDialogController({
       : buildDefaultTaskDialogInitialState(agentId, createPreset),
     [agentId, createPreset, initialTask],
   );
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const [createRequestId, setCreateRequestId] = useState(createTaskRequestId);
   const [isRestoredCreateIntent, setIsRestoredCreateIntent] = useState(false);
   const [isReconciling, setIsReconciling] = useState(false);
@@ -241,17 +241,16 @@ export function useTaskDialogController({
     setCreateRequestId(requestId);
     setIsRestoredCreateIntent(true);
     updateMutationFailure(restoredFailure);
-    setErrorMessage(restoredFailure.message);
   }, [t, updateMutationFailure]);
   const startFreshCreateIntent = useCallback((): void => {
     setCreateRequestId(createTaskRequestId());
     setIsRestoredCreateIntent(false);
     updateMutationFailure(null);
-    setErrorMessage(null);
+    setFormError(null);
   }, [updateMutationFailure]);
   const clearError = useCallback(() => {
     if (!mutationFailureRef.current?.blocksRepeat) {
-      setErrorMessage(null);
+      setFormError(null);
     }
   }, []);
   const form = useTaskForm(initialState.form, clearError);
@@ -315,7 +314,7 @@ export function useTaskDialogController({
   const hydrate = useCallback(() => {
     hydrateForm(initialState.form);
     hydrateSchedule(initialState.schedule);
-    setErrorMessage(null);
+    setFormError(null);
     setIsReconciling(false);
     setIsMutationReviewed(false);
     setIsSubmitting(false);
@@ -347,14 +346,14 @@ export function useTaskDialogController({
     }
     const validationError = getTaskDialogValidationError(submitContext, t);
     if (validationError) {
-      setErrorMessage(validationError);
+      setFormError(validationError);
       return;
     }
 
     const submissionScopeKey = scopeKey;
     submitInFlightRef.current = true;
     setIsSubmitting(true);
-    setErrorMessage(null);
+    setFormError(null);
     updateMutationFailure(null);
     setIsMutationReviewed(false);
     const submit = async (): Promise<void> => {
@@ -423,7 +422,6 @@ export function useTaskDialogController({
           return;
         }
       }
-      setErrorMessage(projection.message);
       updateMutationFailure(projection);
       if (!projection.blocksRepeat && !initialTask) {
         setCreateRequestId(createTaskRequestId());
@@ -500,7 +498,6 @@ export function useTaskDialogController({
         );
         updateMutationFailure(goneFailure);
         onCreateIntentResolved?.(result.status);
-        setErrorMessage(goneFailure.message);
         return;
       }
 
@@ -518,7 +515,6 @@ export function useTaskDialogController({
       };
       setIsRestoredCreateIntent(true);
       updateMutationFailure(unresolvedFailure);
-      setErrorMessage(unresolvedFailure.message);
     } catch (error) {
       if (activeScopeKeyRef.current !== requestScopeKey) {
         return;
@@ -530,7 +526,6 @@ export function useTaskDialogController({
       if (failure.access) {
         onAccessFailure?.(failure);
       }
-      setErrorMessage(failure.message);
       throw error;
     } finally {
       if (activeCreateRequestCheckRef.current === checkKey) {
@@ -582,7 +577,7 @@ export function useTaskDialogController({
       return;
     }
     updateMutationFailure(null);
-    setErrorMessage(null);
+    setFormError(null);
     setIsMutationReviewed(false);
     // 当前表单仍基于旧 configuration_version，解除保护后必须重新打开，
     // 避免用户在旧版本草稿上继续提交。
@@ -621,15 +616,10 @@ export function useTaskDialogController({
       // 同一版本的权威读取仍不能排除旧请求稍后提交。刷新只完成核对，
       // 当前页面继续保护，直到用户明确接受重复修改风险。
       setIsMutationReviewed(true);
-      setErrorMessage(t("capability.scheduled_dialog_reconcile_unproven"));
     } catch (error) {
       if (activeScopeKeyRef.current !== reconcileScopeKey) {
         return;
       }
-      setErrorMessage(getErrorMessage(
-        error,
-        t("capability.scheduled_dialog_reconcile_failed"),
-      ));
     } finally {
       if (activeScopeKeyRef.current === reconcileScopeKey) {
         setIsReconciling(false);
@@ -643,7 +633,6 @@ export function useTaskDialogController({
     onReconcile,
     reconcileCreateRequest,
     scopeKey,
-    t,
   ]);
 
   useEffect(() => {
@@ -676,7 +665,7 @@ export function useTaskDialogController({
     clearError,
     confirmReviewedMutation,
     data,
-    errorMessage,
+    formError,
     form,
     handleSubmit,
     isCloseBlocked: isSubmitting || isReconciling || Boolean(mutationFailure?.blocksRepeat),

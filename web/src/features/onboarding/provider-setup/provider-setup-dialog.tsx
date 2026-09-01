@@ -1192,86 +1192,95 @@ function JourneyProgress({ scene }: { scene: SetupScene }) {
 
 function ProviderSetupFailure({
   kind,
-  message,
 }: {
   kind: SetupFailureKind;
-  message: string;
 }) {
   const { t } = useI18n();
-  let recovery: { impact: string; nextStep: string };
+  let recovery: { impact: string; nextStep: string; problem: string };
   switch (kind) {
     case "read":
       recovery = {
         impact: t("state.read_failure_impact"),
         nextStep: t("state.retry_next_step"),
+        problem: t("onboarding.provider_setup_load_failed"),
       };
       break;
     case "validation":
       recovery = {
         impact: t("state.validation_failure_impact"),
         nextStep: t("state.validation_failure_next_step"),
+        problem: t("onboarding.provider_setup_validation_problem"),
       };
       break;
     case "journal_before_submit":
       recovery = {
         impact: t("onboarding.provider_setup_journal_before_impact"),
         nextStep: t("onboarding.provider_setup_journal_before_next"),
+        problem: t("onboarding.provider_setup_journal_before_problem"),
       };
       break;
     case "journal_after_save":
       recovery = {
         impact: t("onboarding.provider_setup_journal_after_impact"),
         nextStep: t("onboarding.provider_setup_journal_after_next"),
+        problem: t("onboarding.provider_setup_journal_after_problem"),
       };
       break;
     case "persist_not_applied":
       recovery = {
         impact: t("onboarding.provider_setup_persist_not_applied_impact"),
         nextStep: t("onboarding.provider_setup_persist_not_applied_next"),
+        problem: t("onboarding.provider_setup_persist_not_applied_problem"),
       };
       break;
     case "persist_unknown":
       recovery = {
         impact: t("onboarding.provider_setup_persist_unknown_impact"),
         nextStep: t("onboarding.provider_setup_persist_unknown_next"),
+        problem: t("onboarding.provider_setup_persist_unknown_problem"),
       };
       break;
     case "test_failed":
       recovery = {
         impact: t("onboarding.provider_setup_test_failed_impact"),
         nextStep: t("onboarding.provider_setup_test_failed_next"),
+        problem: t("onboarding.provider_setup_test_failed_problem"),
       };
       break;
     case "test_not_applied":
       recovery = {
         impact: t("onboarding.provider_setup_test_not_applied_impact"),
         nextStep: t("onboarding.provider_setup_test_not_applied_next"),
+        problem: t("onboarding.provider_setup_test_not_applied_problem"),
       };
       break;
     case "test_unknown":
       recovery = {
         impact: t("onboarding.provider_setup_test_unknown_impact"),
         nextStep: t("onboarding.provider_setup_test_unknown_next"),
+        problem: t("onboarding.provider_setup_test_unknown_problem"),
       };
       break;
     case "default_not_applied":
       recovery = {
         impact: t("onboarding.provider_setup_default_not_applied_impact"),
         nextStep: t("onboarding.provider_setup_default_not_applied_next"),
+        problem: t("onboarding.provider_setup_default_not_applied_problem"),
       };
       break;
     case "default_unknown":
       recovery = {
         impact: t("onboarding.provider_setup_default_unknown_impact"),
         nextStep: t("onboarding.provider_setup_default_unknown_next"),
+        problem: t("onboarding.provider_setup_default_unknown_problem"),
       };
       break;
   }
   return (
     <ProviderSetupFailureView
       impact={recovery.impact}
-      message={message}
       nextStep={recovery.nextStep}
+      problem={recovery.problem}
       tone={kind.endsWith("unknown") || kind === "journal_after_save" ? "warning" : "danger"}
     />
   );
@@ -1323,7 +1332,7 @@ function ProviderScene({
           </div>
         ) : null}
         {!loading && error ? (
-          <ProviderSetupFailure kind={errorKind} message={error} />
+          <ProviderSetupFailure kind={errorKind} />
         ) : null}
         {!loading && !error && presets.length === 0 ? (
           <div className={getDialogNoteClassName("danger")} role="status">
@@ -1565,7 +1574,7 @@ function CredentialsScene({
           </UiField>
         ) : null}
 
-        {error ? <ProviderSetupFailure kind={errorKind} message={error} /> : null}
+        {error ? <ProviderSetupFailure kind={errorKind} /> : null}
       </div>
 
       <div className="flex shrink-0 items-center justify-end gap-2 border-t border-(--divider-subtle-color) pb-5 pt-3">
@@ -1755,7 +1764,7 @@ function CustomProviderScene({
           />
         </UiField>
 
-        {error ? <ProviderSetupFailure kind={errorKind} message={error} /> : null}
+        {error ? <ProviderSetupFailure kind={errorKind} /> : null}
       </div>
 
       <div className="flex shrink-0 items-center justify-end gap-2 border-t border-(--divider-subtle-color) pb-5 pt-3">

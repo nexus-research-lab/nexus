@@ -95,7 +95,6 @@ export function usePairingsController() {
           nextStep: t("capability.channel_pairing_catalog_load_failed_next_step"),
           tone: "error",
           title: t("capability.channel_pairing_catalog_load_failed_title"),
-          message: t("capability.channel_pairing_catalog_load_failed_message"),
         });
       }
       return complete;
@@ -108,7 +107,6 @@ export function usePairingsController() {
             nextStep: t("capability.channel_pairing_catalog_load_failed_next_step"),
             tone: "error",
             title: t("capability.channel_pairing_catalog_load_failed_title"),
-            message: t("capability.channel_pairing_catalog_load_failed_message"),
           });
         }
       }
@@ -182,7 +180,6 @@ export function usePairingsController() {
               nextStep: t("state.committed_refresh_next_step"),
               tone: "error",
               title: t("capability.channel_pairing_updated_refresh_failed_title"),
-              message: t("capability.channel_pairing_refresh_failed_message"),
             });
       } catch (error) {
         const issue = buildChannelOperationIssue(error, "pairing_update", t);
@@ -225,7 +222,6 @@ export function usePairingsController() {
               nextStep: t("state.committed_refresh_next_step"),
               tone: "error",
               title: t("capability.channel_pairing_deleted_refresh_failed_title"),
-              message: t("capability.channel_pairing_refresh_failed_message"),
             });
       } catch (error) {
         const issue = buildChannelOperationIssue(error, "pairing_delete", t);
@@ -273,7 +269,6 @@ export function usePairingsController() {
             nextStep: t("state.committed_refresh_next_step"),
             tone: "error",
             title: t("capability.channel_pairing_created_refresh_failed_title"),
-            message: t("capability.channel_pairing_created_refresh_failed_message"),
           });
       return true;
     } catch (error) {
@@ -298,7 +293,6 @@ export function usePairingsController() {
         }
       : {
           impact: t("state.local_failure_impact"),
-          message: t("capability.channel_pairing_session_copy_failed_message"),
           nextStep: t("state.local_failure_next_step"),
           tone: "error",
           title: t("capability.channel_pairing_session_copy_failed_title"),
@@ -360,11 +354,6 @@ export function usePairingsController() {
       impact: unproven
         ? t("capability.channel_reconcile_unproven_impact")
         : recovery.issue.impact,
-      message: failed
-        ? t("capability.channel_reconcile_failed_message")
-        : unproven
-          ? t("capability.channel_reconcile_unproven_message")
-          : recovery.issue.message,
       nextStep: failed
         ? t("capability.channel_reconcile_failed_next_step")
         : unproven

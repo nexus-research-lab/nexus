@@ -41,27 +41,32 @@ export function SubscriptionAdminPanel({ view }: SubscriptionAdminPanelProps) {
       <FeedbackBannerViewport
         item={controller.feedback
           ? completeFeedbackBanner(
-            {
-              impact: controller.feedback.impact,
-              message: controller.feedback.message,
-              nextStep: controller.feedback.nextStep,
-              action: controller.feedback.recoveryAction === "refresh"
-                ? {
-                    label: t("settings.subscription.refresh"),
-                    onClick: () => {
-                      void controller.refreshOverview();
-                    },
-                  }
-                : undefined,
-              onDismiss: controller.feedback.blocksMutation
-                ? undefined
-                : controller.dismissFeedback,
-              title: controller.feedback.title,
-              tone: controller.feedback.tone,
-            },
+            controller.feedback.tone === "success"
+              ? {
+                  message: controller.feedback.message,
+                  onDismiss: controller.dismissFeedback,
+                  title: controller.feedback.title,
+                  tone: "success",
+                }
+              : {
+                  impact: controller.feedback.impact,
+                  nextStep: controller.feedback.nextStep,
+                  action: controller.feedback.recoveryAction === "refresh"
+                    ? {
+                        label: t("settings.subscription.refresh"),
+                        onClick: () => {
+                          void controller.refreshOverview();
+                        },
+                      }
+                    : undefined,
+                  onDismiss: controller.feedback.blocksMutation
+                    ? undefined
+                    : controller.dismissFeedback,
+                  title: controller.feedback.title,
+                  tone: controller.feedback.tone,
+                },
             {
               impact: t("feedback.unconfirmed_impact"),
-              nextStep: t("feedback.unconfirmed_next_step"),
             },
           )
           : null}

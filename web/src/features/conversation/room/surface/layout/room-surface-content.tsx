@@ -143,9 +143,6 @@ export function RoomSurfaceContent({
                     ? "conversation.external_sessions_stale_impact"
                     : "conversation.external_sessions_unavailable_impact")}
                   isRefreshing={externalSessionsReliability.isLoading}
-                  nextStep={t(externalSessionsReliability.failure.access
-                    ? "conversation.external_sessions_access_next_step"
-                    : "conversation.external_sessions_next_step")}
                   onRefresh={externalSessionsReliability.refresh}
                   problem={t("conversation.external_sessions_refresh_failed")}
                   resource="room-external-sessions"

@@ -120,7 +120,6 @@ export type SaveFeedback =
   | {
     blocksRepeat: boolean;
     tone: "error" | "warning";
-    message: string;
     impact: string;
-    nextStep: string;
+    title: string;
   };

@@ -6,9 +6,7 @@ export function RoomChatErrorView() {
   return (
     <div className="flex h-full min-h-80 items-center justify-center px-6 py-10">
       <UiResourceState
-        description={t("room.chat_render_error_description")}
         impact={t("room.chat_render_error_impact")}
-        nextStep={t("room.chat_render_error_next_step")}
         primaryAction={{
           label: t("common.refresh"),
           onClick: () => window.location.reload(),

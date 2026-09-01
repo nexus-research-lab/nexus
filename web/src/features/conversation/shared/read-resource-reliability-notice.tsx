@@ -15,7 +15,6 @@ export function ReadResourceReliabilityNotice({
   className,
   impact,
   isRefreshing,
-  nextStep,
   onRefresh,
   problem,
   resource,
@@ -24,7 +23,6 @@ export function ReadResourceReliabilityNotice({
   className?: string;
   impact: string;
   isRefreshing: boolean;
-  nextStep: string;
   onRefresh: () => void;
   problem: string;
   resource: string;
@@ -48,7 +46,7 @@ export function ReadResourceReliabilityNotice({
       />
       <div className="w-[calc(100%-1.5rem)] min-w-0 flex-none sm:w-auto sm:flex-1">
         <p className="shrink-0 font-medium leading-5 text-(--text-strong)">{problem}</p>
-        <RecoverySummary className="mt-0.5 min-w-0" impact={impact} nextStep={nextStep} />
+        <RecoverySummary className="mt-0.5 min-w-0" impact={impact} />
       </div>
       <button
         className="ml-6 inline-flex h-7 shrink-0 items-center gap-1 rounded-[7px] px-1.5 font-medium text-(--primary) transition-colors hover:bg-[color:color-mix(in_srgb,var(--primary)_7%,transparent)] disabled:cursor-wait disabled:opacity-60 motion-reduce:transition-none sm:ml-0"

@@ -79,7 +79,6 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
               description={t("sidebar.directory_load_failed_description")}
               impact={t("sidebar.directory_load_failed_impact")}
               icon={CircleAlert}
-              nextStep={t("sidebar.directory_load_failed_next_step")}
               onAction={controller.list.retry}
               title={t("sidebar.directory_load_failed")}
             />

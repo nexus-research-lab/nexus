@@ -86,9 +86,7 @@ function MemoryContent({
   if (memory.resource.error?.access) {
     return (
       <UiResourceState
-        description={memory.resource.error.message}
         impact={t("state.access_failure_impact")}
-        nextStep={t("state.permission_next_step")}
         primaryAction={{
           icon: <RefreshCw className="h-3.5 w-3.5" />,
           label: t("state.retry"),
@@ -110,9 +108,7 @@ function MemoryContent({
   if (memory.resource.error && !memory.resource.snapshot) {
     return (
       <UiResourceState
-        description={memory.resource.error.message}
         impact={t("state.read_failure_impact")}
-        nextStep={t("state.retry_next_step")}
         primaryAction={{
           icon: <RefreshCw className="h-3.5 w-3.5" />,
           label: t("state.retry"),
@@ -129,9 +125,7 @@ function MemoryContent({
       {memory.resource.error ? (
         <UiResourceState
           className="mx-3 mt-3 min-h-0 py-3"
-          description={memory.resource.error.message}
           impact={t("capability.memory_stale_catalog_impact")}
-          nextStep={t("state.retry_next_step")}
           primaryAction={{
             icon: <RefreshCw className="h-3.5 w-3.5" />,
             label: t("state.retry"),

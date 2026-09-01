@@ -276,7 +276,7 @@ test("provider retry is transient and a durable Session reconciliation is author
   assert.equal(state.failure, null);
 });
 
-test("user notice contains the complete recovery contract but no transport or request details", async () => {
+test("user notice stays concise and hides transport or request details", async () => {
   const { ConversationReliabilityNotice } = await server.ssrLoadModule(
     "/src/features/conversation/shared/conversation-reliability-notice.tsx",
   );
@@ -306,9 +306,8 @@ test("user notice contains the complete recovery contract but no transport or re
       }),
     ),
   );
-  assert.match(html, /本轮没有完成回复/);
-  assert.match(html, /用户消息和已经显示的历史仍保留/);
-  assert.match(html, /确认需要后再发起新一轮/);
+  assert.match(html, /回复生成失败/);
+  assert.match(html, /请重新发送/);
   assert.doesNotMatch(html, /secret-request-id|secret-round-id|secret-session|查看详情/);
   assert.match(html, /data-conversation-failure-code="round_failed"/);
   assert.match(html, /aria-live="polite"/);
@@ -344,8 +343,8 @@ test("unknown message receipt warns against duplicate submission", async () => {
       }),
     ),
   );
-  assert.match(html, /消息状态待确认/);
-  assert.match(html, /重复发送有重复回复风险/);
-  assert.match(html, /先看最新消息，再决定是否重发/);
+  assert.match(html, /消息状态未确认/);
+  assert.match(html, /确认前不要重复发送/);
+  assert.match(html, />刷新</);
   assert.doesNotMatch(html, /请稍后重试/);
 });

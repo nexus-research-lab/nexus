@@ -590,6 +590,8 @@ function ContactConversation({
       </ConversationPanelViewportArea>
       <ConversationPanelBottomArea
         isMobileLayout={isCompactLayout}
+        isReconciling={false}
+        onReconcile={() => undefined}
         providerWarningVisible={false}
         reliability={{
           failure: null,
@@ -645,26 +647,22 @@ function buildCommunicationMutationFeedback(
     | "agent_options.contact.send_message_not_completed";
   const effectCopies: Record<
     AgentCommunicationMutationFailure["effect"],
-    { impact: TranslationKey; nextStep: TranslationKey; tone: "error" | "warning" }
+    { impact: TranslationKey; tone: "error" | "warning" }
   > = {
     accepted: {
       impact: "agent_options.contact.mutation_accepted_impact",
-      nextStep: "agent_options.contact.mutation_accepted_next_step",
       tone: "warning",
     },
     committed: {
       impact: "agent_options.contact.mutation_committed_impact",
-      nextStep: "agent_options.contact.mutation_committed_next_step",
       tone: "warning",
     },
     not_applied: {
       impact: "agent_options.contact.mutation_not_applied_impact",
-      nextStep: "agent_options.contact.mutation_not_applied_next_step",
       tone: "error",
     },
     unknown: {
       impact: "agent_options.contact.mutation_unknown_impact",
-      nextStep: "agent_options.contact.mutation_unknown_next_step",
       tone: "warning",
     },
   };
@@ -675,8 +673,6 @@ function buildCommunicationMutationFeedback(
       onClick: onRefresh,
     },
     impact: t(effectCopy.impact),
-    message: failure.message,
-    nextStep: t(effectCopy.nextStep),
     ...(failure.blocksRepeat ? {} : { onDismiss: onClear }),
     title: t(operationTitle),
     tone: effectCopy.tone,
@@ -712,9 +708,7 @@ function CommunicationReadFailure({
   return (
     <UiResourceState
       className={compact ? "mb-2 min-h-0 py-3" : undefined}
-      description={failure.message}
       impact={t(copy.impact)}
-      nextStep={t(copy.nextStep)}
       primaryAction={{
         icon: <RefreshCw className="h-3.5 w-3.5" />,
         label: t(copy.action),
@@ -736,7 +730,6 @@ function communicationFailureCopy(failure: AgentCommunicationReadFailure) {
         impact: failure.stale
           ? "agent_options.contact.directory_stale_impact" as const
           : "agent_options.contact.directory_unavailable_impact" as const,
-        nextStep: "agent_options.contact.directory_failure_next_step" as const,
         title: "agent_options.contact.directory_load_failed" as const,
       };
     case "channel":
@@ -745,7 +738,6 @@ function communicationFailureCopy(failure: AgentCommunicationReadFailure) {
         impact: failure.stale
           ? "agent_options.contact.channel_stale_impact" as const
           : "agent_options.contact.channel_unavailable_impact" as const,
-        nextStep: "agent_options.contact.channel_failure_next_step" as const,
         title: "agent_options.contact.channel_load_failed" as const,
       };
     case "history":
@@ -754,7 +746,6 @@ function communicationFailureCopy(failure: AgentCommunicationReadFailure) {
         impact: failure.stale
           ? "agent_options.contact.history_stale_impact" as const
           : "agent_options.contact.history_unavailable_impact" as const,
-        nextStep: "agent_options.contact.history_failure_next_step" as const,
         title: "agent_options.contact.history_load_failed" as const,
       };
     case "messages":
@@ -763,7 +754,6 @@ function communicationFailureCopy(failure: AgentCommunicationReadFailure) {
         impact: failure.stale
           ? "agent_options.contact.messages_stale_impact" as const
           : "agent_options.contact.messages_unavailable_impact" as const,
-        nextStep: "agent_options.contact.messages_failure_next_step" as const,
         title: "agent_options.contact.messages_load_failed" as const,
       };
   }

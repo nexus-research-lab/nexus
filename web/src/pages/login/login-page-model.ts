@@ -15,7 +15,6 @@ export interface LoginRecoveryNotice {
   action: "check_status" | null;
   blocksSubmit: boolean;
   impact: string;
-  message: string;
   nextStep: string;
   title: string;
 }
@@ -78,7 +77,6 @@ export function buildLoginSubmitFailure(
       action: null,
       blocksSubmit: false,
       impact: t("login.submit_not_applied_impact"),
-      message: failure.message,
       nextStep: t("login.submit_not_applied_next_step"),
       title: t("login.submit_failed_title"),
     };
@@ -87,14 +85,13 @@ export function buildLoginSubmitFailure(
     action: "check_status",
     blocksSubmit: true,
     impact: t("login.submit_unknown_impact"),
-    message: failure.message,
     nextStep: t("login.submit_unknown_next_step"),
     title: t("login.submit_unknown_title"),
   };
 }
 
 export function buildLoginStatusFailure(
-  message: string,
+  _message: string,
   hasKnownStatus: boolean,
   t: I18nContextValue["t"],
 ): LoginRecoveryNotice {
@@ -104,7 +101,6 @@ export function buildLoginStatusFailure(
     impact: t(hasKnownStatus
       ? "login.runtime_options_failure_impact"
       : "state.read_failure_impact"),
-    message,
     nextStep: t(hasKnownStatus
       ? "login.runtime_options_failure_next_step"
       : "state.retry_next_step"),

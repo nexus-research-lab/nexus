@@ -19,7 +19,6 @@ export type ChannelLoginPanelModel =
   | {
       failure: {
         impact: string;
-        message: string;
         nextStep: string;
         title: string;
         tone: "error" | "warning";
@@ -146,7 +145,6 @@ function resolveTerminalFailure(
   if (!loginStatusDefinition(view.status)) {
     return {
       impact: t("capability.channel_login_unknown_status_impact"),
-      message: t("capability.channel_login_unknown_status_message"),
       nextStep: t("capability.channel_login_unknown_status_next_step"),
       title: t("capability.channel_login_unknown_status_title"),
       tone: "warning",
@@ -155,7 +153,6 @@ function resolveTerminalFailure(
   if (view.status === "error") {
     return {
       impact: t("capability.channel_login_failed_impact"),
-      message: t("capability.channel_login_failed_message"),
       nextStep: t("capability.channel_login_failed_next_step"),
       title: t("capability.channel_login_failed_title"),
       tone: "error",
@@ -167,9 +164,6 @@ function resolveTerminalFailure(
       impact: t(expired
         ? "capability.channel_login_expired_impact"
         : "capability.channel_login_cancelled_impact"),
-      message: t(expired
-        ? "capability.channel_login_expired_message"
-        : "capability.channel_login_cancelled_message"),
       nextStep: t(expired
         ? "capability.channel_login_expired_next_step"
         : "capability.channel_login_cancelled_next_step"),
@@ -189,12 +183,13 @@ export function buildChannelLoginPanelModel(
   if (!view) {
     return { kind: "idle" };
   }
+  const failure = resolveTerminalFailure(view, t);
 
   return {
-    failure: resolveTerminalFailure(view, t),
+    failure,
     identity: resolveLoginIdentity(view, t),
     kind: "session",
-    progress: resolveLoginProgress(view, t),
+    progress: failure ? "" : resolveLoginProgress(view, t),
     qrPayload: view.qr_payload ?? "",
     qrRequired: view.status === "running",
     status: resolveLoginStatus(view.status, t),

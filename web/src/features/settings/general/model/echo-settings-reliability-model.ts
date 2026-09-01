@@ -5,13 +5,19 @@
  */
 import type { EchoSettings } from "@/lib/api/settings/echo-api";
 
-export interface EchoSettingsFeedback {
-  impact: string;
-  message: string;
-  nextStep: string;
-  title: string;
-  tone: "error" | "success" | "warning";
-}
+export type EchoSettingsFeedback =
+  | {
+    impact: string;
+    message?: never;
+    title: string;
+    tone: "error" | "warning";
+  }
+  | {
+    impact?: never;
+    message: string;
+    title: string;
+    tone: "success";
+  };
 
 export interface EchoSettingsRecoveryControls {
   canCheckLatest: boolean;
@@ -20,7 +26,6 @@ export interface EchoSettingsRecoveryControls {
   checking: boolean;
   checkLatest: () => void;
   finishDisabling: () => void;
-  reapplyChange: () => void;
   repairing: boolean;
   useLatest: () => void;
 }

@@ -3255,8 +3255,8 @@ test("history restores only the latest assistant round error", async () => {
       text: "",
       timestamp: 2,
     })]),
-    null,
-    "result-only failure is already visible as the final assistant reply",
+    runtimeExitMessage,
+    "result-only runtime failure must use the structured reliability notice",
   );
   assert.equal(
     latestAssistantResultErrorMessage([assistantMessage({

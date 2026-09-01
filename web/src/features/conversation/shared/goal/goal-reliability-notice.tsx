@@ -11,6 +11,7 @@ import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import { cn } from "@/shared/ui/class-name";
+import { RecoverySummary } from "@/shared/ui/feedback/recovery-summary";
 
 import type {
   GoalLifecycleOperation,
@@ -90,11 +91,11 @@ export function GoalReliabilityNotice({
       />
       <div className="min-w-0 flex-1 text-(--text-muted)">
         <p className="font-semibold leading-5 text-(--text-strong)">{copy.problem}</p>
-        {copy.tone === "info" ? null : (
-          <p className="mt-0.5 leading-5">{state.detail}</p>
-        )}
-        <p className="leading-5">{copy.impact}</p>
-        <p className="font-medium leading-5 text-(--text-default)">{copy.nextStep}</p>
+        <RecoverySummary
+          className="mt-0.5 min-w-0"
+          impact={copy.impact}
+          nextStep={canRefresh ? undefined : copy.nextStep}
+        />
       </div>
       {canRefresh ? (
         <button

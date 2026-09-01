@@ -47,7 +47,6 @@ export function MemoryDeletionIssueNotices({
             className="min-h-0 py-3"
             impact={t(presentation.impactKey, { name: issue.title })}
             key={`${issue.ownerGeneration}:${issue.agentId}:${issue.path}`}
-            nextStep={t(presentation.nextStepKey)}
             primaryAction={getRecoveryAction({
               action: presentation.primaryAction,
               busy: issueReconciling,

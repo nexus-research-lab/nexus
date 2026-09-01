@@ -72,9 +72,7 @@ export function SettingsDesktopSection() {
             <div className="border-t border-(--divider-subtle-color)" />
             <UiResourceState
               className="border-0 bg-transparent"
-              description={t("settings.desktop.version_failed")}
               impact={t("settings.desktop.version_failed_impact")}
-              nextStep={t("settings.desktop.version_failed_next_step")}
               primaryAction={{
                 busy: controller.versionLoading,
                 busyLabel: t("settings.desktop.version_loading"),

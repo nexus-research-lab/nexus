@@ -6,7 +6,6 @@ import type {
 } from "@/types/capability/skill";
 
 export interface ExternalResultGroup {
-  error?: string;
   items: ExternalSkillSearchItem[];
   key: string;
   label: string;
@@ -78,7 +77,6 @@ function groupExternalResultsBySource(
       const status = statusesByKey.get(source.source_id);
       configuredSourceKeys.add(source.source_id);
       groups.set(source.source_id, {
-        error: status?.error || source.last_error,
         items: [],
         key: source.source_id,
         label: source.name,
@@ -90,7 +88,6 @@ function groupExternalResultsBySource(
     if (groups.has(status.key)) return;
     configuredSourceKeys.add(status.key);
     groups.set(status.key, {
-      error: status.error,
       items: [],
       key: status.key,
       label: status.name,
@@ -137,11 +134,7 @@ export function sourceGroupEmptyMessage(
 ): string {
   const messages: Record<string, string> = {
     disabled: localization.t("capability.skills_external_source_disabled_description"),
-    error: group.error
-      ? localization.t("capability.skills_external_source_failed_with_reason", {
-        reason: group.error,
-      })
-      : localization.t("capability.skills_external_source_failed_description"),
+    error: localization.t("capability.skills_external_source_failed_description"),
     ok: localization.t("capability.skills_external_source_empty"),
   };
   return messages[group.status] ?? messages.ok;

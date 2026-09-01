@@ -23,36 +23,28 @@ export function projectLauncherOperationFailure(
     case "query_read":
       return failureBanner(
         t("launcher.failure.query_title"),
-        t("launcher.failure.query_message"),
         t("launcher.failure.query_impact"),
-        t("launcher.failure.query_next_step"),
         t("launcher.failure.retry_query"),
         onRecover,
       );
     case "room_read":
       return failureBanner(
         t("launcher.failure.room_title"),
-        t("launcher.failure.room_message"),
         t("launcher.failure.room_impact"),
-        t("launcher.failure.room_next_step"),
         t("launcher.failure.retry_room"),
         onRecover,
       );
     case "target_missing":
       return failureBanner(
         t("launcher.failure.target_title"),
-        t("launcher.failure.target_message"),
         t("launcher.failure.target_impact"),
-        t("launcher.failure.target_next_step"),
         t("launcher.failure.open_workspace"),
         onRecover,
       );
     case "main_agent_missing":
       return failureBanner(
         t("launcher.failure.main_agent_title"),
-        t("launcher.failure.main_agent_message"),
         t("launcher.failure.main_agent_impact"),
-        t("launcher.failure.main_agent_next_step"),
         t("launcher.failure.open_workspace"),
         onRecover,
       );
@@ -66,10 +58,6 @@ export function projectLauncherOperationFailure(
           onClick: onRecover,
         },
         impact: directRoomImpact(t, failure.effect),
-        message: t("launcher.failure.direct_room_message"),
-        nextStep: t(notApplied
-          ? "launcher.failure.direct_room_retry_next_step"
-          : "launcher.failure.direct_room_check_next_step"),
         title: t("launcher.failure.direct_room_title"),
         tone: notApplied ? "error" : "warning",
       };
@@ -95,17 +83,13 @@ function directRoomImpact(
 
 function failureBanner(
   title: string,
-  message: string,
   impact: string,
-  nextStep: string,
   actionLabel: string,
   onRecover: () => void,
 ): FeedbackBannerProps {
   return {
     action: { label: actionLabel, onClick: onRecover },
     impact,
-    message,
-    nextStep,
     title,
     tone: "error",
   };
