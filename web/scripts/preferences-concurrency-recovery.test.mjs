@@ -96,20 +96,18 @@ test("preferences writes use CAS while reconciliation remains read-only", async 
 
   const checkLatestBody = hook.slice(
     hook.indexOf("const checkLatest"),
-    hook.indexOf("const commitLatestSnapshot"),
+    hook.indexOf("const repairProjectionSnapshot"),
   );
   assert.match(checkLatestBody, /getUserPreferencesApi\(\)/);
   assert.doesNotMatch(checkLatestBody, /updateUserPreferencesApi\(/);
-  assert.match(hook, /rebasePreferenceDraft[\s\S]*showDraft\(rebasedDraft\)/);
-  assert.doesNotMatch(
-    hook.slice(
-      hook.indexOf("const commitLatestSnapshot"),
-      hook.indexOf("const discardDraftAndUseLatest"),
-    ),
-    /persistAtVersion/,
+  const reapplyBody = hook.slice(
+    hook.indexOf("const reapplyDraft"),
+    hook.indexOf("const updatePreferences"),
   );
+  assert.match(reapplyBody, /rebasePreferenceDraft\(/);
+  assert.match(reapplyBody, /persistAtVersion\(rebased, pending\.latest\)/);
   assert.match(hook, /preferences\.projection_result_unknown/);
-  assert.match(hook, /const commitLatestSnapshot/);
+  assert.match(hook, /const repairProjectionSnapshot/);
   assert.match(
     hook,
     /buildPreferencesUpdatePayload\(latest\)[\s\S]*expectedVersion: latest\.version/,

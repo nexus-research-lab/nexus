@@ -1,6 +1,6 @@
 /**
  * INPUT: owner-scoped Echo GET/PUT、Preferences revision、领域 failure effect 与外部 aggregate 同步回调。
- * OUTPUT: CAS 保存、结果未知对账、关闭后收口修复和完整恢复提示。
+ * OUTPUT: CAS 保存、结果未知对账、关闭后收口修复和单一安全恢复动作。
  * POS: 主动跟进设置的唯一前端事务边界；未知写入不自动重放且不被其他资源刷新解锁。
  */
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -25,7 +25,7 @@ import type {
 } from "./model/echo-settings-reliability-model";
 import { validEchoSettings } from "./model/echo-settings-reliability-model";
 
-type RecoveryPurpose = "finish-disabling" | "normal" | "use-latest";
+type RecoveryPurpose = "finish-disabling" | "normal" | "reapply";
 
 export function useEchoSettings({
   aggregateVersion,
@@ -311,12 +311,12 @@ export function useEchoSettings({
       });
   }, [publishAuthoritative, t]);
 
-  const useLatest = useCallback(() => {
+  const reapplyChange = useCallback(() => {
     const pending = pendingRef.current;
     if (!pending?.latest) {
       return;
     }
-    void submitAtVersion(pending.latest.enabled, pending.latest, "use-latest");
+    void submitAtVersion(pending.desired, pending.latest, "reapply");
   }, [submitAtVersion]);
 
   const finishDisabling = useCallback(() => {
@@ -346,8 +346,8 @@ export function useEchoSettings({
     checking,
     checkLatest,
     finishDisabling,
+    reapplyChange,
     repairing,
-    useLatest,
   };
 
   return {
@@ -372,7 +372,6 @@ type EchoFeedbackPrefix =
   | "echo_committed_needs_check"
   | "echo_conflict"
   | "echo_difference"
-  | "echo_latest_selected"
   | "echo_load_failure"
   | "echo_not_applied"
   | "echo_reapplied"
@@ -450,8 +449,8 @@ function successFeedback(
   switch (purpose) {
     case "finish-disabling":
       return feedback("echo_cleanup_completed", t, "success");
-    case "use-latest":
-      return feedback("echo_latest_selected", t, "success");
+    case "reapply":
+      return feedback("echo_reapplied", t, "success");
     default:
       return null;
   }

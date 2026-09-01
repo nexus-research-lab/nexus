@@ -69,6 +69,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Preserved concise failure guidance without weakening recovery: Provider
+  validation now keeps its field-specific correction, reconciled Preferences and
+  Echo changes expose one safe reapply action, and multi-file workspace uploads
+  retain the exact per-file outcome summary needed to avoid duplicate retries.
 - Fixed the Windows browser extension setup so it opens the actual Chrome or
   Edge extensions page and bundled extension directory instead of a blank tab
   and the default Documents folder.

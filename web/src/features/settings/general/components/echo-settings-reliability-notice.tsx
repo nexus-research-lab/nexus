@@ -76,11 +76,12 @@ export function EchoSettingsReliabilityNotice({
             ) : recovery.canCompare ? (
               <UiButton
                 disabled={recovery.checking}
-                onClick={recovery.useLatest}
+                onClick={recovery.reapplyChange}
                 size="xs"
-                variant="text"
+                tone="primary"
+                variant="surface"
               >
-                {t("settings.general.echo_use_latest")}
+                {t("settings.general.echo_reapply")}
               </UiButton>
             ) : recovery.canCheckLatest ? (
               <UiButton

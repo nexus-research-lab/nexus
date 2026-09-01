@@ -76,11 +76,12 @@ export function PreferencesReliabilityNotice({
             ) : recovery.canCompare ? (
               <UiButton
                 disabled={recovery.checking}
-                onClick={recovery.useLatest}
+                onClick={recovery.reapplyDraft}
                 size="xs"
-                variant="text"
+                tone="primary"
+                variant="surface"
               >
-                {t("settings.general.preferences_use_latest")}
+                {t("settings.general.preferences_reapply_draft")}
               </UiButton>
             ) : (
               <UiButton

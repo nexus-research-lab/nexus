@@ -1,5 +1,5 @@
 // INPUT: Provider 读取、校验、mutation 与后续刷新阶段的可验证结果。
-// OUTPUT: 区分未发送、未应用、结果未知、已提交但页面过期的反馈事实。
+// OUTPUT: 区分具体字段校验、未应用、结果未知和已提交但页面过期的反馈事实。
 // POS: Provider Settings 的纯失败展示模型；不执行刷新或重复 mutation。
 import { projectMutationFailure } from "@/lib/error-message";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
@@ -46,11 +46,10 @@ export function buildProviderErrorFeedback(
 
 export function buildProviderValidationFeedback(
   title: string,
-  _message: string,
-  t: I18nContextValue["t"],
+  message: string,
 ): FeedbackState {
   return {
-    impact: t("state.validation_failure_impact"),
+    impact: message,
     tone: "error",
     title,
   };
