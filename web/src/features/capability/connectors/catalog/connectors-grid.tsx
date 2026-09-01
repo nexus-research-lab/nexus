@@ -59,9 +59,7 @@ export function ConnectorsGrid({
   if (failure && connectors.length === 0) {
     return (
       <UiResourceState
-        description={failure.message}
         impact={t("capability.connector_catalog_load_failed_impact")}
-        nextStep={t("capability.connector_catalog_load_failed_next_step")}
         primaryAction={{
           label: t("capability.connector_catalog_refresh"),
           onClick: onRefresh,
@@ -91,9 +89,7 @@ export function ConnectorsGrid({
     <div className="space-y-6">
       {failure ? (
         <UiResourceState
-          description={failure.message}
           impact={t("capability.connector_catalog_stale_impact")}
-          nextStep={t("capability.connector_catalog_load_failed_next_step")}
           primaryAction={{
             label: t("capability.connector_catalog_refresh"),
             onClick: onRefresh,

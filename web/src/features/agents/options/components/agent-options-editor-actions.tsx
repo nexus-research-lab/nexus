@@ -1,6 +1,7 @@
 import { cn } from "@/shared/ui/class-name";
 import { UiButton } from "@/shared/ui/button/button";
 import type { UiButtonSize } from "@/shared/ui/button/button-styles";
+import { RecoverySummary } from "@/shared/ui/feedback/recovery-summary";
 
 import type { SaveFeedback } from "../agent-options-editor-model";
 
@@ -102,14 +103,9 @@ function SaveFeedbackMessage({
         role="status"
       >
         <p className="break-words text-compact font-semibold text-(--text-default)">
-          {feedback.message}
+          {feedback.title}
         </p>
-        <p className="mt-1 break-words text-xs leading-5 text-(--text-muted)">
-          {feedback.impact}
-        </p>
-        <p className="mt-1 break-words text-xs font-medium leading-5 text-(--text-default)">
-          {feedback.nextStep}
-        </p>
+        <RecoverySummary className="mt-1" impact={feedback.impact} />
       </div>
     );
   }

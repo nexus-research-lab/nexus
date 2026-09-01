@@ -23,7 +23,7 @@ import {
 import { createRoomConversation } from "@/lib/api/conversation/room-command-api";
 import { getRoomContexts } from "@/lib/api/conversation/room-resource-api";
 import { ApiRequestError } from "@/lib/api/core/http-error";
-import { getErrorMessage, getResourceFailure } from "@/lib/error-message";
+import { getResourceFailure } from "@/lib/error-message";
 import { useAppEventSubscription, useWebSocket } from "@/lib/websocket";
 import { parseEventMessage } from "@/lib/websocket/protocol/event-message";
 import type { AgentContact } from "@/types/agent/agent";
@@ -158,7 +158,6 @@ export function useAgentCommunication(
         }
         setDirectoryFailure({
           kind: "directory",
-          message: getErrorMessage(loadError, "加载联系人失败"),
           stale: !invalidated
             && directorySnapshotAgentIdRef.current === scopeAgentId,
         });
@@ -238,7 +237,6 @@ export function useAgentCommunication(
           ? null
           : {
               kind: "channel",
-              message: getErrorMessage(loadError, "打开联络会话失败"),
               stale: !invalidated
                 && targetSnapshotKeyRef.current === requestKey,
             });
@@ -321,7 +319,6 @@ export function useAgentCommunication(
         }
         setConversationFailure({
           kind: "messages",
-          message: getErrorMessage(loadError, "加载消息失败"),
           stale: !invalidated
             && messageSnapshotKeyRef.current === requestKey,
         });
@@ -390,7 +387,6 @@ export function useAgentCommunication(
         }
         setConversationFailure({
           kind: "history",
-          message: getErrorMessage(loadError, "加载更早消息失败"),
           stale: !invalidated
             && messageSnapshotKeyRef.current === requestKey,
         });

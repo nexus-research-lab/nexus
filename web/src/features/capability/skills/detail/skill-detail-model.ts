@@ -1,6 +1,5 @@
 import { getSkillCategoryLabel } from "@/lib/skill-category";
 import {
-  getErrorMessage,
   projectMutationFailure,
   type MutationFailureEffect,
 } from "@/lib/error-message";
@@ -14,9 +13,9 @@ import type {
 } from "@/types/capability/skill";
 
 export type SkillDetailSnapshot =
-  | { errorMessage: null; skill: null; status: "loading" }
-  | { errorMessage: string; skill: null; status: "error" }
-  | { errorMessage: null; skill: SkillDetail; status: "ready" };
+  | { skill: null; status: "loading" }
+  | { skill: null; status: "error" }
+  | { skill: SkillDetail; status: "ready" };
 
 interface SkillSourcePresentation {
   labelKey: TranslationKey;
@@ -49,9 +48,8 @@ export interface SkillAgentBindingPresentation {
 
 export interface SkillAgentBindingsReadFailure {
   impact: string;
-  message: string;
-  nextStep: string;
   title: string;
+  tone: "danger";
 }
 
 export interface SkillAgentToggleFailure {
@@ -59,25 +57,20 @@ export interface SkillAgentToggleFailure {
   blocksRepeat: boolean;
   effect: MutationFailureEffect;
   impact: string;
-  message: string;
-  nextStep: string;
   title: string;
+  tone: "danger" | "warning";
 }
 
 type SkillDetailLocalization = Pick<I18nContextValue, "t">;
 
 export function buildSkillAgentBindingsReadFailure(
-  error: unknown,
+  _error: unknown,
   t: I18nContextValue["t"],
 ): SkillAgentBindingsReadFailure {
   return {
     impact: t("state.read_failure_impact"),
-    message: getErrorMessage(
-      error,
-      t("capability.skills_detail_bindings_load_failed"),
-    ),
-    nextStep: t("state.retry_next_step"),
     title: t("capability.skills_detail_bindings_load_failed"),
+    tone: "danger",
   };
 }
 
@@ -101,22 +94,17 @@ export function buildSkillAgentToggleFailure(
       : committed
         ? t("state.committed_refresh_impact")
         : t("feedback.unconfirmed_impact"),
-    message: failure.message,
-    nextStep: notApplied
-      ? t("capability.skills_detail_toggle_not_applied_next_step")
-      : committed
-        ? t("state.committed_refresh_next_step")
-        : t("capability.skills_detail_toggle_unknown_next_step"),
     title: notApplied
       ? t("capability.skills_detail_toggle_failed")
       : committed
         ? t("capability.skills_detail_toggle_committed_title")
         : t("capability.skills_detail_toggle_unknown_title"),
+    tone: notApplied ? "danger" : "warning",
   };
 }
 
 export function buildSkillAgentToggleFollowupFailure(
-  error: unknown,
+  _error: unknown,
   agentId: string,
   t: I18nContextValue["t"],
 ): SkillAgentToggleFailure {
@@ -125,12 +113,8 @@ export function buildSkillAgentToggleFollowupFailure(
     blocksRepeat: true,
     effect: "committed",
     impact: t("state.committed_refresh_impact"),
-    message: getErrorMessage(
-      error,
-      t("capability.skills_detail_toggle_refresh_failed"),
-    ),
-    nextStep: t("state.committed_refresh_next_step"),
     title: t("capability.skills_detail_toggle_committed_title"),
+    tone: "warning",
   };
 }
 

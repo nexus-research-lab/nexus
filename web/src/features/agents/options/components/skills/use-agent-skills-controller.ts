@@ -136,6 +136,13 @@ export function useAgentSkillsController({
   const scopedCommand = busyCommand?.agentId === scopeAgentId
     ? busyCommand
     : null;
+  const refresh = useCallback(async () => {
+    const result = await refreshResource();
+    if (result.status === "loaded") {
+      setActionFailures({});
+    }
+    return result;
+  }, [refreshResource, setActionFailures]);
 
   useEffect(() => () => {
     if (activeAgentIdRef.current === scopeAgentId) {
@@ -223,14 +230,6 @@ export function useAgentSkillsController({
     void runSkillToggle(pendingDisableSkill);
   }, [pendingDisableSkill, runSkillToggle, setPendingDisableSkill]);
 
-  const startNewSkillIntent = useCallback((skillName: string): void => {
-    setActionFailures((current) => {
-      const next = { ...current };
-      delete next[skillName];
-      return next;
-    });
-  }, [setActionFailures]);
-
   const mutationFailures = Object.values(actionFailures).filter(
     (failure) => failure.target.agentId === scopeAgentId,
   );
@@ -249,10 +248,9 @@ export function useAgentSkillsController({
     pendingDisableSkill,
     projection,
     readFailure,
-    refresh: refreshResource,
+    refresh,
     requestSkillAction,
     searchQuery,
     setSearchQuery,
-    startNewSkillIntent,
   };
 }

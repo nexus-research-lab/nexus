@@ -32,7 +32,7 @@ func (h *Handler) handleSubscribeRoom(
 	if h.roomSubs != nil {
 		latestRoomSeq = h.roomSubs.CurrentRoomSeq(roomID)
 	}
-	h.restoreRoomActivitySnapshot(ctx, sender, roomID, conversationID)
+	h.restoreRoomActivitySnapshot(ctx, sender, roomID, conversationID, latestRoomSeq)
 	if h.roomSubs != nil {
 		lastSeenRoomSeq := handlershared.Int64Value(inbound["last_seen_room_seq"])
 		replayBoundary := latestRoomSeq
@@ -103,6 +103,7 @@ func (h *Handler) restoreRoomActivitySnapshot(
 	sender *handlershared.WebSocketSender,
 	roomID string,
 	conversationID string,
+	latestRoomSeq int64,
 ) {
 	pendingInteractionRequestIDs := []string{}
 	if h.permission != nil {
@@ -149,6 +150,7 @@ func (h *Handler) restoreRoomActivitySnapshot(
 	event := protocol.NewChatPendingSnapshotEvent(
 		sessionKey,
 		roundID,
+		latestRoomSeq,
 		pending,
 		pendingInteractionRequestIDs,
 	)

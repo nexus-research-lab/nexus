@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -115,6 +116,47 @@ test("preferences writes put the aggregate revision in If-Match", async () => {
   assert.equal(new Headers(requestInit.headers).get("If-Match"), '"preferences-7"');
 });
 
+test("preferences writes use CAS while reconciliation remains read-only", async () => {
+  const [api, hook] = await Promise.all([
+    read("src/lib/api/settings/preferences-api.ts"),
+    read("src/features/settings/general/use-user-preferences.ts"),
+  ]);
+
+  assert.match(api, /"If-Match": `"preferences-\$\{expectedVersion\}"`/);
+  assert.match(hook, /setWritable\(false\)[\s\S]*getUserPreferencesApi\(\)/);
+  assert.match(hook, /projectMutationFailure\(/);
+  assert.match(
+    hook,
+    /pendingRef\.current = \{[\s\S]*base,[\s\S]*draft: optimistic,[\s\S]*latest: null,[\s\S]*projectionRepairRequired:/,
+  );
+  assert.match(hook, /showDraft\(optimistic\)[\s\S]*setWritable\(true\)/);
+
+  const checkLatestBody = hook.slice(
+    hook.indexOf("const checkLatest"),
+    hook.indexOf("const repairProjectionSnapshot"),
+  );
+  assert.match(checkLatestBody, /getUserPreferencesApi\(\)/);
+  assert.doesNotMatch(checkLatestBody, /updateUserPreferencesApi\(/);
+  const reapplyBody = hook.slice(
+    hook.indexOf("const reapplyDraft"),
+    hook.indexOf("const updatePreferences"),
+  );
+  assert.match(reapplyBody, /rebasePreferenceDraft\(/);
+  assert.match(reapplyBody, /persistAtVersion\(rebased, pending\.latest\)/);
+  assert.match(hook, /preferences\.projection_result_unknown/);
+  assert.match(hook, /const repairProjectionSnapshot/);
+  assert.match(
+    hook,
+    /buildPreferencesUpdatePayload\(latest\)[\s\S]*expectedVersion: latest\.version/,
+  );
+  assert.match(hook, /projectionRepairRequiredFeedback/);
+  assert.match(hook, /projectionRepairCompletedFeedback/);
+  assert.match(
+    hook,
+    /failure\.code === "preferences\.projection_result_unknown"/,
+  );
+});
+
 test("preference recovery copy answers problem, impact, and next step", async () => {
   const { zhMessages } = await server.ssrLoadModule(
     "/src/shared/i18n/catalog/zh/index.ts",
@@ -137,6 +179,37 @@ test("preference recovery copy answers problem, impact, and next step", async ()
   );
 });
 
+test("runtime availability failures cannot trigger preference reconciliation", async () => {
+  const [controller, section] = await Promise.all([
+    read("src/features/settings/runtime/use-runtime-settings-controller.ts"),
+    read("src/features/settings/runtime/settings-runtime-section.tsx"),
+  ]);
+
+  assert.match(controller, /const \[runtimeFeedback, setRuntimeFeedback\]/);
+  assert.match(controller, /setRuntimeFeedback\(\{/);
+  assert.doesNotMatch(controller, /setFeedback\(/);
+  assert.match(
+    section,
+    /feedback=\{settings\.preferencesFeedback \?\? settings\.runtimeFeedback\}/,
+  );
+  assert.match(
+    section,
+    /recovery=\{settings\.preferencesFeedback[\s\S]*\? settings\.preferencesRecovery[\s\S]*: undefined\}/,
+  );
+});
+
+test("late preference responses are fenced to the current authenticated owner", async () => {
+  const hook = await read(
+    "src/features/settings/general/use-user-preferences.ts",
+  );
+
+  assert.match(hook, /captureAuthOwnerScopeGeneration\(\)/);
+  assert.match(hook, /isAuthOwnerScopeGenerationCurrent\(ownerGeneration\)/);
+  assert.match(hook, /authOwnerReloadKey/);
+  assert.match(hook, /saveRequestRef/);
+  assert.match(hook, /checkRequestRef/);
+});
+
 function preference(overrides = {}) {
   return {
     version: 1,
@@ -150,4 +223,8 @@ function preference(overrides = {}) {
     },
     ...overrides,
   };
+}
+
+function read(relativePath) {
+  return readFile(path.join(webRoot, relativePath), "utf8");
 }

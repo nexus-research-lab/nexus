@@ -1,10 +1,7 @@
 // INPUT: 订阅目录、表单草稿，以及读取或修改结果证据。
 // OUTPUT: 保留草稿/最后快照的视图模型和 Problem/Impact/Recovery 反馈。
 // POS: Subscription Admin 的纯状态投影；不根据异常正文猜测 mutation 结果。
-import {
-  getErrorMessage,
-  projectMutationFailure,
-} from "@/lib/error-message";
+import { projectMutationFailure } from "@/lib/error-message";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import type {
@@ -30,15 +27,24 @@ export interface PlanDraft {
   sortOrder: string;
 }
 
-export interface FeedbackState {
-  blocksMutation?: boolean;
-  impact?: string;
-  message: string;
-  nextStep?: string;
+interface FeedbackStateBase {
   recoveryAction?: "refresh";
   title: string;
-  tone: "success" | "error" | "warning";
 }
+
+export type FeedbackState =
+  | FeedbackStateBase & {
+    impact: string;
+    message?: never;
+    nextStep: string;
+    tone: "error" | "warning";
+  }
+  | FeedbackStateBase & {
+    impact?: never;
+    message: string;
+    nextStep?: never;
+    tone: "success";
+  };
 
 export interface SubscriptionAdminSnapshot {
   overview: SubscriptionOverview | null;
@@ -81,6 +87,11 @@ export interface SubscriptionAdminViewModels {
   planView: PlanViewModel;
 }
 
+export interface SubscriptionMutationFailureProjection {
+  effect: "accepted" | "committed" | "not_applied" | "unknown";
+  feedback: FeedbackState;
+}
+
 export type PendingSubscriptionMutation =
   | { kind: "account"; ownerUserId: string }
   | { kind: "plan"; planKey: string }
@@ -107,17 +118,16 @@ export const EMPTY_SUBSCRIPTION_SNAPSHOT: SubscriptionAdminSnapshot = {
 
 interface FeedbackCopy {
   impact?: TranslationKey;
-  message: TranslationKey;
+  message?: TranslationKey;
   nextStep?: TranslationKey;
-  recoveryAction?: FeedbackState["recoveryAction"];
+  recoveryAction?: "refresh";
   title: TranslationKey;
-  tone: FeedbackState["tone"];
+  tone: "success" | "error" | "warning";
 }
 
 const FEEDBACK_COPY: Record<SubscriptionFeedbackEvent, FeedbackCopy> = {
   "account-save-failed": {
     impact: "settings.subscription.mutation_not_applied_impact",
-    message: "settings.subscription.save_failed_message",
     nextStep: "settings.subscription.mutation_not_applied_next_step",
     title: "settings.subscription.save_failed_title",
     tone: "error",
@@ -129,7 +139,6 @@ const FEEDBACK_COPY: Record<SubscriptionFeedbackEvent, FeedbackCopy> = {
   },
   "load-failed": {
     impact: "state.read_failure_impact",
-    message: "settings.subscription.load_failed_message",
     nextStep: "state.retry_next_step",
     recoveryAction: "refresh",
     title: "settings.subscription.load_failed_title",
@@ -137,14 +146,12 @@ const FEEDBACK_COPY: Record<SubscriptionFeedbackEvent, FeedbackCopy> = {
   },
   "plan-create-failed": {
     impact: "settings.subscription.mutation_not_applied_impact",
-    message: "settings.subscription.plan_create_failed_message",
     nextStep: "settings.subscription.mutation_not_applied_next_step",
     title: "settings.subscription.plan_create_failed_title",
     tone: "error",
   },
   "plan-create-invalid": {
     impact: "settings.subscription.validation_impact",
-    message: "settings.subscription.plan_limit_invalid",
     nextStep: "settings.subscription.validation_next_step",
     title: "settings.subscription.plan_create_failed_title",
     tone: "error",
@@ -156,14 +163,12 @@ const FEEDBACK_COPY: Record<SubscriptionFeedbackEvent, FeedbackCopy> = {
   },
   "plan-save-failed": {
     impact: "settings.subscription.mutation_not_applied_impact",
-    message: "settings.subscription.plan_save_failed_message",
     nextStep: "settings.subscription.mutation_not_applied_next_step",
     title: "settings.subscription.plan_save_failed_title",
     tone: "error",
   },
   "plan-save-invalid": {
     impact: "settings.subscription.validation_impact",
-    message: "settings.subscription.plan_limit_invalid",
     nextStep: "settings.subscription.validation_next_step",
     title: "settings.subscription.plan_save_failed_title",
     tone: "error",
@@ -255,10 +260,16 @@ export function buildSubscriptionFeedback(
   event: SubscriptionFeedbackEvent,
 ): FeedbackState {
   const copy = FEEDBACK_COPY[event];
+  if (copy.tone === "success") {
+    return {
+      message: translate(copy.message ?? copy.title),
+      title: translate(copy.title),
+      tone: "success",
+    };
+  }
   return {
-    impact: copy.impact ? translate(copy.impact) : undefined,
-    message: translate(copy.message),
-    nextStep: copy.nextStep ? translate(copy.nextStep) : undefined,
+    impact: translate(copy.impact ?? "state.local_failure_impact"),
+    nextStep: translate(copy.nextStep ?? "state.local_failure_next_step"),
     recoveryAction: copy.recoveryAction,
     title: translate(copy.title),
     tone: copy.tone,
@@ -316,14 +327,10 @@ const SUBSCRIPTION_MUTATION_COPY = {
 
 export function buildSubscriptionReadFailure(
   t: I18nContextValue["t"],
-  error: unknown,
+  _error: unknown,
 ): FeedbackState {
   return {
     impact: t("state.read_failure_impact"),
-    message: getErrorMessage(
-      error,
-      t("settings.subscription.load_failed_message"),
-    ),
     nextStep: t("state.retry_next_step"),
     recoveryAction: "refresh",
     title: t("settings.subscription.load_failed_title"),
@@ -335,7 +342,7 @@ export function buildSubscriptionMutationFailure(
   t: I18nContextValue["t"],
   operation: SubscriptionMutationOperation,
   error: unknown,
-): FeedbackState {
+): SubscriptionMutationFailureProjection {
   const failure = projectMutationFailure(
     error,
     t(SUBSCRIPTION_MUTATION_FALLBACK_KEYS[operation]),
@@ -349,19 +356,20 @@ export function buildSubscriptionMutationFailure(
   const notApplied = outcome === "not_applied";
   const copy = SUBSCRIPTION_MUTATION_COPY[outcome];
   return {
-    blocksMutation: !notApplied,
-    impact: t(copy.impact, {
-      operation: operationLabel,
-    }),
-    message: failure.message,
-    nextStep: t(copy.nextStep, {
-      operation: operationLabel,
-    }),
-    recoveryAction: notApplied ? undefined : "refresh",
-    title: t(copy.title, {
-      operation: operationLabel,
-    }),
-    tone: notApplied ? "error" : "warning",
+    effect: outcome,
+    feedback: {
+      impact: t(copy.impact, {
+        operation: operationLabel,
+      }),
+      nextStep: t(copy.nextStep, {
+        operation: operationLabel,
+      }),
+      recoveryAction: notApplied ? undefined : "refresh",
+      title: t(copy.title, {
+        operation: operationLabel,
+      }),
+      tone: notApplied ? "error" : "warning",
+    },
   };
 }
 

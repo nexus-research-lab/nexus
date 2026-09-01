@@ -1,6 +1,6 @@
 // INPUT: Subscription API、当前 overview 草稿与 FailureCore。
 // OUTPUT: 保留最后快照、阻止未知结果重复写入的运营控制器。
-// POS: Subscription Admin 业务编排边界；只有重新读取 overview 才解除未知锁。
+// POS: Subscription Admin 业务编排边界；反馈与 mutation 锁分离，只有权威 overview 才解锁。
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
@@ -33,6 +33,8 @@ export function useSubscriptionAdmin() {
   const [loading, setLoading] = useState(true);
   const [pendingMutation, setPendingMutation] =
     useState<PendingSubscriptionMutation | null>(null);
+  const [unresolvedMutation, setUnresolvedMutation] =
+    useState<PendingSubscriptionMutation | null>(null);
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const [transactionCoordinator] = useState(() => (
     new SubscriptionTransactionCoordinator({
@@ -47,9 +49,10 @@ export function useSubscriptionAdmin() {
       failure: (error) => buildSubscriptionReadFailure(t, error),
       onFinish: () => setLoading(false),
       onStart: () => setLoading(true),
-      onSuccess: () => setFeedback((current) => (
-        current?.blocksMutation || current?.tone === "error" ? null : current
-      )),
+      onSuccess: () => {
+        setUnresolvedMutation(null);
+        setFeedback(null);
+      },
       request: getSubscriptionOverviewApi,
     });
   }, [t, transactionCoordinator]);
@@ -101,7 +104,7 @@ export function useSubscriptionAdmin() {
   }, []);
 
   const saveAccount = useCallback(async (ownerUserId: string) => {
-    if (feedback?.blocksMutation) {
+    if (unresolvedMutation) {
       return;
     }
     const draft = snapshot.accountDrafts[ownerUserId];
@@ -114,16 +117,25 @@ export function useSubscriptionAdmin() {
         plan_key: draft.planKey,
       }),
       success: buildSubscriptionFeedback(t, "account-save-succeeded"),
-      failure: (error) => buildSubscriptionMutationFailure(
-        t,
-        "account-save",
-        error,
-      ),
+      onSuccess: () => setUnresolvedMutation(null),
+      failure: (error) => {
+        const projection = buildSubscriptionMutationFailure(
+          t,
+          "account-save",
+          error,
+        );
+        setUnresolvedMutation(
+          projection.effect === "not_applied"
+            ? null
+            : { kind: "account", ownerUserId },
+        );
+        return projection.feedback;
+      },
     });
-  }, [feedback?.blocksMutation, snapshot.accountDrafts, t, transactionCoordinator]);
+  }, [snapshot.accountDrafts, t, transactionCoordinator, unresolvedMutation]);
 
   const savePlan = useCallback(async (planKey: string) => {
-    if (feedback?.blocksMutation) {
+    if (unresolvedMutation) {
       return;
     }
     const draft = snapshot.planDrafts[planKey];
@@ -139,16 +151,23 @@ export function useSubscriptionAdmin() {
       pending: { kind: "plan", planKey },
       request: () => updateSubscriptionPlanApi(planKey, payload),
       success: buildSubscriptionFeedback(t, "plan-save-succeeded"),
-      failure: (error) => buildSubscriptionMutationFailure(
-        t,
-        "plan-save",
-        error,
-      ),
+      onSuccess: () => setUnresolvedMutation(null),
+      failure: (error) => {
+        const projection = buildSubscriptionMutationFailure(
+          t,
+          "plan-save",
+          error,
+        );
+        setUnresolvedMutation(
+          projection.effect === "not_applied" ? null : { kind: "plan", planKey },
+        );
+        return projection.feedback;
+      },
     });
-  }, [feedback?.blocksMutation, snapshot.planDrafts, t, transactionCoordinator]);
+  }, [snapshot.planDrafts, t, transactionCoordinator, unresolvedMutation]);
 
   const createPlan = useCallback(async () => {
-    if (feedback?.blocksMutation) {
+    if (unresolvedMutation) {
       return;
     }
     const payload = buildPlanPayload(newPlanDraft.planKey, newPlanDraft);
@@ -159,15 +178,24 @@ export function useSubscriptionAdmin() {
     await transactionCoordinator.runMutation({
       pending: { kind: "create-plan" },
       request: () => createSubscriptionPlanApi(payload),
-      onSuccess: () => setNewPlanDraft(createEmptyPlanDraft()),
+      onSuccess: () => {
+        setNewPlanDraft(createEmptyPlanDraft());
+        setUnresolvedMutation(null);
+      },
       success: buildSubscriptionFeedback(t, "plan-create-succeeded"),
-      failure: (error) => buildSubscriptionMutationFailure(
-        t,
-        "plan-create",
-        error,
-      ),
+      failure: (error) => {
+        const projection = buildSubscriptionMutationFailure(
+          t,
+          "plan-create",
+          error,
+        );
+        setUnresolvedMutation(
+          projection.effect === "not_applied" ? null : { kind: "create-plan" },
+        );
+        return projection.feedback;
+      },
     });
-  }, [feedback?.blocksMutation, newPlanDraft, t, transactionCoordinator]);
+  }, [newPlanDraft, t, transactionCoordinator, unresolvedMutation]);
 
   const refreshOverview = useCallback(async () => {
     await loadOverview();
@@ -179,15 +207,16 @@ export function useSubscriptionAdmin() {
       newPlanDraft,
       loading,
       pendingMutation,
-      Boolean(feedback?.blocksMutation),
+      Boolean(unresolvedMutation),
     ),
-    [feedback?.blocksMutation, loading, newPlanDraft, pendingMutation, snapshot],
+    [loading, newPlanDraft, pendingMutation, snapshot, unresolvedMutation],
   );
 
   return {
     accountView,
     planView,
     feedback,
+    mutationBlocked: Boolean(unresolvedMutation),
     changeAccountDraft,
     changeNewPlanDraft,
     changePlanDraft,

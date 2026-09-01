@@ -101,7 +101,6 @@ export function useDesktopSettings() {
     } catch {
       setExportFeedback({
         impact: t("settings.desktop.export_logs_failed_impact"),
-        message: t("settings.desktop.export_logs_failed"),
         nextStep: t("settings.desktop.export_logs_failed_next_step"),
         title: t("settings.desktop.export_logs_failed_title"),
         tone: "warning",

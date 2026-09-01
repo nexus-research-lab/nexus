@@ -160,6 +160,8 @@ function ActiveGroupConversation({
           />
         )}
         isMobileLayout={isMobileLayout}
+        isReconciling={model.isSessionLoading}
+        onReconcile={model.reconcileConversation}
         providerWarningVisible={model.providerWarningVisible}
         reliability={model.reliability}
         roundIndexResource={model.roundIndexResource}

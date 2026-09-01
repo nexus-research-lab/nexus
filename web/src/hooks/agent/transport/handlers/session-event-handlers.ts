@@ -1,6 +1,6 @@
 /**
  * INPUT: session-scoped WebSocket protocol events 与当前 conversation handler context。
- * OUTPUT: envelope session 匹配的资源事件投影，以及跨视图切换仍按本地 client_request_id 所有权收口的 ACK/明确拒绝。
+ * OUTPUT: envelope session 匹配的资源事件投影；当前 Room 快照先重置重放栅栏，ACK/拒绝仍按 exact client request 收口。
  * POS: agent transport 的会话事件路由表；请求收口与当前页面投影分离，不猜测跨 session 活动。
  */
 import { readString } from "@/lib/unknown-value";
@@ -282,6 +282,12 @@ const handleChatAck: AgentEventHandler = (event, context) => {
     return;
   }
   if (context.scope.isCurrentSessionEvent(event.session_key || null)) {
+    if (ack.pending_snapshot && typeof ack.snapshot_room_seq === "number") {
+      setRoomSnapshotReplayFence(
+        context.transport.roomSeqCursorRef,
+        ack.snapshot_room_seq,
+      );
+    }
     context.runtime.trackChatAck(ack);
     context.state.reliability.observeRecovery({
       client_request_id: ack.client_request_id,
@@ -298,6 +304,14 @@ const handleChatAck: AgentEventHandler = (event, context) => {
     session_key: event.session_key,
   });
 };
+
+/** 快照序号属于当前服务端代次；允许后端重启后从较小序号重新开始。 */
+export function setRoomSnapshotReplayFence(
+  cursor: { current: number },
+  snapshotRoomSeq: number,
+): void {
+  cursor.current = snapshotRoomSeq;
+}
 
 function createMessageStatusHandler(
   status: AssistantMessageStatus,

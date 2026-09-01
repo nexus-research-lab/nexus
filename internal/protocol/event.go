@@ -479,11 +479,13 @@ func NewInterruptAckEvent(
 func NewChatPendingSnapshotEvent(
 	sessionKey string,
 	roundID string,
+	snapshotRoomSeq int64,
 	pending []ChatAckPendingSlot,
 	pendingInteractionRequestIDs []string,
 ) EventMessage {
 	event := NewChatAckEvent(sessionKey, "", "", roundID, "", false, pending)
 	event.Data["pending_snapshot"] = true
+	event.Data["snapshot_room_seq"] = max(snapshotRoomSeq, 0)
 	if pendingInteractionRequestIDs == nil {
 		pendingInteractionRequestIDs = []string{}
 	}

@@ -27,14 +27,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   near-fullscreen detail dialog with a distinct fit-to-view action, exact edge
   midpoint controls, and full upstream/downstream path focus that dims
   unrelated graph content without hiding durable Tool runs.
-- Simplified shared failure presentation to a concrete title, one localized
-  impact/recovery sentence, and at most one safe primary action. Server details,
+- Simplified shared failure presentation to a concrete title, one short
+  instruction, and at most one direct action. Error views no longer require
+  separate impact and next-step copy, buttons use short labels, and existing
+  send/save/refresh controls are not duplicated. Server details,
   protocol recovery directives, and diagnostic IDs no longer drive user copy.
   Uncertain,
   stale, and conflicting states now use warning emphasis while confirmed
   failures retain destructive emphasis. Unknown results state confirmed facts
   and concrete repeat risks instead of listing hypothetical outcome branches,
   without changing recovery behavior.
+- Reduced conversation recovery to one prioritized, single-sentence Composer
+  status. Only message reconciliation and incomplete history loading expose a
+  refresh action; other failures reuse the existing Composer, permission card,
+  or settings controls. New submissions no longer erase unresolved delivery or Provider facts,
+  terminal runtime text no longer masquerades as an assistant reply, Goal notices
+  no longer expose internal detail, and root failure screens use one recovery line.
+- Removed unused error `message` and `description` channels from shared feedback,
+  resource-state, settings, Skill, Composer, OAuth, and Agent-editor paths so
+  product code cannot build duplicate hidden copy or surface provider details.
 - Removed the scheduled-task browser mutation journal, Agent-creation Web Locks
   availability gate, implementation-shape reliability suites, and standalone
   failure-state screenshot gallery. Browser storage is now only a best-effort
@@ -59,14 +70,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   group and increased the spacing between assistant headers and message bodies.
 - Kept Room collaboration visibly active while private directed work is queued
   or running, without exposing participants or private content.
+- Preserved concise failure guidance without weakening recovery: Provider
+  validation now keeps its field-specific correction, reconciled Preferences and
+  Echo changes expose one safe reapply action, and multi-file workspace uploads
+  retain the exact per-file outcome summary needed to avoid duplicate retries.
 - Fixed the Windows browser extension setup so it opens the actual Chrome or
   Edge extensions page and bundled extension directory instead of a blank tab
   and the default Documents folder.
 - Reconciled Room Agent execution cards against authoritative reconnect
-  snapshots, so executions absent from the server's active-slot set no longer
-  remain stuck on thinking with a stale Stop action; incremental ACKs still
-  preserve unrelated work, and late exact failure or interruption evidence can
-  refine the neutral terminal state without reordering replies.
+  snapshots and their durable Room sequence fence, so history or replay events
+  older than the snapshot can no longer revive an execution that the server has
+  already stopped. Persisted partial Assistant rows remain visible as history
+  without producing a stale thinking state or Stop action.
+- Made password changes safely reconcilable with a user-scoped exact request
+  terminal receipt. Credential CAS and `committed` are one transaction, while
+  an explicit `not_applied` settlement fences late writes after a lost draft;
+  unknown results persist across reloads without storing passwords or creating
+  a fresh mutation.
+- Kept Subscription Admin mutation locks independent from dismissible feedback,
+  classified subscription/password failures from proven write stages, preserved
+  content-only Assistant normalization, and prevented legacy error details from
+  becoming user-visible copy. Error-state types now allow only one safe recovery
+  action, while explicit two-way conflict choices use a separate decision state.
 - Prevented the WorkGraph history dropdown from opening as an empty strip when
   a conversation has no current or historical graph; it now shows an explicit
   empty or load-failure state, grows with its history through seven entries,

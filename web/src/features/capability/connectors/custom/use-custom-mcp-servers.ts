@@ -9,7 +9,7 @@ import {
   getCustomMCPServersApi,
   updateCustomMCPServerApi,
 } from "@/lib/api/capability/connector-api";
-import { getErrorMessage, projectMutationFailure } from "@/lib/error-message";
+import { projectMutationFailure } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type {
   CustomMCPServer,
@@ -65,7 +65,6 @@ export function useCustomMCPServers({
               onClick: () => window.location.reload(),
             },
             impact: t("state.read_failure_impact"),
-            message: getErrorMessage(error, t("capability.custom_mcp_load_failed")),
             nextStep: t("state.retry_next_step"),
             title: t("capability.custom_mcp_operation_failed"),
             tone: "error",

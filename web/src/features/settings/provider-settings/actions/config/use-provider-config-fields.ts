@@ -67,9 +67,9 @@ export function useProviderConfigFields({
     );
     if (transition.kind === "reject") {
       setFeedback({
+        impact: t("state.validation_failure_impact"),
         tone: "error",
-        title: t("settings.providers.api_format_unsupported_title"),
-        message: t("settings.providers.api_format_unsupported_message"),
+        title: t("settings.providers.api_format_unsupported_message"),
       });
       return;
     }

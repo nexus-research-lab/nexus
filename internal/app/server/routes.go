@@ -82,6 +82,8 @@ func (s *Server) mountCoreRoutes() {
 	s.router.Get(s.prefixPath("/settings/profile"), s.handlers.auth.HandlePersonalProfile)
 	s.router.Patch(s.prefixPath("/settings/profile"), s.handlers.auth.HandleUpdatePersonalProfile)
 	s.router.Post(s.prefixPath("/settings/profile/password"), s.handlers.auth.HandleChangePassword)
+	s.router.Get(s.prefixPath("/settings/profile/password/receipt"), s.handlers.auth.HandlePasswordChangeReceipt)
+	s.router.Post(s.prefixPath("/settings/profile/password/receipt/not-applied"), s.handlers.auth.HandleSettlePasswordChangeNotApplied)
 	s.router.Get(s.prefixPath("/settings/preferences"), s.handlers.core.HandleGetPreferences)
 	s.router.Patch(s.prefixPath("/settings/preferences"), s.handlers.core.HandleUpdatePreferences)
 	s.router.Get(s.prefixPath("/settings/echo"), s.handlers.echo.HandleGetEcho)

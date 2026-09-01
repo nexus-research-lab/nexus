@@ -50,7 +50,6 @@ export function useProviderModelAdd({
       setFeedback(buildProviderValidationFeedback(
         t("settings.providers.model_id_required_title"),
         t("settings.providers.model_id_required_message"),
-        t,
       ));
       return;
     }

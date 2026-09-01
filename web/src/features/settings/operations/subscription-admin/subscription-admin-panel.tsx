@@ -1,3 +1,8 @@
+/**
+ * INPUT: Subscription 权威快照、独立 mutation 锁与可见反馈。
+ * OUTPUT: dismiss 只影响反馈，不得解除未对账 mutation 锁的运营界面。
+ * POS: Subscription Admin 页面装配层。
+ */
 "use client";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -41,27 +46,32 @@ export function SubscriptionAdminPanel({ view }: SubscriptionAdminPanelProps) {
       <FeedbackBannerViewport
         item={controller.feedback
           ? completeFeedbackBanner(
-            {
-              impact: controller.feedback.impact,
-              message: controller.feedback.message,
-              nextStep: controller.feedback.nextStep,
-              action: controller.feedback.recoveryAction === "refresh"
-                ? {
-                    label: t("settings.subscription.refresh"),
-                    onClick: () => {
-                      void controller.refreshOverview();
-                    },
-                  }
-                : undefined,
-              onDismiss: controller.feedback.blocksMutation
-                ? undefined
-                : controller.dismissFeedback,
-              title: controller.feedback.title,
-              tone: controller.feedback.tone,
-            },
+            controller.feedback.tone === "success"
+              ? {
+                  message: controller.feedback.message,
+                  onDismiss: controller.dismissFeedback,
+                  title: controller.feedback.title,
+                  tone: "success",
+                }
+              : {
+                  impact: controller.feedback.impact,
+                  nextStep: controller.feedback.nextStep,
+                  action: controller.feedback.recoveryAction === "refresh"
+                    ? {
+                        label: t("settings.subscription.refresh"),
+                        onClick: () => {
+                          void controller.refreshOverview();
+                        },
+                      }
+                    : undefined,
+                  onDismiss: controller.mutationBlocked
+                    ? undefined
+                    : controller.dismissFeedback,
+                  title: controller.feedback.title,
+                  tone: controller.feedback.tone,
+                },
             {
               impact: t("feedback.unconfirmed_impact"),
-              nextStep: t("feedback.unconfirmed_next_step"),
             },
           )
           : null}

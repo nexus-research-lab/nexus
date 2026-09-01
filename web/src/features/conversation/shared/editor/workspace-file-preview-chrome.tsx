@@ -148,7 +148,6 @@ export function WorkspaceFileDownloadButton({
       console.error(`[WorkspaceFileDownloadButton] ${fileActionCopy.label} workspace 文件失败:`, error);
       setFailure({
         impact: t("workspace_file.external_action_failed_impact"),
-        message: t("workspace_file.external_action_failed"),
         nextStep: t("workspace_file.external_action_failed_next_step"),
         onDismiss: () => setFailure(null),
         title: t("workspace_file.external_action_failed"),

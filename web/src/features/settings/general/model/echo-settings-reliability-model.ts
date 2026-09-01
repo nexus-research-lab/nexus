@@ -1,17 +1,23 @@
 /**
  * INPUT: Echo authoritative revision、未决目标和领域失败事实。
- * OUTPUT: 不跨资源解锁的恢复状态与完整 Problem/Impact/Recovery 反馈类型。
+ * OUTPUT: 不跨资源解锁的恢复状态、精简反馈与单一安全动作类型。
  * POS: 主动跟进设置的纯交互合同；不访问 React、HTTP 或全局状态。
  */
 import type { EchoSettings } from "@/lib/api/settings/echo-api";
 
-export interface EchoSettingsFeedback {
-  impact: string;
-  message: string;
-  nextStep: string;
-  title: string;
-  tone: "error" | "success" | "warning";
-}
+export type EchoSettingsFeedback =
+  | {
+    impact: string;
+    message?: never;
+    title: string;
+    tone: "error" | "warning";
+  }
+  | {
+    impact?: never;
+    message: string;
+    title: string;
+    tone: "success";
+  };
 
 export interface EchoSettingsRecoveryControls {
   canCheckLatest: boolean;
@@ -22,7 +28,6 @@ export interface EchoSettingsRecoveryControls {
   finishDisabling: () => void;
   reapplyChange: () => void;
   repairing: boolean;
-  useLatest: () => void;
 }
 
 export interface PendingEchoChange {

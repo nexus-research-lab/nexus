@@ -7,7 +7,7 @@ export interface ConnectorFeedback {
     onClick: () => void;
   };
   impact?: string;
-  message: string;
+  message?: string;
   nextStep?: string;
   persistent?: boolean;
   reconciliationConnectorId?: string;

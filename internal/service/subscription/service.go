@@ -74,8 +74,10 @@ type UpsertPlanInput struct {
 }
 
 var (
-	ErrInvalidInput  = errors.New("invalid subscription input")
-	ErrQuotaExceeded = errors.New("subscription token quota exceeded")
+	ErrInvalidInput       = errors.New("invalid subscription input")
+	ErrMutationCommitted  = errors.New("subscription mutation committed")
+	ErrMutationNotApplied = errors.New("subscription mutation not applied")
+	ErrQuotaExceeded      = errors.New("subscription token quota exceeded")
 )
 
 var planKeyPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$`)
@@ -182,7 +184,7 @@ func (s *Service) UpdateUserSubscription(ctx context.Context, input UpdateUserSu
 
 	plan, err := s.repository.GetPlan(ctx, normalized.PlanKey)
 	if err != nil {
-		return Overview{}, err
+		return Overview{}, errors.Join(ErrMutationNotApplied, err)
 	}
 	if plan == nil {
 		return Overview{}, fmt.Errorf("%w: unknown plan_key", ErrInvalidInput)
@@ -198,9 +200,14 @@ func (s *Service) UpdateUserSubscription(ctx context.Context, input UpdateUserSu
 		UpdatedAt:   now,
 	}
 	if err := s.repository.UpsertUserSubscription(ctx, entity); err != nil {
+		// Exec/commit transport errors do not prove whether the statement applied.
 		return Overview{}, err
 	}
-	return s.Overview(ctx)
+	overview, err := s.Overview(ctx)
+	if err != nil {
+		return Overview{}, errors.Join(ErrMutationCommitted, err)
+	}
+	return overview, nil
 }
 
 func (s *Service) UpsertPlan(ctx context.Context, input UpsertPlanInput) (Overview, error) {
@@ -217,9 +224,14 @@ func (s *Service) UpsertPlan(ctx context.Context, input UpsertPlanInput) (Overvi
 		SortOrder:         normalized.SortOrder,
 		UpdatedAt:         s.now().UTC(),
 	}); err != nil {
+		// Exec/commit transport errors do not prove whether the statement applied.
 		return Overview{}, err
 	}
-	return s.Overview(ctx)
+	overview, err := s.Overview(ctx)
+	if err != nil {
+		return Overview{}, errors.Join(ErrMutationCommitted, err)
+	}
+	return overview, nil
 }
 
 func normalizeUpdateUserSubscriptionInput(input UpdateUserSubscriptionInput) (UpdateUserSubscriptionInput, error) {

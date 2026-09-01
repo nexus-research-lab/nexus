@@ -249,17 +249,23 @@ function buildFeedbackItem(
           nextStep: t("feedback.unconfirmed_next_step"),
         };
   return completeFeedbackBanner(
-    {
-      action: feedback.action,
-      impact: feedback.impact,
-      message: feedback.message,
-      nextStep: feedback.nextStep,
-      onDismiss: feedback.pending || feedback.persistent
-        ? undefined
-        : feedback.dismiss,
-      title: feedback.title ?? titles[feedback.tone],
-      tone: feedback.tone,
-    },
-    recovery,
+    feedback.tone === "success"
+      ? {
+          message: feedback.message ?? feedback.title ?? titles.success,
+          onDismiss: feedback.dismiss,
+          title: feedback.title ?? titles.success,
+          tone: "success",
+        }
+      : {
+          action: feedback.action,
+          impact: feedback.impact,
+          nextStep: feedback.nextStep,
+          onDismiss: feedback.pending || feedback.persistent
+            ? undefined
+            : feedback.dismiss,
+          title: feedback.title ?? titles[feedback.tone],
+          tone: feedback.tone,
+        },
+    { impact: recovery.impact },
   );
 }

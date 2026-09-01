@@ -83,11 +83,9 @@ function ConnectorDetailMissing({ onBack }: { onBack: () => void }) {
 }
 
 function ConnectorDetailFailure({
-  failure,
   onBack,
   onRetry,
 }: {
-  failure: ResourceFailure;
   onBack: () => void;
   onRetry: () => void;
 }) {
@@ -97,9 +95,7 @@ function ConnectorDetailFailure({
       <ConnectorDetailBreadcrumb detail={null} onBack={onBack} />
       <UiResourceState
         className="min-h-[420px]"
-        description={failure.message}
         impact={t("capability.connector_detail_load_failed_impact")}
-        nextStep={t("capability.connector_detail_load_failed_next_step")}
         primaryAction={{
           label: t("capability.connector_detail_refresh"),
           onClick: onRetry,
@@ -137,7 +133,6 @@ export function ConnectorDetailView({
   if (failure && !detail) {
     return (
       <ConnectorDetailFailure
-        failure={failure}
         onBack={onBack}
         onRetry={onRetry}
       />
@@ -155,9 +150,7 @@ export function ConnectorDetailView({
       {failure ? (
         <UiResourceState
           className="mt-4"
-          description={failure.message}
           impact={t("capability.connector_detail_stale_impact")}
-          nextStep={t("capability.connector_detail_load_failed_next_step")}
           primaryAction={{
             label: t("capability.connector_detail_refresh"),
             onClick: onRetry,

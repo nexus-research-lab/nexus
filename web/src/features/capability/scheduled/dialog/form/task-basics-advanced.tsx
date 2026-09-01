@@ -111,20 +111,15 @@ function TaskSessionField({
         />
       </UiField>
       {presentation.error && presentation.retry ? (
-        <TaskResourceFailure
-          message={presentation.error}
-          onRetry={presentation.retry}
-        />
+        <TaskResourceFailure onRetry={presentation.retry} />
       ) : null}
     </div>
   );
 }
 
 export function TaskResourceFailure({
-  message,
   onRetry,
 }: {
-  message: string;
   onRetry: () => void;
 }) {
   const { t } = useI18n();
@@ -132,14 +127,13 @@ export function TaskResourceFailure({
     <UiResourceState
       className="min-h-0 py-3"
       impact={t("capability.scheduled_dialog_resource_load_impact")}
-      nextStep={t("capability.scheduled_dialog_resource_load_next_step")}
       primaryAction={{
         label: t("state.retry"),
         onClick: onRetry,
       }}
       size="sm"
       state="error"
-      title={message}
+      title={t("capability.scheduled_dialog_resource_load_title")}
       urgency="polite"
       variant="card"
     />

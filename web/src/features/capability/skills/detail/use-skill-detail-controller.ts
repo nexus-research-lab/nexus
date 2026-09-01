@@ -5,7 +5,6 @@ import {
   getSkillDetailApi,
   setAgentSkillEnabledApi,
 } from "@/lib/api/capability/skill-api";
-import { getErrorMessage } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type {
   SkillAgentBinding,
@@ -40,9 +39,7 @@ export function useSkillDetailController({
   updateSkill,
 }: UseSkillDetailControllerOptions) {
   const { t } = useI18n();
-  const detailLoadFailed = t("capability.skills_detail_load_failed");
   const [snapshot, setSnapshot] = useState<SkillDetailSnapshot>({
-    errorMessage: null,
     skill: null,
     status: "loading",
   });
@@ -69,6 +66,7 @@ export function useSkillDetailController({
       const bindings = await getSkillAgentsApi(targetSkillName);
       if (generation !== requestGenerationRef.current) return;
       setAgentBindings(bindings);
+      setToggleFailures({});
     } catch (error) {
       if (generation !== requestGenerationRef.current) return;
       setBindingsFailure(buildSkillAgentBindingsReadFailure(error, t));
@@ -81,7 +79,7 @@ export function useSkillDetailController({
 
   const loadDetail = useCallback(async () => {
     const generation = ++requestGenerationRef.current;
-    setSnapshot({ errorMessage: null, skill: null, status: "loading" });
+    setSnapshot({ skill: null, status: "loading" });
     setAgentBindings([]);
     setAgentsLoading(true);
     setBindingsFailure(null);
@@ -89,23 +87,19 @@ export function useSkillDetailController({
     try {
       skill = await getSkillDetailApi(skillName);
       if (generation !== requestGenerationRef.current) return;
-      setSnapshot({ errorMessage: null, skill, status: "ready" });
+      setSnapshot({ skill, status: "ready" });
       if (skill.scope === "room") {
         setAgentsLoading(false);
         return;
       }
-    } catch (error) {
+    } catch {
       if (generation !== requestGenerationRef.current) return;
-      setSnapshot({
-        errorMessage: getErrorMessage(error, detailLoadFailed),
-        skill: null,
-        status: "error",
-      });
+      setSnapshot({ skill: null, status: "error" });
       setAgentsLoading(false);
       return;
     }
     await loadBindings(generation, skillName);
-  }, [detailLoadFailed, loadBindings, skillName]);
+  }, [loadBindings, skillName]);
 
   const retryBindings = useCallback(async () => {
     if (snapshot.status !== "ready" || snapshot.skill.scope === "room") {
@@ -211,14 +205,6 @@ export function useSkillDetailController({
     }
   }, [activeAction, onAgentBindingChanged, snapshot, t, toggleFailures]);
 
-  const startNewToggleIntent = useCallback((agentId: string) => {
-    setToggleFailures((current) => {
-      const next = { ...current };
-      delete next[agentId];
-      return next;
-    });
-  }, []);
-
   return {
     activeAction,
     agentBindings,
@@ -230,7 +216,6 @@ export function useSkillDetailController({
     retry: loadDetail,
     retryBindings,
     snapshot,
-    startNewToggleIntent,
     toggleFailures,
     updateSkill: handleUpdate,
   };

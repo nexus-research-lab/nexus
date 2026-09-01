@@ -159,7 +159,6 @@ export function AgentOptionsAdvancedTab({
             impact={t(connectors.length > 0
               ? "agent_options.advanced.connector_load_failed_stale_impact"
               : "agent_options.advanced.connector_load_failed_empty_impact")}
-            nextStep={t("agent_options.advanced.connector_load_failed_next_step")}
             primaryAction={{
               busy: connectorsLoading,
               label: t("state.retry"),

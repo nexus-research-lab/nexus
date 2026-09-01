@@ -17,7 +17,6 @@ import {
   syncCCSwitchApi,
 } from "@/lib/api/settings/provider-api";
 import {
-  getErrorMessage,
   projectMutationFailure,
   type MutationFailureEffect,
 } from "@/lib/error-message";
@@ -50,16 +49,13 @@ interface ProviderCCSwitchDialogProps {
 type CCSwitchFailure =
   | {
       kind: "read";
-      message: string;
     }
   | {
       effect: MutationFailureEffect;
       kind: "sync";
-      message: string;
     }
   | {
       kind: "committed_refresh";
-      message: string;
       result: CCSwitchSyncResult;
     };
 
@@ -94,17 +90,13 @@ export function ProviderCCSwitchDialog({
       setSelectedSources(initialCCSwitchSelection(result));
       setSetDefault(requireDefault || result.needs_default);
       setEditingPath(!result.detected);
-    } catch (reason) {
+    } catch {
       if (requestId !== requestIdRef.current) {
         return;
       }
       setPreview(null);
       setFailure({
         kind: "read",
-        message: getErrorMessage(
-          reason,
-          t("settings.providers.ccswitch_detect_failed"),
-        ),
       });
       setEditingPath(true);
     } finally {
@@ -112,7 +104,7 @@ export function ProviderCCSwitchDialog({
         setLoading(false);
       }
     }
-  }, [requireDefault, t]);
+  }, [requireDefault]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -171,13 +163,9 @@ export function ProviderCCSwitchDialog({
       try {
         await onSynced(result);
         onClose();
-      } catch (reason: unknown) {
+      } catch {
         setFailure({
           kind: "committed_refresh",
-          message: getErrorMessage(
-            reason,
-            t("settings.providers.ccswitch_refresh_after_sync_failed"),
-          ),
           result,
         });
       }
@@ -189,7 +177,6 @@ export function ProviderCCSwitchDialog({
       setFailure({
         effect: mutation.effect,
         kind: "sync",
-        message: mutation.message,
       });
     } finally {
       setSyncing(false);
@@ -202,14 +189,8 @@ export function ProviderCCSwitchDialog({
     try {
       await onSynced(failure.result);
       onClose();
-    } catch (reason: unknown) {
-      setFailure({
-        ...failure,
-        message: getErrorMessage(
-          reason,
-          t("settings.providers.ccswitch_refresh_after_sync_failed"),
-        ),
-      });
+    } catch {
+      setFailure(failure);
     } finally {
       setSyncing(false);
     }
@@ -377,7 +358,6 @@ function CCSwitchFailureState({ failure }: { failure: CCSwitchFailure }) {
     return (
       <UiResourceState
         className="m-5 min-h-0 py-5"
-        description={failure.message}
         impact={t("settings.providers.ccswitch_detect_failed_impact")}
         nextStep={t("settings.providers.ccswitch_detect_failed_next_step")}
         size="sm"
@@ -392,7 +372,6 @@ function CCSwitchFailureState({ failure }: { failure: CCSwitchFailure }) {
     return (
       <UiResourceState
         className="m-5 min-h-0 py-5"
-        description={failure.message}
         impact={t("settings.providers.ccswitch_refresh_after_sync_failed_impact")}
         nextStep={t("settings.providers.ccswitch_refresh_after_sync_failed_next_step")}
         size="sm"
@@ -409,7 +388,6 @@ function CCSwitchFailureState({ failure }: { failure: CCSwitchFailure }) {
   return (
     <UiResourceState
       className="m-5 min-h-0 py-5"
-      description={failure.message}
       impact={t(notApplied
         ? "settings.providers.ccswitch_sync_not_applied_impact"
         : pending

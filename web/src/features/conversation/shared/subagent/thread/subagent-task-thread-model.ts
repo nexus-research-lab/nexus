@@ -15,7 +15,6 @@ import {
 const EMPTY_MESSAGES: Message[] = [];
 
 export interface SubagentTaskThreadError {
-  message: string;
   retryable: boolean;
 }
 
@@ -81,7 +80,7 @@ export function resolveSubagentTaskThreadError(
   resourceError: string | null,
 ): SubagentTaskThreadError | null {
   if (resourceError) {
-    return { message: resourceError, retryable: true };
+    return { retryable: true };
   }
   return null;
 }

@@ -1,10 +1,7 @@
 // INPUT: Provider 读取、校验、mutation 与后续刷新阶段的可验证结果。
-// OUTPUT: 区分未发送、未应用、结果未知、已提交但页面过期的反馈事实。
+// OUTPUT: 区分具体字段校验、未应用、结果未知和已提交但页面过期的反馈事实。
 // POS: Provider Settings 的纯失败展示模型；不执行刷新或重复 mutation。
-import {
-  getErrorMessage,
-  projectMutationFailure,
-} from "@/lib/error-message";
+import { projectMutationFailure } from "@/lib/error-message";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 
 import type { FeedbackState } from "./provider-settings-types";
@@ -19,9 +16,7 @@ export function buildProviderErrorFeedback(
   if (failure.effect === "not_applied") {
     return {
       impact: t("settings.providers.mutation_not_applied_impact"),
-      message: failure.message,
       mutationEffect: failure.effect,
-      nextStep: t("settings.providers.mutation_not_applied_next_step"),
       tone: "error",
       title,
     };
@@ -42,11 +37,7 @@ export function buildProviderErrorFeedback(
         };
   return {
     impact: copy.impact,
-    message: failure.message,
     mutationEffect: failure.effect,
-    nextStep: failure.effect === "committed"
-      ? t("state.committed_refresh_next_step")
-      : t("feedback.unconfirmed_next_step"),
     recoveryAction: "refresh",
     tone: "warning",
     title: copy.title,
@@ -56,26 +47,21 @@ export function buildProviderErrorFeedback(
 export function buildProviderValidationFeedback(
   title: string,
   message: string,
-  t: I18nContextValue["t"],
 ): FeedbackState {
   return {
-    impact: t("state.validation_failure_impact"),
-    message,
-    nextStep: t("state.validation_failure_next_step"),
+    impact: message,
     tone: "error",
     title,
   };
 }
 
 export function buildProviderReadFailureFeedback(
-  error: unknown,
-  fallbackMessage: string,
+  _error: unknown,
+  _fallbackMessage: string,
   t: I18nContextValue["t"],
 ): FeedbackState {
   return {
     impact: t("state.read_failure_impact"),
-    message: getErrorMessage(error, fallbackMessage),
-    nextStep: t("state.retry_next_step"),
     recoveryAction: "refresh",
     tone: "error",
     title: t("settings.providers.load_failed_title"),
@@ -83,13 +69,11 @@ export function buildProviderReadFailureFeedback(
 }
 
 export function buildProviderCommittedRefreshFeedback(
-  message: string,
+  _message: string,
   t: I18nContextValue["t"],
 ): FeedbackState {
   return {
     impact: t("state.committed_refresh_impact"),
-    message,
-    nextStep: t("state.committed_refresh_next_step"),
     recoveryAction: "refresh",
     tone: "warning",
     title: t("settings.providers.refresh_after_change_failed_title"),
@@ -101,8 +85,6 @@ export function buildProviderFollowupRefreshFailureFeedback(
 ): FeedbackState {
   return {
     impact: t("settings.providers.action_refresh_failed_impact"),
-    message: t("settings.providers.action_refresh_failed_message"),
-    nextStep: t("settings.providers.action_refresh_failed_next_step"),
     recoveryAction: "refresh",
     tone: "warning",
     title: t("settings.providers.action_refresh_failed_title"),

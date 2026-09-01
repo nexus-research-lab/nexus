@@ -295,7 +295,6 @@ export function useConnectorCommands({
           nextStep: t("capability.connector_auth_start_failed_next_step"),
           tone: "error",
           title: t("capability.connector_auth_start_failed_title"),
-          message: getErrorMessage(error, "连接失败"),
         });
         return false;
       }
@@ -606,9 +605,8 @@ function reportConnectorMutationFailure({
           onClick: () => {
             void reconcileMutation(action);
           },
-        },
+    },
     impact: t(selectedCopy.impact),
-    message: failure.message,
     nextStep: t(selectedCopy.nextStep),
     persistent: !notApplied,
     reconciliationConnectorId: notApplied ? undefined : action.connectorId,

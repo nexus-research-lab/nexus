@@ -86,20 +86,16 @@ function TextFileResourceFailure({
   return (
     <UiResourceState
       className="min-h-0 w-full px-3 py-3 [overflow-wrap:anywhere]"
-      description={accessBlocked ? undefined : failure.message}
       impact={t(accessBlocked
         ? "workspace_file.access_failure_impact"
         : hasLoadedContent
           ? "workspace_file.load_failed_stale_impact"
           : "workspace_file.load_failed_empty_impact")}
-      nextStep={t(accessBlocked
-        ? "state.permission_next_step"
-        : "workspace_file.load_failed_next_step")}
       primaryAction={{
         busy: isLoading,
         busyLabel: t("workspace_file.loading_latest"),
         icon: <RefreshCw className="h-3.5 w-3.5" />,
-        label: t("state.reload_check"),
+        label: t("state.retry"),
         onClick: onReload,
       }}
       size="sm"
@@ -138,42 +134,45 @@ function TextFileSaveIssueNotice({
   const { t } = useI18n();
   if (issue.kind === "conflict") {
     const reviewing = issue.phase === "review";
+    if (reviewing) {
+      return (
+        <UiResourceState
+          className="min-h-0 w-full px-3 py-3 [overflow-wrap:anywhere]"
+          impact={t("workspace_file.conflict_review_impact")}
+          primaryAction={{
+            label: t("workspace_file.adopt_latest"),
+            onClick: onAdoptLatest,
+          }}
+          secondaryAction={{
+            busy: isSaving,
+            busyLabel: t("workspace_file.overwriting"),
+            disabled: !revisionReady,
+            label: t("workspace_file.overwrite_latest"),
+            onClick: onOverwrite,
+            tone: "danger",
+          }}
+          size="sm"
+          state="decision"
+          title={t("workspace_file.conflict_review_title")}
+          tone="warning"
+          variant="card"
+        />
+      );
+    }
     return (
       <UiResourceState
         className="min-h-0 w-full px-3 py-3 [overflow-wrap:anywhere]"
-        impact={t(reviewing
-          ? "workspace_file.conflict_review_impact"
-          : "workspace_file.conflict_impact")}
-        nextStep={t(reviewing
-          ? "workspace_file.conflict_review_next_step"
-          : "workspace_file.conflict_next_step")}
-        primaryAction={reviewing
-          ? {
-              label: t("workspace_file.adopt_latest"),
-              onClick: onAdoptLatest,
-            }
-          : {
-              busy: isLoading,
-              busyLabel: t("workspace_file.loading_latest"),
-              icon: <RefreshCw className="h-3.5 w-3.5" />,
-              label: t("workspace_file.load_latest"),
-              onClick: onLoadLatest,
-            }}
-        secondaryAction={reviewing
-          ? {
-              busy: isSaving,
-              busyLabel: t("workspace_file.overwriting"),
-              disabled: !revisionReady,
-              label: t("workspace_file.overwrite_latest"),
-              onClick: onOverwrite,
-              tone: "danger",
-            }
-          : undefined}
+        impact={t("workspace_file.conflict_impact")}
+        primaryAction={{
+          busy: isLoading,
+          busyLabel: t("workspace_file.loading_latest"),
+          icon: <RefreshCw className="h-3.5 w-3.5" />,
+          label: t("workspace_file.load_latest"),
+          onClick: onLoadLatest,
+        }}
         size="sm"
         state="error"
-        title={t(reviewing
-          ? "workspace_file.conflict_review_title"
-          : "workspace_file.conflict_title")}
+        title={t("workspace_file.conflict_title")}
         tone="warning"
         variant="card"
       />
@@ -184,7 +183,6 @@ function TextFileSaveIssueNotice({
       <UiResourceState
         className="min-h-0 w-full px-3 py-3 [overflow-wrap:anywhere]"
         impact={t("workspace_file.save_unknown_impact")}
-        nextStep={t("workspace_file.save_unknown_next_step")}
         primaryAction={{
           busy: isReconciling,
           busyLabel: t("workspace_file.checking_save_result"),
@@ -207,7 +205,6 @@ function TextFileSaveIssueNotice({
       <UiResourceState
         className="min-h-0 w-full px-3 py-3 [overflow-wrap:anywhere]"
         impact={t("workspace_file.save_retry_ready_impact")}
-        nextStep={t("workspace_file.save_retry_ready_next_step")}
         primaryAction={{
           busy: isSaving,
           busyLabel: t("common.saving"),
@@ -226,9 +223,7 @@ function TextFileSaveIssueNotice({
   return (
     <UiResourceState
       className="min-h-0 w-full px-3 py-3 [overflow-wrap:anywhere]"
-      description={issue.detail}
       impact={t("workspace_file.save_not_applied_impact")}
-      nextStep={t("workspace_file.save_not_applied_next_step")}
       primaryAction={{
         busy: isSaving,
         busyLabel: t("common.saving"),

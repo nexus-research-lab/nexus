@@ -202,7 +202,6 @@ export function AgentOptionsIdentityTab({
             <UiResourceState
               className="min-h-0 py-3"
               impact={t("agent_options.identity.profile_template_load_failed_impact")}
-              nextStep={t("agent_options.identity.profile_template_load_failed_next_step")}
               primaryAction={{
                 busy: profileTemplateLoading,
                 label: t("state.retry"),

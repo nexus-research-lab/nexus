@@ -79,7 +79,6 @@ export function GoalReliabilityNotice({
   return (
     <UiResourceState
       {...commonProps}
-      description={state.detail}
       primaryAction={canRefresh ? {
         busy: isRefreshing,
         busyLabel: t("state.reload_check"),

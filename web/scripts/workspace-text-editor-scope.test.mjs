@@ -167,7 +167,7 @@ test("external live updates never overwrite a dirty or outcome-unknown draft", a
   }), { kind: "consume", version: 4 });
 });
 
-test("workspace text issues are rendered with impact, next step, and safe actions", async () => {
+test("workspace text issues use one message and safe actions", async () => {
   const [editor, notice, zh] = await Promise.all([
     read("src/features/conversation/shared/editor/text/text-file-editor.tsx"),
     read("src/features/conversation/shared/editor/text/text-file-editor-reliability.tsx"),
@@ -176,7 +176,7 @@ test("workspace text issues are rendered with impact, next step, and safe action
 
   assert.match(editor, /<TextFileEditorReliability/);
   assert.match(notice, /impact=\{/);
-  assert.match(notice, /nextStep=\{/);
+  assert.doesNotMatch(notice, /nextStep=\{/);
   assert.match(notice, /onReconcile/);
   assert.match(notice, /onAdoptLatest/);
   assert.match(notice, /onOverwrite/);

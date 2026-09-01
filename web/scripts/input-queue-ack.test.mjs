@@ -782,6 +782,23 @@ test("input queue ACK parser validates accepted and duplicate flags", async () =
     emptyPendingSnapshot,
     "an empty authoritative reconnect snapshot must clear stale Room slots",
   );
+  const sequencedPendingSnapshot = {
+    ...emptyPendingSnapshot,
+    snapshot_room_seq: 42,
+  };
+  assert.deepEqual(
+    parseChatAckData(sequencedPendingSnapshot),
+    sequencedPendingSnapshot,
+    "the authoritative slot snapshot must carry its durable Room replay fence",
+  );
+  assert.equal(
+    parseChatAckData({ ...sequencedPendingSnapshot, snapshot_room_seq: -1 }),
+    null,
+  );
+  assert.equal(
+    parseChatAckData({ ...sequencedPendingSnapshot, snapshot_room_seq: 1.5 }),
+    null,
+  );
   const multiRootSnapshot = {
     ...emptyPendingSnapshot,
     pending: [
@@ -837,6 +854,48 @@ test("input queue ACK parser validates accepted and duplicate flags", async () =
     }),
     null,
     "a correlated request ACK cannot masquerade as an authoritative snapshot",
+  );
+});
+
+test("Room snapshot cursor rejects replay events that could revive stale execution", async () => {
+  const { routeAgentConversationEvent } = await server.ssrLoadModule(
+    "/src/hooks/agent/transport/agent-event-router.ts",
+  );
+  const context = {
+    scope: {
+      roomId: "room-1",
+      sessionKey: null,
+    },
+    transport: {
+      roomSeqCursorRef: { current: 42 },
+      sessionSeqCursorRef: { current: 0 },
+    },
+  };
+  const event = (roomSeq) => ({
+    data: {},
+    event_type: "future_room_event",
+    protocol_version: 1,
+    room_id: "room-1",
+    room_seq: roomSeq,
+    timestamp: Date.now(),
+  });
+
+  routeAgentConversationEvent(event(42), context);
+  assert.equal(context.transport.roomSeqCursorRef.current, 42);
+  routeAgentConversationEvent(event(43), context);
+  assert.equal(context.transport.roomSeqCursorRef.current, 43);
+});
+
+test("Room snapshot fence resets an obsolete cursor after a backend restart", async () => {
+  const { setRoomSnapshotReplayFence } = await server.ssrLoadModule(
+    "/src/hooks/agent/transport/handlers/session-event-handlers.ts",
+  );
+  const cursor = { current: 42 };
+  setRoomSnapshotReplayFence(cursor, 0);
+  assert.equal(
+    cursor.current,
+    0,
+    "a new server generation must not inherit an unreachable old Room sequence",
   );
 });
 

@@ -2,7 +2,6 @@
 // OUTPUT: 列表分组投影与不猜测 mutation 结果的可见恢复模型。
 // POS: Agent Options Skill 子域的纯模型；不发请求、不自动重放开关。
 import {
-  getErrorMessage,
   projectMutationFailure,
   type MutationFailureEffect,
 } from "@/lib/error-message";
@@ -17,8 +16,6 @@ export interface AgentSkillMutationTarget {
 
 export interface AgentSkillsReadFailure {
   impact: string;
-  message: string;
-  nextStep: string;
   title: string;
 }
 
@@ -26,20 +23,16 @@ export interface AgentSkillMutationFailure {
   blocksRepeat: boolean;
   effect: MutationFailureEffect;
   impact: string;
-  message: string;
-  nextStep: string;
   target: AgentSkillMutationTarget;
   title: string;
 }
 
 export function buildAgentSkillsReadFailure(
-  error: unknown,
+  _error: unknown,
   t: I18nContextValue["t"],
 ): AgentSkillsReadFailure {
   return {
     impact: t("agent_options.skills.load_failed_impact"),
-    message: getErrorMessage(error, t("agent_options.skills.load_failed")),
-    nextStep: t("agent_options.skills.load_failed_next_step"),
     title: t("agent_options.skills.load_failed"),
   };
 }
@@ -63,12 +56,6 @@ export function buildAgentSkillMutationFailure(
       : committed
         ? t("state.committed_refresh_impact")
         : t("agent_options.skills.toggle_unknown_impact"),
-    message: failure.message,
-    nextStep: notApplied
-      ? t("agent_options.skills.toggle_not_applied_next_step")
-      : committed
-        ? t("state.committed_refresh_next_step")
-        : t("agent_options.skills.toggle_unknown_next_step"),
     target,
     title: notApplied
       ? t("agent_options.skills.toggle_failed")
@@ -79,7 +66,7 @@ export function buildAgentSkillMutationFailure(
 }
 
 export function buildAgentSkillRefreshAfterMutationFailure(
-  error: unknown,
+  _error: unknown,
   target: AgentSkillMutationTarget,
   t: I18nContextValue["t"],
 ): AgentSkillMutationFailure {
@@ -87,11 +74,6 @@ export function buildAgentSkillRefreshAfterMutationFailure(
     blocksRepeat: true,
     effect: "committed",
     impact: t("state.committed_refresh_impact"),
-    message: getErrorMessage(
-      error,
-      t("agent_options.skills.refresh_after_toggle_failed"),
-    ),
-    nextStep: t("state.committed_refresh_next_step"),
     target,
     title: t("agent_options.skills.toggle_committed_title"),
   };

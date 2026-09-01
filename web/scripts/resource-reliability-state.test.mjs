@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -51,6 +52,16 @@ test("resource failures only project access loss from HTTP facts", async () => {
     }), "fallback").access,
     "forbidden",
   );
+  const errorSource = await read("src/lib/error-message.ts");
+  const resourceStateSource = await read("src/shared/ui/display/resource-state.tsx");
+  assert.doesNotMatch(errorSource, /navigator\.onLine/);
+  assert.doesNotMatch(resourceStateSource, /"offline"|"permission"/);
+  assert.match(resourceStateSource, /primaryAction\?: UiResourceStateAction/);
+  assert.match(
+    resourceStateSource,
+    /interface UiResourceFailureStateProps[\s\S]*secondaryAction\?: never/,
+  );
+  assert.match(resourceStateSource, /state: "decision"/);
 });
 
 test("requestApi preserves structured 401 facts through the real request path", async () => {
@@ -345,6 +356,61 @@ test("Loop picker keeps a loaded snapshot during refresh and transient failure",
   }), "error");
 });
 
+test("sensitive snapshots are blocked by access state and refresh stays non-destructive", async () => {
+  const [
+    memoryView,
+    memoryDocument,
+    scheduledHistory,
+    loopsDirectory,
+    workGraphDirectory,
+    loopController,
+    memoryDocumentResource,
+    scheduledDialog,
+  ] = await Promise.all([
+    read("src/features/memory/agent-memory-view.tsx"),
+    read("src/features/memory/document/memory-document-panel.tsx"),
+    read("src/features/capability/scheduled/history/view/scheduled-task-run-history-content.tsx"),
+    read("src/features/capability/loops/loops-directory.tsx"),
+    read("src/features/capability/workgraph-distillations/workgraph-distillations-directory.tsx"),
+    read("src/features/conversation/shared/composer/components/loop-picker/use-loop-picker-controller.ts"),
+    read("src/features/memory/document/use-memory-document-resource.ts"),
+    read("src/features/capability/scheduled/history/scheduled-task-run-history-dialog.tsx"),
+  ]);
+
+  assert.ok(
+    memoryView.indexOf("memory.resource.error?.access")
+      < memoryView.indexOf("memory.resource.isLoading && !memory.resource.snapshot"),
+  );
+  assert.ok(
+    memoryDocument.indexOf("controller.resourceError?.access")
+      < memoryDocument.indexOf("controller.isLoading && !controller.content"),
+  );
+  assert.match(scheduledHistory, /accessBlocked && failure[\s\S]*isLoading && !hasSnapshot/);
+  assert.match(loopsDirectory, /loading && !hasSnapshot/);
+  assert.match(workGraphDirectory, /loading && !hasSnapshot/);
+  assert.match(loopController, /current\.scopeKey === locale[\s\S]*\.\.\.current/);
+  assert.doesNotMatch(loopController, /setResource\(INITIAL_RESOURCE\)/);
+  assert.match(memoryView, /isOpen=\{!accessBlocked && deleteTarget !== null\}/);
+  assert.match(workGraphDirectory, /isOpen=\{!accessBlocked && Boolean\(deleteCandidate\)\}/);
+  assert.match(workGraphDirectory, /\{!accessBlocked && editingPreview \? \(/);
+  assert.match(
+    scheduledDialog,
+    /isOpen=\{!accessBlocked && !deletionBlocked && actions\.recoveryTarget !== null\}/,
+  );
+  assert.match(
+    scheduledDialog,
+    /if \(accessBlocked \|\| deletionBlocked\) \{[\s\S]*cancelRecovery\(\);[\s\S]*return;/,
+  );
+  assert.match(
+    memoryDocumentResource,
+    /if \(accessBlocked\) \{[\s\S]*consumedLiveVersionRef\.current[\s\S]*return;/,
+  );
+  assert.match(
+    memoryDocumentResource,
+    /current\.resourceError\?\.access[\s\S]*\? current/,
+  );
+});
+
 test("uncertain mutation copy names the affected resource without enumerating outcomes", async () => {
   const [
     { zhCapabilityMessages },
@@ -368,10 +434,53 @@ test("uncertain mutation copy names the affected resource without enumerating ou
   assert.match(copy, /cannot yet confirm whether deletion took effect/);
   assert.match(copy, /操作结果待核对，同一 Agent、路径和操作已暂停/);
   assert.match(copy, /operation result needs verification, and the same Agent, path, and action are paused/i);
-  assert.match(copy, /消息仍在；状态待确认/);
-  assert.match(copy, /message remains and its status needs confirmation/i);
+  assert.match(copy, /消息状态未确认/);
+  assert.match(copy, /message status isn't confirmed/i);
   assert.doesNotMatch(copy, /可能[^。；]*也可能|may or may not/i);
 });
+
+test("Room external tabs and round indexes retain only same-scope read snapshots", async () => {
+  const [
+    externalSessionsSource,
+    roundIndexSource,
+    conversationSessionSource,
+    noticeSource,
+    panelLayoutSource,
+    desktopRoomSource,
+    mobileRoomSource,
+  ] = await Promise.all([
+    read("src/pages/room/controller/model/use-room-external-sessions.ts"),
+    read("src/hooks/conversation/use-session-round-index.ts"),
+    read("src/features/conversation/shared/session/use-conversation-session.ts"),
+    read("src/features/conversation/shared/read-resource-reliability-notice.tsx"),
+    read("src/features/conversation/shared/conversation-panel-layout.tsx"),
+    read("src/features/conversation/room/surface/layout/room-surface-content.tsx"),
+    read("src/features/conversation/room/surface/mobile/room-mobile-surface.tsx"),
+  ]);
+
+  assert.match(externalSessionsSource, /\$\{roomId\}\\u0000\$\{agentId\}/);
+  assert.match(externalSessionsSource, /if \(failure\.access\) \{[\s\S]*setExternalAgentSessions\(\[\]\)/);
+  assert.match(externalSessionsSource, /requestId !== refreshRequestId/);
+  assert.match(externalSessionsSource, /isExternalSessionCatalogStale/);
+  assert.match(externalSessionsSource, /refreshExternalSessions/);
+
+  assert.match(roundIndexSource, /snapshot\.scopeKey === scopeKey/);
+  assert.match(roundIndexSource, /items: accessLost \? \[\] : current\.items/);
+  assert.match(roundIndexSource, /hasSuccessfulSnapshot/);
+  assert.match(roundIndexSource, /retry: \(\) => void/);
+  assert.match(conversationSessionSource, /roundIndexResource\.error !== null/);
+  assert.match(conversationSessionSource, /roundIndexResource\.items/);
+  assert.match(noticeSource, /data-read-resource-state/);
+  assert.match(noticeSource, /<RecoverySummary[\s\S]*impact=\{impact\}/);
+  assert.match(noticeSource, /onClick=\{onRefresh\}/);
+  assert.match(panelLayoutSource, /resource="session-round-index"/);
+  assert.match(desktopRoomSource, /resource="room-external-sessions"/);
+  assert.match(mobileRoomSource, /resource="room-external-sessions"/);
+});
+
+function read(relativePath) {
+  return readFile(path.join(webRoot, relativePath), "utf8");
+}
 
 async function captureError(run) {
   try {

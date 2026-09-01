@@ -95,7 +95,7 @@ interface TaskScheduleActions {
 
 interface TaskSchedulePanelProps {
   actions: TaskScheduleActions;
-  errorMessage: string | null;
+  formError: string | null;
   form: Pick<TaskFormDraft, "enabled" | "executionKind" | "instruction">;
   formActions: {
     setEnabled: (value: boolean) => void;
@@ -137,7 +137,7 @@ function formatPickerMonth(monthKey: string, locale: Locale): string {
 
 export function TaskSchedulePanel({
   actions,
-  errorMessage,
+  formError,
   form,
   formActions,
   isReconciling,
@@ -354,7 +354,6 @@ export function TaskSchedulePanel({
       {mutationFailure ? (
         <UiResourceState
           className="min-h-0 py-3"
-          description={errorMessage ?? mutationFailure.message}
           impact={t(mutationFailure.effect === "not_applied"
               ? "capability.scheduled_mutation_not_applied_impact"
             : mutationFailure.effect === "accepted"
@@ -362,30 +361,24 @@ export function TaskSchedulePanel({
               : mutationFailure.effect === "committed"
                 ? "capability.scheduled_mutation_committed_impact"
                 : "capability.scheduled_mutation_unknown_impact")}
-          nextStep={t(mutationFailure.effect === "not_applied"
-              ? "capability.scheduled_mutation_not_applied_next_step"
-            : isRestoredCreateIntent
-              ? "capability.scheduled_dialog_create_restored_next_step"
-              : isMutationReviewed
-                ? "capability.scheduled_dialog_mutation_reviewed_next_step"
-                : "capability.scheduled_dialog_mutation_unknown_next_step")}
-          primaryAction={mutationFailure.blocksRepeat ? {
-            busy: isReconciling,
-            busyLabel: t("capability.scheduled_dialog_reconciling"),
-            label: t("capability.scheduled_dialog_reconcile"),
-            onClick: onReconcile,
-          } : undefined}
-          secondaryAction={mutationFailure.blocksRepeat && isRestoredCreateIntent
-            ? {
-                label: t("capability.scheduled_dialog_create_start_new"),
-                onClick: onStartNewCreateIntent,
-              }
-            : mutationFailure.blocksRepeat && isMutationReviewed
+          primaryAction={mutationFailure.blocksRepeat
+            ? isRestoredCreateIntent
               ? {
-                  label: t("capability.scheduled_mutation_review_unlock_action"),
-                  onClick: onConfirmMutationReviewed,
+                  label: t("capability.scheduled_dialog_create_start_new"),
+                  onClick: onStartNewCreateIntent,
                 }
-              : undefined}
+              : isMutationReviewed
+                ? {
+                    label: t("capability.scheduled_mutation_review_unlock_action"),
+                    onClick: onConfirmMutationReviewed,
+                  }
+                : {
+                    busy: isReconciling,
+                    busyLabel: t("capability.scheduled_dialog_reconciling"),
+                    label: t("capability.scheduled_dialog_reconcile"),
+                    onClick: onReconcile,
+                  }
+            : undefined}
           size="sm"
           state="error"
           title={t(mutationFailure.effect === "not_applied"
@@ -396,14 +389,12 @@ export function TaskSchedulePanel({
                 ? "capability.scheduled_mutation_committed_title"
                 : "capability.scheduled_mutation_unknown_title")}
         />
-      ) : errorMessage ? (
+      ) : formError ? (
         <UiResourceState
-          description={errorMessage}
           impact={t("capability.scheduled_dialog_invalid_impact")}
-          nextStep={t("capability.scheduled_dialog_invalid_next_step")}
           size="sm"
           state="error"
-          title={t("capability.scheduled_dialog_invalid")}
+          title={formError}
         />
       ) : null}
     </div>

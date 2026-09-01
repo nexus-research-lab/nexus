@@ -117,26 +117,21 @@ export function useAgentOptionsEditorController({
       failures: {
         accepted: {
           impact: t(source.kind === "create" ? "agent_options.create_accepted_impact" : "agent_options.save_accepted_impact"),
-          message: t(source.kind === "create" ? "agent_options.create_accepted_message" : "agent_options.save_accepted_message"),
-          nextStep: t(source.kind === "create" ? "agent_options.create_accepted_next_step" : "agent_options.save_accepted_next_step"),
+          title: t(source.kind === "create" ? "agent_options.create_accepted_message" : "agent_options.save_accepted_message"),
         },
         committed: {
           impact: t(source.kind === "create" ? "agent_options.create_committed_impact" : "agent_options.save_committed_impact"),
-          message: t(source.kind === "create" ? "agent_options.create_committed_message" : "agent_options.save_committed_message"),
-          nextStep: t(source.kind === "create" ? "agent_options.create_committed_next_step" : "agent_options.save_committed_next_step"),
+          title: t(source.kind === "create" ? "agent_options.create_committed_message" : "agent_options.save_committed_message"),
         },
         not_applied: {
           impact: t(source.kind === "create" ? "agent_options.create_not_applied_impact" : "agent_options.save_not_applied_impact"),
-          message: t(source.kind === "create" ? "agent_options.create_not_applied_message" : "agent_options.save_not_applied_message"),
-          nextStep: t(source.kind === "create" ? "agent_options.create_not_applied_next_step" : "agent_options.save_not_applied_next_step"),
+          title: t(source.kind === "create" ? "agent_options.create_not_applied_message" : "agent_options.save_not_applied_message"),
         },
         unknown: {
           impact: t(source.kind === "create" ? "agent_options.create_unknown_impact" : "agent_options.save_unknown_impact"),
-          message: t(source.kind === "create" ? "agent_options.create_unknown_message" : "agent_options.save_unknown_message"),
-          nextStep: t(source.kind === "create" ? "agent_options.create_unknown_next_step" : "agent_options.save_unknown_next_step"),
+          title: t(source.kind === "create" ? "agent_options.create_unknown_message" : "agent_options.save_unknown_message"),
         },
       },
-      preferCopyMessage: source.kind === "create",
       success: t(
         source.kind === "create"
           ? "agent_options.create_success"
@@ -223,7 +218,7 @@ function buildPersistenceState({
   }
   if (feedback?.tone === "error" || feedback?.tone === "warning") {
     return {
-      message: [feedback.message, feedback.impact, feedback.nextStep].join(" "),
+      message: [feedback.title, feedback.impact].join(" "),
       phase: "error",
     };
   }

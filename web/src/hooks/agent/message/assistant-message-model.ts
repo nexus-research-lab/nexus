@@ -1,6 +1,6 @@
 /**
  * INPUT: Assistant 实时增量、终态/历史快照与 ContentBlock。
- * OUTPUT: 内容不回退、durable annotation 不丢失的 Assistant 消息，以及不含内部详情的终态失败身份/分类。
+ * OUTPUT: 内容不回退、内容专有规范化不丢失、durable annotation 不丢失的 Assistant 消息及安全终态失败。
  * POS: 会话 transport 汇流前的 Assistant 单消息归一/合并边界。
  */
 import type {
@@ -117,12 +117,36 @@ const CONTENT_BLOCK_KEY_RESOLVERS = {
 export function normalizeAssistantMessage(
   incoming: AssistantMessage,
 ): AssistantMessage {
+  const content = hideTerminalResultEcho(incoming);
+  const streamStatus = incoming.stream_status
+    ?? (incoming.stop_reason || incoming.is_complete ? "done" : "streaming");
+  if (content === incoming.content && streamStatus === incoming.stream_status) {
+    return incoming;
+  }
   return {
     ...incoming,
-    stream_status:
-      incoming.stream_status ??
-      (incoming.stop_reason || incoming.is_complete ? "done" : "streaming"),
+    content,
+    stream_status: streamStatus,
   };
+}
+
+function hideTerminalResultEcho(message: AssistantMessage): ContentBlock[] {
+  const resultText = normalizeDisplayText(message.result_summary?.result ?? "");
+  if (!resultText || !resolveAssistantResultErrorMessage(message.result_summary)) {
+    return message.content;
+  }
+  const visibleText = normalizeDisplayText(
+    message.content
+      .filter((block): block is Extract<ContentBlock, { type: "text" }> => (
+        block.type === "text"
+      ))
+      .map((block) => block.text)
+      .join("\n\n"),
+  );
+  if (visibleText !== resultText) {
+    return message.content;
+  }
+  return message.content.filter((block) => block.type !== "text");
 }
 
 export function normalizeAssistantMessages(messages: Message[]): Message[] {
@@ -132,10 +156,9 @@ export function normalizeAssistantMessages(messages: Message[]): Message[] {
       return message;
     }
     const normalized = normalizeAssistantMessage(message);
-    if (normalized.stream_status === message.stream_status) {
-      return message;
+    if (normalized !== message) {
+      hasChanges = true;
     }
-    hasChanges = true;
     return normalized;
   });
   return hasChanges ? normalizedMessages : messages;
@@ -169,28 +192,12 @@ export function resolveAssistantResultErrorMessage(
   return terminalReason || DEFAULT_ASSISTANT_ERROR_MESSAGE;
 }
 
-// resolveAssistantResultErrorBannerMessage 只返回尚未由最终回复承载的错误。
-// result 是唯一正文或与正文相同时，消息气泡已经完整说明失败，无需再叠加系统气泡。
+// 终态错误统一进入结构化可靠性提示。Provider/runtime 原文即使被同步进
+// Assistant 正文，也不能被当成已经面向用户解释过的正常回复。
 export function resolveAssistantResultErrorBannerMessage(
   message: AssistantMessage,
 ): string | null {
-  const error = resolveAssistantResultErrorMessage(message.result_summary);
-  if (!error) {
-    return null;
-  }
-  const resultText = normalizeDisplayText(message.result_summary?.result ?? "");
-  if (!resultText) {
-    return error;
-  }
-  const assistantText = normalizeDisplayText(
-    message.content
-      .filter((block): block is Extract<ContentBlock, { type: "text" }> => (
-        block.type === "text"
-      ))
-      .map((block) => block.text)
-      .join("\n\n"),
-  );
-  return !assistantText || assistantText === resultText ? null : error;
+  return resolveAssistantResultErrorMessage(message.result_summary);
 }
 
 function normalizeDisplayText(value: string): string {

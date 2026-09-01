@@ -28,7 +28,7 @@ export interface ScheduledTaskFeedback {
     onClick: () => void;
   };
   impact?: string;
-  message: string;
+  message?: string;
   nextStep?: string;
   title: string;
   tone: "success" | "warning" | "error";

@@ -28,14 +28,12 @@ import type { useAgentSaveFeedback } from "./use-agent-save-feedback";
 interface SaveCommandLabels {
   failed: string;
   failures: Record<MutationFailureEffect, SaveFailureCopy>;
-  preferCopyMessage?: boolean;
   success: string;
 }
 
 interface SaveFailureCopy {
   impact: string;
-  message: string;
-  nextStep: string;
+  title: string;
 }
 
 interface UseAgentOptionsSaveCommandOptions {
@@ -152,7 +150,6 @@ export function useAgentOptionsSaveCommand({
         expected: token,
         fallbackError: labels.failed,
         failureCopies: labels.failures,
-        preferCopyMessage: labels.preferCopyMessage === true,
         feedback,
         saveTokenRef,
         commandScopeKeyRef,
@@ -175,7 +172,6 @@ export function useAgentOptionsSaveCommand({
     labels.failed,
     labels.failures,
     labels.success,
-    labels.preferCopyMessage,
     mode,
     onSave,
     onSaveSuccess,
@@ -280,7 +276,6 @@ function handleSaveFailure({
   expected,
   fallbackError,
   failureCopies,
-  preferCopyMessage,
   feedback,
   saveTokenRef,
   sourceScopeKeyRef,
@@ -291,7 +286,6 @@ function handleSaveFailure({
   expected: AgentOptionsSaveToken;
   fallbackError: string;
   failureCopies: Record<MutationFailureEffect, SaveFailureCopy>;
-  preferCopyMessage: boolean;
   feedback: ReturnType<typeof useAgentSaveFeedback>;
   saveTokenRef: { current: AgentOptionsSaveToken | null };
   sourceScopeKeyRef: { current: string };
@@ -314,9 +308,6 @@ function handleSaveFailure({
   feedback.showFailure({
     ...copy,
     blocksRepeat,
-    message: failure.effect === "not_applied" && !preferCopyMessage
-      ? failure.message
-      : copy.message,
     tone: failure.effect === "accepted" || failure.effect === "committed"
       ? "warning"
       : "error",

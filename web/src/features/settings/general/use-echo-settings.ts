@@ -1,6 +1,6 @@
 /**
  * INPUT: owner-scoped Echo PUT/对账 GET、Preferences 权威快照与领域 failure effect。
- * OUTPUT: CAS 保存、结果未知对账、关闭后收口修复和完整恢复提示。
+ * OUTPUT: CAS 保存、结果未知对账、关闭后收口修复和单一安全恢复动作。
  * POS: 主动跟进设置的唯一前端事务边界；未知写入不自动重放且不被其他资源刷新解锁。
  */
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -10,7 +10,7 @@ import {
   updateEchoApi,
   type EchoSettings,
 } from "@/lib/api/settings/echo-api";
-import { getErrorMessage, projectMutationFailure } from "@/lib/error-message";
+import { projectMutationFailure } from "@/lib/error-message";
 import {
   captureAuthOwnerScopeGeneration,
   isAuthOwnerScopeGenerationCurrent,
@@ -24,7 +24,7 @@ import type {
 } from "./model/echo-settings-reliability-model";
 import { validEchoSettings } from "./model/echo-settings-reliability-model";
 
-type RecoveryPurpose = "finish-disabling" | "normal" | "reapply" | "use-latest";
+type RecoveryPurpose = "finish-disabling" | "normal" | "reapply";
 
 export function useEchoSettings({
   aggregate,
@@ -160,20 +160,20 @@ export function useEchoSettings({
         setEnabled(desired);
         setWritable(false);
         setFeedback(failure.code === "echo.cleanup_incomplete"
-          ? echoCleanupIncomplete(failure.message, t)
+          ? echoCleanupIncomplete(t)
           : failure.code === "echo.version_conflict"
-            ? echoConflict(failure.message, t)
+            ? echoConflict(t)
             : failure.effect === "committed"
-              ? echoCommittedNeedsCheck(failure.message, t)
+              ? echoCommittedNeedsCheck(t)
               : failure.effect === "not_applied"
-                ? echoRecoveryNotApplied(failure.message, t)
-                : echoUnknown(failure.message, t));
+                ? echoRecoveryNotApplied(t)
+                : echoUnknown(t));
         setCheckReady(true);
       } else {
         pendingRef.current = null;
         setEnabled(base.enabled);
         setWritable(true);
-        setFeedback(echoNotApplied(failure.message, t));
+        setFeedback(echoNotApplied(t));
         setCheckReady(false);
       }
       return null;
@@ -262,18 +262,14 @@ export function useEchoSettings({
         setCheckReady(false);
         setFeedback(echoDifference(t));
       })
-      .catch((error: unknown) => {
+      .catch(() => {
         if (
           checkRequestRef.current !== requestId
           || !isAuthOwnerScopeGenerationCurrent(ownerGeneration)
         ) {
           return;
         }
-        setFeedback(echoCheckFailure(
-          getErrorMessage(error, t("settings.general.echo_load_failed")),
-          pendingRef.current !== null,
-          t,
-        ));
+        setFeedback(echoCheckFailure(pendingRef.current !== null, t));
         setCheckReady(true);
         setWritable(pendingRef.current === null && authoritativeRef.current !== null);
       })
@@ -286,14 +282,6 @@ export function useEchoSettings({
         }
       });
   }, [onAggregateSnapshot, publishAuthoritative, t]);
-
-  const useLatest = useCallback(() => {
-    const pending = pendingRef.current;
-    if (!pending?.latest) {
-      return;
-    }
-    void submitAtVersion(pending.latest.enabled, pending.latest, "use-latest");
-  }, [submitAtVersion]);
 
   const reapplyChange = useCallback(() => {
     const pending = pendingRef.current;
@@ -332,7 +320,6 @@ export function useEchoSettings({
     finishDisabling,
     reapplyChange,
     repairing,
-    useLatest,
   };
 
   return {
@@ -358,7 +345,6 @@ type EchoFeedbackPrefix =
   | "echo_committed_needs_check"
   | "echo_conflict"
   | "echo_difference"
-  | "echo_latest_selected"
   | "echo_load_failure"
   | "echo_not_applied"
   | "echo_reapplied"
@@ -369,39 +355,43 @@ function feedback(
   prefix: EchoFeedbackPrefix,
   t: Translate,
   tone: EchoSettingsFeedback["tone"],
-  message?: string,
 ): EchoSettingsFeedback {
+  if (tone === "success") {
+    return {
+      title: t(`settings.general.${prefix}_title`),
+      message: t(`settings.general.${prefix}_message`),
+      tone,
+    };
+  }
   return {
     title: t(`settings.general.${prefix}_title`),
-    message: message ?? t(`settings.general.${prefix}_message`),
     impact: t(`settings.general.${prefix}_impact`),
-    nextStep: t(`settings.general.${prefix}_next_step`),
     tone,
   };
 }
 
-const echoConflict = (message: string, t: Translate) =>
-  feedback("echo_conflict", t, "warning", message);
-const echoUnknown = (message: string, t: Translate) =>
-  feedback("echo_unknown", t, "warning", message);
-const echoNotApplied = (message: string, t: Translate) =>
-  feedback("echo_not_applied", t, "error", message);
-const echoCleanupIncomplete = (message: string, t: Translate) =>
-  feedback("echo_cleanup_incomplete", t, "warning", message);
+const echoConflict = (t: Translate) =>
+  feedback("echo_conflict", t, "warning");
+const echoUnknown = (t: Translate) =>
+  feedback("echo_unknown", t, "warning");
+const echoNotApplied = (t: Translate) =>
+  feedback("echo_not_applied", t, "error");
+const echoCleanupIncomplete = (t: Translate) =>
+  feedback("echo_cleanup_incomplete", t, "warning");
 const echoCleanupRepairRequired = (t: Translate) =>
   feedback("echo_cleanup_repair", t, "warning");
 const echoCleanupSuperseded = (t: Translate) =>
   feedback("echo_cleanup_superseded", t, "success");
 const echoCommitted = (t: Translate) =>
   feedback("echo_committed", t, "success");
-const echoCommittedNeedsCheck = (message: string, t: Translate) =>
-  feedback("echo_committed_needs_check", t, "warning", message);
-const echoRecoveryNotApplied = (message: string, t: Translate) =>
-  feedback("echo_recovery_not_applied", t, "error", message);
+const echoCommittedNeedsCheck = (t: Translate) =>
+  feedback("echo_committed_needs_check", t, "warning");
+const echoRecoveryNotApplied = (t: Translate) =>
+  feedback("echo_recovery_not_applied", t, "error");
 const echoDifference = (t: Translate) =>
   feedback("echo_difference", t, "warning");
-const echoCheckFailure = (message: string, hasPending: boolean, t: Translate) =>
-  feedback(hasPending ? "echo_check_failure_pending" : "echo_load_failure", t, "error", message);
+const echoCheckFailure = (hasPending: boolean, t: Translate) =>
+  feedback(hasPending ? "echo_check_failure_pending" : "echo_load_failure", t, "error");
 
 function successFeedback(
   purpose: RecoveryPurpose,
@@ -412,8 +402,6 @@ function successFeedback(
       return feedback("echo_cleanup_completed", t, "success");
     case "reapply":
       return feedback("echo_reapplied", t, "success");
-    case "use-latest":
-      return feedback("echo_latest_selected", t, "success");
     default:
       return null;
   }

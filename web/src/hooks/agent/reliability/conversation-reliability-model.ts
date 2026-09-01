@@ -17,6 +17,15 @@ export interface ConversationReliabilityState
   has_connected: boolean;
 }
 
+export function hasConversationReliabilityNotice(
+  reliability: ConversationReliabilitySnapshot,
+): boolean {
+  return reliability.transport_phase === "recovering"
+    || reliability.transport_phase === "unavailable"
+    || reliability.provider_retry !== null
+    || reliability.failure !== null;
+}
+
 export type ConversationReliabilityAction =
   | { type: "scope_changed"; session_key: string | null }
   | { type: "transport_observed"; state: WebSocketState }
@@ -61,6 +70,14 @@ function sessionActivityDisprovesFailure(failure: ConversationFailure): boolean 
     || failure.code === "provider_configuration"
     || failure.code === "provider_unavailable"
     || failure.code === "session_load_failed";
+}
+
+function submissionSupersedesFailure(failure: ConversationFailure): boolean {
+  return failure.code === "permission_not_sent"
+    || failure.code === "request_rejected"
+    || failure.code === "round_failed"
+    || failure.code === "safety_rejected"
+    || failure.code === "validation_failed";
 }
 
 function reduceTransportState(
@@ -117,10 +134,12 @@ function reduceRecoveryEvidence(
     if (!belongsToActiveSession(state.active_session_key, evidence.session_key)) {
       return state;
     }
+    if (!state.failure || !submissionSupersedesFailure(state.failure)) {
+      return state;
+    }
     return {
       ...state,
       failure: null,
-      provider_retry: null,
     };
   }
   if (evidence.kind === "request_accepted") {

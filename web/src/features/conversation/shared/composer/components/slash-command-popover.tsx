@@ -512,9 +512,7 @@ function SlashPickerFailure({
   return (
     <UiResourceState
       className="m-1"
-      description={failure.message}
       impact={failure.impact}
-      nextStep={failure.nextStep}
       primaryAction={{
         busy: retrying,
         label: t("state.retry"),

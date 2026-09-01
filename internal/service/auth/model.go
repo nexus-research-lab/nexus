@@ -100,9 +100,19 @@ type ResetPasswordInput struct {
 // ChangePasswordInput 表示当前用户主动修改密码请求。
 type ChangePasswordInput struct {
 	UserID          string
+	RequestID       string
 	CurrentPassword string
 	NewPassword     string
 }
+
+// PasswordChangeOutcome 是客户端可对账的 exact 改密终态；unknown 表示尚无终态证据。
+type PasswordChangeOutcome string
+
+const (
+	PasswordChangeOutcomeUnknown    PasswordChangeOutcome = "unknown"
+	PasswordChangeOutcomeCommitted  PasswordChangeOutcome = "committed"
+	PasswordChangeOutcomeNotApplied PasswordChangeOutcome = "not_applied"
+)
 
 // UpdateProfileInput 表示当前用户资料更新请求。
 type UpdateProfileInput struct {

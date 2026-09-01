@@ -7,6 +7,7 @@ import { CircleAlert } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
+import { RecoverySummary } from "@/shared/ui/feedback/recovery-summary";
 
 interface HomeDirectoryRefreshErrorNoticeProps {
   className?: string;
@@ -33,12 +34,7 @@ export function HomeDirectoryRefreshErrorNotice({
         <span className="block font-semibold text-(--text-strong)">
           {t("sidebar.directory_refresh_failed_description")}
         </span>
-        <span className="block leading-5 text-(--text-muted)">
-          {t("sidebar.directory_refresh_failed_impact")}
-        </span>
-        <span className="block font-medium leading-5 text-(--text-default)">
-          {t("sidebar.directory_refresh_failed_next_step")}
-        </span>
+        <RecoverySummary impact={t("sidebar.directory_refresh_failed_impact")} />
       </span>
       <button
         className="shrink-0 font-semibold text-(--destructive) hover:underline"

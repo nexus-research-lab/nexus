@@ -84,7 +84,7 @@
 Conversation reliability 必须把 transport、请求受理、Agent round 和工具过程分成独立状态，禁止用一个全局错误字符串同时代表这些阶段：
 
 - WebSocket `onerror` 只是连接异常证据，不是业务终态。共享客户端按统一策略执行最多 5 次指数退避重连；重试期间只在 Composer 工作栈显示“连接中断，正在恢复…”。重试耗尽进入 `unavailable` 后，持久提示必须说明连接尚未恢复、已经显示的消息和当前输入仍保留但页面可能不是最新状态，并要求连接恢复后再继续发送。
-- 物理通道恢复后必须先重放仍有效的 Session binding，再对当前 Session 拉取 durable 消息快照。DM 以该快照和随后实时事件按消息身份合并；Room 还必须同时恢复 `room_seq` replay、Room subscription snapshot、pending Agent slot 和 pending interaction。连接恢复本身只能清除 transport 故障，不能覆盖一个仍由 durable round 证明的终态失败。
+- 物理通道恢复后必须先重放仍有效的 Session binding，再对当前 Session 拉取 durable 消息快照。DM 以该快照和随后实时事件按消息身份合并；Room 还必须同时恢复 `room_seq` replay、Room subscription snapshot、pending Agent slot 和 pending interaction。subscription snapshot 必须携带捕获时的 `snapshot_room_seq`，客户端先将当前 Room 游标设为该栅栏（服务端重启后允许回到较小的新代次序号），再应用快照，并丢弃不新于该序号的迟到事件；非当前 conversation 的迟到快照不得改写游标。
 - Provider/runtime 的 API retry 只由 runtime 发起并以当前 round 的 ephemeral `api_retry` 事实投影；Web 显示“模型服务暂时不可用，正在重试…”，但不得自行重发 prompt、工具调用或任何可能产生副作用的命令。新的 stream/message/成功 round status 必须按 exact `round_id`/`agent_round_id` 清除对应 retry；最终 error 才转成失败分类。
 - 用户消息、Goal、queue、permission 和 interrupt 的受理按 exact `client_request_id` 对账。ACK 丢失时客户端可以重连和读取 durable 状态，但不得自动重发；正向 ACK、durable `client_message_id`、input queue snapshot 或后续 round 事实只清除其精确请求故障，不能清除其他 Session 的状态。
 - 错误事件使用结构化 `failure_code`；原始 Provider 文本、HTTP 状态、Session/round/request ID 和内部堆栈只进入日志。普通用户界面不提供“查看详情”，而是在 Composer 状态栈完整说明发生了什么、当前消息/历史/输入受到什么影响，以及安全下一步。`delivery_unknown` 必须明确警告重复发送可能产生两次回复；未单独分类的终态说明本轮没有完成回复、用户消息和已显示历史仍保留，并引导用户先查看执行失败事实，再决定是否发起新一轮。
@@ -344,6 +344,7 @@ A 完成后：
 ### 6.2 实时与历史的一致性
 
 - 实时订阅使用 `room_seq` 做事件重放和缺口检测；它是传输序号，不是历史排序真相源。
+- 持久 Assistant 行只提供公区结构、内容与精确终态；即使其 legacy `stream_status` 仍为 pending/streaming，也不得在没有当前 slot、pending interaction 或 active lifecycle 时重建“正在执行”。
 - 历史使用持久化的公区发布时间、稳定 display order 和因果关联归一化；公区发布时间由服务端在消息进入 shared overlay 时确定，不使用 runtime 开始时间，也不能直接重放 WebSocket 到达顺序。
 - 如果多个并发消息落在同一时间粒度，持久化层必须提供稳定 tie-breaker；恢复后不能因为进程重启改变已有回复的相对顺序。
 - 目标 Agent 的状态事件可以先于它的 final reply 展示，但不能先于 source public message。

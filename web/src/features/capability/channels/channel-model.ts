@@ -9,17 +9,18 @@ interface ChannelFeedbackBase {
     onClick: () => void;
   };
   dismissible?: boolean;
-  message: string;
   title: string;
 }
 
 export type ChannelFeedback =
   | ChannelFeedbackBase & {
     impact: string;
+    message?: never;
     nextStep: string;
     tone: "error" | "warning";
   }
   | ChannelFeedbackBase & {
+    message: string;
     tone: "success";
   };
 

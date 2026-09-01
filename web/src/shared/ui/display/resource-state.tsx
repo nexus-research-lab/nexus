@@ -1,5 +1,5 @@
-// INPUT: 上层已经确定的加载、空、失败或完成展示内容与可选动作。
-// OUTPUT: 以标题、一句影响/下一步说明和可选动作呈现的可访问展示面。
+// INPUT: 上层已经确定的加载、空、失败、决策或完成展示内容与可选动作。
+// OUTPUT: 失败面最多一个安全恢复动作；需要双向选择的冲突使用独立 decision 态。
 // POS: 纯展示组件；不判断 query、mutation、access、离线或重试语义。
 "use client";
 
@@ -24,6 +24,7 @@ export type UiResourceStateKind =
   | "loading"
   | "empty"
   | "error"
+  | "decision"
   | "success";
 
 export interface UiResourceStateAction {
@@ -38,7 +39,6 @@ export interface UiResourceStateAction {
 
 interface UiResourceStateBaseProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
   className?: string;
-  description?: ReactNode;
   icon?: ReactNode;
   size?: UiStateBlockSize;
   title: ReactNode;
@@ -47,6 +47,7 @@ interface UiResourceStateBaseProps extends Omit<HTMLAttributes<HTMLDivElement>, 
 }
 
 interface UiResourceLoadingStateProps extends UiResourceStateBaseProps {
+  description?: ReactNode;
   impact?: ReactNode;
   nextStep?: ReactNode;
   primaryAction?: UiResourceStateAction;
@@ -56,8 +57,9 @@ interface UiResourceLoadingStateProps extends UiResourceStateBaseProps {
 }
 
 interface UiResourceEmptyStateProps extends UiResourceStateBaseProps {
+  description?: ReactNode;
   impact?: ReactNode;
-  nextStep: ReactNode;
+  nextStep?: ReactNode;
   primaryAction?: UiResourceStateAction;
   secondaryAction?: UiResourceStateAction;
   state: "empty";
@@ -65,17 +67,29 @@ interface UiResourceEmptyStateProps extends UiResourceStateBaseProps {
 }
 
 interface UiResourceFailureStateProps extends UiResourceStateBaseProps {
+  description?: never;
   impact: ReactNode;
-  nextStep: ReactNode;
+  nextStep?: ReactNode;
   primaryAction?: UiResourceStateAction;
-  secondaryAction?: UiResourceStateAction;
+  secondaryAction?: never;
   state: "error";
   tone?: "danger" | "warning";
 }
 
+interface UiResourceDecisionStateProps extends UiResourceStateBaseProps {
+  description?: never;
+  impact: ReactNode;
+  nextStep?: ReactNode;
+  primaryAction: UiResourceStateAction;
+  secondaryAction: UiResourceStateAction;
+  state: "decision";
+  tone: "warning";
+}
+
 interface UiResourceSuccessStateProps extends UiResourceStateBaseProps {
+  description?: ReactNode;
   impact?: ReactNode;
-  nextStep: ReactNode;
+  nextStep?: ReactNode;
   primaryAction?: UiResourceStateAction;
   secondaryAction?: UiResourceStateAction;
   state: "success";
@@ -86,11 +100,13 @@ export type UiResourceStateProps =
   | UiResourceLoadingStateProps
   | UiResourceEmptyStateProps
   | UiResourceFailureStateProps
+  | UiResourceDecisionStateProps
   | UiResourceSuccessStateProps;
 
 const DEFAULT_STATE_ICONS: Record<UiResourceStateKind, ReactNode> = {
   empty: <Inbox className="h-5 w-5 text-(--icon-default)" />,
   error: <CircleAlert className="h-4 w-4 text-(--destructive)" />,
+  decision: <CircleAlert className="h-4 w-4 text-(--warning)" />,
   loading: <LoaderCircle className="h-5 w-5 animate-spin text-(--icon-muted) motion-reduce:animate-none" />,
   success: <CheckCircle2 className="h-5 w-5 text-(--success)" />,
 };
@@ -112,10 +128,12 @@ export function UiResourceState({
   ...props
 }: UiResourceStateProps) {
   const failure = state === "error";
-  const compactFailure = failure && size === "sm";
+  const decision = state === "decision";
+  const recovery = failure || decision;
+  const compactFailure = recovery && size === "sm";
   const compactState = compactFailure
     || (state === "success" && size === "sm" && variant === "card");
-  const resolvedIcon = icon ?? (failure && tone === "warning"
+  const resolvedIcon = icon ?? (recovery && tone === "warning"
     ? <CircleAlert className="h-4 w-4 text-(--warning)" />
     : DEFAULT_STATE_ICONS[state]);
 
@@ -126,7 +144,7 @@ export function UiResourceState({
       aria-busy={state === "loading"}
       className={cn(className, compactState && "items-start text-left")}
       data-resource-state={state}
-      description={description}
+      description={recovery ? undefined : description}
       icon={compactState ? undefined : resolvedIcon}
       role={urgency === "assertive" ? "alert" : "status"}
       size={size}
@@ -136,18 +154,20 @@ export function UiResourceState({
           <span>{title}</span>
         </span>
       ) : title}
-      tone={failure ? tone : "default"}
+      tone={recovery ? tone : "default"}
       variant={variant}
       {...props}
     >
-      {failure ? (
+      {recovery ? (
         <RecoverySummary
           className={cn(
             "mt-1.5 w-full max-w-md",
             compactState ? "text-left" : "text-center",
           )}
           impact={<span data-resource-state-impact>{impact}</span>}
-          nextStep={<span data-resource-state-next-step>{nextStep}</span>}
+          nextStep={!primaryAction && !secondaryAction && nextStep
+            ? <span data-resource-state-next-step>{nextStep}</span>
+            : undefined}
         />
       ) : impact || nextStep ? (
         <div className={cn(
@@ -171,7 +191,7 @@ export function UiResourceState({
           "flex w-full flex-col items-center justify-center gap-2 sm:w-auto sm:flex-row sm:flex-wrap",
           compactState
             ? "mt-2.5 flex-row flex-wrap justify-start sm:w-full sm:justify-start"
-            : failure
+            : recovery
               ? "mt-2.5"
               : "mt-4",
         )}>
