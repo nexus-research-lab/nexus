@@ -10,6 +10,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
+	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 )
 
 type fixedAutomationDeliveryAuthority struct {
@@ -367,14 +368,58 @@ func TestRuntimeCommandReplayDoesNotDuplicateRunOrWake(t *testing.T) {
 	); replayErr != nil || replayed.Outcome != "replayed" {
 		t.Fatalf("wake replay = %+v err=%v", replayed, replayErr)
 	}
-	fixture.Service.mu.Lock()
-	wakeCount := 0
-	for _, requests := range fixture.Service.wakeRequests {
-		wakeCount += len(requests)
+	wake, err := fixture.Service.repository.GetHeartbeatWakeByRequest(
+		context.Background(), "user-1", "runtime-wake-replay",
+	)
+	if err != nil || wake.RequestID != "runtime-wake-replay" || wake.Status != "new" {
+		t.Fatalf("durable wake request = %+v err=%v", wake, err)
 	}
-	fixture.Service.mu.Unlock()
-	if wakeCount != 1 {
-		t.Fatalf("wake requests = %d, want 1", wakeCount)
+}
+
+func TestRuntimeCommandReplayRecoversAcceptedRunAfterReceiptLoss(t *testing.T) {
+	fixture := newAutomationCommandFixture(t, "ok")
+	actor := fixture.ServerContext
+	created := createRuntimeCommandTask(t, fixture, actor, "accepted run", "runtime-accepted-create")
+	request := automationdomain.AutomationCommandRequest{
+		Action: automationdomain.AutomationCommandActionApply, Operation: automationdomain.AutomationCommandOperationRun,
+		Input: automationdomain.AutomationCommandInput{JobID: created.JobID}, RequestID: "runtime-run-receipt-loss",
+	}
+	intentDigest, err := runtimeAutomationIntentDigest(actor, request.Operation, request.Input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, isNew, claimErr := fixture.Service.repository.ClaimRuntimeCommand(
+		context.Background(),
+		automationstore.RuntimeCommandRecord{
+			OwnerUserID: actor.OwnerUserID, RequestID: request.RequestID,
+			ActorAgentID: actor.AgentID, Operation: request.Operation, IntentDigest: intentDigest,
+			ApprovalRequestID: "approval-receipt-loss",
+		},
+	); claimErr != nil || !isNew {
+		t.Fatalf("claim runtime command isNew=%v err=%v", isNew, claimErr)
+	}
+	if err = fixture.Service.repository.InsertRunPending(
+		context.Background(),
+		automationstore.RunPendingInput{
+			RunID: "run-receipt-loss", JobID: created.JobID, OwnerUserID: created.OwnerUserID,
+			Status:          automationdomain.RunStatusQueuedToMain,
+			ClientRequestID: request.RequestID, IntentDigest: intentDigest,
+			PermissionPolicyRevision: created.PermissionPolicy.Revision,
+		},
+	); err != nil {
+		t.Fatal(err)
+	}
+	replayed, found, err := fixture.Service.ReplayRuntimeCommand(context.Background(), actor, request)
+	if err != nil || !found || replayed == nil || replayed.Outcome != "replayed" {
+		t.Fatalf("receipt-loss replay=%+v found=%v err=%v", replayed, found, err)
+	}
+	run, ok := replayed.Data.(*automationdomain.ExecutionResult)
+	if !ok || run.RunID == nil || *run.RunID != "run-receipt-loss" {
+		t.Fatalf("replayed run=%#v", replayed.Data)
+	}
+	record, err := fixture.Service.repository.GetRuntimeCommand(context.Background(), actor.OwnerUserID, request.RequestID)
+	if err != nil || record.Status != "applied" {
+		t.Fatalf("reconciled command=%+v err=%v", record, err)
 	}
 }
 

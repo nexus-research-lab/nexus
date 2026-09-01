@@ -1,6 +1,6 @@
 /**
- * INPUT: 当前 Agent、好友目录、Session、私信事件与页面命令。
- * OUTPUT: 以当前 Agent 视角操作的联系人列表和共享聊天面板。
+ * INPUT: 当前 Agent、好友目录、Session、私信事件、读取失败事实与页面命令。
+ * OUTPUT: 以当前 Agent 视角操作的联系人列表、共享聊天面板和就地恢复动作。
  * POS: Contacts 详情“联络”栏目的纯视图与局部交互状态。
  */
 "use client";
@@ -34,6 +34,7 @@ import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { buildRoomSharedSessionKey } from "@/lib/conversation/session-key";
 import { CONVERSATION_FOCUS_MEDIA_QUERY } from "@/lib/layout/home-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import type { TranslationKey } from "@/shared/i18n/messages";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
@@ -46,12 +47,20 @@ import {
   UiDialogPortal,
 } from "@/shared/ui/dialog/dialog";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
+import type { FeedbackBannerProps } from "@/shared/ui/feedback/feedback-banner-contract";
+import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import { UiField, UiInput, UiSearchInput } from "@/shared/ui/form/form-control";
 import { SIDEBAR_SELECTION_CLASS_NAME } from "@/shared/ui/sidebar/sidebar-selection";
 import { WorkspaceConversationTabs } from "@/shared/ui/workspace/controls/workspace-conversation-tabs";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import type { Agent, AgentContact } from "@/types/agent/agent";
 import type { InputQueueItem } from "@/types/agent/agent-conversation";
+import type {
+  AgentCommunicationMutationFailure,
+  AgentCommunicationReadFailure,
+  AgentCommunicationReadFailureKind,
+} from "@/types/agent/communication";
 import type { AgentPrivateEvent } from "@/types/agent/private-domain";
 import type { RoomConversationView } from "@/types/conversation/conversation";
 import type { Message } from "@/types/conversation/message/entity";
@@ -69,18 +78,27 @@ const HIDDEN_SCROLL_CONTROL = {
   unreadCount: 0,
   visible: false,
 } as const;
+const UNAVAILABLE_ROUND_INDEX_RESOURCE = {
+  access: null,
+  error: null,
+  isLoading: false,
+  isStale: false,
+  retry: ignoreAction,
+} as const;
 
 export interface AgentCommunicationViewState {
   contacts: AgentContact[];
   conversationId: string | null;
+  conversationFailure: AgentCommunicationReadFailure | null;
   directEvents: AgentPrivateEvent[];
-  error: string | null;
+  directoryFailure: AgentCommunicationReadFailure | null;
   hasMoreHistory: boolean;
   historyPrependToken: number;
   isDirectoryLoading: boolean;
   isHistoryLoading: boolean;
   isMessagesLoading: boolean;
   isSending: boolean;
+  mutationFailure: AgentCommunicationMutationFailure | null;
   pendingAgentId: string | null;
   roomContexts: RoomContextAggregate[];
   selectedContactId: string | null;
@@ -92,9 +110,10 @@ interface AgentCommunicationViewProps {
   state: AgentCommunicationViewState;
   onAddContact: (contactAgentId: string, alias: string) => Promise<boolean>;
   onBackToDirectory: () => void;
+  onClearMutationFailure: () => void;
   onCreateConversation: (title?: string) => Promise<string | null>;
   onLoadOlderMessages: () => Promise<boolean>;
-  onRefresh: () => void;
+  onRefresh: (kind?: AgentCommunicationReadFailureKind) => void;
   onRemoveContact: (contactAgentId: string) => Promise<boolean>;
   onSelectContact: (contactAgentId: string) => void;
   onSelectConversation: (conversationId: string) => void;
@@ -106,6 +125,7 @@ export function AgentCommunicationView({
   agents,
   onAddContact,
   onBackToDirectory,
+  onClearMutationFailure,
   onCreateConversation,
   onLoadOlderMessages,
   onRefresh,
@@ -145,9 +165,18 @@ export function AgentCommunicationView({
       && !contactIds.has(candidate.agent_id)
     ));
   }, [agent.agent_id, agents, state.contacts]);
+  const mutationFeedback = state.mutationFailure
+    ? buildCommunicationMutationFeedback(
+      state.mutationFailure,
+      t,
+      () => onRefresh(mutationRefreshKind(state.mutationFailure!.kind)),
+      onClearMutationFailure,
+    )
+    : null;
 
   return (
     <div className="grid min-h-0 min-w-0 flex-1 grid-cols-1 overflow-hidden bg-(--surface-canvas-background) md:grid-cols-[minmax(240px,288px)_minmax(0,1fr)] md:gap-2">
+      <FeedbackBannerViewport item={mutationFeedback} />
       <aside className={cn(
         "min-h-0 min-w-0 flex-col overflow-hidden bg-(--surface-raised-background) md:flex",
         state.selectedContactId ? "hidden" : "flex",
@@ -172,26 +201,51 @@ export function AgentCommunicationView({
         </div>
 
         <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto p-2">
-          {state.isDirectoryLoading && contacts.length === 0 ? (
+          {state.isDirectoryLoading
+          && contacts.length === 0
+          && !state.directoryFailure ? (
             <EmptyState icon={LoaderCircle} label={t("agent_options.contact.loading_address_book")} spin />
-          ) : contacts.length === 0 ? (
-            <EmptyState
-              icon={query ? MessageCircle : UsersRound}
-              label={query
-                ? t("agent_options.contact.no_search_results")
-                : t("agent_options.contact.empty_directory")}
+          ) : state.directoryFailure && !state.directoryFailure.stale ? (
+            <CommunicationReadFailure
+              failure={state.directoryFailure}
+              onRetry={() => onRefresh("directory")}
             />
-          ) : (
-            <div className="space-y-0.5">
-              {contacts.map((contact) => (
-                <ContactRow
-                  contact={contact}
-                  isSelected={state.selectedContactId === contact.contact_agent_id}
-                  key={contact.contact_agent_id}
-                  onSelect={() => onSelectContact(contact.contact_agent_id)}
+          ) : contacts.length === 0 ? (
+            <>
+              {state.directoryFailure ? (
+                <CommunicationReadFailure
+                  compact
+                  failure={state.directoryFailure}
+                  onRetry={() => onRefresh("directory")}
                 />
-              ))}
-            </div>
+              ) : null}
+              <EmptyState
+                icon={query ? MessageCircle : UsersRound}
+                label={query
+                  ? t("agent_options.contact.no_search_results")
+                  : t("agent_options.contact.empty_directory")}
+              />
+            </>
+          ) : (
+            <>
+              {state.directoryFailure ? (
+                <CommunicationReadFailure
+                  compact
+                  failure={state.directoryFailure}
+                  onRetry={() => onRefresh("directory")}
+                />
+              ) : null}
+              <div className="space-y-0.5">
+                {contacts.map((contact) => (
+                  <ContactRow
+                    contact={contact}
+                    isSelected={state.selectedContactId === contact.contact_agent_id}
+                    key={contact.contact_agent_id}
+                    onSelect={() => onSelectContact(contact.contact_agent_id)}
+                  />
+                ))}
+              </div>
+            </>
           )}
         </div>
       </aside>
@@ -208,7 +262,10 @@ export function AgentCommunicationView({
               currentConversationId={state.conversationId}
               onBack={onBackToDirectory}
               onCreateConversation={onCreateConversation}
-              onRefresh={onRefresh}
+              onRefresh={() => onRefresh(
+                state.conversationFailure?.kind
+                ?? (state.conversationId ? "messages" : "channel"),
+              )}
               onRemove={() => setRemoveDialogOpen(true)}
               onSelectConversation={onSelectConversation}
             />
@@ -216,7 +273,6 @@ export function AgentCommunicationView({
               agent={agent}
               agentsById={agentsById}
               conversationId={state.conversationId}
-              error={state.error}
               events={state.directEvents}
               hasMoreHistory={state.hasMoreHistory}
               historyPrependToken={state.historyPrependToken}
@@ -224,7 +280,9 @@ export function AgentCommunicationView({
               isLoading={state.isMessagesLoading}
               isSending={state.isSending}
               onLoadOlderMessages={onLoadOlderMessages}
+              onRetryRead={onRefresh}
               onSend={onSendMessage}
+              readFailure={state.conversationFailure}
               targetId={selectedContact.contact_agent_id}
             />
           </>
@@ -396,7 +454,6 @@ function ContactConversation({
   agent,
   agentsById,
   conversationId,
-  error,
   events,
   hasMoreHistory,
   historyPrependToken,
@@ -404,13 +461,14 @@ function ContactConversation({
   isLoading,
   isSending,
   onLoadOlderMessages,
+  onRetryRead,
   onSend,
+  readFailure,
   targetId,
 }: {
   agent: Agent;
   agentsById: Map<string, Agent>;
   conversationId: string | null;
-  error: string | null;
   events: AgentPrivateEvent[];
   hasMoreHistory: boolean;
   historyPrependToken: number;
@@ -418,7 +476,9 @@ function ContactConversation({
   isLoading: boolean;
   isSending: boolean;
   onLoadOlderMessages: () => Promise<boolean>;
+  onRetryRead: (kind: AgentCommunicationReadFailureKind) => void;
   onSend: (content: string) => Promise<void>;
+  readFailure: AgentCommunicationReadFailure | null;
   targetId: string;
 }) {
   const { t } = useI18n();
@@ -477,31 +537,54 @@ function ContactConversation({
         >
           {isLoading && messages.length === 0 ? (
             <EmptyState icon={LoaderCircle} label={t("agent_options.contact.loading_messages")} spin />
+          ) : readFailure && !readFailure.stale ? (
+            <CommunicationReadFailure
+              failure={readFailure}
+              onRetry={() => onRetryRead(readFailure.kind)}
+            />
           ) : messages.length === 0 ? (
-            <EmptyState icon={MessageCircle} label={t("agent_options.contact.empty_messages")} />
+            <>
+              {readFailure ? (
+                <CommunicationReadFailure
+                  compact
+                  failure={readFailure}
+                  onRetry={() => onRetryRead(readFailure.kind)}
+                />
+              ) : null}
+              <EmptyState icon={MessageCircle} label={t("agent_options.contact.empty_messages")} />
+            </>
           ) : (
-            <div
-              className={`nexus-chat-feed ${CONVERSATION_CONTENT_LANE_CLASS_NAME} flex min-h-full flex-col justify-end`}
-              ref={scroll.feedRef}
-            >
-              {messages.map((message, index) => {
-                const source = agentsById.get(message.agent_id);
-                return (
-                  <MessageItem
-                    animateEntry={false}
-                    assistantContentMode="dm_archived"
-                    compact={isCompactLayout}
-                    currentAgentAvatar={source?.avatar}
-                    currentAgentName={source ? agentName(source) : message.agent_id}
-                    isLastRound={index === messages.length - 1}
-                    key={message.message_id}
-                    messages={[message]}
-                    roundId={message.round_id}
-                    workspaceAgentId={message.agent_id}
-                  />
-                );
-              })}
-            </div>
+            <>
+              {readFailure ? (
+                <CommunicationReadFailure
+                  compact
+                  failure={readFailure}
+                  onRetry={() => onRetryRead(readFailure.kind)}
+                />
+              ) : null}
+              <div
+                className={`nexus-chat-feed ${CONVERSATION_CONTENT_LANE_CLASS_NAME} flex min-h-full flex-col justify-end`}
+                ref={scroll.feedRef}
+              >
+                {messages.map((message, index) => {
+                  const source = agentsById.get(message.agent_id);
+                  return (
+                    <MessageItem
+                      animateEntry={false}
+                      assistantContentMode="dm_archived"
+                      compact={isCompactLayout}
+                      currentAgentAvatar={source?.avatar}
+                      currentAgentName={source ? agentName(source) : message.agent_id}
+                      isLastRound={index === messages.length - 1}
+                      key={message.message_id}
+                      messages={[message]}
+                      roundId={message.round_id}
+                      workspaceAgentId={message.agent_id}
+                    />
+                  );
+                })}
+              </div>
+            </>
           )}
         </ConversationPanelViewport>
       </ConversationPanelViewportArea>
@@ -509,12 +592,11 @@ function ContactConversation({
         isMobileLayout={isCompactLayout}
         providerWarningVisible={false}
         reliability={{
-          failure: error && sessionKey
-            ? { code: "session_load_failed", session_key: sessionKey }
-            : null,
+          failure: null,
           provider_retry: null,
           transport_phase: "healthy",
         }}
+        roundIndexResource={UNAVAILABLE_ROUND_INDEX_RESOURCE}
         scrollToLatest={HIDDEN_SCROLL_CONTROL}
       >
         <ComposerPanel
@@ -543,6 +625,148 @@ function ContactConversation({
       </ConversationPanelBottomArea>
     </ConversationPanelLayout>
   );
+}
+
+function buildCommunicationMutationFeedback(
+  failure: AgentCommunicationMutationFailure,
+  t: ReturnType<typeof useI18n>["t"],
+  onRefresh: () => void,
+  onClear: () => void,
+): FeedbackBannerProps {
+  const operationTitle = {
+    add_contact: "agent_options.contact.add_contact_not_completed",
+    create_conversation: "agent_options.contact.create_conversation_not_completed",
+    remove_contact: "agent_options.contact.remove_contact_not_completed",
+    send_message: "agent_options.contact.send_message_not_completed",
+  }[failure.kind] as
+    | "agent_options.contact.add_contact_not_completed"
+    | "agent_options.contact.create_conversation_not_completed"
+    | "agent_options.contact.remove_contact_not_completed"
+    | "agent_options.contact.send_message_not_completed";
+  const effectCopies: Record<
+    AgentCommunicationMutationFailure["effect"],
+    { impact: TranslationKey; nextStep: TranslationKey; tone: "error" | "warning" }
+  > = {
+    accepted: {
+      impact: "agent_options.contact.mutation_accepted_impact",
+      nextStep: "agent_options.contact.mutation_accepted_next_step",
+      tone: "warning",
+    },
+    committed: {
+      impact: "agent_options.contact.mutation_committed_impact",
+      nextStep: "agent_options.contact.mutation_committed_next_step",
+      tone: "warning",
+    },
+    not_applied: {
+      impact: "agent_options.contact.mutation_not_applied_impact",
+      nextStep: "agent_options.contact.mutation_not_applied_next_step",
+      tone: "error",
+    },
+    unknown: {
+      impact: "agent_options.contact.mutation_unknown_impact",
+      nextStep: "agent_options.contact.mutation_unknown_next_step",
+      tone: "warning",
+    },
+  };
+  const effectCopy = effectCopies[failure.effect];
+  return {
+    action: {
+      label: t("agent_options.contact.check_latest_state"),
+      onClick: onRefresh,
+    },
+    impact: t(effectCopy.impact),
+    message: failure.message,
+    nextStep: t(effectCopy.nextStep),
+    ...(failure.blocksRepeat ? {} : { onDismiss: onClear }),
+    title: t(operationTitle),
+    tone: effectCopy.tone,
+    urgency: failure.effect === "not_applied" ? "assertive" : "polite",
+  };
+}
+
+function mutationRefreshKind(
+  kind: AgentCommunicationMutationFailure["kind"],
+): AgentCommunicationReadFailureKind {
+  switch (kind) {
+    case "add_contact":
+    case "remove_contact":
+      return "directory";
+    case "create_conversation":
+      return "channel";
+    case "send_message":
+      return "messages";
+  }
+}
+
+function CommunicationReadFailure({
+  compact = false,
+  failure,
+  onRetry,
+}: {
+  compact?: boolean;
+  failure: AgentCommunicationReadFailure;
+  onRetry: () => void;
+}) {
+  const { t } = useI18n();
+  const copy = communicationFailureCopy(failure);
+  return (
+    <UiResourceState
+      className={compact ? "mb-2 min-h-0 py-3" : undefined}
+      description={failure.message}
+      impact={t(copy.impact)}
+      nextStep={t(copy.nextStep)}
+      primaryAction={{
+        icon: <RefreshCw className="h-3.5 w-3.5" />,
+        label: t(copy.action),
+        onClick: onRetry,
+      }}
+      size="sm"
+      state="error"
+      title={t(copy.title)}
+      urgency="polite"
+    />
+  );
+}
+
+function communicationFailureCopy(failure: AgentCommunicationReadFailure) {
+  switch (failure.kind) {
+    case "directory":
+      return {
+        action: "agent_options.contact.retry_directory" as const,
+        impact: failure.stale
+          ? "agent_options.contact.directory_stale_impact" as const
+          : "agent_options.contact.directory_unavailable_impact" as const,
+        nextStep: "agent_options.contact.directory_failure_next_step" as const,
+        title: "agent_options.contact.directory_load_failed" as const,
+      };
+    case "channel":
+      return {
+        action: "agent_options.contact.retry_channel" as const,
+        impact: failure.stale
+          ? "agent_options.contact.channel_stale_impact" as const
+          : "agent_options.contact.channel_unavailable_impact" as const,
+        nextStep: "agent_options.contact.channel_failure_next_step" as const,
+        title: "agent_options.contact.channel_load_failed" as const,
+      };
+    case "history":
+      return {
+        action: "agent_options.contact.retry_history" as const,
+        impact: failure.stale
+          ? "agent_options.contact.history_stale_impact" as const
+          : "agent_options.contact.history_unavailable_impact" as const,
+        nextStep: "agent_options.contact.history_failure_next_step" as const,
+        title: "agent_options.contact.history_load_failed" as const,
+      };
+    case "messages":
+      return {
+        action: "agent_options.contact.retry_messages" as const,
+        impact: failure.stale
+          ? "agent_options.contact.messages_stale_impact" as const
+          : "agent_options.contact.messages_unavailable_impact" as const,
+        nextStep: "agent_options.contact.messages_failure_next_step" as const,
+        title: "agent_options.contact.messages_load_failed" as const,
+      };
+  }
 }
 
 function AddContactDialog({

@@ -1,8 +1,12 @@
+// INPUT: 单次 Device Flow 会话、provider 轮询结果与网络失败。
+// OUTPUT: 明确区分“确认未连接”和“结果未知”的终态回调；不执行配置清理或写入重放。
+// POS: Connector Device Flow 的纯轮询状态机，资源恢复决定留给上层控制器。
 import type {
   ConnectorDeviceAuthPollResult,
   ConnectorDeviceAuthStart,
   ConnectorDeviceAuthStatus,
 } from "@/types/capability/connector";
+import { getErrorMessage } from "@/lib/error-message";
 
 const DEFAULT_POLLING_MESSAGE = "等待 GitHub 授权确认";
 const SLOW_DOWN_DELAY_MS = 5_000;
@@ -44,10 +48,17 @@ const POLL_STATUS_RULES: Record<ConnectorDeviceAuthStatus, PollStatusRule> = {
 export interface ConnectorDeviceAuthPollerCallbacks {
   onClose: () => void;
   onConnected: (connectorId: string) => Promise<void>;
-  onError: (message: string) => void;
+  onError: (
+    message: string,
+    kind: ConnectorDeviceAuthFailureKind,
+  ) => void;
   onMessage: (message: string) => void;
   onNext: (session: ConnectorDeviceAuthStart) => void;
 }
+
+export type ConnectorDeviceAuthFailureKind =
+  | "not_connected"
+  | "outcome_unknown";
 
 type PollConnectorDeviceAuth = (
   connectorId: string,
@@ -125,7 +136,15 @@ export class ConnectorDeviceAuthPoller {
         await this.handleOutcome(resolveConnectorDeviceAuthPollOutcome(result));
       }
     } catch (error) {
-      this.fail(error instanceof Error ? error.message : "GitHub 授权轮询失败");
+      this.fail(
+        getErrorMessage(
+          error,
+          this.session.connector_id === "feishu-docx"
+            ? "飞书授权状态暂时无法确认"
+            : "GitHub 授权状态暂时无法确认",
+        ),
+        "outcome_unknown",
+      );
     }
   }
 
@@ -137,7 +156,7 @@ export class ConnectorDeviceAuthPoller {
       return;
     }
     if (outcome.kind === "failed") {
-      this.fail(outcome.message);
+      this.fail(outcome.message, "not_connected");
       return;
     }
     this.callbacks.onMessage(outcome.message);
@@ -145,12 +164,15 @@ export class ConnectorDeviceAuthPoller {
     await this.callbacks.onConnected(this.session.connector_id);
   }
 
-  private fail(message: string): void {
+  private fail(
+    message: string,
+    kind: ConnectorDeviceAuthFailureKind,
+  ): void {
     if (this.stopped) {
       return;
     }
     try {
-      this.callbacks.onError(message);
+      this.callbacks.onError(message, kind);
     } finally {
       this.close();
     }

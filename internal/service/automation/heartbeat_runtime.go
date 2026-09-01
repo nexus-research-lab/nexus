@@ -86,9 +86,6 @@ func (s *Service) refreshHeartbeatState(ctx context.Context, agentID string) (*a
 		state.LastHeartbeatAt = cloneTimePointer(lastHeartbeatAt)
 		state.LastAckAt = cloneTimePointer(lastAckAt)
 		state.DeliveryError = cloneStringPointer(deliveryError)
-		if !normalized.Enabled {
-			state.PendingWake = false
-		}
 	}
 	return state, nil
 }

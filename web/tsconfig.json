@@ -21,6 +21,7 @@
   },
   "include": [
     "src",
+    "visual-review",
     "vite.config.ts"
   ],
   "exclude": ["node_modules"]

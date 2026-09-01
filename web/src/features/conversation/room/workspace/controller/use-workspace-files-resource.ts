@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { getErrorMessage } from "@/lib/error-message";
 import { useWorkspaceFilesStore } from "@/store/workspace-files";
 import type { WorkspaceFileEntry } from "@/types/agent/agent";
 
@@ -9,10 +10,6 @@ interface WorkspaceFilesResourceState {
   scopeKey: string;
   errorMessage: string | null;
   isLoading: boolean;
-}
-
-function getErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "加载文件列表失败";
 }
 
 export function useWorkspaceFilesResource(agentId: string) {
@@ -43,7 +40,11 @@ export function useWorkspaceFilesResource(agentId: string) {
       if (scopeRef.current !== token.scopeKey || requestSequenceRef.current !== token.requestId) {
         return null;
       }
-      setState({scopeKey: agentId, errorMessage: getErrorMessage(error), isLoading: false});
+      setState({
+        scopeKey: agentId,
+        errorMessage: getErrorMessage(error, "加载文件列表失败"),
+        isLoading: false,
+      });
       return null;
     }
   }, [agentId, refreshFiles]);

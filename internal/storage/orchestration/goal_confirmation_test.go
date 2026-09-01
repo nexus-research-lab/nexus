@@ -217,9 +217,7 @@ func TestGoalConfirmationMigrationBackfillsOnlyExactPendingBinding(t *testing.T)
 		t.Fatal(err)
 	}
 	defer func() { _ = db.Close() }()
-	if err = goose.SetDialect("sqlite3"); err != nil {
-		t.Fatal(err)
-	}
+	ensureGooseSQLiteDialect(t)
 	if err = goose.UpTo(db, orchestrationMigrationDir(t, "sqlite"), 87); err != nil {
 		t.Fatal(err)
 	}

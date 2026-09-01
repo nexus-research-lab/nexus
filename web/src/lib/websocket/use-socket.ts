@@ -1,11 +1,22 @@
+/**
+ * INPUT: WebSocket 配置、React 生命周期与挂载时 auth owner generation。
+ * OUTPUT: 共享连接的 owner-scoped 事件/状态投影、发送面和逻辑租约。
+ * POS: React 与共享 WebSocket 通道边界；旧 owner 订阅不得收取事件或继续发送。
+ */
 import {
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 
+import {
+  captureAuthOwnerScopeGeneration,
+  isAuthOwnerScopeGenerationCurrent,
+  subscribeAuthOwnerScopeGeneration,
+} from "@/shared/auth/auth-owner-generation";
 import type {
   WebSocketConfig,
   WebSocketMessage,
@@ -71,10 +82,16 @@ export function useWebSocket(options: UseWebSocketOptions) {
     ],
   );
   const channelKey = buildSharedSocketKey(config);
+  const ownerScopeGeneration = useSyncExternalStore(
+    subscribeAuthOwnerScopeGeneration,
+    captureAuthOwnerScopeGeneration,
+    captureAuthOwnerScopeGeneration,
+  );
   const initialSnapshot = sharedWebSocketRegistry.getSnapshot(channelKey);
   const [state, setState] = useState<WebSocketState>(initialSnapshot.state);
   const [error, setError] = useState<Event | null>(initialSnapshot.error);
   const channelRef = useRef<SharedWebSocketChannel | null>(null);
+  const ownerScopeGenerationRef = useRef(ownerScopeGeneration);
   const onMessageRef = useRef(onMessage);
   const onErrorRef = useRef(onError);
   const onStateChangeRef = useRef(onStateChange);
@@ -85,25 +102,46 @@ export function useWebSocket(options: UseWebSocketOptions) {
     onStateChangeRef.current = onStateChange;
   }, [onError, onMessage, onStateChange]);
 
-  const publishMessage = useCallback((message: unknown) => {
-    onMessageRef.current?.(message);
-  }, []);
-  const publishError = useCallback((nextError: Event) => {
-    onErrorRef.current?.(nextError);
-  }, []);
-  const publishState = useCallback((nextState: WebSocketState) => {
-    onStateChangeRef.current?.(nextState);
-  }, []);
+  const ownsCurrentScope = useCallback(
+    () => isAuthOwnerScopeGenerationCurrent(ownerScopeGenerationRef.current),
+    [],
+  );
 
   useEffect(() => {
     const channel = sharedWebSocketRegistry.acquire(channelKey, config);
+    // reset 已经从 registry 摘除旧通道；只有绑定到新通道后才能接受当前代次。
+    ownerScopeGenerationRef.current = ownerScopeGeneration;
     channelRef.current = channel;
+    const ownsChannelScope = () => (
+      isAuthOwnerScopeGenerationCurrent(ownerScopeGeneration)
+      && channelRef.current === channel
+    );
     const subscriberId = channel.subscribe({
-      onError: publishError,
-      onMessage: publishMessage,
-      onStateChange: publishState,
-      setError,
-      setState,
+      onError: (nextError) => {
+        if (ownsChannelScope()) {
+          onErrorRef.current?.(nextError);
+        }
+      },
+      onMessage: (message) => {
+        if (ownsChannelScope()) {
+          onMessageRef.current?.(message);
+        }
+      },
+      onStateChange: (nextState) => {
+        if (ownsChannelScope()) {
+          onStateChangeRef.current?.(nextState);
+        }
+      },
+      setError: (nextError) => {
+        if (ownsChannelScope()) {
+          setError(nextError);
+        }
+      },
+      setState: (nextState) => {
+        if (ownsChannelScope()) {
+          setState(nextState);
+        }
+      },
     });
     if (autoConnect !== false) {
       channel.connect();
@@ -120,9 +158,7 @@ export function useWebSocket(options: UseWebSocketOptions) {
     channelKey,
     config,
     autoConnect,
-    publishError,
-    publishMessage,
-    publishState,
+    ownerScopeGeneration,
   ]);
 
   useEffect(() => {
@@ -131,6 +167,9 @@ export function useWebSocket(options: UseWebSocketOptions) {
     }
 
     const reconnectWhenRecoverable = (): void => {
+      if (!ownsCurrentScope()) {
+        return;
+      }
       const snapshot = channelRef.current?.getSnapshot();
       if (snapshot?.state === "failed") {
         channelRef.current?.reconnect();
@@ -148,35 +187,78 @@ export function useWebSocket(options: UseWebSocketOptions) {
       window.removeEventListener("online", reconnectWhenRecoverable);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [channelKey]);
+  }, [channelKey, ownsCurrentScope]);
 
   const send = useCallback(
-    (message: WebSocketMessage): WebSocketSendResult =>
-      channelRef.current?.send(message) ?? { disposition: "dropped" },
-    [],
+    (message: WebSocketMessage): WebSocketSendResult => {
+      if (!ownsCurrentScope()) {
+        return { disposition: "dropped" };
+      }
+      return channelRef.current?.send(message) ?? { disposition: "dropped" };
+    },
+    [ownsCurrentScope],
   );
   const connect = useCallback(() => {
-    channelRef.current?.connect();
-  }, []);
+    if (ownsCurrentScope()) {
+      channelRef.current?.connect();
+    }
+  }, [ownsCurrentScope]);
   const disconnect = useCallback(() => {
-    channelRef.current?.disconnect();
-  }, []);
+    if (ownsCurrentScope()) {
+      channelRef.current?.disconnect();
+    }
+  }, [ownsCurrentScope]);
   const reconnect = useCallback(() => {
-    channelRef.current?.reconnect();
-  }, []);
+    if (ownsCurrentScope()) {
+      channelRef.current?.reconnect();
+    }
+  }, [ownsCurrentScope]);
   const acquireSessionBinding = useCallback(
     (lease: object, message: WebSocketMessage): (() => void) => {
+      if (!ownsCurrentScope()) {
+        return () => {};
+      }
       const channel = channelRef.current;
       return channel?.acquireSessionBinding(lease, message) ?? (() => {});
     },
-    [],
+    [ownsCurrentScope],
   );
   const acquireRequestTransportLease = useCallback(
     (options: RequestTransportLeaseOptions): (() => void) => {
+      if (!ownsCurrentScope()) {
+        return () => {};
+      }
       const channel = channelRef.current;
-      return channel?.acquireRequestTransportLease(options) ?? (() => {});
+      if (!channel) {
+        return () => {};
+      }
+      const generation = ownerScopeGenerationRef.current;
+      const ownsLeaseScope = () => (
+        isAuthOwnerScopeGenerationCurrent(generation)
+        && channelRef.current === channel
+      );
+      return channel.acquireRequestTransportLease({
+        ...options,
+        onAccepted: () => {
+          if (ownsLeaseScope()) {
+            options.onAccepted();
+          }
+        },
+        onRejected: (reason) => {
+          if (ownsLeaseScope()) {
+            options.onRejected(reason);
+          }
+        },
+        onTimeout: options.onTimeout
+          ? () => {
+              if (ownsLeaseScope()) {
+                options.onTimeout?.();
+              }
+            }
+          : undefined,
+      });
     },
-    [],
+    [ownsCurrentScope],
   );
 
   return {

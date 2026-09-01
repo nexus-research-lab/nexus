@@ -132,6 +132,7 @@ export function DmChatPanelView({
         isMobileLayout={isMobileLayout}
         providerWarningVisible={model.providerWarningVisible}
         reliability={model.reliability}
+        roundIndexResource={model.roundIndexResource}
         scrollToLatest={model.scrollToLatest}
       >
         <ComposerPanel

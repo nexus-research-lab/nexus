@@ -115,7 +115,8 @@ func (s *Service) decideScheduledTaskPermission(
 	if err != nil {
 		return sdkpermission.Deny("读取定时任务授权状态失败", true), err
 	}
-	if currentJob == nil || currentJob.PermissionPolicy.Revision != scope.Job.PermissionPolicy.Revision {
+	if currentJob == nil || strings.TrimSpace(currentJob.DeletionState) != "" ||
+		currentJob.PermissionPolicy.Revision != scope.Job.PermissionPolicy.Revision {
 		return sdkpermission.Deny("任务配置已在本次运行期间改变，请重新运行任务", true), nil
 	}
 	activeRun, runErr := s.repository.GetRun(ctx, currentJob.OwnerUserID, currentJob.JobID, scope.RunID)

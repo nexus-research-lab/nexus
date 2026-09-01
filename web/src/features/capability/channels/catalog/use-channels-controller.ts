@@ -1,3 +1,6 @@
+// INPUT: Owner-scoped Channel and Agent reads plus catalog-level committed callbacks.
+// OUTPUT: Stale-safe directory snapshots, read recovery, and strict user feedback.
+// POS: Channel catalog controller; reads never erase the last reliable snapshot.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { getAgents } from "@/lib/api/agent/agent-api";
@@ -7,6 +10,7 @@ import {
   type ImChannelType,
 } from "@/lib/api/capability/channel-api";
 import type { Agent } from "@/types/agent/agent";
+import { useI18n } from "@/shared/i18n/i18n-context";
 
 import { notifyCapabilitySummaryMutated } from "../../capability-summary-events";
 import type { ChannelFeedback } from "../channel-model";
@@ -16,6 +20,7 @@ import {
 } from "./channel-catalog-model";
 
 export function useChannelsController() {
+  const { t } = useI18n();
   const requestIdRef = useRef(0);
   const [channels, setChannels] = useState<ChannelConfigView[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -23,28 +28,52 @@ export function useChannelsController() {
   const [searchQuery, setSearchQuery] = useState("");
   const [channelFilter, setChannelFilter] = useState<ChannelFilter>("all");
   const [loading, setLoading] = useState(true);
+  const [readFailed, setReadFailed] = useState(false);
   const [feedback, setFeedback] = useState<ChannelFeedback | null>(null);
 
   const refresh = useCallback(async (): Promise<boolean> => {
     const requestId = ++requestIdRef.current;
     setLoading(true);
     try {
-      const [nextChannels, nextAgents] = await Promise.all([
+      const [channelResult, agentResult] = await Promise.allSettled([
         listChannelsApi(),
         getAgents(),
       ]);
       if (requestId !== requestIdRef.current) {
         return false;
       }
-      setChannels(nextChannels);
-      setAgents(nextAgents);
-      return true;
-    } catch (error) {
-      if (requestId === requestIdRef.current) {
+      if (channelResult.status === "fulfilled") {
+        setChannels(channelResult.value);
+      }
+      if (agentResult.status === "fulfilled") {
+        setAgents(agentResult.value);
+      }
+      const complete = channelResult.status === "fulfilled"
+        && agentResult.status === "fulfilled";
+      setReadFailed(channelResult.status === "rejected");
+      if (!complete) {
         setFeedback({
+          impact: t("capability.channel_catalog_load_failed_impact"),
+          nextStep: t("capability.channel_catalog_load_failed_next_step"),
           tone: "error",
-          title: "加载失败",
-          message: error instanceof Error ? error.message : "频道加载失败",
+          title: t("capability.channel_catalog_load_failed_title"),
+          message: t("capability.channel_catalog_load_failed_message"),
+        });
+      } else {
+        setFeedback(null);
+      }
+      return complete;
+    } catch {
+      // Promise.allSettled should make this unreachable, but preserving the
+      // current snapshot is safer than projecting an empty directory.
+      if (requestId === requestIdRef.current) {
+        setReadFailed(true);
+        setFeedback({
+          impact: t("capability.channel_catalog_load_failed_impact"),
+          nextStep: t("capability.channel_catalog_load_failed_next_step"),
+          tone: "error",
+          title: t("capability.channel_catalog_load_failed_title"),
+          message: t("capability.channel_catalog_load_failed_message"),
         });
       }
       return false;
@@ -53,7 +82,7 @@ export function useChannelsController() {
         setLoading(false);
       }
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void refresh();
@@ -99,15 +128,14 @@ export function useChannelsController() {
           message: `${item.title} 已移除配置`,
         }
       : {
+          impact: t("state.committed_refresh_impact"),
+          nextStep: t("state.committed_refresh_next_step"),
           tone: "error",
           title: "频道已断开，刷新失败",
           message: "请手动刷新频道列表确认最新状态",
         });
-  }, [refresh]);
+  }, [refresh, t]);
 
-  const reportError = useCallback((message: string) => {
-    setFeedback({ tone: "error", title: "频道操作失败", message });
-  }, []);
   const clearFeedback = useCallback(() => setFeedback(null), []);
   const closeChannel = useCallback(() => setSelectedType(null), []);
   const openChannel = useCallback((item: ChannelConfigView) => {
@@ -124,8 +152,8 @@ export function useChannelsController() {
     feedback,
     loading,
     openChannel,
+    readFailed,
     refresh,
-    reportError,
     saveChannel,
     searchQuery,
     selectedChannel,

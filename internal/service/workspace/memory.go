@@ -89,10 +89,10 @@ func (s *Service) DeleteMemoryDocument(
 	}
 	_, normalizedPath, err := resolveWorkspacePath(agentValue.WorkspacePath, relativePath)
 	if err != nil {
-		return nil, err
+		return nil, invalidWorkspaceMutation(err)
 	}
 	if !isDeletableMemoryDocumentPath(normalizedPath) {
-		return nil, errors.New("不支持删除 memory/ 之外的记忆文件")
+		return nil, invalidWorkspaceMutation(errors.New("不支持删除 memory/ 之外的记忆文件"))
 	}
 
 	confinedRoot, err := s.openAgentWorkspace(agentValue, false)
@@ -108,7 +108,7 @@ func (s *Service) DeleteMemoryDocument(
 		return nil, err
 	}
 	if !info.Mode().IsRegular() {
-		return nil, errors.New("不支持删除非普通记忆文件")
+		return nil, invalidWorkspaceMutation(errors.New("不支持删除非普通记忆文件"))
 	}
 
 	indexContent, indexChanged, err := memoryIndexWithoutDocument(confinedRoot, normalizedPath)

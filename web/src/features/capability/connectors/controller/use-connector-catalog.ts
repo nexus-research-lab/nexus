@@ -1,39 +1,56 @@
+// INPUT: Connector 目录 API、筛选条件和当前语言的安全失败兜底。
+// OUTPUT: 保留最后成功快照的目录资源、筛选结果与显式刷新动作。
+// POS: Connector catalog 的读取边界；不把普通异常正文交给视图。
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { getConnectorsApi } from "@/lib/api/capability/connector-api";
+import {
+  getResourceFailure,
+  type ResourceFailure,
+} from "@/lib/error-message";
 import type { ConnectorInfo } from "@/types/capability/connector";
 
 import { filterConnectors } from "../catalog/connector-catalog-model";
 
 interface UseConnectorCatalogOptions {
-  onError: (message: string) => void;
+  failureFallback: string;
 }
 
-export function useConnectorCatalog({ onError }: UseConnectorCatalogOptions) {
+export function useConnectorCatalog({
+  failureFallback,
+}: UseConnectorCatalogOptions) {
   const requestIdRef = useRef(0);
   const [allConnectors, setAllConnectors] = useState<ConnectorInfo[]>([]);
+  const [failure, setFailure] = useState<ResourceFailure | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
 
-  const refresh = useCallback(async () => {
+  const reconcile = useCallback(async (): Promise<boolean> => {
     const requestId = ++requestIdRef.current;
     setLoading(true);
     try {
       const items = await getConnectorsApi();
       if (requestId === requestIdRef.current) {
         setAllConnectors(items);
+        setFailure(null);
       }
+      return requestId === requestIdRef.current;
     } catch (error) {
       if (requestId === requestIdRef.current) {
-        onError(error instanceof Error ? error.message : "加载失败");
+        setFailure(getResourceFailure(error, failureFallback));
       }
+      return false;
     } finally {
       if (requestId === requestIdRef.current) {
         setLoading(false);
       }
     }
-  }, [onError]);
+  }, [failureFallback]);
+
+  const refresh = useCallback(async (): Promise<void> => {
+    await reconcile();
+  }, [reconcile]);
 
   useEffect(() => {
     void refresh();
@@ -53,7 +70,9 @@ export function useConnectorCatalog({ onError }: UseConnectorCatalogOptions) {
     activeCategory,
     allConnectors,
     connectors,
+    failure,
     loading,
+    reconcile,
     refresh,
     searchQuery,
     setActiveCategory,

@@ -92,9 +92,7 @@ function formatAttachmentPreparationError(
   if (error instanceof ComposerAttachmentRejectedError) {
     return formatAttachmentRejection(error.rejection, translate);
   }
-  return error instanceof Error
-    ? error.message
-    : translate("composer.attachment_failed");
+  return translate("composer.attachment_failed");
 }
 
 function formatFirstAttachmentRejection(

@@ -21,6 +21,14 @@ import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/hea
 import type { FinalConversationReplacementHandler } from "@/shared/ui/workspace/controls/conversation-tabs/final-conversation-replacement";
 import type { TodoItem } from "@/types/conversation/todo";
 import type { AgentRuntimeKind } from "@/types/settings/preferences";
+import type { ResourceFailure } from "@/lib/error-message";
+
+export interface RoomExternalSessionsReliability {
+  failure: ResourceFailure | null;
+  isLoading: boolean;
+  isStale: boolean;
+  refresh: () => void;
+}
 
 export interface RoomSurfaceLayoutProps {
   currentAgent: Agent;
@@ -44,6 +52,7 @@ export interface RoomSurfaceLayoutProps {
   onInitialDraftConsumed?: () => void;
   executionResource: ExecutionResource;
   executionTaskRuns: ConversationTaskRun[];
+  externalSessionsReliability: RoomExternalSessionsReliability;
   sidePanelWidthPercent: number;
   isResizingSidePanel: boolean;
   currentTodos: TodoItem[];

@@ -1,6 +1,6 @@
 /**
  * INPUT: 权威 Execution Graph 与用户本地的折叠、搜索、平移、缩放及焦点意图。
- * OUTPUT: 可隐藏节点、祖先路径、全文检索结果、有界 viewport 比例、首次居中锚点、对称平移留白与焦点稳定的缩放滚动位置。
+ * OUTPUT: 可隐藏节点、祖先路径、完整上下游聚焦路径、子图整体及其直接边界关系聚焦、全文检索结果、有界 viewport 比例、首次居中锚点、对称平移留白与焦点稳定的缩放滚动位置。
  * POS: WorkGraph 画布的纯交互模型；不改变后端拓扑、节点状态或 Agent 路线。
  */
 import type {
@@ -26,6 +26,18 @@ interface ExecutionGraphCollapseProjection {
 interface ExecutionGraphHierarchy {
   childrenByNodeId: Map<string, string[]>;
   parentByNodeId: Map<string, string>;
+}
+
+export interface ExecutionGraphTraceEdge {
+  id: string;
+  kind: string;
+  sourceId: string;
+  targetId: string;
+}
+
+export interface ExecutionGraphTrace {
+  edgeIds: Set<string>;
+  nodeIds: Set<string>;
 }
 
 export function projectExecutionGraphCollapse(
@@ -65,6 +77,65 @@ export function resolveExecutionGraphNodeAncestors(
     parentId = hierarchy.parentByNodeId.get(parentId);
   }
   return result;
+}
+
+export function resolveExecutionGraphTrace(
+  edges: readonly ExecutionGraphTraceEdge[],
+  nodeId: string | null,
+): ExecutionGraphTrace {
+  const nodeIds = new Set<string>();
+  const edgeIds = new Set<string>();
+  if (!nodeId) {
+    return { edgeIds, nodeIds };
+  }
+  nodeIds.add(nodeId);
+  collectExecutionGraphTraceDirection(
+    edges,
+    nodeId,
+    "upstream",
+    nodeIds,
+    edgeIds,
+  );
+  collectExecutionGraphTraceDirection(
+    edges,
+    nodeId,
+    "downstream",
+    nodeIds,
+    edgeIds,
+  );
+  for (const edge of edges) {
+    if (!isExecutionGraphTraceControlEdge(edge.kind)) {
+      continue;
+    }
+    if (edge.sourceId === nodeId || edge.targetId === nodeId) {
+      edgeIds.add(edge.id);
+      nodeIds.add(edge.sourceId);
+      nodeIds.add(edge.targetId);
+      continue;
+    }
+    if (nodeIds.has(edge.sourceId) && nodeIds.has(edge.targetId)) {
+      edgeIds.add(edge.id);
+    }
+  }
+  return { edgeIds, nodeIds };
+}
+
+export function resolveExecutionGraphGroupTrace(
+  edges: readonly ExecutionGraphTraceEdge[],
+  groupNodeIds: readonly string[],
+): ExecutionGraphTrace {
+  const groupNodes = new Set(groupNodeIds);
+  const nodeIds = new Set(groupNodeIds);
+  const edgeIds = new Set<string>();
+  for (const edge of edges) {
+    if (!groupNodes.has(edge.sourceId) && !groupNodes.has(edge.targetId)) {
+      continue;
+    }
+    edgeIds.add(edge.id);
+    nodeIds.add(edge.sourceId);
+    nodeIds.add(edge.targetId);
+  }
+  return { edgeIds, nodeIds };
 }
 
 export function searchExecutionGraphNodes(
@@ -298,6 +369,45 @@ function executionGraphDescendants(
     pending.push(...(hierarchy.childrenByNodeId.get(current) ?? []));
   }
   return result;
+}
+
+function collectExecutionGraphTraceDirection(
+  edges: readonly ExecutionGraphTraceEdge[],
+  nodeId: string,
+  direction: "downstream" | "upstream",
+  nodeIds: Set<string>,
+  edgeIds: Set<string>,
+): void {
+  const pending = [nodeId];
+  const visited = new Set<string>();
+  while (pending.length > 0) {
+    const current = pending.shift();
+    if (!current || visited.has(current)) {
+      continue;
+    }
+    visited.add(current);
+    for (const edge of edges) {
+      if (isExecutionGraphTraceControlEdge(edge.kind)) {
+        continue;
+      }
+      const matches = direction === "upstream"
+        ? edge.targetId === current
+        : edge.sourceId === current;
+      if (!matches) {
+        continue;
+      }
+      const next = direction === "upstream" ? edge.sourceId : edge.targetId;
+      edgeIds.add(edge.id);
+      nodeIds.add(next);
+      if (!visited.has(next)) {
+        pending.push(next);
+      }
+    }
+  }
+}
+
+function isExecutionGraphTraceControlEdge(kind: string): boolean {
+  return kind === "loop_back" || kind === "retry";
 }
 
 function executionGraphNodeSearchText(

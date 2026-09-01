@@ -8,7 +8,7 @@
 //     Agent 使用矩阵、target_scope/source_identity、非破坏性原子开关、平台/外部 Skill 引用、
 //     owner-scoped confined registry 与 Agent runtime_version CAS；workspace 开关不删除文件。
 //   - catalog_mutation.go / catalog_publish.go：owner catalog 持久单调 version/CAS、
-//     typed reconcile、旧目录备份与 DB/FS 原子发布补偿。
+//     typed reconcile（含 SQL commit 结果未知）、旧目录备份与 DB/FS 原子发布补偿。
 //   - marketplace_*.go：外部 marketplace 检索、预览、来源配置、staging 导入与单项/批量更新；
 //     Git / URL / skills.sh / 私有 JSON 注册表提供 expected version 对话入口；私有来源 CRUD/导入与 Web/API 共用 owner catalog CAS，
 //     私有 Bearer 凭据保持加密，健康检查只更新非功能元数据，批量写按项推进 version 并检测部分完成，upload/local path 保持 human-only。

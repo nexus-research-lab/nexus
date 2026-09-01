@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
-import { getErrorMessage } from "@/lib/error-message";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type {
   ProviderConfigRecord,
@@ -9,6 +8,11 @@ import type {
 } from "@/types/capability/provider";
 
 import type { ProviderModelApi } from "../../provider-settings-api";
+import {
+  buildProviderCommittedRefreshFeedback,
+  buildProviderErrorFeedback,
+  buildProviderValidationFeedback,
+} from "../../model/provider-feedback-model";
 import {
   isDefaultModelDisable,
   modelUpdatePayload,
@@ -23,7 +27,7 @@ import type { RunProviderCommand } from "../use-provider-command";
 interface UseProviderModelUpdateOptions {
   modelApi: Pick<ProviderModelApi, "deleteModel" | "setDefaultModel" | "updateModel">;
   modelOptions: ModelOptionsState | null;
-  refreshAll: (preferredProvider?: string | null) => Promise<void>;
+  refreshAll: (preferredProvider?: string | null) => Promise<boolean>;
   runCommand: RunProviderCommand;
   selectedCanManage: boolean;
   selectedRecord: ProviderConfigRecord | null;
@@ -53,13 +57,13 @@ export function useProviderModelUpdate({
   const handleDefaultModelDisableAttempt = useCallback((
     model: ProviderModelRecord,
   ) => {
-    setFeedback({
-      tone: "error",
-      title: t("settings.providers.default_model_disable_title"),
-      message: t("settings.providers.default_model_disable_message", {
+    setFeedback(buildProviderValidationFeedback(
+      t("settings.providers.default_model_disable_title"),
+      t("settings.providers.default_model_disable_message", {
         model: model.display_name || model.model_id,
       }),
-    });
+      t,
+    ));
   }, [setFeedback, t]);
 
   const handleToggleModel = useCallback((
@@ -80,16 +84,19 @@ export function useProviderModelUpdate({
           model.model_id,
           modelUpdatePayload(model, { enabled }),
         );
-        await refreshAll(selectedRecord.provider);
+        if (!await refreshAll(selectedRecord.provider)) {
+          setFeedback(buildProviderCommittedRefreshFeedback(
+            t("settings.providers.refresh_after_change_failed_message"),
+            t,
+          ));
+        }
       } catch (error) {
-        setFeedback({
-          tone: "error",
-          title: t("settings.providers.model_status_failed_title"),
-          message: getErrorMessage(
-            error,
-            t("settings.providers.retry_later"),
-          ),
-        });
+        setFeedback(buildProviderErrorFeedback(
+          error,
+          t("settings.providers.model_status_failed_title"),
+          t("settings.providers.retry_later"),
+          t,
+        ));
       }
     });
   }, [
@@ -180,14 +187,12 @@ export function useProviderModelUpdate({
         });
       } catch (error) {
         setDeleteModelTarget(null);
-        setFeedback({
-          tone: "error",
-          title: t("settings.providers.model_delete_failed_title"),
-          message: getErrorMessage(
-            error,
-            t("settings.providers.retry_later"),
-          ),
-        });
+        setFeedback(buildProviderErrorFeedback(
+          error,
+          t("settings.providers.model_delete_failed_title"),
+          t("settings.providers.retry_later"),
+          t,
+        ));
       }
     });
   }, [
@@ -205,15 +210,25 @@ export function useProviderModelUpdate({
     if (!selectedRecord || !modelOptions || !selectedCanManage) {
       return;
     }
+    let providerOptions: Record<string, unknown> | undefined;
+    try {
+      providerOptions = parseProviderOptions(
+        modelOptions.provider_options_text,
+        t("settings.providers.provider_options_json_object"),
+      );
+    } catch {
+      setFeedback(buildProviderValidationFeedback(
+        t("settings.providers.model_options_save_failed_title"),
+        t("settings.providers.check_json_format"),
+        t,
+      ));
+      return;
+    }
     void runCommand({
       kind: "save-model-options",
       modelId: modelOptions.model.model_id,
     }, async () => {
       try {
-        const providerOptions = parseProviderOptions(
-          modelOptions.provider_options_text,
-          t("settings.providers.provider_options_json_object"),
-        );
         await modelApi.updateModel(
           selectedRecord.provider,
           modelOptions.model.model_id,
@@ -229,16 +244,19 @@ export function useProviderModelUpdate({
           }),
         );
         setModelOptions(null);
-        await refreshAll(selectedRecord.provider);
+        if (!await refreshAll(selectedRecord.provider)) {
+          setFeedback(buildProviderCommittedRefreshFeedback(
+            t("settings.providers.refresh_after_change_failed_message"),
+            t,
+          ));
+        }
       } catch (error) {
-        setFeedback({
-          tone: "error",
-          title: t("settings.providers.model_options_save_failed_title"),
-          message: getErrorMessage(
-            error,
-            t("settings.providers.check_json_format"),
-          ),
-        });
+        setFeedback(buildProviderErrorFeedback(
+          error,
+          t("settings.providers.model_options_save_failed_title"),
+          t("settings.providers.retry_later"),
+          t,
+        ));
       }
     });
   }, [

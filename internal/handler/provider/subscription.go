@@ -17,7 +17,7 @@ func (h *Handlers) HandleListSubscriptionProviderConfigs(writer http.ResponseWri
 	}
 	items, err := h.providers.ListPublic(request.Context())
 	if err != nil {
-		h.api.WriteFailure(writer, providerMutationErrorStatus(err), err.Error())
+		h.api.WriteError(writer, request, http.StatusBadRequest, providerReadFailure(err))
 		return
 	}
 	h.api.WriteSuccess(writer, items)
@@ -29,14 +29,15 @@ func (h *Handlers) HandleCreateSubscriptionProviderConfig(writer http.ResponseWr
 		return
 	}
 	var payload providercfg.CreateInput
-	if !h.api.BindJSON(writer, request, &payload) {
+	if !h.api.BindJSONError(writer, request, &payload, providerRequestInvalidFailure("create")) {
 		return
 	}
 	item, err := h.providers.CreatePublic(request.Context(), payload)
 	if err != nil {
-		h.api.WriteFailure(writer, providerMutationErrorStatus(err), err.Error())
+		h.writeProviderMutationFailure(writer, request, "create", err)
 		return
 	}
+	writeProviderETag(writer, item.ConfigurationVersion)
 	h.api.WriteSuccess(writer, item)
 }
 
@@ -47,11 +48,7 @@ func (h *Handlers) HandleFetchSubscriptionProviderModels(writer http.ResponseWri
 	}
 	item, err := h.providers.FetchPublicModels(request.Context(), chi.URLParam(request, "provider"))
 	if err != nil {
-		if strings.Contains(strings.ToLower(err.Error()), "不存在") {
-			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
-			return
-		}
-		h.api.WriteFailure(writer, providerMutationErrorStatus(err), err.Error())
+		h.writeProviderMutationFailure(writer, request, "fetch_models", err)
 		return
 	}
 	h.api.WriteSuccess(writer, item)
@@ -63,7 +60,7 @@ func (h *Handlers) HandleUpdateSubscriptionProviderModel(writer http.ResponseWri
 		return
 	}
 	var payload providercfg.UpdateModelInput
-	if !h.api.BindJSON(writer, request, &payload) {
+	if !h.api.BindJSONError(writer, request, &payload, providerRequestInvalidFailure("update_model")) {
 		return
 	}
 	item, err := h.providers.UpdatePublicModel(
@@ -73,11 +70,7 @@ func (h *Handlers) HandleUpdateSubscriptionProviderModel(writer http.ResponseWri
 		payload,
 	)
 	if err != nil {
-		if strings.Contains(strings.ToLower(err.Error()), "不存在") {
-			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
-			return
-		}
-		h.api.WriteFailure(writer, providerMutationErrorStatus(err), err.Error())
+		h.writeProviderMutationFailure(writer, request, "update_model", err)
 		return
 	}
 	h.api.WriteSuccess(writer, item)
@@ -128,13 +121,10 @@ func (h *Handlers) HandleTestSubscriptionProviderConfig(writer http.ResponseWrit
 	}
 	item, err := h.providers.TestPublicProvider(request.Context(), chi.URLParam(request, "provider"))
 	if err != nil {
-		if strings.Contains(strings.ToLower(err.Error()), "不存在") {
-			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
-			return
-		}
-		h.api.WriteFailure(writer, providerMutationErrorStatus(err), err.Error())
+		h.writeProviderMutationFailure(writer, request, "test", err)
 		return
 	}
+	writeProviderETag(writer, item.ConfigurationVersion)
 	h.api.WriteSuccess(writer, item)
 }
 
@@ -149,13 +139,10 @@ func (h *Handlers) HandleTestSubscriptionProviderModel(writer http.ResponseWrite
 		chi.URLParam(request, "model_id"),
 	)
 	if err != nil {
-		if strings.Contains(strings.ToLower(err.Error()), "不存在") {
-			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
-			return
-		}
-		h.api.WriteFailure(writer, providerMutationErrorStatus(err), err.Error())
+		h.writeProviderMutationFailure(writer, request, "test_model", err)
 		return
 	}
+	writeProviderETag(writer, item.ConfigurationVersion)
 	h.api.WriteSuccess(writer, item)
 }
 
@@ -165,18 +152,15 @@ func (h *Handlers) HandleUpdateSubscriptionProviderConfig(writer http.ResponseWr
 		return
 	}
 	var payload providercfg.UpdateInput
-	if !h.api.BindJSON(writer, request, &payload) {
+	if !h.api.BindJSONError(writer, request, &payload, providerRequestInvalidFailure("update")) {
 		return
 	}
 	item, err := h.providers.UpdatePublic(request.Context(), chi.URLParam(request, "provider"), payload)
 	if err != nil {
-		if strings.Contains(strings.ToLower(err.Error()), "不存在") {
-			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
-			return
-		}
-		h.api.WriteFailure(writer, providerMutationErrorStatus(err), err.Error())
+		h.writeProviderMutationFailure(writer, request, "update", err)
 		return
 	}
+	writeProviderETag(writer, item.ConfigurationVersion)
 	h.api.WriteSuccess(writer, item)
 }
 
@@ -189,11 +173,7 @@ func (h *Handlers) HandleDeleteSubscriptionProviderConfig(writer http.ResponseWr
 		Force: parseBoolQuery(request.URL.Query().Get("force")),
 	})
 	if err != nil {
-		if strings.Contains(strings.ToLower(err.Error()), "不存在") {
-			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
-			return
-		}
-		h.api.WriteFailure(writer, providerMutationErrorStatus(err), err.Error())
+		h.writeProviderMutationFailure(writer, request, "delete", err)
 		return
 	}
 	h.api.WriteSuccess(writer, result)
@@ -212,7 +192,12 @@ func (h *Handlers) requireSubscriptionProviderAdmin(
 	case authctx.RoleOwner, authctx.RoleAdmin:
 		return true
 	default:
-		h.api.WriteFailure(writer, http.StatusForbidden, "subscription admin access required")
+		h.writeProviderMutationFailure(
+			writer,
+			request,
+			"admin_access",
+			providercfg.ErrProviderManagementForbidden,
+		)
 		return false
 	}
 }

@@ -1,3 +1,6 @@
+// INPUT: exact Conversation/Agent scope 与子智能体任务读取 API。
+// OUTPUT: scope-fenced 任务快照、加载状态和不暴露底层异常的读取失败标记。
+// POS: 子智能体任务目录资源控制器；读取失败不清空同 scope 已有快照。
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
@@ -11,7 +14,6 @@ import type {
 
 import {
   normalizeSubagentTaskListResponse,
-  subagentTaskErrorMessage,
   subagentTaskSourceKey,
 } from "./subagent-task-model";
 import { useScopedResource } from "./use-scoped-resource";
@@ -78,13 +80,13 @@ export function useSubagentTasks(
         error: null,
         isLoading: false,
       }));
-    } catch (requestError) {
+    } catch {
       if (!isCurrentRequest(scopeKey, requestId)) {
         return;
       }
       commit(scopeKey, (current) => ({
         ...current,
-        error: subagentTaskErrorMessage(requestError),
+        error: "subagent_task_list_unavailable",
         isLoading: false,
       }));
     }

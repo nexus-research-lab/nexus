@@ -70,7 +70,7 @@ export function AgentOptionsInlineEditor({
       {saveMode === "explicit" ? (
         <div className={cn(
           WORKSPACE_CONTENT_GUTTER_CLASS_NAME,
-          "flex shrink-0 items-center justify-end gap-2 py-3",
+          "flex shrink-0 flex-wrap items-center justify-end gap-2 py-3",
         )}>
           <AgentOptionsEditorActions
             {...controller.actions}
@@ -111,7 +111,7 @@ export function AgentOptionsDialogEditor({
           />
         </div>
       </div>
-      <UiDialogFooter appearance="plain">
+      <UiDialogFooter appearance="plain" className="flex-wrap">
         <AgentOptionsEditorActions
           {...controller.actions}
           cancelAction={cancelAction}

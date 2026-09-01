@@ -9,7 +9,7 @@ import { Check, ChevronRight, ExternalLink } from "lucide-react";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { getUiButtonClassName } from "@/shared/ui/button/button-styles";
 import { UiBadge } from "@/shared/ui/display/badge";
-import { UiStateBlock } from "@/shared/ui/display/state-block";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiListRow } from "@/shared/ui/list/list-row";
 import { UiPanel } from "@/shared/ui/panel";
 import type {
@@ -68,15 +68,18 @@ function ConnectorConfigurationError({
 }: {
   error: string | null | undefined;
 }) {
+  const { t } = useI18n();
   if (!error) {
     return null;
   }
   return (
-    <UiStateBlock
-      description={error}
+    <UiResourceState
+      description={t("capability.connector_configuration_unavailable_description")}
+      impact={t("capability.connector_configuration_unavailable_impact")}
+      nextStep={t("capability.connector_configuration_unavailable_next_step")}
       size="sm"
-      title="配置不可用"
-      tone="danger"
+      state="error"
+      title={t("capability.connector_configuration_unavailable_title")}
     />
   );
 }

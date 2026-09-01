@@ -64,7 +64,8 @@ type CatalogSourceState struct {
 	Deletable            bool   `json:"deletable,omitempty"`
 }
 
-// CatalogReconcileError 表示 catalog 已经提交或文件发布状态不确定，需要核对修复。
+// CatalogReconcileError 表示 catalog 已经提交，或数据库提交/文件发布状态不确定，
+// 需要通过 owner catalog 的权威读取核对修复。
 type CatalogReconcileError struct {
 	applied bool
 	cause   error
@@ -74,7 +75,7 @@ func (e *CatalogReconcileError) Error() string {
 	if e == nil {
 		return "Skill catalog 需要 reconcile"
 	}
-	state := "文件发布状态不确定"
+	state := "catalog 或文件发布状态不确定"
 	if e.applied {
 		state = "catalog 变更已提交"
 	}
@@ -258,7 +259,9 @@ func (s *Service) withCatalogMutation(
 		return 0, err
 	}
 	if err = mutation.Commit(); err != nil {
-		return 0, err
+		// SQL Commit 返回错误时不能证明事务一定没有提交。调用方可能补偿文件，
+		// 但仍不能把本次请求投影为 not_applied 或自动重放。
+		return 0, &CatalogReconcileError{applied: false, cause: err}
 	}
 	return mutation.Version(), nil
 }

@@ -1,10 +1,19 @@
+// INPUT: Schema-versioned requests from the embedded Nexus web UI.
+// OUTPUT: Native operation results or operation-specific safe failures; raw causes stay in diagnostics.
+// POS: Windows web/native trust boundary and the only rejection path visible to the embedded UI.
+
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
+using System.Runtime.InteropServices;
+using System.Text;
 using System.Text.Json;
 using System.Windows;
+using System.Windows.Automation;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Win32;
+using Nexus.Desktop.Dialog;
 using Nexus.Desktop.Diagnostics;
 using Nexus.Desktop.Lifecycle;
 using Nexus.Desktop.Runtime;
@@ -54,11 +63,11 @@ internal sealed class DesktopBridgeHandler
                     build_number = runtime.BuildNumber,
                     platform = runtime.Platform,
                 },
-                "app.get_state_root" => DesktopStateRootStore.StatusPayload(),
+                "app.get_state_root" => SafeStateRootStatus(),
                 "app.choose_state_root" => ChooseStateRoot(payload),
                 "app.relocate_state_root" => RelocateStateRoot(payload),
                 "app.open_external_url" => OpenExternalUrl(payload),
-                "app.start_browser_extension_setup" => StartBrowserExtensionSetup(),
+                "app.start_browser_extension_setup" => await StartBrowserExtensionSetupAsync(),
                 "app.get_workspace_file_applications" => GetWorkspaceFileApplications(payload),
                 "app.open_workspace_file" => OpenWorkspaceFile(payload),
                 "app.export_logs" => ExportLogs(),
@@ -110,7 +119,13 @@ internal sealed class DesktopBridgeHandler
         }
         catch (Exception exception)
         {
-            await RejectAsync(requestID, exception.Message);
+            startupTimeline.Mark("desktop_bridge.operation_failed", new Dictionary<string, string>
+            {
+                ["kind"] = kind,
+                ["error"] = exception.Message,
+            });
+            Trace.WriteLine($"[Nexus DesktopBridge] {kind} failed: {exception.Message}");
+            await RejectAsync(requestID, DesktopFailureCopy.BridgeMessage(kind));
         }
     }
 
@@ -133,7 +148,17 @@ internal sealed class DesktopBridgeHandler
         return new { opened = true };
     }
 
-    private object StartBrowserExtensionSetup()
+    private static Dictionary<string, object?> SafeStateRootStatus()
+    {
+        Dictionary<string, object?> status = DesktopStateRootStore.StatusPayload();
+        if (status["migration_error"] is string)
+        {
+            status["migration_error"] = DesktopFailureCopy.StateRootMigrationMessage;
+        }
+        return status;
+    }
+
+    private async Task<object> StartBrowserExtensionSetupAsync()
     {
         string[] candidates =
         [
@@ -153,13 +178,12 @@ internal sealed class DesktopBridgeHandler
             throw new FileNotFoundException(
                 "无法打开浏览器扩展程序页面，请确认已安装 Google Chrome 或 Microsoft Edge。");
         }
-        ProcessStartInfo browserStartInfo = new(browser.Value.ExecutablePath)
+        await OpenBrowserPageAsync(browser.Value.ExecutablePath, browser.Value.ExtensionsUrl);
+        Process.Start(new ProcessStartInfo
         {
-            UseShellExecute = false,
-        };
-        browserStartInfo.ArgumentList.Add(browser.Value.ExtensionsUrl);
-        Process.Start(browserStartInfo);
-        Process.Start(ExplorerSelection(extensionDirectory));
+            FileName = extensionDirectory,
+            UseShellExecute = true,
+        });
         return new
         {
             browser = browser.Value.Kind,
@@ -216,6 +240,131 @@ internal sealed class DesktopBridgeHandler
         }
         return null;
     }
+
+    private static async Task OpenBrowserPageAsync(string executablePath, string url)
+    {
+        ProcessStartInfo startInfo = new(executablePath)
+        {
+            UseShellExecute = false,
+        };
+        startInfo.ArgumentList.Add("--new-window");
+        startInfo.ArgumentList.Add("about:blank");
+        using Process? process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("浏览器启动失败。");
+
+        IntPtr browserWindow = await WaitForBrowserWindowAsync(executablePath);
+        await NavigateBrowserWindowAsync(browserWindow, url);
+    }
+
+    private static async Task<IntPtr> WaitForBrowserWindowAsync(string executablePath)
+    {
+        Stopwatch timeout = Stopwatch.StartNew();
+        while (timeout.Elapsed < TimeSpan.FromSeconds(8))
+        {
+            IntPtr browserWindow = GetForegroundWindow();
+            if (BrowserWindowMatches(browserWindow, executablePath))
+            {
+                return browserWindow;
+            }
+            await Task.Delay(100);
+        }
+        throw new TimeoutException("浏览器窗口启动超时。");
+    }
+
+    private static async Task NavigateBrowserWindowAsync(IntPtr browserWindow, string url)
+    {
+        if (GetForegroundWindow() != browserWindow)
+        {
+            throw new InvalidOperationException("浏览器窗口未获得焦点。");
+        }
+
+        AutomationElement addressBar = await WaitForAddressBarAsync(browserWindow);
+        addressBar.SetFocus();
+        await Task.Delay(50);
+        if (!addressBar.Current.HasKeyboardFocus || GetForegroundWindow() != browserWindow)
+        {
+            throw new InvalidOperationException("浏览器地址栏未获得焦点。");
+        }
+
+        if (!addressBar.TryGetCurrentPattern(ValuePattern.Pattern, out object pattern)
+            || pattern is not ValuePattern valuePattern)
+        {
+            throw new InvalidOperationException("浏览器地址栏不支持导航。");
+        }
+        valuePattern.SetValue(url);
+        // Chromium 会丢弃外部进程传入的受保护内部 URL；这里仅向刚创建并校验过的窗口提交固定安装页。
+        System.Windows.Forms.SendKeys.SendWait("{ENTER}");
+        await Task.Delay(250);
+    }
+
+    private static async Task<AutomationElement> WaitForAddressBarAsync(IntPtr browserWindow)
+    {
+        Stopwatch timeout = Stopwatch.StartNew();
+        System.Windows.Automation.Condition addressBarCondition = new AndCondition(
+            new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Edit),
+            new PropertyCondition(AutomationElement.ClassNameProperty, "OmniboxViewViews"));
+        while (timeout.Elapsed < TimeSpan.FromSeconds(3))
+        {
+            try
+            {
+                AutomationElement root = AutomationElement.FromHandle(browserWindow);
+                AutomationElement? addressBar = root.FindFirst(TreeScope.Descendants, addressBarCondition);
+                if (addressBar is not null)
+                {
+                    return addressBar;
+                }
+            }
+            catch (ElementNotAvailableException)
+            {
+                // 新窗口的可访问性树可能晚于 HWND 就绪，短暂等待后重试。
+            }
+            await Task.Delay(50);
+        }
+        throw new InvalidOperationException("未找到浏览器地址栏。");
+    }
+
+    private static bool BrowserWindowMatches(IntPtr window, string executablePath)
+    {
+        if (window == IntPtr.Zero || !IsChromiumWindow(window))
+        {
+            return false;
+        }
+        try
+        {
+            _ = GetWindowThreadProcessId(window, out uint processID);
+            using Process process = Process.GetProcessById(checked((int)processID));
+            return process.MainModule?.FileName is string actualPath
+                && string.Equals(
+                    Path.GetFullPath(actualPath),
+                    Path.GetFullPath(executablePath),
+                    StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception exception) when (
+            exception is ArgumentException
+                or InvalidOperationException
+                or NotSupportedException
+                or Win32Exception)
+        {
+            // 浏览器启动期间进程可能切换；等待前台窗口稳定后再判断。
+            return false;
+        }
+    }
+
+    private static bool IsChromiumWindow(IntPtr window)
+    {
+        StringBuilder className = new(64);
+        return GetClassName(window, className, className.Capacity) > 0
+            && string.Equals(className.ToString(), "Chrome_WidgetWin_1", StringComparison.Ordinal);
+    }
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processID);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetClassName(IntPtr window, StringBuilder className, int maximumCount);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
 
     private static object GetWorkspaceFileApplications(JsonElement payload)
     {

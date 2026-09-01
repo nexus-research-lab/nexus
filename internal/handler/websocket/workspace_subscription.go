@@ -1,3 +1,6 @@
+// INPUT: WebSocket sender、exact Agent workspace 订阅与 service live 事件。
+// OUTPUT: 引用计数订阅生命周期和可选正文 revision 的 workspace_event。
+// POS: workspace live WebSocket 投影边界；不修改 Agent/Session 身份。
 package websocket
 
 import (
@@ -222,6 +225,9 @@ func workspaceEventMessage(event workspacesvc.LiveEvent) protocol.EventMessage {
 	}
 	if event.ContentSnapshot != nil {
 		data["content_snapshot"] = *event.ContentSnapshot
+	}
+	if event.ContentRevision != "" {
+		data["content_revision"] = event.ContentRevision
 	}
 	if event.AppendedText != nil {
 		data["appended_text"] = *event.AppendedText

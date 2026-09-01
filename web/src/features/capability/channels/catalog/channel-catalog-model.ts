@@ -31,7 +31,7 @@ export interface ChannelCardModel {
     | { kind: "configure"; docsUrl: string }
     | { kind: "planned" };
   badges: ReadonlyArray<{
-    label: string;
+    labelKey: TranslationKey;
     tone: "warning";
   }>;
   description: string;
@@ -106,9 +106,20 @@ export function buildChannelCardModel(item: ChannelConfigView): ChannelCardModel
     action: planned
       ? { kind: "planned" }
       : { kind: "configure", docsUrl: item.docs_url ?? "" },
-    badges: item.runtime_status === "external_adapter"
-      ? [{ label: "外部适配器", tone: "warning" }]
-      : [],
+    badges: [
+      ...(item.connection_state === "error" || Boolean(item.last_error)
+        ? [{
+            labelKey: "capability.channel_connection_error_badge" as const,
+            tone: "warning" as const,
+          }]
+        : []),
+      ...(item.runtime_status === "external_adapter"
+        ? [{
+            labelKey: "capability.channel_external_adapter_badge" as const,
+            tone: "warning" as const,
+          }]
+        : []),
+    ],
     description: item.description || (planned ? "暂未支持接入。" : "配置机器人凭证后接入。"),
     metadata,
     stats,

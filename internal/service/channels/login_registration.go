@@ -29,11 +29,14 @@ func (s *ControlService) startRegisteredChannelLogin(
 	}
 	started, err := client.Start(ctx)
 	if err != nil {
-		return nil, err
+		return nil, channelControlMutationFailure(ControlMutationUnknown, err)
 	}
 	qrPayload := firstNonEmpty(started.VerificationURIComplete, started.VerificationURI)
 	if strings.TrimSpace(started.DeviceCode) == "" || qrPayload == "" {
-		return nil, errors.New("扫码注册未返回完整的二维码信息")
+		return nil, channelControlMutationFailure(
+			ControlMutationUnknown,
+			errors.New("扫码注册未返回完整的二维码信息"),
+		)
 	}
 	timeout := s.loginTimeout
 	if started.ExpiresIn > 0 {

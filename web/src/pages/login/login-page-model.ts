@@ -1,5 +1,7 @@
 import { APP_ROUTE_PATHS } from "@/app/router/route-paths";
+import { projectMutationFailure } from "@/lib/error-message";
 import type { AuthStatus } from "@/lib/api/account/auth-api";
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 
 const INTERNAL_REDIRECT_ORIGIN = "https://nexus.local";
 const REDIRECT_FALLBACK_PATHS = new Set<string>([
@@ -8,6 +10,15 @@ const REDIRECT_FALLBACK_PATHS = new Set<string>([
 ]);
 
 export type LoginFormMode = "disabled" | "password";
+
+export interface LoginRecoveryNotice {
+  action: "check_status" | null;
+  blocksSubmit: boolean;
+  impact: string;
+  message: string;
+  nextStep: string;
+  title: string;
+}
 
 export type LoginPageState =
   | { kind: "bootstrapping" }
@@ -57,11 +68,50 @@ export function buildLoginPageState({
   };
 }
 
-export function getLoginSubmitError(
+export function buildLoginSubmitFailure(
   error: unknown,
-  fallback: string,
-): string {
-  return error instanceof Error ? error.message : fallback;
+  t: I18nContextValue["t"],
+): LoginRecoveryNotice {
+  const failure = projectMutationFailure(error, t("login.unknown_error"));
+  if (failure.effect === "not_applied") {
+    return {
+      action: null,
+      blocksSubmit: false,
+      impact: t("login.submit_not_applied_impact"),
+      message: failure.message,
+      nextStep: t("login.submit_not_applied_next_step"),
+      title: t("login.submit_failed_title"),
+    };
+  }
+  return {
+    action: "check_status",
+    blocksSubmit: true,
+    impact: t("login.submit_unknown_impact"),
+    message: failure.message,
+    nextStep: t("login.submit_unknown_next_step"),
+    title: t("login.submit_unknown_title"),
+  };
+}
+
+export function buildLoginStatusFailure(
+  message: string,
+  hasKnownStatus: boolean,
+  t: I18nContextValue["t"],
+): LoginRecoveryNotice {
+  return {
+    action: "check_status",
+    blocksSubmit: !hasKnownStatus,
+    impact: t(hasKnownStatus
+      ? "login.runtime_options_failure_impact"
+      : "state.read_failure_impact"),
+    message,
+    nextStep: t(hasKnownStatus
+      ? "login.runtime_options_failure_next_step"
+      : "state.retry_next_step"),
+    title: t(hasKnownStatus
+      ? "login.runtime_options_failure_title"
+      : "login.status_failure_title"),
+  };
 }
 
 function shouldRedirectAuthenticatedSession(

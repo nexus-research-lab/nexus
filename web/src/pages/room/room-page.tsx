@@ -59,6 +59,7 @@ function ActiveRoomPage({
         currentAgentSessionIdentity={agent.sessionIdentity}
         conversationId={conversation.selectedId}
         currentTodos={workspace.currentTodos}
+        externalSessionsReliability={conversation.externalSessions}
         sidePanelWidthPercent={workspace.sidePanelWidthPercent}
         initialDraft={navigation.initialDraft}
         isResizingSidePanel={workspace.isResizingSidePanel}

@@ -1,11 +1,13 @@
 // INPUT: Echo attempt 仓储、用户 Preferences、Agent/Session/DM 服务、轻量模型与 runtime 状态。
-// OUTPUT: 用户级开关、用户活动取消与后台调度生命周期。
+// OUTPUT: 带 CAS revision 的用户级开关、提交后收口证据、用户活动取消与后台调度生命周期。
 // POS: Echo 应用服务装配根。
 package echo
 
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -26,7 +28,10 @@ import (
 	store "github.com/nexus-research-lab/nexus/internal/storage/echo"
 )
 
-const echoRequestTimeout = 30 * time.Second
+const (
+	echoRequestTimeout          = 30 * time.Second
+	echoSettingsFinalizeTimeout = 15 * time.Second
+)
 
 type agentService interface {
 	EnsureReady(context.Context) error
@@ -45,6 +50,27 @@ type providerResolver interface {
 type preferencesService interface {
 	Get(context.Context, string) (preferencessvc.Preferences, error)
 	SetEchoEnabled(context.Context, string, bool) (preferencessvc.Preferences, error)
+	SetEchoEnabledAtVersion(context.Context, string, bool, int64) (preferencessvc.Preferences, error)
+}
+
+// ErrSettingsVersionConflict 表示 Echo 所在的 Preferences aggregate 已被其他设置更新。
+var ErrSettingsVersionConflict = preferencessvc.ErrVersionConflict
+
+// SettingsReconcileError 表示开关已经保存，但停用后的在途尝试收口尚未完成。
+type SettingsReconcileError struct {
+	Cause error
+}
+
+func (e *SettingsReconcileError) Error() string {
+	return fmt.Sprintf("Echo 设置已保存，但在途尝试收口失败: %v", e.Cause)
+}
+
+func (e *SettingsReconcileError) Unwrap() error { return e.Cause }
+
+// SettingsUpdateCommitted 只根据服务阶段证据判断开关是否已经保存。
+func SettingsUpdateCommitted(err error) bool {
+	var reconcileErr *SettingsReconcileError
+	return errors.As(err, &reconcileErr)
 }
 
 type dmService interface {
@@ -172,25 +198,69 @@ func (s *Service) GetSettings(ctx context.Context) (echodomain.Settings, error) 
 	if err != nil {
 		return echodomain.Settings{}, err
 	}
-	return echodomain.Settings{Enabled: preferences.EchoEnabled}, nil
+	return echoSettings(preferences), nil
 }
 
 // UpdateSettings 更新当前用户的 Echo 全局开关。
 func (s *Service) UpdateSettings(ctx context.Context, input echodomain.Settings) (echodomain.Settings, error) {
+	return s.updateSettings(ctx, input, nil)
+}
+
+// UpdateSettingsAtVersion 以 Preferences revision 为条件更新 Echo 开关。
+func (s *Service) UpdateSettingsAtVersion(
+	ctx context.Context,
+	input echodomain.Settings,
+	expectedVersion int64,
+) (echodomain.Settings, error) {
+	return s.updateSettings(ctx, input, &expectedVersion)
+}
+
+func (s *Service) updateSettings(
+	ctx context.Context,
+	input echodomain.Settings,
+	expectedVersion *int64,
+) (echodomain.Settings, error) {
 	ownerUserID := authctx.OwnerUserID(ctx)
-	preferences, err := s.prefs.SetEchoEnabled(ctx, ownerUserID, input.Enabled)
+	var preferences preferencessvc.Preferences
+	var err error
+	if expectedVersion == nil {
+		preferences, err = s.prefs.SetEchoEnabled(ctx, ownerUserID, input.Enabled)
+	} else {
+		preferences, err = s.prefs.SetEchoEnabledAtVersion(
+			ctx,
+			ownerUserID,
+			input.Enabled,
+			*expectedVersion,
+		)
+	}
 	if err != nil {
 		return echodomain.Settings{}, err
 	}
+	settings := echoSettings(preferences)
+	defer s.loop.Notify()
 	if !preferences.EchoEnabled {
-		roundIDs, cancelErr := s.repository.CancelOwner(ctx, ownerUserID)
+		// The setting is already durable. Navigation or a dropped response must not
+		// cancel the safety step that fences scheduled/running follow-ups.
+		finalizeCtx, cancel := newSettingsFinalizeContext(ctx)
+		defer cancel()
+		roundIDs, cancelErr := s.repository.CancelOwner(finalizeCtx, ownerUserID)
 		if cancelErr != nil {
-			return echodomain.Settings{}, cancelErr
+			return settings, &SettingsReconcileError{Cause: cancelErr}
 		}
-		s.interruptRounds(ctx, "", roundIDs)
+		s.interruptRounds(finalizeCtx, "", roundIDs)
 	}
-	s.loop.Notify()
-	return echodomain.Settings{Enabled: preferences.EchoEnabled}, nil
+	return settings, nil
+}
+
+func newSettingsFinalizeContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), echoSettingsFinalizeTimeout)
+}
+
+func echoSettings(preferences preferencessvc.Preferences) echodomain.Settings {
+	return echodomain.Settings{
+		Enabled: preferences.EchoEnabled,
+		Version: preferences.Version,
+	}
 }
 
 func (s *Service) globalPolicy(ctx context.Context, ownerUserID string) (echodomain.Policy, error) {

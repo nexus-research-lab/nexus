@@ -20,6 +20,17 @@ interface UseRoomPageModelOptions {
   sessionKey?: string | null;
 }
 
+type RoomExternalSessionsViewState = {
+  failure: ReturnType<typeof useRoomExternalSessions>["externalSessionFailure"];
+  isLoading: boolean;
+  isStale: boolean;
+  refresh: () => void;
+};
+
+export type RoomPageViewModel = RoomPageModel & {
+  externalSessions: RoomExternalSessionsViewState;
+};
+
 function normalizeRouteSessionKey(value: string | null | undefined): string | null {
   return value?.trim() || null;
 }
@@ -43,7 +54,7 @@ export function useRoomPageModel({
   roomContexts,
   roomId,
   sessionKey,
-}: UseRoomPageModelOptions): RoomPageModel {
+}: UseRoomPageModelOptions): RoomPageViewModel {
   const base = useMemo(
     () => buildRoomPageBaseModel({
       agents,
@@ -67,19 +78,31 @@ export function useRoomPageModel({
   );
 
   return useMemo(
-    () => buildRoomPageModel({
-      base,
-      externalAgentSessions: externalSessions.externalAgentSessions,
-      externalRoomConversations: externalSessions.externalRoomConversations,
-      isSelectionReady,
-      preferredConversationIds,
-      routeRoomId: roomId ?? null,
-      routeSessionKey,
+    () => ({
+      ...buildRoomPageModel({
+        base,
+        externalAgentSessions: externalSessions.externalAgentSessions,
+        externalRoomConversations: externalSessions.externalRoomConversations,
+        isSelectionReady,
+        preferredConversationIds,
+        routeRoomId: roomId ?? null,
+        routeSessionKey,
+      }),
+      externalSessions: {
+        failure: externalSessions.externalSessionFailure,
+        isLoading: externalSessions.isRefreshingExternalSessions,
+        isStale: externalSessions.isExternalSessionCatalogStale,
+        refresh: externalSessions.refreshExternalSessions,
+      },
     }),
     [
       base,
       externalSessions.externalAgentSessions,
       externalSessions.externalRoomConversations,
+      externalSessions.externalSessionFailure,
+      externalSessions.isExternalSessionCatalogStale,
+      externalSessions.isRefreshingExternalSessions,
+      externalSessions.refreshExternalSessions,
       isSelectionReady,
       preferredConversationIds,
       roomId,

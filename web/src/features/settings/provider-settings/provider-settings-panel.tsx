@@ -13,6 +13,7 @@ import { ProviderCCSwitchDialog } from "@/features/provider-imports/cc-switch/pr
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
+import { completeFeedbackBanner } from "@/shared/ui/feedback/feedback-banner-contract";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import { WorkspaceContentHeader } from "@/shared/ui/layout/workspace-content-header";
 import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
@@ -180,12 +181,28 @@ export function ProviderSettingsPanel({
       )}
 
       <FeedbackBannerViewport
-        item={state.feedback ? {
-          message: state.feedback.message,
-          onDismiss: actions.dismissFeedback,
-          title: state.feedback.title,
-          tone: state.feedback.tone,
-        } : null}
+        item={state.feedback
+          ? completeFeedbackBanner(
+            {
+              action: state.feedback.recoveryAction === "refresh"
+                ? {
+                    label: t("state.reload_check"),
+                    onClick: () => void actions.reconcileFeedback(),
+                  }
+                : undefined,
+              impact: state.feedback.impact,
+              message: state.feedback.message,
+              nextStep: state.feedback.nextStep,
+              onDismiss: actions.dismissFeedback,
+              title: state.feedback.title,
+              tone: state.feedback.tone,
+            },
+            {
+              impact: t("feedback.unconfirmed_impact"),
+              nextStep: t("feedback.unconfirmed_next_step"),
+            },
+          )
+          : null}
       />
 
       <ConfirmDialog

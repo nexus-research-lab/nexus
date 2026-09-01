@@ -128,7 +128,9 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
             <SidebarEmptyGuide
               actionLabel={t("sidebar.retry")}
               description={t("sidebar.directory_load_failed_description")}
+              impact={t("sidebar.directory_load_failed_impact")}
               icon={CircleAlert}
+              nextStep={t("sidebar.directory_load_failed_next_step")}
               onAction={refreshDirectory}
               title={t("sidebar.directory_load_failed")}
             />

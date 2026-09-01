@@ -7,6 +7,8 @@ import { recoverFromChunkLoadError } from "./recovery/chunk-error-recovery";
 interface RootFailureScreenProps {
   title: string;
   description: ReactNode;
+  impact: ReactNode;
+  nextStep: ReactNode;
   size?: "compact" | "wide";
 }
 
@@ -26,6 +28,8 @@ const ROOT_FAILURE_WIDTH_CLASSES = {
 export function RootFailureScreen({
   title,
   description,
+  impact,
+  nextStep,
   size = "wide",
 }: RootFailureScreenProps) {
   return (
@@ -36,8 +40,12 @@ export function RootFailureScreen({
         </div>
         <h1 className="text-lg font-semibold text-(--text-strong)">{title}</h1>
         <p className="mt-2 text-base leading-6 text-(--text-muted)">{description}</p>
+        <p className="mt-3 text-sm leading-6 text-(--text-muted)">{impact}</p>
+        <p className="mt-1 text-sm font-medium leading-6 text-(--text-default)">
+          {nextStep}
+        </p>
         <button
-          className="mt-5 inline-flex h-10 items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
+          className="mt-5 inline-flex h-10 items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground transition hover:opacity-90 motion-reduce:transition-none"
           onClick={() => window.location.reload()}
           type="button"
         >
@@ -67,7 +75,9 @@ export class RootErrorBoundary extends Component<RootErrorBoundaryProps, RootErr
     if (this.state.hasError) {
       return (
         <RootFailureScreen
-          description="当前页面触发了渲染异常，请刷新页面恢复。若刚刚发布了新版本，刷新会重新拉取最新资源。"
+          description="当前页面在显示内容时发生异常。"
+          impact="已经确认保存的内容不会因此被撤销；尚未确认结果的操作需要刷新后核对。"
+          nextStep="刷新页面重新加载当前状态。若刚刚安装了新版本，刷新也会载入最新资源。"
           title="界面渲染失败"
         />
       );

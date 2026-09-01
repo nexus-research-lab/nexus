@@ -2,7 +2,7 @@
  * Skill API 服务模块
  *
  * [INPUT]: 依赖 @/types/capability/skill, @/types/system/api
- * [OUTPUT]: 对外提供 Agent 技能接口与全局 Skill Marketplace 接口
+ * [OUTPUT]: 对外提供 Agent 技能接口与全局 Skill Marketplace 接口，并原样保留传输层 FailureCore
  * [POS]: lib 模块的 Skill API 层，被技能市场、Agent 配置与联系人页消费
  */
 
@@ -33,11 +33,6 @@ interface SkillQueryParams {
   source_type?: string;
   scope?: string;
   q?: string;
-}
-
-interface ApiErrorPayload {
-  detail?: string;
-  message?: string;
 }
 
 function buildQuery(params?: Record<string, string | undefined>): string {
@@ -72,16 +67,7 @@ async function requestSkillApi<T>(
   path: string,
   init?: RequestApiOptions,
 ): Promise<T> {
-  try {
-    return await requestApi<T>(`${AGENT_API_BASE_URL}${path}`, init);
-  } catch (error) {
-    const errorPayload = error as ApiErrorPayload | null;
-    throw new Error(
-      errorPayload?.detail ||
-        errorPayload?.message ||
-        (error instanceof Error ? error.message : "请求失败"),
-    );
-  }
+  return requestApi<T>(`${AGENT_API_BASE_URL}${path}`, init);
 }
 
 /** 获取所有可用 Skill 清单 */

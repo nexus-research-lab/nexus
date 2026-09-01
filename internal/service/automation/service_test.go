@@ -417,9 +417,9 @@ func TestWakeHeartbeatNowWhileRunningKeepsPendingWakeAndQueuedRequest(t *testing
 	if !status.PendingWake {
 		t.Fatalf("running 状态下 wake-now 应保留 pending_wake=true")
 	}
-	items := service.wakeRequests[automationexec.BuildMainSessionKey("agent-1")]
-	if len(items) != 1 || items[0].WakeMode != automationdomain.WakeModeNow {
-		t.Fatalf("running 状态下 wake-now 应继续排队等待下一轮消费: %+v", items)
+	events, err := service.repository.ListNewSystemEventsByAgent(context.Background(), "agent-1")
+	if err != nil || len(events) != 1 || events[0].EventType != "heartbeat.wake" {
+		t.Fatalf("running 状态下 wake-now 应 durable 排队等待下一轮消费: events=%+v err=%v", events, err)
 	}
 }
 

@@ -83,11 +83,11 @@
 
 Conversation reliability 必须把 transport、请求受理、Agent round 和工具过程分成独立状态，禁止用一个全局错误字符串同时代表这些阶段：
 
-- WebSocket `onerror` 只是连接异常证据，不是业务终态。共享客户端按统一策略执行最多 5 次指数退避重连；重试期间只在 Composer 工作栈显示“连接中断，正在恢复…”，只有重试耗尽进入 `unavailable` 后才显示“连接尚未恢复，请稍后重试。”
+- WebSocket `onerror` 只是连接异常证据，不是业务终态。共享客户端按统一策略执行最多 5 次指数退避重连；重试期间只在 Composer 工作栈显示“连接中断，正在恢复…”。重试耗尽进入 `unavailable` 后，持久提示必须说明连接尚未恢复、已经显示的消息和当前输入仍保留但页面可能不是最新状态，并要求连接恢复后再继续发送。
 - 物理通道恢复后必须先重放仍有效的 Session binding，再对当前 Session 拉取 durable 消息快照。DM 以该快照和随后实时事件按消息身份合并；Room 还必须同时恢复 `room_seq` replay、Room subscription snapshot、pending Agent slot 和 pending interaction。连接恢复本身只能清除 transport 故障，不能覆盖一个仍由 durable round 证明的终态失败。
 - Provider/runtime 的 API retry 只由 runtime 发起并以当前 round 的 ephemeral `api_retry` 事实投影；Web 显示“模型服务暂时不可用，正在重试…”，但不得自行重发 prompt、工具调用或任何可能产生副作用的命令。新的 stream/message/成功 round status 必须按 exact `round_id`/`agent_round_id` 清除对应 retry；最终 error 才转成失败分类。
 - 用户消息、Goal、queue、permission 和 interrupt 的受理按 exact `client_request_id` 对账。ACK 丢失时客户端可以重连和读取 durable 状态，但不得自动重发；正向 ACK、durable `client_message_id`、input queue snapshot 或后续 round 事实只清除其精确请求故障，不能清除其他 Session 的状态。
-- 错误事件使用结构化 `failure_code`；原始 Provider 文本、HTTP 状态、Session/round/request ID 和内部堆栈只进入日志。普通用户界面不提供“查看详情”，只显示可执行的产品文案；未单独分类的终态统一为“暂时无法响应，请稍后重试。”
+- 错误事件使用结构化 `failure_code`；原始 Provider 文本、HTTP 状态、Session/round/request ID 和内部堆栈只进入日志。普通用户界面不提供“查看详情”，而是在 Composer 状态栈完整说明发生了什么、当前消息/历史/输入受到什么影响，以及安全下一步。`delivery_unknown` 必须明确警告重复发送可能产生两次回复；未单独分类的终态说明本轮没有完成回复、用户消息和已显示历史仍保留，并引导用户先查看执行失败事实，再决定是否发起新一轮。
 - 用户发起新提交即开始新的恢复尝试并撤销当前 Session 的旧全局失败提示；同一失败 round 后续重新出现 stream/message，或重连后的 durable 对账证明该失败已不存在时，也必须自动撤销。提示不能作为遮罩、不能冻结 Composer，终态后的下一条用户输入继续沿原 Session 进入 runtime recovery context。
 - Room 的 transport 故障属于整个页面；带 exact `agent_round_id` 的 retry/error 只属于对应 Agent shell/Thread，不得把 root round 或其他成员标成失败。只有权威 root `round_status=error`，或没有 Agent round 身份且明确影响整个 Room 的错误，才允许进入 Room 全局失败状态。
 

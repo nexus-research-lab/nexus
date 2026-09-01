@@ -119,7 +119,7 @@ func (s *Service) testModelForItem(
 ) (*TestResult, error) {
 	modelID = normalizeModelID(modelID)
 	if modelID == "" {
-		return nil, errors.New("model_id 不能为空")
+		return nil, fmt.Errorf("%w: model_id 不能为空", ErrInvalidInput)
 	}
 	testErr := s.sendMinimalModelRequest(ctx, item, modelID)
 	return s.persistTestResult(ctx, item, modelID, testErr, expectedVersion)
@@ -260,7 +260,7 @@ func (s *Service) persistTestResult(
 			return nil, err
 		}
 	}
-	_, err = s.repository.WithProviderMutation(
+	committedVersion, err := s.repository.WithProviderMutation(
 		ctx,
 		item.ID,
 		expectedVersion,
@@ -283,11 +283,12 @@ func (s *Service) persistTestResult(
 		return nil, err
 	}
 	return &TestResult{
-		Provider: item.Provider,
-		Model:    normalizeModelID(modelID),
-		Success:  success,
-		Status:   item.LastTestStatus,
-		Error:    item.LastTestError,
-		TestedAt: &now,
+		Provider:             item.Provider,
+		Model:                normalizeModelID(modelID),
+		Success:              success,
+		Status:               item.LastTestStatus,
+		Error:                item.LastTestError,
+		TestedAt:             &now,
+		ConfigurationVersion: committedVersion,
 	}, nil
 }

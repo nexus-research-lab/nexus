@@ -55,7 +55,7 @@ export function useAgentOptionsEditorController({
   const draftController = useAgentOptionsDraft({
     editorScopeKey: commandScopeKey,
     initialDraft,
-    onChange: feedback.clear,
+    onChange: feedback.clearForEdit,
     sourceScopeKey,
   });
   const profileTemplate = useAgentProfileTemplate(
@@ -111,9 +111,36 @@ export function useAgentOptionsEditorController({
     feedback,
     hasTitleChanged,
     labels: {
-      failed: t("agent_options.save_failed"),
+      failed: t(source.kind === "create"
+        ? "agent_options.create_failed"
+        : "agent_options.save_failed"),
+      failures: {
+        accepted: {
+          impact: t(source.kind === "create" ? "agent_options.create_accepted_impact" : "agent_options.save_accepted_impact"),
+          message: t(source.kind === "create" ? "agent_options.create_accepted_message" : "agent_options.save_accepted_message"),
+          nextStep: t(source.kind === "create" ? "agent_options.create_accepted_next_step" : "agent_options.save_accepted_next_step"),
+        },
+        committed: {
+          impact: t(source.kind === "create" ? "agent_options.create_committed_impact" : "agent_options.save_committed_impact"),
+          message: t(source.kind === "create" ? "agent_options.create_committed_message" : "agent_options.save_committed_message"),
+          nextStep: t(source.kind === "create" ? "agent_options.create_committed_next_step" : "agent_options.save_committed_next_step"),
+        },
+        not_applied: {
+          impact: t(source.kind === "create" ? "agent_options.create_not_applied_impact" : "agent_options.save_not_applied_impact"),
+          message: t(source.kind === "create" ? "agent_options.create_not_applied_message" : "agent_options.save_not_applied_message"),
+          nextStep: t(source.kind === "create" ? "agent_options.create_not_applied_next_step" : "agent_options.save_not_applied_next_step"),
+        },
+        unknown: {
+          impact: t(source.kind === "create" ? "agent_options.create_unknown_impact" : "agent_options.save_unknown_impact"),
+          message: t(source.kind === "create" ? "agent_options.create_unknown_message" : "agent_options.save_unknown_message"),
+          nextStep: t(source.kind === "create" ? "agent_options.create_unknown_next_step" : "agent_options.save_unknown_next_step"),
+        },
+      },
+      preferCopyMessage: source.kind === "create",
       success: t(
-        saveMode === "automatic"
+        source.kind === "create"
+          ? "agent_options.create_success"
+          : saveMode === "automatic"
           ? "agent_options.auto_save_success"
           : "agent_options.save_success",
       ),
@@ -194,8 +221,11 @@ function buildPersistenceState({
   if (isSaving) {
     return { message: t("common.saving"), phase: "saving" };
   }
-  if (feedback?.tone === "error") {
-    return { message: feedback.message, phase: "error" };
+  if (feedback?.tone === "error" || feedback?.tone === "warning") {
+    return {
+      message: [feedback.message, feedback.impact, feedback.nextStep].join(" "),
+      phase: "error",
+    };
   }
   if (feedback?.tone === "success") {
     return { message: feedback.message, phase: "success" };
@@ -308,6 +338,7 @@ function buildAdvancedProps(
     connectors: connectors.items,
     connectorsError: connectors.error,
     connectorsLoading: connectors.loading,
+    onRetryConnectors: connectors.retry,
     onPermissionModeChange: (value: string) => updateField("permissionMode", value),
     onToggleConnector: (connectorId: string) => updateField(
       "connectorIds",
@@ -362,6 +393,7 @@ function buildIdentityProps({
     profileTemplate: draft.profileTemplate ?? "",
     profileTemplateError: profileTemplate.error,
     profileTemplateLoading: profileTemplate.loading,
+    onRetryProfileTemplate: profileTemplate.retry,
     scopeKey,
     sourceMode: source.kind,
     title: draft.title,
@@ -383,7 +415,10 @@ function resolveSaveButtonLabel({
   const candidates = [
     { active: isSaving, label: labels.saving },
     { active: feedback?.tone === "success", label: labels.success },
-    { active: feedback?.tone === "error", label: labels.error },
+    {
+      active: feedback?.tone === "error" || feedback?.tone === "warning",
+      label: labels.error,
+    },
     { active: mode === "create", label: labels.create },
   ];
   return candidates.find((candidate) => candidate.active)?.label ?? labels.save;

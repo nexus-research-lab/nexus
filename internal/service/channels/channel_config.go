@@ -161,14 +161,14 @@ func (s *ControlService) upsertChannelConfig(
 		return nil, ErrChannelNotFound
 	}
 	if isPlannedChannel(channelType) {
-		return nil, errors.New("消息渠道未上线")
+		return nil, invalidChannelControl(errors.New("消息渠道未上线"))
 	}
 	agentID := strings.TrimSpace(request.AgentID)
 	if agentID == "" {
-		return nil, errors.New("agent_id is required")
+		return nil, invalidChannelControl(errors.New("agent_id is required"))
 	}
 	if err := s.ensureAgent(ctx, agentID); err != nil {
-		return nil, err
+		return nil, channelControlMutationFailure(ControlMutationNotApplied, err)
 	}
 
 	unlockControl := s.lockControlMutation(ownerUserID)
@@ -182,18 +182,18 @@ func (s *ControlService) upsertChannelConfig(
 	if len(secrets) > 0 {
 		encrypted, encryptErr := s.encryptCredentials(secrets)
 		if encryptErr != nil {
-			return nil, encryptErr
+			return nil, channelControlMutationFailure(ControlMutationNotApplied, encryptErr)
 		}
 		newCredentials = sql.NullString{String: encrypted, Valid: true}
 	}
 
 	configJSON, err := encodeStringMap(publicConfig)
 	if err != nil {
-		return nil, err
+		return nil, channelControlMutationFailure(ControlMutationNotApplied, err)
 	}
 	reloadSnapshot, err := s.captureChannelReloadSnapshot(ctx, ownerUserID, channelType)
 	if err != nil {
-		return nil, err
+		return nil, channelControlMutationFailure(ControlMutationNotApplied, err)
 	}
 	credentialsEncrypted := newCredentials
 	committedVersion, err := s.withChannelControlMutation(ctx, ownerUserID, expectedVersion, func(tx *sql.Tx) error {
@@ -230,14 +230,21 @@ func (s *ControlService) upsertChannelConfig(
 			reloadSnapshot,
 			committedVersion,
 		); restoreErr != nil {
-			return nil, errors.Join(
+			return nil, channelControlMutationFailure(ControlMutationUnknown, errors.Join(
 				err,
 				fmt.Errorf("Channel 候选 runtime 启动失败且恢复上一配置失败: %w", restoreErr),
-			)
+			))
 		}
-		return nil, fmt.Errorf("Channel 候选 runtime 启动失败，上一份可运行配置已保留: %w", err)
+		return nil, channelControlMutationFailure(
+			ControlMutationNotApplied,
+			fmt.Errorf("Channel 候选 runtime 启动失败，上一份可运行配置已保留: %w", err),
+		)
 	}
-	return s.channelView(ctx, ownerUserID, channelType)
+	view, err := s.channelView(ctx, ownerUserID, channelType)
+	if err != nil {
+		return nil, channelControlMutationFailure(ControlMutationCommitted, err)
+	}
+	return view, nil
 }
 
 func (s *ControlService) DeleteChannelConfig(ctx context.Context, ownerUserID string, channelType string) error {
@@ -286,7 +293,10 @@ func (s *ControlService) deleteChannelConfig(
 	}
 	if s.router != nil {
 		if err = s.router.UnregisterForOwner(ctx, ownerUserID, channelType); err != nil {
-			return fmt.Errorf("Channel 配置已删除，但停止 runtime 失败: %w", err)
+			return channelControlMutationFailure(
+				ControlMutationCommitted,
+				fmt.Errorf("Channel 配置已删除，但停止 runtime 失败: %w", err),
+			)
 		}
 	}
 	return nil
@@ -332,7 +342,7 @@ func (s *ControlService) deleteChannelAccount(
 
 	reloadSnapshot, err := s.captureChannelReloadSnapshot(ctx, ownerUserID, channelType)
 	if err != nil {
-		return nil, err
+		return nil, channelControlMutationFailure(ControlMutationNotApplied, err)
 	}
 	var row *channelConfigRow
 	committedVersion, err := s.withChannelControlMutation(ctx, ownerUserID, expectedVersion, func(tx *sql.Tx) error {
@@ -361,15 +371,22 @@ func (s *ControlService) deleteChannelAccount(
 				reloadSnapshot,
 				committedVersion,
 			); restoreErr != nil {
-				return nil, errors.Join(
+				return nil, channelControlMutationFailure(ControlMutationUnknown, errors.Join(
 					err,
 					fmt.Errorf("Channel account 热重载失败且恢复上一配置失败: %w", restoreErr),
-				)
+				))
 			}
-			return nil, fmt.Errorf("Channel account 热重载失败，上一份可运行配置已保留: %w", err)
+			return nil, channelControlMutationFailure(
+				ControlMutationNotApplied,
+				fmt.Errorf("Channel account 热重载失败，上一份可运行配置已保留: %w", err),
+			)
 		}
 	}
-	return s.channelView(ctx, ownerUserID, channelType)
+	view, err := s.channelView(ctx, ownerUserID, channelType)
+	if err != nil {
+		return nil, channelControlMutationFailure(ControlMutationCommitted, err)
+	}
+	return view, nil
 }
 
 func (s *ControlService) channelView(ctx context.Context, ownerUserID string, channelType string) (*ChannelConfigView, error) {

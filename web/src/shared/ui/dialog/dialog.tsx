@@ -1,5 +1,5 @@
 // INPUT: 业务弹窗提供标题、正文、动作与可选的默认或 plain chrome。
-// OUTPUT: 统一的可访问模态骨架；plain chrome 用于连接、授权与紧凑表单，不制造装饰性层级。
+// OUTPUT: 统一的可访问模态骨架与可禁用关闭动作；plain chrome 用于连接、授权与紧凑表单。
 // POS: Web 共享弹窗结构真相源，业务层只选择语义密度，不自行重写遮罩、焦点与关闭协议。
 "use client";
 
@@ -276,10 +276,12 @@ export function UiDialogFooter({
 export function UiDialogCloseButton({
   ariaLabel,
   className,
+  disabled = false,
   onClose,
 }: {
   ariaLabel?: string;
   className?: string;
+  disabled?: boolean;
   onClose: () => void;
 }) {
   const { t } = useI18n();
@@ -287,6 +289,7 @@ export function UiDialogCloseButton({
     <button
       aria-label={ariaLabel ?? t("common.close")}
       className={cn(DIALOG_ICON_BUTTON_CLASS_NAME, className)}
+      disabled={disabled}
       onClick={(event) => {
         event.preventDefault();
         event.stopPropagation();

@@ -23,6 +23,7 @@ let DEFAULT_CHAT_DELIVERY_POLICY: AgentConversationDefaultDeliveryPolicy = "queu
 let DEFAULT_AGENT_RUNTIME_KIND: AgentRuntimeKind = "nxs";
 let DEFAULT_AGENT_SDK_DIAGNOSTICS_ENABLED = false;
 let DEFAULT_EMOTION_ENABLED = false;
+let DEFAULT_BROWSER_CDP_ENABLED = false;
 let DEFAULT_RUNTIME_SETTINGS: UserPreferences["runtime_settings"] = {
   nxs: { auto_memory_enabled: true, auto_dream_enabled: true, tool_search: false },
 };
@@ -33,6 +34,7 @@ let DEFAULT_WEB_SEARCH: UserPreferences["web_search"] = {
 let DEFAULT_IMAGE_MODEL_SELECTION: UserPreferences["default_image_model_selection"];
 let DEFAULT_VISION_MODEL_SELECTION: UserPreferences["default_vision_model_selection"];
 let DEFAULT_BACKGROUND_MODEL_SELECTION: UserPreferences["default_background_model_selection"];
+let DEFAULT_PREFERENCES_VERSION: number | undefined;
 let DEFAULT_AGENT_OPTIONS: Partial<AgentOptions> = {
   permission_mode: DEFAULT_AGENT_PERMISSION_MODE,
   allowed_tools: [...DEFAULT_AGENT_ALLOWED_TOOLS],
@@ -73,10 +75,12 @@ export function getDefaultAgentRuntimeKind(): AgentRuntimeKind {
 
 export function getUserPreferences(): UserPreferences {
   return {
+    version: DEFAULT_PREFERENCES_VERSION,
     chat_default_delivery_policy: DEFAULT_CHAT_DELIVERY_POLICY,
     agent_runtime_kind: DEFAULT_AGENT_RUNTIME_KIND,
     agent_sdk_diagnostics_enabled: DEFAULT_AGENT_SDK_DIAGNOSTICS_ENABLED,
     emotion_enabled: DEFAULT_EMOTION_ENABLED,
+    browser_cdp_enabled: DEFAULT_BROWSER_CDP_ENABLED,
     runtime_settings: cloneRuntimeSettings(DEFAULT_RUNTIME_SETTINGS),
     web_search: DEFAULT_WEB_SEARCH ? { ...DEFAULT_WEB_SEARCH } : undefined,
     default_agent_options: getInitialAgentOptions(),
@@ -87,10 +91,15 @@ export function getUserPreferences(): UserPreferences {
 }
 
 export function setUserPreferences(preferences?: Partial<UserPreferences> | null): void {
+  DEFAULT_PREFERENCES_VERSION = Number.isSafeInteger(preferences?.version)
+    && (preferences?.version ?? 0) > 0
+    ? preferences?.version
+    : undefined;
   applyDeliveryPolicy(preferences);
   applyRuntimeKind(preferences);
   applyDiagnosticsPreference(preferences);
   applyEmotionPreference(preferences);
+  applyBrowserCDPPreference(preferences);
   applyRuntimeSettings(preferences);
   applyWebSearch(preferences);
   applyModelSelections(preferences);
@@ -134,6 +143,15 @@ function applyEmotionPreference(
     return;
   }
   DEFAULT_EMOTION_ENABLED = preferences.emotion_enabled === true;
+}
+
+function applyBrowserCDPPreference(
+  preferences?: Partial<UserPreferences> | null,
+): void {
+  if (preferences == null) {
+    return;
+  }
+  DEFAULT_BROWSER_CDP_ENABLED = preferences.browser_cdp_enabled === true;
 }
 
 function applyRuntimeSettings(
@@ -217,6 +235,33 @@ export function applyRuntimeOptions(
   DEFAULT_AGENT_ID = nextDefaultAgentId;
   setDefaultAgentAvatar(source.default_agent_avatar);
   setUserPreferences(source.preferences);
+}
+
+/** Auth owner 变化时先移除上一账号的运行时默认值，再读取新 owner 配置。 */
+export function resetRuntimeOptionsForOwnerChange(): void {
+  DEFAULT_AGENT_ID = "";
+  DEFAULT_AGENT_AVATAR = NEXUS_DEFAULT_AGENT_AVATAR;
+  DEFAULT_CHAT_DELIVERY_POLICY = "queue";
+  DEFAULT_AGENT_RUNTIME_KIND = "nxs";
+  DEFAULT_AGENT_SDK_DIAGNOSTICS_ENABLED = false;
+  DEFAULT_EMOTION_ENABLED = false;
+  DEFAULT_BROWSER_CDP_ENABLED = false;
+  DEFAULT_PREFERENCES_VERSION = undefined;
+  DEFAULT_RUNTIME_SETTINGS = { nxs: { tool_search: false } };
+  DEFAULT_WEB_SEARCH = {
+    enabled: true,
+    provider: DEFAULT_WEB_SEARCH_PROVIDER,
+  };
+  DEFAULT_IMAGE_MODEL_SELECTION = undefined;
+  DEFAULT_VISION_MODEL_SELECTION = undefined;
+  DEFAULT_BACKGROUND_MODEL_SELECTION = undefined;
+  DEFAULT_AGENT_OPTIONS = {
+    permission_mode: DEFAULT_AGENT_PERMISSION_MODE,
+    allowed_tools: [...DEFAULT_AGENT_ALLOWED_TOOLS],
+    disallowed_tools: [],
+    setting_sources: ["project"],
+  };
+  notifyUserPreferencesChanged();
 }
 
 function normalizeRuntimeAgentOptions(

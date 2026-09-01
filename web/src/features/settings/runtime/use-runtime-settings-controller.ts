@@ -1,7 +1,11 @@
+/**
+ * INPUT: Runtime 可用性读取与版本化 Preferences 控制器。
+ * OUTPUT: 独立的运行引擎检查反馈和偏好设置动作。
+ * POS: Runtime 设置控制器；可用性读取失败不得触发 Preferences 对账。
+ */
 import { useCallback, useState } from "react";
 
 import { getNxsRuntimeStatusApi } from "@/lib/api/settings/runtime-api";
-import { getErrorMessage } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
   DEFAULT_WEB_SEARCH_PROVIDER,
@@ -12,6 +16,7 @@ import {
 } from "@/types/settings/preferences";
 
 import { useUserPreferences } from "../general/use-user-preferences";
+import type { PreferenceFeedback } from "../general/model/settings-preferences-model";
 
 export function useRuntimeSettingsController() {
   const { t } = useI18n();
@@ -20,13 +25,16 @@ export function useRuntimeSettingsController() {
     feedback,
     loading,
     preferences,
+    recovery,
     saving,
-    setFeedback,
     updatePreferences,
+    writable,
   } = preferencesStore;
   const [nxsRuntimeChecking, setNxsRuntimeChecking] = useState(false);
+  const [runtimeFeedback, setRuntimeFeedback] =
+    useState<PreferenceFeedback | null>(null);
   const runtimeKind = normalizeAgentRuntimeKind(preferences.agent_runtime_kind);
-  const preferencesBusy = saving || nxsRuntimeChecking;
+  const preferencesBusy = saving || !writable || nxsRuntimeChecking;
 
   const selectRuntime = useCallback((value: AgentRuntimeKind) => {
     updatePreferences((current) => ({
@@ -37,33 +45,38 @@ export function useRuntimeSettingsController() {
 
   const verifyAndSelectNxs = useCallback(async () => {
     setNxsRuntimeChecking(true);
-    setFeedback(null);
+    setRuntimeFeedback(null);
     try {
       const status = await getNxsRuntimeStatusApi();
       if (status.available) {
         selectRuntime("nxs");
         return;
       }
-      setFeedback({
-        message: status.message
-          || t("settings.runtime.kernel_nxs_unavailable"),
+      setRuntimeFeedback({
+        impact: t("settings.runtime.kernel_check_not_changed_impact"),
+        message: t("settings.runtime.kernel_nxs_unavailable"),
+        nextStep: t("settings.runtime.kernel_check_next_step"),
+        title: t("settings.runtime.kernel_check_failed_title"),
+        tone: "error",
       });
-    } catch (error) {
-      setFeedback({
-        message: getErrorMessage(
-          error,
-          t("settings.runtime.kernel_check_failed"),
-        ),
+    } catch {
+      setRuntimeFeedback({
+        impact: t("settings.runtime.kernel_check_not_changed_impact"),
+        message: t("settings.runtime.kernel_check_failed"),
+        nextStep: t("settings.runtime.kernel_check_next_step"),
+        title: t("settings.runtime.kernel_check_failed_title"),
+        tone: "error",
       });
     } finally {
       setNxsRuntimeChecking(false);
     }
-  }, [selectRuntime, setFeedback, t]);
+  }, [selectRuntime, t]);
 
   const onRuntimeKindChange = useCallback((value: AgentRuntimeKind) => {
     if (value === runtimeKind) {
       return;
     }
+    setRuntimeFeedback(null);
     if (value === "nxs") {
       void verifyAndSelectNxs();
       return;
@@ -131,7 +144,9 @@ export function useRuntimeSettingsController() {
   }, [updatePreferences]);
 
   return {
-    feedbackMessage: feedback?.message,
+    preferencesFeedback: feedback,
+    preferencesRecovery: recovery,
+    runtimeFeedback,
     loading,
     nxsRuntimeChecking,
     onRuntimeKindChange,

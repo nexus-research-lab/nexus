@@ -5,8 +5,8 @@
  */
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Check, Copy, GitBranchPlus, Pencil, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Check, Copy, GitBranchPlus, Pencil, RotateCcw, Trash2 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
@@ -28,11 +28,17 @@ import {
   previewSavedWorkGraphWorkflowApi,
   scheduleWorkGraphWorkflowSaveApi,
 } from "@/lib/api/conversation/execution-api";
-import { getErrorMessage } from "@/lib/error-message";
+import {
+  getErrorMessage,
+  getResourceFailure,
+  type ResourceFailure,
+} from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
-import { UiStateBlock } from "@/shared/ui/display/state-block";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
+import type { FeedbackBannerProps } from "@/shared/ui/feedback/feedback-banner-contract";
+import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
 import { UiListRow } from "@/shared/ui/list/list-row";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
@@ -46,7 +52,10 @@ export function WorkGraphDistillationsDirectory() {
   const [items, setItems] = useState<WorkGraphWorkflow[]>([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loadFailure, setLoadFailure] = useState<ResourceFailure | null>(null);
+  const [loadedLocale, setLoadedLocale] = useState<string | null>(null);
+  const [loadRevision, setLoadRevision] = useState(0);
+  const [commandFailure, setCommandFailure] = useState<FeedbackBannerProps | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<WorkGraphWorkflow | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [editingWorkflowId, setEditingWorkflowId] = useState<string | null>(null);
@@ -54,22 +63,38 @@ export function WorkGraphDistillationsDirectory() {
   const [openingEditorId, setOpeningEditorId] = useState<string | null>(null);
   const agents = useAgentStore((state) => state.agents);
   const loadAgents = useAgentStore((state) => state.load_agents_from_server);
+  const accessBlocked = Boolean(loadFailure?.access);
+  const accessBlockedRef = useRef(accessBlocked);
+  accessBlockedRef.current = accessBlocked;
+
+  useEffect(() => {
+    if (!accessBlocked) return;
+    setDeleteCandidate(null);
+    setEditingPreview(null);
+    setEditingWorkflowId(null);
+    setOpeningEditorId(null);
+  }, [accessBlocked]);
 
   useEffect(() => {
     let active = true;
     setLoading(true);
+    setLoadFailure((current) => current?.access ? current : null);
     void getWorkGraphWorkflowsApi(locale).then((next) => {
       if (active) {
         setItems(next);
+        setLoadedLocale(locale);
+        setLoadFailure(null);
+        setCommandFailure(null);
         window.dispatchEvent(new CustomEvent(WORKGRAPH_WORKFLOWS_CHANGED_EVENT));
       }
     }).catch((reason: unknown) => {
-      if (active) setError(getErrorMessage(reason, t("capability.workgraph_loading_failed")));
+      if (active) setLoadFailure(getResourceFailure(reason, t("capability.workgraph_loading_failed")));
     }).finally(() => {
       if (active) setLoading(false);
     });
     return () => { active = false; };
-  }, [locale, t]);
+  }, [loadRevision, locale, t]);
+  const hasSnapshot = loadedLocale === locale;
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
@@ -91,16 +116,29 @@ export function WorkGraphDistillationsDirectory() {
   };
 
   const openEditor = async (item: WorkGraphWorkflow) => {
-    if (openingEditorId) return;
+    if (accessBlockedRef.current || openingEditorId) return;
     setOpeningEditorId(item.id);
-    setError(null);
+    setCommandFailure(null);
     try {
       if (agents.length === 0) await loadAgents();
+      if (accessBlockedRef.current) return;
       const preview = await previewSavedWorkGraphWorkflowApi(item.id, locale);
+      if (accessBlockedRef.current) return;
       setEditingWorkflowId(item.id);
       setEditingPreview(preview);
     } catch (reason: unknown) {
-      setError(getErrorMessage(reason, t("capability.workgraph_edit_failed")));
+      setCommandFailure({
+        action: {
+          label: t("state.reload_check"),
+          onClick: () => setLoadRevision((current) => current + 1),
+        },
+        impact: t("capability.workgraph_edit_failure_impact"),
+        message: getErrorMessage(reason, t("capability.workgraph_edit_failed")),
+        nextStep: t("capability.workgraph_edit_failure_next_step"),
+        onDismiss: () => setCommandFailure(null),
+        title: t("capability.workgraph_edit_failed"),
+        tone: "error",
+      });
     } finally {
       setOpeningEditorId(null);
     }
@@ -124,10 +162,51 @@ export function WorkGraphDistillationsDirectory() {
             value={query}
           />
         </CapabilityFilterBar>
-        {loading ? (
-          <div className="py-10 text-sm text-(--text-muted)">{t("capability.workgraph_loading")}</div>
-        ) : error ? (
-          <div className="py-10 text-sm text-(--destructive)">{error}</div>
+        {loadFailure && hasSnapshot && !loadFailure.access ? (
+          <UiResourceState
+            className="mb-3 min-h-0 py-3"
+            description={loadFailure.message}
+            impact={t("state.stale_snapshot_impact")}
+            nextStep={t("state.retry_next_step")}
+            primaryAction={{
+              icon: <RotateCcw className="h-3.5 w-3.5" />,
+              label: t("state.retry"),
+              onClick: () => setLoadRevision((current) => current + 1),
+            }}
+            role="status"
+            size="sm"
+            state="error"
+            title={t("capability.workgraph_loading_failed")}
+          />
+        ) : null}
+        {loading && !hasSnapshot ? (
+          <UiResourceState
+            className="min-h-48"
+            size="sm"
+            state="loading"
+            title={t("capability.workgraph_loading")}
+          />
+        ) : loadFailure && (loadFailure.access || !hasSnapshot) ? (
+          <UiResourceState
+            className="min-h-48"
+            description={loadFailure.message}
+            impact={t(loadFailure.access
+              ? "state.access_failure_impact"
+              : "state.read_failure_impact")}
+            nextStep={t(loadFailure.access
+              ? "state.permission_next_step"
+              : "state.retry_next_step")}
+            primaryAction={{
+              icon: <RotateCcw className="h-3.5 w-3.5" />,
+              label: t("state.retry"),
+              onClick: () => setLoadRevision((current) => current + 1),
+            }}
+            size="sm"
+            state="error"
+            title={t(loadFailure.access
+              ? "state.permission_title"
+              : "capability.workgraph_loading_failed")}
+          />
         ) : selected ? (
           <WorkGraphDistillationDetail
             item={selected}
@@ -136,11 +215,20 @@ export function WorkGraphDistillationsDirectory() {
             onEdit={() => void openEditor(selected)}
           />
         ) : filtered.length === 0 ? (
-          <UiStateBlock
+          <UiResourceState
             className="min-h-48"
             description={items.length === 0 ? t("capability.workgraph_empty_description") : undefined}
             icon={<GitBranchPlus className="h-5 w-5 text-(--icon-default)" />}
+            impact={items.length > 0 ? t("state.filter_impact") : undefined}
+            nextStep={items.length > 0
+              ? t("state.clear_filters_next_step")
+              : t("capability.workgraph_empty_description")}
+            primaryAction={items.length > 0 ? {
+              label: t("state.clear_filters"),
+              onClick: () => setQuery(""),
+            } : undefined}
             size="sm"
+            state="empty"
             title={t(items.length === 0 ? "capability.workgraph_empty" : "capability.workgraph_no_matches")}
           />
         ) : (
@@ -183,28 +271,41 @@ export function WorkGraphDistillationsDirectory() {
       </CapabilityPageLayout>
       <ConfirmDialog
         confirmText={t("execution.workflow_delete")}
-        isOpen={Boolean(deleteCandidate)}
-        message={deleteCandidate ? t("execution.workflow_delete_message", { command: `/${deleteCandidate.slash_name}` }) : ""}
+        isOpen={!accessBlocked && Boolean(deleteCandidate)}
+        message={!accessBlocked && deleteCandidate ? t("execution.workflow_delete_message", { command: `/${deleteCandidate.slash_name}` }) : ""}
         onCancel={() => setDeleteCandidate(null)}
         onConfirm={() => {
           const candidate = deleteCandidate;
           setDeleteCandidate(null);
-          if (!candidate) return;
+          if (accessBlockedRef.current || !candidate) return;
           void deleteWorkGraphWorkflowApi(candidate.id).then(() => {
+            setCommandFailure(null);
             setItems((current) => current.filter((item) => item.id !== candidate.id));
             notifyCapabilitySummaryMutated({ domain: "workgraph_distillation" });
             window.dispatchEvent(new CustomEvent(WORKGRAPH_WORKFLOWS_CHANGED_EVENT));
-          }).catch((reason: unknown) => setError(getErrorMessage(reason, t("capability.workgraph_delete_failed"))));
+          }).catch((reason: unknown) => setCommandFailure({
+            action: {
+              label: t("state.reload_check"),
+              onClick: () => setLoadRevision((current) => current + 1),
+            },
+            impact: t("capability.workgraph_delete_failure_impact"),
+            message: getErrorMessage(reason, t("capability.workgraph_delete_failed")),
+            nextStep: t("capability.workgraph_delete_failure_next_step"),
+            onDismiss: () => setCommandFailure(null),
+            title: t("capability.workgraph_delete_failed"),
+            tone: "error",
+          }));
         }}
         title={t("execution.workflow_delete_title")}
         variant="danger"
       />
-      {editingPreview ? (
+      {!accessBlocked && editingPreview ? (
         <WorkGraphMetadataEditorDialog
           agents={agents}
           preview={editingPreview}
           sessionKey={editingPreview.source_session_key}
           onApply={async (nextPreview) => {
+            if (accessBlockedRef.current) return;
             await scheduleWorkGraphWorkflowSaveApi(nextPreview.source_session_key, nextPreview.preview_id, {
               description: nextPreview.description,
               slash_name: nextPreview.slash_name,
@@ -235,6 +336,7 @@ export function WorkGraphDistillationsDirectory() {
           }}
         />
       ) : null}
+      <FeedbackBannerViewport item={commandFailure} />
     </WorkspaceSurfaceScaffold>
   );
 }

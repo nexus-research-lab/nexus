@@ -5,7 +5,7 @@
  */
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   Check,
@@ -46,6 +46,7 @@ import type {
   AgentNameValidationResult,
   AgentOptions,
 } from "@/types/agent/agent";
+import type { AgentCommunicationReadFailureKind } from "@/types/agent/communication";
 
 import {
   AgentCommunicationView,
@@ -60,12 +61,13 @@ interface ContactsAgentDetailProps {
   onAddContact: (contactAgentId: string, alias: string) => Promise<boolean>;
   onBackToAgentDirectory: () => void;
   onBackToCommunicationDirectory: () => void;
+  onClearCommunicationMutationFailure: () => void;
   onCreateCommunicationConversation: (title?: string) => Promise<string | null>;
   onLoadOlderCommunicationMessages: () => Promise<boolean>;
   onCreateTeam: (agentId: string) => void;
   onDeleteAgent: (agentId: string) => void;
   onOpenDirectRoom: (agentId: string) => void;
-  onRefreshCommunication: () => void;
+  onRefreshCommunication: (kind?: AgentCommunicationReadFailureKind) => void;
   onRemoveCommunicationContact: (contactAgentId: string) => Promise<boolean>;
   onSaveAgentOptions: (
     agentId: string,
@@ -90,6 +92,7 @@ export function ContactsAgentDetail({
   onAddContact,
   onBackToAgentDirectory,
   onBackToCommunicationDirectory,
+  onClearCommunicationMutationFailure,
   onCreateCommunicationConversation,
   onLoadOlderCommunicationMessages,
   onCreateTeam,
@@ -243,6 +246,7 @@ export function ContactsAgentDetail({
               agents={agents}
               onAddContact={onAddContact}
               onBackToDirectory={onBackToCommunicationDirectory}
+              onClearMutationFailure={onClearCommunicationMutationFailure}
               onCreateConversation={onCreateCommunicationConversation}
               onLoadOlderMessages={onLoadOlderCommunicationMessages}
               onRefresh={onRefreshCommunication}
@@ -271,6 +275,10 @@ function AgentOptionsPersistenceStatus({
 }: {
   state: AgentOptionsPersistenceState;
 }) {
+  const [mobileErrorOpen, setMobileErrorOpen] = useState(false);
+  useEffect(() => {
+    setMobileErrorOpen(false);
+  }, [state.message, state.phase]);
   const StatusIcon = state.phase === "saving"
     ? LoaderCircle
     : state.phase === "success"
@@ -282,21 +290,50 @@ function AgentOptionsPersistenceStatus({
     <span
       aria-live="polite"
       className={cn(
-        "mr-1 inline-flex h-8 shrink-0 items-center gap-1 text-xs text-(--text-soft)",
+        "relative mr-1 inline-flex h-8 shrink-0 items-center gap-1 text-xs text-(--text-soft)",
         state.phase === "success" && "text-(--success)",
         state.phase === "error" && "text-(--destructive)",
       )}
       title={state.message}
     >
-      {StatusIcon ? (
+      {StatusIcon && state.phase === "error" ? (
+        <>
+          <button
+            aria-expanded={mobileErrorOpen}
+            aria-label={state.message}
+            className="flex h-8 w-8 items-center justify-center rounded-[7px] text-(--destructive) hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] sm:hidden"
+            data-agent-save-error-details
+            onClick={() => setMobileErrorOpen((current) => !current)}
+            type="button"
+          >
+            <StatusIcon aria-hidden="true" className="h-3.5 w-3.5" />
+          </button>
+          <StatusIcon aria-hidden="true" className="h-3.5 w-3.5 max-sm:hidden" />
+        </>
+      ) : StatusIcon ? (
         <StatusIcon
+          aria-hidden="true"
           className={cn(
             "h-3.5 w-3.5",
             state.phase === "saving" && "animate-spin",
           )}
         />
       ) : null}
-      <span className="max-sm:hidden">{state.message}</span>
+      <span
+        aria-hidden={state.phase === "error" ? "true" : undefined}
+        className="sr-only sm:not-sr-only"
+      >
+        {state.message}
+      </span>
+      {state.phase === "error" && mobileErrorOpen ? (
+        <span
+          aria-hidden="true"
+          className="absolute right-0 top-[calc(100%+0.375rem)] z-40 w-[min(19rem,calc(100vw-1.5rem))] rounded-[10px] border border-[color:color-mix(in_srgb,var(--destructive)_20%,transparent)] bg-(--surface-popover-background) px-3 py-2.5 text-left text-xs font-normal leading-5 text-(--text-default) shadow-(--surface-popover-shadow) sm:hidden"
+          data-agent-save-error-popover
+        >
+          {state.message}
+        </span>
+      ) : null}
     </span>
   );
 }

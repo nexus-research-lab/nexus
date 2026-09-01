@@ -6,6 +6,7 @@
 "use client";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import type { ResourceFailure } from "@/lib/error-message";
 import { UiButton } from "@/shared/ui/button/button";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
 import {
@@ -16,7 +17,10 @@ import {
   UiDialogHeader,
   UiDialogPortal,
 } from "@/shared/ui/dialog/dialog";
-import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
+import type {
+  ScheduledTaskCreateRequestStatus,
+  ScheduledTaskItem,
+} from "@/types/capability/scheduled-task/task";
 
 import { TaskBasicsPanel } from "./form/task-basics-panel";
 import { TaskSchedulePanel } from "./schedule/task-schedule-panel";
@@ -28,9 +32,15 @@ interface ScheduledTaskDialogProps {
   createPreset?: TaskDialogCreatePreset | null;
   initialTask?: ScheduledTaskItem | null;
   isOpen: boolean;
+  onAccessFailure?: (failure: ResourceFailure) => void;
   onClose: () => void;
   onCreated?: (task: ScheduledTaskItem) => void | Promise<void>;
+  onCreateIntentResolved?: (status?: ScheduledTaskCreateRequestStatus) => void;
+  onConfirmMutationReviewed?: (command: "update", targetId: string) => void;
+  onIsMutationBlocked?: (jobId: string) => boolean;
+  onReconcile?: () => Promise<void>;
   onSaved?: (task: ScheduledTaskItem) => void | Promise<void>;
+  scopeKey: string | null;
 }
 
 export function ScheduledTaskDialog({
@@ -38,9 +48,15 @@ export function ScheduledTaskDialog({
   createPreset = null,
   initialTask = null,
   isOpen,
+  onAccessFailure,
   onClose,
   onCreated,
+  onCreateIntentResolved,
+  onConfirmMutationReviewed,
+  onIsMutationBlocked,
+  onReconcile,
   onSaved,
+  scopeKey,
 }: ScheduledTaskDialogProps) {
   const { t } = useI18n();
   const controller = useTaskDialogController({
@@ -48,9 +64,15 @@ export function ScheduledTaskDialog({
     createPreset,
     initialTask,
     isOpen,
+    onAccessFailure,
     onClose,
     onCreated,
+    onCreateIntentResolved,
+    onConfirmMutationReviewed,
+    onIsMutationBlocked,
+    onReconcile,
     onSaved,
+    scopeKey,
   });
 
   if (!isOpen) {
@@ -58,6 +80,7 @@ export function ScheduledTaskDialog({
   }
 
   const isLegacyScriptTask = initialTask?.execution_kind === "script";
+  const canClose = !controller.isCloseBlocked;
 
   const submitLabel = initialTask
     ? t("capability.scheduled_dialog_save")
@@ -70,9 +93,10 @@ export function ScheduledTaskDialog({
     <UiDialogPortal>
       <UiDialogBackdrop
         className="z-[9999] max-sm:p-2"
+        closeOnBackdrop={canClose}
         initialFocusRef={controller.refs.nameRef}
         labelledBy="create-task-dialog-title"
-        onClose={onClose}
+        onClose={canClose ? onClose : () => undefined}
         onPointerDown={(event) => event.stopPropagation()}
         onPointerMove={(event) => event.stopPropagation()}
         onPointerUp={(event) => event.stopPropagation()}
@@ -87,7 +111,7 @@ export function ScheduledTaskDialog({
         >
           <UiDialogHeader
             appearance="plain"
-            onClose={onClose}
+            onClose={canClose ? onClose : undefined}
             title={initialTask
               ? t("capability.scheduled_dialog_edit_title")
               : t("capability.scheduled_dialog_new_title")}
@@ -122,6 +146,13 @@ export function ScheduledTaskDialog({
                 errorMessage={controller.errorMessage}
                 form={controller.form.draft}
                 formActions={controller.form.actions}
+                isReconciling={controller.isReconciling}
+                isRestoredCreateIntent={controller.isRestoredCreateIntent}
+                isMutationReviewed={controller.isMutationReviewed}
+                mutationFailure={controller.mutationFailure}
+                onConfirmMutationReviewed={controller.confirmReviewedMutation}
+                onReconcile={() => void controller.reconcileMutation()}
+                onStartNewCreateIntent={controller.startNewCreateIntent}
                 refs={controller.refs}
                 schedule={controller.schedule.draft}
                 view={controller.schedule.view}
@@ -132,7 +163,7 @@ export function ScheduledTaskDialog({
           <UiDialogFooter appearance="plain">
             <UiButton
               className="min-w-[104px]"
-              disabled={controller.isSubmitting}
+              disabled={!canClose}
               onClick={onClose}
               type="button"
               variant="surface"
@@ -142,7 +173,7 @@ export function ScheduledTaskDialog({
             {!isLegacyScriptTask ? (
               <UiButton
                 className="min-w-[124px]"
-                disabled={controller.isSubmitting}
+                disabled={controller.isCloseBlocked}
                 tone="primary"
                 type="submit"
                 variant="solid"

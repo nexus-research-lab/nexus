@@ -73,6 +73,7 @@ export function useRoomPageController({
     agent: model.agent,
     conversation: {
       ...model.conversation,
+      externalSessions: model.externalSessions,
       handleSnapshotChange: handleConversationSnapshotChange,
     },
     room: model.room,

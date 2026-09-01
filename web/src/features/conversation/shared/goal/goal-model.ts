@@ -1,6 +1,6 @@
 /**
- * INPUT: Goal state, server-derived Execution binding and UI command phase.
- * OUTPUT: Goal lifecycle plus meaningful server-derived WorkGraph binding badges, clear capability, form and controller projections.
+ * INPUT: Goal state, server-derived Execution binding, UI command phase and mutation availability.
+ * OUTPUT: Goal lifecycle plus meaningful WorkGraph binding badges, clear capability, locked-draft form and controller projections.
  * POS: Goal panel pure model; metadata never participates in WorkGraph binding decisions.
  */
 import type {
@@ -72,7 +72,6 @@ interface GoalStatusProjectionInput {
   canResume: boolean;
   clearDisabledReason?: string | null;
   continuationHold: GoalContinuationHold | null;
-  error: string | null;
   executionBinding?: GoalExecutionBinding | null;
   goal: Goal;
   isGenerating: boolean;
@@ -339,9 +338,6 @@ function resolveGoalStatusTitle(
 function resolveGoalAttentionMessage(
   input: GoalStatusProjectionInput,
 ): string | null {
-  if (input.error || input.goal.last_error) {
-    return input.error ?? input.goal.last_error ?? null;
-  }
   if (input.goal.status === "active" &&
     goalContinuationSuppressed(input.goal) &&
     !input.isGenerating) {
@@ -353,9 +349,6 @@ function resolveGoalAttentionMessage(
 function resolveGoalAttentionTone(
   input: GoalStatusProjectionInput,
 ): GoalStatusStripModel["attentionTone"] {
-  if (input.error || input.goal.last_error) {
-    return "danger";
-  }
   if (input.goal.status === "blocked" && input.goal.blocker) {
     return "warning";
   }
@@ -398,20 +391,23 @@ export function buildGoalDraftFormModel({
   disabled,
   isLoading,
   loadingLabel,
+  mutationBlocked,
   objective,
 }: {
   disabled: boolean;
   isLoading: boolean;
   loadingLabel: string | null;
+  mutationBlocked?: boolean;
   objective: string;
 }): GoalDraftFormModel {
   const hasObjective = objective.trim().length > 0;
-  const fieldsDisabled = disabled || isLoading;
+  const commandBusy = disabled || isLoading;
+  const fieldsDisabled = commandBusy || Boolean(mutationBlocked);
   return {
-    canClose: !fieldsDisabled,
+    canClose: !commandBusy,
     fieldsDisabled,
     isLoading,
-    submitDisabled: fieldsDisabled || !hasObjective,
+    submitDisabled: fieldsDisabled || Boolean(mutationBlocked) || !hasObjective,
     submitLabel: isLoading ? loadingLabel ?? "保存中" : "保存",
     submitTone: hasObjective ? "primary" : "default",
   };

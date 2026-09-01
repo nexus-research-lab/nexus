@@ -1,45 +1,57 @@
 "use client";
 
+/**
+ * INPUT: Launcher 输入、最近会话与页面导航能力。
+ * OUTPUT: 串行查询、读取安全重试、私聊写入结果核对和持久反馈状态。
+ * POS: Launcher 用户命令控制器；只读查询可重试，结果未知的 DM ensure 不得盲目重放。
+ */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
+import { resolveDirectRoomNavigationTarget } from "@/features/navigation/direct-room/direct-room-navigation";
 import {
   queryLauncher,
-  type LauncherQueryResponse,
 } from "@/lib/api/launcher-api";
-import { resolveDirectRoomNavigationTarget } from "@/features/navigation/direct-room/direct-room-navigation";
 import { getRoomContexts } from "@/lib/api/conversation/room-resource-api";
+import {
+  projectMutationFailure,
+} from "@/lib/error-message";
+import { useI18n } from "@/shared/i18n/i18n-context";
+import { useAgentStore } from "@/store/agent";
 import { useSidebarStore } from "@/store/sidebar";
 
 import type {
   LauncherConsoleProps,
   RecentLauncherEntry,
 } from "./launcher-console-types";
+import {
+  projectLauncherOperationFailure,
+  type LauncherOperationFailure,
+} from "./launcher-operation-failure";
 
-type LauncherActionType = LauncherQueryResponse["action_type"];
-type LauncherActionHandler = (
-  action: LauncherQueryResponse,
-  submittedQuery: string,
-) => Promise<void>;
-type RecentEntryKind = "conversation" | "dm" | "room";
-type RecentEntryHandler = (entry: RecentLauncherEntry) => Promise<void>;
+type LauncherControllerFailure =
+  | ({ submittedQuery: string } & Extract<LauncherOperationFailure, { kind: "query_read" }>)
+  | ({ initialMessage?: string; roomId: string } & Extract<LauncherOperationFailure, { kind: "room_read" }>)
+  | ({ entryKey: string } & Extract<LauncherOperationFailure, { kind: "target_missing" }>)
+  | ({ agentId: string; initialMessage?: string } & Extract<LauncherOperationFailure, { kind: "direct_room" }>);
 
 interface UseLauncherConsoleControllerOptions {
   initialQuery: string;
   onOpenMainAgentDm: LauncherConsoleProps["onOpenMainAgentDm"];
   onOpenRoute: LauncherConsoleProps["onOpenRoute"];
-  onSelectAgent: LauncherConsoleProps["onSelectAgent"];
 }
 
 export function useLauncherConsoleController({
   initialQuery,
   onOpenMainAgentDm,
   onOpenRoute,
-  onSelectAgent,
 }: UseLauncherConsoleControllerOptions) {
+  const { t } = useI18n();
   const [query, setQuery] = useState(initialQuery);
   const [isQueryLoading, setIsQueryLoading] = useState(false);
+  const [failure, setFailure] = useState<LauncherControllerFailure | null>(null);
   const queryInFlightRef = useRef(false);
+  const setCurrentAgent = useAgentStore((state) => state.set_current_agent);
   const setActivePanelItem = useSidebarStore((state) => state.set_active_panel_item);
 
   useEffect(() => {
@@ -58,80 +70,98 @@ export function useLauncherConsoleController({
       : route);
   }, [onOpenRoute, setActivePanelItem]);
 
-  const actionHandlers = useMemo<Readonly<Record<LauncherActionType, LauncherActionHandler>>>(
-    () => ({
-      open_agent_dm: async (action) => {
-        onSelectAgent(action.target_id);
-        const { context } = await resolveDirectRoomNavigationTarget(action.target_id);
-        openConversation(
-          context.room.id,
-          context.conversation.id,
-          action.initial_message,
-        );
-      },
-      open_app: async (action, submittedQuery) => {
-        onOpenMainAgentDm(action.initial_message || submittedQuery);
-      },
-      open_room: async (action) => {
-        const contexts = await getRoomContexts(action.target_id);
-        const conversation = contexts[0]?.conversation;
-        if (conversation) {
-          openConversation(action.target_id, conversation.id, action.initial_message);
-        }
-      },
-    }),
-    [onOpenMainAgentDm, onSelectAgent, openConversation],
-  );
+  const openAgentTarget = useCallback(async (
+    agentId: string,
+    initialMessage?: string,
+  ) => {
+    try {
+      const { context } = await resolveDirectRoomNavigationTarget(agentId);
+      setCurrentAgent(agentId);
+      openConversation(
+        context.room.id,
+        context.conversation.id,
+        initialMessage,
+      );
+      setFailure(null);
+    } catch (error) {
+      const projected = projectMutationFailure(
+        error,
+        t("launcher.failure.direct_room_message"),
+      );
+      setFailure({
+        agentId,
+        effect: projected.effect,
+        initialMessage,
+        kind: "direct_room",
+      });
+    }
+  }, [openConversation, setCurrentAgent, t]);
 
-  const recentEntryHandlers = useMemo<Readonly<Record<RecentEntryKind, RecentEntryHandler>>>(
-    () => ({
-      conversation: async (entry) => {
-        if (entry.room_id && entry.conversation_id) {
-          openConversation(entry.room_id, entry.conversation_id);
-        }
-      },
-      dm: async (entry) => {
-        if (!entry.agent_id) {
-          return;
-        }
-        onSelectAgent(entry.agent_id);
-        const { context } = await resolveDirectRoomNavigationTarget(entry.agent_id);
-        openConversation(context.room.id, context.conversation.id);
-      },
-      room: async (entry) => {
-        if (!entry.room_id) {
-          return;
-        }
-        const contexts = await getRoomContexts(entry.room_id);
-        const conversation = contexts[0]?.conversation;
-        if (conversation) {
-          openConversation(entry.room_id, conversation.id);
-        }
-      },
-    }),
-    [onSelectAgent, openConversation],
-  );
+  const openRoomTarget = useCallback(async (
+    roomId: string,
+    initialMessage?: string,
+  ) => {
+    try {
+      const contexts = await getRoomContexts(roomId);
+      const conversation = contexts[0]?.conversation;
+      if (!conversation) {
+        setFailure({ entryKey: roomId, kind: "target_missing" });
+        return;
+      }
+      openConversation(roomId, conversation.id, initialMessage);
+      setFailure(null);
+    } catch {
+      setFailure({ initialMessage, kind: "room_read", roomId });
+    }
+  }, [openConversation]);
 
   const openRecentEntry = useCallback((entry: RecentLauncherEntry) => {
-    const kind: RecentEntryKind = entry.conversation_id ? "conversation" : entry.type;
-    void recentEntryHandlers[kind](entry).catch((error) => {
-      console.error("Failed to open recent entry:", error);
-    });
-  }, [recentEntryHandlers]);
+    if (entry.conversation_id && entry.room_id) {
+      openConversation(entry.room_id, entry.conversation_id);
+      setFailure(null);
+      return;
+    }
+    if (entry.type === "dm" && entry.agent_id) {
+      void openAgentTarget(entry.agent_id);
+      return;
+    }
+    if (entry.type === "room" && entry.room_id) {
+      void openRoomTarget(entry.room_id);
+      return;
+    }
+    setFailure({ entryKey: entry.key, kind: "target_missing" });
+  }, [openAgentTarget, openConversation, openRoomTarget]);
 
   const executeQuery = useCallback(async (submittedQuery: string) => {
     queryInFlightRef.current = true;
     setIsQueryLoading(true);
     try {
-      const action = await queryLauncher({ query: submittedQuery });
-      await actionHandlers[action.action_type](action, submittedQuery);
-    } catch (error) {
-      console.error("Launcher query failed:", error);
+      let action;
+      try {
+        // Launcher Query 只解析目录，不写入聊天；同一查询可以安全重试。
+        action = await queryLauncher({ query: submittedQuery });
+      } catch {
+        setFailure({ kind: "query_read", submittedQuery });
+        return;
+      }
+
+      switch (action.action_type) {
+        case "open_agent_dm":
+          await openAgentTarget(action.target_id, action.initial_message);
+          break;
+        case "open_room":
+          await openRoomTarget(action.target_id, action.initial_message);
+          break;
+        case "open_app":
+          setFailure(null);
+          onOpenMainAgentDm(action.initial_message || submittedQuery);
+          break;
+      }
     } finally {
       queryInFlightRef.current = false;
       setIsQueryLoading(false);
     }
-  }, [actionHandlers]);
+  }, [onOpenMainAgentDm, openAgentTarget, openRoomTarget]);
 
   const submitQuery = useCallback((input: string) => {
     const submittedQuery = input.trim();
@@ -147,6 +177,36 @@ export function useLauncherConsoleController({
     onOpenRoute(AppRouteBuilders.home());
   }, [onOpenRoute]);
 
+  const recoverFailure = useCallback(() => {
+    if (!failure) {
+      return;
+    }
+    switch (failure.kind) {
+      case "query_read":
+        void executeQuery(failure.submittedQuery);
+        return;
+      case "room_read":
+        void openRoomTarget(failure.roomId, failure.initialMessage);
+        return;
+      case "direct_room":
+        if (failure.effect === "not_applied") {
+          void openAgentTarget(failure.agentId, failure.initialMessage);
+          return;
+        }
+        enterHome();
+        return;
+      case "target_missing":
+        enterHome();
+    }
+  }, [enterHome, executeQuery, failure, openAgentTarget, openRoomTarget]);
+
+  const feedback = useMemo(
+    () => failure
+      ? projectLauncherOperationFailure(t, failure, recoverFailure)
+      : null,
+    [failure, recoverFailure, t],
+  );
+
   return {
     actions: {
       enterHome,
@@ -155,6 +215,7 @@ export function useLauncherConsoleController({
       updateQuery,
     },
     state: {
+      feedback,
       isQueryLoading,
       query,
     },

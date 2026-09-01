@@ -7,7 +7,7 @@
 // internal/storage，不能在本头部复制第二份业务规范。
 //
 // 成员地图：
-//   - agent.go / agent_private.go / skill.go：Agent 运行时画像与独立业务标签、同 owner 联系人、可游标翻页的私域消息投影、受控执行工具策略与 Skill 协议。
+//   - agent.go / agent_private.go / skill.go：Agent 运行时画像、独立业务标签、owner-scoped 创建对账结果、同 owner 联系人、可游标翻页的私域消息投影、受控执行工具策略与 Skill 协议。
 //   - session*.go / message_annotation.go / input_queue.go：会话、消息、轮次、
 //     Connector 继承/显式选择快照与待物化 runtime fork 边界、
 //     公开 handoff 回复因果注解、外部 IM 身份、Goal 完成收据、记忆引用、
@@ -24,7 +24,7 @@
 //     和 docs/specs/execution-graph-spec.md。
 //   - automation_run.go / im_permission_command.go：受控 Automation 运行上下文与
 //     普通 runtime/Automation 共用的 IM 权限短命令。
-//   - event.go / conversation_failure.go / typescript_event.go / generate.go：统一事件 envelope、Conversation 用户级失败分类、session-scoped
+//   - failure.go / event.go / conversation_failure.go / typescript_*.go / generate.go：最小 FailureCore（稳定分类、effect 与可选诊断号）、事件 envelope、Conversation 用户级失败分类、session-scoped
 //     command catalog、interrupt ACK、聊天 source 活动快照、WorkGraph/Subagent 失效事件、上下文占用事件与前端 TS 生成。
 //   - attachment.go / workspace_file_artifact.go / delivery_policy.go：附件、
 //     文件产物与投递策略。

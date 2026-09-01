@@ -1,82 +1,96 @@
-import { useEffect } from "react";
+// INPUT: 已由业务方确认的结果、当前影响、下一步和可选动作。
+// OUTPUT: 标题、一句用户可执行说明和至多一个动作的全局反馈条。
+// POS: 反馈展示边界；不推测请求结果，也不发起恢复请求。
+import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
+import { UiButton } from "@/shared/ui/button/button";
+import { useI18n } from "@/shared/i18n/i18n-context";
 
 import {
-  type FeedbackBannerTone,
   projectFeedbackBanner,
 } from "./feedback-banner-model";
-
-export interface FeedbackBannerProps {
-  message: string;
-  onDismiss?: () => void;
-  title: string;
-  tone: FeedbackBannerTone;
-}
+import type { FeedbackBannerProps } from "./feedback-banner-contract";
+import { RecoverySummary } from "./recovery-summary";
 
 export function FeedbackBanner({
+  action,
+  impact,
   message,
+  nextStep,
   onDismiss,
   title,
   tone,
+  urgency = "polite",
 }: FeedbackBannerProps) {
-  const presentation = projectFeedbackBanner(tone, message);
+  const { t } = useI18n();
+  const presentation = projectFeedbackBanner(tone, Boolean(action));
   const Icon = presentation.icon;
+  const onDismissRef = useRef(onDismiss);
+  const canAutoDismiss = Boolean(onDismiss)
+    && presentation.autoDismissMs !== null
+    && !impact
+    && !nextStep;
 
   useEffect(() => {
-    if (!onDismiss) {
+    onDismissRef.current = onDismiss;
+  }, [onDismiss]);
+
+  useEffect(() => {
+    if (!canAutoDismiss || presentation.autoDismissMs === null) {
       return;
     }
-    const timer = window.setTimeout(onDismiss, presentation.autoDismissMs);
+    const timer = window.setTimeout(() => {
+      onDismissRef.current?.();
+    }, presentation.autoDismissMs);
     return () => {
       window.clearTimeout(timer);
     };
-  }, [message, onDismiss, presentation.autoDismissMs, title]);
+  }, [canAutoDismiss, impact, message, nextStep, presentation.autoDismissMs, title]);
 
   return (
     <div
+      aria-atomic="true"
+      aria-live={urgency}
       className={cn(
-        "pointer-events-auto flex min-w-[280px] max-w-[420px] items-start gap-3 rounded-[12px] border bg-[color:color-mix(in_srgb,var(--background)_94%,white)] px-4 py-3 shadow-(--surface-popover-shadow)",
+        "pointer-events-auto flex max-h-[calc(100dvh-6rem)] w-full min-w-0 max-w-[420px] items-start gap-2.5 overflow-y-auto rounded-[10px] border bg-[color:color-mix(in_srgb,var(--surface-panel-background)_97%,white)] px-3.5 py-3 shadow-[0_6px_24px_color-mix(in_srgb,var(--shadow-color)_9%,transparent)] sm:max-h-[calc(100dvh-7.5rem)] sm:min-w-[320px]",
         presentation.shellClassName,
       )}
+      role={urgency === "assertive" ? "alert" : "status"}
     >
-      <div
-        className={cn(
-          "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full",
-          presentation.iconClassName,
-        )}
-      >
-        <Icon className="h-3.5 w-3.5" />
-      </div>
+      <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", presentation.iconClassName)} />
       <div className="min-w-0 flex-1">
-        <p className={cn("text-compact font-semibold", presentation.titleClassName)}>
+        <p className={cn("break-words text-[13px] font-medium leading-5 [overflow-wrap:anywhere]", presentation.titleClassName)}>
           {title}
         </p>
-        {presentation.items.length > 1 ? (
-          <div className="mt-1.5 flex flex-wrap gap-1.5">
-            {presentation.items.map((item) => (
-              <span
-                className={cn(
-                  "inline-flex rounded-[6px] border bg-transparent px-2 py-0.5 text-2xs font-medium",
-                  presentation.itemClassName,
-                )}
-                key={item}
-              >
-                {item}
-              </span>
-            ))}
-          </div>
+        {impact && nextStep ? (
+          <RecoverySummary
+            className="mt-0.5"
+            impact={impact}
+            nextStep={nextStep}
+          />
         ) : (
-          <p className="mt-0.5 text-xs text-(--text-soft)">
+          <p className="mt-0.5 break-words text-xs leading-5 text-(--text-muted) [overflow-wrap:anywhere]">
             {message}
           </p>
         )}
+        {action ? (
+          <UiButton
+            className="mt-1.5 max-w-full whitespace-normal text-left"
+            onClick={action.onClick}
+            size="xs"
+            tone={action.tone === "danger" ? "danger" : "primary"}
+            variant="text"
+          >
+            {action.label}
+          </UiButton>
+        ) : null}
       </div>
       {onDismiss ? (
         <button
-          aria-label="关闭反馈"
-          className="shrink-0 rounded-[6px] p-0.5 text-(--icon-muted) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)"
+          aria-label={t("common.close")}
+          className="-mr-2 -mt-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-[7px] text-(--icon-muted) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default) motion-reduce:transition-none"
           onClick={onDismiss}
           type="button"
         >

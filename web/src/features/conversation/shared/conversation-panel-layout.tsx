@@ -5,11 +5,16 @@
  */
 import type { ComponentProps, ReactNode, RefObject } from "react";
 
+import type { SessionRoundIndexResource } from "@/hooks/conversation/use-session-round-index";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
 import { ConversationReliabilityNotice } from "./conversation-reliability-notice";
-import { CONVERSATION_CONTENT_LANE_CLASS_NAME } from "./conversation-panel-styles";
+import {
+  CONVERSATION_COMPOSER_LANE_CLASS_NAME,
+  CONVERSATION_CONTENT_LANE_CLASS_NAME,
+} from "./conversation-panel-styles";
 import { ProviderUnavailableBanner } from "./provider-unavailable-banner";
+import { ReadResourceReliabilityNotice } from "./read-resource-reliability-notice";
 import { ScrollToLatestButton } from "./scroll-to-latest-button";
 
 type ScrollViewportEvents = Pick<
@@ -155,6 +160,7 @@ export function ConversationPanelBottomArea({
   isMobileLayout,
   providerWarningVisible,
   reliability,
+  roundIndexResource,
   scrollToLatest,
 }: {
   activity?: ReactNode;
@@ -163,8 +169,13 @@ export function ConversationPanelBottomArea({
   isMobileLayout: boolean;
   providerWarningVisible: boolean;
   reliability: ComponentProps<typeof ConversationReliabilityNotice>["reliability"];
+  roundIndexResource?: Pick<
+    SessionRoundIndexResource,
+    "access" | "error" | "isLoading" | "isStale" | "retry"
+  >;
   scrollToLatest: ConversationScrollToLatestModel;
 }) {
+  const { t } = useI18n();
   return (
     <div
       className="relative z-10 shrink-0"
@@ -180,6 +191,30 @@ export function ConversationPanelBottomArea({
           scrollToLatest={scrollToLatest}
         />
         <div data-conversation-status-stack>
+          {roundIndexResource?.error ? (
+            <div
+              className={isMobileLayout
+                ? "px-4 pt-1"
+                : `${CONVERSATION_COMPOSER_LANE_CLASS_NAME} px-3 pt-1 sm:px-5 xl:px-6`}
+            >
+              <ReadResourceReliabilityNotice
+                className="rounded-[10px] border"
+                impact={t(roundIndexResource.access
+                  ? "conversation.round_index_access_impact"
+                  : roundIndexResource.isStale
+                  ? "conversation.round_index_stale_impact"
+                  : "conversation.round_index_unavailable_impact")}
+                isRefreshing={roundIndexResource.isLoading}
+                nextStep={t(roundIndexResource.access
+                  ? "conversation.round_index_access_next_step"
+                  : "conversation.round_index_next_step")}
+                onRefresh={roundIndexResource.retry}
+                problem={t("conversation.round_index_refresh_failed")}
+                resource="session-round-index"
+                stale={roundIndexResource.isStale}
+              />
+            </div>
+          ) : null}
           <ConversationReliabilityNotice
             compact={isMobileLayout}
             reliability={reliability}

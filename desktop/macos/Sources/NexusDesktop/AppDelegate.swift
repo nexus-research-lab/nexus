@@ -1,3 +1,7 @@
+// INPUT: macOS lifecycle events, sidecar startup, state-root recovery, and native menu actions.
+// OUTPUT: A running Nexus shell or a safe startup failure with internal diagnostics preserved.
+// POS: macOS application lifecycle boundary; raw startup causes never enter user-facing alerts.
+
 import AppKit
 
 @MainActor
@@ -281,7 +285,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       definition = try GlobalShortcutDefinition.parse(GlobalShortcutPreferences.launcherAccelerator)
       GlobalShortcutPreferences.launcherAccelerator = definition.accelerator
     } catch {
-      globalShortcutLastError = error.localizedDescription
+      globalShortcutLastError = DesktopFailureCopy.globalShortcutMessage
       NSLog("[Nexus App] global shortcut invalid: \(error.localizedDescription)")
       return
     }
@@ -293,7 +297,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       try monitor.start(definition: definition)
       globalShortcutMonitor = monitor
     } catch {
-      globalShortcutLastError = error.localizedDescription
+      globalShortcutLastError = DesktopFailureCopy.globalShortcutMessage
       NSLog("[Nexus App] global shortcut unavailable: \(error.localizedDescription)")
     }
   }
@@ -325,7 +329,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       GlobalShortcutPreferences.launcherEnabled = true
       applyGlobalShortcutPreference()
     } catch {
-      globalShortcutLastError = error.localizedDescription
+      globalShortcutLastError = DesktopFailureCopy.globalShortcutMessage
     }
     return globalShortcutStatus()
   }
@@ -393,12 +397,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     startupTimeline.mark("startup.failed", metadata: ["error": error.localizedDescription])
     let diagnosticsURL = DesktopDiagnosticsReport.writeStartupFailure(error: error, startupTimeline: startupTimeline)
     let alert = NSAlert()
-    alert.messageText = "Nexus 启动失败"
-    if let diagnosticsURL {
-      alert.informativeText = "\(error.localizedDescription)\n\n诊断报告已写入：\(diagnosticsURL.path)"
-    } else {
-      alert.informativeText = error.localizedDescription
-    }
+    alert.messageText = DesktopFailureCopy.startupTitle
+    alert.informativeText = DesktopFailureCopy.startupMessage(
+      diagnosticsAvailable: diagnosticsURL != nil
+    )
     alert.alertStyle = .critical
     alert.runModal()
     NSApp.terminate(nil)

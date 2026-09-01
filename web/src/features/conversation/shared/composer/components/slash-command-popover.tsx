@@ -1,5 +1,9 @@
 "use client";
 
+// INPUT: Slash picker 目录、读取状态与显式重载动作。
+// OUTPUT: Skill/Model 选择列表或完整的 Problem/Impact/Recovery 状态。
+// POS: Composer picker 可见错误边界；只读失败不触碰输入草稿。
+
 import {
   memo,
   useCallback,
@@ -15,6 +19,7 @@ import { getSkillDisplayDescription } from "@/lib/skill-description";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import { cn } from "@/shared/ui/class-name";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
 import {
   getMenuItemStateClassName,
@@ -36,6 +41,7 @@ import {
   isSelectableSlashCommand,
   type SlashModelOption,
 } from "../slash-command-model";
+import type { ComposerReadFailure } from "../controller/composer-settings-reliability";
 
 const SLASH_COMMAND_PANEL_MAX_HEIGHT_PX = 296;
 const SLASH_PICKER_PANEL_MAX_HEIGHT_PX = 336;
@@ -61,20 +67,22 @@ interface SlashCommandPopoverProps {
   anchorRef: RefObject<HTMLDivElement | null>;
   commands: CommandDescriptor[];
   mode: "commands" | "models" | "skills";
-  modelError: string | null;
+  modelError: ComposerReadFailure | null;
   modelItems: SlashModelOption[];
   modelLoading: boolean;
   modelQuery: string;
   modelSearchRef: RefObject<HTMLInputElement | null>;
   onModelQueryChange: (query: string) => void;
   onModelQueryKeyDown: (event: KeyboardEvent<HTMLInputElement>) => boolean;
+  onModelRetry: () => void;
   onClose: () => void;
   onSelectCommand: (command: CommandDescriptor) => void;
   onSelectModel: (model: SlashModelOption) => void;
   onSelectSkill: (skill: SkillInfo) => void;
   onSkillQueryChange: (query: string) => void;
   onSkillQueryKeyDown: (event: KeyboardEvent<HTMLInputElement>) => boolean;
-  skillError: string | null;
+  onSkillRetry: () => void;
+  skillError: ComposerReadFailure | null;
   skillItems: SkillInfo[];
   skillLoading: boolean;
   skillQuery: string;
@@ -94,12 +102,14 @@ export const SlashCommandPopover = memo(function SlashCommandPopover({
   modelSearchRef,
   onModelQueryChange,
   onModelQueryKeyDown,
+  onModelRetry,
   onClose,
   onSelectCommand,
   onSelectModel,
   onSelectSkill,
   onSkillQueryChange,
   onSkillQueryKeyDown,
+  onSkillRetry,
   skillError,
   skillItems,
   skillLoading,
@@ -188,6 +198,8 @@ export const SlashCommandPopover = memo(function SlashCommandPopover({
           listRef={listRef}
           loading={skillLoading}
           error={skillError}
+          retrying={skillLoading}
+          onRetry={onSkillRetry}
           onSelect={onSelectSkill}
           t={t}
         />
@@ -198,6 +210,8 @@ export const SlashCommandPopover = memo(function SlashCommandPopover({
           items={modelItems}
           listRef={listRef}
           loading={modelLoading}
+          retrying={modelLoading}
+          onRetry={onModelRetry}
           onSelect={onSelectModel}
           t={t}
         />
@@ -317,22 +331,32 @@ function SlashSkillList({
   items,
   listRef,
   loading,
+  onRetry,
   onSelect,
+  retrying,
   t,
 }: {
   activeIndex: number;
-  error: string | null;
+  error: ComposerReadFailure | null;
   items: SkillInfo[];
   listRef: RefObject<HTMLDivElement | null>;
   loading: boolean;
+  onRetry: () => void;
   onSelect: (skill: SkillInfo) => void;
+  retrying: boolean;
   t: ReturnType<typeof useI18n>["t"];
 }) {
+  if (error) {
+    return (
+      <SlashPickerFailure
+        failure={error}
+        onRetry={onRetry}
+        retrying={retrying}
+      />
+    );
+  }
   if (loading) {
     return <SlashEmptyState>{t("composer.skills_loading")}</SlashEmptyState>;
-  }
-  if (error) {
-    return <SlashEmptyState tone="danger">{error}</SlashEmptyState>;
   }
   if (items.length === 0) {
     return <SlashEmptyState>{t("composer.skills_empty")}</SlashEmptyState>;
@@ -406,22 +430,32 @@ function SlashModelList({
   items,
   listRef,
   loading,
+  onRetry,
   onSelect,
+  retrying,
   t,
 }: {
   activeIndex: number;
-  error: string | null;
+  error: ComposerReadFailure | null;
   items: SlashModelOption[];
   listRef: RefObject<HTMLDivElement | null>;
   loading: boolean;
+  onRetry: () => void;
   onSelect: (model: SlashModelOption) => void;
+  retrying: boolean;
   t: ReturnType<typeof useI18n>["t"];
 }) {
+  if (error) {
+    return (
+      <SlashPickerFailure
+        failure={error}
+        onRetry={onRetry}
+        retrying={retrying}
+      />
+    );
+  }
   if (loading) {
     return <SlashEmptyState>{t("composer.models_loading")}</SlashEmptyState>;
-  }
-  if (error) {
-    return <SlashEmptyState tone="danger">{error}</SlashEmptyState>;
   }
   if (items.length === 0) {
     return <SlashEmptyState>{t("composer.models_empty")}</SlashEmptyState>;
@@ -462,6 +496,35 @@ function SlashModelList({
         </button>
       ))}
     </div>
+  );
+}
+
+function SlashPickerFailure({
+  failure,
+  onRetry,
+  retrying,
+}: {
+  failure: ComposerReadFailure;
+  onRetry: () => void;
+  retrying: boolean;
+}) {
+  const { t } = useI18n();
+  return (
+    <UiResourceState
+      className="m-1"
+      description={failure.message}
+      impact={failure.impact}
+      nextStep={failure.nextStep}
+      primaryAction={{
+        busy: retrying,
+        label: t("state.retry"),
+        onClick: onRetry,
+      }}
+      size="sm"
+      state="error"
+      title={failure.title}
+      variant="inset"
+    />
   );
 }
 

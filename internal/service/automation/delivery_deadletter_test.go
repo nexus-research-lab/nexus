@@ -2,7 +2,6 @@ package automation
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -254,7 +253,6 @@ INSERT INTO automation_task_runs (
 
 func TestServiceRetryRunDeliveryMarksDeadLetterAfterMaxAttempts(t *testing.T) {
 	db := newAutomationTestDB(t)
-	delivery := &fakeDeliveryRouter{err: fmt.Errorf("feishu temporary outage")}
 	service := NewService(
 		config.Config{DatabaseDriver: "sqlite"},
 		db,
@@ -263,7 +261,7 @@ func TestServiceRetryRunDeliveryMarksDeadLetterAfterMaxAttempts(t *testing.T) {
 		nil,
 		nil,
 		&fakeWorkspaceReader{},
-		delivery,
+		nil,
 	)
 	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:        "dead-letter",

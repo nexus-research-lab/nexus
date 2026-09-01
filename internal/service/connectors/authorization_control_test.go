@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/connectors/appregistration"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -795,6 +796,156 @@ func TestAuthorizationDeviceCompletionUsesCASAndErasesSecret(
 			publicVerificationURIComplete,
 			publicOpenPath,
 			nextPollAt,
+		)
+	}
+}
+
+func TestAuthorizationOfficialQRDefersClientSwitchUntilTokenSuccess(
+	t *testing.T,
+) {
+	fixture := newAuthorizationControlFixture(t, "owner-official-switch")
+	server := httptest.NewServer(http.HandlerFunc(
+		func(writer http.ResponseWriter, request *http.Request) {
+			if err := request.ParseForm(); err != nil {
+				t.Fatal(err)
+			}
+			switch request.URL.Path {
+			case "/device":
+				clientID, clientSecret, ok := request.BasicAuth()
+				if !ok || clientID != "auto-feishu-client" ||
+					clientSecret != "auto-feishu-secret" {
+					t.Fatalf("unexpected user-auth client: %q/%q", clientID, clientSecret)
+				}
+				_, _ = io.WriteString(
+					writer,
+					`{"device_code":"official-user-device","user_code":"OFFICIAL-1","verification_uri":"https://accounts.feishu.test/device","expires_in":600,"interval":1}`,
+				)
+			case "/token":
+				if request.Form.Get("device_code") != "official-user-device" ||
+					request.Form.Get("client_id") != "auto-feishu-client" ||
+					request.Form.Get("client_secret") != "auto-feishu-secret" {
+					t.Fatalf("official attempt client/device mismatch: %v", request.Form)
+				}
+				_, _ = io.WriteString(
+					writer,
+					`{"access_token":"official-token","refresh_token":"official-refresh","expires_in":7200}`,
+				)
+			default:
+				http.NotFound(writer, request)
+			}
+		},
+	))
+	defer server.Close()
+	t.Setenv(
+		"NEXUS_CONNECTOR_FEISHU_DOCX_DEVICE_CODE_URL",
+		server.URL+"/device",
+	)
+	t.Setenv(
+		"NEXUS_CONNECTOR_FEISHU_DOCX_TOKEN_URL",
+		server.URL+"/token",
+	)
+	fixture.service.httpClient = server.Client()
+	fixture.service.registrationClientFactory = func() appregistration.Client {
+		return fakeFeishuAppRegistrationClient{}
+	}
+	if _, err := fixture.service.SaveOAuthClientConfig(
+		fixture.ctx,
+		fixture.actor.OwnerUserID,
+		"feishu-docx",
+		OAuthClientConfigRequest{
+			ClientID: "old-client", ClientSecret: "old-secret",
+		},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := fixture.service.upsertConnection(
+		fixture.ctx,
+		connectionRecord{
+			OwnerUserID: fixture.actor.OwnerUserID,
+			ConnectorID: "feishu-docx",
+			State:       "connected",
+			Credentials: `{"access_token":"old-token","refresh_token":"old-refresh","expires_at":4102444800}`,
+			AuthType:    "oauth2",
+		},
+	); err != nil {
+		t.Fatal(err)
+	}
+	before, err := fixture.service.GetConfigurationState(
+		fixture.ctx, fixture.actor.OwnerUserID, "feishu-docx",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := time.Now().UTC()
+	fixture.control.now = func() time.Time { return base }
+	request := AuthorizationStartRequest{
+		RequestID:   "official-switch-0001",
+		ConnectorID: "feishu-docx",
+		Method:      AuthorizationMethodDevice,
+		DeviceMode:  DeviceAuthStartModeOfficialQR,
+	}
+	approveAuthorizationStart(t, fixture, request, base.Add(time.Minute))
+	started, err := fixture.control.Start(
+		fixture.ctx, fixture.actor, request,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixture.control.now = func() time.Time { return base.Add(6 * time.Second) }
+	continued, err := fixture.control.Status(
+		fixture.ctx,
+		fixture.actor,
+		AuthorizationFlowRef{
+			FlowID: started.FlowID, ConnectorID: request.ConnectorID,
+		},
+	)
+	if err != nil || continued.Stage != deviceAuthStageUserAuthorization ||
+		continued.Status != AuthorizationStatusPending {
+		t.Fatalf("official app stage did not advance: result=%+v err=%v", continued, err)
+	}
+	oldClient, clientErr := fixture.service.GetOAuthClientConfig(
+		fixture.ctx, fixture.actor.OwnerUserID, "feishu-docx",
+	)
+	oldConnection, connectionErr := fixture.service.LoadActiveConnection(
+		fixture.ctx, fixture.actor.OwnerUserID, "feishu-docx",
+	)
+	middle, stateErr := fixture.service.GetConfigurationState(
+		fixture.ctx, fixture.actor.OwnerUserID, "feishu-docx",
+	)
+	if clientErr != nil || connectionErr != nil || stateErr != nil ||
+		oldClient == nil || oldClient.ClientID != "old-client" ||
+		oldConnection == nil || oldConnection.AccessToken != "old-token" ||
+		middle.ConfigurationVersion != before.ConfigurationVersion {
+		t.Fatalf(
+			"official app stage changed canonical state: client=%+v connection=%+v middle=%+v errors=%v/%v/%v",
+			oldClient, oldConnection, middle,
+			clientErr, connectionErr, stateErr,
+		)
+	}
+	fixture.control.now = func() time.Time { return base.Add(12 * time.Second) }
+	completed, err := fixture.control.Status(
+		fixture.ctx,
+		fixture.actor,
+		AuthorizationFlowRef{
+			FlowID: started.FlowID, ConnectorID: request.ConnectorID,
+		},
+	)
+	if err != nil || completed.Status != AuthorizationStatusConnected ||
+		completed.CurrentConfigurationVersion != before.ConfigurationVersion+1 {
+		t.Fatalf("official switch did not complete atomically: result=%+v err=%v", completed, err)
+	}
+	newClient, clientErr := fixture.service.GetOAuthClientConfig(
+		fixture.ctx, fixture.actor.OwnerUserID, "feishu-docx",
+	)
+	newConnection, connectionErr := fixture.service.LoadActiveConnection(
+		fixture.ctx, fixture.actor.OwnerUserID, "feishu-docx",
+	)
+	if clientErr != nil || connectionErr != nil || newClient == nil ||
+		newClient.ClientID != "auto-feishu-client" || newConnection == nil ||
+		newConnection.AccessToken != "official-token" {
+		t.Fatalf(
+			"official success did not switch matching client/token: client=%+v connection=%+v errors=%v/%v",
+			newClient, newConnection, clientErr, connectionErr,
 		)
 	}
 }

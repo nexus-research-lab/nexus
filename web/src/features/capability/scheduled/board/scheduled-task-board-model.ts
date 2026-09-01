@@ -1,6 +1,6 @@
 /**
  * INPUT: 定时任务协议对象、命令状态与本地化函数。
- * OUTPUT: 看板分列、排序、卡片状态和快速创建预设。
+ * OUTPUT: 看板分列、排序、卡片状态、删除收尾/人工复核语义和快速创建预设。
  * POS: 定时任务看板唯一纯投影模型。
  */
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
@@ -43,9 +43,14 @@ export interface ScheduledTaskSuggestion {
 
 interface ScheduledTaskCardPendingState {
   isDeleting: boolean;
+  isDeleteUnconfirmed?: boolean;
+  isMutationBlocked?: boolean;
   isPermissionPending: boolean;
+  isPermissionUnconfirmed?: boolean;
   isRunning: boolean;
+  isRunUnconfirmed?: boolean;
   isToggling: boolean;
+  isToggleUnconfirmed?: boolean;
 }
 
 export interface ScheduledTaskPermissionPresentation {
@@ -59,10 +64,18 @@ export interface ScheduledTaskBindingPresentation {
   title: string;
 }
 
+export interface ScheduledTaskDeletionPresentation {
+  description: string;
+  impact: string;
+  nextStep: string;
+  title: string;
+}
+
 export interface ScheduledTaskCardPresentation {
   binding: ScheduledTaskBindingPresentation | null;
   columnId: ScheduledTaskBoardColumnId;
   contextLabel: string;
+  deletion: ScheduledTaskDeletionPresentation | null;
   deleteDisabled: boolean;
   historyDisabled: boolean;
   lastError: string | null;
@@ -154,6 +167,9 @@ export const SCHEDULED_TASK_BOARD_COLUMNS: ScheduledTaskBoardColumnDefinition[] 
 ];
 
 function getTaskColumnId(task: ScheduledTaskItem): ScheduledTaskBoardColumnId {
+  if (isScheduledTaskDeleting(task)) {
+    return "attention";
+  }
   if (task.session_binding_state === "rebind_required") {
     return "attention";
   }
@@ -167,6 +183,34 @@ function getTaskColumnId(task: ScheduledTaskItem): ScheduledTaskBoardColumnId {
     return "attention";
   }
   return task.enabled ? "scheduled" : "stopped";
+}
+
+export function isScheduledTaskDeleting(task: ScheduledTaskItem): boolean {
+  // 后端以非空 deletion_state 统一拒绝新 mutation；Web 对未来收尾
+  // 子状态也必须 fail closed，不能只认当前的 `deleting` 字面值。
+  return Boolean(task.deletion_state?.trim());
+}
+
+function getDeletionPresentation(
+  task: ScheduledTaskItem,
+): ScheduledTaskDeletionPresentation | null {
+  if (!isScheduledTaskDeleting(task)) {
+    return null;
+  }
+  if (task.deletion_state?.trim() === "review_required") {
+    return {
+      description: "任务已停止接受新操作，但系统无法确认删除前的原执行是否已经停止，因此任务数据尚未删除。",
+      impact: "任务配置和运行记录仍然保留。继续确认后会删除任务和历史，但任务此前产生的外部影响无法撤回。系统不会自动重做脚本、外部操作或结果投递。",
+      nextStep: "请先确认原执行端已经停止，再使用“确认已停止，继续删除”完成处理；也可以先刷新状态或查看运行历史。",
+      title: "删除需要管理员处理",
+    };
+  }
+  return {
+    description: "删除请求已受理，系统正在停止任务并收尾关联运行。",
+    impact: "已保存的运行记录不会被重写。已经完成的外部操作或已送达的消息不会被撤销，也不会自动重做。",
+    nextStep: "无需再次删除。请等待片刻后刷新任务列表；也可以先查看运行历史。任务从列表消失后，删除才算完成。",
+    title: "任务正在删除",
+  };
 }
 
 function getBindingPresentation(
@@ -223,7 +267,7 @@ function getPermissionPresentation(
       title: "权限请求已拒绝",
     },
     ready_to_retry: {
-      description: "此前运行可能已产生副作用，需要确认后才会重试。",
+      description: "此前运行的副作用状态待核对，确认后才会重试。",
       title: "等待确认重试",
     },
   };
@@ -291,6 +335,11 @@ function getTimingSummary(
     return `下次 ${formatScheduledDatetime(task.next_run_at, { emptyLabel: "等待安排" })}`;
   }
   if (columnId === "attention") {
+    if (isScheduledTaskDeleting(task)) {
+      return task.deletion_state?.trim() === "review_required"
+        ? "删除已暂停 · 等待管理员处理"
+        : "删除已受理 · 正在收尾";
+    }
     if (task.session_binding_state === "rebind_required") {
       return "任务已暂停 · 等待重新绑定";
     }
@@ -313,23 +362,46 @@ export function getScheduledTaskCardPresentation(
   pending: ScheduledTaskCardPendingState,
 ): ScheduledTaskCardPresentation {
   const columnId = getTaskColumnId(task);
-  const binding = getBindingPresentation(task);
-  const permission = getPermissionPresentation(task);
+  const deletion = getDeletionPresentation(task);
+  const deletionNeedsReview = task.deletion_state?.trim() === "review_required";
+  // durable 删除态拥有专用语义：收尾期间不误展示旧权限或绑定动作。
+  const binding = deletion ? null : getBindingPresentation(task);
+  const permission = deletion ? null : getPermissionPresentation(task);
   const permissionBlocksRun = permission !== null && permission.state !== "denied";
   // last_error 描述上一段已经结束的执行；新 attempt 运行期间只呈现当前状态，
   // 若本次仍失败，完成快照会再带回新的诊断。
-  const lastError = task.running ? null : task.last_error?.trim() || null;
+  const lastError = task.running || deletion ? null : task.last_error?.trim() || null;
   return {
     binding,
     columnId,
     contextLabel: getContextLabel(task),
-    deleteDisabled: pending.isDeleting,
+    deletion,
+    deleteDisabled: deletion !== null
+      || pending.isDeleting
+      || Boolean(pending.isDeleteUnconfirmed)
+      || Boolean(pending.isMutationBlocked),
     historyDisabled: false,
     lastError,
     permission,
     runAction: {
-      disabled: pending.isRunning || pending.isPermissionPending || task.running || permissionBlocksRun || binding !== null,
-      title: binding
+      disabled: pending.isRunning
+        || pending.isPermissionPending
+        || Boolean(pending.isPermissionUnconfirmed)
+        || Boolean(pending.isRunUnconfirmed)
+        || Boolean(pending.isMutationBlocked)
+        || task.running
+        || permissionBlocksRun
+        || binding !== null
+        || deletion !== null,
+      title: deletion
+        ? deletionNeedsReview
+          ? "删除需要管理员处理，任务不会再启动"
+          : "删除已受理，任务不会再启动"
+        : pending.isRunUnconfirmed
+        ? "上次运行请求结果待确认，请先刷新任务状态"
+        : pending.isPermissionUnconfirmed
+          ? "上次权限操作结果待确认，请先刷新任务状态"
+          : binding
         ? "请先重新绑定有效会话"
         : permissionBlocksRun
         ? "请先处理任务权限"
@@ -340,9 +412,23 @@ export function getScheduledTaskCardPresentation(
     scheduleSummary: formatScheduledTaskSchedule(task.schedule),
     timingSummary: getTimingSummary(task, columnId),
     toggleAction: {
-      disabled: pending.isToggling || binding !== null,
-      label: binding ? "等待重新绑定" : task.enabled ? "暂停调度" : "恢复调度",
-      title: binding
+      disabled: pending.isToggling
+        || Boolean(pending.isToggleUnconfirmed)
+        || Boolean(pending.isMutationBlocked)
+        || binding !== null
+        || deletion !== null,
+      label: deletion
+        ? deletionNeedsReview ? "删除待处理" : "删除收尾中"
+        : pending.isToggleUnconfirmed
+        ? "状态待确认"
+        : binding ? "等待重新绑定" : task.enabled ? "暂停调度" : "恢复调度",
+      title: deletion
+        ? deletionNeedsReview
+          ? "删除正在等待管理员处理，无法更改调度状态"
+          : "删除已受理，无需再更改调度状态"
+        : pending.isToggleUnconfirmed
+        ? "上次状态修改结果待确认，请先刷新任务状态"
+        : binding
         ? "编辑任务并替换所有已删除会话后才能恢复调度"
         : task.enabled ? "暂停后不再自动触发" : "恢复后重新参与调度",
     },

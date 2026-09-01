@@ -3,6 +3,7 @@ package workspace
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -376,6 +377,98 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	}
 	if readBack.Content != "hello workspace" {
 		t.Fatalf("文件内容不匹配: %+v", readBack)
+	}
+	if readBack.Revision == "" || readBack.Revision != updated.Revision {
+		t.Fatalf("文件 revision 不稳定: updated=%+v read=%+v", updated, readBack)
+	}
+
+	// 模拟 Agent 在用户编辑期间更新同一文件：旧 revision 必须失败关闭，
+	// 且不得覆盖 Agent 已经写入的正文。
+	externalContent := "agent updated workspace"
+	if err = os.WriteFile(
+		filepath.Join(agentValue.WorkspacePath, "notes", "todo.md"),
+		[]byte(externalContent),
+		0o644,
+	); err != nil {
+		t.Fatalf("模拟 Agent 更新文件失败: %v", err)
+	}
+	if _, err = workspaceService.UpdateFileIfRevision(
+		ctx,
+		agentValue.AgentID,
+		"notes/todo.md",
+		"stale browser draft",
+		&readBack.Revision,
+	); !errors.Is(err, ErrFileRevisionConflict) {
+		t.Fatalf("旧 revision 写入错误 = %v, want ErrFileRevisionConflict", err)
+	}
+	current, err := workspaceService.GetFile(ctx, agentValue.AgentID, "notes/todo.md")
+	if err != nil {
+		t.Fatalf("读取冲突后文件失败: %v", err)
+	}
+	if current.Content != externalContent {
+		t.Fatalf("冲突写入覆盖了 Agent 正文: %+v", current)
+	}
+	resolved, err := workspaceService.UpdateFileIfRevision(
+		ctx,
+		agentValue.AgentID,
+		"notes/todo.md",
+		"explicitly resolved draft",
+		&current.Revision,
+	)
+	if err != nil {
+		t.Fatalf("使用最新 revision 写入失败: %v", err)
+	}
+	if resolved.Revision == current.Revision || resolved.Content != "explicitly resolved draft" {
+		t.Fatalf("解决冲突后返回不正确: %+v", resolved)
+	}
+
+	type concurrentWriteResult struct {
+		item *FileContent
+		err  error
+	}
+	startWrites := make(chan struct{})
+	writeResults := make(chan concurrentWriteResult, 2)
+	for _, candidate := range []string{"browser writer A", "browser writer B"} {
+		candidate := candidate
+		go func() {
+			<-startWrites
+			item, writeErr := workspaceService.UpdateFileIfRevision(
+				ctx,
+				agentValue.AgentID,
+				"notes/todo.md",
+				candidate,
+				&resolved.Revision,
+			)
+			writeResults <- concurrentWriteResult{item: item, err: writeErr}
+		}()
+	}
+	close(startWrites)
+	var committedConcurrent *FileContent
+	conflicts := 0
+	for range 2 {
+		result := <-writeResults
+		switch {
+		case result.err == nil:
+			if committedConcurrent != nil {
+				t.Fatalf("同一 revision 有多个并发写入成功: first=%+v second=%+v", committedConcurrent, result.item)
+			}
+			committedConcurrent = result.item
+		case errors.Is(result.err, ErrFileRevisionConflict):
+			conflicts++
+		default:
+			t.Fatalf("并发条件写入返回意外错误: %v", result.err)
+		}
+	}
+	if committedConcurrent == nil || conflicts != 1 {
+		t.Fatalf("并发条件写入结果: committed=%+v conflicts=%d", committedConcurrent, conflicts)
+	}
+	concurrentCurrent, err := workspaceService.GetFile(ctx, agentValue.AgentID, "notes/todo.md")
+	if err != nil {
+		t.Fatalf("读取并发提交结果失败: %v", err)
+	}
+	if concurrentCurrent.Content != committedConcurrent.Content ||
+		concurrentCurrent.Revision != committedConcurrent.Revision {
+		t.Fatalf("并发条件写入终态不一致: current=%+v committed=%+v", concurrentCurrent, committedConcurrent)
 	}
 
 	if _, err = workspaceService.CreateEntry(ctx, agentValue.AgentID, "docs", "directory", ""); err != nil {

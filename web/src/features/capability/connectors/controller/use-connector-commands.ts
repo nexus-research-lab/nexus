@@ -1,3 +1,6 @@
+// INPUT: Connector mutation、当前目录与授权交互。
+// OUTPUT: 分离写入结果和后续状态刷新的 Connector 命令反馈。
+// POS: Connector 命令控制器；结果未知只允许刷新对账，不重复 mutation。
 import { useCallback, useRef, useState } from "react";
 
 import { getConnectorOauthRedirectUri, isDesktopRuntime } from "@/config/desktop-runtime";
@@ -9,7 +12,8 @@ import {
   saveConnectorOauthClientApi,
   startConnectorDeviceAuthApi,
 } from "@/lib/api/capability/connector-api";
-import { getErrorMessage } from "@/lib/error-message";
+import { getErrorMessage, projectMutationFailure } from "@/lib/error-message";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import type {
   ConnectorDeviceAuthMode,
   ConnectorDeviceAuthStart,
@@ -23,6 +27,11 @@ import {
   resolveConnectorConnectMode,
 } from "../auth/connector-auth";
 import { FeishuWebAuthorizationWindow } from "../auth/feishu/feishu-web-authorization-window";
+import type { ConnectorDeviceAuthFailureKind } from "../auth/device-flow/connector-device-auth-poller";
+import {
+  clearPendingConnectorOauth,
+  rememberPendingConnectorOauth,
+} from "../auth/connector-oauth-events";
 import type { ReportConnectorFeedback } from "./connector-controller-types";
 import type {
   ConnectorPendingAction,
@@ -30,10 +39,12 @@ import type {
 } from "./use-connector-command";
 
 interface UseConnectorCommandsOptions {
+  completeReconciliation: (connectorId: string) => void;
   connectors: ConnectorInfo[];
   refreshCatalog: () => Promise<void>;
-  refreshConnector: (connectorId: string) => Promise<void>;
+  refreshConnector: (connectorId: string) => Promise<boolean>;
   reportFeedback: ReportConnectorFeedback;
+  requireReconciliation: (action: ConnectorPendingAction) => void;
   requestShopDomain: () => Promise<string | null>;
   runCommand: RunConnectorCommand;
 }
@@ -51,13 +62,16 @@ function requiresShopDomain(connector: ConnectorInfo): boolean {
 }
 
 export function useConnectorCommands({
+  completeReconciliation,
   connectors,
   refreshCatalog,
   refreshConnector,
   reportFeedback,
+  requireReconciliation,
   requestShopDomain,
   runCommand,
 }: UseConnectorCommandsOptions) {
+  const { t } = useI18n();
   const [deviceAuthSession, setDeviceAuthSession] =
     useState<ConnectorDeviceAuthStart | null>(null);
   const feishuWebAuthorizationWindowRef =
@@ -74,6 +88,36 @@ export function useConnectorCommands({
     feishuWebAuthorizationWindowRef.current = null;
   }, []);
 
+  const reconcileMutation = useCallback(async (
+    action: ConnectorPendingAction,
+  ): Promise<void> => {
+    const refreshed = await refreshConnector(action.connectorId);
+    if (refreshed) {
+      completeReconciliation(action.connectorId);
+      reportFeedback({
+        message: t("capability.connector_reconcile_success_message"),
+        title: t("capability.connector_reconcile_success_title"),
+        tone: "success",
+      });
+      return;
+    }
+    reportFeedback({
+      action: {
+        label: t("capability.connector_reconcile_action"),
+        onClick: () => {
+          void reconcileMutation(action);
+        },
+      },
+      impact: t("capability.connector_reconcile_failed_impact"),
+      message: t("capability.connector_reconcile_failed_message"),
+      nextStep: t("capability.connector_reconcile_failed_next_step"),
+      persistent: true,
+      reconciliationConnectorId: action.connectorId,
+      title: t("capability.connector_reconcile_failed_title"),
+      tone: "warning",
+    });
+  }, [completeReconciliation, refreshConnector, reportFeedback, t]);
+
   const openFeishuWebAuthorizationUrl = useCallback((url: string) => (
     !isDesktopRuntime() && getFeishuWebAuthorizationWindow().open(url)
   ), [getFeishuWebAuthorizationWindow]);
@@ -86,22 +130,45 @@ export function useConnectorCommands({
   }: MutationOptions): Promise<boolean> => {
     try {
       await request();
+    } catch (error) {
+      reportConnectorMutationFailure({
+        action,
+        error,
+        errorFallback,
+        reconcileMutation,
+        reportFeedback,
+        requireReconciliation,
+        t,
+      });
+      return false;
+    }
+    const refreshed = await refreshConnector(action.connectorId);
+    if (refreshed) {
       reportFeedback({
         tone: "success",
         title: "操作完成",
         message: successMessage,
       });
-      await refreshConnector(action.connectorId);
       return true;
-    } catch (error) {
-      reportFeedback({
-        tone: "error",
-        title: "操作失败",
-        message: getErrorMessage(error, errorFallback),
-      });
-      return false;
     }
-  }, [refreshConnector, reportFeedback]);
+    reportFeedback({
+      action: {
+        label: t("capability.connector_reconcile_action"),
+        onClick: () => {
+          void reconcileMutation(action);
+        },
+      },
+      impact: t("capability.connector_refresh_failed_impact"),
+      message: t("capability.connector_refresh_failed_message"),
+      nextStep: t("capability.connector_refresh_failed_next_step"),
+      persistent: true,
+      reconciliationConnectorId: action.connectorId,
+      tone: "warning",
+      title: t("capability.connector_refresh_failed_title"),
+    });
+    requireReconciliation(action);
+    return true;
+  }, [reconcileMutation, refreshConnector, reportFeedback, requireReconciliation, t]);
 
   const runMutation = useCallback(async (
     options: MutationOptions,
@@ -132,12 +199,14 @@ export function useConnectorCommands({
     if (!authUrl) {
       throw new Error("授权地址为空，请检查连接器配置");
     }
+    rememberPendingConnectorOauth(connector.connector_id);
     const popup = window.open(
       authUrl,
       "_blank",
       "popup=yes,width=720,height=860",
     );
     if (!popup) {
+      clearPendingConnectorOauth(connector.connector_id);
       throw new Error("授权窗口被浏览器拦截，请允许弹窗后重试");
     }
     reportFeedback({
@@ -183,9 +252,11 @@ export function useConnectorCommands({
       ));
       if (!connector) {
         reportFeedback({
+          impact: t("capability.connector_missing_impact"),
+          nextStep: t("capability.connector_missing_next_step"),
           tone: "error",
-          title: "操作失败",
-          message: "连接器不存在",
+          title: t("capability.connector_missing_title"),
+          message: t("capability.connector_missing_message"),
         });
         return false;
       }
@@ -201,9 +272,16 @@ export function useConnectorCommands({
             successMessage: "连接成功",
           }),
           "direct-credential": async () => {
-            throw new Error(
-              `请填写 ${getDirectCredentialLabel(connector.auth_type)} 后连接`,
-            );
+            reportFeedback({
+              impact: t("capability.connector_credential_required_impact"),
+              message: t("capability.connector_credential_required_message", {
+                credential: getDirectCredentialLabel(connector.auth_type),
+              }),
+              nextStep: t("capability.connector_credential_required_next_step"),
+              title: t("capability.connector_credential_required_title"),
+              tone: "error",
+            });
+            return false;
           },
           "oauth-browser": () => openBrowserOauth(connector),
           "oauth-device": () => openDeviceOauth(connector),
@@ -213,8 +291,10 @@ export function useConnectorCommands({
         ]();
       } catch (error) {
         reportFeedback({
+          impact: t("capability.connector_auth_start_failed_impact"),
+          nextStep: t("capability.connector_auth_start_failed_next_step"),
           tone: "error",
-          title: "操作失败",
+          title: t("capability.connector_auth_start_failed_title"),
           message: getErrorMessage(error, "连接失败"),
         });
         return false;
@@ -228,6 +308,7 @@ export function useConnectorCommands({
     openDeviceOauth,
     reportFeedback,
     runCommand,
+    t,
   ]);
 
   const handleConnectWithCredential = useCallback((
@@ -238,9 +319,11 @@ export function useConnectorCommands({
     const authType = connector?.auth_type;
     if (!connector || !isDirectCredentialAuth(authType)) {
       reportFeedback({
+        impact: t("capability.connector_unsupported_credential_impact"),
+        nextStep: t("capability.connector_unsupported_credential_next_step"),
         tone: "error",
-        title: "操作失败",
-        message: "当前连接器不支持直接凭证连接",
+        title: t("capability.connector_unsupported_credential_title"),
+        message: t("capability.connector_unsupported_credential_message"),
       });
       return Promise.resolve(false);
     }
@@ -253,7 +336,7 @@ export function useConnectorCommands({
       ),
       successMessage: "连接成功",
     });
-  }, [connectors, reportFeedback, runMutation]);
+  }, [connectors, reportFeedback, runMutation, t]);
 
   const handleDisconnect = useCallback((connectorId: string) => runMutation({
     action: { kind: "disconnect", connectorId },
@@ -261,6 +344,40 @@ export function useConnectorCommands({
     request: () => disconnectConnectorApi(connectorId),
     successMessage: "已断开连接",
   }), [runMutation]);
+
+  const reportDeviceAuthFailure = useCallback((
+    connectorId: string,
+    message: string,
+    kind: ConnectorDeviceAuthFailureKind,
+  ) => {
+    if (kind === "not_connected") {
+      reportFeedback({
+        impact: t("capability.connector_auth_not_completed_impact"),
+        message,
+        nextStep: t("capability.connector_auth_not_completed_next_step"),
+        title: t("capability.connector_auth_not_completed_title"),
+        tone: "error",
+      });
+      return;
+    }
+    const action: ConnectorPendingAction = { kind: "connect", connectorId };
+    reportFeedback({
+      action: {
+        label: t("capability.connector_reconcile_action"),
+        onClick: () => {
+          void reconcileMutation(action);
+        },
+      },
+      impact: t("capability.connector_auth_unknown_impact"),
+      message,
+      nextStep: t("capability.connector_auth_unknown_next_step"),
+      persistent: true,
+      reconciliationConnectorId: connectorId,
+      title: t("capability.connector_auth_unknown_title"),
+      tone: "warning",
+    });
+    requireReconciliation(action);
+  }, [reconcileMutation, reportFeedback, requireReconciliation, t]);
 
   const handleConnectFeishuWithQr = useCallback(async (
   ): Promise<boolean> => {
@@ -273,25 +390,22 @@ export function useConnectorCommands({
       ));
       if (!connector) {
         reportFeedback({
+          impact: t("capability.connector_missing_impact"),
+          nextStep: t("capability.connector_missing_next_step"),
           tone: "error",
-          title: "操作失败",
-          message: "飞书云文档连接器不存在",
+          title: t("capability.connector_missing_title"),
+          message: t("capability.connector_missing_message"),
         });
         return false;
       }
       try {
         return await openDeviceOauth(connector, "official_qr");
       } catch (error) {
-        try {
-          await refreshConnector("feishu-docx");
-        } catch {
-          // 保留扫码启动的原始失败；下一次目录刷新会同步服务端已清理状态。
-        }
-        reportFeedback({
-          tone: "error",
-          title: "操作失败",
-          message: getErrorMessage(error, "启动飞书扫码连接失败"),
-        });
+        reportDeviceAuthFailure(
+          "feishu-docx",
+          getErrorMessage(error, "启动飞书扫码连接失败"),
+          "outcome_unknown",
+        );
         return false;
       }
     });
@@ -299,9 +413,10 @@ export function useConnectorCommands({
   }, [
     connectors,
     openDeviceOauth,
-    refreshConnector,
+    reportDeviceAuthFailure,
     reportFeedback,
     runCommand,
+    t,
   ]);
 
   const handleConnectFeishuManually = useCallback(async (
@@ -309,40 +424,40 @@ export function useConnectorCommands({
     clientSecret: string,
   ): Promise<boolean> => {
     const connectorId = "feishu-docx";
-    const result = await runCommand({
-      kind: "connect",
-      connectorId,
-    }, async () => {
-      const connector = connectors.find((item) => (
-        item.connector_id === connectorId
-      ));
-      if (!connector) {
-        reportFeedback({
-          tone: "error",
-          title: "操作失败",
-          message: "飞书云文档连接器不存在",
-        });
-        return false;
-      }
+    const connector = connectors.find((item) => (
+      item.connector_id === connectorId
+    ));
+    if (!connector) {
+      reportFeedback({
+        impact: t("capability.connector_missing_impact"),
+        nextStep: t("capability.connector_missing_next_step"),
+        tone: "error",
+        title: t("capability.connector_missing_title"),
+        message: t("capability.connector_missing_message"),
+      });
+      return false;
+    }
+    const saved = await runMutation({
+      action: { kind: "save-oauth-client", connectorId },
+      errorFallback: "保存飞书应用配置失败",
+      request: () => saveConnectorOauthClientApi(connectorId, {
+        client_id: clientId,
+        client_secret: clientSecret,
+      }),
+      successMessage: "飞书应用配置已保存",
+    });
+    if (!saved) {
+      return false;
+    }
+    const result = await runCommand({ kind: "connect", connectorId }, async () => {
       try {
-        await deleteConnectorOauthClientApi(connectorId);
-        await saveConnectorOauthClientApi(connectorId, {
-          client_id: clientId,
-          client_secret: clientSecret,
-        });
         return await openDeviceOauth(connector, "manual_credentials");
       } catch (error) {
-        try {
-          await deleteConnectorOauthClientApi(connectorId);
-          await refreshConnector(connectorId);
-        } catch {
-          // 原始连接错误更能说明失败原因，清理失败留给下一次显式连接覆盖。
-        }
-        reportFeedback({
-          tone: "error",
-          title: "操作失败",
-          message: getErrorMessage(error, "手动连接飞书应用失败"),
-        });
+        reportDeviceAuthFailure(
+          connectorId,
+          getErrorMessage(error, "启动飞书授权失败"),
+          "outcome_unknown",
+        );
         return false;
       }
     });
@@ -350,9 +465,11 @@ export function useConnectorCommands({
   }, [
     connectors,
     openDeviceOauth,
-    refreshConnector,
+    reportDeviceAuthFailure,
     reportFeedback,
     runCommand,
+    runMutation,
+    t,
   ]);
 
   const handleSaveOauthClient = useCallback((
@@ -392,29 +509,23 @@ export function useConnectorCommands({
     setDeviceAuthSession(null);
   }, [closeFeishuWebAuthorizationWindow]);
 
-  const cancelDeviceAuthSession = useCallback(async () => {
-    const session = deviceAuthSession;
+  const cancelDeviceAuthSession = useCallback(() => {
     closeFeishuWebAuthorizationWindow();
     setDeviceAuthSession(null);
-    if (session?.connector_id !== "feishu-docx") {
-      return;
-    }
-    try {
-      await deleteConnectorOauthClientApi(session.connector_id);
-      await refreshConnector(session.connector_id);
-    } catch (error) {
-      reportFeedback({
-        tone: "error",
-        title: "清理失败",
-        message: getErrorMessage(error, "未能清理飞书应用连接状态"),
-      });
-    }
   }, [
     closeFeishuWebAuthorizationWindow,
-    deviceAuthSession,
-    refreshConnector,
-    reportFeedback,
   ]);
+
+  const handleDeviceAuthFailure = useCallback((
+    message: string,
+    kind: ConnectorDeviceAuthFailureKind,
+  ) => {
+    const connectorId = deviceAuthSession?.connector_id;
+    if (!connectorId) {
+      return;
+    }
+    reportDeviceAuthFailure(connectorId, message, kind);
+  }, [deviceAuthSession, reportDeviceAuthFailure]);
 
   const continueDeviceAuthSession = useCallback((
     session: ConnectorDeviceAuthStart,
@@ -432,9 +543,79 @@ export function useConnectorCommands({
     handleConnectFeishuWithQr,
     handleConnectWithCredential,
     handleDeleteOauthClient,
+    handleDeviceAuthFailure,
     handleDeviceConnected,
     handleDisconnect,
     handleSaveOauthClient,
     openFeishuWebAuthorizationUrl,
   };
+}
+
+function reportConnectorMutationFailure({
+  action,
+  error,
+  errorFallback,
+  reconcileMutation,
+  reportFeedback,
+  requireReconciliation,
+  t,
+}: {
+  action: ConnectorPendingAction;
+  error: unknown;
+  errorFallback: string;
+  reconcileMutation: (action: ConnectorPendingAction) => Promise<void>;
+  reportFeedback: ReportConnectorFeedback;
+  requireReconciliation: (action: ConnectorPendingAction) => void;
+  t: ReturnType<typeof useI18n>["t"];
+}) {
+  const failure = projectMutationFailure(error, errorFallback);
+  const outcome = failure.effect === "accepted"
+    || failure.effect === "committed"
+    || failure.effect === "not_applied"
+    ? failure.effect
+    : "unknown";
+  const notApplied = outcome === "not_applied";
+  const copy = {
+    accepted: {
+      impact: "capability.connector_accepted_impact",
+      nextStep: "capability.connector_accepted_next_step",
+      title: "capability.connector_accepted_title",
+    },
+    committed: {
+      impact: "capability.connector_committed_impact",
+      nextStep: "capability.connector_committed_next_step",
+      title: "capability.connector_committed_title",
+    },
+    not_applied: {
+      impact: "capability.connector_not_applied_impact",
+      nextStep: "capability.connector_not_applied_next_step",
+      title: "capability.connector_not_applied_title",
+    },
+    unknown: {
+      impact: "capability.connector_unknown_impact",
+      nextStep: "capability.connector_unknown_next_step",
+      title: "capability.connector_unknown_title",
+    },
+  } as const;
+  const selectedCopy = copy[outcome];
+  reportFeedback({
+    action: notApplied
+      ? undefined
+      : {
+          label: t("capability.connector_reconcile_action"),
+          onClick: () => {
+            void reconcileMutation(action);
+          },
+        },
+    impact: t(selectedCopy.impact),
+    message: failure.message,
+    nextStep: t(selectedCopy.nextStep),
+    persistent: !notApplied,
+    reconciliationConnectorId: notApplied ? undefined : action.connectorId,
+    tone: notApplied ? "error" : "warning",
+    title: t(selectedCopy.title),
+  });
+  if (!notApplied) {
+    requireReconciliation(action);
+  }
 }

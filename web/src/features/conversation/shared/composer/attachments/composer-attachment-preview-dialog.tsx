@@ -15,6 +15,7 @@ import {
   UiDialogPortal,
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 
 import type { ComposerLocalAttachment } from "./composer-local-attachment-model";
 import { useComposerLocalFileUrl } from "./use-composer-local-file-url";
@@ -69,6 +70,7 @@ function ComposerImagePreviewDialog({
 }) {
   const { t } = useI18n();
   const imageUrl = useComposerLocalFileUrl(attachment.file);
+  const [imageFailed, setImageFailed] = useState(false);
 
   return (
     <UiDialogPortal>
@@ -102,11 +104,14 @@ function ComposerImagePreviewDialog({
             </div>
           </UiDialogHeader>
           <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-(--surface-paper-background) p-3 sm:p-4">
-            {imageUrl ? (
+            {imageFailed ? (
+              <AttachmentPreviewFailure onClose={onClose} />
+            ) : imageUrl ? (
               <img
                 alt={attachment.file.name}
                 className="max-h-full max-w-full rounded-[10px] object-contain shadow-[0_18px_50px_rgba(0,0,0,0.16)]"
                 draggable={false}
+                onError={() => setImageFailed(true)}
                 src={imageUrl}
               />
             ) : (
@@ -168,7 +173,7 @@ function ComposerTextPreviewDialog({
                 {t("composer.text_preview_truncated")}
               </p>
             ) : null}
-            <ComposerTextPreviewContent preview={preview} />
+            <ComposerTextPreviewContent onClose={onClose} preview={preview} />
           </div>
         </UiDialogShell>
       </UiDialogBackdrop>
@@ -177,8 +182,10 @@ function ComposerTextPreviewDialog({
 }
 
 function ComposerTextPreviewContent({
+  onClose,
   preview,
 }: {
+  onClose: () => void;
   preview: TextPreviewState;
 }) {
   const { t } = useI18n();
@@ -190,16 +197,32 @@ function ComposerTextPreviewContent({
     );
   }
   if (preview.status === "error") {
-    return (
-      <p className="m-auto text-sm text-(--destructive)">
-        {t("composer.attachment_preview_failed")}
-      </p>
-    );
+    return <AttachmentPreviewFailure onClose={onClose} />;
   }
   return (
     <pre className="soft-scrollbar min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words px-5 py-4 font-mono text-[13px] leading-6 text-(--surface-paper-foreground)">
       {preview.content || t("composer.text_preview_empty")}
     </pre>
+  );
+}
+
+function AttachmentPreviewFailure({ onClose }: { onClose: () => void }) {
+  const { t } = useI18n();
+  return (
+    <UiResourceState
+      className="m-auto min-h-0 w-full max-w-md py-5"
+      impact={t("composer.attachment_preview_failed_impact")}
+      nextStep={t("composer.attachment_preview_failed_next_step")}
+      primaryAction={{
+        label: t("composer.close_attachment_preview"),
+        onClick: onClose,
+      }}
+      size="sm"
+      state="error"
+      title={t("composer.attachment_preview_failed")}
+      urgency="polite"
+      variant="card"
+    />
   );
 }
 

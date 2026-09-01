@@ -1,4 +1,9 @@
 import { getSkillCategoryLabel } from "@/lib/skill-category";
+import {
+  getErrorMessage,
+  projectMutationFailure,
+  type MutationFailureEffect,
+} from "@/lib/error-message";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import type {
@@ -42,7 +47,92 @@ export interface SkillAgentBindingPresentation {
   switchLabel: string;
 }
 
+export interface SkillAgentBindingsReadFailure {
+  impact: string;
+  message: string;
+  nextStep: string;
+  title: string;
+}
+
+export interface SkillAgentToggleFailure {
+  agentId: string;
+  blocksRepeat: boolean;
+  effect: MutationFailureEffect;
+  impact: string;
+  message: string;
+  nextStep: string;
+  title: string;
+}
+
 type SkillDetailLocalization = Pick<I18nContextValue, "t">;
+
+export function buildSkillAgentBindingsReadFailure(
+  error: unknown,
+  t: I18nContextValue["t"],
+): SkillAgentBindingsReadFailure {
+  return {
+    impact: t("state.read_failure_impact"),
+    message: getErrorMessage(
+      error,
+      t("capability.skills_detail_bindings_load_failed"),
+    ),
+    nextStep: t("state.retry_next_step"),
+    title: t("capability.skills_detail_bindings_load_failed"),
+  };
+}
+
+export function buildSkillAgentToggleFailure(
+  error: unknown,
+  agentId: string,
+  t: I18nContextValue["t"],
+): SkillAgentToggleFailure {
+  const failure = projectMutationFailure(
+    error,
+    t("capability.skills_detail_toggle_failed"),
+  );
+  const notApplied = failure.effect === "not_applied";
+  const committed = failure.effect === "committed";
+  return {
+    agentId,
+    blocksRepeat: !notApplied,
+    effect: failure.effect,
+    impact: notApplied
+      ? t("capability.skills_detail_toggle_not_applied_impact")
+      : committed
+        ? t("state.committed_refresh_impact")
+        : t("feedback.unconfirmed_impact"),
+    message: failure.message,
+    nextStep: notApplied
+      ? t("capability.skills_detail_toggle_not_applied_next_step")
+      : committed
+        ? t("state.committed_refresh_next_step")
+        : t("capability.skills_detail_toggle_unknown_next_step"),
+    title: notApplied
+      ? t("capability.skills_detail_toggle_failed")
+      : committed
+        ? t("capability.skills_detail_toggle_committed_title")
+        : t("capability.skills_detail_toggle_unknown_title"),
+  };
+}
+
+export function buildSkillAgentToggleFollowupFailure(
+  error: unknown,
+  agentId: string,
+  t: I18nContextValue["t"],
+): SkillAgentToggleFailure {
+  return {
+    agentId,
+    blocksRepeat: true,
+    effect: "committed",
+    impact: t("state.committed_refresh_impact"),
+    message: getErrorMessage(
+      error,
+      t("capability.skills_detail_toggle_refresh_failed"),
+    ),
+    nextStep: t("state.committed_refresh_next_step"),
+    title: t("capability.skills_detail_toggle_committed_title"),
+  };
+}
 
 const SKILL_SOURCE_PRESENTATION: Record<
   SkillSourceType,

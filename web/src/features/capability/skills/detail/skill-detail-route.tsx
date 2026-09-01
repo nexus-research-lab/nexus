@@ -32,14 +32,18 @@ export function SkillDetailRoute({
     <SkillDetailView
       activeAction={controller.activeAction}
       agentBindings={controller.agentBindings}
-      agentToggleError={controller.agentToggleError}
       agentsLoading={controller.agentsLoading}
+      bindingsFailure={controller.bindingsFailure}
       busyAgentId={controller.busyAgentId}
       onBack={onBack}
       onDelete={() => void controller.deleteSkill()}
       onAgentToggle={(binding) => void controller.toggleAgent(binding)}
+      onRetry={() => void controller.retry()}
+      onRetryBindings={() => void controller.retryBindings()}
+      onStartNewToggleIntent={controller.startNewToggleIntent}
       onUpdate={() => void controller.updateSkill()}
       snapshot={controller.snapshot}
+      toggleFailures={controller.toggleFailures}
     />
   );
 }

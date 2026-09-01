@@ -4,6 +4,7 @@
 //
 // 成员清单：
 //   - handlers.go：Handlers、核心路由及 Preferences 条件回滚的 WebSearch 热同步。
+//   - preferences_version.go：Preferences ETag/If-Match CAS 和读写阶段 FailureCore 投影。
 //   - imagegen_defaults.go：在 Preferences owner 锁内完成的图片生成默认偏好投影。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）

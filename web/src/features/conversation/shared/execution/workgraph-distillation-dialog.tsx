@@ -1,7 +1,7 @@
 /**
  * INPUT: 默认对话模型从 exact 完成图抽取的临时草图。
- * OUTPUT: 带防抖重复命名检测的左侧命名表单、右侧共用完整工作图画布，以及明确的保存/调整动作。
- * POS: 完成态 WorkGraph 到持久化流程的克制确认台；预览与调整页共用 WorkGraph 画布，命名预检不替代服务端保存栅栏。
+ * OUTPUT: 命名表单、完整工作图画布、保存/调整动作，以及明确说明保存调度结果的恢复状态。
+ * POS: 完成态 WorkGraph 到持久化流程的确认台；命名预检不替代服务端栅栏，同一 preview 的后台调度可安全复用。
  */
 "use client";
 
@@ -16,7 +16,10 @@ import {
 
 import { scheduleWorkGraphWorkflowSaveApi } from "@/lib/api/conversation/execution-api";
 import { ApiRequestError } from "@/lib/api/core/http-error";
-import { getErrorMessage } from "@/lib/error-message";
+import {
+  projectMutationFailure,
+  type MutationFailureEffect,
+} from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
   UiDialogBackdrop,
@@ -25,6 +28,7 @@ import {
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
 import { getDialogActionClassName } from "@/shared/ui/dialog/dialog-styles";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiField, UiInput, UiTextarea } from "@/shared/ui/form/form-control";
 import type { Agent } from "@/types/agent/agent";
 import type { WorkGraphWorkflowPreview } from "@/types/conversation/workgraph-workflow";
@@ -34,6 +38,11 @@ import { WorkGraphWorkflowCanvasPreview } from "./workgraph-workflow-canvas-prev
 import { useWorkGraphSlashNameAvailability } from "./use-workgraph-slash-name-availability";
 
 const WORKGRAPH_SLASH_NAME_PATTERN = /^[a-z][a-z0-9-]{0,63}$/;
+
+interface WorkGraphSaveFailure {
+  effect: MutationFailureEffect;
+  message: string;
+}
 
 export function WorkGraphDistillationDialog({
   agents,
@@ -48,7 +57,7 @@ export function WorkGraphDistillationDialog({
 }) {
   const { t } = useI18n();
   const [saveState, setSaveState] = useState<"idle" | "saving" | "scheduled">("idle");
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveFailure, setSaveFailure] = useState<WorkGraphSaveFailure | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [workingPreview, setWorkingPreview] = useState(preview);
   const [slashName, setSlashName] = useState(preview.slash_name);
@@ -82,7 +91,7 @@ export function WorkGraphDistillationDialog({
       : null;
   const handleSave = async () => {
     setSaveState("saving");
-    setSaveError(null);
+    setSaveFailure(null);
     try {
       await scheduleWorkGraphWorkflowSaveApi(sessionKey, workingPreview.preview_id, {
         description: description.trim(),
@@ -93,9 +102,12 @@ export function WorkGraphDistillationDialog({
     } catch (reason: unknown) {
       if (reason instanceof ApiRequestError && reason.status === 409) {
         setConfirmedConflictName(normalizedSlashName);
-        setSaveError(null);
       } else {
-        setSaveError(getErrorMessage(reason, t("execution.workflow_schedule_failed")));
+        const failure = projectMutationFailure(
+          reason,
+          t("execution.workflow_schedule_failed"),
+        );
+        setSaveFailure({ effect: failure.effect, message: failure.message });
       }
       setSaveState("idle");
     }
@@ -225,8 +237,8 @@ export function WorkGraphDistillationDialog({
                     </div>
                   </div>
                 ) : null}
-                {saveError ? (
-                  <p className="text-xs leading-5 text-(--destructive)" role="alert">{saveError}</p>
+                {saveFailure ? (
+                  <WorkGraphSaveFailureState failure={saveFailure} />
                 ) : null}
                 {saveState === "scheduled" ? (
                   <button className={`${getDialogActionClassName("primary", "compact")} w-full`} type="button" onClick={onClose}>
@@ -235,7 +247,11 @@ export function WorkGraphDistillationDialog({
                 ) : (
                   <button className={`${getDialogActionClassName("primary", "compact")} w-full`} disabled={saveState === "saving" || metadataError !== null || !slashNameAvailable} type="button" onClick={() => void handleSave()}>
                     {saveState === "saving" ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : null}
-                    {t(saveState === "saving" ? "execution.workflow_scheduling" : "execution.workflow_save_sketch")}
+                    {t(saveState === "saving"
+                      ? "execution.workflow_scheduling"
+                      : saveFailure
+                        ? "execution.workflow_save_confirm_again"
+                        : "execution.workflow_save_sketch")}
                   </button>
                 )}
               </div>
@@ -287,5 +303,38 @@ export function WorkGraphDistillationDialog({
         />
       ) : null}
     </UiDialogPortal>
+  );
+}
+
+function WorkGraphSaveFailureState({
+  failure,
+}: {
+  failure: WorkGraphSaveFailure;
+}) {
+  const { t } = useI18n();
+  const notApplied = failure.effect === "not_applied";
+  const title = notApplied
+    ? t("execution.workflow_save_not_applied_title")
+    : failure.effect === "accepted"
+      ? t("execution.workflow_save_accepted_title")
+      : failure.effect === "committed"
+        ? t("execution.workflow_save_committed_title")
+        : t("execution.workflow_save_unknown_title");
+  return (
+    <UiResourceState
+      className="min-h-0 py-3"
+      description={failure.message}
+      impact={t(notApplied
+        ? "execution.workflow_save_not_applied_impact"
+        : "execution.workflow_save_unknown_impact")}
+      nextStep={t(notApplied
+        ? "execution.workflow_save_not_applied_next_step"
+        : "execution.workflow_save_unknown_next_step")}
+      size="sm"
+      state="error"
+      title={title}
+      urgency="polite"
+      variant="card"
+    />
   );
 }

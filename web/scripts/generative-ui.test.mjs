@@ -164,6 +164,12 @@ test("show_widget 工具块渲染为仅允许脚本的 iframe", async () => {
   const { THEME_CONTEXT } = await server.ssrLoadModule(
     "/src/shared/theme/theme-context.ts",
   );
+  const { I18N_CONTEXT } = await server.ssrLoadModule(
+    "/src/shared/i18n/i18n-context.ts",
+  );
+  const { MESSAGES } = await server.ssrLoadModule(
+    "/src/shared/i18n/messages.ts",
+  );
   const toolUse = {
     type: "tool_use",
     id: "widget-render-1",
@@ -177,25 +183,35 @@ test("show_widget 工具块渲染为仅允许脚本的 iframe", async () => {
   };
   const markup = renderToStaticMarkup(
     React.createElement(
-      THEME_CONTEXT.Provider,
-      { value: { theme: "light", setTheme: () => undefined } },
-      React.createElement(ContentToolBlock, {
-        block: toolUse,
-        context: {
-          canRespondToPermissions: false,
-          pendingInteractionOwner: "composer",
-          projection: {
-            consumedBlockIndexes: new Set([1]),
-            resolvedToolUseIds: new Set([toolUse.id]),
-            taskProgressByToolUseId: new Map(),
-            toolUseById: new Map([[toolUse.id, {
-              index: 0,
-              result,
-              use: toolUse,
-            }]]),
-          },
+      I18N_CONTEXT.Provider,
+      {
+        value: {
+          locale: "zh",
+          setLocale: () => undefined,
+          t: (key) => MESSAGES.zh[key] ?? key,
         },
-      }),
+      },
+      React.createElement(
+        THEME_CONTEXT.Provider,
+        { value: { theme: "light", setTheme: () => undefined } },
+        React.createElement(ContentToolBlock, {
+          block: toolUse,
+          context: {
+            canRespondToPermissions: false,
+            pendingInteractionOwner: "composer",
+            projection: {
+              consumedBlockIndexes: new Set([1]),
+              resolvedToolUseIds: new Set([toolUse.id]),
+              taskProgressByToolUseId: new Map(),
+              toolUseById: new Map([[toolUse.id, {
+                index: 0,
+                result,
+                use: toolUse,
+              }]]),
+            },
+          },
+        }),
+      ),
     ),
   );
 

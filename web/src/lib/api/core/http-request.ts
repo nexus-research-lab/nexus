@@ -11,11 +11,13 @@ export interface RequestApiOptions extends Omit<RequestInit, "body"> {
 export interface PreparedHttpRequest {
   body: BodyInit | null | undefined;
   cleanup: () => void;
+  didExternalAbort: () => boolean;
   didTimeout: () => boolean;
   headers: Headers;
   notifyOn401: boolean | undefined;
   requestInit: Omit<RequestApiOptions, "body" | "headers" | "notify_on_401" | "timeout_ms">;
   signal: AbortSignal | undefined;
+  transportFailureEffect: "not_applicable" | "unknown";
 }
 
 export function prepareHttpRequest(
@@ -38,8 +40,23 @@ export function prepareHttpRequest(
     headers,
     notifyOn401,
     requestInit,
+    transportFailureEffect: transportFailureEffect(requestInit.method),
     ...abort,
   };
+}
+
+function transportFailureEffect(
+  method: string | undefined,
+): PreparedHttpRequest["transportFailureEffect"] {
+  switch ((method ?? "GET").trim().toUpperCase()) {
+    case "GET":
+    case "HEAD":
+    case "OPTIONS":
+      return "not_applicable";
+    default:
+      // 没有收到完整响应时，写请求是否已被服务端处理无法由传输层证明。
+      return "unknown";
+  }
 }
 
 function normalizeRequestPayload(init?: RequestApiOptions): {
@@ -87,30 +104,44 @@ function isNativeRequestBody(value: object): boolean {
 function buildAbortSignal(
   externalSignal: AbortSignal | null | undefined,
   timeoutMs: number,
-): Pick<PreparedHttpRequest, "cleanup" | "didTimeout" | "signal"> {
+): Pick<
+  PreparedHttpRequest,
+  "cleanup" | "didExternalAbort" | "didTimeout" | "signal"
+> {
   if (!externalSignal && timeoutMs <= 0) {
     return {
       signal: undefined,
       cleanup: () => {},
+      didExternalAbort: () => false,
       didTimeout: () => false,
     };
   }
 
   const controller = new AbortController();
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
-  let didTimeout = false;
+  let abortSource: "external" | "timeout" | null = null;
   let abortListener: (() => void) | null = null;
 
   if (timeoutMs > 0) {
     timeoutId = setTimeout(() => {
-      didTimeout = true;
+      if (controller.signal.aborted) {
+        return;
+      }
+      abortSource = "timeout";
       controller.abort();
     }, timeoutMs);
   }
   if (externalSignal?.aborted) {
+    abortSource = "external";
     controller.abort();
   } else if (externalSignal) {
-    abortListener = () => controller.abort();
+    abortListener = () => {
+      if (controller.signal.aborted) {
+        return;
+      }
+      abortSource = "external";
+      controller.abort();
+    };
     externalSignal.addEventListener("abort", abortListener, { once: true });
   }
 
@@ -124,6 +155,7 @@ function buildAbortSignal(
         externalSignal.removeEventListener("abort", abortListener);
       }
     },
-    didTimeout: () => didTimeout,
+    didExternalAbort: () => abortSource === "external",
+    didTimeout: () => abortSource === "timeout",
   };
 }

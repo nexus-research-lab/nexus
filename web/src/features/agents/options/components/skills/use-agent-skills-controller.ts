@@ -1,7 +1,7 @@
+// INPUT: 当前 Agent、Skill 列表资源与 exact Agent+Skill 开关意图。
+// OUTPUT: 分离的读取/修改失败、逐 Skill 锁和显式新意图恢复动作。
+// POS: Agent Options Skill 编排器；unknown 只锁同一意图且绝不自动重放。
 import {
-  type Dispatch,
-  type RefObject,
-  type SetStateAction,
   useCallback,
   useDeferredValue,
   useEffect,
@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import type { Dispatch, RefObject, SetStateAction } from "react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { setAgentSkillEnabledApi } from "@/lib/api/capability/skill-api";
@@ -16,7 +17,12 @@ import { getSkillDisplayDescription } from "@/lib/skill-description";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { AgentSkillEntry } from "@/types/capability/skill";
 
-import { projectAgentSkills } from "./agent-skills-model";
+import {
+  buildAgentSkillMutationFailure,
+  buildAgentSkillRefreshAfterMutationFailure,
+  projectAgentSkills,
+  type AgentSkillMutationFailure,
+} from "./agent-skills-model";
 import { useAgentSkillsResource } from "./use-agent-skills-resource";
 
 interface UseAgentSkillsControllerParams {
@@ -26,105 +32,62 @@ interface UseAgentSkillsControllerParams {
 
 interface SkillCommandToken {
   agentId: string;
+  desiredEnabled: boolean;
   skillName: string;
-}
-
-interface SkillCommandExecution {
-  activeAgentIdRef: RefObject<string | null>;
-  activeCommandRef: RefObject<SkillCommandToken | null>;
-  command: SkillCommandToken;
-  fallbackErrorMessage: string;
-  refresh: () => Promise<void>;
-  setActionError: Dispatch<SetStateAction<string | null>>;
-  setBusyCommand: Dispatch<SetStateAction<SkillCommandToken | null>>;
-  skill: AgentSkillEntry;
-}
-
-interface AgentSkillCommandProjection {
-  busySkillName: string | null;
-  commandBusy: boolean;
-  errorMessage: string | null;
 }
 
 function normalizeAgentSkillScope(agentId: string | undefined): string | null {
   return agentId?.trim() || null;
 }
 
-function projectAgentSkillCommandState(
-  busyCommand: SkillCommandToken | null,
-  scopeAgentId: string | null,
-  actionError: string | null,
-  resourceError: string | null,
-): AgentSkillCommandProjection {
-  const scopedCommand = busyCommand?.agentId === scopeAgentId
-    ? busyCommand
-    : null;
-  return {
-    busySkillName: scopedCommand?.skillName ?? null,
-    commandBusy: scopedCommand !== null,
-    errorMessage: actionError ?? resourceError,
-  };
-}
-
 function createSkillCommand(
   agentId: string | null,
   skill: AgentSkillEntry,
   activeCommand: SkillCommandToken | null,
+  failures: Readonly<Record<string, AgentSkillMutationFailure>>,
 ): SkillCommandToken | null {
-  if (!agentId || skill.locked || activeCommand?.agentId === agentId) {
+  if (
+    !agentId
+    || skill.locked
+    || activeCommand?.agentId === agentId
+    || failures[skill.name]?.blocksRepeat
+  ) {
     return null;
   }
-  return { agentId, skillName: skill.name };
+  return {
+    agentId,
+    desiredEnabled: !skill.enabled_for_agent,
+    skillName: skill.name,
+  };
 }
 
 async function mutateAgentSkill(
   command: SkillCommandToken,
   skill: AgentSkillEntry,
-): Promise<void> {
+): Promise<AgentSkillEntry> {
   const targetScope = skill.storage_scope === "agent_workspace"
     || skill.source_type === "workspace"
     ? "agent_workspace"
     : "global_library";
-  await setAgentSkillEnabledApi(
+  return setAgentSkillEnabledApi(
     command.agentId,
     command.skillName,
-    !skill.enabled_for_agent,
+    command.desiredEnabled,
     targetScope,
   );
 }
 
-// 命令结果只写回发起时的 Agent 作用域，切换 Agent 后旧结果直接失效。
-async function executeSkillCommand({
-  activeAgentIdRef,
-  activeCommandRef,
-  command,
-  fallbackErrorMessage,
-  refresh,
-  setActionError,
-  setBusyCommand,
-  skill,
-}: SkillCommandExecution): Promise<void> {
-  activeCommandRef.current = command;
-  setBusyCommand(command);
-  setActionError(null);
-  try {
-    await mutateAgentSkill(command, skill);
-    if (activeAgentIdRef.current === command.agentId) {
-      await refresh();
-    }
-  } catch (error) {
-    if (activeAgentIdRef.current === command.agentId) {
-      setActionError(
-        error instanceof Error ? error.message : fallbackErrorMessage,
-      );
-    }
-  } finally {
-    if (activeCommandRef.current === command) {
-      activeCommandRef.current = null;
-    }
-    if (activeAgentIdRef.current === command.agentId) {
-      setBusyCommand((current) => current === command ? null : current);
-    }
+function finishSkillCommand(
+  command: SkillCommandToken,
+  activeCommandRef: RefObject<SkillCommandToken | null>,
+  mountedRef: RefObject<boolean>,
+  setBusyCommand: Dispatch<SetStateAction<SkillCommandToken | null>>,
+): void {
+  if (activeCommandRef.current === command) {
+    activeCommandRef.current = null;
+  }
+  if (mountedRef.current) {
+    setBusyCommand((current) => current === command ? null : current);
   }
 }
 
@@ -137,24 +100,29 @@ export function useAgentSkillsController({
   const activeAgentIdRef = useRef(scopeAgentId);
   activeAgentIdRef.current = scopeAgentId;
   const activeCommandRef = useRef<SkillCommandToken | null>(null);
+  const mountedRef = useRef(true);
   const [busyCommand, setBusyCommand] = useState<SkillCommandToken | null>(null);
   const [searchQuery, setSearchQuery] = useResettableState("", scopeAgentId);
   const [pendingDisableSkill, setPendingDisableSkill] = useResettableState<
     AgentSkillEntry | null
   >(null, scopeAgentId);
-  const [actionError, setActionError] = useResettableState<string | null>(
-    null,
+  const [actionFailures, setActionFailures] = useResettableState<Record<
+    string,
+    AgentSkillMutationFailure
+  >>(
+    {},
     scopeAgentId,
   );
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const {
-    error: resourceError,
+    applyCommittedSkill,
+    failure: readFailure,
     items,
     loading,
     refresh: refreshResource,
+    refreshAfterMutation,
   } = useAgentSkillsResource({
     agentId: scopeAgentId ?? undefined,
-    fallbackErrorMessage: t("agent_options.skills.load_failed"),
     isVisible,
   });
   const projection = useMemo(
@@ -165,39 +133,79 @@ export function useAgentSkillsController({
     ),
     [deferredSearchQuery, items, t],
   );
-  const commandProjection = projectAgentSkillCommandState(
-    busyCommand,
-    scopeAgentId,
-    actionError,
-    resourceError,
-  );
+  const scopedCommand = busyCommand?.agentId === scopeAgentId
+    ? busyCommand
+    : null;
 
   useEffect(() => () => {
     if (activeAgentIdRef.current === scopeAgentId) {
       activeAgentIdRef.current = null;
     }
   }, [scopeAgentId]);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const runSkillToggle = useCallback(async (skill: AgentSkillEntry) => {
     const command = createSkillCommand(
       scopeAgentId,
       skill,
       activeCommandRef.current,
+      actionFailures,
     );
     if (!command) {
       return;
     }
-    await executeSkillCommand({
-      activeAgentIdRef,
-      activeCommandRef,
-      command,
-      fallbackErrorMessage: t("agent_options.skills.toggle_failed"),
-      refresh: refreshResource,
-      setActionError,
-      setBusyCommand,
-      skill,
+    activeCommandRef.current = command;
+    setBusyCommand(command);
+    setActionFailures((current) => {
+      const next = { ...current };
+      delete next[command.skillName];
+      return next;
     });
-  }, [refreshResource, scopeAgentId, setActionError, t]);
+    let committedSkill: AgentSkillEntry;
+    try {
+      committedSkill = await mutateAgentSkill(command, skill);
+    } catch (error) {
+      if (activeAgentIdRef.current === command.agentId) {
+        setActionFailures((current) => ({
+          ...current,
+          [command.skillName]: buildAgentSkillMutationFailure(
+            error,
+            command,
+            t,
+          ),
+        }));
+      }
+      finishSkillCommand(command, activeCommandRef, mountedRef, setBusyCommand);
+      return;
+    }
+    if (activeAgentIdRef.current === command.agentId) {
+      applyCommittedSkill(committedSkill);
+      const refreshResult = await refreshAfterMutation();
+      if (refreshResult.status === "failed") {
+        setActionFailures((current) => ({
+          ...current,
+          [command.skillName]: buildAgentSkillRefreshAfterMutationFailure(
+            refreshResult.error,
+            command,
+            t,
+          ),
+        }));
+      }
+    }
+    finishSkillCommand(command, activeCommandRef, mountedRef, setBusyCommand);
+  }, [
+    actionFailures,
+    applyCommittedSkill,
+    refreshAfterMutation,
+    scopeAgentId,
+    setActionFailures,
+    t,
+  ]);
 
   const requestSkillAction = useCallback((skill: AgentSkillEntry): void => {
     if (skill.enabled_for_agent) {
@@ -215,18 +223,36 @@ export function useAgentSkillsController({
     void runSkillToggle(pendingDisableSkill);
   }, [pendingDisableSkill, runSkillToggle, setPendingDisableSkill]);
 
+  const startNewSkillIntent = useCallback((skillName: string): void => {
+    setActionFailures((current) => {
+      const next = { ...current };
+      delete next[skillName];
+      return next;
+    });
+  }, [setActionFailures]);
+
+  const mutationFailures = Object.values(actionFailures).filter(
+    (failure) => failure.target.agentId === scopeAgentId,
+  );
+
   return {
     agentId: scopeAgentId,
-    busySkillName: commandProjection.busySkillName,
+    blockedSkillNames: new Set(mutationFailures
+      .filter((failure) => failure.blocksRepeat)
+      .map((failure) => failure.target.skillName)),
+    busySkillName: scopedCommand?.skillName ?? null,
     cancelDisable: () => setPendingDisableSkill(null),
-    commandBusy: commandProjection.commandBusy,
+    commandBusy: scopedCommand !== null,
     confirmDisable,
-    errorMessage: commandProjection.errorMessage,
     loading,
+    mutationFailures,
     pendingDisableSkill,
     projection,
+    readFailure,
+    refresh: refreshResource,
     requestSkillAction,
     searchQuery,
     setSearchQuery,
+    startNewSkillIntent,
   };
 }

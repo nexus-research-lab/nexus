@@ -6,13 +6,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowLeft, Check, Copy } from "lucide-react";
+import { ArrowLeft, Check, Copy, RotateCcw } from "lucide-react";
 
 import { getLoopApi } from "@/lib/api/capability/loop-api";
+import { getResourceFailure, type ResourceFailure } from "@/lib/error-message";
 import { writeTextToClipboard } from "@/hooks/ui/clipboard";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 import {
   WorkspaceContentDetailHeader,
   WorkspaceContentHeader,
@@ -28,7 +30,7 @@ interface LoopDetailViewProps {
 }
 
 interface LoopDetailState {
-  error: string | null;
+  error: ResourceFailure | null;
   loading: boolean;
   loop: LoopCatalogItem | null;
 }
@@ -40,6 +42,7 @@ export function LoopDetailView({ slug, onBack: onBack }: LoopDetailViewProps) {
     `${slug}\x1f${locale}`,
   );
   const [copied, setCopied] = useState(false);
+  const [loadRevision, setLoadRevision] = useState(0);
   const { error, loading, loop } = state;
   const metadata = loop
     ? buildLoopMetadataPresentation(loop, locale, t)
@@ -47,6 +50,7 @@ export function LoopDetailView({ slug, onBack: onBack }: LoopDetailViewProps) {
 
   useEffect(() => {
     let cancelled = false;
+    setState({ error: null, loading: true, loop: null });
     getLoopApi(slug, locale)
       .then((item) => {
         if (!cancelled) {
@@ -56,7 +60,7 @@ export function LoopDetailView({ slug, onBack: onBack }: LoopDetailViewProps) {
       .catch((err: unknown) => {
         if (!cancelled) {
           setState({
-            error: err instanceof Error ? err.message : t("capability.loops_loading_failed"),
+            error: getResourceFailure(err, t("capability.loops_loading_failed")),
             loading: false,
             loop: null,
           });
@@ -65,7 +69,7 @@ export function LoopDetailView({ slug, onBack: onBack }: LoopDetailViewProps) {
     return () => {
       cancelled = true;
     };
-  }, [locale, setState, slug, t]);
+  }, [loadRevision, locale, setState, slug, t]);
 
   const copyPrompt = async () => {
     if (!loop) {
@@ -87,9 +91,35 @@ export function LoopDetailView({ slug, onBack: onBack }: LoopDetailViewProps) {
       </WorkspaceContentDetailHeader>
 
       {loading ? (
-        <div className="py-10 text-sm text-(--text-muted)">{t("capability.connectors_loading")}</div>
+        <UiResourceState
+          className="min-h-[320px]"
+          size="md"
+          state="loading"
+          title={t("capability.connectors_loading")}
+          variant="plain"
+        />
       ) : error ? (
-        <div className="py-10 text-sm text-(--destructive)">{error}</div>
+        <UiResourceState
+          className="min-h-[320px]"
+          description={error.message}
+          impact={t(error.access
+            ? "state.access_failure_impact"
+            : "state.read_failure_impact")}
+          nextStep={t(error.access
+            ? "state.permission_next_step"
+            : "state.retry_next_step")}
+          primaryAction={{
+            icon: <RotateCcw className="h-3.5 w-3.5" />,
+            label: t("state.retry"),
+            onClick: () => setLoadRevision((current) => current + 1),
+          }}
+          size="md"
+          state="error"
+          title={t(error.access
+            ? "state.permission_title"
+            : "capability.loops_loading_failed")}
+          variant="plain"
+        />
       ) : loop ? (
         <div className="mt-3 space-y-5">
           <div className="flex flex-wrap items-center gap-1.5">

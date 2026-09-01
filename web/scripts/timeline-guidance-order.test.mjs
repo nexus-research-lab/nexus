@@ -1182,6 +1182,11 @@ test("Room public activity survives the pause between reply text and tool work",
     1,
     "the continued Thread activity stays inside the existing Agent card",
   );
+  assert.match(
+    continuedHtml,
+    /class="flex min-w-0 items-center px-1\.5 h-7" data-message-activity-stable-slot="true"/,
+    "Room thinking and replying reuse the fixed-height public activity slot",
+  );
 
   const toolContinuation = {
     ...assistantMessage({
@@ -1223,6 +1228,11 @@ test("Room public activity survives the pause between reply text and tool work",
   );
   assert.doesNotMatch(workingHtml, /搜索产品线资料/);
   assert.match(workingHtml, /data-room-tool-activity/);
+  assert.match(
+    workingHtml,
+    /class="[^"]*h-7[^"]*px-1\.5[^"]*"[^>]*data-room-tool-activity/,
+    "Room tools keep the same fixed-height geometry as thinking and replying",
+  );
   assert.match(workingHtml, /data-process-activity-icon="search"/);
   assert.match(
     workingHtml,
@@ -2561,6 +2571,103 @@ test("Thought detail uses compact tool-detail typography", async () => {
   assert.match(html, /data-message-detail-sticky-header="true"/);
   assert.match(html, /data-message-detail-follow="true"/);
   assert.match(html, /data-markdown-streaming="true"/);
+  assert.doesNotMatch(
+    html,
+    /data-thinking-block-preview/,
+    "expanded Thought keeps its complete content only in the detail body",
+  );
+  assert.equal(html.match(/Compact detail/g)?.length, 1);
+
+  const collapsedHtml = await renderWithI18n(React.createElement(ThinkingBlock, {
+    thinking: "Collapsed preview",
+  }));
+  assert.match(collapsedHtml, /data-thinking-block-preview/);
+  assert.match(collapsedHtml, /Collapsed preview/);
+  assert.doesNotMatch(collapsedHtml, /nexus-message-detail-markdown/);
+});
+
+test("expanded tool headers do not repeat summaries from their detail body", async () => {
+  const { buildToolBlockViewModel } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/blocks/tool/tool-block-model.ts",
+  );
+  const { ToolBlockHeader } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/blocks/tool/header/tool-block-header.tsx",
+  );
+  const localization = {
+    locale: "en",
+    t: (key) => key,
+  };
+  const launchResult = "Launching skill: execution-orchestrator";
+  const skillModel = buildToolBlockViewModel({
+    localization,
+    status: "success",
+    toolResult: {
+      content: launchResult,
+      tool_use_id: "tool-skill",
+      type: "tool_result",
+    },
+    toolUse: {
+      id: "tool-skill",
+      input: { skill: "execution-orchestrator" },
+      name: "Skill",
+      type: "tool_use",
+    },
+  });
+  assert.equal(skillModel.collapsedDetailText, launchResult);
+  assert.equal(skillModel.expandedInputText, null);
+
+  const renderHeader = (isExpanded, model = skillModel) => (
+    renderWithI18n(React.createElement(ToolBlockHeader, {
+      copied: false,
+      interactionDisabled: false,
+      isExpanded,
+      model,
+      onCopyResult: () => {},
+      onToggle: () => {},
+    }))
+  );
+  const collapsedHtml = await renderHeader(false);
+  const expandedHtml = await renderHeader(true);
+  assert.match(collapsedHtml, /data-tool-block-detail="inline"/);
+  assert.match(collapsedHtml, /Launching skill: execution-orchestrator/);
+  assert.doesNotMatch(expandedHtml, /data-tool-block-detail="inline"/);
+  assert.doesNotMatch(expandedHtml, /Launching skill: execution-orchestrator/);
+
+  const queryModel = buildToolBlockViewModel({
+    localization,
+    status: "success",
+    toolResult: {
+      content: "Search complete",
+      tool_use_id: "tool-search",
+      type: "tool_result",
+    },
+    toolUse: {
+      id: "tool-search",
+      input: { query: "A2A protocol" },
+      name: "WebSearch",
+      type: "tool_use",
+    },
+  });
+  assert.equal(queryModel.collapsedDetailText, "A2A protocol");
+  assert.equal(queryModel.expandedInputText, "A2A protocol");
+  assert.doesNotMatch(await renderHeader(true, queryModel), /A2A protocol/);
+
+  const duplicateModel = buildToolBlockViewModel({
+    localization,
+    status: "success",
+    toolResult: {
+      content: "Same input and result",
+      tool_use_id: "tool-echo",
+      type: "tool_result",
+    },
+    toolUse: {
+      id: "tool-echo",
+      input: { query: "Same input and result" },
+      name: "WebSearch",
+      type: "tool_use",
+    },
+  });
+  assert.equal(duplicateModel.expandedInputText, null);
 });
 
 test("a newer semantic block closes the preceding smooth stream", async () => {
@@ -4747,6 +4854,160 @@ test("Room Assistant turn completion keeps its Agent execution active", async ()
     "streaming",
     "a completed tool-use message is not the terminal state of its agent_round",
   );
+});
+
+test("Room authoritative pending snapshots settle only missing executions", async () => {
+  const { buildRoomAgentRoundEntries, isAgentRoundActive } =
+    await server.ssrLoadModule(
+      "/src/features/conversation/room/group/round/round-agent-model.ts",
+    );
+  const {
+    applyRoomAgentExecutionStatus,
+    reconcileRoomAgentExecutionsFromSlotSnapshot,
+    syncRoomAgentExecutionsFromMessages,
+    syncRoomAgentExecutionsFromSlots,
+  } = await server.ssrLoadModule(
+    "/src/hooks/agent/runtime/model/room-agent-execution-state.ts",
+  );
+  const roundId = "round-authoritative-slot-snapshot";
+  const slots = [
+    {
+      agent_id: "agent-kept",
+      agent_round_id: "agent-round-kept",
+      index: 0,
+      msg_id: "slot-kept",
+      round_id: roundId,
+      status: "streaming",
+      timestamp: 1,
+    },
+    {
+      agent_id: "agent-missing",
+      agent_round_id: "agent-round-missing",
+      index: 1,
+      msg_id: "slot-missing",
+      round_id: roundId,
+      status: "streaming",
+      timestamp: 2,
+    },
+    {
+      agent_id: "agent-terminal",
+      agent_round_id: "agent-round-terminal",
+      index: 2,
+      msg_id: "slot-terminal",
+      round_id: roundId,
+      status: "streaming",
+      timestamp: 3,
+    },
+  ];
+  const active = syncRoomAgentExecutionsFromSlots([], slots);
+  const withExactTerminal = applyRoomAgentExecutionStatus(active, {
+    agent_id: "agent-terminal",
+    agent_round_id: "agent-round-terminal",
+    is_terminal: true,
+    round_id: roundId,
+    status: "error",
+  });
+  const reconciled = reconcileRoomAgentExecutionsFromSlotSnapshot(
+    withExactTerminal,
+    [slots[0]],
+  );
+  const byAgentRound = new Map(reconciled.map((state) => [
+    state.agent_round_id,
+    state,
+  ]));
+
+  assert.deepEqual(
+    {
+      phase: byAgentRound.get("agent-round-kept")?.phase,
+      status: byAgentRound.get("agent-round-kept")?.status,
+    },
+    { phase: "active", status: "streaming" },
+    "an execution present in the authoritative snapshot must stay active",
+  );
+  assert.deepEqual(
+    {
+      phase: byAgentRound.get("agent-round-missing")?.phase,
+      status: byAgentRound.get("agent-round-missing")?.status,
+    },
+    { phase: "terminal", status: "done" },
+    "a missing execution is no longer active without inventing interruption or failure",
+  );
+  assert.deepEqual(
+    {
+      phase: byAgentRound.get("agent-round-terminal")?.phase,
+      status: byAgentRound.get("agent-round-terminal")?.status,
+    },
+    { phase: "terminal", status: "error" },
+    "an authoritative active-slot snapshot cannot weaken exact terminal evidence",
+  );
+  assert.deepEqual(
+    reconciled.map((state) => state.display_order),
+    withExactTerminal.map((state) => state.display_order),
+    "snapshot reconciliation must preserve canonical execution shell order",
+  );
+
+  const afterLateRunning = applyRoomAgentExecutionStatus(reconciled, {
+    agent_id: "agent-missing",
+    agent_round_id: "agent-round-missing",
+    is_terminal: false,
+    round_id: roundId,
+    status: "running",
+  });
+  assert.deepEqual(
+    {
+      phase: afterLateRunning[1]?.phase,
+      status: afterLateRunning[1]?.status,
+    },
+    { phase: "terminal", status: "done" },
+    "a replayed active event older than the snapshot must not revive the execution",
+  );
+  const afterLateError = applyRoomAgentExecutionStatus(afterLateRunning, {
+    agent_id: "agent-missing",
+    agent_round_id: "agent-round-missing",
+    is_terminal: true,
+    round_id: roundId,
+    status: "error",
+  });
+  assert.equal(
+    afterLateError[1]?.status,
+    "error",
+    "later exact failure evidence must refine the neutral snapshot settlement",
+  );
+
+  const completedTurn = assistantMessage({
+    agentId: "agent-missing",
+    agentRoundId: "agent-round-missing",
+    isComplete: true,
+    messageId: "assistant-missing-complete",
+    roundId,
+    status: "done",
+    stopReason: "end_turn",
+    text: "已经完成。",
+    timestamp: 4,
+  });
+  const activeBeforeSnapshot = syncRoomAgentExecutionsFromMessages(
+    active,
+    [completedTurn],
+  );
+  assert.equal(
+    activeBeforeSnapshot[1]?.phase,
+    "active",
+    "a completed Assistant turn alone still cannot close its enclosing execution",
+  );
+  const afterEmptySnapshot = reconcileRoomAgentExecutionsFromSlotSnapshot(
+    activeBeforeSnapshot,
+    [],
+  );
+  const [completedEntry] = buildRoomAgentRoundEntries(
+    [completedTurn],
+    [],
+    [],
+    afterEmptySnapshot.filter(
+      (state) => state.agent_round_id === "agent-round-missing",
+    ),
+  );
+  assert.equal(completedEntry?.status, "done");
+  assert.equal(isAgentRoundActive(completedEntry?.status), false);
 });
 
 test("canonical timeline hides private Room execution evidence", async () => {

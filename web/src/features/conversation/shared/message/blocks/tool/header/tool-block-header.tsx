@@ -1,3 +1,8 @@
+/**
+ * INPUT: ToolBlock 单一视图模型、展开状态与可用操作。
+ * OUTPUT: 收起时含摘要的单行工具头，展开时仅保留工具身份、状态与操作。
+ * POS: 普通 ToolBlock 的稳定头部，不渲染展开明细。
+ */
 import type { HTMLAttributes, KeyboardEventHandler } from "react";
 
 import { cn } from "@/shared/ui/class-name";
@@ -59,6 +64,7 @@ export function ToolBlockHeader({
     >
       <ToolSemanticIcon model={model} />
       <ToolBlockHeaderContent
+        detailText={isExpanded ? null : model.collapsedDetailText}
         liveStatusText={model.status === "running" ? model.liveStatusText : null}
         metaText={waitingForPermission
           ? model.waitingActionHint
@@ -123,10 +129,12 @@ function ToolSemanticIcon({ model }: { model: ToolBlockViewModel }) {
 }
 
 function ToolBlockHeaderContent({
+  detailText,
   liveStatusText,
   metaText,
   model,
 }: {
+  detailText: string | null;
   liveStatusText: string | null;
   metaText: string | null;
   model: ToolBlockViewModel;
@@ -146,7 +154,7 @@ function ToolBlockHeaderContent({
         {model.toolTitle}
       </span>
       <ToolStatusText model={model} />
-      <ToolDetailText text={model.collapsedDetailText} />
+      <ToolDetailText text={detailText} />
       <OptionalLiveStatus text={liveStatusText} />
       <OptionalMetaText text={metaText} />
     </div>

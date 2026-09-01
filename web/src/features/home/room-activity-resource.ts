@@ -1,7 +1,7 @@
 /**
- * INPUT: chat container、精确 Conversation/Session source 与执行/交互生命周期。
- * OUTPUT: 以 Room ID 为外部键、内部按 source 隔离并集后的侧栏活动快照。
- * POS: Home transient activity store；禁止持久目录或其他 source 的终态覆盖仍在运行的会话。
+ * INPUT: chat container、精确 Conversation/Session source、执行/交互生命周期与 owner reset。
+ * OUTPUT: 以 Room ID 为外部键、内部按 source 隔离并集且跨 owner 清空的侧栏活动快照。
+ * POS: Home transient activity store；禁止持久目录、旧 owner 或其他 source 的终态覆盖当前会话。
  */
 import { useSyncExternalStore } from "react";
 
@@ -200,12 +200,21 @@ export function pruneRoomActivity(roomIds: ReadonlySet<string>): void {
 
 function subscribe(listener: () => void): () => void {
   listeners.add(listener);
-  return () => listeners.delete(listener);
+  return () => {
+    listeners.delete(listener);
+  };
 }
 
 /** 非 React 消费者读取当前 Room 活动态，测试和侧栏投影共用同一快照。 */
 export function getRoomActivity(): ReadonlyMap<string, RoomActivityStatus> {
   return roomActivitySnapshot;
+}
+
+/** Auth owner 变化时同步清空旧连接留下的全部瞬时活动。 */
+export function resetRoomActivityOwnerScope(): void {
+  activeRoundKeysByRoom.clear();
+  pendingInteractionIdsByRoom.clear();
+  publishRoomActivity();
 }
 
 function writeRoundActivity(

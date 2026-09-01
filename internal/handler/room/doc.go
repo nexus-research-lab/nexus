@@ -4,6 +4,7 @@
 //
 // 成员清单：
 //   - handlers.go：Handlers、房间路由与成员参与状态事件。
+//   - failure.go：Room 删除的提交证据与 FailureCore 映射。
 //   - conversation.go：房间会话 handler。
 //   - agent_private_domain.go：Agent 私域线程列表 handler。
 //   - subagent_task.go：房间内子任务 handler。

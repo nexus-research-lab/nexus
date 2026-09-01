@@ -4,8 +4,11 @@
  * POS: Loop picker 的内容投影，不维护选择器生命周期。
  */
 import type { ReactNode } from "react";
+import { RotateCcw } from "lucide-react";
 
+import type { ResourceFailure } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 import type { LoopCatalogItem } from "@/types/capability/loop";
 
 import {
@@ -17,25 +20,77 @@ import { LoopPickerItem } from "./loop-picker-item";
 export function LoopPickerContent({
   busySlug,
   error,
+  hasCatalogItems,
+  hasSnapshot,
   isLoading,
   loops,
+  onClearFilters,
+  onRetry,
   onSelect,
 }: {
   busySlug: string | null;
-  error: string | null;
+  error: ResourceFailure | null;
+  hasCatalogItems: boolean;
+  hasSnapshot: boolean;
   isLoading: boolean;
   loops: LoopCatalogItem[];
+  onClearFilters: () => void;
+  onRetry: () => void;
   onSelect: (loop: LoopCatalogItem) => void | Promise<void>;
 }) {
   const { t } = useI18n();
   const kind = projectLoopPickerContentKind({
+    accessBlocked: Boolean(error?.access),
     error,
+    hasSnapshot,
     isLoading,
     loopCount: loops.length,
   });
   const content: Record<LoopPickerContentKind, ReactNode> = {
-    empty: <LoopPickerMessage message={t("composer.loop_picker_empty")} />,
-    error: <LoopPickerMessage destructive message={error ?? ""} />,
+    empty: (
+      <UiResourceState
+        className="min-h-48"
+        impact={hasCatalogItems ? t("state.filter_impact") : undefined}
+        nextStep={hasCatalogItems
+          ? t("state.clear_filters_next_step")
+          : t("state.retry_next_step")}
+        primaryAction={hasCatalogItems ? {
+          label: t("state.clear_filters"),
+          onClick: onClearFilters,
+        } : {
+          icon: <RotateCcw className="h-3.5 w-3.5" />,
+          label: t("state.retry"),
+          onClick: onRetry,
+        }}
+        size="sm"
+        state="empty"
+        title={t("composer.loop_picker_empty")}
+        variant="plain"
+      />
+    ),
+    error: error ? (
+      <UiResourceState
+        className="min-h-48"
+        description={error.message}
+        impact={t(error.access
+          ? "state.access_failure_impact"
+          : "state.read_failure_impact")}
+        nextStep={t(error.access
+          ? "state.permission_next_step"
+          : "state.retry_next_step")}
+        primaryAction={{
+          icon: <RotateCcw className="h-3.5 w-3.5" />,
+          label: t("state.retry"),
+          onClick: onRetry,
+        }}
+        size="sm"
+        state="error"
+        title={t(error.access
+          ? "state.permission_title"
+          : "composer.loop_picker_failed")}
+        variant="plain"
+      />
+    ) : null,
     list: (
       <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto rounded-[10px] border border-(--divider-subtle-color)">
         <div className="divide-y divide-(--divider-subtle-color)">
@@ -50,22 +105,38 @@ export function LoopPickerContent({
         </div>
       </div>
     ),
-    loading: <LoopPickerMessage message={t("composer.loop_picker_loading")} />,
+    loading: (
+      <UiResourceState
+        className="min-h-48"
+        size="sm"
+        state="loading"
+        title={t("composer.loop_picker_loading")}
+        variant="plain"
+      />
+    ),
   };
-  return content[kind];
-}
-
-function LoopPickerMessage({
-  destructive = false,
-  message,
-}: {
-  destructive?: boolean;
-  message: string;
-}) {
-  const tone = destructive ? "text-(--destructive)" : "text-(--text-muted)";
+  const staleFailure = error && hasSnapshot && !error.access;
   return (
-    <div className={`py-10 text-center text-sm ${tone}`}>
-      {message}
-    </div>
+    <>
+      {staleFailure ? (
+        <UiResourceState
+          className="min-h-0 py-3"
+          description={error.message}
+          impact={t("state.stale_snapshot_impact")}
+          nextStep={t("state.retry_next_step")}
+          primaryAction={{
+            icon: <RotateCcw className="h-3.5 w-3.5" />,
+            label: t("state.retry"),
+            onClick: onRetry,
+          }}
+          role="status"
+          size="sm"
+          state="error"
+          title={t("composer.loop_picker_failed")}
+          variant="plain"
+        />
+      ) : null}
+      {content[kind]}
+    </>
   );
 }

@@ -1,6 +1,6 @@
 /**
  * INPUT: Automation HTTP/WS 的任务配置线格式。
- * OUTPUT: 执行目标、独立结果 Session/Room 回复 Agent 与任务写操作类型。
+ * OUTPUT: 执行目标、独立结果 Session/Room 回复 Agent、durable 删除态与任务写操作类型。
  * POS: Web 侧 ScheduledTask 配置协议镜像；运行记录和执行结果由 `run.ts` 持有。
  */
 
@@ -12,6 +12,7 @@ export type ScheduledTaskSourceKind = "user_page" | "agent" | "cli" | "system";
 export type ScheduledTaskSourceContextType = "agent" | "room" | "chat";
 export type ScheduledTaskOverlapPolicy = "skip" | "allow";
 export type ScheduledTaskExecutionKind = "agent" | "script";
+export type ScheduledTaskDeletionState = "deleting" | "review_required";
 export type ScheduledTaskSessionBindingState = "ready" | "rebind_required";
 export type ScheduledTaskSessionBindingIssue = "execution" | "delivery";
 export type ScheduledTaskPermissionMode =
@@ -117,6 +118,8 @@ export interface ApiScheduledTask {
   failure_streak?: number | null;
   last_error?: string | null;
   last_delivery_status?: string | null;
+  /** 删除已进入自动收尾或人工处理；内部 token/时间不对 Web 暴露。 */
+  deletion_state?: ScheduledTaskDeletionState | string;
   permission_policy?: {
     version: number;
     revision: number;
@@ -161,6 +164,8 @@ export interface ListScheduledTasksParams {
 }
 
 export interface CreateScheduledTaskParams {
+  /** 页面单次创建意图的稳定幂等标识；不是 HTTP 请求跟踪 ID。 */
+  request_id?: string;
   name: string;
   agent_id: string;
   schedule: ScheduledTaskSchedule;
@@ -194,6 +199,7 @@ export interface UpdateScheduledTaskParams {
 
 export interface UpdateScheduledTaskStatusParams {
   enabled: boolean;
+  expected_configuration_version?: number;
 }
 
 export interface RecoverScheduledTaskRunParams {
@@ -207,4 +213,21 @@ export interface DeleteScheduledTaskResponse {
   active_run_id?: string | null;
   cancelled_run_id?: string | null;
   cancelled_active_run?: boolean;
+}
+
+export type ScheduledTaskCreateRequestStatus =
+  | "committed"
+  | "gone"
+  | "not_found";
+
+export interface ApiScheduledTaskCreateRequestResult {
+  request_id: string;
+  status: ScheduledTaskCreateRequestStatus;
+  task?: ApiScheduledTask | null;
+}
+
+export interface ScheduledTaskCreateRequestResult {
+  request_id: string;
+  status: ScheduledTaskCreateRequestStatus;
+  task?: ScheduledTaskItem | null;
 }

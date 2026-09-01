@@ -211,7 +211,9 @@ export function SubscriptionAccountView({
   onSave,
 }: SubscriptionAccountViewProps) {
   const { t } = useI18n();
-  const disabled = model.loading || model.mutationPending;
+  const disabled = model.loading
+    || model.mutationPending
+    || model.mutationsBlocked;
   return (
     <>
       <SubscriptionSummary summary={model.summary} />

@@ -7,6 +7,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 const (
@@ -52,7 +53,12 @@ func DesktopSessionTokenMiddleware(api *API, token string, apiPrefix string) fun
 					"path", request.URL.Path,
 					"user_agent", request.UserAgent(),
 				)
-				api.WriteFailure(writer, http.StatusUnauthorized, "桌面会话 token 无效")
+				api.WriteError(writer, request, http.StatusUnauthorized, FailureSpec{
+					Code:     "auth.desktop_session_invalid",
+					Category: protocol.FailureCategoryAuthentication,
+					Effect:   failureEffectBeforeHandler(request),
+					Detail:   "桌面登录状态已失效",
+				})
 				return
 			}
 			ctx := authctx.WithInteractiveHumanEvidence(

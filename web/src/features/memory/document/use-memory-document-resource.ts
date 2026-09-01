@@ -1,6 +1,10 @@
+// INPUT: exact Memory scope、HTTP 读取和带 revision 的 workspace live 状态。
+// OUTPUT: 旧请求隔离的读取/刷新，编辑期间的并发变更转为冲突。
+// POS: Memory 读资源边界；实时内容不覆盖编辑草稿。
 import { useCallback, useEffect, useRef } from "react";
 
 import { getWorkspaceFileContentApi } from "@/lib/api/agent/agent-api";
+import { getResourceFailure } from "@/lib/error-message";
 import type { WorkspaceLiveFileState } from "@/types/app/workspace-live";
 
 import type {
@@ -13,28 +17,34 @@ import {
 } from "./memory-document-model";
 
 interface UseMemoryDocumentResourceOptions {
+  accessBlocked: boolean;
   commit: MemoryDocumentCommit;
+  contentRevision: string | null;
   editing: boolean;
   fallbackLoadError: string;
   liveState?: WorkspaceLiveFileState;
+  saving: boolean;
   scopeKey: string;
   scopeRef: MemoryDocumentScopeRef;
 }
 
 export function useMemoryDocumentResource({
+  accessBlocked,
   commit,
+  contentRevision,
   editing,
   fallbackLoadError,
   liveState,
+  saving,
   scopeKey,
   scopeRef,
 }: UseMemoryDocumentResourceOptions) {
   const requestSequenceRef = useRef(0);
-  const liveVersionRef = useRef(liveState?.version ?? 0);
-  liveVersionRef.current = liveState?.version ?? 0;
+  const liveVersionRef = useRef(completedLiveVersion(liveState));
+  liveVersionRef.current = completedLiveVersion(liveState);
   const consumedLiveVersionRef = useRef<ConsumedMemoryLiveVersion>({
     scopeKey,
-    version: liveState?.version ?? 0,
+    version: completedLiveVersion(liveState),
   });
 
   const reload = useCallback(async () => {
@@ -47,7 +57,9 @@ export function useMemoryDocumentResource({
     commit(scope.key, (current) => ({
       ...current,
       isLoading: true,
-      resourceError: null,
+      resourceError: current.resourceError?.access
+        ? current.resourceError
+        : null,
     }));
     try {
       const response = await getWorkspaceFileContentApi(scope.agentId, scope.document.path);
@@ -60,6 +72,10 @@ export function useMemoryDocumentResource({
         draft: current.editing ? current.draft : response.content,
         isLoading: false,
         resourceError: null,
+        revision: response.revision || null,
+        saveIssue: current.saveIssue?.kind === "conflict"
+          ? { kind: "conflict", phase: "review" }
+          : current.saveIssue,
       }));
     } catch (error) {
       if (!isCurrentRequest(scopeRef, scope.key, requestSequenceRef, requestSequence)) {
@@ -68,7 +84,7 @@ export function useMemoryDocumentResource({
       commit(scope.key, (current) => ({
         ...current,
         isLoading: false,
-        resourceError: error instanceof Error ? error.message : fallbackLoadError,
+        resourceError: getResourceFailure(error, fallbackLoadError),
       }));
     }
   }, [commit, fallbackLoadError, scopeKey, scopeRef]);
@@ -88,31 +104,75 @@ export function useMemoryDocumentResource({
   }, [reload, scopeKey]);
 
   useEffect(() => {
+    if (accessBlocked) {
+      consumedLiveVersionRef.current = {
+        scopeKey,
+        version: liveState?.version ?? liveVersionRef.current,
+      };
+      return;
+    }
     const intent = resolveMemoryLiveUpdateIntent({
       consumed: consumedLiveVersionRef.current,
+      contentRevision,
       editing,
       liveState,
+      saving,
       scopeKey,
     });
     if (intent.kind === "ignore") {
       return;
     }
     consumedLiveVersionRef.current = { scopeKey, version: intent.version };
+    if (intent.kind === "consume") {
+      return;
+    }
+    if (intent.kind === "conflict") {
+      commit(scopeKey, (current) => current.saveIssue?.kind === "outcome_unknown"
+        ? current
+        : {
+            ...current,
+            commandError: null,
+            saveIssue: { kind: "conflict", phase: "reload_required" },
+          });
+      return;
+    }
     if (intent.kind === "apply") {
       requestSequenceRef.current += 1;
-      commit(scopeKey, (current) => ({
-        ...current,
-        content: intent.content,
-        draft: intent.content,
-        isLoading: false,
-        resourceError: null,
-      }));
+      commit(scopeKey, (current) => current.resourceError?.access
+        ? current
+        : {
+            ...current,
+            content: intent.content,
+            draft: intent.content,
+            isLoading: false,
+            resourceError: null,
+            revision: intent.revision,
+            saveIssue: null,
+          });
       return;
     }
     void reload();
-  }, [commit, editing, liveState, reload, scopeKey]);
+  }, [
+    accessBlocked,
+    commit,
+    contentRevision,
+    editing,
+    liveState,
+    reload,
+    saving,
+    scopeKey,
+  ]);
 
   return { reload };
+}
+
+function completedLiveVersion(liveState?: WorkspaceLiveFileState): number {
+  if (!liveState) {
+    return 0;
+  }
+  return liveState.status === "updated"
+    ? liveState.version
+    : Math.max(0, liveState.version - 1);
 }
 
 function isCurrentRequest(

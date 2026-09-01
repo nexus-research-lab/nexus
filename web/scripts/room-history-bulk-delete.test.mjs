@@ -397,7 +397,7 @@ test("主对话只在它是最后一个本地会话时禁止删除", async () =>
   );
 });
 
-test("批量删除串行执行并保留失败项供重试", async () => {
+test("批量删除串行执行并保留未确认项供核对", async () => {
   const { deleteRoomHistoryConversationBatch } = await server.ssrLoadModule(
     "/src/features/conversation/room/surface/history/room-history-bulk-delete.ts",
   );

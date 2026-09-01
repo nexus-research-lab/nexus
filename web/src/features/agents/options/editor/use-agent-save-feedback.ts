@@ -20,11 +20,20 @@ export function useAgentSaveFeedback(scopeKey: string) {
     setFeedback(null);
   }, [clearTimer, setFeedback]);
 
+  const clearForEdit = useCallback(() => {
+    clearTimer();
+    setFeedback((current) => current?.tone !== "success" && current?.blocksRepeat
+      ? current
+      : null);
+  }, [clearTimer, setFeedback]);
+
   useEffect(() => clearTimer, [clearTimer, scopeKey]);
 
-  const showError = useCallback((message: string) => {
+  const showFailure = useCallback((failure: Extract<SaveFeedback, {
+    tone: "error" | "warning";
+  }>) => {
     clear();
-    setFeedback({ message, tone: "error" });
+    setFeedback(failure);
   }, [clear, setFeedback]);
 
   const showSuccess = useCallback((message: string) => {
@@ -36,5 +45,5 @@ export function useAgentSaveFeedback(scopeKey: string) {
     }, 1_800);
   }, [clear, setFeedback]);
 
-  return { clear, feedback, showError, showSuccess };
+  return { clear, clearForEdit, feedback, showFailure, showSuccess };
 }

@@ -1,3 +1,7 @@
+// INPUT: Update-check reasons, release metadata, download progress, and verified package facts.
+// OUTPUT: Stage-specific update behavior and safe native feedback with raw causes kept in diagnostics.
+// POS: Windows update coordinator; check, download/verification, and installer launch stay distinct.
+
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
@@ -266,7 +270,7 @@ internal sealed class DesktopUpdateChecker
             {
                 LastAutomaticCheckAt = previousState.LastAutomaticCheckAt,
                 LastResult = "failed",
-                LastErrorMessage = exception.Message,
+                LastErrorMessage = DesktopFailureCopy.UpdateCheckMessage,
             });
             startupTimeline.Mark("update_check.failed", new Dictionary<string, string>
             {
@@ -275,10 +279,12 @@ internal sealed class DesktopUpdateChecker
             });
             if (showsUpToDateAlert)
             {
-                await ShowCheckFailedAsync(owner, exception);
+                await ShowCheckFailedAsync(owner);
             }
 
-            return DesktopUpdateCheckResult.Failed(currentVersion, exception.Message);
+            return DesktopUpdateCheckResult.Failed(
+                currentVersion,
+                DesktopFailureCopy.UpdateCheckMessage);
         }
     }
 
@@ -357,7 +363,7 @@ internal sealed class DesktopUpdateChecker
             {
                 ["error"] = exception.Message,
             });
-            await ShowCheckFailedAsync(owner, exception);
+            await ShowCheckFailedAsync(owner);
         }
         finally
         {
@@ -446,7 +452,7 @@ internal sealed class DesktopUpdateChecker
                 $"最新版本：{latest.DisplayText}")));
     }
 
-    private async Task ShowCheckFailedAsync(System.Windows.Window owner, Exception exception)
+    private async Task ShowCheckFailedAsync(System.Windows.Window owner)
     {
         if (owner.Dispatcher.HasShutdownStarted)
         {
@@ -455,8 +461,8 @@ internal sealed class DesktopUpdateChecker
 
         await owner.Dispatcher.InvokeAsync(() => NexusDialogWindow.ShowMessage(
             owner,
-            "Nexus 检查更新失败",
-            exception.Message));
+            DesktopFailureCopy.UpdateCheckTitle,
+            DesktopFailureCopy.UpdateCheckMessage));
     }
 
     private UpdatePromptAction PromptForUpdate(System.Windows.Window owner, DesktopReleaseInfo latest)
@@ -535,7 +541,7 @@ internal sealed class DesktopUpdateChecker
                 ["latest_version"] = latest.Version,
                 ["error"] = exception.Message,
             });
-            await ShowDownloadFailedAsync(owner, latest, exception);
+            await ShowDownloadFailedAsync(owner, latest);
         }
     }
 
@@ -673,8 +679,8 @@ internal sealed class DesktopUpdateChecker
 
         bool shouldOpenRelease = await owner.Dispatcher.InvokeAsync(() => NexusDialogWindow.Confirm(
             owner,
-            "Nexus 更新暂不可自动下载",
-            "当前 Release 缺少可自动校验的 Windows 安装器或 sha256 文件。可以打开下载页手动处理。",
+            DesktopFailureCopy.AutomaticUpdateUnavailableTitle,
+            DesktopFailureCopy.AutomaticUpdateUnavailableMessage,
             "打开下载页"));
         if (shouldOpenRelease)
         {
@@ -684,8 +690,7 @@ internal sealed class DesktopUpdateChecker
 
     private async Task ShowDownloadFailedAsync(
         System.Windows.Window owner,
-        DesktopReleaseInfo latest,
-        Exception exception)
+        DesktopReleaseInfo latest)
     {
         if (owner.Dispatcher.HasShutdownStarted)
         {
@@ -694,8 +699,8 @@ internal sealed class DesktopUpdateChecker
 
         bool shouldOpenRelease = await owner.Dispatcher.InvokeAsync(() => NexusDialogWindow.Confirm(
             owner,
-            "Nexus 更新下载失败",
-            $"更新下载或校验失败：{exception.Message}{Environment.NewLine}{Environment.NewLine}可以打开 Release 页面手动下载。",
+            DesktopFailureCopy.UpdateIncompleteTitle,
+            DesktopFailureCopy.UpdateIncompleteMessage,
             "打开下载页"));
         if (shouldOpenRelease)
         {
@@ -734,18 +739,18 @@ internal sealed class DesktopUpdateChecker
         }
         if (!string.IsNullOrWhiteSpace(releaseNotes))
         {
-            lines.Add("更新内容请在下方查看，完整内容可打开 Release 页面。");
+            lines.Add("更新内容显示在下方，完整内容可打开官方下载页查看。");
         }
 
         lines.Add(string.Empty);
         if (latest.CanDownloadInstaller)
         {
-            lines.Add("选择“下载并更新”将下载安装器和 sha256 文件，校验通过后再询问是否启动安装。");
-            lines.Add("选择“打开下载页”将打开 Release 页面；选择“稍后”暂不处理。");
+            lines.Add("选择“下载并更新”后，Nexus 会先验证更新包安全性，再询问是否退出并安装。");
+            lines.Add("也可以打开官方下载页手动安装，或稍后再处理。");
         }
         else
         {
-            lines.Add("当前 Release 缺少 Windows 安装器或 sha256 文件。选择“打开下载页”手动处理。");
+            lines.Add("这个版本暂时不能通过应用内更新。可以打开官方下载页手动安装。");
         }
         return string.Join(Environment.NewLine, lines);
     }
@@ -772,7 +777,7 @@ internal sealed class DesktopUpdateChecker
         }
 
         string clipped = normalized[..ReleaseNotesMaxCharacters].TrimEnd();
-        return $"{clipped}{Environment.NewLine}{Environment.NewLine}...{Environment.NewLine}完整更新内容请打开 Release 页面查看。";
+        return $"{clipped}{Environment.NewLine}{Environment.NewLine}...{Environment.NewLine}完整更新内容可在官方下载页查看。";
     }
 
     private UpdateCheckState LoadState()

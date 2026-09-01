@@ -1,3 +1,6 @@
+// INPUT: API 原子写入或 watcher 已稳定的 workspace 正文。
+// OUTPUT: 顺序 live 写入事件；终态携带与 HTTP 一致的内容 revision。
+// POS: workspace live 写入投影；不参与文件提交或并发决策。
 package workspace
 
 import (
@@ -55,6 +58,7 @@ func (m *liveManager) EmitAPIWrite(agentID string, relativePath string, content 
 	m.dispatchListeners(listeners, cloneLiveEvent(baseEvent, func(event *LiveEvent) {
 		event.Type = LiveEventFileWriteEnd
 		event.ContentSnapshot = cloneStringPointer(contentPointer)
+		event.ContentRevision = workspaceFileRevision([]byte(content))
 		event.DiffStats = buildDiffStats(before, contentPointer)
 	}))
 }
@@ -141,6 +145,7 @@ func (m *liveManager) flushSettledWrites(agentID string) time.Duration {
 				Version:         writeState.Version,
 				Source:          LiveSourceAgent,
 				ContentSnapshot: cloneStringPointer(writeState.Current),
+				ContentRevision: liveContentRevision(writeState.Current),
 				DiffStats:       buildDiffStats(writeState.BeforeContent, writeState.Current),
 				Timestamp:       now.Format(time.RFC3339Nano),
 			},
@@ -152,4 +157,11 @@ func (m *liveManager) flushSettledWrites(agentID string) time.Duration {
 		m.dispatchListeners(item.Listeners, item.Event)
 	}
 	return nextDelay
+}
+
+func liveContentRevision(content *string) string {
+	if content == nil {
+		return ""
+	}
+	return workspaceFileRevision([]byte(*content))
 }

@@ -1,5 +1,5 @@
 // INPUT: 用户级 Echo 开关、内部策略、DM 空闲锚点与后台执行状态。
-// OUTPUT: Echo 内部策略、DM 空闲锚点与后台执行状态。
+// OUTPUT: 带 Preferences revision 的 Echo 设置、内部策略、DM 空闲锚点与后台执行状态。
 // POS: Echo 的领域合同；不依赖 HTTP、数据库或 runtime 实现。
 package echo
 
@@ -26,7 +26,8 @@ var ErrAttemptNotAdmitted = errors.New("Echo 尝试已失效")
 
 // Settings 是用户可见的 Echo 全局开关。
 type Settings struct {
-	Enabled bool `json:"enabled"`
+	Enabled bool  `json:"enabled"`
+	Version int64 `json:"version"`
 }
 
 // Policy 表示 Echo 使用的内部主动跟进策略。

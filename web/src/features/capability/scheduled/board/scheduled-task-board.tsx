@@ -8,15 +8,16 @@
 import type { LucideIcon } from "lucide-react";
 import {
   BellRing,
-  CircleAlert,
   ClipboardList,
+  LoaderCircle,
   MonitorCheck,
   Plus,
   RefreshCw,
 } from "lucide-react";
 
-import { UiButton } from "@/shared/ui/button/button";
+import type { ResourceFailure } from "@/lib/error-message";
 import { cn } from "@/shared/ui/class-name";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiSkeleton } from "@/shared/ui/display/skeleton";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
@@ -26,9 +27,17 @@ import {
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 import type { AutomationPermissionDecision } from "@/types/capability/scheduled-task/permission";
 
-import type { ScheduledTaskPendingCommands } from "../controller/scheduled-task-directory-model";
+import type {
+  ScheduledTaskPendingCommands,
+  ScheduledTaskUnconfirmedCommands,
+} from "../controller/scheduled-task-directory-model";
+import {
+  hasScheduledTaskCommandForJob,
+  isScheduledTaskMutationBlocked,
+} from "../controller/scheduled-task-directory-model";
 import type { TaskDialogCreatePreset } from "../dialog/scheduled-task-dialog-types";
 import { ScheduledTaskCard } from "./scheduled-task-card";
+import { getScheduledTaskBoardState } from "./scheduled-task-board-state";
 import {
   buildScheduledTaskBoard,
   buildScheduledTaskSuggestions,
@@ -37,11 +46,14 @@ import {
 } from "./scheduled-task-board-model";
 
 interface ScheduledTaskBoardProps {
-  errorMessage: string | null;
+  failure: ResourceFailure | null;
+  hasSnapshot: boolean;
   isLoading: boolean;
+  isPermissionLoading: boolean;
   items: ScheduledTaskItem[];
   onCreate: () => void;
   onCreateFromPreset: (preset: TaskDialogCreatePreset) => void;
+  onConfirmDeletionStopped: (task: ScheduledTaskItem) => void;
   onDelete: (task: ScheduledTaskItem) => void;
   onEdit: (task: ScheduledTaskItem) => void;
   onOpenHistory: (task: ScheduledTaskItem) => void;
@@ -55,13 +67,9 @@ interface ScheduledTaskBoardProps {
   onRunNow: (task: ScheduledTaskItem) => void;
   onToggleEnabled: (task: ScheduledTaskItem) => void;
   pending: ScheduledTaskPendingCommands;
+  permissionFailure: ResourceFailure | null;
+  unconfirmed: ScheduledTaskUnconfirmedCommands;
 }
-
-type ScheduledTaskBoardState =
-  | { kind: "loading" }
-  | { kind: "error"; message: string }
-  | { kind: "empty" }
-  | { columns: ScheduledTaskBoardColumn[]; kind: "ready" };
 
 const COLUMN_TONE_CLASS_NAMES: Record<
   ScheduledTaskBoardColumn["tone"],
@@ -79,29 +87,13 @@ const SUGGESTION_ICONS: Record<ScheduledTaskSuggestion["icon"], LucideIcon> = {
   review: ClipboardList,
 };
 
-function getScheduledTaskBoardState({
-  errorMessage,
-  isLoading,
-  items,
-}: Pick<ScheduledTaskBoardProps, "errorMessage" | "isLoading" | "items">): ScheduledTaskBoardState {
-  if (isLoading) {
-    return { kind: "loading" };
-  }
-  if (errorMessage) {
-    return { kind: "error", message: errorMessage };
-  }
-  if (items.length === 0) {
-    return { kind: "empty" };
-  }
-  return { columns: buildScheduledTaskBoard(items), kind: "ready" };
-}
-
 function ScheduledTaskLoadingBoard() {
+  const { t } = useI18n();
   return (
     <div className={cn(
       WORKSPACE_CONTENT_BLEED_CLASS_NAME,
       "soft-scrollbar flex min-h-0 flex-1 overflow-x-auto overflow-y-hidden",
-    )}>
+    )} aria-label={t("capability.scheduled_loading")} aria-live="polite" role="status">
       <div className="grid h-full min-w-[1080px] flex-1 grid-cols-4 gap-3">
         {Array.from({ length: 4 }, (_, columnIndex) => (
           <div
@@ -121,26 +113,34 @@ function ScheduledTaskLoadingBoard() {
 }
 
 function ScheduledTaskErrorState({
-  message,
+  failure,
+  isLoading,
   onRefresh,
 }: {
-  message: string;
+  failure: ResourceFailure;
+  isLoading: boolean;
   onRefresh: () => void;
 }) {
   const { t } = useI18n();
+  const accessBlocked = Boolean(failure.access);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col items-center justify-center border-y border-(--divider-subtle-color) px-6 text-center">
-      <CircleAlert className="h-8 w-8 text-(--destructive)" />
-      <h2 className="mt-4 text-md font-semibold text-(--text-strong)">
-        {t("capability.scheduled_load_failed")}
-      </h2>
-      <p className="mt-1 max-w-md text-compact leading-5 text-(--text-muted)">{message}</p>
-      <UiButton className="mt-4" onClick={onRefresh} size="sm" tone="primary" variant="surface">
-        <RefreshCw className="h-3.5 w-3.5" />
-        {t("capability.reload")}
-      </UiButton>
-    </div>
+    <UiResourceState
+      className="min-h-0 flex-1 border-y border-(--divider-subtle-color)"
+      description={failure.message}
+      impact={t(accessBlocked ? "state.access_failure_impact" : "state.read_failure_impact")}
+      nextStep={t(accessBlocked ? "state.permission_next_step" : "state.retry_next_step")}
+      primaryAction={{
+        busy: isLoading,
+        busyLabel: t("capability.scheduled_refreshing"),
+        icon: <RefreshCw className="h-3.5 w-3.5" />,
+        label: t("state.retry"),
+        onClick: onRefresh,
+      }}
+      size="sm"
+      state="error"
+      title={t(accessBlocked ? "state.permission_title" : "capability.scheduled_load_failed")}
+    />
   );
 }
 
@@ -166,6 +166,9 @@ function ScheduledTaskSuggestions({
         >
           {t("capability.scheduled_quick_start_title")}
         </h2>
+        <p className="mt-1 text-compact leading-5 text-(--text-muted)">
+          {t("capability.scheduled_empty_description")}
+        </p>
       </div>
 
       <div className={cn(WORKSPACE_CATALOG_GRID_CLASS_NAME, "mt-4 gap-2")}>
@@ -215,24 +218,30 @@ function ScheduledTaskBoardColumnView({
   column,
   onDelete,
   onEdit,
+  onConfirmDeletionStopped,
   onOpenHistory,
   onOpenConnector,
   onPermissionDecision,
   onPermissionResume,
+  onRefresh,
   onRunNow,
   onToggleEnabled,
   pending,
+  unconfirmed,
 }: {
   column: ScheduledTaskBoardColumn;
   onDelete: ScheduledTaskBoardProps["onDelete"];
   onEdit: ScheduledTaskBoardProps["onEdit"];
+  onConfirmDeletionStopped: ScheduledTaskBoardProps["onConfirmDeletionStopped"];
   onOpenHistory: ScheduledTaskBoardProps["onOpenHistory"];
   onOpenConnector: ScheduledTaskBoardProps["onOpenConnector"];
   onPermissionDecision: ScheduledTaskBoardProps["onPermissionDecision"];
   onPermissionResume: ScheduledTaskBoardProps["onPermissionResume"];
+  onRefresh: ScheduledTaskBoardProps["onRefresh"];
   onRunNow: ScheduledTaskBoardProps["onRunNow"];
   onToggleEnabled: ScheduledTaskBoardProps["onToggleEnabled"];
   pending: ScheduledTaskPendingCommands;
+  unconfirmed: ScheduledTaskUnconfirmedCommands;
 }) {
   return (
     <section
@@ -261,16 +270,43 @@ function ScheduledTaskBoardColumnView({
           {column.items.map((task) => (
             <ScheduledTaskCard
               isDeleting={pending.get("delete")?.has(task.job_id) ?? false}
-              isPermissionPending={pending.get("permission")?.has(task.job_id) ?? false}
+              isDeleteUnconfirmed={unconfirmed.get("delete")?.has(task.job_id) ?? false}
+              isDeletionReviewPending={[
+                pending,
+                unconfirmed,
+              ].some((state) => hasScheduledTaskCommandForJob(
+                state,
+                "confirmDeletionStopped",
+                task.job_id,
+              ))}
+              isMutationBlocked={isScheduledTaskMutationBlocked(
+                pending,
+                unconfirmed,
+                task.job_id,
+              )}
+              isPermissionPending={hasScheduledTaskCommandForJob(
+                pending,
+                "permission",
+                task.job_id,
+              )}
+              isPermissionUnconfirmed={hasScheduledTaskCommandForJob(
+                unconfirmed,
+                "permission",
+                task.job_id,
+              )}
               isRunning={pending.get("run")?.has(task.job_id) ?? false}
+              isRunUnconfirmed={unconfirmed.get("run")?.has(task.job_id) ?? false}
               isToggling={pending.get("toggle")?.has(task.job_id) ?? false}
+              isToggleUnconfirmed={unconfirmed.get("toggle")?.has(task.job_id) ?? false}
               key={task.job_id}
               onDelete={onDelete}
               onEdit={onEdit}
+              onConfirmDeletionStopped={onConfirmDeletionStopped}
               onOpenHistory={onOpenHistory}
               onOpenConnector={onOpenConnector}
               onPermissionDecision={onPermissionDecision}
               onPermissionResume={onPermissionResume}
+              onRefresh={onRefresh}
               onRunNow={onRunNow}
               onToggleEnabled={onToggleEnabled}
               task={task}
@@ -287,7 +323,7 @@ function ScheduledTaskBoardColumnView({
 function ScheduledTaskReadyBoard({
   columns,
   ...props
-}: Omit<ScheduledTaskBoardProps, "errorMessage" | "isLoading" | "items" | "onCreate" | "onCreateFromPreset" | "onRefresh"> & {
+}: Omit<ScheduledTaskBoardProps, "isLoading" | "items" | "onCreate" | "onCreateFromPreset"> & {
   columns: ScheduledTaskBoardColumn[];
 }) {
   return (
@@ -303,13 +339,16 @@ function ScheduledTaskReadyBoard({
               key={column.id}
               onDelete={props.onDelete}
               onEdit={props.onEdit}
+              onConfirmDeletionStopped={props.onConfirmDeletionStopped}
               onOpenHistory={props.onOpenHistory}
               onOpenConnector={props.onOpenConnector}
               onPermissionDecision={props.onPermissionDecision}
               onPermissionResume={props.onPermissionResume}
+              onRefresh={props.onRefresh}
               onRunNow={props.onRunNow}
               onToggleEnabled={props.onToggleEnabled}
               pending={props.pending}
+              unconfirmed={props.unconfirmed}
             />
           ))}
         </div>
@@ -319,20 +358,93 @@ function ScheduledTaskReadyBoard({
 }
 
 export function ScheduledTaskBoard(props: ScheduledTaskBoardProps) {
-  const state = getScheduledTaskBoardState(props);
-  if (state.kind === "loading") {
+  const { t } = useI18n();
+  const state = getScheduledTaskBoardState({
+    failure: props.failure,
+    hasSnapshot: props.hasSnapshot,
+    isLoading: props.isLoading,
+    itemCount: props.items.length,
+  });
+  if (state === "loading") {
     return <ScheduledTaskLoadingBoard />;
   }
-  if (state.kind === "error") {
-    return <ScheduledTaskErrorState message={state.message} onRefresh={props.onRefresh} />;
-  }
-  if (state.kind === "empty") {
+  if (state === "error" && props.failure) {
     return (
-      <ScheduledTaskSuggestions
-        onCreate={props.onCreate}
-        onSelect={props.onCreateFromPreset}
+      <ScheduledTaskErrorState
+        failure={props.failure}
+        isLoading={props.isLoading}
+        onRefresh={props.onRefresh}
       />
     );
   }
-  return <ScheduledTaskReadyBoard {...props} columns={state.columns} />;
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      {props.isLoading || props.isPermissionLoading ? (
+        <div
+          className="mb-2 flex items-center gap-2 text-xs text-(--text-muted)"
+          role="status"
+        >
+          <LoaderCircle className="h-3.5 w-3.5 motion-safe:animate-spin" />
+          {t(props.isLoading
+            ? "capability.scheduled_refreshing"
+            : "capability.scheduled_permission_refreshing")}
+        </div>
+      ) : null}
+      {props.failure && props.hasSnapshot ? (
+        <UiResourceState
+          className="mb-3 min-h-0 py-3"
+          description={props.failure.message}
+          impact={t("state.stale_snapshot_impact")}
+          nextStep={t("state.retry_next_step")}
+          primaryAction={{
+            busy: props.isLoading,
+            busyLabel: t("capability.scheduled_refreshing"),
+            icon: <RefreshCw className="h-3.5 w-3.5" />,
+            label: t("state.retry"),
+            onClick: props.onRefresh,
+          }}
+          role="status"
+          size="sm"
+          state="error"
+          title={t("capability.scheduled_refresh_failed")}
+        />
+      ) : null}
+      {props.permissionFailure ? (
+        <UiResourceState
+          className="mb-3 min-h-0 py-3"
+          description={props.permissionFailure.message}
+          impact={t(props.permissionFailure.access
+            ? "capability.scheduled_permission_access_impact"
+            : "capability.scheduled_permission_stale_impact")}
+          nextStep={t(props.permissionFailure.access
+            ? "state.permission_next_step"
+            : "capability.scheduled_permission_stale_next_step")}
+          primaryAction={{
+            busy: props.isLoading || props.isPermissionLoading,
+            busyLabel: t("capability.scheduled_refreshing"),
+            icon: <RefreshCw className="h-3.5 w-3.5" />,
+            label: t("state.retry"),
+            onClick: props.onRefresh,
+          }}
+          role="status"
+          size="sm"
+          state="error"
+          title={t(props.permissionFailure.access
+            ? "capability.scheduled_permission_access_title"
+            : "capability.scheduled_permission_refresh_failed")}
+        />
+      ) : null}
+      {state === "empty" ? (
+        <ScheduledTaskSuggestions
+          onCreate={props.onCreate}
+          onSelect={props.onCreateFromPreset}
+        />
+      ) : (
+        <ScheduledTaskReadyBoard
+          {...props}
+          columns={buildScheduledTaskBoard(props.items)}
+        />
+      )}
+    </div>
+  );
 }

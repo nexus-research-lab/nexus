@@ -87,6 +87,18 @@ func (s *Service) SetEchoEnabled(
 	})
 }
 
+// SetEchoEnabledAtVersion 仅在 Preferences aggregate 仍为调用方读取的版本时保存主动跟进开关。
+func (s *Service) SetEchoEnabledAtVersion(
+	ctx context.Context,
+	ownerUserID string,
+	enabled bool,
+	expectedVersion int64,
+) (Preferences, error) {
+	return s.update(ctx, ownerUserID, &expectedVersion, func(Preferences) (UpdateRequest, error) {
+		return UpdateRequest{echoEnabled: &enabled}, nil
+	})
+}
+
 // UpdateAtVersion 仅在当前持久化 version 等于 expectedVersion 时合并并写入偏好。
 func (s *Service) UpdateAtVersion(
 	ctx context.Context,

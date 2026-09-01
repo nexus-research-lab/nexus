@@ -59,6 +59,8 @@ export function renderBootstrapError(message: string, strictMode: boolean): void
   renderRoot(
     <RootFailureScreen
       description={message}
+      impact="应用还没有完成启动；这个加载失败没有修改已有数据。"
+      nextStep="刷新页面重新加载运行时配置。"
       size="compact"
       title="运行时配置加载失败"
     />,
@@ -75,7 +77,9 @@ export function renderRecoveryScreen(reason: string, strictMode: boolean): void 
   markDesktopPerformance("react.recovery_render_begin");
   renderRoot(
     <RootFailureScreen
-      description={<>页面连续检测到空白状态：{reason}。请刷新页面恢复。</>}
+      description={<>页面连续检测到空白状态：{reason}。</>}
+      impact="当前界面无法继续显示；已经确认保存的内容不会因此被撤销。"
+      nextStep="刷新页面重新加载当前状态。"
       title="界面暂时无法显示"
     />,
     strictMode,

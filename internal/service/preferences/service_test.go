@@ -85,6 +85,49 @@ func TestDefaultPreferencesAcceptEditsByDefault(t *testing.T) {
 	}
 }
 
+func TestServicePersistsEchoEnabled(t *testing.T) {
+	service := NewService(config.Config{WorkspacePath: filepath.Join(t.TempDir(), "workspace")})
+
+	updated, err := service.SetEchoEnabled(context.Background(), "user/1", true)
+	if err != nil {
+		t.Fatalf("开启主动跟进失败: %v", err)
+	}
+	if !updated.EchoEnabled {
+		t.Fatalf("主动跟进未开启: %+v", updated)
+	}
+
+	loaded, err := service.Get(context.Background(), "user/1")
+	if err != nil {
+		t.Fatalf("读取主动跟进设置失败: %v", err)
+	}
+	if !loaded.EchoEnabled {
+		t.Fatalf("主动跟进未持久化: %+v", loaded)
+	}
+}
+
+func TestServiceSetEchoEnabledAtVersionRejectsStaleAggregate(t *testing.T) {
+	service := NewService(config.Config{WorkspacePath: filepath.Join(t.TempDir(), "workspace")})
+	base, err := service.Get(context.Background(), "user/1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	updated, err := service.SetEchoEnabledAtVersion(
+		context.Background(), "user/1", true, base.Version,
+	)
+	if err != nil || !updated.EchoEnabled || updated.Version <= base.Version {
+		t.Fatalf("updated=%+v err=%v", updated, err)
+	}
+	if _, err = service.SetEchoEnabledAtVersion(
+		context.Background(), "user/1", false, base.Version,
+	); !errors.Is(err, ErrVersionConflict) {
+		t.Fatalf("stale update error=%v, want ErrVersionConflict", err)
+	}
+	latest, err := service.Get(context.Background(), "user/1")
+	if err != nil || !latest.EchoEnabled || latest.Version != updated.Version {
+		t.Fatalf("latest=%+v err=%v", latest, err)
+	}
+}
+
 func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 	root := t.TempDir()
 	service := NewService(config.Config{WorkspacePath: filepath.Join(root, "workspace")})

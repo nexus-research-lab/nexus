@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Eye, FileWarning, LoaderCircle } from "lucide-react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { cn } from "@/shared/ui/class-name";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { fetchOfficePreviewBuffer } from "../office-preview-resource";
+import { OfficePreviewFailureState } from "../office-preview-fallbacks";
 import { parsePptx } from "./presentation-pptx-parser";
 import {
   type PresentationPreviewStatus,
@@ -27,14 +29,18 @@ export function PresentationFilePreview({
   onTogglePreviewFocus,
   path,
 }: WorkspaceFilePreviewProps) {
+  const { t } = useI18n();
   const cleanupUrlsRef = useRef<() => void>(() => undefined);
   const previewKey = `${agentId}\x1f${path}`;
   const [slides, setSlides] = useResettableState<PresentationSlide[]>([], previewKey);
   const [activeSlideIndex, setActiveSlideIndex] = useResettableState(0, previewKey);
   const [status, setStatus] = useResettableState<PresentationPreviewStatus>({
     state: "loading",
-    message: "加载演示文稿预览中",
   }, previewKey);
+  const [retryRevision, setRetryRevision] = useState(0);
+  const retryPreview = useCallback(() => {
+    setRetryRevision((current) => current + 1);
+  }, []);
 
   useEffect(() => {
     const abortController = new AbortController();
@@ -42,6 +48,7 @@ export function PresentationFilePreview({
 
     cleanupUrlsRef.current();
     cleanupUrlsRef.current = () => undefined;
+    setStatus({ state: "loading" });
 
     async function loadPreview() {
       try {
@@ -55,7 +62,7 @@ export function PresentationFilePreview({
           return;
         }
 
-        setStatus({ state: "loading", message: "解析 pptx 文件中" });
+        setStatus({ state: "loading" });
         const result = await parsePptx(buffer);
         if (cancelled) {
           revokeObjectUrls(result.objectUrls);
@@ -66,15 +73,14 @@ export function PresentationFilePreview({
         setSlides(result.slides);
         setActiveSlideIndex(0);
         setStatus({ state: "loaded", slideCount: result.slides.length });
-      } catch (previewError) {
+      } catch {
         if (cancelled || abortController.signal.aborted) {
           return;
         }
-        const message = previewError instanceof Error ? previewError.message : "pptx 预览失败";
         cleanupUrlsRef.current();
         cleanupUrlsRef.current = () => undefined;
         setSlides([]);
-        setStatus({ state: "error", message });
+        setStatus({ state: "error" });
       }
     }
 
@@ -86,10 +92,9 @@ export function PresentationFilePreview({
       cleanupUrlsRef.current();
       cleanupUrlsRef.current = () => undefined;
     };
-  }, [agentId, path, setActiveSlideIndex, setSlides, setStatus]);
+  }, [agentId, path, retryRevision, setActiveSlideIndex, setSlides, setStatus]);
 
   const isLoaded = status.state === "loaded";
-  const isLoading = status.state === "loading";
   const hasError = status.state === "error";
   const activeSlide = slides[Math.min(activeSlideIndex, Math.max(slides.length - 1, 0))];
 
@@ -109,17 +114,19 @@ export function PresentationFilePreview({
           hasError ? (
             <span className="flex items-center gap-1 text-destructive">
               <FileWarning className="h-3 w-3" />
-              加载失败
+              {t("workspace_file.preview_failed_status")}
             </span>
           ) : isLoaded ? (
             <span className="flex items-center gap-1 text-(--success)">
               <Eye className="h-3 w-3" />
-              已加载 {status.slideCount} 页
+              {t("workspace_file.presentation_loaded", {
+                count: status.slideCount,
+              })}
             </span>
           ) : (
             <span className="flex items-center gap-1">
               <LoaderCircle className="h-3 w-3 animate-spin" />
-              加载中
+              {t("workspace_file.preview_loading")}
             </span>
           )
         )}
@@ -129,11 +136,10 @@ export function PresentationFilePreview({
       <div className="min-h-0 flex-1 overflow-hidden bg-[var(--surface-panel-subtle-background)]">
         {hasError ? (
           <div className="flex h-full items-center justify-center p-8 text-center">
-            <div className="max-w-sm">
-              <FileWarning className="mx-auto h-12 w-12 text-(--icon-muted)" />
-              <p className="mt-4 text-sm font-medium text-(--text-strong)">pptx 预览失败</p>
-              <p className="mt-2 text-xs leading-5 text-(--text-soft)">{status.message}</p>
-            </div>
+            <OfficePreviewFailureState
+              kind="presentation"
+              onRetry={retryPreview}
+            />
           </div>
         ) : activeSlide ? (
           <div className="flex h-full min-h-0">
@@ -200,7 +206,7 @@ export function PresentationFilePreview({
             <div className="max-w-xs">
               <LoaderCircle className="mx-auto h-8 w-8 animate-spin text-primary" />
               <p className="mt-3 text-sm font-medium text-(--text-strong)">
-                {isLoading ? status.message : "正在加载 pptx 预览"}
+                {t("workspace_file.preview_loading")}
               </p>
             </div>
           </div>

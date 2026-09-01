@@ -1,7 +1,7 @@
 /**
  * INPUT: Room/DM Session 草稿作用域、完整 Composer 草稿更新与消息/Goal 本地派发事务。
- * OUTPUT: 按 Session 保留的文字、附件、模式、Goal 负责人、Mention 目标、Goal 提交/恢复回执与失败错误，并保护迟到结果不覆盖新输入。
- * POS: Composer 用户输入草稿的客户端内存真相源；不持久化瞬时 UI 或浏览器刷新。
+ * OUTPUT: 按 Session 保留的文字、附件、模式、Goal 负责人、Mention 目标、Goal 提交/恢复回执、失败错误与 owner reset。
+ * POS: Composer 用户输入草稿的 owner-scoped 客户端内存真相源；不持久化瞬时 UI 或浏览器刷新。
  */
 
 import { create } from "zustand";
@@ -98,6 +98,8 @@ export const EMPTY_COMPOSER_DRAFT: ComposerDraftSnapshot = {
   revision: 0,
   selectedTargetIDs: [],
 };
+
+const invalidatedOwnerDrafts = new WeakSet<ComposerDraftSnapshot>();
 
 function hasSameItems<T>(left: T[], right: T[]): boolean {
   return left.length === right.length
@@ -199,6 +201,9 @@ export const useComposerDraftStore = create<ComposerDraftStoreState>()(
       scopeKey,
       submittedDraft,
     ) => {
+      if (invalidatedOwnerDrafts.has(submittedDraft)) {
+        return false;
+      }
       const normalizedScopeKey = normalizeDraftScopeKey(scopeKey);
       if (!normalizedScopeKey) {
         return false;
@@ -407,6 +412,28 @@ export const useComposerDraftStore = create<ComposerDraftStoreState>()(
     }),
   }),
 );
+
+/** Auth owner 变化时清空草稿与 Goal 回执，并拒绝旧 owner 的迟到恢复。 */
+export function resetComposerDraftOwnerScope(): void {
+  const state = useComposerDraftStore.getState();
+  Object.values(state.drafts_by_scope).forEach((draft) => {
+    invalidatedOwnerDrafts.add(draft);
+  });
+  Object.values(state.goal_submission_by_scope).forEach((submission) => {
+    invalidatedOwnerDrafts.add(submission.submittedDraft);
+  });
+  Object.values(state.goal_recovery_by_scope).forEach((recovery) => {
+    invalidatedOwnerDrafts.add(recovery.submittedDraft);
+  });
+  useComposerDraftStore.setState({
+    draft_revision: state.draft_revision + 1,
+    drafts_by_scope: {},
+    goal_error_by_scope: {},
+    goal_recovery_by_scope: {},
+    goal_submission_revision: state.goal_submission_revision + 1,
+    goal_submission_by_scope: {},
+  });
+}
 
 function cloneDraftSnapshot(
   draft: ComposerDraftSnapshot,

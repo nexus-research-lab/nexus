@@ -4,7 +4,7 @@ L5 | 父级: ../CLAUDE.md
 
 保存运行状态机、公开快照协议、消息/slot 迁移和权限过期策略。这里只处理纯数据与同步状态迁移，不读取浏览器存储，不持有 React 生命周期。
 
-- Snapshot reconcile 按终态收集、旧 tracker 保留和 DM tracker 补建三个阶段执行；Room 不从历史消息反推活跃 tracker。
+- Message snapshot reconcile 按终态收集、旧 tracker 保留和 DM tracker 补建三个阶段执行；Room 不从历史消息反推活跃 tracker。Room 订阅恢复的 `pending_snapshot` 是当前 conversation 活跃 slot 的权威集合：快照中缺失的非终态 execution 以中性 `done` 收口，保留 shell/顺序并允许迟到的 exact cancelled/error 继续单调修正；普通 ACK 的空 pending 不具有该权限。
 - 消息终态迁移统一解析为保留、移除或更新状态三种动作，调用方只定义作用域规则；round 终态移除 ephemeral 过程消息，但保留已经完成的 transient host 通知及其关联用户指令。host `chat_ack` 即使不声明 durable commit，也可用显式 delivery mode 把 optimistic 用户消息规范化为同 round transient 节点。
 - 待 ACK 的 `client_request_id` 只决定发送阶段，不进入 canonical round 集合；时间线活动仅来自后端 round 与 Assistant tracker。
 - Runtime 瞬时状态优先于轮次推断；`compacting` 进入独立阶段，显式 null 或会话重置负责清除。

@@ -1,3 +1,11 @@
+// INPUT: 订阅目录、表单草稿，以及读取或修改结果证据。
+// OUTPUT: 保留草稿/最后快照的视图模型和 Problem/Impact/Recovery 反馈。
+// POS: Subscription Admin 的纯状态投影；不根据异常正文猜测 mutation 结果。
+import {
+  getErrorMessage,
+  projectMutationFailure,
+} from "@/lib/error-message";
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import type {
   SubscriptionAccount,
@@ -23,9 +31,13 @@ export interface PlanDraft {
 }
 
 export interface FeedbackState {
-  tone: "success" | "error";
-  title: string;
+  blocksMutation?: boolean;
+  impact?: string;
   message: string;
+  nextStep?: string;
+  recoveryAction?: "refresh";
+  title: string;
+  tone: "success" | "error" | "warning";
 }
 
 export interface SubscriptionAdminSnapshot {
@@ -45,6 +57,7 @@ export interface AccountViewModel {
   drafts: Record<string, AccountDraft>;
   loading: boolean;
   mutationPending: boolean;
+  mutationsBlocked: boolean;
   periodEnd: string;
   periodStart: string;
   plans: SubscriptionPlan[];
@@ -57,6 +70,7 @@ export interface PlanViewModel {
   drafts: Record<string, PlanDraft>;
   loading: boolean;
   mutationPending: boolean;
+  mutationsBlocked: boolean;
   newPlanDraft: PlanDraft;
   plans: SubscriptionPlan[];
   savingPlanKey: string | null;
@@ -92,14 +106,19 @@ export const EMPTY_SUBSCRIPTION_SNAPSHOT: SubscriptionAdminSnapshot = {
 };
 
 interface FeedbackCopy {
+  impact?: TranslationKey;
   message: TranslationKey;
+  nextStep?: TranslationKey;
+  recoveryAction?: FeedbackState["recoveryAction"];
   title: TranslationKey;
   tone: FeedbackState["tone"];
 }
 
 const FEEDBACK_COPY: Record<SubscriptionFeedbackEvent, FeedbackCopy> = {
   "account-save-failed": {
+    impact: "settings.subscription.mutation_not_applied_impact",
     message: "settings.subscription.save_failed_message",
+    nextStep: "settings.subscription.mutation_not_applied_next_step",
     title: "settings.subscription.save_failed_title",
     tone: "error",
   },
@@ -109,17 +128,24 @@ const FEEDBACK_COPY: Record<SubscriptionFeedbackEvent, FeedbackCopy> = {
     tone: "success",
   },
   "load-failed": {
+    impact: "state.read_failure_impact",
     message: "settings.subscription.load_failed_message",
+    nextStep: "state.retry_next_step",
+    recoveryAction: "refresh",
     title: "settings.subscription.load_failed_title",
     tone: "error",
   },
   "plan-create-failed": {
+    impact: "settings.subscription.mutation_not_applied_impact",
     message: "settings.subscription.plan_create_failed_message",
+    nextStep: "settings.subscription.mutation_not_applied_next_step",
     title: "settings.subscription.plan_create_failed_title",
     tone: "error",
   },
   "plan-create-invalid": {
+    impact: "settings.subscription.validation_impact",
     message: "settings.subscription.plan_limit_invalid",
+    nextStep: "settings.subscription.validation_next_step",
     title: "settings.subscription.plan_create_failed_title",
     tone: "error",
   },
@@ -129,12 +155,16 @@ const FEEDBACK_COPY: Record<SubscriptionFeedbackEvent, FeedbackCopy> = {
     tone: "success",
   },
   "plan-save-failed": {
+    impact: "settings.subscription.mutation_not_applied_impact",
     message: "settings.subscription.plan_save_failed_message",
+    nextStep: "settings.subscription.mutation_not_applied_next_step",
     title: "settings.subscription.plan_save_failed_title",
     tone: "error",
   },
   "plan-save-invalid": {
+    impact: "settings.subscription.validation_impact",
     message: "settings.subscription.plan_limit_invalid",
+    nextStep: "settings.subscription.validation_next_step",
     title: "settings.subscription.plan_save_failed_title",
     tone: "error",
   },
@@ -226,9 +256,112 @@ export function buildSubscriptionFeedback(
 ): FeedbackState {
   const copy = FEEDBACK_COPY[event];
   return {
+    impact: copy.impact ? translate(copy.impact) : undefined,
     message: translate(copy.message),
+    nextStep: copy.nextStep ? translate(copy.nextStep) : undefined,
+    recoveryAction: copy.recoveryAction,
     title: translate(copy.title),
     tone: copy.tone,
+  };
+}
+
+export type SubscriptionMutationOperation =
+  | "account-save"
+  | "plan-create"
+  | "plan-save";
+
+const SUBSCRIPTION_MUTATION_OPERATION_KEYS: Record<
+  SubscriptionMutationOperation,
+  TranslationKey
+> = {
+  "account-save": "settings.subscription.operation_account_save",
+  "plan-create": "settings.subscription.operation_plan_create",
+  "plan-save": "settings.subscription.operation_plan_save",
+};
+
+const SUBSCRIPTION_MUTATION_FALLBACK_KEYS: Record<
+  SubscriptionMutationOperation,
+  TranslationKey
+> = {
+  "account-save": "settings.subscription.save_failed_message",
+  "plan-create": "settings.subscription.plan_create_failed_message",
+  "plan-save": "settings.subscription.plan_save_failed_message",
+};
+
+const SUBSCRIPTION_MUTATION_COPY = {
+  accepted: {
+    impact: "settings.subscription.mutation_accepted_impact",
+    nextStep: "settings.subscription.mutation_accepted_next_step",
+    title: "settings.subscription.mutation_accepted_title",
+  },
+  committed: {
+    impact: "settings.subscription.mutation_committed_impact",
+    nextStep: "settings.subscription.mutation_committed_next_step",
+    title: "settings.subscription.mutation_committed_title",
+  },
+  not_applied: {
+    impact: "settings.subscription.mutation_not_applied_impact",
+    nextStep: "settings.subscription.mutation_not_applied_next_step",
+    title: "settings.subscription.mutation_not_applied_title",
+  },
+  unknown: {
+    impact: "settings.subscription.mutation_unknown_impact",
+    nextStep: "settings.subscription.mutation_unknown_next_step",
+    title: "settings.subscription.mutation_unknown_title",
+  },
+} as const satisfies Record<
+  "accepted" | "committed" | "not_applied" | "unknown",
+  { impact: TranslationKey; nextStep: TranslationKey; title: TranslationKey }
+>;
+
+export function buildSubscriptionReadFailure(
+  t: I18nContextValue["t"],
+  error: unknown,
+): FeedbackState {
+  return {
+    impact: t("state.read_failure_impact"),
+    message: getErrorMessage(
+      error,
+      t("settings.subscription.load_failed_message"),
+    ),
+    nextStep: t("state.retry_next_step"),
+    recoveryAction: "refresh",
+    title: t("settings.subscription.load_failed_title"),
+    tone: "error",
+  };
+}
+
+export function buildSubscriptionMutationFailure(
+  t: I18nContextValue["t"],
+  operation: SubscriptionMutationOperation,
+  error: unknown,
+): FeedbackState {
+  const failure = projectMutationFailure(
+    error,
+    t(SUBSCRIPTION_MUTATION_FALLBACK_KEYS[operation]),
+  );
+  const outcome = failure.effect === "accepted"
+    || failure.effect === "committed"
+    || failure.effect === "not_applied"
+    ? failure.effect
+    : "unknown";
+  const operationLabel = t(SUBSCRIPTION_MUTATION_OPERATION_KEYS[operation]);
+  const notApplied = outcome === "not_applied";
+  const copy = SUBSCRIPTION_MUTATION_COPY[outcome];
+  return {
+    blocksMutation: !notApplied,
+    impact: t(copy.impact, {
+      operation: operationLabel,
+    }),
+    message: failure.message,
+    nextStep: t(copy.nextStep, {
+      operation: operationLabel,
+    }),
+    recoveryAction: notApplied ? undefined : "refresh",
+    title: t(copy.title, {
+      operation: operationLabel,
+    }),
+    tone: notApplied ? "error" : "warning",
   };
 }
 
@@ -249,6 +382,7 @@ export function buildSubscriptionAdminViewModels(
   newPlanDraft: PlanDraft,
   loading: boolean,
   pending: PendingSubscriptionMutation | null,
+  mutationsBlocked = false,
 ): SubscriptionAdminViewModels {
   const accounts = snapshot.overview?.accounts ?? EMPTY_ACCOUNTS;
   const plans = snapshot.overview?.plans ?? EMPTY_PLANS;
@@ -259,6 +393,7 @@ export function buildSubscriptionAdminViewModels(
       drafts: snapshot.accountDrafts,
       loading,
       mutationPending,
+      mutationsBlocked,
       periodEnd: snapshot.overview?.period_end ?? "",
       periodStart: snapshot.overview?.period_start ?? "",
       plans: getSelectablePlans(plans),
@@ -270,6 +405,7 @@ export function buildSubscriptionAdminViewModels(
       drafts: snapshot.planDrafts,
       loading,
       mutationPending,
+      mutationsBlocked,
       newPlanDraft,
       plans,
       savingPlanKey: getSavingPlanKey(pending),

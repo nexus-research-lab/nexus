@@ -383,7 +383,7 @@ func (h *Handler) handleChannelAuthorizationCancel(
 			flowID,
 			false,
 			"",
-			"当前授权会话无法取消；它可能已经结束或失效。",
+			"当前授权会话无法取消，状态待核对；请刷新频道状态后再操作。",
 		)
 		return
 	}

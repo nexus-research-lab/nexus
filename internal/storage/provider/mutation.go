@@ -6,6 +6,7 @@ package provider
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -33,7 +34,7 @@ func (r *Repository) WithProviderMutation(
 	}
 	defer func() { _ = mutation.tx.Rollback() }()
 	if err = apply(mutation); err != nil {
-		return 0, err
+		return 0, rollbackProviderMutation(mutation.tx, err)
 	}
 	if err = mutation.tx.Commit(); err != nil {
 		return 0, err
@@ -55,7 +56,7 @@ func (r *Repository) beginProviderMutation(
 	}
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return nil, err
+		return nil, errors.Join(ErrMutationNotApplied, err)
 	}
 	result, err := tx.ExecContext(ctx, `
 		UPDATE provider
@@ -67,13 +68,11 @@ func (r *Repository) beginProviderMutation(
 		expectedVersion,
 	)
 	if err != nil {
-		_ = tx.Rollback()
-		return nil, err
+		return nil, rollbackProviderMutation(tx, err)
 	}
 	affected, err := result.RowsAffected()
 	if err != nil {
-		_ = tx.Rollback()
-		return nil, err
+		return nil, rollbackProviderMutation(tx, err)
 	}
 	if affected != 1 {
 		var currentVersion int64
@@ -82,7 +81,10 @@ func (r *Repository) beginProviderMutation(
 			`SELECT configuration_version FROM provider WHERE id = `+r.bind(1),
 			providerID,
 		).Scan(&currentVersion)
-		_ = tx.Rollback()
+		rollbackErr := tx.Rollback()
+		if rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+			return nil, errors.Join(queryErr, rollbackErr)
+		}
 		if queryErr == sql.ErrNoRows {
 			return nil, ErrProviderNotFound
 		}
@@ -102,6 +104,16 @@ func (r *Repository) beginProviderMutation(
 		providerID: providerID,
 		version:    expectedVersion + 1,
 	}, nil
+}
+
+func rollbackProviderMutation(tx *sql.Tx, cause error) error {
+	if tx == nil {
+		return errors.Join(ErrMutationNotApplied, cause)
+	}
+	if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+		return errors.Join(cause, rollbackErr)
+	}
+	return errors.Join(ErrMutationNotApplied, cause)
 }
 
 // Version 返回本事务提交后的 Provider configuration_version。

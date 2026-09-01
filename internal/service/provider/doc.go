@@ -4,7 +4,7 @@
 //
 // 成员清单：
 //   - service.go / listing.go / store_view.go / visibility.go：Service、列举、存储视图、可见性。
-//   - mutation.go / record.go / normalize.go：增删改、记录与规整。
+//   - mutation.go / record.go / normalize.go / errors.go：增删改、记录、规整与稳定失败证据。
 //   - model_*.go：模型卡发现、内置已知 token 上限、拉取、校验、编解码、选择，以及分阶段变更与清洗。
 //   - runtime_config.go / image_config.go：Agent 运行时解析与分阶段图片 Provider/模型选择。
 //   - catalog.go / model.go：目录、端点策略与模型。

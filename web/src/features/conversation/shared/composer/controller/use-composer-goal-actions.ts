@@ -1,5 +1,12 @@
+// INPUT: Goal 草稿提交、exact transport correlation 与服务端失败证据。
+// OUTPUT: 明确未应用的草稿恢复，或 accepted/committed/unknown 的确认中状态。
+// POS: Composer Goal mutation 边界；普通 Error 正文不可见，未知结果不可重复提交。
 import { useCallback } from "react";
 
+import {
+  getErrorMessage,
+  projectMutationFailure,
+} from "@/lib/error-message";
 import type { LoopCatalogItem } from "@/types/capability/loop";
 
 import type { ComposerGoalConfirmationIdentity } from "../composer-draft-store";
@@ -10,6 +17,8 @@ interface UseComposerGoalActionsOptions {
   draft: ComposerDraftController;
   enableLoops: boolean;
   fallbackErrorMessage: string;
+  failureImpact: string;
+  failureNextStep: string;
   focusTextarea: () => void;
   goalCreateDisabledReason: string | null;
   onCreateGoal?: (objective: string) => Promise<void>;
@@ -19,6 +28,40 @@ interface UseComposerGoalActionsOptions {
 function isRequestAcceptanceUnknown(error: unknown): error is Error {
   return error instanceof Error
     && error.name === "RequestAcceptanceUnknownError";
+}
+
+function isRequestAcceptanceRejected(error: unknown): error is Error {
+  return error instanceof Error
+    && error.name === "RequestAcceptanceRejectedError";
+}
+
+function requiresGoalReconciliation(error: unknown): boolean {
+  if (isRequestAcceptanceUnknown(error)) {
+    return true;
+  }
+  if (isRequestAcceptanceRejected(error)) {
+    return false;
+  }
+  const failure = projectMutationFailure(error, "Goal 请求结果待确认");
+  return failure.effect !== "not_applied"
+    && (
+      failure.category !== null
+      || failure.code !== null
+      || failure.transportRequestId !== null
+    );
+}
+
+function buildGoalFailureMessage(
+  error: unknown,
+  fallback: string,
+  impact: string,
+  nextStep: string,
+): string {
+  return [
+    getErrorMessage(error, fallback),
+    impact,
+    nextStep,
+  ].join(" ");
 }
 
 function readConfirmationIdentity(
@@ -51,6 +94,8 @@ export function useComposerGoalActions({
   draft,
   enableLoops,
   fallbackErrorMessage,
+  failureImpact,
+  failureNextStep,
   focusTextarea,
   goalCreateDisabledReason,
   onCreateGoal,
@@ -98,7 +143,12 @@ export function useComposerGoalActions({
     } catch (error) {
       failGoalSubmission(
         submission,
-        error instanceof Error ? error.message : fallbackErrorMessage,
+        buildGoalFailureMessage(
+          error,
+          fallbackErrorMessage,
+          failureImpact,
+          failureNextStep,
+        ),
         readConfirmationIdentity(error),
       );
       return;
@@ -108,9 +158,9 @@ export function useComposerGoalActions({
       await createPromise;
       completeGoalSubmission(submission);
     } catch (error) {
-      if (isRequestAcceptanceUnknown(error)) {
-        // 超时只能说明 ACK 未知：保留原 scope 的互斥提交状态并明确显示
-        // “确认中”，等待 durable Goal 读取对账，不能伪成功或恢复草稿。
+      if (requiresGoalReconciliation(error)) {
+        // ACK 未知或服务端只证明 accepted/committed：保留原 scope 的互斥
+        // 提交状态，等待 durable Goal 读取对账，不能伪成功或恢复草稿。
         markGoalSubmissionConfirming(
           submission,
           readConfirmationIdentity(error),
@@ -119,7 +169,12 @@ export function useComposerGoalActions({
       }
       failGoalSubmission(
         submission,
-        error instanceof Error ? error.message : fallbackErrorMessage,
+        buildGoalFailureMessage(
+          error,
+          fallbackErrorMessage,
+          failureImpact,
+          failureNextStep,
+        ),
         readConfirmationIdentity(error),
       );
     }
@@ -128,6 +183,8 @@ export function useComposerGoalActions({
     input,
     isGoalCreating,
     fallbackErrorMessage,
+    failureImpact,
+    failureNextStep,
     onCreateGoal,
     beginGoalSubmission,
     completeGoalSubmission,
@@ -193,7 +250,12 @@ export function useComposerGoalActions({
     } catch (error) {
       failGoalSubmission(
         submission,
-        error instanceof Error ? error.message : fallbackErrorMessage,
+        buildGoalFailureMessage(
+          error,
+          fallbackErrorMessage,
+          failureImpact,
+          failureNextStep,
+        ),
         readConfirmationIdentity(error),
       );
       throw error;
@@ -202,7 +264,7 @@ export function useComposerGoalActions({
       await createPromise;
       completeGoalSubmission(submission);
     } catch (error) {
-      if (isRequestAcceptanceUnknown(error)) {
+      if (requiresGoalReconciliation(error)) {
         markGoalSubmissionConfirming(
           submission,
           readConfirmationIdentity(error),
@@ -211,7 +273,12 @@ export function useComposerGoalActions({
       }
       failGoalSubmission(
         submission,
-        error instanceof Error ? error.message : fallbackErrorMessage,
+        buildGoalFailureMessage(
+          error,
+          fallbackErrorMessage,
+          failureImpact,
+          failureNextStep,
+        ),
         readConfirmationIdentity(error),
       );
       throw error;
@@ -223,6 +290,8 @@ export function useComposerGoalActions({
     completeGoalSubmission,
     failGoalSubmission,
     fallbackErrorMessage,
+    failureImpact,
+    failureNextStep,
     onCreateLoopGoal,
     markGoalSubmissionConfirming,
     setGoalError,

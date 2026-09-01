@@ -2,8 +2,8 @@
  * Workspace Live Store
  *
  * [INPUT]: 依赖 zustand，依赖 @/types/app/workspace-live
- * [OUTPUT]: 对外提供 useWorkspaceLiveStore
- * [POS]: store 层的 workspace 实时状态，驱动文件树/编辑器动态反馈
+ * [OUTPUT]: 对外提供 useWorkspaceLiveStore、正文 revision 投影与 owner reset
+ * [POS]: store 层的 owner-scoped workspace 实时状态，驱动文件树/编辑器动态反馈
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 
@@ -48,6 +48,7 @@ export const useWorkspaceLiveStore = create<WorkspaceLiveStoreState>()((set) => 
               version: event.version,
               source: event.source,
               live_content: null,
+              content_revision: null,
               diff_stats: null,
               updated_at: nextUpdatedAt,
             },
@@ -57,7 +58,13 @@ export const useWorkspaceLiveStore = create<WorkspaceLiveStoreState>()((set) => 
         };
       }
 
-      const nextLiveContent = resolveLiveContent(state.file_states[key]?.live_content, event);
+      const previousFileState = state.file_states[key];
+      const nextLiveContent = resolveLiveContent(previousFileState?.live_content, event);
+      const nextContentRevision = resolveContentRevision(
+        previousFileState?.content_revision,
+        previousFileState?.version,
+        event,
+      );
 
       return {
         recent_events: [
@@ -70,6 +77,7 @@ export const useWorkspaceLiveStore = create<WorkspaceLiveStoreState>()((set) => 
             version: event.version,
             source: event.source,
             live_content: nextLiveContent,
+            content_revision: nextContentRevision,
             diff_stats: event.diff_stats,
             updated_at: nextUpdatedAt,
           },
@@ -84,6 +92,7 @@ export const useWorkspaceLiveStore = create<WorkspaceLiveStoreState>()((set) => 
             version: event.version,
             source: event.source,
             live_content: nextLiveContent,
+            content_revision: nextContentRevision,
             diff_stats: event.diff_stats,
             updated_at: nextUpdatedAt,
           },
@@ -159,6 +168,14 @@ export const useWorkspaceLiveStore = create<WorkspaceLiveStoreState>()((set) => 
   },
 }));
 
+/** Auth owner 变化时清空旧连接留下的文件事件与内容快照。 */
+export function resetWorkspaceLiveOwnerScope(): void {
+  useWorkspaceLiveStore.setState({
+    recent_events: [],
+    file_states: {},
+  });
+}
+
 function resolveLiveContent(
   previousContent: string | null | undefined,
   event: WorkspaceLiveEvent,
@@ -176,4 +193,18 @@ function resolveLiveContent(
   }
 
   return previousContent;
+}
+
+function resolveContentRevision(
+  previousRevision: string | null | undefined,
+  previousVersion: number | undefined,
+  event: WorkspaceLiveEvent,
+): string | null | undefined {
+  if (typeof event.content_revision === 'string' && event.content_revision) {
+    return event.content_revision;
+  }
+  if (event.type === 'file_write_start' || previousVersion !== event.version) {
+    return null;
+  }
+  return previousRevision;
 }

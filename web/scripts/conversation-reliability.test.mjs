@@ -275,3 +275,77 @@ test("provider retry is transient and a durable Session reconciliation is author
   });
   assert.equal(state.failure, null);
 });
+
+test("user notice contains the complete recovery contract but no transport or request details", async () => {
+  const { ConversationReliabilityNotice } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/conversation-reliability-notice.tsx",
+  );
+  const { I18N_CONTEXT } = await server.ssrLoadModule(
+    "/src/shared/i18n/i18n-context.ts",
+  );
+  const { MESSAGES } = await server.ssrLoadModule(
+    "/src/shared/i18n/messages.ts",
+  );
+  const t = (key) => MESSAGES.zh[key] ?? key;
+  const html = renderToStaticMarkup(
+    React.createElement(
+      I18N_CONTEXT.Provider,
+      { value: { locale: "zh", setLocale: () => {}, t } },
+      React.createElement(ConversationReliabilityNotice, {
+        compact: false,
+        reliability: {
+          failure: {
+            client_request_id: "secret-request-id",
+            code: "round_failed",
+            round_id: "secret-round-id",
+            session_key: "dm:secret-session",
+          },
+          provider_retry: null,
+          transport_phase: "healthy",
+        },
+      }),
+    ),
+  );
+  assert.match(html, /本轮没有完成回复/);
+  assert.match(html, /用户消息和已经显示的历史仍保留/);
+  assert.match(html, /确认需要后再发起新一轮/);
+  assert.doesNotMatch(html, /secret-request-id|secret-round-id|secret-session|查看详情/);
+  assert.match(html, /data-conversation-failure-code="round_failed"/);
+  assert.match(html, /aria-live="polite"/);
+  assert.match(html, /role="status"/);
+});
+
+test("unknown message receipt warns against duplicate submission", async () => {
+  const { ConversationReliabilityNotice } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/conversation-reliability-notice.tsx",
+  );
+  const { I18N_CONTEXT } = await server.ssrLoadModule(
+    "/src/shared/i18n/i18n-context.ts",
+  );
+  const { MESSAGES } = await server.ssrLoadModule(
+    "/src/shared/i18n/messages.ts",
+  );
+  const t = (key) => MESSAGES.zh[key] ?? key;
+  const html = renderToStaticMarkup(
+    React.createElement(
+      I18N_CONTEXT.Provider,
+      { value: { locale: "zh", setLocale: () => {}, t } },
+      React.createElement(ConversationReliabilityNotice, {
+        compact: true,
+        reliability: {
+          failure: {
+            client_request_id: "request-a",
+            code: "delivery_unknown",
+            session_key: "dm:session-a",
+          },
+          provider_retry: null,
+          transport_phase: "healthy",
+        },
+      }),
+    ),
+  );
+  assert.match(html, /消息状态待确认/);
+  assert.match(html, /重复发送有重复回复风险/);
+  assert.match(html, /先看最新消息，再决定是否重发/);
+  assert.doesNotMatch(html, /请稍后重试/);
+});

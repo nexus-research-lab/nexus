@@ -1,3 +1,6 @@
+// INPUT: Project API、当前权限与本地表单草稿。
+// OUTPUT: 分离 mutation 提交和后续目录刷新的项目管理状态。
+// POS: Project Admin 控制器；响应未知时只允许对账，不重复写入。
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -10,6 +13,7 @@ import type { ProjectAccess, SharedProject } from "@/types/settings/project";
 
 import {
   buildProjectFeedback,
+  buildProjectMutationFeedback,
   projectMemberDraftKey,
   type ProjectAdminViewModel,
   type ProjectFeedback,
@@ -29,13 +33,19 @@ export function useProjectAdmin({
   const [newProjectId, setNewProjectId] = useState("");
   const [memberDrafts, setMemberDrafts] = useState<Record<string, string>>({});
   const [feedback, setFeedback] = useState<ProjectFeedback | null>(null);
+  const [mutationsBlocked, setMutationsBlocked] = useState(false);
+  const mutationsBlockedRef = useRef(false);
   const transactionRunning = useRef(false);
+  const updateMutationBlock = useCallback((blocked: boolean) => {
+    mutationsBlockedRef.current = blocked;
+    setMutationsBlocked(blocked);
+  }, []);
 
   const runTransaction = useCallback(async (
     key: string,
     request: () => Promise<void>,
   ) => {
-    if (transactionRunning.current) {
+    if (transactionRunning.current || mutationsBlockedRef.current) {
       return false;
     }
     transactionRunning.current = true;
@@ -53,13 +63,16 @@ export function useProjectAdmin({
     setLoading(true);
     try {
       setProjects(await getProjectsApi());
-      setFeedback((current) => current?.tone === "error" ? null : current);
+      updateMutationBlock(false);
+      setFeedback((current) => (
+        current?.blocksMutation || current?.tone === "error" ? null : current
+      ));
     } catch (error) {
       setFeedback(buildProjectFeedback(t, "load-failed", error));
     } finally {
       setLoading(false);
     }
-  }, [t]);
+  }, [t, updateMutationBlock]);
 
   useEffect(() => {
     void loadProjects();
@@ -68,7 +81,7 @@ export function useProjectAdmin({
   const createProject = useCallback(async () => {
     const projectId = newProjectId.trim();
     if (!projectId) {
-      setFeedback(buildProjectFeedback(t, "create-failed"));
+      setFeedback(buildProjectFeedback(t, "create-invalid"));
       return;
     }
     await runTransaction("create-project", async () => {
@@ -83,10 +96,12 @@ export function useProjectAdmin({
         setNewProjectId("");
         setFeedback(buildProjectFeedback(t, "create-succeeded"));
       } catch (error) {
-        setFeedback(buildProjectFeedback(t, "create-failed", error));
+        const nextFeedback = buildProjectMutationFeedback(t, "create", error);
+        updateMutationBlock(Boolean(nextFeedback.blocksMutation));
+        setFeedback(nextFeedback);
       }
     });
-  }, [newProjectId, runTransaction, t]);
+  }, [newProjectId, runTransaction, t, updateMutationBlock]);
 
   const updateMember = useCallback(async (
     projectId: string,
@@ -100,15 +115,26 @@ export function useProjectAdmin({
     await runTransaction(`member:${projectId}:${ownerUserId}`, async () => {
       try {
         await updateProjectMemberApi(projectId, ownerUserId.trim(), access);
-        setProjects(await getProjectsApi());
-        setFeedback(buildProjectFeedback(t, "grant-succeeded"));
         succeeded = true;
       } catch (error) {
-        setFeedback(buildProjectFeedback(t, "grant-failed", error));
+        const nextFeedback = buildProjectMutationFeedback(t, "grant", error);
+        updateMutationBlock(Boolean(nextFeedback.blocksMutation));
+        setFeedback(nextFeedback);
+        return;
+      }
+      try {
+        setProjects(await getProjectsApi());
+        setFeedback(buildProjectFeedback(t, "grant-succeeded"));
+      } catch (error) {
+        updateMutationBlock(true);
+        setFeedback({
+          ...buildProjectFeedback(t, "grant-refresh-failed", error),
+          blocksMutation: true,
+        });
       }
     });
     return succeeded;
-  }, [canManageMembers, runTransaction, t]);
+  }, [canManageMembers, runTransaction, t, updateMutationBlock]);
 
   const addMember = useCallback(async (projectId: string) => {
     const draftKey = projectMemberDraftKey(projectId);
@@ -132,6 +158,7 @@ export function useProjectAdmin({
     feedback,
     loading,
     memberDrafts,
+    mutationsBlocked,
     newProjectId,
     pendingKey,
     projects,
@@ -140,6 +167,7 @@ export function useProjectAdmin({
     feedback,
     loading,
     memberDrafts,
+    mutationsBlocked,
     newProjectId,
     pendingKey,
     projects,

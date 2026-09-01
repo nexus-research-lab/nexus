@@ -605,6 +605,17 @@ func TestMetadataEditorAppliesValidatedGraphRevisionAndDiscardsTransientSession(
 	}); err == nil || !errors.Is(err, ErrInvalidInput) {
 		t.Fatalf("stale revision error = %v", err)
 	}
+	if _, err = service.ApplyMetadataEditor("owner-a", protocol.ApplyWorkGraphWorkflowEditorRequest{
+		SourceSessionKey: "session-a", EditorID: editor.EditorID, Revision: 1,
+	}); err == nil || !errors.Is(err, ErrRevisionConflict) {
+		t.Fatalf("stale apply error = %v", err)
+	} else if !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("stale apply must preserve ErrInvalidInput compatibility: %v", err)
+	}
+	unchanged, err = service.getPreview(context.Background(), "owner-a", "session-a", preview.PreviewID)
+	if err != nil || len(unchanged.Nodes) != 3 {
+		t.Fatalf("stale apply changed preview = %#v, err=%v", unchanged, err)
+	}
 	applied, err := service.ApplyMetadataEditor("owner-a", protocol.ApplyWorkGraphWorkflowEditorRequest{
 		SourceSessionKey: "session-a", EditorID: editor.EditorID, Revision: revised.Revision,
 	})

@@ -14,14 +14,19 @@ import (
 )
 
 type fakePersonalWeixinLoginClient struct {
-	status channeladapters.PersonalWeixinQRStatusResponse
+	status   channeladapters.PersonalWeixinQRStatusResponse
+	startErr error
 }
 
 type fakeChannelRegistrationClient struct {
 	credentials map[string]string
+	startErr    error
 }
 
 func (c *fakeChannelRegistrationClient) Start(context.Context) (*appregistration.StartResult, error) {
+	if c.startErr != nil {
+		return nil, c.startErr
+	}
 	return &appregistration.StartResult{
 		DeviceCode:              "registration-device-code",
 		VerificationURIComplete: "https://platform.test/scan",
@@ -37,11 +42,187 @@ func (c *fakeChannelRegistrationClient) Poll(context.Context, string) (*appregis
 	}, nil
 }
 
+func activeChannelLoginTestSession(
+	ownerUserID string,
+	channelType string,
+	loginID string,
+	authorizationBinding string,
+) *channelLoginSession {
+	now := time.Now()
+	return &channelLoginSession{
+		ownerUserID:          ownerUserID,
+		channelType:          channelType,
+		activeKey:            channelLoginActiveKey(ownerUserID, channelType),
+		authorizationBinding: authorizationBinding,
+		view: ChannelLoginView{
+			LoginID:     loginID,
+			ChannelType: channelType,
+			Status:      ChannelLoginStatusRunning,
+			StartedAt:   now,
+			UpdatedAt:   now,
+			ExpiresAt:   now.Add(time.Minute),
+		},
+	}
+}
+
+func TestGetCurrentChannelLoginOnlyReadsUniqueUnboundWebSession(t *testing.T) {
+	store := newChannelLoginStore()
+	current := activeChannelLoginTestSession(
+		"owner-a",
+		ChannelTypeWeixinPersonal,
+		"login-web",
+		"",
+	)
+	foreign := activeChannelLoginTestSession(
+		"owner-b",
+		ChannelTypeWeixinPersonal,
+		"login-foreign",
+		"",
+	)
+	store.sessions[current.view.LoginID] = current
+	store.active[current.activeKey] = current.view.LoginID
+	store.sessions[foreign.view.LoginID] = foreign
+	store.active[foreign.activeKey] = foreign.view.LoginID
+
+	service := &ControlService{
+		loginStore: store,
+		idFactory: func(string) string {
+			t.Fatal("read-only reconciliation generated a login ID")
+			return ""
+		},
+		weixinLoginClientFactory: func(string, map[string]string) personalWeixinLoginClient {
+			t.Fatal("read-only reconciliation started a Weixin login")
+			return nil
+		},
+		registrationClientFactory: func(string) appregistration.Client {
+			t.Fatal("read-only reconciliation started platform registration")
+			return nil
+		},
+	}
+	view, err := service.GetCurrentChannelLogin(
+		context.Background(),
+		"owner-a",
+		ChannelTypeWeixinPersonal,
+	)
+	if err != nil {
+		t.Fatalf("read current Web login: %v", err)
+	}
+	if view.LoginID != "login-web" || view.ChannelType != ChannelTypeWeixinPersonal {
+		t.Fatalf("current Web login = %+v", view)
+	}
+	if _, err = service.GetCurrentChannelLogin(
+		context.Background(),
+		"owner-c",
+		ChannelTypeWeixinPersonal,
+	); !errors.Is(err, ErrChannelLoginNotFound) {
+		t.Fatalf("cross-owner lookup error = %v", err)
+	}
+}
+
+func TestGetCurrentChannelLoginFailsClosedForAmbiguousOrBoundState(t *testing.T) {
+	tests := []struct {
+		name     string
+		sessions []*channelLoginSession
+		activeID string
+	}{
+		{
+			name: "multiple active Web sessions",
+			sessions: []*channelLoginSession{
+				activeChannelLoginTestSession("owner-a", ChannelTypeFeishu, "login-1", ""),
+				activeChannelLoginTestSession("owner-a", ChannelTypeFeishu, "login-2", ""),
+			},
+			activeID: "login-1",
+		},
+		{
+			name: "conversational authorization binding",
+			sessions: []*channelLoginSession{
+				activeChannelLoginTestSession("owner-a", ChannelTypeFeishu, "login-bound", "authorization-1"),
+			},
+			activeID: "login-bound",
+		},
+		{
+			name: "active index mismatch",
+			sessions: []*channelLoginSession{
+				activeChannelLoginTestSession("owner-a", ChannelTypeFeishu, "login-web", ""),
+			},
+			activeID: "different-login",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			store := newChannelLoginStore()
+			for _, session := range test.sessions {
+				store.sessions[session.view.LoginID] = session
+			}
+			store.active[channelLoginActiveKey("owner-a", ChannelTypeFeishu)] = test.activeID
+			service := &ControlService{loginStore: store}
+			if _, err := service.GetCurrentChannelLogin(
+				context.Background(),
+				"owner-a",
+				ChannelTypeFeishu,
+			); !errors.Is(err, ErrChannelLoginState) {
+				t.Fatalf("ambiguous current login error = %v", err)
+			}
+		})
+	}
+}
+
+func TestGetCurrentChannelLoginAbsenceRemainsUnprovenToCaller(t *testing.T) {
+	service := &ControlService{loginStore: newChannelLoginStore()}
+	if _, err := service.GetCurrentChannelLogin(
+		context.Background(),
+		"owner-a",
+		ChannelTypeFeishu,
+	); !errors.Is(err, ErrChannelLoginNotFound) {
+		t.Fatalf("missing current login error = %v", err)
+	}
+}
+
 func (c *fakePersonalWeixinLoginClient) StartQRCode(context.Context, []string) (channeladapters.PersonalWeixinQRCodeResponse, error) {
+	if c.startErr != nil {
+		return channeladapters.PersonalWeixinQRCodeResponse{}, c.startErr
+	}
 	return channeladapters.PersonalWeixinQRCodeResponse{
 		QRCode:             "qr-token-1",
 		QRCodeImageContent: "weixin://qr-login",
 	}, nil
+}
+
+func TestControlServiceMarksRemoteLoginStartFailureUnknown(t *testing.T) {
+	db := newChannelTestDB(t)
+	defer db.Close()
+
+	service := NewControlService(config.Config{
+		DatabaseDriver:          "sqlite",
+		ConnectorCredentialsKey: testChannelCredentialKey(),
+	}, db, nil, nil)
+	_, err := service.UpsertChannelConfig(
+		context.Background(),
+		"owner-a",
+		ChannelTypeFeishu,
+		UpsertChannelConfigRequest{
+			AgentID: "agent-a",
+			Config:  map[string]string{"app_id": "app-id"},
+			Credentials: map[string]string{
+				"app_secret": "app-secret",
+			},
+		},
+	)
+	if err != nil {
+		t.Fatalf("seed Channel config: %v", err)
+	}
+	startErr := errors.New("remote response was lost")
+	service.registrationClientFactory = func(string) appregistration.Client {
+		return &fakeChannelRegistrationClient{startErr: startErr}
+	}
+
+	_, err = service.StartChannelLogin(context.Background(), "owner-a", ChannelTypeFeishu)
+	if !errors.Is(err, startErr) {
+		t.Fatalf("start error = %v", err)
+	}
+	if effect, ok := ChannelControlMutationEffect(err); !ok || effect != ControlMutationUnknown {
+		t.Fatalf("remote start effect = %q ok=%v", effect, ok)
+	}
 }
 
 func (c *fakePersonalWeixinLoginClient) PollQRCodeStatus(context.Context, string, string) (channeladapters.PersonalWeixinQRStatusResponse, error) {

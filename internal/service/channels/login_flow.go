@@ -17,9 +17,10 @@ func (s *ControlService) StartChannelLogin(
 ) (*ChannelLoginView, error) {
 	version, err := s.GetChannelControlVersion(ctx, ownerUserID)
 	if err != nil {
-		return nil, err
+		return nil, channelControlMutationFailure(ControlMutationNotApplied, err)
 	}
-	return s.StartChannelLoginAtVersion(ctx, ownerUserID, channelType, version)
+	view, err := s.StartChannelLoginAtVersion(ctx, ownerUserID, channelType, version)
+	return view, err
 }
 
 // StartChannelLoginAtVersion binds an interactive authorization to the exact
@@ -100,7 +101,7 @@ func (s *ControlService) startChannelLoginAtVersion(
 	}
 	currentVersion, err := s.GetChannelControlVersion(ctx, ownerUserID)
 	if err != nil {
-		return nil, err
+		return nil, channelControlMutationFailure(ControlMutationNotApplied, err)
 	}
 	if currentVersion != expectedVersion {
 		return nil, channelControlVersionError(
@@ -118,10 +119,13 @@ func (s *ControlService) startChannelLoginAtVersion(
 
 	row, err := s.getChannelConfigRow(ctx, ownerUserID, channelType)
 	if err != nil {
-		return nil, err
+		return nil, channelControlMutationFailure(ControlMutationNotApplied, err)
 	}
 	if row == nil {
-		return nil, errors.New("channel config is required before login")
+		return nil, classifyChannelControlError(
+			ErrChannelConfigRequired,
+			errors.New("channel config is required before login"),
+		)
 	}
 	store := s.effectiveChannelLoginStore()
 	activeKey := channelLoginActiveKey(ownerUserID, channelType)
@@ -166,26 +170,29 @@ func (s *ControlService) startChannelLoginAtVersion(
 	}
 	publicConfig, err := decodeStringMap(row.ConfigJSON)
 	if err != nil {
-		return nil, err
+		return nil, channelControlMutationFailure(ControlMutationNotApplied, err)
 	}
 	secrets, err := s.decryptCredentials(row.CredentialsEncrypted)
 	if err != nil {
-		return nil, err
+		return nil, channelControlMutationFailure(ControlMutationNotApplied, err)
 	}
 	baseURL := firstNonEmpty(publicConfig["base_url"], channeladapters.DefaultPersonalWeixinBaseURL)
 	client := s.newPersonalWeixinLoginClient(baseURL, publicConfig)
 	localTokens, err := s.personalWeixinLocalTokens(ctx, row, secrets)
 	if err != nil {
-		return nil, err
+		return nil, channelControlMutationFailure(ControlMutationNotApplied, err)
 	}
 	qrResponse, err := client.StartQRCode(ctx, localTokens)
 	if err != nil {
-		return nil, err
+		return nil, channelControlMutationFailure(ControlMutationUnknown, err)
 	}
 	qrcode := strings.TrimSpace(qrResponse.QRCode)
 	qrPayload := firstNonEmpty(qrResponse.QRCodeImageContent, qrcode)
 	if qrcode == "" || qrPayload == "" {
-		return nil, errors.New("weixin QR login did not return qrcode")
+		return nil, channelControlMutationFailure(
+			ControlMutationUnknown,
+			errors.New("weixin QR login did not return qrcode"),
+		)
 	}
 
 	timeout := s.loginTimeout
@@ -258,7 +265,7 @@ func (s *ControlService) SubmitChannelLoginVerifyCode(
 	}
 	code := strings.TrimSpace(request.VerifyCode)
 	if code == "" {
-		return nil, errors.New("verify_code is required")
+		return nil, invalidChannelControl(errors.New("verify_code is required"))
 	}
 	if err = session.submitVerifyCode(code); err != nil {
 		return nil, err

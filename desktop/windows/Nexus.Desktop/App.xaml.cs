@@ -1,3 +1,7 @@
+// INPUT: Windows application lifecycle events, sidecar startup, and state-root recovery.
+// OUTPUT: A running Nexus shell or a safe startup failure with internal diagnostics preserved.
+// POS: Windows application lifecycle boundary; raw startup causes never enter user-facing dialogs.
+
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
@@ -116,13 +120,10 @@ public partial class App : System.Windows.Application
             ["error"] = exception.Message,
         });
         string? diagnosticsPath = DesktopDiagnosticsReport.WriteStartupFailure(exception, startupTimeline);
-        string message = diagnosticsPath is null
-            ? exception.Message
-            : $"{exception.Message}{Environment.NewLine}{Environment.NewLine}诊断文件：{diagnosticsPath}";
         NexusDialogWindow.ShowMessage(
             null,
-            "Nexus 启动失败",
-            message,
+            DesktopFailureCopy.StartupTitle,
+            DesktopFailureCopy.StartupMessage(diagnosticsPath is not null),
             "退出");
         RequestApplicationExit(1);
     }

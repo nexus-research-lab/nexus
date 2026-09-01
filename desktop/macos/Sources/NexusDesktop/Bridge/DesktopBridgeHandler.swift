@@ -1,3 +1,7 @@
+// INPUT: Origin-checked, schema-versioned requests from the embedded Nexus web UI.
+// OUTPUT: Native operation results or operation-specific safe failures; raw causes stay in diagnostics.
+// POS: macOS web/native trust boundary and the only rejection path visible to the embedded UI.
+
 import AppKit
 import UniformTypeIdentifiers
 import WebKit
@@ -42,11 +46,18 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
       var metadata = DesktopWebOriginPolicy.metadata(message: message, runtime: runtime)
       metadata["reason"] = reason
       startupTimeline?.mark("desktop_bridge.rejected", metadata: metadata)
-      reject(requestID: requestID(from: message.body), message: "Desktop bridge origin is not allowed")
+      reject(
+        requestID: requestID(from: message.body),
+        message: DesktopFailureCopy.bridgeSecurityMessage
+      )
       return
     }
     guard let request = DesktopBridgeRequest(body: message.body) else {
-      reject(requestID: requestID(from: message.body), message: "Desktop bridge request is invalid")
+      startupTimeline?.mark("desktop_bridge.invalid_request")
+      reject(
+        requestID: requestID(from: message.body),
+        message: DesktopFailureCopy.bridgeSecurityMessage
+      )
       return
     }
 
@@ -54,7 +65,15 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
       let payload = try handle(request)
       resolve(requestID: request.requestID, payload: payload)
     } catch {
-      reject(requestID: request.requestID, message: error.localizedDescription)
+      startupTimeline?.mark("desktop_bridge.operation_failed", metadata: [
+        "kind": request.kind,
+        "error": error.localizedDescription,
+      ])
+      NSLog("[Nexus DesktopBridge] \(request.kind) failed: \(error.localizedDescription)")
+      reject(
+        requestID: request.requestID,
+        message: DesktopFailureCopy.bridgeMessage(for: request.kind)
+      )
     }
   }
 
@@ -68,7 +87,11 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
         "platform": runtime.platform,
       ]
     case "app.get_state_root":
-      return DesktopStateRootStore.statusPayload()
+      var payload = DesktopStateRootStore.statusPayload()
+      if payload["migration_error"] != nil {
+        payload["migration_error"] = DesktopFailureCopy.stateRootMigrationMessage
+      }
+      return payload
     case "app.choose_state_root":
       return chooseStateRoot(
         initialPath: request.stringPayload("initial_path"),

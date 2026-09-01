@@ -38,6 +38,7 @@ export interface UiActionMenuItem {
 }
 
 export type UiActionMenuDensity = "compact" | "default";
+export type UiActionMenuItemSpacing = "none" | "sm";
 
 export interface UiActionMenuContentProps {
   density?: UiActionMenuDensity;
@@ -57,6 +58,7 @@ interface UiActionMenuProps {
   density?: UiActionMenuDensity;
   footerItems?: UiActionMenuItem[];
   isOpen: boolean;
+  itemSpacing?: UiActionMenuItemSpacing;
   items: UiActionMenuItem[];
   minWidth?: number;
   placement?: UiActionMenuPlacement;
@@ -87,6 +89,10 @@ const ACTION_MENU_ITEM_CLASS_NAME = {
 } as const;
 const ACTION_MENU_ESTIMATED_VERTICAL_PADDING = 8;
 const ACTION_MENU_FOOTER_SEPARATOR_HEIGHT = 9;
+const ACTION_MENU_ITEM_GAP: Record<UiActionMenuItemSpacing, number> = {
+  none: 0,
+  sm: 2,
+};
 const EMPTY_ACTION_MENU_ITEMS: UiActionMenuItem[] = [];
 
 function resolveActionMenuPosition({
@@ -94,6 +100,7 @@ function resolveActionMenuPosition({
   anchor,
   density,
   items,
+  itemSpacing,
   hasFooter,
   minWidth,
   placement,
@@ -102,10 +109,12 @@ function resolveActionMenuPosition({
   anchor: HTMLElement;
   density: UiActionMenuDensity;
   items: UiActionMenuItem[];
+  itemSpacing: UiActionMenuItemSpacing;
   hasFooter: boolean;
   minWidth: number;
   placement: UiActionMenuPlacement;
 }) {
+  const contentBlockCount = items.length + (hasFooter ? 1 : 0);
   const contentHeight = items.reduce(
     (height, item) => height + (
       item.description
@@ -114,7 +123,7 @@ function resolveActionMenuPosition({
     ),
     ACTION_MENU_ESTIMATED_VERTICAL_PADDING
       + (hasFooter ? ACTION_MENU_FOOTER_SEPARATOR_HEIGHT : 0),
-  );
+  ) + ACTION_MENU_ITEM_GAP[itemSpacing] * Math.max(0, contentBlockCount - 1);
   const estimatedHeight = Math.min(
     ACTION_MENU_MAX_HEIGHT,
     Math.max(ACTION_MENU_ITEM_HEIGHT[density], contentHeight),
@@ -168,6 +177,7 @@ export function UiActionMenu({
   density = "default",
   footerItems = EMPTY_ACTION_MENU_ITEMS,
   isOpen: isOpen,
+  itemSpacing = "none",
   items,
   minWidth: minWidth = 220,
   placement = "auto",
@@ -184,11 +194,12 @@ export function UiActionMenu({
       anchor,
       density,
       hasFooter: footerItems.length > 0,
+      itemSpacing,
       items: allItems,
       minWidth,
       placement,
     }),
-    [align, allItems, density, footerItems.length, minWidth, placement],
+    [align, allItems, density, footerItems.length, itemSpacing, minWidth, placement],
   );
   const {
     overlayPosition: menuPosition,
@@ -223,8 +234,10 @@ export function UiActionMenu({
         "fixed z-[130] overflow-y-auto p-1",
         OVERLAY_SURFACE_CLASS_NAME,
         ANCHORED_OVERLAY_MOTION_CLASS_NAME,
+        itemSpacing === "sm" && "space-y-0.5",
         className,
       )}
+      data-item-spacing={itemSpacing}
       data-placement={menuPosition?.placement ?? "bottom"}
       data-state="open"
       role="menu"

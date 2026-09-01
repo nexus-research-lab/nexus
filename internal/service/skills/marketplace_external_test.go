@@ -4,7 +4,6 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
-	"database/sql"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -38,11 +37,7 @@ tags: [url]
 	cfg.SkillsAPIURL = ""
 	cfg.SkillsSourceURLs = "URL Test|" + server.URL + "/url-demo/SKILL.md"
 	migrateSkillsSQLite(t, cfg.DatabaseURL)
-	db, err := sql.Open("sqlite", cfg.DatabaseURL)
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	defer func() { _ = db.Close() }()
+	db := openSkillsTestDB(t, cfg)
 	service := NewServiceWithDB(cfg, db, nil, nil)
 
 	detail, err := service.ImportSkillURL(context.Background(), server.URL+"/url-demo/SKILL.md", externalManifest{
@@ -81,11 +76,7 @@ func TestPreviewAndImportSkillURLSupportBackslashZipEntries(t *testing.T) {
 	cfg.SkillsDefaultSourcesEnabled = false
 	cfg.SkillsSourceURLs = "Local Zip|" + server.URL + "/target-industry-customer-analysis.zip"
 	migrateSkillsSQLite(t, cfg.DatabaseURL)
-	db, err := sql.Open("sqlite", cfg.DatabaseURL)
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	defer func() { _ = db.Close() }()
+	db := openSkillsTestDB(t, cfg)
 	service := NewServiceWithDB(cfg, db, nil, nil)
 	downloadURL := server.URL + "/target-industry-customer-analysis.zip"
 
@@ -109,11 +100,7 @@ func TestPreviewAndImportSkillURLSupportBackslashZipEntries(t *testing.T) {
 func TestImportSkillsShClonesRepositoryAndSelectsRequestedSkill(t *testing.T) {
 	cfg := newSkillsTestConfig(t)
 	migrateSkillsSQLite(t, cfg.DatabaseURL)
-	db, err := sql.Open("sqlite", cfg.DatabaseURL)
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	defer func() { _ = db.Close() }()
+	db := openSkillsTestDB(t, cfg)
 	service := NewServiceWithDB(cfg, db, nil, nil)
 	ctx := context.Background()
 
@@ -185,11 +172,7 @@ func TestValidateExternalURLCanonicalizesSkillsShDetailHost(t *testing.T) {
 func TestImportLocalPathPersistsPrivateSourceMetadata(t *testing.T) {
 	cfg := newSkillsTestConfig(t)
 	migrateSkillsSQLite(t, cfg.DatabaseURL)
-	db, err := sql.Open("sqlite", cfg.DatabaseURL)
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	defer func() { _ = db.Close() }()
+	db := openSkillsTestDB(t, cfg)
 	service := NewServiceWithDB(cfg, db, nil, nil)
 	ctx := context.Background()
 
@@ -236,11 +219,7 @@ func TestImportLocalPathRejectsAuthenticatedHostPath(t *testing.T) {
 func TestGitImportAndUpdateImportedSkillsUseStoredMetadata(t *testing.T) {
 	cfg := newSkillsTestConfig(t)
 	migrateSkillsSQLite(t, cfg.DatabaseURL)
-	db, err := sql.Open("sqlite", cfg.DatabaseURL)
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	defer func() { _ = db.Close() }()
+	db := openSkillsTestDB(t, cfg)
 	service := NewServiceWithDB(cfg, db, nil, nil)
 	ctx := context.Background()
 
