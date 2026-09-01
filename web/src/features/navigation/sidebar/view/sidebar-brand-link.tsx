@@ -29,7 +29,6 @@ export function SidebarBrandLink({
       )}
       data-tour-anchor={SIDEBAR_TOUR_ANCHORS.launcher}
       tabIndex={collapsed ? -1 : undefined}
-      title={label}
       to={AppRouteBuilders.launcher()}
     >
       <span

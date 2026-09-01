@@ -9,6 +9,32 @@
 
 /* 共享配方层只负责“材质语法”，业务组件只能组合这些规则，不再自己发明玻璃写法。 */
 @layer components {
+  /* Lucide 的显式特殊线宽继续生效，仅收细默认 2px 描边。 */
+  svg.lucide[stroke-width="2"] {
+    stroke-width: 1.65;
+  }
+
+  .ui-tooltip {
+    border: 1px solid rgb(255 255 255 / 8%);
+    border-radius: 11px;
+    padding: 6px 10px;
+    background: rgb(31 31 30 / 96%);
+    box-shadow: 0 10px 30px rgb(0 0 0 / 24%);
+    color: rgb(255 255 255 / 94%);
+    font-size: 12px;
+    font-weight: 560;
+    line-height: 18px;
+    backdrop-filter: blur(16px);
+  }
+
+  .ui-tooltip kbd {
+    border-radius: 999px;
+    padding: 1px 6px;
+    background: rgb(255 255 255 / 12%);
+    color: rgb(255 255 255 / 78%);
+    font: inherit;
+  }
+
   @keyframes nexus-live-tool-text-flow {
     from {
       background-position: 120% 50%;

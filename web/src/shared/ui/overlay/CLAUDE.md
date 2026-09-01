@@ -4,6 +4,7 @@
 - `anchored-overlay-layer.ts` 统一 Portal 容器、外部点击、Escape、滚动和窗口变化生命周期。
 - `overlay-contract.ts` 定义打开态 DOM 契约，供嵌套 Dialog 判断 Escape 的唯一消费层。
 - `overlay-styles.ts` 只定义锚点浮层共用的材质与进出场；层级、尺寸和内容语义仍由消费者决定。
+- `tooltip.tsx` 复用锚点定位与 Portal 生命周期，统一短延迟 hover、键盘 focus 和深色轻量提示；业务按钮只提供可访问标签与可选快捷键。
 
 本目录不解释菜单、选择器或业务内容。消费者提供定位参数和关闭命令，浮层语义仍归消费者所有。
 定位层只在几何值真实变化时写 state；相同位置必须保持原对象，不能让不稳定的业务回调放大成 React render loop。

@@ -4,6 +4,7 @@ import { Download, LoaderCircle } from "lucide-react";
 import { startDesktopUpdate } from "@/lib/desktop-bridge";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 
 export function SidebarUpdateIndicator({
   className,
@@ -34,21 +35,22 @@ export function SidebarUpdateIndicator({
   };
 
   return (
-    <button
-      aria-label={label}
-      aria-busy={starting}
-      className={cn("sidebar-update-indicator relative", className)}
-      disabled={starting}
-      onClick={() => void startUpdate()}
-      title={label}
-      type="button"
-    >
-      {starting ? (
-        <LoaderCircle className="h-[18px] w-[18px] animate-spin" />
-      ) : (
-        <Download className="h-[18px] w-[18px]" />
-      )}
-      <span className="absolute right-0 top-0 h-2 w-2 rounded-full border-2 border-(--surface-shell-directory-background) bg-(--primary)" />
-    </button>
+    <UiTooltip label={label}>
+      <button
+        aria-label={label}
+        aria-busy={starting}
+        className={cn("sidebar-update-indicator relative", className)}
+        disabled={starting}
+        onClick={() => void startUpdate()}
+        type="button"
+      >
+        {starting ? (
+          <LoaderCircle className="h-[18px] w-[18px] animate-spin" />
+        ) : (
+          <Download className="h-[18px] w-[18px]" />
+        )}
+        <span className="absolute right-0 top-0 h-2 w-2 rounded-full border-2 border-(--surface-shell-directory-background) bg-(--primary)" />
+      </button>
+    </UiTooltip>
   );
 }
