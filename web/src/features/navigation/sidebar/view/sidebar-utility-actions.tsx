@@ -53,6 +53,7 @@ export function SidebarPanelToggleAction(
   return (
     <UtilityButton
       icon={props.variant === "rail" ? PanelLeftOpen : PanelLeftClose}
+      iconClassName="h-5 w-5"
       label={
         props.variant === "rail" ? props.labels.expand : props.labels.collapse
       }
@@ -155,12 +156,14 @@ function UtilityButton({
   active = false,
   anchor,
   icon: Icon,
+  iconClassName = "h-[18px] w-[18px]",
   label,
   onClick,
 }: {
   active?: boolean;
   anchor?: string;
   icon: LucideIcon;
+  iconClassName?: string;
   label: string;
   onClick: () => void;
 }) {
@@ -173,7 +176,7 @@ function UtilityButton({
       title={label}
       type="button"
     >
-      <Icon className="h-[18px] w-[18px]" />
+      <Icon className={iconClassName} />
     </button>
   );
 }

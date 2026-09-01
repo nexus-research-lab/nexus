@@ -52,7 +52,7 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
             onClick={controller.create.open}
             title={t("home.create_room")}
           >
-            <MessageCirclePlus className="h-[22px] w-[22px]" />
+            <MessageCirclePlus />
           </SidebarSearchAction>
         )}
         onChange={controller.list.setQuery}

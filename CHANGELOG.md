@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Simplified the Skill update surface into aligned compact rows with one clear
+  update action and less repetitive iconography.
 - Improved dense WorkGraph readability with stable crossing reduction,
   corridor-aware orthogonal routing, semantic fan-in/fan-out junctions,
   frame-boundary proxy ports and hard subgraph obstacle avoidance for
@@ -40,6 +42,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Unified sidebar action icon sizing and aligned contact chat controls with the
+  header and search action axis.
 - Limited Room AutoMemory extraction to user-triggered turns; Agent public
   mentions, private directed messages, and internal continuations no longer
   start separate extraction turns.
