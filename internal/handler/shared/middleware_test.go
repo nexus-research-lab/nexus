@@ -2,12 +2,15 @@ package shared
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 func TestMiddlewareWritesRequestIDAndAccessLog(t *testing.T) {
@@ -260,6 +263,57 @@ func TestDesktopSessionTokenMiddlewareProtectsAPI(t *testing.T) {
 	handler.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusOK || strings.TrimSpace(recorder.Body.String()) != "ok" {
 		t.Fatalf("合法 token 未通过: status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestDesktopSessionTokenFailureIsStructuredBeforeHandler(t *testing.T) {
+	api := NewAPI(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	downstreamCalls := 0
+	handler := RequestContextMiddleware(api.BaseLogger())(
+		DesktopSessionTokenMiddleware(api, "desktop-token", "/nexus/v1")(
+			http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				downstreamCalls++
+				writer.WriteHeader(http.StatusNoContent)
+			}),
+		),
+	)
+
+	for _, test := range []struct {
+		method string
+		effect protocol.FailureEffect
+	}{
+		{method: http.MethodGet, effect: protocol.FailureEffectNotApplicable},
+		{method: http.MethodPost, effect: protocol.FailureEffectNotApplied},
+	} {
+		request := httptest.NewRequest(test.method, "/nexus/v1/runtime/options", nil)
+		request.Header.Set("X-Request-ID", "desktop-auth-attempt")
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusUnauthorized {
+			t.Fatalf("%s status=%d body=%s", test.method, recorder.Code, recorder.Body.String())
+		}
+		var payload struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+			Success bool   `json:"success"`
+			Data    struct {
+				Detail  string               `json:"detail"`
+				Failure protocol.FailureCore `json:"failure"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("解析 desktop auth failure: %v", err)
+		}
+		if payload.Code != "401" || payload.Message != "failed" || payload.Success ||
+			payload.Data.Detail != "桌面登录状态已失效" ||
+			payload.Data.Failure.Code != "auth.desktop_session_invalid" ||
+			payload.Data.Failure.Category != protocol.FailureCategoryAuthentication ||
+			payload.Data.Failure.Effect != test.effect {
+			t.Fatalf("%s desktop auth failure=%+v", test.method, payload)
+		}
+	}
+	if downstreamCalls != 0 {
+		t.Fatalf("认证拒绝不得执行下游 Handler: calls=%d", downstreamCalls)
 	}
 }
 

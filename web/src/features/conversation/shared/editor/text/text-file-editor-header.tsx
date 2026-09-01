@@ -1,3 +1,6 @@
+// INPUT: 文件元信息、纯展示模型和 exact editor 命令。
+// OUTPUT: 下载、聚焦、编辑、保存与外部同步状态工具栏。
+// POS: 文本编辑器 Header；只投影可用性，不拥有保存或恢复语义。
 import { type ComponentType } from "react";
 import { Eye, LoaderCircle, Pencil, Save } from "lucide-react";
 
@@ -39,7 +42,7 @@ const EDIT_ACTION_ICONS: Record<
 function WritingStatus({ label }: { label: string }) {
   return (
     <>
-      <LoaderCircle className="h-3 w-3 shrink-0 animate-spin text-primary" />
+      <LoaderCircle className="h-3 w-3 shrink-0 animate-spin text-primary motion-reduce:animate-none" />
       <span className="truncate">{label}</span>
     </>
   );
@@ -99,6 +102,7 @@ export function TextFileEditorHeader({
             onTogglePreviewFocus={onTogglePreviewFocus}
           />
           <WorkspaceFileToolbarButton
+            disabled={presentation.editDisabled}
             onClick={onToggleEditing}
             title={presentation.editLabel}
           >

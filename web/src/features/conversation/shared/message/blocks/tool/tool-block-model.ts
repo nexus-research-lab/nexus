@@ -199,6 +199,10 @@ export function buildToolBlockViewModel({
   const terminalDetail = ["rejected", "superseded"].includes(finalStatus)
     ? resultSummary
     : null;
+  const expandedInputText = firstText([
+    expandedInputDetail?.value.trim(),
+    expandedInputSummary,
+  ]);
 
   return {
     collapsedDetailText: firstText([
@@ -208,13 +212,9 @@ export function buildToolBlockViewModel({
       resultSummary,
     ]),
     durationText: formatDuration(startTime, endTime),
-    expandedDetailText: firstText([
-      waitingDetail,
-      terminalDetail,
-      expandedInputDetail?.value.trim(),
-      expandedInputSummary,
-      resultSummary,
-    ]),
+    expandedInputText: matchesToolResultText(expandedInputText, toolResult)
+      ? null
+      : expandedInputText,
     hasResult: Boolean(toolResult),
     liveStatusText: formatLiveProgress(liveProgress, localization),
     primaryInputDetail: permission.primaryInputDetail,
@@ -348,6 +348,17 @@ function truncateResultSummary(content: string): string {
     return content;
   }
   return `${content.slice(0, 80)}...`;
+}
+
+function matchesToolResultText(
+  inputText: string | null,
+  result: ToolResultContent | undefined,
+): boolean {
+  return Boolean(
+    inputText
+    && typeof result?.content === "string"
+    && inputText.trim() === result.content.trim(),
+  );
 }
 
 function buildPermissionProjection(

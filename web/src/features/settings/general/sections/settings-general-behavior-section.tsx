@@ -1,3 +1,8 @@
+/**
+ * INPUT: 通用偏好、Echo 与默认模型目录状态。
+ * OUTPUT: 分域恢复提示和通用行为设置控件。
+ * POS: General 行为分区视图；Preferences 写入仍由版本化控制器负责。
+ */
 "use client";
 
 import {
@@ -14,9 +19,9 @@ import {
 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { cn } from "@/shared/ui/class-name";
 import type { UiSelectMenuOption } from "@/shared/ui/menu/select-menu-model";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 import type { AgentConversationDefaultDeliveryPolicy } from "@/types/agent/agent-conversation";
 
 import { SettingsDefaultModelRow } from "../components/settings-default-model-row";
@@ -33,6 +38,16 @@ import {
 } from "../../shared/settings-panel-ui";
 import type { DefaultModelPreferenceRole } from "../model/default-model-preferences-model";
 import { SettingsOnboardingRow } from "../components/settings-onboarding-row";
+import { PreferencesReliabilityNotice } from "../components/preferences-reliability-notice";
+import { EchoSettingsReliabilityNotice } from "../components/echo-settings-reliability-notice";
+import type {
+  EchoSettingsFeedback,
+  EchoSettingsRecoveryControls,
+} from "../model/echo-settings-reliability-model";
+import type {
+  PreferenceFeedback,
+  PreferenceRecoveryControls,
+} from "../model/settings-preferences-model";
 
 interface SettingsGeneralBehaviorSectionProps {
   agentSdkDiagnosticsEnabled: boolean;
@@ -40,9 +55,11 @@ interface SettingsGeneralBehaviorSectionProps {
   autoDreamEnabled: boolean;
   chatDefaultDeliveryPolicy: AgentConversationDefaultDeliveryPolicy;
   emotionEnabled: boolean;
+  echoDisabled: boolean;
   echoEnabled: boolean;
-  echoFeedbackMessage?: string | null;
+  echoFeedback: EchoSettingsFeedback | null;
   echoLoading: boolean;
+  echoRecovery: EchoSettingsRecoveryControls;
   echoSaving: boolean;
   defaultBackgroundModelOptions: UiSelectMenuOption[];
   defaultBackgroundModelValue: string;
@@ -50,7 +67,7 @@ interface SettingsGeneralBehaviorSectionProps {
   defaultImageModelValue: string;
   defaultVisionModelOptions: UiSelectMenuOption[];
   defaultVisionModelValue: string;
-  defaultModelFeedbackMessage?: string | null;
+  defaultModelCatalogFailed: boolean;
   defaultModelOptions: UiSelectMenuOption[];
   defaultModelSavingRole: DefaultModelPreferenceRole | null;
   defaultModelValue: string;
@@ -66,9 +83,12 @@ interface SettingsGeneralBehaviorSectionProps {
     value: string,
     role: DefaultModelPreferenceRole,
   ) => void;
+  onRetryDefaultModelCatalog: () => void;
   onResetTours: () => void;
   preferencesLoading: boolean;
   preferencesSaving: boolean;
+  preferencesFeedback: PreferenceFeedback | null;
+  preferencesRecovery: PreferenceRecoveryControls;
   providerOptionsLoading: boolean;
 }
 
@@ -78,9 +98,11 @@ export function SettingsGeneralBehaviorSection({
   autoDreamEnabled,
   chatDefaultDeliveryPolicy,
   emotionEnabled,
+  echoDisabled,
   echoEnabled,
-  echoFeedbackMessage,
+  echoFeedback,
   echoLoading,
+  echoRecovery,
   echoSaving,
   defaultBackgroundModelOptions,
   defaultBackgroundModelValue,
@@ -88,7 +110,7 @@ export function SettingsGeneralBehaviorSection({
   defaultImageModelValue,
   defaultVisionModelOptions,
   defaultVisionModelValue,
-  defaultModelFeedbackMessage,
+  defaultModelCatalogFailed,
   defaultModelOptions,
   defaultModelSavingRole,
   defaultModelValue,
@@ -99,15 +121,41 @@ export function SettingsGeneralBehaviorSection({
   onEchoEnabledChange,
   onDefaultDeliveryPolicyChange,
   onDefaultModelChange,
+  onRetryDefaultModelCatalog,
   onResetTours,
   preferencesLoading,
   preferencesSaving,
+  preferencesFeedback,
+  preferencesRecovery,
   providerOptionsLoading,
 }: SettingsGeneralBehaviorSectionProps) {
   const { t } = useI18n();
 
   return (
     <section className="space-y-2.5">
+      <PreferencesReliabilityNotice
+        feedback={preferencesFeedback}
+        recovery={preferencesRecovery}
+      />
+      <EchoSettingsReliabilityNotice
+        feedback={echoFeedback}
+        recovery={echoRecovery}
+      />
+      {defaultModelCatalogFailed ? (
+        <UiResourceState
+          description={t("settings.general.default_model_catalog_failed_message")}
+          impact={t("settings.general.default_model_catalog_failed_impact")}
+          nextStep={t("settings.general.default_model_catalog_failed_next_step")}
+          primaryAction={{
+            label: t("settings.general.default_model_catalog_retry"),
+            onClick: onRetryDefaultModelCatalog,
+          }}
+          size="sm"
+          state="error"
+          title={t("settings.general.default_model_catalog_failed_title")}
+          urgency="polite"
+        />
+      ) : null}
       <div className={SETTINGS_CARD_CLASS_NAME}>
         <div className={SETTINGS_ROW_CLASS_NAME}>
           <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
@@ -244,21 +292,13 @@ export function SettingsGeneralBehaviorSection({
             </div>
           </div>
           <div className="flex min-w-0 items-center justify-between gap-3 md:justify-end">
-            <span
-              aria-live="polite"
-              className={cn(
-                SETTINGS_CONTROL_LABEL_CLASS_NAME,
-                "max-w-40 truncate",
-                echoFeedbackMessage && "text-(--danger-text-color)",
-              )}
-              title={echoFeedbackMessage ?? undefined}
-            >
-              {echoFeedbackMessage ?? t("settings.general.echo_label")}
+            <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
+              {t("settings.general.echo_label")}
             </span>
             <GlassSwitch
               aria-label={t("settings.general.echo_label")}
               checked={echoEnabled}
-              disabled={echoLoading || echoSaving}
+              disabled={echoDisabled || echoLoading || echoSaving}
               onChange={onEchoEnabledChange}
               size="sm"
             />
@@ -319,7 +359,6 @@ export function SettingsGeneralBehaviorSection({
           disabled={preferencesSaving}
           descriptionKey="settings.general.default_background_model_description"
           emptyPlaceholderKey="settings.general.default_background_model_empty"
-          feedbackMessage={defaultModelFeedbackMessage}
           icon={<Sparkles className="h-3.5 w-3.5" />}
           onChange={onDefaultModelChange}
           options={defaultBackgroundModelOptions}

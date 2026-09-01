@@ -38,6 +38,10 @@ var (
 	ErrAgentNotFound = errors.New("agent not found")
 	// ErrAgentNameInvalid 表示 Agent 名称格式不合法。
 	ErrAgentNameInvalid = errors.New("agent name invalid")
+	// ErrMainAgentNameImmutable 表示主智能体名称校验在写入前被拒绝。
+	ErrMainAgentNameImmutable = errors.New("main agent name is immutable")
+	// ErrAgentDeletionNotAllowed 表示目标 Agent 属于宿主控制面，删除没有进入协调阶段。
+	ErrAgentDeletionNotAllowed = errors.New("agent deletion not allowed")
 	// ErrRuntimeVersionConflict 表示 Agent 已被其他写入更新。
 	ErrRuntimeVersionConflict = agentrepo.ErrRuntimeVersionConflict
 )
@@ -54,6 +58,8 @@ type Service struct {
 	tasks               agentTaskCleaner
 	deletionCoordinator deletionCoordinator
 	readyMu             sync.Mutex
+	creationLocksMu     sync.Mutex
+	creationLocks       map[string]*agentCreationLock
 }
 
 // NewService 创建 Agent 服务。

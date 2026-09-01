@@ -1,26 +1,38 @@
+// INPUT: 当前 Agent scope、页面可见性与前台/后台读取意图。
+// OUTPUT: 保留旧快照的 Skill 列表资源、结构化读取失败和可核对刷新结果。
+// POS: Agent Options Skill 读取边界；不解释或清理任何 mutation unknown。
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getAgentSkillsApi } from "@/lib/api/capability/skill-api";
-import { getErrorMessage } from "@/lib/error-message";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import type { AgentSkillEntry } from "@/types/capability/skill";
+
+import {
+  buildAgentSkillsReadFailure,
+  type AgentSkillsReadFailure,
+} from "./agent-skills-model";
 
 interface AgentSkillsResourceState {
   agentId: string | null;
-  error: string | null;
+  failure: AgentSkillsReadFailure | null;
   items: AgentSkillEntry[];
   loading: boolean;
 }
 
 interface UseAgentSkillsResourceParams {
   agentId?: string;
-  fallbackErrorMessage: string;
   isVisible: boolean;
 }
 
 type AgentSkillsRefreshMode = "background" | "foreground";
 
+export type AgentSkillsRefreshResult =
+  | { status: "loaded" }
+  | { error: unknown; status: "failed" }
+  | { status: "superseded" };
+
 function createResourceState(agentId: string | null): AgentSkillsResourceState {
-  return { agentId, error: null, items: [], loading: false };
+  return { agentId, failure: null, items: [], loading: false };
 }
 
 function getScopedResourceState(
@@ -38,7 +50,6 @@ function createLoadingState(
   const scoped = getScopedResourceState(state, agentId);
   return {
     ...scoped,
-    error: null,
     loading: mode === "foreground" || scoped.loading,
   };
 }
@@ -53,9 +64,9 @@ function isStaleRequest(
 
 export function useAgentSkillsResource({
   agentId,
-  fallbackErrorMessage,
   isVisible,
 }: UseAgentSkillsResourceParams) {
+  const { t } = useI18n();
   const scopeAgentId = agentId?.trim() || null;
   const requestSequenceRef = useRef(0);
   const requestControllerRef = useRef<AbortController | null>(null);
@@ -68,14 +79,15 @@ export function useAgentSkillsResource({
 
   const runRefresh = useCallback(async (
     mode: AgentSkillsRefreshMode,
-  ): Promise<void> => {
+    reportFailure = true,
+  ): Promise<AgentSkillsRefreshResult> => {
     requestControllerRef.current?.abort();
     const requestSequence = requestSequenceRef.current + 1;
     requestSequenceRef.current = requestSequence;
 
     if (!scopeAgentId) {
       setStoredState(createResourceState(null));
-      return;
+      return { status: "loaded" };
     }
 
     const controller = new AbortController();
@@ -89,34 +101,55 @@ export function useAgentSkillsResource({
         requestSequence,
         controller.signal,
       )) {
-        return;
+        return { status: "superseded" };
       }
       setStoredState({
         agentId: scopeAgentId,
-        error: null,
+        failure: null,
         items,
         loading: false,
       });
+      return { status: "loaded" };
     } catch (error) {
       if (isStaleRequest(
         requestSequenceRef.current,
         requestSequence,
         controller.signal,
       )) {
-        return;
+        return { status: "superseded" };
       }
       setStoredState((current) => ({
         ...getScopedResourceState(current, scopeAgentId),
-        error: getErrorMessage(error, fallbackErrorMessage),
+        failure: reportFailure
+          ? buildAgentSkillsReadFailure(error, t)
+          : null,
         loading: false,
       }));
+      return { error, status: "failed" };
     }
-  }, [fallbackErrorMessage, scopeAgentId]);
+  }, [scopeAgentId, t]);
 
   const refresh = useCallback(
     () => runRefresh("foreground"),
     [runRefresh],
   );
+  const refreshAfterMutation = useCallback(
+    () => runRefresh("background", false),
+    [runRefresh],
+  );
+  const applyCommittedSkill = useCallback((skill: AgentSkillEntry): void => {
+    if (!scopeAgentId) {
+      return;
+    }
+    setStoredState((current) => {
+      const scoped = getScopedResourceState(current, scopeAgentId);
+      const existingIndex = scoped.items.findIndex((item) => item.name === skill.name);
+      const items = existingIndex < 0
+        ? [...scoped.items, skill]
+        : scoped.items.map((item, index) => index === existingIndex ? skill : item);
+      return { ...scoped, items };
+    });
+  }, [scopeAgentId]);
 
   useEffect(() => {
     if (!isVisible) {
@@ -140,9 +173,11 @@ export function useAgentSkillsResource({
   }, [isVisible, runRefresh]);
 
   return {
-    error: state.error,
+    applyCommittedSkill,
+    failure: state.failure,
     items: state.items,
     loading: isVisible ? state.loading : false,
     refresh,
+    refreshAfterMutation,
   };
 }

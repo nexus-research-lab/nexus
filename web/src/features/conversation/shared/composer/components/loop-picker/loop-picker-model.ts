@@ -48,11 +48,15 @@ function buildLoopSearchText(loop: LoopCatalogItem): string {
 }
 
 export function projectLoopPickerContentKind({
+  accessBlocked,
   error,
+  hasSnapshot,
   isLoading,
   loopCount,
 }: {
-  error: string | null;
+  accessBlocked: boolean;
+  error: unknown | null;
+  hasSnapshot: boolean;
   isLoading: boolean;
   loopCount: number;
 }): LoopPickerContentKind {
@@ -60,8 +64,8 @@ export function projectLoopPickerContentKind({
     active: boolean;
     kind: LoopPickerContentKind;
   }> = [
-    { active: isLoading, kind: "loading" },
-    { active: Boolean(error), kind: "error" },
+    { active: isLoading && !hasSnapshot, kind: "loading" },
+    { active: Boolean(error) && (accessBlocked || !hasSnapshot), kind: "error" },
     { active: loopCount === 0, kind: "empty" },
   ];
   return candidates.find((candidate) => candidate.active)?.kind ?? "list";

@@ -1,3 +1,6 @@
+// INPUT: 已认证 owner 的 Agent/Session HTTP 请求、领域服务结果与提交证据。
+// OUTPUT: Agent CRUD、exact 创建回执、Session 操作与兼容成功 envelope/FailureCore。
+// POS: Agent HTTP 消费边界；创建校验只报告 not_applied，诊断 ID 不参与业务对账。
 package agent
 
 import (
@@ -113,13 +116,24 @@ func (h *Handlers) HandleValidateAgentName(writer http.ResponseWriter, request *
 // HandleCreateAgent 创建 agent。
 func (h *Handlers) HandleCreateAgent(writer http.ResponseWriter, request *http.Request) {
 	var payload protocol.CreateRequest
-	if !h.api.BindJSON(writer, request, &payload) {
+	if !h.api.BindJSONError(writer, request, &payload, handlershared.FailureSpec{
+		Code:     "agent.creation_request_invalid",
+		Category: protocol.FailureCategoryValidation,
+		Effect:   protocol.FailureEffectNotApplied,
+		Detail:   "创建 Agent 的内容格式不正确",
+	}) {
 		return
 	}
 	if payload.Options == nil && h.prefs != nil {
 		prefs, prefErr := h.prefs.Get(request.Context(), authsvc.OwnerUserID(request.Context()))
 		if prefErr != nil {
-			h.api.WriteFailure(writer, http.StatusInternalServerError, prefErr.Error())
+			h.api.WriteError(writer, request, http.StatusInternalServerError, handlershared.FailureSpec{
+				Code:     "agent.creation_defaults_unavailable",
+				Category: protocol.FailureCategoryInternal,
+				Effect:   protocol.FailureEffectNotApplied,
+				Detail:   "无法读取创建 Agent 所需的默认设置",
+				Cause:    prefErr,
+			})
 			return
 		}
 		payload.Options = &prefs.DefaultAgentOptions
@@ -127,17 +141,33 @@ func (h *Handlers) HandleCreateAgent(writer http.ResponseWriter, request *http.R
 
 	created, err := h.agents.CreateAgent(request.Context(), payload)
 	if err != nil {
-		if errors.Is(err, agentpkg.ErrAgentNameInvalid) || strings.Contains(err.Error(), "名称") {
-			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
-			return
+		if created != nil && agentpkg.AgentCreationCommitted(err) {
+			h.broadcastDirectoryChanged(request.Context(), "agent_created", map[string]any{
+				"agent_id": created.AgentID,
+			})
 		}
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		status, failure := agentCreateFailure(err)
+		h.api.WriteError(writer, request, status, failure)
 		return
 	}
 	h.broadcastDirectoryChanged(request.Context(), "agent_created", map[string]any{
 		"agent_id": created.AgentID,
 	})
 	h.api.WriteSuccess(writer, created)
+}
+
+// HandleGetAgentCreationRequest 按当前 owner 与 exact 业务请求身份返回创建回执。
+func (h *Handlers) HandleGetAgentCreationRequest(writer http.ResponseWriter, request *http.Request) {
+	result, err := h.agents.GetAgentCreationRequestResult(
+		request.Context(),
+		chi.URLParam(request, "creation_request_id"),
+	)
+	if err != nil {
+		status, failure := agentCreationLookupFailure(err)
+		h.api.WriteError(writer, request, status, failure)
+		return
+	}
+	h.api.WriteSuccess(writer, result)
 }
 
 // HandleUpdateAgent 更新 agent。
@@ -147,23 +177,26 @@ func (h *Handlers) HandleUpdateAgent(writer http.ResponseWriter, request *http.R
 		return
 	}
 	item, err := h.agents.UpdateAgent(request.Context(), chi.URLParam(request, "agent_id"), payload)
-	if errors.Is(err, agentpkg.ErrAgentNotFound) {
-		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
-		return
-	}
 	if err != nil {
-		if errors.Is(err, agentpkg.ErrAgentNameInvalid) ||
-			strings.Contains(err.Error(), "名称") ||
-			strings.Contains(err.Error(), "不可") ||
-			strings.Contains(err.Error(), "目录") {
-			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
-			return
+		if item != nil && agentpkg.AgentUpdateCommitted(err) {
+			h.broadcastDirectoryChanged(request.Context(), "agent_updated", map[string]any{
+				"agent_id": item.AgentID,
+			})
 		}
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		status, failure := agentUpdateFailure(err)
+		h.api.WriteError(writer, request, status, failure)
 		return
 	}
 	if err := h.applyUpdatedPermissionMode(request.Context(), item, payload); err != nil {
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		h.broadcastDirectoryChanged(request.Context(), "agent_updated", map[string]any{
+			"agent_id": item.AgentID,
+		})
+		h.api.WriteError(
+			writer,
+			request,
+			http.StatusInternalServerError,
+			agentPermissionModeSyncFailure(err),
+		)
 		return
 	}
 	h.broadcastDirectoryChanged(request.Context(), "agent_updated", map[string]any{
@@ -193,16 +226,9 @@ func (h *Handlers) applyUpdatedPermissionMode(ctx context.Context, item *protoco
 // HandleDeleteAgent 删除 agent。
 func (h *Handlers) HandleDeleteAgent(writer http.ResponseWriter, request *http.Request) {
 	err := h.agents.DeleteAgent(request.Context(), chi.URLParam(request, "agent_id"))
-	if errors.Is(err, agentpkg.ErrAgentNotFound) {
-		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
-		return
-	}
 	if err != nil {
-		if strings.Contains(err.Error(), "不可删除") {
-			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
-			return
-		}
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		status, failure := agentDeleteFailure(err)
+		h.api.WriteError(writer, request, status, failure)
 		return
 	}
 	h.broadcastDirectoryChanged(request.Context(), "agent_deleted", map[string]any{

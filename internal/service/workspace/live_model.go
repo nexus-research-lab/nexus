@@ -1,3 +1,6 @@
+// INPUT: workspace watcher/API 写入阶段与可选正文快照。
+// OUTPUT: 带文件事件版本和稳定正文 revision 的实时事件。
+// POS: workspace live 线协议模型；revision 只在完整正文可证明时输出。
 package workspace
 
 const (
@@ -37,6 +40,7 @@ type LiveEvent struct {
 	SessionKey      *string    `json:"session_key,omitempty"`
 	ToolUseID       *string    `json:"tool_use_id,omitempty"`
 	ContentSnapshot *string    `json:"content_snapshot,omitempty"`
+	ContentRevision string     `json:"content_revision,omitempty"`
 	AppendedText    *string    `json:"appended_text,omitempty"`
 	DiffStats       *DiffStats `json:"diff_stats,omitempty"`
 	Timestamp       string     `json:"timestamp"`

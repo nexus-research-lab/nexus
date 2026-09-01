@@ -105,8 +105,22 @@ func (r *SQLRepository) CreateAgent(ctx context.Context, record CreateRecord) (*
 		return nil, err
 	}
 	defer tx.Rollback()
+	if err = r.insertAgent(ctx, tx, record); err != nil {
+		return nil, err
+	}
 
-	if _, err = tx.ExecContext(ctx, fmt.Sprintf(`
+	if err = tx.Commit(); err != nil {
+		return nil, err
+	}
+	return r.GetAgent(ctx, record.AgentID, record.OwnerUserID)
+}
+
+func (r *SQLRepository) insertAgent(
+	ctx context.Context,
+	tx *sql.Tx,
+	record CreateRecord,
+) error {
+	if _, err := tx.ExecContext(ctx, fmt.Sprintf(`
 INSERT INTO agents (
     id, owner_user_id, slug, name, description, definition, status, workspace_path, is_main, avatar, vibe_tags, business_tags
 ) VALUES (%s, %s, %s, %s, %s, '', %s, %s, %s, %s, %s, %s)`,
@@ -134,10 +148,10 @@ INSERT INTO agents (
 		record.VibeTagsJSON,
 		record.BusinessTagsJSON,
 	); err != nil {
-		return nil, err
+		return err
 	}
 
-	if _, err = tx.ExecContext(ctx, `
+	if _, err := tx.ExecContext(ctx, `
 INSERT INTO profiles (id, agent_id, display_name, avatar_url, headline, profile_markdown)
 VALUES (`+r.dialect.BindList(3)+`, NULL, `+r.dialect.Bind(4)+`, `+r.dialect.Bind(5)+`)`,
 		record.ProfileID,
@@ -146,10 +160,10 @@ VALUES (`+r.dialect.BindList(3)+`, NULL, `+r.dialect.Bind(4)+`, `+r.dialect.Bind
 		record.Headline,
 		record.ProfileMarkdown,
 	); err != nil {
-		return nil, err
+		return err
 	}
 
-	if _, err = tx.ExecContext(ctx, `
+	if _, err := tx.ExecContext(ctx, `
 INSERT INTO runtimes (
     id, agent_id, provider, model, permission_mode, allowed_tools_json, disallowed_tools_json,
     mcp_servers_json, connector_ids_json, skill_ids_json, disabled_skill_ids_json,
@@ -171,13 +185,9 @@ INSERT INTO runtimes (
 		record.SettingSourcesJSON,
 		record.RuntimeVersion,
 	); err != nil {
-		return nil, err
+		return err
 	}
-
-	if err = tx.Commit(); err != nil {
-		return nil, err
-	}
-	return r.GetAgent(ctx, record.AgentID, record.OwnerUserID)
+	return nil
 }
 
 // UpdateAgent 更新 Agent 配置。
@@ -465,6 +475,9 @@ WHERE agent_id = ` + r.dialect.Bind(1) + `
 		}
 	}
 	if err = r.advanceChannelControlVersionForAgentDeletion(ctx, tx, ownerUserID); err != nil {
+		return err
+	}
+	if err = r.markAgentCreationRequestsDeleted(ctx, tx, ownerUserID, agentID); err != nil {
 		return err
 	}
 	if err = r.deleteAgentDependents(ctx, tx, agentID, ownerUserID); err != nil {

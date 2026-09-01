@@ -225,9 +225,7 @@ func newConcurrentRoomRepositories(
 
 	databaseURL := t.TempDir() + "/concurrent-room.db"
 	dbA := openConcurrentRoomDB(t, databaseURL)
-	if err := goose.SetDialect("sqlite3"); err != nil {
-		t.Fatalf("设置 goose 方言失败: %v", err)
-	}
+	ensureGooseSQLiteDialect(t)
 	if err := goose.Up(dbA, roomrepoMigrationDir(t)); err != nil {
 		t.Fatalf("执行 migration 失败: %v", err)
 	}

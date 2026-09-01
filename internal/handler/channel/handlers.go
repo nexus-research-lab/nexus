@@ -25,6 +25,7 @@ type Control interface {
 	DeleteChannelConfig(context.Context, string, string) error
 	DeleteChannelAccount(context.Context, string, string, string) (*channelspkg.ChannelConfigView, error)
 	StartChannelLogin(context.Context, string, string) (*channelspkg.ChannelLoginView, error)
+	GetCurrentChannelLogin(context.Context, string, string) (*channelspkg.ChannelLoginView, error)
 	GetChannelLogin(context.Context, string, string, string) (*channelspkg.ChannelLoginView, error)
 	SubmitChannelLoginVerifyCode(context.Context, string, string, string, channelspkg.SubmitChannelLoginVerifyCodeRequest) (*channelspkg.ChannelLoginView, error)
 	ListPairings(context.Context, string, channelspkg.PairingQuery) ([]channelspkg.PairingView, error)

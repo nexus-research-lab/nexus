@@ -1,3 +1,6 @@
+// INPUT: 到期 heartbeat、durable wake/system event 与 Agent Main Session。
+// OUTPUT: exact event claim、单轮派发、终态 observation 和 claim-scoped 收口。
+// POS: Heartbeat outbox consumer；外部派发前必须先领取，过期 processing 只 fail closed。
 package automation
 
 import (
@@ -5,11 +8,14 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"time"
 
 	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 )
+
+const heartbeatWakeClaimTTL = 35 * time.Minute
 
 func (s *Service) dispatchHeartbeat(agentID string, reason string) {
 	ctx := context.Background()
@@ -59,6 +65,11 @@ func (s *Service) dispatchHeartbeat(agentID string, reason string) {
 	if err != nil {
 		logger.Error("heartbeat 拉取系统事件失败", "err", err)
 		s.finishHeartbeatRuntime(agentID, nil, nil, errorPointer(err))
+		return
+	}
+	if len(events) == 0 && reason != "heartbeat" {
+		logger.Info("heartbeat durable wake 已由其他实例领取")
+		s.finishHeartbeatRuntime(agentID, nil, nil, nil)
 		return
 	}
 	if event, ok := scheduledMainSessionEvent(events); ok {
@@ -219,7 +230,12 @@ func heartbeatEventLines(events []automationdomain.SystemEvent) []string {
 	for _, event := range events {
 		payload := map[string]any{}
 		_ = json.Unmarshal([]byte(event.Payload), &payload)
-		lines = append(lines, firstNonEmpty(strings.TrimSpace(anyString(payload["text"])), event.EventType))
+		line := strings.TrimSpace(anyString(payload["text"]))
+		if line == "" && event.EventType == "heartbeat.wake" {
+			mode := firstNonEmpty(strings.TrimSpace(anyString(payload["wake_mode"])), "unknown")
+			line = "wake request (" + mode + ")"
+		}
+		lines = append(lines, firstNonEmpty(line, event.EventType))
 	}
 	return lines
 }
@@ -271,27 +287,64 @@ func bulletSection(title string, lines []string) string {
 }
 
 func (s *Service) claimSystemEvents(ctx context.Context, agentID string) ([]automationdomain.SystemEvent, error) {
-	items, err := s.repository.ListNewSystemEventsByAgent(ctx, agentID)
+	now := s.nowFn().UTC()
+	items, err := s.repository.ListClaimableSystemEventsByAgent(ctx, agentID, now)
 	if err != nil {
 		return nil, err
 	}
 	items = selectHeartbeatSystemEvents(items)
+	claimed := make([]automationdomain.SystemEvent, 0, len(items))
 	for _, item := range items {
-		if markErr := s.repository.MarkSystemEventStatus(ctx, item.EventID, "processing"); markErr != nil {
-			return nil, markErr
+		if item.EventType == "heartbeat.wake" {
+			claimToken := s.idFactory("hb_wake_claim")
+			claimExpiresAt := now.Add(heartbeatWakeClaimTTL)
+			ok, claimErr := s.repository.ClaimHeartbeatWakeEvent(
+				ctx, item.EventID, claimToken, now, claimExpiresAt,
+			)
+			if claimErr != nil {
+				return nil, claimErr
+			}
+			if !ok {
+				continue
+			}
+			item.Status = "processing"
+			item.ClaimToken = claimToken
+			item.ClaimExpiresAt = cloneTimePointer(&claimExpiresAt)
+			claimed = append(claimed, item)
+			continue
+		}
+		ok, claimErr := s.repository.ClaimSystemEvent(ctx, item.EventID)
+		if claimErr != nil {
+			return nil, claimErr
+		}
+		if ok {
+			item.Status = "processing"
+			claimed = append(claimed, item)
 		}
 	}
-	return items, nil
+	return claimed, nil
 }
 
 func (s *Service) markEventsProcessed(items []automationdomain.SystemEvent) {
 	for _, item := range items {
+		if item.EventType == "heartbeat.wake" {
+			_, _ = s.repository.CompleteHeartbeatWakeEvent(
+				context.Background(), item.EventID, item.ClaimToken, "processed",
+			)
+			continue
+		}
 		_ = s.repository.MarkSystemEventStatus(context.Background(), item.EventID, "processed")
 	}
 }
 
 func (s *Service) failEvents(items []automationdomain.SystemEvent) {
 	for _, item := range items {
+		if item.EventType == "heartbeat.wake" {
+			_, _ = s.repository.CompleteHeartbeatWakeEvent(
+				context.Background(), item.EventID, item.ClaimToken, "failed",
+			)
+			continue
+		}
 		_ = s.repository.MarkSystemEventStatus(context.Background(), item.EventID, "failed")
 	}
 }

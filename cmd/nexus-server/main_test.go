@@ -150,6 +150,84 @@ WHERE request_id = 'request-legacy'
 	}
 }
 
+func TestRunMigrationsRepairsShiftedRecoveryVersionCollision(t *testing.T) {
+	cfg := testServerConfig(t)
+	db, migrationDir, err := openMigrationDB(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = goose.UpTo(db, migrationDir, 120); err != nil {
+		t.Fatal(err)
+	}
+	files := []string{
+		"00122_automation_delivery_attempt_claim.sql",
+		"00123_automation_task_deletion_claim.sql",
+		"00124_automation_run_request_identity.sql",
+		"00125_automation_heartbeat_wake_outbox.sql",
+		"00126_agent_creation_requests.sql",
+	}
+	for index, name := range files {
+		contents, readErr := os.ReadFile(filepath.Join(migrationDir, name))
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		upSQL, _, found := strings.Cut(string(contents), "-- +goose Down")
+		if !found {
+			t.Fatalf("migration %s has no Goose Down boundary", name)
+		}
+		if _, err = db.Exec(upSQL); err != nil {
+			t.Fatalf("apply shifted migration %s: %v", name, err)
+		}
+		if _, err = db.Exec(
+			"INSERT INTO goose_db_version (version_id, is_applied) VALUES (?, TRUE)",
+			121+index,
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err = db.Exec(`
+INSERT INTO agent_creation_requests (
+    owner_user_id, creation_request_id, intent_digest, agent_id, workspace_path, status
+) VALUES ('owner-legacy', 'web-create:legacy', 'digest', 'agent-legacy', '/tmp/agent-legacy', 'deleted')
+`); err != nil {
+		t.Fatal(err)
+	}
+	if err = db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	if err = runMigrations(cfg, discardLogger()); err != nil {
+		t.Fatalf("repair shifted recovery collision: %v", err)
+	}
+	verified, err := storage.OpenDB(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer verified.Close()
+	version, err := goose.GetDBVersion(verified)
+	wantVersion := latestServerMigrationVersion(t, migrationDir)
+	if err != nil || version != wantVersion {
+		t.Fatalf("migration version after repair = %d, err=%v", version, err)
+	}
+	if !sqliteTestColumnExists(t, verified, "agents", "business_tags") {
+		t.Fatal("official Agent business tags migration was not replayed")
+	}
+	var status string
+	if err = verified.QueryRow(`
+SELECT status
+FROM agent_creation_requests
+WHERE owner_user_id = 'owner-legacy' AND creation_request_id = 'web-create:legacy'
+`).Scan(&status); err != nil || status != "deleted" {
+		t.Fatalf("legacy Agent creation receipt changed: status=%q err=%v", status, err)
+	}
+	if err = verified.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err = runMigrations(cfg, discardLogger()); err != nil {
+		t.Fatalf("repeated startup after shifted recovery repair: %v", err)
+	}
+}
+
 func latestServerMigrationVersion(t *testing.T, migrationDir string) int64 {
 	t.Helper()
 	migrations, err := goose.CollectMigrations(migrationDir, 0, math.MaxInt64)

@@ -9,9 +9,10 @@ import type {
   ChannelCredentialField,
   ChannelLoginView,
 } from "@/lib/api/capability/channel-api";
-import { UiButton } from "@/shared/ui/button/button";
+import { UiButton, UiLinkButton } from "@/shared/ui/button/button";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
+import type { FeedbackBannerProps } from "@/shared/ui/feedback/feedback-banner-contract";
 import type { Agent } from "@/types/agent/agent";
 
 import { ChannelAccountsPanel } from "../channel-accounts-panel";
@@ -24,11 +25,14 @@ import { ChannelGuide } from "../channel-guide";
 import { ChannelLoginPanel } from "../login/channel-login-panel";
 
 interface ChannelConnectionFieldsController {
+  busy: boolean;
   currentItem: ChannelConfigView;
   deletingAccountId: string;
   discordOauthUrl: string;
   draft: ChannelConnectionDraft;
   loginLoading: boolean;
+  loginMutationBlocked: boolean;
+  loginRecoveryNotice: FeedbackBannerProps | null;
   loginView: ChannelLoginView | null;
   personalWeixin: boolean;
   requestDeleteAccount: (account: ChannelAccountView) => void;
@@ -41,13 +45,6 @@ interface ChannelConnectionFieldsController {
 interface ChannelConnectionFieldsProps {
   agents: Agent[];
   controller: ChannelConnectionFieldsController;
-}
-
-function openDiscordOauth(url: string): void {
-  if (!url) {
-    return;
-  }
-  window.open(url, "_blank", "noopener,noreferrer");
 }
 
 export function ChannelConnectionFields({
@@ -65,15 +62,16 @@ export function ChannelConnectionFields({
           channelTitle={currentItem.title}
           loading={controller.loginLoading}
           loginView={controller.loginView}
-          onSubmitVerifyCode={(value) => {
-            void controller.submitVerifyCode(value);
-          }}
+          mutationBlocked={controller.loginMutationBlocked}
+          onSubmitVerifyCode={controller.submitVerifyCode}
+          recoveryNotice={controller.loginRecoveryNotice}
         />
       ) : null}
 
       {controller.personalWeixin ? (
         <ChannelAccountsPanel
           accounts={currentItem.accounts || []}
+          busy={controller.busy}
           deletingAccountId={controller.deletingAccountId}
           onDelete={controller.requestDeleteAccount}
         />
@@ -82,6 +80,7 @@ export function ChannelConnectionFields({
       <UiField label="处理智能体" required>
         <UiSelectMenu
           ariaLabel="选择频道处理智能体"
+          disabled={controller.busy}
           onChange={controller.setAgentId}
           options={agents.map((agent) => ({
             value: agent.agent_id,
@@ -106,6 +105,7 @@ export function ChannelConnectionFields({
               data-1p-ignore="true"
               data-form-type="other"
               data-lpignore="true"
+              disabled={controller.busy}
               name={channelFieldInputName(currentItem.channel_type, index)}
               onChange={(event) => controller.updateField(field, event.target.value)}
               placeholder={field.placeholder || ""}
@@ -122,18 +122,32 @@ export function ChannelConnectionFields({
 
       {currentItem.channel_type === "discord" ? (
         <UiField label="授权机器人到服务器">
-          <UiButton
-            className="w-full"
-            disabled={!controller.discordOauthUrl}
-            onClick={() => openDiscordOauth(controller.discordOauthUrl)}
-            size="lg"
-            tone="primary"
-            type="button"
-            variant="solid"
-          >
-            <ExternalLink className="h-5 w-5" />
-            授权机器人
-          </UiButton>
+          {controller.busy || !controller.discordOauthUrl ? (
+            <UiButton
+              className="w-full"
+              disabled
+              size="lg"
+              tone="primary"
+              type="button"
+              variant="solid"
+            >
+              <ExternalLink className="h-5 w-5" />
+              授权机器人
+            </UiButton>
+          ) : (
+            <UiLinkButton
+              className="w-full"
+              href={controller.discordOauthUrl}
+              rel="noopener noreferrer"
+              size="lg"
+              target="_blank"
+              tone="primary"
+              variant="solid"
+            >
+              <ExternalLink className="h-5 w-5" />
+              授权机器人
+            </UiLinkButton>
+          )}
         </UiField>
       ) : null}
     </>

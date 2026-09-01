@@ -1,6 +1,6 @@
-// INPUT: owner-scoped Automation 任务查询、配置版本写入与领域目标字段。
-// OUTPUT: 完整 ScheduledTask 快照及带 CAS 的配置持久化结果。
-// POS: Automation task repository；SELECT/UPDATE 字段顺序与 scan.go 同构。
+// INPUT: owner-scoped Automation 任务查询、创建 request identity、配置版本写入与领域目标字段。
+// OUTPUT: 完整 ScheduledTask 快照、幂等创建回执、带 CAS 的配置持久化及不覆盖其他配置的单列停用结果。
+// POS: Automation task repository；SELECT/UPDATE 字段顺序与 scan.go 及 migration 同构。
 package automation
 
 import (
@@ -64,6 +64,9 @@ SELECT
     last_error,
     last_delivery_status,
     configuration_version,
+    deletion_state,
+    deletion_token,
+    deletion_claimed_at,
     permission_policy_json,
     permission_policy_revision,
     permission_state,
@@ -169,6 +172,9 @@ SELECT
     last_error,
     last_delivery_status,
     configuration_version,
+    deletion_state,
+    deletion_token,
+    deletion_claimed_at,
     permission_policy_json,
     permission_policy_revision,
     permission_state,
@@ -199,7 +205,7 @@ func (r *Repository) UpsertScheduledTask(ctx context.Context, job automationdoma
 	if err != nil {
 		return nil, err
 	}
-	_, err = r.execWithRetry(
+	result, err := r.execWithRetry(
 		ctx,
 		r.upsertScheduledTaskQuery,
 		args...,
@@ -207,7 +213,18 @@ func (r *Repository) UpsertScheduledTask(ctx context.Context, job automationdoma
 	if err != nil {
 		return nil, err
 	}
-	return r.GetScheduledTask(ctx, "", job.JobID)
+	count, err := result.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+	current, err := r.GetScheduledTask(ctx, "", job.JobID)
+	if err != nil {
+		return nil, err
+	}
+	if count == 0 && current != nil && strings.TrimSpace(current.DeletionState) != "" {
+		return nil, automationdomain.ErrTaskDeleting
+	}
+	return current, nil
 }
 
 // CreateScheduledTaskIdempotent 以 owner/request_id 原子认领一次创建意图。
@@ -371,7 +388,7 @@ WHERE owner_user_id = %s AND request_id = %s`,
 		return nil, true, err
 	}
 	if task == nil {
-		return nil, true, automationdomain.ErrJobNotFound
+		return nil, true, automationdomain.ErrCreateRequestResultGone
 	}
 	return task, true, nil
 }
@@ -397,14 +414,93 @@ func (r *Repository) UpdateScheduledTaskAtVersionAndRunningRun(
 	return r.updateScheduledTaskAtVersion(ctx, job, expectedVersion, &expectedRunningRunID)
 }
 
+// DisableScheduledTaskAtVersion 只在任务仍是调用方读取的启用版本时停用它。
+// changed=false 表示其他执行者已经完成同一停用；当前任务仍启用时返回版本冲突，
+// 让调用方刷新权威快照，而不是用旧任务整行覆盖用户刚保存的配置。
+func (r *Repository) DisableScheduledTaskAtVersion(
+	ctx context.Context,
+	ownerUserID string,
+	jobID string,
+	expectedVersion int64,
+) (bool, error) {
+	if expectedVersion < 1 {
+		return false, automationdomain.ErrConfigurationVersionConflict
+	}
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	jobID = strings.TrimSpace(jobID)
+	result, err := r.execWithRetry(
+		ctx,
+		"UPDATE automation_scheduled_tasks SET enabled = "+r.bind(1)+
+			", configuration_version = configuration_version + 1, updated_at = CURRENT_TIMESTAMP"+
+			" WHERE job_id = "+r.bind(2)+
+			" AND owner_user_id = "+r.bind(3)+
+			" AND configuration_version = "+r.bind(4)+
+			" AND enabled = "+r.bind(5)+
+			" AND deletion_state = ''",
+		false,
+		jobID,
+		ownerUserID,
+		expectedVersion,
+		true,
+	)
+	if err != nil {
+		return false, err
+	}
+	updated, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	if updated == 1 {
+		return true, nil
+	}
+	current, err := r.GetScheduledTask(ctx, ownerUserID, jobID)
+	if err != nil {
+		return false, err
+	}
+	if current == nil {
+		return false, automationdomain.ErrJobNotFound
+	}
+	if !current.Enabled {
+		return false, nil
+	}
+	return false, automationdomain.ErrConfigurationVersionConflict
+}
+
 func (r *Repository) updateScheduledTaskAtVersion(
 	ctx context.Context,
 	job automationdomain.ScheduledTask,
 	expectedVersion int64,
 	expectedRunningRunID *string,
 ) (*automationdomain.ScheduledTask, error) {
-	if expectedVersion < 1 {
+	query, args, err := r.scheduledTaskVersionUpdateStatement(
+		job,
+		expectedVersion,
+		expectedRunningRunID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	result, err := r.execWithRetry(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	updated, err := result.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+	if updated != 1 {
 		return nil, automationdomain.ErrConfigurationVersionConflict
+	}
+	return r.GetScheduledTask(ctx, strings.TrimSpace(job.OwnerUserID), strings.TrimSpace(job.JobID))
+}
+
+func (r *Repository) scheduledTaskVersionUpdateStatement(
+	job automationdomain.ScheduledTask,
+	expectedVersion int64,
+	expectedRunningRunID *string,
+) (string, []any, error) {
+	if expectedVersion < 1 {
+		return "", nil, automationdomain.ErrConfigurationVersionConflict
 	}
 	columns := []string{
 		"owner_user_id",
@@ -457,33 +553,19 @@ func (r *Repository) updateScheduledTaskAtVersion(
 	)
 	args, err := scheduledTaskDefinitionArgs(job)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 	args = append(args, strings.TrimSpace(job.JobID), strings.TrimSpace(job.OwnerUserID), expectedVersion)
 	query := "UPDATE automation_scheduled_tasks SET " + strings.Join(assignments, ", ") +
 		" WHERE job_id = " + r.bind(len(columns)+1) +
 		" AND owner_user_id = " + r.bind(len(columns)+2) +
-		" AND configuration_version = " + r.bind(len(columns)+3)
+		" AND configuration_version = " + r.bind(len(columns)+3) +
+		" AND deletion_state = ''"
 	if expectedRunningRunID != nil {
 		args = append(args, strings.TrimSpace(*expectedRunningRunID))
 		query += " AND COALESCE(running_run_id, '') = " + r.bind(len(columns)+4)
 	}
-	result, err := r.execWithRetry(
-		ctx,
-		query,
-		args...,
-	)
-	if err != nil {
-		return nil, err
-	}
-	updated, err := result.RowsAffected()
-	if err != nil {
-		return nil, err
-	}
-	if updated != 1 {
-		return nil, automationdomain.ErrConfigurationVersionConflict
-	}
-	return r.GetScheduledTask(ctx, strings.TrimSpace(job.OwnerUserID), strings.TrimSpace(job.JobID))
+	return query, args, nil
 }
 
 // DeleteScheduledTask 删除任务。ownerUserID 为空时表示全局作用域。

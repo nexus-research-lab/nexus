@@ -195,11 +195,11 @@ func (s *Service) SendMessage(
 	if (strings.EqualFold(strings.TrimSpace(request.TargetType), TargetTypeAgent) ||
 		strings.EqualFold(strings.TrimSpace(request.TargetType), TargetTypeExternalSession)) &&
 		strings.TrimSpace(request.ConversationID) != "" {
-		return nil, errors.New("conversation_id 只支持 room 目标")
+		return nil, newInputError("conversation_id 只支持 owner 通讯客户端或 room 目标")
 	}
 	if strings.EqualFold(strings.TrimSpace(request.TargetType), TargetTypeExternalSession) &&
 		strings.TrimSpace(request.TargetID) == strings.TrimSpace(actor.SessionKey) {
-		return nil, errors.New("当前外部私聊请直接使用 final reply")
+		return nil, newInputError("当前外部私聊请直接使用 final reply")
 	}
 	trusted := sendContext{}
 	if actor.ContextKind == ContextKindRoom {
@@ -229,7 +229,7 @@ func (s *Service) OpenContactChannel(
 	}
 	targetAgentID = strings.TrimSpace(targetAgentID)
 	if targetAgentID == "" || targetAgentID == current.AgentID {
-		return nil, errors.New("目标 Agent 不可用")
+		return nil, newInputError("目标 Agent 不可用")
 	}
 	s.directMu.Lock()
 	defer s.directMu.Unlock()
@@ -263,7 +263,7 @@ func (s *Service) sendMessage(
 	request.ConversationID = strings.TrimSpace(request.ConversationID)
 	request.Content = strings.TrimSpace(request.Content)
 	if request.TargetID == "" || request.Content == "" {
-		return nil, errors.New("target_id 和 content 不能为空")
+		return nil, newInputError("target_id 和 content 不能为空")
 	}
 	switch request.TargetType {
 	case TargetTypeAgent:
@@ -273,7 +273,7 @@ func (s *Service) sendMessage(
 	case TargetTypeExternalSession:
 		return s.sendToExternalSession(ctx, sourceAgentID, request)
 	default:
-		return nil, errors.New("target_type 只支持 agent、room 或 external_session")
+		return nil, newInputError("target_type 只支持 agent、room 或 external_session")
 	}
 }
 
@@ -327,7 +327,7 @@ func (s *Service) sendToAgent(
 	trusted sendContext,
 ) (*SendResult, error) {
 	if request.TargetID == sourceAgentID {
-		return nil, errors.New("Agent 不能给自己发消息")
+		return nil, newInputError("Agent 不能给自己发消息")
 	}
 	contextValue, err := s.ensureDirectRoom(ctx, sourceAgentID, request.TargetID)
 	if err != nil {
@@ -341,7 +341,7 @@ func (s *Service) sendToAgent(
 			return nil, contextErr
 		}
 		if selectedContext.Room.ID != contextValue.Room.ID {
-			return nil, errors.New("conversation 不属于联系人直聊")
+			return nil, newInputError("conversation 不属于联系人直聊")
 		}
 		contextValue = selectedContext
 	}
@@ -387,7 +387,7 @@ func (s *Service) requireOwnerAgent(
 		return nil, err
 	}
 	if current.IsMain {
-		return nil, errors.New("主智能体只属于控制面，不能进入 Agent 通讯录")
+		return nil, newInputError("主智能体只属于控制面，不能进入 Agent 通讯录")
 	}
 	return current, nil
 }
@@ -410,7 +410,7 @@ func (s *Service) sendToRoom(
 		return nil, roomsvc.ErrRoomMemberNotFound
 	}
 	if contextValue.Room.IsContactChannel {
-		return nil, errors.New("联系人私信通道不能作为群目标")
+		return nil, newInputError("联系人私信通道不能作为群目标")
 	}
 	message, err := s.realtime.HandlePlatformPublicMessage(
 		ctx, contextValue.Room.ID, contextValue.Conversation.ID,

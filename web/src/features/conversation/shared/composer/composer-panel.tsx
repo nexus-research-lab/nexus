@@ -15,6 +15,7 @@ import { CONVERSATION_COMPOSER_LANE_CLASS_NAME } from "../conversation-panel-sty
 import { COMPOSER_ATTACHMENT_ACCEPT } from "./attachments/composer-attachments";
 import { ComposerAttachmentList } from "./attachments/composer-local-attachments";
 import { ComposerFooter } from "./components/footer/composer-footer";
+import { ComposerSessionSettingsReliability } from "./components/footer/composer-session-settings-reliability";
 import { ComposerInputRow } from "./components/composer-input-row";
 import { ComposerLocalDirectories } from "./components/composer-local-directories";
 import { ComposerPendingQueue } from "./components/pending-queue/composer-pending-queue";
@@ -157,12 +158,14 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
                   modelSearchRef: slashCommand.modelSearchRef,
                   onModelQueryChange: slashCommand.onModelQueryChange,
                   onModelQueryKeyDown: slashCommand.onModelQueryKeyDown,
+                  onModelRetry: slashCommand.onModelRetry,
                   onClose: slashCommand.onClose,
                   onSelectModel: slashCommand.onSelectModel,
                   onSelectCommand: slashCommand.onSelectCommand,
                   onSelectSkill: slashCommand.onSelectSkill,
                   onSkillQueryChange: slashCommand.onSkillQueryChange,
                   onSkillQueryKeyDown: slashCommand.onSkillQueryKeyDown,
+                  onSkillRetry: slashCommand.onSkillRetry,
                   skillError: slashCommand.skillError,
                   skillItems: slashCommand.skillItems,
                   skillLoading: slashCommand.skillLoading,
@@ -171,6 +174,10 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
                   status: slashCommand.status,
                 }}
                 textareaRef={refs.textareaRef}
+              />
+
+              <ComposerSessionSettingsReliability
+                controller={sessionSettings}
               />
 
               <ComposerFooter

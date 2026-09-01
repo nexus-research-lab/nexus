@@ -17,6 +17,7 @@ import {
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { getUiButtonClassName } from "@/shared/ui/button/button-styles";
+import { completeFeedbackBanner } from "@/shared/ui/feedback/feedback-banner-contract";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import type { ProjectAccess, SharedProject } from "@/types/settings/project";
@@ -63,7 +64,7 @@ function ProjectCard({
   const { t } = useI18n();
   const memberEntries = projectMemberEntries(project);
   const memberDraft = model.memberDrafts[projectMemberDraftKey(project.project_id)] ?? "";
-  const disabled = model.pendingKey !== null;
+  const disabled = model.pendingKey !== null || model.mutationsBlocked;
   const accessOptions = useMemo(() => PROJECT_ACCESS_VALUES.map((access) => ({
     label: t(`settings.projects.access_${access}`),
     value: access,
@@ -192,7 +193,10 @@ export function ProjectAdminPanel() {
     canManageMembers: status?.role === "admin",
   });
   const { viewModel } = controller;
-  const disabled = viewModel.loading || viewModel.pendingKey !== null;
+  const disabled = viewModel.loading
+    || viewModel.pendingKey !== null
+    || viewModel.mutationsBlocked;
+  const refreshDisabled = viewModel.loading || viewModel.pendingKey !== null;
 
   const handleCreateProject = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -233,7 +237,7 @@ export function ProjectAdminPanel() {
             </button>
             <button
               className={SECONDARY_BUTTON_CLASS_NAME}
-              disabled={disabled}
+              disabled={refreshDisabled}
               onClick={() => void controller.refreshProjects()}
               type="button"
             >
@@ -273,12 +277,32 @@ export function ProjectAdminPanel() {
       </div>
 
       <FeedbackBannerViewport
-        item={viewModel.feedback ? {
-          message: viewModel.feedback.message,
-          onDismiss: controller.dismissFeedback,
-          title: viewModel.feedback.title,
-          tone: viewModel.feedback.tone,
-        } : null}
+        item={viewModel.feedback
+          ? completeFeedbackBanner(
+            {
+              action: viewModel.feedback.recoveryAction === "refresh"
+                ? {
+                    label: t("state.retry"),
+                    onClick: () => {
+                      void controller.refreshProjects();
+                    },
+                  }
+                : undefined,
+              impact: viewModel.feedback.impact,
+              message: viewModel.feedback.message,
+              nextStep: viewModel.feedback.nextStep,
+              onDismiss: viewModel.feedback.blocksMutation
+                ? undefined
+                : controller.dismissFeedback,
+              title: viewModel.feedback.title,
+              tone: viewModel.feedback.tone,
+            },
+            {
+              impact: t("feedback.unconfirmed_impact"),
+              nextStep: t("feedback.unconfirmed_next_step"),
+            },
+          )
+          : null}
       />
     </>
   );

@@ -8,7 +8,8 @@ import (
 
 // CreateJobInput 表示创建请求。
 type CreateJobInput struct {
-	// RequestID 是对话工具签发的幂等键；HTTP/CLI 留空时保持原有每次创建语义。
+	// RequestID 是 Automation 调用方为一次创建意图签发的领域幂等键；
+	// 未携带时保持原有每次调用都创建任务的语义。
 	RequestID      string         `json:"request_id,omitempty"`
 	Name           string         `json:"name"`
 	AgentID        string         `json:"agent_id"`

@@ -1,6 +1,6 @@
 /**
  * INPUT: Conversation reliability 的 transport、provider retry 与用户级失败分类。
- * OUTPUT: 与 Composer 输入框内缘对齐、不含技术详情、可随恢复证据自动消失的紧凑状态卡。
+ * OUTPUT: 与 Composer 输入框内缘对齐、不含技术详情、完整说明问题/影响/下一步的紧凑状态卡。
  * POS: DM 与 Room 共用的可靠性状态展示；不进入消息 Feed。
  */
 "use client";
@@ -10,6 +10,7 @@ import { LoaderCircle, TriangleAlert, WifiOff } from "lucide-react";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import { cn } from "@/shared/ui/class-name";
+import { RecoverySummary } from "@/shared/ui/feedback/recovery-summary";
 import type {
   ConversationFailureCode,
   ConversationReliabilitySnapshot,
@@ -17,19 +18,77 @@ import type {
 
 import { CONVERSATION_COMPOSER_LANE_CLASS_NAME } from "./conversation-panel-styles";
 
-const FAILURE_MESSAGE_KEYS: Record<ConversationFailureCode, TranslationKey> = {
-  connection_unavailable: "conversation.reliability.connection_unavailable",
-  delivery_unknown: "conversation.reliability.delivery_unknown",
-  permission_not_sent: "conversation.reliability.permission_not_sent",
-  provider_configuration: "conversation.reliability.provider_configuration",
-  provider_unavailable: "conversation.reliability.provider_unavailable",
-  request_rejected: "conversation.reliability.request_rejected",
-  round_failed: "conversation.reliability.round_failed",
-  safety_rejected: "conversation.reliability.safety_rejected",
-  session_load_failed: "conversation.reliability.session_load_failed",
-  usage_limited: "conversation.reliability.usage_limited",
-  validation_failed: "conversation.reliability.validation_failed",
+interface ConversationFailureCopyKeys {
+  impact: TranslationKey;
+  nextStep: TranslationKey;
+  title: TranslationKey;
+}
+
+const FAILURE_COPY_KEYS: Record<ConversationFailureCode, ConversationFailureCopyKeys> = {
+  connection_unavailable: {
+    impact: "conversation.reliability.connection_unavailable_impact",
+    nextStep: "conversation.reliability.connection_unavailable_next_step",
+    title: "conversation.reliability.connection_unavailable",
+  },
+  delivery_unknown: {
+    impact: "conversation.reliability.delivery_unknown_impact",
+    nextStep: "conversation.reliability.delivery_unknown_next_step",
+    title: "conversation.reliability.delivery_unknown",
+  },
+  permission_not_sent: {
+    impact: "conversation.reliability.permission_not_sent_impact",
+    nextStep: "conversation.reliability.permission_not_sent_next_step",
+    title: "conversation.reliability.permission_not_sent",
+  },
+  provider_configuration: {
+    impact: "conversation.reliability.provider_configuration_impact",
+    nextStep: "conversation.reliability.provider_configuration_next_step",
+    title: "conversation.reliability.provider_configuration",
+  },
+  provider_unavailable: {
+    impact: "conversation.reliability.provider_unavailable_impact",
+    nextStep: "conversation.reliability.provider_unavailable_next_step",
+    title: "conversation.reliability.provider_unavailable",
+  },
+  request_rejected: {
+    impact: "conversation.reliability.request_rejected_impact",
+    nextStep: "conversation.reliability.request_rejected_next_step",
+    title: "conversation.reliability.request_rejected",
+  },
+  round_failed: {
+    impact: "conversation.reliability.round_failed_impact",
+    nextStep: "conversation.reliability.round_failed_next_step",
+    title: "conversation.reliability.round_failed",
+  },
+  safety_rejected: {
+    impact: "conversation.reliability.safety_rejected_impact",
+    nextStep: "conversation.reliability.safety_rejected_next_step",
+    title: "conversation.reliability.safety_rejected",
+  },
+  session_load_failed: {
+    impact: "conversation.reliability.session_load_failed_impact",
+    nextStep: "conversation.reliability.session_load_failed_next_step",
+    title: "conversation.reliability.session_load_failed",
+  },
+  usage_limited: {
+    impact: "conversation.reliability.usage_limited_impact",
+    nextStep: "conversation.reliability.usage_limited_next_step",
+    title: "conversation.reliability.usage_limited",
+  },
+  validation_failed: {
+    impact: "conversation.reliability.validation_failed_impact",
+    nextStep: "conversation.reliability.validation_failed_next_step",
+    title: "conversation.reliability.validation_failed",
+  },
 };
+
+const WARNING_FAILURE_CODES = new Set<ConversationFailureCode>([
+  "connection_unavailable",
+  "delivery_unknown",
+  "provider_unavailable",
+  "session_load_failed",
+  "usage_limited",
+]);
 
 export function ConversationReliabilityNotice({
   compact,
@@ -50,10 +109,9 @@ export function ConversationReliabilityNotice({
     : reliability.transport_phase === "unavailable"
     ? {
         icon: WifiOff,
-        message: t("conversation.reliability.connection_unavailable"),
+        failureCode: "connection_unavailable" as const,
         spinning: false,
         tone: "failure" as const,
-        failureCode: "connection_unavailable" as const,
       }
     : reliability.provider_retry
     ? {
@@ -66,10 +124,9 @@ export function ConversationReliabilityNotice({
     : reliability.failure
     ? {
         icon: TriangleAlert,
-        message: t(FAILURE_MESSAGE_KEYS[reliability.failure.code]),
+        failureCode: reliability.failure.code,
         spinning: false,
         tone: "failure" as const,
-        failureCode: reliability.failure.code,
       }
     : null;
 
@@ -77,6 +134,12 @@ export function ConversationReliabilityNotice({
     return null;
   }
   const Icon = presentation.icon;
+  const failureCopy = presentation.failureCode
+    ? FAILURE_COPY_KEYS[presentation.failureCode]
+    : null;
+  const warningFailure = presentation.failureCode
+    ? WARNING_FAILURE_CODES.has(presentation.failureCode)
+    : false;
   return (
     <div
       className={cn(
@@ -88,29 +151,39 @@ export function ConversationReliabilityNotice({
       data-conversation-reliability={presentation.tone}
     >
       <div
-        aria-live={presentation.tone === "failure" ? "assertive" : "polite"}
+        aria-atomic="true"
+        aria-live="polite"
         className={cn(
-          "flex min-h-9 w-full items-center gap-2 rounded-[10px] border px-2.5 py-1.5 text-xs shadow-[0_1px_2px_color-mix(in_srgb,var(--shadow-color)_6%,transparent)]",
-        presentation.tone === "failure"
-          ? "border-[color:color-mix(in_srgb,var(--destructive)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_5%,var(--surface-control-background))] text-(--destructive)"
-          : "border-(--surface-control-border) bg-(--surface-control-background) text-(--text-muted)",
+          "flex min-h-8 w-full items-start gap-2 rounded-[9px] border border-(--surface-control-border) bg-(--surface-control-background) px-2.5 py-1.5 text-xs text-(--text-muted)",
         )}
-        role={presentation.tone === "failure" ? "alert" : "status"}
+        role="status"
       >
-        <span
+        <Icon
           aria-hidden="true"
           className={cn(
-            "flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px]",
-            presentation.tone === "failure"
-              ? "bg-[color:color-mix(in_srgb,var(--destructive)_9%,transparent)]"
-              : "bg-(--surface-control-field-background)",
+            "mt-0.5 h-3.5 w-3.5 shrink-0",
+            presentation.tone !== "failure"
+              ? "text-(--icon-muted)"
+              : warningFailure
+                ? "text-(--warning)"
+                : "text-(--destructive)",
+            presentation.spinning && "animate-spin motion-reduce:animate-none",
           )}
-        >
-          <Icon
-            className={cn("h-3.5 w-3.5", presentation.spinning && "animate-spin")}
-          />
-        </span>
-        <span className="min-w-0 flex-1 leading-5">{presentation.message}</span>
+        />
+        {failureCopy ? (
+          <div className="min-w-0 flex-1">
+            <span className="block font-medium leading-5 text-(--text-strong)">
+              {t(failureCopy.title)}
+            </span>
+            <RecoverySummary
+              className="mt-0.5 min-w-0"
+              impact={t(failureCopy.impact)}
+              nextStep={t(failureCopy.nextStep)}
+            />
+          </div>
+        ) : (
+          <span className="min-w-0 flex-1 leading-5">{presentation.message}</span>
+        )}
       </div>
     </div>
   );

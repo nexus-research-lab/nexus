@@ -1,6 +1,6 @@
-// INPUT: Agent 资料、业务标签、联系人、runtime 选项以及带可选期望版本的创建/更新请求。
-// OUTPUT: 跨 HTTP/服务/运行时共享的 Agent、联系人模型、管理元数据、受控工具快照与 runtime_version CAS 协议。
-// POS: Agent 配置、同 owner 通讯录及其乐观并发令牌的协议真相源。
+// INPUT: Agent 资料、业务标签、联系人、runtime 选项以及带可选预期版本/创建请求身份的 CRUD 请求。
+// OUTPUT: 跨 HTTP/服务/运行时共享的 Agent、联系人模型、创建对账结果、管理元数据、受控工具快照与 runtime_version CAS 协议。
+// POS: Agent 配置、owner-scoped 创建回执、同 owner 通讯录及乐观并发令牌的协议真相源。
 package protocol
 
 import "time"
@@ -85,13 +85,32 @@ type CreateAgentContactRequest struct {
 
 // CreateRequest 表示创建 Agent 请求。
 type CreateRequest struct {
-	Name            string   `json:"name"`
-	Options         *Options `json:"options,omitempty"`
-	Avatar          string   `json:"avatar,omitempty"`
-	Description     string   `json:"description,omitempty"`
-	ProfileTemplate string   `json:"profile_template,omitempty"`
-	BusinessTags    []string `json:"business_tags,omitempty"`
-	VibeTags        []string `json:"vibe_tags,omitempty"`
+	Name              string   `json:"name"`
+	Options           *Options `json:"options,omitempty"`
+	Avatar            string   `json:"avatar,omitempty"`
+	Description       string   `json:"description,omitempty"`
+	ProfileTemplate   string   `json:"profile_template,omitempty"`
+	BusinessTags      []string `json:"business_tags,omitempty"`
+	VibeTags          []string `json:"vibe_tags,omitempty"`
+	CreationRequestID string   `json:"creation_request_id,omitempty"`
+}
+
+// AgentCreationRequestStatus 是一个 owner-scoped 创建请求的权威状态。
+type AgentCreationRequestStatus string
+
+const (
+	AgentCreationRequestNotFound  AgentCreationRequestStatus = "not_found"
+	AgentCreationRequestPending   AgentCreationRequestStatus = "pending"
+	AgentCreationRequestCommitted AgentCreationRequestStatus = "committed"
+	AgentCreationRequestDeleted   AgentCreationRequestStatus = "deleted"
+	AgentCreationRequestFailed    AgentCreationRequestStatus = "failed"
+)
+
+// AgentCreationRequestResult 只暴露对账所需事实，不暴露 intent digest、claim 或诊断身份。
+type AgentCreationRequestResult struct {
+	CreationRequestID string                     `json:"creation_request_id"`
+	Status            AgentCreationRequestStatus `json:"status"`
+	Agent             *Agent                     `json:"agent,omitempty"`
 }
 
 // UpdateRequest 表示更新 Agent 请求。

@@ -67,10 +67,10 @@
   },
   "pnpm": {
     "overrides": {
-      "postcss": ">=8.5.10",
+      "postcss": ">=8.5.23",
       "exceljs>tmp": "0.2.7",
       "exceljs>uuid": "11.1.1",
-      "js-yaml": "4.2.0",
+      "js-yaml": "^4.3.1",
       "@babel/core": "7.29.7",
       "brace-expansion@1": "^1.1.18",
       "brace-expansion@2": "^2.1.4"

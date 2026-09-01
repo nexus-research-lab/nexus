@@ -1,103 +1,432 @@
+/**
+ * INPUT: owner-scoped Preferences GET/PATCH、服务端 version 与本页偏好草稿。
+ * OUTPUT: 首次读取门禁、If-Match CAS、未知结果对账和可显式重应用的偏好状态。
+ * POS: General/Runtime 共用的 Preferences 交互事务边界；草稿未确认前不发布为全局 runtime 默认值。
+ */
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import {
+  captureAuthOwnerScopeGeneration,
+  isAuthOwnerScopeGenerationCurrent,
+} from "@/shared/auth/auth-owner-generation";
 import { setUserPreferences } from "@/config/runtime-options";
 import {
   getUserPreferencesApi,
   updateUserPreferencesApi,
 } from "@/lib/api/settings/preferences-api";
-import { getErrorMessage } from "@/lib/error-message";
+import { getErrorMessage, projectMutationFailure } from "@/lib/error-message";
+import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { UserPreferences } from "@/types/settings/preferences";
 
 import {
   type PreferenceFeedback,
+  type PreferenceRecoveryControls,
   buildPreferencesUpdatePayload,
+  equivalentPreferences,
   normalizePreferences,
+  rebasePreferenceDraft,
 } from "./model/settings-preferences-model";
 
 type PreferenceMutation = (current: UserPreferences) => UserPreferences;
 
+interface PendingPreferenceDraft {
+  base: UserPreferences;
+  draft: UserPreferences;
+  latest: UserPreferences | null;
+  projectionRepairRequired: boolean;
+}
+
 export function useUserPreferences() {
   const { t } = useI18n();
+  const { status: authStatus } = useAuth();
+  const authOwnerReloadKey = preferencesAuthOwnerReloadKey(authStatus);
   const [preferences, setPreferences] = useState<UserPreferences>(() =>
     normalizePreferences(null),
   );
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [repairing, setRepairing] = useState(false);
+  const [writable, setWritable] = useState(false);
+  const [comparisonReady, setComparisonReady] = useState(false);
+  const [projectionRepairReady, setProjectionRepairReady] = useState(false);
   const [feedback, setFeedback] = useState<PreferenceFeedback | null>(null);
   const preferencesRef = useRef(preferences);
+  const translateRef = useRef(t);
   const lastSavedRef = useRef<UserPreferences | null>(null);
+  const pendingRef = useRef<PendingPreferenceDraft | null>(null);
   const savingRef = useRef(false);
+  const saveRequestRef = useRef(0);
+  const checkRequestRef = useRef(0);
+  const checkingRef = useRef(false);
+  translateRef.current = t;
 
-  const replacePreferences = useCallback((next: UserPreferences) => {
+  const showDraft = useCallback((next: UserPreferences) => {
     const normalized = normalizePreferences(next);
     preferencesRef.current = normalized;
     setPreferences(normalized);
-    setUserPreferences(normalized);
     return normalized;
   }, []);
 
+  const publishAuthoritative = useCallback((next: UserPreferences) => {
+    const normalized = showDraft(next);
+    lastSavedRef.current = normalized;
+    setUserPreferences(normalized);
+    return normalized;
+  }, [showDraft]);
+
   useEffect(() => {
     let cancelled = false;
+    const ownerGeneration = captureAuthOwnerScopeGeneration();
+    saveRequestRef.current += 1;
+    checkRequestRef.current += 1;
+    savingRef.current = false;
+    checkingRef.current = false;
+    lastSavedRef.current = null;
+    pendingRef.current = null;
+    showDraft(normalizePreferences(null));
+    setLoading(true);
+    setSaving(false);
+    setChecking(false);
+    setRepairing(false);
+    setWritable(false);
+    setComparisonReady(false);
+    setProjectionRepairReady(false);
+    setFeedback(null);
     void getUserPreferencesApi()
       .then((result) => {
-        if (cancelled) {
+        if (
+          cancelled
+          || !isAuthOwnerScopeGenerationCurrent(ownerGeneration)
+        ) {
           return;
         }
-        const normalized = replacePreferences(result);
-        lastSavedRef.current = normalized;
+        const normalized = requirePreferencesVersion(result);
+        publishAuthoritative(normalized);
+        pendingRef.current = null;
+        setComparisonReady(false);
+        setProjectionRepairReady(false);
         setFeedback(null);
+        setWritable(true);
       })
       .catch((error: unknown) => {
-        if (!cancelled) {
-          setFeedback({
-            message: getErrorMessage(
-              error,
-              t("settings.general.preferences_load_failed"),
-            ),
-          });
+        if (
+          !cancelled
+          && isAuthOwnerScopeGenerationCurrent(ownerGeneration)
+        ) {
+          const translate = translateRef.current;
+          setFeedback(loadFailureFeedback(
+            getErrorMessage(error, translate("settings.general.preferences_load_failed")),
+            translate,
+          ));
         }
       })
       .finally(() => {
-        if (!cancelled) {
+        if (
+          !cancelled
+          && isAuthOwnerScopeGenerationCurrent(ownerGeneration)
+        ) {
           setLoading(false);
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [replacePreferences, t]);
+  }, [authOwnerReloadKey, publishAuthoritative, showDraft]);
 
-  const persistPreferences = useCallback(async (next: UserPreferences) => {
-    if (savingRef.current) {
+  const persistAtVersion = useCallback(async (
+    draft: UserPreferences,
+    base: UserPreferences,
+  ) => {
+    if (savingRef.current || !validPreferencesVersion(base.version)) {
       return null;
     }
+    const ownerGeneration = captureAuthOwnerScopeGeneration();
+    const requestId = saveRequestRef.current + 1;
+    saveRequestRef.current = requestId;
     savingRef.current = true;
-    const optimistic = replacePreferences(next);
+    const optimistic = showDraft({ ...draft, version: base.version });
     setFeedback(null);
     setSaving(true);
 
     try {
       const result = await updateUserPreferencesApi(
         buildPreferencesUpdatePayload(optimistic),
+        { expectedVersion: base.version },
       );
-      const saved = replacePreferences(result);
-      lastSavedRef.current = saved;
+      if (
+        saveRequestRef.current !== requestId
+        || !isAuthOwnerScopeGenerationCurrent(ownerGeneration)
+      ) {
+        return null;
+      }
+      const saved = publishAuthoritative(requirePreferencesVersion(result));
+      pendingRef.current = null;
+      setComparisonReady(false);
+      setProjectionRepairReady(false);
+      setWritable(true);
       return saved;
     } catch (error) {
-      if (lastSavedRef.current) {
-        replacePreferences(lastSavedRef.current);
+      if (
+        saveRequestRef.current !== requestId
+        || !isAuthOwnerScopeGenerationCurrent(ownerGeneration)
+      ) {
+        return null;
       }
-      const normalizedError = error instanceof Error
-        ? error
-        : new Error(t("settings.general.preferences_save_failed"));
-      setFeedback({ message: normalizedError.message });
-      throw normalizedError;
+      const failure = projectMutationFailure(
+        error,
+        t("settings.general.preferences_save_failed"),
+      );
+      const needsReconciliation = failure.effect !== "not_applied"
+        || failure.code === "preferences.version_conflict";
+      if (needsReconciliation) {
+        pendingRef.current = {
+          base,
+          draft: optimistic,
+          latest: null,
+          projectionRepairRequired:
+            failure.code === "preferences.projection_result_unknown",
+        };
+        setComparisonReady(false);
+        setProjectionRepairReady(false);
+        setWritable(false);
+        setFeedback(failure.code === "preferences.version_conflict"
+          ? conflictFeedback(failure.message, t)
+          : unknownResultFeedback(failure.message, t));
+      } else {
+        // 已确认未写入时仍保留本页草稿；lastSaved/global runtime
+        // 继续指向服务端基线，避免未确认值影响其他页面。
+        showDraft(optimistic);
+        setProjectionRepairReady(false);
+        setWritable(true);
+        setFeedback(notAppliedFeedback(failure.message, t));
+      }
+      throw normalizeError(error, t("settings.general.preferences_save_failed"));
     } finally {
-      savingRef.current = false;
-      setSaving(false);
+      if (saveRequestRef.current === requestId) {
+        savingRef.current = false;
+        if (isAuthOwnerScopeGenerationCurrent(ownerGeneration)) {
+          setSaving(false);
+        }
+      }
     }
-  }, [replacePreferences, t]);
+  }, [publishAuthoritative, showDraft, t]);
+
+  const persistPreferences = useCallback(async (next: UserPreferences) => {
+    if (!writable || pendingRef.current) {
+      return null;
+    }
+    const base = lastSavedRef.current;
+    if (!base || !validPreferencesVersion(base.version)) {
+      setWritable(false);
+      setFeedback(loadFailureFeedback(
+        t("settings.general.preferences_version_missing_message"),
+        t,
+      ));
+      return null;
+    }
+    return persistAtVersion(next, base);
+  }, [persistAtVersion, t, writable]);
+
+  const checkLatest = useCallback(() => {
+    if (checkingRef.current) {
+      return;
+    }
+    const ownerGeneration = captureAuthOwnerScopeGeneration();
+    const requestId = checkRequestRef.current + 1;
+    checkRequestRef.current = requestId;
+    checkingRef.current = true;
+    setProjectionRepairReady(false);
+    setWritable(false);
+    setChecking(true);
+    void getUserPreferencesApi()
+      .then((result) => {
+        if (
+          checkRequestRef.current !== requestId
+          || !isAuthOwnerScopeGenerationCurrent(ownerGeneration)
+        ) {
+          return;
+        }
+        const latest = requirePreferencesVersion(result);
+        const pending = pendingRef.current;
+        if (!pending) {
+          publishAuthoritative(latest);
+          setComparisonReady(false);
+          setProjectionRepairReady(false);
+          setFeedback(null);
+          setWritable(true);
+          return;
+        }
+        pending.latest = normalizePreferences(latest);
+        if (pending.projectionRepairRequired) {
+          setComparisonReady(false);
+          setProjectionRepairReady(true);
+          setWritable(false);
+          setFeedback(projectionRepairRequiredFeedback(t));
+          return;
+        }
+        if (equivalentPreferences(pending.latest, pending.draft)) {
+          publishAuthoritative(pending.latest);
+          pendingRef.current = null;
+          setComparisonReady(false);
+          setProjectionRepairReady(false);
+          setWritable(true);
+          setFeedback(reconciledCommittedFeedback(t));
+          return;
+        }
+        setComparisonReady(true);
+        setProjectionRepairReady(false);
+        setWritable(false);
+        setFeedback(equivalentPreferences(pending.latest, pending.base)
+          ? reconciledNotAppliedFeedback(t)
+          : reconciledDifferenceFeedback(t));
+      })
+      .catch((error: unknown) => {
+        if (
+          checkRequestRef.current !== requestId
+          || !isAuthOwnerScopeGenerationCurrent(ownerGeneration)
+        ) {
+          return;
+        }
+        const hasDraft = pendingRef.current !== null;
+        setFeedback(checkFailureFeedback(
+          getErrorMessage(error, t("settings.general.preferences_load_failed")),
+          hasDraft,
+          t,
+        ));
+        setWritable(!hasDraft && lastSavedRef.current !== null);
+      })
+      .finally(() => {
+        if (checkRequestRef.current === requestId) {
+          checkingRef.current = false;
+          if (isAuthOwnerScopeGenerationCurrent(ownerGeneration)) {
+            setChecking(false);
+          }
+        }
+      });
+  }, [publishAuthoritative, t]);
+
+  const commitLatestSnapshot = useCallback(async (
+    mode: "discard-draft" | "repair-projection",
+  ) => {
+    const pending = pendingRef.current;
+    if (!pending?.latest || savingRef.current) {
+      return null;
+    }
+    const ownerGeneration = captureAuthOwnerScopeGeneration();
+    const requestId = saveRequestRef.current + 1;
+    saveRequestRef.current = requestId;
+    savingRef.current = true;
+    setSaving(true);
+    setRepairing(mode === "repair-projection");
+    setProjectionRepairReady(false);
+    setFeedback(null);
+    const latest = pending.latest;
+    try {
+      const result = await updateUserPreferencesApi(
+        buildPreferencesUpdatePayload(latest),
+        { expectedVersion: latest.version },
+      );
+      if (
+        saveRequestRef.current !== requestId
+        || !isAuthOwnerScopeGenerationCurrent(ownerGeneration)
+      ) {
+        return null;
+      }
+      const saved = publishAuthoritative(requirePreferencesVersion(result));
+      if (mode === "discard-draft") {
+        pendingRef.current = null;
+        setComparisonReady(false);
+        setProjectionRepairReady(false);
+        setWritable(true);
+        setFeedback(latestSelectionConfirmedFeedback(t));
+        return saved;
+      }
+      const rebasedDraft = rebasePreferenceDraft(
+        pending.base,
+        pending.draft,
+        saved,
+      );
+      if (equivalentPreferences(saved, rebasedDraft)) {
+        pendingRef.current = null;
+        setComparisonReady(false);
+        setProjectionRepairReady(false);
+        setWritable(true);
+        setFeedback(projectionRepairCompletedFeedback(t));
+        return saved;
+      }
+      pendingRef.current = {
+        base: saved,
+        draft: rebasedDraft,
+        latest: saved,
+        projectionRepairRequired: false,
+      };
+      showDraft(rebasedDraft);
+      setComparisonReady(true);
+      setWritable(false);
+      setFeedback(projectionRepairCompletedWithDraftFeedback(t));
+      return saved;
+    } catch (error) {
+      if (
+        saveRequestRef.current !== requestId
+        || !isAuthOwnerScopeGenerationCurrent(ownerGeneration)
+      ) {
+        return null;
+      }
+      const failure = projectMutationFailure(
+        error,
+        t("settings.general.preferences_save_failed"),
+      );
+      const currentPending = pendingRef.current;
+      if (currentPending) {
+        currentPending.latest = null;
+        currentPending.projectionRepairRequired =
+          mode === "repair-projection"
+          || failure.code === "preferences.projection_result_unknown"
+          || currentPending.projectionRepairRequired;
+      }
+      setComparisonReady(false);
+      setProjectionRepairReady(false);
+      setWritable(false);
+      setFeedback(failure.code === "preferences.version_conflict"
+        ? conflictFeedback(failure.message, t)
+        : unknownResultFeedback(failure.message, t));
+      throw normalizeError(error, t("settings.general.preferences_save_failed"));
+    } finally {
+      if (saveRequestRef.current === requestId) {
+        savingRef.current = false;
+        if (isAuthOwnerScopeGenerationCurrent(ownerGeneration)) {
+          setRepairing(false);
+          setSaving(false);
+        }
+      }
+    }
+  }, [publishAuthoritative, showDraft, t]);
+
+  const useLatest = useCallback(() => {
+    void commitLatestSnapshot("discard-draft").catch(() => {});
+  }, [commitLatestSnapshot]);
+
+  const repairProjection = useCallback(() => {
+    void commitLatestSnapshot("repair-projection").catch(() => {});
+  }, [commitLatestSnapshot]);
+
+  const reapplyDraft = useCallback(() => {
+    const pending = pendingRef.current;
+    if (!pending?.latest || savingRef.current) {
+      return;
+    }
+    const rebased = rebasePreferenceDraft(
+      pending.base,
+      pending.draft,
+      pending.latest,
+    );
+    pendingRef.current = null;
+    setComparisonReady(false);
+    setProjectionRepairReady(false);
+    void persistAtVersion(rebased, pending.latest).catch(() => {});
+  }, [persistAtVersion]);
 
   const updatePreferences = useCallback((mutate: PreferenceMutation) => {
     void persistPreferences(mutate(preferencesRef.current)).catch(() => {});
@@ -108,14 +437,216 @@ export function useUserPreferences() {
     [],
   );
 
+  const acceptExternalAggregateRevision = useCallback((
+    expectedVersion: number,
+    committedVersion: number,
+  ): boolean => {
+    if (
+      savingRef.current
+      || pendingRef.current
+      || !validPreferencesVersion(expectedVersion)
+      || !validPreferencesVersion(committedVersion)
+    ) {
+      return false;
+    }
+    const current = lastSavedRef.current;
+    if (!current) {
+      return false;
+    }
+    if (current.version === committedVersion) {
+      return true;
+    }
+    if (current.version !== expectedVersion || committedVersion <= expectedVersion) {
+      return false;
+    }
+    publishAuthoritative({ ...current, version: committedVersion });
+    return true;
+  }, [publishAuthoritative]);
+
+  const recovery: PreferenceRecoveryControls = {
+    canCompare: comparisonReady,
+    canRepairProjection: projectionRepairReady,
+    checking,
+    checkLatest,
+    repairProjection,
+    reapplyDraft,
+    repairing,
+    useLatest,
+  };
+
   return {
+    acceptExternalAggregateRevision,
     feedback,
     getCurrentPreferences,
+    hasUnresolvedMutation: pendingRef.current !== null,
     loading,
     persistPreferences,
     preferences,
+    recovery,
     saving,
     setFeedback,
     updatePreferences,
+    writable,
+  };
+}
+
+function validPreferencesVersion(value: number | undefined): value is number {
+  return Number.isSafeInteger(value) && (value ?? 0) > 0;
+}
+
+function requirePreferencesVersion(value: UserPreferences): UserPreferences {
+  if (!validPreferencesVersion(value.version)) {
+    throw new Error("Preferences response is missing a valid version");
+  }
+  return normalizePreferences(value);
+}
+
+function normalizeError(error: unknown, fallback: string): Error {
+  return error instanceof Error ? error : new Error(fallback);
+}
+
+type Translate = ReturnType<typeof useI18n>["t"];
+
+function preferencesAuthOwnerReloadKey(
+  status: ReturnType<typeof useAuth>["status"],
+): string {
+  if (!status) {
+    return "pending";
+  }
+  if (!status.authenticated) {
+    return "signed-out";
+  }
+  return [
+    "signed-in",
+    status.user_id?.trim() ?? "",
+    status.username?.trim() ?? "",
+  ].join("\u001f");
+}
+
+function loadFailureFeedback(message: string, t: Translate): PreferenceFeedback {
+  return {
+    impact: t("settings.general.preferences_load_impact"),
+    message,
+    nextStep: t("settings.general.preferences_load_next_step"),
+    title: t("settings.general.preferences_load_title"),
+    tone: "error",
+  };
+}
+
+function conflictFeedback(message: string, t: Translate): PreferenceFeedback {
+  return {
+    impact: t("settings.general.preferences_conflict_impact"),
+    message,
+    nextStep: t("settings.general.preferences_conflict_next_step"),
+    title: t("settings.general.preferences_conflict_title"),
+    tone: "warning",
+  };
+}
+
+function unknownResultFeedback(message: string, t: Translate): PreferenceFeedback {
+  return {
+    impact: t("settings.general.preferences_unknown_impact"),
+    message,
+    nextStep: t("settings.general.preferences_unknown_next_step"),
+    title: t("settings.general.preferences_unknown_title"),
+    tone: "warning",
+  };
+}
+
+function notAppliedFeedback(message: string, t: Translate): PreferenceFeedback {
+  return {
+    impact: t("settings.general.preferences_not_applied_impact"),
+    message,
+    nextStep: t("settings.general.preferences_not_applied_next_step"),
+    title: t("settings.general.preferences_not_applied_title"),
+    tone: "error",
+  };
+}
+
+function checkFailureFeedback(
+  message: string,
+  hasDraft: boolean,
+  t: Translate,
+): PreferenceFeedback {
+  return {
+    impact: hasDraft
+      ? t("settings.general.preferences_check_failed_draft_impact")
+      : t("settings.general.preferences_load_impact"),
+    message,
+    nextStep: t("settings.general.preferences_check_failed_next_step"),
+    title: t("settings.general.preferences_check_failed_title"),
+    tone: "error",
+  };
+}
+
+function reconciledCommittedFeedback(t: Translate): PreferenceFeedback {
+  return {
+    impact: t("settings.general.preferences_committed_impact"),
+    message: t("settings.general.preferences_committed_message"),
+    nextStep: t("settings.general.preferences_committed_next_step"),
+    title: t("settings.general.preferences_committed_title"),
+    tone: "success",
+  };
+}
+
+function reconciledNotAppliedFeedback(t: Translate): PreferenceFeedback {
+  return {
+    impact: t("settings.general.preferences_reconciled_not_applied_impact"),
+    message: t("settings.general.preferences_reconciled_not_applied_message"),
+    nextStep: t("settings.general.preferences_reconciled_next_step"),
+    title: t("settings.general.preferences_reconciled_not_applied_title"),
+    tone: "warning",
+  };
+}
+
+function reconciledDifferenceFeedback(t: Translate): PreferenceFeedback {
+  return {
+    impact: t("settings.general.preferences_reconciled_difference_impact"),
+    message: t("settings.general.preferences_reconciled_difference_message"),
+    nextStep: t("settings.general.preferences_reconciled_next_step"),
+    title: t("settings.general.preferences_reconciled_difference_title"),
+    tone: "warning",
+  };
+}
+
+function projectionRepairRequiredFeedback(t: Translate): PreferenceFeedback {
+  return {
+    impact: t("settings.general.preferences_projection_repair_impact"),
+    message: t("settings.general.preferences_projection_repair_message"),
+    nextStep: t("settings.general.preferences_projection_repair_next_step"),
+    title: t("settings.general.preferences_projection_repair_title"),
+    tone: "warning",
+  };
+}
+
+function projectionRepairCompletedFeedback(t: Translate): PreferenceFeedback {
+  return {
+    impact: t("settings.general.preferences_projection_repaired_impact"),
+    message: t("settings.general.preferences_projection_repaired_message"),
+    nextStep: t("settings.general.preferences_projection_repaired_next_step"),
+    title: t("settings.general.preferences_projection_repaired_title"),
+    tone: "success",
+  };
+}
+
+function projectionRepairCompletedWithDraftFeedback(
+  t: Translate,
+): PreferenceFeedback {
+  return {
+    impact: t("settings.general.preferences_projection_repaired_draft_impact"),
+    message: t("settings.general.preferences_projection_repaired_message"),
+    nextStep: t("settings.general.preferences_reconciled_next_step"),
+    title: t("settings.general.preferences_projection_repaired_title"),
+    tone: "warning",
+  };
+}
+
+function latestSelectionConfirmedFeedback(t: Translate): PreferenceFeedback {
+  return {
+    impact: t("settings.general.preferences_latest_selected_impact"),
+    message: t("settings.general.preferences_latest_selected_message"),
+    nextStep: t("settings.general.preferences_latest_selected_next_step"),
+    title: t("settings.general.preferences_latest_selected_title"),
+    tone: "success",
   };
 }

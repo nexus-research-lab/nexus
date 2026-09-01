@@ -406,6 +406,7 @@ func runtimeMergeDailyReport(
 	target.Totals.SkippedRunCount += source.Totals.SkippedRunCount
 	target.Totals.DeliveredRunCount += source.Totals.DeliveredRunCount
 	target.Totals.DeliveryFailedRunCount += source.Totals.DeliveryFailedRunCount
+	target.Totals.DeliveryUnverifiedRunCount += source.Totals.DeliveryUnverifiedRunCount
 	target.Totals.DeliveryPendingRunCount += source.Totals.DeliveryPendingRunCount
 	target.Totals.DeliverySkippedRunCount += source.Totals.DeliverySkippedRunCount
 	target.Totals.DeliveryDeadLetterRunCount += source.Totals.DeliveryDeadLetterRunCount

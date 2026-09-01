@@ -5,7 +5,6 @@ package agent
 
 import (
 	"context"
-	"errors"
 	"slices"
 	"strings"
 	"time"
@@ -214,6 +213,14 @@ func validateName(name string) protocol.ValidateNameResponse {
 
 // CreateAgent 创建普通 Agent。
 func (s *Service) CreateAgent(ctx context.Context, request protocol.CreateRequest) (*protocol.Agent, error) {
+	if strings.TrimSpace(request.CreationRequestID) != "" {
+		return s.createAgentIdempotent(ctx, request)
+	}
+	return s.createAgentLegacy(ctx, request)
+}
+
+// createAgentLegacy 保留未携带领域请求身份的旧创建语义。
+func (s *Service) createAgentLegacy(ctx context.Context, request protocol.CreateRequest) (*protocol.Agent, error) {
 	if err := s.EnsureReady(ctx); err != nil {
 		return nil, err
 	}
@@ -452,7 +459,7 @@ func (u *agentUpdate) run() (*protocol.Agent, error) {
 		return nil, ErrAgentNotFound
 	}
 	if err = u.finalize(updated); err != nil {
-		return nil, err
+		return updated, &UpdateReconcileError{cause: err}
 	}
 	return updated, nil
 }
@@ -529,7 +536,7 @@ func (u *agentUpdate) normalizedName() (string, error) {
 		return u.existing.Name, nil
 	}
 	if u.existing.IsMain {
-		return "", errors.New("主智能体名称不可修改")
+		return "", ErrMainAgentNameImmutable
 	}
 	validation := validateName(candidate)
 	if !validation.IsValid || !validation.IsAvailable {
@@ -612,7 +619,7 @@ func (s *Service) deleteAgent(
 		return ErrAgentNotFound
 	}
 	if existing.IsMain {
-		return errors.New("主智能体不可删除")
+		return ErrAgentDeletionNotAllowed
 	}
 	if expectedRuntimeVersion != nil && existing.RuntimeVersion != *expectedRuntimeVersion {
 		return ErrRuntimeVersionConflict

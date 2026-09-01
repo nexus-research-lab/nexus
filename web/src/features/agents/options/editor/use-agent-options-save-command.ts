@@ -2,6 +2,11 @@
 
 import { useCallback, useRef, useState } from "react";
 
+import {
+  projectMutationFailure,
+  type MutationFailureEffect,
+} from "@/lib/error-message";
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import type { AgentNameValidationResult } from "@/types/agent/agent";
 
 import type {
@@ -22,7 +27,15 @@ import type { useAgentSaveFeedback } from "./use-agent-save-feedback";
 
 interface SaveCommandLabels {
   failed: string;
+  failures: Record<MutationFailureEffect, SaveFailureCopy>;
+  preferCopyMessage?: boolean;
   success: string;
+}
+
+interface SaveFailureCopy {
+  impact: string;
+  message: string;
+  nextStep: string;
 }
 
 interface UseAgentOptionsSaveCommandOptions {
@@ -92,12 +105,14 @@ export function useAgentOptionsSaveCommand({
   const saveSequenceRef = useRef(0);
   const saveTokenRef = useRef<AgentOptionsSaveToken | null>(null);
   const [savingScopeKey, setSavingScopeKey] = useState<string | null>(null);
+  const [repeatBlocked, setRepeatBlocked] = useResettableState(false, sourceScopeKey);
   const isSaving = savingScopeKey === commandScopeKey;
   const canSave = [
     Boolean(title),
     !validation.isValidating,
     !isInvalidNameValidation(validation.result),
     !isSaving,
+    !repeatBlocked,
   ].every(Boolean);
 
   const save = useCallback(async () => {
@@ -132,16 +147,21 @@ export function useAgentOptionsSaveCommand({
       });
       reportSaveSuccess(onSaveSuccess, feedback, labels.success);
     } catch (error) {
-      handleSaveFailure({
+      const failure = handleSaveFailure({
         error,
         expected: token,
         fallbackError: labels.failed,
+        failureCopies: labels.failures,
+        preferCopyMessage: labels.preferCopyMessage === true,
         feedback,
         saveTokenRef,
         commandScopeKeyRef,
         draftRevisionRef,
         sourceScopeKeyRef,
       });
+      if (failure.blocksRepeat) {
+        setRepeatBlocked(true);
+      }
     } finally {
       finishSave(token, saveTokenRef, setSavingScopeKey);
     }
@@ -153,13 +173,16 @@ export function useAgentOptionsSaveCommand({
     feedback,
     hasTitleChanged,
     labels.failed,
+    labels.failures,
     labels.success,
+    labels.preferCopyMessage,
     mode,
     onSave,
     onSaveSuccess,
     onValidateName,
     sourceScopeKey,
     sourceOptions,
+    setRepeatBlocked,
     title,
     validation,
   ]);
@@ -256,6 +279,8 @@ function handleSaveFailure({
   error,
   expected,
   fallbackError,
+  failureCopies,
+  preferCopyMessage,
   feedback,
   saveTokenRef,
   sourceScopeKeyRef,
@@ -265,26 +290,38 @@ function handleSaveFailure({
   error: unknown;
   expected: AgentOptionsSaveToken;
   fallbackError: string;
+  failureCopies: Record<MutationFailureEffect, SaveFailureCopy>;
+  preferCopyMessage: boolean;
   feedback: ReturnType<typeof useAgentSaveFeedback>;
   saveTokenRef: { current: AgentOptionsSaveToken | null };
   sourceScopeKeyRef: { current: string };
-}): void {
+}): { blocksRepeat: boolean } {
   if (SAVE_ABORTS.has(error)) {
-    return;
+    return { blocksRepeat: false };
   }
   if (!isAgentOptionsSaveCurrent(expected, {
     commandScopeKey: commandScopeKeyRef.current,
     draftRevision: draftRevisionRef.current,
     sourceScopeKey: sourceScopeKeyRef.current,
     token: saveTokenRef.current,
-  }, true)) {
-    return;
+  }, false)) {
+    return { blocksRepeat: false };
   }
-  feedback.showError(resolveSaveErrorMessage(error, fallbackError));
-}
-
-function resolveSaveErrorMessage(error: unknown, fallbackError: string): string {
-  return error instanceof Error ? error.message : fallbackError;
+  const failure = projectMutationFailure(error, fallbackError);
+  const copy = failureCopies[failure.effect];
+  const blocksRepeat = failure.effect !== "not_applied"
+    && sourceScopeKeyRef.current === expected.sourceScopeKey;
+  feedback.showFailure({
+    ...copy,
+    blocksRepeat,
+    message: failure.effect === "not_applied" && !preferCopyMessage
+      ? failure.message
+      : copy.message,
+    tone: failure.effect === "accepted" || failure.effect === "committed"
+      ? "warning"
+      : "error",
+  });
+  return { blocksRepeat };
 }
 
 function finishSave(

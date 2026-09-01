@@ -1,7 +1,7 @@
 /**
  * INPUT: show_widget tool_use 与对应 tool_result 完成状态。
- * OUTPUT: 流式更新、完成后执行脚本并显式展示运行失败的隔离 iframe。
- * POS: 对话内生成式 UI 视图；只接受 iframe 自身的高度与运行状态消息。
+ * OUTPUT: 流式更新、完成后执行脚本，并以 Problem / Impact / Recovery 展示缺失或运行失败的隔离 iframe。
+ * POS: 对话内生成式 UI 视图；失败只影响本地内容块，只接受 iframe 自身的高度与运行状态消息。
  */
 "use client";
 
@@ -12,8 +12,11 @@ import {
   useRef,
   useState,
 } from "react";
+import { RotateCcw } from "lucide-react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { useTheme } from "@/shared/theme/theme-context";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 import type { ToolUseContent } from "@/types/conversation/message/content";
 
 import {
@@ -42,6 +45,7 @@ export function GenerativeUIBlock({
   complete: boolean;
   toolUse: ToolUseContent;
 }) {
+  const { t } = useI18n();
   const { theme } = useTheme();
   const frameRef = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(INITIAL_HEIGHT);
@@ -140,22 +144,24 @@ export function GenerativeUIBlock({
       if (data.type === GENERATIVE_UI_ERROR_MESSAGE) {
         const message = typeof data.message === "string" && data.message.trim()
           ? data.message.trim().slice(0, MAX_ERROR_MESSAGE_LENGTH)
-          : "Unknown widget error";
+          : t("generative_ui.render_failed_detail");
         setRenderState({ status: "error", message });
       }
     };
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [applyReportedHeight]);
+  }, [applyReportedHeight, t]);
 
-  const loading = !complete || renderState.status === "loading";
+  const missingWidgetCode = complete && !widgetCode;
+  const visibleStatus = missingWidgetCode ? "error" : renderState.status;
+  const loading = !complete || (!missingWidgetCode && renderState.status === "loading");
 
   return (
     <section
       aria-busy={loading}
       className="my-3 min-w-0 overflow-hidden rounded-[8px] bg-transparent"
       data-generative-ui="true"
-      data-generative-ui-status={renderState.status}
+      data-generative-ui-status={visibleStatus}
     >
       <header className="flex min-h-9 items-center gap-2 bg-(--surface-panel-background) px-3 py-2">
         <span className="min-w-0 flex-1 truncate text-compact font-medium text-(--text-default)">
@@ -166,20 +172,42 @@ export function GenerativeUIBlock({
             aria-hidden="true"
             className="h-1.5 w-1.5 rounded-full bg-(--icon-muted) motion-safe:animate-pulse"
           />
-        ) : renderState.status === "error" ? (
+        ) : visibleStatus === "error" ? (
           <span
             aria-hidden="true"
             className="h-1.5 w-1.5 rounded-full bg-(--destructive)"
           />
         ) : null}
       </header>
-      {renderState.status === "error" ? (
-        <div
-          className="border-y border-[color:color-mix(in_srgb,var(--destructive)_18%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_6%,transparent)] px-3 py-2 font-mono text-xs leading-5 text-(--destructive)"
-          role="alert"
-        >
-          {renderState.message}
-        </div>
+      {missingWidgetCode ? (
+        <UiResourceState
+          className="min-h-0 rounded-none border-x-0 px-4 py-5"
+          description={t("generative_ui.missing_detail")}
+          impact={t("generative_ui.failure_impact")}
+          nextStep={t("generative_ui.missing_next_step")}
+          size="sm"
+          state="error"
+          title={t("generative_ui.missing_title")}
+          urgency="polite"
+          variant="card"
+        />
+      ) : renderState.status === "error" ? (
+        <UiResourceState
+          className="min-h-0 rounded-none border-x-0 px-4 py-5"
+          description={t("generative_ui.render_failed_detail")}
+          impact={t("generative_ui.failure_impact")}
+          nextStep={t("generative_ui.render_failed_next_step")}
+          primaryAction={{
+            icon: <RotateCcw className="h-3.5 w-3.5" />,
+            label: t("generative_ui.retry"),
+            onClick: sendWidgetUpdate,
+          }}
+          size="sm"
+          state="error"
+          title={t("generative_ui.render_failed_title")}
+          urgency="polite"
+          variant="card"
+        />
       ) : null}
       {widgetCode ? (
         <iframe
@@ -192,9 +220,9 @@ export function GenerativeUIBlock({
           style={{ height }}
           title={title || toolUse.name}
         />
-      ) : (
+      ) : !complete ? (
         <div className="h-[180px] bg-(--surface-panel-background) motion-safe:animate-pulse" />
-      )}
+      ) : null}
     </section>
   );
 }

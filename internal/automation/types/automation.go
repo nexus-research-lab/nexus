@@ -41,6 +41,8 @@ const (
 	DeliveryStatusSucceeded = "succeeded"
 	// DeliveryStatusFailed 表示投递失败。
 	DeliveryStatusFailed = "failed"
+	// DeliveryStatusRetrying 表示一次重投递已被唯一领取，但最终结果尚未得到持久确认。
+	DeliveryStatusRetrying = "retrying"
 	// DeliveryStatusNotAttempted 表示 run 在投递前失败或被取消。
 	DeliveryStatusNotAttempted = "not_attempted"
 	// DeliveryStatusPending 表示 run 尚未结束，投递状态未定。
@@ -87,6 +89,11 @@ const (
 	// ExecutionKindScript 表示直接在 workspace 中执行脚本任务。
 	ExecutionKindScript = "script"
 
+	// TaskDeletionStateDeleting 表示任务已停止接受新操作，正在完成幂等清理。
+	TaskDeletionStateDeleting = "deleting"
+	// TaskDeletionStateReviewRequired 表示删除已 claim，但活跃外部执行的持有者无法确认，禁止自动收尾。
+	TaskDeletionStateReviewRequired = "review_required"
+
 	// TaskEventActionCreate 表示创建定时任务。
 	TaskEventActionCreate = "create"
 	// TaskEventActionUpdate 表示修改定时任务。
@@ -131,14 +138,30 @@ var (
 	ErrJobNotFound = errors.New("scheduled task not found")
 	// ErrRunNotFound 表示任务运行记录不存在。
 	ErrRunNotFound = errors.New("scheduled task run not found")
+	// ErrRunRecoveryConflict 表示恢复提交时任务已不再指向计划释放的 run。
+	ErrRunRecoveryConflict = errors.New("scheduled task running state changed before recovery")
+	// ErrRunCompletionConflict 表示 terminal observation 已过期或不再拥有 exact run。
+	ErrRunCompletionConflict = errors.New("scheduled task run changed before terminal completion")
 	// ErrConfigurationVersionConflict 表示配置已被其他写入推进。
 	ErrConfigurationVersionConflict = errors.New("automation configuration version conflict")
+	// ErrTaskDeleting 表示任务已进入不可逆的删除清理阶段。
+	ErrTaskDeleting = errors.New("scheduled task deletion is in progress")
+	// ErrTaskDeletionReviewConflict 表示显式停止确认不再对应当前 review_required 删除快照。
+	ErrTaskDeletionReviewConflict = errors.New("scheduled task deletion is not waiting for execution stop confirmation")
 	// ErrCreateRequestConflict 表示同一个创建幂等键被用于不同意图。
 	ErrCreateRequestConflict = errors.New("scheduled task create request conflicts with an existing intent")
+	// ErrCreateRequestResultGone 表示创建意图已经提交，但对应任务后来被删除。
+	ErrCreateRequestResultGone = errors.New("scheduled task create request committed but its task was later deleted")
 	// ErrRuntimeCommandConflict 表示同一个 runtime command request_id 被复用于不同意图。
 	ErrRuntimeCommandConflict = errors.New("automation runtime command request conflicts with an existing intent")
 	// ErrRuntimeCommandUncertain 表示命令已经开始，但无法安全证明是否完成，禁止自动重放。
 	ErrRuntimeCommandUncertain = errors.New("automation runtime command outcome is uncertain; inspect authoritative state before issuing a new command")
+	// ErrDeliveryRetryConflict 表示该 run 的投递状态、尝试次数或任务配置已在领取前变化。
+	ErrDeliveryRetryConflict = errors.New("automation delivery retry state changed before the attempt was claimed")
+	// ErrDeliveryRetryCompletionUnconfirmed 表示外投已发生，但 exact attempt 的最终状态未能确认。
+	ErrDeliveryRetryCompletionUnconfirmed = errors.New("automation delivery retry occurred but its durable completion is unconfirmed")
+	// ErrDeliveryRetryUnverified 表示上一次外投结果未确认，只能在用户核对后显式重投。
+	ErrDeliveryRetryUnverified = errors.New("automation delivery retry outcome is unverified; inspect delivery history before explicitly retrying")
 	// ErrPermissionRequestNotFound 表示审批请求不存在或不属于当前 owner。
 	ErrPermissionRequestNotFound = errors.New("automation permission request not found")
 	// ErrPermissionRequestResolved 表示审批请求已由其他决策处理。
@@ -153,4 +176,10 @@ var (
 	ErrPermissionConnectorNotReady = errors.New("automation permission connector is not ready")
 	// ErrHeartbeatConfigInvalid 表示 heartbeat 配置非法。
 	ErrHeartbeatConfigInvalid = errors.New("heartbeat config is invalid")
+	// ErrDailyReportDateInvalid 表示日报日期不符合查询契约。
+	ErrDailyReportDateInvalid = errors.New("daily report date is invalid")
+	// ErrDailyReportTimezoneInvalid 表示日报时区无法解析。
+	ErrDailyReportTimezoneInvalid = errors.New("daily report timezone is invalid")
+	// ErrHeartbeatWakeRequestConflict 表示同 owner 的 durable wake request_id 被复用于不同意图。
+	ErrHeartbeatWakeRequestConflict = errors.New("heartbeat wake request conflicts with an existing intent")
 )

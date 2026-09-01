@@ -80,6 +80,8 @@ export type RuntimeSettings = Partial<
 >;
 
 export interface UserPreferences {
+  /** Server-owned monotonic revision used only for conditional writes. */
+  version?: number;
   chat_default_delivery_policy: AgentConversationDefaultDeliveryPolicy;
   agent_runtime_kind?: AgentRuntimeKind;
   agent_sdk_diagnostics_enabled?: boolean;

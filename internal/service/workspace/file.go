@@ -1,3 +1,6 @@
+// INPUT: 已验证 Agent、workspace 相对路径与 confined-fd 文件读取。
+// OUTPUT: 文件树或带稳定正文 revision 的文件内容。
+// POS: workspace 读取边界；revision 由正文计算，不依赖时间戳或 inode。
 package workspace
 
 import (
@@ -120,8 +123,9 @@ func (s *Service) GetFile(ctx context.Context, agentID string, relativePath stri
 		return nil, err
 	}
 	return &FileContent{
-		Path:    normalizedPath,
-		Content: string(content),
+		Path:     normalizedPath,
+		Content:  string(content),
+		Revision: workspaceFileRevision(content),
 	}, nil
 }
 

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * INPUT: Goal status projection inputs, server-derived clear reason and action callbacks.
+ * INPUT: Goal status projection inputs, server-derived clear reason, mutation block reason and action callbacks.
  * OUTPUT: accessible Goal status strip with primary lifecycle, descender-safe compact labels and only meaningful WorkGraph binding state.
  * POS: Goal panel renderer; lifecycle and server-derived binding policy remain in the pure model/controller.
  */
@@ -23,6 +23,7 @@ import { cn } from "@/shared/ui/class-name";
 import { UiIconButton } from "@/shared/ui/button/button";
 import type { Goal, GoalExecutionBinding } from "@/types/conversation/goal";
 import type { GoalContinuationHold } from "./goal-continuation-hold";
+import type { GoalMutationBlockReason } from "./goal-lifecycle-recovery";
 import {
   buildGoalStatusStripModel,
   GOAL_PANEL_BADGE_CLASS_NAME,
@@ -42,11 +43,12 @@ interface GoalStatusStripProps {
   compact: boolean;
   continuationHold?: GoalContinuationHold | null;
   disabled: boolean;
-  error: string | null;
   executionBinding?: GoalExecutionBinding | null;
   goal: Goal;
   isGenerating: boolean;
   isLoading: boolean;
+  mutationBlockReason: GoalMutationBlockReason | null;
+  mutationBlocked: boolean;
   scopeLabel: string;
   statusExtra?: ReactNode;
   onClearRequest: () => void;
@@ -102,11 +104,12 @@ export function GoalStatusStrip({
   compact,
   continuationHold = null,
   disabled,
-  error,
   executionBinding = null,
   goal,
   isGenerating,
   isLoading,
+  mutationBlockReason,
+  mutationBlocked,
   scopeLabel,
   statusExtra = null,
   onClearRequest,
@@ -119,7 +122,6 @@ export function GoalStatusStrip({
     canResume,
     clearDisabledReason,
     continuationHold,
-    error,
     executionBinding,
     goal,
     isGenerating,
@@ -154,6 +156,8 @@ export function GoalStatusStrip({
             disabled={disabled}
             handlers={actionHandlers}
             isLoading={isLoading}
+            mutationBlockReason={mutationBlockReason}
+            mutationBlocked={mutationBlocked}
           />
         </div>
         <GoalAttentionMessage
@@ -248,19 +252,31 @@ function GoalStatusActions({
   disabled,
   handlers,
   isLoading,
+  mutationBlockReason,
+  mutationBlocked,
 }: {
   actionDisabledReasons: GoalStatusStripModel["actionDisabledReasons"];
   actions: GoalStatusAction[];
   disabled: boolean;
   handlers: GoalActionHandlers;
   isLoading: boolean;
+  mutationBlockReason: GoalMutationBlockReason | null;
+  mutationBlocked: boolean;
 }) {
-  const unavailable = disabled || isLoading;
+  const { t } = useI18n();
   return (
     <div className="ml-auto flex shrink-0 items-center gap-1">
       {actions.map((action) => {
         const presentation = GOAL_ACTION_PRESENTATION[action];
-        const disabledReason = actionDisabledReasons[action];
+        const disabledReason = actionDisabledReasons[action]
+          ?? (mutationBlocked && action !== "refresh"
+            ? t(mutationBlockReason === "stale_read"
+              ? "goal.reliability.action_stale"
+              : "goal.reliability.action_locked")
+            : null);
+        const unavailable = isLoading || (
+          action !== "refresh" && disabled
+        );
         const { Icon } = presentation;
         return (
           <UiIconButton
@@ -268,9 +284,7 @@ function GoalStatusActions({
             aria-label={disabledReason
               ? `${presentation.label}：${disabledReason}`
               : presentation.label}
-            disabled={Boolean(disabledReason) || (
-              presentation.requiresIdle && unavailable
-            )}
+            disabled={Boolean(disabledReason) || unavailable}
             size="sm"
             title={disabledReason ?? presentation.label}
             tone={presentation.tone}
@@ -281,7 +295,9 @@ function GoalStatusActions({
             <Icon
               className={cn(
                 "h-4 w-4",
-                action === "refresh" && isLoading && "animate-spin",
+                action === "refresh"
+                  && isLoading
+                  && "animate-spin motion-reduce:animate-none",
               )}
             />
           </UiIconButton>

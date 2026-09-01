@@ -1,7 +1,7 @@
 /**
  * 定时任务 API 服务模块
  *
- * 对齐 capability/scheduled/tasks 的结构化自动化任务接口。
+ * 对齐 capability/scheduled/tasks 的结构化自动化任务接口，包括人工确认执行已停止后的删除收口。
  */
 
 import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
@@ -9,11 +9,13 @@ import { requestApi } from "@/lib/api/core/http";
 import { toTimestampOrNull } from "@/lib/api/core/timestamp";
 import type {
   ApiScheduledTask,
+  ApiScheduledTaskCreateRequestResult,
   CreateScheduledTaskParams,
   DeleteScheduledTaskResponse,
   ListScheduledTasksParams,
   RecoverScheduledTaskRunParams,
   ScheduledTaskItem,
+  ScheduledTaskCreateRequestResult,
   UpdateScheduledTaskParams,
   UpdateScheduledTaskStatusParams,
 } from "@/types/capability/scheduled-task/task";
@@ -93,6 +95,19 @@ export async function listScheduledTasksApi(
   return result.map(transformTask);
 }
 
+export async function getScheduledTaskCreateRequestApi(
+  requestId: string,
+): Promise<ScheduledTaskCreateRequestResult> {
+  const result = await requestApi<ApiScheduledTaskCreateRequestResult>(
+    `${SCHEDULED_TASKS_API_BASE_URL}/create-requests/${encodeURIComponent(requestId)}`,
+    { method: "GET" },
+  );
+  return {
+    ...result,
+    task: result.task ? transformTask(result.task) : result.task,
+  };
+}
+
 export async function createScheduledTaskApi(
   params: CreateScheduledTaskParams,
 ): Promise<ScheduledTaskItem> {
@@ -124,22 +139,47 @@ export async function updateScheduledTaskApi(
 
 export async function deleteScheduledTaskApi(
   jobId: string,
+  expectedConfigurationVersion?: number,
 ): Promise<DeleteScheduledTaskResponse> {
   return requestApi<DeleteScheduledTaskResponse>(
     `${SCHEDULED_TASKS_API_BASE_URL}/${encodeURIComponent(jobId)}`,
     {
       method: "DELETE",
+      body: JSON.stringify({
+        expected_configuration_version: expectedConfigurationVersion,
+      }),
+    },
+  );
+}
+
+export async function confirmScheduledTaskDeletionStoppedApi(
+  jobId: string,
+  expectedConfigurationVersion: number,
+): Promise<DeleteScheduledTaskResponse> {
+  return requestApi<DeleteScheduledTaskResponse>(
+    `${SCHEDULED_TASKS_API_BASE_URL}/${encodeURIComponent(jobId)}/deletion/confirm-stopped`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        expected_configuration_version: expectedConfigurationVersion,
+      }),
     },
   );
 }
 
 export async function runScheduledTaskApi(
   jobId: string,
+  expectedConfigurationVersion?: number,
+  requestId?: string,
 ): Promise<ScheduledTaskRunNowResponse> {
   const result = await requestApi<ApiScheduledTaskExecutionResult>(
     `${SCHEDULED_TASKS_API_BASE_URL}/${encodeURIComponent(jobId)}/run`,
     {
       method: "POST",
+      body: JSON.stringify({
+        expected_configuration_version: expectedConfigurationVersion,
+        request_id: requestId,
+      }),
     },
   );
 
@@ -192,12 +232,19 @@ export async function listScheduledTaskRunsApi(
 export async function retryScheduledTaskRunDeliveryApi(
   jobId: string,
   runId: string,
+  expectedConfigurationVersion?: number,
+  expectedDeliveryAttempts?: number,
+  confirmUnverifiedAttempt = false,
 ): Promise<ScheduledTaskRunItem> {
   const result = await requestApi<ApiScheduledTaskRun>(
     `${SCHEDULED_TASKS_API_BASE_URL}/${encodeURIComponent(jobId)}/runs/${encodeURIComponent(runId)}/delivery/retry`,
     {
       method: "POST",
-      body: JSON.stringify({}),
+      body: JSON.stringify({
+        expected_configuration_version: expectedConfigurationVersion,
+        expected_delivery_attempts: expectedDeliveryAttempts,
+        confirm_unverified_attempt: confirmUnverifiedAttempt || undefined,
+      }),
     },
   );
 

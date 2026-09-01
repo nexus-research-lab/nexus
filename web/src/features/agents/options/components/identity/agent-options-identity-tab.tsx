@@ -3,6 +3,7 @@
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { UiTextarea } from "@/shared/ui/form/form-control";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 import type { AgentNameValidationResult, AgentProvider } from "@/types/agent/agent";
 import type { ProviderOption } from "@/types/capability/provider";
 
@@ -32,6 +33,7 @@ interface AgentOptionsIdentityTabProps {
   onDescriptionChange: (value: string) => void;
   onModelChange: (value: string) => void;
   onProfileTemplateChange: (value: string) => void;
+  onRetryProfileTemplate: () => void;
   onProviderChange: (value: AgentProvider) => void;
   onTitleChange: (value: string) => void;
   onVibeTagsChange: (tags: string[]) => void;
@@ -65,6 +67,7 @@ export function AgentOptionsIdentityTab({
   onDescriptionChange,
   onModelChange,
   onProfileTemplateChange,
+  onRetryProfileTemplate,
   onProviderChange,
   onTitleChange,
   onVibeTagsChange,
@@ -196,9 +199,21 @@ export function AgentOptionsIdentityTab({
             value={profileTemplate}
           />
           {profileTemplateError ? (
-            <p className="text-compact leading-5 text-(--destructive)">
-              {profileTemplateError}
-            </p>
+            <UiResourceState
+              className="min-h-0 py-3"
+              impact={t("agent_options.identity.profile_template_load_failed_impact")}
+              nextStep={t("agent_options.identity.profile_template_load_failed_next_step")}
+              primaryAction={{
+                busy: profileTemplateLoading,
+                label: t("state.retry"),
+                onClick: onRetryProfileTemplate,
+              }}
+              size="sm"
+              state="error"
+              title={profileTemplateError}
+              urgency="polite"
+              variant="card"
+            />
           ) : null}
         </div>
       ) : null}

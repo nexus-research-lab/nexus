@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * INPUT: Launcher 目录、页面级导航反馈与用户输入/入口回调。
+ * OUTPUT: 启动台主界面、模型引导及当前唯一的持久可靠性反馈。
+ * POS: Launcher 展示装配层；优先展示当前 Console 操作失败，不自行判断请求结果。
+ */
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ANIMATIONS } from "@/config/animation-assets";
@@ -10,6 +15,7 @@ import {
 } from "@/features/onboarding/tours/launcher-tour";
 import { useProviderAvailability } from "@/hooks/capability/use-provider-availability";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import { LottiePlayer } from "@/shared/ui/feedback/lottie-player";
 import { setTourDismissed } from "@/shared/ui/onboarding/tour-state";
 import { usePageOnboardingTour } from "@/shared/ui/onboarding/use-page-onboarding-tour";
@@ -29,6 +35,7 @@ export function LauncherConsole({
   agents,
   conversations,
   currentAgentId,
+  feedback,
   initialQuery,
   onOpenMainAgentDm,
   onOpenRoute,
@@ -40,7 +47,6 @@ export function LauncherConsole({
     initialQuery,
     onOpenMainAgentDm,
     onOpenRoute,
-    onSelectAgent,
   });
   const { hasAvailableProvider, isReady } = useProviderAvailability();
   const [setupOpen, setSetupOpen] = useState(false);
@@ -147,6 +153,7 @@ export function LauncherConsole({
         onClose={() => setSetupOpen(false)}
         onStart={() => onOpenMainAgentDm(controller.state.query.trim() || undefined)}
       />
+      <FeedbackBannerViewport item={controller.state.feedback ?? feedback ?? null} />
     </>
   );
 }

@@ -3,8 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import DOMPurify from "dompurify";
 
-import { useI18n } from "@/shared/i18n/i18n-context";
-
 import { postProcessMermaidSvg } from "./mermaid-svg-postprocess";
 
 const MERMAID_STREAM_RENDER_DELAY = 300;
@@ -26,19 +24,18 @@ const MERMAID_CONFIG = {
 };
 
 export interface MermaidRenderState {
-  error: string | null;
+  error: MermaidRenderFailure | null;
   is_rendering: boolean;
   svg: string;
 }
+
+export type MermaidRenderFailure = "invalid_syntax" | "render_failed";
 
 export function useMermaidSvg(
   chart: string,
   isStreaming: boolean,
   renderIdPrefix: string,
 ): MermaidRenderState {
-  const { t } = useI18n();
-  const invalidSyntaxMessage = t("markdown.mermaid.invalid_syntax");
-  const renderFailedMessage = t("markdown.mermaid.render_failed");
   const normalizedChart = chart.trim();
   const latestChartRef = useRef(normalizedChart);
   const renderIndexRef = useRef(0);
@@ -68,13 +65,13 @@ export function useMermaidSvg(
 
     if (!normalizedChart) return;
 
-    const commitRenderError = (message: string) => {
+    const commitRenderError = (failure: MermaidRenderFailure) => {
       if (cancelled || latestChartRef.current !== normalizedChart) {
         return;
       }
 
       setRenderState((previous) => ({
-        error: isStreaming ? null : message,
+        error: isStreaming ? null : failure,
         is_rendering: false,
         svg: isStreaming ? previous.svg : "",
       }));
@@ -86,7 +83,7 @@ export function useMermaidSvg(
         mermaid.initialize(MERMAID_CONFIG);
         const parseResult = await mermaid.parse(normalizedChart, { suppressErrors: true });
         if (!parseResult) {
-          commitRenderError(invalidSyntaxMessage);
+          commitRenderError("invalid_syntax");
           return;
         }
 
@@ -104,8 +101,8 @@ export function useMermaidSvg(
             USE_PROFILES: { svg: true, svgFilters: true },
           }),
         });
-      } catch (renderError) {
-        commitRenderError(renderError instanceof Error ? renderError.message : renderFailedMessage);
+      } catch {
+        commitRenderError("render_failed");
       }
     };
 
@@ -118,7 +115,7 @@ export function useMermaidSvg(
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [invalidSyntaxMessage, isStreaming, normalizedChart, renderFailedMessage, renderIdPrefix]);
+  }, [isStreaming, normalizedChart, renderIdPrefix]);
 
   return renderState;
 }

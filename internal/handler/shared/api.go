@@ -1,3 +1,6 @@
+// INPUT: Handler 已验证的请求体、HTTP 状态与显式 opt-in 的失败事实。
+// OUTPUT: 保持旧 envelope 的 JSON 响应、安全文案与可选 FailureCore 解析失败。
+// POS: Handler 共享 HTTP 边界；不推断业务结果、不改变身份或事务。
 package shared
 
 import (
@@ -72,9 +75,12 @@ func (a *API) WriteFailure(writer http.ResponseWriter, status int, detail string
 	}
 	if clientDetail != "" {
 		if isClientCanceledDetail(clientDetail) {
-			a.BaseLogger().Debug("HTTP 请求已取消", "status", status, "detail", clientDetail)
+			a.BaseLogger().Debug("HTTP 请求已取消", "status", status, "has_detail", true)
 		} else {
-			a.BaseLogger().Warn("HTTP 请求失败", "status", status, "detail", clientDetail)
+			// 旧 Handler 只提供一段无法区分来源的文本，其中可能包含用户输入、
+			// Provider 正文、路径或秘密。兼容响应继续按旧规则投影，但共享日志
+			// 只记录存在性；需要原因详情的领域应改用结构化、已脱敏日志。
+			a.BaseLogger().Warn("HTTP 请求失败", "status", status, "has_detail", true)
 		}
 	}
 	clientDetail = GatewayClientErrorDetail(status, clientDetail)
@@ -91,6 +97,24 @@ func (a *API) WriteFailure(writer http.ResponseWriter, status int, detail string
 // BindJSON 解析 JSON 请求体。
 func (a *API) BindJSON(writer http.ResponseWriter, request *http.Request, target any) bool {
 	return a.bindJSONWithOptions(writer, request, target, false)
+}
+
+// BindJSONError 解析已显式接入 FailureCore 的 JSON 请求体。
+//
+// 旧 BindJSON 保持原有 wire；只有能够证明 Handler 尚未进入业务阶段的端点
+// 才应使用本入口，并由调用方提供稳定 code 和 not_applied 证据。
+func (a *API) BindJSONError(
+	writer http.ResponseWriter,
+	request *http.Request,
+	target any,
+	spec FailureSpec,
+) bool {
+	if err := DecodeJSONBody(request.Body, target, false); err != nil {
+		spec.Cause = err
+		a.WriteError(writer, request, http.StatusBadRequest, spec)
+		return false
+	}
+	return true
 }
 
 // BindJSONAllowEmpty 解析可为空的 JSON 请求体。

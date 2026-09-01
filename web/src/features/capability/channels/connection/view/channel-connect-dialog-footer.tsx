@@ -14,6 +14,7 @@ import {
 interface ChannelConnectDialogFooterProps extends ChannelSubmitState {
   agentId: string;
   busy: boolean;
+  closeBlocked: boolean;
   configured: boolean;
   deleting: boolean;
   onCancel: () => void;
@@ -23,6 +24,7 @@ interface ChannelConnectDialogFooterProps extends ChannelSubmitState {
 export function ChannelConnectDialogFooter({
   agentId,
   busy,
+  closeBlocked,
   configured,
   deleting,
   loginLoading,
@@ -63,7 +65,7 @@ export function ChannelConnectDialogFooter({
       </div>
       <div className="flex justify-end gap-2">
         <UiButton
-          disabled={deleting}
+          disabled={closeBlocked || deleting}
           onClick={onCancel}
           size="sm"
           type="button"

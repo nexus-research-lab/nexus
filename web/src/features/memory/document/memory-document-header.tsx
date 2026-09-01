@@ -27,8 +27,11 @@ interface MemoryDocumentHeaderController {
   cancelEditing: () => void;
   dirty: boolean;
   editing: boolean;
+  isReconciling: boolean;
   isSaving: boolean;
+  revision: string | null;
   save: () => Promise<void>;
+  saveBlocked: boolean;
   startEditing: () => void;
 }
 
@@ -55,13 +58,16 @@ export function MemoryDocumentHeader({
 }: MemoryDocumentHeaderProps) {
   const { t } = useI18n();
   const model = buildMemoryDocumentHeaderModel({
+    commandBusy: controller.isSaving || controller.isReconciling,
     deleteBusy,
     deleting,
     dirty: controller.dirty,
     documentKind: document.kind,
     editing: controller.editing,
     isSaving: controller.isSaving,
+    revisionReady: Boolean(controller.revision),
     runtimeWriting,
+    saveBlocked: controller.saveBlocked,
   });
   return (
     <div className="shrink-0">

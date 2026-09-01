@@ -1,3 +1,6 @@
+// INPUT: 当前 exact Agent、文件路径和预览布局状态。
+// OUTPUT: 路径切换时重新建立的文件预览与编辑器实例。
+// POS: Workspace 文件预览 scope 边界；旧文件草稿不得复用于新路径。
 import type { ReactNode } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -65,6 +68,7 @@ export function WorkspaceFilePreviewPanel({
           fileName={path.split("/").at(-1) ?? ""}
           fileType={getWorkspaceFilePreviewKind(path)}
           isPreviewFocused={isPreviewFocused}
+          key={`${agentId}\u0000${path}`}
           onTogglePreviewFocus={onTogglePreviewFocus}
           path={path}
         />

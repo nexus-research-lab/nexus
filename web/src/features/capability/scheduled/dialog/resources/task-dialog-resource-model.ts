@@ -308,6 +308,7 @@ export function resourceStatus<T>(
   return {
     error: resource.error,
     loading: resource.loading,
+    retry: resource.retry,
   };
 }
 

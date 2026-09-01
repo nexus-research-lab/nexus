@@ -1,3 +1,6 @@
+// INPUT: 已认证 owner 的 Skill HTTP 请求、路由身份与上传/远端来源参数。
+// OUTPUT: Skill 查询/写响应；Marketplace 写失败显式携带 FailureCore 提交事实。
+// POS: Skill HTTP 适配层；业务写由 service 持有，Handler 只投影已知阶段和安全文案。
 package skill
 
 import (
@@ -8,6 +11,7 @@ import (
 	"strings"
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
 	skillspkg "github.com/nexus-research-lab/nexus/internal/service/skills"
 
@@ -186,7 +190,10 @@ func (h *Handlers) HandleUninstallAgentSkill(writer http.ResponseWriter, request
 func (h *Handlers) HandleImportLocalSkill(writer http.ResponseWriter, request *http.Request) {
 	filePayload, filename, localPath, err := h.parseLocalSkillImportRequest(request)
 	if err != nil {
-		h.api.WriteFailure(writer, http.StatusBadRequest, "请求参数错误")
+		h.api.WriteError(writer, request, http.StatusBadRequest, skillRequestFailure(
+			"skill.import_local_request_invalid",
+			"请选择有效的 Skill 压缩包或本地路径",
+		))
 		return
 	}
 	var item *skillspkg.Detail
@@ -196,15 +203,29 @@ func (h *Handlers) HandleImportLocalSkill(writer http.ResponseWriter, request *h
 		item, err = h.skills.ImportLocalPath(request.Context(), localPath)
 	}
 	if err != nil {
-		if errors.Is(err, skillspkg.ErrLocalPathImportUnavailable) {
-			h.api.WriteFailure(writer, http.StatusForbidden, err.Error())
-			return
+		status := http.StatusInternalServerError
+		category := protocol.FailureCategoryInternal
+		detail := "技能没有导入"
+		if !skillspkg.SkillMutationNeedsReconcile(err) {
+			switch {
+			case errors.Is(err, skillspkg.ErrLocalPathImportUnavailable):
+				status = http.StatusForbidden
+				category = protocol.FailureCategoryAuthorization
+				detail = "当前环境不允许从本地路径导入"
+			case errors.Is(err, os.ErrNotExist), strings.Contains(err.Error(), "SKILL.md"):
+				status = http.StatusBadRequest
+				category = protocol.FailureCategoryValidation
+				detail = "没有找到可导入的 SKILL.md"
+			}
 		}
-		if errors.Is(err, os.ErrNotExist) || strings.Contains(err.Error(), "SKILL.md") {
-			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
-			return
-		}
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		status, spec := skillMutationFailure(
+			err,
+			"skill.import_local_failed",
+			status,
+			category,
+			detail,
+		)
+		h.api.WriteError(writer, request, status, spec)
 		return
 	}
 	h.api.WriteSuccess(writer, item)
@@ -214,11 +235,24 @@ func (h *Handlers) HandleImportLocalSkill(writer http.ResponseWriter, request *h
 func (h *Handlers) HandleDeleteSkill(writer http.ResponseWriter, request *http.Request) {
 	err := h.skills.DeleteSkill(request.Context(), chi.URLParam(request, "skill_name"))
 	if err != nil {
-		if strings.Contains(err.Error(), "不允许") || strings.Contains(strings.ToLower(err.Error()), "not found") {
-			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
-			return
+		status := http.StatusInternalServerError
+		category := protocol.FailureCategoryInternal
+		detail := "技能没有删除"
+		if !skillspkg.SkillMutationNeedsReconcile(err) &&
+			(strings.Contains(err.Error(), "不允许") ||
+				strings.Contains(strings.ToLower(err.Error()), "not found")) {
+			status = http.StatusBadRequest
+			category = protocol.FailureCategoryValidation
+			detail = "这个技能不能删除或已经不存在"
 		}
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		status, spec := skillMutationFailure(
+			err,
+			"skill.delete_failed",
+			status,
+			category,
+			detail,
+		)
+		h.api.WriteError(writer, request, status, spec)
 		return
 	}
 	h.api.WriteSuccess(writer, map[string]any{"success": true})
@@ -231,12 +265,22 @@ func (h *Handlers) HandleImportGitSkill(writer http.ResponseWriter, request *htt
 		Branch string `json:"branch"`
 		Path   string `json:"path"`
 	}
-	if !h.api.BindJSON(writer, request, &payload) {
+	if !h.api.BindJSONError(writer, request, &payload, skillRequestFailure(
+		"skill.import_git_request_invalid",
+		"Git 导入信息格式不正确",
+	)) {
 		return
 	}
 	item, err := h.skills.ImportGitPath(request.Context(), payload.URL, payload.Branch, payload.Path)
 	if err != nil {
-		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		status, spec := skillMutationFailure(
+			err,
+			"skill.import_git_failed",
+			http.StatusBadRequest,
+			protocol.FailureCategoryValidation,
+			"无法从这个 Git 地址导入技能",
+		)
+		h.api.WriteError(writer, request, status, spec)
 		return
 	}
 	h.api.WriteSuccess(writer, item)
@@ -270,12 +314,22 @@ func (h *Handlers) HandlePreviewExternalSkill(writer http.ResponseWriter, reques
 // HandleImportSkillsShSkill 导入社区技能，兼容历史 skills.sh 接口路径。
 func (h *Handlers) HandleImportSkillsShSkill(writer http.ResponseWriter, request *http.Request) {
 	var payload skillspkg.ExternalSkillSearchItem
-	if !h.api.BindJSON(writer, request, &payload) {
+	if !h.api.BindJSONError(writer, request, &payload, skillRequestFailure(
+		"skill.import_external_request_invalid",
+		"外部 Skill 信息格式不正确",
+	)) {
 		return
 	}
 	item, err := h.skills.ImportExternalSkill(request.Context(), payload)
 	if err != nil {
-		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		status, spec := skillMutationFailure(
+			err,
+			"skill.import_external_failed",
+			http.StatusBadRequest,
+			protocol.FailureCategoryValidation,
+			"无法导入这个外部技能",
+		)
+		h.api.WriteError(writer, request, status, spec)
 		return
 	}
 	h.api.WriteSuccess(writer, item)
@@ -284,12 +338,22 @@ func (h *Handlers) HandleImportSkillsShSkill(writer http.ResponseWriter, request
 // HandleImportPrivateSkill 从私有来源安全导入指定 Skill。
 func (h *Handlers) HandleImportPrivateSkill(writer http.ResponseWriter, request *http.Request) {
 	var payload skillspkg.ImportPrivateSkillRequest
-	if !h.api.BindJSON(writer, request, &payload) {
+	if !h.api.BindJSONError(writer, request, &payload, skillRequestFailure(
+		"skill.import_external_request_invalid",
+		"私有来源 Skill 信息格式不正确",
+	)) {
 		return
 	}
 	item, err := h.skills.ImportPrivateSkillFromSource(request.Context(), payload)
 	if err != nil {
-		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		status, spec := skillMutationFailure(
+			err,
+			"skill.import_external_failed",
+			http.StatusBadRequest,
+			protocol.FailureCategoryValidation,
+			"无法导入这个外部技能",
+		)
+		h.api.WriteError(writer, request, status, spec)
 		return
 	}
 	h.api.WriteSuccess(writer, item)
@@ -355,7 +419,14 @@ func (h *Handlers) HandleDeleteExternalSkillSource(writer http.ResponseWriter, r
 func (h *Handlers) HandleCheckSkillUpdates(writer http.ResponseWriter, request *http.Request) {
 	item, err := h.skills.CheckImportedSkillUpdates(request.Context())
 	if err != nil {
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		status, spec := skillMutationFailure(
+			err,
+			"skill.check_updates_failed",
+			http.StatusInternalServerError,
+			protocol.FailureCategoryInternal,
+			"无法检查技能更新",
+		)
+		h.api.WriteError(writer, request, status, spec)
 		return
 	}
 	h.api.WriteSuccess(writer, item)
@@ -375,11 +446,23 @@ func (h *Handlers) HandleUpdateImportedSkills(writer http.ResponseWriter, reques
 func (h *Handlers) HandleUpdateSingleSkill(writer http.ResponseWriter, request *http.Request) {
 	item, err := h.skills.UpdateSingleSkill(request.Context(), chi.URLParam(request, "skill_name"))
 	if err != nil {
-		if strings.Contains(strings.ToLower(err.Error()), "not found") {
-			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+		if !skillspkg.SkillMutationNeedsReconcile(err) &&
+			strings.Contains(strings.ToLower(err.Error()), "not found") {
+			status, spec := skillNotFoundMutationFailure(
+				err,
+				"skill.update_failed",
+			)
+			h.api.WriteError(writer, request, status, spec)
 			return
 		}
-		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		status, spec := skillMutationFailure(
+			err,
+			"skill.update_failed",
+			http.StatusBadRequest,
+			protocol.FailureCategoryValidation,
+			"无法更新这个技能",
+		)
+		h.api.WriteError(writer, request, status, spec)
 		return
 	}
 	h.api.WriteSuccess(writer, item)

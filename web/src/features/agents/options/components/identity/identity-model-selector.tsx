@@ -1,3 +1,6 @@
+// INPUT: 当前模型选择、已加载 Provider 选项与读取失败状态。
+// OUTPUT: 不丢当前选择、说明读取影响和恢复路径的模型选择控件。
+// POS: Agent 身份表单纯视图；不展示 Provider 原始错误，也不发起保存。
 import { useCallback, useMemo } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -162,7 +165,24 @@ export function IdentityModelSelector({
             {t("agent_options.identity.use_default_model")}
           </UiButton>
         </div>
-      ) : error ? <p className={layout.errorClassName}>{error}</p> : null}
+      ) : error ? (
+        <div
+          aria-atomic="true"
+          aria-live="polite"
+          className={layout.errorClassName}
+          role="status"
+        >
+          <p className="font-semibold">
+            {t("agent_options.identity.provider_load_failed")}
+          </p>
+          <p className="mt-1 leading-5 text-(--text-muted)">
+            {t("agent_options.identity.provider_load_failed_impact")}
+          </p>
+          <p className="mt-1 font-medium leading-5 text-(--text-default)">
+            {t("agent_options.identity.provider_load_failed_next_step")}
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }

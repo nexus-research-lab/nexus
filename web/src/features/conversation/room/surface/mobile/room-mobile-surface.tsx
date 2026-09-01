@@ -46,6 +46,8 @@ import { RoomMobileConversationSwitcher } from "./room-mobile-conversation-switc
 import { RoomMobileHeader } from "./room-mobile-header";
 import { RoomMobileSubagentOverlay } from "./room-mobile-subagent-overlay";
 import { RoomMobileThreadOverlay } from "./room-mobile-thread-overlay";
+import type { RoomExternalSessionsReliability } from "../layout/room-surface-layout-types";
+import { ReadResourceReliabilityNotice } from "@/features/conversation/shared/read-resource-reliability-notice";
 
 interface RoomMobileSurfaceProps {
   activeWorkspacePath: string | null;
@@ -60,6 +62,7 @@ interface RoomMobileSurfaceProps {
   currentTodos: TodoItem[];
   executionResource: ExecutionResource;
   executionTaskRuns: ConversationTaskRun[];
+  externalSessionsReliability: RoomExternalSessionsReliability;
   initialDraft?: string | null;
   onBackToDirectory: () => void;
   onConversationSnapshotChange: (snapshot: ConversationSnapshotPayload) => void;
@@ -114,6 +117,7 @@ export function RoomMobileSurface({
   currentTodos,
   executionResource,
   executionTaskRuns,
+  externalSessionsReliability,
   initialDraft = null,
   onBackToDirectory,
   onConversationSnapshotChange,
@@ -284,6 +288,23 @@ export function RoomMobileSurface({
           </>
         )}
       />
+      {isDm && externalSessionsReliability.failure ? (
+        <ReadResourceReliabilityNotice
+          impact={t(externalSessionsReliability.failure.access
+            ? "conversation.external_sessions_access_impact"
+            : externalSessionsReliability.isStale
+            ? "conversation.external_sessions_stale_impact"
+            : "conversation.external_sessions_unavailable_impact")}
+          isRefreshing={externalSessionsReliability.isLoading}
+          nextStep={t(externalSessionsReliability.failure.access
+            ? "conversation.external_sessions_access_next_step"
+            : "conversation.external_sessions_next_step")}
+          onRefresh={externalSessionsReliability.refresh}
+          problem={t("conversation.external_sessions_refresh_failed")}
+          resource="room-external-sessions"
+          stale={externalSessionsReliability.isStale}
+        />
+      ) : null}
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">

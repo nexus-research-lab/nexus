@@ -1,32 +1,40 @@
 // INPUT: Channel 授权 WebSocket 展示/结果事件与用户提交动作。
-// OUTPUT: 仅内存保存当前展示，向弹窗投影精确提交、取消和短错误状态。
-// POS: Channel 授权协议与可见弹窗之间的 presenter，不持久化敏感材料。
+// OUTPUT: 仅内存保存当前展示，向弹窗投影精确提交、取消和受控恢复状态。
+// POS: Channel 授权协议与可见弹窗之间的 presenter；不持久化敏感材料、不直显 server message。
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import { getDesktopWebsocketProtocols } from "@/config/desktop-runtime";
 import { getAgentWsUrl } from "@/config/runtime-endpoints";
 import { useWebSocket } from "@/lib/websocket";
 import type { ChannelAuthorizationData } from "@/types/generated/protocol";
+import { useI18n } from "@/shared/i18n/i18n-context";
 
 import { ChannelAuthorizationDialog } from "./channel-authorization-dialog";
 import {
+  buildChannelAuthorizationFailure,
+  type ChannelAuthorizationAction,
   parseChannelAuthorizationPresentation,
   parseChannelAuthorizationResult,
 } from "./channel-authorization-model";
 
 export function ChannelAuthorizationPresenter() {
+  const { t } = useI18n();
   const [presentation, setPresentation] = useState<ChannelAuthorizationData | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<ReturnType<
+    typeof buildChannelAuthorizationFailure
+  > | null>(null);
+  const pendingActionRef = useRef<ChannelAuthorizationAction | null>(null);
 
   const handleMessage = useCallback((message: unknown) => {
     const nextPresentation = parseChannelAuthorizationPresentation(message);
     if (nextPresentation) {
       setPresentation(nextPresentation);
       setBusy(false);
-      setError("");
+      setError(null);
+      pendingActionRef.current = null;
       return;
     }
     const result = parseChannelAuthorizationResult(message);
@@ -39,10 +47,15 @@ export function ChannelAuthorizationPresenter() {
     if (result.accepted) {
       setPresentation(null);
     } else {
-      setError(result.message);
+      setError(buildChannelAuthorizationFailure(
+        pendingActionRef.current ?? "submit",
+        "rejected",
+        t,
+      ));
     }
     setBusy(false);
-  }, [presentation]);
+    pendingActionRef.current = null;
+  }, [presentation, t]);
 
   const { send } = useWebSocket({
     url: getAgentWsUrl(),
@@ -54,10 +67,14 @@ export function ChannelAuthorizationPresenter() {
   });
 
   const submitCode = useCallback((code: string) => {
-    if (!presentation || presentation.kind !== "verification_code") {
+    if (
+      !presentation
+      || presentation.kind !== "verification_code"
+      || error?.writeLocked
+    ) {
       return;
     }
-    setError("");
+    setError(null);
     const result = send({
       type: "submit_channel_authorization_code",
       flow_id: presentation.flow_id,
@@ -66,17 +83,22 @@ export function ChannelAuthorizationPresenter() {
     });
     if (result.disposition !== "sent") {
       setBusy(false);
-      setError("连接中断，验证码未发送。");
+      setError(buildChannelAuthorizationFailure(
+        "submit",
+        "not_sent",
+        t,
+      ));
       return;
     }
+    pendingActionRef.current = "submit";
     setBusy(true);
-  }, [presentation, send]);
+  }, [error?.writeLocked, presentation, send, t]);
 
   const cancelAuthorization = useCallback(() => {
-    if (!presentation) {
+    if (!presentation || error?.writeLocked) {
       return;
     }
-    setError("");
+    setError(null);
     const result = send({
       type: "cancel_channel_authorization",
       flow_id: presentation.flow_id,
@@ -84,11 +106,16 @@ export function ChannelAuthorizationPresenter() {
     });
     if (result.disposition !== "sent") {
       setBusy(false);
-      setError("连接中断，授权尚未取消。");
+      setError(buildChannelAuthorizationFailure(
+        "cancel",
+        "not_sent",
+        t,
+      ));
       return;
     }
+    pendingActionRef.current = "cancel";
     setBusy(true);
-  }, [presentation, send]);
+  }, [error?.writeLocked, presentation, send, t]);
 
   return (
     <ChannelAuthorizationDialog
@@ -98,10 +125,12 @@ export function ChannelAuthorizationPresenter() {
       onClose={() => {
         setPresentation(null);
         setBusy(false);
-        setError("");
+        setError(null);
+        pendingActionRef.current = null;
       }}
       onSubmitCode={submitCode}
       presentation={presentation}
+      writeLocked={error?.writeLocked ?? false}
     />
   );
 }

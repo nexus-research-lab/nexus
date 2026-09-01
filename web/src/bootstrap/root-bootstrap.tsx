@@ -9,6 +9,7 @@ import {
 } from "@/config/desktop-runtime";
 import { hydrateRuntimeOptions } from "@/app/runtime-options-resource";
 import { isStrictModeEnabled } from "@/config/conversation-policy";
+import { getErrorMessage } from "@/lib/error-message";
 import { applyTheme, detectInitialTheme } from "@/shared/theme/theme-context";
 
 import {
@@ -62,7 +63,7 @@ async function bootstrap(
     }
 
     // 启动失败必须进入可见错误面，避免生产环境停留在无法诊断的空白根节点。
-    const message = error instanceof Error ? error.message : "加载运行时配置失败";
+    const message = getErrorMessage(error, "暂时无法加载运行时配置");
     console.error("Bootstrap failed:", error);
     markDesktopPerformance("bootstrap.error");
     renderBootstrapError(message, isStrictModeEnabled());

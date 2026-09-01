@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 )
 
@@ -94,14 +95,14 @@ func (r *responseRecorder) HeaderWritten() bool {
 func RequestContextMiddleware(baseLogger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-			requestID := strings.TrimSpace(request.Header.Get("X-Request-ID"))
+			requestID := normalizeDiagnosticRequestID(request.Header.Get("X-Request-ID"))
 			if requestID == "" {
 				requestID = generateRequestID()
 			}
 			writer.Header().Set("X-Request-ID", requestID)
 
 			requestLogger := baseLogger.With("request_id", requestID)
-			ctx := logx.WithLogger(request.Context(), requestLogger)
+			ctx := withRequestID(logx.WithLogger(request.Context(), requestLogger), requestID)
 			next.ServeHTTP(writer, request.WithContext(ctx))
 		})
 	}
@@ -185,7 +186,12 @@ func RecoverMiddleware(api *API) func(http.Handler) http.Handler {
 					if recorder, ok := writer.(*responseRecorder); ok && recorder.HeaderWritten() {
 						return
 					}
-					api.WriteFailure(writer, http.StatusInternalServerError, "服务内部错误")
+					api.WriteError(writer, request, http.StatusInternalServerError, FailureSpec{
+						Code:     "common.request_panicked",
+						Category: protocol.FailureCategoryInternal,
+						Effect:   protocol.FailureEffectUnknown,
+						Detail:   "服务内部错误",
+					})
 				}
 			}()
 			next.ServeHTTP(writer, request)
@@ -204,7 +210,13 @@ func AuthMiddleware(api *API, auth *authsvc.Service) func(http.Handler) http.Han
 
 			principal, state, err := auth.InspectRequest(request.Context(), request)
 			if err != nil {
-				api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+				api.WriteError(writer, request, http.StatusInternalServerError, FailureSpec{
+					Code:     "auth.inspection_failed",
+					Category: protocol.FailureCategoryInternal,
+					Effect:   failureEffectBeforeHandler(request),
+					Detail:   "认证状态检查失败",
+					Cause:    err,
+				})
 				return
 			}
 
@@ -215,7 +227,12 @@ func AuthMiddleware(api *API, auth *authsvc.Service) func(http.Handler) http.Han
 				return
 			}
 			if principal == nil {
-				api.WriteFailure(writer, http.StatusUnauthorized, "未登录或登录状态已过期")
+				api.WriteError(writer, request, http.StatusUnauthorized, FailureSpec{
+					Code:     "auth.authentication_required",
+					Category: protocol.FailureCategoryAuthentication,
+					Effect:   failureEffectBeforeHandler(request),
+					Detail:   "未登录或登录状态已过期",
+				})
 				return
 			}
 			next.ServeHTTP(writer, request.WithContext(ctx))

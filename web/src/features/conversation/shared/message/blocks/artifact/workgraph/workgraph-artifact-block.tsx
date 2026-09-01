@@ -1,7 +1,7 @@
 /**
  * INPUT: assistant 消息中持久化的完整 WorkGraph Draft/命名图快照。
- * OUTPUT: 对话内紧凑草图卡片，以及无说明标题、按需加载 exact 来源图的扁平对照弹窗。
- * POS: 普通 DM/Room WorkGraph authoring 结果的最终回复视图；默认不把双画布或实现说明塞进聊天流。
+ * OUTPUT: 对话内紧凑草图卡片，以及按需加载 exact 来源图并完整解释读取失败的扁平对照弹窗。
+ * POS: 普通 DM/Room WorkGraph authoring 最终回复视图；来源读取失败不改变草图、命名图或源 Execution。
  */
 "use client";
 
@@ -28,6 +28,7 @@ import {
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
 import { getDialogActionClassName } from "@/shared/ui/dialog/dialog-styles";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 import type { ExecutionView } from "@/types/conversation/execution";
 import type { WorkGraphArtifactContent } from "@/types/conversation/message/content";
 import type {
@@ -167,14 +168,23 @@ function WorkGraphCompareDialog({
       ) : source ? (
         <ExecutionWorkGraphCanvas currentId={null} directory={{}} execution={source} taskRuns={[]} />
       ) : (
-        <div className="grid h-full place-items-center px-6 text-center">
-          <div className="max-w-xs">
-            <p className="text-xs leading-5 text-(--destructive)" role="alert">{error ?? t("execution.workflow_artifact_source_failed")}</p>
-            <button className={`${getDialogActionClassName("default", "compact")} mt-3`} type="button" onClick={() => void loadSource()}>
-              <RotateCcw className="h-3.5 w-3.5" />
-              {t("execution.workflow_editor_retry")}
-            </button>
-          </div>
+        <div className="grid h-full place-items-center px-6">
+          <UiResourceState
+            className="w-full max-w-md min-h-0 py-5"
+            description={error ?? t("execution.workflow_artifact_source_failed")}
+            impact={t("execution.workflow_artifact_source_failed_impact")}
+            nextStep={t("execution.workflow_artifact_source_failed_next_step")}
+            primaryAction={{
+              icon: <RotateCcw className="h-3.5 w-3.5" />,
+              label: t("execution.workflow_artifact_source_retry"),
+              onClick: () => void loadSource(),
+            }}
+            size="sm"
+            state="error"
+            title={t("execution.workflow_artifact_source_failed_title")}
+            urgency="polite"
+            variant="card"
+          />
         </div>
       )}
     </CompareCanvasPanel>

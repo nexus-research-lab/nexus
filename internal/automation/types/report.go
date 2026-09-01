@@ -14,6 +14,7 @@ type ScheduledTaskDailyReportTotals struct {
 	SkippedRunCount            int `json:"skipped_run_count"`
 	DeliveredRunCount          int `json:"delivered_run_count"`
 	DeliveryFailedRunCount     int `json:"delivery_failed_run_count"`
+	DeliveryUnverifiedRunCount int `json:"delivery_unverified_run_count"`
 	DeliveryPendingRunCount    int `json:"delivery_pending_run_count"`
 	DeliverySkippedRunCount    int `json:"delivery_skipped_run_count"`
 	DeliveryDeadLetterRunCount int `json:"delivery_dead_letter_run_count"`
@@ -43,6 +44,7 @@ type ScheduledTaskDailyReportItem struct {
 	SuggestedTools           []string                       `json:"suggested_tools,omitempty"`
 	ExecutionFailedRunIDs    []string                       `json:"execution_failed_run_ids,omitempty"`
 	ManualRedeliveryRunIDs   []string                       `json:"manual_redelivery_run_ids,omitempty"`
+	DeliveryUnverifiedRunIDs []string                       `json:"delivery_unverified_run_ids,omitempty"`
 	DeliveryPendingRunIDs    []string                       `json:"delivery_pending_run_ids,omitempty"`
 	DeliverySkippedRunIDs    []string                       `json:"delivery_skipped_run_ids,omitempty"`
 	DeliveryDeadLetterRunIDs []string                       `json:"delivery_dead_letter_run_ids,omitempty"`

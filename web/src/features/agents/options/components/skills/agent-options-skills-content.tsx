@@ -1,3 +1,6 @@
+// INPUT: 已投影 Skill 列表、读取可用性与逐 Skill mutation 锁。
+// OUTPUT: 保留快照且仅禁用不安全开关的分组列表。
+// POS: Agent Options Skill 内容层；不解释失败、不触发自动重试。
 import { Loader2 } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -12,11 +15,13 @@ import type { AgentSkillsProjection } from "./agent-skills-model";
 
 export interface AgentOptionsSkillsContentProps {
   agentId: string | null;
+  blockedSkillNames: ReadonlySet<string>;
   busySkillName: string | null;
   commandBusy: boolean;
   loading: boolean;
   projection: AgentSkillsProjection;
   requestSkillAction: (skill: AgentSkillEntry) => void;
+  readBlocked: boolean;
   searchQuery: string;
   setSearchQuery: (value: string) => void;
 }
@@ -49,12 +54,19 @@ function SkillsSectionHeader({
 
 function EnabledSkillsSection({
   busySkillName,
+  blockedSkillNames,
   commandBusy,
   projection,
   requestSkillAction,
+  readBlocked,
 }: Pick<
   AgentOptionsSkillsContentProps,
-  "busySkillName" | "commandBusy" | "projection" | "requestSkillAction"
+  | "blockedSkillNames"
+  | "busySkillName"
+  | "commandBusy"
+  | "projection"
+  | "readBlocked"
+  | "requestSkillAction"
 >) {
   const { t } = useI18n();
   return (
@@ -79,6 +91,7 @@ function EnabledSkillsSection({
             <AgentSkillCard
               actionLabel={t("agent_options.skills.disable")}
               busy={busySkillName === skill.name}
+              blocked={blockedSkillNames.has(skill.name) || readBlocked}
               commandBusy={commandBusy}
               key={skill.name}
               onAction={requestSkillAction}
@@ -93,16 +106,20 @@ function EnabledSkillsSection({
 
 function AvailableSkillsSection({
   busySkillName,
+  blockedSkillNames,
   commandBusy,
   projection,
   requestSkillAction,
+  readBlocked,
   searchQuery,
   setSearchQuery,
 }: Pick<
   AgentOptionsSkillsContentProps,
   | "busySkillName"
+  | "blockedSkillNames"
   | "commandBusy"
   | "projection"
+  | "readBlocked"
   | "requestSkillAction"
   | "searchQuery"
   | "setSearchQuery"
@@ -148,6 +165,7 @@ function AvailableSkillsSection({
             <AgentSkillCard
               actionLabel={t("agent_options.skills.enable")}
               busy={busySkillName === skill.name}
+              blocked={blockedSkillNames.has(skill.name) || readBlocked}
               commandBusy={commandBusy}
               key={skill.name}
               onAction={requestSkillAction}

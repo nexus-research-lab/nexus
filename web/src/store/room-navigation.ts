@@ -1,8 +1,8 @@
 /**
  * Room 导航偏好 Store
  *
- * [INPUT]: Room 内显式会话选择、标签打开集合、固定会话排序与有效会话路由
- * [OUTPUT]: 按 Room 持久化标签顺序和活动 Conversation，并保存有序的全局固定会话偏好
+ * [INPUT]: Room 内显式会话选择、标签打开集合、固定会话排序、有效会话路由与 owner reset
+ * [OUTPUT]: 当前 owner 的标签顺序、活动 Conversation 与有序固定会话偏好
  * [POS]: store 模块的页面导航工作区状态，不参与服务端会话排序
  */
 
@@ -286,6 +286,14 @@ export const useRoomNavigationStore = create<RoomNavigationState>()(
     },
   ),
 );
+
+/** 清除只属于当前 owner 的 Room 标签和固定会话；布局偏好不在此 Store。 */
+export function resetRoomNavigationOwnerScope(): void {
+  useRoomNavigationStore.setState({
+    conversation_tabs_by_room: {},
+    pinned_conversations: [],
+  });
+}
 
 function buildConversationTabsState(
   openConversationIds: readonly string[],

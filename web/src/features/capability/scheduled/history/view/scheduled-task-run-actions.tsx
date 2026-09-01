@@ -33,7 +33,10 @@ const RUN_ACTION_TONE_CLASS_NAMES = {
 } as const;
 
 interface ScheduledTaskRunActionsProps {
+  isRecoveryUnconfirmed: boolean;
   isRecovering: boolean;
+  isRetryDeliveryUnconfirmed: boolean;
+  isRetryUnconfirmed: boolean;
   isRetrying: boolean;
   isRetryingDelivery: boolean;
   onRecover: () => void | Promise<void>;
@@ -44,7 +47,10 @@ interface ScheduledTaskRunActionsProps {
 }
 
 export function ScheduledTaskRunActions({
+  isRecoveryUnconfirmed,
   isRecovering,
+  isRetryDeliveryUnconfirmed,
+  isRetryUnconfirmed,
   isRetrying,
   isRetryingDelivery,
   onRecover,
@@ -54,7 +60,10 @@ export function ScheduledTaskRunActions({
   task,
 }: ScheduledTaskRunActionsProps) {
   const actions = getRunActionPresentations({
+    isRecoveryUnconfirmed,
     isRecovering,
+    isRetryDeliveryUnconfirmed,
+    isRetryUnconfirmed,
     isRetrying,
     isRetryingDelivery,
     run,

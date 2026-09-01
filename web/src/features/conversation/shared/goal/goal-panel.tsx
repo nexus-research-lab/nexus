@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * INPUT: session-scoped Goal controller state and panel presentation props.
- * OUTPUT: status, edit and clear-confirmation UI composed from controller authority.
+ * INPUT: session-scoped Goal controller/reliability state and panel presentation props.
+ * OUTPUT: status, Problem/Impact/Recovery notices, edit and clear-confirmation UI.
  * POS: Goal panel composition layer; it does not infer Execution binding or call APIs.
  */
 
@@ -13,7 +13,13 @@ import type { Goal } from "@/types/conversation/goal";
 
 import type { GoalContinuationHold } from "./goal-continuation-hold";
 import { GoalDraftForm } from "./goal-draft-form";
-import type { GoalDialog } from "./goal-model";
+import type { GoalReliabilityState } from "./goal-lifecycle-recovery";
+import {
+  GOAL_PANEL_COMPACT_CLASS_NAME,
+  GOAL_PANEL_STRIP_CLASS_NAME,
+  type GoalDialog,
+} from "./goal-model";
+import { GoalReliabilityNotice } from "./goal-reliability-notice";
 import { GoalStatusStrip } from "./goal-status-strip";
 import { useGoalController } from "./use-goal-controller";
 
@@ -90,8 +96,25 @@ function GoalPanelContent({
   statusExtra: ReactNode;
 }) {
   const { actions, dialog, draft, goal } = controller;
-  if (!controller.isAvailable || !sessionKey || !goal) {
+  if (!sessionKey) {
     return null;
+  }
+  const resourceReliability = controller.reliability;
+  const runtimeReliability = runtimeReliabilityState(
+    goal,
+    sessionKey,
+  );
+  const draftReliability = resourceReliability ?? runtimeReliability;
+  if (!goal) {
+    return resourceReliability ? (
+      <GoalReliabilityLane
+        compact={compact}
+        isRefreshing={controller.isLoading}
+        mutationBlocked={controller.mutationsBlocked}
+        reliability={resourceReliability}
+        onRefresh={actions.refresh}
+      />
+    ) : null;
   }
 
   return (
@@ -102,11 +125,12 @@ function GoalPanelContent({
         compact={compact}
         continuationHold={continuationHold}
         disabled={disabled}
-        error={controller.error}
         executionBinding={controller.executionBinding}
         goal={goal}
         isGenerating={isGenerating}
         isLoading={controller.isLoading}
+        mutationBlockReason={controller.mutationBlockReason}
+        mutationBlocked={controller.mutationsBlocked}
         scopeLabel={scopeLabel}
         statusExtra={statusExtra}
         onClearRequest={actions.startClearing}
@@ -115,18 +139,38 @@ function GoalPanelContent({
         onRefresh={actions.refresh}
         onResume={actions.resume}
       />
+      {resourceReliability ? (
+        <GoalReliabilityLane
+          compact={compact}
+          isRefreshing={controller.isLoading}
+          mutationBlocked={controller.mutationsBlocked}
+          reliability={resourceReliability}
+          onRefresh={actions.refresh}
+        />
+      ) : null}
+      {runtimeReliability ? (
+        <GoalReliabilityLane
+          compact={compact}
+          isRefreshing={controller.isLoading}
+          mutationBlocked={controller.mutationsBlocked}
+          reliability={runtimeReliability}
+          onRefresh={actions.refresh}
+        />
+      ) : null}
       {draft ? (
         <GoalDraftForm
           budget={draft.budget}
           disabled={disabled}
-          error={controller.error}
           isLoading={controller.isLoading}
           loadingLabel={controller.loadingLabel}
+          mutationBlocked={controller.mutationsBlocked}
           objective={draft.objective}
           onBudgetChange={actions.setBudget}
           onCancel={actions.cancelEditing}
           onObjectiveChange={actions.setObjective}
+          onRefresh={actions.refresh}
           onSubmit={actions.submit}
+          reliability={draftReliability}
         />
       ) : null}
       <GoalConfirmationDialog
@@ -136,6 +180,55 @@ function GoalPanelContent({
       />
     </>
   );
+}
+
+function GoalReliabilityLane({
+  compact,
+  isRefreshing,
+  mutationBlocked,
+  onRefresh,
+  reliability,
+}: {
+  compact: boolean;
+  isRefreshing: boolean;
+  mutationBlocked: boolean;
+  onRefresh: () => void;
+  reliability: GoalReliabilityState;
+}) {
+  return (
+    <div className={compact
+      ? GOAL_PANEL_COMPACT_CLASS_NAME
+      : GOAL_PANEL_STRIP_CLASS_NAME}
+    >
+      <GoalReliabilityNotice
+        isRefreshing={isRefreshing}
+        mutationBlocked={mutationBlocked}
+        state={reliability}
+        onRefresh={onRefresh}
+      />
+    </div>
+  );
+}
+
+function runtimeReliabilityState(
+  goal: Goal | null,
+  sessionKey: string,
+): GoalReliabilityState | null {
+  if (!goal?.last_error) {
+    return null;
+  }
+  return {
+    access: null,
+    detail: goal.last_error,
+    kind: goal.status === "budget_limited"
+      ? "runtime_budget_limited"
+      : goal.status === "usage_limited"
+        ? "runtime_usage_limited"
+        : "runtime_failed",
+    operation: null,
+    sessionKey,
+    stale: false,
+  };
 }
 
 export function GoalPanel({

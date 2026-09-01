@@ -1,3 +1,6 @@
+// INPUT: 当前 runtime、Agent 编辑器可见性与 Provider 选项读取 API。
+// OUTPUT: 保留同 runtime 快照的模型选项资源状态和安全读取失败标记。
+// POS: Agent 模型选择资源控制器；不把 Provider 或传输原始错误交给界面。
 import { useEffect, useRef, useState } from "react";
 
 import { getDefaultAgentRuntimeKind } from "@/config/runtime-options";
@@ -54,7 +57,7 @@ export function useAgentProviderOptions(isActive: boolean, fallbackError: string
           runtimeKind,
         });
       })
-      .catch((error: unknown) => {
+      .catch(() => {
         if (requestSequenceRef.current !== requestSequence) {
           return;
         }
@@ -62,7 +65,7 @@ export function useAgentProviderOptions(isActive: boolean, fallbackError: string
           ...(current.runtimeKind === runtimeKind
             ? current
             : createProviderOptionsState(runtimeKind)),
-          error: error instanceof Error ? error.message : fallbackError,
+          error: fallbackError,
           loading: false,
         }));
       });

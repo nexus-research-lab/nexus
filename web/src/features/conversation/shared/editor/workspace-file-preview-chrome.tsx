@@ -1,6 +1,12 @@
 "use client";
 
-import { createContext, type ReactNode, useContext } from "react";
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 import {
   ChevronRight,
@@ -14,6 +20,8 @@ import { downloadWorkspaceFileApi } from "@/lib/api/agent/agent-api";
 import { getWorkspaceFileExternalActionCopy } from "@/lib/workspace-file-action";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
+import type { FeedbackBannerProps } from "@/shared/ui/feedback/feedback-banner-contract";
+import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import {
   WORKSPACE_PANEL_HEADER_BUTTON_CLASS,
   WORKSPACE_PANEL_HEADER_HEIGHT_CLASS,
@@ -133,26 +141,40 @@ export function WorkspaceFileDownloadButton({
 }) {
   const { t } = useI18n();
   const fileActionCopy = getWorkspaceFileExternalActionCopy(t, fileName);
-  const handleExternalAction = () => {
+  const [failure, setFailure] = useState<FeedbackBannerProps | null>(null);
+  const handleExternalAction = useCallback(() => {
+    setFailure(null);
     void downloadWorkspaceFileApi(agentId, path, fileName).catch((error) => {
       console.error(`[WorkspaceFileDownloadButton] ${fileActionCopy.label} workspace 文件失败:`, error);
+      setFailure({
+        impact: t("workspace_file.external_action_failed_impact"),
+        message: t("workspace_file.external_action_failed"),
+        nextStep: t("workspace_file.external_action_failed_next_step"),
+        onDismiss: () => setFailure(null),
+        title: t("workspace_file.external_action_failed"),
+        tone: "error",
+        urgency: "polite",
+      });
     });
-  };
+  }, [agentId, fileActionCopy.label, fileName, path, t]);
 
   return (
-    <button
-      aria-label={fileActionCopy.ariaLabel}
-      className={WORKSPACE_FILE_TOOLBAR_BUTTON_CLASS_NAME}
-      onClick={handleExternalAction}
-      title={fileActionCopy.title}
-      type="button"
-    >
-      {fileActionCopy.mode === "reveal" ? (
-        <FolderOpen className={WORKSPACE_PANEL_HEADER_ICON_CLASS} />
-      ) : (
-        <Download className={WORKSPACE_PANEL_HEADER_ICON_CLASS} />
-      )}
-    </button>
+    <>
+      <button
+        aria-label={fileActionCopy.ariaLabel}
+        className={WORKSPACE_FILE_TOOLBAR_BUTTON_CLASS_NAME}
+        onClick={handleExternalAction}
+        title={fileActionCopy.title}
+        type="button"
+      >
+        {fileActionCopy.mode === "reveal" ? (
+          <FolderOpen className={WORKSPACE_PANEL_HEADER_ICON_CLASS} />
+        ) : (
+          <Download className={WORKSPACE_PANEL_HEADER_ICON_CLASS} />
+        )}
+      </button>
+      <FeedbackBannerViewport item={failure} />
+    </>
   );
 }
 

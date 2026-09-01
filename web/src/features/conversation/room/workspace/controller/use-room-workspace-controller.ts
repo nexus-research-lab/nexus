@@ -1,6 +1,14 @@
-import { useCallback, type MouseEvent, type RefObject } from "react";
+/**
+ * INPUT: 当前会话的 Agent、workspace 选择与文件面板交互。
+ * OUTPUT: 文件资源、命令、弹窗与精简全局反馈的统一控制器。
+ * POS: Room/DM workspace 组合边界；资源刷新失败不覆盖已确认的修改结果。
+ */
+
+import { useCallback, useMemo, type MouseEvent, type RefObject } from "react";
 
 import { isDesktopRuntime } from "@/config/desktop-runtime";
+import { useI18n } from "@/shared/i18n/i18n-context";
+import type { FeedbackBannerProps } from "@/shared/ui/feedback/feedback-banner-contract";
 import type { Agent, WorkspaceFileEntry } from "@/types/agent/agent";
 
 import { useWorkspaceAgentScope } from "./use-workspace-agent-scope";
@@ -29,6 +37,7 @@ export function useRoomWorkspaceController({
   onOpenWorkspaceFile,
   roomMembers,
 }: UseRoomWorkspaceControllerOptions) {
+  const {t} = useI18n();
   const agent = useWorkspaceAgentScope({ agentId, isDm, onOpenWorkspaceFile });
   const workspaceRoot = roomMembers.find(
     (member) => member.agent_id === agent.viewAgentId,
@@ -67,13 +76,44 @@ export function useRoomWorkspaceController({
       applyRename: navigation.applyRename,
     },
   });
-  const clearCommandError = commands.clearError;
+  const clearCommandFeedback = commands.clearFeedback;
   const clearResourceError = resource.clearError;
-  const clearErrorMessage = useCallback(() => {
+  const clearFeedback = useCallback(() => {
     clearResourceError();
-    clearCommandError();
-  }, [clearCommandError, clearResourceError]);
+    clearCommandFeedback();
+  }, [clearCommandFeedback, clearResourceError]);
+  const reloadFiles = resource.reload;
+  const feedback = useMemo<FeedbackBannerProps | null>(() => {
+    if (commands.feedback) {
+      return {...commands.feedback, onDismiss: clearFeedback};
+    }
+    if (!resource.errorMessage) {
+      return null;
+    }
+    return {
+      action: {
+        label: t("room.workspace_refresh_action"),
+        onClick: () => void reloadFiles(),
+      },
+      impact: t("room.workspace_list_failed_impact"),
+      message: resource.errorMessage,
+      nextStep: t("room.workspace_list_failed_next"),
+      onDismiss: clearFeedback,
+      title: t("room.workspace_list_failed_title"),
+      tone: "error",
+    };
+  }, [
+    clearFeedback,
+    commands.feedback,
+    reloadFiles,
+    resource.errorMessage,
+    t,
+  ]);
   const loadOpenApplications = commands.loadOpenApplications;
+  const isMutating = commands.activeCommand === "upload"
+    || commands.activeCommand === "create"
+    || commands.activeCommand === "rename"
+    || commands.activeCommand === "delete";
   const openContextMenu = interaction.openContextMenu;
   const handleContextMenu = useCallback((
     event: MouseEvent,
@@ -92,8 +132,6 @@ export function useRoomWorkspaceController({
       viewAgentId: agent.viewAgentId,
     },
     browser: {
-      clearErrorMessage,
-      errorMessage: commands.errorMessage ?? resource.errorMessage,
       files: resource.files,
       focusedDirectoryPath: navigation.focusedDirectoryPath,
       handleClickDirectory: navigation.focusDirectory,
@@ -102,6 +140,7 @@ export function useRoomWorkspaceController({
       handleRootContextMenu: interaction.openRootContextMenu,
       handleUploadClick: interaction.openUpload,
       isLoadingFiles: resource.isLoading,
+      isMutating,
       isUploading: commands.activeCommand === "upload",
       openCreatePrompt: interaction.openCreatePrompt,
       openDeletePrompt: interaction.openDeletePrompt,
@@ -111,6 +150,7 @@ export function useRoomWorkspaceController({
       closeContextMenu: interaction.closeContextMenu,
       closeDeletePrompt: interaction.clearDeleteTarget,
       closePrompt: interaction.closePrompt,
+      isMutating,
       contextMenu: interaction.contextMenu,
       deleteTarget: interaction.deleteTarget,
       handleConfirmDelete: transactions.handleConfirmDelete,
@@ -129,5 +169,6 @@ export function useRoomWorkspaceController({
     fileInput: {
       onChange: transactions.handleFileSelect,
     },
+    feedback,
   };
 }

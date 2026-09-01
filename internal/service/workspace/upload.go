@@ -125,14 +125,14 @@ func uploadFileAtRoot(
 		return nil, nil, err
 	}
 	if len(content) > maxUploadSize {
-		return nil, nil, errors.New("文件大小超过限制 (20MB)")
+		return nil, nil, invalidWorkspaceMutation(errors.New("文件大小超过限制 (20MB)"))
 	}
 	contentMD5 := md5Hex(content)
 
 	relativePath := buildUploadTargetPath(strings.TrimSpace(destination), safeName)
 	_, normalizedPath, err := resolveWorkspacePath(root, relativePath)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, invalidWorkspaceMutation(err)
 	}
 	if matched, err := fileMatchesMD5(confinedRoot, normalizedPath, contentMD5, int64(len(content))); err != nil {
 		return nil, nil, err

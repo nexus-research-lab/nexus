@@ -1,6 +1,6 @@
 // INPUT: owner-scoped runtime command request_id、actor、operation 与 plan digest。
-// OUTPUT: 原子 claim、已完成结果重放或不可安全重放的 uncertain 状态。
-// POS: Agent-facing Automation command 副作用命令的 durable idempotency ledger。
+// OUTPUT: 原子 claim、已完成结果重放，或由 exact run/wake acceptance 修复的 uncertain 状态。
+// POS: Agent-facing Automation command 副作用命令的 durable idempotency ledger；不按时间或正文猜测提交。
 package automation
 
 import (
@@ -183,4 +183,87 @@ WHERE owner_user_id = %s AND request_id = %s AND intent_digest = %s AND status =
 		runtimeCommandStatusStarted,
 	)
 	return err
+}
+
+// CompleteRuntimeCommandFromRun 只在 exact request/intent 已由 run ledger
+// durable accepted 时，把 started/uncertain command 对账为 applied。
+func (r *Repository) CompleteRuntimeCommandFromRun(
+	ctx context.Context,
+	ownerUserID string,
+	requestID string,
+	intentDigest string,
+	resultJSON string,
+) error {
+	result, err := r.db.ExecContext(ctx, fmt.Sprintf(`UPDATE automation_runtime_commands
+SET status = %s, result_json = %s, error_message = NULL, updated_at = CURRENT_TIMESTAMP
+WHERE owner_user_id = %s AND request_id = %s AND intent_digest = %s
+  AND operation = %s AND status IN (%s, %s)
+  AND EXISTS (
+      SELECT 1 FROM automation_task_runs AS run
+      WHERE run.owner_user_id = automation_runtime_commands.owner_user_id
+        AND run.client_request_id = automation_runtime_commands.request_id
+        AND run.client_intent_digest = automation_runtime_commands.intent_digest
+  )`, r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5), r.bind(6), r.bind(7), r.bind(8)),
+		runtimeCommandStatusApplied,
+		resultJSON,
+		strings.TrimSpace(ownerUserID),
+		strings.TrimSpace(requestID),
+		strings.TrimSpace(intentDigest),
+		"run",
+		runtimeCommandStatusStarted,
+		runtimeCommandStatusUncertain,
+	)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows != 1 {
+		return automationdomain.ErrRuntimeCommandUncertain
+	}
+	return nil
+}
+
+// CompleteRuntimeCommandFromHeartbeatWake 只在 exact wake outbox 已 durable accepted 时，
+// 把 started/uncertain command ledger 对账为 applied；它不重新执行或再次投递。
+func (r *Repository) CompleteRuntimeCommandFromHeartbeatWake(
+	ctx context.Context,
+	ownerUserID string,
+	requestID string,
+	intentDigest string,
+	resultJSON string,
+) error {
+	result, err := r.db.ExecContext(ctx, fmt.Sprintf(`UPDATE automation_runtime_commands
+SET status = %s, result_json = %s, error_message = NULL, updated_at = CURRENT_TIMESTAMP
+WHERE owner_user_id = %s AND request_id = %s AND intent_digest = %s
+  AND operation = %s AND status IN (%s, %s)
+  AND EXISTS (
+      SELECT 1 FROM automation_system_events AS wake
+      WHERE wake.event_type = 'heartbeat.wake'
+        AND wake.owner_user_id = automation_runtime_commands.owner_user_id
+        AND wake.request_id = automation_runtime_commands.request_id
+        AND wake.intent_digest = automation_runtime_commands.intent_digest
+  )`, r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5), r.bind(6), r.bind(7), r.bind(8)),
+		runtimeCommandStatusApplied,
+		resultJSON,
+		strings.TrimSpace(ownerUserID),
+		strings.TrimSpace(requestID),
+		strings.TrimSpace(intentDigest),
+		automationdomain.AutomationCommandOperationWake,
+		runtimeCommandStatusStarted,
+		runtimeCommandStatusUncertain,
+	)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows != 1 {
+		return automationdomain.ErrRuntimeCommandUncertain
+	}
+	return nil
 }

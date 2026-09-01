@@ -14,7 +14,11 @@ import {
   buildProviderUpdatePayload,
   getProviderDraftError,
 } from "../../model/provider-config-model";
-import { buildProviderErrorFeedback } from "../../model/provider-feedback-model";
+import {
+  buildProviderCommittedRefreshFeedback,
+  buildProviderErrorFeedback,
+  buildProviderValidationFeedback,
+} from "../../model/provider-feedback-model";
 import type {
   FeedbackState,
   ProviderDraft,
@@ -44,7 +48,7 @@ interface UseProviderPersistenceOptions {
   isEditing: boolean;
   isEmptyMode: boolean;
   providerApi: ProviderPersistenceApi;
-  refreshAll: (preferredProvider?: string | null) => Promise<void>;
+  refreshAll: (preferredProvider?: string | null) => Promise<boolean>;
   runCommand: RunProviderCommand;
   selectedCanManage: boolean;
   selectedRecord: ProviderConfigRecord | null;
@@ -100,7 +104,7 @@ export function useProviderPersistence({
         visibilityScope,
       );
     } catch (error) {
-      reportPersistenceFailure(error, showError, setFeedback, t);
+      reportPersistenceFailure(error, setFeedback, t);
       return null;
     }
   }, [
@@ -123,7 +127,13 @@ export function useProviderPersistence({
     void runCommand({ kind: "save-provider" }, async () => {
       const result = await persistProvider({ showError: false });
       if (result?.changed) {
-        await refreshAll(result.record.provider);
+        if (!await refreshAll(result.record.provider)) {
+          setFeedback(buildProviderCommittedRefreshFeedback(
+            t("settings.providers.refresh_after_change_failed_message"),
+            t,
+          ));
+          return;
+        }
         reportProviderAvailabilityChange(selectedRecord, result.record, setFeedback, t);
       }
     });
@@ -148,7 +158,12 @@ export function useProviderPersistence({
           showError: true,
         });
         if (result) {
-          await refreshAll(result.record.provider);
+          if (!await refreshAll(result.record.provider)) {
+            setFeedback(buildProviderCommittedRefreshFeedback(
+              t("settings.providers.refresh_after_change_failed_message"),
+              t,
+            ));
+          }
         }
         return;
       }
@@ -162,15 +177,25 @@ export function useProviderPersistence({
             draft.auth_token,
           ),
         );
-        await refreshAll(result.provider);
+        if (!await refreshAll(result.provider)) {
+          setFeedback(buildProviderCommittedRefreshFeedback(
+            t("settings.providers.refresh_after_change_failed_message"),
+            t,
+          ));
+          return;
+        }
         reportProviderAvailabilityChange(selectedRecord, result, setFeedback, t);
       } catch (error) {
-        updateDraft({ enabled: !checked });
-        setFeedback(buildProviderErrorFeedback(
+        const failure = buildProviderErrorFeedback(
           error,
           t("settings.providers.save_failed_title"),
           t("settings.providers.check_config_retry"),
-        ));
+          t,
+        );
+        if (failure.mutationEffect === "not_applied") {
+          updateDraft({ enabled: !checked });
+        }
+        setFeedback(failure);
       }
     });
   }, [
@@ -229,11 +254,11 @@ function resolvePersistenceStop(
     return stop.result;
   }
   if (showError) {
-    setFeedback({
-      tone: "error",
-      title: translate("settings.providers.config_incomplete_title"),
-      message: stop.message,
-    });
+    setFeedback(buildProviderValidationFeedback(
+      translate("settings.providers.config_incomplete_title"),
+      stop.message,
+      translate,
+    ));
   }
   return null;
 }
@@ -258,16 +283,13 @@ async function executeProviderPersistence(
 
 function reportPersistenceFailure(
   error: unknown,
-  showError: boolean,
   setFeedback: Dispatch<SetStateAction<FeedbackState | null>>,
   translate: I18nContextValue["t"],
 ): void {
-  if (!showError) {
-    return;
-  }
   setFeedback(buildProviderErrorFeedback(
     error,
     translate("settings.providers.save_failed_title"),
     translate("settings.providers.check_config_retry"),
+    translate,
   ));
 }

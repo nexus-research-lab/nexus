@@ -6,6 +6,11 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 
+import {
+  captureAuthOwnerScopeGeneration,
+  isAuthOwnerScopeGenerationCurrent,
+  subscribeAuthOwnerScopeGeneration,
+} from "@/shared/auth/auth-owner-generation";
 import type { Message } from "@/types/conversation/message/entity";
 import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
 
@@ -57,11 +62,16 @@ export function useAgentSessionSnapshots({
   restoreVolatileSessionSnapshot: (targetSessionKey: string) => boolean;
 } {
   const backgroundMessagesRef = useRef<Map<string, Message[]>>(new Map());
+  // 整个挂载生命周期只属于创建它的 owner；身份推进后保持 stale，直到卸载。
+  const ownerGenerationRef = useRef(captureAuthOwnerScopeGeneration());
 
   const onBackgroundMessage = useCallback((
     targetSessionKey: string,
     message: Message,
   ): void => {
+    if (!isAuthOwnerScopeGenerationCurrent(ownerGenerationRef.current)) {
+      return;
+    }
     if (!isRecoverableMessage(message)) {
       return;
     }
@@ -78,7 +88,10 @@ export function useAgentSessionSnapshots({
   const restoreVolatileSessionSnapshot = useCallback((
     targetSessionKey: string,
   ): boolean => {
-    const snapshot = readVolatileConversationSnapshot(targetSessionKey);
+    const snapshot = readVolatileConversationSnapshot(
+      targetSessionKey,
+      ownerGenerationRef.current,
+    );
     if (!snapshot) {
       return false;
     }
@@ -108,6 +121,10 @@ export function useAgentSessionSnapshots({
     setPendingAgentSlots,
   ]);
 
+  useEffect(() => subscribeAuthOwnerScopeGeneration(() => {
+    backgroundMessagesRef.current.clear();
+  }), []);
+
   useEffect(() => {
     if (!sessionKey) {
       return;
@@ -118,10 +135,14 @@ export function useAgentSessionSnapshots({
       pendingAgentSlots,
     );
     if (snapshot) {
-      writeVolatileConversationSnapshot(sessionKey, snapshot);
+      writeVolatileConversationSnapshot(
+        sessionKey,
+        snapshot,
+        ownerGenerationRef.current,
+      );
       return;
     }
-    removeVolatileConversationSnapshot(sessionKey);
+    removeVolatileConversationSnapshot(sessionKey, ownerGenerationRef.current);
   }, [messages, pendingAgentSlots, runtimeSnapshot, sessionKey]);
 
   return {

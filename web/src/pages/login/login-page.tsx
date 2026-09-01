@@ -112,7 +112,7 @@ export function LoginPage() {
       <div className="relative mx-auto grid min-h-[calc(100vh-4rem)] w-full max-w-[1180px] grid-cols-1 items-center gap-8 lg:grid-cols-[minmax(0,0.96fr)_minmax(360px,430px)] lg:gap-16">
         <LoginIntroduction />
         <LoginAuthPanel
-          authError={controller.authError}
+          authFailure={controller.authFailure}
           formMode={controller.pageState.formMode}
           isSubmitting={controller.isSubmitting}
           onChangePassword={controller.setPassword}
@@ -120,7 +120,7 @@ export function LoginPage() {
           onRefresh={controller.refresh}
           onSubmit={controller.submit}
           password={controller.password}
-          submitError={controller.submitError}
+          submitFailure={controller.submitFailure}
           username={controller.username}
         />
       </div>

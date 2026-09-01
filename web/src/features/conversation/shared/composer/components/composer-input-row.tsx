@@ -1,3 +1,6 @@
+// INPUT: Composer 草稿、mention/slash picker 状态与 textarea 交互。
+// OUTPUT: 保留草稿的输入区和就近只读 picker 反馈。
+// POS: Composer 输入行展示边界；不执行 Session 设置 mutation。
 import { useRef } from "react";
 import type {
   ClipboardEventHandler,
@@ -21,6 +24,7 @@ import { SlashCommandToken } from "../../slash-command-token";
 
 import { COMPOSER_TEXTAREA_MAX_HEIGHT_PX } from "../composer-styles";
 import type { SlashModelOption } from "../slash-command-model";
+import type { ComposerReadFailure } from "../controller/composer-settings-reliability";
 import { SlashCommandPopover } from "./slash-command-popover";
 
 interface ComposerInputRowProps {
@@ -49,7 +53,7 @@ interface ComposerInputRowProps {
     activeIndex: number;
     commands: CommandDescriptor[];
     mode: "commands" | "models" | "skills";
-    modelError: string | null;
+    modelError: ComposerReadFailure | null;
     modelItems: SlashModelOption[];
     modelLoading: boolean;
     modelQuery: string;
@@ -58,6 +62,7 @@ interface ComposerInputRowProps {
     onModelQueryKeyDown: (
       event: KeyboardEvent<HTMLInputElement>,
     ) => boolean;
+    onModelRetry: () => void;
     onClose: () => void;
     onSelectModel: (model: SlashModelOption) => void;
     onSelectCommand: (command: CommandDescriptor) => void;
@@ -66,7 +71,8 @@ interface ComposerInputRowProps {
     onSkillQueryKeyDown: (
       event: KeyboardEvent<HTMLInputElement>,
     ) => boolean;
-    skillError: string | null;
+    onSkillRetry: () => void;
+    skillError: ComposerReadFailure | null;
     skillItems: SkillInfo[];
     skillLoading: boolean;
     skillQuery: string;
@@ -109,12 +115,14 @@ export function ComposerInputRow({
           modelSearchRef={slashCommand.modelSearchRef}
           onModelQueryChange={slashCommand.onModelQueryChange}
           onModelQueryKeyDown={slashCommand.onModelQueryKeyDown}
+          onModelRetry={slashCommand.onModelRetry}
           onClose={slashCommand.onClose}
           onSelectModel={slashCommand.onSelectModel}
           onSelectCommand={slashCommand.onSelectCommand}
           onSelectSkill={slashCommand.onSelectSkill}
           onSkillQueryChange={slashCommand.onSkillQueryChange}
           onSkillQueryKeyDown={slashCommand.onSkillQueryKeyDown}
+          onSkillRetry={slashCommand.onSkillRetry}
           skillError={slashCommand.skillError}
           skillItems={slashCommand.skillItems}
           skillLoading={slashCommand.skillLoading}

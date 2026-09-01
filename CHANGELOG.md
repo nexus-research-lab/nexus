@@ -10,6 +10,194 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Added an administrator-selectable subscription default model that new web users inherit until they choose their own default.
+- Added a backward-compatible minimal FailureCore v1 for stable machine
+  classification, effect evidence, and optional transport diagnostics without
+  changing existing business identities.
+- Added grid/list switching and business-tag, Provider, and permission filters to Agent Management, with business-tag-aware search and compact tag summaries for large directories.
+- Added default-on General settings for automatic long-term memory extraction and background memory consolidation across nxs conversations and host maintenance.
+- Expanded the built-in model catalog with current OpenAI, Anthropic, Gemini, Grok, Kimi, Qwen, MiniMax, Doubao, ERNIE, Hunyuan, StepFun, Mistral, Llama, Cohere, and Amazon Nova limits and capabilities.
+- Added official GLM-5.3 and GLM-5.3-Flash limits, required reasoning, and GLM-5.3-Flash vision capability to the built-in model catalog.
+- Added localized built-in WorkGraph templates for deep research, build-and-ship delivery, decision briefs, and review-and-improve workflows, with explicit parallel branches, convergence gates, independent verification, and terminal deliverables, available from the capability directory, Composer, and Slash commands. Every template now expands the same Execution/WorkGraph adaptively according to its own gate: research changes collection strategy, delivery classifies and remediates blockers before revalidation/rereview, decision work selects evidence/criteria/option/experiment branches, and improvement work selects targeted revision, reaudit, or rebaseline paths. Iteration count is evidence- and outcome-driven rather than fixed.
+
+### Changed
+
+- Improved dense WorkGraph readability with stable crossing reduction,
+  corridor-aware orthogonal routing, semantic fan-in/fan-out junctions,
+  frame-boundary proxy ports and hard subgraph obstacle avoidance for
+  cross-subgraph edges, on-demand exact endpoint tails, whole-subgraph hover,
+  direction-aligned arrowheads with visible target clearance, a headerless
+  near-fullscreen detail dialog with a distinct fit-to-view action, exact edge
+  midpoint controls, and full upstream/downstream path focus that dims
+  unrelated graph content without hiding durable Tool runs.
+- Simplified shared failure presentation to a concrete title, one localized
+  impact/recovery sentence, and at most one safe primary action. Server details,
+  protocol recovery directives, and diagnostic IDs no longer drive user copy.
+  Uncertain,
+  stale, and conflicting states now use warning emphasis while confirmed
+  failures retain destructive emphasis. Unknown results state confirmed facts
+  and concrete repeat risks instead of listing hypothetical outcome branches,
+  without changing recovery behavior.
+- Removed the scheduled-task browser mutation journal, Agent-creation Web Locks
+  availability gate, implementation-shape reliability suites, and standalone
+  failure-state screenshot gallery. Browser storage is now only a best-effort
+  request-ID recovery aid; server revisions, receipts, runs, and deletion state
+  remain authoritative.
+- Model discovery and manual model addition now fill missing LLM card metadata from the built-in catalog and stable runtime defaults, so settings show concrete limits instead of `auto` whenever the Provider omits them.
+- Aligned host-provided internal context with Claude Code attachment semantics: NXS keeps it in non-persistent live history, while the Claude runtime receives it through its native `UserPromptSubmit` hook attachment path.
+- Made the Agent SDK the sole loader for workspace `AGENTS.md` instructions, removing their duplicate Nexus prompt projection.
+- Moved ordinary DM and Room execution policy into the stable cached prompt and reduced each ordinary round to a compact lane marker while preserving the managed Execution, WorkGraph, and Runtime Graph projections.
+- Condensed tools, thoughts, and memory events into quiet, tightly spaced single-line activity records with aligned action icons and shared 20px activity columns, regular-weight labels, inline thought previews, readable details under one bounded outer scroll owner, and targets, keeping expanded child headers pinned while the audit list scrolls around one continuous timeline without repeated failure labels or scroll jumps; DM and Room Thread Thought details default to collapsed while Room Thread process groups remain open and follow new content until the reader scrolls away, collapsed live tool groups retain the actual thinking, tool, or reply activity until the final answer begins, archived process summaries stay stable while expanded, final replies remain outside the process rail, and result metadata waits for smooth text output to finish, while single activities remain inline, two or more uninterrupted activities share a latest-action ticker, bounded audit list, and slightly roomier group spacing, and Room activity mirrors the current tool header without exposing provider summaries.
+- Preserved live commentary as the boundary between completed and newly running tool groups, while changing running text shimmer and activity icons from primary blue to neutral contrast and centering animated status dots with their labels.
+- Tightened two-line sidebar list typography to stay within the 40px avatar boundary and restored latest reply previews instead of repeating conversation titles.
+- Opened Room Thread process and activity groups by default, reused DM Thought typography and streaming follow behavior inside the shared bounded detail list, and removed final-reply rails and nodes while keeping symmetric answer spacing and individual tool details collapsed.
+- Updated the bundled six-player Werewolf Room Skill so the permanent Agent host asks whether the user wants to play, keeps spectators out of the role pool, and randomly assigns the user a player role only after opt-in.
+- Disabled model-generated tool-use summaries by default while retaining explicit runtime opt-in and the existing deterministic activity labels.
+- Consolidated Nexus-owned in-process runtime tools under one round-scoped `nexus` MCP server while keeping third-party, custom, and Connector MCP servers independently selected and authorized.
+- Collapsed Connector and Channel authorization into one action-based `nexus` MCP tool per authorization domain while preserving human approval and native secret-entry boundaries.
+- Unified Agent and Room communication under `list_targets` and one context-aware `send_message` tool while preserving private visibility, wake, reply-route, public-feed, and cross-session behavior.
+- Replaced model-generated first-conversation welcome messages with a static DM/Room empty-state prompt that stays out of history, runtime, unread counts, and active replies, while hiding legacy welcome records at the shared timeline boundary.
+
+### Fixed
+
+- Fixed the Windows browser extension setup so it opens the actual Chrome or
+  Edge extensions page and bundled extension directory instead of a blank tab
+  and the default Documents folder.
+- Reconciled Room Agent execution cards against authoritative reconnect
+  snapshots, so executions absent from the server's active-slot set no longer
+  remain stuck on thinking with a stale Stop action; incremental ACKs still
+  preserve unrelated work, and late exact failure or interruption evidence can
+  refine the neutral terminal state without reordering replies.
+- Prevented the WorkGraph history dropdown from opening as an empty strip when
+  a conversation has no current or historical graph; it now shows an explicit
+  empty or load-failure state, grows with its history through seven entries,
+  and only then switches to scrolling with separated rows.
+- Removed duplicate inline Thought and tool-result previews from expanded process details while preserving them as scannable collapsed-row summaries and moving distinct tool inputs into the detail body.
+- Kept Room tool, thinking, and replying activity rows on one stable geometry,
+  preventing live tool transitions from nudging the conversation viewport.
+- Repaired the shifted migration-number collision across Agent business tags,
+  Automation recovery, and Agent creation receipts, preserving existing data
+  while replaying the missing schema during upgrades.
+- Split first-time model-provider setup into independently recoverable save,
+  connection-test, and default-selection stages. Lost responses now reconcile
+  exact Provider keys, aggregate versions, non-secret configuration fingerprints,
+  test timestamps, and preference state without storing credentials or repeating
+  a completed stage; Provider HTTP failures also expose stable FailureCore facts.
+- Prevented duplicate Agent creation after a lost response by adding an
+  owner-scoped creation receipt, exact intent conflict detection, atomic
+  Agent/profile/runtime commit, deletion tombstones, and reload-safe client
+  reconciliation without reusing HTTP diagnostic IDs or storing form secrets.
+- Replaced raw macOS, Windows, and browser-extension error text with
+  stage-specific recovery copy that explains the failure, its effect on
+  existing data, and the next safe action while keeping internal causes in
+  diagnostics.
+- Hardened Channel configuration, account, QR login, and Pairing failures with
+  stale-safe reads, machine-evidence copy, read-only reconciliation for
+  uncertain writes, and fixed recovery guidance that hides provider details.
+- Prevented Skill update, delete, import, and update-check writes from being
+  repeated when their result is uncertain. Confirmed writes now remain complete
+  if only the catalog refresh fails, while exact in-page intents stay locked
+  until an authoritative read or an explicit new user action resolves them.
+- Prevented workspace create, rename, delete, and multi-file upload commands
+  from being repeated after an uncertain response. Confirmed file changes now
+  remain successful when only the list refresh fails, while uncertain results
+  are checked against the exact Agent and paths and uploads retain per-file
+  completed, unconfirmed, rejected, and not-started outcomes.
+- Kept uncertain Goal lifecycle changes locked to the exact in-page account,
+  Session, and Goal intent, reconciled only from authoritative current state,
+  separated a confirmed write from a later refresh failure, and cleared stale
+  Goal data when conversation scope or access changes.
+- Prevented stale or fallback preference snapshots from overwriting newer
+  settings. Preference writes now use the existing monotonic version as an
+  optional HTTP precondition, preserve unresolved page drafts, and reconcile
+  conflicts or unknown outcomes before an explicit reapply.
+- Prevented Memory edits from silently overwriting Agent or concurrent browser
+  updates. Memory files now use backward-compatible content revisions and
+  conditional writes, preserve drafts across conflicts, reconcile unknown save
+  outcomes before another write, and require an explicit choice before replacing
+  the latest saved version.
+- Prevented workspace text editors from opening before a versioned read or
+  overwriting concurrent Agent and browser updates. Local drafts now survive live
+  changes, revision conflicts, and uncertain save responses until the latest file
+  is checked and the user explicitly chooses which content to keep.
+- Bound each Feishu Device Flow attempt to the exact OAuth app credentials that
+  started it. Cancellation, polling failures, expiry, overlapping QR attempts,
+  and manual setup errors no longer replace the active app or connection; a new
+  app and its token switch together only after successful authorization.
+- Cleared owner-scoped Home directories, conversation metadata, Room tabs,
+  pinned conversations, and local Composer history before exposing a different
+  signed-in user, including cross-tab login changes and late directory reads.
+- Kept uncertain Room deletions inside a locked confirmation flow, reconciled
+  the exact Room against the authoritative directory before any retry, and
+  allowed another DELETE only after a confirmed not-applied result.
+- Prevented Agent deletion failures from closing the confirmation flow or
+  navigating as success. The UI now distinguishes a rejected deletion, a
+  committed deletion with incomplete cleanup, an already absent Agent, and an
+  outcome that must be checked before any retry.
+- Committed each scheduled-task runtime claim and its initial run ledger in one
+  transaction before dispatch. Manual run requests now keep a durable
+  owner-scoped identity, replay the exact accepted run after a lost response,
+  and reject request IDs reused for a different intent.
+- Made Heartbeat wake acceptance durable even without user text, fenced it
+  atomically against configuration changes, and recovered unclaimed accepted
+  wakes after restart. Started claims now fail closed instead of being replayed;
+  command intents remain idempotent and control locks are released before runtime
+  dispatch.
+- Prevented interrupted scheduled-task actions from being repeated implicitly,
+  kept task data available when auxiliary permission status cannot load, and
+  added configuration-version checks for task enable and pause changes. Durable
+  deletion now distinguishes automatic cleanup from administrator review,
+  keeps history readable, requires an explicit stopped-execution confirmation
+  before manual cleanup, and coalesces realtime refreshes without polling.
+- Isolated scheduled-task recovery records by owner and exact intent across
+  windows and app restarts, serialized same-task browser mutations without
+  blocking different tasks, and failed safely before sending in unsupported
+  browser environments. Multiple unconfirmed create intents are preserved and
+  reviewed one by one instead of overwriting each other.
+- Committed scheduled-run terminal state before external delivery, claimed every
+  delivery attempt with an exact durable token, and stopped automatic replay
+  when the receiving system may already have accepted a result. Deleting tasks
+  now suppress late delivery and retain exact execution evidence before cleanup;
+  permission denial or task revision also closes runs with no deliverable result
+  instead of leaving them permanently pending.
+- Made scheduled-task result delivery durable across process interruption:
+  execution completion is committed before sending, concurrent workers claim a
+  single attempt, and uncertain channel outcomes require user verification
+  instead of being replayed automatically. Existing task histories now bind
+  their delivery summary to the exact latest completed run during upgrade, so
+  retrying an older run cannot replace the current task status.
+- Distinguished client cancellation, request timeout, connection loss, and
+  interrupted response bodies without retrying writes whose outcome is unknown.
+- Rebuilt Agent identity metadata as a compact form with inline token inputs for business and vibe tags, removing empty tag rails and keeping model and behavior settings close to the identity fields.
+- Aligned WorkGraph prompts, Skill guidance, and submission/review command contracts so Room conversational rounds enter coordination through `get_execution` instead of treating explicit identifiers as mutation authority.
+- Kept the latest Room public assistant text beside the active tool group until a newer assistant text replaces it.
+- Allowed Room coordinators to submit self-assigned WorkGraph deliverables to an independent reviewer without the review-return transaction rejecting the valid Assignment strategy.
+- Localized first-party Slash command descriptions according to the current interface language and widened the command-name column to keep built-in names readable.
+- Reconciled restarted Room Agent executions so orphaned runs settle as stopped, and closed an earlier streamed Thought as soon as a later semantic block appears.
+- Preserved actionable default-model guard messages in Provider settings instead of replacing them with a generic request error.
+- Restored Launcher latest-reply previews for DM conversations while continuing to exclude external IM sessions.
+- Updated frontend production dependencies and forced patched `brace-expansion` versions to clear reported production CVEs.
+- Let an Agent discover and address its existing active-paired external DMs from any of its chat transports, including direct messages and scheduled-task delivery, while preserving exact Session, owner, and pairing revalidation through sending, creation, execution, approval, and retry.
+- Deterministically ordered DM and Room internal context while keeping it in the runtime's append-only history and out of Nexus's visible conversation projection.
+- Preserved persisted custom Provider identifiers during save and deletion, and added deletion controls for non-default models.
+- Kept `nexusctl` exclusive to the main Agent by removing it from ordinary Agent and Room prompts, shared runtime PATH discovery, and shared Skills while retaining round-scoped `nexuscfg` and `nexus.command` capabilities.
+- Returned ordinary Agent `nexusctl` denials to the model as recoverable tool feedback and projected explicit terminal Hook stops as result messages instead of generic execution failures.
+- Kept the browser extension folder visible after reopening the macOS installation windows instead of letting Chrome or Edge cover Finder as their extensions page finishes opening.
+- Stopped ordinary, managed, and explicit Execution inspection from replaying completed Runtime Graph summaries into model requests, while active failures, artifacts, WorkGraph, Trace, and audit projections remain available.
+- Preserved task identity when terminal subagent notifications include full result bodies, preventing the floating Room task strip from expanding across the conversation.
+- Preserved the verified interactive human identity across in-process MCP control callbacks so Connector and Channel authorization can revalidate the active principal.
+- Kept explicit Room public messages inside their source Agent execution and completed the matching tool activity in Thread without duplicating the public reply.
+- Kept NXS and Claude runtime switches on the same compatible transcript instead of forking solely because their native tool surfaces differ.
+- Recovered DM and Room conversations with a fresh runtime session when an automatic tool-surface fork references a transcript that the selected runtime cannot resume.
+- Moved Goal, Execution, and Automation model commands to the round-scoped structured `nexus.command` MCP tool, removing temporary JSON input files, shell shims, loopback brokers, command tokens, and extra writable roots while keeping nxs reusable across rounds.
+- Released the held live-feed height when collapsing a streaming Thought, removing the empty space left below its collapsed row.
+- Reused the full interactive WorkGraph preview across save dialogs and capability details, with responsive sizing, centered initial graph anchors, and readable node summaries for titles, objectives, required steps, and final delivery.
+- Preserved complete atomic Slash runtime input in Rooms so long built-in WorkGraph templates cannot lose terminal nodes to public-context compaction.
+- Forked existing Room Agent runtime sessions when enabling a Connector changes their model-visible tool surface, so the next round starts with the newly selected MCP tools instead of resuming the old schema.
+- Waited for the Windows WebView2 process to release its user-data files before relocating the complete desktop data directory.
+
+### Added
+
+- Added an administrator-selectable subscription default model that new web users inherit until they choose their own default.
 
 ## [0.1.39] - 2026-08-31
 

@@ -1,7 +1,6 @@
 import { useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
-import { getErrorMessage } from "@/lib/error-message";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type {
   ProviderConfigRecord,
@@ -9,6 +8,7 @@ import type {
 } from "@/types/capability/provider";
 
 import type { ProviderModelApi } from "../../provider-settings-api";
+import { buildProviderErrorFeedback } from "../../model/provider-feedback-model";
 import { AUTO_TEST_MODEL_VALUE } from "../../model/provider-model-model";
 import type { FeedbackState } from "../../model/provider-settings-types";
 import type { PersistProvider } from "../config/use-provider-persistence";
@@ -21,7 +21,7 @@ import { useProviderPersistedModelCommand } from "./use-provider-persisted-model
 interface UseProviderTestActionsOptions {
   modelApi: Pick<ProviderModelApi, "testModel" | "testProvider">;
   persistProvider: PersistProvider;
-  refreshAll: (preferredProvider?: string | null) => Promise<void>;
+  refreshAll: (preferredProvider?: string | null) => Promise<boolean>;
   runCommand: RunProviderCommand;
   selectedCanManage: boolean;
   selectedRecord: ProviderConfigRecord | null;
@@ -30,7 +30,9 @@ interface UseProviderTestActionsOptions {
 }
 
 interface TestMessages {
+  failureImpact: string;
   failureFallback: string;
+  failureNextStep: string;
   failureTitle: string;
   successFallbackModel: string;
   successTitle: string;
@@ -42,11 +44,13 @@ function buildTestFeedback(
   formatSuccess: (model: string) => string,
 ): FeedbackState {
   return {
+    impact: result.success ? undefined : messages.failureImpact,
     tone: result.success ? "success" : "error",
     title: result.success ? messages.successTitle : messages.failureTitle,
     message: result.success
       ? formatSuccess(result.model || messages.successFallbackModel)
       : result.error || messages.failureFallback,
+    nextStep: result.success ? undefined : messages.failureNextStep,
   };
 }
 
@@ -65,6 +69,7 @@ export function useProviderTestActions({
     refreshAll,
     runCommand,
     setFeedback,
+    t,
   });
 
   const runTest = useCallback((
@@ -82,11 +87,12 @@ export function useProviderTestActions({
         messages,
         (model) => t("settings.providers.test_model_message", { model }),
       ),
-      (error) => ({
-        tone: "error",
-        title: messages.failureTitle,
-        message: getErrorMessage(error, messages.failureFallback),
-      }),
+      (error) => buildProviderErrorFeedback(
+        error,
+        messages.failureTitle,
+        messages.failureFallback,
+        t,
+      ),
     );
   }, [
     runPersistedModelCommand,
@@ -100,7 +106,9 @@ export function useProviderTestActions({
       { kind: "test-provider" },
       (provider) => modelApi.testProvider(provider),
       {
+        failureImpact: t("settings.providers.test_failed_impact"),
         failureFallback: t("settings.providers.check_network_auth"),
+        failureNextStep: t("settings.providers.test_failed_next_step"),
         failureTitle: t("settings.providers.provider_test_failed_title"),
         successFallbackModel: t("settings.providers.auto_model"),
         successTitle: t("settings.providers.provider_test_passed_title"),
@@ -117,7 +125,9 @@ export function useProviderTestActions({
       { kind: "test-model", modelId: normalizedModelId },
       (provider) => modelApi.testModel(provider, normalizedModelId),
       {
+        failureImpact: t("settings.providers.test_failed_impact"),
         failureFallback: t("settings.providers.check_network_auth_model"),
+        failureNextStep: t("settings.providers.test_failed_next_step"),
         failureTitle: t("settings.providers.model_test_failed_title"),
         successFallbackModel: normalizedModelId,
         successTitle: t("settings.providers.model_test_passed_title"),

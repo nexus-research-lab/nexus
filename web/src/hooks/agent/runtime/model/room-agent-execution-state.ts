@@ -1,6 +1,6 @@
 /**
- * INPUT: 当前 Session 的 Room execution 顺序锚点，以及 permission / slot / message / lifecycle 证据。
- * OUTPUT: keyed by root round + agent_round 的 execution 锚点；持久 message display_order 可纠正快照竞态，易失证据保持首次可见顺序，acknowledged tombstone 与 live turn 均单调迁移。
+ * INPUT: 当前 Session 的 Room execution 顺序锚点，以及 permission / 增量 slot / 权威 slot snapshot / message / lifecycle 证据。
+ * OUTPUT: keyed by root round + agent_round 的 execution 锚点；持久 message display_order 可纠正快照竞态，权威空快照收口缺失的活动 execution，易失证据保持首次可见顺序且不复活终态。
  * POS: Room execution shell 连续性的纯状态转换；React 状态与协议发送只负责调用。
  */
 import type {
@@ -341,6 +341,47 @@ export function syncRoomAgentExecutionsFromSlots(
         }]
       : [];
   }));
+}
+
+/**
+ * Room 订阅恢复的 pending snapshot 是当前 conversation 活跃 slot 的权威集合。
+ *
+ * 普通 ACK / stream 只能递增证据，不能因为没携带其他 slot 就清理它们；
+ * 只有 pending_snapshot=true 的整体替换才能把快照中缺失的非终态 execution
+ * 收口。快照只证明“已不活跃”，不证明中断或失败，因此先用优先级最低的
+ * done 作中性终态；随后 replay 的 exact cancelled / error 仍可单调覆盖它。
+ */
+export function reconcileRoomAgentExecutionsFromSlotSnapshot(
+  current: RoomAgentExecutionState[],
+  slots: RoomPendingAgentSlotState[],
+): RoomAgentExecutionState[] {
+  const observed = syncRoomAgentExecutionsFromSlots(current, slots);
+  const snapshotKeys = new Set(slots.flatMap((slot) => {
+    const identity = normalizeIdentity(
+      slot.round_id,
+      slot.agent_id,
+      slot.agent_round_id,
+    );
+    return identity
+      ? [buildExecutionKey(identity.roundId, identity.agentRoundId)]
+      : [];
+  }));
+  let changed = false;
+  const next = observed.map((state) => {
+    if (
+      state.phase === "terminal"
+      || snapshotKeys.has(executionKey(state))
+    ) {
+      return state;
+    }
+    changed = true;
+    return {
+      ...state,
+      phase: "terminal" as const,
+      status: "done" as const,
+    };
+  });
+  return changed ? next : observed;
 }
 
 function resolveSlotDisplayOrder(

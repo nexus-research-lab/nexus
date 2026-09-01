@@ -23,20 +23,20 @@ func validateChannelConfigInput(
 			continue
 		}
 		if _, present := publicConfig[field.Key]; present {
-			return fmt.Errorf(
+			return invalidChannelControl(fmt.Errorf(
 				"%s is secret and must be supplied through the credentials channel",
 				field.Key,
-			)
+			))
 		}
 	}
 	if publicKey, secretKey, ok := channelManualCredentialPair(catalog.ChannelType); ok {
 		hasPublic := strings.TrimSpace(publicConfig[publicKey]) != ""
 		hasSecret := strings.TrimSpace(secrets[secretKey]) != "" || hasExistingCredentials
 		if hasPublic && !hasSecret {
-			return fmt.Errorf("%s is required", secretKey)
+			return invalidChannelControl(fmt.Errorf("%s is required", secretKey))
 		}
 		if !hasPublic && len(secrets) > 0 {
-			return fmt.Errorf("%s is required", publicKey)
+			return invalidChannelControl(fmt.Errorf("%s is required", publicKey))
 		}
 	}
 	for _, field := range catalog.CredentialFields {
@@ -45,12 +45,12 @@ func validateChannelConfigInput(
 		}
 		if field.Secret {
 			if strings.TrimSpace(secrets[field.Key]) == "" && !hasExistingCredentials {
-				return fmt.Errorf("%s is required", field.Key)
+				return invalidChannelControl(fmt.Errorf("%s is required", field.Key))
 			}
 			continue
 		}
 		if strings.TrimSpace(publicConfig[field.Key]) == "" {
-			return fmt.Errorf("%s is required", field.Key)
+			return invalidChannelControl(fmt.Errorf("%s is required", field.Key))
 		}
 	}
 	return nil

@@ -47,7 +47,10 @@ func (s *ControlService) createPairing(
 	ownerUserID = normalizeChannelOwnerUserID(ownerUserID)
 	row, err := s.buildPairingRow(ctx, ownerUserID, request)
 	if err != nil {
-		return nil, err
+		if _, classified := ChannelControlMutationEffect(err); classified {
+			return nil, err
+		}
+		return nil, channelControlMutationFailure(ControlMutationNotApplied, err)
 	}
 	created, err := s.upsertPairingRowAndReloadAtVersion(ctx, row, expectedVersion)
 	if err != nil {
@@ -91,10 +94,10 @@ func (s *ControlService) updatePairing(
 	if request.AgentID != nil {
 		agentID := strings.TrimSpace(*request.AgentID)
 		if agentID == "" {
-			return nil, errors.New("agent_id cannot be empty")
+			return nil, invalidChannelControl(errors.New("agent_id cannot be empty"))
 		}
 		if err := s.ensureAgent(ctx, agentID); err != nil {
-			return nil, err
+			return nil, channelControlMutationFailure(ControlMutationNotApplied, err)
 		}
 		request.AgentID = &agentID
 	}
@@ -116,7 +119,7 @@ func (s *ControlService) updatePairing(
 		if request.Status != nil {
 			status := normalizePairingStatus(*request.Status, existing.Status)
 			if status == "" {
-				return errors.New("status is invalid")
+				return invalidChannelControl(errors.New("status is invalid"))
 			}
 			request.Status = &status
 		}

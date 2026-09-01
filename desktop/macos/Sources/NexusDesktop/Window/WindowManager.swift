@@ -1,3 +1,7 @@
+// INPUT: Native window lifecycle events and requested Nexus web routes.
+// OUTPUT: The reusable main window or a safe, actionable window-creation failure.
+// POS: macOS window owner; implementation errors remain in the startup timeline instead of the alert.
+
 import AppKit
 
 @MainActor
@@ -224,7 +228,13 @@ final class WindowManager: NSObject, NSWindowDelegate {
       mainWindow = window
       installInitialRevealFallback()
     } catch {
-      let alert = NSAlert(error: error)
+      startupTimeline.mark("main_window.create_failed", metadata: [
+        "error": error.localizedDescription,
+      ])
+      let alert = NSAlert()
+      alert.messageText = DesktopFailureCopy.mainWindowTitle
+      alert.informativeText = DesktopFailureCopy.mainWindowMessage
+      alert.alertStyle = .critical
       alert.runModal()
     }
   }

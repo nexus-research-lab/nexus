@@ -1,3 +1,8 @@
+/**
+ * INPUT: 桌面桥接提供的版本读取与日志导出结果。
+ * OUTPUT: 分离版本资源状态和日志导出反馈；失败文案不透传原生异常。
+ * POS: 桌面设置控制器；只编排现有 bridge 调用，不改变命令、请求或文件行为。
+ */
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
@@ -6,8 +11,8 @@ import {
   isDesktopBridgeAvailable,
   type DesktopAppVersion,
 } from "@/lib/desktop-bridge";
-import { getErrorMessage } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import type { FeedbackBannerProps } from "@/shared/ui/feedback/feedback-banner-contract";
 
 function describeDesktopVersion(
   version: DesktopAppVersion | null,
@@ -27,38 +32,49 @@ export function useDesktopSettings() {
   const [available] = useState(() => isDesktopBridgeAvailable());
   const [version, setVersion] = useState<DesktopAppVersion | null>(null);
   const [versionLoading, setVersionLoading] = useState(available);
-  const [feedbackMessage, setFeedbackMessage] = useState("");
+  const [versionFailed, setVersionFailed] = useState(false);
+  const [exportFeedback, setExportFeedback] =
+    useState<FeedbackBannerProps | null>(null);
   const [exportingLogs, setExportingLogs] = useState(false);
   const exportingRef = useRef(false);
+  const versionLoadingRef = useRef(false);
+  const versionRequestRef = useRef(0);
 
-  useEffect(() => {
-    if (!available) {
+  const loadVersion = useCallback(() => {
+    if (!available || versionLoadingRef.current) {
       return;
     }
-    let cancelled = false;
+    versionLoadingRef.current = true;
+    const requestId = versionRequestRef.current + 1;
+    versionRequestRef.current = requestId;
+    setVersionLoading(true);
+    setVersionFailed(false);
     void getDesktopAppVersion()
       .then((result) => {
-        if (!cancelled) {
+        if (versionRequestRef.current === requestId) {
           setVersion(result);
         }
       })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          setFeedbackMessage(getErrorMessage(
-            error,
-            t("settings.desktop.version_failed"),
-          ));
+      .catch(() => {
+        if (versionRequestRef.current === requestId) {
+          setVersionFailed(true);
         }
       })
       .finally(() => {
-        if (!cancelled) {
+        if (versionRequestRef.current === requestId) {
+          versionLoadingRef.current = false;
           setVersionLoading(false);
         }
       });
+  }, [available]);
+
+  useEffect(() => {
+    loadVersion();
     return () => {
-      cancelled = true;
+      versionRequestRef.current += 1;
+      versionLoadingRef.current = false;
     };
-  }, [available, t]);
+  }, [loadVersion]);
 
   const exportLogs = useCallback(async () => {
     if (exportingRef.current) {
@@ -66,22 +82,30 @@ export function useDesktopSettings() {
     }
     exportingRef.current = true;
     setExportingLogs(true);
-    setFeedbackMessage("");
+    setExportFeedback(null);
     try {
       const result = await exportDesktopLogs();
       if (!result.cancelled) {
-        setFeedbackMessage(result.path
-          ? t("settings.desktop.export_logs_success_with_path").replace(
-            "{path}",
-            result.path,
-          )
-          : t("settings.desktop.export_logs_success"));
+        setExportFeedback({
+          message: result.path
+            ? t("settings.desktop.export_logs_success_with_path").replace(
+              "{path}",
+              result.path,
+            )
+            : t("settings.desktop.export_logs_success"),
+          onDismiss: () => setExportFeedback(null),
+          title: t("settings.desktop.export_logs_success"),
+          tone: "success",
+        });
       }
-    } catch (error) {
-      setFeedbackMessage(getErrorMessage(
-        error,
-        t("settings.desktop.export_logs_failed"),
-      ));
+    } catch {
+      setExportFeedback({
+        impact: t("settings.desktop.export_logs_failed_impact"),
+        message: t("settings.desktop.export_logs_failed"),
+        nextStep: t("settings.desktop.export_logs_failed_next_step"),
+        title: t("settings.desktop.export_logs_failed_title"),
+        tone: "warning",
+      });
     } finally {
       exportingRef.current = false;
       setExportingLogs(false);
@@ -91,8 +115,11 @@ export function useDesktopSettings() {
   return {
     available,
     exportLogs,
+    feedback: exportFeedback,
     exportingLogs,
-    feedbackMessage,
+    retryVersion: loadVersion,
+    versionFailed,
+    versionLoading,
     versionDescription: describeDesktopVersion(
       version,
       t(versionLoading

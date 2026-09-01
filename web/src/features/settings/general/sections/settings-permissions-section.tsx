@@ -1,3 +1,8 @@
+/**
+ * INPUT: 默认权限草稿、Preferences 可靠性反馈和恢复动作。
+ * OUTPUT: 权限选择器及完整的设置结果提示。
+ * POS: General 权限分区视图；不另建单行错误投影。
+ */
 "use client";
 
 import { ShieldCheck } from "lucide-react";
@@ -7,6 +12,12 @@ import {
 } from "@/lib/agent-options";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
+
+import { PreferencesReliabilityNotice } from "../components/preferences-reliability-notice";
+import type {
+  PreferenceFeedback,
+  PreferenceRecoveryControls,
+} from "../model/settings-preferences-model";
 
 import {
   SETTINGS_CARD_CLASS_NAME,
@@ -20,32 +31,31 @@ import {
 } from "../../shared/settings-panel-ui";
 
 interface SettingsPermissionsSectionProps {
-  feedbackMessage?: string | null;
   onPermissionModeChange: (value: string) => void;
   permissionMode: string;
   preferencesLoading: boolean;
   preferencesSaving: boolean;
+  preferencesFeedback: PreferenceFeedback | null;
+  preferencesRecovery: PreferenceRecoveryControls;
 }
 
 export function SettingsPermissionsSection({
-  feedbackMessage,
   onPermissionModeChange,
   permissionMode,
   preferencesLoading,
   preferencesSaving,
+  preferencesFeedback,
+  preferencesRecovery,
 }: SettingsPermissionsSectionProps) {
   const { t } = useI18n();
   const selectedPermissionMode = AGENT_PERMISSION_MODES.find((mode) => mode.value === permissionMode) ?? AGENT_PERMISSION_MODES[0];
 
   return (
     <section className="space-y-2.5">
-      {feedbackMessage ? (
-        <div className="flex items-center justify-end gap-3 px-1">
-          <span className="inline-flex items-center gap-1.5 text-xs text-(--destructive)">
-            {feedbackMessage}
-          </span>
-        </div>
-      ) : null}
+      <PreferencesReliabilityNotice
+        feedback={preferencesFeedback}
+        recovery={preferencesRecovery}
+      />
       <div className={SETTINGS_CARD_CLASS_NAME}>
         <div className={SETTINGS_ROW_CLASS_NAME}>
           <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>

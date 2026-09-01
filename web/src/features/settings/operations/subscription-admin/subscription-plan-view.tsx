@@ -256,7 +256,9 @@ export function SubscriptionPlanView({
   onSave,
 }: SubscriptionPlanViewProps) {
   const { t } = useI18n();
-  const disabled = model.loading || model.mutationPending;
+  const disabled = model.loading
+    || model.mutationPending
+    || model.mutationsBlocked;
   return (
     <section className={SETTINGS_CARD_CLASS_NAME}>
       <NewSubscriptionPlanForm

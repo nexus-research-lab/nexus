@@ -1,3 +1,6 @@
+// INPUT: 登录表单状态、已分类的认证/提交恢复事实与用户动作。
+// OUTPUT: 保留输入、按 Problem/Impact/Recovery 展示的登录面板。
+// POS: 登录页展示边界；不推断提交结果，也不自行重放登录请求。
 import { ArrowRight, CheckCircle2, KeyRound } from "lucide-react";
 import type { FormEvent } from "react";
 
@@ -6,9 +9,10 @@ import { UiButton } from "@/shared/ui/button/button";
 import { UiInput } from "@/shared/ui/form/form-control";
 
 import type { LoginFormMode } from "./login-page-model";
+import type { LoginRecoveryNotice } from "./login-page-model";
 
 interface LoginAuthPanelProps {
-  authError: string | null;
+  authFailure: LoginRecoveryNotice | null;
   formMode: LoginFormMode;
   isSubmitting: boolean;
   onChangePassword: (value: string) => void;
@@ -16,17 +20,43 @@ interface LoginAuthPanelProps {
   onRefresh: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   password: string;
-  submitError: string | null;
+  submitFailure: LoginRecoveryNotice | null;
   username: string;
 }
 
-function LoginErrorBanner({ message }: { message: string | null }) {
-  if (!message) {
+function LoginErrorBanner({
+  notice,
+  onCheckStatus,
+}: {
+  notice: LoginRecoveryNotice | null;
+  onCheckStatus: () => void;
+}) {
+  const { t } = useI18n();
+  if (!notice) {
     return null;
   }
   return (
-    <div className="mt-5 rounded-[10px] border border-[color:color-mix(in_srgb,var(--destructive)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] px-4 py-3 text-sm text-(--destructive)">
-      {message}
+    <div
+      aria-atomic="true"
+      aria-live="polite"
+      className="mt-5 rounded-[10px] border border-[color:color-mix(in_srgb,var(--destructive)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] px-4 py-3"
+      role="status"
+    >
+      <p className="text-sm font-semibold text-(--destructive)">{notice.title}</p>
+      <p className="mt-1 text-sm leading-6 text-(--text-default)">{notice.message}</p>
+      <p className="mt-1 text-xs leading-5 text-(--text-muted)">{notice.impact}</p>
+      <p className="mt-1 text-xs font-medium leading-5 text-(--text-default)">{notice.nextStep}</p>
+      {notice.action === "check_status" ? (
+        <UiButton
+          className="mt-2"
+          onClick={onCheckStatus}
+          size="sm"
+          type="button"
+          variant="text"
+        >
+          {t("login.refresh")}
+        </UiButton>
+      ) : null}
     </div>
   );
 }
@@ -56,14 +86,16 @@ function DisabledLoginForm({ onRefresh }: { onRefresh: () => void }) {
 }
 
 function PasswordLoginForm({
+  authFailure,
   isSubmitting,
   onChangePassword,
   onChangeUsername,
+  onRefresh,
   onSubmit,
   password,
-  submitError,
+  submitFailure,
   username,
-}: Omit<LoginAuthPanelProps, "authError" | "formMode" | "onRefresh">) {
+}: Omit<LoginAuthPanelProps, "formMode">) {
   const { t } = useI18n();
   return (
     <form className="mt-7 space-y-4" onSubmit={onSubmit}>
@@ -99,10 +131,14 @@ function PasswordLoginForm({
           variant="surface"
         />
       </label>
-      <LoginErrorBanner message={submitError} />
+      <LoginErrorBanner notice={submitFailure} onCheckStatus={onRefresh} />
       <UiButton
         className="min-h-12 w-full rounded-[10px] px-5 text-base shadow-[0_14px_30px_color-mix(in_srgb,var(--shadow-color)_14%,transparent)]"
-        disabled={isSubmitting}
+        disabled={
+          isSubmitting
+          || Boolean(authFailure?.blocksSubmit)
+          || Boolean(submitFailure?.blocksSubmit)
+        }
         size="lg"
         tone="primary"
         type="submit"
@@ -116,7 +152,7 @@ function PasswordLoginForm({
 }
 
 export function LoginAuthPanel({
-  authError,
+  authFailure,
   formMode,
   isSubmitting,
   onChangePassword,
@@ -124,7 +160,7 @@ export function LoginAuthPanel({
   onRefresh,
   onSubmit,
   password,
-  submitError,
+  submitFailure,
   username,
 }: LoginAuthPanelProps) {
   const { t } = useI18n();
@@ -150,17 +186,19 @@ export function LoginAuthPanel({
         />
       </div>
 
-      <LoginErrorBanner message={authError} />
+      <LoginErrorBanner notice={authFailure} onCheckStatus={onRefresh} />
       {formMode === "disabled" ? (
         <DisabledLoginForm onRefresh={onRefresh} />
       ) : (
         <PasswordLoginForm
+          authFailure={authFailure}
           isSubmitting={isSubmitting}
           onChangePassword={onChangePassword}
           onChangeUsername={onChangeUsername}
+          onRefresh={onRefresh}
           onSubmit={onSubmit}
           password={password}
-          submitError={submitError}
+          submitFailure={submitFailure}
           username={username}
         />
       )}

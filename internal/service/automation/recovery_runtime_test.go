@@ -228,6 +228,97 @@ func TestServiceRecoverTaskRunningRunReleasesStuckRuntime(t *testing.T) {
 	}
 }
 
+func TestServiceRecoverTaskRunningRunRollsBackWhenRuntimeReleaseCannotPersist(t *testing.T) {
+	db := newAutomationTestDB(t)
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite"},
+		db,
+		nil,
+		nil,
+		nil,
+		permissionctx.NewContext(),
+		&fakeWorkspaceReader{},
+		nil,
+	)
+	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
+		Name:        "恢复事务回滚",
+		AgentID:     "agent-1",
+		Instruction: "验证 run 与任务占用原子提交",
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
+			IntervalSeconds: intRef(3600),
+			Timezone:        "Asia/Shanghai",
+		},
+		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
+		Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
+		Enabled:       true,
+	})
+	if err != nil {
+		t.Fatalf("CreateTask 失败: %v", err)
+	}
+
+	runID := "run-recovery-rollback"
+	startedAt := time.Date(2026, 5, 21, 8, 0, 0, 0, time.UTC)
+	if err = service.repository.InsertRunPending(context.Background(), automationstore.RunPendingInput{
+		RunID:       runID,
+		JobID:       task.JobID,
+		OwnerUserID: task.OwnerUserID,
+		TriggerKind: automationdomain.TriggerKindManual,
+		Status:      automationdomain.RunStatusPending,
+	}); err != nil {
+		t.Fatalf("预置 pending run 失败: %v", err)
+	}
+	if err = service.repository.MarkRunRunning(context.Background(), runID, startedAt); err != nil {
+		t.Fatalf("预置 running run 失败: %v", err)
+	}
+	runningJob := *task
+	runningJob.Running = true
+	runningJob.RunningRunID = runID
+	runningJob.RunningStartedAt = &startedAt
+	runningJob.LastRunStatus = automationdomain.RunStatusRunning
+	service.replaceJobRuntimeState(runningJob)
+
+	if _, err = db.Exec(`CREATE TRIGGER fail_recovery_runtime_release
+BEFORE UPDATE OF running_run_id ON automation_scheduled_tasks
+BEGIN
+  SELECT RAISE(FAIL, 'forced runtime release failure');
+END`); err != nil {
+		t.Fatalf("创建恢复失败触发器失败: %v", err)
+	}
+
+	if _, err = service.RecoverTaskRunningRun(context.Background(), task.JobID, runID); err == nil {
+		t.Fatal("持久化释放失败时 RecoverTaskRunningRun 不应返回成功")
+	}
+
+	var runStatus string
+	if err = db.QueryRow(
+		`SELECT status FROM automation_task_runs WHERE run_id = ?`,
+		runID,
+	).Scan(&runStatus); err != nil {
+		t.Fatalf("读取回滚后的 run 失败: %v", err)
+	}
+	if runStatus != automationdomain.RunStatusRunning {
+		t.Fatalf("任务运行态写失败时 run 终态应一并回滚，实际 status=%s", runStatus)
+	}
+	var persistedRunID sql.NullString
+	if err = db.QueryRow(
+		`SELECT running_run_id FROM automation_scheduled_tasks WHERE job_id = ?`,
+		task.JobID,
+	).Scan(&persistedRunID); err != nil {
+		t.Fatalf("读取回滚后的任务运行占用失败: %v", err)
+	}
+	if !persistedRunID.Valid || persistedRunID.String != runID {
+		t.Fatalf("持久化失败后任务占用不应被清除: %+v", persistedRunID)
+	}
+	current, getErr := service.GetTask(context.Background(), task.JobID)
+	if getErr != nil {
+		t.Fatalf("读取回滚后的内存状态失败: %v", getErr)
+	}
+	if current == nil || !current.Running || current.RunningRunID != runID {
+		t.Fatalf("持久化失败后内存状态不应宣称已恢复: %+v", current)
+	}
+}
+
 func TestServiceRecoverTaskRunningRunInterruptsRoomRuntime(t *testing.T) {
 	db := newAutomationTestDB(t)
 	permission := permissionctx.NewContext()

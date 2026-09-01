@@ -33,6 +33,8 @@ import {
   buildSkillAgentBindingPresentation,
   buildSkillDetailPresentation,
   getSkillDetailSnapshotTitle,
+  type SkillAgentBindingsReadFailure,
+  type SkillAgentToggleFailure,
   type SkillDetailPresentation,
   type SkillDetailSnapshot,
 } from "./skill-detail-model";
@@ -43,27 +45,35 @@ type SkillDetailAction = "delete" | "update" | "toggle";
 interface SkillDetailViewProps {
   activeAction: SkillDetailAction | null;
   agentBindings: SkillAgentBinding[];
-  agentToggleError: string | null;
   agentsLoading: boolean;
+  bindingsFailure: SkillAgentBindingsReadFailure | null;
   busyAgentId: string | null;
   onBack: () => void;
   onAgentToggle: (binding: SkillAgentBinding) => void;
   onDelete: () => void;
+  onRetry: () => void;
+  onRetryBindings: () => void;
+  onStartNewToggleIntent: (agentId: string) => void;
   onUpdate: () => void;
   snapshot: SkillDetailSnapshot;
+  toggleFailures: Readonly<Record<string, SkillAgentToggleFailure>>;
 }
 
 export function SkillDetailView({
   activeAction,
   agentBindings,
-  agentToggleError,
   agentsLoading,
+  bindingsFailure,
   busyAgentId,
   onBack,
   onAgentToggle,
   onDelete,
+  onRetry,
+  onRetryBindings,
+  onStartNewToggleIntent,
   onUpdate,
   snapshot,
+  toggleFailures,
 }: SkillDetailViewProps) {
   return (
     <div className={WORKSPACE_CONTENT_PAGE_CLASS_NAME}>
@@ -74,14 +84,18 @@ export function SkillDetailView({
       <SkillDetailContent
         activeAction={activeAction}
         agentBindings={agentBindings}
-        agentToggleError={agentToggleError}
         agentsLoading={agentsLoading}
+        bindingsFailure={bindingsFailure}
         busyAgentId={busyAgentId}
         onBack={onBack}
         onAgentToggle={onAgentToggle}
         onDelete={onDelete}
+        onRetry={onRetry}
+        onRetryBindings={onRetryBindings}
+        onStartNewToggleIntent={onStartNewToggleIntent}
         onUpdate={onUpdate}
         snapshot={snapshot}
+        toggleFailures={toggleFailures}
       />
     </div>
   );
@@ -120,14 +134,18 @@ function SkillDetailBreadcrumb({
 function SkillDetailContent({
   activeAction,
   agentBindings,
-  agentToggleError,
   agentsLoading,
+  bindingsFailure,
   busyAgentId,
   onBack,
   onAgentToggle,
   onDelete,
+  onRetry,
+  onRetryBindings,
+  onStartNewToggleIntent,
   onUpdate,
   snapshot,
+  toggleFailures,
 }: SkillDetailViewProps) {
   const { t } = useI18n();
   if (snapshot.status === "loading") {
@@ -145,14 +163,19 @@ function SkillDetailContent({
     return (
       <UiStateBlock
         actions={(
-          <UiButton onClick={onBack} size="sm" type="button">
-            {t("capability.skills_detail_back_action")}
-          </UiButton>
+          <div className="flex flex-wrap justify-center gap-2">
+            <UiButton onClick={onRetry} size="sm" tone="primary" type="button">
+              {t("state.retry")}
+            </UiButton>
+            <UiButton onClick={onBack} size="sm" type="button">
+              {t("capability.skills_detail_back_action")}
+            </UiButton>
+          </div>
         )}
         className="min-h-[420px]"
-        description={snapshot.errorMessage}
+        description={`${snapshot.errorMessage} ${t("state.read_failure_impact")} ${t("state.retry_next_step")}`}
         size="md"
-        title={t("capability.skills_detail_not_found")}
+        title={t("capability.skills_detail_load_failed")}
         tone="danger"
         variant="plain"
       />
@@ -163,8 +186,8 @@ function SkillDetailContent({
     <SkillDetailReady
       activeAction={activeAction}
       agentBindings={agentBindings}
-      agentToggleError={agentToggleError}
       agentsLoading={agentsLoading}
+      bindingsFailure={bindingsFailure}
       busyAgentId={busyAgentId}
       model={{
         ...buildSkillDetailPresentation(
@@ -177,6 +200,9 @@ function SkillDetailContent({
       onAgentToggle={onAgentToggle}
       onDelete={onDelete}
       onUpdate={onUpdate}
+      onRetryBindings={onRetryBindings}
+      onStartNewToggleIntent={onStartNewToggleIntent}
+      toggleFailures={toggleFailures}
     />
   );
 }
@@ -184,23 +210,29 @@ function SkillDetailContent({
 function SkillDetailReady({
   activeAction,
   agentBindings,
-  agentToggleError,
   agentsLoading,
+  bindingsFailure,
   busyAgentId,
   model,
   onAgentToggle,
   onDelete,
   onUpdate,
+  onRetryBindings,
+  onStartNewToggleIntent,
+  toggleFailures,
 }: {
   activeAction: SkillDetailAction | null;
   agentBindings: SkillAgentBinding[];
-  agentToggleError: string | null;
   agentsLoading: boolean;
+  bindingsFailure: SkillAgentBindingsReadFailure | null;
   busyAgentId: string | null;
   model: SkillDetailPresentation;
   onAgentToggle: (binding: SkillAgentBinding) => void;
   onDelete: () => void;
   onUpdate: () => void;
+  onRetryBindings: () => void;
+  onStartNewToggleIntent: (agentId: string) => void;
+  toggleFailures: Readonly<Record<string, SkillAgentToggleFailure>>;
 }) {
   const { t } = useI18n();
   return (
@@ -218,11 +250,14 @@ function SkillDetailReady({
         ) : (
           <SkillAgentBindings
             agentBindings={agentBindings}
-            errorMessage={agentToggleError}
             agentsLoading={agentsLoading}
+            bindingsFailure={bindingsFailure}
             busyAgentId={busyAgentId}
             locked={model.locked}
             onToggle={onAgentToggle}
+            onRetryBindings={onRetryBindings}
+            onStartNewToggleIntent={onStartNewToggleIntent}
+            toggleFailures={toggleFailures}
           />
         )}
         <section>
@@ -260,17 +295,23 @@ function RoomSkillUsage() {
 function SkillAgentBindings({
   agentBindings,
   agentsLoading,
+  bindingsFailure,
   busyAgentId,
-  errorMessage,
   locked,
+  onRetryBindings,
+  onStartNewToggleIntent,
   onToggle,
+  toggleFailures,
 }: {
   agentBindings: SkillAgentBinding[];
   agentsLoading: boolean;
+  bindingsFailure: SkillAgentBindingsReadFailure | null;
   busyAgentId: string | null;
-  errorMessage: string | null;
   locked: boolean;
+  onRetryBindings: () => void;
+  onStartNewToggleIntent: (agentId: string) => void;
   onToggle: (binding: SkillAgentBinding) => void;
+  toggleFailures: Readonly<Record<string, SkillAgentToggleFailure>>;
 }) {
   const { t } = useI18n();
   const enabledCount = agentBindings.filter((item) => item.enabled).length;
@@ -295,17 +336,19 @@ function SkillAgentBindings({
         ) : null}
       </div>
       <UiPanel padding="sm" radius="md" variant="inset">
-        {errorMessage ? (
-          <p className="mb-2 rounded-[8px] bg-(--status-danger-soft-background) px-3 py-2 text-sm text-(--status-danger-soft-text)">
-            {errorMessage}
-          </p>
+        {bindingsFailure ? (
+          <SkillAgentFailureNotice
+            failure={bindingsFailure}
+            onRefresh={onRetryBindings}
+            refreshLabel={t("state.retry")}
+          />
         ) : null}
         {agentsLoading ? (
           <div className="flex items-center gap-2 px-3 py-3 text-sm text-(--text-muted)">
             <Loader2 className="h-4 w-4 animate-spin" />
             {t("capability.skills_detail_bindings_loading")}
           </div>
-        ) : agentBindings.length === 0 ? (
+        ) : agentBindings.length === 0 && !bindingsFailure ? (
           <p className="px-3 py-3 text-sm text-(--text-muted)">
             {t("capability.skills_detail_no_agents")}
           </p>
@@ -317,35 +360,47 @@ function SkillAgentBindings({
                 locked,
                 t,
               );
+              const failure = toggleFailures[binding.agent_id] ?? null;
               return (
-                <div
-                  className="flex items-center justify-between gap-3 px-3 py-2.5"
-                  key={binding.agent_id}
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-(--text-strong)">
-                      {binding.agent_name}
-                    </p>
-                    <p className="text-xs text-(--text-soft)">
-                      {presentation.description}
-                    </p>
+                <div key={binding.agent_id}>
+                  <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-(--text-strong)">
+                        {binding.agent_name}
+                      </p>
+                      <p className="text-xs text-(--text-soft)">
+                        {presentation.description}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span className="text-xs text-(--text-muted)">
+                        {presentation.status}
+                      </span>
+                      <GlassSwitch
+                        aria-label={presentation.switchLabel}
+                        checked={binding.enabled}
+                        disabled={
+                          locked
+                          || !binding.available
+                          || busyAgentId !== null
+                          || Boolean(failure?.blocksRepeat)
+                        }
+                        onChange={() => onToggle(binding)}
+                        size="xs"
+                      />
+                    </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <span className="text-xs text-(--text-muted)">
-                      {presentation.status}
-                    </span>
-                    <GlassSwitch
-                      aria-label={presentation.switchLabel}
-                      checked={binding.enabled}
-                      disabled={
-                        locked ||
-                        !binding.available ||
-                        busyAgentId !== null
-                      }
-                      onChange={() => onToggle(binding)}
-                      size="xs"
+                  {failure ? (
+                    <SkillAgentFailureNotice
+                      className="mx-3 mb-3"
+                      failure={failure}
+                      onRefresh={failure.blocksRepeat ? onRetryBindings : undefined}
+                      onStartNewIntent={failure.blocksRepeat
+                        ? () => onStartNewToggleIntent(binding.agent_id)
+                        : undefined}
+                      refreshLabel={t("state.reload_check")}
                     />
-                  </div>
+                  ) : null}
                 </div>
               );
             })}
@@ -353,6 +408,52 @@ function SkillAgentBindings({
         )}
       </UiPanel>
     </section>
+  );
+}
+
+function SkillAgentFailureNotice({
+  className = "mb-2",
+  failure,
+  onRefresh,
+  onStartNewIntent,
+  refreshLabel,
+}: {
+  className?: string;
+  failure: SkillAgentBindingsReadFailure | SkillAgentToggleFailure;
+  onRefresh?: () => void;
+  onStartNewIntent?: () => void;
+  refreshLabel: string;
+}) {
+  const { t } = useI18n();
+  return (
+    <div
+      aria-live="polite"
+      className={`${className} space-y-1 rounded-[8px] border border-[color:color-mix(in_srgb,var(--destructive)_18%,transparent)] bg-(--status-danger-soft-background) px-3 py-2`}
+      role="status"
+    >
+      <p className="text-xs font-semibold text-(--status-danger-soft-text)">
+        {failure.title}
+      </p>
+      <p className="text-xs leading-5 text-(--text-default)">{failure.message}</p>
+      <p className="text-xs leading-5 text-(--text-muted)">{failure.impact}</p>
+      <p className="text-xs font-medium leading-5 text-(--text-default)">
+        {failure.nextStep}
+      </p>
+      {onRefresh || onStartNewIntent ? (
+        <div className="flex flex-wrap gap-2 pt-1">
+          {onRefresh ? (
+            <UiButton onClick={onRefresh} size="xs" type="button" variant="text">
+              {refreshLabel}
+            </UiButton>
+          ) : null}
+          {onStartNewIntent ? (
+            <UiButton onClick={onStartNewIntent} size="xs" type="button" variant="text">
+              {t("capability.skills_detail_start_new_change")}
+            </UiButton>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
   );
 }
 

@@ -1,5 +1,9 @@
 "use client";
 
+// INPUT: Composer Session 设置 scope、资源读取与设置修改请求。
+// OUTPUT: 保留选择的资源状态、exact Session mutation 失败与显式恢复动作。
+// POS: Composer Session-setting 编排边界；读取不清理 unknown，也不自动重放修改。
+
 import {
   useCallback,
   useEffect,
@@ -32,6 +36,15 @@ import type {
   ComposerSessionSettingsScope,
   ComposerSessionSettingsTarget,
 } from "../composer-model";
+import {
+  buildComposerReadFailure,
+  buildComposerSettingsMutationFailure,
+  createComposerSettingsMutationIntent,
+  isSameComposerSettingsIntent,
+  type ComposerReadFailure,
+  type ComposerSettingKind,
+  type ComposerSettingsMutationFailure,
+} from "./composer-settings-reliability";
 
 const EMPTY_SETTINGS: SessionRuntimeSettings = {
   connector_ids: null,
@@ -55,15 +68,28 @@ export function useComposerSessionSettings(
   const [providerOptionsLoading, setProviderOptionsLoading] = useState(false);
   const [connectors, setConnectors] = useState<ConnectorInfo[]>([]);
   const [connectorsLoading, setConnectorsLoading] = useState(false);
-  const [connectorsError, setConnectorsError] = useState<string | null>(null);
+  const [connectorsFailure, setConnectorsFailure] =
+    useState<ComposerReadFailure | null>(null);
   const [loadingSessionKeys, setLoadingSessionKeys] = useState<string[]>([]);
   const [savingSessionKey, setSavingSessionKey] = useState<string | null>(null);
-  const [providerError, setProviderError] = useState<string | null>(null);
-  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [providerFailure, setProviderFailure] =
+    useState<ComposerReadFailure | null>(null);
+  const [settingsReadFailures, setSettingsReadFailures] = useState<Record<
+    string,
+    ComposerReadFailure
+  >>({});
+  const [mutationFailures, setMutationFailures] = useState<Record<
+    string,
+    ComposerSettingsMutationFailure
+  >>({});
   const [preferencesRevision, setPreferencesRevision] = useState(0);
+  const [connectorsRevision, setConnectorsRevision] = useState(0);
   const previousInitialTargetRef = useRef(scope?.initialTargetId ?? "");
   const loadingSessionKeysRef = useRef(new Set<string>());
+  const savingSessionKeysRef = useRef(new Set<string>());
   const settingsBySessionRef = useRef(settingsBySession);
+  const mutationFailuresRef = useRef(mutationFailures);
+  const providerOptionsRuntimeKindRef = useRef("");
   const target = scope?.targets.find(
     (candidate) => candidate.agentId === selectedTargetId,
   ) ?? scope?.targets.find(
@@ -91,24 +117,32 @@ export function useComposerSessionSettings(
     if (!scope?.runtimeKind) {
       setProviderOptions(null);
       setProviderOptionsLoading(false);
-      setProviderError(null);
+      setProviderFailure(null);
+      providerOptionsRuntimeKindRef.current = "";
       return undefined;
     }
+    const runtimeKind = scope.runtimeKind;
     let active = true;
-    setProviderOptions(null);
+    if (providerOptionsRuntimeKindRef.current !== runtimeKind) {
+      providerOptionsRuntimeKindRef.current = runtimeKind;
+      setProviderOptions(null);
+      setProviderFailure(null);
+    }
     setProviderOptionsLoading(true);
-    setProviderError(null);
-    void listProviderOptionsApi(scope.runtimeKind)
+    void listProviderOptionsApi(runtimeKind)
       .then((result) => {
         if (active) {
           setProviderOptions(result);
+          setProviderFailure(null);
         }
       })
       .catch((requestError: unknown) => {
         if (active) {
-          setProviderError(resolveErrorMessage(
+          setProviderFailure(buildComposerReadFailure(
             requestError,
-            t("composer.session_settings_load_failed"),
+            "providers",
+            t("composer.provider_options_load_failed"),
+            t,
           ));
         }
       })
@@ -126,25 +160,27 @@ export function useComposerSessionSettings(
     if (!scope?.runtimeKind) {
       setConnectors([]);
       setConnectorsLoading(false);
-      setConnectorsError(null);
+      setConnectorsFailure(null);
       return undefined;
     }
     let active = true;
     setConnectorsLoading(true);
-    setConnectorsError(null);
     void getConnectorsApi({ status: "available" })
       .then((items) => {
         if (active) {
           setConnectors(items.filter(
             (connector) => connector.connection_state === "connected",
           ));
+          setConnectorsFailure(null);
         }
       })
       .catch((error: unknown) => {
         if (active) {
-          setConnectorsError(resolveErrorMessage(
+          setConnectorsFailure(buildComposerReadFailure(
             error,
+            "connectors",
             t("composer.connectors_load_failed"),
+            t,
           ));
         }
       })
@@ -154,7 +190,7 @@ export function useComposerSessionSettings(
     return () => {
       active = false;
     };
-  }, [scope?.runtimeKind, t]);
+  }, [connectorsRevision, scope?.runtimeKind, t]);
 
   useEffect(() => {
     const handlePreferencesChange = () => {
@@ -186,10 +222,27 @@ export function useComposerSessionSettings(
     });
   }, []);
 
-  const loadSettings = useCallback(async (sessionKey: string) => {
+  const cacheMutationFailure = useCallback((
+    sessionKey: string,
+    failure: ComposerSettingsMutationFailure | null,
+  ): void => {
+    const next = { ...mutationFailuresRef.current };
+    if (failure) {
+      next[sessionKey] = failure;
+    } else {
+      delete next[sessionKey];
+    }
+    mutationFailuresRef.current = next;
+    setMutationFailures(next);
+  }, []);
+
+  const loadSettings = useCallback(async (
+    sessionKey: string,
+    force = false,
+  ) => {
     if (
       !sessionKey
-      || settingsBySessionRef.current[sessionKey]
+      || (!force && settingsBySessionRef.current[sessionKey])
       || loadingSessionKeysRef.current.has(sessionKey)
     ) {
       return;
@@ -198,15 +251,29 @@ export function useComposerSessionSettings(
     setLoadingSessionKeys((current) => (
       current.includes(sessionKey) ? current : [...current, sessionKey]
     ));
-    setSettingsError(null);
     try {
       const result = await getSessionRuntimeSettingsApi(sessionKey);
-      cacheSettings(sessionKey, result);
+      if (
+        !savingSessionKeysRef.current.has(sessionKey)
+        && !mutationFailuresRef.current[sessionKey]?.blocksRepeat
+      ) {
+        cacheSettings(sessionKey, result);
+      }
+      setSettingsReadFailures((current) => {
+        const next = { ...current };
+        delete next[sessionKey];
+        return next;
+      });
     } catch (requestError) {
-      setSettingsError(resolveErrorMessage(
-        requestError,
-        t("composer.session_settings_load_failed"),
-      ));
+      setSettingsReadFailures((current) => ({
+        ...current,
+        [sessionKey]: buildComposerReadFailure(
+          requestError,
+          "session_settings",
+          t("composer.session_settings_load_failed"),
+          t,
+        ),
+      }));
     } finally {
       loadingSessionKeysRef.current.delete(sessionKey);
       setLoadingSessionKeys((current) => (
@@ -216,15 +283,10 @@ export function useComposerSessionSettings(
   }, [cacheSettings, t]);
 
   useEffect(() => subscribeSessionRuntimeSettingsUpdated((sessionKey) => {
-    const current = settingsBySessionRef.current;
-    if (!current[sessionKey]) {
+    if (!settingsBySessionRef.current[sessionKey]) {
       return;
     }
-    const next = { ...current };
-    delete next[sessionKey];
-    settingsBySessionRef.current = next;
-    setSettingsBySession(next);
-    void loadSettings(sessionKey);
+    void loadSettings(sessionKey, true);
   }), [loadSettings]);
 
   useEffect(() => {
@@ -234,39 +296,59 @@ export function useComposerSessionSettings(
   }, [loadSettings, settingsBySession, target?.sessionKey]);
 
   const updateSettings = useCallback(async (
+    setting: ComposerSettingKind,
     next: SessionRuntimeSettings,
   ) => {
     if (!target) {
       return;
     }
     const { sessionKey } = target;
+    if (savingSessionKeysRef.current.has(sessionKey)) {
+      return;
+    }
+    const intent = createComposerSettingsMutationIntent(
+      sessionKey,
+      setting,
+      next,
+    );
+    const currentFailure = mutationFailuresRef.current[sessionKey];
+    if (
+      currentFailure?.blocksRepeat
+      && isSameComposerSettingsIntent(currentFailure.intent, intent)
+    ) {
+      return;
+    }
     const previous =
       settingsBySessionRef.current[sessionKey] ?? EMPTY_SETTINGS;
-    setSettingsError(null);
+    cacheMutationFailure(sessionKey, null);
+    savingSessionKeysRef.current.add(sessionKey);
     setSavingSessionKey(sessionKey);
     cacheSettings(sessionKey, next);
     try {
       const saved = await updateSessionRuntimeSettingsApi(sessionKey, next);
       cacheSettings(sessionKey, saved);
     } catch (requestError) {
-      cacheSettings(sessionKey, previous);
-      setSettingsError(resolveErrorMessage(
+      const failure = buildComposerSettingsMutationFailure(
         requestError,
-        t("composer.session_settings_save_failed"),
-      ));
+        intent,
+        t,
+      );
+      if (failure.effect === "not_applied") {
+        cacheSettings(sessionKey, previous);
+      }
+      cacheMutationFailure(sessionKey, failure);
     } finally {
+      savingSessionKeysRef.current.delete(sessionKey);
       setSavingSessionKey((current) =>
         current === sessionKey ? null : current
       );
     }
-  }, [cacheSettings, t, target]);
+  }, [cacheMutationFailure, cacheSettings, t, target]);
 
   const selectTarget = useCallback((agentId: string) => {
-    setSettingsError(null);
     setSelectedTargetId(agentId);
   }, []);
   const resetTarget = useCallback(() => {
-    setSettingsError(null);
     setSelectedTargetId(scope?.initialTargetId ?? "");
   }, [scope?.initialTargetId]);
   const ensureTargetsLoaded = useCallback(async () => {
@@ -286,11 +368,21 @@ export function useComposerSessionSettings(
     settings.permission_mode || inheritedPermission;
   const inheritedConnectorIds = target?.defaultConnectorIds ?? [];
   const enabledConnectorIds = settings.connector_ids ?? inheritedConnectorIds;
+  const settingsReadFailure = target
+    ? settingsReadFailures[target.sessionKey] ?? null
+    : null;
+  const mutationFailure = target
+    ? mutationFailures[target.sessionKey] ?? null
+    : null;
+  const settingsLoading = Boolean(
+    target && loadingSessionKeys.includes(target.sessionKey)
+  );
   const sessionBusy = Boolean(
     target
     && (
       loadingSessionKeys.includes(target.sessionKey)
       || savingSessionKey === target.sessionKey
+      || settingsReadFailure
     )
   );
   const targetViews = useMemo(() => (
@@ -320,18 +412,17 @@ export function useComposerSessionSettings(
   return {
     busy: sessionBusy,
     connectors,
-    connectorsError,
+    connectorsFailure,
     connectorsLoading,
     enabledConnectorIds,
     ensureTargetsLoaded,
-    error: settingsError ?? providerError,
     hasModelOverride: Boolean(settings.provider && settings.model),
     hasPermissionOverride: Boolean(settings.permission_mode),
     inheritedModel: inheritedModel.model,
     isDangerousPermission: effectivePermissionMode === "bypassPermissions",
     inheritedPermissionMode: inheritedPermission,
     inheritedProvider: inheritedModel.provider,
-    modelBusy: sessionBusy || providerOptionsLoading,
+    modelBusy: sessionBusy || providerOptionsLoading || Boolean(providerFailure),
     modelLabel: settings.model
       ? resolveModelLabel(settings.provider, settings.model, providerOptions)
       : inheritedModel.label,
@@ -340,28 +431,43 @@ export function useComposerSessionSettings(
       t,
     ),
     providerOptions,
+    providerOptionsLoading,
+    providerFailure,
     resetTarget,
     saving: savingSessionKey !== null,
     scope,
     selectTarget,
     settings,
+    settingsLoading,
+    settingsReadFailure,
+    mutationFailure,
     target,
     targetViews,
-    resetModel: () => updateSettings({
+    retryConnectors: () => setConnectorsRevision((current) => current + 1),
+    retryProviderOptions: () => setPreferencesRevision((current) => current + 1),
+    retrySessionSettings: () => target
+      ? loadSettings(target.sessionKey, true)
+      : Promise.resolve(),
+    startNewSettingsIntent: () => {
+      if (target) {
+        cacheMutationFailure(target.sessionKey, null);
+      }
+    },
+    resetModel: () => updateSettings("model", {
       ...settings,
       model: "",
       provider: "",
     }),
-    resetPermission: () => updateSettings({
+    resetPermission: () => updateSettings("permission", {
       ...settings,
       permission_mode: "",
     }),
-    updateModel: (provider: string, model: string) => updateSettings({
+    updateModel: (provider: string, model: string) => updateSettings("model", {
       ...settings,
       model,
       provider,
     }),
-    updatePermission: (permissionMode: string) => updateSettings({
+    updatePermission: (permissionMode: string) => updateSettings("permission", {
       ...settings,
       permission_mode: permissionMode,
     }),
@@ -369,7 +475,7 @@ export function useComposerSessionSettings(
       const nextConnectorIds = enabledConnectorIds.includes(connectorId)
         ? enabledConnectorIds.filter((value) => value !== connectorId)
         : [...enabledConnectorIds, connectorId];
-      return updateSettings({
+      return updateSettings("connectors", {
         ...settings,
         connector_ids: sameStringSet(nextConnectorIds, inheritedConnectorIds)
           ? null
@@ -448,12 +554,6 @@ function permissionModeLabel(
     (candidate) => candidate.value === value,
   );
   return mode ? t(mode.labelKey) : value || "—";
-}
-
-function resolveErrorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error && error.message.trim()
-    ? error.message
-    : fallback;
 }
 
 function sameStringSet(left: string[], right: string[]): boolean {

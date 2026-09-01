@@ -29,8 +29,16 @@ export function HomeDirectoryRefreshErrorNotice({
       role="status"
     >
       <CircleAlert aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
-      <span className="min-w-0 flex-1 text-(--text-muted)">
-        {t("sidebar.directory_refresh_failed_description")}
+      <span className="min-w-0 flex-1">
+        <span className="block font-semibold text-(--text-strong)">
+          {t("sidebar.directory_refresh_failed_description")}
+        </span>
+        <span className="block leading-5 text-(--text-muted)">
+          {t("sidebar.directory_refresh_failed_impact")}
+        </span>
+        <span className="block font-medium leading-5 text-(--text-default)">
+          {t("sidebar.directory_refresh_failed_next_step")}
+        </span>
       </span>
       <button
         className="shrink-0 font-semibold text-(--destructive) hover:underline"

@@ -8,6 +8,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiChoiceButton } from "@/shared/ui/form/choice";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 
 import type {
   ChoiceDef,
@@ -93,22 +94,55 @@ function TaskSessionField({
   presentation: TaskSelectPresentation;
 }) {
   return (
-    <UiField
-      description={presentation.description}
-      error={presentation.error}
-      htmlFor={id}
-      label={presentation.label}
-    >
-      <UiSelectMenu
-        ariaLabel={presentation.ariaLabel}
-        disabled={presentation.disabled}
-        id={id}
-        onChange={onChange}
-        options={presentation.options}
-        surface="dialog"
-        value={presentation.value}
-      />
-    </UiField>
+    <div className="space-y-2">
+      <UiField
+        description={presentation.error ? undefined : presentation.description}
+        htmlFor={id}
+        label={presentation.label}
+      >
+        <UiSelectMenu
+          ariaLabel={presentation.ariaLabel}
+          disabled={presentation.disabled}
+          id={id}
+          onChange={onChange}
+          options={presentation.options}
+          surface="dialog"
+          value={presentation.value}
+        />
+      </UiField>
+      {presentation.error && presentation.retry ? (
+        <TaskResourceFailure
+          message={presentation.error}
+          onRetry={presentation.retry}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+export function TaskResourceFailure({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <UiResourceState
+      className="min-h-0 py-3"
+      impact={t("capability.scheduled_dialog_resource_load_impact")}
+      nextStep={t("capability.scheduled_dialog_resource_load_next_step")}
+      primaryAction={{
+        label: t("state.retry"),
+        onClick: onRetry,
+      }}
+      size="sm"
+      state="error"
+      title={message}
+      urgency="polite"
+      variant="card"
+    />
   );
 }
 

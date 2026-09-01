@@ -461,7 +461,8 @@ func newAutomationTestDB(t *testing.T) *sql.DB {
 
 	schema := `
 CREATE TABLE agents (
-    id VARCHAR(64) NOT NULL PRIMARY KEY
+    id VARCHAR(64) NOT NULL PRIMARY KEY,
+    owner_user_id VARCHAR(64) NOT NULL DEFAULT 'user-1'
 );
 CREATE TABLE automation_scheduled_tasks (
     job_id VARCHAR(64) NOT NULL PRIMARY KEY,
@@ -508,7 +509,11 @@ CREATE TABLE automation_scheduled_tasks (
     failure_streak INTEGER NOT NULL DEFAULT 0,
     last_error TEXT,
     last_delivery_status VARCHAR(32),
+	last_completed_run_id VARCHAR(64),
     configuration_version INTEGER NOT NULL DEFAULT 1,
+    deletion_state VARCHAR(32) NOT NULL DEFAULT '',
+    deletion_token VARCHAR(128),
+    deletion_claimed_at DATETIME,
     permission_policy_json TEXT NOT NULL DEFAULT '{}',
     permission_policy_revision INTEGER NOT NULL DEFAULT 0,
     permission_state VARCHAR(32) NOT NULL DEFAULT 'uninitialized',
@@ -533,6 +538,8 @@ CREATE TABLE automation_task_runs (
 	    delivery_error TEXT,
 	    delivered_at DATETIME,
 	    delivery_attempts INTEGER NOT NULL DEFAULT 0,
+	    delivery_attempt_id VARCHAR(64),
+	    delivery_attempt_started_at DATETIME,
 	    delivery_next_attempt_at DATETIME,
 	    delivery_dead_letter_at DATETIME,
 	    scheduled_for DATETIME,
@@ -548,9 +555,14 @@ CREATE TABLE automation_task_runs (
     block_state VARCHAR(32) NOT NULL DEFAULT '',
     blocked_request_id VARCHAR(64),
     effect_started BOOLEAN NOT NULL DEFAULT 0,
+    client_request_id VARCHAR(128),
+    client_intent_digest VARCHAR(64),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
+CREATE UNIQUE INDEX uq_automation_task_runs_owner_request
+    ON automation_task_runs (owner_user_id, client_request_id)
+    WHERE client_request_id IS NOT NULL AND client_request_id <> '';
 CREATE TABLE automation_permission_requests (
     request_id VARCHAR(64) NOT NULL PRIMARY KEY,
     owner_user_id VARCHAR(64) NOT NULL,
@@ -647,10 +659,19 @@ CREATE TABLE automation_system_events (
     source_id VARCHAR(64),
     payload JSON NOT NULL,
     status VARCHAR(32) NOT NULL,
+    owner_user_id VARCHAR(64),
+    request_id VARCHAR(128),
+    intent_digest VARCHAR(64),
+    accepted_configuration_version INTEGER,
+    claim_token VARCHAR(128),
+    claim_expires_at DATETIME,
     processed_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
+CREATE UNIQUE INDEX uq_automation_heartbeat_wake_request
+    ON automation_system_events (owner_user_id, request_id)
+    WHERE event_type = 'heartbeat.wake' AND request_id IS NOT NULL;
 CREATE TABLE automation_task_events (
     event_id VARCHAR(64) NOT NULL PRIMARY KEY,
     job_id VARCHAR(64) NOT NULL,

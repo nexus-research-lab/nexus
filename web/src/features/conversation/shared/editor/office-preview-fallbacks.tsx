@@ -1,5 +1,8 @@
 import { LoaderCircle } from "lucide-react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
+import type { TranslationKey } from "@/shared/i18n/messages";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 import {
   WorkspaceFileDownloadButton,
   WorkspaceFilePreviewFocusButton,
@@ -13,7 +16,7 @@ export type OfficePreviewKind =
   | "spreadsheet";
 
 interface OfficePreviewDescriptor {
-  loadingLabel: string;
+  failureTitleKey: TranslationKey;
 }
 
 const OFFICE_PREVIEW_DESCRIPTORS: Record<
@@ -21,13 +24,13 @@ const OFFICE_PREVIEW_DESCRIPTORS: Record<
   OfficePreviewDescriptor
 > = {
   document: {
-    loadingLabel: "正在加载 docx 预览组件",
+    failureTitleKey: "workspace_file.document_preview_failed",
   },
   presentation: {
-    loadingLabel: "正在加载 pptx 预览组件",
+    failureTitleKey: "workspace_file.presentation_preview_failed",
   },
   spreadsheet: {
-    loadingLabel: "正在加载 xlsx 预览组件",
+    failureTitleKey: "workspace_file.spreadsheet_preview_failed",
   },
 };
 
@@ -39,7 +42,7 @@ export function OfficePreviewFallback({
   onTogglePreviewFocus,
   path,
 }: WorkspaceFilePreviewProps & { kind: OfficePreviewKind }) {
-  const descriptor = OFFICE_PREVIEW_DESCRIPTORS[kind];
+  const { t } = useI18n();
   return (
     <>
       <WorkspaceFilePreviewHeader
@@ -59,19 +62,48 @@ export function OfficePreviewFallback({
         meta={(
           <span className="flex items-center gap-1">
             <LoaderCircle className="h-3 w-3 animate-spin" />
-            加载中
+            {t("workspace_file.preview_loading")}
           </span>
         )}
         title={fileName}
       />
-      <div className="flex min-h-0 flex-1 items-center justify-center bg-[var(--surface-panel-subtle-background)] p-8 text-center">
+      <div
+        className="flex min-h-0 flex-1 items-center justify-center bg-[var(--surface-panel-subtle-background)] p-8 text-center"
+        data-office-preview-kind={kind}
+      >
         <div className="max-w-xs">
           <LoaderCircle className="mx-auto h-8 w-8 animate-spin text-primary" />
           <p className="mt-3 text-sm font-medium text-(--text-strong)">
-            {descriptor.loadingLabel}
+            {t("workspace_file.preview_loading")}
           </p>
         </div>
       </div>
     </>
+  );
+}
+
+export function OfficePreviewFailureState({
+  kind,
+  onRetry,
+}: {
+  kind: OfficePreviewKind;
+  onRetry: () => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <UiResourceState
+      className="m-auto min-h-0 w-full max-w-lg py-5"
+      impact={t("workspace_file.office_preview_failed_impact")}
+      nextStep={t("workspace_file.office_preview_failed_next_step")}
+      primaryAction={{
+        label: t("workspace_file.retry_preview"),
+        onClick: onRetry,
+      }}
+      size="sm"
+      state="error"
+      title={t(OFFICE_PREVIEW_DESCRIPTORS[kind].failureTitleKey)}
+      urgency="polite"
+      variant="card"
+    />
   );
 }

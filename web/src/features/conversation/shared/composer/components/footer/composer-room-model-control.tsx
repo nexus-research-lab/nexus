@@ -205,7 +205,7 @@ export function ComposerRoomModelControl({
         )}
         disabled={disabled || controller.saving}
         onClick={toggle}
-        title={controller.error ?? t("composer.session_model")}
+        title={t("composer.session_model")}
         type="button"
       >
         <span className="truncate">

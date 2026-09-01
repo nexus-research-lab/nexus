@@ -5,8 +5,9 @@ import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
 import {
+  buildLoginStatusFailure,
+  buildLoginSubmitFailure,
   buildLoginPageState,
-  getLoginSubmitError,
   resolveLoginRedirectPath,
 } from "./login-page-model";
 
@@ -24,7 +25,9 @@ export function useLoginPageController() {
   } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitFailure, setSubmitFailure] = useState<ReturnType<
+    typeof buildLoginSubmitFailure
+  > | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const redirectPath = useMemo(
     () => resolveLoginRedirectPath(searchParams.get("redirect")),
@@ -41,35 +44,44 @@ export function useLoginPageController() {
   );
 
   const refresh = useCallback(() => {
-    void refreshStatus().catch((error: unknown) => {
-      console.warn("[LoginPage] Auth refresh failed:", error);
-    });
+    void refreshStatus()
+      .catch((error: unknown) => {
+        console.warn("[LoginPage] Auth refresh failed:", error);
+      });
   }, [refreshStatus]);
 
   const submit = useCallback(async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsSubmitting(true);
-    setSubmitError(null);
+    setSubmitFailure(null);
     try {
       await login(username, password);
       navigate(redirectPath, { replace: true });
     } catch (error) {
-      setSubmitError(getLoginSubmitError(error, t("login.unknown_error")));
+      setSubmitFailure(buildLoginSubmitFailure(error, t));
     } finally {
       setIsSubmitting(false);
     }
   }, [login, navigate, password, redirectPath, t, username]);
 
   return {
-    authError,
+    authFailure: authError
+      ? buildLoginStatusFailure(authError, status !== null, t)
+      : null,
     isSubmitting,
     pageState,
     password,
     refresh,
-    setPassword,
-    setUsername,
+    setPassword: (value: string) => {
+      setPassword(value);
+      setSubmitFailure(null);
+    },
+    setUsername: (value: string) => {
+      setUsername(value);
+      setSubmitFailure(null);
+    },
     submit,
-    submitError,
+    submitFailure,
     username,
   };
 }

@@ -151,10 +151,6 @@ export function isSubagentTaskChangeFor(
   return !normalizedTaskId || taskIDs.includes(normalizedTaskId);
 }
 
-export function subagentTaskErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 export function normalizeSubagentTaskListResponse(
   response: SubagentTaskListResponse,
 ): SubagentTaskListResponse {

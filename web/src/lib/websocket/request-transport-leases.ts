@@ -1,6 +1,6 @@
 /**
- * INPUT: 已发送请求的 client_request_id、原 Session binding 与共享 WebSocket 原始事件。
- * OUTPUT: 跨 React 路由生命周期持有的传输租约，以及 exact ACK/error 终态收口。
+ * INPUT: 已发送请求的 client_request_id、原 Session binding、共享事件与 owner reset。
+ * OUTPUT: 跨 React 路由持有但绝不跨 owner 的传输租约，以及 exact ACK/error 终态收口。
  * POS: 共享 Socket 的请求级生命周期层；不投影会话 UI，也不解释业务结果正文。
  */
 
@@ -117,6 +117,20 @@ export class RequestTransportLeaseRegistry {
 
   hasLeases(): boolean {
     return this.leases.size > 0;
+  }
+
+  /** Owner 变化时静默释放旧请求；不得把超时或拒绝回调投影给新身份。 */
+  resetOwnerScope(): void {
+    const activeLeases = Array.from(this.leases.values());
+    this.leases.clear();
+    for (const active of activeLeases) {
+      active.released = true;
+      if (active.timeoutId !== null) {
+        globalThis.clearTimeout(active.timeoutId);
+        active.timeoutId = null;
+      }
+      active.releaseSessionBinding();
+    }
   }
 
   private release(active: ActiveRequestTransportLease): void {

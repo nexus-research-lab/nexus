@@ -20,7 +20,7 @@ interface UseProviderModelActionsOptions {
   apiFormat: ProviderApiFormat;
   modelApi: ProviderModelApi;
   persistProvider: PersistProvider;
-  refreshAll: (preferredProvider?: string | null) => Promise<void>;
+  refreshAll: (preferredProvider?: string | null) => Promise<boolean>;
   runCommand: RunProviderCommand;
   selectedCanManage: boolean;
   selectedRecord: ProviderConfigRecord | null;

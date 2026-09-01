@@ -34,10 +34,32 @@ func (s *Service) ListTaskEvents(ctx context.Context, jobID string, limit int) (
 }
 
 func (s *Service) recordTaskEvent(ctx context.Context, action string, job automationdomain.ScheduledTask, runID string, detail map[string]any) {
+	event, input, ok := s.prepareTaskEvent(ctx, action, job, runID, detail)
+	if !ok {
+		return
+	}
+	if err := s.repository.InsertTaskEvent(ctx, input); err != nil {
+		s.loggerFor(ctx).Warn("写入定时任务管理审计失败",
+			"job_id", job.JobID,
+			"action", action,
+			"err", err,
+		)
+		return
+	}
+	s.notifyTaskEvent(ctx, event)
+}
+
+func (s *Service) prepareTaskEvent(
+	ctx context.Context,
+	action string,
+	job automationdomain.ScheduledTask,
+	runID string,
+	detail map[string]any,
+) (automationdomain.ScheduledTaskEvent, automationstore.TaskEventInput, bool) {
 	jobID := strings.TrimSpace(job.JobID)
 	action = strings.TrimSpace(action)
 	if jobID == "" || action == "" {
-		return
+		return automationdomain.ScheduledTaskEvent{}, automationstore.TaskEventInput{}, false
 	}
 	if detail == nil {
 		detail = map[string]any{}
@@ -59,7 +81,7 @@ func (s *Service) recordTaskEvent(ctx context.Context, action string, job automa
 		Detail:       detail,
 		CreatedAt:    s.nowFn(),
 	}
-	if err := s.repository.InsertTaskEvent(ctx, automationstore.TaskEventInput{
+	input := automationstore.TaskEventInput{
 		EventID:      event.EventID,
 		JobID:        event.JobID,
 		OwnerUserID:  event.OwnerUserID,
@@ -69,14 +91,11 @@ func (s *Service) recordTaskEvent(ctx context.Context, action string, job automa
 		ActorAgentID: event.ActorAgentID,
 		RunID:        event.RunID,
 		Detail:       event.Detail,
-	}); err != nil {
-		s.loggerFor(ctx).Warn("写入定时任务管理审计失败",
-			"job_id", job.JobID,
-			"action", action,
-			"err", err,
-		)
-		return
 	}
+	return event, input, true
+}
+
+func (s *Service) notifyTaskEvent(ctx context.Context, event automationdomain.ScheduledTaskEvent) {
 	if s.taskNotifier != nil {
 		s.taskNotifier.NotifyTaskEvent(ctx, event)
 	}

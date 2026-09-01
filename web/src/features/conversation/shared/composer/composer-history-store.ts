@@ -1,6 +1,6 @@
 /**
- * INPUT: Room/DM 逻辑聊天作用域与成功投递的 Composer 正文。
- * OUTPUT: 每个客户端本地持久化、按聊天隔离且有界的输入历史。
+ * INPUT: Room/DM 逻辑聊天作用域、成功投递的 Composer 正文与 owner reset。
+ * OUTPUT: 每个客户端本地持久化、按聊天隔离、跨 owner 清空且有界的输入历史。
  * POS: Composer 输入历史的浏览器/WebView 真相源；不参与服务端或跨设备同步。
  */
 
@@ -63,6 +63,11 @@ export const useComposerHistoryStore = create<ComposerHistoryStoreState>()(
     },
   ),
 );
+
+/** 登出或 owner 切换时删除本机保存的上一账号发送历史。 */
+export function resetComposerHistoryOwnerScope(): void {
+  useComposerHistoryStore.setState({ items_by_scope: {} });
+}
 
 function normalizeComposerHistoryScopeKey(scopeKey: string): string {
   return scopeKey.trim();

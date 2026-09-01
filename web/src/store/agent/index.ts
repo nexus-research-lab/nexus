@@ -3,9 +3,9 @@
  *
  * 使用 Zustand 管理 Agent 状态
  *
- * [INPUT]: 依赖 @/lib/api/agent/agent-api 的 Agent API
- * [OUTPUT]: 对外提供 useAgentStore
- * [POS]: store 模块的 Agent 目录与当前选择，被 Agent 管理、导航和工作区视图消费
+ * [INPUT]: Agent API、当前 owner scope 与可选创建 request ID
+ * [OUTPUT]: useAgentStore，以及创建/删除对账、兼容加载与 owner reset 入口
+ * [POS]: owner-scoped Agent 目录与副作用恢复边界；服务端 receipt 是创建结果真相。
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 
@@ -20,9 +20,20 @@ import { createBrowserJsonStorage } from "@/lib/storage/browser-storage";
 import {
   getAgents,
   createAgentApi,
+  getAgentCreationRequestApi,
   updateAgentApi,
   deleteAgentApi,
 } from "@/lib/api/agent/agent-api";
+import { ApiRequestError } from "@/lib/api/core/http-error";
+import { getErrorMessage } from "@/lib/error-message";
+import type { FailureCore } from "@/types/generated/protocol";
+
+import {
+  clearAgentCreationRequestId,
+  createAgentCreationRequestId,
+  readAgentCreationRequestId,
+  saveAgentCreationRequestId,
+} from "./agent-creation-intent";
 
 export const AGENT_LIST_UPDATED_EVENT_NAME = "nexus:agent-list-updated";
 
@@ -48,19 +59,37 @@ export interface AgentStoreState {
 
   // 服务器同步
   load_agents_from_server: () => Promise<void>;
+  reconcile_agents_from_server: () => Promise<boolean>;
 }
 
-let loadAgentsInflight: Promise<Agent[]> | null = null;
+let agentOwnerScopeRevision = 0;
+let activeAgentOwnerScope: string | null = null;
+let loadAgentsInflight: {
+  promise: Promise<Agent[]>;
+  revision: number;
+} | null = null;
 
 function runAgentListRequest(): Promise<Agent[]> {
-  if (loadAgentsInflight) {
-    return loadAgentsInflight;
+  const revision = agentOwnerScopeRevision;
+  if (loadAgentsInflight?.revision === revision) {
+    return loadAgentsInflight.promise;
   }
 
-  loadAgentsInflight = getAgents().finally(() => {
-    loadAgentsInflight = null;
+  const request = getAgents().finally(() => {
+    if (loadAgentsInflight?.promise === request) {
+      loadAgentsInflight = null;
+    }
   });
-  return loadAgentsInflight;
+  loadAgentsInflight = { promise: request, revision };
+  return request;
+}
+
+function ownerScopeIsCurrent(revision: number): boolean {
+  return revision === agentOwnerScopeRevision;
+}
+
+function ownerScopeChangedError(): Error {
+  return new Error("登录账号已变化；已忽略上一个账号的 Agent 操作结果");
 }
 
 function dispatchAgentListUpdated() {
@@ -84,24 +113,106 @@ export const useAgentStore = create<AgentStoreState>()(
       // ==================== Agent 操作 ====================
 
       create_agent: async (params: CreateAgentParams): Promise<string> => {
+        const ownerRevision = agentOwnerScopeRevision;
+        const ownerScope = activeAgentOwnerScope;
         try {
-          const agent = await createAgentApi(params);
-          set((state) => ({
-            agents: [agent, ...state.agents],
-            error: null,
-          }));
+          assertAgentCreationOwnerScope(ownerScope, ownerRevision);
+          let creationRequestId = readAgentCreationRequestId(ownerScope);
+          if (creationRequestId) {
+            const result = await getAgentCreationRequestApi(creationRequestId);
+            assertAgentCreationOwnerScope(ownerScope, ownerRevision);
+            if (result.creationRequestId !== creationRequestId) {
+              throw agentCreationClientError(
+                "agent.creation_receipt_invalid",
+                "unknown",
+                "Agent 创建记录与当前请求不匹配",
+              );
+            }
+            if (result.status === "committed") {
+              if (!result.agent) {
+                throw agentCreationClientError(
+                  "agent.creation_projection_incomplete",
+                  "committed",
+                  "Agent 已创建，但页面还没有拿到完整结果",
+                );
+              }
+              recordCreatedAgent(result.agent);
+              clearAgentCreationRequestId(ownerScope);
+              dispatchAgentListUpdated();
+              return result.agent.agent_id;
+            }
+            if (result.status === "deleted" || result.status === "failed") {
+              clearAgentCreationRequestId(ownerScope);
+              throw agentCreationClientError(
+                result.status === "deleted"
+                  ? "agent.creation_result_deleted"
+                  : "agent.creation_failed",
+                "not_applied",
+                result.status === "deleted"
+                  ? "上次创建的 Agent 之后已被删除，本次没有重新创建"
+                  : "上次 Agent 创建没有完成",
+              );
+            }
+            if (result.status === "pending") {
+              throw agentCreationClientError(
+                "agent.creation_in_progress",
+                "accepted",
+                "Agent 创建请求已受理，但还没有完成",
+              );
+            }
+            if (result.status !== "not_found") {
+              throw agentCreationClientError(
+                "agent.creation_receipt_invalid",
+                "unknown",
+                "Agent 创建记录状态无法识别",
+              );
+            }
+          } else {
+            creationRequestId = createAgentCreationRequestId();
+          }
+
+          if (creationRequestId) {
+            saveAgentCreationRequestId(ownerScope, creationRequestId);
+          }
+
+          let agent: Agent;
+          try {
+            agent = await createAgentApi({
+              ...params,
+              ...(creationRequestId ? { creation_request_id: creationRequestId } : {}),
+            });
+          } catch (error) {
+            if (
+              creationRequestId
+              && ownerScopeIsCurrent(ownerRevision)
+              && activeAgentOwnerScope === ownerScope
+              && isTerminalAgentCreationFailure(error)
+            ) {
+              clearAgentCreationRequestId(ownerScope);
+            }
+            throw error;
+          }
+          assertAgentCreationOwnerScope(ownerScope, ownerRevision);
+          recordCreatedAgent(agent);
+          clearAgentCreationRequestId(ownerScope);
           dispatchAgentListUpdated();
           return agent.agent_id;
         } catch (error) {
           console.error("[AgentStore] Failed to create agent:", error);
-          set({ error: "Failed to create agent" });
+          if (ownerScopeIsCurrent(ownerRevision)) {
+            set({ error: "Failed to create agent" });
+          }
           throw error;
         }
       },
 
       delete_agent: async (agentId: string): Promise<void> => {
+        const ownerRevision = agentOwnerScopeRevision;
         try {
           await deleteAgentApi(agentId);
+          if (!ownerScopeIsCurrent(ownerRevision)) {
+            throw ownerScopeChangedError();
+          }
           set((state) => {
             const newAgents = state.agents.filter(
               (a) => a.agent_id !== agentId,
@@ -119,7 +230,10 @@ export const useAgentStore = create<AgentStoreState>()(
           dispatchAgentListUpdated();
         } catch (error) {
           console.error("[AgentStore] Failed to delete agent:", error);
-          set({ error: "Failed to delete agent" });
+          if (ownerScopeIsCurrent(ownerRevision)) {
+            set({ error: "Failed to delete agent" });
+          }
+          throw error;
         }
       },
 
@@ -127,8 +241,12 @@ export const useAgentStore = create<AgentStoreState>()(
         agentId: string,
         params: UpdateAgentParams,
       ): Promise<void> => {
+        const ownerRevision = agentOwnerScopeRevision;
         try {
           const updated = await updateAgentApi(agentId, params);
+          if (!ownerScopeIsCurrent(ownerRevision)) {
+            throw ownerScopeChangedError();
+          }
           set((state) => ({
             agents: state.agents.map((a) =>
               a.agent_id === agentId ? updated : a,
@@ -138,7 +256,9 @@ export const useAgentStore = create<AgentStoreState>()(
           dispatchAgentListUpdated();
         } catch (error) {
           console.error("[AgentStore] Failed to update agent:", error);
-          set({ error: "Failed to update agent" });
+          if (ownerScopeIsCurrent(ownerRevision)) {
+            set({ error: "Failed to update agent" });
+          }
           throw error;
         }
       },
@@ -156,20 +276,33 @@ export const useAgentStore = create<AgentStoreState>()(
       // ==================== 服务器同步 ====================
 
       load_agents_from_server: async (): Promise<void> => {
+        await get().reconcile_agents_from_server();
+      },
+
+      reconcile_agents_from_server: async (): Promise<boolean> => {
+        const ownerRevision = agentOwnerScopeRevision;
         try {
           set({ loading: true, error: null });
           const agents = await runAgentListRequest();
+          if (!ownerScopeIsCurrent(ownerRevision)) {
+            return false;
+          }
           set({
             agents,
             loading: false,
             error: null,
           });
+          return true;
         } catch (err) {
           console.error("[AgentStore] Failed to load agents:", err);
+          if (!ownerScopeIsCurrent(ownerRevision)) {
+            return false;
+          }
           set({
             loading: false,
-            error: err instanceof Error ? err.message : "Unknown error",
+            error: getErrorMessage(err, "Agent 列表暂时无法更新"),
           });
+          return false;
         }
       },
     }),
@@ -182,3 +315,66 @@ export const useAgentStore = create<AgentStoreState>()(
     },
   ),
 );
+
+/** Auth owner 变化时同步清空目录，并让旧 owner 的迟到请求失效。 */
+export function setAgentOwnerScope(ownerScope: string | null): void {
+  activeAgentOwnerScope = ownerScope;
+}
+
+export function resetAgentOwnerScope(ownerScope: string | null = null): void {
+  agentOwnerScopeRevision += 1;
+  activeAgentOwnerScope = ownerScope;
+  loadAgentsInflight = null;
+  useAgentStore.setState({
+    agents: [],
+    current_agent_id: null,
+    error: null,
+    loading: false,
+  });
+}
+
+function assertAgentCreationOwnerScope(
+  ownerScope: string | null,
+  ownerRevision: number,
+): asserts ownerScope is string {
+  if (
+    !ownerScope
+    || !ownerScopeIsCurrent(ownerRevision)
+    || activeAgentOwnerScope !== ownerScope
+  ) {
+    throw ownerScopeChangedError();
+  }
+}
+
+function recordCreatedAgent(agent: Agent): void {
+  useAgentStore.setState((state) => ({
+    agents: [agent, ...state.agents.filter((item) => item.agent_id !== agent.agent_id)],
+    error: null,
+  }));
+}
+
+function agentCreationClientError(
+  code: string,
+  effect: "accepted" | "committed" | "not_applied" | "unknown",
+  message: string,
+): ApiRequestError {
+  const failure: FailureCore = {
+    category: effect === "not_applied"
+      ? "unavailable"
+      : effect === "accepted"
+        ? "conflict"
+        : "internal",
+    code,
+    effect,
+    version: 1,
+  };
+  return new ApiRequestError(message, 409, failure);
+}
+
+function isTerminalAgentCreationFailure(error: unknown): boolean {
+  if (!(error instanceof ApiRequestError) || error.failure?.version !== 1) {
+    return false;
+  }
+  return error.failure.code === "agent.creation_failed"
+    || error.failure.code === "agent.creation_result_deleted";
+}

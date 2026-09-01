@@ -110,6 +110,10 @@ func observeScheduledTaskRunHealth(
 		health.ManualRedeliveryAvailable = true
 		addUniqueString(&health.ManualRedeliveryRunIDs, run.RunID)
 		setFirstStringPointer(&health.LatestDeliveryError, preferredDeliveryError(run))
+	case automationdomain.DeliveryStatusRetrying:
+		health.DeliveryUnverifiedRunCount++
+		addUniqueString(&health.DeliveryUnverifiedRunIDs, run.RunID)
+		setFirstStringPointer(&health.LatestDeliveryError, preferredDeliveryError(run))
 	case automationdomain.DeliveryStatusPending:
 		health.DeliveryPendingRunCount++
 		addUniqueString(&health.DeliveryPendingRunIDs, run.RunID)
@@ -134,6 +138,11 @@ func finalizeScheduledTaskHealth(health *automationdomain.ScheduledTaskHealth) {
 	if health.DeliveryFailedRunCount > 0 || health.DeliveryDeadLetterCount > 0 {
 		addTaskHealthSignal(health, "delivery_attention")
 		addTaskHealthSuggestedTool(health, runtimeAutomationApplySuggestion)
+		markScheduledTaskHealthAttention(health)
+	}
+	if health.DeliveryUnverifiedRunCount > 0 {
+		addTaskHealthSignal(health, "delivery_unverified")
+		addTaskHealthSuggestedTool(health, runtimeAutomationInspectSuggestion)
 		markScheduledTaskHealthAttention(health)
 	}
 	if health.DeliveryPendingRunCount > 0 {

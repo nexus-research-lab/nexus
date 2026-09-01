@@ -17,11 +17,15 @@ import { AppLoadingState } from "@/shared/ui/layout/app-loading-screen";
 function GuardState({
   title,
   description,
+  impact,
+  nextStep,
   actionLabel: actionLabel,
   onAction: onAction,
 }: {
   title: string;
   description: string;
+  impact?: string;
+  nextStep?: string;
   actionLabel?: string;
   onAction?: () => void;
 }) {
@@ -33,6 +37,12 @@ function GuardState({
         </div>
         <h1 className="text-lg font-semibold text-(--text-strong)">{title}</h1>
         <p className="mt-2 text-base leading-6 text-(--text-muted)">{description}</p>
+        {impact ? (
+          <p className="mt-3 text-sm leading-6 text-(--text-muted)">{impact}</p>
+        ) : null}
+        {nextStep ? (
+          <p className="mt-2 text-sm font-medium leading-6 text-(--text-default)">{nextStep}</p>
+        ) : null}
         {actionLabel && onAction ? (
           <button
             className={getUiButtonClassName(
@@ -70,6 +80,8 @@ export function AuthGuard() {
       <GuardState
         title="无法连接认证服务"
         description={error}
+        impact="读取登录状态不会修改账号或工作区中已保存的数据。"
+        nextStep="检查网络连接后重新加载登录状态；如果仍然失败，请稍后再试。"
         actionLabel="重试"
         onAction={handleRefresh}
       />
@@ -81,6 +93,8 @@ export function AuthGuard() {
       <GuardState
         title="认证状态不可用"
         description="服务端没有返回可用的登录状态，请稍后重试。"
+        impact="当前页面不会继续加载账号内容，已保存的数据不会被修改。"
+        nextStep="重新加载登录状态；如果仍然没有结果，请稍后再试。"
         actionLabel="重试"
         onAction={handleRefresh}
       />

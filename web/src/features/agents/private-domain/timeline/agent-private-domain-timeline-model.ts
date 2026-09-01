@@ -1,3 +1,8 @@
+/**
+ * INPUT: 当前联络线程、消息快照和本地化能力。
+ * OUTPUT: 线程标题与非失败正文的纯展示模型。
+ * POS: 私域时间线展示规则；失败恢复由时间线组件单独承载。
+ */
 import { formatRelativeTime } from "@/lib/format/relative-time";
 import type {
   AgentPrivateDirection,
@@ -13,7 +18,7 @@ import {
 } from "../agent-private-domain-thread-model";
 
 export type PrivateTimelineDensity = "compact" | "regular";
-export type PrivateTimelineBodyKind = "empty" | "error" | "events" | "select";
+export type PrivateTimelineBodyKind = "empty" | "events" | "select";
 
 export interface PrivateEventPresentation {
   content: string;
@@ -39,7 +44,6 @@ export interface PrivateTimelineBodyPresentation {
 
 interface PrivateTimelineBodyInput {
   agentId: string;
-  error: string | null;
   events: AgentPrivateEvent[];
   isLoading: boolean;
   localization: PrivateDomainLocalization;
@@ -180,10 +184,6 @@ function buildEventPresentation(
 }
 
 const TIMELINE_BODY_RULES: TimelineBodyRule[] = [
-  {
-    build: ({ error }) => ({ events: [], kind: "error", message: error || "" }),
-    matches: ({ error }) => Boolean(error),
-  },
   {
     build: ({ localization }) => ({
       events: [],

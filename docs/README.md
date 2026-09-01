@@ -25,6 +25,7 @@
 - [工作区隔离与多用户运行时规范](./specs/workspace-isolation-spec.md)
 - [运行时人工交互规范](./specs/permission-runtime-spec.md)
 - [消息处理规范](./specs/message-processing-spec.md)
+- [失败解释与恢复基础协议](./specs/failure-recovery-spec.md)
 - [Session Key 统一规范](./specs/session-key-spec.md)
 - [主智能体规范](./specs/main-agent-spec.md)
 - [Slash 指令统一协议](./specs/slash-command-spec.md)

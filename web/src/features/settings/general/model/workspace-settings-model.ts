@@ -1,3 +1,8 @@
+/**
+ * INPUT: 桌面端权威数据目录状态、本页快照和用户路径草稿。
+ * OUTPUT: 平台占位符、草稿保留式对账和迁移按钮可用性。
+ * POS: 数据目录纯模型；不访问 bridge，也不推断迁移是否提交。
+ */
 type StateRootPlaceholderKey =
   | "settings.general.state_root_placeholder_macos"
   | "settings.general.state_root_placeholder_posix"
@@ -52,6 +57,19 @@ export function replaceWorkspaceDraft(
   draftPath: string,
 ): WorkspaceSettingsSnapshot {
   return { ...snapshot, draftPath };
+}
+
+export function reconcileStateRootSettingsSnapshot(
+  current: WorkspaceSettingsSnapshot,
+  status: DesktopStateRootSnapshot,
+): WorkspaceSettingsSnapshot {
+  const authoritative = buildStateRootSettingsSnapshot(status);
+  const hasDraft = normalizeWorkspacePath(current.draftPath) !== ""
+    && normalizeWorkspacePath(current.draftPath)
+      !== normalizeWorkspacePath(current.savedPath);
+  return hasDraft
+    ? { ...authoritative, draftPath: current.draftPath }
+    : authoritative;
 }
 
 export function canSaveWorkspaceSettings(

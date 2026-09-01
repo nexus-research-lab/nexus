@@ -15,7 +15,6 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/infra/secretinput"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
-	automationsvc "github.com/nexus-research-lab/nexus/internal/service/automation"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 	sessionsvc "github.com/nexus-research-lab/nexus/internal/service/session"
 	skillsvc "github.com/nexus-research-lab/nexus/internal/service/skills"
@@ -318,8 +317,6 @@ func mutationAppliedDespiteError(request ChangeRequest, err error) bool {
 	switch request.Domain {
 	case DomainAgents:
 		return request.Operation == "delete" && agentsvc.AgentDeletionCommitted(err)
-	case DomainAutomation:
-		return request.Operation == "delete" && automationsvc.TaskDeletionCommitted(err)
 	case DomainRooms:
 		switch request.Operation {
 		case "delete":

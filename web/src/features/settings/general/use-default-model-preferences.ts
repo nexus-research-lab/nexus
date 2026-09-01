@@ -1,7 +1,22 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+/**
+ * INPUT: 当前运行类型的可用模型目录与 Preferences 版本化保存入口。
+ * OUTPUT: 保留最后一次模型目录快照，读取失败可重试，写入结果交由 Preferences 对账。
+ * POS: 默认模型选择控制器；不复制或覆盖 Preferences 的 mutation 恢复状态机。
+ */
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from "react";
 
 import { listProviderOptionsApi } from "@/lib/api/settings/provider-api";
-import { getErrorMessage } from "@/lib/error-message";
+import {
+  captureAuthOwnerScopeGeneration,
+  isAuthOwnerScopeGenerationCurrent,
+  subscribeAuthOwnerScopeGeneration,
+} from "@/shared/auth/auth-owner-generation";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type {
   AgentRuntimeKind,
@@ -20,8 +35,10 @@ import {
 
 interface ProviderCatalogState {
   catalog: DefaultModelCatalog;
-  feedback: string | null;
+  failed: boolean;
   loading: boolean;
+  ownerGeneration: number;
+  runtimeKind: AgentRuntimeKind | null;
 }
 
 interface UseDefaultModelPreferencesOptions {
@@ -36,8 +53,10 @@ interface UseDefaultModelPreferencesOptions {
 
 const EMPTY_CATALOG: ProviderCatalogState = {
   catalog: EMPTY_DEFAULT_MODEL_CATALOG,
-  feedback: null,
+  failed: false,
   loading: true,
+  ownerGeneration: -1,
+  runtimeKind: null,
 };
 
 export function useDefaultModelPreferences({
@@ -48,30 +67,55 @@ export function useDefaultModelPreferences({
   preferencesSaving,
 }: UseDefaultModelPreferencesOptions) {
   const { t } = useI18n();
+  const ownerGeneration = useSyncExternalStore(
+    subscribeAuthOwnerScopeGeneration,
+    captureAuthOwnerScopeGeneration,
+    captureAuthOwnerScopeGeneration,
+  );
   const [catalog, setCatalog] = useState(EMPTY_CATALOG);
+  const [catalogReloadKey, setCatalogReloadKey] = useState(0);
   const [savingRole, setSavingRole] =
     useState<DefaultModelPreferenceRole | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    setCatalog((current) => ({ ...current, feedback: null, loading: true }));
+    setCatalog((current) => (
+      current.ownerGeneration === ownerGeneration
+      && current.runtimeKind === agentRuntimeKind
+    )
+      ? { ...current, failed: false, loading: true }
+      : {
+          catalog: EMPTY_DEFAULT_MODEL_CATALOG,
+          failed: false,
+          loading: true,
+          ownerGeneration,
+          runtimeKind: agentRuntimeKind,
+        });
 
     void listProviderOptionsApi(agentRuntimeKind)
       .then((result) => {
-        if (cancelled) {
+        if (
+          cancelled
+          || !isAuthOwnerScopeGenerationCurrent(ownerGeneration)
+        ) {
           return;
         }
         setCatalog({
           catalog: buildDefaultModelCatalog(result),
-          feedback: null,
+          failed: false,
           loading: false,
+          ownerGeneration,
+          runtimeKind: agentRuntimeKind,
         });
       })
-      .catch((error: unknown) => {
-        if (!cancelled) {
+      .catch(() => {
+        if (
+          !cancelled
+          && isAuthOwnerScopeGenerationCurrent(ownerGeneration)
+        ) {
           setCatalog((current) => ({
             ...current,
-            feedback: getErrorMessage(error, "默认对话模型加载失败"),
+            failed: true,
             loading: false,
           }));
         }
@@ -79,7 +123,7 @@ export function useDefaultModelPreferences({
     return () => {
       cancelled = true;
     };
-  }, [agentRuntimeKind]);
+  }, [agentRuntimeKind, catalogReloadKey, ownerGeneration]);
 
   const subscriptionLabel = t("settings.providers.subscription_badge");
   const view = useMemo(() => buildDefaultModelPreferencesView(
@@ -97,19 +141,13 @@ export function useDefaultModelPreferences({
       return;
     }
     setSavingRole(role);
-    setCatalog((current) => ({ ...current, feedback: null }));
     const next = applyDefaultModelSelection(
       getCurrentPreferences(),
       role,
       selection,
     );
     void persistPreferences(next)
-      .catch((error: unknown) => {
-        setCatalog((current) => ({
-          ...current,
-          feedback: getErrorMessage(error, "默认对话模型保存失败"),
-        }));
-      })
+      .catch(() => {})
       .finally(() => setSavingRole(null));
   }, [
     getCurrentPreferences,
@@ -119,10 +157,11 @@ export function useDefaultModelPreferences({
   ]);
 
   return {
-    feedbackMessage: catalog.feedback,
+    catalogFailed: catalog.failed,
     handleChange,
     loading: catalog.loading,
     options: view.options,
+    retryCatalog: () => setCatalogReloadKey((current) => current + 1),
     savingRole,
     values: view.values,
   };
