@@ -40,6 +40,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Limited Room AutoMemory extraction to user-triggered turns; Agent public
+  mentions, private directed messages, and internal continuations no longer
+  start separate extraction turns.
 - Kept completed confirmation tools inside their surrounding Room execution
   group and increased the spacing between assistant headers and message bodies.
 - Kept Room collaboration visibly active while private directed work is queued

@@ -35,7 +35,7 @@ type Client interface {
 	SessionID() string
 }
 
-// SupportsMessageExecutionPolicy 判断 runtime 是否保证消息级工具隔离与输出预算。
+// SupportsMessageExecutionPolicy 判断 runtime 是否支持消息级执行与维护策略。
 func SupportsMessageExecutionPolicy(client Client) bool {
 	capable, ok := client.(interface {
 		Supports(bridge.Capability) bool
