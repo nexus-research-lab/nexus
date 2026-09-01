@@ -6,12 +6,9 @@
 import {
   ArrowLeft,
   ChevronRight,
-  Code2,
   Pencil,
-  RotateCcw,
   Trash2,
   TriangleAlert,
-  Wrench,
 } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -23,15 +20,14 @@ import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { WorkspaceContentDetailHeader } from "@/shared/ui/layout/workspace-content-header";
 import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
-import { UiListRow } from "@/shared/ui/list/list-row";
 import { UiPanel } from "@/shared/ui/panel";
 import type {
   CustomMCPServer,
-  CustomMCPTool,
   CustomMCPToolCatalog,
 } from "@/types/capability/connector";
 
 import { ConnectorIcon } from "../../connector-icon";
+import { MCPToolsSection } from "../../mcp/mcp-tools-section";
 import {
   getCustomMCPConnectionTarget,
   getCustomMCPDisplayName,
@@ -178,9 +174,9 @@ export function CustomMCPDetailView({
         ) : (
           <>
             <CustomMCPConnectionSection catalog={catalog} server={server} />
-            <CustomMCPToolsSection
+            <MCPToolsSection
+              available={server.enabled}
               catalog={catalog}
-              enabled={server.enabled}
               failure={failure}
               loading={loading}
               onRetry={onRetry}
@@ -342,143 +338,5 @@ function CustomMCPFact({ label, value }: { label: string; value: string }) {
       <dt className="text-(--text-soft)">{label}</dt>
       <dd className="min-w-0 break-words text-(--text-default)">{value}</dd>
     </div>
-  );
-}
-
-function CustomMCPToolsSection({
-  catalog,
-  enabled,
-  failure,
-  loading,
-  onRetry,
-}: {
-  catalog: CustomMCPToolCatalog | null;
-  enabled: boolean;
-  failure: ResourceFailure | null;
-  loading: boolean;
-  onRetry: () => void;
-}) {
-  const { t } = useI18n();
-  const toolCount = catalog?.tools.length ?? 0;
-  return (
-    <section className="py-5">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h2 className="text-base font-medium text-(--text-strong)">
-            {t("capability.custom_mcp_tools")}
-            {catalog?.inspection_state === "connected" ? (
-              <span className="ml-2 text-xs font-normal tabular-nums text-(--text-soft)">
-                {toolCount}
-              </span>
-            ) : null}
-          </h2>
-          <p className="mt-1 text-xs text-(--text-muted)">
-            {t("capability.custom_mcp_tools_description")}
-          </p>
-        </div>
-        {failure ? (
-          <UiButton onClick={onRetry} size="sm" type="button" variant="text">
-            <RotateCcw className="h-3.5 w-3.5" />
-            {t("state.retry")}
-          </UiButton>
-        ) : null}
-      </div>
-      {!enabled ? (
-        <CustomMCPToolsMessage
-          title={t("capability.custom_mcp_tools_disabled")}
-        />
-      ) : loading && !catalog ? (
-        <UiResourceState
-          className="mt-3 min-h-36"
-          size="sm"
-          state="loading"
-          title={t("capability.custom_mcp_tools_loading")}
-        />
-      ) : failure ? (
-        <UiResourceState
-          className="mt-3 min-h-36"
-          impact={t("capability.custom_mcp_tools_load_failed_impact")}
-          size="sm"
-          state="error"
-          title={t("capability.custom_mcp_tools_load_failed")}
-        />
-      ) : catalog?.inspection_state === "runtime_only" ? (
-        <CustomMCPToolsMessage
-          title={t("capability.custom_mcp_tools_runtime_only")}
-        />
-      ) : catalog && !catalog.supports_tools ? (
-        <CustomMCPToolsMessage
-          title={t("capability.custom_mcp_tools_unsupported")}
-        />
-      ) : catalog && catalog.tools.length === 0 ? (
-        <CustomMCPToolsMessage
-          title={t("capability.custom_mcp_tools_empty")}
-        />
-      ) : catalog ? (
-        <UiPanel
-          className="mt-3 divide-y divide-(--divider-subtle-color)"
-          padding="none"
-          radius="md"
-          variant="inset"
-        >
-          {catalog.tools.map((tool) => (
-            <CustomMCPToolRow key={tool.name} tool={tool} />
-          ))}
-        </UiPanel>
-      ) : null}
-    </section>
-  );
-}
-
-function CustomMCPToolsMessage({ title }: { title: string }) {
-  return (
-    <div className="mt-3 flex min-h-28 items-center border-y border-(--divider-subtle-color) px-1 text-sm text-(--text-muted)">
-      {title}
-    </div>
-  );
-}
-
-function CustomMCPToolRow({ tool }: { tool: CustomMCPTool }) {
-  const { t } = useI18n();
-  return (
-    <UiListRow
-      className="min-h-[68px] rounded-none py-3"
-      leading={(
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] border border-(--divider-subtle-color) bg-(--surface-panel-background)">
-          <Wrench className="h-4 w-4 text-(--icon-default)" />
-        </span>
-      )}
-    >
-      <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <h3 className="font-medium text-(--text-strong)">{tool.title}</h3>
-          {tool.title !== tool.name ? (
-            <code className="text-2xs text-(--text-soft)">{tool.name}</code>
-          ) : null}
-          {tool.read_only ? (
-            <UiBadge>{t("capability.custom_mcp_tool_read_only")}</UiBadge>
-          ) : null}
-        </div>
-        {tool.description ? (
-          <p className="mt-1 text-sm leading-5 text-(--text-muted)">
-            {tool.description}
-          </p>
-        ) : null}
-        {tool.arguments.length > 0 ? (
-          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-            <Code2 className="h-3.5 w-3.5 text-(--icon-muted)" />
-            {tool.arguments.map((argument) => (
-              <code
-                className="rounded-[5px] bg-(--surface-interactive-hover-background) px-1.5 py-0.5 text-2xs text-(--text-muted)"
-                key={argument.name}
-                title={argument.description}
-              >
-                {argument.name}{argument.required ? " *" : ""}
-              </code>
-            ))}
-          </div>
-        ) : null}
-      </div>
-    </UiListRow>
   );
 }

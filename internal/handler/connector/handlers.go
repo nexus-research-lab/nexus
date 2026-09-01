@@ -1,6 +1,7 @@
 package connector
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 
@@ -19,6 +20,10 @@ type Handlers struct {
 
 type deviceAuthPollPayload struct {
 	DeviceCode string `json:"device_code"`
+}
+
+type localPairingPollPayload struct {
+	AttemptToken string `json:"attempt_token"`
 }
 
 // New 创建连接器 handlers。
@@ -172,6 +177,58 @@ func (h *Handlers) HandleConnectorDeviceAuthPoll(writer http.ResponseWriter, req
 	}
 	if err != nil {
 		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, item)
+}
+
+// HandleConnectorLocalPairingStart 启动固定本机 Connector 的外部应用批准流程。
+func (h *Handlers) HandleConnectorLocalPairingStart(writer http.ResponseWriter, request *http.Request) {
+	item, err := h.connectors.StartLocalPairing(
+		request.Context(),
+		currentOwnerUserID(request),
+		chi.URLParam(request, "connector_id"),
+	)
+	if err != nil && strings.Contains(strings.ToLower(err.Error()), "未知连接器") {
+		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+		return
+	}
+	if err != nil {
+		status := http.StatusBadRequest
+		if errors.Is(err, connectorsvc.ErrLocalPairingUnavailable) {
+			status = http.StatusBadGateway
+		}
+		h.api.WriteFailure(writer, status, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, item)
+}
+
+// HandleConnectorLocalPairingPoll 轮询外部应用批准结果并在成功时保存连接。
+func (h *Handlers) HandleConnectorLocalPairingPoll(writer http.ResponseWriter, request *http.Request) {
+	var payload localPairingPollPayload
+	if !h.api.BindJSON(writer, request, &payload) {
+		return
+	}
+	item, err := h.connectors.PollLocalPairing(
+		request.Context(),
+		currentOwnerUserID(request),
+		chi.URLParam(request, "connector_id"),
+		payload.AttemptToken,
+	)
+	if err != nil && strings.Contains(strings.ToLower(err.Error()), "未知连接器") {
+		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+		return
+	}
+	if err != nil {
+		status := http.StatusBadRequest
+		switch {
+		case errors.Is(err, connectorsvc.ErrConfigurationConflict):
+			status = http.StatusConflict
+		case errors.Is(err, connectorsvc.ErrLocalPairingUnavailable):
+			status = http.StatusBadGateway
+		}
+		h.api.WriteFailure(writer, status, err.Error())
 		return
 	}
 	h.api.WriteSuccess(writer, item)

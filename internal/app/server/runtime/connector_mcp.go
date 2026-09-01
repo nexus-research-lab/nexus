@@ -75,6 +75,8 @@ func NewConnectorBuilder(
 				appendTencentDocsMCPServer(ctx, servers, svc, agentValue.OwnerUserID)
 			case "yuque":
 				appendYuqueMCPServer(ctx, servers, svc, agentValue.OwnerUserID)
+			case "richmail":
+				appendRichMailMCPServer(ctx, servers, svc, agentValue.OwnerUserID)
 			default:
 				servers = appendCustomMCPServer(
 					ctx,
@@ -186,6 +188,24 @@ func appendYuqueMCPServer(
 		Args:    []string{"-y", "yuque-mcp"},
 		Env: map[string]string{
 			"YUQUE_PERSONAL_TOKEN": strings.TrimSpace(snapshot.AccessToken),
+		},
+	}
+}
+
+func appendRichMailMCPServer(
+	ctx context.Context,
+	servers map[string]sdkmcp.ServerConfig,
+	svc connectorMCPService,
+	ownerUserID string,
+) {
+	snapshot := loadConnectorMCPSnapshot(ctx, svc, ownerUserID, "richmail")
+	if snapshot == nil {
+		return
+	}
+	servers["richmail"] = sdkmcp.HTTPServerConfig{
+		URL: "http://127.0.0.1:3100/mcp",
+		Headers: map[string]string{
+			"Authorization": "Bearer " + strings.TrimSpace(snapshot.AccessToken),
 		},
 	}
 }

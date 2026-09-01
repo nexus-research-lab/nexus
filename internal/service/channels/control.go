@@ -1,5 +1,5 @@
 // INPUT: Nexus 配置、数据库、Agent 解析器与通道路由器。
-// OUTPUT: owner 隔离的消息渠道控制服务及其共享写入锁。
+// OUTPUT: owner 隔离、active/legacy keyring 凭据兼容的消息渠道控制服务及共享写入锁。
 // POS: Channels 业务服务的装配根，统一持有配置、持久化和进程内并发边界。
 package channels
 
@@ -25,6 +25,7 @@ type ControlService struct {
 	db                        *sql.DB
 	driver                    string
 	key                       []byte
+	keyring                   *credentials.Keyring
 	agents                    agentWorkspaceResolver
 	router                    *Router
 	httpClient                *http.Client
@@ -45,11 +46,19 @@ func NewControlService(
 	router *Router,
 ) *ControlService {
 	key, err := credentials.DecodeKey(cfg.ConnectorCredentialsKey)
+	keyring, keyringErr := credentials.NewKeyring(
+		cfg.ConnectorCredentialsKey,
+		cfg.ConnectorCredentialsLegacyKeys,
+	)
+	if err == nil {
+		err = keyringErr
+	}
 	return &ControlService{
 		config:       cfg,
 		db:           db,
 		driver:       storage.NormalizeSQLDriver(cfg.DatabaseDriver),
 		key:          key,
+		keyring:      keyring,
 		agents:       agents,
 		router:       router,
 		idFactory:    channelcontract.NewID,
@@ -137,7 +146,7 @@ func (s *ControlService) encryptCredentials(values map[string]string) (string, e
 	if err != nil {
 		return "", err
 	}
-	return credentials.EncryptPayload(s.key, payload)
+	return s.keyring.EncryptEnvelope(payload)
 }
 
 func (s *ControlService) decryptCredentials(encrypted sql.NullString) (map[string]string, error) {
@@ -156,7 +165,7 @@ func (s *ControlService) decryptCredentials(encrypted sql.NullString) (map[strin
 			errors.New("CONNECTOR_CREDENTIALS_KEY 未配置，无法读取 IM 通道凭据"),
 		)
 	}
-	payload, err := credentials.DecryptPayload(s.key, encrypted.String)
+	payload, err := s.keyring.DecryptEnvelope(encrypted.String)
 	if err != nil {
 		return nil, err
 	}

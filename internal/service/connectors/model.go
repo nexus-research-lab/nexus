@@ -116,6 +116,22 @@ type DeviceAuthPollResult struct {
 	Next      *DeviceAuthStartResult `json:"next,omitempty"`
 }
 
+// LocalPairingStartResult 表示本机应用已经受理、等待用户在应用内批准的配对会话。
+type LocalPairingStartResult struct {
+	ConnectorID  string `json:"connector_id"`
+	AttemptToken string `json:"attempt_token"`
+	Endpoint     string `json:"endpoint"`
+	ExpiresIn    int    `json:"expires_in"`
+	Interval     int    `json:"interval"`
+}
+
+// LocalPairingPollResult 表示本机应用配对的当前状态。
+type LocalPairingPollResult struct {
+	Status    string `json:"status"`
+	Message   string `json:"message,omitempty"`
+	Connector *Info  `json:"connector,omitempty"`
+}
+
 const (
 	oauthRedirectKindWeb     = "web"
 	oauthRedirectKindDesktop = "desktop"
@@ -125,6 +141,11 @@ const (
 	deviceAuthStatusConnected = "connected"
 	deviceAuthStatusExpired   = "expired"
 	deviceAuthStatusDenied    = "denied"
+
+	localPairingStatusPending   = "pending"
+	localPairingStatusConnected = "connected"
+	localPairingStatusExpired   = "expired"
+	localPairingStatusDenied    = "denied"
 )
 
 type connectionRecord struct {
@@ -134,6 +155,7 @@ type connectionRecord struct {
 	AvailabilityEnabled  sql.NullBool
 	Credentials          string
 	CredentialsEncrypted sql.NullString
+	CredentialsKeyID     sql.NullString
 	AuthType             string
 	OAuthState           sql.NullString
 	OAuthStateExpiresAt  sql.NullTime

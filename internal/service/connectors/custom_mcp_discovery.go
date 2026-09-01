@@ -19,6 +19,9 @@ const customMCPDiscoveryTimeout = 12 * time.Second
 
 var ErrCustomMCPCapabilityUnavailable = errors.New("自定义 MCP 能力不可用")
 
+// ErrConnectorMCPCapabilityUnavailable 表示固定 Connector 的 MCP 远程目录暂不可读。
+var ErrConnectorMCPCapabilityUnavailable = errors.New("Connector MCP 能力不可用")
+
 // CustomMCPToolArgument 是工具输入 schema 中可供用户识别的顶层参数。
 type CustomMCPToolArgument struct {
 	Name        string `json:"name"`
@@ -74,9 +77,49 @@ func (s *Service) DiscoverCustomMCPCapabilities(
 	return catalog, nil
 }
 
+// DiscoverConnectorMCPCapabilities 读取支持详情探测的固定 Connector 工具目录。
+// 当前只有 RichMail 通过固定 loopback URL 与已保存 Bearer Token 进入该边界。
+func (s *Service) DiscoverConnectorMCPCapabilities(
+	ctx context.Context,
+	ownerUserID string,
+	connectorID string,
+) (*CustomMCPToolCatalog, error) {
+	entry, err := requireRichMailConnector(connectorID)
+	if err != nil {
+		return nil, err
+	}
+	snapshot, err := s.LoadActiveConnection(ctx, ownerUserID, entry.ConnectorID)
+	if err != nil {
+		return nil, err
+	}
+	if snapshot == nil || strings.TrimSpace(snapshot.AccessToken) == "" {
+		return nil, errors.New("RichMail 尚未连接")
+	}
+	discoveryCtx, cancel := context.WithTimeout(ctx, customMCPDiscoveryTimeout)
+	defer cancel()
+	catalog, err := discoverRemoteMCPTools(discoveryCtx, storedCustomMCPServer{
+		Type:        "http",
+		URL:         s.richMailMCPURL,
+		AuthType:    customMCPAuthBearer,
+		BearerToken: snapshot.AccessToken,
+	}, richMailLoopbackTransport())
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrConnectorMCPCapabilityUnavailable, err)
+	}
+	return catalog, nil
+}
+
 func discoverRemoteCustomMCPTools(
 	ctx context.Context,
 	server storedCustomMCPServer,
+) (*CustomMCPToolCatalog, error) {
+	return discoverRemoteMCPTools(ctx, server, http.DefaultTransport)
+}
+
+func discoverRemoteMCPTools(
+	ctx context.Context,
+	server storedCustomMCPServer,
+	baseTransport http.RoundTripper,
 ) (*CustomMCPToolCatalog, error) {
 	httpClient := &http.Client{
 		CheckRedirect: func(*http.Request, []*http.Request) error {
@@ -84,7 +127,7 @@ func discoverRemoteCustomMCPTools(
 		},
 		Timeout: customMCPDiscoveryTimeout,
 		Transport: customMCPHeaderTransport{
-			base:    http.DefaultTransport,
+			base:    baseTransport,
 			headers: server.runtimeHeaders(),
 		},
 	}

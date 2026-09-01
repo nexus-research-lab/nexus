@@ -9,8 +9,6 @@ import (
 	"errors"
 	"strings"
 	"time"
-
-	"github.com/nexus-research-lab/nexus/internal/connectors/credentials"
 )
 
 const (
@@ -103,11 +101,10 @@ func (s *Service) openDeviceAuthAttempt(
 	if token == "" || len(token) > maxDeviceAuthAttemptTokenLength {
 		return deviceAuthAttempt{}, errors.New("Device Flow 授权会话格式不正确")
 	}
-	key, err := credentials.DecodeKey(s.config.ConnectorCredentialsKey)
-	if err != nil {
-		return deviceAuthAttempt{}, err
+	if s.credentialKeyringErr != nil {
+		return deviceAuthAttempt{}, s.credentialKeyringErr
 	}
-	payload, err := credentials.DecryptPayload(key, token)
+	payload, err := s.credentialKeyring.DecryptEnvelope(token)
 	if err != nil {
 		return deviceAuthAttempt{}, errors.New("Device Flow 授权会话无效，请重新开始")
 	}
@@ -132,11 +129,10 @@ func (s *Service) encryptDeviceAuthAttempt(attempt deviceAuthAttempt) (string, e
 	if err != nil {
 		return "", err
 	}
-	key, err := credentials.DecodeKey(s.config.ConnectorCredentialsKey)
-	if err != nil {
-		return "", err
+	if s.credentialKeyringErr != nil {
+		return "", s.credentialKeyringErr
 	}
-	return credentials.EncryptPayload(key, payload)
+	return s.credentialKeyring.EncryptEnvelope(payload)
 }
 
 func validateDeviceAuthAttempt(

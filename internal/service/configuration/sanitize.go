@@ -113,11 +113,15 @@ func isSensitiveKey(key string) bool {
 	}
 	for _, suffix := range []string{
 		"sessiontoken", "bottoken", "credentialkey", "credentialskey",
+		"credentialkeys", "credentialskeys",
 		"clientsecret", "privatekey", "systemprompt", "databaseurl",
 	} {
 		if strings.HasSuffix(compacted, suffix) {
 			return true
 		}
+	}
+	if strings.Contains(compacted, "credential") && strings.HasSuffix(compacted, "keys") {
+		return true
 	}
 	for _, suffix := range []string{"_token", "_secret", "_password", "_api_key", "_private_key"} {
 		if strings.HasSuffix(normalized, suffix) {

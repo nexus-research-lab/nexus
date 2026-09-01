@@ -18,6 +18,7 @@ import (
 
 	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/connectors/credentials"
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/infra/syslimit"
@@ -295,6 +296,17 @@ func runServer() error {
 	}
 
 	cfg := config.Load()
+	hostKeys, err := credentials.ResolveHostKeys(
+		cfg.ConnectorCredentialsHostKeyMode,
+		stateRoot,
+		cfg.ConnectorCredentialsKey,
+		cfg.ConnectorCredentialsLegacyKeys,
+	)
+	if err != nil {
+		return fmt.Errorf("解析 Connector credentials host keys: %w", err)
+	}
+	cfg.ConnectorCredentialsKey = hostKeys.Active
+	cfg.ConnectorCredentialsLegacyKeys = hostKeys.Legacy
 	logger := logx.New(logx.Options{
 		Service: cfg.ProjectName,
 		Level:   cfg.LogLevel,
@@ -311,6 +323,10 @@ func runServer() error {
 			Compress:    cfg.LogCompress,
 		},
 	})
+	logger.Info("Connector credentials host keys 就绪",
+		"source", hostKeys.Source,
+		"legacy_keys", len(hostKeys.Legacy),
+	)
 
 	limitSnapshot, limitErr := syslimit.EnsureOpenFilesLimit(8192)
 	if limitErr != nil {
@@ -398,6 +414,11 @@ func runServer() error {
 	// 自动收口一次；修复失败保留 started 标记并继续启动，后续由显式维护命令处理。
 	if err := migration.RunDesktopLegacyConversationDraftRepair(context.Background(), cfg, logger); err != nil {
 		logger.Warn("历史空白 Session 一次性兼容修复未完成，继续启动服务", "err", err)
+	}
+	if _, err := migration.RunConnectorCredentialKeyMigration(context.Background(), cfg, logger); err != nil {
+		logger.Error("Connector credentials key migration 失败", "err", err)
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		return err
 	}
 
 	server, err := serverapp.NewWithLogger(cfg, logger)

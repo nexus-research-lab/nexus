@@ -35,9 +35,6 @@ HOST_DATA_DIR ?= ./data
 NEXUS_NXS_RUNTIME_RELEASE_CMD = sh scripts/resolve-nxs-runtime-release.sh "$(NEXUS_NXS_RUNTIME_RELEASE)"
 NXS_DEV_RUNTIME_PATH ?= $(abspath ../nexus-agent-sdk-go/dist/nxs/$(NXS_DEV_GOOS)-$(NXS_DEV_GOARCH)/$(NXS_DEV_BINARY_NAME))
 DEV_RUNTIME_CLI_BIN_DIR ?= $(abspath cache/dev-runtime-cli)
-DEV_CONNECTOR_CREDENTIALS_KEY_FILE ?= $(if $(strip $(NEXUS_STATE_ROOT)),$(NEXUS_STATE_ROOT)/app/config/connector-credentials.key,)
-DEV_CONNECTOR_KEYCHAIN_SERVICE ?= com.leemysw.nexus.desktop
-DEV_CONNECTOR_KEYCHAIN_ACCOUNT ?= connector-credentials-key
 COMPOSE_CMD ?= HOST_DATA_DIR="$(HOST_DATA_DIR)" docker compose --env-file $(ENV_FILE) -f deploy/docker-compose.yml
 PNPM ?= pnpm
 GO_TEST_PACKAGE_PARALLELISM ?= 4
@@ -74,16 +71,7 @@ prepare-dev-runtime-cli: ## Build current-source runtime CLI binaries for develo
 	go build -o "$(DEV_RUNTIME_CLI_BIN_DIR)/" ./cmd/nexusctl ./cmd/nexuscfg
 
 run-backend: prepare-dev-runtime-cli ## Run Go backend in development mode
-	@task_connector_key="$${CONNECTOR_CREDENTIALS_KEY}"; \
-	task_connector_key_file="$(DEV_CONNECTOR_CREDENTIALS_KEY_FILE)"; \
-	if [ "$(NXS_DEV_GOOS)" = "darwin" ] && command -v security >/dev/null 2>&1 \
-		&& task_keychain_connector_key="$$(security find-generic-password -s "$(DEV_CONNECTOR_KEYCHAIN_SERVICE)" -a "$(DEV_CONNECTOR_KEYCHAIN_ACCOUNT)" -w 2>/dev/null)" \
-		&& [ -n "$$task_keychain_connector_key" ]; then \
-		task_connector_key="$$task_keychain_connector_key"; \
-	elif [ -n "$$task_connector_key_file" ] && [ -f "$$task_connector_key_file" ]; then \
-		task_connector_key="$$(tr -d '\r\n' < "$$task_connector_key_file")"; \
-	fi; \
-	CONNECTOR_CREDENTIALS_KEY="$$task_connector_key" \
+	CONNECTOR_CREDENTIALS_HOST_KEY_MODE="$${CONNECTOR_CREDENTIALS_HOST_KEY_MODE:-auto}" \
 	NEXUSCTL_COMMAND_PATH="$(DEV_RUNTIME_CLI_BIN_DIR)/nexusctl" \
 	NEXUSCFG_COMMAND_PATH="$(DEV_RUNTIME_CLI_BIN_DIR)/nexuscfg" \
 	NEXUS_APP_ROOT=$${NEXUS_APP_ROOT:-$(CURDIR)} PORT=$(BACKEND_PORT) go run ./cmd/nexus-server

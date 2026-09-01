@@ -29,6 +29,7 @@ import type { ConnectorDetail } from "@/types/capability/connector";
 import { ConnectorCredentialDialog } from "./auth/connector-credential-dialog";
 import { ConnectorDeviceAuthDialog } from "./auth/device-flow/connector-device-auth-dialog";
 import { FeishuAppConnectionDialog } from "./auth/feishu/feishu-app-connection-dialog";
+import { RichMailPairingDialog } from "./auth/richmail/richmail-pairing-dialog";
 import { ConnectorOAuthClientDialog } from "./auth/connector-oauth-client-dialog";
 import { ShopDomainPromptDialog } from "./auth/shop-domain/shop-domain-prompt-dialog";
 import { ConnectorsGrid } from "./catalog/connectors-grid";
@@ -73,6 +74,7 @@ export function ConnectorsDirectory() {
     cancelDeviceAuthSession,
     clearFeedback,
     closeDetail,
+    closeLocalPairingSession,
     handleConnect,
     handleConnectFeishuManually,
     handleConnectFeishuWithQr,
@@ -81,10 +83,12 @@ export function ConnectorsDirectory() {
     handleDeviceAuthFailure,
     handleDeviceConnected,
     handleDisconnect,
+    handleLocalPairingFailure,
     handleSaveOauthClient: saveOauthClient,
     openDetail,
     refreshCatalog,
     reportFeedback,
+    localPairingSession,
   } = controller;
   const customMCP = useCustomMCPServers({
     enabled: customMCPRoute || (!connectorId && directoryMode === "custom_mcp"),
@@ -376,6 +380,26 @@ export function ConnectorsDirectory() {
         onNext={controller.continueDeviceAuthSession}
         onOpenWebAuthUrl={controller.openFeishuWebAuthorizationUrl}
         session={controller.deviceAuthSession}
+      />
+      <RichMailPairingDialog
+        onCancel={closeLocalPairingSession}
+        onClose={closeLocalPairingSession}
+        onConnected={async (id) => {
+          try {
+            await handleDeviceConnected();
+            navigate(AppRouteBuilders.connectorDetail(id));
+            await openDetail(id);
+          } catch {
+            reportFeedback({
+              impact: t("capability.connector_connected_refresh_failed_impact"),
+              nextStep: t("capability.connector_connected_refresh_failed_next_step"),
+              tone: "error",
+              title: t("capability.connector_connected_refresh_failed_title"),
+            });
+          }
+        }}
+        onError={handleLocalPairingFailure}
+        session={localPairingSession}
       />
       <ShopDomainPromptDialog
         onCancel={controller.cancelShopDomainPrompt}

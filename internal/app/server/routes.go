@@ -232,6 +232,9 @@ func (s *Server) mountCapabilityRoutes() {
 	s.router.Post(s.prefixPath("/connectors/oauth/callback"), s.handlers.connector.HandleConnectorOAuthCallback)
 	s.router.Post(s.prefixPath("/connectors/{connector_id}/device/start"), s.handlers.connector.HandleConnectorDeviceAuthStart)
 	s.router.Post(s.prefixPath("/connectors/{connector_id}/device/poll"), s.handlers.connector.HandleConnectorDeviceAuthPoll)
+	s.router.Post(s.prefixPath("/connectors/{connector_id}/pairing/start"), s.handlers.connector.HandleConnectorLocalPairingStart)
+	s.router.Post(s.prefixPath("/connectors/{connector_id}/pairing/poll"), s.handlers.connector.HandleConnectorLocalPairingPoll)
+	s.router.Get(s.prefixPath("/connectors/{connector_id}/capabilities"), s.handlers.connector.HandleGetConnectorMCPCapabilities)
 	s.router.Post(s.prefixPath("/connectors/{connector_id}/connect"), s.handlers.connector.HandleConnectConnector)
 	s.router.Post(s.prefixPath("/connectors/{connector_id}/disconnect"), s.handlers.connector.HandleDisconnectConnector)
 	serverruntime.MountConnectorAuthorizationRoutes(

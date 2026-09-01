@@ -1,12 +1,13 @@
 // INPUT: 当前认证 owner、自定义 MCP JSON 请求、启停请求与路径中的 Connector ID。
-// OUTPUT: 脱敏 MCP 配置、工具目录或明确的校验、冲突与不存在响应。
-// POS: 自定义 MCP 管理与只读能力发现的 HTTP API 边界。
+// OUTPUT: 脱敏 MCP 配置、固定/自定义工具目录或明确的校验、冲突与不存在响应。
+// POS: 自定义 MCP 管理及固定 Connector 只读能力发现的 HTTP API 边界。
 package connector
 
 import (
 	"errors"
 	"net/http"
 	"net/url"
+	"strings"
 
 	connectorsvc "github.com/nexus-research-lab/nexus/internal/service/connectors"
 
@@ -57,6 +58,29 @@ func (h *Handlers) HandleGetCustomMCPCapabilities(writer http.ResponseWriter, re
 			return
 		}
 		writeCustomMCPError(h, writer, err)
+		return
+	}
+	h.api.WriteSuccess(writer, item)
+}
+
+// HandleGetConnectorMCPCapabilities 返回固定 Connector 当前 MCP tools/list 快照。
+func (h *Handlers) HandleGetConnectorMCPCapabilities(writer http.ResponseWriter, request *http.Request) {
+	item, err := h.connectors.DiscoverConnectorMCPCapabilities(
+		request.Context(),
+		currentOwnerUserID(request),
+		chi.URLParam(request, "connector_id"),
+	)
+	if err != nil {
+		if errors.Is(err, connectorsvc.ErrConnectorMCPCapabilityUnavailable) {
+			h.api.WriteFailure(writer, http.StatusBadGateway, "无法读取 MCP 能力")
+			return
+		}
+		status := http.StatusBadRequest
+		if strings.Contains(strings.ToLower(err.Error()), "not found") ||
+			strings.Contains(strings.ToLower(err.Error()), "未知连接器") {
+			status = http.StatusNotFound
+		}
+		h.api.WriteFailure(writer, status, err.Error())
 		return
 	}
 	h.api.WriteSuccess(writer, item)

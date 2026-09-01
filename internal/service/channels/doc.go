@@ -16,7 +16,7 @@
 //     精确取消可等待 poller 离开写路径；当前 Web 登录只读对账只返回 exact
 //     owner + channel 下唯一 active 且未绑定对话授权的会话，歧义状态 fail closed，
 //     不启动平台注册或生成 login_id；所有 pairing writer 共用 owner 锁。
-//   - control.go / control_*.go / mutation_lock.go：通道控制、凭据与值归一化及
+//   - control.go / control_*.go / mutation_lock.go：通道控制、active/legacy keyring 凭据与值归一化及
 //     owner + channel 串行写边界；control_failure.go 只保留事务、
 //     补偿与写后投影已证明的 not_applied/committed/unknown 事实，
 //     不引入 HTTP 文案或从 error 文本猜测结果。

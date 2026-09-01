@@ -8,6 +8,8 @@ import {
   ConnectorDeviceAuthPollResult,
   ConnectorDeviceAuthStart,
   ConnectorInfo,
+  ConnectorLocalPairingPollResult,
+  ConnectorLocalPairingStart,
   CustomMCPServer,
   CustomMCPServerInput,
   CustomMCPToolCatalog,
@@ -164,6 +166,40 @@ export const pollConnectorDeviceAuthApi = async (
       method: "POST",
       body: JSON.stringify({ device_code: deviceCode }),
     },
+  );
+};
+
+/** 请求本机 RichMail 创建一次外部应用批准式配对。 */
+export const startConnectorLocalPairingApi = async (
+  connectorId: string,
+): Promise<ConnectorLocalPairingStart> => {
+  return requestApi<ConnectorLocalPairingStart>(
+    `${BASE}/connectors/${encodeURIComponent(connectorId)}/pairing/start`,
+    { method: "POST" },
+  );
+};
+
+/** 轮询本机应用配对；服务端只在批准后加密保存 Token。 */
+export const pollConnectorLocalPairingApi = async (
+  connectorId: string,
+  attemptToken: string,
+): Promise<ConnectorLocalPairingPollResult> => {
+  return requestApi<ConnectorLocalPairingPollResult>(
+    `${BASE}/connectors/${encodeURIComponent(connectorId)}/pairing/poll`,
+    {
+      method: "POST",
+      body: JSON.stringify({ attempt_token: attemptToken }),
+    },
+  );
+};
+
+/** 获取固定 Connector 当前暴露的 MCP 工具目录。 */
+export const getConnectorMCPToolsApi = async (
+  connectorId: string,
+): Promise<CustomMCPToolCatalog> => {
+  return requestApi<CustomMCPToolCatalog>(
+    `${BASE}/connectors/${encodeURIComponent(connectorId)}/capabilities`,
+    { method: "GET" },
   );
 };
 

@@ -212,7 +212,7 @@ func TestDiscoverRemoteCustomMCPTools(t *testing.T) {
 	server.AddTool(&mcp.Tool{
 		Name:        "search_records",
 		Title:       "Search records",
-		Description: "Find records by query.",
+		Description: "Find records by query. [Phase A]",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -255,6 +255,7 @@ func TestDiscoverRemoteCustomMCPTools(t *testing.T) {
 	}
 	tool := catalog.Tools[0]
 	if tool.Name != "search_records" || tool.Title != "Search records" || !tool.ReadOnly ||
+		tool.Description != "Find records by query. [Phase A]" ||
 		len(tool.Arguments) != 2 || tool.Arguments[1].Name != "query" || !tool.Arguments[1].Required {
 		t.Fatalf("工具投影错误: %+v", tool)
 	}
