@@ -110,13 +110,6 @@ export function projectToolRunSegments({
     }
 
     if (block.type === "tool_use") {
-      if (
-        block.name === ASK_USER_QUESTION_TOOL_NAME
-        && resolvedToolUseIds.has(block.id)
-      ) {
-        flushToolRun(true);
-        flushPendingProcess();
-      }
       if (isInteractiveToolUse(
         block,
         interactiveToolUseIds,

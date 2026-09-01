@@ -40,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Kept completed confirmation tools inside their surrounding Room execution
+  group and increased the spacing between assistant headers and message bodies.
 - Kept Room collaboration visibly active while private directed work is queued
   or running, without exposing participants or private content.
 - Fixed the Windows browser extension setup so it opens the actual Chrome or

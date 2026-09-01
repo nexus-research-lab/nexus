@@ -194,7 +194,7 @@ const ASSISTANT_LAYOUTS = {
     showMetadata: true,
   },
   expanded: {
-    content: "w-full max-w-full pt-2 text-[16px] leading-7",
+    content: "w-full max-w-full pt-3 text-[16px] leading-7",
     inner: CONVERSATION_ASSISTANT_FRAME_WIDTH_CLASS_NAME,
     section: "px-2 sm:px-3",
     showMetadata: false,
