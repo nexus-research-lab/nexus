@@ -14,6 +14,33 @@
     stroke-width: 1.65;
   }
 
+  @keyframes nexus-anchored-overlay-enter {
+    from {
+      opacity: 0;
+      transform: translateY(var(--anchored-overlay-enter-offset)) scale(0.95);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  /* 锚点几何由定位层直接提交；进场只能动画绘制属性，不能过渡 left/top/bottom。 */
+  .ui-anchored-overlay-motion {
+    --anchored-overlay-enter-offset: -4px;
+
+    animation: nexus-anchored-overlay-enter var(--motion-duration-normal) var(--motion-ease-standard) both;
+    transform-origin: center top;
+    transition-property: opacity, transform;
+  }
+
+  .ui-anchored-overlay-motion[data-placement="top"] {
+    --anchored-overlay-enter-offset: 4px;
+
+    transform-origin: center bottom;
+  }
+
   .ui-tooltip {
     border: 1px solid rgb(255 255 255 / 8%);
     border-radius: 11px;
