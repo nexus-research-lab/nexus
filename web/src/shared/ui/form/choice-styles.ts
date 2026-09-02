@@ -1,3 +1,7 @@
+// INPUT: Choice 的选择状态、尺寸、形状、tone 与视觉 variant。
+// OUTPUT: 不改变几何且不依赖阴影表达选中的样式投影。
+// POS: Choice 视觉状态真相；不渲染 DOM 或管理选项集合。
+
 import { cn } from "@/shared/ui/class-name";
 
 export type UiChoiceTone = "primary" | "danger" | "success";
@@ -54,7 +58,7 @@ const PICKER_CHOICE_BASE_CLASS_NAME =
   "flex h-10 items-center justify-center radius-control-md border px-3 text-md font-semibold transition-[background,border-color,color,box-shadow] duration-(--motion-duration-fast) disabled:cursor-not-allowed disabled:opacity-40";
 
 const PICKER_CHOICE_ACTIVE_CLASS_NAME =
-  "border-[color:color-mix(in_srgb,var(--primary)_58%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_88%,white)] text-white shadow-[0_8px_18px_color-mix(in_srgb,var(--primary)_22%,transparent)]";
+  "border-[color:color-mix(in_srgb,var(--primary)_58%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_88%,white)] text-white";
 
 const PICKER_CHOICE_INACTIVE_CLASS_NAME =
   "border-transparent bg-transparent text-(--text-default) hover:bg-(--surface-interactive-hover-background)";

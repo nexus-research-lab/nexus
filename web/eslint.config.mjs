@@ -14,7 +14,7 @@ export default tseslint.config(
     ],
   },
   {
-    files: ["src/**/*.{ts,tsx}", "visual-review/**/*.{ts,tsx}", "vite.config.ts"],
+    files: ["src/**/*.{ts,tsx}", "visual-review/**/*.{ts,tsx}", "vite.config.ts", "vitest.config.ts"],
     languageOptions: {
       parser: tseslint.parser,
       parserOptions: {

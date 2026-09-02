@@ -2,6 +2,7 @@ import { Crown } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiCheckbox } from "@/shared/ui/form/checkbox";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 
 import type {
@@ -129,12 +130,11 @@ function RoomSettingCheckbox({
         className,
       )}
     >
-      <input
+      <UiCheckbox
         checked={checked}
-        className="h-3.5 w-3.5 shrink-0 accent-[var(--primary)] disabled:cursor-not-allowed disabled:opacity-55"
+        checkboxSize="small"
         disabled={disabled}
         onChange={(event) => onChange(event.target.checked)}
-        type="checkbox"
       />
       <span className="min-w-0 truncate">{label}</span>
     </label>

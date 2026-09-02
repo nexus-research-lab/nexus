@@ -24,6 +24,7 @@ import {
 
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiCheckbox } from "@/shared/ui/form/checkbox";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 
 import { PreferencesReliabilityNotice } from "../general/components/preferences-reliability-notice";
@@ -750,12 +751,11 @@ function SettingsCheckSetting({
 }) {
   return (
     <label className="flex min-h-8 items-center gap-1.5 rounded-[10px] border border-(--divider-subtle-color) px-2.5 text-xs text-(--text-default)">
-      <input
+      <UiCheckbox
         checked={checked}
-        className="h-3.5 w-3.5 accent-(--primary)"
+        checkboxSize="small"
         disabled={disabled}
         onChange={(event) => onChange(event.target.checked)}
-        type="checkbox"
       />
       {icon}
       <span>{label}</span>

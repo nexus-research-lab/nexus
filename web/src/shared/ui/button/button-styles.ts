@@ -1,3 +1,7 @@
+// INPUT: Button 的 size、tone、variant 与调用方外部布局 class。
+// OUTPUT: 由共享 token/recipe 组成的稳定按钮样式投影。
+// POS: Button 视觉状态真相；不渲染 DOM，也不接受业务专属视觉覆盖。
+
 import { cn } from "@/shared/ui/class-name";
 
 export type UiButtonTone = "default" | "primary" | "danger";
