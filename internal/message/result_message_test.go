@@ -1,6 +1,7 @@
 package message
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -108,6 +109,9 @@ func TestProcessorNormalizesProviderContentFilterResultError(t *testing.T) {
 	result := output.DurableMessages[0]
 	if result["result"] != contentFilteredDisplayText {
 		t.Fatalf("terminal result did not use fallback copy: %+v", result)
+	}
+	if !strings.Contains(contentFilteredDisplayText, "敏感信息") || !strings.Contains(contentFilteredDisplayText, "新建对话") {
+		t.Fatalf("content filter copy must explain the sensitive-content risk and direct the user to a fresh conversation: %q", contentFilteredDisplayText)
 	}
 	if result["terminal_reason"] != contentFilteredTerminalReason {
 		t.Fatalf("terminal reason was not normalized: %+v", result)

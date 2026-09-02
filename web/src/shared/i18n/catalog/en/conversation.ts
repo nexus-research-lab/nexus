@@ -542,7 +542,7 @@ export const enConversationMessages = {
   "conversation.reliability.round_failed": "Couldn't generate a reply",
   "conversation.reliability.round_failed_impact": "Please send again.",
   "conversation.reliability.safety_rejected": "This request can't be carried out",
-  "conversation.reliability.safety_rejected_impact": "Adjust the request or access, then retry.",
+  "conversation.reliability.safety_rejected_impact": "The input, conversation context, or generated content may contain sensitive information. The upstream session may no longer be usable; start a new conversation and adjust the request.",
   "conversation.reliability.session_load_failed": "Conversation content didn't load completely",
   "conversation.reliability.session_load_failed_impact": "Refresh the chat.",
   "conversation.reliability.usage_limited": "Not enough usage available",
