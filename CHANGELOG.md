@@ -80,6 +80,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Prevented anchored tooltips and menus from sliding in from the viewport origin
+  on their first open by limiting shared entry motion to opacity and transform
+  instead of transitioning their measured positioning coordinates.
 - Unified browser-encoded dynamic API path segments at the HTTP route boundary,
   so identifiers containing `@`, `:`, `/`, Unicode, or literal percent escapes
   reach every handler decoded exactly once. Provider model IDs retain their
