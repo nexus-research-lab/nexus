@@ -134,7 +134,7 @@ export function WorkspaceTaskPanel({
         type="button"
       >
         <span
-          className="inline-flex min-h-8 min-w-0 max-w-full items-center gap-1.5 rounded-[9px] px-2 py-1 text-xs text-(--text-default) transition-[background,color] duration-(--motion-duration-fast) group-hover:bg-(--surface-interactive-hover-background) group-hover:text-(--text-strong) group-focus-visible:bg-(--surface-interactive-hover-background) group-focus-visible:ring-2 group-focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_22%,transparent)]"
+          className="conversation-activity-chip inline-flex min-w-0 max-w-full items-center gap-1.5 px-2 py-1 text-(--text-default) transition-[background,color] duration-(--motion-duration-fast) group-hover:bg-(--surface-control-hover-background) group-hover:text-(--text-strong) group-focus-visible:bg-(--surface-control-hover-background) group-focus-visible:ring-2 group-focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_22%,transparent)]"
           data-workspace-task-visual
         >
           {source ? (

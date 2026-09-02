@@ -34,6 +34,7 @@ export type ConversationViewportModel = ScrollViewportEvents & {
 };
 
 export interface ConversationScrollToLatestModel {
+  isGenerating: boolean;
   onClick: () => void;
   visible: boolean;
 }
@@ -128,28 +129,33 @@ export function ConversationPanelFloatingControls({
     <div
       className={
         isMobileLayout
-          ? "pointer-events-none absolute inset-x-0 top-0 z-30 mx-auto flex min-h-11 w-full max-w-[720px] -translate-y-[calc(100%+0.5rem)] items-center justify-center gap-1 px-4"
-          : "pointer-events-none absolute inset-x-0 top-0 z-30 mx-auto flex min-h-11 w-full max-w-[880px] -translate-y-[calc(100%+0.5rem)] items-center justify-center gap-1 px-3 sm:px-5 xl:px-6"
+          ? "pointer-events-none absolute inset-x-0 top-0 z-30 mx-auto flex min-h-11 w-full max-w-[720px] -translate-y-[calc(100%+0.5rem)] items-center justify-center px-4"
+          : "pointer-events-none absolute inset-x-0 top-0 z-30 mx-auto flex min-h-11 w-full max-w-[880px] -translate-y-[calc(100%+0.5rem)] items-center justify-center px-3 sm:px-5 xl:px-6"
       }
       data-conversation-activity-dock
     >
+      {scrollToLatest.visible ? (
+        <div
+          className={activity
+            ? "pointer-events-none absolute bottom-10 left-1/2 -translate-x-1/2"
+            : "pointer-events-none shrink-0"}
+          data-conversation-dock-scroll
+        >
+          <ScrollToLatestButton
+            isGenerating={scrollToLatest.isGenerating}
+            onClick={scrollToLatest.onClick}
+            visible
+          />
+        </div>
+      ) : null}
       {activity ? (
         <div
-          className="pointer-events-none flex min-w-0 flex-1 justify-center"
+          className="pointer-events-none flex min-w-0 max-w-full justify-center"
           data-conversation-dock-activity
         >
           {activity}
         </div>
       ) : null}
-      <div
-        className="pointer-events-none shrink-0"
-        data-conversation-dock-scroll
-      >
-        <ScrollToLatestButton
-          onClick={scrollToLatest.onClick}
-          visible={scrollToLatest.visible}
-        />
-      </div>
     </div>
   );
 }
