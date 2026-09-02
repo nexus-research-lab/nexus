@@ -5,8 +5,9 @@
 // 成员清单：
 //   - ingress*.go：入站接收、消息归一化、投递目标解析、权限与会话映射；active-paired 私聊签发同 Agent 交互能力，把普通 runtime permission 投递为不暴露内部 ID 的 session-scoped `/y`、`/a`、`/d` 确认，可信控制命令在 Agent runtime 前跨 runtime/Automation 统一消歧、消费并回投当前 IM。
 //   - router.go / router_*.go：generation 防护的通道路由、候选先启动后替换、
-//     投递记录与平台配置注册表。
-//   - channel_*.go / existence.go：通道账号、配置存储与写后精确存在性核验。
+//     通道自报的动态 runtime readiness、投递记录与平台配置注册表。
+//   - channel_*.go / existence.go / personal_weixin_runtime_store.go：通道账号、配置存储、
+//     个人微信持久轮询游标与登录失效投影及写后精确存在性核验。
 //     catalog 标记为 secret 的字段禁止进入普通 config JSON；读取旧数据时也按
 //     catalog 过滤。候选 runtime 失败时恢复旧内容但发布新的单调 control version，
 //     使失败前后的旧 plan 都无法重新命中。

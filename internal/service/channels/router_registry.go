@@ -1,5 +1,5 @@
 // INPUT: owner+channel 维度的运行实例、Router 级 Session 解析器、热启动与注销请求。
-// OUTPUT: 继承统一依赖、每个路由键串行且 generation 单调的注册表状态。
+// OUTPUT: 继承统一依赖、动态 runtime readiness、每个路由键串行且 generation 单调的注册表状态。
 // POS: Router 的实例替换边界，阻止失败或过期候选污染当前路由。
 package channels
 
@@ -225,12 +225,17 @@ func (r *Router) channelForDelivery(ctx context.Context, agentID string, channel
 
 func (r *Router) readyChannelForOwner(ownerUserID string, channelType string) DeliveryChannel {
 	r.mu.RLock()
-	defer r.mu.RUnlock()
 	entry := r.channels[channelRouteKey(normalizeChannelOwnerUserID(ownerUserID), normalizeChannelType(channelType))]
 	if entry == nil || !entry.started {
+		r.mu.RUnlock()
 		return nil
 	}
-	return entry.channel
+	channel := entry.channel
+	r.mu.RUnlock()
+	if aware, ok := channel.(runtimeReadyChannel); ok && !aware.RuntimeReady() {
+		return nil
+	}
+	return channel
 }
 
 // GetForOwner 返回指定 owner 的指定通道实例，不代表该实例已经启动成功。

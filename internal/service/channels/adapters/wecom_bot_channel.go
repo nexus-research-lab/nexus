@@ -1,3 +1,6 @@
+// INPUT: 企业微信智能机器人凭据、长连接生命周期、ingress 与主动投递请求。
+// OUTPUT: 可重连的机器人通道、订阅状态和有界写入/心跳配置。
+// POS: 企业微信 WebSocket 适配器运行态根。
 package adapters
 
 import (
@@ -33,19 +36,26 @@ type WeComBotChannel struct {
 	connected      bool
 	subscribeReqID string
 	lastPingReqID  string
+	missedPongs    int
 	pendingAcks    map[string]chan error
 	ackTimeout     time.Duration
+	pingInterval   time.Duration
+	writeTimeout   time.Duration
+	maxMissedPongs int
 }
 
 func NewWeComBotChannel(botID string, secret string) *WeComBotChannel {
 	return &WeComBotChannel{
-		botID:       strings.TrimSpace(botID),
-		secret:      strings.TrimSpace(secret),
-		baseURL:     weComBotDefaultLongConnectionURL,
-		dialer:      gorillaWeComBotDialer{dialer: channeltransport.NewWebsocketDialer()},
-		logger:      logx.NewDiscardLogger(),
-		pendingAcks: make(map[string]chan error),
-		ackTimeout:  5 * time.Second,
+		botID:          strings.TrimSpace(botID),
+		secret:         strings.TrimSpace(secret),
+		baseURL:        weComBotDefaultLongConnectionURL,
+		dialer:         gorillaWeComBotDialer{dialer: channeltransport.NewWebsocketDialer()},
+		logger:         logx.NewDiscardLogger(),
+		pendingAcks:    make(map[string]chan error),
+		ackTimeout:     5 * time.Second,
+		pingInterval:   30 * time.Second,
+		writeTimeout:   10 * time.Second,
+		maxMissedPongs: 3,
 	}
 }
 
@@ -112,6 +122,7 @@ func (c *WeComBotChannel) Stop(context.Context) error {
 	c.connected = false
 	c.subscribeReqID = ""
 	c.lastPingReqID = ""
+	c.missedPongs = 0
 	c.mu.Unlock()
 
 	if cancel != nil {

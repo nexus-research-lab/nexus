@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -561,8 +563,8 @@ func TestControlServiceDeletesSingleWeixinPersonalAccount(t *testing.T) {
 		return fmt.Sprintf("%s-%d", prefix, id)
 	}
 	statuses := []channeladapters.PersonalWeixinQRStatusResponse{
-		{Status: "confirmed", BotToken: "token-1", IlinkBotID: "wx-account-1", IlinkUserID: "wx-user-1"},
-		{Status: "confirmed", BotToken: "token-2", IlinkBotID: "wx-account-2", IlinkUserID: "wx-user-2"},
+		{Status: "confirmed", BotToken: "token-1", IlinkBotID: "wx-account-1@im.bot", IlinkUserID: "wx-user-1@im.wechat"},
+		{Status: "confirmed", BotToken: "token-2", IlinkBotID: "wx-account-2@im.bot", IlinkUserID: "wx-user-2@im.wechat"},
 	}
 	var loginIndex int
 	service.weixinLoginClientFactory = func(string, map[string]string) personalWeixinLoginClient {
@@ -589,36 +591,136 @@ INSERT INTO im_pairings (
     pairing_id, owner_user_id, channel_type, account_id, chat_type,
     external_ref, agent_id, status, source
 ) VALUES
-    ('pairing-wx-1', 'owner-a', 'weixin-personal', 'wx-account-1', 'dm', 'chat-1', 'agent-a', 'active', 'manual'),
-    ('pairing-wx-2', 'owner-a', 'weixin-personal', 'wx-account-2', 'dm', 'chat-2', 'agent-a', 'active', 'manual')
+    ('pairing-wx-1', 'owner-a', 'weixin-personal', 'wx-account-1@im.bot', 'dm', 'chat-1', 'agent-a', 'active', 'manual'),
+    ('pairing-wx-2', 'owner-a', 'weixin-personal', 'wx-account-2@im.bot', 'dm', 'chat-2', 'agent-a', 'active', 'manual')
 `); err != nil {
 		t.Fatalf("准备账号 pairing 失败: %v", err)
 	}
+	if err = service.DeletePairing(context.Background(), "owner-a", "pairing-wx-1"); err != nil {
+		t.Fatalf("先解除第一个微信账号配对失败: %v", err)
+	}
 
-	updated, err := service.DeleteChannelAccount(context.Background(), "owner-a", ChannelTypeWeixinPersonal, "wx-account-1")
+	updated, err := service.DeleteChannelAccount(context.Background(), "owner-a", ChannelTypeWeixinPersonal, "wx-account-1@im.bot")
 	if err != nil {
 		t.Fatalf("删除单个微信账号失败: %v", err)
 	}
-	if updated == nil || len(updated.Accounts) != 1 || updated.Accounts[0].AccountID != "wx-account-2" {
+	if updated == nil || len(updated.Accounts) != 1 || updated.Accounts[0].AccountID != "wx-account-2@im.bot" {
 		t.Fatalf("删除后应只保留第二个微信账号: %+v", updated)
 	}
 	accounts, err := service.listChannelAccountRows(context.Background(), "owner-a", ChannelTypeWeixinPersonal)
 	if err != nil {
 		t.Fatalf("读取账号表失败: %v", err)
 	}
-	if len(accounts) != 1 || accounts[0].AccountID != "wx-account-2" {
+	if len(accounts) != 1 || accounts[0].AccountID != "wx-account-2@im.bot" {
 		t.Fatalf("账号表删除结果不正确: %+v", accounts)
 	}
 	var deletedPairings int
 	if err = db.QueryRow(`
 SELECT COUNT(*) FROM im_pairings
 WHERE owner_user_id = 'owner-a' AND channel_type = 'weixin-personal'
-  AND account_id = 'wx-account-1'
+  AND account_id = 'wx-account-1@im.bot'
 `).Scan(&deletedPairings); err != nil {
 		t.Fatalf("读取已删账号 pairing 失败: %v", err)
 	}
 	if deletedPairings != 0 {
 		t.Fatalf("删除账号后仍残留 pairing: %d", deletedPairings)
+	}
+	var remainingPairings int
+	if err = db.QueryRow(`
+SELECT COUNT(*) FROM im_pairings
+WHERE owner_user_id = 'owner-a' AND channel_type = 'weixin-personal'
+  AND account_id = 'wx-account-2@im.bot'
+`).Scan(&remainingPairings); err != nil {
+		t.Fatalf("读取保留账号 pairing 失败: %v", err)
+	}
+	if remainingPairings != 1 {
+		t.Fatalf("删除第一个账号不应影响第二个账号 pairing: %d", remainingPairings)
+	}
+}
+
+func TestControlServiceDeletesLastWeixinAccountWhenNotifyStopFails(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		switch request.URL.Path {
+		case "/ilink/bot/msg/notifystart":
+			_, _ = writer.Write([]byte(`{"ret":0}`))
+		case "/ilink/bot/getupdates":
+			select {
+			case <-request.Context().Done():
+			case <-time.After(25 * time.Millisecond):
+				_, _ = writer.Write([]byte(`{"ret":0,"get_updates_buf":"cursor-1","longpolling_timeout_ms":25}`))
+			}
+		case "/ilink/bot/msg/notifystop":
+			_, _ = writer.Write([]byte(`{"ret":-14,"errcode":-14,"errmsg":"session timeout"}`))
+		default:
+			http.NotFound(writer, request)
+		}
+	}))
+	defer server.Close()
+
+	db := newChannelTestDB(t)
+	defer db.Close()
+	cfg := config.Config{
+		DatabaseDriver:          "sqlite",
+		ConnectorCredentialsKey: testChannelCredentialKey(),
+	}
+	router := NewRouter(cfg, db, nil, nil)
+	if err := router.Start(context.Background()); err != nil {
+		t.Fatalf("启动 Router 失败: %v", err)
+	}
+	defer router.Stop(context.Background())
+	service := NewControlService(cfg, db, nil, router)
+	service.SetHTTPClient(server.Client())
+	service.weixinLoginClientFactory = func(string, map[string]string) personalWeixinLoginClient {
+		return &fakePersonalWeixinLoginClient{status: channeladapters.PersonalWeixinQRStatusResponse{
+			Status:      "confirmed",
+			BotToken:    "token-expired-on-stop",
+			IlinkBotID:  "wx-account-last",
+			IlinkUserID: "wx-user-last",
+		}}
+	}
+	if _, err := service.UpsertChannelConfig(
+		context.Background(),
+		"owner-a",
+		ChannelTypeWeixinPersonal,
+		UpsertChannelConfigRequest{
+			AgentID: "agent-a",
+			Config:  map[string]string{"base_url": server.URL},
+		},
+	); err != nil {
+		t.Fatalf("配置个人微信通道失败: %v", err)
+	}
+	started, err := service.StartChannelLogin(context.Background(), "owner-a", ChannelTypeWeixinPersonal)
+	if err != nil {
+		t.Fatalf("启动个人微信扫码登录失败: %v", err)
+	}
+	waitChannelLoginStatus(t, service, "owner-a", ChannelTypeWeixinPersonal, started.LoginID, ChannelLoginStatusSucceeded)
+	deadline := time.Now().Add(2 * time.Second)
+	for !router.IsReadyForOwner("owner-a", ChannelTypeWeixinPersonal) && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if !router.IsReadyForOwner("owner-a", ChannelTypeWeixinPersonal) {
+		t.Fatal("个人微信 runtime 未完成启动通知")
+	}
+
+	updated, err := service.DeleteChannelAccount(
+		context.Background(),
+		"owner-a",
+		ChannelTypeWeixinPersonal,
+		"wx-account-last",
+	)
+	if err != nil {
+		t.Fatalf("notifystop 失败不应阻断账号删除: %v", err)
+	}
+	if updated == nil || len(updated.Accounts) != 0 {
+		t.Fatalf("删除最后账号后的视图不正确: %+v", updated)
+	}
+	accounts, err := service.listChannelAccountRows(context.Background(), "owner-a", ChannelTypeWeixinPersonal)
+	if err != nil || len(accounts) != 0 {
+		t.Fatalf("最后账号没有从数据库删除: accounts=%+v err=%v", accounts, err)
+	}
+	if router.GetForOwner("owner-a", ChannelTypeWeixinPersonal) != nil {
+		t.Fatal("删除最后账号后 Router 仍保留旧通道")
 	}
 }
 

@@ -1,3 +1,6 @@
+// INPUT: 个人微信 iLink 凭据、轮询游标、消息与生命周期请求。
+// OUTPUT: 带结构化业务错误的 iLink HTTP 调用及登录/上下文失效分类。
+// POS: 个人微信传输客户端；不持有账号运行态或业务路由。
 package adapters
 
 import (
@@ -72,6 +75,16 @@ func IsPersonalWeixinContextExpired(err error) bool {
 	return apiErr.Ret == -2 || apiErr.ErrCode == -2
 }
 
+// IsPersonalWeixinLoginExpired 只识别 iLink 明确返回的会话超时代码 -14。
+// 临时网络错误和限流仍由 poller 重试，不能把账号误标为需要重新登录。
+func IsPersonalWeixinLoginExpired(err error) bool {
+	var apiErr *PersonalWeixinAPIError
+	if !errors.As(err, &apiErr) || apiErr == nil {
+		return false
+	}
+	return apiErr.Ret == -14 || apiErr.ErrCode == -14
+}
+
 func NewPersonalWeixinIlinkClient(config PersonalWeixinClientConfig, client *http.Client) *PersonalWeixinIlinkClient {
 	if client == nil {
 		client = channeltransport.DefaultHTTPClient
@@ -81,7 +94,7 @@ func NewPersonalWeixinIlinkClient(config PersonalWeixinClientConfig, client *htt
 		token:              strings.TrimSpace(config.Token),
 		botAgent:           channelcontract.FirstNonEmpty(config.BotAgent, defaultPersonalWeixinBotAgent),
 		ilinkAppID:         channelcontract.FirstNonEmpty(config.IlinkAppID, defaultPersonalWeixinAppID),
-		ilinkClientVersion: channelcontract.FirstNonEmpty(config.IlinkClientVersion, defaultPersonalWeixinClientVersion),
+		ilinkClientVersion: channelcontract.FirstNonEmpty(config.IlinkClientVersion, DefaultPersonalWeixinClientVersion),
 		client:             client,
 		configCache:        make(map[string]personalWeixinConfigCacheEntry),
 	}
@@ -133,6 +146,18 @@ func (c *PersonalWeixinIlinkClient) GetUpdates(
 		return personalWeixinGetUpdatesResponse{}, err
 	}
 	return response, nil
+}
+
+func (c *PersonalWeixinIlinkClient) NotifyStart(ctx context.Context) error {
+	return c.post(ctx, "ilink/bot/msg/notifystart", map[string]any{
+		"base_info": c.baseInfo(),
+	}, nil)
+}
+
+func (c *PersonalWeixinIlinkClient) NotifyStop(ctx context.Context) error {
+	return c.post(ctx, "ilink/bot/msg/notifystop", map[string]any{
+		"base_info": c.baseInfo(),
+	}, nil)
 }
 
 func (c *PersonalWeixinIlinkClient) GetConfig(

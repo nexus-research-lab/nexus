@@ -1,3 +1,6 @@
+// INPUT: Channel 快照、表单草稿、账号状态与凭据字段。
+// OUTPUT: 连接草稿、多账号扫码策略、状态标签和字段辅助值。
+// POS: Channel 连接的纯模型层；个人微信扫码策略必须与提交动作共用。
 import type {
   ChannelAccountView,
   ChannelConfigView,
@@ -64,6 +67,20 @@ export function hasCompleteManualChannelCredentials(
     draft.config[pair[0]]?.trim()
     && draft.credentials[pair[1]]?.trim(),
   );
+}
+
+export function shouldStartChannelQRCodeLogin(
+  item: Pick<
+    ChannelConfigView,
+    "channel_type" | "has_credentials" | "supports_qr_code"
+  >,
+  hasManualCredentials: boolean,
+): boolean {
+  return item.supports_qr_code
+    && (
+      isPersonalWeixinChannel(item.channel_type)
+      || (!item.has_credentials && !hasManualCredentials)
+    );
 }
 
 export function channelAccountStatusLabel(status: string): string {

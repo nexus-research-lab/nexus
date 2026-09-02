@@ -1,6 +1,6 @@
-// INPUT: 多个个人微信账号 runtime 及被热替换的上一代实例。
-// OUTPUT: 多账号生命周期、投递，以及仅复用仍存在且凭据一致的旧连接。
-// POS: 个人微信多账号 DeliveryChannel，承担热替换时账号级资源交接。
+// INPUT: 同一 owner 的一个或多个个人微信账号 runtime 与精确 account_id 投递目标。
+// OUTPUT: 多账号生命周期、动态就绪聚合、热接管和精确账号路由。
+// POS: 个人微信多账号组合适配器。
 package adapters
 
 import (
@@ -36,6 +36,15 @@ func NewPersonalWeixinMultiAccountChannel(accounts []*PersonalWeixinChannel) *Pe
 
 func (c *PersonalWeixinMultiAccountChannel) ChannelType() string {
 	return channelcontract.ChannelTypeWeixinPersonal
+}
+
+func (c *PersonalWeixinMultiAccountChannel) RuntimeReady() bool {
+	for _, account := range c.snapshotAccounts() {
+		if account.RuntimeReady() {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *PersonalWeixinMultiAccountChannel) Start(ctx context.Context) error {
@@ -101,7 +110,10 @@ func (c *PersonalWeixinMultiAccountChannel) AdoptReplacedChannel(replaced channe
 	}
 	c.mu.Unlock()
 	for _, account := range replacedCandidates {
-		_ = account.Stop(context.Background())
+		// The previous runtime for this exact token remains active. Stop only
+		// the candidate's duplicate poller so its advisory notifystop cannot
+		// disable the account that was just adopted.
+		_ = account.stop(context.Background(), false)
 	}
 	for _, account := range staleOld {
 		_ = account.Stop(context.Background())

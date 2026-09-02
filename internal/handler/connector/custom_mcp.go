@@ -6,9 +6,9 @@ package connector
 import (
 	"errors"
 	"net/http"
-	"net/url"
 	"strings"
 
+	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	connectorsvc "github.com/nexus-research-lab/nexus/internal/service/connectors"
 
 	"github.com/go-chi/chi/v5"
@@ -157,12 +157,7 @@ func (h *Handlers) HandleDeleteCustomMCPServer(writer http.ResponseWriter, reque
 }
 
 func customMCPConnectorID(request *http.Request) string {
-	value := chi.URLParam(request, "connector_id")
-	decoded, err := url.PathUnescape(value)
-	if err != nil {
-		return value
-	}
-	return decoded
+	return handlershared.PathParam(request, "connector_id")
 }
 
 func writeCustomMCPError(h *Handlers, writer http.ResponseWriter, err error) {

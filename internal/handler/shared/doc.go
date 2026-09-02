@@ -1,4 +1,4 @@
-// Package shared 提供 handler 层共享的 HTTP 响应、中间件、上下文与 WS 发送能力。
+// Package shared 提供 handler 层共享的 HTTP 响应、路径参数解码、中间件、上下文与 WS 发送能力。
 //
 // L2 | 父级: internal/handler（L1 见 AGENTS.md）
 //
@@ -7,6 +7,7 @@
 //   - etag.go：条件写使用的强 ETag 写出与 If-Match 解析。
 //   - failure.go / request_context.go：可选 FailureCore 写出与仅供诊断的 HTTP request ID 上下文。
 //   - middleware.go：请求中间件。
+//   - path_param.go：与前端路径段编码对称的单次 URL 参数解码。
 //   - sender_websocket.go：WebSocket 发送器。
 //   - desktop_session.go：桌面会话辅助。
 //
