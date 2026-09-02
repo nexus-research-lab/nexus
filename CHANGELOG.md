@@ -56,6 +56,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Added deterministic chat prose fallbacks when Songti is unavailable: macOS
+  uses PingFang, while Windows uses the bundled PT Mono with a system CJK fallback.
 - Reduced the Composer action menu typography, weight, and row density to match
   the surrounding compact input controls.
 - Unified the Composer activity dock around a compact 32px status surface and
