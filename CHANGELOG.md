@@ -75,6 +75,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Clarified paused Goal recovery across the built-in Goal Skill, product guide,
+  and command feedback: users are now directed to the ▶「继续」 control in
+  the Goal status bar above the current conversation composer, after which
+  Nexus automatically schedules the continuation that audits and completes
+  the remaining work.
 - Kept compact sidebar gutters when desktop windows narrow, reserving the
   larger touch spacing for the true phone layout.
 - Kept the WorkGraph picker at a stable viewport-bounded height while switching

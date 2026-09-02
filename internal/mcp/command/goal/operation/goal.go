@@ -1,5 +1,5 @@
 // INPUT: Goal read/create/retarget/update intent 与当前 runtime authority。
-// OUTPUT: 当前 Goal 投影、持久 mutation 结果与 exact Goal/revision capability fence。
+// OUTPUT: 当前 Goal 投影、持久 mutation 结果、暂停恢复指引与 exact Goal/revision capability fence。
 // POS: Goal command 生命周期操作的统一实现。
 package operation
 
@@ -164,7 +164,7 @@ type updateGoalInput struct {
 }
 
 const updateGoalDescription = "Update the terminal status of an existing current Goal. Never use this operation to create, set, or change a Goal objective.\n" +
-	"Use it only to mark the Goal complete or blocked; when explicit Goal intent exists but get_goal returns no current Goal, create_goal is the only creation path. Objective correction of an existing Goal uses retarget_goal, and pause, resume, budget and usage states belong to the user or system.\n" +
+	"Use it only to mark the Goal complete or blocked; when explicit Goal intent exists but get_goal returns no current Goal, create_goal is the only creation path. Objective correction of an existing Goal uses retarget_goal, and pause, resume, budget and usage states belong to the user or system. If the current Goal is paused, ask the user to click the Play control labeled 「继续」 on the right side of the Goal status bar directly above this conversation's message composer. Nexus then schedules a new Goal continuation to perform the remaining audit and completion work.\n" +
 	"Complete requires the objective to be achieved with no required work remaining. Only a Goal whose managed WorkGraph binding is confirmed also requires an aligned Objective Alignment report for the current revision and round, plus backend WorkGraph readiness; Goal-only and reserved Goals do not. Room readiness remains independently enforced.\n" +
 	"A rejected completion can return a domain-qualified nextAction. Follow it exactly: Goal audit_objective_alignment supplies missing Goal evidence, while Execution get_execution resumes unfinished WorkGraph responsibility.\n" +
 	"Blocked requires a stable blocker_id, concrete reason, and needed_input so restart recovery and the user-facing audit explain the unblock path. Reuse the same blocker_id only for the same condition. Model policy still requires that blocker to persist for at least three consecutive Goal turns; the backend preserves its exact identity but does not infer provider turns. A shared Room Goal may be updated only by its assigned lead."
@@ -205,6 +205,9 @@ func updateGoal(svc contract.Service, sctx contract.Context) command.Operation {
 			}
 			item, err := updateGoalStatus(ctx, svc, current.ID, status, parsed.BlockerID, parsed.Reason, parsed.NeededInput, sctx.CurrentRoundID, sctx.CurrentAgentID, expectedRevision)
 			if err != nil {
+				if result, ok := pausedGoalRecoveryResult(err, current); ok {
+					return result, nil
+				}
 				if status == protocol.GoalStatusComplete {
 					return goalCompletionErrorResult(err), nil
 				}
@@ -235,6 +238,16 @@ func goalCompletionErrorResult(err error) command.Result {
 	default:
 		return errorResult(err)
 	}
+}
+
+func pausedGoalRecoveryResult(err error, item *protocol.Goal) (command.Result, bool) {
+	if !errors.Is(err, goalsvc.ErrGoalInvalidState) || item == nil ||
+		protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusPaused {
+		return command.Result{}, false
+	}
+	return errorResultText(
+		"the current Goal is paused and requires the user to resume it; ask the user to click the Play control labeled 「继续」 on the right side of the Goal status bar directly above this conversation's message composer; Nexus then automatically schedules a new Goal continuation to perform the remaining audit and completion work",
+	), true
 }
 
 func updateGoalCurrentErrorResult(err error) command.Result {
