@@ -22,9 +22,10 @@ func withRouteParam(ctx context.Context, key string, value string) context.Conte
 }
 
 type fakeControl struct {
-	currentLoginErr error
-	listPairingsErr error
-	upsertErr       error
+	currentLoginErr  error
+	deletedAccountID string
+	listPairingsErr  error
+	upsertErr        error
 }
 
 func (f *fakeControl) ListChannels(context.Context, string) ([]channelspkg.ChannelConfigView, error) {
@@ -39,7 +40,8 @@ func (f *fakeControl) DeleteChannelConfig(context.Context, string, string) error
 	return nil
 }
 
-func (f *fakeControl) DeleteChannelAccount(context.Context, string, string, string) (*channelspkg.ChannelConfigView, error) {
+func (f *fakeControl) DeleteChannelAccount(_ context.Context, _ string, _ string, accountID string) (*channelspkg.ChannelConfigView, error) {
+	f.deletedAccountID = accountID
 	return nil, nil
 }
 
@@ -158,6 +160,30 @@ func TestHandleCreatePairingMalformedJSONIsProvenNotApplied(t *testing.T) {
 
 	assertChannelFailure(t, recorder, http.StatusBadRequest,
 		"channel.create_pairing_request_invalid", protocol.FailureEffectNotApplied)
+}
+
+func TestHandleDeleteChannelAccountDecodesEscapedAccountID(t *testing.T) {
+	control := &fakeControl{}
+	handler := New(handlershared.NewAPI(nil), nil, control)
+	router := chi.NewRouter()
+	router.Delete(
+		"/nexus/v1/capability/channels/{channel_type}/accounts/{account_id}",
+		handler.HandleDeleteChannelAccount,
+	)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(
+		http.MethodDelete,
+		"/nexus/v1/capability/channels/weixin-personal/accounts/bfd76ae5976a%40im.bot",
+		nil,
+	)
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if control.deletedAccountID != "bfd76ae5976a@im.bot" {
+		t.Fatalf("删除账号参数未按路径段解码: %q", control.deletedAccountID)
+	}
 }
 
 func TestHandleListPairingsReadFailureNeverClaimsDataChanged(t *testing.T) {

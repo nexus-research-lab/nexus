@@ -143,6 +143,27 @@ test("Channel reconciliation does not pretend an opaque secret rotation is prove
   }, [{ ...channel, accounts: [] }]), "applied");
 });
 
+test("Personal Weixin QR login remains available after another account is connected", async () => {
+  const { shouldStartChannelQRCodeLogin } = await server.ssrLoadModule(
+    "/src/features/capability/channels/connection/channel-connection-model.ts",
+  );
+
+  assert.equal(shouldStartChannelQRCodeLogin(channelView({
+    channel_type: "weixin-personal",
+    has_credentials: true,
+    supports_qr_code: true,
+  }), false), true);
+  assert.equal(shouldStartChannelQRCodeLogin(channelView({
+    channel_type: "feishu",
+    has_credentials: true,
+    supports_qr_code: true,
+  }), false), false);
+  assert.equal(shouldStartChannelQRCodeLogin(channelView({
+    channel_type: "feishu",
+    supports_qr_code: true,
+  }), true), false);
+});
+
 test("Channel controllers preserve snapshots, lock unknown writes, and reconcile with reads", async () => {
   const [catalog, pairings, connection, login, createDialog, channelApi] = await Promise.all([
     read("src/features/capability/channels/catalog/use-channels-controller.ts"),

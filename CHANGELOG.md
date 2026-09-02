@@ -32,6 +32,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Updated the Feishu long-connection SDK to v3.11.0 and pinned DingTalk's
+  official v0.9.2 beta stream SDK so both channels receive the vendors'
+  current WebSocket lifecycle and concurrency fixes.
+- Updated personal Weixin iLink clients to the current encoded client version
+  while preserving explicit custom overrides.
 - Condensed Agent list rows to two lines by moving Provider, tool, and Skill
   metadata beside the Agent name and permission state.
 - Simplified the Skill update surface into aligned compact rows with one clear
@@ -75,11 +80,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Unified browser-encoded dynamic API path segments at the HTTP route boundary,
+  so identifiers containing `@`, `:`, `/`, Unicode, or literal percent escapes
+  reach every handler decoded exactly once. Provider model IDs retain their
+  single service-level decoder for compatibility with historically escaped
+  records.
 - Clarified paused Goal recovery across the built-in Goal Skill, product guide,
   and command feedback: users are now directed to the ▶「继续」 control in
   the Goal status bar above the current conversation composer, after which
   Nexus automatically schedules the continuation that audits and completes
   the remaining work.
+- Persisted each personal Weixin account's opaque iLink polling cursor across
+  restarts and compensated reloads, added the official start/stop lifecycle
+  notifications, and stopped retry loops on the explicit `-14` login-expired
+  response so the account asks for a fresh QR login instead of remaining
+  falsely connected. Existing accounts no longer suppress the personal Weixin
+  add-account QR flow, URL-escaped account identifiers are decoded before
+  deletion, and stop notification failures are best-effort instead of rolling
+  back local account deletion.
+- Added bounded writes and missed-pong detection to enterprise WeCom bot
+  WebSockets so half-open connections close and enter the existing reconnect
+  loop instead of remaining stuck indefinitely.
 - Kept compact sidebar gutters when desktop windows narrow, reserving the
   larger touch spacing for the true phone layout.
 - Kept the WorkGraph picker at a stable viewport-bounded height while switching

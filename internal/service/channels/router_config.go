@@ -170,7 +170,8 @@ func (s *ControlService) configurePersonalWeixinRouterChannel(ctx context.Contex
 		UserID:             config.public["user_id"],
 		BotAgent:           config.public["bot_agent"],
 		IlinkAppID:         config.public["ilink_app_id"],
-		IlinkClientVersion: config.public["ilink_client_version"],
+		IlinkClientVersion: personalWeixinClientVersion(config.public["ilink_client_version"]),
+		RuntimeStore:       s,
 	}, s.httpClient).WithOwner(config.ownerUserID)
 	return s.registerConfiguredChannel(ctx, config, channel)
 }

@@ -18,6 +18,41 @@ type recordingPersonalWeixinIngress struct {
 	requests []channelcontract.IngressRequest
 }
 
+type recordingPersonalWeixinRuntimeStore struct {
+	mu          sync.Mutex
+	loadCursor  string
+	savedCursor string
+	expired     string
+	saved       chan struct{}
+	marked      chan struct{}
+}
+
+func (s *recordingPersonalWeixinRuntimeStore) LoadPersonalWeixinCursor(context.Context, string, string) (string, error) {
+	return s.loadCursor, nil
+}
+
+func (s *recordingPersonalWeixinRuntimeStore) SavePersonalWeixinCursor(_ context.Context, _ string, _ string, cursor string) error {
+	s.mu.Lock()
+	s.savedCursor = cursor
+	s.mu.Unlock()
+	select {
+	case s.saved <- struct{}{}:
+	default:
+	}
+	return nil
+}
+
+func (s *recordingPersonalWeixinRuntimeStore) MarkPersonalWeixinLoginExpired(_ context.Context, _ string, _ string, message string) error {
+	s.mu.Lock()
+	s.expired = message
+	s.mu.Unlock()
+	select {
+	case s.marked <- struct{}{}:
+	default:
+	}
+	return nil
+}
+
 func (r *recordingPersonalWeixinIngress) Accept(_ context.Context, request channelcontract.IngressRequest) (*channelcontract.IngressResult, error) {
 	r.requests = append(r.requests, request)
 	return &channelcontract.IngressResult{
@@ -175,6 +210,9 @@ func TestPersonalWeixinMultiAccountChannelAdoptsRunningReplacedAccount(t *testin
 	var authMu sync.Mutex
 	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
+		case strings.Contains(request.URL.Path, "/ilink/bot/msg/notifystart"),
+			strings.Contains(request.URL.Path, "/ilink/bot/msg/notifystop"):
+			return jsonResponse(`{"ret":0}`), nil
 		case strings.Contains(request.URL.Path, "/ilink/bot/getupdates"):
 			<-request.Context().Done()
 			return nil, request.Context().Err()
@@ -258,6 +296,66 @@ func TestPersonalWeixinMultiAccountChannelAdoptsRunningReplacedAccount(t *testin
 	}
 	if authByRecipient["wx-user-2"] != "Bearer token-2" {
 		t.Fatalf("账号二应使用新扫码账号 channel: %+v", authByRecipient)
+	}
+}
+
+func TestPersonalWeixinMultiAccountChannelDoesNotNotifyStopForAdoptedDuplicate(t *testing.T) {
+	var mu sync.Mutex
+	stopTokens := []string{}
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/ilink/bot/msg/notifystart":
+			return jsonResponse(`{"ret":0}`), nil
+		case "/ilink/bot/getupdates":
+			<-request.Context().Done()
+			return nil, request.Context().Err()
+		case "/ilink/bot/msg/notifystop":
+			mu.Lock()
+			stopTokens = append(stopTokens, strings.TrimPrefix(request.Header.Get("Authorization"), "Bearer "))
+			mu.Unlock()
+			return jsonResponse(`{"ret":0}`), nil
+		default:
+			t.Fatalf("未知个人微信请求路径: %s", request.URL.Path)
+			return nil, nil
+		}
+	})}
+	newAccount := func(token string) *PersonalWeixinChannel {
+		return NewPersonalWeixinChannel(PersonalWeixinClientConfig{
+			BaseURL:   "https://weixin.test",
+			Token:     token,
+			AccountID: "account-1",
+		}, client)
+	}
+
+	runCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	previous := newAccount("token-1")
+	if err := previous.Start(runCtx); err != nil {
+		t.Fatalf("启动旧个人微信账号失败: %v", err)
+	}
+	replacement := NewPersonalWeixinMultiAccountChannel([]*PersonalWeixinChannel{
+		newAccount("token-1"),
+	})
+	if err := replacement.Start(runCtx); err != nil {
+		t.Fatalf("启动候选个人微信账号失败: %v", err)
+	}
+	if !replacement.AdoptReplacedChannel(previous) {
+		t.Fatal("候选 runtime 应接管同 token 的旧账号")
+	}
+
+	mu.Lock()
+	stopsBeforeShutdown := len(stopTokens)
+	mu.Unlock()
+	if stopsBeforeShutdown != 0 {
+		t.Fatalf("停止被替换的重复 poller 不应通知厂商下线: %+v", stopTokens)
+	}
+	if err := replacement.Stop(context.Background()); err != nil {
+		t.Fatalf("停止接管后的个人微信账号失败: %v", err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(stopTokens) != 1 || stopTokens[0] != "token-1" {
+		t.Fatalf("最终停止应且仅应通知一次厂商下线: %+v", stopTokens)
 	}
 }
 
@@ -516,5 +614,128 @@ func TestPersonalWeixinChannelHandlesTextMessage(t *testing.T) {
 	}
 	if !request.Message.ReceivedAt.Equal(time.UnixMilli(1700000000000).UTC()) {
 		t.Fatalf("个人微信入口时间不正确: %+v", request.Message.ReceivedAt)
+	}
+}
+
+func TestPersonalWeixinChannelPersistsCursorAndNotifiesLifecycle(t *testing.T) {
+	store := &recordingPersonalWeixinRuntimeStore{
+		loadCursor: "cursor-old",
+		saved:      make(chan struct{}, 1),
+		marked:     make(chan struct{}, 1),
+	}
+	var mu sync.Mutex
+	paths := make([]string, 0, 4)
+	var requestedCursor string
+	var clientVersion string
+	getUpdatesCalls := 0
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		mu.Lock()
+		paths = append(paths, request.URL.Path)
+		mu.Unlock()
+		switch request.URL.Path {
+		case "/ilink/bot/msg/notifystart":
+			clientVersion = request.Header.Get("iLink-App-ClientVersion")
+			return jsonResponse(`{"ret":0}`), nil
+		case "/ilink/bot/getupdates":
+			getUpdatesCalls++
+			if getUpdatesCalls == 1 {
+				var payload map[string]any
+				if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+					t.Fatalf("解析 getupdates 请求失败: %v", err)
+				}
+				requestedCursor = firstString(payload["get_updates_buf"])
+				return jsonResponse(`{"ret":0,"get_updates_buf":"cursor-new","longpolling_timeout_ms":10}`), nil
+			}
+			<-request.Context().Done()
+			return nil, request.Context().Err()
+		case "/ilink/bot/msg/notifystop":
+			return jsonResponse(`{"ret":0}`), nil
+		default:
+			t.Fatalf("未知个人微信请求路径: %s", request.URL.Path)
+			return nil, nil
+		}
+	})}
+	channel := NewPersonalWeixinChannel(PersonalWeixinClientConfig{
+		BaseURL:      "https://weixin.test",
+		Token:        "token-1",
+		AccountID:    "account-1",
+		RuntimeStore: store,
+	}, client).WithOwner("owner-a")
+
+	if err := channel.Start(context.Background()); err != nil {
+		t.Fatalf("启动个人微信 channel 失败: %v", err)
+	}
+	select {
+	case <-store.saved:
+	case <-time.After(2 * time.Second):
+		t.Fatal("个人微信新游标未持久化")
+	}
+	if !channel.RuntimeReady() {
+		t.Fatal("个人微信启动通知成功后 runtime 应 ready")
+	}
+	if err := channel.Stop(context.Background()); err != nil {
+		t.Fatalf("停止个人微信 channel 失败: %v", err)
+	}
+	if channel.RuntimeReady() {
+		t.Fatal("个人微信停止后 runtime 不应继续 ready")
+	}
+
+	store.mu.Lock()
+	savedCursor := store.savedCursor
+	store.mu.Unlock()
+	if requestedCursor != "cursor-old" || savedCursor != "cursor-new" {
+		t.Fatalf("个人微信游标未正确恢复/保存: requested=%q saved=%q", requestedCursor, savedCursor)
+	}
+	if clientVersion != "132102" {
+		t.Fatalf("个人微信默认 client version 未升级: %q", clientVersion)
+	}
+	mu.Lock()
+	joinedPaths := strings.Join(paths, ",")
+	mu.Unlock()
+	if !strings.Contains(joinedPaths, "/ilink/bot/msg/notifystart") ||
+		!strings.Contains(joinedPaths, "/ilink/bot/msg/notifystop") {
+		t.Fatalf("个人微信缺少上下线通知: %s", joinedPaths)
+	}
+}
+
+func TestPersonalWeixinChannelStopsPollingWhenLoginExpires(t *testing.T) {
+	store := &recordingPersonalWeixinRuntimeStore{
+		saved:  make(chan struct{}, 1),
+		marked: make(chan struct{}, 1),
+	}
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/ilink/bot/msg/notifystart", "/ilink/bot/msg/notifystop":
+			return jsonResponse(`{"ret":0}`), nil
+		case "/ilink/bot/getupdates":
+			return jsonResponse(`{"ret":-14,"errcode":-14,"errmsg":"session timeout"}`), nil
+		default:
+			t.Fatalf("未知个人微信请求路径: %s", request.URL.Path)
+			return nil, nil
+		}
+	})}
+	channel := NewPersonalWeixinChannel(PersonalWeixinClientConfig{
+		BaseURL:      "https://weixin.test",
+		Token:        "expired-token",
+		AccountID:    "account-1",
+		RuntimeStore: store,
+	}, client).WithOwner("owner-a")
+
+	if err := channel.Start(context.Background()); err != nil {
+		t.Fatalf("启动个人微信 channel 失败: %v", err)
+	}
+	select {
+	case <-store.marked:
+	case <-time.After(2 * time.Second):
+		t.Fatal("iLink -14 未投影为登录失效")
+	}
+	if err := channel.Stop(context.Background()); err != nil {
+		t.Fatalf("停止登录失效 channel 失败: %v", err)
+	}
+	store.mu.Lock()
+	expired := store.expired
+	store.mu.Unlock()
+	if !strings.Contains(expired, "scan QR code") || !strings.Contains(expired, "-14") {
+		t.Fatalf("登录失效说明不完整: %q", expired)
 	}
 }

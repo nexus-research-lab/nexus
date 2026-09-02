@@ -1,3 +1,6 @@
+// INPUT: 企业微信 WebSocket 帧、订阅/心跳 ACK 与并发写入请求。
+// OUTPUT: 有写截止时间、丢失 pong 检测和断线重连触发的长连接循环。
+// POS: 企业微信智能机器人 socket 生命周期与帧分派边界。
 package adapters
 
 import (
@@ -27,6 +30,7 @@ func (d gorillaWeComBotDialer) DialContext(ctx context.Context, endpoint string,
 
 type weComBotSocket interface {
 	ReadMessage() (int, []byte, error)
+	SetWriteDeadline(time.Time) error
 	WriteJSON(any) error
 	Close() error
 }
@@ -97,11 +101,20 @@ func (c *WeComBotChannel) connectAndServe(ctx context.Context) error {
 }
 
 func (c *WeComBotChannel) pingLoop(ctx context.Context) {
-	ticker := time.NewTicker(30 * time.Second)
+	interval := c.currentPingInterval()
+	if interval <= 0 {
+		interval = 30 * time.Second
+	}
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
+			if c.recordMissedPong() {
+				c.loggerFor(ctx).Warn("企业微信智能机器人连续未收到心跳响应，主动重连")
+				c.closeCurrentSocket()
+				return
+			}
 			reqID := channelcontract.NewID("ping")
 			c.setLastPingReqID(reqID)
 			if err := c.writeFrame(ctx, weComBotCommandFrame{
@@ -109,6 +122,8 @@ func (c *WeComBotChannel) pingLoop(ctx context.Context) {
 				Headers: weComBotHeaders{ReqID: reqID},
 			}, true); err != nil {
 				c.loggerFor(ctx).Debug("企业微信智能机器人心跳发送失败", "err", err)
+				c.closeCurrentSocket()
+				return
 			}
 		case <-ctx.Done():
 			return
@@ -124,6 +139,7 @@ func (c *WeComBotChannel) handleFrame(ctx context.Context, raw []byte) error {
 	cmd := strings.ToLower(strings.TrimSpace(frame.Cmd))
 	reqID := weComBotFrameRequestID(frame)
 	if cmd == weComBotPongCommand {
+		c.acknowledgePing()
 		return nil
 	}
 	if errCode, errMsg, ok := weComBotFrameStatus(frame, cmd); ok {
@@ -171,6 +187,7 @@ func (c *WeComBotChannel) handleStatusFrame(ctx context.Context, reqID string, e
 		return
 	}
 	if errCode == 0 && c.isLastPingReqID(reqID) {
+		c.acknowledgePing()
 		return
 	}
 	if errCode != 0 {
@@ -200,7 +217,34 @@ func (c *WeComBotChannel) writeFrame(ctx context.Context, frame weComBotCommandF
 	}
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
-	return conn.WriteJSON(frame)
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+	deadline := time.Time{}
+	if timeout := c.currentWriteTimeout(); timeout > 0 {
+		deadline = time.Now().Add(timeout)
+	}
+	if ctxDeadline, ok := ctx.Deadline(); ok && (deadline.IsZero() || ctxDeadline.Before(deadline)) {
+		deadline = ctxDeadline
+	}
+	if !deadline.IsZero() {
+		if err := conn.SetWriteDeadline(deadline); err != nil {
+			c.closeSocketIfCurrent(conn)
+			return err
+		}
+	}
+	err := conn.WriteJSON(frame)
+	resetErr := conn.SetWriteDeadline(time.Time{})
+	if err != nil {
+		c.closeSocketIfCurrent(conn)
+		return err
+	}
+	if resetErr != nil {
+		c.closeSocketIfCurrent(conn)
+	}
+	return resetErr
 }
 
 func (c *WeComBotChannel) writeReplyFrame(ctx context.Context, reqID string, frame weComBotCommandFrame) error {
@@ -290,6 +334,8 @@ func (c *WeComBotChannel) setSocket(conn weComBotSocket, connected bool) {
 	defer c.mu.Unlock()
 	c.conn = conn
 	c.connected = connected
+	c.lastPingReqID = ""
+	c.missedPongs = 0
 }
 
 func (c *WeComBotChannel) clearSocket(conn weComBotSocket) {
@@ -299,6 +345,7 @@ func (c *WeComBotChannel) clearSocket(conn weComBotSocket) {
 		c.connected = false
 		c.subscribeReqID = ""
 		c.lastPingReqID = ""
+		c.missedPongs = 0
 	}
 	c.mu.Unlock()
 	c.clearPendingAcks(errors.New("wechat bot long connection closed"))
@@ -328,6 +375,61 @@ func (c *WeComBotChannel) setLastPingReqID(reqID string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.lastPingReqID = strings.TrimSpace(reqID)
+}
+
+func (c *WeComBotChannel) acknowledgePing() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.lastPingReqID = ""
+	c.missedPongs = 0
+}
+
+func (c *WeComBotChannel) recordMissedPong() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.lastPingReqID == "" {
+		return false
+	}
+	c.missedPongs++
+	limit := c.maxMissedPongs
+	if limit <= 0 {
+		limit = 3
+	}
+	return c.missedPongs >= limit
+}
+
+func (c *WeComBotChannel) closeCurrentSocket() {
+	c.mu.RLock()
+	conn := c.conn
+	c.mu.RUnlock()
+	c.closeSocketIfCurrent(conn)
+}
+
+func (c *WeComBotChannel) closeSocketIfCurrent(conn weComBotSocket) {
+	if conn == nil {
+		return
+	}
+	c.mu.RLock()
+	current := c.conn
+	c.mu.RUnlock()
+	if current != conn {
+		return
+	}
+	if conn != nil {
+		_ = conn.Close()
+	}
+}
+
+func (c *WeComBotChannel) currentPingInterval() time.Duration {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.pingInterval
+}
+
+func (c *WeComBotChannel) currentWriteTimeout() time.Duration {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.writeTimeout
 }
 
 func (c *WeComBotChannel) isLastPingReqID(reqID string) bool {
