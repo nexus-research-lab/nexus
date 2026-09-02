@@ -301,7 +301,7 @@ function ToolRun({
             />
             {streaming && activity.state ? (
               <LocalizedMessageActivityStatus
-                className="pt-1"
+                className="px-0 pt-1"
                 state={activity.state}
               />
             ) : null}

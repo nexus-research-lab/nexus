@@ -1,8 +1,10 @@
 /**
  * INPUT: 可见态、生成态与回到底部动作。
- * OUTPUT: 居中的三点回到底部入口；生成中以波浪动效表达持续输出。
+ * OUTPUT: 居中的回到底部入口；生成中显示三点波浪，结束后显示向下箭头。
  * POS: 主对话与 Thread 共用的唯一浮动滚动控件。
  */
+import { ArrowDown } from "lucide-react";
+
 import { useI18n } from "@/shared/i18n/i18n-context";
 
 const FLOATING_ACTION_CHIP_CLASS_NAME =
@@ -33,11 +35,15 @@ export function ScrollToLatestButton({
       data-scroll-to-latest
     >
       <span className={FLOATING_ACTION_CHIP_CLASS_NAME}>
-        <span aria-hidden="true" className="flex items-center gap-1">
-          <span className="nexus-scroll-latest-dot" />
-          <span className="nexus-scroll-latest-dot" />
-          <span className="nexus-scroll-latest-dot" />
-        </span>
+        {isGenerating ? (
+          <span aria-hidden="true" className="flex items-center gap-1">
+            <span className="nexus-scroll-latest-dot" />
+            <span className="nexus-scroll-latest-dot" />
+            <span className="nexus-scroll-latest-dot" />
+          </span>
+        ) : (
+          <ArrowDown aria-hidden="true" className="h-4 w-4" />
+        )}
       </span>
     </button>
   );
