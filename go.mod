@@ -11,7 +11,7 @@ require (
 	github.com/jackc/pgx/v5 v5.9.1
 	github.com/larksuite/oapi-sdk-go/v3 v3.11.0
 	github.com/modelcontextprotocol/go-sdk v1.6.1
-	github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.1.31
+	github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.1.32-0.20260901065947-dca4f84ef938
 	github.com/open-dingtalk/dingtalk-stream-sdk-go v0.9.2-beta.1
 	github.com/pelletier/go-toml/v2 v2.4.3
 	github.com/pressly/goose/v3 v3.27.0
