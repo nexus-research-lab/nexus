@@ -1,3 +1,7 @@
+// INPUT: 选择条密度、active 状态与外部布局 class。
+// OUTPUT: 使用统一 control radius 和交互 token 的选择条样式。
+// POS: UiTabs 视觉投影；不定义 DOM 语义、路由或内容面板。
+
 import { cn } from "@/shared/ui/class-name";
 
 export type UiTabsDensity = "default" | "compact";

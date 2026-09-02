@@ -87,6 +87,12 @@ test("product source does not reintroduce numeric high layers or shared dialog v
     ) {
       violations.push(`${relativePath}: duplicated dialog viewport formula`);
     }
+    if (
+      relativePath !== "src/shared/ui/form/checkbox.tsx"
+      && /type="checkbox"/.test(source)
+    ) {
+      violations.push(`${relativePath}: raw ordinary checkbox`);
+    }
   }
 
   assert.deepEqual(violations, []);

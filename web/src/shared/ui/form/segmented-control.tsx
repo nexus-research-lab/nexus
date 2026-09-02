@@ -1,3 +1,6 @@
+// INPUT: 有限互斥选项、当前值与变更命令。
+// OUTPUT: 以 aria-pressed 暴露状态的紧凑分段按钮组。
+// POS: Segmented control pattern；不解释业务选项或持有选中值。
 "use client";
 
 import { LucideIcon } from "lucide-react";
@@ -59,6 +62,7 @@ export function UiSegmentedControl<T extends string>({
       {options.map((option) => (
         <button
           key={option.value}
+          aria-pressed={value === option.value}
           className={cn(
             "segmented-control-option rounded-full font-semibold tracking-[0.02em]",
             density === "compact" ? "px-[0.7rem] py-[3.5px] text-2xs" : "px-1.5 py-[5px] text-2xs",

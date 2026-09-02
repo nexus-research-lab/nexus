@@ -1,3 +1,6 @@
+// INPUT: 单个可切换选项的 active/disabled 状态与 size/tone/variant 语义。
+// OUTPUT: 以 aria-pressed 表达选择状态的统一选择按钮。
+// POS: Choice button 原语；不拥有选项集合、业务选择值或提交行为。
 "use client";
 
 import { ButtonHTMLAttributes, forwardRef, ReactNode } from "react";

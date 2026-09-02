@@ -1,3 +1,6 @@
+// INPUT: 视图/筛选选项、当前值与切换/关闭命令。
+// OUTPUT: 以 button group 语义呈现的可横向滚动选择条。
+// POS: 选择条 pattern；不是站点导航，也不拥有 tabpanel 或路由生命周期。
 "use client";
 
 import { type ReactNode } from "react";
@@ -45,10 +48,11 @@ export function UiTabs<TValue extends string>({
   options,
 }: UiTabsProps<TValue>) {
   return (
-    <nav
+    <div
       aria-label={ariaLabel}
       className={getUiTabsNavClassName(className)}
       data-tour-anchor={navAnchor}
+      role="group"
     >
       {options.map((option) => {
         const Icon = option.icon;
@@ -60,7 +64,6 @@ export function UiTabs<TValue extends string>({
         ].filter(Boolean).join(" ");
         const tabButton = (
           <button
-            aria-current={isActive ? "page" : undefined}
             aria-pressed={isActive}
             className={getUiTabClassName(
               { active: isActive, density },
@@ -112,6 +115,6 @@ export function UiTabs<TValue extends string>({
           </span>
         );
       })}
-    </nav>
+    </div>
   );
 }

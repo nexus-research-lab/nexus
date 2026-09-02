@@ -9,10 +9,12 @@ import {
   type KeyboardEvent,
   type MouseEvent,
   type RefObject,
+  useId,
 } from "react";
 import { Check, Clock3, Pencil, Trash2, X } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
+import { UiCheckbox } from "@/shared/ui/form/checkbox";
 
 import type {
   RoomHistoryItemAction,
@@ -154,6 +156,7 @@ function SelectingItemContent({
   presentation,
   selectionLabel,
 }: ItemContentProps) {
+  const checkboxId = useId();
   const selection = presentation.selection;
   if (!selection) {
     return null;
@@ -164,15 +167,16 @@ function SelectingItemContent({
         "flex w-full items-center gap-2.5",
         selection.disabled ? "cursor-default" : "cursor-pointer",
       )}
+      htmlFor={checkboxId}
       title={selection.disabled ? selectionLabel : undefined}
     >
-      <input
+      <UiCheckbox
         aria-label={selectionLabel}
         checked={selection.checked}
-        className="h-3.5 w-3.5 shrink-0 accent-[var(--primary)] disabled:opacity-35"
+        checkboxSize="small"
         disabled={selection.disabled}
+        id={checkboxId}
         onChange={onToggleSelection}
-        type="checkbox"
       />
       <div className="min-w-0 flex-1">
         <RoomHistorySummary presentation={presentation} />

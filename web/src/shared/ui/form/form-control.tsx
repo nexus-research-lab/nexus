@@ -1,3 +1,6 @@
+// INPUT: 原生输入属性、字段描述/错误与搜索值变更命令。
+// OUTPUT: 统一输入外观、原生校验反馈和可访问搜索清除行为。
+// POS: 文本表单控件原语；不持有业务草稿、提交事务或领域校验规则。
 "use client";
 
 import {
@@ -14,6 +17,7 @@ import {
 import { Search, X } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import {
   getUiFormControlClassName,
@@ -55,6 +59,21 @@ interface UiSearchInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>,
   variant?: UiFormControlVariant;
 }
 
+function findFirstInvalidControl(form: HTMLFormElement | null) {
+  if (!form) {
+    return null;
+  }
+  return Array.from(form.elements).find((element) => (
+    element instanceof HTMLInputElement
+    || element instanceof HTMLSelectElement
+    || element instanceof HTMLTextAreaElement
+  ) && !element.validity.valid) as
+    | HTMLInputElement
+    | HTMLSelectElement
+    | HTMLTextAreaElement
+    | undefined;
+}
+
 export function UiField({
   children,
   className: className,
@@ -88,9 +107,7 @@ export function UiField({
       | HTMLInputElement
       | HTMLSelectElement
       | HTMLTextAreaElement;
-    const firstInvalid = target.form?.querySelector<
-      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
-    >("input:invalid, select:invalid, textarea:invalid");
+    const firstInvalid = findFirstInvalidControl(target.form);
     if (firstInvalid && firstInvalid !== target) {
       return;
     }
@@ -230,7 +247,7 @@ export const UiSearchInput = forwardRef<HTMLInputElement, UiSearchInputProps>(fu
   };
 
   return (
-    <label
+    <div
       className={getUiSearchInputShellClassName(
         { size: controlSize, variant },
         cn(className),
@@ -243,6 +260,7 @@ export const UiSearchInput = forwardRef<HTMLInputElement, UiSearchInputProps>(fu
           inputClassName,
         )}
         disabled={disabled}
+        aria-label={props["aria-label"] ?? placeholder}
         onChange={handleChange}
         placeholder={placeholder}
         readOnly={readOnly}
@@ -253,22 +271,21 @@ export const UiSearchInput = forwardRef<HTMLInputElement, UiSearchInputProps>(fu
         {...props}
       />
       {value ? (
-        <button
+        <UiIconButton
           aria-label={t("common.clear")}
-          className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[6px] text-(--icon-default) transition hover:bg-(--surface-interactive-hover-background) hover:text-(--text-default) disabled:pointer-events-none disabled:opacity-45"
           disabled={disabled || readOnly}
           onClick={(event) => {
             event.preventDefault();
             onChange("");
           }}
           onMouseDown={(event) => event.preventDefault()}
-          title={t("common.clear")}
-          type="button"
+          size="xs"
+          tooltip={t("common.clear")}
         >
           <X className="h-3.5 w-3.5" />
-        </button>
+        </UiIconButton>
       ) : null}
       {action}
-    </label>
+    </div>
   );
 });

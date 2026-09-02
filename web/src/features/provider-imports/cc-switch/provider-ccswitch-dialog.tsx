@@ -32,6 +32,7 @@ import {
   UiDialogPortal,
 } from "@/shared/ui/dialog/dialog";
 import { UiInput } from "@/shared/ui/form/form-control";
+import { UiCheckbox } from "@/shared/ui/form/checkbox";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import type {
   CCSwitchPreview,
@@ -298,12 +299,11 @@ export function ProviderCCSwitchDialog({
                   "flex cursor-pointer items-center gap-2 text-xs text-(--text-muted)",
                   !canSetDefault && "cursor-not-allowed opacity-(--disabled-opacity)",
                 )}>
-                  <input
+                  <UiCheckbox
                     checked={setDefault && canSetDefault}
-                    className="h-3.5 w-3.5 accent-(--primary)"
+                    checkboxSize="small"
                     disabled={!canSetDefault || controlsLocked || syncing}
                     onChange={(event) => setSetDefault(event.target.checked)}
-                    type="checkbox"
                   />
                   {t("settings.providers.ccswitch_set_default")}
                 </label>
@@ -490,12 +490,10 @@ function CCSwitchProviderRow({
         : "cursor-not-allowed bg-(--surface-muted-background) opacity-70",
       checked && "bg-[color:color-mix(in_srgb,var(--brand)_5%,transparent)]",
     )}>
-      <input
+      <UiCheckbox
         checked={checked}
-        className="h-4 w-4 shrink-0 accent-(--primary)"
         disabled={!item.can_sync || disabled}
         onChange={(event) => onChange(event.target.checked)}
-        type="checkbox"
       />
       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-(--divider-subtle-color) bg-(--background) text-[11px] font-semibold text-(--text-default)">
         {item.app_type === "claude" ? "CC" : "CX"}

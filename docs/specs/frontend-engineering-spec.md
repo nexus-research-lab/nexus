@@ -210,6 +210,12 @@ Widget 可以认识 Agent、Room、Goal 等产品对象，但只组合下层合�
 
 源码正则只能作为架构或禁止项门禁，不能替代组件行为测试。涉及布局、Portal、碰撞和视口尺寸的 UI 必须使用真实浏览器验证。
 
+测试入口固定为：
+
+- `src/**/*.test.tsx`：与 primitive/pattern 共置的 Vitest + jsdom 行为测试，必须通过 Testing Library 从角色、名称和真实用户事件观察组件；
+- `scripts/*.test.mjs`：纯模型、协议、架构边界和禁止项合同；不得在这里伪造 DOM 交互结论，统一入口以有界并发运行，避免大量独立 Vite 转换进程使门禁随机崩溃；
+- `npm run test:components` 与 `npm run test:contracts` 可分别定位失败，`npm test` 必须串行覆盖两类测试。
+
 视觉回归矩阵至少覆盖：
 
 - light / dark / rain；

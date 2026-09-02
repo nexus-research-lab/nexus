@@ -1,8 +1,12 @@
+// INPUT: 带标签/说明的布尔值与变更命令。
+// OUTPUT: 整行可点击且复用统一 checkbox 原语的表单选择项。
+// POS: Checkbox 行级 pattern；不拥有业务状态或提交事务。
 "use client";
 
 import { type InputHTMLAttributes, type ReactNode } from "react";
 
 import { cn } from "@/shared/ui/class-name";
+import { UiCheckbox } from "@/shared/ui/form/checkbox";
 
 interface UiCheckboxRowProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "onChange" | "type"> {
   checked: boolean;
@@ -28,11 +32,9 @@ export function UiCheckboxRow({
         className,
       )}
     >
-      <input
+      <UiCheckbox
         checked={checked}
-        className="h-4 w-4 shrink-0 accent-(--primary)"
         onChange={(event) => onChange(event.target.checked)}
-        type="checkbox"
         {...props}
       />
       <span className="min-w-0">

@@ -1,3 +1,6 @@
+// INPUT: 用户动作、原生 button/link 属性与有限的 size/tone/variant 语义。
+// OUTPUT: 默认安全为 type=button、可聚焦且具统一状态样式的文字/图标动作控件。
+// POS: Button DOM 与可访问性原语；不判断业务权限、事务状态或页面布局。
 "use client";
 
 import { AnchorHTMLAttributes, ButtonHTMLAttributes, forwardRef, ReactNode } from "react";
