@@ -45,15 +45,16 @@ export function AgentOptionsDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        className="z-[9999] max-sm:p-2"
         closeOnBackdrop={false}
+        inset="compact"
         labelledBy="agent-options-dialog-title"
+        layer="dialog"
         onClose={onClose}
       >
         <UiDialogShell
-          className="h-[min(82dvh,760px)] max-sm:h-[calc(100dvh-16px)]"
           size="wide"
           style={{ maxWidth: "900px" }}
+          viewport="adaptive"
         >
           <UiDialogHeader
             appearance="plain"

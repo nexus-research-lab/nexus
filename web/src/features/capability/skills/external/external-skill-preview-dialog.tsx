@@ -43,7 +43,7 @@ export function ExternalSkillPreviewDialog({
 
   return (
     <UiDialogPortal>
-      <UiDialogBackdrop className="z-[9999]" onClose={onClose}>
+      <UiDialogBackdrop layer="dialog" onClose={onClose}>
         <UiDialogShell className="h-[84vh]" size="xl">
           <UiDialogHeader
             appearance="plain"

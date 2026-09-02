@@ -77,16 +77,16 @@ export function CustomMCPDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        className="max-sm:p-2"
         closeOnBackdrop={!busy}
         initialFocusRef={nameInputRef}
+        inset="compact"
         labelledBy="custom-mcp-dialog-title"
         onClose={busy ? undefined : onClose}
       >
         <UiDialogFormShell
-          className="max-h-[min(82dvh,760px)] max-sm:max-h-[calc(100dvh-16px)]"
           onSubmit={(event) => void submit(event)}
           size="lg"
+          viewport="adaptiveMax"
         >
           <UiDialogHeader
             appearance="plain"

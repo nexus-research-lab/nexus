@@ -46,7 +46,7 @@ export function ProviderDeleteUsageDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        className="z-[9999]"
+        layer="dialog"
         labelledBy="provider-delete-blocked-title"
         onClose={onCancel}
       >

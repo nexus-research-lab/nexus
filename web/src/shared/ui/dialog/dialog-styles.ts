@@ -1,3 +1,7 @@
+// INPUT: Dialog 的动作语义、视口模式和调用方外部布局约束。
+// OUTPUT: 由共享 Button 与 Dialog recipe 组成的稳定 className。
+// POS: Dialog 视觉几何入口；不处理焦点、modal 栈或业务提交。
+
 import { CSSProperties } from "react";
 
 import { cn } from "@/shared/ui/class-name";

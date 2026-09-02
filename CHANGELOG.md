@@ -32,6 +32,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Established a single frontend engineering and design-system contract, and
+  centralized high overlay layers and responsive dialog geometry behind semantic
+  APIs to prevent page-specific stacking and small-window sizing drift.
 - Updated the Feishu long-connection SDK to v3.11.0 and pinned DingTalk's
   official v0.9.2 beta stream SDK so both channels receive the vendors'
   current WebSocket lifecycle and concurrency fixes.

@@ -84,7 +84,7 @@ function CreateRoomDialogContent({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        className="z-[9998]"
+        layer="dialogUnderlay"
         labelledBy="create-room-dialog-title"
         onClose={onCancel}
       >

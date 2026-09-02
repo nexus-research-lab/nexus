@@ -205,7 +205,7 @@ export function ProviderCCSwitchDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        className="z-[12000]"
+        layer="systemDialog"
         closeOnBackdrop={!syncing}
         labelledBy="provider-ccswitch-title"
         onClose={syncing ? undefined : onClose}

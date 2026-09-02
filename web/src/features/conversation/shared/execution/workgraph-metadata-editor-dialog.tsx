@@ -287,7 +287,7 @@ export function WorkGraphMetadataEditorDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        className="z-[10000]"
+        layer="dialogNested"
         labelledBy="workgraph-metadata-editor-title"
         onClose={handleClose}
       >

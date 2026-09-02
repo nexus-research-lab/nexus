@@ -1,0 +1,242 @@
+# Web 前端工程与设计系统治理规范
+
+本文定义 Nexus Web 前端的代码所有权、依赖方向、组件抽象、视觉系统、注释、测试与迁移合同。它回答“代码应放在哪里、为什么能复用、修改后应影响哪些界面、如何证明没有产生第二套实现”。
+
+视觉判断以 [`design.md`](../../design.md) 为唯一入口；弹窗、页面信息密度和能力页面的产品语法分别由 [`dialog-design-spec.md`](./dialog-design-spec.md)、[`web-surface-density-spec.md`](./web-surface-density-spec.md) 与 [`capability-page-design-spec.md`](./capability-page-design-spec.md) 定义。本文不重复这些产品规则，只定义它们如何落成可维护代码。
+
+## 1. 完成标准
+
+前端改动只有同时满足以下条件才算完成：
+
+1. 目录可以解释代码所有者，import 可以解释依赖方向；
+2. 相同交互合同只存在一个 primitive，相同跨页面几何只存在一个 pattern；
+3. 业务页面通过语义 Props 选择样式，不复制颜色、阴影、圆角、层级、断点或浮层几何；
+4. 业务规则变化同步更新文件 `INPUT / OUTPUT / POS` 契约和所属模块文档；
+5. 公共行为有自动化测试，视觉变化覆盖主题、窄屏、焦点和状态矩阵；
+6. `lint`、`typecheck`、目标行为测试和前端架构门禁通过。
+
+## 2. 代码地图与依赖方向
+
+目标代码地图如下。迁移期间现有目录可以保留，但新增代码必须按此判断所有权，不得扩大历史债务。
+
+```text
+src/
+├── entries/       多入口；只选择并启动 app
+├── app/           Provider、Router、全局样式和应用生命周期
+├── pages/         路由页面与页面级协调；不拥有可复用业务规则
+├── widgets/       可独立理解的大块界面，如 ConversationPanel、WorkspaceBrowser
+├── features/      用户动作与用例，如 send-message、set-goal、connect-provider
+├── entities/      Agent、Room、Session、Goal、Execution 等业务资源
+├── shared/        不依赖 Nexus 业务对象的 UI、transport、i18n 与通用函数
+└── generated/     后端协议生成物；不承载手写业务规则
+```
+
+允许的依赖方向：
+
+```text
+entries -> app -> pages -> widgets -> features -> entities -> shared
+                         \-----------> entities -> shared
+```
+
+上层可以跳过中间层依赖更底层；底层不得反向 import 上层。特别是：
+
+- `shared` 不得 import `entities / features / widgets / pages / app`；
+- `entities` 不得 import `features / widgets / pages / app`；
+- `features` 不得 import `widgets / pages / app`；
+- `widgets` 不得 import `pages / app`；
+- 页面路由能力由 page/app 注入，或通过无业务状态的共享 route contract 使用；
+- 跨切片依赖只访问对方的 `public.ts`，不得穿透内部目录。
+
+### 2.1 现有目录的归属
+
+| 当前代码 | 目标所有者 |
+| --- | --- |
+| `hooks/ui` | `shared/lib/react` |
+| `hooks/agent`、`hooks/conversation` | 对应 entity model 或具体 feature |
+| `store/agent`、`store/conversation` | 对应 entity model |
+| 应用壳状态 store | `app/model` 或对应 widget |
+| `lib/api/core` | `shared/api` |
+| `lib/websocket` | `shared/transport/websocket` |
+| 领域 API | 对应 entity/feature 的 `api` |
+| `types/generated` | `generated` |
+| 其他业务 types | 对应 entity/feature 的 `model` |
+| `shared/ui/workspace` | workspace widget；只留下真正无业务的原语 |
+| `shared/ui/onboarding` | onboarding feature |
+| `conversation/shared/feed`、`composer`、`thread` | 对应 conversation widgets |
+| `conversation/shared/session`、`goal`、`execution` | 对应 entities 与用户动作 features |
+
+迁移必须按业务切片渐进完成，不提交一次性全树移动。旧路径可以在一个迁移阶段保留窄兼容入口，但新代码不得继续从旧聚合目录扩散。
+
+## 3. 切片内部结构
+
+Entity、Feature 与 Widget 只在需要时使用以下目录：
+
+```text
+<slice>/
+├── api/       transport 调用、DTO 与边界 mapper；不依赖 React
+├── model/     类型、状态机、selector、resource hook 与 store
+├── ui/        受控视图与局部交互
+├── lib/       仅本切片使用的纯函数
+└── public.ts  显式公共入口；禁止 export *
+```
+
+- 少于三个紧密相关文件时不创建子目录；
+- `controller` 只用于协调多个资源、命令或生命周期的复杂流程；
+- 普通组件的局部状态留在组件内，不为了形式拆出 controller；
+- 避免 `utils.ts`、`helpers.ts`、`common.ts` 等无法表达所有权的名称；
+- `model` 中可测试的投影和状态转换必须保持纯函数，React Hook 只负责绑定生命周期。
+
+## 4. UI 系统分层
+
+UI 实现固定分为五层：
+
+```text
+design token -> visual recipe -> primitive -> pattern -> domain widget
+```
+
+### 4.1 Design token
+
+Token 是跨主题、跨组件的值真相，当前入口是 `web/src/app/styles/theme-tokens.css`。Token 分为：
+
+- 主题基础：颜色、字体、状态色；
+- 语义表面：surface、modal、button、input、chip；
+- 几何：控件高度、圆角、页面 gutter、浮层 gap、视口 inset；
+- 空间层级：sticky、menu、popover、dialog、tooltip、tour；
+- 动效：duration 与 easing。
+
+业务文件不得出现 raw color、任意阴影或任意高层级。普通 Tailwind 间距刻度可以继续使用；只有跨页面必须同步变化的几何才晋升为语义 token。
+
+### 4.2 Visual recipe
+
+Recipe 把 token 组合成可复用视觉语法，例如 `surface-popover`、`input-shell`、`radius-control-md`。通用 recipe 位于 UI 基础设施；`.nexus-chat-*`、Workspace、Launcher 等领域样式归对应 widget/feature，不进入通用主题配方。
+
+业务组件不得使用 `rounded-[Npx]`、`shadow-[...]` 或 raw `color-mix` 复刻已有 recipe。同值不代表同语义：10px 必须说明它是 control radius 还是其他几何。
+
+### 4.3 Primitive
+
+Primitive 同时拥有 DOM、键盘、焦点、ARIA 和视觉状态合同，例如 Button、Input、Dialog、Popover、Menu、Tabs、Tooltip。
+
+- Props 使用 `size / tone / variant / density / elevation / layer / viewport` 等有限语义；
+- 默认值必须能直接用于普通业务场景；
+- `className` 只用于外部布局和宽度约束，不得覆盖颜色、圆角、阴影、层级、hover 或 focus；
+- variant 必须存在真实视觉或行为差异；完全相同的 variant 合并；
+- 普通按钮、输入和模态不得绕过已有 primitive 手写第二套行为。
+
+### 4.4 Pattern
+
+Pattern 统一跨页面的结构、响应式几何或交互组合，例如 ResponsiveDialog、AnchoredPopover、FilterBar、SettingsSection、CatalogCard、FloatingDock。
+
+Pattern 与 Primitive 的区别是：Primitive 统一一个控件；Pattern 统一多个控件如何在页面和窗口尺寸中协作。
+
+### 4.5 Domain widget
+
+Widget 可以认识 Agent、Room、Goal 等产品对象，但只组合下层合同，不重新定义基础视觉。Conversation 的 Composer 浮动工作栈属于 conversation widget，不应为了复用 DM/Room 而放进全局 `shared`。
+
+## 5. 抽象与晋升规则
+
+发现重复时按以下顺序判断：
+
+| 重复事实 | 抽象位置 |
+| --- | --- |
+| 同一颜色、圆角、阴影、层级或关键尺寸 | Token |
+| 多个视觉 class 总是共同出现 | Recipe |
+| DOM、交互、键盘与 ARIA 相同 | Primitive |
+| 响应式布局、浮动几何或组件组合相同 | Pattern |
+| 业务对象和业务状态相同 | Entity/Feature/Widget |
+
+默认从业务局部实现开始。第二个消费者出现时比较差异；跨两个领域出现第三个稳定消费者，或交互/可访问性必须全局一致时，再晋升到 shared。单消费者透传 wrapper、只为缩短 className 的组件和假想未来复用不得晋升。
+
+## 6. 视觉与交互治理
+
+### 6.1 阴影
+
+阴影表达空间高度，不表达业务重要性：
+
+- 普通 button、nav row、panel、card 默认无阴影；
+- primary action 通过行动色表达，不由页面附加阴影；
+- menu/popover、dialog 与真正悬浮的 floating action 使用对应 elevation；
+- selected/current 使用中性背景、文字或位置表达，不使用阴影；
+- 业务代码不得写 `shadow-[...]`，已有例外迁移到语义 recipe 后删除。
+
+### 6.2 状态
+
+`hover / active / selected / pressed / primary / focus-visible / running` 是不同语义。即使当前颜色接近，也必须使用不同 token/recipe，使后续设计可以独立调整。颜色不得成为状态的唯一信号。
+
+### 6.3 浮层与小窗口
+
+- anchored overlay 的 gap、viewport inset、碰撞、翻转、滚动跟随和 Portal 由共享定位层负责；
+- 消费者只能选择 `placement / align / size / density / collisionPadding / layer`；
+- dialog 的桌面限高、窄屏 inset、固定 header/footer 与 body scroll 由 viewport variant 负责；
+- 不允许业务弹窗复制 `82dvh / 760px / 16px` 等产品级视口公式；
+- z-index 只通过语义 layer 使用，禁止通过增加整数解决遮挡；嵌套 modal 的顺序由 modal stack 负责。
+
+### 6.4 响应式
+
+- 仅布局变化使用 CSS media/container query；
+- 由组件自身宽度决定的布局优先 container query；
+- 只有行为发生变化才使用 `useMediaQuery`；
+- 产品断点通过共享语义入口使用，业务组件不得新增近似断点；
+- 窄屏不建立第二套主题或第二套组件，只改变密度、排列和导航呈现。
+
+## 7. 注释与文档合同
+
+业务入口、状态机、协议 mapper、复杂 hook 和跨文件基础组件使用三行文件契约：
+
+```ts
+// INPUT: 接受的可信事实、上游资源或用户动作。
+// OUTPUT: 对外产生的视图、命令、状态或副作用。
+// POS: 在模块中的唯一职责，以及明确不负责的内容。
+```
+
+要求：
+
+- 修改输入、输出、所有权或副作用时同步更新文件契约；
+- 注释解释“为什么、边界和失败语义”，不复述函数名或 JSX；
+- 导出的复杂类型/函数只在调用者无法从签名判断约束时写 TSDoc；
+- 每个 entity/feature/widget 根目录最多保留一份职责文档；只有独立状态机或协议边界才增加子目录文档；
+- 文档写稳定不变量，进行中的迁移计划必须标记 `non-normative`；
+- 代码、测试和文档冲突时，不得只改其中一相后结束任务。
+
+## 8. 测试合同
+
+| 层级 | 必测内容 |
+| --- | --- |
+| Token/Recipe | 语义入口存在、禁止值不再新增、主题映射完整 |
+| Primitive | DOM、真实键盘事件、焦点、ARIA、disabled 与状态组合 |
+| Entity model | mapper、selector、状态机、recovery 与 stale response fence |
+| Feature | 一次用户动作从输入到 command/result 的完整状态流 |
+| Widget | 关键组合状态、窄屏结构和资源失败降级 |
+| Page | 路由、恢复与少量主路径浏览器 smoke test |
+
+源码正则只能作为架构或禁止项门禁，不能替代组件行为测试。涉及布局、Portal、碰撞和视口尺寸的 UI 必须使用真实浏览器验证。
+
+视觉回归矩阵至少覆盖：
+
+- light / dark / rain；
+- 320px、产品窄屏断点附近和桌面宽度；
+- default / hover / focus / disabled / selected / loading / error；
+- 中英文长文案与 reduced motion。
+
+## 9. Agent 修改流程
+
+后续 Agent 修改前端时必须：
+
+1. 先定位所有者与现有 primitive/pattern，不以页面搜索结果直接复制实现；
+2. 修改公共视觉前列出受影响消费者，判断应改 token、recipe、primitive 还是 pattern；
+3. 业务页面需要覆盖公共组件视觉时，先证明是新的稳定 variant，而不是添加任意 class；
+4. 同步 `INPUT / OUTPUT / POS`、模块文档和唯一规范；
+5. 添加与变更层级匹配的测试；
+6. 运行目标测试、`npm run lint` 与 `npm run typecheck`；
+7. UI 改动检查窄屏、三主题、键盘焦点和叠层关系；
+8. 用户可见变化同步 `CHANGELOG.md`。
+
+## 10. 迁移阶段（non-normative）
+
+1. **基础门禁**：冻结新的反向依赖、任意高 z-index、重复 dialog viewport 和公共组件视觉覆盖；
+2. **Primitive 收口**：Button、Form、Dialog、Overlay、Menu、Tabs 补齐语义 API 与行为测试；
+3. **Pattern 收口**：统一 ResponsiveDialog、AnchoredPopover、FilterBar、SettingsSection 与 Conversation 浮动工作栈；
+4. **所有权迁移**：按业务切片迁移 `hooks / store / types / lib/api`，拆分 `conversation/shared`；
+5. **视觉回归**：建立组件陈列面与浏览器截图矩阵；
+6. **清债**：移除兼容导入、闲置组件、无差异 variant 和过细目录文档，开启强制门禁。
+
+迁移状态不得改变上文规范；尚未迁移的旧代码是已知债务，不是新代码继续复制的先例。

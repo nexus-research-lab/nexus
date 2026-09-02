@@ -46,7 +46,7 @@ export function ProviderModelOptionsDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        className="z-[9999]"
+        layer="dialog"
         labelledBy="provider-model-options-title"
         onClose={onClose}
       >

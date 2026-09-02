@@ -1001,7 +1001,7 @@ export function ProviderSetupDialog({
     <>
       <UiDialogPortal>
         <UiDialogBackdrop
-          className="z-[11050]"
+          layer="tourDialog"
           closeOnBackdrop={!busy}
           labelledBy={DIALOG_TITLE_ID}
           onClose={close}

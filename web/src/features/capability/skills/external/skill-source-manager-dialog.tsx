@@ -142,7 +142,7 @@ export function SkillSourceManagerDialog({
   return (
     <>
       <UiDialogPortal>
-        <UiDialogBackdrop className="z-[9999]" onClose={onClose}>
+        <UiDialogBackdrop layer="dialog" onClose={onClose}>
           <UiDialogShell className="max-h-[min(68dvh,560px)]" size="lg">
             <UiDialogHeader
               appearance="plain"
@@ -318,7 +318,7 @@ function PrivateSourceEditorDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        className="z-[9999]"
+        layer="dialog"
         closeOnBackdrop={!loading}
         onClose={loading ? undefined : onCancel}
       >

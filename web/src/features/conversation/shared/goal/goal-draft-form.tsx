@@ -64,7 +64,7 @@ export function GoalDraftForm({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        className="z-[9998]"
+        layer="dialogUnderlay"
         initialFocusRef={objectiveRef}
         labelledBy="goal-edit-dialog-title"
         onClose={model.canClose ? onCancel : undefined}

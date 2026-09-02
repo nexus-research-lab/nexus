@@ -62,7 +62,7 @@ export function FeishuAppConnectionDialog({
     };
     return (
       <UiDialogPortal>
-        <UiDialogBackdrop className="z-[9999]" onClose={onClose}>
+        <UiDialogBackdrop layer="dialog" onClose={onClose}>
           <UiDialogFormShell onSubmit={handleSubmit} size="sm">
             <UiDialogHeader
               appearance="plain"
@@ -147,7 +147,7 @@ export function FeishuAppConnectionDialog({
 
   return (
     <UiDialogPortal>
-      <UiDialogBackdrop className="z-[9999]" onClose={onClose}>
+      <UiDialogBackdrop layer="dialog" onClose={onClose}>
         <UiDialogShell size="sm">
           <UiDialogHeader
             appearance="plain"
