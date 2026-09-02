@@ -56,6 +56,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Prevented Provider API error details from terminating a runtime round before
+  its authoritative result, avoiding stale results leaking into the next turn
+  and blocking later runtime controls such as `/compact`.
 - Matched the expanded sidebar footer height and action alignment to the shared
   header baseline across desktop window widths.
 - Realigned the live activity row beneath collapsed tool groups and restored

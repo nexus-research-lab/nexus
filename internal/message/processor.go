@@ -152,10 +152,11 @@ func handleStreamEvent(p *Processor, message sdkprotocol.ReceivedMessage, output
 }
 
 func handleAssistant(p *Processor, message sdkprotocol.ReceivedMessage, output Output) Output {
-	if durable := p.processAssistantAPIError(message.UUID, *message.Assistant); durable != nil {
-		output.DurableMessages = append(output.DurableMessages, *durable)
-		output.ResultSubtype = "error"
-		output.TerminalStatus = "error"
+	if message.Assistant.IsAPIError ||
+		strings.TrimSpace(message.Assistant.Error) != "" ||
+		strings.TrimSpace(message.Assistant.APIError) != "" {
+		// API error assistant 只是可观察的错误明细；runtime 随后发送的 result
+		// 才是物理轮终态。提前收口会把迟到 result 串到下一轮。
 		return output
 	}
 	durable := p.processAssistantMessage(*message.Assistant)
