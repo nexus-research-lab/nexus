@@ -145,6 +145,7 @@ export function ComposerFooterActions({
       <UiActionMenu
         anchorRef={actionButtonRef}
         ariaLabel={t("composer.open_actions")}
+        density="compact"
         isOpen={isActionMenuOpen}
         footerItems={connectorItems}
         items={items}

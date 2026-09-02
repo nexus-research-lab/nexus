@@ -56,6 +56,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Reduced the Composer action menu typography, weight, and row density to match
+  the surrounding compact input controls.
+- Unified the Composer activity dock around a compact 32px status surface and
+  replaced the displaced scroll arrow with a centered three-dot control that
+  animates while the assistant is generating.
 - Prevented large workspace files from exhausting the WebView renderer: text
   files now fall back to bounded HTTP Range chunks, PDF and browser downloads
   remain streamed, and oversized image/Office previews are rejected before

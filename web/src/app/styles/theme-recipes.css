@@ -35,6 +35,52 @@
     font: inherit;
   }
 
+  /* Composer 上方的 WorkGraph、Room 协作与任务状态共用同一紧凑视觉基线。 */
+  .conversation-activity-chip {
+    min-height: 2rem;
+    border: 1px solid var(--surface-control-border);
+    border-radius: 9px;
+    background: var(--surface-control-background);
+    box-shadow: var(--surface-control-shadow);
+    font-size: 0.75rem;
+    line-height: 1rem;
+  }
+
+  @keyframes nexus-scroll-latest-dot-wave {
+    0%,
+    60%,
+    100% {
+      opacity: 0.45;
+      transform: translateY(0);
+    }
+
+    30% {
+      opacity: 1;
+      transform: translateY(-2px);
+    }
+  }
+
+  .nexus-scroll-latest-dot {
+    display: block;
+    width: 4px;
+    height: 4px;
+    border-radius: 999px;
+    background: currentColor;
+    opacity: 0.62;
+  }
+
+  [data-scroll-to-latest][data-generating="true"] .nexus-scroll-latest-dot {
+    animation: nexus-scroll-latest-dot-wave 900ms ease-in-out infinite;
+  }
+
+  [data-scroll-to-latest][data-generating="true"] .nexus-scroll-latest-dot:nth-child(2) {
+    animation-delay: 120ms;
+  }
+
+  [data-scroll-to-latest][data-generating="true"] .nexus-scroll-latest-dot:nth-child(3) {
+    animation-delay: 240ms;
+  }
+
   @keyframes nexus-live-tool-text-flow {
     from {
       background-position: 120% 50%;
@@ -69,8 +115,12 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
+    [data-scroll-to-latest][data-generating="true"] .nexus-scroll-latest-dot,
     .nexus-live-tool-text {
       animation: none;
+    }
+
+    .nexus-live-tool-text {
       background: none;
       color: var(--text-muted);
       -webkit-text-fill-color: currentColor;
