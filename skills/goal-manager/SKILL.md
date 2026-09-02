@@ -34,6 +34,12 @@ Goal 是跨物理 round 持续追求的服务端目标，不是普通聊天、Ta
 
 只读取当前动作需要的参考；operation 字段、枚举和长度始终以 fresh exact contract 为准。
 
+## 暂停与恢复
+
+当 current Goal 为 `paused` 时，恢复动作由用户执行。请明确告知用户：在**当前对话输入框上方的 Goal 状态栏**中，点击右侧的 ▶「继续」按钮。
+
+用户点击「继续」后，Nexus 会自动重新调度该 Goal，无需再发一条消息。新的 Goal continuation 负责继续审计和收尾，并在满足完成条件后标记 Goal 完成。
+
 ## 不变量
 
 - 创建前 objective 必须完整、具体、execution-ready；仍缺少会实质改变结果的信息时先取得最少必要输入，不创建占位 Goal。

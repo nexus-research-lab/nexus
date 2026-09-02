@@ -22,6 +22,16 @@
 
 Goal 审计只记录证据，不完成 Goal。完成时后端始终校验 Goal revision、Room 责任和运行状态；只有当前 Goal 确认绑定已物化 WorkGraph 时才额外校验 Execution/WorkGraph。reserved Execution ID 不是绑定证据。若 `update_goal` 被拒绝，直接按返回的 domain-qualified `nextAction` 恢复：`goal/audit_objective_alignment` 表示当前轮缺少或已失效的 Goal 对齐证据，`execution/get_execution` 表示图仍有未完成责任；不要盲重试 `update_goal`，也不要在 terminal Execution 上改调 `audit_execution_alignment`。
 
+### 暂停状态的恢复说明
+
+若 `inspect`、`audit_objective_alignment` 或 `update_goal` 表明当前 Goal 为 `paused`，结束当前收尾链路并进入用户恢复步骤。用户恢复后，Nexus 会把 Goal 重新激活为 `active` 并启动新的 continuation。
+
+向用户说明恢复位置、操作和后续行为：
+
+> 当前 Goal 已暂停。请在当前对话输入框上方的 Goal 状态栏中，点击右侧的 ▶「继续」按钮。恢复后，系统会自动重新调度该 Goal，智能体再继续完成审计和收尾。
+
+用户点击「继续」后会开始新的 Goal continuation；该 continuation 通过 Goal 审计和 `update_goal` 完成后续收尾。
+
 ## 完成后的最终交付
 
 `update_goal` 返回 applied receipt 后的下一条最终回复必须脱离过程消息也能独立满足 objective：
