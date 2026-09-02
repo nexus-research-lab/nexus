@@ -66,7 +66,7 @@ export function ChannelConnectDialog({
     <>
       <UiDialogPortal>
         <UiDialogBackdrop
-          className="z-[9999]"
+          layer="dialog"
           labelledBy="channel-connect-dialog-title"
           onClose={controller.close}
         >

@@ -43,10 +43,10 @@ export function DecisionDialogFrame({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        className="z-[9999]"
         describedBy={describedBy}
         initialFocusRef={initialFocusRef}
         labelledBy={labelledBy}
+        layer="dialog"
         onClose={onClose}
       >
         <UiDialogShell size="sm">{children}</UiDialogShell>

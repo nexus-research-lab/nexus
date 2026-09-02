@@ -106,7 +106,7 @@ export function CreatePairingDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        className="z-[9999]"
+        layer="dialog"
         labelledBy="create-pairing-dialog-title"
         onClose={onClose}
       >

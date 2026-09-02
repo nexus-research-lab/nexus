@@ -132,7 +132,7 @@ export function UiTooltip({
             <div
               ref={overlayRef}
               className={cn(
-                "ui-tooltip pointer-events-none fixed left-0 top-0 z-[10030] flex w-max max-w-[calc(100vw-24px)] items-center gap-2",
+                "ui-tooltip pointer-events-none fixed left-0 top-0 ui-layer-tooltip flex w-max max-w-[calc(100vw-24px)] items-center gap-2",
                 ANCHORED_OVERLAY_MOTION_CLASS_NAME,
               )}
               data-placement={overlayPosition?.placement ?? placement}

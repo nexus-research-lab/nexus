@@ -56,7 +56,7 @@ export function RichMailPairingDialog({
   if (!session || typeof document === "undefined") return null;
   return (
     <UiDialogPortal>
-      <UiDialogBackdrop className="z-[9999]" onClose={onCancel}>
+      <UiDialogBackdrop layer="dialog" onClose={onCancel}>
         <UiDialogShell size="sm">
           <UiDialogHeader
             appearance="plain"

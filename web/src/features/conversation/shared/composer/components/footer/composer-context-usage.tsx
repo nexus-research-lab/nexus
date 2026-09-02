@@ -170,7 +170,7 @@ export function ComposerContextUsage({
         ? createPortal(
             <div
               ref={overlayRef}
-              className={`pointer-events-auto fixed left-0 top-0 z-[10020] overflow-hidden shadow-(--surface-popover-shadow) ${OVERLAY_SURFACE_CLASS_NAME} ${ANCHORED_OVERLAY_MOTION_CLASS_NAME}`}
+              className={`pointer-events-auto fixed left-0 top-0 ui-layer-dialog-interaction overflow-hidden shadow-(--surface-popover-shadow) ${OVERLAY_SURFACE_CLASS_NAME} ${ANCHORED_OVERLAY_MOTION_CLASS_NAME}`}
               data-placement={overlayPosition?.placement ?? "top"}
               id={overlayId}
               onMouseEnter={cancelScheduledClose}

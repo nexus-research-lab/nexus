@@ -62,7 +62,7 @@ export function ProviderAddModelDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        className="z-[9999]"
+        layer="dialog"
         labelledBy="provider-add-model-title"
         onClose={onClose}
       >

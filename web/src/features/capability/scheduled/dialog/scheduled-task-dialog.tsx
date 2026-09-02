@@ -92,22 +92,24 @@ export function ScheduledTaskDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        className="z-[9999] max-sm:p-2"
         closeOnBackdrop={canClose}
         initialFocusRef={controller.refs.nameRef}
+        inset="compact"
         labelledBy="create-task-dialog-title"
+        layer="dialog"
         onClose={canClose ? onClose : () => undefined}
         onPointerDown={(event) => event.stopPropagation()}
         onPointerMove={(event) => event.stopPropagation()}
         onPointerUp={(event) => event.stopPropagation()}
       >
         <UiDialogFormShell
-          className="h-[min(82dvh,760px)] max-w-[960px] max-sm:h-[calc(100dvh-16px)]"
+          className="max-w-[960px]"
           onSubmit={(event) => {
             event.preventDefault();
             void controller.handleSubmit();
           }}
           size="wide"
+          viewport="adaptive"
         >
           <UiDialogHeader
             appearance="plain"

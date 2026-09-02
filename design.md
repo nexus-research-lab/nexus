@@ -4,6 +4,8 @@
 
 本文是 Nexus 前端视觉与交互规则的唯一入口，只写「判断对错所需的规则」。具体数值由 `web/src/app/styles/` 的 token 与配方代码承载；本文与代码冲突时以本文为准并修齐代码。协议、业务流程与领域状态仍由 `docs/` 下对应规范负责。
 
+代码所有权、依赖方向、组件晋升、注释、测试和 Agent 修改流程统一由 [`docs/specs/frontend-engineering-spec.md`](docs/specs/frontend-engineering-spec.md) 定义。视觉判断只在本文维护，工程规范不得复制第二套颜色、几何或交互标准。
+
 ## 1. 视觉主张
 
 Nexus 是让人、Agent 和任务持续协作的工作台：一张安静的工作纸，而不是装满卡片的控制台。
@@ -303,9 +305,11 @@ disabled 降对比不隐藏、保留可解释文案；loading 保持原尺寸与
 
 | 责任 | 文件 |
 | --- | --- |
+| 前端分层、组件治理、测试与 Agent 修改合同 | `docs/specs/frontend-engineering-spec.md` |
 | 主题与语义 token | `web/src/app/styles/theme-tokens.css` |
 | 字体、焦点、滚动条、减少动效 | `web/src/app/styles/theme-base.css` |
 | surface、dialog、input、Markdown、响应式配方 | `web/src/app/styles/theme-recipes.css` |
+| Dialog 响应式视口与语义浮层 | `web/src/shared/ui/dialog/dialog-layout.ts`、`web/src/shared/ui/overlay/layer-styles.ts` |
 | 样式入口与主题变体 | `web/src/app/globals.css` |
 | Markdown、代码壳、流式与工作区产物 | `web/src/shared/ui/markdown/` |
 | 对话内容块、工具过程、问答与 Artifact | `web/src/features/conversation/shared/message/blocks/` |

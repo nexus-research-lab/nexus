@@ -58,7 +58,7 @@ export function GuideCenterDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        className="z-[11050]"
+        layer="tourDialog"
         labelledBy={GUIDE_CENTER_TITLE_ID}
         onClose={onClose}
       >

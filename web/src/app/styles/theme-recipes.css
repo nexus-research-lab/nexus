@@ -41,6 +41,39 @@
     transform-origin: center bottom;
   }
 
+  /* 高层浮层只选择语义层；具体整数由 token 与后续 modal stack 管理。 */
+  .ui-layer-dialog-underlay {
+    z-index: var(--layer-dialog-underlay);
+  }
+
+  .ui-layer-dialog {
+    z-index: var(--layer-dialog);
+  }
+
+  .ui-layer-dialog-nested {
+    z-index: var(--layer-dialog-nested);
+  }
+
+  .ui-layer-dialog-interaction {
+    z-index: var(--layer-dialog-interaction);
+  }
+
+  .ui-layer-tooltip {
+    z-index: var(--layer-tooltip);
+  }
+
+  .ui-layer-tour {
+    z-index: var(--layer-tour);
+  }
+
+  .ui-layer-tour-dialog {
+    z-index: var(--layer-tour-dialog);
+  }
+
+  .ui-layer-system-dialog {
+    z-index: var(--layer-system-dialog);
+  }
+
   .ui-tooltip {
     border: 1px solid rgb(255 255 255 / 8%);
     border-radius: 11px;
@@ -1048,6 +1081,28 @@
     border: 1px solid var(--modal-dialog-surface-border);
     background-clip: padding-box;
     box-shadow: var(--modal-dialog-surface-shadow);
+  }
+
+  .ui-dialog-viewport-adaptive {
+    height: var(--dialog-adaptive-height);
+  }
+
+  .ui-dialog-viewport-adaptive-max {
+    max-height: var(--dialog-adaptive-height);
+  }
+
+  @media (max-width: 639px) {
+    .ui-dialog-backdrop-compact {
+      padding: 0.5rem;
+    }
+
+    .ui-dialog-viewport-adaptive {
+      height: var(--dialog-adaptive-compact-height);
+    }
+
+    .ui-dialog-viewport-adaptive-max {
+      max-height: var(--dialog-adaptive-compact-height);
+    }
   }
 
   .dialog-nav {

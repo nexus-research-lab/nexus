@@ -59,7 +59,7 @@ export function PickerPopover({
     <div
       ref={overlayRef}
       className={cn(
-        "fixed left-0 top-0 z-[10020] overflow-y-auto p-3",
+        "fixed left-0 top-0 ui-layer-dialog-interaction overflow-y-auto p-3",
         OVERLAY_SURFACE_CLASS_NAME,
         ANCHORED_OVERLAY_MOTION_CLASS_NAME,
       )}

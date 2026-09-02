@@ -1427,9 +1427,10 @@ function ExecutionWorkGraphExpandedDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        className="z-[10000] p-4"
+        className="p-4"
         data-execution-workgraph-expanded-dialog
         labelledBy={titleId}
+        layer="dialogNested"
         onClose={onClose}
       >
         <UiDialogShell

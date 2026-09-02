@@ -75,8 +75,9 @@ function ComposerImagePreviewDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        className="z-[10000] overscroll-contain"
+        className="overscroll-contain"
         labelledBy={IMAGE_PREVIEW_TITLE_ID}
+        layer="dialogNested"
         onClose={onClose}
       >
         <UiDialogShell
@@ -139,8 +140,9 @@ function ComposerTextPreviewDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        className="z-[10000] overscroll-contain"
+        className="overscroll-contain"
         labelledBy={TEXT_PREVIEW_TITLE_ID}
+        layer="dialogNested"
         onClose={onClose}
       >
         <UiDialogShell

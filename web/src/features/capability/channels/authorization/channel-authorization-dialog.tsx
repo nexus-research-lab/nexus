@@ -94,10 +94,10 @@ function ChannelAuthorizationQRCodeDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        className="z-[10020]"
         closeOnBackdrop={false}
         describedBy="channel-authorization-description"
         labelledBy="channel-authorization-title"
+        layer="dialogInteraction"
         onClose={onClose}
       >
         <UiDialogShell className="max-h-[92vh]" size="sm">
@@ -186,10 +186,10 @@ function ChannelAuthorizationCodeDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        className="z-[10020]"
         closeOnBackdrop={false}
         describedBy="channel-authorization-code-description"
         initialFocusRef={inputRef}
+        layer="dialogInteraction"
         labelledBy="channel-authorization-code-title"
         onClose={onClose}
       >

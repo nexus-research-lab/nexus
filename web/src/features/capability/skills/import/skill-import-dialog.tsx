@@ -52,7 +52,7 @@ export function SkillImportDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        className="z-[9999]"
+        layer="dialog"
         onClose={controller.dismissAction}
       >
         <UiDialogFormShell

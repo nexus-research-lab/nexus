@@ -413,6 +413,23 @@
 :root[data-theme="light"],
 :root[data-theme="dark"],
 :root[data-theme="rain"] {
+  /*
+   * 浮层层级先保持历史可见顺序，再逐步交给统一 stack 分配。
+   * 业务组件只能消费语义 layer，不得通过继续增加整数解决遮挡。
+   */
+  --layer-dialog-underlay: 9998;
+  --layer-dialog: 9999;
+  --layer-dialog-nested: 10000;
+  --layer-dialog-interaction: 10020;
+  --layer-tooltip: 10030;
+  --layer-tour: 11000;
+  --layer-tour-dialog: 11050;
+  --layer-system-dialog: 12000;
+
+  /* 桌面工作台弹窗与窄窗口共用同一视口公式。 */
+  --dialog-adaptive-height: min(82dvh, 760px);
+  --dialog-adaptive-compact-height: calc(100dvh - 16px);
+
   --surface-body-background: var(--ambient-page-pattern);
 
   /* 列表和侧栏复用同一层轻抬升表面，避免引用不存在的旧 token。 */

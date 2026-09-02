@@ -96,8 +96,9 @@ export function MermaidPreviewDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        className="z-[10000] overscroll-contain animate-in fade-in duration-(--motion-duration-fast)"
+        className="overscroll-contain animate-in fade-in duration-(--motion-duration-fast)"
         labelledBy="mermaid-image-preview-title"
+        layer="dialogNested"
         onClose={onClose}
         onWheel={(event) => {
           if (event.target === event.currentTarget) {

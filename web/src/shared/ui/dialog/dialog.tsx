@@ -17,11 +17,19 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { useDialogModalBehavior } from "@/shared/ui/dialog/dialog-behavior";
 import {
+  getUiDialogViewportClassName,
+  type UiDialogViewport,
+} from "@/shared/ui/dialog/dialog-layout";
+import {
   DIALOG_BACKDROP_CLASS_NAME,
   DIALOG_HEADER_ICON_CLASS_NAME,
   DIALOG_HEADER_LEADING_CLASS_NAME,
   DIALOG_ICON_BUTTON_CLASS_NAME,
 } from "@/shared/ui/dialog/dialog-styles";
+import {
+  getUiOverlayLayerClassName,
+  type UiOverlayLayer,
+} from "@/shared/ui/overlay/layer-styles";
 
 type UiDialogSize = "sm" | "md" | "lg" | "xl" | "wide";
 type UiDialogChrome = "default" | "plain";
@@ -45,6 +53,8 @@ interface UiDialogBackdropProps extends HTMLAttributes<HTMLDivElement> {
   labelledBy?: string;
   describedBy?: string;
   initialFocusRef?: RefObject<HTMLElement | null>;
+  inset?: "compact" | "default";
+  layer?: UiOverlayLayer;
   onClose?: () => void;
   trapFocus?: boolean;
 }
@@ -53,12 +63,14 @@ interface UiDialogShellProps extends HTMLAttributes<HTMLElement> {
   children: ReactNode;
   className?: string;
   size?: UiDialogSize;
+  viewport?: UiDialogViewport;
 }
 
 interface UiDialogFormShellProps extends FormHTMLAttributes<HTMLFormElement> {
   children: ReactNode;
   className?: string;
   size?: UiDialogSize;
+  viewport?: UiDialogViewport;
 }
 
 interface UiDialogHeaderProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
@@ -102,7 +114,9 @@ export function UiDialogBackdrop({
   closeOnBackdrop = true,
   describedBy,
   initialFocusRef,
+  inset = "default",
   labelledBy,
+  layer,
   onClick,
   onClose,
   trapFocus = true,
@@ -123,7 +137,12 @@ export function UiDialogBackdrop({
       aria-describedby={describedBy}
       aria-labelledby={labelledBy}
       aria-modal="true"
-      className={cn(DIALOG_BACKDROP_CLASS_NAME, className)}
+      className={cn(
+        DIALOG_BACKDROP_CLASS_NAME,
+        inset === "compact" && "ui-dialog-backdrop-compact",
+        getUiOverlayLayerClassName(layer),
+        className,
+      )}
       data-modal-root="true"
       data-ui-dialog-root="true"
       onClick={(event) => {
@@ -149,6 +168,7 @@ export function UiDialogShell({
   children,
   className,
   size = "md",
+  viewport = "content",
   ...props
 }: UiDialogShellProps) {
   return (
@@ -156,6 +176,7 @@ export function UiDialogShell({
       className={cn(
         "dialog-shell surface-radius-lg flex w-full flex-col overflow-hidden animate-in fade-in-0 zoom-in-95 duration-(--motion-duration-normal)",
         DIALOG_SIZE_CLASS_MAP[size],
+        getUiDialogViewportClassName(viewport),
         className,
       )}
       tabIndex={-1}
@@ -170,6 +191,7 @@ export function UiDialogFormShell({
   children,
   className,
   size = "md",
+  viewport = "content",
   ...props
 }: UiDialogFormShellProps) {
   return (
@@ -177,6 +199,7 @@ export function UiDialogFormShell({
       className={cn(
         "dialog-shell surface-radius-lg flex w-full flex-col overflow-hidden animate-in fade-in-0 zoom-in-95 duration-(--motion-duration-normal)",
         DIALOG_SIZE_CLASS_MAP[size],
+        getUiDialogViewportClassName(viewport),
         className,
       )}
       tabIndex={-1}

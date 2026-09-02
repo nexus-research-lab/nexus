@@ -75,7 +75,7 @@ export function OnboardingTourOverlay({
   );
 
   return createPortal(
-    <div className="pointer-events-none fixed inset-0 z-[11000]">
+    <div className="pointer-events-none fixed inset-0 ui-layer-tour">
       {!targetRect ? (
         <div
           className="absolute inset-0 bg-[rgba(11,16,24,0.42)]"

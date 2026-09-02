@@ -1,5 +1,13 @@
 # web/ - React 19 + Vite 7 前端
 
+## 前端工程与设计系统入口
+
+- 视觉与交互判断只以根目录 `design.md` 为准；代码所有权、依赖方向、组件晋升、注释、测试与 Agent 修改流程以 `docs/specs/frontend-engineering-spec.md` 为准。
+- 新代码遵循 `entries -> app -> pages -> widgets -> features -> entities -> shared` 的单向依赖；迁移前的旧目录不是继续增加反向依赖的先例。
+- 公共 UI 按 `token -> recipe -> primitive -> pattern -> domain widget` 分层。业务组件不得复制 raw color、任意阴影、任意高 z-index、公共圆角、产品断点或 dialog/overlay 视口公式。
+- 修改业务入口、状态机、协议 mapper、复杂 Hook 或跨文件基础组件时，同步维护顶部 `INPUT / OUTPUT / POS` 契约；注释解释所有权和失败边界，不复述 JSX。
+- 公共视觉修改必须检查全部消费者，并覆盖窄屏、三主题、键盘焦点和叠层关系；源码正则只能作为架构门禁，不能替代真实交互测试。
+
 React 19 + Vite 7 + React Router 7 + Tailwind 4 + Zustand + TypeScript
 
 ## 目录结构

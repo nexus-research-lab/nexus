@@ -91,7 +91,7 @@ export const MentionTargetPopover = memo(function MentionTargetPopover({
   return createPortal(
     <div
       className={cn(
-        "fixed z-[9999] max-h-48 overflow-y-auto",
+        "fixed ui-layer-dialog max-h-48 overflow-y-auto",
         OVERLAY_SURFACE_CLASS_NAME,
       )}
       style={layout}

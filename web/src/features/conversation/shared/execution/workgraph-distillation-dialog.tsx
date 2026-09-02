@@ -115,7 +115,7 @@ export function WorkGraphDistillationDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        className="z-[9998]"
+        layer="dialogUnderlay"
         labelledBy="workgraph-distillation-dialog-title"
         onClose={onClose}
         trapFocus={!editorOpen}

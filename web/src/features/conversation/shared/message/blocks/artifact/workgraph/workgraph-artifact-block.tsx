@@ -200,7 +200,7 @@ function WorkGraphCompareDialog({
 
   return (
     <UiDialogPortal>
-      <UiDialogBackdrop className="z-[9998]" labelledBy="workgraph-compare-title" onClose={onClose}>
+      <UiDialogBackdrop layer="dialogUnderlay" labelledBy="workgraph-compare-title" onClose={onClose}>
         <UiDialogShell className="h-[min(820px,calc(100dvh-56px))] max-h-[calc(100dvh-56px)] max-w-[min(94vw,1440px)]" size="wide">
           <h2 className="sr-only" id="workgraph-compare-title">
             {t("execution.workflow_artifact_compare_title")}: /{graph.slash_name} · {graph.title}
