@@ -16,7 +16,7 @@ const hookStoppedDisplayText = "该操作被当前运行时规则拦截，本轮
 
 const (
 	contentFilteredTerminalReason = protocol.ProviderFailureContentFiltered
-	contentFilteredDisplayText    = "本轮请求被模型服务的内容安全策略拦截。可能由输入、对话上下文或生成内容触发。您可以调整表述后在当前对话继续；若仍被拦截，再尝试开启新对话。"
+	contentFilteredDisplayText    = "本轮请求被模型服务的内容安全策略拦截，输入、对话上下文或生成内容可能涉及敏感信息。该错误可能使上游会话无法继续，请新建对话后调整表述再试。"
 )
 
 type providerErrorProjection struct {
