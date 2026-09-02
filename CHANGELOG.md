@@ -56,6 +56,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Matched the expanded sidebar footer height and action alignment to the shared
+  header baseline across desktop window widths.
 - Realigned the live activity row beneath collapsed tool groups and restored
   the shared low-contrast text shimmer for active message states.
 - Added deterministic chat prose fallbacks when Songti is unavailable: macOS
