@@ -62,7 +62,8 @@ func (r *responseRecorder) ReadFrom(reader io.Reader) (int64, error) {
 		r.bytesWritten += int(size)
 		return size, err
 	}
-	return io.Copy(r, reader)
+	// 只暴露 Writer，避免 io.Copy 再次选择当前 ReadFrom 形成递归。
+	return io.Copy(struct{ io.Writer }{Writer: r}, reader)
 }
 
 func (r *responseRecorder) Flush() {

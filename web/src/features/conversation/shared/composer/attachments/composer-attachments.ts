@@ -110,7 +110,7 @@ const ATTACHMENT_RULES: readonly AttachmentRule[] = [
   },
 ];
 
-const MAX_ATTACHMENT_SIZE_BYTES = 20 * 1024 * 1024;
+export const MAX_COMPOSER_ATTACHMENT_SIZE_BYTES = 20 * 1024 * 1024;
 const WORKSPACE_ATTACHMENT_DIRECTORY = "tmp/attachments";
 const ROOM_ATTACHMENT_DIRECTORY = "attachments";
 
@@ -150,7 +150,7 @@ export function inspectComposerAttachment(file: File): ComposerAttachmentInspect
       fileName: file.name,
     };
   }
-  if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
+  if (file.size > MAX_COMPOSER_ATTACHMENT_SIZE_BYTES) {
     return {
       accepted: false,
       code: "too_large",

@@ -33,6 +33,9 @@ func (s *Service) UpdateFileIfRevision(
 	content string,
 	expectedRevision *string,
 ) (*FileContent, error) {
+	if int64(len(content)) > workspaceWholeFileMaxBytes {
+		return nil, ErrFileTooLarge
+	}
 	agentValue, err := s.ensureAgentWorkspace(ctx, agentID)
 	if err != nil {
 		return nil, err
@@ -50,8 +53,8 @@ func (s *Service) UpdateFileIfRevision(
 	defer unlock()
 	var expectedContent []byte
 	if expectedRevision != nil {
-		currentContent, readErr := confinedRoot.ReadFile(normalizedPath)
-		if os.IsNotExist(readErr) {
+		currentContent, readErr := readWorkspaceWholeFile(confinedRoot, normalizedPath)
+		if errors.Is(readErr, ErrFileNotFound) {
 			return nil, ErrFileRevisionConflict
 		}
 		if readErr != nil {
@@ -104,6 +107,10 @@ func workspaceFileRevision(content []byte) string {
 
 // CreateEntry 创建文件或目录。
 func (s *Service) CreateEntry(ctx context.Context, agentID string, relativePath string, entryType string, content string) (*EntryMutationResponse, error) {
+	entryType = strings.TrimSpace(entryType)
+	if entryType == "file" && int64(len(content)) > workspaceWholeFileMaxBytes {
+		return nil, ErrFileTooLarge
+	}
 	agentValue, err := s.ensureAgentWorkspace(ctx, agentID)
 	if err != nil {
 		return nil, err
@@ -122,7 +129,7 @@ func (s *Service) CreateEntry(ctx context.Context, agentID string, relativePath 
 	} else if !os.IsNotExist(err) {
 		return nil, err
 	}
-	switch strings.TrimSpace(entryType) {
+	switch entryType {
 	case "directory":
 		err = confinedRoot.MkdirAll(normalizedPath, workspaceDirectoryMode())
 	case "file":
@@ -139,7 +146,7 @@ func (s *Service) CreateEntry(ctx context.Context, agentID string, relativePath 
 	if err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(entryType) == "file" && s.live != nil {
+	if entryType == "file" && s.live != nil {
 		s.live.EmitAPIWrite(agentValue.AgentID, normalizedPath, content)
 	}
 	return &EntryMutationResponse{Path: normalizedPath}, nil
@@ -235,7 +242,7 @@ func (r *workspaceEntryRename) captureFileContent() {
 	if !r.isFile() {
 		return
 	}
-	content, err := r.confinedRoot.ReadFile(r.normalizedSource)
+	content, err := readWorkspaceWholeFile(r.confinedRoot, r.normalizedSource)
 	if err != nil {
 		return
 	}

@@ -6,7 +6,7 @@
 //   - api.go：统一 HTTP 响应与上下文辅助。
 //   - etag.go：条件写使用的强 ETag 写出与 If-Match 解析。
 //   - failure.go / request_context.go：可选 FailureCore 写出与仅供诊断的 HTTP request ID 上下文。
-//   - middleware.go：请求中间件。
+//   - middleware.go：请求中间件与不破坏流式响应的状态/字节记录。
 //   - sender_websocket.go：WebSocket 发送器。
 //   - desktop_session.go：桌面会话辅助。
 //

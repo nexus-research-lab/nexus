@@ -2,7 +2,7 @@
  * Agent 类型定义
  *
  * [INPUT]: 无外部依赖
- * [OUTPUT]: 对外提供 Agent、owner-scoped 创建对账与带内容 revision 的 WorkspaceFileContent
+ * [OUTPUT]: 对外提供 Agent、owner-scoped 创建对账、WorkspaceFileContent 与有界文本片段
  * [POS]: types 模块的 Agent 核心类型，被 agent-api.ts 和 agent store 消费
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -227,6 +227,13 @@ export interface WorkspaceFileContent {
     path: string;
     content: string;
     revision: string;
+}
+
+export interface WorkspaceFileTextChunk {
+    content: string;
+    nextOffset: number | null;
+    offset: number;
+    size: number;
 }
 
 export interface WorkspaceEntryMutationResponse {

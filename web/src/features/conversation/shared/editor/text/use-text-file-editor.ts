@@ -1,5 +1,5 @@
 // INPUT: exact owner generation + Agent + path、文件 revision API 与同 scope 实时状态。
-// OUTPUT: 不丢草稿的加载、条件保存、冲突选择、未知结果对账和迟到响应栅栏。
+// OUTPUT: 不丢草稿的加载、超限分段信号、条件保存、冲突选择和迟到响应栅栏。
 // POS: 通用文本编辑可靠性边界；只读核对不会自动重放写入。
 import {
   useCallback,
@@ -15,6 +15,7 @@ import {
   getWorkspaceFileContentApi,
   updateWorkspaceFileContentApi,
 } from "@/lib/api/agent/agent-api";
+import { ApiRequestError } from "@/lib/api/core/http-error";
 import {
   getResourceFailure,
   projectMutationFailure,
@@ -57,6 +58,7 @@ interface TextFileEditorState {
   hasLoadedContent: boolean;
   isEditing: boolean;
   isLoading: boolean;
+  requiresChunkedPreview: boolean;
   resourceFailure: ResourceFailure | null;
   revision: string | null;
   savedContent: string;
@@ -169,9 +171,23 @@ export function useTextFileEditor({
         error,
         fallbackCopyRef.current.fallbackLoadError,
       );
+      if (isWorkspaceWholeFileTooLarge(error)) {
+        commit(requestScope.key, (current) => ({
+          ...current,
+          isLoading: false,
+          requiresChunkedPreview: true,
+          resourceFailure: failure,
+        }));
+        return;
+      }
       commit(requestScope.key, (current) => failure.access
         ? clearTextFileForAccess(current, failure)
-        : { ...current, isLoading: false, resourceFailure: failure });
+        : {
+            ...current,
+            isLoading: false,
+            requiresChunkedPreview: false,
+            resourceFailure: failure,
+          });
     } finally {
       if (isCurrentEditorRequest(scopeRef, requestScope, loadSequenceRef, requestId)) {
         commit(requestScope.key, (current) => ({ ...current, isLoading: false }));
@@ -194,6 +210,9 @@ export function useTextFileEditor({
   }, [loadContent, scopeKey]);
 
   useEffect(() => {
+    if (state.requiresChunkedPreview) {
+      return;
+    }
     const intent = resolveTextFileLiveUpdateIntent({
       agentId,
       consumed: consumedLiveVersionRef.current,
@@ -251,6 +270,7 @@ export function useTextFileEditor({
     state.hasLoadedContent,
     state.isEditing,
     state.revision,
+    state.requiresChunkedPreview,
     state.saveIssue,
   ]);
 
@@ -508,6 +528,7 @@ export function useTextFileEditor({
     loadContent,
     overwriteConflict,
     reconcileSave,
+    requiresChunkedPreview: state.requiresChunkedPreview,
     resourceFailure: state.resourceFailure,
     revision: state.revision,
     save,
@@ -525,6 +546,7 @@ function createTextFileEditorState(scopeKey: string): TextFileEditorState {
     hasLoadedContent: false,
     isEditing: false,
     isLoading: true,
+    requiresChunkedPreview: false,
     resourceFailure: null,
     revision: null,
     savedContent: "",
@@ -607,6 +629,7 @@ function mergeLoadedTextFile(
     draftContent: isDirty ? current.draftContent : response.content,
     hasLoadedContent: true,
     isLoading: false,
+    requiresChunkedPreview: false,
     resourceFailure: null,
     revision: response.revision,
     savedContent: response.content,
@@ -618,6 +641,12 @@ function mergeLoadedTextFile(
           ? null
           : current.saveIssue,
   };
+}
+
+function isWorkspaceWholeFileTooLarge(error: unknown): boolean {
+  return error instanceof ApiRequestError
+    && error.failure?.version === 1
+    && error.failure.code === "workspace.file_too_large";
 }
 
 function clearTextFileForAccess(
