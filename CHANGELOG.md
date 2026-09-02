@@ -56,6 +56,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Prevented large workspace files from exhausting the WebView renderer: text
+  files now fall back to bounded HTTP Range chunks, PDF and browser downloads
+  remain streamed, and oversized image/Office previews are rejected before
+  their bodies enter renderer memory.
 - Kept compact sidebar gutters when desktop windows narrow, reserving the
   larger touch spacing for the true phone layout.
 - Kept the WorkGraph picker at a stable viewport-bounded height while switching

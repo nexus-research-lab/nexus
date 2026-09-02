@@ -13,6 +13,7 @@ import {
   loadWorkspaceFileApi,
   renameWorkspaceEntryApi,
   uploadWorkspaceFileApi,
+  WorkspaceFileSizeLimitError,
 } from "@/lib/api/agent/agent-api";
 import {
   getDesktopWorkspaceFileApplications,
@@ -31,6 +32,7 @@ import {
   appendLocalAttachments,
   buildLocalAttachmentBatch,
 } from "@/features/conversation/shared/composer/attachments/composer-local-attachment-model";
+import { MAX_COMPOSER_ATTACHMENT_SIZE_BYTES } from "@/features/conversation/shared/composer/attachments/composer-attachments";
 import { useComposerDraftStore } from "@/features/conversation/shared/composer/composer-draft-store";
 import { projectMutationFailure } from "@/lib/error-message";
 import type { FeedbackBannerProps } from "@/shared/ui/feedback/feedback-banner-contract";
@@ -673,7 +675,23 @@ export function useWorkspaceCommands({
     if (!draftScopeKey) {
       throw new Error(t("room.workspace_chat_unavailable"));
     }
-    const file = await loadWorkspaceFileApi(scopeKey, entry.path, entry.name);
+    if ((entry.size ?? 0) > MAX_COMPOSER_ATTACHMENT_SIZE_BYTES) {
+      throw new Error(t("composer.attachment_too_large", {name: entry.name}));
+    }
+    let file: File;
+    try {
+      file = await loadWorkspaceFileApi(
+        scopeKey,
+        entry.path,
+        entry.name,
+        MAX_COMPOSER_ATTACHMENT_SIZE_BYTES,
+      );
+    } catch (error) {
+      if (error instanceof WorkspaceFileSizeLimitError) {
+        throw new Error(t("composer.attachment_too_large", {name: entry.name}));
+      }
+      throw error;
+    }
     const batch = buildLocalAttachmentBatch([file]);
     const rejection = batch.rejections[0];
     if (rejection) {
