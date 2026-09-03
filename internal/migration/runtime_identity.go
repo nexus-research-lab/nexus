@@ -134,7 +134,7 @@ func runRuntimeIsolationLauncher(
 }
 
 func loadRuntimeIdentityOwners(ctx context.Context, db *sql.DB) ([]string, error) {
-	rows, err := db.QueryContext(ctx, `SELECT user_id FROM users ORDER BY user_id ASC`)
+	rows, err := db.QueryContext(ctx, `SELECT owner_user_id FROM owner_profiles ORDER BY owner_user_id ASC`)
 	if err != nil {
 		return nil, fmt.Errorf("读取 runtime identity 用户: %w", err)
 	}

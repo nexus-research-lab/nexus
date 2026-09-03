@@ -1,9 +1,14 @@
 package auth
 
 import (
-	"time"
+	"errors"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+)
+
+var (
+	ErrInvalidCredentials = errors.New("用户名或密码错误")
+	ErrUserNotFound       = errors.New("user not found")
 )
 
 const (
@@ -24,24 +29,9 @@ const (
 
 	// AuthMethodPassword 表示密码登录签发的浏览器 Session。
 	AuthMethodPassword = authctx.AuthMethodPassword
-	// AuthMethodBearer 表示 ACCESS_TOKEN 的 Bearer 身份。
-	AuthMethodBearer = authctx.AuthMethodBearer
 	// AuthMethodLocal 表示桌面端本地免登录身份。
 	AuthMethodLocal = authctx.AuthMethodLocal
 )
-
-// User 描述认证域中的用户实体。
-type User struct {
-	UserID      string     `json:"user_id"`
-	Username    string     `json:"username"`
-	DisplayName string     `json:"display_name"`
-	Role        string     `json:"role"`
-	Status      string     `json:"status"`
-	Avatar      string     `json:"avatar,omitempty"`
-	LastLoginAt *time.Time `json:"last_login_at,omitempty"`
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
-}
 
 type Principal = authctx.Principal
 type State = authctx.State
@@ -58,64 +48,5 @@ type StatusPayload struct {
 	Avatar               *string `json:"avatar,omitempty"`
 	AuthMethod           *string `json:"auth_method,omitempty"`
 	SetupRequired        bool    `json:"setup_required,omitempty"`
-	AccessTokenEnabled   bool    `json:"access_token_enabled,omitempty"`
-}
-
-// LoginInput 表示密码登录请求。
-type LoginInput struct {
-	Username  string
-	Password  string
-	ClientIP  string
-	UserAgent string
-}
-
-// LoginResult 表示密码登录结果。
-type LoginResult struct {
-	SessionToken string
-	Status       StatusPayload
-}
-
-// InitOwnerInput 表示初始化 owner 的输入。
-type InitOwnerInput struct {
-	Username    string
-	DisplayName string
-	Password    string
-}
-
-// CreateUserInput 表示创建普通用户的输入。
-type CreateUserInput struct {
-	Username    string
-	DisplayName string
-	Password    string
-	Role        string
-}
-
-// ResetPasswordInput 表示重置密码请求。
-type ResetPasswordInput struct {
-	UserID   string
-	Username string
-	Password string
-}
-
-// ChangePasswordInput 表示当前用户主动修改密码请求。
-type ChangePasswordInput struct {
-	UserID          string
-	RequestID       string
-	CurrentPassword string
-	NewPassword     string
-}
-
-// PasswordChangeOutcome 是客户端可对账的 exact 改密终态；unknown 表示尚无终态证据。
-type PasswordChangeOutcome string
-
-const (
-	PasswordChangeOutcomeUnknown    PasswordChangeOutcome = "unknown"
-	PasswordChangeOutcomeCommitted  PasswordChangeOutcome = "committed"
-	PasswordChangeOutcomeNotApplied PasswordChangeOutcome = "not_applied"
-)
-
-// UpdateProfileInput 表示当前用户资料更新请求。
-type UpdateProfileInput struct {
-	UserID string
-	Avatar *string
+	SetupEnabled         bool    `json:"setup_enabled"`
 }

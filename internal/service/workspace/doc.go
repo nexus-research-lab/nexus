@@ -4,7 +4,8 @@
 //
 // 成员清单：
 //   - service.go / file.go / memory.go / mutation.go / upload.go / path.go：Service、基于 confined-fd 的文件/记忆/条目/上传访问与路径；
-//     文件正文返回稳定内容 revision，并为并发敏感的编辑提供不自动重放的条件写入；
+//     单次文件正文读取有统一内存上限并返回稳定内容 revision，下载保留 fd 流式读取，
+//     并为并发敏感的编辑提供不自动重放的条件写入；
 //     文件修改只在任何落盘前已拒绝时返回可识别的 ErrMutationInvalid。
 //   - agent.go / model.go / reveal.go：Agent workspace、模型、本机定位。
 //   - initializer.go / initializer_*.go：workspace 初始化阶段、主 Agent 文件策略，

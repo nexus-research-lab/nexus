@@ -24,7 +24,7 @@
 - 具体 Feed、Goal、Execution 和 Composer 模型由各自领域定义。
 - active Plan 且包含 Work Items 的 managed Execution 存在时替代 legacy Todo 浮动进程；planless Execution、runtime-only round、普通聊天、裸 `@` 通信与原生 Todo 继续使用原路径，视图不得把 Goal、参与人数、mention 或运行节点推断成 Plan。
 - 常规桌面保持紧凑阅读宽度；超宽屏只按共享阶梯放宽消息轨道和 Composer，助手正文使用更小的可读上限，禁止各消费面自行复制宽度断点。
-- 会话底部工作区以 Composer 为底座形成单一向上工作栈：Goal/告警是紧贴 Composer 的状态层，Task 与回到底部共享工作栈顶边的居中浮动层。Task 存在时占中心主位，回到底部作为同一行相邻圆形动作；Task 缺席时回到底部单独居中。不得为浮动层在 Goal 与 Composer 之间插入透明 runway，工作栈中的上层组件应逐级收窄并保持清晰层级；Composer 上缘羽化仅在它直接接触消息区时生效，一旦 Goal 或告警占据状态层就必须收回到输入壳内，不得覆盖状态组件。Dock 容器和中间包装不得接收指针，只有 Task 与回到底部的真实按钮热区接收；仅在控件真实可见时，阅读 viewport 尾部才保留 56px 避让，隐藏时不得制造空白。控件显隐与 Task 展开不得改变 viewport 高度。
+- 会话底部工作区以 Composer 为底座形成单一向上工作栈：Goal/告警是紧贴 Composer 的状态层，WorkGraph、Room 协作与 Task 共用一个 32px 视觉基线的居中活动层；回到底部始终保持同一中心轴，有活动状态时悬在其上方，没有活动状态时单独居中。生成中该入口显示三点波浪，输出结束后改为向下箭头，不得因运行态切换位置或尺寸。不得为浮动层在 Goal 与 Composer 之间插入透明 runway，工作栈中的上层组件应逐级收窄并保持清晰层级；Composer 上缘羽化仅在它直接接触消息区时生效，一旦 Goal 或告警占据状态层就必须收回到输入壳内，不得覆盖状态组件。Dock 容器和中间包装不得接收指针，只有活动状态与回到底部的真实按钮热区接收；仅在控件真实可见时，阅读 viewport 尾部才保留 56px 避让，隐藏时不得制造空白。控件显隐与 Task 展开不得改变 viewport 高度。
 - Session 导航只能绝对定位在 `ConversationPanelViewportArea` 内，不得用 Composer 猜测高度设置固定 bottom；Goal、附件或多行输入改变底部区域时，导航可用高度必须自动跟随真实 viewport。
 - 主消息 viewport 保留 `tabIndex={-1}` 供程序化导航，但显式移除浏览器原生轮廓；Safari 不得在滚动区底边绘制跨栏蓝线。
 - 回到底部入口的可见文案和可访问名称必须跟随当前界面语言，不得在共享按钮中保存固定中文；Room 不得向该控件注入未读定位分支。

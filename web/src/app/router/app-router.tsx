@@ -18,8 +18,8 @@ const AppLayout = lazy(() =>
 const LoginPage = lazy(() =>
   import("@/pages/login/login-page").then((m) => ({ default: m.LoginPage })),
 );
-const LandingPage = lazy(() =>
-  import("@/pages/landing/landing-page").then((m) => ({ default: m.LandingPage })),
+const SetupPage = lazy(() =>
+  import("@/pages/setup/setup-page").then((m) => ({ default: m.SetupPage })),
 );
 const LauncherPage = lazy(() =>
   import("@/pages/launcher/launcher-page").then((m) => ({ default: m.LauncherPage })),
@@ -81,8 +81,12 @@ export function AppRouter() {
       <OnboardingTourProvider>
         <Suspense fallback={<PageFallback />}>
           <Routes>
-            <Route element={<LandingPage />} path={APP_ROUTE_PATHS.landing} />
+            <Route
+              element={<Navigate replace to={APP_ROUTE_PATHS.launcher} />}
+              path={APP_ROUTE_PATHS.root}
+            />
             <Route element={<LoginPage />} path={APP_ROUTE_PATHS.login} />
+            <Route element={<SetupPage />} path={APP_ROUTE_PATHS.setup} />
 
             <Route element={<AuthGuard />}>
               <Route
@@ -132,13 +136,14 @@ export function AppRouter() {
 
                   {/* 其他占位路由 */}
                   <Route element={<OperationsPage />} path={APP_ROUTE_PATHS.operations} />
+                  <Route element={<OperationsPage />} path={APP_ROUTE_PATHS.adminMembers} />
                   <Route element={<SettingsPage />} path={APP_ROUTE_PATHS.settings} />
                 </Route>
               </Route>
             </Route>
 
             {/* 兜底重定向 */}
-            <Route element={<Navigate replace to={APP_ROUTE_PATHS.landing} />} path="*" />
+            <Route element={<Navigate replace to={APP_ROUTE_PATHS.launcher} />} path="*" />
           </Routes>
         </Suspense>
       </OnboardingTourProvider>

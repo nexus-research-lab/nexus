@@ -2,6 +2,7 @@ import { getDesktopRuntimeConfig } from "@/config/desktop-runtime";
 
 const DEFAULT_API_PATH = "/nexus/v1";
 const DEFAULT_WS_PATH = "/nexus/v1/chat/ws";
+const DEFAULT_CONTROL_AUTH_PATH = "/auth/v1";
 
 function buildBrowserUrl(
   pathname: string,
@@ -42,4 +43,8 @@ export function getAgentWsUrl(): string {
   const desktopUrl = getDesktopRuntimeConfig()?.wsUrl?.trim();
   return desktopUrl
     || resolveRuntimeUrl(import.meta.env.VITE_WS_URL, DEFAULT_WS_PATH, true);
+}
+
+export function getControlAuthBaseUrl(): string {
+  return buildBrowserUrl(DEFAULT_CONTROL_AUTH_PATH, false);
 }

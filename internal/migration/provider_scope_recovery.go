@@ -190,6 +190,7 @@ ORDER BY p.id ASC, a.owner_user_id ASC`)
 
 func providerPreferenceOwners(ctx context.Context, db *sql.DB) ([]string, error) {
 	owners := map[string]struct{}{authctx.SystemUserID: {}}
+	// 该补偿必须能直接读取事故发生时的旧 schema；users 在这里是迁移输入，不是运行时权威。
 	rows, err := db.QueryContext(ctx, `SELECT user_id FROM users`)
 	if err != nil {
 		return nil, fmt.Errorf("读取桌面 Provider 偏好用户列表: %w", err)

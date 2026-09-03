@@ -73,7 +73,7 @@ export const EMPTY_PASSWORD_DRAFT: PasswordDraft = {
 };
 
 const AUTH_METHOD_LABEL_KEYS: Readonly<Record<string, TranslationKey>> = {
-  bearer: "settings.personal.auth_method_bearer",
+  local: "settings.personal.auth_method_local",
   password: "settings.personal.auth_method_password",
 };
 

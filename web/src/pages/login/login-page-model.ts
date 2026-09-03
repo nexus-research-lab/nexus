@@ -5,8 +5,9 @@ import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 
 const INTERNAL_REDIRECT_ORIGIN = "https://nexus.local";
 const REDIRECT_FALLBACK_PATHS = new Set<string>([
-  APP_ROUTE_PATHS.landing,
+  APP_ROUTE_PATHS.root,
   APP_ROUTE_PATHS.login,
+  APP_ROUTE_PATHS.setup,
 ]);
 
 export type LoginFormMode = "disabled" | "password";
@@ -57,6 +58,9 @@ export function buildLoginPageState({
 }: LoginPageStateOptions): LoginPageState {
   if (!isBootstrapped) {
     return { kind: "bootstrapping" };
+  }
+  if (status?.setup_required) {
+    return { kind: "redirect", path: APP_ROUTE_PATHS.setup };
   }
   if (shouldRedirectAuthenticatedSession(status, loading)) {
     return { kind: "redirect", path: redirectPath };

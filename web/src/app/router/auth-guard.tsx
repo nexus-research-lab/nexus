@@ -101,6 +101,10 @@ export function AuthGuard() {
     );
   }
 
+  if (status.setup_required) {
+    return <Navigate replace to={APP_ROUTE_PATHS.setup} />;
+  }
+
   if (!status.auth_required || status.authenticated) {
     return <Outlet />;
   }

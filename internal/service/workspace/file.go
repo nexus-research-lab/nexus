@@ -7,13 +7,18 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 )
+
+const workspaceWholeFileMaxBytes int64 = 4 * 1024 * 1024
 
 // ListFiles 返回 Agent workspace 的文件树。
 func (s *Service) ListFiles(ctx context.Context, agentID string) ([]FileEntry, error) {
@@ -105,10 +110,29 @@ func (s *Service) GetFile(ctx context.Context, agentID string, relativePath stri
 		return nil, err
 	}
 	defer confinedRoot.Close()
-	info, err := confinedRoot.Stat(normalizedPath)
+	content, err := readWorkspaceWholeFile(confinedRoot, normalizedPath)
+	if err != nil {
+		return nil, err
+	}
+	return &FileContent{
+		Path:     normalizedPath,
+		Content:  string(content),
+		Revision: workspaceFileRevision(content),
+	}, nil
+}
+
+// readWorkspaceWholeFile 为所有需要单个正文载荷的入口提供同一内存上限。
+func readWorkspaceWholeFile(root *confinedfs.Root, relativePath string) ([]byte, error) {
+	file, err := root.OpenFileNoSymlink(relativePath, os.O_RDONLY, 0)
 	if os.IsNotExist(err) {
 		return nil, ErrFileNotFound
 	}
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	info, err := file.Stat()
 	if err != nil {
 		return nil, err
 	}
@@ -118,15 +142,17 @@ func (s *Service) GetFile(ctx context.Context, agentID string, relativePath stri
 		}
 		return nil, errors.New("只能读取普通文件")
 	}
-	content, err := confinedRoot.ReadFile(normalizedPath)
+	if info.Size() > workspaceWholeFileMaxBytes {
+		return nil, ErrFileTooLarge
+	}
+	content, err := io.ReadAll(io.LimitReader(file, workspaceWholeFileMaxBytes+1))
 	if err != nil {
 		return nil, err
 	}
-	return &FileContent{
-		Path:     normalizedPath,
-		Content:  string(content),
-		Revision: workspaceFileRevision(content),
-	}, nil
+	if int64(len(content)) > workspaceWholeFileMaxBytes {
+		return nil, ErrFileTooLarge
+	}
+	return content, nil
 }
 
 // GetFileForDownload 返回下载所需的真实文件路径和文件名。

@@ -406,7 +406,7 @@ function ActionMenuItem({
         ) : null}
         <span className="min-w-0 flex-1">
           <span className={cn(
-            "block truncate font-medium",
+            "block truncate font-normal",
             density === "compact" ? "text-compact" : "text-sm",
             getItemLabelClassName(item.tone, item.active),
           )}>

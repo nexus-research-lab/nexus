@@ -170,8 +170,10 @@ func insertUser(t *testing.T, db *sql.DB, userID string, username string, displa
 	t.Helper()
 
 	_, err := db.Exec(`
-INSERT INTO users (user_id, username, display_name, role, status)
-VALUES (?, ?, ?, ?, 'active')`,
+INSERT INTO owner_profiles (
+  owner_user_id, username, display_name, role, status, created_at, updated_at
+)
+VALUES (?, ?, ?, ?, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
 		userID,
 		username,
 		displayName,

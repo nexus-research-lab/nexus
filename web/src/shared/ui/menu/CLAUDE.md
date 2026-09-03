@@ -13,6 +13,7 @@
 - `menu-styles.ts` 统一 Action、Select 与上下文菜单的行级圆角、焦点和状态层级；业务菜单不得复制整套条目样式。
 - 16px 外框配合 4px 内容内边距时，菜单行固定使用 12px 圆角，保证选中底面与外框同心。
 - Action Menu 的活动项使用中性活动底面；`primary` 只控制文字或小型状态提示，不再给整行铺品牌色。
+- Action Menu 标签统一使用正常字重；选择与危险状态由底面和色调表达，不靠加粗制造层级。
 - 活动项悬浮时继续保持活动底面，避免鼠标经过反而降低当前位置的辨识度；非活动项 hover 才使用更轻一档的中性底。
 - `menu.test.tsx` 使用真实 Portal、点击和键盘覆盖 Select 的 listbox 选择、disabled 跳过、Escape，以及 Action Menu 的初始焦点、方向键、Home/End、选择后焦点归还；源码断言不能替代这组合同。
 

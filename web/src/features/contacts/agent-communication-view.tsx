@@ -73,9 +73,8 @@ const EMPTY_COMMAND_CATALOG: CommandCatalogData = {
 };
 const EMPTY_INPUT_QUEUE: InputQueueItem[] = [];
 const HIDDEN_SCROLL_CONTROL = {
-  direction: null,
+  isGenerating: false,
   onClick: ignoreAction,
-  unreadCount: 0,
   visible: false,
 } as const;
 const UNAVAILABLE_ROUND_INDEX_RESOURCE = {

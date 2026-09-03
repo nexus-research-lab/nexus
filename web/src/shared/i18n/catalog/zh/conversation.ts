@@ -539,7 +539,7 @@ export const zhConversationMessages = {
   "conversation.reliability.round_failed": "回复生成失败",
   "conversation.reliability.round_failed_impact": "请重新发送。",
   "conversation.reliability.safety_rejected": "这项请求不能执行",
-  "conversation.reliability.safety_rejected_impact": "请调整内容或权限后重试。",
+  "conversation.reliability.safety_rejected_impact": "输入、对话上下文或生成内容可能涉及敏感信息。上游会话可能已无法继续，请新建对话后调整内容再试。",
   "conversation.reliability.session_load_failed": "会话内容没有加载完整",
   "conversation.reliability.session_load_failed_impact": "请刷新对话。",
   "conversation.reliability.usage_limited": "当前额度不足",

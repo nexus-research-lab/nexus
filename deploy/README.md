@@ -14,10 +14,17 @@ NGINX_SSL_CERTIFICATE_KEY=/etc/nginx/certs/live/www.example.com/privkey.pem
 NGINX_REDIRECT_HTTPS=true
 HTTPS_PORT=443
 NEXUS_NXS_RUNTIME_RELEASE=nxs-stable
+CONTROL_SERVICE_TOKEN=replace-with-openssl-rand-hex-32
 
 SSL_DOMAINS=www.example.com
 SSL_EMAIL=
 ```
+
+`nexus-control` 仓库默认位于本仓同级目录；其他位置可通过 `NEXUS_CONTROL_BUILD_CONTEXT` 指定。Nginx 将同一 Web Origin 下的 `/auth/v1/*` 转发到 Control，将 `/nexus/v1/*` 转发到 Nexus Server。Control 私有目录使用独立容器 UID 1002，Nexus 进程只读取公开签名公钥。已有 Web 用户切换前按 [Control 迁移文档](../docs/operations/control-migration.md) 停止旧认证写入并导入账号。
+
+`make deploy` 会以 fast-forward 方式同时更新当前 Nexus 仓和 `NEXUS_CONTROL_ROOT` 指向的 Control 仓，再统一构建、停止和启动三项服务，避免只更新一侧源码。自定义 Control 路径时，应同时设置 `NEXUS_CONTROL_ROOT` 与 `NEXUS_CONTROL_BUILD_CONTEXT`。
+
+Control 默认使用 `${HOST_DATA_DIR}/.nexus/app/control/control.db`。改用 PostgreSQL 时，在 `.env` 设置 `CONTROL_DATABASE_DRIVER=postgres` 与完整的 `CONTROL_DATABASE_URL`；账号表固定位于 `control` schema。Control 本地目录仍需保留，用于服务凭据与签名密钥。
 
 `NGINX_SSL_CERTIFICATE` 和 `NGINX_SSL_CERTIFICATE_KEY` 是 nginx 容器内路径。宿主机证书实际存放在 `${HOST_DATA_DIR}/certs`，ACME HTTP-01 challenge 文件存放在 `${HOST_DATA_DIR}/acme`。
 

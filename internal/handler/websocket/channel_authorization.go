@@ -41,6 +41,10 @@ type channelAuthorizationSender interface {
 	SendEvent(context.Context, protocol.EventMessage) error
 }
 
+type policyClosableSender interface {
+	ClosePolicy(string) error
+}
+
 type authenticatedChannelAuthorizationSender struct {
 	principalUserID string
 	principalRole   string
@@ -175,9 +179,81 @@ func (t *channelAuthorizationTransport) unregisterSender(sender channelAuthoriza
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	delete(t.senders, sender.Key())
+	t.removeSenderLocked(sender.Key())
+}
+
+func (t *channelAuthorizationTransport) closePrincipal(principalUserID string) int {
+	principalUserID = strings.TrimSpace(principalUserID)
+	if t == nil || principalUserID == "" {
+		return 0
+	}
+	t.mu.Lock()
+	targets := make([]policyClosableSender, 0)
+	for key, registered := range t.senders {
+		if registered.principalUserID != principalUserID {
+			continue
+		}
+		if sender, ok := registered.sender.(policyClosableSender); ok {
+			targets = append(targets, sender)
+		}
+		t.removeSenderLocked(key)
+	}
+	t.mu.Unlock()
+	for _, sender := range targets {
+		_ = sender.ClosePolicy("identity changed")
+	}
+	return len(targets)
+}
+
+func (t *channelAuthorizationTransport) closeAuthSession(authSessionID string) int {
+	authSessionID = strings.TrimSpace(authSessionID)
+	if t == nil || authSessionID == "" {
+		return 0
+	}
+	t.mu.Lock()
+	targets := make([]policyClosableSender, 0)
+	for key, registered := range t.senders {
+		if registered.authSessionID != authSessionID {
+			continue
+		}
+		if sender, ok := registered.sender.(policyClosableSender); ok {
+			targets = append(targets, sender)
+		}
+		t.removeSenderLocked(key)
+	}
+	t.mu.Unlock()
+	for _, sender := range targets {
+		_ = sender.ClosePolicy("session revoked")
+	}
+	return len(targets)
+}
+
+func (t *channelAuthorizationTransport) closeControlPrincipals() int {
+	if t == nil {
+		return 0
+	}
+	t.mu.Lock()
+	targets := make([]policyClosableSender, 0)
+	for key, registered := range t.senders {
+		if registered.localSingleUser || registered.authMethod != authctx.AuthMethodPassword {
+			continue
+		}
+		if sender, ok := registered.sender.(policyClosableSender); ok {
+			targets = append(targets, sender)
+		}
+		t.removeSenderLocked(key)
+	}
+	t.mu.Unlock()
+	for _, sender := range targets {
+		_ = sender.ClosePolicy("authentication authority unavailable")
+	}
+	return len(targets)
+}
+
+func (t *channelAuthorizationTransport) removeSenderLocked(senderKey string) {
+	delete(t.senders, senderKey)
 	for token, route := range t.routes {
-		delete(route.senderKeys, sender.Key())
+		delete(route.senderKeys, senderKey)
 		if len(route.senderKeys) == 0 {
 			delete(t.routes, token)
 			continue

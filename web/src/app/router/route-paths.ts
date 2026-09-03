@@ -6,8 +6,9 @@
 import { getExternalSessionKeyFromConversationId } from "@/lib/conversation/external-session";
 
 export const APP_ROUTE_PATHS = {
-  landing: "/",
+  root: "/",
   login: "/login",
+  setup: "/setup",
   launcher: "/launcher",
   home: "/app",
   room: "/rooms/:roomId",
@@ -28,12 +29,14 @@ export const APP_ROUTE_PATHS = {
   channels: "/capability/channels",
   pairings: "/capability/pairings",
   operations: "/operations",
+  adminMembers: "/admin/members",
   settings: "/settings",
 } as const;
 
 export const AppRouteBuilders = {
-  landing: () => APP_ROUTE_PATHS.landing,
+  root: () => APP_ROUTE_PATHS.root,
   login: () => APP_ROUTE_PATHS.login,
+  setup: () => APP_ROUTE_PATHS.setup,
   launcher: () => APP_ROUTE_PATHS.launcher,
   home: () => APP_ROUTE_PATHS.home,
   room: (roomId: string) => `/rooms/${encodeURIComponent(roomId)}`,
@@ -65,6 +68,7 @@ export const AppRouteBuilders = {
   channels: () => APP_ROUTE_PATHS.channels,
   pairings: () => APP_ROUTE_PATHS.pairings,
   operations: () => APP_ROUTE_PATHS.operations,
+  adminMembers: () => APP_ROUTE_PATHS.adminMembers,
   settings: (section?: string) =>
     section
       ? `${APP_ROUTE_PATHS.settings}?section=${encodeURIComponent(section)}`

@@ -41,6 +41,10 @@ globalThis.window = {
   },
   removeEventListener: () => {},
 };
+Object.defineProperty(globalThis, "localStorage", {
+  configurable: true,
+  value: globalThis.window.localStorage,
+});
 
 const server = await createServer({
   configFile: false,

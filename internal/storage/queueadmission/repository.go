@@ -435,10 +435,6 @@ func normalizePrincipalBinding(
 		if principal.UserID != authctx.SystemUserID || principal.SessionID != "" {
 			return PrincipalBinding{}, errors.New("local queue admission requires the sessionless system owner")
 		}
-	case authctx.AuthMethodBearer:
-		if principal.SessionID != "" {
-			return PrincipalBinding{}, errors.New("bearer queue admission cannot bind an auth session id")
-		}
 	default:
 		return PrincipalBinding{}, errors.New("queue admission auth method is not trusted")
 	}

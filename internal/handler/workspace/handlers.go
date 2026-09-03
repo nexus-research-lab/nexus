@@ -7,6 +7,7 @@ import (
 	"errors"
 	"mime"
 	"net/http"
+	"path/filepath"
 	"strings"
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
@@ -20,6 +21,7 @@ import (
 const (
 	workspaceFileDispositionAttachment = "attachment"
 	workspaceFileDispositionInline     = "inline"
+	workspaceInlinePreviewMaxBytes     = 15 * 1024 * 1024
 )
 
 type workspaceMutationOperation string
@@ -104,6 +106,10 @@ func (h *Handlers) HandleWorkspaceFile(writer http.ResponseWriter, request *http
 		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
 		return
 	}
+	if errors.Is(err, workspacepkg.ErrFileTooLarge) {
+		h.api.WriteError(writer, request, http.StatusRequestEntityTooLarge, workspaceFileTooLargeFailure(protocol.FailureEffectNotApplicable))
+		return
+	}
 	if err != nil {
 		if handlershared.IsClientMessageError(err) || strings.Contains(err.Error(), "文件路径") || strings.Contains(err.Error(), "目录") {
 			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
@@ -140,6 +146,10 @@ func (h *Handlers) HandleUpdateWorkspaceFile(writer http.ResponseWriter, request
 		h.api.WriteError(writer, request, http.StatusConflict, workspaceFileRevisionConflict())
 		return
 	}
+	if errors.Is(err, workspacepkg.ErrFileTooLarge) {
+		h.api.WriteError(writer, request, http.StatusRequestEntityTooLarge, workspaceFileTooLargeFailure(protocol.FailureEffectNotApplied))
+		return
+	}
 	if err != nil {
 		if strings.Contains(err.Error(), "文件路径") || strings.Contains(err.Error(), "目录") {
 			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
@@ -157,6 +167,15 @@ func workspaceFileRevisionConflict() handlershared.FailureSpec {
 		Category: protocol.FailureCategoryConflict,
 		Effect:   protocol.FailureEffectNotApplied,
 		Detail:   "文件已在其他位置更新",
+	}
+}
+
+func workspaceFileTooLargeFailure(effect protocol.FailureEffect) handlershared.FailureSpec {
+	return handlershared.FailureSpec{
+		Code:     "workspace.file_too_large",
+		Category: protocol.FailureCategoryValidation,
+		Effect:   effect,
+		Detail:   "文件过大，不能作为单个正文载荷读取",
 	}
 }
 
@@ -273,6 +292,14 @@ func workspaceMutationFailure(
 			Detail:   workspaceMutationInvalidDetail(operation),
 		}
 	}
+	if errors.Is(err, workspacepkg.ErrFileTooLarge) {
+		return http.StatusRequestEntityTooLarge, handlershared.FailureSpec{
+			Code:     prefix + "_too_large",
+			Category: protocol.FailureCategoryValidation,
+			Effect:   protocol.FailureEffectNotApplied,
+			Detail:   "文件内容超过编辑限制",
+		}
+	}
 	return http.StatusInternalServerError, handlershared.FailureSpec{
 		Code:     prefix + "_failed",
 		Category: protocol.FailureCategoryInternal,
@@ -332,15 +359,27 @@ func (h *Handlers) HandleDownloadWorkspaceFile(writer http.ResponseWriter, reque
 		return
 	}
 	defer file.Close()
-	writer.Header().Set(
-		"Content-Disposition",
-		buildWorkspaceFileDispositionHeader(fileName, request.URL.Query().Get("disposition")),
-	)
 	info, err := file.Stat()
 	if err != nil {
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		return
 	}
+	requestedDisposition := request.URL.Query().Get("disposition")
+	if requestedDisposition == workspaceFileDispositionInline &&
+		!strings.EqualFold(filepath.Ext(fileName), ".pdf") &&
+		info.Size() > workspaceInlinePreviewMaxBytes {
+		h.api.WriteError(writer, request, http.StatusRequestEntityTooLarge, handlershared.FailureSpec{
+			Code:     "workspace.inline_preview_too_large",
+			Category: protocol.FailureCategoryValidation,
+			Effect:   protocol.FailureEffectNotApplicable,
+			Detail:   "文件过大，无法内置预览，请下载后查看",
+		})
+		return
+	}
+	writer.Header().Set(
+		"Content-Disposition",
+		buildWorkspaceFileDispositionHeader(fileName, requestedDisposition),
+	)
 	http.ServeContent(writer, request, fileName, info.ModTime(), file)
 }
 

@@ -155,11 +155,12 @@ function buildConversationNavigatorModel(
 }
 
 function buildConversationScrollToLatestModel(
-  session: ConversationScrollToLatestSessionSource,
+  session: ConversationScrollToLatestSessionSource & ConversationRuntimeSessionSource,
 ): ConversationScrollToLatestModel {
   return {
+    isGenerating: session.conversation.is_loading,
     onClick: () => session.scroll.scrollToBottom("smooth"),
-    visible: session.scroll.showScrollToBottom,
+    visible: session.conversation.is_loading || session.scroll.showScrollToBottom,
   };
 }
 

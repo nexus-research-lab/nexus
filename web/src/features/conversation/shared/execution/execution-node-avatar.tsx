@@ -82,7 +82,7 @@ export function ExecutionNodeAvatar({
         graph
           ? "h-11 w-11 rounded-[13px]"
           : dock
-          ? "h-8 w-8 rounded-[10px]"
+          ? "h-6 w-6 rounded-[7px]"
           : nested
           ? "h-8.5 w-8.5 rounded-[11px]"
           : "h-6 w-6 rounded-[8px]",
@@ -106,7 +106,7 @@ export function ExecutionNodeAvatar({
           aria-hidden="true"
           className={cn(
             "text-(--icon-default)",
-            dock || nested ? "h-4 w-4" : graph ? "h-5 w-5" : "h-3 w-3",
+            dock ? "h-3.5 w-3.5" : nested ? "h-4 w-4" : graph ? "h-5 w-5" : "h-3 w-3",
           )}
           strokeWidth={1.8}
         />
@@ -115,7 +115,7 @@ export function ExecutionNodeAvatar({
           aria-hidden="true"
           className={cn(
             "text-(--icon-default)",
-            dock || nested ? "h-4 w-4" : graph ? "h-5 w-5" : "h-3 w-3",
+            dock ? "h-3.5 w-3.5" : nested ? "h-4 w-4" : graph ? "h-5 w-5" : "h-3 w-3",
           )}
           strokeWidth={1.8}
         />
@@ -127,7 +127,7 @@ export function ExecutionNodeAvatar({
             graph
               ? "h-9.5 w-9.5 rounded-[10px]"
               : dock
-              ? "h-7 w-7 rounded-[8px]"
+              ? "h-5.5 w-5.5 rounded-[6px]"
               : nested
               ? "h-7 w-7 rounded-[8px]"
               : "h-5 w-5",
@@ -135,12 +135,12 @@ export function ExecutionNodeAvatar({
           imageClassName={graph
             ? "rounded-[9px]"
             : dock
-            ? "rounded-[7px]"
+            ? "rounded-[5px]"
             : nested
             ? "rounded-[7px]"
             : "rounded-[5px]"}
           name={agent.name}
-          size={graph ? "md" : dock ? "sm" : "xs"}
+          size={graph ? "md" : "xs"}
         />
       ) : kind === "subagent" ? (
         // 防御性 fallback；正常 WorkGraph 投影会为每个 Subagent 提供稳定头像。
@@ -148,7 +148,7 @@ export function ExecutionNodeAvatar({
           aria-hidden="true"
           className={cn(
             "text-(--icon-default)",
-            dock || nested ? "h-4 w-4" : graph ? "h-5 w-5" : "h-3 w-3",
+            dock ? "h-3.5 w-3.5" : nested ? "h-4 w-4" : graph ? "h-5 w-5" : "h-3 w-3",
           )}
           strokeWidth={1.8}
         />
@@ -159,7 +159,9 @@ export function ExecutionNodeAvatar({
             "rounded-full bg-(--icon-muted)",
             graph
               ? "h-3.5 w-3.5"
-              : dock || nested
+              : dock
+              ? "h-2.5 w-2.5"
+              : nested
               ? "h-3 w-3"
               : "h-2 w-2",
           )}
@@ -169,7 +171,7 @@ export function ExecutionNodeAvatar({
         aria-hidden="true"
         className={cn(
           "absolute -bottom-0.5 -right-0.5 rounded-full border border-(--surface-control-background)",
-          graph ? "h-2.5 w-2.5" : dock || nested ? "h-2 w-2" : "h-2 w-2",
+          graph ? "h-2.5 w-2.5" : dock ? "h-1.5 w-1.5" : "h-2 w-2",
           executionNodeDotTone(status, tone),
         )}
       />

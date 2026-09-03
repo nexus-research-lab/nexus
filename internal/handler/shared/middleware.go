@@ -62,7 +62,8 @@ func (r *responseRecorder) ReadFrom(reader io.Reader) (int64, error) {
 		r.bytesWritten += int(size)
 		return size, err
 	}
-	return io.Copy(r, reader)
+	// 只暴露 Writer，避免 io.Copy 再次选择当前 ReadFrom 形成递归。
+	return io.Copy(struct{ io.Writer }{Writer: r}, reader)
 }
 
 func (r *responseRecorder) Flush() {
@@ -200,7 +201,7 @@ func RecoverMiddleware(api *API) func(http.Handler) http.Handler {
 }
 
 // AuthMiddleware 把认证状态写入请求上下文。
-func AuthMiddleware(api *API, auth *authsvc.Service) func(http.Handler) http.Handler {
+func AuthMiddleware(api *API, auth authsvc.Authority) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			if auth == nil {

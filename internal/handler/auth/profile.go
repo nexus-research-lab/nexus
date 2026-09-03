@@ -1,32 +1,19 @@
-// INPUT: 当前认证主体、个人资料请求与密码 exact request/终态回执。
-// OUTPUT: 个人资料读写、密码原子修改、回执核对与 unknown 请求放弃 HTTP 投影。
-// POS: auth handler 的个人设置边界；不按错误文本猜测数据影响。
+// INPUT: 当前认证主体与个人资料请求。
+// OUTPUT: 个人设置读模型，以及 Desktop 本地头像更新。
+// POS: auth handler 的个人设置边界；Web 账号写操作直达 Control。
 package auth
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"strings"
 	"time"
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	subscriptionsvc "github.com/nexus-research-lab/nexus/internal/service/subscription"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 )
-
-type authChangePasswordPayload struct {
-	RequestID       string `json:"request_id"`
-	CurrentPassword string `json:"current_password"`
-	NewPassword     string `json:"new_password"`
-}
-
-type passwordChangeReceiptPayload struct {
-	RequestID string                        `json:"request_id"`
-	Effect    authsvc.PasswordChangeOutcome `json:"effect"`
-}
 
 type authUpdateProfilePayload struct {
 	Avatar *string `json:"avatar,omitempty"`
@@ -93,8 +80,9 @@ func (h *Handlers) HandlePersonalProfile(writer http.ResponseWriter, request *ht
 
 // HandleUpdatePersonalProfile 更新当前用户的个人资料。
 func (h *Handlers) HandleUpdatePersonalProfile(writer http.ResponseWriter, request *http.Request) {
-	if h.auth == nil {
-		h.api.WriteFailure(writer, http.StatusServiceUnavailable, "auth service is not configured")
+	local, ok := h.auth.(*authsvc.LocalAuthority)
+	if !ok {
+		h.api.WriteFailure(writer, http.StatusNotFound, "个人资料写入由 nexus-control 提供")
 		return
 	}
 	principal := authsvc.PrincipalFromContext(request.Context())
@@ -113,10 +101,7 @@ func (h *Handlers) HandleUpdatePersonalProfile(writer http.ResponseWriter, reque
 		return
 	}
 
-	updatedUser, err := h.auth.UpdateProfile(request.Context(), authsvc.UpdateProfileInput{
-		UserID: principal.UserID,
-		Avatar: payload.Avatar,
-	})
+	updatedPrincipal, err := local.UpdateLocalAvatar(request.Context(), *payload.Avatar)
 	if err != nil {
 		if handlershared.IsClientMessageError(err) {
 			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
@@ -138,140 +123,11 @@ func (h *Handlers) HandleUpdatePersonalProfile(writer http.ResponseWriter, reque
 	}
 	applySubscriptionQuota(&usage, subscription)
 	h.api.WriteSuccess(writer, personalProfilePayload{
-		User:              buildPersonalUserPayload(buildPrincipalFromUser(updatedUser, principal.AuthMethod)),
+		User:              buildPersonalUserPayload(updatedPrincipal),
 		TokenUsage:        usage,
 		Subscription:      subscription,
-		CanChangePassword: principal.AuthMethod == authsvc.AuthMethodPassword,
-		CanUpdateProfile:  canUpdatePersonalProfile(principal),
-	})
-}
-
-// HandleChangePassword 修改当前登录用户密码。
-func (h *Handlers) HandleChangePassword(writer http.ResponseWriter, request *http.Request) {
-	if h.auth == nil {
-		h.api.WriteError(writer, request, http.StatusServiceUnavailable, passwordServiceUnavailableFailure())
-		return
-	}
-	principal := authsvc.PrincipalFromContext(request.Context())
-	if principal == nil || principal.AuthMethod != authsvc.AuthMethodPassword {
-		h.api.WriteError(writer, request, http.StatusUnauthorized, passwordAccessFailure(
-			"auth.password_change_unsupported",
-			protocol.FailureCategoryAuthentication,
-		))
-		return
-	}
-
-	var payload authChangePasswordPayload
-	if !h.api.BindJSONError(writer, request, &payload, passwordBodyFailure()) {
-		return
-	}
-
-	_, err := h.auth.ChangePassword(request.Context(), authsvc.ChangePasswordInput{
-		UserID:          principal.UserID,
-		RequestID:       payload.RequestID,
-		CurrentPassword: payload.CurrentPassword,
-		NewPassword:     payload.NewPassword,
-	})
-	if err != nil {
-		status, failure := passwordMutationFailure(err)
-		h.api.WriteError(writer, request, status, failure)
-		return
-	}
-
-	status, err := h.auth.BuildStatusPayload(request.Context(), request)
-	if err != nil {
-		h.api.WriteError(writer, request, http.StatusInternalServerError, handlershared.FailureSpec{
-			Code:     "auth.password_change_committed",
-			Category: protocol.FailureCategoryInternal,
-			Effect:   protocol.FailureEffectCommitted,
-			Detail:   "密码已修改，但暂时无法刷新登录状态",
-			Cause:    err,
-		})
-		return
-	}
-	h.api.WriteSuccess(writer, status)
-}
-
-// HandlePasswordChangeReceipt 核对 exact request 是否已与密码凭据同事务提交。
-func (h *Handlers) HandlePasswordChangeReceipt(writer http.ResponseWriter, request *http.Request) {
-	if h.auth == nil {
-		h.api.WriteError(writer, request, http.StatusServiceUnavailable, passwordReceiptReadFailure(
-			"auth.password_receipt_unavailable",
-			protocol.FailureCategoryUnavailable,
-			nil,
-		))
-		return
-	}
-	principal := authsvc.PrincipalFromContext(request.Context())
-	if principal == nil || principal.AuthMethod != authsvc.AuthMethodPassword {
-		h.api.WriteError(writer, request, http.StatusUnauthorized, passwordReceiptReadFailure(
-			"auth.password_receipt_unsupported",
-			protocol.FailureCategoryAuthentication,
-			nil,
-		))
-		return
-	}
-	requestID := strings.TrimSpace(request.URL.Query().Get("request_id"))
-	outcome, err := h.auth.PasswordChangeOutcome(request.Context(), principal.UserID, requestID)
-	if err != nil {
-		status := http.StatusInternalServerError
-		category := protocol.FailureCategoryUnavailable
-		if errors.Is(err, authsvc.ErrPasswordChangeInvalidInput) {
-			status = http.StatusBadRequest
-			category = protocol.FailureCategoryValidation
-		}
-		h.api.WriteError(writer, request, status, passwordReceiptReadFailure(
-			"auth.password_receipt_read_failed",
-			category,
-			err,
-		))
-		return
-	}
-	h.api.WriteSuccess(writer, passwordChangeReceiptPayload{
-		RequestID: requestID,
-		Effect:    outcome,
-	})
-}
-
-// HandleSettlePasswordChangeNotApplied 放弃 unknown exact request，并原子阻止其迟到写入。
-func (h *Handlers) HandleSettlePasswordChangeNotApplied(writer http.ResponseWriter, request *http.Request) {
-	if h.auth == nil {
-		h.api.WriteError(writer, request, http.StatusServiceUnavailable, passwordSettlementFailure(nil))
-		return
-	}
-	principal := authsvc.PrincipalFromContext(request.Context())
-	if principal == nil || principal.AuthMethod != authsvc.AuthMethodPassword {
-		h.api.WriteError(writer, request, http.StatusUnauthorized, passwordAccessFailure(
-			"auth.password_receipt_unsupported",
-			protocol.FailureCategoryAuthentication,
-		))
-		return
-	}
-	var payload struct {
-		RequestID string `json:"request_id"`
-	}
-	if !h.api.BindJSONError(writer, request, &payload, passwordBodyFailure()) {
-		return
-	}
-	requestID := strings.TrimSpace(payload.RequestID)
-	outcome, err := h.auth.SettlePasswordChangeNotApplied(
-		request.Context(),
-		principal.UserID,
-		requestID,
-	)
-	if err != nil {
-		status := http.StatusInternalServerError
-		failure := passwordSettlementFailure(err)
-		if errors.Is(err, authsvc.ErrPasswordChangeInvalidInput) {
-			status = http.StatusBadRequest
-			failure = passwordBodyFailure()
-		}
-		h.api.WriteError(writer, request, status, failure)
-		return
-	}
-	h.api.WriteSuccess(writer, passwordChangeReceiptPayload{
-		RequestID: requestID,
-		Effect:    outcome,
+		CanChangePassword: false,
+		CanUpdateProfile:  true,
 	})
 }
 
@@ -286,8 +142,12 @@ func buildPersonalUserPayload(principal *authsvc.Principal) personalUserPayload 
 			AuthMethod:  "",
 		}
 	}
+	userID := strings.TrimSpace(principal.ControlUserID)
+	if userID == "" {
+		userID = strings.TrimSpace(principal.UserID)
+	}
 	return personalUserPayload{
-		UserID:      strings.TrimSpace(principal.UserID),
+		UserID:      userID,
 		Username:    strings.TrimSpace(principal.Username),
 		DisplayName: strings.TrimSpace(principal.DisplayName),
 		Role:        strings.TrimSpace(principal.Role),
@@ -301,20 +161,6 @@ func canUpdatePersonalProfile(principal *authsvc.Principal) bool {
 		return false
 	}
 	return principal.AuthMethod == authsvc.AuthMethodPassword || principal.AuthMethod == authsvc.AuthMethodLocal
-}
-
-func buildPrincipalFromUser(user *authsvc.User, authMethod string) *authsvc.Principal {
-	if user == nil {
-		return nil
-	}
-	return &authsvc.Principal{
-		UserID:      strings.TrimSpace(user.UserID),
-		Username:    strings.TrimSpace(user.Username),
-		DisplayName: strings.TrimSpace(user.DisplayName),
-		Role:        strings.TrimSpace(user.Role),
-		Avatar:      strings.TrimSpace(user.Avatar),
-		AuthMethod:  strings.TrimSpace(authMethod),
-	}
 }
 
 func (h *Handlers) buildTokenUsageSummary(ctx context.Context) (usagesvc.Summary, error) {

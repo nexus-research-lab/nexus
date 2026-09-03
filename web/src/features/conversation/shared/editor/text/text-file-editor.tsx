@@ -1,12 +1,13 @@
 // INPUT: exact Agent/path 文件预览 scope、焦点布局与当前语言。
-// OUTPUT: revision 保护的文本编辑器、工具栏和完整异常恢复状态。
-// POS: 通用文本文件编辑入口；业务可靠性由控制器持有，视图不猜写入结果。
+// OUTPUT: revision 保护的文本编辑器，或超限文件的只读 Range 分段预览。
+// POS: 通用文本文件入口；业务可靠性由控制器持有，视图不猜写入结果。
 "use client";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 
 import type { WorkspaceFilePreviewKind } from "../workspace-file-preview-kind";
 import type { WorkspaceFilePreviewProps } from "../workspace-file-preview-types";
+import { LargeTextFilePreview } from "./large-text-file-preview";
 import { TextFileEditorBody } from "./text-file-editor-body";
 import { TextFileEditorHeader } from "./text-file-editor-header";
 import { buildTextFileEditorPresentation } from "./text-file-editor-model";
@@ -28,6 +29,17 @@ export function TextFileEditor({
     fallbackSaveError: t("workspace_file.save_failed_fallback"),
     path,
   });
+  if (editor.requiresChunkedPreview) {
+    return (
+      <LargeTextFilePreview
+        agentId={agentId}
+        fileName={fileName}
+        isPreviewFocused={isPreviewFocused}
+        onTogglePreviewFocus={onTogglePreviewFocus}
+        path={path}
+      />
+    );
+  }
   const revisionReady = Boolean(editor.revision);
   const saveBlocked = Boolean(
     editor.saveIssue
