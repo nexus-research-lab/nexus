@@ -935,6 +935,30 @@ test("Skill directory chrome reuses shared actions, states, typography, and filt
   assert.doesNotMatch(detail, /animate-spin/);
 });
 
+test("Skill import and external sources reuse shared controls, states, and typography", async () => {
+  const paths = [
+    "src/features/capability/skills/import/skill-import-dialog.tsx",
+    "src/features/capability/skills/import/skill-import-footer.tsx",
+    "src/features/capability/skills/import/skill-import-source.tsx",
+    "src/features/capability/skills/import/skill-import-guide.tsx",
+    "src/features/capability/skills/external/skills-external-results.tsx",
+    "src/features/capability/skills/external/skill-source-manager-dialog.tsx",
+    "src/features/capability/skills/external/external-skill-preview-dialog.tsx",
+  ];
+  const sources = await Promise.all(paths.map(readSource));
+  const combined = sources.join("\n");
+
+  assert.match(combined, /UiSegmentedControl/);
+  assert.match(combined, /UiResourceState/);
+  assert.match(combined, /<UiPanel/);
+  assert.match(combined, /getUiTypographyClassName/);
+  assert.match(combined, /getUiSpinnerClassName/);
+  assert.match(sources[0], /<UiDialogFormShell[\s\S]*size="md"/);
+  for (const source of sources) {
+    assert.doesNotMatch(source, /rounded-\[|animate-spin|text-(?:2xs|xs|sm|base|lg|xl|2xl)|font-(?:normal|medium|semibold|bold)|<button/);
+  }
+});
+
 test("Capability sidebar reuses shared list, typography, and shape owners", async () => {
   const [panel, item] = await Promise.all([
     readSource("src/features/capability/sidebar/capability-sidebar-panel.tsx"),

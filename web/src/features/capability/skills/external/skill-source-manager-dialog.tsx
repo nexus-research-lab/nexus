@@ -14,6 +14,9 @@ import {
   type I18nContextValue,
 } from "@/shared/i18n/i18n-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -26,6 +29,8 @@ import {
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
+import { UiPanel } from "@/shared/ui/panel";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { ExternalSkillSourceInfo } from "@/types/capability/skill";
 
 interface SkillSourceManagerDialogProps {
@@ -150,29 +155,39 @@ export function SkillSourceManagerDialog({
               title={t("capability.skill_sources_title")}
             />
             <UiDialogBody scrollable>
-            {loading && !sortedSources.length ? (
-              <div className="flex items-center justify-center gap-2 py-12 text-sm text-(--text-soft)">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                {t("capability.skill_sources_loading")}
-              </div>
-            ) : sortedSources.length ? (
-              <div className="divide-y divide-(--divider-subtle-color) overflow-hidden rounded-[10px] border border-(--divider-subtle-color)">
-                {sortedSources.map((source) => (
-                  <SourceRow
-                    key={source.source_id}
-                    disabled={loading}
-                    onDelete={() => setDeleteTarget(source)}
-                    onEdit={() => openEditEditor(source)}
-                    onToggle={(enabled) => onToggle(source, enabled)}
-                    source={source}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-[8px] border border-dashed border-(--divider-subtle-color) px-4 py-6 text-center text-compact text-(--text-soft)">
-                {t("capability.skill_sources_empty")}
-              </div>
-            )}
+              {loading && !sortedSources.length ? (
+                <UiResourceState
+                  size="sm"
+                  state="loading"
+                  title={t("capability.skill_sources_loading")}
+                  variant="plain"
+                />
+              ) : sortedSources.length ? (
+                <UiPanel
+                  className="divide-y divide-(--divider-subtle-color) overflow-hidden"
+                  padding="none"
+                  radius="md"
+                  variant="card"
+                >
+                  {sortedSources.map((source) => (
+                    <SourceRow
+                      key={source.source_id}
+                      disabled={loading}
+                      onDelete={() => setDeleteTarget(source)}
+                      onEdit={() => openEditEditor(source)}
+                      onToggle={(enabled) => onToggle(source, enabled)}
+                      source={source}
+                    />
+                  ))}
+                </UiPanel>
+              ) : (
+                <UiResourceState
+                  size="sm"
+                  state="empty"
+                  title={t("capability.skill_sources_empty")}
+                  variant="inset"
+                />
+              )}
             </UiDialogBody>
 
             <UiDialogFooter appearance="plain" className="gap-2">
@@ -236,21 +251,37 @@ function SourceRow({
   return (
     <div className="flex min-w-0 items-center gap-3 bg-(--surface-raised-background) px-3.5 py-3">
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium text-(--text-strong)">
+        <div className={cn(
+          "truncate",
+          getUiTypographyClassName({
+            role: "supporting",
+            tone: "strong",
+            weight: "medium",
+          }),
+        )}>
           {source.name}
         </div>
-        <div className="mt-0.5 truncate text-xs text-(--text-muted)">
+        <div className={cn(
+          "mt-0.5 truncate",
+          getUiTypographyClassName({ role: "caption", tone: "muted" }),
+        )}>
           {sourceKindLabel(source.kind, t)} · {source.url}
         </div>
         {source.deletable ? (
-          <div className="mt-1 text-xs text-(--text-soft)">
+          <div className={cn(
+            "mt-1",
+            getUiTypographyClassName({ role: "caption", tone: "soft" }),
+          )}>
             {source.credential_configured
               ? t("capability.skill_source_credential_configured")
               : t("capability.skill_source_auth_none")}
           </div>
         ) : null}
         {source.last_error ? (
-          <div className="mt-1 truncate text-xs text-(--destructive)">
+          <div className={cn(
+            "mt-1 truncate",
+            getUiTypographyClassName({ role: "caption", tone: "danger" }),
+          )}>
             {t("capability.skills_external_source_failed_description")}
           </div>
         ) : null}
@@ -426,7 +457,9 @@ function PrivateSourceEditorDialog({
               type="submit"
               variant="solid"
             >
-              {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+              {loading ? (
+                <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
+              ) : null}
               {t(editingSource
                 ? "capability.skill_source_validate_and_save"
                 : "capability.skill_source_validate_and_add")}

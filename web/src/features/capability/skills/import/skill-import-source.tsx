@@ -10,9 +10,13 @@ import {
 import { FolderUp, Loader2 } from "lucide-react";
 
 import { UiButton } from "@/shared/ui/button/button";
-import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
+import { useI18n } from "@/shared/i18n/i18n-context";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
+import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
+import { UiPanel } from "@/shared/ui/panel";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import type { SkillImportDialogMode } from "../controller/skill-marketplace-controller";
 import {
@@ -45,27 +49,17 @@ function SkillImportModeTabs({
 }: Pick<SkillImportSourceProps, "importing" | "mode" | "onSelectMode">) {
   const { t } = useI18n();
   return (
-    <div className="inline-flex rounded-[10px] border border-(--divider-subtle-color) p-1">
-      {SKILL_IMPORT_MODES.map((option) => {
-        const isActive = mode === option.key;
-        return (
-          <button
-            className={cn(
-              "inline-flex min-h-8 items-center gap-1.5 radius-control-sm px-3 text-xs font-medium transition-[background,color]",
-              isActive
-                ? "bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-(--primary)"
-                : "text-(--text-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
-            )}
-            disabled={importing}
-            key={option.key}
-            onClick={() => onSelectMode(option.key)}
-            type="button"
-          >
-            {t(option.labelKey)}
-          </button>
-        );
-      })}
-    </div>
+    <UiSegmentedControl
+      density="compact"
+      disabled={importing}
+      onChange={onSelectMode}
+      options={SKILL_IMPORT_MODES.map((option) => ({
+        label: t(option.labelKey),
+        value: option.key,
+      }))}
+      title={t("capability.skills_import_title")}
+      value={mode}
+    />
   );
 }
 
@@ -129,7 +123,7 @@ function GitSkillImportSource({
 
 function ImportingIcon({ importing }: { importing: boolean }) {
   return importing
-    ? <Loader2 className="h-4 w-4 animate-spin" />
+    ? <Loader2 className={getUiSpinnerClassName()} />
     : <FolderUp className="h-4 w-4" />;
 }
 
@@ -139,29 +133,36 @@ function LocalSkillImportSource({
 }: SourceViewProps) {
   const { t } = useI18n();
   return (
-    <div className="rounded-[10px] border border-dashed border-(--divider-subtle-color) px-4 py-5">
-        <div className="min-w-0 text-center">
-          <h3 className="text-sm font-medium text-(--text-strong)">
-            {t("capability.skills_import_zip_title")}
-          </h3>
-          <p className="mt-1 text-compact leading-5 text-(--text-muted)">
-            {t("capability.skills_import_zip_description")}
-          </p>
-          <UiButton
-            className="mt-3"
-            disabled={importing}
-            onClick={() => fileInputRef.current?.click()}
-            size="sm"
-            tone="primary"
-            variant="solid"
-          >
-            <ImportingIcon importing={importing} />
-            {importing
-              ? t("capability.skills_importing")
-              : t("capability.skills_import_choose_zip")}
-          </UiButton>
+    <UiPanel padding="lg" radius="md" variant="dashed">
+      <div className="min-w-0 text-center">
+        <h3 className={getUiTypographyClassName({
+          role: "sectionTitle",
+          tone: "strong",
+          weight: "medium",
+        })}>
+          {t("capability.skills_import_zip_title")}
+        </h3>
+        <p className={cn(
+          "mt-1",
+          getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+        )}>
+          {t("capability.skills_import_zip_description")}
+        </p>
+        <UiButton
+          className="mt-3"
+          disabled={importing}
+          onClick={() => fileInputRef.current?.click()}
+          size="sm"
+          tone="primary"
+          variant="solid"
+        >
+          <ImportingIcon importing={importing} />
+          {importing
+            ? t("capability.skills_importing")
+            : t("capability.skills_import_choose_zip")}
+        </UiButton>
       </div>
-    </div>
+    </UiPanel>
   );
 }
 

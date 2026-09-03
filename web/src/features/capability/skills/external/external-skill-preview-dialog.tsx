@@ -10,6 +10,7 @@ import { ExternalLink, Loader2, PackagePlus } from "lucide-react";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiButton, UiLinkButton } from "@/shared/ui/button/button";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -85,7 +86,7 @@ export function ExternalSkillPreviewDialog({
                 variant="solid"
               >
                 {model.importState.busy
-                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  ? <Loader2 className={getUiSpinnerClassName()} />
                   : <PackagePlus className="h-4 w-4" />}
                 {t("capability.skills_external_import_action")}
               </UiButton>
