@@ -578,6 +578,38 @@ test("business inline notices reuse feedback and spinner owners", async () => {
   assert.match(roomSkills, /getUiSpinnerClassName/);
 });
 
+test("cross-domain warnings reuse the shared inline feedback owner", async () => {
+  const [roomSkills, subagents, agentOptions, assistantMessage, memoryDocument] =
+    await Promise.all([
+      readSource(
+        "src/features/conversation/room/members/skills/room-skills-selector.tsx",
+      ),
+      readSource("src/features/conversation/shared/subagent/subagent-task-list.tsx"),
+      readSource("src/features/agents/options/components/agent-options-advanced-tab.tsx"),
+      readSource(
+        "src/features/conversation/shared/message/item/view/assistant/assistant-message-content.tsx",
+      ),
+      readSource("src/features/memory/document/memory-document-panel.tsx"),
+    ]);
+  const subagentNotice =
+    subagents.match(/\{error \? \([\s\S]*?\) : null\}/)?.[0] ?? "";
+  const bypassNotice =
+    agentOptions.match(/\{isBypassPermissionMode \? \([\s\S]*?\) : null\}/)?.[0] ?? "";
+  const maxTokensNotice =
+    assistantMessage.match(/function MaxTokensWarning[\s\S]*$/)?.[0] ?? "";
+  const memoryAlerts =
+    memoryDocument.match(/function MemoryDocumentAlerts[\s\S]*?function MemorySaveIssueNotice/)?.[0]
+      ?? "";
+
+  for (const consumer of [roomSkills, subagentNotice, bypassNotice, maxTokensNotice, memoryAlerts]) {
+    assert.match(consumer, /<UiInlineNotice/);
+    assert.doesNotMatch(consumer, /rounded-\[/);
+  }
+  assert.doesNotMatch(subagentNotice, /<button\b/);
+  assert.match(agentOptions, /getUiSpinnerClassName/);
+  assert.doesNotMatch(agentOptions, /<Loader2 className="[^"]*animate-spin/);
+});
+
 test("App typography exposes one typed semantic role map", async () => {
   const { getUiTypographyClassName } = await importLeafTypeScriptModule(
     webRoot,

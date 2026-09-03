@@ -3,6 +3,7 @@
 - `assistant-message-model.ts`: 声明消费侧窄状态，并投影 Agent 作用域与紧凑/展开布局。
 - `message-assistant-section.tsx`: 只组合助手外壳、头部、正文和统计。
 - `assistant-message-content.tsx`: 按 direct 过程、归档过程、稳定最终回复、Room 实时活动、警告和权限顺序组合正文段；Room 把全部 pending request 固定交给唯一交互轨道，DM 只保留 Composer-owned 请求的只读过程证据。Room Result 的 direct 过程不进入主 Feed；未收口工具在最新可见正文之后用不可展开的单行活动面复用工具组图标栈与当前工具标题，不读取 Provider ToolUseSummary，其余状态回退共享活动提示。DM/Thread 的执行段严格服从 direct 投影中的正文边界，不在视图层重排 active 段。流式 final 只显示正文，不得重复同义活动提示；所有 final 都是独立答案面，不继承过程轨道、边线或节点，前面存在过程内容时与上下信息保持对称间距。
+- 最终回复达到模型输出上限时只向 `UiInlineNotice` 提供警告事实；消息视图不得重新定义提示框圆角、颜色、字号或图标布局。
 - `assistant-message-header.tsx`: 组合 32px、8px 圆角的头像与垂直居中的名称；宿主 handoff reply 以不可点击的“回应 @Agent”身份 chip 展示，不注入正文 mention 或动作；展开态不混入时间和模型，紧凑态才显示它们，并保留外部动作与停止动作。
 - `assistant-message-stats.tsx`: 只渲染控制器已判定可见的结果统计、模型、复制动作、Assistant 记忆引用入口，以及附着在最终回复下方且省略未知耗时/token 的 Goal 完成收据；内部 goal/round ID 永不展示，也不接收运行态。runtime 已结束但平滑 Markdown 仍在排空时，页脚继续隐藏到正文完全展示。
 - `goal-completion-receipt.ts`: 负责 Goal 完成收据的可见字段选择、耗时格式化与本地化拼装；未知值不生成任何占位文案。
