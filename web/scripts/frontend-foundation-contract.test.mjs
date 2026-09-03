@@ -867,10 +867,22 @@ test("Capability page chrome has one Header, typography, action, and shape owner
 });
 
 test("Capability auxiliary states reuse resource, list, typography, and spinner owners", async () => {
-  const [pairings, pairingList, skillUpdates] = await Promise.all([
+  const [
+    pairings,
+    pairingList,
+    skillUpdates,
+    channelAccounts,
+    channelLogin,
+    channelLoginQr,
+    channelFooter,
+  ] = await Promise.all([
     readSource("src/features/capability/channels/pairings-directory.tsx"),
     readSource("src/features/capability/channels/pairings/pairing-list.tsx"),
     readSource("src/features/capability/skills/catalog/skills-update-highlight.tsx"),
+    readSource("src/features/capability/channels/connection/channel-accounts-panel.tsx"),
+    readSource("src/features/capability/channels/connection/login/channel-login-panel.tsx"),
+    readSource("src/features/capability/channels/connection/login/login-qr-code.tsx"),
+    readSource("src/features/capability/channels/connection/view/channel-connect-dialog-footer.tsx"),
   ]);
 
   assert.match(pairings, /<UiResourceState/);
@@ -883,6 +895,15 @@ test("Capability auxiliary states reuse resource, list, typography, and spinner 
   assert.match(skillUpdates, /getUiTypographyClassName/);
   assert.match(skillUpdates, /getUiSpinnerClassName/);
   assert.doesNotMatch(skillUpdates, /<button\b|rounded-\[|animate-spin/);
+  for (const source of [channelAccounts, channelLogin, channelLoginQr]) {
+    assert.match(source, /getUiTypographyClassName/);
+    assert.doesNotMatch(source, /rounded-\[|text-(?:2xs|xs|sm|base|compact)|font-(?:medium|semibold)|font-mono/);
+  }
+  assert.match(channelAccounts, /<UiPanel/);
+  assert.match(channelAccounts, /getUiSpinnerClassName/);
+  assert.match(channelLogin, /<UiPanel/);
+  assert.match(channelFooter, /getUiSpinnerClassName/);
+  assert.doesNotMatch(channelFooter, /animate-spin/);
 });
 
 test("Channel catalog shares resource, typography, action, and brand icon owners", async () => {

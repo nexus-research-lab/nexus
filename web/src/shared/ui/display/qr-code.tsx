@@ -1,8 +1,14 @@
+// INPUT: 已选定的二维码 payload、可选失败内容与载荷可见性。
+// OUTPUT: 使用共享表面、形状与排版的二维码加载、成功或失败投影。
+// POS: shared/ui 二维码原语；不解释登录、授权协议或 payload 业务含义。
 "use client";
 
 import { useEffect, type ReactNode } from "react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { cn } from "@/shared/ui/class-name";
+import { UiPanel } from "@/shared/ui/panel";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 export function UiQRCode({
   alt,
@@ -66,23 +72,29 @@ export function UiQRCode({
   }
 
   return (
-    <div className="flex flex-col items-center gap-2 rounded-[12px] border border-(--divider-subtle-color) px-4 py-4">
+    <UiPanel className="flex flex-col items-center gap-2" padding="md" radius="md">
       {imageUrl ? (
         <img
           alt={alt}
-          className="h-[220px] w-[220px] rounded-[8px] bg-(--surface-paper-background) p-2"
+          className="surface-radius-sm h-[220px] w-[220px] bg-(--surface-paper-background) p-2"
           src={imageUrl}
         />
       ) : generation.status === "loading" ? (
         <div
           aria-live="polite"
-          className="flex h-[220px] w-[220px] items-center justify-center rounded-[8px] bg-(--surface-paper-background) p-4 text-center text-compact leading-5 text-(--surface-paper-muted)"
+          className={cn(
+            "surface-radius-sm flex h-[220px] w-[220px] items-center justify-center bg-(--surface-paper-background) p-4 text-center text-(--surface-paper-muted)",
+            getUiTypographyClassName({ role: "metadata" }),
+          )}
           role="status"
         >
           {loadingLabel}
         </div>
       ) : (
-        <div className="flex min-h-[220px] w-[220px] items-center justify-center rounded-[8px] bg-(--surface-paper-background) p-4 text-center text-compact leading-5 text-(--surface-paper-muted)">
+        <div className={cn(
+          "surface-radius-sm flex min-h-[220px] w-[220px] items-center justify-center bg-(--surface-paper-background) p-4 text-center text-(--surface-paper-muted)",
+          getUiTypographyClassName({ role: "metadata" }),
+        )}>
           {failureFallback
             ?? (showPayload
               ? "二维码生成失败，请使用下方链接"
@@ -90,10 +102,13 @@ export function UiQRCode({
         </div>
       )}
       {showPayload ? (
-        <code className="max-w-full truncate rounded-[8px] border border-(--divider-subtle-color) px-2 py-1 text-xs text-(--text-muted)">
+        <code className={cn(
+          "surface-radius-sm max-w-full truncate border border-(--divider-subtle-color) px-2 py-1",
+          getUiTypographyClassName({ role: "code", tone: "muted" }),
+        )}>
           {payload}
         </code>
       ) : null}
-    </div>
+    </UiPanel>
   );
 }
