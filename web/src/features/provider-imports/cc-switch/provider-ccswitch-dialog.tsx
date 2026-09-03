@@ -34,6 +34,7 @@ import {
 import { UiInput } from "@/shared/ui/form/form-control";
 import { UiCheckbox } from "@/shared/ui/form/checkbox";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import type {
   CCSwitchPreview,
   CCSwitchProviderPreview,
@@ -246,7 +247,9 @@ export function ProviderCCSwitchDialog({
           <UiDialogBody className="!min-h-0 !flex-1 p-0" scrollable>
             {loading ? (
               <div className="flex h-full min-h-[180px] items-center justify-center gap-2 text-sm text-(--text-muted)">
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2
+                  className={getUiSpinnerClassName({ size: "md", tone: "muted" })}
+                />
                 {t("settings.providers.ccswitch_detecting")}
               </div>
             ) : null}
@@ -331,7 +334,9 @@ export function ProviderCCSwitchDialog({
                 type="submit"
                 variant="solid"
               >
-                {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                {syncing ? (
+                  <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
+                ) : null}
                 {syncing
                   ? t(requireDefault
                     ? "settings.providers.ccswitch_importing"
@@ -444,7 +449,11 @@ function CCSwitchSourceBar({
           value={configDir}
         />
         <UiButton disabled={loading || locked || !configDir.trim()} onClick={onDetect} size="sm" variant="surface">
-          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+          {loading ? (
+            <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
+          ) : (
+            <RotateCcw className="h-3.5 w-3.5" />
+          )}
           {t("settings.providers.ccswitch_detect")}
         </UiButton>
       </div>
@@ -460,7 +469,11 @@ function CCSwitchSourceBar({
         {t("settings.providers.ccswitch_change_path")}
       </UiButton>
       <UiButton disabled={loading || locked} onClick={onDetect} size="xs" variant="ghost">
-        <RotateCcw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+        <RotateCcw
+          className={loading
+            ? getUiSpinnerClassName({ size: "sm", tone: "muted" })
+            : "h-3.5 w-3.5"}
+        />
         {t("settings.providers.ccswitch_refresh")}
       </UiButton>
     </div>

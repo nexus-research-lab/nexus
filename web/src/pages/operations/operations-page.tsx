@@ -1,11 +1,13 @@
 "use client";
 
 import { Navigate } from "react-router-dom";
+import { LoaderCircle } from "lucide-react";
 
 import { APP_ROUTE_PATHS, AppRouteBuilders } from "@/app/router/route-paths";
 import { isDesktopRuntime } from "@/config/desktop-runtime";
 import { canUseOperations } from "@/features/settings/operations/operations-access";
 import { useAuth } from "@/shared/auth/auth-context";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 
 export function OperationsPage() {
   const { loading, status } = useAuth();
@@ -13,7 +15,10 @@ export function OperationsPage() {
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        <LoaderCircle
+          aria-hidden="true"
+          className={getUiSpinnerClassName({ size: "xl", tone: "primary" })}
+        />
       </div>
     );
   }

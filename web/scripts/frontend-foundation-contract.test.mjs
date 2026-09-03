@@ -688,6 +688,21 @@ test("Launcher, desktop update, and onboarding loading states share Spinner role
   }
 });
 
+test("Provider import and Operations route loading share Spinner roles", async () => {
+  const [providerImport, operationsPage] = await Promise.all([
+    readSource("src/features/provider-imports/cc-switch/provider-ccswitch-dialog.tsx"),
+    readSource("src/pages/operations/operations-page.tsx"),
+  ]);
+
+  assert.match(providerImport, /size: "md", tone: "muted"/);
+  assert.match(providerImport, /getUiSpinnerClassName\(\{ size: "sm" \}\)/);
+  assert.match(operationsPage, /size: "xl", tone: "primary"/);
+  for (const source of [providerImport, operationsPage]) {
+    assert.doesNotMatch(source, /\banimate-spin\b/);
+    assert.doesNotMatch(source, /border-t-transparent/);
+  }
+});
+
 test("List and Badge primitives expose semantic typography and shape instead of page overrides", async () => {
   const [listRow, badge, badgeStyles, providerModels, connectorCard, customMcpGrid] = await Promise.all([
     readSource("src/shared/ui/list/list-row.tsx"),
