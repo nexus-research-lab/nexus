@@ -9,10 +9,10 @@ import { SlidersHorizontal } from "lucide-react";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
   CapabilityFilterBar,
+  CapabilityModeTabs,
   CapabilityFilterSearchInput,
   CapabilityFilterSelect,
 } from "@/features/capability/shared/capability-page-layout";
-import { UiTabs } from "@/shared/ui/navigation/tabs";
 
 import { getConnectorCategoryLabel } from "./connectors-categories";
 
@@ -41,21 +41,16 @@ export function ConnectorsSearchBar({
 
   return (
     <CapabilityFilterBar className="sm:justify-between">
-      <UiTabs
+      <CapabilityModeTabs
         activeValue={mode}
         ariaLabel={t("capability.connectors_modes_aria")}
-        className="h-8 w-full shrink-0 sm:w-auto"
-        density="compact"
-        itemClassName="h-8 w-full justify-center px-3 sm:w-auto"
         onChange={onModeChange}
         options={[
           {
-            className: "min-w-0 flex-1 sm:flex-none",
             label: t("capability.connectors_tab_catalog"),
             value: "catalog",
           },
           {
-            className: "min-w-0 flex-1 sm:flex-none",
             label: t("capability.connectors_tab_custom_mcp"),
             value: "custom_mcp",
           },

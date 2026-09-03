@@ -65,4 +65,25 @@ describe("UiTabs", () => {
     expect(dismissals).toEqual(["work"]);
     expect(changes).toEqual([]);
   });
+
+  it("renders page-level choices as a stable single-line indicator", () => {
+    render(
+      <UiTabs
+        activeValue="global"
+        ariaLabel="技能目录"
+        options={[
+          { label: "全局技能库", value: "global" },
+          { label: "社区技能", value: "community" },
+        ]}
+        variant="line"
+      />,
+    );
+
+    const active = screen.getByRole("button", { name: "全局技能库" });
+    const inactive = screen.getByRole("button", { name: "社区技能" });
+    expect(active.className).toContain("whitespace-nowrap");
+    expect(active.className).toContain("border-(--text-strong)");
+    expect(active.className).not.toContain("radius-control-sm");
+    expect(inactive.className).toContain("border-transparent");
+  });
 });

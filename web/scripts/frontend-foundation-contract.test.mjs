@@ -1508,7 +1508,7 @@ test("Skill directory chrome reuses shared actions, states, typography, and filt
   assert.doesNotMatch(card, /<button\b|rounded-\[|text-(?:2xs|xs|sm|base|compact)|font-(?:medium|semibold)|font-mono/);
   assert.match(grid, /<UiResourceState/);
   assert.doesNotMatch(grid, /Loader2/);
-  assert.match(search, /<UiTabs/);
+  assert.match(search, /<CapabilityModeTabs/);
   assert.doesNotMatch(search, /<UiSegmentedControl/);
   assert.match(search, /<UiIconButton/);
   assert.doesNotMatch(search, /<button\b/);
@@ -1798,6 +1798,8 @@ test("Connector catalog exposes only implemented products and derives real categ
   assert.doesNotMatch(catalogModel, /COMING_SOON|connector_section_featured/);
   assert.match(categoryModel, /getAvailableConnectorCategoryKeys/);
   assert.match(searchBar, /categoryKeys/);
+  assert.match(searchBar, /<CapabilityModeTabs/);
+  assert.doesNotMatch(searchBar, /<UiTabs|<UiSegmentedControl/);
   assert.doesNotMatch(searchBar, /CONNECTOR_CATEGORY_OPTIONS/);
 });
 

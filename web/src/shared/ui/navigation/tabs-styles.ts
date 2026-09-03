@@ -5,10 +5,12 @@
 import { cn } from "@/shared/ui/class-name";
 
 export type UiTabsDensity = "default" | "compact";
+export type UiTabsVariant = "soft" | "line";
 
 interface UiTabStyleOptions {
   active?: boolean;
   density?: UiTabsDensity;
+  variant?: UiTabsVariant;
 }
 
 export function getUiTabsNavClassName(className?: string): string {
@@ -32,14 +34,22 @@ export function getUiTabClassName(
   const {
     active = false,
     density = "default",
+    variant = "soft",
   } = options;
 
   return cn(
-    "ui-navigation-tab inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap radius-control-sm border-0 px-2.5 py-0 font-medium transition-[background,color] duration-(--motion-duration-fast) ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]",
+    "ui-navigation-tab inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap px-2.5 py-0 font-medium transition-[background,border-color,color] duration-(--motion-duration-fast) ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]",
     density === "compact" ? "h-8 text-xs" : "h-9 text-xs",
-    active
-      ? "bg-(--surface-interactive-active-background) font-semibold text-(--text-strong)"
-      : "text-(--text-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-default)",
+    variant === "line"
+      ? "rounded-none border-x-0 border-t-0 border-b-2 bg-transparent"
+      : "radius-control-sm border-0",
+    variant === "line"
+      ? active
+        ? "border-(--text-strong) font-semibold text-(--text-strong)"
+        : "border-transparent text-(--text-muted) hover:border-(--divider-strong-color) hover:text-(--text-default)"
+      : active
+        ? "bg-(--surface-interactive-active-background) font-semibold text-(--text-strong)"
+        : "text-(--text-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-default)",
     className,
   );
 }
