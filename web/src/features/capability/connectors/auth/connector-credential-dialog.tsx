@@ -16,6 +16,7 @@ import {
   UiDialogHeader,
 } from "@/shared/ui/dialog/dialog";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { ConnectorDetail } from "@/types/capability/connector";
 
 import { getDirectCredentialLabel } from "./connector-auth";
@@ -80,7 +81,7 @@ export function ConnectorCredentialDialog({
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
       if (!detail || !credential.trim()) return;
-      onSave(detail.connector_id, credential);
+      onSave(detail.connector_id, credential.trim());
     },
     [credential, detail, onSave],
   );
@@ -102,7 +103,7 @@ export function ConnectorCredentialDialog({
         />
 
         <UiDialogBody className="space-y-4 px-5" scrollable>
-          <p className="text-sm leading-6 text-(--text-muted)">
+          <p className={getUiTypographyClassName({ role: "supporting", tone: "muted" })}>
             {copy.description}
           </p>
 

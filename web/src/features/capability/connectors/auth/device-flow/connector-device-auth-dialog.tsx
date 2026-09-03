@@ -21,7 +21,11 @@ import {
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
 import { UiQRCode } from "@/shared/ui/display/qr-code";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import { UiPanel } from "@/shared/ui/panel";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { ConnectorDeviceAuthStart } from "@/types/capability/connector";
 
 import {
@@ -147,8 +151,11 @@ export function ConnectorDeviceAuthDialog({
           />
 
           <UiDialogBody className="space-y-4 px-5">
-            <div className="flex items-center gap-2 text-xs font-medium text-(--text-muted)">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <div className={cn(
+              "flex items-center gap-2",
+              getUiTypographyClassName({ role: "metadata", tone: "muted", weight: "medium" }),
+            )}>
+              <Loader2 className={getUiSpinnerClassName({ size: "sm", tone: "muted" })} />
               <span aria-live="polite">{pollingMessage}</span>
             </div>
 
@@ -158,14 +165,24 @@ export function ConnectorDeviceAuthDialog({
                 payload={authUrl}
               />
             ) : isFeishu ? (
-              <p className="py-2 text-sm leading-6 text-(--text-muted)">
+              <p className={cn(
+                "py-2",
+                getUiTypographyClassName({ role: "supporting", tone: "muted" }),
+              )}>
                 若授权页没有自动打开，请手动继续。
               </p>
             ) : (
-              <div className="dialog-input p-4">
-                <div className="text-xs font-medium text-(--text-soft)">授权码</div>
+              <UiPanel padding="md" radius="md" variant="card">
+                <div className={getUiTypographyClassName({
+                  role: "caption",
+                  tone: "soft",
+                  weight: "medium",
+                })}>授权码</div>
                 <div className="mt-2 flex items-center gap-3">
-                  <code className="min-w-0 flex-1 select-all break-all rounded-[10px] bg-transparent px-3 py-2.5 text-center text-lg font-semibold text-(--text-strong)">
+                  <code className={cn(
+                    "min-w-0 flex-1 select-all break-all px-3 py-2.5 text-center",
+                    getUiTypographyClassName({ role: "objectTitle", tone: "strong" }),
+                  )}>
                     {session.user_code}
                   </code>
                   <UiIconButton
@@ -176,7 +193,7 @@ export function ConnectorDeviceAuthDialog({
                     {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                   </UiIconButton>
                 </div>
-              </div>
+              </UiPanel>
             )}
           </UiDialogBody>
 
