@@ -38,6 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Kept centered onboarding Tour cards inside the active window after live
+  desktop or browser resizing, including narrow macOS and Windows layouts.
 - Standardized onboarding Provider selection on shared ListRow, Badge, and
   Button primitives, removing its private radio marker and final raw buttons
   without changing the staged save, test, or default-selection workflow.
