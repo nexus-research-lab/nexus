@@ -43,8 +43,9 @@ export function MobileAppPageHeader({
       >
         <UiIconButton
           aria-label={t("common.back")}
-          className="shrink-0 rounded-full"
+          className="shrink-0"
           onClick={onBack}
+          shape="round"
           size="lg"
           variant="ghost"
         >

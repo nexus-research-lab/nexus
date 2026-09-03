@@ -6,5 +6,9 @@
 export const MOBILE_SHELL_HEADER_HEIGHT_CLASS_NAME =
   "h-[var(--mobile-shell-header-height,52px)]";
 
+/** 从页头下缘展开的内容共享同一偏移，macOS 不会留下 4px 空隙。 */
+export const MOBILE_SHELL_HEADER_OFFSET_CLASS_NAME =
+  "top-[var(--mobile-shell-header-height,52px)]";
+
 /** 窄窗页头两侧留白保持一致，页面动作不得另建自己的内容轴。 */
 export const MOBILE_SHELL_HEADER_GUTTER_CLASS_NAME = "px-2 sm:px-3";

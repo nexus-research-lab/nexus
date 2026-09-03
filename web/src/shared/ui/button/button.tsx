@@ -1,4 +1,4 @@
-// INPUT: 用户动作、原生 button/link 属性与有限的 size/tone/variant 语义。
+// INPUT: 用户动作、原生 button/link 属性与有限的 size/tone/variant/shape 语义。
 // OUTPUT: 默认安全为 type=button、可聚焦且具统一状态样式的文字/图标动作控件。
 // POS: Button DOM 与可访问性原语；不判断业务权限、事务状态或页面布局。
 "use client";
@@ -12,6 +12,7 @@ import {
   type UiButtonSize,
   type UiButtonTone,
   type UiButtonVariant,
+  type UiIconButtonShape,
   type UiIconButtonSize,
 } from "@/shared/ui/button/button-styles";
 import { UiTooltip } from "@/shared/ui/overlay/tooltip";
@@ -20,6 +21,7 @@ export type {
   UiButtonSize,
   UiButtonTone,
   UiButtonVariant,
+  UiIconButtonShape,
   UiIconButtonSize,
 } from "@/shared/ui/button/button-styles";
 
@@ -42,6 +44,7 @@ interface UiLinkButtonProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
 interface UiIconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode;
   className?: string;
+  shape?: UiIconButtonShape;
   size?: UiIconButtonSize;
   tone?: UiButtonTone;
   tooltip?: string | null;
@@ -100,6 +103,7 @@ export const UiIconButton = forwardRef<HTMLButtonElement, UiIconButtonProps>(fun
     "aria-label": ariaLabel,
     children,
     className,
+    shape,
     size,
     tone,
     title,
@@ -118,7 +122,7 @@ export const UiIconButton = forwardRef<HTMLButtonElement, UiIconButtonProps>(fun
     <button
       ref={ref}
       aria-label={ariaLabel ?? tooltipLabel ?? undefined}
-      className={getUiIconButtonClassName({ size, tone, variant }, cn(className))}
+      className={getUiIconButtonClassName({ shape, size, tone, variant }, cn(className))}
       type={type}
       {...props}
     >
