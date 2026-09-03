@@ -1,3 +1,8 @@
+/**
+ * INPUT: 管理页标题、用途说明、可选动作与二级页导航内容。
+ * OUTPUT: 与 Workspace 内容轴和移动端投影合同一致的标准页头。
+ * POS: 全站管理型内容页 Header owner；不解释具体业务动作或页面状态。
+ */
 "use client";
 
 import type { ReactNode } from "react";
@@ -41,7 +46,10 @@ export function WorkspaceContentHeader({
             {title}
           </h1>
           {description ? (
-            <p className="mt-0.5 max-w-[640px] text-compact leading-4 text-(--text-muted)">
+            <p className={cn(
+              "mt-0.5 max-w-[640px]",
+              getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+            )}>
               {description}
             </p>
           ) : null}

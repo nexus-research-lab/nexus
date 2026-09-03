@@ -129,6 +129,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Standardized Loop directory and detail chrome on shared semantic Typography,
   Badge, Panel, Resource State, and Button owners; narrow section actions now
   move to their own row instead of compressing or wrapping vertically.
+- Unified all capability directory titles, descriptions, section headings,
+  counts, identity frames, and desktop/mobile action placement behind the
+  shared Capability page layout and Workspace content Header contracts.
 - Moved floating feedback and shared resource states onto named surface, layer,
   typography, shape, and Button contracts, with DOM tests for recovery,
   dismissal, live-region behavior, and auto-dismiss timing resets.
