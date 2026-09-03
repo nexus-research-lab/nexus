@@ -1,13 +1,19 @@
 /**
- * INPUT: 窄窗 Room 身份、会话切换状态、返回动作与尾部操作。
- * OUTPUT: 带拖窗热区和非交互下缘渐隐的专注模式 Header。
+ * INPUT: 窄窗 Room 身份、会话切换状态、返回动作、尾部操作与共享平台几何。
+ * OUTPUT: 与应用二级页头同高、带拖窗热区和非交互下缘渐隐的专注模式 Header。
  * POS: Room 专注模式顶部导航；只承载导航，不改变聊天 viewport 几何。
  */
 import { ArrowLeft, ChevronDown } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
+import {
+  MOBILE_SHELL_HEADER_GUTTER_CLASS_NAME,
+  MOBILE_SHELL_HEADER_HEIGHT_CLASS_NAME,
+} from "@/shared/ui/layout/mobile-shell-header-layout";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import "../room-conversation-header-edge.css";
 
@@ -36,19 +42,24 @@ export function RoomMobileHeader({
 
   return (
     <header
-      className="nexus-room-conversation-header-edge nexus-room-conversation-header-edge--mobile flex h-[52px] shrink-0 items-center gap-1.5 border-b divider-subtle px-2 sm:px-3"
+      className={cn(
+        "nexus-room-conversation-header-edge nexus-room-conversation-header-edge--mobile flex shrink-0 items-center gap-1.5 border-b divider-subtle",
+        MOBILE_SHELL_HEADER_HEIGHT_CLASS_NAME,
+        MOBILE_SHELL_HEADER_GUTTER_CLASS_NAME,
+      )}
       data-desktop-window-controls-leading
       data-desktop-window-drag-region
       data-room-conversation-header-edge="true"
     >
-      <button
+      <UiIconButton
         aria-label={t("common.back")}
-        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-(--text-strong) transition hover:bg-(--interaction-hover-background)"
+        className="shrink-0 rounded-full"
         onClick={onBack}
-        type="button"
+        size="lg"
+        variant="ghost"
       >
         <ArrowLeft className="h-4 w-4" />
-      </button>
+      </UiIconButton>
 
       <button
         aria-expanded={isConversationSwitcherOpen}
@@ -63,11 +74,17 @@ export function RoomMobileHeader({
         type="button"
       >
         <div className="min-w-0 flex-1">
-          <p className="truncate text-base font-semibold leading-5 text-(--text-strong)">
+          <p className={cn(
+            "truncate",
+            getUiTypographyClassName({ role: "sectionTitle", tone: "strong" }),
+          )}>
             {primaryTitle}
           </p>
           {secondaryTitle ? (
-            <p className="truncate text-xs leading-4 text-(--text-soft)">
+            <p className={cn(
+              "truncate",
+              getUiTypographyClassName({ role: "caption", tone: "soft" }),
+            )}>
               {secondaryTitle}
             </p>
           ) : null}
