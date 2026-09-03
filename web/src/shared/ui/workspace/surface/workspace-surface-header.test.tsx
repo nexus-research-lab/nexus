@@ -44,4 +44,25 @@ describe("WorkspaceSurfaceHeader", () => {
     fireEvent.click(screen.getByRole("button", { name: "动态" }));
     expect(onChangeTab).toHaveBeenCalledWith("activity");
   });
+
+  it("renders compact navigation through the shared button owner", () => {
+    const { container } = render(
+      <I18nProvider>
+        <WorkspaceSurfaceHeader
+          activeTab="files"
+          compactTabsLabel="工作区导航"
+          onChangeTab={() => undefined}
+          tabs={[
+            { key: "files", label: "文件" },
+            { key: "activity", label: "动态" },
+          ]}
+        />
+      </I18nProvider>,
+    );
+
+    const compactTrigger = screen.getByRole("button", { name: "工作区导航" });
+    expect(compactTrigger.className).toContain("ui-type-caption");
+    expect(compactTrigger.closest(".workspace-surface-header-compact-tabs"))
+      .toBe(container.querySelector(".workspace-surface-header-compact-tabs"));
+  });
 });

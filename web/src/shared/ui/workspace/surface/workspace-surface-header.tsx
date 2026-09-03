@@ -8,6 +8,7 @@ import { ChevronDown, type LucideIcon } from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { WORKSPACE_CONTENT_GUTTER_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import { UiActionMenu } from "@/shared/ui/menu/action-menu";
@@ -330,25 +331,26 @@ function WorkspaceSurfaceCompactTabs<TTabKey extends string>({
       )}
       data-tour-anchor={tabsNavAnchor}
     >
-      <button
+      <UiButton
         ref={buttonRef}
         aria-expanded={isOpen}
         aria-haspopup="menu"
         aria-label={compactTabsLabel}
         className={cn(
-          "flex h-full min-w-0 items-center gap-1.5 px-2 transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
+          "h-full min-h-0 min-w-0 radius-control-sm px-2 py-0",
           getUiTypographyClassName({ role: "caption", tone: "default", weight: "semibold" }),
         )}
         onClick={() => setIsOpen((current) => !current)}
+        size="xs"
         title={triggerLabel}
-        type="button"
+        variant="ghost"
       >
         {ActiveIcon ? <ActiveIcon className="h-3.5 w-3.5 shrink-0" /> : null}
         <span className="workspace-surface-header-compact-tabs-label min-w-0 truncate">
           {triggerLabel}
         </span>
         <ChevronDown className="h-3 w-3 shrink-0 text-(--icon-muted)" />
-      </button>
+      </UiButton>
       <UiActionMenu
         anchorRef={buttonRef}
         ariaLabel={compactTabsLabel}
