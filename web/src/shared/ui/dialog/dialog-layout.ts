@@ -8,6 +8,8 @@ export type UiDialogViewport =
   | "compactMax"
   | "adaptive"
   | "adaptiveMax"
+  | "visualPreview"
+  | "documentPreview"
   | "workbench";
 
 const DIALOG_VIEWPORT_CLASS_MAP: Record<UiDialogViewport, string> = {
@@ -16,6 +18,8 @@ const DIALOG_VIEWPORT_CLASS_MAP: Record<UiDialogViewport, string> = {
   compactMax: "ui-dialog-viewport-compact-max",
   adaptive: "ui-dialog-viewport-adaptive",
   adaptiveMax: "ui-dialog-viewport-adaptive-max",
+  visualPreview: "ui-dialog-viewport-visual-preview",
+  documentPreview: "ui-dialog-viewport-document-preview",
   workbench: "ui-dialog-viewport-workbench",
 };
 

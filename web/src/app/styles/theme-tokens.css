@@ -434,6 +434,8 @@
   --dialog-compact-viewport-height: calc(100dvh - 16px);
   --dialog-adaptive-height: min(82dvh, 760px);
   --dialog-adaptive-compact-height: calc(100dvh - 16px);
+  --dialog-visual-preview-height: min(72dvh, 600px);
+  --dialog-document-preview-height: min(64dvh, 520px);
   --dialog-workbench-height: min(820px, calc(100dvh - 56px));
   --dialog-workbench-compact-height: calc(100dvh - 16px);
   --dialog-workbench-width: min(94vw, 1440px);

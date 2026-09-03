@@ -167,8 +167,9 @@ Widget 可以认识 Agent、Room、Goal 等产品对象，但只组合下层合�
 - anchored overlay 的 gap、viewport inset、碰撞、翻转、滚动跟随和 Portal 由共享定位层负责；
 - 消费者只能选择 `placement / align / size / density / collisionPadding / layer`；
 - dialog 的桌面限高、窄屏 inset、固定 header/footer 与 body scroll 由 viewport variant 负责；
-- 选择器和短向导使用 `viewport="compact"`，自然高度的紧凑目录使用 `compactMax`，长表单使用 `adaptive` 或 `adaptiveMax`，大型图形/对照工作台使用 `workbench`；内容量不是业务侧发明相近像素高度的理由；
+- 选择器和短向导使用 `viewport="compact"`，自然高度的紧凑目录使用 `compactMax`，长表单使用 `adaptive` 或 `adaptiveMax`，图片/短文本查看使用 `visualPreview` 或 `documentPreview`，大型图形/对照工作台使用 `workbench`；内容量不是业务侧发明相近像素高度的理由；
 - 不允许业务弹窗复制 `82dvh / 760px / 16px` 等产品级视口公式；
+- 业务弹窗宽度只通过 `size` 选择，禁止在 Shell 上补写 `max-width / vw`；如果现有档位不合适，先判断是否真的是可跨业务复用的新内容类型；
 - 单行命名/创建类 Prompt 使用紧凑决策宽度，多行输入才提升一档；Prompt 的 Header、Input 与确认动作由共享 Decision Dialog 统一，业务页面不得用局部宽高或弱化的私有按钮修补；
 - z-index 只通过语义 layer 使用，禁止通过增加整数解决遮挡；嵌套 modal 的顺序由 modal stack 负责。
 

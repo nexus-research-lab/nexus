@@ -67,7 +67,6 @@ export function ProviderAddModelDialog({
         onClose={onClose}
       >
         <UiDialogFormShell
-          className="max-w-[520px]"
           onSubmit={(event) => {
             event.preventDefault();
             onAdd();

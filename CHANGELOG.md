@@ -82,6 +82,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fast-forward both the Nexus and sibling `nexus-control` repositories as one
   `control + nexus + nginx` stack.
 - Moved the public landing page to the standalone `nexus-atlas` repository. The Product root route now enters the authenticated Launcher flow.
+- Moved Composer image and text attachment previews onto named visual/document
+  viewer geometry, and removed the remaining feature-owned Dialog Shell width
+  overrides from Provider settings and scheduled-task editing.
 - Updated the Feishu long-connection SDK to v3.11.0 and pinned DingTalk's
   official v0.9.2 beta stream SDK so both channels receive the vendors'
   current WebSocket lifecycle and concurrency fixes.

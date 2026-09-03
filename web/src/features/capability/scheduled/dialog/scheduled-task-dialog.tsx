@@ -103,7 +103,6 @@ export function ScheduledTaskDialog({
         onPointerUp={(event) => event.stopPropagation()}
       >
         <UiDialogFormShell
-          className="max-w-[960px]"
           onSubmit={(event) => {
             event.preventDefault();
             void controller.handleSubmit();
