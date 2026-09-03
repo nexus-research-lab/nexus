@@ -9,6 +9,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import {
   getIconAvatarSrc,
@@ -76,7 +77,7 @@ export function RoomAgentSwitcher({
       )}
       data-room-agent-switcher-variant={variant}
     >
-      <button
+      <UiButton
         ref={triggerRef}
         aria-expanded={isOpen}
         aria-haspopup="menu"
@@ -84,18 +85,16 @@ export function RoomAgentSwitcher({
           label: accessibleLabel,
           name: selectedMember.name,
         })}
-        className={cn(
-          "flex min-h-7 w-full min-w-0 items-center gap-1 rounded-[7px] px-1.5 py-1 text-compact font-semibold text-(--text-strong) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]",
-          isOpen && "bg-(--surface-interactive-active-background)",
-        )}
+        className="w-full min-w-0 justify-start gap-1 px-1.5 py-1"
         onClick={() => setIsOpen((prev) => !prev)}
-        type="button"
+        size="xs"
+        variant="ghost"
       >
         <RoomAgentAvatar
           className="h-4 w-4"
           member={selectedMember}
         />
-        <span className="min-w-0 flex-1 truncate text-left text-compact font-semibold leading-normal">
+        <span className="min-w-0 flex-1 truncate text-left leading-normal">
           {selectedMember.name}
         </span>
         <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
@@ -104,7 +103,7 @@ export function RoomAgentSwitcher({
             isOpen && "rotate-180 text-(--icon-default)",
           )} />
         </span>
-      </button>
+      </UiButton>
       <UiActionMenu
         anchorRef={triggerRef}
         ariaLabel={accessibleLabel}

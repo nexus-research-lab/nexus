@@ -9,7 +9,7 @@
 - 根目录保留桌面/移动端入口和可独立展示的业务 Surface。
 - `room-conversation-header-edge.css` 只定义桌面与专注模式 Header 自身向正文延伸的非交互下缘羽化，不改变布局高度、拖窗热区或消息滚动几何。
 - `room-surface-model.ts` 放置桌面与移动端共享的纯派生，不读取 UI 状态。
-- `room-agent-switcher.tsx` 只投影成员与业务触发器，菜单生命周期复用 `shared/ui/menu/`；Workspace、Subagent 与 Room 多 Agent 进程切换共享这个入口，不得各自复制头像菜单。Panel 使用固定 112×28px 筛选器并在 12px 头部内边距处对齐，Task 使用最大 144px 的流式宽度；两者共享 16px 头像、左对齐名称、字号与字重节奏。
+- `room-agent-switcher.tsx` 只投影成员与业务触发器，触发状态复用 `UiButton`，菜单生命周期复用 `shared/ui/menu/`；Workspace、Subagent 与 Room 多 Agent 进程切换共享这个入口，不得各自复制按钮状态或头像菜单。Panel 使用固定 112×28px 筛选器并在 12px 头部内边距处对齐，Task 使用最大 144px 的流式宽度；两者共享 16px 头像、左对齐名称、字号与字重节奏。
 - Room Agent 简介与联系人详情共用 `features/agents/agent-detail-navigation.ts` 的“身份、技能、记忆、工具、联络”栏目顺序和翻译键；Header 栏目只显示文字，当前项使用低对比中性轻底确认，不恢复下划线或语义重复且视觉重量不一的栏目图标。
 - `room-subagent-task-surface.tsx` 复用成员切换器，把当前 Session 的全部 Room 子智能体按实际调用者 `host_agent_id` 投影到共享只读任务表面；轮次不得成为隐藏条件。
 - 消息中的子智能体任务入口由 Surface 接管导航：桌面打开 `subagents` 右栏，移动端打开同一任务面板，并把精确 `tool_use_id` 与 `host_agent_id` 交给共享 Surface；Room 必须先切换真实调用者再选中任务，Header 手动打开时不得恢复上一次消息定向请求。

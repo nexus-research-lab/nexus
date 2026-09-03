@@ -770,6 +770,18 @@ test("Room history controls use the shared Button, Form, and List owners", async
   assert.match(tabs, /<UiIconButton/);
 });
 
+test("Room header identity and conversation triggers share Button ownership", async () => {
+  const sources = await Promise.all([
+    readSource("src/features/conversation/room/surface/room-agent-switcher.tsx"),
+    readSource("src/features/conversation/room/group/header/group-member-avatar-stack.tsx"),
+    readSource("src/features/conversation/room/surface/mobile/room-mobile-header.tsx"),
+  ]);
+
+  for (const source of sources) {
+    assert.match(source, /<UiButton/);
+  }
+});
+
 test("Provider import and Operations route loading share Spinner roles", async () => {
   const [providerImport, operationsPage] = await Promise.all([
     readSource("src/features/provider-imports/cc-switch/provider-ccswitch-dialog.tsx"),

@@ -38,6 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Moved Room Agent, member-stack, and mobile conversation Header triggers onto
+  the shared Button state contract while preserving their identity layouts.
 - Unified Room history and Session-edge controls on shared Button, Form, List,
   and native mixed-checkbox contracts without changing conversation behavior.
 - Unified Sidebar collapse, guide, update, and logout actions on the shared
