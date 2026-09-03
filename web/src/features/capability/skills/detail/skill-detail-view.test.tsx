@@ -106,6 +106,7 @@ describe("SkillDetailView", () => {
     const aside = container.querySelector("[data-slot='capability-detail-aside']");
     const main = container.querySelector("[data-slot='capability-detail-main']");
 
+    expect(container.querySelector("[data-slot='capability-detail-identity']")).toBeTruthy();
     expect(aside?.contains(screen.getByRole("heading", {
       name: "capability.skills_detail_agent_scope",
     }))).toBe(true);

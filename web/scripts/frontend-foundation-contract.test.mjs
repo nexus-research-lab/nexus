@@ -806,6 +806,7 @@ test("Capability page chrome has one Header, typography, action, and shape owner
     workspaceHeader,
     skillDetail,
     connectorDetail,
+    connectorIdentity,
     customMcpDetail,
     loopDetail,
     workGraphDetail,
@@ -815,6 +816,7 @@ test("Capability page chrome has one Header, typography, action, and shape owner
     readSource("src/shared/ui/layout/workspace-content-header.tsx"),
     readSource("src/features/capability/skills/detail/skill-detail-view.tsx"),
     readSource("src/features/capability/connectors/detail/connector-detail-view.tsx"),
+    readSource("src/features/capability/connectors/detail/connector-detail-header.tsx"),
     readSource("src/features/capability/connectors/custom/detail/custom-mcp-detail-view.tsx"),
     readSource("src/features/capability/loops/loop-detail-view.tsx"),
     readSource("src/features/capability/workgraph-distillations/workgraph-distillation-detail.tsx"),
@@ -833,6 +835,7 @@ test("Capability page chrome has one Header, typography, action, and shape owner
   assert.match(capabilityLayout, /xl:grid-cols-\[minmax\(0,760px\)_minmax\(280px,360px\)\]/);
   assert.match(capabilityLayout, /CapabilityDetailSectionHeader/);
   assert.match(capabilityLayout, /CapabilityDetailPage/);
+  assert.match(capabilityLayout, /CapabilityDetailIdentity/);
   assert.match(capabilityLayout, /data-slot="capability-detail-header"/);
   for (const consumer of [
     skillDetail,
@@ -844,6 +847,17 @@ test("Capability page chrome has one Header, typography, action, and shape owner
     assert.match(consumer, /<CapabilityDetailPage/);
     assert.doesNotMatch(consumer, /WorkspaceContentDetailHeader/);
   }
+  for (const consumer of [
+    skillDetail,
+    connectorIdentity,
+    customMcpDetail,
+    loopDetail,
+    workGraphDetail,
+  ]) {
+    assert.match(consumer, /<CapabilityDetailIdentity/);
+    assert.doesNotMatch(consumer, /role: "objectTitle"/);
+  }
+  assert.doesNotMatch(loopDetail, /<WorkspaceContentHeader/);
   assert.match(workGraphDirectory, /detailRouteContent/);
   assert.doesNotMatch(workGraphDirectory, /className=\{selected \?/);
   assert.match(skillDetail, /<CapabilityDetailSplitLayout/);
@@ -920,8 +934,7 @@ test("Loop surfaces use semantic typography, badges, panels, and responsive acti
   assert.match(loopChrome, /<UiBadge/);
   assert.match(loopChrome, /<UiPanel/);
   assert.match(loopChrome, /<UiResourceState/);
-  assert.match(sources[1], /flex flex-col items-start gap-3 sm:flex-row/);
-  assert.match(sources[1], /className="shrink-0"/);
+  assert.match(sources[1], /<CapabilityDetailIdentity/);
 });
 
 test("WorkGraph capability directory and detail keep separate semantic owners", async () => {
@@ -943,7 +956,7 @@ test("WorkGraph capability directory and detail keep separate semantic owners", 
   assert.match(sources[1], /<UiPanel/);
   assert.match(sources[1], /<WorkGraphWorkflowCanvasPreview/);
   assert.doesNotMatch(workGraphChrome, /<button\b/);
-  assert.match(sources[1], /flex shrink-0 flex-col gap-3 sm:flex-row/);
+  assert.match(sources[1], /<CapabilityDetailIdentity/);
 });
 
 test("product source contains no arbitrary shadows or numeric z-index values", async () => {

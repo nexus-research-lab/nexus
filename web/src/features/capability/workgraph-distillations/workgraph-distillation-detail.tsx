@@ -1,13 +1,16 @@
 /**
  * INPUT: 单个命名 WorkGraph、返回/复制/继续编辑动作。
- * OUTPUT: 对象说明、目标摘要、共享动作与只读完整画布。
- * POS: WorkGraph 能力详情纯视图；不读取路由、资源或命令状态。
+ * OUTPUT: 共享对象身份区中的说明与动作、目标摘要及只读完整画布。
+ * POS: WorkGraph 能力详情纯视图；身份几何归 capability/shared，不读取路由、资源或命令状态。
  */
 "use client";
 
 import type { ReactNode } from "react";
 
-import { CapabilityDetailPage } from "@/features/capability/shared/capability-page-layout";
+import {
+  CapabilityDetailIdentity,
+  CapabilityDetailPage,
+} from "@/features/capability/shared/capability-page-layout";
 import { WorkGraphWorkflowCanvasPreview } from "@/features/conversation/shared/execution/workgraph-workflow-canvas-preview";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
@@ -41,34 +44,22 @@ export function WorkGraphDistillationDetail({
     >
       {notice}
       <div className="mt-3 flex min-h-0 flex-1 flex-col gap-4">
-        <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0 flex-1">
-            <h2 className={cn(
-              "break-words",
-              getUiTypographyClassName({ role: "objectTitle", tone: "strong" }),
-            )}>
-              /{item.slash_name}
-            </h2>
-            {item.description ? (
-              <p className={cn(
-                "mt-1",
-                getUiTypographyClassName({ role: "supporting", tone: "muted" }),
-              )}>
-                {item.description}
-              </p>
-            ) : null}
-          </div>
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            {!item.built_in ? (
-              <UiButton onClick={onEdit} size="sm" variant="surface">
-                {t("capability.workgraph_edit")}
+        <CapabilityDetailIdentity
+          actions={(
+            <>
+              {!item.built_in ? (
+                <UiButton onClick={onEdit} size="sm" variant="surface">
+                  {t("capability.workgraph_edit")}
+                </UiButton>
+              ) : null}
+              <UiButton onClick={onCopy} size="sm" tone="primary" variant="solid">
+                {t("capability.workgraph_copy")}
               </UiButton>
-            ) : null}
-            <UiButton onClick={onCopy} size="sm" tone="primary" variant="solid">
-              {t("capability.workgraph_copy")}
-            </UiButton>
-          </div>
-        </div>
+            </>
+          )}
+          description={item.description}
+          title={`/${item.slash_name}`}
+        />
         <UiPanel
           className={cn(
             "shrink-0",

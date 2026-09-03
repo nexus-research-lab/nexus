@@ -1,7 +1,7 @@
 /**
  * INPUT: Connector 对象、状态投影和认证/连接动作。
  * OUTPUT: Connector 身份说明与当前可用操作。
- * POS: Connector 详情对象 Header；二级页导航归 capability/shared。
+ * POS: Connector 详情对象投影；身份几何和二级页导航归 capability/shared。
  */
 import type { ReactNode } from "react";
 import {
@@ -12,9 +12,8 @@ import {
   Unplug,
 } from "lucide-react";
 
+import { CapabilityDetailIdentity } from "@/features/capability/shared/capability-page-layout";
 import { UiButton } from "@/shared/ui/button/button";
-import { cn } from "@/shared/ui/class-name";
-import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { ConnectorDetail } from "@/types/capability/connector";
 
 import { ConnectorIcon } from "../connector-icon";
@@ -160,44 +159,42 @@ export function ConnectorDetailHeader({
     onDisconnect,
   });
   return (
-    <div className="flex flex-wrap items-start justify-between gap-4">
-      <div className="flex min-w-0 items-start gap-4">
-        <ConnectorIcon className="h-14 w-14 surface-radius-md" icon={detail.icon} size="lg" title={detail.title} />
-        <div className="min-w-0">
-          <h1 className={getUiTypographyClassName({ role: "objectTitle", tone: "strong" })}>
-            {detail.title}
-          </h1>
-          <p className={cn(
-            "mt-1",
-            getUiTypographyClassName({ role: "supporting", tone: "muted" }),
-          )}>
-            {detail.description}
-          </p>
-        </div>
-      </div>
-      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-        {canReplaceConnectorOauthClient(detail) ? (
-          <UiButton
-            disabled={busy}
-            onClick={() => onReplaceOauthClient(detail)}
-            size="sm"
-            type="button"
-            variant="surface"
-          >
-            <RefreshCcw className="h-3.5 w-3.5" />
-            更换飞书应用
-          </UiButton>
-        ) : null}
-        <ConnectorOauthClientButton
-          action={state.oauthClientAction}
-          context={{
-            busy,
-            detail,
-            onConfigure: onConfigureOauthClient,
-          }}
+    <CapabilityDetailIdentity
+      actions={(
+        <>
+          {canReplaceConnectorOauthClient(detail) ? (
+            <UiButton
+              disabled={busy}
+              onClick={() => onReplaceOauthClient(detail)}
+              size="sm"
+              type="button"
+              variant="surface"
+            >
+              <RefreshCcw className="h-3.5 w-3.5" />
+              更换飞书应用
+            </UiButton>
+          ) : null}
+          <ConnectorOauthClientButton
+            action={state.oauthClientAction}
+            context={{
+              busy,
+              detail,
+              onConfigure: onConfigureOauthClient,
+            }}
+          />
+          {primaryAction}
+        </>
+      )}
+      description={detail.description}
+      leading={(
+        <ConnectorIcon
+          className="h-14 w-14 surface-radius-md"
+          icon={detail.icon}
+          size="lg"
+          title={detail.title}
         />
-        {primaryAction}
-      </div>
-    </div>
+      )}
+      title={detail.title}
+    />
   );
 }

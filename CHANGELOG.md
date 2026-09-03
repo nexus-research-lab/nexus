@@ -38,6 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Standardized the object identity block beneath capability detail navigation:
+  Skill, Connector, custom MCP, Loop, and WorkGraph now share leading identity,
+  title, metadata, description, and responsive action alignment.
 - Unified Skill, Connector, custom MCP, Loop, and WorkGraph detail pages on one
   capability-owned content axis and “directory / current item” header; opening
   a WorkGraph detail no longer leaves the directory title or search controls

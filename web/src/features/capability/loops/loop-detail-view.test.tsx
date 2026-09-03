@@ -82,7 +82,7 @@ describe("LoopDetailView", () => {
       <LoopDetailView onBack={vi.fn()} slug={LOOP.slug} />,
     );
 
-    expect((await screen.findByRole("heading", { name: LOOP.title })).className).toContain("ui-type-page-title");
+    expect((await screen.findByRole("heading", { name: LOOP.title })).className).toContain("ui-type-object-title");
     expect(screen.getByRole("heading", { name: "capability.loops_steps" }).className).toContain("ui-type-section-title");
     expect(screen.getByRole("heading", { name: "Inspect" }).className).toContain("ui-type-control");
     expect(screen.getByText("Review the current result.").className).toContain("ui-type-supporting");
@@ -91,6 +91,7 @@ describe("LoopDetailView", () => {
     expect(container.querySelectorAll(".surface-radius-sm").length).toBeGreaterThan(1);
     expect(screen.getByRole("button", { name: "capability.loops" }).className).toContain("ui-type-metadata");
     expect(container.querySelector("[data-slot='capability-detail-header']")).toBeTruthy();
+    expect(container.querySelector("[data-slot='capability-detail-identity']")).toBeTruthy();
     expect(screen.getAllByText(LOOP.title).some((node) => (
       node.className.includes("ui-type-metadata")
     ))).toBe(true);

@@ -30,7 +30,7 @@ describe("ConnectorDetailHeader", () => {
   it("renders semantic identity and dispatches its projected primary action", async () => {
     const user = userEvent.setup();
     const onConnect = vi.fn();
-    render(
+    const { container } = render(
       <ConnectorDetailHeader
         busy={false}
         detail={DETAIL}
@@ -52,6 +52,7 @@ describe("ConnectorDetailHeader", () => {
       .toContain("ui-type-object-title");
     expect(screen.getByText(DETAIL.description).className)
       .toContain("ui-type-supporting");
+    expect(container.querySelector("[data-slot='capability-detail-identity']")).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: "添加到 Nexus" }));
     expect(onConnect).toHaveBeenCalledWith(DETAIL.connector_id);

@@ -1,7 +1,7 @@
 /**
  * INPUT: Skill 详情快照、Agent 使用矩阵与更新删除命令。
- * OUTPUT: Skill 身份、正文阅读列、Agent 配置侧栏及响应式单列详情。
- * POS: Skill 详情纯视图；复用 Capability 详情分栏，不拥有页面断点或列宽。
+ * OUTPUT: 共享对象身份区中的 Skill 信息、正文阅读列、Agent 配置侧栏及响应式单列详情。
+ * POS: Skill 详情纯视图；复用 Capability 身份与详情分栏，不拥有页面断点或列宽。
  */
 "use client";
 
@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import {
+  CapabilityDetailIdentity,
   CapabilityDetailPage,
   CapabilityDetailSectionHeader,
   CapabilityDetailSplitLayout,
@@ -411,34 +412,20 @@ function SkillDetailHero({
   onUpdate: () => void;
 }) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-4">
-      <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-center gap-4">
-          <UiSeededAvatar seed={model.avatarSeed} size="lg" />
-          <h1 className={cn(
-            "min-w-0",
-            getUiTypographyClassName({ role: "objectTitle", tone: "strong" }),
-          )}>
-            <span className="truncate">{model.displayName}</span>
-          </h1>
-        </div>
-        {model.description ? (
-          <p className={cn(
-            "mt-3",
-            getUiTypographyClassName({ role: "supporting", tone: "muted" }),
-          )}>
-            {model.description}
-          </p>
-        ) : null}
-      </div>
-      <SkillDetailActions
-        activeAction={activeAction}
-        canDelete={model.canDelete}
-        canUpdate={model.canUpdate}
-        onDelete={onDelete}
-        onUpdate={onUpdate}
-      />
-    </div>
+    <CapabilityDetailIdentity
+      actions={model.canDelete || model.canUpdate ? (
+        <SkillDetailActions
+          activeAction={activeAction}
+          canDelete={model.canDelete}
+          canUpdate={model.canUpdate}
+          onDelete={onDelete}
+          onUpdate={onUpdate}
+        />
+      ) : undefined}
+      description={model.description}
+      leading={<UiSeededAvatar seed={model.avatarSeed} size="lg" />}
+      title={<span className="truncate">{model.displayName}</span>}
+    />
   );
 }
 
@@ -456,7 +443,7 @@ function SkillDetailActions({
   onUpdate: () => void;
 }) {
   return (
-    <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+    <>
       <SkillUpdateButton
         activeAction={activeAction}
         onUpdate={onUpdate}
@@ -467,7 +454,7 @@ function SkillDetailActions({
         onDelete={onDelete}
         visible={canDelete}
       />
-    </div>
+    </>
   );
 }
 

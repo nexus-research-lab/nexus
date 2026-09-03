@@ -1,6 +1,6 @@
 // INPUT: 脱敏自定义 MCP 配置、owner 级启停命令与 tools/list 快照。
-// OUTPUT: Claude 风格的连接信息、服务器信息和工具目录详情页。
-// POS: 自定义 MCP 子页面纯视图。
+// OUTPUT: 共享对象身份区中的 MCP 状态与动作，以及连接信息和工具目录详情页。
+// POS: 自定义 MCP 子页面纯视图；身份几何和二级页导航归 capability/shared。
 "use client";
 
 import {
@@ -10,7 +10,10 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { CapabilityDetailPage } from "@/features/capability/shared/capability-page-layout";
+import {
+  CapabilityDetailIdentity,
+  CapabilityDetailPage,
+} from "@/features/capability/shared/capability-page-layout";
 import type { ResourceFailure } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
@@ -93,86 +96,80 @@ export function CustomMCPDetailView({
   return (
     <CustomMCPDetailFrame name={displayName} onBack={onBack}>
       <div className="pt-5">
-        <header className="flex flex-wrap items-start justify-between gap-4 border-b border-(--divider-subtle-color) pb-5">
-          <div className="flex min-w-0 items-start gap-4">
+        <CapabilityDetailIdentity
+          actions={(
+            <>
+              <div className="flex items-center gap-2">
+                <span className={getUiTypographyClassName({
+                  role: "caption",
+                  tone: "muted",
+                  weight: "medium",
+                })}>
+                  {t("capability.custom_mcp_available_in_chat")}
+                </span>
+                <GlassSwitch
+                  aria-label={t("capability.custom_mcp_available_in_chat")}
+                  checked={!recoveryRequired && server.enabled}
+                  disabled={busy || recoveryRequired}
+                  onChange={onToggle}
+                  size="sm"
+                />
+              </div>
+              <UiIconButton
+                aria-label={t(recoveryRequired
+                  ? "capability.custom_mcp_recover_action"
+                  : "common.edit")}
+                disabled={busy}
+                onClick={() => onEdit(server)}
+                size="md"
+                variant="ghost"
+              >
+                <Pencil className="h-4 w-4" />
+              </UiIconButton>
+              <UiIconButton
+                aria-label={t("common.delete")}
+                disabled={busy}
+                onClick={() => onDelete(server)}
+                size="md"
+                tone="danger"
+                variant="ghost"
+              >
+                <Trash2 className="h-4 w-4" />
+              </UiIconButton>
+            </>
+          )}
+          description={recoveryRequired
+            ? t("capability.custom_mcp_recovery_summary")
+            : getCustomMCPConnectionTarget(server)}
+          descriptionClassName={cn(
+            "max-w-[680px]",
+            !recoveryRequired && "truncate",
+          )}
+          descriptionRole={recoveryRequired ? "caption" : "code"}
+          descriptionTitle={recoveryRequired
+            ? undefined
+            : getCustomMCPConnectionTarget(server)}
+          leading={(
             <ConnectorIcon
               icon="custom-mcp"
               size="lg"
               title={recoveryRequired ? server.connector_id : server.name}
             />
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className={getUiTypographyClassName({ role: "objectTitle", tone: "strong" })}>
-                  {displayName}
-                </h1>
-                <UiBadge tone={recoveryRequired
-                  ? "warning"
-                  : server.enabled ? "success" : "default"}
-                >
-                  {t(recoveryRequired
-                    ? "capability.custom_mcp_recovery_badge"
-                    : server.enabled
-                      ? "capability.custom_mcp_enabled"
-                      : "capability.custom_mcp_disabled")}
-                </UiBadge>
-              </div>
-              {recoveryRequired ? (
-                <p className={cn(
-                  "mt-1 max-w-[680px]",
-                  getUiTypographyClassName({ role: "caption", tone: "muted" }),
-                )}>
-                  {t("capability.custom_mcp_recovery_summary")}
-                </p>
-              ) : (
-                <p
-                  className={cn(
-                    "mt-1 max-w-[680px] truncate",
-                    getUiTypographyClassName({ role: "code", tone: "muted" }),
-                  )}
-                  title={getCustomMCPConnectionTarget(server)}
-                >
-                  {getCustomMCPConnectionTarget(server)}
-                </p>
-              )}
-            </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <span className={cn(
-              "mr-1",
-              getUiTypographyClassName({ role: "caption", tone: "muted", weight: "medium" }),
-            )}>
-              {t("capability.custom_mcp_available_in_chat")}
-            </span>
-            <GlassSwitch
-              aria-label={t("capability.custom_mcp_available_in_chat")}
-              checked={!recoveryRequired && server.enabled}
-              disabled={busy || recoveryRequired}
-              onChange={onToggle}
-              size="sm"
-            />
-            <UiIconButton
-              aria-label={t(recoveryRequired
-                ? "capability.custom_mcp_recover_action"
-                : "common.edit")}
-              disabled={busy}
-              onClick={() => onEdit(server)}
-              size="md"
-              variant="ghost"
+          )}
+          title={displayName}
+          titleMeta={(
+            <UiBadge tone={recoveryRequired
+              ? "warning"
+              : server.enabled ? "success" : "default"}
             >
-              <Pencil className="h-4 w-4" />
-            </UiIconButton>
-            <UiIconButton
-              aria-label={t("common.delete")}
-              disabled={busy}
-              onClick={() => onDelete(server)}
-              size="md"
-              tone="danger"
-              variant="ghost"
-            >
-              <Trash2 className="h-4 w-4" />
-            </UiIconButton>
-          </div>
-        </header>
+              {t(recoveryRequired
+                ? "capability.custom_mcp_recovery_badge"
+                : server.enabled
+                  ? "capability.custom_mcp_enabled"
+                  : "capability.custom_mcp_disabled")}
+            </UiBadge>
+          )}
+        />
 
         {recoveryRequired ? (
           <CustomMCPRecoverySection
