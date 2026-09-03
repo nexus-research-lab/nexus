@@ -14,4 +14,4 @@ L5 | 父级: web/src/features/conversation/shared/composer
 - `loop-picker/`: Loop 目录资源、筛选、选择事务和 Dialog 展示
 
 组件只消费控制器或本子域模型的明确结果，不重新派生发送资格、运行时阶段或跨域协议状态。
-Slash 浮层必须与 Composer 输入壳同宽并复用 `SelectMenuPanel`、`UiSearchInput`、共享菜单行状态和锚定浮层生命周期；一级命令与模型各占一行，其中一级命令为名称预留稳定列宽，让说明从同一纵向基线开始、参数提示保持右对齐，Skill 最多保留名称与说明两行，不再增加标题区、计数徽标或重复状态文案。浮层高度保持有界，搜索栏固定，只有条目列表承担纵向滚动。
+Slash 浮层必须与 Composer 输入壳同宽并复用 `SelectMenuPanel`、`SelectMenuOptionRow`、`UiSearchInput`、共享菜单行状态和锚定浮层生命周期；一级命令与模型各占一行，其中一级命令为名称预留稳定列宽，让说明从同一纵向基线开始、参数提示保持右对齐，Skill 最多保留名称与说明两行，不再增加标题区、计数徽标或重复状态文案。浮层高度保持有界，搜索栏固定，只有条目列表承担纵向滚动。

@@ -9,8 +9,38 @@ import { describe, expect, it, vi } from "vitest";
 
 import { UiActionMenu } from "@/shared/ui/menu/action-menu";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
+import { SelectMenuOptionRow } from "@/shared/ui/menu/select-menu-primitives";
 
 describe("UiSelectMenu", () => {
+  it("owns reusable listbox option semantics and preserves consumer events", async () => {
+    const user = userEvent.setup();
+    const onClick = vi.fn();
+    const onMouseDown = vi.fn((event: React.MouseEvent) => event.preventDefault());
+
+    render(
+      <div role="listbox" aria-label="命令">
+        <SelectMenuOptionRow
+          active
+          className="min-h-8"
+          onClick={onClick}
+          onMouseDown={onMouseDown}
+        >
+          /goal
+        </SelectMenuOptionRow>
+      </div>,
+    );
+
+    const option = screen.getByRole("option", { name: "/goal" });
+    expect(option.getAttribute("type")).toBe("button");
+    expect(option.getAttribute("aria-selected")).toBe("true");
+    expect(option.getAttribute("data-active")).toBe("true");
+    expect(option.className).toContain("radius-control-lg");
+
+    await user.click(option);
+    expect(onMouseDown).toHaveBeenCalledTimes(1);
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
   it("opens a named listbox, selects an option, and returns focus", async () => {
     const user = userEvent.setup();
 

@@ -38,6 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Centralized Select, Slash-command, and Room Skill listbox option DOM on one
+  shared menu row primitive, including selection ARIA and active-state data.
 - Unified Assistant footer copy, branch, and memory actions plus ToolBlock
   permission and result actions on the shared micro Button/IconButton states;
   referenced-memory popovers now use the App typography contract.

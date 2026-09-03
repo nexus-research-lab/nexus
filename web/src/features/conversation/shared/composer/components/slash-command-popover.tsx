@@ -23,10 +23,12 @@ import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
 import {
   getMenuItemStateClassName,
-  MENU_ITEM_BASE_CLASS_NAME,
   MENU_LIST_CLASS_NAME,
 } from "@/shared/ui/menu/menu-styles";
-import { SelectMenuPanel } from "@/shared/ui/menu/select-menu-primitives";
+import {
+  SelectMenuOptionRow,
+  SelectMenuPanel,
+} from "@/shared/ui/menu/select-menu-primitives";
 import { useAnchoredOverlayLayer } from "@/shared/ui/overlay/anchored-overlay-layer";
 import {
   resolveAnchoredOverlayPosition,
@@ -285,11 +287,10 @@ function SlashCommandList({
         const selectable = isSelectableSlashCommand(command);
         const descriptionKey = SLASH_COMMAND_DESCRIPTION_KEYS[command.name];
         return (
-          <button
+          <SelectMenuOptionRow
+            active={index === activeIndex}
             aria-disabled={!selectable}
-            aria-selected={index === activeIndex}
             className={cn(
-              MENU_ITEM_BASE_CLASS_NAME,
               "flex min-h-7 w-full items-center gap-2 px-2 py-1 text-left",
               getMenuItemStateClassName({ active: index === activeIndex }),
               !selectable && "cursor-not-allowed opacity-(--disabled-opacity)",
@@ -301,12 +302,10 @@ function SlashCommandList({
                 onSelect(command);
               }
             }}
-            role="option"
             title={selectable
               ? undefined
               : command.disabled_reason
                 ?? t("composer.slash_command_unavailable")}
-            type="button"
           >
             <span className="w-28 shrink-0 truncate font-mono text-xs font-semibold leading-4 text-(--text-strong)">
               /{command.name}
@@ -321,7 +320,7 @@ function SlashCommandList({
                 {command.argument_hint}
               </span>
             ) : null}
-          </button>
+          </SelectMenuOptionRow>
         );
       })}
     </div>
@@ -374,10 +373,9 @@ function SlashSkillList({
         const title = skill.title?.trim() || skill.name;
         const description = getSkillDisplayDescription(skill, t);
         return (
-          <button
-            aria-selected={index === activeIndex}
+          <SelectMenuOptionRow
+            active={index === activeIndex}
             className={cn(
-              MENU_ITEM_BASE_CLASS_NAME,
               "flex min-h-10 w-full items-center gap-2 px-2 py-1.5 text-left",
               getMenuItemStateClassName({ active: index === activeIndex }),
             )}
@@ -386,9 +384,7 @@ function SlashSkillList({
               event.preventDefault();
               onSelect(skill);
             }}
-            role="option"
             title={description || title}
-            type="button"
           >
             <span
               aria-hidden="true"
@@ -420,7 +416,7 @@ function SlashSkillList({
                 {t("composer.skill_use_once")}
               </span>
             ) : null}
-          </button>
+          </SelectMenuOptionRow>
         );
       })}
     </div>
@@ -470,10 +466,9 @@ function SlashModelList({
       ref={listRef}
     >
       {items.map((model, index) => (
-        <button
-          aria-selected={index === activeIndex}
+        <SelectMenuOptionRow
+          active={index === activeIndex}
           className={cn(
-            MENU_ITEM_BASE_CLASS_NAME,
             "flex min-h-7 w-full items-center gap-2 px-2 py-1 text-left",
             getMenuItemStateClassName({ active: index === activeIndex }),
           )}
@@ -482,11 +477,9 @@ function SlashModelList({
             event.preventDefault();
             onSelect(model);
           }}
-          role="option"
           title={model.providerLabel
             ? `${model.label} · ${model.providerLabel}`
             : model.label}
-          type="button"
         >
           <span className="min-w-0 flex-1 truncate text-xs leading-4 text-(--text-default)">
             {model.label}
@@ -496,7 +489,7 @@ function SlashModelList({
               {model.providerLabel}
             </span>
           ) : null}
-        </button>
+        </SelectMenuOptionRow>
       ))}
     </div>
   );

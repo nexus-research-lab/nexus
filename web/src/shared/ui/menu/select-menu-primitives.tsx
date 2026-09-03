@@ -1,8 +1,9 @@
-// INPUT: Select trigger 内容与已定位的 listbox panel 数据。
-// OUTPUT: 稳定的触发器结构和带浮层合同的选择面板 DOM。
+// INPUT: Select trigger 内容、已定位的 listbox panel 数据与选项状态。
+// OUTPUT: 稳定的触发器、选择面板和 option button 语义 DOM。
 // POS: Select Menu 视图原语；不管理开关、选值或定位计算。
 
 import type {
+  ButtonHTMLAttributes,
   CSSProperties,
   ReactNode,
   RefObject,
@@ -18,6 +19,15 @@ import {
   OVERLAY_SURFACE_CLASS_NAME,
 } from "../overlay/overlay-styles";
 import type { UiSelectMenuSurface } from "./select-menu-model";
+import { MENU_ITEM_BASE_CLASS_NAME } from "./menu-styles";
+
+interface SelectMenuOptionRowProps extends Omit<
+  ButtonHTMLAttributes<HTMLButtonElement>,
+  "aria-selected" | "className" | "role" | "type"
+> {
+  active: boolean;
+  className?: string;
+}
 
 export function SelectMenuTriggerContent({
   children,
@@ -95,5 +105,23 @@ export function SelectMenuPanel({
     >
       {children}
     </div>
+  );
+}
+
+/** Listbox 选项统一持有原生 button、选中语义和菜单交互底面。 */
+export function SelectMenuOptionRow({
+  active,
+  className,
+  ...props
+}: SelectMenuOptionRowProps) {
+  return (
+    <button
+      {...props}
+      aria-selected={active}
+      className={cn(MENU_ITEM_BASE_CLASS_NAME, className)}
+      data-active={active ? "true" : undefined}
+      role="option"
+      type="button"
+    />
   );
 }

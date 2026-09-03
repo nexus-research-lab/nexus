@@ -2,7 +2,7 @@
 
 - `select-menu-model.ts` 以静态配置表保存菜单共用的尺寸、表面和选中态样式。
 - `use-select-menu-overlay.ts` 统一选择菜单的内部开关、锚点定位和触发键盘协议。
-- `select-menu-primitives.tsx` 只提供选择菜单共用的触发器内容和 listbox 框架。
+- `select-menu-primitives.tsx` 提供选择菜单共用的触发器内容、listbox 框架和 `SelectMenuOptionRow`；所有单选、多选、Slash/Mention 类 listbox 条目由该原语持有原生 button、`role=option`、选中语义与基础交互底面，业务只组合行内容、密度和选择命令。
 - `select-menu-view.tsx` 只渲染共享单选菜单，不读取业务状态或决定选值。
 - `select-menu.tsx` 只编排共享单选语义和浮层生命周期；带搜索、异步状态或多选规则的菜单归真实业务所有者。
 - `action-menu.tsx` 保持外部受控，不复用 Select 家族的内部开关状态；业务可显式选择与锚点起点或终点对齐。级联浮层复用 `UiActionMenuContent` 的条目和底部动作，不复制 Action Menu 行结构。
