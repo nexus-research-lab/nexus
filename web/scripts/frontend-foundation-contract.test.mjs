@@ -556,6 +556,28 @@ test("floating feedback reuses shared surface, layer, and typography recipes", a
   assert.doesNotMatch(conversationPanel, /<ReadResourceReliabilityNotice[\s\S]*rounded-\[/);
 });
 
+test("business inline notices reuse feedback and spinner owners", async () => {
+  const [customMcp, loopPicker, roomSkills] = await Promise.all([
+    readSource("src/features/capability/connectors/custom/custom-mcp-dialog.tsx"),
+    readSource(
+      "src/features/conversation/shared/composer/components/loop-picker/loop-picker-dialog.tsx",
+    ),
+    readSource(
+      "src/features/conversation/room/members/skills/room-skill-multi-select.tsx",
+    ),
+  ]);
+
+  assert.equal((customMcp.match(/<UiInlineNotice/g) ?? []).length, 2);
+  assert.doesNotMatch(customMcp, /rounded-\[/);
+  assert.match(loopPicker, /actionError[\s\S]*<UiInlineNotice/);
+  assert.doesNotMatch(loopPicker, /rounded-\[/);
+  const roomErrorBody =
+    roomSkills.match(/function ErrorMenuBody[\s\S]*?function EmptyMenuBody/)?.[0] ?? "";
+  assert.match(roomErrorBody, /<UiInlineNotice/);
+  assert.doesNotMatch(roomErrorBody, /rounded-\[|animate-spin/);
+  assert.match(roomSkills, /getUiSpinnerClassName/);
+});
+
 test("App typography exposes one typed semantic role map", async () => {
   const { getUiTypographyClassName } = await importLeafTypeScriptModule(
     webRoot,

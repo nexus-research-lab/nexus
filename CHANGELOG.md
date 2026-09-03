@@ -132,6 +132,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   feedback owner for radius, tone, typography, recovery actions, and pending state.
 - Moved Launcher, chat-sidebar, and contacts-sidebar directory refresh failures
   onto the same inline feedback owner while preserving their safe read-only retry.
+- Reused the inline feedback and spinner owners for Custom MCP form notices,
+  Loop launch failures, and Room Skill resource errors.
 - Established a single frontend engineering and design-system contract, and
   centralized high overlay layers and responsive dialog geometry behind semantic
   APIs to prevent page-specific stacking and small-window sizing drift.

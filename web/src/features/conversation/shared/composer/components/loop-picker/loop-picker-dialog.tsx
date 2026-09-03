@@ -13,6 +13,7 @@ import {
   UiDialogPortal,
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
+import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import type { LoopCatalogItem } from "@/types/capability/loop";
@@ -73,12 +74,16 @@ function OpenLoopPickerDialog({
               />
             </div>
             {controller.state.actionError ? (
-              <div
-                className="rounded-[8px] border border-[color:color-mix(in_srgb,var(--destructive)_18%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_5%,transparent)] px-3 py-2 text-xs leading-5 text-(--destructive)"
+              <UiInlineNotice
+                message={(
+                  <>
+                    {controller.state.actionError}{" "}
+                    {t("composer.loop_start_failed_next_step")}
+                  </>
+                )}
                 role="alert"
-              >
-                {controller.state.actionError} {t("composer.loop_start_failed_next_step")}
-              </div>
+                tone="danger"
+              />
             ) : null}
             <LoopPickerContent
               busySlug={controller.state.busySlug}

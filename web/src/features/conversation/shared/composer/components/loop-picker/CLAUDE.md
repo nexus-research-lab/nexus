@@ -12,3 +12,4 @@ L6 | 父级: web/src/features/conversation/shared/composer/components
 
 Dialog 关闭时卸载开放作用域，状态通过 React 生命周期自然清空，不维护额外 reset key。资源响应和选择结果必须停留在当前开放作用域。
 Loop 使用单一可点击目录行展示标题、摘要和简短元数据，不嵌套选项卡片或重复选择按钮。
+Loop 启动失败只向 `UiInlineNotice` 提供错误正文与 alert tone；Dialog 不再拥有私有错误卡片样式。
