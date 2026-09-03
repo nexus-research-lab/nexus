@@ -33,8 +33,17 @@ export function SettingsPanel({ standalone = false }: { standalone?: boolean }) 
   if (standalone) {
     return (
       <WorkspaceSurfaceScaffold bodyClassName="flex">
-        <aside className="desktop-rail flex h-full w-[224px] shrink-0 flex-col">
+        <aside
+          className="desktop-rail hidden h-full w-[224px] shrink-0 flex-col sm:flex"
+          data-settings-navigation="panel"
+        >
           <SettingsSidebarNavigation variant="panel" />
+        </aside>
+        <aside
+          className="desktop-rail flex h-full w-14 shrink-0 flex-col px-1 py-2.5 sm:hidden"
+          data-settings-navigation="rail"
+        >
+          <SettingsSidebarNavigation variant="rail" />
         </aside>
         <div className="soft-scrollbar scrollbar-stable-gutter min-h-0 min-w-0 flex-1 overflow-y-auto">
           {content}

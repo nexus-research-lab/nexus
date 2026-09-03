@@ -404,6 +404,47 @@ test("Provider settings cannot redefine App typography, badges, or shape", async
   );
 });
 
+test("Browser settings use shared typography, status, recovery, and shape owners", async () => {
+  const browserRoot = path.join(srcRoot, "features", "settings", "browser");
+  const files = await collectSourceFiles(browserRoot);
+  const violations = [];
+  const localTypographyPattern = /\b(?:text-(?:2xs|xs|compact|sm|base|md|lg|xl|2xl)|font-(?:normal|medium|semibold|bold|mono)|leading-(?:none|\d+|\[[^\]]+\])|tracking-(?:tight|wide|\[[^\]]+\])|rounded-\[[^\]]+\])/;
+
+  for (const file of files) {
+    if (!/\.(?:ts|tsx)$/.test(file)) continue;
+    const source = await readFile(file, "utf8");
+    if (localTypographyPattern.test(source)) {
+      violations.push(path.relative(webRoot, file));
+    }
+  }
+
+  const section = await readSource(
+    "src/features/settings/browser/browser-settings-section.tsx",
+  );
+  assert.deepEqual(violations, []);
+  assert.match(section, /getUiTypographyClassName/);
+  assert.match(section, /<UiBadge showDot/);
+  assert.match(section, /<UiResourceState/);
+  assert.match(section, /SETTINGS_CARD_CLASS_NAME/);
+  assert.match(section, /SETTINGS_SECTION_TITLE_CLASS_NAME/);
+  assert.doesNotMatch(section, /statusColor|statusDot/);
+});
+
+test("standalone Settings collapse the panel to the shared rail on narrow windows", async () => {
+  const [panel, navigation] = await Promise.all([
+    readSource("src/features/settings/settings-panel.tsx"),
+    readSource("src/features/settings/settings-sidebar-navigation.tsx"),
+  ]);
+
+  assert.match(panel, /data-settings-navigation="panel"/);
+  assert.match(panel, /hidden h-full w-\[224px\][^\n]*sm:flex/);
+  assert.match(panel, /data-settings-navigation="rail"/);
+  assert.match(panel, /w-14[^\n]*sm:hidden/);
+  assert.match(panel, /<SettingsSidebarNavigation variant="panel"/);
+  assert.match(panel, /<SettingsSidebarNavigation variant="rail"/);
+  assert.match(navigation, /aria-current=\{active \? "page" : undefined\}/);
+});
+
 test("product source contains no arbitrary shadows or numeric z-index values", async () => {
   const files = (await Promise.all(productUiRoots.map(collectSourceFiles))).flat();
   const violations = [];
