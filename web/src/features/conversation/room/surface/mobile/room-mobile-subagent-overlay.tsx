@@ -1,3 +1,9 @@
+// INPUT: Room 子智能体来源、成员筛选、精确任务请求与关闭命令。
+// OUTPUT: 使用语义 dialog 层和稳定纵向骨架的窄窗子智能体表面。
+// POS: Room 窄窗子智能体挂载点；不拥有列表、任务详情或读取状态。
+
+import { cn } from "@/shared/ui/class-name";
+import { getUiOverlayLayerClassName } from "@/shared/ui/overlay/layer-styles";
 import type { Agent } from "@/types/agent/agent";
 import type { SubagentTaskSource } from "@/types/conversation/subagent-task";
 
@@ -29,7 +35,10 @@ export function RoomMobileSubagentOverlay({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-(--surface-panel-background)">
+    <div className={cn(
+      "fixed inset-0 flex min-h-0 flex-col [background:var(--surface-popover-background)] backdrop-blur-2xl",
+      getUiOverlayLayerClassName("dialog"),
+    )}>
       <RoomSubagentTaskSurface
         currentAgentId={currentAgentId}
         layout="mobile"

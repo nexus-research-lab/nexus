@@ -1,4 +1,10 @@
+// INPUT: 当前 Room Thread 状态与共享 Thread 面板资源。
+// OUTPUT: 使用语义 dialog 层的窄窗全屏 Thread 表面。
+// POS: Room 窄窗 Thread 挂载点；不拥有 Thread 选择、消息或关闭状态。
+
 import { ConversationThreadPanel } from "@/features/conversation/shared/thread/conversation-thread-panel";
+import { cn } from "@/shared/ui/class-name";
+import { getUiOverlayLayerClassName } from "@/shared/ui/overlay/layer-styles";
 
 import { useGroupThread } from "../../group/thread/group-thread-state";
 import { useRoomThreadPanel } from "../../group/thread/live/use-room-thread-panel";
@@ -13,7 +19,10 @@ export function RoomMobileThreadOverlay() {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-(--surface-panel-background)">
+    <div className={cn(
+      "fixed inset-0 [background:var(--surface-popover-background)] backdrop-blur-2xl",
+      getUiOverlayLayerClassName("dialog"),
+    )}>
       <ConversationThreadPanel
         agentAvatar={threadPanelData.agentAvatar}
         agentId={activeThread.agentId}
