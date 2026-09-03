@@ -13,6 +13,7 @@ import { AppRouteBuilders } from "@/app/router/route-paths";
 import { CapabilityPageLayout } from "@/features/capability/shared/capability-page-layout";
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button/button";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import {
@@ -20,7 +21,6 @@ import {
   type FeedbackBannerProps,
 } from "@/shared/ui/feedback/feedback-banner-contract";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
-import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type { ScheduledTaskRunItem } from "@/types/capability/scheduled-task/run";
 import type {
@@ -421,17 +421,19 @@ export function ScheduledTasksDirectory() {
         <CapabilityPageLayout
           actions={(
             <div className="flex items-center gap-2">
-              <WorkspaceSurfaceToolbarAction
+              <UiButton
                 disabled={resource.isLoading}
                 onClick={refreshTasks}
+                size="2xs"
+                variant="text"
               >
                 <RefreshCw className={resource.isLoading
                   ? getUiSpinnerClassName({ size: "sm" })
                   : "h-3.5 w-3.5"}
                 />
                 {t("capability.refresh")}
-              </WorkspaceSurfaceToolbarAction>
-              <WorkspaceSurfaceToolbarAction
+              </UiButton>
+              <UiButton
                 disabled={scopeUnavailable
                   || accessBlocked
                   || (resource.isLoading && !resource.hasSnapshot)}
@@ -440,11 +442,13 @@ export function ScheduledTasksDirectory() {
                     setDialog({ kind: "create", preset: null });
                   }
                 }}
+                size="2xs"
                 tone="primary"
+                variant="text"
               >
                 <Plus className="h-3.5 w-3.5" />
                 {t("capability.create_task")}
-              </WorkspaceSurfaceToolbarAction>
+              </UiButton>
             </div>
           )}
           description={t("capability.scheduled_intro_description")}

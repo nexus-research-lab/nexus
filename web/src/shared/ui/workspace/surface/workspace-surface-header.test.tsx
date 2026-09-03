@@ -6,9 +6,9 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { I18nProvider } from "@/shared/i18n/i18n-provider";
+import { UiButton } from "@/shared/ui/button/button";
 
 import { WorkspaceSurfaceHeader } from "./workspace-surface-header";
-import { WorkspaceSurfaceToolbarAction } from "./workspace-surface-toolbar-action";
 
 describe("WorkspaceSurfaceHeader", () => {
   it("keeps identity, typography and tab behavior under shared owners", () => {
@@ -27,9 +27,9 @@ describe("WorkspaceSurfaceHeader", () => {
           ]}
           title="工作区"
           trailing={(
-            <WorkspaceSurfaceToolbarAction onClick={() => undefined}>
+            <UiButton onClick={() => undefined} size="2xs" variant="text">
               新建
-            </WorkspaceSurfaceToolbarAction>
+            </UiButton>
           )}
         />
       </I18nProvider>,

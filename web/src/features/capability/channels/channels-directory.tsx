@@ -19,6 +19,7 @@ import {
   CapabilityPageLayout,
 } from "@/features/capability/shared/capability-page-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button/button";
 import {
   completeFeedbackBanner,
   type FeedbackBannerProps,
@@ -26,7 +27,6 @@ import {
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
-import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 
 import {
@@ -62,12 +62,14 @@ export function ChannelsDirectory() {
       >
         <CapabilityPageLayout
           actions={(
-            <WorkspaceSurfaceToolbarAction
+            <UiButton
               onClick={() => void controller.refresh()}
+              size="2xs"
+              variant="text"
             >
               <RefreshCw className="h-3.5 w-3.5" />
               {t("capability.refresh")}
-            </WorkspaceSurfaceToolbarAction>
+            </UiButton>
           )}
           description={t("capability.channels_intro_description")}
           title={t("capability.channels_intro_title")}

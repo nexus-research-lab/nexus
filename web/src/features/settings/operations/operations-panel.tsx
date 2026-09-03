@@ -12,11 +12,11 @@ import { useNavigate } from "react-router-dom";
 import { APP_ROUTE_PATHS } from "@/app/router/route-paths";
 import { ProviderSettingsPanel } from "@/features/settings/provider-settings/provider-settings-panel";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { WorkspaceContentHeader } from "@/shared/ui/layout/workspace-content-header";
 import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import { UiTabs } from "@/shared/ui/navigation/tabs";
-import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 
 import { ProjectAdminPanel } from "./project-admin/project-admin-panel";
@@ -98,10 +98,14 @@ export function OperationsPanel({ embedded = false }: { embedded?: boolean }) {
     )}>
       <WorkspaceContentHeader
         actions={!embedded ? (
-          <WorkspaceSurfaceToolbarAction onClick={handleBackToWorkspace}>
+          <UiButton
+            onClick={handleBackToWorkspace}
+            size="2xs"
+            variant="text"
+          >
             <ArrowLeft className="h-3.5 w-3.5" />
             {t("settings.back_to_workspace")}
-          </WorkspaceSurfaceToolbarAction>
+          </UiButton>
         ) : undefined}
         className="max-sm:hidden"
         description={t("operations.description")}
@@ -115,6 +119,7 @@ export function OperationsPanel({ embedded = false }: { embedded?: boolean }) {
         itemClassName="px-3"
         onChange={setActiveTab}
         options={tabs}
+        variant="line"
       />
       <div className="min-h-0 flex-1 pt-4">{content}</div>
     </div>
