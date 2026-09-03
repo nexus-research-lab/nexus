@@ -18,9 +18,14 @@ import type {
 import { MessageItem } from "@/features/conversation/shared/message/item/message-item";
 import { MessageAvatar } from "@/features/conversation/shared/message/ui/message-avatar";
 import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
+import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import {
-  WORKSPACE_PANEL_HEADER_BUTTON_CLASS,
+  MOBILE_SHELL_HEADER_GUTTER_CLASS_NAME,
+  MOBILE_SHELL_HEADER_HEIGHT_CLASS_NAME,
+} from "@/shared/ui/layout/mobile-shell-header-layout";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
+import {
   WORKSPACE_PANEL_HEADER_HEIGHT_CLASS,
   WORKSPACE_PANEL_HEADER_ICON_CLASS,
   WORKSPACE_PANEL_HEADER_PADDING_CLASS,
@@ -88,7 +93,6 @@ interface ThreadFeedProps {
 interface ThreadNavigationPresentation {
   Icon: LucideIcon;
   ariaLabel: string;
-  title: string;
 }
 
 type ThreadNavigationButtonAction = Exclude<
@@ -100,8 +104,8 @@ const THREAD_NAVIGATION_PRESENTATION: Record<
   ThreadNavigationButtonAction,
   ThreadNavigationPresentation
 > = {
-  back: { Icon: ArrowLeft, ariaLabel: "返回", title: "返回" },
-  close: { Icon: X, ariaLabel: "关闭 Thread", title: "关闭 Thread" },
+  back: { Icon: ArrowLeft, ariaLabel: "返回" },
+  close: { Icon: X, ariaLabel: "关闭 Thread" },
 };
 
 export function ConversationThreadView({
@@ -198,11 +202,17 @@ function ThreadHeader({
     <header
       className={cn(
         "flex shrink-0 items-center gap-2",
-        isMobile ? "h-[52px]" : WORKSPACE_PANEL_HEADER_HEIGHT_CLASS,
-        WORKSPACE_PANEL_HEADER_PADDING_CLASS,
-        presentation === "transcript"
+        isMobile
+          ? MOBILE_SHELL_HEADER_HEIGHT_CLASS_NAME
+          : WORKSPACE_PANEL_HEADER_HEIGHT_CLASS,
+        isMobile
+          ? MOBILE_SHELL_HEADER_GUTTER_CLASS_NAME
+          : WORKSPACE_PANEL_HEADER_PADDING_CLASS,
+        (isMobile || presentation === "transcript")
           && "border-b border-(--divider-subtle-color)",
       )}
+      data-desktop-window-controls-leading={isMobile ? true : undefined}
+      data-desktop-window-drag-region={isMobile ? true : undefined}
     >
       <ThreadNavigationButton
         action={leadingAction}
@@ -213,7 +223,10 @@ function ThreadHeader({
         <ThreadAgentAvatar avatarUrl={agentAvatar} isMobile={isMobile} />
       )}
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold text-(--text-strong)">
+        <p className={cn(
+          "truncate",
+          getUiTypographyClassName({ role: "supporting", tone: "strong", weight: "semibold" }),
+        )}>
           {agentName}
         </p>
         <ThreadSubtitle>{subtitle}</ThreadSubtitle>
@@ -243,18 +256,16 @@ function ThreadNavigationButton({
   const presentation = THREAD_NAVIGATION_PRESENTATION[action];
   const { Icon } = presentation;
   return (
-    <button
+    <UiIconButton
       aria-label={presentation.ariaLabel}
-      className={cn(
-        "flex shrink-0 items-center justify-center rounded-lg text-(--icon-default) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)",
-        isMobile ? "h-8 w-8" : WORKSPACE_PANEL_HEADER_BUTTON_CLASS,
-      )}
+      className="shrink-0"
       onClick={onClick}
-      title={presentation.title}
-      type="button"
+      shape={isMobile ? "round" : "rounded"}
+      size={isMobile ? "md" : "sm"}
+      variant="ghost"
     >
       <Icon className={WORKSPACE_PANEL_HEADER_ICON_CLASS} />
-    </button>
+    </UiIconButton>
   );
 }
 
@@ -283,7 +294,11 @@ function ThreadSubtitle({ children }: { children: ReactNode }) {
   if (!children) {
     return null;
   }
-  return <div className="text-xs text-(--text-soft)">{children}</div>;
+  return (
+    <div className={getUiTypographyClassName({ role: "caption", tone: "soft" })}>
+      {children}
+    </div>
+  );
 }
 
 function ThreadFeed({

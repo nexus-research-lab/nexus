@@ -44,6 +44,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Extended that platform-aware geometry through Room conversation switchers and
   auxiliary overlays, and centralized their circular icon actions, compact rows,
   semantic typography, and overlay layers in shared UI primitives.
+- Unified Room Thread and subagent full-screen surfaces on the same semantic
+  dialog layer and platform-aware mobile Header, including a stable flex layout
+  for long subagent task directories.
 - Reorganized Skill details around a shared responsive capability layout: long
   instructions keep a readable main column while badges and per-Agent controls
   occupy a bounded configuration rail that moves before content on narrow windows.

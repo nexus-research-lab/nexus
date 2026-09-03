@@ -245,6 +245,31 @@ test("narrow app and Room chrome share one platform-aware shell geometry", async
   );
 });
 
+test("Room Thread and subagent overlays reuse the narrow shell and semantic layer owners", async () => {
+  const [threadOverlay, subagentOverlay, threadView, subagentList, workspaceView] = await Promise.all([
+    readSource("src/features/conversation/room/surface/mobile/room-mobile-thread-overlay.tsx"),
+    readSource("src/features/conversation/room/surface/mobile/room-mobile-subagent-overlay.tsx"),
+    readSource("src/features/conversation/shared/thread/conversation-thread-view.tsx"),
+    readSource("src/features/conversation/shared/subagent/subagent-task-list.tsx"),
+    readSource("src/shared/ui/workspace/surface/workspace-surface-view.tsx"),
+  ]);
+
+  for (const overlay of [threadOverlay, subagentOverlay]) {
+    assert.match(overlay, /getUiOverlayLayerClassName\("dialog"\)/);
+    assert.match(overlay, /--surface-popover-background/);
+    assert.doesNotMatch(overlay, /\bz-\d+/);
+  }
+  assert.match(subagentOverlay, /flex min-h-0 flex-col/);
+  assert.match(threadView, /MOBILE_SHELL_HEADER_HEIGHT_CLASS_NAME/);
+  assert.match(threadView, /MOBILE_SHELL_HEADER_GUTTER_CLASS_NAME/);
+  assert.match(threadView, /<UiIconButton/);
+  assert.doesNotMatch(threadView, /h-\[52px\]/);
+  assert.match(subagentList, /kind: "mobile"/);
+  assert.match(subagentList, /shape="round"/);
+  assert.match(workspaceView, /MOBILE_SHELL_HEADER_HEIGHT_CLASS_NAME/);
+  assert.match(workspaceView, /data-desktop-window-drag-region/);
+});
+
 test("desktop hosts share viewport bounds but keep platform chrome ownership separate", async () => {
   const desktopRoot = path.join(webRoot, "..", "desktop");
   const [macWindow, windowsWindow, windowsXaml, windowsWebView, recipes] = await Promise.all([

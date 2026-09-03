@@ -4,17 +4,17 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { X } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
+import { UiIconButton } from "@/shared/ui/button/button";
 import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
 import {
   WORKSPACE_PANEL_HEADER_HEIGHT_CLASS,
   WORKSPACE_PANEL_HEADER_PADDING_CLASS,
 } from "@/shared/ui/workspace/surface/workspace-header-layout";
-import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import { WorkspaceSurfaceView } from "@/shared/ui/workspace/surface/workspace-surface-view";
 import type {
   SubagentTask,
@@ -147,17 +147,18 @@ export function SubagentTaskList({
         ? "flex h-full min-h-0 flex-col"
         : "min-h-full"}
       header={showTitle ? {
-        action: (
-          <WorkspaceSurfaceToolbarAction
-            ariaLabel={t("common.close")}
+        kind: "mobile",
+        leading: (
+          <UiIconButton
+            aria-label={t("common.back")}
             onClick={onClose}
-            title={t("common.close")}
+            shape="round"
+            size="lg"
+            variant="ghost"
           >
-            <X className="h-3.5 w-3.5" />
-            {t("common.close")}
-          </WorkspaceSurfaceToolbarAction>
+            <ArrowLeft className="h-4 w-4" />
+          </UiIconButton>
         ),
-        kind: "page",
       } : undefined}
       maxWidthClassName="max-w-none"
       title={t("subagents.panel_title")}

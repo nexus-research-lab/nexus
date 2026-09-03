@@ -12,7 +12,7 @@
 - `workspace-surface-toolbar-action.tsx` 统一 Surface 工具栏动作外观，不依赖 Header 的布局实现。
 - `workspace-task-strip-model.ts` 只从现有 Todo 状态选择运行中、下一项或最后完成项，投影当前步骤与摘要；不得创造第二套 Task 生命周期。`workspace-task-strip.tsx` 只渲染这个只读投影：状态锚点以“Agent 来源、运行态、当前步骤/总步数、当前任务摘要”表达正在进行的位置，并与 WorkGraph Dock、Room 协作状态复用同一 32px 紧凑活动面、12px 字体、细描边和轻阴影；任务摘要必须在可用视口宽度内完整换行，不得以单行截断隐藏内容，短摘要保持 32px 视觉基线；逐帧符号只表示现有任务仍在执行。展开头部同样必须把 Agent 身份置于最左侧，再显示“进程 完成数/总数”的次级状态。Room 的来源切换由业务适配层注入并复用已有成员选择器，Task Strip 不读取 Room 目录。外层保留 Conversation activity dock 的 44px 起始热区，不得在聊天顶部占据固定布局高度；触发器必须在 DOM/Tab 顺序中先于受 `aria-controls` 关联的明细区域，单项状态同时提供屏幕阅读器文本。明细始终以状态锚点中心约束视口并向上绝对展开，避免展开前后出现中心轴跳变；明细复用共享 popover 材质且不得改变聊天视口高度或推动正文，浮层宽高受当前画布约束，不能扩展成全画布遮罩。
 - `workspace-header-layout.ts` 保存侧边栏与主内容区共用的桌面高度基线：浏览器回退 60px，macOS 消费原生红灯中心推导值；布局双方不得复制数值，会话标签和动作随基线同步变化，不能只给外层追加空白。
-- 桌面右侧辅助面板的简介、工作区、子智能体与 Thread 共用 `workspace-header-layout.ts` 的 44px 头部、12px 横向内边距、28px 图标点击区和 14px 线性图标基线；移动端继续使用独立的 52px 导航头。业务视图不得复制这些几何值，面板 Agent 筛选器统一使用固定 112×28px 的 Panel 变体。
+- 桌面右侧辅助面板的简介、工作区、子智能体与 Thread 共用 `workspace-header-layout.ts` 的 44px 头部、12px 横向内边距、28px 图标点击区和 14px 线性图标基线；移动端统一消费平台感知的窄窗 Header 高度和 gutter，macOS 跟随原生窗口控件中心，Windows/浏览器保持 52px。业务视图不得复制这些几何值，面板 Agent 筛选器统一使用固定 112×28px 的 Panel 变体。
 - `workspace-surface-scaffold.tsx` 只提供 Header 与主画布骨架；业务滚动、状态和命令留在调用方。
-- `workspace-surface-view.tsx` 用 `page`、`overlay` 与缺省无障碍标题表达三种真实模式；默认正文和 Page Header 复用管理工作面的响应式水平 gutter，调用方可以显式取消留白，但不得复制断点数值；不得重新引入控制标题组合的布尔参数。
+- `workspace-surface-view.tsx` 用 `page`、`mobile`、`overlay` 与缺省无障碍标题表达四种真实模式；`mobile` 统一投影平台感知的标题栏、拖窗热区和语义排版，默认正文和 Page Header 复用管理工作面的响应式水平 gutter。调用方可以显式取消留白，但不得复制断点数值；不得重新引入控制标题组合的布尔参数。
 - 标题、标签和中部导航的可选组合在各自私有组件内收口，根 Header 不维护布尔状态矩阵。
