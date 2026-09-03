@@ -16,6 +16,7 @@ import {
   UiDialogPortal,
 } from "@/shared/ui/dialog/dialog";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
@@ -135,7 +136,9 @@ export function ProviderAddModelDialog({
               type="submit"
               variant="solid"
             >
-              {isAdding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+              {isAdding ? (
+                <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
+              ) : null}
               {manualModelEnabled
                 ? t("settings.providers.add_and_enable")
                 : t("settings.providers.add")}

@@ -83,4 +83,25 @@ describe("Provider settings typography", () => {
     expect(screen.getByRole("heading", { name: "settings.providers.models" }).className).toContain("ui-type-section-title");
     expect(screen.getByText("settings.providers.models_after_save").className).toContain("ui-type-supporting");
   });
+
+  it("uses the shared compact Spinner while testing a Provider", () => {
+    const { container } = renderWithI18n(
+      <ProviderSettingsDetailHeader
+        detailTitle="Custom Provider"
+        enabled
+        hasSelectedRecord
+        isApiFormatConfigurable
+        isEditing
+        onEnabledChange={vi.fn()}
+        onTestSelection={vi.fn()}
+        pendingAction={{ kind: "test-provider" }}
+        selectedCanManage
+        testModelOptions={[]}
+      />,
+    );
+
+    const spinner = container.querySelector("svg.animate-spin");
+    expect(spinner?.getAttribute("class")).toContain("h-3.5 w-3.5");
+    expect(spinner?.getAttribute("class")).toContain("motion-reduce:animate-none");
+  });
 });
