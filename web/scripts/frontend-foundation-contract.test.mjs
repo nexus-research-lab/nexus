@@ -294,6 +294,21 @@ test("settings reuse semantic typography and the shared segmented control", asyn
   }
 });
 
+test("Settings feature code consumes shared form DOM owners", async () => {
+  const files = await collectSourceFiles(path.join(srcRoot, "features", "settings"));
+  const violations = [];
+
+  for (const file of files) {
+    if (!/\.(?:ts|tsx)$/.test(file)) continue;
+    const source = await readFile(file, "utf8");
+    if (/<(?:input|textarea|select)\b/.test(source)) {
+      violations.push(path.relative(webRoot, file));
+    }
+  }
+
+  assert.deepEqual(violations, []);
+});
+
 test("product source contains no arbitrary shadows or numeric z-index values", async () => {
   const files = (await Promise.all(productUiRoots.map(collectSourceFiles))).flat();
   const violations = [];

@@ -9,6 +9,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
 import { UiCheckbox } from "@/shared/ui/form/checkbox";
+import { UiCheckboxRow } from "@/shared/ui/form/checkbox-row";
 import { UiChoiceButton } from "@/shared/ui/form/choice";
 import {
   UiField,
@@ -130,6 +131,27 @@ describe("form primitives", () => {
     await user.keyboard(" ");
     expect(enabled.checked).toBe(true);
     expect((screen.getByRole("checkbox", { name: "不可用" }) as HTMLInputElement).disabled).toBe(true);
+  });
+
+  it("keeps compact checkbox rows on shared shape and typography roles", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <UiCheckboxRow
+        checked={false}
+        density="compact"
+        label="允许私有网络"
+        onChange={onChange}
+      />,
+    );
+
+    const checkbox = screen.getByRole("checkbox", { name: "允许私有网络" });
+    const row = checkbox.closest("label");
+    expect(row?.className).toContain("radius-control-md");
+    expect(row?.className).not.toContain("rounded-[");
+    expect(screen.getByText("允许私有网络").className).toContain("ui-type-caption");
+    await user.click(checkbox);
+    expect(onChange).toHaveBeenCalledWith(true);
   });
 
   it("exposes pressed state for choice and segmented selections", async () => {
