@@ -127,7 +127,10 @@ func (s *Server) startControlIdentityInvalidations(ctx context.Context) (func(),
 	}
 	cursor, err := source.LatestControlIdentityInvalidationID(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("initialize Control identity invalidation cursor: %w", err)
+		// 与运行时轮询保持一致：Control 暂时不可用时先从 cursor=0 启动，
+		// 由 runControlIdentityInvalidations 在 grace 窗口后执行既有 fail-closed 逻辑。
+		s.api.BaseLogger().Warn("初始化 Control identity invalidation cursor 失败，从 0 开始等待 Control 恢复", "err", err)
+		cursor = 0
 	}
 	runCtx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})

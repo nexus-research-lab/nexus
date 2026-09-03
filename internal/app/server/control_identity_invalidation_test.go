@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -16,6 +17,38 @@ type fakeControlInvalidationSource struct {
 	mu      sync.Mutex
 	applied []int64
 	done    chan struct{}
+}
+
+type fakeControlInvalidationStartupSource struct {
+	authsvc.Authority
+	latestErr error
+	seenAfter chan int64
+}
+
+func (f *fakeControlInvalidationStartupSource) LatestControlIdentityInvalidationID(context.Context) (int64, error) {
+	return 0, f.latestErr
+}
+
+func (f *fakeControlInvalidationStartupSource) ControlIdentityInvalidations(
+	_ context.Context,
+	after int64,
+) ([]authsvc.ControlIdentityInvalidation, error) {
+	select {
+	case f.seenAfter <- after:
+	default:
+	}
+	return nil, errors.New("control unavailable")
+}
+
+func (f *fakeControlInvalidationStartupSource) ApplyControlIdentityInvalidation(
+	context.Context,
+	authsvc.ControlIdentityInvalidation,
+) (string, error) {
+	return "", nil
+}
+
+func (f *fakeControlInvalidationStartupSource) FailClosedControlIdentities(context.Context) ([]string, error) {
+	return nil, nil
 }
 
 func (f *fakeControlInvalidationSource) LatestControlIdentityInvalidationID(context.Context) (int64, error) {
@@ -81,5 +114,34 @@ func TestControlIdentityInvalidationCoordinatorAppliesOrderedEvent(t *testing.T)
 	defer source.mu.Unlock()
 	if len(source.applied) != 1 || source.applied[0] != 1 {
 		t.Fatalf("applied events = %v, want [1]", source.applied)
+	}
+}
+
+func TestStartControlIdentityInvalidationsFallsBackWhenLatestCursorUnavailable(t *testing.T) {
+	source := &fakeControlInvalidationStartupSource{
+		latestErr: errors.New("control unavailable"),
+		seenAfter: make(chan int64, 1),
+	}
+	server := &Server{
+		api:      shared.NewAPI(logx.NewDiscardLogger()),
+		services: &AppServices{Auth: source},
+	}
+
+	stop, err := server.startControlIdentityInvalidations(context.Background())
+	if err != nil {
+		t.Fatalf("startControlIdentityInvalidations() error = %v, want nil", err)
+	}
+	if stop == nil {
+		t.Fatal("startControlIdentityInvalidations() stop = nil, want cleanup function")
+	}
+	defer stop()
+
+	select {
+	case after := <-source.seenAfter:
+		if after != 0 {
+			t.Fatalf("ControlIdentityInvalidations() after = %d, want fallback cursor 0", after)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Control identity invalidation coordinator 未在初始 cursor 失败后启动")
 	}
 }
