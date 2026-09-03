@@ -4,14 +4,18 @@
 
 import { Loader2, Plus, Save } from "lucide-react";
 
+import {
+  SETTINGS_CARD_CLASS_NAME,
+  SETTINGS_CONTROL_LABEL_CLASS_NAME,
+} from "@/features/settings/shared/settings-panel-ui";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import { UiButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiInput } from "@/shared/ui/form/form-control";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
-import {
-  SETTINGS_CARD_CLASS_NAME,
-} from "@/features/settings/shared/settings-panel-ui";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { SubscriptionPlan } from "@/types/settings/subscription";
 
 import {
@@ -23,11 +27,6 @@ import {
   formatTokenLimit,
   normalizePlanStatus,
 } from "./subscription-admin-model";
-import {
-  SubscriptionEmptyState,
-  SubscriptionLoadingState,
-} from "./subscription-admin-ui";
-
 interface SubscriptionPlanViewProps {
   model: PlanViewModel;
   onChangeDraft: (planKey: string, patch: Partial<PlanDraft>) => void;
@@ -62,13 +61,22 @@ function SubscriptionPlanRow({
   return (
     <div className="grid gap-4 px-4 py-4 xl:grid-cols-[180px_minmax(0,1fr)_auto] xl:items-start">
       <div className="min-w-0">
-        <p className="truncate text-base font-semibold text-(--text-strong)">
+        <p className={cn(
+          "truncate",
+          getUiTypographyClassName({ role: "sectionTitle", tone: "strong" }),
+        )}>
           {plan.display_name}
         </p>
-        <p className="mt-1 truncate font-mono text-xs text-(--text-muted)">
+        <p className={cn(
+          "mt-1 truncate",
+          getUiTypographyClassName({ role: "code", tone: "muted" }),
+        )}>
           {plan.plan_key}
         </p>
-        <p className="mt-2 text-xs text-(--text-soft)">
+        <p className={cn(
+          "mt-2",
+          getUiTypographyClassName({ role: "caption", tone: "soft" }),
+        )}>
           {t("settings.subscription.plan_current_limit")}: {formatTokenLimit(
             plan.monthly_token_limit,
             t("settings.subscription.limit_unlimited"),
@@ -78,7 +86,7 @@ function SubscriptionPlanRow({
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <label className="space-y-1.5">
-          <span className="text-xs font-semibold text-(--text-muted)">
+          <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
             {t("settings.subscription.display_name")}
           </span>
           <UiInput
@@ -90,7 +98,7 @@ function SubscriptionPlanRow({
           />
         </label>
         <label className="space-y-1.5">
-          <span className="text-xs font-semibold text-(--text-muted)">
+          <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
             {t("settings.subscription.plan_status")}
           </span>
           <UiSelectMenu
@@ -109,7 +117,7 @@ function SubscriptionPlanRow({
           />
         </label>
         <label className="space-y-1.5">
-          <span className="text-xs font-semibold text-(--text-muted)">
+          <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
             {t("settings.subscription.plan_limit")}
           </span>
           <UiInput
@@ -125,7 +133,7 @@ function SubscriptionPlanRow({
           />
         </label>
         <label className="space-y-1.5">
-          <span className="text-xs font-semibold text-(--text-muted)">
+          <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
             {t("settings.subscription.sort_order")}
           </span>
           <UiInput
@@ -139,7 +147,7 @@ function SubscriptionPlanRow({
           />
         </label>
         <label className="space-y-1.5 sm:col-span-2 xl:col-span-5">
-          <span className="text-xs font-semibold text-(--text-muted)">
+          <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
             {t("settings.subscription.notes")}
           </span>
           <UiInput
@@ -191,7 +199,7 @@ function NewSubscriptionPlanForm({
     <div className="border-b border-(--divider-subtle-color) px-4 py-4">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[160px_minmax(160px,1fr)_160px_auto] xl:items-end">
         <label className="space-y-1.5">
-          <span className="text-xs font-semibold text-(--text-muted)">
+          <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
             {t("settings.subscription.plan_key")}
           </span>
           <UiInput
@@ -202,7 +210,7 @@ function NewSubscriptionPlanForm({
           />
         </label>
         <label className="space-y-1.5">
-          <span className="text-xs font-semibold text-(--text-muted)">
+          <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
             {t("settings.subscription.display_name")}
           </span>
           <UiInput
@@ -213,7 +221,7 @@ function NewSubscriptionPlanForm({
           />
         </label>
         <label className="space-y-1.5">
-          <span className="text-xs font-semibold text-(--text-muted)">
+          <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
             {t("settings.subscription.plan_limit")}
           </span>
           <UiInput
@@ -269,9 +277,19 @@ export function SubscriptionPlanView({
       />
 
       {model.loading ? (
-        <SubscriptionLoadingState label={t("settings.subscription.loading")} />
+        <UiResourceState
+          size="sm"
+          state="loading"
+          title={t("settings.subscription.loading")}
+          variant="plain"
+        />
       ) : model.plans.length === 0 ? (
-        <SubscriptionEmptyState label={t("settings.subscription.plans_empty")} />
+        <UiResourceState
+          size="sm"
+          state="empty"
+          title={t("settings.subscription.plans_empty")}
+          variant="plain"
+        />
       ) : (
         <div className="divide-y divide-(--divider-subtle-color)">
           {model.plans.map((plan) => (

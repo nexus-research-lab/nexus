@@ -116,6 +116,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   including a contract that rejects page-local font and radius recipes.
 - Collapsed the standalone Settings text panel into its existing icon rail on
   narrow desktop windows so every Settings section keeps a usable content plane.
+- Consolidated Operations member, subscription, and project surfaces onto shared
+  semantic Typography, Badge, Resource State, Settings Card, and Control Label
+  owners, removing the redundant Subscription-only loading and empty wrappers.
 - Moved floating feedback and shared resource states onto named surface, layer,
   typography, shape, and Button contracts, with DOM tests for recovery,
   dismissal, live-region behavior, and auto-dismiss timing resets.
