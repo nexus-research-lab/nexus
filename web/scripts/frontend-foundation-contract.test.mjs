@@ -556,6 +556,28 @@ test("Loop surfaces use semantic typography, badges, panels, and responsive acti
   assert.match(sources[1], /className="shrink-0"/);
 });
 
+test("WorkGraph capability directory and detail keep separate semantic owners", async () => {
+  const workGraphPaths = [
+    "src/features/capability/workgraph-distillations/workgraph-distillations-directory.tsx",
+    "src/features/capability/workgraph-distillations/workgraph-distillation-detail.tsx",
+  ];
+  const sources = await Promise.all(workGraphPaths.map(readSource));
+  const localTypographyPattern = /\b(?:text-(?:2xs|xs|compact|sm|base|md|lg|xl|2xl)|font-(?:normal|medium|semibold|bold|mono)|leading-(?:none|\d+|\[[^\]]+\])|tracking-(?:tight|wide|\[[^\]]+\])|rounded-\[[^\]]+\])/;
+
+  assert.deepEqual(
+    workGraphPaths.filter((_, index) => localTypographyPattern.test(sources[index])),
+    [],
+  );
+  const workGraphChrome = sources.join("\n");
+  assert.match(sources[0], /<WorkGraphDistillationDetail/);
+  assert.match(sources[0], /getUiTypographyClassName/);
+  assert.match(sources[1], /<UiButton/);
+  assert.match(sources[1], /<UiPanel/);
+  assert.match(sources[1], /<WorkGraphWorkflowCanvasPreview/);
+  assert.doesNotMatch(workGraphChrome, /<button\b/);
+  assert.match(sources[1], /flex shrink-0 flex-col gap-3 sm:flex-row/);
+});
+
 test("product source contains no arbitrary shadows or numeric z-index values", async () => {
   const files = (await Promise.all(productUiRoots.map(collectSourceFiles))).flat();
   const violations = [];
