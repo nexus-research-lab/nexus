@@ -573,6 +573,24 @@ test("Goal editing and status actions share one Spinner role", async () => {
   }
 });
 
+test("WorkGraph surfaces share canvas, action, and revision Spinner roles", async () => {
+  const paths = [
+    "src/features/conversation/shared/execution/execution-workgraph-surface.tsx",
+    "src/features/conversation/shared/execution/workgraph-distillation-dialog.tsx",
+    "src/features/conversation/shared/execution/workgraph-metadata-editor-dialog.tsx",
+  ];
+  const sources = await Promise.all(paths.map(readSource));
+  const combined = sources.join("\n");
+
+  for (const source of sources) {
+    assert.match(source, /getUiSpinnerClassName/);
+    assert.doesNotMatch(source, /\banimate-spin\b/);
+  }
+  for (const size of ["xs", "sm", "md", "lg"]) {
+    assert.match(combined, new RegExp(`size: "${size}"`));
+  }
+});
+
 test("List and Badge primitives expose semantic typography and shape instead of page overrides", async () => {
   const [listRow, badge, badgeStyles, providerModels, connectorCard, customMcpGrid] = await Promise.all([
     readSource("src/shared/ui/list/list-row.tsx"),

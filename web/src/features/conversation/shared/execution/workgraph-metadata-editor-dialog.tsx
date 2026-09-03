@@ -31,6 +31,7 @@ import {
 } from "@/shared/ui/dialog/dialog";
 import { getDialogActionClassName } from "@/shared/ui/dialog/dialog-styles";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import type { Agent } from "@/types/agent/agent";
 import type { SessionSnapshotPayload } from "@/types/conversation/conversation";
 import type { ExecutionResource } from "./use-execution-resource";
@@ -308,7 +309,7 @@ export function WorkGraphMetadataEditorDialog({
               {loading ? (
                 <div className="grid min-h-0 flex-1 place-items-center text-xs text-(--text-muted)">
                   <span className="inline-flex items-center gap-2">
-                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                    <LoaderCircle className={getUiSpinnerClassName({ size: "md" })} />
                     {t("execution.workflow_editor_starting")}
                   </span>
                 </div>
@@ -368,7 +369,9 @@ export function WorkGraphMetadataEditorDialog({
                     type="button"
                     onClick={() => void handleApply()}
                   >
-                    {applying ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : null}
+                    {applying ? (
+                      <LoaderCircle className={getUiSpinnerClassName({ size: "sm" })} />
+                    ) : null}
                     {t("execution.workflow_editor_apply")}
                   </button>
                 </div>
@@ -395,7 +398,9 @@ export function WorkGraphMetadataEditorDialog({
                         >
                           {version.selected ? <Check className="h-3 w-3" /> : null}
                           v{version.revision}
-                          {selectingRevision === version.revision ? <LoaderCircle className="h-3 w-3 animate-spin" /> : null}
+                          {selectingRevision === version.revision ? (
+                            <LoaderCircle className={getUiSpinnerClassName({ size: "xs" })} />
+                          ) : null}
                         </button>
                       ))}
                     </div>

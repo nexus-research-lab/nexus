@@ -25,6 +25,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import {
   UiActionMenu,
   type UiActionMenuItem,
@@ -159,7 +160,7 @@ export function ExecutionWorkGraphSurface({
   if (historyResource.isLoading) {
     historyMenuItems.push({
       disabled: true,
-      icon: <LoaderCircle className="h-3.5 w-3.5 animate-spin" />,
+      icon: <LoaderCircle className={getUiSpinnerClassName({ size: "sm" })} />,
       label: t("execution.surface_loading"),
       value: "loading",
     });
@@ -282,7 +283,7 @@ export function ExecutionWorkGraphSurface({
               type="button"
             >
               {sketchLoading
-                ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                ? <LoaderCircle className={getUiSpinnerClassName({ size: "sm" })} />
                 : <GitBranchPlus className="h-3.5 w-3.5" />}
               {t(sketchLoading
                 ? "execution.workflow_extracting_sketch"
@@ -377,7 +378,9 @@ export function ExecutionWorkGraphSurface({
         <div className="grid min-h-0 flex-1 place-items-center px-6 py-8 text-center">
           <div className="flex max-w-64 flex-col items-center gap-2 text-(--text-soft)">
             {(mode === "history" ? historyResource.isLoading : resource.isLoading) ? (
-              <LoaderCircle className="h-5 w-5 animate-spin text-(--icon-muted)" />
+              <LoaderCircle
+                className={getUiSpinnerClassName({ size: "lg", tone: "muted" })}
+              />
             ) : (mode === "history" ? historyResource.error : resource.error) ? (
               <CircleAlert className="h-5 w-5 text-(--warning)" />
             ) : (

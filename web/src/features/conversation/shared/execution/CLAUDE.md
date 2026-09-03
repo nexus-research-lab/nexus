@@ -21,3 +21,4 @@
 - UI 不提供 WorkGraph 状态写入按钮；编排与命名工作图保存 mutation 仍由模型语义工具和后端 authority fence 负责。UI 可以删除独立的命名工作图 aggregate，但不能修改图边、责任、运行状态或路线；详情中的失败与回连不得被解释成服务端自动重试或固定路由。
 - WorkGraph 对话编辑器必须以 Nexus 主智能体身份展示一条只存在于视图的接待说明，覆盖可修改范围、自然语言示例、版本选择和“应用”路径；不得把该说明写入隐藏 Session transcript、源 transcript 或模型上下文。该说明是首次编辑的顶部初始滚动锚点，短内容向下增长；恢复已有对话时按普通 FOLLOW/READING 规则保持位置。
 - 初始草图抽取必须把完整 source logical-key 节点、父子层级和依赖交给模型，宿主标记并强制保留 required/terminal、拓扑引用、验证/复核和协作边界；模型以抽象具体任务语义为主，只有移除后不损失结构语义的非关键孤立节点才可省略。
+- WorkGraph 画布加载使用共享 `lg` Spinner，常规按钮、菜单和检查状态使用 `sm/md`，版本切换使用 `xs`；三个 WorkGraph Surface 不得自行拼接旋转、颜色或 reduced-motion class。
