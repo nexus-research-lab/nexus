@@ -4154,6 +4154,57 @@ test("Room interruption projection follows the slot identity without a ghost car
   );
 });
 
+test("failed Assistant result does not expose the fork action", async () => {
+  const { resolveAssistantDisplayState } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/controller/display/message-item-display-model.ts",
+  );
+  const projection = {
+    assistantMessages: [{}],
+    directOrderedProjection: { content: [] },
+    finalAssistantContent: "最终回复",
+    finalAssistantStreamingIndexes: new Set(),
+    finalAssistantText: "最终回复",
+    goalCompletionReceipt: null,
+    liveActivityState: null,
+    mergedContent: [{ type: "text", text: "最终回复" }],
+    model: "model",
+    pendingInteractionPermissions: [],
+    processProjection: { content: [] },
+    resultSummary: {
+      duration_api_ms: 0,
+      duration_ms: 0,
+      is_error: true,
+      num_turns: 1,
+      subtype: "error",
+    },
+    stats: null,
+    streamStatus: "done",
+    streamingBlockIndexes: new Set(),
+  };
+  const options = {
+    assistantContentMode: "dm_archived",
+    hasForkHandler: true,
+    hasStopHandler: false,
+    isLastRound: true,
+    isLoading: false,
+    pendingPermissionCount: 0,
+    projection,
+  };
+
+  assert.equal(resolveAssistantDisplayState(options).canFork, false);
+  assert.equal(resolveAssistantDisplayState({
+    ...options,
+    projection: {
+      ...projection,
+      resultSummary: {
+        ...projection.resultSummary,
+        is_error: false,
+        subtype: "success",
+      },
+    },
+  }).canFork, true);
+});
+
 test("Room canonical assistant replaces its temporary synthetic result", async () => {
   const { buildRoomAgentRoundEntries } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/round/round-agent-model.ts",

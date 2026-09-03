@@ -167,7 +167,7 @@ function ApiRetrySystemEvent({
         <span className="flex min-w-0 items-center gap-1.5">
           <span>{t("message.api_retrying")}</span>
           {attemptText ? <span className="shrink-0">{attemptText}</span> : null}
-          {waitText ? <span className="shrink-0 text-xs text-(--text-muted)">· {waitText}</span> : null}
+          {waitText ? <span className="shrink-0 text-(--text-muted)">· {waitText}</span> : null}
           <ChevronRight
             aria-hidden
             className={cn(
