@@ -38,6 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Removed the redundant message-specific action-button adapter: message rerun,
+  edit, copy, and stop controls now use shared micro Buttons, with copy
+  confirmation represented by the new shared success tone.
 - Added shared 20px icon and 24px text micro-action sizes, then adopted them
   across Composer directory, queue, attachment, Goal, and Room execution
   controls so dense toolbars no longer redefine button states per page.

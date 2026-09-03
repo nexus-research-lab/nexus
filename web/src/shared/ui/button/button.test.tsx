@@ -118,4 +118,17 @@ describe("UiButton", () => {
     expect(iconAction.className).toContain("w-5");
     expect(iconAction.className).toContain("radius-control-xs");
   });
+
+  it("projects successful transient actions through the shared tone contract", () => {
+    render(
+      <UiIconButton aria-label="已复制" size="xs" tone="success">
+        <span aria-hidden="true">✓</span>
+      </UiIconButton>,
+    );
+
+    const button = screen.getByRole("button", { name: "已复制" });
+    expect(button.className).toContain("text-(--success)");
+    expect(button.className).toContain("h-6");
+    expect(button.className).not.toContain("text-(--destructive)");
+  });
 });

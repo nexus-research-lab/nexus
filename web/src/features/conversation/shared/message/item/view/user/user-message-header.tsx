@@ -1,3 +1,6 @@
+// INPUT: User 消息时间、引导状态与可用的重跑/编辑/复制命令。
+// OUTPUT: 无气泡消息尾部元数据与共享微型图标动作。
+// POS: User 消息头纯视图；不拥有复制状态或消息 mutation。
 import {
   Check,
   Copy,
@@ -8,9 +11,9 @@ import {
 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 
-import { MessageActionButton } from "../../../ui/message-action-button";
 import type { UserMessagePresentation } from "./user-message-model";
 
 interface UserMessageHeaderProps {
@@ -78,33 +81,39 @@ function UserMessageActions({
   return (
     <div className="flex shrink-0 items-center gap-0.5">
       {onRerun ? (
-        <MessageActionButton
+        <UiIconButton
           aria-label={t("message.rerun")}
           onClick={onRerun}
-          title={t("message.rerun")}
+          size="xs"
           tone="default"
+          tooltip={t("message.rerun")}
+          variant="ghost"
         >
           <RotateCcw className="h-3.5 w-3.5" />
-        </MessageActionButton>
+        </UiIconButton>
       ) : null}
       {onEdit ? (
-        <MessageActionButton
+        <UiIconButton
           aria-label={t("message.edit")}
           onClick={onEdit}
-          title={t("message.edit")}
+          size="xs"
           tone="default"
+          tooltip={t("message.edit")}
+          variant="ghost"
         >
           <Edit2 className="h-3.5 w-3.5" />
-        </MessageActionButton>
+        </UiIconButton>
       ) : null}
-      <MessageActionButton
+      <UiIconButton
         aria-label={t("message.copy")}
         onClick={onCopy}
-        title={t("message.copy")}
+        size="xs"
         tone={action.tone}
+        tooltip={t("message.copy")}
+        variant="ghost"
       >
         <CopyIcon className="h-3.5 w-3.5" />
-      </MessageActionButton>
+      </UiIconButton>
     </div>
   );
 }
