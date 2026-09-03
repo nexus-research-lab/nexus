@@ -741,6 +741,20 @@ test("Launcher, desktop update, and onboarding loading states share Spinner role
   }
 });
 
+test("Sidebar utility actions share the round IconButton owner", async () => {
+  const [utilities, updateIndicator] = await Promise.all([
+    readSource("src/features/navigation/sidebar/view/sidebar-utility-actions.tsx"),
+    readSource("src/features/navigation/sidebar/view/sidebar-update-indicator.tsx"),
+  ]);
+
+  for (const source of [utilities, updateIndicator]) {
+    assert.match(source, /<UiIconButton/);
+    assert.match(source, /shape="round"/);
+    assert.doesNotMatch(source, /<button\b/);
+  }
+  assert.match(utilities, /aria-current=/);
+});
+
 test("Provider import and Operations route loading share Spinner roles", async () => {
   const [providerImport, operationsPage] = await Promise.all([
     readSource("src/features/provider-imports/cc-switch/provider-ccswitch-dialog.tsx"),

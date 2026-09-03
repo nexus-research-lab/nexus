@@ -1,3 +1,7 @@
+// INPUT: 侧栏展开状态、可见系统动作、路由状态与动作命令。
+// OUTPUT: 固定几何的设置链接和共享圆形 IconButton 系统动作。
+// POS: 宽侧栏底部/折叠动作视图；权限与更新状态由上层和专属 hook 决定。
+
 import {
   Compass,
   LogOut,
@@ -10,6 +14,7 @@ import { Link } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { SIDEBAR_TOUR_ANCHORS } from "@/features/onboarding/tours/sidebar-navigation-tour";
+import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import { WORKSPACE_HEADER_HEIGHT_CLASS } from "@/shared/ui/workspace/surface/workspace-header-layout";
@@ -113,7 +118,6 @@ export function SidebarFooterActions(props: SidebarUtilityActionsProps) {
           }}
         >
           <SidebarUpdateIndicator
-            className={utilityActionClassName(false)}
             version={updateVersion}
           />
         </div>
@@ -148,6 +152,7 @@ function UtilityLink({
   return (
     <UiTooltip label={label}>
       <Link
+        aria-current={active ? "page" : undefined}
         aria-label={label}
         className={utilityActionClassName(active)}
         to={to}
@@ -159,7 +164,7 @@ function UtilityLink({
 }
 
 function UtilityButton({
-  active = false,
+  active,
   anchor,
   icon: Icon,
   iconClassName = "h-[18px] w-[18px]",
@@ -174,17 +179,17 @@ function UtilityButton({
   onClick: () => void;
 }) {
   return (
-    <UiTooltip label={label}>
-      <button
-        aria-label={label}
-        className={utilityActionClassName(active)}
-        data-tour-anchor={anchor}
-        onClick={onClick}
-        type="button"
-      >
-        <Icon className={iconClassName} />
-      </button>
-    </UiTooltip>
+    <UiIconButton
+      aria-label={label}
+      aria-pressed={active}
+      data-tour-anchor={anchor}
+      onClick={onClick}
+      shape="round"
+      size="md"
+      tooltip={label}
+    >
+      <Icon className={iconClassName} />
+    </UiIconButton>
   );
 }
 

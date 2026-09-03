@@ -1,6 +1,6 @@
 # 应用宽侧栏
 
-- `sidebar-wide-panel.tsx` 只组合折叠/展开视图和唯一引导中心弹层；手机一级目录强制展开并占满可用宽度，同时把系统操作收进左侧 Dock。
+- `sidebar-wide-panel.tsx` 只组合折叠/展开视图和唯一引导中心弹层；手机一级目录强制展开并占满可用宽度，同时把系统操作收进左侧 Dock。折叠、引导、更新和退出等 32px 圆形系统动作固定复用 `UiIconButton shape="round"`，不得各自重写 hover、active、focus 或 tooltip。
 - `use-sidebar-wide-panel-controller.ts` 独占路由、认证、通知、目录摘要与 Sidebar/Room Navigation Store 装配；固定会话点击进入 exact Conversation，拖放只重排持久偏好，X 只取消固定；退出入口只在网页端已进入密码认证会话时显示，单用户免认证、访问令牌与桌面运行时均不得暴露无效退出动作；手机目录中的能力 Tab 进入 `/capability`，桌面仍直接打开默认能力页。
 - `sidebar-wide-panel-model.ts` 纯派生主 Tab、固定会话标题/路由与标签。
 - `use-sidebar-panel-resize.ts` 只管理拖拽边界，不读取 Store。
