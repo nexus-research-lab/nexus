@@ -12,6 +12,7 @@ import {
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import type { AgentSkillEntry } from "@/types/capability/skill";
 
@@ -87,7 +88,9 @@ export function AgentSkillCard({
       {!skill.locked ? (
         <div className="flex min-h-10 shrink-0 items-center gap-2">
           {busy ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-(--text-muted)" />
+            <Loader2
+              className={getUiSpinnerClassName({ size: "sm", tone: "muted" })}
+            />
           ) : null}
           <GlassSwitch
             aria-label={`${actionLabel} ${title}`}

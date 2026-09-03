@@ -160,6 +160,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   image-detail, and WorkGraph-source loading through shared Spinner roles.
 - Standardized Composer Connector loading and Room Agent model updates on the
   shared medium and compact muted Spinner roles.
+- Unified Agent Skill directories, Skill mutations, and private-domain thread
+  loading and refresh indicators through shared muted Spinner roles.
 - Established a single frontend engineering and design-system contract, and
   centralized high overlay layers and responsive dialog geometry behind semantic
   APIs to prevent page-specific stacking and small-window sizing drift.

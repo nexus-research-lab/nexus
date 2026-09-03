@@ -1,7 +1,7 @@
 import { RefreshCw } from "lucide-react";
 
 import { UiIconButton } from "@/shared/ui/button/button";
-import { cn } from "@/shared/ui/class-name";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 
 export function PrivateDomainToolbar({
   count,
@@ -30,7 +30,11 @@ export function PrivateDomainToolbar({
         title={refreshLabel}
         variant="ghost"
       >
-        <RefreshCw className={cn("h-3.5 w-3.5", isLoading && "animate-spin")} />
+        <RefreshCw
+          className={isLoading
+            ? getUiSpinnerClassName({ size: "sm", tone: "muted" })
+            : "h-3.5 w-3.5"}
+        />
       </UiIconButton>
     </div>
   );
