@@ -837,6 +837,8 @@ test("Capability page chrome has one Header, typography, action, and shape owner
   assert.match(capabilityLayout, /CapabilityDetailPage/);
   assert.match(capabilityLayout, /CapabilityDetailIdentity/);
   assert.match(capabilityLayout, /data-slot="capability-detail-header"/);
+  assert.match(capabilityLayout, /data-slot="capability-detail-body"/);
+  assert.match(capabilityLayout, /flex min-h-0 flex-1 flex-col pt-5/);
   for (const consumer of [
     skillDetail,
     connectorDetail,
@@ -846,7 +848,10 @@ test("Capability page chrome has one Header, typography, action, and shape owner
   ]) {
     assert.match(consumer, /<CapabilityDetailPage/);
     assert.doesNotMatch(consumer, /WorkspaceContentDetailHeader/);
+    assert.doesNotMatch(consumer, /className="pt-5"/);
   }
+  assert.doesNotMatch(loopDetail, /className="mt-3 space-y-5"/);
+  assert.doesNotMatch(workGraphDetail, /className="mt-3 flex min-h-0/);
   for (const consumer of [
     skillDetail,
     connectorIdentity,

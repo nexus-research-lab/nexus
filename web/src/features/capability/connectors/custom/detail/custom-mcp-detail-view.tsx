@@ -95,7 +95,7 @@ export function CustomMCPDetailView({
 
   return (
     <CustomMCPDetailFrame name={displayName} onBack={onBack}>
-      <div className="pt-5">
+      <div>
         <CapabilityDetailIdentity
           actions={(
             <>

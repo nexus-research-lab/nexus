@@ -106,6 +106,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   panels, buttons, badges, typography roles, and reduced-motion loading recipes.
 - Unified scheduled-task run rows, diagnostics, output errors, retry actions,
   and artifact actions with shared typography, panel, radius, and button owners.
+- Unified the post-navigation content offset across Skill, Connector, Custom MCP,
+  Loop, and WorkGraph details so every secondary capability page shares one rhythm.
 - Established a single frontend engineering and design-system contract, and
   centralized high overlay layers and responsive dialog geometry behind semantic
   APIs to prevent page-specific stacking and small-window sizing drift.

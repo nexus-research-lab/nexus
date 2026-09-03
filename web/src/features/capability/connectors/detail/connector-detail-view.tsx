@@ -185,7 +185,7 @@ export function ConnectorDetailView({
           title={t("capability.connector_detail_load_failed_title")}
         />
       ) : null}
-      <div className="pt-5">
+      <div>
         <ConnectorDetailHeader
           busy={busy}
           detail={detail}
