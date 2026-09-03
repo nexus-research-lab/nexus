@@ -4,9 +4,6 @@
 
 import { Loader2 } from "lucide-react";
 
-export const CONTROL_CLASS_NAME =
-  "dialog-input h-9 w-full radius-control-md px-3 text-sm text-(--text-strong) outline-none disabled:opacity-(--disabled-opacity)";
-
 export function SubscriptionLoadingState({ label }: { label: string }) {
   return (
     <div className="flex items-center justify-center gap-2 px-4 py-10 text-compact text-(--text-soft)">

@@ -55,6 +55,14 @@ describe("UI contract gallery", () => {
     expect(compactDialog.querySelector(".ui-dialog-viewport-compact")).toBeTruthy();
   });
 
+  it("renders the native select primitive as a controlled accessible field", () => {
+    renderGallery();
+
+    const select = screen.getByRole("combobox", { name: "原生角色" }) as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: "admin" } });
+    expect(select.value).toBe("admin");
+  });
+
   it("exposes the shared compact prompt used by workspace create and rename", () => {
     renderGallery();
 

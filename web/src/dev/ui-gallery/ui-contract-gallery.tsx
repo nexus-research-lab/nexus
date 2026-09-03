@@ -42,6 +42,7 @@ import { UiChoiceButton } from "@/shared/ui/form/choice";
 import {
   UiField,
   UiInput,
+  UiNativeSelect,
   UiSearchInput,
   UiTextarea,
 } from "@/shared/ui/form/form-control";
@@ -86,6 +87,7 @@ export function UiContractGallery() {
   const [searchValue, setSearchValue] = useState("统一浮层间距");
   const [selectedChoice, setSelectedChoice] = useState("balanced");
   const [selectedModel, setSelectedModel] = useState("fast");
+  const [selectedRole, setSelectedRole] = useState("member");
   const [viewport, setViewport] = useState(() => window.innerWidth);
   const visualTheme: VisualTheme = theme === "sunny" ? "light" : theme;
 
@@ -202,7 +204,7 @@ export function UiContractGallery() {
             <UiField label="搜索">
               <UiSearchInput onChange={setSearchValue} value={searchValue} />
             </UiField>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-3">
               <UiField label="模型">
                 <UiSelectMenu
                   ariaLabel="选择模型"
@@ -213,6 +215,17 @@ export function UiContractGallery() {
               </UiField>
               <UiField label="备注">
                 <UiTextarea defaultValue="长内容需要在 320px 下保持可读，不横向溢出。" variant="surface" />
+              </UiField>
+              <UiField htmlFor="gallery-native-role" label="原生角色">
+                <UiNativeSelect
+                  id="gallery-native-role"
+                  onChange={(event) => setSelectedRole(event.target.value)}
+                  value={selectedRole}
+                  variant="surface"
+                >
+                  <option value="member">成员</option>
+                  <option value="admin">管理员</option>
+                </UiNativeSelect>
               </UiField>
             </div>
             <GalleryRow label="Selection">

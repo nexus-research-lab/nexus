@@ -13,6 +13,7 @@ import { UiChoiceButton } from "@/shared/ui/form/choice";
 import {
   UiField,
   UiInput,
+  UiNativeSelect,
   UiSearchInput,
 } from "@/shared/ui/form/form-control";
 import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
@@ -69,6 +70,33 @@ describe("form primitives", () => {
     expect(screen.getByRole("searchbox", { name: "搜索 Agent" })).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "清除" }));
     expect(onChange).toHaveBeenCalledWith("");
+  });
+
+  it("keeps native select semantics while sharing form geometry", async () => {
+    const user = userEvent.setup();
+
+    function Harness() {
+      const [role, setRole] = useState("member");
+      return (
+        <label htmlFor="member-role">
+          角色
+          <UiNativeSelect
+            id="member-role"
+            onChange={(event) => setRole(event.target.value)}
+            value={role}
+            variant="surface"
+          >
+            <option value="member">成员</option>
+            <option value="admin">管理员</option>
+          </UiNativeSelect>
+        </label>
+      );
+    }
+
+    render(<Harness />);
+    const select = screen.getByRole("combobox", { name: "角色" }) as HTMLSelectElement;
+    await user.selectOptions(select, "admin");
+    expect(select.value).toBe("admin");
   });
 
   it("keeps checkbox native semantics while sharing size and disabled states", async () => {

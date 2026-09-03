@@ -88,6 +88,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Routed ordinary product actions and external navigation through the shared
   Button primitives, preventing feature code from copying internal button
   recipes while preserving each action's size, tone, and loading state.
+- Added a native Select form primitive and moved project, subscription,
+  password, and deployment-member fields onto shared form-control ownership,
+  with an architecture gate for internal style imports and unowned selects.
 - Updated the Feishu long-connection SDK to v3.11.0 and pinned DingTalk's
   official v0.9.2 beta stream SDK so both channels receive the vendors'
   current WebSocket lifecycle and concurrency fixes.

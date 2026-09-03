@@ -7,6 +7,7 @@ import { Loader2, Plus, Save } from "lucide-react";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import { UiButton } from "@/shared/ui/button/button";
+import { UiInput } from "@/shared/ui/form/form-control";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import {
   SETTINGS_CARD_CLASS_NAME,
@@ -23,7 +24,6 @@ import {
   normalizePlanStatus,
 } from "./subscription-admin-model";
 import {
-  CONTROL_CLASS_NAME,
   SubscriptionEmptyState,
   SubscriptionLoadingState,
 } from "./subscription-admin-ui";
@@ -81,8 +81,7 @@ function SubscriptionPlanRow({
           <span className="text-xs font-semibold text-(--text-muted)">
             {t("settings.subscription.display_name")}
           </span>
-          <input
-            className={CONTROL_CLASS_NAME}
+          <UiInput
             disabled={disabled}
             onChange={(event) => onChangeDraft(plan.plan_key, {
               displayName: event.target.value,
@@ -113,8 +112,7 @@ function SubscriptionPlanRow({
           <span className="text-xs font-semibold text-(--text-muted)">
             {t("settings.subscription.plan_limit")}
           </span>
-          <input
-            className={CONTROL_CLASS_NAME}
+          <UiInput
             disabled={disabled}
             inputMode="numeric"
             min={0}
@@ -130,8 +128,7 @@ function SubscriptionPlanRow({
           <span className="text-xs font-semibold text-(--text-muted)">
             {t("settings.subscription.sort_order")}
           </span>
-          <input
-            className={CONTROL_CLASS_NAME}
+          <UiInput
             disabled={disabled}
             inputMode="numeric"
             onChange={(event) => onChangeDraft(plan.plan_key, {
@@ -145,8 +142,7 @@ function SubscriptionPlanRow({
           <span className="text-xs font-semibold text-(--text-muted)">
             {t("settings.subscription.notes")}
           </span>
-          <input
-            className={CONTROL_CLASS_NAME}
+          <UiInput
             disabled={disabled}
             onChange={(event) => onChangeDraft(plan.plan_key, {
               notes: event.target.value,
@@ -198,8 +194,7 @@ function NewSubscriptionPlanForm({
           <span className="text-xs font-semibold text-(--text-muted)">
             {t("settings.subscription.plan_key")}
           </span>
-          <input
-            className={CONTROL_CLASS_NAME}
+          <UiInput
             disabled={disabled}
             onChange={(event) => onChange({ planKey: event.target.value })}
             placeholder={t("settings.subscription.plan_key_placeholder")}
@@ -210,8 +205,7 @@ function NewSubscriptionPlanForm({
           <span className="text-xs font-semibold text-(--text-muted)">
             {t("settings.subscription.display_name")}
           </span>
-          <input
-            className={CONTROL_CLASS_NAME}
+          <UiInput
             disabled={disabled}
             onChange={(event) => onChange({ displayName: event.target.value })}
             placeholder={t("settings.subscription.display_name_placeholder")}
@@ -222,8 +216,7 @@ function NewSubscriptionPlanForm({
           <span className="text-xs font-semibold text-(--text-muted)">
             {t("settings.subscription.plan_limit")}
           </span>
-          <input
-            className={CONTROL_CLASS_NAME}
+          <UiInput
             disabled={disabled}
             inputMode="numeric"
             min={0}

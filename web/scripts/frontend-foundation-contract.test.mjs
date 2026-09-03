@@ -219,6 +219,35 @@ test("only shared primitive adapters consume the internal button style projectio
   assert.deepEqual(violations, []);
 });
 
+test("form style projection and ordinary native selects keep explicit owners", async () => {
+  const files = await collectSourceFiles(srcRoot);
+  const embeddedSelectOwners = new Set([
+    "src/features/conversation/room/group/chat/panel/view/room-goal-lead-control.tsx",
+  ]);
+  const violations = [];
+
+  for (const file of files) {
+    if (!/\.(?:ts|tsx)$/.test(file)) continue;
+    const source = await readFile(file, "utf8");
+    const relativePath = path.relative(webRoot, file);
+    if (
+      relativePath !== "src/shared/ui/form/form-control.tsx"
+      && /@\/shared\/ui\/form\/form-control-styles/.test(source)
+    ) {
+      violations.push(`${relativePath}: internal form style import`);
+    }
+    if (
+      !embeddedSelectOwners.has(relativePath)
+      && relativePath !== "src/shared/ui/form/form-control.tsx"
+      && /<select\b/.test(source)
+    ) {
+      violations.push(`${relativePath}: unowned native select`);
+    }
+  }
+
+  assert.deepEqual(violations, []);
+});
+
 test("critical shared UI groups keep co-located DOM behavior suites", async () => {
   for (const suitePath of REQUIRED_SHARED_UI_BEHAVIOR_SUITES) {
     const source = await readSource(suitePath);
