@@ -8,6 +8,7 @@ import type { ReactNode } from "react";
 import { Target, X } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiIconButton } from "@/shared/ui/button/button";
 import { LoadingOrb } from "@/shared/ui/feedback/loading-orb";
 import type { ComposerRuntimeActivity } from "../../composer-model";
 
@@ -41,15 +42,17 @@ export function ComposerGoalModeIndicator({
         {scopeLabel}
       </span>
       {extra}
-      <button
+      <UiIconButton
         aria-label={t("composer.cancel_goal_mode")}
-        className="nexus-chat-composer-goal-cancel pointer-events-auto inline-flex h-6 w-6 shrink-0 items-center justify-center radius-control-xs text-(--text-soft) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
+        className="nexus-chat-composer-goal-cancel pointer-events-auto shrink-0"
         disabled={isCreating}
         onClick={onCancel}
-        type="button"
+        size="xs"
+        tooltip={t("composer.cancel_goal_mode")}
+        variant="ghost"
       >
         <X className="h-3 w-3" />
-      </button>
+      </UiIconButton>
     </span>
   );
 }

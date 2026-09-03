@@ -99,4 +99,23 @@ describe("UiButton", () => {
     expect(button.className).toContain("rounded-full");
     expect(button.className).not.toContain("radius-control-lg");
   });
+
+  it("owns the micro action sizes used inside dense toolbars and chips", () => {
+    render(
+      <>
+        <UiButton size="2xs" variant="text">引导</UiButton>
+        <UiIconButton aria-label="移除" size="2xs">
+          <span aria-hidden="true">×</span>
+        </UiIconButton>
+      </>,
+    );
+
+    const textAction = screen.getByRole("button", { name: "引导" });
+    const iconAction = screen.getByRole("button", { name: "移除" });
+    expect(textAction.className).toContain("min-h-6");
+    expect(textAction.className).toContain("ui-type-caption");
+    expect(iconAction.className).toContain("h-5");
+    expect(iconAction.className).toContain("w-5");
+    expect(iconAction.className).toContain("radius-control-xs");
+  });
 });

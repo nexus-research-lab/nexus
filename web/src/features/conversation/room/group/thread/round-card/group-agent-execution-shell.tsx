@@ -11,6 +11,7 @@ import { memo, useMemo } from "react";
 import type { AgentMentionDirectory } from "@/features/conversation/shared/message/agent-mention-chip";
 import { MessageItem } from "@/features/conversation/shared/message/item/message-item";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button/button";
 import type {
   AssistantMessage,
   ResultSummary,
@@ -147,7 +148,7 @@ function GroupAgentExecutionShellInner({
         assistantHeaderAction={showThread || showStop || terminalLabel ? (
           <div
             aria-label={t("room.agent_actions")}
-            className="inline-flex h-7 items-center rounded-lg bg-(--surface-control-field-background) p-0.5"
+            className="radius-control-sm inline-flex h-7 items-center bg-(--surface-control-field-background) p-0.5"
             data-room-agent-execution-actions
             role="group"
           >
@@ -157,18 +158,19 @@ function GroupAgentExecutionShellInner({
               </span>
             ) : null}
             {showStop ? (
-              <button
+              <UiButton
                 aria-label={stopActionLabel}
-                className="inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-xs text-(--text-muted) transition-colors hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] hover:text-(--destructive) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:cursor-wait disabled:opacity-70"
                 data-room-agent-action="stop"
                 disabled={isStopping}
                 onClick={onStopAgentRound}
+                size="2xs"
                 title={stopActionLabel}
-                type="button"
+                tone="danger"
+                variant="text"
               >
                 <Square className="h-3 w-3 fill-current" />
                 <span className="hidden sm:inline">{stopLabel}</span>
-              </button>
+              </UiButton>
             ) : null}
             {(showStop || terminalLabel) && showThread ? (
               <span

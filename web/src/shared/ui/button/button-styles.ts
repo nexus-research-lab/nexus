@@ -6,8 +6,8 @@ import { cn } from "@/shared/ui/class-name";
 
 export type UiButtonTone = "default" | "primary" | "danger";
 export type UiButtonVariant = "surface" | "solid" | "ghost" | "text";
-export type UiButtonSize = "xs" | "sm" | "md" | "lg";
-export type UiIconButtonSize = "xs" | "sm" | "md" | "lg";
+export type UiButtonSize = "2xs" | "xs" | "sm" | "md" | "lg";
+export type UiIconButtonSize = "2xs" | "xs" | "sm" | "md" | "lg";
 export type UiIconButtonShape = "rounded" | "round";
 
 interface UiButtonStyleOptions {
@@ -34,6 +34,7 @@ const BUTTON_BASE_CLASS_NAME =
   "inline-flex items-center justify-center gap-1.5 border ui-type-weight-semibold transition-[background,border-color,color,box-shadow] duration-(--motion-duration-fast) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]";
 
 const BUTTON_SIZE_CLASS_MAP: Record<UiButtonSize, string> = {
+  "2xs": "min-h-6 radius-control-xs px-1.5 py-0.5 ui-type-caption",
   xs: "min-h-7 radius-control-xs px-2 py-1 ui-type-caption",
   sm: "min-h-8 radius-control-sm px-2.5 py-1.5 ui-type-metadata",
   md: "min-h-9 radius-control-md px-3.5 py-2 ui-type-control",
@@ -85,6 +86,7 @@ const ICON_BUTTON_BASE_CLASS_NAME =
   "inline-flex items-center justify-center border transition-[background,border-color,color,box-shadow] duration-(--motion-duration-fast) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]";
 
 const ICON_BUTTON_SIZE_CLASS_MAP: Record<UiIconButtonSize, string> = {
+  "2xs": "h-5 w-5",
   xs: "h-6 w-6",
   sm: "h-7 w-7",
   md: "h-8 w-8",
@@ -92,6 +94,7 @@ const ICON_BUTTON_SIZE_CLASS_MAP: Record<UiIconButtonSize, string> = {
 };
 
 const ICON_BUTTON_ROUNDED_CLASS_MAP: Record<UiIconButtonSize, string> = {
+  "2xs": "radius-control-xs",
   xs: "radius-control-xs",
   sm: "radius-control-sm",
   md: "radius-control-md",

@@ -1,7 +1,13 @@
+/**
+ * INPUT: 单条排队消息、拖动投影与引导/删除动作。
+ * OUTPUT: 保持原生拖动语义并复用共享微型动作的队列行。
+ * POS: Composer Pending Queue 行视图；不拥有队列顺序或命令状态。
+ */
 import { CornerDownRight, GripVertical, Paperclip, Trash2 } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import type { InputQueueItem } from "@/types/agent/agent-conversation";
 
 import type {
@@ -67,24 +73,28 @@ export function PendingQueueItem({
         <GripVertical className="h-3.5 w-3.5" />
       </span>
       <PendingQueueItemContentView content={projection.content} />
-      <button
+      <UiButton
         aria-label={guideAriaLabel}
-        className="inline-flex h-6 shrink-0 items-center justify-center gap-1 px-1 text-xs font-semibold text-(--text-soft) transition-colors hover:text-(--text-strong) disabled:pointer-events-none disabled:opacity-(--disabled-opacity)"
+        className="shrink-0"
         disabled={isActionRunning}
         onClick={() => onGuide(item.id)}
-        type="button"
+        size="2xs"
+        variant="text"
       >
         <CornerDownRight className="h-3 w-3" />
         {guideActionLabel}
-      </button>
-      <button
+      </UiButton>
+      <UiIconButton
         aria-label={t("composer.delete_pending")}
-        className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-(--text-soft) transition-colors hover:text-(--destructive)"
+        className="shrink-0"
         onClick={() => onDelete(item.id)}
-        type="button"
+        size="xs"
+        tone="danger"
+        tooltip={t("composer.delete_pending")}
+        variant="ghost"
       >
         <Trash2 className="h-3 w-3" />
-      </button>
+      </UiIconButton>
     </div>
   );
 }

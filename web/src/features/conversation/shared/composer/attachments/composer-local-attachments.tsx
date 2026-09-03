@@ -17,6 +17,7 @@ import {
 
 import type { MessageAttachmentKind } from "@/types/conversation/message/attachment";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiIconButton } from "@/shared/ui/button/button";
 
 import type { ComposerLocalAttachment } from "./composer-local-attachment-model";
 import { ComposerAttachmentPreviewDialog } from "./composer-attachment-preview-dialog";
@@ -24,7 +25,6 @@ import { useComposerLocalFileUrl } from "./use-composer-local-file-url";
 import {
   COMPOSER_ATTACHMENT_CLASS_NAME,
   COMPOSER_ATTACHMENT_PREVIEW_CLASS_NAME,
-  COMPOSER_ATTACHMENT_REMOVE_CLASS_NAME,
   COMPOSER_ATTACHMENT_ROW_CLASS_NAME,
   COMPOSER_IMAGE_ATTACHMENT_CLASS_NAME,
   COMPOSER_IMAGE_ATTACHMENT_PREVIEW_CLASS_NAME,
@@ -111,14 +111,18 @@ export function ComposerAttachmentList({
               <span className="max-w-[120px] truncate text-xs text-foreground/70">
                 {attachment.file.name}
               </span>
-              <button
+              <UiIconButton
                 aria-label={removeLabel}
-                className={COMPOSER_ATTACHMENT_REMOVE_CLASS_NAME}
+                className="ml-1 shrink-0 opacity-60 hover:opacity-100"
                 onClick={() => onRemove(attachment.id)}
-                type="button"
+                shape="round"
+                size="2xs"
+                tone="danger"
+                tooltip={removeLabel}
+                variant="ghost"
               >
                 <X size={12} />
-              </button>
+              </UiIconButton>
             </div>
           );
         })}
@@ -217,14 +221,18 @@ function ComposerTextAttachment({
         </span>
         <Eye className="h-3.5 w-3.5 shrink-0 text-(--icon-muted) opacity-55" />
       </button>
-      <button
+      <UiIconButton
         aria-label={removeLabel}
-        className={COMPOSER_ATTACHMENT_REMOVE_CLASS_NAME}
+        className="ml-1 shrink-0 opacity-60 hover:opacity-100"
         onClick={() => onRemove(attachment.id)}
-        type="button"
+        shape="round"
+        size="2xs"
+        tone="danger"
+        tooltip={removeLabel}
+        variant="ghost"
       >
         <X size={12} />
-      </button>
+      </UiIconButton>
     </div>
   );
 }

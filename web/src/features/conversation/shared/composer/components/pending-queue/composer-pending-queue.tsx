@@ -1,9 +1,16 @@
 "use client";
 
+/**
+ * INPUT: 待发送消息、折叠状态与排序/引导/删除命令。
+ * OUTPUT: 可拖动、可收起且使用共享微型动作的 Composer 队列。
+ * POS: Composer 输入队列装配层；队列事务由 controller 持有。
+ */
+
 import { ChevronDown, ChevronUp } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiIconButton } from "@/shared/ui/button/button";
 import type { InputQueueItem } from "@/types/agent/agent-conversation";
 
 import {
@@ -107,14 +114,16 @@ function PendingQueueHeader({
         {t("composer.pending_queue")}
         <span className="tabular-nums">{count}</span>
       </span>
-      <button
+      <UiIconButton
         aria-label={label}
-        className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-(--text-soft) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
+        className="shrink-0"
         onClick={onToggle}
-        type="button"
+        size="2xs"
+        tooltip={label}
+        variant="ghost"
       >
         <CollapseIcon className="h-3 w-3" />
-      </button>
+      </UiIconButton>
     </div>
   );
 }

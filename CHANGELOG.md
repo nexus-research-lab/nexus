@@ -38,6 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Added shared 20px icon and 24px text micro-action sizes, then adopted them
+  across Composer directory, queue, attachment, Goal, and Room execution
+  controls so dense toolbars no longer redefine button states per page.
 - Unified Composer action, Session permission/model, Room model, and nested back
   triggers on shared Button primitives while retaining specialized Agent rows
   and context-usage visualization behavior.

@@ -716,6 +716,31 @@ test("Composer shell actions use shared Button primitives", async () => {
   assert.equal(roomModelControl.match(/<button\b/g)?.length, 1);
 });
 
+test("dense Composer and Room toolbars use the shared micro Button scale", async () => {
+  const paths = [
+    "src/features/conversation/shared/composer/components/composer-local-directories.tsx",
+    "src/features/conversation/shared/composer/components/footer/composer-footer-status.tsx",
+    "src/features/conversation/shared/composer/components/pending-queue/composer-pending-queue.tsx",
+    "src/features/conversation/shared/composer/components/pending-queue/pending-queue-item.tsx",
+    "src/features/conversation/room/group/thread/round-card/group-agent-execution-shell.tsx",
+    "src/features/conversation/room/group/thread/round-card/thread-action-button.tsx",
+  ];
+  const sources = await Promise.all(paths.map(readSource));
+  const attachments = await readSource(
+    "src/features/conversation/shared/composer/attachments/composer-local-attachments.tsx",
+  );
+  const buttonStyles = await readSource("src/shared/ui/button/button-styles.ts");
+
+  assert.match(buttonStyles, /"2xs": "min-h-6[^\n]*ui-type-caption"/);
+  assert.match(buttonStyles, /"2xs": "h-5 w-5"/);
+  for (const source of sources) {
+    assert.match(source, /<Ui(?:Icon)?Button/);
+    assert.doesNotMatch(source, /<button\b|rounded-\[/);
+  }
+  assert.match(attachments, /<UiIconButton/);
+  assert.equal(attachments.match(/<button\b/g)?.length, 3);
+});
+
 test("Agent Skill and private-domain loading states share Spinner roles", async () => {
   const paths = [
     "src/features/agents/options/components/skills/agent-options-skills-content.tsx",
