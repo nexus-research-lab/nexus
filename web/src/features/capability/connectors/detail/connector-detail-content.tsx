@@ -8,10 +8,12 @@ import { Check, ChevronRight, ExternalLink, Power } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiLinkButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiListRow } from "@/shared/ui/list/list-row";
 import { UiPanel } from "@/shared/ui/panel";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { ResourceFailure } from "@/lib/error-message";
 import type {
   ConnectorDetail,
@@ -98,7 +100,10 @@ function ConnectorFeatureList({
   }
   return (
     <section>
-      <h2 className="mb-2 text-base font-medium text-(--text-strong)">
+      <h2 className={cn(
+        "mb-2",
+        getUiTypographyClassName({ role: "sectionTitle", tone: "strong" }),
+      )}>
         包含内容
       </h2>
       <UiPanel
@@ -167,7 +172,7 @@ function RichMailConnectionSection({
     || "连接后获取";
   return (
     <section className="border-y border-(--divider-subtle-color) py-5">
-      <h2 className="text-base font-medium text-(--text-strong)">
+      <h2 className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong" })}>
         连接信息
       </h2>
       <dl className="mt-3 grid gap-x-8 gap-y-3 sm:grid-cols-2">
@@ -196,17 +201,23 @@ function RichMailConnectionSection({
           role="note"
         >
           <div className="flex items-start gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] bg-[color:color-mix(in_srgb,var(--brand-action)_11%,transparent)] text-(--brand-action)">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center radius-control-md bg-[color:color-mix(in_srgb,var(--brand-action)_11%,transparent)] text-(--brand-action)">
               <Power className="h-4 w-4" />
             </span>
             <div className="min-w-0">
-              <p className="text-xs font-semibold tracking-[0.08em] text-(--brand-action)">
+              <p className={getUiTypographyClassName({ role: "overline", tone: "brand" })}>
                 连接前准备
               </p>
-              <h3 className="mt-1 text-sm font-semibold text-(--text-strong)">
+              <h3 className={cn(
+                "mt-1",
+                getUiTypographyClassName({ role: "control", tone: "strong", weight: "semibold" }),
+              )}>
                 请先在 RichMail 开启 Agent MCP 服务
               </h3>
-              <p className="mt-1 text-xs leading-5 text-(--text-muted)">
+              <p className={cn(
+                "mt-1",
+                getUiTypographyClassName({ role: "caption", tone: "muted" }),
+              )}>
                 打开 RichMail 并保持后台运行，然后按照下面的路径完成设置。
               </p>
             </div>
@@ -214,20 +225,30 @@ function RichMailConnectionSection({
 
           <div className="mt-4 flex flex-col gap-3 border-t border-[color:color-mix(in_srgb,var(--brand-action)_14%,var(--divider-subtle-color))] pt-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
-              <p className="text-xs font-medium text-(--text-soft)">
+              <p className={getUiTypographyClassName({ role: "caption", tone: "soft", weight: "medium" })}>
                 RichMail 设置路径
               </p>
-              <p className="mt-1 text-xs font-medium leading-5 text-(--text-default)">
+              <p className={cn(
+                "mt-1",
+                getUiTypographyClassName({ role: "caption", tone: "default", weight: "medium" }),
+              )}>
                 设置 → Rwork → 智能体与能力 → 对外 MCP 服务
               </p>
             </div>
-            <span className="inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full border border-[color:color-mix(in_srgb,var(--brand-action)_22%,var(--divider-subtle-color))] bg-(--surface-panel-background) px-2.5 py-1 text-xs font-medium text-(--text-strong)">
-              <Check className="h-3.5 w-3.5 text-(--brand-action)" />
+            <UiBadge
+              className="w-fit"
+              icon={<Check className="h-3.5 w-3.5" />}
+              size="md"
+              tone="primary"
+            >
               开启「启用 Agent MCP 服务」
-            </span>
+            </UiBadge>
           </div>
 
-          <p className="mt-3 text-xs leading-5 text-(--text-muted)">
+          <p className={cn(
+            "mt-3",
+            getUiTypographyClassName({ role: "caption", tone: "muted" }),
+          )}>
             完成后返回 Nexus 开始连接，并在 RichMail 中批准本次授权。
           </p>
         </div>
@@ -238,9 +259,12 @@ function RichMailConnectionSection({
 
 function ConnectorFact({ label, value }: { label: string; value: string }) {
   return (
-    <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-3 text-sm">
-      <dt className="text-(--text-soft)">{label}</dt>
-      <dd className="min-w-0 break-words text-(--text-default)">{value}</dd>
+    <div className={cn(
+      "grid grid-cols-[88px_minmax(0,1fr)] gap-3",
+      getUiTypographyClassName({ role: "supporting" }),
+    )}>
+      <dt className="ui-type-tone-soft">{label}</dt>
+      <dd className="min-w-0 break-words ui-type-tone-default">{value}</dd>
     </div>
   );
 }

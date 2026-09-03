@@ -6,10 +6,12 @@ import { Code2, RotateCcw, Wrench } from "lucide-react";
 import type { ResourceFailure } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiListRow } from "@/shared/ui/list/list-row";
 import { UiPanel } from "@/shared/ui/panel";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type {
   CustomMCPTool,
   CustomMCPToolCatalog,
@@ -38,22 +40,28 @@ export function MCPToolsSection({
   const toolCount = catalog?.tools.length ?? 0;
   return (
     <section className="py-5">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h2 className="text-base font-medium text-(--text-strong)">
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="min-w-0">
+          <h2 className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong" })}>
             {t("capability.custom_mcp_tools")}
             {catalog?.inspection_state === "connected" ? (
-              <span className="ml-2 text-xs font-normal tabular-nums text-(--text-soft)">
+              <span className={cn(
+                "ml-2 tabular-nums",
+                getUiTypographyClassName({ role: "caption", tone: "soft" }),
+              )}>
                 {toolCount}
               </span>
             ) : null}
           </h2>
-          <p className="mt-1 text-xs text-(--text-muted)">
+          <p className={cn(
+            "mt-1",
+            getUiTypographyClassName({ role: "caption", tone: "muted" }),
+          )}>
             {description || t("capability.custom_mcp_tools_description")}
           </p>
         </div>
         {failure ? (
-          <UiButton onClick={onRetry} size="sm" type="button" variant="text">
+          <UiButton className="shrink-0" onClick={onRetry} size="sm" type="button" variant="text">
             <RotateCcw className="h-3.5 w-3.5" />
             {t("state.retry")}
           </UiButton>
@@ -108,7 +116,10 @@ export function MCPToolsSection({
 
 function MCPToolsMessage({ title }: { title: string }) {
   return (
-    <div className="mt-3 flex min-h-28 items-center border-y border-(--divider-subtle-color) px-1 text-sm text-(--text-muted)">
+    <div className={cn(
+      "mt-3 flex min-h-28 items-center border-y border-(--divider-subtle-color) px-1",
+      getUiTypographyClassName({ role: "supporting", tone: "muted" }),
+    )}>
       {title}
     </div>
   );
@@ -120,23 +131,30 @@ function MCPToolRow({ tool }: { tool: CustomMCPTool }) {
     <UiListRow
       className="min-h-[68px] rounded-none py-3"
       leading={(
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] border border-(--divider-subtle-color) bg-(--surface-panel-background)">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center radius-control-md border border-(--divider-subtle-color) bg-(--surface-panel-background)">
           <Wrench className="h-4 w-4 text-(--icon-default)" />
         </span>
       )}
     >
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <h3 className="font-medium text-(--text-strong)">{tool.title}</h3>
+          <h3 className={getUiTypographyClassName({ role: "control", tone: "strong", weight: "medium" })}>
+            {tool.title}
+          </h3>
           {tool.title !== tool.name ? (
-            <code className="text-2xs text-(--text-soft)">{tool.name}</code>
+            <code className={getUiTypographyClassName({ role: "code", tone: "soft" })}>
+              {tool.name}
+            </code>
           ) : null}
           {tool.read_only ? (
             <UiBadge>{t("capability.custom_mcp_tool_read_only")}</UiBadge>
           ) : null}
         </div>
         {tool.description ? (
-          <p className="mt-1 text-sm leading-5 text-(--text-muted)">
+          <p className={cn(
+            "mt-1",
+            getUiTypographyClassName({ role: "supporting", tone: "muted" }),
+          )}>
             {tool.description}
           </p>
         ) : null}
@@ -145,7 +163,10 @@ function MCPToolRow({ tool }: { tool: CustomMCPTool }) {
             <Code2 className="h-3.5 w-3.5 text-(--icon-muted)" />
             {tool.arguments.map((argument) => (
               <code
-                className="rounded-[5px] bg-(--surface-interactive-hover-background) px-1.5 py-0.5 text-2xs text-(--text-muted)"
+                className={cn(
+                  "radius-control-xs bg-(--surface-interactive-hover-background) px-1.5 py-0.5",
+                  getUiTypographyClassName({ role: "code", tone: "muted" }),
+                )}
                 key={argument.name}
                 title={argument.description}
               >

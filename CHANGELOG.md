@@ -122,6 +122,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Completed the Settings-wide semantic typography migration for permission,
   workspace-path, and runtime validation copy, with a domain gate preventing
   future page-local font and arbitrary-radius recipes.
+- Standardized Connector, Custom MCP, and Skill detail chrome on shared Button,
+  LinkButton, Typography, Badge, and Resource State owners, removing duplicated
+  breadcrumb action styling and the Skill-only failure card; the shared MCP tool
+  header now moves retry actions onto a full-width-safe row in narrow windows.
 - Moved floating feedback and shared resource states onto named surface, layer,
   typography, shape, and Button contracts, with DOM tests for recovery,
   dismissal, live-region behavior, and auto-dismiss timing resets.

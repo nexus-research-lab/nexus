@@ -19,16 +19,17 @@ import {
   getSkillDisplayTitle,
 } from "@/lib/skill-description";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiButton } from "@/shared/ui/button/button";
+import { UiButton, UiLinkButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
-import { RecoverySummary } from "@/shared/ui/feedback/recovery-summary";
 import { WorkspaceContentDetailHeader } from "@/shared/ui/layout/workspace-content-header";
 import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import { UiPanel } from "@/shared/ui/panel";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { SkillAgentBinding } from "@/types/capability/skill";
 
 import {
@@ -109,19 +110,24 @@ function SkillDetailBreadcrumb({
   const { t } = useI18n();
   return (
     <WorkspaceContentDetailHeader>
-      <div className="flex min-w-0 items-center gap-2 text-sm text-(--text-muted)">
-        <button
-          className="inline-flex items-center gap-1 rounded-[8px] px-1.5 py-1 font-medium transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_28%,transparent)]"
+      <div className="flex min-w-0 items-center gap-2">
+        <UiButton
           onClick={onBack}
-          type="button"
+          size="sm"
+          variant="text"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
           {t("capability.skills_detail_back")}
-        </button>
+        </UiButton>
         {title ? (
           <>
             <ChevronRight className="h-3.5 w-3.5 text-(--icon-muted)" />
-            <span className="truncate font-medium text-(--text-strong)">{title}</span>
+            <span className={cn(
+              "truncate",
+              getUiTypographyClassName({ role: "metadata", tone: "strong", weight: "medium" }),
+            )}>
+              {title}
+            </span>
           </>
         ) : null}
       </div>
@@ -247,7 +253,10 @@ function SkillDetailReady({
           />
         )}
         <section>
-          <h2 className="mb-3 text-md font-semibold tracking-[-0.025em] text-(--text-strong)">
+          <h2 className={cn(
+            "mb-3",
+            getUiTypographyClassName({ role: "pageTitle", tone: "strong" }),
+          )}>
             {t("capability.skills_detail_description")}
           </h2>
           <UiPanel padding="md" radius="md" variant="card">
@@ -268,10 +277,13 @@ function RoomSkillUsage() {
   const { t } = useI18n();
   return (
     <section>
-      <h2 className="text-md font-semibold tracking-[-0.025em] text-(--text-strong)">
+      <h2 className={getUiTypographyClassName({ role: "pageTitle", tone: "strong" })}>
         {t("capability.skills_detail_room_scope")}
       </h2>
-      <p className="mt-1 text-sm text-(--text-muted)">
+      <p className={cn(
+        "mt-1",
+        getUiTypographyClassName({ role: "supporting", tone: "muted" }),
+      )}>
         {t("capability.skills_detail_room_scope_description")}
       </p>
     </section>
@@ -303,15 +315,18 @@ function SkillAgentBindings({
     <section>
       <div className="mb-3 flex items-end justify-between gap-3">
         <div>
-          <h2 className="text-md font-semibold tracking-[-0.025em] text-(--text-strong)">
+          <h2 className={getUiTypographyClassName({ role: "pageTitle", tone: "strong" })}>
             {t("capability.skills_detail_agent_scope")}
           </h2>
-          <p className="mt-1 text-sm text-(--text-muted)">
+          <p className={cn(
+            "mt-1",
+            getUiTypographyClassName({ role: "supporting", tone: "muted" }),
+          )}>
             {t("capability.skills_detail_agent_scope_description")}
           </p>
         </div>
         {!agentsLoading ? (
-          <span className="text-xs text-(--text-soft)">
+          <span className={getUiTypographyClassName({ role: "caption", tone: "soft" })}>
             {t("capability.skills_detail_enabled_count", {
               enabled: enabledCount,
               total: agentBindings.length,
@@ -328,14 +343,19 @@ function SkillAgentBindings({
           />
         ) : null}
         {agentsLoading ? (
-          <div className="flex items-center gap-2 px-3 py-3 text-sm text-(--text-muted)">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            {t("capability.skills_detail_bindings_loading")}
-          </div>
+          <UiResourceState
+            size="sm"
+            state="loading"
+            title={t("capability.skills_detail_bindings_loading")}
+            variant="plain"
+          />
         ) : agentBindings.length === 0 && !bindingsFailure ? (
-          <p className="px-3 py-3 text-sm text-(--text-muted)">
-            {t("capability.skills_detail_no_agents")}
-          </p>
+          <UiResourceState
+            size="sm"
+            state="empty"
+            title={t("capability.skills_detail_no_agents")}
+            variant="plain"
+          />
         ) : (
           <div className="divide-y divide-(--divider-subtle-color)">
             {agentBindings.map((binding) => {
@@ -349,15 +369,18 @@ function SkillAgentBindings({
                 <div key={binding.agent_id}>
                   <div className="flex items-center justify-between gap-3 px-3 py-2.5">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-(--text-strong)">
+                      <p className={cn(
+                        "truncate",
+                        getUiTypographyClassName({ role: "control", tone: "strong", weight: "medium" }),
+                      )}>
                         {binding.agent_name}
                       </p>
-                      <p className="text-xs text-(--text-soft)">
+                      <p className={getUiTypographyClassName({ role: "caption", tone: "soft" })}>
                         {presentation.description}
                       </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
-                      <span className="text-xs text-(--text-muted)">
+                      <span className={getUiTypographyClassName({ role: "caption", tone: "muted" })}>
                         {presentation.status}
                       </span>
                       <GlassSwitch
@@ -404,21 +427,18 @@ function SkillAgentFailureNotice({
   refreshLabel: string;
 }) {
   return (
-    <div
-      aria-live="polite"
-      className={`${className} rounded-[8px] border px-3 py-2 ${failure.tone === "warning" ? "border-[color:color-mix(in_srgb,var(--warning)_22%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_5%,transparent)]" : "border-[color:color-mix(in_srgb,var(--destructive)_18%,transparent)] bg-(--status-danger-soft-background)"}`}
-      role="status"
-    >
-      <p className="text-xs font-semibold text-(--text-strong)">
-        {failure.title}
-      </p>
-      <RecoverySummary className="mt-0.5" impact={failure.impact} />
-      {onRefresh ? (
-        <UiButton className="mt-1" onClick={onRefresh} size="xs" type="button" variant="text">
-          {refreshLabel}
-        </UiButton>
-      ) : null}
-    </div>
+    <UiResourceState
+      className={className}
+      impact={failure.impact}
+      primaryAction={onRefresh
+        ? { label: refreshLabel, onClick: onRefresh }
+        : undefined}
+      size="sm"
+      state="error"
+      title={failure.title}
+      tone={failure.tone}
+      variant="card"
+    />
   );
 }
 
@@ -438,12 +458,18 @@ function SkillDetailHero({
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-4">
           <UiSeededAvatar seed={model.avatarSeed} size="lg" />
-          <h1 className="min-w-0 text-lg font-semibold tracking-[-0.025em] text-(--text-strong)">
+          <h1 className={cn(
+            "min-w-0",
+            getUiTypographyClassName({ role: "objectTitle", tone: "strong" }),
+          )}>
             <span className="truncate">{model.displayName}</span>
           </h1>
         </div>
         {model.description ? (
-          <p className="mt-3 text-sm leading-5 text-(--text-muted)">
+          <p className={cn(
+            "mt-3",
+            getUiTypographyClassName({ role: "supporting", tone: "muted" }),
+          )}>
             {model.description}
           </p>
         ) : null}
@@ -568,14 +594,16 @@ function SkillSourceLink({ sourceUrl }: { sourceUrl: string | null }) {
   if (!sourceUrl) return null;
 
   return (
-    <a
-      className="inline-flex items-center gap-2 text-sm font-semibold text-(--primary) underline decoration-[color:color-mix(in_srgb,var(--primary)_28%,transparent)] underline-offset-4"
+    <UiLinkButton
       href={sourceUrl}
       rel="noopener noreferrer"
+      size="sm"
       target="_blank"
+      tone="primary"
+      variant="text"
     >
       <ExternalLink className="h-3.5 w-3.5" />
       {t("capability.skills_detail_view_source")}
-    </a>
+    </UiLinkButton>
   );
 }

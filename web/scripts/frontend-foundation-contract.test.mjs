@@ -493,6 +493,32 @@ test("Settings app chrome does not redefine semantic typography or arbitrary rad
   assert.deepEqual(violations, []);
 });
 
+test("Capability detail chrome uses shared actions, typography, states, and shapes", async () => {
+  const detailPaths = [
+    "src/features/capability/connectors/detail/connector-detail-header.tsx",
+    "src/features/capability/connectors/detail/connector-detail-content.tsx",
+    "src/features/capability/connectors/custom/detail/custom-mcp-detail-view.tsx",
+    "src/features/capability/connectors/mcp/mcp-tools-section.tsx",
+    "src/features/capability/skills/detail/skill-detail-view.tsx",
+  ];
+  const sources = await Promise.all(detailPaths.map(readSource));
+  const localTypographyPattern = /\b(?:text-(?:2xs|xs|compact|sm|base|md|lg|xl|2xl)|font-(?:normal|medium|semibold|bold|mono)|leading-(?:none|\d+|\[[^\]]+\])|tracking-(?:tight|wide|\[[^\]]+\])|rounded-\[[^\]]+\])/;
+
+  assert.deepEqual(
+    detailPaths.filter((_, index) => localTypographyPattern.test(sources[index])),
+    [],
+  );
+  const detailChrome = sources.join("\n");
+  assert.match(detailChrome, /getUiTypographyClassName/);
+  assert.match(detailChrome, /<UiButton/);
+  assert.match(detailChrome, /<UiLinkButton/);
+  assert.match(detailChrome, /<UiBadge/);
+  assert.match(detailChrome, /<UiResourceState/);
+  assert.doesNotMatch(detailChrome, /<button/);
+  assert.match(sources[3], /flex flex-col items-start gap-3 sm:flex-row/);
+  assert.match(sources[3], /className="shrink-0"/);
+});
+
 test("product source contains no arbitrary shadows or numeric z-index values", async () => {
   const files = (await Promise.all(productUiRoots.map(collectSourceFiles))).flat();
   const violations = [];

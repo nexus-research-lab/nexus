@@ -15,12 +15,14 @@ import type { ReactNode } from "react";
 import type { ResourceFailure } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { WorkspaceContentDetailHeader } from "@/shared/ui/layout/workspace-content-header";
 import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import { UiPanel } from "@/shared/ui/panel";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type {
   CustomMCPServer,
   CustomMCPToolCatalog,
@@ -103,7 +105,7 @@ export function CustomMCPDetailView({
             />
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-lg font-semibold tracking-[-0.025em] text-(--text-strong)">
+                <h1 className={getUiTypographyClassName({ role: "objectTitle", tone: "strong" })}>
                   {displayName}
                 </h1>
                 <UiBadge tone={recoveryRequired
@@ -118,12 +120,18 @@ export function CustomMCPDetailView({
                 </UiBadge>
               </div>
               {recoveryRequired ? (
-                <p className="mt-1 max-w-[680px] text-xs text-(--text-muted)">
+                <p className={cn(
+                  "mt-1 max-w-[680px]",
+                  getUiTypographyClassName({ role: "caption", tone: "muted" }),
+                )}>
                   {t("capability.custom_mcp_recovery_summary")}
                 </p>
               ) : (
                 <p
-                  className="mt-1 max-w-[680px] truncate font-mono text-xs text-(--text-muted)"
+                  className={cn(
+                    "mt-1 max-w-[680px] truncate",
+                    getUiTypographyClassName({ role: "code", tone: "muted" }),
+                  )}
                   title={getCustomMCPConnectionTarget(server)}
                 >
                   {getCustomMCPConnectionTarget(server)}
@@ -132,7 +140,10 @@ export function CustomMCPDetailView({
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <span className="mr-1 text-xs font-medium text-(--text-muted)">
+            <span className={cn(
+              "mr-1",
+              getUiTypographyClassName({ role: "caption", tone: "muted", weight: "medium" }),
+            )}>
               {t("capability.custom_mcp_available_in_chat")}
             </span>
             <GlassSwitch
@@ -199,17 +210,23 @@ function CustomMCPRecoverySection({
   return (
     <section className="py-5">
       <UiPanel className="flex items-start gap-3" padding="md" radius="md">
-        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] bg-[color:color-mix(in_srgb,var(--warning)_8%,transparent)] text-(--warning)">
+        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center radius-control-md bg-[color:color-mix(in_srgb,var(--warning)_8%,transparent)] text-(--warning)">
           <TriangleAlert className="h-4 w-4" />
         </span>
         <div className="min-w-0 flex-1">
-          <h2 className="text-base font-medium text-(--text-strong)">
+          <h2 className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong" })}>
             {t("capability.custom_mcp_recovery_title")}
           </h2>
-          <p className="mt-1 text-sm leading-6 text-(--text-muted)">
+          <p className={cn(
+            "mt-1",
+            getUiTypographyClassName({ role: "supporting", tone: "muted" }),
+          )}>
             {t("capability.custom_mcp_recovery_description")}
           </p>
-          <p className="mt-1 text-sm leading-6 text-(--text-muted)">
+          <p className={cn(
+            "mt-1",
+            getUiTypographyClassName({ role: "supporting", tone: "muted" }),
+          )}>
             {t("capability.custom_mcp_recovery_next_step")}
           </p>
           <UiButton
@@ -240,19 +257,22 @@ function CustomMCPDetailFrame({
   return (
     <div className={WORKSPACE_CONTENT_PAGE_CLASS_NAME}>
       <WorkspaceContentDetailHeader>
-        <div className="flex min-w-0 items-center gap-2 text-base text-(--text-muted)">
-          <button
-            className="inline-flex items-center gap-1 rounded-[8px] px-1.5 py-1 font-medium transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
+        <div className="flex min-w-0 items-center gap-2">
+          <UiButton
             onClick={onBack}
-            type="button"
+            size="sm"
+            variant="text"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             {t("capability.connectors_tab_custom_mcp")}
-          </button>
+          </UiButton>
           {name ? (
             <>
               <ChevronRight className="h-3.5 w-3.5 text-(--icon-muted)" />
-              <span className="truncate font-medium text-(--text-strong)">
+              <span className={cn(
+                "truncate",
+                getUiTypographyClassName({ role: "metadata", tone: "strong", weight: "medium" }),
+              )}>
                 {name}
               </span>
             </>
@@ -280,7 +300,7 @@ function CustomMCPConnectionSection({
     || t("capability.custom_mcp_server_unknown");
   return (
     <section className="border-b border-(--divider-subtle-color) py-5">
-      <h2 className="text-base font-medium text-(--text-strong)">
+      <h2 className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong" })}>
         {t("capability.custom_mcp_connection_info")}
       </h2>
       <dl className="mt-3 grid gap-x-8 gap-y-3 sm:grid-cols-2">
@@ -306,10 +326,13 @@ function CustomMCPConnectionSection({
       </dl>
       {catalog?.instructions ? (
         <div className="mt-4 border-l-2 border-(--divider-strong-color) pl-3">
-          <h3 className="text-xs font-semibold text-(--text-strong)">
+          <h3 className={getUiTypographyClassName({ role: "caption", tone: "strong", weight: "semibold" })}>
             {t("capability.custom_mcp_server_instructions")}
           </h3>
-          <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-(--text-muted)">
+          <p className={cn(
+            "mt-1 whitespace-pre-wrap",
+            getUiTypographyClassName({ role: "supporting", tone: "muted" }),
+          )}>
             {catalog.instructions}
           </p>
         </div>
@@ -334,9 +357,12 @@ function getCustomMCPAuthLabel(
 
 function CustomMCPFact({ label, value }: { label: string; value: string }) {
   return (
-    <div className="grid grid-cols-[112px_minmax(0,1fr)] gap-3 text-sm">
-      <dt className="text-(--text-soft)">{label}</dt>
-      <dd className="min-w-0 break-words text-(--text-default)">{value}</dd>
+    <div className={cn(
+      "grid grid-cols-[112px_minmax(0,1fr)] gap-3",
+      getUiTypographyClassName({ role: "supporting" }),
+    )}>
+      <dt className="ui-type-tone-soft">{label}</dt>
+      <dd className="min-w-0 break-words ui-type-tone-default">{value}</dd>
     </div>
   );
 }
