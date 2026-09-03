@@ -616,6 +616,27 @@ test("Room history, thread, and collaboration states share Spinner roles", async
   }
 });
 
+test("Message actions, task status, and artifact loading share Spinner roles", async () => {
+  const paths = [
+    "src/features/conversation/shared/message/blocks/question/ask-user-question-view.tsx",
+    "src/features/conversation/shared/message/blocks/tool/subagent-task-tool-entry.tsx",
+    "src/features/conversation/shared/message/item/view/assistant/assistant-message-stats.tsx",
+    "src/features/conversation/shared/message/blocks/artifact/image/image-block.tsx",
+    "src/features/conversation/shared/message/blocks/artifact/workgraph/workgraph-artifact-block.tsx",
+  ];
+  const sources = await Promise.all(paths.map(readSource));
+  const combined = sources.join("\n");
+
+  for (const source of sources) {
+    assert.match(source, /getUiSpinnerClassName/);
+    assert.doesNotMatch(source, /\banimate-spin\b/);
+  }
+  for (const size of ["xs", "sm", "md"]) {
+    assert.match(combined, new RegExp(`size: "${size}"`));
+  }
+  assert.match(combined, /tone: "muted"/);
+});
+
 test("List and Badge primitives expose semantic typography and shape instead of page overrides", async () => {
   const [listRow, badge, badgeStyles, providerModels, connectorCard, customMcpGrid] = await Promise.all([
     readSource("src/shared/ui/list/list-row.tsx"),

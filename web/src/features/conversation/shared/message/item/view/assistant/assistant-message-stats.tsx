@@ -21,6 +21,7 @@ import { createPortal } from "react-dom";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { useAnchoredOverlayLayer } from "@/shared/ui/overlay/anchored-overlay-layer";
 import { resolveAnchoredOverlayPosition } from "@/shared/ui/overlay/anchored-overlay-model";
 import { OPEN_OVERLAY_DATA_ATTRIBUTES } from "@/shared/ui/overlay/overlay-contract";
@@ -210,7 +211,11 @@ function AssistantForkAction({
       title={label}
       type="button"
     >
-      <Icon className={cn("h-3 w-3", state === "pending" && "animate-spin")} />
+      <Icon
+        className={state === "pending"
+          ? getUiSpinnerClassName({ size: "xs" })
+          : "h-3 w-3"}
+      />
     </button>
   );
 }

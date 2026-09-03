@@ -11,6 +11,7 @@ import { useEffect, useState } from "react";
 
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import {
   useMarkdownCurrentAgentID,
   useMarkdownFileResolver,
@@ -129,7 +130,9 @@ function useDeferredImageDetail(block: ImageContent): {
 function LoadingImageArtifact({ label }: { label: string }) {
   return (
     <div className="content-artifact-empty content-media-frame my-2 flex items-center justify-center gap-2 px-3 py-2 text-sm">
-      <LoaderCircle className="h-4 w-4 shrink-0 animate-spin" />
+      <LoaderCircle
+        className={getUiSpinnerClassName({ size: "md", tone: "muted" })}
+      />
       {label}
     </div>
   );

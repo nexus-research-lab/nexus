@@ -12,3 +12,4 @@
 - 单选项与自定义回答互斥，多选项可附加自定义回答；该约束必须在模型转换函数中保持原子更新。
 - Composer 已是问答的唯一外层 task surface；问题、选项、自定义回答和 footer 禁止再次套独立卡片。
 - SDK 的 `multiSelect` 只在输入解析时兼容，内部问题契约统一使用 `multi_select`。
+- 问答提交属于标准动作，使用共享 `md` Spinner；视图不得自行维护旋转、尺寸或 reduced-motion class。

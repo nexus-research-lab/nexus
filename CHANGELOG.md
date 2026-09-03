@@ -156,6 +156,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   shared medium and compact Spinner roles.
 - Standardized Room history deletion, Thread waiting, and collaboration
   activity indicators on the same semantic Spinner scale.
+- Unified message question submission, Subagent task status, Assistant fork,
+  image-detail, and WorkGraph-source loading through shared Spinner roles.
 - Established a single frontend engineering and design-system contract, and
   centralized high overlay layers and responsive dialog geometry behind semantic
   APIs to prevent page-specific stacking and small-window sizing drift.

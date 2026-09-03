@@ -28,6 +28,7 @@ import {
 } from "@/shared/ui/dialog/dialog";
 import { getDialogActionClassName } from "@/shared/ui/dialog/dialog-styles";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import type { ExecutionView } from "@/types/conversation/execution";
 import type { WorkGraphArtifactContent } from "@/types/conversation/message/content";
 import type {
@@ -163,7 +164,12 @@ function WorkGraphCompareDialog({
     >
       {loading ? (
         <div className="grid h-full place-items-center text-xs text-(--text-muted)">
-          <span className="inline-flex items-center gap-2"><LoaderCircle className="h-4 w-4 animate-spin" />{t("execution.workflow_artifact_loading_source")}</span>
+          <span className="inline-flex items-center gap-2">
+            <LoaderCircle
+              className={getUiSpinnerClassName({ size: "md", tone: "muted" })}
+            />
+            {t("execution.workflow_artifact_loading_source")}
+          </span>
         </div>
       ) : source ? (
         <ExecutionWorkGraphCanvas currentId={null} directory={{}} execution={source} taskRuns={[]} />

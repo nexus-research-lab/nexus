@@ -17,6 +17,7 @@ import { getCompactToolInputSummary } from "../../tool-activity";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import type { ToolUseContent } from "@/types/conversation/message/content";
 
 import type {
@@ -27,16 +28,16 @@ import type {
 
 const STATUS_ICON: Readonly<Record<
   ToolBlockStatus,
-  { className: string; icon: LucideIcon }
+  { icon: LucideIcon; spinning?: boolean }
 >> = {
-  error: { className: "", icon: X },
-  pending: { className: "", icon: Sparkles },
-  rejected: { className: "", icon: X },
-  superseded: { className: "", icon: Square },
-  running: { className: "animate-spin", icon: LoaderCircle },
-  stopped: { className: "", icon: Square },
-  success: { className: "", icon: Check },
-  waiting_permission: { className: "", icon: Clock3 },
+  error: { icon: X },
+  pending: { icon: Sparkles },
+  rejected: { icon: X },
+  superseded: { icon: Square },
+  running: { icon: LoaderCircle, spinning: true },
+  stopped: { icon: Square },
+  success: { icon: Check },
+  waiting_permission: { icon: Clock3 },
 };
 
 const STATUS_TONE_CLASS: Readonly<Record<ToolStatusTone, string>> = {
@@ -94,7 +95,11 @@ export function SubagentTaskToolEntry({
         data-subagent-task-status={model.status}
         title={model.statusText}
       >
-        <StatusIcon className={cn("h-3.5 w-3.5", statusIcon.className)} />
+        <StatusIcon
+          className={statusIcon.spinning
+            ? getUiSpinnerClassName({ size: "sm" })
+            : "h-3.5 w-3.5"}
+        />
       </span>
     </button>
   );
