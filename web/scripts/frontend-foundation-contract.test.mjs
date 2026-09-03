@@ -29,6 +29,7 @@ const PROHIBITED_PRODUCT_STYLE_PATTERNS = [
 ];
 
 const REQUIRED_SHARED_UI_BEHAVIOR_SUITES = [
+  "src/features/conversation/shared/execution/execution-process-panel.test.tsx",
   "src/shared/ui/button/button.test.tsx",
   "src/shared/ui/dialog/decision/decision-dialog.test.tsx",
   "src/shared/ui/dialog/dialog.test.tsx",
@@ -40,6 +41,7 @@ const REQUIRED_SHARED_UI_BEHAVIOR_SUITES = [
   "src/shared/ui/navigation/tabs.test.tsx",
   "src/shared/ui/overlay/tooltip.test.tsx",
   "src/shared/ui/panel.test.tsx",
+  "src/shared/ui/workspace/surface/workspace-task-strip.test.tsx",
 ];
 
 async function readSource(relativePath) {
@@ -286,6 +288,31 @@ test("Workspace Surface primitives own their semantic typography and identity sh
   assert.doesNotMatch(header, /rounded-\[10px\]/);
   assert.match(view, /role: "pageTitle"/);
   assert.match(toolbarAction, /role: "caption"/);
+});
+
+test("Conversation activity chips share one semantic typography and icon-action owner", async () => {
+  const [styles, tasks, execution, room, recipes] = await Promise.all([
+    readSource("src/shared/ui/workspace/surface/conversation-activity-chip-styles.ts"),
+    readSource("src/shared/ui/workspace/surface/workspace-task-strip.tsx"),
+    readSource("src/features/conversation/shared/execution/execution-process-panel.tsx"),
+    readSource("src/features/conversation/room/group/chat/panel/view/group-chat-panel-view.tsx"),
+    readSource("src/app/styles/theme-recipes.css"),
+  ]);
+
+  assert.match(styles, /getUiTypographyClassName\(\{ role: "metadata" \}\)/);
+  for (const consumer of [tasks, execution, room]) {
+    assert.match(consumer, /getConversationActivityChipClassName/);
+    assert.doesNotMatch(consumer, /className="conversation-activity-chip/);
+  }
+  assert.match(tasks, /role: "caption"/);
+  assert.match(tasks, /<UiIconButton/);
+  assert.match(execution, /<UiIconButton/);
+  assert.doesNotMatch(tasks, /\btext-(?:xs|compact)\b|rounded-\[6px\]/);
+  assert.doesNotMatch(execution, /rounded-\[8px\]/);
+  assert.doesNotMatch(
+    recipes.match(/\.conversation-activity-chip\s*\{[^}]*\}/s)?.[0] ?? "",
+    /font-size|line-height/,
+  );
 });
 
 test("List and Badge primitives expose semantic typography and shape instead of page overrides", async () => {

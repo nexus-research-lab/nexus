@@ -262,8 +262,6 @@
     border-radius: 9px;
     background: var(--surface-control-background);
     box-shadow: var(--surface-control-shadow);
-    font-size: 0.75rem;
-    line-height: 1rem;
   }
 
   @keyframes nexus-scroll-latest-dot-wave {

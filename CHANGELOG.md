@@ -38,6 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Unified the Composer Task, Room collaboration, and WorkGraph activity chips
+  on one semantic typography recipe, and moved their compact icon actions onto
+  the shared button primitive so the three status surfaces cannot drift apart.
 - Unified narrow-window app and Room headers behind one platform-aware layout:
   macOS follows the measured native window-control center, while Windows and
   browsers retain the 52px client-area height and the same shared back action.

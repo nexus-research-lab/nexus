@@ -16,6 +16,7 @@ import {
 } from "react";
 
 import { cn } from "@/shared/ui/class-name";
+import { UiIconButton } from "@/shared/ui/button/button";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { LoadingOrb } from "@/shared/ui/feedback/loading-orb";
@@ -23,8 +24,10 @@ import {
   ANCHORED_OVERLAY_MOTION_CLASS_NAME,
   OVERLAY_SURFACE_CLASS_NAME,
 } from "@/shared/ui/overlay/overlay-styles";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { TodoItem } from "@/types/conversation/todo";
 
+import { getConversationActivityChipClassName } from "./conversation-activity-chip-styles";
 import { resolveWorkspaceTaskState } from "./workspace-task-strip-model";
 
 interface WorkspaceTaskPanelProps {
@@ -134,7 +137,7 @@ export function WorkspaceTaskPanel({
         type="button"
       >
         <span
-          className="conversation-activity-chip inline-flex min-w-0 max-w-full items-center gap-1.5 px-2 py-1 text-(--text-default) transition-[background,color] duration-(--motion-duration-fast) group-hover:bg-(--surface-control-hover-background) group-hover:text-(--text-strong) group-focus-visible:bg-(--surface-control-hover-background) group-focus-visible:ring-2 group-focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_22%,transparent)]"
+          className={getConversationActivityChipClassName("inline-flex min-w-0 max-w-full items-center gap-1.5 px-2 py-1 transition-[background,color] duration-(--motion-duration-fast) group-hover:bg-(--surface-control-hover-background) group-hover:text-(--text-strong) group-focus-visible:bg-(--surface-control-hover-background) group-focus-visible:ring-2 group-focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_22%,transparent)]")}
           data-workspace-task-visual
         >
           {source ? (
@@ -149,13 +152,19 @@ export function WorkspaceTaskPanel({
               <ListChecks aria-hidden="true" className="h-3.5 w-3.5 text-(--icon-muted)" />
             )}
           </span>
-          <span className="shrink-0 font-medium tabular-nums text-(--text-strong)">
+          <span className={cn(
+            "shrink-0 tabular-nums",
+            getUiTypographyClassName({ role: "metadata", tone: "strong", weight: "medium" }),
+          )}>
             {t("tasks.step_progress", {
               current: currentStep,
               total: totalCount,
             })}
           </span>
-          <span className="min-w-0 whitespace-normal break-words text-left leading-4 text-(--text-muted)">
+          <span className={cn(
+            "min-w-0 whitespace-normal break-words text-left",
+            getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+          )}>
             {summary}
           </span>
           <ChevronDown
@@ -197,26 +206,31 @@ export function WorkspaceTaskPanel({
                   />
                 </>
               ) : null}
-              <span className="shrink-0 text-compact font-semibold text-(--text-strong)">
+              <span className={cn(
+                "shrink-0",
+                getUiTypographyClassName({ role: "metadata", tone: "strong", weight: "semibold" }),
+              )}>
                 {t("tasks.label")}
               </span>
               <span
-                className="shrink-0 text-compact tabular-nums text-(--text-soft)"
+                className={cn(
+                  "shrink-0 tabular-nums",
+                  getUiTypographyClassName({ role: "metadata", tone: "soft" }),
+                )}
                 data-workspace-task-progress-label
               >
                 {completedCount}/{totalCount}
               </span>
               <span className="min-w-0 flex-1" />
               {hasRunningTask ? <LoadingOrb /> : null}
-              <button
+              <UiIconButton
                 aria-label={t("tasks.collapse_panel")}
-                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[6px] text-(--icon-muted) transition-[background,color] hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)"
+                className="shrink-0"
                 onClick={collapsePanel}
-                title={t("tasks.collapse_panel")}
-                type="button"
+                size="xs"
               >
                 <ChevronUp className="h-3.5 w-3.5" />
-              </button>
+              </UiIconButton>
             </div>
 
             <div className="soft-scrollbar min-h-0 overflow-y-auto pb-1.5">
@@ -237,27 +251,30 @@ export function WorkspaceTaskPanel({
                     <div className="min-w-0 flex-1">
                       <p
                         className={cn(
-                          "text-compact leading-5 text-(--text-default)",
+                          getUiTypographyClassName({ role: "metadata", tone: "default" }),
                           todo.status === "completed" && "text-(--text-soft) line-through",
                         )}
                       >
                         {todo.content}
                       </p>
                       {isDetailExpanded && hasDetail ? (
-                        <p className="mt-0.5 border-l border-(--divider-subtle-color) pl-2 text-xs leading-4.5 text-(--text-muted)">
+                        <p className={cn(
+                          "mt-0.5 border-l border-(--divider-subtle-color) pl-2",
+                          getUiTypographyClassName({ role: "caption", tone: "muted" }),
+                        )}>
                           {detailText}
                         </p>
                       ) : null}
                     </div>
                     {hasDetail ? (
-                      <button
+                      <UiIconButton
                         aria-expanded={isDetailExpanded}
                         aria-label={isDetailExpanded ? t("tasks.collapse_detail") : t("tasks.expand_detail")}
-                        className="inline-flex h-6 w-6 shrink-0 items-center justify-center radius-control-xs text-(--icon-muted) transition-[background,color] hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)"
+                        className="shrink-0"
                         onClick={() => setExpandedTaskIndex((currentIndex) => (
                           currentIndex === index ? null : index
                         ))}
-                        type="button"
+                        size="xs"
                       >
                         <ChevronDown
                           className={cn(
@@ -265,7 +282,7 @@ export function WorkspaceTaskPanel({
                             isDetailExpanded && "rotate-180",
                           )}
                         />
-                      </button>
+                      </UiIconButton>
                     ) : null}
                   </div>
                 );
@@ -296,7 +313,10 @@ function WorkspaceTaskSourceIdentity({
         name={source.name}
         size="xs"
       />
-      <span className="min-w-0 truncate text-xs font-medium leading-normal text-(--text-default)">
+      <span className={cn(
+        "min-w-0 truncate",
+        getUiTypographyClassName({ role: "caption", tone: "default", weight: "medium" }),
+      )}>
         {source.name}
       </span>
     </span>

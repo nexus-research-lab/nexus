@@ -8,7 +8,9 @@
 import { Workflow } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
+import { getConversationActivityChipClassName } from "@/shared/ui/workspace/surface/conversation-activity-chip-styles";
 import type { ExecutionView } from "@/types/conversation/execution";
 
 import {
@@ -58,7 +60,7 @@ export function ExecutionProcessPanel({
       data-execution-status={execution.status}
     >
       <div
-        className="conversation-activity-chip pointer-events-auto flex max-w-full items-center gap-0.5 overflow-hidden px-0.5"
+        className={getConversationActivityChipClassName("pointer-events-auto flex max-w-full items-center gap-0.5 overflow-hidden px-0.5")}
         data-execution-agent-activity-dock
       >
         {agentNodes.map((node, index) => {
@@ -82,13 +84,13 @@ export function ExecutionProcessPanel({
                   data-execution-agent-connection
                 />
               ) : null}
-              <button
+              <UiIconButton
                 aria-label={canNavigate
                   ? t("execution.jump_to_agent_output", {
                       agent: owner?.name ?? t("execution.owner_unassigned"),
                     })
                   : `${t("execution.open_workgraph")} · ${title}`}
-                className="grid h-7 w-7 shrink-0 place-items-center rounded-[8px] transition-[background,transform] hover:bg-(--surface-interactive-hover-background) hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--primary)"
+                className="shrink-0 transition-transform hover:scale-[1.03]"
                 data-execution-agent-activity={owner?.id ?? node.id}
                 data-execution-agent-live={live ? "true" : undefined}
                 data-execution-agent-round-id={node.agent_round_id || undefined}
@@ -99,8 +101,8 @@ export function ExecutionProcessPanel({
                   }
                   onOpenGraph?.();
                 }}
-                title={title}
-                type="button"
+                size="sm"
+                tooltip={title}
               >
                 <ExecutionNodeAvatar
                   agent={owner}
@@ -111,7 +113,7 @@ export function ExecutionProcessPanel({
                   title={title}
                   tone="activity"
                 />
-              </button>
+              </UiIconButton>
             </span>
           );
         })}
@@ -120,16 +122,16 @@ export function ExecutionProcessPanel({
           aria-hidden="true"
           className="mx-0.5 h-4 w-px shrink-0 bg-(--divider-subtle-color)"
         />
-        <button
+        <UiIconButton
           aria-label={t("execution.open_workgraph")}
-          className="grid h-7 w-7 shrink-0 place-items-center rounded-[8px] text-(--icon-muted) transition-[background,color] hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--primary)"
+          className="shrink-0"
           data-execution-open-workgraph
           onClick={onOpenGraph}
-          title={`${t("execution.open_workgraph")} · ${nodeSummary.summary} · ${nodeProgressLabel}`}
-          type="button"
+          size="sm"
+          tooltip={`${t("execution.open_workgraph")} · ${nodeSummary.summary} · ${nodeProgressLabel}`}
         >
           <Workflow aria-hidden="true" className="h-3.5 w-3.5" />
-        </button>
+        </UiIconButton>
       </div>
     </aside>
   );
