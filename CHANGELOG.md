@@ -38,6 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Added a shared 40px dense ListRow contract and adopted it for Memory catalog,
+  Memory index, and Room member selection; nested Room participation choices
+  remain independently operable without triggering the parent row.
 - Moved Agent permission-mode cards onto the shared neutral Choice contract so
   selected borders, backgrounds, focus treatment, and shadow policy no longer
   live in the Agent settings page.

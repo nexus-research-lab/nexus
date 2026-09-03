@@ -5,13 +5,12 @@
  */
 import { RefreshCw, Search } from "lucide-react";
 
-import { cn } from "@/shared/ui/class-name";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
+import { UiListRow } from "@/shared/ui/list/list-row";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
-import { SIDEBAR_SELECTION_CLASS_NAME } from "@/shared/ui/sidebar/sidebar-selection";
 import {
   MEMORY_FILTER_OPTIONS,
   type MemoryCatalogRow,
@@ -183,30 +182,20 @@ function MemoryDocumentRow({
   const displayTitle = getMemoryDocumentDisplayTitle(document);
   const showDocumentTitle = displayTitle !== document.title;
   return (
-    <button
-      className={cn(
-        "group flex w-full items-center gap-2.5 radius-control-sm border border-transparent px-2.5 py-2 text-left transition-colors",
-        isSelected
-          ? SIDEBAR_SELECTION_CLASS_NAME
-          : "hover:bg-(--surface-interactive-hover-background)",
+    <UiListRow
+      active={isSelected}
+      activeTone="sidebar"
+      aria-pressed={isSelected}
+      density="dense"
+      description={showDocumentTitle ? document.title : undefined}
+      leading={(
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center radius-control-xs bg-(--surface-panel-subtle-background) text-(--icon-muted)">
+          <Icon className="h-3.5 w-3.5" />
+        </span>
       )}
       onClick={() => onSelect(document.path)}
-      title={document.path}
-      type="button"
-    >
-      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[6px] bg-(--surface-panel-subtle-background) text-(--icon-muted)">
-        <Icon className="h-3.5 w-3.5" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-compact font-semibold text-(--text-strong)">
-          {displayTitle}
-        </span>
-        {showDocumentTitle ? (
-          <span className="mt-0.5 block truncate text-xs leading-4 text-(--text-muted)">
-            {document.title}
-          </span>
-        ) : null}
-      </span>
-    </button>
+      title={displayTitle}
+      tooltip={document.path}
+    />
   );
 }
