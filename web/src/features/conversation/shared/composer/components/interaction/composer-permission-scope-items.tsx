@@ -26,7 +26,7 @@ export function buildComposerPermissionScopeItems(
   return [
     {
       label: (
-        <span className="text-[15px]">
+        <span className="text-md">
           {t("composer.permission_allow_once_menu")}
         </span>
       ),
@@ -36,7 +36,7 @@ export function buildComposerPermissionScopeItems(
     ...(permission.source === "automation" && permission.automation?.allow_task
       ? [{
         label: (
-          <span className="text-[15px]">
+          <span className="text-md">
             {t("composer.permission_allow_task")}
           </span>
         ),
@@ -69,7 +69,7 @@ export function buildComposerPermissionScopeItems(
         : scopeHint;
       return {
         label: (
-          <span className="text-[15px]">
+          <span className="text-md">
             {actionLabelKey ? t(actionLabelKey) : suggestion.label}
           </span>
         ),

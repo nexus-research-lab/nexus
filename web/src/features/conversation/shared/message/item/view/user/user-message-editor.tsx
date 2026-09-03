@@ -45,7 +45,7 @@ export function UserMessageEditor({
       <textarea
         aria-label={t("message.edit_content")}
         className={cn(
-          "soft-scrollbar min-h-0 resize-none appearance-none border-0 bg-transparent px-3 text-left text-[14px] leading-6 text-(--text-strong)",
+          "soft-scrollbar min-h-0 resize-none appearance-none border-0 bg-transparent px-3 text-left text-base leading-6 text-(--text-strong)",
           compact ? "py-1.5" : "py-2",
           "outline-none shadow-none ring-0 transition-none placeholder:text-(--text-faint)",
           "focus:border-0 focus:bg-transparent focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none",

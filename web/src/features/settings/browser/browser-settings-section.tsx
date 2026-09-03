@@ -209,7 +209,7 @@ export function BrowserSettingsSection() {
                 <ol className="mt-3 grid gap-4 md:grid-cols-3">
                   {INSTALL_STEPS.map((step, index) => (
                     <li className="flex items-start gap-2.5" key={step.titleKey}>
-                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[color:color-mix(in_srgb,var(--primary)_12%,transparent)] text-[11px] font-semibold text-primary">
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[color:color-mix(in_srgb,var(--primary)_12%,transparent)] text-xs font-semibold text-primary">
                         {index + 1}
                       </span>
                       <div>

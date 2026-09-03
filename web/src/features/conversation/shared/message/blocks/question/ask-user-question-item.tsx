@@ -53,7 +53,7 @@ export function AskUserQuestionItem({
               {question.header}
             </span>
           ) : null}
-          <span className="min-w-0 text-[15px] font-medium leading-6 text-(--text-strong)">
+          <span className="min-w-0 text-md font-medium leading-6 text-(--text-strong)">
             {question.question}
           </span>
           {isMultiSelect ? (

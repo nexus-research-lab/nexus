@@ -4,6 +4,7 @@
 
 | 基础合同 | 唯一所有者 | 行为测试 |
 | --- | --- | --- |
+| 字体、字号与文本层级 | `typography/`、主题 recipe | 角色映射、token 阶梯与 Gallery 视觉矩阵 |
 | 文字/图标动作 | `button/`、`list/` | 默认 type、disabled、键盘、冒泡 |
 | 输入与选择 | `form/` | 校验、ARIA、布尔与互斥选择 |
 | 模态与决策 | `dialog/` | 栈、焦点圈、Escape、遮罩、滚动锁 |
@@ -13,6 +14,7 @@
 | 状态与标记 | `display/` | live region、忙碌、动作、计数边界 |
 
 - 公共视觉 API 只暴露有限的 `size / tone / variant / density / elevation / layer / viewport`；`className` 只用于外部布局，不用于覆盖内部颜色、圆角、阴影、层级、hover 或 focus。
+- App chrome 的标题、正文、说明、元数据与短代码标识通过 `typography/typography-styles.ts` 选择语义角色；业务组件不得重新拼接同一角色的字号、行高、字重与 tracking。聊天/文件阅读正文、品牌字形和图形内微标签由各自 Surface 显式负责。
 - 业务文字、链接和图标动作直接渲染 `UiButton / UiLinkButton / UiIconButton`；`button-styles.ts` 只供 shared primitive 内部组合，不能作为业务层复制原生按钮的逃生口。
 - 消费者直接导入职责文件；本目录不提供聚合导出，根目录只保留无法归入具体交互职责的基础原语。
 - `UiPanel` 只有 `card / dashed / plain` 三种真实差异。不要用新名字复制同一组 class；需要业务状态表面时组合 `UiResourceState`，需要交互时使用 Button/List/Menu 等对应 primitive。

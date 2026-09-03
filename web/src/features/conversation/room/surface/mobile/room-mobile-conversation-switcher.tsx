@@ -88,7 +88,7 @@ export function RoomMobileConversationSwitcher({
               >
                 <div className="min-w-0 flex-1">
                   <p className={cn(
-                    "truncate text-[14px]",
+                    "truncate text-base",
                     isActive
                       ? "font-semibold text-(--text-strong)"
                       : "font-medium text-(--text-default) group-hover:text-(--text-strong)",

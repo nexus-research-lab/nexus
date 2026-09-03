@@ -56,7 +56,7 @@ export function ContentSystemEvent({ block }: { block: SystemEventContent }) {
         </span>
         <span>{block.label}</span>
       </div>
-      <div className="message-cjk-font min-w-0 max-w-full overflow-hidden break-words pt-1 text-[14px] leading-6 text-(--text-default)">
+      <div className="message-cjk-font min-w-0 max-w-full overflow-hidden break-words pt-1 text-base leading-6 text-(--text-default)">
         {block.subtype === "api_retry" ? (
           <ApiRetrySystemEventBody block={block} />
         ) : (

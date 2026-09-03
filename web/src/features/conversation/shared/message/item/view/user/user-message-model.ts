@@ -26,7 +26,7 @@ const USER_MESSAGE_DENSITY: Record<"compact" | "expanded", UserMessageDensity> =
     sectionClassName: "px-0",
   },
   expanded: {
-    contentClassName: "text-[16px] leading-7 [&_.katex-display]:my-3",
+    contentClassName: "text-md leading-7 [&_.katex-display]:my-3",
     headerClassName: "h-7",
     rowClassName: "gap-3",
     sectionClassName: "px-2 sm:px-3",

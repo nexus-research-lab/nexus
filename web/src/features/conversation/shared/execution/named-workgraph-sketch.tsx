@@ -70,7 +70,7 @@ export function NamedWorkGraphSketch({
                       </span>
                       <div className="min-w-0">
                         <h4 className="text-xs font-semibold leading-4 text-(--text-strong)">{node.subject}</h4>
-                        <p className="mt-1 line-clamp-3 text-[11px] leading-4 text-(--text-muted)">{node.objective}</p>
+                        <p className="mt-1 line-clamp-3 text-xs leading-4 text-(--text-muted)">{node.objective}</p>
                       </div>
                     </div>
                     {node.terminal ? (

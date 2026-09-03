@@ -137,7 +137,7 @@ export function WorkGraphDistillationDialog({
                 </span>
                 <div className="min-w-0 pt-0.5">
                   <h2
-                    className="text-[19px] font-semibold leading-6 tracking-[-0.01em] text-(--text-strong)"
+                    className="text-lg font-semibold leading-6 tracking-[-0.01em] text-(--text-strong)"
                     id="workgraph-distillation-dialog-title"
                   >
                     {t("execution.workflow_distill_title")}

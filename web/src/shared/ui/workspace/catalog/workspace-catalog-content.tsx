@@ -5,6 +5,10 @@ import type {
 } from "react";
 
 import { cn } from "@/shared/ui/class-name";
+import {
+  getUiTypographyClassName,
+  type UiTypographyRole,
+} from "@/shared/ui/typography/typography-styles";
 
 type CatalogCardAlign = "start" | "center";
 type CatalogFooterJustify = "between" | "start" | "end" | "center";
@@ -21,14 +25,14 @@ const FOOTER_JUSTIFY_CLASSES: Record<CatalogFooterJustify, string> = {
   end: "justify-end",
   center: "justify-center",
 };
-const TITLE_CLASSES: Record<CatalogTitleSize, string> = {
-  sm: "text-base font-semibold",
-  md: "text-md font-semibold",
-  lg: "text-lg font-semibold",
+const TITLE_ROLES: Record<CatalogTitleSize, UiTypographyRole> = {
+  sm: "sectionTitle",
+  md: "pageTitle",
+  lg: "objectTitle",
 };
-const DESCRIPTION_CLASSES: Record<CatalogDescriptionSize, string> = {
-  sm: "text-sm leading-[1.55]",
-  md: "text-base leading-6",
+const DESCRIPTION_ROLES: Record<CatalogDescriptionSize, UiTypographyRole> = {
+  sm: "supporting",
+  md: "body",
 };
 const LINE_CLAMP_CLASSES = {
   1: "line-clamp-1",
@@ -99,7 +103,11 @@ export function WorkspaceCatalogTitle({
   const Component = as ?? "h3";
   return (
     <Component
-      className={cn(TITLE_CLASSES[size], "text-(--text-strong)", truncate && "truncate", className)}
+      className={cn(
+        getUiTypographyClassName({ role: TITLE_ROLES[size], tone: "strong" }),
+        truncate && "truncate",
+        className,
+      )}
       {...props}
     >
       {children}
@@ -123,8 +131,7 @@ export function WorkspaceCatalogDescription({
   return (
     <p
       className={cn(
-        DESCRIPTION_CLASSES[size],
-        "text-(--text-default)",
+        getUiTypographyClassName({ role: DESCRIPTION_ROLES[size], tone: "default" }),
         LINE_CLAMP_CLASSES[lines],
         minHeight && lines === 2 && "min-h-[40px]",
         className,

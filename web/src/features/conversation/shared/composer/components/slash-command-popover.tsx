@@ -244,7 +244,7 @@ function SlashSearchInput({
         aria-label={placeholder}
         className="w-full"
         controlSize="xs"
-        inputClassName="text-[11px] leading-4"
+        inputClassName="text-xs leading-4"
         onChange={onChange}
         onKeyDown={(event) => {
           onKeyDown(event);
@@ -308,10 +308,10 @@ function SlashCommandList({
                 ?? t("composer.slash_command_unavailable")}
             type="button"
           >
-            <span className="w-28 shrink-0 truncate font-mono text-[11px] font-semibold leading-4 text-(--text-strong)">
+            <span className="w-28 shrink-0 truncate font-mono text-xs font-semibold leading-4 text-(--text-strong)">
               /{command.name}
             </span>
-            <span className="min-w-0 flex-1 truncate text-[11px] leading-4 text-(--text-default)">
+            <span className="min-w-0 flex-1 truncate text-xs leading-4 text-(--text-default)">
               {descriptionKey
                 ? t(descriptionKey)
                 : command.description || t("composer.slash_command_unavailable")}
@@ -406,11 +406,11 @@ function SlashSkillList({
               ) : null}
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate font-mono text-[11px] font-medium leading-4 text-(--text-strong)">
+              <span className="block truncate font-mono text-xs font-medium leading-4 text-(--text-strong)">
                 /{skill.name}
               </span>
               {description ? (
-                <span className="block truncate text-[10px] leading-4 text-(--text-muted)">
+                <span className="block truncate text-2xs leading-4 text-(--text-muted)">
                   {description}
                 </span>
               ) : null}
@@ -488,7 +488,7 @@ function SlashModelList({
             : model.label}
           type="button"
         >
-          <span className="min-w-0 flex-1 truncate text-[11px] leading-4 text-(--text-default)">
+          <span className="min-w-0 flex-1 truncate text-xs leading-4 text-(--text-default)">
             {model.label}
           </span>
           {model.providerLabel ? (
@@ -539,7 +539,7 @@ function SlashEmptyState({
   return (
     <p
       className={cn(
-        "px-2.5 py-2 text-[10px] leading-4",
+        "px-2.5 py-2 text-2xs leading-4",
         tone === "danger" ? "text-(--destructive)" : "text-(--text-soft)",
       )}
     >

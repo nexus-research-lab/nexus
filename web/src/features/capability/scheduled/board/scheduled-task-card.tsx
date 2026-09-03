@@ -305,12 +305,12 @@ export function ScheduledTaskCard({
                   {attentionTitle}
                 </span>
                 {attentionDetail ? (
-                  <span className="mt-0.5 block truncate text-[11px] leading-4 text-(--text-muted)">
+                  <span className="mt-0.5 block truncate text-xs leading-4 text-(--text-muted)">
                     {attentionDetail}
                   </span>
                 ) : null}
               </span>
-              <span className="flex shrink-0 items-center gap-0.5 text-[11px] font-medium text-(--text-soft)">
+              <span className="flex shrink-0 items-center gap-0.5 text-xs font-medium text-(--text-soft)">
                 详情
                 <ChevronRight className="h-3 w-3" />
               </span>

@@ -1308,7 +1308,7 @@ export function ExecutionWorkGraphCanvas({
                         ) : null}
                       </span>
                       {summaryObjective ? (
-                        <span className="mt-0.5 line-clamp-2 max-h-[30px] overflow-hidden text-[10px] leading-[15px] text-(--text-muted)">
+                        <span className="mt-0.5 line-clamp-2 max-h-[30px] overflow-hidden text-2xs leading-[15px] text-(--text-muted)">
                           {summaryObjective}
                         </span>
                       ) : null}
@@ -1565,7 +1565,7 @@ function ExecutionNodeInspector({
           <h3 className="truncate text-compact font-semibold text-(--text-strong)">
             {heading}
           </h3>
-          <p className="mt-0.5 flex min-w-0 items-center gap-1 text-[10px] text-(--text-soft)">
+          <p className="mt-0.5 flex min-w-0 items-center gap-1 text-2xs text-(--text-soft)">
             {owner ? <span className="truncate">{owner.name}</span> : null}
             {owner ? <span aria-hidden="true">·</span> : null}
             <span className={cn("shrink-0 font-medium", selectedStatusTone(status))}>
@@ -1585,7 +1585,7 @@ function ExecutionNodeInspector({
       </div>
       <div className="space-y-3 px-3 py-3">
         {relatedSubject ? (
-          <p className="text-[11px] font-medium leading-4 text-(--text-default)">
+          <p className="text-xs font-medium leading-4 text-(--text-default)">
             {relatedSubject}
           </p>
         ) : null}
@@ -1625,7 +1625,7 @@ function ExecutionNodeInspector({
           <NodeDetailSection label={t("execution.error_summary")}>
             <p>{visibleErrorSummary}</p>
             {node.error_code?.trim() ? (
-              <p className="mt-1 font-mono text-[10px] text-(--text-soft)">
+              <p className="mt-1 font-mono text-2xs text-(--text-soft)">
                 {node.error_code.trim()}
               </p>
             ) : null}
@@ -1635,7 +1635,7 @@ function ExecutionNodeInspector({
           <NodeDetailSection label={t("execution.result_summary")}>
             <p>{resultSummary}</p>
             {node.summary_truncated ? (
-              <p className="mt-1 text-[10px] text-(--text-soft)">
+              <p className="mt-1 text-2xs text-(--text-soft)">
                 {t("execution.summary_truncated")}
               </p>
             ) : null}
@@ -1741,7 +1741,7 @@ function ExecutionEdgeInspector({
           <h3 className="truncate text-compact font-semibold text-(--text-strong)">
             {t("execution.edge_details")}
           </h3>
-          <p className="mt-0.5 truncate text-[10px] font-medium text-(--text-soft)">
+          <p className="mt-0.5 truncate text-2xs font-medium text-(--text-soft)">
             {t(EDGE_KIND_LABEL_KEY[edge.kind])}
           </p>
         </div>
@@ -1773,14 +1773,14 @@ function ExecutionEdgeInspector({
         </NodeDetailSection>
         {edge.created_at ? (
           <NodeDetailSection label={t("execution.edge_observed_at")}>
-            <p className="font-mono text-[10px]">
+            <p className="font-mono text-2xs">
               {formatEdgeObservedAt(edge.created_at)}
             </p>
           </NodeDetailSection>
         ) : null}
         {edge.source_node_run_id || edge.target_node_run_id ? (
           <NodeDetailSection label={t("execution.edge_run_identity")}>
-            <p className="break-all font-mono text-[10px] text-(--text-soft)">
+            <p className="break-all font-mono text-2xs text-(--text-soft)">
               {edge.source_node_run_id || edge.source_node_id}
               <span aria-hidden="true"> → </span>
               {edge.target_node_run_id || edge.target_node_id}
@@ -1801,10 +1801,10 @@ function NodeDetailSection({
 }) {
   return (
     <section>
-      <h4 className="mb-1 text-[10px] font-medium text-(--text-soft)">
+      <h4 className="mb-1 text-2xs font-medium text-(--text-soft)">
         {label}
       </h4>
-      <div className="text-[11px] leading-[1.55] text-(--text-default)">
+      <div className="text-xs leading-[1.55] text-(--text-default)">
         {children}
       </div>
     </section>
@@ -1863,7 +1863,7 @@ function ExecutionNodeRunList({
                   />
                 </div>
                 {summary ? (
-                  <p className="mt-0.5 line-clamp-2 text-[10px] leading-4 text-(--text-soft)">
+                  <p className="mt-0.5 line-clamp-2 text-2xs leading-4 text-(--text-soft)">
                     {summary}
                   </p>
                 ) : null}
@@ -1873,7 +1873,7 @@ function ExecutionNodeRunList({
         })}
       </ul>
       {nodes.length > 8 ? (
-        <p className="mt-1 text-[10px] text-(--text-soft)">
+        <p className="mt-1 text-2xs text-(--text-soft)">
           {t("execution.runtime_activity_more", { count: nodes.length - 8 })}
         </p>
       ) : null}

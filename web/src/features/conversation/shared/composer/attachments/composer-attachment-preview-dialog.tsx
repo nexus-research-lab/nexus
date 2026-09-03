@@ -204,7 +204,7 @@ function ComposerTextPreviewContent({
     return <AttachmentPreviewFailure onClose={onClose} />;
   }
   return (
-    <pre className="soft-scrollbar min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words px-5 py-4 font-mono text-[13px] leading-6 text-(--surface-paper-foreground)">
+    <pre className="soft-scrollbar min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words px-5 py-4 font-mono text-sm leading-6 text-(--surface-paper-foreground)">
       {preview.content || t("composer.text_preview_empty")}
     </pre>
   );

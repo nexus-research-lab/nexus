@@ -313,7 +313,7 @@ export function ProviderCCSwitchDialog({
                 </span>
               ) : null}
               {selectedSources.size > 1 || selectedModelCount > 1 ? (
-                <div className="mt-1 text-[11px] text-(--text-soft)">
+                <div className="mt-1 text-xs text-(--text-soft)">
                   {t("settings.providers.ccswitch_selected_summary", {
                     models: selectedModelCount,
                     providers: selectedSources.size,
@@ -495,19 +495,19 @@ function CCSwitchProviderRow({
         disabled={!item.can_sync || disabled}
         onChange={(event) => onChange(event.target.checked)}
       />
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-(--divider-subtle-color) bg-(--background) text-[11px] font-semibold text-(--text-default)">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-(--divider-subtle-color) bg-(--background) text-xs font-semibold text-(--text-default)">
         {item.app_type === "claude" ? "CC" : "CX"}
       </span>
       <span className="min-w-0 flex-1">
         <span className="flex min-w-0 items-center gap-2">
           <span className="truncate text-sm font-semibold text-(--text-strong)">{item.name}</span>
           {item.current ? (
-            <span className="shrink-0 rounded-full bg-[color:color-mix(in_srgb,var(--brand)_10%,transparent)] px-2 py-0.5 text-[10px] font-semibold text-(--brand-action)">
+            <span className="shrink-0 rounded-full bg-[color:color-mix(in_srgb,var(--brand)_10%,transparent)] px-2 py-0.5 text-2xs font-semibold text-(--brand-action)">
               {t("settings.providers.ccswitch_current")}
             </span>
           ) : null}
           {item.existing ? (
-            <span className="shrink-0 text-[10px] text-(--text-soft)">
+            <span className="shrink-0 text-2xs text-(--text-soft)">
               {t("settings.providers.ccswitch_will_update")}
             </span>
           ) : null}

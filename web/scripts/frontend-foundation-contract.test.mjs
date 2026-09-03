@@ -22,6 +22,10 @@ const PROHIBITED_PRODUCT_STYLE_PATTERNS = [
     label: "arbitrary numeric z-index",
     pattern: /\bz-\[\d+\]/,
   },
+  {
+    label: "arbitrary app typography scale",
+    pattern: /\btext-\[(?:10|11|12|13|14|15|16|17|19|20|22|24|28|36)px\]/,
+  },
 ];
 
 const REQUIRED_SHARED_UI_BEHAVIOR_SUITES = [
@@ -180,6 +184,71 @@ test("theme recipes own the semantic layer and adaptive dialog geometry implemen
   assert.match(recipes, /\.ui-dialog-viewport-workbench\s*\{/);
   assert.match(recipes, /\.ui-dialog-size-workbench\s*\{/);
   assert.match(recipes, /\.ui-dialog-backdrop-compact\s*\{/);
+  assert.match(recipes, /\.ui-type-display\s*\{/);
+  assert.match(recipes, /\.ui-type-page-title\s*\{/);
+  assert.match(recipes, /\.ui-type-body\s*\{/);
+  assert.match(recipes, /\.ui-type-code\s*\{/);
+});
+
+test("App typography exposes one typed semantic role map", async () => {
+  const { getUiTypographyClassName } = await importLeafTypeScriptModule(
+    webRoot,
+    "src/shared/ui/typography/typography-styles.ts",
+  );
+  const [tokens, design] = await Promise.all([
+    readSource("src/app/styles/theme-tokens.css"),
+    readFile(path.join(webRoot, "..", "design.md"), "utf8"),
+  ]);
+
+  assert.deepEqual(
+    [
+      "display",
+      "featureTitle",
+      "objectTitle",
+      "pageTitle",
+      "sectionTitle",
+      "body",
+      "control",
+      "supporting",
+      "metadata",
+      "caption",
+      "overline",
+      "code",
+    ].map((role) => getUiTypographyClassName({ role })),
+    [
+      "ui-type-display",
+      "ui-type-feature-title",
+      "ui-type-object-title",
+      "ui-type-page-title",
+      "ui-type-section-title",
+      "ui-type-body",
+      "ui-type-control",
+      "ui-type-supporting",
+      "ui-type-metadata",
+      "ui-type-caption",
+      "ui-type-overline",
+      "ui-type-code",
+    ],
+  );
+  assert.equal(
+    getUiTypographyClassName({ role: "supporting", tone: "muted", weight: "medium" }),
+    "ui-type-supporting ui-type-tone-muted ui-type-weight-medium",
+  );
+  for (const [token, value] of [
+    ["2xs", "10px"],
+    ["xs", "11px"],
+    ["compact", "12px"],
+    ["sm", "13px"],
+    ["base", "14px"],
+    ["md", "16px"],
+    ["lg", "20px"],
+    ["xl", "24px"],
+    ["2xl", "36px"],
+  ]) {
+    assert.match(tokens, new RegExp(`--text-${token}:\\s*${value}`));
+  }
+  assert.match(design, /10 \/ 11 \/ 12 \/ 13 \/ 14 \/ 16 \/ 20 \/ 24 \/ 36px/);
+  assert.doesNotMatch(design, /字号阶梯：`10 \/ 11 \/ 12 \/ 13 \/ 15 \/ 17/);
 });
 
 test("product source contains no arbitrary shadows or numeric z-index values", async () => {
@@ -269,6 +338,7 @@ test("the UI contract gallery stays reproducible and outside production entries"
   assert.match(entry, /UiContractGallery/);
   assert.doesNotMatch(viteConfig, /ui-gallery\.html/);
   for (const section of [
+    "Typography hierarchy",
     "Buttons & actions",
     "Forms & selection",
     "Identity & navigation",

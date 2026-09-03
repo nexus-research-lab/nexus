@@ -265,7 +265,7 @@ export function ExecutionWorkGraphSurface({
           {header && header.status !== "active" ? (
             <span
               className={cn(
-                "inline-flex h-6 shrink-0 items-center rounded-full border px-2 text-[11px] font-semibold leading-none",
+                "inline-flex h-6 shrink-0 items-center rounded-full border px-2 text-xs font-semibold leading-none",
                 EXECUTION_HEADER_STATUS_TONE[header.status],
               )}
               data-execution-header-notice-status={header.status}
@@ -275,7 +275,7 @@ export function ExecutionWorkGraphSurface({
           ) : null}
           {header?.status === "completed" && execution && sketchSessionKey ? (
             <button
-              className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-[7px] border border-[color:color-mix(in_srgb,var(--primary)_24%,var(--surface-control-border))] bg-[color:color-mix(in_srgb,var(--primary)_6%,var(--surface-control-background))] px-2.5 text-[11px] font-semibold text-(--primary) transition-colors hover:bg-[color:color-mix(in_srgb,var(--primary)_11%,var(--surface-control-background))] disabled:cursor-wait disabled:opacity-60"
+              className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-[7px] border border-[color:color-mix(in_srgb,var(--primary)_24%,var(--surface-control-border))] bg-[color:color-mix(in_srgb,var(--primary)_6%,var(--surface-control-background))] px-2.5 text-xs font-semibold text-(--primary) transition-colors hover:bg-[color:color-mix(in_srgb,var(--primary)_11%,var(--surface-control-background))] disabled:cursor-wait disabled:opacity-60"
               data-workgraph-save-sketch
               disabled={sketchLoading}
               onClick={handleOpenSketch}
@@ -295,7 +295,7 @@ export function ExecutionWorkGraphSurface({
                 nodes: execution?.graph?.runtime_node_total ?? 0,
                 edges: execution?.graph?.runtime_edge_total ?? 0,
               })}
-              className="flex shrink-0 items-center gap-1 rounded-full bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-1.5 py-0.5 text-[10px] font-medium text-(--warning)"
+              className="flex shrink-0 items-center gap-1 rounded-full bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-1.5 py-0.5 text-2xs font-medium text-(--warning)"
               title={t("execution.surface_partial", {
                 nodes: execution?.graph?.runtime_node_total ?? 0,
                 edges: execution?.graph?.runtime_edge_total ?? 0,
@@ -308,7 +308,7 @@ export function ExecutionWorkGraphSurface({
           {mode === "current" && resource.isStale ? (
             <span
               aria-label={t("execution.surface_stale")}
-              className="flex shrink-0 items-center gap-1 rounded-full bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-1.5 py-0.5 text-[10px] font-medium text-(--warning)"
+              className="flex shrink-0 items-center gap-1 rounded-full bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-1.5 py-0.5 text-2xs font-medium text-(--warning)"
               title={lastSuccessfulAt
                 ? t("execution.surface_stale_at", { time: lastSuccessfulAt })
                 : t("execution.surface_stale")}

@@ -29,6 +29,7 @@ describe("UI contract gallery", () => {
 
     expect(screen.getByRole("heading", { name: "Nexus UI Contract Gallery" })).toBeTruthy();
     expect(screen.getAllByText("Buttons & actions").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Typography hierarchy").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Forms & selection").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Resource states").length).toBeGreaterThan(0);
 
@@ -39,6 +40,15 @@ describe("UI contract gallery", () => {
       expect(window.location.search).toContain("theme=dark");
       expect(window.location.search).toContain("locale=zh");
     });
+  });
+
+  it("renders the shared semantic typography roles", () => {
+    const { container } = renderGallery();
+
+    expect(container.querySelector('[data-typography-role="display"] .ui-type-display')).toBeTruthy();
+    expect(container.querySelector('[data-typography-role="pageTitle"] .ui-type-page-title')).toBeTruthy();
+    expect(container.querySelector('[data-typography-role="body"] .ui-type-body')).toBeTruthy();
+    expect(container.querySelector('[data-typography-role="code"] .ui-type-code')).toBeTruthy();
   });
 
   it("opens the real shared dialog and closes it through its named action", () => {

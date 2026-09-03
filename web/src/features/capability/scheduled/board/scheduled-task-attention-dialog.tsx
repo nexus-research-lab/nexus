@@ -177,7 +177,7 @@ export function ScheduledTaskAttentionDialog({
                   >
                     {title || capabilityLabel || "权限请求"}
                   </h3>
-                  <span className="rounded-full border border-[color:color-mix(in_srgb,var(--warning)_28%,var(--divider-subtle-color))] px-2 py-0.5 text-[11px] font-medium text-(--warning)">
+                  <span className="rounded-full border border-[color:color-mix(in_srgb,var(--warning)_28%,var(--divider-subtle-color))] px-2 py-0.5 text-xs font-medium text-(--warning)">
                     {requestStatusLabel}
                   </span>
                 </div>

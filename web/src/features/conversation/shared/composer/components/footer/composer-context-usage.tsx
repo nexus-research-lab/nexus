@@ -276,7 +276,7 @@ function ContextUsageAgentRow({
               percentage: item.usage.percentage,
             })}
           </span>
-          <span className="block text-[10px] leading-3 text-(--text-soft)">
+          <span className="block text-2xs leading-3 text-(--text-soft)">
             {formatTokens(item.usage.totalTokens)} / {formatTokens(item.usage.maxTokens)}
           </span>
         </span>

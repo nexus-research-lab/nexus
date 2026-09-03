@@ -7,6 +7,7 @@ import { X } from "lucide-react";
 import { cn } from "@/shared/ui/class-name";
 import { UiButton } from "@/shared/ui/button/button";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import {
   projectFeedbackBanner,
@@ -64,7 +65,11 @@ export function FeedbackBanner({
     >
       <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", presentation.iconClassName)} />
       <div className="min-w-0 flex-1">
-        <p className={cn("break-words text-[13px] font-medium leading-5 [overflow-wrap:anywhere]", presentation.titleClassName)}>
+        <p className={cn(
+          "break-words [overflow-wrap:anywhere]",
+          getUiTypographyClassName({ role: "supporting", weight: "medium" }),
+          presentation.titleClassName,
+        )}>
           {title}
         </p>
         {impact ? (

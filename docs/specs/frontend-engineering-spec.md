@@ -112,6 +112,8 @@ Recipe 把 token 组合成可复用视觉语法，例如 `surface-popover`、`in
 
 业务组件不得使用 `rounded-[Npx]`、`shadow-[...]` 或 raw `color-mix` 复刻已有 recipe。同值不代表同语义：10px 必须说明它是 control radius 还是其他几何。
 
+App chrome 的字体、字号、行高、默认字重与 tracking 由 `theme-tokens.css` 的字号阶梯、`theme-recipes.css` 的 `.ui-type-*` 配方和 `shared/ui/typography/typography-styles.ts` 的 typed role 共同拥有。业务组件选择 `display / featureTitle / objectTitle / pageTitle / sectionTitle / body / control / supporting / metadata / caption / overline / code`，只自行负责 HTML 标签、布局、截断和换行；不得在每个文件重新拼一套相同文本角色。聊天、Workspace 文件、品牌字形和图形内微标签是显式独立 Surface，必须由其所有者声明阅读或像素对齐理由。
+
 ### 4.3 Primitive
 
 Primitive 同时拥有 DOM、键盘、焦点、ARIA 和视觉状态合同，例如 Button、Input、Dialog、Popover、Menu、Tabs、Tooltip。
