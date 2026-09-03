@@ -519,6 +519,27 @@ test("Capability detail chrome uses shared actions, typography, states, and shap
   assert.match(sources[3], /className="shrink-0"/);
 });
 
+test("Loop surfaces use semantic typography, badges, panels, and responsive actions", async () => {
+  const loopPaths = [
+    "src/features/capability/loops/loops-directory.tsx",
+    "src/features/capability/loops/loop-detail-view.tsx",
+  ];
+  const sources = await Promise.all(loopPaths.map(readSource));
+  const localTypographyPattern = /\b(?:text-(?:2xs|xs|compact|sm|base|md|lg|xl|2xl)|font-(?:normal|medium|semibold|bold|mono)|leading-(?:none|\d+|\[[^\]]+\])|tracking-(?:tight|wide|\[[^\]]+\])|rounded-\[[^\]]+\])/;
+
+  assert.deepEqual(
+    loopPaths.filter((_, index) => localTypographyPattern.test(sources[index])),
+    [],
+  );
+  const loopChrome = sources.join("\n");
+  assert.match(loopChrome, /getUiTypographyClassName/);
+  assert.match(loopChrome, /<UiBadge/);
+  assert.match(loopChrome, /<UiPanel/);
+  assert.match(loopChrome, /<UiResourceState/);
+  assert.match(sources[1], /flex flex-col items-start gap-3 sm:flex-row/);
+  assert.match(sources[1], /className="shrink-0"/);
+});
+
 test("product source contains no arbitrary shadows or numeric z-index values", async () => {
   const files = (await Promise.all(productUiRoots.map(collectSourceFiles))).flat();
   const violations = [];

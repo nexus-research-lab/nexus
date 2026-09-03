@@ -22,9 +22,11 @@ import { listLoopsApi } from "@/lib/api/capability/loop-api";
 import { getResourceFailure, type ResourceFailure } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiIconButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
 import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiListRow } from "@/shared/ui/list/list-row";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type { LoopCatalogItem } from "@/types/capability/loop";
 import { writeTextToClipboard } from "@/hooks/ui/clipboard";
@@ -236,13 +238,22 @@ export function LoopsDirectory() {
                       )}
                     >
                       <div className="min-w-0 flex-1">
-                        <h3 className="truncate text-base font-medium text-(--text-strong)">
+                        <h3 className={cn(
+                          "truncate",
+                          getUiTypographyClassName({ role: "control", tone: "strong", weight: "medium" }),
+                        )}>
                           {loop.title}
                         </h3>
-                        <p className="mt-0.5 truncate text-compact leading-[1.125rem] text-(--text-muted)">
+                        <p className={cn(
+                          "mt-0.5 truncate",
+                          getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+                        )}>
                           {loop.description}
                         </p>
-                        <div className="mt-0.5 flex min-w-0 items-center gap-1.5 overflow-hidden text-2xs leading-4 text-(--text-soft)">
+                        <div className={cn(
+                          "mt-0.5 flex min-w-0 items-center gap-1.5 overflow-hidden",
+                          getUiTypographyClassName({ role: "caption", tone: "soft" }),
+                        )}>
                           <span className="truncate">{loop.category}</span>
                           <span aria-hidden="true">·</span>
                           <span className="shrink-0">
