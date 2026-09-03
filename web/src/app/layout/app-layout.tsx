@@ -11,7 +11,7 @@ import { useChatCompletionNotifications } from "@/features/home/notifications/us
 import { SidebarWidePanel } from "@/features/navigation/sidebar/sidebar-wide-panel";
 import { useMediaQuery } from "@/hooks/ui/use-media-query";
 import {
-  CONVERSATION_FOCUS_MEDIA_QUERY,
+  APP_NARROW_VIEWPORT_MEDIA_QUERY,
   HOME_PAGE_PADDING_CLASS,
 } from "@/lib/layout/home-layout";
 import { cn } from "@/shared/ui/class-name";
@@ -25,7 +25,7 @@ export function AppLayout({ showSidebar = true }: { showSidebar?: boolean }) {
   const { pathname, search } = useLocation();
   const navigate = useNavigate();
   const { t } = useI18n();
-  const isNarrowViewport = useMediaQuery(CONVERSATION_FOCUS_MEDIA_QUERY);
+  const isNarrowViewport = useMediaQuery(APP_NARROW_VIEWPORT_MEDIA_QUERY);
   const mobileRoute = resolveMobileAppRoute({ pathname, search });
   const isMobileAppLayout = showSidebar && isNarrowViewport;
   const isMobileDirectory = (

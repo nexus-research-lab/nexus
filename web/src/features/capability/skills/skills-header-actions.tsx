@@ -13,7 +13,7 @@ import { useRef, useState } from "react";
 
 import { SKILLS_TOUR_ANCHORS } from "@/features/onboarding/tours/skills-tour";
 import { useMediaQuery } from "@/hooks/ui/use-media-query";
-import { CONVERSATION_FOCUS_MEDIA_QUERY } from "@/lib/layout/home-layout";
+import { APP_NARROW_VIEWPORT_MEDIA_QUERY } from "@/lib/layout/home-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
@@ -35,7 +35,7 @@ interface SkillsHeaderActionsProps {
 }
 
 export function SkillsHeaderActions(props: SkillsHeaderActionsProps) {
-  const isCompactLayout = useMediaQuery(CONVERSATION_FOCUS_MEDIA_QUERY);
+  const isCompactLayout = useMediaQuery(APP_NARROW_VIEWPORT_MEDIA_QUERY);
   return isCompactLayout
     ? <SkillsHeaderCompactActions {...props} />
     : <SkillsHeaderDesktopActions {...props} />;

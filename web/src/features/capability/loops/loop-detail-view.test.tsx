@@ -92,6 +92,9 @@ describe("LoopDetailView", () => {
     expect(screen.getByRole("button", { name: "capability.loops" }).className).toContain("ui-type-metadata");
     expect(container.querySelector("[data-slot='capability-detail-header']")).toBeTruthy();
     expect(container.querySelector("[data-slot='capability-detail-identity']")).toBeTruthy();
+    expect(container.querySelector(
+      "[data-slot='capability-detail-identity-leading'] .radius-control-lg",
+    )).toBeTruthy();
     expect(screen.getAllByText(LOOP.title).some((node) => (
       node.className.includes("ui-type-metadata")
     ))).toBe(true);

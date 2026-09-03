@@ -28,7 +28,7 @@ import { RoomHistoryMenu } from "@/features/conversation/room/surface/history/ro
 import { useMediaQuery } from "@/hooks/ui/use-media-query";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { buildRoomSharedSessionKey } from "@/lib/conversation/session-key";
-import { CONVERSATION_FOCUS_MEDIA_QUERY } from "@/lib/layout/home-layout";
+import { APP_NARROW_VIEWPORT_MEDIA_QUERY } from "@/lib/layout/home-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import { UiIconButton } from "@/shared/ui/button/button";
@@ -362,7 +362,7 @@ function ContactConversation({
   targetId: string;
 }) {
   const { t } = useI18n();
-  const isCompactLayout = useMediaQuery(CONVERSATION_FOCUS_MEDIA_QUERY);
+  const isCompactLayout = useMediaQuery(APP_NARROW_VIEWPORT_MEDIA_QUERY);
   const messages = useMemo(
     () => events
       .filter((event) => Boolean(event.content?.trim()))

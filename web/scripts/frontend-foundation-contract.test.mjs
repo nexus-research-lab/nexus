@@ -211,9 +211,23 @@ test("theme recipes own the semantic layer and adaptive dialog geometry implemen
 });
 
 test("narrow app and Room chrome share one platform-aware shell geometry", async () => {
-  const [layout, appHeader, roomHeader, switcher, auxiliary, actions, recipes] = await Promise.all([
+  const [
+    layout,
+    homeLayout,
+    appLayout,
+    appHeader,
+    contentHeader,
+    roomHeader,
+    switcher,
+    auxiliary,
+    actions,
+    recipes,
+  ] = await Promise.all([
     readSource("src/shared/ui/layout/mobile-shell-header-layout.ts"),
+    readSource("src/lib/layout/home-layout.ts"),
+    readSource("src/app/layout/app-layout.tsx"),
     readSource("src/app/layout/mobile-app-page-header.tsx"),
+    readSource("src/shared/ui/layout/workspace-content-header.tsx"),
     readSource("src/features/conversation/room/surface/mobile/room-mobile-header.tsx"),
     readSource("src/features/conversation/room/surface/mobile/room-mobile-conversation-switcher.tsx"),
     readSource("src/features/conversation/room/surface/mobile/room-mobile-auxiliary-overlay.tsx"),
@@ -224,6 +238,11 @@ test("narrow app and Room chrome share one platform-aware shell geometry", async
   assert.match(layout, /--mobile-shell-header-height,52px/);
   assert.match(layout, /MOBILE_SHELL_HEADER_GUTTER_CLASS_NAME/);
   assert.match(layout, /MOBILE_SHELL_HEADER_OFFSET_CLASS_NAME/);
+  assert.match(homeLayout, /APP_NARROW_VIEWPORT_MEDIA_QUERY = "\(max-width: 559px\)"/);
+  assert.match(homeLayout, /APP_NARROW_VIEWPORT_HIDDEN_CLASS_NAME = "max-\[559px\]:hidden"/);
+  assert.match(appLayout, /useMediaQuery\(APP_NARROW_VIEWPORT_MEDIA_QUERY\)/);
+  assert.match(contentHeader, /APP_NARROW_VIEWPORT_HIDDEN_CLASS_NAME/);
+  assert.doesNotMatch(contentHeader, /hidden h-\[var\(--workspace-header-height,60px\)\][\s\S]*lg:block/);
   for (const consumer of [appHeader, roomHeader]) {
     assert.match(consumer, /MOBILE_SHELL_HEADER_HEIGHT_CLASS_NAME/);
     assert.match(consumer, /MOBILE_SHELL_HEADER_GUTTER_CLASS_NAME/);
@@ -452,6 +471,21 @@ test("List and Badge primitives expose semantic typography and shape instead of 
   }
   assert.match(connectorCard, /meta=\{<ConnectorCardBadge/);
   assert.match(customMcpGrid, /role: "code"/);
+});
+
+test("Seeded resource avatars use semantic rounded-square roles", async () => {
+  const seededAvatar = await readSource("src/shared/ui/display/seeded-avatar.tsx");
+
+  for (const role of [
+    "radius-control-xs",
+    "radius-control-sm",
+    "radius-control-md",
+    "radius-control-lg",
+  ]) {
+    assert.match(seededAvatar, new RegExp(role));
+  }
+  assert.doesNotMatch(seededAvatar, /rounded-\[/);
+  assert.doesNotMatch(seededAvatar, /Math\.random/);
 });
 
 test("desktop hosts share viewport bounds but keep platform chrome ownership separate", async () => {
@@ -872,6 +906,8 @@ test("Capability page chrome has one Header, typography, action, and shape owner
     assert.doesNotMatch(consumer, /role: "objectTitle"/);
   }
   assert.doesNotMatch(loopDetail, /<WorkspaceContentHeader/);
+  assert.match(loopDetail, /<UiSeededAvatar seed=\{loop\.slug\} size="lg"/);
+  assert.match(workGraphDetail, /<UiSeededAvatar seed=\{item\.slash_name\} size="lg"/);
   assert.match(workGraphDirectory, /detailRouteContent/);
   assert.doesNotMatch(workGraphDirectory, /className=\{selected \?/);
   assert.match(skillDetail, /<CapabilityDetailSplitLayout/);
