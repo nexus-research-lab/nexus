@@ -38,6 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Unified WorkGraph artifact cards and narrow comparison panes on shared Panel,
+  Button, Badge, Tabs, typography, and loading contracts, removing their private
+  selected-tab shadow and text recipes.
 - Moved the streamed generative-UI placeholder, title, and container geometry
   onto shared Skeleton, typography, and semantic shape contracts.
 - Centralized Home sidebar loading rows on the shared Skeleton tone, shape,
