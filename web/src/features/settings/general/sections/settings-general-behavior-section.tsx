@@ -22,6 +22,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import type { UiSelectMenuOption } from "@/shared/ui/menu/select-menu-model";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
 import type { AgentConversationDefaultDeliveryPolicy } from "@/types/agent/agent-conversation";
 
 import { SettingsDefaultModelRow } from "../components/settings-default-model-row";
@@ -34,7 +35,6 @@ import {
   SETTINGS_ITEM_TITLE_CLASS_NAME,
   SETTINGS_ROW_CLASS_NAME,
   SETTINGS_TEXT_ROW_CLASS_NAME,
-  SettingsSegmentedControl,
 } from "../../shared/settings-panel-ui";
 import type { DefaultModelPreferenceRole } from "../model/default-model-preferences-model";
 import { SettingsOnboardingRow } from "../components/settings-onboarding-row";
@@ -387,14 +387,16 @@ export function SettingsGeneralBehaviorSection({
             <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
               {t("settings.general.default_delivery")}
             </span>
-            <SettingsSegmentedControl
-              ariaLabel={t("settings.general.default_delivery")}
+            <UiSegmentedControl
+              density="compact"
               disabled={preferencesLoading || preferencesSaving}
               onChange={onDefaultDeliveryPolicyChange}
               options={DELIVERY_POLICY_OPTIONS.map((option) => ({
                 value: option.value,
                 label: t(option.labelKey),
               }))}
+              stretch
+              title={t("settings.general.default_delivery")}
               value={chatDefaultDeliveryPolicy}
             />
           </div>

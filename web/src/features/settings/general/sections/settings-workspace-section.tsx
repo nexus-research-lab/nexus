@@ -16,13 +16,12 @@ import {
 
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
+import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { UiInput } from "@/shared/ui/form/form-control";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
 import {
   SETTINGS_CARD_CLASS_NAME,
-  SETTINGS_CONTROL_HEIGHT_CLASS_NAME,
-  SETTINGS_CONTROL_TEXT_CLASS_NAME,
   SETTINGS_ICON_CLASS_NAME,
   SETTINGS_ITEM_DESCRIPTION_CLASS_NAME,
   SETTINGS_ITEM_TITLE_CLASS_NAME,
@@ -87,27 +86,29 @@ export function SettingsWorkspaceSection() {
                   value={controller.draftPath}
                   variant="surface"
                 />
-                <button
+                <UiIconButton
                   aria-label={t("settings.general.state_root_select_action")}
-                  className="absolute right-1 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-[7px] text-(--icon-default) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) disabled:pointer-events-none disabled:opacity-(--disabled-opacity)"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 disabled:pointer-events-none"
                   disabled={controller.busy}
                   onClick={() => void controller.selectDirectory()}
-                  title={t("settings.general.state_root_select_action")}
-                  type="button"
+                  size="xs"
+                  tooltip={t("settings.general.state_root_select_action")}
+                  variant="ghost"
                 >
                   {controller.selecting ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   ) : (
                     <FolderOpen className="h-3.5 w-3.5" />
                   )}
-                </button>
+                </UiIconButton>
               </div>
-              <button
-                className={`${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} inline-flex shrink-0 items-center justify-center gap-1.5 rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-2.5 ${SETTINGS_CONTROL_TEXT_CLASS_NAME} text-(--text-default) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) disabled:opacity-(--disabled-opacity)`}
+              <UiButton
+                className="shrink-0"
                 disabled={controller.saveDisabled}
                 onClick={() => setConfirmOpen(true)}
+                size="xs"
                 title={t("settings.general.state_root_action")}
-                type="button"
+                variant="surface"
               >
                 {controller.saving ? (
                   <Loader2 className="h-3 w-3 animate-spin" />
@@ -115,7 +116,7 @@ export function SettingsWorkspaceSection() {
                   <RefreshCw className="h-3 w-3" />
                 )}
                 {t("settings.general.state_root_action")}
-              </button>
+              </UiButton>
             </div>
           </div>
         </div>

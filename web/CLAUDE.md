@@ -52,6 +52,7 @@ src/
 - Surface 搜索入口统一由 `UiSearchInput` 提供中性灰白底、hairline 边界及交互态；消费者只调整尺寸和布局，不得局部覆写背景、边框或阴影
 - Light/Sunny 壳层以 `#f9f9f7` 为页面真相源，导航、目录、主画布依靠相邻中性灰阶分区；主侧栏外缘只绘制一根不透明 hairline，展开态从物理窗口顶端贯穿到底部，折叠态从 Header 底部开始以避开原生窗口按钮，内部 Dock 不再叠加竖线或外投影。Nexus 品牌蓝只用于发送、保存、创建、连接等主行动，以及焦点、运行态和明确选中模式；普通导航与次级工具保持黑白灰，teal 只表达次级数据/文件类型，红绿黄只表达危险、成功和警告
 - App Typography 由 `app/styles/theme-tokens.css` 的字号阶梯、`app/styles/theme-recipes.css` 的 `.ui-type-*` 配方和 `shared/ui/typography/typography-styles.ts` 的 typed role 统一定义：系统 UI 字体栈保持原生，普通控件使用 14px，页面标题使用 16px，20px 以上只承担对象主标题、品牌或特定空态；业务组件选择 role、tone 和有限 weight，只自行负责语义标签与布局。根节点不得用界面 token 覆盖继承字号，对话、文件和其他阅读正文继续由所属 Surface 显式声明。业务组件不得用 15/17/22px 等近似任意值恢复旧界面尺度；字体收紧不得同步削减输入框、按钮或移动端触控热区。完整合同见 `docs/specs/web-surface-density-spec.md`
+- Settings 的标题、说明、控件文字与分段选项必须分别复用语义 Typography 和 `UiSegmentedControl`；`settings-panel-ui.tsx` 只组合设置域布局，不得定义第二套字号、字重、圆角或选中阴影。
 - 主侧栏品牌栏只保留 Launcher 字标与折叠控制；一级导航承载聊天、联系人和能力，能力下方仅在存在用户固定会话时显示分割线与可拖放排序的固定区，每项的 X 只取消固定、不关闭或删除会话；Nexus 主智能体以不可删除的默认 DM 固定在聊天目录顶部；底部统一承载设置、引导与按认证状态显示的退出，展开态将退出和常用入口分居两侧
 - Liquid Glass 由专用 Hook 持有能力启用与 Web Animation 生命周期，Filter 视图只描述 SVG 资源链；组件 render 阶段不得写状态，消费者不得通过目录 barrel 导入
 - 样式类名组合只由 `shared/ui/class-name.ts` 提供；时间、Token 和头像规则分别归 `lib/format/` 与 `lib/avatar.ts`，不得恢复混合 `lib/utils.ts`

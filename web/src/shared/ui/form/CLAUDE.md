@@ -7,4 +7,5 @@
 - `SidebarSearchField` 只统一侧栏搜索壳层和可选动作，不持有业务状态；搜索框使用暖色内嵌 control field，尾部按钮使用 `SidebarSearchAction` 的稍高一层暖色轻抬升基座，消费者只传业务图标与命令。
 - `choice-styles.ts` 先规范化公共状态，再由 variant resolver 独立组合样式；不同变体不得共享条件分支。
 - `UiCheckbox` 是所有普通原生 checkbox 的尺寸、品牌色、焦点与 disabled 入口；带说明的整行选择继续组合 `UiCheckboxRow`，生成式问答等自绘选择器不属于该原语。
+- `UiSegmentedControl` 是有限互斥选项的唯一入口；选中态使用背景与文字对比，不加阴影，普通设置不使用胶囊圆角。业务页面只提供选项、当前值和尺寸密度，不得再定义私有分段选择器。
 - `form-controls.test.tsx` 以真实 invalid/input、select、键盘和点击事件覆盖 Field、Input、NativeSelect、SearchInput、Checkbox、Choice 与 SegmentedControl 的 ARIA/状态合同。

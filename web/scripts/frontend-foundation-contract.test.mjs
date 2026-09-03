@@ -272,6 +272,28 @@ test("App typography exposes one typed semantic role map", async () => {
   assert.doesNotMatch(design, /字号阶梯：`10 \/ 11 \/ 12 \/ 13 \/ 15 \/ 17/);
 });
 
+test("settings reuse semantic typography and the shared segmented control", async () => {
+  const [settingsStyles, segmentedControl, appearance, behavior, runtime] = await Promise.all([
+    readSource("src/features/settings/shared/settings-panel-ui.tsx"),
+    readSource("src/shared/ui/form/segmented-control.tsx"),
+    readSource("src/features/settings/general/sections/settings-appearance-section.tsx"),
+    readSource("src/features/settings/general/sections/settings-general-behavior-section.tsx"),
+    readSource("src/features/settings/runtime/settings-runtime-section.tsx"),
+  ]);
+
+  assert.match(settingsStyles, /getUiTypographyClassName/);
+  assert.doesNotMatch(settingsStyles, /SettingsSegmentedControl/);
+  assert.doesNotMatch(settingsStyles, /(?:text|leading|tracking|font)-\[/);
+  assert.doesNotMatch(settingsStyles, /rounded-\[/);
+  assert.match(segmentedControl, /getUiTypographyClassName\(\{ role: "caption"/);
+  assert.match(segmentedControl, /surface-radius-md/);
+  assert.doesNotMatch(segmentedControl, /rounded-full|shadow-/);
+  for (const consumer of [appearance, behavior, runtime]) {
+    assert.match(consumer, /UiSegmentedControl/);
+    assert.doesNotMatch(consumer, /SettingsSegmentedControl/);
+  }
+});
+
 test("product source contains no arbitrary shadows or numeric z-index values", async () => {
   const files = (await Promise.all(productUiRoots.map(collectSourceFiles))).flat();
   const violations = [];

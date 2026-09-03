@@ -109,6 +109,8 @@ App chrome 使用 `shared/ui/typography/typography-styles.ts` 的语义角色，
 
 业务组件只选择 role、tone 和有限的 weight；margin、截断与布局仍由调用方负责。Launcher 品牌字、Markdown/文件阅读正文以及 WorkGraph/图形内必须像素对齐的微标签由所属 Surface 独立管理，并在其所有者文档说明理由。
 
+Settings 不单独维护字号和字重：区块标题、设置项名称、说明与控件文字分别选择上述语义角色。分段选择统一使用 `UiSegmentedControl`，普通设置不使用胶囊圆角，选中态只通过背景与文字对比表达，不加阴影。
+
 - 新会话欢迎：`2xl`、常规字重、宽松行高；一行主要信息 + 一个蓝色 Nexus 签名。
 - 侧栏 / 设置：`--font-sans`；条目紧凑、组标题可扫描、摘要不抢正文。
 - 字重使用克制阶梯：正文 `400`，表单 label `500`，标题与语义强调 `600` 封顶；不用全大写、宽字距、满屏 semibold 或彩色标题制造层级。

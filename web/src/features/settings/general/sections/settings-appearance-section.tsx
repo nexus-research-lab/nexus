@@ -4,6 +4,7 @@ import { Languages, Palette } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { useTheme } from "@/shared/theme/theme-context";
+import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
 
 import {
   LOCALE_OPTIONS,
@@ -16,7 +17,6 @@ import {
   SETTINGS_ITEM_TITLE_CLASS_NAME,
   SETTINGS_ROW_CLASS_NAME,
   SETTINGS_TEXT_ROW_CLASS_NAME,
-  SettingsSegmentedControl,
 } from "../../shared/settings-panel-ui";
 
 export function SettingsAppearanceSection() {
@@ -41,13 +41,15 @@ export function SettingsAppearanceSection() {
             </div>
           </div>
           <div className="min-w-0">
-            <SettingsSegmentedControl
-              ariaLabel={t("theme.switch_title")}
+            <UiSegmentedControl
+              density="compact"
               onChange={setTheme}
               options={THEME_OPTIONS.map((option) => ({
                 value: option.value,
                 label: t(option.labelKey),
               }))}
+              stretch
+              title={t("theme.switch_title")}
               value={theme}
             />
           </div>
@@ -70,13 +72,15 @@ export function SettingsAppearanceSection() {
             </div>
           </div>
           <div className="min-w-0">
-            <SettingsSegmentedControl
-              ariaLabel={t("language.switch_title")}
+            <UiSegmentedControl
+              density="compact"
               onChange={setLocale}
               options={LOCALE_OPTIONS.map((option) => ({
                 value: option.value,
                 label: t(option.labelKey),
               }))}
+              stretch
+              title={t("language.switch_title")}
               value={locale}
             />
           </div>

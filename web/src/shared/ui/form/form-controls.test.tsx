@@ -159,7 +159,13 @@ describe("form primitives", () => {
 
     const once = screen.getByRole("button", { name: "一次" });
     const recurring = screen.getByRole("button", { name: "重复" });
+    const group = screen.getByRole("group", { name: "执行频率" });
+    expect(group.className).toContain("surface-radius-md");
+    expect(group.className).not.toContain("rounded-full");
     expect(once.getAttribute("aria-pressed")).toBe("true");
+    expect(once.className).toContain("radius-control-sm");
+    expect(once.className).toContain("ui-type-caption");
+    expect(once.className).not.toContain("shadow-");
     expect(recurring.getAttribute("aria-pressed")).toBe("false");
     await user.click(recurring);
     expect(onSegment).toHaveBeenCalledWith("recurring");
