@@ -7,6 +7,7 @@ import { RefreshCw, Search } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
 import { UiIconButton } from "@/shared/ui/button/button";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
@@ -68,7 +69,11 @@ export function AgentMemoryCatalog({
               title={t("capability.refresh")}
               variant="ghost"
             >
-              <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
+              <RefreshCw
+                className={refreshing
+                  ? getUiSpinnerClassName({ size: "sm" })
+                  : "h-3.5 w-3.5"}
+              />
             </UiIconButton>
           )}
           className="min-w-0 flex-1"

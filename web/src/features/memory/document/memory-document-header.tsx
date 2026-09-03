@@ -14,6 +14,7 @@ import {
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import type { MemoryDocument } from "@/types/memory/memory";
 
 import { formatMemoryModifiedTime } from "../memory-utils";
@@ -111,7 +112,9 @@ function MemoryRuntimeWritingStatus() {
   const { t } = useI18n();
   return (
     <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-(--primary)">
-      <LoaderCircle className="h-3 w-3 animate-spin" />
+      <LoaderCircle
+        className={getUiSpinnerClassName({ size: "xs", tone: "primary" })}
+      />
       {t("capability.memory_runtime_writing")}
     </span>
   );
@@ -156,7 +159,7 @@ function MemoryHeaderActions({
           variant="ghost"
         >
           {deleteAction.deleting ? (
-            <LoaderCircle className="h-4 w-4 animate-spin" />
+            <LoaderCircle className={getUiSpinnerClassName({ size: "md" })} />
           ) : (
             <Trash2 className="h-4 w-4" />
           )}
@@ -182,7 +185,11 @@ function MemoryEditingActions({
         onClick={() => void controller.save()}
         size="sm"
       >
-        <SaveIcon className={action.saving ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />
+        <SaveIcon
+          className={action.saving
+            ? getUiSpinnerClassName({ size: "sm" })
+            : "h-3.5 w-3.5"}
+        />
         {t("common.save")}
       </UiButton>
       <UiIconButton
