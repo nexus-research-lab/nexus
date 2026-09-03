@@ -1,7 +1,7 @@
 /**
  * INPUT: Skill 详情快照、Agent 使用矩阵与更新删除命令。
- * OUTPUT: Skill 身份、范围说明、Agent 状态差异和完整正文详情。
- * POS: Skill 详情纯视图；开关附近保留影响当前决策的说明。
+ * OUTPUT: Skill 身份、正文阅读列、Agent 配置侧栏及响应式单列详情。
+ * POS: Skill 详情纯视图；复用 Capability 详情分栏，不拥有页面断点或列宽。
  */
 "use client";
 
@@ -14,6 +14,10 @@ import {
   Trash2,
 } from "lucide-react";
 
+import {
+  CapabilityDetailSectionHeader,
+  CapabilityDetailSplitLayout,
+} from "@/features/capability/shared/capability-page-layout";
 import {
   getSkillDisplayDescription,
   getSkillDisplayTitle,
@@ -230,45 +234,51 @@ function SkillDetailReady({
   const { t } = useI18n();
   return (
     <div className="pt-5">
-      <SkillDetailHero
-        activeAction={activeAction}
-        model={model}
-        onDelete={onDelete}
-        onUpdate={onUpdate}
-      />
-      <div className="mt-6 max-w-[760px] space-y-5">
-        <SkillDetailBadges badges={model.badges} />
-        {model.scope === "room" ? (
-          <RoomSkillUsage />
-        ) : (
-          <SkillAgentBindings
-            agentBindings={agentBindings}
-            agentsLoading={agentsLoading}
-            bindingsFailure={bindingsFailure}
-            busyAgentId={busyAgentId}
-            locked={model.locked}
-            onToggle={onAgentToggle}
-            onRetryBindings={onRetryBindings}
-            toggleFailures={toggleFailures}
+      <CapabilityDetailSplitLayout
+        aside={(
+          <div className="space-y-5">
+            <SkillDetailBadges badges={model.badges} />
+            {model.scope === "room" ? (
+              <RoomSkillUsage />
+            ) : (
+              <SkillAgentBindings
+                agentBindings={agentBindings}
+                agentsLoading={agentsLoading}
+                bindingsFailure={bindingsFailure}
+                busyAgentId={busyAgentId}
+                locked={model.locked}
+                onToggle={onAgentToggle}
+                onRetryBindings={onRetryBindings}
+                toggleFailures={toggleFailures}
+              />
+            )}
+          </div>
+        )}
+        header={(
+          <SkillDetailHero
+            activeAction={activeAction}
+            model={model}
+            onDelete={onDelete}
+            onUpdate={onUpdate}
           />
         )}
-        <section>
-          <h2 className={cn(
-            "mb-3",
-            getUiTypographyClassName({ role: "pageTitle", tone: "strong" }),
-          )}>
-            {t("capability.skills_detail_description")}
-          </h2>
-          <UiPanel padding="md" radius="md" variant="card">
-            <SkillMarkdown
-              description={model.description}
-              markdown={model.readmeMarkdown}
-              title={model.displayName}
+      >
+        <div className="space-y-5">
+          <section>
+            <CapabilityDetailSectionHeader
+              title={t("capability.skills_detail_description")}
             />
-          </UiPanel>
-        </section>
-        <SkillSourceLink sourceUrl={model.sourceUrl} />
-      </div>
+            <UiPanel padding="md" radius="md" variant="card">
+              <SkillMarkdown
+                description={model.description}
+                markdown={model.readmeMarkdown}
+                title={model.displayName}
+              />
+            </UiPanel>
+          </section>
+          <SkillSourceLink sourceUrl={model.sourceUrl} />
+        </div>
+      </CapabilityDetailSplitLayout>
     </div>
   );
 }
@@ -277,15 +287,10 @@ function RoomSkillUsage() {
   const { t } = useI18n();
   return (
     <section>
-      <h2 className={getUiTypographyClassName({ role: "pageTitle", tone: "strong" })}>
-        {t("capability.skills_detail_room_scope")}
-      </h2>
-      <p className={cn(
-        "mt-1",
-        getUiTypographyClassName({ role: "supporting", tone: "muted" }),
-      )}>
-        {t("capability.skills_detail_room_scope_description")}
-      </p>
+      <CapabilityDetailSectionHeader
+        description={t("capability.skills_detail_room_scope_description")}
+        title={t("capability.skills_detail_room_scope")}
+      />
     </section>
   );
 }
@@ -313,27 +318,16 @@ function SkillAgentBindings({
   const enabledCount = agentBindings.filter((item) => item.enabled).length;
   return (
     <section>
-      <div className="mb-3 flex items-end justify-between gap-3">
-        <div>
-          <h2 className={getUiTypographyClassName({ role: "pageTitle", tone: "strong" })}>
-            {t("capability.skills_detail_agent_scope")}
-          </h2>
-          <p className={cn(
-            "mt-1",
-            getUiTypographyClassName({ role: "supporting", tone: "muted" }),
-          )}>
-            {t("capability.skills_detail_agent_scope_description")}
-          </p>
-        </div>
-        {!agentsLoading ? (
-          <span className={getUiTypographyClassName({ role: "caption", tone: "soft" })}>
-            {t("capability.skills_detail_enabled_count", {
+      <CapabilityDetailSectionHeader
+        description={t("capability.skills_detail_agent_scope_description")}
+        meta={!agentsLoading
+          ? t("capability.skills_detail_enabled_count", {
               enabled: enabledCount,
               total: agentBindings.length,
-            })}
-          </span>
-        ) : null}
-      </div>
+            })
+          : undefined}
+        title={t("capability.skills_detail_agent_scope")}
+      />
       <UiPanel padding="sm" radius="md" variant="card">
         {bindingsFailure ? (
           <SkillAgentFailureNotice

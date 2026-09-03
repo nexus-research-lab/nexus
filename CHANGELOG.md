@@ -38,6 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Reorganized Skill details around a shared responsive capability layout: long
+  instructions keep a readable main column while badges and per-Agent controls
+  occupy a bounded configuration rail that moves before content on narrow windows.
 - Removed unimplemented placeholder Connectors from the server catalog and
   reorganized the available directory into only its real capability groups,
   with category filters derived from the products that are actually present.
