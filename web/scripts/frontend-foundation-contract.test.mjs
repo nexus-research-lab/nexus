@@ -866,6 +866,21 @@ test("Capability page chrome has one Header, typography, action, and shape owner
   assert.match(workspaceHeader, /getUiTypographyClassName/);
 });
 
+test("Capability auxiliary states reuse resource, list, typography, and spinner owners", async () => {
+  const [pairings, skillUpdates] = await Promise.all([
+    readSource("src/features/capability/channels/pairings-directory.tsx"),
+    readSource("src/features/capability/skills/catalog/skills-update-highlight.tsx"),
+  ]);
+
+  assert.match(pairings, /<UiResourceState/);
+  assert.doesNotMatch(pairings, /text-base|font-(?:medium|semibold)/);
+  assert.match(skillUpdates, /<UiPanel/);
+  assert.match(skillUpdates, /<UiListRow/);
+  assert.match(skillUpdates, /getUiTypographyClassName/);
+  assert.match(skillUpdates, /getUiSpinnerClassName/);
+  assert.doesNotMatch(skillUpdates, /<button\b|rounded-\[|animate-spin/);
+});
+
 test("Channel catalog shares resource, typography, action, and brand icon owners", async () => {
   const [directory, card, channelIcon, connectorIcon, brandIcon] = await Promise.all([
     readSource("src/features/capability/channels/channels-directory.tsx"),
