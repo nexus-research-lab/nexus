@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { cn } from "@/shared/ui/class-name";
 import { useSelectMenuOverlay } from "@/shared/ui/menu/use-select-menu-overlay";
@@ -253,7 +254,7 @@ export function RoomHistoryMenu({
         type="button"
       >
         {isBulkDeleting ? (
-          <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none" />
+          <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
         ) : triggerVariant === "session" ? (
           <ChevronDown
             className={cn(
