@@ -653,6 +653,15 @@ test("Message actions, task status, and artifact loading share Spinner roles", a
     assert.match(combined, new RegExp(`size: "${size}"`));
   }
   assert.match(combined, /tone: "muted"/);
+
+  const workGraphArtifact = sources[4];
+  for (const owner of ["UiPanel", "UiButton", "UiBadge", "UiTabs", "getUiTypographyClassName"]) {
+    assert.match(workGraphArtifact, new RegExp(owner));
+  }
+  assert.doesNotMatch(
+    workGraphArtifact,
+    /<button\b|getDialogActionClassName|rounded-\[(?:8|14)px\]|\btext-(?:2xs|xs|sm)\b|\bfont-(?:medium|semibold)\b|\bshadow-sm\b/,
+  );
 });
 
 test("Composer Connector and Room model menus share compact Spinner roles", async () => {
