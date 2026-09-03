@@ -645,11 +645,11 @@ test("WorkGraph expand control opens a large modal canvas with a separate fit ac
   ), "utf8");
   assert.match(
     controlsSource,
-    /label=\{t\("execution\.fit_graph"\)\}[\s\S]*?<Scan/,
+    /aria-label=\{t\("execution\.fit_graph"\)\}[\s\S]*?<Scan/,
   );
   assert.match(
     controlsSource,
-    /label=\{t\("execution\.open_workgraph"\)\}[\s\S]*?<Maximize2/,
+    /aria-label=\{t\("execution\.open_workgraph"\)\}[\s\S]*?<Maximize2/,
   );
   assert.match(canvasSource, /data-execution-workgraph-expanded-dialog/);
   assert.match(canvasSource, /<UiDialogBackdrop[\s\S]*?<UiDialogShell/);

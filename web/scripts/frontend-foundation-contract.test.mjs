@@ -670,6 +670,29 @@ test("WorkGraph surfaces share canvas, action, and revision Spinner roles", asyn
   );
 });
 
+test("WorkGraph standard actions use shared controls while graph hit targets stay domain-owned", async () => {
+  const [controls, surface, canvas] = await Promise.all([
+    readSource("src/features/conversation/shared/execution/execution-workgraph-controls.tsx"),
+    readSource("src/features/conversation/shared/execution/execution-workgraph-surface.tsx"),
+    readSource("src/features/conversation/shared/execution/execution-workgraph-canvas.tsx"),
+  ]);
+
+  assert.match(controls, /<UiButton/);
+  assert.match(controls, /<UiIconButton/);
+  assert.match(controls, /surface-popover surface-radius-sm/);
+  assert.match(controls, /getUiTypographyClassName/);
+  assert.doesNotMatch(controls, /<button\b|GraphControlButton|rounded-\[/);
+
+  assert.match(surface, /<UiButton[\s\S]*?data-workgraph-save-sketch/);
+  assert.doesNotMatch(surface, /<button\b/);
+
+  assert.match(canvas, /<UiIconButton[\s\S]*?execution\.close_node_details/);
+  assert.match(canvas, /<UiIconButton[\s\S]*?execution\.close_edge_details/);
+  assert.match(canvas, /<button[\s\S]*?data-execution-edge-hit-target/);
+  assert.match(canvas, /<button[\s\S]*?data-execution-graph-node-id/);
+  assert.match(canvas, /<button[\s\S]*?data-execution-collapse-node/);
+});
+
 test("Subagent thread loading and command actions share Spinner roles", async () => {
   const source = await readSource(
     "src/features/conversation/shared/subagent/thread/subagent-task-thread-view.tsx",

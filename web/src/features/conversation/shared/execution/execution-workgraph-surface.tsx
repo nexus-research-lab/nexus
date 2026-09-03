@@ -1,6 +1,6 @@
 /**
  * INPUT: Room/DM 共用 Execution resource、Agent 目录与精确 Agent round Task run。
- * OUTPUT: 以标题旁唯一的下拉入口展示当前项、明确的历史空态，并切换已有历史的 WorkGraph 主视图。
+ * OUTPUT: 以共享标题动作、唯一历史下拉和明确空态切换已有历史的 WorkGraph 主视图。
  * POS: 底部节点轨迹之外的完整图入口；只消费同一权威 ExecutionView，不解析 metadata 或另起状态机。
  */
 "use client";
@@ -22,7 +22,7 @@ import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { previewWorkGraphWorkflowApi } from "@/lib/api/conversation/execution-api";
 import { getErrorMessage } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiIconButton } from "@/shared/ui/button/button";
+import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
@@ -275,12 +275,14 @@ export function ExecutionWorkGraphSurface({
             </span>
           ) : null}
           {header?.status === "completed" && execution && sketchSessionKey ? (
-            <button
-              className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-[7px] border border-[color:color-mix(in_srgb,var(--primary)_24%,var(--surface-control-border))] bg-[color:color-mix(in_srgb,var(--primary)_6%,var(--surface-control-background))] px-2.5 text-xs font-semibold text-(--primary) transition-colors hover:bg-[color:color-mix(in_srgb,var(--primary)_11%,var(--surface-control-background))] disabled:cursor-wait disabled:opacity-60"
+            <UiButton
+              className="h-7 shrink-0"
               data-workgraph-save-sketch
               disabled={sketchLoading}
               onClick={handleOpenSketch}
-              type="button"
+              size="xs"
+              tone="primary"
+              variant="surface"
             >
               {sketchLoading
                 ? <LoaderCircle className={getUiSpinnerClassName({ size: "sm" })} />
@@ -288,7 +290,7 @@ export function ExecutionWorkGraphSurface({
               {t(sketchLoading
                 ? "execution.workflow_extracting_sketch"
                 : "execution.workflow_save_as_sketch")}
-            </button>
+            </UiButton>
           ) : null}
           {runtimeProjectionPartial ? (
             <span

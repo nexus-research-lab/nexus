@@ -38,6 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Unified WorkGraph search, zoom, fit, locate, expand, inspector-close, and
+  save-as-sketch actions on shared Button and IconButton primitives, while
+  retaining graph nodes and edge hit targets as geometry-owned interactions.
 - Unified Workspace file Header actions on the shared compact IconButton and
   moved presentation thumbnails, paging controls, labels, and localized action
   names onto shared Choice, IconButton, and Typography contracts.
