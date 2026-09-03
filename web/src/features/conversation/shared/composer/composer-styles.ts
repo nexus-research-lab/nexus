@@ -11,9 +11,6 @@ export const COMPOSER_ATTACHMENT_PREVIEW_CLASS_NAME =
 export const COMPOSER_ATTACHMENT_ROW_CLASS_NAME =
   "flex flex-wrap gap-2 border-b border-(--divider-subtle-color) px-2.5 py-2";
 
-export const COMPOSER_ATTACHMENT_REMOVE_CLASS_NAME =
-  "ml-1 rounded-full p-0.5 text-(--destructive) opacity-60 transition-[background,opacity] duration-(--motion-duration-fast) hover:bg-[color:color-mix(in_srgb,var(--destructive)_10%,transparent)] focus-visible:ring-2 focus-visible:ring-primary/50";
-
 export const COMPOSER_IMAGE_ATTACHMENT_CLASS_NAME =
   "group relative flex h-12 w-12 shrink-0 items-center justify-center rounded-[10px] border border-(--divider-subtle-color) bg-(--surface-panel-subtle-background) p-0.5 shadow-(--surface-control-field-shadow)";
 

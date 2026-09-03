@@ -1,7 +1,10 @@
+// INPUT: 当前 Thread 展开态与切换命令。
+// OUTPUT: 共享微型 Button 投影的 Thread 打开/关闭动作。
+// POS: Room Agent 执行条动作；不拥有 Thread 内容或展开状态。
 import type { MouseEventHandler } from "react";
 
-import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button/button";
 
 interface ThreadActionButtonProps {
   active: boolean;
@@ -15,20 +18,16 @@ export function ThreadActionButton({
   const { t } = useI18n();
   const actionLabel = t(active ? "room.thread_close" : "room.thread_open");
   return (
-    <button
+    <UiButton
       aria-label={actionLabel}
-      className={cn(
-        "inline-flex h-6 items-center rounded-md px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
-        active
-          ? "bg-(--status-info-soft-bg) text-(--status-info-soft-text)"
-          : "text-(--text-muted) hover:bg-(--interaction-hover-background) hover:text-(--text-default)",
-      )}
+      aria-pressed={active}
       data-room-agent-action="thread"
       onClick={onClick}
+      size="2xs"
       title={actionLabel}
-      type="button"
+      variant="text"
     >
       {t("room.thread_label")}
-    </button>
+    </UiButton>
   );
 }
