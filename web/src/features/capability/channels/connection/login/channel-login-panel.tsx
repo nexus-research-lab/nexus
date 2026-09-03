@@ -16,11 +16,14 @@ import type {
   ImChannelType,
 } from "@/lib/api/capability/channel-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiBadge } from "@/shared/ui/display/badge";
 import { UiButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
+import { UiBadge } from "@/shared/ui/display/badge";
 import { FeedbackBanner } from "@/shared/ui/feedback/feedback-banner";
 import type { FeedbackBannerProps } from "@/shared/ui/feedback/feedback-banner-contract";
 import { UiInput } from "@/shared/ui/form/form-control";
+import { UiPanel } from "@/shared/ui/panel";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import {
   buildChannelLoginPanelModel,
   type ChannelLoginPanelModel,
@@ -56,11 +59,21 @@ function ChannelLoginHeader({
 }) {
   return (
     <div className="min-w-0">
-      <div className="flex items-center gap-2 text-sm font-semibold text-(--text-strong)">
+      <h3 className={cn(
+        "flex items-center gap-2",
+        getUiTypographyClassName({
+          role: "control",
+          tone: "strong",
+          weight: "semibold",
+        }),
+      )}>
         <QrCode className="h-4 w-4 text-(--primary)" />
         扫码连接
-      </div>
-      <p className="mt-1 text-compact leading-5 text-(--text-muted)">
+      </h3>
+      <p className={cn(
+        "mt-1",
+        getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+      )}>
         {channelLoginDescription(channelType, channelTitle)}
       </p>
     </div>
@@ -86,8 +99,19 @@ function ChannelLoginVerifyCode({
   };
 
   return (
-    <div className="rounded-[10px] border border-[color:color-mix(in_srgb,var(--warning)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_8%,transparent)] px-3 py-3">
-      <div className="mb-2 text-compact font-semibold text-(--text-strong)">
+    <UiPanel
+      className="border-[color:color-mix(in_srgb,var(--warning)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_8%,transparent)]"
+      padding="sm"
+      radius="sm"
+    >
+      <div className={cn(
+        "mb-2",
+        getUiTypographyClassName({
+          role: "metadata",
+          tone: "strong",
+          weight: "semibold",
+        }),
+      )}>
         {hint}
       </div>
       <div className="flex gap-2">
@@ -108,7 +132,7 @@ function ChannelLoginVerifyCode({
           提交
         </UiButton>
       </div>
-    </div>
+    </UiPanel>
   );
 }
 
@@ -131,7 +155,10 @@ function ChannelLoginSession({
           <StatusIcon className="mr-1 h-3 w-3" />
           {model.status.label}
         </UiBadge>
-        <code className="min-w-0 truncate rounded-[8px] border border-(--divider-subtle-color) px-2 py-1 text-xs text-(--text-muted)">
+        <code className={cn(
+          "surface-radius-sm min-w-0 truncate border border-(--divider-subtle-color) px-2 py-1",
+          getUiTypographyClassName({ role: "code", tone: "muted" }),
+        )}>
           {model.identity}
         </code>
       </div>
@@ -145,9 +172,13 @@ function ChannelLoginSession({
         />
       ) : null}
       {model.progress ? (
-        <p className="rounded-[10px] border border-(--divider-subtle-color) px-3 py-2 text-compact leading-5 text-(--text-muted)">
+        <UiPanel
+          className={getUiTypographyClassName({ role: "metadata", tone: "muted" })}
+          padding="sm"
+          radius="sm"
+        >
           {model.progress}
-        </p>
+        </UiPanel>
       ) : null}
       {model.failure ? (
         <FeedbackBanner {...model.failure} />
@@ -177,7 +208,7 @@ export function ChannelLoginPanel({
   const model = buildChannelLoginPanelModel(loginView, t);
 
   return (
-    <div className="rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-3 py-3">
+    <UiPanel padding="sm" radius="sm">
       <ChannelLoginHeader channelTitle={channelTitle} channelType={channelType} />
       {recoveryNotice ? (
         <div className="mt-3">
@@ -192,6 +223,6 @@ export function ChannelLoginPanel({
           onSubmitVerifyCode={onSubmitVerifyCode}
         />
       ) : null}
-    </div>
+    </UiPanel>
   );
 }

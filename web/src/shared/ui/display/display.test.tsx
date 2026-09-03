@@ -7,6 +7,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { UiBadge, UiCounterBadge } from "@/shared/ui/display/badge";
+import { UiQRCode } from "@/shared/ui/display/qr-code";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
 
@@ -27,6 +28,20 @@ describe("display badges", () => {
 
     rerender(<UiCounterBadge count={0} />);
     expect(container.textContent).toBe("");
+  });
+});
+
+describe("UiQRCode", () => {
+  it("uses the shared surface, shape, and code typography contracts", () => {
+    const payload = "data:image/png;base64,AAAA";
+    const { container } = render(
+      <UiQRCode alt="授权二维码" payload={payload} />,
+    );
+
+    expect(container.querySelector("section.surface-radius-md")).toBeTruthy();
+    expect(screen.getByRole("img", { name: "授权二维码" }).className)
+      .toContain("surface-radius-sm");
+    expect(screen.getByText(payload).className).toContain("ui-type-code");
   });
 });
 
