@@ -7,6 +7,9 @@ import { Check, Loader2 } from "lucide-react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { UiButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
+import { UiBadge } from "@/shared/ui/display/badge";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -15,6 +18,7 @@ import {
   UiDialogPortal,
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { ConnectorLocalPairingStart } from "@/types/capability/connector";
 
 import type { ConnectorDeviceAuthFailureKind } from "../device-flow/connector-device-auth-poller";
@@ -64,23 +68,32 @@ export function RichMailPairingDialog({
             title="连接 RichMail"
           />
           <UiDialogBody className="space-y-4 px-5">
-            <div className="flex items-center gap-2 text-xs font-medium text-(--text-muted)">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <div className={cn(
+              "flex items-center gap-2",
+              getUiTypographyClassName({ role: "metadata", tone: "muted", weight: "medium" }),
+            )}>
+              <Loader2 className={getUiSpinnerClassName({ size: "sm", tone: "muted" })} />
               <span aria-live="polite">{message}</span>
             </div>
             <ol className="space-y-3 border-y border-(--divider-subtle-color) py-4">
               {PAIRING_STEPS.map((step, index) => (
-                <li className="flex items-start gap-3 text-sm leading-5" key={step}>
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-(--surface-interactive-hover-background) text-2xs font-semibold text-(--text-muted)">
+                <li className={cn(
+                  "flex items-start gap-3",
+                  getUiTypographyClassName({ role: "supporting", tone: "default" }),
+                )} key={step}>
+                  <UiBadge className="h-5 w-5 px-0" shape="pill" size="xs" tone="default">
                     {index === 0 ? <Check className="h-3 w-3" /> : index + 1}
-                  </span>
-                  <span className="text-(--text-default)">{step}</span>
+                  </UiBadge>
+                  <span>{step}</span>
                 </li>
               ))}
             </ol>
-            <div className="text-xs text-(--text-soft)">
+            <div className={getUiTypographyClassName({ role: "caption", tone: "soft" })}>
               服务地址
-              <code className="ml-2 select-all break-all text-(--text-muted)">
+              <code className={cn(
+                "ml-2 select-all break-all",
+                getUiTypographyClassName({ role: "code", tone: "muted" }),
+              )}>
                 {session.endpoint}
               </code>
             </div>

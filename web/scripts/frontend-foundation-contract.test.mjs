@@ -982,6 +982,27 @@ test("Channel catalog shares resource, typography, action, and brand icon owners
   assert.equal(new Set(channelSources).size, channelSources.length);
 });
 
+test("Capability authorization dialogs reuse shared form, status, and typography owners", async () => {
+  const paths = [
+    "src/features/capability/channels/authorization/channel-authorization-dialog.tsx",
+    "src/features/capability/connectors/auth/device-flow/connector-device-auth-dialog.tsx",
+    "src/features/capability/connectors/auth/richmail/richmail-pairing-dialog.tsx",
+    "src/features/capability/connectors/auth/connector-oauth-client-dialog.tsx",
+    "src/features/capability/connectors/auth/connector-credential-dialog.tsx",
+    "src/features/capability/connectors/auth/feishu/feishu-app-connection-dialog.tsx",
+  ];
+  const sources = await Promise.all(paths.map(readSource));
+  const combined = sources.join("\n");
+
+  assert.match(combined, /getUiTypographyClassName/);
+  assert.match(combined, /getUiSpinnerClassName/);
+  assert.match(combined, /<UiPanel/);
+  assert.match(combined, /<UiField/);
+  for (const source of sources) {
+    assert.doesNotMatch(source, /rounded-\[|animate-spin|text-(?:2xs|xs|sm|base|lg|xl|2xl)|font-(?:normal|medium|semibold|bold)/);
+  }
+});
+
 test("Connector catalog exposes only implemented products and derives real categories", async () => {
   const [serverCatalog, catalogHook, catalogModel, categoryModel, searchBar] = await Promise.all([
     readSource("../internal/service/connectors/catalog.go"),

@@ -22,6 +22,7 @@ import {
 } from "@/shared/ui/dialog/dialog";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
 import { UiListRow } from "@/shared/ui/list/list-row";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import { feishuManualCredentialsComplete } from "./feishu-app-connection-model";
 
@@ -81,7 +82,7 @@ export function FeishuAppConnectionDialog({
                 <ArrowLeft className="h-3.5 w-3.5" />
                 返回
               </UiButton>
-              <p className="text-sm leading-6 text-(--text-muted)">
+              <p className={getUiTypographyClassName({ role: "supporting", tone: "muted" })}>
                 仅在扫码不可用时填写应用凭据。
               </p>
               <UiField htmlFor="feishu-existing-app-id" label="App ID" required>
