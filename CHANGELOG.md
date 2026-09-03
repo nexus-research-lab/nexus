@@ -243,10 +243,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Session Navigator previews to the shared popover material/layer, removed the
   duplicate `UiPanel` inset variant, and added enforced behavior suites for
   shared panel, list, badge, counter, and resource-state primitives.
-- Added a development-only UI contract gallery that renders the real shared
-  actions, forms, identity, navigation, resource states, overlays, and dialog
-  primitives with reproducible theme and locale URLs while remaining outside
-  production build entries.
+- Expanded the development-only UI contract gallery into an exhaustive catalog
+  of real `shared/ui` components across foundation, content, interaction, and
+  Workspace surfaces. Its Chinese and English fixtures now switch with the
+  locale, section/theme/locale remain reproducible in the URL, and a contract
+  test fails when a newly exported shared React component is not inventoried;
+  the gallery remains outside production build entries.
 - Consolidated provider setup, Loop and WorkGraph pickers onto one compact
   dialog viewport, moved natural-height contact, guide, Skill-source and
   Connector directories onto one compact maximum, and moved provider import

@@ -28,10 +28,10 @@ describe("UI contract gallery", () => {
     renderGallery();
 
     expect(screen.getByRole("heading", { name: "Nexus UI Contract Gallery" })).toBeTruthy();
-    expect(screen.getAllByText("Buttons & actions").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Typography hierarchy").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Forms & selection").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Resource states").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("按钮与动作").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("字体层级").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("表单与选择").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("资源状态").length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole("button", { name: "Dark" }));
 
@@ -39,6 +39,7 @@ describe("UI contract gallery", () => {
       expect(document.documentElement.dataset.theme).toBe("dark");
       expect(window.location.search).toContain("theme=dark");
       expect(window.location.search).toContain("locale=zh");
+      expect(window.location.search).toContain("section=foundation");
     });
   });
 
@@ -79,7 +80,7 @@ describe("UI contract gallery", () => {
     fireEvent.click(screen.getByRole("button", { name: "新建文件夹弹窗" }));
     const prompt = screen.getByRole("dialog", { name: "新建文件夹" });
     expect(prompt.querySelector(".max-w-sm")).toBeTruthy();
-    expect(screen.getByRole("textbox", { name: "例如：new-folder" })).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: "例如：新文件夹" })).toBeTruthy();
   });
 
   it("exposes both attachment viewer viewport contracts", () => {
@@ -93,5 +94,31 @@ describe("UI contract gallery", () => {
     fireEvent.click(screen.getByRole("button", { name: "文档预览尺寸" }));
     const document = screen.getByRole("dialog", { name: "文档预览契约" });
     expect(document.querySelector(".ui-dialog-viewport-document-preview")).toBeTruthy();
+  });
+
+  it("switches the fixture copy and document language instead of only changing a selector", async () => {
+    renderGallery();
+
+    fireEvent.click(screen.getByRole("button", { name: "English" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Foundation completeness")).toBeTruthy();
+      expect(screen.getByRole("button", { name: "New conversation" })).toBeTruthy();
+      expect(document.documentElement.lang).toBe("en");
+      expect(window.location.search).toContain("locale=en");
+    });
+  });
+
+  it("uses the section control to render the complete coverage index", async () => {
+    renderGallery();
+
+    fireEvent.click(screen.getByRole("button", { name: "覆盖清单" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "完整覆盖清单" })).toBeTruthy();
+      expect(screen.getAllByText("UiButton").length).toBeGreaterThan(0);
+      expect(screen.queryByRole("heading", { name: "字体层级" })).toBeNull();
+      expect(window.location.search).toContain("section=coverage");
+    });
   });
 });

@@ -6,6 +6,7 @@ import { UiContractGallery } from "@/dev/ui-gallery/ui-contract-gallery";
 import { bootstrapPublicReactApp } from "@/bootstrap/root-bootstrap";
 import { I18nProvider } from "@/shared/i18n/i18n-provider";
 import { LOCALE_STORAGE_KEY } from "@/shared/i18n/messages";
+import { OnboardingTourProvider } from "@/shared/ui/onboarding/tour-provider";
 import {
   THEME_STORAGE_KEY,
   type VisualTheme,
@@ -32,7 +33,9 @@ applyGalleryQueryPreferences();
 bootstrapPublicReactApp(() => (
   <ThemeProvider>
     <I18nProvider>
-      <UiContractGallery />
+      <OnboardingTourProvider>
+        <UiContractGallery />
+      </OnboardingTourProvider>
     </I18nProvider>
   </ThemeProvider>
 ));

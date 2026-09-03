@@ -238,9 +238,13 @@ Widget 可以认识 Agent、Room、Goal 等产品对象，但只组合下层合�
 当前共享组件的浏览器验收入口固定为
 `http://localhost:3000/ui-gallery.html?theme=light&locale=zh`。它是独立的开发
 HTML 入口，不经过登录态、业务 API 或产品路由，也不得加入 Vite 的生产
-`rollupOptions.input`。`theme=light|dark|rain` 与 `locale=zh|en` 必须写回 URL，
-使人工复查和后续截图工具使用同一可复现地址。陈列面必须直接渲染真实
-`shared/ui` 组件；不得建立只为截图存在的视觉替身。
+`rollupOptions.input`。`theme=light|dark|rain`、`locale=zh|en` 与
+`section=foundation|content|interaction|workspace|coverage` 必须写回 URL，使
+人工复查和后续截图工具使用同一可复现地址。陈列面必须直接 import 并渲染
+真实 `shared/ui` 组件；不得建立只为截图存在的视觉替身。公开 React 组件必须
+进入唯一覆盖清单：可视组件直接渲染，复合组件的内部原语由真实父组件覆盖，
+Provider 和 SVG Filter 等无独立界面的基础设施明确标注其真实消费路径。新增
+公开组件但没有登记时，Gallery 覆盖合同必须失败。
 
 组件陈列面是浏览器验证夹具，不是截图结论本身。任何影响布局、Portal、
 碰撞、视口或交互状态的改动，仍须按上方矩阵在真实浏览器中检查；自动截图
