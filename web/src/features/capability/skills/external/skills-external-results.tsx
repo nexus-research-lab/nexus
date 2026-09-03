@@ -1,10 +1,13 @@
-import { Loader2 } from "lucide-react";
 import { useMemo } from "react";
 
 import { CapabilitySectionHeader } from "@/features/capability/shared/capability-page-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { WORKSPACE_CATALOG_GRID_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
+import { UiPanel } from "@/shared/ui/panel";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type {
   ExternalSkillSearchItem,
   ExternalSkillSourceInfo,
@@ -90,17 +93,22 @@ function ExternalResultsStage(props: ExternalResultsStageProps) {
   if (props.model.phase === "hidden") return null;
   if (props.model.phase === "loading") {
     return (
-      <div className="flex items-center justify-center gap-2 py-12 text-sm text-(--text-soft)">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        {t("capability.skills_external_loading")}
-      </div>
+      <UiResourceState
+        size="sm"
+        state="loading"
+        title={t("capability.skills_external_loading")}
+        variant="plain"
+      />
     );
   }
   if (props.model.phase === "empty") {
     return (
-      <div className="rounded-[8px] border border-dashed border-(--divider-subtle-color) px-4 py-6 text-center text-compact text-(--text-soft)">
-        {t("capability.skills_external_empty")}
-      </div>
+      <UiResourceState
+        size="sm"
+        state="empty"
+        title={t("capability.skills_external_empty")}
+        variant="inset"
+      />
     );
   }
   return <ExternalResultsReady {...props} />;
@@ -146,11 +154,13 @@ function ExternalResultsReady({
           ))}
         </div>
       ) : (
-        <div className="rounded-[8px] border border-dashed border-(--divider-subtle-color) px-3 py-2 text-xs text-(--text-soft)">
-          {model.selectedGroup
-            ? sourceGroupEmptyMessage(model.selectedGroup, { t })
-            : t("capability.skills_external_empty")}
-        </div>
+        <UiPanel padding="sm" radius="sm" variant="dashed">
+          <p className={getUiTypographyClassName({ role: "caption", tone: "soft" })}>
+            {model.selectedGroup
+              ? sourceGroupEmptyMessage(model.selectedGroup, { t })
+              : t("capability.skills_external_empty")}
+          </p>
+        </UiPanel>
       )}
     </section>
   );
@@ -213,21 +223,24 @@ function ExternalSourceFilter({
   title,
 }: ExternalSourceFilterProps) {
   return (
-    <button
-      className={cn(
-        "inline-flex max-w-full items-center gap-1.5 rounded-[6px] border px-2 py-0.5 text-left text-2xs transition",
-        disabled && "cursor-not-allowed opacity-50",
-        selected
-          ? "border-(--primary) bg-[color:color-mix(in_srgb,var(--primary)_12%,transparent)] text-(--primary)"
-          : "border-(--divider-subtle-color) bg-transparent text-(--text-muted) hover:border-(--primary)",
-      )}
+    <UiButton
+      aria-pressed={selected}
+      className="max-w-full"
       disabled={disabled}
       onClick={onClick}
+      size="xs"
       title={title}
+      tone={selected ? "primary" : "default"}
       type="button"
+      variant="surface"
     >
-      <span className="truncate font-medium text-(--text-strong)">{label}</span>
-      <span className="shrink-0">{summary}</span>
-    </button>
+      <span className="truncate">{label}</span>
+      <span className={cn(
+        "shrink-0",
+        getUiTypographyClassName({ role: "caption", weight: "regular" }),
+      )}>
+        {summary}
+      </span>
+    </UiButton>
   );
 }

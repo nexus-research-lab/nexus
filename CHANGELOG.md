@@ -38,6 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Unified Skill import, external search, preview, and source-management chrome
+  on shared segmented controls, states, panels, actions, typography, and spinners.
 - Standardized Channel and Connector authorization dialogs on shared form,
   panel, status, typography, badge, and loading contracts.
 - Unified every Capability sidebar row and its filtered empty state on shared

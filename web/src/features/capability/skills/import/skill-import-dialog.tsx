@@ -57,7 +57,7 @@ export function SkillImportDialog({
       >
         <UiDialogFormShell
           onSubmit={controller.submit}
-          size="xl"
+          size="md"
           viewport="adaptiveMax"
         >
           <UiDialogHeader
