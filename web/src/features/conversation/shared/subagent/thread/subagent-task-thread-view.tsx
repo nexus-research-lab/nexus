@@ -13,6 +13,7 @@ import { getSeededAvatarDataUrl } from "@/lib/seeded-avatar";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import type { Message } from "@/types/conversation/message/entity";
 import type {
   SubagentTask,
@@ -162,7 +163,7 @@ function SubagentTaskControls({
 							variant="ghost"
 						>
 							{actions.pendingAction === "stop" ? (
-								<Loader2 className="h-3.5 w-3.5 animate-spin" />
+								<Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
 							) : (
 								<Square className="h-3.5 w-3.5" />
 							)}
@@ -178,7 +179,7 @@ function SubagentTaskControls({
 							variant="surface"
 						>
 							{actions.pendingAction === "send" ? (
-								<Loader2 className="h-3.5 w-3.5 animate-spin" />
+								<Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
 							) : (
 								<MessageSquareMore className="h-3.5 w-3.5" />
 							)}
@@ -280,7 +281,9 @@ function ThreadEmptyContent({
   if (isLoading && !detail) {
     return (
       <div className="flex min-h-36 items-center justify-center gap-2 text-sm text-(--text-muted)">
-        <Loader2 className="h-4 w-4 animate-spin" />
+        <Loader2
+          className={getUiSpinnerClassName({ size: "md", tone: "muted" })}
+        />
         {t("subagents.transcript_loading")}
       </div>
     );

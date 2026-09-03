@@ -591,6 +591,16 @@ test("WorkGraph surfaces share canvas, action, and revision Spinner roles", asyn
   }
 });
 
+test("Subagent thread loading and command actions share Spinner roles", async () => {
+  const source = await readSource(
+    "src/features/conversation/shared/subagent/thread/subagent-task-thread-view.tsx",
+  );
+
+  assert.match(source, /getUiSpinnerClassName\(\{ size: "sm" \}\)/);
+  assert.match(source, /size: "md", tone: "muted"/);
+  assert.doesNotMatch(source, /\banimate-spin\b/);
+});
+
 test("List and Badge primitives expose semantic typography and shape instead of page overrides", async () => {
   const [listRow, badge, badgeStyles, providerModels, connectorCard, customMcpGrid] = await Promise.all([
     readSource("src/shared/ui/list/list-row.tsx"),

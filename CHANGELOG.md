@@ -152,6 +152,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   medium action Spinner role.
 - Standardized WorkGraph canvas, action, availability, and revision loading
   states on the shared semantic Spinner scale.
+- Unified Subagent transcript loading and task command indicators through the
+  shared medium and compact Spinner roles.
 - Established a single frontend engineering and design-system contract, and
   centralized high overlay layers and responsive dialog geometry behind semantic
   APIs to prevent page-specific stacking and small-window sizing drift.
