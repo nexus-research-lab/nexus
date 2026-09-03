@@ -17,8 +17,10 @@ import {
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
 import { UiInput } from "@/shared/ui/form/form-control";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import {
   SETTINGS_CARD_CLASS_NAME,
@@ -53,7 +55,10 @@ export function SettingsWorkspaceSection() {
                 </p>
                 {controller.showAdministratorNotice ? (
                   <p
-                    className="mt-1 flex max-w-[520px] items-start gap-1.5 text-xs leading-5 text-(--warning)"
+                    className={cn(
+                      "mt-1 flex max-w-[520px] items-start gap-1.5",
+                      getUiTypographyClassName({ role: "caption", tone: "warning" }),
+                    )}
                     role="alert"
                   >
                     <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -64,7 +69,10 @@ export function SettingsWorkspaceSection() {
                 ) : null}
                 {controller.currentPath ? (
                   <p
-                    className="mt-1 max-w-[520px] break-all font-mono text-xs leading-5 text-(--text-muted)"
+                    className={cn(
+                      "mt-1 max-w-[520px] break-all",
+                      getUiTypographyClassName({ role: "code", tone: "muted" }),
+                    )}
                     title={controller.currentPath}
                   >
                     {t("settings.general.state_root_current", {
@@ -78,7 +86,10 @@ export function SettingsWorkspaceSection() {
               <div className="relative min-w-0 flex-1">
                 <UiInput
                   aria-label={t(titleKey)}
-                  className="pr-9 font-mono"
+                  className={cn(
+                    "pr-9",
+                    getUiTypographyClassName({ role: "code" }),
+                  )}
                   controlSize="sm"
                   disabled={controller.busy}
                   onChange={(event) => controller.setDraftPath(event.target.value)}

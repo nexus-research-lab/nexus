@@ -12,6 +12,7 @@ import {
 } from "@/lib/agent-options";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import { PreferencesReliabilityNotice } from "../components/preferences-reliability-notice";
 import type {
@@ -87,7 +88,7 @@ export function SettingsPermissionsSection({
               size="xs"
               value={permissionMode}
             />
-            <p className="text-xs leading-4 text-(--text-soft)">
+            <p className={getUiTypographyClassName({ role: "caption", tone: "soft" })}>
               {t(selectedPermissionMode.descriptionKey)}
             </p>
           </div>
