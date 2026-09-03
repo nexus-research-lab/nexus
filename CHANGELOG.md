@@ -102,6 +102,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Routed all Settings single-line, multiline, and compact checkbox fields
   through shared Form primitives, removing feature-owned input geometry and
   enforcing that ownership with an architecture contract.
+- Unified the main Settings and Provider directories on one navigation Pattern;
+  their typography, control geometry, current-page state, hover treatment, and
+  Button DOM now follow shared owners instead of page-local class recipes.
 - Moved floating feedback and shared resource states onto named surface, layer,
   typography, shape, and Button contracts, with DOM tests for recovery,
   dismissal, live-region behavior, and auto-dismiss timing resets.

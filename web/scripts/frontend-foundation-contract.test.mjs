@@ -309,6 +309,32 @@ test("Settings feature code consumes shared form DOM owners", async () => {
   assert.deepEqual(violations, []);
 });
 
+test("Settings navigation consumes shared Button and typography owners", async () => {
+  const files = await collectSourceFiles(path.join(srcRoot, "features", "settings"));
+  const violations = [];
+
+  for (const file of files) {
+    if (!/\.(?:ts|tsx)$/.test(file)) continue;
+    const source = await readFile(file, "utf8");
+    if (/<button\b/.test(source)) {
+      violations.push(path.relative(webRoot, file));
+    }
+  }
+
+  const [navigationPattern, buttonStyles] = await Promise.all([
+    readSource("src/features/settings/shared/settings-panel-ui.tsx"),
+    readSource("src/shared/ui/button/button-styles.ts"),
+  ]);
+
+  assert.deepEqual(violations, []);
+  assert.match(navigationPattern, /SettingsNavigationButton/);
+  assert.match(navigationPattern, /<UiButton/);
+  assert.match(navigationPattern, /role: "overline"/);
+  assert.match(buttonStyles, /md: "[^"]*ui-type-control"/);
+  assert.match(buttonStyles, /lg: "[^"]*ui-type-control"/);
+  assert.match(buttonStyles, /aria-\[current=page\]/);
+});
+
 test("product source contains no arbitrary shadows or numeric z-index values", async () => {
   const files = (await Promise.all(productUiRoots.map(collectSourceFiles))).flat();
   const violations = [];
