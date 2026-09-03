@@ -19,4 +19,8 @@ describe("getUiSpinnerClassName", () => {
     expect(className).toContain("motion-reduce:animate-none");
     expect(className).toContain("mx-auto");
   });
+
+  it("keeps the large preview loader on the same semantic size scale", () => {
+    expect(getUiSpinnerClassName({ size: "2xl" })).toContain("h-8 w-8");
+  });
 });

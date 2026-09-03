@@ -4,6 +4,7 @@
 import { type ComponentType } from "react";
 import { Eye, LoaderCircle, Pencil, Save } from "lucide-react";
 
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import {
   WorkspaceFileDownloadButton,
   WorkspaceFilePreviewFocusButton,
@@ -42,7 +43,9 @@ const EDIT_ACTION_ICONS: Record<
 function WritingStatus({ label }: { label: string }) {
   return (
     <>
-      <LoaderCircle className="h-3 w-3 shrink-0 animate-spin text-primary motion-reduce:animate-none" />
+      <LoaderCircle
+        className={getUiSpinnerClassName({ size: "xs", tone: "primary" })}
+      />
       <span className="truncate">{label}</span>
     </>
   );

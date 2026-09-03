@@ -446,6 +446,28 @@ test("loading indicators share one size, tone, and reduced-motion recipe", async
   assert.deepEqual(rawSpinnerViolations, []);
 });
 
+test("Workspace file previews share compact and canvas spinner sizes", async () => {
+  const paths = [
+    "src/features/conversation/shared/editor/office-preview-fallbacks.tsx",
+    "src/features/conversation/shared/editor/media/media-file-preview.tsx",
+    "src/features/conversation/shared/editor/presentation/presentation-file-preview.tsx",
+    "src/features/conversation/shared/editor/document/document-preview-view.tsx",
+    "src/features/conversation/shared/editor/spreadsheet/spreadsheet-file-preview.tsx",
+    "src/features/conversation/shared/editor/text/text-file-editor-header.tsx",
+    "src/features/conversation/shared/editor/text/large-text-file-preview.tsx",
+  ];
+  const sources = await Promise.all(paths.map(readSource));
+  const combined = sources.join("\n");
+
+  for (const source of sources) {
+    assert.match(source, /getUiSpinnerClassName/);
+    assert.doesNotMatch(source, /\banimate-spin\b/);
+  }
+  assert.match(combined, /size: "xs"/);
+  assert.match(combined, /size: "sm"/);
+  assert.match(combined, /size: "2xl", tone: "primary"/);
+});
+
 test("List and Badge primitives expose semantic typography and shape instead of page overrides", async () => {
   const [listRow, badge, badgeStyles, providerModels, connectorCard, customMcpGrid] = await Promise.all([
     readSource("src/shared/ui/list/list-row.tsx"),

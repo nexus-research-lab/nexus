@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Eye, FileWarning, LoaderCircle } from "lucid
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { cn } from "@/shared/ui/class-name";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { fetchOfficePreviewBuffer } from "../office-preview-resource";
 import { OfficePreviewFailureState } from "../office-preview-fallbacks";
@@ -125,7 +126,7 @@ export function PresentationFilePreview({
             </span>
           ) : (
             <span className="flex items-center gap-1">
-              <LoaderCircle className="h-3 w-3 animate-spin" />
+              <LoaderCircle className={getUiSpinnerClassName({ size: "xs" })} />
               {t("workspace_file.preview_loading")}
             </span>
           )
@@ -204,7 +205,12 @@ export function PresentationFilePreview({
         ) : (
           <div className="flex h-full items-center justify-center p-8 text-center">
             <div className="max-w-xs">
-              <LoaderCircle className="mx-auto h-8 w-8 animate-spin text-primary" />
+              <LoaderCircle
+                className={getUiSpinnerClassName(
+                  { size: "2xl", tone: "primary" },
+                  "mx-auto",
+                )}
+              />
               <p className="mt-3 text-sm font-medium text-(--text-strong)">
                 {t("workspace_file.preview_loading")}
               </p>
