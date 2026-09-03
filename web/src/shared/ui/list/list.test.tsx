@@ -100,6 +100,9 @@ describe("UiListActionButton", () => {
           onClick={onOpen}
           title="项目 Alpha"
         />
+        <UiListActionButton aria-label="确认修改" tone="primary">
+          确认
+        </UiListActionButton>
       </form>,
     );
 
@@ -108,5 +111,7 @@ describe("UiListActionButton", () => {
     await user.click(action);
     expect(onDelete).toHaveBeenCalledOnce();
     expect(onOpen).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "确认修改" }).className)
+      .toContain("text-(--brand-action)");
   });
 });

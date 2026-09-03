@@ -9,6 +9,7 @@ import { LoaderCircle, Plus } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { getExternalSessionConversationLabel } from "@/lib/conversation/external-session";
+import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -133,16 +134,17 @@ export function WorkspaceConversationTabs({
       </div>
 
       {onCreateConversation ? (
-        <button
+        <UiIconButton
           aria-busy={controller.isCreating}
           aria-label={t("room.new_conversation")}
-          className="workspace-surface-header-session-tabs-edge-action workspace-surface-header-session-tabs-create relative inline-flex h-8 w-8 shrink-0 items-center justify-center leading-none transition-colors duration-(--motion-duration-fast) ease-out focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_42%,transparent)] disabled:opacity-60"
+          className="workspace-surface-header-session-tabs-edge-action workspace-surface-header-session-tabs-create relative shrink-0 leading-none focus-visible:z-10"
           disabled={controller.isCreating}
           onClick={() => {
             void controller.createConversation();
           }}
-          title={t("room.new_conversation")}
-          type="button"
+          size="md"
+          tooltip={t("room.new_conversation")}
+          variant="ghost"
         >
           {controller.isCreating ? (
             <LoaderCircle
@@ -152,7 +154,7 @@ export function WorkspaceConversationTabs({
           ) : (
             <Plus aria-hidden className="h-[18px] w-[18px] shrink-0" />
           )}
-        </button>
+        </UiIconButton>
       ) : null}
     </nav>
   );

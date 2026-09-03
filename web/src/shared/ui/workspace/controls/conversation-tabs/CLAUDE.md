@@ -4,7 +4,7 @@
 - `use-conversation-tabs-controller.ts` 只维护浏览器式标签事务、按 Room 持久化快照和容器测量，不渲染样式；`final-conversation-replacement.ts` 固定最后标签的替换顺序。已开始会话先确保 Room 唯一 draft 并原子切换，再后台停止旧 runtime；唯一 draft 可复用同一 ID，因此必须先等 runtime 关闭再重新提交。事务期间保留原正文，失败或较新导航不得落入无 Conversation 状态，外部 Session 跳过 runtime 关闭。
 - `use-conversation-tabs-scroll.ts` 维护标签带溢出测量、活动标签归位、宽度动画稳定后的二次边界校正、触控板滚动和鼠标拖拽；滚轮入口必须以非 passive 原生监听显式归一 `deltaX`/`deltaY`，不得依赖 WebView 的默认横向滚动。
 - `conversation-tabs-scroll-rail.tsx` 只渲染溢出时可操作的滚动轨道；轨道默认保持视觉静默，鼠标进入标签带时以中性色浮现，只有实际按下拖动或键盘聚焦时才增强为强调色。
-- `workspace-conversation-tabs.tsx` 只编排 Session 导航带；左侧接受业务提供的唯一历史入口，中央标签视口独立横向滚动，创建入口固定在右侧，窄宽度下两端动作不得随标签移出可视区。共享层不再维护一套与 Room 历史重复的会话纵览菜单。
+- `workspace-conversation-tabs.tsx` 只编排 Session 导航带；左侧接受业务提供的唯一历史入口，中央标签视口独立横向滚动，创建入口固定在右侧，窄宽度下两端动作不得随标签移出可视区。历史与创建入口统一组合共享 `UiIconButton`，不得各自复制 hover、focus、busy 或 tooltip。共享层不再维护一套与 Room 历史重复的会话纵览菜单。
 - Session 导航带高 36px、无外框和承托底色：左侧历史、中央标签视口、右侧创建入口只用 1px 低对比 hairline 分区。中央承托整排 32px、8px 圆角 Session 标签，左右保留 4px；宽度分配、溢出判断和滚动归位必须共同扣除两端固定动作与中央内边距，保证首尾标签完整。活动 Session 标签只使用中性活动底面、文字权重与蓝色状态点，不绘制完整边界或外投影；非活动标签保持透明并使用清晰的次级文字，连续非活动标签之间绘制 16px 低对比竖线，当前标签两侧及悬停/聚焦标签两侧不得出现分隔线。
 - `workspace-conversation-tab-model.ts` 统一推导单标签的活动态样式、宽度、标题、固定/关闭态和稳定状态类；当前标签使用浅底和状态点，非当前标签保持透明并由短分隔线组织远端标签。
 - `workspace-conversation-tab.tsx` 只渲染单个标签；图钉切换固定偏好，X 只关闭标签，两者不得合并语义；不得自行推导会话集合状态或状态样式。
