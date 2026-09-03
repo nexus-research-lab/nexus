@@ -34,6 +34,9 @@ describe("RoomMobileHeader", () => {
     expect(screen.getByText("产品 Room").className).toContain("ui-type-section-title");
     expect(screen.getByText("需求讨论").className).toContain("ui-type-caption");
     expect(back.className).toContain("rounded-full");
+    expect(switcher.className).toContain("border-transparent");
+    expect(switcher.className).toContain("radius-control-sm");
+    expect(switcher.getAttribute("aria-expanded")).toBe("false");
 
     fireEvent.click(back);
     fireEvent.click(switcher);

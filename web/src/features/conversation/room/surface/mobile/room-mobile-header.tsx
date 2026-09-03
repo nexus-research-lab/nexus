@@ -7,7 +7,7 @@ import { ArrowLeft, ChevronDown } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiIconButton } from "@/shared/ui/button/button";
+import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import {
   MOBILE_SHELL_HEADER_GUTTER_CLASS_NAME,
@@ -62,17 +62,15 @@ export function RoomMobileHeader({
         <ArrowLeft className="h-4 w-4" />
       </UiIconButton>
 
-      <button
+      <UiButton
         aria-expanded={isConversationSwitcherOpen}
         aria-haspopup="dialog"
         aria-label={t("room.switch_conversation")}
-        className={cn(
-          "flex min-w-0 flex-1 items-center gap-1.5 radius-control-md px-2 py-1 text-left transition-colors hover:bg-(--interaction-hover-background)",
-          isConversationSwitcherOpen && "bg-(--surface-interactive-hover-background)",
-        )}
+        className="min-w-0 flex-1 justify-start gap-1.5 px-2 py-1 text-left"
         onClick={onOpenConversations}
+        size="sm"
         title={conversationTitle}
-        type="button"
+        variant="ghost"
       >
         <div className="min-w-0 flex-1">
           <p className={cn(
@@ -94,7 +92,7 @@ export function RoomMobileHeader({
           "h-3.5 w-3.5 shrink-0 text-(--text-muted) transition-transform duration-(--motion-duration-fast)",
           isConversationSwitcherOpen && "rotate-180",
         )} />
-      </button>
+      </UiButton>
 
       <div className="flex shrink-0 items-center gap-0.5">
         {trailing}
