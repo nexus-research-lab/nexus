@@ -10,6 +10,7 @@ import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
 import type { WorkspaceLiveFileState } from "@/types/app/workspace-live";
@@ -159,9 +160,10 @@ function MemoryDocumentAlerts({
   return (
     <div className="nexus-memory-document-content shrink-0 space-y-1 pb-2">
       {stale ? (
-        <div className="rounded-[8px] bg-[color:color-mix(in_srgb,var(--warning)_7%,transparent)] px-3 py-2 text-compact leading-5 text-(--warning)">
-          {t("capability.memory_stale", { count: staleDays })}
-        </div>
+        <UiInlineNotice
+          message={t("capability.memory_stale", { count: staleDays })}
+          tone="warning"
+        />
       ) : null}
       {commandError ? (
         <UiResourceState

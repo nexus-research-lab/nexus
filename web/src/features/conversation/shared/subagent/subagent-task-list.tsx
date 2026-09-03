@@ -11,6 +11,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
+import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import {
   WORKSPACE_PANEL_HEADER_HEIGHT_CLASS,
   WORKSPACE_PANEL_HEADER_PADDING_CLASS,
@@ -95,29 +96,16 @@ export function SubagentTaskList({
       />
 
       {error ? (
-        <div
-          aria-atomic="true"
-          aria-live="polite"
-          className="mt-3 rounded-[10px] border border-[color:color-mix(in_srgb,var(--destructive)_24%,transparent)] px-3 py-2.5"
-          role="status"
-        >
-          <p className="text-xs font-semibold leading-5 text-(--destructive)">
-            {t("subagents.list_load_failed_title")}
-          </p>
-          <p className="mt-1 text-xs leading-5 text-(--text-muted)">
-            {t("subagents.list_load_failed_impact")}
-          </p>
-          <p className="mt-1 text-xs font-medium leading-5 text-(--text-default)">
-            {t("subagents.list_load_failed_next_step")}
-          </p>
-          <button
-            className="mt-2 text-xs font-semibold text-(--brand-action) hover:underline"
-            onClick={onRefresh}
-            type="button"
-          >
-            {t("subagents.retry")}
-          </button>
-        </div>
+        <UiInlineNotice
+          action={{
+            label: t("subagents.retry"),
+            onClick: onRefresh,
+          }}
+          className="mt-3"
+          message={t("subagents.list_load_failed_impact")}
+          title={t("subagents.list_load_failed_title")}
+          tone="danger"
+        />
       ) : null}
 
       {model.supportNotice ? (

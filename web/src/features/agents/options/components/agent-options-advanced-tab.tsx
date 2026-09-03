@@ -23,6 +23,8 @@ import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import { SIDEBAR_SELECTION_CLASS_NAME } from "@/shared/ui/sidebar/sidebar-selection";
 import { ConnectorIcon } from "@/features/capability/connectors/connector-icon";
 import type { ConnectorInfo } from "@/types/capability/connector";
@@ -112,10 +114,11 @@ export function AgentOptionsAdvancedTab({
           })}
         </div>
         {isBypassPermissionMode ? (
-          <div className="flex items-start gap-2 rounded-[8px] bg-[color:color-mix(in_srgb,var(--warning)_7%,transparent)] px-3 py-2 text-xs leading-5 text-(--warning)">
-            <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            <span>{t("agent_options.advanced.bypass_warning")}</span>
-          </div>
+          <UiInlineNotice
+            icon={<TriangleAlert />}
+            message={t("agent_options.advanced.bypass_warning")}
+            tone="warning"
+          />
         ) : null}
       </section>
 
@@ -150,7 +153,9 @@ export function AgentOptionsAdvancedTab({
         />
         {connectorsLoading && connectors.length === 0 ? (
           <div className="flex h-16 items-center justify-center text-(--icon-muted)">
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2
+              className={getUiSpinnerClassName({ size: "md", tone: "muted" })}
+            />
           </div>
         ) : null}
         {connectorsError ? (
