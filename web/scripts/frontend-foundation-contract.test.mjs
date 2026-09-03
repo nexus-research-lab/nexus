@@ -671,6 +671,23 @@ test("Agent Skill and private-domain loading states share Spinner roles", async 
   assert.match(combined, /tone: "muted"/);
 });
 
+test("Launcher, desktop update, and onboarding loading states share Spinner roles", async () => {
+  const [launcher, updateIndicator, providerSetup] = await Promise.all([
+    readSource("src/features/launcher/hero/launcher-hero-stage.tsx"),
+    readSource("src/features/navigation/sidebar/view/sidebar-update-indicator.tsx"),
+    readSource("src/features/onboarding/provider-setup/provider-setup-dialog.tsx"),
+  ]);
+
+  assert.match(launcher, /getUiSpinnerClassName\(\{ size: "md" \}\)/);
+  assert.match(updateIndicator, /getUiSpinnerClassName/);
+  assert.match(updateIndicator, /h-\[18px\] w-\[18px\]/);
+  assert.match(providerSetup, /size: "lg", tone: "muted"/);
+  assert.match(providerSetup, /size: "sm", tone: "primary"/);
+  for (const source of [launcher, updateIndicator, providerSetup]) {
+    assert.doesNotMatch(source, /\banimate-spin\b/);
+  }
+});
+
 test("List and Badge primitives expose semantic typography and shape instead of page overrides", async () => {
   const [listRow, badge, badgeStyles, providerModels, connectorCard, customMcpGrid] = await Promise.all([
     readSource("src/shared/ui/list/list-row.tsx"),

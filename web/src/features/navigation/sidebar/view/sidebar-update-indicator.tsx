@@ -4,6 +4,7 @@ import { Download, LoaderCircle } from "lucide-react";
 import { startDesktopUpdate } from "@/lib/desktop-bridge";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 
 export function SidebarUpdateIndicator({
@@ -45,7 +46,12 @@ export function SidebarUpdateIndicator({
         type="button"
       >
         {starting ? (
-          <LoaderCircle className="h-[18px] w-[18px] animate-spin" />
+          <LoaderCircle
+            className={getUiSpinnerClassName(
+              { size: "md" },
+              "h-[18px] w-[18px]",
+            )}
+          />
         ) : (
           <Download className="h-[18px] w-[18px]" />
         )}

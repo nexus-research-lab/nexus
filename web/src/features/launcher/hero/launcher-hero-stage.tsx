@@ -5,13 +5,14 @@ import {
   useCallback,
   type MouseEvent,
 } from "react";
-import { ArrowRight, MessageSquare } from "lucide-react";
+import { ArrowRight, LoaderCircle, MessageSquare } from "lucide-react";
 
 import { LAUNCHER_TOUR_ANCHORS } from "@/features/onboarding/tours/launcher-tour";
 import { cn } from "@/shared/ui/class-name";
 import { ANIMATIONS } from "@/config/animation-assets";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { LottiePlayer } from "@/shared/ui/feedback/lottie-player";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import {
   AnimatedHeroText,
   FadeSlideIn,
@@ -191,7 +192,10 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
                   disabled={isQueryLoading}
                 >
                   {isQueryLoading ? (
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-(--divider-strong-color) border-t-transparent" />
+                    <LoaderCircle
+                      aria-hidden="true"
+                      className={getUiSpinnerClassName({ size: "md" })}
+                    />
                   ) : (
                     <img
                       alt={t("launcher.send")}

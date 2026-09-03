@@ -12,3 +12,4 @@
 - 与主画布相邻的桌面侧栏通过 `data-shell-split-edge` 绘制唯一外缘 hairline；该线必须越过桌面顶部 inset、覆盖 Header/Footer 但不拦截 resize 热区，移动端全宽目录不得绘制。
 - 消费接口由视图定义并保持窄小；新增状态先进入上层控制器投影。
 - `use-sidebar-update-version.ts` 只在桌面运行时且桥接可用时读取宿主持久化的可用版本，Web 环境不得渲染更新入口；`sidebar-update-indicator.tsx` 通过 `app.start_update` 直接启动原生下载、校验与安装链路，不得退回普通 Release 外链；`sidebar-utility-actions.tsx` 仅承载展开态底部操作，更新提示固定在右下角，收起态不渲染 Footer。
+- 桌面更新启动状态复用共享 Spinner 动效并保持侧栏既有 18px 图标几何；视图不得自行维护旋转或 reduced-motion class。
