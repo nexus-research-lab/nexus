@@ -12,7 +12,7 @@
 //     submission, TTL, restart invalidation, version CAS, and completion audit.
 //   - commit_guard.go / close.go: fresh pre-commit human/session lease plus
 //     exact login cancellation, goroutine drain, and audited graceful shutdown.
-//   - payload.go: encryption for ephemeral runtime and QR/device material.
+//   - payload.go: key-identified active/legacy keyring encryption for ephemeral runtime and QR/device material.
 //
 // Exposed: Service, NewService, Actor, StartInput, View, Completion,
 // HumanPresenter, HumanPresentation, HumanVerificationCodeSubmission.

@@ -292,7 +292,6 @@ function WebSearchRow({
             buttonClassName={SETTINGS_SELECT_BUTTON_CLASS_NAME}
             className={SETTINGS_CONTROL_HEIGHT_CLASS_NAME}
             disabled={disabled}
-            menuClassName="rounded-[12px]"
             onChange={(value) => {
               const nextProvider = value as WebSearchProvider;
               setDraft((current) => ({

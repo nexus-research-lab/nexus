@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 
+	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	channelspkg "github.com/nexus-research-lab/nexus/internal/service/channels"
 
@@ -66,11 +67,12 @@ func (h *Handlers) HandleDeleteChannelAccount(writer http.ResponseWriter, reques
 	if !h.ensureControl(writer, request, channelOperationDeleteAccount, false) {
 		return
 	}
+	accountID := handlershared.PathParam(request, "account_id")
 	item, err := h.control.DeleteChannelAccount(
 		request.Context(),
 		currentOwnerUserID(request),
 		chi.URLParam(request, "channel_type"),
-		chi.URLParam(request, "account_id"),
+		accountID,
 	)
 	if errors.Is(err, channelspkg.ErrChannelNotFound) || errors.Is(err, channelspkg.ErrChannelAccountNotFound) {
 		h.writeChannelMutationFailure(writer, request, channelOperationDeleteAccount, err)

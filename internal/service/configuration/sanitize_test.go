@@ -89,12 +89,13 @@ func TestSanitizeValueRedactsWholeAgentMCPServers(t *testing.T) {
 
 func TestSanitizeValueRecognizesCamelCaseSecretKeys(t *testing.T) {
 	cases := map[string]string{
-		"DesktopSessionToken":         "desktop-session-secret",
-		"DiscordBotToken":             "discord-bot-secret",
-		"TelegramBotToken":            "telegram-bot-secret",
-		"ConnectorCredentialsKey":     "connector-credentials-secret",
-		"ConnectorGitHubClientSecret": "github-client-secret",
-		"SigningPrivateKey":           "signing-private-secret",
+		"DesktopSessionToken":            "desktop-session-secret",
+		"DiscordBotToken":                "discord-bot-secret",
+		"TelegramBotToken":               "telegram-bot-secret",
+		"ConnectorCredentialsKey":        "connector-credentials-secret",
+		"ConnectorCredentialsLegacyKeys": "connector-credentials-legacy-secret",
+		"ConnectorGitHubClientSecret":    "github-client-secret",
+		"SigningPrivateKey":              "signing-private-secret",
 	}
 	for key, secret := range cases {
 		t.Run(key, func(t *testing.T) {

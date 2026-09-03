@@ -63,6 +63,7 @@ func (s *Service) refreshActiveConnectionIfNeeded(ctx context.Context, ownerUser
 	}
 	record.Credentials = string(encoded)
 	record.CredentialsEncrypted = sql.NullString{}
+	record.CredentialsKeyID = sql.NullString{}
 	if _, err = s.upsertConnectionAtVersion(ctx, connectionRecord{
 		OwnerUserID: ownerUserID,
 		ConnectorID: record.ConnectorID,

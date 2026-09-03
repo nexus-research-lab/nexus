@@ -69,6 +69,42 @@ func TestRouterFailedHotReplacementKeepsReadyChannel(t *testing.T) {
 	}
 }
 
+type runtimeReadinessDeliveryChannel struct {
+	recordingDeliveryChannel
+	ready bool
+}
+
+func (c *runtimeReadinessDeliveryChannel) RuntimeReady() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.ready
+}
+
+func TestRouterHonorsDynamicRuntimeReadiness(t *testing.T) {
+	db := newChannelTestDB(t)
+	router := NewRouter(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
+	if err := router.Start(context.Background()); err != nil {
+		t.Fatalf("启动 router 失败: %v", err)
+	}
+	defer router.Stop(context.Background())
+
+	channel := &runtimeReadinessDeliveryChannel{
+		recordingDeliveryChannel: recordingDeliveryChannel{channelType: ChannelTypeWeixinPersonal},
+	}
+	if err := router.RegisterAndStartForOwner(context.Background(), "owner-a", channel); err != nil {
+		t.Fatalf("注册动态 readiness 通道失败: %v", err)
+	}
+	if router.IsReadyForOwner("owner-a", ChannelTypeWeixinPersonal) {
+		t.Fatal("runtime 未 ready 时 router 不应暴露通道")
+	}
+	channel.mu.Lock()
+	channel.ready = true
+	channel.mu.Unlock()
+	if !router.IsReadyForOwner("owner-a", ChannelTypeWeixinPersonal) {
+		t.Fatal("runtime ready 后 router 应暴露通道")
+	}
+}
+
 func TestRouterStaleStartCompletionCannotOverwriteNewGeneration(t *testing.T) {
 	db := newChannelTestDB(t)
 	router := NewRouter(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)

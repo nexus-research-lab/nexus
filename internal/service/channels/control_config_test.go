@@ -2,6 +2,7 @@ package channels
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
@@ -179,6 +180,61 @@ func TestControlServiceFailedReplacementKeepsLastKnownGoodConfigAndRuntime(t *te
 		2,
 	); !errors.Is(err, ErrChannelControlVersionConflict) {
 		t.Fatalf("失败替换前的旧 plan 不得在回滚后重新命中: %v", err)
+	}
+}
+
+func TestControlServiceReloadRollbackPreservesPersonalWeixinCursor(t *testing.T) {
+	db := newChannelTestDB(t)
+	defer db.Close()
+
+	service := NewControlService(config.Config{
+		DatabaseDriver:          "sqlite",
+		ConnectorCredentialsKey: testChannelCredentialKey(),
+	}, db, nil, nil)
+	ctx := context.Background()
+	if _, err := service.UpsertChannelConfig(ctx, "owner-a", ChannelTypeWeixinPersonal, UpsertChannelConfigRequest{
+		AgentID: "agent-a",
+	}); err != nil {
+		t.Fatalf("建立个人微信配置失败: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO im_channel_accounts (
+    owner_user_id, channel_type, account_id, status, config_json, sync_cursor
+) VALUES (?, ?, ?, ?, '{}', ?)`,
+		"owner-a",
+		ChannelTypeWeixinPersonal,
+		"wx-account-a",
+		ChannelConfigStatusConnected,
+		"cursor-before-reload",
+	); err != nil {
+		t.Fatalf("建立个人微信账号失败: %v", err)
+	}
+	snapshot, err := service.captureChannelReloadSnapshot(ctx, "owner-a", ChannelTypeWeixinPersonal)
+	if err != nil {
+		t.Fatalf("捕获热重载快照失败: %v", err)
+	}
+	failedVersion, err := service.withChannelControlMutation(ctx, "owner-a", snapshot.version, func(tx *sql.Tx) error {
+		_, deleteErr := service.deleteChannelAccountRowWith(
+			ctx,
+			tx,
+			"owner-a",
+			ChannelTypeWeixinPersonal,
+			"wx-account-a",
+		)
+		return deleteErr
+	})
+	if err != nil {
+		t.Fatalf("模拟热重载前写入失败: %v", err)
+	}
+	if err = service.restoreChannelReloadSnapshot(ctx, snapshot, failedVersion); err != nil {
+		t.Fatalf("恢复热重载快照失败: %v", err)
+	}
+	accounts, err := service.listChannelAccountRows(ctx, "owner-a", ChannelTypeWeixinPersonal)
+	if err != nil {
+		t.Fatalf("读取恢复后的微信账号失败: %v", err)
+	}
+	if len(accounts) != 1 || accounts[0].SyncCursor != "cursor-before-reload" {
+		t.Fatalf("热重载回滚丢失个人微信游标: %+v", accounts)
 	}
 }
 

@@ -1,3 +1,6 @@
+// INPUT: owner 连接状态、目录筛选与动态自定义 MCP 配置。
+// OUTPUT: 内置 Connector 主快照及可独立附加的 owner 已开启动态项。
+// POS: Connector 管理与对话选择共用的目录投影边界；动态读取失败不得摧毁主快照。
 package connectors
 
 import (
@@ -33,11 +36,13 @@ func (s *Service) ListConnectors(ctx context.Context, ownerUserID string, query 
 		}
 		items = append(items, s.toInfoWithConfigError(entry, connectorFirstNonEmpty(states[entry.ConnectorID], "disconnected"), configErrors[entry.ConnectorID]))
 	}
-	customServers, err := s.ListCustomMCPServers(ctx, ownerUserID)
-	if err != nil {
-		return nil, err
-	}
+	// 动态 MCP 是目录的辅助投影；旧密文或单条动态配置异常不能摧毁
+	// 已经成功读取的内置 Connector 主快照。
+	customServers, _ := s.ListCustomMCPServers(ctx, ownerUserID)
 	for _, server := range customServers {
+		if !server.Enabled || server.ConfigurationState != customMCPConfigReady {
+			continue
+		}
 		if category != "" && category != ConnectorKindCustomMCP {
 			continue
 		}

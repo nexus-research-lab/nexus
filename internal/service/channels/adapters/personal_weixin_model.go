@@ -1,10 +1,15 @@
+// INPUT: 个人微信 iLink 配置与 JSON 线协议字段。
+// OUTPUT: client/runtime store 契约、登录、轮询、消息和 typing 模型。
+// POS: 个人微信适配器的协议类型真相。
 package adapters
+
+import "context"
 
 const (
 	DefaultPersonalWeixinBaseURL       = "https://ilinkai.weixin.qq.com"
 	defaultPersonalWeixinBotType       = "3"
 	defaultPersonalWeixinAppID         = "bot"
-	defaultPersonalWeixinClientVersion = "132099"
+	DefaultPersonalWeixinClientVersion = "132102"
 	defaultPersonalWeixinBotAgent      = "Nexus/0.1.0"
 
 	personalWeixinMessageTypeUser = 1
@@ -23,6 +28,15 @@ type PersonalWeixinClientConfig struct {
 	BotAgent           string
 	IlinkAppID         string
 	IlinkClientVersion string
+	RuntimeStore       PersonalWeixinRuntimeStore
+}
+
+// PersonalWeixinRuntimeStore keeps the opaque iLink polling cursor durable and
+// projects an explicitly expired login back to the account control plane.
+type PersonalWeixinRuntimeStore interface {
+	LoadPersonalWeixinCursor(context.Context, string, string) (string, error)
+	SavePersonalWeixinCursor(context.Context, string, string, string) error
+	MarkPersonalWeixinLoginExpired(context.Context, string, string, string) error
 }
 
 type PersonalWeixinQRCodeResponse struct {

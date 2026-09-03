@@ -10,6 +10,7 @@ const AUTH_LABELS: Record<ConnectorAuthType, string> = {
   api_key: "API Key",
   token: "Token",
   none: "无需授权",
+  local_pairing: "本机应用配对",
 };
 
 export function getConnectorAuthLabel(authType: ConnectorAuthType): string {

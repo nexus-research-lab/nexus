@@ -243,6 +243,7 @@ func newChannelTestDB(t *testing.T) *sql.DB {
 	    config_json TEXT NOT NULL DEFAULT '{}',
 	    credentials_encrypted TEXT,
 	    last_error TEXT,
+	    sync_cursor TEXT NOT NULL DEFAULT '',
 	    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
 	    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
 	    PRIMARY KEY (owner_user_id, channel_type, account_id)

@@ -48,6 +48,10 @@ type loggerAwareChannel interface {
 	SetLogger(*slog.Logger)
 }
 
+type runtimeReadyChannel interface {
+	RuntimeReady() bool
+}
+
 type sessionProjectionResolver interface {
 	ResolveDeliverySession(context.Context, string) (*protocol.Session, error)
 }

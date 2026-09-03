@@ -1,5 +1,5 @@
 // INPUT: ephemeral internal login reference and human-only presentation.
-// OUTPUT: AES-GCM ciphertext persisted only while a flow is active.
+// OUTPUT: 带稳定 key identity 的 AES-GCM ciphertext；旧 v1 只经显式 legacy keyring 读取。
 // POS: secret/material isolation boundary; terminal transitions scrub both columns.
 package channelauthorization
 
@@ -7,8 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
-
-	"github.com/nexus-research-lab/nexus/internal/connectors/credentials"
 )
 
 type runtimeReference struct {
@@ -17,22 +15,25 @@ type runtimeReference struct {
 }
 
 func (s *Service) encryptValue(value any) (string, error) {
-	if len(s.encryptionKey) != 32 {
+	if s.keyring == nil || s.keyErr != nil {
 		return "", errors.New("Channel 授权加密密钥不可用")
 	}
 	payload, err := json.Marshal(value)
 	if err != nil {
 		return "", err
 	}
-	return credentials.EncryptPayload(s.encryptionKey, payload)
+	return s.keyring.EncryptEnvelope(payload)
 }
 
 func (s *Service) decryptRuntimeReference(ciphertext string) (runtimeReference, error) {
 	var result runtimeReference
+	if s.keyring == nil || s.keyErr != nil {
+		return result, errors.New("Channel 授权加密密钥不可用")
+	}
 	if strings.TrimSpace(ciphertext) == "" {
 		return result, errors.New("Channel 授权缺少 runtime reference")
 	}
-	payload, err := credentials.DecryptPayload(s.encryptionKey, ciphertext)
+	payload, err := s.keyring.DecryptEnvelope(ciphertext)
 	if err != nil {
 		return result, err
 	}
@@ -47,10 +48,13 @@ func (s *Service) decryptRuntimeReference(ciphertext string) (runtimeReference, 
 
 func (s *Service) decryptHumanPresentation(ciphertext string) (HumanPresentation, error) {
 	var result HumanPresentation
+	if s.keyring == nil || s.keyErr != nil {
+		return result, errors.New("Channel 授权加密密钥不可用")
+	}
 	if strings.TrimSpace(ciphertext) == "" {
 		return result, errors.New("Channel 授权缺少人类展示数据")
 	}
-	payload, err := credentials.DecryptPayload(s.encryptionKey, ciphertext)
+	payload, err := s.keyring.DecryptEnvelope(ciphertext)
 	if err != nil {
 		return result, err
 	}

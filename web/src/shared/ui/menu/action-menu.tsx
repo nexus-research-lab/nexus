@@ -4,7 +4,6 @@ import {
   type ReactNode,
   type RefObject,
   useCallback,
-  useMemo,
 } from "react";
 import { createPortal } from "react-dom";
 
@@ -13,6 +12,9 @@ import { cn } from "@/shared/ui/class-name";
 import {
   getMenuItemStateClassName,
   MENU_ITEM_BASE_CLASS_NAME,
+  MENU_ITEM_GAP_PX,
+  MENU_LIST_CLASS_NAME,
+  MENU_SURFACE_VERTICAL_PADDING_PX,
 } from "./menu-styles";
 import { useAnchoredOverlayLayer } from "../overlay/anchored-overlay-layer";
 import {
@@ -38,7 +40,6 @@ export interface UiActionMenuItem {
 }
 
 export type UiActionMenuDensity = "compact" | "default";
-export type UiActionMenuItemSpacing = "none" | "sm";
 
 export interface UiActionMenuContentProps {
   density?: UiActionMenuDensity;
@@ -54,11 +55,9 @@ interface UiActionMenuProps {
   align?: UiAnchoredOverlayAlignment;
   anchorRef: RefObject<HTMLElement | null>;
   ariaLabel: string;
-  className?: string;
   density?: UiActionMenuDensity;
   footerItems?: UiActionMenuItem[];
   isOpen: boolean;
-  itemSpacing?: UiActionMenuItemSpacing;
   items: UiActionMenuItem[];
   minWidth?: number;
   placement?: UiActionMenuPlacement;
@@ -87,21 +86,38 @@ const ACTION_MENU_ITEM_CLASS_NAME = {
     spacing: "gap-3 px-2.5",
   },
 } as const;
-const ACTION_MENU_ESTIMATED_VERTICAL_PADDING = 8;
 const ACTION_MENU_FOOTER_SEPARATOR_HEIGHT = 9;
-const ACTION_MENU_ITEM_GAP: Record<UiActionMenuItemSpacing, number> = {
-  none: 0,
-  sm: 2,
-};
 const EMPTY_ACTION_MENU_ITEMS: UiActionMenuItem[] = [];
+
+function estimateActionMenuHeight({
+  density = "default",
+  footerItems = EMPTY_ACTION_MENU_ITEMS,
+  items,
+}: {
+  density?: UiActionMenuDensity;
+  footerItems?: UiActionMenuItem[];
+  items: UiActionMenuItem[];
+}): number {
+  const allItems = [...items, ...footerItems];
+  const hasFooter = footerItems.length > 0;
+  const contentBlockCount = allItems.length + (hasFooter ? 1 : 0);
+  return allItems.reduce(
+    (height, item) => height + (
+      item.description
+        ? ACTION_MENU_DESCRIBED_ITEM_HEIGHT[density]
+        : ACTION_MENU_ITEM_HEIGHT[density]
+    ),
+    MENU_SURFACE_VERTICAL_PADDING_PX
+      + (hasFooter ? ACTION_MENU_FOOTER_SEPARATOR_HEIGHT : 0),
+  ) + MENU_ITEM_GAP_PX * Math.max(0, contentBlockCount - 1);
+}
 
 function resolveActionMenuPosition({
   align,
   anchor,
   density,
   items,
-  itemSpacing,
-  hasFooter,
+  footerItems,
   minWidth,
   placement,
 }: {
@@ -109,21 +125,15 @@ function resolveActionMenuPosition({
   anchor: HTMLElement;
   density: UiActionMenuDensity;
   items: UiActionMenuItem[];
-  itemSpacing: UiActionMenuItemSpacing;
-  hasFooter: boolean;
+  footerItems: UiActionMenuItem[];
   minWidth: number;
   placement: UiActionMenuPlacement;
 }) {
-  const contentBlockCount = items.length + (hasFooter ? 1 : 0);
-  const contentHeight = items.reduce(
-    (height, item) => height + (
-      item.description
-        ? ACTION_MENU_DESCRIBED_ITEM_HEIGHT[density]
-        : ACTION_MENU_ITEM_HEIGHT[density]
-    ),
-    ACTION_MENU_ESTIMATED_VERTICAL_PADDING
-      + (hasFooter ? ACTION_MENU_FOOTER_SEPARATOR_HEIGHT : 0),
-  ) + ACTION_MENU_ITEM_GAP[itemSpacing] * Math.max(0, contentBlockCount - 1);
+  const contentHeight = estimateActionMenuHeight({
+    density,
+    footerItems,
+    items,
+  });
   const estimatedHeight = Math.min(
     ACTION_MENU_MAX_HEIGHT,
     Math.max(ACTION_MENU_ITEM_HEIGHT[density], contentHeight),
@@ -173,33 +183,26 @@ export function UiActionMenu({
   align = "start",
   anchorRef: anchorRef,
   ariaLabel: ariaLabel,
-  className: className,
   density = "default",
   footerItems = EMPTY_ACTION_MENU_ITEMS,
   isOpen: isOpen,
-  itemSpacing = "none",
   items,
   minWidth: minWidth = 220,
   placement = "auto",
   onClose: onClose,
   onSelect: onSelect,
 }: UiActionMenuProps) {
-  const allItems = useMemo(
-    () => [...items, ...footerItems],
-    [footerItems, items],
-  );
   const estimatePosition = useCallback(
     (anchor: HTMLElement) => resolveActionMenuPosition({
       align,
       anchor,
       density,
-      hasFooter: footerItems.length > 0,
-      itemSpacing,
-      items: allItems,
+      footerItems,
+      items,
       minWidth,
       placement,
     }),
-    [align, allItems, density, footerItems.length, itemSpacing, minWidth, placement],
+    [align, density, footerItems, items, minWidth, placement],
   );
   const {
     overlayPosition: menuPosition,
@@ -234,10 +237,7 @@ export function UiActionMenu({
         "fixed z-[130] overflow-y-auto p-1",
         OVERLAY_SURFACE_CLASS_NAME,
         ANCHORED_OVERLAY_MOTION_CLASS_NAME,
-        itemSpacing === "sm" && "space-y-0.5",
-        className,
       )}
-      data-item-spacing={itemSpacing}
       data-placement={menuPosition?.placement ?? "bottom"}
       data-state="open"
       role="menu"
@@ -263,7 +263,7 @@ export function UiActionMenuContent({
   onSelect,
 }: UiActionMenuContentProps) {
   return (
-    <>
+    <div className={MENU_LIST_CLASS_NAME} role="none">
       {items.map((item) => (
         <ActionMenuItem
           density={density}
@@ -287,7 +287,7 @@ export function UiActionMenuContent({
           ))}
         </>
       ) : null}
-    </>
+    </div>
   );
 }
 

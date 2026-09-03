@@ -244,7 +244,6 @@ export function ExecutionWorkGraphSurface({
             ariaLabel={t("execution.surface_history")}
             density="compact"
             isOpen={historyMenuOpen}
-            itemSpacing="sm"
             items={historyMenuItems}
             minWidth={280}
             onClose={() => setHistoryMenuOpen(false)}

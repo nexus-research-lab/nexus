@@ -80,6 +80,8 @@ type Config struct {
 	RuntimeIsolationMode             string
 	RuntimeLauncherPath              string
 	ConnectorCredentialsKey          string
+	ConnectorCredentialsLegacyKeys   []string
+	ConnectorCredentialsHostKeyMode  string
 	ConnectorGitHubClientID          string
 	ConnectorGitHubClientSecret      string
 	ConnectorGoogleClientID          string
@@ -240,6 +242,8 @@ func Load() Config {
 		RuntimeIsolationMode:             getEnv("NEXUS_RUNTIME_ISOLATION_MODE", "off"),
 		RuntimeLauncherPath:              getEnv("NEXUS_RUNTIME_LAUNCHER_PATH", "/usr/local/libexec/nexus-runtime-launcher"),
 		ConnectorCredentialsKey:          getEnv("CONNECTOR_CREDENTIALS_KEY", ""),
+		ConnectorCredentialsLegacyKeys:   mustStringList(getEnv("CONNECTOR_CREDENTIALS_LEGACY_KEYS", "")),
+		ConnectorCredentialsHostKeyMode:  getEnv("CONNECTOR_CREDENTIALS_HOST_KEY_MODE", "explicit"),
 		ConnectorGitHubClientID:          getEnv("CONNECTOR_GITHUB_CLIENT_ID", ""),
 		ConnectorGitHubClientSecret:      getEnv("CONNECTOR_GITHUB_CLIENT_SECRET", ""),
 		ConnectorGoogleClientID:          getEnv("CONNECTOR_GOOGLE_CLIENT_ID", ""),

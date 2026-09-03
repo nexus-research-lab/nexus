@@ -13,7 +13,7 @@ const (
 	weComBotDefaultLongConnectionURL   = "wss://openws.work.weixin.qq.com"
 	defaultPersonalWeixinBaseURL       = "https://ilinkai.weixin.qq.com"
 	defaultPersonalWeixinAppID         = "bot"
-	defaultPersonalWeixinClientVersion = "132099"
+	defaultPersonalWeixinClientVersion = "132102"
 	defaultPersonalWeixinBotAgent      = "Nexus/0.1.0"
 )
 

@@ -17,6 +17,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   use SQLite or a PostgreSQL `control` schema.
 - Added an 8–10-player Avalon Room Skill with a permanent Agent moderator, randomized user participation, private role, vote, mission routing, and complete proposal, quest, rejection, and assassination flow.
 - Added an administrator-selectable subscription default model that new web users inherit until they choose their own default.
+- Added RichMail as a fixed local Connector with a loopback-only approval
+  handshake, opaque owner-bound pairing attempts, encrypted Bearer Token
+  storage, exact retry reconciliation, live MCP tool discovery, and explicit
+  Agent/Session selection through the existing Connector path, using a
+  monochrome RichMail mark consistent with the existing Connector icon system
+  and a connector-specific setup path for enabling its Agent MCP service.
+- Added default-on owner availability controls, WorkGraph-style seeded icons,
+  and a Claude-style detail page for custom MCP servers, including remote
+  server information and discovered tools while keeping Prompts/Resources out
+  of the product surface and stdio execution inside the Agent runtime.
+- Added a versioned custom MCP availability migration so existing servers stay
+  enabled by default while previously disabled preview records remain disabled.
+- Added stable Connector credential key identities, an active/legacy keyring,
+  and an idempotent per-record migration that preserves unknown historical
+  ciphertext for recovery while re-encrypting known legacy records.
 - Added a backward-compatible minimal FailureCore v1 for stable machine
   classification, effect evidence, and optional transport diagnostics without
   changing existing business identities.
@@ -27,10 +42,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fast-forward both the Nexus and sibling `nexus-control` repositories as one
   `control + nexus + nginx` stack.
 - Moved the public landing page to the standalone `nexus-atlas` repository. The Product root route now enters the authenticated Launcher flow.
+- Updated the Feishu long-connection SDK to v3.11.0 and pinned DingTalk's
+  official v0.9.2 beta stream SDK so both channels receive the vendors'
+  current WebSocket lifecycle and concurrency fixes.
+- Updated personal Weixin iLink clients to the current encoded client version
+  while preserving explicit custom overrides.
 - Condensed Agent list rows to two lines by moving Provider, tool, and Skill
   metadata beside the Agent name and permission state.
 - Simplified the Skill update surface into aligned compact rows with one clear
   update action and less repetitive iconography.
+- Unified menu-style floating surfaces around a shared 4px content inset and
+  2px item rhythm across action, select, mention, Slash, cascade, and workspace
+  context menus, including consistent selected-row separation and height
+  estimation.
 - Improved dense WorkGraph readability with stable crossing reduction,
   corridor-aware orthogonal routing, semantic fan-in/fan-out junctions,
   frame-boundary proxy ports and hard subgraph obstacle avoidance for
@@ -66,6 +90,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Reconciled the unpublished Control schema migration numbers with the published
+  Connector migrations and safely replayed whichever side a local database had
+  missed during the branch merge.
 - Prevented Provider API error details from terminating a runtime round before
   its authoritative result, avoiding stale results leaking into the next turn
   and blocking later runtime controls such as `/compact`; content-safety errors
@@ -88,6 +115,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   files now fall back to bounded HTTP Range chunks, PDF and browser downloads
   remain streamed, and oversized image/Office previews are rejected before
   their bodies enter renderer memory.
+- Prevented anchored tooltips and menus from sliding in from the viewport origin
+  on their first open by limiting shared entry motion to opacity and transform
+  instead of transitioning their measured positioning coordinates.
+- Unified browser-encoded dynamic API path segments at the HTTP route boundary,
+  so identifiers containing `@`, `:`, `/`, Unicode, or literal percent escapes
+  reach every handler decoded exactly once. Provider model IDs retain their
+  single service-level decoder for compatibility with historically escaped
+  records.
+- Clarified paused Goal recovery across the built-in Goal Skill, product guide,
+  and command feedback: users are now directed to the ▶「继续」 control in
+  the Goal status bar above the current conversation composer, after which
+  Nexus automatically schedules the continuation that audits and completes
+  the remaining work.
+- Persisted each personal Weixin account's opaque iLink polling cursor across
+  restarts and compensated reloads, added the official start/stop lifecycle
+  notifications, and stopped retry loops on the explicit `-14` login-expired
+  response so the account asks for a fresh QR login instead of remaining
+  falsely connected. Existing accounts no longer suppress the personal Weixin
+  add-account QR flow, URL-escaped account identifiers are decoded before
+  deletion, and stop notification failures are best-effort instead of rolling
+  back local account deletion.
+- Added bounded writes and missed-pong detection to enterprise WeCom bot
+  WebSockets so half-open connections close and enter the existing reconnect
+  loop instead of remaining stuck indefinitely.
 - Kept compact sidebar gutters when desktop windows narrow, reserving the
   larger touch spacing for the true phone layout.
 - Kept the WorkGraph picker at a stable viewport-bounded height while switching
@@ -106,6 +157,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   group and increased the spacing between assistant headers and message bodies.
 - Kept Room collaboration visibly active while private directed work is queued
   or running, without exposing participants or private content.
+- Decoded escaped custom MCP connector IDs consistently across detail, edit,
+  availability, discovery, and deletion routes, so adding or replacing a Token
+  no longer reports that the saved server does not exist.
+- Kept the built-in Connector catalog available when an independently managed
+  legacy custom MCP payload cannot be decrypted or decoded.
+- Preserved each unreadable legacy custom MCP record as an isolated recovery
+  item instead of showing an empty directory. Recovery records stay out of
+  chats and runtime mounting until the user replaces the complete encrypted
+  configuration, while retaining the original Connector identity and enabled
+  state.
+- Centralized desktop and development Connector key selection in the server
+  startup boundary (macOS Keychain, canonical state-root fallback, then
+  explicit configuration), so Make no longer reads platform secrets and
+  mixed-key historical records remain readable during rotation.
+- Preserved the canonical state-root Connector fallback key when a signed
+  macOS host initializes its Keychain item, instead of generating an unrelated
+  key after the state-layout migration had already moved the fallback file.
 - Preserved concise failure guidance without weakening recovery: Provider
   validation now keeps its field-specific correction, reconciled Preferences and
   Echo changes expose one safe reapply action, and multi-file workspace uploads

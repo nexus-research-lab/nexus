@@ -38,8 +38,9 @@ func TestServiceEncryptsConnectionCredentials(t *testing.T) {
 
 	var credentialText string
 	var encrypted sql.NullString
+	var keyID sql.NullString
 	//goland:noinspection SqlResolve
-	if err = db.QueryRowContext(ctx, "SELECT credentials, credentials_encrypted FROM connector_connections WHERE connector_id = ?", "github").Scan(&credentialText, &encrypted); err != nil {
+	if err = db.QueryRowContext(ctx, "SELECT credentials, credentials_encrypted, credentials_key_id FROM connector_connections WHERE connector_id = ?", "github").Scan(&credentialText, &encrypted, &keyID); err != nil {
 		t.Fatalf("读取连接凭证失败: %v", err)
 	}
 	if credentialText != "__encrypted__" {
@@ -58,6 +59,9 @@ func TestServiceEncryptsConnectionCredentials(t *testing.T) {
 	}
 	if string(plain) != `{"access_token":"secret-token"}` {
 		t.Fatalf("解密后的凭证不正确: %s", plain)
+	}
+	if !keyID.Valid || keyID.String != credentials.KeyID(key) {
+		t.Fatalf("连接凭证缺少稳定 key_id: %q", keyID.String)
 	}
 }
 

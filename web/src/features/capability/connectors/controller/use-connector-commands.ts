@@ -11,6 +11,7 @@ import {
   getConnectorAuthUrlApi,
   saveConnectorOauthClientApi,
   startConnectorDeviceAuthApi,
+  startConnectorLocalPairingApi,
 } from "@/lib/api/capability/connector-api";
 import { getErrorMessage, projectMutationFailure } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -18,6 +19,7 @@ import type {
   ConnectorDeviceAuthMode,
   ConnectorDeviceAuthStart,
   ConnectorInfo,
+  ConnectorLocalPairingStart,
 } from "@/types/capability/connector";
 
 import {
@@ -74,6 +76,8 @@ export function useConnectorCommands({
   const { t } = useI18n();
   const [deviceAuthSession, setDeviceAuthSession] =
     useState<ConnectorDeviceAuthStart | null>(null);
+  const [localPairingSession, setLocalPairingSession] =
+    useState<ConnectorLocalPairingStart | null>(null);
   const feishuWebAuthorizationWindowRef =
     useRef<FeishuWebAuthorizationWindow | null>(null);
 
@@ -243,6 +247,14 @@ export function useConnectorCommands({
     return true;
   }, [reportFeedback]);
 
+  const openLocalPairing = useCallback(async (
+    connector: ConnectorInfo,
+  ): Promise<boolean> => {
+    const session = await startConnectorLocalPairingApi(connector.connector_id);
+    setLocalPairingSession(session);
+    return true;
+  }, []);
+
   const handleConnect = useCallback(async (
     connectorId: string,
   ): Promise<boolean> => {
@@ -283,18 +295,27 @@ export function useConnectorCommands({
             });
             return false;
           },
+          "local-pairing": () => openLocalPairing(connector),
           "oauth-browser": () => openBrowserOauth(connector),
           "oauth-device": () => openDeviceOauth(connector),
         };
         return await strategies[
           resolveConnectorConnectMode(connector, isDesktopRuntime())
         ]();
-      } catch (error) {
+      } catch {
+        const richMailPairing = connector.connector_id === "richmail"
+          && connector.auth_type === "local_pairing";
         reportFeedback({
-          impact: t("capability.connector_auth_start_failed_impact"),
-          nextStep: t("capability.connector_auth_start_failed_next_step"),
+          impact: t(richMailPairing
+            ? "capability.richmail_start_failed_impact"
+            : "capability.connector_auth_start_failed_impact"),
+          nextStep: t(richMailPairing
+            ? "capability.richmail_start_failed_next_step"
+            : "capability.connector_auth_start_failed_next_step"),
           tone: "error",
-          title: t("capability.connector_auth_start_failed_title"),
+          title: t(richMailPairing
+            ? "capability.richmail_start_failed_title"
+            : "capability.connector_auth_start_failed_title"),
         });
         return false;
       }
@@ -305,6 +326,7 @@ export function useConnectorCommands({
     executeMutation,
     openBrowserOauth,
     openDeviceOauth,
+    openLocalPairing,
     reportFeedback,
     runCommand,
     t,
@@ -532,9 +554,25 @@ export function useConnectorCommands({
     setDeviceAuthSession(session);
   }, []);
 
+  const closeLocalPairingSession = useCallback(() => {
+    setLocalPairingSession(null);
+  }, []);
+
+  const handleLocalPairingFailure = useCallback((
+    message: string,
+    kind: ConnectorDeviceAuthFailureKind,
+  ) => {
+    const connectorId = localPairingSession?.connector_id;
+    if (!connectorId) {
+      return;
+    }
+    reportDeviceAuthFailure(connectorId, message, kind);
+  }, [localPairingSession, reportDeviceAuthFailure]);
+
   return {
     cancelDeviceAuthSession,
     closeDeviceAuthSession,
+    closeLocalPairingSession,
     continueDeviceAuthSession,
     deviceAuthSession,
     handleConnect,
@@ -544,8 +582,10 @@ export function useConnectorCommands({
     handleDeleteOauthClient,
     handleDeviceAuthFailure,
     handleDeviceConnected,
+    handleLocalPairingFailure,
     handleDisconnect,
     handleSaveOauthClient,
+    localPairingSession,
     openFeishuWebAuthorizationUrl,
   };
 }

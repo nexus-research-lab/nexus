@@ -301,7 +301,6 @@ export function ComposerPermissionSurface({
           align="end"
           anchorRef={scopeMenuAnchorRef}
           ariaLabel={t("composer.permission_scope_menu")}
-          className="surface-radius-lg border-[color:color-mix(in_srgb,var(--divider-subtle-color)_86%,transparent)] p-2 [&_[role=menuitem]]:radius-control-sm [&_[role=menuitem]]:px-3"
           isOpen={isScopeMenuOpen}
           items={scopeItems}
           minWidth={228}

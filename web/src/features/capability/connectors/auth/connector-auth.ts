@@ -8,6 +8,7 @@ type DirectCredentialAuthType = Extract<ConnectorAuthType, "api_key" | "token">;
 export type ConnectorConnectMode =
   | "direct"
   | "direct-credential"
+  | "local-pairing"
   | "oauth-browser"
   | "oauth-device";
 
@@ -32,6 +33,9 @@ export function resolveConnectorConnectMode(
   connector: ConnectorInfo,
   desktopRuntime: boolean,
 ): ConnectorConnectMode {
+  if (connector.auth_type === "local_pairing") {
+    return "local-pairing";
+  }
   if (connector.auth_type !== "oauth2") {
     return isDirectCredentialAuth(connector.auth_type)
       ? "direct-credential"

@@ -87,6 +87,7 @@ prepare-dev-runtime-cli: ## Build current-source runtime CLI binaries for develo
 	go build -o "$(DEV_RUNTIME_CLI_BIN_DIR)/" ./cmd/nexusctl ./cmd/nexuscfg
 
 run-backend: prepare-dev-runtime-cli ## Run Go backend in development mode
+	CONNECTOR_CREDENTIALS_HOST_KEY_MODE="$${CONNECTOR_CREDENTIALS_HOST_KEY_MODE:-auto}" \
 	NEXUSCTL_COMMAND_PATH="$(DEV_RUNTIME_CLI_BIN_DIR)/nexusctl" \
 	NEXUSCFG_COMMAND_PATH="$(DEV_RUNTIME_CLI_BIN_DIR)/nexuscfg" \
 	NEXUS_CONTROL_URL="$${NEXUS_CONTROL_URL:-http://127.0.0.1:$(CONTROL_PORT)}" \
