@@ -13,6 +13,7 @@ import {
 } from "@/lib/avatar";
 import { cn } from "@/shared/ui/class-name";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { IconPickerPopover } from "@/shared/ui/icon-picker/icon-picker-popover";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
@@ -63,7 +64,7 @@ export function PersonalAvatarPicker({
           >
             {isSaving ? (
               <>
-                <Loader2 className="h-3 w-3 animate-spin" />
+                <Loader2 className={getUiSpinnerClassName({ size: "xs" })} />
                 {t("common.saving")}
               </>
             ) : disabled ? (

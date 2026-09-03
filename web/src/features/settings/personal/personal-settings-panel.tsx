@@ -8,6 +8,7 @@
 import { Loader2 } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { WorkspaceContentHeader } from "@/shared/ui/layout/workspace-content-header";
@@ -40,7 +41,9 @@ export function PersonalSettingsPanel() {
               SETTINGS_CARD_CLASS_NAME,
               "flex min-h-[220px] items-center justify-center text-(--text-soft)",
             )}>
-              <Loader2 className="h-5 w-5 animate-spin" />
+              <Loader2
+                className={getUiSpinnerClassName({ size: "lg", tone: "muted" })}
+              />
             </section>
           ) : (
             <>

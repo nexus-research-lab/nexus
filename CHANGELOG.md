@@ -140,6 +140,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   32px canvas Spinner roles with one reduced-motion contract.
 - Moved Memory directory, document, runtime-write, save, refresh, and delete
   loading states onto the same semantic Spinner scale.
+- Standardized General, Personal, and Browser settings loading states on shared
+  page and compact action Spinner roles with reduced-motion behavior.
 - Established a single frontend engineering and design-system contract, and
   centralized high overlay layers and responsive dialog geometry behind semantic
   APIs to prevent page-specific stacking and small-window sizing drift.

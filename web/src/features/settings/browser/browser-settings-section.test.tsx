@@ -2,7 +2,7 @@
 // OUTPUT: 证明 Browser 设置复用共享 Typography、Badge、ResourceState 与 Settings Shape。
 // POS: Browser 视图合同测试；轮询协议与 Preferences 事务由各自模型/接口测试负责。
 
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -88,5 +88,24 @@ describe("Browser settings surface", () => {
     expect(await screen.findByText("settings.browser.status_failed")).toBeTruthy();
     expect(container.querySelector('[data-resource-state="error"]')).toBeTruthy();
     expect(screen.getByRole("button", { name: "settings.browser.refresh" })).toBeTruthy();
+  });
+
+  it("uses the shared compact Spinner while opening desktop setup", async () => {
+    mocks.getStatus.mockResolvedValue({
+      browser_name: "Chrome",
+      connected: false,
+      connection_state: "disconnected",
+    });
+    mocks.openSetup.mockReturnValue(new Promise(() => undefined));
+
+    const { container } = renderWithI18n(<BrowserSettingsSection />);
+    const setupButton = await screen.findByRole("button", {
+      name: "settings.browser.install_action",
+    });
+    fireEvent.click(setupButton);
+
+    const spinner = container.querySelector("svg.animate-spin");
+    expect(spinner?.getAttribute("class")).toContain("h-3.5 w-3.5");
+    expect(spinner?.getAttribute("class")).toContain("motion-reduce:animate-none");
   });
 });
