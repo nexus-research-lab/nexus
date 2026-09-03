@@ -50,10 +50,7 @@ func (s *Server) mountProjectRoutes() {
 
 // mountAdminRoutes 挂载管理员运营接口。
 func (s *Server) mountAdminRoutes() {
-	s.router.Get(s.prefixPath("/admin/subscription/overview"), s.handlers.subscription.HandleOverview)
-	s.router.Post(s.prefixPath("/admin/subscription/plans"), s.handlers.subscription.HandleUpsertPlan)
-	s.router.Put(s.prefixPath("/admin/subscription/plans/{plan_key}"), s.handlers.subscription.HandleUpsertPlan)
-	s.router.Put(s.prefixPath("/admin/subscription/users/{user_id}"), s.handlers.subscription.HandleUpdateUserSubscription)
+	s.router.Get(s.prefixPath("/admin/subscription/usage"), s.handlers.subscription.HandleUsage)
 	s.router.Get(s.prefixPath("/admin/subscription/providers"), s.handlers.provider.HandleListSubscriptionProviderConfigs)
 	s.router.Post(s.prefixPath("/admin/subscription/providers"), s.handlers.provider.HandleCreateSubscriptionProviderConfig)
 	s.router.Post(s.prefixPath("/admin/subscription/providers/{provider}/models/fetch"), s.handlers.provider.HandleFetchSubscriptionProviderModels)

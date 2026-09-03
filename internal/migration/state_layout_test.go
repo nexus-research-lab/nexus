@@ -48,6 +48,8 @@ func TestRunStateLayoutMigratesLegacyEntries(t *testing.T) {
 	writeMigrationTestFile(t, filepath.Join(stateRoot, "config", "desktop-state.json"), "{}\n")
 	writeMigrationTestFile(t, filepath.Join(stateRoot, "config", "future-claude-state.bin"), "runtime\n")
 	writeMigrationTestFile(t, filepath.Join(stateRoot, "workspace", "nexus", "AGENTS.md"), "keep\n")
+	writeMigrationTestFile(t, filepath.Join(stateRoot, "control", "data", "control.db"), "control\n")
+	writeMigrationTestFile(t, filepath.Join(stateRoot, "control-public", "control-signing.pub"), "public\n")
 	writeMigrationTestFile(t, filepath.Join(stateRoot, "custom-host-data", "state.json"), "{}\n")
 	writeMigrationTestFile(t, filepath.Join(stateRoot, "NexusDesktop.lock"), "active\n")
 
@@ -212,6 +214,8 @@ func TestRunStateLayoutMigratesLegacyEntries(t *testing.T) {
 		"{}\n",
 	)
 	assertMigrationFileContent(t, filepath.Join(stateRoot, "workspace", "nexus", "AGENTS.md"), "keep\n")
+	assertMigrationFileContent(t, filepath.Join(stateRoot, "control", "data", "control.db"), "control\n")
+	assertMigrationFileContent(t, filepath.Join(stateRoot, "control-public", "control-signing.pub"), "public\n")
 	assertMigrationFileContent(t, filepath.Join(stateRoot, "NexusDesktop.lock"), "active\n")
 	assertMigrationPathMissing(t, filepath.Join(stateRoot, "data"))
 	assertMigrationPathMissing(t, filepath.Join(stateRoot, "projects"))

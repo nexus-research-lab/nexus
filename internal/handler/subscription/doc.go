@@ -1,10 +1,9 @@
-// Package subscription 封装订阅/额度域的 HTTP handlers。
+// Package subscription 暴露 Nexus 自有 token 用量的管理员读取接口。
 //
 // L2 | 父级: internal/handler（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - handlers.go：Handlers 及订阅额度路由。
-//   - failure.go：读取与 mutation 阶段的 FailureCore 证据投影。
+//   - handlers.go：Handlers、管理员授权与本地 token 用量路由。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package subscription

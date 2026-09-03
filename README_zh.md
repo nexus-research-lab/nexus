@@ -104,6 +104,8 @@ winget install Anthropic.ClaudeCode
 
 安装前校验对应的 `.sha256`。桌面 App 本地数据统一存放在 `~/.nexus`。
 
+macOS 源码调试直接运行 `make app-run`；桌面本地主体不依赖 Control。
+
 ### 服务端部署
 
 #### Docker 部署
@@ -126,7 +128,7 @@ EOF
 make start
 ```
 
-将 `nexus` 与 `nexus-control` 放在同级目录后打开 `http://localhost`。登录和成员管理仍在同一套 Nexus Web 中，相关同源请求由 Control 处理。Control 默认使用 SQLite，也可通过 `CONTROL_DATABASE_DRIVER=postgres` 和 `CONTROL_DATABASE_URL` 使用 PostgreSQL。若要在页面创建首个 owner，留空 `AUTH_INIT_OWNER_PASSWORD`，设置至少 32 个字符的 `CONTROL_SETUP_TOKEN`，再打开 `/setup`。默认 compose 只暴露 HTTP；生产 HTTPS 建议在外层网关或负载均衡上终止 TLS，再转发到该 HTTP 入口。已有 Web 用户切换前需按 [Control 迁移文档](./docs/operations/control-migration.md) 导入账号。
+将 `nexus` 与 `nexus-control` 放在同级目录后打开 `http://localhost`。登录、成员和订阅运营仍在同一套 Nexus Web 中，账号、套餐与成员额度请求由 Control 处理，Nexus 只保留本地用量与运行时额度校验。Control 默认使用 SQLite，也可通过 `CONTROL_DATABASE_DRIVER=postgres` 和 `CONTROL_DATABASE_URL` 使用 PostgreSQL。若要在页面创建首个 owner，留空 `AUTH_INIT_OWNER_PASSWORD`，设置至少 32 个字符的 `CONTROL_SETUP_TOKEN`，再打开 `/setup`。默认 compose 只暴露 HTTP；生产 HTTPS 建议在外层网关或负载均衡上终止 TLS，再转发到该 HTTP 入口。已有 Web 用户切换前需按 [Control 迁移文档](./docs/operations/control-migration.md) 导入账号。
 
 IM 通道机器人凭据建议在 Web App 的「能力 / IM 通道」里配置。容器启动时会从数据库重新加载这些配置；`.env` 里的 `DISCORD_BOT_TOKEN` 和 `TELEGRAM_BOT_TOKEN` 只作为历史系统级兜底入口保留。
 
@@ -140,24 +142,28 @@ Docker 复用宿主本地代理时，`127.0.0.1` / `localhost` 代理地址默�
 openssl rand -base64 32
 ```
 
-#### 源码部署：
-
-```bash
-make install
-cd web && pnpm build && cd ..
-AUTH_INIT_OWNER_PASSWORD=your-password make run-control
-# Control 健康后，在另一个终端启动后端：
-make run-backend
-```
-
 ### 本地开发
 
+首次安装依赖，并在本地 `.env` 至少设置一次初始 owner：
+
 ```bash
 make install
+```
+
+```env
+AUTH_INIT_OWNER_USERNAME=admin
+AUTH_INIT_OWNER_PASSWORD=your-local-password
+```
+
+之后 Web 联调只需：
+
+```bash
 make dev
 ```
 
-`make dev` 会同时启动同级的 `nexus-control`、后端与前端。Control 在 `http://localhost:8020`，后端在 `http://localhost:8010`，前端开发服务在 `http://localhost:3000`。
+`make dev` 会同时启动同级的 `nexus-control`、后端与前端。Control 在 `http://localhost:8020`，默认数据目录为 `~/.nexus/control`；后端在 `http://localhost:8010`，前端开发服务在 `http://localhost:3000`。
+
+只有需要分别挂调试器时，才在三个终端依次运行 `make run-control`、`make run-backend` 和 `make run-web`。服务器部署统一使用上面的 Docker `make start`，避免缺少 `/auth/v1` 同源网关的手工源码部署。
 
 
 ---

@@ -164,10 +164,14 @@ function SubscriptionAccountRow({
             onChange={(value) => onChangeDraft(account.owner_user_id, {
               planKey: value,
             })}
-            options={plans.map((plan) => ({
-              label: plan.display_name,
-              value: plan.plan_key,
-            }))}
+            options={plans
+              .filter((plan) => (
+                plan.status === "active" || plan.plan_key === account.plan_key
+              ))
+              .map((plan) => ({
+                label: plan.display_name,
+                value: plan.plan_key,
+              }))}
             size="sm"
             value={draft.planKey}
           />

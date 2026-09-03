@@ -19,6 +19,7 @@ WEB_PORT ?= 3000
 CONTROL_PORT ?= 8020
 NEXUS_CONTROL_ROOT ?= $(abspath ../nexus-control)
 NEXUS_DEV_STATE_ROOT ?= $(if $(strip $(NEXUS_STATE_ROOT)),$(NEXUS_STATE_ROOT),$(HOME)/.nexus)
+CONTROL_DATA_DIR := $(if $(strip $(CONTROL_DATA_DIR)),$(CONTROL_DATA_DIR),$(NEXUS_DEV_STATE_ROOT)/control)
 AGENT_UID ?= 1001
 AGENT_GID ?= 1001
 CONTROL_UID ?= 1002
@@ -71,11 +72,12 @@ run-web: ## Run frontend in development mode
 run-control: ## Run the sibling nexus-control service for Web development
 	@test -f "$(NEXUS_CONTROL_ROOT)/go.mod" || { echo "Error: nexus-control not found: $(NEXUS_CONTROL_ROOT)"; exit 1; }
 	CONTROL_ADDRESS="127.0.0.1:$(CONTROL_PORT)" \
+	CONTROL_DATA_DIR="$(CONTROL_DATA_DIR)" \
 	CONTROL_DATABASE_DRIVER="$${CONTROL_DATABASE_DRIVER:-sqlite}" \
-	CONTROL_DATABASE_URL="$${CONTROL_DATABASE_URL:-$(NEXUS_DEV_STATE_ROOT)/app/control/control.db}" \
-	CONTROL_SERVICE_TOKEN_FILE="$(NEXUS_DEV_STATE_ROOT)/app/control/control-service.token" \
-	CONTROL_SIGNING_KEY_FILE="$(NEXUS_DEV_STATE_ROOT)/app/control/control-signing.key" \
-	CONTROL_SIGNING_PUBLIC_KEY_FILE="$(NEXUS_DEV_STATE_ROOT)/app/control/control-signing.pub" \
+	CONTROL_DATABASE_URL="$${CONTROL_DATABASE_URL:-$(CONTROL_DATA_DIR)/data/control.db}" \
+	CONTROL_SERVICE_TOKEN_FILE="$(CONTROL_DATA_DIR)/control-service.token" \
+	CONTROL_SIGNING_KEY_FILE="$(CONTROL_DATA_DIR)/control-signing.key" \
+	CONTROL_SIGNING_PUBLIC_KEY_FILE="$(CONTROL_DATA_DIR)/control-signing.pub" \
 	CONTROL_SESSION_TTL_HOURS="$${CONTROL_SESSION_TTL_HOURS:-$${AUTH_SESSION_TTL_HOURS:-24}}" \
 	$(MAKE) -C "$(NEXUS_CONTROL_ROOT)" run
 
@@ -92,14 +94,16 @@ run-backend: prepare-dev-runtime-cli ## Run Go backend in development mode
 	NEXUSCFG_COMMAND_PATH="$(DEV_RUNTIME_CLI_BIN_DIR)/nexuscfg" \
 	NEXUS_CONTROL_URL="$${NEXUS_CONTROL_URL:-http://127.0.0.1:$(CONTROL_PORT)}" \
 	NEXUS_CONTROL_SERVICE_TOKEN="$${NEXUS_CONTROL_SERVICE_TOKEN:-$${CONTROL_SERVICE_TOKEN:-}}" \
-	NEXUS_CONTROL_SERVICE_TOKEN_FILE="$${NEXUS_CONTROL_SERVICE_TOKEN_FILE:-$(NEXUS_DEV_STATE_ROOT)/app/control/control-service.token}" \
-	NEXUS_CONTROL_PRINCIPAL_PUBLIC_KEY_FILE="$${NEXUS_CONTROL_PRINCIPAL_PUBLIC_KEY_FILE:-$(NEXUS_DEV_STATE_ROOT)/app/control/control-signing.pub}" \
+	NEXUS_CONTROL_SERVICE_TOKEN_FILE="$${NEXUS_CONTROL_SERVICE_TOKEN_FILE:-$(CONTROL_DATA_DIR)/control-service.token}" \
+	NEXUS_CONTROL_PRINCIPAL_PUBLIC_KEY_FILE="$${NEXUS_CONTROL_PRINCIPAL_PUBLIC_KEY_FILE:-$(CONTROL_DATA_DIR)/control-signing.pub}" \
 	NEXUS_APP_ROOT=$${NEXUS_APP_ROOT:-$(CURDIR)} PORT=$(BACKEND_PORT) go run ./cmd/nexus-server
 
 run-backend-go: run-backend ## Alias of run-backend
 
-dev: ## Run both frontend and backend in development mode
+dev: ## Run Control, backend, and frontend in development mode
 	@echo "Starting development servers..."
+	@echo "Control: http://localhost:$(CONTROL_PORT)"
+	@echo "Control data: $(CONTROL_DATA_DIR)"
 	@echo "Backend: http://localhost:$(BACKEND_PORT)"
 	@echo "Frontend: http://localhost:$(WEB_PORT)"
 	@echo "Press Ctrl+C to stop"
@@ -281,7 +285,7 @@ prepare-host-data: ## Prepare host bind-mount directories for Docker runtime
 		$(HOST_SUDO) chmod 0755 "$$resolved_dir/.nexus/app"; \
 	fi; \
 	for control_dir in control control-public; do \
-		path="$$resolved_dir/.nexus/app/$$control_dir"; \
+		path="$$resolved_dir/.nexus/$$control_dir"; \
 		if $(HOST_SUDO) test -L "$$path"; then \
 			echo "Error: $$path must not be a symbolic link."; \
 			exit 1; \
@@ -383,7 +387,7 @@ pull: ## Update both source repositories used by the deployment
 	git pull --ff-only origin main
 	git -C "$(NEXUS_CONTROL_ROOT)" pull --ff-only origin main
 
-deploy:
+deploy: ## Pull and redeploy all Docker services
 	$(MAKE) pull
 	$(MAKE) build
 	$(MAKE) stop

@@ -35,6 +35,7 @@ func TestControlAuthorityVerifiesPrincipalAndBindsLocalOwner(t *testing.T) {
 		DeploymentID: "dep-a", UserID: "user-control-a",
 		Username: "admin", DisplayName: "Admin", Role: RoleOwner,
 		AuthMethod: AuthMethodPassword, SessionID: "sess-a",
+		Entitlement: testControlEntitlement(now),
 	}
 	token := signControlTestPrincipal(t, privateKey, claims)
 	const serviceToken = "control-service-token-32-characters"
@@ -141,6 +142,7 @@ func TestControlBindingCreateClaimsOneOwnerAcrossStores(t *testing.T) {
 	principal := controlPrincipal{
 		DeploymentID: "dep-atomic", UserID: "user-atomic",
 		Username: "atomic", DisplayName: "Atomic", Role: RoleMember,
+		Entitlement: testControlEntitlement(time.Now().UTC()),
 	}
 	bindings := []controlOwnerBinding{
 		{DeploymentID: principal.DeploymentID, ControlUserID: principal.UserID, LocalOwnerKey: deterministicControlOwnerKey(principal.DeploymentID, principal.UserID)},
@@ -204,10 +206,8 @@ func TestControlIdentityInvalidationClearsBoundLease(t *testing.T) {
 		}
 		data := any(nil)
 		switch request.URL.Path {
-		case controlAPIBase + "/internal/identity-invalidations/latest":
-			data = map[string]any{"cursor": 7}
 		case controlAPIBase + "/internal/identity-invalidations":
-			if request.URL.Query().Get("after") != "7" || request.URL.Query().Get("limit") != "256" {
+			if request.URL.Query().Get("after") != "0" || request.URL.Query().Get("limit") != "256" {
 				http.Error(writer, "bad query", http.StatusBadRequest)
 				return
 			}
@@ -234,6 +234,7 @@ func TestControlIdentityInvalidationClearsBoundLease(t *testing.T) {
 	principal := controlPrincipal{
 		DeploymentID: "dep-a", UserID: "user-a", Username: "member",
 		DisplayName: "Member", Role: RoleMember,
+		Entitlement: testControlEntitlement(time.Now().UTC()),
 	}
 	binding, err := authority.bindings.resolve(context.Background(), principal)
 	if err != nil {
@@ -245,8 +246,8 @@ func TestControlIdentityInvalidationClearsBoundLease(t *testing.T) {
 		State{AuthRequired: true},
 		time.Now().UTC().Add(time.Minute),
 	)
-	cursor, err := authority.LatestControlIdentityInvalidationID(context.Background())
-	if err != nil || cursor != 7 {
+	cursor, err := authority.ControlIdentityInvalidationCursor(context.Background())
+	if err != nil || cursor != 0 {
 		t.Fatalf("cursor = %d, err = %v", cursor, err)
 	}
 	events, err := authority.ControlIdentityInvalidations(context.Background(), cursor)
@@ -260,6 +261,15 @@ func TestControlIdentityInvalidationClearsBoundLease(t *testing.T) {
 	if _, _, ok := authority.cachedLease("session-a"); ok {
 		t.Fatal("identity invalidation left cached lease active")
 	}
+	if err = authority.CommitControlIdentityInvalidationCursor(context.Background(), events[0].EventID); err != nil {
+		t.Fatal(err)
+	}
+	if cursor, err = authority.ControlIdentityInvalidationCursor(context.Background()); err != nil || cursor != 8 {
+		t.Fatalf("committed cursor = %d, err = %v", cursor, err)
+	}
+	if err = authority.CommitControlIdentityInvalidationCursor(context.Background(), 7); err != nil {
+		t.Fatalf("shared projection cursor ahead of replica should be accepted: %v", err)
+	}
 	var role, status string
 	if err = database.QueryRow(
 		`SELECT role, status FROM owner_profiles WHERE owner_user_id = ?`,
@@ -272,6 +282,92 @@ func TestControlIdentityInvalidationClearsBoundLease(t *testing.T) {
 	}
 }
 
+func TestControlEntitlementInvalidationRefreshesProjection(t *testing.T) {
+	t.Parallel()
+	const serviceToken = "control-service-token-32-characters"
+	updatedAt := time.Now().UTC().Truncate(time.Second)
+	limit := int64(4096)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.Header.Get("Authorization") != "Bearer "+serviceToken {
+			http.Error(writer, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if request.URL.Path != controlAPIBase+"/internal/deployments/dep-a/users/user-a/entitlement" {
+			http.NotFound(writer, request)
+			return
+		}
+		_ = json.NewEncoder(writer).Encode(map[string]any{
+			"code": "0000",
+			"data": map[string]any{
+				"plan_key": "team", "plan_name": "Team",
+				"monthly_token_limit": limit, "updated_at": updatedAt,
+			},
+		})
+	}))
+	t.Cleanup(server.Close)
+	cfg, database := newAuthTestDB(t)
+	cfg.ControlURL = server.URL
+	cfg.ControlServiceToken = serviceToken
+	authority := NewControlAuthority(cfg, database, nil)
+	principal := controlPrincipal{
+		DeploymentID: "dep-a", UserID: "user-a", Username: "member",
+		DisplayName: "Member", Role: RoleMember,
+		Entitlement: testControlEntitlement(updatedAt.Add(-time.Hour)),
+	}
+	binding, err := authority.bindings.resolve(context.Background(), principal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	authority.storeLease(
+		"session-a",
+		projectControlPrincipal(principal, binding.LocalOwnerKey),
+		State{AuthRequired: true},
+		time.Now().UTC().Add(time.Minute),
+	)
+	owner, err := authority.ApplyControlIdentityInvalidation(
+		context.Background(),
+		ControlIdentityInvalidation{
+			EventID: 1, DeploymentID: "dep-a", UserID: "user-a",
+			Reason: "entitlement_changed",
+		},
+	)
+	if err != nil || owner != binding.LocalOwnerKey {
+		t.Fatalf("owner = %q, err = %v", owner, err)
+	}
+	if _, _, ok := authority.cachedLease("session-a"); ok {
+		t.Fatal("entitlement invalidation left cached lease active")
+	}
+	var planKey, planName string
+	var projectedLimit int64
+	if err = database.QueryRow(`
+SELECT plan_key, plan_name, monthly_token_limit
+FROM owner_entitlements WHERE owner_user_id = ?`, binding.LocalOwnerKey).Scan(
+		&planKey,
+		&planName,
+		&projectedLimit,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if planKey != "team" || planName != "Team" || projectedLimit != limit {
+		t.Fatalf("projected entitlement = %q, %q, %d", planKey, planName, projectedLimit)
+	}
+	if _, err = authority.bindings.resolve(context.Background(), principal); err != nil {
+		t.Fatal(err)
+	}
+	if err = database.QueryRow(`
+SELECT plan_key, plan_name, monthly_token_limit
+FROM owner_entitlements WHERE owner_user_id = ?`, binding.LocalOwnerKey).Scan(
+		&planKey,
+		&planName,
+		&projectedLimit,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if planKey != "team" || planName != "Team" || projectedLimit != limit {
+		t.Fatalf("stale Principal rolled projection back to %q, %q, %d", planKey, planName, projectedLimit)
+	}
+}
+
 func TestControlSessionInvalidationClearsOnlyExactLease(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -280,6 +376,7 @@ func TestControlSessionInvalidationClearsOnlyExactLease(t *testing.T) {
 	controlValue := controlPrincipal{
 		DeploymentID: "dep-a", UserID: "user-a", Username: "member",
 		DisplayName: "Member", Role: RoleMember, AuthMethod: AuthMethodPassword,
+		Entitlement: testControlEntitlement(time.Now().UTC()),
 	}
 	binding, err := authority.bindings.resolve(ctx, controlValue)
 	if err != nil {
@@ -325,6 +422,7 @@ owner_user_id, username, display_name, role, status, created_at, updated_at
 	binding, err := store.resolve(ctx, controlPrincipal{
 		DeploymentID: "dep-a", UserID: "user_existing", Username: "admin",
 		DisplayName: "Admin", Role: RoleOwner, AuthMethod: AuthMethodPassword,
+		Entitlement: testControlEntitlement(time.Now().UTC()),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -351,6 +449,13 @@ func signControlTestPrincipal(
 	signed := strings.Join([]string{header, body}, ".")
 	signature := ed25519.Sign(privateKey, []byte(signed))
 	return signed + "." + base64.RawURLEncoding.EncodeToString(signature)
+}
+
+func testControlEntitlement(now time.Time) controlEntitlement {
+	limit := int64(200000)
+	return controlEntitlement{
+		PlanKey: "free", PlanName: "Free", MonthlyTokenLimit: &limit, UpdatedAt: now,
+	}
 }
 
 func newAuthTestDB(t *testing.T) (config.Config, *sql.DB) {
