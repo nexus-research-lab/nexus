@@ -1,9 +1,12 @@
 // INPUT: 侧栏空状态或读取失败的标题、影响、必要说明和可选动作。
-// OUTPUT: 符合侧栏密度的引导卡；失败态不重复动作已经表达的恢复说明。
-// POS: 侧栏紧凑状态视图；不判断资源或修改结果。
+// OUTPUT: 符合侧栏密度、语义排版与共享动作规范的引导卡；失败态不重复恢复说明。
+// POS: 侧栏紧凑状态视图；不拥有 Button/排版 recipe，也不判断资源或修改结果。
 
 import type { LucideIcon } from "lucide-react";
+
+import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 interface SidebarEmptyGuideProps {
   icon: LucideIcon;
@@ -31,36 +34,50 @@ export function SidebarEmptyGuide({
       aria-atomic={impact || nextStep ? "true" : undefined}
       aria-live={impact || nextStep ? "polite" : undefined}
       className={cn(
-        "flex flex-col gap-1 rounded-[12px] border border-(--divider-subtle-color) px-2.5 py-2",
+        "surface-radius-md flex flex-col gap-1 border border-(--divider-subtle-color) px-2.5 py-2",
         className,
       )}
       role={impact || nextStep ? "status" : undefined}
     >
       <div className="flex items-center gap-1.5 text-(--text-muted)">
         <Icon className="h-3.5 w-3.5 shrink-0" />
-        <span className="text-xs font-semibold">{title}</span>
+        <span className={getUiTypographyClassName({
+          role: "caption",
+          tone: "muted",
+          weight: "semibold",
+        })}>
+          {title}
+        </span>
       </div>
       {!impact ? (
-        <p className="text-xs leading-relaxed text-(--text-soft)">
+        <p className={getUiTypographyClassName({ role: "caption", tone: "soft" })}>
           {description}
         </p>
       ) : null}
       {impact ? (
-        <p className="text-xs leading-relaxed text-(--text-muted)">{impact}</p>
+        <p className={getUiTypographyClassName({ role: "caption", tone: "muted" })}>
+          {impact}
+        </p>
       ) : null}
       {nextStep && !(actionLabel && onAction) ? (
-        <p className="text-xs font-medium leading-relaxed text-(--text-default)">
+        <p className={getUiTypographyClassName({
+          role: "caption",
+          tone: "default",
+          weight: "medium",
+        })}>
           {nextStep}
         </p>
       ) : null}
       {actionLabel && onAction ? (
-        <button
-          className="mt-0.5 inline-flex w-fit items-center gap-1 rounded-[8px] bg-(--surface-interactive-hover-background) px-2 py-[3px] text-xs font-semibold text-(--primary) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-active-background)"
+        <UiButton
+          className="mt-0.5 w-fit"
           onClick={onAction}
-          type="button"
+          size="xs"
+          tone="primary"
+          variant="ghost"
         >
           {actionLabel}
-        </button>
+        </UiButton>
       ) : null}
     </div>
   );
