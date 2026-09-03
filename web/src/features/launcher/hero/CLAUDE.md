@@ -9,3 +9,5 @@
 - Surface Theme 只投影 CSS 变量。
 
 Hero 不直接调用 Launcher、Room 或 Agent API。输入匹配和插入复用 `shared/ui/mention/`，本目录只决定触发符对应的目标分类。
+
+Launcher 查询提交使用共享 `md` Spinner 并继承提交按钮颜色；Hero 不再用边框 div 自制加载动画。

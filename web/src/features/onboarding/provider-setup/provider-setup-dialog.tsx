@@ -60,6 +60,7 @@ import {
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
 import { getDialogNoteClassName } from "@/shared/ui/dialog/dialog-styles";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import type {
@@ -1328,7 +1329,9 @@ function ProviderScene({
       <div className="soft-scrollbar mt-5 min-h-0 flex-1 overflow-y-auto pr-1">
         {loading ? (
           <div className="flex min-h-40 items-center justify-center text-(--text-muted)">
-            <Loader2 className="h-5 w-5 animate-spin" />
+            <Loader2
+              className={getUiSpinnerClassName({ size: "lg", tone: "muted" })}
+            />
           </div>
         ) : null}
         {!loading && error ? (
@@ -1806,7 +1809,9 @@ function VerifyScene({ phase }: { phase: number }) {
         role="status"
       >
         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-(--surface-muted-background)">
-          <Loader2 className="h-3.5 w-3.5 animate-spin text-(--brand-action)" />
+          <Loader2
+            className={getUiSpinnerClassName({ size: "sm", tone: "primary" })}
+          />
         </span>
         <span className="text-sm font-medium text-(--text-strong)">
           {lines[phase] ?? lines[lines.length - 1]}
