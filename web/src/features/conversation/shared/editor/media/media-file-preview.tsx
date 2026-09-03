@@ -15,6 +15,7 @@ import { getWorkspaceFileExternalActionCopy } from "@/lib/workspace-file-action"
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import {
   WorkspaceFileDownloadButton,
   WorkspaceFilePreviewFocusButton,
@@ -63,7 +64,7 @@ export function PdfPreview({
             </span>
           ) : (
             <span className="flex items-center gap-1">
-              <LoaderCircle className="h-3 w-3 animate-spin" />
+              <LoaderCircle className={getUiSpinnerClassName({ size: "xs" })} />
               {t("workspace_file.preview_loading")}
             </span>
           )
@@ -134,7 +135,7 @@ export function ImagePreview({
             </span>
           ) : (
             <span className="flex items-center gap-1">
-              <LoaderCircle className="h-3 w-3 animate-spin" />
+              <LoaderCircle className={getUiSpinnerClassName({ size: "xs" })} />
               {t("workspace_file.preview_loading")}
             </span>
           )

@@ -4,7 +4,7 @@
 
 import { cn } from "@/shared/ui/class-name";
 
-export type UiSpinnerSize = "xs" | "sm" | "md" | "lg" | "xl";
+export type UiSpinnerSize = "xs" | "sm" | "md" | "lg" | "xl" | "2xl";
 export type UiSpinnerTone = "current" | "muted" | "primary";
 
 interface UiSpinnerStyleOptions {
@@ -18,6 +18,7 @@ const SPINNER_SIZE_CLASS_MAP: Record<UiSpinnerSize, string> = {
   md: "h-4 w-4",
   lg: "h-5 w-5",
   xl: "h-6 w-6",
+  "2xl": "h-8 w-8",
 };
 
 const SPINNER_TONE_CLASS_MAP: Record<UiSpinnerTone, string> = {

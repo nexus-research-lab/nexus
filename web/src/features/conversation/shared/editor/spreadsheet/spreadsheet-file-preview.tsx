@@ -9,6 +9,7 @@ import {
   WorkspaceFilePreviewHeader,
 } from "../workspace-file-preview-chrome";
 import { OfficePreviewFailureState } from "../office-preview-fallbacks";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { WorkspaceFilePreviewProps } from "../workspace-file-preview-types";
 import { SpreadsheetReadonlyWorkbook } from "./spreadsheet-readonly-workbook";
@@ -86,7 +87,7 @@ function SpreadsheetPreviewMeta({
     ),
     loading: (
       <span className="flex min-w-0 items-center gap-1">
-        <LoaderCircle className="h-3 w-3 shrink-0 animate-spin" />
+        <LoaderCircle className={getUiSpinnerClassName({ size: "xs" })} />
         <span className="truncate">{t("workspace_file.preview_loading")}</span>
       </span>
     ),
@@ -114,7 +115,9 @@ function SpreadsheetPreviewOverlay({
     <div className="absolute inset-0 flex items-center justify-center bg-[var(--surface-panel-subtle-background)] p-8 text-center">
       <div className="max-w-xs">
         <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center surface-radius-md border border-(--surface-panel-subtle-border) bg-(--card-default-background)">
-          <LoaderCircle className="h-7 w-7 animate-spin text-primary" />
+          <LoaderCircle
+            className={getUiSpinnerClassName({ size: "2xl", tone: "primary" })}
+          />
         </div>
         <p className="text-sm font-medium text-(--text-strong)">
           {t("workspace_file.preview_loading")}

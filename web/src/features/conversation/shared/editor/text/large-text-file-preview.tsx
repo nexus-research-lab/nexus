@@ -10,6 +10,7 @@ import { getWorkspaceFileTextChunkApi } from "@/lib/api/agent/agent-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import type { WorkspaceFileTextChunk } from "@/types/agent/agent";
 
 import {
@@ -110,7 +111,9 @@ export function LargeTextFilePreview({
           </div>
         ) : loadState === "loading" || !chunk ? (
           <div className="flex h-full items-center justify-center text-sm text-(--text-soft)">
-            <LoaderCircle className="mr-2 h-4 w-4 animate-spin motion-reduce:animate-none" />
+            <LoaderCircle
+              className={getUiSpinnerClassName({ size: "md" }, "mr-2")}
+            />
             {t("workspace_file.loading")}
           </div>
         ) : (

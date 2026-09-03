@@ -136,6 +136,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Loop launch failures, and Room Skill resource errors.
 - Consolidated Room Skill form failures, subagent refresh recovery, Agent full-access
   warnings, reply-limit warnings, and stale Memory notices onto the same inline owner.
+- Standardized Workspace file-preview loading indicators on shared compact and
+  32px canvas Spinner roles with one reduced-motion contract.
 - Established a single frontend engineering and design-system contract, and
   centralized high overlay layers and responsive dialog geometry behind semantic
   APIs to prevent page-specific stacking and small-window sizing drift.

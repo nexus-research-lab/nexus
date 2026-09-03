@@ -3,6 +3,7 @@ import { LoaderCircle } from "lucide-react";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import {
   WorkspaceFileDownloadButton,
   WorkspaceFilePreviewFocusButton,
@@ -61,7 +62,7 @@ export function OfficePreviewFallback({
         )}
         meta={(
           <span className="flex items-center gap-1">
-            <LoaderCircle className="h-3 w-3 animate-spin" />
+            <LoaderCircle className={getUiSpinnerClassName({ size: "xs" })} />
             {t("workspace_file.preview_loading")}
           </span>
         )}
@@ -72,7 +73,12 @@ export function OfficePreviewFallback({
         data-office-preview-kind={kind}
       >
         <div className="max-w-xs">
-          <LoaderCircle className="mx-auto h-8 w-8 animate-spin text-primary" />
+          <LoaderCircle
+            className={getUiSpinnerClassName(
+              { size: "2xl", tone: "primary" },
+              "mx-auto",
+            )}
+          />
           <p className="mt-3 text-sm font-medium text-(--text-strong)">
             {t("workspace_file.preview_loading")}
           </p>

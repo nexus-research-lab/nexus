@@ -2,6 +2,7 @@ import type { CSSProperties, ReactNode, RefObject } from "react";
 import { Eye, FileWarning, LoaderCircle } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { OfficePreviewFailureState } from "../office-preview-fallbacks";
 import {
@@ -151,7 +152,7 @@ function DocumentPreviewStatusMeta({
     ),
     loading: (
       <span className="flex items-center gap-1">
-        <LoaderCircle className="h-3 w-3 animate-spin" />
+        <LoaderCircle className={getUiSpinnerClassName({ size: "xs" })} />
         {t("workspace_file.preview_loading")}
       </span>
     ),
@@ -212,7 +213,7 @@ function DocumentPreviewLoading() {
   return (
     <div className="pointer-events-none absolute inset-x-0 top-24 flex justify-center">
       <div className="inline-flex items-center gap-2 rounded-full border border-(--divider-subtle-color) bg-(--surface-panel-background) px-3 py-1.5 text-xs text-(--text-muted) shadow-sm">
-        <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+        <LoaderCircle className={getUiSpinnerClassName({ size: "sm" })} />
         <span>{t("workspace_file.preview_loading")}</span>
       </div>
     </div>
