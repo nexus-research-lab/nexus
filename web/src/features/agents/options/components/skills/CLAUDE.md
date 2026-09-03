@@ -12,4 +12,6 @@
 
 列表与命令结果必须绑定 Agent；旧请求、旧命令不得写入新作用域，页面卸载后不得继续刷新视图状态。
 
+Skill 目录初始读取使用共享 `md` muted Spinner，单卡启停命令使用 `sm` muted Spinner；视图不得自行维护尺寸、颜色、旋转或 reduced-motion class。
+
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md

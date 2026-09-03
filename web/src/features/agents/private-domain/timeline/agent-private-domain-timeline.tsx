@@ -14,6 +14,7 @@ import { type ComponentType } from "react";
 
 import { cn } from "@/shared/ui/class-name";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import type {
   AgentPrivateEvent,
   AgentPrivateThread,
@@ -180,7 +181,9 @@ export function PrivateEventTimeline({
             ) : null}
           </div>
           {isLoading ? (
-            <Loader2 className="h-4 w-4 animate-spin text-(--text-soft)" />
+            <Loader2
+              className={getUiSpinnerClassName({ size: "md", tone: "muted" })}
+            />
           ) : null}
         </div>
       </div>

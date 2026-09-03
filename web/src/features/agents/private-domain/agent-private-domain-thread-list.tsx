@@ -14,6 +14,7 @@ import {
   type PrivateThreadListItemPresentation,
   type PrivateThreadListPresentation,
 } from "@/features/agents/private-domain/agent-private-domain-thread-model";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
 import type { AgentPrivateScope, AgentPrivateThread } from "@/types/agent/private-domain";
 
@@ -73,7 +74,9 @@ function PrivateThreadListContent({
     case "loading":
       return (
         <div className={presentation.className}>
-          <Loader2 className="h-5 w-5 animate-spin text-(--text-soft)" />
+          <Loader2
+            className={getUiSpinnerClassName({ size: "lg", tone: "muted" })}
+          />
         </div>
       );
     case "empty":

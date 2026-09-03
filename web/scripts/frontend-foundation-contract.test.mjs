@@ -650,6 +650,27 @@ test("Composer Connector and Room model menus share compact Spinner roles", asyn
   }
 });
 
+test("Agent Skill and private-domain loading states share Spinner roles", async () => {
+  const paths = [
+    "src/features/agents/options/components/skills/agent-options-skills-content.tsx",
+    "src/features/agents/options/components/skills/agent-skill-card.tsx",
+    "src/features/agents/private-domain/agent-private-domain-thread-list.tsx",
+    "src/features/agents/private-domain/agent-private-domain-toolbar.tsx",
+    "src/features/agents/private-domain/timeline/agent-private-domain-timeline.tsx",
+  ];
+  const sources = await Promise.all(paths.map(readSource));
+  const combined = sources.join("\n");
+
+  for (const source of sources) {
+    assert.match(source, /getUiSpinnerClassName/);
+    assert.doesNotMatch(source, /\banimate-spin\b/);
+  }
+  for (const size of ["sm", "md", "lg"]) {
+    assert.match(combined, new RegExp(`size: "${size}"`));
+  }
+  assert.match(combined, /tone: "muted"/);
+});
+
 test("List and Badge primitives expose semantic typography and shape instead of page overrides", async () => {
   const [listRow, badge, badgeStyles, providerModels, connectorCard, customMcpGrid] = await Promise.all([
     readSource("src/shared/ui/list/list-row.tsx"),
