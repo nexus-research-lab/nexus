@@ -518,10 +518,24 @@ test("desktop hosts share viewport bounds but keep platform chrome ownership sep
 });
 
 test("floating feedback reuses shared surface, layer, and typography recipes", async () => {
-  const [banner, viewport, recovery] = await Promise.all([
+  const [
+    banner,
+    viewport,
+    recovery,
+    inlineNotice,
+    conversationNotice,
+    providerNotice,
+    readResourceNotice,
+    conversationPanel,
+  ] = await Promise.all([
     readSource("src/shared/ui/feedback/feedback-banner.tsx"),
     readSource("src/shared/ui/feedback/feedback-banner-viewport.tsx"),
     readSource("src/shared/ui/feedback/recovery-summary.tsx"),
+    readSource("src/shared/ui/feedback/inline-notice.tsx"),
+    readSource("src/features/conversation/shared/conversation-reliability-notice.tsx"),
+    readSource("src/features/conversation/shared/provider-unavailable-banner.tsx"),
+    readSource("src/features/conversation/shared/read-resource-reliability-notice.tsx"),
+    readSource("src/features/conversation/shared/conversation-panel-layout.tsx"),
   ]);
 
   assert.match(banner, /surface-popover surface-radius-md/);
@@ -531,6 +545,15 @@ test("floating feedback reuses shared surface, layer, and typography recipes", a
   assert.match(viewport, /getUiOverlayLayerClassName\("feedback"\)/);
   assert.doesNotMatch(viewport, /\bz-(?:\d+|\[)/);
   assert.match(recovery, /getUiTypographyClassName/);
+  assert.match(inlineNotice, /<UiButton/);
+  assert.match(inlineNotice, /getUiTypographyClassName/);
+  assert.match(inlineNotice, /surface-radius-sm/);
+  for (const consumer of [conversationNotice, providerNotice, readResourceNotice]) {
+    assert.match(consumer, /<UiInlineNotice/);
+    assert.doesNotMatch(consumer, /<button\b|rounded-\[/);
+  }
+  assert.match(conversationPanel, /<ReadResourceReliabilityNotice[\s\S]*variant="contained"/);
+  assert.doesNotMatch(conversationPanel, /<ReadResourceReliabilityNotice[\s\S]*rounded-\[/);
 });
 
 test("App typography exposes one typed semantic role map", async () => {

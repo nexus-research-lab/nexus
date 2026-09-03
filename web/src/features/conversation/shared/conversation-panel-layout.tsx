@@ -222,7 +222,6 @@ export function ConversationPanelBottomArea({
                 : `${CONVERSATION_COMPOSER_LANE_CLASS_NAME} px-3 pt-1 sm:px-5 xl:px-6`}
             >
               <ReadResourceReliabilityNotice
-                className="rounded-[10px] border"
                 impact={t(roundIndexResource.access
                   ? "conversation.round_index_access_impact"
                   : roundIndexResource.isStale
@@ -233,6 +232,7 @@ export function ConversationPanelBottomArea({
                 problem={t("conversation.round_index_refresh_failed")}
                 resource="session-round-index"
                 stale={roundIndexResource.isStale}
+                variant="contained"
               />
             </div>
           ) : providerStatusVisible ? (

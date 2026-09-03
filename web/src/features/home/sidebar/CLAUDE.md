@@ -1,6 +1,7 @@
 # sidebar/ - Home 侧栏
 
 - `sidebar-directory.ts` 只提供共享 Home 目录；聊天和联系人入口都不得在侧栏订阅 Agent runtime。
+- `../home-directory-refresh-error-notice.tsx` 是 Launcher、聊天侧栏和联系人侧栏共用的 stale 目录恢复入口；它只提供安全重读，并通过 `UiInlineNotice` 获取提示与动作视觉，不得自建错误卡片。
 - `../room-activity-resource.ts` 在每个 Room ID 内按精确 Conversation/Session source 隔离瞬时执行集合，再为聊天行取并集；DM 与群组不分叉，另一个空会话不得清掉仍运行的会话，待确认优先于工作中。
 - `sidebar-conversation-model.ts` 只投影真实 Room/DM 目录项；主智能体 DM 固定置顶且不可删除，其他条目仍按最近活动排序，活动时间按当前界面语言格式化；未读状态由 `sidebar-unread-model.ts` 统一聚合。
 - 聊天行摘要显示 bootstrap 提供的最新 assistant 回复预览，不能用会话标题冒充消息；后端只读取最近两个 round，单个历史损坏不得阻断目录。目录首次失败必须与真实空目录分开展示并提供重试，后续刷新失败继续展示最后成功目录并使用非阻塞提示。
