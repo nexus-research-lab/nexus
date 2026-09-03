@@ -210,7 +210,7 @@ Widget 可以认识 Agent、Room、Goal 等产品对象，但只组合下层合�
 
 源码正则只能作为架构或禁止项门禁，不能替代组件行为测试。涉及布局、Portal、碰撞和视口尺寸的 UI 必须使用真实浏览器验证。
 
-历史业务 UI 中尚未迁移的任意阴影与数字 z-index 由 `frontend-foundation-contract.test.mjs` 的逐文件债务基线管理：新文件额度为零，既有文件不得增加；完成迁移时必须同步下调或删除对应额度，禁止为通过门禁提高基线。
+`features/pages` 中的任意阴影与数字 z-index 已归零；`frontend-foundation-contract.test.mjs` 直接禁止两者，不再保留可上调的逐文件额度。真实 elevation 和浮层顺序只能选择语义 token、recipe 与 layer。
 
 测试入口固定为：
 

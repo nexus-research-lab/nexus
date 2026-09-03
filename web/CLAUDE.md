@@ -47,7 +47,7 @@ src/
 - `shared/`、`lib/`、`store/` 与 `types/` 不得依赖 `features/`；应用壳层组合 Feature 时必须归入 `app/` 或专用导航 Feature
 - `types/` 只声明跨层协议，不得导入 Config、Lib 或运行时投影；Agent 会话作用域键只由 `lib/conversation/agent-conversation-identity.ts` 计算
 - API 客户端按 endpoint 所有权归入 `lib/api/{agent,account,capability,conversation,settings}/`，通用传输在 `core/` 按请求、响应、错误和鉴权事件拆分；消费者直接导入职责文件，不保留旧路径转发层
-- 共享 UI 基础组件按 `button/`、`form/`、`display/`、`list/` 与 `navigation/` 分组；消费者直接导入职责文件，不恢复根级聚合出口
+- 共享 UI 基础组件按 `button/`、`form/`、`display/`、`list/` 与 `navigation/` 分组；唯一所有者和关键行为测试清单见 `shared/ui/CLAUDE.md`，消费者直接导入职责文件，不恢复根级聚合出口
 - Surface 搜索入口统一由 `UiSearchInput` 提供中性灰白底、hairline 边界及交互态；消费者只调整尺寸和布局，不得局部覆写背景、边框或阴影
 - Light/Sunny 壳层以 `#f9f9f7` 为页面真相源，导航、目录、主画布依靠相邻中性灰阶分区；主侧栏外缘只绘制一根不透明 hairline，展开态从物理窗口顶端贯穿到底部，折叠态从 Header 底部开始以避开原生窗口按钮，内部 Dock 不再叠加竖线或外投影。Nexus 品牌蓝只用于发送、保存、创建、连接等主行动，以及焦点、运行态和明确选中模式；普通导航与次级工具保持黑白灰，teal 只表达次级数据/文件类型，红绿黄只表达危险、成功和警告
 - App Typography 由 `app/styles/theme-tokens.css` 的语义字号阶梯定义：系统 UI 字体栈保持原生，普通控件使用 14px，页面标题使用 16px，20px 以上只承担对象主标题、品牌或特定空态；根节点不得用界面 token 覆盖继承字号，对话、文件和其他阅读正文继续由所属 Surface 显式声明。业务组件不得用 15/17/22px 等近似任意值恢复旧界面尺度；字体收紧不得同步削减输入框、按钮或移动端触控热区。完整合同见 `docs/specs/web-surface-density-spec.md`

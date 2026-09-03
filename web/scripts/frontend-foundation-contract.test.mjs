@@ -13,20 +13,27 @@ const productUiRoots = [
   path.join(srcRoot, "pages"),
 ];
 
-const DESIGN_DEBT_RATCHETS = [
+const PROHIBITED_PRODUCT_STYLE_PATTERNS = [
   {
-    allowances: {
-    },
     label: "arbitrary shadow",
-    pattern: /(?:drop-)?shadow-\[[^\]]+\]/g,
+    pattern: /(?:drop-)?shadow-\[[^\]]+\]/,
   },
   {
-    allowances: {
-      "src/features/conversation/shared/session-navigator/conversation-session-navigator.tsx": 1,
-    },
     label: "arbitrary numeric z-index",
-    pattern: /\bz-\[\d+\]/g,
+    pattern: /\bz-\[\d+\]/,
   },
+];
+
+const REQUIRED_SHARED_UI_BEHAVIOR_SUITES = [
+  "src/shared/ui/button/button.test.tsx",
+  "src/shared/ui/dialog/dialog.test.tsx",
+  "src/shared/ui/display/display.test.tsx",
+  "src/shared/ui/form/form-controls.test.tsx",
+  "src/shared/ui/list/list.test.tsx",
+  "src/shared/ui/menu/menu.test.tsx",
+  "src/shared/ui/navigation/tabs.test.tsx",
+  "src/shared/ui/overlay/tooltip.test.tsx",
+  "src/shared/ui/panel.test.tsx",
 ];
 
 async function readSource(relativePath) {
@@ -144,23 +151,27 @@ test("theme recipes own the semantic layer and adaptive dialog geometry implemen
   assert.match(recipes, /\.ui-dialog-backdrop-compact\s*\{/);
 });
 
-test("known product design debt cannot spread to new files or exceed its baseline", async () => {
+test("product source contains no arbitrary shadows or numeric z-index values", async () => {
   const files = (await Promise.all(productUiRoots.map(collectSourceFiles))).flat();
   const violations = [];
 
-  for (const ratchet of DESIGN_DEBT_RATCHETS) {
+  for (const rule of PROHIBITED_PRODUCT_STYLE_PATTERNS) {
     for (const file of files) {
       const source = await readFile(file, "utf8");
       const relativePath = path.relative(webRoot, file);
-      const count = source.match(ratchet.pattern)?.length ?? 0;
-      const allowance = ratchet.allowances[relativePath] ?? 0;
-      if (count > allowance) {
-        violations.push(
-          `${relativePath}: ${ratchet.label} count ${count} exceeds baseline ${allowance}`,
-        );
+      if (rule.pattern.test(source)) {
+        violations.push(`${relativePath}: ${rule.label}`);
       }
     }
   }
 
   assert.deepEqual(violations, []);
+});
+
+test("critical shared UI groups keep co-located DOM behavior suites", async () => {
+  for (const suitePath of REQUIRED_SHARED_UI_BEHAVIOR_SUITES) {
+    const source = await readSource(suitePath);
+    assert.match(source, /@testing-library\/react/, suitePath);
+    assert.match(source, /(?:userEvent|fireEvent)/, suitePath);
+  }
 });

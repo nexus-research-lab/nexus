@@ -36,7 +36,7 @@ export function ComposerSessionSettingsReliability({
           size="sm"
           state="error"
           title={activeReadFailure.title}
-          variant="inset"
+          variant="card"
         />
       ) : null}
       {controller.mutationFailure ? (
@@ -49,7 +49,7 @@ export function ComposerSessionSettingsReliability({
           size="sm"
           state="error"
           title={controller.mutationFailure.title}
-          variant="inset"
+          variant="card"
         />
       ) : null}
     </div>

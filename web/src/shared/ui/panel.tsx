@@ -1,3 +1,6 @@
+// INPUT: 内容、有限的 padding/radius/variant 语义与原生 section 属性。
+// OUTPUT: 默认无阴影的内容分组表面；只提供 card、dashed 与 plain 三种真实差异。
+// POS: 无交互 Panel primitive；不承载业务状态、标题结构或页面布局。
 "use client";
 
 import { type HTMLAttributes, type ReactNode } from "react";
@@ -6,7 +9,7 @@ import { cn } from "@/shared/ui/class-name";
 
 type UiPanelPadding = "none" | "sm" | "md" | "lg";
 type UiPanelRadius = "sm" | "md" | "lg";
-type UiPanelVariant = "card" | "inset" | "dashed" | "plain";
+type UiPanelVariant = "card" | "dashed" | "plain";
 
 interface UiPanelProps extends HTMLAttributes<HTMLElement> {
   children: ReactNode;
@@ -31,7 +34,6 @@ const PANEL_RADIUS_CLASS_MAP: Record<UiPanelRadius, string> = {
 
 const PANEL_VARIANT_CLASS_MAP: Record<UiPanelVariant, string> = {
   card: "border border-(--divider-subtle-color) bg-transparent shadow-none",
-  inset: "border border-(--divider-subtle-color) bg-transparent shadow-none",
   dashed: "border border-dashed border-(--divider-subtle-color) bg-transparent",
   plain: "",
 };

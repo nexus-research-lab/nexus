@@ -95,7 +95,7 @@ export function MCPToolsSection({
           className="mt-3 divide-y divide-(--divider-subtle-color)"
           padding="none"
           radius="md"
-          variant="inset"
+          variant="card"
         >
           {catalog.tools.map((tool) => (
             <MCPToolRow key={tool.name} tool={tool} />

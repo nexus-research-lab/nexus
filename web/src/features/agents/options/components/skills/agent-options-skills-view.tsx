@@ -53,7 +53,7 @@ function SkillsLoadError({
       size="sm"
       state="error"
       title={failure.title}
-      variant="inset"
+      variant="card"
     />
   ) : null;
 }
@@ -77,7 +77,7 @@ function SkillMutationFailures({
       size="sm"
       state="error"
       title={failure.title}
-      variant="inset"
+      variant="card"
     />
   ) : null;
 }
