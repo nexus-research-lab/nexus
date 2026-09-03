@@ -23,12 +23,20 @@ import {
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import { UiButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
+import { UiBadge } from "@/shared/ui/display/badge";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { WorkspaceContentHeader } from "@/shared/ui/layout/workspace-content-header";
 import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import { PreferencesReliabilityNotice } from "../general/components/preferences-reliability-notice";
 import { useUserPreferences } from "../general/use-user-preferences";
+import {
+  SETTINGS_CARD_CLASS_NAME,
+  SETTINGS_SECTION_TITLE_CLASS_NAME,
+} from "../shared/settings-panel-ui";
 
 const STATUS_POLL_INTERVAL_MS = 2_000;
 
@@ -111,16 +119,11 @@ export function BrowserSettingsSection() {
       : incompatible
         ? t("settings.browser.status_incompatible")
         : t("settings.browser.status_disconnected");
-  const statusColor = connected
-    ? "text-(--success)"
+  const statusTone = connected
+    ? "success"
     : incompatible
-      ? "text-(--warning)"
-      : "text-(--text-soft)";
-  const statusDot = connected
-    ? "bg-(--success)"
-    : incompatible
-      ? "bg-(--warning)"
-      : "bg-(--icon-muted)";
+      ? "warning"
+      : "idle";
 
   return (
     <div className={`${WORKSPACE_CONTENT_PAGE_CLASS_NAME} flex flex-col`}>
@@ -131,26 +134,22 @@ export function BrowserSettingsSection() {
       />
 
       <section className="space-y-2.5">
-        <div className="overflow-hidden rounded-[12px] border border-(--divider-subtle-color) bg-transparent">
+        <div className={SETTINGS_CARD_CLASS_NAME}>
           <div className="grid gap-4 px-4 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
             <div className="flex min-w-0 items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center radius-control-md bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
                 <AppWindow className="h-5 w-5" />
               </div>
               <div className="min-w-0">
-                <h2 className="text-base font-semibold tracking-tight text-(--text-strong)">
+                <h2 className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong" })}>
                   {browserName}
                 </h2>
-                <div aria-live="polite" className="mt-1 flex flex-wrap items-center gap-2 text-compact">
-                  <span className={statusColor}>
-                    <span
-                      aria-hidden="true"
-                      className={`mr-1.5 inline-block h-2 w-2 rounded-full ${statusDot}`}
-                    />
+                <div aria-live="polite" className="mt-1 flex flex-wrap items-center gap-2">
+                  <UiBadge showDot size="sm" tone={statusTone}>
                     {statusLabel}
-                  </span>
+                  </UiBadge>
                   {connected && status?.extension_version ? (
-                    <span className="text-(--text-soft)">
+                    <span className={getUiTypographyClassName({ role: "metadata", tone: "soft" })}>
                       {t("settings.browser.status_version", { version: status.extension_version })}
                     </span>
                   ) : null}
@@ -178,43 +177,55 @@ export function BrowserSettingsSection() {
 
           <div className="border-t border-(--divider-subtle-color) px-4 py-3">
             {connected ? (
-              <div className="flex items-center gap-2 text-compact text-(--success)">
+              <div className={cn(
+                "flex items-center gap-2",
+                getUiTypographyClassName({ role: "metadata", tone: "success", weight: "medium" }),
+              )}>
                 <CheckCircle2 className="h-4 w-4 shrink-0" />
                 <span>{t("settings.browser.install_success", { browser: browserName })}</span>
               </div>
             ) : incompatible ? (
-              <div
-                aria-atomic="true"
-                className="flex items-start gap-2.5 text-(--warning)"
-                role="status"
-              >
-                <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
-                <div>
-                  <p className="text-compact font-semibold">
-                    {t("settings.browser.incompatible_title")}
-                  </p>
-                  <p className="mt-1 text-xs leading-5 text-(--text-soft)">
-                    {t("settings.browser.incompatible_impact")}
-                  </p>
-                  <p className="mt-1 text-xs leading-5 text-(--text-soft)">
-                    {t("settings.browser.incompatible_next_step")}
-                  </p>
-                </div>
-              </div>
+              <UiResourceState
+                className="p-0"
+                impact={t("settings.browser.incompatible_impact")}
+                nextStep={t("settings.browser.incompatible_next_step")}
+                size="sm"
+                state="error"
+                title={t("settings.browser.incompatible_title")}
+                tone="warning"
+                variant="plain"
+              />
             ) : setup !== null ? (
               <div>
-                <p className="text-compact font-semibold text-(--text-strong)">
+                <p
+                  className={getUiTypographyClassName({
+                    role: "metadata",
+                    tone: "strong",
+                    weight: "semibold",
+                  })}
+                >
                   {t("settings.browser.install_guide_title", { browser: browserName })}
                 </p>
                 <ol className="mt-3 grid gap-4 md:grid-cols-3">
                   {INSTALL_STEPS.map((step, index) => (
                     <li className="flex items-start gap-2.5" key={step.titleKey}>
-                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[color:color-mix(in_srgb,var(--primary)_12%,transparent)] text-xs font-semibold text-primary">
+                      <span className={cn(
+                        "flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[color:color-mix(in_srgb,var(--primary)_12%,transparent)]",
+                        getUiTypographyClassName({ role: "caption", tone: "brand", weight: "semibold" }),
+                      )}>
                         {index + 1}
                       </span>
                       <div>
-                        <p className="text-compact font-semibold text-(--text-strong)">{t(step.titleKey)}</p>
-                        <p className="mt-1 text-xs leading-5 text-(--text-soft)">
+                        <p
+                          className={getUiTypographyClassName({
+                            role: "metadata",
+                            tone: "strong",
+                            weight: "semibold",
+                          })}
+                        >
+                          {t(step.titleKey)}
+                        </p>
+                        <p className={cn("mt-1", getUiTypographyClassName({ role: "caption", tone: "soft" }))}>
                           {t(step.descriptionKey, { browser: browserName })}
                         </p>
                       </div>
@@ -223,79 +234,71 @@ export function BrowserSettingsSection() {
                 </ol>
               </div>
             ) : (
-              <p className="text-compact leading-5 text-(--text-soft)">
+              <p className={getUiTypographyClassName({ role: "metadata", tone: "soft" })}>
                 {t("settings.browser.install_hint")}
               </p>
             )}
 
             {setupError || statusError ? (
-              <div
-                aria-atomic="true"
-                aria-live="polite"
-                className="mt-3 flex items-start gap-2.5 text-(--destructive)"
-                role="status"
-              >
-                <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-compact font-semibold text-(--text-strong)">
-                    {t(setupError
-                      ? "settings.browser.install_failed"
-                      : "settings.browser.status_failed")}
-                  </p>
-                  <p className="mt-1 text-xs leading-5 text-(--text-soft)">
-                    {t(setupError
-                      ? "settings.browser.install_failed_impact"
-                      : "settings.browser.status_failed_impact")}
-                  </p>
-                  <p className="mt-1 text-xs leading-5 text-(--text-soft)">
-                    {t(setupError
-                      ? "settings.browser.install_failed_next_step"
-                      : "settings.browser.status_failed_next_step")}
-                  </p>
-                  <UiButton
-                    className="mt-2"
-                    onClick={() => {
-                      if (setupError) {
-                        void openSetup();
-                        return;
-                      }
-                      setStatusRefresh((value) => value + 1);
-                    }}
-                    size="xs"
-                    variant="text"
-                  >
-                    <RefreshCw className="h-3 w-3" />
-                    {setupError
-                      ? t("settings.browser.install_action")
-                      : t("settings.browser.refresh")}
-                  </UiButton>
-                </div>
-              </div>
+              <UiResourceState
+                className="mt-3 p-0"
+                impact={t(setupError
+                  ? "settings.browser.install_failed_impact"
+                  : "settings.browser.status_failed_impact")}
+                primaryAction={{
+                  icon: <RefreshCw className="h-3 w-3" />,
+                  label: setupError
+                    ? t("settings.browser.install_action")
+                    : t("settings.browser.refresh"),
+                  onClick: () => {
+                    if (setupError) {
+                      void openSetup();
+                      return;
+                    }
+                    setStatusRefresh((value) => value + 1);
+                  },
+                }}
+                size="sm"
+                state="error"
+                title={t(setupError
+                  ? "settings.browser.install_failed"
+                  : "settings.browser.status_failed")}
+                variant="plain"
+              />
             ) : null}
           </div>
         </div>
       </section>
 
       <section className="mt-7 space-y-2.5">
-        <h2 className="px-1 text-md font-semibold tracking-tight text-(--text-strong)">
+        <h2 className={SETTINGS_SECTION_TITLE_CLASS_NAME}>
           {t("settings.browser.developer_title")}
         </h2>
         <PreferencesReliabilityNotice
           feedback={preferences.feedback}
           recovery={preferences.recovery}
         />
-        <div className="rounded-[12px] border border-(--divider-subtle-color) bg-transparent px-4 py-4">
+        <div className={cn(SETTINGS_CARD_CLASS_NAME, "px-4 py-4")}>
           <div className="flex items-start justify-between gap-4">
             <div className="flex min-w-0 items-start gap-3">
               <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-(--warning)" />
               <div>
-                <p className="text-xs font-semibold text-(--warning)">
+                <p
+                  className={getUiTypographyClassName({
+                    role: "caption",
+                    tone: "warning",
+                    weight: "semibold",
+                  })}
+                >
                   {t("settings.browser.cdp_risk")}
                 </p>
-                <h3 className="mt-1 text-base font-semibold tracking-tight text-(--text-strong)">
+                <h3 className={cn("mt-1", getUiTypographyClassName({ role: "sectionTitle", tone: "strong" }))}>
                   {t("settings.browser.cdp_title")}
                 </h3>
-                <p className="mt-1 max-w-[720px] text-compact leading-5 text-(--text-soft)">
+                <p className={cn(
+                  "mt-1 max-w-[720px]",
+                  getUiTypographyClassName({ role: "metadata", tone: "soft" }),
+                )}>
                   {t("settings.browser.cdp_description")}
                 </p>
               </div>
