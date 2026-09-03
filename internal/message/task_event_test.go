@@ -10,6 +10,41 @@ import (
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
+func TestProcessorProjectsAPIRetryErrorAndTiming(t *testing.T) {
+	processor := NewProcessor(MessageContext{
+		SessionKey: "agent:nexus:ws:dm:test",
+		AgentID:    "nexus",
+		RoundID:    "round-api-retry",
+	}, "sdk-session-api-retry")
+	rawError := "The engine is currently overloaded, please try again later"
+
+	output := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeSystem,
+		System: &sdkprotocol.SystemMessage{
+			Subtype: "api_retry",
+			Data: map[string]any{
+				"attempt":        1,
+				"max_retries":    10,
+				"retry_delay_ms": 500,
+				"error":          "rate_limit",
+				"error_details":  rawError,
+			},
+		},
+	})
+	if len(output.DurableMessages) != 0 || len(output.EphemeralMessages) != 1 {
+		t.Fatalf("api retry = %+v, want one ephemeral message", output)
+	}
+	message := output.EphemeralMessages[0]
+	if message["content"] != rawError {
+		t.Fatalf("api retry content = %#v, want raw Provider error", message["content"])
+	}
+	metadata, _ := message["metadata"].(map[string]any)
+	if metadata["attempt"] != 1 || metadata["max_retries"] != 10 ||
+		metadata["retry_delay_ms"] != 500 || metadata["error"] != "rate_limit" {
+		t.Fatalf("api retry metadata = %+v", metadata)
+	}
+}
+
 func TestProcessorMapsAgentToolProgressToTaskProgress(t *testing.T) {
 	parentToolUseID := "call-agent"
 	processor := NewProcessor(MessageContext{

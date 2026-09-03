@@ -91,6 +91,9 @@ func (p *Processor) buildResultMessage(
 		if projection.terminalReason == contentFilteredTerminalReason {
 			stopReason = "error"
 		}
+		if strings.TrimSpace(resultText) == "" {
+			resultText = firstNonEmpty(errors...)
+		}
 		if runtimeSubtype == "error_hook_stopped" {
 			resultText = hookStoppedDisplayText
 			errors = []string{hookStoppedDisplayText}

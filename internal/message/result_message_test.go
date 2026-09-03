@@ -82,6 +82,32 @@ func TestProcessorTreatsSuccessSubtypeWithErrorFlagAsFailure(t *testing.T) {
 	}
 }
 
+func TestProcessorProjectsRawRuntimeErrorWhenResultIsEmpty(t *testing.T) {
+	processor := NewProcessor(MessageContext{
+		SessionKey: "agent:nexus:ws:dm:test",
+		AgentID:    "nexus",
+		RoundID:    "round-provider-error",
+	}, "sdk-session-provider-error")
+	rawError := "The engine is currently overloaded, please try again later"
+
+	output := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeResult,
+		UUID: "result-provider-error",
+		Result: &sdkprotocol.ResultMessage{
+			Subtype:        "error_during_execution",
+			IsError:        true,
+			TerminalReason: "rate_limit",
+			Errors:         []string{rawError},
+		},
+	})
+	if output.TerminalStatus != "error" || output.ResultSubtype != "error" {
+		t.Fatalf("provider result terminal = (%q, %q), want error", output.TerminalStatus, output.ResultSubtype)
+	}
+	if got := output.DurableMessages[0]["result"]; got != rawError {
+		t.Fatalf("provider result = %#v, want raw runtime error", got)
+	}
+}
+
 func TestProcessorNormalizesProviderContentFilterResultError(t *testing.T) {
 	processor := NewProcessor(MessageContext{
 		SessionKey: "agent:nexus:ws:room:test",
