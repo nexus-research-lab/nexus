@@ -476,6 +476,23 @@ test("Operations settings use shared typography, badges, resource states, and sh
   assert.doesNotMatch(operationsUi, /Subscription(?:Loading|Empty)State/);
 });
 
+test("Settings app chrome does not redefine semantic typography or arbitrary radii", async () => {
+  const settingsRoot = path.join(srcRoot, "features", "settings");
+  const files = await collectSourceFiles(settingsRoot);
+  const violations = [];
+  const localTypographyPattern = /\b(?:text-(?:2xs|xs|compact|sm|base|md|lg|xl|2xl)|font-(?:normal|medium|semibold|bold|mono)|leading-(?:none|\d+|\[[^\]]+\])|tracking-(?:tight|wide|\[[^\]]+\])|rounded-\[[^\]]+\])/;
+
+  for (const file of files) {
+    if (!/\.(?:ts|tsx)$/.test(file) || file.includes(".test.")) continue;
+    const source = await readFile(file, "utf8");
+    if (localTypographyPattern.test(source)) {
+      violations.push(path.relative(webRoot, file));
+    }
+  }
+
+  assert.deepEqual(violations, []);
+});
+
 test("product source contains no arbitrary shadows or numeric z-index values", async () => {
   const files = (await Promise.all(productUiRoots.map(collectSourceFiles))).flat();
   const violations = [];

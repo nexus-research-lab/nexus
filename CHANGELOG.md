@@ -119,6 +119,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Consolidated Operations member, subscription, and project surfaces onto shared
   semantic Typography, Badge, Resource State, Settings Card, and Control Label
   owners, removing the redundant Subscription-only loading and empty wrappers.
+- Completed the Settings-wide semantic typography migration for permission,
+  workspace-path, and runtime validation copy, with a domain gate preventing
+  future page-local font and arbitrary-radius recipes.
 - Moved floating feedback and shared resource states onto named surface, layer,
   typography, shape, and Button contracts, with DOM tests for recovery,
   dismissal, live-region behavior, and auto-dismiss timing resets.

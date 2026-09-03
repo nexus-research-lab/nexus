@@ -630,18 +630,18 @@ function WebSearchRow({
                       aria-live="polite"
                       className={cn(
                         "block space-y-0.5",
-                        getUiTypographyClassName({ role: "overline" }),
+                        getUiTypographyClassName({ role: "caption", tone: "muted" }),
                       )}
                       id="runtime-anysearch-params-error"
                       role="status"
                     >
-                      <span className="block font-medium text-(--danger-text-color)">
+                      <span className="block ui-type-tone-danger ui-type-weight-medium">
                         {t("settings.runtime.web_search_anysearch_params_invalid")}
                       </span>
-                      <span className="block text-(--text-muted)">
+                      <span className="block ui-type-tone-muted">
                         {t("settings.runtime.web_search_anysearch_params_invalid_impact")}
                       </span>
-                      <span className="block text-(--text-default)">
+                      <span className="block ui-type-tone-default">
                         {t("settings.runtime.web_search_anysearch_params_invalid_next_step")}
                       </span>
                     </span>
