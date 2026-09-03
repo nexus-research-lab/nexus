@@ -601,6 +601,21 @@ test("Subagent thread loading and command actions share Spinner roles", async ()
   assert.doesNotMatch(source, /\banimate-spin\b/);
 });
 
+test("Room history, thread, and collaboration states share Spinner roles", async () => {
+  const [historyMenu, threadEmptyState, groupPanel] = await Promise.all([
+    readSource("src/features/conversation/room/surface/history/room-history-menu.tsx"),
+    readSource("src/features/conversation/room/surface/room-thread-empty-state.tsx"),
+    readSource("src/features/conversation/room/group/chat/panel/view/group-chat-panel-view.tsx"),
+  ]);
+
+  assert.match(historyMenu, /getUiSpinnerClassName\(\{ size: "sm" \}\)/);
+  assert.match(threadEmptyState, /size: "md", tone: "muted"/);
+  assert.match(groupPanel, /size: "xs", tone: "muted"/);
+  for (const source of [historyMenu, threadEmptyState, groupPanel]) {
+    assert.doesNotMatch(source, /\banimate-spin\b/);
+  }
+});
+
 test("List and Badge primitives expose semantic typography and shape instead of page overrides", async () => {
   const [listRow, badge, badgeStyles, providerModels, connectorCard, customMcpGrid] = await Promise.all([
     readSource("src/shared/ui/list/list-row.tsx"),

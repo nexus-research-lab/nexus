@@ -18,3 +18,4 @@
 - 桌面辅助面板的 Agent 导航、文件上传和全部缩放拖拽入口必须使用当前界面语言生成可访问名称，不得在业务 Surface 固定中文。
 - 桌面分栏、右侧面板与 Thread 编排统一位于 `layout/`。
 - 会话历史排序、能力投影、标题编辑和条目视图统一位于 `history/`。
+- Thread 的初始等待状态使用共享 `md` muted Spinner；Surface 不自行维护尺寸、颜色、旋转或 reduced-motion class。
