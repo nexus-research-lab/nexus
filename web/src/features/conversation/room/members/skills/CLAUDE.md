@@ -5,3 +5,4 @@
 - `room-skill-multi-select-model.ts` 统一投影互斥菜单状态、已选项和选择变更。
 - 业务菜单复用 `shared/ui/menu` 的锚点、尺寸和 listbox 框架，不复制浏览器定位生命周期。
 - 加载、错误、空态和选项列表互斥；新增状态时扩展规则表和对应视图。
+- 加载图标使用共享 Spinner 配方，错误正文使用 `UiInlineNotice`；菜单只决定互斥状态，不复制动效、圆角、颜色或排版。

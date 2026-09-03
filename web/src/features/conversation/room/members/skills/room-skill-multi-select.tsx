@@ -11,6 +11,8 @@ import { createPortal } from "react-dom";
 import { Check, Loader2, Search, X } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import {
   MENU_ITEM_BASE_CLASS_NAME,
   MENU_LIST_CLASS_NAME,
@@ -94,7 +96,7 @@ const TRIGGER_SELECTION_STYLES: Record<
 function LoadingMenuBody({ presentation }: MenuBodyViewProps) {
   return (
     <div className="flex min-h-10 items-center gap-2 px-2.5 text-sm text-(--text-muted)">
-      <Loader2 className="h-4 w-4 animate-spin" />
+      <Loader2 className={getUiSpinnerClassName({ size: "md", tone: "muted" })} />
       {presentation.message}
     </div>
   );
@@ -102,9 +104,12 @@ function LoadingMenuBody({ presentation }: MenuBodyViewProps) {
 
 function ErrorMenuBody({ presentation }: MenuBodyViewProps) {
   return (
-    <div className="m-1 rounded-[10px] border border-[color:color-mix(in_srgb,var(--destructive)_18%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--destructive)_7%,transparent)] px-2.5 py-2 text-sm leading-5 text-(--destructive)">
-      {presentation.message}
-    </div>
+    <UiInlineNotice
+      className="m-1 w-auto"
+      message={presentation.message}
+      role="alert"
+      tone="danger"
+    />
   );
 }
 

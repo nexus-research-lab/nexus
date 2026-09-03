@@ -18,6 +18,7 @@ import {
   UiDialogHeader,
   UiDialogPortal,
 } from "@/shared/ui/dialog/dialog";
+import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
 import { UiTabs } from "@/shared/ui/navigation/tabs";
 import type {
@@ -100,14 +101,17 @@ export function CustomMCPDialog({
           />
           <UiDialogBody className="space-y-5" scrollable>
             {recoveryRequired ? (
-              <p className="rounded-[8px] border border-[color:color-mix(in_srgb,var(--warning)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_6%,transparent)] px-3 py-2 text-xs leading-5 text-(--text-muted)">
-                {t("capability.custom_mcp_recovery_form_description")}
-              </p>
+              <UiInlineNotice
+                message={t("capability.custom_mcp_recovery_form_description")}
+                tone="warning"
+              />
             ) : null}
             {validationError ? (
-              <p className="rounded-[8px] bg-[color:color-mix(in_srgb,var(--destructive)_7%,transparent)] px-3 py-2 text-xs leading-5 text-(--destructive)">
-                {t(`capability.custom_mcp_error_${validationError}`)}
-              </p>
+              <UiInlineNotice
+                message={t(`capability.custom_mcp_error_${validationError}`)}
+                role="alert"
+                tone="danger"
+              />
             ) : null}
 
             <UiField
