@@ -1,19 +1,15 @@
 /**
- * INPUT: 当前 Agent、好友目录、Session、私信事件、读取失败事实与页面命令。
- * OUTPUT: 以当前 Agent 视角操作的联系人列表、共享聊天面板和就地恢复动作。
- * POS: Contacts 详情“联络”栏目的纯视图与局部交互状态。
+ * INPUT: 当前 Agent、联络读模型、Session、私信事件、失败事实与页面命令。
+ * OUTPUT: 编排独立目录、共享聊天面板、Header 与删除确认的 Agent 联络工作面。
+ * POS: Contacts 详情“联络”根编排；不定义目录行、添加表单或资源状态样式。
  */
 "use client";
 
 import {
   ArrowLeft,
-  Check,
-  LoaderCircle,
   MessageCircle,
   RefreshCw,
   Trash2,
-  UserRoundPlus,
-  UsersRound,
 } from "lucide-react";
 import { useMemo } from "react";
 
@@ -35,23 +31,12 @@ import { buildRoomSharedSessionKey } from "@/lib/conversation/session-key";
 import { CONVERSATION_FOCUS_MEDIA_QUERY } from "@/lib/layout/home-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
-import { UiButton, UiIconButton } from "@/shared/ui/button/button";
+import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
-import {
-  UiDialogBackdrop,
-  UiDialogBody,
-  UiDialogFooter,
-  UiDialogFormShell,
-  UiDialogHeader,
-  UiDialogPortal,
-} from "@/shared/ui/dialog/dialog";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
-import { UiResourceState } from "@/shared/ui/display/resource-state";
 import type { FeedbackBannerProps } from "@/shared/ui/feedback/feedback-banner-contract";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
-import { UiField, UiInput, UiSearchInput } from "@/shared/ui/form/form-control";
-import { SIDEBAR_SELECTION_CLASS_NAME } from "@/shared/ui/sidebar/sidebar-selection";
 import { WorkspaceConversationTabs } from "@/shared/ui/workspace/controls/workspace-conversation-tabs";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import type { Agent, AgentContact } from "@/types/agent/agent";
@@ -66,6 +51,16 @@ import type { RoomConversationView } from "@/types/conversation/conversation";
 import type { Message } from "@/types/conversation/message/entity";
 import type { RoomContextAggregate } from "@/types/conversation/room";
 import type { CommandCatalogData } from "@/types/generated/protocol";
+
+import { AgentCommunicationDirectory } from "./agent-communication-directory";
+import {
+  getCommunicationAgentName,
+  getCommunicationContactLabel,
+} from "./agent-communication-model";
+import {
+  AgentCommunicationEmptyState,
+  AgentCommunicationReadFailureState,
+} from "./agent-communication-status";
 
 const EMPTY_COMMAND_CATALOG: CommandCatalogData = {
   commands: [],
@@ -135,16 +130,10 @@ export function AgentCommunicationView({
   state,
 }: AgentCommunicationViewProps) {
   const { t } = useI18n();
-  const [query, setQuery] = useResettableState("", agent.agent_id);
-  const [addDialogOpen, setAddDialogOpen] = useResettableState(false, agent.agent_id);
   const [removeDialogOpen, setRemoveDialogOpen] = useResettableState(false, agent.agent_id);
   const agentsById = useMemo(
     () => new Map(agents.map((item) => [item.agent_id, item])),
     [agents],
-  );
-  const contacts = useMemo(
-    () => filterContacts(state.contacts, query),
-    [query, state.contacts],
   );
   const selectedContact = useMemo(
     () => state.contacts.find(
@@ -156,14 +145,6 @@ export function AgentCommunicationView({
     () => buildConversationViews(state.roomContexts),
     [state.roomContexts],
   );
-  const availableAgents = useMemo(() => {
-    const contactIds = new Set(state.contacts.map((contact) => contact.contact_agent_id));
-    return agents.filter((candidate) => (
-      candidate.agent_id !== agent.agent_id
-      && !candidate.is_main
-      && !contactIds.has(candidate.agent_id)
-    ));
-  }, [agent.agent_id, agents, state.contacts]);
   const mutationFeedback = state.mutationFailure
     ? buildCommunicationMutationFeedback(
       state.mutationFailure,
@@ -176,78 +157,18 @@ export function AgentCommunicationView({
   return (
     <div className="grid min-h-0 min-w-0 flex-1 grid-cols-1 overflow-hidden bg-(--surface-canvas-background) md:grid-cols-[minmax(240px,288px)_minmax(0,1fr)] md:gap-2">
       <FeedbackBannerViewport item={mutationFeedback} />
-      <aside className={cn(
-        "min-h-0 min-w-0 flex-col overflow-hidden bg-(--surface-raised-background) md:flex",
-        state.selectedContactId ? "hidden" : "flex",
-      )}>
-        <div className="flex shrink-0 items-center gap-2 px-2 py-3">
-          <UiSearchInput
-            className="min-w-0 flex-1"
-            controlSize="sm"
-            onChange={setQuery}
-            placeholder={t("agent_options.contact.search_contacts")}
-            value={query}
-          />
-          <UiIconButton
-            aria-label={t("agent_options.contact.add_friend")}
-            onClick={() => setAddDialogOpen(true)}
-            size="lg"
-            title={t("agent_options.contact.add_friend")}
-            variant="ghost"
-          >
-            <UserRoundPlus className="h-[22px] w-[22px]" />
-          </UiIconButton>
-        </div>
-
-        <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto p-2">
-          {state.isDirectoryLoading
-          && contacts.length === 0
-          && !state.directoryFailure ? (
-            <EmptyState icon={LoaderCircle} label={t("agent_options.contact.loading_address_book")} spin />
-          ) : state.directoryFailure && !state.directoryFailure.stale ? (
-            <CommunicationReadFailure
-              failure={state.directoryFailure}
-              onRetry={() => onRefresh("directory")}
-            />
-          ) : contacts.length === 0 ? (
-            <>
-              {state.directoryFailure ? (
-                <CommunicationReadFailure
-                  compact
-                  failure={state.directoryFailure}
-                  onRetry={() => onRefresh("directory")}
-                />
-              ) : null}
-              <EmptyState
-                icon={query ? MessageCircle : UsersRound}
-                label={query
-                  ? t("agent_options.contact.no_search_results")
-                  : t("agent_options.contact.empty_directory")}
-              />
-            </>
-          ) : (
-            <>
-              {state.directoryFailure ? (
-                <CommunicationReadFailure
-                  compact
-                  failure={state.directoryFailure}
-                  onRetry={() => onRefresh("directory")}
-                />
-              ) : null}
-              <div className="space-y-0.5">
-                {contacts.map((contact) => (
-                  <ContactRow
-                    contact={contact}
-                    isSelected={state.selectedContactId === contact.contact_agent_id}
-                    key={contact.contact_agent_id}
-                    onSelect={() => onSelectContact(contact.contact_agent_id)}
-                  />
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      </aside>
+      <AgentCommunicationDirectory
+        agent={agent}
+        agents={agents}
+        contacts={state.contacts}
+        directoryFailure={state.directoryFailure}
+        isDirectoryLoading={state.isDirectoryLoading}
+        onAddContact={onAddContact}
+        onRefresh={() => onRefresh("directory")}
+        onSelectContact={onSelectContact}
+        pendingAgentId={state.pendingAgentId}
+        selectedContactId={state.selectedContactId}
+      />
 
       <main className={cn(
         "min-h-0 min-w-0 flex-col overflow-hidden bg-(--background) md:flex",
@@ -286,24 +207,19 @@ export function AgentCommunicationView({
             />
           </>
         ) : (
-          <EmptyState icon={MessageCircle} label={t("agent_options.contact.select_contact")} />
+          <AgentCommunicationEmptyState
+            icon={MessageCircle}
+            label={t("agent_options.contact.select_contact")}
+          />
         )}
       </main>
-
-      {addDialogOpen ? (
-        <AddContactDialog
-          agentId={agent.agent_id}
-          agents={availableAgents}
-          isPending={Boolean(state.pendingAgentId)}
-          onAdd={onAddContact}
-          onClose={() => setAddDialogOpen(false)}
-        />
-      ) : null}
       <ConfirmDialog
         confirmText={t("agent_options.contact.remove_friend")}
         isOpen={removeDialogOpen && selectedContact !== null}
         message={selectedContact
-          ? t("agent_options.contact.remove_friend_confirm", { name: contactLabel(selectedContact) })
+          ? t("agent_options.contact.remove_friend_confirm", {
+            name: getCommunicationContactLabel(selectedContact),
+          })
           : ""}
         onCancel={() => setRemoveDialogOpen(false)}
         onConfirm={() => {
@@ -318,42 +234,6 @@ export function AgentCommunicationView({
         title={t("agent_options.contact.remove_friend")}
       />
     </div>
-  );
-}
-
-function ContactRow({
-  contact,
-  isSelected,
-  onSelect,
-}: {
-  contact: AgentContact;
-  isSelected: boolean;
-  onSelect: () => void;
-}) {
-  const label = contactLabel(contact);
-  return (
-    <button
-      className={cn(
-        "flex w-full min-w-0 items-center gap-2.5 rounded-[9px] border border-transparent px-2.5 py-2.5 text-left transition-colors",
-        isSelected
-          ? SIDEBAR_SELECTION_CLASS_NAME
-          : "hover:bg-(--surface-interactive-hover-background)",
-      )}
-      onClick={onSelect}
-      type="button"
-    >
-      <UiAgentAvatar avatar={contact.avatar} name={label} size="md" />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-semibold text-(--text-strong)">
-          {label}
-        </span>
-        {contact.alias?.trim() ? (
-          <span className="mt-0.5 block truncate text-xs text-(--text-soft)">
-            {contact.display_name?.trim() || contact.name}
-          </span>
-        ) : null}
-      </span>
-    </button>
   );
 }
 
@@ -377,21 +257,22 @@ function CommunicationHeader({
   onSelectConversation: (conversationId: string) => void;
 }) {
   const { t } = useI18n();
-  const label = contactLabel(contact);
+  const label = getCommunicationContactLabel(contact);
   return (
     <div className="shrink-0">
       <WorkspaceSurfaceHeader
         leading={(
           <>
-            <button
+            <UiIconButton
               aria-label={t("common.back")}
-              className="flex h-full w-full items-center justify-center md:hidden"
+              className="h-full w-full md:hidden"
               onClick={onBack}
+              size="lg"
               title={t("common.back")}
-              type="button"
+              variant="ghost"
             >
               <ArrowLeft className="h-4 w-4" />
-            </button>
+            </UiIconButton>
             <UiAgentAvatar
               avatar={contact.avatar}
               className="hidden h-full w-full border-0 shadow-none md:flex"
@@ -535,27 +416,33 @@ function ContactConversation({
           }}
         >
           {isLoading && messages.length === 0 ? (
-            <EmptyState icon={LoaderCircle} label={t("agent_options.contact.loading_messages")} spin />
+            <AgentCommunicationEmptyState
+              label={t("agent_options.contact.loading_messages")}
+              loading
+            />
           ) : readFailure && !readFailure.stale ? (
-            <CommunicationReadFailure
+            <AgentCommunicationReadFailureState
               failure={readFailure}
               onRetry={() => onRetryRead(readFailure.kind)}
             />
           ) : messages.length === 0 ? (
             <>
               {readFailure ? (
-                <CommunicationReadFailure
+                <AgentCommunicationReadFailureState
                   compact
                   failure={readFailure}
                   onRetry={() => onRetryRead(readFailure.kind)}
                 />
               ) : null}
-              <EmptyState icon={MessageCircle} label={t("agent_options.contact.empty_messages")} />
+              <AgentCommunicationEmptyState
+                icon={MessageCircle}
+                label={t("agent_options.contact.empty_messages")}
+              />
             </>
           ) : (
             <>
               {readFailure ? (
-                <CommunicationReadFailure
+                <AgentCommunicationReadFailureState
                   compact
                   failure={readFailure}
                   onRetry={() => onRetryRead(readFailure.kind)}
@@ -573,7 +460,9 @@ function ContactConversation({
                       assistantContentMode="dm_archived"
                       compact={isCompactLayout}
                       currentAgentAvatar={source?.avatar}
-                      currentAgentName={source ? agentName(source) : message.agent_id}
+                      currentAgentName={source
+                        ? getCommunicationAgentName(source)
+                        : message.agent_id}
                       isLastRound={index === messages.length - 1}
                       key={message.message_id}
                       messages={[message]}
@@ -606,7 +495,7 @@ function ContactConversation({
           contextUsage={null}
           defaultDeliveryPolicy="queue"
           draftScopeKey={`contact:${agent.agent_id}:${targetId}:${conversationId ?? "new"}`}
-          goalScopeLabel={agentName(agent)}
+          goalScopeLabel={getCommunicationAgentName(agent)}
           historyScopeKey={`contact:${agent.agent_id}:${targetId}`}
           inputQueueItems={EMPTY_INPUT_QUEUE}
           isLoading={isSending}
@@ -693,220 +582,6 @@ function mutationRefreshKind(
   }
 }
 
-function CommunicationReadFailure({
-  compact = false,
-  failure,
-  onRetry,
-}: {
-  compact?: boolean;
-  failure: AgentCommunicationReadFailure;
-  onRetry: () => void;
-}) {
-  const { t } = useI18n();
-  const copy = communicationFailureCopy(failure);
-  return (
-    <UiResourceState
-      className={compact ? "mb-2 min-h-0 py-3" : undefined}
-      impact={t(copy.impact)}
-      primaryAction={{
-        icon: <RefreshCw className="h-3.5 w-3.5" />,
-        label: t(copy.action),
-        onClick: onRetry,
-      }}
-      size="sm"
-      state="error"
-      title={t(copy.title)}
-      urgency="polite"
-    />
-  );
-}
-
-function communicationFailureCopy(failure: AgentCommunicationReadFailure) {
-  switch (failure.kind) {
-    case "directory":
-      return {
-        action: "agent_options.contact.retry_directory" as const,
-        impact: failure.stale
-          ? "agent_options.contact.directory_stale_impact" as const
-          : "agent_options.contact.directory_unavailable_impact" as const,
-        title: "agent_options.contact.directory_load_failed" as const,
-      };
-    case "channel":
-      return {
-        action: "agent_options.contact.retry_channel" as const,
-        impact: failure.stale
-          ? "agent_options.contact.channel_stale_impact" as const
-          : "agent_options.contact.channel_unavailable_impact" as const,
-        title: "agent_options.contact.channel_load_failed" as const,
-      };
-    case "history":
-      return {
-        action: "agent_options.contact.retry_history" as const,
-        impact: failure.stale
-          ? "agent_options.contact.history_stale_impact" as const
-          : "agent_options.contact.history_unavailable_impact" as const,
-        title: "agent_options.contact.history_load_failed" as const,
-      };
-    case "messages":
-      return {
-        action: "agent_options.contact.retry_messages" as const,
-        impact: failure.stale
-          ? "agent_options.contact.messages_stale_impact" as const
-          : "agent_options.contact.messages_unavailable_impact" as const,
-        title: "agent_options.contact.messages_load_failed" as const,
-      };
-  }
-}
-
-function AddContactDialog({
-  agentId,
-  agents,
-  isPending,
-  onAdd,
-  onClose,
-}: {
-  agentId: string;
-  agents: Agent[];
-  isPending: boolean;
-  onAdd: (contactAgentId: string, alias: string) => Promise<boolean>;
-  onClose: () => void;
-}) {
-  const { t } = useI18n();
-  const [query, setQuery] = useResettableState("", agentId);
-  const [selectedAgentId, setSelectedAgentId] = useResettableState("", agentId);
-  const [alias, setAlias] = useResettableState("", agentId);
-  const candidates = agents.filter((candidate) => (
-    agentName(candidate).toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())
-  ));
-  const titleId = `add-agent-contact-${agentId}`;
-  const submit = async () => {
-    if (selectedAgentId && await onAdd(selectedAgentId, alias)) {
-      onClose();
-    }
-  };
-  return (
-    <UiDialogPortal>
-      <UiDialogBackdrop labelledBy={titleId} onClose={onClose}>
-        <UiDialogFormShell
-          onSubmit={(event) => {
-            event.preventDefault();
-            void submit();
-          }}
-          size="sm"
-          viewport="compactMax"
-        >
-          <UiDialogHeader
-            appearance="plain"
-            onClose={onClose}
-            title={t("agent_options.contact.add_friend")}
-            titleId={titleId}
-          />
-          <UiDialogBody className="space-y-4" scrollable>
-            <UiSearchInput
-              className="w-full"
-              controlSize="md"
-              onChange={setQuery}
-              placeholder={t("agent_options.contact.search_agents")}
-              value={query}
-              variant="dialog"
-            />
-            <div
-              aria-label={t("agent_options.contact.search_agents")}
-              className="soft-scrollbar surface-radius-md max-h-72 min-h-36 space-y-0.5 overflow-y-auto border border-(--surface-panel-border) bg-(--surface-panel-background) p-1.5"
-              role="listbox"
-            >
-              {candidates.length === 0 ? (
-                <p className="flex min-h-32 items-center justify-center px-3 text-center text-compact text-(--text-soft)">
-                  {t("agent_options.contact.no_available_agents")}
-                </p>
-              ) : candidates.map((candidate) => (
-                <button
-                  aria-selected={selectedAgentId === candidate.agent_id}
-                  className={cn(
-                    "flex min-h-12 w-full items-center gap-3 radius-control-md border border-transparent px-2.5 py-2 text-left transition-[background,color] duration-(--motion-duration-fast) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]",
-                    selectedAgentId === candidate.agent_id
-                      ? "bg-(--surface-interactive-active-background)"
-                      : "hover:bg-(--surface-interactive-hover-background)",
-                  )}
-                  key={candidate.agent_id}
-                  onClick={() => setSelectedAgentId(candidate.agent_id)}
-                  role="option"
-                  type="button"
-                >
-                  <UiAgentAvatar avatar={candidate.avatar} name={agentName(candidate)} size="md" />
-                  <span className="min-w-0 flex-1 truncate text-sm font-semibold text-(--text-strong)">
-                    {agentName(candidate)}
-                  </span>
-                  <span className={cn(
-                    "flex h-6 w-6 shrink-0 items-center justify-center radius-control-xs",
-                    selectedAgentId === candidate.agent_id
-                      ? "bg-(--surface-interactive-hover-background) text-(--brand-action)"
-                      : "text-transparent",
-                  )}>
-                    <Check className="h-3.5 w-3.5" />
-                  </span>
-                </button>
-              ))}
-            </div>
-            <UiField
-              htmlFor={`${titleId}-alias`}
-              label={t("agent_options.contact.alias")}
-            >
-              <UiInput
-                controlSize="md"
-                disabled={!selectedAgentId || isPending}
-                id={`${titleId}-alias`}
-                maxLength={128}
-                onChange={(event) => setAlias(event.target.value)}
-                placeholder={t("agent_options.contact.alias_placeholder")}
-                value={alias}
-                variant="dialog"
-              />
-            </UiField>
-          </UiDialogBody>
-          <UiDialogFooter appearance="plain">
-            <UiButton onClick={onClose} type="button" variant="ghost">
-              {t("common.cancel")}
-            </UiButton>
-            <UiButton disabled={!selectedAgentId || isPending} tone="primary" type="submit">
-              {isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
-              {t("agent_options.contact.add_friend")}
-            </UiButton>
-          </UiDialogFooter>
-        </UiDialogFormShell>
-      </UiDialogBackdrop>
-    </UiDialogPortal>
-  );
-}
-
-function EmptyState({
-  icon: Icon,
-  label,
-  spin = false,
-}: {
-  icon: typeof MessageCircle;
-  label: string;
-  spin?: boolean;
-}) {
-  return (
-    <div className="flex h-full min-h-44 flex-col items-center justify-center gap-2 px-5 text-center text-(--text-soft)">
-      <Icon className={cn("h-5 w-5", spin && "animate-spin")} />
-      <p className="text-compact font-semibold">{label}</p>
-    </div>
-  );
-}
-
-function filterContacts(contacts: AgentContact[], query: string): AgentContact[] {
-  const normalizedQuery = query.trim().toLocaleLowerCase();
-  return contacts
-    .filter((contact) => !normalizedQuery || [
-      contact.alias,
-      contact.display_name,
-      contact.name,
-    ].some((value) => value?.toLocaleLowerCase().includes(normalizedQuery)))
-    .sort((left, right) => contactLabel(left).localeCompare(contactLabel(right)));
-}
-
 function buildConversationViews(contexts: RoomContextAggregate[]): RoomConversationView[] {
   return contexts.map((context) => ({
     agent_id: undefined,
@@ -956,14 +631,6 @@ function toConversationMessage(
     role: "assistant",
     stop_reason: "end_turn",
   };
-}
-
-function contactLabel(contact: AgentContact): string {
-  return contact.alias?.trim() || contact.display_name?.trim() || contact.name;
-}
-
-function agentName(agent: Agent): string {
-  return agent.display_name?.trim() || agent.name;
 }
 
 function timestamp(value?: string | null): number {

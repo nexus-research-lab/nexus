@@ -14,7 +14,7 @@
 - 创建 Agent 使用 owner-scoped 业务 request ID 和服务端 receipt；浏览器尽力保存该 ID 以便重载后查询，但存储或跨标签页协调不可用不能阻止创建。记录不保存名称、表单、秘密、API body 或 HTTP 诊断 ID；恢复不能靠名称或时间邻近猜测。
 - 桌面详情把聊天与发起群聊投影为同尺度的中性 ghost 工具，手机收进 `contacts-agent-detail-actions-menu.tsx`；普通协作入口不得伪装成蓝色 primary 或带外框的分段控件。
 - 视图回调由页面消费者定义，保持具体且不暴露整页控制器。
-- “联络”栏目由 `agent-communication-view.tsx` 直接呈现 Agent 视角的好友私聊客户端：左侧只列好友并提供搜索/添加，普通群聊继续使用“聊天”入口；右侧必须用 `WorkspaceSurfaceHeader` 与 `WorkspaceConversationTabs` 组成和聊天页同构的单行 Header，并复用 `ConversationPanelLayout`、`MessageItem` 和 `ComposerPanel`，不得复制消息气泡、输入壳、通讯录配置页或独立记录页。
+- “联络”栏目由 `agent-communication-view.tsx` 只编排 Agent 视角的好友私聊工作面；`agent-communication-directory.tsx` 独立拥有搜索、好友行和添加弹窗，`agent-communication-model.ts` 统一名称/筛选投影，`agent-communication-status.tsx` 统一空、加载和读取失败。左侧只列好友并提供搜索/添加，普通群聊继续使用“聊天”入口；目录和候选项复用 `UiListRow`，容器、状态、动作和表单分别复用 `UiPanel / UiResourceState / UiButton / UiField`，不得手写原生按钮、字号、字重、任意圆角或 Spinner。右侧必须用 `WorkspaceSurfaceHeader` 与 `WorkspaceConversationTabs` 组成和聊天页同构的单行 Header，并复用 `ConversationPanelLayout`、`MessageItem` 和 `ComposerPanel`，不得复制消息气泡、输入壳、通讯录配置页或独立记录页。
 - 通讯录、会话、当前消息和更早消息的读取失败必须在原位置说明发生了什么、已有内容是否受影响以及下一步，并提供只刷新失败阶段的动作；同作用域有成功快照时继续展示并明确可能过期，没有快照时显示失败而不是空状态，权限失效、资源不存在或切换作用域后不得继续展示旧内容。
 - 好友首次联络没有既有 Session 时也必须显示 Composer；首条手动消息由通讯发送接口原子确保隐藏通道，并用回执 Session 接续历史。
 - 好友私聊向上滚动时复用共享历史加载与前插锚定，按 `timestamp + message_id` 游标拉取更早消息，不得回退为扩大一次性 limit。

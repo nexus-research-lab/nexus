@@ -119,6 +119,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   empty results, and view switcher onto shared catalog and design-system owners.
 - Extracted Agent auto-save status into a tested Contacts header component backed
   by shared loading, icon-action, typography, surface, and overlay-layer recipes.
+- Split Contacts communication directory, status projection, and pure naming/filter
+  model from chat orchestration; its friend rows, candidate picker, empty/loading
+  states, form actions, and spinner now use shared design-system owners.
+- Fixed the shared Workspace header's container breakpoint so narrow detail pages
+  show one compact tab menu instead of overlapping it with the full tab strip.
 - Established a single frontend engineering and design-system contract, and
   centralized high overlay layers and responsive dialog geometry behind semantic
   APIs to prevent page-specific stacking and small-window sizing drift.

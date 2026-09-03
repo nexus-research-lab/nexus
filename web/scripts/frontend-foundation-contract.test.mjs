@@ -277,8 +277,9 @@ test("Room Thread and subagent overlays reuse the narrow shell and semantic laye
 });
 
 test("Workspace Surface primitives own their semantic typography and identity shape", async () => {
-  const [header, view, toolbarAction] = await Promise.all([
+  const [header, headerStyles, view, toolbarAction] = await Promise.all([
     readSource("src/shared/ui/workspace/surface/workspace-surface-header.tsx"),
+    readSource("src/shared/ui/workspace/surface/workspace-surface-header.css"),
     readSource("src/shared/ui/workspace/surface/workspace-surface-view.tsx"),
     readSource("src/shared/ui/workspace/surface/workspace-surface-toolbar-action.tsx"),
   ]);
@@ -289,7 +290,13 @@ test("Workspace Surface primitives own their semantic typography and identity sh
   assert.match(header, /role: "pageTitle"/);
   assert.match(header, /role: "metadata"/);
   assert.match(header, /radius-control-md/);
+  assert.match(header, /<UiButton/);
   assert.doesNotMatch(header, /rounded-\[10px\]/);
+  assert.match(
+    headerStyles,
+    /workspace-surface-header:not\(\.workspace-surface-header-with-session-tabs\)[\s\S]*\.workspace-surface-header-view-tabs\s*\{\s*display:\s*none !important;/,
+  );
+  assert.doesNotMatch(headerStyles, /nav\.workspace-surface-header-view-tabs/);
   assert.match(view, /role: "pageTitle"/);
   assert.match(toolbarAction, /role: "caption"/);
 });
@@ -1179,6 +1186,28 @@ test("Contacts detail persistence status uses shared action, spinner, typography
       /<button\b|rounded-\[|\bz-\[|\bz-\d+\b|\banimate-spin\b|text-(?:2xs|xs|compact|sm|base|md|lg|xl|2xl)|font-(?:normal|medium|semibold|bold)|tracking-\[/,
     );
   }
+});
+
+test("Contacts communication separates orchestration and reuses shared directory chrome", async () => {
+  const [view, directory, status] = await Promise.all([
+    readSource("src/features/contacts/agent-communication-view.tsx"),
+    readSource("src/features/contacts/agent-communication-directory.tsx"),
+    readSource("src/features/contacts/agent-communication-status.tsx"),
+  ]);
+  const combined = `${view}\n${directory}\n${status}`;
+
+  assert.match(view, /<AgentCommunicationDirectory/);
+  assert.match(view, /<WorkspaceSurfaceHeader/);
+  assert.match(view, /<ConversationPanelLayout/);
+  assert.match(directory, /<UiListRow/);
+  assert.match(directory, /<UiPanel/);
+  assert.match(directory, /<UiDialogFormShell/);
+  assert.match(directory, /getUiSpinnerClassName/);
+  assert.match(status, /<UiResourceState/);
+  assert.doesNotMatch(
+    combined,
+    /<button\b|rounded-\[|\banimate-spin\b|text-(?:2xs|xs|compact|sm|base|md|lg|xl|2xl)|font-(?:normal|medium|semibold|bold)|tracking-\[/,
+  );
 });
 
 test("Connector catalog exposes only implemented products and derives real categories", async () => {
