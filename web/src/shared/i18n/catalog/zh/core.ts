@@ -94,6 +94,8 @@ export const zhCoreMessages = {
   "workspace_file.office_preview_failed_next_step": "重新加载预览；如果仍然失败，可使用上方文件按钮处理原文件。",
   "workspace_file.retry_preview": "重试",
   "workspace_file.presentation_loaded": "已加载 {count} 页",
+  "workspace_file.previous_slide": "上一页幻灯片",
+  "workspace_file.next_slide": "下一页幻灯片",
   "workspace_file.spreadsheet_loaded": "已加载 {count} 个工作表",
   "workspace_file.image_preview_failed": "暂时无法显示这张图片",
   "workspace_file.pdf_preview_failed": "暂时无法显示这份 PDF",

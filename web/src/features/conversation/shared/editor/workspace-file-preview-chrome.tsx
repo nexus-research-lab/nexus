@@ -21,24 +21,17 @@ import {
 import { downloadWorkspaceFileApi } from "@/lib/api/agent/agent-api";
 import { getWorkspaceFileExternalActionCopy } from "@/lib/workspace-file-action";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import type { FeedbackBannerProps } from "@/shared/ui/feedback/feedback-banner-contract";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import { UiBreadcrumb } from "@/shared/ui/navigation/breadcrumb";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import {
-  WORKSPACE_PANEL_HEADER_BUTTON_CLASS,
   WORKSPACE_PANEL_HEADER_HEIGHT_CLASS,
   WORKSPACE_PANEL_HEADER_ICON_CLASS,
   WORKSPACE_PANEL_HEADER_PADDING_CLASS,
 } from "@/shared/ui/workspace/surface/workspace-header-layout";
-
-const WORKSPACE_FILE_TOOLBAR_BUTTON_CLASS_NAME = cn(
-  "inline-flex items-center justify-center rounded-[6px] text-(--text-default) transition-colors",
-  WORKSPACE_PANEL_HEADER_BUTTON_CLASS,
-  "hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]",
-  "disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) disabled:hover:bg-transparent disabled:hover:text-(--text-default)",
-);
 
 interface WorkspaceFilePreviewHeaderContextValue {
   headerPortalTarget?: HTMLElement | null;
@@ -107,7 +100,10 @@ export function WorkspaceFilePreviewHeader({
           leading={leading}
         />
         {meta ? (
-          <div className="hidden min-w-0 shrink items-center gap-2 overflow-hidden whitespace-nowrap text-2xs text-(--text-soft) sm:flex">
+          <div className={cn(
+            "hidden min-w-0 shrink items-center gap-2 overflow-hidden whitespace-nowrap sm:flex",
+            getUiTypographyClassName({ role: "caption", tone: "soft" }),
+          )}>
             {meta}
           </div>
         ) : null}
@@ -150,19 +146,19 @@ export function WorkspaceFileDownloadButton({
 
   return (
     <>
-      <button
+      <UiIconButton
         aria-label={fileActionCopy.ariaLabel}
-        className={WORKSPACE_FILE_TOOLBAR_BUTTON_CLASS_NAME}
         onClick={handleExternalAction}
-        title={fileActionCopy.title}
-        type="button"
+        size="sm"
+        tooltip={fileActionCopy.title}
+        variant="ghost"
       >
         {fileActionCopy.mode === "reveal" ? (
           <FolderOpen className={WORKSPACE_PANEL_HEADER_ICON_CLASS} />
         ) : (
           <Download className={WORKSPACE_PANEL_HEADER_ICON_CLASS} />
         )}
-      </button>
+      </UiIconButton>
       <FeedbackBannerViewport item={failure} />
     </>
   );
@@ -180,17 +176,17 @@ export function WorkspaceFileToolbarButton({
   title: string;
 }) {
   return (
-    <button
+    <UiIconButton
       aria-label={title}
-      className={WORKSPACE_FILE_TOOLBAR_BUTTON_CLASS_NAME}
       disabled={disabled}
       onMouseDown={(event) => event.preventDefault()}
       onClick={onClick}
-      title={title}
-      type="button"
+      size="sm"
+      tooltip={title}
+      variant="ghost"
     >
       {children}
-    </button>
+    </UiIconButton>
   );
 }
 
