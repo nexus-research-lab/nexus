@@ -9,8 +9,12 @@ import { MessageCirclePlus, MessageSquareText } from "lucide-react";
 
 import { AGENT_PERMISSION_MODES } from "@/lib/agent-options";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiListRow } from "@/shared/ui/list/list-row";
+import { UiButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
+import { UiBadge } from "@/shared/ui/display/badge";
+import { UiListRow } from "@/shared/ui/list/list-row";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { Agent } from "@/types/agent/agent";
 import { formatProviderLabel } from "@/types/capability/provider";
 import { WorkspaceCatalogTextAction } from "@/shared/ui/workspace/catalog/workspace-catalog-actions";
@@ -106,7 +110,7 @@ function ContactsAgentListRow({
 
   return (
     <UiListRow
-      className="min-h-[64px] rounded-none px-3 py-2.5"
+      className="rounded-none"
       leading={<UiAgentAvatar avatar={agent.avatar} name={agent.name} size="md" />}
       onClick={onOpenProfile}
       right={(
@@ -137,14 +141,23 @@ function ContactsAgentListRow({
     >
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-2">
-          <h3 className="truncate text-base font-semibold text-(--text-strong)">
+          <h3 className={cn(
+            "truncate",
+            getUiTypographyClassName({
+              role: "sectionTitle",
+              tone: "strong",
+            }),
+          )}>
             {agent.name}
           </h3>
-          <span className="inline-flex max-w-[128px] shrink-0 truncate rounded-[6px] border border-(--divider-subtle-color) px-1.5 py-0.5 text-2xs font-medium text-(--text-soft)">
+          <UiBadge className="max-w-[128px] truncate" size="xs" tone="idle">
             {permissionMode}
-          </span>
+          </UiBadge>
           <ContactsAgentBusinessTags className="hidden md:flex" tags={businessTags} />
-          <span className="min-w-0 flex-1 truncate text-2xs font-normal text-(--text-soft)">
+          <span className={cn(
+            "min-w-0 flex-1 truncate",
+            getUiTypographyClassName({ role: "caption", tone: "soft" }),
+          )}>
             {t("contacts.metadata.provider")}: {provider}
             {" · "}
             {t("contacts.metadata.tools")} {allowedToolsCount}
@@ -152,7 +165,10 @@ function ContactsAgentListRow({
             {t("contacts.metadata.skills")} {skillsCount}
           </span>
         </div>
-        <p className="mt-0.5 truncate text-compact text-(--text-muted)">
+        <p className={cn(
+          "mt-0.5 truncate",
+          getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+        )}>
           {agent.description || t("contacts.no_description")}
         </p>
       </div>
@@ -182,12 +198,14 @@ function ContactsAgentCompactCard({
       className="group relative h-full overflow-hidden hover:border-(--surface-interactive-active-border) hover:bg-(--surface-interactive-hover-background) md:hidden"
       size="compact"
     >
-      <button
+      <UiButton
         aria-label={`${editLabel} ${agent.name}`}
-        className="absolute inset-0 z-0 rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40"
+        className="surface-radius-md absolute inset-0 z-0 h-full min-h-0 w-full border-0 p-0 focus-visible:ring-inset"
         onClick={onOpenProfile}
-        type="button"
-      />
+        variant="ghost"
+      >
+        <span className="sr-only">{`${editLabel} ${agent.name}`}</span>
+      </UiButton>
 
       <div className="pointer-events-none relative z-10 flex w-full min-w-0 items-start gap-3">
         <UiAgentAvatar
@@ -198,23 +216,26 @@ function ContactsAgentCompactCard({
 
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
-            <h3 className="min-w-0 flex-1 truncate text-md font-semibold text-(--text-strong)">
+            <WorkspaceCatalogTitle className="min-w-0 flex-1" size="sm" truncate>
               {agent.name}
-            </h3>
-            <span className="inline-flex max-w-[112px] shrink-0 truncate rounded-[6px] border border-(--divider-subtle-color) px-1.5 py-0.5 text-2xs font-medium text-(--text-soft)">
+            </WorkspaceCatalogTitle>
+            <UiBadge className="max-w-[112px] truncate" size="xs" tone="idle">
               {permissionMode}
-            </span>
+            </UiBadge>
           </div>
 
           {agent.description && (
-            <p className="mt-1 line-clamp-1 text-xs leading-5 text-(--text-muted)">
+            <WorkspaceCatalogDescription className="mt-1" lines={1}>
               {agent.description}
-            </p>
+            </WorkspaceCatalogDescription>
           )}
 
           <ContactsAgentBusinessTags className="mt-1.5" tags={businessTags} />
 
-          <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-(--text-soft)">
+          <div className={cn(
+            "mt-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1",
+            getUiTypographyClassName({ role: "caption", tone: "soft" }),
+          )}>
             <span className="min-w-0 max-w-full truncate">
               <span className="text-(--text-default)">{t("contacts.metadata.provider")}</span>
               {" · "}
@@ -265,12 +286,14 @@ function ContactsAgentComfortCard({
       className="group relative hidden h-full overflow-hidden hover:border-(--surface-interactive-active-border) hover:bg-(--surface-interactive-hover-background) md:flex"
       size="comfort"
     >
-      <button
+      <UiButton
         aria-label={`${editLabel} ${agent.name}`}
-        className="absolute inset-0 z-0 rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40"
+        className="surface-radius-lg absolute inset-0 z-0 h-full min-h-0 w-full border-0 p-0 focus-visible:ring-inset"
         onClick={onOpenProfile}
-        type="button"
-      />
+        variant="ghost"
+      >
+        <span className="sr-only">{`${editLabel} ${agent.name}`}</span>
+      </UiButton>
 
       <div className="pointer-events-none relative z-10 flex w-full flex-col items-center">
         <UiAgentAvatar
@@ -287,7 +310,7 @@ function ContactsAgentComfortCard({
 
           {agent.description && (
             <WorkspaceCatalogDescription
-              className="mt-1.5 line-clamp-2 text-sm leading-tight"
+              className="mt-1.5"
               minHeight={false}
             >
               {agent.description}
@@ -298,7 +321,10 @@ function ContactsAgentComfortCard({
             tags={businessTags}
           />
 
-          <div className="mt-2 flex flex-col items-center justify-center gap-1 text-center text-xs text-(--text-soft)">
+          <div className={cn(
+            "mt-2 flex flex-col items-center justify-center gap-1 text-center",
+            getUiTypographyClassName({ role: "caption", tone: "soft" }),
+          )}>
             <div className="flex flex-wrap gap-1.5">
               <span className="text-(--text-default)">{t("contacts.metadata.permission")}:</span>
               <span className="text-(--text-muted)">{permissionMode}</span>
@@ -343,18 +369,24 @@ function ContactsAgentBusinessTags({
     return null;
   }
   return (
-    <div className={`flex min-w-0 items-center gap-1 ${className ?? ""}`}>
+    <div className={cn("flex min-w-0 items-center gap-1", className)}>
       {visibleTags.map((tag) => (
-        <span
-          className="inline-flex max-w-[140px] truncate rounded-full bg-(--surface-interactive-hover-background) px-2 py-0.5 text-2xs text-(--text-muted)"
+        <UiBadge
+          className="max-w-[140px] truncate"
           key={tag}
+          shape="pill"
+          size="xs"
           title={tag}
+          tone="idle"
         >
           {tag}
-        </span>
+        </UiBadge>
       ))}
       {tags.length > visibleTags.length ? (
-        <span className="shrink-0 text-2xs text-(--text-soft)">
+        <span className={cn(
+          "shrink-0",
+          getUiTypographyClassName({ role: "caption", tone: "soft" }),
+        )}>
           +{tags.length - visibleTags.length}
         </span>
       ) : null}
