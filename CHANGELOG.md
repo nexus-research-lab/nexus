@@ -38,6 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Softened chat-list previews so secondary text no longer competes with
+  conversation names.
+
 - Updated source deployment orchestration to build, start, health-check, and
   fast-forward both the Nexus and sibling `nexus-control` repositories as one
   `control + nexus + nginx` stack.
