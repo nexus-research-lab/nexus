@@ -132,6 +132,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Unified all capability directory titles, descriptions, section headings,
   counts, identity frames, and desktop/mobile action placement behind the
   shared Capability page layout and Workspace content Header contracts.
+- Split WorkGraph capability detail rendering from its resource directory and
+  moved directory metadata, detail actions, target summary, and canvas shell to
+  shared semantic Typography, Button, Panel, and Surface contracts.
 - Moved floating feedback and shared resource states onto named surface, layer,
   typography, shape, and Button contracts, with DOM tests for recovery,
   dismissal, live-region behavior, and auto-dismiss timing resets.
