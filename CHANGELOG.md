@@ -38,6 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Standardized the Skill directory on shared card actions, semantic typography,
+  resource states, segmented filters, icon buttons, and loading indicators.
 - Unified Channel account, QR login, verification, progress, and destructive
   waiting surfaces on shared panel, typography, shape, and spinner contracts.
 - Standardized populated Pairing groups, rows, metadata, and expandable

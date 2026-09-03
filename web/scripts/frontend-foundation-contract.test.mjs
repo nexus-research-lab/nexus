@@ -906,6 +906,35 @@ test("Capability auxiliary states reuse resource, list, typography, and spinner 
   assert.doesNotMatch(channelFooter, /animate-spin/);
 });
 
+test("Skill directory chrome reuses shared actions, states, typography, and filters", async () => {
+  const [card, grid, search, header, externalCard, detail] = await Promise.all([
+    readSource("src/features/capability/skills/shared/skill-directory-card.tsx"),
+    readSource("src/features/capability/skills/catalog/skills-catalog-grid.tsx"),
+    readSource("src/features/capability/skills/skills-search-bar.tsx"),
+    readSource("src/features/capability/skills/skills-header-actions.tsx"),
+    readSource("src/features/capability/skills/external/external-result-card.tsx"),
+    readSource("src/features/capability/skills/detail/skill-detail-view.tsx"),
+  ]);
+  const localVisualPattern = /rounded-\[|text-(?:2xs|xs|sm|base|compact)|font-(?:medium|semibold)|font-mono|animate-spin/;
+
+  assert.match(card, /<UiButton/);
+  assert.match(card, /getUiTypographyClassName/);
+  assert.doesNotMatch(card, /<button\b|rounded-\[|text-(?:2xs|xs|sm|base|compact)|font-(?:medium|semibold)|font-mono/);
+  assert.match(grid, /<UiResourceState/);
+  assert.doesNotMatch(grid, /Loader2/);
+  assert.match(search, /<UiSegmentedControl/);
+  assert.match(search, /<UiIconButton/);
+  assert.doesNotMatch(search, /<button\b/);
+  assert.match(header, /<UiIconButton/);
+  assert.match(header, /getUiSpinnerClassName/);
+  assert.doesNotMatch(header, /<button\b|animate-spin|rounded-\[/);
+  assert.match(externalCard, /getUiSpinnerClassName/);
+  assert.match(detail, /state="loading"/);
+  assert.match(detail, /getUiSpinnerClassName/);
+  assert.doesNotMatch(externalCard, localVisualPattern);
+  assert.doesNotMatch(detail, /animate-spin/);
+});
+
 test("Channel catalog shares resource, typography, action, and brand icon owners", async () => {
   const [directory, card, channelIcon, connectorIcon, brandIcon] = await Promise.all([
     readSource("src/features/capability/channels/channels-directory.tsx"),

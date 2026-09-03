@@ -95,6 +95,7 @@ export const zhCapabilityMessages = {
   "capability.skills_filter_aria": "筛选技能分类",
   "capability.skills_empty_title": "未找到匹配的技能",
   "capability.skills_empty_description": "试试其他关键词或分类。",
+  "capability.skills_loading": "正在加载技能...",
   "capability.skill_category.system_builtins": "系统内置",
   "capability.skill_category.builtin_misc": "扩展能力",
   "capability.skill_category.content_docs": "内容与文档",

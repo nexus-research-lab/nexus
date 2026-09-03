@@ -98,6 +98,7 @@ export const enCapabilityMessages = {
   "capability.skills_filter_aria": "Filter skill categories",
   "capability.skills_empty_title": "No matching skills",
   "capability.skills_empty_description": "Try another keyword or category.",
+  "capability.skills_loading": "Loading skills...",
   "capability.skill_category.system_builtins": "System built-ins",
   "capability.skill_category.builtin_misc": "Extensions",
   "capability.skill_category.content_docs": "Content & docs",
