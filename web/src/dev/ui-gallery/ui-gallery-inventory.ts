@@ -31,7 +31,9 @@ export const UI_GALLERY_COVERAGE_GROUPS: readonly UiGalleryCoverageGroup[] = [
     section: "foundation",
     mode: "composed",
     renderer: "UiSelectMenu",
-    components: ["SelectMenuView", "SelectMenuTriggerContent", "SelectMenuPanel"],
+    components: [
+      "SelectMenuView", "SelectMenuTriggerContent", "SelectMenuPanel", "SelectMenuOptionRow",
+    ],
   },
   {
     id: "display",

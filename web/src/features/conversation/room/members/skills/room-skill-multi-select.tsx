@@ -14,7 +14,6 @@ import { cn } from "@/shared/ui/class-name";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import {
-  MENU_ITEM_BASE_CLASS_NAME,
   MENU_LIST_CLASS_NAME,
 } from "@/shared/ui/menu/menu-styles";
 import {
@@ -26,6 +25,7 @@ import {
   SELECT_MENU_SEARCH_ROW_HEIGHT,
 } from "@/shared/ui/menu/select-menu-model";
 import {
+  SelectMenuOptionRow,
   SelectMenuPanel,
   SelectMenuTriggerContent,
 } from "@/shared/ui/menu/select-menu-primitives";
@@ -131,17 +131,13 @@ function RoomSkillOptionRow({
   option: RoomSkillOption;
 }) {
   return (
-    <button
-      aria-selected={isActive}
+    <SelectMenuOptionRow
+      active={isActive}
       className={cn(
-        MENU_ITEM_BASE_CLASS_NAME,
         "flex items-center gap-2 px-2.5 py-2 text-sm",
         getSelectMenuOptionStateClassName("dialog", isActive),
       )}
-      data-active={isActive ? "true" : undefined}
       onClick={() => onToggle(option.value)}
-      role="option"
-      type="button"
     >
       <span className="min-w-0 flex-1">
         <span className="block truncate">{option.label}</span>
@@ -152,7 +148,7 @@ function RoomSkillOptionRow({
       <span className="flex h-4 w-4 shrink-0 items-center justify-center text-(--primary)">
         {isActive ? <Check className="h-3.5 w-3.5" /> : null}
       </span>
-    </button>
+    </SelectMenuOptionRow>
   );
 }
 

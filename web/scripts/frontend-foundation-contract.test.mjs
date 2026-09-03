@@ -1091,6 +1091,28 @@ test("business inline notices reuse feedback and spinner owners", async () => {
   assert.match(roomSkills, /getUiSpinnerClassName/);
 });
 
+test("Select, Slash, and multi-select options share one listbox row DOM owner", async () => {
+  const [primitive, selectView, slashPicker, roomSkills] = await Promise.all([
+    readSource("src/shared/ui/menu/select-menu-primitives.tsx"),
+    readSource("src/shared/ui/menu/select-menu-view.tsx"),
+    readSource(
+      "src/features/conversation/shared/composer/components/slash-command-popover.tsx",
+    ),
+    readSource(
+      "src/features/conversation/room/members/skills/room-skill-multi-select.tsx",
+    ),
+  ]);
+
+  assert.match(primitive, /function SelectMenuOptionRow/);
+  assert.match(primitive, /aria-selected=\{active\}/);
+  assert.match(primitive, /role="option"/);
+  assert.match(primitive, /MENU_ITEM_BASE_CLASS_NAME/);
+  for (const consumer of [selectView, slashPicker, roomSkills]) {
+    assert.match(consumer, /<SelectMenuOptionRow/);
+    assert.doesNotMatch(consumer, /role="option"|aria-selected=|MENU_ITEM_BASE_CLASS_NAME/);
+  }
+});
+
 test("cross-domain warnings reuse the shared inline feedback owner", async () => {
   const [roomSkills, subagents, agentOptions, assistantMessage, memoryDocument] =
     await Promise.all([

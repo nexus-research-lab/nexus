@@ -13,7 +13,6 @@ import { Check } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
 import {
-  MENU_ITEM_BASE_CLASS_NAME,
   MENU_LIST_CLASS_NAME,
 } from "@/shared/ui/menu/menu-styles";
 
@@ -26,6 +25,7 @@ import {
   type UiSelectMenuSurface,
 } from "./select-menu-model";
 import {
+  SelectMenuOptionRow,
   SelectMenuPanel,
   SelectMenuTriggerContent,
 } from "./select-menu-primitives";
@@ -224,27 +224,23 @@ function SelectMenuOption({
   surface: UiSelectMenuSurface;
 }) {
   return (
-    <button
-      aria-selected={isActive}
+    <SelectMenuOptionRow
+      active={isActive}
       className={cn(
-        MENU_ITEM_BASE_CLASS_NAME,
         "flex justify-between gap-2 px-2.5 disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
         presentation.optionButtonLayoutClassName,
         presentation.optionHeightClassName,
         getSelectMenuOptionStateClassName(surface, isActive),
       )}
-      data-active={isActive ? "true" : undefined}
       disabled={option.disabled}
       onClick={() => onSelect(option.value)}
-      role="option"
-      type="button"
     >
       <span className={cn("min-w-0 flex-1", presentation.optionLabelClassName)}>
         {option.label}
       </span>
       <SelectMenuOptionBadge label={option.badge ?? null} />
       {isActive ? <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-(--primary)" /> : null}
-    </button>
+    </SelectMenuOptionRow>
   );
 }
 
