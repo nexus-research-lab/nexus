@@ -110,7 +110,7 @@ function ComposerImagePreviewDialog({
             ) : imageUrl ? (
               <img
                 alt={attachment.file.name}
-                className="max-h-full max-w-full rounded-[10px] object-contain shadow-[0_18px_50px_rgba(0,0,0,0.16)]"
+                className="max-h-full max-w-full rounded-[10px] object-contain shadow-(--surface-paper-shadow)"
                 draggable={false}
                 onError={() => setImageFailed(true)}
                 src={imageUrl}

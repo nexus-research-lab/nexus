@@ -156,7 +156,7 @@ Widget 可以认识 Agent、Room、Goal 等产品对象，但只组合下层合�
 - primary action 通过行动色表达，不由页面附加阴影；
 - menu/popover、dialog 与真正悬浮的 floating action 使用对应 elevation；
 - selected/current 使用中性背景、文字或位置表达，不使用阴影；
-- 业务代码不得写 `shadow-[...]`，已有例外迁移到语义 recipe 后删除。
+- 业务代码不得写 `shadow-[...]`；`features/pages` 的任意阴影门禁基线为零，真实 elevation 必须选择语义 recipe/token。
 
 ### 6.2 状态
 

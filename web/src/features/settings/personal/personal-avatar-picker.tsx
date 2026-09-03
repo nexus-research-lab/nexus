@@ -40,8 +40,8 @@ export function PersonalAvatarPicker({
           <UiAgentAvatar
             avatar={avatar}
             className={cn(
-              "h-[72px] w-[72px] rounded-[16px] transition-[border-color,box-shadow] duration-(--motion-duration-fast)",
-              !disabled && "group-hover:border-[color:color-mix(in_srgb,var(--primary)_35%,var(--surface-avatar-border))] group-hover:shadow-[0_8px_20px_color-mix(in_srgb,var(--shadow-color)_12%,transparent)]",
+              "h-[72px] w-[72px] rounded-[16px] transition-colors duration-(--motion-duration-fast)",
+              !disabled && "group-hover:border-[color:color-mix(in_srgb,var(--primary)_35%,var(--surface-avatar-border))]",
             )}
             name={name}
             size="xl"

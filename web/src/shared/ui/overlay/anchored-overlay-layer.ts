@@ -1,3 +1,6 @@
+// INPUT: 锚点、开关状态、定位投影以及可选的焦点归还策略。
+// OUTPUT: Portal 容器、稳定浮层身份、定位样式和统一的关闭/重定位生命周期。
+// POS: 锚定浮层浏览器适配层；不决定 Menu、Tooltip 或 Popover 的内容与键盘语义。
 "use client";
 
 import {
@@ -22,6 +25,7 @@ interface AnchoredOverlayLayerOptions<T extends HTMLElement> {
   estimatePosition: (anchor: T) => UiAnchoredOverlayPosition;
   isOpen: boolean;
   onClose: () => void;
+  restoreFocus?: () => void;
 }
 
 function buildOverlayStyle(
@@ -56,6 +60,7 @@ export function useAnchoredOverlayLayer<T extends HTMLElement>({
   estimatePosition,
   isOpen,
   onClose,
+  restoreFocus,
 }: AnchoredOverlayLayerOptions<T>) {
   const overlayId = useId();
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -93,7 +98,11 @@ export function useAnchoredOverlayLayer<T extends HTMLElement>({
         return;
       }
       onClose();
-      anchorRef.current?.focus();
+      if (restoreFocus) {
+        restoreFocus();
+      } else {
+        anchorRef.current?.focus();
+      }
     };
 
     document.addEventListener("pointerdown", handlePointerDown, true);
@@ -106,7 +115,7 @@ export function useAnchoredOverlayLayer<T extends HTMLElement>({
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
     };
-  }, [anchorRef, disabled, isOpen, onClose, updatePosition]);
+  }, [anchorRef, disabled, isOpen, onClose, restoreFocus, updatePosition]);
 
   useLayoutEffect(() => {
     if (isOpen && !disabled) {

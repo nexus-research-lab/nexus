@@ -57,7 +57,7 @@ export function NamedWorkGraphSketch({
                 return (
                   <article
                     className={cn(
-                      "relative rounded-[10px] border border-(--divider-subtle-color) bg-(--surface-panel-background) px-3 py-2.5 shadow-[0_1px_0_color-mix(in_srgb,var(--text-strong)_4%,transparent)]",
+                      "relative rounded-[10px] border border-(--divider-subtle-color) bg-(--surface-panel-background) px-3 py-2.5",
                     )}
                     data-workgraph-sketch-node={node.logical_key}
                     key={node.logical_key}

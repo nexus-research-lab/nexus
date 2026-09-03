@@ -4,6 +4,7 @@ import { Link, Navigate } from "react-router-dom";
 import { APP_ROUTE_PATHS } from "@/app/router/route-paths";
 
 import { LoginAuthPanel } from "./login-auth-panel";
+import "./login-page.css";
 import { useLoginPageController } from "./use-login-page-controller";
 
 const LOGIN_SIGNAL_ITEMS = [
@@ -43,7 +44,7 @@ function LoginIntroduction() {
       >
         <img
           alt=""
-          className="h-10 w-10 object-contain drop-shadow-[0_12px_24px_color-mix(in_srgb,var(--brand)_18%,transparent)]"
+          className="login-brand-mark h-10 w-10 object-contain"
           src="/logo.webp"
         />
         <span className="text-xl font-semibold leading-none">NEXUS</span>
@@ -56,7 +57,7 @@ function LoginIntroduction() {
         <div className="absolute bottom-2 left-8 h-[74px] w-[144px] rounded-full bg-[color:color-mix(in_srgb,var(--brand)_10%,transparent)] blur-2xl" />
         <img
           alt=""
-          className="relative h-auto w-[228px] drop-shadow-[0_22px_30px_color-mix(in_srgb,var(--brand)_15%,transparent)] xl:w-[246px]"
+          className="login-hero-illustration relative h-auto w-[228px] xl:w-[246px]"
           src="/nexus/relaxing-generated.png"
         />
       </div>

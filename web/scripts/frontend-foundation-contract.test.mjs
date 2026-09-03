@@ -16,16 +16,6 @@ const productUiRoots = [
 const DESIGN_DEBT_RATCHETS = [
   {
     allowances: {
-      "src/features/conversation/shared/composer/attachments/composer-attachment-preview-dialog.tsx": 1,
-      "src/features/conversation/shared/composer/components/pending-queue/pending-queue-item.tsx": 1,
-      "src/features/conversation/shared/execution/execution-workgraph-canvas.tsx": 3,
-      "src/features/conversation/shared/execution/named-workgraph-sketch.tsx": 1,
-      "src/features/conversation/shared/execution/workgraph-distillation-dialog.tsx": 1,
-      "src/features/conversation/shared/message/blocks/artifact/workgraph/workgraph-artifact-block.tsx": 1,
-      "src/features/launcher/hero/launcher-recent-entries.tsx": 1,
-      "src/features/settings/personal/personal-avatar-picker.tsx": 1,
-      "src/pages/login/login-auth-panel.tsx": 2,
-      "src/pages/login/login-page.tsx": 2,
     },
     label: "arbitrary shadow",
     pattern: /(?:drop-)?shadow-\[[^\]]+\]/g,

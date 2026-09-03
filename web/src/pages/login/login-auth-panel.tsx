@@ -136,7 +136,7 @@ function PasswordLoginForm({
       </label>
       <LoginErrorBanner notice={submitFailure} onCheckStatus={onRefresh} />
       <UiButton
-        className="min-h-12 w-full rounded-[10px] px-5 text-base shadow-[0_14px_30px_color-mix(in_srgb,var(--shadow-color)_14%,transparent)]"
+        className="min-h-12 w-full rounded-[10px] px-5 text-base"
         disabled={
           isSubmitting
           || Boolean(authFailure?.blocksSubmit)
@@ -184,7 +184,7 @@ export function LoginAuthPanel({
         </div>
         <img
           alt=""
-          className="h-12 w-12 shrink-0 object-contain drop-shadow-[0_12px_24px_color-mix(in_srgb,var(--brand)_16%,transparent)]"
+          className="login-brand-mark h-12 w-12 shrink-0 object-contain"
           src="/logo.webp"
         />
       </div>

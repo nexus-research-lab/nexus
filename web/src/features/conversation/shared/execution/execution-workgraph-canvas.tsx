@@ -962,7 +962,7 @@ export function ExecutionWorkGraphCanvas({
                 className={cn(
                   "pointer-events-auto absolute z-0 rounded-[18px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_78%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-control-background)_48%,transparent)] transition-[border-color,background-color,box-shadow,opacity] duration-150",
                   hovered
-                    && "border-[color:color-mix(in_srgb,var(--primary)_48%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_4%,var(--surface-control-background))] shadow-[0_0_0_2px_color-mix(in_srgb,var(--primary)_8%,transparent)]",
+                    && "border-[color:color-mix(in_srgb,var(--primary)_48%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_4%,var(--surface-control-background))] ring-2 ring-[color:color-mix(in_srgb,var(--primary)_8%,transparent)]",
                 )}
                 data-execution-subgraph-hovered={hovered ? "true" : undefined}
                 data-execution-subgraph-root={group.id}
@@ -1245,7 +1245,7 @@ export function ExecutionWorkGraphCanvas({
                 className={cn(
                   "absolute z-10 transition-[left,top,transform,border-color,box-shadow,opacity,filter] duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--primary)",
                   nodePresentation === "summary"
-                    ? "grid grid-cols-[auto_minmax(0,1fr)] items-start gap-2 overflow-hidden rounded-[14px] border border-(--surface-control-border) bg-(--surface-panel-background) px-3 py-2 text-left shadow-[0_5px_18px_color-mix(in_srgb,var(--shadow-color)_9%,transparent)] hover:border-[color:color-mix(in_srgb,var(--primary)_34%,var(--surface-control-border))] hover:shadow-[0_8px_22px_color-mix(in_srgb,var(--shadow-color)_13%,transparent)]"
+                    ? "grid grid-cols-[auto_minmax(0,1fr)] items-start gap-2 overflow-hidden rounded-[14px] border border-(--surface-control-border) bg-(--surface-panel-background) px-3 py-2 text-left shadow-(--surface-control-shadow) hover:border-[color:color-mix(in_srgb,var(--primary)_34%,var(--surface-control-border))]"
                     : "grid place-items-center rounded-[16px]",
                   selected
                     && nodePresentation === "summary"
