@@ -1,3 +1,6 @@
+// INPUT: Skill 导入、更新检查、来源管理与导览动作及其忙碌状态。
+// OUTPUT: 桌面工具栏或窄窗共享动作菜单，并以统一 Spinner 投影等待状态。
+// POS: Skill 目录页头动作视图；不持有导入、更新或来源命令生命周期。
 import {
   Compass,
   Download,
@@ -12,6 +15,8 @@ import { SKILLS_TOUR_ANCHORS } from "@/features/onboarding/tours/skills-tour";
 import { useMediaQuery } from "@/hooks/ui/use-media-query";
 import { CONVERSATION_FOCUS_MEDIA_QUERY } from "@/lib/layout/home-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiIconButton } from "@/shared/ui/button/button";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import {
   UiActionMenu,
   type UiActionMenuItem,
@@ -51,7 +56,7 @@ function SkillsHeaderCompactActions({
     {
       disabled: importing,
       icon: importing
-        ? <Loader2 className="h-4 w-4 animate-spin text-(--icon-muted)" />
+        ? <Loader2 className={getUiSpinnerClassName({ size: "md", tone: "muted" })} />
         : <Download className="h-4 w-4 text-(--icon-muted)" />,
       label: importing
         ? t("capability.skills_importing")
@@ -62,7 +67,7 @@ function SkillsHeaderCompactActions({
     {
       disabled: checkingUpdates,
       icon: checkingUpdates
-        ? <Loader2 className="h-4 w-4 animate-spin text-(--icon-muted)" />
+        ? <Loader2 className={getUiSpinnerClassName({ size: "md", tone: "muted" })} />
         : <RefreshCw className="h-4 w-4 text-(--icon-muted)" />,
       label: checkingUpdates
         ? t("capability.skills_checking")
@@ -83,19 +88,18 @@ function SkillsHeaderCompactActions({
 
   return (
     <>
-      <button
+      <UiIconButton
         ref={buttonRef}
         aria-expanded={isOpen}
         aria-haspopup="menu"
         aria-label={t("common.more_actions")}
-        className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] text-(--icon-default) transition hover:bg-(--interaction-hover-background) hover:text-(--text-strong)"
         data-tour-anchor={SKILLS_TOUR_ANCHORS.import_skill}
         onClick={() => setIsOpen((current) => !current)}
+        size="lg"
         title={t("common.more_actions")}
-        type="button"
       >
         <MoreHorizontal className="h-4 w-4" />
-      </button>
+      </UiIconButton>
       <UiActionMenu
         anchorRef={buttonRef}
         ariaLabel={t("common.more_actions")}
@@ -145,7 +149,7 @@ function SkillsHeaderDesktopActions({
           onClick={onCheckUpdates}
         >
           {checkingUpdates ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
           ) : (
             <RefreshCw className="h-3.5 w-3.5" />
           )}

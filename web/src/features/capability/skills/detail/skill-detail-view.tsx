@@ -28,7 +28,7 @@ import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
-import { UiStateBlock } from "@/shared/ui/display/state-block";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiPanel } from "@/shared/ui/panel";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
@@ -120,10 +120,10 @@ function SkillDetailContent({
   const { t } = useI18n();
   if (snapshot.status === "loading") {
     return (
-      <UiStateBlock
+      <UiResourceState
         className="min-h-[420px]"
-        icon={<Loader2 className="h-6 w-6 animate-spin" />}
         size="md"
+        state="loading"
         title={t("capability.skills_detail_loading")}
         variant="plain"
       />
@@ -481,7 +481,7 @@ function SkillUpdateButton({
       variant="solid"
     >
       {updating
-        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        ? <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
         : <RefreshCw className="h-3.5 w-3.5" />}
       {t("capability.skills_detail_update")}
     </UiButton>

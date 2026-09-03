@@ -4,12 +4,13 @@ import { useRef, type KeyboardEvent } from "react";
 import { SKILLS_TOUR_ANCHORS } from "@/features/onboarding/tours/skills-tour";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
-import { cn } from "@/shared/ui/class-name";
+import { UiIconButton } from "@/shared/ui/button/button";
 import {
   CapabilityFilterBar,
   CapabilityFilterSearchInput,
   CapabilityFilterSelect,
 } from "@/features/capability/shared/capability-page-layout";
+import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
 import type { DiscoveryMode } from "./controller/skill-marketplace-controller";
 
 const DISCOVERY_OPTIONS: ReadonlyArray<{
@@ -66,49 +67,41 @@ export function SkillsSearchBar({
   };
 
   const externalSearchAction = discoveryMode === "external" ? (
-    <button
+    <UiIconButton
       aria-label={searchLabel}
-      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] border border-(--divider-subtle-color) text-(--text-muted) transition hover:border-(--primary) hover:text-(--primary) disabled:pointer-events-none disabled:opacity-45"
+      className="shrink-0"
       disabled={externalQuery.trim().length < 2 || externalLoading}
       onClick={(event) => {
         event.preventDefault();
         onSubmitExternalSearch();
       }}
       onMouseDown={(event) => event.preventDefault()}
+      size="sm"
       title={searchLabel}
-      type="button"
+      variant="surface"
     >
       <Search className="h-3.5 w-3.5" />
-    </button>
+    </UiIconButton>
   ) : null;
 
   return (
     <CapabilityFilterBar className="sm:justify-between">
       <div
-        aria-label={t("capability.skills_tour_modes_title")}
-        className="inline-flex h-8 w-full shrink-0 items-center gap-1 sm:w-auto"
+        className="w-full shrink-0 sm:w-auto"
         data-tour-anchor={SKILLS_TOUR_ANCHORS.modes}
-        role="group"
       >
-        {DISCOVERY_OPTIONS.map((option) => {
-          const active = discoveryMode === option.value;
-          return (
-            <button
-              key={option.value}
-              aria-pressed={active}
-              className={cn(
-                "inline-flex h-8 min-w-0 flex-1 items-center justify-center rounded-[8px] px-3 text-xs font-medium leading-none transition-[background,color] duration-(--motion-duration-fast) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] sm:flex-none",
-                active
-                  ? "bg-(--surface-interactive-active-background) font-semibold text-(--text-strong)"
-                  : "text-(--text-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-default)",
-              )}
-              onClick={() => onChangeDiscoveryMode(option.value)}
-              type="button"
-            >
-              {t(option.labelKey)}
-            </button>
-          );
-        })}
+        <UiSegmentedControl
+          className="sm:w-auto"
+          density="compact"
+          onChange={onChangeDiscoveryMode}
+          options={DISCOVERY_OPTIONS.map((option) => ({
+            label: t(option.labelKey),
+            value: option.value,
+          }))}
+          stretch
+          title={t("capability.skills_tour_modes_title")}
+          value={discoveryMode}
+        />
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col gap-2 sm:ml-auto sm:max-w-[520px] sm:flex-row sm:items-center">

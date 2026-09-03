@@ -2,6 +2,7 @@ import { Download, Loader2 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiBadge } from "@/shared/ui/display/badge";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiListActionButton } from "@/shared/ui/list/list-action";
 import type { ExternalSkillSearchItem } from "@/types/capability/skill";
 
@@ -88,7 +89,7 @@ function ExternalResultActions({
           visibility="visible"
         >
           {importState.busy ? (
-            <Loader2 className="h-3 w-3 animate-spin" />
+            <Loader2 className={getUiSpinnerClassName({ size: "xs" })} />
           ) : (
             <Download className="h-3 w-3" />
           )}

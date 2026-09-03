@@ -2,9 +2,9 @@
 
 ## 目录边界
 
-- 根目录只保留页面编排、共享正文 Header、搜索入口和导览定义；技能库/社区来源是搜索作用域，使用搜索工具区内无外框的紧凑文字筛选组，并与右侧搜索控件同排，不进入页面导航。
-- `skills-header-actions.tsx` 在手机布局用统一更多菜单承载导入、更新、来源和引导，桌面保留完整工具栏；动作由铺满工作面的共享能力正文 Header 承载，不恢复重复的技能 Surface Header 或私有水平留白。
-- 技能目录与外部搜索结果共用 `shared/skill-directory-card.tsx` 的头像驱动卡片，在桌面统一显示三列，窄窗逐级收拢；目录保留最多两行用途摘要，完整触发与使用说明进入详情。更新区使用 `UiPanel + UiListRow` 的单层紧凑列表，状态、检查动作和 Skill 条目通过共享 Typography 与 Spinner recipe 对齐，不在状态面内再次嵌套目录卡或手写可点击行。
+- 根目录只保留页面编排、共享正文 Header、搜索入口和导览定义；技能库/社区来源是搜索作用域，复用 `UiSegmentedControl` 并与右侧搜索控件同排，不进入页面导航或重建私有筛选按钮。
+- `skills-header-actions.tsx` 在手机布局用统一 IconButton + ActionMenu 承载导入、更新、来源和引导，桌面保留完整工具栏；动作与全部等待图标复用共享 Header、Button 和 Spinner，不恢复重复的技能 Surface Header、私有按钮或水平留白。
+- 技能目录与外部搜索结果共用 `shared/skill-directory-card.tsx` 的头像驱动卡片，在桌面统一显示三列，窄窗逐级收拢；整卡选择动作、标题、两行用途摘要和必要元数据分别复用共享 Button 与 Typography。加载、无结果使用 `UiResourceState`，更新区使用 `UiPanel + UiListRow` 的单层紧凑列表；不得在这些状态面内再次嵌套目录卡、手写可点击行、字号、字重、圆角或 Spinner。
 - `controller/` 管理目录查询、外部搜索、来源配置、异步操作与反馈状态。
 - `catalog/` 负责技能目录和更新提示；Skill 卡片、更新条目与 Agent 技能页共用按 `skill.name` 生成的静态数学曲线身份标记。已安装目录卡只投影名称、本地化说明与更新/删除动作，来源、作用域、标签和使用状态留在详情；更新条目使用 32px 身份标记与等高主动作，刷新图标只表达重新检查，更新检查仍由 `skills-catalog-model.ts` 投影。
 - `external/` 负责社区来源结果、来源管理和预览；身份、来源、导入状态与预览内容统一由纯模型投影。

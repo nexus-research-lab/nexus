@@ -7,8 +7,10 @@
 
 import type { ReactNode } from "react";
 
+import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { WorkspaceCatalogCard } from "@/shared/ui/workspace/catalog/workspace-catalog-card";
 
 interface SkillDirectoryCardProps {
@@ -43,18 +45,23 @@ export function SkillDirectoryCard({
       muted={busy}
       size="compact"
     >
-      <button
+      <UiButton
         aria-label={title}
-        className="absolute inset-0 z-0 rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_28%,transparent)]"
+        className="surface-radius-md absolute inset-0 z-0 h-full min-h-0 w-full border-0 p-0 focus-visible:ring-inset"
         onClick={onSelect}
-        type="button"
-      />
+        variant="ghost"
+      >
+        <span className="sr-only">{title}</span>
+      </UiButton>
 
       <div className="pointer-events-none relative z-10 grid w-full min-w-0 grid-cols-[40px_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2">
         <UiSeededAvatar seed={seed} />
         <div className="flex min-h-10 min-w-0 items-center">
           <div className="flex w-full min-w-0 flex-wrap items-center gap-1.5">
-            <h3 className="min-w-0 flex-1 truncate text-base font-semibold text-(--text-strong)">
+            <h3 className={cn(
+              "min-w-0 flex-1 truncate",
+              getUiTypographyClassName({ role: "sectionTitle", tone: "strong" }),
+            )}>
               {title}
             </h3>
             {badges}
@@ -67,12 +74,18 @@ export function SkillDirectoryCard({
         ) : null}
 
         {description ? (
-          <p className="col-span-3 min-h-9 line-clamp-2 text-compact leading-[1.125rem] text-(--text-muted)">
+          <p className={cn(
+            "col-span-3 min-h-9 line-clamp-2",
+            getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+          )}>
             {description}
           </p>
         ) : null}
         {meta ? (
-          <div className="col-span-3 flex min-w-0 items-center gap-1.5 overflow-hidden text-2xs leading-4 text-(--text-soft)">
+          <div className={cn(
+            "col-span-3 flex min-w-0 items-center gap-1.5 overflow-hidden",
+            getUiTypographyClassName({ role: "caption", tone: "soft" }),
+          )}>
             {meta}
           </div>
         ) : null}
