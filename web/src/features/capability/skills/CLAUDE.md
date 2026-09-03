@@ -2,7 +2,7 @@
 
 ## 目录边界
 
-- 根目录只保留页面编排、共享正文 Header、搜索入口和导览定义；技能库/社区来源是搜索作用域，复用 `UiSegmentedControl` 并与右侧搜索控件同排，不进入页面导航或重建私有筛选按钮。
+- 根目录只保留页面编排、共享正文 Header、搜索入口和导览定义；技能库/社区来源是页面内容模式，复用 `UiTabs` 的紧凑页签并与右侧搜索控件同排，与 Connector 目录保持一致；不得改用表单型 `UiSegmentedControl` 或重建私有筛选按钮。
 - `skills-header-actions.tsx` 在手机布局用统一 IconButton + ActionMenu 承载导入、更新、来源和引导，桌面保留完整工具栏；动作与全部等待图标复用共享 Header、Button 和 Spinner，不恢复重复的技能 Surface Header、私有按钮或水平留白。
 - 技能目录与外部搜索结果共用 `shared/skill-directory-card.tsx` 的头像驱动卡片，在桌面统一显示三列，窄窗逐级收拢；整卡选择动作、标题、两行用途摘要和必要元数据分别复用共享 Button 与 Typography。加载、无结果使用 `UiResourceState`，更新区使用 `UiPanel + UiListRow` 的单层紧凑列表；不得在这些状态面内再次嵌套目录卡、手写可点击行、字号、字重、圆角或 Spinner。
 - `controller/` 管理目录查询、外部搜索、来源配置、异步操作与反馈状态。

@@ -10,7 +10,7 @@ import {
   CapabilityFilterSearchInput,
   CapabilityFilterSelect,
 } from "@/features/capability/shared/capability-page-layout";
-import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
+import { UiTabs } from "@/shared/ui/navigation/tabs";
 import type { DiscoveryMode } from "./controller/skill-marketplace-controller";
 
 const DISCOVERY_OPTIONS: ReadonlyArray<{
@@ -86,23 +86,20 @@ export function SkillsSearchBar({
 
   return (
     <CapabilityFilterBar className="sm:justify-between">
-      <div
-        className="w-full shrink-0 sm:w-auto"
-        data-tour-anchor={SKILLS_TOUR_ANCHORS.modes}
-      >
-        <UiSegmentedControl
-          className="sm:w-auto"
-          density="compact"
-          onChange={onChangeDiscoveryMode}
-          options={DISCOVERY_OPTIONS.map((option) => ({
-            label: t(option.labelKey),
-            value: option.value,
-          }))}
-          stretch
-          title={t("capability.skills_tour_modes_title")}
-          value={discoveryMode}
-        />
-      </div>
+      <UiTabs
+        activeValue={discoveryMode}
+        ariaLabel={t("capability.skills_tour_modes_title")}
+        className="h-8 w-full shrink-0 sm:w-auto"
+        density="compact"
+        itemClassName="h-8 w-full justify-center px-3 sm:w-auto"
+        navAnchor={SKILLS_TOUR_ANCHORS.modes}
+        onChange={onChangeDiscoveryMode}
+        options={DISCOVERY_OPTIONS.map((option) => ({
+          className: "min-w-0 flex-1 sm:flex-none",
+          label: t(option.labelKey),
+          value: option.value,
+        }))}
+      />
 
       <div className="flex min-w-0 flex-1 flex-col gap-2 sm:ml-auto sm:max-w-[520px] sm:flex-row sm:items-center">
         <CapabilityFilterSearchInput

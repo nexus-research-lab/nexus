@@ -1,5 +1,5 @@
 // INPUT: 选择条密度、active 状态与外部布局 class。
-// OUTPUT: 使用统一 control radius 和交互 token 的选择条样式。
+// OUTPUT: 使用统一 control radius 和交互 token、且标签始终单行的选择条样式。
 // POS: UiTabs 视觉投影；不定义 DOM 语义、路由或内容面板。
 
 import { cn } from "@/shared/ui/class-name";
@@ -35,7 +35,7 @@ export function getUiTabClassName(
   } = options;
 
   return cn(
-    "ui-navigation-tab inline-flex shrink-0 items-center gap-1.5 radius-control-sm border-0 px-2.5 py-0 font-medium transition-[background,color] duration-(--motion-duration-fast) ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]",
+    "ui-navigation-tab inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap radius-control-sm border-0 px-2.5 py-0 font-medium transition-[background,color] duration-(--motion-duration-fast) ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]",
     density === "compact" ? "h-8 text-xs" : "h-9 text-xs",
     active
       ? "bg-(--surface-interactive-active-background) font-semibold text-(--text-strong)"

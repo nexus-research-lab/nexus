@@ -929,7 +929,8 @@ test("Skill directory chrome reuses shared actions, states, typography, and filt
   assert.doesNotMatch(card, /<button\b|rounded-\[|text-(?:2xs|xs|sm|base|compact)|font-(?:medium|semibold)|font-mono/);
   assert.match(grid, /<UiResourceState/);
   assert.doesNotMatch(grid, /Loader2/);
-  assert.match(search, /<UiSegmentedControl/);
+  assert.match(search, /<UiTabs/);
+  assert.doesNotMatch(search, /<UiSegmentedControl/);
   assert.match(search, /<UiIconButton/);
   assert.doesNotMatch(search, /<button\b/);
   assert.match(header, /<UiIconButton/);

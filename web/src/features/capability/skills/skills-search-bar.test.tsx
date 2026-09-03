@@ -1,5 +1,5 @@
 // INPUT: Skill 目录/社区模式、查询、来源和筛选命令。
-// OUTPUT: 证明模式切换与搜索动作复用共享控件，并保持点击和 Enter 搜索行为。
+// OUTPUT: 证明页面模式切换与搜索动作复用共享控件，并保持点击和 Enter 搜索行为。
 // POS: Skill 搜索工具区 DOM 合同；查询竞态与外部来源状态归 controller。
 
 import { fireEvent, render, screen } from "@testing-library/react";
@@ -11,7 +11,7 @@ import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
 import { SkillsSearchBar } from "./skills-search-bar";
 
 describe("SkillsSearchBar", () => {
-  it("uses shared segmented and icon actions while preserving external search", async () => {
+  it("uses shared page tabs and icon actions while preserving external search", async () => {
     const user = userEvent.setup();
     const onChangeDiscoveryMode = vi.fn();
     const onSubmitExternalSearch = vi.fn();
@@ -41,7 +41,8 @@ describe("SkillsSearchBar", () => {
     const modes = screen.getByRole("group", {
       name: "capability.skills_tour_modes_title",
     });
-    expect(modes.className).toContain("segmented-control");
+    expect(modes.querySelector(".ui-navigation-tab")).not.toBeNull();
+    expect(modes.className).not.toContain("segmented-control");
     expect(screen.getByRole("button", { name: "capability.skills_tab_external" })
       .getAttribute("aria-pressed")).toBe("true");
 

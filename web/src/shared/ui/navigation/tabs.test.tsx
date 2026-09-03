@@ -34,6 +34,7 @@ describe("UiTabs", () => {
 
     const all = screen.getByRole("button", { name: "全部" });
     const active = screen.getByRole("button", { name: "活跃" });
+    expect(all.className).toContain("whitespace-nowrap");
     expect(all.getAttribute("aria-pressed")).toBe("true");
     expect(active.getAttribute("aria-pressed")).toBe("false");
 
