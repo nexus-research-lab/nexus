@@ -42,6 +42,7 @@ const REQUIRED_SHARED_UI_BEHAVIOR_SUITES = [
   "src/shared/ui/onboarding/overlay/tour-overlay-card.test.tsx",
   "src/shared/ui/overlay/tooltip.test.tsx",
   "src/shared/ui/panel.test.tsx",
+  "src/shared/ui/sidebar/sidebar-empty-guide.test.tsx",
   "src/shared/ui/workspace/surface/workspace-task-strip.test.tsx",
 ];
 
@@ -335,6 +336,19 @@ test("Onboarding Tour card and target highlight consume shared typography and re
   assert.match(overlay, /className="tour-target-highlight pointer-events-none absolute"/);
   assert.doesNotMatch(overlay, /shadow-\[0_0_0_9999px|rounded-\[10px\]/);
   assert.match(recipes, /\.tour-target-highlight\s*\{[^}]*box-shadow:/s);
+});
+
+test("Sidebar empty and recovery guidance consume shared typography, shape, and actions", async () => {
+  const guide = await readSource("src/shared/ui/sidebar/sidebar-empty-guide.tsx");
+
+  assert.match(guide, /getUiTypographyClassName/);
+  assert.match(guide, /role: "caption"/);
+  assert.match(guide, /surface-radius-md/);
+  assert.match(guide, /<UiButton/);
+  assert.doesNotMatch(
+    guide,
+    /<button\b|\btext-xs\b|\bfont-(?:medium|semibold)\b|\bleading-relaxed\b|rounded-\[12px\]/,
+  );
 });
 
 test("List and Badge primitives expose semantic typography and shape instead of page overrides", async () => {
