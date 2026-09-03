@@ -11,6 +11,7 @@ import { LoaderCircle, RefreshCw } from "lucide-react";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import type { Agent } from "@/types/agent/agent";
 
 import { AgentMemoryCatalog } from "./catalog/agent-memory-catalog";
@@ -101,7 +102,9 @@ function MemoryContent({
   if (memory.resource.isLoading && !memory.resource.snapshot) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center text-(--text-muted)">
-        <LoaderCircle className="h-5 w-5 animate-spin" />
+        <LoaderCircle
+          className={getUiSpinnerClassName({ size: "lg", tone: "muted" })}
+        />
       </div>
     );
   }

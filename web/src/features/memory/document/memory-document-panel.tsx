@@ -10,6 +10,7 @@ import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
@@ -307,7 +308,9 @@ function MemoryDocumentBody({
   if (controller.isLoading && !controller.content) {
     return (
       <div className="flex min-h-[260px] items-center justify-center text-(--text-muted)">
-        <LoaderCircle className="h-5 w-5 animate-spin" />
+        <LoaderCircle
+          className={getUiSpinnerClassName({ size: "lg", tone: "muted" })}
+        />
       </div>
     );
   }

@@ -468,6 +468,25 @@ test("Workspace file previews share compact and canvas spinner sizes", async () 
   assert.match(combined, /size: "2xl", tone: "primary"/);
 });
 
+test("Memory surfaces share one semantic spinner scale", async () => {
+  const paths = [
+    "src/features/memory/agent-memory-view.tsx",
+    "src/features/memory/catalog/agent-memory-catalog.tsx",
+    "src/features/memory/document/memory-document-header.tsx",
+    "src/features/memory/document/memory-document-panel.tsx",
+  ];
+  const sources = await Promise.all(paths.map(readSource));
+  const combined = sources.join("\n");
+
+  for (const source of sources) {
+    assert.match(source, /getUiSpinnerClassName/);
+    assert.doesNotMatch(source, /\banimate-spin\b/);
+  }
+  for (const size of ["xs", "sm", "md", "lg"]) {
+    assert.match(combined, new RegExp(`size: "${size}"`));
+  }
+});
+
 test("List and Badge primitives expose semantic typography and shape instead of page overrides", async () => {
   const [listRow, badge, badgeStyles, providerModels, connectorCard, customMcpGrid] = await Promise.all([
     readSource("src/shared/ui/list/list-row.tsx"),
