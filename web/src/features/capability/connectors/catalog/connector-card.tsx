@@ -12,6 +12,7 @@ import { CAPABILITY_DIRECTORY_ROW_CLASS_NAME } from "@/features/capability/share
 import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiListRow } from "@/shared/ui/list/list-row";
 import type { ConnectorInfo } from "@/types/capability/connector";
 
@@ -90,7 +91,7 @@ const ACTION_ICON = {
 } as const;
 
 const STATIC_TRAILING = {
-  busy: () => <Loader2 className="h-4 w-4 animate-spin text-(--icon-default)" />,
+  busy: () => <Loader2 className={getUiSpinnerClassName({ size: "md" })} />,
   "coming-soon": () => <Clock3 className="h-4 w-4 text-(--icon-muted)" />,
 } as const;
 

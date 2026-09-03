@@ -10,3 +10,4 @@
 - 运行时目录只展示服务端 `available` Connector，并按当前真实存在的能力分类分区；禁止用 `coming_soon` 占位卡或空分类预告未实现产品。
 - 分类名称、顺序和可见集合由 `connectors-categories.ts` 与目录模型持有，页面 JSX 不维护第二份名单。
 - `connector-card-model.ts` 将共享连接状态投影为列表徽标和尾部动作，卡片视图不解释原始状态字段。
+- Connector 在途尾部状态使用共享 `md` Spinner，静态与动作图标保持 16px；卡片不得自行拥有颜色、旋转或 reduced-motion class。

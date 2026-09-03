@@ -543,6 +543,23 @@ test("Operations settings share one compact command Spinner role", async () => {
   }
 });
 
+test("Capability directories share semantic action Spinner roles", async () => {
+  const paths = [
+    "src/features/capability/channels/pairings/pairing-create-dialog.tsx",
+    "src/features/capability/connectors/catalog/connector-card.tsx",
+    "src/features/capability/scheduled/scheduled-tasks-directory.tsx",
+  ];
+  const sources = await Promise.all(paths.map(readSource));
+  const combined = sources.join("\n");
+
+  for (const source of sources) {
+    assert.match(source, /getUiSpinnerClassName/);
+    assert.doesNotMatch(source, /(?:motion-safe:)?animate-spin/);
+  }
+  assert.match(combined, /size: "sm"/);
+  assert.match(combined, /size: "md"/);
+});
+
 test("List and Badge primitives expose semantic typography and shape instead of page overrides", async () => {
   const [listRow, badge, badgeStyles, providerModels, connectorCard, customMcpGrid] = await Promise.all([
     readSource("src/shared/ui/list/list-row.tsx"),
