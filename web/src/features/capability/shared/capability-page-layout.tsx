@@ -1,6 +1,6 @@
 /**
- * INPUT: 能力页面标题、可选说明、页面动作、筛选控件、分区与目录条目。
- * OUTPUT: 能力管理页的共享内容轴、用途说明、移动页头动作投影和响应式网格。
+ * INPUT: 能力页面标题、说明、动作、筛选控件、目录条目及详情正文/配置内容。
+ * OUTPUT: 能力管理页的共享内容轴、移动页头动作、目录网格和响应式详情分栏。
  * POS: 能力域页面级设计语法；通过应用布局动作槽适配手机页头，不解释具体领域状态。
  */
 "use client";
@@ -41,6 +41,19 @@ interface CapabilityFilterBarProps {
 interface CapabilitySectionHeaderProps {
   count?: ReactNode;
   description?: ReactNode;
+  title: ReactNode;
+}
+
+interface CapabilityDetailSplitLayoutProps {
+  aside: ReactNode;
+  children: ReactNode;
+  className?: string;
+  header?: ReactNode;
+}
+
+interface CapabilityDetailSectionHeaderProps {
+  description?: ReactNode;
+  meta?: ReactNode;
   title: ReactNode;
 }
 
@@ -259,6 +272,76 @@ export function CapabilitySectionHeader({
           weight: "medium",
         })}>
           {count}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * 详情页在宽工作面使用“可读正文 + 配置侧栏”，窄窗把配置放到长正文之前。
+ * 业务页面只提供语义内容，不得自行复制断点、列宽或跨平台窗口公式。
+ */
+export function CapabilityDetailSplitLayout({
+  aside,
+  children,
+  className,
+  header,
+}: CapabilityDetailSplitLayoutProps) {
+  return (
+    <div
+      className={cn("w-full max-w-[1180px]", className)}
+      data-slot="capability-detail-layout"
+    >
+      {header ? <div className="mb-6">{header}</div> : null}
+      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,760px)_minmax(280px,360px)] xl:gap-8">
+        <aside
+          className="min-w-0 xl:col-start-2 xl:row-start-1"
+          data-slot="capability-detail-aside"
+        >
+          {aside}
+        </aside>
+        <div
+          className="min-w-0 xl:col-start-1 xl:row-start-1"
+          data-slot="capability-detail-main"
+        >
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** 详情正文与配置区共享标题、说明和右侧元数据节奏。 */
+export function CapabilityDetailSectionHeader({
+  description,
+  meta,
+  title,
+}: CapabilityDetailSectionHeaderProps) {
+  return (
+    <div className="mb-3 flex items-end justify-between gap-3">
+      <div className="min-w-0">
+        <h2 className={getUiTypographyClassName({
+          role: "sectionTitle",
+          tone: "strong",
+        })}>
+          {title}
+        </h2>
+        {description ? (
+          <p className={cn(
+            "mt-1",
+            getUiTypographyClassName({ role: "supporting", tone: "muted" }),
+          )}>
+            {description}
+          </p>
+        ) : null}
+      </div>
+      {meta ? (
+        <span className={cn(
+          "shrink-0",
+          getUiTypographyClassName({ role: "caption", tone: "soft" }),
+        )}>
+          {meta}
         </span>
       ) : null}
     </div>

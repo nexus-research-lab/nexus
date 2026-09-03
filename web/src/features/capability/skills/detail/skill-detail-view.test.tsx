@@ -43,4 +43,75 @@ describe("SkillDetailView", () => {
     }).className).toContain("ui-type-object-title");
     expect(container.querySelector(".surface-radius-md")).toBeTruthy();
   });
+
+  it("places Agent configuration in the shared detail rail beside the reading column", () => {
+    const { container } = render(
+      <I18N_CONTEXT.Provider
+        value={{ locale: "zh", setLocale: vi.fn(), t: (key) => key }}
+      >
+        <SkillDetailView
+          activeAction={null}
+          agentBindings={[{
+            agent_id: "agent-1",
+            agent_name: "Nexus",
+            available: true,
+            enabled: true,
+            is_main: true,
+          }]}
+          agentsLoading={false}
+          bindingsFailure={null}
+          busyAgentId={null}
+          onAgentToggle={vi.fn()}
+          onBack={vi.fn()}
+          onDelete={vi.fn()}
+          onRetry={vi.fn()}
+          onRetryBindings={vi.fn()}
+          onUpdate={vi.fn()}
+          snapshot={{
+            skill: {
+              category_key: "productivity",
+              category_name: "Productivity",
+              deletable: false,
+              deploy_failures: [],
+              deploy_successes: [],
+              description: "A reusable Skill.",
+              enabled_agent_count: 1,
+              enabled_for_agent: true,
+              has_update: false,
+              import_mode: "copy",
+              last_error: "",
+              locked: false,
+              name: "sample-skill",
+              origin_kind: "builtin",
+              readme_markdown: "# Usage\n\nFollow these instructions.",
+              recommendation: "",
+              scope: "any",
+              source_kind: "user_global",
+              source_name: "Nexus",
+              source_ref: "",
+              source_trust: "trusted",
+              source_type: "builtin",
+              storage_scope: "user_global",
+              tags: [],
+              title: "Sample Skill",
+              version: "1.0.0",
+            },
+            status: "ready",
+          }}
+          toggleFailures={{}}
+        />
+      </I18N_CONTEXT.Provider>,
+    );
+
+    const aside = container.querySelector("[data-slot='capability-detail-aside']");
+    const main = container.querySelector("[data-slot='capability-detail-main']");
+
+    expect(aside?.contains(screen.getByRole("heading", {
+      name: "capability.skills_detail_agent_scope",
+    }))).toBe(true);
+    expect(main?.contains(screen.getByRole("heading", {
+      name: "capability.skills_detail_description",
+    }))).toBe(true);
+    expect(aside?.compareDocumentPosition(main as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
 });
