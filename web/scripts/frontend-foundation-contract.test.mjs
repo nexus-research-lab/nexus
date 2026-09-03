@@ -41,6 +41,7 @@ const REQUIRED_SHARED_UI_BEHAVIOR_SUITES = [
   "src/shared/ui/menu/menu.test.tsx",
   "src/shared/ui/navigation/tabs.test.tsx",
   "src/shared/ui/onboarding/overlay/tour-overlay-card.test.tsx",
+  "src/shared/ui/onboarding/overlay/tour-overlay.test.tsx",
   "src/shared/ui/overlay/tooltip.test.tsx",
   "src/shared/ui/panel.test.tsx",
   "src/shared/ui/sidebar/sidebar-empty-guide.test.tsx",

@@ -1,3 +1,7 @@
+// INPUT: 当前 Tour 步骤、锚点 DOM、卡片尺寸及浏览器视口变化。
+// OUTPUT: 同步后的目标矩形、卡片尺寸、视口尺寸与卡片测量 ref。
+// POS: Onboarding Tour 测量生命周期；不决定摆放策略或渲染内容。
+
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { OnboardingTourStep } from "../tour-contract";
@@ -14,12 +18,20 @@ function createInitialPopoverSize(step?: OnboardingTourStep): PopoverSize {
   };
 }
 
+function readViewportSize(): PopoverSize {
+  if (typeof window === "undefined") {
+    return { height: 768, width: 344 };
+  }
+  return { height: window.innerHeight, width: window.innerWidth };
+}
+
 export function useTourOverlayLayout(step?: OnboardingTourStep) {
   const cardRef = useRef<HTMLDivElement | null>(null);
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
   const [popoverSize, setPopoverSize] = useState<PopoverSize>(() => (
     createInitialPopoverSize(step)
   ));
+  const [viewportSize, setViewportSize] = useState<PopoverSize>(readViewportSize);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -42,6 +54,13 @@ export function useTourOverlayLayout(step?: OnboardingTourStep) {
       }
     }
     function updateTargetRect(): void {
+      const nextViewportSize = readViewportSize();
+      setViewportSize((current) => (
+        current.width === nextViewportSize.width
+        && current.height === nextViewportSize.height
+          ? current
+          : nextViewportSize
+      ));
       const nextTarget = step?.target
         ? document.querySelector<HTMLElement>(`[data-tour-anchor="${step.target}"]`)
         : null;
@@ -92,5 +111,5 @@ export function useTourOverlayLayout(step?: OnboardingTourStep) {
     };
   }, [step]);
 
-  return { cardRef, popoverSize, targetRect };
+  return { cardRef, popoverSize, targetRect, viewportSize };
 }
