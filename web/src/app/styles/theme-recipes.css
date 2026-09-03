@@ -439,6 +439,7 @@
       var(--desktop-window-close-button-center-y, 26px)
       + var(--desktop-window-close-button-center-y, 26px)
     );
+    --mobile-shell-header-height: var(--workspace-header-height);
   }
 
   /*

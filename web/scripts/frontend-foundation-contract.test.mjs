@@ -195,6 +195,58 @@ test("theme recipes own the semantic layer and adaptive dialog geometry implemen
   assert.match(recipes, /\.ui-type-code\s*\{/);
 });
 
+test("narrow app and Room headers share one platform-aware shell geometry", async () => {
+  const [layout, appHeader, roomHeader, recipes] = await Promise.all([
+    readSource("src/shared/ui/layout/mobile-shell-header-layout.ts"),
+    readSource("src/app/layout/mobile-app-page-header.tsx"),
+    readSource("src/features/conversation/room/surface/mobile/room-mobile-header.tsx"),
+    readSource("src/app/styles/theme-recipes.css"),
+  ]);
+
+  assert.match(layout, /--mobile-shell-header-height,52px/);
+  assert.match(layout, /MOBILE_SHELL_HEADER_GUTTER_CLASS_NAME/);
+  for (const consumer of [appHeader, roomHeader]) {
+    assert.match(consumer, /MOBILE_SHELL_HEADER_HEIGHT_CLASS_NAME/);
+    assert.match(consumer, /MOBILE_SHELL_HEADER_GUTTER_CLASS_NAME/);
+    assert.match(consumer, /<UiIconButton/);
+    assert.match(consumer, /getUiTypographyClassName/);
+    assert.doesNotMatch(consumer, /h-\[52px\]|px-2 sm:px-3/);
+  }
+  assert.match(
+    recipes,
+    /:root\[data-desktop-platform="macos"\][\s\S]*--mobile-shell-header-height:\s*var\(--workspace-header-height\)/,
+  );
+});
+
+test("desktop hosts share viewport bounds but keep platform chrome ownership separate", async () => {
+  const desktopRoot = path.join(webRoot, "..", "desktop");
+  const [macWindow, windowsWindow, windowsXaml, windowsWebView, recipes] = await Promise.all([
+    readFile(path.join(desktopRoot, "macos/Sources/NexusDesktop/Window/WindowManager.swift"), "utf8"),
+    readFile(path.join(desktopRoot, "windows/Nexus.Desktop/Window/MainWindow.xaml.cs"), "utf8"),
+    readFile(path.join(desktopRoot, "windows/Nexus.Desktop/Window/MainWindow.xaml"), "utf8"),
+    readFile(path.join(desktopRoot, "windows/Nexus.Desktop/WebView/WebViewHost.cs"), "utf8"),
+    readSource("src/app/styles/theme-recipes.css"),
+  ]);
+
+  for (const [macPattern, windowsPattern] of [
+    [/preferredWindowSize = NSSize\(width: 1280, height: 820\)/, /PreferredWindowWidth = 1280;[\s\S]*PreferredWindowHeight = 820;/],
+    [/preferredMinimumWindowSize = NSSize\(width: 360, height: 520\)/, /PreferredMinimumWindowWidth = 360;[\s\S]*PreferredMinimumWindowHeight = 520;/],
+    [/compactMinimumWindowSize = NSSize\(width: 320, height: 480\)/, /CompactMinimumWindowWidth = 320;[\s\S]*CompactMinimumWindowHeight = 480;/],
+    [/screenPadding: CGFloat = 48/, /ScreenPadding = 48;/],
+  ]) {
+    assert.match(macWindow, macPattern);
+    assert.match(windowsWindow, windowsPattern);
+  }
+
+  assert.match(macWindow, /\.fullSizeContentView/);
+  assert.match(macWindow, /titlebarAppearsTransparent = true/);
+  assert.match(windowsXaml, /<RowDefinition Height="34"\s*\/>[\s\S]*<RowDefinition Height="\*"\s*\/>/);
+  assert.match(windowsXaml, /x:Name="WebViewContainer"[\s\S]*Grid\.Row="1"/);
+  assert.match(windowsWebView, /IsNonClientRegionSupportEnabled = false/);
+  assert.match(recipes, /:root\[data-desktop-platform="macos"\][\s\S]*\[data-desktop-window-drag-region\]/);
+  assert.doesNotMatch(recipes, /:root\[data-desktop-platform="windows"\][\s\S]*\[data-desktop-window-drag-region\]/);
+});
+
 test("floating feedback reuses shared surface, layer, and typography recipes", async () => {
   const [banner, viewport, recovery] = await Promise.all([
     readSource("src/shared/ui/feedback/feedback-banner.tsx"),

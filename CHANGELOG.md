@@ -38,6 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Unified narrow-window app and Room headers behind one platform-aware layout:
+  macOS follows the measured native window-control center, while Windows and
+  browsers retain the 52px client-area height and the same shared back action.
 - Reorganized Skill details around a shared responsive capability layout: long
   instructions keep a readable main column while badges and per-Agent controls
   occupy a bounded configuration rail that moves before content on narrow windows.
