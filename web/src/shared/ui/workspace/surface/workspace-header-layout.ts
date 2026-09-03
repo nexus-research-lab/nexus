@@ -5,5 +5,4 @@ export const WORKSPACE_HEADER_HEIGHT_CLASS =
 /** 右侧辅助面板共用紧凑头部几何，切换视图时不改变内容起点。 */
 export const WORKSPACE_PANEL_HEADER_HEIGHT_CLASS = "h-11";
 export const WORKSPACE_PANEL_HEADER_PADDING_CLASS = "px-3";
-export const WORKSPACE_PANEL_HEADER_BUTTON_CLASS = "h-7 w-7";
 export const WORKSPACE_PANEL_HEADER_ICON_CLASS = "h-3.5 w-3.5";

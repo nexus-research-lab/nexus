@@ -97,6 +97,8 @@ export const enCoreMessages = {
   "workspace_file.office_preview_failed_next_step": "Reload the preview. If it still fails, use the file action above to work with the original file.",
   "workspace_file.retry_preview": "Retry",
   "workspace_file.presentation_loaded": "{count} slides loaded",
+  "workspace_file.previous_slide": "Previous slide",
+  "workspace_file.next_slide": "Next slide",
   "workspace_file.spreadsheet_loaded": "{count} sheets loaded",
   "workspace_file.image_preview_failed": "This image cannot be displayed right now",
   "workspace_file.pdf_preview_failed": "This PDF cannot be displayed right now",

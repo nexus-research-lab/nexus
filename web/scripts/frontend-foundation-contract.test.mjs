@@ -505,6 +505,26 @@ test("Workspace file previews share compact and canvas spinner sizes", async () 
   assert.match(combined, /size: "2xl", tone: "primary"/);
 });
 
+test("Workspace preview chrome and presentation controls share Button and Typography owners", async () => {
+  const [chrome, presentation, headerLayout] = await Promise.all([
+    readSource("src/features/conversation/shared/editor/workspace-file-preview-chrome.tsx"),
+    readSource("src/features/conversation/shared/editor/presentation/presentation-file-preview.tsx"),
+    readSource("src/shared/ui/workspace/surface/workspace-header-layout.ts"),
+  ]);
+
+  assert.match(chrome, /<UiIconButton/);
+  assert.match(chrome, /getUiTypographyClassName/);
+  assert.doesNotMatch(chrome, /<button\b|WORKSPACE_FILE_TOOLBAR_BUTTON_CLASS_NAME|rounded-\[/);
+  assert.doesNotMatch(headerLayout, /WORKSPACE_PANEL_HEADER_BUTTON_CLASS/);
+  assert.match(presentation, /<UiChoiceButton/);
+  assert.match(presentation, /<UiIconButton/);
+  assert.match(presentation, /getUiTypographyClassName/);
+  assert.doesNotMatch(
+    presentation,
+    /<button\b|rounded-\[|text-(?:2xs|xs|sm|base)|font-(?:medium|semibold)/,
+  );
+});
+
 test("Memory surfaces share one semantic spinner scale", async () => {
   const paths = [
     "src/features/memory/agent-memory-view.tsx",

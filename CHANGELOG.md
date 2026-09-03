@@ -38,6 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Unified Workspace file Header actions on the shared compact IconButton and
+  moved presentation thumbnails, paging controls, labels, and localized action
+  names onto shared Choice, IconButton, and Typography contracts.
 - Removed the misleading Workspace-only toolbar action adapter: Capability and
   Operations page headers now use the base micro text Button contract directly,
   icon-only Header actions use IconButton, and Operations page modes use the
