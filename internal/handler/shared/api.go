@@ -287,9 +287,7 @@ func PublicAuthRoute(request *http.Request) bool {
 	case "/nexus/v1/health",
 		"/nexus/v1/system/version",
 		"/nexus/v1/runtime/options",
-		"/nexus/v1/auth/status",
-		"/nexus/v1/auth/login",
-		"/nexus/v1/auth/logout":
+		"/nexus/v1/auth/status":
 		return true
 	case "/nexus/v1/connectors/oauth/callback":
 		return request.Method == http.MethodPost

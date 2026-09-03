@@ -313,7 +313,7 @@ func createWorkspaceLayoutDB(t *testing.T, databaseURL string) *sql.DB {
 	}
 	db := openWorkspaceLayoutDB(t, databaseURL)
 	for _, statement := range []string{
-		`CREATE TABLE users (user_id TEXT PRIMARY KEY)`,
+		`CREATE TABLE owner_profiles (owner_user_id TEXT PRIMARY KEY)`,
 		`CREATE TABLE agents (
 			id TEXT PRIMARY KEY,
 			owner_user_id TEXT NOT NULL,
@@ -342,7 +342,7 @@ func openWorkspaceLayoutDB(t *testing.T, databaseURL string) *sql.DB {
 
 func insertWorkspaceLayoutUser(t *testing.T, db *sql.DB, ownerUserID string) {
 	t.Helper()
-	if _, err := db.Exec(`INSERT INTO users (user_id) VALUES (?)`, ownerUserID); err != nil {
+	if _, err := db.Exec(`INSERT INTO owner_profiles (owner_user_id) VALUES (?)`, ownerUserID); err != nil {
 		t.Fatalf("插入 workspace 布局测试用户失败: %v", err)
 	}
 }

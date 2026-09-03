@@ -13,6 +13,7 @@ import (
 	"time"
 
 	servergoal "github.com/nexus-research-lab/nexus/internal/app/server/goal"
+	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
 	sessionsvc "github.com/nexus-research-lab/nexus/internal/service/session"
 )
@@ -27,7 +28,16 @@ const (
 	executionDispatchBatch     = 32
 	subagentReconcileBatch     = 32
 	orchestrationRecoveryBatch = 32
+	controlInvalidationPoll    = time.Second
+	controlInvalidationGrace   = time.Minute
 )
+
+type controlIdentityInvalidationSource interface {
+	LatestControlIdentityInvalidationID(context.Context) (int64, error)
+	ControlIdentityInvalidations(context.Context, int64) ([]authsvc.ControlIdentityInvalidation, error)
+	ApplyControlIdentityInvalidation(context.Context, authsvc.ControlIdentityInvalidation) (string, error)
+	FailClosedControlIdentities(context.Context) ([]string, error)
+}
 
 // ListenAndServe 启动后台服务与 HTTP 服务。
 func (s *Server) ListenAndServe(ctx context.Context) error {
@@ -70,6 +80,7 @@ func (s *Server) startBackgroundServices(ctx context.Context) (func(), error) {
 		}
 	}
 	starters := []func(context.Context) (func(), error){
+		s.startControlIdentityInvalidations,
 		s.startSessionDeletionRecovery,
 		s.startChannels,
 		s.startEcho,
@@ -104,6 +115,121 @@ func (s *Server) startBackgroundServices(ctx context.Context) (func(), error) {
 	}
 
 	return stopAll, nil
+}
+
+func (s *Server) startControlIdentityInvalidations(ctx context.Context) (func(), error) {
+	if s.services == nil || s.services.Auth == nil {
+		return nil, nil
+	}
+	source, ok := s.services.Auth.(controlIdentityInvalidationSource)
+	if !ok {
+		return nil, nil
+	}
+	cursor, err := source.LatestControlIdentityInvalidationID(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("initialize Control identity invalidation cursor: %w", err)
+	}
+	runCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		s.runControlIdentityInvalidations(runCtx, source, cursor)
+	}()
+	s.api.BaseLogger().Info("启动 Control identity invalidation coordinator", "cursor", cursor)
+	return func() {
+		cancel()
+		<-done
+	}, nil
+}
+
+func (s *Server) runControlIdentityInvalidations(
+	ctx context.Context,
+	source controlIdentityInvalidationSource,
+	cursor int64,
+) {
+	var unavailableSince time.Time
+	failClosed := false
+	for ctx.Err() == nil {
+		events, err := source.ControlIdentityInvalidations(ctx, cursor)
+		if err != nil {
+			if unavailableSince.IsZero() {
+				unavailableSince = time.Now().UTC()
+			}
+			s.api.BaseLogger().Warn("读取 Control identity invalidation 失败", "err", err)
+			if !failClosed && time.Since(unavailableSince) >= controlInvalidationGrace {
+				owners, closeErr := source.FailClosedControlIdentities(ctx)
+				connections := s.handlers.websocket.CloseControlConnections()
+				for _, ownerUserID := range owners {
+					_, runtimeErr := s.services.Runtime.CloseOwnerSessions(ctx, ownerUserID)
+					closeErr = errors.Join(closeErr, runtimeErr)
+				}
+				s.api.BaseLogger().Error(
+					"Control identity invalidation 超过安全窗口，已关闭认证会话",
+					"owners", len(owners),
+					"connections", connections,
+					"err", closeErr,
+				)
+				failClosed = true
+			}
+			if !waitControlInvalidationPoll(ctx) {
+				return
+			}
+			continue
+		}
+		unavailableSince = time.Time{}
+		failClosed = false
+		processedAll := true
+		for _, event := range events {
+			ownerUserID, applyErr := source.ApplyControlIdentityInvalidation(ctx, event)
+			connections := 0
+			if ownerUserID != "" {
+				switch event.Reason {
+				case "session_revoked":
+					connections = s.handlers.websocket.CloseControlSessionConnections(event.SessionID)
+				case "profile_changed":
+					connections = s.handlers.websocket.CloseOwnerConnections(ownerUserID)
+				default:
+					connections = s.handlers.websocket.CloseOwnerConnections(ownerUserID)
+					_, runtimeErr := s.services.Runtime.CloseOwnerSessions(ctx, ownerUserID)
+					applyErr = errors.Join(applyErr, runtimeErr)
+				}
+			}
+			if applyErr != nil {
+				s.api.BaseLogger().Warn(
+					"应用 Control identity invalidation 失败",
+					"event_id", event.EventID,
+					"owner_user_id", ownerUserID,
+					"err", applyErr,
+				)
+				processedAll = false
+				break
+			}
+			cursor = event.EventID
+			s.api.BaseLogger().Info(
+				"应用 Control identity invalidation",
+				"event_id", event.EventID,
+				"owner_user_id", ownerUserID,
+				"connections", connections,
+			)
+		}
+		if processedAll && len(events) == authsvc.ControlIdentityInvalidationBatchSize {
+			continue
+		}
+		if !waitControlInvalidationPoll(ctx) {
+			return
+		}
+	}
+}
+
+func waitControlInvalidationPoll(ctx context.Context) bool {
+	timer := time.NewTimer(controlInvalidationPoll)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
 }
 
 func (s *Server) startEcho(ctx context.Context) (func(), error) {

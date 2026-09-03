@@ -46,11 +46,14 @@ type Config struct {
 	SkillsPrivateSourceAllowedHosts  []string
 	DatabaseDriver                   string
 	DatabaseURL                      string
-	AccessToken                      string
 	AuthSessionCookieName            string
-	AuthCookieSameSite               string
-	AuthCookieSecure                 bool
-	AuthSessionTTLHours              int
+	ControlURL                       string
+	ControlServiceToken              string
+	ControlServiceTokenFile          string
+	ControlPrincipalPublicKey        string
+	ControlPrincipalPublicKeyFile    string
+	ControlPrincipalAudience         string
+	ControlRequestTimeoutSeconds     int
 	BaseSystemPrompt                 string
 	MainAgentSystemPrompt            string
 	MemoryMaintenance                MemoryMaintenanceConfig
@@ -133,6 +136,20 @@ func Load() Config {
 	}
 	workspacePath := configuredWorkspacePath(getEnv("WORKSPACE_PATH", ""))
 	appMode := getEnv("NEXUS_APP_MODE", "")
+	controlURL := strings.TrimSpace(getEnv("NEXUS_CONTROL_URL", ""))
+	if controlURL == "" && !strings.EqualFold(strings.TrimSpace(appMode), "desktop") {
+		controlURL = "http://127.0.0.1:8020"
+	}
+	controlServiceTokenFile := getEnv(
+		"NEXUS_CONTROL_SERVICE_TOKEN_FILE",
+		filepath.Join(appRoot, "control", "control-service.token"),
+	)
+	controlServiceToken := strings.TrimSpace(getEnv("NEXUS_CONTROL_SERVICE_TOKEN", ""))
+	if controlServiceToken == "" {
+		if data, err := os.ReadFile(controlServiceTokenFile); err == nil {
+			controlServiceToken = strings.TrimSpace(string(data))
+		}
+	}
 	browserEnabled := mustBool(getEnv("NEXUS_BROWSER_ENABLED", strconv.FormatBool(appMode == "desktop")))
 	return Config{
 		Host:        getEnv("HOST", "0.0.0.0"),
@@ -179,13 +196,22 @@ func Load() Config {
 			stateRoot,
 			filepath.Join(appRoot, "data"),
 		),
-		AccessToken:           getEnv("ACCESS_TOKEN", ""),
 		AuthSessionCookieName: getEnv("AUTH_SESSION_COOKIE_NAME", "nexus_session"),
-		AuthCookieSameSite:    getEnv("AUTH_COOKIE_SAMESITE", "lax"),
-		AuthCookieSecure:      mustBool(getEnv("AUTH_COOKIE_SECURE", "false")),
-		AuthSessionTTLHours:   parseIntEnv(getEnv("AUTH_SESSION_TTL_HOURS", "24"), 24),
-		BaseSystemPrompt:      getEnv("BASE_SYSTEM_PROMPT", ""),
-		MainAgentSystemPrompt: getEnv("MAIN_AGENT_SYSTEM_PROMPT", ""),
+		ControlURL:              controlURL,
+		ControlServiceToken:     controlServiceToken,
+		ControlServiceTokenFile: controlServiceTokenFile,
+		ControlPrincipalPublicKey: getEnv(
+			"NEXUS_CONTROL_PRINCIPAL_PUBLIC_KEY",
+			"",
+		),
+		ControlPrincipalPublicKeyFile: getEnv(
+			"NEXUS_CONTROL_PRINCIPAL_PUBLIC_KEY_FILE",
+			filepath.Join(appRoot, "control", "control-signing.pub"),
+		),
+		ControlPrincipalAudience:     getEnv("NEXUS_CONTROL_PRINCIPAL_AUDIENCE", "nexus-runtime"),
+		ControlRequestTimeoutSeconds: parseIntEnv(getEnv("NEXUS_CONTROL_REQUEST_TIMEOUT_SECONDS", "5"), 5),
+		BaseSystemPrompt:             getEnv("BASE_SYSTEM_PROMPT", ""),
+		MainAgentSystemPrompt:        getEnv("MAIN_AGENT_SYSTEM_PROMPT", ""),
 		MemoryMaintenance: MemoryMaintenanceConfig{
 			MaxConcurrent: parseIntEnv(getEnv("MEMORY_MAINTENANCE_MAX_CONCURRENT", "2"), 2),
 			RunTimeout:    time.Duration(parseIntEnv(getEnv("MEMORY_MAINTENANCE_RUN_TIMEOUT_SECONDS", "3600"), 3600)) * time.Second,

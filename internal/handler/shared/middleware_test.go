@@ -370,6 +370,15 @@ func TestPublicAuthRouteAllowsOAuthCallbackPost(t *testing.T) {
 	}
 }
 
+func TestPublicAuthRouteRejectsRemovedAccountRoutes(t *testing.T) {
+	for _, path := range []string{"/nexus/v1/auth/login", "/nexus/v1/auth/logout"} {
+		request := httptest.NewRequest(http.MethodPost, path, nil)
+		if PublicAuthRoute(request) {
+			t.Fatalf("已移除的 Nexus 账号路由仍被标记为公开: %s", path)
+		}
+	}
+}
+
 func TestPublicAuthRouteAllowsRuntimeConfigurationBrokerWithCustomPrefix(t *testing.T) {
 	request := httptest.NewRequest(http.MethodPost, "/custom/internal/runtime/configuration", nil)
 	if !PublicAuthRoute(request) {

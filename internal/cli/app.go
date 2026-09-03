@@ -74,8 +74,6 @@ func New(cfg config.Config) (*App, error) {
 	}
 
 	root.AddCommand(newAgentCommand(services))
-	root.AddCommand(newAuthCommand(services))
-	root.AddCommand(newUserCommand(services))
 	root.AddCommand(newRoomCommand(services))
 	root.AddCommand(newConversationCommand(services))
 	root.AddCommand(newSessionCommand(services))
@@ -143,18 +141,13 @@ func newScopedRoot(
 		if runtimeConfigurationScope {
 			return nil
 		}
-		var authService *authsvc.Service
-		needsScopeState := commandRequiresUserScope(cmd) &&
-			strings.TrimSpace(scopeUserID) == "" &&
-			!globalScope
-		if needsScopeState {
-			var err error
-			authService, err = services.AuthService()
-			if err != nil {
-				return err
-			}
-		}
-		nextCtx, err := buildScopedCLIContext(cmd.Context(), authService, cmd, scopeUserID, globalScope)
+		nextCtx, err := buildScopedCLIContext(
+			cmd.Context(),
+			cmd,
+			scopeUserID,
+			globalScope,
+			strings.TrimSpace(cfg.ControlURL) == "",
+		)
 		if err != nil {
 			return err
 		}
@@ -183,10 +176,10 @@ func currentCLIUserID(cmd *cobra.Command) string {
 
 func buildScopedCLIContext(
 	base context.Context,
-	authService *authsvc.Service,
 	cmd *cobra.Command,
 	scopeUserID string,
 	globalScope bool,
+	localSingleUser bool,
 ) (context.Context, error) {
 	trimmedUserID := strings.TrimSpace(scopeUserID)
 	if existingUserID, ok := authsvc.CurrentUserID(base); ok && strings.TrimSpace(existingUserID) != "" {
@@ -207,9 +200,10 @@ func buildScopedCLIContext(
 	if !commandRequiresUserScope(cmd) {
 		return base, nil
 	}
-	if hasHostManagedCLIScope() &&
-		strings.TrimSpace(os.Getenv(nexusRuntimeScopeModeEnvName)) == runtimeScopeModeSingleUser &&
-		trimmedUserID == authctx.SystemUserID {
+	if trimmedUserID == "" && localSingleUser {
+		trimmedUserID = authctx.SystemUserID
+	}
+	if trimmedUserID == authctx.SystemUserID && localSingleUser {
 		base = authsvc.WithPrincipal(base, &authsvc.Principal{
 			UserID:     authctx.SystemUserID,
 			Username:   authctx.SystemUserID,
@@ -219,20 +213,10 @@ func buildScopedCLIContext(
 		return authsvc.WithState(base, authsvc.State{AuthRequired: false}), nil
 	}
 	if trimmedUserID == "" {
-		if authService != nil {
-			state, err := authService.GetState(context.Background())
-			if err != nil {
-				return nil, err
-			}
-			if state.UserCount > 0 {
-				return nil, usageErrorf(
-					"当前 CLI 运行在多用户模式下，%s 必须显式提供 --scope-user-id，或在本机管理员场景下显式加 --global-scope",
-					cmd.CommandPath(),
-				)
-			}
-			return authsvc.WithState(base, state), nil
-		}
-		return base, nil
+		return nil, usageErrorf(
+			"Control 模式下 %s 必须显式提供 --scope-user-id，或在本机管理员场景下显式加 --global-scope",
+			cmd.CommandPath(),
+		)
 	}
 	return authsvc.WithPrincipal(base, &authsvc.Principal{
 		UserID:     trimmedUserID,
@@ -243,7 +227,7 @@ func buildScopedCLIContext(
 
 func commandRequiresUserScope(cmd *cobra.Command) bool {
 	switch commandDomain(cmd) {
-	case "", "auth", "user", "emotion", "channel", "imagegen", "completion", "help":
+	case "", "emotion", "channel", "imagegen", "completion", "help":
 		return false
 	default:
 		return true

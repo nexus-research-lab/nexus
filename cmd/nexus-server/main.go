@@ -31,12 +31,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const (
-	authInitOwnerUsernameEnvName    = "AUTH_INIT_OWNER_USERNAME"
-	authInitOwnerDisplayNameEnvName = "AUTH_INIT_OWNER_DISPLAY_NAME"
-	authInitOwnerPasswordEnvName    = "AUTH_INIT_OWNER_PASSWORD"
-)
-
 func openMigrationDB(cfg config.Config) (*sql.DB, string, error) {
 	dir := filepath.Join(appfs.Root(), "db", "migrations", storage.MigrationDirName(cfg.DatabaseDriver))
 
@@ -190,85 +184,6 @@ func runMigrations(cfg config.Config, logger *slog.Logger) error {
 	return nil
 }
 
-func ensureOwnerFromEnv(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
-	password := os.Getenv(authInitOwnerPasswordEnvName)
-	username := strings.TrimSpace(os.Getenv(authInitOwnerUsernameEnvName))
-	displayName := strings.TrimSpace(os.Getenv(authInitOwnerDisplayNameEnvName))
-	if strings.TrimSpace(password) == "" {
-		if username != "" || displayName != "" {
-			return fmt.Errorf("%s is required when %s or %s is set",
-				authInitOwnerPasswordEnvName,
-				authInitOwnerUsernameEnvName,
-				authInitOwnerDisplayNameEnvName,
-			)
-		}
-		logger.Info("未配置 owner 初始化密码，跳过 owner bootstrap")
-		return nil
-	}
-	if username == "" {
-		username = "admin"
-	}
-
-	db, err := storage.OpenDB(cfg)
-	if err != nil {
-		return fmt.Errorf("open db for owner bootstrap: %w", err)
-	}
-	defer db.Close()
-
-	authService := authsvc.NewServiceWithDB(cfg, db)
-	users, err := authService.ListUsers(ctx)
-	if err != nil {
-		return err
-	}
-
-	hasActiveAdmin := false
-	targetUserRole := ""
-	normalizedUsername := strings.ToLower(username)
-	for _, user := range users {
-		if user.Username == normalizedUsername {
-			targetUserRole = user.Role
-		}
-		if user.Status == authsvc.UserStatusActive && (user.Role == authsvc.RoleOwner || user.Role == authsvc.RoleAdmin) {
-			hasActiveAdmin = true
-		}
-	}
-	if hasActiveAdmin {
-		logger.Info("owner/admin 用户已存在，跳过 owner bootstrap")
-		return nil
-	}
-
-	if len(users) == 0 {
-		user, err := authService.InitOwner(ctx, authsvc.InitOwnerInput{
-			Username:    username,
-			DisplayName: displayName,
-			Password:    password,
-		})
-		if err != nil {
-			return err
-		}
-		logger.Info("已初始化首个 owner 用户", "username", user.Username)
-		return nil
-	}
-
-	if targetUserRole != "" {
-		return fmt.Errorf("bootstrap username %s already exists with role %s, but no active owner/admin account was found",
-			username,
-			targetUserRole,
-		)
-	}
-	user, err := authService.CreateUser(ctx, authsvc.CreateUserInput{
-		Username:    username,
-		DisplayName: displayName,
-		Password:    password,
-		Role:        authsvc.RoleOwner,
-	})
-	if err != nil {
-		return err
-	}
-	logger.Info("已有用户但无 active owner/admin，已创建 owner 用户", "username", user.Username)
-	return nil
-}
-
 func buildRootCommand() *cobra.Command {
 	root := &cobra.Command{
 		Use:           "nexus-server",
@@ -311,6 +226,10 @@ func runServer() error {
 			Compress:    cfg.LogCompress,
 		},
 	})
+	if err := authsvc.ValidateControlConfig(cfg); err != nil {
+		logger.Error("Control 配置无效", "err", err)
+		return err
+	}
 
 	limitSnapshot, limitErr := syslimit.EnsureOpenFilesLimit(8192)
 	if limitErr != nil {
@@ -351,11 +270,6 @@ func runServer() error {
 	}
 	if err := migration.RunWorkspaceFiles(appfs.AppDir(), agentsvc.WorkspaceBasePath(cfg), logger); err != nil {
 		logger.Error("工作区文件迁移失败", "err", err)
-		_, _ = fmt.Fprintln(os.Stderr, err)
-		return err
-	}
-	if err := ensureOwnerFromEnv(context.Background(), cfg, logger); err != nil {
-		logger.Error("owner bootstrap 失败", "err", err)
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		return err
 	}

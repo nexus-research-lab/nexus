@@ -5,7 +5,8 @@ L3 | 父级: web/src/features/settings
 ## 职责
 
 - `operations-access.ts` 定义运营分区的角色准入规则。
-- `operations-panel.tsx` 通过单一 Tab 定义表装配订阅、公共 Provider 与项目权限管理视图；固定页面标题位于第一行，纯文字 Tab 位于第二行，子视图不得重复页面级 Header 与内容轴。
+- `operations-panel.tsx` 通过单一 Tab 定义表装配部署成员、订阅、公共 Provider 与项目权限管理视图；固定页面标题位于第一行，纯文字 Tab 位于第二行，子视图不得重复页面级 Header 与内容轴。
+- `control-members-panel.tsx` 消费 Control 成员 API，负责创建、角色与 active/revoked 状态；未知写结果先刷新清单，不自动重放。
 - `subscription-admin/` 负责订阅账号、套餐草稿与写事务。
 - `project-admin/` 负责共享项目创建、成员 ACL 展示与管理员授权事务；角色权限仍由服务端判定。
 

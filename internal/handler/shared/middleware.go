@@ -201,7 +201,7 @@ func RecoverMiddleware(api *API) func(http.Handler) http.Handler {
 }
 
 // AuthMiddleware 把认证状态写入请求上下文。
-func AuthMiddleware(api *API, auth *authsvc.Service) func(http.Handler) http.Handler {
+func AuthMiddleware(api *API, auth authsvc.Authority) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			if auth == nil {

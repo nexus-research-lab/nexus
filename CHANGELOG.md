@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added standalone `nexus-control` authentication for server Web deployments,
+  with signed short-lived principals, stable local owner bindings, and an
+  account migration path that leaves Agent and workspace data in place. The
+  existing Nexus Web shell now provides Control-backed login, first-run setup,
+  and deployment member administration without a second frontend. Control can
+  use SQLite or a PostgreSQL `control` schema.
 - Added an 8–10-player Avalon Room Skill with a permanent Agent moderator, randomized user participation, private role, vote, mission routing, and complete proposal, quest, rejection, and assassination flow.
 - Added an administrator-selectable subscription default model that new web users inherit until they choose their own default.
 - Added a backward-compatible minimal FailureCore v1 for stable machine
@@ -17,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Updated source deployment orchestration to build, start, health-check, and
+  fast-forward both the Nexus and sibling `nexus-control` repositories as one
+  `control + nexus + nginx` stack.
 - Condensed Agent list rows to two lines by moving Provider, tool, and Skill
   metadata beside the Agent name and permission state.
 - Simplified the Skill update surface into aligned compact rows with one clear
@@ -63,6 +72,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   may no longer be usable.
 - Matched the expanded sidebar footer height and action alignment to the shared
   header baseline across desktop window widths.
+- Closed Control-backed authentication lifecycle gaps: root-path session cookies now clear correctly, disabled first-run setup is represented explicitly, concurrent Nexus replicas atomically converge on one local owner binding, and Control membership changes actively invalidate cached principals, WebSockets, and runtimes on every Nexus replica.
+- Removed Nexus Server's duplicate password, browser Session, account mutation, bootstrap, and account CLI stack. Desktop now uses a passwordless local principal; server Web account writes go directly to Control, while Nexus retains only signed-Principal verification, `owner_profiles` projection, stable owner binding, and reason-scoped invalidation handling.
 - Realigned the live activity row beneath collapsed tool groups and restored
   the shared low-contrast text shimmer for active message states.
 - Added deterministic chat prose fallbacks when Songti is unavailable: macOS

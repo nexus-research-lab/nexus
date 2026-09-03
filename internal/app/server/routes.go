@@ -76,14 +76,11 @@ func (s *Server) mountCoreRoutes() {
 	s.router.Get(s.prefixPath("/health"), s.handlers.core.HandleHealth)
 	s.router.Get(s.prefixPath("/system/version"), s.handlers.core.HandleSystemVersion)
 	s.router.Get(s.prefixPath("/auth/status"), s.handlers.auth.HandleAuthStatus)
-	s.router.Post(s.prefixPath("/auth/login"), s.handlers.auth.HandleAuthLogin)
-	s.router.Post(s.prefixPath("/auth/logout"), s.handlers.auth.HandleAuthLogout)
 	s.router.Get(s.prefixPath("/runtime/options"), s.handlers.core.HandleRuntimeOptions)
 	s.router.Get(s.prefixPath("/settings/profile"), s.handlers.auth.HandlePersonalProfile)
-	s.router.Patch(s.prefixPath("/settings/profile"), s.handlers.auth.HandleUpdatePersonalProfile)
-	s.router.Post(s.prefixPath("/settings/profile/password"), s.handlers.auth.HandleChangePassword)
-	s.router.Get(s.prefixPath("/settings/profile/password/receipt"), s.handlers.auth.HandlePasswordChangeReceipt)
-	s.router.Post(s.prefixPath("/settings/profile/password/receipt/not-applied"), s.handlers.auth.HandleSettlePasswordChangeNotApplied)
+	if strings.EqualFold(strings.TrimSpace(s.config.AppMode), "desktop") {
+		s.router.Patch(s.prefixPath("/settings/profile"), s.handlers.auth.HandleUpdatePersonalProfile)
+	}
 	s.router.Get(s.prefixPath("/settings/preferences"), s.handlers.core.HandleGetPreferences)
 	s.router.Patch(s.prefixPath("/settings/preferences"), s.handlers.core.HandleUpdatePreferences)
 	s.router.Get(s.prefixPath("/settings/echo"), s.handlers.echo.HandleGetEcho)

@@ -22,7 +22,7 @@ func TestIsLocalSingleUserControlPlane(t *testing.T) {
 		{
 			name: "multi-user owner",
 			ctx: WithPrincipal(
-				WithState(context.Background(), State{AuthRequired: true, UserCount: 2}),
+				WithState(context.Background(), State{AuthRequired: true}),
 				&Principal{UserID: "owner-a", Role: RoleOwner, AuthMethod: AuthMethodPassword},
 			),
 			ownerID: "owner-a",
