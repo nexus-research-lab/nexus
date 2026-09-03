@@ -1,3 +1,7 @@
+// INPUT: Agent 私域线程联合状态、选择真相与线程选择命令。
+// OUTPUT: 共享 ListRow 驱动的线程目录，以及统一加载和空状态。
+// POS: Agent 私域线程列表视图；字段投影归模型，时间线与请求生命周期归上层。
+
 import {
   Inbox,
   Loader2,
@@ -15,7 +19,9 @@ import {
   type PrivateThreadListPresentation,
 } from "@/features/agents/private-domain/agent-private-domain-thread-model";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import { UiListRow } from "@/shared/ui/list/list-row";
 import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { AgentPrivateScope, AgentPrivateThread } from "@/types/agent/private-domain";
 
 const THREAD_SCOPE_ICONS: Record<AgentPrivateScope, LucideIcon> = {
@@ -83,7 +89,11 @@ function PrivateThreadListContent({
       return (
         <div className={presentation.className}>
           <Inbox className="h-5 w-5 text-(--text-soft)" />
-          <p className="text-compact font-semibold text-(--text-muted)">{emptyLabel}</p>
+          <p className={getUiTypographyClassName({
+            role: "metadata",
+            tone: "muted",
+            weight: "semibold",
+          })}>{emptyLabel}</p>
         </div>
       );
     case "ready":
@@ -112,10 +122,13 @@ function PrivateThreadListItem({
 }) {
   const ScopeIcon = THREAD_SCOPE_ICONS[item.scope];
   return (
-    <button
-      className={item.buttonClassName}
+    <UiListRow
+      active={item.active}
+      activeTone="sidebar"
+      aria-pressed={item.active}
+      className={item.rowClassName}
+      density={item.density}
       onClick={() => onSelect(item.thread.thread_id)}
-      type="button"
     >
       <PrivateParticipantAvatarStack
         ownerAgentId={item.ownerAgentId}
@@ -126,7 +139,7 @@ function PrivateThreadListItem({
           <span className={item.titleClassName}>{item.title}</span>
           <ScopeIcon className="h-3.5 w-3.5 shrink-0 text-(--text-soft)" />
           {item.timestampLabel ? (
-            <span className="ml-auto shrink-0 text-2xs tabular-nums text-(--text-soft)">
+            <span className={item.timestampClassName}>
               {item.timestampLabel}
             </span>
           ) : null}
@@ -139,6 +152,6 @@ function PrivateThreadListItem({
           workspaceAgentId={item.workspaceAgentId}
         />
       </div>
-    </button>
+    </UiListRow>
   );
 }
