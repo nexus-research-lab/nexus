@@ -14,6 +14,7 @@ import {
   type UiDialogSize,
 } from "@/shared/ui/dialog/dialog";
 import { getDialogActionClassName } from "@/shared/ui/dialog/dialog-styles";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 
 interface DecisionDialogFrameProps {
   children: ReactNode;
@@ -86,7 +87,12 @@ export function DecisionDialogActions({
         ref={confirmButtonRef}
         type="button"
       >
-        {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+        {busy ? (
+          <LoaderCircle
+            aria-hidden
+            className={getUiSpinnerClassName({ size: "md" })}
+          />
+        ) : null}
         {confirmText}
       </button>
     </UiDialogFooter>

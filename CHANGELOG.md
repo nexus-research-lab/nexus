@@ -38,6 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Centralized route, Workspace, resource-state, and decision-action loading
+  indicators under one semantic size, color, and reduced-motion recipe while
+  retaining the local animated Nexus cat for brand-level startup waits.
 - Moved shared sidebar empty and recovery guidance onto semantic caption roles,
   the common Surface shape, and the standard compact Button so Chat and Contact
   sidebars no longer inherit a private text and action recipe.

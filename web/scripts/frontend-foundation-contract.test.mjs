@@ -351,6 +351,41 @@ test("Sidebar empty and recovery guidance consume shared typography, shape, and 
   );
 });
 
+test("loading indicators share one size, tone, and reduced-motion recipe", async () => {
+  const [
+    spinnerStyles,
+    resourceState,
+    decisionDialog,
+    appRouter,
+    desktopEntry,
+    workspaceState,
+    appLoading,
+  ] = await Promise.all([
+    readSource("src/shared/ui/display/spinner-styles.ts"),
+    readSource("src/shared/ui/display/resource-state.tsx"),
+    readSource("src/shared/ui/dialog/decision/decision-dialog-frame.tsx"),
+    readSource("src/app/router/app-router.tsx"),
+    readSource("src/app/router/desktop-entry-layout.tsx"),
+    readSource("src/shared/ui/workspace/frame/workspace-loading-state.tsx"),
+    readSource("src/shared/ui/layout/app-loading-screen.tsx"),
+  ]);
+
+  assert.match(spinnerStyles, /SPINNER_SIZE_CLASS_MAP/);
+  assert.match(spinnerStyles, /SPINNER_TONE_CLASS_MAP/);
+  assert.match(spinnerStyles, /motion-reduce:animate-none/);
+  for (const consumer of [resourceState, decisionDialog, appRouter, desktopEntry, workspaceState]) {
+    assert.match(consumer, /getUiSpinnerClassName/);
+    assert.doesNotMatch(consumer, /\banimate-spin\b|border-t-transparent/);
+  }
+  assert.match(appRouter, /useI18n/);
+  assert.match(desktopEntry, /useI18n/);
+  assert.match(workspaceState, /getUiTypographyClassName/);
+  assert.match(workspaceState, /aria-busy="true"/);
+  assert.match(appLoading, /getUiTypographyClassName/);
+  assert.match(appLoading, /useI18n/);
+  assert.match(appLoading, /cat-loading-static\.webp/);
+});
+
 test("List and Badge primitives expose semantic typography and shape instead of page overrides", async () => {
   const [listRow, badge, badgeStyles, providerModels, connectorCard, customMcpGrid] = await Promise.all([
     readSource("src/shared/ui/list/list-row.tsx"),

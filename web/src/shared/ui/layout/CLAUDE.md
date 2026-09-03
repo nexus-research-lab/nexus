@@ -1,7 +1,7 @@
 # 通用布局原语
 
 - 本目录只保留可跨页面复用的加载、Workspace 布局模型和面板拖拽入口。
-- `app-loading-screen.tsx` 使用本地 animated WebP 展示启动猫咪，并通过 `picture` 为减弱动效偏好切换静态帧；启动关键路径不得重新引入 Lottie runtime、WASM 或外部动画请求。
+- `app-loading-screen.tsx` 只用于启动、认证和首屏目录初始化等品牌级等待，使用本地 animated WebP 展示启动猫咪，并通过 `picture` 为减弱动效偏好切换静态帧；普通路由、Workspace、资源和按钮等待统一消费 `display/spinner-styles.ts`，不得复制 CSS border Spinner，也不得重新引入 Lottie runtime、WASM 或外部动画请求。
 - `workspace-content-layout.ts` 是能力、设置、联系人等管理页面内容面的唯一入口；正文铺满可用工作面，水平留白只由 `--workspace-content-gutter` 控制，并通过 `clamp(20px, 2vw, 32px)` 随屏幕平滑增长。业务页面不得再写私有页面边距或 `max-width`。
 - 共享 Surface Header、Agent 内联详情和横向滚动区也必须复用同一 gutter；滚动区需要出血时使用共享负边距组合，不得复制断点数值。
 - 普通目录条目复用共享响应式网格，桌面显示三列、窄窗逐级收拢；定时任务正式看板保持四列并在宽度不足时横向滚动。
