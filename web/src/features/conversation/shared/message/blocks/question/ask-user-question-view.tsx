@@ -13,6 +13,7 @@ import {
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import type { UserQuestion } from "@/types/conversation/interaction/ask-user-question";
 
 import { AskUserQuestionItem } from "./ask-user-question-item";
@@ -191,7 +192,10 @@ function QuestionDecisionRow({
           type="button"
         >
           {isSubmitting ? (
-            <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
+            <Loader2
+              aria-hidden
+              className={getUiSpinnerClassName({ size: "md" })}
+            />
           ) : null}
           {t("composer.question_submit")}
         </button>
