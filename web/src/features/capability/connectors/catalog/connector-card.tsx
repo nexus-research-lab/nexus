@@ -56,7 +56,9 @@ export function ConnectorCard({
   return (
     <UiListRow
       className={cn(CAPABILITY_DIRECTORY_ROW_CLASS_NAME, busy && "opacity-65")}
+      description={connector.description}
       leading={<ConnectorIcon icon={connector.icon} title={connector.title} />}
+      meta={<ConnectorCardBadge badge={model.badge} />}
       onClick={onSelect}
       right={(
         <span className="flex h-9 w-9 shrink-0 items-center justify-center">
@@ -66,19 +68,8 @@ export function ConnectorCard({
           />
         </span>
       )}
-    >
-      <span className="min-w-0 flex-1">
-        <span className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-base font-medium text-(--text-strong)">
-            {connector.title}
-          </span>
-          <ConnectorCardBadge badge={model.badge} />
-        </span>
-        <span className="mt-0.5 block truncate text-compact leading-[1.125rem] text-(--text-muted)">
-          {connector.description}
-        </span>
-      </span>
-    </UiListRow>
+      title={connector.title}
+    />
   );
 }
 

@@ -76,7 +76,7 @@ describe("Subscription Admin UI ownership", () => {
     );
 
     expect(screen.getByText("Ada").className).toContain("ui-type-section-title");
-    expect(screen.getByText("owner").className).toContain("rounded-[6px]");
+    expect(screen.getByText("owner").className).toContain("radius-control-xs");
     expect(screen.getByText("settings.subscription.plan").className).toContain("ui-type-caption");
     expect(container.querySelectorAll(".surface-radius-md").length).toBeGreaterThanOrEqual(2);
   });

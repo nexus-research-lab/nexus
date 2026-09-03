@@ -31,10 +31,18 @@ describe("UiListRow", () => {
   });
 
   it("does not turn static content into a focus target", () => {
-    render(<UiListRow data-testid="static-row" title="只读项目" />);
+    render(
+      <UiListRow
+        data-testid="static-row"
+        description="最近更新"
+        title="只读项目"
+      />,
+    );
     const row = screen.getByTestId("static-row");
     expect(row.hasAttribute("role")).toBe(false);
     expect(row.hasAttribute("tabindex")).toBe(false);
+    expect(screen.getByText("只读项目").className).toContain("ui-type-section-title");
+    expect(screen.getByText("最近更新").className).toContain("ui-type-metadata");
   });
 
   it("keeps compact geometry inside the shared density contract", () => {

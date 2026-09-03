@@ -14,9 +14,11 @@ import {
 } from "@/features/capability/shared/capability-page-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import { UiListRow } from "@/shared/ui/list/list-row";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { CustomMCPServer } from "@/types/capability/connector";
 
 import { ConnectorIcon } from "../connector-icon";
@@ -53,7 +55,10 @@ export function CustomMCPGrid({
 
   if (loading) {
     return (
-      <div className="flex min-h-40 items-center justify-center text-sm text-(--text-muted)">
+      <div className={cn(
+        "flex min-h-40 items-center justify-center",
+        getUiTypographyClassName({ role: "supporting", tone: "muted" }),
+      )}>
         {t("capability.connectors_loading")}
       </div>
     );
@@ -61,7 +66,7 @@ export function CustomMCPGrid({
   if (servers.length === 0) {
     return (
       <div className="flex min-h-48 flex-col items-center justify-center border-y border-(--divider-subtle-color) px-6 text-center">
-        <h2 className="text-base font-medium text-(--text-strong)">
+        <h2 className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong", weight: "medium" })}>
           {hasServers
             ? t("capability.custom_mcp_no_results_title")
             : t("capability.custom_mcp_empty_title")}
@@ -93,85 +98,80 @@ export function CustomMCPGrid({
             t("capability.custom_mcp_recovery_name"),
           );
           return (
-          <UiListRow
-            className={CAPABILITY_DIRECTORY_ROW_CLASS_NAME}
-            key={server.connector_id}
-            leading={(
-              <ConnectorIcon
-                icon="custom-mcp"
-                title={recoveryRequired ? server.connector_id : server.name}
-              />
-            )}
-            onClick={() => onOpen(server)}
-            right={(
-              <div
-                className="flex shrink-0 items-center gap-1"
-                onClick={(event) => event.stopPropagation()}
-                role="presentation"
-              >
-                <GlassSwitch
-                  aria-label={t("capability.custom_mcp_available_in_chat")}
-                  checked={!recoveryRequired && server.enabled}
-                  disabled={busy || recoveryRequired}
-                  onChange={(enabled) => onToggle(server, enabled)}
-                  size="xs"
-                />
-                <UiIconButton
-                  aria-label={t(recoveryRequired
-                    ? "capability.custom_mcp_recover_action"
-                    : "common.edit")}
-                  disabled={busy}
-                  onClick={(event) => handleAction(event, () => onEdit(server))}
-                  size="sm"
-                  type="button"
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </UiIconButton>
-                <UiIconButton
-                  aria-label={t("common.delete")}
-                  disabled={busy}
-                  onClick={(event) => handleAction(event, () => onDelete(server))}
-                  size="sm"
-                  tone="danger"
-                  type="button"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </UiIconButton>
-              </div>
-            )}
-          >
-            <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 items-center gap-2">
-                <h3 className="min-w-0 truncate text-base font-medium text-(--text-strong)">
-                  {displayName}
-                </h3>
-                {recoveryRequired ? (
-                  <UiBadge size="xs" tone="warning">
-                    {t("capability.custom_mcp_recovery_badge")}
-                  </UiBadge>
-                ) : (
-                  <UiBadge size="xs">{server.type.toUpperCase()}</UiBadge>
-                )}
-                {!recoveryRequired && !server.enabled ? (
-                  <UiBadge size="xs" tone="idle">
-                    {t("capability.custom_mcp_disabled")}
-                  </UiBadge>
-                ) : null}
-              </div>
-              {recoveryRequired ? (
-                <p className="mt-0.5 truncate text-xs leading-[1.125rem] text-(--text-muted)">
-                  {t("capability.custom_mcp_recovery_summary")}
-                </p>
+            <UiListRow
+              className={CAPABILITY_DIRECTORY_ROW_CLASS_NAME}
+              description={recoveryRequired ? (
+                t("capability.custom_mcp_recovery_summary")
               ) : (
-                <p
-                  className="mt-0.5 truncate font-mono text-xs leading-[1.125rem] text-(--text-muted)"
+                <span
+                  className={getUiTypographyClassName({ role: "code" })}
                   title={getCustomMCPConnectionTarget(server)}
                 >
                   {getCustomMCPConnectionTarget(server)}
-                </p>
+                </span>
               )}
-            </div>
-          </UiListRow>
+              key={server.connector_id}
+              leading={(
+                <ConnectorIcon
+                  icon="custom-mcp"
+                  title={recoveryRequired ? server.connector_id : server.name}
+                />
+              )}
+              meta={(
+                <>
+                  {recoveryRequired ? (
+                    <UiBadge size="xs" tone="warning">
+                      {t("capability.custom_mcp_recovery_badge")}
+                    </UiBadge>
+                  ) : (
+                    <UiBadge size="xs">{server.type.toUpperCase()}</UiBadge>
+                  )}
+                  {!recoveryRequired && !server.enabled ? (
+                    <UiBadge size="xs" tone="idle">
+                      {t("capability.custom_mcp_disabled")}
+                    </UiBadge>
+                  ) : null}
+                </>
+              )}
+              onClick={() => onOpen(server)}
+              right={(
+                <div
+                  className="flex shrink-0 items-center gap-1"
+                  onClick={(event) => event.stopPropagation()}
+                  role="presentation"
+                >
+                  <GlassSwitch
+                    aria-label={t("capability.custom_mcp_available_in_chat")}
+                    checked={!recoveryRequired && server.enabled}
+                    disabled={busy || recoveryRequired}
+                    onChange={(enabled) => onToggle(server, enabled)}
+                    size="xs"
+                  />
+                  <UiIconButton
+                    aria-label={t(recoveryRequired
+                      ? "capability.custom_mcp_recover_action"
+                      : "common.edit")}
+                    disabled={busy}
+                    onClick={(event) => handleAction(event, () => onEdit(server))}
+                    size="sm"
+                    type="button"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </UiIconButton>
+                  <UiIconButton
+                    aria-label={t("common.delete")}
+                    disabled={busy}
+                    onClick={(event) => handleAction(event, () => onDelete(server))}
+                    size="sm"
+                    tone="danger"
+                    type="button"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </UiIconButton>
+                </div>
+              )}
+              title={displayName}
+            />
           );
         })}
       </div>

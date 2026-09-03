@@ -1,6 +1,11 @@
+// INPUT: Badge 的 size、tone、shape 与调用方外部布局 class。
+// OUTPUT: 由共享 token/recipe 组成的稳定 Badge 样式投影。
+// POS: Badge 视觉状态真相；不渲染 DOM，也不接受业务专属形状覆盖。
+
 import { cn } from "@/shared/ui/class-name";
 
 export type UiBadgeSize = "xs" | "sm" | "md";
+export type UiBadgeShape = "rounded" | "pill";
 export type UiBadgeTone =
   | "default"
   | "primary"
@@ -13,12 +18,18 @@ export type UiBadgeTone =
   | "running";
 
 interface UiBadgeStyleOptions {
+  shape?: UiBadgeShape;
   size?: UiBadgeSize;
   tone?: UiBadgeTone;
 }
 
 const BADGE_BASE_CLASS_NAME =
-  "inline-flex shrink-0 items-center justify-center gap-1 rounded-[6px] border font-medium leading-none transition-[background,border-color,color] duration-(--motion-duration-fast)";
+  "inline-flex shrink-0 items-center justify-center gap-1 border font-medium leading-none transition-[background,border-color,color] duration-(--motion-duration-fast)";
+
+const BADGE_SHAPE_CLASS_MAP: Record<UiBadgeShape, string> = {
+  rounded: "radius-control-xs",
+  pill: "rounded-full",
+};
 
 const BADGE_SIZE_CLASS_MAP: Record<UiBadgeSize, string> = {
   xs: "min-h-5 px-1.5 text-2xs",
@@ -52,12 +63,14 @@ export function getUiBadgeClassName(
   className?: string,
 ): string {
   const {
+    shape = "rounded",
     size = "sm",
     tone = "default",
   } = options;
 
   return cn(
     BADGE_BASE_CLASS_NAME,
+    BADGE_SHAPE_CLASS_MAP[shape],
     BADGE_SIZE_CLASS_MAP[size],
     BADGE_TONE_CLASS_MAP[tone],
     className,
