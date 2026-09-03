@@ -27,45 +27,19 @@ const ICON_SIZE_CLASS: Record<ConnectorIconSize, string> = {
   lg: "h-14 w-14 surface-radius-md",
 };
 
-const CONNECTOR_ICON_SRC: Record<string, string> = {
-  airtable: "/icon/connector/airtable.svg",
-  ahrefs: "/icon/connector/ahrefs.svg",
-  alibaba: "/icon/connector/alibabadotcom.svg",
+const CONNECTOR_BRAND_ASSETS: Record<string, string> = {
   amap: "/icon/connector/amap.svg",
-  atlassian: "/icon/connector/atlassian.svg",
   didi: "/icon/connector/didi.svg",
   dingtalk: "/icon/connector/dingtalk.svg",
-  dropbox: "/icon/connector/dropbox.svg",
   "feishu-docx": "/icon/connector/feishu.svg",
   github: "/icon/connector/github.svg",
-  gmail: "/icon/connector/gmail.svg",
-  "google-calendar": "/icon/connector/googlecalendar.svg",
-  "google-drive": "/icon/connector/googledrive.svg",
-  instagram: "/icon/connector/instagram.svg",
-  linear: "/icon/connector/linear.svg",
-  linkedin: "/icon/connector/linkedin.svg",
-  make: "/icon/connector/make.svg",
-  meta: "/icon/connector/meta.svg",
-  monday: "/icon/connector/monday.svg",
-  notion: "/icon/connector/notion.svg",
-  odoo: "/icon/connector/odoo.svg",
-  outlook: "/icon/connector/outlook.svg",
-  reddit: "/icon/connector/reddit.svg",
   richmail: "/icon/connector/richmail.svg",
-  shopify: "/icon/connector/shopify.svg",
-  similarweb: "/icon/connector/similarweb.svg",
-  slack: "/icon/connector/slack.svg",
-  square: "/icon/connector/square.svg",
   "tencent-docs": "/icon/connector/tencent.svg",
-  tiktok: "/icon/connector/tiktok.svg",
-  "x-twitter": "/icon/connector/x.svg",
-  youtube: "/icon/connector/youtube.svg",
   yuque: "/icon/connector/yuque.svg",
-  zapier: "/icon/connector/zapier.svg",
 };
 
-function getStaticConnectorIconSrc(icon: string): string {
-  return CONNECTOR_ICON_SRC[icon] ?? "";
+function getConnectorBrandAsset(icon: string): string {
+  return CONNECTOR_BRAND_ASSETS[icon];
 }
 
 export function ConnectorIcon({
@@ -83,7 +57,7 @@ export function ConnectorIcon({
       />
     );
   }
-  const staticIconSrc = getStaticConnectorIconSrc(icon);
+  const brandAsset = getConnectorBrandAsset(icon);
   const letter = getConnectorLetter(icon, title);
 
   return (
@@ -91,7 +65,7 @@ export function ConnectorIcon({
       className={className}
       fallback={letter}
       size={size}
-      src={staticIconSrc}
+      src={brandAsset}
       title={title}
     />
   );

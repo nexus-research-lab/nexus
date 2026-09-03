@@ -567,6 +567,25 @@ test("Channel catalog shares resource, typography, action, and brand icon owners
   assert.equal(new Set(channelSources).size, channelSources.length);
 });
 
+test("Connector catalog exposes only implemented products and derives real categories", async () => {
+  const [serverCatalog, catalogHook, catalogModel, categoryModel, searchBar] = await Promise.all([
+    readSource("../internal/service/connectors/catalog.go"),
+    readSource("src/features/capability/connectors/controller/use-connector-catalog.ts"),
+    readSource("src/features/capability/connectors/catalog/connector-catalog-model.ts"),
+    readSource("src/features/capability/connectors/catalog/connectors-categories.ts"),
+    readSource("src/features/capability/connectors/catalog/connectors-search-bar.tsx"),
+  ]);
+
+  assert.doesNotMatch(serverCatalog, /coming_soon|ConnectorID:\s*"outlook"|ConnectorID:\s*"gmail"/);
+  assert.match(catalogHook, /getConnectorsApi\(\{ status: "available" \}\)/);
+  assert.match(catalogModel, /connector\.status === "available"/);
+  assert.match(catalogModel, /getAvailableConnectorCategoryKeys/);
+  assert.doesNotMatch(catalogModel, /COMING_SOON|connector_section_featured/);
+  assert.match(categoryModel, /getAvailableConnectorCategoryKeys/);
+  assert.match(searchBar, /categoryKeys/);
+  assert.doesNotMatch(searchBar, /CONNECTOR_CATEGORY_OPTIONS/);
+});
+
 test("Loop surfaces use semantic typography, badges, panels, and responsive actions", async () => {
   const loopPaths = [
     "src/features/capability/loops/loops-directory.tsx",

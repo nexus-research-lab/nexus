@@ -1,23 +1,20 @@
+// INPUT: 服务端 Connector 目录、可用状态、搜索词与分类筛选。
+// OUTPUT: 只包含已接入 Connector 的过滤结果及按能力类别组织的目录分区。
+// POS: Connector 目录信息架构纯模型；页面不解释上线状态或自行决定分组。
+
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type { ConnectorInfo } from "@/types/capability/connector";
 
-import { getConnectorCategoryLabel } from "./connectors-categories";
+import {
+  getAvailableConnectorCategoryKeys,
+  getConnectorCategoryLabel,
+} from "./connectors-categories";
 
 export interface ConnectorSection {
   connectors: ConnectorInfo[];
   key: string;
   title: string;
 }
-
-const COMING_SOON_CATEGORY_ORDER = [
-  "development",
-  "productivity",
-  "business",
-  "automation",
-  "social",
-  "marketing",
-  "ecommerce",
-];
 
 export function filterConnectors(
   connectors: ConnectorInfo[],
@@ -26,7 +23,8 @@ export function filterConnectors(
 ): ConnectorInfo[] {
   const query = rawQuery.trim().toLowerCase();
   return connectors.filter((connector) => (
-    (activeCategory === "all" || connector.category === activeCategory)
+    connector.status === "available"
+    && (activeCategory === "all" || connector.category === activeCategory)
     && (!query || [
       connector.title,
       connector.name,
@@ -52,43 +50,14 @@ export function buildConnectorSections(
     }];
   }
 
-  const available = connectors.filter((connector) => (
+  const availableConnectors = connectors.filter((connector) => (
     connector.status === "available"
   ));
-  const comingSoon = connectors.filter((connector) => (
-    connector.status === "coming_soon"
-  ));
-  const categorized = new Set<string>();
-  const sections: ConnectorSection[] = available.length > 0 ? [{
-    key: "featured",
-    title: t("capability.connector_section_featured"),
-    connectors: available,
-  }] : [];
-
-  for (const category of COMING_SOON_CATEGORY_ORDER) {
-    const categoryConnectors = comingSoon.filter((connector) => (
+  return getAvailableConnectorCategoryKeys(availableConnectors).map((category) => ({
+    key: category,
+    title: getConnectorCategoryLabel(category, t),
+    connectors: availableConnectors.filter((connector) => (
       connector.category === category
-    ));
-    if (categoryConnectors.length === 0) {
-      continue;
-    }
-    categorized.add(category);
-    sections.push({
-      key: category,
-      title: getConnectorCategoryLabel(category, t),
-      connectors: categoryConnectors,
-    });
-  }
-
-  const remaining = comingSoon.filter((connector) => (
-    !categorized.has(connector.category)
-  ));
-  if (remaining.length > 0) {
-    sections.push({
-      key: "other",
-      title: t("capability.connector_section_other"),
-      connectors: remaining,
-    });
-  }
-  return sections;
+    )),
+  }));
 }

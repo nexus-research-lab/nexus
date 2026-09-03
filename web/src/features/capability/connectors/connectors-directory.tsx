@@ -287,6 +287,7 @@ export function ConnectorsDirectory() {
       >
         <ConnectorsSearchBar
           activeCategory={controller.activeCategory}
+          categoryKeys={controller.categoryKeys}
           mode={directoryMode}
           onCategoryChange={controller.setActiveCategory}
           onModeChange={setDirectoryMode}
