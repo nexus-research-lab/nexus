@@ -31,6 +31,8 @@ import {
   UiDialogPortal,
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
+import type { UiDialogViewport } from "@/shared/ui/dialog/dialog-layout";
+import { PromptDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { UiAgentAvatar, UiRoomAvatar } from "@/shared/ui/display/avatar";
 import { UiBadge, UiCounterBadge } from "@/shared/ui/display/badge";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
@@ -78,6 +80,8 @@ export function UiContractGallery() {
   const { theme, setTheme } = useTheme();
   const [activeTab, setActiveTab] = useState("overview");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogViewport, setDialogViewport] = useState<UiDialogViewport>("adaptiveMax");
+  const [promptOpen, setPromptOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("统一浮层间距");
   const [selectedChoice, setSelectedChoice] = useState("balanced");
   const [selectedModel, setSelectedModel] = useState("fast");
@@ -318,8 +322,27 @@ export function UiContractGallery() {
           >
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.65fr)]">
               <div className="flex flex-wrap items-center gap-3">
-                <UiButton onClick={() => setDialogOpen(true)} tone="primary" variant="solid">
+                <UiButton
+                  onClick={() => {
+                    setDialogViewport("adaptiveMax");
+                    setDialogOpen(true);
+                  }}
+                  tone="primary"
+                  variant="solid"
+                >
                   <Layers3 className="h-4 w-4" />打开标准弹窗
+                </UiButton>
+                <UiButton
+                  onClick={() => {
+                    setDialogViewport("compact");
+                    setDialogOpen(true);
+                  }}
+                  variant="surface"
+                >
+                  打开紧凑弹窗
+                </UiButton>
+                <UiButton onClick={() => setPromptOpen(true)} variant="surface">
+                  新建文件夹弹窗
                 </UiButton>
                 <UiTooltip label="键盘聚焦应立即显示，Escape 后焦点归还" placement="top">
                   <UiButton variant="surface"><MousePointer2 className="h-4 w-4" />聚焦或悬停</UiButton>
@@ -342,12 +365,12 @@ export function UiContractGallery() {
       {dialogOpen ? (
         <UiDialogPortal>
           <UiDialogBackdrop labelledBy="gallery-dialog-title" onClose={() => setDialogOpen(false)}>
-            <UiDialogShell size="md" viewport="adaptiveMax">
+            <UiDialogShell size="md" viewport={dialogViewport}>
               <UiDialogHeader
                 icon={<Layers3 className="h-4 w-4" />}
                 onClose={() => setDialogOpen(false)}
                 subtitle="检查标题、正文、Footer、焦点圈与窄窗口边距。"
-                title="共享弹窗契约"
+                title={dialogViewport === "compact" ? "紧凑弹窗契约" : "共享弹窗契约"}
                 titleId="gallery-dialog-title"
               />
               <UiDialogBody scrollable>
@@ -373,6 +396,14 @@ export function UiContractGallery() {
           </UiDialogBackdrop>
         </UiDialogPortal>
       ) : null}
+      <PromptDialog
+        defaultValue="new-folder"
+        isOpen={promptOpen}
+        onCancel={() => setPromptOpen(false)}
+        onConfirm={() => setPromptOpen(false)}
+        placeholder="例如：new-folder"
+        title="新建文件夹"
+      />
     </main>
   );
 }

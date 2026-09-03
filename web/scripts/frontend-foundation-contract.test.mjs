@@ -26,6 +26,7 @@ const PROHIBITED_PRODUCT_STYLE_PATTERNS = [
 
 const REQUIRED_SHARED_UI_BEHAVIOR_SUITES = [
   "src/shared/ui/button/button.test.tsx",
+  "src/shared/ui/dialog/decision/decision-dialog.test.tsx",
   "src/shared/ui/dialog/dialog.test.tsx",
   "src/shared/ui/display/display.test.tsx",
   "src/shared/ui/form/form-controls.test.tsx",
@@ -96,6 +97,14 @@ test("dialog viewport modes expose one shared responsive geometry contract", asy
 
   assert.equal(getUiDialogViewportClassName("content"), "");
   assert.equal(
+    getUiDialogViewportClassName("compact"),
+    "ui-dialog-viewport-compact",
+  );
+  assert.equal(
+    getUiDialogViewportClassName("compactMax"),
+    "ui-dialog-viewport-compact-max",
+  );
+  assert.equal(
     getUiDialogViewportClassName("adaptive"),
     "ui-dialog-viewport-adaptive",
   );
@@ -120,7 +129,7 @@ test("product source does not reintroduce numeric high layers or shared dialog v
     }
     if (
       /\.(?:ts|tsx)$/.test(file)
-      && /(?:min\(82dvh,\s*760px\)|calc\(100dvh\s*-\s*16px\)|min\(820px,\s*calc\(100dvh\s*-\s*56px\)\)|min\(94vw,\s*1440px\))/.test(source)
+      && /(?:min\((?:64dvh,\s*620px|68dvh,\s*560px|78dvh,\s*620px|84vh,\s*640px)\)|min\(620px,\s*calc\(100dvh\s*-\s*(?:72px|2rem)\)\)|min\(640px,\s*calc\(100vh\s*-\s*96px\)\)|min\(82dvh,\s*(?:680px|740px|760px)\)|(?:max-)?h-\[(?:82|84|86|88|92)d?vh\]|calc\(100dvh\s*-\s*(?:16px|2rem|32px)\)|min\(820px,\s*calc\(100dvh\s*-\s*56px\)\)|min\(94vw,\s*1440px\))/.test(source)
     ) {
       violations.push(`${relativePath}: duplicated dialog viewport formula`);
     }
@@ -142,10 +151,14 @@ test("theme recipes own the semantic layer and adaptive dialog geometry implemen
   ]);
 
   assert.match(tokens, /--layer-dialog:\s*9999/);
+  assert.match(tokens, /--dialog-compact-height:\s*min\(620px, calc\(100dvh - 72px\)\)/);
   assert.match(tokens, /--dialog-adaptive-height:\s*min\(82dvh, 760px\)/);
   assert.match(tokens, /--dialog-workbench-height:\s*min\(820px, calc\(100dvh - 56px\)\)/);
   assert.match(recipes, /\.ui-layer-dialog\s*\{/);
+  assert.match(recipes, /\.ui-dialog-viewport-compact\s*\{/);
+  assert.match(recipes, /\.ui-dialog-viewport-compact-max\s*\{/);
   assert.match(recipes, /\.ui-dialog-viewport-adaptive\s*\{/);
+  assert.match(recipes, /\.ui-dialog-viewport-adaptive-max\s*\{/);
   assert.match(recipes, /\.ui-dialog-viewport-workbench\s*\{/);
   assert.match(recipes, /\.ui-dialog-size-workbench\s*\{/);
   assert.match(recipes, /\.ui-dialog-backdrop-compact\s*\{/);

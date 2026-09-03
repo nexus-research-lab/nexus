@@ -62,6 +62,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   actions, forms, identity, navigation, resource states, overlays, and dialog
   primitives with reproducible theme and locale URLs while remaining outside
   production build entries.
+- Consolidated provider setup, Loop and WorkGraph pickers onto one compact
+  dialog viewport, moved natural-height contact, guide, Skill-source and
+  Connector directories onto one compact maximum, and moved provider import
+  and Room management dialogs onto shared adaptive height and compact-window
+  inset contracts.
+- Consolidated remaining Channel, Connector, Skill, scheduled-task, Mermaid,
+  and expanded WorkGraph dialog heights onto semantic compact, adaptive, and
+  workbench viewport contracts; refined shared single-line prompts with a
+  narrower decision width, standard header/input primitives, and a clear solid
+  primary action for Workspace create and rename flows.
 - Updated the Feishu long-connection SDK to v3.11.0 and pinned DingTalk's
   official v0.9.2 beta stream SDK so both channels receive the vendors'
   current WebSocket lifecycle and concurrency fixes.

@@ -84,13 +84,15 @@ function CreateRoomDialogContent({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
+        inset="compact"
         layer="dialogUnderlay"
         labelledBy="create-room-dialog-title"
         onClose={onCancel}
       >
         <UiDialogShell
-          className="pointer-events-auto max-h-[min(82dvh,740px)] max-md:w-[clamp(304px,calc(100vw-32px),620px)] max-md:max-h-[calc(100dvh-32px)] max-md:max-w-none"
+          className="pointer-events-auto"
           size="xl"
+          viewport="adaptiveMax"
         >
           <UiDialogHeader
             appearance="plain"

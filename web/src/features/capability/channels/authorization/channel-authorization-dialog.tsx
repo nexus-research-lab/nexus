@@ -100,7 +100,7 @@ function ChannelAuthorizationQRCodeDialog({
         layer="dialogInteraction"
         onClose={onClose}
       >
-        <UiDialogShell className="max-h-[92vh]" size="sm">
+        <UiDialogShell size="sm" viewport="compactMax">
           <UiDialogHeader
             appearance="plain"
             onClose={onClose}

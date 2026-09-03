@@ -212,7 +212,6 @@ export function ProviderCCSwitchDialog({
         onClose={syncing ? undefined : onClose}
       >
         <UiDialogFormShell
-          className="max-h-[min(82dvh,680px)] !max-w-[620px]"
           onSubmit={(event) => {
             event.preventDefault();
             if (failure?.kind === "committed_refresh") {
@@ -222,6 +221,7 @@ export function ProviderCCSwitchDialog({
             }
           }}
           size="lg"
+          viewport="adaptiveMax"
         >
           <UiDialogHeader
             appearance="plain"

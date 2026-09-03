@@ -115,7 +115,7 @@ export function ScheduledTaskRunHistoryDialog({
           labelledBy="scheduled-task-run-history-title"
           onClose={onClose}
         >
-          <UiDialogShell className="h-[82vh]" size="xl">
+        <UiDialogShell size="xl" viewport="adaptive">
             <UiDialogHeader
               appearance="plain"
               actions={(

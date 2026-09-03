@@ -90,7 +90,11 @@ export function ConnectorCredentialDialog({
   const copy = getCredentialCopy(detail);
   return (
     <UiDialogBackdrop onClose={onClose}>
-      <UiDialogFormShell className="max-h-[84vh]" onSubmit={handleSubmit} size="sm">
+      <UiDialogFormShell
+        onSubmit={handleSubmit}
+        size="sm"
+        viewport="compactMax"
+      >
         <UiDialogHeader
           appearance="plain"
           onClose={onClose}

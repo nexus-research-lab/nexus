@@ -429,7 +429,9 @@
   --layer-tour-dialog: 11050;
   --layer-system-dialog: 12000;
 
-  /* 桌面工作台弹窗与窄窗口共用同一视口公式。 */
+  /* 内容选择器、标准弹窗、工作台与窄窗口共用同一组视口公式。 */
+  --dialog-compact-height: min(620px, calc(100dvh - 72px));
+  --dialog-compact-viewport-height: calc(100dvh - 16px);
   --dialog-adaptive-height: min(82dvh, 760px);
   --dialog-adaptive-compact-height: calc(100dvh - 16px);
   --dialog-workbench-height: min(820px, calc(100dvh - 56px));

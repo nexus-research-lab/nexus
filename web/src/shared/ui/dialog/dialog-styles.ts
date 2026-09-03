@@ -43,7 +43,7 @@ export function getDialogActionClassName(
     {
       size: size === "compact" ? "sm" : "md",
       tone,
-      variant: "surface",
+      variant: tone === "default" ? "surface" : "solid",
     },
     resolvedClassName,
   );

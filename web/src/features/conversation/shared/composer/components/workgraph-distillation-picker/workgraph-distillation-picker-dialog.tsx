@@ -101,7 +101,7 @@ function OpenWorkGraphDistillationPickerDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop onClose={onClose}>
-        <UiDialogShell className="h-[min(620px,calc(100dvh-72px))]" size="lg">
+        <UiDialogShell size="lg" viewport="compact">
           <UiDialogHeader
             appearance="plain"
             onClose={onClose}

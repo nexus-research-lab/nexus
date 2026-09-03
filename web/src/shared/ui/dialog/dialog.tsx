@@ -31,10 +31,11 @@ import {
   type UiDialogLayer,
 } from "@/shared/ui/overlay/layer-styles";
 
-type UiDialogSize = "sm" | "md" | "lg" | "xl" | "wide" | "workbench";
+export type UiDialogSize = "xs" | "sm" | "md" | "lg" | "xl" | "wide" | "workbench";
 type UiDialogChrome = "default" | "plain";
 
 const DIALOG_SIZE_CLASS_MAP: Record<UiDialogSize, string> = {
+  xs: "max-w-sm",
   sm: "max-w-md",
   md: "max-w-lg",
   lg: "max-w-2xl",

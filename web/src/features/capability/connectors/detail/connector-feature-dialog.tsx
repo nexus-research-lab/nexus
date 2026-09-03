@@ -29,7 +29,7 @@ export function ConnectorFeatureDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop layer="dialog" onClose={onClose}>
-        <UiDialogShell className="max-h-[min(84vh,640px)]" size="lg">
+        <UiDialogShell size="lg" viewport="compactMax">
           <UiDialogHeader
             appearance="plain"
             onClose={onClose}

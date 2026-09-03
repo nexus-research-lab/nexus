@@ -72,9 +72,9 @@ export function ChannelConnectDialog({
         >
           <UiDialogFormShell
             autoComplete="off"
-            className="max-h-[86vh]"
             onSubmit={handleSubmit}
             size="lg"
+            viewport="adaptiveMax"
           >
             <UiDialogHeader
               appearance="plain"

@@ -1099,6 +1099,15 @@
     height: var(--dialog-adaptive-height);
   }
 
+  .ui-dialog-viewport-compact {
+    height: var(--dialog-compact-height);
+    max-height: var(--dialog-compact-height);
+  }
+
+  .ui-dialog-viewport-compact-max {
+    max-height: var(--dialog-compact-height);
+  }
+
   .ui-dialog-viewport-adaptive-max {
     max-height: var(--dialog-adaptive-height);
   }
@@ -1119,6 +1128,15 @@
 
     .ui-dialog-viewport-adaptive {
       height: var(--dialog-adaptive-compact-height);
+    }
+
+    .ui-dialog-viewport-compact {
+      height: var(--dialog-compact-viewport-height);
+      max-height: var(--dialog-compact-viewport-height);
+    }
+
+    .ui-dialog-viewport-compact-max {
+      max-height: var(--dialog-compact-viewport-height);
     }
 
     .ui-dialog-viewport-adaptive-max {
