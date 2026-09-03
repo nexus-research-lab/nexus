@@ -116,6 +116,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   accessible buttons, semantic picker choices, and labeled anchored overlays.
 - Consolidated the Contacts directory, create entries, Agent cards, metadata, tags,
   empty results, and view switcher onto shared catalog and design-system owners.
+- Extracted Agent auto-save status into a tested Contacts header component backed
+  by shared loading, icon-action, typography, surface, and overlay-layer recipes.
 - Established a single frontend engineering and design-system contract, and
   centralized high overlay layers and responsive dialog geometry behind semantic
   APIs to prevent page-specific stacking and small-window sizing drift.

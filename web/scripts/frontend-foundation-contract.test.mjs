@@ -1160,6 +1160,26 @@ test("Contacts directory and Agent cards use shared catalog, badge, typography, 
   }
 });
 
+test("Contacts detail persistence status uses shared action, spinner, typography, and overlay owners", async () => {
+  const [detail, status] = await Promise.all([
+    readSource("src/features/contacts/contacts-agent-detail.tsx"),
+    readSource("src/features/contacts/agent-options-persistence-status.tsx"),
+  ]);
+
+  assert.match(detail, /<AgentOptionsPersistenceStatus/);
+  assert.match(status, /<UiIconButton/);
+  assert.match(status, /getUiSpinnerClassName/);
+  assert.match(status, /getUiOverlayLayerClassName\("popover"\)/);
+  assert.match(status, /OVERLAY_SURFACE_CLASS_NAME/);
+  assert.match(status, /getUiTypographyClassName/);
+  for (const source of [detail, status]) {
+    assert.doesNotMatch(
+      source,
+      /<button\b|rounded-\[|\bz-\[|\bz-\d+\b|\banimate-spin\b|text-(?:2xs|xs|compact|sm|base|md|lg|xl|2xl)|font-(?:normal|medium|semibold|bold)|tracking-\[/,
+    );
+  }
+});
+
 test("Connector catalog exposes only implemented products and derives real categories", async () => {
   const [serverCatalog, catalogHook, catalogModel, categoryModel, searchBar] = await Promise.all([
     readSource("../internal/service/connectors/catalog.go"),
