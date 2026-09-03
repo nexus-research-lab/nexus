@@ -1,3 +1,7 @@
+// INPUT: Connector 目录模式、当前可用分类键、搜索与筛选状态。
+// OUTPUT: 使用 Capability 公共筛选组件的目录模式、搜索和有效分类控件。
+// POS: Connector 目录筛选纯视图；分类集合由目录模型提供，不展示空分类。
+
 "use client";
 
 import { SlidersHorizontal } from "lucide-react";
@@ -10,12 +14,13 @@ import {
 } from "@/features/capability/shared/capability-page-layout";
 import { UiTabs } from "@/shared/ui/navigation/tabs";
 
-import { CONNECTOR_CATEGORY_OPTIONS, getConnectorCategoryLabel } from "./connectors-categories";
+import { getConnectorCategoryLabel } from "./connectors-categories";
 
 export type ConnectorDirectoryMode = "catalog" | "custom_mcp";
 
 interface ConnectorsSearchBarProps {
   activeCategory: string;
+  categoryKeys: string[];
   onCategoryChange: (category: string) => void;
   onModeChange: (mode: ConnectorDirectoryMode) => void;
   onQueryChange: (query: string) => void;
@@ -25,6 +30,7 @@ interface ConnectorsSearchBarProps {
 
 export function ConnectorsSearchBar({
   activeCategory,
+  categoryKeys,
   onCategoryChange,
   onModeChange,
   onQueryChange,
@@ -70,9 +76,9 @@ export function ConnectorsSearchBar({
             label={t("capability.category_label")}
             leading={<SlidersHorizontal className="h-3.5 w-3.5" />}
             onChange={onCategoryChange}
-            options={CONNECTOR_CATEGORY_OPTIONS.map((item) => ({
-              label: t(item.labelKey),
-              value: item.key,
+            options={["all", ...categoryKeys].map((category) => ({
+              label: getConnectorCategoryLabel(category, t),
+              value: category,
             }))}
             placeholder={getConnectorCategoryLabel("all", t)}
             value={activeCategory}

@@ -38,6 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Removed unimplemented placeholder Connectors from the server catalog and
+  reorganized the available directory into only its real capability groups,
+  with category filters derived from the products that are actually present.
 - Unified Channel loading, typography, actions, and platform identities with
   Capability shared primitives; DingTalk, WeCom, WeChat, Feishu, Telegram, and
   Discord now use distinct monochrome brand silhouettes instead of colored or

@@ -3,6 +3,7 @@
 - 根目录只保留目录入口和跨 catalog/detail 使用的图标。
 - `model/` 负责 catalog 与 detail 共享的连接状态和动作语义。
 - `catalog/` 负责搜索、分组和连接器列表。
+- 固定 Connector 目录以服务端已实现 Catalog 为唯一真相，不展示或维护未上线产品占位；目录分类只从实际返回的可用项派生。
 - `custom/` 负责 owner 级自定义 MCP 的脱敏表单、目录、详情、CRUD 与启停状态；远程认证只展示无认证、Bearer Token 与自定义请求头。
 - 目录卡片复用能力域共享的可见边框与三列间距，品牌图标继续由 `ConnectorIcon` 统一渲染；分类标题不附带结果计数，通用 MCP 安全说明不在每个详情重复。
 - `detail/` 负责详情状态、主动作、能力展示与固定 MCP Connector 的只读工具发现。
