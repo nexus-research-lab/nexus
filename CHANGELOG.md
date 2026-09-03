@@ -148,6 +148,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the shared compact Spinner role.
 - Standardized Connector card, scheduled-directory refresh, and Channel pairing
   dialog loading indicators on shared semantic Spinner roles.
+- Unified Goal edit submission and lifecycle refresh indicators on the shared
+  medium action Spinner role.
 - Established a single frontend engineering and design-system contract, and
   centralized high overlay layers and responsive dialog geometry behind semantic
   APIs to prevent page-specific stacking and small-window sizing drift.

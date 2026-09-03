@@ -21,6 +21,7 @@ import {
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { UiIconButton } from "@/shared/ui/button/button";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import type { Goal, GoalExecutionBinding } from "@/types/conversation/goal";
 import type { GoalContinuationHold } from "./goal-continuation-hold";
 import type { GoalMutationBlockReason } from "./goal-lifecycle-recovery";
@@ -293,12 +294,9 @@ function GoalStatusActions({
             onClick={handlers[action]}
           >
             <Icon
-              className={cn(
-                "h-4 w-4",
-                action === "refresh"
-                  && isLoading
-                  && "animate-spin motion-reduce:animate-none",
-              )}
+              className={action === "refresh" && isLoading
+                ? getUiSpinnerClassName({ size: "md" })
+                : "h-4 w-4"}
             />
           </UiIconButton>
         );
