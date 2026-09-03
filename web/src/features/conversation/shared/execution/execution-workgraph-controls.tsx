@@ -1,11 +1,11 @@
 /**
  * INPUT: WorkGraph 本地 viewport、折叠与搜索状态，以及可选的大图打开动作。
- * OUTPUT: 不改写 Graph 数据的紧凑画布控制条；适应当前视口与打开大图使用不同图标和语义。
- * POS: WorkGraph 主画布的可访问导航层；所有动作只影响当前用户视图。
+ * OUTPUT: 复用共享 Button、IconButton、Popover 与 Typography 的紧凑画布控制条。
+ * POS: WorkGraph 主画布的可访问导航层；只影响当前用户视图，不私有化标准控件状态。
  */
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -21,7 +21,9 @@ import {
 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 interface ExecutionWorkGraphControlsProps {
   collapsibleCount: number;
@@ -81,67 +83,112 @@ export function ExecutionWorkGraphControls({
       className="pointer-events-none absolute left-3 top-3 z-40 flex max-w-[calc(100%-1.5rem)] flex-col items-start gap-2"
       data-execution-workgraph-controls
     >
-      <div className="pointer-events-auto flex items-center gap-0.5 rounded-[11px] border border-(--surface-control-border) bg-[color:color-mix(in_srgb,var(--surface-panel-background)_94%,transparent)] p-1 shadow-(--surface-control-shadow) backdrop-blur-xl">
-        <GraphControlButton
-          active={searchOpen}
-          label={t("execution.search_graph")}
+      <div className="surface-popover surface-radius-sm pointer-events-auto flex items-center gap-0.5 p-1 backdrop-blur-xl">
+        <UiIconButton
+          aria-label={t("execution.search_graph")}
+          aria-pressed={searchOpen}
           onClick={() => setSearchOpen((value) => !value)}
+          size="sm"
+          tooltip={t("execution.search_graph")}
+          variant="ghost"
         >
           <Search className="h-3.5 w-3.5" />
-        </GraphControlButton>
+        </UiIconButton>
         <span aria-hidden="true" className="mx-0.5 h-4 w-px bg-(--divider-subtle-color)" />
-        <GraphControlButton label={t("execution.zoom_out")} onClick={onZoomOut}>
+        <UiIconButton
+          aria-label={t("execution.zoom_out")}
+          onClick={onZoomOut}
+          size="sm"
+          tooltip={t("execution.zoom_out")}
+          variant="ghost"
+        >
           <Minus className="h-3.5 w-3.5" />
-        </GraphControlButton>
-        <button
+        </UiIconButton>
+        <UiButton
           aria-label={t("execution.reset_zoom")}
-          className="h-7 min-w-11 rounded-[7px] px-1.5 text-2xs font-medium tabular-nums text-(--text-soft) transition hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--primary)"
+          className="h-7 min-w-11 px-1.5 tabular-nums"
           data-execution-graph-zoom
           onClick={onResetZoom}
-          title={t("execution.reset_zoom")}
-          type="button"
+          size="xs"
+          variant="text"
         >
           {Math.round(zoom * 100)}%
-        </button>
-        <GraphControlButton label={t("execution.zoom_in")} onClick={onZoomIn}>
+        </UiButton>
+        <UiIconButton
+          aria-label={t("execution.zoom_in")}
+          onClick={onZoomIn}
+          size="sm"
+          tooltip={t("execution.zoom_in")}
+          variant="ghost"
+        >
           <Plus className="h-3.5 w-3.5" />
-        </GraphControlButton>
-        <GraphControlButton label={t("execution.fit_graph")} onClick={onFit}>
+        </UiIconButton>
+        <UiIconButton
+          aria-label={t("execution.fit_graph")}
+          onClick={onFit}
+          size="sm"
+          tooltip={t("execution.fit_graph")}
+          variant="ghost"
+        >
           <Scan className="h-3.5 w-3.5" />
-        </GraphControlButton>
+        </UiIconButton>
         {onOpenExpanded ? (
-          <GraphControlButton
-            label={t("execution.open_workgraph")}
+          <UiIconButton
+            aria-label={t("execution.open_workgraph")}
             onClick={onOpenExpanded}
+            size="sm"
+            tooltip={t("execution.open_workgraph")}
+            variant="ghost"
           >
             <Maximize2 className="h-3.5 w-3.5" />
-          </GraphControlButton>
+          </UiIconButton>
         ) : null}
-        <GraphControlButton label={t("execution.locate_current")} onClick={onLocateCurrent}>
+        <UiIconButton
+          aria-label={t("execution.locate_current")}
+          onClick={onLocateCurrent}
+          size="sm"
+          tooltip={t("execution.locate_current")}
+          variant="ghost"
+        >
           <LocateFixed className="h-3.5 w-3.5" />
-        </GraphControlButton>
+        </UiIconButton>
         {collapsibleCount > 0 ? (
           <>
             <span aria-hidden="true" className="mx-0.5 h-4 w-px bg-(--divider-subtle-color)" />
             {collapsedCount > 0 ? (
-              <GraphControlButton label={t("execution.expand_all")} onClick={onExpandAll}>
+              <UiIconButton
+                aria-label={t("execution.expand_all")}
+                onClick={onExpandAll}
+                size="sm"
+                tooltip={t("execution.expand_all")}
+                variant="ghost"
+              >
                 <ChevronsUpDown className="h-3.5 w-3.5" />
-              </GraphControlButton>
+              </UiIconButton>
             ) : (
-              <GraphControlButton label={t("execution.collapse_all")} onClick={onCollapseAll}>
+              <UiIconButton
+                aria-label={t("execution.collapse_all")}
+                onClick={onCollapseAll}
+                size="sm"
+                tooltip={t("execution.collapse_all")}
+                variant="ghost"
+              >
                 <ChevronsDownUp className="h-3.5 w-3.5" />
-              </GraphControlButton>
+              </UiIconButton>
             )}
           </>
         ) : null}
       </div>
 
       {searchOpen ? (
-        <div className="pointer-events-auto flex w-[min(22rem,calc(100vw-2rem))] items-center gap-1 rounded-[11px] border border-(--surface-control-border) bg-(--surface-panel-background) p-1.5 shadow-(--surface-control-shadow)">
+        <div className="surface-popover surface-radius-sm pointer-events-auto flex w-[min(22rem,calc(100vw-2rem))] items-center gap-1 p-1.5">
           <Search aria-hidden="true" className="ml-1 h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
           <input
             aria-label={t("execution.search_graph")}
-            className="h-7 min-w-0 flex-1 bg-transparent px-1 text-xs text-(--text-strong) outline-none placeholder:text-(--text-soft)"
+            className={cn(
+              "h-7 min-w-0 flex-1 bg-transparent px-1 outline-none placeholder:text-(--text-soft)",
+              getUiTypographyClassName({ role: "control", tone: "strong" }),
+            )}
             data-execution-graph-search
             onChange={(event) => onQueryChange(event.target.value)}
             onKeyDown={(event) => {
@@ -161,7 +208,10 @@ export function ExecutionWorkGraphControls({
             value={query}
           />
           {query ? (
-            <span className="shrink-0 text-2xs tabular-nums text-(--text-soft)">
+            <span className={cn(
+              "shrink-0 tabular-nums",
+              getUiTypographyClassName({ role: "caption", tone: "soft" }),
+            )}>
               {resultCount > 0
                 ? t("execution.search_results", {
                     current: Math.max(1, currentResultIndex + 1),
@@ -170,59 +220,37 @@ export function ExecutionWorkGraphControls({
                 : t("execution.search_no_results")}
             </span>
           ) : null}
-          <GraphControlButton
+          <UiIconButton
+            aria-label={t("execution.previous_result")}
             disabled={resultCount === 0}
-            label={t("execution.previous_result")}
             onClick={onPreviousResult}
+            size="sm"
+            tooltip={t("execution.previous_result")}
+            variant="ghost"
           >
             <ChevronLeft className="h-3.5 w-3.5" />
-          </GraphControlButton>
-          <GraphControlButton
+          </UiIconButton>
+          <UiIconButton
+            aria-label={t("execution.next_result")}
             disabled={resultCount === 0}
-            label={t("execution.next_result")}
             onClick={onNextResult}
+            size="sm"
+            tooltip={t("execution.next_result")}
+            variant="ghost"
           >
             <ChevronRight className="h-3.5 w-3.5" />
-          </GraphControlButton>
-          <GraphControlButton label={t("execution.close_search")} onClick={closeSearch}>
+          </UiIconButton>
+          <UiIconButton
+            aria-label={t("execution.close_search")}
+            onClick={closeSearch}
+            size="sm"
+            tooltip={t("execution.close_search")}
+            variant="ghost"
+          >
             <X className="h-3.5 w-3.5" />
-          </GraphControlButton>
+          </UiIconButton>
         </div>
       ) : null}
     </div>
-  );
-}
-
-function GraphControlButton({
-  active = false,
-  children,
-  disabled = false,
-  label,
-  onClick,
-}: {
-  active?: boolean;
-  children: ReactNode;
-  disabled?: boolean;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      aria-label={label}
-      aria-pressed={active || undefined}
-      className={cn(
-        "grid h-7 w-7 shrink-0 place-items-center rounded-[7px] text-(--icon-muted) transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--primary)",
-        active
-          ? "bg-(--surface-interactive-hover-background) text-(--primary)"
-          : "hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
-        disabled && "cursor-not-allowed opacity-40",
-      )}
-      disabled={disabled}
-      onClick={onClick}
-      title={label}
-      type="button"
-    >
-      {children}
-    </button>
   );
 }

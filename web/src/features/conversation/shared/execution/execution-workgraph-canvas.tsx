@@ -1,6 +1,6 @@
 /**
  * INPUT: 权威 Execution Graph、Agent 目录、当前 Graph 节点、节点展示密度与精确 Agent round Task run。
- * OUTPUT: 在焦点稳定、全边界可达且不叠加伪主图底框的工作板上显示图标或可读摘要卡片、可整体悬停聚焦的子图、跨子图边框端口、带语义分叉点的中性正交流程边、按需展开的精确端点短引线、降饱和控制回连、节点完整上下游路径聚焦，以及无可见标题栏并复用全部交互能力的大图弹窗。
+ * OUTPUT: 在焦点稳定、全边界可达且不叠加伪主图底框的工作板上显示图标或可读摘要卡片、可整体悬停聚焦的子图、正交流程边、共享检查器关闭动作及完整交互的大图弹窗。
  * POS: DM/Room 共用的只读 Execution Graph 主视图；一级运行树外框与内部方向边只按结构化父身份投影，不从自由文本反推关系。
  */
 "use client";
@@ -25,6 +25,7 @@ import { ChevronsDownUp, ChevronsUpDown, X } from "lucide-react";
 import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
+import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import {
   UiDialogBackdrop,
@@ -1573,15 +1574,15 @@ function ExecutionNodeInspector({
             </span>
           </p>
         </div>
-        <button
+        <UiIconButton
           aria-label={t("execution.close_node_details")}
-          className="grid h-7 w-7 shrink-0 place-items-center rounded-[8px] text-(--icon-muted) transition-[background,color] hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--primary)"
           onClick={onClose}
-          title={t("execution.close_node_details")}
-          type="button"
+          size="sm"
+          tooltip={t("execution.close_node_details")}
+          variant="ghost"
         >
           <X aria-hidden="true" className="h-3.5 w-3.5" />
-        </button>
+        </UiIconButton>
       </div>
       <div className="space-y-3 px-3 py-3">
         {relatedSubject ? (
@@ -1745,15 +1746,15 @@ function ExecutionEdgeInspector({
             {t(EDGE_KIND_LABEL_KEY[edge.kind])}
           </p>
         </div>
-        <button
+        <UiIconButton
           aria-label={t("execution.close_edge_details")}
-          className="grid h-7 w-7 shrink-0 place-items-center rounded-[8px] text-(--icon-muted) transition-[background,color] hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--primary)"
           onClick={onClose}
-          title={t("execution.close_edge_details")}
-          type="button"
+          size="sm"
+          tooltip={t("execution.close_edge_details")}
+          variant="ghost"
         >
           <X aria-hidden="true" className="h-3.5 w-3.5" />
-        </button>
+        </UiIconButton>
       </div>
       <div className="space-y-3 px-3 py-3">
         <NodeDetailSection label={t("execution.edge_relation")}>
