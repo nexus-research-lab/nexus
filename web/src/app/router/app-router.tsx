@@ -21,6 +21,9 @@ const LoginPage = lazy(() =>
 const LandingPage = lazy(() =>
   import("@/pages/landing/landing-page").then((m) => ({ default: m.LandingPage })),
 );
+const SetupPage = lazy(() =>
+  import("@/pages/setup/setup-page").then((m) => ({ default: m.SetupPage })),
+);
 const LauncherPage = lazy(() =>
   import("@/pages/launcher/launcher-page").then((m) => ({ default: m.LauncherPage })),
 );
@@ -83,6 +86,7 @@ export function AppRouter() {
           <Routes>
             <Route element={<LandingPage />} path={APP_ROUTE_PATHS.landing} />
             <Route element={<LoginPage />} path={APP_ROUTE_PATHS.login} />
+            <Route element={<SetupPage />} path={APP_ROUTE_PATHS.setup} />
 
             <Route element={<AuthGuard />}>
               <Route
@@ -132,6 +136,7 @@ export function AppRouter() {
 
                   {/* 其他占位路由 */}
                   <Route element={<OperationsPage />} path={APP_ROUTE_PATHS.operations} />
+                  <Route element={<OperationsPage />} path={APP_ROUTE_PATHS.adminMembers} />
                   <Route element={<SettingsPage />} path={APP_ROUTE_PATHS.settings} />
                 </Route>
               </Route>

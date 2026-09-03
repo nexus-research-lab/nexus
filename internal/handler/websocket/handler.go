@@ -75,6 +75,30 @@ func (h *Handler) SetWorkGraphWorkflowProvider(provider workGraphWorkflowProvide
 	}
 }
 
+// CloseOwnerConnections 关闭指定 owner 的所有认证 WebSocket。
+func (h *Handler) CloseOwnerConnections(ownerUserID string) int {
+	if h == nil {
+		return 0
+	}
+	return h.ensureChannelAuthorizationTransport().closePrincipal(ownerUserID)
+}
+
+// CloseControlSessionConnections 关闭指定 Control 浏览器 Session 的 WebSocket。
+func (h *Handler) CloseControlSessionConnections(sessionID string) int {
+	if h == nil {
+		return 0
+	}
+	return h.ensureChannelAuthorizationTransport().closeAuthSession(sessionID)
+}
+
+// CloseControlConnections 在 Control 失联超出安全窗口后关闭全部 Web 登录连接。
+func (h *Handler) CloseControlConnections() int {
+	if h == nil {
+		return 0
+	}
+	return h.ensureChannelAuthorizationTransport().closeControlPrincipals()
+}
+
 // roomRealtimeService 是 WebSocket 控制面和 Room 订阅恢复实际需要的最小接口。
 type roomRealtimeService interface {
 	HandleChat(context.Context, roomrealtime.ChatRequest) error

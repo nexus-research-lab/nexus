@@ -16,8 +16,13 @@ endif
 TAG ?= 0.1.39
 BACKEND_PORT ?= 8010
 WEB_PORT ?= 3000
+CONTROL_PORT ?= 8020
+NEXUS_CONTROL_ROOT ?= $(abspath ../nexus-control)
+NEXUS_DEV_STATE_ROOT ?= $(if $(strip $(NEXUS_STATE_ROOT)),$(NEXUS_STATE_ROOT),$(HOME)/.nexus)
 AGENT_UID ?= 1001
 AGENT_GID ?= 1001
+CONTROL_UID ?= 1002
+CONTROL_GID ?= 1002
 HOST_SUDO ?= sudo
 APP_WIN_BUILD_NUMBER ?= $(shell pwsh -NoLogo -NoProfile -Command "Get-Date -Format yyyyMMddHHmmss")
 APP_WIN_OUTPUT_DIR ?=
@@ -43,7 +48,7 @@ GO_TEST_PACKAGE_PARALLELISM ?= 4
 .DEFAULT_GOAL := help
 
 .PHONY: help build build-backend build-web package-release start stop restart logs logs-all logs-nginx clean status \
-	dev dev-nxs install gen-protocol-types lint-web test-web typecheck-web prepare-host-data \
+	dev dev-nxs run-control install gen-protocol-types lint-web test-web typecheck-web prepare-host-data \
 	prepare-dev-runtime-cli \
 	check-backend check-go-vet check-go check-go-fresh check-go-full check test run-web run-backend run-backend-go \
 	app-build-dev app-run-dev app-build app-run app-run-onboarding app-smoke app-package app-dmg app-dmg-intel build-dmg app-check app-win-build app-win-run app-win-smoke app-win-package \
@@ -61,7 +66,18 @@ endif
 
 # Development commands
 run-web: ## Run frontend in development mode
-	cd web && VITE_BACKEND_PORT=$(BACKEND_PORT) $(PNPM) exec vite --host 0.0.0.0 --port $(WEB_PORT)
+	cd web && VITE_BACKEND_PORT=$(BACKEND_PORT) VITE_CONTROL_PORT=$(CONTROL_PORT) $(PNPM) exec vite --host 0.0.0.0 --port $(WEB_PORT)
+
+run-control: ## Run the sibling nexus-control service for Web development
+	@test -f "$(NEXUS_CONTROL_ROOT)/go.mod" || { echo "Error: nexus-control not found: $(NEXUS_CONTROL_ROOT)"; exit 1; }
+	CONTROL_ADDRESS="127.0.0.1:$(CONTROL_PORT)" \
+	CONTROL_DATABASE_DRIVER="$${CONTROL_DATABASE_DRIVER:-sqlite}" \
+	CONTROL_DATABASE_URL="$${CONTROL_DATABASE_URL:-$(NEXUS_DEV_STATE_ROOT)/app/control/control.db}" \
+	CONTROL_SERVICE_TOKEN_FILE="$(NEXUS_DEV_STATE_ROOT)/app/control/control-service.token" \
+	CONTROL_SIGNING_KEY_FILE="$(NEXUS_DEV_STATE_ROOT)/app/control/control-signing.key" \
+	CONTROL_SIGNING_PUBLIC_KEY_FILE="$(NEXUS_DEV_STATE_ROOT)/app/control/control-signing.pub" \
+	CONTROL_SESSION_TTL_HOURS="$${CONTROL_SESSION_TTL_HOURS:-$${AUTH_SESSION_TTL_HOURS:-24}}" \
+	$(MAKE) -C "$(NEXUS_CONTROL_ROOT)" run
 
 gen-protocol-types: ## Generate frontend protocol types from Go protocol definitions
 	go generate ./internal/protocol
@@ -73,6 +89,10 @@ prepare-dev-runtime-cli: ## Build current-source runtime CLI binaries for develo
 run-backend: prepare-dev-runtime-cli ## Run Go backend in development mode
 	NEXUSCTL_COMMAND_PATH="$(DEV_RUNTIME_CLI_BIN_DIR)/nexusctl" \
 	NEXUSCFG_COMMAND_PATH="$(DEV_RUNTIME_CLI_BIN_DIR)/nexuscfg" \
+	NEXUS_CONTROL_URL="$${NEXUS_CONTROL_URL:-http://127.0.0.1:$(CONTROL_PORT)}" \
+	NEXUS_CONTROL_SERVICE_TOKEN="$${NEXUS_CONTROL_SERVICE_TOKEN:-$${CONTROL_SERVICE_TOKEN:-}}" \
+	NEXUS_CONTROL_SERVICE_TOKEN_FILE="$${NEXUS_CONTROL_SERVICE_TOKEN_FILE:-$(NEXUS_DEV_STATE_ROOT)/app/control/control-service.token}" \
+	NEXUS_CONTROL_PRINCIPAL_PUBLIC_KEY_FILE="$${NEXUS_CONTROL_PRINCIPAL_PUBLIC_KEY_FILE:-$(NEXUS_DEV_STATE_ROOT)/app/control/control-signing.pub}" \
 	NEXUS_APP_ROOT=$${NEXUS_APP_ROOT:-$(CURDIR)} PORT=$(BACKEND_PORT) go run ./cmd/nexus-server
 
 run-backend-go: run-backend ## Alias of run-backend
@@ -95,7 +115,20 @@ dev: ## Run both frontend and backend in development mode
 		lsof -nP -iTCP:$(WEB_PORT) -sTCP:LISTEN; \
 		exit 1; \
 	fi
-	@make -j2 run-web run-backend BACKEND_PORT=$(BACKEND_PORT) WEB_PORT=$(WEB_PORT)
+	@if lsof -nP -iTCP:$(CONTROL_PORT) -sTCP:LISTEN >/dev/null 2>&1; then \
+		echo "Error: control port $(CONTROL_PORT) is already in use."; \
+		echo "Hint: stop the existing process or run 'CONTROL_PORT=<port> make dev'."; \
+		exit 1; \
+	fi
+	@$(MAKE) run-control CONTROL_PORT=$(CONTROL_PORT) & control_pid=$$!; control_attempts=0; \
+		trap 'kill $$control_pid 2>/dev/null || true' EXIT INT TERM; \
+		until curl -fsS "http://127.0.0.1:$(CONTROL_PORT)/api/control/v1/health" >/dev/null 2>&1; do \
+			if ! kill -0 $$control_pid 2>/dev/null; then wait $$control_pid; exit 1; fi; \
+			control_attempts=$$((control_attempts + 1)); \
+			if [ $$control_attempts -ge 150 ]; then echo "Error: nexus-control did not become healthy within 30 seconds."; exit 1; fi; \
+			sleep 0.2; \
+		done; \
+		$(MAKE) -j2 run-web run-backend BACKEND_PORT=$(BACKEND_PORT) WEB_PORT=$(WEB_PORT) CONTROL_PORT=$(CONTROL_PORT)
 
 dev-nxs: ## Run dev servers with local Go SDK nxs runtime
 	@if [ -z "$$NEXUS_NXS_COMMAND_PATH" ] && [ ! -x "$(NXS_DEV_RUNTIME_PATH)" ]; then \
@@ -233,6 +266,39 @@ prepare-host-data: ## Prepare host bind-mount directories for Docker runtime
 		$(HOST_SUDO) chown $(AGENT_UID):$(AGENT_GID) "$$resolved_dir/.nexus"; \
 		$(HOST_SUDO) chmod 0755 "$$resolved_dir/.nexus"; \
 	fi; \
+	if $(HOST_SUDO) test -L "$$resolved_dir/.nexus/app"; then \
+		echo "Error: $$resolved_dir/.nexus/app must not be a symbolic link."; \
+		exit 1; \
+	elif $(HOST_SUDO) test -e "$$resolved_dir/.nexus/app"; then \
+		if ! $(HOST_SUDO) test -d "$$resolved_dir/.nexus/app"; then \
+			echo "Error: $$resolved_dir/.nexus/app is not a directory."; \
+			exit 1; \
+		fi; \
+	else \
+		$(HOST_SUDO) mkdir "$$resolved_dir/.nexus/app"; \
+		$(HOST_SUDO) chown $(AGENT_UID):$(AGENT_GID) "$$resolved_dir/.nexus/app"; \
+		$(HOST_SUDO) chmod 0755 "$$resolved_dir/.nexus/app"; \
+	fi; \
+	for control_dir in control control-public; do \
+		path="$$resolved_dir/.nexus/app/$$control_dir"; \
+		if $(HOST_SUDO) test -L "$$path"; then \
+			echo "Error: $$path must not be a symbolic link."; \
+			exit 1; \
+		elif $(HOST_SUDO) test -e "$$path"; then \
+			if ! $(HOST_SUDO) test -d "$$path"; then \
+				echo "Error: $$path is not a directory."; \
+				exit 1; \
+			fi; \
+		else \
+			$(HOST_SUDO) mkdir "$$path"; \
+			$(HOST_SUDO) chown $(CONTROL_UID):$(CONTROL_GID) "$$path"; \
+			if [ "$$control_dir" = control ]; then \
+				$(HOST_SUDO) chmod 0700 "$$path"; \
+			else \
+				$(HOST_SUDO) chmod 0755 "$$path"; \
+			fi; \
+		fi; \
+	done; \
 	if $(HOST_SUDO) test -L "$$resolved_dir/.claude.json"; then \
 		echo "Error: $$resolved_dir/.claude.json must not be a symbolic link."; \
 		exit 1; \
@@ -312,8 +378,9 @@ clean: ## Clean up Docker resources
 
 
 # deploy
-pull:
-	git pull origin main
+pull: ## Update both source repositories used by the deployment
+	git pull --ff-only origin main
+	git -C "$(NEXUS_CONTROL_ROOT)" pull --ff-only origin main
 
 deploy:
 	$(MAKE) pull

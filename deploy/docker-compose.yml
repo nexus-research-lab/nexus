@@ -6,6 +6,44 @@ x-logging:
       max-file: "3"
 
 services:
+  control:
+    build:
+      context: ${NEXUS_CONTROL_BUILD_CONTEXT:-../../nexus-control}
+      dockerfile: Dockerfile
+    image: ${CONTROL_IMAGE:-nexus-control}:${CONTROL_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      AUTH_INIT_OWNER_USERNAME: ${AUTH_INIT_OWNER_USERNAME:-admin}
+      AUTH_INIT_OWNER_DISPLAY_NAME: ${AUTH_INIT_OWNER_DISPLAY_NAME:-Admin}
+      AUTH_INIT_OWNER_PASSWORD: ${AUTH_INIT_OWNER_PASSWORD:-}
+      CONTROL_ADDRESS: 0.0.0.0:8020
+      CONTROL_DATA_DIR: /var/lib/nexus-control
+      CONTROL_DATABASE_DRIVER: ${CONTROL_DATABASE_DRIVER:-sqlite}
+      CONTROL_DATABASE_URL: ${CONTROL_DATABASE_URL:-/var/lib/nexus-control/control.db}
+      CONTROL_DEPLOYMENT_NAME: ${CONTROL_DEPLOYMENT_NAME:-Nexus}
+      CONTROL_SERVICE_TOKEN: ${CONTROL_SERVICE_TOKEN:?CONTROL_SERVICE_TOKEN must be set}
+      CONTROL_SETUP_TOKEN: ${CONTROL_SETUP_TOKEN:-}
+      CONTROL_SIGNING_KEY_FILE: /var/lib/nexus-control/control-signing.key
+      CONTROL_SIGNING_PUBLIC_KEY_FILE: /var/lib/nexus-control-public/control-signing.pub
+      CONTROL_SESSION_TTL_HOURS: ${AUTH_SESSION_TTL_HOURS:-24}
+      AUTH_SESSION_COOKIE_NAME: ${AUTH_SESSION_COOKIE_NAME:-nexus_session}
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
+      AUTH_COOKIE_SAMESITE: ${AUTH_COOKIE_SAMESITE:-lax}
+      CONTROL_PRINCIPAL_AUDIENCE: nexus-runtime
+    volumes:
+      - ${HOST_DATA_DIR:?HOST_DATA_DIR must be set}/.nexus/app/control:/var/lib/nexus-control
+      - ${HOST_DATA_DIR:?HOST_DATA_DIR must be set}/.nexus/app/control-public:/var/lib/nexus-control-public
+    expose:
+      - "8020"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8020/api/control/v1/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+    logging: *default-logging
+
   nexus:
     build:
       context: ..
@@ -46,6 +84,16 @@ services:
       WORKSPACE_PATH: ${NEXUS_DOCKER_WORKSPACE_PATH:-/home/agent/.nexus/users}
       NEXUS_APP_ROOT: /opt/app
       NEXUS_APP_MODE: ${NEXUS_DOCKER_APP_MODE:-}
+      NEXUS_CONTROL_URL: http://control:8020
+      NEXUS_CONTROL_SERVICE_TOKEN: ${CONTROL_SERVICE_TOKEN:?CONTROL_SERVICE_TOKEN must be set}
+      NEXUS_CONTROL_PRINCIPAL_PUBLIC_KEY_FILE: /home/agent/.nexus/app/control-public/control-signing.pub
+      NEXUS_CONTROL_PRINCIPAL_AUDIENCE: nexus-runtime
+      AUTH_SESSION_COOKIE_NAME: ${AUTH_SESSION_COOKIE_NAME:-nexus_session}
+      CONTROL_SERVICE_TOKEN: ""
+      CONTROL_SETUP_TOKEN: ""
+      CONTROL_SIGNING_PRIVATE_KEY: ""
+      CONTROL_DATABASE_DRIVER: ""
+      CONTROL_DATABASE_URL: ""
       NEXUS_STATE_ROOT: /home/agent/.nexus
       NEXUS_CONFIG_DIR: /home/agent/.nexus
       CLAUDE_CONFIG_DIR: /home/agent/.nexus
@@ -62,11 +110,11 @@ services:
       HTTP_PROXY: ${NEXUS_DOCKER_HTTP_PROXY:-${HTTP_PROXY:-}}
       HTTPS_PROXY: ${NEXUS_DOCKER_HTTPS_PROXY:-${HTTPS_PROXY:-}}
       ALL_PROXY: ${NEXUS_DOCKER_ALL_PROXY:-${ALL_PROXY:-}}
-      NO_PROXY: ${NEXUS_DOCKER_NO_PROXY:-localhost,127.0.0.1,::1,nexus,nginx,host.docker.internal}
+      NO_PROXY: ${NEXUS_DOCKER_NO_PROXY:-localhost,127.0.0.1,::1,control,nexus,nginx,host.docker.internal}
       http_proxy: ${NEXUS_DOCKER_http_proxy:-${http_proxy:-}}
       https_proxy: ${NEXUS_DOCKER_https_proxy:-${https_proxy:-}}
       all_proxy: ${NEXUS_DOCKER_all_proxy:-${all_proxy:-}}
-      no_proxy: ${NEXUS_DOCKER_no_proxy:-localhost,127.0.0.1,::1,nexus,nginx,host.docker.internal}
+      no_proxy: ${NEXUS_DOCKER_no_proxy:-localhost,127.0.0.1,::1,control,nexus,nginx,host.docker.internal}
     volumes:
       - ${HOST_DATA_DIR:?HOST_DATA_DIR must be set}/.nexus:/home/agent/.nexus
       - ${HOST_DATA_DIR:?HOST_DATA_DIR must be set}/.claude.json:/home/agent/.nexus/users/__system__/runtime/.claude.json
@@ -74,6 +122,9 @@ services:
       - "host.docker.internal:host-gateway"
     expose:
       - "8010"
+    depends_on:
+      control:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8010/nexus/v1/health >/dev/null || exit 1"]
       interval: 300s

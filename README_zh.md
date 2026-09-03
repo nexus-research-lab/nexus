@@ -113,19 +113,20 @@ winget install Anthropic.ClaudeCode
 ```bash
 cat > .env <<'EOF'
 AUTH_INIT_OWNER_PASSWORD=your-password
+CONTROL_SERVICE_TOKEN=replace-with-openssl-rand-hex-32
 HTTP_PORT=80
 HOST_DATA_DIR=./data
 # 可选：源码部署需手动设置，Docker 留空会自动生成并保存到数据目录。
 CONNECTOR_CREDENTIALS_KEY=
 # 可选：服务器出站代理，覆盖后端 IM/OAuth 的 HTTP 和 WebSocket 请求。
 HTTPS_PROXY=
-NO_PROXY=localhost,127.0.0.1,::1,nexus,nginx
+NO_PROXY=localhost,127.0.0.1,::1,control,nexus,nginx
 EOF
 
 make start
 ```
 
-打开 `http://localhost`。默认 compose 只暴露 HTTP；生产 HTTPS 建议在外层网关或负载均衡上终止 TLS，再转发到该 HTTP 入口。
+将 `nexus` 与 `nexus-control` 放在同级目录后打开 `http://localhost`。登录和成员管理仍在同一套 Nexus Web 中，相关同源请求由 Control 处理。Control 默认使用 SQLite，也可通过 `CONTROL_DATABASE_DRIVER=postgres` 和 `CONTROL_DATABASE_URL` 使用 PostgreSQL。若要在页面创建首个 owner，留空 `AUTH_INIT_OWNER_PASSWORD`，设置至少 32 个字符的 `CONTROL_SETUP_TOKEN`，再打开 `/setup`。默认 compose 只暴露 HTTP；生产 HTTPS 建议在外层网关或负载均衡上终止 TLS，再转发到该 HTTP 入口。已有 Web 用户切换前需按 [Control 迁移文档](./docs/operations/control-migration.md) 导入账号。
 
 IM 通道机器人凭据建议在 Web App 的「能力 / IM 通道」里配置。容器启动时会从数据库重新加载这些配置；`.env` 里的 `DISCORD_BOT_TOKEN` 和 `TELEGRAM_BOT_TOKEN` 只作为历史系统级兜底入口保留。
 
@@ -144,7 +145,9 @@ openssl rand -base64 32
 ```bash
 make install
 cd web && pnpm build && cd ..
-AUTH_INIT_OWNER_PASSWORD=your-password PORT=8010 go run ./cmd/nexus-server
+AUTH_INIT_OWNER_PASSWORD=your-password make run-control
+# Control 健康后，在另一个终端启动后端：
+make run-backend
 ```
 
 ### 本地开发
@@ -154,7 +157,7 @@ make install
 make dev
 ```
 
-后端在 `http://localhost:8010` 启动，前端开发服务在 `http://localhost:3000` 启动。
+`make dev` 会同时启动同级的 `nexus-control`、后端与前端。Control 在 `http://localhost:8020`，后端在 `http://localhost:8010`，前端开发服务在 `http://localhost:3000`。
 
 
 ---

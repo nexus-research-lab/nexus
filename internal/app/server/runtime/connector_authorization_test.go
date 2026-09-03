@@ -211,7 +211,7 @@ func TestConnectorAuthorizationMCPBuilderBindsOwnerMainPrivateDM(
 	)))
 	bearer := authctx.WithPrincipal(context.Background(), &authctx.Principal{
 		UserID: "owner-a", Role: authctx.RoleOwner,
-		AuthMethod: authctx.AuthMethodBearer,
+		AuthMethod: "bearer",
 	})
 	bearer = runtimectx.WithRuntimeRoundLease(bearer, sessionKey, "round-a")
 	assertDeniedSurface("bearer principal", bearer, builder(bearer, authorizationMCPRound(

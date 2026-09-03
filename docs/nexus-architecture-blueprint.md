@@ -61,7 +61,7 @@ macOS 使用 AppKit 与 WKWebView，Windows 使用 WPF 与 WebView2。原生壳�
 
 ### Docker 与源码服务
 
-Docker Compose 由 Nginx 提供静态资源和反向代理，Go 服务默认监听容器内 `8010` 端口。服务端默认使用 SQLite，也支持 PostgreSQL。生产 TLS 由外层网关或负载均衡器终止。
+Docker Compose 由 Nginx 提供静态资源和反向代理，`nexus-control` 管理 Web 用户、密码和 Session，Go 执行服务默认监听容器内 `8010` 端口。Control 可使用独立 SQLite 或 PostgreSQL 的 `control` schema，Nexus 业务数据仍可独立选择 SQLite 或 PostgreSQL。生产 TLS 由外层网关或负载均衡器终止。
 
 IM 通道维护进程内长连接或轮询连接。同一个数据库运行多个后端副本时可能产生重复消费，因此启用这类通道的默认部署采用单个后端 Worker。需要横向扩展时，应先为通道连接补充分布式租约与消费归属。
 
@@ -203,7 +203,9 @@ Execution 的分派、评审返回和取消通过持久 Outbox 恢复。取消�
 
 | 数据 | 权威所有者 | 介质 | 说明 |
 | --- | --- | --- | --- |
-| 用户、认证、Agent、Room、Goal、Execution、Automation | Product | SQLite 或 PostgreSQL | 业务实体与事务状态 |
+| User、Identity、密码、Web Session、Deployment | Nexus Control | SQLite 或 PostgreSQL `control` schema | 账号与部署权威，Nexus 不直接读取 |
+| Agent、Room、Goal、Execution、Automation | Product | SQLite 或 PostgreSQL | 本地执行与业务实体 |
+| Control 身份到本地 owner 的绑定与 `owner_profiles` 展示投影 | Product | SQLite 或 PostgreSQL | 保持原用户目录不变，仅供本地 owner 关联和读模型，不是账号权威 |
 | Agent 文件与长期记忆 | Agent Runtime 和受限宿主能力 | 文件系统 | 人和 Agent 都能检查的工作产出 |
 | 工作区 Session 投影 | Product | `meta.json` 与 JSONL | 关联 Session、Room、Round 和输入队列 |
 | Runtime Transcript | Runtime | `runtime/projects` | Runtime 恢复、Fork 与 Compact 的权威记录 |
@@ -222,8 +224,8 @@ Execution 的分派、评审返回和取消通过持久 Outbox 恢复。取消�
 
 ### 身份和入口
 
-- 服务端使用登录 Session，数据库只保存 Session Token 哈希。
-- 桌面端使用每次启动生成的本地会话 Token，保护本地 API 与 WebSocket。
+- 服务端 Web 的登录 Session 由 Nexus Control 签发并只保存 Token 哈希；浏览器的登录、登出、资料与密码写入直接进入同源 `/auth/v1`，Nexus 缓存短期签名 Principal，在 lease 有效期内本地验签，过期后 Control 不可用则拒绝访问。Control 同事务追加持久身份事件：`session_revoked` 只撤销 exact browser Session，`profile_changed` 刷新 owner 连接但保留 Agent runtime，`principal_changed` 才关闭 owner 的全部 WebSocket 与 runtime。每个 Nexus 副本独立按游标消费；失效流持续不可用一分钟时，Nexus 关闭全部 Control 身份会话并失败关闭。
+- 桌面端使用每次启动生成的本地宿主 Token 保护本地 API 与 WebSocket；产品内只有固定 Local Principal，没有密码、账号 Session 或本地账号写栈。
 - WebSocket 校验允许来源和用户作用域，Session 绑定按身份恢复。
 - Connector 与 Channel 的敏感授权流程要求明确的人类交互证据。
 

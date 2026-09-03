@@ -49,6 +49,16 @@ func (s *WebSocketSender) MarkClosed() {
 	s.closed.Store(true)
 }
 
+// ClosePolicy 以策略变更原因主动关闭连接。
+func (s *WebSocketSender) ClosePolicy(reason string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed.Swap(true) {
+		return nil
+	}
+	return s.conn.Close(websocket.StatusPolicyViolation, reason)
+}
+
 // SendEvent 发送协议事件。
 func (s *WebSocketSender) SendEvent(ctx context.Context, event protocol.EventMessage) error {
 	return s.SendJSON(ctx, event)
