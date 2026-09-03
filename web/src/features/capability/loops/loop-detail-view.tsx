@@ -14,12 +14,16 @@ import { writeTextToClipboard } from "@/hooks/ui/clipboard";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
+import { UiBadge } from "@/shared/ui/display/badge";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import {
   WorkspaceContentDetailHeader,
   WorkspaceContentHeader,
 } from "@/shared/ui/layout/workspace-content-header";
 import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
+import { UiPanel } from "@/shared/ui/panel";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { LoopCatalogItem } from "@/types/capability/loop";
 
 import { buildLoopMetadataPresentation } from "./loop-presentation";
@@ -119,12 +123,12 @@ export function LoopDetailView({ slug, onBack: onBack }: LoopDetailViewProps) {
       ) : loop ? (
         <div className="mt-3 space-y-5">
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="radius-control-xs border border-(--divider-subtle-color) px-1.5 py-0.5 text-2xs font-medium text-(--text-muted)">
+            <UiBadge size="xs">
               {loop.category}
-            </span>
-            <span className="radius-control-xs border border-(--divider-subtle-color) px-1.5 py-0.5 text-2xs text-(--text-soft)">
+            </UiBadge>
+            <UiBadge size="xs" tone="idle">
               {metadata?.triggerLabel}
-            </span>
+            </UiBadge>
           </div>
           <WorkspaceContentHeader
             className="mb-0"
@@ -133,50 +137,83 @@ export function LoopDetailView({ slug, onBack: onBack }: LoopDetailViewProps) {
           />
 
           <section>
-            <h2 className="text-base font-medium text-(--text-strong)">{t("capability.loops_steps")}</h2>
+            <h2 className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong" })}>
+              {t("capability.loops_steps")}
+            </h2>
             <div className="mt-2 space-y-2">
               {loop.steps.map((step, index) => (
-                <div className="rounded-[8px] border border-(--divider-subtle-color) bg-transparent p-3" key={`${loop.slug}:${step.name}`}>
+                <UiPanel padding="sm" radius="sm" key={`${loop.slug}:${step.name}`}>
                   <div className="flex gap-3">
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center radius-control-sm bg-(--surface-interactive-hover-background) text-compact font-semibold text-(--text-muted)">
+                    <div className={cn(
+                      "flex h-7 w-7 shrink-0 items-center justify-center radius-control-sm bg-(--surface-interactive-hover-background)",
+                      getUiTypographyClassName({ role: "metadata", tone: "muted", weight: "semibold" }),
+                    )}>
                       {index + 1}
                     </div>
                     <div className="min-w-0">
-                      <h3 className="text-sm font-medium text-(--text-strong)">{step.name}</h3>
-                      <p className="mt-0.5 text-compact leading-5 text-(--text-muted)">{step.prompt}</p>
+                      <h3 className={getUiTypographyClassName({ role: "control", tone: "strong" })}>
+                        {step.name}
+                      </h3>
+                      <p className={cn(
+                        "mt-0.5",
+                        getUiTypographyClassName({ role: "supporting", tone: "muted" }),
+                      )}>
+                        {step.prompt}
+                      </p>
                       {step.shell_check ? (
-                        <code className="mt-2 block overflow-x-auto radius-control-sm bg-(--surface-code-background) px-3 py-2 text-compact text-(--text-default)">
+                        <code className={cn(
+                          "mt-2 block overflow-x-auto radius-control-sm bg-(--surface-code-background) px-3 py-2",
+                          getUiTypographyClassName({ role: "code", tone: "default" }),
+                        )}>
                           {step.shell_check}
                         </code>
                       ) : null}
                     </div>
                   </div>
-                </div>
+                </UiPanel>
               ))}
             </div>
           </section>
 
-          <section className="rounded-[8px] border border-(--divider-subtle-color) bg-transparent p-3">
-            <h2 className="text-base font-medium text-(--text-strong)">{t("capability.loops_exit")}</h2>
-            <p className="mt-1 text-compact leading-5 text-(--text-muted)">{loop.exit_condition.description}</p>
+          <UiPanel padding="sm" radius="sm">
+            <h2 className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong" })}>
+              {t("capability.loops_exit")}
+            </h2>
+            <p className={cn(
+              "mt-1",
+              getUiTypographyClassName({ role: "supporting", tone: "muted" }),
+            )}>
+              {loop.exit_condition.description}
+            </p>
             {loop.exit_condition.command ? (
-              <code className="mt-2 block overflow-x-auto radius-control-sm bg-(--surface-code-background) px-3 py-2 text-compact text-(--text-default)">
+              <code className={cn(
+                "mt-2 block overflow-x-auto radius-control-sm bg-(--surface-code-background) px-3 py-2",
+                getUiTypographyClassName({ role: "code", tone: "default" }),
+              )}>
                 {loop.exit_condition.command}
               </code>
             ) : null}
             {loop.exit_condition.max_iterations ? (
-              <p className="mt-2 text-compact text-(--text-soft)">
+              <p className={cn(
+                "mt-2",
+                getUiTypographyClassName({ role: "metadata", tone: "soft" }),
+              )}>
                 {t("capability.loops_max_iterations")}: {loop.exit_condition.max_iterations}
               </p>
             ) : null}
-          </section>
+          </UiPanel>
 
           {loop.guardrails.length > 0 ? (
             <section>
-              <h2 className="text-base font-medium text-(--text-strong)">{t("capability.loops_guardrails")}</h2>
+              <h2 className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong" })}>
+                {t("capability.loops_guardrails")}
+              </h2>
               <ul className="mt-2 space-y-1.5">
                 {loop.guardrails.map((item) => (
-                  <li className="rounded-[8px] border border-(--divider-subtle-color) bg-transparent px-3 py-2 text-compact leading-5 text-(--text-muted)" key={item}>
+                  <li className={cn(
+                    "surface-radius-sm border border-(--divider-subtle-color) bg-transparent px-3 py-2",
+                    getUiTypographyClassName({ role: "supporting", tone: "muted" }),
+                  )} key={item}>
                     {item}
                   </li>
                 ))}
@@ -185,25 +222,32 @@ export function LoopDetailView({ slug, onBack: onBack }: LoopDetailViewProps) {
           ) : null}
 
           <section>
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <h2 className="text-base font-medium text-(--text-strong)">{t("capability.loops_kickoff_prompt")}</h2>
-              <UiButton size="sm" variant="surface" onClick={() => void copyPrompt()}>
+            <div className="mb-3 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong" })}>
+                {t("capability.loops_kickoff_prompt")}
+              </h2>
+              <UiButton className="shrink-0" size="sm" variant="surface" onClick={() => void copyPrompt()}>
                 {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                 {t("capability.loops_copy_prompt")}
               </UiButton>
             </div>
-            <pre className="soft-scrollbar max-h-[360px] overflow-auto rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-code-background) p-3 text-xs leading-5 text-(--text-default)">
+            <pre className={cn(
+              "soft-scrollbar max-h-[360px] overflow-auto surface-radius-sm border border-(--divider-subtle-color) bg-(--surface-code-background) p-3",
+              getUiTypographyClassName({ role: "code", tone: "default" }),
+            )}>
               {loop.kickoff_prompt}
             </pre>
           </section>
 
           <section>
-            <h2 className="text-base font-medium text-(--text-strong)">{t("capability.loops_related")}</h2>
+            <h2 className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong" })}>
+              {t("capability.loops_related")}
+            </h2>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {loop.tags.map((tag) => (
-                  <span className="radius-control-xs border border-(--divider-subtle-color) px-1.5 py-0.5 text-xs text-(--text-muted)" key={tag}>
+                <UiBadge size="sm" key={tag}>
                   {tag}
-                </span>
+                </UiBadge>
               ))}
             </div>
           </section>

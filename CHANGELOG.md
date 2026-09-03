@@ -126,6 +126,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   LinkButton, Typography, Badge, and Resource State owners, removing duplicated
   breadcrumb action styling and the Skill-only failure card; the shared MCP tool
   header now moves retry actions onto a full-width-safe row in narrow windows.
+- Standardized Loop directory and detail chrome on shared semantic Typography,
+  Badge, Panel, Resource State, and Button owners; narrow section actions now
+  move to their own row instead of compressing or wrapping vertically.
 - Moved floating feedback and shared resource states onto named surface, layer,
   typography, shape, and Button contracts, with DOM tests for recovery,
   dismissal, live-region behavior, and auto-dismiss timing resets.
