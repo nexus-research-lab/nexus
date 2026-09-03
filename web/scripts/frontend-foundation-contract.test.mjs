@@ -732,6 +732,9 @@ test("Launcher, desktop update, and onboarding loading states share Spinner role
   assert.match(updateIndicator, /h-\[18px\] w-\[18px\]/);
   assert.match(providerSetup, /size: "lg", tone: "muted"/);
   assert.match(providerSetup, /size: "sm", tone: "primary"/);
+  assert.match(providerSetup, /<UiListRow/);
+  assert.match(providerSetup, /<UiBadge size="xs" tone="success"/);
+  assert.doesNotMatch(providerSetup, /<button\b/);
   for (const source of [launcher, updateIndicator, providerSetup]) {
     assert.doesNotMatch(source, /\banimate-spin\b/);
   }

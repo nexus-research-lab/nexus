@@ -38,6 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Standardized onboarding Provider selection on shared ListRow, Badge, and
+  Button primitives, removing its private radio marker and final raw buttons
+  without changing the staged save, test, or default-selection workflow.
 - Added a shared 40px dense ListRow contract and adopted it for Memory catalog,
   Memory index, and Room member selection; nested Room participation choices
   remain independently operable without triggering the parent row.
