@@ -4,7 +4,7 @@
 
 import { cn } from "@/shared/ui/class-name";
 
-export type UiChoiceTone = "primary" | "danger" | "success";
+export type UiChoiceTone = "primary" | "neutral" | "danger" | "success";
 export type UiChoiceVariant = "surface" | "picker" | "calendar";
 export type UiChoiceSize = "xs" | "sm" | "md" | "lg";
 export type UiChoiceShape = "rounded" | "pill";
@@ -45,6 +45,8 @@ const SURFACE_CHOICE_ROUNDED_CLASS_MAP: Record<UiChoiceSize, string> = {
 const CHOICE_ACTIVE_CLASS_MAP: Record<UiChoiceTone, string> = {
   primary:
     "border-[color:color-mix(in_srgb,var(--primary)_28%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-(--primary)",
+  neutral:
+    "border-(--surface-interactive-active-border) bg-(--surface-interactive-active-background) text-(--text-strong)",
   danger:
     "border-[color:color-mix(in_srgb,var(--destructive)_24%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--destructive)_9%,transparent)] text-(--destructive)",
   success:
