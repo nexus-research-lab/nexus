@@ -1,5 +1,5 @@
-// INPUT: Badge/Counter/ResourceState 的有限状态、动作与用户事件。
-// OUTPUT: 证明标记边界、live-region 语义、忙碌互斥和恢复动作呈现合同。
+// INPUT: Badge/Counter/ResourceState/Skeleton 的有限状态、动作与用户事件。
+// OUTPUT: 证明标记边界、live-region 语义、骨架视觉层级、忙碌互斥和恢复动作呈现合同。
 // POS: Display primitives DOM 行为测试；失败分类和业务恢复策略由 feature 决定。
 
 import { render, screen } from "@testing-library/react";
@@ -9,6 +9,7 @@ import { describe, expect, it, vi } from "vitest";
 import { UiBadge, UiCounterBadge } from "@/shared/ui/display/badge";
 import { UiQRCode } from "@/shared/ui/display/qr-code";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { UiSkeleton } from "@/shared/ui/display/skeleton";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
 
 describe("display badges", () => {
@@ -28,6 +29,20 @@ describe("display badges", () => {
 
     rerender(<UiCounterBadge count={0} />);
     expect(container.textContent).toBe("");
+  });
+});
+
+describe("UiSkeleton", () => {
+  it("owns semantic tone and reduced-motion-safe animation recipes", () => {
+    const { rerender } = render(<UiSkeleton data-testid="skeleton" tone="strong" />);
+    const skeleton = screen.getByTestId("skeleton");
+
+    expect(skeleton.getAttribute("aria-hidden")).toBe("true");
+    expect(skeleton.className.split(" ")).toContain("motion-safe:animate-pulse");
+    expect(skeleton.className).toContain("_76%");
+
+    rerender(<UiSkeleton data-testid="skeleton" tone="subtle" />);
+    expect(skeleton.className).toContain("_48%");
   });
 });
 

@@ -38,6 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Centralized Home sidebar loading rows on the shared Skeleton tone, shape,
+  animation, and reduced-motion contract so chat and contact placeholders no
+  longer maintain private visual recipes.
 - Unified Skill import, external search, preview, and source-management chrome
   on shared segmented controls, states, panels, actions, typography, and spinners.
 - Standardized Channel and Connector authorization dialogs on shared form,
