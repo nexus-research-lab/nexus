@@ -108,6 +108,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and artifact actions with shared typography, panel, radius, and button owners.
 - Unified the post-navigation content offset across Skill, Connector, Custom MCP,
   Loop, and WorkGraph details so every secondary capability page shares one rhythm.
+- Kept shared segmented-control labels on one line so Skill source tabs and other
+  compact selectors no longer grow unevenly when a toolbar becomes narrow.
 - Established a single frontend engineering and design-system contract, and
   centralized high overlay layers and responsive dialog geometry behind semantic
   APIs to prevent page-specific stacking and small-window sizing drift.

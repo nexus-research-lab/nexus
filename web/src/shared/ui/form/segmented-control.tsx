@@ -1,5 +1,5 @@
 // INPUT: 有限互斥选项、当前值与变更命令。
-// OUTPUT: 以 aria-pressed 暴露状态的紧凑分段按钮组。
+// OUTPUT: 以 aria-pressed 暴露状态、且短选项标签保持单行的紧凑分段按钮组。
 // POS: Segmented control pattern；不解释业务选项或持有选中值。
 "use client";
 
@@ -65,10 +65,10 @@ export function UiSegmentedControl<T extends string>({
           key={option.value}
           aria-pressed={value === option.value}
           className={cn(
-            "segmented-control-option radius-control-sm",
+            "segmented-control-option whitespace-nowrap radius-control-sm",
             getUiTypographyClassName({ role: "caption", weight: "semibold" }),
             density === "compact" ? "px-2 py-1" : "px-2.5 py-1.5",
-            stretch && "min-w-0 flex-1 px-1.5 text-center",
+            stretch && "flex-1 px-1.5 text-center",
           )}
           data-active={value === option.value}
           disabled={disabled}

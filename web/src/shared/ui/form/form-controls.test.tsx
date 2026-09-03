@@ -164,8 +164,8 @@ describe("form primitives", () => {
         <UiSegmentedControl
           onChange={onSegment}
           options={[
-            { label: "一次", value: "once" },
-            { label: "重复", value: "recurring" },
+            { label: "全局技能库", value: "once" },
+            { label: "社区技能", value: "recurring" },
           ]}
           title="执行频率"
           value="once"
@@ -179,14 +179,16 @@ describe("form primitives", () => {
     await user.click(choice);
     expect(onChoice).toHaveBeenCalledTimes(1);
 
-    const once = screen.getByRole("button", { name: "一次" });
-    const recurring = screen.getByRole("button", { name: "重复" });
+    const once = screen.getByRole("button", { name: "全局技能库" });
+    const recurring = screen.getByRole("button", { name: "社区技能" });
     const group = screen.getByRole("group", { name: "执行频率" });
     expect(group.className).toContain("surface-radius-md");
     expect(group.className).not.toContain("rounded-full");
     expect(once.getAttribute("aria-pressed")).toBe("true");
     expect(once.className).toContain("radius-control-sm");
     expect(once.className).toContain("ui-type-caption");
+    expect(once.className).toContain("whitespace-nowrap");
+    expect(once.className).not.toContain("min-w-0");
     expect(once.className).not.toContain("shadow-");
     expect(recurring.getAttribute("aria-pressed")).toBe("false");
     await user.click(recurring);
