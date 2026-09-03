@@ -1,10 +1,14 @@
-/** 能力导航只组合摘要、搜索和路由，数据刷新与行呈现归各自职责模块。 */
+// INPUT: 能力摘要、当前选中项、搜索查询与路由导航命令。
+// OUTPUT: 使用共享搜索、列表行和语义排版的能力目录侧栏。
+// POS: 能力导航装配层；数据刷新和单行呈现归相邻 model/view。
 
 import { memo, useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { SidebarSearchField } from "@/shared/ui/form/sidebar-search-field";
+import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { useSidebarStore } from "@/store/sidebar";
 
 import { CapabilitySidebarItemView } from "./capability-sidebar-item";
@@ -51,7 +55,10 @@ export const CapabilitySidebarPanel = memo(function CapabilitySidebarPanel() {
             onSelect={selectItem}
           />
         )) : (
-          <div className="px-2.5 py-4 text-compact text-(--text-muted)">
+          <div className={cn(
+            "px-2.5 py-4",
+            getUiTypographyClassName({ role: "caption", tone: "muted" }),
+          )}>
             {t("sidebar.no_matching_capabilities")}
           </div>
         )}

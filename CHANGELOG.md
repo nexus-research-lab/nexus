@@ -38,6 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Unified every Capability sidebar row and its filtered empty state on shared
+  list, typography, selection, and semantic shape contracts.
 - Standardized the Skill directory on shared card actions, semantic typography,
   resource states, segmented filters, icon buttons, and loading indicators.
 - Unified Channel account, QR login, verification, progress, and destructive
