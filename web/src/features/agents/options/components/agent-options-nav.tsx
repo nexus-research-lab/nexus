@@ -1,7 +1,11 @@
+// INPUT: Agent Options 当前栏目、可用栏目定义与切换命令。
+// OUTPUT: 桌面纵向、窄窗横向且由共享 Button 持 active 状态的导航。
+// POS: Agent Options 弹窗导航 Pattern；不拥有栏目内容或保存事务。
+
 "use client";
 
 import { UserPen, ToolCase, Album, type LucideIcon } from "lucide-react";
-import { cn } from "@/shared/ui/class-name";
+import { UiButton } from "@/shared/ui/button/button";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
 import type { AgentOptionsTabKey } from "../agent-options-editor-model";
@@ -40,24 +44,20 @@ export function AgentOptionsNav({
         const isActive = activeTab === item.key;
         const label = t(item.labelKey);
         return (
-          <button
+          <UiButton
             aria-current={isActive ? "page" : undefined}
-            className={cn(
-              "flex h-9 w-full items-center justify-start gap-2 radius-control-md border border-transparent px-2.5 text-left text-sm font-medium transition-[background,color] duration-(--motion-duration-fast) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] max-xl:min-w-[84px] max-xl:flex-1 max-xl:justify-center",
-              isActive
-                ? "bg-(--surface-interactive-active-background) text-(--text-strong)"
-                : "text-(--text-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
-            )}
+            className="h-9 w-full justify-start gap-2 px-2.5 text-left max-xl:min-w-[84px] max-xl:flex-1 max-xl:justify-center"
             key={item.key}
             onClick={() => onTabChange(item.key)}
+            size="md"
             title={label}
-            type="button"
+            variant="ghost"
           >
             <span className="flex h-6 w-6 items-center justify-center">
               <Icon className="h-4 w-4" />
             </span>
             <span>{label}</span>
-          </button>
+          </UiButton>
         );
       })}
     </div>

@@ -939,6 +939,17 @@ test("cross-domain warnings reuse the shared inline feedback owner", async () =>
   assert.doesNotMatch(agentOptions, /<Loader2 className="[^"]*animate-spin/);
 });
 
+test("Agent Options navigation consumes the shared Button active-state contract", async () => {
+  const navigation = await readSource(
+    "src/features/agents/options/components/agent-options-nav.tsx",
+  );
+
+  assert.match(navigation, /<UiButton/);
+  assert.match(navigation, /aria-current=/);
+  assert.match(navigation, /variant="ghost"/);
+  assert.doesNotMatch(navigation, /<button\b|rounded-\[|shadow-/);
+});
+
 test("App typography exposes one typed semantic role map", async () => {
   const { getUiTypographyClassName } = await importLeafTypeScriptModule(
     webRoot,

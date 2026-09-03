@@ -38,6 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Moved Agent Options section navigation onto the shared Button active-state
+  contract while preserving its desktop rail and narrow-window tab layout.
 - Kept centered onboarding Tour cards inside the active window after live
   desktop or browser resizing, including narrow macOS and Windows layouts.
 - Standardized onboarding Provider selection on shared ListRow, Badge, and
