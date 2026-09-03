@@ -284,7 +284,7 @@ export function TaskSchedulePanel({
       ) : null}
 
       {schedule.kind === "every" ? (
-        <UiPanel padding="md" variant="inset">
+        <UiPanel padding="md" variant="card">
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-sm font-semibold text-(--text-default)">
               {t("capability.scheduled_dialog_every")}

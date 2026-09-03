@@ -128,7 +128,7 @@ export function ConversationSessionNavigator({
 
             {previewItem ? (
               <button
-                className="dialog-shell surface-radius-lg pointer-events-auto absolute left-12 z-[60] w-[min(332px,calc(100vw-96px))] -translate-y-1/2 overflow-hidden text-left outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
+                className="surface-popover pointer-events-auto absolute left-12 ui-layer-popover w-[min(332px,calc(100vw-96px))] -translate-y-1/2 overflow-hidden text-left outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
                 data-session-navigator-preview="true"
                 style={{
                   top: `${getTickDisplayPercent(

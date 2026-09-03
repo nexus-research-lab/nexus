@@ -524,7 +524,7 @@ function SlashPickerFailure({
       size="sm"
       state="error"
       title={failure.title}
-      variant="inset"
+      variant="card"
     />
   );
 }

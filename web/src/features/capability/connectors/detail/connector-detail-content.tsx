@@ -105,7 +105,7 @@ function ConnectorFeatureList({
         className="divide-y divide-(--divider-subtle-color)"
         padding="none"
         radius="md"
-        variant="inset"
+        variant="card"
       >
         {features.map((feature) => (
           <UiListRow

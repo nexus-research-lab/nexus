@@ -100,7 +100,7 @@ export function ChannelConnectDialog({
                   description="频道接入将在后续版本补充，当前版本暂不支持配置机器人或配对。"
                   size="sm"
                   title="该频道未上线"
-                  variant="inset"
+                  variant="card"
                 />
               ) : (
                 <ChannelConnectionFields

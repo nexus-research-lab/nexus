@@ -157,7 +157,7 @@ function ConnectorOauthCallbackField({ callbackUrl }: { callbackUrl: string }) {
   return (
     <div className="space-y-1">
       <div className="text-compact font-medium text-(--text-muted)">Callback URL</div>
-      <UiPanel className="flex min-h-9 items-center gap-2" padding="sm" radius="sm" variant="inset">
+      <UiPanel className="flex min-h-9 items-center gap-2" padding="sm" radius="sm" variant="card">
         <code className="min-w-0 flex-1 break-all text-xs leading-5 text-(--text-strong)">
           {callbackUrl}
         </code>

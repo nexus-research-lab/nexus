@@ -250,7 +250,7 @@ function SkillDetailReady({
           <h2 className="mb-3 text-md font-semibold tracking-[-0.025em] text-(--text-strong)">
             {t("capability.skills_detail_description")}
           </h2>
-          <UiPanel padding="md" radius="md" variant="inset">
+          <UiPanel padding="md" radius="md" variant="card">
             <SkillMarkdown
               description={model.description}
               markdown={model.readmeMarkdown}
@@ -319,7 +319,7 @@ function SkillAgentBindings({
           </span>
         ) : null}
       </div>
-      <UiPanel padding="sm" radius="md" variant="inset">
+      <UiPanel padding="sm" radius="md" variant="card">
         {bindingsFailure ? (
           <SkillAgentFailureNotice
             failure={bindingsFailure}
