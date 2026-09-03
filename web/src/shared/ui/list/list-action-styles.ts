@@ -2,7 +2,7 @@ import { cn } from "@/shared/ui/class-name";
 
 export type UiListActionShape = "round" | "rounded";
 export type UiListActionSize = "xs" | "sm" | "md";
-export type UiListActionTone = "default" | "danger";
+export type UiListActionTone = "default" | "primary" | "danger";
 export type UiListActionVisibility = "subtle" | "visible";
 
 interface UiListActionStyleOptions {
@@ -29,6 +29,8 @@ const LIST_ACTION_SHAPE_CLASS_MAP: Record<UiListActionShape, string> = {
 const LIST_ACTION_TONE_CLASS_MAP: Record<UiListActionTone, string> = {
   default:
     "hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)",
+  primary:
+    "text-(--brand-action) hover:border-[color:color-mix(in_srgb,var(--brand-action)_24%,var(--surface-interactive-hover-border))] hover:bg-[color:color-mix(in_srgb,var(--brand)_8%,var(--surface-interactive-hover-background))]",
   danger:
     "hover:border-[color:color-mix(in_srgb,var(--destructive)_18%,var(--divider-subtle-color))] hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] hover:text-(--destructive)",
 };

@@ -134,6 +134,19 @@ describe("form primitives", () => {
     expect((screen.getByRole("checkbox", { name: "不可用" }) as HTMLInputElement).disabled).toBe(true);
   });
 
+  it("projects an indeterminate checkbox as one native mixed state", () => {
+    render(
+      <label htmlFor="mixed-checkbox">
+        <UiCheckbox id="mixed-checkbox" indeterminate />
+        部分选择
+      </label>,
+    );
+
+    const checkbox = screen.getByRole("checkbox", { name: "部分选择" }) as HTMLInputElement;
+    expect(checkbox.indeterminate).toBe(true);
+    expect(checkbox.getAttribute("aria-checked")).toBe("mixed");
+  });
+
   it("keeps compact checkbox rows on shared shape and typography roles", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();

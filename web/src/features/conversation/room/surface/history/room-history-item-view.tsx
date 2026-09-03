@@ -15,6 +15,11 @@ import { Check, Clock3, Pencil, Trash2, X } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
 import { UiCheckbox } from "@/shared/ui/form/checkbox";
+import { UiInput } from "@/shared/ui/form/form-control";
+import {
+  UiListActionButton,
+} from "@/shared/ui/list/list-action";
+import type { UiListActionTone } from "@/shared/ui/list/list-action-styles";
 
 import type {
   RoomHistoryItemAction,
@@ -44,8 +49,8 @@ interface RoomHistoryItemViewProps {
 interface ItemContentProps extends RoomHistoryItemViewProps {}
 
 interface ActionStyle {
-  className: string;
   icon: ComponentType<{ className?: string }>;
+  tone: UiListActionTone;
 }
 
 const ENTRY_STYLES: Record<RoomHistoryItemState, string> = {
@@ -55,12 +60,12 @@ const ENTRY_STYLES: Record<RoomHistoryItemState, string> = {
 
 const ACTION_STYLES: Record<RoomHistoryItemAction, ActionStyle> = {
   delete: {
-    className: "text-(--destructive) hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)]",
     icon: Trash2,
+    tone: "danger",
   },
   rename: {
-    className: "text-(--icon-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)",
     icon: Pencil,
+    tone: "default",
   },
 };
 
@@ -203,31 +208,34 @@ function EditingItemContent({
   return (
     <>
       <div className="flex items-center gap-1.5">
-        <input
+        <UiInput
           aria-label={presentation.editorLabels.input}
-          className="min-w-0 flex-1 rounded-[10px] border border-(--input-shell-border) bg-transparent px-2.5 py-1.5 text-sm font-semibold text-(--text-strong) outline-none transition focus:border-(--surface-interactive-active-border)"
+          className="min-w-0 flex-1 font-semibold"
+          controlSize="xs"
           maxLength={64}
           onChange={(event) => editor.setDraft(event.target.value)}
           onKeyDown={(event) => handleTitleEditorKeyDown(event, editor)}
           ref={editor.inputRef}
           value={editor.draft}
+          variant="surface"
         />
-        <button
+        <UiListActionButton
           aria-label={presentation.editorLabels.confirm}
-          className="inline-flex h-6 w-6 items-center justify-center rounded-[8px] text-(--primary) transition duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background)"
           onClick={editor.confirm}
-          type="button"
+          size="xs"
+          tone="primary"
+          visibility="visible"
         >
           <Check className="h-3.5 w-3.5" />
-        </button>
-        <button
+        </UiListActionButton>
+        <UiListActionButton
           aria-label={presentation.editorLabels.cancel}
-          className="inline-flex h-6 w-6 items-center justify-center rounded-[8px] text-(--icon-default) transition duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)"
           onClick={editor.cancel}
-          type="button"
+          size="xs"
+          visibility="visible"
         >
           <X className="h-3.5 w-3.5" />
-        </button>
+        </UiListActionButton>
       </div>
       <RoomHistoryActivity label={presentation.activityLabel} />
     </>
@@ -270,18 +278,16 @@ function RoomHistoryItemActions({
           const style = ACTION_STYLES[action];
           const Icon = style.icon;
           return (
-            <button
+            <UiListActionButton
               aria-label={presentation.actionLabels[action]}
-              className={cn(
-                "inline-flex h-6 w-6 items-center justify-center rounded-[8px] focus-visible:opacity-100",
-                style.className,
-              )}
               key={action}
               onClick={actionHandlers[action]}
-              type="button"
+              size="xs"
+              tone={style.tone}
+              visibility="visible"
             >
               <Icon className="h-3 w-3" />
-            </button>
+            </UiListActionButton>
           );
         })}
       </div>

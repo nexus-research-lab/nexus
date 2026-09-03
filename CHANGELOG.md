@@ -38,6 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Unified Room history and Session-edge controls on shared Button, Form, List,
+  and native mixed-checkbox contracts without changing conversation behavior.
 - Unified Sidebar collapse, guide, update, and logout actions on the shared
   round IconButton contract while retaining Settings as a real route link.
 - Standardized Agent private-thread navigation on shared selectable ListRow

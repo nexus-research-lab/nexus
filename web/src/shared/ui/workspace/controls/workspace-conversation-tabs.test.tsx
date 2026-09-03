@@ -28,6 +28,8 @@ describe("WorkspaceConversationTabs", () => {
 
     const navigation = screen.getByRole("navigation");
     const createButton = within(navigation).getByRole("button");
+    expect(createButton.className).toContain("h-8 w-8");
+    expect(createButton.className).toContain("border-transparent");
     expect(createButton.querySelector(".lucide-plus")).toBeTruthy();
 
     fireEvent.click(createButton);

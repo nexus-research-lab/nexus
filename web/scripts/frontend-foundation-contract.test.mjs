@@ -755,6 +755,21 @@ test("Sidebar utility actions share the round IconButton owner", async () => {
   assert.match(utilities, /aria-current=/);
 });
 
+test("Room history controls use the shared Button, Form, and List owners", async () => {
+  const [menu, item, tabs] = await Promise.all([
+    readSource("src/features/conversation/room/surface/history/room-history-menu.tsx"),
+    readSource("src/features/conversation/room/surface/history/room-history-item-view.tsx"),
+    readSource("src/shared/ui/workspace/controls/workspace-conversation-tabs.tsx"),
+  ]);
+
+  assert.match(menu, /<UiIconButton/);
+  assert.match(menu, /<UiCheckbox/);
+  assert.match(menu, /<UiButton/);
+  assert.match(item, /<UiInput/);
+  assert.match(item, /<UiListActionButton/);
+  assert.match(tabs, /<UiIconButton/);
+});
+
 test("Provider import and Operations route loading share Spinner roles", async () => {
   const [providerImport, operationsPage] = await Promise.all([
     readSource("src/features/provider-imports/cc-switch/provider-ccswitch-dialog.tsx"),

@@ -9,17 +9,17 @@
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Check,
   ChevronDown,
   History,
   Loader2,
-  Minus,
 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { cn } from "@/shared/ui/class-name";
+import { UiCheckbox } from "@/shared/ui/form/checkbox";
 import { useSelectMenuOverlay } from "@/shared/ui/menu/use-select-menu-overlay";
 import { resolveAnchoredOverlayPosition } from "@/shared/ui/overlay/anchored-overlay-model";
 import {
@@ -135,6 +135,9 @@ export function RoomHistoryMenu({
     estimatePosition,
   });
   const historyTitleId = `${menuId}-title`;
+  const triggerLabel = isBulkDeleting
+    ? t("room.history_batch_deleting")
+    : t("room.history");
 
   useEffect(() => {
     if (!isOpen) {
@@ -229,29 +232,24 @@ export function RoomHistoryMenu({
 
   return (
     <>
-      <button
+      <UiIconButton
         aria-controls={isOpen ? menuId : undefined}
         aria-expanded={isOpen}
         aria-haspopup="dialog"
-        aria-label={isBulkDeleting
-          ? t("room.history_batch_deleting")
-          : t("room.history")}
+        aria-label={triggerLabel}
         className={cn(
-          "inline-flex shrink-0 items-center justify-center bg-transparent text-(--icon-default) transition-[background-color,color] duration-(--motion-duration-fast) hover:text-(--text-strong) focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset",
           triggerVariant === "session"
-            ? "workspace-surface-header-session-tabs-edge-action workspace-surface-header-session-tabs-history h-8 w-8 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_42%,transparent)]"
-            : "workspace-surface-header-control-segment workspace-surface-history-trigger h-9 w-9 rounded-[8px] focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_24%,transparent)]",
-          isOpen && "text-(--text-strong)",
+            ? "workspace-surface-header-session-tabs-edge-action workspace-surface-header-session-tabs-history focus-visible:z-10"
+            : "workspace-surface-header-control-segment workspace-surface-history-trigger",
         )}
         data-tour-anchor={CONVERSATION_TOUR_ANCHORS.history_menu}
         disabled={isBulkDeleting}
         onClick={toggleMenu}
         onKeyDown={handleTriggerKeyDown}
         ref={buttonRef}
-        title={isBulkDeleting
-          ? t("room.history_batch_deleting")
-          : t("room.history")}
-        type="button"
+        size={triggerVariant === "session" ? "md" : "lg"}
+        tooltip={triggerLabel}
+        variant="ghost"
       >
         {isBulkDeleting ? (
           <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
@@ -265,7 +263,7 @@ export function RoomHistoryMenu({
         ) : (
           <History className="h-3.5 w-3.5 shrink-0" />
         )}
-      </button>
+      </UiIconButton>
 
       {isOpen && portalContainer ? createPortal(
         <div
@@ -297,30 +295,21 @@ export function RoomHistoryMenu({
           {isSelecting ? (
             <div className="shrink-0 border-b border-(--divider-subtle-color) px-2.5 py-1.5">
               <div className="flex items-center justify-between gap-3">
-                <button
-                  aria-checked={selectionState === "mixed"
-                    ? "mixed"
-                    : selectionState === "all"}
-                  className="inline-flex h-6 min-w-0 items-center gap-2 rounded-[7px] px-1.5 text-xs font-medium text-(--text-default) transition-colors hover:bg-(--surface-interactive-hover-background) disabled:pointer-events-none disabled:opacity-(--disabled-opacity)"
-                  disabled={!hasSelectableEntries}
-                  onClick={toggleAllSelection}
-                  role="checkbox"
-                  type="button"
+                <label
+                  className={cn(
+                    "inline-flex h-6 min-w-0 items-center gap-2 radius-control-xs px-1.5 text-xs font-medium text-(--text-default) transition-colors hover:bg-(--surface-interactive-hover-background)",
+                    !hasSelectableEntries && "cursor-not-allowed opacity-(--disabled-opacity)",
+                  )}
                 >
-                  <span className={cn(
-                    "grid h-3.5 w-3.5 shrink-0 place-items-center rounded-[4px] border transition-colors",
-                    selectionState === "none"
-                      ? "border-(--input-shell-border) bg-transparent"
-                      : "border-(--primary) bg-(--primary) text-white",
-                  )}>
-                    {selectionState === "all" ? (
-                      <Check className="h-2.5 w-2.5" strokeWidth={3} />
-                    ) : selectionState === "mixed" ? (
-                      <Minus className="h-2.5 w-2.5" strokeWidth={3} />
-                    ) : null}
-                  </span>
+                  <UiCheckbox
+                    checked={selectionState === "all"}
+                    checkboxSize="small"
+                    disabled={!hasSelectableEntries}
+                    indeterminate={selectionState === "mixed"}
+                    onChange={toggleAllSelection}
+                  />
                   <span className="truncate">{t("room.history_select_all")}</span>
-                </button>
+                </label>
                 <span className="shrink-0 text-2xs text-(--text-soft)">
                   {t("room.history_selection_count", {
                     count: selectedIds.size,
@@ -394,27 +383,30 @@ export function RoomHistoryMenu({
           {hasSelectableEntries || isSelecting ? (
             <footer className="flex shrink-0 items-center justify-between gap-2 border-t border-(--divider-subtle-color) px-2.5 py-1.5">
               {hasSelectableEntries ? (
-                <button
-                  className="inline-flex h-7 shrink-0 items-center rounded-[7px] px-1.5 text-xs font-medium text-(--text-soft) outline-none transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:ring-1 focus-visible:ring-[color:color-mix(in_srgb,var(--text-default)_20%,transparent)]"
+                <UiButton
+                  className="shrink-0"
                   onClick={toggleSelectionMode}
-                  type="button"
+                  size="xs"
+                  variant="text"
                 >
                   {isSelecting
                     ? t("room.history_cancel_selection")
                     : t("room.history_select")}
-                </button>
+                </UiButton>
               ) : <span />}
               {isSelecting ? (
-                <button
-                  className="inline-flex h-7 shrink-0 items-center rounded-[8px] px-2 text-xs font-semibold text-(--destructive) transition-colors hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] disabled:pointer-events-none disabled:opacity-(--disabled-opacity)"
+                <UiButton
+                  className="shrink-0"
                   disabled={selectedIds.size === 0}
                   onClick={requestBulkDelete}
-                  type="button"
+                  size="xs"
+                  tone="danger"
+                  variant="text"
                 >
                   {selectionState === "all"
                     ? t("room.history_clear")
                     : t("room.history_batch_delete")}
-                </button>
+                </UiButton>
               ) : <span />}
             </footer>
           ) : null}
