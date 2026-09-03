@@ -335,6 +335,37 @@ test("Settings navigation consumes shared Button and typography owners", async (
   assert.match(buttonStyles, /aria-\[current=page\]/);
 });
 
+test("Personal settings cannot redefine App typography or card shape", async () => {
+  const personalRoot = path.join(srcRoot, "features", "settings", "personal");
+  const files = await collectSourceFiles(personalRoot);
+  const violations = [];
+  const localTypographyPattern = /\b(?:text-(?:2xs|xs|compact|sm|base|md|lg|xl|2xl)|font-(?:normal|medium|semibold|bold|mono)|leading-(?:none|\d+|\[[^\]]+\])|tracking-(?:tight|wide|\[[^\]]+\])|rounded-\[[^\]]+\])/;
+
+  for (const file of files) {
+    if (!/\.(?:ts|tsx)$/.test(file)) continue;
+    const source = await readFile(file, "utf8");
+    if (localTypographyPattern.test(source)) {
+      violations.push(path.relative(webRoot, file));
+    }
+  }
+
+  const [profile, usage, password, avatar] = await Promise.all([
+    readSource("src/features/settings/personal/personal-profile-section.tsx"),
+    readSource("src/features/settings/personal/personal-token-usage-section.tsx"),
+    readSource("src/features/settings/personal/personal-password-section.tsx"),
+    readSource("src/features/settings/personal/personal-avatar-picker.tsx"),
+  ]);
+
+  assert.deepEqual(violations, []);
+  for (const consumer of [profile, usage, password, avatar]) {
+    assert.match(consumer, /getUiTypographyClassName/);
+  }
+  assert.match(profile, /<UiBadge/);
+  for (const consumer of [profile, usage, password]) {
+    assert.match(consumer, /SETTINGS_CARD_CLASS_NAME/);
+  }
+});
+
 test("product source contains no arbitrary shadows or numeric z-index values", async () => {
   const files = (await Promise.all(productUiRoots.map(collectSourceFiles))).flat();
   const violations = [];

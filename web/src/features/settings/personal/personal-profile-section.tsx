@@ -1,12 +1,22 @@
+/**
+ * INPUT: 当前用户身份展示模型与头像修改状态。
+ * OUTPUT: 统一的个人身份、套餐、角色和登录方式摘要卡。
+ * POS: Personal 设置身份视图；不读取 API，也不拥有基础排版与 Badge 样式。
+ */
+
 import { Info, KeyRound, ShieldCheck } from "lucide-react";
 
 import type { PersonalProfile } from "@/lib/api/account/auth-api";
+import { cn } from "@/shared/ui/class-name";
+import { UiBadge } from "@/shared/ui/display/badge";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import {
   buildPersonalProfilePresentation,
 } from "./personal-settings-model";
 import { PersonalAvatarPicker } from "./personal-avatar-picker";
+import { SETTINGS_CARD_CLASS_NAME } from "../shared/settings-panel-ui";
 
 interface PersonalProfileSectionProps {
   avatar: string;
@@ -27,7 +37,7 @@ export function PersonalProfileSection({
   const presentation = buildPersonalProfilePresentation(profile, t);
 
   return (
-    <section className="w-full overflow-hidden rounded-[12px] border border-(--divider-subtle-color) bg-transparent">
+    <section className={cn("w-full", SETTINGS_CARD_CLASS_NAME)}>
       <div className="grid gap-5 px-4 py-5 sm:px-5 lg:grid-cols-[minmax(280px,0.85fr)_minmax(360px,1fr)] lg:items-center lg:gap-6">
         <div className="flex min-w-0 items-center gap-4">
           <PersonalAvatarPicker
@@ -40,16 +50,22 @@ export function PersonalProfileSection({
 
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <h3 className="truncate text-md font-semibold tracking-tight text-(--text-strong)">
+              <h3 className={cn(
+                "truncate",
+                getUiTypographyClassName({ role: "pageTitle", tone: "strong" }),
+              )}>
                 {presentation.displayName}
               </h3>
               {presentation.subscriptionPlanName !== null ? (
-                <span className="shrink-0 rounded-full border border-[color:color-mix(in_srgb,var(--primary)_16%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_6%,transparent)] px-2 py-0.5 text-xs font-semibold text-(--primary)">
+                <UiBadge size="sm" tone="primary">
                   {presentation.subscriptionPlanName}
-                </span>
+                </UiBadge>
               ) : null}
             </div>
-            <p className="mt-0.5 truncate text-compact leading-5 text-(--text-soft)">
+            <p className={cn(
+              "mt-0.5 truncate",
+              getUiTypographyClassName({ role: "metadata", tone: "soft" }),
+            )}>
               {presentation.username}
             </p>
           </div>
@@ -57,24 +73,36 @@ export function PersonalProfileSection({
 
         <div className="min-w-0">
           <div className="grid gap-2 sm:grid-cols-2">
-            <span className="flex min-w-0 items-center gap-2 rounded-[10px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_72%,transparent)] px-3 py-2.5">
+            <span className="flex min-w-0 items-center gap-2 radius-control-md border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_72%,transparent)] px-3 py-2.5">
               <ShieldCheck className="h-4 w-4 shrink-0 text-(--icon-muted)" />
               <span className="min-w-0">
-                <span className="block text-xs leading-4 text-(--text-soft)">
+                <span className={cn(
+                  "block",
+                  getUiTypographyClassName({ role: "caption", tone: "soft" }),
+                )}>
                   {t("settings.personal.role")}
                 </span>
-                <span className="block truncate text-compact font-medium leading-4 text-(--text-strong)">
+                <span className={cn(
+                  "block truncate",
+                  getUiTypographyClassName({ role: "metadata", tone: "strong", weight: "medium" }),
+                )}>
                   {presentation.roleLabel}
                 </span>
               </span>
             </span>
-            <span className="flex min-w-0 items-center gap-2 rounded-[10px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_72%,transparent)] px-3 py-2.5">
+            <span className="flex min-w-0 items-center gap-2 radius-control-md border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_72%,transparent)] px-3 py-2.5">
               <KeyRound className="h-4 w-4 shrink-0 text-(--icon-muted)" />
               <span className="min-w-0">
-                <span className="block text-xs leading-4 text-(--text-soft)">
+                <span className={cn(
+                  "block",
+                  getUiTypographyClassName({ role: "caption", tone: "soft" }),
+                )}>
                   {t("settings.personal.auth_method")}
                 </span>
-                <span className="block truncate text-compact font-medium leading-4 text-(--text-strong)">
+                <span className={cn(
+                  "block truncate",
+                  getUiTypographyClassName({ role: "metadata", tone: "strong", weight: "medium" }),
+                )}>
                   {presentation.authMethodLabel}
                 </span>
               </span>
@@ -82,7 +110,10 @@ export function PersonalProfileSection({
           </div>
 
           {!presentation.canUpdateProfile ? (
-            <p className="mt-2 flex items-start gap-1.5 text-xs leading-5 text-(--text-soft)">
+            <p className={cn(
+              "mt-2 flex items-start gap-1.5",
+              getUiTypographyClassName({ role: "caption", tone: "soft" }),
+            )}>
               <Info className="mt-[3px] h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
               <span>{t("settings.personal.avatar_disabled")}</span>
             </p>

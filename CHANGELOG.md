@@ -105,6 +105,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Unified the main Settings and Provider directories on one navigation Pattern;
   their typography, control geometry, current-page state, hover treatment, and
   Button DOM now follow shared owners instead of page-local class recipes.
+- Migrated the complete Personal settings surface to semantic Typography,
+  Badge, Shape, and Settings Card owners, including identity metadata, token
+  usage metrics, avatar state, password labels, and validation feedback.
 - Moved floating feedback and shared resource states onto named surface, layer,
   typography, shape, and Button contracts, with DOM tests for recovery,
   dismissal, live-region behavior, and auto-dismiss timing resets.
