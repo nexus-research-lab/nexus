@@ -38,6 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Unified Sidebar collapse, guide, update, and logout actions on the shared
+  round IconButton contract while retaining Settings as a real route link.
 - Standardized Agent private-thread navigation on shared selectable ListRow
   behavior and semantic typography without changing thread ownership or data.
 - Moved Agent Options section navigation onto the shared Button active-state
