@@ -445,6 +445,37 @@ test("standalone Settings collapse the panel to the shared rail on narrow window
   assert.match(navigation, /aria-current=\{active \? "page" : undefined\}/);
 });
 
+test("Operations settings use shared typography, badges, resource states, and shapes", async () => {
+  const operationsRoot = path.join(srcRoot, "features", "settings", "operations");
+  const files = await collectSourceFiles(operationsRoot);
+  const violations = [];
+  const localTypographyPattern = /\b(?:text-(?:2xs|xs|compact|sm|base|md|lg|xl|2xl)|font-(?:normal|medium|semibold|bold|mono)|leading-(?:none|\d+|\[[^\]]+\])|tracking-(?:tight|wide|\[[^\]]+\])|rounded-\[[^\]]+\])/;
+
+  for (const file of files) {
+    if (!/\.(?:ts|tsx)$/.test(file) || file.endsWith(".test.tsx")) continue;
+    const source = await readFile(file, "utf8");
+    if (localTypographyPattern.test(source)) {
+      violations.push(path.relative(webRoot, file));
+    }
+  }
+
+  const [members, accounts, plans, projects] = await Promise.all([
+    readSource("src/features/settings/operations/control-members-panel.tsx"),
+    readSource("src/features/settings/operations/subscription-admin/subscription-account-view.tsx"),
+    readSource("src/features/settings/operations/subscription-admin/subscription-plan-view.tsx"),
+    readSource("src/features/settings/operations/project-admin/project-admin-panel.tsx"),
+  ]);
+  const operationsUi = [members, accounts, plans, projects].join("\n");
+
+  assert.deepEqual(violations, []);
+  assert.match(operationsUi, /getUiTypographyClassName/);
+  assert.match(operationsUi, /<UiBadge/);
+  assert.match(operationsUi, /<UiResourceState/);
+  assert.match(operationsUi, /SETTINGS_CARD_CLASS_NAME/);
+  assert.match(operationsUi, /SETTINGS_CONTROL_LABEL_CLASS_NAME/);
+  assert.doesNotMatch(operationsUi, /Subscription(?:Loading|Empty)State/);
+});
+
 test("product source contains no arbitrary shadows or numeric z-index values", async () => {
   const files = (await Promise.all(productUiRoots.map(collectSourceFiles))).flat();
   const violations = [];

@@ -11,3 +11,4 @@ L3 | 父级: web/src/features/settings
 - `project-admin/` 负责共享项目创建、成员 ACL 展示与管理员授权事务；角色权限仍由服务端判定。
 
 运营是设置管理分区，不拥有独立页面状态；旧 `/operations` 页面只负责权限校验和重定向。
+所有子视图复用 Settings Card、Control Label、语义 Typography、Badge 与 Resource State；不得在页面内重组字号/字重/行高、状态胶囊、加载空态或任意圆角。

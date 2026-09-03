@@ -16,15 +16,20 @@ import { type FormEvent, useMemo } from "react";
 
 import {
   SETTINGS_CARD_CLASS_NAME,
+  SETTINGS_CONTROL_LABEL_CLASS_NAME,
   SETTINGS_ITEM_TITLE_CLASS_NAME,
 } from "@/features/settings/shared/settings-panel-ui";
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
+import { UiBadge } from "@/shared/ui/display/badge";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiInput } from "@/shared/ui/form/form-control";
 import { completeFeedbackBanner } from "@/shared/ui/feedback/feedback-banner-contract";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { ProjectAccess, SharedProject } from "@/types/settings/project";
 
 import {
@@ -74,17 +79,23 @@ function ProjectCard({
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <FolderKanban className="h-4 w-4 shrink-0 text-primary" />
-            <p className="truncate text-base font-semibold text-(--text-strong)">
+            <p className={cn(
+              "truncate",
+              getUiTypographyClassName({ role: "sectionTitle", tone: "strong" }),
+            )}>
               {project.project_id}
             </p>
           </div>
-          <p className="mt-1 break-all text-xs leading-5 text-(--text-soft)">
+          <p className={cn(
+            "mt-1 break-all",
+            getUiTypographyClassName({ role: "caption", tone: "soft" }),
+          )}>
             {t("settings.projects.root")}: {project.root}
           </p>
         </div>
-        <span className="w-fit rounded-full border border-(--divider-subtle-color) px-2 py-0.5 text-2xs font-semibold text-(--text-muted)">
+        <UiBadge className="w-fit" size="xs">
           {t("settings.projects.generation")}: {project.generation}
-        </span>
+        </UiBadge>
       </div>
 
       <div className="px-4 py-3">
@@ -96,9 +107,12 @@ function ProjectCard({
         </div>
 
         {memberEntries.length === 0 ? (
-          <p className="py-5 text-center text-compact text-(--text-soft)">
-            {t("settings.projects.members_empty")}
-          </p>
+          <UiResourceState
+            size="sm"
+            state="empty"
+            title={t("settings.projects.members_empty")}
+            variant="plain"
+          />
         ) : (
           <div className="mt-3 divide-y divide-(--divider-subtle-color)">
             {memberEntries.map(([ownerUserId, access]) => {
@@ -109,7 +123,10 @@ function ProjectCard({
                   key={ownerUserId}
                   className="grid gap-2 py-2.5 sm:grid-cols-[minmax(0,1fr)_140px] sm:items-center"
                 >
-                  <span className="min-w-0 truncate text-compact font-medium text-(--text-default)">
+                  <span className={cn(
+                    "min-w-0 truncate",
+                    getUiTypographyClassName({ role: "metadata", tone: "default", weight: "medium" }),
+                  )}>
                     {ownerUserId}
                   </span>
                   {model.canManageMembers ? (
@@ -126,7 +143,10 @@ function ProjectCard({
                       value={access}
                     />
                   ) : (
-                    <span className="text-xs font-semibold text-(--text-soft) sm:text-right">
+                    <span className={cn(
+                      "sm:text-right",
+                      getUiTypographyClassName({ role: "caption", tone: "soft", weight: "semibold" }),
+                    )}>
                       {pending
                         ? t("settings.projects.updating")
                         : t(`settings.projects.access_${access}`)}
@@ -171,7 +191,10 @@ function ProjectCard({
             </UiButton>
           </form>
         ) : (
-          <p className="mt-3 border-t border-(--divider-subtle-color) pt-3 text-xs leading-5 text-(--text-soft)">
+          <p className={cn(
+            "mt-3 border-t border-(--divider-subtle-color) pt-3",
+            getUiTypographyClassName({ role: "caption", tone: "soft" }),
+          )}>
             {t("settings.projects.read_only_hint")}
           </p>
         )}
@@ -206,7 +229,7 @@ export function ProjectAdminPanel() {
             onSubmit={handleCreateProject}
           >
             <label className="grid min-w-0 gap-1.5">
-              <span className="text-xs font-semibold text-(--text-muted)">
+              <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
                 {t("settings.projects.create_label")}
               </span>
               <UiInput
@@ -247,14 +270,19 @@ export function ProjectAdminPanel() {
         </section>
 
         {viewModel.loading ? (
-          <div className="flex items-center justify-center gap-2 px-4 py-10 text-compact text-(--text-soft)">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            {t("settings.projects.loading")}
-          </div>
+          <UiResourceState
+            size="sm"
+            state="loading"
+            title={t("settings.projects.loading")}
+            variant="plain"
+          />
         ) : viewModel.projects.length === 0 ? (
-          <div className="px-4 py-10 text-center text-compact text-(--text-soft)">
-            {t("settings.projects.empty")}
-          </div>
+          <UiResourceState
+            size="sm"
+            state="empty"
+            title={t("settings.projects.empty")}
+            variant="plain"
+          />
         ) : (
           <div className="grid gap-3">
             {viewModel.projects.map((project) => (

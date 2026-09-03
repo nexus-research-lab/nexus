@@ -7,6 +7,9 @@ import { RefreshCw, UserPlus, UsersRound } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 
 import {
+  SETTINGS_ITEM_TITLE_CLASS_NAME,
+} from "@/features/settings/shared/settings-panel-ui";
+import {
   createControlMemberApi,
   listControlMembersApi,
   updateControlMemberApi,
@@ -16,11 +19,14 @@ import {
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 import {
   UiField,
   UiInput,
   UiNativeSelect,
 } from "@/shared/ui/form/form-control";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 interface MemberDraft {
   username: string;
@@ -121,9 +127,14 @@ export function ControlMembersPanel() {
         <div>
           <div className="flex items-center gap-2 text-(--text-strong)">
             <UsersRound className="h-4 w-4" />
-            <h2 className="text-base font-semibold">{t("members.title")}</h2>
+            <h2 className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong" })}>
+              {t("members.title")}
+            </h2>
           </div>
-          <p className="mt-1.5 max-w-[680px] text-sm leading-6 text-(--text-muted)">
+          <p className={cn(
+            "mt-1.5 max-w-[680px]",
+            getUiTypographyClassName({ role: "supporting", tone: "muted" }),
+          )}>
             {t("members.description")}
           </p>
         </div>
@@ -134,7 +145,10 @@ export function ControlMembersPanel() {
       </header>
 
       <form className="border-b border-(--divider-subtle-color) py-5" onSubmit={createMember}>
-        <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-(--text-strong)">
+        <div className={cn(
+          "mb-4 flex items-center gap-2",
+          SETTINGS_ITEM_TITLE_CLASS_NAME,
+        )}>
           <UserPlus className="h-4 w-4" />
           {t("members.create_title")}
         </div>
@@ -165,7 +179,10 @@ export function ControlMembersPanel() {
           </UiField>
         </div>
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-          <p className={draftError ? "text-xs text-(--destructive)" : "text-xs text-(--text-muted)"}>
+          <p className={getUiTypographyClassName({
+            role: "caption",
+            tone: draftError ? "danger" : "muted",
+          })}>
             {draftError ?? t("members.create_hint")}
           </p>
           <UiButton disabled={Boolean(draftError) || pendingKey !== null} size="sm" tone="primary" type="submit" variant="solid">
@@ -175,17 +192,36 @@ export function ControlMembersPanel() {
       </form>
 
       {feedback ? (
-        <p className={feedback.tone === "success" ? "py-3 text-sm text-(--text-muted)" : "py-3 text-sm text-(--destructive)"} role="status">
+        <p
+          className={cn(
+            "py-3",
+            getUiTypographyClassName({
+              role: "supporting",
+              tone: feedback.tone === "success" ? "muted" : "danger",
+            }),
+          )}
+          role="status"
+        >
           {feedback.message}
         </p>
       ) : null}
 
       <section aria-label={t("members.list_label")} className="divide-y divide-(--divider-subtle-color)">
         {loading && members.length === 0 ? (
-          <p className="py-8 text-sm text-(--text-muted)">{t("members.loading")}</p>
+          <UiResourceState
+            size="sm"
+            state="loading"
+            title={t("members.loading")}
+            variant="plain"
+          />
         ) : null}
         {!loading && members.length === 0 ? (
-          <p className="py-8 text-sm text-(--text-muted)">{t("members.empty")}</p>
+          <UiResourceState
+            size="sm"
+            state="empty"
+            title={t("members.empty")}
+            variant="plain"
+          />
         ) : null}
         {members.map((member) => {
           const isSelf = member.user_id === status?.user_id;
@@ -196,10 +232,21 @@ export function ControlMembersPanel() {
             <article className="grid items-center gap-4 py-4 md:grid-cols-[minmax(0,1fr)_150px_120px]" key={member.user_id}>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <p className="truncate text-sm font-semibold text-(--text-strong)">{member.display_name || member.username}</p>
-                  {isSelf ? <span className="text-xs text-(--text-soft)">{t("members.current")}</span> : null}
+                  <p className={cn("truncate", SETTINGS_ITEM_TITLE_CLASS_NAME)}>
+                    {member.display_name || member.username}
+                  </p>
+                  {isSelf ? (
+                    <span className={getUiTypographyClassName({ role: "caption", tone: "soft" })}>
+                      {t("members.current")}
+                    </span>
+                  ) : null}
                 </div>
-                <p className="mt-1 truncate text-xs text-(--text-muted)">@{member.username}</p>
+                <p className={cn(
+                  "mt-1 truncate",
+                  getUiTypographyClassName({ role: "caption", tone: "muted" }),
+                )}>
+                  @{member.username}
+                </p>
               </div>
               <UiNativeSelect
                 aria-label={t("members.role")}
