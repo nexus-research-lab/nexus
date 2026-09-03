@@ -1,3 +1,6 @@
+// INPUT: Room/DM 的 Workspace 选择、当前相对路径、成员身份与面板布局状态。
+// OUTPUT: 文件目录、预览、切换器和弹窗组成的响应式 Workspace 工作面。
+// POS: Conversation Workspace 组合层；不拥有文件事务或公共 Breadcrumb 视觉。
 "use client";
 
 import { useRef, useState } from "react";
@@ -18,7 +21,7 @@ import type { Agent } from "@/types/agent/agent";
 import { RoomAgentSwitcher } from "../surface/room-agent-switcher";
 import { useRoomWorkspaceController } from "./controller/use-room-workspace-controller";
 import {
-  getWorkspaceFileLocationLabel,
+  getWorkspaceFileLocationSegments,
   getWorkspaceRootLabel,
 } from "./controller/workspace-path-model";
 import { useWorkspaceFileListLayout } from "./view/use-workspace-file-list-layout";
@@ -82,15 +85,14 @@ export function RoomWorkspaceView({
   const viewAgent = roomMembers.find(
     (member) => member.agent_id === controller.agent.viewAgentId,
   );
-  const fallbackWorkspaceLabel =
-    viewAgent?.display_name?.trim() || viewAgent?.name || t("room.workspace_title");
   const workspaceRootLabel = getWorkspaceRootLabel(
-    viewAgent?.workspace_path ?? "",
-    fallbackWorkspaceLabel,
+    viewAgent?.display_name,
+    viewAgent?.name,
+    t("room.workspace_title"),
   );
-  const headerLocationLabel = activeWorkspacePath
-    ? getWorkspaceFileLocationLabel(activeWorkspacePath, workspaceRootLabel)
-    : workspaceRootLabel;
+  const headerLocationSegments = activeWorkspacePath
+    ? getWorkspaceFileLocationSegments(activeWorkspacePath, workspaceRootLabel)
+    : [workspaceRootLabel];
 
   return (
     <>
@@ -149,7 +151,7 @@ export function RoomWorkspaceView({
                 agentId={controller.agent.viewAgentId}
                 className="h-full w-full"
                 headerLeading={agentSwitcher}
-                headerLocationLabel={headerLocationLabel}
+                headerLocationSegments={headerLocationSegments}
                 headerPortalTarget={previewHeaderTarget}
                 isPreviewFocused={isPreviewFocused}
                 onTogglePreviewFocus={togglePreviewFocus}

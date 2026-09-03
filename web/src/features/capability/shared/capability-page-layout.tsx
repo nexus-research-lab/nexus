@@ -11,10 +11,10 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import { ArrowLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 
 import { useMobileAppPageHeaderActionsTarget } from "@/app/layout/mobile-app-page-header-actions-context";
-import { UiButton } from "@/shared/ui/button/button";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
 import {
@@ -27,6 +27,7 @@ import {
 } from "@/shared/ui/layout/workspace-content-header";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import type { UiSelectMenuOption } from "@/shared/ui/menu/select-menu-model";
+import { UiBreadcrumb } from "@/shared/ui/navigation/breadcrumb";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 interface CapabilityPageLayoutProps {
@@ -133,30 +134,25 @@ export function CapabilityDetailHeader({
   currentTitle,
   onBack,
 }: CapabilityDetailHeaderProps) {
+  const { t } = useI18n();
   return (
     <WorkspaceContentDetailHeader>
       <div
-        className="flex min-w-0 items-center gap-2"
+        className="min-w-0 flex-1"
         data-slot="capability-detail-header"
       >
-        <UiButton onClick={onBack} size="sm" variant="text">
-          <ArrowLeft aria-hidden className="h-3.5 w-3.5" />
-          {backLabel}
-        </UiButton>
-        {currentTitle ? (
-          <>
-            <ChevronRight
-              aria-hidden
-              className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)"
-            />
-            <span className={cn(
-              "truncate",
-              getUiTypographyClassName({ role: "metadata", tone: "strong", weight: "medium" }),
-            )}>
-              {currentTitle}
-            </span>
-          </>
-        ) : null}
+        <UiBreadcrumb
+          ariaLabel={t("common.location_aria")}
+          items={[
+            {
+              icon: <ArrowLeft aria-hidden />,
+              id: "directory",
+              label: backLabel,
+              onSelect: onBack,
+            },
+            ...(currentTitle ? [{ id: "current", label: currentTitle }] : []),
+          ]}
+        />
       </div>
     </WorkspaceContentDetailHeader>
   );

@@ -14,7 +14,7 @@ interface WorkspaceFilePreviewPanelProps {
   agentId: string;
   className?: string;
   headerLeading?: ReactNode;
-  headerLocationLabel: string;
+  headerLocationSegments: readonly string[];
   headerPortalTarget?: HTMLElement | null;
   isPreviewFocused: boolean;
   onTogglePreviewFocus: () => void;
@@ -42,7 +42,7 @@ export function WorkspaceFilePreviewPanel({
   agentId,
   className,
   headerLeading,
-  headerLocationLabel,
+  headerLocationSegments,
   headerPortalTarget,
   isPreviewFocused,
   onTogglePreviewFocus,
@@ -61,7 +61,7 @@ export function WorkspaceFilePreviewPanel({
       <WorkspaceFilePreviewHeaderProvider
         headerPortalTarget={headerPortalTarget}
         leading={headerLeading}
-        locationLabel={headerLocationLabel}
+        locationSegments={headerLocationSegments}
       >
         <WorkspaceFilePreviewRouter
           agentId={agentId}
