@@ -67,10 +67,10 @@ export function WorkGraphArtifactBlock({
                   : <GitFork className="h-3.5 w-3.5 text-(--primary)" />}
                 {stateLabel}
               </span>
-              <code className="rounded-md bg-[color:color-mix(in_srgb,var(--primary)_8%,transparent)] px-1.5 py-0.5 text-[11px] text-(--primary)">
+              <code className="rounded-md bg-[color:color-mix(in_srgb,var(--primary)_8%,transparent)] px-1.5 py-0.5 text-xs text-(--primary)">
                 /{graph.slash_name}
               </code>
-              <span className="text-[10px] text-(--text-soft)">v{selectedRevision}</span>
+              <span className="text-2xs text-(--text-soft)">v{selectedRevision}</span>
             </div>
             <h3 className="mt-1.5 truncate text-sm font-semibold text-(--text-strong)">{graph.title}</h3>
             {graph.description ? (
@@ -92,7 +92,7 @@ export function WorkGraphArtifactBlock({
             dependencies={graph.dependencies}
             nodes={graph.nodes}
           />
-          <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 px-1 text-[10px] text-(--text-soft)">
+          <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 px-1 text-2xs text-(--text-soft)">
             <span>{graph.nodes.length} {t("execution.workflow_nodes_short")} · {(graph.dependencies ?? []).length} {t("execution.workflow_artifact_dependencies")}</span>
             {artifact.version_count && artifact.version_count > 1 ? (
               <span>{artifact.version_count} {t("execution.workflow_artifact_versions")}</span>
@@ -249,7 +249,7 @@ function CompareCanvasPanel({
       <header className="shrink-0 border-b border-(--divider-subtle-color) bg-(--surface-panel-background) px-4 py-3">
         <div className="flex min-h-7 items-center justify-between gap-3 pr-10">
           <h3 className="text-sm font-semibold text-(--text-strong)">{title}</h3>
-          <span className="rounded-full border border-(--divider-subtle-color) px-2 py-0.5 text-[10px] text-(--text-muted)">{badge}</span>
+          <span className="rounded-full border border-(--divider-subtle-color) px-2 py-0.5 text-2xs text-(--text-muted)">{badge}</span>
         </div>
       </header>
       <div className="flex min-h-[420px] min-w-0 flex-1">{children}</div>

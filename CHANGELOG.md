@@ -91,6 +91,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a native Select form primitive and moved project, subscription,
   password, and deployment-member fields onto shared form-control ownership,
   with an architecture gate for internal style imports and unowned selects.
+- Added a shared semantic typography system for App chrome, aligning the
+  documented type scale with theme tokens and centralizing font family, size,
+  line height, weight, tracking, and text tone behind typed roles. The UI
+  contract gallery now shows the full hierarchy, and architecture checks reject
+  arbitrary pixel aliases for the standard scale.
 - Updated the Feishu long-connection SDK to v3.11.0 and pinned DingTalk's
   official v0.9.2 beta stream SDK so both channels receive the vendors'
   current WebSocket lifecycle and concurrency fixes.

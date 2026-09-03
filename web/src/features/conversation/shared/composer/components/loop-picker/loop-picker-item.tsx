@@ -27,7 +27,7 @@ export function LoopPickerItem({
       type="button"
     >
       <span className="min-w-0 flex-1">
-        <span className="block text-[14px] font-semibold text-(--text-strong)">
+        <span className="block text-base font-semibold text-(--text-strong)">
           {loop.title}
         </span>
         <span className="mt-0.5 block line-clamp-2 text-compact leading-5 text-(--text-muted)">

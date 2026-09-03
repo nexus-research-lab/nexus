@@ -20,6 +20,7 @@ import {
   UiDialogHeader,
 } from "@/shared/ui/dialog/dialog";
 import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { RecoverySummary } from "@/shared/ui/feedback/recovery-summary";
 import { UiInput, UiTextarea } from "@/shared/ui/form/form-control";
 
@@ -132,7 +133,11 @@ export function ConfirmDialog({
               failure.tone === "warning" ? "text-(--warning)" : "text-(--destructive)",
             )} />
             <div className="min-w-0 flex-1">
-              <p className="text-[13px] font-medium leading-5 text-(--text-strong)">
+              <p className={getUiTypographyClassName({
+                role: "supporting",
+                tone: "strong",
+                weight: "medium",
+              })}>
                 {failure.title}
               </p>
               <RecoverySummary

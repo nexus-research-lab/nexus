@@ -103,7 +103,7 @@ function ComposerPoweredByNexus({ visible }: { visible: boolean }) {
   }
   return (
     <span
-      className="nexus-chat-composer-footer-brand whitespace-nowrap text-center text-[11px] font-medium leading-4 tracking-[0.01em]"
+      className="nexus-chat-composer-footer-brand whitespace-nowrap text-center text-xs font-medium leading-4 tracking-[0.01em]"
       data-composer-powered-by
     >
       Powered by Nexus

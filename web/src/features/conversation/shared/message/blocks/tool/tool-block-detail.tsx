@@ -80,7 +80,7 @@ function ToolResultContentView({
           {mutation.message || t("message.tool_rejection_without_detail")}
         </p>
         {mutation.reasonCode ? (
-          <p className="mt-1 font-mono text-[10px] text-(--text-soft)">
+          <p className="mt-1 font-mono text-2xs text-(--text-soft)">
             {mutation.reasonCode}
           </p>
         ) : null}
@@ -97,7 +97,7 @@ function ToolResultContentView({
           {mutation.message || t("message.tool_superseded_without_detail")}
         </p>
         {mutation.reasonCode ? (
-          <p className="mt-1 font-mono text-[10px] text-(--text-soft)">
+          <p className="mt-1 font-mono text-2xs text-(--text-soft)">
             {mutation.reasonCode}
           </p>
         ) : null}

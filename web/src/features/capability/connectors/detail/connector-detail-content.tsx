@@ -200,7 +200,7 @@ function RichMailConnectionSection({
               <Power className="h-4 w-4" />
             </span>
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold tracking-[0.08em] text-(--brand-action)">
+              <p className="text-xs font-semibold tracking-[0.08em] text-(--brand-action)">
                 连接前准备
               </p>
               <h3 className="mt-1 text-sm font-semibold text-(--text-strong)">
@@ -214,7 +214,7 @@ function RichMailConnectionSection({
 
           <div className="mt-4 flex flex-col gap-3 border-t border-[color:color-mix(in_srgb,var(--brand-action)_14%,var(--divider-subtle-color))] pt-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
-              <p className="text-[11px] font-medium text-(--text-soft)">
+              <p className="text-xs font-medium text-(--text-soft)">
                 RichMail 设置路径
               </p>
               <p className="mt-1 text-xs font-medium leading-5 text-(--text-default)">

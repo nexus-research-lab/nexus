@@ -55,10 +55,10 @@ export function ExecutionNodeRunHistory({
       {runs.length > 0 ? (
         <>
           <div className="mb-1 flex items-center justify-between gap-2">
-            <h4 className="text-[10px] font-medium text-(--text-soft)">
+            <h4 className="text-2xs font-medium text-(--text-soft)">
               {t("execution.run_history")}
             </h4>
-            <span className="text-[10px] tabular-nums text-(--text-soft)">
+            <span className="text-2xs tabular-nums text-(--text-soft)">
               {t("execution.run_history_count", { count: runs.length })}
             </span>
           </div>
@@ -77,7 +77,7 @@ export function ExecutionNodeRunHistory({
       ) : null}
       {references.length > 0 ? (
         <div className={cn(runs.length > 0 && "mt-3")}>
-          <h4 className="mb-1 text-[10px] font-medium text-(--text-soft)">
+          <h4 className="mb-1 text-2xs font-medium text-(--text-soft)">
             {t("execution.reference_outputs")}
           </h4>
           <ul className="space-y-1">
@@ -88,7 +88,7 @@ export function ExecutionNodeRunHistory({
                 <li key={reference}>
                   <button
                     className={cn(
-                      "flex w-full min-w-0 items-center gap-2 rounded-[8px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_72%,transparent)] px-2 py-1.5 text-left text-[10px]",
+                      "flex w-full min-w-0 items-center gap-2 rounded-[8px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_72%,transparent)] px-2 py-1.5 text-left text-2xs",
                       actionable
                         ? "text-(--text-default) transition hover:bg-(--surface-interactive-hover-background)"
                         : "cursor-default text-(--text-soft)",
@@ -143,7 +143,7 @@ function ExecutionNodeRunDetail({
       onToggle={(event) => setOpen(event.currentTarget.open)}
       open={open}
     >
-      <summary className="flex cursor-pointer list-none items-center gap-2 px-2 py-1.5 text-[10px] [&::-webkit-details-marker]:hidden">
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-2 py-1.5 text-2xs [&::-webkit-details-marker]:hidden">
         <span
           aria-hidden="true"
           className={cn(
@@ -159,7 +159,7 @@ function ExecutionNodeRunDetail({
         ) : null}
         <ChevronDown className="h-3 w-3 shrink-0 text-(--icon-muted) transition-transform group-open:rotate-180" />
       </summary>
-      <div className="space-y-2 border-t dialog-divider px-2 py-2 text-[10px] leading-4 text-(--text-default)">
+      <div className="space-y-2 border-t dialog-divider px-2 py-2 text-2xs leading-4 text-(--text-default)">
         {run.error_summary?.trim() ? (
           <div className="rounded-[7px] bg-[color:color-mix(in_srgb,var(--warning)_8%,transparent)] px-2 py-1.5">
             <p>{run.error_summary.trim()}</p>

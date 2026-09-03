@@ -60,7 +60,7 @@ export function ConversationRound({
       {showHistoryDivider ? (
         <div
           aria-label={renderer.historyDividerLabel}
-          className="flex items-center gap-3 px-2 pb-2 pt-1 text-[11px] font-medium text-(--text-soft)"
+          className="flex items-center gap-3 px-2 pb-2 pt-1 text-xs font-medium text-(--text-soft)"
           role="separator"
         >
           <span className="h-px flex-1 bg-(--content-divider-color)" />

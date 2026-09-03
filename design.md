@@ -94,7 +94,20 @@ Nexus 蓝是唯一通用强调色，三主题共用一个语义：**`--primary` 
 | Launcher 品牌字（Striper / Panchang） | Launcher / 新会话的短欢迎语 | 对话正文、设置页、导航、长 CJK 标题 |
 | `--font-mono` | code、kbd、源码、纯文本预览 | 连续 prose 或导航 |
 
-字号阶梯：`10 / 11 / 12 / 13 / 15 / 17 / 22 / 28 / 42px`（Tailwind 主题键 `--text-2xs / xs / compact / sm / base / md / lg / xl / 2xl`）。对话正文是独立阅读层，遵循 §6.2；除此之外业务组件不得散落新的 `text-[Npx]`。
+字号阶梯：`10 / 11 / 12 / 13 / 14 / 16 / 20 / 24 / 36px`（Tailwind 主题键 `--text-2xs / xs / compact / sm / base / md / lg / xl / 2xl`）。这是与 `theme-tokens.css` 一致的唯一 App 阶梯；旧的 `15 / 17 / 22 / 28 / 42px` 界面尺度不得回流。对话正文是独立阅读层，遵循 §6.2。
+
+App chrome 使用 `shared/ui/typography/typography-styles.ts` 的语义角色，不在每个文件重新组合字号、行高、字重与字距：
+
+| 语义角色 | 字号 | 用途 |
+| --- | --- | --- |
+| `display / featureTitle` | `36 / 24px` | 品牌、欢迎和明确的特性主标题 |
+| `objectTitle` | `20px` | 当前业务对象主标题 |
+| `pageTitle / sectionTitle` | `16 / 14px` | 页面与内容分区标题 |
+| `body / control / supporting` | `14 / 14 / 13px` | 正文、控件文字与辅助说明 |
+| `metadata / caption / overline` | `12 / 11 / 10px` | 元数据、计数与短分组标签 |
+| `code` | `13px` | App chrome 中的短技术标识 |
+
+业务组件只选择 role、tone 和有限的 weight；margin、截断与布局仍由调用方负责。Launcher 品牌字、Markdown/文件阅读正文以及 WorkGraph/图形内必须像素对齐的微标签由所属 Surface 独立管理，并在其所有者文档说明理由。
 
 - 新会话欢迎：`2xl`、常规字重、宽松行高；一行主要信息 + 一个蓝色 Nexus 签名。
 - 侧栏 / 设置：`--font-sans`；条目紧凑、组标题可扫描、摘要不抢正文。

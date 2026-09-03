@@ -196,7 +196,7 @@ export function ComposerPermissionSurface({
       </div>
 
       <div className="space-y-3">
-        <p className="m-0 text-[15px] leading-6 text-(--text-strong)">
+        <p className="m-0 text-md leading-6 text-(--text-strong)">
           {presentation.description}
         </p>
         {presentation.detail ? (

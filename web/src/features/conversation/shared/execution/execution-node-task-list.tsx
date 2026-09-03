@@ -32,7 +32,7 @@ export function ExecutionNodeTaskList({
       data-execution-node-task-agent-round={run.agentRoundId}
       data-execution-node-tasks
     >
-      <header className="mb-1.5 flex items-center justify-between gap-2 text-[10px] leading-4">
+      <header className="mb-1.5 flex items-center justify-between gap-2 text-2xs leading-4">
         <span className="font-medium text-(--text-default)">
           {t("execution.local_tasks")}
         </span>
@@ -44,7 +44,7 @@ export function ExecutionNodeTaskList({
         {visibleTodos.map(({ index, todo }) => (
           <li
             aria-label={taskStatusLabel(todo, t)}
-            className="flex min-w-0 items-start gap-1.5 text-[10px] leading-4"
+            className="flex min-w-0 items-start gap-1.5 text-2xs leading-4"
             data-execution-node-task-status={todo.status}
             key={`${index}:${todo.content}`}
           >

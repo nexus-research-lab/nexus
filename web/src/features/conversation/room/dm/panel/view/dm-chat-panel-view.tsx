@@ -169,7 +169,7 @@ function EmbeddedEditorIntroduction({
           {agentName}
         </span>
       </div>
-      <div className="ml-9 mt-2.5 min-w-0 text-[13px] leading-5.5 text-(--text-muted)">
+      <div className="ml-9 mt-2.5 min-w-0 text-sm leading-5.5 text-(--text-muted)">
         <p className="font-medium text-(--text-strong)">{title}</p>
         <p className="mt-1">{description}</p>
         {examples.length ? (

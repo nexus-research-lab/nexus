@@ -359,7 +359,7 @@ export function WorkGraphMetadataEditorDialog({
               <div className="shrink-0 border-b border-(--divider-subtle-color) px-8 py-5 pr-16">
                 <div className="flex min-w-0 items-start justify-between gap-6">
                   <div className="min-w-0">
-                    <h3 className="truncate text-[19px] font-semibold leading-7 tracking-[-0.015em] text-(--text-strong)">{currentPreview.title}</h3>
+                    <h3 className="truncate text-lg font-semibold leading-7 tracking-[-0.015em] text-(--text-strong)">{currentPreview.title}</h3>
                     <code className="mt-1 block text-xs text-(--text-soft)">/{currentPreview.slash_name}</code>
                   </div>
                   <button
@@ -374,7 +374,7 @@ export function WorkGraphMetadataEditorDialog({
                 </div>
                 {editor && editor.versions.length > 1 ? (
                   <div className="mt-4 flex min-w-0 items-center gap-2 border-t border-(--divider-subtle-color) pt-3">
-                    <span className="inline-flex shrink-0 items-center gap-1.5 text-[11px] font-medium text-(--text-muted)">
+                    <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-(--text-muted)">
                       <History className="h-3.5 w-3.5" />
                       {t("execution.workflow_editor_versions")}
                     </span>
@@ -383,7 +383,7 @@ export function WorkGraphMetadataEditorDialog({
                         <button
                           key={version.revision}
                           aria-pressed={version.selected}
-                          className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
+                          className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition-colors ${
                             version.selected
                               ? "border-[color:color-mix(in_srgb,var(--primary)_36%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] font-semibold text-(--primary)"
                               : "border-(--divider-subtle-color) bg-(--surface-control-background) text-(--text-muted) hover:text-(--text-strong)"

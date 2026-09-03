@@ -83,7 +83,7 @@ export function RoomMobileAuxiliaryOverlay({
         >
           <ArrowLeft className="h-4 w-4" />
         </button>
-        <h2 className="truncate text-[14px] font-semibold text-(--text-strong)">
+        <h2 className="truncate text-base font-semibold text-(--text-strong)">
           {title}
         </h2>
       </header>

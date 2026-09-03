@@ -63,7 +63,7 @@ export function RoomMobileHeader({
         type="button"
       >
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[14px] font-semibold leading-5 text-(--text-strong)">
+          <p className="truncate text-base font-semibold leading-5 text-(--text-strong)">
             {primaryTitle}
           </p>
           {secondaryTitle ? (

@@ -23,6 +23,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import type { Locale } from "@/shared/i18n/messages";
 import { useTheme, type VisualTheme } from "@/shared/theme/theme-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -53,6 +54,11 @@ import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import { UiTabs } from "@/shared/ui/navigation/tabs";
 import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import { UiPanel } from "@/shared/ui/panel";
+import {
+  getUiTypographyClassName,
+  type UiTypographyRole,
+  type UiTypographyTone,
+} from "@/shared/ui/typography/typography-styles";
 
 const THEME_OPTIONS: Array<{ label: string; value: VisualTheme }> = [
   { label: "Light", value: "light" },
@@ -119,10 +125,16 @@ export function UiContractGallery() {
               <UiBadge tone="running">{viewport}px viewport</UiBadge>
               <UiBadge tone="success" showDot>shared/ui live</UiBadge>
             </div>
-            <h1 className="max-w-4xl text-2xl font-semibold tracking-[-0.04em] text-(--text-strong) sm:text-[32px]">
+            <h1 className={cn(
+              "max-w-4xl",
+              getUiTypographyClassName({ role: "display", tone: "strong" }),
+            )}>
               Nexus UI Contract Gallery
             </h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-(--text-muted)">
+            <p className={cn(
+              "mt-2 max-w-3xl",
+              getUiTypographyClassName({ role: "body", tone: "muted" }),
+            )}>
               这里展示真实公共组件，不使用页面级替身。修改 token、recipe 或 primitive 后，先在三主题和窄窗口下检查这里，再进入业务页面。
             </p>
           </div>
@@ -155,15 +167,39 @@ export function UiContractGallery() {
               { label: "Responsive copy / 中英文长文案", value: "copy" },
             ]}
           />
-          <span className="hidden text-xs text-(--text-soft) md:inline">
+          <span className={cn(
+            "hidden md:inline",
+            getUiTypographyClassName({ role: "caption", tone: "soft" }),
+          )}>
             Tab 聚焦 · Hover 检查 · Escape 关闭浮层
           </span>
         </div>
 
         <div className="grid items-start gap-5 xl:grid-cols-2">
           <GallerySection
+            className="xl:col-span-2"
+            description="字号、行高、默认字重和字距由语义 role 一次定义；页面只选择内容层级与文字 tone。"
+            eyebrow="01 · TYPE"
+            title="Typography hierarchy"
+          >
+            <div className="grid gap-x-8 gap-y-4 md:grid-cols-2 xl:grid-cols-3" data-gallery-typography>
+              <TypographySample label="Display · 36/40" textRole="display">协作有序发生</TypographySample>
+              <TypographySample label="Feature title · 24/32" textRole="featureTitle">前端设计系统</TypographySample>
+              <TypographySample label="Object title · 20/28" textRole="objectTitle">Nexus 工作区</TypographySample>
+              <TypographySample label="Page title · 16/20" textRole="pageTitle">界面与交互</TypographySample>
+              <TypographySample label="Section title · 14/20" textRole="sectionTitle">基础组件</TypographySample>
+              <TypographySample label="Body · 14/24" textRole="body">普通正文用于稳定阅读和必要说明。</TypographySample>
+              <TypographySample label="Supporting · 13/20" textRole="supporting" tone="muted">辅助信息不与主要内容争夺注意力。</TypographySample>
+              <TypographySample label="Metadata · 12/18" textRole="metadata" tone="muted">更新于 2 分钟前 · 3 个成员</TypographySample>
+              <TypographySample label="Caption · 11/16" textRole="caption" tone="soft">只用于计数和次级元数据</TypographySample>
+              <TypographySample label="Overline · 10/16" textRole="overline" tone="brand">Foundation</TypographySample>
+              <TypographySample label="Code · 13/20" textRole="code" tone="default">workspace/ui-contract</TypographySample>
+            </div>
+          </GallerySection>
+
+          <GallerySection
             description="主动作不靠阴影表达；tone 只表达语义，variant 只表达表面层级。"
-            eyebrow="01 · ACTIONS"
+            eyebrow="02 · ACTIONS"
             title="Buttons & actions"
           >
             <GalleryRow label="Primary">
@@ -190,7 +226,7 @@ export function UiContractGallery() {
 
           <GallerySection
             description="输入壳、校验、布尔选择和互斥选择分别由稳定 primitive 持有。"
-            eyebrow="02 · INPUT"
+            eyebrow="03 · INPUT"
             title="Forms & selection"
           >
             <div className="grid gap-4 sm:grid-cols-2">
@@ -248,7 +284,7 @@ export function UiContractGallery() {
 
           <GallerySection
             description="身份、状态与选中态使用统一标记；列表动作不改变整行语义。"
-            eyebrow="03 · DISPLAY"
+            eyebrow="04 · DISPLAY"
             title="Identity & navigation"
           >
             <GalleryRow label="Badges">
@@ -290,7 +326,7 @@ export function UiContractGallery() {
 
           <GallerySection
             description="加载、空、失败和完成是资源状态，不由页面临时拼接颜色与动作。"
-            eyebrow="04 · FEEDBACK"
+            eyebrow="05 · FEEDBACK"
             title="Resource states"
           >
             <div className="grid gap-3 sm:grid-cols-2">
@@ -331,7 +367,7 @@ export function UiContractGallery() {
           <GallerySection
             className="xl:col-span-2"
             description="Portal、焦点与 Escape 必须在真实浏览器里验证；这里提供统一触发入口。"
-            eyebrow="05 · OVERLAYS"
+            eyebrow="06 · OVERLAYS"
             title="Overlay & responsive checks"
           >
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.65fr)]">
@@ -463,9 +499,15 @@ function GallerySection({
   return (
     <section className={`surface-panel min-w-0 p-4 sm:p-5 ${className ?? ""}`} data-gallery-section={title}>
       <div className="mb-5 border-b border-(--divider-subtle-color) pb-4">
-        <p className="text-2xs font-semibold tracking-[0.18em] text-(--brand-action)">{eyebrow}</p>
-        <h2 className="mt-1 text-lg font-semibold tracking-[-0.025em] text-(--text-strong)">{title}</h2>
-        <p className="mt-1.5 max-w-2xl text-xs leading-5 text-(--text-muted)">{description}</p>
+        <p className={getUiTypographyClassName({ role: "overline", tone: "brand" })}>{eyebrow}</p>
+        <h2 className={cn(
+          "mt-1",
+          getUiTypographyClassName({ role: "objectTitle", tone: "strong" }),
+        )}>{title}</h2>
+        <p className={cn(
+          "mt-1.5 max-w-2xl",
+          getUiTypographyClassName({ role: "caption", tone: "muted" }),
+        )}>{description}</p>
       </div>
       <div className="space-y-5">{children}</div>
     </section>
@@ -502,8 +544,30 @@ function isGalleryViewer(viewport: UiDialogViewport): boolean {
 function GalleryRow({ children, label }: { children: ReactNode; label: string }) {
   return (
     <div className="grid min-w-0 gap-2 sm:grid-cols-[112px_minmax(0,1fr)] sm:items-start">
-      <span className="pt-1.5 text-xs font-medium text-(--text-soft)">{label}</span>
+      <span className={cn(
+        "pt-1.5",
+        getUiTypographyClassName({ role: "caption", tone: "soft", weight: "medium" }),
+      )}>{label}</span>
       <div className="flex min-w-0 flex-wrap items-center gap-2">{children}</div>
+    </div>
+  );
+}
+
+function TypographySample({
+  children,
+  label,
+  textRole,
+  tone = "strong",
+}: {
+  children: ReactNode;
+  label: string;
+  textRole: UiTypographyRole;
+  tone?: UiTypographyTone;
+}) {
+  return (
+    <div className="min-w-0 border-l border-(--divider-subtle-color) pl-3" data-typography-role={textRole}>
+      <span className={getUiTypographyClassName({ role: "caption", tone: "soft" })}>{label}</span>
+      <p className={cn("mt-1 break-words", getUiTypographyClassName({ role: textRole, tone }))}>{children}</p>
     </div>
   );
 }
@@ -511,7 +575,7 @@ function GalleryRow({ children, label }: { children: ReactNode; label: string })
 function SurfaceSample({ label }: { label: string }) {
   return (
     <div className="flex min-h-12 items-center justify-between gap-2">
-      <span className="text-xs font-semibold text-(--text-default)">{label}</span>
+      <span className={getUiTypographyClassName({ role: "sectionTitle", tone: "default" })}>{label}</span>
       <Search className="h-3.5 w-3.5 text-(--icon-muted)" />
     </div>
   );

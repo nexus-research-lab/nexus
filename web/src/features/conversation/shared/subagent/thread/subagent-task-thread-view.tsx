@@ -147,7 +147,7 @@ function SubagentTaskControls({
 				</p>
 			) : null}
 			<div className="flex items-center justify-between gap-2">
-				<p className="min-w-0 flex-1 text-[11px] leading-4 text-(--text-soft)">
+				<p className="min-w-0 flex-1 text-xs leading-4 text-(--text-soft)">
 					{canSend || canStop
 						? t(active ? "subagents.controls_active_hint" : "subagents.controls_resume_hint")
 						: t(unsupportedKey)}

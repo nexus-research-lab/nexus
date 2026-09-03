@@ -95,7 +95,7 @@ export function ExecutionWorkGraphControls({
         </GraphControlButton>
         <button
           aria-label={t("execution.reset_zoom")}
-          className="h-7 min-w-11 rounded-[7px] px-1.5 text-[10px] font-medium tabular-nums text-(--text-soft) transition hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--primary)"
+          className="h-7 min-w-11 rounded-[7px] px-1.5 text-2xs font-medium tabular-nums text-(--text-soft) transition hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--primary)"
           data-execution-graph-zoom
           onClick={onResetZoom}
           title={t("execution.reset_zoom")}
@@ -141,7 +141,7 @@ export function ExecutionWorkGraphControls({
           <Search aria-hidden="true" className="ml-1 h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
           <input
             aria-label={t("execution.search_graph")}
-            className="h-7 min-w-0 flex-1 bg-transparent px-1 text-[11px] text-(--text-strong) outline-none placeholder:text-(--text-soft)"
+            className="h-7 min-w-0 flex-1 bg-transparent px-1 text-xs text-(--text-strong) outline-none placeholder:text-(--text-soft)"
             data-execution-graph-search
             onChange={(event) => onQueryChange(event.target.value)}
             onKeyDown={(event) => {
@@ -161,7 +161,7 @@ export function ExecutionWorkGraphControls({
             value={query}
           />
           {query ? (
-            <span className="shrink-0 text-[10px] tabular-nums text-(--text-soft)">
+            <span className="shrink-0 text-2xs tabular-nums text-(--text-soft)">
               {resultCount > 0
                 ? t("execution.search_results", {
                     current: Math.max(1, currentResultIndex + 1),
