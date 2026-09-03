@@ -528,6 +528,21 @@ test("Provider settings share one directory and action Spinner scale", async () 
   assert.match(combined, /size: "md", tone: "muted"/);
 });
 
+test("Operations settings share one compact command Spinner role", async () => {
+  const paths = [
+    "src/features/settings/operations/control-members-panel.tsx",
+    "src/features/settings/operations/project-admin/project-admin-panel.tsx",
+    "src/features/settings/operations/subscription-admin/subscription-account-view.tsx",
+    "src/features/settings/operations/subscription-admin/subscription-plan-view.tsx",
+  ];
+  const sources = await Promise.all(paths.map(readSource));
+
+  for (const source of sources) {
+    assert.match(source, /getUiSpinnerClassName\(\{ size: "sm" \}\)/);
+    assert.doesNotMatch(source, /\banimate-spin\b/);
+  }
+});
+
 test("List and Badge primitives expose semantic typography and shape instead of page overrides", async () => {
   const [listRow, badge, badgeStyles, providerModels, connectorCard, customMcpGrid] = await Promise.all([
     readSource("src/shared/ui/list/list-row.tsx"),

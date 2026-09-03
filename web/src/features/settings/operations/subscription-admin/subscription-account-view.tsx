@@ -15,6 +15,7 @@ import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { SubscriptionAccount } from "@/types/settings/subscription";
@@ -215,7 +216,7 @@ function SubscriptionAccountRow({
           variant="solid"
         >
           {saving ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
           ) : (
             <Save className="h-3.5 w-3.5" />
           )}
@@ -259,7 +260,7 @@ export function SubscriptionAccountView({
             variant="surface"
           >
             {model.loading ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
             ) : (
               <RefreshCw className="h-3.5 w-3.5" />
             )}

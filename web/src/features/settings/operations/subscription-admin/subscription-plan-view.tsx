@@ -13,6 +13,7 @@ import type { TranslationKey } from "@/shared/i18n/messages";
 import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiInput } from "@/shared/ui/form/form-control";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
@@ -170,7 +171,7 @@ function SubscriptionPlanRow({
           variant="solid"
         >
           {saving ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
           ) : (
             <Save className="h-3.5 w-3.5" />
           )}
@@ -244,7 +245,7 @@ function NewSubscriptionPlanForm({
           variant="solid"
         >
           {creating ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
           ) : (
             <Plus className="h-3.5 w-3.5" />
           )}
