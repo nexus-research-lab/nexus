@@ -748,6 +748,28 @@ test("Message actions, task status, and artifact loading share Spinner roles", a
   );
 });
 
+test("Assistant footer and ToolBlock header actions use shared micro control owners", async () => {
+  const [assistantFooter, toolHeaderActions] = await Promise.all([
+    readSource("src/features/conversation/shared/message/item/view/assistant/assistant-message-stats.tsx"),
+    readSource("src/features/conversation/shared/message/blocks/tool/header/tool-block-header-actions.tsx"),
+  ]);
+
+  assert.match(assistantFooter, /<UiIconButton/);
+  assert.match(assistantFooter, /getUiTypographyClassName/);
+  assert.match(assistantFooter, /size="2xs"/);
+  assert.match(assistantFooter, /shape="round"/);
+  assert.doesNotMatch(assistantFooter, /<button\b|COPY_ACTION_PRESENTATION/);
+
+  assert.match(toolHeaderActions, /<UiButton/);
+  assert.match(toolHeaderActions, /<UiIconButton/);
+  assert.match(toolHeaderActions, /size="2xs"/);
+  assert.match(toolHeaderActions, /size="xs"/);
+  assert.doesNotMatch(
+    toolHeaderActions,
+    /<button\b|getPermissionButtonState|rounded-\[|color-mix/,
+  );
+});
+
 test("Composer Connector and Room model menus share compact Spinner roles", async () => {
   const [footerActions, roomModelControl] = await Promise.all([
     readSource("src/features/conversation/shared/composer/components/footer/composer-footer-actions.tsx"),

@@ -38,6 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Unified Assistant footer copy, branch, and memory actions plus ToolBlock
+  permission and result actions on the shared micro Button/IconButton states;
+  referenced-memory popovers now use the App typography contract.
 - Unified WorkGraph search, zoom, fit, locate, expand, inspector-close, and
   save-as-sketch actions on shared Button and IconButton primitives, while
   retaining graph nodes and edge hit targets as geometry-owned interactions.
