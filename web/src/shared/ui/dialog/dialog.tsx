@@ -118,7 +118,7 @@ export function UiDialogBackdrop({
   initialFocusRef,
   inset = "default",
   labelledBy,
-  layer,
+  layer = "dialog",
   onClick,
   onClose,
   trapFocus = true,
