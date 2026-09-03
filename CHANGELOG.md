@@ -38,6 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Standardized populated Pairing groups, rows, metadata, and expandable
+  technical identities on shared panel and typography contracts.
 - Moved Pairing empty/search states and the Skill update summary onto shared
   resource-state, panel, list-row, typography, and loading recipes.
 - Standardized the object identity block beneath capability detail navigation:

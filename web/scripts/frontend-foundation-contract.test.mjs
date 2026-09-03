@@ -867,13 +867,17 @@ test("Capability page chrome has one Header, typography, action, and shape owner
 });
 
 test("Capability auxiliary states reuse resource, list, typography, and spinner owners", async () => {
-  const [pairings, skillUpdates] = await Promise.all([
+  const [pairings, pairingList, skillUpdates] = await Promise.all([
     readSource("src/features/capability/channels/pairings-directory.tsx"),
+    readSource("src/features/capability/channels/pairings/pairing-list.tsx"),
     readSource("src/features/capability/skills/catalog/skills-update-highlight.tsx"),
   ]);
 
   assert.match(pairings, /<UiResourceState/);
   assert.doesNotMatch(pairings, /text-base|font-(?:medium|semibold)/);
+  assert.match(pairingList, /<UiPanel/);
+  assert.match(pairingList, /getUiTypographyClassName/);
+  assert.doesNotMatch(pairingList, /rounded-\[|text-(?:2xs|xs|sm|base|compact)|font-(?:medium|semibold)|font-mono/);
   assert.match(skillUpdates, /<UiPanel/);
   assert.match(skillUpdates, /<UiListRow/);
   assert.match(skillUpdates, /getUiTypographyClassName/);
