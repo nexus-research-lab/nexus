@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import { Bot, Clock3, RadioTower, Square } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 
 import {
@@ -14,7 +15,6 @@ import {
   type AgentMentionDirectory,
 } from "../../../agent-mention-chip";
 import { formatMessageTime } from "../../../message-time";
-import { MessageActionButton } from "../../../ui/message-action-button";
 import { MessageAvatar } from "../../../ui/message-avatar";
 
 interface AssistantMessageHeaderProps {
@@ -186,16 +186,16 @@ function AssistantStopAction({
     return null;
   }
   return (
-    <MessageActionButton
+    <UiButton
       aria-label={t("composer.stop_generation")}
-      className="flex items-center gap-1 px-1.5 py-0.5 text-xs"
       onClick={onStop}
-      tone="default"
-      type="button"
+      size="2xs"
+      tone="danger"
+      variant="text"
     >
       <Square className="h-3 w-3 fill-current" />
       <span>{t("composer.stop_generation")}</span>
-    </MessageActionButton>
+    </UiButton>
   );
 }
 

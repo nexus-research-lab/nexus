@@ -741,6 +741,30 @@ test("dense Composer and Room toolbars use the shared micro Button scale", async
   assert.equal(attachments.match(/<button\b/g)?.length, 3);
 });
 
+test("message header actions use shared Button tones without a domain adapter", async () => {
+  const [userHeader, assistantHeader, buttonStyles] = await Promise.all([
+    readSource("src/features/conversation/shared/message/item/view/user/user-message-header.tsx"),
+    readSource("src/features/conversation/shared/message/item/view/assistant/assistant-message-header.tsx"),
+    readSource("src/shared/ui/button/button-styles.ts"),
+  ]);
+  const files = await collectSourceFiles(srcRoot);
+  const adapterReferences = [];
+
+  assert.match(userHeader, /<UiIconButton/);
+  assert.match(assistantHeader, /<UiButton/);
+  assert.match(buttonStyles, /success:\s*\n?\s*"[^"]*text-\(--success\)/);
+  for (const source of [userHeader, assistantHeader]) {
+    assert.doesNotMatch(source, /<button\b|rounded-\[/);
+  }
+  for (const file of files) {
+    const source = await readFile(file, "utf8");
+    if (/MessageActionButton|message-action-button/.test(source)) {
+      adapterReferences.push(path.relative(webRoot, file));
+    }
+  }
+  assert.deepEqual(adapterReferences, []);
+});
+
 test("Agent Skill and private-domain loading states share Spinner roles", async () => {
   const paths = [
     "src/features/agents/options/components/skills/agent-options-skills-content.tsx",
