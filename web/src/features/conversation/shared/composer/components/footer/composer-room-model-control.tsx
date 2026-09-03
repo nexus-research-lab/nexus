@@ -25,6 +25,7 @@ import { createPortal } from "react-dom";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import {
   UiActionMenuContent,
   type UiActionMenuItem,
@@ -383,7 +384,9 @@ function RoomModelAgentList({
               {targetView.modelLabel}
             </span>
             {targetView.busy ? (
-              <LoaderCircle className="h-3.5 w-3.5 shrink-0 animate-spin text-(--icon-muted)" />
+              <LoaderCircle
+                className={getUiSpinnerClassName({ size: "sm", tone: "muted" })}
+              />
             ) : (
               <ChevronRight className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
             )}

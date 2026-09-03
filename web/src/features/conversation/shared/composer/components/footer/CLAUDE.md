@@ -19,3 +19,5 @@ Footer 不解释 Composer 发送资格；它只消费控制器已经派生的状
 普通模式两侧使用等分的 `minmax(0, 1fr)` 保证品牌相对输入壳物理居中；品牌颜色必须浅于普通 `text-soft`，但不得影响两侧操作的对比度。窄壳响应只通过 `nexus-chat-composer` 容器查询完成。Goal 模式不沿用等分三列：控制与提交共享第一行，运行状态独占第二行并居中，品牌退场；460px 以下再把提交动作放入独立第三行。“目标”标签始终保持单行，只允许收敛 scope 等说明，不得裁切负责人、取消、状态或提交动作。
 上下文占用只消费 runtime 在 round 终态推送的权威快照，不轮询 transcript，也不由前端估算。DM 显示当前 Session；Room 按 Agent ID 保存并在同一个弹层逐行展示各自最近快照，入口圆环使用最高占用提示风险，不能暗示当前消息只发给某个 Agent。首个快照到达前必须保留同宽的不可交互槽位；发送与停止动作统一为 32px 圆形图标按钮，避免 round 终态改变 Footer 几何而使 Composer 跳动。
 上下文压缩沿用运行状态指示器；正文流与停止按钮已经表达回复进行中，Composer 不再重复显示“回复中”文案或动效，只保留可执行的停止快捷键提示。停止提示只在 DM Composer 明确提供停止能力时显示，Room 的停止按钮由 Agent slot 头部渲染。
+
+Footer 的 Connector 初始读取使用共享 `md` muted Spinner，Room Agent 模型更新使用 `sm` muted Spinner；菜单与级联控件不得自行维护尺寸、颜色、旋转或 reduced-motion class。

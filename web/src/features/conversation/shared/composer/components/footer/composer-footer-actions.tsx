@@ -15,6 +15,7 @@ import {
 
 import { ConnectorIcon } from "@/features/capability/connectors/connector-icon";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import {
   UiActionMenu,
   type UiActionMenuItem,
@@ -169,7 +170,11 @@ function buildConnectorItems({
   if (controller.connectorsLoading && controller.connectors.length === 0) {
     return [{
       disabled: true,
-      icon: <Loader2 className="h-4 w-4 animate-spin text-(--icon-muted)" />,
+      icon: (
+        <Loader2
+          className={getUiSpinnerClassName({ size: "md", tone: "muted" })}
+        />
+      ),
       label: labels.loading,
       value: "connectors:loading",
     }];
