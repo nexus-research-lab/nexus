@@ -6,7 +6,6 @@
 "use client";
 
 import {
-  Loader2,
   MessageCircle,
   RefreshCw,
   SlidersHorizontal,
@@ -37,14 +36,6 @@ import {
 import { ChannelCard } from "./catalog/channel-card";
 import { useChannelsController } from "./catalog/use-channels-controller";
 import { ChannelConnectDialog } from "./connection/channel-connect-dialog";
-
-function ChannelLoadingGrid() {
-  return (
-    <div className="flex min-h-40 items-center justify-center text-sm text-(--text-muted)">
-      <Loader2 className="h-5 w-5 animate-spin" />
-    </div>
-  );
-}
 
 export function ChannelsDirectory() {
   const { t } = useI18n();
@@ -103,7 +94,12 @@ export function ChannelsDirectory() {
           </CapabilityFilterBar>
 
           {controller.loading && controller.channels.length === 0 ? (
-            <ChannelLoadingGrid />
+            <UiResourceState
+              className="min-h-40"
+              size="md"
+              state="loading"
+              title={t("capability.channels_loading")}
+            />
           ) : controller.readFailed && controller.channels.length === 0 ? (
             <UiResourceState
               impact={t("capability.channel_catalog_load_failed_impact")}

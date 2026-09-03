@@ -535,6 +535,38 @@ test("Capability page chrome has one Header, typography, action, and shape owner
   assert.match(workspaceHeader, /getUiTypographyClassName/);
 });
 
+test("Channel catalog shares resource, typography, action, and brand icon owners", async () => {
+  const [directory, card, channelIcon, connectorIcon, brandIcon] = await Promise.all([
+    readSource("src/features/capability/channels/channels-directory.tsx"),
+    readSource("src/features/capability/channels/catalog/channel-card.tsx"),
+    readSource("src/features/capability/channels/channel-icon.tsx"),
+    readSource("src/features/capability/connectors/connector-icon.tsx"),
+    readSource("src/features/capability/shared/capability-brand-icon.tsx"),
+  ]);
+  const localTypographyPattern = /\b(?:text-(?:2xs|xs|compact|sm|base|md|lg|xl|2xl)|font-(?:normal|medium|semibold|bold|mono)|leading-(?:none|\d+|\[[^\]]+\])|tracking-(?:tight|wide|\[[^\]]+\])|rounded-\[[^\]]+\])/;
+
+  assert.doesNotMatch(directory, localTypographyPattern);
+  assert.doesNotMatch(card, localTypographyPattern);
+  assert.match(directory, /state="loading"/);
+  assert.doesNotMatch(directory, /ChannelLoadingGrid|Loader2/);
+  assert.match(card, /getUiTypographyClassName/);
+  assert.match(card, /<UiLinkButton/);
+  assert.match(card, /<UiListActionButton/);
+  assert.doesNotMatch(card, /<a\b|<button\b|list-action-styles/);
+  assert.match(channelIcon, /<CapabilityBrandIcon/);
+  assert.match(connectorIcon, /<CapabilityBrandIcon/);
+  assert.doesNotMatch(channelIcon, /#[0-9a-f]{3,8}|bg-\[|text-white|lucide-react/i);
+  assert.match(brandIcon, /var\(--text-strong\)/);
+  assert.match(brandIcon, /radius-control-sm/);
+
+  const channelSources = Array.from(
+    channelIcon.matchAll(/src: "([^"]+)"/g),
+    (match) => match[1],
+  );
+  assert.equal(channelSources.length, 6);
+  assert.equal(new Set(channelSources).size, channelSources.length);
+});
+
 test("Loop surfaces use semantic typography, badges, panels, and responsive actions", async () => {
   const loopPaths = [
     "src/features/capability/loops/loops-directory.tsx",
