@@ -6,6 +6,7 @@
 import { LoaderCircle } from "lucide-react";
 import type { ReactNode, RefObject } from "react";
 
+import { UiButton } from "@/shared/ui/button/button";
 import {
   UiDialogBackdrop,
   UiDialogFooter,
@@ -13,7 +14,6 @@ import {
   UiDialogShell,
   type UiDialogSize,
 } from "@/shared/ui/dialog/dialog";
-import { getDialogActionClassName } from "@/shared/ui/dialog/dialog-styles";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 
 interface DecisionDialogFrameProps {
@@ -71,21 +71,23 @@ export function DecisionDialogActions({
 }: DecisionDialogActionsProps) {
   return (
     <UiDialogFooter appearance="plain" className="gap-2">
-      <button
-        className={getDialogActionClassName("default")}
+      <UiButton
         disabled={busy}
         onClick={onCancel}
-        type="button"
+        size="md"
+        variant="surface"
       >
         {cancelText}
-      </button>
-      <button
+      </UiButton>
+      <UiButton
         aria-busy={busy}
-        className={getDialogActionClassName(confirmTone, confirmClassName)}
+        className={confirmClassName}
         disabled={busy}
         onClick={onConfirm}
         ref={confirmButtonRef}
-        type="button"
+        size="md"
+        tone={confirmTone}
+        variant="solid"
       >
         {busy ? (
           <LoaderCircle
@@ -94,7 +96,7 @@ export function DecisionDialogActions({
           />
         ) : null}
         {confirmText}
-      </button>
+      </UiButton>
     </UiDialogFooter>
   );
 }

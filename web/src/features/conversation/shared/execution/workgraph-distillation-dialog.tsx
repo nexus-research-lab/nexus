@@ -21,13 +21,13 @@ import {
   type MutationFailureEffect,
 } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button/button";
 import {
   UiDialogBackdrop,
   UiDialogCloseButton,
   UiDialogPortal,
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
-import { getDialogActionClassName } from "@/shared/ui/dialog/dialog-styles";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiField, UiInput, UiTextarea } from "@/shared/ui/form/form-control";
@@ -241,11 +241,11 @@ export function WorkGraphDistillationDialog({
                   <WorkGraphSaveFailureState failure={saveFailure} />
                 ) : null}
                 {saveState === "scheduled" || (saveFailure && saveFailure.effect !== "not_applied") ? (
-                  <button className={`${getDialogActionClassName("primary", "compact")} w-full`} type="button" onClick={onClose}>
+                  <UiButton className="w-full" onClick={onClose} size="sm" tone="primary" variant="solid">
                     {t("common.close")}
-                  </button>
+                  </UiButton>
                 ) : (
-                  <button className={`${getDialogActionClassName("primary", "compact")} w-full`} disabled={saveState === "saving" || metadataError !== null || !slashNameAvailable} type="button" onClick={() => void handleSave()}>
+                  <UiButton className="w-full" disabled={saveState === "saving" || metadataError !== null || !slashNameAvailable} onClick={() => void handleSave()} size="sm" tone="primary" variant="solid">
                     {saveState === "saving" ? (
                       <LoaderCircle className={getUiSpinnerClassName({ size: "sm" })} />
                     ) : null}
@@ -254,7 +254,7 @@ export function WorkGraphDistillationDialog({
                       : saveFailure
                         ? "state.retry"
                         : "execution.workflow_save_sketch")}
-                  </button>
+                  </UiButton>
                 )}
               </div>
             </aside>
@@ -264,15 +264,15 @@ export function WorkGraphDistillationDialog({
                 <h3 className="text-sm font-semibold text-(--text-strong)">
                   {t("execution.workflow_sketch_label")}
                 </h3>
-                <button
-                  className={getDialogActionClassName("default", "compact")}
+                <UiButton
                   disabled={saveState !== "idle" || metadataError !== null}
-                  type="button"
                   onClick={() => setEditorOpen(true)}
+                  size="sm"
+                  variant="surface"
                 >
                   <MessageSquareText className="h-3.5 w-3.5" />
                   {t("execution.workflow_edit_with_chat")}
-                </button>
+                </UiButton>
               </header>
               <WorkGraphWorkflowCanvasPreview
                 className="flex-1"

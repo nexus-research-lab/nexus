@@ -10,6 +10,7 @@
 - `dialog-focus.ts` 独占可聚焦元素发现、可见性过滤与无滚动聚焦。
 - `dialog-keyboard.ts` 用有序规则投影 Escape 与 Tab 动作，不直接读写 DOM。
 - `decision/` 组合确认与输入弹窗，复用共享模态协议，不自行注册焦点或键盘生命周期。
+- Dialog 的确认、取消与业务动作直接渲染 `UiButton` 并选择 size/tone/variant；`dialog-styles.ts` 只拥有 Dialog 专属结构 recipe，不再提供可被业务层绕过 Button DOM 的动作 className 适配器。
 - 单行 `PromptDialog` 固定使用 `xs` 决策宽度，多行 Prompt 使用 `sm`；标题、输入控件和主次动作必须分别复用 `UiDialogHeader`、`UiInput/UiTextarea` 与共享 Button recipe，业务只提供文案和提交命令。
 - 异步确认执行中必须禁用关闭、取消和重复确认；高后果操作的失败留在原弹窗内，用自然文案完整说明结果、已有数据影响和安全下一步。
 - Dialog 与锚点浮层使用同一高不透明主题表面、16px 外轮廓与细边界；Dialog 只在尺寸层级上使用更深一档同源阴影。

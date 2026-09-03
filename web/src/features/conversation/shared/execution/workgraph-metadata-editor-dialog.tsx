@@ -22,6 +22,7 @@ import {
 } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { useAgentStore } from "@/store/agent";
+import { UiButton } from "@/shared/ui/button/button";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -29,7 +30,6 @@ import {
   UiDialogPortal,
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
-import { getDialogActionClassName } from "@/shared/ui/dialog/dialog-styles";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import type { Agent } from "@/types/agent/agent";
@@ -363,17 +363,18 @@ export function WorkGraphMetadataEditorDialog({
                     <h3 className="truncate text-lg font-semibold leading-7 tracking-[-0.015em] text-(--text-strong)">{currentPreview.title}</h3>
                     <code className="mt-1 block text-xs text-(--text-soft)">/{currentPreview.slash_name}</code>
                   </div>
-                  <button
-                    className={getDialogActionClassName("primary", "compact")}
+                  <UiButton
                     disabled={!editor || busy || applying || mutationBlocked}
-                    type="button"
                     onClick={() => void handleApply()}
+                    size="sm"
+                    tone="primary"
+                    variant="solid"
                   >
                     {applying ? (
                       <LoaderCircle className={getUiSpinnerClassName({ size: "sm" })} />
                     ) : null}
                     {t("execution.workflow_editor_apply")}
-                  </button>
+                  </UiButton>
                 </div>
                 {editor && editor.versions.length > 1 ? (
                   <div className="mt-4 flex min-w-0 items-center gap-2 border-t border-(--divider-subtle-color) pt-3">
