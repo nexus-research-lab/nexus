@@ -279,7 +279,7 @@ function AssistantMemoryReferences({
           ref={overlayRef}
           aria-label={label}
           className={cn(
-            "fixed z-[140] overflow-y-auto p-4",
+            "fixed ui-layer-popover overflow-y-auto p-4",
             OVERLAY_SURFACE_CLASS_NAME,
             ANCHORED_OVERLAY_MOTION_CLASS_NAME,
           )}

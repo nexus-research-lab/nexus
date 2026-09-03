@@ -419,6 +419,7 @@
    */
   --layer-select-menu: 120;
   --layer-action-menu: 130;
+  --layer-popover: 140;
   --layer-dialog-underlay: 9998;
   --layer-dialog: 9999;
   --layer-dialog-nested: 10000;
@@ -431,6 +432,9 @@
   /* 桌面工作台弹窗与窄窗口共用同一视口公式。 */
   --dialog-adaptive-height: min(82dvh, 760px);
   --dialog-adaptive-compact-height: calc(100dvh - 16px);
+  --dialog-workbench-height: min(820px, calc(100dvh - 56px));
+  --dialog-workbench-compact-height: calc(100dvh - 16px);
+  --dialog-workbench-width: min(94vw, 1440px);
 
   --surface-body-background: var(--ambient-page-pattern);
 

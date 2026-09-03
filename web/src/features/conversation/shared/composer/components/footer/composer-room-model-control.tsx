@@ -222,7 +222,7 @@ export function ComposerRoomModelControl({
           ref={overlayRef}
           aria-label={t("composer.session_model")}
           className={cn(
-            "fixed z-[140] flex min-h-0 gap-2",
+            "fixed ui-layer-popover flex min-h-0 gap-2",
             ANCHORED_OVERLAY_MOTION_CLASS_NAME,
             overlayPosition?.placement === "top"
               ? "items-end"

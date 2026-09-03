@@ -50,6 +50,10 @@
     z-index: var(--layer-action-menu);
   }
 
+  .ui-layer-popover {
+    z-index: var(--layer-popover);
+  }
+
   .ui-layer-dialog-underlay {
     z-index: var(--layer-dialog-underlay);
   }
@@ -1099,6 +1103,15 @@
     max-height: var(--dialog-adaptive-height);
   }
 
+  .ui-dialog-viewport-workbench {
+    height: var(--dialog-workbench-height);
+    max-height: var(--dialog-workbench-height);
+  }
+
+  .ui-dialog-size-workbench {
+    max-width: var(--dialog-workbench-width);
+  }
+
   @media (max-width: 639px) {
     .ui-dialog-backdrop-compact {
       padding: 0.5rem;
@@ -1110,6 +1123,11 @@
 
     .ui-dialog-viewport-adaptive-max {
       max-height: var(--dialog-adaptive-compact-height);
+    }
+
+    .ui-dialog-viewport-workbench {
+      height: var(--dialog-workbench-compact-height);
+      max-height: var(--dialog-workbench-compact-height);
     }
   }
 

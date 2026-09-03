@@ -119,7 +119,7 @@ export function IconPickerPopover({
           ref={overlayRef}
           aria-label={ariaLabel}
           className={cn(
-            "fixed z-[140] overflow-y-auto p-3",
+            "fixed ui-layer-popover overflow-y-auto p-3",
             OVERLAY_SURFACE_CLASS_NAME,
             ANCHORED_OVERLAY_MOTION_CLASS_NAME,
           )}

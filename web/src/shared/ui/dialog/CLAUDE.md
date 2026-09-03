@@ -2,7 +2,7 @@
 
 - `dialog.tsx` 只提供 Portal、Backdrop、Shell、Header、Body 与 Footer 结构原语。
 - Backdrop 的高层叠放只通过 `layer` 选择共享语义层，窄窗口留白只通过 `inset` 选择；业务不得在 `className` 中写高位 z-index 或复制小窗口 padding。
-- `dialog-layout.ts` 独占 `content / adaptive / adaptiveMax` 视口模式；业务 Shell 通过 `viewport` 选择，不复制桌面限高和窄窗口高度公式。
+- `dialog-layout.ts` 独占 `content / adaptive / adaptiveMax / workbench` 视口模式；业务 Shell 通过 `viewport` 选择，不复制桌面限高和窄窗口高度公式；大型图形编辑与对照界面同时选择 `size="workbench"`。
 - 关闭按钮默认可访问名称使用当前语言的 `common.close`；业务只有在语义更具体时才覆盖。
 - `dialog-behavior.ts` 只装配 React 生命周期，不保存键盘规则或模态全局状态。
 - `dialog-modal-runtime.ts` 独占模态栈与页面滚动锁；叠层关闭顺序由栈顶令牌决定。
