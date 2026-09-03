@@ -4,6 +4,7 @@ import { FilePlus, FolderPlus, FolderTree, LoaderCircle, Upload } from "lucide-r
 import { WorkspaceFileToolbarButton } from "@/features/conversation/shared/editor/workspace-file-preview-chrome";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { PanelResizeHandle } from "@/shared/ui/layout/panel-resize-handle";
 import { WORKSPACE_PANEL_HEADER_ICON_CLASS } from "@/shared/ui/workspace/surface/workspace-header-layout";
 import { WorkspaceFileTree } from "@/shared/ui/workspace/tree/workspace-file-tree";
@@ -56,7 +57,7 @@ export function WorkspaceDirectoryToolbar({
         title={t(uploadKey)}
       >
         {controller.isUploading ? (
-          <LoaderCircle className={cn(WORKSPACE_PANEL_HEADER_ICON_CLASS, "animate-spin")} />
+          <LoaderCircle className={getUiSpinnerClassName({ size: "sm" })} />
         ) : (
           <Upload className={WORKSPACE_PANEL_HEADER_ICON_CLASS} />
         )}
@@ -105,7 +106,9 @@ function WorkspaceFileList({
   if (controller.isLoadingFiles) {
     return (
       <div className="flex h-full items-center justify-center text-(--text-soft)">
-        <LoaderCircle className="h-4 w-4 animate-spin" />
+        <LoaderCircle
+          className={getUiSpinnerClassName({ size: "md", tone: "muted" })}
+        />
       </div>
     );
   }
