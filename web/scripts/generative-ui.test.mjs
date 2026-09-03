@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -218,7 +219,15 @@ test("show_widget 工具块渲染为仅允许脚本的 iframe", async () => {
   assert.match(markup, /data-generative-ui="true"/);
   assert.match(markup, /data-generative-ui-status="loading"/);
   assert.match(markup, /sandbox="allow-scripts"/);
-  assert.match(markup, /rounded-\[8px\]/);
+  assert.match(markup, /surface-radius-sm/);
+  assert.match(markup, /ui-type-caption/);
+  const source = await readFile(
+    path.join(webRoot, "src/features/conversation/shared/message/blocks/tool/generative-ui-block.tsx"),
+    "utf8",
+  );
+  assert.match(source, /<UiSkeleton className="h-\[180px\] w-full surface-radius-sm"/);
+  assert.doesNotMatch(source, /h-\[180px\][^"\n]*animate-pulse/);
+  assert.doesNotMatch(source, /rounded-\[8px\]|text-compact|font-medium/);
   assert.doesNotMatch(markup, /rounded-2xl/);
   assert.doesNotMatch(markup, /allow-same-origin/);
 });

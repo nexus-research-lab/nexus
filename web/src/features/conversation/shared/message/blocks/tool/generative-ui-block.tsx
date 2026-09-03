@@ -16,7 +16,10 @@ import { RotateCcw } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { useTheme } from "@/shared/theme/theme-context";
+import { cn } from "@/shared/ui/class-name";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { UiSkeleton } from "@/shared/ui/display/skeleton";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { ToolUseContent } from "@/types/conversation/message/content";
 
 import {
@@ -159,12 +162,15 @@ export function GenerativeUIBlock({
   return (
     <section
       aria-busy={loading}
-      className="my-3 min-w-0 overflow-hidden rounded-[8px] bg-transparent"
+      className="my-3 min-w-0 overflow-hidden surface-radius-sm bg-transparent"
       data-generative-ui="true"
       data-generative-ui-status={visibleStatus}
     >
       <header className="flex min-h-9 items-center gap-2 bg-(--surface-panel-background) px-3 py-2">
-        <span className="min-w-0 flex-1 truncate text-compact font-medium text-(--text-default)">
+        <span className={cn(
+          "min-w-0 flex-1 truncate",
+          getUiTypographyClassName({ role: "caption", tone: "default", weight: "medium" }),
+        )}>
           {title || toolUse.name}
         </span>
         {loading ? (
@@ -218,7 +224,7 @@ export function GenerativeUIBlock({
           title={title || toolUse.name}
         />
       ) : !complete ? (
-        <div className="h-[180px] bg-(--surface-panel-background) motion-safe:animate-pulse" />
+        <UiSkeleton className="h-[180px] w-full surface-radius-sm" />
       ) : null}
     </section>
   );
