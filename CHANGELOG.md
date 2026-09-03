@@ -200,6 +200,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed shared Dialog layer variants being overridden by a legacy `z-index: 50`
+  fallback; ordinary, nested, interaction and system dialogs now resolve through
+  their semantic overlay tokens in the browser.
 - Reconciled the unpublished Control schema migration numbers with the published
   Connector migrations and safely replayed whichever side a local database had
   missed during the branch merge.

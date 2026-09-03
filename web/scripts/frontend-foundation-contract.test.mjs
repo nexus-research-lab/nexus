@@ -63,6 +63,10 @@ test("semantic overlay layers preserve the current visual stack without exposing
     webRoot,
     "src/shared/ui/overlay/layer-styles.ts",
   );
+  const [dialog, recipes] = await Promise.all([
+    readSource("src/shared/ui/dialog/dialog.tsx"),
+    readSource("src/app/styles/theme-recipes.css"),
+  ]);
 
   assert.deepEqual(
     [
@@ -93,6 +97,11 @@ test("semantic overlay layers preserve the current visual stack without exposing
       "ui-layer-tour-dialog",
       "ui-layer-system-dialog",
     ],
+  );
+  assert.match(dialog, /layer = "dialog"/);
+  assert.doesNotMatch(
+    recipes,
+    /\.dialog-backdrop\s*\{[^}]*\bz-index\s*:/s,
   );
 });
 

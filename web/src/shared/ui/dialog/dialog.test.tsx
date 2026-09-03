@@ -52,6 +52,33 @@ afterEach(() => {
 });
 
 describe("UiDialog modal behavior", () => {
+  it("uses the dialog semantic layer by default and preserves explicit nesting", () => {
+    render(
+      <>
+        <UiDialogBackdrop
+          data-testid="default-layer"
+          labelledBy="default-layer-title"
+          trapFocus={false}
+        >
+          <h2 id="default-layer-title">默认层</h2>
+        </UiDialogBackdrop>
+        <UiDialogBackdrop
+          data-testid="nested-layer"
+          labelledBy="nested-layer-title"
+          layer="dialogNested"
+          trapFocus={false}
+        >
+          <h2 id="nested-layer-title">嵌套层</h2>
+        </UiDialogBackdrop>
+      </>,
+    );
+
+    expect(screen.getByTestId("default-layer").className)
+      .toContain("ui-layer-dialog");
+    expect(screen.getByTestId("nested-layer").className)
+      .toContain("ui-layer-dialog-nested");
+  });
+
   it("cycles focus, closes with Escape, and restores the opener and body scroll", async () => {
     const user = userEvent.setup();
     document.body.style.overflow = "clip";
