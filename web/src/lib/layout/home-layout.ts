@@ -1,8 +1,7 @@
 /**
- * 首页工作台布局常量
- *
- * 把三栏宽度、间距和侧栏拖拽范围集中到这里，
- * 后面调布局时只改这一处，不用在多个组件里到处找类名。
+ * INPUT: 应用窄窗交接阈值与首页舞台/侧栏几何约束。
+ * OUTPUT: JS 媒体查询、对应 Tailwind 可见性类及首页布局常量。
+ * POS: App 与 Conversation 共用的响应式边界真相；Feature 不复制 559px。
  */
 
 /**
@@ -15,7 +14,8 @@ export const HOME_SIDEBAR_PADDING_CLASS =
   `pl-[var(--sidebar-shell-leading-padding,4px)] pr-1.5 ${HOME_STAGE_BOTTOM_PADDING_CLASS}`;
 
 /** 仅在真正窄屏切换单窗专注模式；中等宽度继续使用可渐进压缩的桌面工具栏。 */
-export const CONVERSATION_FOCUS_MEDIA_QUERY = "(max-width: 559px)";
+export const APP_NARROW_VIEWPORT_MEDIA_QUERY = "(max-width: 559px)";
+export const APP_NARROW_VIEWPORT_HIDDEN_CLASS_NAME = "max-[559px]:hidden";
 
 export const HOME_SIDE_PANEL_DEFAULT_WIDTH_PERCENT = 56;
 const HOME_SIDE_PANEL_MIN_WIDTH_PERCENT = 30;

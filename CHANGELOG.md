@@ -124,6 +124,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   states, form actions, and spinner now use shared design-system owners.
 - Fixed the shared Workspace header's container breakpoint so narrow detail pages
   show one compact tab menu instead of overlapping it with the full tab strip.
+- Gave Loop and WorkGraph details the same stable resource avatar used by their
+  directory entries, and moved seeded-avatar rounding onto semantic shape roles.
+- Unified the 559px App shell handoff contract so capability detail navigation
+  remains visible in medium desktop windows and yields only to the mobile header.
 - Established a single frontend engineering and design-system contract, and
   centralized high overlay layers and responsive dialog geometry behind semantic
   APIs to prevent page-specific stacking and small-window sizing drift.

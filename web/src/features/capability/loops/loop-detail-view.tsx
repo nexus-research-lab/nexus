@@ -21,6 +21,7 @@ import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
 import { UiPanel } from "@/shared/ui/panel";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { LoopCatalogItem } from "@/types/capability/loop";
@@ -120,6 +121,7 @@ export function LoopDetailView({ slug, onBack: onBack }: LoopDetailViewProps) {
         <div className="space-y-5">
           <CapabilityDetailIdentity
             description={loop.description}
+            leading={<UiSeededAvatar seed={loop.slug} size="lg" />}
             title={loop.title}
             titleMeta={(
               <>

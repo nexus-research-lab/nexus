@@ -56,6 +56,9 @@ describe("WorkGraphDistillationDetail", () => {
     expect(screen.getByRole("heading", { name: "/release-check" }).className).toContain("ui-type-object-title");
     expect(document.querySelector("[data-slot='capability-detail-header']")).toBeTruthy();
     expect(document.querySelector("[data-slot='capability-detail-identity']")).toBeTruthy();
+    expect(document.querySelector(
+      "[data-slot='capability-detail-identity-leading'] .radius-control-lg",
+    )).toBeTruthy();
     expect(screen.getAllByText("/release-check").some((node) => (
       node.className.includes("ui-type-metadata")
     ))).toBe(true);

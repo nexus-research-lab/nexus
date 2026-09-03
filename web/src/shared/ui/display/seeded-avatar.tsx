@@ -25,11 +25,11 @@ const SEEDED_AVATAR_SIZE_CLASS_NAME: Readonly<
 const SEEDED_AVATAR_RADIUS_CLASS_NAME: Readonly<
   Record<UiSeededAvatarSize, string>
 > = {
-  "2xs": "rounded-[6px]",
-  xs: "rounded-[8px]",
-  sm: "rounded-[9px]",
-  md: "rounded-[10px]",
-  lg: "rounded-[12px]",
+  "2xs": "radius-control-xs",
+  xs: "radius-control-sm",
+  sm: "radius-control-sm",
+  md: "radius-control-md",
+  lg: "radius-control-lg",
 };
 
 /** 中文注释：所有数学曲线资源头像统一由此组件渲染，不向业务层泄漏 SVG 细节。 */

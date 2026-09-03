@@ -11,7 +11,7 @@ import { useExecutionResource } from "@/features/conversation/shared/execution/u
 import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
 import { useMediaQuery } from "@/hooks/ui/use-media-query";
 import { useDefaultAgentRuntimeKind } from "@/hooks/settings/use-default-agent-runtime-kind";
-import { CONVERSATION_FOCUS_MEDIA_QUERY } from "@/lib/layout/home-layout";
+import { APP_NARROW_VIEWPORT_MEDIA_QUERY } from "@/lib/layout/home-layout";
 import { buildRoomSharedSessionKey } from "@/lib/conversation/session-key";
 import type { FinalConversationReplacementHandler } from "@/shared/ui/workspace/controls/conversation-tabs/final-conversation-replacement";
 import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
@@ -115,7 +115,7 @@ export function RoomSurfaceShell({
   onRoomEvent,
 }: RoomSurfaceShellProps) {
   const isConversationFocusMode = useMediaQuery(
-    CONVERSATION_FOCUS_MEDIA_QUERY,
+    APP_NARROW_VIEWPORT_MEDIA_QUERY,
   );
   const defaultRuntimeKind = useDefaultAgentRuntimeKind();
   const [activeSurfaceTab, setActiveSurfaceTab] = useState<RoomSurfaceTabKey>("chat");

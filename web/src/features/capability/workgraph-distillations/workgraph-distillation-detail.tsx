@@ -15,6 +15,7 @@ import { WorkGraphWorkflowCanvasPreview } from "@/features/conversation/shared/e
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
+import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
 import { UiPanel } from "@/shared/ui/panel";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { WorkGraphWorkflow } from "@/types/conversation/workgraph-workflow";
@@ -58,6 +59,7 @@ export function WorkGraphDistillationDetail({
             </>
           )}
           description={item.description}
+          leading={<UiSeededAvatar seed={item.slash_name} size="lg" />}
           title={`/${item.slash_name}`}
         />
         <UiPanel

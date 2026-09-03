@@ -1,7 +1,7 @@
 # 工作循环
 
 - `loops-directory.tsx` 是工作循环目录和详情路由的唯一页面入口；目录负责资源快照、筛选、复制与路由，不解释详情内容。
-- `loop-detail-view.tsx` 只投影对象元数据、步骤、退出条件、护栏和启动指令，并通过 `CapabilityDetailPage` 与 `CapabilityDetailIdentity` 接入统一二级导航和身份区；不得复用目录态 `WorkspaceContentHeader`，请求竞态不得散落到子区块。
+- `loop-detail-view.tsx` 只投影对象元数据、步骤、退出条件、护栏和启动指令，并通过 `CapabilityDetailPage` 与 `CapabilityDetailIdentity` 接入统一二级导航和身份区；详情身份必须继续使用与目录同一 slug 驱动的 `UiSeededAvatar`，不得复用目录态 `WorkspaceContentHeader`，请求竞态不得散落到子区块。
 - `loop-presentation.ts` 是触发方式和数值元数据的纯展示投影；未知服务端触发类型必须保留原值。
 - 页面 Header、Button、Badge、Panel、Resource State 与 App chrome Typography 必须复用共享 UI owner；业务组件只选择语义角色，不得自行拼接字号、字重、行高、字距、任意圆角或阴影。
 - Loop 的步骤说明、护栏与启动指令属于可审阅的领域内容，但仍分别使用 `supporting` 与 `code` 角色；不得为了压缩目录而把完整指令搬回卡片。

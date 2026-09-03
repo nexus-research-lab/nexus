@@ -7,6 +7,7 @@
 
 import type { ReactNode } from "react";
 
+import { APP_NARROW_VIEWPORT_HIDDEN_CLASS_NAME } from "@/lib/layout/home-layout";
 import { cn } from "@/shared/ui/class-name";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
@@ -72,7 +73,8 @@ export function WorkspaceContentDetailHeader({
   return (
     <header
       className={cn(
-        "workspace-content-header hidden h-[var(--workspace-header-height,60px)] shrink-0 lg:block",
+        "workspace-content-header h-[var(--workspace-header-height,60px)] shrink-0",
+        APP_NARROW_VIEWPORT_HIDDEN_CLASS_NAME,
         className,
       )}
       data-desktop-window-drag-region

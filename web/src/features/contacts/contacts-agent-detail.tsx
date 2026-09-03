@@ -28,7 +28,7 @@ import type {
 import { AgentMemoryView } from "@/features/memory/agent-memory-view";
 import { useMediaQuery } from "@/hooks/ui/use-media-query";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
-import { CONVERSATION_FOCUS_MEDIA_QUERY } from "@/lib/layout/home-layout";
+import { APP_NARROW_VIEWPORT_MEDIA_QUERY } from "@/lib/layout/home-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
@@ -105,7 +105,7 @@ export function ContactsAgentDetail({
   onSendCommunicationMessage,
 }: ContactsAgentDetailProps) {
   const { t } = useI18n();
-  const isCompactLayout = useMediaQuery(CONVERSATION_FOCUS_MEDIA_QUERY);
+  const isCompactLayout = useMediaQuery(APP_NARROW_VIEWPORT_MEDIA_QUERY);
   const [activeTab, setActiveTab] = useState<AgentDetailTabKey>("identity");
   const [persistenceState, setPersistenceState] =
     useResettableState<AgentOptionsPersistenceState>({
