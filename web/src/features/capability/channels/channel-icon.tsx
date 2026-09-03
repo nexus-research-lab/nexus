@@ -1,20 +1,17 @@
-import {
-  Gamepad2,
-  MessageCircle,
-  QrCode,
-  Send,
-} from "lucide-react";
+// INPUT: Channel 类型与目录/弹窗尺寸语义。
+// OUTPUT: 使用准确平台轮廓和 Capability 公共单色容器的频道身份图标。
+// POS: Channel 类型到品牌资源的唯一映射；不拥有颜色、边框、圆角或尺寸 recipe。
 
+import { CapabilityBrandIcon } from "@/features/capability/shared/capability-brand-icon";
 import { ImChannelType } from "@/lib/api/capability/channel-api";
-import { cn } from "@/shared/ui/class-name";
 
-const CHANNEL_STYLES: Record<ImChannelType, { icon: typeof Send; cn_name: string }> = {
-  dingtalk: { icon: Send, cn_name: "bg-[#1677ff] text-white" },
-  wechat: { icon: MessageCircle, cn_name: "bg-[#15c45d] text-white" },
-  "weixin-personal": { icon: QrCode, cn_name: "bg-[#10a36a] text-white" },
-  feishu: { icon: Send, cn_name: "bg-[#356bff] text-white" },
-  telegram: { icon: Send, cn_name: "bg-[#28a8ea] text-white" },
-  discord: { icon: Gamepad2, cn_name: "bg-[#5865f2] text-white" },
+const CHANNEL_ICONS: Record<ImChannelType, { src: string; title: string }> = {
+  dingtalk: { src: "/icon/connector/dingtalk.svg", title: "钉钉" },
+  wechat: { src: "/icon/channel/wecom.svg", title: "企业微信" },
+  "weixin-personal": { src: "/icon/channel/wechat.svg", title: "微信" },
+  feishu: { src: "/icon/connector/feishu.svg", title: "飞书" },
+  telegram: { src: "/icon/channel/telegram.svg", title: "Telegram" },
+  discord: { src: "/icon/channel/discord.svg", title: "Discord" },
 };
 
 export function ChannelIcon({
@@ -24,18 +21,12 @@ export function ChannelIcon({
   type: ImChannelType;
   size?: "card" | "dialog";
 }) {
-  const style = CHANNEL_STYLES[type];
-  const Icon = style.icon;
+  const icon = CHANNEL_ICONS[type];
   return (
-    <span
-      className={cn(
-        "flex shrink-0 items-center justify-center border border-white/35",
-        size === "dialog" && "shadow-(--surface-avatar-shadow)",
-        size === "dialog" ? "h-[52px] w-[52px] surface-radius-lg" : "h-9 w-9 rounded-[8px]",
-        style.cn_name,
-      )}
-    >
-      <Icon className={size === "dialog" ? "h-[26px] w-[26px]" : "h-4 w-4"} />
-    </span>
+    <CapabilityBrandIcon
+      size={size === "dialog" ? "lg" : "md"}
+      src={icon.src}
+      title={icon.title}
+    />
   );
 }

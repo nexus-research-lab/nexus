@@ -1,11 +1,18 @@
+// INPUT: Connector 图标键、标题与标准能力图标尺寸。
+// OUTPUT: 静态品牌轮廓或稳定种子回退，并统一投影为 Capability 公共身份图标。
+// POS: Connector 图标资源映射；品牌容器视觉由 CapabilityBrandIcon 持有。
 "use client";
 
+import {
+  CapabilityBrandIcon,
+  type CapabilityBrandIconSize,
+} from "@/features/capability/shared/capability-brand-icon";
 import { cn } from "@/shared/ui/class-name";
 import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
 
 import { getConnectorLetter } from "./connector-icons";
 
-type ConnectorIconSize = "sm" | "md" | "lg";
+type ConnectorIconSize = CapabilityBrandIconSize;
 
 interface ConnectorIconProps {
   icon: string;
@@ -15,15 +22,9 @@ interface ConnectorIconProps {
 }
 
 const ICON_SIZE_CLASS: Record<ConnectorIconSize, string> = {
-  sm: "h-5 w-5 rounded-[5px] text-2xs",
-  md: "h-9 w-9 rounded-[8px] text-compact",
-  lg: "h-14 w-14 surface-radius-md text-md",
-};
-
-const ICON_MASK_SIZE_CLASS: Record<ConnectorIconSize, string> = {
-  sm: "h-3.5 w-3.5",
-  md: "h-6 w-6",
-  lg: "h-9 w-9",
+  sm: "h-5 w-5 radius-control-xs",
+  md: "h-9 w-9 radius-control-sm",
+  lg: "h-14 w-14 surface-radius-md",
 };
 
 const CONNECTOR_ICON_SRC: Record<string, string> = {
@@ -86,35 +87,12 @@ export function ConnectorIcon({
   const letter = getConnectorLetter(icon, title);
 
   return (
-    <span
-      aria-label={title}
-      className={cn(
-        "flex shrink-0 items-center justify-center overflow-hidden border border-(--divider-subtle-color) bg-(--surface-panel-background) font-semibold text-(--text-strong)",
-        ICON_SIZE_CLASS[size],
-        className,
-      )}
-    >
-      {staticIconSrc ? (
-        <span
-          aria-hidden="true"
-          className={ICON_MASK_SIZE_CLASS[size]}
-          style={{
-            backgroundColor: "var(--text-strong)",
-            maskImage: `url(${staticIconSrc})`,
-            maskPosition: "center",
-            maskRepeat: "no-repeat",
-            maskSize: "contain",
-            WebkitMaskImage: `url(${staticIconSrc})`,
-            WebkitMaskPosition: "center",
-            WebkitMaskRepeat: "no-repeat",
-            WebkitMaskSize: "contain",
-          }}
-        />
-      ) : (
-        <span aria-hidden="true" className="leading-none tracking-normal">
-          {letter}
-        </span>
-      )}
-    </span>
+    <CapabilityBrandIcon
+      className={className}
+      fallback={letter}
+      size={size}
+      src={staticIconSrc}
+      title={title}
+    />
   );
 }

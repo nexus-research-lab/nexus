@@ -11,12 +11,13 @@ import {
 
 import { CAPABILITY_DIRECTORY_ROW_CLASS_NAME } from "@/features/capability/shared/capability-page-layout";
 import { ChannelConfigView } from "@/lib/api/capability/channel-api";
+import { UiLinkButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiListActionButton } from "@/shared/ui/list/list-action";
-import { getUiListActionClassName } from "@/shared/ui/list/list-action-styles";
 import { UiListRow } from "@/shared/ui/list/list-row";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { ChannelIcon } from "../channel-icon";
 import {
   buildChannelCardModel,
@@ -30,9 +31,11 @@ function ChannelCardActions({
   action: ChannelCardModel["action"];
   onConfigure: () => void;
 }) {
+  const { t } = useI18n();
+
   if (action.kind === "planned") {
     return (
-      <span className="flex h-8 w-8 items-center justify-center text-(--icon-muted)">
+      <span aria-hidden="true" className="flex h-8 w-8 items-center justify-center text-(--icon-muted)">
         <Clock3 className="h-3.5 w-3.5" />
       </span>
     );
@@ -41,24 +44,27 @@ function ChannelCardActions({
   return (
     <div className="flex shrink-0 items-center gap-1">
       {action.docsUrl ? (
-        <a
-          aria-label="查看接入文档"
-          className={getUiListActionClassName({ size: "sm" })}
+        <UiLinkButton
+          aria-label={t("capability.channel_docs_action")}
+          className="h-7 w-7 p-0"
           href={action.docsUrl}
           onClick={(event) => event.stopPropagation()}
           rel="noopener noreferrer"
+          size="xs"
           target="_blank"
-          title="查看接入文档"
+          title={t("capability.channel_docs_action")}
+          variant="text"
         >
           <ExternalLink className="h-3 w-3" />
-        </a>
+        </UiLinkButton>
       ) : null}
       <UiListActionButton
+        aria-label={t("capability.channel_configure_action")}
         className="text-(--primary)"
         onClick={onConfigure}
         size="sm"
         stopPropagation
-        title="设置机器人"
+        title={t("capability.channel_configure_action")}
         visibility="visible"
       >
         <Settings2 className="h-3 w-3" />
@@ -78,7 +84,10 @@ function ChannelCardContent({
   return (
     <div className="min-w-0 flex-1">
       <div className="flex min-w-0 items-center gap-2">
-        <span className="truncate text-base font-medium text-(--text-strong)">
+        <span className={cn(
+          "truncate",
+          getUiTypographyClassName({ role: "control", tone: "strong", weight: "medium" }),
+        )}>
           {title}
         </span>
         {model.badges.map((badge) => (
@@ -87,10 +96,16 @@ function ChannelCardContent({
           </UiBadge>
         ))}
       </div>
-      <div className="mt-0.5 truncate text-compact leading-[1.125rem] text-(--text-muted)">
+      <div className={cn(
+        "mt-0.5 truncate",
+        getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+      )}>
         {model.description}
       </div>
-      <div className="mt-0.5 flex min-w-0 flex-nowrap items-center gap-x-2.5 overflow-hidden text-2xs leading-4 text-(--text-soft)">
+      <div className={cn(
+        "mt-0.5 flex min-w-0 flex-nowrap items-center gap-x-2.5 overflow-hidden",
+        getUiTypographyClassName({ role: "caption", tone: "soft" }),
+      )}>
         {model.metadata.map((value, index) => (
           <span className="inline-flex min-w-0 items-center gap-1.5" key={value}>
             {index > 0 ? <span aria-hidden="true">·</span> : null}
@@ -103,7 +118,10 @@ function ChannelCardContent({
             <span
               className={cn(
                 "tabular-nums",
-                stat.tone === "warning" ? "text-(--warning)" : "text-(--text-muted)",
+                getUiTypographyClassName({
+                  role: "caption",
+                  tone: stat.tone === "warning" ? "warning" : "muted",
+                }),
               )}
             >
               {stat.label} {stat.value}

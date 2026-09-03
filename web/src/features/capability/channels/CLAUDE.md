@@ -5,6 +5,7 @@
 - `connection/` 负责频道配置、账号删除与扫码登录状态机。
 - `pairings/` 负责 IM 配对筛选、分组、命令和编辑视图。
 - 频道目录条目使用能力域共享的可见边框，保留平台用途、状态和使用事实，不展示 API/长连接实现；配对条目复用 `ChannelIcon` 作为频道身份，不再出现无图标内容行。
+- 频道目录的页头、加载/失败/空态和文本层级分别服从 `CapabilityPageLayout`、`UiResourceState` / `UiStateBlock` 与共享 Typography；不得再增加目录私有 spinner、字号或标题栏。
 - API 字段直接使用后端协议命名，不在视图层维护兼容别名。
 - 所有写命令通过 ref 互斥入口执行；列表请求使用请求号拒绝过期响应。
 - Channel/Pairing 写失败只消费 FailureCore 的机器证据，不展示服务端、Provider、runtime 原文或内部 ID；`unknown/accepted/committed` 只允许读取核对，未证明前锁住当前页面的重复写，用户明确“开始一次新操作”才解除。
