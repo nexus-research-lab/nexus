@@ -8,6 +8,7 @@
 import { type FormEvent, useRef } from "react";
 import { Loader2 } from "lucide-react";
 
+import { UiButton } from "@/shared/ui/button/button";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -16,7 +17,6 @@ import {
   UiDialogHeader,
   UiDialogPortal,
 } from "@/shared/ui/dialog/dialog";
-import { getDialogActionClassName } from "@/shared/ui/dialog/dialog-styles";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiField, UiInput, UiTextarea } from "@/shared/ui/form/form-control";
 
@@ -126,18 +126,20 @@ export function GoalDraftForm({
           </UiDialogBody>
 
           <UiDialogFooter appearance="plain" className="justify-end gap-3">
-            <button
-              className={getDialogActionClassName("default")}
+            <UiButton
               disabled={!model.canClose}
-              type="button"
               onClick={onCancel}
+              size="md"
+              variant="surface"
             >
               取消
-            </button>
-            <button
-              className={getDialogActionClassName(model.submitTone)}
+            </UiButton>
+            <UiButton
               disabled={model.submitDisabled}
+              size="md"
+              tone={model.submitTone}
               type="submit"
+              variant={model.submitTone === "default" ? "surface" : "solid"}
             >
               {model.isLoading ? (
                 <span className="inline-flex items-center gap-2">
@@ -147,7 +149,7 @@ export function GoalDraftForm({
               ) : (
                 model.submitLabel
               )}
-            </button>
+            </UiButton>
           </UiDialogFooter>
         </UiDialogFormShell>
       </UiDialogBackdrop>

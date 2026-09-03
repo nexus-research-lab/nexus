@@ -1,14 +1,11 @@
-// INPUT: Dialog 的动作语义、视口模式和调用方外部布局约束。
-// OUTPUT: 由共享 Button 与 Dialog recipe 组成的稳定 className。
+// INPUT: Dialog 的结构语义、视口模式和调用方外部布局约束。
+// OUTPUT: Dialog 专属图标、遮罩和说明区 recipe 组成的稳定 className。
 // POS: Dialog 视觉几何入口；不处理焦点、modal 栈或业务提交。
 
 import { CSSProperties } from "react";
 
 import { cn } from "@/shared/ui/class-name";
-import {
-  getUiButtonClassName,
-  getUiIconButtonClassName,
-} from "@/shared/ui/button/button-styles";
+import { getUiIconButtonClassName } from "@/shared/ui/button/button-styles";
 
 export const DIALOG_HEADER_LEADING_CLASS_NAME = "flex min-w-0 items-center gap-2.5";
 
@@ -23,31 +20,6 @@ export const DIALOG_ICON_BUTTON_CLASS_NAME = getUiIconButtonClassName({
   size: "md",
   variant: "ghost",
 });
-
-export function getDialogActionClassName(
-  tone: "default" | "primary" | "danger",
-  sizeOrClassName?: "default" | "compact" | string,
-  className?: string,
-): string {
-  const size = sizeOrClassName === "compact" || sizeOrClassName === "default"
-    ? sizeOrClassName
-    : "default";
-  const resolvedClassName =
-    typeof sizeOrClassName === "string" &&
-      sizeOrClassName !== "compact" &&
-      sizeOrClassName !== "default"
-      ? sizeOrClassName
-      : className;
-
-  return getUiButtonClassName(
-    {
-      size: size === "compact" ? "sm" : "md",
-      tone,
-      variant: tone === "default" ? "surface" : "solid",
-    },
-    resolvedClassName,
-  );
-}
 
 export function getDialogNoteClassName(tone: "default" | "danger", className?: string): string {
   return cn(

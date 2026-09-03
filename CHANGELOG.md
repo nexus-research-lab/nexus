@@ -38,6 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Removed the Dialog action class adapter: shared decision actions, Goal editing,
+  and WorkGraph save/edit flows now render `UiButton` directly, leaving button
+  emphasis, shadows, sizes, and interaction states with one DOM owner.
 - Unified WorkGraph artifact cards and narrow comparison panes on shared Panel,
   Button, Badge, Tabs, typography, and loading contracts, removing their private
   selected-tab shadow and text recipes.

@@ -1719,6 +1719,24 @@ test("only shared primitive adapters consume the internal button style projectio
   assert.deepEqual(violations, []);
 });
 
+test("Dialog actions render the shared Button primitive instead of a class adapter", async () => {
+  const sourceFiles = await collectSourceFiles(srcRoot);
+  const adapterConsumers = [];
+  for (const file of sourceFiles) {
+    const source = await readFile(file, "utf8");
+    if (/getDialogActionClassName/.test(source)) {
+      adapterConsumers.push(path.relative(webRoot, file));
+    }
+  }
+  assert.deepEqual(adapterConsumers, []);
+
+  const decisionActions = await readSource(
+    "src/shared/ui/dialog/decision/decision-dialog-frame.tsx",
+  );
+  assert.match(decisionActions, /<UiButton/);
+  assert.doesNotMatch(decisionActions, /<button\b/);
+});
+
 test("form style projection and ordinary native selects keep explicit owners", async () => {
   const files = await collectSourceFiles(srcRoot);
   const embeddedSelectOwners = new Set([
