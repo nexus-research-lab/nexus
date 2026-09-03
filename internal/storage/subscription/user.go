@@ -11,7 +11,7 @@ import (
 )
 
 func (r *Repository) ListAccounts(ctx context.Context, periodStart time.Time, periodEnd time.Time) ([]AccountEntity, error) {
-	query := r.accountQuery("WHERE u.user_id <> "+r.dialect.Bind(3)) + "\nORDER BY u.created_at ASC, u.user_id ASC"
+	query := r.accountQuery("WHERE u.owner_user_id <> "+r.dialect.Bind(3)) + "\nORDER BY u.created_at ASC, u.owner_user_id ASC"
 	rows, err := r.db.QueryContext(
 		ctx,
 		query,
@@ -41,7 +41,7 @@ func (r *Repository) ListAccounts(ctx context.Context, periodStart time.Time, pe
 func (r *Repository) GetAccount(ctx context.Context, ownerUserID string, periodStart time.Time, periodEnd time.Time) (*AccountEntity, error) {
 	row := r.db.QueryRowContext(
 		ctx,
-		r.accountQuery("WHERE u.user_id = "+r.dialect.Bind(3)),
+		r.accountQuery("WHERE u.owner_user_id = "+r.dialect.Bind(3)),
 		r.dialect.TimestampValue(periodStart),
 		r.dialect.TimestampValue(periodEnd),
 		ownerUserID,
@@ -59,7 +59,7 @@ func (r *Repository) GetAccount(ctx context.Context, ownerUserID string, periodS
 func (r *Repository) accountQuery(whereClause string) string {
 	return `
 SELECT
-  u.user_id,
+  u.owner_user_id,
   u.username,
   COALESCE(u.display_name, ''),
   u.role,
@@ -74,15 +74,15 @@ SELECT
   us.period_end,
   u.created_at,
   u.updated_at
-FROM users u
-LEFT JOIN user_subscriptions us ON us.owner_user_id = u.user_id
+FROM owner_profiles u
+LEFT JOIN user_subscriptions us ON us.owner_user_id = u.owner_user_id
 LEFT JOIN subscription_plans sp ON sp.plan_key = COALESCE(us.plan_key, 'free')
-LEFT JOIN token_usage_records t ON t.owner_user_id = u.user_id
+LEFT JOIN token_usage_records t ON t.owner_user_id = u.owner_user_id
   AND t.occurred_at >= ` + r.dialect.Bind(1) + `
   AND t.occurred_at < ` + r.dialect.Bind(2) + `
 ` + whereClause + `
 GROUP BY
-  u.user_id,
+  u.owner_user_id,
   u.username,
   u.display_name,
   u.role,

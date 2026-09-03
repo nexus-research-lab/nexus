@@ -187,9 +187,8 @@ export function usePersonalSettingsController() {
     }
     setIsSavingAvatar(true);
     setFeedback(null);
-    let result: PersonalProfile;
     try {
-      result = await updatePersonalProfileApi({ avatar: nextAvatar });
+      await updatePersonalProfileApi({ avatar: nextAvatar });
     } catch (error) {
       if (!isAuthOwnerScopeGenerationCurrent(ownerGeneration)) {
         return;
@@ -219,7 +218,9 @@ export function usePersonalSettingsController() {
     if (!isAuthOwnerScopeGenerationCurrent(ownerGeneration)) {
       return;
     }
-    setProfile(result);
+    setProfile((current) => current
+      ? { ...current, user: { ...current.user, avatar: nextAvatar } }
+      : current);
     setAvatarMutationBlocked(false);
     try {
       await refreshStatus();

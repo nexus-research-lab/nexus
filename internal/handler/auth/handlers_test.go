@@ -2,207 +2,16 @@ package auth_test
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
-	"strings"
 	"testing"
 
 	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 )
-
-func TestAuthStatusLoginAndProtectedRoute(t *testing.T) {
-	cfg := handlertest.NewConfig(t)
-	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
-
-	db := handlertest.OpenSQLite(t, cfg.DatabaseURL)
-	defer func() { _ = db.Close() }()
-	authService := authsvc.NewServiceWithDB(cfg, db)
-
-	server, err := serverapp.New(cfg)
-	if err != nil {
-		t.Fatalf("创建 HTTP 服务失败: %v", err)
-	}
-	handlertest.CloseServer(t, server)
-	httpServer := httptest.NewServer(server.Router())
-	defer httpServer.Close()
-
-	initialStatus := getAuthStatus(t, httpServer.URL, nil)
-	if !initialStatus.SetupRequired || initialStatus.AuthRequired {
-		t.Fatalf("初始 auth 状态不正确: %+v", initialStatus)
-	}
-
-	if _, err = authService.InitOwner(context.Background(), authsvc.InitOwnerInput{
-		Username: "admin",
-		Password: "password123",
-	}); err != nil {
-		t.Fatalf("初始化 owner 失败: %v", err)
-	}
-
-	protectedRequest := mustNewRequest(t, http.MethodGet, httpServer.URL+"/nexus/v1/agents", nil)
-	protectedRequest.Header.Set("X-Request-ID", "auth-read-attempt")
-	protectedResponse, err := http.DefaultClient.Do(protectedRequest)
-	if err != nil {
-		t.Fatalf("请求受保护路由失败: %v", err)
-	}
-	defer func() { _ = protectedResponse.Body.Close() }()
-	if protectedResponse.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("未登录访问受保护路由应返回 401，实际: %d", protectedResponse.StatusCode)
-	}
-	assertAuthenticationRequiredFailure(
-		t,
-		protectedResponse,
-		protocol.FailureEffectNotApplicable,
-		"auth-read-attempt",
-	)
-
-	writeRequest := mustNewRequest(
-		t,
-		http.MethodPost,
-		httpServer.URL+"/nexus/v1/agents",
-		strings.NewReader(`{"name":"must-not-run"}`),
-	)
-	writeRequest.Header.Set("X-Request-ID", "auth-write-attempt")
-	writeResponse, requestErr := http.DefaultClient.Do(writeRequest)
-	if requestErr != nil {
-		t.Fatalf("请求写受保护路由失败: %v", requestErr)
-	}
-	defer func() { _ = writeResponse.Body.Close() }()
-	if writeResponse.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("未登录写受保护路由应返回 401，实际: %d", writeResponse.StatusCode)
-	}
-	assertAuthenticationRequiredFailure(
-		t,
-		writeResponse,
-		protocol.FailureEffectNotApplied,
-		"auth-write-attempt",
-	)
-
-	cookie := loginByHTTP(t, httpServer.URL, "admin", "password123")
-	if cookie == nil || strings.TrimSpace(cookie.Value) == "" {
-		t.Fatal("登录未返回有效 cookie")
-	}
-
-	statusAfterLogin := getAuthStatus(t, httpServer.URL, []*http.Cookie{cookie})
-	if !statusAfterLogin.Authenticated || statusAfterLogin.Username == nil || *statusAfterLogin.Username != "admin" {
-		t.Fatalf("登录后的 auth 状态不正确: %+v", statusAfterLogin)
-	}
-}
-
-func assertAuthenticationRequiredFailure(
-	t *testing.T,
-	response *http.Response,
-	effect protocol.FailureEffect,
-	requestID string,
-) {
-	t.Helper()
-	var payload struct {
-		Code    string `json:"code"`
-		Message string `json:"message"`
-		Success bool   `json:"success"`
-		Data    struct {
-			Detail    string               `json:"detail"`
-			RequestID string               `json:"request_id"`
-			Failure   protocol.FailureCore `json:"failure"`
-		} `json:"data"`
-	}
-	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
-		t.Fatalf("解析认证失败响应: %v", err)
-	}
-	if payload.Code != "401" || payload.Message != "failed" || payload.Success ||
-		payload.Data.Detail != "未登录或登录状态已过期" || payload.Data.RequestID != requestID ||
-		payload.Data.Failure.Code != "auth.authentication_required" ||
-		payload.Data.Failure.Category != protocol.FailureCategoryAuthentication ||
-		payload.Data.Failure.Effect != effect ||
-		payload.Data.Failure.TransportRequestID != requestID {
-		t.Fatalf("认证失败事实不正确: %+v", payload)
-	}
-}
-
-func TestPersonalProfileAndChangePassword(t *testing.T) {
-	cfg := handlertest.NewConfig(t)
-	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
-
-	db := handlertest.OpenSQLite(t, cfg.DatabaseURL)
-	defer func() { _ = db.Close() }()
-	authService := authsvc.NewServiceWithDB(cfg, db)
-	if _, err := authService.InitOwner(context.Background(), authsvc.InitOwnerInput{
-		Username: "admin",
-		Password: "password123",
-	}); err != nil {
-		t.Fatalf("初始化 owner 失败: %v", err)
-	}
-
-	server, err := serverapp.New(cfg)
-	if err != nil {
-		t.Fatalf("创建 HTTP 服务失败: %v", err)
-	}
-	handlertest.CloseServer(t, server)
-	httpServer := httptest.NewServer(server.Router())
-	defer httpServer.Close()
-
-	cookie := loginByHTTP(t, httpServer.URL, "admin", "password123")
-	profile := getPersonalProfile(t, httpServer.URL, cookie)
-	if profile.User.Username != "admin" || !profile.CanChangePassword || !profile.CanUpdateProfile {
-		t.Fatalf("个人设置资料不正确: %+v", profile)
-	}
-	if profile.User.Avatar != "" {
-		t.Fatalf("初始头像应为空: %+v", profile.User)
-	}
-	if profile.Subscription == nil || profile.Subscription.PlanKey != "free" || profile.Subscription.PlanName != "Free" {
-		t.Fatalf("初始订阅套餐不正确: %+v", profile.Subscription)
-	}
-	if profile.TokenUsage.QuotaLimitTokens == nil || *profile.TokenUsage.QuotaLimitTokens != 200000 || profile.TokenUsage.TotalTokens != 0 {
-		t.Fatalf("初始 token 用量不正确: %+v", profile.TokenUsage)
-	}
-	updatedProfile := updatePersonalAvatar(t, httpServer.URL, cookie, "12")
-	if updatedProfile.User.Avatar != "12" {
-		t.Fatalf("头像更新未生效: %+v", updatedProfile.User)
-	}
-	statusWithAvatar := getAuthStatus(t, httpServer.URL, []*http.Cookie{cookie})
-	if statusWithAvatar.Avatar == nil || *statusWithAvatar.Avatar != "12" {
-		t.Fatalf("auth status 应返回最新头像: %+v", statusWithAvatar)
-	}
-
-	if status := changePasswordStatus(t, httpServer.URL, cookie, "password-change:invalid", "wrong-password", "password456"); status != http.StatusUnprocessableEntity {
-		t.Fatalf("错误当前密码应返回 422，实际: %d", status)
-	}
-	if outcome := passwordChangeOutcome(t, httpServer.URL, cookie, "password-change:invalid"); outcome != "not_applied" {
-		t.Fatalf("明确拒绝的改密请求必须持久化 not_applied，实际: %q", outcome)
-	}
-	const abandonedRequestID = "password-change:abandoned"
-	if outcome := settlePasswordChangeNotApplied(t, httpServer.URL, cookie, abandonedRequestID); outcome != "not_applied" {
-		t.Fatalf("放弃 unknown 请求必须原子收口，实际: %q", outcome)
-	}
-	if status := changePasswordStatus(t, httpServer.URL, cookie, abandonedRequestID, "password123", "password456"); status != http.StatusConflict {
-		t.Fatalf("已放弃 request 不得迟到修改密码，实际: %d", status)
-	}
-	const committedRequestID = "password-change:committed"
-	if status := changePasswordStatus(t, httpServer.URL, cookie, committedRequestID, "password123", "password456"); status != http.StatusOK {
-		t.Fatalf("正确当前密码应改密成功，实际: %d", status)
-	}
-	if passwordChangeOutcome(t, httpServer.URL, cookie, committedRequestID) != "committed" {
-		t.Fatal("改密成功后 exact request 回执应可对账")
-	}
-	if status := changePasswordStatus(t, httpServer.URL, cookie, committedRequestID, "password123", "password789"); status != http.StatusOK {
-		t.Fatalf("重放同一 exact request 应返回已提交而不再改密，实际: %d", status)
-	}
-	if status := loginStatus(t, httpServer.URL, "admin", "password123"); status != http.StatusUnauthorized {
-		t.Fatalf("改密后旧密码应失败，实际: %d", status)
-	}
-	if status := loginStatus(t, httpServer.URL, "admin", "password456"); status != http.StatusOK {
-		t.Fatalf("改密后新密码应成功，实际: %d", status)
-	}
-	if status := loginStatus(t, httpServer.URL, "admin", "password789"); status != http.StatusUnauthorized {
-		t.Fatalf("同一 request_id 重放不得应用第二个密码，实际: %d", status)
-	}
-}
 
 func TestDesktopPersonalProfileAllowsLocalAvatar(t *testing.T) {
 	cfg := handlertest.NewConfig(t)
@@ -217,59 +26,43 @@ func TestDesktopPersonalProfileAllowsLocalAvatar(t *testing.T) {
 	httpServer := httptest.NewServer(server.Router())
 	defer httpServer.Close()
 
-	profile := getPersonalProfile(t, httpServer.URL, nil)
-	if profile.User.UserID != authsvc.SystemUserID || profile.User.Username != "local" {
-		t.Fatalf("desktop 个人资料应返回本地用户: %+v", profile.User)
+	status := getAuthStatus(t, httpServer.URL)
+	if status.AuthRequired || !status.Authenticated || status.Username != "local" {
+		t.Fatalf("desktop auth 状态不正确: %+v", status)
 	}
-	if profile.User.AuthMethod != authsvc.AuthMethodLocal {
-		t.Fatalf("desktop 个人资料应返回本地认证方式: %+v", profile.User)
-	}
-	if profile.CanChangePassword || !profile.CanUpdateProfile {
-		t.Fatalf("desktop 本地用户应只允许修改资料不允许改密: %+v", profile)
-	}
-	if profile.Subscription != nil || profile.TokenUsage.QuotaLimitTokens != nil {
-		t.Fatalf("desktop 本地用户没有显式订阅时不应显示 Free 套餐或额度: %+v", profile)
+	profile := getPersonalProfile(t, httpServer.URL)
+	if profile.User.UserID != authsvc.SystemUserID ||
+		profile.User.Username != "local" ||
+		profile.User.AuthMethod != authsvc.AuthMethodLocal ||
+		profile.CanChangePassword ||
+		!profile.CanUpdateProfile {
+		t.Fatalf("desktop 个人资料不正确: %+v", profile)
 	}
 
-	updatedProfile := updatePersonalAvatar(t, httpServer.URL, nil, "15")
-	if updatedProfile.User.Avatar != "15" {
-		t.Fatalf("desktop 本地头像更新未生效: %+v", updatedProfile.User)
+	updated := updatePersonalAvatar(t, httpServer.URL, "15")
+	if updated.User.Avatar != "15" {
+		t.Fatalf("desktop 本地头像更新未生效: %+v", updated.User)
 	}
-	if updatedProfile.Subscription != nil || updatedProfile.TokenUsage.QuotaLimitTokens != nil {
-		t.Fatalf("desktop 本地用户保存头像后仍不应显示 Free 套餐或额度: %+v", updatedProfile)
-	}
-	statusWithAvatar := getAuthStatus(t, httpServer.URL, nil)
-	if statusWithAvatar.Avatar == nil || *statusWithAvatar.Avatar != "15" {
-		t.Fatalf("desktop auth status 应返回最新头像: %+v", statusWithAvatar)
+	status = getAuthStatus(t, httpServer.URL)
+	if status.Avatar != "15" {
+		t.Fatalf("desktop auth status 未返回最新头像: %+v", status)
 	}
 }
 
 type authStatusResponse struct {
-	AuthRequired         bool    `json:"auth_required"`
-	PasswordLoginEnabled bool    `json:"password_login_enabled"`
-	Authenticated        bool    `json:"authenticated"`
-	Username             *string `json:"username"`
-	Avatar               *string `json:"avatar"`
-	SetupRequired        bool    `json:"setup_required"`
+	AuthRequired  bool   `json:"auth_required"`
+	Authenticated bool   `json:"authenticated"`
+	Username      string `json:"username"`
+	Avatar        string `json:"avatar"`
 }
 
 type personalProfileResponse struct {
 	User struct {
-		UserID      string `json:"user_id"`
-		Username    string `json:"username"`
-		DisplayName string `json:"display_name"`
-		Role        string `json:"role"`
-		Avatar      string `json:"avatar"`
-		AuthMethod  string `json:"auth_method"`
+		UserID     string `json:"user_id"`
+		Username   string `json:"username"`
+		Avatar     string `json:"avatar"`
+		AuthMethod string `json:"auth_method"`
 	} `json:"user"`
-	TokenUsage struct {
-		TotalTokens      int64  `json:"total_tokens"`
-		QuotaLimitTokens *int64 `json:"quota_limit_tokens"`
-	} `json:"token_usage"`
-	Subscription *struct {
-		PlanKey  string `json:"plan_key"`
-		PlanName string `json:"plan_name"`
-	} `json:"subscription"`
 	CanChangePassword bool `json:"can_change_password"`
 	CanUpdateProfile  bool `json:"can_update_profile"`
 }
@@ -278,247 +71,50 @@ type apiEnvelope[T any] struct {
 	Data T `json:"data"`
 }
 
-func getAuthStatus(t *testing.T, baseURL string, cookies []*http.Cookie) authStatusResponse {
+func getAuthStatus(t *testing.T, baseURL string) authStatusResponse {
 	t.Helper()
-
-	request := mustNewRequest(t, http.MethodGet, baseURL+"/nexus/v1/auth/status", nil)
-	for _, cookie := range cookies {
-		request.AddCookie(cookie)
-	}
-	response, err := http.DefaultClient.Do(request)
-	if err != nil {
-		t.Fatalf("请求 auth status 失败: %v", err)
-	}
-	defer func() { _ = response.Body.Close() }()
-	if response.StatusCode != http.StatusOK {
-		t.Fatalf("auth status 状态码不正确: %d", response.StatusCode)
-	}
-
-	var payload apiEnvelope[authStatusResponse]
-	if err = json.NewDecoder(response.Body).Decode(&payload); err != nil {
-		t.Fatalf("解析 auth status 响应失败: %v", err)
-	}
-	return payload.Data
+	return getJSON[authStatusResponse](t, http.MethodGet, baseURL+"/nexus/v1/auth/status", nil)
 }
 
-func getPersonalProfile(t *testing.T, baseURL string, cookie *http.Cookie) personalProfileResponse {
+func getPersonalProfile(t *testing.T, baseURL string) personalProfileResponse {
 	t.Helper()
-
-	request := mustNewRequest(t, http.MethodGet, baseURL+"/nexus/v1/settings/profile", nil)
-	if cookie != nil {
-		request.AddCookie(cookie)
-	}
-	response, err := http.DefaultClient.Do(request)
-	if err != nil {
-		t.Fatalf("请求个人设置资料失败: %v", err)
-	}
-	defer func() { _ = response.Body.Close() }()
-	if response.StatusCode != http.StatusOK {
-		t.Fatalf("个人设置资料状态码不正确: %d", response.StatusCode)
-	}
-
-	var payload apiEnvelope[personalProfileResponse]
-	if err = json.NewDecoder(response.Body).Decode(&payload); err != nil {
-		t.Fatalf("解析个人设置资料失败: %v", err)
-	}
-	return payload.Data
+	return getJSON[personalProfileResponse](t, http.MethodGet, baseURL+"/nexus/v1/settings/profile", nil)
 }
 
-func updatePersonalAvatar(t *testing.T, baseURL string, cookie *http.Cookie, avatar string) personalProfileResponse {
+func updatePersonalAvatar(t *testing.T, baseURL string, avatar string) personalProfileResponse {
 	t.Helper()
-
-	body, err := json.Marshal(map[string]string{
-		"avatar": avatar,
-	})
+	body, err := json.Marshal(map[string]string{"avatar": avatar})
 	if err != nil {
-		t.Fatalf("编码头像更新请求失败: %v", err)
+		t.Fatal(err)
 	}
-
-	request := mustNewRequest(t, http.MethodPatch, baseURL+"/nexus/v1/settings/profile", bytes.NewReader(body))
-	request.Header.Set("Content-Type", "application/json")
-	if cookie != nil {
-		request.AddCookie(cookie)
-	}
-	response, err := http.DefaultClient.Do(request)
-	if err != nil {
-		t.Fatalf("头像更新请求失败: %v", err)
-	}
-	defer func() { _ = response.Body.Close() }()
-	if response.StatusCode != http.StatusOK {
-		t.Fatalf("头像更新状态码不正确: %d", response.StatusCode)
-	}
-
-	var payload apiEnvelope[personalProfileResponse]
-	if err = json.NewDecoder(response.Body).Decode(&payload); err != nil {
-		t.Fatalf("解析头像更新响应失败: %v", err)
-	}
-	return payload.Data
-}
-
-func loginByHTTP(t *testing.T, baseURL string, username string, password string) *http.Cookie {
-	t.Helper()
-
-	body, err := json.Marshal(map[string]string{
-		"username": username,
-		"password": password,
-	})
-	if err != nil {
-		t.Fatalf("编码登录请求失败: %v", err)
-	}
-
-	request := mustNewRequest(t, http.MethodPost, baseURL+"/nexus/v1/auth/login", bytes.NewReader(body))
-	request.Header.Set("Content-Type", "application/json")
-	response, err := http.DefaultClient.Do(request)
-	if err != nil {
-		t.Fatalf("登录请求失败: %v", err)
-	}
-	defer func() { _ = response.Body.Close() }()
-	if response.StatusCode != http.StatusOK {
-		t.Fatalf("登录状态码不正确: %d", response.StatusCode)
-	}
-	for _, cookie := range response.Cookies() {
-		if strings.TrimSpace(cookie.Name) != "" {
-			return cookie
-		}
-	}
-	t.Fatal("登录响应未返回 cookie")
-	return nil
-}
-
-func loginStatus(t *testing.T, baseURL string, username string, password string) int {
-	t.Helper()
-
-	body, err := json.Marshal(map[string]string{
-		"username": username,
-		"password": password,
-	})
-	if err != nil {
-		t.Fatalf("编码登录请求失败: %v", err)
-	}
-	request := mustNewRequest(t, http.MethodPost, baseURL+"/nexus/v1/auth/login", bytes.NewReader(body))
-	request.Header.Set("Content-Type", "application/json")
-	response, err := http.DefaultClient.Do(request)
-	if err != nil {
-		t.Fatalf("登录请求失败: %v", err)
-	}
-	defer func() { _ = response.Body.Close() }()
-	return response.StatusCode
-}
-
-func changePasswordStatus(
-	t *testing.T,
-	baseURL string,
-	cookie *http.Cookie,
-	requestID string,
-	currentPassword string,
-	newPassword string,
-) int {
-	t.Helper()
-
-	body, err := json.Marshal(map[string]string{
-		"request_id":       requestID,
-		"current_password": currentPassword,
-		"new_password":     newPassword,
-	})
-	if err != nil {
-		t.Fatalf("编码改密请求失败: %v", err)
-	}
-	request := mustNewRequest(t, http.MethodPost, baseURL+"/nexus/v1/settings/profile/password", bytes.NewReader(body))
-	request.Header.Set("Content-Type", "application/json")
-	request.AddCookie(cookie)
-	response, err := http.DefaultClient.Do(request)
-	if err != nil {
-		t.Fatalf("改密请求失败: %v", err)
-	}
-	defer func() { _ = response.Body.Close() }()
-	return response.StatusCode
-}
-
-func passwordChangeOutcome(
-	t *testing.T,
-	baseURL string,
-	cookie *http.Cookie,
-	requestID string,
-) string {
-	t.Helper()
-	request := mustNewRequest(
+	return getJSON[personalProfileResponse](
 		t,
-		http.MethodGet,
-		baseURL+"/nexus/v1/settings/profile/password/receipt?request_id="+url.QueryEscape(requestID),
-		nil,
-	)
-	request.AddCookie(cookie)
-	response, err := http.DefaultClient.Do(request)
-	if err != nil {
-		t.Fatalf("核对改密回执失败: %v", err)
-	}
-	defer func() { _ = response.Body.Close() }()
-	if response.StatusCode != http.StatusOK {
-		t.Fatalf("核对改密回执应成功，实际: %d", response.StatusCode)
-	}
-	var payload struct {
-		Data struct {
-			RequestID string `json:"request_id"`
-			Effect    string `json:"effect"`
-		} `json:"data"`
-	}
-	if err = json.NewDecoder(response.Body).Decode(&payload); err != nil {
-		t.Fatalf("解析改密回执失败: %v", err)
-	}
-	if payload.Data.RequestID != requestID {
-		t.Fatalf("回执 request_id 不匹配: %+v", payload.Data)
-	}
-	return payload.Data.Effect
-}
-
-func settlePasswordChangeNotApplied(
-	t *testing.T,
-	baseURL string,
-	cookie *http.Cookie,
-	requestID string,
-) string {
-	t.Helper()
-	body, err := json.Marshal(map[string]string{"request_id": requestID})
-	if err != nil {
-		t.Fatalf("编码改密放弃请求失败: %v", err)
-	}
-	request := mustNewRequest(
-		t,
-		http.MethodPost,
-		baseURL+"/nexus/v1/settings/profile/password/receipt/not-applied",
+		http.MethodPatch,
+		baseURL+"/nexus/v1/settings/profile",
 		bytes.NewReader(body),
 	)
-	request.Header.Set("Content-Type", "application/json")
-	request.AddCookie(cookie)
-	response, err := http.DefaultClient.Do(request)
-	if err != nil {
-		t.Fatalf("放弃改密请求失败: %v", err)
-	}
-	defer func() { _ = response.Body.Close() }()
-	if response.StatusCode != http.StatusOK {
-		t.Fatalf("放弃改密请求应成功，实际: %d", response.StatusCode)
-	}
-	var payload struct {
-		Data struct {
-			RequestID string `json:"request_id"`
-			Effect    string `json:"effect"`
-		} `json:"data"`
-	}
-	if err = json.NewDecoder(response.Body).Decode(&payload); err != nil {
-		t.Fatalf("解析改密放弃回执失败: %v", err)
-	}
-	if payload.Data.RequestID != requestID {
-		t.Fatalf("放弃回执 request_id 不匹配: %+v", payload.Data)
-	}
-	return payload.Data.Effect
 }
 
-func mustNewRequest(t *testing.T, method string, url string, body io.Reader) *http.Request {
+func getJSON[T any](t *testing.T, method string, endpoint string, body io.Reader) T {
 	t.Helper()
-
-	request, err := http.NewRequest(method, url, body)
+	request, err := http.NewRequest(method, endpoint, body)
 	if err != nil {
-		t.Fatalf("构造 HTTP 请求失败: %v", err)
+		t.Fatal(err)
 	}
-	return request
+	if body != nil {
+		request.Header.Set("Content-Type", "application/json")
+	}
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("%s %s status = %d", method, endpoint, response.StatusCode)
+	}
+	var payload apiEnvelope[T]
+	if err = json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		t.Fatal(err)
+	}
+	return payload.Data
 }

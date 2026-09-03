@@ -592,7 +592,6 @@ func TestBuildAgentClientOptionsProtectsScopedIdentityFromExtraEnv(t *testing.T)
 	t.Setenv("NEXUS_CONFIG_DIR", "")
 	ctx := authctx.WithState(context.Background(), authctx.State{
 		AuthRequired: true,
-		UserCount:    2,
 	})
 	ctx = authctx.WithPrincipal(ctx, &authctx.Principal{UserID: "user-a"})
 

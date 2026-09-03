@@ -1,9 +1,11 @@
 /** 认证、个人资料、密码与个人用量的 HTTP 边界。 */
 
-import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
+import { isDesktopRuntime } from "@/config/desktop-runtime";
+import { getAgentApiBaseUrl, getControlAuthBaseUrl } from "@/config/runtime-endpoints";
 import { requestApi } from "@/lib/api/core/http";
 
 const AUTH_API_BASE_URL = getAgentApiBaseUrl();
+const CONTROL_AUTH_BASE_URL = getControlAuthBaseUrl();
 
 export interface AuthStatus {
   auth_required: boolean;
@@ -16,7 +18,7 @@ export interface AuthStatus {
   avatar?: string | null;
   auth_method?: string | null;
   setup_required?: boolean;
-  access_token_enabled?: boolean;
+  setup_enabled?: boolean;
 }
 
 export interface LoginParams {
@@ -84,7 +86,7 @@ export async function getAuthStatus(): Promise<AuthStatus> {
 }
 
 export async function loginApi(params: LoginParams): Promise<AuthStatus> {
-  return requestApi<AuthStatus>(`${AUTH_API_BASE_URL}/auth/login`, {
+  return requestApi<AuthStatus>(`${CONTROL_AUTH_BASE_URL}/login`, {
     method: "POST",
     notify_on_401: false,
     body: JSON.stringify(params),
@@ -92,7 +94,10 @@ export async function loginApi(params: LoginParams): Promise<AuthStatus> {
 }
 
 export async function logoutApi(): Promise<AuthStatus> {
-  return requestApi<AuthStatus>(`${AUTH_API_BASE_URL}/auth/logout`, {
+  if (isDesktopRuntime()) {
+    return getAuthStatus();
+  }
+  return requestApi<AuthStatus>(`${CONTROL_AUTH_BASE_URL}/logout`, {
     method: "POST",
     notify_on_401: false,
   });
@@ -104,8 +109,11 @@ export async function getPersonalProfileApi(): Promise<PersonalProfile> {
   });
 }
 
-export async function updatePersonalProfileApi(params: UpdatePersonalProfileParams): Promise<PersonalProfile> {
-  return requestApi<PersonalProfile>(`${AUTH_API_BASE_URL}/settings/profile`, {
+export async function updatePersonalProfileApi(params: UpdatePersonalProfileParams): Promise<void> {
+  const endpoint = isDesktopRuntime()
+    ? `${AUTH_API_BASE_URL}/settings/profile`
+    : `${CONTROL_AUTH_BASE_URL}/profile`;
+  await requestApi<unknown>(endpoint, {
     method: "PATCH",
     body: {
       avatar: params.avatar ?? "",
@@ -113,8 +121,8 @@ export async function updatePersonalProfileApi(params: UpdatePersonalProfilePara
   });
 }
 
-export async function changePasswordApi(params: ChangePasswordParams): Promise<AuthStatus> {
-  return requestApi<AuthStatus>(`${AUTH_API_BASE_URL}/settings/profile/password`, {
+export async function changePasswordApi(params: ChangePasswordParams): Promise<void> {
+  await requestApi<unknown>(`${CONTROL_AUTH_BASE_URL}/profile/password`, {
     method: "POST",
     body: {
       request_id: params.request_id,
@@ -129,7 +137,7 @@ export async function getPasswordChangeReceiptApi(
 ): Promise<PasswordChangeReceipt> {
   const query = new URLSearchParams({ request_id: requestID });
   return requestApi<PasswordChangeReceipt>(
-    `${AUTH_API_BASE_URL}/settings/profile/password/receipt?${query.toString()}`,
+    `${CONTROL_AUTH_BASE_URL}/profile/password/receipt?${query.toString()}`,
     { method: "GET" },
   );
 }
@@ -138,7 +146,7 @@ export async function settlePasswordChangeNotAppliedApi(
   requestID: string,
 ): Promise<PasswordChangeReceipt> {
   return requestApi<PasswordChangeReceipt>(
-    `${AUTH_API_BASE_URL}/settings/profile/password/receipt/not-applied`,
+    `${CONTROL_AUTH_BASE_URL}/profile/password/receipt/not-applied`,
     {
       method: "POST",
       body: { request_id: requestID },

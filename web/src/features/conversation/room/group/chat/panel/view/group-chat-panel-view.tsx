@@ -189,10 +189,10 @@ function RoomCollaborationActivity({
     <aside
       aria-label={t("room.collaboration_activity_label")}
       aria-live="polite"
-      className="flex min-w-0 max-w-[460px] items-center gap-2 rounded-[14px] border border-(--surface-control-border) bg-(--surface-control-background) px-3 py-2 text-sm text-(--text-muted) shadow-(--surface-control-shadow)"
+      className="conversation-activity-chip flex min-w-0 max-w-[460px] items-center gap-1.5 px-2 text-(--text-muted)"
       data-room-collaboration-activity={state}
     >
-      <LockKeyhole aria-hidden="true" className="h-4 w-4 shrink-0" />
+      <LockKeyhole aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
       <span className="truncate">
         {t(state === "active"
           ? "room.collaboration_activity_active"
@@ -200,7 +200,7 @@ function RoomCollaborationActivity({
       </span>
       <LoaderCircle
         aria-hidden="true"
-        className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none"
+        className="h-3 w-3 shrink-0 animate-spin motion-reduce:animate-none"
       />
     </aside>
   );

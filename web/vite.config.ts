@@ -51,13 +51,13 @@ function getNodePackageName(id: string): string | null {
   return packageParts[0] ?? null;
 }
 
-function resolveDevBackendTarget(mode: string): string {
+function resolveDevTarget(mode: string, key: string, fallbackPort: string): string {
   const environment = loadEnv(mode, process.cwd(), "VITE_");
-  const backendPort = Number.parseInt(environment.VITE_BACKEND_PORT || "8010", 10);
-  if (!Number.isInteger(backendPort) || backendPort < 1 || backendPort > 65535) {
-    throw new Error(`Invalid VITE_BACKEND_PORT: ${environment.VITE_BACKEND_PORT}`);
+  const port = Number.parseInt(environment[key] || fallbackPort, 10);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error(`Invalid ${key}: ${environment[key]}`);
   }
-  return `http://127.0.0.1:${backendPort}`;
+  return `http://127.0.0.1:${port}`;
 }
 
 export default defineConfig(({ mode }) => ({
@@ -118,9 +118,13 @@ export default defineConfig(({ mode }) => ({
     strictPort: true,
     proxy: {
       "/nexus/v1": {
-        target: resolveDevBackendTarget(mode),
+        target: resolveDevTarget(mode, "VITE_BACKEND_PORT", "8010"),
         changeOrigin: true,
         ws: true,
+      },
+      "/auth/v1": {
+        target: resolveDevTarget(mode, "VITE_CONTROL_PORT", "8020"),
+        changeOrigin: false,
       },
     },
   },

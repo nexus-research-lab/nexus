@@ -18,6 +18,9 @@ var (
 	// ErrFileRevisionConflict 表示条件写入基线已经过期，本次内容没有落盘。
 	ErrFileRevisionConflict = errors.New("workspace file revision conflict")
 
+	// ErrFileTooLarge 表示文件不能安全地作为单个正文载荷读取。
+	ErrFileTooLarge = errors.New("workspace file is too large for whole-content access")
+
 	// ErrMutationInvalid 表示修改在任何 workspace 文件落盘前因参数或受保护目标被拒绝。
 	ErrMutationInvalid = errors.New("workspace mutation invalid")
 

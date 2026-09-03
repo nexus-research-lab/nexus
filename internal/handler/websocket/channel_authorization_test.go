@@ -16,16 +16,29 @@ import (
 )
 
 type channelAuthorizationTestSender struct {
-	key    string
-	closed bool
-	err    error
-	mu     sync.Mutex
-	events []protocol.EventMessage
+	key         string
+	closed      bool
+	closeReason string
+	err         error
+	mu          sync.Mutex
+	events      []protocol.EventMessage
 }
 
 func (s *channelAuthorizationTestSender) Key() string { return s.key }
 
-func (s *channelAuthorizationTestSender) IsClosed() bool { return s.closed }
+func (s *channelAuthorizationTestSender) IsClosed() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.closed
+}
+
+func (s *channelAuthorizationTestSender) ClosePolicy(reason string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.closed = true
+	s.closeReason = reason
+	return nil
+}
 
 func (s *channelAuthorizationTestSender) SendEvent(
 	_ context.Context,
@@ -137,6 +150,36 @@ func TestChannelAuthorizationPresentationTargetsExactAuthenticatedSession(t *tes
 	}
 	if !strings.Contains(wire, presentation.QRPayload) {
 		t.Fatalf("native presentation omitted QR payload: %s", wire)
+	}
+}
+
+func TestChannelAuthorizationInvalidationClosesOnlyMatchingPrincipal(t *testing.T) {
+	transport := newChannelAuthorizationTransport()
+	ownerSender := &channelAuthorizationTestSender{key: "owner"}
+	otherSender := &channelAuthorizationTestSender{key: "other"}
+	registerChannelAuthorizationTestSender(t, transport, ownerSender, "owner-1")
+	registerChannelAuthorizationTestSender(t, transport, otherSender, "owner-2")
+
+	if closed := transport.closePrincipal("owner-1"); closed != 1 {
+		t.Fatalf("closed connections = %d, want 1", closed)
+	}
+	if !ownerSender.IsClosed() || otherSender.IsClosed() {
+		t.Fatalf("owner closed = %v, other closed = %v", ownerSender.IsClosed(), otherSender.IsClosed())
+	}
+}
+
+func TestChannelAuthorizationSessionInvalidationClosesOnlyExactSession(t *testing.T) {
+	transport := newChannelAuthorizationTransport()
+	revoked := &channelAuthorizationTestSender{key: "revoked"}
+	sibling := &channelAuthorizationTestSender{key: "sibling"}
+	registerChannelAuthorizationTestSenderWithSession(t, transport, revoked, "owner-1", "session-a")
+	registerChannelAuthorizationTestSenderWithSession(t, transport, sibling, "owner-1", "session-b")
+
+	if closed := transport.closeAuthSession("session-a"); closed != 1 {
+		t.Fatalf("closed connections = %d, want 1", closed)
+	}
+	if !revoked.IsClosed() || sibling.IsClosed() {
+		t.Fatalf("revoked closed = %v, sibling closed = %v", revoked.IsClosed(), sibling.IsClosed())
 	}
 }
 
@@ -329,7 +372,23 @@ func registerChannelAuthorizationTestSender(
 	principalUserID string,
 ) {
 	t.Helper()
-	sessionID := principalUserID + "-session"
+	registerChannelAuthorizationTestSenderWithSession(
+		t,
+		transport,
+		sender,
+		principalUserID,
+		principalUserID+"-session",
+	)
+}
+
+func registerChannelAuthorizationTestSenderWithSession(
+	t *testing.T,
+	transport *channelAuthorizationTransport,
+	sender *channelAuthorizationTestSender,
+	principalUserID string,
+	sessionID string,
+) {
+	t.Helper()
 	ctx := authctx.WithPrincipal(context.Background(), &authctx.Principal{
 		UserID:     principalUserID,
 		Role:       authctx.RoleOwner,

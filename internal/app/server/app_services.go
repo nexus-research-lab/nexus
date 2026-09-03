@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"errors"
 	"log/slog"
+	"strings"
 
 	serverexecution "github.com/nexus-research-lab/nexus/internal/app/server/execution"
 	servergoal "github.com/nexus-research-lab/nexus/internal/app/server/goal"
@@ -57,7 +58,7 @@ import (
 type AppServices struct {
 	DB                     *sql.DB
 	Core                   *CoreServices
-	Auth                   *authsvc.Service
+	Auth                   authsvc.Authority
 	Provider               *providercfg.Service
 	Subscription           *subscriptionsvc.Service
 	Workspace              *workspacepkg.Service
@@ -132,7 +133,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		logger = logx.NewDiscardLogger()
 	}
 	core := NewCoreServicesWithDB(cfg, db)
-	authService := authsvc.NewServiceWithDB(cfg, db)
+	var authService authsvc.Authority
 	usageService := usagesvc.NewServiceWithDB(cfg, db)
 	providerService := providercfg.NewServiceWithDB(cfg, db)
 	providerService.SetLogger(logger.With("component", "provider"))
@@ -204,8 +205,12 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 			}()
 		})
 	}
-	runtimeTransition := newRuntimeAuthTransition(runtimeManager)
-	authService.SetRuntimeTransitionCoordinator(runtimeTransition)
+	if strings.TrimSpace(cfg.ControlURL) != "" &&
+		!strings.EqualFold(strings.TrimSpace(cfg.AppMode), "desktop") {
+		authService = authsvc.NewControlAuthority(cfg, db, nil)
+	} else {
+		authService = authsvc.NewLocalAuthority(cfg.DatabaseDriver, db, nil)
+	}
 	projectPermissionService.SetRuntimeSessionCloser(runtimeManager)
 	goalService.SetPreviewFiller(titleService)
 	goalObjectiveService := goalobjectivesvc.NewService(providerService, preferencesService)

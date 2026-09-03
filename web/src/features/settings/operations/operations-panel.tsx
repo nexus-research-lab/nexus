@@ -21,8 +21,10 @@ import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspac
 
 import { ProjectAdminPanel } from "./project-admin/project-admin-panel";
 import { SubscriptionAdminPanel } from "./subscription-admin/subscription-admin-panel";
+import { ControlMembersPanel } from "./control-members-panel";
 
 const OPERATIONS_TAB_KEYS = [
+  "members",
   "userSubscriptions",
   "subscriptionPlans",
   "subscriptionProviders",
@@ -31,6 +33,7 @@ const OPERATIONS_TAB_KEYS = [
 
 type OperationsTabKey = (typeof OPERATIONS_TAB_KEYS)[number];
 type OperationsTabLabelKey =
+  | "operations.tabs.members"
   | "operations.tabs.user_subscriptions"
   | "operations.tabs.subscription_plans"
   | "operations.tabs.subscription_providers"
@@ -45,6 +48,10 @@ const OPERATIONS_TAB_DEFINITIONS: Record<
   OperationsTabKey,
   OperationsTabDefinition
 > = {
+  members: {
+    labelKey: "operations.tabs.members",
+    renderContent: () => <ControlMembersPanel />,
+  },
   userSubscriptions: {
     labelKey: "operations.tabs.user_subscriptions",
     renderContent: () => <SubscriptionAdminPanel view="users" />,
@@ -72,7 +79,7 @@ const OPERATIONS_TAB_DEFINITIONS: Record<
 export function OperationsPanel({ embedded = false }: { embedded?: boolean }) {
   const { t } = useI18n();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<OperationsTabKey>("userSubscriptions");
+  const [activeTab, setActiveTab] = useState<OperationsTabKey>("members");
   const activeTabConfig = OPERATIONS_TAB_DEFINITIONS[activeTab];
 
   const handleBackToWorkspace = useCallback(() => {

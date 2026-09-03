@@ -38,9 +38,9 @@ function LoginIntroduction() {
   return (
     <section className="relative min-w-0 py-6">
       <Link
-        aria-label="Back to Nexus landing"
+        aria-label="Back to Nexus home"
         className="inline-flex items-center gap-3 text-(--text-strong) no-underline"
-        to={APP_ROUTE_PATHS.landing}
+        to={APP_ROUTE_PATHS.root}
       >
         <img
           alt=""

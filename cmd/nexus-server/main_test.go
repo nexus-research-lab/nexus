@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"database/sql"
 	"io"
 	"log/slog"
@@ -13,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
-	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	"github.com/nexus-research-lab/nexus/internal/storage"
 
 	"github.com/pressly/goose/v3"
@@ -43,47 +41,6 @@ func TestBuildRootCommandHelpDoesNotRunServer(t *testing.T) {
 	}
 	if bytes.Contains(buf.Bytes(), []byte("migrate")) {
 		t.Fatal("help output should not expose a manual migrate subcommand")
-	}
-}
-
-func TestEnsureOwnerFromEnvBootstrapsOwnerIdempotently(t *testing.T) {
-	cfg := testServerConfig(t)
-	logger := discardLogger()
-	if err := runMigrations(cfg, logger); err != nil {
-		t.Fatalf("执行 migration 失败: %v", err)
-	}
-
-	t.Setenv(authInitOwnerUsernameEnvName, "Admin")
-	t.Setenv(authInitOwnerDisplayNameEnvName, "Root Admin")
-	t.Setenv(authInitOwnerPasswordEnvName, "password123")
-	if err := ensureOwnerFromEnv(context.Background(), cfg, logger); err != nil {
-		t.Fatalf("初始化 owner 失败: %v", err)
-	}
-	if err := ensureOwnerFromEnv(context.Background(), cfg, logger); err != nil {
-		t.Fatalf("重复初始化 owner 应保持幂等: %v", err)
-	}
-
-	users := listAuthUsers(t, cfg)
-	if len(users) != 1 {
-		t.Fatalf("owner 初始化应只创建一个用户: %+v", users)
-	}
-	if users[0].Username != "admin" || users[0].DisplayName != "Root Admin" || users[0].Role != authsvc.RoleOwner {
-		t.Fatalf("owner 用户不符合预期: %+v", users[0])
-	}
-}
-
-func TestEnsureOwnerFromEnvRequiresPasswordWhenProfileProvided(t *testing.T) {
-	cfg := testServerConfig(t)
-	logger := discardLogger()
-	if err := runMigrations(cfg, logger); err != nil {
-		t.Fatalf("执行 migration 失败: %v", err)
-	}
-
-	t.Setenv(authInitOwnerUsernameEnvName, "admin")
-	t.Setenv(authInitOwnerPasswordEnvName, "")
-	err := ensureOwnerFromEnv(context.Background(), cfg, logger)
-	if err == nil || !strings.Contains(err.Error(), authInitOwnerPasswordEnvName) {
-		t.Fatalf("缺少密码时应返回明确错误: %v", err)
 	}
 }
 
@@ -167,17 +124,7 @@ func TestRunMigrationsRepairsShiftedRecoveryVersionCollision(t *testing.T) {
 		"00126_agent_creation_requests.sql",
 	}
 	for index, name := range files {
-		contents, readErr := os.ReadFile(filepath.Join(migrationDir, name))
-		if readErr != nil {
-			t.Fatal(readErr)
-		}
-		upSQL, _, found := strings.Cut(string(contents), "-- +goose Down")
-		if !found {
-			t.Fatalf("migration %s has no Goose Down boundary", name)
-		}
-		if _, err = db.Exec(upSQL); err != nil {
-			t.Fatalf("apply shifted migration %s: %v", name, err)
-		}
+		applyMigrationUpSQL(t, db, migrationDir, name)
 		if _, err = db.Exec(
 			"INSERT INTO goose_db_version (version_id, is_applied) VALUES (?, TRUE)",
 			121+index,
@@ -228,6 +175,102 @@ WHERE owner_user_id = 'owner-legacy' AND creation_request_id = 'web-create:legac
 	}
 }
 
+func TestRunMigrationsRepairsControlMigrationCollision(t *testing.T) {
+	testCases := []struct {
+		name             string
+		withOwnerProfile bool
+	}{
+		{name: "legacy 00128", withOwnerProfile: false},
+		{name: "legacy 00129", withOwnerProfile: true},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			cfg := testServerConfig(t)
+			db, migrationDir, err := openMigrationDB(cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err = goose.UpTo(db, migrationDir, 127); err != nil {
+				t.Fatal(err)
+			}
+			applyMigrationUpSQL(t, db, migrationDir, "00131_control_owner_bindings.sql")
+			if _, err = db.Exec("INSERT INTO goose_db_version (version_id, is_applied) VALUES (128, TRUE)"); err != nil {
+				t.Fatal(err)
+			}
+			if _, err = db.Exec(`
+INSERT INTO users (user_id, username, display_name, role, status)
+VALUES ('owner-legacy', 'owner-legacy', 'Legacy Owner', 'owner', 'active');
+INSERT INTO local_owner_bindings (
+    deployment_id, control_user_id, local_owner_key, created_at, updated_at
+) VALUES ('deployment-legacy', 'control-legacy', 'owner-legacy', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+`); err != nil {
+				t.Fatal(err)
+			}
+			if testCase.withOwnerProfile {
+				applyMigrationUpSQL(t, db, migrationDir, "00132_owner_profile_projection.sql")
+				if _, err = db.Exec("INSERT INTO goose_db_version (version_id, is_applied) VALUES (129, TRUE)"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err = db.Close(); err != nil {
+				t.Fatal(err)
+			}
+
+			if err = runMigrations(cfg, discardLogger()); err != nil {
+				t.Fatalf("repair Control migration collision: %v", err)
+			}
+			verified, err := storage.OpenDB(cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			version, err := goose.GetDBVersion(verified)
+			wantVersion := latestServerMigrationVersion(t, migrationDir)
+			if err != nil || version != wantVersion {
+				t.Fatalf("migration version after repair = %d, err=%v", version, err)
+			}
+			for _, field := range []struct {
+				table  string
+				column string
+			}{
+				{table: "connector_connections", column: "enabled"},
+				{table: "connector_connections", column: "credentials_key_id"},
+				{table: "im_channel_accounts", column: "sync_cursor"},
+				{table: "local_owner_bindings", column: "control_user_id"},
+				{table: "owner_profiles", column: "owner_user_id"},
+			} {
+				if !sqliteTestColumnExists(t, verified, field.table, field.column) {
+					t.Fatalf("missing repaired schema %s.%s", field.table, field.column)
+				}
+			}
+			var bindingCount int
+			if err = verified.QueryRow(`
+SELECT COUNT(*)
+FROM local_owner_bindings
+WHERE deployment_id = 'deployment-legacy'
+  AND control_user_id = 'control-legacy'
+  AND local_owner_key = 'owner-legacy'
+`).Scan(&bindingCount); err != nil || bindingCount != 1 {
+				t.Fatalf("legacy owner binding count = %d, err=%v", bindingCount, err)
+			}
+			for migrationVersion := int64(128); migrationVersion <= 132; migrationVersion++ {
+				var count int
+				if err = verified.QueryRow(
+					"SELECT COUNT(*) FROM goose_db_version WHERE version_id = ? AND is_applied = TRUE",
+					migrationVersion,
+				).Scan(&count); err != nil || count != 1 {
+					t.Fatalf("migration %d marker count = %d, err=%v", migrationVersion, count, err)
+				}
+			}
+			if err = verified.Close(); err != nil {
+				t.Fatal(err)
+			}
+			if err = runMigrations(cfg, discardLogger()); err != nil {
+				t.Fatalf("repeated startup after Control repair: %v", err)
+			}
+		})
+	}
+}
+
 func latestServerMigrationVersion(t *testing.T, migrationDir string) int64 {
 	t.Helper()
 	migrations, err := goose.CollectMigrations(migrationDir, 0, math.MaxInt64)
@@ -242,21 +285,26 @@ func latestServerMigrationVersion(t *testing.T, migrationDir string) int64 {
 
 func applyLegacyAutomationPermissionSchema(t *testing.T, db *sql.DB, migrationDir string) {
 	t.Helper()
-	contents, err := os.ReadFile(filepath.Join(migrationDir, "00086_automation_permission_pipeline.sql"))
+	applyMigrationUpSQL(t, db, migrationDir, "00086_automation_permission_pipeline.sql")
+	if _, err := db.Exec(
+		"INSERT INTO goose_db_version (version_id, is_applied) VALUES (71, TRUE)",
+	); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func applyMigrationUpSQL(t *testing.T, db *sql.DB, migrationDir string, name string) {
+	t.Helper()
+	contents, err := os.ReadFile(filepath.Join(migrationDir, name))
 	if err != nil {
 		t.Fatal(err)
 	}
 	upSQL, _, found := strings.Cut(string(contents), "-- +goose Down")
 	if !found {
-		t.Fatal("automation permission migration has no Goose Down boundary")
+		t.Fatalf("migration %s has no Goose Down boundary", name)
 	}
 	if _, err = db.Exec(upSQL); err != nil {
-		t.Fatalf("apply legacy automation permission schema: %v", err)
-	}
-	if _, err = db.Exec(
-		"INSERT INTO goose_db_version (version_id, is_applied) VALUES (71, TRUE)",
-	); err != nil {
-		t.Fatal(err)
+		t.Fatalf("apply migration %s: %v", name, err)
 	}
 }
 
@@ -295,20 +343,4 @@ func testServerConfig(t *testing.T) config.Config {
 
 func discardLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
-}
-
-func listAuthUsers(t *testing.T, cfg config.Config) []authsvc.User {
-	t.Helper()
-	db, err := storage.OpenDB(cfg)
-	if err != nil {
-		t.Fatalf("打开数据库失败: %v", err)
-	}
-	defer db.Close()
-
-	service := authsvc.NewServiceWithDB(cfg, db)
-	users, err := service.ListUsers(context.Background())
-	if err != nil {
-		t.Fatalf("读取用户失败: %v", err)
-	}
-	return users
 }

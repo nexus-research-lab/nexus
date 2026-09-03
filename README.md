@@ -115,6 +115,7 @@ Docker Compose is recommended for server deployment:
 ```bash
 cat > .env <<'EOF'
 AUTH_INIT_OWNER_PASSWORD=your-password
+CONTROL_SERVICE_TOKEN=replace-with-openssl-rand-hex-32
 HTTP_PORT=80
 HOST_DATA_DIR=./data
 # Optional: source deployments must set this manually; Docker generates and persists one when empty.
@@ -123,13 +124,13 @@ CONNECTOR_CREDENTIALS_KEY=
 SKILLS_PRIVATE_SOURCE_ALLOWED_HOSTS=skills.example.com
 # Optional: server-side outbound proxy for backend IM/OAuth HTTP and WebSocket requests.
 HTTPS_PROXY=
-NO_PROXY=localhost,127.0.0.1,::1,nexus,nginx
+NO_PROXY=localhost,127.0.0.1,::1,control,nexus,nginx
 EOF
 
 make start
 ```
 
-Open `http://localhost`. The default compose stack only exposes HTTP; terminate production TLS at an outer gateway or load balancer and forward to this HTTP entrypoint.
+Keep the `nexus` and `nexus-control` repositories in the same parent directory, then open `http://localhost`. The same Nexus Web app owns login and member administration; it sends those same-origin requests to Control. Control uses SQLite by default and supports PostgreSQL through `CONTROL_DATABASE_DRIVER=postgres` plus `CONTROL_DATABASE_URL`. To create the first owner interactively, leave `AUTH_INIT_OWNER_PASSWORD` empty, set a 32+ character `CONTROL_SETUP_TOKEN`, and open `/setup`. The default compose stack only exposes HTTP; terminate production TLS at an outer gateway or load balancer and forward to this HTTP entrypoint. Existing Web users must complete the [Control migration](./docs/operations/control-migration.md) before switching.
 
 Configure IM channel credentials in the web app under Capability / Channels. The container reloads saved channel configs from the database on startup; `DISCORD_BOT_TOKEN` and `TELEGRAM_BOT_TOKEN` in `.env` are only legacy system-level fallbacks.
 
@@ -146,7 +147,9 @@ openssl rand -base64 32
 ```bash
 make install
 cd web && pnpm build && cd ..
-AUTH_INIT_OWNER_PASSWORD=your-password PORT=8010 go run ./cmd/nexus-server
+AUTH_INIT_OWNER_PASSWORD=your-password make run-control
+# In another terminal, after Control is healthy:
+make run-backend
 ```
 
 ### Local Development
@@ -156,7 +159,7 @@ make install
 make dev
 ```
 
-The backend starts at `http://localhost:8010`, the frontend dev server at `http://localhost:3000`.
+`make dev` starts the sibling `nexus-control`, backend, and frontend. The backend starts at `http://localhost:8010`, Control at `http://localhost:8020`, and the frontend dev server at `http://localhost:3000`.
 
 ---
 

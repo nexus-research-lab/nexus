@@ -1,7 +1,7 @@
 /**
  * INPUT: Agent 领域参数、workspace 路径/正文与可选读取 revision。
- * OUTPUT: Agent HTTP 资源、owner-scoped 创建回执与可条件提交的 workspace 文件内容。
- * POS: Agent/workspace HTTP 边界；创建对账只使用领域 request ID，不复用 HTTP 诊断 ID。
+ * OUTPUT: Agent HTTP 资源、owner-scoped 创建回执、可条件提交正文与有界 Range 文件片段。
+ * POS: Agent/workspace HTTP 边界；大文件不组装为 JSON/Blob，创建对账不复用 HTTP 诊断 ID。
  */
 
 import {
@@ -15,6 +15,7 @@ import {
   UpdateAgentParams,
   WorkspaceFileContent,
   WorkspaceFileEntry,
+  WorkspaceFileTextChunk,
   WorkspaceEntryMutationResponse,
   WorkspaceEntryRenameResponse,
 } from "@/types/agent/agent";
@@ -27,6 +28,15 @@ import { transformApiAgent } from "@/lib/api/agent/agent-transform";
 import { requestApi } from "@/lib/api/core/http";
 
 const AGENT_API_BASE_URL = getAgentApiBaseUrl();
+const WORKSPACE_TEXT_CHUNK_BYTES = 512 * 1024;
+const WORKSPACE_TEXT_CHUNK_LOOKAHEAD_BYTES = 3;
+
+export class WorkspaceFileSizeLimitError extends Error {
+  constructor() {
+    super("workspace file exceeds the requested size limit");
+    this.name = "WorkspaceFileSizeLimitError";
+  }
+}
 
 // ==================== Agent API ====================
 
@@ -179,6 +189,61 @@ export const getWorkspaceFileContentApi = async (
   );
 };
 
+/** 大型文本只读取一个固定字节片段，避免整个文件进入 WebView 内存。 */
+export async function getWorkspaceFileTextChunkApi(
+  agentId: string,
+  path: string,
+  offset: number,
+  signal: AbortSignal,
+): Promise<WorkspaceFileTextChunk> {
+  if (!Number.isSafeInteger(offset) || offset < 0) {
+    throw new Error("invalid workspace file chunk offset");
+  }
+  const url = getWorkspaceFileDownloadUrl(agentId, path);
+  const headers = new Headers({
+    Range: `bytes=${offset}-${offset + WORKSPACE_TEXT_CHUNK_BYTES + WORKSPACE_TEXT_CHUNK_LOOKAHEAD_BYTES - 1}`,
+  });
+  applyDesktopRequestHeaders(url, headers);
+  const response = await fetch(url, {
+    credentials: "include",
+    headers,
+    method: "GET",
+    signal,
+  });
+  const contentRange = parseWorkspaceContentRange(response.headers.get("content-range"));
+  const contentLength = finiteHeaderNumber(response.headers.get("content-length"));
+  if (
+    response.status !== 206
+    || !contentRange
+    || contentRange.start !== offset
+    || contentLength === null
+    || contentLength < 0
+    || contentLength > WORKSPACE_TEXT_CHUNK_BYTES + WORKSPACE_TEXT_CHUNK_LOOKAHEAD_BYTES
+    || contentRange.end - contentRange.start + 1 !== contentLength
+  ) {
+    await response.body?.cancel();
+    throw new Error(`读取文件片段失败: HTTP ${response.status}`);
+  }
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.length !== contentLength) {
+    throw new Error("文件片段响应不完整");
+  }
+  const visibleLength = utf8ChunkPrefixLength(bytes);
+  if (visibleLength === 0 && contentRange.size > offset) {
+    throw new Error("文件不是有效的 UTF-8 文本");
+  }
+  const content = new TextDecoder("utf-8", { fatal: true }).decode(
+    bytes.subarray(0, visibleLength),
+  );
+  const nextOffset = offset + visibleLength;
+  return {
+    content,
+    nextOffset: nextOffset < contentRange.size ? nextOffset : null,
+    offset,
+    size: contentRange.size,
+  };
+}
+
 export const updateWorkspaceFileContentApi = async (
   agentId: string,
   path: string,
@@ -315,7 +380,8 @@ function normalizeDownloadFileName(path: string, fileName?: string): string {
 export async function loadWorkspaceFileApi(
   agentId: string,
   path: string,
-  fileName?: string,
+  fileName: string | undefined,
+  maxBytes: number,
 ): Promise<File> {
   const url = getWorkspaceFileDownloadUrl(agentId, path);
   const headers = new Headers();
@@ -328,7 +394,15 @@ export async function loadWorkspaceFileApi(
   if (!response.ok) {
     throw new Error(`读取文件失败: ${response.status} ${response.statusText}`);
   }
+  const responseSize = workspaceTransferSize(response.headers);
+  if (responseSize === null || responseSize > maxBytes) {
+    await response.body?.cancel();
+    throw new WorkspaceFileSizeLimitError();
+  }
   const blob = await response.blob();
+  if (blob.size > maxBytes) {
+    throw new WorkspaceFileSizeLimitError();
+  }
   return new File([blob], normalizeDownloadFileName(path, fileName), {
     lastModified: Date.now(),
     type: blob.type,
@@ -346,14 +420,63 @@ export async function downloadWorkspaceFileApi(
     return;
   }
 
-  const file = await loadWorkspaceFileApi(agentId, path, fileName);
-  const objectUrl = URL.createObjectURL(file);
   const anchor = document.createElement("a");
-  anchor.href = objectUrl;
-  anchor.download = file.name;
+  anchor.href = getWorkspaceFileDownloadUrl(agentId, path);
+  anchor.download = normalizeDownloadFileName(path, fileName);
   anchor.style.display = "none";
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
-  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+}
+
+function workspaceTransferSize(headers: Headers): number | null {
+  const contentRange = parseWorkspaceContentRange(headers.get("content-range"));
+  if (contentRange) {
+    return contentRange.size;
+  }
+  return finiteHeaderNumber(headers.get("content-length"));
+}
+
+function finiteHeaderNumber(value: string | null): number | null {
+  if (value === null || value.trim() === "") {
+    return null;
+  }
+  const number = Number(value);
+  return Number.isSafeInteger(number) && number >= 0 ? number : null;
+}
+
+function parseWorkspaceContentRange(value: string | null): {
+  end: number;
+  size: number;
+  start: number;
+} | null {
+  const match = /^bytes (\d+)-(\d+)\/(\d+)$/.exec(value?.trim() ?? "");
+  if (!match) {
+    return null;
+  }
+  const start = Number(match[1]);
+  const end = Number(match[2]);
+  const size = Number(match[3]);
+  return Number.isSafeInteger(start)
+    && Number.isSafeInteger(end)
+    && Number.isSafeInteger(size)
+    && start >= 0
+    && end >= start
+    && size > end
+    ? { end, size, start }
+    : null;
+}
+
+function utf8ChunkPrefixLength(bytes: Uint8Array): number {
+  const preferredLength = Math.min(bytes.length, WORKSPACE_TEXT_CHUNK_BYTES);
+  const minimumLength = Math.max(0, preferredLength - WORKSPACE_TEXT_CHUNK_LOOKAHEAD_BYTES);
+  for (let length = preferredLength; length >= minimumLength; length -= 1) {
+    try {
+      new TextDecoder("utf-8", { fatal: true }).decode(bytes.subarray(0, length));
+      return length;
+    } catch {
+      // UTF-8 字符最多四字节，只需回退片段末尾的三个字节。
+    }
+  }
+  return 0;
 }

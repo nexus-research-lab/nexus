@@ -16,7 +16,7 @@ const hookStoppedDisplayText = "该操作被当前运行时规则拦截，本轮
 
 const (
 	contentFilteredTerminalReason = protocol.ProviderFailureContentFiltered
-	contentFilteredDisplayText    = "本轮请求被模型服务的内容安全策略拦截。可能由输入、对话上下文或生成内容触发。您可以调整表述后在当前对话继续；若仍被拦截，再尝试开启新对话。"
+	contentFilteredDisplayText    = "本轮请求被模型服务的内容安全策略拦截，输入、对话上下文或生成内容可能涉及敏感信息。该错误可能使上游会话无法继续，请新建对话后调整表述再试。"
 )
 
 type providerErrorProjection struct {
@@ -116,74 +116,6 @@ func (p *Processor) buildResultMessage(
 		payload["fast_mode_state"] = fastModeState
 	}
 	return protocol.Message(payload)
-}
-
-func (p *Processor) processAssistantAPIError(
-	messageID string,
-	assistant sdkprotocol.AssistantMessage,
-) *protocol.Message {
-	assistantError := strings.TrimSpace(assistant.Error)
-	assistantAPIError := strings.TrimSpace(assistant.APIError)
-	if !assistant.IsAPIError && assistantError == "" && assistantAPIError == "" {
-		return nil
-	}
-	text := firstNonEmpty(
-		assistantTextFromEnvelope(assistant.Message),
-		assistant.ErrorDetails,
-		assistantAPIError,
-		assistantError,
-		"Runtime API request failed",
-	)
-	reason := firstNonEmpty(assistantError, assistantAPIError)
-	errors := []string(nil)
-	if reason != "" {
-		errors = []string{reason}
-	}
-	projection := normalizeProviderContentFilterError(
-		text,
-		reason,
-		errors,
-		assistant.ErrorDetails,
-		assistantAPIError,
-		assistantError,
-		normalizeString(assistant.Message.StopReason),
-	)
-	payload := baseMessageEnvelope(
-		p.ctx,
-		p.sessionID,
-		firstNonEmpty(messageID, "result_"+p.ctx.RoundID),
-		"result",
-	)
-	payload["subtype"] = "error"
-	payload["duration_ms"] = 0
-	payload["duration_api_ms"] = 0
-	payload["num_turns"] = 0
-	payload["usage"] = map[string]any{}
-	payload["result"] = projection.result
-	payload["is_error"] = true
-	if projection.terminalReason != "" {
-		payload["terminal_reason"] = projection.terminalReason
-	}
-	if len(projection.errors) > 0 {
-		payload["errors"] = projection.errors
-	}
-	result := protocol.Message(payload)
-	return &result
-}
-
-func assistantTextFromEnvelope(envelope sdkprotocol.ConversationEnvelope) string {
-	blocks := normalizeContentBlocks(envelope.Content)
-	texts := make([]string, 0, len(blocks))
-	for _, block := range blocks {
-		if normalizeString(block["type"]) != "text" {
-			continue
-		}
-		text := normalizeString(block["text"])
-		if text != "" {
-			texts = append(texts, text)
-		}
-	}
-	return strings.TrimSpace(strings.Join(texts, "\n\n"))
 }
 
 func projectPermissionDenials(items []sdkprotocol.PermissionDenial) []map[string]any {

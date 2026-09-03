@@ -42,9 +42,6 @@ func hostStartupConfigurationSnapshot(cfg config.Config) map[string]any {
 		},
 		"auth": map[string]any{
 			"session_cookie_name": cfg.AuthSessionCookieName,
-			"cookie_same_site":    cfg.AuthCookieSameSite, "cookie_secure": cfg.AuthCookieSecure,
-			"session_ttl_hours":     cfg.AuthSessionTTLHours,
-			"access_token":          secretConfigured(cfg.AccessToken),
 			"desktop_session_token": secretConfigured(cfg.DesktopSessionToken),
 		},
 		"memory_maintenance": map[string]any{

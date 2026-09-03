@@ -12,6 +12,7 @@ import { AppRouteBuilders } from "@/app/router/route-paths";
 import { SIDEBAR_TOUR_ANCHORS } from "@/features/onboarding/tours/sidebar-navigation-tour";
 import { cn } from "@/shared/ui/class-name";
 import { UiTooltip } from "@/shared/ui/overlay/tooltip";
+import { WORKSPACE_HEADER_HEIGHT_CLASS } from "@/shared/ui/workspace/surface/workspace-header-layout";
 
 import { SidebarUpdateIndicator } from "./sidebar-update-indicator";
 import type { SidebarUtilityLabels } from "./sidebar-wide-panel-types";
@@ -42,7 +43,7 @@ const FOOTER_ACTION_SIZE = 32;
 const FOOTER_ACTION_GAP = 6;
 const FOOTER_ACTION_STRIDE = FOOTER_ACTION_SIZE + FOOTER_ACTION_GAP;
 const FOOTER_HORIZONTAL_GAP = 10;
-const FOOTER_PADDING = 12;
+const FOOTER_PADDING = 14;
 const FOOTER_LEFT = 16;
 
 export function SidebarPanelToggleAction(
@@ -67,7 +68,10 @@ export function SidebarFooterActions(props: SidebarUtilityActionsProps) {
   const updateVersion = useSidebarUpdateVersion();
 
   return (
-    <div className="sidebar-panel-footer shell-region-footer relative -mr-1.5 h-14 shrink-0 overflow-hidden max-lg:h-16">
+    <div className={cn(
+      "sidebar-panel-footer shell-region-footer relative -mr-1.5 shrink-0 overflow-hidden",
+      WORKSPACE_HEADER_HEIGHT_CLASS,
+    )}>
       {props.showSettings ? (
         <div
           className="sidebar-panel-footer-action"

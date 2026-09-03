@@ -37,7 +37,7 @@ func TestHostManagedCLIScopeRejectsSelectionOverrides(t *testing.T) {
 
 	testCases := [][]string{
 		{"--scope-user-id", "user-owner", "agent", "list"},
-		{"--global-scope", "--scope-user-id", "", "user", "list"},
+		{"--global-scope", "--scope-user-id", "", "agent", "list"},
 	}
 	for _, args := range testCases {
 		command, err := New(config.Config{})
