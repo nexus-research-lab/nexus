@@ -164,6 +164,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   loading and refresh indicators through shared muted Spinner roles.
 - Standardized Launcher submission, desktop update, and Provider onboarding
   loading indicators through the shared Spinner motion and tone contract.
+- Unified CC Switch Provider import and legacy Operations route loading through
+  shared Spinner roles, removing the last non-Workspace production border spinner.
 - Established a single frontend engineering and design-system contract, and
   centralized high overlay layers and responsive dialog geometry behind semantic
   APIs to prevent page-specific stacking and small-window sizing drift.
