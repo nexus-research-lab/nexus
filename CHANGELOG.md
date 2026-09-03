@@ -38,6 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Standardized WorkGraph editor loading, title, command, version label, and
+  version-selection chrome on shared Typography and Choice primitives while
+  preserving per-version disabled state and horizontal browsing.
 - Removed the Dialog action class adapter: shared decision actions, Goal editing,
   and WorkGraph save/edit flows now render `UiButton` directly, leaving button
   emphasis, shadows, sizes, and interaction states with one DOM owner.

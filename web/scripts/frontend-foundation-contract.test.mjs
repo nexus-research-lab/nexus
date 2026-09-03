@@ -607,6 +607,13 @@ test("WorkGraph surfaces share canvas, action, and revision Spinner roles", asyn
   for (const size of ["xs", "sm", "md", "lg"]) {
     assert.match(combined, new RegExp(`size: "${size}"`));
   }
+  const editor = sources[2];
+  assert.match(editor, /<UiChoiceButton/);
+  assert.match(editor, /getUiTypographyClassName/);
+  assert.doesNotMatch(
+    editor,
+    /<button\b|rounded-full border px-2\.5 py-1|\btext-(?:xs|lg)\b|\bfont-(?:medium|semibold)\b/,
+  );
 });
 
 test("Subagent thread loading and command actions share Spinner roles", async () => {
