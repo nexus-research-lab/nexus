@@ -789,12 +789,12 @@ function AddContactDialog({
     <UiDialogPortal>
       <UiDialogBackdrop labelledBy={titleId} onClose={onClose}>
         <UiDialogFormShell
-          className="max-h-[min(78dvh,620px)]"
           onSubmit={(event) => {
             event.preventDefault();
             void submit();
           }}
           size="sm"
+          viewport="compactMax"
         >
           <UiDialogHeader
             appearance="plain"

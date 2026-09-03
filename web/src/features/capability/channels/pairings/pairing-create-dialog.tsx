@@ -111,9 +111,9 @@ export function CreatePairingDialog({
         onClose={onClose}
       >
         <UiDialogFormShell
-          className="max-h-[86vh]"
           onSubmit={handleSubmit}
           size="lg"
+          viewport="adaptiveMax"
         >
           <UiDialogHeader
             appearance="plain"

@@ -143,7 +143,7 @@ export function SkillSourceManagerDialog({
     <>
       <UiDialogPortal>
         <UiDialogBackdrop layer="dialog" onClose={onClose}>
-          <UiDialogShell className="max-h-[min(68dvh,560px)]" size="lg">
+          <UiDialogShell size="lg" viewport="compactMax">
             <UiDialogHeader
               appearance="plain"
               onClose={onClose}
@@ -323,9 +323,9 @@ function PrivateSourceEditorDialog({
         onClose={loading ? undefined : onCancel}
       >
         <UiDialogFormShell
-          className="max-h-[calc(100dvh-2rem)]"
           onSubmit={onSubmit}
           size="md"
+          viewport="adaptiveMax"
         >
           <UiDialogHeader
             appearance="plain"

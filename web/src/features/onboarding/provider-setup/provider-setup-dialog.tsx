@@ -1007,8 +1007,8 @@ export function ProviderSetupDialog({
           onClose={close}
         >
           <UiDialogShell
-            className="h-[min(620px,calc(100dvh-2rem))] !max-w-[620px]"
             size="lg"
+            viewport="compact"
           >
             <UiDialogHeader
               appearance="plain"

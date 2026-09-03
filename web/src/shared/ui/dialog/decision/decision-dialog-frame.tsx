@@ -11,6 +11,7 @@ import {
   UiDialogFooter,
   UiDialogPortal,
   UiDialogShell,
+  type UiDialogSize,
 } from "@/shared/ui/dialog/dialog";
 import { getDialogActionClassName } from "@/shared/ui/dialog/dialog-styles";
 
@@ -20,6 +21,7 @@ interface DecisionDialogFrameProps {
   initialFocusRef: RefObject<HTMLElement | null>;
   labelledBy: string;
   onClose: () => void;
+  size?: Extract<UiDialogSize, "xs" | "sm">;
 }
 
 interface DecisionDialogActionsProps {
@@ -39,6 +41,7 @@ export function DecisionDialogFrame({
   initialFocusRef,
   labelledBy,
   onClose,
+  size = "sm",
 }: DecisionDialogFrameProps) {
   return (
     <UiDialogPortal>
@@ -49,7 +52,7 @@ export function DecisionDialogFrame({
         layer="dialog"
         onClose={onClose}
       >
-        <UiDialogShell size="sm">{children}</UiDialogShell>
+        <UiDialogShell size={size}>{children}</UiDialogShell>
       </UiDialogBackdrop>
     </UiDialogPortal>
   );
@@ -66,7 +69,7 @@ export function DecisionDialogActions({
   onConfirm,
 }: DecisionDialogActionsProps) {
   return (
-    <UiDialogFooter className="!border-t-0 !bg-transparent !px-5 !pb-5 !pt-0">
+    <UiDialogFooter appearance="plain" className="gap-2">
       <button
         className={getDialogActionClassName("default")}
         disabled={busy}

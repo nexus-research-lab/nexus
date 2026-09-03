@@ -53,9 +53,9 @@ export function ConnectorOAuthClientDialog({
   return (
     <UiDialogBackdrop onClose={onClose}>
       <UiDialogFormShell
-        className="max-h-[84vh]"
         onSubmit={form.handleSubmit}
         size="sm"
+        viewport="compactMax"
       >
         <UiDialogHeader
           appearance="plain"

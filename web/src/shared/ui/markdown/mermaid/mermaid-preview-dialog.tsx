@@ -107,8 +107,9 @@ export function MermaidPreviewDialog({
         }}
       >
         <UiDialogShell
-          className="relative h-[88vh] w-[94vw] max-w-7xl overscroll-contain"
-          size="wide"
+          className="relative overscroll-contain"
+          size="workbench"
+          viewport="workbench"
         >
           <h2 className="sr-only" id="mermaid-image-preview-title">
             {t("markdown.mermaid.preview_title")}

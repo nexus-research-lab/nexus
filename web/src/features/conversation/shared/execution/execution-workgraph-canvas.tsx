@@ -1427,16 +1427,16 @@ function ExecutionWorkGraphExpandedDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        className="p-4"
         data-execution-workgraph-expanded-dialog
+        inset="compact"
         labelledBy={titleId}
         layer="dialogNested"
         onClose={onClose}
       >
         <UiDialogShell
-          className="relative h-[calc(100dvh-32px)]"
-          size="wide"
-          style={{ maxWidth: "calc(100vw - 32px)" }}
+          className="relative"
+          size="workbench"
+          viewport="workbench"
         >
           <h2 className="sr-only" id={titleId}>
             {t("execution.label")}

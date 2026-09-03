@@ -44,7 +44,7 @@ function OpenLoopPickerDialog({
       <UiDialogBackdrop onClose={onClose}>
         <UiDialogShell
           size="lg"
-          style={{ maxHeight: "min(640px, calc(100vh - 96px))" }}
+          viewport="compact"
         >
           <UiDialogHeader
             appearance="plain"

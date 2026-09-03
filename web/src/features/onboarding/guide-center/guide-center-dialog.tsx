@@ -63,7 +63,7 @@ export function GuideCenterDialog({
         onClose={onClose}
       >
         <div className="w-full max-w-lg">
-          <UiDialogShell>
+          <UiDialogShell viewport="compactMax">
             <UiDialogHeader
               appearance="plain"
               closeLabel={closeLabel}
@@ -72,7 +72,7 @@ export function GuideCenterDialog({
               titleId={GUIDE_CENTER_TITLE_ID}
             />
 
-            <UiDialogBody className="max-h-[min(64dvh,620px)] overflow-y-auto !px-5 !py-1">
+            <UiDialogBody className="!px-5 !py-1" scrollable>
               {GUIDE_CENTER_SECTIONS.map((section) => {
                 const sectionItems = items.filter((item) => item.section === section);
                 if (sectionItems.length === 0) {

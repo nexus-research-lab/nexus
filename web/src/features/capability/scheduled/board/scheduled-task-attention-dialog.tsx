@@ -111,7 +111,7 @@ export function ScheduledTaskAttentionDialog({
         labelledBy={titleId}
         onClose={onClose}
       >
-        <UiDialogShell className="max-h-[86vh]" size="lg">
+        <UiDialogShell size="lg" viewport="adaptiveMax">
           <UiDialogHeader
             appearance="plain"
             onClose={onClose}

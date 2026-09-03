@@ -49,5 +49,18 @@ describe("UI contract gallery", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "关闭" }));
     expect(screen.queryByRole("dialog", { name: "共享弹窗契约" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "打开紧凑弹窗" }));
+    const compactDialog = screen.getByRole("dialog", { name: "紧凑弹窗契约" });
+    expect(compactDialog.querySelector(".ui-dialog-viewport-compact")).toBeTruthy();
+  });
+
+  it("exposes the shared compact prompt used by workspace create and rename", () => {
+    renderGallery();
+
+    fireEvent.click(screen.getByRole("button", { name: "新建文件夹弹窗" }));
+    const prompt = screen.getByRole("dialog", { name: "新建文件夹" });
+    expect(prompt.querySelector(".max-w-sm")).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: "例如：new-folder" })).toBeTruthy();
   });
 });

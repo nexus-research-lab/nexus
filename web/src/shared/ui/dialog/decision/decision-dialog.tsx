@@ -17,9 +17,11 @@ import {
 import {
   UiDialogBody,
   UiDialogCloseButton,
+  UiDialogHeader,
 } from "@/shared/ui/dialog/dialog";
 import { cn } from "@/shared/ui/class-name";
 import { RecoverySummary } from "@/shared/ui/feedback/recovery-summary";
+import { UiInput, UiTextarea } from "@/shared/ui/form/form-control";
 
 import {
   DecisionDialogActions,
@@ -94,20 +96,21 @@ export function ConfirmDialog({
       labelledBy={titleId}
       onClose={busy ? ignoreDialogClose : onCancel}
     >
-      <UiDialogCloseButton
-        className="absolute right-3 top-3 z-10"
-        disabled={busy}
-        onClose={onCancel}
+      <UiDialogHeader
+        actions={(
+          <UiDialogCloseButton
+            disabled={busy}
+            onClose={onCancel}
+          />
+        )}
+        appearance="plain"
+        subtitle={subtitle}
+        title={title}
+        titleId={titleId}
       />
-      <UiDialogBody className="px-5 pb-4 pt-5 pr-14">
-        <h3 className="dialog-title" id={titleId}>{title}</h3>
-        {subtitle ? (
-          <p className="mt-1.5 text-compact leading-5 text-(--text-soft)">
-            {subtitle}
-          </p>
-        ) : null}
+      <UiDialogBody className="space-y-3 px-5 pb-4 pt-2">
         <p
-          className="mt-3 whitespace-pre-wrap text-sm leading-6 text-(--text-default)"
+          className="whitespace-pre-wrap text-sm leading-6 text-(--text-default)"
           id={messageId}
         >
           {message}
@@ -117,7 +120,7 @@ export function ConfirmDialog({
             aria-atomic="true"
             aria-live={failure.urgency ?? "polite"}
             className={cn(
-              "mt-3 flex items-start gap-2.5 border-l-2 py-1 pl-3",
+              "flex items-start gap-2.5 border-l-2 py-1 pl-3",
               failure.tone === "warning"
                 ? "border-[color:color-mix(in_srgb,var(--warning)_42%,transparent)]"
                 : "border-[color:color-mix(in_srgb,var(--destructive)_38%,transparent)]",
@@ -240,15 +243,17 @@ function PromptDialogContent({
       initialFocusRef={initialFocusRef}
       labelledBy={titleId}
       onClose={cancel}
+      size={multiline ? "sm" : "xs"}
     >
-      <UiDialogCloseButton
-        className="absolute right-3 top-3 z-10"
+      <UiDialogHeader
+        appearance="plain"
         onClose={cancel}
+        title={title}
+        titleId={titleId}
       />
-      <UiDialogBody className="px-5 pb-4 pt-5 pr-14">
-        <h3 className="dialog-title" id={titleId}>{title}</h3>
+      <UiDialogBody className="space-y-3 px-5 pb-4 pt-2">
         {message ? (
-          <p className="pb-3 pt-2 text-sm leading-6 text-(--text-muted)">{message}</p>
+          <p className="text-sm leading-6 text-(--text-muted)">{message}</p>
         ) : null}
         <PromptInput
           inputRef={inputRef}
@@ -312,9 +317,10 @@ function PromptInput({
   if (mode === "multiline") {
     return (
       <>
-        <textarea
+        <UiTextarea
           aria-label={placeholder || "输入内容"}
-          className="dialog-input surface-radius-sm min-h-[180px] w-full resize-y px-4 py-3 text-sm leading-6 text-foreground placeholder:text-muted-foreground/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+          className="min-h-[180px] leading-6"
+          controlSize="lg"
           onChange={(event) => onChange(event.target.value)}
           onFocus={movePromptTextareaCursorToEnd}
           onKeyDown={onKeyDown}
@@ -334,9 +340,9 @@ function PromptInput({
     );
   }
   return (
-    <input
+    <UiInput
       aria-label={placeholder || "输入内容"}
-      className="dialog-input surface-radius-sm w-full px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+      controlSize="lg"
       onChange={(event) => onChange(event.target.value)}
       onFocus={selectPromptInput}
       onKeyDown={onKeyDown}
