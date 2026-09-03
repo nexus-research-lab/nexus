@@ -1,9 +1,15 @@
 /**
- * INPUT: 设置项标题、说明、选项和当前值。
- * OUTPUT: 统一的设置卡片、行、控件与响应式信息层级样式。
- * POS: 设置域共享视图原语；行级说明在窄屏仍用于解释选项影响。
+ * INPUT: 设置项标题、说明、选项、当前值与设置目录动作。
+ * OUTPUT: 统一的设置卡片、行、控件、导航项与响应式信息层级样式。
+ * POS: 设置域共享视图 Pattern；行级说明在窄屏仍用于解释选项影响。
  */
 
+import type { ButtonHTMLAttributes, ReactNode } from "react";
+
+import {
+  UiButton,
+  type UiButtonSize,
+} from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
@@ -35,3 +41,51 @@ export const SETTINGS_SELECT_BUTTON_CLASS_NAME = cn(
   "w-full radius-control-md border-(--divider-subtle-color) bg-transparent px-2.5 text-(--text-strong) shadow-none hover:border-(--divider-subtle-color) hover:bg-(--surface-interactive-hover-background) focus-visible:ring-0",
   getUiTypographyClassName({ role: "caption", weight: "semibold" }),
 );
+
+interface SettingsNavigationButtonProps
+  extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children"> {
+  active?: boolean;
+  children: ReactNode;
+  size?: UiButtonSize;
+}
+
+export function SettingsNavigationButton({
+  "aria-current": ariaCurrent,
+  active = false,
+  children,
+  className,
+  size = "md",
+  ...buttonProps
+}: SettingsNavigationButtonProps) {
+  return (
+    <UiButton
+      {...buttonProps}
+      aria-current={ariaCurrent ?? (active ? "page" : undefined)}
+      className={cn("w-full justify-start text-left", className)}
+      size={size}
+      variant="ghost"
+    >
+      {children}
+    </UiButton>
+  );
+}
+
+export function SettingsNavigationGroupLabel({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <p
+      className={cn(
+        "px-2 pb-1",
+        getUiTypographyClassName({ role: "overline", tone: "soft" }),
+        className,
+      )}
+    >
+      {children}
+    </p>
+  );
+}
