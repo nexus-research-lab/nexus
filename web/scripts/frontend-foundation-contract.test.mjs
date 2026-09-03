@@ -1092,6 +1092,26 @@ test("Scheduled task run history uses shared panel, action, typography, and radi
   }
 });
 
+test("Scheduled task forms use shared panel, typography, and semantic radius owners", async () => {
+  const paths = [
+    "src/features/capability/scheduled/dialog/form/task-basics-advanced.tsx",
+    "src/features/capability/scheduled/dialog/form/task-basics-panel.tsx",
+    "src/features/capability/scheduled/dialog/schedule/task-schedule-panel.tsx",
+  ];
+  const sources = await Promise.all(paths.map(readSource));
+  const combined = sources.join("\n");
+
+  assert.match(combined, /<UiPanel/);
+  assert.match(combined, /getUiTypographyClassName/);
+  assert.match(sources[0], /surface-radius-md/);
+  for (const source of sources) {
+    assert.doesNotMatch(
+      source,
+      /rounded-\[|text-(?:2xs|xs|sm|base|md|lg|xl|2xl)|font-(?:normal|medium|semibold|bold)|tracking-\[/,
+    );
+  }
+});
+
 test("Connector catalog exposes only implemented products and derives real categories", async () => {
   const [serverCatalog, catalogHook, catalogModel, categoryModel, searchBar] = await Promise.all([
     readSource("../internal/service/connectors/catalog.go"),

@@ -13,6 +13,7 @@ import { UiPanel } from "@/shared/ui/panel";
 import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import type { ScheduledTaskMutationFailureProjection } from "../../controller/scheduled-task-mutation-outcome";
 import { DailyTimePicker } from "../../pickers/daily-time-picker";
@@ -257,7 +258,7 @@ export function TaskSchedulePanel({
                   </UiChoiceButton>
                 ))}
               </div>
-              <p className="text-xs leading-5 text-(--text-muted)">
+              <p className={getUiTypographyClassName({ role: "caption", tone: "muted" })}>
                 {t("capability.scheduled_dialog_execution_days_help")}
               </p>
             </div>
@@ -286,7 +287,11 @@ export function TaskSchedulePanel({
       {schedule.kind === "every" ? (
         <UiPanel padding="md" variant="card">
           <div className="flex flex-wrap items-center gap-3">
-            <span className="text-sm font-semibold text-(--text-default)">
+            <span className={getUiTypographyClassName({
+              role: "supporting",
+              tone: "default",
+              weight: "semibold",
+            })}>
               {t("capability.scheduled_dialog_every")}
             </span>
             <UiInput
