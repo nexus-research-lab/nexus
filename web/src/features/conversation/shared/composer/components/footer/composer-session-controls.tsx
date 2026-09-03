@@ -17,7 +17,7 @@ import {
 } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { cn } from "@/shared/ui/class-name";
+import { UiButton } from "@/shared/ui/button/button";
 import { UiActionMenu } from "@/shared/ui/menu/action-menu";
 import type {
   ComposerSessionSettingsController,
@@ -62,7 +62,6 @@ export function ComposerSessionControls({
       <ComposerRoomModelControl
         controller={controller}
         disabled={disabled}
-        triggerClassName={SESSION_CONTROL_BUTTON_CLASS_NAME}
       />
     );
   }
@@ -108,26 +107,25 @@ function ComposerPermissionControl({
   );
   return (
     <div className="min-w-0">
-      <button
+      <UiButton
         ref={buttonRef}
         aria-expanded={isOpen}
         aria-haspopup="menu"
         aria-label={t("composer.session_permission")}
-        className={cn(
-          SESSION_CONTROL_BUTTON_CLASS_NAME,
-          controller.isDangerousPermission && "text-(--destructive)",
-        )}
+        className={SESSION_CONTROL_BUTTON_CLASS_NAME}
         disabled={disabled || controller.busy}
         onClick={() => setIsOpen((current) => !current)}
+        size="xs"
         title={t("composer.session_permission")}
-        type="button"
+        tone={controller.isDangerousPermission ? "danger" : "default"}
+        variant="text"
       >
         <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
         <span className="nexus-chat-composer-session-permission-label max-w-24 truncate">
           {controller.permissionLabel}
         </span>
         <ChevronDown className="h-3 w-3 shrink-0" />
-      </button>
+      </UiButton>
       <UiActionMenu
         anchorRef={buttonRef}
         ariaLabel={t("composer.session_permission")}
@@ -175,23 +173,21 @@ function ComposerModelControl({
   );
   return (
     <div className="min-w-0">
-      <button
+      <UiButton
         ref={buttonRef}
         aria-expanded={isOpen}
         aria-haspopup="menu"
         aria-label={t("composer.session_model")}
-        className={cn(
-          SESSION_CONTROL_BUTTON_CLASS_NAME,
-          "max-w-44 text-(--text-default)",
-        )}
+        className={`${SESSION_CONTROL_BUTTON_CLASS_NAME} max-w-44 text-(--text-default)`}
         disabled={disabled || controller.modelBusy}
         onClick={() => setIsOpen((current) => !current)}
+        size="xs"
         title={t("composer.session_model")}
-        type="button"
+        variant="text"
       >
         <span className="truncate">{controller.modelLabel}</span>
         <ChevronDown className="h-3 w-3 shrink-0" />
-      </button>
+      </UiButton>
       <UiActionMenu
         align="end"
         anchorRef={buttonRef}
@@ -226,9 +222,5 @@ function ComposerModelControl({
 const SESSION_PERMISSION_MENU_WIDTH = 288;
 const SESSION_MODEL_MENU_WIDTH = 256;
 
-const SESSION_CONTROL_BUTTON_CLASS_NAME = cn(
-  "inline-flex h-7 min-w-0 items-center gap-1.5 rounded-[8px] px-1.5",
-  "text-xs font-medium text-(--text-soft) transition-colors",
-  "hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
-  "disabled:pointer-events-none disabled:opacity-(--disabled-opacity)",
-);
+const SESSION_CONTROL_BUTTON_CLASS_NAME =
+  "h-7 min-w-0 px-1.5 text-(--text-soft)";
