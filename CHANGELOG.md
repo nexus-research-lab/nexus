@@ -128,6 +128,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   directory entries, and moved seeded-avatar rounding onto semantic shape roles.
 - Unified the 559px App shell handoff contract so capability detail navigation
   remains visible in medium desktop windows and yields only to the mobile header.
+- Unified Conversation, Provider, and read-resource reliability strips on one tested inline
+  feedback owner for radius, tone, typography, recovery actions, and pending state.
+- Moved Launcher, chat-sidebar, and contacts-sidebar directory refresh failures
+  onto the same inline feedback owner while preserving their safe read-only retry.
 - Established a single frontend engineering and design-system contract, and
   centralized high overlay layers and responsive dialog geometry behind semantic
   APIs to prevent page-specific stacking and small-window sizing drift.

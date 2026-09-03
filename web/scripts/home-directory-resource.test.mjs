@@ -201,6 +201,7 @@ test("directory consumers expose blocking initial failure and non-blocking stale
     contactsSidebar,
     launcherApi,
     notificationResource,
+    refreshNotice,
   ] = await Promise.all([
     readFile(path.join(webRoot, "src/pages/launcher/launcher-page.tsx"), "utf8"),
     readFile(path.join(webRoot, "src/features/home/sidebar/chat-sidebar-panel.tsx"), "utf8"),
@@ -211,6 +212,10 @@ test("directory consumers expose blocking initial failure and non-blocking stale
         webRoot,
         "src/features/home/notifications/use-chat-completion-notifications.ts",
       ),
+      "utf8",
+    ),
+    readFile(
+      path.join(webRoot, "src/features/home/home-directory-refresh-error-notice.tsx"),
       "utf8",
     ),
   ]);
@@ -224,6 +229,8 @@ test("directory consumers expose blocking initial failure and non-blocking stale
   assert.match(launcherApi, /signal,/);
   assert.match(notificationResource, /if \(!directory\.hasLoaded\)/);
   assert.doesNotMatch(notificationResource, /directory\.isLoading/);
+  assert.match(refreshNotice, /<UiInlineNotice/);
+  assert.doesNotMatch(refreshNotice, /<button\b|rounded-\[|font-(?:medium|semibold)/);
 });
 
 async function loadDirectoryStore() {
