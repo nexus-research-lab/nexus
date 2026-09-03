@@ -255,6 +255,15 @@
     font: inherit;
   }
 
+  /* Tour 的目标强调属于基础浮层 recipe，页面不得复制遮罩阴影或形状。 */
+  .tour-target-highlight {
+    border: 1px solid color-mix(in srgb, var(--primary) 38%, white);
+    border-radius: var(--radius-control-md);
+    box-shadow: 0 0 0 9999px var(--dialog-backdrop-color);
+    transition-duration: var(--motion-duration-fast);
+    transition-property: top, left, width, height;
+  }
+
   /* Composer 上方的 WorkGraph、Room 协作与任务状态共用同一紧凑视觉基线。 */
   .conversation-activity-chip {
     min-height: 2rem;

@@ -108,7 +108,7 @@ export function OnboardingTourOverlay({
 function TourTargetHighlight({ targetRect }: { targetRect: DOMRect }) {
   return (
     <div
-      className="pointer-events-none absolute rounded-[10px] border border-[color:color-mix(in_srgb,var(--primary)_38%,white)] shadow-[0_0_0_9999px_var(--dialog-backdrop-color)] transition-[top,left,width,height] duration-(--motion-duration-fast)"
+      className="tour-target-highlight pointer-events-none absolute"
       style={{
         height: targetRect.height + 12,
         left: targetRect.left - 6,
