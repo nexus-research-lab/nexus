@@ -10,7 +10,9 @@ import {
 } from "lucide-react";
 
 import { UiButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
 import { WorkspaceContentDetailHeader } from "@/shared/ui/layout/workspace-content-header";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { ConnectorDetail } from "@/types/capability/connector";
 
 import { ConnectorIcon } from "../connector-icon";
@@ -143,19 +145,22 @@ export function ConnectorDetailBreadcrumb({
 }) {
   return (
     <WorkspaceContentDetailHeader>
-      <div className="flex min-w-0 items-center gap-2 text-base text-(--text-muted)">
-        <button
-          className="inline-flex items-center gap-1 rounded-[8px] px-1.5 py-1 font-medium transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_28%,transparent)]"
+      <div className="flex min-w-0 items-center gap-2">
+        <UiButton
           onClick={onBack}
-          type="button"
+          size="sm"
+          variant="text"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
           连接器
-        </button>
+        </UiButton>
         {detail ? (
           <>
             <ChevronRight className="h-3.5 w-3.5 text-(--icon-muted)" />
-            <span className="truncate font-medium text-(--text-strong)">
+            <span className={cn(
+              "truncate",
+              getUiTypographyClassName({ role: "metadata", tone: "strong", weight: "medium" }),
+            )}>
               {detail.title}
             </span>
           </>
@@ -191,10 +196,13 @@ export function ConnectorDetailHeader({
       <div className="flex min-w-0 items-start gap-4">
         <ConnectorIcon className="h-14 w-14 surface-radius-md" icon={detail.icon} size="lg" title={detail.title} />
         <div className="min-w-0">
-          <h1 className="text-lg font-semibold tracking-[-0.025em] text-(--text-strong)">
+          <h1 className={getUiTypographyClassName({ role: "objectTitle", tone: "strong" })}>
             {detail.title}
           </h1>
-          <p className="mt-1 text-sm leading-5 text-(--text-muted)">
+          <p className={cn(
+            "mt-1",
+            getUiTypographyClassName({ role: "supporting", tone: "muted" }),
+          )}>
             {detail.description}
           </p>
         </div>
