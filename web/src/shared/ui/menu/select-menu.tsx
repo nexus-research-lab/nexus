@@ -1,3 +1,6 @@
+// INPUT: 当前单选值、有限选项、显示密度与变更命令。
+// OUTPUT: 可点击和键盘切换、选中后归还触发器焦点的共享 Select Menu。
+// POS: 单选菜单 pattern；不支持业务搜索、异步资源或多选状态机。
 "use client";
 
 import {

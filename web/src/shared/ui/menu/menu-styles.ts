@@ -1,3 +1,7 @@
+// INPUT: 菜单条目的 active 状态与 default/primary/danger tone。
+// OUTPUT: Action、Select 与上下文菜单共用的间距、圆角和状态样式。
+// POS: Menu 视觉合同；不渲染 DOM、定位浮层或持有业务选值。
+
 type UiMenuItemTone = "default" | "primary" | "danger";
 
 /** 菜单型浮层统一使用 4px 外边距和 2px 条目节奏。 */
