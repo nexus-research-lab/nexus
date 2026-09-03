@@ -1,9 +1,6 @@
-/**
- * Connector API 服务模块
- *
- * [INPUT]: 依赖 @/types/capability/connector, @/types/system/api
- * [OUTPUT]: 对外提供连接器 CRUD + OAuth 操作
- */
+// INPUT: Connector/自定义 MCP 请求参数、动态身份与认证载荷。
+// OUTPUT: 统一 Connector、OAuth、自定义 MCP CRUD/启停/Tools API。
+// POS: 前端连接器 HTTP 协议与动态资源路径的唯一装配边界。
 
 import {
   ConnectorDetail,
@@ -11,13 +8,23 @@ import {
   ConnectorDeviceAuthPollResult,
   ConnectorDeviceAuthStart,
   ConnectorInfo,
+  ConnectorLocalPairingPollResult,
+  ConnectorLocalPairingStart,
   CustomMCPServer,
   CustomMCPServerInput,
+  CustomMCPToolCatalog,
 } from "@/types/capability/connector";
 import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
 import { requestApi } from "@/lib/api/core/http";
 
 const BASE = getAgentApiBaseUrl();
+
+function customMCPServerApiPath(
+  connectorId: string,
+  suffix = "",
+): string {
+  return `${BASE}/custom-mcp-servers/${encodeURIComponent(connectorId)}${suffix}`;
+}
 
 /** 获取连接器列表 */
 export const getConnectorsApi = async (params?: {
@@ -162,11 +169,65 @@ export const pollConnectorDeviceAuthApi = async (
   );
 };
 
+/** 请求本机 RichMail 创建一次外部应用批准式配对。 */
+export const startConnectorLocalPairingApi = async (
+  connectorId: string,
+): Promise<ConnectorLocalPairingStart> => {
+  return requestApi<ConnectorLocalPairingStart>(
+    `${BASE}/connectors/${encodeURIComponent(connectorId)}/pairing/start`,
+    { method: "POST" },
+  );
+};
+
+/** 轮询本机应用配对；服务端只在批准后加密保存 Token。 */
+export const pollConnectorLocalPairingApi = async (
+  connectorId: string,
+  attemptToken: string,
+): Promise<ConnectorLocalPairingPollResult> => {
+  return requestApi<ConnectorLocalPairingPollResult>(
+    `${BASE}/connectors/${encodeURIComponent(connectorId)}/pairing/poll`,
+    {
+      method: "POST",
+      body: JSON.stringify({ attempt_token: attemptToken }),
+    },
+  );
+};
+
+/** 获取固定 Connector 当前暴露的 MCP 工具目录。 */
+export const getConnectorMCPToolsApi = async (
+  connectorId: string,
+): Promise<CustomMCPToolCatalog> => {
+  return requestApi<CustomMCPToolCatalog>(
+    `${BASE}/connectors/${encodeURIComponent(connectorId)}/capabilities`,
+    { method: "GET" },
+  );
+};
+
 /** 获取当前用户的自定义 MCP server。 */
 export const getCustomMCPServersApi = async (): Promise<CustomMCPServer[]> => {
   return requestApi<CustomMCPServer[]>(`${BASE}/custom-mcp-servers`, {
     method: "GET",
   });
+};
+
+/** 获取单条脱敏自定义 MCP server。 */
+export const getCustomMCPServerApi = async (
+  connectorId: string,
+): Promise<CustomMCPServer> => {
+  return requestApi<CustomMCPServer>(
+    customMCPServerApiPath(connectorId),
+    { method: "GET" },
+  );
+};
+
+/** 获取远程自定义 MCP 当前暴露的工具目录。 */
+export const getCustomMCPToolsApi = async (
+  connectorId: string,
+): Promise<CustomMCPToolCatalog> => {
+  return requestApi<CustomMCPToolCatalog>(
+    customMCPServerApiPath(connectorId, "/capabilities"),
+    { method: "GET" },
+  );
 };
 
 /** 创建自定义 MCP server。 */
@@ -185,10 +246,24 @@ export const updateCustomMCPServerApi = async (
   body: CustomMCPServerInput,
 ): Promise<CustomMCPServer> => {
   return requestApi<CustomMCPServer>(
-    `${BASE}/custom-mcp-servers/${encodeURIComponent(connectorId)}`,
+    customMCPServerApiPath(connectorId),
     {
       method: "PUT",
       body: JSON.stringify(body),
+    },
+  );
+};
+
+/** 控制自定义 MCP 是否进入对话 Connector 选择面。 */
+export const setCustomMCPServerEnabledApi = async (
+  connectorId: string,
+  enabled: boolean,
+): Promise<CustomMCPServer> => {
+  return requestApi<CustomMCPServer>(
+    customMCPServerApiPath(connectorId, "/enabled"),
+    {
+      method: "PATCH",
+      body: JSON.stringify({ enabled }),
     },
   );
 };
@@ -198,7 +273,7 @@ export const deleteCustomMCPServerApi = async (
   connectorId: string,
 ): Promise<void> => {
   await requestApi<{ connector_id: string }>(
-    `${BASE}/custom-mcp-servers/${encodeURIComponent(connectorId)}`,
+    customMCPServerApiPath(connectorId),
     { method: "DELETE" },
   );
 };

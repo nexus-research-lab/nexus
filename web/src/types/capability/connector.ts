@@ -3,7 +3,13 @@
  */
 
 /** 授权方式 */
-export type ConnectorAuthType = "oauth2" | "api_key" | "token" | "none" | "custom_mcp";
+export type ConnectorAuthType =
+  | "oauth2"
+  | "api_key"
+  | "token"
+  | "none"
+  | "custom_mcp"
+  | "local_pairing";
 
 /** 目录来源 */
 export type ConnectorKind = "connector" | "custom_mcp";
@@ -37,6 +43,7 @@ export interface ConnectorInfo {
 
 export type CustomMCPServerType = "stdio" | "http" | "sse";
 export type CustomMCPAuthType = "none" | "bearer" | "headers";
+export type CustomMCPConfigurationState = "ready" | "recovery_required";
 
 /** null 表示该秘密已配置但不会回传明文。 */
 export type CustomMCPSecretMap = Record<string, string | null>;
@@ -55,6 +62,38 @@ export interface CustomMCPServerInput {
 
 export interface CustomMCPServer extends CustomMCPServerInput {
   connector_id: string;
+  configuration_state: CustomMCPConfigurationState;
+  enabled: boolean;
+}
+
+export type CustomMCPInspectionState =
+  | "connected"
+  | "disabled"
+  | "runtime_only";
+
+export interface CustomMCPToolArgument {
+  name: string;
+  description?: string;
+  required?: boolean;
+}
+
+export interface CustomMCPTool {
+  name: string;
+  title: string;
+  description?: string;
+  arguments: CustomMCPToolArgument[];
+  read_only?: boolean;
+}
+
+export interface CustomMCPToolCatalog {
+  inspection_state: CustomMCPInspectionState;
+  protocol_version?: string;
+  server_name?: string;
+  server_title?: string;
+  server_version?: string;
+  instructions?: string;
+  supports_tools: boolean;
+  tools: CustomMCPTool[];
 }
 
 /** 连接器详情 */
@@ -104,6 +143,27 @@ export interface ConnectorDeviceAuthPollResult {
   message?: string;
   connector?: ConnectorInfo;
   next?: ConnectorDeviceAuthStart;
+}
+
+/** 本机应用批准式配对。attempt_token 是 owner-bound opaque 能力，不包含可读 Token。 */
+export interface ConnectorLocalPairingStart {
+  connector_id: string;
+  attempt_token: string;
+  endpoint: string;
+  expires_in: number;
+  interval: number;
+}
+
+export type ConnectorLocalPairingStatus =
+  | "pending"
+  | "connected"
+  | "expired"
+  | "denied";
+
+export interface ConnectorLocalPairingPollResult {
+  status: ConnectorLocalPairingStatus;
+  message?: string;
+  connector?: ConnectorInfo;
 }
 
 /** 连接器类别 */

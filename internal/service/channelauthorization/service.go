@@ -58,7 +58,7 @@ type Service struct {
 	humanVerifier     interactiveHumanVerifier
 	channels          channelLoginControl
 	presenter         HumanPresenter
-	encryptionKey     []byte
+	keyring           *credentials.Keyring
 	keyErr            error
 	processGeneration string
 	now               func() time.Time
@@ -86,7 +86,10 @@ func NewService(
 	channels channelLoginControl,
 	presenter HumanPresenter,
 ) *Service {
-	key, keyErr := credentials.DecodeKey(cfg.ConnectorCredentialsKey)
+	keyring, keyErr := credentials.NewKeyring(
+		cfg.ConnectorCredentialsKey,
+		cfg.ConnectorCredentialsLegacyKeys,
+	)
 	processGeneration, generationErr := newOpaqueID("process")
 	if keyErr == nil && generationErr != nil {
 		keyErr = generationErr
@@ -97,7 +100,7 @@ func NewService(
 		humanVerifier:     humanVerifier,
 		channels:          channels,
 		presenter:         presenter,
-		encryptionKey:     key,
+		keyring:           keyring,
 		keyErr:            keyErr,
 		processGeneration: processGeneration,
 		now:               func() time.Time { return time.Now().UTC() },

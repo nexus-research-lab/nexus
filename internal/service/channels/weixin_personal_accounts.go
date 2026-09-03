@@ -23,7 +23,7 @@ func (s *ControlService) personalWeixinAccountChannels(
 	}
 	channels := make([]*channeladapters.PersonalWeixinChannel, 0, len(rows))
 	for _, row := range rows {
-		if row.Status == ChannelConfigStatusDisabled {
+		if row.Status == ChannelConfigStatusDisabled || row.Status == ChannelConfigStatusError {
 			continue
 		}
 		accountConfig, err := decodeStringMap(row.ConfigJSON)
@@ -45,7 +45,8 @@ func (s *ControlService) personalWeixinAccountChannels(
 			UserID:             row.UserID,
 			BotAgent:           firstNonEmpty(accountConfig["bot_agent"], channelConfig["bot_agent"]),
 			IlinkAppID:         firstNonEmpty(accountConfig["ilink_app_id"], channelConfig["ilink_app_id"]),
-			IlinkClientVersion: firstNonEmpty(accountConfig["ilink_client_version"], channelConfig["ilink_client_version"]),
+			IlinkClientVersion: personalWeixinClientVersion(accountConfig["ilink_client_version"], channelConfig["ilink_client_version"]),
+			RuntimeStore:       s,
 		}, s.httpClient).WithOwner(ownerUserID))
 	}
 	return channels, nil
@@ -105,7 +106,7 @@ func (s *ControlService) savePersonalWeixinAccount(
 	if err != nil {
 		return err
 	}
-	return s.upsertChannelAccountRowWith(ctx, store, channelAccountRow{
+	if err = s.upsertChannelAccountRowWith(ctx, store, channelAccountRow{
 		OwnerUserID: row.OwnerUserID,
 		ChannelType: row.ChannelType,
 		AccountID:   accountID,
@@ -116,7 +117,10 @@ func (s *ControlService) savePersonalWeixinAccount(
 			String: encrypted,
 			Valid:  encrypted != "",
 		},
-	})
+	}); err != nil {
+		return err
+	}
+	return s.resetPersonalWeixinCursorWith(ctx, store, row.OwnerUserID, accountID)
 }
 
 func (s *ControlService) personalWeixinLocalTokens(
@@ -157,7 +161,15 @@ func personalWeixinAccountConfig(publicConfig map[string]string, baseURL string)
 		"base_url":             firstNonEmpty(baseURL, publicConfig["base_url"], channeladapters.DefaultPersonalWeixinBaseURL),
 		"bot_agent":            publicConfig["bot_agent"],
 		"ilink_app_id":         publicConfig["ilink_app_id"],
-		"ilink_client_version": publicConfig["ilink_client_version"],
+		"ilink_client_version": personalWeixinClientVersion(publicConfig["ilink_client_version"]),
 	}
 	return encodeStringMap(values)
+}
+
+func personalWeixinClientVersion(values ...string) string {
+	value := firstNonEmpty(values...)
+	if value == "" || value == "132099" {
+		return channeladapters.DefaultPersonalWeixinClientVersion
+	}
+	return value
 }

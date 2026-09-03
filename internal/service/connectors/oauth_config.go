@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/nexus-research-lab/nexus/internal/connectors/credentials"
 	connectorstore "github.com/nexus-research-lab/nexus/internal/storage/connectors"
 )
 
@@ -205,11 +204,15 @@ func (s *Service) oauthClientConfig(ctx context.Context, ownerUserID string, ent
 }
 
 func (s *Service) oauthClientStore() (*connectorstore.OAuthClientStore, error) {
-	key, err := credentials.DecodeKey(s.config.ConnectorCredentialsKey)
-	if err != nil {
-		return nil, err
+	if s.credentialKeyringErr != nil {
+		return nil, s.credentialKeyringErr
 	}
-	return connectorstore.NewOAuthClientStore(s.db, s.driver, key), nil
+	return connectorstore.NewOAuthClientStoreWithKeyring(
+		s.db,
+		s.driver,
+		s.credentialKeyring,
+		s.credentialKeyringErr,
+	), nil
 }
 
 func (s *Service) defaultOAuthCredentials(connectorID string) (string, string, error) {

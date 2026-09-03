@@ -1,5 +1,5 @@
 // INPUT: 当前 Goal 的服务端目标边界与模型以单个 JSON string 提交的逐项证据判定。
-// OUTPUT: durable Objective Alignment record、三态 decision 与下一步生命周期建议。
+// OUTPUT: durable Objective Alignment record、三态 decision、暂停恢复指引与下一步生命周期建议。
 // POS: 共享 objectivealignment 契约的 Goal command 入口；只审计，不完成 Goal。
 package operation
 
@@ -25,6 +25,7 @@ var auditObjectiveAlignmentDescription = strings.TrimSpace(
 	"Audit the current Goal against its backend-authoritative objective and completion criteria.\n" +
 		"Use this immediately before completing a Goal whose managed WorkGraph binding is confirmed, after inspecting current authoritative evidence. Goal-only and reserved Goals do not require this audit.\n" +
 		"This is the Goal-domain completion audit. Do not substitute the Execution-domain audit_execution_alignment Gate; after a Goal-bound Execution becomes terminal, continue here.\n" +
+		"A paused Goal requires the user to resume it. Ask the user to click the Play control labeled 「继续」 on the right side of the Goal status bar directly above this conversation's message composer; Nexus then schedules a new continuation to perform the remaining audit and completion work.\n" +
 		"This operation records a three-state evidence report; it does not complete, block, retarget, or otherwise transition the Goal.\n" +
 		"Submit report_json as one JSON object string, not as nested command arguments. " +
 		objectivealignment.ReportJSONDescription,
@@ -75,6 +76,9 @@ func auditObjectiveAlignment(
 				},
 			)
 			if err != nil {
+				if result, ok := pausedGoalRecoveryResult(err, current); ok {
+					return result, nil
+				}
 				return errorResult(err), nil
 			}
 			return appliedResult(

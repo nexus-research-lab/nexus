@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/shared/ui/class-name";
+import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
 
 import { getConnectorLetter } from "./connector-icons";
 
@@ -49,6 +50,7 @@ const CONNECTOR_ICON_SRC: Record<string, string> = {
   odoo: "/icon/connector/odoo.svg",
   outlook: "/icon/connector/outlook.svg",
   reddit: "/icon/connector/reddit.svg",
+  richmail: "/icon/connector/richmail.svg",
   shopify: "/icon/connector/shopify.svg",
   similarweb: "/icon/connector/similarweb.svg",
   slack: "/icon/connector/slack.svg",
@@ -71,6 +73,15 @@ export function ConnectorIcon({
   size = "md",
   className,
 }: ConnectorIconProps) {
+  if (icon === "custom-mcp") {
+    return (
+      <UiSeededAvatar
+        className={cn(ICON_SIZE_CLASS[size], className)}
+        seed={title}
+        size={size === "sm" ? "2xs" : size === "md" ? "sm" : "lg"}
+      />
+    );
+  }
   const staticIconSrc = getStaticConnectorIconSrc(icon);
   const letter = getConnectorLetter(icon, title);
 

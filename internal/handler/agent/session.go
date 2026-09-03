@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 
@@ -392,10 +391,5 @@ func (h *Handlers) HandleDeleteSession(writer http.ResponseWriter, request *http
 
 // sessionKeyPathParam 统一还原 URL path 中经过编码的结构化 session_key。
 func sessionKeyPathParam(request *http.Request) string {
-	raw := strings.TrimSpace(chi.URLParam(request, "session_key"))
-	decoded, err := url.PathUnescape(raw)
-	if err != nil {
-		return raw
-	}
-	return strings.TrimSpace(decoded)
+	return strings.TrimSpace(handlershared.PathParam(request, "session_key"))
 }

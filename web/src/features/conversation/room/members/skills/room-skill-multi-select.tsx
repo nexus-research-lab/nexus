@@ -11,7 +11,10 @@ import { createPortal } from "react-dom";
 import { Check, Loader2, Search, X } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
-import { MENU_ITEM_BASE_CLASS_NAME } from "@/shared/ui/menu/menu-styles";
+import {
+  MENU_ITEM_BASE_CLASS_NAME,
+  MENU_LIST_CLASS_NAME,
+} from "@/shared/ui/menu/menu-styles";
 import {
   estimateSelectMenuHeight,
   getSelectMenuButtonClassName,
@@ -263,7 +266,10 @@ function RoomSkillMenuPortal({
           value={query}
         />
       </label>
-      <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto p-1">
+      <div className={cn(
+        MENU_LIST_CLASS_NAME,
+        "soft-scrollbar min-h-0 flex-1 overflow-y-auto p-1",
+      )}>
         <RoomSkillMenuBody
           onToggle={onToggle}
           presentation={presentation}

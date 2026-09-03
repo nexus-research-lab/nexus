@@ -8,6 +8,7 @@ import { cn } from "@/shared/ui/class-name";
 import {
   getMenuItemStateClassName,
   MENU_ITEM_BASE_CLASS_NAME,
+  MENU_LIST_CLASS_NAME,
 } from "@/shared/ui/menu/menu-styles";
 import { OVERLAY_SURFACE_CLASS_NAME } from "@/shared/ui/overlay/overlay-styles";
 
@@ -95,7 +96,7 @@ export const MentionTargetPopover = memo(function MentionTargetPopover({
       )}
       style={layout}
     >
-      <div className="p-1" ref={listRef}>
+      <div className={cn(MENU_LIST_CLASS_NAME, "p-1")} ref={listRef}>
         {filteredItems.map((item, index) => (
           <button
             className={cn(

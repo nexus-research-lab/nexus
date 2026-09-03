@@ -7,6 +7,7 @@ import {
   createCustomMCPServerApi,
   deleteCustomMCPServerApi,
   getCustomMCPServersApi,
+  setCustomMCPServerEnabledApi,
   updateCustomMCPServerApi,
 } from "@/lib/api/capability/connector-api";
 import { projectMutationFailure } from "@/lib/error-message";
@@ -17,6 +18,7 @@ import type {
 } from "@/types/capability/connector";
 
 import type { ReportConnectorFeedback } from "../controller/connector-controller-types";
+import { getCustomMCPDisplayName } from "./custom-mcp-model";
 
 type CustomMCPDialogState =
   | { mode: "create" }
@@ -186,11 +188,11 @@ export function useCustomMCPServers({
     }, t("capability.custom_mcp_save_failed"));
   }, [dialogState, onCatalogChanged, reportFeedback, runCommand, t]);
 
-  const confirmDelete = useCallback(async (): Promise<void> => {
+  const confirmDelete = useCallback(async (): Promise<boolean> => {
     const target = deleteTarget;
     setDeleteTarget(null);
-    if (!target) return;
-    await runCommand(async () => {
+    if (!target) return false;
+    return runCommand(async () => {
       await deleteCustomMCPServerApi(target.connector_id);
       requestIdRef.current += 1;
       setLoading(false);
@@ -204,7 +206,10 @@ export function useCustomMCPServers({
       });
       reportFeedback({
         message: t("capability.custom_mcp_deleted_message", {
-          name: target.name,
+          name: getCustomMCPDisplayName(
+            target,
+            t("capability.custom_mcp_recovery_name"),
+          ),
         }),
         title: t("capability.custom_mcp_deleted_title"),
         tone: "success",
@@ -212,6 +217,46 @@ export function useCustomMCPServers({
       void onCatalogChanged();
     }, t("capability.custom_mcp_delete_failed"));
   }, [deleteTarget, onCatalogChanged, reportFeedback, runCommand, t]);
+
+  const setEnabled = useCallback(async (
+    server: CustomMCPServer,
+    enabledValue: boolean,
+  ): Promise<boolean> => runCommand(async () => {
+    const item = await setCustomMCPServerEnabledApi(
+      server.connector_id,
+      enabledValue,
+    );
+    requestIdRef.current += 1;
+    setLoading(false);
+    setServers((current) => sortServers(current.map((candidate) => (
+      candidate.connector_id === item.connector_id ? item : candidate
+    ))));
+    notifyCapabilitySummaryMutated({
+      action: enabledValue ? "enable" : "disable",
+      connector_id: item.connector_id,
+      source: "custom-mcp",
+    });
+    reportFeedback({
+      message: t(
+        enabledValue
+          ? "capability.custom_mcp_enabled_message"
+          : "capability.custom_mcp_disabled_message",
+        { name: item.name },
+      ),
+      title: t(
+        enabledValue
+          ? "capability.custom_mcp_enabled_title"
+          : "capability.custom_mcp_disabled_title",
+      ),
+      tone: "success",
+    });
+    void onCatalogChanged();
+  }, t("capability.custom_mcp_toggle_failed")), [
+    onCatalogChanged,
+    reportFeedback,
+    runCommand,
+    t,
+  ]);
 
   return {
     busy,
@@ -227,6 +272,7 @@ export function useCustomMCPServers({
     }),
     requestDelete: setDeleteTarget,
     save,
+    setEnabled,
     servers,
   };
 }

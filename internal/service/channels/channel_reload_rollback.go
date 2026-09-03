@@ -165,8 +165,8 @@ func (s *ControlService) insertChannelAccountSnapshot(
 ) error {
 	query := "INSERT INTO im_channel_accounts (" +
 		"owner_user_id, channel_type, account_id, user_id, status, config_json, " +
-		"credentials_encrypted, last_error, created_at, updated_at" +
-		") VALUES (" + s.bindList(10) + ")"
+		"credentials_encrypted, last_error, sync_cursor, created_at, updated_at" +
+		") VALUES (" + s.bindList(11) + ")"
 	_, err := tx.ExecContext(
 		ctx,
 		query,
@@ -178,6 +178,7 @@ func (s *ControlService) insertChannelAccountSnapshot(
 		row.ConfigJSON,
 		nullStringArgument(row.CredentialsEncrypted),
 		nullStringArgument(row.LastError),
+		row.SyncCursor,
 		row.CreatedAt,
 		row.UpdatedAt,
 	)

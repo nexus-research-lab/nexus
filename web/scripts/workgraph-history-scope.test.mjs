@@ -40,10 +40,7 @@ test("WorkGraph history menu never opens as an empty strip", async () => {
   assert.match(surface, /historyResource\.error[\s\S]*surface_history_load_failed/);
   assert.match(surface, /historicalExecutions\.length === 0[\s\S]*surface_history_menu_empty/);
   assert.match(surface, /value: "history-empty"/);
-  assert.match(
-    surface,
-    /<UiActionMenu[\s\S]*itemSpacing="sm"[\s\S]*items=\{historyMenuItems\}/,
-  );
+  assert.match(surface, /<UiActionMenu[\s\S]*items=\{historyMenuItems\}/);
 });
 
 function read(relativePath) {

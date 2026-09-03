@@ -529,6 +529,66 @@ func TestUpdateGoalCompletionRejectionReturnsDomainSpecificRecovery(t *testing.T
 	}
 }
 
+func TestPausedGoalCompletionRecoveryNamesExactUIControl(t *testing.T) {
+	svc := &fakeUpdateGoalService{
+		current: &protocol.Goal{
+			ID:         "goal-1",
+			SessionKey: "agent:nexus:ws:dm:chat",
+			Status:     protocol.GoalStatusPaused,
+		},
+		completeErr: goalsvc.ErrGoalInvalidState,
+	}
+	result, err := updateGoal(svc, contract.Context{
+		CurrentSessionKey: "agent:nexus:ws:dm:chat",
+		CurrentRoundID:    "round-1",
+		GoalAuthority:     testGoalAuthority("goal-1", 1),
+	}).Handler(context.Background(), map[string]any{"status": "complete"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertPausedGoalRecoveryText(t, result)
+}
+
+func TestPausedGoalAuditRecoveryNamesExactUIControl(t *testing.T) {
+	svc := &fakeUpdateGoalService{
+		current: &protocol.Goal{
+			ID:         "goal-1",
+			SessionKey: "agent:nexus:ws:dm:chat",
+			Status:     protocol.GoalStatusPaused,
+		},
+		alignmentErr: goalsvc.ErrGoalInvalidState,
+	}
+	result, err := auditObjectiveAlignment(svc, contract.Context{
+		CurrentSessionKey: "agent:nexus:ws:dm:chat",
+		CurrentRoundID:    "round-1",
+		GoalAuthority:     testGoalAuthority("goal-1", 1),
+	}).Handler(context.Background(), map[string]any{
+		"report_json": `{"decision":"aligned","criteria_results":[],"summary":"done"}`,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertPausedGoalRecoveryText(t, result)
+}
+
+func assertPausedGoalRecoveryText(t *testing.T, result command.Result) {
+	t.Helper()
+	if !result.IsError {
+		t.Fatalf("result = %#v, want paused Goal rejection", result)
+	}
+	text, _ := result.Content[0]["text"].(string)
+	for _, fragment := range []string{
+		"Goal status bar directly above this conversation's message composer",
+		"Play control labeled 「继续」",
+		"automatically schedules a new Goal continuation",
+		"perform the remaining audit and completion work",
+	} {
+		if !strings.Contains(text, fragment) {
+			t.Fatalf("paused recovery text %q omitted %q", text, fragment)
+		}
+	}
+}
+
 func TestUpdateGoalCompletesCurrentGoal(t *testing.T) {
 	svc := &fakeUpdateGoalService{
 		current: &protocol.Goal{ID: "goal-1", SessionKey: "agent:nexus:ws:dm:chat", Status: protocol.GoalStatusActive},
@@ -793,6 +853,7 @@ type fakeUpdateGoalService struct {
 	completedRequest protocol.CompleteGoalRequest
 	blockedRequest   protocol.BlockGoalRequest
 	alignmentRecord  *protocol.GoalObjectiveAlignmentRecord
+	alignmentErr     error
 	alignmentRequest protocol.AuditGoalObjectiveAlignmentRequest
 	alignmentGoalID  string
 	requiredRevision int64
@@ -836,6 +897,9 @@ func (s *fakeUpdateGoalService) AuditObjectiveAlignmentByModel(
 ) (*protocol.GoalObjectiveAlignmentRecord, error) {
 	s.alignmentGoalID = goalID
 	s.alignmentRequest = request
+	if s.alignmentErr != nil {
+		return nil, s.alignmentErr
+	}
 	if s.alignmentRecord == nil {
 		return nil, errors.New("alignment record not configured")
 	}

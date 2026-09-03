@@ -28,6 +28,7 @@ import {
   createChannelDraft,
   hasCompleteManualChannelCredentials,
   isPersonalWeixinChannel,
+  shouldStartChannelQRCodeLogin,
   type PendingChannelDelete,
 } from "./channel-connection-model";
 import {
@@ -122,8 +123,10 @@ export function useChannelConnectionController({
     currentItem.channel_type,
     draft,
   );
-  const offersQRCode = supportsQRCode
-    && (personalWeixin || (!currentItem.has_credentials && !hasManualCredentials));
+  const offersQRCode = shouldStartChannelQRCodeLogin(
+    currentItem,
+    hasManualCredentials,
+  );
   const showsQRCode = offersQRCode || loginView !== null;
 
   const saveChannel = useCallback(async () => {
@@ -148,7 +151,10 @@ export function useChannelConnectionController({
           credentials: draft.credentials,
         });
         setCurrentItem(saved);
-        const shouldStartLogin = saved.supports_qr_code && !saved.has_credentials;
+        const shouldStartLogin = shouldStartChannelQRCodeLogin(
+          saved,
+          hasManualCredentials,
+        );
         onSaved(saved, !shouldStartLogin);
         if (shouldStartLogin) {
           await startLogin();
@@ -167,6 +173,7 @@ export function useChannelConnectionController({
     currentItem.has_credentials,
     currentItem.channel_type,
     draft,
+    hasManualCredentials,
     onClose,
     onSaved,
     planned,

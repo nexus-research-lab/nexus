@@ -3,10 +3,10 @@
 - 根目录只保留目录入口和跨 catalog/detail 使用的图标。
 - `model/` 负责 catalog 与 detail 共享的连接状态和动作语义。
 - `catalog/` 负责搜索、分组和连接器列表。
-- `custom/` 负责 owner 级自定义 MCP 的脱敏表单、目录与 CRUD 状态；远程认证只展示无认证、Bearer Token 与自定义请求头。
+- `custom/` 负责 owner 级自定义 MCP 的脱敏表单、目录、详情、CRUD 与启停状态；远程认证只展示无认证、Bearer Token 与自定义请求头。
 - 目录卡片复用能力域共享的可见边框与三列间距，品牌图标继续由 `ConnectorIcon` 统一渲染；分类标题不附带结果计数，通用 MCP 安全说明不在每个详情重复。
-- `detail/` 负责详情状态、主动作与能力展示。
-- `auth/` 负责 OAuth、Device Flow、直接凭证和附加认证信息。
+- `detail/` 负责详情状态、主动作、能力展示与固定 MCP Connector 的只读工具发现。
+- `auth/` 负责 OAuth、Device Flow、直接凭证、RichMail 本机批准式配对和附加认证信息。
 - `controller/` 负责列表、详情和命令状态的组合，不向视图暴露宽接口。
 - 配置弹窗使用判别联合状态；异步命令共享唯一互斥入口。
 - Connector mutation 的响应与后续 catalog/detail 刷新是两个阶段：响应成功后刷新失败必须说明更改已保存且页面快照过期；响应结果未知只能先刷新对账，不得自动或引导重复连接、断开、保存或删除。
@@ -16,4 +16,6 @@
 - 飞书手工连接按“原子覆盖应用配置 → 启动临时授权”分段；保存结果未知时不得启动授权，启动失败也不得提前删除旧配置或清理已确认保存的新配置。
 - 连接命令通过 Auth 控制器请求附加输入，不得在命令函数内创建临时 React Root。
 - 原始连接器字段只允许由共享状态模型解释，列表和详情不得各自维护状态分支。
-- 自定义 MCP 作为动态 Connector 暴露，启用状态继续复用 Agent/Session 的 `connector_ids`。
+- 自定义 MCP 作为动态 Connector 暴露：新建后 owner 级开关默认开启，关闭即从对话 Connector 目录隐藏并拒绝 runtime 挂载；Agent/Session 的 `connector_ids` 只在 owner 已开启集合内继续选择。
+- 自定义 MCP 图标复用 WorkGraph 的 `UiSeededAvatar`，同名保持稳定曲线与配色；详情页只展示通用连接信息和 MCP `tools/list` 结果，不展示 Prompts/Resources。
+- RichMail 是固定 Connector，只连接 `127.0.0.1:3100`：配对 attempt 由后端绑定 owner、过期时间和配置版本，Web 不接收或显示 Token；连接后工具目录与自定义 MCP 复用同一纯展示组件，服务端 description 原样保留。

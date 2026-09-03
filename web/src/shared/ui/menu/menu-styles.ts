@@ -1,5 +1,10 @@
 type UiMenuItemTone = "default" | "primary" | "danger";
 
+/** 菜单型浮层统一使用 4px 外边距和 2px 条目节奏。 */
+export const MENU_LIST_CLASS_NAME = "flex flex-col gap-0.5";
+export const MENU_ITEM_GAP_PX = 2;
+export const MENU_SURFACE_VERTICAL_PADDING_PX = 8;
+
 export const MENU_ITEM_BASE_CLASS_NAME =
   "w-full radius-control-lg text-left transition-[background-color,color] duration-(--motion-duration-fast) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]";
 

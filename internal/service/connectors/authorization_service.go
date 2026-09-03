@@ -8,7 +8,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/nexus-research-lab/nexus/internal/connectors/credentials"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	connectorstore "github.com/nexus-research-lab/nexus/internal/storage/connectors"
@@ -52,14 +51,16 @@ func NewAuthorizationControl(
 	if connectors == nil || connectors.db == nil {
 		return nil, errors.New("Connector authorization control 缺少 Connector service")
 	}
-	key, err := credentials.DecodeKey(connectors.config.ConnectorCredentialsKey)
-	if err != nil {
-		return nil, err
+	if connectors.credentialKeyringErr != nil {
+		return nil, connectors.credentialKeyringErr
 	}
 	control := &AuthorizationControl{
 		connectors: connectors,
-		flows: connectorstore.NewAuthorizationFlowStore(
-			connectors.db, connectors.driver, key,
+		flows: connectorstore.NewAuthorizationFlowStoreWithKeyring(
+			connectors.db,
+			connectors.driver,
+			connectors.credentialKeyring,
+			connectors.credentialKeyringErr,
 		),
 		agents: agents, runtime: runtime,
 		humanVerifier: humanVerifier, roleResolver: roleResolver,

@@ -1,3 +1,6 @@
+// INPUT: 已登录个人微信账号、持久轮询游标、统一 ingress 与主动投递请求。
+// OUTPUT: iLink 生命周期通知、可恢复长轮询、登录失效投影及消息收发。
+// POS: 个人微信账号运行时；游标真相由宿主注入的 RuntimeStore 持久化。
 package adapters
 
 import (
@@ -15,25 +18,28 @@ import (
 )
 
 type PersonalWeixinChannel struct {
-	token       string
-	accountID   string
-	userID      string
-	ownerUserID string
-	client      *PersonalWeixinIlinkClient
+	token        string
+	accountID    string
+	userID       string
+	ownerUserID  string
+	client       *PersonalWeixinIlinkClient
+	runtimeStore PersonalWeixinRuntimeStore
 
 	mu      sync.RWMutex
 	ingress channelcontract.IngressAcceptor
 	cancel  context.CancelFunc
+	ready   bool
 	wg      sync.WaitGroup
 }
 
 func NewPersonalWeixinChannel(config PersonalWeixinClientConfig, client *http.Client) *PersonalWeixinChannel {
 	ilinkClient := NewPersonalWeixinIlinkClient(config, client)
 	return &PersonalWeixinChannel{
-		token:     strings.TrimSpace(config.Token),
-		accountID: strings.TrimSpace(config.AccountID),
-		userID:    strings.TrimSpace(config.UserID),
-		client:    ilinkClient,
+		token:        strings.TrimSpace(config.Token),
+		accountID:    strings.TrimSpace(config.AccountID),
+		userID:       strings.TrimSpace(config.UserID),
+		client:       ilinkClient,
+		runtimeStore: config.RuntimeStore,
 	}
 }
 
@@ -56,6 +62,14 @@ func (c *PersonalWeixinChannel) Start(ctx context.Context) error {
 	if strings.TrimSpace(c.token) == "" {
 		return nil
 	}
+	getUpdatesBuf := ""
+	if c.runtimeStore != nil && c.accountID != "" {
+		var err error
+		getUpdatesBuf, err = c.runtimeStore.LoadPersonalWeixinCursor(ctx, c.ownerUserID, c.accountID)
+		if err != nil {
+			return fmt.Errorf("load personal weixin polling cursor: %w", err)
+		}
+	}
 	c.mu.Lock()
 	if c.cancel != nil {
 		c.mu.Unlock()
@@ -63,22 +77,37 @@ func (c *PersonalWeixinChannel) Start(ctx context.Context) error {
 	}
 	runCtx, cancel := context.WithCancel(ctx)
 	c.cancel = cancel
+	c.ready = false
 	c.wg.Add(1)
 	c.mu.Unlock()
 
-	go c.pollUpdates(runCtx)
+	go c.pollUpdates(runCtx, strings.TrimSpace(getUpdatesBuf))
 	return nil
 }
 
-func (c *PersonalWeixinChannel) Stop(context.Context) error {
+func (c *PersonalWeixinChannel) Stop(ctx context.Context) error {
+	return c.stop(ctx, true)
+}
+
+func (c *PersonalWeixinChannel) stop(ctx context.Context, notifyProvider bool) error {
 	c.mu.Lock()
 	cancel := c.cancel
 	c.cancel = nil
+	c.ready = false
 	c.mu.Unlock()
 	if cancel != nil {
 		cancel()
 	}
 	c.wg.Wait()
+	if cancel == nil || !notifyProvider || strings.TrimSpace(c.token) == "" {
+		return nil
+	}
+	stopCtx, stopCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer stopCancel()
+	// iLink stop notification is advisory. Local shutdown and account removal
+	// are already complete, so a stale token or network failure must not roll
+	// back the caller's control-plane mutation.
+	_ = c.client.NotifyStop(stopCtx)
 	return nil
 }
 
@@ -158,9 +187,15 @@ func (c *PersonalWeixinChannel) SendDeliveryTyping(ctx context.Context, target c
 	return c.client.SendTyping(ctx, normalized.To, ticket, active)
 }
 
-func (c *PersonalWeixinChannel) pollUpdates(ctx context.Context) {
-	defer c.wg.Done()
-	getUpdatesBuf := ""
+func (c *PersonalWeixinChannel) pollUpdates(ctx context.Context, getUpdatesBuf string) {
+	defer func() {
+		c.setRuntimeReady(false)
+		c.wg.Done()
+	}()
+	if !c.notifyPersonalWeixinStarted(ctx) {
+		return
+	}
+	c.setRuntimeReady(true)
 	nextTimeout := 35 * time.Second
 	for {
 		if ctx.Err() != nil {
@@ -168,6 +203,10 @@ func (c *PersonalWeixinChannel) pollUpdates(ctx context.Context) {
 		}
 		response, err := c.client.GetUpdates(ctx, getUpdatesBuf, nextTimeout)
 		if err != nil {
+			if IsPersonalWeixinLoginExpired(err) {
+				c.markPersonalWeixinLoginExpired(ctx, err)
+				return
+			}
 			if waitPersonalWeixinRetry(ctx, 2*time.Second) {
 				continue
 			}
@@ -177,18 +216,82 @@ func (c *PersonalWeixinChannel) pollUpdates(ctx context.Context) {
 			nextTimeout = time.Duration(response.LongPollingTimeoutMS) * time.Millisecond
 		}
 		if response.Ret != 0 || response.ErrCode != 0 {
+			apiErr := &PersonalWeixinAPIError{
+				StatusCode: http.StatusOK,
+				Ret:        response.Ret,
+				ErrCode:    response.ErrCode,
+				ErrMsg:     response.ErrMsg,
+			}
+			if IsPersonalWeixinLoginExpired(apiErr) {
+				c.markPersonalWeixinLoginExpired(ctx, apiErr)
+				return
+			}
 			if waitPersonalWeixinRetry(ctx, 5*time.Second) {
 				continue
 			}
 			return
 		}
-		if strings.TrimSpace(response.GetUpdatesBuf) != "" {
-			getUpdatesBuf = response.GetUpdatesBuf
-		}
 		for _, message := range response.Messages {
 			c.handleMessage(ctx, message)
 		}
+		nextCursor := strings.TrimSpace(response.GetUpdatesBuf)
+		if nextCursor == "" || nextCursor == getUpdatesBuf {
+			continue
+		}
+		if c.runtimeStore != nil && c.accountID != "" {
+			if err = c.runtimeStore.SavePersonalWeixinCursor(ctx, c.ownerUserID, c.accountID, nextCursor); err != nil {
+				if waitPersonalWeixinRetry(ctx, 2*time.Second) {
+					continue
+				}
+				return
+			}
+		}
+		getUpdatesBuf = nextCursor
 	}
+}
+
+func (c *PersonalWeixinChannel) RuntimeReady() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.ready
+}
+
+func (c *PersonalWeixinChannel) setRuntimeReady(ready bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.ready = ready
+}
+
+func (c *PersonalWeixinChannel) notifyPersonalWeixinStarted(ctx context.Context) bool {
+	for ctx.Err() == nil {
+		notifyCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		err := c.client.NotifyStart(notifyCtx)
+		cancel()
+		if err == nil {
+			return true
+		}
+		if IsPersonalWeixinLoginExpired(err) {
+			c.markPersonalWeixinLoginExpired(ctx, err)
+			return false
+		}
+		if !waitPersonalWeixinRetry(ctx, 2*time.Second) {
+			return false
+		}
+	}
+	return false
+}
+
+func (c *PersonalWeixinChannel) markPersonalWeixinLoginExpired(ctx context.Context, cause error) {
+	if c.runtimeStore == nil || c.accountID == "" {
+		return
+	}
+	message := "personal weixin login expired; scan QR code to reconnect"
+	if cause != nil {
+		message += ": " + TruncateError(cause)
+	}
+	markCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	_ = c.runtimeStore.MarkPersonalWeixinLoginExpired(markCtx, c.ownerUserID, c.accountID, message)
 }
 
 func (c *PersonalWeixinChannel) handleMessage(ctx context.Context, message personalWeixinMessage) {

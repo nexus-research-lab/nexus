@@ -16,7 +16,8 @@ func (s *Service) LoadActiveConnection(ctx context.Context, ownerUserID, connect
 	ownerUserID = normalizeConnectorOwnerUserID(ctx, ownerUserID)
 	query := fmt.Sprintf(
 		`SELECT connection.owner_user_id, connection.connector_id, connection.credentials,
-		        connection.credentials_encrypted, connection.auth_type, COALESCE(version.version, 1)
+		        connection.credentials_encrypted, connection.credentials_key_id,
+		        connection.auth_type, COALESCE(version.version, 1)
 		   FROM connector_connections AS connection
 		   LEFT JOIN connector_configuration_versions AS version
 		     ON version.owner_user_id = connection.owner_user_id
@@ -33,6 +34,7 @@ func (s *Service) LoadActiveConnection(ctx context.Context, ownerUserID, connect
 		&record.ConnectorID,
 		&record.Credentials,
 		&record.CredentialsEncrypted,
+		&record.CredentialsKeyID,
 		&record.AuthType,
 		&record.ConfigurationVersion,
 	)
@@ -115,6 +117,9 @@ func (s *Service) connect(
 	}
 	if entry.AuthType == "oauth2" {
 		return nil, errors.New("OAuth2 连接器请先调用 auth-url 完成授权")
+	}
+	if entry.AuthType == "local_pairing" {
+		return nil, errors.New("本机配对连接器请先在对应客户端中批准连接")
 	}
 	normalizedCredentials, err := normalizeDirectCredentials(entry, credentials)
 	if err != nil {

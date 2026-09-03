@@ -1,3 +1,6 @@
+// INPUT: macOS 签名模式、Keychain 条目及 canonical/legacy fallback key 文件。
+// OUTPUT: 对同一状态根稳定复用的 active Connector credentials key、显式 legacy keys 与来源诊断。
+// POS: 桌面宿主启动 sidecar 前唯一的 Connector active/legacy 加密密钥选择边界。
 import Foundation
 import LocalAuthentication
 import Security
@@ -18,6 +21,7 @@ enum DesktopKeychainMode: String {
 
 struct DesktopCredentialsKey {
   let value: String
+  let legacyValues: [String]
   let storage: String
   let reason: String
 }
@@ -30,35 +34,35 @@ enum DesktopKeychainStore {
   static func connectorCredentialsKey(mode: DesktopKeychainMode) throws -> DesktopCredentialsKey {
     switch mode {
     case .file:
-      return DesktopCredentialsKey(
+      return resolvedCredentialsKey(
         value: try localFallbackKey(),
         storage: "file",
         reason: "forced_or_development"
       )
     case .keychain:
-      return DesktopCredentialsKey(
+      return resolvedCredentialsKey(
         value: try keychainConnectorCredentialsKey(),
         storage: "keychain",
         reason: "forced"
       )
     case .auto:
       if isCurrentCodeAdHocSigned() {
-        NSLog("[Nexus Keychain] ad-hoc signature detected, using local protected key without Keychain.")
-        return DesktopCredentialsKey(
+        NSLog("[Nexus Keychain] ad-hoc signature detected, using local protected key as active.")
+        return resolvedCredentialsKey(
           value: try localFallbackKey(),
           storage: "file",
           reason: "ad_hoc_signature"
         )
       }
       do {
-        return DesktopCredentialsKey(
+        return resolvedCredentialsKey(
           value: try keychainConnectorCredentialsKey(),
           storage: "keychain",
           reason: "signed_auto"
         )
       } catch {
         NSLog("[Nexus Keychain] unavailable, using local protected fallback: \(error.localizedDescription)")
-        return DesktopCredentialsKey(
+        return resolvedCredentialsKey(
           value: try localFallbackKey(),
           storage: "file",
           reason: "keychain_unavailable"
@@ -67,14 +71,39 @@ enum DesktopKeychainStore {
     }
   }
 
+  private static func resolvedCredentialsKey(
+    value: String,
+    storage: String,
+    reason: String
+  ) -> DesktopCredentialsKey {
+    var candidates = existingFallbackKeys()
+    if storage != "keychain",
+       let keychain = try? readWithTimeout(account: connectorCredentialsKeyAccount),
+       !keychain.isEmpty {
+      candidates.insert(keychain, at: 0)
+    }
+    var seen = Set<String>([value])
+    let legacyValues = candidates.filter { candidate in
+      guard !seen.contains(candidate) else { return false }
+      seen.insert(candidate)
+      return true
+    }
+    return DesktopCredentialsKey(
+      value: value,
+      legacyValues: legacyValues,
+      storage: storage,
+      reason: reason
+    )
+  }
+
   private static func keychainConnectorCredentialsKey() throws -> String {
     do {
       if let existing = try readWithTimeout(account: connectorCredentialsKeyAccount) {
         return existing
       }
-      if let legacy = try legacyFallbackKey() {
-        try write(legacy, account: connectorCredentialsKeyAccount)
-        return legacy
+      if let fallback = existingFallbackKey() {
+        try write(fallback, account: connectorCredentialsKeyAccount)
+        return fallback
       }
       let generated = try generateBase64Key()
       try write(generated, account: connectorCredentialsKeyAccount)
@@ -180,13 +209,11 @@ enum DesktopKeychainStore {
     try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
     try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directoryURL.path)
 
-    if let existing = try? String(contentsOf: fileURL, encoding: .utf8)
-      .trimmingCharacters(in: .whitespacesAndNewlines),
-      !existing.isEmpty {
+    if let existing = readFallbackKey(at: fileURL) {
       return existing
     }
 
-    if let legacy = try legacyFallbackKey() {
+    if let legacy = readFallbackKey(at: legacyFallbackKeyURL()) {
       try legacy.write(to: fileURL, atomically: true, encoding: .utf8)
       try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: fileURL.path)
       return legacy
@@ -198,15 +225,33 @@ enum DesktopKeychainStore {
     return generated
   }
 
-  private static func legacyFallbackKey() throws -> String? {
-    let legacyURL = DesktopPaths.rootDirectory
-      .appendingPathComponent("config", isDirectory: true)
-      .appendingPathComponent("connector-credentials.key", isDirectory: false)
-    guard let value = try? String(contentsOf: legacyURL, encoding: .utf8) else {
+  private static func existingFallbackKey() -> String? {
+    existingFallbackKeys().first
+  }
+
+  private static func existingFallbackKeys() -> [String] {
+    var seen = Set<String>()
+    return [localFallbackKeyURL(), legacyFallbackKeyURL()].compactMap { fileURL in
+      guard let value = readFallbackKey(at: fileURL), !seen.contains(value) else {
+        return nil
+      }
+      seen.insert(value)
+      return value
+    }
+  }
+
+  private static func readFallbackKey(at fileURL: URL) -> String? {
+    guard let value = try? String(contentsOf: fileURL, encoding: .utf8) else {
       return nil
     }
     let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
     return trimmed.isEmpty ? nil : trimmed
+  }
+
+  private static func legacyFallbackKeyURL() -> URL {
+    DesktopPaths.rootDirectory
+      .appendingPathComponent("config", isDirectory: true)
+      .appendingPathComponent("connector-credentials.key", isDirectory: false)
   }
 
   private static func localFallbackKeyURL() -> URL {

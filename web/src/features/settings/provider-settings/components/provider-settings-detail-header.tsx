@@ -85,7 +85,7 @@ function ProviderTestMenu({
       ) : (
         <Play className="h-3.5 w-3.5" />
       )}
-      menuClassName="min-w-[220px]"
+      menuMinWidth={220}
       onChange={onTestSelection}
       options={testModelOptions}
       placeholder={t("settings.providers.test")}

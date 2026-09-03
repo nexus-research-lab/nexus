@@ -1,6 +1,6 @@
 // INPUT: owner 作用域、自定义 MCP 表单与 Connector 加密存储。
-// OUTPUT: 脱敏目录、加密 CRUD 与 runtime 可消费的完整 MCP 配置。
-// POS: 自定义 MCP 复用 Connector 选择语义的唯一持久化边界。
+// OUTPUT: 默认开启的脱敏目录、逐条历史密文恢复投影、加密 CRUD、owner 启停与 runtime 可消费的完整 MCP 配置。
+// POS: 自定义 MCP 复用 Connector 选择语义及 owner 可用性门禁的唯一持久化边界。
 package connectors
 
 import (
@@ -24,6 +24,8 @@ const (
 	customMCPAuthHeaders     = "headers"
 	customMCPConnectorPrefix = "custom-mcp:"
 	customMCPCatalogLockID   = "__custom_mcp_catalog__"
+	customMCPConfigReady     = "ready"
+	customMCPConfigRecovery  = "recovery_required"
 )
 
 var (
@@ -33,6 +35,8 @@ var (
 	ErrCustomMCPServerNotFound = errors.New("自定义 MCP 不存在")
 	// ErrCustomMCPServerNameConflict 表示 owner 下已有同名 MCP server。
 	ErrCustomMCPServerNameConflict = errors.New("自定义 MCP 名称已存在")
+	// ErrCustomMCPServerRecoveryRequired 表示历史密文必须先被完整配置替换。
+	ErrCustomMCPServerRecoveryRequired = errors.New("历史自定义 MCP 配置需要恢复")
 )
 
 // CustomMCPServerInput 表示创建或更新自定义 MCP 的完整配置。
@@ -51,11 +55,19 @@ type CustomMCPServerInput struct {
 
 // CustomMCPServer 是返回给用户界面的脱敏 MCP 配置。
 type CustomMCPServer struct {
-	ConnectorID string `json:"connector_id"`
+	ConnectorID        string `json:"connector_id"`
+	Enabled            bool   `json:"enabled"`
+	ConfigurationState string `json:"configuration_state"`
 	CustomMCPServerInput
 }
 
+type customMCPServerRecord struct {
+	connection connectionRecord
+	server     *storedCustomMCPServer
+}
+
 type storedCustomMCPServer struct {
+	Enabled     bool              `json:"-"`
 	Name        string            `json:"name"`
 	Type        string            `json:"type"`
 	Command     string            `json:"command,omitempty"`
@@ -77,13 +89,20 @@ func (s *Service) ListCustomMCPServers(
 	ctx context.Context,
 	ownerUserID string,
 ) ([]CustomMCPServer, error) {
-	records, err := s.listStoredCustomMCPServers(ctx, ownerUserID)
+	records, err := s.listCustomMCPServerRecords(ctx, ownerUserID)
 	if err != nil {
 		return nil, err
 	}
 	items := make([]CustomMCPServer, 0, len(records))
-	for connectorID, server := range records {
-		items = append(items, redactCustomMCPServer(connectorID, server))
+	for _, record := range records {
+		if record.server == nil {
+			items = append(items, recoveryCustomMCPServer(record.connection))
+			continue
+		}
+		items = append(items, redactCustomMCPServer(
+			record.connection.ConnectorID,
+			*record.server,
+		))
 	}
 	sort.Slice(items, func(left, right int) bool {
 		return strings.ToLower(items[left].Name) < strings.ToLower(items[right].Name)
@@ -119,6 +138,24 @@ func (s *Service) CreateCustomMCPServer(
 	return &item, nil
 }
 
+// GetCustomMCPServer 返回一条 owner 级脱敏自定义 MCP 配置。
+func (s *Service) GetCustomMCPServer(
+	ctx context.Context,
+	ownerUserID string,
+	connectorID string,
+) (*CustomMCPServer, error) {
+	record, err := s.loadCustomMCPServerRecord(ctx, ownerUserID, connectorID)
+	if err != nil {
+		return nil, err
+	}
+	if record.server == nil {
+		item := recoveryCustomMCPServer(record.connection)
+		return &item, nil
+	}
+	item := redactCustomMCPServer(strings.TrimSpace(connectorID), *record.server)
+	return &item, nil
+}
+
 // UpdateCustomMCPServer 更新一条 owner 级自定义 MCP 配置。
 func (s *Service) UpdateCustomMCPServer(
 	ctx context.Context,
@@ -130,10 +167,11 @@ func (s *Service) UpdateCustomMCPServer(
 	unlock := s.lockConnectorMutation(ownerUserID, customMCPCatalogLockID)
 	defer unlock()
 
-	previous, err := s.loadStoredCustomMCPServer(ctx, ownerUserID, connectorID)
+	record, err := s.loadCustomMCPServerRecord(ctx, ownerUserID, connectorID)
 	if err != nil {
 		return nil, err
 	}
+	previous := record.server
 	server, err := materializeCustomMCPServer(input, previous)
 	if err != nil {
 		return nil, fmt.Errorf("%w：%v", ErrCustomMCPServerInvalid, err)
@@ -146,10 +184,37 @@ func (s *Service) UpdateCustomMCPServer(
 	); err != nil {
 		return nil, err
 	}
+	server.Enabled = record.connection.AvailabilityEnabled.Bool
 	if err = s.storeCustomMCPServer(ctx, ownerUserID, connectorID, server); err != nil {
 		return nil, err
 	}
 	item := redactCustomMCPServer(connectorID, server)
+	return &item, nil
+}
+
+// SetCustomMCPServerEnabled 控制自定义 MCP 是否进入 Connector 选择面与 runtime。
+func (s *Service) SetCustomMCPServerEnabled(
+	ctx context.Context,
+	ownerUserID string,
+	connectorID string,
+	enabled bool,
+) (*CustomMCPServer, error) {
+	ownerUserID = normalizeConnectorOwnerUserID(ctx, ownerUserID)
+	unlock := s.lockConnectorMutation(ownerUserID, customMCPCatalogLockID)
+	defer unlock()
+
+	record, err := s.loadCustomMCPServerRecord(ctx, ownerUserID, connectorID)
+	if err != nil {
+		return nil, err
+	}
+	if record.server == nil {
+		return nil, ErrCustomMCPServerRecoveryRequired
+	}
+	record.server.Enabled = enabled
+	if err = s.storeCustomMCPServer(ctx, ownerUserID, connectorID, *record.server); err != nil {
+		return nil, err
+	}
+	item := redactCustomMCPServer(strings.TrimSpace(connectorID), *record.server)
 	return &item, nil
 }
 
@@ -163,7 +228,7 @@ func (s *Service) DeleteCustomMCPServer(
 	connectorID = strings.TrimSpace(connectorID)
 	unlock := s.lockConnectorMutation(ownerUserID, customMCPCatalogLockID)
 	defer unlock()
-	if _, err := s.loadStoredCustomMCPServer(ctx, ownerUserID, connectorID); err != nil {
+	if _, err := s.loadCustomMCPConnectionRecord(ctx, ownerUserID, connectorID); err != nil {
 		return err
 	}
 	_, err := s.mutateConnector(ctx, ownerUserID, connectorID, nil, func(tx *sql.Tx) error {
@@ -194,6 +259,9 @@ func (s *Service) LoadActiveCustomMCPServer(
 	if err != nil {
 		return "", nil, err
 	}
+	if !server.Enabled {
+		return "", nil, nil
+	}
 	return server.Name, server.runtimeConfig(), nil
 }
 
@@ -208,23 +276,32 @@ func (s *Service) storeCustomMCPServer(
 		return err
 	}
 	return s.upsertConnection(ctx, connectionRecord{
-		OwnerUserID: ownerUserID,
-		ConnectorID: strings.TrimSpace(connectorID),
-		State:       "connected",
-		Credentials: string(payload),
-		AuthType:    customMCPAuthType,
+		OwnerUserID:         ownerUserID,
+		ConnectorID:         strings.TrimSpace(connectorID),
+		State:               customMCPConnectionState(server.Enabled),
+		AvailabilityEnabled: sql.NullBool{Bool: server.Enabled, Valid: true},
+		Credentials:         string(payload),
+		AuthType:            customMCPAuthType,
 	})
 }
 
-func (s *Service) listStoredCustomMCPServers(
+func customMCPConnectionState(enabled bool) string {
+	if enabled {
+		return "connected"
+	}
+	return "disconnected"
+}
+
+func (s *Service) listCustomMCPServerRecords(
 	ctx context.Context,
 	ownerUserID string,
-) (map[string]storedCustomMCPServer, error) {
+) ([]customMCPServerRecord, error) {
 	ownerUserID = normalizeConnectorOwnerUserID(ctx, ownerUserID)
 	query := fmt.Sprintf(
-		`SELECT owner_user_id, connector_id, credentials, credentials_encrypted, auth_type
+		`SELECT owner_user_id, connector_id, state, enabled, credentials, credentials_encrypted,
+		        credentials_key_id, auth_type
 		   FROM connector_connections
-		  WHERE owner_user_id = %s AND auth_type = %s AND state = 'connected'`,
+		  WHERE owner_user_id = %s AND auth_type = %s`,
 		s.bind(1),
 		s.bind(2),
 	)
@@ -234,41 +311,45 @@ func (s *Service) listStoredCustomMCPServers(
 	}
 	defer rows.Close()
 
-	items := map[string]storedCustomMCPServer{}
+	items := make([]customMCPServerRecord, 0)
 	for rows.Next() {
 		var record connectionRecord
 		if err = rows.Scan(
 			&record.OwnerUserID,
 			&record.ConnectorID,
+			&record.State,
+			&record.AvailabilityEnabled,
 			&record.Credentials,
 			&record.CredentialsEncrypted,
+			&record.CredentialsKeyID,
 			&record.AuthType,
 		); err != nil {
 			return nil, err
 		}
-		server, decodeErr := s.decodeStoredCustomMCPServer(record)
-		if decodeErr != nil {
-			return nil, decodeErr
+		item := customMCPServerRecord{connection: record}
+		if server, decodeErr := s.decodeStoredCustomMCPServer(record); decodeErr == nil {
+			item.server = &server
 		}
-		items[record.ConnectorID] = server
+		items = append(items, item)
 	}
 	return items, rows.Err()
 }
 
-func (s *Service) loadStoredCustomMCPServer(
+func (s *Service) loadCustomMCPConnectionRecord(
 	ctx context.Context,
 	ownerUserID string,
 	connectorID string,
-) (*storedCustomMCPServer, error) {
+) (*connectionRecord, error) {
 	ownerUserID = normalizeConnectorOwnerUserID(ctx, ownerUserID)
 	connectorID = strings.TrimSpace(connectorID)
 	if !IsCustomMCPConnectorID(connectorID) {
 		return nil, ErrCustomMCPServerNotFound
 	}
 	query := fmt.Sprintf(
-		`SELECT owner_user_id, connector_id, credentials, credentials_encrypted, auth_type
+		`SELECT owner_user_id, connector_id, state, enabled, credentials, credentials_encrypted,
+		        credentials_key_id, auth_type
 		   FROM connector_connections
-		  WHERE owner_user_id = %s AND connector_id = %s AND auth_type = %s AND state = 'connected'`,
+		  WHERE owner_user_id = %s AND connector_id = %s AND auth_type = %s`,
 		s.bind(1),
 		s.bind(2),
 		s.bind(3),
@@ -283,8 +364,11 @@ func (s *Service) loadStoredCustomMCPServer(
 	).Scan(
 		&record.OwnerUserID,
 		&record.ConnectorID,
+		&record.State,
+		&record.AvailabilityEnabled,
 		&record.Credentials,
 		&record.CredentialsEncrypted,
+		&record.CredentialsKeyID,
 		&record.AuthType,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -293,11 +377,38 @@ func (s *Service) loadStoredCustomMCPServer(
 	if err != nil {
 		return nil, err
 	}
-	server, err := s.decodeStoredCustomMCPServer(record)
+	return &record, nil
+}
+
+func (s *Service) loadCustomMCPServerRecord(
+	ctx context.Context,
+	ownerUserID string,
+	connectorID string,
+) (*customMCPServerRecord, error) {
+	connection, err := s.loadCustomMCPConnectionRecord(ctx, ownerUserID, connectorID)
 	if err != nil {
 		return nil, err
 	}
-	return &server, nil
+	record := &customMCPServerRecord{connection: *connection}
+	if server, decodeErr := s.decodeStoredCustomMCPServer(*connection); decodeErr == nil {
+		record.server = &server
+	}
+	return record, nil
+}
+
+func (s *Service) loadStoredCustomMCPServer(
+	ctx context.Context,
+	ownerUserID string,
+	connectorID string,
+) (*storedCustomMCPServer, error) {
+	record, err := s.loadCustomMCPServerRecord(ctx, ownerUserID, connectorID)
+	if err != nil {
+		return nil, err
+	}
+	if record.server == nil {
+		return nil, ErrCustomMCPServerRecoveryRequired
+	}
+	return record.server, nil
 }
 
 func (s *Service) decodeStoredCustomMCPServer(
@@ -311,6 +422,7 @@ func (s *Service) decodeStoredCustomMCPServer(
 	if err = json.Unmarshal(payload, &server); err != nil {
 		return storedCustomMCPServer{}, fmt.Errorf("解析自定义 MCP 配置: %w", err)
 	}
+	server.Enabled = record.AvailabilityEnabled.Bool
 	if server.AuthType == "" {
 		server.AuthType = customMCPAuthNone
 		if len(server.Headers) > 0 {
@@ -326,12 +438,15 @@ func (s *Service) ensureCustomMCPServerNameAvailable(
 	excludedConnectorID string,
 	name string,
 ) error {
-	servers, err := s.listStoredCustomMCPServers(ctx, ownerUserID)
+	records, err := s.listCustomMCPServerRecords(ctx, ownerUserID)
 	if err != nil {
 		return err
 	}
-	for connectorID, server := range servers {
-		if connectorID != excludedConnectorID && strings.EqualFold(server.Name, name) {
+	for _, record := range records {
+		if record.server == nil {
+			continue
+		}
+		if record.connection.ConnectorID != excludedConnectorID && strings.EqualFold(record.server.Name, name) {
 			return fmt.Errorf("%w：%s", ErrCustomMCPServerNameConflict, name)
 		}
 	}
@@ -344,8 +459,12 @@ func materializeCustomMCPServer(
 ) (storedCustomMCPServer, error) {
 	serverType := strings.ToLower(strings.TrimSpace(input.Type))
 	server := storedCustomMCPServer{
-		Name: strings.TrimSpace(input.Name),
-		Type: serverType,
+		Enabled: true,
+		Name:    strings.TrimSpace(input.Name),
+		Type:    serverType,
+	}
+	if previous != nil {
+		server.Enabled = previous.Enabled
 	}
 	switch serverType {
 	case "stdio":
@@ -487,12 +606,31 @@ func redactCustomMCPServer(
 	server storedCustomMCPServer,
 ) CustomMCPServer {
 	return CustomMCPServer{
-		ConnectorID: connectorID,
+		ConnectorID:        connectorID,
+		Enabled:            server.Enabled,
+		ConfigurationState: customMCPConfigReady,
 		CustomMCPServerInput: CustomMCPServerInput{
 			Name: server.Name, Type: server.Type, Command: server.Command,
 			Args: append([]string(nil), server.Args...), Env: redactCustomMCPSecrets(server.Env),
 			URL: server.URL, AuthType: server.AuthType,
 			Headers: redactCustomMCPSecrets(server.Headers),
+		},
+	}
+}
+
+func recoveryCustomMCPServer(record connectionRecord) CustomMCPServer {
+	connectorID := strings.TrimSpace(record.ConnectorID)
+	suffix := strings.TrimPrefix(connectorID, customMCPConnectorPrefix)
+	if len(suffix) > 8 {
+		suffix = suffix[len(suffix)-8:]
+	}
+	return CustomMCPServer{
+		ConnectorID:        connectorID,
+		Enabled:            record.AvailabilityEnabled.Bool,
+		ConfigurationState: customMCPConfigRecovery,
+		CustomMCPServerInput: CustomMCPServerInput{
+			Name: "legacy_mcp_" + suffix,
+			Type: "stdio",
 		},
 	}
 }

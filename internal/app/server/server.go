@@ -51,7 +51,7 @@ func NewWithLogger(cfg config.Config, logger *slog.Logger) (*Server, error) {
 	server := &Server{
 		config:   cfg,
 		api:      api,
-		router:   chi.NewRouter(),
+		router:   newPathParamRouter(),
 		services: appServices,
 		handlers: newHandlerSet(api, appServices, websocketHandler),
 	}
