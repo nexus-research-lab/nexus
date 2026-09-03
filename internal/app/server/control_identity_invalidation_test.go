@@ -18,8 +18,15 @@ type fakeControlInvalidationSource struct {
 	done    chan struct{}
 }
 
-func (f *fakeControlInvalidationSource) LatestControlIdentityInvalidationID(context.Context) (int64, error) {
+func (f *fakeControlInvalidationSource) ControlIdentityInvalidationCursor(context.Context) (int64, error) {
 	return 0, nil
+}
+
+func (f *fakeControlInvalidationSource) CommitControlIdentityInvalidationCursor(
+	_ context.Context,
+	_ int64,
+) error {
+	return nil
 }
 
 func (f *fakeControlInvalidationSource) ControlIdentityInvalidations(

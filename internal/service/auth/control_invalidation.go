@@ -10,22 +10,46 @@ import (
 
 const ControlIdentityInvalidationBatchSize = 256
 
-// LatestControlIdentityInvalidationID 返回 Nexus 启动时采用的 Control 事件游标。
-func (a *ControlAuthority) LatestControlIdentityInvalidationID(ctx context.Context) (int64, error) {
-	var response controlInvalidationCursor
-	if err := a.call(
-		ctx,
-		http.MethodGet,
-		"/internal/identity-invalidations/latest",
-		nil,
-		&response,
-	); err != nil {
-		return 0, err
+// ControlIdentityInvalidationCursor 返回本 Nexus 副本已持久应用的 Control 事件游标。
+func (a *ControlAuthority) ControlIdentityInvalidationCursor(ctx context.Context) (int64, error) {
+	var cursor int64
+	err := a.bindings.db.QueryRowContext(ctx, `
+SELECT identity_invalidation_cursor
+FROM control_projection_state
+WHERE singleton_id = 1`).Scan(&cursor)
+	if err != nil || cursor < 0 {
+		return 0, errors.Join(err, errors.New("Control identity invalidation cursor 无效"))
 	}
-	if response.Cursor < 0 {
-		return 0, errors.New("Control identity invalidation cursor 无效")
+	return cursor, nil
+}
+
+// CommitControlIdentityInvalidationCursor 只在本地投影成功后单调推进副本游标。
+func (a *ControlAuthority) CommitControlIdentityInvalidationCursor(
+	ctx context.Context,
+	cursor int64,
+) error {
+	if cursor <= 0 {
+		return errors.New("Control identity invalidation cursor 无效")
 	}
-	return response.Cursor, nil
+	result, err := a.bindings.db.ExecContext(ctx, `
+UPDATE control_projection_state
+SET identity_invalidation_cursor = `+a.bindings.dialect.Bind(1)+`
+WHERE singleton_id = 1 AND identity_invalidation_cursor < `+a.bindings.dialect.Bind(2), cursor, cursor)
+	if err != nil {
+		return err
+	}
+	changed, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if changed == 0 {
+		current, loadErr := a.ControlIdentityInvalidationCursor(ctx)
+		// 共享数据库中的其他副本可能已先推进水位；当前副本仍需继续本机失效流程。
+		if loadErr != nil || current < cursor {
+			return errors.Join(loadErr, errors.New("Control identity invalidation cursor 未推进"))
+		}
+	}
+	return nil
 }
 
 // ControlIdentityInvalidations 读取给定游标之后的有序身份变更。
@@ -56,7 +80,7 @@ func (a *ControlAuthority) ControlIdentityInvalidations(
 			return nil, errors.New("Control identity invalidation event 无效或乱序")
 		}
 		switch event.Reason {
-		case "principal_changed", "profile_changed":
+		case "principal_changed", "profile_changed", "entitlement_changed":
 			if event.SessionID != "" {
 				return nil, errors.New("Control identity invalidation session_id 与 reason 不匹配")
 			}
@@ -95,10 +119,31 @@ func (a *ControlAuthority) ApplyControlIdentityInvalidation(
 	} else {
 		a.deleteOwnerLeases(localOwnerKey)
 	}
+	if event.Reason == "entitlement_changed" {
+		return localOwnerKey, a.refreshEntitlementProjection(
+			ctx,
+			localOwnerKey,
+			event.DeploymentID,
+			event.UserID,
+		)
+	}
 	if event.Reason != "principal_changed" {
 		return localOwnerKey, nil
 	}
 	return localOwnerKey, a.refreshPrincipalProjection(ctx, localOwnerKey, event.UserID)
+}
+
+func (a *ControlAuthority) refreshEntitlementProjection(
+	ctx context.Context,
+	localOwnerKey string,
+	deploymentID string,
+	controlUserID string,
+) error {
+	entitlement, err := a.controlEntitlement(ctx, deploymentID, controlUserID)
+	if err != nil {
+		return err
+	}
+	return a.bindings.entitlements.upsert(ctx, localOwnerKey, entitlement)
 }
 
 func (a *ControlAuthority) refreshPrincipalProjection(

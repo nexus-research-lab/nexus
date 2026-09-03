@@ -606,8 +606,11 @@ func moveUnknownStateEntries(stateRoot string, systemRuntimeRoot string) error {
 		return fmt.Errorf("读取状态根待迁移条目: %w", err)
 	}
 
+	// Control 与公钥镜像是当前布局的一等顶层目录，不属于旧 runtime。
 	skip := map[string]struct{}{
 		"app":               {},
+		"control":           {},
+		"control-public":    {},
 		"users":             {},
 		"shared-workspaces": {},
 		"workspace":         {},

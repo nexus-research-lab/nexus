@@ -20,7 +20,7 @@ services:
       CONTROL_ADDRESS: 0.0.0.0:8020
       CONTROL_DATA_DIR: /var/lib/nexus-control
       CONTROL_DATABASE_DRIVER: ${CONTROL_DATABASE_DRIVER:-sqlite}
-      CONTROL_DATABASE_URL: ${CONTROL_DATABASE_URL:-/var/lib/nexus-control/control.db}
+      CONTROL_DATABASE_URL: ${CONTROL_DATABASE_URL:-/var/lib/nexus-control/data/control.db}
       CONTROL_DEPLOYMENT_NAME: ${CONTROL_DEPLOYMENT_NAME:-Nexus}
       CONTROL_SERVICE_TOKEN: ${CONTROL_SERVICE_TOKEN:?CONTROL_SERVICE_TOKEN must be set}
       CONTROL_SETUP_TOKEN: ${CONTROL_SETUP_TOKEN:-}
@@ -32,8 +32,8 @@ services:
       AUTH_COOKIE_SAMESITE: ${AUTH_COOKIE_SAMESITE:-lax}
       CONTROL_PRINCIPAL_AUDIENCE: nexus-runtime
     volumes:
-      - ${HOST_DATA_DIR:?HOST_DATA_DIR must be set}/.nexus/app/control:/var/lib/nexus-control
-      - ${HOST_DATA_DIR:?HOST_DATA_DIR must be set}/.nexus/app/control-public:/var/lib/nexus-control-public
+      - ${HOST_DATA_DIR:?HOST_DATA_DIR must be set}/.nexus/control:/var/lib/nexus-control
+      - ${HOST_DATA_DIR:?HOST_DATA_DIR must be set}/.nexus/control-public:/var/lib/nexus-control-public
     expose:
       - "8020"
     healthcheck:
@@ -86,7 +86,7 @@ services:
       NEXUS_APP_MODE: ${NEXUS_DOCKER_APP_MODE:-}
       NEXUS_CONTROL_URL: http://control:8020
       NEXUS_CONTROL_SERVICE_TOKEN: ${CONTROL_SERVICE_TOKEN:?CONTROL_SERVICE_TOKEN must be set}
-      NEXUS_CONTROL_PRINCIPAL_PUBLIC_KEY_FILE: /home/agent/.nexus/app/control-public/control-signing.pub
+      NEXUS_CONTROL_PRINCIPAL_PUBLIC_KEY_FILE: /home/agent/.nexus/control-public/control-signing.pub
       NEXUS_CONTROL_PRINCIPAL_AUDIENCE: nexus-runtime
       AUTH_SESSION_COOKIE_NAME: ${AUTH_SESSION_COOKIE_NAME:-nexus_session}
       CONTROL_SERVICE_TOKEN: ""
