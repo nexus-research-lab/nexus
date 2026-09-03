@@ -1,14 +1,16 @@
-// INPUT: 有限互斥选项、当前值与变更命令。
-// OUTPUT: 以 aria-pressed 暴露状态、且短选项标签保持单行的紧凑分段按钮组。
+// INPUT: 有限互斥选项、可选图标/图标模式、当前值与变更命令。
+// OUTPUT: 以 aria-pressed 暴露状态、且标签或图标选项保持紧凑的分段按钮组。
 // POS: Segmented control pattern；不解释业务选项或持有选中值。
 "use client";
 
-import { LucideIcon } from "lucide-react";
+import { type LucideIcon } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 interface UiSegmentedControlOption<T extends string> {
+  icon?: LucideIcon;
+  iconOnly?: boolean;
   label: string;
   value: T;
 }
@@ -60,24 +62,36 @@ export function UiSegmentedControl<T extends string>({
         </span>
       ) : null}
 
-      {options.map((option) => (
-        <button
-          key={option.value}
-          aria-pressed={value === option.value}
-          className={cn(
-            "segmented-control-option whitespace-nowrap radius-control-sm",
-            getUiTypographyClassName({ role: "caption", weight: "semibold" }),
-            density === "compact" ? "px-2 py-1" : "px-2.5 py-1.5",
-            stretch && "flex-1 px-1.5 text-center",
-          )}
-          data-active={value === option.value}
-          disabled={disabled}
-          onClick={() => onChange(option.value)}
-          type="button"
-        >
-          {option.label}
-        </button>
-      ))}
+      {options.map((option) => {
+        const OptionIcon = option.icon;
+        const iconOnly = Boolean(OptionIcon && option.iconOnly);
+        return (
+          <button
+            key={option.value}
+            aria-pressed={value === option.value}
+            className={cn(
+              "segmented-control-option whitespace-nowrap radius-control-sm",
+              getUiTypographyClassName({ role: "caption", weight: "semibold" }),
+              density === "compact" ? "px-2 py-1" : "px-2.5 py-1.5",
+              iconOnly && (density === "compact" ? "h-7 w-7 px-0" : "h-8 w-8 px-0"),
+              stretch && "flex-1 px-1.5 text-center",
+            )}
+            data-active={value === option.value}
+            disabled={disabled}
+            onClick={() => onChange(option.value)}
+            title={iconOnly ? option.label : undefined}
+            type="button"
+          >
+            {OptionIcon ? (
+              <OptionIcon
+                aria-hidden="true"
+                className={density === "compact" ? "h-3.5 w-3.5" : "h-4 w-4"}
+              />
+            ) : null}
+            <span className={iconOnly ? "sr-only" : undefined}>{option.label}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }

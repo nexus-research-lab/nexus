@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -40,6 +41,17 @@ const agents = [
     vibe_tags: ["Direct"],
   },
 ];
+
+test("Agent 目录视图切换由共享分段控件统一管理", async () => {
+  const source = await readFile(
+    path.join(webRoot, "src/features/contacts/contacts-directory.tsx"),
+    "utf8",
+  );
+
+  assert.match(source, /<UiSegmentedControl/);
+  assert.match(source, /contacts\.views\.title/);
+  assert.doesNotMatch(source, /aria-pressed=\{view ===/);
+});
 
 test("Agent 目录搜索与筛选只使用业务标签、Provider 和权限数据", async () => {
   const {

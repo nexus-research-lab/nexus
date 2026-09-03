@@ -2,7 +2,8 @@
 // OUTPUT: 证明校验、清除、布尔切换与互斥选择使用真实 DOM/ARIA 合同。
 // POS: 表单原语交互测试；业务草稿和网络提交由各 feature 测试负责。
 
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { LayoutGrid, List } from "lucide-react";
 import userEvent from "@testing-library/user-event";
 import { useState, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -193,5 +194,32 @@ describe("form primitives", () => {
     expect(recurring.getAttribute("aria-pressed")).toBe("false");
     await user.click(recurring);
     expect(onSegment).toHaveBeenCalledWith("recurring");
+  });
+
+  it("keeps icon-only segmented options accessible and compact", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <UiSegmentedControl
+        density="compact"
+        onChange={onChange}
+        options={[
+          { icon: LayoutGrid, iconOnly: true, label: "卡片视图", value: "grid" },
+          { icon: List, iconOnly: true, label: "列表视图", value: "list" },
+        ]}
+        title="目录视图"
+        value="grid"
+      />,
+    );
+
+    const group = screen.getByRole("group", { name: "目录视图" });
+    const grid = within(group).getByRole("button", { name: "卡片视图" });
+    const list = within(group).getByRole("button", { name: "列表视图" });
+    expect(grid.getAttribute("aria-pressed")).toBe("true");
+    expect(grid.className).toContain("h-7");
+    expect(grid.querySelector("span")?.className).toBe("sr-only");
+    expect(grid.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
+    await user.click(list);
+    expect(onChange).toHaveBeenCalledWith("list");
   });
 });

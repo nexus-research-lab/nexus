@@ -130,6 +130,7 @@ export const enNavigationMessages = {
   "contacts.filters.all_permissions": "All permissions",
   "contacts.views.grid": "Grid view",
   "contacts.views.list": "List view",
+  "contacts.views.title": "Directory view",
   "contacts.metadata.permission": "Permission",
   "contacts.metadata.provider": "Provider",
   "contacts.metadata.tools": "Tools",
