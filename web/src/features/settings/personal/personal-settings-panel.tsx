@@ -17,6 +17,7 @@ import { PersonalPasswordSection } from "./personal-password-section";
 import { PersonalProfileSection } from "./personal-profile-section";
 import { PersonalTokenUsageSection } from "./personal-token-usage-section";
 import { usePersonalSettingsController } from "./use-personal-settings-controller";
+import { SETTINGS_CARD_CLASS_NAME } from "../shared/settings-panel-ui";
 
 export function PersonalSettingsPanel() {
   const { t } = useI18n();
@@ -35,7 +36,10 @@ export function PersonalSettingsPanel() {
         />
         <div className="flex flex-col gap-3">
           {controller.profile.isLoading && !controller.profile.value ? (
-            <section className="flex min-h-[220px] items-center justify-center rounded-[12px] border border-(--divider-subtle-color) bg-transparent text-(--text-soft)">
+            <section className={cn(
+              SETTINGS_CARD_CLASS_NAME,
+              "flex min-h-[220px] items-center justify-center text-(--text-soft)",
+            )}>
               <Loader2 className="h-5 w-5 animate-spin" />
             </section>
           ) : (

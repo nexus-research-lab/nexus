@@ -9,9 +9,12 @@ import type { FormEvent } from "react";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import { UiButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
 import { UiInput } from "@/shared/ui/form/form-control";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import type { PasswordDraft, PasswordField } from "./personal-settings-model";
+import { SETTINGS_CARD_CLASS_NAME } from "../shared/settings-panel-ui";
 
 interface PasswordInputConfig {
   autoComplete: "current-password" | "new-password";
@@ -68,21 +71,25 @@ export function PersonalPasswordSection({
 
   if (!canChange) {
     return (
-      <section className="rounded-[12px] border border-(--divider-subtle-color) bg-transparent px-3 py-3">
+      <section className={cn(SETTINGS_CARD_CLASS_NAME, "px-3 py-3")}>
         <PasswordSectionHeader canChange={false} />
       </section>
     );
   }
 
   return (
-    <section className="overflow-hidden rounded-[12px] border border-(--divider-subtle-color) bg-transparent">
+    <section className={SETTINGS_CARD_CLASS_NAME}>
       <form className="grid gap-3 px-3 py-3" onSubmit={handleSubmit}>
         <PasswordSectionHeader canChange={canChange} />
 
         <div className="grid gap-3 md:grid-cols-3">
           {PASSWORD_INPUTS.map((input) => (
             <label className="space-y-1.5" key={input.field}>
-              <span className="text-xs font-semibold text-(--text-muted)">
+              <span className={getUiTypographyClassName({
+                role: "caption",
+                tone: "muted",
+                weight: "semibold",
+              })}>
                 {t(input.labelKey)}
               </span>
               <UiInput
@@ -116,11 +123,14 @@ function PasswordSectionHeader({ canChange }: { canChange: boolean }) {
         <LockKeyhole className="h-3.5 w-3.5" />
       </div>
       <div className="min-w-0">
-        <h3 className="text-base font-semibold tracking-tight text-(--text-strong)">
+        <h3 className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong" })}>
           {t("settings.personal.password_title")}
         </h3>
         {!canChange ? (
-          <p className="mt-1 text-compact leading-5 text-(--text-soft)">
+          <p className={cn(
+            "mt-1",
+            getUiTypographyClassName({ role: "metadata", tone: "soft" }),
+          )}>
             {t("settings.personal.password_disabled")}
           </p>
         ) : null}
@@ -152,21 +162,23 @@ function PasswordSubmitActions({
       <div
         aria-atomic={showValidation ? "true" : undefined}
         aria-live={showValidation ? "polite" : undefined}
-        className="min-w-0 flex-1 text-xs leading-5"
+        className="min-w-0 flex-1"
         role={showValidation ? "status" : undefined}
       >
-        <p className={showValidation
-          ? "font-medium text-(--danger-text-color)"
-          : "text-(--text-soft)"}
+        <p className={getUiTypographyClassName({
+          role: "caption",
+          tone: showValidation ? "danger" : "soft",
+          weight: showValidation ? "medium" : undefined,
+        })}
         >
           {helperText}
         </p>
         {showValidation ? (
           <>
-            <p className="text-(--text-muted)">
+            <p className={getUiTypographyClassName({ role: "caption", tone: "muted" })}>
               {t("state.validation_failure_impact")}
             </p>
-            <p className="text-(--text-default)">
+            <p className={getUiTypographyClassName({ role: "caption", tone: "default" })}>
               {t("state.validation_failure_next_step")}
             </p>
           </>
