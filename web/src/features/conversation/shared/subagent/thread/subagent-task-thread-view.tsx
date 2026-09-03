@@ -11,7 +11,7 @@ import { ConversationThreadPanel } from "@/features/conversation/shared/thread/c
 import type { ConversationThreadRound } from "@/features/conversation/shared/thread/conversation-thread-model";
 import { getSeededAvatarDataUrl } from "@/lib/seeded-avatar";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { getUiButtonClassName } from "@/shared/ui/button/button-styles";
+import { UiButton } from "@/shared/ui/button/button";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import type { Message } from "@/types/conversation/message/entity";
 import type {
@@ -154,11 +154,12 @@ function SubagentTaskControls({
 				</p>
 				<div className="flex shrink-0 items-center gap-1.5">
 					{canStop ? (
-						<button
-							className={getUiButtonClassName({ size: "sm", tone: "danger", variant: "ghost" })}
+						<UiButton
 							disabled={pending || stopResultUnconfirmed}
 							onClick={onStopRequest}
-							type="button"
+							size="sm"
+							tone="danger"
+							variant="ghost"
 						>
 							{actions.pendingAction === "stop" ? (
 								<Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -166,14 +167,15 @@ function SubagentTaskControls({
 								<Square className="h-3.5 w-3.5" />
 							)}
 							{t("subagents.stop")}
-						</button>
+						</UiButton>
 					) : null}
 					{canSend ? (
-						<button
-							className={getUiButtonClassName({ size: "sm", tone: "primary", variant: "surface" })}
+						<UiButton
 							disabled={pending}
 							onClick={onSendRequest}
-							type="button"
+							size="sm"
+							tone="primary"
+							variant="surface"
 						>
 							{actions.pendingAction === "send" ? (
 								<Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -181,7 +183,7 @@ function SubagentTaskControls({
 								<MessageSquareMore className="h-3.5 w-3.5" />
 							)}
 							{t(active ? "subagents.send_message" : "subagents.resume")}
-						</button>
+						</UiButton>
 					) : null}
 				</div>
 			</div>

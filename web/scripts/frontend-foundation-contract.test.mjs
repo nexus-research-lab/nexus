@@ -199,6 +199,26 @@ test("product source contains no arbitrary shadows or numeric z-index values", a
   assert.deepEqual(violations, []);
 });
 
+test("only shared primitive adapters consume the internal button style projection", async () => {
+  const files = await collectSourceFiles(srcRoot);
+  const adapters = new Set([
+    "src/shared/ui/button/button.tsx",
+    "src/shared/ui/dialog/dialog-styles.ts",
+  ]);
+  const violations = [];
+
+  for (const file of files) {
+    if (!/\.(?:ts|tsx)$/.test(file)) continue;
+    const source = await readFile(file, "utf8");
+    const relativePath = path.relative(webRoot, file);
+    if (!adapters.has(relativePath) && /@\/shared\/ui\/button\/button-styles/.test(source)) {
+      violations.push(relativePath);
+    }
+  }
+
+  assert.deepEqual(violations, []);
+});
+
 test("critical shared UI groups keep co-located DOM behavior suites", async () => {
   for (const suitePath of REQUIRED_SHARED_UI_BEHAVIOR_SUITES) {
     const source = await readSource(suitePath);

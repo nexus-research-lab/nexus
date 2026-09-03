@@ -1,7 +1,12 @@
+// INPUT: Subscription 套餐资源、新建草稿、编辑草稿和保存命令。
+// OUTPUT: 套餐创建表单与可编辑套餐列表。
+// POS: Operations 套餐订阅视图；不拥有通用按钮或表单视觉。
+
 import { Loader2, Plus, Save } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
+import { UiButton } from "@/shared/ui/button/button";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import {
   SETTINGS_CARD_CLASS_NAME,
@@ -19,7 +24,6 @@ import {
 } from "./subscription-admin-model";
 import {
   CONTROL_CLASS_NAME,
-  SAVE_BUTTON_CLASS_NAME,
   SubscriptionEmptyState,
   SubscriptionLoadingState,
 } from "./subscription-admin-ui";
@@ -154,11 +158,12 @@ function SubscriptionPlanRow({
       </div>
 
       <div className="flex xl:justify-end">
-        <button
-          className={SAVE_BUTTON_CLASS_NAME}
+        <UiButton
           disabled={disabled}
           onClick={() => void onSave(plan.plan_key)}
-          type="button"
+          size="sm"
+          tone="primary"
+          variant="solid"
         >
           {saving ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -166,7 +171,7 @@ function SubscriptionPlanRow({
             <Save className="h-3.5 w-3.5" />
           )}
           {t("settings.subscription.save")}
-        </button>
+        </UiButton>
       </div>
     </div>
   );
@@ -230,11 +235,12 @@ function NewSubscriptionPlanForm({
             value={draft.monthlyTokenLimit}
           />
         </label>
-        <button
-          className={SAVE_BUTTON_CLASS_NAME}
+        <UiButton
           disabled={disabled}
           onClick={() => void onCreate()}
-          type="button"
+          size="sm"
+          tone="primary"
+          variant="solid"
         >
           {creating ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -242,7 +248,7 @@ function NewSubscriptionPlanForm({
             <Plus className="h-3.5 w-3.5" />
           )}
           {t("settings.subscription.create_plan")}
-        </button>
+        </UiButton>
       </div>
     </div>
   );

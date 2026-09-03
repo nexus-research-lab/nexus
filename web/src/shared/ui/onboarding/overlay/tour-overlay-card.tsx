@@ -1,3 +1,7 @@
+// INPUT: 当前 Tour 步骤、位置、进度和导航/关闭动作。
+// OUTPUT: 可滚动的引导卡片、步骤内容与统一 Button 导航。
+// POS: Onboarding Tour 卡片视图；不拥有按钮视觉或浮层定位生命周期。
+
 import { forwardRef } from "react";
 import {
   Bot,
@@ -8,7 +12,7 @@ import {
 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { getUiButtonClassName } from "@/shared/ui/button/button-styles";
+import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import type {
   OnboardingTourStep,
@@ -66,13 +70,14 @@ export const TourOverlayCard = forwardRef<
         <h3 className="mt-0.5 min-w-0 text-md font-semibold tracking-tight text-(--text-strong)">
           {step.title}
         </h3>
-        <button
-          className="shrink-0 px-1 py-0.5 text-xs font-medium text-(--text-muted) transition-colors duration-(--motion-duration-fast) hover:text-(--text-strong)"
+        <UiButton
+          className="shrink-0"
           onClick={() => onClose({ completed: true })}
-          type="button"
+          size="xs"
+          variant="text"
         >
           {t("common.skip")}
-        </button>
+        </UiButton>
       </div>
 
       <p className="mt-2 text-compact leading-5 text-(--text-default)">
@@ -86,27 +91,23 @@ export const TourOverlayCard = forwardRef<
           {stepIndex + 1} / {stepCount}
         </span>
         <div className="flex items-center gap-2">
-          <button
-            className={getUiButtonClassName(
-              { size: "xs", tone: "default", variant: "text" },
-              "font-medium",
-            )}
+          <UiButton
             disabled={stepIndex === 0}
             onClick={onPrevious}
-            type="button"
+            size="xs"
+            tone="default"
+            variant="text"
           >
             {t("common.back")}
-          </button>
-          <button
-            className={getUiButtonClassName(
-              { size: "xs", tone: "primary", variant: "surface" },
-              "font-medium",
-            )}
+          </UiButton>
+          <UiButton
             onClick={isLastStep ? () => onClose({ completed: true }) : onNext}
-            type="button"
+            size="xs"
+            tone="primary"
+            variant="surface"
           >
             {isLastStep ? t("common.finish") : t("common.next")}
-          </button>
+          </UiButton>
         </div>
       </div>
     </div>

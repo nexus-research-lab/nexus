@@ -15,7 +15,7 @@ import {
   UiDialogPortal,
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
-import { getUiButtonClassName } from "@/shared/ui/button/button-styles";
+import { UiButton } from "@/shared/ui/button/button";
 
 import type {
   GuideCenterItem,
@@ -110,16 +110,15 @@ export function GuideCenterDialog({
                               </p>
                             </div>
 
-                            <button
-                              className={getUiButtonClassName(
-                                { size: "xs", tone: "primary", variant: "text" },
-                                "shrink-0 px-1.5 font-medium",
-                              )}
+                            <UiButton
+                              className="shrink-0"
                               onClick={item.onAction}
-                              type="button"
+                              size="xs"
+                              tone="primary"
+                              variant="text"
                             >
                               {item.actionLabel}
-                            </button>
+                            </UiButton>
                           </div>
                         );
                       })}
@@ -130,27 +129,24 @@ export function GuideCenterDialog({
             </UiDialogBody>
 
             <UiDialogFooter appearance="plain" className="!px-5 !py-3">
-              <button
-                className={getUiButtonClassName(
-                  { size: "xs", tone: "default", variant: "text" },
-                  "mr-auto px-1 font-medium",
-                )}
+              <UiButton
+                className="mr-auto"
                 onClick={onReset}
-                type="button"
+                size="xs"
+                tone="default"
+                variant="text"
               >
                 <RotateCcw className="h-3 w-3" />
                 {resetLabel}
-              </button>
-              <button
-                className={getUiButtonClassName(
-                  { size: "xs", tone: "default", variant: "surface" },
-                  "font-medium",
-                )}
+              </UiButton>
+              <UiButton
                 onClick={onClose}
-                type="button"
+                size="xs"
+                tone="default"
+                variant="surface"
               >
                 {closeLabel}
-              </button>
+              </UiButton>
             </UiDialogFooter>
           </UiDialogShell>
         </div>

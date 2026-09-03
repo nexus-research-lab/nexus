@@ -1023,11 +1023,6 @@
     justify-content: center;
   }
 
-  .nexus-chat-composer-submit {
-    width: 2rem;
-    padding-inline: 0;
-  }
-
   /* 空输入仍保留中性动作，避免发送入口在可用性变化时消失。 */
   .nexus-chat-composer-submit:disabled {
     opacity: 1;
