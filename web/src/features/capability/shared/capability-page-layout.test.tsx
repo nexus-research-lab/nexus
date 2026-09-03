@@ -6,6 +6,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { MobileAppPageHeaderActionsProvider } from "@/app/layout/mobile-app-page-header-actions";
+import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
 
 import {
   CapabilityDetailPage,
@@ -60,13 +61,17 @@ describe("CapabilityPageLayout", () => {
   it("owns one detail page axis and current-object navigation contract", () => {
     let backCount = 0;
     const { container } = render(
-      <CapabilityDetailPage
-        backLabel="Skills"
-        currentTitle="Research Skill"
-        onBack={() => { backCount += 1; }}
+      <I18N_CONTEXT.Provider
+        value={{ locale: "en", setLocale: () => undefined, t: (key) => key }}
       >
-        <div>Detail content</div>
-      </CapabilityDetailPage>,
+        <CapabilityDetailPage
+          backLabel="Skills"
+          currentTitle="Research Skill"
+          onBack={() => { backCount += 1; }}
+        >
+          <div>Detail content</div>
+        </CapabilityDetailPage>
+      </I18N_CONTEXT.Provider>,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Skills" }));
@@ -74,6 +79,7 @@ describe("CapabilityPageLayout", () => {
     expect(backCount).toBe(1);
     expect(container.querySelector("[data-slot='capability-detail-page']")).toBeTruthy();
     expect(container.querySelector("[data-slot='capability-detail-header']")).toBeTruthy();
+    expect(screen.getByRole("navigation", { name: "common.location_aria" })).toBeTruthy();
     expect(container.querySelector(".workspace-content-header")?.className)
       .toContain("max-[559px]:hidden");
     expect(container.querySelector(".workspace-content-header")?.className)
@@ -81,6 +87,7 @@ describe("CapabilityPageLayout", () => {
     expect(container.querySelector("[data-slot='capability-detail-body']")?.className)
       .toContain("pt-5");
     expect(screen.getByText("Research Skill").className).toContain("ui-type-metadata");
+    expect(screen.getByText("Research Skill").getAttribute("aria-current")).toBe("page");
     expect(screen.getByText("Detail content")).toBeTruthy();
   });
 

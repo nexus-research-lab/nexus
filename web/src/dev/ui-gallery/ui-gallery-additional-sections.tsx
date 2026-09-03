@@ -60,6 +60,7 @@ import { MermaidView } from "@/shared/ui/markdown/mermaid/mermaid-view";
 import { WorkspaceFileButton } from "@/shared/ui/markdown/workspace/markdown-workspace-file-button";
 import { MentionTargetPopover } from "@/shared/ui/mention/mention-target-popover";
 import { UiActionMenu, UiActionMenuContent } from "@/shared/ui/menu/action-menu";
+import { UiBreadcrumb } from "@/shared/ui/navigation/breadcrumb";
 import { TourOverlayCard } from "@/shared/ui/onboarding/overlay/tour-overlay-card";
 import { OnboardingTourOverlay } from "@/shared/ui/onboarding/overlay/tour-overlay";
 import { SidebarEmptyGuide } from "@/shared/ui/sidebar/sidebar-empty-guide";
@@ -560,7 +561,21 @@ export function WorkspaceGallery({ locale }: { locale: Locale }) {
         eyebrow="02 · LAYOUT"
         title={galleryText(locale, "Workspace 布局", "Workspace layout")}
       >
-        <PreviewCard components={["WorkspaceContentHeader", "WorkspaceContentDetailHeader", "WorkspacePageFrame"]}>
+        <PreviewCard components={["UiBreadcrumb", "WorkspaceContentHeader", "WorkspaceContentDetailHeader", "WorkspacePageFrame"]}>
+          <div className="rounded-[12px] border border-(--divider-subtle-color) px-2 py-1">
+            <UiBreadcrumb
+              ariaLabel={galleryText(locale, "文件位置", "File location")}
+              density="compact"
+              items={[
+                { id: "agent", label: "Nexus" },
+                { id: "source", label: "web/src/shared/ui" },
+                {
+                  id: "file",
+                  label: galleryText(locale, "组件契约说明.md", "component-contract.md"),
+                },
+              ]}
+            />
+          </div>
           <WorkspacePageFrame contentPaddingClassName="p-3">
             <WorkspaceContentHeader
               actions={<UiButton size="sm" tone="primary" variant="surface">{galleryText(locale, "新建", "Create")}</UiButton>}
@@ -568,7 +583,20 @@ export function WorkspaceGallery({ locale }: { locale: Locale }) {
               title={galleryText(locale, "组件目录", "Component catalog")}
             />
             <WorkspaceContentDetailHeader>
-              <UiLinkButton href="#coverage" variant="text">← {galleryText(locale, "返回目录", "Back to catalog")}</UiLinkButton>
+              <UiBreadcrumb
+                ariaLabel={galleryText(locale, "当前位置", "Current location")}
+                items={[
+                  {
+                    href: "#coverage",
+                    id: "catalog",
+                    label: galleryText(locale, "组件目录", "Component catalog"),
+                  },
+                  {
+                    id: "detail",
+                    label: galleryText(locale, "组件详情", "Component detail"),
+                  },
+                ]}
+              />
             </WorkspaceContentDetailHeader>
           </WorkspacePageFrame>
         </PreviewCard>

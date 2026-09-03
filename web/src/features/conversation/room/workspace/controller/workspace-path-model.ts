@@ -1,21 +1,29 @@
+// INPUT: Workspace 相对路径、用户可见 Agent 名称与路径变更前后缀。
+// OUTPUT: 不泄漏物理目录的显示层级，以及稳定的路径拼接、聚焦和替换结果。
+// POS: Workspace 路径纯模型；不读取文件系统，也不渲染 Breadcrumb。
+
 export function getParentWorkspacePath(path: string): string | null {
   const separatorIndex = path.lastIndexOf("/");
   return separatorIndex < 0 ? null : path.slice(0, separatorIndex);
 }
 
 export function getWorkspaceRootLabel(
-  workspacePath: string,
+  displayName: string | null | undefined,
+  name: string | null | undefined,
   fallbackLabel: string,
 ): string {
-  const pathSegments = workspacePath.split(/[\\/]+/).filter(Boolean);
-  return pathSegments.at(-1) ?? fallbackLabel;
+  return displayName?.trim() || name?.trim() || fallbackLabel;
 }
 
-export function getWorkspaceFileLocationLabel(
+export function getWorkspaceFileLocationSegments(
   filePath: string,
   workspaceRootLabel: string,
-): string {
-  return getParentWorkspacePath(filePath) || workspaceRootLabel;
+): string[] {
+  const parentPath = getParentWorkspacePath(filePath);
+  return [
+    workspaceRootLabel,
+    ...(parentPath ? parentPath.split(/[\\/]+/).filter(Boolean) : []),
+  ];
 }
 
 export function getWorkspaceFocusPath(path?: string | null): string | null {

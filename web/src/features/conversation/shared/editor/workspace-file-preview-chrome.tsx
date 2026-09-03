@@ -1,3 +1,6 @@
+// INPUT: Workspace 文件层级、预览状态、文件动作与可选标题栏 Portal。
+// OUTPUT: 复用 UiBreadcrumb 的单行文件 chrome，以及统一下载、聚焦和编辑动作。
+// POS: Workspace 文件预览外壳；不读取文件内容，也不拥有全站导航视觉。
 "use client";
 
 import {
@@ -9,7 +12,6 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import {
-  ChevronRight,
   Download,
   FolderOpen,
   Maximize2,
@@ -22,6 +24,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import type { FeedbackBannerProps } from "@/shared/ui/feedback/feedback-banner-contract";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
+import { UiBreadcrumb } from "@/shared/ui/navigation/breadcrumb";
 import {
   WORKSPACE_PANEL_HEADER_BUTTON_CLASS,
   WORKSPACE_PANEL_HEADER_HEIGHT_CLASS,
@@ -40,38 +43,29 @@ const WORKSPACE_FILE_TOOLBAR_BUTTON_CLASS_NAME = cn(
 interface WorkspaceFilePreviewHeaderContextValue {
   headerPortalTarget?: HTMLElement | null;
   leading?: ReactNode;
-  locationLabel: string;
+  locationSegments: readonly string[];
 }
 
 const WorkspaceFilePreviewHeaderContext =
-  createContext<WorkspaceFilePreviewHeaderContextValue>({locationLabel: ""});
+  createContext<WorkspaceFilePreviewHeaderContextValue>({ locationSegments: [] });
 
 export function WorkspaceFilePreviewHeaderProvider({
   children,
   headerPortalTarget,
   leading,
-  locationLabel,
+  locationSegments,
 }: {
   children: ReactNode;
   headerPortalTarget?: HTMLElement | null;
   leading?: ReactNode;
-  locationLabel: string;
+  locationSegments: readonly string[];
 }) {
   return (
     <WorkspaceFilePreviewHeaderContext.Provider
-      value={{headerPortalTarget, leading, locationLabel}}
+      value={{ headerPortalTarget, leading, locationSegments }}
     >
       {children}
     </WorkspaceFilePreviewHeaderContext.Provider>
-  );
-}
-
-function WorkspaceFileBreadcrumbSeparator() {
-  return (
-    <ChevronRight
-      aria-hidden="true"
-      className="h-3 w-3 shrink-0 text-(--icon-muted)"
-    />
   );
 }
 
@@ -84,10 +78,10 @@ export function WorkspaceFilePreviewHeader({
   meta?: ReactNode;
   title: string;
 }) {
-  const {headerPortalTarget, leading, locationLabel} = useContext(
+  const { t } = useI18n();
+  const { headerPortalTarget, leading, locationSegments } = useContext(
     WorkspaceFilePreviewHeaderContext,
   );
-  const hasLocation = Boolean(leading || locationLabel);
   const header = (
     <header
       className={cn(
@@ -97,24 +91,21 @@ export function WorkspaceFilePreviewHeader({
         headerPortalTarget && "h-full min-h-0 border-b-0 px-0",
       )}
     >
-      <div className="flex min-w-0 flex-1 items-center gap-1.5">
-        {leading ? <div className="shrink-0">{leading}</div> : null}
-        {leading && locationLabel ? <WorkspaceFileBreadcrumbSeparator /> : null}
-        {locationLabel ? (
-          <span
-            className="min-w-0 max-w-[42%] truncate text-xs font-normal text-(--text-soft)"
-            title={locationLabel}
-          >
-            {locationLabel}
-          </span>
-        ) : null}
-        {hasLocation ? <WorkspaceFileBreadcrumbSeparator /> : null}
-        <p
-          className="min-w-0 flex-1 truncate text-xs font-medium text-(--text-strong)"
-          title={title}
-        >
-          {title}
-        </p>
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <UiBreadcrumb
+          ariaLabel={t("common.location_aria")}
+          className="min-w-0 flex-1"
+          density="compact"
+          items={[
+            ...locationSegments.map((segment, index) => ({
+              id: `location-${index}`,
+              label: segment,
+              title: segment,
+            })),
+            { id: "file", label: title, title },
+          ]}
+          leading={leading}
+        />
         {meta ? (
           <div className="hidden min-w-0 shrink items-center gap-2 overflow-hidden whitespace-nowrap text-2xs text-(--text-soft) sm:flex">
             {meta}

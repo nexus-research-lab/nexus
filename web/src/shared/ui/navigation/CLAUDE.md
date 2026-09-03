@@ -1,10 +1,11 @@
 # 选择与导航原语
 
 - 本目录拥有跨页面一致的视图/筛选选择条样式，不拥有路由、内容面板或业务筛选状态。
+- `UiBreadcrumb` 是页面层级与文件位置的唯一 DOM/箭头/字级/截断 owner；消费方只传用户可见层级、可选链接或返回命令，禁止自行拼接 `ChevronRight`、斜杠和间距。
 - `UiTabs` 是历史视觉名称；当前消费者都是即时视图或筛选选择，因此 DOM 必须使用具名 `button group` 与 `aria-pressed`，不得伪装成站点 `<nav>` 或缺少 tabpanel/箭头键合同的 ARIA tablist。
 - `UiTabs` 使用纯文字优先的低对比中性选中态，并把消费方提供的单项类名挂在稳定包装节点上；响应式隐藏或收纳必须作用于该节点，不能留下空白 `gap`。
 - 只要标签组支持关闭，所有项目就必须预留相同关闭槽位，避免活动态出现/消失关闭按钮时改变宽度；关闭动作统一通过 `getUiTabDismissClassName` 获得 24px 命中区、6px 圆角、危险态 hover 与键盘 focus。
 - 页面级栏目使用中灰文字与低对比轻底表达当前位置，不借用品牌蓝；未选中项只在 hover 时轻微提亮，不增加边框宽度、阴影或布局位移。
 - 真正页面导航使用链接与 `<nav>`；真正 tabpanel 只有在同时实现 roving focus、方向键和 `aria-controls` 后才能新增独立 primitive。
 - 路由、页面状态和业务可见性由消费者投影后传入。
-- `tabs.test.tsx` 证明 group、选择和独立关闭动作的真实 DOM 行为。
+- `tabs.test.tsx` 证明 group、选择和独立关闭动作；`breadcrumb.test.tsx` 证明 navigation、当前页、链接/返回动作与统一分隔符的真实 DOM 行为。

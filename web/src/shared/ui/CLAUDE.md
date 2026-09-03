@@ -9,7 +9,7 @@
 | 输入与选择 | `form/` | 校验、ARIA、布尔与互斥选择 |
 | 模态与决策 | `dialog/` | 栈、焦点圈、Escape、遮罩、滚动锁 |
 | 锚定浮层 | `overlay/`、`menu/` | Portal、定位生命周期、焦点、键盘、关闭 |
-| 页面内切换 | `navigation/` | pressed/selection 与独立关闭动作 |
+| 页面内切换与层级位置 | `navigation/` | pressed/selection、当前页与链接/返回动作 |
 | 内容表面 | `panel.tsx` | 有限 padding/radius/variant；默认无阴影 |
 | 状态与标记 | `display/` | live region、忙碌、动作、计数边界 |
 

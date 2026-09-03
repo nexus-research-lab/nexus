@@ -217,6 +217,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   loading through shared Spinner roles.
 - Extended the Spinner ownership gate from shared primitives to every production
   frontend source file while excluding tests and the development gallery.
+- Replaced the Workspace header's physical Agent directory identifier with the
+  Agent display name and a user-facing relative path, then unified its trail
+  with Skill, Connector, Loop, and WorkGraph detail headers on one shared
+  breadcrumb component.
 - Established a single frontend engineering and design-system contract, and
   centralized high overlay layers and responsive dialog geometry behind semantic
   APIs to prevent page-specific stacking and small-window sizing drift.

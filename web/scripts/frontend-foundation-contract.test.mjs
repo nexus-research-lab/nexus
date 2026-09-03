@@ -39,6 +39,7 @@ const REQUIRED_SHARED_UI_BEHAVIOR_SUITES = [
   "src/shared/ui/list/list.test.tsx",
   "src/shared/ui/markdown/mermaid/mermaid-view-parts.test.tsx",
   "src/shared/ui/menu/menu.test.tsx",
+  "src/shared/ui/navigation/breadcrumb.test.tsx",
   "src/shared/ui/navigation/tabs.test.tsx",
   "src/shared/ui/onboarding/overlay/tour-overlay-card.test.tsx",
   "src/shared/ui/onboarding/overlay/tour-overlay.test.tsx",
@@ -1932,6 +1933,21 @@ test("critical shared UI groups keep co-located DOM behavior suites", async () =
     assert.match(source, /@testing-library\/react/, suitePath);
     assert.match(source, /(?:userEvent|fireEvent)/, suitePath);
   }
+});
+
+test("Capability and Workspace headers share the Breadcrumb owner", async () => {
+  const [capabilityLayout, workspaceChrome, workspacePathModel] = await Promise.all([
+    readSource("src/features/capability/shared/capability-page-layout.tsx"),
+    readSource("src/features/conversation/shared/editor/workspace-file-preview-chrome.tsx"),
+    readSource("src/features/conversation/room/workspace/controller/workspace-path-model.ts"),
+  ]);
+
+  for (const source of [capabilityLayout, workspaceChrome]) {
+    assert.match(source, /<UiBreadcrumb/);
+    assert.doesNotMatch(source, /WorkspaceFileBreadcrumb|ChevronRight/);
+  }
+  assert.match(workspacePathModel, /getWorkspaceFileLocationSegments/);
+  assert.doesNotMatch(workspacePathModel, /getWorkspaceFileLocationLabel/);
 });
 
 test("the UI contract gallery stays reproducible and outside production entries", async () => {
