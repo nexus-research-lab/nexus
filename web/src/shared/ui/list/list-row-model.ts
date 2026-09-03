@@ -11,11 +11,12 @@ interface UiListRowPresentation {
   tabIndex: 0 | undefined;
 }
 
-export type UiListRowDensity = "default" | "compact";
+export type UiListRowDensity = "default" | "compact" | "dense";
 
 const LIST_ROW_DENSITY_CLASS_NAMES: Record<UiListRowDensity, string> = {
   default: "min-h-[64px] px-2.5 py-2",
   compact: "min-h-12 px-3 py-2",
+  dense: "min-h-10 px-2.5 py-1.5",
 };
 
 const LIST_ROW_STATE_CLASS_NAMES = {

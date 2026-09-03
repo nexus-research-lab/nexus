@@ -1,4 +1,4 @@
-// INPUT: 列表内容、共享密度/状态语义、可选行级动作与原生 div 属性。
+// INPUT: 列表内容、共享密度/状态语义、可选悬停说明/行级动作与原生 div 属性。
 // OUTPUT: 静态内容行或具统一键盘行为的单一交互列表行。
 // POS: ListRow DOM 原语；不拥有资源、选择真相或业务命令生命周期。
 
@@ -33,6 +33,7 @@ interface UiListRowProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
   right?: ReactNode;
   subtitleTrailing?: ReactNode;
   title?: ReactNode;
+  tooltip?: string;
 }
 
 export function UiListRow({
@@ -50,6 +51,7 @@ export function UiListRow({
   right,
   subtitleTrailing: subtitleTrailing,
   title,
+  tooltip,
   ...props
 }: UiListRowProps) {
   const presentation = getUiListRowPresentation({
@@ -68,6 +70,7 @@ export function UiListRow({
       onKeyDown={(event) => handleListRowKeyDown(event, props.onKeyDown, onClick)}
       role={presentation.role}
       tabIndex={presentation.tabIndex}
+      title={tooltip}
     >
       {leading}
       {children ?? (

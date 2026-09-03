@@ -60,6 +60,23 @@ describe("UiListRow", () => {
     expect(row.className).toContain("radius-control-md");
     expect(row.className).not.toContain("min-h-[64px]");
   });
+
+  it("provides a shared dense row for 40px dialog and sidebar lists", () => {
+    render(
+      <UiListRow
+        data-testid="dense-row"
+        density="dense"
+        onClick={() => undefined}
+        title="记忆条目"
+        tooltip="memory/note.md"
+      />,
+    );
+
+    const row = screen.getByTestId("dense-row");
+    expect(row.className).toContain("min-h-10");
+    expect(row.className).toContain("py-1.5");
+    expect(row.getAttribute("title")).toBe("memory/note.md");
+  });
 });
 
 describe("UiListActionButton", () => {

@@ -505,6 +505,21 @@ test("Memory surfaces share one semantic spinner scale", async () => {
   }
 });
 
+test("Memory navigation and Room member choices reuse dense shared list rows", async () => {
+  const [catalog, indexEntries, roomMembers] = await Promise.all([
+    readSource("src/features/memory/catalog/agent-memory-catalog.tsx"),
+    readSource("src/features/memory/document/index/memory-index-entries.tsx"),
+    readSource("src/features/conversation/room/members/room-member-selector.tsx"),
+  ]);
+
+  for (const source of [catalog, indexEntries, roomMembers]) {
+    assert.match(source, /<UiListRow/);
+    assert.match(source, /density="dense"/);
+    assert.doesNotMatch(source, /<button\b/);
+  }
+  assert.match(roomMembers, /<UiChoiceButton/);
+});
+
 test("General, Personal, and Browser settings share semantic Spinner roles", async () => {
   const paths = [
     "src/features/settings/browser/browser-settings-section.tsx",
