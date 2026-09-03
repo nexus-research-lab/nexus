@@ -26,7 +26,7 @@ import {
 } from "react";
 
 import type { Locale } from "@/shared/i18n/messages";
-import { UiButton, UiLinkButton } from "@/shared/ui/button/button";
+import { UiButton, UiIconButton, UiLinkButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
@@ -85,7 +85,6 @@ import { WorkspaceLoadingState } from "@/shared/ui/workspace/frame/workspace-loa
 import { WorkspacePageFrame } from "@/shared/ui/workspace/frame/workspace-page-frame";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
-import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import { WorkspaceSurfaceView } from "@/shared/ui/workspace/surface/workspace-surface-view";
 import { WorkspaceTaskPanel } from "@/shared/ui/workspace/surface/workspace-task-strip";
 import { WorkspaceFileTree } from "@/shared/ui/workspace/tree/workspace-file-tree";
@@ -601,7 +600,7 @@ export function WorkspaceGallery({ locale }: { locale: Locale }) {
           </WorkspacePageFrame>
         </PreviewCard>
 
-        <PreviewCard components={["WorkspaceSurfaceHeader", "WorkspaceSurfaceToolbarAction"]}>
+        <PreviewCard components={["WorkspaceSurfaceHeader", "UiIconButton"]}>
           <WorkspaceSurfaceHeader
             activeTab={activeSurfaceTab}
             compactTabsLabel={galleryText(locale, "切换视图", "Switch view")}
@@ -614,7 +613,15 @@ export function WorkspaceGallery({ locale }: { locale: Locale }) {
               { icon: FileCode2, key: "files", label: galleryText(locale, "文件", "Files") },
             ]}
             title="Nexus UI"
-            trailing={<WorkspaceSurfaceToolbarAction ariaLabel={galleryText(locale, "更多", "More")}><Ellipsis className="h-4 w-4" /></WorkspaceSurfaceToolbarAction>}
+            trailing={(
+              <UiIconButton
+                aria-label={galleryText(locale, "更多", "More")}
+                size="sm"
+                variant="ghost"
+              >
+                <Ellipsis className="h-4 w-4" />
+              </UiIconButton>
+            )}
           />
         </PreviewCard>
 

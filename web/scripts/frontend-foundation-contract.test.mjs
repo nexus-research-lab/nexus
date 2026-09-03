@@ -298,14 +298,13 @@ test("Room Thread and subagent overlays reuse the narrow shell and semantic laye
 });
 
 test("Workspace Surface primitives own their semantic typography and identity shape", async () => {
-  const [header, headerStyles, view, toolbarAction] = await Promise.all([
+  const [header, headerStyles, view] = await Promise.all([
     readSource("src/shared/ui/workspace/surface/workspace-surface-header.tsx"),
     readSource("src/shared/ui/workspace/surface/workspace-surface-header.css"),
     readSource("src/shared/ui/workspace/surface/workspace-surface-view.tsx"),
-    readSource("src/shared/ui/workspace/surface/workspace-surface-toolbar-action.tsx"),
   ]);
 
-  for (const primitive of [header, view, toolbarAction]) {
+  for (const primitive of [header, view]) {
     assert.match(primitive, /getUiTypographyClassName/);
   }
   assert.match(header, /role: "pageTitle"/);
@@ -319,7 +318,25 @@ test("Workspace Surface primitives own their semantic typography and identity sh
   );
   assert.doesNotMatch(headerStyles, /nav\.workspace-surface-header-view-tabs/);
   assert.match(view, /role: "pageTitle"/);
-  assert.match(toolbarAction, /role: "caption"/);
+});
+
+test("Page Header actions use the base Button owner without a domain adapter", async () => {
+  const paths = [
+    "src/features/capability/channels/channels-directory.tsx",
+    "src/features/capability/channels/pairings-directory.tsx",
+    "src/features/capability/connectors/connectors-directory.tsx",
+    "src/features/capability/scheduled/scheduled-tasks-directory.tsx",
+    "src/features/capability/skills/skills-header-actions.tsx",
+    "src/features/settings/operations/operations-panel.tsx",
+  ];
+  const sources = await Promise.all(paths.map(readSource));
+
+  for (const source of sources) {
+    assert.match(source, /<UiButton/);
+    assert.match(source, /size="2xs"/);
+    assert.match(source, /variant="text"/);
+    assert.doesNotMatch(source, /WorkspaceSurfaceToolbarAction/);
+  }
 });
 
 test("Conversation activity chips share one semantic typography and icon-action owner", async () => {

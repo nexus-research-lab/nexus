@@ -150,7 +150,7 @@ export const UI_GALLERY_COVERAGE_GROUPS: readonly UiGalleryCoverageGroup[] = [
     components: [
       "WorkspaceContentHeader", "WorkspaceContentDetailHeader", "WorkspacePageFrame",
       "WorkspaceSurfaceHeader", "WorkspaceSurfaceScaffold", "WorkspaceSurfaceView",
-      "WorkspaceSurfaceToolbarAction", "PanelResizeHandle",
+      "PanelResizeHandle",
     ],
   },
   {

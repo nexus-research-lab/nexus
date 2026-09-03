@@ -38,6 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Removed the misleading Workspace-only toolbar action adapter: Capability and
+  Operations page headers now use the base micro text Button contract directly,
+  icon-only Header actions use IconButton, and Operations page modes use the
+  same neutral line treatment as other page-level sections.
 - Replaced the stretched Skill and Connector directory mode capsules with one
   shared single-line, neutral-underline page-mode contract; long labels no
   longer wrap or divide the full content width in narrow windows.

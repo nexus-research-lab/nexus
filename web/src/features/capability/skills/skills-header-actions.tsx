@@ -15,13 +15,12 @@ import { SKILLS_TOUR_ANCHORS } from "@/features/onboarding/tours/skills-tour";
 import { useMediaQuery } from "@/hooks/ui/use-media-query";
 import { APP_NARROW_VIEWPORT_MEDIA_QUERY } from "@/lib/layout/home-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiIconButton } from "@/shared/ui/button/button";
+import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import {
   UiActionMenu,
   type UiActionMenuItem,
 } from "@/shared/ui/menu/action-menu";
-import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 
 import type { SkillImportDialogMode } from "./controller/skill-marketplace-controller";
 
@@ -133,20 +132,24 @@ function SkillsHeaderDesktopActions({
   return (
     <div className="flex items-center gap-2">
       <div className="flex items-center" data-tour-anchor={SKILLS_TOUR_ANCHORS.import_skill}>
-        <WorkspaceSurfaceToolbarAction
+        <UiButton
           disabled={importing}
           onClick={() => onOpenImport("local")}
+          size="2xs"
+          variant="text"
         >
           <Download className="h-3.5 w-3.5" />
           {importing
             ? t("capability.skills_importing")
             : t("capability.import_skill")}
-        </WorkspaceSurfaceToolbarAction>
+        </UiButton>
       </div>
       <div className="flex items-center" data-tour-anchor={SKILLS_TOUR_ANCHORS.update_library}>
-        <WorkspaceSurfaceToolbarAction
+        <UiButton
           disabled={checkingUpdates}
           onClick={onCheckUpdates}
+          size="2xs"
+          variant="text"
         >
           {checkingUpdates ? (
             <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
@@ -156,17 +159,17 @@ function SkillsHeaderDesktopActions({
           {checkingUpdates
             ? t("capability.skills_checking")
             : t("capability.update_library")}
-        </WorkspaceSurfaceToolbarAction>
+        </UiButton>
       </div>
-      <WorkspaceSurfaceToolbarAction onClick={onOpenSources}>
+      <UiButton onClick={onOpenSources} size="2xs" variant="text">
         <SlidersHorizontal className="h-3.5 w-3.5" />
         {t("capability.skill_sources")}
-      </WorkspaceSurfaceToolbarAction>
+      </UiButton>
       {onReplayTour ? (
-        <WorkspaceSurfaceToolbarAction onClick={onReplayTour}>
+        <UiButton onClick={onReplayTour} size="2xs" variant="text">
           <Compass className="h-3.5 w-3.5" />
           {t("common.view_guide")}
-        </WorkspaceSurfaceToolbarAction>
+        </UiButton>
       ) : null}
     </div>
   );

@@ -18,11 +18,11 @@ import { useNavigate, useParams } from "react-router-dom";
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { CapabilityPageLayout } from "@/features/capability/shared/capability-page-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button/button";
 import { completeFeedbackBanner } from "@/shared/ui/feedback/feedback-banner-contract";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
-import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import type { ConnectorsRouteParams } from "@/types/app/route";
 import type { ConnectorDetail } from "@/types/capability/connector";
 
@@ -273,14 +273,16 @@ export function ConnectorsDirectory() {
     surfaceContent = (
       <CapabilityPageLayout
         actions={directoryMode === "custom_mcp" ? (
-          <WorkspaceSurfaceToolbarAction
+          <UiButton
             disabled={customMCP.busy}
             onClick={customMCP.openCreate}
+            size="2xs"
             tone="primary"
+            variant="text"
           >
             <Plus className="h-3.5 w-3.5" />
             {t("capability.custom_mcp_add")}
-          </WorkspaceSurfaceToolbarAction>
+          </UiButton>
         ) : undefined}
         description={t("capability.connectors_intro_description")}
         title={t("capability.connectors_intro_title")}
