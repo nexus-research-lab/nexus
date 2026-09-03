@@ -895,6 +895,8 @@ export const zhConversationMessages = {
   "message.activity_executing": "正在执行",
   "message.activity_waiting_permission": "等待确认",
   "message.activity_waiting_input": "等待输入",
+  "message.api_retrying": "正在重试",
+  "message.api_retry_waiting": "{seconds} 秒后",
   "message.stopped": "已停止",
   "message.failed": "执行失败",
   "message.generated_files": "生成文件",

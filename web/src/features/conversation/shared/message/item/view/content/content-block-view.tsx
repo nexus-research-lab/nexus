@@ -12,7 +12,6 @@ import type {
   PermissionDecisionPayload,
 } from "@/types/conversation/interaction/permission";
 import { hasLiveStreamRevealMarker } from "@/lib/conversation/live-stream-reveal";
-import { isHiddenSystemEvent } from "../../../message-content-model";
 
 import { ImageBlock } from "../../../blocks/artifact/image/image-block";
 import { WorkspaceFileArtifactBlock } from "../../../blocks/artifact/workspace-file-artifacts";
@@ -184,7 +183,7 @@ function renderImageBlock(
 }
 
 function renderSystemEventBlock(block: ContentBlockOf<"system_event">) {
-  return isHiddenSystemEvent(block) ? null : <ContentSystemEvent block={block} />;
+  return <ContentSystemEvent block={block} />;
 }
 
 function renderWorkspaceFileArtifactBlock(

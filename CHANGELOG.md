@@ -90,6 +90,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Displayed Provider retry attempts as compact execution activity with the
+  original error and countdown, and preserved the final raw runtime error when
+  retries are exhausted.
 - Reconciled the unpublished Control schema migration numbers with the published
   Connector migrations and safely replayed whichever side a local database had
   missed during the branch merge.

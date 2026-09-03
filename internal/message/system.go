@@ -81,7 +81,11 @@ func (p *Processor) projectAPIRetrySystemMessage(message sdkprotocol.SystemMessa
 	metadata := normalizeAPIRetryMetadata(message.Data)
 	return p.buildSystemEventMessage(
 		"system_api_retry_"+p.ctx.RoundID,
-		firstNonEmpty(normalizeString(metadata["message"]), apiRetryDefaultMessage(metadata)),
+		firstNonEmpty(
+			normalizeString(metadata["error_details"]),
+			normalizeString(metadata["message"]),
+			apiRetryDefaultMessage(metadata),
+		),
 		metadata,
 	)
 }

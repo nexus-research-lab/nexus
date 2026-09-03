@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import {
+  ChevronRight,
   CornerDownRight,
   Info,
   LoaderCircle,
@@ -8,6 +9,7 @@ import {
 } from "lucide-react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import type { SystemEventContent } from "@/types/conversation/message/content";
 
@@ -35,6 +37,9 @@ const SYSTEM_EVENT_STYLES: Record<
 export function ContentSystemEvent({ block }: { block: SystemEventContent }) {
   const Icon = SYSTEM_EVENT_ICONS[block.icon];
   const style = SYSTEM_EVENT_STYLES[block.tone];
+  if (block.subtype === "api_retry") {
+    return <ApiRetrySystemEvent block={block} Icon={Icon} />;
+  }
   if (block.subtype === "memory_saved") {
     return <CompactSystemEvent block={block} Icon={Icon} />;
   }
@@ -57,11 +62,7 @@ export function ContentSystemEvent({ block }: { block: SystemEventContent }) {
         <span>{block.label}</span>
       </div>
       <div className="message-cjk-font min-w-0 max-w-full overflow-hidden break-words pt-1 text-[14px] leading-6 text-(--text-default)">
-        {block.subtype === "api_retry" ? (
-          <ApiRetrySystemEventBody block={block} />
-        ) : (
-          block.content
-        )}
+        {block.content}
       </div>
     </div>
   );
@@ -100,7 +101,14 @@ function CompactSystemEvent({
   );
 }
 
-function ApiRetrySystemEventBody({ block }: { block: SystemEventContent }) {
+function ApiRetrySystemEvent({
+  block,
+  Icon,
+}: {
+  block: SystemEventContent;
+  Icon: LucideIcon;
+}) {
+  const { t } = useI18n();
   const retryDelayMs =
     typeof block.retry_delay_ms === "number" && block.retry_delay_ms > 0
       ? block.retry_delay_ms
@@ -108,6 +116,10 @@ function ApiRetrySystemEventBody({ block }: { block: SystemEventContent }) {
   const [nowMs, setNowMs] = useResettableState(
     Date.now(),
     `${block.timestamp}\x1f${retryDelayMs}`,
+  );
+  const [expanded, setExpanded] = useResettableState(
+    true,
+    `${block.source_message_id}\x1f${block.attempt ?? ""}`,
   );
 
   useEffect(() => {
@@ -124,32 +136,53 @@ function ApiRetrySystemEventBody({ block }: { block: SystemEventContent }) {
   );
   const attemptText =
     typeof block.attempt === "number" && typeof block.max_retries === "number"
-      ? `(attempt ${block.attempt}/${block.max_retries})`
+      ? `${block.attempt}/${block.max_retries}`
       : null;
-  const retryText = formatRetryText(retryDelayMs, retryInSeconds, attemptText);
+  const waitText = retryDelayMs > 0 && retryInSeconds > 0
+    ? t("message.api_retry_waiting", { seconds: retryInSeconds })
+    : null;
   const content = block.content.length > MAX_API_RETRY_ERROR_CHARS
-    ? `${block.content.slice(0, MAX_API_RETRY_ERROR_CHARS)}...`
+    ? `${block.content.slice(0, MAX_API_RETRY_ERROR_CHARS)}…`
     : block.content;
 
   return (
-    <>
-      <div>{content}</div>
-      <div className="mt-0.5 text-sm leading-5 text-(--text-muted)">
-        {retryText}
-      </div>
-    </>
+    <div
+      className="min-w-0 px-1.5 py-0.5 text-sm font-normal leading-5"
+      data-activity-row="system-event"
+      data-system-event-subtype={block.subtype}
+    >
+      <button
+        aria-expanded={expanded}
+        className="grid min-w-0 grid-cols-[20px_minmax(0,1fr)] items-center gap-1.5 text-left text-(--text-soft)"
+        onClick={() => setExpanded((current) => !current)}
+        type="button"
+      >
+        <span
+          className="flex h-5 w-5 shrink-0 items-center justify-center text-(--icon-muted)"
+          data-timeline-anchor
+          data-timeline-anchor-mode="box"
+        >
+          <Icon aria-hidden className="h-3.5 w-3.5" strokeWidth={1.8} />
+        </span>
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span>{t("message.api_retrying")}</span>
+          {attemptText ? <span className="shrink-0">{attemptText}</span> : null}
+          {waitText ? <span className="shrink-0 text-xs text-(--text-muted)">· {waitText}</span> : null}
+          <ChevronRight
+            aria-hidden
+            className={cn(
+              "h-3.5 w-3.5 shrink-0 transition-transform",
+              expanded && "rotate-90",
+            )}
+            strokeWidth={1.8}
+          />
+        </span>
+      </button>
+      {expanded ? (
+        <span className="message-cjk-font ml-[26px] mt-0.5 block min-w-0 break-words text-xs leading-5 text-(--text-muted)">
+          {content}
+        </span>
+      ) : null}
+    </div>
   );
-}
-
-function formatRetryText(
-  retryDelayMs: number,
-  retryInSeconds: number,
-  attemptText: string | null,
-): string {
-  const attemptSuffix = attemptText ? ` ${attemptText}` : "";
-  if (retryDelayMs <= 0) {
-    return `Retrying...${attemptSuffix}`;
-  }
-  const retryUnit = retryInSeconds === 1 ? "second" : "seconds";
-  return `Retrying in ${retryInSeconds} ${retryUnit}...${attemptSuffix}`;
 }

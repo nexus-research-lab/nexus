@@ -276,6 +276,79 @@ test("provider retry is transient and a durable Session reconciliation is author
   assert.equal(state.failure, null);
 });
 
+test("provider retry keeps raw error and timing in the process row", async () => {
+  const { buildSystemEventBlocks } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/controller/projection/message-item-system-events.ts",
+  );
+  const { ContentSystemEvent } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/content/content-system-event.tsx",
+  );
+  const { I18N_CONTEXT } = await server.ssrLoadModule(
+    "/src/shared/i18n/i18n-context.ts",
+  );
+  const { MESSAGES } = await server.ssrLoadModule(
+    "/src/shared/i18n/messages.ts",
+  );
+  const rawError = "The engine is currently overloaded, please try again later";
+  const [block] = buildSystemEventBlocks([{
+    agent_id: "nexus",
+    content: rawError,
+    message_id: "retry-1",
+    metadata: {
+      attempt: 1,
+      error: "rate_limit",
+      max_retries: 10,
+      retry_delay_ms: 0,
+      subtype: "api_retry",
+    },
+    role: "system",
+    round_id: "round-a",
+    session_key: "dm:session-a",
+    timestamp: Date.now(),
+  }], true);
+  assert.equal(block.attempt, 1);
+  assert.equal(block.max_retries, 10);
+  assert.equal(block.error, "rate_limit");
+
+  const t = (key, params = {}) => (MESSAGES.zh[key] ?? key).replace(
+    /\{(\w+)\}/g,
+    (match, name) => params[name] ?? match,
+  );
+  const html = renderToStaticMarkup(
+    React.createElement(
+      I18N_CONTEXT.Provider,
+      { value: { locale: "zh", setLocale: () => {}, t } },
+      React.createElement(ContentSystemEvent, { block }),
+    ),
+  );
+  assert.match(html, /正在重试/);
+  assert.match(html, /1\/10/);
+  assert.match(html, /The engine is currently overloaded/);
+  assert.match(html, /aria-expanded="true"/);
+  assert.match(html, /data-system-event-subtype="api_retry"/);
+});
+
+test("nxs Provider terminal reasons map to stable recovery guidance", async () => {
+  const { resolveAssistantFailureCode } = await server.ssrLoadModule(
+    "/src/hooks/agent/message/assistant-message-model.ts",
+  );
+  const message = (terminalReason) => ({
+    result_summary: {
+      duration_api_ms: 0,
+      duration_ms: 0,
+      is_error: true,
+      num_turns: 0,
+      subtype: "error",
+      terminal_reason: terminalReason,
+    },
+  });
+  assert.equal(resolveAssistantFailureCode(message("rate_limit")), "provider_unavailable");
+  assert.equal(resolveAssistantFailureCode(message("server_error")), "provider_unavailable");
+  assert.equal(resolveAssistantFailureCode(message("billing_error")), "usage_limited");
+  assert.equal(resolveAssistantFailureCode(message("authentication_failed")), "provider_configuration");
+  assert.equal(resolveAssistantFailureCode(message("invalid_request")), "validation_failed");
+});
+
 test("user notice stays concise and hides transport or request details", async () => {
   const { ConversationReliabilityNotice } = await server.ssrLoadModule(
     "/src/features/conversation/shared/conversation-reliability-notice.tsx",

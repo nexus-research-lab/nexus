@@ -60,7 +60,7 @@ src/
 - 应用 Tour 目录和引导中心归 `features/onboarding/`；页面只注册当前 Tour 与锚点，跨页面导航、自动启动和目录投影不得下沉到 `shared/ui`
 - Room 群聊面板只在 `panel/` 组合会话、Goal 与输入区模型；普通和虚拟消息流必须共用 `feed/group-conversation-round.tsx`，不得复制轮次分支
 - DM 与 Room 只通过 `shared/session/use-conversation-session.ts` 串联运行时、滚动、历史和时间线；具体面板只装配业务模型
-- DM/Room 滚动视口、历史提示、可靠性状态和浮动控制统一由 `shared/conversation-panel-layout.tsx` 渲染，不复制表面布局 class；可靠性提示只进入 Composer 状态栈，不进入 Feed 几何、transcript、历史或未读
+- DM/Room 滚动视口、历史提示、可靠性状态和浮动控制统一由 `shared/conversation-panel-layout.tsx` 渲染，不复制表面布局 class；可靠性提示只进入 Composer 状态栈，不进入 Feed 几何、transcript、历史或未读；runtime 的 ephemeral `api_retry` 是执行过程事实，按消息块展示原始错误、次数和倒计时后随 round 收口
 - Room 与子智能体统一消费 `conversation/shared/thread/` 的 Thread 轮次契约和消息面板；共享域不得反向依赖 Room 私有目录
 - 子智能体列表与线程复用 `shared/subagent/use-scoped-resource.ts` 的作用域请求协议；线程按资源和纯投影拆分为只读执行记录，公共 Hook 只做装配；Room 由私有适配层复用成员选择器并按任务 `host_agent_id` 过滤，共享域不得反向依赖 Room
 - Room 主 Feed 与 Thread 共用 `room/group/round/round-agent-model.ts` 的 Agent 聚合状态；状态优先级不得在视图中重复推导
