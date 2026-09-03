@@ -1064,6 +1064,27 @@ test("Scheduled task cards and attention details use shared semantic UI owners",
   }
 });
 
+test("Scheduled task run history uses shared panel, action, typography, and radius owners", async () => {
+  const paths = [
+    "src/features/capability/scheduled/history/view/scheduled-task-run-actions.tsx",
+    "src/features/capability/scheduled/history/view/scheduled-task-run-details.tsx",
+    "src/features/capability/scheduled/history/view/scheduled-task-run-history-item.tsx",
+  ];
+  const sources = await Promise.all(paths.map(readSource));
+  const combined = sources.join("\n");
+
+  assert.match(combined, /<UiButton/);
+  assert.match(combined, /<UiPanel/);
+  assert.match(combined, /getUiTypographyClassName/);
+  assert.match(sources[2], /radius-control-md/);
+  for (const source of sources) {
+    assert.doesNotMatch(
+      source,
+      /<button\b|rounded-\[|text-(?:2xs|xs|sm|base|md|lg|xl|2xl)|font-(?:normal|medium|semibold|bold)|tracking-\[/,
+    );
+  }
+});
+
 test("Connector catalog exposes only implemented products and derives real categories", async () => {
   const [serverCatalog, catalogHook, catalogModel, categoryModel, searchBar] = await Promise.all([
     readSource("../internal/service/connectors/catalog.go"),

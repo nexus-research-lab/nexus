@@ -1,9 +1,16 @@
+// INPUT: 单次运行的规范化输出、诊断行与复制动作。
+// OUTPUT: 共享 Panel/Typography 中的结果、错误与可折叠诊断详情。
+// POS: Scheduled 历史详情纯视图；不决定重跑或投递恢复行为。
+
 "use client";
 
 import { Copy } from "lucide-react";
 
+import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
+import { UiPanel } from "@/shared/ui/panel";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { ScheduledTaskRunItem } from "@/types/capability/scheduled-task/run";
 
 import {
@@ -30,25 +37,36 @@ export function ScheduledTaskRunDetails({
       {outputSections.map((section, index) => (
         <RunOutput key={`${section.label ?? section.tone}:${index}`} section={section} />
       ))}
-      <details className="mt-4 text-xs text-(--text-muted)">
-        <summary className="cursor-pointer list-none font-medium text-(--text-default) hover:text-(--text-strong)">
+      <details className={cn(
+        "mt-4",
+        getUiTypographyClassName({ role: "caption", tone: "muted" }),
+      )}>
+        <summary className={cn(
+          "cursor-pointer list-none hover:text-(--text-strong)",
+          getUiTypographyClassName({
+            role: "caption",
+            tone: "default",
+            weight: "medium",
+          }),
+        )}>
           诊断详情
         </summary>
-        <div className="mt-2 space-y-1.5 rounded-[10px] border border-(--divider-subtle-color) px-3 py-2.5">
+        <UiPanel className="mt-2 space-y-1.5" padding="sm" radius="sm">
           {diagnosticRows.map((row) => (
             <p className={cn(row.breakAll && "break-all")} key={row.label}>
               {row.label} {row.value}
             </p>
           ))}
-          <button
-            className="inline-flex items-center gap-1.5 pt-1 font-semibold text-(--text-default) hover:text-(--text-strong)"
+          <UiButton
+            className="mt-1"
             onClick={() => void onCopyDiagnostic()}
-            type="button"
+            size="xs"
+            variant="text"
           >
             <Copy className="h-3.5 w-3.5" />
             {isCopied ? "已复制" : "复制诊断"}
-          </button>
-        </div>
+          </UiButton>
+        </UiPanel>
       </details>
     </>
   );
@@ -57,14 +75,17 @@ export function ScheduledTaskRunDetails({
 function RunOutput({ section }: { section: RunOutputSection }) {
   if (section.tone === "default") {
     return (
-      <div className="mt-3 min-w-0 text-sm text-(--text-default)">
+      <div className="mt-3 min-w-0">
         {section.label ? (
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
+          <p className={getUiTypographyClassName({ role: "overline", tone: "muted" })}>
             {section.label}
           </p>
         ) : null}
         <UiMarkdownContent
-          className={cn("text-sm", section.label && "mt-2")}
+          className={cn(
+            getUiTypographyClassName({ role: "supporting", tone: "default" }),
+            section.label && "mt-2",
+          )}
           content={section.content}
           mermaidShowHeader={false}
         />
@@ -72,13 +93,20 @@ function RunOutput({ section }: { section: RunOutputSection }) {
     );
   }
   return (
-    <div className="mt-3 min-w-0 rounded-[8px] border border-[color:color-mix(in_srgb,var(--destructive)_15%,transparent)] px-3 py-2.5 text-sm text-(--destructive)">
+    <UiPanel
+      className="mt-3 min-w-0 border-[color:color-mix(in_srgb,var(--destructive)_15%,transparent)]"
+      padding="sm"
+      radius="sm"
+    >
       {section.label ? (
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
+        <p className={getUiTypographyClassName({ role: "overline", tone: "muted" })}>
           {section.label}
         </p>
       ) : null}
-      <p className="whitespace-pre-wrap break-words leading-5">{section.content}</p>
-    </div>
+      <p className={cn(
+        "whitespace-pre-wrap break-words",
+        getUiTypographyClassName({ role: "supporting", tone: "danger" }),
+      )}>{section.content}</p>
+    </UiPanel>
   );
 }

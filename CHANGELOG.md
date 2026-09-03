@@ -104,6 +104,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   typography, button focus, and surface radii through shared UI recipes.
 - Moved scheduled-task cards and attention details onto shared catalog cards,
   panels, buttons, badges, typography roles, and reduced-motion loading recipes.
+- Unified scheduled-task run rows, diagnostics, output errors, retry actions,
+  and artifact actions with shared typography, panel, radius, and button owners.
 - Established a single frontend engineering and design-system contract, and
   centralized high overlay layers and responsive dialog geometry behind semantic
   APIs to prevent page-specific stacking and small-window sizing drift.

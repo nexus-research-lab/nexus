@@ -1,3 +1,7 @@
+// INPUT: history model 投影的动作、运行产物与用户命令。
+// OUTPUT: 共享 Button 呈现的重跑、投递恢复、释放占用与产物动作。
+// POS: Scheduled 历史动作纯视图；不推断动作资格或命令结果。
+
 "use client";
 
 import type { ReactNode } from "react";
@@ -12,6 +16,7 @@ import {
 import { downloadWorkspaceFileApi } from "@/lib/api/agent/agent-api";
 import { getWorkspaceFileExternalActionCopy } from "@/lib/workspace-file-action";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button/button";
 import type { ScheduledTaskRunItem } from "@/types/capability/scheduled-task/run";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 
@@ -26,11 +31,6 @@ const RUN_ACTION_ICONS: Record<ScheduledTaskRunActionKind, LucideIcon> = {
   retry: RotateCcw,
   retry_delivery: RotateCcw,
 };
-
-const RUN_ACTION_TONE_CLASS_NAMES = {
-  danger: "inline-flex items-center justify-end gap-1.5 text-xs font-semibold text-(--destructive) transition duration-(--motion-duration-fast) hover:text-(--destructive) disabled:opacity-60",
-  primary: "inline-flex items-center justify-end gap-1.5 text-xs font-semibold text-(--primary) transition duration-(--motion-duration-fast) hover:text-(--primary-hover) disabled:opacity-60",
-} as const;
 
 interface ScheduledTaskRunActionsProps {
   isRecoveryUnconfirmed: boolean;
@@ -78,7 +78,7 @@ export function ScheduledTaskRunActions({
     return null;
   }
   return (
-    <div className="mt-3 flex flex-wrap items-center justify-end gap-x-4 gap-y-2 border-t border-(--divider-subtle-color) pt-3 text-sm text-(--text-default)">
+    <div className="mt-3 flex flex-wrap items-center justify-end gap-x-4 gap-y-2 border-t border-(--divider-subtle-color) pt-3">
       <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
         {actions.map((action) => {
           const Icon = RUN_ACTION_ICONS[action.kind];
@@ -121,16 +121,18 @@ function RunActionButton({
   tone: "danger" | "primary";
 }) {
   return (
-    <button
-      className={RUN_ACTION_TONE_CLASS_NAMES[tone]}
+    <UiButton
+      className="justify-end"
       disabled={disabled}
       onClick={() => void onClick()}
+      size="xs"
       title={title}
-      type="button"
+      tone={tone}
+      variant="text"
     >
       {icon}
       {label}
-    </button>
+    </UiButton>
   );
 }
 
@@ -157,15 +159,17 @@ function ScheduledRunArtifactButton({
     });
   };
   return (
-    <button
+    <UiButton
       aria-label={actionCopy.ariaLabel}
-      className="inline-flex items-center justify-end gap-1.5 text-xs font-semibold text-(--primary) transition duration-(--motion-duration-fast) hover:text-(--primary-hover)"
+      className="justify-end"
       onClick={downloadArtifact}
+      size="xs"
       title={actionCopy.title}
-      type="button"
+      tone="primary"
+      variant="text"
     >
       <Icon className="h-3.5 w-3.5" />
       {actionCopy.label}
-    </button>
+    </UiButton>
   );
 }
