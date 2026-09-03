@@ -5,12 +5,9 @@
  */
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ArrowLeft,
-  Check,
-  CircleAlert,
-  LoaderCircle,
   MessageCirclePlus,
   MessageSquareText,
   Trash2,
@@ -52,6 +49,7 @@ import {
   AgentCommunicationView,
   type AgentCommunicationViewState,
 } from "./agent-communication-view";
+import { AgentOptionsPersistenceStatus } from "./agent-options-persistence-status";
 import { ContactsAgentDetailActionsMenu } from "./contacts-agent-detail-actions-menu";
 
 interface ContactsAgentDetailProps {
@@ -268,72 +266,4 @@ export function ContactsAgentDetail({
 
 function isAgentOptionsTab(tab: AgentDetailTabKey): tab is AgentOptionsTabKey {
   return tab === "identity" || tab === "skills" || tab === "advanced";
-}
-
-function AgentOptionsPersistenceStatus({
-  state,
-}: {
-  state: AgentOptionsPersistenceState;
-}) {
-  const [mobileErrorOpen, setMobileErrorOpen] = useState(false);
-  useEffect(() => {
-    setMobileErrorOpen(false);
-  }, [state.message, state.phase]);
-  const StatusIcon = state.phase === "saving"
-    ? LoaderCircle
-    : state.phase === "success"
-      ? Check
-      : state.phase === "error"
-        ? CircleAlert
-        : null;
-  return (
-    <span
-      aria-live="polite"
-      className={cn(
-        "relative mr-1 inline-flex h-8 shrink-0 items-center gap-1 text-xs text-(--text-soft)",
-        state.phase === "success" && "text-(--success)",
-        state.phase === "error" && "text-(--destructive)",
-      )}
-      title={state.message}
-    >
-      {StatusIcon && state.phase === "error" ? (
-        <>
-          <button
-            aria-expanded={mobileErrorOpen}
-            aria-label={state.message}
-            className="flex h-8 w-8 items-center justify-center rounded-[7px] text-(--destructive) hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] sm:hidden"
-            data-agent-save-error-details
-            onClick={() => setMobileErrorOpen((current) => !current)}
-            type="button"
-          >
-            <StatusIcon aria-hidden="true" className="h-3.5 w-3.5" />
-          </button>
-          <StatusIcon aria-hidden="true" className="h-3.5 w-3.5 max-sm:hidden" />
-        </>
-      ) : StatusIcon ? (
-        <StatusIcon
-          aria-hidden="true"
-          className={cn(
-            "h-3.5 w-3.5",
-            state.phase === "saving" && "animate-spin",
-          )}
-        />
-      ) : null}
-      <span
-        aria-hidden={state.phase === "error" ? "true" : undefined}
-        className="sr-only sm:not-sr-only"
-      >
-        {state.message}
-      </span>
-      {state.phase === "error" && mobileErrorOpen ? (
-        <span
-          aria-hidden="true"
-          className="absolute right-0 top-[calc(100%+0.375rem)] z-40 w-[min(19rem,calc(100vw-1.5rem))] rounded-[10px] border border-[color:color-mix(in_srgb,var(--destructive)_20%,transparent)] bg-(--surface-popover-background) px-3 py-2.5 text-left text-xs font-normal leading-5 text-(--text-default) shadow-(--surface-popover-shadow) sm:hidden"
-          data-agent-save-error-popover
-        >
-          {state.message}
-        </span>
-      ) : null}
-    </span>
-  );
 }
