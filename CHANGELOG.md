@@ -100,6 +100,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Hid fork actions for failed or interrupted Assistant rounds while preserving
+  forks from completed successful replies.
 - Displayed Provider retry attempts as compact execution activity with the
   original error and countdown, and preserved the final raw runtime error when
   retries are exhausted.
