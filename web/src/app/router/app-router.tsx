@@ -1,8 +1,15 @@
+// INPUT: 当前 URL、认证边界与按需加载的页面模块。
+// OUTPUT: Nexus Web 的唯一产品路由树，以及遵循共享 Spinner 规范的页面加载占位。
+// POS: App 路由组合层；不拥有页面业务、认证数据或加载图标 recipe。
+
+import { LoaderCircle } from "lucide-react";
 import { lazy, Suspense } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import { APP_ROUTE_PATHS } from "@/app/router/route-paths";
 import { AuthGuard } from "@/app/router/auth-guard";
+import { useI18n } from "@/shared/i18n/i18n-context";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { OnboardingTourProvider } from "@/shared/ui/onboarding/tour-provider";
 
 const AuthenticatedAppSessionRoot = lazy(() =>
@@ -68,9 +75,19 @@ const OperationsPage = lazy(() =>
 
 /** 页面加载占位 */
 function PageFallback() {
+  const { t } = useI18n();
+
   return (
-    <div className="flex h-full items-center justify-center">
-      <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+    <div
+      aria-busy="true"
+      aria-label={t("common.loading")}
+      className="flex h-full items-center justify-center"
+      role="status"
+    >
+      <LoaderCircle
+        aria-hidden
+        className={getUiSpinnerClassName({ size: "xl", tone: "primary" })}
+      />
     </div>
   );
 }

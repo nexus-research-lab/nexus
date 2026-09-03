@@ -13,6 +13,7 @@ import {
 
 import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
 import { RecoverySummary } from "@/shared/ui/feedback/recovery-summary";
 import type {
@@ -108,7 +109,12 @@ const DEFAULT_STATE_ICONS: Record<UiResourceStateKind, ReactNode> = {
   empty: <Inbox className="h-5 w-5 text-(--icon-default)" />,
   error: <CircleAlert className="h-4 w-4 text-(--destructive)" />,
   decision: <CircleAlert className="h-4 w-4 text-(--warning)" />,
-  loading: <LoaderCircle className="h-5 w-5 animate-spin text-(--icon-muted) motion-reduce:animate-none" />,
+  loading: (
+    <LoaderCircle
+      aria-hidden
+      className={getUiSpinnerClassName({ size: "lg", tone: "muted" })}
+    />
+  ),
   success: <CheckCircle2 className="h-5 w-5 text-(--success)" />,
 };
 
@@ -231,7 +237,10 @@ function ResourceStateAction({
       variant={primary ? "surface" : "text"}
     >
       {action.busy ? (
-        <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
+        <LoaderCircle
+          aria-hidden
+          className={getUiSpinnerClassName({ size: "sm" })}
+        />
       ) : action.icon}
       {action.busy ? action.busyLabel ?? action.label : action.label}
     </UiButton>
