@@ -935,6 +935,21 @@ test("Skill directory chrome reuses shared actions, states, typography, and filt
   assert.doesNotMatch(detail, /animate-spin/);
 });
 
+test("Capability sidebar reuses shared list, typography, and shape owners", async () => {
+  const [panel, item] = await Promise.all([
+    readSource("src/features/capability/sidebar/capability-sidebar-panel.tsx"),
+    readSource("src/features/capability/sidebar/capability-sidebar-item.tsx"),
+  ]);
+
+  assert.match(panel, /SidebarSearchField/);
+  assert.match(panel, /getUiTypographyClassName/);
+  assert.doesNotMatch(panel, /text-(?:2xs|xs|sm|base|compact)|font-(?:medium|semibold)|rounded-\[/);
+  assert.match(item, /<UiListRow/);
+  assert.match(item, /getUiTypographyClassName/);
+  assert.match(item, /radius-control-md/);
+  assert.doesNotMatch(item, /rounded-\[|text-(?:2xs|xs|sm|base|compact)|font-(?:medium|semibold)/);
+});
+
 test("Channel catalog shares resource, typography, action, and brand icon owners", async () => {
   const [directory, card, channelIcon, connectorIcon, brandIcon] = await Promise.all([
     readSource("src/features/capability/channels/channels-directory.tsx"),
