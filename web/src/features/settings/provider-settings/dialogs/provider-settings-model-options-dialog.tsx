@@ -16,6 +16,7 @@ import {
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
 import { UiInput, UiTextarea } from "@/shared/ui/form/form-control";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import { CapabilitySwitch } from "../components/provider-settings-capability-switch";
@@ -173,7 +174,9 @@ export function ProviderModelOptionsDialog({
               type="button"
               variant="solid"
             >
-              {pendingAction?.kind === "save-model-options" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : t("common.save")}
+              {pendingAction?.kind === "save-model-options" ? (
+                <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
+              ) : t("common.save")}
             </UiButton>
           </UiDialogFooter>
         </UiDialogShell>

@@ -509,6 +509,25 @@ test("General, Personal, and Browser settings share semantic Spinner roles", asy
   }
 });
 
+test("Provider settings share one directory and action Spinner scale", async () => {
+  const paths = [
+    "src/features/settings/provider-settings/components/provider-settings-detail-header.tsx",
+    "src/features/settings/provider-settings/components/provider-settings-model-list.tsx",
+    "src/features/settings/provider-settings/components/provider-settings-sidebar.tsx",
+    "src/features/settings/provider-settings/dialogs/provider-settings-add-model-dialog.tsx",
+    "src/features/settings/provider-settings/dialogs/provider-settings-model-options-dialog.tsx",
+  ];
+  const sources = await Promise.all(paths.map(readSource));
+  const combined = sources.join("\n");
+
+  for (const source of sources) {
+    assert.match(source, /getUiSpinnerClassName/);
+    assert.doesNotMatch(source, /\banimate-spin\b/);
+  }
+  assert.match(combined, /size: "sm"/);
+  assert.match(combined, /size: "md", tone: "muted"/);
+});
+
 test("List and Badge primitives expose semantic typography and shape instead of page overrides", async () => {
   const [listRow, badge, badgeStyles, providerModels, connectorCard, customMcpGrid] = await Promise.all([
     readSource("src/shared/ui/list/list-row.tsx"),

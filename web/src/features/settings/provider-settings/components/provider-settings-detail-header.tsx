@@ -7,6 +7,7 @@ import { Loader2, Play } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
@@ -80,7 +81,7 @@ function ProviderTestMenu({
       className="w-auto min-w-18"
       disabled={disabled}
       leading={isTesting ? (
-        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
       ) : (
         <Play className="h-3.5 w-3.5" />
       )}

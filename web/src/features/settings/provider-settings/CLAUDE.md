@@ -25,5 +25,6 @@ Provider 表单弹窗使用 plain chrome：添加模型只显示 Model ID 与启
 侧栏目录、格式选项、标题和能力标志只由纯展示模型推导，控制器与面板不得重复解释 Provider 规则。
 Provider 图标按资源表解析；没有已知资源时统一回退名称首字母，不渲染空蒙版。
 Provider 标题、字段名、说明、状态、模型标识和图标首字母只选择 App Typography 语义角色；实际字体、字号、行高、字重与 tracking 由 `shared/ui/typography` 和主题 recipe 统一拥有。状态、计数与格式标识复用 `UiBadge`，业务文件不得拼接局部文字或徽标配方。
+Provider 目录加载与模型启停使用共享 `md` Spinner，Header、按钮和弹窗命令使用 `sm`；静止状态保留动作图标，业务文件不得自行拼旋转、颜色或 reduced-motion class。
 Provider 预设用 `endpoint_mode` 区分固定目录端点、资源级 Base URL 与完全自定义端点；Azure 只开放资源 Base URL，deployment name 通过手工添加模型进入模型卡。
 内置 Provider 侧栏按英文显示名排序；目录声明顺序不承担展示顺序语义。

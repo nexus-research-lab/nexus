@@ -1,3 +1,8 @@
+/**
+ * INPUT: 当前 Provider、模型目录、筛选和互斥命令状态。
+ * OUTPUT: 模型列表、能力标识及同步、默认、删除和启停动作。
+ * POS: Provider 详情内的模型目录视图；不拥有命令事务或共享加载样式。
+ */
 "use client";
 
 import {
@@ -18,6 +23,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
@@ -128,7 +134,7 @@ function ProviderModelListHeader({
             variant="surface"
           >
             {pendingAction?.kind === "fetch-models" ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
             ) : (
               <RefreshCw className="h-3.5 w-3.5" />
             )}
@@ -205,7 +211,11 @@ function ProviderModelToggle({
   const isPending = pendingAction?.kind === "toggle-model"
     && pendingAction.modelId === model.model_id;
   if (isPending) {
-    return <Loader2 className="h-4 w-4 animate-spin text-(--text-muted)" />;
+    return (
+      <Loader2
+        className={getUiSpinnerClassName({ size: "md", tone: "muted" })}
+      />
+    );
   }
   if (model.is_default) {
     return (
@@ -287,7 +297,7 @@ function ProviderModelRow({
               variant="ghost"
             >
               {isDefaultPending ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
               ) : (
                 <Star className="h-3.5 w-3.5" />
               )}
@@ -323,7 +333,7 @@ function ProviderModelRow({
             variant="ghost"
           >
             {isDeletePending ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
             ) : (
               <Trash2 className="h-3.5 w-3.5" />
             )}

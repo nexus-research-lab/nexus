@@ -10,6 +10,7 @@ import { ArrowDownToLine, Loader2, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiIconButton } from "@/shared/ui/button/button";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import {
   SettingsNavigationButton,
 } from "@/features/settings/shared/settings-panel-ui";
@@ -70,7 +71,9 @@ export function ProviderSettingsSidebar({
       <div className="soft-scrollbar max-h-[180px] min-h-0 overflow-y-auto sm:h-full sm:max-h-none sm:pr-2">
         {loading ? (
           <div className="flex min-h-[260px] items-center justify-center text-(--text-soft)">
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2
+              className={getUiSpinnerClassName({ size: "md", tone: "muted" })}
+            />
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-1 py-2 sm:block sm:space-y-1">
