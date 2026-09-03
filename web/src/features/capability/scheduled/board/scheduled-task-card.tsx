@@ -1,7 +1,7 @@
 /**
  * INPUT: 单项定时任务、durable 删除/命令状态与任务动作。
- * OUTPUT: 名称、指令摘要、计划、时间状态与单一注意事项；人工处理额外提供停止确认入口。
- * POS: 定时任务看板卡片；指令用于识别任务，诊断细节延后展示。
+ * OUTPUT: 共享目录卡中的名称、指令摘要、计划、时间状态与单一注意事项。
+ * POS: 定时任务看板卡片；复用 CatalogCard/Panel/Button，不拥有业务状态视觉 recipe。
  */
 "use client";
 
@@ -27,12 +27,16 @@ import {
 } from "lucide-react";
 
 import { CapabilityItemIcon } from "@/features/capability/shared/capability-page-layout";
-import { UiIconButton } from "@/shared/ui/button/button";
+import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import {
   UiActionMenu,
   type UiActionMenuItem,
 } from "@/shared/ui/menu/action-menu";
+import { UiPanel } from "@/shared/ui/panel";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
+import { WorkspaceCatalogCard } from "@/shared/ui/workspace/catalog/workspace-catalog-card";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 import type { AutomationPermissionDecision } from "@/types/capability/scheduled-task/permission";
 
@@ -209,13 +213,14 @@ export function ScheduledTaskCard({
 
   return (
     <>
-      <article
+      <WorkspaceCatalogCard
         className={cn(
-          "group rounded-[8px] border bg-transparent p-3 transition-[border-color,background-color] duration-(--motion-duration-fast) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)",
+          "group min-h-0 p-3 hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)",
           presentation.columnId === "attention"
             ? "border-[color:color-mix(in_srgb,var(--warning)_30%,var(--divider-subtle-color))]"
             : "border-(--divider-subtle-color)",
         )}
+        size="compact"
       >
         <div className="flex min-w-0 items-start gap-2.5">
           <CapabilityItemIcon
@@ -223,15 +228,21 @@ export function ScheduledTaskCard({
             size="sm"
           >
             <TaskIdentityIcon
-              className={cn(
-                "h-3.5 w-3.5",
-                presentation.columnId === "running" && "motion-safe:animate-spin",
-              )}
+              className={presentation.columnId === "running"
+                ? getUiSpinnerClassName({ size: "sm", tone: "current" })
+                : "h-3.5 w-3.5"}
             />
           </CapabilityItemIcon>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-start justify-between gap-2">
-              <span className="min-w-0 truncate text-xs font-medium text-(--text-soft)">
+              <span className={cn(
+                "min-w-0 truncate",
+                getUiTypographyClassName({
+                  role: "caption",
+                  tone: "soft",
+                  weight: "medium",
+                }),
+              )}>
                 {presentation.contextLabel}
               </span>
               <UiIconButton
@@ -257,40 +268,54 @@ export function ScheduledTaskCard({
                 onSelect={(value) => actionHandlers[value as TaskMenuAction]()}
               />
             </div>
-            <h3 className="mt-1 truncate text-base font-semibold leading-5 text-(--text-strong)">
+            <h3 className={cn(
+              "mt-1 truncate",
+              getUiTypographyClassName({ role: "sectionTitle", tone: "strong" }),
+            )}>
               {task.name}
             </h3>
           </div>
         </div>
-        <p className="mt-1 truncate text-compact leading-5 text-(--text-muted)">
+        <p className={cn(
+          "mt-1 truncate",
+          getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+        )}>
           {task.instruction}
         </p>
 
-        <div className="mt-2 space-y-1 text-xs leading-4 text-(--text-default)">
+        <div className={cn(
+          "mt-2 space-y-1",
+          getUiTypographyClassName({ role: "caption", tone: "default" }),
+        )}>
           <div className="flex min-w-0 items-center gap-1.5">
             <CalendarClock className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
-            <span className="truncate font-medium">{presentation.scheduleSummary}</span>
+            <span className="truncate ui-type-weight-medium">
+              {presentation.scheduleSummary}
+            </span>
           </div>
-          <div className="flex min-w-0 items-center gap-1.5 text-(--text-muted)">
+          <div className="flex min-w-0 items-center gap-1.5 ui-type-tone-muted">
             <Clock3 className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
             <span className="truncate">{presentation.timingSummary}</span>
           </div>
         </div>
 
         {hasAttention ? (
-          <div
+          <UiPanel
             className={cn(
-              "mt-2 overflow-hidden rounded-[6px] border",
+              "mt-2 overflow-hidden",
               presentation.deletion || presentation.binding || presentation.permission
                 ? "border-[color:color-mix(in_srgb,var(--warning)_24%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--warning)_4%,transparent)]"
                 : "border-[color:color-mix(in_srgb,var(--destructive)_20%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--destructive)_3%,transparent)]",
             )}
+            padding="none"
+            radius="sm"
           >
-            <button
+            <UiButton
               aria-label={`查看${attentionTitle}详情`}
-              className="flex w-full items-center gap-2 px-2.5 py-2 text-left transition-colors duration-(--motion-duration-fast) hover:bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_70%,transparent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_24%,transparent)]"
+              className="min-h-0 w-full justify-start gap-2 px-2.5 py-2 text-left hover:bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_70%,transparent)] focus-visible:ring-inset"
               onClick={() => setIsAttentionOpen(true)}
-              type="button"
+              size="sm"
+              variant="ghost"
             >
               <AttentionIcon
                 className={cn(
@@ -301,20 +326,37 @@ export function ScheduledTaskCard({
                 )}
               />
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-xs font-semibold text-(--text-strong)">
+                <span className={cn(
+                  "block truncate",
+                  getUiTypographyClassName({
+                    role: "caption",
+                    tone: "strong",
+                    weight: "semibold",
+                  }),
+                )}>
                   {attentionTitle}
                 </span>
                 {attentionDetail ? (
-                  <span className="mt-0.5 block truncate text-xs leading-4 text-(--text-muted)">
+                  <span className={cn(
+                    "mt-0.5 block truncate",
+                    getUiTypographyClassName({ role: "caption", tone: "muted" }),
+                  )}>
                     {attentionDetail}
                   </span>
                 ) : null}
               </span>
-              <span className="flex shrink-0 items-center gap-0.5 text-xs font-medium text-(--text-soft)">
+              <span className={cn(
+                "flex shrink-0 items-center gap-0.5",
+                getUiTypographyClassName({
+                  role: "caption",
+                  tone: "soft",
+                  weight: "medium",
+                }),
+              )}>
                 详情
                 <ChevronRight className="h-3 w-3" />
               </span>
-            </button>
+            </UiButton>
             {hasPermissionActions ? (
               <div className="flex items-center gap-1.5 border-t border-[color:color-mix(in_srgb,var(--warning)_18%,var(--divider-subtle-color))] px-2.5 py-2">
                 <ScheduledTaskPermissionActions
@@ -328,7 +370,7 @@ export function ScheduledTaskCard({
                 />
               </div>
             ) : null}
-          </div>
+          </UiPanel>
         ) : null}
 
         <div className="mt-2 flex items-center justify-end gap-1 border-t border-(--divider-subtle-color) pt-2">
@@ -354,7 +396,7 @@ export function ScheduledTaskCard({
             <Play className="h-3.5 w-3.5 fill-current" />
           </UiIconButton>
         </div>
-      </article>
+      </WorkspaceCatalogCard>
 
       <ScheduledTaskAttentionDialog
         deletionImpact={presentation.deletion?.impact ?? null}

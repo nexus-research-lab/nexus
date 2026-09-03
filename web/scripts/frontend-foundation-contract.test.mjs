@@ -1042,6 +1042,28 @@ test("Scheduled task board chrome uses shared action, typography, loading, and r
   );
 });
 
+test("Scheduled task cards and attention details use shared semantic UI owners", async () => {
+  const paths = [
+    "src/features/capability/scheduled/board/scheduled-task-card.tsx",
+    "src/features/capability/scheduled/board/scheduled-task-attention-dialog.tsx",
+  ];
+  const sources = await Promise.all(paths.map(readSource));
+  const combined = sources.join("\n");
+
+  assert.match(sources[0], /<WorkspaceCatalogCard/);
+  assert.match(combined, /<UiPanel/);
+  assert.match(combined, /<UiButton/);
+  assert.match(combined, /<UiBadge/);
+  assert.match(combined, /getUiTypographyClassName/);
+  assert.match(combined, /getUiSpinnerClassName/);
+  for (const source of sources) {
+    assert.doesNotMatch(
+      source,
+      /<button\b|rounded-\[|\bmotion-safe:animate-spin\b|text-(?:2xs|xs|sm|base|md|lg|xl|2xl)|font-(?:normal|medium|semibold|bold)/,
+    );
+  }
+});
+
 test("Connector catalog exposes only implemented products and derives real categories", async () => {
   const [serverCatalog, catalogHook, catalogModel, categoryModel, searchBar] = await Promise.all([
     readSource("../internal/service/connectors/catalog.go"),
