@@ -175,3 +175,26 @@ test("critical shared UI groups keep co-located DOM behavior suites", async () =
     assert.match(source, /(?:userEvent|fireEvent)/, suitePath);
   }
 });
+
+test("the UI contract gallery stays reproducible and outside production entries", async () => {
+  const [html, entry, gallery, viteConfig] = await Promise.all([
+    readSource("ui-gallery.html"),
+    readSource("src/entries/ui-gallery.tsx"),
+    readSource("src/dev/ui-gallery/ui-contract-gallery.tsx"),
+    readSource("vite.config.ts"),
+  ]);
+
+  assert.match(html, /src\/entries\/ui-gallery\.tsx/);
+  assert.match(entry, /bootstrapPublicReactApp/);
+  assert.match(entry, /UiContractGallery/);
+  assert.doesNotMatch(viteConfig, /ui-gallery\.html/);
+  for (const section of [
+    "Buttons & actions",
+    "Forms & selection",
+    "Identity & navigation",
+    "Resource states",
+    "Overlay & responsive checks",
+  ]) {
+    assert.match(gallery, new RegExp(section));
+  }
+});

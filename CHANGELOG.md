@@ -58,6 +58,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Session Navigator previews to the shared popover material/layer, removed the
   duplicate `UiPanel` inset variant, and added enforced behavior suites for
   shared panel, list, badge, counter, and resource-state primitives.
+- Added a development-only UI contract gallery that renders the real shared
+  actions, forms, identity, navigation, resource states, overlays, and dialog
+  primitives with reproducible theme and locale URLs while remaining outside
+  production build entries.
 - Updated the Feishu long-connection SDK to v3.11.0 and pinned DingTalk's
   official v0.9.2 beta stream SDK so both channels receive the vendors'
   current WebSocket lifecycle and concurrency fixes.
