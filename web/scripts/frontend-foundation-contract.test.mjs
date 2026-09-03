@@ -1140,6 +1140,26 @@ test("Scheduled pickers use shared actions, typography, and anchored overlay own
   }
 });
 
+test("Contacts directory and Agent cards use shared catalog, badge, typography, and action owners", async () => {
+  const [directory, card] = await Promise.all([
+    readSource("src/features/contacts/contacts-directory.tsx"),
+    readSource("src/features/contacts/contacts-agent-card.tsx"),
+  ]);
+  const combined = `${directory}\n${card}`;
+
+  assert.match(combined, /<WorkspaceCatalogCard|<WorkspaceCatalogGhostAction/);
+  assert.match(combined, /<UiPanel/);
+  assert.match(combined, /<UiBadge/);
+  assert.match(combined, /<UiButton/);
+  assert.match(combined, /getUiTypographyClassName/);
+  for (const source of [directory, card]) {
+    assert.doesNotMatch(
+      source,
+      /<button\b|rounded-\[|text-(?:2xs|xs|compact|sm|base|md|lg|xl|2xl)|font-(?:normal|medium|semibold|bold)|tracking-\[/,
+    );
+  }
+});
+
 test("Connector catalog exposes only implemented products and derives real categories", async () => {
   const [serverCatalog, catalogHook, catalogModel, categoryModel, searchBar] = await Promise.all([
     readSource("../internal/service/connectors/catalog.go"),

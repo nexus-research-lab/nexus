@@ -15,11 +15,17 @@ import { cn } from "@/shared/ui/class-name";
 import { WorkspaceContentHeader } from "@/shared/ui/layout/workspace-content-header";
 import { UiListRow } from "@/shared/ui/list/list-row";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
+import { UiPanel } from "@/shared/ui/panel";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import {
   WORKSPACE_CATALOG_GRID_CLASS_NAME,
   WORKSPACE_CONTENT_PAGE_CLASS_NAME,
 } from "@/shared/ui/layout/workspace-content-layout";
 import { WorkspaceCatalogGhostAction } from "@/shared/ui/workspace/catalog/workspace-catalog-card";
+import {
+  WorkspaceCatalogDescription,
+  WorkspaceCatalogTitle,
+} from "@/shared/ui/workspace/catalog/workspace-catalog-content";
 import { WorkspaceIconFrame } from "@/shared/ui/workspace/catalog/workspace-icon-frame";
 import { WorkspaceSearchInput } from "@/shared/ui/workspace/controls/workspace-search-input";
 import { Agent } from "@/types/agent/agent";
@@ -130,7 +136,10 @@ export function ContactsDirectory({
               value={searchQuery}
             />
             <div className="flex flex-wrap items-center gap-2">
-              <span className="mr-auto shrink-0 text-compact text-(--text-muted)">
+              <span className={cn(
+                "mr-auto shrink-0",
+                getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+              )}>
                 {t("contacts.result_count", {
                   count: filteredAgents.length,
                   total: agents.length,
@@ -170,7 +179,11 @@ export function ContactsDirectory({
                 size="sm"
                 value={permissionFilter}
               />
-              <div className="flex shrink-0 items-center rounded-[8px] border border-(--surface-control-border) p-0.5">
+              <UiPanel
+                className="flex shrink-0 items-center border-(--surface-control-border) p-0.5"
+                padding="none"
+                radius="sm"
+              >
                 <UiIconButton
                   aria-label={t("contacts.views.grid")}
                   aria-pressed={view === "grid"}
@@ -191,32 +204,36 @@ export function ContactsDirectory({
                 >
                   <List className="h-3.5 w-3.5" />
                 </UiIconButton>
-              </div>
+              </UiPanel>
             </div>
           </div>
-          <div className={view === "grid"
-            ? cn(WORKSPACE_CATALOG_GRID_CLASS_NAME, "gap-3.5 md:gap-4")
-            : "divide-y divide-(--divider-subtle-color) overflow-hidden rounded-[12px] border border-(--divider-subtle-color)"}
+          <UiPanel
+            className={view === "grid"
+              ? cn(WORKSPACE_CATALOG_GRID_CLASS_NAME, "gap-3.5 md:gap-4")
+              : "divide-y divide-(--divider-subtle-color) overflow-hidden"}
+            padding="none"
+            radius="md"
+            variant={view === "grid" ? "plain" : "card"}
           >
             {view === "grid" ? (
               <>
-                <button
-                  className="flex min-h-[138px] w-full items-center gap-3 rounded-[12px] border border-dashed border-(--divider-subtle-color) bg-transparent px-4 py-4 text-left transition duration-(--motion-duration-fast) ease-out hover:border-(--surface-interactive-active-border) hover:bg-(--surface-interactive-hover-background) md:hidden"
+                <WorkspaceCatalogGhostAction
+                  className="flex-row justify-start gap-3 text-left md:hidden"
                   onClick={onCreateAgent}
-                  type="button"
+                  size="compact"
                 >
                   <WorkspaceIconFrame className="h-10 w-10 shrink-0" shape="round" size="md">
                     <Plus className="h-4.5 w-4.5 text-(--icon-default)" />
                   </WorkspaceIconFrame>
                   <span className="min-w-0">
-                    <span className="block truncate text-base font-semibold text-(--text-strong)">
+                    <WorkspaceCatalogTitle as="span" className="block" size="sm" truncate>
                       {t("contacts.new_agent")}
-                    </span>
-                    <span className="mt-1 block line-clamp-2 text-xs leading-5 text-(--text-muted)">
+                    </WorkspaceCatalogTitle>
+                    <WorkspaceCatalogDescription className="mt-1" lines={2}>
                       {t("contacts.new_agent_description")}
-                    </span>
+                    </WorkspaceCatalogDescription>
                   </span>
-                </button>
+                </WorkspaceCatalogGhostAction>
                 <WorkspaceCatalogGhostAction
                   className="hidden py-8 md:flex"
                   onClick={onCreateAgent}
@@ -225,12 +242,12 @@ export function ContactsDirectory({
                   <WorkspaceIconFrame className="h-16 w-16" shape="round" size="lg">
                     <Plus className="h-7 w-7 text-(--icon-default)" />
                   </WorkspaceIconFrame>
-                  <p className="mt-4 text-md font-semibold tracking-[-0.03em] text-(--text-strong)">
+                  <WorkspaceCatalogTitle as="p" className="mt-4" size="lg">
                     {t("contacts.new_agent")}
-                  </p>
-                  <p className="mt-2 text-sm leading-5 text-(--text-default)">
+                  </WorkspaceCatalogTitle>
+                  <WorkspaceCatalogDescription className="mt-2" minHeight={false}>
                     {t("contacts.new_agent_description")}
-                  </p>
+                  </WorkspaceCatalogDescription>
                 </WorkspaceCatalogGhostAction>
               </>
             ) : (
@@ -257,11 +274,14 @@ export function ContactsDirectory({
               />
             ))}
             {agents.length > 0 && filteredAgents.length === 0 ? (
-              <p className="col-span-full px-4 py-10 text-center text-sm text-(--text-muted)">
+              <p className={cn(
+                "col-span-full px-4 py-10 text-center",
+                getUiTypographyClassName({ role: "supporting", tone: "muted" }),
+              )}>
                 {t("contacts.no_matches")}
               </p>
             ) : null}
-          </div>
+          </UiPanel>
         </div>
       </div>
     </div>

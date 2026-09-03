@@ -114,6 +114,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   advanced disclosure chrome through shared panels, typography, and radius roles.
 - Replaced Scheduled date/time plus triggers and text month navigation with shared
   accessible buttons, semantic picker choices, and labeled anchored overlays.
+- Consolidated the Contacts directory, create entries, Agent cards, metadata, tags,
+  empty results, and view switcher onto shared catalog and design-system owners.
 - Established a single frontend engineering and design-system contract, and
   centralized high overlay layers and responsive dialog geometry behind semantic
   APIs to prevent page-specific stacking and small-window sizing drift.
