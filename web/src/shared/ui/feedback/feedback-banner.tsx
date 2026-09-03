@@ -4,9 +4,9 @@
 import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
 
-import { cn } from "@/shared/ui/class-name";
-import { UiButton } from "@/shared/ui/button/button";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton, UiIconButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import {
@@ -57,10 +57,7 @@ export function FeedbackBanner({
     <div
       aria-atomic="true"
       aria-live={urgency}
-      className={cn(
-        "pointer-events-auto flex max-h-[calc(100dvh-6rem)] w-full min-w-0 max-w-[420px] items-start gap-2.5 overflow-y-auto rounded-[10px] border bg-[color:color-mix(in_srgb,var(--surface-panel-background)_97%,white)] px-3.5 py-3 shadow-[0_6px_24px_color-mix(in_srgb,var(--shadow-color)_9%,transparent)] sm:max-h-[calc(100dvh-7.5rem)] sm:min-w-[320px]",
-        presentation.shellClassName,
-      )}
+      className="surface-popover surface-radius-md pointer-events-auto flex max-h-[calc(100dvh-6rem)] w-full min-w-0 max-w-[420px] items-start gap-2.5 overflow-y-auto px-3.5 py-3 sm:max-h-[calc(100dvh-7.5rem)] sm:min-w-[320px]"
       role={urgency === "assertive" ? "alert" : "status"}
     >
       <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", presentation.iconClassName)} />
@@ -79,7 +76,10 @@ export function FeedbackBanner({
             nextStep={action ? undefined : nextStep}
           />
         ) : (
-          <p className="mt-0.5 break-words text-xs leading-5 text-(--text-muted) [overflow-wrap:anywhere]">
+          <p className={cn(
+            "mt-0.5 break-words [overflow-wrap:anywhere]",
+            getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+          )}>
             {noticeMessage}
           </p>
         )}
@@ -96,14 +96,15 @@ export function FeedbackBanner({
         ) : null}
       </div>
       {onDismiss ? (
-        <button
+        <UiIconButton
           aria-label={t("common.close")}
-          className="-mr-2 -mt-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-[7px] text-(--icon-muted) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default) motion-reduce:transition-none"
+          className="-mr-2 -mt-2 shrink-0 motion-reduce:transition-none"
           onClick={onDismiss}
-          type="button"
+          size="lg"
+          variant="ghost"
         >
           <X className="h-3.5 w-3.5" />
-        </button>
+        </UiIconButton>
       ) : null}
     </div>
   );

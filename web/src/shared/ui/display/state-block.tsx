@@ -9,6 +9,7 @@ import {
   type UiStateBlockTone,
   type UiStateBlockVariant,
 } from "@/shared/ui/display/state-block-styles";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 interface UiStateBlockProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
   actions?: ReactNode;
@@ -47,7 +48,7 @@ export function UiStateBlock({
             "chip-default flex items-center justify-center",
             tone === "default"
               ? "h-14 w-14 surface-radius-md"
-              : "h-9 w-9 rounded-[9px]",
+              : "h-9 w-9 radius-control-md",
           )}
         >
           {icon}
@@ -57,9 +58,9 @@ export function UiStateBlock({
         <h3
           className={cn(
             tone === "default"
-              ? "mt-5 text-lg font-semibold tracking-[-0.03em]"
-              : "mt-3 text-sm font-semibold tracking-[-0.015em]",
-            "text-(--text-strong)",
+              ? getUiTypographyClassName({ role: "objectTitle", tone: "strong" })
+              : getUiTypographyClassName({ role: "sectionTitle", tone: "strong" }),
+            tone === "default" ? "mt-5" : "mt-3",
             !icon && "mt-0",
           )}
         >
@@ -69,10 +70,10 @@ export function UiStateBlock({
       {description ? (
         <p
           className={cn(
-            "max-w-md text-(--text-default)",
+            "max-w-md",
             tone === "default"
-              ? "mt-2 text-sm leading-6"
-              : "mt-1.5 text-xs leading-5",
+              ? cn("mt-2", getUiTypographyClassName({ role: "supporting", tone: "default" }))
+              : cn("mt-1.5", getUiTypographyClassName({ role: "metadata", tone: "default" })),
           )}
         >
           {description}
