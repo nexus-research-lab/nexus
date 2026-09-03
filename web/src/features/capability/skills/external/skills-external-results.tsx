@@ -2,9 +2,9 @@ import { useMemo } from "react";
 
 import { CapabilitySectionHeader } from "@/features/capability/shared/capability-page-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { UiChoiceButton } from "@/shared/ui/form/choice";
 import { WORKSPACE_CATALOG_GRID_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import { UiPanel } from "@/shared/ui/panel";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
@@ -223,14 +223,13 @@ function ExternalSourceFilter({
   title,
 }: ExternalSourceFilterProps) {
   return (
-    <UiButton
-      aria-pressed={selected}
+    <UiChoiceButton
+      active={selected}
+      choiceSize="xs"
       className="max-w-full"
       disabled={disabled}
       onClick={onClick}
-      size="xs"
       title={title}
-      tone={selected ? "primary" : "default"}
       type="button"
       variant="surface"
     >
@@ -241,6 +240,6 @@ function ExternalSourceFilter({
       )}>
         {summary}
       </span>
-    </UiButton>
+    </UiChoiceButton>
   );
 }

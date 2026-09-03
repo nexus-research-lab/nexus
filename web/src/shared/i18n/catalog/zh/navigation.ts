@@ -127,6 +127,7 @@ export const zhNavigationMessages = {
   "contacts.filters.all_permissions": "全部权限",
   "contacts.views.grid": "卡片视图",
   "contacts.views.list": "列表视图",
+  "contacts.views.title": "目录视图",
   "contacts.metadata.permission": "权限",
   "contacts.metadata.provider": "Provider",
   "contacts.metadata.tools": "工具",

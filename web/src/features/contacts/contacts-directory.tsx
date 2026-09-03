@@ -10,8 +10,8 @@ import { useMemo, useState } from "react";
 
 import { AGENT_PERMISSION_MODES } from "@/lib/agent-options";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
+import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
 import { WorkspaceContentHeader } from "@/shared/ui/layout/workspace-content-header";
 import { UiListRow } from "@/shared/ui/list/list-row";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
@@ -179,32 +179,27 @@ export function ContactsDirectory({
                 size="sm"
                 value={permissionFilter}
               />
-              <UiPanel
-                className="flex shrink-0 items-center border-(--surface-control-border) p-0.5"
-                padding="none"
-                radius="sm"
-              >
-                <UiIconButton
-                  aria-label={t("contacts.views.grid")}
-                  aria-pressed={view === "grid"}
-                  onClick={() => setView("grid")}
-                  size="sm"
-                  title={t("contacts.views.grid")}
-                  variant="ghost"
-                >
-                  <LayoutGrid className="h-3.5 w-3.5" />
-                </UiIconButton>
-                <UiIconButton
-                  aria-label={t("contacts.views.list")}
-                  aria-pressed={view === "list"}
-                  onClick={() => setView("list")}
-                  size="sm"
-                  title={t("contacts.views.list")}
-                  variant="ghost"
-                >
-                  <List className="h-3.5 w-3.5" />
-                </UiIconButton>
-              </UiPanel>
+              <UiSegmentedControl
+                className="shrink-0"
+                density="compact"
+                onChange={setView}
+                options={[
+                  {
+                    icon: LayoutGrid,
+                    iconOnly: true,
+                    label: t("contacts.views.grid"),
+                    value: "grid",
+                  },
+                  {
+                    icon: List,
+                    iconOnly: true,
+                    label: t("contacts.views.list"),
+                    value: "list",
+                  },
+                ]}
+                title={t("contacts.views.title")}
+                value={view}
+              />
             </div>
           </div>
           <UiPanel
