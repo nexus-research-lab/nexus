@@ -39,6 +39,7 @@ const REQUIRED_SHARED_UI_BEHAVIOR_SUITES = [
   "src/shared/ui/list/list.test.tsx",
   "src/shared/ui/menu/menu.test.tsx",
   "src/shared/ui/navigation/tabs.test.tsx",
+  "src/shared/ui/onboarding/overlay/tour-overlay-card.test.tsx",
   "src/shared/ui/overlay/tooltip.test.tsx",
   "src/shared/ui/panel.test.tsx",
   "src/shared/ui/workspace/surface/workspace-task-strip.test.tsx",
@@ -313,6 +314,27 @@ test("Conversation activity chips share one semantic typography and icon-action 
     recipes.match(/\.conversation-activity-chip\s*\{[^}]*\}/s)?.[0] ?? "",
     /font-size|line-height/,
   );
+});
+
+test("Onboarding Tour card and target highlight consume shared typography and recipes", async () => {
+  const [card, overlay, recipes] = await Promise.all([
+    readSource("src/shared/ui/onboarding/overlay/tour-overlay-card.tsx"),
+    readSource("src/shared/ui/onboarding/overlay/tour-overlay.tsx"),
+    readSource("src/app/styles/theme-recipes.css"),
+  ]);
+
+  assert.match(card, /role: "pageTitle"/);
+  assert.match(card, /role: "supporting"/);
+  assert.match(card, /role: "metadata"/);
+  assert.match(card, /role: "caption"/);
+  assert.match(card, /<UiButton/);
+  assert.doesNotMatch(
+    card,
+    /\btext-(?:xs|compact|md)\b|\bfont-(?:medium|semibold)\b|\bleading-(?:5|tight)\b/,
+  );
+  assert.match(overlay, /className="tour-target-highlight pointer-events-none absolute"/);
+  assert.doesNotMatch(overlay, /shadow-\[0_0_0_9999px|rounded-\[10px\]/);
+  assert.match(recipes, /\.tour-target-highlight\s*\{[^}]*box-shadow:/s);
 });
 
 test("List and Badge primitives expose semantic typography and shape instead of page overrides", async () => {

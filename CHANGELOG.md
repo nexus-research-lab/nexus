@@ -38,6 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Centralized Onboarding Tour titles, descriptions, items, progress, and target
+  highlighting under the shared typography and surface recipes, with a retained
+  button behavior contract for future guide changes.
 - Unified the Composer Task, Room collaboration, and WorkGraph activity chips
   on one semantic typography recipe, and moved their compact icon actions onto
   the shared button primitive so the three status surfaces cannot drift apart.

@@ -1,6 +1,6 @@
 // INPUT: 当前 Tour 步骤、位置、进度和导航/关闭动作。
-// OUTPUT: 可滚动的引导卡片、步骤内容与统一 Button 导航。
-// POS: Onboarding Tour 卡片视图；不拥有按钮视觉或浮层定位生命周期。
+// OUTPUT: 可滚动、使用语义排版的引导卡片、步骤内容与统一 Button 导航。
+// POS: Onboarding Tour 卡片视图；不拥有按钮、文字 recipe 或浮层定位生命周期。
 
 import { forwardRef } from "react";
 import {
@@ -14,6 +14,7 @@ import {
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type {
   OnboardingTourStep,
   OnboardingTourStepItem,
@@ -67,7 +68,10 @@ export const TourOverlayCard = forwardRef<
       ) : null}
 
       <div className="flex items-start justify-between gap-4">
-        <h3 className="mt-0.5 min-w-0 text-md font-semibold tracking-tight text-(--text-strong)">
+        <h3 className={cn(
+          "mt-0.5 min-w-0",
+          getUiTypographyClassName({ role: "pageTitle", tone: "strong" }),
+        )}>
           {step.title}
         </h3>
         <UiButton
@@ -80,14 +84,20 @@ export const TourOverlayCard = forwardRef<
         </UiButton>
       </div>
 
-      <p className="mt-2 text-compact leading-5 text-(--text-default)">
+      <p className={cn(
+        "mt-2",
+        getUiTypographyClassName({ role: "supporting", tone: "default" }),
+      )}>
         {step.description}
       </p>
 
       {step.items?.length ? <TourStepItems items={step.items} /> : null}
 
-      <div className="mt-3 border-t border-(--divider-subtle-color) pt-3 flex items-center justify-between gap-3">
-        <span className="text-xs font-medium tabular-nums text-(--text-muted)">
+      <div className="mt-3 flex items-center justify-between gap-3 border-t border-(--divider-subtle-color) pt-3">
+        <span className={cn(
+          "tabular-nums",
+          getUiTypographyClassName({ role: "caption", tone: "muted", weight: "medium" }),
+        )}>
           {stepIndex + 1} / {stepCount}
         </span>
         <div className="flex items-center gap-2">
@@ -148,7 +158,7 @@ function TourStepItems({ items }: { items: OnboardingTourStepItem[] }) {
             key={item.text}
           >
             <Icon className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
-            <span className="text-compact leading-5 text-(--text-default)">
+            <span className={getUiTypographyClassName({ role: "metadata", tone: "default" })}>
               {item.text}
             </span>
           </div>
