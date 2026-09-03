@@ -110,6 +110,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Loop, and WorkGraph details so every secondary capability page shares one rhythm.
 - Kept shared segmented-control labels on one line so Skill source tabs and other
   compact selectors no longer grow unevenly when a toolbar becomes narrow.
+- Standardized scheduled-task form grouping, rebind guidance, helper copy, and
+  advanced disclosure chrome through shared panels, typography, and radius roles.
 - Established a single frontend engineering and design-system contract, and
   centralized high overlay layers and responsive dialog geometry behind semantic
   APIs to prevent page-specific stacking and small-window sizing drift.

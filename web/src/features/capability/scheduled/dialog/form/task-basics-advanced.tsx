@@ -1,3 +1,7 @@
+// INPUT: 执行/投递/权限草稿、资源投影与字段变更命令。
+// OUTPUT: 使用共享字段、Panel、Typography 与原生 disclosure 的高级任务配置。
+// POS: Scheduled 基础表单的高级视图；不维护资源请求或提交事务。
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -5,10 +9,13 @@ import { useEffect, useState } from "react";
 import { Link2Off, Settings2 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { cn } from "@/shared/ui/class-name";
 import { UiChoiceButton } from "@/shared/ui/form/choice";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
+import { UiPanel } from "@/shared/ui/panel";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import type {
   ChoiceDef,
@@ -78,7 +85,10 @@ function TaskChoiceField<Value extends string>({
         ))}
       </div>
       {help ? (
-        <p className="mt-2 text-xs leading-5 text-(--text-muted)">{help}</p>
+        <p className={cn(
+          "mt-2",
+          getUiTypographyClassName({ role: "caption", tone: "muted" }),
+        )}>{help}</p>
       ) : null}
     </div>
   );
@@ -415,43 +425,59 @@ export function TaskBasicsAdvanced(props: TaskBasicsAdvancedProps) {
   return (
     <>
       {props.needsSessionRebind ? (
-        <div
-          className="flex gap-2.5 rounded-[8px] border border-[color:color-mix(in_srgb,var(--warning)_24%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--warning)_5%,transparent)] p-3"
+        <UiPanel
+          className="flex gap-2.5 border border-[color:color-mix(in_srgb,var(--warning)_24%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--warning)_5%,transparent)]"
+          padding="sm"
+          radius="sm"
           role="status"
+          variant="plain"
         >
           <Link2Off className="mt-0.5 h-4 w-4 shrink-0 text-(--warning)" />
           <div className="min-w-0">
-            <p className="text-xs font-medium text-(--text-strong)">
+            <p className={getUiTypographyClassName({
+              role: "supporting",
+              tone: "strong",
+              weight: "medium",
+            })}>
               {t("capability.scheduled_dialog_session_rebind_required")}
             </p>
-            <p className="mt-1 text-xs leading-5 text-(--text-muted)">
+            <p className={cn(
+              "mt-1",
+              getUiTypographyClassName({ role: "caption", tone: "muted" }),
+            )}>
               {t("capability.scheduled_dialog_session_rebind_description")}
             </p>
           </div>
-        </div>
+        </UiPanel>
       ) : null}
 
-      <div className="flex flex-col gap-4 rounded-[10px] border border-(--divider-subtle-color) p-3">
+      <UiPanel className="flex flex-col gap-4" padding="sm" radius="md">
         <TaskExecutionModeField actions={actions} form={form} isEditing={props.isEditing} />
         <TaskExecutionSessionField {...props} />
         <TaskRoomAgentField {...props} />
-      </div>
+      </UiPanel>
 
-      <div className="flex flex-col gap-4 rounded-[10px] border border-(--divider-subtle-color) p-3">
+      <UiPanel className="flex flex-col gap-4" padding="sm" radius="md">
         <TaskDeliveryFields {...props} />
-      </div>
+      </UiPanel>
 
       <details
-        className="group rounded-[10px] border border-(--divider-subtle-color) px-3 py-2.5"
+        className="group surface-radius-md border border-(--divider-subtle-color) px-3 py-2.5"
         onToggle={(event) => setIsOpen(event.currentTarget.open)}
         open={isOpen}
       >
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium text-(--text-default)">
+        <summary className={cn(
+          "flex cursor-pointer list-none items-center justify-between gap-3",
+          getUiTypographyClassName({ role: "control", tone: "default", weight: "medium" }),
+        )}>
           <span className="inline-flex items-center gap-2">
             <Settings2 className="h-3.5 w-3.5 text-(--icon-default)" />
             {t("capability.scheduled_dialog_advanced")}
           </span>
-          <span className="truncate text-xs font-normal text-(--text-muted)">
+          <span className={cn(
+            "truncate",
+            getUiTypographyClassName({ role: "caption", tone: "muted" }),
+          )}>
             {buildTaskAdvancedSummary(form, t)}
           </span>
         </summary>

@@ -1,11 +1,17 @@
+// INPUT: 基础任务草稿、资源投影、变更命令与名称输入引用。
+// OUTPUT: 使用共享字段、选择控件和高级分组的任务身份与执行位置表单。
+// POS: Scheduled 创建/编辑左栏纯视图；不加载资源或提交任务。
+
 "use client";
 
 import { type RefObject } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { cn } from "@/shared/ui/class-name";
 import { UiChoiceButton } from "@/shared/ui/form/choice";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import type {
   TargetType,
@@ -85,7 +91,10 @@ export function TaskBasicsPanel({
             </UiChoiceButton>
           ))}
         </div>
-        <p className="mt-2 text-xs leading-5 text-(--text-muted)">
+        <p className={cn(
+          "mt-2",
+          getUiTypographyClassName({ role: "caption", tone: "muted" }),
+        )}>
           {t("capability.scheduled_dialog_execution_location_help")}
         </p>
       </div>
