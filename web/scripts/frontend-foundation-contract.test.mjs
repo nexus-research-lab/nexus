@@ -1112,6 +1112,34 @@ test("Scheduled task forms use shared panel, typography, and semantic radius own
   }
 });
 
+test("Scheduled pickers use shared actions, typography, and anchored overlay owners", async () => {
+  const paths = [
+    "src/features/capability/scheduled/pickers/daily-time-picker.tsx",
+    "src/features/capability/scheduled/pickers/single-run-picker.tsx",
+    "src/features/capability/scheduled/pickers/time-picker-column.tsx",
+    "src/features/capability/scheduled/pickers/picker-trigger.tsx",
+  ];
+  const sources = await Promise.all(paths.map(readSource));
+  const popover = await readSource(
+    "src/features/capability/scheduled/pickers/picker-popover.tsx",
+  );
+  const combined = sources.join("\n");
+
+  assert.match(combined, /<UiButton/);
+  assert.match(combined, /<UiIconButton/);
+  assert.match(combined, /<UiChoiceButton/);
+  assert.match(combined, /getUiTypographyClassName/);
+  assert.match(sources[1], /md:grid-cols-\[196px_minmax\(0,1fr\)\]/);
+  assert.match(popover, /useAnchoredOverlayLayer/);
+  assert.match(popover, /role="dialog"/);
+  for (const source of sources) {
+    assert.doesNotMatch(
+      source,
+      /<button\b|rounded-\[|text-(?:2xs|xs|sm|base|md|lg|xl|2xl)|font-(?:normal|medium|semibold|bold)|tracking-\[/,
+    );
+  }
+});
+
 test("Connector catalog exposes only implemented products and derives real categories", async () => {
   const [serverCatalog, catalogHook, catalogModel, categoryModel, searchBar] = await Promise.all([
     readSource("../internal/service/connectors/catalog.go"),

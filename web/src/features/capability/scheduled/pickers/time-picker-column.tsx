@@ -1,4 +1,8 @@
-import { getPickerColumnButtonClassName } from "./picker-styles";
+// INPUT: 有序时间选项、当前值、可选禁用规则与选择命令。
+// OUTPUT: 使用共享 ChoiceButton 的单列时间选项。
+// POS: Scheduled Picker 的无状态选项列；不管理滚动位置或时间转换。
+
+import { UiChoiceButton } from "@/shared/ui/form/choice";
 
 interface TimePickerColumnProps<T extends string> {
   getLabel?: (value: T) => string;
@@ -20,15 +24,16 @@ export function TimePickerColumn<T extends string>({
       {options.map((option) => {
         const disabled = isDisabled?.(option) ?? false;
         return (
-          <button
-            className={getPickerColumnButtonClassName(value === option, disabled)}
+          <UiChoiceButton
+            active={value === option}
+            className="w-full"
             disabled={disabled}
             key={option}
             onClick={() => onSelect(option)}
-            type="button"
+            variant="picker"
           >
             {getLabel?.(option) ?? option}
-          </button>
+          </UiChoiceButton>
         );
       })}
     </div>

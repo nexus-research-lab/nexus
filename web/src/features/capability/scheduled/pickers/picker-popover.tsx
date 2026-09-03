@@ -1,3 +1,7 @@
+// INPUT: Picker 锚点、展开状态、关闭命令、可访问名称与选择内容。
+// OUTPUT: 复用共享 anchored-overlay 生命周期和表面的日期/时间浮层。
+// POS: Scheduled Picker 浮层边界；不拥有字段触发器或选择状态。
+
 "use client";
 
 import { type ReactNode, type RefObject, useCallback } from "react";
@@ -14,6 +18,7 @@ import {
 
 interface PickerPopoverProps {
   anchorRef: RefObject<HTMLElement | null>;
+  ariaLabel: string;
   children: ReactNode;
   isOpen: boolean;
   onClose: () => void;
@@ -21,6 +26,7 @@ interface PickerPopoverProps {
 
 export function PickerPopover({
   anchorRef,
+  ariaLabel,
   children,
   isOpen,
   onClose,
@@ -58,12 +64,14 @@ export function PickerPopover({
   return createPortal(
     <div
       ref={overlayRef}
+      aria-label={ariaLabel}
       className={cn(
         "fixed left-0 top-0 ui-layer-dialog-interaction overflow-y-auto p-3",
         OVERLAY_SURFACE_CLASS_NAME,
         ANCHORED_OVERLAY_MOTION_CLASS_NAME,
       )}
       data-placement={overlayPosition?.placement ?? "bottom"}
+      role="dialog"
       style={overlayStyle}
       {...OPEN_OVERLAY_DATA_ATTRIBUTES}
     >

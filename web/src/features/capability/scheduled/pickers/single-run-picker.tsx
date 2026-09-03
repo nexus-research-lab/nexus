@@ -1,11 +1,22 @@
+// INPUT: 单次运行的日期/时间投影、禁用规则、月份导航与选择命令。
+// OUTPUT: 复用共享动作、Typography 和浮层的日历时间选择器。
+// POS: Scheduled 单次运行字段组合；不拥有日历计算或计划草稿。
+
 "use client";
 
 import { type RefObject } from "react";
 
+import { CalendarClock, ChevronLeft, ChevronRight } from "lucide-react";
+
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
+import { UiIconButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
+import { UiChoiceButton } from "@/shared/ui/form/choice";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import { PickerPopover } from "./picker-popover";
+import { PickerTrigger } from "./picker-trigger";
 import {
   HOUR_12_OPTIONS,
   MERIDIEM_OPTIONS,
@@ -13,10 +24,6 @@ import {
   SECOND_OPTIONS,
   type Meridiem,
 } from "./picker-types";
-import {
-  getPickerDateButtonClassName,
-  PICKER_TRIGGER_CLASS_NAME,
-} from "./picker-styles";
 import { TimePickerColumn } from "./time-picker-column";
 
 interface CalendarDay {
@@ -90,31 +97,53 @@ export function SingleRunPicker(props: SingleRunPickerProps) {
     selectedDate,
     visibleDays,
   } = props;
+  const pickerLabel = t("capability.scheduled_dialog_schedule");
 
   return (
     <div className="dialog-field">
-      <button
-        className={PICKER_TRIGGER_CLASS_NAME}
-        onClick={onToggle}
-        ref={anchorRef}
-        type="button"
+      <PickerTrigger
+        anchorRef={anchorRef}
+        display={display}
+        icon={CalendarClock}
+        isOpen={isOpen}
+        label={pickerLabel}
+        onToggle={onToggle}
+      />
+      <PickerPopover
+        anchorRef={anchorRef}
+        ariaLabel={pickerLabel}
+        isOpen={isOpen}
+        onClose={onClose}
       >
-        <span>{display}</span>
-        <span className="text-xl text-(--text-default)">+</span>
-      </button>
-      <PickerPopover anchorRef={anchorRef} isOpen={isOpen} onClose={onClose}>
-        <div className="grid gap-4 md:grid-cols-[196px,minmax(0,1fr)]">
+        <div className="grid gap-4 md:grid-cols-[196px_minmax(0,1fr)]">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <button className="text-sm font-semibold text-(--text-default)" onClick={onPrevMonth} type="button">
-                {t("capability.scheduled_dialog_previous_month")}
-              </button>
-              <span className="text-base font-semibold text-(--text-strong)">{monthLabel}</span>
-              <button className="text-sm font-semibold text-(--text-default)" onClick={onNextMonth} type="button">
-                {t("capability.scheduled_dialog_next_month")}
-              </button>
+              <UiIconButton
+                aria-label={t("capability.scheduled_dialog_previous_month")}
+                onClick={onPrevMonth}
+                size="sm"
+                variant="ghost"
+              >
+                <ChevronLeft aria-hidden="true" className="h-4 w-4" />
+              </UiIconButton>
+              <span className={getUiTypographyClassName({
+                role: "supporting",
+                tone: "strong",
+                weight: "semibold",
+              })}>{monthLabel}</span>
+              <UiIconButton
+                aria-label={t("capability.scheduled_dialog_next_month")}
+                onClick={onNextMonth}
+                size="sm"
+                variant="ghost"
+              >
+                <ChevronRight aria-hidden="true" className="h-4 w-4" />
+              </UiIconButton>
             </div>
-            <div className="grid grid-cols-7 gap-1.5 text-center text-xs text-(--text-muted)">
+            <div className={cn(
+              "grid grid-cols-7 gap-1.5 text-center",
+              getUiTypographyClassName({ role: "caption", tone: "muted" }),
+            )}>
               {CALENDAR_WEEKDAY_KEYS.map((key) => <div key={key}>{t(key)}</div>)}
             </div>
             <div className="grid grid-cols-7 gap-1.5">
@@ -122,18 +151,16 @@ export function SingleRunPicker(props: SingleRunPickerProps) {
                 const isSelected = day.value === selectedDate;
                 const isDisabled = isDateDisabled(day.value);
                 return (
-                  <button
-                    className={getPickerDateButtonClassName(isSelected, {
-                      disabled: isDisabled,
-                      muted: day.muted,
-                    })}
+                  <UiChoiceButton
+                    active={isSelected}
                     disabled={isDisabled}
                     key={day.value}
+                    muted={day.muted}
                     onClick={() => onDateSelect(day.value)}
-                    type="button"
+                    variant="calendar"
                   >
                     {day.label}
-                  </button>
+                  </UiChoiceButton>
                 );
               })}
             </div>

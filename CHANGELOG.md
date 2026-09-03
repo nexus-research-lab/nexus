@@ -112,6 +112,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   compact selectors no longer grow unevenly when a toolbar becomes narrow.
 - Standardized scheduled-task form grouping, rebind guidance, helper copy, and
   advanced disclosure chrome through shared panels, typography, and radius roles.
+- Replaced Scheduled date/time plus triggers and text month navigation with shared
+  accessible buttons, semantic picker choices, and labeled anchored overlays.
 - Established a single frontend engineering and design-system contract, and
   centralized high overlay layers and responsive dialog geometry behind semantic
   APIs to prevent page-specific stacking and small-window sizing drift.
