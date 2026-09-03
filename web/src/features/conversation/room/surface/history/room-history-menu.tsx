@@ -271,7 +271,7 @@ export function RoomHistoryMenu({
           ref={menuRef}
           aria-labelledby={historyTitleId}
           className={cn(
-            "fixed z-[130] flex flex-col overflow-hidden",
+            "fixed ui-layer-action-menu flex flex-col overflow-hidden",
             OVERLAY_SURFACE_CLASS_NAME,
             ANCHORED_OVERLAY_MOTION_CLASS_NAME,
           )}

@@ -1,3 +1,7 @@
+// INPUT: Select Menu 选项、当前值、尺寸、标签布局和锚点几何。
+// OUTPUT: 展示投影、下一个可用值、面板高度与定位结果。
+// POS: Select Menu 纯模型；不访问 React 生命周期或业务数据。
+
 import { cn } from "@/shared/ui/class-name";
 import {
   getMenuItemStateClassName,

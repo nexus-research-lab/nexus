@@ -42,6 +42,14 @@
   }
 
   /* 高层浮层只选择语义层；具体整数由 token 与后续 modal stack 管理。 */
+  .ui-layer-select-menu {
+    z-index: var(--layer-select-menu);
+  }
+
+  .ui-layer-action-menu {
+    z-index: var(--layer-action-menu);
+  }
+
   .ui-layer-dialog-underlay {
     z-index: var(--layer-dialog-underlay);
   }

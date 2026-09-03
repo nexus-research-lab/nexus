@@ -1,3 +1,7 @@
+// INPUT: Select trigger 内容与已定位的 listbox panel 数据。
+// OUTPUT: 稳定的触发器结构和带浮层合同的选择面板 DOM。
+// POS: Select Menu 视图原语；不管理开关、选值或定位计算。
+
 import type {
   CSSProperties,
   ReactNode,
@@ -76,7 +80,7 @@ export function SelectMenuPanel({
       ref={panelRef}
       aria-label={ariaLabel}
       className={cn(
-        "fixed z-[120]",
+        "fixed ui-layer-select-menu",
         OVERLAY_SURFACE_CLASS_NAME,
         ANCHORED_OVERLAY_MOTION_CLASS_NAME,
         layoutClassName,

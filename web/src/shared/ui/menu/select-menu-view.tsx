@@ -1,3 +1,7 @@
+// INPUT: Select Menu controller 投影的触发器、面板、选项与事件处理器。
+// OUTPUT: button + portal listbox 的纯视图结构和选中/disabled ARIA 状态。
+// POS: Select Menu 视图；不持有开关、选值、定位或业务状态。
+
 import type {
   CSSProperties,
   KeyboardEventHandler,

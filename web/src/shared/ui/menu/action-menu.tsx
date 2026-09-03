@@ -1,9 +1,14 @@
+// INPUT: 外部控制的打开态、锚点、菜单项与选择/关闭命令。
+// OUTPUT: 定位后的可键盘遍历 action menu，并在选择/Escape 后归还焦点。
+// POS: Action Menu 交互 pattern；不持有业务值或决定命令是否允许。
 "use client";
 
 import {
+  type KeyboardEvent,
   type ReactNode,
   type RefObject,
   useCallback,
+  useEffect,
 } from "react";
 import { createPortal } from "react-dom";
 
@@ -88,6 +93,54 @@ const ACTION_MENU_ITEM_CLASS_NAME = {
 } as const;
 const ACTION_MENU_FOOTER_SEPARATOR_HEIGHT = 9;
 const EMPTY_ACTION_MENU_ITEMS: UiActionMenuItem[] = [];
+const ENABLED_ACTION_MENU_ITEM_SELECTOR = '[role="menuitem"]:not([aria-disabled="true"])';
+
+function handleActionMenuKeyDown({
+  anchorRef,
+  event,
+  onClose,
+}: {
+  anchorRef: RefObject<HTMLElement | null>;
+  event: KeyboardEvent<HTMLDivElement>;
+  onClose: () => void;
+}) {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    event.stopPropagation();
+    onClose();
+    anchorRef.current?.focus();
+    return;
+  }
+  if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+    return;
+  }
+  const items = Array.from(
+    event.currentTarget.querySelectorAll<HTMLElement>(
+      ENABLED_ACTION_MENU_ITEM_SELECTOR,
+    ),
+  );
+  if (items.length === 0) {
+    return;
+  }
+  event.preventDefault();
+  const currentIndex = items.indexOf(document.activeElement as HTMLElement);
+  if (event.key === "Home") {
+    items[0].focus();
+    return;
+  }
+  if (event.key === "End") {
+    items[items.length - 1].focus();
+    return;
+  }
+  const direction = event.key === "ArrowDown" ? 1 : -1;
+  const fallbackIndex = direction > 0 ? -1 : 0;
+  const nextIndex = (
+    (currentIndex >= 0 ? currentIndex : fallbackIndex)
+    + direction
+    + items.length
+  ) % items.length;
+  items[nextIndex].focus();
+}
 
 function estimateActionMenuHeight({
   density = "default",
@@ -217,6 +270,15 @@ export function UiActionMenu({
     onClose,
   });
 
+  useEffect(() => {
+    if (!isOpen || !portalContainer) {
+      return;
+    }
+    menuRef.current
+      ?.querySelector<HTMLElement>(ENABLED_ACTION_MENU_ITEM_SELECTOR)
+      ?.focus();
+  }, [isOpen, menuRef, portalContainer]);
+
   if (!isOpen) {
     return null;
   }
@@ -234,14 +296,20 @@ export function UiActionMenu({
       ref={menuRef}
       aria-label={ariaLabel}
       className={cn(
-        "fixed z-[130] overflow-y-auto p-1",
+        "fixed ui-layer-action-menu overflow-y-auto p-1",
         OVERLAY_SURFACE_CLASS_NAME,
         ANCHORED_OVERLAY_MOTION_CLASS_NAME,
       )}
       data-placement={menuPosition?.placement ?? "bottom"}
       data-state="open"
+      onKeyDown={(event) => handleActionMenuKeyDown({
+        anchorRef,
+        event,
+        onClose,
+      })}
       role="menu"
       style={menuStyle}
+      tabIndex={-1}
       {...OPEN_OVERLAY_DATA_ATTRIBUTES}
     >
       <UiActionMenuContent

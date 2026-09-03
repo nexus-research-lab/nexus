@@ -1,3 +1,6 @@
+// INPUT: Select Menu disabled 状态、定位函数和触发器键盘事件。
+// OUTPUT: 内部开关、锚点引用、Portal/定位状态与统一键盘协议。
+// POS: Select Menu 生命周期 adapter；不解释选项、值或业务权限。
 "use client";
 
 import {

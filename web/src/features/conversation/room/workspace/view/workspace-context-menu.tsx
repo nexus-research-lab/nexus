@@ -148,7 +148,7 @@ export function WorkspaceContextMenu({
   return createPortal(
     <div
       className={cn(
-        "fixed z-[130] overflow-visible",
+        "fixed ui-layer-action-menu overflow-visible",
         OVERLAY_SURFACE_CLASS_NAME,
       )}
       ref={menuRef}

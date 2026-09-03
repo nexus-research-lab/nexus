@@ -28,7 +28,7 @@ import {
 } from "@/shared/ui/dialog/dialog-styles";
 import {
   getUiOverlayLayerClassName,
-  type UiOverlayLayer,
+  type UiDialogLayer,
 } from "@/shared/ui/overlay/layer-styles";
 
 type UiDialogSize = "sm" | "md" | "lg" | "xl" | "wide";
@@ -54,7 +54,7 @@ interface UiDialogBackdropProps extends HTMLAttributes<HTMLDivElement> {
   describedBy?: string;
   initialFocusRef?: RefObject<HTMLElement | null>;
   inset?: "compact" | "default";
-  layer?: UiOverlayLayer;
+  layer?: UiDialogLayer;
   onClose?: () => void;
   trapFocus?: boolean;
 }

@@ -8,6 +8,21 @@ import { afterEach } from "vitest";
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
 
+class TestResizeObserver implements ResizeObserver {
+  disconnect() {}
+
+  observe() {}
+
+  unobserve() {}
+}
+
+globalThis.ResizeObserver ??= TestResizeObserver;
+globalThis.requestAnimationFrame ??= (callback) => window.setTimeout(
+  () => callback(performance.now()),
+  0,
+);
+globalThis.cancelAnimationFrame ??= (handle) => window.clearTimeout(handle);
+
 afterEach(() => {
   cleanup();
 });

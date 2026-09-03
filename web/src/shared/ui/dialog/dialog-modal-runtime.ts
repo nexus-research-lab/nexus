@@ -31,8 +31,10 @@ export function isTopDialogModal(token: symbol): boolean {
 
 export function unregisterDialogModal(token: symbol): void {
   const index = dialogStack.lastIndexOf(token);
-  if (index >= 0) {
-    dialogStack.splice(index, 1);
+  if (index < 0) {
+    return;
   }
+
+  dialogStack.splice(index, 1);
   unlockBodyScroll();
 }

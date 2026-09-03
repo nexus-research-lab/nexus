@@ -33,6 +33,8 @@ test("semantic overlay layers preserve the current visual stack without exposing
 
   assert.deepEqual(
     [
+      "selectMenu",
+      "actionMenu",
       "dialogUnderlay",
       "dialog",
       "dialogNested",
@@ -43,6 +45,8 @@ test("semantic overlay layers preserve the current visual stack without exposing
       "systemDialog",
     ].map((layer) => getUiOverlayLayerClassName(layer)),
     [
+      "ui-layer-select-menu",
+      "ui-layer-action-menu",
       "ui-layer-dialog-underlay",
       "ui-layer-dialog",
       "ui-layer-dialog-nested",
@@ -78,7 +82,7 @@ test("product source does not reintroduce numeric high layers or shared dialog v
   for (const file of files) {
     const source = await readFile(file, "utf8");
     const relativePath = path.relative(webRoot, file);
-    if (/z-\[(?:9998|9999|10000|10020|10030|11000|11050|12000)\]/.test(source)) {
+    if (/z-\[(?:120|130|9998|9999|10000|10020|10030|11000|11050|12000)\]/.test(source)) {
       violations.push(`${relativePath}: numeric high overlay layer`);
     }
     if (

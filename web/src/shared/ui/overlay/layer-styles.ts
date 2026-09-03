@@ -3,6 +3,8 @@
 // POS: Web 高层浮层的层级入口；不负责 modal 顺序、定位或 Portal 生命周期。
 
 export type UiOverlayLayer =
+  | "selectMenu"
+  | "actionMenu"
   | "dialogUnderlay"
   | "dialog"
   | "dialogNested"
@@ -12,7 +14,14 @@ export type UiOverlayLayer =
   | "tourDialog"
   | "systemDialog";
 
+export type UiDialogLayer = Exclude<
+  UiOverlayLayer,
+  "selectMenu" | "actionMenu" | "tooltip" | "tour"
+>;
+
 const UI_OVERLAY_LAYER_CLASS_MAP: Record<UiOverlayLayer, string> = {
+  selectMenu: "ui-layer-select-menu",
+  actionMenu: "ui-layer-action-menu",
   dialogUnderlay: "ui-layer-dialog-underlay",
   dialog: "ui-layer-dialog",
   dialogNested: "ui-layer-dialog-nested",
