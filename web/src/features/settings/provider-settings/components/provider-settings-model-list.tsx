@@ -16,9 +16,11 @@ import {
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type {
   ProviderConfigRecord,
   ProviderModelCapabilities,
@@ -94,13 +96,13 @@ function ProviderModelListHeader({
   return (
     <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
       <div className="flex min-w-0 items-baseline gap-2">
-        <h3 className="text-base font-semibold tracking-tight text-(--text-strong)">
+        <h3 className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong" })}>
           {t("settings.providers.models")}
         </h3>
         {selectedRecord ? (
-          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-(--surface-muted-background) px-1.5 text-xs font-semibold text-(--text-muted)">
+          <UiBadge className="rounded-full" size="xs" tone="idle">
             {modelCount}
-          </span>
+          </UiBadge>
         ) : null}
       </div>
       {actionsVisible ? (
@@ -141,7 +143,7 @@ function ProviderModelListHeader({
 function ProviderModelCapabilities({ model }: { model: ProviderModelRecord }) {
   const capabilities = getEffectiveCapabilities(model);
   return (
-    <span className="flex shrink-0 items-center gap-1.5 text-2xs leading-4 text-(--text-muted)">
+    <span className={cn("flex shrink-0 items-center gap-1.5", getUiTypographyClassName({ role: "caption", tone: "muted" }))}>
       {PROVIDER_CAPABILITY_ICONS.map(({ Icon, key }) => (
         capabilities[key] ? <Icon className="h-3 w-3" key={key} /> : null
       ))}
@@ -260,7 +262,7 @@ function ProviderModelRow({
   return (
     <div className="grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b border-(--divider-subtle-color) px-2.5 py-1 last:border-b-0">
       <div className="flex min-w-0 items-center gap-2">
-        <span className="min-w-0 truncate font-mono text-sm leading-5 text-(--text-strong)">
+        <span className={cn("min-w-0 truncate", getUiTypographyClassName({ role: "code", tone: "strong" }))}>
           {displayName}
         </span>
         <ProviderModelCapabilities model={model} />
@@ -294,7 +296,7 @@ function ProviderModelRow({
           )
         ) : null}
         {model.model_id !== displayName ? (
-          <span className="hidden max-w-[120px] truncate font-mono text-xs text-(--text-soft) xl:inline">
+          <span className={cn("hidden max-w-[120px] truncate xl:inline", getUiTypographyClassName({ role: "code", tone: "soft" }))}>
             {model.model_id}
           </span>
         ) : null}
@@ -364,7 +366,7 @@ function ProviderModelListBody({
   const { t } = useI18n();
   if (!selectedRecord || displayedModels.length === 0) {
     return (
-      <div className="flex min-h-28 items-center justify-center text-sm text-(--text-soft)">
+      <div className={cn("flex min-h-28 items-center justify-center", getUiTypographyClassName({ role: "supporting", tone: "soft" }))}>
         {selectedRecord
           ? t("settings.providers.models_empty")
           : t("settings.providers.models_after_save")}
@@ -430,7 +432,7 @@ export function ProviderSettingsModelList({
         variant="dialog"
       />
 
-      <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto rounded-[12px] border border-(--divider-subtle-color)">
+      <div className="soft-scrollbar surface-radius-md min-h-0 flex-1 overflow-y-auto border border-(--divider-subtle-color)">
         <ProviderModelListBody
           displayedModels={displayedModels}
           onDefaultModelDisableAttempt={onDefaultModelDisableAttempt}

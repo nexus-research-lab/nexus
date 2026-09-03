@@ -2,10 +2,13 @@
 
 import { ExternalLink } from "lucide-react";
 
+import { cn } from "@/shared/ui/class-name";
+import { UiBadge } from "@/shared/ui/display/badge";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import type { UiSelectMenuOption } from "@/shared/ui/menu/select-menu-model";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type {
   ProviderConfigRecord,
   ProviderPreset,
@@ -15,7 +18,6 @@ import type {
 import {
   API_FORMAT_LABELS,
   API_FORMAT_SHORT_LABELS,
-  PROVIDER_LABEL_CLASS_NAME,
   formatTokenPreview,
 } from "../model/provider-settings-presentation";
 import type { ProviderDraft } from "../model/provider-settings-types";
@@ -77,7 +79,6 @@ function ProviderShapeControls({
       <UiField
         htmlFor="provider-display-name"
         label={t("settings.providers.provider_name")}
-        labelClassName={PROVIDER_LABEL_CLASS_NAME}
         required={draft.preset_key === "custom"}
       >
         <UiInput
@@ -98,7 +99,6 @@ function ProviderShapeControls({
 
       <UiField
         label={t("settings.providers.kind")}
-        labelClassName={PROVIDER_LABEL_CLASS_NAME}
       >
         <UiSelectMenu
           ariaLabel={t("settings.providers.kind")}
@@ -116,16 +116,16 @@ function ProviderShapeControls({
           <span className="inline-flex items-center gap-2">
             {t("settings.providers.api_format")}
           {showRuntimeFormatBadge ? (
-            <span
-              className="rounded-full bg-(--surface-muted-background) px-1.5 py-0.5 text-2xs font-medium leading-4 text-(--text-muted)"
+            <UiBadge
+              size="xs"
+              tone="idle"
               title={t("settings.providers.api_format_runtime_hint")}
             >
               {t("settings.providers.api_format_runtime_badge")}
-            </span>
+            </UiBadge>
           ) : null}
           </span>
         )}
-        labelClassName={PROVIDER_LABEL_CLASS_NAME}
         required
       >
         <UiSelectMenu
@@ -173,7 +173,6 @@ function ProviderApiKeyField({
     <UiField
       htmlFor="provider-auth-token"
       label={t("settings.providers.api_key")}
-      labelClassName={PROVIDER_LABEL_CLASS_NAME}
       required={!isEditing}
     >
       <UiInput
@@ -196,7 +195,10 @@ function ProviderApiKeyField({
       />
       {currentPreset?.key_url ? (
         <a
-          className="inline-flex items-center gap-1 text-compact font-medium text-primary hover:underline"
+          className={cn(
+            "inline-flex items-center gap-1 hover:underline",
+            getUiTypographyClassName({ role: "metadata", tone: "brand", weight: "medium" }),
+          )}
           href={currentPreset.key_url}
           rel="noreferrer"
           target="_blank"
@@ -232,23 +234,27 @@ function ProviderEndpointField({
     <UiField
       htmlFor="provider-base-url"
       label={t("settings.providers.base_url")}
-      labelClassName={PROVIDER_LABEL_CLASS_NAME}
       required={!usesBuiltinEndpoint}
     >
       {usesBuiltinEndpoint ? (
         <div className="space-y-1.5">
           {builtinEndpointFormats.map((format) => (
             <div
-              className="input-shell grid min-h-9 grid-cols-1 items-center gap-1.5 rounded-[12px] px-3.5 py-1.5 text-sm text-(--text-default) sm:grid-cols-[88px_minmax(0,1fr)] sm:gap-3"
+              className={cn(
+                "input-shell radius-control-lg grid min-h-9 grid-cols-1 items-center gap-1.5 px-3.5 py-1.5 sm:grid-cols-[88px_minmax(0,1fr)] sm:gap-3",
+                getUiTypographyClassName({ role: "control", tone: "default" }),
+              )}
               key={format.api_format}
             >
-              <span
-                className="inline-flex h-6 w-fit max-w-full items-center rounded-full bg-(--surface-muted-background) px-2 text-xs font-semibold text-(--text-muted)"
+              <UiBadge
+                className="w-fit max-w-full"
+                size="sm"
+                tone="idle"
                 title={API_FORMAT_LABELS[format.api_format]}
               >
                 {API_FORMAT_SHORT_LABELS[format.api_format]}
-              </span>
-              <span className="min-w-0 break-all font-mono text-(--text-strong)">
+              </UiBadge>
+              <span className={cn("min-w-0 break-all", getUiTypographyClassName({ role: "code", tone: "strong" }))}>
                 {format.base_url}
               </span>
             </div>

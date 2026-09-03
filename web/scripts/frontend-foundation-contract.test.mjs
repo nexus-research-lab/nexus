@@ -366,6 +366,44 @@ test("Personal settings cannot redefine App typography or card shape", async () 
   }
 });
 
+test("Provider settings cannot redefine App typography, badges, or shape", async () => {
+  const providerRoot = path.join(srcRoot, "features", "settings", "provider-settings");
+  const files = await collectSourceFiles(providerRoot);
+  const violations = [];
+  const localTypographyPattern = /\b(?:text-(?:2xs|xs|compact|sm|base|md|lg|xl|2xl)|font-(?:normal|medium|semibold|bold|mono)|leading-(?:none|\d+|\[[^\]]+\])|tracking-(?:tight|wide|\[[^\]]+\])|rounded-\[[^\]]+\])/;
+
+  for (const file of files) {
+    if (!/\.(?:ts|tsx)$/.test(file)) continue;
+    const source = await readFile(file, "utf8");
+    if (localTypographyPattern.test(source)) {
+      violations.push(path.relative(webRoot, file));
+    }
+  }
+
+  const consumers = await Promise.all([
+    "components/provider-settings-capability-switch.tsx",
+    "components/provider-settings-config-form.tsx",
+    "components/provider-settings-detail-header.tsx",
+    "components/provider-settings-icon.tsx",
+    "components/provider-settings-model-list.tsx",
+    "dialogs/provider-settings-add-model-dialog.tsx",
+    "dialogs/provider-settings-delete-usage-dialog.tsx",
+    "dialogs/provider-settings-model-options-dialog.tsx",
+  ].map((file) => readSource(`src/features/settings/provider-settings/${file}`)));
+
+  assert.deepEqual(violations, []);
+  for (const consumer of consumers) {
+    assert.match(consumer, /getUiTypographyClassName/);
+  }
+  for (const consumer of [consumers[1], consumers[2], consumers[4], consumers[6]]) {
+    assert.match(consumer, /<UiBadge/);
+  }
+  assert.doesNotMatch(
+    await readSource("src/features/settings/provider-settings/model/provider-settings-presentation.ts"),
+    /CLASS_NAME|className/,
+  );
+});
+
 test("product source contains no arbitrary shadows or numeric z-index values", async () => {
   const files = (await Promise.all(productUiRoots.map(collectSourceFiles))).flat();
   const violations = [];
