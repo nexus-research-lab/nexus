@@ -44,10 +44,10 @@ export function PendingQueueItem({
     <div
       draggable
       className={cn(
-        "group -mx-1 flex min-h-7 items-center gap-2 px-1 py-0.5 text-(--text-default) transition-[background,box-shadow,opacity]",
+        "group -mx-1 flex min-h-7 items-center gap-2 border-l-[3px] border-l-transparent px-1 py-0.5 text-(--text-default) transition-[background,border-color,opacity]",
         projection.isDragging && "opacity-60",
         projection.isDragTarget
-          && "bg-(--surface-interactive-hover-background) shadow-[inset_3px_0_0_var(--primary)]",
+          && "border-l-(--primary) bg-(--surface-interactive-hover-background)",
       )}
       onDragEnd={onDragEnd}
       onDragOver={(event) => {

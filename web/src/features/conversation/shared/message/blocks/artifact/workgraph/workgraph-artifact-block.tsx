@@ -55,7 +55,7 @@ export function WorkGraphArtifactBlock({
   return (
     <>
       <article
-        className="w-full max-w-3xl overflow-hidden rounded-[14px] border border-[color:color-mix(in_srgb,var(--primary)_22%,var(--divider-subtle-color))] bg-(--surface-panel-background) shadow-[0_10px_28px_color-mix(in_srgb,var(--text-strong)_5%,transparent)]"
+        className="w-full max-w-3xl overflow-hidden rounded-[14px] border border-[color:color-mix(in_srgb,var(--primary)_22%,var(--divider-subtle-color))] bg-(--surface-panel-background)"
         data-workgraph-artifact={artifact.state}
       >
         <header className="flex items-start justify-between gap-4 border-b border-(--divider-subtle-color) px-4 py-3">

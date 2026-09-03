@@ -121,9 +121,9 @@ export function WorkGraphDistillationDialog({
         trapFocus={!editorOpen}
       >
         <UiDialogShell
-          className="pointer-events-auto h-[min(760px,calc(100dvh-64px))] max-h-[calc(100dvh-64px)]"
-          size="wide"
-          style={{ maxWidth: "min(1180px, calc(100vw - 64px))" }}
+          className="pointer-events-auto"
+          size="workbench"
+          viewport="workbench"
         >
           <UiDialogCloseButton
             className="absolute right-5 top-5 z-30"
@@ -132,7 +132,7 @@ export function WorkGraphDistillationDialog({
           <div className="grid min-h-0 flex-1 md:grid-cols-[360px_minmax(0,1fr)]">
             <aside className="flex min-h-0 flex-col border-r border-(--divider-subtle-color) bg-(--surface-muted-background) px-7 pb-6 pt-7">
               <header className="flex items-start gap-3 pr-10">
-                <span className="radius-control-md grid h-9 w-9 shrink-0 place-items-center border border-(--divider-subtle-color) bg-(--surface-panel-background) text-(--icon-default) shadow-[0_1px_0_color-mix(in_srgb,var(--text-strong)_4%,transparent)]">
+                <span className="radius-control-md grid h-9 w-9 shrink-0 place-items-center border border-(--divider-subtle-color) bg-(--surface-panel-background) text-(--icon-default)">
                   <Workflow className="h-4 w-4" />
                 </span>
                 <div className="min-w-0 pt-0.5">
