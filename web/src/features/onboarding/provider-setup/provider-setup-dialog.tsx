@@ -60,8 +60,10 @@ import {
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
 import { getDialogNoteClassName } from "@/shared/ui/dialog/dialog-styles";
+import { UiBadge } from "@/shared/ui/display/badge";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
+import { UiListRow } from "@/shared/ui/list/list-row";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import type {
   CCSwitchSyncResult,
@@ -1343,54 +1345,59 @@ function ProviderScene({
           </div>
         ) : null}
         {!loading && !error && presets.length > 0 ? (
-          <div className="border-y border-(--divider-subtle-color)">
+          <div className="space-y-0.5">
             {visiblePresets.map((item) => {
               const presetKey = item.preset.preset_key;
               const selected = presetKey === selectedPresetKey;
               const configured = Boolean(findManageablePresetProvider(providers, presetKey));
               return (
-                <button
+                <UiListRow
+                  active={selected}
                   aria-pressed={selected}
-                  className="group flex w-full items-center gap-3 border-b border-(--divider-subtle-color) px-1 py-2.5 text-left last:border-b-0"
+                  density="compact"
                   key={presetKey}
+                  leading={(
+                    <ProviderIcon
+                      name={item.preset.display_name}
+                      presetKey={presetKey}
+                      size="sm"
+                    />
+                  )}
                   onClick={() => onSelect(item)}
-                  type="button"
-                >
-                  <ProviderIcon
-                    name={item.preset.display_name}
-                    presetKey={presetKey}
-                    size="sm"
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium text-(--text-strong)">
-                      {item.preset.display_name}
+                  right={(
+                    <span className="flex shrink-0 items-center gap-2">
+                      {configured ? (
+                        <UiBadge size="xs" tone="success">
+                          {t("onboarding.provider_setup_provider_configured")}
+                        </UiBadge>
+                      ) : null}
+                      <Check
+                        aria-hidden="true"
+                        className={selected
+                          ? "h-4 w-4 text-(--brand-action) opacity-100"
+                          : "h-4 w-4 opacity-0"}
+                      />
                     </span>
-                  </span>
-                  {configured ? (
-                    <span className="shrink-0 text-2xs font-medium text-(--success)">
-                      {t("onboarding.provider_setup_provider_configured")}
-                    </span>
-                  ) : null}
-                  <span className={selected ? "flex h-4 w-4 items-center justify-center rounded-full bg-(--brand-action) text-white" : "h-4 w-4 rounded-full border border-(--divider-strong-color)"}>
-                    {selected ? <Check className="h-2.5 w-2.5" /> : null}
-                  </span>
-                </button>
+                  )}
+                  title={item.preset.display_name}
+                />
               );
             })}
           </div>
         ) : null}
         {!loading && presets.length > FEATURED_PROVIDER_COUNT ? (
-          <button
-            className="mt-3 text-xs font-medium text-(--text-muted) hover:text-(--text-strong)"
+          <UiButton
+            className="mt-3"
             onClick={() => onShowAllChange(!showAll)}
-            type="button"
+            size="xs"
+            variant="text"
           >
             {showAll
               ? t("onboarding.provider_setup_provider_show_less")
               : t("onboarding.provider_setup_provider_show_more", {
                 count: Math.max(0, presets.length - FEATURED_PROVIDER_COUNT),
               })}
-          </button>
+          </UiButton>
         ) : null}
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-(--divider-subtle-color) pb-5 pt-3">
