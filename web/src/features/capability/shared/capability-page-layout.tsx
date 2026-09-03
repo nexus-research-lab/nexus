@@ -22,6 +22,7 @@ import {
 import { WorkspaceContentHeader } from "@/shared/ui/layout/workspace-content-header";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import type { UiSelectMenuOption } from "@/shared/ui/menu/select-menu-model";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 interface CapabilityPageLayoutProps {
   actions?: ReactNode;
@@ -73,8 +74,8 @@ interface CapabilityItemIconProps {
 }
 
 const CAPABILITY_ITEM_ICON_SIZE_CLASS_NAMES = {
-  md: "h-9 w-9 rounded-[8px]",
-  sm: "h-8 w-8 rounded-[8px]",
+  md: "h-9 w-9 radius-control-sm",
+  sm: "h-8 w-8 radius-control-sm",
 } as const;
 
 /** 普通能力目录统一使用紧凑三列，避免各子域维护不同横纵间距。 */
@@ -121,7 +122,10 @@ export function CapabilityPageLayout({
           title={title}
         />
         {description ? (
-          <p className="mb-5 text-compact leading-5 text-(--text-muted) sm:hidden">
+          <p className={cn(
+            "mb-5 sm:hidden",
+            getUiTypographyClassName({ role: "supporting", tone: "muted" }),
+          )}>
             {description}
           </p>
         ) : null}
@@ -233,17 +237,27 @@ export function CapabilitySectionHeader({
   return (
     <div className="mb-2 flex items-end justify-between gap-4 border-b border-(--divider-subtle-color) pb-1.5">
       <div className="min-w-0">
-        <h2 className="truncate text-base font-medium tracking-[-0.01em] text-(--text-strong)">
+        <h2 className={cn(
+          "truncate",
+          getUiTypographyClassName({ role: "sectionTitle", tone: "strong" }),
+        )}>
           {title}
         </h2>
         {description ? (
-          <p className="mt-0.5 truncate text-compact text-(--text-muted)">
+          <p className={cn(
+            "mt-0.5 truncate",
+            getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+          )}>
             {description}
           </p>
         ) : null}
       </div>
       {count !== undefined && count !== null ? (
-        <span className="text-xs font-medium text-(--text-soft)">
+        <span className={getUiTypographyClassName({
+          role: "caption",
+          tone: "soft",
+          weight: "medium",
+        })}>
           {count}
         </span>
       ) : null}

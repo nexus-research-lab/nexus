@@ -519,6 +519,22 @@ test("Capability detail chrome uses shared actions, typography, states, and shap
   assert.match(sources[3], /className="shrink-0"/);
 });
 
+test("Capability page chrome has one Header, typography, action, and shape owner", async () => {
+  const [capabilityLayout, workspaceHeader] = await Promise.all([
+    readSource("src/features/capability/shared/capability-page-layout.tsx"),
+    readSource("src/shared/ui/layout/workspace-content-header.tsx"),
+  ]);
+  const localTypographyPattern = /\b(?:text-(?:2xs|xs|compact|sm|base|md|lg|xl|2xl)|font-(?:normal|medium|semibold|bold|mono)|leading-(?:none|\d+|\[[^\]]+\])|tracking-(?:tight|wide|\[[^\]]+\])|rounded-\[[^\]]+\])/;
+
+  assert.doesNotMatch(capabilityLayout, localTypographyPattern);
+  assert.doesNotMatch(workspaceHeader, localTypographyPattern);
+  assert.match(capabilityLayout, /<WorkspaceContentHeader/);
+  assert.match(capabilityLayout, /createPortal/);
+  assert.match(capabilityLayout, /getUiTypographyClassName/);
+  assert.match(capabilityLayout, /radius-control-sm/);
+  assert.match(workspaceHeader, /getUiTypographyClassName/);
+});
+
 test("Loop surfaces use semantic typography, badges, panels, and responsive actions", async () => {
   const loopPaths = [
     "src/features/capability/loops/loops-directory.tsx",
