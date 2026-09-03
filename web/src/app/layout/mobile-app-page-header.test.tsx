@@ -25,7 +25,7 @@ describe("MobileAppPageHeader", () => {
     expect(header?.querySelector("[data-desktop-window-controls-leading]")?.className)
       .toContain("h-[var(--mobile-shell-header-height,52px)]");
     expect(heading.className).toContain("ui-type-section-title");
-    expect(back.className).toContain("radius-control-lg");
+    expect(back.className).toContain("rounded-full");
 
     fireEvent.click(back);
     expect(onBack).toHaveBeenCalledOnce();

@@ -1,3 +1,7 @@
+// INPUT: 列表内容、共享密度/状态语义、可选行级动作与原生 div 属性。
+// OUTPUT: 静态内容行或具统一键盘行为的单一交互列表行。
+// POS: ListRow DOM 原语；不拥有资源、选择真相或业务命令生命周期。
+
 "use client";
 
 import {
@@ -6,7 +10,10 @@ import {
   type ReactNode,
 } from "react";
 
-import { getUiListRowPresentation } from "./list-row-model";
+import {
+  getUiListRowPresentation,
+  type UiListRowDensity,
+} from "./list-row-model";
 
 interface UiListRowProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
   actions?: ReactNode;
@@ -15,6 +22,7 @@ interface UiListRowProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
   children?: ReactNode;
   className?: string;
   description?: ReactNode;
+  density?: UiListRowDensity;
   inactiveTone?: "default" | "muted";
   leading?: ReactNode;
   meta?: ReactNode;
@@ -31,6 +39,7 @@ export function UiListRow({
   children,
   className,
   description,
+  density = "default",
   inactiveTone = "default",
   leading,
   meta,
@@ -44,6 +53,7 @@ export function UiListRow({
     active,
     activeTone,
     className,
+    density,
     inactiveTone,
     interactive: Boolean(onClick),
   });

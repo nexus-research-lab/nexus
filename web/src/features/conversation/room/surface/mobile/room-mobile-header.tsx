@@ -53,8 +53,9 @@ export function RoomMobileHeader({
     >
       <UiIconButton
         aria-label={t("common.back")}
-        className="shrink-0 rounded-full"
+        className="shrink-0"
         onClick={onBack}
+        shape="round"
         size="lg"
         variant="ghost"
       >
@@ -66,7 +67,7 @@ export function RoomMobileHeader({
         aria-haspopup="dialog"
         aria-label={t("room.switch_conversation")}
         className={cn(
-          "flex min-w-0 flex-1 items-center gap-1.5 rounded-[10px] px-2 py-1 text-left transition-colors hover:bg-(--interaction-hover-background)",
+          "flex min-w-0 flex-1 items-center gap-1.5 radius-control-md px-2 py-1 text-left transition-colors hover:bg-(--interaction-hover-background)",
           isConversationSwitcherOpen && "bg-(--surface-interactive-hover-background)",
         )}
         onClick={onOpenConversations}

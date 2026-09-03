@@ -1,9 +1,14 @@
+// INPUT: Room 窄窗可用动作、业务命令与辅助页打开入口。
+// OUTPUT: 共享圆形图标按钮触发的语义动作菜单。
+// POS: Room 专注模式尾部动作装配；不拥有菜单项规则或业务事务。
+
 "use client";
 
 import { MoreHorizontal } from "lucide-react";
 import { useRef, useState } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiIconButton } from "@/shared/ui/button/button";
 import { UiActionMenu } from "@/shared/ui/menu/action-menu";
 import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
 
@@ -35,18 +40,18 @@ export function RoomMobileActionsMenu({
 
   return (
     <>
-      <button
+      <UiIconButton
         ref={buttonRef}
         aria-expanded={isOpen}
         aria-haspopup="menu"
         aria-label={t("common.more_actions")}
-        className="inline-flex h-9 w-9 items-center justify-center rounded-full text-(--icon-default) transition hover:bg-(--interaction-hover-background) hover:text-(--text-strong)"
         onClick={() => setIsOpen((current) => !current)}
-        title={t("common.more_actions")}
-        type="button"
+        shape="round"
+        size="lg"
+        variant="ghost"
       >
         <MoreHorizontal className="h-4 w-4" />
-      </button>
+      </UiIconButton>
       <UiActionMenu
         anchorRef={buttonRef}
         ariaLabel={t("common.more_actions")}

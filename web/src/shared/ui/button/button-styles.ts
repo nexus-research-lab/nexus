@@ -1,4 +1,4 @@
-// INPUT: Button 的 size、tone、variant 与调用方外部布局 class。
+// INPUT: Button 的 size/tone/variant、IconButton 的 shape 与调用方外部布局 class。
 // OUTPUT: 由共享 token/recipe 组成的稳定按钮样式投影。
 // POS: Button 视觉状态真相；不渲染 DOM，也不接受业务专属视觉覆盖。
 
@@ -8,6 +8,7 @@ export type UiButtonTone = "default" | "primary" | "danger";
 export type UiButtonVariant = "surface" | "solid" | "ghost" | "text";
 export type UiButtonSize = "xs" | "sm" | "md" | "lg";
 export type UiIconButtonSize = "xs" | "sm" | "md" | "lg";
+export type UiIconButtonShape = "rounded" | "round";
 
 interface UiButtonStyleOptions {
   size?: UiButtonSize;
@@ -16,6 +17,7 @@ interface UiButtonStyleOptions {
 }
 
 interface UiIconButtonStyleOptions {
+  shape?: UiIconButtonShape;
   size?: UiIconButtonSize;
   tone?: UiButtonTone;
   variant?: Exclude<UiButtonVariant, "text">;
@@ -83,10 +85,17 @@ const ICON_BUTTON_BASE_CLASS_NAME =
   "inline-flex items-center justify-center border transition-[background,border-color,color,box-shadow] duration-(--motion-duration-fast) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]";
 
 const ICON_BUTTON_SIZE_CLASS_MAP: Record<UiIconButtonSize, string> = {
-  xs: "h-6 w-6 radius-control-xs",
-  sm: "h-7 w-7 radius-control-sm",
-  md: "h-8 w-8 radius-control-md",
-  lg: "h-9 w-9 radius-control-lg",
+  xs: "h-6 w-6",
+  sm: "h-7 w-7",
+  md: "h-8 w-8",
+  lg: "h-9 w-9",
+};
+
+const ICON_BUTTON_ROUNDED_CLASS_MAP: Record<UiIconButtonSize, string> = {
+  xs: "radius-control-xs",
+  sm: "radius-control-sm",
+  md: "radius-control-md",
+  lg: "radius-control-lg",
 };
 
 const ICON_BUTTON_VARIANT_TONE_CLASS_MAP: Record<Exclude<UiButtonVariant, "text">, Record<UiButtonTone, string>> = {
@@ -129,6 +138,7 @@ export function getUiIconButtonClassName(
   className?: string,
 ): string {
   const {
+    shape = "rounded",
     size = "md",
     tone = "default",
     variant = "ghost",
@@ -137,6 +147,7 @@ export function getUiIconButtonClassName(
   return cn(
     ICON_BUTTON_BASE_CLASS_NAME,
     ICON_BUTTON_SIZE_CLASS_MAP[size],
+    shape === "round" ? "rounded-full" : ICON_BUTTON_ROUNDED_CLASS_MAP[size],
     ICON_BUTTON_VARIANT_TONE_CLASS_MAP[variant][tone],
     className,
   );

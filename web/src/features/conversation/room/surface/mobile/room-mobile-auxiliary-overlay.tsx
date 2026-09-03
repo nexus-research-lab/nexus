@@ -1,3 +1,7 @@
+// INPUT: Room 当前辅助页、会话/Agent 数据、工作区路径与业务命令。
+// OUTPUT: 复用平台页头和语义层的工作图、工作区或简介全屏表面。
+// POS: Room 窄窗辅助页装配；不拥有各子页面的数据和事务真相。
+
 import { ArrowLeft } from "lucide-react";
 
 import { buildExecutionAgentDirectory } from "@/features/conversation/shared/execution/execution-process-model";
@@ -6,6 +10,14 @@ import type { ExecutionResource } from "@/features/conversation/shared/execution
 import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
 import { RoomWorkspaceView } from "@/features/conversation/room/workspace/room-workspace-view";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiIconButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
+import {
+  MOBILE_SHELL_HEADER_GUTTER_CLASS_NAME,
+  MOBILE_SHELL_HEADER_HEIGHT_CLASS_NAME,
+} from "@/shared/ui/layout/mobile-shell-header-layout";
+import { getUiOverlayLayerClassName } from "@/shared/ui/overlay/layer-styles";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type {
   Agent,
   AgentIdentityDraft,
@@ -73,17 +85,33 @@ export function RoomMobileAuxiliaryOverlay({
     : t("room.about");
 
   return (
-    <div className="fixed inset-0 z-50 flex min-h-0 flex-col [background:var(--surface-popover-background)] backdrop-blur-2xl">
-      <header className="flex h-[52px] shrink-0 items-center gap-2 border-b divider-subtle px-2 sm:px-3">
-        <button
+    <div className={cn(
+      "fixed inset-0 flex min-h-0 flex-col [background:var(--surface-popover-background)] backdrop-blur-2xl",
+      getUiOverlayLayerClassName("dialog"),
+    )}>
+      <header
+        className={cn(
+          "flex shrink-0 items-center gap-2 border-b divider-subtle",
+          MOBILE_SHELL_HEADER_HEIGHT_CLASS_NAME,
+          MOBILE_SHELL_HEADER_GUTTER_CLASS_NAME,
+        )}
+        data-desktop-window-controls-leading
+        data-desktop-window-drag-region
+      >
+        <UiIconButton
           aria-label={t("common.back")}
-          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-(--text-strong) transition hover:bg-(--interaction-hover-background)"
+          className="shrink-0"
           onClick={onClose}
-          type="button"
+          shape="round"
+          size="lg"
+          variant="ghost"
         >
           <ArrowLeft className="h-4 w-4" />
-        </button>
-        <h2 className="truncate text-base font-semibold text-(--text-strong)">
+        </UiIconButton>
+        <h2 className={cn(
+          "truncate",
+          getUiTypographyClassName({ role: "sectionTitle", tone: "strong" }),
+        )}>
           {title}
         </h2>
       </header>

@@ -36,6 +36,22 @@ describe("UiListRow", () => {
     expect(row.hasAttribute("role")).toBe(false);
     expect(row.hasAttribute("tabindex")).toBe(false);
   });
+
+  it("keeps compact geometry inside the shared density contract", () => {
+    render(
+      <UiListRow
+        data-testid="compact-row"
+        density="compact"
+        onClick={() => undefined}
+        title="紧凑会话"
+      />,
+    );
+
+    const row = screen.getByTestId("compact-row");
+    expect(row.className).toContain("min-h-12");
+    expect(row.className).toContain("radius-control-md");
+    expect(row.className).not.toContain("min-h-[64px]");
+  });
 });
 
 describe("UiListActionButton", () => {

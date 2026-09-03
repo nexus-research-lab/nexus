@@ -33,7 +33,7 @@ describe("RoomMobileHeader", () => {
     expect(header?.className).toContain("h-[var(--mobile-shell-header-height,52px)]");
     expect(screen.getByText("产品 Room").className).toContain("ui-type-section-title");
     expect(screen.getByText("需求讨论").className).toContain("ui-type-caption");
-    expect(back.className).toContain("radius-control-lg");
+    expect(back.className).toContain("rounded-full");
 
     fireEvent.click(back);
     fireEvent.click(switcher);

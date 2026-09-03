@@ -86,4 +86,17 @@ describe("UiButton", () => {
     expect(button.getAttribute("type")).toBe("button");
     expect(button.getAttribute("title")).toBeNull();
   });
+
+  it("projects circular icon actions through a semantic shape", () => {
+    render(
+      <UiIconButton aria-label="返回" shape="round" size="lg">
+        <span aria-hidden="true">←</span>
+      </UiIconButton>,
+    );
+
+    const button = screen.getByRole("button", { name: "返回" });
+    expect(button.className).toContain("h-9");
+    expect(button.className).toContain("rounded-full");
+    expect(button.className).not.toContain("radius-control-lg");
+  });
 });

@@ -204,23 +204,41 @@ test("theme recipes own the semantic layer and adaptive dialog geometry implemen
   assert.match(recipes, /\.ui-type-code\s*\{/);
 });
 
-test("narrow app and Room headers share one platform-aware shell geometry", async () => {
-  const [layout, appHeader, roomHeader, recipes] = await Promise.all([
+test("narrow app and Room chrome share one platform-aware shell geometry", async () => {
+  const [layout, appHeader, roomHeader, switcher, auxiliary, actions, recipes] = await Promise.all([
     readSource("src/shared/ui/layout/mobile-shell-header-layout.ts"),
     readSource("src/app/layout/mobile-app-page-header.tsx"),
     readSource("src/features/conversation/room/surface/mobile/room-mobile-header.tsx"),
+    readSource("src/features/conversation/room/surface/mobile/room-mobile-conversation-switcher.tsx"),
+    readSource("src/features/conversation/room/surface/mobile/room-mobile-auxiliary-overlay.tsx"),
+    readSource("src/features/conversation/room/surface/mobile/room-mobile-actions-menu.tsx"),
     readSource("src/app/styles/theme-recipes.css"),
   ]);
 
   assert.match(layout, /--mobile-shell-header-height,52px/);
   assert.match(layout, /MOBILE_SHELL_HEADER_GUTTER_CLASS_NAME/);
+  assert.match(layout, /MOBILE_SHELL_HEADER_OFFSET_CLASS_NAME/);
   for (const consumer of [appHeader, roomHeader]) {
     assert.match(consumer, /MOBILE_SHELL_HEADER_HEIGHT_CLASS_NAME/);
     assert.match(consumer, /MOBILE_SHELL_HEADER_GUTTER_CLASS_NAME/);
     assert.match(consumer, /<UiIconButton/);
+    assert.match(consumer, /shape="round"/);
     assert.match(consumer, /getUiTypographyClassName/);
     assert.doesNotMatch(consumer, /h-\[52px\]|px-2 sm:px-3/);
   }
+  assert.match(switcher, /MOBILE_SHELL_HEADER_OFFSET_CLASS_NAME/);
+  assert.match(switcher, /getUiOverlayLayerClassName\("dialogUnderlay"\)/);
+  assert.match(switcher, /getUiOverlayLayerClassName\("dialog"\)/);
+  assert.match(switcher, /<UiListRow/);
+  assert.match(switcher, /density="compact"/);
+  assert.doesNotMatch(switcher, /top-\[52px\]|\bz-\d+/);
+  assert.match(auxiliary, /MOBILE_SHELL_HEADER_HEIGHT_CLASS_NAME/);
+  assert.match(auxiliary, /MOBILE_SHELL_HEADER_GUTTER_CLASS_NAME/);
+  assert.match(auxiliary, /getUiOverlayLayerClassName\("dialog"\)/);
+  assert.match(auxiliary, /data-desktop-window-drag-region/);
+  assert.doesNotMatch(auxiliary, /h-\[52px\]|\bz-\d+/);
+  assert.match(actions, /<UiIconButton/);
+  assert.match(actions, /shape="round"/);
   assert.match(
     recipes,
     /:root\[data-desktop-platform="macos"\][\s\S]*--mobile-shell-header-height:\s*var\(--workspace-header-height\)/,
