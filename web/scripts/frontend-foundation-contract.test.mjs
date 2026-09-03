@@ -428,12 +428,13 @@ test("loading indicators share one size, tone, and reduced-motion recipe", async
   assert.match(appLoading, /useI18n/);
   assert.match(appLoading, /cat-loading-static\.webp/);
 
-  const sharedUiFiles = await collectSourceFiles(path.join(srcRoot, "shared", "ui"));
+  const productionSourceFiles = await collectSourceFiles(srcRoot);
   const rawSpinnerViolations = [];
-  for (const file of sharedUiFiles) {
+  for (const file of productionSourceFiles) {
     const relativePath = path.relative(webRoot, file);
     if (
       relativePath === "src/shared/ui/display/spinner-styles.ts"
+      || relativePath.startsWith("src/dev/")
       || /\.test\.[jt]sx?$/.test(relativePath)
     ) {
       continue;

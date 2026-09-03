@@ -168,6 +168,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   shared Spinner roles, removing the last non-Workspace production border spinner.
 - Standardized Workspace directory, upload, and desktop application discovery
   loading through shared Spinner roles.
+- Extended the Spinner ownership gate from shared primitives to every production
+  frontend source file while excluding tests and the development gallery.
 - Established a single frontend engineering and design-system contract, and
   centralized high overlay layers and responsive dialog geometry behind semantic
   APIs to prevent page-specific stacking and small-window sizing drift.
