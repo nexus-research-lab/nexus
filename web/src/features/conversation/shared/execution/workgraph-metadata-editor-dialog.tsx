@@ -23,6 +23,7 @@ import {
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { useAgentStore } from "@/store/agent";
 import { UiButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -32,6 +33,8 @@ import {
 } from "@/shared/ui/dialog/dialog";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import { UiChoiceButton } from "@/shared/ui/form/choice";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { Agent } from "@/types/agent/agent";
 import type { SessionSnapshotPayload } from "@/types/conversation/conversation";
 import type { ExecutionResource } from "./use-execution-resource";
@@ -307,7 +310,10 @@ export function WorkGraphMetadataEditorDialog({
           <UiDialogBody className="grid min-h-0 flex-1 overflow-hidden p-0 md:grid-cols-[minmax(360px,0.42fr)_minmax(0,0.58fr)]">
             <div className="relative flex min-h-0 min-w-0 flex-col overflow-hidden border-r border-(--divider-subtle-color) bg-(--surface-muted-background) [--conversation-composer-backdrop:var(--surface-muted-background)]">
               {loading ? (
-                <div className="grid min-h-0 flex-1 place-items-center text-xs text-(--text-muted)">
+                <div className={cn(
+                  "grid min-h-0 flex-1 place-items-center",
+                  getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+                )}>
                   <span className="inline-flex items-center gap-2">
                     <LoaderCircle className={getUiSpinnerClassName({ size: "md" })} />
                     {t("execution.workflow_editor_starting")}
@@ -360,8 +366,18 @@ export function WorkGraphMetadataEditorDialog({
               <div className="shrink-0 border-b border-(--divider-subtle-color) px-8 py-5 pr-16">
                 <div className="flex min-w-0 items-start justify-between gap-6">
                   <div className="min-w-0">
-                    <h3 className="truncate text-lg font-semibold leading-7 tracking-[-0.015em] text-(--text-strong)">{currentPreview.title}</h3>
-                    <code className="mt-1 block text-xs text-(--text-soft)">/{currentPreview.slash_name}</code>
+                    <h3 className={cn(
+                      "truncate",
+                      getUiTypographyClassName({ role: "objectTitle", tone: "strong" }),
+                    )}>
+                      {currentPreview.title}
+                    </h3>
+                    <code className={cn(
+                      "mt-1 block",
+                      getUiTypographyClassName({ role: "code", tone: "soft" }),
+                    )}>
+                      /{currentPreview.slash_name}
+                    </code>
                   </div>
                   <UiButton
                     disabled={!editor || busy || applying || mutationBlocked}
@@ -378,23 +394,22 @@ export function WorkGraphMetadataEditorDialog({
                 </div>
                 {editor && editor.versions.length > 1 ? (
                   <div className="mt-4 flex min-w-0 items-center gap-2 border-t border-(--divider-subtle-color) pt-3">
-                    <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-(--text-muted)">
+                    <span className={cn(
+                      "inline-flex shrink-0 items-center gap-1.5",
+                      getUiTypographyClassName({ role: "metadata", tone: "muted", weight: "medium" }),
+                    )}>
                       <History className="h-3.5 w-3.5" />
                       {t("execution.workflow_editor_versions")}
                     </span>
                     <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                       {editor.versions.map((version) => (
-                        <button
+                        <UiChoiceButton
                           key={version.revision}
-                          aria-pressed={version.selected}
-                          className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition-colors ${
-                            version.selected
-                              ? "border-[color:color-mix(in_srgb,var(--primary)_36%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] font-semibold text-(--primary)"
-                              : "border-(--divider-subtle-color) bg-(--surface-control-background) text-(--text-muted) hover:text-(--text-strong)"
-                          }`}
+                          active={version.selected}
+                          choiceSize="xs"
                           disabled={busy || applying || selectingRevision !== null || mutationBlocked}
+                          shape="pill"
                           title={`${version.title} · ${version.node_count} ${t("execution.workflow_editor_version_nodes")}`}
-                          type="button"
                           onClick={() => void handleSelectRevision(version.revision)}
                         >
                           {version.selected ? <Check className="h-3 w-3" /> : null}
@@ -402,7 +417,7 @@ export function WorkGraphMetadataEditorDialog({
                           {selectingRevision === version.revision ? (
                             <LoaderCircle className={getUiSpinnerClassName({ size: "xs" })} />
                           ) : null}
-                        </button>
+                        </UiChoiceButton>
                       ))}
                     </div>
                   </div>
