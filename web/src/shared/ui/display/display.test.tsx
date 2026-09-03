@@ -15,11 +15,14 @@ describe("display badges", () => {
     const { container, rerender } = render(
       <>
         <UiBadge showDot tone="running">运行中</UiBadge>
+        <UiBadge shape="pill" tone="idle">12</UiBadge>
         <UiCounterBadge count={120} max={99} />
       </>,
     );
 
     expect(screen.getByText("运行中").querySelector(".bg-current")).toBeTruthy();
+    expect(screen.getByText("12").className).toContain("rounded-full");
+    expect(screen.getByText("运行中").className).toContain("radius-control-xs");
     expect(screen.getByText("99+")).toBeTruthy();
 
     rerender(<UiCounterBadge count={0} />);

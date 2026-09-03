@@ -10,6 +10,9 @@ import {
   type ReactNode,
 } from "react";
 
+import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
+
 import {
   getUiListRowPresentation,
   type UiListRowDensity,
@@ -112,13 +115,19 @@ function UiListRowDefaultContent({
   return (
     <div className="min-w-0 flex-1">
       <div className="flex min-w-0 items-center gap-2">
-        <span className="min-w-0 flex-1 truncate text-base font-semibold leading-5">{title}</span>
+        <span className={cn(
+          "min-w-0 flex-1 truncate",
+          getUiTypographyClassName({ role: "sectionTitle" }),
+        )}>{title}</span>
         {meta}
       </div>
       {description || subtitleTrailing ? (
         <div className="mt-0.5 flex min-w-0 items-center gap-2">
           {description ? (
-            <div className="min-w-0 flex-1 truncate text-compact leading-[1.125rem] text-(--text-muted)">
+            <div className={cn(
+              "min-w-0 flex-1 truncate",
+              getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+            )}>
               {description}
             </div>
           ) : (

@@ -50,6 +50,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Centralized Workspace Surface title, subtitle, compact navigation, and toolbar
   action typography on the shared role map, and replaced its remaining private
   identity radius with the shared control shape.
+- Moved default ListRow title/description text onto semantic typography roles
+  and added a first-class pill shape to shared badges so feature pages no longer
+  override badge radii directly; Connector and Custom MCP two-line directories
+  now consume those shared content slots instead of rebuilding row typography.
 - Reorganized Skill details around a shared responsive capability layout: long
   instructions keep a readable main column while badges and per-Agent controls
   occupy a bounded configuration rail that moves before content on narrow windows.

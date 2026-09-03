@@ -100,7 +100,7 @@ function ProviderModelListHeader({
           {t("settings.providers.models")}
         </h3>
         {selectedRecord ? (
-          <UiBadge className="rounded-full" size="xs" tone="idle">
+          <UiBadge shape="pill" size="xs" tone="idle">
             {modelCount}
           </UiBadge>
         ) : null}

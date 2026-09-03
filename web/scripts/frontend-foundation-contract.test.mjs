@@ -288,6 +288,33 @@ test("Workspace Surface primitives own their semantic typography and identity sh
   assert.match(toolbarAction, /role: "caption"/);
 });
 
+test("List and Badge primitives expose semantic typography and shape instead of page overrides", async () => {
+  const [listRow, badge, badgeStyles, providerModels, connectorCard, customMcpGrid] = await Promise.all([
+    readSource("src/shared/ui/list/list-row.tsx"),
+    readSource("src/shared/ui/display/badge.tsx"),
+    readSource("src/shared/ui/display/badge-styles.ts"),
+    readSource("src/features/settings/provider-settings/components/provider-settings-model-list.tsx"),
+    readSource("src/features/capability/connectors/catalog/connector-card.tsx"),
+    readSource("src/features/capability/connectors/custom/custom-mcp-grid.tsx"),
+  ]);
+
+  assert.match(listRow, /role: "sectionTitle"/);
+  assert.match(listRow, /role: "metadata"/);
+  assert.doesNotMatch(listRow, /text-base font-semibold|text-compact leading-/);
+  assert.match(badge, /shape\?: UiBadgeShape/);
+  assert.match(badgeStyles, /pill: "rounded-full"/);
+  assert.match(badgeStyles, /rounded: "radius-control-xs"/);
+  assert.match(providerModels, /<UiBadge shape="pill"/);
+  assert.doesNotMatch(providerModels, /<UiBadge className="rounded-full"/);
+  for (const connectorList of [connectorCard, customMcpGrid]) {
+    assert.match(connectorList, /description=/);
+    assert.match(connectorList, /title=/);
+    assert.doesNotMatch(connectorList, /text-base font-(?:medium|semibold)/);
+  }
+  assert.match(connectorCard, /meta=\{<ConnectorCardBadge/);
+  assert.match(customMcpGrid, /role: "code"/);
+});
+
 test("desktop hosts share viewport bounds but keep platform chrome ownership separate", async () => {
   const desktopRoot = path.join(webRoot, "..", "desktop");
   const [macWindow, windowsWindow, windowsXaml, windowsWebView, recipes] = await Promise.all([
