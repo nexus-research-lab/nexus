@@ -4,22 +4,19 @@
 "use client";
 
 import {
-  ArrowLeft,
-  ChevronRight,
   Pencil,
   Trash2,
   TriangleAlert,
 } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { CapabilityDetailPage } from "@/features/capability/shared/capability-page-layout";
 import type { ResourceFailure } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
-import { WorkspaceContentDetailHeader } from "@/shared/ui/layout/workspace-content-header";
-import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import { UiPanel } from "@/shared/ui/panel";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
@@ -255,32 +252,13 @@ function CustomMCPDetailFrame({
 }) {
   const { t } = useI18n();
   return (
-    <div className={WORKSPACE_CONTENT_PAGE_CLASS_NAME}>
-      <WorkspaceContentDetailHeader>
-        <div className="flex min-w-0 items-center gap-2">
-          <UiButton
-            onClick={onBack}
-            size="sm"
-            variant="text"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            {t("capability.connectors_tab_custom_mcp")}
-          </UiButton>
-          {name ? (
-            <>
-              <ChevronRight className="h-3.5 w-3.5 text-(--icon-muted)" />
-              <span className={cn(
-                "truncate",
-                getUiTypographyClassName({ role: "metadata", tone: "strong", weight: "medium" }),
-              )}>
-                {name}
-              </span>
-            </>
-          ) : null}
-        </div>
-      </WorkspaceContentDetailHeader>
+    <CapabilityDetailPage
+      backLabel={t("capability.connectors_tab_custom_mcp")}
+      currentTitle={name}
+      onBack={onBack}
+    >
       {children}
-    </div>
+    </CapabilityDetailPage>
   );
 }
 

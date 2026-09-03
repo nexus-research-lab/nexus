@@ -1,7 +1,10 @@
+/**
+ * INPUT: Connector 对象、状态投影和认证/连接动作。
+ * OUTPUT: Connector 身份说明与当前可用操作。
+ * POS: Connector 详情对象 Header；二级页导航归 capability/shared。
+ */
 import type { ReactNode } from "react";
 import {
-  ArrowLeft,
-  ChevronRight,
   KeyRound,
   Link2,
   RefreshCcw,
@@ -11,7 +14,6 @@ import {
 
 import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
-import { WorkspaceContentDetailHeader } from "@/shared/ui/layout/workspace-content-header";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { ConnectorDetail } from "@/types/capability/connector";
 
@@ -134,40 +136,6 @@ function ConnectorOauthClientButton({
     return null;
   }
   return OAUTH_CLIENT_ACTION[action](context);
-}
-
-export function ConnectorDetailBreadcrumb({
-  detail,
-  onBack,
-}: {
-  detail: ConnectorDetail | null;
-  onBack: () => void;
-}) {
-  return (
-    <WorkspaceContentDetailHeader>
-      <div className="flex min-w-0 items-center gap-2">
-        <UiButton
-          onClick={onBack}
-          size="sm"
-          variant="text"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          连接器
-        </UiButton>
-        {detail ? (
-          <>
-            <ChevronRight className="h-3.5 w-3.5 text-(--icon-muted)" />
-            <span className={cn(
-              "truncate",
-              getUiTypographyClassName({ role: "metadata", tone: "strong", weight: "medium" }),
-            )}>
-              {detail.title}
-            </span>
-          </>
-        ) : null}
-      </div>
-    </WorkspaceContentDetailHeader>
-  );
 }
 
 export function ConnectorDetailHeader({

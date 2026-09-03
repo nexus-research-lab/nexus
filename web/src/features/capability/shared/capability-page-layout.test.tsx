@@ -2,12 +2,13 @@
 // OUTPUT: 证明 Header 动作、Typography、身份框与详情分栏语义由公共布局持有。
 // POS: 能力页共享布局 DOM 合同；各目录资源与筛选行为由所属领域测试负责。
 
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { MobileAppPageHeaderActionsProvider } from "@/app/layout/mobile-app-page-header-actions";
 
 import {
+  CapabilityDetailPage,
   CapabilityDetailSectionHeader,
   CapabilityDetailSplitLayout,
   CapabilityItemIcon,
@@ -53,6 +54,27 @@ describe("CapabilityPageLayout", () => {
 
     expect(target.querySelector("button")?.textContent).toBe("Add MCP");
     expect(document.querySelector(".workspace-content-header button")).toBeNull();
+  });
+
+  it("owns one detail page axis and current-object navigation contract", () => {
+    let backCount = 0;
+    const { container } = render(
+      <CapabilityDetailPage
+        backLabel="Skills"
+        currentTitle="Research Skill"
+        onBack={() => { backCount += 1; }}
+      >
+        <div>Detail content</div>
+      </CapabilityDetailPage>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Skills" }));
+
+    expect(backCount).toBe(1);
+    expect(container.querySelector("[data-slot='capability-detail-page']")).toBeTruthy();
+    expect(container.querySelector("[data-slot='capability-detail-header']")).toBeTruthy();
+    expect(screen.getByText("Research Skill").className).toContain("ui-type-metadata");
+    expect(screen.getByText("Detail content")).toBeTruthy();
   });
 
   it("uses semantic section typography and icon geometry", () => {

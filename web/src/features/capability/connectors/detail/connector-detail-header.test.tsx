@@ -1,26 +1,59 @@
-// INPUT: Connector 详情返回动作与当前 Connector 标题。
-// OUTPUT: 证明详情面包屑复用共享 Button 与语义 Typography，而非页面私有样式。
-// POS: Connector 详情 Header DOM 合同；连接命令与状态投影由 model/controller 测试负责。
+// INPUT: 可连接的 Connector 详情、状态投影与动作回调。
+// OUTPUT: 证明对象身份和主动作仍使用共享 Typography 与 Button 并正确派发。
+// POS: Connector 对象 Header DOM 合同；统一详情导航由 capability/shared 测试负责。
 
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import type { ConnectorDetail } from "@/types/capability/connector";
 
-import { ConnectorDetailBreadcrumb } from "./connector-detail-header";
+import { ConnectorDetailHeader } from "./connector-detail-header";
 
-describe("ConnectorDetailBreadcrumb", () => {
-  it("renders the back action and current item through shared semantic owners", () => {
+const DETAIL = {
+  auth_type: "oauth2",
+  category: "productivity",
+  connection_state: "disconnected",
+  connector_id: "richmail",
+  description: "Manage mail and schedules.",
+  features: [],
+  icon: "/icon/connector/richmail.svg",
+  is_configured: true,
+  kind: "connector",
+  name: "richmail",
+  scopes: [],
+  status: "available",
+  title: "RichMail",
+} satisfies ConnectorDetail;
+
+describe("ConnectorDetailHeader", () => {
+  it("renders semantic identity and dispatches its projected primary action", async () => {
+    const user = userEvent.setup();
+    const onConnect = vi.fn();
     render(
-      <ConnectorDetailBreadcrumb
-        detail={{ title: "RichMail" } as ConnectorDetail}
-        onBack={vi.fn()}
+      <ConnectorDetailHeader
+        busy={false}
+        detail={DETAIL}
+        onConfigureCredential={vi.fn()}
+        onConfigureOauthClient={vi.fn()}
+        onConnect={onConnect}
+        onDisconnect={vi.fn()}
+        onReplaceOauthClient={vi.fn()}
+        state={{
+          configurationError: null,
+          oauthClientAction: null,
+          primaryAction: "connect",
+          status: "disconnected",
+        }}
       />,
     );
 
-    const backButton = screen.getByRole("button", { name: "连接器" });
-    expect(backButton.className).toContain("radius-control-sm");
-    expect(backButton.className).toContain("ui-type-metadata");
-    expect(screen.getByText("RichMail").className).toContain("ui-type-metadata");
+    expect(screen.getByRole("heading", { name: DETAIL.title }).className)
+      .toContain("ui-type-object-title");
+    expect(screen.getByText(DETAIL.description).className)
+      .toContain("ui-type-supporting");
+
+    await user.click(screen.getByRole("button", { name: "添加到 Nexus" }));
+    expect(onConnect).toHaveBeenCalledWith(DETAIL.connector_id);
   });
 });

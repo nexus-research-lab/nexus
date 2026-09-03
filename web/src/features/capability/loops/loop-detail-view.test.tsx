@@ -89,7 +89,11 @@ describe("LoopDetailView", () => {
     expect(screen.getAllByText("npm test")[0].className).toContain("ui-type-code");
     expect(screen.getByText("Quality").className).toContain("text-2xs");
     expect(container.querySelectorAll(".surface-radius-sm").length).toBeGreaterThan(1);
-    expect(screen.getByRole("button", { name: "common.back" }).className).toContain("ui-type-metadata");
+    expect(screen.getByRole("button", { name: "capability.loops" }).className).toContain("ui-type-metadata");
+    expect(container.querySelector("[data-slot='capability-detail-header']")).toBeTruthy();
+    expect(screen.getAllByText(LOOP.title).some((node) => (
+      node.className.includes("ui-type-metadata")
+    ))).toBe(true);
   });
 
   it("copies the kickoff prompt through the shared clipboard adapter", async () => {
