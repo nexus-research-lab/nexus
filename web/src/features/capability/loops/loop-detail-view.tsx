@@ -1,14 +1,17 @@
 /**
  * INPUT: Loop slug、本地化资源与返回动作。
- * OUTPUT: Loop 步骤、退出条件、护栏和启动指令详情。
- * POS: 工作循环长内容详情；目录统计不在此重复堆叠。
+ * OUTPUT: 共享对象身份区中的 Loop 元数据，以及步骤、退出条件、护栏和启动指令详情。
+ * POS: 工作循环长内容详情；身份几何归 capability/shared，目录统计不在此重复堆叠。
  */
 "use client";
 
 import { useEffect, useState } from "react";
 import { Check, Copy, RotateCcw } from "lucide-react";
 
-import { CapabilityDetailPage } from "@/features/capability/shared/capability-page-layout";
+import {
+  CapabilityDetailIdentity,
+  CapabilityDetailPage,
+} from "@/features/capability/shared/capability-page-layout";
 import { getLoopApi } from "@/lib/api/capability/loop-api";
 import { getResourceFailure, type ResourceFailure } from "@/lib/error-message";
 import { writeTextToClipboard } from "@/hooks/ui/clipboard";
@@ -18,7 +21,6 @@ import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
-import { WorkspaceContentHeader } from "@/shared/ui/layout/workspace-content-header";
 import { UiPanel } from "@/shared/ui/panel";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { LoopCatalogItem } from "@/types/capability/loop";
@@ -116,18 +118,19 @@ export function LoopDetailView({ slug, onBack: onBack }: LoopDetailViewProps) {
         />
       ) : loop ? (
         <div className="mt-3 space-y-5">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <UiBadge size="xs">
-              {loop.category}
-            </UiBadge>
-            <UiBadge size="xs" tone="idle">
-              {metadata?.triggerLabel}
-            </UiBadge>
-          </div>
-          <WorkspaceContentHeader
-            className="mb-0"
+          <CapabilityDetailIdentity
             description={loop.description}
             title={loop.title}
+            titleMeta={(
+              <>
+                <UiBadge size="xs">
+                  {loop.category}
+                </UiBadge>
+                <UiBadge size="xs" tone="idle">
+                  {metadata?.triggerLabel}
+                </UiBadge>
+              </>
+            )}
           />
 
           <section>

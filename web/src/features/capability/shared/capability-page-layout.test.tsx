@@ -9,6 +9,7 @@ import { MobileAppPageHeaderActionsProvider } from "@/app/layout/mobile-app-page
 
 import {
   CapabilityDetailPage,
+  CapabilityDetailIdentity,
   CapabilityDetailSectionHeader,
   CapabilityDetailSplitLayout,
   CapabilityItemIcon,
@@ -75,6 +76,36 @@ describe("CapabilityPageLayout", () => {
     expect(container.querySelector("[data-slot='capability-detail-header']")).toBeTruthy();
     expect(screen.getByText("Research Skill").className).toContain("ui-type-metadata");
     expect(screen.getByText("Detail content")).toBeTruthy();
+  });
+
+  it("owns detail identity alignment, semantics, metadata, and actions", () => {
+    let actionCount = 0;
+    const { container } = render(
+      <CapabilityDetailIdentity
+        actions={(
+          <button onClick={() => { actionCount += 1; }} type="button">
+            Connect
+          </button>
+        )}
+        description="Manage mail and schedules."
+        leading={<span>RM</span>}
+        title="RichMail"
+        titleMeta={<span>Connected</span>}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Connect" }));
+
+    expect(actionCount).toBe(1);
+    expect(container.querySelector("[data-slot='capability-detail-identity']")).toBeTruthy();
+    expect(container.querySelector("[data-slot='capability-detail-identity-leading']")?.textContent)
+      .toBe("RM");
+    expect(container.querySelector("[data-slot='capability-detail-identity-actions']")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "RichMail" }).className)
+      .toContain("ui-type-object-title");
+    expect(screen.getByText("Manage mail and schedules.").className)
+      .toContain("ui-type-supporting");
+    expect(screen.getByText("Connected")).toBeTruthy();
   });
 
   it("uses semantic section typography and icon geometry", () => {

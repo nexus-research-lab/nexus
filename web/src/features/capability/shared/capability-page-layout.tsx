@@ -1,6 +1,6 @@
 /**
  * INPUT: 能力页面标题、说明、动作、筛选控件、目录条目及详情导航/正文/配置内容。
- * OUTPUT: 能力目录与详情页的共享内容轴、移动页头动作、二级导航、目录网格和响应式分栏。
+ * OUTPUT: 能力目录与详情页的共享内容轴、移动页头动作、二级导航、对象身份区、目录网格和响应式分栏。
  * POS: 能力域页面级设计语法；通过应用布局动作槽适配手机页头，不解释具体领域状态。
  */
 "use client";
@@ -47,6 +47,18 @@ interface CapabilityDetailHeaderProps {
 interface CapabilityDetailPageProps extends CapabilityDetailHeaderProps {
   children: ReactNode;
   className?: string;
+}
+
+interface CapabilityDetailIdentityProps {
+  actions?: ReactNode;
+  className?: string;
+  description?: ReactNode;
+  descriptionClassName?: string;
+  descriptionRole?: "caption" | "code" | "supporting";
+  descriptionTitle?: string;
+  leading?: ReactNode;
+  title: ReactNode;
+  titleMeta?: ReactNode;
 }
 
 interface CapabilityFilterBarProps {
@@ -169,6 +181,65 @@ export function CapabilityDetailPage({
         onBack={onBack}
       />
       {children}
+    </div>
+  );
+}
+
+/** 详情对象的前导身份、标题、元数据、说明和操作共享同一响应式对齐规则。 */
+export function CapabilityDetailIdentity({
+  actions,
+  className,
+  description,
+  descriptionClassName,
+  descriptionRole = "supporting",
+  descriptionTitle,
+  leading,
+  title,
+  titleMeta,
+}: CapabilityDetailIdentityProps) {
+  return (
+    <div
+      className={cn(
+        "flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between",
+        className,
+      )}
+      data-slot="capability-detail-identity"
+    >
+      <div className="flex min-w-0 flex-1 items-start gap-4">
+        {leading ? (
+          <div className="shrink-0" data-slot="capability-detail-identity-leading">
+            {leading}
+          </div>
+        ) : null}
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className={getUiTypographyClassName({ role: "objectTitle", tone: "strong" })}>
+              {title}
+            </h1>
+            {titleMeta}
+          </div>
+          {description ? (
+            <p
+              className={cn(
+                "mt-1",
+                getUiTypographyClassName({ role: descriptionRole, tone: "muted" }),
+                descriptionClassName,
+              )}
+              title={descriptionTitle}
+            >
+              {description}
+            </p>
+          ) : null}
+        </div>
+      </div>
+      {actions ? (
+        <div
+          className="flex shrink-0 flex-wrap items-center justify-end gap-2"
+          data-slot="capability-detail-identity-actions"
+        >
+          {actions}
+        </div>
+      ) : null}
     </div>
   );
 }
