@@ -10,6 +10,7 @@ import { Download, Loader2, MonitorCog } from "lucide-react";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 
 import {
@@ -61,7 +62,11 @@ export function SettingsDesktopSection() {
               size="xs"
               variant="surface"
             >
-              {controller.exportingLogs ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+              {controller.exportingLogs ? (
+                <Loader2 className={getUiSpinnerClassName({ size: "xs" })} />
+              ) : (
+                <Download className="h-3 w-3" />
+              )}
               {t("settings.desktop.export_logs")}
             </UiButton>
           </div>

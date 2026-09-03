@@ -10,6 +10,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiInput } from "@/shared/ui/form/form-control";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
@@ -192,7 +193,9 @@ function PasswordSubmitActions({
         type="submit"
         variant={canSubmit ? "solid" : "surface"}
       >
-        {isSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+        {isSubmitting ? (
+          <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
+        ) : null}
         {isSubmitting ? t("common.saving") : t("settings.personal.change_password")}
       </UiButton>
     </div>

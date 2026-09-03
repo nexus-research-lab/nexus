@@ -20,6 +20,7 @@ import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiInput } from "@/shared/ui/form/form-control";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import {
@@ -107,7 +108,7 @@ export function SettingsWorkspaceSection() {
                   variant="ghost"
                 >
                   {controller.selecting ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
                   ) : (
                     <FolderOpen className="h-3.5 w-3.5" />
                   )}
@@ -122,7 +123,7 @@ export function SettingsWorkspaceSection() {
                 variant="surface"
               >
                 {controller.saving ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <Loader2 className={getUiSpinnerClassName({ size: "xs" })} />
                 ) : (
                   <RefreshCw className="h-3 w-3" />
                 )}

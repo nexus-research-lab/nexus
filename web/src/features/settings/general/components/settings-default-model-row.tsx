@@ -10,6 +10,7 @@ import { Loader2 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import type { UiSelectMenuOption } from "@/shared/ui/menu/select-menu-model";
 
@@ -84,7 +85,9 @@ export function SettingsDefaultModelRow({
             || Boolean(savingRole)
             || options.length === 0
           }
-          leading={savingRole === modelCategory ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+          leading={savingRole === modelCategory
+            ? <Loader2 className={getUiSpinnerClassName({ size: "xs" })} />
+            : null}
           onChange={(nextValue) => onChange(nextValue, modelCategory)}
           options={options}
           placeholder={providerOptionsLoading

@@ -487,6 +487,28 @@ test("Memory surfaces share one semantic spinner scale", async () => {
   }
 });
 
+test("General, Personal, and Browser settings share semantic Spinner roles", async () => {
+  const paths = [
+    "src/features/settings/browser/browser-settings-section.tsx",
+    "src/features/settings/general/components/settings-default-model-row.tsx",
+    "src/features/settings/general/sections/settings-desktop-section.tsx",
+    "src/features/settings/general/sections/settings-workspace-section.tsx",
+    "src/features/settings/personal/personal-avatar-picker.tsx",
+    "src/features/settings/personal/personal-password-section.tsx",
+    "src/features/settings/personal/personal-settings-panel.tsx",
+  ];
+  const sources = await Promise.all(paths.map(readSource));
+  const combined = sources.join("\n");
+
+  for (const source of sources) {
+    assert.match(source, /getUiSpinnerClassName/);
+    assert.doesNotMatch(source, /\banimate-spin\b/);
+  }
+  for (const size of ["xs", "sm", "lg"]) {
+    assert.match(combined, new RegExp(`size: "${size}"`));
+  }
+});
+
 test("List and Badge primitives expose semantic typography and shape instead of page overrides", async () => {
   const [listRow, badge, badgeStyles, providerModels, connectorCard, customMcpGrid] = await Promise.all([
     readSource("src/shared/ui/list/list-row.tsx"),

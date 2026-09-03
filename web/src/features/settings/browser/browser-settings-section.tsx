@@ -26,6 +26,7 @@ import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { WorkspaceContentHeader } from "@/shared/ui/layout/workspace-content-header";
 import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
@@ -164,7 +165,11 @@ export function BrowserSettingsSection() {
               tone={connected ? "default" : "primary"}
               variant={connected ? "surface" : "solid"}
             >
-              {openingSetup ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FolderOpen className="h-3.5 w-3.5" />}
+              {openingSetup ? (
+                <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
+              ) : (
+                <FolderOpen className="h-3.5 w-3.5" />
+              )}
               {openingSetup
                 ? t("settings.browser.install_opening")
                 : incompatible

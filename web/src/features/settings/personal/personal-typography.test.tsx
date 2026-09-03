@@ -63,4 +63,24 @@ describe("Personal settings typography", () => {
     expect(screen.queryByRole("textbox")).toBeNull();
     expect(container.querySelector("section")?.className).toContain("surface-radius-md");
   });
+
+  it("uses the shared compact Spinner while changing a password", () => {
+    const { container } = renderWithI18n(
+      <PersonalPasswordSection
+        canChange
+        canSubmit={false}
+        draft={{ confirmPassword: "new-password", currentPassword: "old-password", newPassword: "new-password" }}
+        hasInput
+        isSubmitting
+        mutationBlocked
+        onFieldChange={vi.fn()}
+        onSubmit={vi.fn()}
+        validationError={null}
+      />,
+    );
+
+    const spinner = container.querySelector("svg.animate-spin");
+    expect(spinner?.getAttribute("class")).toContain("h-3.5 w-3.5");
+    expect(spinner?.getAttribute("class")).toContain("motion-reduce:animate-none");
+  });
 });
