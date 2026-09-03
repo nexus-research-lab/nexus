@@ -15,3 +15,4 @@ Room Workspace 的纯视图与布局边界。
 - 文件浏览器与弹窗只接收主控制器对应的 `browser` / `dialogs` 控制面。
 - 视图不直接调用 Workspace API，不推导 Agent 作用域。
 - 跨 Room 与 Landing 复用的文件树归 `shared/ui/workspace/tree` 所有，Room 不得反向暴露私有视图。
+- 文件目录初始读取和“打开方式”应用列表使用共享 `md` muted Spinner，上传使用 Header 对齐的 `sm` Spinner；Workspace 视图不得自行维护尺寸、颜色、旋转或 reduced-motion class。

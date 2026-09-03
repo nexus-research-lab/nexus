@@ -35,6 +35,7 @@ import type {
 } from "@/lib/desktop-bridge/desktop-bridge";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import {
   getMenuItemStateClassName,
   MENU_ITEM_BASE_CLASS_NAME,
@@ -483,10 +484,14 @@ function WorkspaceContextSubmenu({
           disabled={action.disabled}
         >
           {action.Icon ? (
-            <action.Icon className={cn(
-              "mr-2 h-4 w-4 shrink-0",
-              action.id === "open-with-loading" && "animate-spin",
-            )} />
+            <action.Icon
+              className={action.id === "open-with-loading"
+                ? getUiSpinnerClassName(
+                    { size: "md", tone: "muted" },
+                    "mr-2",
+                  )
+                : "mr-2 h-4 w-4 shrink-0"}
+            />
           ) : null}
           <span className="truncate">{action.label}</span>
         </button>

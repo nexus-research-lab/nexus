@@ -703,6 +703,20 @@ test("Provider import and Operations route loading share Spinner roles", async (
   }
 });
 
+test("Workspace directory and context menu loading share Spinner roles", async () => {
+  const [fileBrowser, contextMenu] = await Promise.all([
+    readSource("src/features/conversation/room/workspace/view/workspace-file-browser.tsx"),
+    readSource("src/features/conversation/room/workspace/view/workspace-context-menu.tsx"),
+  ]);
+
+  assert.match(fileBrowser, /getUiSpinnerClassName\(\{ size: "sm" \}\)/);
+  assert.match(fileBrowser, /size: "md", tone: "muted"/);
+  assert.match(contextMenu, /size: "md", tone: "muted"/);
+  for (const source of [fileBrowser, contextMenu]) {
+    assert.doesNotMatch(source, /\banimate-spin\b/);
+  }
+});
+
 test("List and Badge primitives expose semantic typography and shape instead of page overrides", async () => {
   const [listRow, badge, badgeStyles, providerModels, connectorCard, customMcpGrid] = await Promise.all([
     readSource("src/shared/ui/list/list-row.tsx"),
