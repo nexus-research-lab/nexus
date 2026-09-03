@@ -700,6 +700,22 @@ test("Composer Connector and Room model menus share compact Spinner roles", asyn
   }
 });
 
+test("Composer shell actions use shared Button primitives", async () => {
+  const [footerActions, sessionControls, roomModelControl] = await Promise.all([
+    readSource("src/features/conversation/shared/composer/components/footer/composer-footer-actions.tsx"),
+    readSource("src/features/conversation/shared/composer/components/footer/composer-session-controls.tsx"),
+    readSource("src/features/conversation/shared/composer/components/footer/composer-room-model-control.tsx"),
+  ]);
+
+  assert.match(footerActions, /<UiIconButton/);
+  assert.doesNotMatch(footerActions, /<button\b/);
+  assert.match(sessionControls, /<UiButton/);
+  assert.doesNotMatch(sessionControls, /<button\b|rounded-\[/);
+  assert.match(roomModelControl, /<UiButton/);
+  assert.match(roomModelControl, /<UiIconButton/);
+  assert.equal(roomModelControl.match(/<button\b/g)?.length, 1);
+});
+
 test("Agent Skill and private-domain loading states share Spinner roles", async () => {
   const paths = [
     "src/features/agents/options/components/skills/agent-options-skills-content.tsx",

@@ -38,6 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Unified Composer action, Session permission/model, Room model, and nested back
+  triggers on shared Button primitives while retaining specialized Agent rows
+  and context-usage visualization behavior.
 - Moved Room Agent, member-stack, and mobile conversation Header triggers onto
   the shared Button state contract while preserving their identity layouts.
 - Unified Room history and Session-edge controls on shared Button, Form, List,

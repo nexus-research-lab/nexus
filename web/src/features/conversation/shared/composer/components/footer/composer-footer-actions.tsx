@@ -15,6 +15,7 @@ import {
 
 import { ConnectorIcon } from "@/features/capability/connectors/connector-icon";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiIconButton } from "@/shared/ui/button/button";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import {
   UiActionMenu,
@@ -132,17 +133,18 @@ export function ComposerFooterActions({
 
   return (
     <div className="shrink-0">
-      <button
+      <UiIconButton
         ref={actionButtonRef}
         aria-expanded={isActionMenuOpen}
         aria-haspopup="menu"
         aria-label={t("composer.open_actions")}
-        className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] text-(--icon-default) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) disabled:pointer-events-none disabled:opacity-(--disabled-opacity)"
         onClick={onActionMenuToggle}
-        type="button"
+        size="md"
+        tooltip={t("composer.open_actions")}
+        variant="ghost"
       >
         <Plus className="h-4 w-4" />
-      </button>
+      </UiIconButton>
       <UiActionMenu
         anchorRef={actionButtonRef}
         ariaLabel={t("composer.open_actions")}

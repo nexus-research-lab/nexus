@@ -23,6 +23,7 @@ import {
 import { createPortal } from "react-dom";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
@@ -58,7 +59,6 @@ import {
 interface ComposerRoomModelControlProps {
   controller: ComposerSessionSettingsController;
   disabled: boolean;
-  triggerClassName: string;
 }
 
 type RoomModelView = "agents" | "models";
@@ -75,7 +75,6 @@ const ROOM_MODEL_ITEM_HEIGHT = 32;
 export function ComposerRoomModelControl({
   controller,
   disabled,
-  triggerClassName,
 }: ComposerRoomModelControlProps) {
   const { t } = useI18n();
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -197,26 +196,24 @@ export function ComposerRoomModelControl({
 
   return (
     <>
-      <button
+      <UiButton
         ref={triggerRef}
         aria-controls={isOpen ? overlayId : undefined}
         aria-expanded={isOpen}
         aria-haspopup="dialog"
         aria-label={t("composer.session_model")}
-        className={cn(
-          triggerClassName,
-          "max-w-44 text-(--text-default)",
-        )}
+        className="h-7 min-w-0 max-w-44 px-1.5 text-(--text-default)"
         disabled={disabled || controller.saving}
         onClick={toggle}
+        size="xs"
         title={t("composer.session_model")}
-        type="button"
+        variant="text"
       >
         <span className="truncate">
           {t("composer.room_model")}
         </span>
         <ChevronDown className="h-3 w-3 shrink-0" />
-      </button>
+      </UiButton>
 
       {isOpen && portalContainer ? createPortal(
         <div
@@ -441,14 +438,16 @@ function RoomModelHeader({
   const { t } = useI18n();
   return (
     <div className="flex h-10 shrink-0 items-center gap-2 border-b border-(--divider-subtle-color) px-2">
-      <button
+      <UiIconButton
         aria-label={t("composer.session_settings_back")}
-        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] text-(--icon-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)"
+        className="shrink-0 text-(--icon-muted)"
         onClick={onBack}
-        type="button"
+        size="sm"
+        tooltip={t("composer.session_settings_back")}
+        variant="ghost"
       >
         <ArrowLeft className="h-3.5 w-3.5" />
-      </button>
+      </UiIconButton>
       <span className="min-w-0 flex-1 truncate text-sm font-semibold text-(--text-strong)">
         {title}
       </span>
