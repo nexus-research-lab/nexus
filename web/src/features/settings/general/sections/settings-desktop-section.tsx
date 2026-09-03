@@ -8,13 +8,12 @@
 import { Download, Loader2, MonitorCog } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button/button";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 
 import {
   SETTINGS_CARD_CLASS_NAME,
-  SETTINGS_CONTROL_HEIGHT_CLASS_NAME,
-  SETTINGS_CONTROL_TEXT_CLASS_NAME,
   SETTINGS_ICON_CLASS_NAME,
   SETTINGS_ITEM_DESCRIPTION_CLASS_NAME,
   SETTINGS_ITEM_TITLE_CLASS_NAME,
@@ -56,15 +55,15 @@ export function SettingsDesktopSection() {
             </div>
           </div>
           <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
-            <button
-              className={`${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-2.5 ${SETTINGS_CONTROL_TEXT_CLASS_NAME} text-(--text-default) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) disabled:opacity-(--disabled-opacity)`}
+            <UiButton
               disabled={controller.exportingLogs}
               onClick={() => void controller.exportLogs()}
-              type="button"
+              size="xs"
+              variant="surface"
             >
               {controller.exportingLogs ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
               {t("settings.desktop.export_logs")}
-            </button>
+            </UiButton>
           </div>
         </div>
         {controller.versionFailed ? (

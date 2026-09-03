@@ -6,6 +6,7 @@
 import { LucideIcon } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 interface UiSegmentedControlOption<T extends string> {
   label: string;
@@ -18,7 +19,7 @@ interface UiSegmentedControlProps<T extends string> {
   disabled?: boolean;
   icon?: LucideIcon;
   onChange: (value: T) => void;
-  options: UiSegmentedControlOption<T>[];
+  options: ReadonlyArray<UiSegmentedControlOption<T>>;
   stretch?: boolean;
   title: string;
   value: T;
@@ -39,9 +40,9 @@ export function UiSegmentedControl<T extends string>({
     <div
       aria-label={title}
       className={cn(
-        "segmented-control items-center gap-px rounded-full",
+        "segmented-control items-center gap-px surface-radius-md",
         stretch ? "flex w-full" : "inline-flex",
-        density === "compact" ? "p-[1.5px]" : "p-[3px]",
+        density === "compact" ? "p-0.5" : "p-1",
         !Icon && "gap-0",
         className,
       )}
@@ -51,8 +52,8 @@ export function UiSegmentedControl<T extends string>({
       {Icon ? (
         <span
           className={cn(
-            "segmented-control-icon flex items-center justify-center rounded-full",
-            density === "compact" ? "h-[21px] w-[21px]" : "h-[26px] w-[26px]",
+            "segmented-control-icon flex items-center justify-center radius-control-sm",
+            density === "compact" ? "h-5 w-5" : "h-7 w-7",
           )}
         >
           <Icon className={cn(density === "compact" ? "h-3 w-3" : "h-3.5 w-3.5")} />
@@ -64,8 +65,9 @@ export function UiSegmentedControl<T extends string>({
           key={option.value}
           aria-pressed={value === option.value}
           className={cn(
-            "segmented-control-option rounded-full font-semibold tracking-[0.02em]",
-            density === "compact" ? "px-[0.7rem] py-[3.5px] text-2xs" : "px-1.5 py-[5px] text-2xs",
+            "segmented-control-option radius-control-sm",
+            getUiTypographyClassName({ role: "caption", weight: "semibold" }),
+            density === "compact" ? "px-2 py-1" : "px-2.5 py-1.5",
             stretch && "min-w-0 flex-1 px-1.5 text-center",
           )}
           data-active={value === option.value}

@@ -25,6 +25,7 @@ import {
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiCheckbox } from "@/shared/ui/form/checkbox";
+import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 
 import { PreferencesReliabilityNotice } from "../general/components/preferences-reliability-notice";
@@ -50,7 +51,6 @@ import {
   SETTINGS_ROW_CLASS_NAME,
   SETTINGS_SELECT_BUTTON_CLASS_NAME,
   SETTINGS_TEXT_ROW_CLASS_NAME,
-  SettingsSegmentedControl,
 } from "../shared/settings-panel-ui";
 import { useRuntimeSettingsController } from "./use-runtime-settings-controller";
 
@@ -151,8 +151,8 @@ export function SettingsRuntimeSection() {
               <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
                 {t("settings.runtime.kernel_label")}
               </span>
-              <SettingsSegmentedControl
-                ariaLabel={t("settings.runtime.kernel_label")}
+              <UiSegmentedControl
+                density="compact"
                 disabled={
                   settings.loading ||
                   settings.preferencesBusy ||
@@ -163,6 +163,8 @@ export function SettingsRuntimeSection() {
                   value: option.value,
                   label: t(option.labelKey),
                 }))}
+                stretch
+                title={t("settings.runtime.kernel_label")}
                 value={settings.runtimeKind}
               />
             </div>
@@ -488,28 +490,32 @@ function WebSearchRow({
                     icon={<Wrench className="h-3.5 w-3.5" />}
                     label={t("settings.runtime.web_search_depth")}
                   >
-                    <SettingsSegmentedControl
-                      ariaLabel={t("settings.runtime.web_search_depth")}
+                    <UiSegmentedControl
+                      density="compact"
                       disabled={disabled}
                       onChange={(value) => commitPatch({ search_depth: value as "basic" | "advanced" })}
                       options={[
                         { label: t("settings.runtime.web_search_basic"), value: "basic" },
                         { label: t("settings.runtime.web_search_advanced"), value: "advanced" },
                       ]}
+                      stretch
+                      title={t("settings.runtime.web_search_depth")}
                       value={draft.search_depth ?? "basic"}
                     />
                   </SettingsField>
                 ) : null}
                 {capabilities.extractDepth ? (
                   <SettingsField label={t("settings.runtime.web_search_extract_depth")}>
-                    <SettingsSegmentedControl
-                      ariaLabel={t("settings.runtime.web_search_extract_depth")}
+                    <UiSegmentedControl
+                      density="compact"
                       disabled={disabled}
                       onChange={(value) => commitPatch({ extract_depth: value as "basic" | "advanced" })}
                       options={[
                         { label: t("settings.runtime.web_search_basic"), value: "basic" },
                         { label: t("settings.runtime.web_search_advanced"), value: "advanced" },
                       ]}
+                      stretch
+                      title={t("settings.runtime.web_search_extract_depth")}
                       value={draft.extract_depth ?? "basic"}
                     />
                   </SettingsField>
