@@ -38,6 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Replaced the stretched Skill and Connector directory mode capsules with one
+  shared single-line, neutral-underline page-mode contract; long labels no
+  longer wrap or divide the full content width in narrow windows.
 - Removed the redundant message-specific action-button adapter: message rerun,
   edit, copy, and stop controls now use shared micro Buttons, with copy
   confirmation represented by the new shared success tone.

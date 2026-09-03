@@ -28,6 +28,7 @@ import {
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import type { UiSelectMenuOption } from "@/shared/ui/menu/select-menu-model";
 import { UiBreadcrumb } from "@/shared/ui/navigation/breadcrumb";
+import { UiTabs } from "@/shared/ui/navigation/tabs";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 interface CapabilityPageLayoutProps {
@@ -65,6 +66,14 @@ interface CapabilityDetailIdentityProps {
 interface CapabilityFilterBarProps {
   children: ReactNode;
   className?: string;
+}
+
+interface CapabilityModeTabsProps<TValue extends string> {
+  activeValue: TValue;
+  ariaLabel: string;
+  navAnchor?: string;
+  onChange: (value: TValue) => void;
+  options: Array<{ label: ReactNode; value: TValue }>;
 }
 
 interface CapabilitySectionHeaderProps {
@@ -314,6 +323,29 @@ export function CapabilityFilterSearchInput({
       onKeyDown={onKeyDown}
       placeholder={placeholder}
       value={value}
+    />
+  );
+}
+
+/** 能力目录的一级内容模式使用单行线性标签，不与表单分段选择器混用。 */
+export function CapabilityModeTabs<TValue extends string>({
+  activeValue,
+  ariaLabel,
+  navAnchor,
+  onChange,
+  options,
+}: CapabilityModeTabsProps<TValue>) {
+  return (
+    <UiTabs
+      activeValue={activeValue}
+      ariaLabel={ariaLabel}
+      className="h-8 w-fit max-w-full shrink-0 self-start"
+      density="compact"
+      itemClassName="h-8 px-3"
+      navAnchor={navAnchor}
+      onChange={onChange}
+      options={options}
+      variant="line"
     />
   );
 }

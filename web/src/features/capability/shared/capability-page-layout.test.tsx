@@ -1,5 +1,5 @@
-// INPUT: 能力页标题、说明、动作、移动页头目标、目录分区与详情内容。
-// OUTPUT: 证明 Header 动作、Typography、身份框与详情分栏语义由公共布局持有。
+// INPUT: 能力页标题、说明、动作、移动页头目标、内容模式、目录分区与详情内容。
+// OUTPUT: 证明 Header 动作、模式标签、Typography、身份框与详情分栏语义由公共布局持有。
 // POS: 能力页共享布局 DOM 合同；各目录资源与筛选行为由所属领域测试负责。
 
 import { fireEvent, render, screen } from "@testing-library/react";
@@ -14,6 +14,7 @@ import {
   CapabilityDetailSectionHeader,
   CapabilityDetailSplitLayout,
   CapabilityItemIcon,
+  CapabilityModeTabs,
   CapabilityPageLayout,
   CapabilitySectionHeader,
 } from "./capability-page-layout";
@@ -137,6 +138,31 @@ describe("CapabilityPageLayout", () => {
     expect(screen.getByText("Available now").className).toContain("ui-type-metadata");
     expect(screen.getByText("4").className).toContain("ui-type-caption");
     expect(container.querySelector(".radius-control-sm")).toBeTruthy();
+  });
+
+  it("owns compact single-line mode navigation without a stretched capsule", () => {
+    let selected = "global";
+    render(
+      <CapabilityModeTabs
+        activeValue="global"
+        ariaLabel="技能目录"
+        onChange={(value) => { selected = value; }}
+        options={[
+          { label: "全局技能库", value: "global" },
+          { label: "社区技能", value: "community" },
+        ]}
+      />,
+    );
+
+    const group = screen.getByRole("group", { name: "技能目录" });
+    const global = screen.getByRole("button", { name: "全局技能库" });
+    expect(group.className).toContain("w-fit");
+    expect(group.className.split(/\s+/)).not.toContain("w-full");
+    expect(global.className).toContain("whitespace-nowrap");
+    expect(global.className).toContain("border-(--text-strong)");
+
+    fireEvent.click(screen.getByRole("button", { name: "社区技能" }));
+    expect(selected).toBe("community");
   });
 
   it("owns the responsive detail reading column and configuration rail", () => {

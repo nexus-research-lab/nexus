@@ -42,9 +42,14 @@ describe("SkillsSearchBar", () => {
       name: "capability.skills_tour_modes_title",
     });
     expect(modes.querySelector(".ui-navigation-tab")).not.toBeNull();
+    expect(modes.className).toContain("w-fit");
     expect(modes.className).not.toContain("segmented-control");
-    expect(screen.getByRole("button", { name: "capability.skills_tab_external" })
-      .getAttribute("aria-pressed")).toBe("true");
+    const externalMode = screen.getByRole("button", {
+      name: "capability.skills_tab_external",
+    });
+    expect(externalMode.getAttribute("aria-pressed")).toBe("true");
+    expect(externalMode.className).toContain("border-(--text-strong)");
+    expect(externalMode.className).toContain("whitespace-nowrap");
 
     await user.click(screen.getByRole("button", { name: "capability.skills_tab_catalog" }));
     expect(onChangeDiscoveryMode).toHaveBeenCalledWith("catalog");

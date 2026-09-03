@@ -11,6 +11,7 @@ import {
   getUiTabClassName,
   getUiTabsNavClassName,
   type UiTabsDensity,
+  type UiTabsVariant,
 } from "@/shared/ui/navigation/tabs-styles";
 
 interface UiTabOption<TValue extends string> {
@@ -33,6 +34,7 @@ interface UiTabsProps<TValue extends string> {
   onDismissActive?: (value: TValue) => void;
   dismissActiveLabel?: string;
   options: Array<UiTabOption<TValue>>;
+  variant?: UiTabsVariant;
 }
 
 export function UiTabs<TValue extends string>({
@@ -46,6 +48,7 @@ export function UiTabs<TValue extends string>({
   onDismissActive: onDismissActive,
   dismissActiveLabel: dismissActiveLabel = "关闭",
   options,
+  variant,
 }: UiTabsProps<TValue>) {
   return (
     <div
@@ -66,7 +69,7 @@ export function UiTabs<TValue extends string>({
           <button
             aria-pressed={isActive}
             className={getUiTabClassName(
-              { active: isActive, density },
+              { active: isActive, density, variant },
               onDismissActive
                 ? `${itemClassName ?? ""} pr-8`
                 : itemClassName,

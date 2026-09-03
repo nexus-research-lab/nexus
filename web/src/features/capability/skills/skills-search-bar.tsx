@@ -7,10 +7,10 @@ import type { TranslationKey } from "@/shared/i18n/messages";
 import { UiIconButton } from "@/shared/ui/button/button";
 import {
   CapabilityFilterBar,
+  CapabilityModeTabs,
   CapabilityFilterSearchInput,
   CapabilityFilterSelect,
 } from "@/features/capability/shared/capability-page-layout";
-import { UiTabs } from "@/shared/ui/navigation/tabs";
 import type { DiscoveryMode } from "./controller/skill-marketplace-controller";
 
 const DISCOVERY_OPTIONS: ReadonlyArray<{
@@ -86,16 +86,12 @@ export function SkillsSearchBar({
 
   return (
     <CapabilityFilterBar className="sm:justify-between">
-      <UiTabs
+      <CapabilityModeTabs
         activeValue={discoveryMode}
         ariaLabel={t("capability.skills_tour_modes_title")}
-        className="h-8 w-full shrink-0 sm:w-auto"
-        density="compact"
-        itemClassName="h-8 w-full justify-center px-3 sm:w-auto"
         navAnchor={SKILLS_TOUR_ANCHORS.modes}
         onChange={onChangeDiscoveryMode}
         options={DISCOVERY_OPTIONS.map((option) => ({
-          className: "min-w-0 flex-1 sm:flex-none",
           label: t(option.labelKey),
           value: option.value,
         }))}
