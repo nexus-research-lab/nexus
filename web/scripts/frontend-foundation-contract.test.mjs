@@ -379,6 +379,23 @@ test("Sidebar empty and recovery guidance consume shared typography, shape, and 
   );
 });
 
+test("Home sidebar loading rows consume the shared skeleton owner", async () => {
+  const [rows, skeleton] = await Promise.all([
+    readSource("src/features/home/sidebar/sidebar-list-rows.tsx"),
+    readSource("src/shared/ui/display/skeleton.tsx"),
+  ]);
+
+  assert.match(skeleton, /SKELETON_TONE_CLASS_MAP/);
+  assert.match(skeleton, /motion-safe:animate-pulse/);
+  assert.match(rows, /<UiSkeleton/);
+  assert.match(rows, /aria-busy="true"/);
+  assert.match(rows, /role="status"/);
+  assert.doesNotMatch(
+    rows,
+    /\banimate-pulse\b|bg-\[color:color-mix\(in_srgb,var\(--surface-interactive-hover-background\)/,
+  );
+});
+
 test("loading indicators share one size, tone, and reduced-motion recipe", async () => {
   const [
     spinnerStyles,

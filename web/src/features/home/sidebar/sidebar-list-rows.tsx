@@ -1,3 +1,7 @@
+// INPUT: Home 目录加载数量，以及已投影的会话、联系人、活动和操作数据。
+// OUTPUT: 复用共享列表、身份、徽标、按钮与骨架原语的侧栏目录行。
+// POS: Home sidebar 行级视图；不拥有基础组件视觉 recipe 或业务数据获取。
+
 import {
   MessageCircle,
   Trash2,
@@ -8,6 +12,7 @@ import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar, UiRoomAvatar } from "@/shared/ui/display/avatar";
 import { UiBadge, UiCounterBadge } from "@/shared/ui/display/badge";
+import { UiSkeleton } from "@/shared/ui/display/skeleton";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { UiListRow } from "@/shared/ui/list/list-row";
 import type { LauncherAgentSummary } from "@/types/app/launcher";
@@ -15,17 +20,24 @@ import type { LauncherAgentSummary } from "@/types/app/launcher";
 import type { SidebarConversationItem } from "./sidebar-conversation-model";
 
 export function SidebarListLoadingRows({ count = 4 }: { count?: number }) {
+  const { t } = useI18n();
+
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-0.5 px-2 pb-2 max-[559px]:gap-1 max-[559px]:px-3">
+    <div
+      aria-busy="true"
+      aria-label={t("common.loading")}
+      className="flex min-h-0 flex-1 flex-col gap-0.5 px-2 pb-2 max-[559px]:gap-1 max-[559px]:px-3"
+      role="status"
+    >
       {Array.from({ length: count }, (_, index) => (
         <div
           className="flex min-h-[60px] w-full items-center gap-2.5 rounded-[8px] px-2 py-2 max-[559px]:min-h-[80px] max-[559px]:gap-3 max-[559px]:rounded-[12px] max-[559px]:px-3 max-[559px]:py-3"
           key={index}
         >
-          <span className="h-10 w-10 shrink-0 animate-pulse radius-control-sm bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_74%,transparent)]" />
+          <UiSkeleton className="h-10 w-10 shrink-0 radius-control-sm" tone="strong" />
           <span className="min-w-0 flex-1 space-y-2">
-            <span className="block h-3.5 w-24 animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_76%,transparent)]" />
-            <span className="block h-3 w-36 animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_58%,transparent)]" />
+            <UiSkeleton className="h-3.5 w-24" tone="strong" />
+            <UiSkeleton className="h-3 w-36" tone="subtle" />
           </span>
         </div>
       ))}

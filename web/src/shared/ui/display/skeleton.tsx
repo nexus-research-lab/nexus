@@ -1,3 +1,7 @@
+// INPUT: 加载占位的布局尺寸、语义明度和可选 DOM 属性。
+// OUTPUT: 统一颜色、形状、动效与 reduced-motion 行为的装饰性骨架占位。
+// POS: Display 层骨架屏视觉唯一所有者；业务消费者只负责排列和宽高。
+
 "use client";
 
 import { type HTMLAttributes } from "react";
@@ -7,6 +11,7 @@ import { UiPanel } from "@/shared/ui/panel";
 
 interface UiSkeletonProps extends HTMLAttributes<HTMLSpanElement> {
   className?: string;
+  tone?: "default" | "strong" | "subtle";
 }
 
 interface UiSkeletonCardListProps {
@@ -17,18 +22,27 @@ interface UiSkeletonCardListProps {
 
 export function UiSkeleton({
   className,
+  tone = "default",
   ...props
 }: UiSkeletonProps) {
   return (
     <span
+      aria-hidden="true"
       className={cn(
-        "block animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_62%,transparent)]",
+        "block rounded-full motion-safe:animate-pulse",
+        SKELETON_TONE_CLASS_MAP[tone],
         className,
       )}
       {...props}
     />
   );
 }
+
+const SKELETON_TONE_CLASS_MAP = {
+  default: "bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_62%,transparent)]",
+  strong: "bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_76%,transparent)]",
+  subtle: "bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_48%,transparent)]",
+} as const;
 
 export function UiSkeletonCardList({
   cardClassName: cardClassName,
