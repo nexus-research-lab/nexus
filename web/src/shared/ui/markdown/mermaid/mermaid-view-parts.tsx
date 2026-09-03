@@ -1,3 +1,7 @@
+// INPUT: Mermaid 源码、渲染快照、异步状态和预览动作。
+// OUTPUT: 可切换源码/图表的视图片段，以及使用共享 Spinner 的可访问渲染状态。
+// POS: Mermaid 展示组件；渲染状态机与图形清理归相邻模型和 Hook。
+
 import {
   LoaderCircle,
   Maximize2,
@@ -7,6 +11,8 @@ import type { KeyboardEvent, ReactNode } from "react";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import {
   getMermaidBodyClassName,
@@ -86,8 +92,20 @@ export function MermaidRenderedPreview({
   const minimumHeightClassName = compact ? "min-h-24" : "min-h-56";
   if (isRendering && !svg) {
     return (
-      <div className={cn("flex items-center justify-center text-(--text-muted)", minimumHeightClassName)}>
-        <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+      <div
+        aria-busy="true"
+        aria-live="polite"
+        className={cn(
+          "flex items-center justify-center",
+          getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+          minimumHeightClassName,
+        )}
+        role="status"
+      >
+        <LoaderCircle
+          aria-hidden
+          className={getUiSpinnerClassName({ size: "md" }, "mr-2")}
+        />
         {t(isStreaming ? "markdown.mermaid.waiting" : "markdown.mermaid.rendering")}
       </div>
     );
@@ -110,7 +128,11 @@ export function MermaidRenderedPreview({
   }
   if (!svg) {
     return (
-      <div className={cn("flex items-center justify-center text-(--text-muted)", minimumHeightClassName)}>
+      <div className={cn(
+        "flex items-center justify-center",
+        getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+        minimumHeightClassName,
+      )}>
         {t(isStreaming ? "markdown.mermaid.waiting" : "markdown.mermaid.no_preview")}
       </div>
     );
@@ -144,8 +166,19 @@ export function MermaidRenderedPreview({
         <Maximize2 className="h-3.5 w-3.5" />
       </div>
       {isRendering ? (
-        <div className="pointer-events-none absolute right-2 top-2 inline-flex items-center rounded-full border border-(--surface-paper-border) bg-[color:color-mix(in_srgb,var(--surface-paper-background)_86%,transparent)] px-2 py-1 text-xs text-(--surface-paper-muted) shadow-sm">
-          <LoaderCircle className="mr-1.5 h-3 w-3 animate-spin" />
+        <div
+          aria-busy="true"
+          aria-live="polite"
+          className={cn(
+            "pointer-events-none absolute right-2 top-2 inline-flex items-center rounded-full border border-(--surface-paper-border) bg-[color:color-mix(in_srgb,var(--surface-paper-background)_86%,transparent)] px-2 py-1 text-(--surface-paper-muted) shadow-sm",
+            getUiTypographyClassName({ role: "caption" }),
+          )}
+          role="status"
+        >
+          <LoaderCircle
+            aria-hidden
+            className={getUiSpinnerClassName({ size: "xs" }, "mr-1.5")}
+          />
           {t("markdown.mermaid.updating")}
         </div>
       ) : null}

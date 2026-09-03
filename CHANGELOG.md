@@ -38,6 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Removed the remaining shared-UI spinner forks: Mermaid module and render
+  states now use one accessible recipe, while Session creation replaces the
+  plus action with a real busy indicator instead of rotating the action glyph.
 - Centralized route, Workspace, resource-state, and decision-action loading
   indicators under one semantic size, color, and reduced-motion recipe while
   retaining the local animated Nexus cat for brand-level startup waits.

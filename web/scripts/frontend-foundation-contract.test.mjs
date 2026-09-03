@@ -37,12 +37,14 @@ const REQUIRED_SHARED_UI_BEHAVIOR_SUITES = [
   "src/shared/ui/feedback/feedback.test.tsx",
   "src/shared/ui/form/form-controls.test.tsx",
   "src/shared/ui/list/list.test.tsx",
+  "src/shared/ui/markdown/mermaid/mermaid-view-parts.test.tsx",
   "src/shared/ui/menu/menu.test.tsx",
   "src/shared/ui/navigation/tabs.test.tsx",
   "src/shared/ui/onboarding/overlay/tour-overlay-card.test.tsx",
   "src/shared/ui/overlay/tooltip.test.tsx",
   "src/shared/ui/panel.test.tsx",
   "src/shared/ui/sidebar/sidebar-empty-guide.test.tsx",
+  "src/shared/ui/workspace/controls/workspace-conversation-tabs.test.tsx",
   "src/shared/ui/workspace/surface/workspace-task-strip.test.tsx",
 ];
 
@@ -360,6 +362,9 @@ test("loading indicators share one size, tone, and reduced-motion recipe", async
     desktopEntry,
     workspaceState,
     appLoading,
+    mermaidParts,
+    lazyMermaid,
+    conversationTabs,
   ] = await Promise.all([
     readSource("src/shared/ui/display/spinner-styles.ts"),
     readSource("src/shared/ui/display/resource-state.tsx"),
@@ -368,12 +373,24 @@ test("loading indicators share one size, tone, and reduced-motion recipe", async
     readSource("src/app/router/desktop-entry-layout.tsx"),
     readSource("src/shared/ui/workspace/frame/workspace-loading-state.tsx"),
     readSource("src/shared/ui/layout/app-loading-screen.tsx"),
+    readSource("src/shared/ui/markdown/mermaid/mermaid-view-parts.tsx"),
+    readSource("src/shared/ui/markdown/mermaid/lazy-mermaid-view.tsx"),
+    readSource("src/shared/ui/workspace/controls/workspace-conversation-tabs.tsx"),
   ]);
 
   assert.match(spinnerStyles, /SPINNER_SIZE_CLASS_MAP/);
   assert.match(spinnerStyles, /SPINNER_TONE_CLASS_MAP/);
   assert.match(spinnerStyles, /motion-reduce:animate-none/);
-  for (const consumer of [resourceState, decisionDialog, appRouter, desktopEntry, workspaceState]) {
+  for (const consumer of [
+    resourceState,
+    decisionDialog,
+    appRouter,
+    desktopEntry,
+    workspaceState,
+    mermaidParts,
+    lazyMermaid,
+    conversationTabs,
+  ]) {
     assert.match(consumer, /getUiSpinnerClassName/);
     assert.doesNotMatch(consumer, /\banimate-spin\b|border-t-transparent/);
   }
@@ -384,6 +401,23 @@ test("loading indicators share one size, tone, and reduced-motion recipe", async
   assert.match(appLoading, /getUiTypographyClassName/);
   assert.match(appLoading, /useI18n/);
   assert.match(appLoading, /cat-loading-static\.webp/);
+
+  const sharedUiFiles = await collectSourceFiles(path.join(srcRoot, "shared", "ui"));
+  const rawSpinnerViolations = [];
+  for (const file of sharedUiFiles) {
+    const relativePath = path.relative(webRoot, file);
+    if (
+      relativePath === "src/shared/ui/display/spinner-styles.ts"
+      || /\.test\.[jt]sx?$/.test(relativePath)
+    ) {
+      continue;
+    }
+    const source = await readFile(file, "utf8");
+    if (/\banimate-spin\b|border-t-transparent/.test(source)) {
+      rawSpinnerViolations.push(relativePath);
+    }
+  }
+  assert.deepEqual(rawSpinnerViolations, []);
 });
 
 test("List and Badge primitives expose semantic typography and shape instead of page overrides", async () => {
