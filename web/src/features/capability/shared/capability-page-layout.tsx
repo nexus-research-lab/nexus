@@ -1,6 +1,6 @@
 /**
- * INPUT: 能力页面标题、说明、动作、筛选控件、目录条目及详情正文/配置内容。
- * OUTPUT: 能力管理页的共享内容轴、移动页头动作、目录网格和响应式详情分栏。
+ * INPUT: 能力页面标题、说明、动作、筛选控件、目录条目及详情导航/正文/配置内容。
+ * OUTPUT: 能力目录与详情页的共享内容轴、移动页头动作、二级导航、目录网格和响应式分栏。
  * POS: 能力域页面级设计语法；通过应用布局动作槽适配手机页头，不解释具体领域状态。
  */
 "use client";
@@ -11,15 +11,20 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import { ArrowLeft, ChevronRight } from "lucide-react";
 
 import { useMobileAppPageHeaderActionsTarget } from "@/app/layout/mobile-app-page-header-actions-context";
+import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
 import {
   WORKSPACE_CATALOG_GRID_CLASS_NAME,
   WORKSPACE_CONTENT_PAGE_CLASS_NAME,
 } from "@/shared/ui/layout/workspace-content-layout";
-import { WorkspaceContentHeader } from "@/shared/ui/layout/workspace-content-header";
+import {
+  WorkspaceContentDetailHeader,
+  WorkspaceContentHeader,
+} from "@/shared/ui/layout/workspace-content-header";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import type { UiSelectMenuOption } from "@/shared/ui/menu/select-menu-model";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
@@ -31,6 +36,17 @@ interface CapabilityPageLayoutProps {
   description?: ReactNode;
   headerAnchor?: string;
   title: ReactNode;
+}
+
+interface CapabilityDetailHeaderProps {
+  backLabel: ReactNode;
+  currentTitle?: ReactNode;
+  onBack: () => void;
+}
+
+interface CapabilityDetailPageProps extends CapabilityDetailHeaderProps {
+  children: ReactNode;
+  className?: string;
 }
 
 interface CapabilityFilterBarProps {
@@ -98,6 +114,64 @@ export const CAPABILITY_DIRECTORY_GRID_CLASS_NAME =
 /** 目录条目保留清晰外框，让不同能力类型共享同一内容层级。 */
 export const CAPABILITY_DIRECTORY_ROW_CLASS_NAME =
   "min-h-[80px] border-(--divider-subtle-color) bg-transparent px-3 py-3 hover:border-(--surface-interactive-hover-border)";
+
+/** 能力二级页统一使用“返回目录 / 当前对象”的单行桌面导航。 */
+export function CapabilityDetailHeader({
+  backLabel,
+  currentTitle,
+  onBack,
+}: CapabilityDetailHeaderProps) {
+  return (
+    <WorkspaceContentDetailHeader>
+      <div
+        className="flex min-w-0 items-center gap-2"
+        data-slot="capability-detail-header"
+      >
+        <UiButton onClick={onBack} size="sm" variant="text">
+          <ArrowLeft aria-hidden className="h-3.5 w-3.5" />
+          {backLabel}
+        </UiButton>
+        {currentTitle ? (
+          <>
+            <ChevronRight
+              aria-hidden
+              className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)"
+            />
+            <span className={cn(
+              "truncate",
+              getUiTypographyClassName({ role: "metadata", tone: "strong", weight: "medium" }),
+            )}>
+              {currentTitle}
+            </span>
+          </>
+        ) : null}
+      </div>
+    </WorkspaceContentDetailHeader>
+  );
+}
+
+/** 能力详情页统一持有内容轴和顶部导航，业务组件只提供对象内容。 */
+export function CapabilityDetailPage({
+  backLabel,
+  children,
+  className,
+  currentTitle,
+  onBack,
+}: CapabilityDetailPageProps) {
+  return (
+    <div
+      className={cn(WORKSPACE_CONTENT_PAGE_CLASS_NAME, className)}
+      data-slot="capability-detail-page"
+    >
+      <CapabilityDetailHeader
+        backLabel={backLabel}
+        currentTitle={currentTitle}
+        onBack={onBack}
+      />
+      {children}
+    </div>
+  );
+}
 
 /** 能力目录复用共享管理内容轴，标题、工具和内容始终保持同一基线。 */
 export function CapabilityPageLayout({

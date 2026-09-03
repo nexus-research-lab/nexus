@@ -6,8 +6,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowLeft, Check, Copy, RotateCcw } from "lucide-react";
+import { Check, Copy, RotateCcw } from "lucide-react";
 
+import { CapabilityDetailPage } from "@/features/capability/shared/capability-page-layout";
 import { getLoopApi } from "@/lib/api/capability/loop-api";
 import { getResourceFailure, type ResourceFailure } from "@/lib/error-message";
 import { writeTextToClipboard } from "@/hooks/ui/clipboard";
@@ -17,11 +18,7 @@ import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
-import {
-  WorkspaceContentDetailHeader,
-  WorkspaceContentHeader,
-} from "@/shared/ui/layout/workspace-content-header";
-import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
+import { WorkspaceContentHeader } from "@/shared/ui/layout/workspace-content-header";
 import { UiPanel } from "@/shared/ui/panel";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { LoopCatalogItem } from "@/types/capability/loop";
@@ -86,14 +83,11 @@ export function LoopDetailView({ slug, onBack: onBack }: LoopDetailViewProps) {
   };
 
   return (
-    <div className={WORKSPACE_CONTENT_PAGE_CLASS_NAME}>
-      <WorkspaceContentDetailHeader>
-        <UiButton size="sm" variant="text" onClick={onBack}>
-          <ArrowLeft className="h-4 w-4" />
-          {t("common.back")}
-        </UiButton>
-      </WorkspaceContentDetailHeader>
-
+    <CapabilityDetailPage
+      backLabel={t("capability.loops")}
+      currentTitle={loop?.title}
+      onBack={onBack}
+    >
       {loading ? (
         <UiResourceState
           className="min-h-[320px]"
@@ -253,6 +247,6 @@ export function LoopDetailView({ slug, onBack: onBack }: LoopDetailViewProps) {
           </section>
         </div>
       ) : null}
-    </div>
+    </CapabilityDetailPage>
   );
 }

@@ -801,10 +801,24 @@ test("Capability detail chrome uses shared actions, typography, states, and shap
 });
 
 test("Capability page chrome has one Header, typography, action, and shape owner", async () => {
-  const [capabilityLayout, workspaceHeader, skillDetail] = await Promise.all([
+  const [
+    capabilityLayout,
+    workspaceHeader,
+    skillDetail,
+    connectorDetail,
+    customMcpDetail,
+    loopDetail,
+    workGraphDetail,
+    workGraphDirectory,
+  ] = await Promise.all([
     readSource("src/features/capability/shared/capability-page-layout.tsx"),
     readSource("src/shared/ui/layout/workspace-content-header.tsx"),
     readSource("src/features/capability/skills/detail/skill-detail-view.tsx"),
+    readSource("src/features/capability/connectors/detail/connector-detail-view.tsx"),
+    readSource("src/features/capability/connectors/custom/detail/custom-mcp-detail-view.tsx"),
+    readSource("src/features/capability/loops/loop-detail-view.tsx"),
+    readSource("src/features/capability/workgraph-distillations/workgraph-distillation-detail.tsx"),
+    readSource("src/features/capability/workgraph-distillations/workgraph-distillations-directory.tsx"),
   ]);
   const localTypographyPattern = /\b(?:text-(?:2xs|xs|compact|sm|base|md|lg|xl|2xl)|font-(?:normal|medium|semibold|bold|mono)|leading-(?:none|\d+|\[[^\]]+\])|tracking-(?:tight|wide|\[[^\]]+\])|rounded-\[[^\]]+\])/;
 
@@ -818,6 +832,20 @@ test("Capability page chrome has one Header, typography, action, and shape owner
   assert.match(capabilityLayout, /capability-detail-aside/);
   assert.match(capabilityLayout, /xl:grid-cols-\[minmax\(0,760px\)_minmax\(280px,360px\)\]/);
   assert.match(capabilityLayout, /CapabilityDetailSectionHeader/);
+  assert.match(capabilityLayout, /CapabilityDetailPage/);
+  assert.match(capabilityLayout, /data-slot="capability-detail-header"/);
+  for (const consumer of [
+    skillDetail,
+    connectorDetail,
+    customMcpDetail,
+    loopDetail,
+    workGraphDetail,
+  ]) {
+    assert.match(consumer, /<CapabilityDetailPage/);
+    assert.doesNotMatch(consumer, /WorkspaceContentDetailHeader/);
+  }
+  assert.match(workGraphDirectory, /detailRouteContent/);
+  assert.doesNotMatch(workGraphDirectory, /className=\{selected \?/);
   assert.match(skillDetail, /<CapabilityDetailSplitLayout/);
   assert.match(skillDetail, /<CapabilityDetailSectionHeader/);
   assert.doesNotMatch(skillDetail, /max-w-\[760px\]/);

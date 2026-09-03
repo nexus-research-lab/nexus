@@ -5,7 +5,7 @@
 - 目录、详情和对话选择统一通过 `ConnectorIcon` 使用 WorkGraph 的 seeded 曲线图标，同名配置保持稳定视觉身份。
 - 目录行复用 `UiListRow` 的默认标题、摘要和 Badge 插槽；连接目标只通过 `code` 角色表达等宽文本，不在业务层复制字号、行高或圆角。
 - `detail/` 只读取远程 HTTP/SSE MCP 的初始化信息和 `tools/list`，不请求或展示 Prompts/Resources；stdio 命令只允许 Agent runtime 执行，管理页明确显示 runtime-only 状态。
-- 详情返回动作、状态、事实和恢复提示复用 Connector 详情相同的 Button、Typography、Badge、Panel 与 Resource State 语法，不保留 Custom MCP 私有控件或反馈样式。
+- 详情内容轴和二级导航复用 `CapabilityDetailPage`，状态、事实和恢复提示复用 Connector 详情相同的 Button、Typography、Badge、Panel 与 Resource State 语法，不保留 Custom MCP 私有控件、面包屑或反馈样式。
 - `env` 与 `headers` 的服务端返回值只允许为 `null`，表示已配置但不回显；编辑时空值必须保留原秘密。
 - 表单只投影 stdio、HTTP、SSE 已实现字段，不引入另一套配置协议。
 - 写命令共享唯一 ref 互斥入口，成功后同时刷新自定义目录和 Connector 目录。

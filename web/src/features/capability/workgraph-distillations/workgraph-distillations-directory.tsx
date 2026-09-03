@@ -5,7 +5,7 @@
  */
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Copy, GitBranchPlus, Pencil, RotateCcw, Trash2 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 
@@ -15,6 +15,7 @@ import {
   CAPABILITY_DIRECTORY_ROW_CLASS_NAME,
   CapabilityFilterBar,
   CapabilityFilterSearchInput,
+  CapabilityDetailPage,
   CapabilityPageLayout,
 } from "@/features/capability/shared/capability-page-layout";
 import { notifyCapabilitySummaryMutated } from "@/features/capability/capability-summary-events";
@@ -144,25 +145,112 @@ export function WorkGraphDistillationsDirectory() {
     }
   };
 
+  const backToDirectory = () => navigate(AppRouteBuilders.workGraphDistillations());
+  const staleLoadNotice = loadFailure && hasSnapshot && !loadFailure.access ? (
+    <UiResourceState
+      className="mb-3 min-h-0 py-3"
+      impact={t("state.stale_snapshot_impact")}
+      primaryAction={{
+        icon: <RotateCcw className="h-3.5 w-3.5" />,
+        label: t("state.retry"),
+        onClick: () => setLoadRevision((current) => current + 1),
+      }}
+      role="status"
+      size="sm"
+      state="error"
+      title={t("capability.workgraph_loading_failed")}
+    />
+  ) : null;
+  let detailRouteContent: ReactNode = null;
+  if (distillationId) {
+    if (loading && !hasSnapshot) {
+      detailRouteContent = (
+        <CapabilityDetailPage
+          backLabel={t("capability.workgraph_distillations")}
+          onBack={backToDirectory}
+        >
+          <UiResourceState
+            className="min-h-48"
+            size="sm"
+            state="loading"
+            title={t("capability.workgraph_loading")}
+          />
+        </CapabilityDetailPage>
+      );
+    } else if (loadFailure && (loadFailure.access || !hasSnapshot)) {
+      detailRouteContent = (
+        <CapabilityDetailPage
+          backLabel={t("capability.workgraph_distillations")}
+          onBack={backToDirectory}
+        >
+          <UiResourceState
+            className="min-h-48"
+            impact={t(loadFailure.access
+              ? "state.access_failure_impact"
+              : "state.read_failure_impact")}
+            primaryAction={{
+              icon: <RotateCcw className="h-3.5 w-3.5" />,
+              label: t("state.retry"),
+              onClick: () => setLoadRevision((current) => current + 1),
+            }}
+            size="sm"
+            state="error"
+            title={t(loadFailure.access
+              ? "state.permission_title"
+              : "capability.workgraph_loading_failed")}
+          />
+        </CapabilityDetailPage>
+      );
+    } else if (selected) {
+      detailRouteContent = (
+        <WorkGraphDistillationDetail
+          item={selected}
+          notice={staleLoadNotice}
+          onBack={backToDirectory}
+          onCopy={() => void copyCommand(selected)}
+          onEdit={() => void openEditor(selected)}
+        />
+      );
+    } else {
+      detailRouteContent = (
+        <CapabilityDetailPage
+          backLabel={t("capability.workgraph_distillations")}
+          onBack={backToDirectory}
+        >
+          <UiResourceState
+            className="min-h-48"
+            primaryAction={{
+              label: t("common.back"),
+              onClick: backToDirectory,
+            }}
+            size="sm"
+            state="empty"
+            title={t("capability.workgraph_no_matches")}
+          />
+        </CapabilityDetailPage>
+      );
+    }
+  }
+
   return (
     <WorkspaceSurfaceScaffold
-      bodyClassName={selected ? "flex flex-col" : undefined}
+      bodyClassName={distillationId ? "flex flex-col" : undefined}
       bodyScrollable
       stableGutter
     >
-      <CapabilityPageLayout
-        className={selected ? "flex min-h-full flex-1 flex-col" : undefined}
-        description={t("capability.workgraph_intro_description")}
-        title={t("capability.workgraph_intro_title")}
-      >
-        <CapabilityFilterBar>
+      {detailRouteContent ?? (
+        <CapabilityPageLayout
+          description={t("capability.workgraph_intro_description")}
+          title={t("capability.workgraph_intro_title")}
+        >
+          <CapabilityFilterBar>
           <CapabilityFilterSearchInput
             onChange={setQuery}
             placeholder={t("capability.workgraph_search_placeholder")}
             value={query}
           />
-        </CapabilityFilterBar>
-        {loadFailure && hasSnapshot && !loadFailure.access ? (
+          </CapabilityFilterBar>
+          {loadFailure && hasSnapshot && !loadFailure.access ? (
           <UiResourceState
             className="mb-3 min-h-0 py-3"
             impact={t("state.stale_snapshot_impact")}
@@ -200,13 +288,6 @@ export function WorkGraphDistillationsDirectory() {
             title={t(loadFailure.access
               ? "state.permission_title"
               : "capability.workgraph_loading_failed")}
-          />
-        ) : selected ? (
-          <WorkGraphDistillationDetail
-            item={selected}
-            onBack={() => navigate(AppRouteBuilders.workGraphDistillations())}
-            onCopy={() => void copyCommand(selected)}
-            onEdit={() => void openEditor(selected)}
           />
         ) : filtered.length === 0 ? (
           <UiResourceState
@@ -302,8 +383,9 @@ export function WorkGraphDistillationsDirectory() {
               </UiListRow>
             ))}
           </div>
-        )}
-      </CapabilityPageLayout>
+          )}
+        </CapabilityPageLayout>
+      )}
       <ConfirmDialog
         confirmText={t("execution.workflow_delete")}
         isOpen={!accessBlocked && Boolean(deleteCandidate)}

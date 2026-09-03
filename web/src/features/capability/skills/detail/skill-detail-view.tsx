@@ -6,8 +6,6 @@
 "use client";
 
 import {
-  ArrowLeft,
-  ChevronRight,
   ExternalLink,
   Loader2,
   RefreshCw,
@@ -15,6 +13,7 @@ import {
 } from "lucide-react";
 
 import {
+  CapabilityDetailPage,
   CapabilityDetailSectionHeader,
   CapabilityDetailSplitLayout,
 } from "@/features/capability/shared/capability-page-layout";
@@ -29,8 +28,6 @@ import { UiBadge } from "@/shared/ui/display/badge";
 import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
-import { WorkspaceContentDetailHeader } from "@/shared/ui/layout/workspace-content-header";
-import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import { UiPanel } from "@/shared/ui/panel";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
@@ -80,12 +77,13 @@ export function SkillDetailView({
   snapshot,
   toggleFailures,
 }: SkillDetailViewProps) {
+  const { t } = useI18n();
   return (
-    <div className={WORKSPACE_CONTENT_PAGE_CLASS_NAME}>
-      <SkillDetailBreadcrumb
-        onBack={onBack}
-        title={getSkillDetailSnapshotTitle(snapshot)}
-      />
+    <CapabilityDetailPage
+      backLabel={t("capability.skills_detail_back")}
+      currentTitle={getSkillDetailSnapshotTitle(snapshot) ?? undefined}
+      onBack={onBack}
+    >
       <SkillDetailContent
         activeAction={activeAction}
         agentBindings={agentBindings}
@@ -100,42 +98,7 @@ export function SkillDetailView({
         snapshot={snapshot}
         toggleFailures={toggleFailures}
       />
-    </div>
-  );
-}
-
-function SkillDetailBreadcrumb({
-  onBack,
-  title,
-}: {
-  onBack: () => void;
-  title: string | null;
-}) {
-  const { t } = useI18n();
-  return (
-    <WorkspaceContentDetailHeader>
-      <div className="flex min-w-0 items-center gap-2">
-        <UiButton
-          onClick={onBack}
-          size="sm"
-          variant="text"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          {t("capability.skills_detail_back")}
-        </UiButton>
-        {title ? (
-          <>
-            <ChevronRight className="h-3.5 w-3.5 text-(--icon-muted)" />
-            <span className={cn(
-              "truncate",
-              getUiTypographyClassName({ role: "metadata", tone: "strong", weight: "medium" }),
-            )}>
-              {title}
-            </span>
-          </>
-        ) : null}
-      </div>
-    </WorkspaceContentDetailHeader>
+    </CapabilityDetailPage>
   );
 }
 

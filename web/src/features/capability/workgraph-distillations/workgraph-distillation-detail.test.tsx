@@ -54,11 +54,15 @@ describe("WorkGraphDistillationDetail", () => {
     );
 
     expect(screen.getByRole("heading", { name: "/release-check" }).className).toContain("ui-type-object-title");
+    expect(document.querySelector("[data-slot='capability-detail-header']")).toBeTruthy();
+    expect(screen.getAllByText("/release-check").some((node) => (
+      node.className.includes("ui-type-metadata")
+    ))).toBe(true);
     expect(screen.getByText(WORKFLOW.description ?? "").className).toContain("ui-type-supporting");
     expect(screen.getByText(WORKFLOW.objective).className).toContain("ui-type-body");
     expect(screen.getByTestId("workflow-canvas").className).toContain("surface-radius-md");
 
-    await user.click(screen.getByRole("button", { name: "common.back" }));
+    await user.click(screen.getByRole("button", { name: "capability.workgraph_distillations" }));
     await user.click(screen.getByRole("button", { name: "capability.workgraph_edit" }));
     await user.click(screen.getByRole("button", { name: "capability.workgraph_copy" }));
 

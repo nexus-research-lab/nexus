@@ -1,12 +1,19 @@
+/**
+ * INPUT: Connector 详情快照、资源状态、认证动作与返回目录命令。
+ * OUTPUT: 使用统一能力详情内容轴的加载、失败、缺失和就绪页面。
+ * POS: Connector 详情状态装配层；对象身份与动作投影归相邻 Header/model。
+ */
 "use client";
 
+import type { ReactNode } from "react";
+
+import { CapabilityDetailPage } from "@/features/capability/shared/capability-page-layout";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import type { ResourceFailure } from "@/lib/error-message";
 import { UiButton } from "@/shared/ui/button/button";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import type {
   ConnectorDetail,
   ConnectorFeatureDetail,
@@ -15,7 +22,6 @@ import type {
 import { getConnectorState } from "../model/connector-state-model";
 import { ConnectorDetailContent } from "./connector-detail-content";
 import {
-  ConnectorDetailBreadcrumb,
   ConnectorDetailHeader,
 } from "./connector-detail-header";
 import { getConnectorFeatureDetails } from "./connector-detail-model";
@@ -47,27 +53,46 @@ function selectedFeatureDetail(
   return features.find((feature) => feature.name === selectedFeature) || null;
 }
 
+function ConnectorDetailFrame({
+  children,
+  detail,
+  onBack,
+}: {
+  children: ReactNode;
+  detail: ConnectorDetail | null;
+  onBack: () => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <CapabilityDetailPage
+      backLabel={t("capability.connectors")}
+      currentTitle={detail?.title}
+      onBack={onBack}
+    >
+      {children}
+    </CapabilityDetailPage>
+  );
+}
+
 function ConnectorDetailLoading({
   detail,
   onBack,
 }: Pick<ConnectorDetailViewProps, "detail" | "onBack">) {
   return (
-    <div className={WORKSPACE_CONTENT_PAGE_CLASS_NAME}>
-      <ConnectorDetailBreadcrumb detail={detail} onBack={onBack} />
+    <ConnectorDetailFrame detail={detail} onBack={onBack}>
       <UiStateBlock
         className="min-h-[420px]"
         size="md"
         title="加载连接器详情中..."
         variant="plain"
       />
-    </div>
+    </ConnectorDetailFrame>
   );
 }
 
 function ConnectorDetailMissing({ onBack }: { onBack: () => void }) {
   return (
-    <div className={WORKSPACE_CONTENT_PAGE_CLASS_NAME}>
-      <ConnectorDetailBreadcrumb detail={null} onBack={onBack} />
+    <ConnectorDetailFrame detail={null} onBack={onBack}>
       <UiStateBlock
         actions={(
           <UiButton onClick={onBack} size="sm" type="button">
@@ -79,7 +104,7 @@ function ConnectorDetailMissing({ onBack }: { onBack: () => void }) {
         title="连接器不存在"
         variant="plain"
       />
-    </div>
+    </ConnectorDetailFrame>
   );
 }
 
@@ -92,8 +117,7 @@ function ConnectorDetailFailure({
 }) {
   const { t } = useI18n();
   return (
-    <div className={WORKSPACE_CONTENT_PAGE_CLASS_NAME}>
-      <ConnectorDetailBreadcrumb detail={null} onBack={onBack} />
+    <ConnectorDetailFrame detail={null} onBack={onBack}>
       <UiResourceState
         className="min-h-[420px]"
         impact={t("capability.connector_detail_load_failed_impact")}
@@ -104,7 +128,7 @@ function ConnectorDetailFailure({
         state="error"
         title={t("capability.connector_detail_load_failed_title")}
       />
-    </div>
+    </ConnectorDetailFrame>
   );
 }
 
@@ -147,8 +171,7 @@ export function ConnectorDetailView({
   const state = getConnectorState(detail);
   const features = getConnectorFeatureDetails(detail);
   return (
-    <div className={WORKSPACE_CONTENT_PAGE_CLASS_NAME}>
-      <ConnectorDetailBreadcrumb detail={detail} onBack={onBack} />
+    <ConnectorDetailFrame detail={detail} onBack={onBack}>
       {failure ? (
         <UiResourceState
           className="mt-4"
@@ -186,6 +209,6 @@ export function ConnectorDetailView({
         feature={selectedFeatureDetail(features, selectedFeature)}
         onClose={() => setSelectedFeature(null)}
       />
-    </div>
+    </ConnectorDetailFrame>
   );
 }
