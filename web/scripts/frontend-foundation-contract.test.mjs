@@ -1027,6 +1027,21 @@ test("Capability authorization dialogs reuse shared form, status, and typography
   }
 });
 
+test("Scheduled task board chrome uses shared action, typography, loading, and radius owners", async () => {
+  const board = await readSource(
+    "src/features/capability/scheduled/board/scheduled-task-board.tsx",
+  );
+
+  assert.match(board, /<UiButton/);
+  assert.match(board, /getUiTypographyClassName/);
+  assert.match(board, /getUiSpinnerClassName/);
+  assert.match(board, /surface-radius-sm/);
+  assert.doesNotMatch(
+    board,
+    /<button\b|rounded-\[|\banimate-spin\b|text-(?:2xs|xs|sm|base|md|lg|xl|2xl)|font-(?:normal|medium|semibold|bold)/,
+  );
+});
+
 test("Connector catalog exposes only implemented products and derives real categories", async () => {
   const [serverCatalog, catalogHook, catalogModel, categoryModel, searchBar] = await Promise.all([
     readSource("../internal/service/connectors/catalog.go"),
