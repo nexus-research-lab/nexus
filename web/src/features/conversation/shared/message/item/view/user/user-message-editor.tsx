@@ -1,8 +1,12 @@
+// INPUT: 用户消息编辑草稿、提交资格、键盘动作与 textarea 引用。
+// OUTPUT: 可取消或提交的原位消息编辑器。
+// POS: User message 编辑视图；不拥有按钮和输入框的跨页面视觉合同。
+
 import type { KeyboardEvent, RefObject } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
-import { getUiButtonClassName } from "@/shared/ui/button/button-styles";
 
 interface UserMessageEditorProps {
   canSubmit: boolean;
@@ -53,21 +57,21 @@ export function UserMessageEditor({
         value={draftContent}
       />
       <div className="flex items-center justify-end gap-1.5 border-t border-(--divider-subtle-color) px-2 py-0.5">
-        <button
-          className={getUiButtonClassName({ size: "xs", variant: "surface" })}
+        <UiButton
           onClick={onCancel}
-          type="button"
+          size="xs"
+          variant="surface"
         >
           {t("common.cancel")}
-        </button>
-        <button
-          className={getUiButtonClassName({ size: "xs", variant: "solid" })}
+        </UiButton>
+        <UiButton
           disabled={!canSubmit}
           onClick={onSubmit}
-          type="button"
+          size="xs"
+          variant="solid"
         >
           {t("composer.enter_send")}
-        </button>
+        </UiButton>
       </div>
     </div>
   );

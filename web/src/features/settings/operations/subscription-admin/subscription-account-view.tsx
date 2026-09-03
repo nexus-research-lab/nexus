@@ -1,6 +1,11 @@
+// INPUT: Subscription 账户、套餐选项、草稿和刷新/保存命令。
+// OUTPUT: 账户用量摘要与可编辑套餐绑定列表。
+// POS: Operations 账户订阅视图；不拥有通用按钮或选择器视觉。
+
 import { Gauge, Loader2, RefreshCw, Save, ShieldCheck, UsersRound } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button/button";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import {
   SETTINGS_CARD_CLASS_NAME,
@@ -20,8 +25,6 @@ import {
   formatTokenLimit,
 } from "./subscription-admin-model";
 import {
-  SAVE_BUTTON_CLASS_NAME,
-  SECONDARY_BUTTON_CLASS_NAME,
   SubscriptionEmptyState,
   SubscriptionLoadingState,
 } from "./subscription-admin-ui";
@@ -186,11 +189,12 @@ function SubscriptionAccountRow({
       </div>
 
       <div className="flex lg:justify-end">
-        <button
-          className={SAVE_BUTTON_CLASS_NAME}
+        <UiButton
           disabled={disabled}
           onClick={() => void onSave(account.owner_user_id)}
-          type="button"
+          size="sm"
+          tone="primary"
+          variant="solid"
         >
           {saving ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -198,7 +202,7 @@ function SubscriptionAccountRow({
             <Save className="h-3.5 w-3.5" />
           )}
           {t("settings.subscription.save")}
-        </button>
+        </UiButton>
       </div>
     </div>
   );
@@ -227,11 +231,11 @@ export function SubscriptionAccountView({
               {t("settings.subscription.period")}: {formatDate(model.periodStart)} - {formatDate(model.periodEnd)}
             </p>
           </div>
-          <button
-            className={SECONDARY_BUTTON_CLASS_NAME}
+          <UiButton
             disabled={disabled}
             onClick={() => void onRefresh()}
-            type="button"
+            size="sm"
+            variant="surface"
           >
             {model.loading ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -239,7 +243,7 @@ export function SubscriptionAccountView({
               <RefreshCw className="h-3.5 w-3.5" />
             )}
             {t("settings.subscription.refresh")}
-          </button>
+          </UiButton>
         </div>
 
         {model.loading ? (

@@ -9,8 +9,7 @@ import { ExternalLink, Loader2, PackagePlus } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiBadge } from "@/shared/ui/display/badge";
-import { UiButton } from "@/shared/ui/button/button";
-import { getUiButtonClassName } from "@/shared/ui/button/button-styles";
+import { UiButton, UiLinkButton } from "@/shared/ui/button/button";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -64,15 +63,17 @@ export function ExternalSkillPreviewDialog({
 
           <UiDialogFooter appearance="plain" className="flex-wrap justify-between gap-3">
             {model.detailUrl ? (
-              <a
-                className={getUiButtonClassName({ size: "sm", variant: "text" }, "w-fit")}
+              <UiLinkButton
+                className="w-fit"
                 href={model.detailUrl}
                 rel="noreferrer"
+                size="sm"
                 target="_blank"
+                variant="text"
               >
                 <ExternalLink className="h-4 w-4" />
                 {t("capability.skills_external_open_original")}
-              </a>
+              </UiLinkButton>
             ) : <span />}
             <div className="flex flex-wrap items-center gap-2">
               <UiButton

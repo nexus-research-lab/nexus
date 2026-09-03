@@ -1,17 +1,12 @@
-/**
- * =====================================================
- * @File   : auth-guard.tsx
- * @Date   : 2026-04-07 18:24
- * @Author : leemysw
- * 2026-04-07 18:24   Create
- * =====================================================
- */
+// INPUT: Control-backed 认证状态、当前路由和重新读取认证状态命令。
+// OUTPUT: 加载/恢复状态或通往 setup、login、受保护路由的唯一入口。
+// POS: App 路由认证守卫；不拥有认证数据、通用反馈或按钮视觉。
 
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 
 import { APP_ROUTE_PATHS } from "@/app/router/route-paths";
 import { useAuth } from "@/shared/auth/auth-context";
-import { getUiButtonClassName } from "@/shared/ui/button/button-styles";
+import { UiButton } from "@/shared/ui/button/button";
 import { AppLoadingState } from "@/shared/ui/layout/app-loading-screen";
 
 function GuardState({
@@ -44,16 +39,15 @@ function GuardState({
           <p className="mt-2 text-sm font-medium leading-6 text-(--text-default)">{nextStep}</p>
         ) : null}
         {actionLabel && onAction ? (
-          <button
-            className={getUiButtonClassName(
-              { size: "lg", tone: "primary", variant: "solid" },
-              "mt-5 rounded-full px-5 text-base",
-            )}
+          <UiButton
+            className="mt-5"
             onClick={onAction}
-            type="button"
+            size="lg"
+            tone="primary"
+            variant="solid"
           >
             {actionLabel}
-          </button>
+          </UiButton>
         ) : null}
       </section>
     </main>

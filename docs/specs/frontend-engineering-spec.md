@@ -119,6 +119,7 @@ Primitive 同时拥有 DOM、键盘、焦点、ARIA 和视觉状态合同，例�
 - Props 使用 `size / tone / variant / density / elevation / layer / viewport` 等有限语义；
 - 默认值必须能直接用于普通业务场景；
 - `className` 只用于外部布局和宽度约束，不得覆盖颜色、圆角、阴影、层级、hover 或 focus；
+- 业务文字、导航链接和纯图标动作必须分别渲染 `UiButton / UiLinkButton / UiIconButton`；`button-styles.ts` 是 shared primitive 的实现细节，业务层不得借其 class 投影手写第二套 DOM；
 - variant 必须存在真实视觉或行为差异；完全相同的 variant 合并；
 - 普通按钮、输入和模态不得绕过已有 primitive 手写第二套行为。
 

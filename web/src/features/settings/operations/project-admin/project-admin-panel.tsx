@@ -1,3 +1,7 @@
+// INPUT: 项目与成员资源、权限及创建、刷新、授权命令。
+// OUTPUT: 管理员项目列表、成员权限表单和可恢复反馈。
+// POS: Operations 项目管理用例；不拥有通用表单或按钮视觉。
+
 "use client";
 
 import {
@@ -16,7 +20,7 @@ import {
 } from "@/features/settings/shared/settings-panel-ui";
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { getUiButtonClassName } from "@/shared/ui/button/button-styles";
+import { UiButton } from "@/shared/ui/button/button";
 import { completeFeedbackBanner } from "@/shared/ui/feedback/feedback-banner-contract";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
@@ -32,15 +36,6 @@ import { useProjectAdmin } from "./use-project-admin";
 
 const INPUT_CLASS_NAME =
   "dialog-input h-9 w-full radius-control-md px-3 text-sm text-(--text-strong) outline-none disabled:opacity-(--disabled-opacity)";
-const PRIMARY_BUTTON_CLASS_NAME = getUiButtonClassName({
-  size: "sm",
-  tone: "primary",
-  variant: "solid",
-});
-const SECONDARY_BUTTON_CLASS_NAME = getUiButtonClassName({
-  size: "sm",
-  variant: "surface",
-});
 
 interface ProjectCardProps {
   model: ProjectAdminViewModel;
@@ -163,10 +158,12 @@ function ProjectCard({
                 value={memberDraft}
               />
             </label>
-            <button
-              className={PRIMARY_BUTTON_CLASS_NAME}
+            <UiButton
               disabled={disabled || memberDraft.trim() === ""}
+              size="sm"
+              tone="primary"
               type="submit"
+              variant="solid"
             >
               {model.pendingKey === `member:${project.project_id}:${memberDraft.trim()}` ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -174,7 +171,7 @@ function ProjectCard({
                 <UserPlus className="h-3.5 w-3.5" />
               )}
               {t("settings.projects.add_member")}
-            </button>
+            </UiButton>
           </form>
         ) : (
           <p className="mt-3 border-t border-(--divider-subtle-color) pt-3 text-xs leading-5 text-(--text-soft)">
@@ -223,10 +220,12 @@ export function ProjectAdminPanel() {
                 value={viewModel.newProjectId}
               />
             </label>
-            <button
-              className={PRIMARY_BUTTON_CLASS_NAME}
+            <UiButton
               disabled={disabled || viewModel.newProjectId.trim() === ""}
+              size="sm"
+              tone="primary"
               type="submit"
+              variant="solid"
             >
               {viewModel.pendingKey === "create-project" ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -234,12 +233,12 @@ export function ProjectAdminPanel() {
                 <Plus className="h-3.5 w-3.5" />
               )}
               {t("settings.projects.create")}
-            </button>
-            <button
-              className={SECONDARY_BUTTON_CLASS_NAME}
+            </UiButton>
+            <UiButton
               disabled={refreshDisabled}
               onClick={() => void controller.refreshProjects()}
-              type="button"
+              size="sm"
+              variant="surface"
             >
               {viewModel.loading ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -247,7 +246,7 @@ export function ProjectAdminPanel() {
                 <RefreshCw className="h-3.5 w-3.5" />
               )}
               {t("settings.projects.refresh")}
-            </button>
+            </UiButton>
           </form>
         </section>
 

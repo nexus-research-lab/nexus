@@ -1,17 +1,11 @@
-import { Loader2 } from "lucide-react";
+// INPUT: Subscription 管理视图共用的字段与资源状态文案。
+// OUTPUT: 领域内输入几何、加载和空状态视图。
+// POS: Subscription 局部 UI pattern；按钮视觉由 shared UiButton 负责。
 
-import { getUiButtonClassName } from "@/shared/ui/button/button-styles";
+import { Loader2 } from "lucide-react";
 
 export const CONTROL_CLASS_NAME =
   "dialog-input h-9 w-full radius-control-md px-3 text-sm text-(--text-strong) outline-none disabled:opacity-(--disabled-opacity)";
-export const SAVE_BUTTON_CLASS_NAME = getUiButtonClassName(
-  { size: "sm", tone: "primary", variant: "solid" },
-  "gap-1.5",
-);
-export const SECONDARY_BUTTON_CLASS_NAME = getUiButtonClassName(
-  { size: "sm", variant: "surface" },
-  "gap-1.5",
-);
 
 export function SubscriptionLoadingState({ label }: { label: string }) {
   return (

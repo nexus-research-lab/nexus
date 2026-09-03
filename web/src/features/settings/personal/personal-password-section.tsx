@@ -6,10 +6,9 @@
 import { Loader2, LockKeyhole } from "lucide-react";
 import type { FormEvent } from "react";
 
-import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
-import { getUiButtonClassName } from "@/shared/ui/button/button-styles";
+import { UiButton } from "@/shared/ui/button/button";
 
 import type { PasswordDraft, PasswordField } from "./personal-settings-model";
 
@@ -48,15 +47,6 @@ const PASSWORD_INPUTS: readonly PasswordInputConfig[] = [
     labelKey: "settings.personal.password_confirm",
   },
 ];
-
-const PRIMARY_BUTTON_CLASS_NAME = getUiButtonClassName(
-  { size: "md", tone: "primary", variant: "solid" },
-  "gap-2 tracking-tight",
-);
-const SECONDARY_BUTTON_CLASS_NAME = getUiButtonClassName(
-  { size: "md", variant: "surface" },
-  "gap-2 tracking-tight",
-);
 
 export function PersonalPasswordSection({
   canChange,
@@ -182,17 +172,17 @@ function PasswordSubmitActions({
           </>
         ) : null}
       </div>
-      <button
-        className={cn(
-          canSubmit ? PRIMARY_BUTTON_CLASS_NAME : SECONDARY_BUTTON_CLASS_NAME,
-          "min-w-28",
-        )}
+      <UiButton
+        className="min-w-28"
         disabled={!canSubmit}
+        size="md"
+        tone={canSubmit ? "primary" : "default"}
         type="submit"
+        variant={canSubmit ? "solid" : "surface"}
       >
         {isSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
         {isSubmitting ? t("common.saving") : t("settings.personal.change_password")}
-      </button>
+      </UiButton>
     </div>
   );
 }

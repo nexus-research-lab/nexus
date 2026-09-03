@@ -1,5 +1,5 @@
-// INPUT: UiButton 的默认/显式 type、disabled 状态和键盘焦点行为。
-// OUTPUT: 证明基础动作不会误提交表单，且保持原生 button 交互合同。
+// INPUT: 文字、链接与图标 Button 的 type、disabled、名称和键盘行为。
+// OUTPUT: 证明动作不会误提交表单，且保持原生 button/link 与可访问名称合同。
 // POS: Button DOM 行为测试；视觉 token 组合由样式合同测试负责。
 
 import { render, screen } from "@testing-library/react";
@@ -7,7 +7,11 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { UiButton } from "@/shared/ui/button/button";
+import {
+  UiButton,
+  UiIconButton,
+  UiLinkButton,
+} from "@/shared/ui/button/button";
 
 describe("UiButton", () => {
   it("defaults to a non-submitting button inside forms", async () => {
@@ -62,5 +66,24 @@ describe("UiButton", () => {
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "可用动作 0" }));
     await user.keyboard("{Enter}");
     expect(screen.getByRole("button", { name: "可用动作 1" })).toBeTruthy();
+  });
+
+  it("keeps navigation actions as links instead of button-shaped click handlers", () => {
+    render(<UiLinkButton href="/docs">查看文档</UiLinkButton>);
+
+    const link = screen.getByRole("link", { name: "查看文档" });
+    expect(link.getAttribute("href")).toBe("/docs");
+  });
+
+  it("derives an icon action name from the shared tooltip contract", () => {
+    render(
+      <UiIconButton title="删除附件">
+        <span aria-hidden="true">×</span>
+      </UiIconButton>,
+    );
+
+    const button = screen.getByRole("button", { name: "删除附件" });
+    expect(button.getAttribute("type")).toBe("button");
+    expect(button.getAttribute("title")).toBeNull();
   });
 });

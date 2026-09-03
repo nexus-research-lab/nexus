@@ -1,13 +1,12 @@
+// INPUT: Composer 发送、Goal 创建、附件准备和停止执行状态。
+// OUTPUT: 单一语义动作按钮及当前可访问名称和视觉状态。
+// POS: Composer 提交动作投影；共享 UiButton 拥有基础 DOM 与视觉合同。
+
 import type { ReactNode } from "react";
 import { Send, StopCircle, Target } from "lucide-react";
 
-import { cn } from "@/shared/ui/class-name";
+import { UiIconButton } from "@/shared/ui/button/button";
 import { LoadingOrb } from "@/shared/ui/feedback/loading-orb";
-
-import {
-  COMPOSER_DANGER_ACTION_BUTTON_CLASS_NAME,
-  COMPOSER_PRIMARY_ACTION_BUTTON_CLASS_NAME,
-} from "../composer-styles";
 
 export interface ComposerSubmitButtonProps {
   isDisabled: boolean;
@@ -28,6 +27,8 @@ interface ComposerSubmitProjection {
   ariaLabel: string;
   className: string;
   disabled: boolean;
+  tone: "danger" | "primary";
+  variant: "solid" | "surface";
   visual: ComposerSubmitVisual;
 }
 
@@ -53,7 +54,7 @@ export function ComposerSubmitButton(props: ComposerSubmitButtonProps) {
     stop: <StopCircle size={16} />,
   };
   return (
-    <button
+    <UiIconButton
       aria-label={projection.ariaLabel}
       className={projection.className}
       disabled={projection.disabled}
@@ -62,10 +63,12 @@ export function ComposerSubmitButton(props: ComposerSubmitButtonProps) {
           ? () => props.onStop?.()
           : () => void props.onSend()
       }
-      type="button"
+      size="md"
+      tone={projection.tone}
+      variant={projection.variant}
     >
       {content[projection.visual]}
-    </button>
+    </UiIconButton>
   );
 }
 
@@ -95,19 +98,17 @@ function projectComposerSubmitButton(
   > = {
     send: {
       ariaLabel: props.sendLabel,
-      className: cn(
-        COMPOSER_PRIMARY_ACTION_BUTTON_CLASS_NAME,
-        "nexus-chat-composer-submit gap-1.5",
-      ),
+      className: "nexus-chat-composer-submit shrink-0",
       disabled: props.isDisabled,
+      tone: "primary",
+      variant: "solid",
     },
     stop: {
       ariaLabel: props.stopLabel,
-      className: cn(
-        COMPOSER_DANGER_ACTION_BUTTON_CLASS_NAME,
-        "nexus-chat-composer-submit nexus-chat-composer-submit-stop gap-1.5",
-      ),
+      className: "nexus-chat-composer-submit nexus-chat-composer-submit-stop shrink-0",
       disabled: false,
+      tone: "danger",
+      variant: "surface",
     },
   };
   return { action, ...behavior[action], visual };

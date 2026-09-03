@@ -16,6 +16,13 @@ import {
 } from "@/shared/ui/button/button-styles";
 import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 
+export type {
+  UiButtonSize,
+  UiButtonTone,
+  UiButtonVariant,
+  UiIconButtonSize,
+} from "@/shared/ui/button/button-styles";
+
 interface UiButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode;
   className?: string;

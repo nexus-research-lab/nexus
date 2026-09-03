@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
 import { Check, ChevronRight, ExternalLink, Power } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { getUiButtonClassName } from "@/shared/ui/button/button-styles";
+import { UiLinkButton } from "@/shared/ui/button/button";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiListRow } from "@/shared/ui/list/list-row";
@@ -132,18 +132,17 @@ function ConnectorDocsLink({ url }: { url: string | undefined }) {
     return null;
   }
   return (
-    <a
-      className={getUiButtonClassName(
-        { size: "sm", variant: "text" },
-        "w-fit",
-      )}
+    <UiLinkButton
+      className="w-fit"
       href={url}
       rel="noopener noreferrer"
+      size="sm"
       target="_blank"
+      variant="text"
     >
       <ExternalLink className="h-3.5 w-3.5" />
       查看文档
-    </a>
+    </UiLinkButton>
   );
 }
 

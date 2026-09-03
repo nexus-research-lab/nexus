@@ -1,6 +1,9 @@
+// INPUT: Agent 编辑器可用动作、保存状态与失败恢复反馈。
+// OUTPUT: 由共享 Button 原语组成的删除、取消、保存动作行。
+// POS: Agent options 的动作组合；不拥有按钮视觉或保存事务。
+
 import { cn } from "@/shared/ui/class-name";
-import { UiButton } from "@/shared/ui/button/button";
-import type { UiButtonSize } from "@/shared/ui/button/button-styles";
+import { UiButton, type UiButtonSize } from "@/shared/ui/button/button";
 import { RecoverySummary } from "@/shared/ui/feedback/recovery-summary";
 
 import type { SaveFeedback } from "../agent-options-editor-model";
