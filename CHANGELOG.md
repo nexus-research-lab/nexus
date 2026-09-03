@@ -38,6 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Moved the streamed generative-UI placeholder, title, and container geometry
+  onto shared Skeleton, typography, and semantic shape contracts.
 - Centralized Home sidebar loading rows on the shared Skeleton tone, shape,
   animation, and reduced-motion contract so chat and contact placeholders no
   longer maintain private visual recipes.
