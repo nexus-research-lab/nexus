@@ -99,6 +99,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Migrated Settings titles, descriptions, labels, and segmented options onto
   semantic typography roles; removed its duplicate segmented control so shape,
   density, selected-state contrast, and no-shadow behavior have one owner.
+- Routed all Settings single-line, multiline, and compact checkbox fields
+  through shared Form primitives, removing feature-owned input geometry and
+  enforcing that ownership with an architecture contract.
 - Moved floating feedback and shared resource states onto named surface, layer,
   typography, shape, and Button contracts, with DOM tests for recovery,
   dismissal, live-region behavior, and auto-dismiss timing resets.
