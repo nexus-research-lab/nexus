@@ -176,6 +176,7 @@ Widget 可以认识 Agent、Room、Goal 等产品对象，但只组合下层合�
 - 业务弹窗宽度只通过 `size` 选择，禁止在 Shell 上补写 `max-width / vw`；如果现有档位不合适，先判断是否真的是可跨业务复用的新内容类型；
 - 单行命名/创建类 Prompt 使用紧凑决策宽度，多行输入才提升一档；Prompt 的 Header、Input 与确认动作由共享 Decision Dialog 统一，业务页面不得用局部宽高或弱化的私有按钮修补；
 - z-index 只通过语义 layer 使用，禁止通过增加整数解决遮挡；嵌套 modal 的顺序由 modal stack 负责。
+- 全局 feedback 固定复用 popover 材质、`feedback` 语义 layer、App Typography 与共享 Button；业务只提供已经确认的标题、影响、下一步和至多一个动作，不得通过局部阴影、圆角或 z-index 抬高反馈。
 
 ### 6.4 响应式
 

@@ -19,6 +19,7 @@ import type {
   UiStateBlockSize,
   UiStateBlockVariant,
 } from "@/shared/ui/display/state-block-styles";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 export type UiResourceStateKind =
   | "loading"
@@ -171,16 +172,17 @@ export function UiResourceState({
         />
       ) : impact || nextStep ? (
         <div className={cn(
-          "mt-3 w-full max-w-md space-y-1.5 break-words text-xs leading-5 [overflow-wrap:anywhere]",
+          "mt-3 w-full max-w-md space-y-1.5 break-words [overflow-wrap:anywhere]",
+          getUiTypographyClassName({ role: "metadata", tone: "muted" }),
           compactState ? "text-left" : "text-center",
         )}>
           {impact ? (
-            <p className="text-(--text-muted)" data-resource-state-impact>
+            <p data-resource-state-impact>
               {impact}
             </p>
           ) : null}
           {nextStep ? (
-            <p className="font-medium text-(--text-default)" data-resource-state-next-step>
+            <p className="ui-type-tone-default ui-type-weight-medium" data-resource-state-next-step>
               {nextStep}
             </p>
           ) : null}

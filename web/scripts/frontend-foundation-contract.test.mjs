@@ -33,6 +33,7 @@ const REQUIRED_SHARED_UI_BEHAVIOR_SUITES = [
   "src/shared/ui/dialog/decision/decision-dialog.test.tsx",
   "src/shared/ui/dialog/dialog.test.tsx",
   "src/shared/ui/display/display.test.tsx",
+  "src/shared/ui/feedback/feedback.test.tsx",
   "src/shared/ui/form/form-controls.test.tsx",
   "src/shared/ui/list/list.test.tsx",
   "src/shared/ui/menu/menu.test.tsx",
@@ -68,6 +69,7 @@ test("semantic overlay layers preserve the current visual stack without exposing
       "selectMenu",
       "actionMenu",
       "popover",
+      "feedback",
       "dialogUnderlay",
       "dialog",
       "dialogNested",
@@ -81,6 +83,7 @@ test("semantic overlay layers preserve the current visual stack without exposing
       "ui-layer-select-menu",
       "ui-layer-action-menu",
       "ui-layer-popover",
+      "ui-layer-feedback",
       "ui-layer-dialog-underlay",
       "ui-layer-dialog",
       "ui-layer-dialog-nested",
@@ -169,12 +172,14 @@ test("theme recipes own the semantic layer and adaptive dialog geometry implemen
   ]);
 
   assert.match(tokens, /--layer-dialog:\s*9999/);
+  assert.match(tokens, /--layer-feedback:\s*150/);
   assert.match(tokens, /--dialog-compact-height:\s*min\(620px, calc\(100dvh - 72px\)\)/);
   assert.match(tokens, /--dialog-adaptive-height:\s*min\(82dvh, 760px\)/);
   assert.match(tokens, /--dialog-visual-preview-height:\s*min\(72dvh, 600px\)/);
   assert.match(tokens, /--dialog-document-preview-height:\s*min\(64dvh, 520px\)/);
   assert.match(tokens, /--dialog-workbench-height:\s*min\(820px, calc\(100dvh - 56px\)\)/);
   assert.match(recipes, /\.ui-layer-dialog\s*\{/);
+  assert.match(recipes, /\.ui-layer-feedback\s*\{/);
   assert.match(recipes, /\.ui-dialog-viewport-compact\s*\{/);
   assert.match(recipes, /\.ui-dialog-viewport-compact-max\s*\{/);
   assert.match(recipes, /\.ui-dialog-viewport-adaptive\s*\{/);
@@ -188,6 +193,22 @@ test("theme recipes own the semantic layer and adaptive dialog geometry implemen
   assert.match(recipes, /\.ui-type-page-title\s*\{/);
   assert.match(recipes, /\.ui-type-body\s*\{/);
   assert.match(recipes, /\.ui-type-code\s*\{/);
+});
+
+test("floating feedback reuses shared surface, layer, and typography recipes", async () => {
+  const [banner, viewport, recovery] = await Promise.all([
+    readSource("src/shared/ui/feedback/feedback-banner.tsx"),
+    readSource("src/shared/ui/feedback/feedback-banner-viewport.tsx"),
+    readSource("src/shared/ui/feedback/recovery-summary.tsx"),
+  ]);
+
+  assert.match(banner, /surface-popover surface-radius-md/);
+  assert.match(banner, /getUiTypographyClassName/);
+  assert.doesNotMatch(banner, /shadow-\[/);
+  assert.doesNotMatch(banner, /rounded-\[/);
+  assert.match(viewport, /getUiOverlayLayerClassName\("feedback"\)/);
+  assert.doesNotMatch(viewport, /\bz-(?:\d+|\[)/);
+  assert.match(recovery, /getUiTypographyClassName/);
 });
 
 test("App typography exposes one typed semantic role map", async () => {

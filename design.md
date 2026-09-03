@@ -122,7 +122,7 @@ App chrome 使用 `shared/ui/typography/typography-styles.ts` 的语义角色，
 | `desktop-rail` | 低对比表面 + 细分隔线；无常驻阴影 |
 | `surface-panel` | 只在承载独立任务或可操作内容时单层填充 + 轻边界 |
 | `surface-inset` / `surface-card` | 默认透明或低对比底；卡片必须有内容或交互职责 |
-| `surface-popover` | menu、popover 与 dialog 共用的高不透明主题表面、清晰边界与同源阴影 |
+| `surface-popover` | menu、popover、浮动 feedback 与 dialog 共用的高不透明主题表面、清晰边界与同源阴影 |
 | `input-shell` | 背景、边界与轻 ring 建立焦点；不用玻璃或发光描边 |
 | `composer-shell` | 主动作表面；常规页面唯一允许明显上浮的白色 surface |
 
@@ -294,6 +294,7 @@ disabled 降对比不隐藏、保留可解释文案；loading 保持原尺寸与
 - AskUserQuestion / permission 是用户必须行动的唯一强交互 surface：承载壳沿用所在上下文的圆角，内部选项与按钮统一使用 `control` 圆角，禁止 pill 化；保持单层边界、清楚问题、最少必要选项和一个高对比主动作；选项是行级选择器，不是彩色答案卡；提交后收敛成一条完成状态或可展开摘要。
 - 权限解释必须说明将执行什么、作用域和风险；拒绝与取消是 ghost / secondary，不把所有动作做成 primary。
 - error / warning 短、具体、可恢复：问题、影响、下一步动作；语义色只服务图标和关键文本，不铺满整块背景。
+- 浮动 feedback 与菜单共用高不透明浮层材质，使用独立命名 layer 保持在普通 popover 之上、dialog 之下；正文和关闭动作复用 App Typography 与共享 Button，不自行调整阴影、圆角或层级整数。
 - empty state 只保留一个下一步动作和必要说明；不使用插画、统计卡或大段教学文案填空。
 
 ### 6.5 对话身份与消息表面

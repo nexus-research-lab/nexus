@@ -420,6 +420,7 @@
   --layer-select-menu: 120;
   --layer-action-menu: 130;
   --layer-popover: 140;
+  --layer-feedback: 150;
   --layer-dialog-underlay: 9998;
   --layer-dialog: 9999;
   --layer-dialog-nested: 10000;

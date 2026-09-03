@@ -6,6 +6,7 @@ export type UiOverlayLayer =
   | "selectMenu"
   | "actionMenu"
   | "popover"
+  | "feedback"
   | "dialogUnderlay"
   | "dialog"
   | "dialogNested"
@@ -17,13 +18,14 @@ export type UiOverlayLayer =
 
 export type UiDialogLayer = Exclude<
   UiOverlayLayer,
-  "selectMenu" | "actionMenu" | "popover" | "tooltip" | "tour"
+  "selectMenu" | "actionMenu" | "popover" | "feedback" | "tooltip" | "tour"
 >;
 
 const UI_OVERLAY_LAYER_CLASS_MAP: Record<UiOverlayLayer, string> = {
   selectMenu: "ui-layer-select-menu",
   actionMenu: "ui-layer-action-menu",
   popover: "ui-layer-popover",
+  feedback: "ui-layer-feedback",
   dialogUnderlay: "ui-layer-dialog-underlay",
   dialog: "ui-layer-dialog",
   dialogNested: "ui-layer-dialog-nested",

@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { UiBadge, UiCounterBadge } from "@/shared/ui/display/badge";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { UiStateBlock } from "@/shared/ui/display/state-block";
 
 describe("display badges", () => {
   it("renders an optional semantic dot and caps positive counters", () => {
@@ -73,5 +74,33 @@ describe("UiResourceState", () => {
     expect((action as HTMLButtonElement).disabled).toBe(true);
     expect(action.getAttribute("aria-busy")).toBe("true");
     expect(screen.queryByText("保存", { exact: true })).toBeNull();
+  });
+});
+
+describe("UiStateBlock", () => {
+  it("projects empty and compact states through semantic type and shape roles", () => {
+    const { rerender } = render(
+      <UiStateBlock
+        description="创建一个对象后会显示在这里"
+        icon={<span aria-hidden="true">+</span>}
+        title="暂无对象"
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "暂无对象" }).className).toContain("ui-type-object-title");
+    expect(screen.getByText("创建一个对象后会显示在这里").className).toContain("ui-type-supporting");
+    expect(screen.getByText("+").parentElement?.className).toContain("surface-radius-md");
+
+    rerender(
+      <UiStateBlock
+        description="请稍后重试"
+        icon={<span aria-hidden="true">!</span>}
+        size="sm"
+        title="读取失败"
+        tone="danger"
+      />,
+    );
+    expect(screen.getByRole("heading", { name: "读取失败" }).className).toContain("ui-type-section-title");
+    expect(screen.getByText("!").parentElement?.className).toContain("radius-control-md");
   });
 });

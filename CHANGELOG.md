@@ -96,6 +96,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   line height, weight, tracking, and text tone behind typed roles. The UI
   contract gallery now shows the full hierarchy, and architecture checks reject
   arbitrary pixel aliases for the standard scale.
+- Moved floating feedback and shared resource states onto named surface, layer,
+  typography, shape, and Button contracts, with DOM tests for recovery,
+  dismissal, live-region behavior, and auto-dismiss timing resets.
 - Updated the Feishu long-connection SDK to v3.11.0 and pinned DingTalk's
   official v0.9.2 beta stream SDK so both channels receive the vendors'
   current WebSocket lifecycle and concurrency fixes.

@@ -198,6 +198,10 @@
     z-index: var(--layer-popover);
   }
 
+  .ui-layer-feedback {
+    z-index: var(--layer-feedback);
+  }
+
   .ui-layer-dialog-underlay {
     z-index: var(--layer-dialog-underlay);
   }
