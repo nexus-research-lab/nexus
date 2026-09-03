@@ -50,7 +50,7 @@ export function ProviderModelOptionsDialog({
         labelledBy="provider-model-options-title"
         onClose={onClose}
       >
-        <UiDialogShell className="max-w-[620px]" size="lg">
+        <UiDialogShell size="lg">
           <UiDialogHeader
             appearance="plain"
             onClose={onClose}

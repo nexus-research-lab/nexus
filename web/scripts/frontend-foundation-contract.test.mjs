@@ -113,6 +113,14 @@ test("dialog viewport modes expose one shared responsive geometry contract", asy
     "ui-dialog-viewport-adaptive-max",
   );
   assert.equal(
+    getUiDialogViewportClassName("visualPreview"),
+    "ui-dialog-viewport-visual-preview",
+  );
+  assert.equal(
+    getUiDialogViewportClassName("documentPreview"),
+    "ui-dialog-viewport-document-preview",
+  );
+  assert.equal(
     getUiDialogViewportClassName("workbench"),
     "ui-dialog-viewport-workbench",
   );
@@ -134,6 +142,12 @@ test("product source does not reintroduce numeric high layers or shared dialog v
       violations.push(`${relativePath}: duplicated dialog viewport formula`);
     }
     if (
+      /\.(?:ts|tsx)$/.test(file)
+      && /<UiDialog(?:Form)?Shell\b(?:(?!>)[\s\S]){0,500}(?:max-w|w)-\[/.test(source)
+    ) {
+      violations.push(`${relativePath}: feature-owned dialog width`);
+    }
+    if (
       relativePath !== "src/shared/ui/form/checkbox.tsx"
       && /type="checkbox"/.test(source)
     ) {
@@ -153,12 +167,16 @@ test("theme recipes own the semantic layer and adaptive dialog geometry implemen
   assert.match(tokens, /--layer-dialog:\s*9999/);
   assert.match(tokens, /--dialog-compact-height:\s*min\(620px, calc\(100dvh - 72px\)\)/);
   assert.match(tokens, /--dialog-adaptive-height:\s*min\(82dvh, 760px\)/);
+  assert.match(tokens, /--dialog-visual-preview-height:\s*min\(72dvh, 600px\)/);
+  assert.match(tokens, /--dialog-document-preview-height:\s*min\(64dvh, 520px\)/);
   assert.match(tokens, /--dialog-workbench-height:\s*min\(820px, calc\(100dvh - 56px\)\)/);
   assert.match(recipes, /\.ui-layer-dialog\s*\{/);
   assert.match(recipes, /\.ui-dialog-viewport-compact\s*\{/);
   assert.match(recipes, /\.ui-dialog-viewport-compact-max\s*\{/);
   assert.match(recipes, /\.ui-dialog-viewport-adaptive\s*\{/);
   assert.match(recipes, /\.ui-dialog-viewport-adaptive-max\s*\{/);
+  assert.match(recipes, /\.ui-dialog-viewport-visual-preview\s*\{/);
+  assert.match(recipes, /\.ui-dialog-viewport-document-preview\s*\{/);
   assert.match(recipes, /\.ui-dialog-viewport-workbench\s*\{/);
   assert.match(recipes, /\.ui-dialog-size-workbench\s*\{/);
   assert.match(recipes, /\.ui-dialog-backdrop-compact\s*\{/);

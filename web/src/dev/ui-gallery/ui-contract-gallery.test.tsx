@@ -63,4 +63,17 @@ describe("UI contract gallery", () => {
     expect(prompt.querySelector(".max-w-sm")).toBeTruthy();
     expect(screen.getByRole("textbox", { name: "例如：new-folder" })).toBeTruthy();
   });
+
+  it("exposes both attachment viewer viewport contracts", () => {
+    renderGallery();
+
+    fireEvent.click(screen.getByRole("button", { name: "视觉预览尺寸" }));
+    const visual = screen.getByRole("dialog", { name: "视觉预览契约" });
+    expect(visual.querySelector(".ui-dialog-viewport-visual-preview")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "关闭" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "文档预览尺寸" }));
+    const document = screen.getByRole("dialog", { name: "文档预览契约" });
+    expect(document.querySelector(".ui-dialog-viewport-document-preview")).toBeTruthy();
+  });
 });

@@ -30,6 +30,7 @@ import {
   UiDialogHeader,
   UiDialogPortal,
   UiDialogShell,
+  type UiDialogSize,
 } from "@/shared/ui/dialog/dialog";
 import type { UiDialogViewport } from "@/shared/ui/dialog/dialog-layout";
 import { PromptDialog } from "@/shared/ui/dialog/decision/decision-dialog";
@@ -344,6 +345,24 @@ export function UiContractGallery() {
                 <UiButton onClick={() => setPromptOpen(true)} variant="surface">
                   新建文件夹弹窗
                 </UiButton>
+                <UiButton
+                  onClick={() => {
+                    setDialogViewport("visualPreview");
+                    setDialogOpen(true);
+                  }}
+                  variant="surface"
+                >
+                  视觉预览尺寸
+                </UiButton>
+                <UiButton
+                  onClick={() => {
+                    setDialogViewport("documentPreview");
+                    setDialogOpen(true);
+                  }}
+                  variant="surface"
+                >
+                  文档预览尺寸
+                </UiButton>
                 <UiTooltip label="键盘聚焦应立即显示，Escape 后焦点归还" placement="top">
                   <UiButton variant="surface"><MousePointer2 className="h-4 w-4" />聚焦或悬停</UiButton>
                 </UiTooltip>
@@ -364,13 +383,20 @@ export function UiContractGallery() {
 
       {dialogOpen ? (
         <UiDialogPortal>
-          <UiDialogBackdrop labelledBy="gallery-dialog-title" onClose={() => setDialogOpen(false)}>
-            <UiDialogShell size="md" viewport={dialogViewport}>
+          <UiDialogBackdrop
+            inset={isGalleryViewer(dialogViewport) ? "compact" : "default"}
+            labelledBy="gallery-dialog-title"
+            onClose={() => setDialogOpen(false)}
+          >
+            <UiDialogShell
+              size={getGalleryDialogSize(dialogViewport)}
+              viewport={dialogViewport}
+            >
               <UiDialogHeader
                 icon={<Layers3 className="h-4 w-4" />}
                 onClose={() => setDialogOpen(false)}
                 subtitle="检查标题、正文、Footer、焦点圈与窄窗口边距。"
-                title={dialogViewport === "compact" ? "紧凑弹窗契约" : "共享弹窗契约"}
+                title={getGalleryDialogTitle(dialogViewport)}
                 titleId="gallery-dialog-title"
               />
               <UiDialogBody scrollable>
@@ -431,6 +457,33 @@ function GallerySection({
       <div className="space-y-5">{children}</div>
     </section>
   );
+}
+
+function getGalleryDialogTitle(viewport: UiDialogViewport): string {
+  switch (viewport) {
+    case "compact":
+      return "紧凑弹窗契约";
+    case "visualPreview":
+      return "视觉预览契约";
+    case "documentPreview":
+      return "文档预览契约";
+    default:
+      return "共享弹窗契约";
+  }
+}
+
+function getGalleryDialogSize(viewport: UiDialogViewport): UiDialogSize {
+  if (viewport === "visualPreview") {
+    return "xl";
+  }
+  if (viewport === "documentPreview") {
+    return "lg";
+  }
+  return "md";
+}
+
+function isGalleryViewer(viewport: UiDialogViewport): boolean {
+  return viewport === "visualPreview" || viewport === "documentPreview";
 }
 
 function GalleryRow({ children, label }: { children: ReactNode; label: string }) {

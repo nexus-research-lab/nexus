@@ -1162,6 +1162,16 @@
     max-height: var(--dialog-adaptive-height);
   }
 
+  .ui-dialog-viewport-visual-preview {
+    height: var(--dialog-visual-preview-height);
+    max-height: var(--dialog-visual-preview-height);
+  }
+
+  .ui-dialog-viewport-document-preview {
+    height: var(--dialog-document-preview-height);
+    max-height: var(--dialog-document-preview-height);
+  }
+
   .ui-dialog-viewport-workbench {
     height: var(--dialog-workbench-height);
     max-height: var(--dialog-workbench-height);
@@ -1172,10 +1182,6 @@
   }
 
   @media (max-width: 639px) {
-    .ui-dialog-backdrop-compact {
-      padding: 0.5rem;
-    }
-
     .ui-dialog-viewport-adaptive {
       height: var(--dialog-adaptive-compact-height);
     }
@@ -1276,6 +1282,12 @@
     backdrop-filter: blur(2px);
     -webkit-backdrop-filter: blur(2px);
     background: var(--dialog-backdrop-color);
+  }
+
+  @media (max-width: 639px) {
+    .dialog-backdrop.ui-dialog-backdrop-compact {
+      padding: 0.5rem;
+    }
   }
 
   .dialog-header {
