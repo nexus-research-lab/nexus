@@ -1,8 +1,14 @@
+// INPUT: 单次运行、所属任务、命令状态与诊断/恢复动作。
+// OUTPUT: 原生可折叠历史行，组合状态、结果详情与合法动作。
+// POS: Scheduled 历史单项装配层；状态与动作资格来自 history model。
+
 "use client";
 
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 
+import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { WorkspaceStatusBadge } from "@/shared/ui/workspace/controls/workspace-status-badge";
 import type { ScheduledTaskRunItem } from "@/types/capability/scheduled-task/run";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
@@ -61,13 +67,23 @@ export function ScheduledTaskRunHistoryItem({
         onToggle={(event) => setOpen(event.currentTarget.open)}
         open={open}
       >
-        <summary className="flex cursor-pointer list-none items-center gap-3 rounded-[10px] px-2 py-2.5 transition-colors hover:bg-(--surface-control-background) [&::-webkit-details-marker]:hidden">
+        <summary className="flex cursor-pointer list-none items-center gap-3 radius-control-md px-2 py-2.5 transition-colors hover:bg-(--surface-control-background) [&::-webkit-details-marker]:hidden">
           <WorkspaceStatusBadge label={status.label} size="compact" tone={status.tone} />
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-(--text-strong)">
+            <p className={cn(
+              "truncate",
+              getUiTypographyClassName({
+                role: "supporting",
+                tone: "strong",
+                weight: "medium",
+              }),
+            )}>
               {formatScheduledDatetime(run.scheduled_for, { includeSeconds: true })}
             </p>
-            <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-(--text-muted)">
+            <p className={cn(
+              "mt-0.5 flex flex-wrap items-center gap-x-1.5",
+              getUiTypographyClassName({ role: "caption", tone: "muted" }),
+            )}>
               <span>{formatDuration(run.started_at, run.finished_at)}</span>
               {showDeliveryStatus && deliveryStatus ? (
                 <>
