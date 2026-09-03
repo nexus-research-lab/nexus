@@ -18,9 +18,6 @@ const AppLayout = lazy(() =>
 const LoginPage = lazy(() =>
   import("@/pages/login/login-page").then((m) => ({ default: m.LoginPage })),
 );
-const LandingPage = lazy(() =>
-  import("@/pages/landing/landing-page").then((m) => ({ default: m.LandingPage })),
-);
 const SetupPage = lazy(() =>
   import("@/pages/setup/setup-page").then((m) => ({ default: m.SetupPage })),
 );
@@ -84,7 +81,10 @@ export function AppRouter() {
       <OnboardingTourProvider>
         <Suspense fallback={<PageFallback />}>
           <Routes>
-            <Route element={<LandingPage />} path={APP_ROUTE_PATHS.landing} />
+            <Route
+              element={<Navigate replace to={APP_ROUTE_PATHS.launcher} />}
+              path={APP_ROUTE_PATHS.root}
+            />
             <Route element={<LoginPage />} path={APP_ROUTE_PATHS.login} />
             <Route element={<SetupPage />} path={APP_ROUTE_PATHS.setup} />
 
@@ -143,7 +143,7 @@ export function AppRouter() {
             </Route>
 
             {/* 兜底重定向 */}
-            <Route element={<Navigate replace to={APP_ROUTE_PATHS.landing} />} path="*" />
+            <Route element={<Navigate replace to={APP_ROUTE_PATHS.launcher} />} path="*" />
           </Routes>
         </Suspense>
       </OnboardingTourProvider>

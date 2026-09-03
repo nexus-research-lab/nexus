@@ -6,7 +6,6 @@
 import { getExternalSessionKeyFromConversationId } from "@/lib/conversation/external-session";
 
 export const APP_ROUTE_PATHS = {
-  landing: "/",
   root: "/",
   login: "/login",
   setup: "/setup",
@@ -35,7 +34,6 @@ export const APP_ROUTE_PATHS = {
 } as const;
 
 export const AppRouteBuilders = {
-  landing: () => APP_ROUTE_PATHS.landing,
   root: () => APP_ROUTE_PATHS.root,
   login: () => APP_ROUTE_PATHS.login,
   setup: () => APP_ROUTE_PATHS.setup,

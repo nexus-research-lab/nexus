@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated source deployment orchestration to build, start, health-check, and
   fast-forward both the Nexus and sibling `nexus-control` repositories as one
   `control + nexus + nginx` stack.
+- Moved the public landing page to the standalone `nexus-atlas` repository. The Product root route now enters the authenticated Launcher flow.
 - Condensed Agent list rows to two lines by moving Provider, tool, and Skill
   metadata beside the Agent name and permission state.
 - Simplified the Skill update surface into aligned compact rows with one clear

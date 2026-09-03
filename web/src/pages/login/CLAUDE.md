@@ -5,4 +5,4 @@
 - `use-login-page-controller.ts` 负责 Auth 请求、凭证草稿和提交反馈。
 - `login-auth-panel.tsx` 负责禁用态与密码登录态的具体交互视图。
 
-重定向必须先解析为同源站内路径；登录页、落地页和外部 origin 统一回到 Launcher，避免认证回环或开放重定向。
+重定向必须先解析为同源站内路径；登录页、产品根路由和外部 origin 统一回到 Launcher，避免认证回环或开放重定向。
