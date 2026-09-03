@@ -13,7 +13,6 @@ import {
 
 import { CapabilityPageLayout } from "@/features/capability/shared/capability-page-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiButton } from "@/shared/ui/button/button";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import {
   completeFeedbackBanner,
@@ -171,27 +170,22 @@ function PairingEmptyState({
   const { t } = useI18n();
 
   return (
-    <div className="flex min-h-[260px] flex-col items-center justify-center border-b border-(--divider-subtle-color) px-6 text-center">
-      <ShieldCheck className="h-7 w-7 text-(--icon-default)" />
-      <h2 className="mt-3 text-base font-medium text-(--text-strong)">
-        {t("capability.pairings_empty_title")}
-      </h2>
-      <p className="mt-1 max-w-[460px] text-compact leading-5 text-(--text-muted)">
-        {t("capability.pairings_empty_description")}
-      </p>
-      <UiButton
-        className="mt-4"
-        disabled={!canCreate || busy}
-        onClick={onCreate}
-        title={canCreate ? "新增 IM 配对" : "需要先创建智能体"}
-        tone="primary"
-        type="button"
-        variant="solid"
-      >
-        <Plus className="h-3.5 w-3.5" />
-        {canCreate ? t("capability.pairings_create") : "需要先创建智能体"}
-      </UiButton>
-    </div>
+    <UiResourceState
+      className="min-h-[260px] border-b border-(--divider-subtle-color)"
+      description={t("capability.pairings_empty_description")}
+      icon={<ShieldCheck className="h-6 w-6 text-(--icon-default)" />}
+      primaryAction={{
+        disabled: !canCreate || busy,
+        icon: <Plus className="h-3.5 w-3.5" />,
+        label: canCreate
+          ? t("capability.pairings_create")
+          : "需要先创建智能体",
+        onClick: onCreate,
+        tone: "primary",
+      }}
+      state="empty"
+      title={t("capability.pairings_empty_title")}
+    />
   );
 }
 
@@ -199,13 +193,14 @@ function PairingNoResults({ onClear }: { onClear: () => void }) {
   const { t } = useI18n();
 
   return (
-    <div className="flex min-h-[180px] flex-col items-center justify-center border-y border-(--divider-subtle-color) px-6 text-center">
-      <h2 className="text-base font-semibold text-(--text-strong)">
-        {t("capability.pairings_no_results_title")}
-      </h2>
-      <UiButton className="mt-4" onClick={onClear} size="sm" type="button">
-        {t("capability.clear_filters")}
-      </UiButton>
-    </div>
+    <UiResourceState
+      className="min-h-[180px] border-y border-(--divider-subtle-color)"
+      primaryAction={{
+        label: t("capability.clear_filters"),
+        onClick: onClear,
+      }}
+      state="empty"
+      title={t("capability.pairings_no_results_title")}
+    />
   );
 }

@@ -1,3 +1,6 @@
+// INPUT: Skill 更新检查投影、可更新条目与检查/打开/更新动作。
+// OUTPUT: 共享 Panel 中的更新状态、可键盘操作的 Skill 列表和统一加载反馈。
+// POS: Skill 目录更新摘要纯视图；检查与写命令生命周期归 controller。
 "use client";
 
 import { AlertTriangle, CheckCircle2, Clock3, Loader2, RefreshCw } from "lucide-react";
@@ -8,6 +11,10 @@ import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiButton } from "@/shared/ui/button/button";
 import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import { UiListRow } from "@/shared/ui/list/list-row";
+import { UiPanel } from "@/shared/ui/panel";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { SkillInfo } from "@/types/capability/skill";
 
 import type { SkillUpdateCheckNotice } from "../controller/skill-update-check-model";
@@ -29,7 +36,7 @@ interface SkillsUpdateHighlightProps {
 
 const SKILL_UPDATE_STATUS_ICON = {
   checking: {
-    className: "animate-spin",
+    className: null,
     icon: Loader2,
   },
   current: {
@@ -66,7 +73,9 @@ function SkillUpdateStatusIcon({ status }: { status: SkillUpdateStatus }) {
   return (
     <Icon
       aria-hidden="true"
-      className={cn("h-3.5 w-3.5 shrink-0", presentation.className)}
+      className={status === "checking"
+        ? getUiSpinnerClassName({ size: "sm" })
+        : cn("h-3.5 w-3.5 shrink-0", presentation.className)}
       strokeWidth={1.8}
     />
   );
@@ -87,54 +96,68 @@ function UpdateSkillRow({
   const description = getSkillDisplayDescription(skill, t);
   const title = skill.title || skill.name;
   return (
-    <article
+    <UiListRow
+      aria-label={title}
       aria-busy={busy || undefined}
       className={cn(
-        "relative grid min-w-0 grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-3 rounded-[8px] border border-(--divider-subtle-color) bg-transparent px-3 py-2.5 transition duration-(--motion-duration-fast) hover:border-(--surface-interactive-active-border) hover:bg-(--surface-interactive-hover-background)",
+        "grid min-w-0 grid-cols-[32px_minmax(0,1fr)_auto] border-(--divider-subtle-color) bg-transparent py-2.5 hover:border-(--surface-interactive-active-border)",
         busy && "opacity-70",
       )}
+      density="compact"
+      leading={<UiSeededAvatar seed={skill.name} size="xs" />}
+      onClick={onOpen}
+      right={(
+        <UiButton
+          className="shrink-0"
+          disabled={busy}
+          onClick={(event) => {
+            event.stopPropagation();
+            onUpdate();
+          }}
+          size="sm"
+          tone="primary"
+          type="button"
+          variant="solid"
+        >
+          {busy ? (
+            <Loader2
+              className={getUiSpinnerClassName({ size: "sm" })}
+              strokeWidth={1.8}
+            />
+          ) : null}
+          {t("capability.skills_update")}
+        </UiButton>
+      )}
     >
-      <button
-        aria-label={title}
-        className="absolute inset-0 rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_28%,transparent)]"
-        onClick={onOpen}
-        type="button"
-      />
-      <UiSeededAvatar
-        className="pointer-events-none relative z-10"
-        seed={skill.name}
-        size="xs"
-      />
-      <div className="pointer-events-none relative z-10 min-w-0">
+      <div className="min-w-0">
         <div className="flex min-w-0 items-baseline gap-2">
-          <h3 className="truncate text-sm font-semibold text-(--text-strong)">
+          <h3 className={cn(
+            "truncate",
+            getUiTypographyClassName({
+              role: "control",
+              tone: "strong",
+              weight: "semibold",
+            }),
+          )}>
             {title}
           </h3>
-          <span className="min-w-0 truncate text-2xs text-(--text-soft)">
+          <span className={cn(
+            "min-w-0 truncate",
+            getUiTypographyClassName({ role: "caption", tone: "soft" }),
+          )}>
             {skill.source_name || t("capability.skills_external_import")} · {skill.version || "unknown"}
           </span>
         </div>
         {description ? (
-          <p className="mt-0.5 truncate text-compact leading-[1.125rem] text-(--text-muted)">
+          <p className={cn(
+            "mt-0.5 truncate",
+            getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+          )}>
             {description}
           </p>
         ) : null}
       </div>
-      <UiButton
-        className="relative z-10 shrink-0"
-        disabled={busy}
-        onClick={onUpdate}
-        size="sm"
-        tone="primary"
-        type="button"
-        variant="solid"
-      >
-        {busy ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.8} />
-        ) : null}
-        {t("capability.skills_update")}
-      </UiButton>
-    </article>
+    </UiListRow>
   );
 }
 
@@ -161,19 +184,28 @@ export function SkillsUpdateHighlight({
   const ActionIcon = model.actionDisabled ? Loader2 : RefreshCw;
 
   return (
-    <section
+    <UiPanel
       className={cn(
-        "mb-5 rounded-[10px] border px-3 py-3",
+        "mb-5",
         SKILL_UPDATE_STATUS_SURFACE[model.status],
       )}
+      padding="sm"
+      radius="md"
     >
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-          <h2 className="text-md font-semibold tracking-[-0.025em] text-(--text-strong)">
+          <h2 className={getUiTypographyClassName({
+            role: "sectionTitle",
+            tone: "strong",
+            weight: "semibold",
+          })}>
             {model.title}
           </h2>
           {model.badgeLabel ? <UiBadge tone="warning">{model.badgeLabel}</UiBadge> : null}
-          <span className="flex min-w-0 items-center gap-1.5 text-xs text-(--text-muted)">
+          <span className={cn(
+            "flex min-w-0 items-center gap-1.5",
+            getUiTypographyClassName({ role: "caption", tone: "muted" }),
+          )}>
             <SkillUpdateStatusIcon status={model.status} />
             <span className="truncate">{model.statusLabel}</span>
           </span>
@@ -186,10 +218,12 @@ export function SkillsUpdateHighlight({
           type="button"
           variant="ghost"
         >
-          <ActionIcon className={cn(
-            "h-3.5 w-3.5",
-            model.actionDisabled && "animate-spin",
-          )} strokeWidth={1.8} />
+          <ActionIcon
+            className={model.actionDisabled
+              ? getUiSpinnerClassName({ size: "sm" })
+              : "h-3.5 w-3.5"}
+            strokeWidth={1.8}
+          />
           {model.actionLabel}
         </UiButton>
       </div>
@@ -207,6 +241,6 @@ export function SkillsUpdateHighlight({
           ))}
         </div>
       ) : null}
-    </section>
+    </UiPanel>
   );
 }
