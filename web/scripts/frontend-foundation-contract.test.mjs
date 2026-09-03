@@ -1935,10 +1935,12 @@ test("critical shared UI groups keep co-located DOM behavior suites", async () =
 });
 
 test("the UI contract gallery stays reproducible and outside production entries", async () => {
-  const [html, entry, gallery, viteConfig] = await Promise.all([
+  const [html, entry, gallery, additionalGallery, inventory, viteConfig] = await Promise.all([
     readSource("ui-gallery.html"),
     readSource("src/entries/ui-gallery.tsx"),
     readSource("src/dev/ui-gallery/ui-contract-gallery.tsx"),
+    readSource("src/dev/ui-gallery/ui-gallery-additional-sections.tsx"),
+    readSource("src/dev/ui-gallery/ui-gallery-inventory.ts"),
     readSource("vite.config.ts"),
   ]);
 
@@ -1956,4 +1958,16 @@ test("the UI contract gallery stays reproducible and outside production entries"
   ]) {
     assert.match(gallery, new RegExp(section));
   }
+  for (const section of [
+    "FoundationCompleteness",
+    "ContentGallery",
+    "InteractionGallery",
+    "WorkspaceGallery",
+    "CoverageInventory",
+  ]) {
+    assert.match(additionalGallery, new RegExp(`export function ${section}`));
+  }
+  assert.match(gallery, /query\.set\("section", activeTab\)/);
+  assert.match(inventory, /UI_GALLERY_COVERAGE_GROUPS/);
+  assert.match(entry, /OnboardingTourProvider/);
 });

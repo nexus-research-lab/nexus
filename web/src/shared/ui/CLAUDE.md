@@ -23,3 +23,4 @@
 - `liquid-glass/` 分离浏览器能力、交互/动画生命周期、滤镜资源链与组件装配；视图渲染阶段不得修正自身状态。
 - 新增 primitive 前先搜索本表所有者；DOM、键盘、焦点或 ARIA 相同就扩展既有组件。只有跨三个独立消费者且语义稳定的组合才晋升为共享 pattern。
 - `frontend-foundation-contract.test.mjs` 固定关键行为测试清单；新增基础行为必须共置 `*.test.tsx`，源码正则不能代替 DOM 测试。
+- `ui-gallery.html` 必须直接 import 并渲染本目录的真实公开 React 组件，中文与英文只替换 fixture 文案，不复制组件 DOM/CSS；`ui-gallery-coverage-contract.test.mjs` 保证每个公开组件只登记一次，复合内部原语与无独立界面的 Provider/Filter 必须注明真实消费组件。
