@@ -4,6 +4,7 @@
 import { useEffect, useRef } from "react";
 import { Loader2 } from "lucide-react";
 
+import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
 import {
@@ -16,6 +17,7 @@ import {
 } from "@/shared/ui/dialog/dialog";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import type { ProviderPendingAction } from "../actions/use-provider-command";
 
@@ -91,7 +93,7 @@ export function ProviderAddModelDialog({
                 autoCapitalize="off"
                 autoCorrect="off"
                 controlSize="md"
-                className="font-mono"
+                className={getUiTypographyClassName({ role: "code", tone: "strong" })}
                 id="provider-model-id"
                 ref={modelInputRef}
                 onChange={(event) => setManualModelId(event.target.value)}
@@ -104,10 +106,10 @@ export function ProviderAddModelDialog({
             </UiField>
             <div className="flex items-center justify-between gap-3 border-t border-(--divider-subtle-color) py-3">
               <div className="min-w-0">
-                <div className="text-sm font-semibold text-(--text-strong)">
+                <div className={getUiTypographyClassName({ role: "control", tone: "strong", weight: "semibold" })}>
                   {t("settings.providers.enable_after_add")}
                 </div>
-                <div className="mt-0.5 text-xs leading-4 text-(--text-muted)">
+                <div className={cn("mt-0.5", getUiTypographyClassName({ role: "caption", tone: "muted" }))}>
                   {t("settings.providers.enable_after_add_description")}
                 </div>
               </div>

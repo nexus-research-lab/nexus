@@ -6,9 +6,11 @@
 import { Loader2, Play } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
+import { UiBadge } from "@/shared/ui/display/badge";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import type { ProviderPendingAction } from "../actions/use-provider-command";
 
@@ -42,18 +44,15 @@ function ProviderStatusBadge({
     return null;
   }
   return (
-    <span
-      className={cn(
-        "rounded-full px-2 py-0.5 text-xs font-semibold",
-        enabled
-          ? "bg-[rgba(44,156,89,0.14)] text-[rgb(33,133,74)]"
-          : "bg-(--surface-muted-background) text-(--text-muted)",
-      )}
+    <UiBadge
+      className="rounded-full"
+      size="sm"
+      tone={enabled ? "success" : "idle"}
     >
       {enabled
         ? t("settings.providers.status_active")
         : t("settings.providers.status_inactive")}
-    </span>
+    </UiBadge>
   );
 }
 
@@ -116,7 +115,12 @@ export function ProviderSettingsDetailHeader({
     <div className="mb-4 flex shrink-0 items-start justify-between gap-3">
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-2.5">
-          <h2 className="truncate text-md font-semibold tracking-tight text-(--text-strong)">
+          <h2
+            className={cn(
+              "truncate",
+              getUiTypographyClassName({ role: "pageTitle", tone: "strong" }),
+            )}
+          >
             {detailTitle}
           </h2>
           <ProviderStatusBadge enabled={enabled} visible={hasSelectedRecord} />

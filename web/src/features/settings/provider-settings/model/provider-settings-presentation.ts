@@ -30,9 +30,6 @@ export const SETTINGS_TABS: {
   { key: "providers", labelKey: "settings.tabs.providers" },
 ];
 
-export const PROVIDER_LABEL_CLASS_NAME =
-  "text-sm font-semibold text-(--text-strong)";
-
 export const API_FORMAT_LABELS: Record<ProviderApiFormat, string> = {
   chat_completions: "Chat Completions (/chat/completions)",
   responses: "Responses (/responses)",

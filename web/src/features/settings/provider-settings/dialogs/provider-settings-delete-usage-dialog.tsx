@@ -4,6 +4,8 @@
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
+import { UiBadge } from "@/shared/ui/display/badge";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -12,6 +14,7 @@ import {
   UiDialogPortal,
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { ProviderConfigRecord } from "@/types/capability/provider";
 
 import type { ProviderPendingAction } from "../actions/use-provider-command";
@@ -58,12 +61,12 @@ export function ProviderDeleteUsageDialog({
             titleId="provider-delete-blocked-title"
           />
           <UiDialogBody className="space-y-3 px-5">
-            <p className="text-sm leading-6 text-(--text-muted)">
+            <p className={getUiTypographyClassName({ role: "body", tone: "muted" })}>
               {t("settings.providers.force_delete_description")}
             </p>
             {deleteUsageAgents.length > 0 ? (
               <section className="space-y-1.5">
-                <h3 className="text-xs font-medium text-(--text-muted)">
+                <h3 className={getUiTypographyClassName({ role: "metadata", tone: "muted", weight: "medium" })}>
                   {t("settings.providers.used_by_agents")}
                 </h3>
                 <div className="max-h-64 divide-y divide-(--divider-subtle-color) overflow-y-auto border-y border-(--divider-subtle-color)">
@@ -73,13 +76,13 @@ export function ProviderDeleteUsageDialog({
                       key={agent.agent_id}
                     >
                       <div className="flex min-w-0 items-center gap-2">
-                        <span className="truncate text-sm font-semibold text-(--text-strong)">
+                        <span className={cn("truncate", getUiTypographyClassName({ role: "control", tone: "strong", weight: "semibold" }))}>
                           {getUsageAgentTitle(agent)}
                         </span>
                         {agent.is_main ? (
-                          <span className="rounded-full bg-(--surface-muted-background) px-1.5 py-0.5 text-2xs font-semibold text-(--text-muted)">
+                          <UiBadge size="xs" tone="idle">
                             {t("settings.providers.main_agent_badge")}
-                          </span>
+                          </UiBadge>
                         ) : null}
                       </div>
                     </div>
@@ -87,7 +90,7 @@ export function ProviderDeleteUsageDialog({
                 </div>
               </section>
             ) : (
-              <p className="text-compact leading-5 text-(--text-muted)">
+              <p className={getUiTypographyClassName({ role: "supporting", tone: "muted" })}>
                 {t("settings.providers.delete_usage_stale", { count: deleteTargetRecord.usage_count })}
               </p>
             )}

@@ -4,6 +4,7 @@
 import { type Dispatch, type SetStateAction } from "react";
 import { Loader2 } from "lucide-react";
 
+import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
 import {
@@ -15,6 +16,7 @@ import {
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
 import { UiInput, UiTextarea } from "@/shared/ui/form/form-control";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import { CapabilitySwitch } from "../components/provider-settings-capability-switch";
 import type { ProviderPendingAction } from "../actions/use-provider-command";
@@ -58,15 +60,15 @@ export function ProviderModelOptionsDialog({
             titleId="provider-model-options-title"
           />
           <UiDialogBody className="space-y-5 px-5" scrollable>
-            <code className="block truncate font-mono text-xs text-(--text-muted)">
+            <code className={cn("block truncate", getUiTypographyClassName({ role: "code", tone: "muted" }))}>
               {modelOptions.model.model_id}
             </code>
             <section className="space-y-2.5">
               <div>
-                <h3 className="text-sm font-semibold text-(--text-strong)">
+                <h3 className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong" })}>
                   {t("settings.providers.model_capabilities")}
                 </h3>
-                <p className="mt-0.5 text-xs leading-4 text-(--text-muted)">
+                <p className={cn("mt-0.5", getUiTypographyClassName({ role: "caption", tone: "muted" }))}>
                   {t("settings.providers.model_capabilities_description")}
                 </p>
               </div>
@@ -116,7 +118,7 @@ export function ProviderModelOptionsDialog({
 
             <section className="grid gap-3 md:grid-cols-2">
               <label className="space-y-1.5">
-                <span className="text-compact font-medium text-(--text-muted)">
+                <span className={getUiTypographyClassName({ role: "metadata", tone: "muted", weight: "medium" })}>
                   {t("settings.providers.context_window")}
                 </span>
                 <UiInput
@@ -128,7 +130,7 @@ export function ProviderModelOptionsDialog({
                 />
               </label>
               <label className="space-y-1.5">
-                <span className="text-compact font-medium text-(--text-muted)">
+                <span className={getUiTypographyClassName({ role: "metadata", tone: "muted", weight: "medium" })}>
                   {t("settings.providers.max_output_tokens")}
                 </span>
                 <UiInput
@@ -142,11 +144,11 @@ export function ProviderModelOptionsDialog({
             </section>
 
             <label className="block space-y-1.5">
-              <span className="text-compact font-medium text-(--text-muted)">
+              <span className={getUiTypographyClassName({ role: "metadata", tone: "muted", weight: "medium" })}>
                 {t("settings.providers.provider_options_json")}
               </span>
               <UiTextarea
-                className="min-h-28 font-mono text-compact leading-5"
+                className={cn("min-h-28", getUiTypographyClassName({ role: "code", tone: "strong" }))}
                 controlSize="md"
                 onChange={(event) => setModelOptions((current) => current ? ({ ...current, provider_options_text: event.target.value }) : current)}
                 spellCheck={false}
