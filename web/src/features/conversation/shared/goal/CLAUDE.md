@@ -15,3 +15,4 @@
 - `status=paused` 只投影为真实“已暂停”；active Goal 的自动续跑状态只消费服务端 `continuation_state`，`recovering` 仍是 active，只有 `suspended` 显示“自动续跑已停止”及“不是 Agent 主动暂停”的行内原因，并保留继续动作。前端不得根据 `empty_progress_count` 重建门槛。Plan/权限 hold 使用服务端 hold 自己的 label/detail，不与前两者合并。
 - `goal-status-strip.tsx` 只渲染状态模型并把动作分发给控制器，不解释 Goal 运行规则。Goal 的 lifecycle/activity 共用一个主状态槽；`standalone|reserved` 不显示冗余 binding 徽标，但服务端状态仍负责清除授权；`pending|confirmed|conflict` 分别显示确认中、已关联和冲突，读取失败显示状态不可用并保持 fail closed。
 - Goal 状态条属于 Composer 向上工作栈的第一层；桌面使用略窄于 Composer 的内容 lane、圆角浮层和 8px 层间距，移动端沿用紧凑 lane。长目标保持单行截断并保留完整 DOM 文本与悬停标题，不能把运行控制条铺满画布。
+- 编辑提交和状态刷新统一使用共享 `md` Spinner；非加载状态保留原生命周期动作图标，Goal 视图不得维护旋转或 reduced-motion class。

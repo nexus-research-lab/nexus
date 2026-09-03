@@ -17,6 +17,7 @@ import {
   UiDialogPortal,
 } from "@/shared/ui/dialog/dialog";
 import { getDialogActionClassName } from "@/shared/ui/dialog/dialog-styles";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiField, UiInput, UiTextarea } from "@/shared/ui/form/form-control";
 
 import type { GoalReliabilityState } from "./goal-lifecycle-recovery";
@@ -140,7 +141,7 @@ export function GoalDraftForm({
             >
               {model.isLoading ? (
                 <span className="inline-flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+                  <Loader2 className={getUiSpinnerClassName({ size: "md" })} />
                   {model.submitLabel}
                 </span>
               ) : (

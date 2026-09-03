@@ -560,6 +560,19 @@ test("Capability directories share semantic action Spinner roles", async () => {
   assert.match(combined, /size: "md"/);
 });
 
+test("Goal editing and status actions share one Spinner role", async () => {
+  const paths = [
+    "src/features/conversation/shared/goal/goal-draft-form.tsx",
+    "src/features/conversation/shared/goal/goal-status-strip.tsx",
+  ];
+  const sources = await Promise.all(paths.map(readSource));
+
+  for (const source of sources) {
+    assert.match(source, /getUiSpinnerClassName\(\{ size: "md" \}\)/);
+    assert.doesNotMatch(source, /\banimate-spin\b/);
+  }
+});
+
 test("List and Badge primitives expose semantic typography and shape instead of page overrides", async () => {
   const [listRow, badge, badgeStyles, providerModels, connectorCard, customMcpGrid] = await Promise.all([
     readSource("src/shared/ui/list/list-row.tsx"),
