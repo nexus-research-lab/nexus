@@ -225,6 +225,18 @@ Widget 可以认识 Agent、Room、Goal 等产品对象，但只组合下层合�
 - default / hover / focus / disabled / selected / loading / error；
 - 中英文长文案与 reduced motion。
 
+当前共享组件的浏览器验收入口固定为
+`http://localhost:3000/ui-gallery.html?theme=light&locale=zh`。它是独立的开发
+HTML 入口，不经过登录态、业务 API 或产品路由，也不得加入 Vite 的生产
+`rollupOptions.input`。`theme=light|dark|rain` 与 `locale=zh|en` 必须写回 URL，
+使人工复查和后续截图工具使用同一可复现地址。陈列面必须直接渲染真实
+`shared/ui` 组件；不得建立只为截图存在的视觉替身。
+
+组件陈列面是浏览器验证夹具，不是截图结论本身。任何影响布局、Portal、
+碰撞、视口或交互状态的改动，仍须按上方矩阵在真实浏览器中检查；自动截图
+基线尚未接入前，提交说明必须明确实际检查过的主题、宽度和状态，不得用
+jsdom 或源码正则声称视觉通过。
+
 ## 9. Agent 修改流程
 
 后续 Agent 修改前端时必须：
@@ -244,7 +256,7 @@ Widget 可以认识 Agent、Room、Goal 等产品对象，但只组合下层合�
 2. **Primitive 收口**：Button、Form、Dialog、Overlay、Menu、Tabs 补齐语义 API 与行为测试；
 3. **Pattern 收口**：统一 ResponsiveDialog、AnchoredPopover、FilterBar、SettingsSection 与 Conversation 浮动工作栈；
 4. **所有权迁移**：按业务切片迁移 `hooks / store / types / lib/api`，拆分 `conversation/shared`；
-5. **视觉回归**：建立组件陈列面与浏览器截图矩阵；
+5. **视觉回归**：组件陈列面已建立；继续接入可移植的浏览器截图矩阵与基线审查；
 6. **清债**：移除兼容导入、闲置组件、无差异 variant 和过细目录文档，开启强制门禁。
 
 迁移状态不得改变上文规范；尚未迁移的旧代码是已知债务，不是新代码继续复制的先例。
