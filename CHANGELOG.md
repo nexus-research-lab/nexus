@@ -38,6 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Moved Agent permission-mode cards onto the shared neutral Choice contract so
+  selected borders, backgrounds, focus treatment, and shadow policy no longer
+  live in the Agent settings page.
 - Centralized icon-only segmented options in the shared form control, then moved
   Contact directory view modes and external Skill source filters onto the
   shared segmented and choice-selection contracts.

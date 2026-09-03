@@ -25,6 +25,7 @@ import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
+import { UiChoiceButton } from "@/shared/ui/form/choice";
 import { SIDEBAR_SELECTION_CLASS_NAME } from "@/shared/ui/sidebar/sidebar-selection";
 import { ConnectorIcon } from "@/features/capability/connectors/connector-icon";
 import type { ConnectorInfo } from "@/types/capability/connector";
@@ -87,16 +88,13 @@ export function AgentOptionsAdvancedTab({
           {AGENT_PERMISSION_MODES.map((mode) => {
             const isActive = permissionMode === mode.value;
             return (
-              <button
-                aria-pressed={isActive}
-                className={cn(
-                  "flex min-h-[72px] min-w-0 flex-col rounded-[10px] border px-3 py-2.5 text-left transition-[background,border-color] duration-(--motion-duration-fast)",
-                  isActive
-                    ? SIDEBAR_SELECTION_CLASS_NAME
-                    : "border-(--divider-subtle-color) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)",
-                )}
+              <UiChoiceButton
+                active={isActive}
+                choiceSize="lg"
+                className="min-h-[72px] min-w-0 flex-col items-stretch justify-start gap-0 text-left"
                 key={mode.value}
                 onClick={() => onPermissionModeChange(mode.value)}
+                tone="neutral"
                 type="button"
               >
                 <span className="flex w-full min-w-0 items-center gap-2 text-sm font-semibold text-(--text-strong)">
@@ -109,7 +107,7 @@ export function AgentOptionsAdvancedTab({
                 >
                   {t(mode.descriptionKey)}
                 </span>
-              </button>
+              </UiChoiceButton>
             );
           })}
         </div>

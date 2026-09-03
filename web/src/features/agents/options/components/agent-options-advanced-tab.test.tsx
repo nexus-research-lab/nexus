@@ -3,14 +3,20 @@
 // POS: Agent Options 高级页 DOM 合同；草稿持久化由 editor controller 测试负责。
 
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
 
 import { AgentOptionsAdvancedTab } from "./agent-options-advanced-tab";
 
-function renderAdvancedTab({ connectorsLoading = false } = {}) {
-  return render(
+function renderAdvancedTab({
+  connectorsLoading = false,
+  onPermissionModeChange = vi.fn(),
+  permissionMode = "bypassPermissions",
+} = {}) {
+  return {
+    ...render(
     <I18N_CONTEXT.Provider
       value={{ locale: "zh", setLocale: vi.fn(), t: (key) => key }}
     >
@@ -20,14 +26,16 @@ function renderAdvancedTab({ connectorsLoading = false } = {}) {
         connectors={[]}
         connectorsError={null}
         connectorsLoading={connectorsLoading}
-        onPermissionModeChange={vi.fn()}
+        onPermissionModeChange={onPermissionModeChange}
         onRetryConnectors={vi.fn()}
         onToggleConnector={vi.fn()}
         onToggleTool={vi.fn()}
-        permissionMode="bypassPermissions"
+        permissionMode={permissionMode}
       />
     </I18N_CONTEXT.Provider>,
-  );
+    ),
+    onPermissionModeChange,
+  };
 }
 
 describe("AgentOptionsAdvancedTab", () => {
@@ -45,5 +53,24 @@ describe("AgentOptionsAdvancedTab", () => {
     const spinner = container.querySelector("svg.animate-spin");
     expect(spinner).not.toBeNull();
     expect(spinner?.getAttribute("class")).toContain("motion-reduce:animate-none");
+  });
+
+  it("projects permission modes as shared neutral choices", async () => {
+    const user = userEvent.setup();
+    const { onPermissionModeChange } = renderAdvancedTab({
+      permissionMode: "default",
+    });
+
+    const defaultMode = screen.getByRole("button", {
+      name: /agent_options\.advanced\.permission\.default\.label/,
+    });
+    const planMode = screen.getByRole("button", {
+      name: /agent_options\.advanced\.permission\.plan\.label/,
+    });
+    expect(defaultMode.getAttribute("aria-pressed")).toBe("true");
+    expect(defaultMode.className).toContain("bg-(--surface-interactive-active-background)");
+    expect(defaultMode.className).not.toContain("shadow-[");
+    await user.click(planMode);
+    expect(onPermissionModeChange).toHaveBeenCalledWith("plan");
   });
 });

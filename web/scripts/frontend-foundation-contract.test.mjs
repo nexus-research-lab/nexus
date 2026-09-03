@@ -912,6 +912,11 @@ test("cross-domain warnings reuse the shared inline feedback owner", async () =>
   }
   assert.doesNotMatch(subagentNotice, /<button\b/);
   assert.match(agentOptions, /getUiSpinnerClassName/);
+  assert.match(agentOptions, /<UiChoiceButton[\s\S]*tone="neutral"/);
+  const permissionChoices =
+    agentOptions.match(/AGENT_PERMISSION_MODES\.map[\s\S]*?<\/div>/)?.[0] ?? "";
+  assert.notEqual(permissionChoices, "");
+  assert.doesNotMatch(permissionChoices, /<button\b/);
   assert.doesNotMatch(agentOptions, /<Loader2 className="[^"]*animate-spin/);
 });
 

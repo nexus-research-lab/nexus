@@ -161,7 +161,7 @@ describe("form primitives", () => {
     const onSegment = vi.fn();
     render(
       <>
-        <UiChoiceButton active onClick={onChoice} variant="picker">当前来源</UiChoiceButton>
+        <UiChoiceButton active onClick={onChoice} tone="neutral">当前来源</UiChoiceButton>
         <UiSegmentedControl
           onChange={onSegment}
           options={[
@@ -176,6 +176,7 @@ describe("form primitives", () => {
 
     const choice = screen.getByRole("button", { name: "当前来源" });
     expect(choice.getAttribute("aria-pressed")).toBe("true");
+    expect(choice.className).toContain("bg-(--surface-interactive-active-background)");
     expect(choice.className.includes("shadow-[")).toBe(false);
     await user.click(choice);
     expect(onChoice).toHaveBeenCalledTimes(1);
