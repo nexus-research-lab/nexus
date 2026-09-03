@@ -74,6 +74,8 @@ describe("CapabilityPageLayout", () => {
     expect(backCount).toBe(1);
     expect(container.querySelector("[data-slot='capability-detail-page']")).toBeTruthy();
     expect(container.querySelector("[data-slot='capability-detail-header']")).toBeTruthy();
+    expect(container.querySelector("[data-slot='capability-detail-body']")?.className)
+      .toContain("pt-5");
     expect(screen.getByText("Research Skill").className).toContain("ui-type-metadata");
     expect(screen.getByText("Detail content")).toBeTruthy();
   });

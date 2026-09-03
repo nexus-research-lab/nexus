@@ -197,7 +197,7 @@ function SkillDetailReady({
 }) {
   const { t } = useI18n();
   return (
-    <div className="pt-5">
+    <div>
       <CapabilityDetailSplitLayout
         aside={(
           <div className="space-y-5">

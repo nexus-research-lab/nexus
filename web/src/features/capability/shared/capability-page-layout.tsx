@@ -162,7 +162,7 @@ export function CapabilityDetailHeader({
   );
 }
 
-/** 能力详情页统一持有内容轴和顶部导航，业务组件只提供对象内容。 */
+/** 能力详情页统一持有内容轴、顶部导航和导航后的正文起点，业务组件只提供对象内容。 */
 export function CapabilityDetailPage({
   backLabel,
   children,
@@ -180,7 +180,12 @@ export function CapabilityDetailPage({
         currentTitle={currentTitle}
         onBack={onBack}
       />
-      {children}
+      <div
+        className="flex min-h-0 flex-1 flex-col pt-5"
+        data-slot="capability-detail-body"
+      >
+        {children}
+      </div>
     </div>
   );
 }

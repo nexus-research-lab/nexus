@@ -43,7 +43,7 @@ export function WorkGraphDistillationDetail({
       onBack={onBack}
     >
       {notice}
-      <div className="mt-3 flex min-h-0 flex-1 flex-col gap-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
         <CapabilityDetailIdentity
           actions={(
             <>

@@ -117,7 +117,7 @@ export function LoopDetailView({ slug, onBack: onBack }: LoopDetailViewProps) {
           variant="plain"
         />
       ) : loop ? (
-        <div className="mt-3 space-y-5">
+        <div className="space-y-5">
           <CapabilityDetailIdentity
             description={loop.description}
             title={loop.title}
