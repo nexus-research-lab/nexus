@@ -14,6 +14,7 @@ import { CapabilityPageLayout } from "@/features/capability/shared/capability-pa
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import {
   completeFeedbackBanner,
   type FeedbackBannerProps,
@@ -425,7 +426,7 @@ export function ScheduledTasksDirectory() {
                 onClick={refreshTasks}
               >
                 <RefreshCw className={resource.isLoading
-                  ? "h-3.5 w-3.5 motion-safe:animate-spin"
+                  ? getUiSpinnerClassName({ size: "sm" })
                   : "h-3.5 w-3.5"}
                 />
                 {t("capability.refresh")}

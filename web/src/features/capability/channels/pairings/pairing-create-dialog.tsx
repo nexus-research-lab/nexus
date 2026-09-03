@@ -31,6 +31,7 @@ import {
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
 import { FeedbackBanner } from "@/shared/ui/feedback/feedback-banner";
 import type { FeedbackBannerProps } from "@/shared/ui/feedback/feedback-banner-contract";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import type { Agent } from "@/types/agent/agent";
 
@@ -251,7 +252,7 @@ export function CreatePairingDialog({
               variant="solid"
             >
               {saving ? (
-                <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+                <Loader2 className={getUiSpinnerClassName({ size: "md" })} />
               ) : null}
               {saving ? "创建中..." : "新增配对"}
             </UiButton>
