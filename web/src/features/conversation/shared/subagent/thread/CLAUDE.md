@@ -11,3 +11,5 @@
 - `subagent-task-thread-view.tsx` 只消费窄视图模型，不解释请求或能力协议。
 
 线程不伪装成普通 Composer；只在服务端 capability 允许时提供停止和“补充指令/继续任务”，停止必须二次确认。作用域切换后，旧查询或 mutation 均不得写回当前任务。
+
+线程初始加载使用共享 `md` Spinner，停止、补充指令和继续任务使用 `sm`；视图不得自行维护颜色、旋转或 reduced-motion class。
