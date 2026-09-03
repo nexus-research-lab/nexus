@@ -8,6 +8,36 @@ import { importLeafTypeScriptModule } from "./import-leaf-typescript-module.mjs"
 
 const webRoot = fileURLToPath(new URL("..", import.meta.url));
 const srcRoot = path.join(webRoot, "src");
+const productUiRoots = [
+  path.join(srcRoot, "features"),
+  path.join(srcRoot, "pages"),
+];
+
+const DESIGN_DEBT_RATCHETS = [
+  {
+    allowances: {
+      "src/features/conversation/shared/composer/attachments/composer-attachment-preview-dialog.tsx": 1,
+      "src/features/conversation/shared/composer/components/pending-queue/pending-queue-item.tsx": 1,
+      "src/features/conversation/shared/execution/execution-workgraph-canvas.tsx": 3,
+      "src/features/conversation/shared/execution/named-workgraph-sketch.tsx": 1,
+      "src/features/conversation/shared/execution/workgraph-distillation-dialog.tsx": 1,
+      "src/features/conversation/shared/message/blocks/artifact/workgraph/workgraph-artifact-block.tsx": 1,
+      "src/features/launcher/hero/launcher-recent-entries.tsx": 1,
+      "src/features/settings/personal/personal-avatar-picker.tsx": 1,
+      "src/pages/login/login-auth-panel.tsx": 2,
+      "src/pages/login/login-page.tsx": 2,
+    },
+    label: "arbitrary shadow",
+    pattern: /(?:drop-)?shadow-\[[^\]]+\]/g,
+  },
+  {
+    allowances: {
+      "src/features/conversation/shared/session-navigator/conversation-session-navigator.tsx": 1,
+    },
+    label: "arbitrary numeric z-index",
+    pattern: /\bz-\[\d+\]/g,
+  },
+];
 
 async function readSource(relativePath) {
   return readFile(path.join(webRoot, relativePath), "utf8");
@@ -35,6 +65,7 @@ test("semantic overlay layers preserve the current visual stack without exposing
     [
       "selectMenu",
       "actionMenu",
+      "popover",
       "dialogUnderlay",
       "dialog",
       "dialogNested",
@@ -47,6 +78,7 @@ test("semantic overlay layers preserve the current visual stack without exposing
     [
       "ui-layer-select-menu",
       "ui-layer-action-menu",
+      "ui-layer-popover",
       "ui-layer-dialog-underlay",
       "ui-layer-dialog",
       "ui-layer-dialog-nested",
@@ -74,6 +106,10 @@ test("dialog viewport modes expose one shared responsive geometry contract", asy
     getUiDialogViewportClassName("adaptiveMax"),
     "ui-dialog-viewport-adaptive-max",
   );
+  assert.equal(
+    getUiDialogViewportClassName("workbench"),
+    "ui-dialog-viewport-workbench",
+  );
 });
 
 test("product source does not reintroduce numeric high layers or shared dialog viewport formulas", async () => {
@@ -82,12 +118,12 @@ test("product source does not reintroduce numeric high layers or shared dialog v
   for (const file of files) {
     const source = await readFile(file, "utf8");
     const relativePath = path.relative(webRoot, file);
-    if (/z-\[(?:120|130|9998|9999|10000|10020|10030|11000|11050|12000)\]/.test(source)) {
+    if (/z-\[(?:120|130|140|9998|9999|10000|10020|10030|11000|11050|12000)\]/.test(source)) {
       violations.push(`${relativePath}: numeric high overlay layer`);
     }
     if (
       /\.(?:ts|tsx)$/.test(file)
-      && /(?:min\(82dvh,\s*760px\)|calc\(100dvh\s*-\s*16px\))/.test(source)
+      && /(?:min\(82dvh,\s*760px\)|calc\(100dvh\s*-\s*16px\)|min\(820px,\s*calc\(100dvh\s*-\s*56px\)\)|min\(94vw,\s*1440px\))/.test(source)
     ) {
       violations.push(`${relativePath}: duplicated dialog viewport formula`);
     }
@@ -110,7 +146,31 @@ test("theme recipes own the semantic layer and adaptive dialog geometry implemen
 
   assert.match(tokens, /--layer-dialog:\s*9999/);
   assert.match(tokens, /--dialog-adaptive-height:\s*min\(82dvh, 760px\)/);
+  assert.match(tokens, /--dialog-workbench-height:\s*min\(820px, calc\(100dvh - 56px\)\)/);
   assert.match(recipes, /\.ui-layer-dialog\s*\{/);
   assert.match(recipes, /\.ui-dialog-viewport-adaptive\s*\{/);
+  assert.match(recipes, /\.ui-dialog-viewport-workbench\s*\{/);
+  assert.match(recipes, /\.ui-dialog-size-workbench\s*\{/);
   assert.match(recipes, /\.ui-dialog-backdrop-compact\s*\{/);
+});
+
+test("known product design debt cannot spread to new files or exceed its baseline", async () => {
+  const files = (await Promise.all(productUiRoots.map(collectSourceFiles))).flat();
+  const violations = [];
+
+  for (const ratchet of DESIGN_DEBT_RATCHETS) {
+    for (const file of files) {
+      const source = await readFile(file, "utf8");
+      const relativePath = path.relative(webRoot, file);
+      const count = source.match(ratchet.pattern)?.length ?? 0;
+      const allowance = ratchet.allowances[relativePath] ?? 0;
+      if (count > allowance) {
+        violations.push(
+          `${relativePath}: ${ratchet.label} count ${count} exceeds baseline ${allowance}`,
+        );
+      }
+    }
+  }
+
+  assert.deepEqual(violations, []);
 });

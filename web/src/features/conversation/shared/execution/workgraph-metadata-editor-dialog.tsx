@@ -292,9 +292,9 @@ export function WorkGraphMetadataEditorDialog({
         onClose={handleClose}
       >
         <UiDialogShell
-          className="pointer-events-auto relative h-[min(840px,calc(100dvh-56px))] max-h-[calc(100dvh-56px)]"
-          size="wide"
-          style={{ maxWidth: "min(1440px, calc(100vw - 56px))" }}
+          className="pointer-events-auto relative"
+          size="workbench"
+          viewport="workbench"
         >
           <h2 className="sr-only" id="workgraph-metadata-editor-title">
             {currentPreview.title}

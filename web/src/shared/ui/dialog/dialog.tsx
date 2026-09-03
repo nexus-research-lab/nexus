@@ -31,7 +31,7 @@ import {
   type UiDialogLayer,
 } from "@/shared/ui/overlay/layer-styles";
 
-type UiDialogSize = "sm" | "md" | "lg" | "xl" | "wide";
+type UiDialogSize = "sm" | "md" | "lg" | "xl" | "wide" | "workbench";
 type UiDialogChrome = "default" | "plain";
 
 const DIALOG_SIZE_CLASS_MAP: Record<UiDialogSize, string> = {
@@ -40,6 +40,7 @@ const DIALOG_SIZE_CLASS_MAP: Record<UiDialogSize, string> = {
   lg: "max-w-2xl",
   xl: "max-w-4xl",
   wide: "max-w-5xl",
+  workbench: "ui-dialog-size-workbench",
 };
 
 interface UiDialogPortalProps {
