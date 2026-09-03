@@ -637,6 +637,19 @@ test("Message actions, task status, and artifact loading share Spinner roles", a
   assert.match(combined, /tone: "muted"/);
 });
 
+test("Composer Connector and Room model menus share compact Spinner roles", async () => {
+  const [footerActions, roomModelControl] = await Promise.all([
+    readSource("src/features/conversation/shared/composer/components/footer/composer-footer-actions.tsx"),
+    readSource("src/features/conversation/shared/composer/components/footer/composer-room-model-control.tsx"),
+  ]);
+
+  assert.match(footerActions, /size: "md", tone: "muted"/);
+  assert.match(roomModelControl, /size: "sm", tone: "muted"/);
+  for (const source of [footerActions, roomModelControl]) {
+    assert.doesNotMatch(source, /\banimate-spin\b/);
+  }
+});
+
 test("List and Badge primitives expose semantic typography and shape instead of page overrides", async () => {
   const [listRow, badge, badgeStyles, providerModels, connectorCard, customMcpGrid] = await Promise.all([
     readSource("src/shared/ui/list/list-row.tsx"),
