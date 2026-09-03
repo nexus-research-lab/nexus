@@ -1,3 +1,7 @@
+// INPUT: Workspace 身份、标题、导航标签、窄窗策略与业务动作插槽。
+// OUTPUT: 统一内容轴、语义排版、身份外形和响应式导航的 Workspace Header。
+// POS: Workspace 顶部导航原语；不拥有业务标签、当前选择或动作事务。
+
 "use client";
 
 import { ChevronDown, type LucideIcon } from "lucide-react";
@@ -8,6 +12,7 @@ import { cn } from "@/shared/ui/class-name";
 import { WORKSPACE_CONTENT_GUTTER_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import { UiActionMenu } from "@/shared/ui/menu/action-menu";
 import { UiTabs } from "@/shared/ui/navigation/tabs";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { WORKSPACE_HEADER_HEIGHT_CLASS } from "@/shared/ui/workspace/surface/workspace-header-layout";
 
 import "./workspace-surface-header.css";
@@ -124,7 +129,7 @@ function WorkspaceSurfaceIdentity({
         <div className={cn(
           "workspace-surface-header-leading flex shrink-0 items-center justify-center text-(--icon-default)",
           leadingVariant === "identity"
-            ? "workspace-surface-header-identity-avatar h-10 w-10 rounded-[10px] border border-(--surface-avatar-border) bg-(--surface-avatar-background)"
+            ? "workspace-surface-header-identity-avatar h-10 w-10 radius-control-md border border-(--surface-avatar-border) bg-(--surface-avatar-background)"
             : "workspace-surface-header-section-icon h-8 w-8 radius-control-sm bg-(--surface-interactive-hover-background)",
           leadingClassName,
         )}>
@@ -152,7 +157,10 @@ function WorkspaceSurfaceTitle({
   return (
     <div className="workspace-surface-header-title-content flex min-w-0 flex-1 flex-nowrap items-center gap-x-1.5">
       {title ? (
-        <div className="truncate text-md font-semibold leading-5 tracking-normal text-(--text-strong)">
+        <div className={cn(
+          "truncate",
+          getUiTypographyClassName({ role: "pageTitle", tone: "strong" }),
+        )}>
           {title}
         </div>
       ) : null}
@@ -231,7 +239,10 @@ function WorkspaceSurfaceNavigationLead({
   if (!subtitle) return null;
 
   return (
-    <div className="workspace-surface-header-subtitle min-w-0 flex-1 truncate text-compact leading-5 text-(--text-soft)">
+    <div className={cn(
+      "workspace-surface-header-subtitle min-w-0 flex-1 truncate",
+      getUiTypographyClassName({ role: "metadata", tone: "soft" }),
+    )}>
       {subtitle}
     </div>
   );
@@ -324,7 +335,10 @@ function WorkspaceSurfaceCompactTabs<TTabKey extends string>({
         aria-expanded={isOpen}
         aria-haspopup="menu"
         aria-label={compactTabsLabel}
-        className="flex h-full min-w-0 items-center gap-1.5 px-2 text-xs font-semibold text-(--text-default) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
+        className={cn(
+          "flex h-full min-w-0 items-center gap-1.5 px-2 transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
+          getUiTypographyClassName({ role: "caption", tone: "default", weight: "semibold" }),
+        )}
         onClick={() => setIsOpen((current) => !current)}
         title={triggerLabel}
         type="button"
