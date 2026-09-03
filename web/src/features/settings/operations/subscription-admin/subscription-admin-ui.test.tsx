@@ -106,4 +106,19 @@ describe("Subscription Admin UI ownership", () => {
     expect(container.querySelector('[data-resource-state="loading"]')).toBeTruthy();
     expect(screen.getByText("settings.subscription.loading").className).toContain("ui-type-object-title");
   });
+
+  it("uses the shared compact Spinner while saving an account plan", () => {
+    const { container } = renderWithI18n(
+      <SubscriptionAccountView
+        model={{ ...accountModel, mutationPending: true, savingOwnerUserId: "owner-1" }}
+        onChangeDraft={vi.fn()}
+        onRefresh={vi.fn()}
+        onSave={vi.fn()}
+      />,
+    );
+
+    const spinner = container.querySelector("svg.animate-spin");
+    expect(spinner?.getAttribute("class")).toContain("h-3.5 w-3.5");
+    expect(spinner?.getAttribute("class")).toContain("motion-reduce:animate-none");
+  });
 });

@@ -21,6 +21,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import {
   UiField,
   UiInput,
@@ -139,7 +140,11 @@ export function ControlMembersPanel() {
           </p>
         </div>
         <UiButton className="self-start" disabled={loading} onClick={() => void loadMembers()} size="sm" variant="text">
-          <RefreshCw className={loading ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />
+          <RefreshCw
+            className={loading
+              ? getUiSpinnerClassName({ size: "sm" })
+              : "h-3.5 w-3.5"}
+          />
           {t("members.refresh")}
         </UiButton>
       </header>

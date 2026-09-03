@@ -25,6 +25,7 @@ import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiInput } from "@/shared/ui/form/form-control";
 import { completeFeedbackBanner } from "@/shared/ui/feedback/feedback-banner-contract";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
@@ -183,7 +184,7 @@ function ProjectCard({
               variant="solid"
             >
               {model.pendingKey === `member:${project.project_id}:${memberDraft.trim()}` ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
               ) : (
                 <UserPlus className="h-3.5 w-3.5" />
               )}
@@ -247,7 +248,7 @@ export function ProjectAdminPanel() {
               variant="solid"
             >
               {viewModel.pendingKey === "create-project" ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
               ) : (
                 <Plus className="h-3.5 w-3.5" />
               )}
@@ -260,7 +261,7 @@ export function ProjectAdminPanel() {
               variant="surface"
             >
               {viewModel.loading ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
               ) : (
                 <RefreshCw className="h-3.5 w-3.5" />
               )}
