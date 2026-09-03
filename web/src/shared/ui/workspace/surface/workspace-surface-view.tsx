@@ -140,7 +140,10 @@ function WorkspaceSurfacePageHeader({
     <div className={cn(WORKSPACE_CONTENT_GUTTER_CLASS_NAME, "py-2.5")}>
       <div className={cn("mx-auto flex w-full items-center justify-between gap-3", maxWidthClassName)}>
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-md font-semibold leading-5 tracking-normal text-(--text-strong)">
+          <h2 className={cn(
+            "truncate",
+            getUiTypographyClassName({ role: "pageTitle", tone: "strong" }),
+          )}>
             {title}
           </h2>
         </div>

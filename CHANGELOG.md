@@ -47,6 +47,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Unified Room Thread and subagent full-screen surfaces on the same semantic
   dialog layer and platform-aware mobile Header, including a stable flex layout
   for long subagent task directories.
+- Centralized Workspace Surface title, subtitle, compact navigation, and toolbar
+  action typography on the shared role map, and replaced its remaining private
+  identity radius with the shared control shape.
 - Reorganized Skill details around a shared responsive capability layout: long
   instructions keep a readable main column while badges and per-Agent controls
   occupy a bounded configuration rail that moves before content on narrow windows.

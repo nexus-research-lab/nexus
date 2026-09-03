@@ -29,4 +29,16 @@ describe("WorkspaceSurfaceView", () => {
     expect(screen.getAllByText("子智能体")).toHaveLength(1);
     expect(screen.getByText("任务目录")).toBeTruthy();
   });
+
+  it("uses the shared page-title role for ordinary Workspace pages", () => {
+    render(
+      <WorkspaceSurfaceView header={{ kind: "page" }} title="连接器">
+        <p>连接器目录</p>
+      </WorkspaceSurfaceView>,
+    );
+
+    const heading = screen.getByRole("heading", { name: "连接器" });
+    expect(heading.className).toContain("ui-type-page-title");
+    expect(heading.className).toContain("ui-type-tone-strong");
+  });
 });

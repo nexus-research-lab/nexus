@@ -270,6 +270,24 @@ test("Room Thread and subagent overlays reuse the narrow shell and semantic laye
   assert.match(workspaceView, /data-desktop-window-drag-region/);
 });
 
+test("Workspace Surface primitives own their semantic typography and identity shape", async () => {
+  const [header, view, toolbarAction] = await Promise.all([
+    readSource("src/shared/ui/workspace/surface/workspace-surface-header.tsx"),
+    readSource("src/shared/ui/workspace/surface/workspace-surface-view.tsx"),
+    readSource("src/shared/ui/workspace/surface/workspace-surface-toolbar-action.tsx"),
+  ]);
+
+  for (const primitive of [header, view, toolbarAction]) {
+    assert.match(primitive, /getUiTypographyClassName/);
+  }
+  assert.match(header, /role: "pageTitle"/);
+  assert.match(header, /role: "metadata"/);
+  assert.match(header, /radius-control-md/);
+  assert.doesNotMatch(header, /rounded-\[10px\]/);
+  assert.match(view, /role: "pageTitle"/);
+  assert.match(toolbarAction, /role: "caption"/);
+});
+
 test("desktop hosts share viewport bounds but keep platform chrome ownership separate", async () => {
   const desktopRoot = path.join(webRoot, "..", "desktop");
   const [macWindow, windowsWindow, windowsXaml, windowsWebView, recipes] = await Promise.all([
