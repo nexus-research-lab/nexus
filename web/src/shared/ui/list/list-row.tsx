@@ -18,6 +18,8 @@ import {
   type UiListRowDensity,
 } from "./list-row-model";
 
+export type { UiListRowDensity } from "./list-row-model";
+
 interface UiListRowProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
   actions?: ReactNode;
   active?: boolean;
