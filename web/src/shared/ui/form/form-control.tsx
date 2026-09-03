@@ -8,6 +8,7 @@ import {
   type FormEvent,
   type InputHTMLAttributes,
   type ReactNode,
+  type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
   forwardRef,
   useId,
@@ -26,6 +27,11 @@ import {
   type UiFormControlVariant,
 } from "@/shared/ui/form/form-control-styles";
 
+export type {
+  UiFormControlSize,
+  UiFormControlVariant,
+} from "@/shared/ui/form/form-control-styles";
+
 interface UiFieldProps {
   children: ReactNode;
   className?: string;
@@ -38,6 +44,12 @@ interface UiFieldProps {
 }
 
 interface UiInputProps extends InputHTMLAttributes<HTMLInputElement> {
+  className?: string;
+  controlSize?: UiFormControlSize;
+  variant?: UiFormControlVariant;
+}
+
+interface UiNativeSelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   className?: string;
   controlSize?: UiFormControlSize;
   variant?: UiFormControlVariant;
@@ -206,6 +218,29 @@ export const UiInput = forwardRef<HTMLInputElement, UiInputProps>(function UiInp
     />
   );
 });
+
+export const UiNativeSelect = forwardRef<HTMLSelectElement, UiNativeSelectProps>(
+  function UiNativeSelect(
+    {
+      className,
+      controlSize,
+      variant,
+      ...props
+    },
+    ref,
+  ) {
+    return (
+      <select
+        ref={ref}
+        className={getUiFormControlClassName(
+          { size: controlSize, variant },
+          cn(className),
+        )}
+        {...props}
+      />
+    );
+  },
+);
 
 export const UiTextarea = forwardRef<HTMLTextAreaElement, UiTextareaProps>(function UiTextarea(
   {

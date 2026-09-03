@@ -1,3 +1,6 @@
+// INPUT: Control 部署成员、当前身份权限和创建/更新成员命令。
+// OUTPUT: 成员目录、创建表单、角色/状态控制与操作反馈。
+// POS: Operations 成员管理用例；不拥有认证资源或通用表单视觉。
 "use client";
 
 import { RefreshCw, UserPlus, UsersRound } from "lucide-react";
@@ -13,8 +16,11 @@ import {
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
-import { UiField, UiInput } from "@/shared/ui/form/form-control";
-import { getUiFormControlClassName } from "@/shared/ui/form/form-control-styles";
+import {
+  UiField,
+  UiInput,
+  UiNativeSelect,
+} from "@/shared/ui/form/form-control";
 
 interface MemberDraft {
   username: string;
@@ -146,16 +152,16 @@ export function ControlMembersPanel() {
             <UiInput autoComplete="new-password" id="member-confirm-password" minLength={8} onChange={(event) => setDraft((current) => ({ ...current, confirmPassword: event.target.value }))} required type="password" value={draft.confirmPassword} variant="surface" />
           </UiField>
           <UiField htmlFor="member-role" label={t("members.role")} required>
-            <select
-              className={getUiFormControlClassName({ variant: "surface" })}
+            <UiNativeSelect
               id="member-role"
               onChange={(event) => setDraft((current) => ({ ...current, role: event.target.value as ControlMemberRole }))}
               value={draft.role}
+              variant="surface"
             >
               <option value="member">{t("settings.personal.role_member")}</option>
               {canCreateElevatedRole ? <option value="admin">{t("settings.personal.role_admin")}</option> : null}
               {canCreateElevatedRole ? <option value="owner">{t("settings.personal.role_owner")}</option> : null}
-            </select>
+            </UiNativeSelect>
           </UiField>
         </div>
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
@@ -195,17 +201,18 @@ export function ControlMembersPanel() {
                 </div>
                 <p className="mt-1 truncate text-xs text-(--text-muted)">@{member.username}</p>
               </div>
-              <select
+              <UiNativeSelect
                 aria-label={t("members.role")}
-                className={getUiFormControlClassName({ size: "sm", variant: "surface" })}
+                controlSize="sm"
                 disabled={!canEditRole || isPending}
                 onChange={(event) => void updateMember(member, { role: event.target.value as ControlMemberRole })}
                 value={member.role}
+                variant="surface"
               >
                 <option value="member">{t("settings.personal.role_member")}</option>
                 <option value="admin">{t("settings.personal.role_admin")}</option>
                 <option value="owner">{t("settings.personal.role_owner")}</option>
-              </select>
+              </UiNativeSelect>
               <UiButton
                 disabled={!canToggle || isPending}
                 onClick={() => void updateMember(member, { status: member.membership_status === "active" ? "revoked" : "active" })}

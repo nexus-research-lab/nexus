@@ -21,6 +21,7 @@ import {
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
+import { UiInput } from "@/shared/ui/form/form-control";
 import { completeFeedbackBanner } from "@/shared/ui/feedback/feedback-banner-contract";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
@@ -33,9 +34,6 @@ import {
   type ProjectAdminViewModel,
 } from "./project-admin-model";
 import { useProjectAdmin } from "./use-project-admin";
-
-const INPUT_CLASS_NAME =
-  "dialog-input h-9 w-full radius-control-md px-3 text-sm text-(--text-strong) outline-none disabled:opacity-(--disabled-opacity)";
 
 interface ProjectCardProps {
   model: ProjectAdminViewModel;
@@ -149,8 +147,7 @@ function ProjectCard({
               <span className="sr-only">
                 {t("settings.projects.member_owner_id")}
               </span>
-              <input
-                className={INPUT_CLASS_NAME}
+              <UiInput
                 disabled={disabled}
                 onChange={(event) =>
                   onChangeMemberDraft(project.project_id, event.target.value)}
@@ -212,8 +209,7 @@ export function ProjectAdminPanel() {
               <span className="text-xs font-semibold text-(--text-muted)">
                 {t("settings.projects.create_label")}
               </span>
-              <input
-                className={INPUT_CLASS_NAME}
+              <UiInput
                 disabled={disabled}
                 onChange={(event) => controller.setNewProjectId(event.target.value)}
                 placeholder={t("settings.projects.create_placeholder")}

@@ -9,6 +9,7 @@ import type { FormEvent } from "react";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import { UiButton } from "@/shared/ui/button/button";
+import { UiInput } from "@/shared/ui/form/form-control";
 
 import type { PasswordDraft, PasswordField } from "./personal-settings-model";
 
@@ -84,9 +85,8 @@ export function PersonalPasswordSection({
               <span className="text-xs font-semibold text-(--text-muted)">
                 {t(input.labelKey)}
               </span>
-              <input
+              <UiInput
                 autoComplete={input.autoComplete}
-                className="dialog-input h-9 w-full radius-control-md px-3 text-sm text-(--text-strong) outline-none disabled:opacity-(--disabled-opacity)"
                 disabled={isSubmitting || mutationBlocked}
                 onChange={(event) => onFieldChange(input.field, event.target.value)}
                 type="password"
