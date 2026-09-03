@@ -150,6 +150,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dialog loading indicators on shared semantic Spinner roles.
 - Unified Goal edit submission and lifecycle refresh indicators on the shared
   medium action Spinner role.
+- Standardized WorkGraph canvas, action, availability, and revision loading
+  states on the shared semantic Spinner scale.
 - Established a single frontend engineering and design-system contract, and
   centralized high overlay layers and responsive dialog geometry behind semantic
   APIs to prevent page-specific stacking and small-window sizing drift.

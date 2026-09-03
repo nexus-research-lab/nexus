@@ -29,6 +29,7 @@ import {
 } from "@/shared/ui/dialog/dialog";
 import { getDialogActionClassName } from "@/shared/ui/dialog/dialog-styles";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiField, UiInput, UiTextarea } from "@/shared/ui/form/form-control";
 import type { Agent } from "@/types/agent/agent";
 import type { WorkGraphWorkflowPreview } from "@/types/conversation/workgraph-workflow";
@@ -154,7 +155,7 @@ export function WorkGraphDistillationDialog({
                   description={slashNameFormatError === null && availabilityMatchesInput ? (
                     slashNameAvailability.status === "checking" ? (
                       <span className="inline-flex items-center gap-1.5">
-                        <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                        <LoaderCircle className={getUiSpinnerClassName({ size: "sm" })} />
                         {t("execution.workflow_slash_checking")}
                       </span>
                     ) : slashNameAvailable ? (
@@ -245,7 +246,9 @@ export function WorkGraphDistillationDialog({
                   </button>
                 ) : (
                   <button className={`${getDialogActionClassName("primary", "compact")} w-full`} disabled={saveState === "saving" || metadataError !== null || !slashNameAvailable} type="button" onClick={() => void handleSave()}>
-                    {saveState === "saving" ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : null}
+                    {saveState === "saving" ? (
+                      <LoaderCircle className={getUiSpinnerClassName({ size: "sm" })} />
+                    ) : null}
                     {t(saveState === "saving"
                       ? "execution.workflow_scheduling"
                       : saveFailure
