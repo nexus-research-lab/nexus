@@ -5,6 +5,7 @@ L4 | 父级: web/src/features/conversation/shared
 ## 职责
 
 - `conversation-session-navigator.tsx`: 会话刻度与非模态轻量预览卡渲染；预览固定使用共享 Popover 材质和语义层，不得复用 Dialog Header、Dialog elevation 或数字 z-index
+- 刻度条和整张轮次预览卡的原生 button 是导航几何所有的连续命中区，不是普通文字/图标动作，因此不套 `UiButton`；该例外只允许本文档的两类命中区，预览内的文字仍必须消费 App Typography，新增独立动作必须使用共享 Button
 - `session-navigator-model.ts`: 先把用户、Assistant 和结果摘要解析为轮次快照，再将已加载快照或索引记录按当前语言投影为导航项；固定状态、回退标题和摘要不得写死在视图中
 - `session-navigator-ruler-model.ts`: 刻度尺寸、波形、颜色分段和讲者文案的纯视觉模型
 - `navigation-dom.ts`: 将可见轮元素投影为带焦点距离的候选，再按包含焦点、最近距离顺序选择，不持有 React 状态

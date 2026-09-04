@@ -40,6 +40,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Moved the conversation round navigator preview onto shared semantic
+  typography while documenting its ruler and whole-card buttons as tested
+  geometry-owned hit-target exceptions.
 - Unified Action Menu, Workspace context-menu, and Room model rows on one native
   shared menu-item button, including disabled, active, danger, hover, and focus
   states.
