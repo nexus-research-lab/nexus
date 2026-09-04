@@ -58,8 +58,11 @@ describe("GoalStatusStrip", () => {
     const status = screen.getByTitle("运行中");
     const binding = container.querySelector('[data-goal-binding-state="confirmed"]');
     const objective = screen.getByTitle("统一前端组件规范");
+    const panel = container.querySelector("section");
     const usage = container.querySelector(".tabular-nums");
 
+    expect(panel?.className).toContain("bg-transparent");
+    expect(panel?.className).toContain("shadow-none");
     expect(status.className).toContain("min-h-5");
     expect(status.className).toContain("radius-control-xs");
     expect(binding?.className).toContain("min-h-5");
