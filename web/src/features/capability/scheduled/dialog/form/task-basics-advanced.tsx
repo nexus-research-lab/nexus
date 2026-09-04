@@ -1,5 +1,5 @@
 // INPUT: 执行/投递/权限草稿、资源投影与字段变更命令。
-// OUTPUT: 使用共享字段、Panel、Typography 与原生 disclosure 的高级任务配置。
+// OUTPUT: 使用共享字段、Panel、Typography 与 Disclosure 的高级任务配置。
 // POS: Scheduled 基础表单的高级视图；不维护资源请求或提交事务。
 
 "use client";
@@ -10,6 +10,7 @@ import { Link2Off, Settings2 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
+import { UiDisclosure } from "@/shared/ui/disclosure/disclosure";
 import { UiChoiceButton } from "@/shared/ui/form/choice";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
 import { UiPanel } from "@/shared/ui/panel";
@@ -461,31 +462,23 @@ export function TaskBasicsAdvanced(props: TaskBasicsAdvancedProps) {
         <TaskDeliveryFields {...props} />
       </UiPanel>
 
-      <details
-        className="group surface-radius-md border border-(--divider-subtle-color) px-3 py-2.5"
-        onToggle={(event) => setIsOpen(event.currentTarget.open)}
-        open={isOpen}
-      >
-        <summary className={cn(
-          "flex cursor-pointer list-none items-center justify-between gap-3",
-          getUiTypographyClassName({ role: "control", tone: "default", weight: "medium" }),
-        )}>
-          <span className="inline-flex items-center gap-2">
-            <Settings2 className="h-3.5 w-3.5 text-(--icon-default)" />
-            {t("capability.scheduled_dialog_advanced")}
-          </span>
-          <span className={cn(
-            "truncate",
-            getUiTypographyClassName({ role: "caption", tone: "muted" }),
-          )}>
+      <UiDisclosure
+        contentClassName="flex flex-col gap-4"
+        label={t("capability.scheduled_dialog_advanced")}
+        leading={<Settings2 className="h-3.5 w-3.5 text-(--icon-default)" />}
+        meta={(
+          <span className={getUiTypographyClassName({ role: "caption", tone: "muted" })}>
             {buildTaskAdvancedSummary(form, t)}
           </span>
-        </summary>
-        <div className="mt-4 flex flex-col gap-4 border-t border-(--divider-subtle-color) pt-4">
+        )}
+        onToggle={(event) => setIsOpen(event.currentTarget.open)}
+        open={isOpen}
+        summaryRole="control"
+        variant="panel"
+      >
           <TaskPermissionModeField actions={actions} form={form} />
           <TaskExpirationField actions={actions} form={form} />
-        </div>
-      </details>
+      </UiDisclosure>
     </>
   );
 }

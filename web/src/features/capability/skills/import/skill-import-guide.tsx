@@ -6,6 +6,7 @@
 
 import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
+import { UiDisclosure } from "@/shared/ui/disclosure/disclosure";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { Locale } from "@/shared/i18n/messages";
 import { UiPanel } from "@/shared/ui/panel";
@@ -49,14 +50,12 @@ export function SkillImportGuide({ importing }: { importing: boolean }) {
   const { locale, t } = useI18n();
   return (
     <aside className="border-t border-(--divider-subtle-color) pt-4">
-      <details className="group">
-        <summary className={cn(
-          "cursor-pointer select-none hover:text-(--text-strong)",
-          getUiTypographyClassName({ role: "supporting", tone: "muted", weight: "medium" }),
-        )}>
-          {t("capability.skills_import_guide_title")}
-        </summary>
-        <div className="mt-3 space-y-3 pl-4">
+      <UiDisclosure
+        contentClassName="space-y-3 pl-4"
+        label={t("capability.skills_import_guide_title")}
+        summaryTone="muted"
+        variant="inline"
+      >
           <div className="flex justify-end">
             <UiButton
               aria-label={t("capability.skills_import_guide_download_aria")}
@@ -93,8 +92,7 @@ export function SkillImportGuide({ importing }: { importing: boolean }) {
               {buildSkillFrontmatterExample(t)}
             </pre>
           </UiPanel>
-        </div>
-      </details>
+      </UiDisclosure>
     </aside>
   );
 }

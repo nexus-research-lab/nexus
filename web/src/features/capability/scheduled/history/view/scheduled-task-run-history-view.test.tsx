@@ -76,7 +76,8 @@ describe("ScheduledTaskRunHistoryItem", () => {
     );
 
     expect(container.querySelector("summary.radius-control-md")).toBeTruthy();
-    expect(screen.getByText("诊断详情").className).toContain("ui-type-caption");
+    expect(screen.getByText("诊断详情").closest("summary")?.className)
+      .toContain("ui-type-caption");
     expect(container.querySelectorAll("section.surface-radius-sm").length).toBeGreaterThan(0);
 
     const copyButton = screen.getByRole("button", { name: "复制诊断" });

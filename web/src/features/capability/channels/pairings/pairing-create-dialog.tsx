@@ -28,11 +28,13 @@ import {
   UiDialogHeader,
   UiDialogPortal,
 } from "@/shared/ui/dialog/dialog";
+import { UiDisclosure } from "@/shared/ui/disclosure/disclosure";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
 import { FeedbackBanner } from "@/shared/ui/feedback/feedback-banner";
 import type { FeedbackBannerProps } from "@/shared/ui/feedback/feedback-banner-contract";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { Agent } from "@/types/agent/agent";
 
 import {
@@ -194,11 +196,12 @@ export function CreatePairingDialog({
                 />
             </UiField>
 
-            <details className="border-t border-(--divider-subtle-color) pt-3">
-              <summary className="cursor-pointer select-none text-sm font-medium text-(--text-muted) hover:text-(--text-strong)">
-                账号、话题与初始状态
-              </summary>
-              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <UiDisclosure
+              label="账号、话题与初始状态"
+              summaryTone="muted"
+              variant="section"
+            >
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <UiField
                   description="多账号接入时用于区分同一个外部对象。"
                   label="通道账号 ID"
@@ -231,10 +234,10 @@ export function CreatePairingDialog({
                   />
                 </UiField>
               </div>
-              <p className="mt-3 text-xs leading-5 text-(--text-soft)">
+              <p className={getUiTypographyClassName({ role: "caption", tone: "soft" })}>
                 仅在已知稳定外部 ID 时手动创建；首次入站消息仍会生成待处理配对。
               </p>
-            </details>
+            </UiDisclosure>
           </UiDialogBody>
 
           <UiDialogFooter appearance="plain">

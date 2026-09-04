@@ -7,7 +7,6 @@
 
 import {
   Check,
-  ChevronDown,
   Copy,
   Trash2,
   X,
@@ -24,6 +23,7 @@ import { UiBadge } from "@/shared/ui/display/badge";
 import type { UiBadgeTone } from "@/shared/ui/display/badge-styles";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
+import { UiDisclosure } from "@/shared/ui/disclosure/disclosure";
 import { UiField } from "@/shared/ui/form/form-control";
 import { UiPanel } from "@/shared/ui/panel";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
@@ -302,19 +302,15 @@ function PairingRow({
         </div>
       </div>
 
-      <details className="group border-t border-(--divider-subtle-color) px-3">
-        <summary className={cn(
-          "flex h-9 cursor-pointer list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden",
-          getUiTypographyClassName({
-            role: "metadata",
-            tone: "muted",
-            weight: "medium",
-          }),
-        )}>
-          <span>技术详情</span>
-          <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
-        </summary>
-        <div className="grid gap-3 pb-3 md:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_minmax(180px,0.6fr)]">
+      <UiDisclosure
+        contentClassName="grid gap-3 md:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_minmax(180px,0.6fr)]"
+        density="compact"
+        inset="sm"
+        label="技术详情"
+        summaryRole="metadata"
+        summaryTone="muted"
+        variant="section"
+      >
           <PairingTechnicalField label="绑定键" value={bindingKey} />
           <div className="min-w-0">
             <div className={cn(
@@ -355,8 +351,7 @@ function PairingRow({
             <div>来源：{item.source === "ingress" ? "首次消息" : item.source}</div>
             <div>更新：{formatPairingTime(item.updated_at)}</div>
           </div>
-        </div>
-      </details>
+      </UiDisclosure>
     </UiPanel>
   );
 }

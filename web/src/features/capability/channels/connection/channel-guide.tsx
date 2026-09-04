@@ -1,13 +1,15 @@
 // INPUT: 当前 Channel 类型及其真实平台配置步骤。
 // OUTPUT: 默认收起、按需展开的接入说明，不占据连接表单的首屏。
 // POS: Channel 平台准备步骤的单一文案源，操作说明保留但不作为弹窗视觉主角。
-import { ChevronDown } from "lucide-react";
 import type { ReactNode } from "react";
 
 import type {
   ChannelConfigView,
   ImChannelType,
 } from "@/lib/api/capability/channel-api";
+import { cn } from "@/shared/ui/class-name";
+import { UiDisclosure } from "@/shared/ui/disclosure/disclosure";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 interface ChannelGuideContent {
   note?: ReactNode;
@@ -83,33 +85,31 @@ export function ChannelGuide({
 }) {
   const guide = CHANNEL_GUIDES[item.channel_type];
   return (
-    <details className="group radius-control-lg border border-(--divider-subtle-color)">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-sm font-medium text-(--text-default)">
-        连接说明
-        <ChevronDown className="h-4 w-4 text-(--icon-muted) transition-transform group-open:rotate-180" />
-      </summary>
-      <div className="border-t border-(--divider-subtle-color) px-3 pb-3 pt-2.5">
-        <ol className="list-decimal space-y-1 pl-5 text-sm leading-6 text-(--text-default)">
-          {guide.steps.map((step) => (
-            <li
-              className="[&_a]:font-semibold [&_a]:text-(--primary) [&_b]:font-semibold"
-              key={step.id}
-            >
-              {step.content}
-            </li>
-          ))}
-        </ol>
-        {runtimeNote ? (
-          <div className="mt-3 border-t border-(--divider-subtle-color) pt-3 text-compact leading-5 text-(--text-muted)">
-            {runtimeNote}
-          </div>
-        ) : null}
-        {guide.note ? (
-          <div className="mt-3 border-t border-(--divider-subtle-color) pt-3 text-compact leading-5 text-(--text-muted)">
-            {guide.note}
-          </div>
-        ) : null}
-      </div>
-    </details>
+    <UiDisclosure label="连接说明" variant="panel">
+      <ol className={cn(
+        "list-decimal space-y-1 pl-5 [&_a]:font-semibold [&_a]:text-(--primary) [&_b]:font-semibold",
+        getUiTypographyClassName({ role: "supporting", tone: "default" }),
+      )}>
+        {guide.steps.map((step) => (
+          <li key={step.id}>{step.content}</li>
+        ))}
+      </ol>
+      {runtimeNote ? (
+        <div className={cn(
+          "mt-3 border-t border-(--divider-subtle-color) pt-3",
+          getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+        )}>
+          {runtimeNote}
+        </div>
+      ) : null}
+      {guide.note ? (
+        <div className={cn(
+          "mt-3 border-t border-(--divider-subtle-color) pt-3",
+          getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+        )}>
+          {guide.note}
+        </div>
+      ) : null}
+    </UiDisclosure>
   );
 }

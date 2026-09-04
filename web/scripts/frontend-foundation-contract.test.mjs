@@ -31,11 +31,13 @@ const PROHIBITED_PRODUCT_STYLE_PATTERNS = [
 const REQUIRED_SHARED_UI_BEHAVIOR_SUITES = [
   "src/features/capability/channels/pairings/pairing-filter-bar.test.tsx",
   "src/features/conversation/shared/message/blocks/question/ask-user-question-view.test.tsx",
+  "src/features/conversation/shared/execution/execution-node-run-history.test.tsx",
   "src/features/conversation/shared/execution/execution-process-panel.test.tsx",
   "src/features/conversation/shared/composer/components/interaction/composer-permission-surface.test.tsx",
   "src/shared/ui/button/button.test.tsx",
   "src/shared/ui/dialog/decision/decision-dialog.test.tsx",
   "src/shared/ui/dialog/dialog.test.tsx",
+  "src/shared/ui/disclosure/disclosure.test.tsx",
   "src/shared/ui/display/display.test.tsx",
   "src/shared/ui/feedback/feedback.test.tsx",
   "src/shared/ui/form/form-controls.test.tsx",
@@ -722,6 +724,42 @@ test("Subagent thread loading and command actions share Spinner roles", async ()
   assert.match(source, /getUiSpinnerClassName\(\{ size: "sm" \}\)/);
   assert.match(source, /size: "md", tone: "muted"/);
   assert.doesNotMatch(source, /\banimate-spin\b/);
+});
+
+test("Product disclosure surfaces share one native details and summary owner", async () => {
+  const productFiles = (
+    await Promise.all(productUiRoots.map((root) => collectSourceFiles(root)))
+  ).flat();
+  const violations = [];
+  for (const file of productFiles) {
+    if (!/\.(?:ts|tsx)$/.test(file)) continue;
+    const source = await readFile(file, "utf8");
+    if (/<(?:details|summary)\b/.test(source)) {
+      violations.push(path.relative(webRoot, file));
+    }
+  }
+
+  const [primitive, executionRuns, scheduledRuns, channelGuide] = await Promise.all([
+    readSource("src/shared/ui/disclosure/disclosure.tsx"),
+    readSource("src/features/conversation/shared/execution/execution-node-run-history.tsx"),
+    readSource("src/features/capability/scheduled/history/view/scheduled-task-run-history-item.tsx"),
+    readSource("src/features/capability/channels/connection/channel-guide.tsx"),
+  ]);
+
+  assert.deepEqual(violations, []);
+  assert.match(primitive, /<details/);
+  assert.match(primitive, /<summary/);
+  assert.match(primitive, /focus-visible:ring-2/);
+  assert.match(primitive, /group-open\/disclosure:rotate-180/);
+  for (const consumer of [executionRuns, scheduledRuns, channelGuide]) {
+    assert.match(consumer, /<UiDisclosure/);
+    assert.doesNotMatch(consumer, /<details|<summary/);
+  }
+  assert.match(executionRuns, /<UiButton/);
+  assert.doesNotMatch(
+    executionRuns,
+    /<button\b|rounded-\[|\btext-(?:2xs|xs|compact|sm|base)\b|\bfont-(?:medium|semibold)\b|\btext-\[9px\]/,
+  );
 });
 
 test("Subagent task directory shares dense List, Typography, and avatar state owners", async () => {
@@ -1891,8 +1929,8 @@ test("Scheduled task run history uses shared panel, action, typography, and radi
 
   assert.match(combined, /<UiButton/);
   assert.match(combined, /<UiPanel/);
+  assert.match(combined, /<UiDisclosure/);
   assert.match(combined, /getUiTypographyClassName/);
-  assert.match(sources[2], /radius-control-md/);
   for (const source of sources) {
     assert.doesNotMatch(
       source,
@@ -1911,8 +1949,8 @@ test("Scheduled task forms use shared panel, typography, and semantic radius own
   const combined = sources.join("\n");
 
   assert.match(combined, /<UiPanel/);
+  assert.match(combined, /<UiDisclosure/);
   assert.match(combined, /getUiTypographyClassName/);
-  assert.match(sources[0], /surface-radius-md/);
   for (const source of sources) {
     assert.doesNotMatch(
       source,

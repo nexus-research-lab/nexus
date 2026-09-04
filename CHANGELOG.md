@@ -40,6 +40,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Unified ordinary expandable App sections under the shared `UiDisclosure`
+  contract, so Channel instructions, pairing details, Connector scopes, Skill
+  import help, Scheduled run history/settings, and Execution run facts now
+  share native semantics, focus, arrows, density, typography, and boundaries.
 - Moved subagent task entries onto the shared dense List and Typography
   contracts, with running-avatar emphasis now owned by the shared avatar state.
 - Moved Room history entries onto the shared whole-row List contract, unifying
