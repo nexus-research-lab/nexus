@@ -7,98 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.40] - 2026-09-04
+
 ### Added
 
-- Added standalone `nexus-control` authentication for server Web deployments,
-  with signed short-lived principals, stable local owner bindings, and an
-  account migration path that leaves Agent and workspace data in place. The
-  existing Nexus Web shell now provides Control-backed login, first-run setup,
-  and deployment member administration without a second frontend. Control can
-  use SQLite or a PostgreSQL `control` schema.
-- Added an 8–10-player Avalon Room Skill with a permanent Agent moderator, randomized user participation, private role, vote, mission routing, and complete proposal, quest, rejection, and assassination flow.
-- Added an administrator-selectable subscription default model that new web users inherit until they choose their own default.
-- Added RichMail as a fixed local Connector with a loopback-only approval
-  handshake, opaque owner-bound pairing attempts, encrypted Bearer Token
-  storage, exact retry reconciliation, live MCP tool discovery, and explicit
-  Agent/Session selection through the existing Connector path, using a
-  monochrome RichMail mark consistent with the existing Connector icon system
-  and a connector-specific setup path for enabling its Agent MCP service.
-- Added default-on owner availability controls, WorkGraph-style seeded icons,
-  and a Claude-style detail page for custom MCP servers, including remote
-  server information and discovered tools while keeping Prompts/Resources out
-  of the product surface and stdio execution inside the Agent runtime.
-- Added a versioned custom MCP availability migration so existing servers stay
-  enabled by default while previously disabled preview records remain disabled.
-- Added stable Connector credential key identities, an active/legacy keyring,
-  and an idempotent per-record migration that preserves unknown historical
-  ciphertext for recovery while re-encrypting known legacy records.
-- Added a backward-compatible minimal FailureCore v1 for stable machine
-  classification, effect evidence, and optional transport diagnostics without
-  changing existing business identities.
+- Added Control-backed server Web authentication, first-run setup, member and
+  subscription administration, signed principals, and migration of existing
+  accounts without moving Agent or workspace data.
+- Added complete custom MCP server management and the RichMail Connector,
+  including per-owner availability, live tool discovery, encrypted credential
+  rotation, and isolated recovery for unreadable legacy records.
+- Added an 8-10-player Avalon Room Skill with a permanent Agent moderator,
+  private roles, voting, missions, rejections, and assassination.
+- Added an administrator-selected subscription default model and FailureCore v1
+  machine-readable failure classification.
 
 ### Changed
 
-- Collapsed the desktop sidebar completely while keeping its restore action in
-  the shared header safe area, aligned with the native window controls.
-- Softened chat-list previews so secondary text no longer competes with
-  conversation names.
-- Moved subscription plan and member entitlement authority into `nexus-control`.
-  Nexus now retains only local token usage, a fail-closed entitlement projection,
-  and a durable Control event cursor; the existing Operations UI composes both
-  services without interrupting an in-flight Agent when a quota changes.
-- Moved the default Control data root out of Nexus host state and into the
-  dedicated `~/.nexus/control` directory.
-- Reduced local and deployment startup guidance to one primary command per
-  mode, keeping split-process startup only for debugger attachment.
-- Updated source deployment orchestration to build, start, health-check, and
-  fast-forward both the Nexus and sibling `nexus-control` repositories as one
-  `control + nexus + nginx` stack.
-- Moved the public landing page to the standalone `nexus-atlas` repository. The Product root route now enters the authenticated Launcher flow.
-- Updated the Feishu long-connection SDK to v3.11.0 and pinned DingTalk's
-  official v0.9.2 beta stream SDK so both channels receive the vendors'
-  current WebSocket lifecycle and concurrency fixes.
-- Updated personal Weixin iLink clients to the current encoded client version
-  while preserving explicit custom overrides.
-- Condensed Agent list rows to two lines by moving Provider, tool, and Skill
-  metadata beside the Agent name and permission state.
-- Simplified the Skill update surface into aligned compact rows with one clear
-  update action and less repetitive iconography.
-- Unified menu-style floating surfaces around a shared 4px content inset and
-  2px item rhythm across action, select, mention, Slash, cascade, and workspace
-  context menus, including consistent selected-row separation and height
-  estimation.
-- Improved dense WorkGraph readability with stable crossing reduction,
-  corridor-aware orthogonal routing, semantic fan-in/fan-out junctions,
-  frame-boundary proxy ports and hard subgraph obstacle avoidance for
-  cross-subgraph edges, on-demand exact endpoint tails, whole-subgraph hover,
-  direction-aligned arrowheads with visible target clearance, a headerless
-  near-fullscreen detail dialog with a distinct fit-to-view action, exact edge
-  midpoint controls, and full upstream/downstream path focus that dims
-  unrelated graph content without hiding durable Tool runs.
-- Simplified shared failure presentation to a concrete title, one short
-  instruction, and at most one direct action. Error views no longer require
-  separate impact and next-step copy, buttons use short labels, and existing
-  send/save/refresh controls are not duplicated. Server details,
-  protocol recovery directives, and diagnostic IDs no longer drive user copy.
-  Uncertain,
-  stale, and conflicting states now use warning emphasis while confirmed
-  failures retain destructive emphasis. Unknown results state confirmed facts
-  and concrete repeat risks instead of listing hypothetical outcome branches,
-  without changing recovery behavior.
-- Reduced conversation recovery to one prioritized, single-sentence Composer
-  status. Only message reconciliation and incomplete history loading expose a
-  refresh action; other failures reuse the existing Composer, permission card,
-  or settings controls. New submissions no longer erase unresolved delivery or Provider facts,
-  terminal runtime text no longer masquerades as an assistant reply, Goal notices
-  no longer expose internal detail, and root failure screens use one recovery line.
-- Removed unused error `message` and `description` channels from shared feedback,
-  resource-state, settings, Skill, Composer, OAuth, and Agent-editor paths so
-  product code cannot build duplicate hidden copy or surface provider details.
-- Removed the scheduled-task browser mutation journal, Agent-creation Web Locks
-  availability gate, implementation-shape reliability suites, and standalone
-  failure-state screenshot gallery. Browser storage is now only a best-effort
-  request-ID recovery aid; server revisions, receipts, runs, and deletion state
-  remain authoritative.
+- Moved identity and subscription authority to `nexus-control`, the public
+  landing page to `nexus-atlas`, and source deployment to a coordinated
+  `control + nexus + nginx` stack. The Product root now enters the authenticated
+  Launcher.
+- Improved dense WorkGraph routing, subgraph avoidance, path focus, history
+  selection, endpoint controls, and the near-fullscreen detail view.
+- Simplified failure and recovery guidance across conversations, Goals,
+  settings, Connectors, Channels, and desktop flows while keeping diagnostics
+  out of user-facing copy.
+- Refined compact Agent, Skill, menu, Composer, Room, and sidebar layouts,
+  including a desktop sidebar that collapses into the shared window chrome.
+- Updated Feishu, DingTalk, and personal Weixin clients with current connection
+  lifecycle behavior.
+- Updated the bundled nxs runtime to v0.1.31 and the runtime bridge to v0.1.32,
+  adding per-turn AutoMemory control and clearer terminal Provider failures.
 
 ### Fixed
 
@@ -107,223 +47,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and time to finish.
 - Stopped development and ad-hoc macOS app launches from probing the legacy
   Keychain item, avoiding a password prompt after every local rebuild.
-
-- Hid fork actions for failed or interrupted Assistant rounds while preserving
-  forks from completed successful replies.
-- Displayed Provider retry attempts as compact execution activity with the
-  original error and countdown, and preserved the final raw runtime error when
-  retries are exhausted.
-- Kept the canonical `control` and `control-public` directories out of the
-  legacy runtime-state migration so a fresh three-service startup cannot move
-  Control's live database and credentials away from Nexus Server.
-- Reconciled the unpublished Control schema migration numbers with the published
-  Connector migrations and safely replayed whichever side a local database had
-  missed during the branch merge.
-- Prevented Provider API error details from terminating a runtime round before
-  its authoritative result, avoiding stale results leaking into the next turn
-  and blocking later runtime controls such as `/compact`; content-safety errors
-  now direct users to start a fresh conversation because the upstream session
-  may no longer be usable.
-- Matched the expanded sidebar footer height and action alignment to the shared
-  header baseline across desktop window widths.
-- Closed Control-backed authentication lifecycle gaps: root-path session cookies now clear correctly, disabled first-run setup is represented explicitly, concurrent Nexus replicas atomically converge on one local owner binding, and Control membership changes actively invalidate cached principals, WebSockets, and runtimes on every Nexus replica.
-- Removed Nexus Server's duplicate password, browser Session, account mutation, bootstrap, and account CLI stack. Desktop now uses a passwordless local principal; server Web account writes go directly to Control, while Nexus retains only signed-Principal verification, `owner_profiles` projection, stable owner binding, and reason-scoped invalidation handling.
-- Realigned the live activity row beneath collapsed tool groups and restored
-  the shared low-contrast text shimmer for active message states.
-- Added deterministic chat prose fallbacks when Songti is unavailable: macOS
-  uses PingFang, while Windows uses the bundled PT Mono with a system CJK fallback.
-- Reduced the Composer action menu typography, weight, and row density to match
-  the surrounding compact input controls.
-- Unified the Composer activity dock around a compact 32px status surface; its
-  centered scroll control now shows animated dots while generating and a down
-  arrow after output completes.
-- Prevented large workspace files from exhausting the WebView renderer: text
-  files now fall back to bounded HTTP Range chunks, PDF and browser downloads
-  remain streamed, and oversized image/Office previews are rejected before
-  their bodies enter renderer memory.
-- Prevented anchored tooltips and menus from sliding in from the viewport origin
-  on their first open by limiting shared entry motion to opacity and transform
-  instead of transitioning their measured positioning coordinates.
-- Unified browser-encoded dynamic API path segments at the HTTP route boundary,
-  so identifiers containing `@`, `:`, `/`, Unicode, or literal percent escapes
-  reach every handler decoded exactly once. Provider model IDs retain their
-  single service-level decoder for compatibility with historically escaped
-  records.
-- Clarified paused Goal recovery across the built-in Goal Skill, product guide,
-  and command feedback: users are now directed to the ▶「继续」 control in
-  the Goal status bar above the current conversation composer, after which
-  Nexus automatically schedules the continuation that audits and completes
-  the remaining work.
-- Persisted each personal Weixin account's opaque iLink polling cursor across
-  restarts and compensated reloads, added the official start/stop lifecycle
-  notifications, and stopped retry loops on the explicit `-14` login-expired
-  response so the account asks for a fresh QR login instead of remaining
-  falsely connected. Existing accounts no longer suppress the personal Weixin
-  add-account QR flow, URL-escaped account identifiers are decoded before
-  deletion, and stop notification failures are best-effort instead of rolling
-  back local account deletion.
-- Added bounded writes and missed-pong detection to enterprise WeCom bot
-  WebSockets so half-open connections close and enter the existing reconnect
-  loop instead of remaining stuck indefinitely.
-- Kept compact sidebar gutters when desktop windows narrow, reserving the
-  larger touch spacing for the true phone layout.
-- Kept the WorkGraph picker at a stable viewport-bounded height while switching
-  between workflows with different descriptions and graph shapes.
-- Unified sidebar action icon sizing and aligned contact chat controls with the
-  header and search action axis.
-- Replaced native hover titles on shared icon buttons and the desktop sidebar
-  with a restrained anchored tooltip, while refining default Lucide stroke weight.
-- Limited Room AutoMemory extraction to user-triggered turns; Agent public
-  mentions, private directed messages, and internal continuations no longer
-  start separate extraction turns.
-- Aligned live Room activity icons with the Agent avatar and message content.
-- Unified the collapsed web sidebar into one neutral rail, aligned its expand
-  control with the navigation icons, and removed its footer actions and dividers.
-- Kept completed confirmation tools inside their surrounding Room execution
-  group and increased the spacing between assistant headers and message bodies.
-- Kept Room collaboration visibly active while private directed work is queued
-  or running, without exposing participants or private content.
-- Decoded escaped custom MCP connector IDs consistently across detail, edit,
-  availability, discovery, and deletion routes, so adding or replacing a Token
-  no longer reports that the saved server does not exist.
-- Kept the built-in Connector catalog available when an independently managed
-  legacy custom MCP payload cannot be decrypted or decoded.
-- Preserved each unreadable legacy custom MCP record as an isolated recovery
-  item instead of showing an empty directory. Recovery records stay out of
-  chats and runtime mounting until the user replaces the complete encrypted
-  configuration, while retaining the original Connector identity and enabled
-  state.
-- Centralized desktop and development Connector key selection in the server
-  startup boundary (macOS Keychain, canonical state-root fallback, then
-  explicit configuration), so Make no longer reads platform secrets and
-  mixed-key historical records remain readable during rotation.
-- Preserved the canonical state-root Connector fallback key when a signed
-  macOS host initializes its Keychain item, instead of generating an unrelated
-  key after the state-layout migration had already moved the fallback file.
-- Preserved concise failure guidance without weakening recovery: Provider
-  validation now keeps its field-specific correction, reconciled Preferences and
-  Echo changes expose one safe reapply action, and multi-file workspace uploads
-  retain the exact per-file outcome summary needed to avoid duplicate retries.
-- Fixed the Windows browser extension setup so it opens the actual Chrome or
-  Edge extensions page and bundled extension directory instead of a blank tab
-  and the default Documents folder.
-- Reconciled Room Agent execution cards against authoritative reconnect
-  snapshots and their durable Room sequence fence, so history or replay events
-  older than the snapshot can no longer revive an execution that the server has
-  already stopped. Persisted partial Assistant rows remain visible as history
-  without producing a stale thinking state or Stop action.
-- Made password changes safely reconcilable with a user-scoped exact request
-  terminal receipt. Credential CAS and `committed` are one transaction, while
-  an explicit `not_applied` settlement fences late writes after a lost draft;
-  unknown results persist across reloads without storing passwords or creating
-  a fresh mutation.
-- Kept Subscription Admin mutation locks independent from dismissible feedback,
-  classified subscription/password failures from proven write stages, preserved
-  content-only Assistant normalization, and prevented legacy error details from
-  becoming user-visible copy. Error-state types now allow only one safe recovery
-  action, while explicit two-way conflict choices use a separate decision state.
-- Prevented the WorkGraph history dropdown from opening as an empty strip when
-  a conversation has no current or historical graph; it now shows an explicit
-  empty or load-failure state, grows with its history through seven entries,
-  and only then switches to scrolling with separated rows.
-- Removed duplicate inline Thought and tool-result previews from expanded process details while preserving them as scannable collapsed-row summaries and moving distinct tool inputs into the detail body.
-- Kept Room tool, thinking, and replying activity rows on one stable geometry,
-  preventing live tool transitions from nudging the conversation viewport.
-- Repaired the shifted migration-number collision across Agent business tags,
-  Automation recovery, and Agent creation receipts, preserving existing data
-  while replaying the missing schema during upgrades.
-- Split first-time model-provider setup into independently recoverable save,
-  connection-test, and default-selection stages. Lost responses now reconcile
-  exact Provider keys, aggregate versions, non-secret configuration fingerprints,
-  test timestamps, and preference state without storing credentials or repeating
-  a completed stage; Provider HTTP failures also expose stable FailureCore facts.
-- Prevented duplicate Agent creation after a lost response by adding an
-  owner-scoped creation receipt, exact intent conflict detection, atomic
-  Agent/profile/runtime commit, deletion tombstones, and reload-safe client
-  reconciliation without reusing HTTP diagnostic IDs or storing form secrets.
-- Replaced raw macOS, Windows, and browser-extension error text with
-  stage-specific recovery copy that explains the failure, its effect on
-  existing data, and the next safe action while keeping internal causes in
-  diagnostics.
-- Hardened Channel configuration, account, QR login, and Pairing failures with
-  stale-safe reads, machine-evidence copy, read-only reconciliation for
-  uncertain writes, and fixed recovery guidance that hides provider details.
-- Prevented Skill update, delete, import, and update-check writes from being
-  repeated when their result is uncertain. Confirmed writes now remain complete
-  if only the catalog refresh fails, while exact in-page intents stay locked
-  until an authoritative read or an explicit new user action resolves them.
-- Prevented workspace create, rename, delete, and multi-file upload commands
-  from being repeated after an uncertain response. Confirmed file changes now
-  remain successful when only the list refresh fails, while uncertain results
-  are checked against the exact Agent and paths and uploads retain per-file
-  completed, unconfirmed, rejected, and not-started outcomes.
-- Kept uncertain Goal lifecycle changes locked to the exact in-page account,
-  Session, and Goal intent, reconciled only from authoritative current state,
-  separated a confirmed write from a later refresh failure, and cleared stale
-  Goal data when conversation scope or access changes.
-- Prevented stale or fallback preference snapshots from overwriting newer
-  settings. Preference writes now use the existing monotonic version as an
-  optional HTTP precondition, preserve unresolved page drafts, and reconcile
-  conflicts or unknown outcomes before an explicit reapply.
-- Prevented Memory edits from silently overwriting Agent or concurrent browser
-  updates. Memory files now use backward-compatible content revisions and
-  conditional writes, preserve drafts across conflicts, reconcile unknown save
-  outcomes before another write, and require an explicit choice before replacing
-  the latest saved version.
-- Prevented workspace text editors from opening before a versioned read or
-  overwriting concurrent Agent and browser updates. Local drafts now survive live
-  changes, revision conflicts, and uncertain save responses until the latest file
-  is checked and the user explicitly chooses which content to keep.
-- Bound each Feishu Device Flow attempt to the exact OAuth app credentials that
-  started it. Cancellation, polling failures, expiry, overlapping QR attempts,
-  and manual setup errors no longer replace the active app or connection; a new
-  app and its token switch together only after successful authorization.
-- Cleared owner-scoped Home directories, conversation metadata, Room tabs,
-  pinned conversations, and local Composer history before exposing a different
-  signed-in user, including cross-tab login changes and late directory reads.
-- Kept uncertain Room deletions inside a locked confirmation flow, reconciled
-  the exact Room against the authoritative directory before any retry, and
-  allowed another DELETE only after a confirmed not-applied result.
-- Prevented Agent deletion failures from closing the confirmation flow or
-  navigating as success. The UI now distinguishes a rejected deletion, a
-  committed deletion with incomplete cleanup, an already absent Agent, and an
-  outcome that must be checked before any retry.
-- Committed each scheduled-task runtime claim and its initial run ledger in one
-  transaction before dispatch. Manual run requests now keep a durable
-  owner-scoped identity, replay the exact accepted run after a lost response,
-  and reject request IDs reused for a different intent.
-- Made Heartbeat wake acceptance durable even without user text, fenced it
-  atomically against configuration changes, and recovered unclaimed accepted
-  wakes after restart. Started claims now fail closed instead of being replayed;
-  command intents remain idempotent and control locks are released before runtime
-  dispatch.
-- Prevented interrupted scheduled-task actions from being repeated implicitly,
-  kept task data available when auxiliary permission status cannot load, and
-  added configuration-version checks for task enable and pause changes. Durable
-  deletion now distinguishes automatic cleanup from administrator review,
-  keeps history readable, requires an explicit stopped-execution confirmation
-  before manual cleanup, and coalesces realtime refreshes without polling.
-- Isolated scheduled-task recovery records by owner and exact intent across
-  windows and app restarts, serialized same-task browser mutations without
-  blocking different tasks, and failed safely before sending in unsupported
-  browser environments. Multiple unconfirmed create intents are preserved and
-  reviewed one by one instead of overwriting each other.
-- Committed scheduled-run terminal state before external delivery, claimed every
-  delivery attempt with an exact durable token, and stopped automatic replay
-  when the receiving system may already have accepted a result. Deleting tasks
-  now suppress late delivery and retain exact execution evidence before cleanup;
-  permission denial or task revision also closes runs with no deliverable result
-  instead of leaving them permanently pending.
-- Made scheduled-task result delivery durable across process interruption:
-  execution completion is committed before sending, concurrent workers claim a
-  single attempt, and uncertain channel outcomes require user verification
-  instead of being replayed automatically. Existing task histories now bind
-  their delivery summary to the exact latest completed run during upgrade, so
-  retrying an older run cannot replace the current task status.
-- Distinguished client cancellation, request timeout, connection loss, and
-  interrupted response bodies without retrying writes whose outcome is unknown.
-- Kept the latest Room public reply visible while later thought and tool chunks continue in the same Agent execution.
-- Rebased Session deletion recovery records during desktop data-directory migration and warned Windows users to run Nexus as administrator before moving data.
+- Prevented duplicate or unsafe retries after uncertain outcomes across
+  scheduled tasks, Agents, Skills, workspaces, Memory, Goals, Rooms, Providers,
+  subscriptions, and password changes.
+- Preserved authoritative Provider retry progress and terminal errors, and
+  prevented runtime error details from ending a round before its final result.
+- Reconciled migration-number collisions and kept Control data out of legacy
+  Nexus state migration.
+- Stabilized Room execution snapshots, activity geometry, private collaboration,
+  transcript grouping, and user-only AutoMemory extraction.
+- Hardened Connector credential migration, custom MCP route identities, legacy
+  record recovery, and Feishu, Weixin, and WeCom connection lifecycles.
+- Bounded large workspace previews and fixed desktop state migration, Windows
+  browser-extension setup, anchored overlays, font fallbacks, and narrow-window
+  sidebar geometry.
 
 ## [0.1.39] - 2026-08-31
 
