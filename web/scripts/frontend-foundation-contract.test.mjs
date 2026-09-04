@@ -1400,6 +1400,26 @@ test("Select, Slash, and multi-select options share one listbox row DOM owner", 
   }
 });
 
+test("Select Menu separates state and geometry from its visual recipe", async () => {
+  const [model, styles, select, roomSkills, workgraphPicker] = await Promise.all([
+    readSource("src/shared/ui/menu/select-menu-model.ts"),
+    readSource("src/shared/ui/menu/select-menu-styles.ts"),
+    readSource("src/shared/ui/menu/select-menu.tsx"),
+    readSource("src/features/conversation/room/members/skills/room-skill-multi-select.tsx"),
+    readSource("src/features/conversation/shared/composer/components/workgraph-distillation-picker/workgraph-distillation-picker-dialog.tsx"),
+  ]);
+
+  assert.doesNotMatch(model, /\bclassName\b|rounded-|shadow-|text-\(|bg-\(|color-mix/);
+  assert.match(styles, /getSelectMenuStyleProjection/);
+  assert.match(styles, /SELECT_MENU_BUTTON_SURFACE_CLASS_NAMES/);
+  assert.match(select, /buildSelectMenuModel/);
+  assert.match(select, /getSelectMenuStyleProjection/);
+  for (const consumer of [roomSkills, workgraphPicker]) {
+    assert.match(consumer, /select-menu-styles/);
+    assert.doesNotMatch(consumer, /select-menu-model[^;]*getSelectMenu(?:Button|Option|Size)/);
+  }
+});
+
 test("Action, Workspace, and Room model menus share one menu-item row DOM owner", async () => {
   const [primitive, actionMenu, workspaceMenu, roomModelMenu] = await Promise.all([
     readSource("src/shared/ui/menu/menu-action-row.tsx"),

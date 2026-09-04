@@ -24,7 +24,7 @@ import {
 } from "@/shared/ui/dialog/dialog";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
 import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
-import { getSelectMenuOptionStateClassName } from "@/shared/ui/menu/select-menu-model";
+import { getSelectMenuOptionStateClassName } from "@/shared/ui/menu/select-menu-styles";
 import { SelectMenuOptionRow } from "@/shared/ui/menu/select-menu-primitives";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { WorkGraphWorkflow } from "@/types/conversation/workgraph-workflow";
@@ -192,7 +192,7 @@ function OpenWorkGraphDistillationPickerDialog({
                       active={selected?.id === item.id}
                       className={cn(
                         "flex min-h-12 w-full flex-col items-stretch justify-center px-3 py-2 text-left",
-                        getSelectMenuOptionStateClassName("dialog", selected?.id === item.id),
+                        getSelectMenuOptionStateClassName(selected?.id === item.id),
                       )}
                       key={item.id}
                       onClick={() => setSelectedId(item.id)}

@@ -10,7 +10,7 @@ import {
 } from "react";
 
 import {
-  buildSelectMenuPresentation,
+  buildSelectMenuModel,
   estimateSelectMenuHeight,
   resolveNextSelectMenuValue,
   resolveSelectMenuPosition,
@@ -20,6 +20,7 @@ import {
   type UiSelectMenuSize,
   type UiSelectMenuSurface,
 } from "./select-menu-model";
+import { getSelectMenuStyleProjection } from "./select-menu-styles";
 import { SelectMenuView } from "./select-menu-view";
 import { useSelectMenuOverlay } from "./use-select-menu-overlay";
 
@@ -88,26 +89,25 @@ function UiSelectMenuController({
   surface,
   value,
 }: ResolvedUiSelectMenuProps) {
-  const presentation = buildSelectMenuPresentation({
-    allowLabelWrap,
+  const model = buildSelectMenuModel({
     options,
     placeholder,
-    size,
     value,
   });
+  const styles = getSelectMenuStyleProjection({ allowLabelWrap, size });
 
   const estimatePosition = useCallback((button: HTMLButtonElement) => {
     return resolveSelectMenuPosition({
       button,
       estimatedHeight: estimateSelectMenuHeight(
         options.length,
-        presentation.estimatedOptionHeight,
+        styles.estimatedOptionHeight,
       ),
-      estimatedOptionHeight: presentation.estimatedOptionHeight,
+      estimatedOptionHeight: styles.estimatedOptionHeight,
       menuMinWidth,
       placement,
     });
-  }, [menuMinWidth, options.length, placement, presentation.estimatedOptionHeight]);
+  }, [menuMinWidth, options.length, placement, styles.estimatedOptionHeight]);
 
   const {
     buttonRef,
@@ -170,8 +170,9 @@ function UiSelectMenuController({
       onTriggerKeyDown={onTriggerKeyDown}
       options={options}
       portalContainer={portalContainer}
-      presentation={presentation}
+      model={model}
       surface={surface}
+      styles={styles}
       value={value}
     />
   );

@@ -24,12 +24,14 @@ import {
 } from "@/shared/ui/menu/menu-styles";
 import {
   estimateSelectMenuHeight,
-  getSelectMenuButtonClassName,
-  getSelectMenuOptionStateClassName,
-  getSelectMenuSizeConfig,
   resolveSelectMenuPosition,
   SELECT_MENU_SEARCH_ROW_HEIGHT,
 } from "@/shared/ui/menu/select-menu-model";
+import {
+  getSelectMenuButtonClassName,
+  getSelectMenuOptionStateClassName,
+  getSelectMenuSizeConfig,
+} from "@/shared/ui/menu/select-menu-styles";
 import {
   SelectMenuOptionRow,
   SelectMenuPanel,
@@ -141,7 +143,7 @@ function RoomSkillOptionRow({
       active={isActive}
       className={cn(
         "flex items-center gap-2 px-2.5 py-2 text-sm",
-        getSelectMenuOptionStateClassName("dialog", isActive),
+        getSelectMenuOptionStateClassName(isActive),
       )}
       onClick={() => onToggle(option.value)}
     >
