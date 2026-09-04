@@ -6,141 +6,80 @@ import (
 	"errors"
 	"fmt"
 	"time"
-
-	"github.com/nexus-research-lab/nexus/internal/storage"
 )
 
-func (r *Repository) ListAccounts(ctx context.Context, periodStart time.Time, periodEnd time.Time) ([]AccountEntity, error) {
-	query := r.accountQuery("WHERE u.owner_user_id <> "+r.dialect.Bind(3)) + "\nORDER BY u.created_at ASC, u.owner_user_id ASC"
-	rows, err := r.db.QueryContext(
-		ctx,
-		query,
-		r.dialect.TimestampValue(periodStart),
-		r.dialect.TimestampValue(periodEnd),
-		"__system__",
-	)
-	if err != nil {
-		return nil, fmt.Errorf("list subscription accounts: %w", err)
-	}
-	defer rows.Close()
-
-	var accounts []AccountEntity
-	for rows.Next() {
-		account, scanErr := scanAccount(rows)
-		if scanErr != nil {
-			return nil, scanErr
-		}
-		accounts = append(accounts, account)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate subscription accounts: %w", err)
-	}
-	return accounts, nil
-}
-
-func (r *Repository) GetAccount(ctx context.Context, ownerUserID string, periodStart time.Time, periodEnd time.Time) (*AccountEntity, error) {
-	row := r.db.QueryRowContext(
-		ctx,
-		r.accountQuery("WHERE u.owner_user_id = "+r.dialect.Bind(3)),
+func (r *Repository) GetAccount(
+	ctx context.Context,
+	ownerUserID string,
+	periodStart time.Time,
+	periodEnd time.Time,
+) (*AccountEntity, error) {
+	row := r.db.QueryRowContext(ctx, `
+SELECT p.owner_user_id, p.username, p.display_name, p.role, p.status,
+       e.plan_key, e.plan_name, e.monthly_token_limit,
+       COALESCE(SUM(t.total_tokens), 0),
+       COUNT(DISTINCT t.session_key),
+       COUNT(t.usage_key),
+       p.created_at, e.updated_at
+FROM owner_profiles p
+JOIN owner_entitlements e ON e.owner_user_id = p.owner_user_id
+LEFT JOIN token_usage_records t ON t.owner_user_id = p.owner_user_id
+  AND t.occurred_at >= `+r.dialect.Bind(1)+`
+  AND t.occurred_at < `+r.dialect.Bind(2)+`
+WHERE p.owner_user_id = `+r.dialect.Bind(3)+`
+GROUP BY p.owner_user_id, p.username, p.display_name, p.role, p.status,
+         e.plan_key, e.plan_name, e.monthly_token_limit, p.created_at, e.updated_at`,
 		r.dialect.TimestampValue(periodStart),
 		r.dialect.TimestampValue(periodEnd),
 		ownerUserID,
 	)
 	account, err := scanAccount(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
 		return nil, err
 	}
 	return &account, nil
 }
 
-func (r *Repository) accountQuery(whereClause string) string {
-	return `
-SELECT
-  u.owner_user_id,
-  u.username,
-  COALESCE(u.display_name, ''),
-  u.role,
-  u.status,
-  COALESCE(us.plan_key, 'free') AS plan_key,
-  COALESCE(sp.display_name, 'Free') AS plan_name,
-  sp.monthly_token_limit,
-  COALESCE(SUM(t.total_tokens), 0) AS used_tokens,
-  COUNT(DISTINCT t.session_key) AS session_count,
-  COUNT(t.usage_key) AS message_count,
-  us.period_start,
-  us.period_end,
-  u.created_at,
-  u.updated_at
-FROM owner_profiles u
-LEFT JOIN user_subscriptions us ON us.owner_user_id = u.owner_user_id
-LEFT JOIN subscription_plans sp ON sp.plan_key = COALESCE(us.plan_key, 'free')
-LEFT JOIN token_usage_records t ON t.owner_user_id = u.owner_user_id
-  AND t.occurred_at >= ` + r.dialect.Bind(1) + `
-  AND t.occurred_at < ` + r.dialect.Bind(2) + `
-` + whereClause + `
-GROUP BY
-  u.owner_user_id,
-  u.username,
-  u.display_name,
-  u.role,
-  u.status,
-  us.plan_key,
-  sp.display_name,
-  sp.monthly_token_limit,
-  us.period_start,
-  us.period_end,
-  u.created_at,
-  u.updated_at`
-}
-
-func (r *Repository) UpsertUserSubscription(ctx context.Context, entity UserSubscriptionEntity) error {
-	now := time.Now().UTC()
-	if entity.CreatedAt.IsZero() {
-		entity.CreatedAt = now
-	}
-	if entity.UpdatedAt.IsZero() {
-		entity.UpdatedAt = now
-	}
-
-	query := `
-INSERT INTO user_subscriptions (
-  owner_user_id,
-  plan_key,
-  period_start,
-  period_end,
-  created_at,
-  updated_at
-) VALUES (
-  ` + r.dialect.Bind(1) + `,
-  ` + r.dialect.Bind(2) + `,
-  ` + r.dialect.Bind(3) + `,
-  ` + r.dialect.Bind(4) + `,
-  ` + r.dialect.Bind(5) + `,
-  ` + r.dialect.Bind(6) + `
-)
-ON CONFLICT(owner_user_id) DO UPDATE SET
-  plan_key = excluded.plan_key,
-  period_start = excluded.period_start,
-  period_end = excluded.period_end,
-  updated_at = excluded.updated_at`
-
-	_, err := r.db.ExecContext(
-		ctx,
-		query,
-		entity.OwnerUserID,
-		entity.PlanKey,
-		timeValue(entity.PeriodStart, r.dialect),
-		timeValue(entity.PeriodEnd, r.dialect),
-		r.dialect.TimestampValue(entity.CreatedAt),
-		r.dialect.TimestampValue(entity.UpdatedAt),
+func (r *Repository) ListUsage(
+	ctx context.Context,
+	periodStart time.Time,
+	periodEnd time.Time,
+) ([]UsageEntity, error) {
+	rows, err := r.db.QueryContext(ctx, `
+SELECT b.control_user_id,
+       COALESCE(SUM(t.total_tokens), 0),
+       COUNT(DISTINCT t.session_key),
+       COUNT(t.usage_key)
+FROM local_owner_bindings b
+LEFT JOIN token_usage_records t ON t.owner_user_id = b.local_owner_key
+  AND t.occurred_at >= `+r.dialect.Bind(1)+`
+  AND t.occurred_at < `+r.dialect.Bind(2)+`
+GROUP BY b.control_user_id
+ORDER BY b.control_user_id ASC`,
+		r.dialect.TimestampValue(periodStart),
+		r.dialect.TimestampValue(periodEnd),
 	)
 	if err != nil {
-		return fmt.Errorf("upsert user subscription: %w", err)
+		return nil, err
 	}
-	return nil
+	defer rows.Close()
+	items := make([]UsageEntity, 0)
+	for rows.Next() {
+		var item UsageEntity
+		if err = rows.Scan(
+			&item.ControlUserID,
+			&item.UsedTokens,
+			&item.SessionCount,
+			&item.MessageCount,
+		); err != nil {
+			return nil, fmt.Errorf("scan subscription usage: %w", err)
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
 }
 
 type accountScanner interface {
@@ -150,8 +89,6 @@ type accountScanner interface {
 func scanAccount(scanner accountScanner) (AccountEntity, error) {
 	var account AccountEntity
 	var monthlyLimit sql.NullInt64
-	var periodStart sql.NullTime
-	var periodEnd sql.NullTime
 	if err := scanner.Scan(
 		&account.OwnerUserID,
 		&account.Username,
@@ -164,8 +101,6 @@ func scanAccount(scanner accountScanner) (AccountEntity, error) {
 		&account.UsedTokens,
 		&account.SessionCount,
 		&account.MessageCount,
-		&periodStart,
-		&periodEnd,
 		&account.CreatedAt,
 		&account.UpdatedAt,
 	); err != nil {
@@ -174,18 +109,5 @@ func scanAccount(scanner accountScanner) (AccountEntity, error) {
 	if monthlyLimit.Valid {
 		account.MonthlyTokenLimit = &monthlyLimit.Int64
 	}
-	if periodStart.Valid {
-		account.PeriodStart = &periodStart.Time
-	}
-	if periodEnd.Valid {
-		account.PeriodEnd = &periodEnd.Time
-	}
 	return account, nil
-}
-
-func timeValue(value *time.Time, dialect storage.SQLDialect) any {
-	if value == nil {
-		return nil
-	}
-	return dialect.TimestampValue(*value)
 }

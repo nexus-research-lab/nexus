@@ -51,7 +51,7 @@ src/
 - API 客户端按 endpoint 所有权归入 `lib/api/{agent,account,capability,conversation,settings}/`，通用传输在 `core/` 按请求、响应、错误和鉴权事件拆分；消费者直接导入职责文件，不保留旧路径转发层
 - 共享 UI 基础组件按 `button/`、`form/`、`display/`、`list/` 与 `navigation/` 分组；唯一所有者和关键行为测试清单见 `shared/ui/CLAUDE.md`，消费者直接导入职责文件，不恢复根级聚合出口
 - Surface 搜索入口统一由 `UiSearchInput` 提供中性灰白底、hairline 边界及交互态；客户端字段匹配统一调用 `shared/ui/form/search-query.ts`。消费者只调整尺寸和布局，并显式选择字段、匹配方式与本地/远端/跨域范围，不得局部覆写背景、边框或阴影；能力侧栏默认只筛导航项，不隐式下探各能力资源
-- Light/Sunny 壳层以 `#f9f9f7` 为页面真相源，导航、目录、主画布依靠相邻中性灰阶分区；主侧栏外缘只绘制一根不透明 hairline，展开态从物理窗口顶端贯穿到底部，折叠态从 Header 底部开始以避开原生窗口按钮，内部 Dock 不再叠加竖线或外投影。Nexus 品牌蓝只用于发送、保存、创建、连接等主行动，以及焦点、运行态和明确选中模式；普通导航与次级工具保持黑白灰，teal 只表达次级数据/文件类型，红绿黄只表达危险、成功和警告
+- Light/Sunny 壳层以 `#f9f9f7` 为页面真相源，导航、目录、主画布依靠相邻中性灰阶分区；展开的主侧栏外缘只绘制一根从物理窗口顶端贯穿到底部的不透明 hairline，折叠时侧栏与分界完全退出画布，恢复动作进入原生窗口控制安全区，内部 Dock 不再叠加竖线或外投影。Nexus 品牌蓝只用于发送、保存、创建、连接等主行动，以及焦点、运行态和明确选中模式；普通导航与次级工具保持黑白灰，teal 只表达次级数据/文件类型，红绿黄只表达危险、成功和警告
 - App Typography 由 `app/styles/theme-tokens.css` 的字号阶梯、`app/styles/theme-recipes.css` 的 `.ui-type-*` 配方和 `shared/ui/typography/typography-styles.ts` 的 typed role 统一定义：系统 UI 字体栈保持原生，普通控件使用 14px，页面标题使用 16px，20px 以上只承担对象主标题、品牌或特定空态；业务组件选择 role、tone 和有限 weight，只自行负责语义标签与布局。根节点不得用界面 token 覆盖继承字号，对话、文件和其他阅读正文继续由所属 Surface 显式声明。业务组件不得用 15/17/22px 等近似任意值恢复旧界面尺度；字体收紧不得同步削减输入框、按钮或移动端触控热区。完整合同见 `docs/specs/web-surface-density-spec.md`
 - Settings 的标题、说明、控件文字与分段选项必须分别复用语义 Typography 和 `UiSegmentedControl`；单行/多行/整行布尔表单分别复用 `UiInput / UiTextarea / UiCheckboxRow`，Settings Feature 不得直接渲染原生 `input / textarea / select`。`settings-panel-ui.tsx` 只组合设置域布局，不得定义第二套字号、字重、圆角或选中阴影。
 - 主侧栏品牌栏只保留 Launcher 字标与折叠控制；一级导航承载聊天、联系人和能力，能力下方仅在存在用户固定会话时显示分割线与可拖放排序的固定区，每项的 X 只取消固定、不关闭或删除会话；Nexus 主智能体以不可删除的默认 DM 固定在聊天目录顶部；底部统一承载设置、引导与按认证状态显示的退出，展开态将退出和常用入口分居两侧
@@ -72,7 +72,7 @@ src/
 - 应用 Tour 目录和引导中心归 `features/onboarding/`；页面只注册当前 Tour 与锚点，跨页面导航、自动启动和目录投影不得下沉到 `shared/ui`
 - Room 群聊面板只在 `panel/` 组合会话、Goal 与输入区模型；普通和虚拟消息流必须共用 `feed/group-conversation-round.tsx`，不得复制轮次分支
 - DM 与 Room 只通过 `shared/session/use-conversation-session.ts` 串联运行时、滚动、历史和时间线；具体面板只装配业务模型
-- DM/Room 滚动视口、历史提示、可靠性状态和浮动控制统一由 `shared/conversation-panel-layout.tsx` 渲染，不复制表面布局 class；可靠性提示只进入 Composer 状态栈，不进入 Feed 几何、transcript、历史或未读
+- DM/Room 滚动视口、历史提示、可靠性状态和浮动控制统一由 `shared/conversation-panel-layout.tsx` 渲染，不复制表面布局 class；可靠性提示只进入 Composer 状态栈，不进入 Feed 几何、transcript、历史或未读；runtime 的 ephemeral `api_retry` 是执行过程事实，按消息块展示原始错误、次数和倒计时后随 round 收口
 - Room 与子智能体统一消费 `conversation/shared/thread/` 的 Thread 轮次契约和消息面板；共享域不得反向依赖 Room 私有目录
 - 子智能体列表与线程复用 `shared/subagent/use-scoped-resource.ts` 的作用域请求协议；线程按资源和纯投影拆分为只读执行记录，公共 Hook 只做装配；Room 由私有适配层复用成员选择器并按任务 `host_agent_id` 过滤，共享域不得反向依赖 Room
 - Room 主 Feed 与 Thread 共用 `room/group/round/round-agent-model.ts` 的 Agent 聚合状态；状态优先级不得在视图中重复推导
@@ -97,7 +97,7 @@ src/
 - Room 页面私有控制器归 `pages/room/controller/`，浏览器协调归 `pages/room/orchestration/`；领域 Feature 不读取路由，页面不解释服务端资源协议
 - Room 成员管理由页面命令层绑定作用域并按“添加成员 → 更新设置 → 暂停/恢复变化 → 移除成员”的依赖顺序执行；Header 只提交完整表单对象，Surface 不传播成员增删、参与状态和设置更新的散装回调
 - Contacts 页面使用互斥编辑状态，Agent 目录与 Agent 视角通讯客户端的联系人、Session、消息和命令归 `pages/contacts/controller/`，URL 选择与 Room 跳转归 `pages/contacts/orchestration/`
-- 宽侧栏由 `features/navigation/sidebar/` 管理；展开与收起共用单一常驻壳层、固定 48px 一级导航 Dock 和系统操作，Dock 图标交互面与 32px 聊天头像同尺度，只有目录可见性与外层宽度变化，路由/Store 同步只留在控制器
+- 宽侧栏由 `features/navigation/sidebar/` 管理；展开与收起共用单一常驻壳层，展开态承载固定 64px 一级导航 Dock、目录和系统操作，收起态将整层压到 0 宽并仅在共享 Header 安全区保留恢复按钮；路由/Store 同步只留在控制器
 - 能力侧栏归 `features/capability/sidebar/`；导航项由定义表投影，摘要刷新合并和窗口重验证只由专用资源 Hook 管理，业务行不得伪装成共享 UI
 - 能力、设置与联系人等管理页面共用 `shared/ui/layout/workspace-content-layout.ts` 定义的铺满内容面，并由单一 `--workspace-content-gutter` 在 20–32px 间随屏幕平滑调整；正文、共享 Surface Header、Agent 内联详情和横向滚动区必须保持同一左右基线。页面用 `workspace-content-header.tsx` 统一标题与动作，会影响识别、比较或决策的用途说明必须保留；能力目录由 `features/capability/shared/capability-page-layout.tsx` 组合用途说明、筛选、分区节奏、三列间距、可见条目边框与无品牌资源时的方形身份图标，工作循环条目按稳定 `slug` 复用公共数学曲线头像。普通目录在桌面统一使用三列，窄窗逐级收拢；定时任务正式看板保持四列，宽度不足时横向滚动而不折成两列。能力标题使用名词或明确任务短语，单一目录不重复同名分区或结果计数，分类计数、装饰空态和默认事实不占用首屏；目录行保留真实用途摘要、状态和当前选择所需元数据，说明可最多两行。完整指令、协议实现、内部 Session/绑定键与诊断字段进入详情或折叠区；外部账号或配对标识若用于区分被管理对象则直接展示。详情页继续使用适合长文阅读的窄版心。当前规范见 `docs/specs/capability-page-design-spec.md`
 - 所有主页面遵循 `docs/specs/web-surface-density-spec.md`：首层只回答页面身份、当前对象、状态和可执行动作；能力与管理目录没有真实摘要时不显示占位句，联系人侧栏保留“暂无描述”的稳定双行结构；候选配置不同时展开全部说明，Token、成本、模型、原始 ID 与诊断事实进入按需详情，但普通 Agent 身份页的 AGENTS.md 保持完整可审阅；移动端不得在应用栏和正文重复同一页面身份。

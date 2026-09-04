@@ -48,14 +48,19 @@ export function resolveAssistantFailureCode(
     case "content_filtered":
       return "safety_rejected";
     case "rate_limit":
+    case "server_error":
     case "server_overload":
       return "provider_unavailable";
+    case "billing_error":
     case "subscription_quota":
     case "usage_limit":
       return "usage_limited";
+    case "authentication_failed":
     case "authentication_error":
     case "provider_configuration":
       return "provider_configuration";
+    case "invalid_request":
+      return "validation_failed";
     default:
       return "round_failed";
   }

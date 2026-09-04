@@ -83,6 +83,11 @@ function projectSystemEventBlock(
     timestamp: systemMessage.timestamp,
     tone: displayMeta.tone,
     tool_use_id: getSystemEventToolUseId(systemMessage),
+    attempt: systemMessage.metadata?.attempt,
+    max_retries: systemMessage.metadata?.max_retries,
+    retry_delay_ms: systemMessage.metadata?.retry_delay_ms,
+    error_status: systemMessage.metadata?.error_status,
+    error: systemMessage.metadata?.error,
   };
 }
 

@@ -78,8 +78,6 @@ interface SidebarPanelProps {
   };
 }
 
-const COLLAPSED_SIDEBAR_WIDTH = 68;
-
 const PANEL_CONTENT: Record<SidebarPrimaryTab, ComponentType> = {
   capabilities: CapabilityPanel,
   chat: ChatSidebarPanelContent,
@@ -108,7 +106,7 @@ export function SidebarPanel({
   utility,
 }: SidebarPanelProps) {
   const ActivePanelContent = PANEL_CONTENT[activeTab];
-  const width = collapsed ? COLLAPSED_SIDEBAR_WIDTH : expandedWidth;
+  const width = collapsed ? 0 : expandedWidth;
   const resizeEnabled = resizable && !collapsed;
 
   return (
@@ -125,12 +123,13 @@ export function SidebarPanel({
         </div>
       ) : null}
       <div
+        aria-hidden={collapsed || undefined}
         className={cn(
           "sidebar-panel-shell desktop-rail relative flex h-full shrink-0 flex-col overflow-hidden",
-          HOME_SIDEBAR_PADDING_CLASS,
+          !collapsed && HOME_SIDEBAR_PADDING_CLASS,
           resizeEnabled && resizeHotzoneActive && "cursor-col-resize",
         )}
-        data-shell-split-edge={showSplitEdge ? "true" : undefined}
+        data-shell-split-edge={showSplitEdge && !collapsed ? "true" : undefined}
         data-sidebar-collapsed={collapsed ? "true" : undefined}
         data-sidebar-resizing={
           resizeEnabled && resizing ? "true" : undefined
@@ -141,6 +140,7 @@ export function SidebarPanel({
         onPointerLeave={resizeEnabled ? onPointerLeave : undefined}
         onPointerMove={resizeEnabled ? onPointerMove : undefined}
         onPointerUp={resizeEnabled ? onPointerUp : undefined}
+        inert={collapsed ? true : undefined}
         ref={resizeEnabled ? rootRef : undefined}
         style={{ width }}
       >
@@ -195,12 +195,10 @@ export function SidebarPanel({
               <SidebarPinnedConversations {...pinnedConversations} />
             </nav>
             <div
-              aria-hidden={collapsed || undefined}
               className={cn(
                 "sidebar-panel-directory soft-scrollbar scrollbar-stable-gutter flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto py-2.5",
                 collapsed && "pointer-events-none opacity-0",
               )}
-              inert={collapsed ? true : undefined}
             >
               <ActivePanelContent />
             </div>

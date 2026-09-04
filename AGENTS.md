@@ -51,8 +51,9 @@ docs/       - 开源文档入口；README.md 是索引，guides/ 面向用户与
 
 ## 状态根契约
 
-- `.nexus` 是统一 `NEXUS_STATE_ROOT`；宿主数据位于 `.nexus/app`。
+- `.nexus` 是统一 `NEXUS_STATE_ROOT`；Nexus 宿主数据位于 `.nexus/app`，独立 Control 数据位于 `.nexus/control`，供 Nexus 读取的公钥镜像位于 `.nexus/control-public`。
 - 服务端 Web 的 User、密码和 Session 权威位于独立 `nexus-control`；同一套 Nexus Web Shell 将 `/auth/v1` 的登录、登出、资料、改密、首次初始化和成员管理请求同源发送给 Control，Nexus Server 只验证短期签名 Principal，并用 `local_owner_bindings` 将 Control 身份确定性映射到本地 owner key，展示资料只投影到 `owner_profiles`。每个 Nexus 副本独立消费 Control 的持久身份失效序列：登出只清 exact browser Session 与 WebSocket，资料变更刷新 owner 连接但保留 Agent runtime，角色变更或停用才关闭该 owner 的连接与 runtime。Desktop Local 使用无密码本地主体；旧 `users`/认证表只允许迁移代码读取，不再属于运行时账号系统。
+- 服务端 Web 的订阅套餐与成员 entitlement 写权威也位于 `nexus-control`。Nexus 只保存 `owner_entitlements` 本地投影、持久 Control 事件游标和自身 token 用量，并在新 runtime 请求前按投影校验额度；`entitlement_changed` 只刷新投影，不中断正在执行的 Agent。旧 `subscription_plans`/`user_subscriptions` 只允许迁移读取。运营页中的公共 Provider 与项目 ACL 仍属于 Nexus 运行资源，不迁入 Control。
 - 桌面端只迁移完整 `NEXUS_STATE_ROOT`：原生宿主退出 sidecar 后离线复制 `app/`、`users/` 与其余状态，切换宿主外的启动指针并直接重启；启动提交阶段必须先重映射持久路径与路径派生的 Session 删除恢复文件名，再通过健康检查提交新根；业务进程不支持拆分或在线迁移局部子树。
 - 用户数据位于 `.nexus/users/<owner>/`，该 owner 的 runtime 对整棵用户数据根拥有读写权限，跨 owner 访问仍拒绝；`workspace/` 保存 Agent 工作目录与 `.rooms/` 公共附件，`runtime/` 同时作为 `NEXUS_CONFIG_DIR` 与 `CLAUDE_CONFIG_DIR`，Room ledger 固定写入 `state/rooms/`。
 - nxs 长期记忆固定写入当前 Agent workspace 的 `MEMORY.md` 与 `memory/`；Nexus 管理的 runtime 不接受宿主环境、请求环境或远端记忆配置改写该根目录。会话摘要仍独立位于 owner 的 `runtime/projects/`。

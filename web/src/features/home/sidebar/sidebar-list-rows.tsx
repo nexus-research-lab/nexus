@@ -151,7 +151,7 @@ function ConversationRowStatus({
 function ConversationRowSummary({ item }: { item: SidebarConversationItem }) {
   return (
     <UiMarkdownContent
-      className="nexus-sidebar-conversation-summary truncate text-compact leading-[1.125rem] text-(--text-muted) [&_*]:leading-[1.125rem]"
+      className="nexus-sidebar-conversation-summary truncate text-compact leading-[1.125rem] text-(--text-soft) [&_*]:leading-[1.125rem]"
       content={item.summary}
       mermaidShowHeader={false}
       summaryMonochrome
