@@ -1316,6 +1316,7 @@ test("desktop hosts share viewport bounds but keep platform chrome ownership sep
 test("floating feedback reuses shared surface, layer, and typography recipes", async () => {
   const [
     banner,
+    bannerModel,
     viewport,
     recovery,
     inlineNotice,
@@ -1325,6 +1326,7 @@ test("floating feedback reuses shared surface, layer, and typography recipes", a
     conversationPanel,
   ] = await Promise.all([
     readSource("src/shared/ui/feedback/feedback-banner.tsx"),
+    readSource("src/shared/ui/feedback/feedback-banner-model.ts"),
     readSource("src/shared/ui/feedback/feedback-banner-viewport.tsx"),
     readSource("src/shared/ui/feedback/recovery-summary.tsx"),
     readSource("src/shared/ui/feedback/inline-notice.tsx"),
@@ -1336,8 +1338,10 @@ test("floating feedback reuses shared surface, layer, and typography recipes", a
 
   assert.match(banner, /surface-popover surface-radius-md/);
   assert.match(banner, /getUiTypographyClassName/);
+  assert.match(banner, /getUiToneClassName/);
   assert.doesNotMatch(banner, /shadow-\[/);
   assert.doesNotMatch(banner, /rounded-\[/);
+  assert.doesNotMatch(bannerModel, /lucide-react|className|text-\(|shadow-|rounded-/);
   assert.match(viewport, /getUiOverlayLayerClassName\("feedback"\)/);
   assert.doesNotMatch(viewport, /\bz-(?:\d+|\[)/);
   assert.match(recovery, /getUiTypographyClassName/);
