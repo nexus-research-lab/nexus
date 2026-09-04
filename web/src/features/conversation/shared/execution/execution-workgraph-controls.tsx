@@ -23,6 +23,7 @@ import {
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
+import { UiSearchInput } from "@/shared/ui/form/form-control";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 interface ExecutionWorkGraphControlsProps {
@@ -182,15 +183,12 @@ export function ExecutionWorkGraphControls({
 
       {searchOpen ? (
         <div className="surface-popover surface-radius-sm pointer-events-auto flex w-[min(22rem,calc(100vw-2rem))] items-center gap-1 p-1.5">
-          <Search aria-hidden="true" className="ml-1 h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
-          <input
+          <UiSearchInput
             aria-label={t("execution.search_graph")}
-            className={cn(
-              "h-7 min-w-0 flex-1 bg-transparent px-1 outline-none placeholder:text-(--text-soft)",
-              getUiTypographyClassName({ role: "control", tone: "strong" }),
-            )}
+            className="min-w-0 flex-1"
             data-execution-graph-search
-            onChange={(event) => onQueryChange(event.target.value)}
+            inputClassName={getUiTypographyClassName({ role: "control", tone: "strong" })}
+            onChange={onQueryChange}
             onKeyDown={(event) => {
               if (event.key === "Escape") {
                 closeSearch();
@@ -206,6 +204,7 @@ export function ExecutionWorkGraphControls({
             placeholder={t("execution.search_placeholder")}
             ref={searchRef}
             value={query}
+            variant="toolbar"
           />
           {query ? (
             <span className={cn(

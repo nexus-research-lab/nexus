@@ -1,3 +1,4 @@
+import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 import type { LoopCatalogItem } from "@/types/capability/loop";
 
 export const ALL_LOOP_CATEGORIES = "__all__";
@@ -22,10 +23,17 @@ export function filterLoops(
   category: string,
   query: string,
 ): LoopCatalogItem[] {
-  const normalizedQuery = query.trim().toLowerCase();
+  const search = createUiSearchMatcher(query);
   return loops.filter((loop) => [
     matchesLoopCategory(loop, category),
-    buildLoopSearchText(loop).includes(normalizedQuery),
+    search.matches([
+      loop.title,
+      loop.description,
+      loop.category,
+      loop.trigger_type,
+      ...loop.tags,
+      ...loop.compatible_agents,
+    ]),
   ].every(Boolean));
 }
 
@@ -34,17 +42,6 @@ function matchesLoopCategory(
   category: string,
 ): boolean {
   return new Set([ALL_LOOP_CATEGORIES, loop.category]).has(category);
-}
-
-function buildLoopSearchText(loop: LoopCatalogItem): string {
-  return [
-    loop.title,
-    loop.description,
-    loop.category,
-    loop.trigger_type,
-    ...loop.tags,
-    ...loop.compatible_agents,
-  ].join(" ").toLowerCase();
 }
 
 export function projectLoopPickerContentKind({

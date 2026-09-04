@@ -17,10 +17,10 @@ import {
   SidebarSearchAction,
   SidebarSearchField,
 } from "@/shared/ui/form/sidebar-search-field";
+import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 import { SIDEBAR_TOUR_ANCHORS } from "@/features/onboarding/tours/sidebar-navigation-tour";
 import { useSidebarStore } from "@/store/sidebar";
 
-import { normalizeSidebarQuery } from "./sidebar-conversation-model";
 import { useSidebarDirectory } from "./sidebar-directory";
 import {
   ContactRow,
@@ -47,10 +47,8 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
     ? new URLSearchParams(location.search).get("agent")
     : null;
   const filteredAgents = useMemo(() => {
-    const normalizedQuery = normalizeSidebarQuery(query);
-    return normalizedQuery
-      ? agents.filter((agent) => agent.name.toLowerCase().includes(normalizedQuery))
-      : agents;
+    const search = createUiSearchMatcher(query);
+    return agents.filter((agent) => search.matches([agent.name]));
   }, [agents, query]);
 
   const openContactsDirectory = useCallback(() => {

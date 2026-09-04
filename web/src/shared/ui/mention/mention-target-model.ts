@@ -1,3 +1,5 @@
+import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
+
 export type MentionTrigger = "@" | "#";
 
 export interface MentionTargetItem {
@@ -82,13 +84,8 @@ export function filterMentionTargets(
   items: readonly MentionTargetItem[],
   filter: string,
 ): MentionTargetItem[] {
-  const normalizedFilter = filter.trim().toLowerCase();
-  if (!normalizedFilter) {
-    return [...items];
-  }
-  return items.filter((item) =>
-    item.label.toLowerCase().includes(normalizedFilter)
-    || item.subtitle?.toLowerCase().includes(normalizedFilter));
+  const search = createUiSearchMatcher(filter);
+  return items.filter((item) => search.matches([item.label, item.subtitle]));
 }
 
 export function getMentionKeyboardAction(key: string): MentionKeyboardAction | null {

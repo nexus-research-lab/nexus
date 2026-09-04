@@ -28,6 +28,7 @@ import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiField, UiInput, UiSearchInput } from "@/shared/ui/form/form-control";
+import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 import { UiListRow } from "@/shared/ui/list/list-row";
 import { UiPanel } from "@/shared/ui/panel";
 import type { Agent, AgentContact } from "@/types/agent/agent";
@@ -217,11 +218,10 @@ function AddContactDialog({
   const [query, setQuery] = useResettableState("", agentId);
   const [selectedAgentId, setSelectedAgentId] = useResettableState("", agentId);
   const [alias, setAlias] = useResettableState("", agentId);
-  const candidates = agents.filter((candidate) => (
-    getCommunicationAgentName(candidate)
-      .toLocaleLowerCase()
-      .includes(query.trim().toLocaleLowerCase())
-  ));
+  const search = createUiSearchMatcher(query);
+  const candidates = agents.filter((candidate) => search.matches([
+    getCommunicationAgentName(candidate),
+  ]));
   const titleId = `add-agent-contact-${agentId}`;
   const submit = async () => {
     if (selectedAgentId && await onAdd(selectedAgentId, alias)) {

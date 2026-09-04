@@ -70,11 +70,13 @@ describe("ExecutionWorkGraphControls", () => {
     } = renderControls();
 
     fireEvent.click(screen.getByRole("button", { name: /search workgraph|搜索工作图/i }));
-    const input = screen.getByRole("textbox", { name: /search workgraph|搜索工作图/i });
-    const searchSurface = input.parentElement;
+    const input = screen.getByRole("searchbox", { name: /search workgraph|搜索工作图/i });
+    const searchShell = input.parentElement;
+    const searchSurface = searchShell?.parentElement;
 
     expect(document.activeElement).toBe(input);
     expect(input.className).toContain("ui-type-control");
+    expect(searchShell?.className).toContain("h-7");
     expect(searchSurface?.className).toContain("surface-popover");
     expect(container.querySelectorAll("button:disabled")).toHaveLength(2);
 
@@ -85,6 +87,6 @@ describe("ExecutionWorkGraphControls", () => {
 
     fireEvent.keyDown(input, { key: "Escape" });
     expect(onQueryChange).toHaveBeenCalledWith("");
-    expect(screen.queryByRole("textbox", { name: /search workgraph|搜索工作图/i })).toBeNull();
+    expect(screen.queryByRole("searchbox", { name: /search workgraph|搜索工作图/i })).toBeNull();
   });
 });

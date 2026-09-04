@@ -1,3 +1,4 @@
+import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 import type { CommandDescriptor } from "@/types/generated/protocol";
 import type { ProviderOptionsResponse } from "@/types/capability/provider";
 import type { SkillInfo } from "@/types/capability/skill";
@@ -62,12 +63,10 @@ export function filterSlashCommands(
   commands: CommandDescriptor[],
   query: string,
 ): CommandDescriptor[] {
-  const normalizedQuery = query.trim().toLocaleLowerCase();
-  const matchingCommands = normalizedQuery
-    ? commands.filter((command) => normalizeSlashCommandName(command.name)
-      .toLocaleLowerCase()
-      .startsWith(normalizedQuery))
-    : [...commands];
+  const search = createUiSearchMatcher(query);
+  const matchingCommands = commands.filter((command) => search.matches([
+    normalizeSlashCommandName(command.name),
+  ], "prefix"));
   return matchingCommands.sort((left, right) => slashCommandNameCollator.compare(
     normalizeSlashCommandName(left.name),
     normalizeSlashCommandName(right.name),
@@ -83,36 +82,27 @@ export function filterSlashSkills(
   query: string,
   resolveDescription: SkillDescriptionResolver = (skill) => skill.description,
 ): SkillInfo[] {
-  const normalizedQuery = query.trim().toLocaleLowerCase();
-  if (!normalizedQuery) {
-    return skills;
-  }
-  return skills.filter((skill) => {
-    const searchableText = [
-      skill.name,
-      skill.title,
-      resolveDescription(skill),
-      skill.category_name,
-      skill.source_name ?? "",
-      skill.tags.join("\n"),
-    ].join("\n").toLocaleLowerCase();
-    return searchableText.includes(normalizedQuery);
-  });
+  const search = createUiSearchMatcher(query);
+  return skills.filter((skill) => search.matches([
+    skill.name,
+    skill.title,
+    resolveDescription(skill),
+    skill.category_name,
+    skill.source_name,
+    ...skill.tags,
+  ]));
 }
 
 export function filterSlashModels(
   models: SlashModelOption[],
   query: string,
 ): SlashModelOption[] {
-  const normalizedQuery = query.trim().toLocaleLowerCase();
-  if (!normalizedQuery) {
-    return models;
-  }
-  return models.filter((model) => [
+  const search = createUiSearchMatcher(query);
+  return models.filter((model) => search.matches([
     model.id,
     model.label,
-    model.providerLabel ?? "",
-  ].join("\n").toLocaleLowerCase().includes(normalizedQuery));
+    model.providerLabel,
+  ]));
 }
 
 export function isSelectableSlashCommand(

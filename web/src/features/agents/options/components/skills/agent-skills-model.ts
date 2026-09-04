@@ -6,6 +6,7 @@ import {
   type MutationFailureEffect,
 } from "@/lib/error-message";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
+import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 import type { AgentSkillEntry } from "@/types/capability/skill";
 
 export interface AgentSkillMutationTarget {
@@ -94,25 +95,6 @@ export interface AgentSkillsProjection {
 
 type SkillDescriptionResolver = (skill: AgentSkillEntry) => string;
 
-const SEARCH_FIELDS: Array<keyof Pick<
-  AgentSkillEntry,
-  "category_name" | "name" | "title"
->> = ["name", "title", "category_name"];
-
-function matchesSearch(
-  skill: AgentSkillEntry,
-  query: string,
-  resolveDescription: SkillDescriptionResolver,
-): boolean {
-  if (SEARCH_FIELDS.some((field) => skill[field].toLowerCase().includes(query))) {
-    return true;
-  }
-  if (resolveDescription(skill).toLowerCase().includes(query)) {
-    return true;
-  }
-  return skill.tags.some((tag) => tag.toLowerCase().includes(query));
-}
-
 function resolveAvailableEmptyState(
   totalCount: number,
   availableCount: number,
@@ -145,12 +127,14 @@ export function projectAgentSkills(
     }
   }
 
-  const query = searchQuery.trim().toLowerCase();
-  const visibleAvailable = query
-    ? available.filter((skill) => (
-      matchesSearch(skill, query, resolveDescription)
-    ))
-    : available;
+  const search = createUiSearchMatcher(searchQuery);
+  const visibleAvailable = available.filter((skill) => search.matches([
+    skill.name,
+    skill.title,
+    skill.category_name,
+    resolveDescription(skill),
+    ...skill.tags,
+  ]));
   const availableEmptyState = resolveAvailableEmptyState(
     skills.length,
     available.length,

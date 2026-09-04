@@ -36,6 +36,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
+import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import type { FeedbackBannerProps } from "@/shared/ui/feedback/feedback-banner-contract";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
@@ -100,15 +101,14 @@ export function WorkGraphDistillationsDirectory() {
   const hasSnapshot = loadedLocale === locale;
 
   const filtered = useMemo(() => {
-    const normalized = query.trim().toLocaleLowerCase();
-    if (!normalized) return items;
-    return items.filter((item) => [
+    const search = createUiSearchMatcher(query);
+    return items.filter((item) => search.matches([
       item.slash_name,
       item.title,
-      item.description ?? "",
+      item.description,
       item.objective,
       ...item.nodes.flatMap((node) => [node.subject, node.objective, node.deliverable]),
-    ].join(" ").toLocaleLowerCase().includes(normalized));
+    ]));
   }, [items, query]);
   const selected = items.find((item) => item.id === distillationId) ?? null;
 

@@ -3,6 +3,7 @@ import type {
   ImChannelType,
 } from "@/lib/api/capability/channel-api";
 import type { TranslationKey } from "@/shared/i18n/messages";
+import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 
 import { isChannelPlanned } from "../channel-model";
 
@@ -131,25 +132,18 @@ export function filterChannels(
   filter: ChannelFilter,
   searchQuery: string,
 ): ChannelConfigView[] {
-  const query = searchQuery.trim().toLowerCase();
+  const search = createUiSearchMatcher(searchQuery);
   return [...channels]
     .sort((left, right) => channelOrder(left) - channelOrder(right))
-    .filter((item) => matchesChannelQuery(item, query) && CHANNEL_FILTERS[filter](item));
+    .filter((item) => search.matches([
+      item.title,
+      item.bot_label,
+      item.channel_type,
+      item.agent_name,
+    ]) && CHANNEL_FILTERS[filter](item));
 }
 
 function channelOrder(item: ChannelConfigView): number {
   const index = CHANNEL_ORDER.indexOf(item.channel_type);
   return index < 0 ? CHANNEL_ORDER.length : index;
-}
-
-function matchesChannelQuery(item: ChannelConfigView, query: string): boolean {
-  if (!query) {
-    return true;
-  }
-  return [
-    item.title,
-    item.bot_label,
-    item.channel_type,
-    item.agent_name ?? "",
-  ].some((value) => value.toLowerCase().includes(query));
 }

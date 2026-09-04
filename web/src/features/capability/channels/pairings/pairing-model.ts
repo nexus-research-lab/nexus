@@ -11,6 +11,7 @@ import type {
   PairingView,
 } from "@/lib/api/capability/channel-api";
 import type { Agent } from "@/types/agent/agent";
+import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 
 import {
   CHANNEL_LABELS,
@@ -86,7 +87,7 @@ export function filterPairings(
   items: PairingView[],
   filters: PairingFilters,
 ): PairingView[] {
-  const normalizedQuery = filters.query.trim().toLowerCase();
+  const search = createUiSearchMatcher(filters.query);
   return items.filter((item) => {
     if (filters.agentId && item.agent_id !== filters.agentId) {
       return false;
@@ -97,9 +98,7 @@ export function filterPairings(
     if (!matchesStatusFilter(item.status, filters.status)) {
       return false;
     }
-    return !normalizedQuery || pairingSearchValues(item).some(
-      (value) => value.toLowerCase().includes(normalizedQuery),
-    );
+    return search.matches(pairingSearchValues(item));
   });
 }
 
