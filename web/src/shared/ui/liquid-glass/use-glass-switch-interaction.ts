@@ -1,3 +1,7 @@
+// INPUT: Switch 的 checked/disabled 状态、变更命令与键盘/指针事件。
+// OUTPUT: 不依赖宿主一定支持 pointer capture 的按压、释放和过渡生命周期。
+// POS: GlassSwitch 交互 Hook；不渲染 DOM、定义视觉几何或提交业务状态。
+
 import {
   useCallback,
   useEffect,
@@ -112,12 +116,18 @@ export function useGlassSwitchInteraction({
     if (disabled) {
       return;
     }
-    event.currentTarget.setPointerCapture(event.pointerId);
+    if (typeof event.currentTarget.setPointerCapture === "function") {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
     press();
   }, [disabled, press]);
 
   const handlePointerUp = useCallback((event: PointerEvent<HTMLButtonElement>) => {
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+    if (
+      typeof event.currentTarget.hasPointerCapture === "function"
+      && typeof event.currentTarget.releasePointerCapture === "function"
+      && event.currentTarget.hasPointerCapture(event.pointerId)
+    ) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
     release();

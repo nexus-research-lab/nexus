@@ -42,6 +42,7 @@ const REQUIRED_SHARED_UI_BEHAVIOR_SUITES = [
   "src/shared/ui/feedback/feedback.test.tsx",
   "src/shared/ui/form/form-controls.test.tsx",
   "src/shared/ui/list/list.test.tsx",
+  "src/shared/ui/liquid-glass/glass-switch.test.tsx",
   "src/shared/ui/markdown/mermaid/mermaid-view-parts.test.tsx",
   "src/shared/ui/menu/menu.test.tsx",
   "src/shared/ui/navigation/breadcrumb.test.tsx",
@@ -1529,6 +1530,23 @@ test("Provider settings cannot redefine App typography, badges, or shape", async
     await readSource("src/features/settings/provider-settings/model/provider-settings-presentation.ts"),
     /CLASS_NAME|className/,
   );
+});
+
+test("Provider default models keep one actionable shared switch owner", async () => {
+  const [switchPrimitive, providerModels] = await Promise.all([
+    readSource("src/shared/ui/liquid-glass/glass-switch.tsx"),
+    readSource("src/features/settings/provider-settings/components/provider-settings-model-list.tsx"),
+  ]);
+  const defaultToggle = providerModels.match(
+    /function DefaultModelToggle[\s\S]*?function ProviderModelToggle/,
+  )?.[0] ?? "";
+
+  assert.notEqual(defaultToggle, "");
+  assert.match(switchPrimitive, /disabled=\{disabled\}/);
+  assert.match(switchPrimitive, /role="switch"/);
+  assert.match(defaultToggle, /<GlassSwitch/);
+  assert.match(defaultToggle, /onChange=\{\(\) => requestDisable\(\)\}/);
+  assert.doesNotMatch(defaultToggle, /role="button"|<span\b|\bdisabled\b/);
 });
 
 test("Browser settings use shared typography, status, recovery, and shape owners", async () => {

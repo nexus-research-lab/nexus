@@ -168,29 +168,15 @@ function DefaultModelToggle({
   const { t } = useI18n();
   const requestDisable = () => onDefaultModelDisableAttempt(model);
   return (
-    <span
-      className="inline-flex"
-      onClick={requestDisable}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          requestDisable();
-        }
-      }}
-      role="button"
-      tabIndex={0}
+    <GlassSwitch
+      aria-label={t("settings.providers.toggle_model", {
+        name: model.display_name || model.model_id,
+      })}
+      checked={model.enabled}
+      onChange={() => requestDisable()}
+      size="xs"
       title={t("settings.providers.default_model_disable_tooltip")}
-    >
-      <GlassSwitch
-        aria-label={t("settings.providers.toggle_model", {
-          name: model.display_name || model.model_id,
-        })}
-        checked={model.enabled}
-        disabled
-        size="xs"
-        onChange={() => undefined}
-      />
-    </span>
+    />
   );
 }
 
