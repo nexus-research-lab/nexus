@@ -290,7 +290,7 @@ export function ContentGallery({ locale }: { locale: Locale }) {
               path="web/src/shared/ui/markdown/markdown-content.tsx"
             />
           </PreviewCard>
-          <PreviewCard components={["StreamingCodeBlock", "MermaidView", "LazyMermaidView", "MermaidModeButton", "MermaidSourceView", "MermaidRenderedPreview", "MermaidPreviewDialog"]}>
+          <PreviewCard components={["StreamingCodeBlock", "MermaidView", "LazyMermaidView", "MermaidSourceView", "MermaidRenderedPreview", "MermaidPreviewDialog"]}>
             <StreamingCodeBlock language="ts" value={code} />
             <MermaidView
               chart="flowchart LR\n  Source[shared/ui] --> Gallery[UI Gallery]\n  Gallery --> Check[Coverage contract]"

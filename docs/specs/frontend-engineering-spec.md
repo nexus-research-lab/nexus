@@ -176,7 +176,7 @@ Pattern 与 Primitive 的区别是：Primitive 统一一个控件；Pattern 统�
 
 ### 4.5 Domain widget
 
-领域 Widget 只有在 DOM 命中区本身表达图形几何时才能保留原生交互节点，例如 WorkGraph 的边中点、节点卡和折叠计数；缩放、搜索、定位、关闭、保存等标准动作仍必须复用 UiButton / UiIconButton，浮动工具条和搜索面复用语义 Surface，不能因位于画布内部而复制一套 hover、focus、圆角或阴影。
+领域 Widget 只有在 DOM 命中区本身表达图形几何时才能保留原生交互节点，例如 WorkGraph 的边中点、节点卡和折叠计数；该例外只允许自定义几何，不允许在原生 button 可以表达时用 `div role=button` 和手写键盘事件模拟控件。缩放、搜索、定位、关闭、保存等标准动作仍必须复用 UiButton / UiIconButton，浮动工具条和搜索面复用语义 Surface，不能因位于画布内部而复制一套 hover、focus、圆角或阴影。
 
 Widget 可以认识 Agent、Room、Goal 等产品对象，但只组合下层合同，不重新定义基础视觉。Conversation 的 Composer 浮动工作栈属于 conversation widget，不应为了复用 DM/Room 而放进全局 `shared`。
 

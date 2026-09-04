@@ -6,7 +6,7 @@
 - `core/` 负责元素语义、链接、插件和 Fence。
 - `streaming/` 负责增量分块与平滑显示。
 - `workspace/` 负责 Agent 工作区路径解析和文件打开适配。
-- `mermaid/` 负责图表渲染与预览。
+- `mermaid/` 负责图表渲染与预览；标题栏的复制动作和源码/预览模式固定复用 `UiIconButton` 与 `UiSegmentedControl`，不得保留 Mermaid 专属按钮。整张已渲染图是图形几何命中区，但仍使用原生 button 承载点击与键盘，不得用 `div role=button` 和手写 Enter/Space 模拟。
 - `code/` 负责静态和流式代码块。
 - `code/code-block-content.tsx` 同时导出无壳语法高亮内容供工作区源码预览复用；语义色板、主题选择和等宽字体只保留一份，业务预览不得复制 Prism 配方。
 
