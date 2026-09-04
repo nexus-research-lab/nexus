@@ -1,9 +1,8 @@
-import { UiCounterBadge } from "@/shared/ui/display/badge";
+// INPUT: 上层派生的一级导航项、当前入口与选择动作。
+// OUTPUT: 复用统一 Dock 动作的聊天、联系人和能力导航轨。
+// POS: 宽侧栏一级导航纯视图；不读取路由、Store 或业务 API。
 
-import {
-  getSidebarPrimaryTabsClassName,
-  resolveSidebarPrimaryTabPresentation,
-} from "./sidebar-primary-tabs-model";
+import { SidebarRailAction } from "./sidebar-rail-action";
 import type {
   SidebarPrimaryTab,
   SidebarPrimaryTabItem,
@@ -21,7 +20,7 @@ export function SidebarPrimaryTabs({
   onSelect,
 }: SidebarPrimaryTabsProps) {
   return (
-    <div className={getSidebarPrimaryTabsClassName()}>
+    <div className="flex flex-col items-center gap-1.5 px-1 py-2">
       {items.map((item) => (
         <PrimaryTabButton
           active={activeTab === item.key}
@@ -43,29 +42,15 @@ function PrimaryTabButton({
   item: SidebarPrimaryTabItem;
   onSelect: (tab: SidebarPrimaryTab) => void;
 }) {
-  const Icon = item.icon;
-  const presentation = resolveSidebarPrimaryTabPresentation({
-    active,
-  });
   return (
-    <button
-      aria-current={presentation.ariaCurrent}
-      aria-pressed={active}
-      className={presentation.buttonClassName}
+    <SidebarRailAction
+      active={active}
+      badgeCount={item.badgeCount}
       data-tour-anchor={item.anchor}
+      icon={item.icon}
+      label={item.label}
+      layout="primary"
       onClick={() => onSelect(item.key)}
-      type="button"
-    >
-      <span className={presentation.iconFrameClassName}>
-        <Icon className={presentation.iconClassName} />
-        <UiCounterBadge
-          className={presentation.badgeClassName}
-          count={item.badgeCount}
-        />
-      </span>
-      {presentation.showLabel ? (
-        <span className={presentation.labelClassName}>{item.label}</span>
-      ) : null}
-    </button>
+    />
   );
 }
