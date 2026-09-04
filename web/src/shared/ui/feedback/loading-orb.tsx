@@ -1,28 +1,16 @@
+// INPUT: active/preparing 语义帧型。
+// OUTPUT: 不依赖 JS 计时器或运行时样式注入的共享加载指示器。
+// POS: 轻量循环加载动效唯一 owner；消费者不得传私有字符帧或动画周期。
+
 "use client";
 
-// Pure CSS animation — no JS timer, no React re-renders, runs on compositor thread.
-// Each frame is a <span> with opacity. Stepped animation cycles through them.
+export type LoadingOrbVariant = "active" | "preparing";
 
-const DEFAULT_FRAMES = ["✽", "✻", "✶", "✢", "·"];
 const FRAME_DURATION_MS = 120;
-
-let injected = false;
-function ensureStyle(count: number, duration: number) {
-  if (injected || typeof document === "undefined") return;
-  injected = true;
-  // step(1, end) keyframe: visible 1/count of the total cycle, then hidden.
-  const style = document.createElement("style");
-  style.textContent = `
-@keyframes _nexus_orb {
-  0%, ${(100 / count - 0.01).toFixed(2)}%  { opacity: 1; }
-  ${(100 / count).toFixed(2)}%, 100%        { opacity: 0; }
-}
-.nexus-orb-frame {
-  display: inline-block;
-  animation: _nexus_orb ${(duration * count).toFixed(0)}ms steps(1) infinite;
-}`;
-  document.head.appendChild(style);
-}
+const LOADING_ORB_FRAME_MAP: Readonly<Record<LoadingOrbVariant, readonly string[]>> = {
+  active: ["✽", "✻", "✶", "✢", "·"],
+  preparing: ["·", "◦", "•", "◦"],
+};
 
 interface KeyedFrame {
   char: string;
@@ -30,7 +18,7 @@ interface KeyedFrame {
   position: number;
 }
 
-function getKeyedFrames(frames: string[]): KeyedFrame[] {
+function getKeyedFrames(frames: readonly string[]): KeyedFrame[] {
   const seenCounts = new Map<string, number>();
   const keyedFrames: KeyedFrame[] = [];
   let position = 0;
@@ -49,22 +37,28 @@ function getKeyedFrames(frames: string[]): KeyedFrame[] {
   return keyedFrames;
 }
 
-export function LoadingOrb({ frames = DEFAULT_FRAMES }: { frames?: string[] }) {
-  ensureStyle(frames.length, FRAME_DURATION_MS);
-  const total = frames.length * FRAME_DURATION_MS;
+export function LoadingOrb({
+  variant = "active",
+}: {
+  variant?: LoadingOrbVariant;
+}) {
+  const frames = LOADING_ORB_FRAME_MAP[variant];
   const keyedFrames = getKeyedFrames(frames);
 
   return (
-    <span className="relative inline-block w-3 select-none text-center leading-none text-primary" aria-hidden>
+    <span
+      aria-hidden="true"
+      className="relative inline-block w-3 select-none text-center leading-none text-primary"
+      data-loading-orb={variant}
+    >
       {keyedFrames.map(({ char, key, position }) => (
         <span
+          className={position === 0
+            ? "ui-loading-orb-frame"
+            : "ui-loading-orb-frame absolute inset-0"}
+          data-frame-count={frames.length}
           key={key}
-          className={position === 0 ? "nexus-orb-frame" : "nexus-orb-frame absolute inset-0"}
-          style={{
-            animationDelay: `${position * FRAME_DURATION_MS}ms`,
-            animationDuration: `${total}ms`,
-            opacity: 0,
-          }}
+          style={{ animationDelay: `${position * FRAME_DURATION_MS}ms` }}
         >
           {char}
         </span>

@@ -264,6 +264,7 @@ export function ContentGallery({ locale }: { locale: Locale }) {
             </div>
             <div className="flex shrink-0 items-center gap-3">
               <LoadingOrb />
+              <LoadingOrb variant="preparing" />
               <LottiePlayer className="h-12 w-12" src="/lotties/sparkles-icon-animation_IVlJtTDRww.lottie" />
             </div>
           </div>

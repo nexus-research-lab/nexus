@@ -315,6 +315,7 @@ disabled 降对比不隐藏、保留可解释文案；loading 保持原尺寸与
 - 列表 marker 始终占独立列，不用负 margin 压进正文。
 - hover / focus 用 `--motion-duration-fast: 160ms`；面板与 overlay 用 `--motion-duration-normal: 220ms`；侧栏等真实布局轴变化使用 `--motion-duration-layout: 300ms` 与 `--motion-ease-layout`，只过渡宽度和必要动作坐标，不缩放导航图标。其余动效统一 `--motion-ease-standard`。
 - 内容流只允许三类动效：新轮次的微弱进入、过程项状态更新、展开 / 收起 detail；正文不做逐字弹跳或大范围 stagger。
+- 连续等待或运行状态只允许局部指示器循环，状态正文、按钮和容器不得整体 `pulse` 造成频闪；共享 `LoadingOrb` 只暴露 `active / preparing` 语义 variant，并在减少动效时停留在可读首帧。
 - `:focus-visible` 必须保留隔离线与 `--ring`；`prefers-reduced-motion` 下动画近乎即时。
 
 ## 7. 实现入口与检查

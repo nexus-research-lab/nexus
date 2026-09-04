@@ -10,6 +10,7 @@ import { Target, X } from "lucide-react";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { LoadingOrb } from "@/shared/ui/feedback/loading-orb";
+import { getUiToneClassName } from "@/shared/ui/typography/typography-styles";
 import type { ComposerRuntimeActivity } from "../../composer-model";
 
 import {
@@ -91,19 +92,26 @@ export function ComposerFooterStatus({
     return null;
   }
   return (
-    <span className={`nexus-chat-composer-runtime-status flex min-w-0 items-center gap-2 ${status.className}`}>
-      <ComposerStatusIndicator frames={status.frames} />
+    <span
+      className={`nexus-chat-composer-runtime-status flex min-w-0 items-center gap-2 ${getUiToneClassName(status.tone)}`}
+      data-composer-status={status.kind}
+    >
+      <ComposerStatusIndicator indicator={status.indicator} />
       <ComposerStatusMessage status={status} />
       <ComposerStatusHint status={status} />
     </span>
   );
 }
 
-function ComposerStatusIndicator({ frames }: { frames: string[] | null }) {
-  if (!frames) {
+function ComposerStatusIndicator({
+  indicator,
+}: {
+  indicator: ComposerFooterStatusProjection["indicator"];
+}) {
+  if (!indicator) {
     return null;
   }
-  return <LoadingOrb frames={frames} />;
+  return <LoadingOrb variant={indicator} />;
 }
 
 function ComposerStatusMessage({
@@ -114,7 +122,7 @@ function ComposerStatusMessage({
   if (!status.message) {
     return null;
   }
-  return <span className={status.messageClassName}>{status.message}</span>;
+  return <span>{status.message}</span>;
 }
 
 function ComposerStatusHint({
