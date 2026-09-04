@@ -49,6 +49,7 @@ describe("FeedbackBanner", () => {
     const alert = screen.getByRole("alert");
     expect(alert.className).toContain("surface-popover");
     expect(alert.className).toContain("surface-radius-md");
+    expect(alert.querySelector("svg")?.getAttribute("class")).toContain("ui-type-tone-danger");
     expect(screen.getByText("当前列表不可用")).toBeTruthy();
     expect(screen.queryByText("请重新加载")).toBeNull();
 
@@ -77,6 +78,17 @@ describe("FeedbackBanner", () => {
     expect(onDismiss).not.toHaveBeenCalled();
     act(() => vi.advanceTimersByTime(1));
     expect(onDismiss).toHaveBeenCalledOnce();
+  });
+
+  it("projects each feedback tone through the shared foreground recipe", () => {
+    const { container } = render(
+      <FeedbackTestProvider>
+        <FeedbackBanner message="同步完成" title="已同步" tone="success" />
+      </FeedbackTestProvider>,
+    );
+
+    expect(container.querySelector("[role=status] svg")?.getAttribute("class"))
+      .toContain("ui-type-tone-success");
   });
 
   it("places the floating viewport on its named layer", () => {

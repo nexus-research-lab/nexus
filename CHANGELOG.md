@@ -46,6 +46,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Unified Agent, Personal, and Room avatar pickers under one trigger and image
   Choice contract, removing private selection shadows and repeated focus,
   disabled, label, and arrow styling.
+- Separated shared feedback lifecycle policy from icon and color rendering, so
+  data models no longer carry component constructors or visual class names.
 - Replaced Composer model-owned color classes and pulsing status copy with
   semantic tones and shared LoadingOrb variants, including deterministic CSS
   frame cycles and a static reduced-motion state.

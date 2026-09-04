@@ -1,62 +1,28 @@
 // INPUT: 反馈语气，以及当前消息是否带有需要用户处理的动作。
-// OUTPUT: 统一的图标、语义色和是否允许自动收起的展示规则。
-// POS: 全局反馈条的纯展示模型；不解释业务结果或恢复动作。
-import {
-  AlertCircle,
-  CheckCircle2,
-  Info,
-  type LucideIcon,
-} from "lucide-react";
+// OUTPUT: 是否允许自动收起及其稳定时长。
+// POS: 全局反馈条的纯生命周期策略；不返回图标、颜色、视觉类或业务恢复动作。
 
-export type FeedbackBannerTone = "info" | "success" | "warning" | "error";
+import type { FeedbackBannerTone } from "./feedback-banner-contract";
 
-interface FeedbackTonePresentation {
+interface FeedbackBannerPolicy {
   autoDismissMs: number | null;
-  icon: LucideIcon;
-  iconClassName: string;
-  titleClassName: string;
 }
 
-export type FeedbackBannerPresentation = FeedbackTonePresentation;
-
-const FEEDBACK_TONE_PRESENTATION: Record<
+const FEEDBACK_AUTO_DISMISS_MS: Record<
   FeedbackBannerTone,
-  FeedbackTonePresentation
+  number | null
 > = {
-  info: {
-    autoDismissMs: 5000,
-    icon: Info,
-    iconClassName: "text-(--brand-action)",
-    titleClassName: "text-(--text-strong)",
-  },
-  success: {
-    autoDismissMs: 4000,
-    icon: CheckCircle2,
-    iconClassName: "text-(--success)",
-    titleClassName: "text-(--text-strong)",
-  },
-  warning: {
-    autoDismissMs: null,
-    icon: AlertCircle,
-    iconClassName: "text-(--warning)",
-    titleClassName: "text-(--text-strong)",
-  },
-  error: {
-    autoDismissMs: null,
-    icon: AlertCircle,
-    iconClassName: "text-(--destructive)",
-    titleClassName: "text-(--text-strong)",
-  },
+  error: null,
+  info: 5000,
+  success: 4000,
+  warning: null,
 };
 
-export function projectFeedbackBanner(
+export function resolveFeedbackBannerPolicy(
   tone: FeedbackBannerTone,
   hasAction: boolean,
-): FeedbackBannerPresentation {
+): FeedbackBannerPolicy {
   return {
-    ...FEEDBACK_TONE_PRESENTATION[tone],
-    autoDismissMs: hasAction
-      ? null
-      : FEEDBACK_TONE_PRESENTATION[tone].autoDismissMs,
+    autoDismissMs: hasAction ? null : FEEDBACK_AUTO_DISMISS_MS[tone],
   };
 }
