@@ -42,6 +42,7 @@ const REQUIRED_SHARED_UI_BEHAVIOR_SUITES = [
   "src/shared/ui/feedback/feedback.test.tsx",
   "src/shared/ui/form/form-controls.test.tsx",
   "src/shared/ui/form/removable-chip.test.tsx",
+  "src/shared/ui/icon-picker/icon-picker.test.tsx",
   "src/shared/ui/list/list.test.tsx",
   "src/shared/ui/liquid-glass/glass-switch.test.tsx",
   "src/shared/ui/markdown/mermaid/mermaid-view-parts.test.tsx",
@@ -1637,9 +1638,10 @@ test("Personal settings cannot redefine App typography or card shape", async () 
   ]);
 
   assert.deepEqual(violations, []);
-  for (const consumer of [profile, usage, password, avatar]) {
+  for (const consumer of [profile, usage, password]) {
     assert.match(consumer, /getUiTypographyClassName/);
   }
+  assert.match(avatar, /<IconPickerTriggerLabel/);
   assert.match(profile, /<UiBadge/);
   for (const consumer of [profile, usage, password]) {
     assert.match(consumer, /SETTINGS_CARD_CLASS_NAME/);
@@ -2436,6 +2438,39 @@ test("removable entities share one chip action and never nest fake buttons", asy
   assert.match(roomSkills, /className: cn\("absolute inset-0"/);
   assert.match(roomSkills, /disabled=\{disabled\}/);
   assert.doesNotMatch(roomSkills, /rounded-\[6px\]|tabIndex=\{-1\}/);
+});
+
+test("avatar pickers share image choices, triggers, and visual-free data models", async () => {
+  const [picker, popover, model, layout, choiceStyles, room, personal, identity, docs] = await Promise.all([
+    readSource("src/shared/ui/icon-picker/icon-picker.tsx"),
+    readSource("src/shared/ui/icon-picker/icon-picker-popover.tsx"),
+    readSource("src/shared/ui/icon-picker/icon-picker-model.ts"),
+    readSource("src/shared/ui/icon-picker/icon-picker-layout.ts"),
+    readSource("src/shared/ui/form/choice-styles.ts"),
+    readSource("src/features/conversation/room/members/room-avatar-picker.tsx"),
+    readSource("src/features/settings/personal/personal-avatar-picker.tsx"),
+    readSource("src/features/agents/options/components/identity/identity-avatar-picker.tsx"),
+    readSource("src/shared/ui/icon-picker/CLAUDE.md"),
+  ]);
+
+  assert.match(picker, /<UiChoiceButton/);
+  assert.match(picker, /variant="icon"/);
+  assert.match(picker, /<UiButton/);
+  assert.doesNotMatch(picker, /<button\b|item\.className/);
+  assert.match(popover, /function IconPickerTriggerLabel/);
+  assert.doesNotMatch(popover, /triggerClassName/);
+  assert.doesNotMatch(
+    model,
+    /\bclassName\b|CSSProperties|rounded-|shadow-|color-mix|GRID_COLUMN|ICON_SIZE/,
+  );
+  assert.match(layout, /GRID_COLUMN_CLASS_NAMES/);
+  assert.match(choiceStyles, /icon: resolveIconChoiceClasses/);
+  assert.doesNotMatch(choiceStyles, /ICON_CHOICE[\s\S]*?shadow-/);
+  for (const consumer of [room, personal, identity]) {
+    assert.match(consumer, /<IconPickerTriggerLabel/);
+    assert.doesNotMatch(consumer, /triggerClassName|ChevronDown/);
+  }
+  assert.match(docs, /不得恢复原生按钮或私有选中阴影/);
 });
 
 test("search surfaces share input and query semantics without inventing deep search", async () => {

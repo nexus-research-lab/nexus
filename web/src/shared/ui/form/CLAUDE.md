@@ -6,7 +6,7 @@
 - `UiSearchInput` 自己持有可本地化的共享 IconButton 清除动作，并用具名 `searchbox` 语义替代宿主语言生成的原生 search shadow 控件；`surface / dialog / menu / toolbar` 分别覆盖页面、表单、菜单首行和复合工具条，消费者不得靠 class 重做这些壳层。搜索壳不是 `<label>`，不得把清除按钮嵌入另一个 labelable control；消费者不得另造清除按钮。
 - `search-query.ts` 是客户端搜索的唯一字符串语义：统一做 `NFKC`、去除首尾空白和稳定小写化，默认空查询直通，并允许业务选择包含或前缀匹配。业务模型必须显式声明可搜索字段、空查询结果、类别/权限/状态条件以及搜索范围，不得再手写 `trim().toLowerCase().includes(...)`。侧栏搜索默认只筛当前导航数据，不承诺下探子目录；本地、远端或未来跨域深搜由具体页面的资源 controller 决定，其 debounce、请求取消和最短长度也留在该层。
 - `SidebarSearchField` 只统一侧栏搜索壳层和可选动作，不持有业务状态；搜索框使用暖色内嵌 control field，尾部按钮使用 `SidebarSearchAction` 的稍高一层暖色轻抬升基座，消费者只传业务图标与命令。
-- `UiChoiceButton` 持有按钮式选择，`UiRadioChoice` 持有互斥表单选择的原生 radio、整项热区、焦点和禁用语义；`choice-styles.ts` 只是二者的内部视觉投影，业务不得导入后手写第二套 label/input DOM。生成式问答等稳定领域 Widget 可以按自身合同保留原生选项。
+- `UiChoiceButton` 持有按钮式选择，`surface / picker / calendar / icon` 分别覆盖文字选项、紧凑选择器、日历单元格和图片图标；`UiRadioChoice` 持有互斥表单选择的原生 radio、整项热区、焦点和禁用语义。`choice-styles.ts` 只是二者的内部视觉投影，业务不得导入后手写第二套 button 或 label/input DOM。生成式问答等稳定领域 Widget 可以按自身合同保留原生选项。
 - `UiCheckbox` 是所有普通原生 checkbox 的尺寸、品牌色、焦点、`indeterminate` mixed 语义与 disabled 入口；带说明或整行热区的选择继续组合 `UiCheckboxRow`，其 `default / compact` 密度分别对应标准表单与紧凑设置。生成式问答等自绘选择器不属于该原语。
 - `UiRemovableChip` 是标签输入和多选字段中“已选实体 + 移除动作”的唯一原语；实体集合由业务持有，移除必须是具名 native IconButton。复合选择器的菜单触发器与移除按钮必须是兄弟节点，禁止把 `span role=button` 或真实 button 嵌入另一个 button。
 - `UiSegmentedControl` 是有限互斥选项的唯一入口；选中态使用背景与文字对比，不加阴影，普通设置不使用胶囊圆角。业务页面只提供选项、当前值和尺寸密度，不得再定义私有分段选择器。

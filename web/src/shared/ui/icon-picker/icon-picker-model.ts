@@ -1,84 +1,51 @@
+// INPUT: 图标族、起始编号、数量、当前值和清除开关。
+// OUTPUT: 稳定的图标资源条目、选中语义与清除动作可见性。
+// POS: IconPicker 纯数据模型；不返回视觉类、尺寸、颜色、阴影或布局。
+
 import type { AvatarIconFamily } from "@/lib/avatar";
-import { cn } from "@/shared/ui/class-name";
 
 export type IconPickerColumns = 4 | 5 | 6 | 8;
 export type IconPickerLayout = "grid" | "row";
 export type IconPickerSize = "lg" | "md" | "sm";
 
-interface IconPickerPresentationOptions {
-  columns: IconPickerColumns;
-  disabled: boolean;
+interface IconPickerModelOptions {
   iconFamily: AvatarIconFamily;
-  iconSize: IconPickerSize;
-  layout: IconPickerLayout;
   maxIcons: number;
   showClear: boolean;
   startIconId: number;
   value?: string;
 }
 
-interface IconPickerItemPresentation {
-  className: string;
+interface IconPickerItemModel {
+  active: boolean;
   iconId: string;
   iconPath: string;
   title: string;
 }
 
-interface IconPickerPresentation {
-  collectionClassName: string;
-  items: IconPickerItemPresentation[];
+interface IconPickerModel {
+  items: IconPickerItemModel[];
   showClear: boolean;
 }
 
-const GRID_COLUMN_CLASS_NAMES: Record<IconPickerColumns, string> = {
-  4: "grid-cols-4",
-  5: "grid-cols-5",
-  6: "grid-cols-6",
-  8: "grid-cols-8",
-};
-
-const ICON_SIZE_CLASS_NAMES: Record<IconPickerSize, string> = {
-  lg: "h-12 w-12",
-  md: "h-10 w-10",
-  sm: "h-8 w-8",
-};
-
-const ICON_STATE_CLASS_NAMES = {
-  idle: "border border-(--surface-inset-border) bg-transparent hover:bg-(--surface-interactive-hover-background)",
-  selected: "bg-[color:color-mix(in_srgb,var(--primary)_12%,transparent)] border border-(--primary) shadow-[0_0_0_1px_color-mix(in_srgb,var(--primary)_16%,transparent)]",
-} as const;
-
-function buildIconPickerItem(
-  iconId: string,
-  options: IconPickerPresentationOptions,
-): IconPickerItemPresentation {
-  const state = options.value === iconId ? "selected" : "idle";
-  return {
-    className: cn(
-      "relative inline-flex cursor-pointer items-center justify-center overflow-hidden rounded-[12px] transition-[background,border-color,box-shadow] duration-(--motion-duration-fast)",
-      ICON_SIZE_CLASS_NAMES[options.iconSize],
-      options.layout === "row" && "shrink-0",
-      ICON_STATE_CLASS_NAMES[state],
-      options.disabled && "cursor-not-allowed opacity-50",
-    ),
-    iconId,
-    iconPath: `/icon/${options.iconFamily}/${iconId}.png`,
-    title: `icon-${iconId}`,
-  };
-}
-
-export function getIconPickerPresentation(
-  options: IconPickerPresentationOptions,
-): IconPickerPresentation {
+export function buildIconPickerModel({
+  iconFamily,
+  maxIcons,
+  showClear,
+  startIconId,
+  value,
+}: IconPickerModelOptions): IconPickerModel {
   const iconIds = Array.from(
-    { length: options.maxIcons },
-    (_, index) => String(options.startIconId + index),
+    { length: maxIcons },
+    (_, index) => String(startIconId + index),
   );
   return {
-    collectionClassName: options.layout === "row"
-      ? "scrollbar-hide flex gap-2 overflow-x-auto overflow-y-hidden pb-1"
-      : cn("grid gap-2", GRID_COLUMN_CLASS_NAMES[options.columns]),
-    items: iconIds.map((iconId) => buildIconPickerItem(iconId, options)),
-    showClear: options.showClear && Boolean(options.value),
+    items: iconIds.map((iconId) => ({
+      active: value === iconId,
+      iconId,
+      iconPath: `/icon/${iconFamily}/${iconId}.png`,
+      title: `icon-${iconId}`,
+    })),
+    showClear: showClear && Boolean(value),
   };
 }
