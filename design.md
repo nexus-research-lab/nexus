@@ -184,7 +184,7 @@ disabled 降对比不隐藏、保留可解释文案；loading 保持原尺寸与
 
 - text input / select 默认 36px 高、`control` / `control-lg` 圆角、白色或轻暖灰底、`1px` 控制边界；focus 只强化蓝色 border / ring，不加高饱和蓝底或 glow；placeholder 用 `--text-muted` 且必须可读。
 - segmented control 是选择器不是导航标签墙；整体轻底，active 用中性或白色 surface，边界与阴影极轻。
-- switch / checkbox / radio checked 时用 Nexus 蓝；label 与描述承担解释，颜色只确认状态。
+- switch / checkbox / radio checked 时用 Nexus 蓝；label 与描述承担解释，颜色只确认状态。开关自身是唯一点击与键盘命中区，disabled 必须是真实不可用语义，不在外层再套可点击元素；需要说明“为何不能关闭”时让开关进入说明流程，而不是同时呈现可点击外壳和不可点击内核。
 - menu / popover：`overlay` 圆角、高不透明主题底、`1px` 边界、同一档阴影；Select、Action Menu、日期与头像选择器不得重写材质。条目统一使用 `control` 圆角和中性 hover / active 底面。
 - dialog 与 menu / popover 共用底色、边界和 16px 外轮廓，只因尺寸使用更深一档同源阴影；dialog 只承载确认、编辑或短流程，标题、内容、footer 不重复套 card；危险操作保留明确文案与 destructive action。
 - tooltip 紧凑单行，只解释无文字的图标，不替代按钮 label。

@@ -40,6 +40,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Removed the fake clickable wrapper around protected default-model switches;
+  the shared switch now owns native disabled semantics and routes protected
+  activation through one accessible hit target, while tolerating host surfaces
+  that do not expose pointer-capture APIs.
 - Moved Room name editing and tool-permission scope radios onto the shared Input
   and native RadioChoice contracts, including consistent focus, disabled, and
   selection semantics.

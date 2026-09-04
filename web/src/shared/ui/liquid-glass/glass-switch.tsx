@@ -1,3 +1,7 @@
+// INPUT: 二元 checked/disabled 状态、可访问名称、尺寸与变更命令。
+// OUTPUT: 单一原生 button/role=switch 的键盘、指针、禁用与液态玻璃视觉合同。
+// POS: Shared Switch primitive；不拥有业务校验、确认弹窗或状态提交。
+
 import type { CSSProperties } from "react";
 
 import { cn } from "@/shared/ui/class-name";
@@ -16,6 +20,7 @@ interface GlassSwitchProps {
   onChange: (checked: boolean) => void;
   className?: string;
   size?: "xs" | "sm" | "md";
+  title?: string;
 }
 
 const SOURCE_TRACK_WIDTH = 160;
@@ -114,6 +119,7 @@ export function GlassSwitch({
   onChange,
   className,
   size = "md",
+  title,
 }: GlassSwitchProps) {
   const filterId = useLiquidGlassFilterId("glass-switch-thumb");
   const canUseTrueGlass = useSupportsTrueLiquidGlass();
@@ -137,7 +143,9 @@ export function GlassSwitch({
         disabled && "cursor-not-allowed opacity-(--disabled-opacity)",
         className,
       )}
+      disabled={disabled}
       role="switch"
+      title={title}
       type="button"
       style={presentation.trackStyle}
     >
