@@ -137,7 +137,7 @@ src/
 - 通用 Markdown 只归 `shared/ui/markdown/`；Conversation 的 `message/markdown-renderer.tsx` 只解释消息文件产物协议，不得成为其他 Feature 的渲染入口
 - 通用 Mention 只归 `shared/ui/mention/`；目标分类和标记由消费者投影，共享视图不得解释 Agent 或 Room
 - 锚定浮层共用 `shared/ui/overlay/` 的定位、Portal 和关闭生命周期；Select/MultiSelect 在 `shared/ui/menu/` 复用内部开关、触发键盘协议和 listbox 框架，ActionMenu 保持外部受控，消费者直接导入具体组件
-- 全局反馈只通过 `shared/ui/feedback/feedback-banner-viewport.tsx` 展示当前单条状态；tone 视觉与时长归纯定义表，业务消费者不得恢复单元素 Stack 数组
+- 全局反馈只通过 `shared/ui/feedback/feedback-banner-viewport.tsx` 展示当前单条状态；内容流提示复用 `UiInlineNotice` 的 `full / compact` 共享宽度档位；tone 视觉与时长归纯定义表，业务消费者不得恢复单元素 Stack 数组或私有提示宽度
 - Launcher 按 `console/` 与 `hero/` 分离 API/导航和视觉/输入；服务端动作使用完整分发表，Hero 不直接访问领域 API
 - Message item 的结构化内容关联只由 `view/content/content-renderer-model.ts` 建立；Assistant/User 视图不得再次扫描整轮内容或手写不完整的 Props 比较器。Artifact 与 Markdown 异步图片必须在请求前后复用同一有界媒体框，加载、成功和失败状态不得用 intrinsic image size 改写消息几何
 - Office 预览下载与载荷上限只由 `conversation/shared/editor/office-preview-resource.ts` 管理；文档预览的加载生命周期、DOM 归一化与视图分别归属 `document/` 下的 Hook、DOM 模型和视图模块

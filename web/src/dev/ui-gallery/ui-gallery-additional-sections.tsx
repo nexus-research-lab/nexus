@@ -234,6 +234,12 @@ export function ContentGallery({ locale }: { locale: Locale }) {
             title={galleryText(locale, "资源暂时不可用", "Resource temporarily unavailable")}
             tone="warning"
           />
+          <UiInlineNotice
+            icon={<CircleAlert />}
+            message={galleryText(locale, "工作图草稿缺少最终交付节点。", "The WorkGraph draft is missing its terminal delivery.")}
+            tone="danger"
+            width="compact"
+          />
           <RecoverySummary
             impact={galleryText(locale, "当前页面仍可继续使用。", "The current page remains usable.")}
             nextStep={galleryText(locale, "补充预览后重新运行契约测试。", "Add its preview, then rerun the contract test.")}
