@@ -3,7 +3,7 @@
 // L2 | 父级: internal/app（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - server.go / lifecycle.go / app_services.go / core_services.go：HTTP 进程生命周期与总依赖装配；跨进程恢复器和后台 worker 仍由组合根启动。
+//   - server.go / lifecycle.go / app_services.go / core_services.go：HTTP 进程生命周期与总依赖装配；Control identity invalidation coordinator 对持续失败事件执行有界重试、fail-closed 隔离并继续消费后续事件；跨进程恢复器和后台 worker 仍由组合根启动。
 //   - runtime_auth_transition.go / agent_deletion_coordinator.go：认证启用前阻断 admission、撤销 system owner runtime 的原子转场，与数据库提交点后立即撤销 Agent runtime 的跨域删除协调。
 //   - routes.go / routes_web.go / path_param_router.go / http_handlers.go / websocket.go：HTTP/Web 路由、统一路径段解码（含 Provider 历史 model_id 兼容边界）、HTTP handlerSet 装配、WS 入口与 orchestration ExecutionInvalidationSink 装配。
 //   - realtime_invalidation.go / configuration_notifier.go：Session、conversation 标题、定时任务、Agent 与 Room 配置变更到 websocket 实时投影的统一失效通知装配。
