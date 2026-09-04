@@ -136,6 +136,7 @@ export function FoundationCompleteness({ locale }: { locale: Locale }) {
           <div className="flex items-center gap-3">
             <UiAgentAvatar isWorking name="Nexus" size="md" />
             <UiSeededAvatar seed="nexus-ui-gallery" size="lg" />
+            <UiSeededAvatar seed="nexus-ui-gallery-running" size="lg" state="running" />
             <div>
               <p className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong" })}>Nexus UI</p>
               <p className={getUiTypographyClassName({ role: "caption", tone: "muted" })}>{galleryText(locale, "稳定种子头像", "Stable seeded avatar")}</p>

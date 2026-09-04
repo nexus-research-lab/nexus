@@ -724,6 +724,23 @@ test("Subagent thread loading and command actions share Spinner roles", async ()
   assert.doesNotMatch(source, /\banimate-spin\b/);
 });
 
+test("Subagent task directory shares dense List, Typography, and avatar state owners", async () => {
+  const [directory, avatar] = await Promise.all([
+    readSource("src/features/conversation/shared/subagent/subagent-task-list.tsx"),
+    readSource("src/shared/ui/display/seeded-avatar.tsx"),
+  ]);
+
+  assert.match(directory, /<UiListRow/);
+  assert.match(directory, /density="dense"/);
+  assert.match(directory, /getUiTypographyClassName/);
+  assert.match(directory, /state=\{isActive \? "running" : "default"\}/);
+  assert.doesNotMatch(
+    directory,
+    /<button\b|rounded-\[|color-mix|\btext-(?:2xs|xs|compact|sm|base)\b|\bfont-(?:medium|semibold)\b|\bleading-(?:4\.5|5|6)\b/,
+  );
+  assert.match(avatar, /status-running-soft-border/);
+});
+
 test("Room history, thread, and collaboration states share Spinner roles", async () => {
   const [historyMenu, threadEmptyState, groupPanel] = await Promise.all([
     readSource("src/features/conversation/room/surface/history/room-history-menu.tsx"),
@@ -1065,7 +1082,7 @@ test("List and Badge primitives expose semantic typography, sections, and shape"
   assert.match(customMcpGrid, /role: "code"/);
 });
 
-test("Seeded resource avatars use semantic rounded-square roles", async () => {
+test("Seeded resource avatars use semantic rounded-square and running-state roles", async () => {
   const seededAvatar = await readSource("src/shared/ui/display/seeded-avatar.tsx");
 
   for (const role of [
@@ -1076,6 +1093,8 @@ test("Seeded resource avatars use semantic rounded-square roles", async () => {
   ]) {
     assert.match(seededAvatar, new RegExp(role));
   }
+  assert.match(seededAvatar, /state\?: UiSeededAvatarState/);
+  assert.match(seededAvatar, /status-running-soft-border/);
   assert.doesNotMatch(seededAvatar, /rounded-\[/);
   assert.doesNotMatch(seededAvatar, /Math\.random/);
 });

@@ -1,5 +1,5 @@
-// INPUT: 稳定种子与全部共享头像尺寸。
-// OUTPUT: 证明数学曲线头像使用确定性图形和语义圆角档位。
+// INPUT: 稳定种子、全部共享头像尺寸与运行状态。
+// OUTPUT: 证明数学曲线头像使用确定性图形、语义圆角和共享运行态外环。
 // POS: SeededAvatar DOM 合同；颜色与曲线算法由 lib/seeded-avatar 单独负责。
 
 import { render } from "@testing-library/react";
@@ -39,5 +39,15 @@ describe("UiSeededAvatar", () => {
 
     expect(first.container.querySelector("path")?.getAttribute("d"))
       .toBe(second.container.querySelector("path")?.getAttribute("d"));
+  });
+
+  it("owns the transient running ring instead of leaking it to consumers", () => {
+    const running = render(<UiSeededAvatar seed="running-id" state="running" />);
+    const idle = render(<UiSeededAvatar seed="idle-id" />);
+
+    expect(running.container.firstElementChild?.className)
+      .toContain("ring-[color:var(--status-running-soft-border)]");
+    expect(idle.container.firstElementChild?.className)
+      .not.toContain("status-running-soft-border");
   });
 });
