@@ -40,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Split Agent private-thread data projection from its density and typography
+  recipes so directory sizing can change without modifying the business model.
 - Replaced the final Goal model-owned color classes with semantic Badge tones
   shared by its lifecycle label and leading status icon.
 - Moved Goal lane geometry out of its pure state model and placed the floating

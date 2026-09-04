@@ -1383,16 +1383,22 @@ test("Agent Options navigation consumes the shared Button active-state contract"
   assert.doesNotMatch(navigation, /<button\b|rounded-\[|shadow-/);
 });
 
-test("Agent private threads consume shared ListRow and typography owners", async () => {
-  const [list, model] = await Promise.all([
+test("Agent private threads separate data projection from ListRow layout recipes", async () => {
+  const [list, layout, model] = await Promise.all([
     readSource("src/features/agents/private-domain/agent-private-domain-thread-list.tsx"),
+    readSource("src/features/agents/private-domain/agent-private-domain-thread-layout.ts"),
     readSource("src/features/agents/private-domain/agent-private-domain-thread-model.ts"),
   ]);
 
   assert.match(list, /<UiListRow/);
   assert.match(list, /activeTone="sidebar"/);
-  assert.match(model, /getUiTypographyClassName/);
-  assert.doesNotMatch(`${list}\n${model}`, /<button\b|rounded-\[|\btext-(?:2xs|xs|compact)\b/);
+  assert.match(layout, /getUiTypographyClassName/);
+  assert.match(layout, /UiListRowDensity/);
+  assert.doesNotMatch(
+    model,
+    /\bclassName\b|getUiTypographyClassName|UiListRowDensity|CSSProperties|rounded-|shadow-/,
+  );
+  assert.doesNotMatch(`${list}\n${layout}\n${model}`, /<button\b|rounded-\[|\btext-(?:2xs|xs|compact)\b/);
 });
 
 test("App typography exposes one typed semantic role map", async () => {

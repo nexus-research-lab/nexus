@@ -13,6 +13,10 @@ import {
 
 import { PrivateParticipantAvatarStack } from "@/features/agents/private-domain/agent-private-domain-avatar";
 import {
+  getPrivateThreadListLayout,
+  type PrivateThreadListLayout,
+} from "@/features/agents/private-domain/agent-private-domain-thread-layout";
+import {
   getPrivateThreadListPresentation,
   type PrivateDomainLocalization,
   type PrivateThreadListItemPresentation,
@@ -51,16 +55,20 @@ export function PrivateThreadList({
 }) {
   const presentation = getPrivateThreadListPresentation({
     agentId,
-    className,
-    compact,
     isLoading,
     localization,
     selectedThreadId,
     threads,
   });
+  const layout = getPrivateThreadListLayout({
+    className,
+    compact,
+    kind: presentation.kind,
+  });
   return (
     <PrivateThreadListContent
       emptyLabel={localization.t("agent_options.contact.empty_records")}
+      layout={layout}
       onSelect={onSelect}
       presentation={presentation}
     />
@@ -69,17 +77,19 @@ export function PrivateThreadList({
 
 function PrivateThreadListContent({
   emptyLabel,
+  layout,
   onSelect,
   presentation,
 }: {
   emptyLabel: string;
+  layout: PrivateThreadListLayout;
   onSelect: (threadId: string) => void;
   presentation: PrivateThreadListPresentation;
 }) {
   switch (presentation.kind) {
     case "loading":
       return (
-        <div className={presentation.className}>
+        <div className={layout.containerClassName}>
           <Loader2
             className={getUiSpinnerClassName({ size: "lg", tone: "muted" })}
           />
@@ -87,7 +97,7 @@ function PrivateThreadListContent({
       );
     case "empty":
       return (
-        <div className={presentation.className}>
+        <div className={layout.containerClassName}>
           <Inbox className="h-5 w-5 text-(--text-soft)" />
           <p className={getUiTypographyClassName({
             role: "metadata",
@@ -98,12 +108,13 @@ function PrivateThreadListContent({
       );
     case "ready":
       return (
-        <div className={presentation.className}>
-          <div className={presentation.listClassName}>
+        <div className={layout.containerClassName}>
+          <div className={layout.listClassName}>
             {presentation.items.map((item) => (
               <PrivateThreadListItem
                 item={item}
                 key={item.thread.thread_id}
+                layout={layout}
                 onSelect={onSelect}
               />
             ))}
@@ -115,9 +126,11 @@ function PrivateThreadListContent({
 
 function PrivateThreadListItem({
   item,
+  layout,
   onSelect,
 }: {
   item: PrivateThreadListItemPresentation;
+  layout: PrivateThreadListLayout;
   onSelect: (threadId: string) => void;
 }) {
   const ScopeIcon = THREAD_SCOPE_ICONS[item.scope];
@@ -126,8 +139,8 @@ function PrivateThreadListItem({
       active={item.active}
       activeTone="sidebar"
       aria-pressed={item.active}
-      className={item.rowClassName}
-      density={item.density}
+      className={layout.rowClassName}
+      density={layout.density}
       onClick={() => onSelect(item.thread.thread_id)}
     >
       <PrivateParticipantAvatarStack
@@ -136,16 +149,16 @@ function PrivateThreadListItem({
       />
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-1.5">
-          <span className={item.titleClassName}>{item.title}</span>
+          <span className={layout.titleClassName}>{item.title}</span>
           <ScopeIcon className="h-3.5 w-3.5 shrink-0 text-(--text-soft)" />
           {item.timestampLabel ? (
-            <span className={item.timestampClassName}>
+            <span className={layout.timestampClassName}>
               {item.timestampLabel}
             </span>
           ) : null}
         </div>
         <UiMarkdownContent
-          className={item.summaryClassName}
+          className={layout.summaryClassName}
           content={item.preview}
           mermaidShowHeader={false}
           variant="summary"

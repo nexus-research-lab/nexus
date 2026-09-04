@@ -43,7 +43,7 @@ describe("PrivateThreadList", () => {
   it("uses shared selectable rows and forwards the exact thread", async () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();
-    render(
+    const { container } = render(
       <PrivateThreadList
         agentId="owner"
         compact
@@ -61,6 +61,8 @@ describe("PrivateThreadList", () => {
     expect(other.getAttribute("aria-pressed")).toBe("false");
     expect(selected.className).toContain("min-h-10");
     expect(selected.className).toContain("radius-control-md");
+    expect(container.querySelector(".soft-scrollbar")?.className).toContain("p-1.5");
+    expect(container.querySelectorAll(".ui-type-metadata").length).toBeGreaterThanOrEqual(4);
 
     await user.click(other);
     expect(onSelect).toHaveBeenCalledWith("thread-2");
