@@ -40,6 +40,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Replaced Composer model-owned color classes and pulsing status copy with
+  semantic tones and shared LoadingOrb variants, including deterministic CSS
+  frame cycles and a static reduced-motion state.
 - Moved Launcher recent-entry colors, shadows, sizing, shape, and animation out
   of its business model, and routed both entry and handoff actions through the
   shared Button contract.

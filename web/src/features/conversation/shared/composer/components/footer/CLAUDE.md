@@ -10,9 +10,9 @@ L6 | 父级: web/src/features/conversation/shared/composer/components
 - `composer-room-model-control.tsx`: 复用公共锚定浮层和 Action Menu 内容，按 Room Agent 级联其当前 Session 模型
 - `composer-session-control-options.tsx`: 统一投影 DM 与 Room 共用的模型/权限选项
 - `composer-context-usage*.ts*`: 把 runtime 每轮快照投影为模型控件左侧的只读上下文占用环；Room 入口显示最高占用，弹层逐 Agent 展示各自快照
-- `composer-footer-status.tsx`: 展示唯一的当前运行状态
+- `composer-footer-status.tsx`: 展示唯一的当前运行状态；只把 model 的语义 tone 和 indicator 交给共享 Typography/LoadingOrb，不让状态正文整体 pulse
 - `composer-footer-metadata.tsx`: 展示字符数和历史位置
-- `composer-footer-model.ts`: 定义状态优先级和视觉投影
+- `composer-footer-model.ts`: 定义状态优先级、语义 tone 和加载阶段，不得返回 class、字符帧或动效名称
 
 Footer 不解释 Composer 发送资格；它只消费控制器已经派生的状态。新增状态必须进入有序候选表，不能扩展 JSX 条件链。
 Footer 的普通动作、模型/权限触发器和返回动作必须使用共享 `UiButton` / `UiIconButton`；只有同时承担菜单行布局、悬浮选择或数据可视化的复合控件可以保留专用 button DOM，不能复制圆角、hover、focus 或 disabled recipe。

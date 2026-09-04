@@ -49,7 +49,7 @@ export function ComposerSubmitButton(props: ComposerSubmitButtonProps) {
   });
   const content: Record<ComposerSubmitVisual, ReactNode> = {
     goal: <Target size={16} />,
-    loading: <LoadingOrb frames={["·", "◦", "•", "◦"]} />,
+    loading: <LoadingOrb variant="preparing" />,
     send: <Send size={16} />,
     stop: <StopCircle size={16} />,
   };

@@ -956,6 +956,39 @@ test("Composer shell actions use shared Button primitives", async () => {
   assert.doesNotMatch(roomModelControl, /<button\b/);
 });
 
+test("Composer footer models expose semantic status while LoadingOrb owns motion", async () => {
+  const [footerModel, contextModel, statusView, metadataView, submitButton, loadingOrb, recipes, design] = await Promise.all([
+    readSource("src/features/conversation/shared/composer/components/footer/composer-footer-model.ts"),
+    readSource("src/features/conversation/shared/composer/components/footer/composer-context-usage-model.ts"),
+    readSource("src/features/conversation/shared/composer/components/footer/composer-footer-status.tsx"),
+    readSource("src/features/conversation/shared/composer/components/footer/composer-footer-metadata.tsx"),
+    readSource("src/features/conversation/shared/composer/components/composer-submit-button.tsx"),
+    readSource("src/shared/ui/feedback/loading-orb.tsx"),
+    readSource("src/app/styles/theme-recipes.css"),
+    readFile(path.join(webRoot, "..", "design.md"), "utf8"),
+  ]);
+
+  for (const model of [footerModel, contextModel]) {
+    assert.doesNotMatch(
+      model,
+      /\bclassName\b|CSSProperties|toneClassName|messageClassName|animate-|rounded-|shadow-|text-\(|color-mix|frames:/,
+    );
+  }
+  for (const view of [statusView, metadataView]) {
+    assert.match(view, /getUiToneClassName/);
+  }
+  assert.match(statusView, /<LoadingOrb variant=\{indicator\}/);
+  assert.doesNotMatch(statusView, /animate-pulse|frames=/);
+  assert.match(submitButton, /<LoadingOrb variant="preparing"/);
+  assert.doesNotMatch(submitButton, /frames=/);
+  assert.match(loadingOrb, /LoadingOrbVariant = "active" \| "preparing"/);
+  assert.doesNotMatch(loadingOrb, /document\.createElement|document\.head|ensureStyle|setTimeout/);
+  assert.match(recipes, /prefers-reduced-motion: no-preference/);
+  assert.match(recipes, /nexus-loading-orb-frame-4/);
+  assert.match(recipes, /nexus-loading-orb-frame-5/);
+  assert.match(design, /状态正文、按钮和容器不得整体 `pulse`/);
+});
+
 test("Composer permission decisions reuse shared Button, Form, and typography owners", async () => {
   const [surface, scopeItems, splitButton] = await Promise.all([
     readSource(
@@ -1432,7 +1465,7 @@ test("Agent private threads separate data projection from ListRow layout recipes
 });
 
 test("App typography exposes one typed semantic role map", async () => {
-  const { getUiTypographyClassName } = await importLeafTypeScriptModule(
+  const { getUiToneClassName, getUiTypographyClassName } = await importLeafTypeScriptModule(
     webRoot,
     "src/shared/ui/typography/typography-styles.ts",
   );
@@ -1475,6 +1508,7 @@ test("App typography exposes one typed semantic role map", async () => {
     getUiTypographyClassName({ role: "supporting", tone: "muted", weight: "medium" }),
     "ui-type-supporting ui-type-tone-muted ui-type-weight-medium",
   );
+  assert.equal(getUiToneClassName("warning"), "ui-type-tone-warning");
   for (const [token, value] of [
     ["2xs", "10px"],
     ["xs", "11px"],

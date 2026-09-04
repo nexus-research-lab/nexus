@@ -23,6 +23,7 @@ import {
   ANCHORED_OVERLAY_MOTION_CLASS_NAME,
   OVERLAY_SURFACE_CLASS_NAME,
 } from "@/shared/ui/overlay/overlay-styles";
+import { getUiToneClassName } from "@/shared/ui/typography/typography-styles";
 import type { ContextUsageData } from "@/types/generated/protocol";
 
 import type { ComposerContextUsageItem } from "../../composer-model";
@@ -155,7 +156,7 @@ export function ComposerContextUsage({
             strokeWidth="2"
           />
           <circle
-            className={summary.toneClassName}
+            className={getUiToneClassName(summary.tone)}
             cx="10"
             cy="10"
             fill="none"

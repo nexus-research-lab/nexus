@@ -74,7 +74,12 @@ export function getUiTypographyClassName({
 }: UiTypographyOptions): string {
   return [
     ROLE_CLASS_NAMES[role],
-    tone === "inherit" ? "" : TONE_CLASS_NAMES[tone],
+    getUiToneClassName(tone),
     weight ? WEIGHT_CLASS_NAMES[weight] : "",
   ].filter(Boolean).join(" ");
+}
+
+/** 图标、SVG 等非文本节点也通过同一语义 tone 取得前景色。 */
+export function getUiToneClassName(tone: UiTypographyTone): string {
+  return tone === "inherit" ? "" : TONE_CLASS_NAMES[tone];
 }

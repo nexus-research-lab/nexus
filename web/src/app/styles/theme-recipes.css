@@ -158,6 +158,45 @@
     color: var(--warning);
   }
 
+  @keyframes nexus-loading-orb-frame-4 {
+    0%, 24.99% {
+      opacity: 1;
+    }
+
+    25%, 100% {
+      opacity: 0;
+    }
+  }
+
+  @keyframes nexus-loading-orb-frame-5 {
+    0%, 19.99% {
+      opacity: 1;
+    }
+
+    20%, 100% {
+      opacity: 0;
+    }
+  }
+
+  .ui-loading-orb-frame {
+    display: inline-block;
+    opacity: 0;
+  }
+
+  .ui-loading-orb-frame:first-child {
+    opacity: 1;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .ui-loading-orb-frame[data-frame-count="4"] {
+      animation: nexus-loading-orb-frame-4 480ms steps(1, end) infinite;
+    }
+
+    .ui-loading-orb-frame[data-frame-count="5"] {
+      animation: nexus-loading-orb-frame-5 600ms steps(1, end) infinite;
+    }
+  }
+
   @keyframes nexus-anchored-overlay-enter {
     from {
       opacity: 0;

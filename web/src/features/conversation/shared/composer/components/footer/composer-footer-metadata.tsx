@@ -1,6 +1,7 @@
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { getUiToneClassName } from "@/shared/ui/typography/typography-styles";
 
-import { getCharacterCountClassName } from "./composer-footer-model";
+import { getCharacterCountTone } from "./composer-footer-model";
 
 export function ComposerFooterMetadata({
   charCount,
@@ -49,7 +50,7 @@ function ComposerCharacterCount({
   }
   return (
     <div>
-      <span className={getCharacterCountClassName({ isNearLimit, isOverLimit })}>
+      <span className={getUiToneClassName(getCharacterCountTone({ isNearLimit, isOverLimit }))}>
         {charCount}
       </span>
       <span className="text-(--text-soft)">/{maxLength}</span>

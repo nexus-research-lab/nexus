@@ -12,7 +12,7 @@ import type {
 export interface ContextUsageProjection {
   maxTokens: number;
   percentage: number;
-  toneClassName: string;
+  tone: "danger" | "soft" | "warning";
   totalTokens: number;
 }
 
@@ -42,15 +42,15 @@ export function projectContextUsage(
   const percentage = Math.round(
     Math.min(100, Math.max(0, rawPercentage)),
   );
-  const toneClassName = percentage >= 95
-    ? "text-(--destructive)"
+  const tone = percentage >= 95
+    ? "danger"
     : percentage >= 80
-      ? "text-(--warning)"
-      : "text-(--text-soft)";
+      ? "warning"
+      : "soft";
   return {
     maxTokens: usage.max_tokens,
     percentage,
-    toneClassName,
+    tone,
     totalTokens: usage.total_tokens,
   };
 }
