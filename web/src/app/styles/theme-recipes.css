@@ -541,15 +541,15 @@
 
   .sidebar-panel-shell[data-sidebar-collapsed="true"]
     + .desktop-app-stage {
-    --collapsed-sidebar-header-inset: 48px;
-    --workspace-content-header-leading-inset: var(--collapsed-sidebar-header-inset);
+    --collapsed-sidebar-surface-leading-slot: 24px;
+    --workspace-content-header-leading-inset: 48px;
   }
 
   .sidebar-panel-shell[data-sidebar-collapsed="true"]
     + .desktop-app-stage
     .workspace-surface-header-inner::before {
     content: "";
-    flex: 0 0 var(--collapsed-sidebar-header-inset);
+    flex: 0 0 var(--collapsed-sidebar-surface-leading-slot);
   }
 
   :root[data-desktop-platform="macos"]
@@ -582,7 +582,11 @@
   :root[data-desktop-platform="macos"]
     .sidebar-panel-shell[data-sidebar-collapsed="true"]
     + .desktop-app-stage {
-    --collapsed-sidebar-header-inset: calc(
+    --collapsed-sidebar-surface-leading-slot: calc(
+      var(--desktop-window-controls-inset, 84px)
+      + 12px
+    );
+    --workspace-content-header-leading-inset: calc(
       var(--desktop-window-controls-inset, 84px)
       + 48px
     );

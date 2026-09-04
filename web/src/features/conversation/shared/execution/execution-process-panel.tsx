@@ -101,7 +101,7 @@ export function ExecutionProcessPanel({
                   }
                   onOpenGraph?.();
                 }}
-                size="sm"
+                size="md"
                 tooltip={title}
               >
                 <ExecutionNodeAvatar
@@ -127,10 +127,10 @@ export function ExecutionProcessPanel({
           className="shrink-0"
           data-execution-open-workgraph
           onClick={onOpenGraph}
-          size="sm"
+          size="md"
           tooltip={`${t("execution.open_workgraph")} · ${nodeSummary.summary} · ${nodeProgressLabel}`}
         >
-          <Workflow aria-hidden="true" className="h-3.5 w-3.5" />
+          <Workflow aria-hidden="true" className="h-[18px] w-[18px]" />
         </UiIconButton>
       </div>
     </aside>

@@ -10,4 +10,4 @@
 - 消息内容变化必须重置自动消失计时，不能沿用上一条反馈的生命周期。
 - `feedback.test.tsx` 固定播报语义、单一恢复动作、关闭动作、消息变化后的计时重置以及命名 layer，基础组件修改不得只依赖页面肉眼回归。
 - `inline-notice.test.tsx` 固定 contained / edge、tone、单一动作和 pending 禁用合同；业务域仍需测试错误事实如何映射到这些有限视觉输入。
-- `loading-orb.tsx` 以 `active / preparing` 两种语义 variant 统一字符帧、周期和 reduced-motion 静态首帧；动效规则预置在主题 recipe，禁止消费者传私有帧数组或在渲染时向 `document.head` 注入样式。
+- `loading-orb.tsx` 以 `active / preparing` 两种语义 variant 统一字符帧、周期和 reduced-motion 静态首帧，外框固定为 `12×12px`，所有字符帧绝对定位，不得让字形度量参与行高。Composer 与消息活动行必须共用该 owner，并为其保留固定宽高。动效规则预置在主题 recipe，禁止消费者传私有帧数组、为状态文案添加流光 / pulse，或在渲染时向 `document.head` 注入样式。

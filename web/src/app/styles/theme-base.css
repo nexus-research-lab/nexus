@@ -71,12 +71,6 @@
   }
 }
 
-@keyframes nexus-message-activity-frames {
-  to {
-    transform: translateY(var(--message-activity-spinner-distance));
-  }
-}
-
 @layer base {
   * {
     border-color: var(--border);

@@ -1149,11 +1149,12 @@ test("Room public activity survives the pause between reply text and tool work",
     "a pending shell must not add translated geometry during parallel growth",
   );
   assert.equal(
-    pendingHtml.match(/message-activity-spinner-track/g)?.length,
+    pendingHtml.match(/data-loading-orb="active"/g)?.length,
     1,
     "a pending slot uses the shared activity surface exactly once",
   );
-  assert.match(pendingHtml, /translate-y-\[2px\]/);
+  assert.match(pendingHtml, /data-message-activity-indicator/);
+  assert.doesNotMatch(pendingHtml, /message-activity-label-flow|translate-y-\[/);
 
   const completedPublicTurn = assistantMessage({
     agentId: "agent-public-activity",
@@ -1178,7 +1179,7 @@ test("Room public activity survives the pause between reply text and tool work",
     "an active Agent Thread keeps a public activity row after an intermediate text turn completes",
   );
   assert.equal(
-    continuedHtml.match(/message-activity-spinner-track/g)?.length,
+    continuedHtml.match(/data-loading-orb="active"/g)?.length,
     1,
     "the continued Thread activity stays inside the existing Agent card",
   );
@@ -1241,7 +1242,7 @@ test("Room public activity survives the pause between reply text and tool work",
   assert.match(workingHtml, /text-primary/);
   assert.doesNotMatch(workingHtml, /data-tool-run-list|data-tool-run-id/);
   assert.equal(
-    workingHtml.match(/message-activity-spinner-track/g)?.length,
+    workingHtml.match(/data-loading-orb="active"/g)?.length,
     undefined,
     "the running tool header does not add a second loading spinner",
   );
@@ -2452,7 +2453,7 @@ test("DM activity groups collapse while Room Thread groups expand", async () => 
   ));
   assert.match(liveToolRunHtml, /aria-expanded="false"/);
   assert.match(liveToolRunHtml, /正在执行/);
-  assert.match(liveToolRunHtml, /message-activity-spinner-track/);
+  assert.match(liveToolRunHtml, /data-loading-orb="active"/);
 
   const threadHtml = await renderWithI18n(React.createElement(
     AssistantToolRuns,

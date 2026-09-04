@@ -53,9 +53,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replaced Composer model-owned color classes and pulsing status copy with
   semantic tones and shared LoadingOrb variants, including deterministic CSS
   frame cycles and a static reduced-motion state.
+- Replaced private shimmering message-status copy and vertically scrolling
+  Unicode spinners with one fixed-footprint shared LoadingOrb, preventing
+  thinking, tool, and reply activity from appearing to shake the conversation.
 - Moved Launcher recent-entry colors, shadows, sizing, shape, and animation out
   of its business model, and routed both entry and handoff actions through the
   shared Button contract.
+- Restored Launcher recent entries to their original transparent treatment,
+  replacing repeated robot glyphs with stable semantic-color identity dots.
+- Reduced the collapsed-sidebar Surface Header reservation to the restore
+  control's real footprint while retaining macOS window-control safety.
+- Matched the Composer WorkGraph dock's Agent and graph actions to the shared
+  32px icon hit target, with an 18px graph glyph for balanced proportions.
 - Optically rebalanced the empty Room introduction while preserving its true
   center line and the left-aligned scanning pattern inside suggestion blocks.
 - Split Agent private-thread data projection from its density and typography

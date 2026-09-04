@@ -1,5 +1,5 @@
 // INPUT: 最近 DM/Room 条目、共享 i18n 与导航回调。
-// OUTPUT: 验证最近入口复用 Button 胶囊合同、稳定类型标识和原有导航行为。
+// OUTPUT: 验证最近入口复用透明 Button、稳定彩色身份点和原有导航行为。
 // POS: Launcher Hero 最近入口组件回归测试。
 
 import { render, screen } from "@testing-library/react";
@@ -16,7 +16,7 @@ describe("LauncherRecentEntries", () => {
     window.localStorage.setItem(LOCALE_STORAGE_KEY, "zh");
   });
 
-  it("uses shared pill actions without model-owned inline colors", async () => {
+  it("uses shared transparent actions with stable DM identity dots", async () => {
     const user = userEvent.setup();
     const onHandoff = vi.fn();
     const onOpen = vi.fn();
@@ -52,10 +52,12 @@ describe("LauncherRecentEntries", () => {
     const roomButton = screen.getByRole("button", { name: "房间 Design review" });
     for (const button of [dmButton, roomButton]) {
       expect(button.className).toContain("min-h-8");
-      expect(button.className).toContain("rounded-full");
+      expect(button.className).toContain("bg-transparent");
       expect(button.getAttribute("style")).toBeNull();
     }
-    expect(dmButton.querySelector("svg")).toBeTruthy();
+    expect(dmButton.querySelector("svg")).toBeNull();
+    expect(dmButton.querySelector("[data-launcher-recent-entry-marker]")).toBeTruthy();
+    expect(roomButton.querySelector("[data-launcher-recent-entry-marker]")).toBeNull();
     expect(roomButton.textContent).toBe("#Desig…view");
 
     await user.click(dmButton);
