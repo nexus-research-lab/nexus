@@ -47,8 +47,8 @@ const EMPTY_SUGGESTIONS = {
   room: [
     { icon: UsersRound, key: "conversation.empty_room_collaborate" },
     { icon: ListChecks, key: "conversation.empty_room_delegate" },
-    { icon: Workflow, key: "conversation.empty_room_workgraph" },
     { icon: FilePenLine, key: "conversation.empty_room_workspace" },
+    { icon: Workflow, key: "conversation.empty_room_workgraph" },
   ],
 } as const;
 
@@ -80,7 +80,7 @@ export function ConversationEmptyIntroduction({
             <UiAgentAvatar avatar={agentAvatar} name={name} size="lg" />
           ) : (
             <span className="flex h-14 w-14 items-center justify-center rounded-[12px] border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-(--icon-muted) shadow-(--surface-avatar-shadow)">
-              <MessagesSquare className="-translate-x-px h-6 w-6" />
+              <MessagesSquare className="-translate-x-0.5 h-6 w-6" />
             </span>
           )}
         </div>
