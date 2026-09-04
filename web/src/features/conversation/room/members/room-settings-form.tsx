@@ -1,8 +1,13 @@
+// INPUT: Room 基础设置草稿、成员候选与字段更新/提交命令。
+// OUTPUT: 使用共享表单与选择原语的 Room 名称、群主和协作设置。
+// POS: Room 创建/管理弹窗的设置组合层；不拥有草稿状态或服务端提交。
+
 import { Crown } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiCheckbox } from "@/shared/ui/form/checkbox";
+import { UiInput } from "@/shared/ui/form/form-control";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 
 import type {
@@ -57,9 +62,9 @@ export function RoomSettingsForm({
         />
         <label className="min-w-0 flex-1 space-y-1.5">
           <span className="dialog-label">{t("room.name")}</span>
-          <input
+          <UiInput
             aria-label={t("room.name")}
-            className="dialog-input h-10 min-w-0 w-full radius-control-md px-3 text-sm text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none"
+            className="min-w-0"
             data-autofocus="true"
             maxLength={64}
             onChange={(event) => setters.setName(event.target.value)}
@@ -70,7 +75,6 @@ export function RoomSettingsForm({
             }}
             placeholder={t("room.name_required_placeholder")}
             required
-            type="text"
             value={state.name}
           />
         </label>

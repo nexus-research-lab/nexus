@@ -2223,6 +2223,33 @@ test("form style projection and ordinary native selects keep explicit owners", a
   assert.deepEqual(violations, []);
 });
 
+test("ordinary Room fields and permission radios keep shared DOM owners", async () => {
+  const files = await collectSourceFiles(srcRoot);
+  const choiceStyleConsumers = [];
+  for (const file of files) {
+    if (!/\.(?:ts|tsx)$/.test(file)) continue;
+    const source = await readFile(file, "utf8");
+    const relativePath = path.relative(webRoot, file);
+    if (
+      relativePath !== "src/shared/ui/form/choice.tsx"
+      && relativePath !== "src/shared/ui/form/choice-styles.ts"
+      && /@\/shared\/ui\/form\/choice-styles/.test(source)
+    ) {
+      choiceStyleConsumers.push(relativePath);
+    }
+  }
+  assert.deepEqual(choiceStyleConsumers, []);
+
+  const [roomSettings, toolPermission] = await Promise.all([
+    readSource("src/features/conversation/room/members/room-settings-form.tsx"),
+    readSource("src/features/conversation/shared/message/blocks/tool/tool-block-permission.tsx"),
+  ]);
+  assert.match(roomSettings, /<UiInput/);
+  assert.doesNotMatch(roomSettings, /<input\b/);
+  assert.match(toolPermission, /<UiRadioChoice/);
+  assert.doesNotMatch(toolPermission, /getUiChoiceClassName|<input\b/);
+});
+
 test("search surfaces share input and query semantics without inventing deep search", async () => {
   const queryConsumers = [
     "src/features/agents/options/components/skills/agent-skills-model.ts",
