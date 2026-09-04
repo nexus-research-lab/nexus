@@ -40,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Moved Goal lifecycle and WorkGraph-binding labels onto the shared Badge
+  contract, and rendered usage as plain semantic metadata instead of a private pill.
 - Replaced Mermaid-specific mode and copy controls with shared primitives, and
   moved rendered-diagram activation from a simulated role to one native button.
 - Restored the four empty-conversation suggestions as consistent transparent,
