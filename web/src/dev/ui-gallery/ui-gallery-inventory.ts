@@ -22,7 +22,7 @@ export const UI_GALLERY_COVERAGE_GROUPS: readonly UiGalleryCoverageGroup[] = [
       "UiButton", "UiLinkButton", "UiIconButton", "UiSplitButton", "UiCheckbox", "UiCheckboxRow",
       "UiChoiceButton", "UiField", "UiInput", "UiNativeSelect", "UiTextarea",
       "UiSearchInput", "UiSegmentedControl", "UiListRow", "UiListActionButton",
-      "UiSelectMenu", "UiBreadcrumb", "UiTabs", "UiTooltip", "UiPanel", "SidebarSearchField",
+      "UiSelectMenu", "UiBreadcrumb", "UiTabs", "UiDirectoryTabs", "UiTooltip", "UiPanel", "SidebarSearchField",
       "SidebarSearchAction",
     ],
   },

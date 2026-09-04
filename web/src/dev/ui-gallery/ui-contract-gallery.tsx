@@ -53,6 +53,7 @@ import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
 import { UiListActionButton } from "@/shared/ui/list/list-action";
 import { UiListRow } from "@/shared/ui/list/list-row";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
+import { UiDirectoryTabs } from "@/shared/ui/navigation/directory-tabs";
 import { UiTabs } from "@/shared/ui/navigation/tabs";
 import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import { UiPanel } from "@/shared/ui/panel";
@@ -339,6 +340,18 @@ export function UiContractGallery() {
               <UiBadge tone="success">Success</UiBadge>
               <UiBadge tone="warning">Warning</UiBadge>
               <UiBadge tone="danger">Danger</UiBadge>
+            </GalleryRow>
+            <GalleryRow label="Directory tabs">
+              <UiDirectoryTabs
+                activeValue="all"
+                ariaLabel={galleryText(locale, "目录筛选", "Directory filter")}
+                onChange={() => undefined}
+                options={[
+                  { label: galleryText(locale, "全部", "All"), value: "all" },
+                  { label: galleryText(locale, "已启用", "Enabled"), value: "enabled" },
+                  { label: galleryText(locale, "待处理", "Pending"), value: "pending" },
+                ]}
+              />
             </GalleryRow>
             <GalleryRow label="Avatars">
               <UiAgentAvatar name="Nexus" size="sm" />
