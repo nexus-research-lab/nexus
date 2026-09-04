@@ -40,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Extended the frontend governance plan with a final reverse-audit phase that removes missed private controls, duplicate rules, dead adapters, unused exports, stale state branches, and outdated documentation before the refactor is considered complete.
 - Unified ordinary expandable App sections under the shared `UiDisclosure`
   contract, so Channel instructions, pairing details, Connector scopes, Skill
   import help, Scheduled run history/settings, and Execution run facts now

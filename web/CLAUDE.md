@@ -9,7 +9,7 @@
 - 公共视觉修改必须检查全部消费者，并覆盖窄屏、三主题、键盘焦点和叠层关系；源码正则只能作为架构门禁，不能替代真实交互测试。
 - React primitive/pattern 的行为测试与源码共置为 `*.test.tsx`，使用 Vitest + jsdom + Testing Library；`npm run test:components` 跑 DOM 行为，`npm run test:contracts` 跑 Node 合同，`npm test` 必须覆盖两者。
 - 共享组件的真实浏览器验收使用开发专用 `ui-gallery.html`；它直接消费 `shared/ui`，用 `theme` 与 `locale` 查询参数固定检查条件，不得加入生产构建入口或演变成第二套组件实现。
-- 前端治理固定按两阶段执行：先将可归并的私有控件、样式和交互收口到唯一共享所有者，再基于真实 Web/macOS/Windows 页面复核规范本身的尺寸、密度、字体、命中区、交互状态、频闪与近似模块一致性；详细退出条件见 `docs/specs/frontend-engineering-spec.md`。
+- 前端治理固定按三阶段执行：先将可归并的私有控件、样式和交互收口到唯一共享所有者；再基于真实 Web/macOS/Windows 页面复核规范本身的尺寸、密度、字体、命中区、交互状态、频闪与近似模块一致性；最后反向扫描原生控件、重复常量、过渡适配层、无引用导出、不可达分支、失效状态和过期文档，逐项合并、删除或登记为有测试的边界例外。详细退出条件见 `docs/specs/frontend-engineering-spec.md`。
 
 React 19 + Vite 7 + React Router 7 + Tailwind 4 + Zustand + TypeScript
 
