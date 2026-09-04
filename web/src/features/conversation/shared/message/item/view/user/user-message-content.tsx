@@ -1,3 +1,8 @@
+/**
+ * INPUT: 用户消息正文、附件、mention 目录与折叠状态。
+ * OUTPUT: 可测量、可展开并能打开关联资源的用户消息内容面。
+ * POS: User Message 视图组合层；展开动作复用共享 Button，不拥有控件状态样式。
+ */
 import {
   useLayoutEffect,
   useRef,
@@ -8,6 +13,7 @@ import { ChevronDown, Target } from "lucide-react";
 
 import { useScrollAnchoredState } from "@/features/conversation/shared/timeline/scroll/use-scroll-anchored-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import type { MessageAttachment } from "@/types/conversation/message/attachment";
 import type { AgentMention } from "@/types/conversation/message/entity";
@@ -108,11 +114,12 @@ export function UserMessageContent({
             </div>
           </div>
           {collapsible ? (
-            <button
+            <UiButton
               aria-expanded={expansion.isOpen}
-              className="mt-1.5 inline-flex h-8 self-start items-center gap-1 rounded-[7px] px-1.5 text-sm font-medium text-(--text-muted) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
+              className="mt-1.5 self-start"
               onClick={expansion.toggle}
-              type="button"
+              size="sm"
+              variant="text"
             >
               {expansion.isOpen ? t("message.show_less") : t("message.show_more")}
               <ChevronDown
@@ -122,7 +129,7 @@ export function UserMessageContent({
                   expansion.isOpen && "rotate-180",
                 )}
               />
-            </button>
+            </UiButton>
           ) : null}
         </>
       ) : null}

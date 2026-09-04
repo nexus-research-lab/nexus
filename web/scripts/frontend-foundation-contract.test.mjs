@@ -2260,6 +2260,32 @@ test("Loop and WorkGraph pickers consume shared interactive row owners", async (
   assert.doesNotMatch(workGraphPicker, /<button\b/);
 });
 
+test("conversation suggestions, compact actions, and context usage share Button DOM owners", async () => {
+  const paths = [
+    "src/features/conversation/shared/conversation-empty-introduction.tsx",
+    "src/features/conversation/shared/message/item/view/user/user-message-content.tsx",
+    "src/features/conversation/shared/message/blocks/tool/subagent-task-tool-entry.tsx",
+    "src/features/conversation/shared/message/blocks/artifact/workspace-artifact-external-action.tsx",
+    "src/features/conversation/shared/composer/components/footer/composer-context-usage.tsx",
+  ];
+  const sources = await Promise.all(paths.map(readSource));
+
+  for (const source of sources) {
+    assert.doesNotMatch(source, /<button\b/);
+  }
+  for (const source of sources.slice(0, 4)) {
+    assert.match(source, /<UiButton/);
+  }
+  assert.match(sources[4], /<UiIconButton/);
+  const contextUsageButton = sources[4].match(
+    /<UiIconButton[\s\S]*?<\/UiIconButton>/,
+  )?.[0] ?? "";
+  assert.doesNotMatch(
+    contextUsageButton,
+    /radius-control-|focus-visible:bg-|hover:bg-\(--surface-interactive-hover-background\)/,
+  );
+});
+
 test("the UI contract gallery stays reproducible and outside production entries", async () => {
   const [html, entry, gallery, additionalGallery, inventory, viteConfig] = await Promise.all([
     readSource("ui-gallery.html"),
