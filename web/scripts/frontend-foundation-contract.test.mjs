@@ -40,6 +40,7 @@ const REQUIRED_SHARED_UI_BEHAVIOR_SUITES = [
   "src/shared/ui/disclosure/disclosure.test.tsx",
   "src/shared/ui/display/display.test.tsx",
   "src/shared/ui/feedback/feedback.test.tsx",
+  "src/shared/ui/feedback/inline-notice.test.tsx",
   "src/shared/ui/form/form-controls.test.tsx",
   "src/shared/ui/form/removable-chip.test.tsx",
   "src/shared/ui/icon-picker/icon-picker.test.tsx",
@@ -1507,7 +1508,8 @@ test("cross-domain warnings reuse the shared inline feedback owner", async () =>
   assert.doesNotMatch(permissionChoices, /<button\b/);
   assert.doesNotMatch(agentOptions, /<Loader2 className="[^"]*animate-spin/);
   assert.match(toolDetail, /<UiInlineNotice/);
-  assert.match(toolDetail, /className="max-w-xl"/);
+  assert.match(toolDetail, /width="compact"/);
+  assert.doesNotMatch(toolDetail, /className="max-w-/);
   assert.doesNotMatch(toolDetail, /rounded-\[|color-mix|surface-muted-background/);
 });
 

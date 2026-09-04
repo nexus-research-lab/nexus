@@ -1,6 +1,6 @@
 /**
  * INPUT: Provider 原生工具结果与可选工作区文件打开能力。
- * OUTPUT: 普通结果明细、按需完整大结果，或复用共享行内提示的有界 mutation 拒绝/过期原因与稳定 reason code。
+ * OUTPUT: 普通结果明细、按需完整大结果，或复用共享紧凑提示的 mutation 拒绝/过期原因与稳定 reason code。
  * POS: ToolBlock 展开内容；历史大结果只在展开后读取，复制动作独立读取完整内容。
  */
 import { useEffect, useState } from "react";
@@ -79,7 +79,6 @@ function ToolResultContentView({
     const rejected = mutation.outcome === "rejected";
     return (
       <UiInlineNotice
-        className="max-w-xl"
         data-tool-result-semantic-outcome={mutation.outcome}
         icon={rejected ? <CircleAlert /> : undefined}
         message={(
@@ -97,6 +96,7 @@ function ToolResultContentView({
           </>
         )}
         tone={rejected ? "danger" : "neutral"}
+        width="compact"
       />
     );
   }

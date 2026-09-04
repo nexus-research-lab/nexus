@@ -1,5 +1,5 @@
-// INPUT: 已由业务确认的行内状态图标、标题、影响说明、tone 与至多一个恢复动作。
-// OUTPUT: 使用统一 surface、排版和 Button 状态的 contained / edge 行内提示。
+// INPUT: 已由业务确认的行内状态图标、标题、影响说明、tone、阅读宽度与至多一个恢复动作。
+// OUTPUT: 使用统一 surface、排版、宽度档位和 Button 状态的 contained / edge 行内提示。
 // POS: shared/ui 行内反馈视觉与 DOM 所有者；不分类失败、不推测恢复方式或自动执行动作。
 "use client";
 
@@ -12,6 +12,7 @@ import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styl
 
 export type UiInlineNoticeTone = "neutral" | "warning" | "danger";
 export type UiInlineNoticeVariant = "contained" | "edge";
+export type UiInlineNoticeWidth = "compact" | "full";
 
 interface UiInlineNoticeAction {
   disabled?: boolean;
@@ -28,6 +29,7 @@ interface UiInlineNoticeProps extends Omit<HTMLAttributes<HTMLDivElement>, "titl
   title?: ReactNode;
   tone?: UiInlineNoticeTone;
   variant?: UiInlineNoticeVariant;
+  width?: UiInlineNoticeWidth;
 }
 
 const TONE_CLASS_NAMES: Record<UiInlineNoticeTone, {
@@ -58,6 +60,7 @@ export function UiInlineNotice({
   title,
   tone = "neutral",
   variant = "contained",
+  width = "full",
   ...props
 }: UiInlineNoticeProps) {
   const toneClassNames = TONE_CLASS_NAMES[tone];
@@ -68,13 +71,17 @@ export function UiInlineNotice({
       className={cn(
         "flex min-w-0 items-start gap-x-2.5 gap-y-1 text-(--text-muted)",
         variant === "contained"
-          ? "min-h-8 w-full surface-radius-sm border border-(--surface-control-border) px-2.5 py-1.5"
-          : "flex-wrap border-y border-(--divider-subtle-color) px-3 py-2 sm:flex-nowrap",
+          ? "min-h-8 surface-radius-sm border border-(--surface-control-border) px-2.5 py-1.5"
+          : "w-full flex-wrap border-y border-(--divider-subtle-color) px-3 py-2 sm:flex-nowrap",
+        variant === "contained" && (
+          width === "compact" ? "w-full max-w-sm" : "w-full"
+        ),
         toneClassNames.background,
         className,
       )}
       data-inline-notice-tone={tone}
       data-inline-notice-variant={variant}
+      data-inline-notice-width={width}
       role={role}
       {...props}
     >

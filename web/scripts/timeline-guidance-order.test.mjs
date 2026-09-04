@@ -2673,6 +2673,24 @@ test("expanded tool headers do not repeat summaries from their detail body", asy
     },
   });
   assert.equal(duplicateModel.expandedInputText, null);
+
+  const operationIdentityModel = buildToolBlockViewModel({
+    localization,
+    status: "success",
+    toolUse: {
+      id: "tool-workgraph-preview",
+      input: {
+        action: "invoke",
+        domain: "execution",
+        operation: "extract_workgraph_preview",
+      },
+      name: "mcp__nexus__command",
+      type: "tool_use",
+    },
+  });
+  assert.equal(operationIdentityModel.toolTitle, "extract_workgraph_preview");
+  assert.equal(operationIdentityModel.collapsedDetailText, null);
+  assert.equal(operationIdentityModel.expandedInputText, null);
 });
 
 test("a newer semantic block closes the preceding smooth stream", async () => {
@@ -2817,7 +2835,8 @@ test("semantic tool rejection stays distinct from transport completion in DM and
   assert.match(detailHtml, /data-tool-result-semantic-outcome="rejected"/);
   assert.match(detailHtml, /data-inline-notice-tone="danger"/);
   assert.match(detailHtml, /data-inline-notice-variant="contained"/);
-  assert.match(detailHtml, /max-w-xl/);
+  assert.match(detailHtml, /data-inline-notice-width="compact"/);
+  assert.match(detailHtml, /max-w-sm/);
   assert.match(detailHtml, /Plan Document items/);
   assert.match(detailHtml, /plan_items_empty/);
   assert.doesNotMatch(detailHtml, /next_actions/);
@@ -2938,7 +2957,8 @@ test("superseded WorkGraph result is muted and does not count as failure", async
   assert.match(detailHtml, /data-tool-result-semantic-outcome="superseded"/);
   assert.match(detailHtml, /data-inline-notice-tone="neutral"/);
   assert.match(detailHtml, /data-inline-notice-variant="contained"/);
-  assert.match(detailHtml, /max-w-xl/);
+  assert.match(detailHtml, /data-inline-notice-width="compact"/);
+  assert.match(detailHtml, /max-w-sm/);
   assert.match(detailHtml, /execution_terminal/);
 });
 

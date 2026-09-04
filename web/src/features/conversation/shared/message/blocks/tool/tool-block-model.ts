@@ -203,16 +203,22 @@ export function buildToolBlockViewModel({
     expandedInputDetail?.value.trim(),
     expandedInputSummary,
   ]);
+  const toolTitle = getLocalizedToolTitle(
+    toolUse.name,
+    localization,
+    toolUse.input,
+  );
 
   return {
-    collapsedDetailText: firstText([
+    collapsedDetailText: omitRepeatedToolIdentity(firstText([
       waitingDetail,
       terminalDetail,
       collapsedInputSummary,
       resultSummary,
-    ]),
+    ]), toolTitle),
     durationText: formatDuration(startTime, endTime),
     expandedInputText: matchesToolResultText(expandedInputText, toolResult)
+      || matchesVisibleText(expandedInputText, toolTitle)
       ? null
       : expandedInputText,
     hasResult: Boolean(toolResult),
@@ -222,7 +228,7 @@ export function buildToolBlockViewModel({
     status: finalStatus,
     statusText: t(statusMeta.labelKey),
     statusTone: statusMeta.tone,
-    toolTitle: getLocalizedToolTitle(toolUse.name, localization, toolUse.input),
+    toolTitle,
     toolVisualKind: resolveExecutionToolVisualKind(toolUse.name),
     waitingActionHint: formatWaitingActionHint(
       interactionDisabled,
@@ -231,6 +237,24 @@ export function buildToolBlockViewModel({
       localization,
     ),
   };
+}
+
+function omitRepeatedToolIdentity(
+  detail: string | null,
+  toolTitle: string,
+): string | null {
+  return matchesVisibleText(detail, toolTitle) ? null : detail;
+}
+
+function matchesVisibleText(
+  left: string | null,
+  right: string | null,
+): boolean {
+  return Boolean(
+    left
+    && right
+    && left.trim().toLocaleLowerCase() === right.trim().toLocaleLowerCase(),
+  );
 }
 
 function resolveFinalStatus(

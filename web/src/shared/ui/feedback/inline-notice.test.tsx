@@ -1,5 +1,5 @@
-// INPUT: 行内提示的 tone、variant、文案、单一动作和 pending 状态。
-// OUTPUT: 证明共享提示持有 surface/排版/Button 语义，并保持原生可访问行为。
+// INPUT: 行内提示的 tone、variant、宽度档位、文案、单一动作和 pending 状态。
+// OUTPUT: 证明共享提示持有 surface/排版/阅读宽度/Button 语义，并保持原生可访问行为。
 // POS: UiInlineNotice DOM 行为测试；业务错误分类与恢复条件由 feature 测试负责。
 
 import { fireEvent, render, screen } from "@testing-library/react";
@@ -66,5 +66,21 @@ describe("UiInlineNotice", () => {
       .toContain("animate-spin");
     fireEvent.click(action);
     expect(onRefresh).not.toHaveBeenCalled();
+  });
+
+  it("owns a compact reading width without weakening long-text wrapping", () => {
+    render(
+      <UiInlineNotice
+        message="invalid_workgraph_workflow_input_without_any_break_opportunity"
+        tone="danger"
+        width="compact"
+      />,
+    );
+
+    const status = screen.getByRole("status");
+    expect(status.getAttribute("data-inline-notice-width")).toBe("compact");
+    expect(status.className).toContain("max-w-sm");
+    expect(screen.getByText(/invalid_workgraph/).className)
+      .toContain("[overflow-wrap:anywhere]");
   });
 });
