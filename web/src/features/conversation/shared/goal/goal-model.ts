@@ -42,11 +42,6 @@ export interface GoalDraftFormModel {
   submitTone: "default" | "primary";
 }
 
-interface GoalStatusTone {
-  badge: UiBadgeTone;
-  icon: string;
-}
-
 export type GoalStatusAction =
   | "refresh"
   | "edit"
@@ -62,7 +57,7 @@ export interface GoalStatusStripModel {
   bindingBadge: GoalBindingBadgeModel | null;
   statusLabel: string;
   statusTitle: string;
-  tone: GoalStatusTone;
+  tone: UiBadgeTone;
   usageLabel: string | null;
 }
 
@@ -105,33 +100,13 @@ const GOAL_STATUS_LABEL: Record<GoalStatus, string> = {
   usage_limited: "续跑受限",
 };
 
-const ACTIVE_TONE: GoalStatusTone = {
-  badge: "active",
-  icon: "border-[color:color-mix(in_srgb,var(--success)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--success)_10%,transparent)] text-(--success)",
-};
-
-const PAUSED_TONE: GoalStatusTone = {
-  badge: "warning",
-  icon: "border-[color:color-mix(in_srgb,var(--warning)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] text-(--warning)",
-};
-
-const COMPLETE_TONE: GoalStatusTone = {
-  badge: "info",
-  icon: "border-(--status-info-soft-border) bg-(--status-info-soft-bg) text-(--status-info-soft-text)",
-};
-
-const LIMITED_TONE: GoalStatusTone = {
-  badge: "danger",
-  icon: "border-destructive/25 bg-destructive/10 text-destructive",
-};
-
-const GOAL_STATUS_TONE: Record<GoalStatus, GoalStatusTone> = {
-  active: ACTIVE_TONE,
-  blocked: LIMITED_TONE,
-  budget_limited: LIMITED_TONE,
-  complete: COMPLETE_TONE,
-  paused: PAUSED_TONE,
-  usage_limited: LIMITED_TONE,
+const GOAL_STATUS_TONE: Record<GoalStatus, UiBadgeTone> = {
+  active: "active",
+  blocked: "danger",
+  budget_limited: "danger",
+  complete: "info",
+  paused: "warning",
+  usage_limited: "danger",
 };
 
 const GOAL_BINDING_BADGE: Record<
@@ -231,7 +206,7 @@ function goalActualTokensEstimated(goal: Goal): boolean {
       || positiveTokenCount(usage.actual_tokens) === 0);
 }
 
-function goalStatusTone(status: GoalStatus): GoalStatusTone {
+function goalStatusTone(status: GoalStatus): UiBadgeTone {
   return GOAL_STATUS_TONE[status];
 }
 

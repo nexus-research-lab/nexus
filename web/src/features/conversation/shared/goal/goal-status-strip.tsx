@@ -42,9 +42,6 @@ import {
 const GOAL_PANEL_ROW_CLASS_NAME =
   "group -mx-1 flex min-h-8 items-center gap-2 px-1 py-0.5 text-(--text-default)";
 
-const GOAL_PANEL_LEADING_ICON_CLASS_NAME =
-  "inline-flex h-5 w-5 shrink-0 items-center justify-center radius-control-xs bg-[color:color-mix(in_srgb,var(--primary)_9%,transparent)] text-(--primary)";
-
 interface GoalStatusStripProps {
   canResume: boolean;
   clearDisabledReason?: string | null;
@@ -180,9 +177,14 @@ export function GoalStatusStrip({
 
 function GoalLeadingIcon({ model }: { model: GoalStatusStripModel }) {
   return (
-    <span className={cn(GOAL_PANEL_LEADING_ICON_CLASS_NAME, model.tone.icon)}>
+    <UiBadge
+      aria-hidden="true"
+      className="h-5 w-5 !p-0"
+      size="xs"
+      tone={model.tone}
+    >
       <Target className="h-3.5 w-3.5" />
-    </span>
+    </UiBadge>
   );
 }
 
@@ -207,7 +209,7 @@ function GoalStatusSummary({
         <UiBadge
           size="xs"
           title={model.statusTitle}
-          tone={model.tone.badge}
+          tone={model.tone}
         >
           {model.statusLabel}
         </UiBadge>
