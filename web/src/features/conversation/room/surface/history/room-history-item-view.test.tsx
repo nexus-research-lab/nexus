@@ -20,7 +20,7 @@ const READING_PRESENTATION: RoomHistoryItemPresentation = {
     confirm: "确认重命名",
     input: "编辑会话标题",
   },
-  externalSessionLabel: null,
+  externalSessionLabel: "飞书 · 账号 816684 · 历史",
   mode: "reading",
   selection: null,
   state: "active",
@@ -54,7 +54,12 @@ describe("RoomHistoryItemView", () => {
     const row = screen.getByRole("button", { name: /项目讨论/ });
     expect(row.tagName).toBe("DIV");
     expect(row.className).toContain("radius-control-md");
+    expect(row.className).toContain("min-h-10");
+    expect(row.className).not.toContain("w-max");
     expect(row.getAttribute("aria-current")).toBe("page");
+    expect(screen.getByText("刚刚").className).toContain("ui-type-caption");
+    expect(screen.getByText("飞书 · 账号 816684 · 历史").className)
+      .toContain("ui-type-metadata");
     await user.click(row);
     row.focus();
     await user.keyboard("{Enter}");

@@ -38,6 +38,13 @@ interface UiListRowProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
   tooltip?: string;
 }
 
+export interface UiListRowContentProps {
+  description?: ReactNode;
+  meta?: ReactNode;
+  subtitleTrailing?: ReactNode;
+  title?: ReactNode;
+}
+
 export function UiListRow({
   actions,
   active = false,
@@ -76,7 +83,7 @@ export function UiListRow({
     >
       {leading}
       {children ?? (
-        <UiListRowDefaultContent
+        <UiListRowContent
           description={description}
           meta={meta}
           subtitleTrailing={subtitleTrailing}
@@ -108,15 +115,12 @@ function handleListRowKeyDown(
   }
 }
 
-function UiListRowDefaultContent({
+export function UiListRowContent({
   description,
   meta,
   subtitleTrailing,
   title,
-}: Pick<
-  UiListRowProps,
-  "description" | "meta" | "subtitleTrailing" | "title"
->) {
+}: UiListRowContentProps) {
   return (
     <div className="min-w-0 flex-1">
       <div className="flex min-w-0 items-center gap-2">

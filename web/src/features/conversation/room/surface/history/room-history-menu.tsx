@@ -20,6 +20,7 @@ import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { cn } from "@/shared/ui/class-name";
 import { UiCheckbox } from "@/shared/ui/form/checkbox";
+import { UiListSectionDivider } from "@/shared/ui/list/list-section-divider";
 import { useSelectMenuOverlay } from "@/shared/ui/menu/use-select-menu-overlay";
 import { resolveAnchoredOverlayPosition } from "@/shared/ui/overlay/anchored-overlay-model";
 import {
@@ -35,7 +36,11 @@ import {
 
 import { deleteRoomHistoryConversationBatch } from "./room-history-bulk-delete";
 import { RoomHistoryItem } from "./room-history-item";
-import { buildRoomHistoryEntries } from "./room-history-model";
+import {
+  buildRoomHistoryEntries,
+  groupRoomHistoryEntries,
+  type RoomHistoryEntry,
+} from "./room-history-model";
 import {
   getRoomHistorySelectionState,
   useRoomHistorySelection,
@@ -95,6 +100,7 @@ export function RoomHistoryMenu({
     conversations,
     onUpdateConversationTitle,
   ]);
+  const entryGroups = useMemo(() => groupRoomHistoryEntries(entries), [entries]);
   const {
     clearSelection,
     hasSelectableEntries,
@@ -229,6 +235,25 @@ export function RoomHistoryMenu({
     }
     startSelection();
   }, [clearSelection, isSelecting, startSelection]);
+  const renderHistoryEntry = (entry: RoomHistoryEntry) => (
+    <RoomHistoryItem
+      entry={entry}
+      isSelected={selectedIds.has(entry.conversation.conversation_id)}
+      isSelecting={isSelecting}
+      key={entry.conversation.conversation_id}
+      onDelete={() => requestDelete(entry.conversation)}
+      onRename={(title) => {
+        void onUpdateConversationTitle?.(
+          entry.conversation.conversation_id,
+          title,
+        );
+      }}
+      onSelect={() => selectConversation(entry.conversation.conversation_id)}
+      onToggleSelection={() => toggleSelection(
+        entry.conversation.conversation_id,
+      )}
+    />
+  );
 
   return (
     <>
@@ -351,25 +376,19 @@ export function RoomHistoryMenu({
                 className="min-w-full space-y-1 pb-1"
                 data-room-history-scroll-content
               >
-                {entries.map((entry) => (
-                  <RoomHistoryItem
-                    entry={entry}
-                    isSelected={selectedIds.has(entry.conversation.conversation_id)}
-                    isSelecting={isSelecting}
-                    key={entry.conversation.conversation_id}
-                    onDelete={() => requestDelete(entry.conversation)}
-                    onRename={(title) => {
-                      void onUpdateConversationTitle?.(
-                        entry.conversation.conversation_id,
-                        title,
-                      );
-                    }}
-                    onSelect={() => selectConversation(entry.conversation.conversation_id)}
-                    onToggleSelection={() => toggleSelection(
-                      entry.conversation.conversation_id,
-                    )}
-                  />
-                ))}
+                {entryGroups.history.length > 0 ? (
+                  <div className="space-y-1" data-room-history-section="history">
+                    {entryGroups.history.map(renderHistoryEntry)}
+                  </div>
+                ) : null}
+                {entryGroups.im.length > 0 ? (
+                  <>
+                    <UiListSectionDivider aria-label="IM" label="IM" />
+                    <div className="space-y-1" data-room-history-section="im">
+                      {entryGroups.im.map(renderHistoryEntry)}
+                    </div>
+                  </>
+                ) : null}
               </div>
             ) : (
               <div className="flex h-full min-h-[150px] items-center justify-center px-5 py-8 text-center">
