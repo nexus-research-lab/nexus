@@ -2464,7 +2464,11 @@ test("conversation suggestions, compact actions, and context usage share Button 
   )?.[0] ?? "";
   assert.match(introductionAction, /variant="outline"/);
   assert.doesNotMatch(introductionAction, /variant="surface"|shadow-/);
-  assert.match(sources[0], /<MessagesSquare className="-translate-x-px h-6 w-6"/);
+  assert.match(sources[0], /<MessagesSquare className="-translate-x-0\.5 h-6 w-6"/);
+  assert.match(
+    sources[0],
+    /empty_room_delegate[\s\S]*empty_room_workspace[\s\S]*empty_room_workgraph/,
+  );
   assert.match(sources[4], /<UiIconButton/);
   const contextUsageButton = sources[4].match(
     /<UiIconButton[\s\S]*?<\/UiIconButton>/,
