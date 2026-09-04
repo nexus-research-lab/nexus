@@ -1,6 +1,6 @@
 # Shared Menu
 
-- `select-menu-model.ts` 以静态配置表保存菜单共用的尺寸、表面和选中态样式。
+- `select-menu-model.ts` 只计算当前选项、键盘遍历、高度估算和锚点几何，不得返回视觉类；`select-menu-styles.ts` 独占菜单共用的尺寸、表面、标签换行和选中态视觉 recipe。业务需要组合多选或特殊 listbox 时可以复用 style recipe，但不得从 model 导入样式。
 - `use-select-menu-overlay.ts` 统一选择菜单的内部开关、锚点定位和触发键盘协议。
 - `select-menu-primitives.tsx` 提供选择菜单共用的触发器内容、listbox 框架和 `SelectMenuOptionRow`；所有单选、多选、Slash/Mention 类 listbox 条目由该原语持有原生 button、`role=option`、选中语义与基础交互底面，业务只组合行内容、密度和选择命令。
 - `select-menu-view.tsx` 只渲染共享单选菜单，不读取业务状态或决定选值。

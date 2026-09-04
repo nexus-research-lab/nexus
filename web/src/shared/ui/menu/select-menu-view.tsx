@@ -17,13 +17,18 @@ import {
 } from "@/shared/ui/menu/menu-styles";
 
 import type { UiAnchoredOverlayPosition } from "../overlay/anchored-overlay-model";
+import type {
+  SelectMenuStyleProjection,
+} from "./select-menu-styles";
 import {
-  getSelectMenuButtonClassName,
-  getSelectMenuOptionStateClassName,
-  type SelectMenuPresentation,
+  type SelectMenuModel,
   type UiSelectMenuOption,
   type UiSelectMenuSurface,
 } from "./select-menu-model";
+import {
+  getSelectMenuButtonClassName,
+  getSelectMenuOptionStateClassName,
+} from "./select-menu-styles";
 import {
   SelectMenuOptionRow,
   SelectMenuPanel,
@@ -49,8 +54,9 @@ interface SelectMenuViewProps {
   onTriggerKeyDown: KeyboardEventHandler<HTMLButtonElement>;
   options: UiSelectMenuOption[];
   portalContainer: Element | null;
-  presentation: SelectMenuPresentation;
+  model: SelectMenuModel;
   surface: UiSelectMenuSurface;
+  styles: SelectMenuStyleProjection;
   value: string;
 }
 
@@ -73,13 +79,14 @@ export function SelectMenuView({
   onTriggerKeyDown,
   options,
   portalContainer,
-  presentation,
+  model,
   surface,
+  styles,
   value,
 }: SelectMenuViewProps) {
   return (
     <div
-      className={cn("relative w-full", presentation.heightClassName, className)}
+      className={cn("relative w-full", styles.heightClassName, className)}
     >
       <button
         ref={buttonRef}
@@ -89,9 +96,9 @@ export function SelectMenuView({
         aria-haspopup="listbox"
         aria-label={ariaLabel}
         className={getSelectMenuButtonClassName({
-          roundedClassName: presentation.roundedClassName,
+          roundedClassName: styles.roundedClassName,
           surface,
-          textClassName: presentation.textClassName,
+          textClassName: styles.textClassName,
           className: buttonClassName,
         })}
         disabled={disabled}
@@ -105,13 +112,13 @@ export function SelectMenuView({
             <span
               className={cn(
                 "min-w-0 flex-1 font-semibold text-(--text-strong)",
-                presentation.triggerLabelClassName,
+                styles.triggerLabelClassName,
               )}
-              title={presentation.activeLabel}
+              title={model.activeLabel}
             >
-              {presentation.activeLabel}
+              {model.activeLabel}
             </span>
-            <SelectMenuOptionBadge label={presentation.activeBadge} />
+            <SelectMenuOptionBadge label={model.activeBadge} />
           </span>
         </SelectMenuTriggerContent>
       </button>
@@ -126,7 +133,7 @@ export function SelectMenuView({
         onSelect={onSelect}
         options={options}
         portalContainer={portalContainer}
-        presentation={presentation}
+        styles={styles}
         surface={surface}
         value={value}
       />
@@ -144,7 +151,7 @@ function SelectMenuPortal({
   onSelect,
   options,
   portalContainer,
-  presentation,
+  styles,
   surface,
   value,
 }: Pick<
@@ -158,7 +165,7 @@ function SelectMenuPortal({
   | "onSelect"
   | "options"
   | "portalContainer"
-  | "presentation"
+  | "styles"
   | "surface"
   | "value"
 >) {
@@ -179,8 +186,7 @@ function SelectMenuPortal({
       <SelectMenuOptions
         onSelect={onSelect}
         options={options}
-        presentation={presentation}
-        surface={surface}
+        styles={styles}
         value={value}
       />
     </SelectMenuPanel>,
@@ -191,12 +197,11 @@ function SelectMenuPortal({
 function SelectMenuOptions({
   onSelect,
   options,
-  presentation,
-  surface,
+  styles,
   value,
 }: Pick<
   SelectMenuViewProps,
-  "onSelect" | "options" | "presentation" | "surface" | "value"
+  "onSelect" | "options" | "styles" | "value"
 >) {
   return options.map((option) => (
     <SelectMenuOption
@@ -204,8 +209,7 @@ function SelectMenuOptions({
       isActive={option.value === value}
       onSelect={onSelect}
       option={option}
-      presentation={presentation}
-      surface={surface}
+      styles={styles}
     />
   ));
 }
@@ -214,28 +218,26 @@ function SelectMenuOption({
   isActive,
   onSelect,
   option,
-  presentation,
-  surface,
+  styles,
 }: {
   isActive: boolean;
   onSelect: (value: string) => void;
   option: UiSelectMenuOption;
-  presentation: SelectMenuPresentation;
-  surface: UiSelectMenuSurface;
+  styles: SelectMenuStyleProjection;
 }) {
   return (
     <SelectMenuOptionRow
       active={isActive}
       className={cn(
         "flex justify-between gap-2 px-2.5 disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
-        presentation.optionButtonLayoutClassName,
-        presentation.optionHeightClassName,
-        getSelectMenuOptionStateClassName(surface, isActive),
+        styles.optionButtonLayoutClassName,
+        styles.optionHeightClassName,
+        getSelectMenuOptionStateClassName(isActive),
       )}
       disabled={option.disabled}
       onClick={() => onSelect(option.value)}
     >
-      <span className={cn("min-w-0 flex-1", presentation.optionLabelClassName)}>
+      <span className={cn("min-w-0 flex-1", styles.optionLabelClassName)}>
         {option.label}
       </span>
       <SelectMenuOptionBadge label={option.badge ?? null} />
