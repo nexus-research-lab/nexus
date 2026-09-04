@@ -355,7 +355,7 @@ export function InteractionGallery({ locale }: { locale: Locale }) {
         eyebrow="01 · POPOVERS"
         title={galleryText(locale, "菜单与选择器", "Menus and pickers")}
       >
-        <PreviewCard components={["UiActionMenu", "UiActionMenuContent"]}>
+        <PreviewCard components={["UiActionMenu", "UiActionMenuContent", "UiMenuActionRow"]}>
           <UiButton
             ref={actionAnchorRef}
             aria-expanded={actionMenuOpen}

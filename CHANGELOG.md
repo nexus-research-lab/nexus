@@ -40,6 +40,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Unified Action Menu, Workspace context-menu, and Room model rows on one native
+  shared menu-item button, including disabled, active, danger, hover, and focus
+  states.
 - Defined the frontend design-system migration as two ordered phases: first
   consolidate private implementations under shared owners, then validate and
   refine the unified system across Web, macOS, and Windows for density,

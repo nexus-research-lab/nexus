@@ -31,9 +31,8 @@ import {
   UiActionMenuContent,
   type UiActionMenuItem,
 } from "@/shared/ui/menu/action-menu";
+import { UiMenuActionRow } from "@/shared/ui/menu/menu-action-row";
 import {
-  getMenuItemStateClassName,
-  MENU_ITEM_BASE_CLASS_NAME,
   MENU_ITEM_GAP_PX,
   MENU_LIST_CLASS_NAME,
   MENU_SURFACE_VERTICAL_PADDING_PX,
@@ -278,7 +277,10 @@ export function ComposerRoomModelControl({
                     onBack={() => setView("agents")}
                     title={controller.target?.name ?? ""}
                   />
-                  <div className="soft-scrollbar min-h-0 overflow-y-auto overscroll-contain p-1">
+                  <div
+                    className="soft-scrollbar min-h-0 overflow-y-auto overscroll-contain p-1"
+                    role="menu"
+                  >
                     <UiActionMenuContent
                       density="compact"
                       disabled={disabled || controller.modelBusy}
@@ -338,23 +340,16 @@ function RoomModelAgentList({
     <div className={cn(
       MENU_LIST_CLASS_NAME,
       "soft-scrollbar min-h-0 overflow-y-auto overscroll-contain p-1",
-    )}>
+    )} role="menu">
       {controller.targetViews.map((targetView) => {
         const isActive = targetView.target.agentId === activeAgentId;
         const select = () => onSelect(targetView.target.agentId);
         return (
-          <button
+          <UiMenuActionRow
+            active={canHoverSelect && isActive}
             aria-label={t("composer.room_model_agent", {
               name: targetView.target.name,
             })}
-            className={cn(
-              MENU_ITEM_BASE_CLASS_NAME,
-              "flex h-9 items-center gap-2 px-2",
-              getMenuItemStateClassName({}),
-              canHoverSelect
-                && isActive
-                && "bg-(--surface-interactive-active-background)",
-            )}
             disabled={disabled || controller.saving}
             key={targetView.target.agentId}
             onClick={select}
@@ -367,7 +362,6 @@ function RoomModelAgentList({
                 select();
               }
             }}
-            type="button"
           >
             <UiAgentAvatar
               avatar={targetView.target.avatar}
@@ -387,7 +381,7 @@ function RoomModelAgentList({
             ) : (
               <ChevronRight className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
             )}
-          </button>
+          </UiMenuActionRow>
         );
       })}
     </div>
@@ -415,6 +409,7 @@ function RoomModelOptions({
         "soft-scrollbar min-h-0 shrink-0 overflow-y-auto overscroll-contain p-1",
         OVERLAY_SURFACE_CLASS_NAME,
       )}
+      role="menu"
       style={{ ...style, width: ROOM_MODEL_MENU_WIDTH }}
     >
       <UiActionMenuContent
