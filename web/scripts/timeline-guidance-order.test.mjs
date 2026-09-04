@@ -2815,6 +2815,9 @@ test("semantic tool rejection stays distinct from transport completion in DM and
     { toolResult: result },
   )));
   assert.match(detailHtml, /data-tool-result-semantic-outcome="rejected"/);
+  assert.match(detailHtml, /data-inline-notice-tone="danger"/);
+  assert.match(detailHtml, /data-inline-notice-variant="contained"/);
+  assert.match(detailHtml, /max-w-xl/);
   assert.match(detailHtml, /Plan Document items/);
   assert.match(detailHtml, /plan_items_empty/);
   assert.doesNotMatch(detailHtml, /next_actions/);
@@ -2933,6 +2936,9 @@ test("superseded WorkGraph result is muted and does not count as failure", async
     { toolResult: result },
   )));
   assert.match(detailHtml, /data-tool-result-semantic-outcome="superseded"/);
+  assert.match(detailHtml, /data-inline-notice-tone="neutral"/);
+  assert.match(detailHtml, /data-inline-notice-variant="contained"/);
+  assert.match(detailHtml, /max-w-xl/);
   assert.match(detailHtml, /execution_terminal/);
 });
 

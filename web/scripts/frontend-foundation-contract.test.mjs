@@ -1469,7 +1469,7 @@ test("Action, Workspace, and Room model menus share one menu-item row DOM owner"
 });
 
 test("cross-domain warnings reuse the shared inline feedback owner", async () => {
-  const [roomSkills, subagents, agentOptions, assistantMessage, memoryDocument] =
+  const [roomSkills, subagents, agentOptions, assistantMessage, memoryDocument, toolDetail] =
     await Promise.all([
       readSource(
         "src/features/conversation/room/members/skills/room-skills-selector.tsx",
@@ -1480,6 +1480,9 @@ test("cross-domain warnings reuse the shared inline feedback owner", async () =>
         "src/features/conversation/shared/message/item/view/assistant/assistant-message-content.tsx",
       ),
       readSource("src/features/memory/document/memory-document-panel.tsx"),
+      readSource(
+        "src/features/conversation/shared/message/blocks/tool/tool-block-detail.tsx",
+      ),
     ]);
   const subagentNotice =
     subagents.match(/\{error \? \([\s\S]*?\) : null\}/)?.[0] ?? "";
@@ -1503,6 +1506,9 @@ test("cross-domain warnings reuse the shared inline feedback owner", async () =>
   assert.notEqual(permissionChoices, "");
   assert.doesNotMatch(permissionChoices, /<button\b/);
   assert.doesNotMatch(agentOptions, /<Loader2 className="[^"]*animate-spin/);
+  assert.match(toolDetail, /<UiInlineNotice/);
+  assert.match(toolDetail, /className="max-w-xl"/);
+  assert.doesNotMatch(toolDetail, /rounded-\[|color-mix|surface-muted-background/);
 });
 
 test("Agent Options navigation consumes the shared Button active-state contract", async () => {
