@@ -119,7 +119,6 @@ export function OperationsPanel({ embedded = false }: { embedded?: boolean }) {
         itemClassName="px-3"
         onChange={setActiveTab}
         options={tabs}
-        variant="line"
       />
       <div className="min-h-0 flex-1 pt-4">{content}</div>
     </div>

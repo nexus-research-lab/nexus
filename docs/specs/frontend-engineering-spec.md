@@ -124,6 +124,7 @@ Primitive 同时拥有 DOM、键盘、焦点、ARIA 和视觉状态合同，例�
 - 业务文字、导航链接和纯图标动作必须分别渲染 `UiButton / UiLinkButton / UiIconButton`；`button-styles.ts` 是 shared primitive 的实现细节，业务层不得借其 class 投影手写第二套 DOM；
 - 普通单行、多行和原生选择字段必须分别渲染 `UiInput / UiTextarea / UiNativeSelect`；业务层不得导入 `form-control-styles.ts` 复制输入壳，嵌入领域复合控件的无壳原生输入由其 pattern 明确负责；
 - Select、Slash 和多选 listbox 的条目统一由 `SelectMenuOptionRow` 持有原生 button、`role=option`、`aria-selected` 与活动数据属性；业务层只提供行内容、密度、disabled 规则和选择命令，不得把共享菜单 class 重新拼成第二套 option DOM；
+- 页面内容、目录视图和列表筛选的标签切换统一使用只有中性底线选中态的 `UiTabs`；它不提供业务侧可选的胶囊变体。有限互斥配置值使用 `UiSegmentedControl`，不得在两者之间仅凭局部审美互换；
 - variant 必须存在真实视觉或行为差异；完全相同的 variant 合并；
 - 普通按钮、输入和模态不得绕过已有 primitive 手写第二套行为。
 

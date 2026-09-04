@@ -75,7 +75,6 @@ describe("UiTabs", () => {
           { label: "全局技能库", value: "global" },
           { label: "社区技能", value: "community" },
         ]}
-        variant="line"
       />,
     );
 

@@ -7,7 +7,7 @@ import type { TranslationKey } from "@/shared/i18n/messages";
 import { UiIconButton } from "@/shared/ui/button/button";
 import {
   CapabilityFilterBar,
-  CapabilityModeTabs,
+  CapabilityDirectoryTabs,
   CapabilityFilterSearchInput,
   CapabilityFilterSelect,
 } from "@/features/capability/shared/capability-page-layout";
@@ -86,7 +86,7 @@ export function SkillsSearchBar({
 
   return (
     <CapabilityFilterBar className="sm:justify-between">
-      <CapabilityModeTabs
+      <CapabilityDirectoryTabs
         activeValue={discoveryMode}
         ariaLabel={t("capability.skills_tour_modes_title")}
         navAnchor={SKILLS_TOUR_ANCHORS.modes}

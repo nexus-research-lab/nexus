@@ -9,7 +9,7 @@ import { SlidersHorizontal } from "lucide-react";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
   CapabilityFilterBar,
-  CapabilityModeTabs,
+  CapabilityDirectoryTabs,
   CapabilityFilterSearchInput,
   CapabilityFilterSelect,
 } from "@/features/capability/shared/capability-page-layout";
@@ -41,7 +41,7 @@ export function ConnectorsSearchBar({
 
   return (
     <CapabilityFilterBar className="sm:justify-between">
-      <CapabilityModeTabs
+      <CapabilityDirectoryTabs
         activeValue={mode}
         ariaLabel={t("capability.connectors_modes_aria")}
         onChange={onModeChange}

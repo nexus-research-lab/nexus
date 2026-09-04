@@ -192,7 +192,6 @@ export function UiContractGallery() {
               { label: "Workspace", value: "workspace" },
               { label: galleryText(locale, "覆盖清单", "Coverage index"), value: "coverage" },
             ]}
-            variant="line"
           />
           <span className={cn(
             "hidden md:inline",
