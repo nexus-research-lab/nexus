@@ -479,6 +479,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Restored conversation WorkGraph draft cards when `nexus.command` returns its
+  structured result through the MCP wrapper.
 - Fixed shared Dialog layer variants being overridden by a legacy `z-index: 50`
   fallback; ordinary, nested, interaction and system dialogs now resolve through
   their semantic overlay tokens in the browser.
