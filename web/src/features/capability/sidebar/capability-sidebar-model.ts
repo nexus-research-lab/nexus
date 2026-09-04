@@ -13,6 +13,7 @@ import { AppRouteBuilders } from "@/app/router/route-paths";
 import type { CapabilitySummary } from "@/lib/api/capability/summary-api";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
+import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 import { SIDEBAR_CAPABILITY_ITEM_IDS } from "@/store/sidebar";
 
 interface CapabilitySidebarDefinition {
@@ -100,11 +101,6 @@ export function filterCapabilitySidebarItems(
   items: CapabilitySidebarItem[],
   query: string,
 ): CapabilitySidebarItem[] {
-  const normalizedQuery = query.trim().toLocaleLowerCase();
-  if (!normalizedQuery) {
-    return items;
-  }
-  return items.filter((item) =>
-    `${item.label} ${item.meta}`.toLocaleLowerCase().includes(normalizedQuery),
-  );
+  const search = createUiSearchMatcher(query);
+  return items.filter((item) => search.matches([item.label, item.meta]));
 }

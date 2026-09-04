@@ -42,10 +42,6 @@ interface ConversationProjectionContext {
   untitledRoomLabel: string;
 }
 
-export function normalizeSidebarQuery(value: string): string {
-  return value.trim().toLowerCase();
-}
-
 export function buildConversationItems({
   agents,
   conversations,

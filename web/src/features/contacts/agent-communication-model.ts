@@ -3,6 +3,7 @@
 // POS: Contacts 联络视图纯投影；不持有 React 状态、请求或 mutation 生命周期。
 
 import type { Agent, AgentContact } from "@/types/agent/agent";
+import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 
 export function getCommunicationAgentName(agent: Agent): string {
   return agent.display_name?.trim() || agent.name;
@@ -16,13 +17,13 @@ export function filterCommunicationContacts(
   contacts: AgentContact[],
   query: string,
 ): AgentContact[] {
-  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const search = createUiSearchMatcher(query);
   return contacts
-    .filter((contact) => !normalizedQuery || [
+    .filter((contact) => search.matches([
       contact.alias,
       contact.display_name,
       contact.name,
-    ].some((value) => value?.toLocaleLowerCase().includes(normalizedQuery)))
+    ]))
     .sort((left, right) => (
       getCommunicationContactLabel(left).localeCompare(
         getCommunicationContactLabel(right),

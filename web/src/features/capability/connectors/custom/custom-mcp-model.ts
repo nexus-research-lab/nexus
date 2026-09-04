@@ -1,3 +1,4 @@
+import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 import type {
   CustomMCPAuthType,
   CustomMCPSecretMap,
@@ -116,16 +117,15 @@ export function filterCustomMCPServers(
   servers: CustomMCPServer[],
   rawQuery: string,
 ): CustomMCPServer[] {
-  const query = rawQuery.trim().toLowerCase();
-  if (!query) return servers;
-  return servers.filter((server) => [
+  const search = createUiSearchMatcher(rawQuery);
+  return servers.filter((server) => search.matches([
     server.connector_id,
     server.configuration_state,
     server.name,
     server.type,
-    server.command ?? "",
-    server.url ?? "",
-  ].some((value) => value.toLowerCase().includes(query)));
+    server.command,
+    server.url,
+  ]));
 }
 
 export function isCustomMCPConnectorId(

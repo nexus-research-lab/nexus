@@ -1,5 +1,7 @@
 import { useCallback, useMemo, useReducer } from "react";
 
+import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
+
 import type {
   RoomDialogFormState,
   RoomDialogSubmission,
@@ -44,12 +46,8 @@ export function useCreateRoomForm(options: UseCreateRoomFormOptions) {
     [options.agents, selectedAgentIdSet],
   );
   const filteredAgents = useMemo(() => {
-    const query = state.memberQuery.trim().toLowerCase();
-    return query
-      ? options.agents.filter((agent) =>
-          agent.name.toLowerCase().includes(query),
-        )
-      : options.agents;
+    const search = createUiSearchMatcher(state.memberQuery);
+    return options.agents.filter((agent) => search.matches([agent.name]));
   }, [options.agents, state.memberQuery]);
   const update = useCallback(
     <Field extends keyof RoomDialogFormState>(

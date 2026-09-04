@@ -2,6 +2,7 @@ import { cn } from "@/shared/ui/class-name";
 
 export type UiFormControlSize = "xs" | "sm" | "md" | "lg";
 export type UiFormControlVariant = "dialog" | "surface";
+export type UiSearchInputVariant = UiFormControlVariant | "menu" | "toolbar";
 
 interface UiFormControlStyleOptions {
   multiline?: boolean;
@@ -38,9 +39,11 @@ const SEARCH_SHELL_SIZE_CLASS_MAP: Record<UiFormControlSize, string> = {
   lg: "h-11 radius-control-lg px-4 text-base",
 };
 
-const SEARCH_SHELL_VARIANT_CLASS_MAP: Record<UiFormControlVariant, string> = {
-  dialog: "",
-  surface: "ui-search-input-shell",
+const SEARCH_SHELL_VARIANT_CLASS_MAP: Record<UiSearchInputVariant, string> = {
+  dialog: "dialog-input",
+  menu: "h-11 rounded-none border-x-0 border-t-0 border-b border-(--divider-subtle-color) px-3",
+  surface: "input-shell ui-search-input-shell",
+  toolbar: "h-7 rounded-none border-0 bg-transparent px-1 text-sm shadow-none",
 };
 
 export function getUiFormControlClassName(
@@ -62,7 +65,10 @@ export function getUiFormControlClassName(
 }
 
 export function getUiSearchInputShellClassName(
-  options: Pick<UiFormControlStyleOptions, "size" | "variant"> = {},
+  options: {
+    size?: UiFormControlSize;
+    variant?: UiSearchInputVariant;
+  } = {},
   className?: string,
 ): string {
   const {
@@ -72,9 +78,8 @@ export function getUiSearchInputShellClassName(
 
   return cn(
     "inline-flex min-w-0 items-center gap-2 text-(--text-default)",
-    FORM_CONTROL_VARIANT_CLASS_MAP[variant],
-    SEARCH_SHELL_VARIANT_CLASS_MAP[variant],
     SEARCH_SHELL_SIZE_CLASS_MAP[size],
+    SEARCH_SHELL_VARIANT_CLASS_MAP[variant],
     className,
   );
 }

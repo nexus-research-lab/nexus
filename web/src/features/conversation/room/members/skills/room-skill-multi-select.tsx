@@ -8,11 +8,12 @@ import {
   useMemo,
 } from "react";
 import { createPortal } from "react-dom";
-import { Check, Loader2, Search, X } from "lucide-react";
+import { Check, Loader2, X } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
+import { UiSearchInput } from "@/shared/ui/form/form-control";
 import {
   MENU_LIST_CLASS_NAME,
 } from "@/shared/ui/menu/menu-styles";
@@ -257,16 +258,15 @@ function RoomSkillMenuPortal({
       style={menuStyle}
       surface="dialog"
     >
-      <label className="flex h-11 items-center gap-2 border-b border-(--divider-subtle-color) px-3">
-        <Search className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
-        <input
-          className="min-w-0 flex-1 bg-transparent text-sm font-medium text-(--text-strong) outline-none placeholder:text-(--text-soft)"
-          onChange={(event) => onQueryChange(event.target.value)}
-          placeholder={searchPlaceholder}
-          type="search"
-          value={query}
-        />
-      </label>
+      <UiSearchInput
+        aria-label={searchPlaceholder}
+        className="shrink-0"
+        inputClassName="font-medium"
+        onChange={onQueryChange}
+        placeholder={searchPlaceholder}
+        value={query}
+        variant="menu"
+      />
       <div className={cn(
         MENU_LIST_CLASS_NAME,
         "soft-scrollbar min-h-0 flex-1 overflow-y-auto p-1",

@@ -155,6 +155,7 @@ Primitive 同时拥有 DOM、键盘、焦点、ARIA 和视觉状态合同，例�
 - `className` 只用于外部布局和宽度约束，不得覆盖颜色、圆角、阴影、层级、hover 或 focus；
 - 业务文字、导航链接和纯图标动作必须分别渲染 `UiButton / UiLinkButton / UiIconButton`；`button-styles.ts` 是 shared primitive 的实现细节，业务层不得借其 class 投影手写第二套 DOM；
 - 普通单行、多行和原生选择字段必须分别渲染 `UiInput / UiTextarea / UiNativeSelect`；业务层不得导入 `form-control-styles.ts` 复制输入壳，嵌入领域复合控件的无壳原生输入由其 pattern 明确负责；
+- 搜索入口统一渲染 `UiSearchInput`，客户端字符串标准化和字段匹配统一调用 `shared/ui/form/search-query.ts`；具体页面仍拥有可搜索字段、包含/前缀规则、空查询含义、资源筛选条件和本地/远端/跨域搜索范围。导航侧栏不得把当前列表筛选伪装成下探搜索，远端请求生命周期也不得进入 UI primitive；
 - Select、Slash 和多选 listbox 的条目统一由 `SelectMenuOptionRow` 持有原生 button、`role=option`、`aria-selected` 与活动数据属性；业务层只提供行内容、密度、disabled 规则和选择命令，不得把共享菜单 class 重新拼成第二套 option DOM；
 - Action Menu 与业务上下文菜单的行统一由 `UiMenuActionRow` 持有原生 button、`role=menuitem`、禁用语义、命中几何与活动/hover/focus/tone 状态；业务层只组合菜单内容、级联关系和命令，不得导入 `MENU_ITEM_BASE_CLASS_NAME` 手写 `menuitem`；
 - 页面内容、目录视图和列表筛选的标签切换统一使用只有中性底线选中态的 `UiTabs`；目录工具栏的紧凑、自适应宽度预设使用按类型命名的跨领域 `UiDirectoryTabs`，不得创建 `Capability*Tabs` 等业务域转发层。有限互斥配置值使用 `UiSegmentedControl`，不得在两者之间仅凭局部审美互换；

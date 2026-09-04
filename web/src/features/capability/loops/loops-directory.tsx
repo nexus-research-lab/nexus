@@ -25,6 +25,7 @@ import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 import { UiListRow } from "@/shared/ui/list/list-row";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
@@ -35,21 +36,6 @@ import { LoopDetailView } from "./loop-detail-view";
 import { getLoopTriggerLabel } from "./loop-presentation";
 
 const ALL_CATEGORIES = "__all__";
-
-function matchesLoop(loop: LoopCatalogItem, query: string): boolean {
-  if (!query) {
-    return true;
-  }
-  const haystack = [
-    loop.title,
-    loop.description,
-    loop.category,
-    loop.trigger_type,
-    ...loop.tags,
-    ...loop.compatible_agents,
-  ].join(" ").toLowerCase();
-  return haystack.includes(query);
-}
 
 export function LoopsDirectory() {
   const { locale, t } = useI18n();
@@ -106,10 +92,17 @@ export function LoopsDirectory() {
   }, [loops, t]);
 
   const filteredLoops = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
+    const search = createUiSearchMatcher(query);
     return loops.filter((loop) =>
       (category === ALL_CATEGORIES || loop.category === category) &&
-      matchesLoop(loop, normalizedQuery),
+      search.matches([
+        loop.title,
+        loop.description,
+        loop.category,
+        loop.trigger_type,
+        ...loop.tags,
+        ...loop.compatible_agents,
+      ]),
     );
   }, [category, loops, query]);
   const hasSnapshot = loadedLocale === locale;

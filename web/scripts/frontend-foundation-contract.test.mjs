@@ -2223,6 +2223,62 @@ test("form style projection and ordinary native selects keep explicit owners", a
   assert.deepEqual(violations, []);
 });
 
+test("search surfaces share input and query semantics without inventing deep search", async () => {
+  const queryConsumers = [
+    "src/features/agents/options/components/skills/agent-skills-model.ts",
+    "src/features/capability/channels/catalog/channel-catalog-model.ts",
+    "src/features/capability/channels/pairings/pairing-model.ts",
+    "src/features/capability/connectors/catalog/connector-catalog-model.ts",
+    "src/features/capability/connectors/custom/custom-mcp-model.ts",
+    "src/features/capability/loops/loops-directory.tsx",
+    "src/features/capability/sidebar/capability-sidebar-model.ts",
+    "src/features/capability/workgraph-distillations/workgraph-distillations-directory.tsx",
+    "src/features/contacts/agent-communication-model.ts",
+    "src/features/contacts/contacts-directory-helpers.ts",
+    "src/features/conversation/shared/composer/slash-command-model.ts",
+    "src/features/conversation/shared/execution/execution-workgraph-interaction-model.ts",
+    "src/features/home/sidebar/use-chat-sidebar-controller.ts",
+    "src/features/memory/catalog/memory-catalog-model.ts",
+    "src/features/settings/provider-settings/model/provider-model-model.ts",
+    "src/shared/ui/mention/mention-target-model.ts",
+  ];
+
+  for (const consumerPath of queryConsumers) {
+    const source = await readSource(consumerPath);
+    assert.match(source, /@\/shared\/ui\/form\/search-query/, consumerPath);
+    assert.doesNotMatch(
+      source,
+      /(?:toLowerCase|toLocaleLowerCase)\(\)\s*\.includes\(/,
+      consumerPath,
+    );
+  }
+
+  const productFiles = await collectSourceFiles(srcRoot);
+  const nativeSearchInputs = [];
+  for (const file of productFiles) {
+    if (!/\.(?:ts|tsx)$/.test(file)) continue;
+    const source = await readFile(file, "utf8");
+    if (/<input\b[^>]*\btype=["']search["']/.test(source)) {
+      nativeSearchInputs.push(path.relative(webRoot, file));
+    }
+  }
+  assert.deepEqual(nativeSearchInputs, []);
+
+  const capabilitySidebar = await readSource(
+    "src/features/capability/sidebar/capability-sidebar-model.ts",
+  );
+  assert.match(capabilitySidebar, /search\.matches\(\[item\.label, item\.meta\]\)/);
+
+  const [roomSkillMenu, workGraphControls] = await Promise.all([
+    readSource("src/features/conversation/room/members/skills/room-skill-multi-select.tsx"),
+    readSource("src/features/conversation/shared/execution/execution-workgraph-controls.tsx"),
+  ]);
+  assert.match(roomSkillMenu, /<UiSearchInput[\s\S]*?variant="menu"/);
+  assert.match(workGraphControls, /<UiSearchInput[\s\S]*?variant="toolbar"/);
+  assert.doesNotMatch(roomSkillMenu, /<input\b/);
+  assert.doesNotMatch(workGraphControls, /<input\b/);
+});
+
 test("critical shared UI groups keep co-located DOM behavior suites", async () => {
   for (const suitePath of REQUIRED_SHARED_UI_BEHAVIOR_SUITES) {
     const source = await readSource(suitePath);

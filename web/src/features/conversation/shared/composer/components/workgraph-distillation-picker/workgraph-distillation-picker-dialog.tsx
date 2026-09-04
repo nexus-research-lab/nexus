@@ -23,6 +23,7 @@ import {
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
+import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 import { getSelectMenuOptionStateClassName } from "@/shared/ui/menu/select-menu-model";
 import { SelectMenuOptionRow } from "@/shared/ui/menu/select-menu-primitives";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
@@ -91,14 +92,13 @@ function OpenWorkGraphDistillationPickerDialog({
   const hasSnapshot = loadedLocale === locale;
 
   const filtered = useMemo(() => {
-    const normalized = query.trim().toLocaleLowerCase();
-    if (!normalized) return items;
-    return items.filter((item) => [
+    const search = createUiSearchMatcher(query);
+    return items.filter((item) => search.matches([
       item.slash_name,
       item.title,
-      item.description ?? "",
+      item.description,
       item.objective,
-    ].join(" ").toLocaleLowerCase().includes(normalized));
+    ]));
   }, [items, query]);
   const selected = filtered.find((item) => item.id === selectedId) ?? filtered[0] ?? null;
 

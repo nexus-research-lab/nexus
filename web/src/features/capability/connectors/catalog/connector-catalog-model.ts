@@ -3,6 +3,7 @@
 // POS: Connector 目录信息架构纯模型；页面不解释上线状态或自行决定分组。
 
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
+import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 import type { ConnectorInfo } from "@/types/capability/connector";
 
 import {
@@ -21,15 +22,15 @@ export function filterConnectors(
   activeCategory: string,
   rawQuery: string,
 ): ConnectorInfo[] {
-  const query = rawQuery.trim().toLowerCase();
+  const search = createUiSearchMatcher(rawQuery);
   return connectors.filter((connector) => (
     connector.status === "available"
     && (activeCategory === "all" || connector.category === activeCategory)
-    && (!query || [
+    && search.matches([
       connector.title,
       connector.name,
       connector.description,
-    ].some((value) => value.toLowerCase().includes(query)))
+    ])
   ));
 }
 

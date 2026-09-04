@@ -16,12 +16,12 @@ import {
   isAuthOwnerScopeGenerationCurrent,
 } from "@/shared/auth/auth-owner-generation";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 import { useSidebarStore } from "@/store/sidebar";
 
 import { useRoomActivity } from "../room-activity-resource";
 import {
   buildConversationItems,
-  normalizeSidebarQuery,
   type SidebarConversationItem,
 } from "./sidebar-conversation-model";
 import { useSidebarDirectory } from "./sidebar-directory";
@@ -334,14 +334,12 @@ function filterConversationItems(
   items: SidebarConversationItem[],
   query: string,
 ): SidebarConversationItem[] {
-  const normalizedQuery = normalizeSidebarQuery(query);
-  if (!normalizedQuery) {
-    return items;
-  }
+  const search = createUiSearchMatcher(query);
   return items.filter((item) => {
-    const memberNames = item.members.map((member) => member.name).join(" ");
-    return `${item.title} ${item.summary} ${memberNames}`
-      .toLowerCase()
-      .includes(normalizedQuery);
+    return search.matches([
+      item.title,
+      item.summary,
+      ...item.members.map((member) => member.name),
+    ]);
   });
 }

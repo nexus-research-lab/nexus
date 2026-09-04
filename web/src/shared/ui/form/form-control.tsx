@@ -25,11 +25,13 @@ import {
   getUiSearchInputShellClassName,
   type UiFormControlSize,
   type UiFormControlVariant,
+  type UiSearchInputVariant,
 } from "@/shared/ui/form/form-control-styles";
 
 export type {
   UiFormControlSize,
   UiFormControlVariant,
+  UiSearchInputVariant,
 } from "@/shared/ui/form/form-control-styles";
 
 interface UiFieldProps {
@@ -68,7 +70,7 @@ interface UiSearchInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>,
   inputClassName?: string;
   onChange: (value: string) => void;
   value: string;
-  variant?: UiFormControlVariant;
+  variant?: UiSearchInputVariant;
 }
 
 function findFirstInvalidControl(form: HTMLFormElement | null) {
