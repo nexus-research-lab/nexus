@@ -12,3 +12,11 @@ export function getConversationActivityChipClassName(className?: string): string
     className,
   );
 }
+
+/** 多动作活动 Dock 在 32px 控件外保留稳定内边距，不把按钮贴到 Surface 边缘。 */
+export function getConversationActivityToolbarClassName(className?: string): string {
+  return getConversationActivityChipClassName(cn(
+    "min-h-10 gap-1 px-1 py-1",
+    className,
+  ));
+}

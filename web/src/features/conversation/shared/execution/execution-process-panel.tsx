@@ -10,7 +10,7 @@ import { Workflow } from "lucide-react";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
-import { getConversationActivityChipClassName } from "@/shared/ui/workspace/surface/conversation-activity-chip-styles";
+import { getConversationActivityToolbarClassName } from "@/shared/ui/workspace/surface/conversation-activity-chip-styles";
 import type { ExecutionView } from "@/types/conversation/execution";
 
 import {
@@ -60,7 +60,7 @@ export function ExecutionProcessPanel({
       data-execution-status={execution.status}
     >
       <div
-        className={getConversationActivityChipClassName("pointer-events-auto flex max-w-full items-center gap-0.5 overflow-hidden px-0.5")}
+        className={getConversationActivityToolbarClassName("pointer-events-auto flex max-w-full items-center overflow-hidden")}
         data-execution-agent-activity-dock
       >
         {agentNodes.map((node, index) => {
@@ -76,11 +76,11 @@ export function ExecutionProcessPanel({
           const title = `${owner?.name ?? t("execution.owner_unassigned")} · ${subject} · ${statusLabel}`;
           const canNavigate = Boolean(node.agent_round_id && onNavigateToRound);
           return (
-            <span className="inline-flex shrink-0 items-center" key={node.id}>
+            <span className="inline-flex shrink-0 items-center gap-1" key={node.id}>
               {index > 0 ? (
                 <span
                   aria-hidden="true"
-                  className="h-px w-2 bg-(--divider-subtle-color)"
+                  className="h-px w-2.5 bg-(--divider-subtle-color)"
                   data-execution-agent-connection
                 />
               ) : null}
@@ -120,7 +120,7 @@ export function ExecutionProcessPanel({
 
         <span
           aria-hidden="true"
-          className="mx-0.5 h-4 w-px shrink-0 bg-(--divider-subtle-color)"
+          className="mx-1 h-5 w-px shrink-0 bg-(--divider-subtle-color)"
         />
         <UiIconButton
           aria-label={t("execution.open_workgraph")}
