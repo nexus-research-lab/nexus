@@ -14,6 +14,7 @@ import { createPortal } from "react-dom";
 
 import { formatTokens } from "@/lib/format/token-count";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiIconButton } from "@/shared/ui/button/button";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { useAnchoredOverlayLayer } from "@/shared/ui/overlay/anchored-overlay-layer";
 import { resolveAnchoredOverlayPosition } from "@/shared/ui/overlay/anchored-overlay-model";
@@ -123,11 +124,11 @@ export function ComposerContextUsage({
 
   return (
     <>
-      <button
+      <UiIconButton
         ref={anchorRef}
         aria-describedby={isOpen ? overlayId : undefined}
         aria-label={ariaLabel}
-        className="radius-control-sm inline-flex h-7 w-7 shrink-0 items-center justify-center outline-none transition-colors hover:bg-(--surface-interactive-hover-background) focus-visible:bg-(--surface-interactive-hover-background)"
+        className="shrink-0"
         data-context-usage={summary.percentage}
         data-context-usage-slot="ready"
         onBlur={scheduleClose}
@@ -135,7 +136,8 @@ export function ComposerContextUsage({
         onFocus={open}
         onMouseEnter={open}
         onMouseLeave={scheduleClose}
-        type="button"
+        size="sm"
+        variant="ghost"
       >
         <svg
           aria-hidden="true"
@@ -165,7 +167,7 @@ export function ComposerContextUsage({
             strokeWidth="2"
           />
         </svg>
-      </button>
+      </UiIconButton>
       {isOpen && anchorRef.current && portalContainer
         ? createPortal(
             <div

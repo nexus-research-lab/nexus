@@ -10,8 +10,6 @@ import {
 
 interface FileArtifactDensityStyle {
   card: string;
-  externalAction: string;
-  externalIcon: string;
   fileIcon: string;
   fileName: string;
   iconFrame: string;
@@ -32,8 +30,6 @@ export interface FileArtifactProjection {
 const DENSITY_STYLE: Record<"compact" | "regular", FileArtifactDensityStyle> = {
   compact: {
     card: "max-w-[28rem] gap-1.5 px-2.5 py-2",
-    externalAction: "px-1.5 py-1 text-2xs",
-    externalIcon: "h-3 w-3",
     fileIcon: "h-3.5 w-3.5",
     fileName: "text-sm leading-5",
     iconFrame: "h-8 w-8",
@@ -43,8 +39,6 @@ const DENSITY_STYLE: Record<"compact" | "regular", FileArtifactDensityStyle> = {
   },
   regular: {
     card: "max-w-[32rem] gap-2 px-3 py-2.5",
-    externalAction: "px-2 py-1 text-xs",
-    externalIcon: "h-3.5 w-3.5",
     fileIcon: "h-4 w-4",
     fileName: "text-base leading-5",
     iconFrame: "h-9 w-9",
@@ -89,3 +83,6 @@ export function projectFileArtifact({
     style: DENSITY_STYLE[compact ? "compact" : "regular"],
   };
 }
+// INPUT: 文件 Artifact 协议、workspace 身份与紧凑展示开关。
+// OUTPUT: 可打开性、可见路径、外部动作与文件内容几何投影。
+// POS: File Artifact 纯投影；普通动作尺寸和状态由 shared Button 拥有。

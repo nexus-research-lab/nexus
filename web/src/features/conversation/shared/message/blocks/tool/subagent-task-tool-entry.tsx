@@ -15,6 +15,7 @@ import {
 
 import { getCompactToolInputSummary } from "../../tool-activity";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
@@ -72,13 +73,14 @@ export function SubagentTaskToolEntry({
   ].join(" · ");
 
   return (
-    <button
+    <UiButton
       aria-label={accessibleLabel}
-      className="group/subagent-task inline-flex h-9 w-60 max-w-full items-center gap-2 radius-control-sm border border-(--divider-subtle-color) bg-transparent px-1.5 text-left text-sm font-medium text-(--text-muted) transition-[background,border-color,color] duration-(--motion-duration-fast) hover:border-(--divider-strong-color) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
+      className="group/subagent-task w-60 max-w-full justify-start text-left"
       data-subagent-task-tool-entry
       onClick={onOpen}
+      size="md"
       title={`${taskTitle} · ${model.statusText}`}
-      type="button"
+      variant="surface"
     >
       <UiSeededAvatar
         data-subagent-task-avatar
@@ -101,6 +103,6 @@ export function SubagentTaskToolEntry({
             : "h-3.5 w-3.5"}
         />
       </span>
-    </button>
+    </UiButton>
   );
 }

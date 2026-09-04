@@ -78,8 +78,7 @@ export function ImageBlock({
       <ImageArtifactCaption caption={block.alt} />
       <WorkspaceArtifactExternalActionButton
         action={projection.action}
-        className="content-artifact-external-action mt-1.5 px-2 py-1 text-xs font-medium"
-        iconClassName="h-3.5 w-3.5"
+        className="content-artifact-external-action mt-1.5"
       />
     </figure>
   );

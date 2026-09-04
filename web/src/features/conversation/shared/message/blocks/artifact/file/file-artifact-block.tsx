@@ -65,11 +65,8 @@ function FileArtifactBlockComponent({
         />
         <WorkspaceArtifactExternalActionButton
           action={projection.action}
-          className={cn(
-            "content-artifact-external-action shrink-0",
-            projection.style.externalAction,
-          )}
-          iconClassName={projection.style.externalIcon}
+          className="content-artifact-external-action shrink-0"
+          size={compact ? "2xs" : "xs"}
         />
       </div>
     </div>
