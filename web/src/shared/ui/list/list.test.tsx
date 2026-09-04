@@ -92,6 +92,27 @@ describe("UiListRow", () => {
     expect(row.className).toContain("py-1.5");
     expect(row.getAttribute("title")).toBe("memory/note.md");
   });
+
+  it("keeps disabled actions semantic and inert", async () => {
+    const user = userEvent.setup();
+    const onOpen = vi.fn();
+    render(
+      <UiListRow
+        data-testid="disabled-row"
+        disabled
+        onClick={onOpen}
+        title="正在启动"
+      />,
+    );
+
+    const row = screen.getByTestId("disabled-row");
+    expect(row.getAttribute("role")).toBe("button");
+    expect(row.getAttribute("aria-disabled")).toBe("true");
+    expect(row.hasAttribute("tabindex")).toBe(false);
+    expect(row.className).toContain("opacity-(--disabled-opacity)");
+    await user.click(row);
+    expect(onOpen).not.toHaveBeenCalled();
+  });
 });
 
 describe("UiListActionButton", () => {

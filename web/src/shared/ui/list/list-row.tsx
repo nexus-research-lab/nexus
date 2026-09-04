@@ -28,6 +28,7 @@ interface UiListRowProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
   className?: string;
   description?: ReactNode;
   density?: UiListRowDensity;
+  disabled?: boolean;
   inactiveTone?: "default" | "muted";
   leading?: ReactNode;
   meta?: ReactNode;
@@ -53,6 +54,7 @@ export function UiListRow({
   className,
   description,
   density = "default",
+  disabled = false,
   inactiveTone = "default",
   leading,
   meta,
@@ -68,6 +70,7 @@ export function UiListRow({
     activeTone,
     className,
     density,
+    disabled,
     inactiveTone,
     interactive: Boolean(onClick),
   });
@@ -75,8 +78,13 @@ export function UiListRow({
     <div
       className={presentation.className}
       {...props}
-      onClick={onClick}
-      onKeyDown={(event) => handleListRowKeyDown(event, props.onKeyDown, onClick)}
+      aria-disabled={disabled || undefined}
+      onClick={disabled ? undefined : onClick}
+      onKeyDown={(event) => handleListRowKeyDown(
+        event,
+        props.onKeyDown,
+        disabled ? undefined : onClick,
+      )}
       role={presentation.role}
       tabIndex={presentation.tabIndex}
       title={tooltip}
