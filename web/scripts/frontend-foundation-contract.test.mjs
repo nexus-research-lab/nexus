@@ -699,10 +699,10 @@ test("Goal editing and status chrome share Spinner, Badge, and Typography owners
     sources[1],
     /GOAL_PANEL_(?:BADGE|SURFACE)_CLASS_NAME|rounded-\[(?:6|8|16)px\]|\btext-(?:2xs|xs|compact)\b|\bfont-(?:medium|semibold)\b/,
   );
-  assert.match(goalModel, /badge: "active"/);
+  assert.match(goalModel, /active: "active"/);
   assert.doesNotMatch(
     goalModel,
-    /CLASS_NAME|className|rounded-|shadow-|COMPOSER_|CONVERSATION_|badge: "border-/,
+    /CLASS_NAME|className|rounded-|shadow-|border-|bg-|text-\(|color-mix|COMPOSER_|CONVERSATION_/,
   );
   assert.match(goalLayout, /CONVERSATION_CONTENT_LANE_CLASS_NAME/);
   assert.match(goalLayout, /COMPOSER_COMPACT_LANE_CLASS_NAME/);

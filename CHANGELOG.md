@@ -40,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Replaced the final Goal model-owned color classes with semantic Badge tones
+  shared by its lifecycle label and leading status icon.
 - Moved Goal lane geometry out of its pure state model and placed the floating
   status strip on the shared transparent, shadow-free Panel surface.
 - Moved Goal lifecycle and WorkGraph-binding labels onto the shared Badge
