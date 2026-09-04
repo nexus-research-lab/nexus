@@ -36,11 +36,8 @@ import type {
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
-import {
-  getMenuItemStateClassName,
-  MENU_ITEM_BASE_CLASS_NAME,
-  MENU_LIST_CLASS_NAME,
-} from "@/shared/ui/menu/menu-styles";
+import { UiMenuActionRow } from "@/shared/ui/menu/menu-action-row";
+import { MENU_LIST_CLASS_NAME } from "@/shared/ui/menu/menu-styles";
 import { OVERLAY_SURFACE_CLASS_NAME } from "@/shared/ui/overlay/overlay-styles";
 import type { WorkspaceFileEntry } from "@/types/agent/agent";
 
@@ -386,25 +383,18 @@ function WorkspaceContextMenuActions({
             key={id}
             onPointerLeave={() => submenu && setOpenSubmenuId(null)}
           >
-            <button
+            <UiMenuActionRow
+              active={isSubmenuOpen}
               aria-expanded={submenu ? isSubmenuOpen : undefined}
               aria-haspopup={submenu ? "menu" : undefined}
               aria-label={ariaLabel}
-              className={cn(
-                MENU_ITEM_BASE_CLASS_NAME,
-                "flex min-h-9 items-center gap-2 px-2.5 py-1.5 text-sm",
-                getMenuItemStateClassName({
-                  active: isSubmenuOpen,
-                  tone: tone ?? "default",
-                }),
-              )}
               disabled={disabled}
               onClick={() => {
                 if (disabled) {
                   return;
                 }
                 if (submenu) {
-                  setOpenSubmenuId(isSubmenuOpen ? null : id);
+                  setOpenSubmenuId(id);
                   return;
                 }
                 onSelect?.();
@@ -417,14 +407,13 @@ function WorkspaceContextMenuActions({
                 }
               }}
               onPointerEnter={() => setOpenSubmenuId(submenu ? id : null)}
-              role="menuitem"
               title={title}
-              type="button"
+              tone={tone}
             >
               {Icon ? <Icon className="h-4 w-4" /> : null}
               <span className="min-w-0 flex-1 truncate">{label}</span>
               {submenu ? <ChevronRight className="h-4 w-4 shrink-0" /> : null}
-            </button>
+            </UiMenuActionRow>
 
             {submenu && isSubmenuOpen ? (
               <WorkspaceContextSubmenu
@@ -464,12 +453,7 @@ function WorkspaceContextSubmenu({
       style={{maxHeight: `${Math.max(36, maxHeight)}px`}}
     >
       {actions.map((action) => (
-        <button
-          className={cn(
-            MENU_ITEM_BASE_CLASS_NAME,
-            "flex h-9 items-center px-2.5 text-sm",
-            getMenuItemStateClassName({}),
-          )}
+        <UiMenuActionRow
           key={action.id}
           onClick={() => {
             if (action.disabled) {
@@ -478,9 +462,7 @@ function WorkspaceContextSubmenu({
             action.onSelect?.();
             onClose();
           }}
-          role="menuitem"
           title={action.label}
-          type="button"
           disabled={action.disabled}
         >
           {action.Icon ? (
@@ -494,7 +476,7 @@ function WorkspaceContextSubmenu({
             />
           ) : null}
           <span className="truncate">{action.label}</span>
-        </button>
+        </UiMenuActionRow>
       ))}
     </div>
   );

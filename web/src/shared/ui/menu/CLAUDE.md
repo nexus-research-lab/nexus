@@ -6,6 +6,7 @@
 - `select-menu-view.tsx` 只渲染共享单选菜单，不读取业务状态或决定选值。
 - `select-menu.tsx` 只编排共享单选语义和浮层生命周期；带搜索、异步状态或多选规则的菜单归真实业务所有者。
 - `action-menu.tsx` 保持外部受控，不复用 Select 家族的内部开关状态；业务可显式选择与锚点起点或终点对齐。级联浮层复用 `UiActionMenuContent` 的条目和底部动作，不复制 Action Menu 行结构。
+- `menu-action-row.tsx` 是 Action Menu 与业务上下文菜单的唯一行级 DOM 所有者；它使用原生 button、`role=menuitem`、`aria-disabled`、有限密度和共享状态。业务只组合图标、标签、尾部内容与命令，不得重新导入菜单样式拼装按钮。
 - Action Menu 的可选数组默认值必须引用模块级稳定空值；禁止在参数默认值中写 `[]`，否则锚定层的定位状态更新会让回调引用反复失效并形成 render loop。
 - Action Menu 的重置等次级动作通过 `footerItems` 进入带分隔线的底部区域，不能混入主要选项伪装成普通值。
 - Action Menu 默认普通行保持 36px，带一行短说明时使用 44px；纯单行选择可显式使用 `compact` 密度收至 32px，但带说明的权限菜单必须保留默认密度，不允许业务层用大块卡片高度破坏菜单节奏。

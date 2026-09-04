@@ -820,7 +820,8 @@ test("Composer shell actions use shared Button primitives", async () => {
   assert.doesNotMatch(sessionControls, /<button\b|rounded-\[/);
   assert.match(roomModelControl, /<UiButton/);
   assert.match(roomModelControl, /<UiIconButton/);
-  assert.equal(roomModelControl.match(/<button\b/g)?.length, 1);
+  assert.match(roomModelControl, /<UiMenuActionRow/);
+  assert.doesNotMatch(roomModelControl, /<button\b/);
 });
 
 test("Composer permission decisions reuse shared Button, Form, and typography owners", async () => {
@@ -1155,6 +1156,33 @@ test("Select, Slash, and multi-select options share one listbox row DOM owner", 
     assert.match(consumer, /<SelectMenuOptionRow/);
     assert.doesNotMatch(consumer, /role="option"|aria-selected=|MENU_ITEM_BASE_CLASS_NAME/);
   }
+});
+
+test("Action, Workspace, and Room model menus share one menu-item row DOM owner", async () => {
+  const [primitive, actionMenu, workspaceMenu, roomModelMenu] = await Promise.all([
+    readSource("src/shared/ui/menu/menu-action-row.tsx"),
+    readSource("src/shared/ui/menu/action-menu.tsx"),
+    readSource(
+      "src/features/conversation/room/workspace/view/workspace-context-menu.tsx",
+    ),
+    readSource(
+      "src/features/conversation/shared/composer/components/footer/composer-room-model-control.tsx",
+    ),
+  ]);
+
+  assert.match(primitive, /function UiMenuActionRow/);
+  assert.match(primitive, /<button/);
+  assert.match(primitive, /role="menuitem"/);
+  assert.match(primitive, /aria-disabled=\{disabled \|\| undefined\}/);
+  assert.match(primitive, /MENU_ITEM_BASE_CLASS_NAME/);
+  for (const consumer of [actionMenu, workspaceMenu, roomModelMenu]) {
+    assert.match(consumer, /<UiMenuActionRow/);
+    assert.doesNotMatch(consumer, /MENU_ITEM_BASE_CLASS_NAME/);
+    assert.doesNotMatch(consumer, /<(?:button|div)[^>]*role="menuitem"/s);
+  }
+  assert.equal((workspaceMenu.match(/<UiMenuActionRow/g) ?? []).length, 2);
+  assert.doesNotMatch(workspaceMenu, /<button/);
+  assert.match(roomModelMenu, /role="menu"/);
 });
 
 test("cross-domain warnings reuse the shared inline feedback owner", async () => {

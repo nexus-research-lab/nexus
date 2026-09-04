@@ -8,6 +8,7 @@ import { useRef, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { UiActionMenu } from "@/shared/ui/menu/action-menu";
+import { UiMenuActionRow } from "@/shared/ui/menu/menu-action-row";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import { SelectMenuOptionRow } from "@/shared/ui/menu/select-menu-primitives";
 
@@ -106,6 +107,33 @@ describe("UiSelectMenu", () => {
 });
 
 describe("UiActionMenu", () => {
+  it("owns native menu action rows and their state semantics", async () => {
+    const user = userEvent.setup();
+    const onClick = vi.fn();
+
+    render(
+      <div aria-label="文件操作" role="menu">
+        <UiMenuActionRow active onClick={onClick} tone="danger">
+          删除
+        </UiMenuActionRow>
+        <UiMenuActionRow disabled>不可用</UiMenuActionRow>
+      </div>,
+    );
+
+    const action = screen.getByRole("menuitem", { name: "删除" });
+    const disabledAction = screen.getByRole("menuitem", { name: "不可用" });
+    expect(action.getAttribute("type")).toBe("button");
+    expect(action.getAttribute("data-active")).toBe("true");
+    expect(action.className).toContain("radius-control-lg");
+    expect(action.className).toContain("text-(--destructive)");
+    expect((disabledAction as HTMLButtonElement).disabled).toBe(true);
+    expect(disabledAction.getAttribute("aria-disabled")).toBe("true");
+
+    await user.click(action);
+    await user.click(disabledAction);
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
   it("focuses and traverses enabled items, then restores the anchor", async () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();

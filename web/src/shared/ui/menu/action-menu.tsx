@@ -15,12 +15,14 @@ import { createPortal } from "react-dom";
 import { cn } from "@/shared/ui/class-name";
 
 import {
-  getMenuItemStateClassName,
-  MENU_ITEM_BASE_CLASS_NAME,
   MENU_ITEM_GAP_PX,
   MENU_LIST_CLASS_NAME,
   MENU_SURFACE_VERTICAL_PADDING_PX,
 } from "./menu-styles";
+import {
+  UiMenuActionRow,
+  type UiMenuActionRowDensity,
+} from "./menu-action-row";
 import { useAnchoredOverlayLayer } from "../overlay/anchored-overlay-layer";
 import {
   resolveAnchoredOverlayPosition,
@@ -44,7 +46,7 @@ export interface UiActionMenuItem {
   tone?: "default" | "primary" | "danger";
 }
 
-export type UiActionMenuDensity = "compact" | "default";
+export type UiActionMenuDensity = UiMenuActionRowDensity;
 
 export interface UiActionMenuContentProps {
   density?: UiActionMenuDensity;
@@ -78,18 +80,6 @@ const ACTION_MENU_ITEM_HEIGHT = {
 const ACTION_MENU_DESCRIBED_ITEM_HEIGHT = {
   compact: 40,
   default: 44,
-} as const;
-const ACTION_MENU_ITEM_CLASS_NAME = {
-  compact: {
-    described: "h-10 py-0.5",
-    plain: "h-8",
-    spacing: "gap-2 px-2",
-  },
-  default: {
-    described: "h-11 py-1",
-    plain: "h-9",
-    spacing: "gap-3 px-2.5",
-  },
 } as const;
 const ACTION_MENU_FOOTER_SEPARATOR_HEIGHT = 9;
 const EMPTY_ACTION_MENU_ITEMS: UiActionMenuItem[] = [];
@@ -200,36 +190,6 @@ function resolveActionMenuPosition({
     minWidth,
     placement,
   });
-}
-
-function getItemBodyClassName(
-  item: UiActionMenuItem,
-  density: UiActionMenuDensity,
-) {
-  const densityClassName = ACTION_MENU_ITEM_CLASS_NAME[density];
-  return cn(
-    MENU_ITEM_BASE_CLASS_NAME,
-    "flex cursor-pointer items-center justify-between",
-    densityClassName.spacing,
-    item.description
-      ? densityClassName.described
-      : densityClassName.plain,
-    item.disabled && "cursor-not-allowed opacity-(--disabled-opacity)",
-    getMenuItemStateClassName({
-      active: item.active,
-      tone: item.tone,
-    }),
-  );
-}
-
-function getItemLabelClassName(tone: UiActionMenuItem["tone"], active?: boolean) {
-  if (tone === "primary") {
-    return "text-(--brand-action)";
-  }
-  if (tone === "danger") {
-    return "text-(--destructive)";
-  }
-  return active ? "text-(--text-strong)" : "text-(--text-default)";
 }
 
 export function UiActionMenu({
@@ -377,26 +337,13 @@ function ActionMenuItem({
     onSelect(item.value);
   };
   return (
-    <div
-      aria-disabled={disabled || item.disabled || undefined}
-      className={cn(
-        getItemBodyClassName(item, density),
-        disabled && "cursor-not-allowed opacity-(--disabled-opacity)",
-      )}
+    <UiMenuActionRow
+      active={item.active}
+      density={density}
+      disabled={disabled || item.disabled}
+      hasDescription={Boolean(item.description)}
       onClick={select}
-      onKeyDown={(event) => {
-        if (
-          disabled
-          || item.disabled
-          || (event.key !== "Enter" && event.key !== " ")
-        ) {
-          return;
-        }
-        event.preventDefault();
-        select();
-      }}
-      role="menuitem"
-      tabIndex={disabled || item.disabled ? -1 : 0}
+      tone={item.tone}
     >
       <span className="flex min-w-0 flex-1 items-center gap-2">
         {item.icon ? (
@@ -405,11 +352,7 @@ function ActionMenuItem({
           </span>
         ) : null}
         <span className="min-w-0 flex-1">
-          <span className={cn(
-            "block truncate font-normal",
-            density === "compact" ? "text-compact" : "text-sm",
-            getItemLabelClassName(item.tone, item.active),
-          )}>
+          <span className="block truncate font-normal">
             {item.label}
           </span>
           {item.description ? (
@@ -424,6 +367,6 @@ function ActionMenuItem({
           {item.trailing}
         </span>
       ) : null}
-    </div>
+    </UiMenuActionRow>
   );
 }
