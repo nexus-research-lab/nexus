@@ -173,6 +173,7 @@ export async function previewWorkGraphWorkflowApi(
         output_language: outputLanguage,
       },
       method: "POST",
+      timeout_ms: 185_000,
     },
   );
 }
