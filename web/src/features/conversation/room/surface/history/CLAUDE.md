@@ -4,9 +4,9 @@
 - 内部草稿只从历史投影中排除，仍留在标签目录和当前会话 Surface；首条用户输入使 `is_draft` 变为 `false` 后才进入历史。外部 Session 沿用既有展示规则，历史过滤不得驱动标签恢复或路由切换。
 - `room-history-selection.ts` 持有滚动列表多选状态；允许选择全部本地历史会话，外部渠道 Session 不参与删除。
 - `room-history-bulk-delete.ts` 全量清空时先确保一个内部草稿作为安全锚点，再把当前会话排在最后串行删除并聚合未确认项；单项失败不得阻断同批后续删除，也不得自动重放。
-- `room-history-menu.tsx` 负责固定高度的顶部锚定下拉、中部纵向滚动、切换、多选和删除确认；历史入口与 footer 动作复用 Button 原语，全选复用支持 mixed 状态的 `UiCheckbox`，条目编辑复用 `UiInput / UiListActionButton`，不得在菜单里复制控件状态样式。批量删除异常必须分别说明已确认完成数量、待确认数量和安全核对步骤，不提供普通“重试删除”。
+- `room-history-menu.tsx` 负责固定高度的顶部锚定下拉、中部纵向滚动、切换、多选和删除确认；历史入口与 footer 动作复用 Button 原语，全选复用支持 mixed 状态的 `UiCheckbox`，条目整行复用 `UiListRow`，编辑与行内命令复用 `UiInput / UiListActionButton`，外部来源与文本分别复用 `UiBadge / App Typography`，不得在菜单里复制控件状态样式。批量删除异常必须分别说明已确认完成数量、待确认数量和安全核对步骤，不提供普通“重试删除”。
 - `room-history-item-model.ts` 将活动态、读取/编辑模式、本地化元信息和可用动作投影为封闭视图模型。
-- `room-history-item-view.tsx` 通过内容与动作映射渲染，不从原始会话重新判断权限或协议。
+- `room-history-item-view.tsx` 通过内容与动作映射渲染，不从原始会话重新判断权限或协议；`UiListRow` 是整行 hover/active/focus/键盘选择的唯一 owner，行内命令必须阻断冒泡，不得另建原生行按钮或私有选中色。
 - 外部 Session 和最少保留数量只影响单项删除能力；批量清空通过先创建或复用唯一内部草稿满足后端保留约束，删除主对话时仍由仓储事务提升回退会话。
 - 标题编辑以可空草稿表达完整状态，条目视图不维护第二份 `isEditing`。
 - 历史不再占用右侧辅助 Surface；菜单只装配滚动列表、单行标题、简短空状态、选择工具和删除确认，不显示会话计数副标题、装饰空态图标或协议说明。

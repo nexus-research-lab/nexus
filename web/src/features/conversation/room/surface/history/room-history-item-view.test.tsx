@@ -1,9 +1,9 @@
 // INPUT: Room 历史条目的读取/编辑展示模型与动作回调。
-// OUTPUT: 证明条目编辑与行内动作直接复用共享 Form/List 控件并保持命令边界。
+// OUTPUT: 证明条目整行、编辑与行内动作复用共享 List/Form 控件，并隔离选择和行内命令。
 // POS: RoomHistoryItemView DOM 行为测试；权限和条目状态投影由 model 测试负责。
 
 import { createRef } from "react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -28,7 +28,7 @@ const READING_PRESENTATION: RoomHistoryItemPresentation = {
 };
 
 describe("RoomHistoryItemView", () => {
-  it("uses shared inline actions and the shared compact input", async () => {
+  it("uses the shared row, inline actions, and compact input without command bubbling", async () => {
     const user = userEvent.setup();
     const editor = {
       cancel: vi.fn(),
@@ -39,16 +39,27 @@ describe("RoomHistoryItemView", () => {
       start: vi.fn(),
     };
     const onDelete = vi.fn();
+    const onSelect = vi.fn();
     const { rerender } = render(
       <RoomHistoryItemView
         editor={editor}
         onDelete={onDelete}
-        onSelect={vi.fn()}
+        onSelect={onSelect}
         onToggleSelection={vi.fn()}
         presentation={READING_PRESENTATION}
         selectionLabel="选择项目讨论"
       />,
     );
+
+    const row = screen.getByRole("button", { name: /项目讨论/ });
+    expect(row.tagName).toBe("DIV");
+    expect(row.className).toContain("radius-control-md");
+    expect(row.getAttribute("aria-current")).toBe("page");
+    await user.click(row);
+    row.focus();
+    await user.keyboard("{Enter}");
+    fireEvent.keyDown(row, { key: " " });
+    expect(onSelect).toHaveBeenCalledTimes(3);
 
     const rename = screen.getByRole("button", { name: "重命名会话" });
     const remove = screen.getByRole("button", { name: "删除会话" });
@@ -58,6 +69,7 @@ describe("RoomHistoryItemView", () => {
     await user.click(remove);
     expect(editor.start).toHaveBeenCalledOnce();
     expect(onDelete).toHaveBeenCalledOnce();
+    expect(onSelect).toHaveBeenCalledTimes(3);
 
     rerender(
       <RoomHistoryItemView

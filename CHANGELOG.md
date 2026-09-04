@@ -40,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Moved Room history entries onto the shared whole-row List contract, unifying
+  hover, selection, focus, and keyboard behavior while isolating inline actions.
 - Replaced the spreadsheet preview's private filled sheet pills with the shared
   underline Tabs contract while preserving scrolling, truncation, and selection.
 - Moved the conversation round navigator preview onto shared semantic
