@@ -20,7 +20,7 @@ import {
 } from "@/shared/ui/dialog/dialog";
 import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
-import { UiTabs } from "@/shared/ui/navigation/tabs";
+import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
 import type {
   CustomMCPAuthType,
   CustomMCPServer,
@@ -131,17 +131,15 @@ export function CustomMCPDialog({
             </UiField>
 
             <UiField label={t("capability.custom_mcp_transport")}>
-              <UiTabs
-                activeValue={draft.type}
-                ariaLabel={t("capability.custom_mcp_transport")}
-                className="h-8"
+              <UiSegmentedControl
                 density="compact"
-                itemClassName="h-8 px-3"
                 onChange={(value) => updateDraft("type", value)}
                 options={TRANSPORTS.map((value) => ({
                   label: value.toUpperCase(),
                   value,
                 }))}
+                title={t("capability.custom_mcp_transport")}
+                value={draft.type}
               />
             </UiField>
 
@@ -243,17 +241,15 @@ function RemoteFields({
         />
       </UiField>
       <UiField label={t("capability.custom_mcp_auth")}>
-        <UiTabs
-          activeValue={draft.authType}
-          ariaLabel={t("capability.custom_mcp_auth")}
-          className="h-8"
+        <UiSegmentedControl
           density="compact"
-          itemClassName="h-8 px-3"
           onChange={(value) => updateDraft("authType", value)}
           options={AUTH_TYPES.map((value) => ({
             label: t(`capability.custom_mcp_auth_${value}`),
             value,
           }))}
+          title={t("capability.custom_mcp_auth")}
+          value={draft.authType}
         />
       </UiField>
       {draft.authType === "bearer" ? (

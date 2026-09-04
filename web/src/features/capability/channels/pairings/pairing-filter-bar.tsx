@@ -3,13 +3,13 @@
 import { Filter, Users } from "lucide-react";
 
 import {
+  CapabilityDirectoryTabs,
   CapabilityFilterBar,
   CapabilityFilterSearchInput,
   CapabilityFilterSelect,
 } from "@/features/capability/shared/capability-page-layout";
 import type { ImChannelType } from "@/lib/api/capability/channel-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiTabs } from "@/shared/ui/navigation/tabs";
 import type { Agent } from "@/types/agent/agent";
 
 import type {
@@ -54,15 +54,11 @@ export function PairingFilterBar({
 
   return (
     <CapabilityFilterBar className="mb-5 sm:justify-between">
-      <UiTabs
+      <CapabilityDirectoryTabs
         activeValue={filters.status}
         ariaLabel="按配对状态筛选"
-        className="h-8 w-full shrink-0 sm:w-auto"
-        density="compact"
-        itemClassName="h-8 w-full justify-center px-3 sm:w-auto"
         onChange={(value) => onChange("status", value)}
         options={STATUS_TABS.map((tab) => ({
-          className: "min-w-0 flex-1 sm:flex-none",
           label: (
             <>
               <span>{tab.label}</span>

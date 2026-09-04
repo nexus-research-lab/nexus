@@ -68,7 +68,7 @@ interface CapabilityFilterBarProps {
   className?: string;
 }
 
-interface CapabilityModeTabsProps<TValue extends string> {
+interface CapabilityDirectoryTabsProps<TValue extends string> {
   activeValue: TValue;
   ariaLabel: string;
   navAnchor?: string;
@@ -327,14 +327,14 @@ export function CapabilityFilterSearchInput({
   );
 }
 
-/** 能力目录的一级内容模式使用单行线性标签，不与表单分段选择器混用。 */
-export function CapabilityModeTabs<TValue extends string>({
+/** 能力目录的内容与筛选切换使用单行线性标签，不与表单分段选择器混用。 */
+export function CapabilityDirectoryTabs<TValue extends string>({
   activeValue,
   ariaLabel,
   navAnchor,
   onChange,
   options,
-}: CapabilityModeTabsProps<TValue>) {
+}: CapabilityDirectoryTabsProps<TValue>) {
   return (
     <UiTabs
       activeValue={activeValue}
@@ -345,7 +345,6 @@ export function CapabilityModeTabs<TValue extends string>({
       navAnchor={navAnchor}
       onChange={onChange}
       options={options}
-      variant="line"
     />
   );
 }

@@ -14,7 +14,7 @@ import {
   CapabilityDetailSectionHeader,
   CapabilityDetailSplitLayout,
   CapabilityItemIcon,
-  CapabilityModeTabs,
+  CapabilityDirectoryTabs,
   CapabilityPageLayout,
   CapabilitySectionHeader,
 } from "./capability-page-layout";
@@ -143,7 +143,7 @@ describe("CapabilityPageLayout", () => {
   it("owns compact single-line mode navigation without a stretched capsule", () => {
     let selected = "global";
     render(
-      <CapabilityModeTabs
+      <CapabilityDirectoryTabs
         activeValue="global"
         ariaLabel="技能目录"
         onChange={(value) => { selected = value; }}

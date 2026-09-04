@@ -29,6 +29,7 @@ const PROHIBITED_PRODUCT_STYLE_PATTERNS = [
 ];
 
 const REQUIRED_SHARED_UI_BEHAVIOR_SUITES = [
+  "src/features/capability/channels/pairings/pairing-filter-bar.test.tsx",
   "src/features/conversation/shared/execution/execution-process-panel.test.tsx",
   "src/features/conversation/shared/composer/components/interaction/composer-permission-surface.test.tsx",
   "src/shared/ui/button/button.test.tsx",
@@ -1633,7 +1634,7 @@ test("Skill directory chrome reuses shared actions, states, typography, and filt
   assert.doesNotMatch(card, /<button\b|rounded-\[|text-(?:2xs|xs|sm|base|compact)|font-(?:medium|semibold)|font-mono/);
   assert.match(grid, /<UiResourceState/);
   assert.doesNotMatch(grid, /Loader2/);
-  assert.match(search, /<CapabilityModeTabs/);
+  assert.match(search, /<CapabilityDirectoryTabs/);
   assert.doesNotMatch(search, /<UiSegmentedControl/);
   assert.match(search, /<UiIconButton/);
   assert.doesNotMatch(search, /<button\b/);
@@ -1923,9 +1924,28 @@ test("Connector catalog exposes only implemented products and derives real categ
   assert.doesNotMatch(catalogModel, /COMING_SOON|connector_section_featured/);
   assert.match(categoryModel, /getAvailableConnectorCategoryKeys/);
   assert.match(searchBar, /categoryKeys/);
-  assert.match(searchBar, /<CapabilityModeTabs/);
+  assert.match(searchBar, /<CapabilityDirectoryTabs/);
   assert.doesNotMatch(searchBar, /<UiTabs|<UiSegmentedControl/);
   assert.doesNotMatch(searchBar, /CONNECTOR_CATEGORY_OPTIONS/);
+});
+
+test("content and filter tabs use one underline owner while form choices stay segmented", async () => {
+  const [tabs, tabStyles, capabilityLayout, pairingFilter, customMcpDialog] = await Promise.all([
+    readSource("src/shared/ui/navigation/tabs.tsx"),
+    readSource("src/shared/ui/navigation/tabs-styles.ts"),
+    readSource("src/features/capability/shared/capability-page-layout.tsx"),
+    readSource("src/features/capability/channels/pairings/pairing-filter-bar.tsx"),
+    readSource("src/features/capability/connectors/custom/custom-mcp-dialog.tsx"),
+  ]);
+
+  assert.doesNotMatch(tabs, /variant/);
+  assert.doesNotMatch(tabStyles, /UiTabsVariant|surface-interactive|radius-control-sm/);
+  assert.match(tabStyles, /border-b-2/);
+  assert.match(capabilityLayout, /export function CapabilityDirectoryTabs/);
+  assert.match(pairingFilter, /<CapabilityDirectoryTabs/);
+  assert.doesNotMatch(pairingFilter, /<UiTabs|<UiSegmentedControl/);
+  assert.match(customMcpDialog, /<UiSegmentedControl/g);
+  assert.doesNotMatch(customMcpDialog, /<UiTabs/);
 });
 
 test("Loop surfaces use semantic typography, badges, panels, and responsive actions", async () => {
