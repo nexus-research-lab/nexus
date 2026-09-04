@@ -1,7 +1,7 @@
 /**
  * INPUT: owner-scoped 已固定保存的 WorkGraph 草图目录。
- * OUTPUT: 与 Loop picker 同层级的只读查看与命令复用入口。
- * POS: Composer 能力菜单中的工作图入口；不展示运行图，也不发起草图保存。
+ * OUTPUT: 与 Loop picker 同层级、具共享 listbox 选项语义的只读查看与命令复用入口。
+ * POS: Composer 能力菜单中的工作图入口；只组合工作图内容，不拥有选项 DOM。
  */
 "use client";
 
@@ -12,6 +12,7 @@ import { NamedWorkGraphSketch } from "@/features/conversation/shared/execution/n
 import { getWorkGraphWorkflowsApi } from "@/lib/api/conversation/execution-api";
 import { getResourceFailure, type ResourceFailure } from "@/lib/error-message";
 import { UiButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
@@ -22,6 +23,9 @@ import {
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
+import { getSelectMenuOptionStateClassName } from "@/shared/ui/menu/select-menu-model";
+import { SelectMenuOptionRow } from "@/shared/ui/menu/select-menu-primitives";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { WorkGraphWorkflow } from "@/types/conversation/workgraph-workflow";
 
 import { WORKGRAPH_WORKFLOWS_CHANGED_EVENT } from "../../../execution/workgraph-distillation-intent";
@@ -178,20 +182,33 @@ function OpenWorkGraphDistillationPickerDialog({
               />
             ) : (
               <div className="grid min-h-0 flex-1 overflow-hidden rounded-[10px] border border-(--divider-subtle-color) md:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]">
-                <div className="soft-scrollbar min-h-0 divide-y divide-(--divider-subtle-color) overflow-y-auto md:border-r md:border-(--divider-subtle-color)">
+                <div
+                  aria-label={t("composer.workgraph_picker_title")}
+                  className="soft-scrollbar min-h-0 divide-y divide-(--divider-subtle-color) overflow-y-auto md:border-r md:border-(--divider-subtle-color)"
+                  role="listbox"
+                >
                   {filtered.map((item) => (
-                    <button
-                      className={`w-full px-3.5 py-3 text-left transition-colors ${selected?.id === item.id ? "bg-(--surface-interactive-hover-background)" : "bg-(--surface-raised-background) hover:bg-(--surface-interactive-hover-background)"}`}
+                    <SelectMenuOptionRow
+                      active={selected?.id === item.id}
+                      className={cn(
+                        "flex min-h-12 w-full flex-col items-stretch justify-center px-3 py-2 text-left",
+                        getSelectMenuOptionStateClassName("dialog", selected?.id === item.id),
+                      )}
                       key={item.id}
                       onClick={() => setSelectedId(item.id)}
-                      type="button"
                     >
-                      <div className="truncate text-sm font-medium text-(--text-strong)">{item.title}</div>
-                      <div className="mt-1 flex items-center gap-2 text-xs text-(--text-soft)">
+                      <div className={`truncate ${getUiTypographyClassName({
+                        role: "sectionTitle",
+                        tone: "strong",
+                      })}`}>{item.title}</div>
+                      <div className={`mt-0.5 flex items-center gap-2 ${getUiTypographyClassName({
+                        role: "caption",
+                        tone: "soft",
+                      })}`}>
                         <code>/{item.slash_name}</code>
                         {item.built_in ? <span>{t("capability.workgraph_builtin")}</span> : null}
                       </div>
-                    </button>
+                    </SelectMenuOptionRow>
                   ))}
                 </div>
                 {selected ? (

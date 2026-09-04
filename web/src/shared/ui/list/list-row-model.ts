@@ -22,6 +22,7 @@ const LIST_ROW_DENSITY_CLASS_NAMES: Record<UiListRowDensity, string> = {
 const LIST_ROW_STATE_CLASS_NAMES = {
   active: "border-transparent bg-(--surface-interactive-active-background) text-(--text-strong) shadow-none",
   activeSidebar: cn(SIDEBAR_SELECTION_CLASS_NAME, "text-(--text-strong)"),
+  disabled: "cursor-not-allowed text-(--text-muted) opacity-(--disabled-opacity)",
   idleDefault: "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
   idleMuted: "text-(--text-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
 } as const;
@@ -31,6 +32,7 @@ export function getUiListRowPresentation({
   activeTone,
   className,
   density,
+  disabled,
   inactiveTone,
   interactive,
 }: {
@@ -38,10 +40,13 @@ export function getUiListRowPresentation({
   activeTone: "default" | "sidebar";
   className?: string;
   density: UiListRowDensity;
+  disabled: boolean;
   inactiveTone: "default" | "muted";
   interactive: boolean;
 }): UiListRowPresentation {
-  const state = active
+  const state = disabled
+    ? "disabled"
+    : active
     ? activeTone === "sidebar" ? "activeSidebar" : "active"
     : inactiveTone === "muted"
       ? "idleMuted"
@@ -50,11 +55,11 @@ export function getUiListRowPresentation({
     className: cn(
       "group/item relative flex w-full items-center gap-3 radius-control-md border border-transparent text-left transition-[background,border-color,color,box-shadow] duration-(--motion-duration-fast)",
       LIST_ROW_DENSITY_CLASS_NAMES[density],
-      interactive && "cursor-pointer",
+      interactive && !disabled && "cursor-pointer",
       LIST_ROW_STATE_CLASS_NAMES[state],
       className,
     ),
     role: interactive ? "button" : undefined,
-    tabIndex: interactive ? 0 : undefined,
+    tabIndex: interactive && !disabled ? 0 : undefined,
   };
 }

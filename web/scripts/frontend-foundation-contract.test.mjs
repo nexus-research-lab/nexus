@@ -2246,6 +2246,20 @@ test("Capability and Workspace headers share the Breadcrumb owner", async () => 
   assert.doesNotMatch(workspacePathModel, /getWorkspaceFileLocationLabel/);
 });
 
+test("Loop and WorkGraph pickers consume shared interactive row owners", async () => {
+  const [loopItem, workGraphPicker] = await Promise.all([
+    readSource("src/features/conversation/shared/composer/components/loop-picker/loop-picker-item.tsx"),
+    readSource("src/features/conversation/shared/composer/components/workgraph-distillation-picker/workgraph-distillation-picker-dialog.tsx"),
+  ]);
+
+  assert.match(loopItem, /<UiListRow/);
+  assert.match(loopItem, /disabled=\{busySlug !== null\}/);
+  assert.doesNotMatch(loopItem, /<button\b|\btext-(?:xs|sm|base|compact)\b|\bfont-(?:medium|semibold)\b/);
+  assert.match(workGraphPicker, /role="listbox"/);
+  assert.match(workGraphPicker, /<SelectMenuOptionRow/);
+  assert.doesNotMatch(workGraphPicker, /<button\b/);
+});
+
 test("the UI contract gallery stays reproducible and outside production entries", async () => {
   const [html, entry, gallery, additionalGallery, inventory, viteConfig] = await Promise.all([
     readSource("ui-gallery.html"),
