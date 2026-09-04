@@ -675,17 +675,28 @@ test("Capability directories share semantic action Spinner roles", async () => {
   assert.match(combined, /size: "md"/);
 });
 
-test("Goal editing and status actions share one Spinner role", async () => {
+test("Goal editing and status chrome share Spinner, Badge, and Typography owners", async () => {
   const paths = [
     "src/features/conversation/shared/goal/goal-draft-form.tsx",
     "src/features/conversation/shared/goal/goal-status-strip.tsx",
   ];
   const sources = await Promise.all(paths.map(readSource));
+  const goalModel = await readSource(
+    "src/features/conversation/shared/goal/goal-model.ts",
+  );
 
   for (const source of sources) {
     assert.match(source, /getUiSpinnerClassName\(\{ size: "md" \}\)/);
     assert.doesNotMatch(source, /\banimate-spin\b/);
   }
+  assert.match(sources[1], /<UiBadge/);
+  assert.match(sources[1], /getUiTypographyClassName/);
+  assert.doesNotMatch(
+    sources[1],
+    /GOAL_PANEL_BADGE_CLASS_NAME|rounded-\[(?:6|8)px\]|\btext-(?:2xs|xs|compact)\b|\bfont-(?:medium|semibold)\b/,
+  );
+  assert.match(goalModel, /badge: "active"/);
+  assert.doesNotMatch(goalModel, /GOAL_PANEL_BADGE_CLASS_NAME|badge: "border-/);
 });
 
 test("WorkGraph surfaces share canvas, action, and revision Spinner roles", async () => {

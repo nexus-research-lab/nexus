@@ -19,15 +19,16 @@ import {
 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { cn } from "@/shared/ui/class-name";
 import { UiIconButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
+import { UiBadge } from "@/shared/ui/display/badge";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { Goal, GoalExecutionBinding } from "@/types/conversation/goal";
 import type { GoalContinuationHold } from "./goal-continuation-hold";
 import type { GoalMutationBlockReason } from "./goal-lifecycle-recovery";
 import {
   buildGoalStatusStripModel,
-  GOAL_PANEL_BADGE_CLASS_NAME,
   GOAL_PANEL_COMPACT_CLASS_NAME,
   GOAL_PANEL_LEADING_ICON_CLASS_NAME,
   GOAL_PANEL_ROW_CLASS_NAME,
@@ -91,12 +92,12 @@ const GOAL_ACTION_PRESENTATION: Record<
 
 const GOAL_BINDING_BADGE_TONE: Record<
   GoalBindingBadgeModel["tone"],
-  string
+  "danger" | "idle" | "info" | "warning"
 > = {
-  conflict: "border-destructive/20 bg-destructive/10 text-destructive",
-  confirmed: "border-(--status-info-soft-border) bg-(--status-info-soft-bg) text-(--status-info-soft-text)",
-  pending: "border-[color:color-mix(in_srgb,var(--warning)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_9%,transparent)] text-(--warning)",
-  unavailable: "border-(--surface-control-border) bg-(--surface-muted-background) text-(--text-soft)",
+  conflict: "danger",
+  confirmed: "info",
+  pending: "warning",
+  unavailable: "idle",
 };
 
 export function GoalStatusStrip({
@@ -192,19 +193,26 @@ function GoalStatusSummary({
 }) {
   return (
     <div className="min-w-0 flex-1">
-      <div className="flex min-w-0 items-center gap-1.5 text-2xs font-medium text-(--text-soft)">
+      <div className={cn(
+        "flex min-w-0 items-center gap-1.5",
+        getUiTypographyClassName({ role: "caption", tone: "soft", weight: "medium" }),
+      )}>
         <span className="truncate">{scopeLabel}</span>
-        <span
-          className={cn(GOAL_PANEL_BADGE_CLASS_NAME, model.tone.badge)}
+        <UiBadge
+          size="xs"
           title={model.statusTitle}
+          tone={model.tone.badge}
         >
           {model.statusLabel}
-        </span>
+        </UiBadge>
         {model.bindingBadge ? <GoalBindingBadge model={model.bindingBadge} /> : null}
         {statusExtra}
       </div>
       <div
-        className="mt-0.5 line-clamp-1 text-compact font-medium leading-5 text-(--text-strong)"
+        className={cn(
+          "mt-0.5 line-clamp-1",
+          getUiTypographyClassName({ role: "supporting", tone: "strong", weight: "medium" }),
+        )}
         title={objective}
       >
         {objective}
@@ -221,17 +229,16 @@ function GoalBindingBadge({
   const { t } = useI18n();
   const title = t(model.titleKey);
   return (
-    <span
+    <UiBadge
       aria-label={title}
-      className={cn(
-        "inline-flex max-w-32 shrink-0 items-center truncate rounded-[6px] border px-1.5 py-0.5 text-2xs font-medium leading-tight",
-        GOAL_BINDING_BADGE_TONE[model.tone],
-      )}
+      className="max-w-32 truncate"
       data-goal-binding-state={model.state}
+      size="xs"
       title={title}
+      tone={GOAL_BINDING_BADGE_TONE[model.tone]}
     >
       {t(model.labelKey)}
-    </span>
+    </UiBadge>
   );
 }
 
@@ -240,7 +247,10 @@ function GoalUsage({ label }: { label: string | null }) {
     return null;
   }
   return (
-    <span className="hidden h-6 shrink-0 items-center gap-1 rounded-[8px] px-1.5 text-xs font-medium tabular-nums text-(--text-muted) sm:inline-flex">
+    <span className={cn(
+      "hidden shrink-0 items-center gap-1 tabular-nums sm:inline-flex",
+      getUiTypographyClassName({ role: "caption", tone: "muted", weight: "medium" }),
+    )}>
       <GaugeCircle className="h-3.5 w-3.5 shrink-0" />
       <span>{label}</span>
     </span>
@@ -328,8 +338,11 @@ function GoalAttentionMessage({
   return (
     <div
       className={cn(
-        "ml-7 line-clamp-1 pb-1 text-xs leading-4",
-        tone === "warning" ? "text-(--warning)" : "text-(--destructive)",
+        "ml-7 line-clamp-1 pb-1",
+        getUiTypographyClassName({
+          role: "caption",
+          tone: tone === "warning" ? "warning" : "danger",
+        }),
       )}
     >
       {resolvedMessage}
