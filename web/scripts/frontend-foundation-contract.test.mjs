@@ -1449,6 +1449,32 @@ test("business inline notices reuse feedback and spinner owners", async () => {
   assert.match(roomSkills, /getUiSpinnerClassName/);
 });
 
+test("auth, Agent, and capability recovery surfaces reuse one inline notice owner", async () => {
+  const consumers = new Map([
+    ["src/pages/login/login-auth-panel.tsx", 1],
+    ["src/pages/setup/setup-page.tsx", 1],
+    ["src/features/agents/options/components/agent-options-editor-actions.tsx", 1],
+    ["src/features/agents/options/components/identity/identity-model-selector.tsx", 2],
+    ["src/features/capability/channels/authorization/channel-authorization-dialog.tsx", 2],
+    ["src/features/capability/channels/connection/channel-accounts-panel.tsx", 1],
+    ["src/features/capability/scheduled/dialog/form/task-basics-advanced.tsx", 1],
+  ]);
+
+  for (const [consumerPath, noticeCount] of consumers) {
+    const consumer = await readSource(consumerPath);
+    assert.equal(
+      (consumer.match(/<UiInlineNotice/g) ?? []).length,
+      noticeCount,
+      consumerPath,
+    );
+    assert.doesNotMatch(
+      consumer,
+      /border-\[color:color-mix\(in_srgb,var\(--(?:destructive|warning)\)[\s\S]*?bg-\[color:color-mix\(in_srgb,var\(--(?:destructive|warning)\)/,
+      consumerPath,
+    );
+  }
+});
+
 test("Select, Slash, and multi-select options share one listbox row DOM owner", async () => {
   const [primitive, selectView, slashPicker, roomSkills] = await Promise.all([
     readSource("src/shared/ui/menu/select-menu-primitives.tsx"),

@@ -103,14 +103,16 @@ describe("TaskBasicsAdvanced", () => {
       </I18N_CONTEXT.Provider>,
     );
 
-    const warning = container.querySelector("section[role='status'].surface-radius-sm");
+    const warning = screen.getByRole("status");
     expect(warning).toBeTruthy();
+    expect(warning.getAttribute("data-inline-notice-tone")).toBe("warning");
+    expect(warning.getAttribute("data-inline-notice-width")).toBe("full");
     expect(
       screen.getByText("capability.scheduled_dialog_session_rebind_required").className,
-    ).toContain("ui-type-supporting");
+    ).toContain("ui-type-metadata");
     expect(
       screen.getByText("capability.scheduled_dialog_session_rebind_description").className,
-    ).toContain("ui-type-caption");
+    ).toContain("ui-type-metadata");
     expect(container.querySelectorAll("section.surface-radius-md")).toHaveLength(2);
 
     const details = container.querySelector("details.surface-radius-md");

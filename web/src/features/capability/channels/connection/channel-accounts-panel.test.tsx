@@ -45,9 +45,12 @@ describe("ChannelAccountsPanel", () => {
     expect(screen.getByRole("heading", { name: "已连接账号" }).className)
       .toContain("ui-type-control");
     expect(screen.getByText(ACCOUNT.user_id).className).toContain("ui-type-code");
-    expect(container.querySelectorAll("section.surface-radius-sm").length).toBeGreaterThan(1);
+    expect(container.querySelectorAll("section.surface-radius-sm")).toHaveLength(2);
+    const accountFailure = screen.getByRole("status");
+    expect(accountFailure.getAttribute("data-inline-notice-tone")).toBe("danger");
+    expect(accountFailure.getAttribute("data-inline-notice-width")).toBe("full");
     expect(screen.getByText("capability.channel_account_error_title").className)
-      .toContain("ui-type-caption");
+      .toContain("ui-type-metadata");
     expect(screen.queryByText(ACCOUNT.last_error)).toBeNull();
     expect(screen.getByTitle("删除该账号").querySelector("svg")?.classList)
       .toContain("motion-reduce:animate-none");

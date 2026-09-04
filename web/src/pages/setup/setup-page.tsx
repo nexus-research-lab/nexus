@@ -1,3 +1,6 @@
+// INPUT: 认证启动状态、一次性 Setup capability、owner 草稿与初始化命令结果。
+// OUTPUT: 首次 Deployment owner 初始化表单、共享失败提示及成功后的 Launcher 导航。
+// POS: Setup 页面业务入口；不持久化 capability，也不在结果未知时自动重放创建请求。
 "use client";
 
 import { ArrowRight, CheckCircle2, KeyRound, ServerCog } from "lucide-react";
@@ -9,6 +12,7 @@ import { setupControlOwnerApi } from "@/lib/api/account/control-api";
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
+import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
 import { AppLoadingState } from "@/shared/ui/layout/app-loading-screen";
 
@@ -187,10 +191,13 @@ export function SetupPage() {
 
             {validationKey ? <p className="text-xs text-(--destructive)">{t(validationKey)}</p> : null}
             {failure ? (
-              <div className="rounded-[10px] border border-[color:color-mix(in_srgb,var(--destructive)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] px-4 py-3" role="alert">
-                <p className="text-sm font-semibold text-(--destructive)">{t("setup.failed_title")}</p>
-                <p className="mt-1 text-xs leading-5 text-(--text-muted)">{t("setup.failed_description")}</p>
-              </div>
+              <UiInlineNotice
+                aria-live="assertive"
+                message={t("setup.failed_description")}
+                role="alert"
+                title={t("setup.failed_title")}
+                tone="danger"
+              />
             ) : null}
 
             <UiButton className="min-h-11 w-full" disabled={Boolean(validationKey) || isSubmitting} size="lg" tone="primary" type="submit" variant="solid">

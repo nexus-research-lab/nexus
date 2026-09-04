@@ -53,6 +53,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Centralized Room history, Composer, message-reference, Slash, and scheduled
   picker geometry behind shared semantic overlay presets while preserving the
   current placement and dimensions.
+- Unified authentication, Agent settings, Channel authorization/account, and
+  scheduled rebind recovery surfaces behind the shared inline notice contract.
 - Replaced Composer model-owned color classes and pulsing status copy with
   semantic tones and shared LoadingOrb variants, including deterministic CSS
   frame cycles and a static reduced-motion state.

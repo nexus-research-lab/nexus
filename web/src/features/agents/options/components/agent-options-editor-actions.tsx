@@ -2,8 +2,8 @@
 // OUTPUT: 由共享 Button 原语组成的删除、取消、保存动作行。
 // POS: Agent options 的动作组合；不拥有按钮视觉或保存事务。
 
-import { cn } from "@/shared/ui/class-name";
 import { UiButton, type UiButtonSize } from "@/shared/ui/button/button";
+import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import { RecoverySummary } from "@/shared/ui/feedback/recovery-summary";
 
 import type { SaveFeedback } from "../agent-options-editor-model";
@@ -94,22 +94,12 @@ function SaveFeedbackMessage({
   }
   if (feedback.tone !== "success") {
     return (
-      <div
-        aria-atomic="true"
-        aria-live="polite"
-        className={cn(
-          "order-first w-full rounded-[10px] border px-3 py-2.5 text-left",
-          feedback.tone === "warning"
-            ? "border-[color:color-mix(in_srgb,var(--warning)_22%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_7%,transparent)]"
-            : "border-[color:color-mix(in_srgb,var(--destructive)_22%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_7%,transparent)]",
-        )}
-        role="status"
-      >
-        <p className="break-words text-compact font-semibold text-(--text-default)">
-          {feedback.title}
-        </p>
-        <RecoverySummary className="mt-1" impact={feedback.impact} />
-      </div>
+      <UiInlineNotice
+        className="order-first"
+        message={<RecoverySummary impact={feedback.impact} />}
+        title={feedback.title}
+        tone={feedback.tone === "warning" ? "warning" : "danger"}
+      />
     );
   }
   return (
