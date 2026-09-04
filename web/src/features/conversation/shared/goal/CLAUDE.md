@@ -11,8 +11,8 @@
 - mutation 响应成功后先采用该响应的权威结果，再单独刷新 Goal/binding；后续读取失败只能报告“写入已完成、刷新失败”，不得降格成写入失败。401/403 或 Session 切换必须清除可见旧快照并拒绝旧异步结果，任何恢复都不得自动重发 lifecycle mutation、prompt 或其他副作用。
 - 编辑表单使用单一草稿对象，并采用无装饰图标与副标题的 plain chrome；只有清除 Goal 需要确认弹窗，状态恢复由面板内显式动作直接执行。
 - `goal-panel.tsx` 只组合状态条、编辑弹窗和单一确认弹窗，不直接调用 API。
-- `goal-model.ts` 统一 Goal 生命周期、有意义的 server-derived WorkGraph binding 徽标与清除能力、实际 token 用量、预算表单、控制器可见性、动作规则与外部活动版本的纯投影；Goal 活跃但没有执行时显示“运行中”，真实生成期间以同一个主状态原位替换为“执行中”，禁止同时展示两个同层状态。状态条只展示一个实际用量数字，估算值以 `≈` 标记，complete 但尚未 finalized 时隐藏 token，不展示预算计量、进度条或用量 tooltip。
+- `goal-model.ts` 统一 Goal 生命周期、有意义的 server-derived WorkGraph binding 徽标与清除能力、实际 token 用量、预算表单、控制器可见性、动作规则与外部活动版本的纯投影；纯模型不得导出 DOM class、圆角、背景、阴影或 lane。Goal 活跃但没有执行时显示“运行中”，真实生成期间以同一个主状态原位替换为“执行中”，禁止同时展示两个同层状态。状态条只展示一个实际用量数字，估算值以 `≈` 标记，complete 但尚未 finalized 时隐藏 token，不展示预算计量、进度条或用量 tooltip。
 - `status=paused` 只投影为真实“已暂停”；active Goal 的自动续跑状态只消费服务端 `continuation_state`，`recovering` 仍是 active，只有 `suspended` 显示“自动续跑已停止”及“不是 Agent 主动暂停”的行内原因，并保留继续动作。前端不得根据 `empty_progress_count` 重建门槛。Plan/权限 hold 使用服务端 hold 自己的 label/detail，不与前两者合并。
-- `goal-status-strip.tsx` 只渲染状态模型并把动作分发给控制器，不解释 Goal 运行规则。Goal 的 lifecycle/activity 共用一个主状态槽并复用 `UiBadge`，预算/耗时只是无壳 Typography 元信息，不得再生成 Goal 私有胶囊；`standalone|reserved` 不显示冗余 binding 徽标，但服务端状态仍负责清除授权；`pending|confirmed|conflict` 分别显示确认中、已关联和冲突，读取失败显示状态不可用并保持 fail closed。
+- `goal-panel-layout.ts` 只拥有状态条与可靠性提示对齐正文/紧凑 Composer 的 lane；`goal-status-strip.tsx` 只渲染状态模型并把动作分发给控制器，不解释 Goal 运行规则，其表面固定复用无阴影、透明底的 `UiPanel`。Goal 的 lifecycle/activity 共用一个主状态槽并复用 `UiBadge`，预算/耗时只是无壳 Typography 元信息，不得再生成 Goal 私有胶囊；`standalone|reserved` 不显示冗余 binding 徽标，但服务端状态仍负责清除授权；`pending|confirmed|conflict` 分别显示确认中、已关联和冲突，读取失败显示状态不可用并保持 fail closed。
 - Goal 状态条属于 Composer 向上工作栈的第一层；桌面使用略窄于 Composer 的内容 lane、圆角浮层和 8px 层间距，移动端沿用紧凑 lane。长目标保持单行截断并保留完整 DOM 文本与悬停标题，不能把运行控制条铺满画布。
 - 编辑提交和状态刷新统一使用共享 `md` Spinner；非加载状态保留原生命周期动作图标，Goal 视图不得维护旋转或 reduced-motion class。

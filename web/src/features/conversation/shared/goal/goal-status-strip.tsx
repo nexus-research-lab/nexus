@@ -2,7 +2,7 @@
 
 /**
  * INPUT: Goal status projection inputs, server-derived clear reason, mutation block reason and action callbacks.
- * OUTPUT: accessible Goal status strip with primary lifecycle, descender-safe compact labels and only meaningful WorkGraph binding state.
+ * OUTPUT: 使用共享 Panel/Badge/Typography 的可访问 Goal 状态条与有效 WorkGraph binding。
  * POS: Goal panel renderer; lifecycle and server-derived binding policy remain in the pure model/controller.
  */
 
@@ -23,21 +23,27 @@ import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import { UiPanel } from "@/shared/ui/panel";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { Goal, GoalExecutionBinding } from "@/types/conversation/goal";
 import type { GoalContinuationHold } from "./goal-continuation-hold";
 import type { GoalMutationBlockReason } from "./goal-lifecycle-recovery";
 import {
-  buildGoalStatusStripModel,
   GOAL_PANEL_COMPACT_CLASS_NAME,
-  GOAL_PANEL_LEADING_ICON_CLASS_NAME,
-  GOAL_PANEL_ROW_CLASS_NAME,
   GOAL_PANEL_STRIP_CLASS_NAME,
-  GOAL_PANEL_SURFACE_CLASS_NAME,
+} from "./goal-panel-layout";
+import {
+  buildGoalStatusStripModel,
   type GoalBindingBadgeModel,
   type GoalStatusAction,
   type GoalStatusStripModel,
 } from "./goal-model";
+
+const GOAL_PANEL_ROW_CLASS_NAME =
+  "group -mx-1 flex min-h-8 items-center gap-2 px-1 py-0.5 text-(--text-default)";
+
+const GOAL_PANEL_LEADING_ICON_CLASS_NAME =
+  "inline-flex h-5 w-5 shrink-0 items-center justify-center radius-control-xs bg-[color:color-mix(in_srgb,var(--primary)_9%,transparent)] text-(--primary)";
 
 interface GoalStatusStripProps {
   canResume: boolean;
@@ -142,7 +148,7 @@ export function GoalStatusStrip({
         compact ? GOAL_PANEL_COMPACT_CLASS_NAME : GOAL_PANEL_STRIP_CLASS_NAME
       }
     >
-      <div className={GOAL_PANEL_SURFACE_CLASS_NAME}>
+      <UiPanel className="px-3 py-1.5" padding="none" radius="lg">
         <div className={GOAL_PANEL_ROW_CLASS_NAME}>
           <GoalLeadingIcon model={model} />
           <GoalStatusSummary
@@ -167,7 +173,7 @@ export function GoalStatusStrip({
           message={model.attentionMessage}
           tone={model.attentionTone}
         />
-      </div>
+      </UiPanel>
     </div>
   );
 }

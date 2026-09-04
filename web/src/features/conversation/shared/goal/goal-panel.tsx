@@ -17,8 +17,8 @@ import type { GoalReliabilityState } from "./goal-lifecycle-recovery";
 import {
   GOAL_PANEL_COMPACT_CLASS_NAME,
   GOAL_PANEL_STRIP_CLASS_NAME,
-  type GoalDialog,
-} from "./goal-model";
+} from "./goal-panel-layout";
+import type { GoalDialog } from "./goal-model";
 import { GoalReliabilityNotice } from "./goal-reliability-notice";
 import { GoalStatusStrip } from "./goal-status-strip";
 import { useGoalController } from "./use-goal-controller";

@@ -1,7 +1,7 @@
 /**
  * INPUT: Goal state, server-derived Execution binding, UI command phase and mutation availability.
- * OUTPUT: Goal lifecycle plus meaningful WorkGraph binding badges, clear capability, locked-draft form and controller projections.
- * POS: Goal panel pure model; metadata never participates in WorkGraph binding decisions.
+ * OUTPUT: Goal lifecycle、WorkGraph binding、clear capability、表单与控制器纯投影。
+ * POS: Goal 纯模型；metadata 不参与 WorkGraph binding，也不输出布局或视觉 class。
  */
 import type {
   Goal,
@@ -11,8 +11,6 @@ import type {
 } from "@/types/conversation/goal";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import type { UiBadgeTone } from "@/shared/ui/display/badge-styles";
-import { COMPOSER_COMPACT_LANE_CLASS_NAME } from "../composer/composer-styles";
-import { CONVERSATION_CONTENT_LANE_CLASS_NAME } from "../conversation-panel-styles";
 import type { GoalContinuationHold } from "./goal-continuation-hold";
 
 export type GoalCommandPhase = "clearing" | "pausing" | "resuming" | "updating";
@@ -97,21 +95,6 @@ interface GoalActionRule {
   action: GoalStatusAction;
   visible: (input: GoalStatusProjectionInput) => boolean;
 }
-
-export const GOAL_PANEL_STRIP_CLASS_NAME =
-  `${CONVERSATION_CONTENT_LANE_CLASS_NAME} px-3 sm:px-5 xl:px-6`;
-
-export const GOAL_PANEL_COMPACT_CLASS_NAME =
-  `${COMPOSER_COMPACT_LANE_CLASS_NAME} px-4`;
-
-export const GOAL_PANEL_SURFACE_CLASS_NAME =
-  "rounded-[16px] border border-(--surface-control-border) bg-[color:color-mix(in_srgb,var(--surface-raised-background)_94%,transparent)] px-3 py-1.5 shadow-(--surface-control-shadow)";
-
-export const GOAL_PANEL_ROW_CLASS_NAME =
-  "group -mx-1 flex min-h-8 items-center gap-2 px-1 py-0.5 text-(--text-default)";
-
-export const GOAL_PANEL_LEADING_ICON_CLASS_NAME =
-  "inline-flex h-5 w-5 shrink-0 items-center justify-center radius-control-xs bg-[color:color-mix(in_srgb,var(--primary)_9%,transparent)] text-(--primary)";
 
 const GOAL_STATUS_LABEL: Record<GoalStatus, string> = {
   active: "运行中",

@@ -684,19 +684,29 @@ test("Goal editing and status chrome share Spinner, Badge, and Typography owners
   const goalModel = await readSource(
     "src/features/conversation/shared/goal/goal-model.ts",
   );
+  const goalLayout = await readSource(
+    "src/features/conversation/shared/goal/goal-panel-layout.ts",
+  );
 
   for (const source of sources) {
     assert.match(source, /getUiSpinnerClassName\(\{ size: "md" \}\)/);
     assert.doesNotMatch(source, /\banimate-spin\b/);
   }
   assert.match(sources[1], /<UiBadge/);
+  assert.match(sources[1], /<UiPanel[\s\S]*padding="none"[\s\S]*radius="lg"/);
   assert.match(sources[1], /getUiTypographyClassName/);
   assert.doesNotMatch(
     sources[1],
-    /GOAL_PANEL_BADGE_CLASS_NAME|rounded-\[(?:6|8)px\]|\btext-(?:2xs|xs|compact)\b|\bfont-(?:medium|semibold)\b/,
+    /GOAL_PANEL_(?:BADGE|SURFACE)_CLASS_NAME|rounded-\[(?:6|8|16)px\]|\btext-(?:2xs|xs|compact)\b|\bfont-(?:medium|semibold)\b/,
   );
   assert.match(goalModel, /badge: "active"/);
-  assert.doesNotMatch(goalModel, /GOAL_PANEL_BADGE_CLASS_NAME|badge: "border-/);
+  assert.doesNotMatch(
+    goalModel,
+    /CLASS_NAME|className|rounded-|shadow-|COMPOSER_|CONVERSATION_|badge: "border-/,
+  );
+  assert.match(goalLayout, /CONVERSATION_CONTENT_LANE_CLASS_NAME/);
+  assert.match(goalLayout, /COMPOSER_COMPACT_LANE_CLASS_NAME/);
+  assert.doesNotMatch(goalLayout, /rounded-|shadow-|bg-/);
 });
 
 test("WorkGraph surfaces share canvas, action, and revision Spinner roles", async () => {

@@ -40,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Moved Goal lane geometry out of its pure state model and placed the floating
+  status strip on the shared transparent, shadow-free Panel surface.
 - Moved Goal lifecycle and WorkGraph-binding labels onto the shared Badge
   contract, and rendered usage as plain semantic metadata instead of a private pill.
 - Replaced Mermaid-specific mode and copy controls with shared primitives, and
