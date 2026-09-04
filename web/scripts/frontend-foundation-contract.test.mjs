@@ -1143,6 +1143,30 @@ test("Sidebar utility actions share the round IconButton owner", async () => {
   assert.match(utilities, /aria-current=/);
 });
 
+test("Sidebar primary and pinned entries share one rail action owner", async () => {
+  const [railAction, primaryTabs, pinnedConversations, sidebarDocs] = await Promise.all([
+    readSource("src/features/navigation/sidebar/view/sidebar-rail-action.tsx"),
+    readSource("src/features/navigation/sidebar/view/sidebar-primary-tabs.tsx"),
+    readSource("src/features/navigation/sidebar/view/sidebar-pinned-conversations.tsx"),
+    readSource("src/features/navigation/sidebar/view/CLAUDE.md"),
+  ]);
+
+  assert.match(railAction, /function SidebarRailAction/);
+  assert.match(railAction, /getUiTypographyClassName/);
+  assert.match(railAction, /SIDEBAR_SELECTION_CLASS_NAME/);
+  assert.match(railAction, /h-8 w-8/);
+  assert.match(railAction, /h-\[18px\] w-\[18px\]/);
+  for (const consumer of [primaryTabs, pinnedConversations]) {
+    assert.match(consumer, /<SidebarRailAction/);
+    assert.doesNotMatch(
+      consumer,
+      /<button\b|SIDEBAR_SELECTION_CLASS_NAME|h-8 w-8|h-\[(?:17|18)px\]|\btext-2xs\b|\bfont-medium\b/,
+    );
+  }
+  assert.doesNotMatch(primaryTabs, /sidebar-primary-tabs-model/);
+  assert.match(sidebarDocs, /不得再建立返回 className 的展示 model/);
+});
+
 test("Room history controls use the shared Button, Form, and whole-row List owners", async () => {
   const [menu, item, tabs] = await Promise.all([
     readSource("src/features/conversation/room/surface/history/room-history-menu.tsx"),
@@ -2566,7 +2590,8 @@ test("pinned and Room fallback navigation reuse shared action and list owners", 
     readSource("src/features/conversation/room/group/group-route-entry.tsx"),
   ]);
 
-  assert.equal((pinned.match(/<button\b/g) ?? []).length, 1);
+  assert.match(pinned, /<SidebarRailAction/);
+  assert.doesNotMatch(pinned, /<button\b/);
   assert.match(pinned, /<UiIconButton/);
   assert.match(fallback, /<UiListRow/);
   assert.doesNotMatch(fallback, /<button\b/);

@@ -40,6 +40,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Unified primary navigation and pinned conversations under one sidebar rail
+  action owner, including consistent icon geometry, caption typography,
+  current/focus states, and counter-safe accessible names.
 - Replaced Composer model-owned color classes and pulsing status copy with
   semantic tones and shared LoadingOrb variants, including deterministic CSS
   frame cycles and a static reduced-motion state.
