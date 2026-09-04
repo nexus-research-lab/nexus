@@ -4,6 +4,7 @@
 
 import { cn } from "@/shared/ui/class-name";
 
+export type UiButtonShape = "rounded" | "pill";
 export type UiButtonTone = "default" | "primary" | "danger" | "success";
 export type UiButtonVariant = "surface" | "outline" | "solid" | "ghost" | "text";
 export type UiButtonSize = "2xs" | "xs" | "sm" | "md" | "lg";
@@ -11,6 +12,7 @@ export type UiIconButtonSize = "2xs" | "xs" | "sm" | "md" | "lg";
 export type UiIconButtonShape = "rounded" | "round";
 
 interface UiButtonStyleOptions {
+  shape?: UiButtonShape;
   size?: UiButtonSize;
   tone?: UiButtonTone;
   variant?: UiButtonVariant;
@@ -34,11 +36,19 @@ const BUTTON_BASE_CLASS_NAME =
   "inline-flex items-center justify-center gap-1.5 border ui-type-weight-semibold transition-[background,border-color,color,box-shadow] duration-(--motion-duration-fast) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]";
 
 const BUTTON_SIZE_CLASS_MAP: Record<UiButtonSize, string> = {
-  "2xs": "min-h-6 radius-control-xs px-1.5 py-0.5 ui-type-caption",
-  xs: "min-h-7 radius-control-xs px-2 py-1 ui-type-caption",
-  sm: "min-h-8 radius-control-sm px-2.5 py-1.5 ui-type-metadata",
-  md: "min-h-9 radius-control-md px-3.5 py-2 ui-type-control",
-  lg: "min-h-10 radius-control-lg px-4 py-2.5 ui-type-control",
+  "2xs": "min-h-6 px-1.5 py-0.5 ui-type-caption",
+  xs: "min-h-7 px-2 py-1 ui-type-caption",
+  sm: "min-h-8 px-2.5 py-1.5 ui-type-metadata",
+  md: "min-h-9 px-3.5 py-2 ui-type-control",
+  lg: "min-h-10 px-4 py-2.5 ui-type-control",
+};
+
+const BUTTON_ROUNDED_CLASS_MAP: Record<UiButtonSize, string> = {
+  "2xs": "radius-control-xs",
+  xs: "radius-control-xs",
+  sm: "radius-control-sm",
+  md: "radius-control-md",
+  lg: "radius-control-lg",
 };
 
 const BUTTON_VARIANT_TONE_CLASS_MAP: Record<UiButtonVariant, Record<UiButtonTone, string>> = {
@@ -144,6 +154,7 @@ export function getUiButtonClassName(
   className?: string,
 ): string {
   const {
+    shape = "rounded",
     size = "md",
     tone = "default",
     variant = "surface",
@@ -152,6 +163,7 @@ export function getUiButtonClassName(
   return cn(
     BUTTON_BASE_CLASS_NAME,
     BUTTON_SIZE_CLASS_MAP[size],
+    shape === "pill" ? "rounded-full" : BUTTON_ROUNDED_CLASS_MAP[size],
     BUTTON_VARIANT_TONE_CLASS_MAP[variant][tone],
     className,
   );

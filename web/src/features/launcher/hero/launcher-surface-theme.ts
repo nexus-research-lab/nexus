@@ -6,8 +6,6 @@ type LauncherSurfaceThemeStyle = CSSProperties &
   Record<`--launcher-${string}`, string>;
 
 interface LauncherSurfaceConfig {
-  accentColor: string;
-  accentHoverColor: string;
   dividerColor: string;
   heroAura: string;
   heroInnerFill: string;
@@ -63,8 +61,6 @@ function buildLauncherSurfaceThemeStyle(
     "--launcher-submit-color": config.submitColor,
     "--launcher-submit-shadow": config.submitShadow,
     "--launcher-meta-text": config.metaText,
-    "--launcher-handoff-color": config.accentColor,
-    "--launcher-handoff-hover-color": config.accentHoverColor,
     backgroundAttachment: "fixed",
     backgroundColor: "var(--background)",
     backgroundImage: "var(--launcher-stage-pattern)",
@@ -75,8 +71,6 @@ function buildLauncherSurfaceThemeStyle(
 }
 
 const LIGHT_LAUNCHER_SURFACE_THEME_STYLE = buildLauncherSurfaceThemeStyle({
-  accentColor: "rgba(126, 34, 206, 0.52)",
-  accentHoverColor: "rgba(126, 34, 206, 0.82)",
   dividerColor: "rgba(83, 88, 101, 0.10)",
   heroAura:
     "radial-gradient(30% 16% at 50% 82%, rgba(133, 119, 255, 0.22), rgba(133, 119, 255, 0) 74%), radial-gradient(12% 20% at 86% 22%, rgba(118, 231, 206, 0.12), rgba(118, 231, 206, 0) 76%), radial-gradient(14% 18% at 16% 34%, rgba(191, 219, 254, 0.12), rgba(191, 219, 254, 0) 76%), radial-gradient(40% 12% at 50% 12%, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0) 74%)",
@@ -106,8 +100,6 @@ const LIGHT_LAUNCHER_SURFACE_THEME_STYLE = buildLauncherSurfaceThemeStyle({
 });
 
 const DARK_LAUNCHER_SURFACE_THEME_STYLE = buildLauncherSurfaceThemeStyle({
-  accentColor: "rgba(154, 187, 255, 0.72)",
-  accentHoverColor: "rgba(190, 210, 255, 0.96)",
   dividerColor: "rgba(255, 255, 255, 0.08)",
   heroAura:
     "radial-gradient(30% 16% at 50% 82%, rgba(118, 169, 255, 0.24), rgba(118, 169, 255, 0) 74%), radial-gradient(12% 20% at 86% 22%, rgba(117, 218, 195, 0.14), rgba(117, 218, 195, 0) 76%), radial-gradient(12% 18% at 14% 38%, rgba(243, 184, 109, 0.16), rgba(243, 184, 109, 0) 76%), radial-gradient(40% 12% at 50% 12%, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0) 74%)",
@@ -137,8 +129,6 @@ const DARK_LAUNCHER_SURFACE_THEME_STYLE = buildLauncherSurfaceThemeStyle({
 });
 
 const RAIN_LAUNCHER_SURFACE_THEME_STYLE = buildLauncherSurfaceThemeStyle({
-  accentColor: "rgba(138, 168, 212, 0.7)",
-  accentHoverColor: "rgba(180, 206, 238, 0.96)",
   dividerColor: "rgba(73, 88, 111, 0.10)",
   heroAura:
     "radial-gradient(30% 16% at 50% 82%, rgba(100, 140, 190, 0.22), rgba(100, 140, 190, 0) 74%), radial-gradient(12% 20% at 86% 22%, rgba(90, 160, 180, 0.12), rgba(90, 160, 180, 0) 76%), radial-gradient(14% 18% at 16% 34%, rgba(120, 148, 180, 0.12), rgba(120, 148, 180, 0) 76%), radial-gradient(40% 12% at 50% 12%, rgba(160, 185, 220, 0.10), rgba(160, 185, 220, 0) 74%)",

@@ -9,6 +9,7 @@ import { cn } from "@/shared/ui/class-name";
 import {
   getUiButtonClassName,
   getUiIconButtonClassName,
+  type UiButtonShape,
   type UiButtonSize,
   type UiButtonTone,
   type UiButtonVariant,
@@ -18,6 +19,7 @@ import {
 import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 
 export type {
+  UiButtonShape,
   UiButtonSize,
   UiButtonTone,
   UiButtonVariant,
@@ -28,6 +30,7 @@ export type {
 interface UiButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode;
   className?: string;
+  shape?: UiButtonShape;
   size?: UiButtonSize;
   tone?: UiButtonTone;
   variant?: UiButtonVariant;
@@ -36,6 +39,7 @@ interface UiButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 interface UiLinkButtonProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
   children: ReactNode;
   className?: string;
+  shape?: UiButtonShape;
   size?: UiButtonSize;
   tone?: UiButtonTone;
   variant?: UiButtonVariant;
@@ -56,6 +60,7 @@ export const UiButton = forwardRef<HTMLButtonElement, UiButtonProps>(function Ui
   {
     children,
     className,
+    shape,
     size,
     tone,
     type = "button",
@@ -67,7 +72,7 @@ export const UiButton = forwardRef<HTMLButtonElement, UiButtonProps>(function Ui
   return (
     <button
       ref={ref}
-      className={getUiButtonClassName({ size, tone, variant }, cn(className))}
+      className={getUiButtonClassName({ shape, size, tone, variant }, cn(className))}
       type={type}
       {...props}
     >
@@ -80,6 +85,7 @@ export const UiLinkButton = forwardRef<HTMLAnchorElement, UiLinkButtonProps>(fun
   {
     children,
     className,
+    shape,
     size,
     tone,
     variant,
@@ -90,7 +96,7 @@ export const UiLinkButton = forwardRef<HTMLAnchorElement, UiLinkButtonProps>(fun
   return (
     <a
       ref={ref}
-      className={getUiButtonClassName({ size, tone, variant }, cn(className))}
+      className={getUiButtonClassName({ shape, size, tone, variant }, cn(className))}
       {...props}
     >
       {children}

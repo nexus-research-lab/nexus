@@ -40,6 +40,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Moved Launcher recent-entry colors, shadows, sizing, shape, and animation out
+  of its business model, and routed both entry and handoff actions through the
+  shared Button contract.
 - Optically rebalanced the empty Room introduction while preserving its true
   center line and the left-aligned scanning pattern inside suggestion blocks.
 - Split Agent private-thread data projection from its density and typography
