@@ -10,6 +10,9 @@ import {
   UiDialogPortal,
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
+import { cn } from "@/shared/ui/class-name";
+import { UiDisclosure } from "@/shared/ui/disclosure/disclosure";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { ConnectorFeatureDetail } from "@/types/capability/connector";
 
 interface ConnectorFeatureDialogProps {
@@ -36,18 +39,28 @@ export function ConnectorFeatureDialog({
             title={feature.name}
           />
           <UiDialogBody className="space-y-4" scrollable>
-            <p className="text-base leading-7 text-(--text-default)">
+            <p className={getUiTypographyClassName({ role: "body", tone: "default" })}>
               {feature.description}
             </p>
             {feature.items?.length ? (
               <section>
-                <h3 className="mb-2 text-compact font-semibold text-(--text-strong)">
+                <h3 className={cn(
+                  "mb-2",
+                  getUiTypographyClassName({
+                    role: "sectionTitle",
+                    tone: "strong",
+                    weight: "semibold",
+                  }),
+                )}>
                   包括
                 </h3>
                 <ul className="space-y-2 pl-4">
                   {feature.items.map((item) => (
                     <li
-                      className="list-disc text-sm leading-6 text-(--text-default) marker:text-(--text-soft)"
+                      className={cn(
+                        "list-disc marker:text-(--text-soft)",
+                        getUiTypographyClassName({ role: "supporting", tone: "default" }),
+                      )}
                       key={item}
                     >
                       {item}
@@ -57,21 +70,26 @@ export function ConnectorFeatureDialog({
               </section>
             ) : null}
             {feature.scopes?.length ? (
-              <details className="border-t border-(--divider-subtle-color) pt-3 text-xs">
-                <summary className="cursor-pointer select-none font-medium text-(--text-muted) hover:text-(--text-strong)">
-                  OAuth scopes
-                </summary>
-                <div className="mt-3 flex flex-wrap gap-1.5">
+              <UiDisclosure
+                contentClassName="flex flex-wrap gap-1.5"
+                density="compact"
+                label="OAuth scopes"
+                summaryRole="caption"
+                summaryTone="muted"
+                variant="section"
+              >
                   {feature.scopes.map((scope) => (
                     <code
-                      className="rounded-[5px] bg-(--surface-interactive-hover-background) px-1.5 py-0.5 text-(--text-muted)"
+                      className={cn(
+                        "radius-control-xs bg-(--surface-interactive-hover-background) px-1.5 py-0.5",
+                        getUiTypographyClassName({ role: "code", tone: "muted" }),
+                      )}
                       key={scope}
                     >
                       {scope}
                     </code>
                   ))}
-                </div>
-              </details>
+              </UiDisclosure>
             ) : null}
             <p className="sr-only">{connectorTitle}</p>
           </UiDialogBody>

@@ -29,6 +29,7 @@ import type { Locale } from "@/shared/i18n/messages";
 import { UiButton, UiIconButton, UiLinkButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
+import { UiDisclosure } from "@/shared/ui/disclosure/disclosure";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiMetaGrid, UiMetaItem } from "@/shared/ui/display/meta-grid";
@@ -110,7 +111,7 @@ export function FoundationCompleteness({ locale }: { locale: Locale }) {
       title={galleryText(locale, "基础组件补全", "Foundation completeness")}
     >
       <div className="grid gap-4 lg:grid-cols-2">
-        <PreviewCard components={["UiLinkButton", "UiCheckboxRow", "SidebarSearchField", "SidebarSearchAction"]}>
+        <PreviewCard components={["UiLinkButton", "UiCheckboxRow", "UiDisclosure", "SidebarSearchField", "SidebarSearchAction"]}>
           <div className="flex flex-wrap gap-2">
             <UiLinkButton href="#coverage" tone="primary" variant="surface">
               {galleryText(locale, "跳到覆盖清单", "Open coverage index")} <ChevronRight className="h-4 w-4" />
@@ -122,6 +123,15 @@ export function FoundationCompleteness({ locale }: { locale: Locale }) {
             label={galleryText(locale, "启用完整组件巡检", "Enable complete component audit")}
             onChange={setChecked}
           />
+          <UiDisclosure
+            label={galleryText(locale, "共享展开区域", "Shared disclosure")}
+            meta={galleryText(locale, "2 项", "2 items")}
+            variant="panel"
+          >
+            <p className={getUiTypographyClassName({ role: "caption", tone: "muted" })}>
+              {galleryText(locale, "标题、箭头、焦点和正文边界由一个原语管理。", "One primitive owns the label, arrow, focus, and content boundary.")}
+            </p>
+          </UiDisclosure>
           <div className="rounded-[12px] border border-(--divider-subtle-color) py-2">
             <SidebarSearchField
               action={<SidebarSearchAction aria-label={galleryText(locale, "新建", "Create")}><Plus /></SidebarSearchAction>}

@@ -7,6 +7,7 @@
 | 字体、字号与文本层级 | `typography/`、主题 recipe | 角色映射、token 阶梯与 Gallery 视觉矩阵 |
 | 文字/图标动作 | `button/`、`list/` | 默认 type、disabled、键盘、冒泡 |
 | 输入与选择 | `form/` | 校验、ARIA、布尔与互斥选择 |
+| 展开与折叠 | `disclosure/` | 原生 details/summary、焦点、箭头、密度与内容边界 |
 | 模态与决策 | `dialog/` | 栈、焦点圈、Escape、遮罩、滚动锁 |
 | 锚定浮层 | `overlay/`、`menu/` | Portal、定位生命周期、焦点、键盘、关闭 |
 | 页面内切换与层级位置 | `navigation/` | pressed/selection、当前页与链接/返回动作 |

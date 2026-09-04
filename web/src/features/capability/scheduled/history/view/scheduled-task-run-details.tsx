@@ -8,6 +8,7 @@ import { Copy } from "lucide-react";
 
 import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
+import { UiDisclosure } from "@/shared/ui/disclosure/disclosure";
 import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
 import { UiPanel } from "@/shared/ui/panel";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
@@ -37,21 +38,13 @@ export function ScheduledTaskRunDetails({
       {outputSections.map((section, index) => (
         <RunOutput key={`${section.label ?? section.tone}:${index}`} section={section} />
       ))}
-      <details className={cn(
-        "mt-4",
-        getUiTypographyClassName({ role: "caption", tone: "muted" }),
-      )}>
-        <summary className={cn(
-          "cursor-pointer list-none hover:text-(--text-strong)",
-          getUiTypographyClassName({
-            role: "caption",
-            tone: "default",
-            weight: "medium",
-          }),
-        )}>
-          诊断详情
-        </summary>
-        <UiPanel className="mt-2 space-y-1.5" padding="sm" radius="sm">
+      <UiDisclosure
+        className="mt-4"
+        label="诊断详情"
+        summaryRole="caption"
+        variant="inline"
+      >
+        <UiPanel className="space-y-1.5" padding="sm" radius="sm">
           {diagnosticRows.map((row) => (
             <p className={cn(row.breakAll && "break-all")} key={row.label}>
               {row.label} {row.value}
@@ -67,7 +60,7 @@ export function ScheduledTaskRunDetails({
             {isCopied ? "已复制" : "复制诊断"}
           </UiButton>
         </UiPanel>
-      </details>
+      </UiDisclosure>
     </>
   );
 }

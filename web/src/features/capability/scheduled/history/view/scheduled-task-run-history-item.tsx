@@ -1,13 +1,11 @@
 // INPUT: 单次运行、所属任务、命令状态与诊断/恢复动作。
-// OUTPUT: 原生可折叠历史行，组合状态、结果详情与合法动作。
+// OUTPUT: 共享 Disclosure 历史行，组合状态、结果详情与合法动作。
 // POS: Scheduled 历史单项装配层；状态与动作资格来自 history model。
 
 "use client";
 
-import { useState } from "react";
-import { ChevronDown } from "lucide-react";
-
 import { cn } from "@/shared/ui/class-name";
+import { UiDisclosure } from "@/shared/ui/disclosure/disclosure";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { WorkspaceStatusBadge } from "@/shared/ui/workspace/controls/workspace-status-badge";
 import type { ScheduledTaskRunItem } from "@/types/capability/scheduled-task/run";
@@ -55,23 +53,18 @@ export function ScheduledTaskRunHistoryItem({
   run,
   task,
 }: ScheduledTaskRunHistoryItemProps) {
-  const [open, setOpen] = useState(defaultOpen);
   const status = getStatusMeta(run.status);
   const deliveryStatus = getDeliveryStatusMeta(run.delivery_status);
   const showDeliveryStatus = run.delivery_status !== "not_required"
     && run.delivery_status !== "skipped";
   return (
     <article className="py-1.5 first:pt-0 last:pb-0">
-      <details
-        className="group"
-        onToggle={(event) => setOpen(event.currentTarget.open)}
-        open={open}
-      >
-        <summary className="flex cursor-pointer list-none items-center gap-3 radius-control-md px-2 py-2.5 transition-colors hover:bg-(--surface-control-background) [&::-webkit-details-marker]:hidden">
-          <WorkspaceStatusBadge label={status.label} size="compact" tone={status.tone} />
-          <div className="min-w-0 flex-1">
-            <p className={cn(
-              "truncate",
+      <UiDisclosure
+        defaultOpen={defaultOpen}
+        label={(
+          <span className="block min-w-0">
+            <span className={cn(
+              "block truncate",
               getUiTypographyClassName({
                 role: "supporting",
                 tone: "strong",
@@ -79,8 +72,8 @@ export function ScheduledTaskRunHistoryItem({
               }),
             )}>
               {formatScheduledDatetime(run.scheduled_for, { includeSeconds: true })}
-            </p>
-            <p className={cn(
+            </span>
+            <span className={cn(
               "mt-0.5 flex flex-wrap items-center gap-x-1.5",
               getUiTypographyClassName({ role: "caption", tone: "muted" }),
             )}>
@@ -91,11 +84,12 @@ export function ScheduledTaskRunHistoryItem({
                   <span>{deliveryStatus.label}</span>
                 </>
               ) : null}
-            </p>
-          </div>
-          <ChevronDown className="h-4 w-4 shrink-0 text-(--icon-muted) transition-transform group-open:rotate-180" />
-        </summary>
-        <div className="mx-2 border-l border-(--divider-subtle-color) pb-3 pl-4 pr-2">
+            </span>
+          </span>
+        )}
+        leading={<WorkspaceStatusBadge label={status.label} size="compact" tone={status.tone} />}
+        variant="row"
+      >
           <ScheduledTaskRunDetails
             isCopied={isCopied}
             onCopyDiagnostic={() => onCopyDiagnostic(run)}
@@ -114,8 +108,7 @@ export function ScheduledTaskRunHistoryItem({
             run={run}
             task={task}
           />
-        </div>
-      </details>
+      </UiDisclosure>
     </article>
   );
 }
