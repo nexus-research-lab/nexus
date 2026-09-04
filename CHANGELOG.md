@@ -67,6 +67,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   32px icon hit target, with an 18px graph glyph for balanced proportions.
 - Added a shared 40px activity-toolbar frame around grouped 32px actions so
   WorkGraph Agent docks keep consistent breathing room instead of hugging edges.
+- Replaced full-width private WorkGraph mutation error cards with shared inline
+  notices capped at a readable 576px while preserving wide tool output.
 - Optically rebalanced the empty Room introduction while preserving its true
   center line and the left-aligned scanning pattern inside suggestion blocks.
 - Split Agent private-thread data projection from its density and typography

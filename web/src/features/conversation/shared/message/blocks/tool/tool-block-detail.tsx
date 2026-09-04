@@ -1,9 +1,10 @@
 /**
  * INPUT: Provider 原生工具结果与可选工作区文件打开能力。
- * OUTPUT: 普通结果明细、按需完整大结果，或有界的 mutation 拒绝/过期原因与稳定 reason code。
+ * OUTPUT: 普通结果明细、按需完整大结果，或复用共享行内提示的有界 mutation 拒绝/过期原因与稳定 reason code。
  * POS: ToolBlock 展开内容；历史大结果只在展开后读取，复制动作独立读取完整内容。
  */
 import { useEffect, useState } from "react";
+import { CircleAlert } from "lucide-react";
 
 import type {
   ImageContent,
@@ -12,6 +13,7 @@ import type {
 
 import { ImageBlock } from "../artifact/image/image-block";
 import { CodeBlock } from "@/shared/ui/markdown/code/code-block";
+import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { projectToolResultMutation } from "../../tool-result-semantic-model";
 import { getSessionMessageDetailApi } from "@/lib/api/conversation/session-api";
@@ -70,38 +72,32 @@ function ToolResultContentView({
 }) {
   const { t } = useI18n();
   const mutation = projectToolResultMutation(toolResult);
-  if (mutation?.outcome === "rejected") {
+  if (
+    mutation?.outcome === "rejected"
+    || mutation?.outcome === "superseded"
+  ) {
+    const rejected = mutation.outcome === "rejected";
     return (
-      <div
-        className="rounded-[10px] border border-[color:color-mix(in_srgb,var(--destructive)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_6%,transparent)] px-3 py-2"
-        data-tool-result-semantic-outcome="rejected"
-      >
-        <p className="text-xs leading-5 text-(--destructive)">
-          {mutation.message || t("message.tool_rejection_without_detail")}
-        </p>
-        {mutation.reasonCode ? (
-          <p className="mt-1 font-mono text-2xs text-(--text-soft)">
-            {mutation.reasonCode}
-          </p>
-        ) : null}
-      </div>
-    );
-  }
-  if (mutation?.outcome === "superseded") {
-    return (
-      <div
-        className="rounded-[10px] border border-(--divider-subtle-color) bg-(--surface-muted-background) px-3 py-2"
-        data-tool-result-semantic-outcome="superseded"
-      >
-        <p className="text-xs leading-5 text-(--text-muted)">
-          {mutation.message || t("message.tool_superseded_without_detail")}
-        </p>
-        {mutation.reasonCode ? (
-          <p className="mt-1 font-mono text-2xs text-(--text-soft)">
-            {mutation.reasonCode}
-          </p>
-        ) : null}
-      </div>
+      <UiInlineNotice
+        className="max-w-xl"
+        data-tool-result-semantic-outcome={mutation.outcome}
+        icon={rejected ? <CircleAlert /> : undefined}
+        message={(
+          <>
+            <span className="block">
+              {mutation.message || t(rejected
+                ? "message.tool_rejection_without_detail"
+                : "message.tool_superseded_without_detail")}
+            </span>
+            {mutation.reasonCode ? (
+              <code className="mt-1 block font-mono text-(--text-soft)">
+                {mutation.reasonCode}
+              </code>
+            ) : null}
+          </>
+        )}
+        tone={rejected ? "danger" : "neutral"}
+      />
     );
   }
 
