@@ -76,7 +76,7 @@ test("上下文圆环只显示 runtime 快照，并保留 Room 每个 Agent 的�
   assert.deepEqual(projectContextUsage(usage), {
     maxTokens: 258_000,
     percentage: 76,
-    toneClassName: "text-(--text-soft)",
+    tone: "soft",
     totalTokens: 196_000,
   });
   assert.equal(projectContextUsage(null), null);

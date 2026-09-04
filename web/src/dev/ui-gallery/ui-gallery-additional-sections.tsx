@@ -48,7 +48,10 @@ import { TypewriterFileView } from "@/shared/ui/feedback/typewriter-file-view";
 import { UiCheckboxRow } from "@/shared/ui/form/checkbox-row";
 import { SidebarSearchAction, SidebarSearchField } from "@/shared/ui/form/sidebar-search-field";
 import { IconPicker } from "@/shared/ui/icon-picker/icon-picker";
-import { IconPickerPopover } from "@/shared/ui/icon-picker/icon-picker-popover";
+import {
+  IconPickerPopover,
+  IconPickerTriggerLabel,
+} from "@/shared/ui/icon-picker/icon-picker-popover";
 import { AppLoadingState } from "@/shared/ui/layout/app-loading-screen";
 import { PanelResizeHandle } from "@/shared/ui/layout/panel-resize-handle";
 import { WorkspaceContentDetailHeader, WorkspaceContentHeader } from "@/shared/ui/layout/workspace-content-header";
@@ -390,7 +393,12 @@ export function InteractionGallery({ locale }: { locale: Locale }) {
           </div>
         </PreviewCard>
 
-        <PreviewCard components={["IconPicker", "IconPickerPopover", "MentionTargetPopover"]}>
+        <PreviewCard components={[
+          "IconPicker",
+          "IconPickerPopover",
+          "IconPickerTriggerLabel",
+          "MentionTargetPopover",
+        ]}>
           <IconPicker
             iconFamily="agent"
             layout="row"
@@ -405,9 +413,14 @@ export function InteractionGallery({ locale }: { locale: Locale }) {
               iconFamily="agent"
               maxIcons={10}
               onSelect={setIcon}
-              renderTrigger={(isOpen) => <span>{isOpen ? galleryText(locale, "关闭图标库", "Close icon library") : galleryText(locale, "打开图标库", "Open icon library")}</span>}
+              renderTrigger={(isOpen) => (
+                <IconPickerTriggerLabel isOpen={isOpen}>
+                  {isOpen
+                    ? galleryText(locale, "关闭图标库", "Close icon library")
+                    : galleryText(locale, "打开图标库", "Open icon library")}
+                </IconPickerTriggerLabel>
+              )}
               startIconId={1}
-              triggerClassName="inline-flex h-9 items-center radius-control-md border border-(--surface-control-border) bg-(--surface-control-background) px-3 text-sm text-(--text-default)"
               value={icon}
             />
             <UiButton

@@ -5,6 +5,7 @@
  */
 "use client";
 
+import { ChevronDown } from "lucide-react";
 import {
   useCallback,
   useRef,
@@ -22,6 +23,7 @@ import {
   ANCHORED_OVERLAY_MOTION_CLASS_NAME,
   OVERLAY_SURFACE_CLASS_NAME,
 } from "@/shared/ui/overlay/overlay-styles";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import { IconPicker } from "./icon-picker";
 import type {
@@ -39,8 +41,16 @@ interface IconPickerPopoverProps {
   onSelect: (iconId: string) => void;
   renderTrigger: (isOpen: boolean) => ReactNode;
   startIconId: number;
-  triggerClassName: string;
+  triggerAlign?: "center" | "start";
+  triggerGap?: "compact" | "default";
+  triggerRadius?: "control" | "surface";
   value?: string;
+}
+
+interface IconPickerTriggerLabelProps {
+  children: ReactNode;
+  isOpen: boolean;
+  showChevron?: boolean;
 }
 
 const ICON_PICKER_POPOVER_HEIGHT = 356;
@@ -58,7 +68,9 @@ export function IconPickerPopover({
   onSelect,
   renderTrigger,
   startIconId,
-  triggerClassName,
+  triggerAlign = "center",
+  triggerGap = "default",
+  triggerRadius = "control",
   value,
 }: IconPickerPopoverProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -106,7 +118,12 @@ export function IconPickerPopover({
         aria-expanded={isOpen}
         aria-haspopup="dialog"
         aria-label={ariaLabel}
-        className={triggerClassName}
+        className={cn(
+          "group group/icon-picker-trigger relative flex shrink-0 flex-col text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-(--background) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
+          triggerAlign === "center" ? "items-center" : "items-start",
+          triggerGap === "compact" ? "gap-1" : "gap-1.5",
+          triggerRadius === "surface" ? "surface-radius-lg" : "radius-control-lg",
+        )}
         disabled={disabled}
         onClick={() => setIsOpen((current) => !current)}
         type="button"
@@ -129,7 +146,10 @@ export function IconPickerPopover({
           {...OPEN_OVERLAY_DATA_ATTRIBUTES}
         >
           <div className="mb-3 px-0.5">
-            <span className="text-sm font-semibold text-(--text-strong)">
+            <span className={getUiTypographyClassName({
+              role: "sectionTitle",
+              tone: "strong",
+            })}>
               {ariaLabel}
             </span>
           </div>
@@ -149,5 +169,34 @@ export function IconPickerPopover({
         portalContainer,
       ) : null}
     </>
+  );
+}
+
+export function IconPickerTriggerLabel({
+  children,
+  isOpen,
+  showChevron = true,
+}: IconPickerTriggerLabelProps) {
+  return (
+    <span
+      className={cn(
+        "inline-flex min-h-7 items-center gap-1 radius-control-sm px-2 transition-[background,color] group-hover/icon-picker-trigger:bg-(--surface-interactive-hover-background) group-hover/icon-picker-trigger:text-(--text-strong)",
+        getUiTypographyClassName({
+          role: "metadata",
+          tone: "muted",
+          weight: "medium",
+        }),
+      )}
+    >
+      {children}
+      {showChevron ? (
+        <ChevronDown
+          className={cn(
+            "h-3 w-3 transition-transform duration-(--motion-duration-fast)",
+            isOpen && "rotate-180",
+          )}
+        />
+      ) : null}
+    </span>
   );
 }

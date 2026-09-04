@@ -5,7 +5,7 @@
 import { cn } from "@/shared/ui/class-name";
 
 export type UiChoiceTone = "primary" | "neutral" | "danger" | "success";
-export type UiChoiceVariant = "surface" | "picker" | "calendar";
+export type UiChoiceVariant = "surface" | "picker" | "calendar" | "icon";
 export type UiChoiceSize = "xs" | "sm" | "md" | "lg";
 export type UiChoiceShape = "rounded" | "pill";
 
@@ -74,11 +74,28 @@ const CALENDAR_CHOICE_ACTIVE_CLASS_NAME =
 const CALENDAR_CHOICE_INACTIVE_CLASS_NAME =
   "border-transparent bg-transparent text-(--text-default) hover:bg-(--surface-interactive-hover-background)";
 
+const ICON_CHOICE_BASE_CLASS_NAME =
+  "relative inline-flex cursor-pointer items-center justify-center overflow-hidden border p-0 transition-[background,border-color,color] duration-(--motion-duration-fast) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_24%,transparent)] disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)";
+
+const ICON_CHOICE_SIZE_CLASS_MAP: Record<UiChoiceSize, string> = {
+  xs: "h-7 w-7 radius-control-sm",
+  sm: "h-8 w-8 radius-control-md",
+  md: "h-10 w-10 radius-control-lg",
+  lg: "h-12 w-12 surface-radius-md",
+};
+
+const ICON_CHOICE_ACTIVE_CLASS_NAME =
+  "border-(--surface-interactive-active-border) bg-(--surface-interactive-active-background)";
+
+const ICON_CHOICE_INACTIVE_CLASS_NAME =
+  "border-(--surface-inset-border) bg-transparent hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)";
+
 const CHOICE_VARIANT_CLASS_RESOLVER: Record<
   UiChoiceVariant,
   ChoiceVariantClassResolver
 > = {
   calendar: resolveCalendarChoiceClasses,
+  icon: resolveIconChoiceClasses,
   picker: resolvePickerChoiceClasses,
   surface: resolveSurfaceChoiceClasses,
 };
@@ -142,6 +159,19 @@ function resolveCalendarChoiceClasses({
     active ? CALENDAR_CHOICE_ACTIVE_CLASS_NAME : CALENDAR_CHOICE_INACTIVE_CLASS_NAME,
     muted && !active && "text-(--text-soft)",
     disabled && "pointer-events-none text-(--text-soft)",
+  ];
+}
+
+function resolveIconChoiceClasses({
+  active,
+  disabled,
+  size,
+}: ResolvedUiChoiceStyleOptions): ChoiceClassList {
+  return [
+    ICON_CHOICE_BASE_CLASS_NAME,
+    ICON_CHOICE_SIZE_CLASS_MAP[size],
+    active ? ICON_CHOICE_ACTIVE_CLASS_NAME : ICON_CHOICE_INACTIVE_CLASS_NAME,
+    disabled && "pointer-events-none",
   ];
 }
 

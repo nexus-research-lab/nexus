@@ -102,7 +102,7 @@ export const UI_GALLERY_COVERAGE_GROUPS: readonly UiGalleryCoverageGroup[] = [
     renderer: "Menus and pickers",
     components: [
       "UiActionMenu", "UiActionMenuContent", "UiMenuActionRow",
-      "MentionTargetPopover", "IconPicker", "IconPickerPopover",
+      "MentionTargetPopover", "IconPicker", "IconPickerPopover", "IconPickerTriggerLabel",
     ],
   },
   {
