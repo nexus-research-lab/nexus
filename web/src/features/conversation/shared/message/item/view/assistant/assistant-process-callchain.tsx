@@ -1,5 +1,5 @@
 import type { RefObject } from "react";
-import { ChevronDown, ChevronRight, Wrench } from "lucide-react";
+import { Wrench } from "lucide-react";
 
 import type {
   ContentBlock,
@@ -24,6 +24,7 @@ import type {
   AssistantProcessState,
 } from "./assistant-message-model";
 import { AssistantToolRuns } from "./assistant-dm-tool-runs";
+import { MessageDetailToggle } from "../../../ui/message-detail-toggle";
 
 const EMPTY_CONTENT_BLOCKS: ContentBlock[] = [];
 
@@ -83,17 +84,18 @@ function selectCollapsedProcessContent(
 function ProcessToggleButton({ process }: { process: AssistantProcessState }) {
   const { t } = useI18n();
   return (
-    <button
-      className="flex min-h-7 w-full items-center gap-1.5 py-0.5 text-left text-(--text-muted) transition-colors duration-(--motion-duration-fast) hover:text-(--text-strong)"
+    <MessageDetailToggle
+      expanded={process.expanded}
+      leading={(
+        <Wrench
+          className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)"
+          strokeWidth={1.8}
+        />
+      )}
       onClick={process.toggle}
-      type="button"
     >
-      <Wrench className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" strokeWidth={1.8} />
-      <div className="min-w-0 flex-1 truncate text-sm font-normal leading-5 text-(--text-muted)">
-        {formatProcessSummary(process.summary, t)}
-      </div>
-      <ProcessExpansionIcon expanded={process.expanded} />
-    </button>
+      {formatProcessSummary(process.summary, t)}
+    </MessageDetailToggle>
   );
 }
 
@@ -156,15 +158,6 @@ function formatProcessDetail(
   return detail.detail
     ? t("message.process_tool_detail", { detail: detail.detail, title })
     : title;
-}
-
-function ProcessExpansionIcon({ expanded }: { expanded: boolean }) {
-  const Icon = expanded ? ChevronDown : ChevronRight;
-  return (
-    <div className="text-(--icon-muted)">
-      <Icon className="h-3.5 w-3.5" />
-    </div>
-  );
 }
 
 function CollapsedProcessArtifacts({

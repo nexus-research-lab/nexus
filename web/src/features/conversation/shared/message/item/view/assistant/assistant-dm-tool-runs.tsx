@@ -6,7 +6,7 @@
 "use client";
 
 import { useEffect, useMemo, type RefObject } from "react";
-import { ChevronDown, ChevronRight, Wrench } from "lucide-react";
+import { Wrench } from "lucide-react";
 
 import { useScrollAnchoredState } from "@/features/conversation/shared/timeline/scroll/use-scroll-anchored-state";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
@@ -35,6 +35,7 @@ import {
   TimelineBlock,
 } from "../content/content-renderer-timeline";
 import { LocalizedMessageActivityStatus } from "../message-activity-status";
+import { MessageDetailToggle } from "../../../ui/message-detail-toggle";
 import type {
   AssistantActivityState,
   AssistantContentEnvironment,
@@ -237,30 +238,19 @@ function ToolRun({
         data-tool-run-phase={phase}
         ref={expansion.anchorRef as RefObject<HTMLDivElement>}
       >
-        <button
+        <MessageDetailToggle
           aria-controls={contentId}
-          aria-expanded={expanded}
-          className={cn(
-            "flex min-h-7 w-full items-center gap-1.5 py-0.5 text-left text-sm font-normal leading-5 transition-colors duration-(--motion-duration-fast)",
-            active
-              ? "text-primary hover:text-primary"
-              : "text-(--text-muted) hover:text-(--text-strong)",
-            warning && "text-rose-500 hover:text-rose-600",
-          )}
           data-timeline-anchor
           data-timeline-anchor-mode="box"
-          onClick={expansion.toggle}
-          type="button"
-        >
-          {expanded ? (
-            <Wrench
-              className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)"
-            />
+          expanded={expanded}
+          leading={expanded ? (
+            <Wrench className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
           ) : (
-            <ProcessActivityIconStack
-              content={segment.projection.content}
-            />
+            <ProcessActivityIconStack content={segment.projection.content} />
           )}
+          onClick={expansion.toggle}
+          tone={warning ? "danger" : active ? "active" : "default"}
+        >
           <span
             aria-live={active ? "polite" : undefined}
             className={cn(
@@ -271,12 +261,7 @@ function ToolRun({
           >
             {summary}
           </span>
-          {expanded ? (
-            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
-          ) : (
-            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
-          )}
-        </button>
+        </MessageDetailToggle>
 
         {expanded ? (
           <div data-tool-run-detail-list className="pt-1" id={contentId}>
