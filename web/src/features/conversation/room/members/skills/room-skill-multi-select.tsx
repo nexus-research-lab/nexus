@@ -1,3 +1,7 @@
+// INPUT: Room Skill 目录、已选值、查询状态、禁用态与集合更新命令。
+// OUTPUT: 打开菜单和移除实体互不嵌套的可搜索多选字段。
+// POS: Room Skill 领域多选组合；目录请求和 Room 草稿由上层持有。
+
 "use client";
 
 import {
@@ -8,12 +12,13 @@ import {
   useMemo,
 } from "react";
 import { createPortal } from "react-dom";
-import { Check, Loader2, X } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
+import { UiRemovableChip } from "@/shared/ui/form/removable-chip";
 import {
   MENU_LIST_CLASS_NAME,
 } from "@/shared/ui/menu/menu-styles";
@@ -188,10 +193,12 @@ function RoomSkillMenuBody(props: MenuBodyViewProps) {
 }
 
 function SelectedSkillChips({
+  disabled,
   onRemove,
   options,
   placeholder,
 }: {
+  disabled: boolean;
   onRemove: (value: string) => void;
   options: RoomSkillOption[];
   placeholder: string;
@@ -206,25 +213,16 @@ function SelectedSkillChips({
   return (
     <>
       {options.map((option) => (
-        <span
-          className="inline-flex max-w-[11rem] items-center gap-1 rounded-[6px] border border-(--divider-subtle-color) bg-transparent py-0.5 pl-2 pr-1 text-xs font-medium text-(--text-strong)"
+        <UiRemovableChip
+          className="pointer-events-none max-w-[11rem]"
+          disabled={disabled}
           key={option.value}
+          onRemove={() => onRemove(option.value)}
+          removeLabel={`移除 ${option.label}`}
+          size="xs"
         >
-          <span className="min-w-0 truncate">{option.label}</span>
-          <span
-            aria-label={`移除 ${option.label}`}
-            className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-(--icon-muted) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)"
-            onClick={(event) => {
-              event.stopPropagation();
-              onRemove(option.value);
-            }}
-            onKeyDown={(event) => event.stopPropagation()}
-            role="button"
-            tabIndex={-1}
-          >
-            <X className="h-2.5 w-2.5" />
-          </span>
-        </span>
+          {option.label}
+        </UiRemovableChip>
       ))}
     </>
   );
@@ -357,7 +355,7 @@ export function RoomSkillMultiSelect({
           roundedClassName,
           surface: "dialog",
           textClassName,
-          className: selectionStyle.buttonClassName,
+          className: cn("absolute inset-0", selectionStyle.buttonClassName),
         })}
         disabled={disabled}
         onClick={overlay.toggleMenu}
@@ -366,15 +364,23 @@ export function RoomSkillMultiSelect({
         type="button"
       >
         <SelectMenuTriggerContent isOpen={overlay.isOpen}>
-          <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
-            <SelectedSkillChips
-              onRemove={removeValue}
-              options={selectedOptions}
-              placeholder={placeholder}
-            />
+          <span className="sr-only">
+            {selectedOptions.length > 0
+              ? selectedOptions.map((option) => option.label).join(", ")
+              : placeholder}
           </span>
         </SelectMenuTriggerContent>
       </button>
+      <span className="pointer-events-none relative flex min-h-10 min-w-0 items-center py-1.5 pl-3 pr-10">
+        <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+          <SelectedSkillChips
+            disabled={disabled}
+            onRemove={removeValue}
+            options={selectedOptions}
+            placeholder={placeholder}
+          />
+        </span>
+      </span>
       <RoomSkillMenuPortal
         ariaLabel={ariaLabel}
         isOpen={overlay.isOpen}

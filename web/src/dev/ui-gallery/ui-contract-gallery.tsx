@@ -41,7 +41,7 @@ import { UiAgentAvatar, UiRoomAvatar } from "@/shared/ui/display/avatar";
 import { UiBadge, UiCounterBadge } from "@/shared/ui/display/badge";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiCheckbox } from "@/shared/ui/form/checkbox";
-import { UiChoiceButton } from "@/shared/ui/form/choice";
+import { UiChoiceButton, UiRadioChoice } from "@/shared/ui/form/choice";
 import {
   UiField,
   UiInput,
@@ -49,6 +49,7 @@ import {
   UiSearchInput,
   UiTextarea,
 } from "@/shared/ui/form/form-control";
+import { UiRemovableChip } from "@/shared/ui/form/removable-chip";
 import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
 import { UiListActionButton } from "@/shared/ui/list/list-action";
 import { UiListRow } from "@/shared/ui/list/list-row";
@@ -116,6 +117,8 @@ export function UiContractGallery() {
   const [promptOpen, setPromptOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("shared/ui");
   const [selectedChoice, setSelectedChoice] = useState("balanced");
+  const [selectedRadioChoice, setSelectedRadioChoice] = useState("ask");
+  const [showRemovableChip, setShowRemovableChip] = useState(true);
   const [selectedModel, setSelectedModel] = useState("fast");
   const [selectedRole, setSelectedRole] = useState("member");
   const [viewport, setViewport] = useState(() => window.innerWidth);
@@ -240,6 +243,7 @@ export function UiContractGallery() {
             </GalleryRow>
             <GalleryRow label="Neutral / danger">
               <UiButton variant="surface">{galleryText(locale, "取消", "Cancel")}</UiButton>
+              <UiButton variant="outline">{galleryText(locale, "边框动作", "Outline action")}</UiButton>
               <UiButton variant="ghost"><Copy className="h-4 w-4" />{galleryText(locale, "复制", "Copy")}</UiButton>
               <UiButton tone="danger" variant="surface"><Trash2 className="h-4 w-4" />{galleryText(locale, "删除", "Delete")}</UiButton>
               <UiButton disabled>{galleryText(locale, "不可用", "Unavailable")}</UiButton>
@@ -326,6 +330,38 @@ export function UiContractGallery() {
               <label className="inline-flex min-h-8 items-center gap-2 text-sm text-(--text-default)" htmlFor="gallery-remember">
                 <UiCheckbox defaultChecked id="gallery-remember" />{galleryText(locale, "记住选择", "Remember selection")}
               </label>
+              {showRemovableChip ? (
+                <UiRemovableChip
+                  onRemove={() => setShowRemovableChip(false)}
+                  removeLabel={galleryText(locale, "移除研究标签", "Remove research tag")}
+                >
+                  {galleryText(locale, "研究", "Research")}
+                </UiRemovableChip>
+              ) : (
+                <UiButton
+                  onClick={() => setShowRemovableChip(true)}
+                  size="xs"
+                  variant="text"
+                >
+                  {galleryText(locale, "恢复标签", "Restore tag")}
+                </UiButton>
+              )}
+              <UiRadioChoice
+                checked={selectedRadioChoice === "ask"}
+                name="gallery-permission"
+                onChange={() => setSelectedRadioChoice("ask")}
+                value="ask"
+              >
+                {galleryText(locale, "每次询问", "Ask every time")}
+              </UiRadioChoice>
+              <UiRadioChoice
+                checked={selectedRadioChoice === "allow"}
+                name="gallery-permission"
+                onChange={() => setSelectedRadioChoice("allow")}
+                value="allow"
+              >
+                {galleryText(locale, "始终允许", "Always allow")}
+              </UiRadioChoice>
             </GalleryRow>
           </GallerySection>
 

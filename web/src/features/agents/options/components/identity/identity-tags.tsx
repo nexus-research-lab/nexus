@@ -1,9 +1,14 @@
+// INPUT: Agent 标签集合、复合字段变体、草稿重置键与集合更新命令。
+// OUTPUT: 使用共享可移除 Chip 和图标动作的标签输入组合。
+// POS: Agent identity 领域表单组合；不拥有标签持久化或跨字段校验。
+
 import { useCallback, useId, type KeyboardEvent } from "react";
-import { Plus, X } from "lucide-react";
+import { Plus } from "lucide-react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { cn } from "@/shared/ui/class-name";
 import { UiIconButton } from "@/shared/ui/button/button";
+import { UiRemovableChip } from "@/shared/ui/form/removable-chip";
 
 import {
   IDENTITY_FIELD_LABEL_CLASS_NAMES,
@@ -60,22 +65,13 @@ export function IdentityTags({
       >
         <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {tags.map((tag) => (
-            <span
-              className="chip-default inline-flex h-7 shrink-0 items-center gap-1 px-2 text-compact font-medium text-(--text-default)"
+            <UiRemovableChip
               key={tag}
+              onRemove={() => onChange(tags.filter((item) => item !== tag))}
+              removeLabel={`移除 ${tag}`}
             >
               {tag}
-              <UiIconButton
-                aria-label={`移除 ${tag}`}
-                className="-mr-1 h-5 w-5 text-(--icon-muted)"
-                onClick={() => onChange(tags.filter((item) => item !== tag))}
-                size="xs"
-                type="button"
-                variant="ghost"
-              >
-                <X className="h-3 w-3" />
-              </UiIconButton>
-            </span>
+            </UiRemovableChip>
           ))}
           <input
             className="h-7 min-w-[120px] flex-1 bg-transparent px-1 text-sm text-(--text-strong) outline-none placeholder:text-(--text-soft)"

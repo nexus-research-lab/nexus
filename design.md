@@ -188,7 +188,7 @@ disabled 降对比不隐藏、保留可解释文案；loading 保持原尺寸与
 - menu / popover：`overlay` 圆角、高不透明主题底、`1px` 边界、同一档阴影；Select、Action Menu、日期与头像选择器不得重写材质。条目统一使用 `control` 圆角和中性 hover / active 底面。
 - dialog 与 menu / popover 共用底色、边界和 16px 外轮廓，只因尺寸使用更深一档同源阴影；dialog 只承载确认、编辑或短流程，标题、内容、footer 不重复套 card；危险操作保留明确文案与 destructive action。
 - tooltip 紧凑单行，只解释无文字的图标，不替代按钮 label。
-- chip / pill 只用于真实筛选、状态或可移除实体；没有交互或信息密度价值时不用。
+- chip / pill 只用于真实筛选、状态或可移除实体；没有交互或信息密度价值时不用。可移除实体共用同一紧凑圆角、文字层级和具名移除按钮；多选字段中移除与展开是两个并列动作，不把按钮相互嵌套。
 
 ### 5.5 高优先级组件规则
 

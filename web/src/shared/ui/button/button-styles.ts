@@ -5,7 +5,7 @@
 import { cn } from "@/shared/ui/class-name";
 
 export type UiButtonTone = "default" | "primary" | "danger" | "success";
-export type UiButtonVariant = "surface" | "solid" | "ghost" | "text";
+export type UiButtonVariant = "surface" | "outline" | "solid" | "ghost" | "text";
 export type UiButtonSize = "2xs" | "xs" | "sm" | "md" | "lg";
 export type UiIconButtonSize = "2xs" | "xs" | "sm" | "md" | "lg";
 export type UiIconButtonShape = "rounded" | "round";
@@ -51,6 +51,16 @@ const BUTTON_VARIANT_TONE_CLASS_MAP: Record<UiButtonVariant, Record<UiButtonTone
       "border-[color:color-mix(in_srgb,var(--destructive)_18%,var(--modal-btn-secondary-border))] bg-(--modal-btn-secondary-background) text-(--destructive) hover:border-[color:color-mix(in_srgb,var(--destructive)_28%,var(--modal-btn-secondary-hover-border))] hover:bg-[color:color-mix(in_srgb,var(--destructive)_9%,var(--modal-btn-secondary-hover-background))]",
     success:
       "border-[color:color-mix(in_srgb,var(--success)_22%,var(--modal-btn-secondary-border))] bg-[color:color-mix(in_srgb,var(--success)_8%,var(--modal-btn-secondary-background))] text-(--success) hover:border-[color:color-mix(in_srgb,var(--success)_32%,var(--modal-btn-secondary-hover-border))] hover:bg-[color:color-mix(in_srgb,var(--success)_12%,var(--modal-btn-secondary-hover-background))]",
+  },
+  outline: {
+    default:
+      "border-(--modal-btn-secondary-border) bg-transparent text-(--text-default) hover:border-(--modal-btn-secondary-hover-border) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
+    primary:
+      "border-[color:color-mix(in_srgb,var(--brand-action)_24%,var(--modal-btn-secondary-border))] bg-transparent text-(--brand-action) hover:border-[color:color-mix(in_srgb,var(--brand-action)_34%,var(--modal-btn-secondary-hover-border))] hover:bg-[color:color-mix(in_srgb,var(--brand)_8%,var(--surface-interactive-hover-background))]",
+    danger:
+      "border-[color:color-mix(in_srgb,var(--destructive)_18%,var(--modal-btn-secondary-border))] bg-transparent text-(--destructive) hover:border-[color:color-mix(in_srgb,var(--destructive)_28%,var(--modal-btn-secondary-hover-border))] hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,var(--surface-interactive-hover-background))]",
+    success:
+      "border-[color:color-mix(in_srgb,var(--success)_22%,var(--modal-btn-secondary-border))] bg-transparent text-(--success) hover:border-[color:color-mix(in_srgb,var(--success)_32%,var(--modal-btn-secondary-hover-border))] hover:bg-[color:color-mix(in_srgb,var(--success)_8%,var(--surface-interactive-hover-background))]",
   },
   solid: {
     default:
@@ -111,6 +121,7 @@ const ICON_BUTTON_ROUNDED_CLASS_MAP: Record<UiIconButtonSize, string> = {
 
 const ICON_BUTTON_VARIANT_TONE_CLASS_MAP: Record<Exclude<UiButtonVariant, "text">, Record<UiButtonTone, string>> = {
   surface: BUTTON_VARIANT_TONE_CLASS_MAP.surface,
+  outline: BUTTON_VARIANT_TONE_CLASS_MAP.outline,
   solid: BUTTON_VARIANT_TONE_CLASS_MAP.solid,
   ghost: {
     default: cn(

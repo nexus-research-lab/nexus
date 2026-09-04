@@ -68,6 +68,15 @@ describe("UiButton", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
+  it("keeps outline actions transparent while retaining a visible border", () => {
+    render(<UiButton variant="outline">边框动作</UiButton>);
+
+    const button = screen.getByRole("button", { name: "边框动作" });
+    expect(button.className).toContain("border-(--modal-btn-secondary-border)");
+    expect(button.className).toContain("bg-transparent");
+    expect(button.className).not.toContain("bg-(--modal-btn-secondary-background)");
+  });
+
   it("submits only when the caller opts into submit", async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn((event: React.FormEvent) => event.preventDefault());

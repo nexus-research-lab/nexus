@@ -40,6 +40,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Restored the four empty-conversation suggestions as consistent transparent,
+  border-only action blocks without card shadows or persistent fill, and
+  optically aligned the asymmetric Room identity glyph.
+- Unified removable Agent tags and selected Room Skills under one accessible
+  chip primitive, separating menu and removal hit targets and honoring disabled
+  state for both actions.
 - Removed the fake clickable wrapper around protected default-model switches;
   the shared switch now owns native disabled semantics and routes protected
   activation through one accessible hit target, while tolerating host surfaces
