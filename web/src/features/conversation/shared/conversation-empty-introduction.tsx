@@ -80,7 +80,7 @@ export function ConversationEmptyIntroduction({
             <UiAgentAvatar avatar={agentAvatar} name={name} size="lg" />
           ) : (
             <span className="flex h-14 w-14 items-center justify-center rounded-[12px] border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-(--icon-muted) shadow-(--surface-avatar-shadow)">
-              <MessagesSquare className="h-6 w-6" />
+              <MessagesSquare className="-translate-x-px h-6 w-6" />
             </span>
           )}
         </div>
@@ -100,7 +100,7 @@ export function ConversationEmptyIntroduction({
                 key={key}
                 onClick={() => onSelect(label)}
                 size="lg"
-                variant="ghost"
+                variant="outline"
               >
                 <Icon className="h-4 w-4 text-(--icon-muted) transition-colors group-hover:text-(--text-default)" />
                 <span className={`mt-4 ${getUiTypographyClassName({

@@ -41,6 +41,7 @@ const REQUIRED_SHARED_UI_BEHAVIOR_SUITES = [
   "src/shared/ui/display/display.test.tsx",
   "src/shared/ui/feedback/feedback.test.tsx",
   "src/shared/ui/form/form-controls.test.tsx",
+  "src/shared/ui/form/removable-chip.test.tsx",
   "src/shared/ui/list/list.test.tsx",
   "src/shared/ui/liquid-glass/glass-switch.test.tsx",
   "src/shared/ui/markdown/mermaid/mermaid-view-parts.test.tsx",
@@ -2268,6 +2269,24 @@ test("ordinary Room fields and permission radios keep shared DOM owners", async 
   assert.doesNotMatch(toolPermission, /getUiChoiceClassName|<input\b/);
 });
 
+test("removable entities share one chip action and never nest fake buttons", async () => {
+  const [primitive, identityTags, roomSkills] = await Promise.all([
+    readSource("src/shared/ui/form/removable-chip.tsx"),
+    readSource("src/features/agents/options/components/identity/identity-tags.tsx"),
+    readSource("src/features/conversation/room/members/skills/room-skill-multi-select.tsx"),
+  ]);
+
+  assert.match(primitive, /function UiRemovableChip/);
+  assert.match(primitive, /<UiIconButton/);
+  for (const consumer of [identityTags, roomSkills]) {
+    assert.match(consumer, /<UiRemovableChip/);
+    assert.doesNotMatch(consumer, /role="button"/);
+  }
+  assert.match(roomSkills, /className: cn\("absolute inset-0"/);
+  assert.match(roomSkills, /disabled=\{disabled\}/);
+  assert.doesNotMatch(roomSkills, /rounded-\[6px\]|tabIndex=\{-1\}/);
+});
+
 test("search surfaces share input and query semantics without inventing deep search", async () => {
   const queryConsumers = [
     "src/features/agents/options/components/skills/agent-skills-model.ts",
@@ -2377,6 +2396,12 @@ test("conversation suggestions, compact actions, and context usage share Button 
   for (const source of sources.slice(0, 4)) {
     assert.match(source, /<UiButton/);
   }
+  const introductionAction = sources[0].match(
+    /<UiButton[\s\S]*?<\/UiButton>/,
+  )?.[0] ?? "";
+  assert.match(introductionAction, /variant="outline"/);
+  assert.doesNotMatch(introductionAction, /variant="surface"|shadow-/);
+  assert.match(sources[0], /<MessagesSquare className="-translate-x-px h-6 w-6"/);
   assert.match(sources[4], /<UiIconButton/);
   const contextUsageButton = sources[4].match(
     /<UiIconButton[\s\S]*?<\/UiIconButton>/,
