@@ -17,7 +17,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { useAnchoredOverlayLayer } from "@/shared/ui/overlay/anchored-overlay-layer";
-import { resolveAnchoredOverlayPosition } from "@/shared/ui/overlay/anchored-overlay-model";
+import { resolveUiAnchoredOverlayPosition } from "@/shared/ui/overlay/anchored-overlay-layout";
 import { OPEN_OVERLAY_DATA_ATTRIBUTES } from "@/shared/ui/overlay/overlay-contract";
 import {
   ANCHORED_OVERLAY_MOTION_CLASS_NAME,
@@ -51,16 +51,14 @@ export function ComposerContextUsage({
   const projection = projectComposerContextUsage({ items, usage });
   const rowCount = projection?.items.length ?? 0;
   const estimatePosition = useCallback(
-    (anchor: HTMLButtonElement) => resolveAnchoredOverlayPosition({
+    (anchor: HTMLButtonElement) => resolveUiAnchoredOverlayPosition({
       align: "end",
       anchor,
-      estimatedHeight: rowCount > 0
-        ? Math.min(248, 36 + rowCount * 32)
-        : 72,
-      maxHeight: rowCount > 0 ? 248 : 72,
-      minHeight: rowCount > 0 ? 64 : 72,
-      minWidth: rowCount > 0 ? 232 : 192,
+      estimatedContentHeight: rowCount > 0
+        ? 36 + rowCount * 32
+        : undefined,
       placement: "top",
+      preset: rowCount > 0 ? "status-list" : "status-summary",
     }),
     [rowCount],
   );

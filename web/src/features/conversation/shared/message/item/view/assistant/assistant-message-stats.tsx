@@ -23,7 +23,7 @@ import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { useAnchoredOverlayLayer } from "@/shared/ui/overlay/anchored-overlay-layer";
-import { resolveAnchoredOverlayPosition } from "@/shared/ui/overlay/anchored-overlay-model";
+import { resolveUiAnchoredOverlayPosition } from "@/shared/ui/overlay/anchored-overlay-layout";
 import { OPEN_OVERLAY_DATA_ATTRIBUTES } from "@/shared/ui/overlay/overlay-contract";
 import {
   ANCHORED_OVERLAY_MOTION_CLASS_NAME,
@@ -209,10 +209,6 @@ function AssistantForkAction({
   );
 }
 
-const MEMORY_POPOVER_MAX_HEIGHT = 320;
-const MEMORY_POPOVER_MIN_HEIGHT = 96;
-const MEMORY_POPOVER_WIDTH = 360;
-
 function AssistantMemoryReferences({
   memories,
 }: {
@@ -223,15 +219,12 @@ function AssistantMemoryReferences({
   const [isOpen, setIsOpen] = useState(false);
   const close = useCallback(() => setIsOpen(false), []);
   const estimatePosition = useCallback((anchor: HTMLButtonElement) => (
-    resolveAnchoredOverlayPosition({
+    resolveUiAnchoredOverlayPosition({
       align: "end",
       anchor,
-      estimatedHeight: Math.min(80 + memories.length * 48, MEMORY_POPOVER_MAX_HEIGHT),
-      gap: 8,
-      maxHeight: MEMORY_POPOVER_MAX_HEIGHT,
-      minHeight: MEMORY_POPOVER_MIN_HEIGHT,
-      minWidth: MEMORY_POPOVER_WIDTH,
+      estimatedContentHeight: 80 + memories.length * 48,
       placement: "auto",
+      preset: "reference-list",
     })
   ), [memories.length]);
   const {

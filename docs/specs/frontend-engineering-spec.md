@@ -214,8 +214,8 @@ Widget 可以认识 Agent、Room、Goal 等产品对象，但只组合下层合�
 
 ### 6.3 浮层与小窗口
 
-- anchored overlay 的 gap、viewport inset、碰撞、翻转、滚动跟随和 Portal 由共享定位层负责；
-- 消费者只能选择 `placement / align / size / density / collisionPadding / layer`；
+- anchored overlay 的 gap、viewport inset、min/max 宽高、碰撞、翻转、滚动跟随和 Portal 由共享定位层负责；
+- 业务消费者只能选择命名 layout preset、`placement / align / layer` 与真实内容高度估算，不得导入底层定位模型或提交 `gap / viewportMargin / minWidth / minHeight / maxHeight`；
 - dialog 的桌面限高、窄屏 inset、固定 header/footer 与 body scroll 由 viewport variant 负责；
 - 选择器和短向导使用 `viewport="compact"`，自然高度的紧凑目录使用 `compactMax`，长表单使用 `adaptive` 或 `adaptiveMax`，图片/短文本查看使用 `visualPreview` 或 `documentPreview`，大型图形/对照工作台使用 `workbench`；内容量不是业务侧发明相近像素高度的理由；
 - 不允许业务弹窗复制 `82dvh / 760px / 16px` 等产品级视口公式；
