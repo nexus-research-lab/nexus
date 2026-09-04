@@ -898,6 +898,8 @@ export const enConversationMessages = {
   "message.activity_executing": "Running tools",
   "message.activity_waiting_permission": "Waiting for approval",
   "message.activity_waiting_input": "Waiting for input",
+  "message.api_retrying": "Retrying",
+  "message.api_retry_waiting": "in {seconds}s",
   "message.stopped": "Stopped",
   "message.failed": "Failed",
   "message.generated_files": "Generated files",

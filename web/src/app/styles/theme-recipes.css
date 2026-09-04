@@ -506,8 +506,9 @@
   }
 
   :root[data-desktop-platform="macos"] .sidebar-panel-collapsed-toggle {
-    top: 10px;
+    top: var(--desktop-window-close-button-center-y, 24px);
     left: calc(var(--desktop-window-controls-inset, 84px) + 8px);
+    transform: translateY(-50%);
   }
 
   .launcher-console-spotlights {
@@ -538,12 +539,17 @@
     letter-spacing: 0.1em;
   }
 
-  :root[data-desktop-platform="macos"]
-    .sidebar-panel-shell[data-sidebar-collapsed="true"]
+  .sidebar-panel-shell[data-sidebar-collapsed="true"]
+    + .desktop-app-stage {
+    --collapsed-sidebar-header-inset: 48px;
+    --workspace-content-header-leading-inset: var(--collapsed-sidebar-header-inset);
+  }
+
+  .sidebar-panel-shell[data-sidebar-collapsed="true"]
     + .desktop-app-stage
     .workspace-surface-header-inner::before {
     content: "";
-    flex: 0 0 var(--desktop-window-controls-inset, 84px);
+    flex: 0 0 var(--collapsed-sidebar-header-inset);
   }
 
   :root[data-desktop-platform="macos"]
@@ -575,7 +581,13 @@
 
   :root[data-desktop-platform="macos"]
     .sidebar-panel-shell[data-sidebar-collapsed="true"]
-    + .desktop-app-stage,
+    + .desktop-app-stage {
+    --collapsed-sidebar-header-inset: calc(
+      var(--desktop-window-controls-inset, 84px)
+      + 48px
+    );
+  }
+
   :root[data-desktop-platform="macos"] .desktop-entry-stage {
     --workspace-content-header-leading-inset: var(
       --desktop-window-controls-inset,
@@ -640,19 +652,6 @@
     transition: padding var(--motion-duration-layout) var(--motion-ease-layout);
   }
 
-  .sidebar-panel-shell[data-sidebar-collapsed="true"] .sidebar-panel-header {
-    background: var(--surface-shell-navigation-background);
-    box-shadow: none;
-  }
-
-  .sidebar-panel-shell[data-sidebar-collapsed="true"] {
-    background: var(--surface-shell-navigation-background);
-  }
-
-  .sidebar-panel-shell[data-sidebar-collapsed="true"] [data-sidebar-rail-divider] {
-    display: none;
-  }
-
   @media (width < 64rem) {
     :root[data-desktop-platform="macos"]
       .sidebar-panel-header[data-desktop-window-controls-leading]::before {
@@ -678,10 +677,6 @@
     pointer-events: none;
     background: var(--surface-shell-edge-divider);
     content: "";
-  }
-
-  .sidebar-panel-shell[data-sidebar-collapsed="true"][data-shell-split-edge="true"]::after {
-    top: 60px;
   }
 
   .shell-navigation-rail {

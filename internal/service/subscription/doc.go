@@ -1,9 +1,9 @@
-// Package subscription 在账号达到月度 token 额度后阻止新的 runtime 请求。
+// Package subscription 按 Control entitlement 投影限制绑定账号；本地主体不进入订阅域。
 //
 // L2 | 父级: internal/service（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - service.go：订阅模型、EnsureQuotaAvailable 额度校验与 mutation 写入/回读阶段证据。
+//   - service.go：Control entitlement 本地投影读取、Nexus 用量聚合与 EnsureQuotaAvailable 额度校验。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package subscription

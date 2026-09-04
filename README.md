@@ -106,6 +106,8 @@ winget install Anthropic.ClaudeCode
 
 Verify the matching `.sha256` file before installing. Desktop app data is stored under `~/.nexus`.
 
+For macOS source debugging, run `make app-run`; the local Desktop principal does not depend on Control.
+
 ### Server Deployment
 
 #### Docker Deployment
@@ -130,7 +132,7 @@ EOF
 make start
 ```
 
-Keep the `nexus` and `nexus-control` repositories in the same parent directory, then open `http://localhost`. The same Nexus Web app owns login and member administration; it sends those same-origin requests to Control. Control uses SQLite by default and supports PostgreSQL through `CONTROL_DATABASE_DRIVER=postgres` plus `CONTROL_DATABASE_URL`. To create the first owner interactively, leave `AUTH_INIT_OWNER_PASSWORD` empty, set a 32+ character `CONTROL_SETUP_TOKEN`, and open `/setup`. The default compose stack only exposes HTTP; terminate production TLS at an outer gateway or load balancer and forward to this HTTP entrypoint. Existing Web users must complete the [Control migration](./docs/operations/control-migration.md) before switching.
+Keep the `nexus` and `nexus-control` repositories in the same parent directory, then open `http://localhost`. The same Nexus Web app owns login, member, and subscription administration; it sends those same-origin authority requests to Control while Nexus retains local usage and runtime enforcement. Control uses SQLite by default and supports PostgreSQL through `CONTROL_DATABASE_DRIVER=postgres` plus `CONTROL_DATABASE_URL`. To create the first owner interactively, leave `AUTH_INIT_OWNER_PASSWORD` empty, set a 32+ character `CONTROL_SETUP_TOKEN`, and open `/setup`. The default compose stack only exposes HTTP; terminate production TLS at an outer gateway or load balancer and forward to this HTTP entrypoint. Existing Web users must complete the [Control migration](./docs/operations/control-migration.md) before switching.
 
 Configure IM channel credentials in the web app under Capability / Channels. The container reloads saved channel configs from the database on startup; `DISCORD_BOT_TOKEN` and `TELEGRAM_BOT_TOKEN` in `.env` are only legacy system-level fallbacks.
 
@@ -142,24 +144,28 @@ For non-Docker deployments, generate the connector credentials encryption key yo
 openssl rand -base64 32
 ```
 
-#### Source Deployment
-
-```bash
-make install
-cd web && pnpm build && cd ..
-AUTH_INIT_OWNER_PASSWORD=your-password make run-control
-# In another terminal, after Control is healthy:
-make run-backend
-```
-
 ### Local Development
 
+Install dependencies once, then configure the initial owner in your local `.env`:
+
 ```bash
 make install
+```
+
+```env
+AUTH_INIT_OWNER_USERNAME=admin
+AUTH_INIT_OWNER_PASSWORD=your-local-password
+```
+
+After that, Web development is one command:
+
+```bash
 make dev
 ```
 
-`make dev` starts the sibling `nexus-control`, backend, and frontend. The backend starts at `http://localhost:8010`, Control at `http://localhost:8020`, and the frontend dev server at `http://localhost:3000`.
+`make dev` starts the sibling `nexus-control`, backend, and frontend. Control runs at `http://localhost:8020` and stores data in `~/.nexus/control` by default; the backend starts at `http://localhost:8010`, and the frontend dev server at `http://localhost:3000`.
+
+Only run `make run-control`, `make run-backend`, and `make run-web` in separate terminals when attaching individual debuggers. Server deployment uses the Docker `make start` flow above so `/auth/v1` always has the required same-origin gateway.
 
 ---
 

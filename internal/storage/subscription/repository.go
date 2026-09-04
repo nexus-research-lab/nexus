@@ -8,29 +8,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/storage"
 )
 
-// PlanEntity 是订阅套餐的持久化形状。
-type PlanEntity struct {
-	PlanKey           string
-	DisplayName       string
-	Status            string
-	MonthlyTokenLimit *int64
-	Notes             string
-	SortOrder         int
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
-}
-
-// UserSubscriptionEntity 是单个用户订阅配置的持久化形状。
-type UserSubscriptionEntity struct {
-	OwnerUserID string
-	PlanKey     string
-	PeriodStart *time.Time
-	PeriodEnd   *time.Time
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-}
-
-// AccountEntity 是运营页需要展示的账号订阅与用量聚合。
 type AccountEntity struct {
 	OwnerUserID       string
 	Username          string
@@ -43,21 +20,23 @@ type AccountEntity struct {
 	UsedTokens        int64
 	SessionCount      int64
 	MessageCount      int64
-	PeriodStart       *time.Time
-	PeriodEnd         *time.Time
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 }
 
-// Repository 负责订阅运营数据的读写。
+type UsageEntity struct {
+	ControlUserID string
+	UsedTokens    int64
+	SessionCount  int64
+	MessageCount  int64
+}
+
+// Repository 只读取 Control 额度投影与 Nexus 本地用量。
 type Repository struct {
 	db      *sql.DB
 	dialect storage.SQLDialect
 }
 
 func NewRepository(cfg config.Config, db *sql.DB) *Repository {
-	return &Repository{
-		db:      db,
-		dialect: storage.NewSQLDialect(cfg.DatabaseDriver),
-	}
+	return &Repository{db: db, dialect: storage.NewSQLDialect(cfg.DatabaseDriver)}
 }

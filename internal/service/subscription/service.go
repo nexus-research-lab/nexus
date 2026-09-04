@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
@@ -13,23 +12,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	storagesubscription "github.com/nexus-research-lab/nexus/internal/storage/subscription"
 )
-
-const (
-	PlanFree  = "free"
-	PlanAdmin = "admin"
-
-	PlanStatusActive   = "active"
-	PlanStatusArchived = "archived"
-)
-
-type Plan struct {
-	PlanKey           string `json:"plan_key"`
-	DisplayName       string `json:"display_name"`
-	Status            string `json:"status"`
-	MonthlyTokenLimit *int64 `json:"monthly_token_limit"`
-	Notes             string `json:"notes"`
-	SortOrder         int    `json:"sort_order"`
-}
 
 type Account struct {
 	OwnerUserID       string   `json:"owner_user_id"`
@@ -46,41 +28,28 @@ type Account struct {
 	MessageCount      int64    `json:"message_count"`
 	PeriodStart       string   `json:"period_start"`
 	PeriodEnd         string   `json:"period_end"`
-	Notes             string   `json:"notes"`
 	CreatedAt         string   `json:"created_at"`
 	UpdatedAt         string   `json:"updated_at"`
 }
 
-type Overview struct {
-	Plans       []Plan    `json:"plans"`
-	Accounts    []Account `json:"accounts"`
-	PeriodStart string    `json:"period_start"`
-	PeriodEnd   string    `json:"period_end"`
-	UpdatedAt   string    `json:"updated_at"`
+type UsageAccount struct {
+	ControlUserID string `json:"control_user_id"`
+	UsedTokens    int64  `json:"used_tokens"`
+	SessionCount  int64  `json:"session_count"`
+	MessageCount  int64  `json:"message_count"`
 }
 
-type UpdateUserSubscriptionInput struct {
-	OwnerUserID string `json:"owner_user_id"`
-	PlanKey     string `json:"plan_key"`
-}
-
-type UpsertPlanInput struct {
-	PlanKey           string `json:"plan_key"`
-	DisplayName       string `json:"display_name"`
-	Status            string `json:"status"`
-	MonthlyTokenLimit *int64 `json:"monthly_token_limit"`
-	Notes             string `json:"notes"`
-	SortOrder         int    `json:"sort_order"`
+type UsageOverview struct {
+	Accounts    []UsageAccount `json:"accounts"`
+	PeriodStart string         `json:"period_start"`
+	PeriodEnd   string         `json:"period_end"`
+	UpdatedAt   string         `json:"updated_at"`
 }
 
 var (
-	ErrInvalidInput       = errors.New("invalid subscription input")
-	ErrMutationCommitted  = errors.New("subscription mutation committed")
-	ErrMutationNotApplied = errors.New("subscription mutation not applied")
-	ErrQuotaExceeded      = errors.New("subscription token quota exceeded")
+	ErrEntitlementUnavailable = errors.New("Control entitlement projection unavailable")
+	ErrQuotaExceeded          = errors.New("subscription token quota exceeded")
 )
-
-var planKeyPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$`)
 
 // QuotaExceededError 保留诊断用量，同时只向客户端暴露可行动的提示。
 type QuotaExceededError struct {
@@ -92,60 +61,52 @@ func (e QuotaExceededError) Error() string {
 	return fmt.Sprintf("%s: used %d of %d monthly tokens", ErrQuotaExceeded, e.UsedTokens, e.LimitTokens)
 }
 
-func (e QuotaExceededError) Unwrap() error {
-	return ErrQuotaExceeded
-}
+func (e QuotaExceededError) Unwrap() error { return ErrQuotaExceeded }
 
 func (e QuotaExceededError) ClientMessage() string {
 	return "当前账号本月的订阅额度已全部用尽，暂时无法发起新的 Agent 请求。这是账号级月度额度，不是单条回复的输出长度限制。请升级套餐，或等待下个计费周期重置后再继续使用。"
 }
 
 type Service struct {
-	repository  *storagesubscription.Repository
-	desktopMode bool
-	now         func() time.Time
+	repository *storagesubscription.Repository
+	now        func() time.Time
 }
 
 func NewServiceWithDB(cfg config.Config, db *sql.DB) *Service {
 	return &Service{
-		repository:  storagesubscription.NewRepository(cfg, db),
-		desktopMode: strings.EqualFold(strings.TrimSpace(cfg.AppMode), "desktop"),
-		now:         time.Now,
+		repository: storagesubscription.NewRepository(cfg, db),
+		now:        time.Now,
 	}
 }
 
-func (s *Service) Overview(ctx context.Context) (Overview, error) {
+// UsageOverview 只返回 Nexus 自有的本地用量事实，套餐和成员由 Control 组合。
+func (s *Service) UsageOverview(ctx context.Context) (UsageOverview, error) {
 	now := s.now().UTC()
 	periodStart, periodEnd := currentMonthlyPeriod(now)
-
-	plans, err := s.repository.ListPlans(ctx)
+	records, err := s.repository.ListUsage(ctx, periodStart, periodEnd)
 	if err != nil {
-		return Overview{}, err
+		return UsageOverview{}, err
 	}
-	accounts, err := s.repository.ListAccounts(ctx, periodStart, periodEnd)
-	if err != nil {
-		return Overview{}, err
+	accounts := make([]UsageAccount, 0, len(records))
+	for _, record := range records {
+		accounts = append(accounts, UsageAccount{
+			ControlUserID: record.ControlUserID,
+			UsedTokens:    record.UsedTokens,
+			SessionCount:  record.SessionCount,
+			MessageCount:  record.MessageCount,
+		})
 	}
-
-	overview := Overview{
-		Plans:       make([]Plan, 0, len(plans)),
-		Accounts:    make([]Account, 0, len(accounts)),
+	return UsageOverview{
+		Accounts:    accounts,
 		PeriodStart: formatTime(periodStart),
 		PeriodEnd:   formatTime(periodEnd),
 		UpdatedAt:   formatTime(now),
-	}
-	for _, plan := range plans {
-		overview.Plans = append(overview.Plans, mapPlan(plan))
-	}
-	for _, account := range accounts {
-		overview.Accounts = append(overview.Accounts, mapAccount(account, periodStart, periodEnd))
-	}
-	return overview, nil
+	}, nil
 }
 
 func (s *Service) CurrentAccount(ctx context.Context, ownerUserID string) (*Account, error) {
 	normalizedOwnerUserID := strings.TrimSpace(ownerUserID)
-	if s.desktopMode && normalizedOwnerUserID == authctx.SystemUserID {
+	if normalizedOwnerUserID == authctx.SystemUserID {
 		return nil, nil
 	}
 	now := s.now().UTC()
@@ -155,13 +116,13 @@ func (s *Service) CurrentAccount(ctx context.Context, ownerUserID string) (*Acco
 		return nil, err
 	}
 	if account == nil {
-		return nil, nil
+		return nil, ErrEntitlementUnavailable
 	}
 	result := mapAccount(*account, periodStart, periodEnd)
 	return &result, nil
 }
 
-// EnsureQuotaAvailable 在账号达到月度 token 额度后阻止新的 runtime 请求。
+// EnsureQuotaAvailable 在账号达到 Control 投影的月度 token 额度后阻止新 runtime 请求。
 func (s *Service) EnsureQuotaAvailable(ctx context.Context, ownerUserID string) error {
 	account, err := s.CurrentAccount(ctx, ownerUserID)
 	if err != nil || account == nil || account.MonthlyTokenLimit == nil {
@@ -176,137 +137,16 @@ func (s *Service) EnsureQuotaAvailable(ctx context.Context, ownerUserID string) 
 	return nil
 }
 
-func (s *Service) UpdateUserSubscription(ctx context.Context, input UpdateUserSubscriptionInput) (Overview, error) {
-	normalized, err := normalizeUpdateUserSubscriptionInput(input)
-	if err != nil {
-		return Overview{}, err
-	}
-
-	plan, err := s.repository.GetPlan(ctx, normalized.PlanKey)
-	if err != nil {
-		return Overview{}, errors.Join(ErrMutationNotApplied, err)
-	}
-	if plan == nil {
-		return Overview{}, fmt.Errorf("%w: unknown plan_key", ErrInvalidInput)
-	}
-
-	now := s.now().UTC()
-	periodStart, periodEnd := currentMonthlyPeriod(now)
-	entity := storagesubscription.UserSubscriptionEntity{
-		OwnerUserID: normalized.OwnerUserID,
-		PlanKey:     normalized.PlanKey,
-		PeriodStart: &periodStart,
-		PeriodEnd:   &periodEnd,
-		UpdatedAt:   now,
-	}
-	if err := s.repository.UpsertUserSubscription(ctx, entity); err != nil {
-		// Exec/commit transport errors do not prove whether the statement applied.
-		return Overview{}, err
-	}
-	overview, err := s.Overview(ctx)
-	if err != nil {
-		return Overview{}, errors.Join(ErrMutationCommitted, err)
-	}
-	return overview, nil
-}
-
-func (s *Service) UpsertPlan(ctx context.Context, input UpsertPlanInput) (Overview, error) {
-	normalized, err := normalizeUpsertPlanInput(input)
-	if err != nil {
-		return Overview{}, err
-	}
-	if err := s.repository.UpsertPlan(ctx, storagesubscription.PlanEntity{
-		PlanKey:           normalized.PlanKey,
-		DisplayName:       normalized.DisplayName,
-		Status:            normalized.Status,
-		MonthlyTokenLimit: normalized.MonthlyTokenLimit,
-		Notes:             normalized.Notes,
-		SortOrder:         normalized.SortOrder,
-		UpdatedAt:         s.now().UTC(),
-	}); err != nil {
-		// Exec/commit transport errors do not prove whether the statement applied.
-		return Overview{}, err
-	}
-	overview, err := s.Overview(ctx)
-	if err != nil {
-		return Overview{}, errors.Join(ErrMutationCommitted, err)
-	}
-	return overview, nil
-}
-
-func normalizeUpdateUserSubscriptionInput(input UpdateUserSubscriptionInput) (UpdateUserSubscriptionInput, error) {
-	normalized := UpdateUserSubscriptionInput{
-		OwnerUserID: strings.TrimSpace(input.OwnerUserID),
-		PlanKey:     strings.TrimSpace(input.PlanKey),
-	}
-	if normalized.OwnerUserID == "" {
-		return UpdateUserSubscriptionInput{}, fmt.Errorf("%w: owner_user_id is required", ErrInvalidInput)
-	}
-	if normalized.PlanKey == "" {
-		normalized.PlanKey = PlanFree
-	}
-	return normalized, nil
-}
-
-func normalizeUpsertPlanInput(input UpsertPlanInput) (UpsertPlanInput, error) {
-	normalized := UpsertPlanInput{
-		PlanKey:           strings.TrimSpace(input.PlanKey),
-		DisplayName:       strings.TrimSpace(input.DisplayName),
-		Status:            strings.TrimSpace(input.Status),
-		MonthlyTokenLimit: input.MonthlyTokenLimit,
-		Notes:             strings.TrimSpace(input.Notes),
-		SortOrder:         input.SortOrder,
-	}
-	if !planKeyPattern.MatchString(normalized.PlanKey) {
-		return UpsertPlanInput{}, fmt.Errorf("%w: invalid plan_key", ErrInvalidInput)
-	}
-	if normalized.DisplayName == "" {
-		return UpsertPlanInput{}, fmt.Errorf("%w: display_name is required", ErrInvalidInput)
-	}
-	if normalized.Status == "" {
-		normalized.Status = PlanStatusActive
-	}
-	if normalized.Status != PlanStatusActive && normalized.Status != PlanStatusArchived {
-		return UpsertPlanInput{}, fmt.Errorf("%w: invalid status", ErrInvalidInput)
-	}
-	if normalized.MonthlyTokenLimit != nil && *normalized.MonthlyTokenLimit < 0 {
-		return UpsertPlanInput{}, fmt.Errorf("%w: monthly_token_limit must be non-negative", ErrInvalidInput)
-	}
-	if normalized.SortOrder == 0 {
-		normalized.SortOrder = 100
-	}
-	return normalized, nil
-}
-
-func mapPlan(entity storagesubscription.PlanEntity) Plan {
-	return Plan{
-		PlanKey:           entity.PlanKey,
-		DisplayName:       entity.DisplayName,
-		Status:            entity.Status,
-		MonthlyTokenLimit: entity.MonthlyTokenLimit,
-		Notes:             entity.Notes,
-		SortOrder:         entity.SortOrder,
-	}
-}
-
-func mapAccount(entity storagesubscription.AccountEntity, fallbackStart time.Time, fallbackEnd time.Time) Account {
-	limit := entity.MonthlyTokenLimit
-
+func mapAccount(
+	entity storagesubscription.AccountEntity,
+	periodStart time.Time,
+	periodEnd time.Time,
+) Account {
 	var usedPercent *float64
-	if limit != nil && *limit > 0 {
-		percent := float64(entity.UsedTokens) / float64(*limit) * 100
+	if entity.MonthlyTokenLimit != nil && *entity.MonthlyTokenLimit > 0 {
+		percent := float64(entity.UsedTokens) / float64(*entity.MonthlyTokenLimit) * 100
 		usedPercent = &percent
 	}
-
-	periodStart := fallbackStart
-	if entity.PeriodStart != nil {
-		periodStart = *entity.PeriodStart
-	}
-	periodEnd := fallbackEnd
-	if entity.PeriodEnd != nil {
-		periodEnd = *entity.PeriodEnd
-	}
-
 	return Account{
 		OwnerUserID:       entity.OwnerUserID,
 		Username:          entity.Username,
@@ -315,7 +155,7 @@ func mapAccount(entity storagesubscription.AccountEntity, fallbackStart time.Tim
 		UserStatus:        entity.UserStatus,
 		PlanKey:           entity.PlanKey,
 		PlanName:          entity.PlanName,
-		MonthlyTokenLimit: limit,
+		MonthlyTokenLimit: entity.MonthlyTokenLimit,
 		UsedTokens:        entity.UsedTokens,
 		UsedPercent:       usedPercent,
 		SessionCount:      entity.SessionCount,

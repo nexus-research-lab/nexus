@@ -20,14 +20,22 @@ type controlState struct {
 }
 
 type controlPrincipal struct {
-	DeploymentID string `json:"deployment_id"`
-	UserID       string `json:"user_id"`
-	Username     string `json:"username"`
-	DisplayName  string `json:"display_name,omitempty"`
-	Role         string `json:"role"`
-	Avatar       string `json:"avatar,omitempty"`
-	AuthMethod   string `json:"auth_method"`
-	SessionID    string `json:"session_id"`
+	DeploymentID string             `json:"deployment_id"`
+	UserID       string             `json:"user_id"`
+	Username     string             `json:"username"`
+	DisplayName  string             `json:"display_name,omitempty"`
+	Role         string             `json:"role"`
+	Avatar       string             `json:"avatar,omitempty"`
+	AuthMethod   string             `json:"auth_method"`
+	SessionID    string             `json:"session_id"`
+	Entitlement  controlEntitlement `json:"entitlement"`
+}
+
+type controlEntitlement struct {
+	PlanKey           string    `json:"plan_key"`
+	PlanName          string    `json:"plan_name"`
+	MonthlyTokenLimit *int64    `json:"monthly_token_limit"`
+	UpdatedAt         time.Time `json:"updated_at"`
 }
 
 func (p *controlPrincipal) normalize() {
@@ -39,6 +47,9 @@ func (p *controlPrincipal) normalize() {
 	p.Avatar = strings.TrimSpace(p.Avatar)
 	p.AuthMethod = strings.TrimSpace(p.AuthMethod)
 	p.SessionID = strings.TrimSpace(p.SessionID)
+	p.Entitlement.PlanKey = strings.TrimSpace(p.Entitlement.PlanKey)
+	p.Entitlement.PlanName = strings.TrimSpace(p.Entitlement.PlanName)
+	p.Entitlement.UpdatedAt = p.Entitlement.UpdatedAt.UTC()
 }
 
 type controlExchangeResult struct {
@@ -56,29 +67,26 @@ type ControlIdentityInvalidation struct {
 	CreatedAt    time.Time `json:"created_at"`
 }
 
-type controlInvalidationCursor struct {
-	Cursor int64 `json:"cursor"`
-}
-
 type controlInvalidationBatch struct {
 	Events     []ControlIdentityInvalidation `json:"events"`
 	NextCursor int64                         `json:"next_cursor"`
 }
 
 type controlPrincipalClaims struct {
-	Version      int    `json:"v"`
-	Issuer       string `json:"iss"`
-	Audience     string `json:"aud"`
-	IssuedAt     int64  `json:"iat"`
-	ExpiresAt    int64  `json:"exp"`
-	DeploymentID string `json:"deployment_id"`
-	UserID       string `json:"user_id"`
-	Username     string `json:"username"`
-	DisplayName  string `json:"display_name,omitempty"`
-	Role         string `json:"role"`
-	Avatar       string `json:"avatar,omitempty"`
-	AuthMethod   string `json:"auth_method"`
-	SessionID    string `json:"session_id"`
+	Version      int                `json:"v"`
+	Issuer       string             `json:"iss"`
+	Audience     string             `json:"aud"`
+	IssuedAt     int64              `json:"iat"`
+	ExpiresAt    int64              `json:"exp"`
+	DeploymentID string             `json:"deployment_id"`
+	UserID       string             `json:"user_id"`
+	Username     string             `json:"username"`
+	DisplayName  string             `json:"display_name,omitempty"`
+	Role         string             `json:"role"`
+	Avatar       string             `json:"avatar,omitempty"`
+	AuthMethod   string             `json:"auth_method"`
+	SessionID    string             `json:"session_id"`
+	Entitlement  controlEntitlement `json:"entitlement"`
 }
 
 func (c controlPrincipalClaims) principal() controlPrincipal {
@@ -91,6 +99,7 @@ func (c controlPrincipalClaims) principal() controlPrincipal {
 		Avatar:       c.Avatar,
 		AuthMethod:   c.AuthMethod,
 		SessionID:    c.SessionID,
+		Entitlement:  c.Entitlement,
 	}
 }
 
@@ -177,7 +186,11 @@ func (v *controlPrincipalVerifier) verify(token string) (controlPrincipalClaims,
 		principal.UserID == "" ||
 		principal.Username == "" ||
 		principal.SessionID == "" ||
-		principal.AuthMethod != AuthMethodPassword {
+		principal.AuthMethod != AuthMethodPassword ||
+		principal.Entitlement.PlanKey == "" ||
+		principal.Entitlement.PlanName == "" ||
+		principal.Entitlement.UpdatedAt.IsZero() ||
+		(principal.Entitlement.MonthlyTokenLimit != nil && *principal.Entitlement.MonthlyTokenLimit < 0) {
 		return controlPrincipalClaims{}, errors.New("Control Principal 身份字段无效")
 	}
 	switch principal.Role {

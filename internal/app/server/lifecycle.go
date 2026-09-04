@@ -33,7 +33,8 @@ const (
 )
 
 type controlIdentityInvalidationSource interface {
-	LatestControlIdentityInvalidationID(context.Context) (int64, error)
+	ControlIdentityInvalidationCursor(context.Context) (int64, error)
+	CommitControlIdentityInvalidationCursor(context.Context, int64) error
 	ControlIdentityInvalidations(context.Context, int64) ([]authsvc.ControlIdentityInvalidation, error)
 	ApplyControlIdentityInvalidation(context.Context, authsvc.ControlIdentityInvalidation) (string, error)
 	FailClosedControlIdentities(context.Context) ([]string, error)
@@ -125,9 +126,9 @@ func (s *Server) startControlIdentityInvalidations(ctx context.Context) (func(),
 	if !ok {
 		return nil, nil
 	}
-	cursor, err := source.LatestControlIdentityInvalidationID(ctx)
+	cursor, err := source.ControlIdentityInvalidationCursor(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("initialize Control identity invalidation cursor: %w", err)
+		return nil, fmt.Errorf("load Control identity invalidation cursor: %w", err)
 	}
 	runCtx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})
@@ -186,6 +187,8 @@ func (s *Server) runControlIdentityInvalidations(
 				switch event.Reason {
 				case "session_revoked":
 					connections = s.handlers.websocket.CloseControlSessionConnections(event.SessionID)
+				case "entitlement_changed":
+					// 本地额度投影对下一个请求生效，不中断当前 Agent。
 				case "profile_changed":
 					connections = s.handlers.websocket.CloseOwnerConnections(ownerUserID)
 				default:
@@ -199,6 +202,15 @@ func (s *Server) runControlIdentityInvalidations(
 					"应用 Control identity invalidation 失败",
 					"event_id", event.EventID,
 					"owner_user_id", ownerUserID,
+					"err", applyErr,
+				)
+				processedAll = false
+				break
+			}
+			if applyErr = source.CommitControlIdentityInvalidationCursor(ctx, event.EventID); applyErr != nil {
+				s.api.BaseLogger().Warn(
+					"持久化 Control identity invalidation 游标失败",
+					"event_id", event.EventID,
 					"err", applyErr,
 				)
 				processedAll = false

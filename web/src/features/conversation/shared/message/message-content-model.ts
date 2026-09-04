@@ -5,7 +5,6 @@
  */
 import type {
   ContentBlock,
-  SystemEventContent,
   ToolResultContent,
   TextContent,
 } from "@/types/conversation/message/content";
@@ -13,7 +12,6 @@ import type { AssistantMessage } from "@/types/conversation/message/entity";
 
 const TOOL_USE_ERROR_TAG_PATTERN =
   /<tool_use_error>([\s\S]*?)<\/tool_use_error>/g;
-const API_RETRY_VISIBLE_ATTEMPT = 4;
 
 // 这些标记只控制 Room 编排；历史、流式、结果与复制投影必须共用同一清理入口。
 const ROOM_CONTROL_MARKER_PATTERN =
@@ -110,16 +108,10 @@ function hasVisibleAssistantBlock(
     case "tool_use":
       return !hiddenToolNames.has(block.name) && !isRecoverableToolUse(block);
     case "system_event":
-      return !isHiddenSystemEvent(block);
+      return true;
     default:
       return !NON_VISUAL_ASSISTANT_BLOCK_TYPES.has(block.type);
   }
-}
-
-export function isHiddenSystemEvent(block: SystemEventContent): boolean {
-  return block.subtype === "api_retry"
-    && typeof block.attempt === "number"
-    && block.attempt < API_RETRY_VISIBLE_ATTEMPT;
 }
 
 export function extractTextFromContentBlocks(

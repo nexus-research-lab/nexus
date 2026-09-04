@@ -4,6 +4,7 @@
  * POS: MessageItem Assistant 区域的纯显示状态机。
  */
 import type { ContentBlock } from "@/types/conversation/message/content";
+import type { ResultSummary } from "@/types/conversation/message/entity";
 
 import type { AssistantContentMode } from "../../message-item-projection";
 
@@ -35,7 +36,7 @@ interface AssistantDisplayProjection {
   processProjection: {
     content: readonly ContentBlock[];
   };
-  resultSummary: unknown;
+  resultSummary: ResultSummary | undefined;
   stats: unknown;
   streamStatus: string | null;
   streamingBlockIndexes: ReadonlySet<number>;
@@ -83,6 +84,10 @@ export function resolveAssistantDisplayState({
   const canFork = hasForkHandler
     && resultSettled
     && !hasStreamStatus(ACTIVE_STREAM_STATUSES, projection.streamStatus)
+    && (!projection.resultSummary || (
+      projection.resultSummary.subtype === "success"
+      && !projection.resultSummary.is_error
+    ))
     && projection.assistantMessages.length > 0;
 
   return {

@@ -19,16 +19,18 @@ type controlOwnerBinding struct {
 }
 
 type controlBindingStore struct {
-	db          *sql.DB
-	dialect     storage.SQLDialect
-	projections *ownerProjectionStore
+	db           *sql.DB
+	dialect      storage.SQLDialect
+	projections  *ownerProjectionStore
+	entitlements *controlEntitlementProjectionStore
 }
 
 func newControlBindingStore(cfgDriver string, db *sql.DB) *controlBindingStore {
 	return &controlBindingStore{
-		db:          db,
-		dialect:     storage.NewSQLDialect(cfgDriver),
-		projections: newOwnerProjectionStore(cfgDriver, db),
+		db:           db,
+		dialect:      storage.NewSQLDialect(cfgDriver),
+		projections:  newOwnerProjectionStore(cfgDriver, db),
+		entitlements: newControlEntitlementProjectionStore(cfgDriver, db),
 	}
 }
 
@@ -97,6 +99,9 @@ LIMIT 1`,
 			avatar.String != principal.Avatar {
 			err = s.projections.upsert(ctx, controlOwnerProjection(binding.LocalOwnerKey, principal))
 		}
+		if err == nil {
+			err = s.entitlements.upsert(ctx, binding.LocalOwnerKey, principal.Entitlement)
+		}
 		return binding, true, err
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
@@ -147,6 +152,15 @@ func (s *controlBindingStore) create(
 		ctx,
 		tx,
 		controlOwnerProjection(binding.LocalOwnerKey, principal),
+		now,
+	); err != nil {
+		return false, err
+	}
+	if err = s.entitlements.upsertWith(
+		ctx,
+		tx,
+		binding.LocalOwnerKey,
+		principal.Entitlement,
 		now,
 	); err != nil {
 		return false, err

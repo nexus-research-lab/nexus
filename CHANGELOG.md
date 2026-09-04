@@ -359,6 +359,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   workbench viewport contracts; refined shared single-line prompts with a
   narrower decision width, standard header/input primitives, and a clear solid
   primary action for Workspace create and rename flows.
+- Collapsed the desktop sidebar completely while keeping its restore action in
+  the shared header safe area, aligned with the native window controls.
+- Softened chat-list previews so secondary text no longer competes with
+  conversation names.
+- Moved subscription plan and member entitlement authority into `nexus-control`.
+  Nexus now retains only local token usage, a fail-closed entitlement projection,
+  and a durable Control event cursor; the existing Operations UI composes both
+  services without interrupting an in-flight Agent when a quota changes.
+- Moved the default Control data root out of Nexus host state and into the
+  dedicated `~/.nexus/control` directory.
+- Reduced local and deployment startup guidance to one primary command per
+  mode, keeping split-process startup only for debugger attachment.
 - Updated source deployment orchestration to build, start, health-check, and
   fast-forward both the Nexus and sibling `nexus-control` repositories as one
   `control + nexus + nginx` stack.
@@ -470,6 +482,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed shared Dialog layer variants being overridden by a legacy `z-index: 50`
   fallback; ordinary, nested, interaction and system dialogs now resolve through
   their semantic overlay tokens in the browser.
+- Hid fork actions for failed or interrupted Assistant rounds while preserving
+  forks from completed successful replies.
+- Displayed Provider retry attempts as compact execution activity with the
+  original error and countdown, and preserved the final raw runtime error when
+  retries are exhausted.
+- Kept the canonical `control` and `control-public` directories out of the
+  legacy runtime-state migration so a fresh three-service startup cannot move
+  Control's live database and credentials away from Nexus Server.
 - Reconciled the unpublished Control schema migration numbers with the published
   Connector migrations and safely replayed whichever side a local database had
   missed during the branch merge.

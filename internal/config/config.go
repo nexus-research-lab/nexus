@@ -144,7 +144,7 @@ func Load() Config {
 	}
 	controlServiceTokenFile := getEnv(
 		"NEXUS_CONTROL_SERVICE_TOKEN_FILE",
-		filepath.Join(appRoot, "control", "control-service.token"),
+		filepath.Join(stateRoot, "control", "control-service.token"),
 	)
 	controlServiceToken := strings.TrimSpace(getEnv("NEXUS_CONTROL_SERVICE_TOKEN", ""))
 	if controlServiceToken == "" {
@@ -198,7 +198,7 @@ func Load() Config {
 			stateRoot,
 			filepath.Join(appRoot, "data"),
 		),
-		AuthSessionCookieName: getEnv("AUTH_SESSION_COOKIE_NAME", "nexus_session"),
+		AuthSessionCookieName:   getEnv("AUTH_SESSION_COOKIE_NAME", "nexus_session"),
 		ControlURL:              controlURL,
 		ControlServiceToken:     controlServiceToken,
 		ControlServiceTokenFile: controlServiceTokenFile,
@@ -208,7 +208,7 @@ func Load() Config {
 		),
 		ControlPrincipalPublicKeyFile: getEnv(
 			"NEXUS_CONTROL_PRINCIPAL_PUBLIC_KEY_FILE",
-			filepath.Join(appRoot, "control", "control-signing.pub"),
+			filepath.Join(stateRoot, "control", "control-signing.pub"),
 		),
 		ControlPrincipalAudience:     getEnv("NEXUS_CONTROL_PRINCIPAL_AUDIENCE", "nexus-runtime"),
 		ControlRequestTimeoutSeconds: parseIntEnv(getEnv("NEXUS_CONTROL_REQUEST_TIMEOUT_SECONDS", "5"), 5),
