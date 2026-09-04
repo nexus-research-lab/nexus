@@ -13,6 +13,8 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
+import { RecoverySummary } from "@/shared/ui/feedback/recovery-summary";
 import { UiListActionButton } from "@/shared/ui/list/list-action";
 import { UiPanel } from "@/shared/ui/panel";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
@@ -90,35 +92,22 @@ export function ChannelAccountsPanel({
                   更新于 {new Date(account.updated_at).toLocaleString()}
                 </div>
                 {account.last_error ? (
-                  <UiPanel
-                    aria-atomic="true"
-                    aria-live="polite"
-                    className="mt-2 space-y-1 border-[color:color-mix(in_srgb,var(--destructive)_20%,transparent)] px-2 py-1.5"
-                    padding="none"
-                    radius="sm"
-                    role="status"
-                  >
-                    <p className={getUiTypographyClassName({
-                      role: "caption",
-                      tone: "danger",
-                      weight: "semibold",
-                    })}>
-                      {t("capability.channel_account_error_title")}
-                    </p>
-                    <p className={getUiTypographyClassName({ role: "caption", tone: "default" })}>
-                      {t("capability.channel_account_error_message")}
-                    </p>
-                    <p className={getUiTypographyClassName({ role: "caption", tone: "muted" })}>
-                      {t("capability.channel_account_error_impact")}
-                    </p>
-                    <p className={getUiTypographyClassName({
-                      role: "caption",
-                      tone: "default",
-                      weight: "medium",
-                    })}>
-                      {t("capability.channel_account_error_next_step")}
-                    </p>
-                  </UiPanel>
+                  <UiInlineNotice
+                    className="mt-2"
+                    message={(
+                      <div className="space-y-1">
+                        <p>
+                          {t("capability.channel_account_error_message")}
+                        </p>
+                        <RecoverySummary
+                          impact={t("capability.channel_account_error_impact")}
+                          nextStep={t("capability.channel_account_error_next_step")}
+                        />
+                      </div>
+                    )}
+                    title={t("capability.channel_account_error_title")}
+                    tone="danger"
+                  />
                 ) : null}
               </div>
               <UiListActionButton

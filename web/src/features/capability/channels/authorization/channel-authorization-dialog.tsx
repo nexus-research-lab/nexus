@@ -19,9 +19,9 @@ import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiQRCode } from "@/shared/ui/display/qr-code";
+import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import { RecoverySummary } from "@/shared/ui/feedback/recovery-summary";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
-import { UiPanel } from "@/shared/ui/panel";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import {
   UiDialogBackdrop,
@@ -274,51 +274,29 @@ function AuthorizationError({
   failure: ChannelAuthorizationFailure;
 }) {
   return (
-    <UiPanel
-      aria-atomic="true"
-      aria-live="polite"
-      className="space-y-1 border-[color:color-mix(in_srgb,var(--destructive)_22%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_7%,transparent)] py-2"
-      padding="sm"
-      radius="sm"
-      role="status"
-      variant="card"
-    >
-      <p className={getUiTypographyClassName({
-        role: "caption",
-        tone: "danger",
-        weight: "semibold",
-      })}>
-        {failure.title}
-      </p>
-      <RecoverySummary impact={failure.impact} nextStep={failure.nextStep} />
-    </UiPanel>
+    <UiInlineNotice
+      message={(
+        <RecoverySummary impact={failure.impact} nextStep={failure.nextStep} />
+      )}
+      title={failure.title}
+      tone="danger"
+    />
   );
 }
 
 function AuthorizationExpired() {
   const { t } = useI18n();
   return (
-    <UiPanel
-      aria-atomic="true"
-      aria-live="polite"
-      className="space-y-1 border-[color:color-mix(in_srgb,var(--warning)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_7%,transparent)] py-2"
-      padding="sm"
-      radius="sm"
-      role="status"
-      variant="card"
-    >
-      <p className={getUiTypographyClassName({
-        role: "caption",
-        tone: "warning",
-        weight: "semibold",
-      })}>
-        {t("capability.channel_authorization_expired_title")}
-      </p>
-      <RecoverySummary
-        impact={t("capability.channel_authorization_expired_impact")}
-        nextStep={t("capability.channel_authorization_expired_next_step")}
-      />
-    </UiPanel>
+    <UiInlineNotice
+      message={(
+        <RecoverySummary
+          impact={t("capability.channel_authorization_expired_impact")}
+          nextStep={t("capability.channel_authorization_expired_next_step")}
+        />
+      )}
+      title={t("capability.channel_authorization_expired_title")}
+      tone="warning"
+    />
   );
 }
 

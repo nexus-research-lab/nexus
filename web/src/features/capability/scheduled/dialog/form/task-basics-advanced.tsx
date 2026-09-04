@@ -12,6 +12,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { UiDisclosure } from "@/shared/ui/disclosure/disclosure";
 import { UiChoiceButton } from "@/shared/ui/form/choice";
+import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
 import { UiPanel } from "@/shared/ui/panel";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
@@ -426,30 +427,12 @@ export function TaskBasicsAdvanced(props: TaskBasicsAdvancedProps) {
   return (
     <>
       {props.needsSessionRebind ? (
-        <UiPanel
-          className="flex gap-2.5 border border-[color:color-mix(in_srgb,var(--warning)_24%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--warning)_5%,transparent)]"
-          padding="sm"
-          radius="sm"
-          role="status"
-          variant="plain"
-        >
-          <Link2Off className="mt-0.5 h-4 w-4 shrink-0 text-(--warning)" />
-          <div className="min-w-0">
-            <p className={getUiTypographyClassName({
-              role: "supporting",
-              tone: "strong",
-              weight: "medium",
-            })}>
-              {t("capability.scheduled_dialog_session_rebind_required")}
-            </p>
-            <p className={cn(
-              "mt-1",
-              getUiTypographyClassName({ role: "caption", tone: "muted" }),
-            )}>
-              {t("capability.scheduled_dialog_session_rebind_description")}
-            </p>
-          </div>
-        </UiPanel>
+        <UiInlineNotice
+          icon={<Link2Off />}
+          message={t("capability.scheduled_dialog_session_rebind_description")}
+          title={t("capability.scheduled_dialog_session_rebind_required")}
+          tone="warning"
+        />
       ) : null}
 
       <UiPanel className="flex flex-col gap-4" padding="sm" radius="md">

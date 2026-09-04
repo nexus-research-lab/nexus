@@ -6,6 +6,7 @@ import type { FormEvent } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
+import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import { RecoverySummary } from "@/shared/ui/feedback/recovery-summary";
 import { UiInput } from "@/shared/ui/form/form-control";
 
@@ -37,30 +38,23 @@ function LoginErrorBanner({
     return null;
   }
   return (
-    <div
-      aria-atomic="true"
-      aria-live="polite"
-      className="mt-5 rounded-[10px] border border-[color:color-mix(in_srgb,var(--destructive)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] px-4 py-3"
-      role="status"
-    >
-      <p className="text-sm font-semibold text-(--destructive)">{notice.title}</p>
-      <RecoverySummary
-        className="mt-1"
-        impact={notice.impact}
-        nextStep={notice.action ? undefined : notice.nextStep}
-      />
-      {notice.action === "check_status" ? (
-        <UiButton
-          className="mt-2"
-          onClick={onCheckStatus}
-          size="sm"
-          type="button"
-          variant="text"
-        >
-          {t("login.refresh")}
-        </UiButton>
-      ) : null}
-    </div>
+    <UiInlineNotice
+      action={notice.action === "check_status"
+        ? {
+            label: t("login.refresh"),
+            onClick: onCheckStatus,
+          }
+        : undefined}
+      className="mt-5"
+      message={(
+        <RecoverySummary
+          impact={notice.impact}
+          nextStep={notice.action ? undefined : notice.nextStep}
+        />
+      )}
+      title={notice.title}
+      tone="danger"
+    />
   );
 }
 

@@ -4,7 +4,8 @@
 import { useCallback, useMemo } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiButton } from "@/shared/ui/button/button";
+import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
+import { RecoverySummary } from "@/shared/ui/feedback/recovery-summary";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import type { AgentProvider } from "@/types/agent/agent";
 import {
@@ -21,7 +22,7 @@ import {
 interface ModelSelectorLayout {
   buttonClassName: string;
   className: string;
-  errorClassName: string;
+  errorNoticeClassName?: string;
   size?: "sm";
 }
 
@@ -32,12 +33,11 @@ const MODEL_SELECTOR_LAYOUTS: Record<
   dialog: {
     buttonClassName: "h-auto min-h-11 py-2.5",
     className: "h-auto min-h-11",
-    errorClassName: "mt-2 text-xs text-rose-500",
+    errorNoticeClassName: "mt-2",
   },
   inline: {
     buttonClassName: "h-auto min-h-9 py-2",
     className: "h-auto min-h-9",
-    errorClassName: "text-xs text-rose-500",
     size: "sm",
   },
 };
@@ -151,37 +151,26 @@ export function IdentityModelSelector({
           {t("agent_options.identity.main_model_hint")}
         </p>
       ) : selectedUnavailable ? (
-        <div className="surface-radius-md flex flex-wrap items-center justify-between gap-2 border border-[color:color-mix(in_srgb,var(--warning)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-3 py-2">
-          <p className="text-xs leading-5 text-(--warning)">
-            {t("agent_options.identity.model_temporarily_unavailable")}
-          </p>
-          <UiButton
-            className="shrink-0"
-            onClick={followDefault}
-            size="xs"
-            type="button"
-            variant="ghost"
-          >
-            {t("agent_options.identity.use_default_model")}
-          </UiButton>
-        </div>
+        <UiInlineNotice
+          action={{
+            label: t("agent_options.identity.use_default_model"),
+            onClick: followDefault,
+          }}
+          message={t("agent_options.identity.model_temporarily_unavailable")}
+          tone="warning"
+        />
       ) : error ? (
-        <div
-          aria-atomic="true"
-          aria-live="polite"
-          className={layout.errorClassName}
-          role="status"
-        >
-          <p className="font-semibold">
-            {t("agent_options.identity.provider_load_failed")}
-          </p>
-          <p className="mt-1 leading-5 text-(--text-muted)">
-            {t("agent_options.identity.provider_load_failed_impact")}
-          </p>
-          <p className="mt-1 font-medium leading-5 text-(--text-default)">
-            {t("agent_options.identity.provider_load_failed_next_step")}
-          </p>
-        </div>
+        <UiInlineNotice
+          className={layout.errorNoticeClassName}
+          message={(
+            <RecoverySummary
+              impact={t("agent_options.identity.provider_load_failed_impact")}
+              nextStep={t("agent_options.identity.provider_load_failed_next_step")}
+            />
+          )}
+          title={t("agent_options.identity.provider_load_failed")}
+          tone="danger"
+        />
       ) : null}
     </div>
   );
