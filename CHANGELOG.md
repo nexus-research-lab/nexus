@@ -102,6 +102,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Stopped development and ad-hoc macOS app launches from probing the legacy
+  Keychain item, avoiding a password prompt after every local rebuild.
+
 - Hid fork actions for failed or interrupted Assistant rounds while preserving
   forks from completed successful replies.
 - Displayed Provider retry attempts as compact execution activity with the
