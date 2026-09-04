@@ -38,6 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Collapsed the desktop sidebar completely while keeping its restore action in
+  the shared header safe area, aligned with the native window controls.
 - Softened chat-list previews so secondary text no longer competes with
   conversation names.
 - Moved subscription plan and member entitlement authority into `nexus-control`.
