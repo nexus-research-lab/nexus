@@ -1,3 +1,7 @@
+// INPUT: Mermaid 文本、流式状态、尺寸模式与可选标题栏。
+// OUTPUT: 使用共享 IconButton/SegmentedControl 的源码、图表和全屏预览组合。
+// POS: Markdown Mermaid 视图编排；渲染状态和 SVG 清理归相邻 Hook/模型。
+
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
@@ -10,7 +14,9 @@ import {
 
 import { writeTextToClipboard } from "@/hooks/ui/clipboard";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
+import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
 
 import { MermaidPreviewDialog } from "./mermaid-preview-dialog";
 import {
@@ -18,7 +24,6 @@ import {
   getMermaidContentClassName,
 } from "./mermaid-view-layout";
 import {
-  MermaidModeButton,
   MermaidRenderedPreview,
   MermaidSourceView,
 } from "./mermaid-view-parts";
@@ -97,38 +102,27 @@ export function MermaidView({
           </div>
           <div className="flex shrink-0 items-center gap-1">
             {viewMode === "source" ? (
-              <button
+              <UiIconButton
                 aria-label={copySourceLabel}
-                className="inline-flex h-6 w-6 items-center justify-center rounded-[6px] text-(--text-muted) transition-colors hover:bg-(--interaction-hover-background) hover:text-(--text-strong)"
                 onClick={() => {
                   void copySource();
                 }}
-                title={copySourceLabel}
-                type="button"
+                size="xs"
+                variant="ghost"
               >
                 {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-              </button>
+              </UiIconButton>
             ) : null}
-            <div
-              aria-label={t("markdown.mermaid.display_mode")}
-              className="inline-flex items-center radius-control-sm border border-(--divider-subtle-color) bg-(--surface-panel-subtle-background) p-0.5"
-              role="tablist"
-            >
-              <MermaidModeButton
-                active={viewMode === "preview"}
-                onClick={() => setViewMode("preview")}
-              >
-                <Eye className="h-3.5 w-3.5" />
-                {t("markdown.mermaid.preview")}
-              </MermaidModeButton>
-              <MermaidModeButton
-                active={viewMode === "source"}
-                onClick={() => setViewMode("source")}
-              >
-                <Code2 className="h-3.5 w-3.5" />
-                {t("markdown.mermaid.source")}
-              </MermaidModeButton>
-            </div>
+            <UiSegmentedControl
+              density="compact"
+              onChange={setViewMode}
+              options={[
+                { icon: Eye, label: t("markdown.mermaid.preview"), value: "preview" },
+                { icon: Code2, label: t("markdown.mermaid.source"), value: "source" },
+              ]}
+              title={t("markdown.mermaid.display_mode")}
+              value={viewMode}
+            />
           </div>
         </div>
       ) : null}

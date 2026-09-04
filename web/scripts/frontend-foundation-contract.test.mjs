@@ -490,6 +490,42 @@ test("loading indicators share one size, tone, and reduced-motion recipe", async
   assert.deepEqual(rawSpinnerViolations, []);
 });
 
+test("Mermaid chrome shares standard controls and keeps one native diagram target", async () => {
+  const [view, parts] = await Promise.all([
+    readSource("src/shared/ui/markdown/mermaid/mermaid-view.tsx"),
+    readSource("src/shared/ui/markdown/mermaid/mermaid-view-parts.tsx"),
+  ]);
+
+  assert.match(view, /<UiIconButton/);
+  assert.match(view, /<UiSegmentedControl/);
+  assert.doesNotMatch(
+    view,
+    /MermaidModeButton|<button\b|role="tablist"|rounded-\[6px\]/,
+  );
+  assert.match(
+    parts,
+    /<button[\s\S]*aria-label=\{t\("markdown\.mermaid\.open_preview"\)\}[\s\S]*type="button"/,
+  );
+  assert.doesNotMatch(
+    parts,
+    /MermaidModeButton|role="button"|onKeyDown=|tabIndex=/,
+  );
+});
+
+test("product React does not reintroduce fake button roles", async () => {
+  const productionSourceFiles = (await collectSourceFiles(srcRoot)).filter(
+    (file) => file.endsWith(".tsx") && !file.endsWith(".test.tsx"),
+  );
+  const violations = [];
+  for (const file of productionSourceFiles) {
+    const source = await readFile(file, "utf8");
+    if (/\brole="button"/.test(source)) {
+      violations.push(path.relative(srcRoot, file));
+    }
+  }
+  assert.deepEqual(violations, []);
+});
+
 test("Workspace file previews share compact and canvas spinner sizes", async () => {
   const paths = [
     "src/features/conversation/shared/editor/office-preview-fallbacks.tsx",

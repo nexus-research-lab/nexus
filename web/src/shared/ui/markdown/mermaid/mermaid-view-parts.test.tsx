@@ -1,20 +1,19 @@
-// INPUT: Mermaid 模式动作、首次渲染和已有图表更新状态。
-// OUTPUT: 证明 tab 交互、单一 live status、语义排版与共享 Spinner 合同。
+// INPUT: Mermaid 首次渲染、已有图表更新状态与原生图形命中区。
+// OUTPUT: 证明单一 live status、语义排版、共享 Spinner 与 native button 合同。
 // POS: Mermaid view parts DOM 行为测试；不执行 Mermaid 渲染器。
 
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { I18nProvider } from "@/shared/i18n/i18n-provider";
 
-import { MermaidModeButton, MermaidRenderedPreview } from "./mermaid-view-parts";
+import { MermaidRenderedPreview } from "./mermaid-view-parts";
 
 describe("Mermaid view parts", () => {
-  it("keeps mode actions interactive and rendering status consistent", () => {
-    const onModeClick = vi.fn();
+  it("keeps rendering status consistent", () => {
     const { container } = render(
       <I18nProvider>
-        <MermaidModeButton active onClick={onModeClick}>源码</MermaidModeButton>
         <MermaidRenderedPreview
           compact
           constrainHeight
@@ -27,14 +26,41 @@ describe("Mermaid view parts", () => {
       </I18nProvider>,
     );
 
-    fireEvent.click(screen.getByRole("tab", { name: "源码" }));
-    expect(onModeClick).toHaveBeenCalledOnce();
-
     const status = screen.getByRole("status");
     expect(status.getAttribute("aria-busy")).toBe("true");
     expect(status.className).toContain("ui-type-metadata");
     const spinner = container.querySelector('[role="status"] svg');
     expect(spinner?.getAttribute("aria-hidden")).toBe("true");
     expect(spinner?.getAttribute("class")).toContain("motion-reduce:animate-none");
+  });
+
+  it("uses one native button for rendered-diagram activation", async () => {
+    const user = userEvent.setup();
+    const onOpenPreview = vi.fn();
+    const { container } = render(
+      <I18nProvider>
+        <MermaidRenderedPreview
+          compact
+          constrainHeight
+          error={null}
+          isRendering={false}
+          isStreaming={false}
+          onOpenPreview={onOpenPreview}
+          svg={'<svg aria-hidden="true" viewBox="0 0 10 10"></svg>'}
+        />
+      </I18nProvider>,
+    );
+
+    const preview = screen.getByRole("button", {
+      name: "Enlarge Mermaid chart preview",
+    }) as HTMLButtonElement;
+    expect(preview.tagName).toBe("BUTTON");
+    expect(preview.type).toBe("button");
+    expect(container.querySelector('[role="button"]')).toBeNull();
+
+    await user.click(preview);
+    preview.focus();
+    await user.keyboard("{Enter}");
+    expect(onOpenPreview).toHaveBeenCalledTimes(2);
   });
 });

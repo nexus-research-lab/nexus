@@ -40,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Replaced Mermaid-specific mode and copy controls with shared primitives, and
+  moved rendered-diagram activation from a simulated role to one native button.
 - Restored the four empty-conversation suggestions as consistent transparent,
   border-only action blocks without card shadows or persistent fill, and
   optically aligned the asymmetric Room identity glyph.
