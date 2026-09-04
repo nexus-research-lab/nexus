@@ -1,9 +1,13 @@
+// INPUT: 已投影的 Workbook、当前工作表索引与切换命令。
+// OUTPUT: 共享底线式工作表选择条和只读虚拟化表格。
+// POS: Spreadsheet 预览视图；不解析 ExcelJS，不拥有全局 Tabs 外观。
 "use client";
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
-import { cn } from "@/shared/ui/class-name";
+import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiTabs } from "@/shared/ui/navigation/tabs";
 
 import { createSpreadsheetCellStyle } from "./spreadsheet-cell-style";
 import {
@@ -29,6 +33,7 @@ export function SpreadsheetReadonlyWorkbook({
   onSelectSheet,
   workbook,
 }: SpreadsheetReadonlyWorkbookProps) {
+  const { t } = useI18n();
   const resolvedSheetIndex = Math.min(
     activeSheetIndex,
     workbook.sheets.length - 1,
@@ -40,24 +45,21 @@ export function SpreadsheetReadonlyWorkbook({
   return (
     <div className="flex h-full min-h-0 flex-col">
       {workbook.sheets.length > 1 ? (
-        <div className="flex shrink-0 gap-1 overflow-x-auto border-b divider-subtle bg-(--surface-panel-background) px-3 py-2">
-          {workbook.sheets.map((sheet, index) => (
-            <button
-              className={cn(
-                "max-w-[180px] shrink-0 truncate rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
-                index === resolvedSheetIndex
-                  ? "bg-primary text-primary-foreground"
-                  : "text-(--text-muted) hover:bg-(--button-ghost-hover-background) hover:text-(--text-strong)",
-              )}
-              key={`${sheet.name}-${index}`}
-              onClick={() => onSelectSheet(index)}
-              title={sheet.name}
-              type="button"
-            >
-              {sheet.name}
-            </button>
-          ))}
-        </div>
+        <UiTabs
+          activeValue={String(resolvedSheetIndex)}
+          ariaLabel={t("workspace_file.spreadsheet_loaded", {
+            count: workbook.sheets.length,
+          })}
+          className="shrink-0 border-b divider-subtle bg-(--surface-panel-background) px-3 py-1"
+          density="compact"
+          itemClassName="max-w-[180px] overflow-hidden text-ellipsis"
+          onChange={(value) => onSelectSheet(Number(value))}
+          options={workbook.sheets.map((sheet, index) => ({
+            label: sheet.name,
+            title: sheet.name,
+            value: String(index),
+          }))}
+        />
       ) : null}
       <SpreadsheetReadonlySheet
         key={`${activeSheet.name}-${resolvedSheetIndex}`}

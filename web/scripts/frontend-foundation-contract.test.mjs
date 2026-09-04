@@ -1998,13 +1998,16 @@ test("Connector catalog exposes only implemented products and derives real categ
 });
 
 test("content and filter tabs use one underline owner while form choices stay segmented", async () => {
-  const [tabs, tabStyles, directoryTabs, capabilityLayout, pairingFilter, customMcpDialog] = await Promise.all([
+  const [tabs, tabStyles, directoryTabs, capabilityLayout, pairingFilter, customMcpDialog, spreadsheet] = await Promise.all([
     readSource("src/shared/ui/navigation/tabs.tsx"),
     readSource("src/shared/ui/navigation/tabs-styles.ts"),
     readSource("src/shared/ui/navigation/directory-tabs.tsx"),
     readSource("src/features/capability/shared/capability-page-layout.tsx"),
     readSource("src/features/capability/channels/pairings/pairing-filter-bar.tsx"),
     readSource("src/features/capability/connectors/custom/custom-mcp-dialog.tsx"),
+    readSource(
+      "src/features/conversation/shared/editor/spreadsheet/spreadsheet-readonly-workbook.tsx",
+    ),
   ]);
 
   assert.doesNotMatch(tabs, /variant/);
@@ -2017,6 +2020,8 @@ test("content and filter tabs use one underline owner while form choices stay se
   assert.doesNotMatch(pairingFilter, /<UiTabs|<UiSegmentedControl/);
   assert.match(customMcpDialog, /<UiSegmentedControl/g);
   assert.doesNotMatch(customMcpDialog, /<UiTabs/);
+  assert.match(spreadsheet, /<UiTabs/);
+  assert.doesNotMatch(spreadsheet, /<button\b|bg-primary|rounded-md/);
 });
 
 test("Loop surfaces use semantic typography, badges, panels, and responsive actions", async () => {
