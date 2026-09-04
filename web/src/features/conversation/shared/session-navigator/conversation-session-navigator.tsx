@@ -8,6 +8,7 @@ import { ChevronRight } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import type { ConversationRoundScrollHandleRef } from "../timeline/scroll/round-scroll";
 import type { ConversationTimeline } from "../timeline/timeline-model";
@@ -151,19 +152,39 @@ export function ConversationSessionNavigator({
                 type="button"
               >
                 <span className="flex min-w-0 items-center gap-2 border-b border-(--divider-subtle-color) px-3 py-2.5">
-                  <span className="min-w-0 flex-1 truncate text-sm font-semibold leading-[18px] text-(--text-strong)">
+                  <span className={cn(
+                    "min-w-0 flex-1 truncate",
+                    getUiTypographyClassName({
+                      role: "supporting",
+                      tone: "strong",
+                      weight: "semibold",
+                    }),
+                  )}>
                     {previewItem.title}
                   </span>
-                  <span className="shrink-0 text-xs leading-4 text-(--text-muted)">
+                  <span className={cn(
+                    "shrink-0",
+                    getUiTypographyClassName({ role: "caption", tone: "muted" }),
+                  )}>
                     {previewItem.time}
                   </span>
                   <ChevronRight className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
                 </span>
                 <span className="block px-3 py-2.5">
-                  <span className="line-clamp-2 text-xs leading-[18px] text-(--text-default)">
+                  <span className={cn(
+                    "line-clamp-2",
+                    getUiTypographyClassName({ role: "metadata", tone: "default" }),
+                  )}>
                     {previewItem.summary}
                   </span>
-                  <span className="mt-2 flex min-w-0 items-center gap-1.5 text-2xs font-medium leading-4 text-(--text-soft)">
+                  <span className={cn(
+                    "mt-2 flex min-w-0 items-center gap-1.5",
+                    getUiTypographyClassName({
+                      role: "caption",
+                      tone: "soft",
+                      weight: "medium",
+                    }),
+                  )}>
                     <span
                       className={cn(
                         "h-1.5 w-1.5 shrink-0 rounded-full",

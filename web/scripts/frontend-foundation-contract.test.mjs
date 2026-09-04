@@ -696,6 +696,24 @@ test("WorkGraph standard actions use shared controls while graph hit targets sta
   assert.match(canvas, /<button[\s\S]*?data-execution-collapse-node/);
 });
 
+test("Session navigator limits raw buttons to documented geometry-owned hit targets", async () => {
+  const [navigator, moduleGuide] = await Promise.all([
+    readSource(
+      "src/features/conversation/shared/session-navigator/conversation-session-navigator.tsx",
+    ),
+    readSource("src/features/conversation/shared/session-navigator/CLAUDE.md"),
+  ]);
+
+  assert.equal((navigator.match(/<button\b/g) ?? []).length, 2);
+  assert.match(navigator, /getUiTypographyClassName/);
+  assert.doesNotMatch(
+    navigator,
+    /text-(?:2xs|xs|sm)\b|font-(?:medium|semibold)\b|leading-\[(?:18px)\]/,
+  );
+  assert.match(moduleGuide, /连续命中区/);
+  assert.match(moduleGuide, /App Typography/);
+});
+
 test("Subagent thread loading and command actions share Spinner roles", async () => {
   const source = await readSource(
     "src/features/conversation/shared/subagent/thread/subagent-task-thread-view.tsx",
