@@ -30,6 +30,7 @@ const PROHIBITED_PRODUCT_STYLE_PATTERNS = [
 
 const REQUIRED_SHARED_UI_BEHAVIOR_SUITES = [
   "src/features/conversation/shared/execution/execution-process-panel.test.tsx",
+  "src/features/conversation/shared/composer/components/interaction/composer-permission-surface.test.tsx",
   "src/shared/ui/button/button.test.tsx",
   "src/shared/ui/dialog/decision/decision-dialog.test.tsx",
   "src/shared/ui/dialog/dialog.test.tsx",
@@ -797,6 +798,26 @@ test("Composer shell actions use shared Button primitives", async () => {
   assert.match(roomModelControl, /<UiButton/);
   assert.match(roomModelControl, /<UiIconButton/);
   assert.equal(roomModelControl.match(/<button\b/g)?.length, 1);
+});
+
+test("Composer permission decisions reuse shared Button, Form, and typography owners", async () => {
+  const [surface, scopeItems, splitButton] = await Promise.all([
+    readSource(
+      "src/features/conversation/shared/composer/components/interaction/composer-permission-surface.tsx",
+    ),
+    readSource(
+      "src/features/conversation/shared/composer/components/interaction/composer-permission-scope-items.tsx",
+    ),
+    readSource("src/shared/ui/button/split-button.tsx"),
+  ]);
+
+  for (const owner of ["UiButton", "UiSplitButton", "UiInput", "getUiTypographyClassName"]) {
+    assert.match(surface, new RegExp(`<${owner}|${owner}`));
+  }
+  assert.doesNotMatch(surface, /<button\b|<input\b|rounded-\[|color-mix|\btext-(?:xs|sm|md)\b|\bfont-(?:medium|semibold)\b/);
+  assert.doesNotMatch(scopeItems, /\btext-(?:xs|sm|md)\b|\bfont-(?:medium|semibold)\b/);
+  assert.match(splitButton, /role="group"/);
+  assert.match(splitButton, /<UiButton/);
 });
 
 test("dense Composer and Room toolbars use the shared micro Button scale", async () => {

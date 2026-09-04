@@ -25,21 +25,13 @@ export function buildComposerPermissionScopeItems(
 ): UiActionMenuItem[] {
   return [
     {
-      label: (
-        <span className="text-md">
-          {t("composer.permission_allow_once_menu")}
-        </span>
-      ),
+      label: t("composer.permission_allow_once_menu"),
       description: t("composer.permission_allow_once_description"),
       value: ALLOW_ONCE_MENU_VALUE,
     },
     ...(permission.source === "automation" && permission.automation?.allow_task
       ? [{
-        label: (
-          <span className="text-md">
-            {t("composer.permission_allow_task")}
-          </span>
-        ),
+        label: t("composer.permission_allow_task"),
         description: t("composer.permission_allow_task_description", {
           name: permission.automation.task_name,
         }),
@@ -68,11 +60,7 @@ export function buildComposerPermissionScopeItems(
         })
         : scopeHint;
       return {
-        label: (
-          <span className="text-md">
-            {actionLabelKey ? t(actionLabelKey) : suggestion.label}
-          </span>
-        ),
+        label: actionLabelKey ? t(actionLabelKey) : suggestion.label,
         description: scopeDescription,
         value: String(suggestion.index),
       } satisfies UiActionMenuItem;

@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added a shared split-action Button pattern with independent primary and menu
+  commands, keyboard focus, ARIA, tests, and UI Gallery coverage.
 - Added standalone `nexus-control` authentication for server Web deployments,
   with signed short-lived principals, stable local owner bindings, and an
   account migration path that leaves Agent and workspace data in place. The
@@ -38,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Standardized Composer permission decisions on shared Button, split-action,
+  Form, Menu, and Typography owners without changing approval payloads.
 - Centralized Select, Slash-command, and Room Skill listbox option DOM on one
   shared menu row primitive, including selection ARIA and active-state data.
 - Unified Assistant footer copy, branch, and memory actions plus ToolBlock

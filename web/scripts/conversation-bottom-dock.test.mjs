@@ -570,12 +570,15 @@ test("questions and plan confirmations use the same Composer replacement owner",
   assert.match(planHtml, /先验证数据源，再生成最终报告/);
   assert.match(planHtml, />允许本次</);
   assert.match(planHtml, />拒绝</);
-  assert.match(
-    planHtml,
-    /class="[^"]*\bradius-control-sm\b[^"]*\bw-24\b[^"]*" data-composer-permission-action="deny"/,
-  );
-  assert.match(
-    planHtml,
-    /class="[^"]*\bradius-control-sm\b[^"]*\bw-24\b[^"]*" data-composer-permission-action="allow"/,
-  );
+  const denyActionTag = planHtml.match(
+    /<button[^>]*data-composer-permission-action="deny"[^>]*>/,
+  )?.[0] ?? "";
+  const allowActionTag = planHtml.match(
+    /<div[^>]*data-composer-permission-action="allow"[^>]*>/,
+  )?.[0] ?? "";
+  assert.match(denyActionTag, /\bradius-control-sm\b/);
+  assert.match(denyActionTag, /\bw-24\b/);
+  assert.match(allowActionTag, /data-slot="split-button"/);
+  assert.match(allowActionTag, /\bradius-control-sm\b/);
+  assert.match(allowActionTag, /\bw-24\b/);
 });
