@@ -1,12 +1,13 @@
-// INPUT: UiTabs 的当前值、切换命令与键盘操作。
-// OUTPUT: 证明筛选/视图选择使用 button group，而不伪装成站点导航。
-// POS: UiTabs DOM 语义测试；页面内容与路由切换由消费者负责。
+// INPUT: UiTabs/UiDirectoryTabs 的当前值、切换命令与键盘操作。
+// OUTPUT: 证明筛选/视图选择使用 button group，并提供跨领域目录紧凑预设。
+// POS: 导航选择 DOM 语义测试；页面内容、路由和业务筛选状态由消费者负责。
 
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it } from "vitest";
 
+import { UiDirectoryTabs } from "@/shared/ui/navigation/directory-tabs";
 import { UiTabs } from "@/shared/ui/navigation/tabs";
 
 describe("UiTabs", () => {
@@ -84,5 +85,27 @@ describe("UiTabs", () => {
     expect(active.className).toContain("border-(--text-strong)");
     expect(active.className).not.toContain("radius-control-sm");
     expect(inactive.className).toContain("border-transparent");
+  });
+
+  it("provides a compact directory preset without knowing a business domain", async () => {
+    const user = userEvent.setup();
+    const changes: string[] = [];
+    render(
+      <UiDirectoryTabs
+        activeValue="global"
+        ariaLabel="资源目录"
+        onChange={(value) => changes.push(value)}
+        options={[
+          { label: "全局资源", value: "global" },
+          { label: "社区资源", value: "community" },
+        ]}
+      />,
+    );
+
+    const group = screen.getByRole("group", { name: "资源目录" });
+    expect(group.className).toContain("w-fit");
+    expect(group.className.split(/\s+/)).not.toContain("w-full");
+    await user.click(screen.getByRole("button", { name: "社区资源" }));
+    expect(changes).toEqual(["community"]);
   });
 });

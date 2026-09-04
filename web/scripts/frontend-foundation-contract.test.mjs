@@ -1634,7 +1634,7 @@ test("Skill directory chrome reuses shared actions, states, typography, and filt
   assert.doesNotMatch(card, /<button\b|rounded-\[|text-(?:2xs|xs|sm|base|compact)|font-(?:medium|semibold)|font-mono/);
   assert.match(grid, /<UiResourceState/);
   assert.doesNotMatch(grid, /Loader2/);
-  assert.match(search, /<CapabilityDirectoryTabs/);
+  assert.match(search, /<UiDirectoryTabs/);
   assert.doesNotMatch(search, /<UiSegmentedControl/);
   assert.match(search, /<UiIconButton/);
   assert.doesNotMatch(search, /<button\b/);
@@ -1924,15 +1924,16 @@ test("Connector catalog exposes only implemented products and derives real categ
   assert.doesNotMatch(catalogModel, /COMING_SOON|connector_section_featured/);
   assert.match(categoryModel, /getAvailableConnectorCategoryKeys/);
   assert.match(searchBar, /categoryKeys/);
-  assert.match(searchBar, /<CapabilityDirectoryTabs/);
+  assert.match(searchBar, /<UiDirectoryTabs/);
   assert.doesNotMatch(searchBar, /<UiTabs|<UiSegmentedControl/);
   assert.doesNotMatch(searchBar, /CONNECTOR_CATEGORY_OPTIONS/);
 });
 
 test("content and filter tabs use one underline owner while form choices stay segmented", async () => {
-  const [tabs, tabStyles, capabilityLayout, pairingFilter, customMcpDialog] = await Promise.all([
+  const [tabs, tabStyles, directoryTabs, capabilityLayout, pairingFilter, customMcpDialog] = await Promise.all([
     readSource("src/shared/ui/navigation/tabs.tsx"),
     readSource("src/shared/ui/navigation/tabs-styles.ts"),
+    readSource("src/shared/ui/navigation/directory-tabs.tsx"),
     readSource("src/features/capability/shared/capability-page-layout.tsx"),
     readSource("src/features/capability/channels/pairings/pairing-filter-bar.tsx"),
     readSource("src/features/capability/connectors/custom/custom-mcp-dialog.tsx"),
@@ -1941,8 +1942,10 @@ test("content and filter tabs use one underline owner while form choices stay se
   assert.doesNotMatch(tabs, /variant/);
   assert.doesNotMatch(tabStyles, /UiTabsVariant|surface-interactive|radius-control-sm/);
   assert.match(tabStyles, /border-b-2/);
-  assert.match(capabilityLayout, /export function CapabilityDirectoryTabs/);
-  assert.match(pairingFilter, /<CapabilityDirectoryTabs/);
+  assert.match(directoryTabs, /export function UiDirectoryTabs/);
+  assert.doesNotMatch(directoryTabs, /@\/features\/capability|CapabilityDirectoryTabs/);
+  assert.doesNotMatch(capabilityLayout, /DirectoryTabs|<UiTabs/);
+  assert.match(pairingFilter, /<UiDirectoryTabs/);
   assert.doesNotMatch(pairingFilter, /<UiTabs|<UiSegmentedControl/);
   assert.match(customMcpDialog, /<UiSegmentedControl/g);
   assert.doesNotMatch(customMcpDialog, /<UiTabs/);

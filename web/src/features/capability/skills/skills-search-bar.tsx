@@ -5,9 +5,9 @@ import { SKILLS_TOUR_ANCHORS } from "@/features/onboarding/tours/skills-tour";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import { UiIconButton } from "@/shared/ui/button/button";
+import { UiDirectoryTabs } from "@/shared/ui/navigation/directory-tabs";
 import {
   CapabilityFilterBar,
-  CapabilityDirectoryTabs,
   CapabilityFilterSearchInput,
   CapabilityFilterSelect,
 } from "@/features/capability/shared/capability-page-layout";
@@ -86,7 +86,7 @@ export function SkillsSearchBar({
 
   return (
     <CapabilityFilterBar className="sm:justify-between">
-      <CapabilityDirectoryTabs
+      <UiDirectoryTabs
         activeValue={discoveryMode}
         ariaLabel={t("capability.skills_tour_modes_title")}
         navAnchor={SKILLS_TOUR_ANCHORS.modes}

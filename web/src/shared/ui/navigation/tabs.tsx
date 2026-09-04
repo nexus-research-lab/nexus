@@ -13,7 +13,7 @@ import {
   type UiTabsDensity,
 } from "@/shared/ui/navigation/tabs-styles";
 
-interface UiTabOption<TValue extends string> {
+export interface UiTabOption<TValue extends string> {
   anchor?: string;
   className?: string;
   icon?: LucideIcon;
@@ -22,7 +22,7 @@ interface UiTabOption<TValue extends string> {
   value: TValue;
 }
 
-interface UiTabsProps<TValue extends string> {
+export interface UiTabsProps<TValue extends string> {
   activeValue?: TValue;
   ariaLabel: string;
   className?: string;

@@ -14,7 +14,6 @@ import {
   CapabilityDetailSectionHeader,
   CapabilityDetailSplitLayout,
   CapabilityItemIcon,
-  CapabilityDirectoryTabs,
   CapabilityPageLayout,
   CapabilitySectionHeader,
 } from "./capability-page-layout";
@@ -138,31 +137,6 @@ describe("CapabilityPageLayout", () => {
     expect(screen.getByText("Available now").className).toContain("ui-type-metadata");
     expect(screen.getByText("4").className).toContain("ui-type-caption");
     expect(container.querySelector(".radius-control-sm")).toBeTruthy();
-  });
-
-  it("owns compact single-line mode navigation without a stretched capsule", () => {
-    let selected = "global";
-    render(
-      <CapabilityDirectoryTabs
-        activeValue="global"
-        ariaLabel="技能目录"
-        onChange={(value) => { selected = value; }}
-        options={[
-          { label: "全局技能库", value: "global" },
-          { label: "社区技能", value: "community" },
-        ]}
-      />,
-    );
-
-    const group = screen.getByRole("group", { name: "技能目录" });
-    const global = screen.getByRole("button", { name: "全局技能库" });
-    expect(group.className).toContain("w-fit");
-    expect(group.className.split(/\s+/)).not.toContain("w-full");
-    expect(global.className).toContain("whitespace-nowrap");
-    expect(global.className).toContain("border-(--text-strong)");
-
-    fireEvent.click(screen.getByRole("button", { name: "社区技能" }));
-    expect(selected).toBe("community");
   });
 
   it("owns the responsive detail reading column and configuration rail", () => {
