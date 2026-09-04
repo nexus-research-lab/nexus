@@ -102,6 +102,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Kept GLM 5.3 WorkGraph sketch generation in its required thinking mode while
+  using the lowest supported reasoning effort and allowing enough output tokens
+  and time to finish.
 - Stopped development and ad-hoc macOS app launches from probing the legacy
   Keychain item, avoiding a password prompt after every local rebuild.
 

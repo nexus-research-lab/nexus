@@ -76,11 +76,11 @@ func (c *Client) GenerateText(ctx context.Context, request GenerateTextRequest) 
 		return "", err
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return "", fmt.Errorf("llm api 返回异常状态: %d %s", response.StatusCode, strings.TrimSpace(string(responseBody)))
+		return "", fmt.Errorf("llm api 返回异常状态: %d", response.StatusCode)
 	}
 	text, err := parseTextResponse(request.Config.APIFormat, responseBody)
 	if err != nil {
-		return "", fmt.Errorf("llm api 解析响应失败: %w body=%s", err, trimResponseBody(responseBody))
+		return "", fmt.Errorf("llm api 解析响应失败: %w", err)
 	}
 	return text, nil
 }
@@ -163,6 +163,10 @@ func applyChatCompletionsReasoningDisableOptions(
 		payload.ChatTemplateKwargs = map[string]bool{"enable_thinking": false}
 	case shouldUseOpenAIReasoningEffortNone(config):
 		payload.ReasoningEffort = "none"
+	case isGLM53Model(config):
+		// GLM 5.3 不能关闭思考，只能降到其支持的最低推理强度。
+		payload.Thinking = map[string]string{"type": "enabled"}
+		payload.ReasoningEffort = "low"
 	case isAlwaysThinkingModel(config):
 		// 始终推理模型不支持关闭 thinking。
 		return
@@ -207,10 +211,14 @@ func applyAnthropicMessagesReasoningDisableOptions(
 	}
 	// anthropic_messages 协议下按 provider 家族分派关闭方式：
 	// 标准是 thinking.type=disabled；Qwen/DashScope 系即便走 anthropic 兼容端点仍用
-	// 非标的 enable_thinking=false；始终推理模型无法关闭，仅靠 max_tokens 兜底。
+	// 非标的 enable_thinking=false；GLM 5.3 则保持思考并降到最低推理强度。
 	switch {
 	case shouldUseEnableThinkingDisable(config):
 		payload.EnableThinking = boolPointer(false)
+	case isGLM53Model(config):
+		// GLM 5.3 不能关闭思考，只能降到其支持的最低推理强度。
+		payload.Thinking = map[string]string{"type": "enabled"}
+		payload.ReasoningEffort = "low"
 	case isAlwaysThinkingModel(config):
 		return
 	case shouldUseThinkingDisable(config):
@@ -251,10 +259,11 @@ func shouldUseOpenAIReasoningEffortNone(config *clientopts.RuntimeConfig) bool {
 
 // isAlwaysThinkingModel 判断模型是否明确拒绝关闭推理。
 func isAlwaysThinkingModel(config *clientopts.RuntimeConfig) bool {
-	if strings.Contains(normalizeMatchText(config.Model), "glm-5.3") {
-		return true
-	}
-	return isKimiAlwaysThinkingModel(config)
+	return isGLM53Model(config) || isKimiAlwaysThinkingModel(config)
+}
+
+func isGLM53Model(config *clientopts.RuntimeConfig) bool {
+	return config != nil && strings.Contains(normalizeMatchText(config.Model), "glm-5.3")
 }
 
 // isKimiAlwaysThinkingModel 判断是否为始终推理且无法关闭的 Kimi 模型。
@@ -460,23 +469,15 @@ func normalizeAPIFormat(apiFormat string) string {
 	}
 }
 
-func trimResponseBody(body []byte) string {
-	const limit = 1024
-	text := strings.TrimSpace(string(body))
-	if len(text) <= limit {
-		return text
-	}
-	return text[:limit] + "...(truncated)"
-}
-
 type anthropicMessagesRequest struct {
-	Model          string            `json:"model"`
-	MaxTokens      int               `json:"max_tokens"`
-	Temperature    float64           `json:"temperature,omitempty"`
-	System         string            `json:"system,omitempty"`
-	Messages       []Message         `json:"messages"`
-	Thinking       map[string]string `json:"thinking,omitempty"`
-	EnableThinking *bool             `json:"enable_thinking,omitempty"`
+	Model           string            `json:"model"`
+	MaxTokens       int               `json:"max_tokens"`
+	Temperature     float64           `json:"temperature,omitempty"`
+	System          string            `json:"system,omitempty"`
+	Messages        []Message         `json:"messages"`
+	Thinking        map[string]string `json:"thinking,omitempty"`
+	EnableThinking  *bool             `json:"enable_thinking,omitempty"`
+	ReasoningEffort string            `json:"reasoning_effort,omitempty"`
 }
 
 type chatCompletionsRequest struct {
