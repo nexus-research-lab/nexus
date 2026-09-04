@@ -14,18 +14,20 @@ import {
 import { Check, Clock3, Pencil, Trash2, X } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
+import { UiBadge } from "@/shared/ui/display/badge";
 import { UiCheckbox } from "@/shared/ui/form/checkbox";
 import { UiInput } from "@/shared/ui/form/form-control";
 import {
   UiListActionButton,
 } from "@/shared/ui/list/list-action";
 import type { UiListActionTone } from "@/shared/ui/list/list-action-styles";
+import { UiListRow } from "@/shared/ui/list/list-row";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import type {
   RoomHistoryItemAction,
   RoomHistoryItemMode,
   RoomHistoryItemPresentation,
-  RoomHistoryItemState,
 } from "./room-history-item-model";
 
 interface TitleEditorView {
@@ -53,11 +55,6 @@ interface ActionStyle {
   tone: UiListActionTone;
 }
 
-const ENTRY_STYLES: Record<RoomHistoryItemState, string> = {
-  active: "bg-(--surface-sidebar-active-background) text-(--text-strong)",
-  idle: "bg-transparent text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
-};
-
 const ACTION_STYLES: Record<RoomHistoryItemAction, ActionStyle> = {
   delete: {
     icon: Trash2,
@@ -82,12 +79,13 @@ function RoomHistoryActivity({
 }) {
   return (
     <div className={cn(
-      "flex items-center gap-1.5 text-(--text-soft) transition-opacity duration-(--motion-duration-fast)",
-      compact ? "shrink-0 text-2xs" : "mt-1 flex-wrap gap-y-0.5 text-2xs",
+      "flex items-center gap-1.5 transition-opacity duration-(--motion-duration-fast)",
+      getUiTypographyClassName({ role: "caption", tone: "soft" }),
+      compact ? "shrink-0" : "mt-1 flex-wrap gap-y-0.5",
       hideForActions && (
         persistActions
           ? "opacity-0"
-          : "group-hover:opacity-0 group-focus-within:opacity-0"
+          : "group-hover/item:opacity-0 group-focus-within/item:opacity-0"
       ),
     )}>
       <span className={cn(
@@ -106,9 +104,9 @@ function ExternalSessionLabel({ label }: { label: string | null }) {
     return null;
   }
   return (
-    <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-[6px] border border-[color:color-mix(in_srgb,var(--primary)_18%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_7%,transparent)] px-1.5 py-0.5 text-[9px] font-medium text-(--primary)">
+    <UiBadge className="whitespace-nowrap" size="xs" tone="primary">
       IM · {label}
-    </span>
+    </UiBadge>
   );
 }
 
@@ -121,10 +119,13 @@ function RoomHistorySummary({
     <div className="grid min-w-full w-max grid-cols-[max-content_78px] items-center gap-3">
       <div className="flex min-w-max items-center gap-2">
         <p className={cn(
-          "whitespace-nowrap text-compact",
-          presentation.state === "active"
-            ? "font-semibold text-(--text-strong)"
-            : "font-medium text-(--text-default) group-hover:text-(--text-strong)",
+          "whitespace-nowrap",
+          getUiTypographyClassName({
+            role: "control",
+            tone: presentation.state === "active" ? "strong" : "default",
+            weight: presentation.state === "active" ? "semibold" : "medium",
+          }),
+          presentation.state !== "active" && "group-hover/item:text-(--text-strong)",
         )}>
           {presentation.title}
         </p>
@@ -141,19 +142,9 @@ function RoomHistorySummary({
 }
 
 function ReadingItemContent({
-  onSelect,
   presentation,
 }: ItemContentProps) {
-  return (
-    <button
-      aria-current={presentation.state === "active" ? "page" : undefined}
-      className="block w-full rounded-[10px] text-left outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
-      onClick={onSelect}
-      type="button"
-    >
-      <RoomHistorySummary presentation={presentation} />
-    </button>
-  );
+  return <RoomHistorySummary presentation={presentation} />;
 }
 
 function SelectingItemContent({
@@ -210,7 +201,10 @@ function EditingItemContent({
       <div className="flex items-center gap-1.5">
         <UiInput
           aria-label={presentation.editorLabels.input}
-          className="min-w-0 flex-1 font-semibold"
+          className={cn(
+            "min-w-0 flex-1",
+            getUiTypographyClassName({ role: "control", weight: "semibold" }),
+          )}
           controlSize="xs"
           maxLength={64}
           onChange={(event) => editor.setDraft(event.target.value)}
@@ -260,19 +254,16 @@ function RoomHistoryItemActions({
     return null;
   }
   const actionHandlers: Record<RoomHistoryItemAction, (event: MouseEvent) => void> = {
-    delete: (event) => {
-      event.stopPropagation();
-      onDelete();
-    },
+    delete: onDelete,
     rename: editor.start,
   };
   return (
-    <div className="sticky right-0 z-10 -my-1.5 ml-2 grid shrink-0 place-items-center self-stretch rounded-r-[10px] bg-inherit px-2.5">
+    <div className="sticky right-0 z-10 -my-1.5 ml-2 grid shrink-0 place-items-center self-stretch bg-inherit px-2.5">
       <div className={cn(
         "flex items-center gap-1 transition-opacity duration-(--motion-duration-fast)",
         presentation.actionsPersistent
           ? "opacity-100"
-          : "opacity-0 group-hover:opacity-100 focus-within:opacity-100",
+          : "opacity-0 group-hover/item:opacity-100 focus-within:opacity-100",
       )}>
         {presentation.actions.map((action) => {
           const style = ACTION_STYLES[action];
@@ -283,6 +274,7 @@ function RoomHistoryItemActions({
               key={action}
               onClick={actionHandlers[action]}
               size="xs"
+              stopPropagation
               tone={style.tone}
               visibility="visible"
             >
@@ -297,23 +289,22 @@ function RoomHistoryItemActions({
 
 export function RoomHistoryItemView(props: RoomHistoryItemViewProps) {
   const { presentation } = props;
-  const stateClassName = ENTRY_STYLES[presentation.state];
   const Content = CONTENT_VIEWS[presentation.mode];
   return (
-    <article
-      className={cn(
-        "group relative flex min-w-full w-max items-stretch rounded-[10px] py-1.5 pl-2.5 text-left transition-[background-color,color] duration-(--motion-duration-fast) ease-out",
-        stateClassName,
-        presentation.selection?.checked
-          && "bg-[color:color-mix(in_srgb,var(--primary)_7%,transparent)] text-(--text-strong)",
-      )}
+    <UiListRow
+      actions={<RoomHistoryItemActions {...props} />}
+      active={presentation.state === "active" || Boolean(presentation.selection?.checked)}
+      activeTone="sidebar"
+      aria-current={presentation.state === "active" ? "page" : undefined}
+      className="min-w-full w-max items-stretch pr-0"
+      density="dense"
+      onClick={presentation.mode === "reading" ? props.onSelect : undefined}
     >
       <div className="min-w-max flex-1">
         <div className="min-w-max">
           <Content {...props} />
         </div>
       </div>
-      <RoomHistoryItemActions {...props} />
-    </article>
+    </UiListRow>
   );
 }

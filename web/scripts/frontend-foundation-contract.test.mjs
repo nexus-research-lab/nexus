@@ -966,7 +966,7 @@ test("Sidebar utility actions share the round IconButton owner", async () => {
   assert.match(utilities, /aria-current=/);
 });
 
-test("Room history controls use the shared Button, Form, and List owners", async () => {
+test("Room history controls use the shared Button, Form, and whole-row List owners", async () => {
   const [menu, item, tabs] = await Promise.all([
     readSource("src/features/conversation/room/surface/history/room-history-menu.tsx"),
     readSource("src/features/conversation/room/surface/history/room-history-item-view.tsx"),
@@ -978,6 +978,15 @@ test("Room history controls use the shared Button, Form, and List owners", async
   assert.match(menu, /<UiButton/);
   assert.match(item, /<UiInput/);
   assert.match(item, /<UiListActionButton/);
+  assert.match(item, /<UiListRow/);
+  assert.match(item, /<UiBadge/);
+  assert.match(item, /getUiTypographyClassName/);
+  assert.match(item, /activeTone="sidebar"/);
+  assert.match(item, /density="dense"/);
+  assert.doesNotMatch(
+    item,
+    /<button\b|ENTRY_STYLES|rounded-\[|color-mix|\btext-(?:2xs|xs|compact|sm|base)\b|\bfont-(?:medium|semibold)\b/,
+  );
   assert.match(tabs, /<UiIconButton/);
 });
 
