@@ -12,8 +12,10 @@ import {
 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { UserQuestion } from "@/types/conversation/interaction/ask-user-question";
 
 import { AskUserQuestionItem } from "./ask-user-question-item";
@@ -165,31 +167,37 @@ function QuestionDecisionRow({
 
   return (
     <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2.5">
-      <span className="min-w-0 flex-1 text-xs leading-5 text-(--text-soft)">
+      <span
+        className={cn(
+          "min-w-0 flex-1",
+          getUiTypographyClassName({ role: "metadata", tone: "soft" }),
+        )}
+      >
         {hint}
       </span>
       <div className="flex shrink-0 items-center gap-2">
         {onDeny ? (
-          <button
-            className="radius-control-sm inline-flex h-9 items-center justify-center border border-(--divider-subtle-color) bg-transparent px-3.5 text-sm font-medium text-(--text-default) transition-colors hover:bg-(--interaction-hover-background) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/28 disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) sm:h-8"
+          <UiButton
             disabled={readOnly || isSubmitting}
             onClick={(event) => {
               event.stopPropagation();
               onDeny();
             }}
-            type="button"
+            size="sm"
+            variant="surface"
           >
             {t("composer.permission_deny")}
-          </button>
+          </UiButton>
         ) : null}
-        <button
-          className="radius-control-sm inline-flex h-9 items-center justify-center gap-2 bg-(--text-strong) px-3.5 text-sm font-medium text-(--primary-foreground) transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/32 disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) sm:h-8"
+        <UiButton
           disabled={!submitEnabled}
           onClick={(event) => {
             event.stopPropagation();
             onSubmit();
           }}
-          type="button"
+          size="sm"
+          tone="primary"
+          variant="solid"
         >
           {isSubmitting ? (
             <Loader2
@@ -198,7 +206,7 @@ function QuestionDecisionRow({
             />
           ) : null}
           {t("composer.question_submit")}
-        </button>
+        </UiButton>
       </div>
     </div>
   );
@@ -290,16 +298,26 @@ function QuestionResolution({
   const presentation = QUESTION_RESOLUTION_PRESENTATIONS[status];
   const { Icon } = presentation;
   return (
-    <div className="flex min-w-0 items-center gap-2 py-1 text-sm">
+    <div className="flex min-w-0 items-center gap-2 py-1">
       <Icon
         aria-hidden
         className={cn("h-4 w-4 shrink-0", presentation.toneClassName)}
       />
-      <span className="shrink-0 font-medium text-(--text-default)">
+      <span
+        className={cn(
+          "shrink-0",
+          getUiTypographyClassName({ role: "caption", tone: "default", weight: "medium" }),
+        )}
+      >
         {t(presentation.labelKey)}
       </span>
       {answerSummary ? (
-        <span className="truncate text-(--text-muted)">
+        <span
+          className={cn(
+            "truncate",
+            getUiTypographyClassName({ role: "caption", tone: "muted" }),
+          )}
+        >
           {answerSummary}
         </span>
       ) : null}
