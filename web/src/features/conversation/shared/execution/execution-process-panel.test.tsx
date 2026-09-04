@@ -89,14 +89,16 @@ describe("ExecutionProcessPanel", () => {
     const agentAction = screen.getByRole("button", {
       name: /jump to nexus|跳转到 nexus/i,
     });
-    expect(agentAction.className).toContain("h-7");
-    expect(agentAction.className).toContain("radius-control-sm");
+    expect(agentAction.className).toContain("h-8");
+    expect(agentAction.className).toContain("radius-control-md");
     fireEvent.click(agentAction);
     expect(onNavigateToRound).toHaveBeenCalledWith("round-1");
 
     const graphAction = screen.getByRole("button", {
       name: /open full workgraph|打开完整工作图/i,
     });
+    expect(graphAction.className).toContain("h-8");
+    expect(graphAction.querySelector("svg")?.className.baseVal).toContain("h-[18px]");
     fireEvent.click(graphAction);
     expect(onOpenGraph).toHaveBeenCalledOnce();
   });

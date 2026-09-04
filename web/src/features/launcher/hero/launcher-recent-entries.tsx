@@ -2,7 +2,7 @@
 // OUTPUT: 使用共享 Button、Tooltip 与动效原语的 Launcher 最近入口。
 // POS: Launcher Hero 最近入口编排层；不定义控件圆角、字号、颜色或阴影。
 
-import { ArrowRight, Bot } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 import { LAUNCHER_TOUR_ANCHORS } from "@/features/onboarding/tours/launcher-tour";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -20,6 +20,7 @@ import {
   getLauncherRecentEntryDelayMs,
   LauncherRecentEntryLayout,
 } from "./launcher-recent-entry-layout";
+import { getLauncherRecentEntryMarkerClassName } from "./launcher-recent-entry-styles";
 
 interface LauncherRecentEntriesProps {
   handoffLabel: string;
@@ -46,11 +47,16 @@ function LauncherRecentEntryChip({
         event.stopPropagation();
         onOpen(model.entry);
       }}
-      shape="pill"
       size="sm"
-      variant="surface"
+      variant="text"
     >
-      {model.entry.type === "dm" ? <Bot aria-hidden="true" className="h-3.5 w-3.5" /> : null}
+      {model.entry.type === "dm" ? (
+        <span
+          aria-hidden="true"
+          className={getLauncherRecentEntryMarkerClassName(model.entry.key)}
+          data-launcher-recent-entry-marker
+        />
+      ) : null}
       {model.chipLabel}
     </UiButton>
   );

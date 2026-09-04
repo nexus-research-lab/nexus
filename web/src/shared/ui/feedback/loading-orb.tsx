@@ -1,5 +1,5 @@
 // INPUT: active/preparing 语义帧型。
-// OUTPUT: 不依赖 JS 计时器或运行时样式注入的共享加载指示器。
+// OUTPUT: 不依赖 JS 计时器或运行时样式注入、固定 12px 几何的共享加载指示器。
 // POS: 轻量循环加载动效唯一 owner；消费者不得传私有字符帧或动画周期。
 
 "use client";
@@ -48,14 +48,12 @@ export function LoadingOrb({
   return (
     <span
       aria-hidden="true"
-      className="relative inline-block w-3 select-none text-center leading-none text-primary"
+      className="relative inline-flex h-3 w-3 shrink-0 select-none items-center justify-center text-center leading-none text-primary"
       data-loading-orb={variant}
     >
       {keyedFrames.map(({ char, key, position }) => (
         <span
-          className={position === 0
-            ? "ui-loading-orb-frame"
-            : "ui-loading-orb-frame absolute inset-0"}
+          className="ui-loading-orb-frame absolute inset-0 flex items-center justify-center"
           data-frame-count={frames.length}
           key={key}
           style={{ animationDelay: `${position * FRAME_DURATION_MS}ms` }}

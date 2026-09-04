@@ -364,6 +364,8 @@ test("Conversation activity chips share one semantic typography and icon-action 
   assert.match(tasks, /role: "caption"/);
   assert.match(tasks, /<UiIconButton/);
   assert.match(execution, /<UiIconButton/);
+  assert.match(execution, /data-execution-agent-activity[\s\S]*?size="md"/);
+  assert.match(execution, /data-execution-open-workgraph[\s\S]*?size="md"[\s\S]*?h-\[18px\]/);
   assert.doesNotMatch(tasks, /\btext-(?:xs|compact)\b|rounded-\[6px\]/);
   assert.doesNotMatch(execution, /rounded-\[8px\]/);
   assert.doesNotMatch(
@@ -957,16 +959,18 @@ test("Composer shell actions use shared Button primitives", async () => {
   assert.doesNotMatch(roomModelControl, /<button\b/);
 });
 
-test("Composer footer models expose semantic status while LoadingOrb owns motion", async () => {
-  const [footerModel, contextModel, statusView, metadataView, submitButton, loadingOrb, recipes, design] = await Promise.all([
+test("Conversation status models expose semantics while LoadingOrb owns motion", async () => {
+  const [footerModel, contextModel, statusView, metadataView, submitButton, messageActivity, loadingOrb, recipes, design, packageJson] = await Promise.all([
     readSource("src/features/conversation/shared/composer/components/footer/composer-footer-model.ts"),
     readSource("src/features/conversation/shared/composer/components/footer/composer-context-usage-model.ts"),
     readSource("src/features/conversation/shared/composer/components/footer/composer-footer-status.tsx"),
     readSource("src/features/conversation/shared/composer/components/footer/composer-footer-metadata.tsx"),
     readSource("src/features/conversation/shared/composer/components/composer-submit-button.tsx"),
+    readSource("src/features/conversation/shared/message/item/view/message-activity-status.tsx"),
     readSource("src/shared/ui/feedback/loading-orb.tsx"),
     readSource("src/app/styles/theme-recipes.css"),
     readFile(path.join(webRoot, "..", "design.md"), "utf8"),
+    readFile(path.join(webRoot, "package.json"), "utf8"),
   ]);
 
   for (const model of [footerModel, contextModel]) {
@@ -982,12 +986,20 @@ test("Composer footer models expose semantic status while LoadingOrb owns motion
   assert.doesNotMatch(statusView, /animate-pulse|frames=/);
   assert.match(submitButton, /<LoadingOrb variant="preparing"/);
   assert.doesNotMatch(submitButton, /frames=/);
+  assert.match(messageActivity, /<LoadingOrb variant=\{presentation\.indicator\}/);
+  assert.doesNotMatch(
+    messageActivity,
+    /unicode-animations|message-activity-label-flow|message-activity-spinner-track|CSSProperties/,
+  );
+  assert.doesNotMatch(packageJson, /unicode-animations/);
   assert.match(loadingOrb, /LoadingOrbVariant = "active" \| "preparing"/);
+  assert.match(loadingOrb, /inline-flex h-3 w-3 shrink-0/);
+  assert.match(loadingOrb, /ui-loading-orb-frame absolute inset-0/);
   assert.doesNotMatch(loadingOrb, /document\.createElement|document\.head|ensureStyle|setTimeout/);
   assert.match(recipes, /prefers-reduced-motion: no-preference/);
   assert.match(recipes, /nexus-loading-orb-frame-4/);
   assert.match(recipes, /nexus-loading-orb-frame-5/);
-  assert.match(design, /状态正文、按钮和容器不得整体 `pulse`/);
+  assert.match(design, /状态正文、图标、按钮和容器不得流光、位移或整体 `pulse`/);
 });
 
 test("Composer permission decisions reuse shared Button, Form, and typography owners", async () => {
@@ -1100,21 +1112,23 @@ test("Launcher, desktop update, and onboarding loading states share Spinner role
   }
 });
 
-test("Launcher recent-entry data stays visual-free and actions share Button shape", async () => {
-  const [view, model, layout, surfaceTheme, buttonStyles] = await Promise.all([
+test("Launcher recent-entry data stays visual-free and actions share transparent Buttons", async () => {
+  const [view, model, layout, markerStyles, surfaceTheme] = await Promise.all([
     readSource("src/features/launcher/hero/launcher-recent-entries.tsx"),
     readSource("src/features/launcher/hero/launcher-recent-entry-model.ts"),
     readSource("src/features/launcher/hero/launcher-recent-entry-layout.ts"),
+    readSource("src/features/launcher/hero/launcher-recent-entry-styles.ts"),
     readSource("src/features/launcher/hero/launcher-surface-theme.ts"),
-    readSource("src/shared/ui/button/button-styles.ts"),
   ]);
 
   assert.match(view, /<UiButton/);
-  assert.match(view, /shape="pill"/);
+  assert.match(view, /variant="text"/);
   assert.match(view, /LauncherRecentEntryLayout\.listClassName/);
+  assert.match(view, /data-launcher-recent-entry-marker/);
+  assert.match(view, /getLauncherRecentEntryMarkerClassName/);
   assert.doesNotMatch(
     view,
-    /<button\b|chipStyle|markerStyle|rounded-full|\btext-(?:xs|sm|base)\b|\bfont-(?:medium|semibold)\b/,
+    /<button\b|<Bot\b|chipStyle|markerStyle|rounded-full|\btext-(?:xs|sm|base)\b|\bfont-(?:medium|semibold)\b/,
   );
   assert.doesNotMatch(
     model,
@@ -1122,12 +1136,14 @@ test("Launcher recent-entry data stays visual-free and actions share Button shap
   );
   assert.match(layout, /ENTRY_DELAY_START_MS/);
   assert.match(layout, /ENTRY_DELAY_STEP_MS/);
+  assert.match(markerStyles, /var\(--success\)/);
+  assert.match(markerStyles, /var\(--warning\)/);
+  assert.match(markerStyles, /var\(--primary\)/);
+  assert.match(markerStyles, /entryKey\.charCodeAt/);
   assert.doesNotMatch(
     `${model}\n${surfaceTheme}`,
     /launcher-(?:agent|room)-chip|launcher-handoff-(?:color|hover-color)/,
   );
-  assert.match(buttonStyles, /UiButtonShape = "rounded" \| "pill"/);
-  assert.match(buttonStyles, /shape === "pill" \? "rounded-full"/);
 });
 
 test("Sidebar utility actions share the round IconButton owner", async () => {

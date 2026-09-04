@@ -3,7 +3,8 @@
 - `launcher-hero-stage.tsx` 只渲染首屏、输入框和最近入口。
 - `launcher-recent-entry-model.ts` 只投影 DM/Room 标签、可访问名称与截断提示，不得返回 class、style、颜色、尺寸、阴影或动画参数。
 - `launcher-recent-entry-layout.ts` 只拥有 Hero 最近入口的排列和渐入时序；按钮形状、尺寸、字阶与交互状态仍归共享 Button。
-- `launcher-recent-entries.tsx` 只编排最近入口与主 Agent 交接动作；两类动作固定复用 `UiButton`，标签式动作通过语义 `shape="pill"` 取胶囊外形，入口说明复用 `shared/ui/overlay/tooltip`，不得恢复原生按钮、固定浅色或局部层级的 Tooltip。
+- `launcher-recent-entry-styles.ts` 只从稳定入口键投影语义色身份点；不得把按钮底色、边框、字号或交互态带回业务配方。
+- `launcher-recent-entries.tsx` 只编排最近入口与主 Agent 交接动作；两类动作固定复用透明 `UiButton`，DM 以彩色身份点替代机器人图标，Room 保留 `#` 语义，入口说明复用 `shared/ui/overlay/tooltip`，不得恢复原生按钮、常驻胶囊底或局部层级的 Tooltip。
 - `use-launcher-query-input.ts` 拥有受控输入、IME、Mention 和提交交互。
 - `use-launcher-stage-scale.ts` 拥有唯一的响应式缩放系数；云朵画布上移居中（锚点 40%）、Token 堆锚定视口底部共用系数，禁止再引入断点补丁 CSS。
 - `pile/` 独立拥有 Agent Pile 的描述表、Matter 生命周期和 Token 视图，不回流 Console。
