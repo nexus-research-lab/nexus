@@ -1,5 +1,5 @@
-// INPUT: ListRow/ListAction 的交互开关、嵌套动作和键盘事件。
-// OUTPUT: 证明行级按钮语义、Enter/Space 激活、事件阻断和安全默认 type。
+// INPUT: ListRow/ListContent/ListAction/SectionDivider 的内容、交互开关和键盘事件。
+// OUTPUT: 证明行级语义、复用内容/分组布局、Enter/Space 激活、事件阻断和安全默认 type。
 // POS: List primitives DOM 行为测试；业务选择、路由与删除事务由消费者负责。
 
 import { render, screen } from "@testing-library/react";
@@ -7,7 +7,8 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { UiListActionButton } from "@/shared/ui/list/list-action";
-import { UiListRow } from "@/shared/ui/list/list-row";
+import { UiListRow, UiListRowContent } from "@/shared/ui/list/list-row";
+import { UiListSectionDivider } from "@/shared/ui/list/list-section-divider";
 
 describe("UiListRow", () => {
   it("becomes one keyboard-operable row only when it has an action", async () => {
@@ -43,6 +44,20 @@ describe("UiListRow", () => {
     expect(row.hasAttribute("tabindex")).toBe(false);
     expect(screen.getByText("只读项目").className).toContain("ui-type-section-title");
     expect(screen.getByText("最近更新").className).toContain("ui-type-metadata");
+  });
+
+  it("exposes the same title, metadata, and description layout to custom rows", () => {
+    render(
+      <UiListRowContent
+        description="IM · 飞书 · 历史"
+        meta={<time>17 天前</time>}
+        title="系统测试"
+      />,
+    );
+
+    expect(screen.getByText("系统测试").className).toContain("ui-type-section-title");
+    expect(screen.getByText("IM · 飞书 · 历史").className).toContain("ui-type-metadata");
+    expect(screen.getByText("17 天前").parentElement?.className).toContain("items-center");
   });
 
   it("keeps compact geometry inside the shared density contract", () => {
@@ -113,5 +128,17 @@ describe("UiListActionButton", () => {
     expect(onOpen).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "确认修改" }).className)
       .toContain("text-(--brand-action)");
+  });
+});
+
+describe("UiListSectionDivider", () => {
+  it("owns the labeled horizontal separation between list groups", () => {
+    const { container } = render(<UiListSectionDivider aria-label="IM" label="IM" />);
+    const divider = screen.getByRole("separator", { name: "IM" });
+
+    expect(divider.getAttribute("aria-orientation")).toBe("horizontal");
+    expect(screen.getByText("IM").className).toContain("ui-type-caption");
+    expect(container.querySelector("[aria-hidden='true']")?.className)
+      .toContain("bg-(--divider-subtle-color)");
   });
 });

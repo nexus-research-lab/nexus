@@ -1,5 +1,5 @@
-// INPUT: 两条本地 Room 历史会话与历史菜单选择动作。
-// OUTPUT: 证明菜单入口复用共享 IconButton，批量全选使用真实 mixed checkbox。
+// INPUT: 本地与 IM Room 历史会话、菜单选择动作和外部会话身份。
+// OUTPUT: 证明共享触发/多选控件，并以公共列表分隔线隔离普通历史和 IM 历史。
 // POS: RoomHistoryMenu DOM 行为测试；删除事务和锚定位置算法由各自所有者测试。
 
 import { render, screen } from "@testing-library/react";
@@ -34,6 +34,27 @@ const CONVERSATIONS: RoomConversationView[] = [
     title: "Beta",
   },
 ];
+const EXTERNAL_CONVERSATION: RoomConversationView = {
+  conversation_id: "external-session:feishu-account",
+  created_at: 3,
+  is_draft: false,
+  last_activity_at: 4,
+  options: {
+    channel_type: "feishu",
+    external_identity: {
+      account_hint: "816684",
+      can_delete: true,
+      channel_type: "feishu",
+      current_pairing: false,
+      pairing_status: "paired",
+    },
+    external_session: true,
+  },
+  room_id: "room-1",
+  session_id: null,
+  session_key: "fs:feishu-account",
+  title: "飞书系统测试",
+};
 
 describe("RoomHistoryMenu", () => {
   it("uses shared trigger and mixed selection controls", async () => {
@@ -63,5 +84,33 @@ describe("RoomHistoryMenu", () => {
     await user.click(checkboxes[1]);
     expect(checkboxes[0].indeterminate).toBe(true);
     expect(checkboxes[0].getAttribute("aria-checked")).toBe("mixed");
+  });
+
+  it("separates IM sessions from ordinary history with the shared divider", async () => {
+    const user = userEvent.setup();
+    render(
+      <I18nProvider>
+        <RoomHistoryMenu
+          conversationId="conversation-alpha"
+          conversations={[...CONVERSATIONS, EXTERNAL_CONVERSATION]}
+          onCreateConversation={vi.fn(async () => null)}
+          onDeleteConversation={vi.fn(async () => null)}
+          onSelectConversation={vi.fn()}
+          onUpdateConversationTitle={vi.fn(async () => undefined)}
+        />
+      </I18nProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: /History|历史/ }));
+    const historySection = document.querySelector("[data-room-history-section='history']");
+    const imSection = document.querySelector("[data-room-history-section='im']");
+    const divider = screen.getByRole("separator", { name: "IM" });
+
+    expect(historySection?.textContent).toContain("Alpha");
+    expect(historySection?.textContent).not.toContain("飞书系统测试");
+    expect(imSection?.textContent).toContain("飞书系统测试");
+    expect(imSection?.textContent).toContain("飞书 · 账号 816684 · 历史");
+    expect(historySection?.nextElementSibling).toBe(divider);
+    expect(divider.nextElementSibling).toBe(imSection);
   });
 });

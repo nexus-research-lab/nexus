@@ -976,16 +976,18 @@ test("Room history controls use the shared Button, Form, and whole-row List owne
   assert.match(menu, /<UiIconButton/);
   assert.match(menu, /<UiCheckbox/);
   assert.match(menu, /<UiButton/);
+  assert.match(menu, /<UiListSectionDivider/);
+  assert.match(menu, /groupRoomHistoryEntries/);
   assert.match(item, /<UiInput/);
   assert.match(item, /<UiListActionButton/);
   assert.match(item, /<UiListRow/);
-  assert.match(item, /<UiBadge/);
+  assert.match(item, /<UiListRowContent/);
   assert.match(item, /getUiTypographyClassName/);
   assert.match(item, /activeTone="sidebar"/);
   assert.match(item, /density="dense"/);
   assert.doesNotMatch(
     item,
-    /<button\b|ENTRY_STYLES|rounded-\[|color-mix|\btext-(?:2xs|xs|compact|sm|base)\b|\bfont-(?:medium|semibold)\b/,
+    /<button\b|ENTRY_STYLES|rounded-\[|color-mix|\bw-max\b|grid-cols-\[max-content|\btext-(?:2xs|xs|compact|sm|base)\b|\bfont-(?:medium|semibold)\b/,
   );
   assert.match(tabs, /<UiIconButton/);
 });
@@ -1031,9 +1033,10 @@ test("Workspace directory and context menu loading share Spinner roles", async (
   }
 });
 
-test("List and Badge primitives expose semantic typography and shape instead of page overrides", async () => {
-  const [listRow, badge, badgeStyles, providerModels, connectorCard, customMcpGrid] = await Promise.all([
+test("List and Badge primitives expose semantic typography, sections, and shape", async () => {
+  const [listRow, listDivider, badge, badgeStyles, providerModels, connectorCard, customMcpGrid] = await Promise.all([
     readSource("src/shared/ui/list/list-row.tsx"),
+    readSource("src/shared/ui/list/list-section-divider.tsx"),
     readSource("src/shared/ui/display/badge.tsx"),
     readSource("src/shared/ui/display/badge-styles.ts"),
     readSource("src/features/settings/provider-settings/components/provider-settings-model-list.tsx"),
@@ -1043,7 +1046,11 @@ test("List and Badge primitives expose semantic typography and shape instead of 
 
   assert.match(listRow, /role: "sectionTitle"/);
   assert.match(listRow, /role: "metadata"/);
+  assert.match(listRow, /export function UiListRowContent/);
   assert.doesNotMatch(listRow, /text-base font-semibold|text-compact leading-/);
+  assert.match(listDivider, /role="separator"/);
+  assert.match(listDivider, /bg-\(--divider-subtle-color\)/);
+  assert.match(listDivider, /getUiTypographyClassName/);
   assert.match(badge, /shape\?: UiBadgeShape/);
   assert.match(badgeStyles, /pill: "rounded-full"/);
   assert.match(badgeStyles, /rounded: "radius-control-xs"/);

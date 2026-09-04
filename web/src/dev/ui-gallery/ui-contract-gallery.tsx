@@ -52,6 +52,7 @@ import {
 import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
 import { UiListActionButton } from "@/shared/ui/list/list-action";
 import { UiListRow } from "@/shared/ui/list/list-row";
+import { UiListSectionDivider } from "@/shared/ui/list/list-section-divider";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import { UiDirectoryTabs } from "@/shared/ui/navigation/directory-tabs";
 import { UiTabs } from "@/shared/ui/navigation/tabs";
@@ -368,11 +369,16 @@ export function UiContractGallery() {
                 onClick={() => undefined}
                 title={galleryText(locale, "组件所有权检查", "Component ownership audit")}
               />
+              <UiListSectionDivider
+                aria-label="IM"
+                label="IM"
+              />
               <UiListRow
-                description={galleryText(locale, "长中文说明保持可读，不挤压动作列", "Long English metadata stays readable without breaking the action column")}
-                leading={<UiAgentAvatar name="Noah" size="sm" />}
+                density="dense"
+                description={galleryText(locale, "飞书 · 账号 816684 · 历史", "Feishu · account 816684 · history")}
+                meta={<time className={getUiTypographyClassName({ role: "caption", tone: "soft" })}>{galleryText(locale, "17 天前", "17d ago")}</time>}
                 onClick={() => undefined}
-                title={galleryText(locale, "响应式文案检查", "Responsive content audit")}
+                title={galleryText(locale, "系统测试", "System test")}
               />
             </div>
             <div className="grid gap-3 sm:grid-cols-3">
