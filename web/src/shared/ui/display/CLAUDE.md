@@ -9,7 +9,7 @@
 - `UiStateBlock` 的标题、说明和图标承载体只能选择 App Typography 与语义 shape role；空态使用对象标题层级，紧凑错误/决策态使用分区标题层级，不在业务调用方重写字号和圆角。
 - `spinner-styles.ts` 是圆形加载指示器尺寸、颜色、旋转与 reduced-motion 行为的唯一 recipe；业务容器负责 `role/status`、`aria-busy` 和可见文案，不得把装饰性 Spinner 自己暴露成第二个播报节点。生产 `web/src` 的页面、Feature、App 壳与共享组件均由合同测试禁止直接使用 `animate-spin` 或边框 Spinner；启动猫与 Composer 字符动效是明确的品牌/交互例外。
 - `UiAgentAvatar` 与 `UiRoomAvatar` 的 `md` 是列表、工作区 Header 与完整消息共同使用的 40px 主身份基线；所有尺寸统一采用随尺寸缩放的 rounded-square 外轮廓，头像 API 不提供圆形变体。紧凑消息、成员堆叠、正文内联和导航图标可保留更小的语境尺寸，展示型 Profile 可保留更大尺寸。
-- `UiSeededAvatar` 的尺寸只映射到共享 `radius-control-*` 档位，不得用 `rounded-[Npx]` 重建近似圆角；目录与详情传同一稳定资源标识，保证视觉身份连续。
+- `UiSeededAvatar` 的尺寸只映射到共享 `radius-control-*` 档位，瞬时执行状态只通过 `state="running"` 使用主题级 running 外环；不得在业务层用 `rounded-[Npx]`、品牌色 ring 或 shadow 重建头像状态。目录与详情传同一稳定资源标识，保证视觉身份连续。
 - `UiSeededAvatar` 是全部数学曲线资源头像的唯一渲染入口；外轮廓与 `UiAgentAvatar` 一样按尺寸使用 rounded-square，不提供圆形变体。静态 SVG 曲线由稳定标识散列出的居中曲线族、旋转阶数、细节强度和整体朝向共同决定，消费者必须传入稳定 ID，不得直接读取生成器、内联同类 SVG、使用运行时随机数或随语言变化的标题作为种子。正文内联身份使用 24px，能力目录卡使用 40px，弹窗标题使用 32px，详情身份使用 48px；只能接收图片地址的消息头像通过同一生成器导出静态 Data URL。
 - `UiRoomAvatar` 的双成员组合使用两枚自然比例的 rounded-square 错位轻叠；不得把成员裁成半幅，也不得退化成圆形。
 - `running` 表示仍在执行中的瞬时信息状态，必须使用主题级低饱和蓝灰 token；`success` 只表示完成，`primary` 只表达品牌或主动作，三者不得混用。

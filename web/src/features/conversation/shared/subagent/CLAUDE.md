@@ -6,6 +6,7 @@
 
 - `subagent-task-model.ts` 只做服务端任务数据的归一化与纯派生；实例标题优先使用模型拉起任务时给出的名称/短描述，`agent_type` 仅作缺省回退；消息任务入口只能通过精确 `tool_use_id`（旧记录允许同值 `task_id`）解析详情，不按标题或时间猜测。列表、线程和消息入口头像统一复用 Skill 数学曲线生成器，以 `tool_use_id` 为稳定种子，旧记录回退 `task_id`。
 - `subagent-task-list-model.ts` 按可选 `host_agent_id` 过滤当前 Session 的全部任务，再单次分组并排序，同时投影加载与 runtime 支持状态。
+- `subagent-task-list.tsx` 只装配 active/completed 分组与选择命令；任务整行必须复用 `UiListRow` 的 `dense` 密度，标题、时间、摘要和说明必须选择 App Typography 角色。数学曲线头像通过 `UiSeededAvatar state="running"` 表达执行态，业务层不得复制行 hover/focus、字号/行高或品牌色 ring。
 - `use-scoped-resource.ts` 统一来源/任务作用域、请求代次和原子快照提交，不解释业务状态。
 - `use-subagent-task-realtime-refresh.ts` 独占 `subagent_task_changed` 的作用域过滤、短合并、后台延迟刷新与断线重连补拉；不得启动 HTTP 定时轮询。
 - `use-subagent-tasks.ts` 只管理来源级列表加载；实时事件必须按精确 Session/Room/Conversation 与可选 host Agent 失效当前列表。

@@ -12,6 +12,8 @@ import type { TranslationKey } from "@/shared/i18n/messages";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
 import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
+import { UiListRow } from "@/shared/ui/list/list-row";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import {
   WORKSPACE_PANEL_HEADER_HEIGHT_CLASS,
   WORKSPACE_PANEL_HEADER_PADDING_CLASS,
@@ -109,7 +111,10 @@ export function SubagentTaskList({
       ) : null}
 
       {model.supportNotice ? (
-        <p className="mt-3 max-w-[420px] text-sm leading-6 text-(--text-muted)">
+        <p className={cn(
+          "mt-3 max-w-[420px]",
+          getUiTypographyClassName({ role: "supporting", tone: "muted" }),
+        )}>
           {t(SUPPORT_NOTICE_LABEL[model.supportNotice])}
         </p>
       ) : null}
@@ -159,7 +164,14 @@ export function SubagentTaskList({
             WORKSPACE_PANEL_HEADER_PADDING_CLASS,
           )}>
             {headerLeading ?? (
-              <span className="truncate text-xs font-medium text-(--text-soft)">
+              <span className={cn(
+                "truncate",
+                getUiTypographyClassName({
+                  role: "caption",
+                  tone: "soft",
+                  weight: "medium",
+                }),
+              )}>
                 {t("subagents.panel_title")}
               </span>
             )}
@@ -190,12 +202,22 @@ function SubagentTaskSection({
 }) {
   return (
     <section>
-      <h2 className="pr-9 text-compact font-semibold text-(--text-soft)">
+      <h2 className={cn(
+        "pr-9",
+        getUiTypographyClassName({
+          role: "supporting",
+          tone: "soft",
+          weight: "semibold",
+        }),
+      )}>
         {label}{countInLabel ? ` · ${tasks.length}` : ""}
       </h2>
 
       {tasks.length === 0 && emptyText ? (
-        <p className="mt-3 text-compact text-(--text-soft)">{emptyText}</p>
+        <p className={cn(
+          "mt-3",
+          getUiTypographyClassName({ role: "supporting", tone: "soft" }),
+        )}>{emptyText}</p>
       ) : null}
 
       {tasks.length > 0 ? (
@@ -233,33 +255,48 @@ function SubagentTaskRow({
     .find(Boolean) ?? t("subagents.no_description");
 
   return (
-    <button
-      className="group -mx-1.5 flex w-[calc(100%+0.75rem)] min-w-0 items-start gap-2.5 radius-control-sm px-1.5 py-1.5 text-left transition-colors hover:bg-(--surface-interactive-hover-background) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_28%,transparent)]"
+    <UiListRow
+      className="items-start"
+      density="dense"
+      leading={(
+        <SubagentTaskAvatar
+          isActive={isSubagentTaskActive(task)}
+          name={title}
+          seed={subagentTaskAvatarSeed(task)}
+        />
+      )}
       onClick={onClick}
-      title={t("subagents.open_task")}
-      type="button"
+      tooltip={t("subagents.open_task")}
     >
-      <SubagentTaskAvatar
-        isActive={isSubagentTaskActive(task)}
-        name={title}
-        seed={subagentTaskAvatarSeed(task)}
-      />
       <span className="min-w-0 flex-1">
         <span className="flex min-w-0 items-baseline gap-3">
-          <span className="min-w-0 flex-1 truncate text-sm font-medium leading-5 text-(--text-strong)">
+          <span className={cn(
+            "min-w-0 flex-1 truncate",
+            getUiTypographyClassName({
+              role: "supporting",
+              tone: "strong",
+              weight: "medium",
+            }),
+          )}>
             {title}
           </span>
           {timestamp ? (
-            <time className="shrink-0 text-xs tabular-nums text-(--text-soft)">
+            <time className={cn(
+              "shrink-0 tabular-nums",
+              getUiTypographyClassName({ role: "caption", tone: "soft" }),
+            )}>
               {formatCompactElapsedTime(timestamp, locale)}
             </time>
           ) : null}
         </span>
-        <span className="block truncate text-compact leading-4.5 text-(--text-muted)">
+        <span className={cn(
+          "block truncate",
+          getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+        )}>
           {summary}
         </span>
       </span>
-    </button>
+    </UiListRow>
   );
 }
 
@@ -278,11 +315,11 @@ export function SubagentTaskAvatar({
     <UiSeededAvatar
       className={cn(
         "mt-0.5",
-        isActive && "ring-1 ring-[color:color-mix(in_srgb,var(--primary)_18%,transparent)] ring-offset-1 ring-offset-(--background)",
         className,
       )}
       seed={seed}
       size="2xs"
+      state={isActive ? "running" : "default"}
       title={name}
     />
   );

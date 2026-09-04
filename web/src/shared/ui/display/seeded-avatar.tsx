@@ -1,3 +1,7 @@
+// INPUT: 稳定资源种子、共享尺寸、瞬时运行状态与标准 span 属性。
+// OUTPUT: 确定性数学曲线头像，并统一投影视觉尺寸、圆角和运行态外环。
+// POS: 数学曲线资源头像的唯一 DOM/视觉 owner；业务层只传身份和语义状态。
+
 "use client";
 
 import { type HTMLAttributes, useMemo } from "react";
@@ -6,10 +10,12 @@ import { getSeededAvatarAppearance } from "@/lib/seeded-avatar";
 import { cn } from "@/shared/ui/class-name";
 
 type UiSeededAvatarSize = "2xs" | "xs" | "sm" | "md" | "lg";
+type UiSeededAvatarState = "default" | "running";
 
 interface UiSeededAvatarProps extends HTMLAttributes<HTMLSpanElement> {
   seed: string;
   size?: UiSeededAvatarSize;
+  state?: UiSeededAvatarState;
 }
 
 const SEEDED_AVATAR_SIZE_CLASS_NAME: Readonly<
@@ -32,11 +38,19 @@ const SEEDED_AVATAR_RADIUS_CLASS_NAME: Readonly<
   lg: "radius-control-lg",
 };
 
-/** 中文注释：所有数学曲线资源头像统一由此组件渲染，不向业务层泄漏 SVG 细节。 */
+const SEEDED_AVATAR_STATE_CLASS_NAME: Readonly<
+  Record<UiSeededAvatarState, string>
+> = {
+  default: "",
+  running:
+    "ring-1 ring-[color:var(--status-running-soft-border)] ring-offset-1 ring-offset-(--background)",
+};
+
 export function UiSeededAvatar({
   className,
   seed,
   size = "md",
+  state = "default",
   style,
   ...props
 }: UiSeededAvatarProps) {
@@ -53,6 +67,7 @@ export function UiSeededAvatar({
         "flex shrink-0 items-center justify-center overflow-hidden border border-(--surface-avatar-border) shadow-(--surface-avatar-shadow)",
         SEEDED_AVATAR_SIZE_CLASS_NAME[size],
         SEEDED_AVATAR_RADIUS_CLASS_NAME[size],
+        SEEDED_AVATAR_STATE_CLASS_NAME[state],
         className,
       )}
       style={{

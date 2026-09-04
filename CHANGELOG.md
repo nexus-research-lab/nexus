@@ -40,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Moved subagent task entries onto the shared dense List and Typography
+  contracts, with running-avatar emphasis now owned by the shared avatar state.
 - Moved Room history entries onto the shared whole-row List contract, unifying
   hover, selection, focus, and keyboard behavior while isolating inline actions;
   timestamps now align at the title edge, while IM sessions live below a shared
