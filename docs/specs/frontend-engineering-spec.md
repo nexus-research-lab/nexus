@@ -116,7 +116,7 @@ Entity、Feature 与 Widget 只在需要时使用以下目录：
 - `controller` 只用于协调多个资源、命令或生命周期的复杂流程；
 - 普通组件的局部状态留在组件内，不为了形式拆出 controller；
 - 避免 `utils.ts`、`helpers.ts`、`common.ts` 等无法表达所有权的名称；
-- `model` 中可测试的投影和状态转换必须保持纯函数，React Hook 只负责绑定生命周期。
+- `model` 中可测试的投影和状态转换必须保持纯函数，React Hook 只负责绑定生命周期；模型只返回业务语义，不返回 `className`、`CSSProperties`、Tailwind utility 或组件密度，视图几何进入有明确所有权的 `*-layout` / `*-styles` recipe 或受控视图。
 
 ## 4. UI 系统分层
 
