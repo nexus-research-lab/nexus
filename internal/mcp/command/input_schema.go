@@ -1,9 +1,10 @@
-// INPUT: Operation.InputSchema 的 portable JSON Schema 子集，以及 CLI 解码后的 JSON 输入。
+// INPUT: Operation.InputSchema 的 portable JSON Schema 子集，以及 MCP/CLI 解码后的 JSON 输入。
 // OUTPUT: 在领域 handler 前完成 required/type/enum/pattern/closed-object/array-boundary 校验的稳定错误。
 // POS: Goal 与 Execution command 共用的模型输入边界；复刻原生 MCP provider 的 schema 前置约束。
 package command
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"reflect"
@@ -152,6 +153,9 @@ func isJSONInteger(value any) bool {
 		return !math.IsNaN(typed) && !math.IsInf(typed, 0) && math.Trunc(typed) == typed
 	case float32:
 		return !float32IsSpecial(typed) && float32(math.Trunc(float64(typed))) == typed
+	case json.Number:
+		converted, err := typed.Float64()
+		return err == nil && !math.IsNaN(converted) && !math.IsInf(converted, 0) && math.Trunc(converted) == converted
 	default:
 		return false
 	}

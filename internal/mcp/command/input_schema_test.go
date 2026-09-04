@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -93,5 +94,41 @@ func TestValidateInputPreservesJSONSchemaAdditionalPropertiesDefault(t *testing.
 		"extra": true,
 	}); err != nil {
 		t.Fatalf("ValidateInput() error = %v, omitted additionalProperties must stay permissive", err)
+	}
+}
+
+func TestValidateInputAcceptsBridgeJSONNumberIntegers(t *testing.T) {
+	t.Parallel()
+
+	schema := map[string]any{
+		"type":                 "object",
+		"additionalProperties": false,
+		"required":             []string{"revision", "nodes"},
+		"properties": map[string]any{
+			"revision": map[string]any{"type": "integer"},
+			"nodes": map[string]any{
+				"type": "array",
+				"items": map[string]any{
+					"type":                 "object",
+					"additionalProperties": false,
+					"required":             []string{"position"},
+					"properties": map[string]any{
+						"position": map[string]any{"type": "integer"},
+					},
+				},
+			},
+		},
+	}
+	if err := ValidateInput(schema, map[string]any{
+		"revision": json.Number("1"),
+		"nodes":    []any{map[string]any{"position": json.Number("0")}},
+	}); err != nil {
+		t.Fatalf("ValidateInput() rejected bridge integer tokens: %v", err)
+	}
+	if err := ValidateInput(schema, map[string]any{
+		"revision": json.Number("1.5"),
+		"nodes":    []any{map[string]any{"position": json.Number("0")}},
+	}); err == nil || !strings.Contains(err.Error(), "$.revision") {
+		t.Fatalf("ValidateInput() error = %v, want fractional revision rejection", err)
 	}
 }
