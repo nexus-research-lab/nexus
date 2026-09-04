@@ -38,7 +38,7 @@ import {
   SelectMenuTriggerContent,
 } from "@/shared/ui/menu/select-menu-primitives";
 import { useSelectMenuOverlay } from "@/shared/ui/menu/use-select-menu-overlay";
-import type { UiAnchoredOverlayPosition } from "@/shared/ui/overlay/anchored-overlay-model";
+import type { UiAnchoredOverlayPosition } from "@/shared/ui/overlay/anchored-overlay-layout";
 
 import {
   buildRoomSkillMenuBody,

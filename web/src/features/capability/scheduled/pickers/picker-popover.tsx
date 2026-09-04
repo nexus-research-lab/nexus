@@ -9,7 +9,7 @@ import { createPortal } from "react-dom";
 
 import { cn } from "@/shared/ui/class-name";
 import { useAnchoredOverlayLayer } from "@/shared/ui/overlay/anchored-overlay-layer";
-import { resolveAnchoredOverlayPosition } from "@/shared/ui/overlay/anchored-overlay-model";
+import { resolveUiAnchoredOverlayPosition } from "@/shared/ui/overlay/anchored-overlay-layout";
 import { OPEN_OVERLAY_DATA_ATTRIBUTES } from "@/shared/ui/overlay/overlay-contract";
 import {
   ANCHORED_OVERLAY_MOTION_CLASS_NAME,
@@ -32,15 +32,11 @@ export function PickerPopover({
   onClose,
 }: PickerPopoverProps) {
   const estimatePosition = useCallback(
-    (anchor: HTMLElement) => resolveAnchoredOverlayPosition({
+    (anchor: HTMLElement) => resolveUiAnchoredOverlayPosition({
       anchor,
-      estimatedHeight: 288,
-      gap: 10,
-      maxHeight: 320,
-      minHeight: 240,
-      minWidth: 480,
+      estimatedContentHeight: 288,
       placement: "auto",
-      viewportMargin: 24,
+      preset: "form-picker",
     }),
     [],
   );

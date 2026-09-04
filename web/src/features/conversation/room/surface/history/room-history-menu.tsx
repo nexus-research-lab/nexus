@@ -22,7 +22,7 @@ import { cn } from "@/shared/ui/class-name";
 import { UiCheckbox } from "@/shared/ui/form/checkbox";
 import { UiListSectionDivider } from "@/shared/ui/list/list-section-divider";
 import { useSelectMenuOverlay } from "@/shared/ui/menu/use-select-menu-overlay";
-import { resolveAnchoredOverlayPosition } from "@/shared/ui/overlay/anchored-overlay-model";
+import { resolveUiAnchoredOverlayPosition } from "@/shared/ui/overlay/anchored-overlay-layout";
 import {
   ANCHORED_OVERLAY_MOTION_CLASS_NAME,
   OVERLAY_SURFACE_CLASS_NAME,
@@ -56,10 +56,6 @@ interface RoomHistoryMenuProps {
   onUpdateConversationTitle?: (conversationId: string, title: string) => Promise<void>;
   triggerVariant?: "history" | "session";
 }
-
-const HISTORY_MENU_HEIGHT = 280;
-const HISTORY_MENU_MIN_WIDTH = 330;
-const HISTORY_MENU_MIN_HEIGHT = 190;
 
 interface PendingRoomHistoryBulkDelete {
   clearsHistory: boolean;
@@ -116,13 +112,10 @@ export function RoomHistoryMenu({
     entries,
   );
   const estimatePosition = useCallback((button: HTMLButtonElement) => (
-    resolveAnchoredOverlayPosition({
+    resolveUiAnchoredOverlayPosition({
       anchor: button,
-      estimatedHeight: HISTORY_MENU_HEIGHT,
-      maxHeight: HISTORY_MENU_HEIGHT,
-      minHeight: HISTORY_MENU_MIN_HEIGHT,
-      minWidth: HISTORY_MENU_MIN_WIDTH,
       placement: "auto",
+      preset: "directory-list",
     })
   ), []);
   const {

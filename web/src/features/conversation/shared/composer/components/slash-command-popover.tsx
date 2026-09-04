@@ -31,9 +31,9 @@ import {
 } from "@/shared/ui/menu/select-menu-primitives";
 import { useAnchoredOverlayLayer } from "@/shared/ui/overlay/anchored-overlay-layer";
 import {
-  resolveAnchoredOverlayPosition,
+  resolveUiAnchoredOverlayPosition,
   type UiAnchoredOverlayPosition,
-} from "@/shared/ui/overlay/anchored-overlay-model";
+} from "@/shared/ui/overlay/anchored-overlay-layout";
 import type {
   CommandCatalogStatus,
   CommandDescriptor,
@@ -46,8 +46,6 @@ import {
 } from "../slash-command-model";
 import type { ComposerReadFailure } from "../controller/composer-settings-reliability";
 
-const SLASH_COMMAND_PANEL_MAX_HEIGHT_PX = 296;
-const SLASH_PICKER_PANEL_MAX_HEIGHT_PX = 336;
 const SLASH_LIST_CLASS_NAME = cn(
   MENU_LIST_CLASS_NAME,
   "soft-scrollbar min-h-0 max-h-72 flex-1 overflow-y-auto overscroll-contain p-1",
@@ -558,14 +556,9 @@ function getSlashCommandPopoverPosition(
   anchor: HTMLDivElement,
   mode: "commands" | "models" | "skills",
 ): UiAnchoredOverlayPosition {
-  const maxHeight = mode === "commands"
-    ? SLASH_COMMAND_PANEL_MAX_HEIGHT_PX
-    : SLASH_PICKER_PANEL_MAX_HEIGHT_PX;
-  return resolveAnchoredOverlayPosition({
+  return resolveUiAnchoredOverlayPosition({
     anchor,
-    estimatedHeight: maxHeight,
-    maxHeight,
-    minHeight: 44,
     placement: "top",
+    preset: mode === "commands" ? "command-list" : "command-picker",
   });
 }

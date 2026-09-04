@@ -38,7 +38,11 @@ import {
   MENU_SURFACE_VERTICAL_PADDING_PX,
 } from "@/shared/ui/menu/menu-styles";
 import { useAnchoredOverlayLayer } from "@/shared/ui/overlay/anchored-overlay-layer";
-import { resolveAnchoredOverlayPosition } from "@/shared/ui/overlay/anchored-overlay-model";
+import {
+  getUiAnchoredOverlayMinimumWidth,
+  getUiAnchoredOverlayViewportInset,
+  resolveUiAnchoredOverlayPosition,
+} from "@/shared/ui/overlay/anchored-overlay-layout";
 import { OPEN_OVERLAY_DATA_ATTRIBUTES } from "@/shared/ui/overlay/overlay-contract";
 import {
   ANCHORED_OVERLAY_MOTION_CLASS_NAME,
@@ -62,12 +66,9 @@ interface ComposerRoomModelControlProps {
 
 type RoomModelView = "agents" | "models";
 
-const ROOM_MODEL_AGENT_MENU_WIDTH = 224;
+const ROOM_MODEL_AGENT_MENU_WIDTH = getUiAnchoredOverlayMinimumWidth("cascade-menu");
 const ROOM_MODEL_MENU_WIDTH = 256;
 const ROOM_MODEL_MENU_GAP = 8;
-const ROOM_MODEL_MENU_MAX_HEIGHT = 320;
-const ROOM_MODEL_MENU_MIN_HEIGHT = 32;
-const ROOM_MODEL_MENU_VIEWPORT_MARGIN = 12;
 const ROOM_MODEL_AGENT_ROW_HEIGHT = 36;
 const ROOM_MODEL_ITEM_HEIGHT = 32;
 
@@ -91,17 +92,15 @@ export function ComposerRoomModelControl({
     resetTarget();
   }, [resetTarget]);
   const estimatePosition = useCallback((anchor: HTMLButtonElement) => (
-    resolveAnchoredOverlayPosition({
+    resolveUiAnchoredOverlayPosition({
       align: "end",
       anchor,
-      estimatedHeight: estimateRoomModelMenuHeight({
+      estimatedContentHeight: estimateRoomModelMenuHeight({
         agentCount: controller.targetViews.length,
         modelCount: modelItems.length,
       }),
-      maxHeight: ROOM_MODEL_MENU_MAX_HEIGHT,
-      minHeight: ROOM_MODEL_MENU_MIN_HEIGHT,
-      minWidth: ROOM_MODEL_AGENT_MENU_WIDTH,
       placement: "top",
+      preset: "cascade-menu",
     })
   ), [controller.targetViews.length, modelItems.length]);
   const {
@@ -117,12 +116,13 @@ export function ComposerRoomModelControl({
     isOpen,
     onClose: close,
   });
+  const viewportInset = getUiAnchoredOverlayViewportInset("cascade-menu");
   const canShowSideModels = typeof window !== "undefined"
     && window.innerWidth >= (
       ROOM_MODEL_AGENT_MENU_WIDTH
       + ROOM_MODEL_MENU_WIDTH
       + ROOM_MODEL_MENU_GAP
-      + ROOM_MODEL_MENU_VIEWPORT_MARGIN * 2
+      + viewportInset * 2
     );
   const showSideModels = canShowSideModels && view === "models";
   const expandedWidth =
@@ -139,7 +139,7 @@ export function ComposerRoomModelControl({
     ? {
         ...overlayStyle,
         left: Math.max(
-          ROOM_MODEL_MENU_VIEWPORT_MARGIN,
+          viewportInset,
           Math.min(
             showSideModels
               ? overlayPosition.left
@@ -148,7 +148,7 @@ export function ComposerRoomModelControl({
                 - layoutWidth,
             window.innerWidth
               - layoutWidth
-              - ROOM_MODEL_MENU_VIEWPORT_MARGIN,
+              - viewportInset,
           ),
         ),
         width: layoutWidth,
@@ -464,8 +464,5 @@ function estimateRoomModelMenuHeight({
   const modelHeight = 17
     + modelItemCount * ROOM_MODEL_ITEM_HEIGHT
     + modelItemCount * MENU_ITEM_GAP_PX;
-  return Math.min(
-    ROOM_MODEL_MENU_MAX_HEIGHT,
-    Math.max(agentHeight, modelHeight),
-  );
+  return Math.max(agentHeight, modelHeight);
 }

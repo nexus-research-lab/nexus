@@ -50,6 +50,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   data models no longer carry component constructors or visual class names.
 - Split Select Menu state and anchored geometry from its shared visual recipe,
   removing style exports and an unused surface argument from the menu model.
+- Centralized Room history, Composer, message-reference, Slash, and scheduled
+  picker geometry behind shared semantic overlay presets while preserving the
+  current placement and dimensions.
 - Replaced Composer model-owned color classes and pulsing status copy with
   semantic tones and shared LoadingOrb variants, including deterministic CSS
   frame cycles and a static reduced-motion state.

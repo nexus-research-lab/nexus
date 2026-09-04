@@ -1,3 +1,7 @@
+// INPUT: 锚点 DOM、视口与调用方已解析的原始定位约束。
+// OUTPUT: 被视口边界夹紧的浮层坐标、宽度、最大高度与最终上下方向。
+// POS: 锚定浮层底层几何求解器；语义 preset 及其数值归 anchored-overlay-layout 所有。
+
 export type UiAnchoredOverlayPlacement = "auto" | "bottom" | "top";
 export type UiAnchoredOverlayAlignment = "center" | "end" | "start";
 

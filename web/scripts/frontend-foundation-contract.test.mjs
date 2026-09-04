@@ -122,6 +122,55 @@ test("semantic overlay layers preserve the current visual stack without exposing
   );
 });
 
+test("product anchored overlays choose shared semantic geometry presets", async () => {
+  const files = (await Promise.all(productUiRoots.map(collectSourceFiles))).flat();
+  const lowLevelConsumers = [];
+  for (const file of files) {
+    const source = await readFile(file, "utf8");
+    if (
+      /shared\/ui\/overlay\/anchored-overlay-model/.test(source)
+      || /\bresolveAnchoredOverlayPosition\s*\(/.test(source)
+    ) {
+      lowLevelConsumers.push(path.relative(webRoot, file));
+    }
+  }
+  assert.deepEqual(lowLevelConsumers, []);
+
+  const consumerPresets = new Map([
+    [
+      "src/features/conversation/room/surface/history/room-history-menu.tsx",
+      ["directory-list"],
+    ],
+    [
+      "src/features/conversation/shared/message/item/view/assistant/assistant-message-stats.tsx",
+      ["reference-list"],
+    ],
+    [
+      "src/features/capability/scheduled/pickers/picker-popover.tsx",
+      ["form-picker"],
+    ],
+    [
+      "src/features/conversation/shared/composer/components/footer/composer-context-usage.tsx",
+      ["status-list", "status-summary"],
+    ],
+    [
+      "src/features/conversation/shared/composer/components/footer/composer-room-model-control.tsx",
+      ["cascade-menu"],
+    ],
+    [
+      "src/features/conversation/shared/composer/components/slash-command-popover.tsx",
+      ["command-list", "command-picker"],
+    ],
+  ]);
+  for (const [consumer, presets] of consumerPresets) {
+    const source = await readSource(consumer);
+    assert.match(source, /resolveUiAnchoredOverlayPosition\s*\(/, consumer);
+    for (const preset of presets) {
+      assert.match(source, new RegExp(`"${preset}"`), `${consumer}: ${preset}`);
+    }
+  }
+});
+
 test("dialog viewport modes expose one shared responsive geometry contract", async () => {
   const { getUiDialogViewportClassName } = await importLeafTypeScriptModule(
     webRoot,
