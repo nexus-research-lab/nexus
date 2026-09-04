@@ -40,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Standardized structured question decisions and text hierarchy on shared Button
+  and Typography owners while preserving native question input semantics.
 - Standardized every content, directory, and filter tab on the neutral underline
   treatment, including Pairing status filters; finite MCP configuration choices
   now use the form SegmentedControl instead of masquerading as navigation tabs.

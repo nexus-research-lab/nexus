@@ -30,6 +30,7 @@ const PROHIBITED_PRODUCT_STYLE_PATTERNS = [
 
 const REQUIRED_SHARED_UI_BEHAVIOR_SUITES = [
   "src/features/capability/channels/pairings/pairing-filter-bar.test.tsx",
+  "src/features/conversation/shared/message/blocks/question/ask-user-question-view.test.tsx",
   "src/features/conversation/shared/execution/execution-process-panel.test.tsx",
   "src/features/conversation/shared/composer/components/interaction/composer-permission-surface.test.tsx",
   "src/shared/ui/button/button.test.tsx",
@@ -748,6 +749,27 @@ test("Message actions, task status, and artifact loading share Spinner roles", a
     workGraphArtifact,
     /<button\b|getDialogActionClassName|rounded-\[(?:8|14)px\]|\btext-(?:2xs|xs|sm)\b|\bfont-(?:medium|semibold)\b|\bshadow-sm\b/,
   );
+});
+
+test("structured questions share Button and typography while retaining native option semantics", async () => {
+  const [view, item] = await Promise.all([
+    readSource("src/features/conversation/shared/message/blocks/question/ask-user-question-view.tsx"),
+    readSource("src/features/conversation/shared/message/blocks/question/ask-user-question-item.tsx"),
+  ]);
+
+  for (const source of [view, item]) {
+    assert.match(source, /getUiTypographyClassName/);
+    assert.doesNotMatch(
+      source,
+      /\btext-(?:2xs|xs|sm|md|base)\b|\bfont-(?:medium|semibold|bold)\b/,
+    );
+  }
+  assert.match(view, /<UiButton/);
+  assert.doesNotMatch(view, /<button\b/);
+  assert.match(item, /<fieldset\b/);
+  assert.match(item, /<input\b/);
+  assert.match(item, /<textarea\b/);
+  assert.doesNotMatch(item, /<UiButton|<UiInput|<UiTextarea/);
 });
 
 test("Assistant footer and ToolBlock header actions use shared micro control owners", async () => {
