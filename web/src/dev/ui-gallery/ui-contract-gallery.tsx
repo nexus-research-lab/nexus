@@ -4,6 +4,7 @@
 
 import {
   Check,
+  ChevronDown,
   CircleAlert,
   Copy,
   Ellipsis,
@@ -23,6 +24,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import type { Locale } from "@/shared/i18n/messages";
 import { useTheme, type VisualTheme } from "@/shared/theme/theme-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
+import { UiSplitButton } from "@/shared/ui/button/split-button";
 import { cn } from "@/shared/ui/class-name";
 import {
   UiDialogBackdrop,
@@ -248,6 +250,19 @@ export function UiContractGallery() {
               <UiIconButton aria-label={galleryText(locale, "刷新组件快照", "Refresh component snapshot")} tooltipShortcut="R" variant="surface"><RefreshCw className="h-4 w-4" /></UiIconButton>
               <UiIconButton aria-label={galleryText(locale, "更多操作", "More actions")} tooltip={galleryText(locale, "更多操作", "More actions")} variant="ghost"><Ellipsis className="h-4 w-4" /></UiIconButton>
               <UiCounterBadge count={108} />
+            </GalleryRow>
+            <GalleryRow label="Split action">
+              <UiSplitButton
+                ariaLabel={galleryText(locale, "允许操作", "Allow action")}
+                className="w-28"
+                mainAction={{ children: galleryText(locale, "允许本次", "Allow once") }}
+                menuAction={{
+                  "aria-expanded": false,
+                  "aria-haspopup": "menu",
+                  "aria-label": galleryText(locale, "选择允许范围", "Choose allow scope"),
+                  children: <ChevronDown aria-hidden="true" className="h-4 w-4" />,
+                }}
+              />
             </GalleryRow>
           </GallerySection>
 

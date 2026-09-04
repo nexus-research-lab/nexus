@@ -34,11 +34,15 @@ import {
   type I18nContextValue,
   useI18n,
 } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button/button";
+import { UiSplitButton } from "@/shared/ui/button/split-button";
 import { cn } from "@/shared/ui/class-name";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
+import { UiInput } from "@/shared/ui/form/form-control";
 import {
   UiActionMenu,
 } from "@/shared/ui/menu/action-menu";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type {
   PendingPermission,
   PermissionDecisionPayload,
@@ -168,7 +172,10 @@ export function ComposerPermissionSurface({
       className="space-y-4"
       data-composer-permission-surface
     >
-      <div className="flex min-w-0 items-center gap-2 text-sm text-(--text-muted)">
+      <div className={cn(
+        "flex min-w-0 items-center gap-2",
+        getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+      )}>
         {requesterName ? (
           <>
             <UiAgentAvatar
@@ -177,7 +184,10 @@ export function ComposerPermissionSurface({
               name={requesterName}
               size="xs"
             />
-            <span className="truncate font-medium text-(--text-strong)">
+            <span className={cn(
+              "truncate",
+              getUiTypographyClassName({ role: "metadata", tone: "strong", weight: "medium" }),
+            )}>
               {requesterName}
             </span>
             <span aria-hidden className="text-(--text-soft)">·</span>
@@ -187,7 +197,10 @@ export function ComposerPermissionSurface({
         <span className="truncate">{presentation.title}</span>
         {total > 1 ? (
           <span
-            className="ml-auto shrink-0 text-xs tabular-nums text-(--text-soft)"
+            className={cn(
+              "ml-auto shrink-0 tabular-nums",
+              getUiTypographyClassName({ role: "caption", tone: "soft" }),
+            )}
             data-composer-interaction-queue
           >
             1 / {total}
@@ -196,11 +209,17 @@ export function ComposerPermissionSurface({
       </div>
 
       <div className="space-y-3">
-        <p className="m-0 text-md leading-6 text-(--text-strong)">
+        <p className={cn(
+          "m-0",
+          getUiTypographyClassName({ role: "body", tone: "strong" }),
+        )}>
           {presentation.description}
         </p>
         {presentation.detail ? (
-          <pre className="message-cjk-font m-0 max-h-28 overflow-auto whitespace-pre-wrap break-all font-mono text-sm leading-6 text-(--text-muted)">
+          <pre className={cn(
+            "message-cjk-font m-0 max-h-28 overflow-auto whitespace-pre-wrap break-all",
+            getUiTypographyClassName({ role: "code", tone: "muted" }),
+          )}>
             {presentation.detail}
           </pre>
         ) : null}
@@ -208,13 +227,19 @@ export function ComposerPermissionSurface({
 
       {secretSlots.length > 0 ? (
         <fieldset
-          className="space-y-3 rounded-2xl border border-(--divider-subtle-color) p-3"
+          className="surface-radius-md space-y-3 border border-(--divider-subtle-color) p-3"
           disabled={interactionDisabled}
         >
-          <legend className="px-1 text-sm font-medium text-(--text-strong)">
+          <legend className={cn(
+            "px-1",
+            getUiTypographyClassName({ role: "metadata", tone: "strong", weight: "medium" }),
+          )}>
             {t("composer.permission_configuration_secrets_title")}
           </legend>
-          <p className="m-0 text-xs leading-5 text-(--text-muted)">
+          <p className={cn(
+            "m-0",
+            getUiTypographyClassName({ role: "caption", tone: "muted" }),
+          )}>
             {t("composer.permission_configuration_secrets_description")}
           </p>
           <div className="space-y-3">
@@ -223,12 +248,15 @@ export function ComposerPermissionSurface({
                 className="block space-y-1.5"
                 key={slot.id}
               >
-                <span className="block break-all text-xs font-medium text-(--text-default)">
+                <span className={cn(
+                  "block break-all",
+                  getUiTypographyClassName({ role: "caption", tone: "default", weight: "medium" }),
+                )}>
                   {slot.path}
                 </span>
-                <input
+                <UiInput
                   autoComplete="new-password"
-                  className="h-10 w-full rounded-xl border border-(--divider-subtle-color) bg-(--background) px-3 text-sm text-(--text-strong) outline-none transition-colors placeholder:text-(--text-soft) focus:border-(--text-muted)"
+                  controlSize="lg"
                   onChange={(event) => {
                     const value = event.currentTarget.value;
                     setSecretDraft((current) =>
@@ -245,6 +273,7 @@ export function ComposerPermissionSurface({
                   spellCheck={false}
                   type="password"
                   value={secretValues[slot.id] ?? ""}
+                  variant="surface"
                 />
               </label>
             ))}
@@ -253,50 +282,37 @@ export function ComposerPermissionSurface({
       ) : null}
 
       <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
-        <button
-          className={cn(
-            "radius-control-sm inline-flex h-8 items-center justify-center border border-(--divider-subtle-color) bg-transparent px-3 text-sm font-medium text-(--text-default) transition-colors hover:bg-(--interaction-hover-background) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
-            decisionWidthClassName,
-          )}
+        <UiButton
+          className={decisionWidthClassName}
           data-composer-permission-action="deny"
           data-composer-permission-decision="deny"
           disabled={interactionDisabled}
           onClick={() => respond("deny")}
-          type="button"
+          size="sm"
+          variant="surface"
         >
           {t("composer.permission_deny")}
-        </button>
-        <div
-          className={cn(
-            "radius-control-sm flex h-11 items-stretch overflow-hidden sm:h-8",
-            decisionWidthClassName,
-          )}
+        </UiButton>
+        <UiSplitButton
+          ariaLabel={t("composer.permission_allow_once")}
+          className={cn("h-11 sm:h-8", decisionWidthClassName)}
           data-composer-permission-action="allow"
-        >
-          <button
-            className="inline-flex h-full min-w-0 flex-1 items-center justify-center bg-(--text-strong) px-1.5 text-sm font-medium text-(--background) transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)"
-            data-composer-permission-decision="allow"
-            disabled={interactionDisabled || !hasCompleteSecrets}
-            onClick={() => respond("allow")}
-            type="button"
-          >
-            {t("composer.permission_allow_once")}
-          </button>
-          {hasScopeChoices ? (
-            <button
-              ref={scopeMenuAnchorRef}
-              aria-expanded={isScopeMenuOpen}
-              aria-haspopup="menu"
-              aria-label={t("composer.permission_choose_scope")}
-              className="inline-flex h-full w-8 items-center justify-center border-l border-[color:color-mix(in_srgb,var(--background)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--text-strong)_82%,var(--background))] text-(--background) transition-[background-color,opacity] hover:bg-(--text-strong) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)"
-              disabled={interactionDisabled || !hasCompleteSecrets}
-              onClick={() => setIsScopeMenuOpen((current) => !current)}
-              type="button"
-            >
-              <ChevronDown aria-hidden className="h-4 w-4" />
-            </button>
-          ) : null}
-        </div>
+          mainAction={{
+            children: t("composer.permission_allow_once"),
+            disabled: interactionDisabled || !hasCompleteSecrets,
+            onClick: () => respond("allow"),
+            "data-composer-permission-decision": "allow",
+          }}
+          menuAction={hasScopeChoices ? {
+            "aria-expanded": isScopeMenuOpen,
+            "aria-haspopup": "menu",
+            "aria-label": t("composer.permission_choose_scope"),
+            children: <ChevronDown aria-hidden className="h-4 w-4" />,
+            disabled: interactionDisabled || !hasCompleteSecrets,
+            onClick: () => setIsScopeMenuOpen((current) => !current),
+          } : undefined}
+          menuButtonRef={scopeMenuAnchorRef}
+        />
         <UiActionMenu
           align="end"
           anchorRef={scopeMenuAnchorRef}

@@ -129,7 +129,7 @@ Primitive 同时拥有 DOM、键盘、焦点、ARIA 和视觉状态合同，例�
 
 ### 4.4 Pattern
 
-Pattern 统一跨页面的结构、响应式几何或交互组合，例如 ResponsiveDialog、AnchoredPopover、FilterBar、SettingsSection、CatalogCard、FloatingDock。
+Pattern 统一跨页面的结构、响应式几何或交互组合，例如 ResponsiveDialog、AnchoredPopover、FilterBar、SettingsSection、CatalogCard、FloatingDock，以及在一个共享边界中保留两个独立命令与焦点的 `UiSplitButton`。
 
 Pattern 与 Primitive 的区别是：Primitive 统一一个控件；Pattern 统一多个控件如何在页面和窗口尺寸中协作。
 

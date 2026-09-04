@@ -19,7 +19,7 @@ export const UI_GALLERY_COVERAGE_GROUPS: readonly UiGalleryCoverageGroup[] = [
     mode: "direct",
     renderer: "Core controls",
     components: [
-      "UiButton", "UiLinkButton", "UiIconButton", "UiCheckbox", "UiCheckboxRow",
+      "UiButton", "UiLinkButton", "UiIconButton", "UiSplitButton", "UiCheckbox", "UiCheckboxRow",
       "UiChoiceButton", "UiField", "UiInput", "UiNativeSelect", "UiTextarea",
       "UiSearchInput", "UiSegmentedControl", "UiListRow", "UiListActionButton",
       "UiSelectMenu", "UiBreadcrumb", "UiTabs", "UiTooltip", "UiPanel", "SidebarSearchField",

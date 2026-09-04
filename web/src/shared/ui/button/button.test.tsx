@@ -12,8 +12,46 @@ import {
   UiIconButton,
   UiLinkButton,
 } from "@/shared/ui/button/button";
+import { UiSplitButton } from "@/shared/ui/button/split-button";
 
 describe("UiButton", () => {
+  it("groups a primary action and menu trigger without merging their commands", async () => {
+    const user = userEvent.setup();
+    const onMainAction = vi.fn();
+    const onMenuAction = vi.fn();
+
+    render(
+      <UiSplitButton
+        ariaLabel="允许操作"
+        mainAction={{ children: "允许本次", onClick: onMainAction }}
+        menuAction={{
+          "aria-expanded": false,
+          "aria-haspopup": "menu",
+          "aria-label": "选择允许范围",
+          children: <span aria-hidden="true">⌄</span>,
+          onClick: onMenuAction,
+        }}
+      />,
+    );
+
+    const group = screen.getByRole("group", { name: "允许操作" });
+    const mainAction = screen.getByRole("button", { name: "允许本次" });
+    const menuAction = screen.getByRole("button", { name: "选择允许范围" });
+    expect(group.className).toContain("radius-control-sm");
+    expect(mainAction.getAttribute("type")).toBe("button");
+    expect(mainAction.className).toContain("border-r-0");
+    expect(menuAction.getAttribute("aria-haspopup")).toBe("menu");
+
+    await user.tab();
+    expect(document.activeElement).toBe(mainAction);
+    await user.tab();
+    expect(document.activeElement).toBe(menuAction);
+    await user.click(mainAction);
+    await user.click(menuAction);
+    expect(onMainAction).toHaveBeenCalledTimes(1);
+    expect(onMenuAction).toHaveBeenCalledTimes(1);
+  });
+
   it("defaults to a non-submitting button inside forms", async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn((event: React.FormEvent) => event.preventDefault());

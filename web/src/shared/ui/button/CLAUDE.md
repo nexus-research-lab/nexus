@@ -1,6 +1,7 @@
 # 按钮原语
 
 - 本目录拥有按钮和图标按钮的交互结构及样式投影。
+- `split-button.tsx` 只组合一个共享边界内的主动作与可选菜单动作；两个命令保留独立 button、焦点和 ARIA，菜单开关及选择事务仍归消费者。
 - 业务命令、权限判断和加载事务由消费者负责。
 - `button-styles.ts` 是 primitive 内部视觉投影；`features/pages` 必须渲染 `UiButton / UiLinkButton / UiIconButton`，不得导入样式函数再手写原生 DOM。需要的 size/tone/variant 类型由 `button.tsx` 一并导出。
 - `UiIconButton` 用显式 `tooltip`、`title` 或字符串 `aria-label` 驱动共享 Tooltip；原生 `title` 不再下发给按钮，避免两套悬浮提示叠加。
