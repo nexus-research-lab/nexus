@@ -147,6 +147,15 @@ describe("UiButton", () => {
     expect(button.className).not.toContain("radius-control-lg");
   });
 
+  it("projects pill text actions through the shared shape contract", () => {
+    render(<UiButton shape="pill" size="sm">最近会话</UiButton>);
+
+    const button = screen.getByRole("button", { name: "最近会话" });
+    expect(button.className).toContain("min-h-8");
+    expect(button.className).toContain("rounded-full");
+    expect(button.className).not.toContain("radius-control-sm");
+  });
+
   it("owns the micro action sizes used inside dense toolbars and chips", () => {
     render(
       <>

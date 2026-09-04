@@ -1066,6 +1066,36 @@ test("Launcher, desktop update, and onboarding loading states share Spinner role
   }
 });
 
+test("Launcher recent-entry data stays visual-free and actions share Button shape", async () => {
+  const [view, model, layout, surfaceTheme, buttonStyles] = await Promise.all([
+    readSource("src/features/launcher/hero/launcher-recent-entries.tsx"),
+    readSource("src/features/launcher/hero/launcher-recent-entry-model.ts"),
+    readSource("src/features/launcher/hero/launcher-recent-entry-layout.ts"),
+    readSource("src/features/launcher/hero/launcher-surface-theme.ts"),
+    readSource("src/shared/ui/button/button-styles.ts"),
+  ]);
+
+  assert.match(view, /<UiButton/);
+  assert.match(view, /shape="pill"/);
+  assert.match(view, /LauncherRecentEntryLayout\.listClassName/);
+  assert.doesNotMatch(
+    view,
+    /<button\b|chipStyle|markerStyle|rounded-full|\btext-(?:xs|sm|base)\b|\bfont-(?:medium|semibold)\b/,
+  );
+  assert.doesNotMatch(
+    model,
+    /CSSProperties|className|style:|background|boxShadow|color:|delayMs|rounded-|shadow-/,
+  );
+  assert.match(layout, /ENTRY_DELAY_START_MS/);
+  assert.match(layout, /ENTRY_DELAY_STEP_MS/);
+  assert.doesNotMatch(
+    `${model}\n${surfaceTheme}`,
+    /launcher-(?:agent|room)-chip|launcher-handoff-(?:color|hover-color)/,
+  );
+  assert.match(buttonStyles, /UiButtonShape = "rounded" \| "pill"/);
+  assert.match(buttonStyles, /shape === "pill" \? "rounded-full"/);
+});
+
 test("Sidebar utility actions share the round IconButton owner", async () => {
   const [utilities, updateIndicator] = await Promise.all([
     readSource("src/features/navigation/sidebar/view/sidebar-utility-actions.tsx"),

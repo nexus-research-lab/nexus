@@ -1,4 +1,6 @@
-import type { CSSProperties } from "react";
+// INPUT: 最近 DM/Room 条目与当前语言的类型名称。
+// OUTPUT: 截断标签、完整可访问名称和 Tooltip 需求等纯业务展示数据。
+// POS: Launcher 最近入口数据投影；不返回 DOM、样式、颜色、尺寸、阴影或动画参数。
 
 import type { RecentLauncherEntry } from "../console/launcher-console-types";
 import {
@@ -6,43 +8,10 @@ import {
   truncateLauncherChipLabel,
 } from "../console/launcher-console-helpers";
 
-interface EntryTypePresentation {
-  background: string;
-  boxShadow: string;
-  labelPrefix: string;
-  textColor: string;
-}
-
-const ENTRY_TYPE_PRESENTATION: Record<
-  RecentLauncherEntry["type"],
-  EntryTypePresentation
-> = {
-  dm: {
-    background: "var(--launcher-agent-chip-background)",
-    boxShadow: "inset 0 0 0 1px var(--launcher-agent-chip-border)",
-    labelPrefix: "",
-    textColor: "var(--launcher-agent-chip-text)",
-  },
-  room: {
-    background: "var(--launcher-room-chip-background)",
-    boxShadow: "inset 0 0 0 1px var(--launcher-room-chip-border)",
-    labelPrefix: "#",
-    textColor: "var(--launcher-room-chip-text)",
-  },
-};
-
-const DM_MARKER_STYLES: CSSProperties[] = [
-  { backgroundColor: "#bff0ca", border: "1px solid #7fe3a8" },
-  { backgroundColor: "#ffd7b8", border: "1px solid #e3c6ad" },
-];
-
-export interface LauncherRecentEntryPresentation {
+export interface LauncherRecentEntryModel {
   ariaLabel: string;
   chipLabel: string;
-  chipStyle: CSSProperties;
-  delayMs: number;
   entry: RecentLauncherEntry;
-  markerStyle: CSSProperties | null;
   tooltipLabel: string | null;
 }
 
@@ -51,30 +20,16 @@ export type LauncherRecentEntryTypeLabels = Record<
   string
 >;
 
-export function buildLauncherRecentEntryPresentation(
+export function buildLauncherRecentEntryModel(
   entry: RecentLauncherEntry,
-  index: number,
   typeLabels: LauncherRecentEntryTypeLabels,
-): LauncherRecentEntryPresentation {
-  const typePresentation = ENTRY_TYPE_PRESENTATION[entry.type];
-  const fullLabel = `${typePresentation.labelPrefix}${entry.label}`;
+): LauncherRecentEntryModel {
+  const labelPrefix = entry.type === "room" ? "#" : "";
+  const fullLabel = `${labelPrefix}${entry.label}`;
   return {
     ariaLabel: `${typeLabels[entry.type]} ${entry.label}`,
-    chipLabel: `${typePresentation.labelPrefix}${truncateLauncherChipLabel(entry.label)}`,
-    chipStyle: {
-      background: typePresentation.background,
-      boxShadow: typePresentation.boxShadow,
-      color: typePresentation.textColor,
-    },
-    delayMs: 580 + index * 55,
+    chipLabel: `${labelPrefix}${truncateLauncherChipLabel(entry.label)}`,
     entry,
-    markerStyle: entry.type === "dm"
-      ? DM_MARKER_STYLES[Math.min(index, DM_MARKER_STYLES.length - 1)]
-      : null,
     tooltipLabel: isLauncherChipTruncated(entry.label) ? fullLabel : null,
   };
-}
-
-export function getLauncherHandoffDelay(entryCount: number): number {
-  return 580 + entryCount * 55;
 }
