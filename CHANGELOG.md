@@ -40,6 +40,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Moved Room name editing and tool-permission scope radios onto the shared Input
+  and native RadioChoice contracts, including consistent focus, disabled, and
+  selection semantics.
 - Extended the frontend governance plan with a final reverse-audit phase that removes missed private controls, duplicate rules, dead adapters, unused exports, stale state branches, and outdated documentation before the refactor is considered complete.
 - Moved Loop and saved WorkGraph picker rows onto the shared list and listbox interaction owners, including consistent keyboard, focus, selection, and disabled behavior.
 - Routed empty-conversation suggestions, user-message expansion, subagent task links, Artifact external actions, and Composer context usage through the shared Button contracts instead of private control styling.

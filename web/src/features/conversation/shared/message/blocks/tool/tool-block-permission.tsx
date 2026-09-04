@@ -1,5 +1,9 @@
+// INPUT: 工具权限请求、建议作用域、当前选择与交互禁用事实。
+// OUTPUT: 使用共享原生 Radio choice 的可访问权限范围选择区。
+// POS: ToolBlock 权限展示/选择层；不提交权限决定或解释后端授权。
+
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { getUiChoiceClassName } from "@/shared/ui/form/choice-styles";
+import { UiRadioChoice } from "@/shared/ui/form/choice";
 
 import { MessageDetailScroll } from "../../ui/message-rail";
 import type {
@@ -89,20 +93,15 @@ function PermissionChoice({
   onSelect: () => void;
 }) {
   return (
-    <label className={getUiChoiceClassName({
-      active: checked,
-      size: "xs",
-      variant: "surface",
-    })}>
-      <input
-        type="radio"
-        name={name}
-        checked={checked}
-        disabled={disabled}
-        onChange={onSelect}
-        className="sr-only"
-      />
-      <span>{label}</span>
-    </label>
+    <UiRadioChoice
+      checked={checked}
+      choiceSize="xs"
+      disabled={disabled}
+      name={name}
+      onChange={() => onSelect()}
+      variant="surface"
+    >
+      {label}
+    </UiRadioChoice>
   );
 }

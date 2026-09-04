@@ -1,4 +1,4 @@
-// INPUT: Field、SearchInput、Checkbox、Choice 与 SegmentedControl 的用户事件。
+// INPUT: Field、SearchInput、Checkbox、Choice/RadioChoice 与 SegmentedControl 的用户事件。
 // OUTPUT: 证明校验、清除、布尔切换与互斥选择使用真实 DOM/ARIA 合同。
 // POS: 表单原语交互测试；业务草稿和网络提交由各 feature 测试负责。
 
@@ -11,7 +11,7 @@ import { describe, expect, it, vi } from "vitest";
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
 import { UiCheckbox } from "@/shared/ui/form/checkbox";
 import { UiCheckboxRow } from "@/shared/ui/form/checkbox-row";
-import { UiChoiceButton } from "@/shared/ui/form/choice";
+import { UiChoiceButton, UiRadioChoice } from "@/shared/ui/form/choice";
 import {
   UiField,
   UiInput,
@@ -208,6 +208,45 @@ describe("form primitives", () => {
     expect(recurring.getAttribute("aria-pressed")).toBe("false");
     await user.click(recurring);
     expect(onSegment).toHaveBeenCalledWith("recurring");
+  });
+
+  it("keeps radio choice native semantics while sharing selection styling", async () => {
+    const user = userEvent.setup();
+
+    function Harness() {
+      const [scope, setScope] = useState("once");
+      return (
+        <div aria-label="授权范围" role="radiogroup">
+          <UiRadioChoice
+            checked={scope === "once"}
+            choiceSize="xs"
+            name="scope"
+            onChange={() => setScope("once")}
+          >
+            本次
+          </UiRadioChoice>
+          <UiRadioChoice
+            checked={scope === "session"}
+            choiceSize="xs"
+            name="scope"
+            onChange={() => setScope("session")}
+          >
+            会话
+          </UiRadioChoice>
+        </div>
+      );
+    }
+
+    render(<Harness />);
+    const once = screen.getByRole("radio", { name: "本次" }) as HTMLInputElement;
+    const session = screen.getByRole("radio", { name: "会话" }) as HTMLInputElement;
+    expect(once.checked).toBe(true);
+    expect(once.parentElement?.getAttribute("data-active")).toBe("true");
+
+    await user.click(session);
+    expect(once.checked).toBe(false);
+    expect(session.checked).toBe(true);
+    expect(session.parentElement?.getAttribute("data-active")).toBe("true");
   });
 
   it("keeps icon-only segmented options accessible and compact", async () => {
