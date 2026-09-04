@@ -6,6 +6,7 @@
 import { MessageSquareText, X } from "lucide-react";
 import { useRef, useState, type DragEvent } from "react";
 
+import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { SIDEBAR_SELECTION_CLASS_NAME } from "@/shared/ui/sidebar/sidebar-selection";
 
@@ -196,16 +197,18 @@ export function SidebarPinnedConversations({
               </span>
               <span className="sr-only">{reorderLabel}</span>
             </button>
-            <button
+            <UiIconButton
               aria-label={`${unpinLabel}：${item.title}`}
-              className="absolute -right-1 -top-1 z-10 flex h-6 w-6 items-center justify-center rounded-full text-(--icon-muted) opacity-0 transition-[background-color,color,opacity] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-active-background) hover:text-(--text-strong) focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_34%,transparent)] group-focus-within/pinned:opacity-100 group-hover/pinned:opacity-100"
+              className="absolute -right-1 -top-1 z-10 opacity-0 focus-visible:opacity-100 group-focus-within/pinned:opacity-100 group-hover/pinned:opacity-100"
               data-pinned-conversation-unpin="true"
               onClick={() => onUnpin(item)}
+              shape="round"
+              size="xs"
               title={unpinLabel}
-              type="button"
+              variant="ghost"
             >
               <X className="h-3.5 w-3.5" />
-            </button>
+            </UiIconButton>
           </div>
         ))}
       </div>

@@ -44,6 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Moved Loop and saved WorkGraph picker rows onto the shared list and listbox interaction owners, including consistent keyboard, focus, selection, and disabled behavior.
 - Routed empty-conversation suggestions, user-message expansion, subagent task links, Artifact external actions, and Composer context usage through the shared Button contracts instead of private control styling.
 - Unified Thought, process-summary, and tool-run disclosure rows under one message-domain toggle with shared arrow, focus, typography, and semantic status behavior.
+- Reused shared icon-action and list-row owners for pinned-conversation removal and Room fallback history navigation while preserving the drag target as an explicit geometry-owned control.
 - Unified ordinary expandable App sections under the shared `UiDisclosure`
   contract, so Channel instructions, pairing details, Connector scopes, Skill
   import help, Scheduled run history/settings, and Execution run facts now

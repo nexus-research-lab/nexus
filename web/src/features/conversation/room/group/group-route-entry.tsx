@@ -10,6 +10,7 @@ import { useNavigate } from "react-router-dom";
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { filterRoomHistoryConversations } from "@/features/conversation/room/surface/history/room-history-model";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiListRow } from "@/shared/ui/list/list-row";
 import { WorkspaceActionBar, WorkspaceActionCard } from "@/shared/ui/workspace/controls/workspace-action-bar";
 import { Agent } from "@/types/agent/agent";
 import { RoomConversationView } from "@/types/conversation/conversation";
@@ -86,9 +87,9 @@ export function GroupRouteEntry({
               <p className="text-xs uppercase tracking-[0.12em] text-(--text-soft)">{t("room.route_recent")}</p>
               <div className="mt-3 divide-y divide-(--divider-subtle-color)">
                 {recentRoomConversations.map((conversation) => (
-                  <button
+                  <UiListRow
+                    density="compact"
                     key={conversation.conversation_id}
-                    className="flex w-full items-center justify-between gap-3 py-3 text-left transition hover:text-(--text-strong)"
                     onClick={() =>
                       navigate(
                         AppRouteBuilders.roomConversation(
@@ -97,15 +98,11 @@ export function GroupRouteEntry({
                         ),
                       )
                     }
-                    type="button"
-                  >
-                    <span className="truncate text-sm text-(--text-default)">
-                      {conversation.title || t("room.new_conversation")}
-                    </span>
-                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-colors hover:text-(--icon-strong)">
+                    right={(
                       <ArrowRight className="h-4 w-4 shrink-0 text-(--icon-default)" />
-                    </span>
-                  </button>
+                    )}
+                    title={conversation.title || t("room.new_conversation")}
+                  />
                 ))}
               </div>
             </div>
