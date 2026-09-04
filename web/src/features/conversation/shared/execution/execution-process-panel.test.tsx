@@ -85,6 +85,9 @@ describe("ExecutionProcessPanel", () => {
     const dock = container.querySelector("[data-execution-agent-activity-dock]");
     expect(dock?.className).toContain("conversation-activity-chip");
     expect(dock?.className).toContain("ui-type-metadata");
+    expect(dock?.className).toContain("min-h-10");
+    expect(dock?.className).toContain("px-1");
+    expect(dock?.className).toContain("py-1");
 
     const agentAction = screen.getByRole("button", {
       name: /jump to nexus|跳转到 nexus/i,
