@@ -25,11 +25,12 @@ const (
 	httpWriteTimeout = 6 * time.Minute
 	httpIdleTimeout  = 60 * time.Second
 
-	executionDispatchBatch     = 32
-	subagentReconcileBatch     = 32
-	orchestrationRecoveryBatch = 32
-	controlInvalidationPoll    = time.Second
-	controlInvalidationGrace   = time.Minute
+	executionDispatchBatch           = 32
+	subagentReconcileBatch           = 32
+	orchestrationRecoveryBatch       = 32
+	controlInvalidationPoll          = time.Second
+	controlInvalidationGrace         = time.Minute
+	controlInvalidationApplyAttempts = 3
 )
 
 type controlIdentityInvalidationSource interface {
@@ -158,15 +159,10 @@ func (s *Server) runControlIdentityInvalidations(
 			}
 			s.api.BaseLogger().Warn("读取 Control identity invalidation 失败", "err", err)
 			if !failClosed && time.Since(unavailableSince) >= controlInvalidationGrace {
-				owners, closeErr := source.FailClosedControlIdentities(ctx)
-				connections := s.handlers.websocket.CloseControlConnections()
-				for _, ownerUserID := range owners {
-					_, runtimeErr := s.services.Runtime.CloseOwnerSessions(ctx, ownerUserID)
-					closeErr = errors.Join(closeErr, runtimeErr)
-				}
+				owners, connections, closeErr := s.failClosedControlIdentities(ctx, source)
 				s.api.BaseLogger().Error(
 					"Control identity invalidation 超过安全窗口，已关闭认证会话",
-					"owners", len(owners),
+					"owners", owners,
 					"connections", connections,
 					"err", closeErr,
 				)
@@ -181,31 +177,47 @@ func (s *Server) runControlIdentityInvalidations(
 		failClosed = false
 		processedAll := true
 		for _, event := range events {
-			ownerUserID, applyErr := source.ApplyControlIdentityInvalidation(ctx, event)
-			connections := 0
-			if ownerUserID != "" {
-				switch event.Reason {
-				case "session_revoked":
-					connections = s.handlers.websocket.CloseControlSessionConnections(event.SessionID)
-				case "entitlement_changed":
-					// 本地额度投影对下一个请求生效，不中断当前 Agent。
-				case "profile_changed":
-					connections = s.handlers.websocket.CloseOwnerConnections(ownerUserID)
-				default:
-					connections = s.handlers.websocket.CloseOwnerConnections(ownerUserID)
-					_, runtimeErr := s.services.Runtime.CloseOwnerSessions(ctx, ownerUserID)
-					applyErr = errors.Join(applyErr, runtimeErr)
-				}
-			}
+			ownerUserID, connections, applyErr := s.applyControlIdentityInvalidationEvent(ctx, source, event)
 			if applyErr != nil {
-				s.api.BaseLogger().Warn(
-					"应用 Control identity invalidation 失败",
-					"event_id", event.EventID,
-					"owner_user_id", ownerUserID,
-					"err", applyErr,
-				)
-				processedAll = false
-				break
+				attempts := 1
+				for attempts < controlInvalidationApplyAttempts && ctx.Err() == nil {
+					if !waitControlInvalidationPoll(ctx) {
+						return
+					}
+					attempts++
+					ownerUserID, connections, applyErr = s.applyControlIdentityInvalidationEvent(ctx, source, event)
+					if applyErr == nil {
+						break
+					}
+				}
+				if ctx.Err() != nil {
+					return
+				}
+				if applyErr != nil {
+					owners, closedConnections, failClosedErr := s.failClosedControlIdentities(ctx, source)
+					if failClosedErr != nil {
+						s.api.BaseLogger().Error(
+							"Control identity invalidation 持续失败，且 fail-closed 处理失败",
+							"event_id", event.EventID,
+							"attempts", attempts,
+							"owners", owners,
+							"connections", closedConnections,
+							"err", errors.Join(applyErr, failClosedErr),
+						)
+						processedAll = false
+						break
+					}
+					s.api.BaseLogger().Error(
+						"Control identity invalidation 持续失败，已隔离并跳过事件",
+						"event_id", event.EventID,
+						"attempts", attempts,
+						"owner_user_id", ownerUserID,
+						"owners", owners,
+						"connections", closedConnections,
+						"err", applyErr,
+					)
+					applyErr = nil
+				}
 			}
 			if applyErr = source.CommitControlIdentityInvalidationCursor(ctx, event.EventID); applyErr != nil {
 				s.api.BaseLogger().Warn(
@@ -231,6 +243,43 @@ func (s *Server) runControlIdentityInvalidations(
 			return
 		}
 	}
+}
+
+func (s *Server) applyControlIdentityInvalidationEvent(
+	ctx context.Context,
+	source controlIdentityInvalidationSource,
+	event authsvc.ControlIdentityInvalidation,
+) (string, int, error) {
+	ownerUserID, applyErr := source.ApplyControlIdentityInvalidation(ctx, event)
+	connections := 0
+	if ownerUserID != "" {
+		switch event.Reason {
+		case "session_revoked":
+			connections = s.handlers.websocket.CloseControlSessionConnections(event.SessionID)
+		case "entitlement_changed":
+			// 本地额度投影对下一个请求生效，不中断当前 Agent。
+		case "profile_changed":
+			connections = s.handlers.websocket.CloseOwnerConnections(ownerUserID)
+		default:
+			connections = s.handlers.websocket.CloseOwnerConnections(ownerUserID)
+			_, runtimeErr := s.services.Runtime.CloseOwnerSessions(ctx, ownerUserID)
+			applyErr = errors.Join(applyErr, runtimeErr)
+		}
+	}
+	return ownerUserID, connections, applyErr
+}
+
+func (s *Server) failClosedControlIdentities(
+	ctx context.Context,
+	source controlIdentityInvalidationSource,
+) (int, int, error) {
+	owners, closeErr := source.FailClosedControlIdentities(ctx)
+	connections := s.handlers.websocket.CloseControlConnections()
+	for _, ownerUserID := range owners {
+		_, runtimeErr := s.services.Runtime.CloseOwnerSessions(ctx, ownerUserID)
+		closeErr = errors.Join(closeErr, runtimeErr)
+	}
+	return len(owners), connections, closeErr
 }
 
 func waitControlInvalidationPoll(ctx context.Context) bool {
