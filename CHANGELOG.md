@@ -40,6 +40,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Defined the frontend design-system migration as two ordered phases: first
+  consolidate private implementations under shared owners, then validate and
+  refine the unified system across Web, macOS, and Windows for density,
+  typography, hit targets, interaction states, flicker, and layout consistency.
 - Standardized structured question decisions and text hierarchy on shared Button
   and Typography owners while preserving native question input semantics.
 - Standardized every content, directory, and filter tab on the neutral underline
