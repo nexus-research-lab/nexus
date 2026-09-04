@@ -2286,6 +2286,23 @@ test("conversation suggestions, compact actions, and context usage share Button 
   );
 });
 
+test("message Thought and process disclosures share one domain toggle owner", async () => {
+  const [toggle, thought, callchain, toolRuns] = await Promise.all([
+    readSource("src/features/conversation/shared/message/ui/message-detail-toggle.tsx"),
+    readSource("src/features/conversation/shared/message/blocks/thinking-block.tsx"),
+    readSource("src/features/conversation/shared/message/item/view/assistant/assistant-process-callchain.tsx"),
+    readSource("src/features/conversation/shared/message/item/view/assistant/assistant-dm-tool-runs.tsx"),
+  ]);
+
+  assert.match(toggle, /<UiButton/);
+  assert.match(toggle, /aria-expanded=\{expanded\}/);
+  assert.match(toggle, /expanded && "rotate-90"/);
+  for (const source of [thought, callchain, toolRuns]) {
+    assert.match(source, /<MessageDetailToggle/);
+    assert.doesNotMatch(source, /<button\b|ChevronDown|ChevronRight/);
+  }
+});
+
 test("the UI contract gallery stays reproducible and outside production entries", async () => {
   const [html, entry, gallery, additionalGallery, inventory, viteConfig] = await Promise.all([
     readSource("ui-gallery.html"),
