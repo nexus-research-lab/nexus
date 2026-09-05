@@ -316,7 +316,7 @@ Widget 可以认识 Agent、Room、Goal 等产品对象，但只组合下层合�
 
 - `src/**/*.test.tsx`：与 primitive/pattern 共置的 Vitest + jsdom 行为测试，必须通过 Testing Library 从角色、名称和真实用户事件观察组件；
 - `scripts/*.test.mjs`：纯模型、协议、架构边界和禁止项合同；不得在这里伪造 DOM 交互结论，统一入口以有界并发运行，避免大量独立 Vite 转换进程使门禁随机崩溃；
-- `frontend-control-style-contract.test.mjs` 禁止公共 Button、ListAction 和 Select 调用方的静态视觉覆盖；支持别名/命名空间导入、词法作用域内常量、条件表达式与对象展开，同时检查 `className`、`buttonClassName` 和内联 `style`。它允许布局与独立图标内容，不执行动态代码，也不能替代对外部 CSS 和运行时计算样式的审查。
+- `frontend-control-style-contract.test.mjs` 禁止公共 Button、ListAction、Select 与 Form（Input/Textarea/NativeSelect/SearchInput/Checkbox/Choice）调用方的静态视觉覆盖；支持别名/命名空间导入、词法作用域内常量、条件表达式与对象展开，同时检查 `className`、`buttonClassName`、`inputClassName` 和内联 `style`。它允许布局与独立图标内容，不执行动态代码，也不能替代对外部 CSS 和运行时计算样式的审查。
 - `npm run test:components` 与 `npm run test:contracts` 可分别定位失败，`npm test` 必须串行覆盖两类测试。
 - `npm run check` 串行执行 lint、typecheck、上述两类测试和生产构建。
 - `npm run test:browser` 使用固定版本 Playwright 启动独立 Vite 服务器，执行真实浏览器合同；`npm run check:ui` / 根目录 `make check-web` 覆盖完整前端门禁。浏览器依赖首次使用通过 `npx playwright install chromium webkit` 安装，Linux CI 使用 `--with-deps`。
@@ -347,7 +347,9 @@ Provider 和 SVG Filter 等无独立界面的基础设施明确标注其真实�
 初始焦点、Tab 循环、弹窗内浮层命中、逐层 Escape、焦点归还及正常/减少动效。
 受控 Workspace 标签另覆盖选择、创建、固定与键盘关闭后的活动项恢复；业务
 Room 的持久化与最终替换规则由导航功能的共置行为测试独立验证。
-默认表单还覆盖实际输入、原生选择、搜索清除与多行编辑。键盘路径使用真实宿主
+默认表单还覆盖实际输入、原生选择、搜索清除与多行编辑；技术字段覆盖等宽字体、
+验证码的居中命中区与前导零保留，原生 FormData 测试验证展示角色不改写提交值。
+键盘路径使用真实宿主
 遍历规则：macOS WebKit 使用 Option-Tab，其他项目使用 Tab；不修改用户系统
 偏好或伪造 DOM 焦点顺序。模态焦点链由键盘触发验证：关闭后恢复打开前的焦点，
 即键盘触发器；鼠标触发遵循宿主原生 button 聚焦行为，不强制改变 macOS 点击

@@ -10,14 +10,24 @@ const CONTROL_MODULES = new Map([
   ["src/shared/ui/button/split-button", new Set(["UiSplitButton"])],
   ["src/shared/ui/list/list-action", new Set(["UiListActionButton"])],
   ["src/shared/ui/menu/select-menu", new Set(["UiSelectMenu"])],
+  ["src/shared/ui/form/form-control", new Set(["UiInput", "UiTextarea", "UiNativeSelect", "UiSearchInput"])],
+  ["src/shared/ui/form/checkbox", new Set(["UiCheckbox"])],
+  ["src/shared/ui/form/choice", new Set(["UiChoiceButton", "UiRadioChoice"])],
 ]);
-const VISUAL_CLASS = /^(?:bg-|border(?:$|-)|text-(?!(?:left|right|center|justify|start|end|ellipsis|clip|wrap|nowrap|balance|pretty)$)|font-|leading-|tracking-|rounded(?:$|-)|radius-control-|surface-radius-|(?:drop-)?shadow(?:$|-)|(?:ring|outline)(?:$|-)|opacity-|transition(?:$|-)|duration-|ease-|animate-|scale-|rotate-|skew-)/;
+const VISUAL_CLASS = /^(?:bg-|border(?:$|-)|text-(?!(?:left|right|center|justify|start|end|ellipsis|clip|wrap|nowrap|balance|pretty)$)|font-|ui-type-|message-code-font$|accent-|caret-|leading-|tracking-|rounded(?:$|-)|radius-control-|surface-radius-|(?:drop-)?shadow(?:$|-)|(?:ring|outline)(?:$|-)|opacity-|transition(?:$|-)|duration-|ease-|animate-|scale-|rotate-|skew-)/;
 const VISUAL_PROPERTIES = new Set([
   "color", "background", "backgroundColor", "backgroundImage", "border", "borderColor",
   "borderWidth", "borderStyle", "borderRadius", "boxShadow", "outline", "outlineColor",
   "outlineWidth", "font", "fontSize", "fontWeight", "fontFamily", "lineHeight",
   "letterSpacing", "opacity", "transition", "animation",
+  "textShadow", "textDecoration", "textDecorationColor", "accentColor", "caretColor",
 ]);
+
+function isVisualProperty(name) {
+  const camelName = name.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+  return name.startsWith("--") || VISUAL_PROPERTIES.has(camelName)
+    || /^(?:background|border|outline|font|transition|animation)[A-Z]/.test(camelName);
+}
 
 function utilityAfterVariants(token) {
   let nesting = 0;
@@ -29,6 +39,12 @@ function utilityAfterVariants(token) {
     else if (char === ":" && nesting === 0) start = index + 1;
   }
   return token.slice(start).replace(/^!|!$/g, "");
+}
+
+function isVisualClass(token) {
+  const utility = utilityAfterVariants(token);
+  const arbitraryProperty = utility.match(/^\[([^:]+):/);
+  return VISUAL_CLASS.test(utility) || Boolean(arbitraryProperty && isVisualProperty(arbitraryProperty[1]));
 }
 
 export function findControlVisualOverrides(filePath, source) {
@@ -112,9 +128,9 @@ export function findControlVisualOverrides(filePath, source) {
   function inspectProps(node, entries) {
     for (const [property, value] of entries) {
       const invalid = property === "style"
-        ? objectEntries(value).map(([name]) => name).filter((name) => VISUAL_PROPERTIES.has(name) || name.startsWith("--"))
-        : ["className", "buttonClassName"].includes(property)
-          ? strings(value).flatMap((text) => text.split(/\s+/)).filter((token) => VISUAL_CLASS.test(utilityAfterVariants(token)))
+        ? objectEntries(value).map(([name]) => name).filter(isVisualProperty)
+        : ["className", "buttonClassName", "inputClassName"].includes(property)
+          ? strings(value).flatMap((text) => text.split(/\s+/)).filter(isVisualClass)
           : [];
       for (const token of new Set(invalid)) violations.push({
         line: tree.getLineAndCharacterOfPosition(node.getStart(tree)).line + 1,

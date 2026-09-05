@@ -244,7 +244,6 @@ function SlashSearchInput({
         aria-label={placeholder}
         className="w-full"
         controlSize="xs"
-        inputClassName="text-xs leading-4"
         onChange={onChange}
         onKeyDown={(event) => {
           onKeyDown(event);

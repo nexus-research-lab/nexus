@@ -75,7 +75,7 @@ describe("ExecutionWorkGraphControls", () => {
     const searchSurface = searchShell?.parentElement;
 
     expect(document.activeElement).toBe(input);
-    expect(input.className).toContain("ui-type-control");
+    expect(searchShell?.className).toContain("ui-type-control");
     expect(searchShell?.className).toContain("h-7");
     expect(searchSurface?.className).toContain("surface-popover");
     expect(container.querySelectorAll("button:disabled")).toHaveLength(2);

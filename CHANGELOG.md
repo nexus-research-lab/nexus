@@ -45,6 +45,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Unified technical-text and verification-code field presentation through shared
+  form roles, removed private input and search typography, and extended the
+  visual ownership gate to native form and selection controls. Native values,
+  leading zeros, validation attributes and form submission remain unchanged.
 - Consolidated catalog-card hit areas and list actions under shared owners,
   restored keyboard visibility for row actions, and removed consumer color,
   hover and shadow overrides with an import-aware contract gate. Select sizes

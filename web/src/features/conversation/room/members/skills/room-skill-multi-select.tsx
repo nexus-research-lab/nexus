@@ -261,7 +261,6 @@ function RoomSkillMenuPortal({
       <UiSearchInput
         aria-label={searchPlaceholder}
         className="shrink-0"
-        inputClassName="font-medium"
         onChange={onQueryChange}
         placeholder={searchPlaceholder}
         value={query}

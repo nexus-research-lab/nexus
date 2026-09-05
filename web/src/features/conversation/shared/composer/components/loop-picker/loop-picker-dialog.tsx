@@ -58,7 +58,6 @@ function OpenLoopPickerDialog({
                 ref={controller.refs.searchInputRef}
                 aria-label={t("composer.loop_search_placeholder")}
                 className="min-w-0 flex-1"
-                inputClassName="text-sm"
                 onChange={controller.actions.setQuery}
                 placeholder={t("composer.loop_search_placeholder")}
                 value={controller.state.query}

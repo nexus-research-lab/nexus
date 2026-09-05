@@ -1,3 +1,6 @@
+// INPUT: Agent 创建/编辑草稿、身份验证反馈、字段回调与模型选择插槽。
+// OUTPUT: 共用身份布局、标签和文本/源码字段；输入事件交回当前草稿所有者。
+// POS: Agent 身份表单组合层；共享控件持有视觉状态，保存与权限归上层流程。
 "use client";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -168,7 +171,6 @@ export function AgentOptionsIdentityTab({
             {t("agent_options.identity.description")}
           </label>
           <UiTextarea
-            className="min-h-[96px] surface-radius-lg"
             onChange={(event) => onDescriptionChange(event.target.value)}
             placeholder={t("agent_options.identity.description_placeholder")}
             rows={3}
@@ -187,7 +189,7 @@ export function AgentOptionsIdentityTab({
             </p>
           </div>
           <UiTextarea
-            className="message-code-font min-h-[180px] surface-radius-lg text-sm leading-relaxed"
+            className="min-h-[180px]"
             disabled={profileTemplateLoading}
             onChange={(event) => onProfileTemplateChange(event.target.value)}
             placeholder={
@@ -196,6 +198,7 @@ export function AgentOptionsIdentityTab({
                 : t("agent_options.identity.profile_template_placeholder")
             }
             rows={8}
+            textRole="code"
             value={profileTemplate}
           />
           {profileTemplateError ? (

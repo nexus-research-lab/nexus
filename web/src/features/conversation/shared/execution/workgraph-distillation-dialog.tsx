@@ -179,11 +179,12 @@ export function WorkGraphDistillationDialog({
                     <UiInput
                       autoCapitalize="none"
                       autoComplete="off"
-                      className="h-10 pl-11 font-mono font-medium tracking-[-0.01em]"
+                      className="pl-11"
                       disabled={saveState !== "idle"}
                       id="workgraph-slash-name"
                       maxLength={64}
                       spellCheck={false}
+                      textRole="code"
                       value={slashName}
                       variant="dialog"
                       onChange={(event) => {
@@ -211,7 +212,7 @@ export function WorkGraphDistillationDialog({
                     label={t("execution.workflow_description")}
                   >
                     <UiTextarea
-                      className="min-h-28 resize-none leading-6"
+                      className="min-h-28 resize-none"
                       disabled={saveState !== "idle"}
                       id="workgraph-description"
                       maxLength={500}

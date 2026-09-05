@@ -118,6 +118,35 @@ test("default form controls share readable typography and aligned field heights"
   expect(errors).toEqual([]);
 });
 
+test("technical fields share monospace presentation and preserve verification zeros", async ({ page }, info) => {
+  const { errors } = await openGallery(page, info);
+  const path = page.getByRole("textbox", { name: copy(info, "配置路径", "Config path"), exact: true });
+  const template = page.getByRole("textbox", { name: copy(info, "源码模板", "Source template"), exact: true });
+  const verification = page.getByRole("textbox", { name: copy(info, "验证码", "Verification code"), exact: true });
+  for (const field of [path, template, verification]) {
+    expect(await field.evaluate((element) => getComputedStyle(element).fontFamily)).toMatch(/mono/i);
+  }
+  const codeStyle = await verification.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { height: element.getBoundingClientRect().height, align: style.textAlign, spacing: Number.parseFloat(style.letterSpacing) };
+  });
+  expect(codeStyle.height).toBe(48);
+  expect(codeStyle.align).toBe("center");
+  expect(codeStyle.spacing).toBeGreaterThan(0);
+  await verification.fill("002345");
+  await expect(verification).toHaveValue("002345");
+  await expect(verification).toHaveAttribute("type", "text");
+  await path.fill("~/.nexus/workspace");
+  await expect(path).toHaveValue("~/.nexus/workspace");
+  await template.fill("# Agent\nUse shared controls.");
+  await expect(template).toHaveValue("# Agent\nUse shared controls.");
+  for (const [name, field] of [["technical-path", path], ["technical-template", template], ["verification", verification]] as const) {
+    await field.scrollIntoViewIfNeeded();
+    await capture(field.locator("xpath=ancestor::*[contains(@class, 'dialog-field')][1]"), info, name);
+  }
+  expect(errors).toEqual([]);
+});
+
 test("dialog keeps actions visible and returns focus through nested surfaces", async ({ page }, info) => {
   const { errors } = await openGallery(page, info);
   const originalOverflow = await page.locator("body").evaluate((element) => element.style.overflow);
