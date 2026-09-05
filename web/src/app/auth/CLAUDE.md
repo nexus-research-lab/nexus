@@ -10,6 +10,7 @@ L3 | 父级: web/src/app
 - `shared/auth/auth-owner-generation.ts` 只维护进程内 owner 代次；scope reset 在清空前推进代次，已挂载的 WebSocket、Room snapshot 与目录对账回调必须先通过该 fence，不能在 React cleanup 前回填旧数据；清理完成后发布新代次，使未卸载页面重新 acquire 一条新 owner 握手。
 - 无状态 Context 与消费 Hook 留在 `shared/auth/auth-context.ts`，供 Feature 直接读取。
 - owner ID/用户名优先级、本地回退与 marker 格式只由 `shared/auth/auth-owner-identity.ts` 投影。此处继续独占存储、generation 推进和完整 reset 事务；业务只读身份投影不得导入本应用生命周期模块。
+- `auth-owner-scope.ts` 在身份受理后向 Room 导航 Store 注入 owner 绑定和校验；导航快照与 owner 同条持久化，旧 owner 不能通过失效事件认领新快照。`auth-provider.tsx` 将同 owner 的导航存储信号交给 Store 读取当前值，不直接采用事件里的旧 payload。
 
 认证副作用属于应用装配层；`shared/` 不得持有运行时配置请求或用户切换事务。
 owner generation 只丢弃旧回调，不进入持久化、网络协议、路由、缓存 key 或业务身份，也不得触发额外读取。

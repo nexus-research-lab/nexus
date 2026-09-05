@@ -52,7 +52,7 @@ GO_TEST_PACKAGE_PARALLELISM ?= 4
 	dev dev-nxs run-control install gen-protocol-types lint-web test-web test-web-browser check-web typecheck-web prepare-host-data \
 	prepare-dev-runtime-cli \
 	check-backend check-go-vet check-go check-go-fresh check-go-full check test run-web run-backend run-backend-go \
-	app-build-dev app-run-dev app-build app-run app-run-onboarding app-smoke app-check-ui app-package app-dmg app-dmg-intel build-dmg app-check app-win-build app-win-run app-win-smoke app-win-package \
+	app-build-dev app-run-dev app-build app-run app-run-onboarding app-smoke app-check-ui app-check-ui-app app-package app-dmg app-dmg-intel build-dmg app-check app-win-build app-win-run app-win-smoke app-win-package \
 	pull deploy start-no-build ssl-check ssl-issue ssl-renew ssl-renew-dry-run
 
 # Show help
@@ -221,6 +221,9 @@ app-smoke: ## 烟测已组装的 macOS .app
 
 app-check-ui: ## 在独立 macOS 窗口验证当前前端组件与原生输入
 	python3 scripts/desktop/check-macos-ui.py
+
+app-check-ui-app: ## 在独立 macOS 窗口验证真实 Launcher、工作台与窗口恢复
+	python3 scripts/desktop/check-macos-ui.py --suite app-shell
 
 app-package: ## 构建 macOS app zip、sha256 和 metadata
 	NEXUS_DESKTOP_PACKAGE_FORMAT=zip ./scripts/desktop/package-macos-app.sh

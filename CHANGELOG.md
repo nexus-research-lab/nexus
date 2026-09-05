@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added real Launcher/workbench browser and native UI fixtures with read-only
+  HTTP/WebSocket boundaries and a regression that prevents backend forwarding.
 - Added an isolated macOS frontend UI check that compiles the current native
   window and WKWebView, verifies trusted input and nested overlay behavior across
   themes, languages and window sizes, and records source hashes and screenshots.
@@ -47,6 +49,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   changing existing business identities.
 
 ### Changed
+
+- Preserve pinned sessions when another page saves its conversation tabs, and
+  synchronize same-owner navigation changes without restoring another account's data.
+- Keep the shared sidebar rail compact in both languages, using clear short
+  navigation labels with the same icon geometry and behavior.
 
 - Unify catalog filter controls, keep one context-usage detail without duplicate tooltips or Escape focus jumps, and remove obsolete frontend types and helpers while retaining current behavior coverage.
 
