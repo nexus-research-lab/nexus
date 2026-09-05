@@ -51,4 +51,21 @@ describe("UiTooltip", () => {
     fireEvent.pointerDown(trigger);
     expect(screen.queryByRole("tooltip")).toBeNull();
   });
+
+  it("closes a hovered tooltip with Escape without stealing focus or reopening", () => {
+    vi.useFakeTimers();
+    render(<>
+      <input aria-label="Message" />
+      <UiTooltip label="Context"><button type="button">Usage</button></UiTooltip>
+    </>);
+    const input = screen.getByRole("textbox");
+    act(() => input.focus());
+    fireEvent.mouseEnter(screen.getByRole("button"));
+    act(() => vi.advanceTimersByTime(500));
+    expect(screen.getByRole("tooltip")).toBeTruthy();
+    fireEvent.keyDown(document, { key: "Escape" });
+    act(() => vi.advanceTimersByTime(500));
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    expect(document.activeElement).toBe(input);
+  });
 });

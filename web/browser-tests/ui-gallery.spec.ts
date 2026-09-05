@@ -255,6 +255,57 @@ test("default form controls share readable typography and aligned field heights"
   expect(errors).toEqual([]);
 });
 
+test("catalog filters share one shape and context usage has one detail surface", async ({ page }, info) => {
+  const { errors } = await openGallery(page, info, "content");
+  const fixture = page.locator("[data-gallery-product-controls]");
+  const categories = [
+    ["skills", copy(info, "筛选技能分类", "Filter skill categories")],
+    ["connectors", copy(info, "筛选连接器分类", "Filter connector categories")],
+    ["status", copy(info, "筛选频道状态", "Filter channel status")],
+  ].map(([kind, name]) => fixture.locator(`[data-gallery-filter="${kind}"]`).getByRole("button", { name, exact: true }));
+  const metrics = [];
+  for (const trigger of categories) {
+    await expect(trigger).toHaveCount(1);
+    await expect(trigger.locator("svg")).toHaveCount(1);
+    metrics.push(await trigger.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return { height: element.getBoundingClientRect().height, font: style.fontSize,
+        radius: style.borderRadius, padding: style.padding, gap: style.gap };
+    }));
+  }
+  expect(metrics[0]).toEqual(metrics[1]);
+  expect(metrics[0]).toEqual(metrics[2]);
+  await categories[0].click();
+  await page.getByRole("option", { name: copy(info, "写作", "Writing"), exact: true }).click();
+  await expect(categories[0]).toContainText(copy(info, "写作", "Writing"));
+  const selectedLabel = categories[0].getByText(copy(info, "写作", "Writing"), { exact: true });
+  expect(await selectedLabel.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
+  await expect(categories[1]).toContainText(copy(info, "全部", "All"));
+  await capture(fixture.locator('[data-gallery-filter="skills"]'), info, "catalog-filter-skills");
+  await capture(fixture.locator('[data-gallery-filter="connectors"]'), info, "catalog-filter-connectors");
+
+  for (const kind of ["dm", "room"]) {
+    const trigger = fixture.locator(`[data-gallery-context="${kind}"]`).getByRole("button");
+    await trigger.hover();
+    const detail = page.getByRole("tooltip");
+    await expect(detail).toHaveCount(1);
+    // Wait past UiIconButton's automatic tooltip delay to catch a second surface.
+    await page.waitForTimeout(500);
+    await expect(detail).toHaveCount(1);
+    await expectInsideViewport(page, detail);
+    expect(await trigger.getAttribute("aria-describedby")).toBe(await detail.getAttribute("id"));
+    if (kind === "room") {
+      await expect(detail).toContainText("Reader");
+      await expect(detail).toContainText("Writer");
+    }
+    await capture(detail, info, `context-usage-${kind}`);
+    await page.keyboard.press("Escape");
+    await expect(detail).toHaveCount(0);
+    await trigger.blur();
+  }
+  expect(errors).toEqual([]);
+});
+
 test("technical fields share monospace presentation and preserve verification zeros", async ({ page }, info) => {
   const { errors } = await openGallery(page, info);
   const path = page.getByRole("textbox", { name: copy(info, "配置路径", "Config path"), exact: true });

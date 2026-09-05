@@ -48,6 +48,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Unify catalog filter controls, keep one context-usage detail without duplicate tooltips or Escape focus jumps, and remove obsolete frontend types and helpers while retaining current behavior coverage.
+
 - Share one User/Assistant reading layout, keep queue and file-card styles out of data models, and localize file actions without changing message or workspace scope.
 
 - Reuse shared panels, typography and activity rows in private conversations and WorkGraph inspectors; preserve native message-edit geometry, guard IME shortcuts, and move Composer spacing and textarea effects out of state models.
@@ -155,8 +157,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replaced Mermaid-specific mode and copy controls with shared primitives, and
   moved rendered-diagram activation from a simulated role to one native button.
 - Restored the four empty-conversation suggestions as consistent transparent,
-  border-only action blocks without card shadows or persistent fill, and
-  optically aligned the asymmetric Room identity glyph.
+  border-only action blocks without card shadows or persistent fill.
+- Centered the shared empty-conversation welcome surface within the visible DM
+  and Room viewport, tightened its suggestion layout, and corrected spacing
+  around interpolated Agent names in Chinese headings.
 - Unified removable Agent tags and selected Room Skills under one accessible
   chip primitive, separating menu and removal hit targets and honoring disabled
   state for both actions.
@@ -567,6 +571,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Restored conversation WorkGraph draft cards when `nexus.command` returns its
   structured result through the MCP wrapper.
+- Accepted bridge-preserved JSON integer tokens at the command schema boundary,
+  restoring WorkGraph draft revisions with numeric revision and position fields.
 - Fixed shared Dialog layer variants being overridden by a legacy `z-index: 50`
   fallback; ordinary, nested, interaction and system dialogs now resolve through
   their semantic overlay tokens in the browser.

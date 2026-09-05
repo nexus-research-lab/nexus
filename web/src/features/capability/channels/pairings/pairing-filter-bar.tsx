@@ -1,6 +1,7 @@
+// INPUT: 配对目录计数、搜索及渠道/Agent 筛选命令。
+// OUTPUT: 公共目录页签与统一的标签筛选器。
+// POS: Pairing 工具区纯视图；不拥有筛选图标或菜单 DOM。
 "use client";
-
-import { Filter, Users } from "lucide-react";
 
 import {
   CapabilityFilterBar,
@@ -80,7 +81,6 @@ export function PairingFilterBar({
         <CapabilityFilterSelect
           ariaLabel="按渠道筛选"
           label={t("capability.channel_label")}
-          leading={<Filter className="h-3.5 w-3.5" />}
           onChange={(value) => onChange(
             "channel",
             value as ImChannelType | "",
@@ -95,7 +95,6 @@ export function PairingFilterBar({
           ariaLabel="按处理智能体筛选"
           className="sm:w-[220px]"
           label={t("capability.agent_label")}
-          leading={<Users className="h-3.5 w-3.5" />}
           onChange={(value) => onChange("agentId", value)}
           options={[
             { value: "", label: "全部智能体" },

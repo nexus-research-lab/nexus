@@ -1,6 +1,6 @@
 /**
  * INPUT: 空会话身份、会话类型与建议文本选择动作。
- * OUTPUT: 使用共享 Button 与 Typography 合同的静态介绍和快捷建议。
+ * OUTPUT: 在空 Feed 可见区内居中的静态介绍，以及使用共享 Button 与 Typography 合同的紧凑快捷建议。
  * POS: DM/Room canonical timeline 为空时的前端展示，不创建消息或 runtime round。
  */
 "use client";
@@ -71,7 +71,7 @@ export function ConversationEmptyIntroduction({
   return (
     <section
       aria-label={title}
-      className="flex min-h-[clamp(22rem,58vh,42rem)] items-center justify-center px-3 py-12"
+      className="flex min-h-[22rem] flex-1 items-center justify-center px-3 py-10 sm:py-12"
       data-conversation-empty-introduction
     >
       <div className="w-full max-w-[46rem]">
@@ -84,7 +84,7 @@ export function ConversationEmptyIntroduction({
             </span>
           )}
         </div>
-        <h2 className={`mt-6 text-center ${getUiTypographyClassName({
+        <h2 className={`mx-auto mt-5 max-w-[32rem] text-balance text-center ${getUiTypographyClassName({
           role: "featureTitle",
           tone: "strong",
           weight: "medium",

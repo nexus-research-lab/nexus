@@ -8,7 +8,6 @@
 import {
   MessageCircle,
   RefreshCw,
-  SlidersHorizontal,
 } from "lucide-react";
 
 import {
@@ -83,7 +82,6 @@ export function ChannelsDirectory() {
             <CapabilityFilterSelect
               ariaLabel={t("capability.channels_filter_aria")}
               label={t("capability.status_label")}
-              leading={<SlidersHorizontal className="h-3.5 w-3.5" />}
               onChange={(value) => controller.setChannelFilter(
                 value as ChannelFilter,
               )}
