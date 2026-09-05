@@ -209,6 +209,14 @@ WorkGraph 节点和连线详情统一由领域 `ExecutionGraphInspector` 持有�
 不另建 Portal、模态锁或执行状态。顶栏生命周期、部分投影和旧快照提示通过
 `UiBadge` 的 tone/size/shape 表达，业务层不复制徽标颜色与边界配方。
 
+Login 与 Setup 的产品入口共同消费 `features/access/AccessPageFrame` 和
+`AccessPageIntroduction`。Access 只拥有品牌背景、Logo、宣传标题和响应式两栏；
+单列凭证与并排初始化字段通过 regular/wide 表单宽度表达。宣传标题属于品牌 Surface，
+由同一配方拥有尺度；普通文字与表单仍使用 Typography、Panel、Field、Input 和 Button。
+页面不得复制背景或表单材质，也不得把认证状态和初始化命令移入这个展示 Pattern。
+装饰背景上的独立表单使用 `UiPanel variant="filled"`，只由 Panel 消费已有面板
+背景 token；默认透明 card、虚线和无壳 plain 各自保留用途，不在消费者另加背景和阴影。
+
 Widget 可以认识 Agent、Room、Goal 等产品对象，但只组合下层合同，不重新定义基础视觉。Conversation 的 Composer 浮动工作栈属于 conversation widget，不应为了复用 DM/Room 而放进全局 `shared`。
 
 Composer 附件的图片/文本预览与移除统一组合 `UiButton / UiIconButton`，保留独立兄弟命中区；领域只拥有缩略图几何、文件与草稿作用域。图片角上的移除动作使用共享 micro 尺寸，不再保留原生按钮例外。Chip、普通输入壳与 Composer 聚焦壳的圆角只由共享 recipe 定义，消费层不重复设置同值圆角。

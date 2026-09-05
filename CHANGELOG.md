@@ -45,6 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Share the Login and Setup access layout, brand heading scale, and filled Panel surfaces; retain credential and initialization behavior with isolated browser coverage.
 - Consolidate WorkGraph node and relation inspectors into one shared surface pattern, reuse semantic status badges, and verify exact selection, workspace-file actions, and zoom behavior in real browsers.
 - Centralized control and surface radius tokens, restored Tour highlighting,
   and replaced undefined UI color references with existing semantic tokens.

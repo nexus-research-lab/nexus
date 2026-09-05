@@ -1,13 +1,7 @@
-/* INPUT: 登录页品牌图标与辅助插画的主题色。
+/* INPUT: 登录页辅助插画的主题色。
  * OUTPUT: 登录入口专属、可集中调整的品牌投影 recipe。
- * POS: Login 页面视觉；不定义共享按钮高度、圆角或浮层 elevation。
+ * POS: Login 插画视觉；不定义共享按钮高度、圆角或浮层 elevation。
  */
-
-.login-brand-mark {
-  filter: drop-shadow(
-    0 12px 24px color-mix(in srgb, var(--brand) 18%, transparent)
-  );
-}
 
 .login-hero-illustration {
   filter: drop-shadow(

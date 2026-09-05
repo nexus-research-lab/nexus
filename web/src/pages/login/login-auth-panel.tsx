@@ -1,5 +1,5 @@
 // INPUT: 登录表单状态、已分类的认证/提交恢复事实与用户动作。
-// OUTPUT: 共享 Field、Panel、Typography 与恢复提示组成的登录表单，保留输入和提交阻塞态。
+// OUTPUT: 共享 Field、filled Panel、Typography 与恢复提示组成的登录表单，保留输入和提交阻塞态。
 // POS: 登录页展示边界；控件视觉归 shared/ui，不推断提交结果或自行重放登录请求。
 import { ArrowRight } from "lucide-react";
 import type { FormEvent } from "react";
@@ -158,7 +158,7 @@ export function LoginAuthPanel({
 }: LoginAuthPanelProps) {
   const { t } = useI18n();
   return (
-    <UiPanel aria-labelledby="nexus-login-title" className="w-full" padding="lg" radius="lg">
+    <UiPanel aria-labelledby="nexus-login-title" className="w-full" padding="lg" radius="lg" variant="filled">
       <h2 className={getUiTypographyClassName({ role: "objectTitle", tone: "strong" })} id="nexus-login-title">
         {t("login.title")}
       </h2>

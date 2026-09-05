@@ -459,6 +459,7 @@ export function UiContractGallery() {
             </div>
             <div className="grid gap-3 sm:grid-cols-3">
               <UiPanel padding="sm" variant="card"><SurfaceSample label="card" /></UiPanel>
+              <UiPanel padding="sm" variant="filled"><SurfaceSample label="filled" /></UiPanel>
               <UiPanel padding="sm" variant="dashed"><SurfaceSample label="dashed" /></UiPanel>
               <UiPanel padding="sm" variant="plain"><SurfaceSample label="plain" /></UiPanel>
             </div>

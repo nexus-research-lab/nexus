@@ -1556,6 +1556,26 @@ test("auth, Agent, and capability recovery surfaces reuse one inline notice owne
   }
 });
 
+test("Login and Setup consume one branded access layout and shared form surfaces", async () => {
+  const [login, setup, frame, brandCSS] = await Promise.all([
+    readSource("src/pages/login/login-page.tsx"),
+    readSource("src/pages/setup/setup-page.tsx"),
+    readSource("src/features/access/access-page-frame.tsx"),
+    readSource("src/features/access/access-page.css"),
+  ]);
+  for (const page of [login, setup]) {
+    assert.match(page, /<AccessPageFrame\b/);
+    assert.match(page, /<AccessPageIntroduction\b/);
+    assert.doesNotMatch(page, /linear-gradient|text-\[\d+px\]|login-brand-mark|access-hero-title/);
+  }
+  assert.match(setup, /<UiPanel\b/);
+  assert.doesNotMatch(setup, /rounded-\[|color-mix|backdrop-blur|shadow-/);
+  assert.match(frame, /access-hero-title/);
+  assert.match(frame, /getUiTypographyClassName/);
+  assert.match(brandCSS, /\.access-page-background/);
+  assert.match(brandCSS, /\.access-hero-title/);
+});
+
 test("Select, Slash, and multi-select options share one listbox row DOM owner", async () => {
   const [primitive, selectView, slashPicker, roomSkills] = await Promise.all([
     readSource("src/shared/ui/menu/select-menu-primitives.tsx"),

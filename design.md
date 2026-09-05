@@ -109,6 +109,12 @@ App chrome 使用 `shared/ui/typography/typography-styles.ts` 的语义角色，
 
 业务组件只选择 role、tone 和有限的 weight；margin、截断与布局仍由调用方负责。Launcher 品牌字、Markdown/文件阅读正文以及 WorkGraph/图形内必须像素对齐的微标签由所属 Surface 独立管理，并在其所有者文档说明理由。
 
+Login/Setup 的宣传标题是共用 Access 品牌 Surface：640px 以下 44px，以上 64px，
+600 字重与 1.02 行高统一由 `features/access/access-page.css` 持有，不扩展普通 App
+标题阶梯。两页共用背景和品牌入口；表单均使用公共 Panel，不按页面复制玻璃材质。
+装饰背景上的独立表单使用 Panel `filled`，由公共面板 token 提供低透背景和细边界，
+减弱装饰线穿透；普通内容卡保持默认透明 `card`。两种样式均不附加投影。
+
 Settings 不单独维护字号和字重：区块标题、设置项名称、说明与控件文字分别选择上述语义角色。分段选择统一使用 `UiSegmentedControl`，普通设置不使用胶囊圆角，选中态只通过背景与文字对比表达，不加阴影。
 
 - 新会话欢迎：`2xl`、常规字重、宽松行高；一行主要信息 + 一个蓝色 Nexus 签名。

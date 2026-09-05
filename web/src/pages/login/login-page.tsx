@@ -1,7 +1,13 @@
-import { Compass, PanelRightOpen, ShieldCheck } from "lucide-react";
-import { Link, Navigate } from "react-router-dom";
+// INPUT: Login controller page state and access-domain presentation.
+// OUTPUT: Shared access layout with the login introduction and authentication panel.
+// POS: Login route assembly; authentication decisions stay in the controller and common presentation in features/access.
 
-import { APP_ROUTE_PATHS } from "@/shared/navigation/route-paths";
+import { Compass, PanelRightOpen, ShieldCheck } from "lucide-react";
+import { Navigate } from "react-router-dom";
+
+import { AccessPageFrame, AccessPageIntroduction } from "@/features/access/access-page-frame";
+import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import { LoginAuthPanel } from "./login-auth-panel";
 import "./login-page.css";
@@ -25,56 +31,27 @@ const LOGIN_SIGNAL_ITEMS = [
   },
 ] as const;
 
-function LoginBackground() {
-  return (
-    <div
-      aria-hidden="true"
-      className="pointer-events-none absolute inset-0 bg-(--secondary) bg-[linear-gradient(rgba(255,255,255,0.18),rgba(255,255,255,0.18)),linear-gradient(90deg,rgba(255,255,255,0.46)_1px,transparent_1px),linear-gradient(60deg,rgba(255,255,255,0.42)_1px,transparent_1px),linear-gradient(120deg,rgba(255,255,255,0.42)_1px,transparent_1px)] bg-[length:100%_100%,160px_138px,160px_138px,160px_138px]"
-    />
-  );
-}
-
 function LoginIntroduction() {
   return (
-    <section className="relative min-w-0 py-6">
-      <Link
-        aria-label="Back to Nexus home"
-        className="inline-flex items-center gap-3 text-(--text-strong) no-underline"
-        to={APP_ROUTE_PATHS.root}
-      >
-        <img
-          alt=""
-          className="login-brand-mark h-10 w-10 object-contain"
-          src="/logo.webp"
-        />
-        <span className="text-xl font-semibold leading-none">NEXUS</span>
-      </Link>
-
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -top-10 right-[72px] hidden lg:block xl:right-24"
-      >
-        <div className="absolute bottom-2 left-8 h-[74px] w-[144px] rounded-full bg-[color:color-mix(in_srgb,var(--brand)_10%,transparent)] blur-2xl" />
-        <img
-          alt=""
-          className="login-hero-illustration relative h-auto w-[228px] xl:w-[246px]"
-          src="/nexus/relaxing-generated.png"
-        />
-      </div>
-
-      <div className="mt-10 max-w-[620px] sm:mt-14 lg:mt-20">
-        <p className="text-sm font-semibold text-(--text-soft)">
-          Private workspace access
-        </p>
-        <h1 className="mt-4 max-w-[560px] text-[44px] font-semibold leading-[0.98] text-(--text-strong) sm:text-[64px]">
-          Enter the operating surface.
-        </h1>
-        <p className="mt-6 max-w-[520px] text-md leading-8 text-(--text-muted)">
-          Sign in to open the launcher, rooms, workspace files, and review surfaces that keep
-          agent work visible.
-        </p>
-      </div>
-
+    <AccessPageIntroduction
+      backHomeLabel="Back to Nexus home"
+      eyebrow="Private workspace access"
+      title="Enter the operating surface."
+      description="Sign in to open the launcher, rooms, workspace files, and review surfaces that keep agent work visible."
+      artwork={
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -top-10 right-[72px] hidden lg:block xl:right-24"
+        >
+          <div className="absolute bottom-2 left-8 h-[74px] w-[144px] rounded-full bg-[color:color-mix(in_srgb,var(--brand)_10%,transparent)] blur-2xl" />
+          <img
+            alt=""
+            className="login-hero-illustration relative h-auto w-[228px] xl:w-[246px]"
+            src="/nexus/relaxing-generated.png"
+          />
+        </div>
+      }
+    >
       <div className="mt-10 hidden max-w-[680px] gap-3 sm:grid sm:grid-cols-3">
         {LOGIN_SIGNAL_ITEMS.map(({ title, copy, Icon }) => (
           <div
@@ -83,48 +60,40 @@ function LoginIntroduction() {
           >
             <div className="flex items-center gap-2 text-(--text-strong)">
               <Icon className="h-4 w-4 text-[color:color-mix(in_srgb,var(--brand)_88%,transparent)]" />
-              <strong className="text-sm font-semibold">{title}</strong>
+              <strong className={getUiTypographyClassName({ role: "supporting", weight: "semibold" })}>{title}</strong>
             </div>
-            <p className="mt-2 text-sm leading-5 text-(--text-muted)">
+            <p className={cn("mt-2", getUiTypographyClassName({ role: "supporting", tone: "muted" }))}>
               {copy}
             </p>
           </div>
         ))}
       </div>
-    </section>
+    </AccessPageIntroduction>
   );
 }
 
 export function LoginPage() {
   const controller = useLoginPageController();
   if (controller.pageState.kind === "bootstrapping") {
-    return (
-      <main className="relative min-h-screen overflow-hidden bg-(--secondary) text-foreground">
-        <LoginBackground />
-      </main>
-    );
+    return <AccessPageFrame />;
   }
   if (controller.pageState.kind === "redirect") {
     return <Navigate replace to={controller.pageState.path} />;
   }
   return (
-    <main className="relative min-h-screen overflow-hidden bg-(--secondary) px-5 py-8 text-foreground sm:px-8 lg:px-10">
-      <LoginBackground />
-      <div className="relative mx-auto grid min-h-[calc(100vh-4rem)] w-full max-w-[1180px] grid-cols-1 items-center gap-8 lg:grid-cols-[minmax(0,0.96fr)_minmax(360px,430px)] lg:gap-16">
-        <LoginIntroduction />
-        <LoginAuthPanel
-          authFailure={controller.authFailure}
-          formMode={controller.pageState.formMode}
-          isSubmitting={controller.isSubmitting}
-          onChangePassword={controller.setPassword}
-          onChangeUsername={controller.setUsername}
-          onRefresh={controller.refresh}
-          onSubmit={controller.submit}
-          password={controller.password}
-          submitFailure={controller.submitFailure}
-          username={controller.username}
-        />
-      </div>
-    </main>
+    <AccessPageFrame introduction={<LoginIntroduction />}>
+      <LoginAuthPanel
+        authFailure={controller.authFailure}
+        formMode={controller.pageState.formMode}
+        isSubmitting={controller.isSubmitting}
+        onChangePassword={controller.setPassword}
+        onChangeUsername={controller.setUsername}
+        onRefresh={controller.refresh}
+        onSubmit={controller.submit}
+        password={controller.password}
+        submitFailure={controller.submitFailure}
+        username={controller.username}
+      />
+    </AccessPageFrame>
   );
 }

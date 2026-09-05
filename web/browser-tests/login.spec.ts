@@ -77,15 +77,23 @@ async function mockLoginRoute(page: Page, info: TestInfo, passwordLoginEnabled =
   await page.goto("/login");
   const panel = page.getByRole("region", { name: copy(info, "登录 Nexus", "Sign in to Nexus"), exact: true });
   await expect(panel).toBeVisible();
+  expect(await panel.evaluate((element) => getComputedStyle(element).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)");
   await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
   await expect(page.locator("html")).toHaveAttribute("lang", locale === "zh" ? "zh-CN" : "en");
   await page.evaluate(() => document.fonts.ready);
+  const heading = page.locator("[data-access-introduction]").getByRole("heading", { level: 1 });
+  expect(await heading.evaluate((element) => getComputedStyle(element).fontSize)).toBe(page.viewportSize()!.width < 640 ? "44px" : "64px");
+  await expect.poll(() => page.locator("main").evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
   return { panel, errors, unexpectedRequests, loginBodies, releaseLogin, statusReads: () => statusReads };
 }
 
 test("login keeps credentials, keyboard order and exact submission blocking", async ({ page }, info) => {
   const fixture = await mockLoginRoute(page, info);
   const { panel, loginBodies } = fixture;
+  await info.attach("login-introduction", {
+    body: await page.locator("[data-access-introduction]").screenshot({ animations: "disabled" }),
+    contentType: "image/png",
+  });
   const username = panel.getByRole("textbox", { name: copy(info, "用户名", "Username"), exact: true });
   const password = panel.getByLabel(copy(info, "密码", "Password"), { exact: true });
   const submit = panel.getByRole("button", { name: copy(info, "进入工作台", "Enter workspace"), exact: true });
