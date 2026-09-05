@@ -105,10 +105,6 @@ export function getToolTitle(toolName: string, input?: unknown): string {
   return TOOL_TITLE_MAP[semanticToolName] ?? TOOL_TITLE_MAP[toolName] ?? toolName;
 }
 
-export function getToolTitleKey(toolName: string): TranslationKey | null {
-  return TOOL_TITLE_KEY_MAP[getSemanticToolName(toolName)] ?? null;
-}
-
 export function getLocalizedToolTitle(
   toolName: string,
   t: (key: TranslationKey) => string,

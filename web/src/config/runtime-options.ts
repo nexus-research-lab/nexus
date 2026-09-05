@@ -1,3 +1,7 @@
+// INPUT: 当前 owner 的 Agent 默认身份和持久偏好快照。
+// OUTPUT: 已清洗的运行时默认值、偏好变更事件与 owner 切换时的清空入口。
+// POS: 配置内存投影；头像由真实 Agent 资源消费，不保存无人读取的第二份状态。
+
 import type { AgentOptions } from "@/types/agent/agent";
 import type { AgentConversationDefaultDeliveryPolicy } from "@/types/agent/agent-conversation";
 import {
@@ -6,7 +10,6 @@ import {
   type AgentRuntimeKind,
   type UserPreferences,
 } from "@/types/settings/preferences";
-import { DEFAULT_AGENT_AVATAR as NEXUS_DEFAULT_AGENT_AVATAR } from "@/lib/avatar";
 import {
   DEFAULT_AGENT_ALLOWED_TOOLS,
   DEFAULT_AGENT_PERMISSION_MODE,
@@ -17,7 +20,6 @@ import {
 } from "@/lib/settings/preferences-normalization";
 
 let DEFAULT_AGENT_ID = "";
-let DEFAULT_AGENT_AVATAR = NEXUS_DEFAULT_AGENT_AVATAR;
 export const USER_PREFERENCES_CHANGED_EVENT = "nexus:user-preferences-changed";
 let DEFAULT_CHAT_DELIVERY_POLICY: AgentConversationDefaultDeliveryPolicy = "queue";
 let DEFAULT_AGENT_RUNTIME_KIND: AgentRuntimeKind = "nxs";
@@ -43,22 +45,12 @@ let DEFAULT_AGENT_OPTIONS: Partial<AgentOptions> = {
 };
 
 export interface RuntimeOptionsSource {
-  default_agent_avatar?: string | null;
   default_agent_id: string;
   preferences?: UserPreferences | null;
 }
 
 export function getDefaultAgentId(): string {
   return DEFAULT_AGENT_ID;
-}
-
-export function getDefaultAgentAvatar(): string {
-  return DEFAULT_AGENT_AVATAR;
-}
-
-function setDefaultAgentAvatar(avatar?: string | null): void {
-  const normalizedAvatar = avatar?.trim();
-  DEFAULT_AGENT_AVATAR = normalizedAvatar || NEXUS_DEFAULT_AGENT_AVATAR;
 }
 
 export function getInitialAgentOptions(): Partial<AgentOptions> {
@@ -233,14 +225,12 @@ export function applyRuntimeOptions(
   }
 
   DEFAULT_AGENT_ID = nextDefaultAgentId;
-  setDefaultAgentAvatar(source.default_agent_avatar);
   setUserPreferences(source.preferences);
 }
 
 /** Auth owner 变化时先移除上一账号的运行时默认值，再读取新 owner 配置。 */
 export function resetRuntimeOptionsForOwnerChange(): void {
   DEFAULT_AGENT_ID = "";
-  DEFAULT_AGENT_AVATAR = NEXUS_DEFAULT_AGENT_AVATAR;
   DEFAULT_CHAT_DELIVERY_POLICY = "queue";
   DEFAULT_AGENT_RUNTIME_KIND = "nxs";
   DEFAULT_AGENT_SDK_DIAGNOSTICS_ENABLED = false;

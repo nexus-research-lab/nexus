@@ -197,13 +197,6 @@ const PROGRESS_LABEL_ACTIVITY_STATES = new Set<MessageActivityState>([
   "thinking",
 ]);
 
-export function resolveActivityProgressLabel(
-  content: readonly ContentBlock[],
-  activityState: MessageActivityState | null,
-): string | null {
-  return resolveActivityToolUseSummary(content, activityState)?.text ?? null;
-}
-
 export function resolveActivityToolUseSummary(
   content: readonly ContentBlock[],
   activityState: MessageActivityState | null,

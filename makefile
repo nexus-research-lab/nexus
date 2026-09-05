@@ -166,7 +166,7 @@ lint-web: ## Run frontend lint
 test-web: ## Run frontend behavior tests
 	cd web && $(PNPM) run test
 
-test-web-browser: ## Run the shared UI browser matrix (install Playwright Chromium first)
+test-web-browser: ## Run the shared UI browser matrix (install Playwright Chromium and WebKit first)
 	cd web && $(PNPM) run test:browser
 
 check-web: ## Run frontend lint, types, all tests, browser UI matrix and production build

@@ -1,3 +1,7 @@
+// INPUT: Room、成员与 Conversation/Session 的服务端资源。
+// OUTPUT: Web 当前消费的 Room 聚合、成员与管理请求类型。
+// POS: Room 传输类型边界；表单候选投影由对应 Feature 所有，不进入领域资源。
+
 import { Agent, ApiAgent } from "@/types/agent/agent";
 
 export interface RoomMember {
@@ -55,18 +59,6 @@ export interface RoomSessionRecord {
   last_activity_at?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
-}
-
-export interface RoomSessionSelection {
-  value: string;
-  session_key: string;
-  agent_id: string;
-  room_id: string;
-  conversation_id: string;
-  room_type: RoomRecord["room_type"];
-  title: string;
-  session: RoomSessionRecord;
-  label: string;
 }
 
 export interface RoomContextAggregate {

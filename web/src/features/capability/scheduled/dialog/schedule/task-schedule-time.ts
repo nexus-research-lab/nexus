@@ -1,5 +1,6 @@
-import { buildRoomSharedSessionKey } from "@/lib/conversation/session-key";
-import type { RoomContextAggregate, RoomSessionSelection } from "@/types/conversation/room";
+// INPUT: 时区、日期输入、周期单位与既有 Session 标签。
+// OUTPUT: 定时任务时间转换、周期校验与标签格式化。
+// POS: 定时任务表单的纯时间模型；真实执行/投递身份由专属选择器解析。
 
 import { type Weekday, WEEKDAY_OPTIONS } from "../../pickers/picker-types";
 import type { EveryUnit } from "../scheduled-task-dialog-types";
@@ -268,39 +269,4 @@ export function toIntervalSeconds(value: string, unit: EveryUnit): number | null
 
 export function formatSessionLabel(title: string, agentName: string): string {
   return `${title} · ${agentName}`;
-}
-
-export function buildRoomSessionSelections(
-  contexts: RoomContextAggregate[],
-  agentNameById: Map<string, string>,
-  unnamedSessionLabel: string,
-): RoomSessionSelection[] {
-  return contexts.flatMap((context) => {
-    const roomTitle = context.conversation.title?.trim()
-      || context.room.name?.trim()
-      || unnamedSessionLabel;
-    const roomType = context.room.room_type;
-    return context.sessions.map((session) => {
-      const agentName = agentNameById.get(session.agent_id) || session.agent_id;
-      const label = roomType === "group"
-        ? `${roomTitle} · ${agentName}`
-        : `${agentName} · ${roomTitle}`;
-      const sharedSessionKey = buildRoomSharedSessionKey(context.conversation.id);
-      return {
-        value: buildRoomExecutorSelectionKey(sharedSessionKey, session.agent_id),
-        session_key: sharedSessionKey,
-        agent_id: session.agent_id,
-        room_id: context.room.id,
-        conversation_id: context.conversation.id,
-        room_type: roomType,
-        title: roomTitle,
-        session,
-        label,
-      };
-    });
-  });
-}
-
-export function buildRoomExecutorSelectionKey(sharedSessionKey: string, agentId: string): string {
-  return `${sharedSessionKey.trim()}::executor:${agentId.trim()}`;
 }

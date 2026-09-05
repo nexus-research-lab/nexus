@@ -50,7 +50,7 @@ scripts/desktop/package-macos-app.sh
 `build-macos-app.sh` 会组装 `desktop/macos/.build/app/Nexus.app`，其中包含 Swift shell、Go sidecar、`web/dist`、`db/migrations` 与内置 `skills`。
 `smoke-macos-app.sh` 会启动已组装 `.app`，校验 ad-hoc Keychain 旁路、主窗口默认 launcher ready reveal、显式 `/app` 路由 ready、material 标记和退出后 sidecar 无残留。
 `package-macos-app.sh` 会先构建目标架构的 `.app`、下载并预置同架构的 `nxs` runtime、跑 smoke，再输出 zip/dmg、sha256 和 metadata。
-人工 macOS app 验收步骤维护在 `docs/specs/desktop-app-qa-checklist.md`。
+人工 macOS App 验收维护在[回归目录](../../docs/testing/nexus-regression-catalog.md)的桌面升级与桌面集成章节；前端跨宿主验收范围见[前端工程规范](../../docs/specs/frontend-engineering-spec.md)。
 
 本地验证 Keychain 时可以显式设置：
 
