@@ -2,6 +2,7 @@
 
 本目录只持有与 Nexus 业务身份无关的浏览器能力和 React 生命周期；组件 DOM、样式和业务决策由调用者持有。
 
+- `browser/ime-keyboard-event.ts`：唯一原生输入法事件识别，覆盖 composition、Process 和兼容键码；不持有应用快捷键、提交命令或 composition 结束后的计时状态。
 - `browser/clipboard.ts`：唯一剪贴板能力适配，处理异步 API、原生回退、临时元素释放与焦点恢复。
 - `react/use-copy-to-clipboard.ts`：仅绑定本地复制成功反馈；卸载清理计时器并忽略迟到反馈，不取消已提交的原生复制。
 - `react/use-resettable-state.ts`：按调用者提供的 key 重置本地状态，不解释 Session、Room 或资源 revision。

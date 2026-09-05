@@ -9,7 +9,8 @@ L4 | 父级: web/src/features/conversation/shared
 - `controller/`: 草稿状态、消息投递、Goal/Loop、IME 与视图状态编排
 - `composer-history-store.ts`: 按 Room/DM 逻辑聊天隔离并在当前浏览器或 App WebView 内持久化发送历史
 - `use-composer-history.ts`: 将持久化发送历史接入上下键召回、游标与未发送草稿恢复
-- `composer-model.ts`: 输入策略、键盘规则和布局状态表
+- `composer-model.ts`: 输入策略、键盘命令和投递决策；不返回样式
+- `composer-styles.ts`: Composer 局部几何与输入行间距；面板按 compact、队列和 Goal 状态选择配方，控制器不传递 className
 - `composer-draft-store.ts`: 保存正文、图片/文件附件、Message/Goal 模式、Room Goal 负责人和 Mention 目标组成的完整草稿胶囊，并以修订号保护本地派发认领与失败恢复；Goal 提交额外保存 submitting/confirming phase、提交前 durable Goal version fence，以及带 exact transport identity 与恢复修订号的 failed-restored recovery receipt。Auth owner 变化必须清空全部草稿/回执并标记旧快照失效，迟到失败不得把上一账号草稿恢复到新账号
 - `composer-goal-observation.ts` 与 `composer-goal-submission-reconciliation.ts`: 有界观察 GoalPanel owner-scoped 快照，并在 ACK 未知或 post-send 失败恢复后，用更新过的 Goal ID/version 或原 Session exact `client_message_id` durable 控制记录精确收口原 scope
 - `composer-draft-scope.ts`: 分别生成包含 Session ID 的 Room/DM 完整草稿作用域，以及排除 Session ID 的发送历史作用域
@@ -27,7 +28,7 @@ DM 可在桌面端为当前 Session 挂载多个本机工作文件夹，Web 不�
 运行时投影必须保留明确的发送、回复和上下文压缩阶段，Footer 不从通用 loading 状态猜测压缩行为。
 发送目标先投影为 `send/enqueue + delivery policy`，消息提交按资格判断、附件准备、投递和收尾分阶段执行。
 未发送草稿胶囊包含正文、图片/文件附件、Message/Goal 模式、Room Goal 负责人和 Mention 目标，以包含 Session ID 的 Room/DM 作用域保存在客户端内存 Store；切换 Session 时恢复各自完整待发送状态，切换逻辑聊天时同样隔离。成功投递的消息正文仍使用不含 Session ID 的逻辑聊天作用域保存在客户端本地持久化 Store，Web 浏览器与桌面 App WebView 各自独立，禁止接入服务端或跨设备同步；每个作用域最多保留 50 条，总持久化条目保持有界，登出或 owner 切换必须在新身份可见前清空。弹层开关、上传中、错误提示、Mention 匹配浮层、历史游标和召回前的未发送正文属于瞬时 UI，不进入持久化历史。每次 Session 草稿作用域变化都要把 textarea 聚焦到正文末尾并显示最后一行，不能把光标停在首字符前；历史召回后同样把光标放到正文末尾。消息在本地协议派发并建立 optimistic/queue 请求后立即认领并清空提交时修订号仍未变化的当前 Session 完整胶囊；Goal、普通消息、编辑重跑与队列输入都由 exact durable transport owner 跨 Session 切换或新建继续等待，只有页面级请求取消；ACK/拒绝按 client_request_id 收口且只在原 Session 投影。发送前失败或后端明确拒绝只在用户没有继续输入时恢复该胶囊，受理未知绝不恢复，避免重复发送。Goal 的 post-send 明确失败另建 recovery receipt，迟到 durable Goal/控制记录只撤回同一恢复修订号和过时错误，用户后续编辑必须保留，新重试则原子替换旧 receipt；受理未知、accepted 或 committed 进入确认中并明确说明当前影响与不可重复提交。Goal 创建由 ACK、越过提交前 version fence 的 durable Goal，或原 Session exact client_message_id durable 控制记录收口；普通 Error 正文不得作为 Composer 文案。
-中文输入法的 composition 保护属于控制器边界，键盘命令执行前必须按顺序经过 composition、Safari 补发 Enter、Slash 导航和 Mention 导航守卫；Safari 守卫只消费 composition 结束后的 Enter 并阻止浏览器默认提交。
+原生 IME 标志与兼容键码的识别唯一复用 `shared/lib/browser/ime-keyboard-event.ts`；composition 生命周期和结束后的时序仍属于 Composer。中文输入法的 composition 保护属于控制器边界，键盘命令执行前必须按顺序经过 composition、Safari 补发 Enter、Slash 导航和 Mention 导航守卫；Safari 守卫只消费 composition 结束后的 Enter 并阻止浏览器默认提交。
 Slash 命令目录只消费后端从版本化内置清单合成的快照中的公开名称、说明、参数提示和执行类型；输入恰为 `/` 时按公开命令名（忽略前导 `/` 与大小写）字母序展示当前快照的全部指令，继续输入字母后只保留命令名前缀匹配并维持字母序，说明与参数提示只用于展示、不参与匹配。`/skills` 是宿主侧技能入口：一级命令只负责进入技能子面板，技能列表按快照中的当前 Agent ID 拉取并在子面板中筛选，Nexus 内置 Skill 使用共享双语说明参与展示与搜索，最终只把 `/<skill> ` 写回正文；未为当前 Agent 启用的 Skill 以弱化的“单次使用”状态显示并允许显式选择，完整 `SKILL.md` 的读取、参数展开和单轮上下文注入全部由所选 runtime 负责。`/model` 同样进入模型子面板，按当前 runtime 拉取 Nexus Provider 模型选项，并为 Claude runtime 合入版本内置别名；Provider 模型选择写回 `/model <provider>/<model> `，由 Nexus 原子更新当前 Session 的 Provider/模型覆盖，Claude 内置别名保持原生 `/model <alias> ` 透传。其他 host/runtime 选择只把 `/<name> ` 写回正文，发送和排队继续复用普通消息链。所有消息开头的 `/<command>` 都通过不接管指针的同步镜像显示为轻量命令标签，原生 textarea 仍独占输入、光标、选择、IME 与滚动；`/visualize` 同样只写回原始指令，后端在 runtime 投递边界展开简短的 Generative UI 提示，前端不得拼接隐藏提示。前端不得查询命令目录或按浮层打开触发 runtime，浮层查询和选中位置不进入草稿持久化。发送收尾或其他程序化草稿变更使正文不再匹配 Slash 查询时，浮层必须同步关闭。
 输入区 Props 由 DM/Room 的真实消费面定义，不保留无调用者的兼容参数。
 紧凑 Composer 只用于手机与窄窗专注模式：外层至少保留 16px 横向安全留白，较宽窄窗保持 720px 居中上限，底部留白必须覆盖常规间距与系统 safe area；不得把输入壳铺满整个视口。

@@ -1,3 +1,7 @@
+// INPUT: Native textarea events, composition lifecycle and Composer navigation/submit actions.
+// OUTPUT: Ordered composition, Safari Enter, Slash and Mention guards before keyboard commands.
+// POS: Composer keyboard controller; neutral IME event detection belongs to shared/lib/browser.
+
 import {
   useCallback,
   useMemo,
@@ -5,13 +9,11 @@ import {
   type MutableRefObject,
 } from "react";
 import type { KeyboardEvent } from "react";
+import { isCaretOnFirstLine, isCaretOnLastLine } from "./composer-textarea";
+import { isImeKeyboardEvent } from "@/shared/lib/browser/ime-keyboard-event";
 
 import {
   MENTION_NAVIGATION_KEYS,
-  type ComposerNativeKeyboardEvent,
-  isCaretOnFirstLine,
-  isCaretOnLastLine,
-  isImeKeyboardEvent,
   isWithinCompositionEndEnterGuard,
 } from "../composer-model";
 
@@ -152,7 +154,7 @@ function isCompositionEvent(
 ): boolean {
   return [
     compositionState.isComposingRef.current,
-    isImeKeyboardEvent(event.nativeEvent as ComposerNativeKeyboardEvent),
+    isImeKeyboardEvent(event.nativeEvent),
   ].some(Boolean);
 }
 

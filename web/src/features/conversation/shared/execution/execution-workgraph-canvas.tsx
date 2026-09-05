@@ -1,6 +1,6 @@
 /**
  * INPUT: 权威 Execution Graph、Agent 目录、当前 Graph 节点、节点展示密度与精确 Agent round Task run。
- * OUTPUT: 在焦点稳定、全边界可达且不叠加伪主图底框的工作板上显示图标或可读摘要卡片、可整体悬停聚焦的子图、正交流程边、唯一节点/边检查器外壳、共享关闭动作及完整交互的大图弹窗。
+ * OUTPUT: 在焦点稳定、全边界可达且不叠加伪主图底框的工作板上显示图标或可读摘要卡片、可整体悬停聚焦的子图、正交流程边、唯一节点/边检查器外壳、公共静态运行活动行、共享关闭动作及完整交互的大图弹窗。
  * POS: DM/Room 共用的只读 Execution Graph 主视图；一级运行树外框与内部方向边只按结构化父身份投影，不从自由文本反推关系。
  */
 "use client";
@@ -26,6 +26,7 @@ import type { ConversationTaskRun } from "@/features/conversation/shared/todos/t
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import { cn } from "@/shared/ui/class-name";
+import { UiListRow } from "@/shared/ui/list/list-row";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import {
   UiDialogBackdrop,
@@ -1811,44 +1812,51 @@ function ExecutionNodeRunList({
             || "";
           return (
             <li
-              className="flex min-w-0 gap-2 rounded-[9px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-control-background)_68%,transparent)] px-2 py-1.5"
               data-execution-runtime-node={node.id}
               key={node.id}
             >
-              <ExecutionNodeAvatar
-                agent={owner}
-                current={status === "running"}
-                kind={node.kind}
-                size="nested"
-                status={status}
-                title={graphNodeHeading(node, item, t)}
-                toolName={node.name}
-              />
-              <div className="min-w-0 flex-1">
-                <div className="flex min-w-0 items-center gap-1.5">
-                  <span className="truncate font-medium text-(--text-default)">
-                    {graphNodeHeading(node, item, t)}
-                  </span>
-                  <span
-                    aria-hidden="true"
-                    className={cn(
-                      "h-1.5 w-1.5 shrink-0 rounded-full bg-current",
-                      selectedStatusTone(status),
-                    )}
-                  />
+              <UiListRow
+                className="items-start gap-2"
+                density="dense"
+                variant="outlined"
+                leading={
+                <ExecutionNodeAvatar
+                  agent={owner}
+                  current={status === "running"}
+                  kind={node.kind}
+                  size="nested"
+                  status={status}
+                  title={graphNodeHeading(node, item, t)}
+                  toolName={node.name}
+                />
+                }
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <span className={cn("truncate", getUiTypographyClassName({ role: "metadata", tone: "default", weight: "medium" }))}>
+                      {graphNodeHeading(node, item, t)}
+                    </span>
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        "h-1.5 w-1.5 shrink-0 rounded-full bg-current",
+                        selectedStatusTone(status),
+                      )}
+                    />
+                  </div>
+                  {summary ? (
+                    <p className={cn("mt-0.5 line-clamp-2", getUiTypographyClassName({ role: "caption", tone: "soft" }))}>
+                      {summary}
+                    </p>
+                  ) : null}
                 </div>
-                {summary ? (
-                  <p className="mt-0.5 line-clamp-2 text-2xs leading-4 text-(--text-soft)">
-                    {summary}
-                  </p>
-                ) : null}
-              </div>
+              </UiListRow>
             </li>
           );
         })}
       </ul>
       {nodes.length > 8 ? (
-        <p className="mt-1 text-2xs text-(--text-soft)">
+        <p className={cn("mt-1", getUiTypographyClassName({ role: "caption", tone: "soft" }))}>
           {t("execution.runtime_activity_more", { count: nodes.length - 8 })}
         </p>
       ) : null}

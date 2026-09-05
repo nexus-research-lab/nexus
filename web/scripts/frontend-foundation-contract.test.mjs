@@ -888,6 +888,8 @@ test("WorkGraph standard actions use shared controls while graph hit targets sta
   assert.match(canvas, /closeLabel=\{t\("execution\.close_edge_details"\)\}/);
   assert.equal((surface.match(/<UiBadge\b/g) ?? []).length, 3);
   assert.doesNotMatch(surface, /color-mix/);
+  assert.match(canvas, /<UiListRow[\s\S]*?density="dense"[\s\S]*?variant="outlined"/);
+  assert.doesNotMatch(canvas, /rounded-\[9px\]/);
   assert.match(canvas, /<button[\s\S]*?data-execution-edge-hit-target/);
   assert.match(canvas, /<button[\s\S]*?data-execution-graph-node-id/);
   assert.match(canvas, /<button[\s\S]*?data-execution-collapse-node/);
@@ -1090,6 +1092,33 @@ test("Composer shell actions use shared Button primitives", async () => {
   assert.match(roomModelControl, /<UiIconButton/);
   assert.match(roomModelControl, /<UiMenuActionRow/);
   assert.doesNotMatch(roomModelControl, /<button\b/);
+});
+
+test("Composer models keep CSS and textarea side effects in their explicit owners", async () => {
+  const models = await Promise.all([
+    readSource("src/features/conversation/shared/composer/composer-model.ts"),
+    readSource("src/features/conversation/shared/composer/controller/composer-controller-model.ts"),
+  ]);
+  for (const model of models) {
+    const code = ts.createPrinter({ removeComments: true }).printFile(
+      ts.createSourceFile("model.ts", model, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS),
+    );
+    assert.doesNotMatch(code, /ClassName|PaddingClass|CSSProperties|composer-styles|px-\d|pt-\d|pb-\d|\.focus\(|setSelectionRange|scrollTop\s*=/);
+  }
+});
+
+test("private reading surfaces share Panel and metadata owners without removing domain content", async () => {
+  const [timeline, event, css] = await Promise.all([
+    readSource("src/features/agents/private-domain/timeline/agent-private-domain-timeline.tsx"),
+    readSource("src/features/agents/private-domain/timeline/agent-private-domain-event.tsx"),
+    readSource("src/features/agents/private-domain/agent-private-domain.css"),
+  ]);
+  assert.match(timeline, /<UiPanel\b/);
+  assert.match(timeline, /variant="filled"/);
+  assert.match(timeline, /getUiTypographyClassName/);
+  assert.doesNotMatch(css, /nexus-private-domain-reader|box-shadow/);
+  assert.match(event, /getUiTypographyClassName/);
+  assert.match(event, /useWorkspaceMarkdown\(event\.sourceAgentId\)/);
 });
 
 test("Conversation status models expose semantics while LoadingOrb owns motion", async () => {
@@ -2901,6 +2930,15 @@ test("pinned and Room fallback navigation reuse shared action and list owners", 
   assert.match(pinned, /visibility="hover"/);
   assert.match(fallback, /<UiListRow/);
   assert.doesNotMatch(fallback, /<button\b/);
+});
+
+test("browser verification keeps optimized dependencies separate from development and SSR", async () => {
+  const { resolveConfig } = await import("vite");
+  const development = await resolveConfig({ root: webRoot }, "serve", "development");
+  const browser = await resolveConfig({ root: webRoot }, "serve", "browser-test");
+  assert.notEqual(browser.cacheDir, development.cacheDir);
+  assert.equal(browser.cacheDir, path.join(webRoot, "node_modules/.vite-browser-test"));
+  assert.match(await readSource("playwright.config.ts"), /--mode browser-test/);
 });
 
 test("the UI contract gallery stays reproducible and outside production entries", async () => {

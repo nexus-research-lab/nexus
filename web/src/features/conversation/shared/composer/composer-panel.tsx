@@ -28,6 +28,7 @@ import {
 import {
   COMPOSER_COMPACT_LANE_CLASS_NAME,
   COMPOSER_SHELL_CLASS_NAME,
+  getComposerInputRowPaddingClass,
 } from "./composer-styles";
 import { useComposerController } from "./controller/use-composer-controller";
 import { useComposerInteractionHeightGuard } from "./use-composer-interaction-height-guard";
@@ -136,7 +137,11 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
                   value: state.input,
                 }}
                 layout={{
-                  paddingClassName: state.composerInputRowPaddingClass,
+                  paddingClassName: getComposerInputRowPaddingClass(
+                    props.compact,
+                    props.inputQueueItems.length > 0,
+                    state.isGoalMode,
+                  ),
                 }}
                 composerShellRef={refs.composerShellRef}
                 mention={{

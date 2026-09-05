@@ -1,3 +1,7 @@
+// INPUT: Composer capabilities, input and runtime facts, and composition timing facts.
+// OUTPUT: Pure submission, keyboard and delivery decisions; no visual recipes.
+// POS: Composer domain model; browser composition detection is shared and view spacing belongs to composer-styles.
+
 import type { ReactNode } from "react";
 
 import type { Agent } from "@/types/agent/agent";
@@ -108,31 +112,10 @@ export type ComposerRuntimeActivity =
   | "replying"
   | null;
 
-export type ComposerNativeKeyboardEvent = globalThis.KeyboardEvent & {
-  keyCode?: number;
-  which?: number;
-};
-
 interface ComposerDelivery {
   handler: "enqueue" | "send";
   policy: AgentConversationDeliveryPolicy;
 }
-
-const INPUT_ROW_PADDING: Record<
-  "compact" | "regular",
-  Record<"default" | "goal" | "queue", string>
-> = {
-  compact: {
-    default: "px-3.5 pb-0.5 pt-1",
-    goal: "px-3.5 pb-0.5 pt-1",
-    queue: "px-3.5 pb-0.5 pt-0",
-  },
-  regular: {
-    default: "px-3.5 pb-0.5 pt-1.5",
-    goal: "px-3.5 pb-0.5 pt-1.5",
-    queue: "px-3.5 pb-0.5 pt-0.5",
-  },
-};
 
 export const MAX_COMPOSER_INPUT_LENGTH = 10_000;
 export const MENTION_NAVIGATION_KEYS = new Set([
@@ -142,51 +125,7 @@ export const MENTION_NAVIGATION_KEYS = new Set([
   "Tab",
   "Escape",
 ]);
-const IME_COMPOSITION_KEY_CODE = 229;
 export const COMPOSITION_END_ENTER_GUARD_MS = 80;
-
-export function focusComposerInputAtEnd(
-  target: HTMLTextAreaElement,
-): void {
-  const caretPosition = target.value.length;
-  target.focus({ preventScroll: true });
-  target.setSelectionRange(caretPosition, caretPosition);
-  target.scrollTop = target.scrollHeight;
-}
-
-export function isCaretOnFirstLine(target: HTMLTextAreaElement): boolean {
-  const { end, start } = readSelectionRange(target);
-  return [
-    start === end,
-    !target.value.slice(0, start).includes("\n"),
-  ].every(Boolean);
-}
-
-export function isCaretOnLastLine(target: HTMLTextAreaElement): boolean {
-  const { end, start } = readSelectionRange(target);
-  return [
-    start === end,
-    !target.value.slice(end).includes("\n"),
-  ].every(Boolean);
-}
-
-function readSelectionRange(target: HTMLTextAreaElement) {
-  return {
-    end: target.selectionEnd ?? 0,
-    start: target.selectionStart ?? 0,
-  };
-}
-
-export function isImeKeyboardEvent(
-  event: ComposerNativeKeyboardEvent,
-): boolean {
-  return [
-    event.isComposing,
-    event.key === "Process",
-    event.keyCode === IME_COMPOSITION_KEY_CODE,
-    event.which === IME_COMPOSITION_KEY_CODE,
-  ].some(Boolean);
-}
 
 export function isWithinCompositionEndEnterGuard(
   eventTime: number,
@@ -223,19 +162,4 @@ function resolveComposerDeliveryPolicy(
   defaultPolicy: AgentConversationDeliveryPolicy,
 ): AgentConversationDeliveryPolicy {
   return busy ? defaultPolicy : "queue";
-}
-
-export function getComposerInputRowPaddingClass(
-  compact: boolean,
-  hasPendingQueue: boolean,
-  isGoalMode: boolean,
-): string {
-  const density = compact ? "compact" : "regular";
-  const candidates = [
-    { active: isGoalMode, state: "goal" },
-    { active: hasPendingQueue, state: "queue" },
-  ] as const;
-  const state = candidates.find((candidate) => candidate.active)?.state
-    ?? "default";
-  return INPUT_ROW_PADDING[density][state];
 }

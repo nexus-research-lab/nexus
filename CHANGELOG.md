@@ -45,6 +45,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Reuse shared panels, typography and activity rows in private conversations and WorkGraph inspectors; preserve native message-edit geometry, guard IME shortcuts, and move Composer spacing and textarea effects out of state models.
+
 - Share the Login and Setup access layout, brand heading scale, and filled Panel surfaces; retain credential and initialization behavior with isolated browser coverage.
 - Consolidate WorkGraph node and relation inspectors into one shared surface pattern, reuse semantic status badges, and verify exact selection, workspace-file actions, and zoom behavior in real browsers.
 - Centralized control and surface radius tokens, restored Tour highlighting,

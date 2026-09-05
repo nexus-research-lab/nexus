@@ -1,6 +1,6 @@
 /**
  * INPUT: 已确认的联络消息快照、读取失败事实与重试命令。
- * OUTPUT: 可保留旧消息的 Problem/Impact/Recovery 时间线状态。
+ * OUTPUT: 以公共 Panel/元信息排版保留旧消息的 Problem/Impact/Recovery 时间线状态。
  * POS: 私域消息纯展示边界；不发起读取或推断业务结果。
  */
 import {
@@ -13,6 +13,8 @@ import {
 import { type ComponentType } from "react";
 
 import { cn } from "@/shared/ui/class-name";
+import { UiPanel } from "@/shared/ui/panel";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import type {
@@ -50,9 +52,6 @@ interface TimelineDensityStyle {
   body: string;
   header: string;
   headerFrame: string;
-  section: string;
-  subtitle: string;
-  title: string;
 }
 
 interface TimelineBodyViewProps {
@@ -68,17 +67,11 @@ const TIMELINE_DENSITY_STYLES: Record<
     body: "min-h-full px-3 py-3",
     header: "h-10 px-3",
     headerFrame: "border-b border-(--divider-subtle-color)",
-    section: "surface-radius-md border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_30%,transparent)]",
-    subtitle: "text-2xs",
-    title: "text-sm",
   },
   regular: {
     body: "mx-auto min-h-full w-full max-w-[920px] px-6 py-4 max-sm:px-4",
     header: "mx-auto min-h-[48px] w-full max-w-[920px] px-6 py-2 max-sm:px-4",
     headerFrame: "",
-    section: "nexus-private-domain-reader",
-    subtitle: "text-xs",
-    title: "text-sm",
   },
 };
 
@@ -92,7 +85,7 @@ function EmptyTimelineBody({
   return (
     <div className="flex h-full flex-col items-center justify-center gap-2 text-(--text-soft)">
       <Icon className="h-6 w-6" />
-      <span className="text-compact font-semibold">{message}</span>
+      <span className={getUiTypographyClassName({ role: "metadata", weight: "semibold" })}>{message}</span>
     </div>
   );
 }
@@ -158,10 +151,12 @@ export function PrivateEventTimeline({
   });
 
   return (
-    <section
+    <UiPanel
+      data-private-timeline-density={density}
+      padding="none"
+      variant="filled"
       className={cn(
         "flex min-h-0 min-w-0 flex-col overflow-hidden",
-        style.section,
         className,
       )}
     >
@@ -171,11 +166,11 @@ export function PrivateEventTimeline({
           style.header,
         )}>
           <div className="min-w-0">
-            <p className={cn("truncate font-semibold text-(--text-strong)", style.title)}>
+            <p className={cn("truncate", getUiTypographyClassName({ role: "supporting", tone: "strong", weight: "semibold" }))}>
               {header.title}
             </p>
             {header.subtitle ? (
-              <p className={cn("mt-0.5 truncate font-medium text-(--text-soft)", style.subtitle)}>
+              <p className={cn("mt-0.5 truncate", getUiTypographyClassName({ role: "caption", tone: "soft", weight: "medium" }))}>
                 {header.subtitle}
               </p>
             ) : null}
@@ -212,6 +207,6 @@ export function PrivateEventTimeline({
           )}
         </div>
       </div>
-    </section>
+    </UiPanel>
   );
 }
