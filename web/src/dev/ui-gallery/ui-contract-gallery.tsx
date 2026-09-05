@@ -246,7 +246,7 @@ export function UiContractGallery() {
               <UiButton variant="outline">{galleryText(locale, "边框动作", "Outline action")}</UiButton>
               <UiButton variant="ghost"><Copy className="h-4 w-4" />{galleryText(locale, "复制", "Copy")}</UiButton>
               <UiButton tone="danger" variant="surface"><Trash2 className="h-4 w-4" />{galleryText(locale, "删除", "Delete")}</UiButton>
-              <UiButton disabled>{galleryText(locale, "不可用", "Unavailable")}</UiButton>
+              <UiButton disabled tone="primary" variant="solid">{galleryText(locale, "不可用", "Unavailable")}</UiButton>
             </GalleryRow>
             <GalleryRow label="Busy / icon">
               <UiButton aria-busy disabled tone="primary" variant="solid">
@@ -285,7 +285,7 @@ export function UiContractGallery() {
               </UiField>
             </div>
             <UiField label={galleryText(locale, "搜索", "Search")}>
-              <UiSearchInput onChange={setSearchValue} value={searchValue} />
+              <UiSearchInput aria-label={galleryText(locale, "搜索", "Search")} onChange={setSearchValue} value={searchValue} />
             </UiField>
             <div className="grid gap-4 sm:grid-cols-3">
               <UiField label={galleryText(locale, "模型", "Model")}>
@@ -300,8 +300,8 @@ export function UiContractGallery() {
                   value={selectedModel}
                 />
               </UiField>
-              <UiField label={galleryText(locale, "备注", "Notes")}>
-                <UiTextarea key={locale} defaultValue={galleryText(locale, "长内容需要在 320px 下保持可读，不横向溢出。", "Long content must remain readable at 320px without horizontal overflow.")} variant="surface" />
+              <UiField htmlFor="gallery-notes" label={galleryText(locale, "备注", "Notes")}>
+                <UiTextarea id="gallery-notes" key={locale} defaultValue={galleryText(locale, "长内容需要在 320px 下保持可读，不横向溢出。", "Long content must remain readable at 320px without horizontal overflow.")} variant="surface" />
               </UiField>
               <UiField htmlFor="gallery-native-role" label={galleryText(locale, "原生角色", "Native role")}>
                 <UiNativeSelect

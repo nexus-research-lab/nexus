@@ -125,6 +125,7 @@ function PasswordLoginForm({
       </UiField>
       <LoginErrorBanner notice={submitFailure} onCheckStatus={onRefresh} />
       <UiButton
+        aria-busy={isSubmitting || undefined}
         className="w-full"
         disabled={
           isSubmitting

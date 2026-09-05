@@ -42,8 +42,8 @@ jobs:
           corepack enable
           corepack prepare pnpm@9.15.2 --activate
           pnpm install --frozen-lockfile
-      - name: Install browser
-        run: pnpm exec playwright install --with-deps chromium
+      - name: Install browsers
+        run: pnpm exec playwright install --with-deps chromium webkit
       - name: Lint, types, contracts, component behavior and production build
         run: pnpm run check
       - name: Browser UI matrix

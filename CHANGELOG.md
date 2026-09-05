@@ -43,6 +43,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Aligned default shared Button, Form and Select typography and geometry with
+  the design contract; unavailable primary actions are neutral, explicitly busy
+  actions retain their tone, and disabled buttons no longer react to hover.
+- Added representative WebKit coverage and measured control geometry to the UI
+  browser gate, using each host's native keyboard traversal behavior.
+- Connected the mobile conversation switcher to shared modal focus, scroll
+  locking, Escape dismissal and focus restoration while retaining its history
+  filtering and compact sheet geometry.
 - Moved canonical navigation paths into one shared contract, removing upward
   Feature-to-App imports. Removed all known upward dependency exemptions after
   separating page action slots, auth identity, directory events, Markdown

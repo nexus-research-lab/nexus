@@ -4,6 +4,7 @@
 - 生产 TS/TSX 文件必须在首条代码前保留真实、非空的 `INPUT / OUTPUT / POS` 合同；`scripts/frontend-file-contract.test.mjs` 递归检查本所有者，新文件同样受约束。
 - `split-button.tsx` 只组合一个共享边界内的主动作与可选菜单动作；两个命令保留独立 button、焦点和 ARIA，菜单开关及选择事务仍归消费者。
 - 业务命令、权限判断和加载事务由消费者负责。
+- 不可用的 primary 由样式所有者降为同 variant 的中性色；正在执行的动作须显式传 `aria-busy`，保持原 tone、尺寸与 disabled，不能从 disabled 或文案推测事务。danger/success 不降成中性色，禁用控件不响应 hover 变色。普通标签统一 medium 字重与图文间距，具体尺寸以 `design.md` 和共享 size map 为准。
 - `button-styles.ts` 是 primitive 内部视觉投影；`features/pages` 必须渲染 `UiButton / UiLinkButton / UiIconButton`，不得导入样式函数再手写原生 DOM。需要的 size/tone/variant 类型由 `button.tsx` 一并导出。
 - `UiIconButton` 用显式 `tooltip`、`title` 或字符串 `aria-label` 驱动共享 Tooltip；`tooltip={null}` 显式关闭提示，仍独立保留 `aria-label` 或 `title` 提供的可访问名称。省略 `tooltip` 保持自动回退；原生 `title` 不再下发给按钮，避免两套悬浮提示叠加。
 - `UiIconButton` 默认使用随尺寸变化的控件圆角；只有导航返回、更多操作等明确的圆形图标动作才传 `shape="round"`。业务层不得用 `rounded-*` 覆盖形状。

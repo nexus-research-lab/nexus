@@ -123,6 +123,7 @@ describe("LoginAuthPanel shared form", () => {
 
     const submit = screen.getByRole("button", { name: /login\.(submit|submitting)$/ });
     expect((submit as HTMLButtonElement).disabled).toBe(true);
+    expect(submit.getAttribute("aria-busy")).toBe("isSubmitting" in props ? "true" : null);
     expect((screen.getByLabelText("login.username") as HTMLInputElement).value).toBe("owner");
     expect((screen.getByLabelText("login.password") as HTMLInputElement).value).toBe("draft-password");
     await user.click(submit);

@@ -3,6 +3,7 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import ts from "typescript";
 
 import { importLeafTypeScriptModule } from "./import-leaf-typescript-module.mjs";
 import { collectFrontendModuleReferences, resolveFrontendModule } from "./frontend-dependency-model.mjs";
@@ -593,6 +594,34 @@ test("product React does not reintroduce fake button roles", async () => {
     }
   }
   assert.deepEqual(violations, []);
+});
+
+test("domain native buttons match the single documented geometry-owner inventory", async () => {
+  const spec = await readSource("../docs/specs/frontend-engineering-spec.md");
+  const inventory = spec.split("<!-- native-button-owners:start -->")[1]
+    ?.split("<!-- native-button-owners:end -->")[0];
+  assert.ok(inventory, "The native button ownership inventory must remain explicit.");
+  const expected = new Map([...inventory.matchAll(/^\| `(src\/[^`]+)` \| (\d+) \| (.+) \|$/gm)]
+    .map(([, file, count]) => [file, Number(count)]));
+  assert.ok(expected.size > 0);
+  const actual = new Map();
+  const files = (await Promise.all(["features", "pages"].map((root) => collectSourceFiles(path.join(srcRoot, root))))).flat();
+  for (const file of files.filter((file) => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file))) {
+    const source = await readFile(file, "utf8");
+    const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+    let count = 0;
+    function visit(node) {
+      if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && node.tagName.getText(tree) === "button") count += 1;
+      if (ts.isCallExpression(node) && node.arguments[0] && ts.isStringLiteral(node.arguments[0]) && node.arguments[0].text === "button") {
+        const callee = node.expression;
+        if ((ts.isIdentifier(callee) && callee.text === "createElement") || (ts.isPropertyAccessExpression(callee) && callee.name.text === "createElement")) count += 1;
+      }
+      ts.forEachChild(node, visit);
+    }
+    visit(tree);
+    if (count) actual.set(path.relative(webRoot, file), count);
+  }
+  assert.deepEqual([...actual].sort(), [...expected].sort(), "Ordinary actions must consume shared controls; geometry exceptions require an explicit owner and behavior evidence.");
 });
 
 test("Workspace file previews share compact and canvas spinner sizes", async () => {

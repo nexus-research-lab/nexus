@@ -26,14 +26,21 @@ export default defineConfig({
     screenshot: "only-on-failure",
     trace: "retain-on-failure",
   },
-  projects: themes.flatMap((theme) => locales.flatMap((locale) => widths.map((width) => ({
+  projects: [...themes.flatMap((theme) => locales.flatMap((locale) => widths.map((width) => ({
     name: `${theme}-${locale}-${width}`,
     metadata: { theme, locale },
     use: {
       browserName: "chromium" as const,
       viewport: { width, height: width === 320 ? 640 : 900 },
     },
-  })))),
+  })))), ...themes.flatMap((theme) => locales.flatMap((locale) => [320, 1440].map((width) => ({
+    name: `webkit-${theme}-${locale}-${width}`,
+    metadata: { theme, locale },
+    use: {
+      browserName: "webkit" as const,
+      viewport: { width, height: width === 320 ? 640 : 900 },
+    },
+  }))))],
   webServer: {
     command: "npm run dev -- --host 127.0.0.1 --port 3100",
     url: `${baseURL}/ui-gallery.html`,

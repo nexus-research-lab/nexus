@@ -1,3 +1,6 @@
+// INPUT: Launcher 查询草稿、场景实体、最近入口及业务命令。
+// OUTPUT: 随舞台整体缩放的品牌入口、角色图像发送热区和 Agent 物理场景。
+// POS: Launcher 独立场景几何所有者；普通最近入口由共享 Button 组合，不能扩散场景专有按钮样式。
 "use client";
 
 import {

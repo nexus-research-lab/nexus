@@ -4,6 +4,8 @@
 
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
 
+import { moveKeyboardFocus } from "./keyboard";
+
 function copy(info: TestInfo, zh: string, en: string): string {
   return info.project.metadata.locale === "zh" ? zh : en;
 }
@@ -97,10 +99,10 @@ test("login keeps credentials, keyboard order and exact submission blocking", as
   await expect(password).toHaveAttribute("type", "password");
   await username.focus();
   await page.keyboard.insertText("browser-fixture-user");
-  await page.keyboard.press("Tab");
+  await moveKeyboardFocus(page, info);
   await expect(password).toBeFocused();
   await page.keyboard.insertText("browser-fixture-password");
-  await page.keyboard.press("Tab");
+  await moveKeyboardFocus(page, info);
   await expect(submit).toBeFocused();
   expect(await submit.evaluate((element) => element.matches(":focus-visible"))).toBe(true);
   const beforeHover = await submit.boundingBox();
@@ -115,13 +117,16 @@ test("login keeps credentials, keyboard order and exact submission blocking", as
     await page.keyboard.press("Enter");
     await expect.poll(() => loginBodies.length).toBe(1);
     expect(loginBodies[0]).toEqual({ username: "browser-fixture-user", password: "browser-fixture-password" });
-    await expect(panel.getByRole("button", { name: copy(info, "登录中...", "Signing in..."), exact: true })).toBeDisabled();
+    const pending = panel.getByRole("button", { name: copy(info, "登录中...", "Signing in..."), exact: true });
+    await expect(pending).toBeDisabled();
+    await expect(pending).toHaveAttribute("aria-busy", "true");
   } finally {
     fixture.releaseLogin();
   }
 
   await expect(panel.getByText(copy(info, "无法确认是否已经登录", "Could not confirm whether sign-in completed"), { exact: true })).toBeVisible();
   await expect(submit).toBeDisabled();
+  await expect(submit).not.toHaveAttribute("aria-busy", "true");
   await expect(username).toHaveValue("browser-fixture-user");
   await expect(password).toHaveValue("browser-fixture-password");
   await password.focus();
