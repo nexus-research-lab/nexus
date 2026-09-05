@@ -76,7 +76,6 @@ export function AgentMemoryCatalog({
             </UiIconButton>
           )}
           className="min-w-0 flex-1"
-          inputClassName="text-compact"
           onChange={onQueryChange}
           placeholder={t("capability.memory_search_placeholder")}
           value={query}

@@ -1,4 +1,4 @@
-// INPUT: 原生输入属性、字段描述/错误与搜索值变更命令。
+// INPUT: 原生输入属性、内容角色、字段描述/错误与搜索值变更命令。
 // OUTPUT: 统一输入外观、原生校验反馈和可访问搜索清除行为。
 // POS: 文本表单控件原语；不持有业务草稿、提交事务或领域校验规则。
 "use client";
@@ -24,12 +24,14 @@ import {
   getUiFormControlClassName,
   getUiSearchInputShellClassName,
   type UiFormControlSize,
+  type UiFormControlTextRole,
   type UiFormControlVariant,
   type UiSearchInputVariant,
 } from "@/shared/ui/form/form-control-styles";
 
 export type {
   UiFormControlSize,
+  UiFormControlTextRole,
   UiFormControlVariant,
   UiSearchInputVariant,
 } from "@/shared/ui/form/form-control-styles";
@@ -48,6 +50,7 @@ interface UiFieldProps {
 interface UiInputProps extends InputHTMLAttributes<HTMLInputElement> {
   className?: string;
   controlSize?: UiFormControlSize;
+  textRole?: UiFormControlTextRole;
   variant?: UiFormControlVariant;
 }
 
@@ -60,6 +63,7 @@ interface UiNativeSelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
 interface UiTextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
   className?: string;
   controlSize?: UiFormControlSize;
+  textRole?: Exclude<UiFormControlTextRole, "verification">;
   variant?: UiFormControlVariant;
 }
 
@@ -203,6 +207,7 @@ export const UiInput = forwardRef<HTMLInputElement, UiInputProps>(function UiInp
     className,
     controlSize: controlSize,
     type = "text",
+    textRole,
     variant,
     ...props
   },
@@ -212,7 +217,7 @@ export const UiInput = forwardRef<HTMLInputElement, UiInputProps>(function UiInp
     <input
       ref={ref}
       className={getUiFormControlClassName(
-        { size: controlSize, variant },
+        { size: controlSize, textRole, variant },
         cn(className),
       )}
       type={type}
@@ -248,6 +253,7 @@ export const UiTextarea = forwardRef<HTMLTextAreaElement, UiTextareaProps>(funct
   {
     className,
     controlSize: controlSize,
+    textRole,
     variant,
     ...props
   },
@@ -257,7 +263,7 @@ export const UiTextarea = forwardRef<HTMLTextAreaElement, UiTextareaProps>(funct
     <textarea
       ref={ref}
       className={getUiFormControlClassName(
-        { multiline: true, size: controlSize, variant },
+        { multiline: true, size: controlSize, textRole, variant },
         cn("resize-y", className),
       )}
       {...props}

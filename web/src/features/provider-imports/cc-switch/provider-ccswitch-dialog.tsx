@@ -441,11 +441,12 @@ function CCSwitchSourceBar({
       <div className="flex items-center gap-2 border-b border-(--divider-subtle-color) px-5 py-3">
         <UiInput
           aria-label={t("settings.providers.ccswitch_path")}
-          className="min-w-0 flex-1 font-mono text-xs"
+          className="min-w-0 flex-1"
           controlSize="sm"
           disabled={locked}
           onChange={(event) => onConfigDirChange(event.target.value)}
           placeholder="~/.cc-switch"
+          textRole="code"
           value={configDir}
         />
         <UiButton disabled={loading || locked || !configDir.trim()} onClick={onDetect} size="sm" variant="surface">

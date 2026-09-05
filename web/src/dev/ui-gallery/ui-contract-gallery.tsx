@@ -315,6 +315,17 @@ export function UiContractGallery() {
                 </UiNativeSelect>
               </UiField>
             </div>
+            <div className="grid gap-4 sm:grid-cols-3" data-gallery-technical-fields>
+              <UiField htmlFor="gallery-code-path" label={galleryText(locale, "配置路径", "Config path")}>
+                <UiInput defaultValue="~/.nexus/config" id="gallery-code-path" textRole="code" variant="surface" />
+              </UiField>
+              <UiField htmlFor="gallery-code-template" label={galleryText(locale, "源码模板", "Source template")}>
+                <UiTextarea defaultValue={"# Agent\nKeep scope."} id="gallery-code-template" textRole="code" variant="surface" />
+              </UiField>
+              <UiField htmlFor="gallery-verification" label={galleryText(locale, "验证码", "Verification code")}>
+                <UiInput autoComplete="one-time-code" defaultValue="001204" id="gallery-verification" inputMode="numeric" maxLength={6} textRole="verification" variant="surface" />
+              </UiField>
+            </div>
             <GalleryRow label="Select sizes">
               {(["sm", "lg"] as const).map((size) => (
                 <UiSelectMenu

@@ -39,6 +39,16 @@ test("visual guard allows external geometry and independent icon artwork", () =>
   `), []);
 });
 
+test("visual guard handles arbitrary CSS properties without banning arbitrary layout", () => {
+  const source = header + `
+    const view = <Action className="[width:240px] hover:[color:red] focus:[font-weight:600]! [--button-primary-background:red]"
+      style={{ borderTopColor: "red", outlineOffset: 8, width: 240 }} />;
+  `;
+  assert.deepEqual(findControlVisualOverrides(samplePath, source).map((issue) => issue.value), [
+    "hover:[color:red]", "focus:[font-weight:600]!", "[--button-primary-background:red]", "borderTopColor", "outlineOffset",
+  ]);
+});
+
 test("visual guard checks list actions and select trigger classes", () => {
   const source = `
     import { UiListActionButton } from "@/shared/ui/list/list-action";
@@ -60,6 +70,25 @@ test("visual guard respects block and parameter shadowing", () => {
     const view = <Action className={style} />;
   `;
   assert.deepEqual(findControlVisualOverrides(samplePath, source).map((issue) => issue.value), ["bg-(--primary)"]);
+});
+
+test("visual guard covers field content, search inputs and native selection controls", () => {
+  const source = `
+    import { UiInput as Input, UiTextarea, UiNativeSelect, UiSearchInput } from "@/shared/ui/form/form-control";
+    import { UiCheckbox } from "@/shared/ui/form/checkbox";
+    import { UiChoiceButton, UiRadioChoice } from "@/shared/ui/form/choice";
+    const a = <Input className="font-mono" />;
+    const b = <UiTextarea className="message-code-font leading-relaxed" />;
+    const c = <UiNativeSelect className="rounded-full" />;
+    const d = <UiSearchInput inputClassName="ui-type-caption font-medium" />;
+    const e = <UiCheckbox className="accent-red-500" />;
+    const f = <UiChoiceButton style={{ borderColor: "red" }} />;
+    const g = <UiRadioChoice className="bg-red-500" />;
+  `;
+  assert.deepEqual(findControlVisualOverrides(samplePath, source).map((issue) => issue.value), [
+    "font-mono", "message-code-font", "leading-relaxed", "rounded-full", "ui-type-caption",
+    "font-medium", "accent-red-500", "borderColor", "bg-red-500",
+  ]);
 });
 
 async function sourceFiles(directory) {

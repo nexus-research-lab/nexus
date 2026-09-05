@@ -5,7 +5,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { LayoutGrid, List } from "lucide-react";
 import userEvent from "@testing-library/user-event";
-import { useState, type ReactNode } from "react";
+import { createRef, useState, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
@@ -17,6 +17,7 @@ import {
   UiInput,
   UiNativeSelect,
   UiSearchInput,
+  UiTextarea,
 } from "@/shared/ui/form/form-control";
 import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
 
@@ -40,6 +41,36 @@ function renderWithI18n(children: ReactNode) {
 }
 
 describe("form primitives", () => {
+  it("keeps technical text and verification codes as exact native form values", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    const codeRef = createRef<HTMLInputElement>();
+    render(
+      <form onSubmit={(event) => {
+        event.preventDefault();
+        onSubmit(Object.fromEntries(new FormData(event.currentTarget)));
+      }}>
+        <UiInput aria-label="Command" name="command" textRole="code" />
+        <UiTextarea aria-label="Template" name="template" textRole="code" />
+        <UiInput ref={codeRef} aria-label="Verification code" autoComplete="one-time-code" inputMode="numeric" maxLength={6} name="verification" textRole="verification" />
+        <button type="submit">Save</button>
+      </form>,
+    );
+
+    await user.type(screen.getByRole("textbox", { name: "Command" }), "review-work");
+    await user.type(screen.getByRole("textbox", { name: "Template" }), "# Agent{Enter}Keep scope.");
+    const verification = screen.getByRole("textbox", { name: "Verification code" });
+    await user.type(verification, "0012049");
+    expect(codeRef.current).toBe(verification);
+    expect(verification.getAttribute("type")).toBe("text");
+    expect(verification.getAttribute("autocomplete")).toBe("one-time-code");
+    expect(verification.hasAttribute("textrole")).toBe(false);
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(onSubmit).toHaveBeenCalledWith({
+      command: "review-work", template: "# Agent\nKeep scope.", verification: "001204",
+    });
+  });
+
   it("projects native required validation into one accessible field error", async () => {
     const user = userEvent.setup();
     renderWithI18n(

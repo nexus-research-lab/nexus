@@ -220,10 +220,6 @@ function ChannelAuthorizationCodeDialog({
                 ref={inputRef}
                 autoCapitalize="none"
                 autoComplete="one-time-code"
-                className={cn(
-                  "h-12 text-center font-mono tracking-widest",
-                  getUiTypographyClassName({ role: "objectTitle", tone: "strong" }),
-                )}
                 disabled={busy || expiry.expired || writeLocked}
                 id="channel-authorization-code"
                 inputMode="numeric"
@@ -231,6 +227,7 @@ function ChannelAuthorizationCodeDialog({
                 onChange={(event) => setCode(event.target.value)}
                 placeholder="输入验证码"
                 spellCheck={false}
+                textRole="verification"
                 value={code}
                 variant="dialog"
               />

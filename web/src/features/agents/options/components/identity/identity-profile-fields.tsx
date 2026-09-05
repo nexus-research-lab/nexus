@@ -1,3 +1,7 @@
+// INPUT: Agent identity fields, presentation context and name-validation feedback.
+// OUTPUT: Avatar/name editing callbacks and current validation feedback using shared controls.
+// POS: Identity field composition; validation authority and profile persistence remain with the caller.
+
 import { UiInput } from "@/shared/ui/form/form-control";
 import type { AgentNameValidationResult } from "@/types/agent/agent";
 
@@ -6,22 +10,6 @@ import {
   IDENTITY_FIELD_LABEL_CLASS_NAMES,
   type AgentIdentityVariant,
 } from "./identity-layout";
-
-interface IdentityProfileLayout {
-  inputClassName: string;
-  rowClassName: string;
-}
-
-const PROFILE_LAYOUTS: Record<AgentIdentityVariant, IdentityProfileLayout> = {
-  dialog: {
-    inputClassName: "h-10 radius-control-md",
-    rowClassName: "flex items-start gap-3",
-  },
-  inline: {
-    inputClassName: "h-9 radius-control-md",
-    rowClassName: "flex items-start gap-3",
-  },
-};
 
 interface IdentityProfileFieldsProps {
   avatar: string;
@@ -79,7 +67,6 @@ export function IdentityProfileFields({
   validatingLabel,
   variant,
 }: IdentityProfileFieldsProps) {
-  const layout = PROFILE_LAYOUTS[variant];
   const labelClassName = IDENTITY_FIELD_LABEL_CLASS_NAMES[variant];
   const validationFeedback = resolveValidationFeedback({
     isValidatingName,
@@ -89,7 +76,7 @@ export function IdentityProfileFields({
 
   return (
     <>
-      <div className={layout.rowClassName}>
+      <div className="flex items-start gap-3">
         <IdentityAvatarPicker
           avatar={avatar}
           avatarAlt={avatarAlt}
@@ -102,7 +89,6 @@ export function IdentityProfileFields({
             {nameLabel} <span className="text-(--destructive)">*</span>
           </label>
           <UiInput
-            className={layout.inputClassName}
             controlSize="md"
             data-autofocus="true"
             onChange={(event) => onTitleChange(event.target.value)}

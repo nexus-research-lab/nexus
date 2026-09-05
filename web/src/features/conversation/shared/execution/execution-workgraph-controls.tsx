@@ -187,7 +187,6 @@ export function ExecutionWorkGraphControls({
             aria-label={t("execution.search_graph")}
             className="min-w-0 flex-1"
             data-execution-graph-search
-            inputClassName={getUiTypographyClassName({ role: "control", tone: "strong" })}
             onChange={onQueryChange}
             onKeyDown={(event) => {
               if (event.key === "Escape") {
