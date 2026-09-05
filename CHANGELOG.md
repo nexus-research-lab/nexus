@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added a frontend CI gate with import-aware architecture checks, shared UI
+  file contracts, and a reproducible browser matrix across three themes,
+  two languages, and narrow/desktop widths, with screenshots and failure traces.
 - Added a shared split-action Button pattern with independent primary and menu
   commands, keyboard focus, ARIA, tests, and UI Gallery coverage.
 - Added standalone `nexus-control` authentication for server Web deployments,
@@ -40,6 +43,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Moved canonical navigation paths into one shared contract, removing upward
+  Feature-to-App imports. Removed all known upward dependency exemptions after
+  separating page action slots, auth identity, directory events, Markdown
+  capabilities, and conversation-tab commands from shared presentation.
+- Moved generic UI hooks and clipboard access into shared React/browser owners,
+  and released copy-feedback timers and late feedback when consumers unmount.
+- Unified the login form with shared fields, panels, typography, and buttons,
+  preserving keyboard submission and unknown-result recovery behavior.
+- Consolidated single- and multi-select triggers, dialog close actions, and tab
+  dismiss buttons under shared component owners while retaining their existing
+  geometry and behavior. Deferred typography, spacing, and palette tuning to a
+  separate visual phase.
+- Fixed nested overlay dismissal and focus restoration, including overlays
+  initially mounted inside dialogs; disabled selectors now close immediately
+  and remain closed when re-enabled.
+- Fixed action-menu keyboard focus under reduced motion and prevented hidden
+  mention pickers from consuming another component's navigation keys.
+- Separated conversation-tab selection from pin and close hit areas so narrow
+  tabs remain directly selectable without triggering a neighboring action.
 - Unified primary navigation and pinned conversations under one sidebar rail
   action owner, including consistent icon geometry, caption typography,
   current/focus states, and counter-safe accessible names.

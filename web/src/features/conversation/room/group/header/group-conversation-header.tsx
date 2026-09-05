@@ -8,8 +8,8 @@ import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversat
 import { useSidebarStore } from "@/store/sidebar";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiRoomAvatar } from "@/shared/ui/display/avatar";
-import { WorkspaceConversationTabs } from "@/shared/ui/workspace/controls/workspace-conversation-tabs";
-import type { FinalConversationReplacementHandler } from "@/shared/ui/workspace/controls/conversation-tabs/final-conversation-replacement";
+import { RoomConversationTabs } from "@/features/navigation/conversation-tabs/room-conversation-tabs";
+import type { FinalConversationReplacementHandler } from "@/features/navigation/conversation-tabs/final-conversation-replacement";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import type { Agent } from "@/types/agent/agent";
 import type { RoomConversationView } from "@/types/conversation/conversation";
@@ -111,7 +111,7 @@ export const GroupConversationHeader = memo(function GroupConversationHeader({
         )}
         tabs={roomTabs}
         tabsLeading={(
-          <WorkspaceConversationTabs
+          <RoomConversationTabs
             conversationId={conversationId}
             conversations={conversations}
             leadingControl={(

@@ -10,10 +10,16 @@
 
 ### 第一阶段：统一实现与所有权
 
+- 本阶段以“相同语义的组件只有一个实现和样式所有者”为交付目标；先归并公共组件、重复 DOM/交互和消费者覆盖，不同时进行全局字体、字号、间距、配色或密度优化，这些统一留在第二阶段；
 - 盘点按钮、表单、菜单、标签页、弹窗、浮层、列表行、文字层级、状态反馈和页面布局中的私有实现；
 - 相同交互合同归并到唯一 primitive，跨页面的相同几何归并到唯一 pattern，业务页只保留无法抽离的领域状态和特殊几何；
 - 无法归并的原生控件或命中区必须在所属模块文档中说明为什么是例外，并用行为测试锁定语义；
 - 共享组件必须同时拥有 token、状态、焦点、键盘、ARIA、主题和窄屏合同，不得只抽出一段 className。
+
+同一公共组件在不同页面默认使用同一实现与既有语义 variant，不能在消费者
+各自重写一组内部样式。只有业务语义、交互或内容几何确实更适合独立表现时，
+才允许由该领域拥有局部样式；必须写明差异理由、适用范围和行为验证，不能
+以“历史页面就是这样”或“这个页面看起来更好”为由保留第二套普通按钮。
 
 第一阶段的退出条件是：存量私有实现已归并或有明确例外记录，新代码不再扩大重复实现，关键公共行为已有测试和架构门禁。
 
@@ -77,13 +83,19 @@ entries -> app -> pages -> widgets -> features -> entities -> shared
 - `features` 不得 import `widgets / pages / app`；
 - `widgets` 不得 import `pages / app`；
 - 页面路由能力由 page/app 注入，或通过无业务状态的共享 route contract 使用；
-- 跨切片依赖只访问对方的 `public.ts`，不得穿透内部目录。
+- 完成目标结构迁移的 entity/feature/widget 切片之间，只访问对方的 `public.ts`，不得穿透内部目录；尚未迁移的历史目录继续直接导入其职责文件，不为满足命名形式新增全域 barrel。
+
+`web/scripts/frontend-boundaries.test.mjs` 解析 TypeScript AST，统一检查别名、
+相对路径、重导出、动态与 side-effect import。已知反向依赖已清零，门禁不再
+保留历史白名单；不得通过改写 import、移动到含混目录或增加例外恢复向上耦合。
+尚未完成的目录形态迁移仍按下表渐进进行。无状态路由合同由 `shared/navigation/route-paths.ts` 持有，
+页面和 Feature 不得为构造 URL 导入 App 装配层。
 
 ### 2.1 现有目录的归属
 
 | 当前代码 | 目标所有者 |
 | --- | --- |
-| `hooks/ui` | `shared/lib/react` |
+| 中立 UI Hook（原 `hooks/ui`，已迁移） | `shared/lib/react`；非 React 剪贴板适配归 `shared/lib/browser` |
 | `hooks/agent`、`hooks/conversation` | 对应 entity model 或具体 feature |
 | `store/agent`、`store/conversation` | 对应 entity model |
 | 应用壳状态 store | `app/model` 或对应 widget |
@@ -251,6 +263,12 @@ Widget 可以认识 Agent、Room、Goal 等产品对象，但只组合下层合�
 - 文档写稳定不变量，进行中的迁移计划必须标记 `non-normative`；
 - 代码、测试和文档冲突时，不得只改其中一相后结束任务。
 
+`web/scripts/frontend-file-contract.test.mjs` 对已治理的 `shared/ui/button`、
+`dialog / form / menu / navigation / overlay / typography`，以及共享 `lib` 与
+`navigation` 合同递归强制执行文件合同，识别第一条代码前的真实注释，
+拒绝缺项、重复、空内容与占位文本。其他领域随所有权迁移逐批纳入；不能因
+历史文件没有合同而省略新增或修改的业务边界说明，也不为凑覆盖率写机械模板。
+
 ## 8. 测试合同
 
 | 层级 | 必测内容 |
@@ -271,6 +289,9 @@ Widget 可以认识 Agent、Room、Goal 等产品对象，但只组合下层合�
 - `src/**/*.test.tsx`：与 primitive/pattern 共置的 Vitest + jsdom 行为测试，必须通过 Testing Library 从角色、名称和真实用户事件观察组件；
 - `scripts/*.test.mjs`：纯模型、协议、架构边界和禁止项合同；不得在这里伪造 DOM 交互结论，统一入口以有界并发运行，避免大量独立 Vite 转换进程使门禁随机崩溃；
 - `npm run test:components` 与 `npm run test:contracts` 可分别定位失败，`npm test` 必须串行覆盖两类测试。
+- `npm run check` 串行执行 lint、typecheck、上述两类测试和生产构建。
+- `npm run test:browser` 使用固定版本 Playwright 启动独立 Vite 服务器，执行真实浏览器合同；`npm run check:ui` / 根目录 `make check-web` 覆盖完整前端门禁。浏览器依赖首次使用通过 `npx playwright install chromium` 安装，Linux CI 使用 `--with-deps`。
+- `.github/workflows/frontend-check.yml` 对前端与规范变更运行同一套检查，失败不得通过跳过测试、增加重试或更新截图来消除。
 
 视觉回归矩阵至少覆盖：
 
@@ -290,10 +311,22 @@ HTML 入口，不经过登录态、业务 API 或产品路由，也不得加入 
 Provider 和 SVG Filter 等无独立界面的基础设施明确标注其真实消费路径。新增
 公开组件但没有登记时，Gallery 覆盖合同必须失败。
 
-组件陈列面是浏览器验证夹具，不是截图结论本身。任何影响布局、Portal、
-碰撞、视口或交互状态的改动，仍须按上方矩阵在真实浏览器中检查；自动截图
-基线尚未接入前，提交说明必须明确实际检查过的主题、宽度和状态，不得用
-jsdom 或源码正则声称视觉通过。
+`browser-tests/ui-gallery.spec.ts` 是浏览器行为真相入口。默认 Chromium 矩阵
+固定 light/dark/rain × 中文/英文 × 320/767/768/1440px，覆盖按钮禁用/忙碌、
+真实 focus-visible、hover 几何、选择器/动作菜单键盘与禁用项、碰撞翻转和滚动重定位、模态滚动锁、
+初始焦点、Tab 循环、弹窗内浮层命中、逐层 Escape、焦点归还及正常/减少动效。
+受控 Workspace 标签另覆盖选择、创建、固定与键盘关闭后的活动项恢复；业务
+Room 的持久化与最终替换规则由导航功能的共置行为测试独立验证。
+测试使用真实角色/名称和浏览器布局，不通过复制样式或 stub 组件伪造通过。
+`browser-tests/login.spec.ts` 在同一矩阵中打开真实登录路由，以隔离的认证
+响应验证提交、未知结果阻塞、只读恢复与禁用部署。远端聊天 CJK 字体明确
+阻断，截图验收 App 本地字体；不得据此声称远端字体或聊天阅读面已验收。
+
+组件陈列面是验证夹具。截图随 HTML report 输出到 `playwright-report/`，
+失败 trace/截图输出到 `test-results/`，CI 保留 14 天；它们是可复查的视觉
+证据，当前不冒充跨平台像素基线门禁。提交说明必须明确实际检查的浏览器、
+主题、宽度和状态；Chromium 自动化不等于 macOS/Windows 原生窗口 chrome
+或完整业务页面已验收，这些仍按变更范围在实际宿主复查。
 
 ## 9. Agent 修改流程
 
@@ -304,7 +337,7 @@ jsdom 或源码正则声称视觉通过。
 3. 业务页面需要覆盖公共组件视觉时，先证明是新的稳定 variant，而不是添加任意 class；
 4. 同步 `INPUT / OUTPUT / POS`、模块文档和唯一规范；
 5. 添加与变更层级匹配的测试；
-6. 运行目标测试、`npm run lint` 与 `npm run typecheck`；
+6. 迭代期间运行目标测试，交付前运行 `npm run check`；
 7. UI 改动检查窄屏、三主题、键盘焦点和叠层关系；
 8. 用户可见变化同步 `CHANGELOG.md`。
 
@@ -314,7 +347,7 @@ jsdom 或源码正则声称视觉通过。
 2. **Primitive 收口**：Button、Form、Dialog、Overlay、Menu、Tabs 补齐语义 API 与行为测试；
 3. **Pattern 收口**：统一 ResponsiveDialog、AnchoredPopover、FilterBar、SettingsSection 与 Conversation 浮动工作栈；
 4. **所有权迁移**：按业务切片迁移 `hooks / store / types / lib/api`，拆分 `conversation/shared`；
-5. **视觉回归**：组件陈列面已建立；继续接入可移植的浏览器截图矩阵与基线审查；
+5. **视觉回归**：组件陈列面、浏览器行为矩阵与 CI 截图证据已建立；跨平台像素基线和原生宿主整体审查继续按实际环境渐进完成；
 6. **清债**：移除兼容导入、闲置组件、无差异 variant 和过细目录文档，开启强制门禁。
 
 迁移状态不得改变上文规范；尚未迁移的旧代码是已知债务，不是新代码继续复制的先例。

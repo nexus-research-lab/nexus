@@ -9,11 +9,11 @@ import { useCallback, useState } from "react";
 
 import { useExecutionResource } from "@/features/conversation/shared/execution/use-execution-resource";
 import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
-import { useMediaQuery } from "@/hooks/ui/use-media-query";
+import { useMediaQuery } from "@/shared/lib/react/use-media-query";
 import { useDefaultAgentRuntimeKind } from "@/hooks/settings/use-default-agent-runtime-kind";
 import { APP_NARROW_VIEWPORT_MEDIA_QUERY } from "@/lib/layout/home-layout";
 import { buildRoomSharedSessionKey } from "@/lib/conversation/session-key";
-import type { FinalConversationReplacementHandler } from "@/shared/ui/workspace/controls/conversation-tabs/final-conversation-replacement";
+import type { FinalConversationReplacementHandler } from "@/features/navigation/conversation-tabs/final-conversation-replacement";
 import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
 import { Agent, AgentIdentityDraft, AgentNameValidationResult, AgentOptions } from "@/types/agent/agent";
 import { AgentConversationIdentity } from "@/types/agent/agent-conversation";

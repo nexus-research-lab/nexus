@@ -1,11 +1,12 @@
-// INPUT: 单次运行的规范化输出、诊断行与复制动作。
-// OUTPUT: 共享 Panel/Typography 中的结果、错误与可折叠诊断详情。
-// POS: Scheduled 历史详情纯视图；不决定重跑或投递恢复行为。
+// INPUT: 单次运行的规范化输出、持久 Session 身份、诊断行与复制动作。
+// OUTPUT: 绑定历史执行 Agent 的结果预览、错误与可折叠诊断详情。
+// POS: Scheduled 历史详情消费侧；不猜测历史资源归属，不决定重跑或投递恢复行为。
 
 "use client";
 
 import { Copy } from "lucide-react";
 
+import { useWorkspaceMarkdown } from "@/hooks/agent/use-workspace-markdown";
 import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiDisclosure } from "@/shared/ui/disclosure/disclosure";
@@ -17,6 +18,7 @@ import type { ScheduledTaskRunItem } from "@/types/capability/scheduled-task/run
 import {
   getRunDiagnosticRows,
   getRunOutputSections,
+  getRunWorkspaceAgentID,
   type RunOutputSection,
 } from "../scheduled-task-run-diagnostic-model";
 
@@ -33,10 +35,11 @@ export function ScheduledTaskRunDetails({
 }: ScheduledTaskRunDetailsProps) {
   const diagnosticRows = getRunDiagnosticRows(run);
   const outputSections = getRunOutputSections(run);
+  const workspaceAgentId = getRunWorkspaceAgentID(run);
   return (
     <>
       {outputSections.map((section, index) => (
-        <RunOutput key={`${section.label ?? section.tone}:${index}`} section={section} />
+        <RunOutput key={`${section.label ?? section.tone}:${index}`} section={section} workspaceAgentId={workspaceAgentId} />
       ))}
       <UiDisclosure
         className="mt-4"
@@ -65,7 +68,11 @@ export function ScheduledTaskRunDetails({
   );
 }
 
-function RunOutput({ section }: { section: RunOutputSection }) {
+function RunOutput({ section, workspaceAgentId }: {
+  section: RunOutputSection;
+  workspaceAgentId: string | null;
+}) {
+  const { getFilePreviewUrl, resolveFilePath } = useWorkspaceMarkdown(workspaceAgentId);
   if (section.tone === "default") {
     return (
       <div className="mt-3 min-w-0">
@@ -80,7 +87,9 @@ function RunOutput({ section }: { section: RunOutputSection }) {
             section.label && "mt-2",
           )}
           content={section.content}
+          getFilePreviewUrl={getFilePreviewUrl}
           mermaidShowHeader={false}
+          resolveFilePath={resolveFilePath}
         />
       </div>
     );

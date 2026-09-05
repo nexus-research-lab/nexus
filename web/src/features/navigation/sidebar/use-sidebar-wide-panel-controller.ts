@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
-import { AppRouteBuilders } from "@/app/router/route-paths";
+import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 import { isDesktopRuntime } from "@/config/desktop-runtime";
 import { getDefaultAgentId } from "@/config/runtime-options";
 import { useHomeDirectory } from "@/features/home/home-directory-resource";

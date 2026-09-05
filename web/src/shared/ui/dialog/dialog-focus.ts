@@ -1,3 +1,6 @@
+// INPUT: 模态根、可见可操作 DOM 与当前浏览器焦点。
+// OUTPUT: 可聚焦元素目录、根内焦点位置及不滚动页面的聚焦动作。
+// POS: Dialog 焦点几何适配；不决定关闭顺序或键盘规则。
 const FOCUSABLE_SELECTOR = [
   "a[href]",
   "button:not([disabled])",

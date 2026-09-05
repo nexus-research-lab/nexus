@@ -7,8 +7,8 @@
 
 import { useCallback, useLayoutEffect, useRef } from "react";
 
-import { writeTextToClipboard } from "@/hooks/ui/clipboard";
-import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { writeTextToClipboard } from "@/shared/lib/browser/clipboard";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { ScheduledTaskRunItem } from "@/types/capability/scheduled-task/run";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";

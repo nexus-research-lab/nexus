@@ -1,4 +1,4 @@
-import { AppRouteBuilders } from "@/app/router/route-paths";
+import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 import { ensureDirectRoom } from "@/lib/api/conversation/room-command-api";
 import { ApiRequestError } from "@/lib/api/core/http-error";
 import { useAgentStore } from "@/store/agent";

@@ -6,8 +6,8 @@
 import { Check, Copy, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { writeTextToClipboard } from "@/hooks/ui/clipboard";
-import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { writeTextToClipboard } from "@/shared/lib/browser/clipboard";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import {
   isDesktopBridgeAvailable,
   openDesktopExternalURL,

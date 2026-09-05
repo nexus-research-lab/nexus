@@ -134,6 +134,34 @@ describe("UiButton", () => {
     expect(button.getAttribute("title")).toBeNull();
   });
 
+  it("can suppress the tooltip while preserving title-derived and explicit accessible names", async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <UiIconButton title="关闭对话框" tooltip={null}>
+          <span aria-hidden="true">×</span>
+        </UiIconButton>
+        <UiIconButton aria-label="关闭当前面板" title="关闭" tooltip={null}>
+          <span aria-hidden="true">×</span>
+        </UiIconButton>
+        <UiIconButton title="查看详情">
+          <span aria-hidden="true">?</span>
+        </UiIconButton>
+      </>,
+    );
+
+    const titleNamedButton = screen.getByRole("button", { name: "关闭对话框" });
+    expect(titleNamedButton.getAttribute("title")).toBeNull();
+    await user.tab();
+    expect(document.activeElement).toBe(titleNamedButton);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    await user.tab();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "关闭当前面板" }));
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    await user.tab();
+    expect((await screen.findByRole("tooltip")).textContent).toBe("查看详情");
+  });
+
   it("projects circular icon actions through a semantic shape", () => {
     render(
       <UiIconButton aria-label="返回" shape="round" size="lg">

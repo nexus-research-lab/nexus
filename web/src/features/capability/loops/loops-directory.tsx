@@ -9,7 +9,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Check, Copy, Repeat2, RotateCcw } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 
-import { AppRouteBuilders } from "@/app/router/route-paths";
+import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 import {
   CAPABILITY_DIRECTORY_GRID_CLASS_NAME,
   CAPABILITY_DIRECTORY_ROW_CLASS_NAME,
@@ -30,7 +30,7 @@ import { UiListRow } from "@/shared/ui/list/list-row";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type { LoopCatalogItem } from "@/types/capability/loop";
-import { writeTextToClipboard } from "@/hooks/ui/clipboard";
+import { writeTextToClipboard } from "@/shared/lib/browser/clipboard";
 
 import { LoopDetailView } from "./loop-detail-view";
 import { getLoopTriggerLabel } from "./loop-presentation";

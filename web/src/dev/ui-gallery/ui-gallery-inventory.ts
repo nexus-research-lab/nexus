@@ -33,7 +33,7 @@ export const UI_GALLERY_COVERAGE_GROUPS: readonly UiGalleryCoverageGroup[] = [
     mode: "composed",
     renderer: "UiSelectMenu",
     components: [
-      "SelectMenuView", "SelectMenuTriggerContent", "SelectMenuPanel", "SelectMenuOptionRow",
+      "SelectMenuView", "SelectMenuTrigger", "SelectMenuTriggerContent", "SelectMenuPanel", "SelectMenuOptionRow",
     ],
   },
   {
@@ -166,6 +166,13 @@ export const UI_GALLERY_COVERAGE_GROUPS: readonly UiGalleryCoverageGroup[] = [
       "WorkspaceStatusBadge", "WorkspaceConversationTabs", "WorkspaceConversationTab",
       "ConversationTabsScrollRail", "WorkspaceTaskPanel",
     ],
+  },
+  {
+    id: "tab-dismiss-composition",
+    section: "workspace",
+    mode: "composed",
+    renderer: "WorkspaceConversationTab",
+    components: ["UiTabDismissButton"],
   },
   {
     id: "workspace-resource",

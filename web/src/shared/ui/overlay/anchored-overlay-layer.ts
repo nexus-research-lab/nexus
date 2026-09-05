@@ -1,5 +1,5 @@
 // INPUT: 锚点、开关状态、定位投影以及可选的焦点归还策略。
-// OUTPUT: Portal 容器、稳定浮层身份、定位样式和统一的关闭/重定位生命周期。
+// OUTPUT: Portal 容器、稳定浮层身份、定位样式与按模态范围仲裁的关闭/重定位生命周期。
 // POS: 锚定浮层浏览器适配层；不决定 Menu、Tooltip 或 Popover 的内容与键盘语义。
 "use client";
 
@@ -18,6 +18,11 @@ import {
   areAnchoredOverlayPositionsEqual,
   type UiAnchoredOverlayPosition,
 } from "./anchored-overlay-model";
+import {
+  isAnchoredOverlayOutsidePress,
+  isTopAnchoredOverlay,
+  registerAnchoredOverlay,
+} from "./overlay-dismissal-runtime";
 
 interface AnchoredOverlayLayerOptions<T extends HTMLElement> {
   anchorRef: RefObject<T | null>;
@@ -26,6 +31,12 @@ interface AnchoredOverlayLayerOptions<T extends HTMLElement> {
   isOpen: boolean;
   onClose: () => void;
   restoreFocus?: () => void;
+}
+
+interface AnchoredOverlayRegistration {
+  anchor: HTMLElement;
+  overlay: HTMLElement;
+  unregister: () => void;
 }
 
 function buildOverlayStyle(
@@ -64,7 +75,30 @@ export function useAnchoredOverlayLayer<T extends HTMLElement>({
 }: AnchoredOverlayLayerOptions<T>) {
   const overlayId = useId();
   const overlayRef = useRef<HTMLDivElement>(null);
+  const registrationRef = useRef<AnchoredOverlayRegistration | null>(null);
   const [position, setPosition] = useState<UiAnchoredOverlayPosition | null>(null);
+  const portalContainer = resolvePortalContainer(anchorRef.current);
+
+  useLayoutEffect(() => {
+    // RefObject 的挂载不属于 React 依赖；每次提交核对真实节点，节点未变时保留原打开顺序。
+    const anchor = isOpen && !disabled ? anchorRef.current : null;
+    const overlay = anchor ? overlayRef.current : null;
+    const registration = registrationRef.current;
+    if (registration?.anchor === anchor && registration?.overlay === overlay) {
+      return;
+    }
+    registration?.unregister();
+    registrationRef.current = anchor && overlay ? {
+      anchor,
+      overlay,
+      unregister: registerAnchoredOverlay(anchor, overlay),
+    } : null;
+  });
+
+  useLayoutEffect(() => () => {
+    registrationRef.current?.unregister();
+    registrationRef.current = null;
+  }, []);
 
   const updatePosition = useCallback(() => {
     const anchor = anchorRef.current;
@@ -85,18 +119,20 @@ export function useAnchoredOverlayLayer<T extends HTMLElement>({
 
     const handlePointerDown = (event: PointerEvent) => {
       const target = event.target as Node;
-      if (
-        anchorRef.current?.contains(target)
-        || overlayRef.current?.contains(target)
-      ) {
+      if (!isAnchoredOverlayOutsidePress(overlayRef.current, target)) {
         return;
       }
       onClose();
     };
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key !== "Escape" || event.defaultPrevented) {
+      if (
+        event.key !== "Escape"
+        || event.defaultPrevented
+        || !isTopAnchoredOverlay(overlayRef.current)
+      ) {
         return;
       }
+      event.preventDefault();
       onClose();
       if (restoreFocus) {
         restoreFocus();
@@ -124,7 +160,6 @@ export function useAnchoredOverlayLayer<T extends HTMLElement>({
   }, [disabled, isOpen, updatePosition]);
 
   const overlayStyle = buildOverlayStyle(position);
-  const portalContainer = resolvePortalContainer(anchorRef.current);
 
   return {
     overlayId,

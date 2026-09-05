@@ -6,7 +6,7 @@
 - macOS 窄窗口 Header 必须同时声明 `data-desktop-window-controls-leading`，让返回与标题内容避开原生 traffic lights；普通二级页和 Room 还必须共用 `shared/ui/layout/mobile-shell-header-layout.ts` 的高度与 gutter，macOS 高度服从宿主实测控件中心，Windows/浏览器保留客户区默认值，不得在业务文件复制固定尺寸或 padding。
 - `mobile-app-route-model.ts` 是手机布局的信息架构真相源：聊天、联系人、能力为一级目录，其余业务路由为带返回栏的全屏二级页面；设置页标题必须随 URL 中的当前分区变化，不能退回笼统的“设置”。
 - `lib/layout/home-layout.ts` 的 `APP_NARROW_VIEWPORT_MEDIA_QUERY` 与配套可见性类共同定义 559px 壳层交接线：交接线内由手机应用页头负责返回，交接线外管理详情必须保留正文 Header；不得再用 `sm/md/lg` 近似替代并制造中等窗口导航空档。
-- Room 在手机布局中使用自己的会话 Header；联系人、能力、设置等页面由 `mobile-app-page-header.tsx` 提供统一返回语义。页面级动作通过 `mobile-app-page-header-actions.tsx` 与其 Context 投影到标题右侧，不得在正文顶部另起悬空工具行。
+- Room 在手机布局中使用自己的会话 Header；联系人、能力、设置等页面由 `mobile-app-page-header.tsx` 提供统一返回语义。AppLayout 独占页头动作挂载点生命周期，通过 `shared/lib/react/page-header-actions-context.ts` 的中立 Context 将目标交给页面；页面级动作由原页面 Portal 投影到标题右侧，不得在正文顶部另起悬空工具行。
 - 手机一级目录只显示占满窗口的目录壳，不挂载被挤窄的桌面 Outlet；目录壳内部保留带短标签的左侧 Dock 与右侧列表，进入 Room 后隐藏目录壳并改用返回导航。桌面仍保留侧栏与主内容双栏。
 - 应用布局可以组合 Feature；通用 `shared/ui/layout/` 不得反向依赖 Feature。
 - 无侧栏页面通过显式布局参数表达，不复制第二套 Outlet 骨架。

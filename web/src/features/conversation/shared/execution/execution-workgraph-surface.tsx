@@ -18,7 +18,7 @@ import {
 
 import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
 import { ReadResourceReliabilityNotice } from "@/features/conversation/shared/read-resource-reliability-notice";
-import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { previewWorkGraphWorkflowApi } from "@/lib/api/conversation/execution-api";
 import { getErrorMessage } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";

@@ -4,6 +4,8 @@
 "use client";
 
 import { useMemo } from "react";
+
+import { useWorkspaceMarkdown } from "@/hooks/agent/use-workspace-markdown";
 import { LoaderCircle, RefreshCw } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
@@ -299,6 +301,7 @@ function MemoryDocumentBody({
   onSelectPath: (path: string) => void;
 }) {
   const { t } = useI18n();
+  const { resolveFilePath, getFilePreviewUrl } = useWorkspaceMarkdown(agentId);
   const indexEntries = useMemo(
     () => document.kind === "index"
       ? parseMemoryIndexEntries(controller.content)
@@ -362,7 +365,8 @@ function MemoryDocumentBody({
       )}
       content={stripMemoryFrontmatter(controller.content)}
       mermaidShowHeader={false}
-      workspaceAgentId={agentId}
+      getFilePreviewUrl={getFilePreviewUrl}
+      resolveFilePath={resolveFilePath}
     />
   );
 }

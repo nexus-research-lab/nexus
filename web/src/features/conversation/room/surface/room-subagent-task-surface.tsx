@@ -10,7 +10,7 @@ import { SubagentTaskSurface } from "@/features/conversation/shared/subagent/sub
 import { subagentTaskSourceKey } from "@/features/conversation/shared/subagent/subagent-task-model";
 import { useEffect } from "react";
 
-import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { Agent } from "@/types/agent/agent";
 import type { SubagentTaskSource } from "@/types/conversation/subagent-task";

@@ -1,6 +1,6 @@
 // INPUT: Room Skill 目录、已选值、查询状态、禁用态与集合更新命令。
-// OUTPUT: 打开菜单和移除实体互不嵌套的可搜索多选字段。
-// POS: Room Skill 领域多选组合；目录请求和 Room 草稿由上层持有。
+// OUTPUT: 共用 SelectMenuTrigger、菜单和独立 Chip 移除动作的可搜索多选字段。
+// POS: Room Skill 领域多选组合；触发器 DOM 归共享菜单，目录请求和 Room 草稿归上层。
 
 "use client";
 
@@ -28,13 +28,13 @@ import {
   SELECT_MENU_SEARCH_ROW_HEIGHT,
 } from "@/shared/ui/menu/select-menu-model";
 import {
-  getSelectMenuButtonClassName,
   getSelectMenuOptionStateClassName,
   getSelectMenuSizeConfig,
 } from "@/shared/ui/menu/select-menu-styles";
 import {
   SelectMenuOptionRow,
   SelectMenuPanel,
+  SelectMenuTrigger,
   SelectMenuTriggerContent,
 } from "@/shared/ui/menu/select-menu-primitives";
 import { useSelectMenuOverlay } from "@/shared/ui/menu/use-select-menu-overlay";
@@ -329,7 +329,6 @@ export function RoomSkillMultiSelect({
   ), [options.length]);
   const overlay = useSelectMenuOverlay({ disabled, estimatePosition });
   const selectionStyle = triggerSelectionStyle(value);
-  const controlledMenuId = overlay.isOpen ? overlay.menuId : undefined;
 
   const toggleValue = (nextValue: string) => {
     if (disabled) {
@@ -347,23 +346,17 @@ export function RoomSkillMultiSelect({
     <div
       className={cn("relative w-full", selectionStyle.rootClassName)}
     >
-      <button
-        aria-controls={controlledMenuId}
-        aria-disabled={disabled}
-        aria-expanded={overlay.isOpen}
-        aria-haspopup="listbox"
-        aria-label={ariaLabel}
-        className={getSelectMenuButtonClassName({
-          roundedClassName,
-          surface: "dialog",
-          textClassName,
-          className: cn("absolute inset-0", selectionStyle.buttonClassName),
-        })}
+      <SelectMenuTrigger
+        ariaLabel={ariaLabel}
+        buttonRef={overlay.buttonRef}
+        className={cn("absolute inset-0", selectionStyle.buttonClassName)}
         disabled={disabled}
+        isOpen={overlay.isOpen}
+        menuId={overlay.menuId}
         onClick={overlay.toggleMenu}
         onKeyDown={overlay.handleTriggerKeyDown}
-        ref={overlay.buttonRef}
-        type="button"
+        styles={{ roundedClassName, textClassName }}
+        surface="dialog"
       >
         <SelectMenuTriggerContent isOpen={overlay.isOpen}>
           <span className="sr-only">
@@ -372,7 +365,7 @@ export function RoomSkillMultiSelect({
               : placeholder}
           </span>
         </SelectMenuTriggerContent>
-      </button>
+      </SelectMenuTrigger>
       <span className="pointer-events-none relative flex min-h-10 min-w-0 items-center py-1.5 pl-3 pr-10">
         <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
           <SelectedSkillChips

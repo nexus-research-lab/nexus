@@ -49,7 +49,7 @@ GO_TEST_PACKAGE_PARALLELISM ?= 4
 .DEFAULT_GOAL := help
 
 .PHONY: help build build-backend build-web package-release start stop restart logs logs-all logs-nginx clean status \
-	dev dev-nxs run-control install gen-protocol-types lint-web test-web typecheck-web prepare-host-data \
+	dev dev-nxs run-control install gen-protocol-types lint-web test-web test-web-browser check-web typecheck-web prepare-host-data \
 	prepare-dev-runtime-cli \
 	check-backend check-go-vet check-go check-go-fresh check-go-full check test run-web run-backend run-backend-go \
 	app-build-dev app-run-dev app-build app-run app-run-onboarding app-smoke app-package app-dmg app-dmg-intel build-dmg app-check app-win-build app-win-run app-win-smoke app-win-package \
@@ -165,6 +165,12 @@ lint-web: ## Run frontend lint
 
 test-web: ## Run frontend behavior tests
 	cd web && $(PNPM) run test
+
+test-web-browser: ## Run the shared UI browser matrix (install Playwright Chromium first)
+	cd web && $(PNPM) run test:browser
+
+check-web: ## Run frontend lint, types, all tests, browser UI matrix and production build
+	cd web && $(PNPM) run check:ui
 
 typecheck-web: ## Run frontend type check
 	cd web && $(PNPM) run typecheck

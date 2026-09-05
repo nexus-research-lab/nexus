@@ -20,7 +20,7 @@ vi.mock("@/lib/api/capability/loop-api", () => ({
   getLoopApi: mocks.getLoopApi,
 }));
 
-vi.mock("@/hooks/ui/clipboard", () => ({
+vi.mock("@/shared/lib/browser/clipboard", () => ({
   writeTextToClipboard: mocks.writeTextToClipboard,
 }));
 

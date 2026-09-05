@@ -10,7 +10,7 @@ import {
   type SetStateAction,
 } from "react";
 
-import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import {
   getWorkspaceFileContentApi,
   updateWorkspaceFileContentApi,

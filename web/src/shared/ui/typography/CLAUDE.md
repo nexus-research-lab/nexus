@@ -2,6 +2,8 @@
 
 本目录只管理 App chrome 的语义排版角色。调用方继续选择正确的 `h1 / h2 / p / label / code` 标签，再用 `getUiTypographyClassName` 选择视觉角色；排版 helper 不替代 HTML 语义。
 
+生产 TS/TSX 文件必须在首条代码前保留真实、非空的 `INPUT / OUTPUT / POS` 合同；`scripts/frontend-file-contract.test.mjs` 递归检查本所有者，新文件同样受约束。
+
 | 角色 | 固定用途 |
 | --- | --- |
 | `display / featureTitle` | 品牌、欢迎或明确的特性主标题，不进入普通设置卡片 |

@@ -1,3 +1,7 @@
+// INPUT: 侧栏搜索值、占位文案、变更命令与可选尾部动作。
+// OUTPUT: 复用 UiSearchInput 的响应式侧栏搜索行及独立的尾部动作命中区。
+// POS: 侧栏搜索组合 pattern；不筛选资源、不持有搜索草稿，也不派发远端请求。
+
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 import { cn } from "@/shared/ui/class-name";

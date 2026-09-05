@@ -6,7 +6,7 @@
 import { useCallback } from "react";
 
 import { cn } from "@/shared/ui/class-name";
-import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
+import { useCopyToClipboard } from "@/shared/lib/react/use-copy-to-clipboard";
 import type { UserMessage } from "@/types/conversation/message/entity";
 import type { AgentMentionDirectory } from "../../../agent-mention-chip";
 

@@ -4,7 +4,7 @@
 
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 
-import { APP_ROUTE_PATHS } from "@/app/router/route-paths";
+import { APP_ROUTE_PATHS } from "@/shared/navigation/route-paths";
 import { useAuth } from "@/shared/auth/auth-context";
 import { UiButton } from "@/shared/ui/button/button";
 import { AppLoadingState } from "@/shared/ui/layout/app-loading-screen";

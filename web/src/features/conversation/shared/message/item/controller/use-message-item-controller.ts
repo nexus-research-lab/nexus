@@ -6,7 +6,7 @@
 import { useCallback } from "react";
 
 import { useScrollAnchoredState } from "@/features/conversation/shared/timeline/scroll/use-scroll-anchored-state";
-import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
+import { useCopyToClipboard } from "@/shared/lib/react/use-copy-to-clipboard";
 
 import type { MessageItemProps } from "../message-item-types";
 import { resolvePendingInteractionOwner } from "../message-item-projection";

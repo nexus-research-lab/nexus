@@ -1,66 +1,62 @@
 /**
- * INPUT: Room 会话集合、当前选择、标签事务回调与可选固定能力。
- * OUTPUT: 历史/标签/创建导航带，以及与主侧栏同步的固定图钉动作。
- * POS: Workspace 会话标签编排层；集合事务归控制器，单项样式归 tab 视图。
+ * INPUT: 受控标签展示项、活动身份、busy 状态及选择/关闭/固定/创建命令。
+ * OUTPUT: 保持既有几何与滚动的历史/标签/创建导航带。
+ * POS: 共享标签 DOM 与交互视图；不认识 Room Store、会话协议或持久化事务。
  */
 "use client";
 
 import { LoaderCircle, Plus } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { getExternalSessionConversationLabel } from "@/lib/conversation/external-session";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { ConversationTabsScrollRail } from "@/shared/ui/workspace/controls/conversation-tabs/conversation-tabs-scroll-rail";
-import type { FinalConversationReplacementHandler } from "@/shared/ui/workspace/controls/conversation-tabs/final-conversation-replacement";
-import { useConversationTabsController } from "@/shared/ui/workspace/controls/conversation-tabs/use-conversation-tabs-controller";
+import { useConversationTabsLayout } from "@/shared/ui/workspace/controls/conversation-tabs/use-conversation-tabs-layout";
 import { WorkspaceConversationTab } from "@/shared/ui/workspace/controls/conversation-tabs/workspace-conversation-tab";
-import { useRoomNavigationStore } from "@/store/room-navigation";
-import { RoomConversationView } from "@/types/conversation/conversation";
+
+export interface WorkspaceConversationTabItem {
+  id: string;
+  title: string;
+  canClose: boolean;
+  canPin?: boolean;
+  isPinned?: boolean;
+  externalSessionLabel?: string | null;
+}
 
 interface WorkspaceConversationTabsProps {
-  conversations: RoomConversationView[];
-  conversationId: string | null;
+  tabs: readonly WorkspaceConversationTabItem[];
+  activeConversationId: string | null;
+  isCreating?: boolean;
   leadingControl?: ReactNode;
   tourAnchor?: string;
   onSelectConversation: (conversationId: string) => void;
-  onCloseConversation?: (conversationId: string) => Promise<void>;
-  onCreateConversation?: (title?: string) => Promise<string | null>;
-  onReplaceFinalConversation?: FinalConversationReplacementHandler;
-  pinningEnabled?: boolean;
+  onCloseConversation: (conversationId: string) => void;
+  onCreateConversation?: () => void;
+  onTogglePin?: (conversationId: string) => void;
 }
 
 const TRACK_CLASS_NAME =
   "workspace-surface-header-session-tabs-track relative flex h-9 w-full min-w-0 items-center";
 
 export function WorkspaceConversationTabs({
-  conversations,
-  conversationId,
+  tabs,
+  activeConversationId,
+  isCreating = false,
   leadingControl,
   tourAnchor,
   onSelectConversation,
   onCloseConversation,
   onCreateConversation,
-  onReplaceFinalConversation,
-  pinningEnabled = true,
+  onTogglePin,
 }: WorkspaceConversationTabsProps) {
   const { t } = useI18n();
-  const pinnedConversations = useRoomNavigationStore(
-    (state) => state.pinned_conversations,
-  );
-  const togglePinnedConversation = useRoomNavigationStore(
-    (state) => state.toggle_pinned_conversation,
-  );
-  const controller = useConversationTabsController({
-    conversations,
-    conversationId,
+  const controller = useConversationTabsLayout({
+    tabs,
+    activeConversationId,
     hasLeadingControl: Boolean(leadingControl),
-    onCloseConversation,
-    onCreateConversation,
-    onReplaceFinalConversation,
-    onSelectConversation,
+    hasCreateButton: Boolean(onCreateConversation),
   });
 
   return (
@@ -85,41 +81,28 @@ export function WorkspaceConversationTabs({
           onPointerUp={controller.tabsScroll.handlePointerUp}
           ref={controller.tabsScroll.viewportRef}
         >
-          {controller.orderedConversations.map((conversation) => {
-            const conversationId = conversation.conversation_id;
-            const isActive = conversationId === controller.activeConversationId;
-            const title = conversation.title?.trim() || t("room.new_conversation");
-            const canPin = pinningEnabled && Boolean(
-              conversation.room_id.trim() && conversationId.trim(),
-            );
-            const isPinned = pinnedConversations.some((item) => (
-              item.room_id === conversation.room_id
-              && item.conversation_id === conversationId
-            ));
+          {tabs.map((tab) => {
+            const conversationId = tab.id;
+            const isActive = conversationId === activeConversationId;
 
             return (
               <WorkspaceConversationTab
-                canClose={controller.orderedConversations.length > 1 || Boolean(onReplaceFinalConversation)}
-                canPin={canPin}
+                canClose={tab.canClose}
+                canPin={Boolean(tab.canPin && onTogglePin)}
                 closeLabel={t("room.close_conversation")}
                 conversationId={conversationId}
-                externalSessionLabel={getExternalSessionConversationLabel(conversation)}
+                externalSessionLabel={tab.externalSessionLabel ?? null}
                 isActive={isActive}
-                isPinned={isPinned}
+                isPinned={Boolean(tab.isPinned)}
                 key={conversationId}
-                onClose={() => controller.closeConversation(conversationId)}
-                onSelect={() => controller.selectConversation(conversationId)}
-                onTogglePin={() => togglePinnedConversation({
-                  conversation_id: conversationId,
-                  room_id: conversation.room_id,
-                  session_key: conversation.session_key,
-                  title,
-                })}
-                pinLabel={t(isPinned
+                onClose={() => onCloseConversation(conversationId)}
+                onSelect={() => onSelectConversation(conversationId)}
+                onTogglePin={() => onTogglePin?.(conversationId)}
+                pinLabel={t(tab.isPinned
                   ? "room.unpin_conversation"
                   : "room.pin_conversation")}
                 tabWidth={controller.tabWidths.get(conversationId)}
-                title={title}
+                title={tab.title}
               />
             );
           })}
@@ -135,18 +118,18 @@ export function WorkspaceConversationTabs({
 
       {onCreateConversation ? (
         <UiIconButton
-          aria-busy={controller.isCreating}
+          aria-busy={isCreating}
           aria-label={t("room.new_conversation")}
           className="workspace-surface-header-session-tabs-edge-action workspace-surface-header-session-tabs-create relative shrink-0 leading-none focus-visible:z-10"
-          disabled={controller.isCreating}
+          disabled={isCreating}
           onClick={() => {
-            void controller.createConversation();
+            onCreateConversation();
           }}
           size="md"
           tooltip={t("room.new_conversation")}
           variant="ghost"
         >
-          {controller.isCreating ? (
+          {isCreating ? (
             <LoaderCircle
               aria-hidden
               className={getUiSpinnerClassName({ size: "md", tone: "muted" })}

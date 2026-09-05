@@ -12,7 +12,7 @@ import {
   Eye,
 } from "lucide-react";
 
-import { writeTextToClipboard } from "@/hooks/ui/clipboard";
+import { writeTextToClipboard } from "@/shared/lib/browser/clipboard";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";

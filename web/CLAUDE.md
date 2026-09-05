@@ -9,6 +9,7 @@
 - 公共视觉修改必须检查全部消费者，并覆盖窄屏、三主题、键盘焦点和叠层关系；源码正则只能作为架构门禁，不能替代真实交互测试。
 - React primitive/pattern 的行为测试与源码共置为 `*.test.tsx`，使用 Vitest + jsdom + Testing Library；`npm run test:components` 跑 DOM 行为，`npm run test:contracts` 跑 Node 合同，`npm test` 必须覆盖两者。
 - 共享组件的真实浏览器验收使用开发专用 `ui-gallery.html`；它直接消费 `shared/ui`，用 `theme` 与 `locale` 查询参数固定检查条件，不得加入生产构建入口或演变成第二套组件实现。
+- `npm run check` 运行 lint、类型、合同/组件测试及生产构建；公共 UI、布局和浮层变更还必须运行 `npm run test:browser`，或由 `make check-web` 一次执行。浏览器矩阵和验收证据规则只在工程规范中维护。
 - 前端治理固定按三阶段执行：先将可归并的私有控件、样式和交互收口到唯一共享所有者；再基于真实 Web/macOS/Windows 页面复核规范本身的尺寸、密度、字体、命中区、交互状态、频闪与近似模块一致性；最后反向扫描原生控件、重复常量、过渡适配层、无引用导出、不可达分支、失效状态和过期文档，逐项合并、删除或登记为有测试的边界例外。详细退出条件见 `docs/specs/frontend-engineering-spec.md`。
 
 React 19 + Vite 7 + React Router 7 + Tailwind 4 + Zustand + TypeScript
@@ -24,7 +25,7 @@ src/
   features/    - 领域功能实现；`home/home-directory-resource.ts` 负责侧栏与通知共用的聊天目录，`home/hero/` 分离 ASCII Hero 的视图、Canvas 生命周期和粒子模型，`home/notifications/` 分离通知投影、浏览器边界和 Room 协议，`home/sidebar/` 分离聊天/联系人入口、目录投影、未读聚合与 Room 命令，`agents/agent-detail-navigation.ts` 统一 Room 与联系人详情的 Agent 栏目信息架构，`agents/options/` 统一可编辑字段投影、mutation 参数、草稿、校验、自动保存调度与显式保存事务，`contacts/` 只提供目录、卡片和详情视图，`memory/catalog/` 负责 Agent 记忆目录请求与投影，`memory/document/` 分离文档作用域状态、实时资源、保存事务和视图，`conversation/room/workspace/controller/` 分离 Workspace Agent 作用域、文件资源、路径模型和命令，`conversation/room/workspace/view/` 分离文件列表布局、浏览器和弹窗，`capability/skills/` 负责技能市场及其状态域，`capability/connectors/` 按 catalog/detail/auth/controller/custom 分离目录、详情、认证、命令和自定义 MCP，`capability/channels/` 按 catalog/connection/pairings 分离频道目录、连接状态机与 IM 配对，`capability/scheduled/controller/` 分离任务列表资源与写命令，`capability/scheduled/board/` 负责真实状态看板、必要信息卡片和建议空态，`capability/scheduled/dialog/` 按 form/schedule/resources 分离任务表单、调度规则与依赖资源，`capability/scheduled/pickers/` 统一时间列和锚定浮层，`conversation/shared/goal/` 负责 Goal 资源快照、命令和视图，`conversation/shared/session/` 统一 DM/Room 会话基础设施并由各投影定义窄 Session Source，`conversation/shared/timeline/` 负责时间线投影与窗口加载，`conversation/shared/timeline/scroll/` 负责跟随、锚定、动画和轮次 DOM 协议，`conversation/shared/todos/` 负责合并 TodoWrite、TaskCreate/List/Update 与运行时任务，`conversation/shared/composer/controller/` 负责 DM/Room 输入状态与动作协议，`conversation/shared/feed/` 负责 DM 轮次渲染及共享虚拟列表协议，`conversation/shared/message/item/` 按 controller 与 view/content/assistant/user 分离轮次投影、内容块、助手和用户视图，`conversation/shared/subagent/` 负责子智能体列表和只读线程资源，`conversation/room/dm/panel/` 负责 DM 页面模型与视图，`conversation/room/surface/header/` 保存 DM/Group 共用导航，`conversation/room/surface/mobile/` 分离移动端头部、会话 Sheet 和全屏 Overlay，`conversation/room/surface/layout/` 负责桌面分栏与右栏编排，`conversation/room/group/chat/panel/` 负责 Room 会话编排，`conversation/room/group/chat/feed/` 负责 Room 轮次渲染，`conversation/room/group/round/` 负责 Room Agent 轮次与 Thread 纯投影，`conversation/room/members/` 负责 Room 成员与设置表单，`conversation/shared/session-navigator/` 负责轮次导航，`settings/operations/` 负责角色受限的订阅运营与公共 Provider 管理，`settings/general/` 按 model/sections/components 分离通用偏好、模型、Echo 开关与视图，`settings/personal/` 分离个人资料资源、头像/密码命令、密码规则和视图，`settings/shared/` 保存设置型表面的跨域共享 UI，`settings/provider-settings/` 按 `model/`、`actions/config/` 与其他窄动作分离 Provider 纯模型、字段联动、持久化、删除和模型命令
   features/conversation/shared/execution/ - 后端 WorkGraph 的唯一只读资源、状态投影、Composer 实时缩略图与 DM/Room 共用完整工作图 Surface；隐藏编辑 DM 按服务端返回的 exact Agent ID 补载全局 Agent 目录，不以来源会话成员列表判定编辑器能否打开
   config/      - `runtime-endpoints.ts`、`runtime-options.ts` 与 `conversation-policy.ts` 分离端点解析、当前作用域快照和固定会话策略；`desktop-runtime/` 按宿主配置、鉴权、OAuth 和生命周期协议分层
-  hooks/       - 自定义 React Hooks；`agent/` 按动作、消息模型、会话、运行态和传输协议分层
+  hooks/       - 待按领域切片迁移的 React Hooks；`agent/` 按动作、消息模型、会话、运行态和传输协议分层；中立 UI Hooks 已移至 `shared/lib/react/`，原生浏览器能力归 `shared/lib/browser/`
   lib/         - 无业务状态的基础函数与协议客户端；根目录保存错误、头像和未知值等跨领域纯投影，`format/` 按展示值类型分离格式化规则，`api/` 按 core/agent/account/capability/conversation/settings 分离传输与领域协议，`websocket/` 按策略、心跳、单连接客户端、共享通道和 React 生命周期分层
   shared/      - 无业务所有权的 UI、认证 Context、i18n 和跨页面原语；`ui/` 按 button/form/display/list/navigation 分离基础交互职责，`ui/liquid-glass/` 分离能力探测、动画资源、滤镜链和组件装配，`i18n/catalog/` 按领域分离双语文案并逐分片校验键集合，`ui/markdown/` 统一 Markdown 渲染，`ui/mention/` 统一目标选择、文本匹配和插入，`ui/overlay/` 统一锚点定位与浏览器生命周期，`ui/menu/` 保存具体菜单语义
   store/       - Zustand 状态管理（agent + session 独立 store，room-navigation 按 Room 持久化标签集合、顺序与活动会话，并保存跨 Room 的有序固定会话偏好）
@@ -45,7 +46,7 @@ src/
 - Agent 运行态由 `hooks/agent/runtime/` 按纯模型、易失快照和 React 状态分层；状态机实例不得暴露给编排层，`model/` 不得反向依赖存储或 Hook
 - Agent 目录 Store 只保留静态目录与当前选择；运行态事件只在会话/工作区链路中消费，不回写 Agent 目录状态
 - WebSocket 连接策略只由 `lib/websocket/socket-policy.ts` 定义；共享通道使用完整有效配置作为身份，业务消息不得进入离线队列；Room/DM 的 Session bind 由共享通道内部的逻辑租约统一引用计数并在重连后重放，单个组件 cleanup 不得直接解绑仍被其他消费者使用的 Session。已派发的用户消息、编辑重跑、队列输入与 Goal 都由 exact `client_request_id` 请求租约继续持有原物理连接与 Session binding，零 React subscriber、普通切页和新建 Session 都不得取消；raw ACK/error、明确 reset 或有界 hard timeout 才释放。通道恢复必须在 binding replay 后重拉当前 durable Session；Room 再叠加 room_seq replay 与 subscription snapshot，Web 不得自动重发业务命令或工具调用
-- Workspace 会话标签由 `shared/ui/workspace/controls/conversation-tabs/` 分离纯模型、标签事务和单项视图；`store/room-navigation.ts` 按 Room 持久化完整打开集合、顺序与活动项，并保存标签栏与主侧栏共用且可拖放排序的固定会话集合；首次进入只打开恢复目标，历史会话只在用户显式选择后加入；关闭标签不取消固定，删除会话必须同时清理固定项，活动标签必须属于打开集合，视图不得直接修正集合状态
+- Workspace 会话标签的恢复、选择、创建、关闭、固定和最终替换事务由 `features/navigation/conversation-tabs/` 持有；`shared/ui/workspace/controls/conversation-tabs/` 只保留受控视图、宽度、测量和滚动，不能订阅 Store；`store/room-navigation.ts` 按 Room 持久化完整打开集合、顺序与活动项，并保存标签栏与主侧栏共用且可拖放排序的固定会话集合；首次进入只打开恢复目标，历史会话只在用户显式选择后加入；关闭标签不取消固定，删除会话必须同时清理固定项，活动标签必须属于打开集合，视图不得直接修正集合状态
 - `shared/`、`lib/`、`store/` 与 `types/` 不得依赖 `features/`；应用壳层组合 Feature 时必须归入 `app/` 或专用导航 Feature
 - `types/` 只声明跨层协议，不得导入 Config、Lib 或运行时投影；Agent 会话作用域键只由 `lib/conversation/agent-conversation-identity.ts` 计算
 - API 客户端按 endpoint 所有权归入 `lib/api/{agent,account,capability,conversation,settings}/`，通用传输在 `core/` 按请求、响应、错误和鉴权事件拆分；消费者直接导入职责文件，不保留旧路径转发层
@@ -62,7 +63,7 @@ src/
 - Room API 按纯模型、查询和命令拆分，目录失效事件归 `lib/conversation/`；API 不得读取 Store，Direct Room 跳转与缺失 Agent 恢复归 `features/navigation/direct-room/`
 - `unknown` 错误到用户消息的基础投影只由 `lib/error-message.ts` 定义；Feature 保留领域默认文案和反馈结构，不复制同义包装函数
 - 用户可见错误收敛为具体标题、一句影响/下一步说明和至多一个主动作；结构化 FailureCore 只提供机器事实，当前界面负责本地化文案，不展示服务端 detail 或内部 ID
-- 外部 Session 通道别名、标签与合成会话 ID 只由 `lib/conversation/external-session.ts` 定义；内部 Conversation 与外部 Session 的 canonical Room 路由只由 `app/router/route-paths.ts` 投影，页面、固定入口和标签视图不得复制解释规则
+- 外部 Session 通道别名、标签与合成会话 ID 只由 `lib/conversation/external-session.ts` 定义；内部 Conversation 与外部 Session 的 canonical Room 路由只由 `shared/navigation/route-paths.ts` 投影，页面、固定入口和标签视图不得复制解释规则
 - 权限与问答协议归 `types/conversation/interaction/`；权限和未完成工具调用的共享匹配归 `lib/conversation/`，问答超时与系统事件展示规则归消息 Feature
 - 会话消息协议按 `types/conversation/message/{attachment,content,entity,event}.ts` 分离；WebSocket 信封和通用事件结构直接使用生成协议，消费者不得通过根 `types` barrel 或 `data: any` 绕过领域解码。`delivery_mode` 明确区分可恢复的 `durable`、随 round 收口的 `ephemeral` 与只留在当前时间线的 `transient`；只有 durable 消息可进入后台缓存和未读
 - SDK 工具输入与保留型配置对象只允许 `unknown` 值；具体工具 Feature 在消费入口校验字段，不得用断言或 `any` 把外部载荷伪装成完整领域对象

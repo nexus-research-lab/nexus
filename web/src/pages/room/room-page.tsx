@@ -5,7 +5,7 @@ import { GroupRouteEntry } from "@/features/conversation/room/group/group-route-
 import { RoomSurfaceShell } from "@/features/conversation/room/surface/room-surface-shell";
 import { WorkspaceLoadingState } from "@/shared/ui/workspace/frame/workspace-loading-state";
 import { WorkspacePageFrame } from "@/shared/ui/workspace/frame/workspace-page-frame";
-import { resolveSelectedDraftConversationId } from "@/shared/ui/workspace/controls/conversation-tabs/conversation-tabs-model";
+import { resolveSelectedDraftConversationId } from "@/features/navigation/conversation-tabs/room-conversation-tabs-model";
 import { useRoomNavigationStore } from "@/store/room-navigation";
 import type { RoomEventPayload } from "@/types/agent/agent-conversation";
 import type { RoomRouteParams } from "@/types/app/route";

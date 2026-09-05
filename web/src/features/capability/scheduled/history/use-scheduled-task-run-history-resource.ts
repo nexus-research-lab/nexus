@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 
-import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { listScheduledTaskRunsApi } from "@/lib/api/capability/scheduled-task-api";
 import { getResourceFailure, type ResourceFailure } from "@/lib/error-message";
 import type { ScheduledTaskRunItem } from "@/types/capability/scheduled-task/run";

@@ -1,9 +1,12 @@
+// INPUT: 锚点显示状态、已过滤候选、当前文本与选择/关闭命令。
+// OUTPUT: 仅在浮层可见时接管编辑器导航键的 Mention 候选视图。
+// POS: 共享 Mention 交互适配；隐藏组件不得持有全局键盘所有权。
 "use client";
 
 import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 
-import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { cn } from "@/shared/ui/class-name";
 import {
   getMenuItemStateClassName,
@@ -49,6 +52,7 @@ export const MentionTargetPopover = memo(function MentionTargetPopover({
     Math.max(filteredItems.length - 1, 0),
   );
   const activeItem = filteredItems[visibleActiveIndex];
+  const isOpen = Boolean(anchorRect) && filteredItems.length > 0;
 
   useEffect(() => {
     if (filteredItems.length === 0) {
@@ -74,9 +78,12 @@ export const MentionTargetPopover = memo(function MentionTargetPopover({
   }, [activeItem, filteredItems.length, onClose, onSelect, setActiveIndex]);
 
   useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
     document.addEventListener("keydown", handleKeyDown, true);
     return () => document.removeEventListener("keydown", handleKeyDown, true);
-  }, [handleKeyDown]);
+  }, [handleKeyDown, isOpen]);
 
   useEffect(() => {
     const activeElement = listRef.current?.children[visibleActiveIndex] as HTMLElement | undefined;

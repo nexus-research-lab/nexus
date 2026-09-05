@@ -121,6 +121,7 @@ export function AgentProfileFileEditor({
         )}
       >
         <TextFileEditorBody
+          agentId={agentId}
           content={editor.displayContent}
           exitEditingOnBlur={false}
           fileName={AGENT_PROFILE_FILE_PATH}

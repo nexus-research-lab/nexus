@@ -9,7 +9,7 @@ import { ArrowLeft } from "lucide-react";
 import { useCallback, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { APP_ROUTE_PATHS } from "@/app/router/route-paths";
+import { APP_ROUTE_PATHS } from "@/shared/navigation/route-paths";
 import { ProviderSettingsPanel } from "@/features/settings/provider-settings/provider-settings-panel";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";

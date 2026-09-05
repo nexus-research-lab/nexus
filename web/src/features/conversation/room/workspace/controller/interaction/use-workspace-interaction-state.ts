@@ -1,6 +1,6 @@
 import { useCallback, type MouseEvent, type RefObject } from "react";
 
-import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import type { WorkspaceFileEntry } from "@/types/agent/agent";
 
 import {

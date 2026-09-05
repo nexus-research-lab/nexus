@@ -1,5 +1,5 @@
 // INPUT: Select Menu controller 投影的触发器、面板、选项与事件处理器。
-// OUTPUT: button + portal listbox 的纯视图结构和选中/disabled ARIA 状态。
+// OUTPUT: 共用 SelectMenuTrigger + portal listbox 的纯视图结构和选项状态。
 // POS: Select Menu 视图；不持有开关、选值、定位或业务状态。
 
 import type {
@@ -26,12 +26,12 @@ import {
   type UiSelectMenuSurface,
 } from "./select-menu-model";
 import {
-  getSelectMenuButtonClassName,
   getSelectMenuOptionStateClassName,
 } from "./select-menu-styles";
 import {
   SelectMenuOptionRow,
   SelectMenuPanel,
+  SelectMenuTrigger,
   SelectMenuTriggerContent,
 } from "./select-menu-primitives";
 
@@ -88,24 +88,18 @@ export function SelectMenuView({
     <div
       className={cn("relative w-full", styles.heightClassName, className)}
     >
-      <button
-        ref={buttonRef}
-        aria-controls={isOpen ? menuId : undefined}
-        aria-disabled={disabled}
-        aria-expanded={isOpen}
-        aria-haspopup="listbox"
-        aria-label={ariaLabel}
-        className={getSelectMenuButtonClassName({
-          roundedClassName: styles.roundedClassName,
-          surface,
-          textClassName: styles.textClassName,
-          className: buttonClassName,
-        })}
+      <SelectMenuTrigger
+        ariaLabel={ariaLabel}
+        buttonRef={buttonRef}
+        className={buttonClassName}
         disabled={disabled}
         id={id}
+        isOpen={isOpen}
+        menuId={menuId}
         onClick={onTriggerClick}
         onKeyDown={onTriggerKeyDown}
-        type="button"
+        styles={styles}
+        surface={surface}
       >
         <SelectMenuTriggerContent isOpen={isOpen} label={label} leading={leading}>
           <span className="flex min-w-0 flex-1 items-center gap-2">
@@ -121,7 +115,7 @@ export function SelectMenuView({
             <SelectMenuOptionBadge label={model.activeBadge} />
           </span>
         </SelectMenuTriggerContent>
-      </button>
+      </SelectMenuTrigger>
 
       <SelectMenuPortal
         ariaLabel={ariaLabel}

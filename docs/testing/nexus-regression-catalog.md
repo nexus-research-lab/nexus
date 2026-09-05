@@ -19,6 +19,7 @@
 | --- | --- | --- |
 | 定向 | 日常窄改动 | 受影响 Go 包或 Web 脚本，加 `git diff --check` |
 | 常规 | product 功能闭环 | `make check`，再执行本目录对应的真实 App 用例 |
+| 前端基础 | 共享 UI、样式、弹窗/浮层或布局改动 | `make check-web`；范围与浏览器证据见[前端工程规范](../specs/frontend-engineering-spec.md#8-测试合同)，实际宿主差异仍需单独复查 |
 | 跨 runtime | bridge、nxs、工具、缓存、记忆或压缩改动 | product 定向测试，bridge/nxs 受影响包测试，NXS 与 Claude runtime 的相同输入实测 |
 | 发布 | 桌面升级、共享协议、隔离基础设施或正式发布 | `make check-go-full`、Web 构建、桌面构建与 smoke；bridge/nxs 在各自仓执行 `GOWORK=off go test ./...` |
 

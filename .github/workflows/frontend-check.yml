@@ -1,0 +1,60 @@
+name: Frontend checks
+
+on:
+  pull_request:
+    paths:
+      - "web/**"
+      - "design.md"
+      - "docs/specs/**"
+      - "makefile"
+      - ".github/workflows/frontend-check.yml"
+  push:
+    branches: [main, master]
+    paths:
+      - "web/**"
+      - "design.md"
+      - "docs/specs/**"
+      - "makefile"
+      - ".github/workflows/frontend-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Install pinned dependencies
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.2 --activate
+          pnpm install --frozen-lockfile
+      - name: Install browser
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Lint, types, contracts, component behavior and production build
+        run: pnpm run check
+      - name: Browser UI matrix
+        run: pnpm run test:browser
+      - name: Upload browser evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-browser-evidence
+          path: |
+            web/playwright-report/
+            web/test-results/
+          if-no-files-found: ignore
+          retention-days: 14

@@ -9,7 +9,7 @@ import { useEffect, useMemo, type RefObject } from "react";
 import { Wrench } from "lucide-react";
 
 import { useScrollAnchoredState } from "@/features/conversation/shared/timeline/scroll/use-scroll-anchored-state";
-import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { isGenerativeUIWidgetToolName } from "@/lib/conversation/generative-ui";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";

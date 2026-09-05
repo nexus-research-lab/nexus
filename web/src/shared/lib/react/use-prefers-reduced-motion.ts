@@ -1,3 +1,6 @@
+// INPUT: 浏览器系统动效偏好和组件订阅生命周期。
+// OUTPUT: 当前减少动效偏好；不支持媒体查询的环境保留静态初值。
+// POS: 共享浏览器偏好 Hook，不决定组件的动画样式或业务状态。
 "use client";
 
 import { useEffect, useState } from "react";

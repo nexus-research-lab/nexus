@@ -1,7 +1,7 @@
 /**
  * INPUT: textarea 当前正文、浏览器真实排版结果与最小/最大高度约束。
  * OUTPUT: 正文、原生输入或宽度变化时同步更新的有界高度，超出上限后只滚动内部正文。
- * POS: Composer 与消息编辑器共用的无 React 状态 textarea 测量入口。
+ * POS: 共享无 React 状态 textarea 测量入口；文字、设计尺寸和编辑权限由消费者持有。
  */
 import {
   RefObject,

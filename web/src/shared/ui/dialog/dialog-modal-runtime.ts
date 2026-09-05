@@ -1,3 +1,12 @@
+// INPUT: Dialog 的挂载/卸载令牌及其真实模态根。
+// OUTPUT: 栈顶模态身份、引用计数滚动锁与共享 Overlay 的当前模态范围。
+// POS: 模态运行时所有者；浮层父子关系和关闭仲裁由 Overlay runtime 负责。
+
+import {
+  registerModalOverlayScope,
+  unregisterModalOverlayScope,
+} from "@/shared/ui/overlay/overlay-dismissal-runtime";
+
 const dialogStack: symbol[] = [];
 let scrollLockCount = 0;
 let bodyOverflowBeforeLock = "";
@@ -18,9 +27,12 @@ function unlockBodyScroll(): void {
   }
 }
 
-export function registerDialogModal(): symbol {
+export function registerDialogModal(root?: HTMLElement | null): symbol {
   const token = Symbol("ui-dialog");
   dialogStack.push(token);
+  if (root) {
+    registerModalOverlayScope(token, root);
+  }
   lockBodyScroll();
   return token;
 }
@@ -36,5 +48,6 @@ export function unregisterDialogModal(token: symbol): void {
   }
 
   dialogStack.splice(index, 1);
+  unregisterModalOverlayScope(token);
   unlockBodyScroll();
 }

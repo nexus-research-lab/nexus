@@ -12,7 +12,7 @@ import {
 import { useRef, useState } from "react";
 
 import { SKILLS_TOUR_ANCHORS } from "@/features/onboarding/tours/skills-tour";
-import { useMediaQuery } from "@/hooks/ui/use-media-query";
+import { useMediaQuery } from "@/shared/lib/react/use-media-query";
 import { APP_NARROW_VIEWPORT_MEDIA_QUERY } from "@/lib/layout/home-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";

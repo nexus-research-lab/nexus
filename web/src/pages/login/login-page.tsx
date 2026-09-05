@@ -1,7 +1,7 @@
 import { Compass, PanelRightOpen, ShieldCheck } from "lucide-react";
 import { Link, Navigate } from "react-router-dom";
 
-import { APP_ROUTE_PATHS } from "@/app/router/route-paths";
+import { APP_ROUTE_PATHS } from "@/shared/navigation/route-paths";
 
 import { LoginAuthPanel } from "./login-auth-panel";
 import "./login-page.css";

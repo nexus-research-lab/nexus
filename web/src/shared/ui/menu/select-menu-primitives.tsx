@@ -1,4 +1,4 @@
-// INPUT: Select trigger 内容、已定位的 listbox panel 数据与选项状态。
+// INPUT: Select trigger 的开关/禁用事实、既有样式投影、内容与原生事件，以及 listbox/选项数据。
 // OUTPUT: 稳定的触发器、选择面板和 option button 语义 DOM。
 // POS: Select Menu 视图原语；不管理开关、选值或定位计算。
 
@@ -20,6 +20,24 @@ import {
 } from "../overlay/overlay-styles";
 import type { UiSelectMenuSurface } from "./select-menu-model";
 import { MENU_ITEM_BASE_CLASS_NAME } from "./menu-styles";
+import {
+  getSelectMenuButtonClassName,
+  type SelectMenuStyleProjection,
+} from "./select-menu-styles";
+
+interface SelectMenuTriggerProps extends Omit<
+  ButtonHTMLAttributes<HTMLButtonElement>,
+  "aria-controls" | "aria-disabled" | "aria-expanded" | "aria-haspopup" | "aria-label" | "type"
+> {
+  ariaLabel: string;
+  buttonRef: RefObject<HTMLButtonElement | null>;
+  children: ReactNode;
+  disabled: boolean;
+  isOpen: boolean;
+  menuId: string;
+  styles: Pick<SelectMenuStyleProjection, "roundedClassName" | "textClassName">;
+  surface: UiSelectMenuSurface;
+}
 
 interface SelectMenuOptionRowProps extends Omit<
   ButtonHTMLAttributes<HTMLButtonElement>,
@@ -27,6 +45,39 @@ interface SelectMenuOptionRowProps extends Omit<
 > {
   active: boolean;
   className?: string;
+}
+
+/** 单选与领域多选共用的触发器 DOM；开关和键盘决策仍由上游控制器负责。 */
+export function SelectMenuTrigger({
+  ariaLabel,
+  buttonRef,
+  className,
+  disabled,
+  isOpen,
+  menuId,
+  styles,
+  surface,
+  ...props
+}: SelectMenuTriggerProps) {
+  return (
+    <button
+      {...props}
+      ref={buttonRef}
+      aria-controls={isOpen ? menuId : undefined}
+      aria-disabled={disabled}
+      aria-expanded={isOpen}
+      aria-haspopup="listbox"
+      aria-label={ariaLabel}
+      className={getSelectMenuButtonClassName({
+        roundedClassName: styles.roundedClassName,
+        surface,
+        textClassName: styles.textClassName,
+        className,
+      })}
+      disabled={disabled}
+      type="button"
+    />
+  );
 }
 
 export function SelectMenuTriggerContent({

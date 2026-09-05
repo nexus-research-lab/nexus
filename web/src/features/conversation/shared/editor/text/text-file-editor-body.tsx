@@ -1,3 +1,6 @@
+// INPUT: exact Agent 与文件正文、模式、编辑命令和布局观察。
+// OUTPUT: 保留文件归属的预览或编辑视图。
+// POS: 文本编辑器正文装配；所有渲染模式透传同一 Agent scope。
 import {
   useEffect,
   useRef,
@@ -17,6 +20,7 @@ import { TextFileContent } from "./text-file-content";
 import type { TextEditorBodyMode } from "./text-file-editor-model";
 
 interface TextEditorBodyViewProps {
+  agentId: string;
   containerWidth: number;
   content: string;
   exitEditingOnBlur: boolean;
@@ -53,6 +57,7 @@ function StreamingBody({
 function HtmlPreviewBody(props: TextEditorBodyViewProps) {
   return (
     <TextFileContent
+      agentId={props.agentId}
       content={props.content}
       fileName={props.fileName}
       fileType={props.fileType}
@@ -66,6 +71,7 @@ function PreviewBody(props: TextEditorBodyViewProps) {
   return (
     <div className="soft-scrollbar h-full min-h-0 min-w-0 overscroll-contain overflow-auto">
       <TextFileContent
+      agentId={props.agentId}
         content={props.content}
         fileName={props.fileName}
         fileType={props.fileType}

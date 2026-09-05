@@ -4,7 +4,7 @@ import { Check, Copy } from "lucide-react";
 import { PrismAsyncLight as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneLight, vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 
-import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
+import { useCopyToClipboard } from "@/shared/lib/react/use-copy-to-clipboard";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { useTheme } from "@/shared/theme/theme-context";
 

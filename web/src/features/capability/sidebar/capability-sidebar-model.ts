@@ -9,7 +9,7 @@ import {
   GitBranchPlus,
 } from "lucide-react";
 
-import { AppRouteBuilders } from "@/app/router/route-paths";
+import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 import type { CapabilitySummary } from "@/lib/api/capability/summary-api";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";

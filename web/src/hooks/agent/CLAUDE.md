@@ -4,8 +4,9 @@ L3 | 父级: ../CLAUDE.md
 
 ## 职责边界
 
-- `use-agent-conversation.ts`: 公共装配入口，只组合消息、动作、会话、运行态与传输控制器
+- `use-agent-conversation.ts`: 公共装配入口，只组合消息、动作、会话、运行态与传输控制器；命名工作图目录失效通过 `lib/conversation/workgraph-workflow-events.ts` 读取中立事件名，仍只为当前 exact Session 重新绑定目录，不导入 Feature 或发起保存。
 - `agent-conversation-model.ts`: 使用默认身份哨兵归一化 options，并将内部控制器投影为公开 Hook 返回协议
+- `use-workspace-markdown.ts`: 由真实正文消费侧订阅 owner-scoped Workspace 文件快照，并把同一 Agent 绑定到路径解析、图片预览和文件打开闭包；显式 Agent 优先，只有 `undefined` 的既有消息调用才回退当前选择，显式 null/空 scope 不推断归属。其他 Agent 文件刷新不重建当前解析器，owner reset 后不保留旧索引。
 - `message/`: Assistant 内容身份、消息集合和流式事件各自维护纯数据模型
 - `actions/`: 用户命令、协议请求构造和发送 ACK 生命周期
 - `session/`: 会话键迁移、历史窗口，以及 `controller/` 下的身份、后台消息和易失快照装配

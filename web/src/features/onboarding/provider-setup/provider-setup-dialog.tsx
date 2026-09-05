@@ -1,7 +1,7 @@
 /**
  * INPUT: Owner 作用域、Provider 精确 key/version、连接测试与默认偏好命令。
  * OUTPUT: 可恢复的保存、测试、默认选择三阶段单栏连接向导及精简失败提示。
- * POS: 首次 Provider 配置编排边界；写前 journal 不保存密钥、Base URL、请求正文或 HTTP 身份。
+ * POS: 首次 Provider 配置编排边界；owner 标识只消费无副作用共享投影，写前 journal 不保存密钥、Base URL、请求正文或 HTTP 身份。
  */
 "use client";
 
@@ -25,7 +25,7 @@ import {
 
 import { isDesktopRuntime } from "@/config/desktop-runtime";
 import { getDefaultAgentRuntimeKind, setUserPreferences } from "@/config/runtime-options";
-import { resolveAuthOwnerScope } from "@/app/auth/auth-owner-scope";
+import { resolveAuthOwnerScope } from "@/shared/auth/auth-owner-identity";
 import { ProviderIcon } from "@/features/settings/provider-settings/components/provider-settings-icon";
 import { ProviderCCSwitchDialog } from "@/features/provider-imports/cc-switch/provider-ccswitch-dialog";
 import { invalidateProviderAvailability } from "@/hooks/capability/use-provider-availability";

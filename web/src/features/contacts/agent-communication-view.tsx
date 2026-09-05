@@ -25,8 +25,8 @@ import { MessageItem } from "@/features/conversation/shared/message/item/message
 import { useFollowScroll } from "@/features/conversation/shared/timeline/scroll/use-follow-scroll";
 import { useConversationHistoryLoader } from "@/features/conversation/shared/timeline/use-history-loader";
 import { RoomHistoryMenu } from "@/features/conversation/room/surface/history/room-history-menu";
-import { useMediaQuery } from "@/hooks/ui/use-media-query";
-import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { useMediaQuery } from "@/shared/lib/react/use-media-query";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { buildRoomSharedSessionKey } from "@/lib/conversation/session-key";
 import { APP_NARROW_VIEWPORT_MEDIA_QUERY } from "@/lib/layout/home-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -37,7 +37,7 @@ import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import type { FeedbackBannerProps } from "@/shared/ui/feedback/feedback-banner-contract";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
-import { WorkspaceConversationTabs } from "@/shared/ui/workspace/controls/workspace-conversation-tabs";
+import { RoomConversationTabs } from "@/features/navigation/conversation-tabs/room-conversation-tabs";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import type { Agent, AgentContact } from "@/types/agent/agent";
 import type { InputQueueItem } from "@/types/agent/agent-conversation";
@@ -284,7 +284,7 @@ function CommunicationHeader({
         leadingClassName="h-10 w-10 max-md:border-0 max-md:bg-transparent max-md:shadow-none"
         leadingVariant="identity"
         tabsLeading={(
-          <WorkspaceConversationTabs
+          <RoomConversationTabs
             conversationId={currentConversationId}
             conversations={conversations}
             leadingControl={conversations.length > 0 ? (

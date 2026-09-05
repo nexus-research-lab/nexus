@@ -157,7 +157,6 @@ function ConversationRowSummary({ item }: { item: SidebarConversationItem }) {
       summaryMonochrome
       summaryStrongAsText
       variant="summary"
-      workspaceAgentId={item.kind === "dm" ? item.agentId : undefined}
     />
   );
 }

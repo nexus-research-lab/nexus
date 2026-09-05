@@ -6,7 +6,7 @@
 import { useCallback, useRef, useState } from "react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 
-import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import type { Message } from "@/types/conversation/message/entity";
 import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
 import type {

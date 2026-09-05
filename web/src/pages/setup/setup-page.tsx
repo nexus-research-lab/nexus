@@ -7,7 +7,7 @@ import { ArrowRight, CheckCircle2, KeyRound, ServerCog } from "lucide-react";
 import { useMemo, useState, type FormEvent } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 
-import { APP_ROUTE_PATHS } from "@/app/router/route-paths";
+import { APP_ROUTE_PATHS } from "@/shared/navigation/route-paths";
 import { setupControlOwnerApi } from "@/lib/api/account/control-api";
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";

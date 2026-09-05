@@ -9,7 +9,7 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Copy, GitBranchPlus, Pencil, RotateCcw, Trash2 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 
-import { AppRouteBuilders } from "@/app/router/route-paths";
+import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 import {
   CAPABILITY_DIRECTORY_GRID_CLASS_NAME,
   CAPABILITY_DIRECTORY_ROW_CLASS_NAME,
@@ -20,8 +20,8 @@ import {
 } from "@/features/capability/shared/capability-page-layout";
 import { notifyCapabilitySummaryMutated } from "@/features/capability/capability-summary-events";
 import { WorkGraphMetadataEditorDialog } from "@/features/conversation/shared/execution/workgraph-metadata-editor-dialog";
-import { WORKGRAPH_WORKFLOWS_CHANGED_EVENT } from "@/features/conversation/shared/execution/workgraph-distillation-intent";
-import { writeTextToClipboard } from "@/hooks/ui/clipboard";
+import { WORKGRAPH_WORKFLOWS_CHANGED_EVENT } from "@/lib/conversation/workgraph-workflow-events";
+import { writeTextToClipboard } from "@/shared/lib/browser/clipboard";
 import {
   deleteWorkGraphWorkflowApi,
   getWorkGraphWorkflowsApi,

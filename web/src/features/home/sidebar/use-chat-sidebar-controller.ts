@@ -6,7 +6,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
-import { AppRouteBuilders } from "@/app/router/route-paths";
+import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
 import { getActiveChatTargetFromPath } from "@/features/home/notifications/chat-notification-target";
 import { createRoom, deleteRoom } from "@/lib/api/conversation/room-command-api";

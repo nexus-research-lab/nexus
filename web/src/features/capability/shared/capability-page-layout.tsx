@@ -1,7 +1,7 @@
 /**
  * INPUT: 能力页面标题、说明、动作、筛选控件、目录条目及详情导航/正文/配置内容。
  * OUTPUT: 能力目录与详情页的共享内容轴、移动页头动作、二级导航、对象身份区、目录网格和响应式分栏。
- * POS: 能力域页面级设计语法；通过应用布局动作槽适配手机页头，不解释具体领域状态。
+ * POS: 能力域页面级设计语法；通过中立页头动作 Context 适配宿主挂载点，不依赖 App 装配或解释具体领域状态。
  */
 "use client";
 
@@ -13,7 +13,7 @@ import {
 import { createPortal } from "react-dom";
 import { ArrowLeft } from "lucide-react";
 
-import { useMobileAppPageHeaderActionsTarget } from "@/app/layout/mobile-app-page-header-actions-context";
+import { usePageHeaderActionsTarget } from "@/shared/lib/react/page-header-actions-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
@@ -254,7 +254,7 @@ export function CapabilityPageLayout({
   headerAnchor,
   title,
 }: CapabilityPageLayoutProps) {
-  const mobileHeaderActionsTarget = useMobileAppPageHeaderActionsTarget();
+  const mobileHeaderActionsTarget = usePageHeaderActionsTarget();
   const mobileActions = mobileHeaderActionsTarget && actions
     ? createPortal(
         <div

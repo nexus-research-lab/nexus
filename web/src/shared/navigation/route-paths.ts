@@ -1,7 +1,7 @@
 /**
  * INPUT: 产品页面的稳定资源身份，以及 Room 内部/外部 Conversation 身份。
  * OUTPUT: 全应用 canonical 路由模板与编码后的导航构造器。
- * POS: App 路由与跨 Feature 导航的路径真相源。
+ * POS: 无运行态的共享路由合同；App 负责匹配与挂载，领域消费者只提供资源身份。
  */
 import { getExternalSessionKeyFromConversationId } from "@/lib/conversation/external-session";
 

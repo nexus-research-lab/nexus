@@ -1,6 +1,9 @@
+// INPUT: Room 会话、路由选择、持久标签偏好与创建/关闭/替换命令。
+// OUTPUT: 已打开会话、乐观活动项、单飞事务和按 Room 持久化的导航命令。
+// POS: Room 标签业务控制器；共享视图独立拥有 DOM、测量与滚动。
+
 import {
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -9,25 +12,21 @@ import { flushSync } from "react-dom";
 
 import { isExternalSessionConversation } from "@/lib/conversation/external-session";
 import {
-  calculateConversationTabWidths,
   getConversationIdsByCreationTime,
   getCloseFallbackConversationId,
   getInitialOpenConversationIds,
-  hasConversationTabsOverflow,
   reconcileOpenConversationIds,
   resolveActiveConversationId,
   shouldPersistConversationTabs,
-} from "@/shared/ui/workspace/controls/conversation-tabs/conversation-tabs-model";
+} from "./room-conversation-tabs-model";
 import { useRoomNavigationStore } from "@/store/room-navigation";
 import { RoomConversationView } from "@/types/conversation/conversation";
 
 import type { FinalConversationReplacementHandler } from "./final-conversation-replacement";
-import { useConversationTabsScroll } from "./use-conversation-tabs-scroll";
 
 interface ConversationTabsControllerOptions {
   conversations: RoomConversationView[];
   conversationId: string | null;
-  hasLeadingControl: boolean;
   onCloseConversation?: (conversationId: string) => Promise<void>;
   onCreateConversation?: (title?: string) => Promise<string | null>;
   onReplaceFinalConversation?: FinalConversationReplacementHandler;
@@ -39,22 +38,18 @@ interface PendingConversationAction {
   task: Promise<void>;
 }
 
-export function useConversationTabsController({
+export function useRoomConversationTabs({
   conversations,
   conversationId,
-  hasLeadingControl,
   onCloseConversation,
   onCreateConversation,
   onReplaceFinalConversation,
   onSelectConversation,
 }: ConversationTabsControllerOptions) {
-  const trackRef = useRef<HTMLElement | null>(null);
-  const [trackWidth, setTrackWidth] = useState(0);
   const [isCreating, setIsCreating] = useState(false);
   const pendingActionRef = useRef<PendingConversationAction | null>(null);
   const [optimisticActiveId, setOptimisticActiveId] = useState<string | null>(null);
   const [pendingClosedActiveId, setPendingClosedActiveId] = useState<string | null>(null);
-  const hasCreateButton = Boolean(onCreateConversation);
   const roomId = conversations[0]?.room_id ?? null;
   const persistedTabs = useRoomNavigationStore((state) => (
     roomId ? state.conversation_tabs_by_room[roomId] : undefined
@@ -107,37 +102,6 @@ export function useConversationTabsController({
     optimisticId: optimisticActiveId,
     orderedConversations,
   });
-  const hasTabsOverflow = useMemo(
-    () => hasConversationTabsOverflow({
-      conversationCount: orderedConversations.length,
-      hasCreateButton,
-      hasLeadingControl,
-      trackWidth,
-    }),
-    [hasCreateButton, hasLeadingControl, orderedConversations.length, trackWidth],
-  );
-  const tabsScroll = useConversationTabsScroll({
-    activeConversationId,
-    contentKey: openConversationIds.join(":"),
-  });
-  const tabWidths = useMemo(() => calculateConversationTabWidths({
-    activeConversationId,
-    hasCreateButton,
-    hasLeadingControl,
-    hasTabsOverflow,
-    orderedConversations,
-    trackWidth,
-  }), [
-    activeConversationId,
-    hasCreateButton,
-    hasLeadingControl,
-    hasTabsOverflow,
-    orderedConversations,
-    trackWidth,
-  ]);
-
-  useTrackWidth(trackRef, setTrackWidth);
-
   useEffect(() => {
     if (
       !roomId
@@ -307,36 +271,8 @@ export function useConversationTabsController({
     activeConversationId,
     closeConversation,
     createConversation,
-    hasTabsOverflow,
     isCreating,
     orderedConversations,
     selectConversation,
-    tabsScroll,
-    tabWidths,
-    trackRef,
   };
-}
-
-function useTrackWidth(
-  trackRef: React.RefObject<HTMLElement | null>,
-  setTrackWidth: React.Dispatch<React.SetStateAction<number>>,
-): void {
-  useLayoutEffect(() => {
-    const trackElement = trackRef.current;
-    if (!trackElement) {
-      return undefined;
-    }
-
-    const updateTrackWidth = () => {
-      setTrackWidth((currentWidth) => {
-        const nextWidth = trackElement.clientWidth;
-        return currentWidth === nextWidth ? currentWidth : nextWidth;
-      });
-    };
-    updateTrackWidth();
-
-    const resizeObserver = new ResizeObserver(updateTrackWidth);
-    resizeObserver.observe(trackElement);
-    return () => resizeObserver.disconnect();
-  }, [setTrackWidth, trackRef]);
 }

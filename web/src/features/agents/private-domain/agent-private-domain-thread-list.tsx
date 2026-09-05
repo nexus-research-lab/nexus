@@ -162,7 +162,6 @@ function PrivateThreadListItem({
           content={item.preview}
           mermaidShowHeader={false}
           variant="summary"
-          workspaceAgentId={item.workspaceAgentId}
         />
       </div>
     </UiListRow>

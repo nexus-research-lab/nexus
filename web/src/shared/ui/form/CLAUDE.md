@@ -1,6 +1,7 @@
 # 表单原语
 
 - 本目录拥有选择项、原生复选框、复选行、表单控件和分段控制器。
+- 生产 TS/TSX 文件必须在首条代码前保留真实、非空的 `INPUT / OUTPUT / POS` 合同；`scripts/frontend-file-contract.test.mjs` 递归检查本所有者，新文件同样受约束。
 - 这里只处理通用输入语义，不维护业务草稿或提交事务。
 - `UiInput / UiTextarea / UiNativeSelect` 分别拥有普通文本、多行文本和原生下拉字段；`form-control-styles.ts` 是这些 primitive 的内部投影，业务层不得导入后再手写 DOM。嵌入 Composer 等复合控件内部的无壳原生字段必须由该 pattern 明确拥有，不能假装成普通 Field。
 - `UiSearchInput` 自己持有可本地化的共享 IconButton 清除动作，并用具名 `searchbox` 语义替代宿主语言生成的原生 search shadow 控件；`surface / dialog / menu / toolbar` 分别覆盖页面、表单、菜单首行和复合工具条，消费者不得靠 class 重做这些壳层。搜索壳不是 `<label>`，不得把清除按钮嵌入另一个 labelable control；消费者不得另造清除按钮。

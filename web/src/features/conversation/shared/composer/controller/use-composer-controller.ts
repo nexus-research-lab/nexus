@@ -5,7 +5,7 @@
  */
 import { useCallback, useLayoutEffect, useRef } from "react";
 
-import { useTextareaHeight } from "@/hooks/ui/use-textarea-height";
+import { useTextareaHeight } from "@/shared/lib/react/use-textarea-height";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { Agent } from "@/types/agent/agent";
 import type { CommandCatalogData } from "@/types/generated/protocol";

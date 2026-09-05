@@ -6,7 +6,7 @@ import { LoaderCircle } from "lucide-react";
 import { lazy, Suspense } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
-import { APP_ROUTE_PATHS } from "@/app/router/route-paths";
+import { APP_ROUTE_PATHS } from "@/shared/navigation/route-paths";
 import { AuthGuard } from "@/app/router/auth-guard";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";

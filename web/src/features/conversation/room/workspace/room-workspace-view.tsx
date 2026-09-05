@@ -6,8 +6,8 @@
 import { useRef, useState } from "react";
 
 import { WorkspaceFilePreviewPanel } from "@/features/conversation/shared/editor/workspace-file-preview-panel";
-import { useMediaQuery } from "@/hooks/ui/use-media-query";
-import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { useMediaQuery } from "@/shared/lib/react/use-media-query";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";

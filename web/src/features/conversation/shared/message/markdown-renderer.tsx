@@ -1,7 +1,7 @@
 /**
- * INPUT: 消息 Markdown、Workspace 文件解析与服务端 Agent mention spans。
- * OUTPUT: 文件产物链接和携带 handoff_id 的稳定 mention 链接。
- * POS: 会话消息协议到共享 Markdown 渲染器的适配层。
+ * INPUT: 消息 Markdown、归属 Agent、文件打开命令与服务端 Agent mention spans。
+ * OUTPUT: 同一 Agent 绑定的文件产物、图片和携带 handoff_id 的稳定 mention/Slash 视图。
+ * POS: 会话消费侧资源与领域链接适配器；共享 Markdown 只接收已绑定的能力。
  */
 "use client";
 
@@ -16,7 +16,6 @@ import {
   MARKDOWN_PLUGINS,
   normalizeMarkdownContent,
   REHYPE_PLUGINS,
-  transformMarkdownUrl,
 } from "@/shared/ui/markdown/core/markdown-renderer-shared";
 import { MarkdownText } from "@/shared/ui/markdown/streaming/markdown-streaming";
 import { useSmoothStreamingMarkdownState } from "@/shared/ui/markdown/streaming/use-smooth-streaming-markdown-content";
@@ -25,10 +24,8 @@ import {
   type ResolveWorkspaceFilePath,
   splitMarkdownFileArtifacts,
 } from "@/shared/ui/markdown/workspace/markdown-workspace-artifact-model";
-import {
-  useMarkdownCurrentAgentID,
-  useMarkdownFileResolver,
-} from "@/shared/ui/markdown/workspace/use-markdown-workspace-files";
+import { useWorkspaceMarkdown } from "@/hooks/agent/use-workspace-markdown";
+import { createMessageMarkdownLinkRenderer, transformMessageMarkdownUrl } from "./message-markdown-links";
 
 import "katex/dist/katex.min.css";
 
@@ -42,7 +39,7 @@ interface MarkdownRendererProps {
   className?: string;
   initialRevealFromEmpty?: boolean;
   isStreaming?: boolean;
-  onOpenWorkspaceFile?: (path: string) => void;
+  onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void;
 	workspaceAgentId?: string | null;
 	agentMentions?: AgentMention[];
 	agentMentionDirectory?: AgentMentionDirectory;
@@ -62,8 +59,12 @@ export function MarkdownRenderer({
 	onOpenAgentContact,
   renderLeadingSlashCommand = false,
 }: MarkdownRendererProps) {
-  const resolveFilePath = useMarkdownFileResolver(workspaceAgentId);
-  const currentAgentId = useMarkdownCurrentAgentID(workspaceAgentId);
+  const { currentAgentId, getFilePreviewUrl, resolveFilePath, onOpenWorkspaceFile: openFile } =
+    useWorkspaceMarkdown(workspaceAgentId, onOpenWorkspaceFile);
+  const renderLink = useMemo(
+    () => createMessageMarkdownLinkRenderer(agentMentionDirectory, onOpenAgentContact),
+    [agentMentionDirectory, onOpenAgentContact],
+  );
   const shouldStream = isStreaming;
   const smoothStreaming = useSmoothStreamingMarkdownState(
     content,
@@ -76,29 +77,27 @@ export function MarkdownRenderer({
     () => ({
       stable: createMarkdownComponents(
         resolveFilePath,
-        onOpenWorkspaceFile,
-        currentAgentId,
-        { agentMentionDirectory, onOpenAgentContact },
+        openFile,
+        { getFilePreviewUrl, renderLink },
       ),
       streaming: createMarkdownComponents(
         resolveFilePath,
-        onOpenWorkspaceFile,
-        currentAgentId,
+        openFile,
         {
-          agentMentionDirectory,
-          onOpenAgentContact,
+          getFilePreviewUrl,
+          renderLink,
           streamCodeBlocks: true,
           streamMermaid: true,
         },
       ),
     }),
-    [agentMentionDirectory, currentAgentId, onOpenAgentContact, onOpenWorkspaceFile, resolveFilePath],
+    [getFilePreviewUrl, openFile, renderLink, resolveFilePath],
   );
   const contentSegments = useMemo(
-    () => onOpenWorkspaceFile
+    () => openFile
       ? splitMarkdownFileArtifacts(displayedContent, resolveFilePath)
       : [{ type: "text" as const, text: displayedContent }],
-    [displayedContent, onOpenWorkspaceFile, resolveFilePath],
+    [displayedContent, openFile, resolveFilePath],
   );
 
   return (
@@ -113,14 +112,14 @@ export function MarkdownRenderer({
         <MessageMarkdownSegment
           components={components.stable}
           key={`${segment.type}:${index}`}
-          onOpenWorkspaceFile={onOpenWorkspaceFile}
+          onOpenWorkspaceFile={openFile}
           agentMentions={agentMentions}
           renderLeadingSlashCommand={renderLeadingSlashCommand && index === 0}
           resolveFilePath={resolveFilePath}
           segment={segment}
           shouldStream={shouldRenderStreaming}
           streamingComponents={components.streaming}
-          workspaceAgentId={workspaceAgentId}
+          workspaceAgentId={currentAgentId}
         />
       ))}
     </div>
@@ -130,7 +129,7 @@ export function MarkdownRenderer({
 interface MessageMarkdownSegmentProps {
 	agentMentions: AgentMention[];
 	components: Components;
-  onOpenWorkspaceFile?: (path: string) => void;
+  onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void;
   resolveFilePath: ResolveWorkspaceFilePath;
   segment: MarkdownContentSegment;
   shouldStream: boolean;
@@ -181,7 +180,7 @@ function MessageMarkdownSegment({
     ),
     rehypePlugins: REHYPE_PLUGINS,
     remarkPlugins: MARKDOWN_PLUGINS,
-    urlTransform: transformMarkdownUrl,
+    urlTransform: transformMessageMarkdownUrl,
   };
   return (
     <MarkdownText

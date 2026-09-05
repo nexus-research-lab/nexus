@@ -6,7 +6,7 @@
 import { useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
-import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 
 import type { ComposerLocalAttachment } from "../attachments/composer-local-attachment-model";
 import {

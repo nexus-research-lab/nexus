@@ -11,7 +11,7 @@ import {
 } from "react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 
-import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { setAgentSkillEnabledApi } from "@/lib/api/capability/skill-api";
 import { getSkillDisplayDescription } from "@/lib/skill-description";
 import { useI18n } from "@/shared/i18n/i18n-context";

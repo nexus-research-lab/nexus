@@ -12,6 +12,8 @@
 
 # testing
 /coverage
+/test-results/
+/playwright-report/
 
 # vite
 /dist
@@ -41,3 +43,9 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
+
+# Source owners remain versioned even when a developer globally ignores lib/.
+!/src/lib/
+!/src/lib/**
+!/src/shared/lib/
+!/src/shared/lib/**

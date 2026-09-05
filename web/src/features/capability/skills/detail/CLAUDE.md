@@ -7,5 +7,5 @@
 - `skill-detail-view.tsx` 只渲染模型、Agent 使用矩阵和触发命令，不直接调用 API、维护 Effect 或复制市场反馈；长说明进入 `CapabilityDetailSplitLayout` 正文列，徽标与使用矩阵进入配置侧栏，窄窗由公共布局把配置放到正文前；使用矩阵保留系统托管、主智能体、独立开关和不可配置等行为差异，名称、状态与说明共同支持决策。
 - 窄屏返回语义由应用页面 Header 提供；桌面内容轴与“技能 / 当前对象”导航统一由 `CapabilityDetailPage` 持有，图标、标题、说明和动作对齐由 `CapabilityDetailIdentity` 持有，并与原生窗口控件中线对齐；正文保持受控阅读宽度。
 - 详情返回/来源动作复用共享 Button/LinkButton，身份、标题、说明和矩阵元数据使用 App Typography；Agent 加载、空态及失败统一由 Resource State 表达，不允许私有错误卡片。
-- `skill-markdown.tsx` 只把纯模型归一化后的正文交给共享 Markdown 视图。
+- `skill-markdown.tsx` 只把纯模型归一化后的 Skill 包说明交给共享 Markdown。说明没有 Agent Workspace 来源；外部 URL 和包内相对图片保持原 href/src，不以当前 Agent 选择猜资源基址，不生成工作区预览 API URL。
 - 更新与删除必须复用市场操作控制器；命令返回明确成功结果，失败时不得继续刷新详情或离开路由。

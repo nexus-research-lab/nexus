@@ -1,20 +1,12 @@
 /**
- * INPUT: Markdown AST 节点、Workspace 解析命令与 Agent mention 链接。
- * OUTPUT: 通用 Markdown 组件及安全解析后的 Agent/handoff chip。
- * POS: 共享 Markdown 节点到产品 UI 原语的渲染注册表。
+ * INPUT: Markdown AST 节点、受控 Workspace 解析命令与可选链接渲染槽。
+ * OUTPUT: 通用 Markdown 元素、文件交互与消费侧注入的链接视图。
+ * POS: 共享 Markdown 渲染注册表；领域 URI 和业务状态由消费侧解释。
  */
 "use client";
 
 import type { ReactNode } from "react";
 import { type Components } from "react-markdown";
-
-import { getWorkspaceFilePreviewUrl } from "@/lib/api/agent/agent-api";
-import {
-  AgentMentionChip,
-  type AgentMentionDirectory,
-} from "@/features/conversation/shared/message/agent-mention-chip";
-import { isSlashCommandHref } from "@/features/conversation/shared/slash-command-presentation";
-import { SlashCommandToken } from "@/features/conversation/shared/slash-command-token";
 
 import { CodeBlock } from "../code/code-block";
 import { LazyMermaidView } from "../mermaid/lazy-mermaid-view";
@@ -37,19 +29,17 @@ interface CreateMarkdownComponentsOptions {
   showMermaidHeader?: boolean;
   streamCodeBlocks?: boolean;
   streamMermaid?: boolean;
-  agentMentionDirectory?: AgentMentionDirectory;
-  onOpenAgentContact?: (agentId: string) => void;
+  // 返回 null/undefined 时继续通用安全链接渲染；领域协议放行由消费侧 URL transform 决定。
+  renderLink?: (href: string, children: ReactNode) => ReactNode | null;
+  getFilePreviewUrl?: (path: string) => string;
 }
 
 interface MarkdownLinkProps {
   children: ReactNode;
-  currentAgentId?: string | null;
   href?: string;
-  onOpenWorkspaceFile?: (
-    path: string,
-    workspaceAgentId?: string | null,
-  ) => void;
+  onOpenWorkspaceFile?: (path: string) => void;
   resolveFilePath: ResolveWorkspaceFilePath;
+  renderLink?: CreateMarkdownComponentsOptions["renderLink"];
 }
 
 type OpenWorkspaceFile = NonNullable<
@@ -71,32 +61,15 @@ function assertNever(value: never): never {
 
 function renderMarkdownLink({
   children,
-  currentAgentId,
   href,
   onOpenWorkspaceFile,
   resolveFilePath,
-  agentMentionDirectory,
-  onOpenAgentContact,
-}: MarkdownLinkProps & {
-  agentMentionDirectory?: AgentMentionDirectory;
-  onOpenAgentContact?: (agentId: string) => void;
-}): ReactNode {
+  renderLink,
+}: MarkdownLinkProps): ReactNode {
   const rawHref = String(href ?? "").trim();
-  if (isSlashCommandHref(rawHref)) {
-    return <SlashCommandToken>{children}</SlashCommandToken>;
-  }
-  const agentMention = parseAgentMentionHref(rawHref);
-  if (agentMention) {
-    return (
-      <AgentMentionChip
-        agentId={agentMention.agentId}
-        directory={agentMentionDirectory}
-        handoffId={agentMention.handoffId}
-        onOpenAgentContact={onOpenAgentContact}
-      >
-        {children}
-      </AgentMentionChip>
-    );
+  const customLink = renderLink?.(rawHref, children);
+  if (customLink != null) {
+    return customLink;
   }
   const workspacePath = onOpenWorkspaceFile
     ? resolveWorkspaceArtifactPath(rawHref, resolveFilePath)
@@ -116,7 +89,6 @@ function renderMarkdownLink({
           label={children}
           onOpenWorkspaceFile={requireWorkspaceFileCommand(onOpenWorkspaceFile)}
           path={presentation.path}
-          workspaceAgentId={currentAgentId}
         />
       );
     case "anchor":
@@ -147,36 +119,9 @@ function renderMarkdownLink({
   return assertNever(presentation);
 }
 
-function parseAgentMentionHref(
-  href: string,
-): { agentId: string; handoffId?: string } | null {
-  const prefix = "agent-mention://";
-  if (!href.startsWith(prefix)) {
-    return null;
-  }
-  const target = href.slice(prefix.length);
-  const queryIndex = target.indexOf("?");
-  const encodedAgentId = queryIndex >= 0 ? target.slice(0, queryIndex) : target;
-  const query = queryIndex >= 0 ? target.slice(queryIndex + 1) : "";
-  try {
-    const agentId = decodeURIComponent(encodedAgentId).trim();
-    if (!agentId) {
-      return null;
-    }
-    const handoffId = new URLSearchParams(query).get("handoff_id")?.trim();
-    return {
-      agentId,
-      ...(handoffId ? { handoffId } : {}),
-    };
-  } catch {
-    return null;
-  }
-}
-
 export function createMarkdownComponents(
   resolveFilePath: ResolveWorkspaceFilePath,
-  onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void,
-  currentAgentId?: string | null,
+  onOpenWorkspaceFile?: (path: string) => void,
   options: CreateMarkdownComponentsOptions = {},
 ): Components {
   return {
@@ -219,7 +164,6 @@ export function createMarkdownComponents(
             label={presentation.value}
             path={resolvedPath}
             onOpenWorkspaceFile={onOpenWorkspaceFile}
-            workspaceAgentId={currentAgentId}
           />
         );
       }
@@ -265,19 +209,17 @@ export function createMarkdownComponents(
     a({ href, children }) {
       return renderMarkdownLink({
         children,
-        currentAgentId,
         href,
         onOpenWorkspaceFile,
         resolveFilePath,
-        agentMentionDirectory: options.agentMentionDirectory,
-        onOpenAgentContact: options.onOpenAgentContact,
+        renderLink: options.renderLink,
       });
     },
     img({ alt, src }) {
       const rawSrc = String(src || "").trim();
       const resolvedPath = resolveWorkspaceImagePath(rawSrc, resolveFilePath);
-      const imageSrc = resolvedPath && currentAgentId
-        ? getWorkspaceFilePreviewUrl(currentAgentId, resolvedPath)
+      const imageSrc = resolvedPath && options.getFilePreviewUrl
+        ? options.getFilePreviewUrl(resolvedPath)
         : rawSrc;
       const interactive = Boolean(resolvedPath && onOpenWorkspaceFile);
       const image = (
@@ -295,7 +237,7 @@ export function createMarkdownComponents(
         return (
           <button
             className="content-media-action content-media-frame block text-left"
-            onClick={() => onOpenWorkspaceFile(resolvedPath, currentAgentId)}
+            onClick={() => onOpenWorkspaceFile(resolvedPath)}
             title={resolvedPath}
             type="button"
           >

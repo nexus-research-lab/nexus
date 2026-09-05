@@ -1,10 +1,9 @@
-"use client";
-
 /**
- * INPUT: 图片块与可选 generation-bound detail 引用。
- * OUTPUT: 带桌面认证、可取消 Blob 生命周期的图片展示。
- * POS: 图片 Artifact 的 React 资源边界。
+ * INPUT: 图片块、归属 Agent 与可选 generation-bound detail 引用。
+ * OUTPUT: 绑定消费侧 Workspace 资源、带桌面认证和可取消 Blob 生命周期的图片展示。
+ * POS: 图片 Artifact 的 React 资源边界；共享 Markdown 不读取业务身份或文件 Store。
  */
+"use client";
 
 import { ImageIcon, LoaderCircle } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -12,10 +11,7 @@ import { useEffect, useState } from "react";
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
-import {
-  useMarkdownCurrentAgentID,
-  useMarkdownFileResolver,
-} from "@/shared/ui/markdown/workspace/use-markdown-workspace-files";
+import { useWorkspaceMarkdown } from "@/hooks/agent/use-workspace-markdown";
 import type { ImageContent } from "@/types/conversation/message/content";
 import { getSessionMessageImageDetailApi } from "@/lib/api/conversation/session-api";
 
@@ -40,8 +36,7 @@ export function ImageBlock({
   workspaceAgentId,
 }: ImageBlockProps) {
   const { t } = useI18n();
-  const resolveFilePath = useMarkdownFileResolver(workspaceAgentId);
-  const currentAgentId = useMarkdownCurrentAgentID(workspaceAgentId);
+  const { resolveFilePath, currentAgentId } = useWorkspaceMarkdown(workspaceAgentId);
   const deferredImage = useDeferredImageDetail(block);
   const projection = projectImageArtifact({
     block,

@@ -10,6 +10,7 @@
 | --- | --- |
 | 产品概览 | [中文 README](../README_zh.md) · [英文 README](../README.md) |
 | 技术架构 | [Nexus 技术架构](./nexus-architecture-blueprint.md) |
+| 前端代码与 UI 规范 | [工程与设计系统治理](./specs/frontend-engineering-spec.md) · [视觉与交互唯一入口](../design.md) · [Agent 入口](../web/AGENTS.md) |
 | Room Skill 编写 | [中文指南](./guides/room-skill-authoring.md) · [英文指南](./guides/room-skill-authoring.en.md) |
 | Linux 生产隔离 | [Linux Runtime 隔离运维](./operations/runtime-isolation.md) |
 | Control 部署与账号迁移 | [Nexus Control 部署与迁移](./operations/control-migration.md) |

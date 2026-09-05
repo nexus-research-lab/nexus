@@ -5,7 +5,7 @@
 - `UiTabs` 是历史视觉名称；当前消费者都是即时视图或筛选选择，因此 DOM 必须使用具名 `button group` 与 `aria-pressed`，不得伪装成站点 `<nav>` 或缺少 tabpanel/箭头键合同的 ARIA tablist。
 - `UiTabs` 的所有内容与筛选切换统一使用纯文字优先的中性底线，不提供 `soft` 或胶囊变体；消费方提供的单项类名只挂在稳定包装节点上，响应式隐藏或收纳必须作用于该节点，不能留下空白 `gap`。有限互斥配置值和紧凑图标视图开关属于表单语义，使用 `UiSegmentedControl`。
 - `UiDirectoryTabs` 是按使用类型命名的跨领域目录工具栏预设，只固定紧凑密度、自适应内容宽度和单行布局；它不得认识 Capability、Skill、Connector 或 Pairing。没有真实布局差异时不得再按业务域包一层 Tabs。
-- 只要标签组支持关闭，所有项目就必须预留相同关闭槽位，避免活动态出现/消失关闭按钮时改变宽度；关闭动作统一通过 `getUiTabDismissClassName` 获得 24px 命中区、6px 圆角、危险态 hover 与键盘 focus。
+- 只要标签组支持关闭，所有项目就必须预留相同关闭槽位，避免活动态出现/消失关闭按钮时改变宽度；`UiTabs` 与 Workspace 标签统一渲染 `UiTabDismissButton`，由它持有既有 24px 命中区、6px 圆角、危险态 hover、键盘 focus、原生 title 和关闭事件隔离。消费者只提供名称、关闭命令、位置和可见性，不复制按钮 DOM 或样式。
 - 页面级栏目使用中灰文字与中性底线表达当前位置，不借用品牌蓝；所有项始终保留同宽底线槽，未选中项只在 hover 时轻微加深，不增加阴影或布局位移。
 - 真正页面导航使用链接与 `<nav>`；真正 tabpanel 只有在同时实现 roving focus、方向键和 `aria-controls` 后才能新增独立 primitive。
 - 路由、页面状态和业务可见性由消费者投影后传入。

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { useTextareaHeight } from "@/hooks/ui/use-textarea-height";
+import { useTextareaHeight } from "@/shared/lib/react/use-textarea-height";
 
 export function useUserMessageEditor({
   compact,
