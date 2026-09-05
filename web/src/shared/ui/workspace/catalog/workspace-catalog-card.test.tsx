@@ -7,9 +7,30 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { UiButton } from "@/shared/ui/button/button";
-import { WorkspaceCatalogCard } from "./workspace-catalog-card";
+import { WorkspaceCatalogCard, WorkspaceCatalogGhostAction } from "./workspace-catalog-card";
 
 describe("WorkspaceCatalogCard", () => {
+  it("delegates catalog creation to the shared button with safe native form semantics", async () => {
+    const user = userEvent.setup();
+    const onCreate = vi.fn();
+    const onSubmit = vi.fn();
+    const view = (disabled: boolean) => <form onSubmit={onSubmit}>
+      <WorkspaceCatalogGhostAction disabled={disabled} onClick={onCreate}>Create item</WorkspaceCatalogGhostAction>
+    </form>;
+    const { rerender } = render(view(false));
+    const create = screen.getByRole("button", { name: "Create item" }) as HTMLButtonElement;
+    expect(create.type).toBe("button");
+    await user.tab();
+    await user.keyboard("{Enter}");
+    expect(onCreate).toHaveBeenCalledOnce();
+    expect(onSubmit).not.toHaveBeenCalled();
+    rerender(view(true));
+    expect(create.disabled).toBe(true);
+    await user.click(create);
+    await user.keyboard(" ");
+    expect(onCreate).toHaveBeenCalledOnce();
+  });
+
   it("keeps keyboard navigation and secondary commands separate", async () => {
     const user = userEvent.setup();
     const onOpen = vi.fn();

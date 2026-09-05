@@ -45,6 +45,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Consolidated Agent authorization rows and Skill cards onto shared ListRow,
+  Catalog, and typography primitives while preserving switch-only commands,
+  disconnected-access removal, and locked or pending Skill behavior. Catalog
+  creation actions now reuse shared Button focus and disabled states.
 - Unified sidebar row and skeleton density, list surfaces and muted states under
   shared ListRow props. Static rows no longer advertise hover interaction, and
   busy Feishu connection choices retain accessible disabled semantics. Native

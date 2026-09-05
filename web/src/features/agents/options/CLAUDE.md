@@ -16,3 +16,4 @@
 - `agent-options-mutation.ts` 定义创建和更新共用的字段边界，`use-existing-agent-options-commands.ts` 负责既有 Agent 的保存与名称校验。
 - 可编辑 Options 只由 `lib/agent-options.ts` 的 `pickAgentEditableOptions` 投影，编辑器初值和持久化载荷不得各维护一份字段表。
 - Agent Options 业务组件不得放入 `shared/ui/dialog/`。
+- 高级页的工具与 Connector 授权条目复用 `UiListRow variant="outlined"` 和共享图标/排版；行本身只展示信息，唯一命中区是 `GlassSwitch`。断开连接且未选中的 Connector 不可启用，断开但已选中的仍允许关闭，UI 重构不得改变此权限边界。

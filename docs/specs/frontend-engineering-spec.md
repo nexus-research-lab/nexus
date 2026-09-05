@@ -173,6 +173,7 @@ Primitive 同时拥有 DOM、键盘、焦点、ARIA 和视觉状态合同，例�
 - `UiListActionButton` 只在 `UiIconButton` 上组合事件隔离与可见性，不持有第二套按钮 DOM、tone、焦点或禁用样式；需要按行展示时选择 `visibility="hover"`，并由共享规则保证键盘和触摸可达。
 - `UiListRow` 的侧栏密度、连续列表/独立边界与弱化展示分别通过 `density / variant / muted` 表达；静态行没有 hover，禁用必须使用 `disabled` 保留语义并阻断命令，不能通过移除回调或私设透明度假装禁用。
 - 目录卡片的整卡主动作通过 `WorkspaceCatalogCard.primaryAction` 声明；Article 保留内容语义，主按钮在局部隔离堆叠中位于内容下方，原生次动作独立命中。业务不得复制覆盖按钮或整卡 hover/focus 配方。
+- 紧凑目录内容使用 `WorkspaceCatalogCard size="dense"`；目录创建入口 `WorkspaceCatalogGhostAction` 只在 `UiButton outline` 上组合卡片尺寸与虚线边界，不另写按钮 DOM 或状态样式。授权行使用静态 `UiListRow` 组合唯一的 `GlassSwitch`，不能把整行或 Skill 卡片变成第二个切换命中区；失联但已授权的 Connector 必须仍可取消。
 - 业务文字、导航链接和纯图标动作必须分别渲染 `UiButton / UiLinkButton / UiIconButton`；`button-styles.ts` 是 shared primitive 的实现细节，业务层不得借其 class 投影手写第二套 DOM；
 - `UiButton surface` 表达带底色的次级动作，`outline` 表达与页面同层、透明无阴影但需要稳定边界的动作组，`ghost / text` 表达默认无边界的轻动作；业务页不得用局部 `background / border / shadow` 把一种变体临时改造成另一种；
 - 普通单行、多行和原生选择字段必须分别渲染 `UiInput / UiTextarea / UiNativeSelect`；业务层不得导入 `form-control-styles.ts` 复制输入壳，嵌入领域复合控件的无壳原生输入由其 pattern 明确负责；
@@ -370,6 +371,8 @@ Room 的持久化与最终替换规则由导航功能的共置行为测试独立
 目录卡片另外通过真实坐标验证内容上的整卡命中、独立次动作和键盘主动作；列表
 次动作验证 hover/focus 可见性以及 disabled 时无 hover 反馈。Select 的紧凑和大号
 字段高度也由浏览器直接测量，业务通过 `size` 选择，不添加局部高度或阴影配方。
+Agent 高级设置夹具直接渲染实际权限行与 Skill 卡片，验证开关独立命中、失联授权
+撤销、锁定/提交中不可变更，以及长设置页面中逐行滚动可达；不要求整页缩入视口。
 
 ## 9. Agent 修改流程
 

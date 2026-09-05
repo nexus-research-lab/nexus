@@ -7,11 +7,16 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
+import type { ConnectorInfo } from "@/types/capability/connector";
 
 import { AgentOptionsAdvancedTab } from "./agent-options-advanced-tab";
 
 function renderAdvancedTab({
   connectorsLoading = false,
+  connectors = [] as ConnectorInfo[],
+  connectorIds = [] as string[],
+  onToggleConnector = vi.fn(),
+  onToggleTool = vi.fn(),
   onPermissionModeChange = vi.fn(),
   permissionMode = "bypassPermissions",
 } = {}) {
@@ -22,23 +27,54 @@ function renderAdvancedTab({
     >
       <AgentOptionsAdvancedTab
         allowedTools={[]}
-        connectorIds={[]}
-        connectors={[]}
+        connectorIds={connectorIds}
+        connectors={connectors}
         connectorsError={null}
         connectorsLoading={connectorsLoading}
         onPermissionModeChange={onPermissionModeChange}
         onRetryConnectors={vi.fn()}
-        onToggleConnector={vi.fn()}
-        onToggleTool={vi.fn()}
+        onToggleConnector={onToggleConnector}
+        onToggleTool={onToggleTool}
         permissionMode={permissionMode}
       />
     </I18N_CONTEXT.Provider>,
     ),
     onPermissionModeChange,
+    onToggleConnector,
+    onToggleTool,
   };
 }
 
 describe("AgentOptionsAdvancedTab", () => {
+  it("keeps tool and Connector switches as the only authorization hit targets", async () => {
+    const user = userEvent.setup();
+    const connector = (id: string, connection_state: ConnectorInfo["connection_state"]): ConnectorInfo => ({
+      connector_id: id, name: id, title: id, connection_state,
+      auth_type: "oauth2", category: "productivity", description: "Connector purpose", icon: "github",
+      is_configured: true, kind: "connector", status: "available",
+    });
+    const { onToggleTool, onToggleConnector } = renderAdvancedTab({
+      connectorIds: ["Existing disconnected"],
+      connectors: [connector("Connected", "connected"), connector("Unavailable", "disconnected"), connector("Existing disconnected", "disconnected")],
+    });
+    await user.click(screen.getByText("Bash"));
+    await user.click(screen.getByText("Connected"));
+    expect(onToggleTool).not.toHaveBeenCalled();
+    expect(onToggleConnector).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("switch", { name: "Bash" }));
+    expect(onToggleTool).toHaveBeenCalledWith("Bash", "allowed");
+    await user.click(screen.getByRole("switch", { name: "Connected" }));
+    expect(onToggleConnector).toHaveBeenLastCalledWith("Connected");
+    const unavailable = screen.getByRole("switch", { name: "Unavailable" }) as HTMLButtonElement;
+    expect(unavailable.disabled).toBe(true);
+    await user.click(unavailable);
+    expect(onToggleConnector).toHaveBeenCalledTimes(1);
+    const existing = screen.getByRole("switch", { name: "Existing disconnected" }) as HTMLButtonElement;
+    expect(existing.disabled).toBe(false);
+    await user.click(existing);
+    expect(onToggleConnector).toHaveBeenLastCalledWith("Existing disconnected");
+  });
+
   it("uses the shared warning notice for bypass permissions", () => {
     renderAdvancedTab();
 

@@ -14,6 +14,9 @@ import { UiBadge } from "@/shared/ui/display/badge";
 import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
+import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
+import { WorkspaceCatalogCard } from "@/shared/ui/workspace/catalog/workspace-catalog-card";
 import type { AgentSkillEntry } from "@/types/capability/skill";
 
 interface AgentSkillCardProps {
@@ -64,11 +67,14 @@ export function AgentSkillCard({
   ].filter((badge) => badge.visible);
 
   return (
-    <div className="grid min-h-[104px] grid-cols-[40px_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2 rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-3.5 py-3 transition-[background,border-color] duration-(--motion-duration-fast) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)">
+    <WorkspaceCatalogCard
+      className="grid grid-cols-[40px_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2"
+      size="dense"
+    >
       <UiSeededAvatar seed={skill.name} />
       <div className="flex min-h-10 min-w-0 items-center overflow-hidden">
         <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
-          <span className="line-clamp-2 min-w-0 text-sm font-semibold leading-[1.4] text-(--text-strong)">
+          <span className={cn("line-clamp-2 min-w-0", getUiTypographyClassName({ role: "sectionTitle", tone: "strong" }))}>
             {title}
           </span>
           {badges.map((badge) => (
@@ -103,10 +109,10 @@ export function AgentSkillCard({
       ) : null}
 
       {description ? (
-        <p className="col-span-3 line-clamp-2 text-compact leading-[1.55] text-(--text-muted)">
+        <p className={cn("col-span-3 line-clamp-2", getUiTypographyClassName({ role: "metadata", tone: "muted" }))}>
           {description}
         </p>
       ) : null}
-    </div>
+    </WorkspaceCatalogCard>
   );
 }

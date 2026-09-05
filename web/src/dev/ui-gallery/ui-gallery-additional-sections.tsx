@@ -26,6 +26,7 @@ import {
 } from "react";
 
 import type { Locale } from "@/shared/i18n/messages";
+import { AgentOptionsGallery } from "./ui-gallery-agent-options";
 import { UiButton, UiIconButton, UiLinkButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
@@ -542,6 +543,7 @@ const WORKSPACE_TABS = [
 
 export function WorkspaceGallery({ locale }: { locale: Locale }) {
   const [catalogActions, setCatalogActions] = useState({ primary: 0, secondary: 0 });
+  const [catalogCreations, setCatalogCreations] = useState(0);
   const [activeSurfaceTab, setActiveSurfaceTab] = useState("overview");
   const [conversationId, setConversationId] = useState("gallery-one");
   const [conversationTabs, setConversationTabs] = useState(WORKSPACE_TABS);
@@ -552,6 +554,7 @@ export function WorkspaceGallery({ locale }: { locale: Locale }) {
 
   return (
     <div className="grid items-start gap-5" data-gallery-panel="workspace">
+      <AgentOptionsGallery locale={locale} />
       <PreviewSection
         description={galleryText(locale, "目录卡、内容区和动作全部来自 Workspace 公共原语。", "Catalog cards, content slots, and actions all come from Workspace primitives.")}
         eyebrow="01 · CATALOG"
@@ -587,10 +590,14 @@ export function WorkspaceGallery({ locale }: { locale: Locale }) {
           </PreviewCard>
 
           <PreviewCard components={["WorkspaceCatalogGhostAction"]}>
-            <WorkspaceCatalogGhostAction size="compact">
+            <WorkspaceCatalogGhostAction aria-label="Create catalog item" onClick={() => setCatalogCreations((count) => count + 1)} size="compact">
               <Plus className="h-5 w-5 text-(--icon-muted)" />
               <span className="mt-2 text-sm font-medium">{galleryText(locale, "新增目录项", "Add catalog item")}</span>
             </WorkspaceCatalogGhostAction>
+            <WorkspaceCatalogGhostAction aria-label="Disabled catalog creation" disabled size="compact">
+              {galleryText(locale, "暂不可创建", "Creation unavailable")}
+            </WorkspaceCatalogGhostAction>
+            <output data-gallery-catalog-creations>{catalogCreations}</output>
           </PreviewCard>
 
           <PreviewCard components={["WorkspaceActionBar", "WorkspaceActionCard"]}>

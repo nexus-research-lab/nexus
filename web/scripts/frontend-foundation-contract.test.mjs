@@ -1669,6 +1669,22 @@ test("Agent Options navigation consumes the shared Button active-state contract"
   assert.doesNotMatch(navigation, /<button\b|rounded-\[|shadow-/);
 });
 
+test("Agent authorization and Skill cards keep shared list, catalog and typography owners", async () => {
+  const [authorization, skill, catalog] = await Promise.all([
+    readSource("src/features/agents/options/components/agent-options-advanced-tab.tsx"),
+    readSource("src/features/agents/options/components/skills/agent-skill-card.tsx"),
+    readSource("src/shared/ui/workspace/catalog/workspace-catalog-card.tsx"),
+  ]);
+  assert.match(authorization, /<UiListRow/);
+  assert.match(skill, /<WorkspaceCatalogCard/);
+  for (const source of [authorization, skill]) {
+    assert.match(source, /<GlassSwitch/);
+    assert.match(source, /getUiTypographyClassName/);
+    assert.doesNotMatch(source, /rounded-\[|SIDEBAR_SELECTION_CLASS_NAME/);
+  }
+  assert.doesNotMatch(catalog, /<button\b/);
+});
+
 test("Agent private threads separate data projection from ListRow layout recipes", async () => {
   const [list, layout, model] = await Promise.all([
     readSource("src/features/agents/private-domain/agent-private-domain-thread-list.tsx"),

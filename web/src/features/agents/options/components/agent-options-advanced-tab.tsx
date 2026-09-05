@@ -26,7 +26,9 @@ import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import { UiChoiceButton } from "@/shared/ui/form/choice";
-import { SIDEBAR_SELECTION_CLASS_NAME } from "@/shared/ui/sidebar/sidebar-selection";
+import { UiListRow } from "@/shared/ui/list/list-row";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
+import { WorkspaceIconFrame } from "@/shared/ui/workspace/catalog/workspace-icon-frame";
 import { ConnectorIcon } from "@/features/capability/connectors/connector-icon";
 import type { ConnectorInfo } from "@/types/capability/connector";
 import {
@@ -97,12 +99,12 @@ export function AgentOptionsAdvancedTab({
                 tone="neutral"
                 type="button"
               >
-                <span className="flex w-full min-w-0 items-center gap-2 text-sm font-semibold text-(--text-strong)">
+                <span className={cn("flex w-full min-w-0 items-center gap-2", getUiTypographyClassName({ role: "control", tone: "strong", weight: "semibold" }))}>
                   <span className="min-w-0 flex-1 truncate">{t(mode.labelKey)}</span>
                   {isActive ? <Check className="h-3.5 w-3.5 shrink-0" /> : null}
                 </span>
                 <span
-                  className="mt-1 line-clamp-2 text-xs leading-[1.45] text-(--text-muted)"
+                  className={cn("mt-1 line-clamp-2", getUiTypographyClassName({ role: "caption", tone: "muted" }))}
                   title={t(mode.descriptionKey)}
                 >
                   {t(mode.descriptionKey)}
@@ -175,7 +177,7 @@ export function AgentOptionsAdvancedTab({
           />
         ) : null}
         {!connectorsLoading && !connectorsError && connectors.length === 0 ? (
-          <p className="text-xs text-(--text-soft)">
+          <p className={getUiTypographyClassName({ role: "caption", tone: "soft" })}>
             {t("agent_options.advanced.connector_empty")}
           </p>
         ) : null}
@@ -208,13 +210,13 @@ function SectionHeader({
   return (
     <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
       <div className="min-w-0">
-        <h3 className="text-sm font-semibold text-(--text-strong)">{title}</h3>
-        <p className="mt-0.5 max-w-[720px] text-xs leading-5 text-(--text-soft)">
+        <h3 className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong" })}>{title}</h3>
+        <p className={cn("mt-0.5 max-w-[720px]", getUiTypographyClassName({ role: "metadata", tone: "soft" }))}>
           {description}
         </p>
       </div>
       {trailing ? (
-        <span className="shrink-0 text-xs tabular-nums text-(--text-soft) sm:pt-0.5">
+        <span className={cn("shrink-0 tabular-nums sm:pt-0.5", getUiTypographyClassName({ role: "caption", tone: "soft" }))}>
           {trailing}
         </span>
       ) : null}
@@ -235,35 +237,16 @@ function ToolAuthorizationRow({
 }) {
   const Icon = TOOL_ICONS[name];
   return (
-    <div
-      className={cn(
-        "grid min-h-[64px] grid-cols-[30px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[10px] border px-3 py-2.5 transition-[background,border-color] duration-(--motion-duration-fast)",
-        checked
-          ? SIDEBAR_SELECTION_CLASS_NAME
-          : "border-(--divider-subtle-color) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)",
-      )}
-    >
-      <span className="flex h-[30px] w-[30px] items-center justify-center rounded-[8px] bg-(--surface-panel-subtle-background) text-(--icon-muted)">
-        <Icon className="h-4 w-4" />
-      </span>
-      <span className="min-w-0">
-        <span className="block truncate text-compact font-semibold text-(--text-strong)">
-          {name}
-        </span>
-        <span
-          className="mt-0.5 block truncate text-xs leading-4 text-(--text-muted)"
-          title={description}
-        >
-          {description}
-        </span>
-      </span>
-      <GlassSwitch
-        aria-label={name}
-        checked={checked}
-        onChange={onToggle}
-        size="xs"
-      />
-    </div>
+    <UiListRow
+      active={checked}
+      activeTone="sidebar"
+      description={description}
+      leading={<WorkspaceIconFrame size="sm"><Icon className="h-4 w-4" /></WorkspaceIconFrame>}
+      right={<GlassSwitch aria-label={name} checked={checked} onChange={onToggle} size="xs" />}
+      title={name}
+      tooltip={description}
+      variant="outlined"
+    />
   );
 }
 
@@ -278,38 +261,17 @@ function ConnectorAuthorizationRow({
 }) {
   const { t } = useI18n();
   const connected = connector.connection_state === "connected";
+  const disabled = !connected && !checked;
   return (
-    <div
-      className={cn(
-        "grid min-h-[64px] grid-cols-[30px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[10px] border px-3 py-2.5 transition-[background,border-color] duration-(--motion-duration-fast)",
-        checked
-          ? SIDEBAR_SELECTION_CLASS_NAME
-          : "border-(--divider-subtle-color) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)",
-        !connected && !checked && "opacity-(--disabled-opacity)",
-      )}
-    >
-      <ConnectorIcon
-        className="h-[30px] w-[30px] rounded-[8px]"
-        icon={connector.icon}
-        title={connector.title}
-      />
-      <span className="min-w-0">
-        <span className="block truncate text-compact font-semibold text-(--text-strong)">
-          {connector.title}
-        </span>
-        <span className="mt-0.5 block truncate text-xs leading-4 text-(--text-muted)">
-          {connected
-            ? connector.description
-            : t("agent_options.advanced.connector_disconnected")}
-        </span>
-      </span>
-      <GlassSwitch
-        aria-label={connector.title}
-        checked={checked}
-        disabled={!connected && !checked}
-        onChange={onToggle}
-        size="xs"
-      />
-    </div>
+    <UiListRow
+      active={checked}
+      activeTone="sidebar"
+      description={connected ? connector.description : t("agent_options.advanced.connector_disconnected")}
+      disabled={disabled}
+      leading={<ConnectorIcon icon={connector.icon} title={connector.title} />}
+      right={<GlassSwitch aria-label={connector.title} checked={checked} disabled={disabled} onChange={onToggle} size="xs" />}
+      title={connector.title}
+      variant="outlined"
+    />
   );
 }
