@@ -1,6 +1,6 @@
 # Group Chat Panel 控制器
 
-- `use-group-chat-panel-model.ts` 只编排业务阶段；布局和 Provider 状态来自共享面板环境。
+- `use-group-chat-panel-model.ts` 只编排业务阶段；布局和 Provider 状态来自共享面板环境，WorkGraph 资源由外部传入，不以消息数或 Agent 状态拼接私有刷新 key。
 - `use-group-chat-session-controller.ts` 独占会话身份、Room 事件和外部快照观察器。
 - `use-group-chat-composer-model.ts` 独占附件准备、Room 共享本机目录、初始草稿和输入区动作装配。
 - `use-room-goal-composer.ts` 独占负责人草稿与 Goal 刷新信号；`use-group-chat-composer-model.ts` 把提交装配成独立 `set_goal` host control。未提交的负责人选择进入当前 Session 的 Room Composer 草稿胶囊，切回该 Session 时恢复。

@@ -1,6 +1,6 @@
 /**
  * INPUT: runtime 每轮结束后上报的上下文占用快照。
- * OUTPUT: Composer 模型控件左侧的紧凑环形指标与悬浮详情。
+ * OUTPUT: Composer 模型控件左侧的紧凑环形指标与唯一的悬浮详情。
  * POS: DM 与 Room 共用的只读上下文用量视图。
  */
 
@@ -96,6 +96,7 @@ export function ComposerContextUsage({
     estimatePosition,
     isOpen,
     onClose: close,
+    restoreFocus: false,
   });
   if (!projection) {
     return (
@@ -136,6 +137,7 @@ export function ComposerContextUsage({
         onMouseEnter={open}
         onMouseLeave={scheduleClose}
         size="sm"
+        tooltip={null}
         variant="ghost"
       >
         <svg

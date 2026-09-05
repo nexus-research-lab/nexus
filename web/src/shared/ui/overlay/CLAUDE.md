@@ -2,13 +2,13 @@
 
 - `anchored-overlay-model.ts` 只计算锚点浮层在视口内的位置、尺寸与起点/终点对齐；它接收已经解析的数字约束，不认识产品语义。
 - `anchored-overlay-layout.ts` 是锚定浮层 geometry preset 的唯一 owner：`directory-list / reference-list / form-picker / status-summary / status-list / cascade-menu / command-list / command-picker` 固定既有 gap、视口内边距与宽高边界。消费者只选择语义 preset，并按需提供内容估算高度、方向和对齐，不得重新散落同组数字。
-- `anchored-overlay-layer.ts` 统一 Portal 容器、外部点击、Escape、滚动和窗口变化生命周期；默认向锚点归还焦点，包装型 primitive 必须显式提供真实触发器的焦点归还策略。
-- `overlay-dismissal-runtime.ts` 独占模态范围与浮层关闭仲裁。Escape 每次只由当前模态范围的最上层浮层消费并归还其触发器焦点；背景浮层不得拦截当前 Dialog，回调更新不得改变打开顺序。子 Portal 的内容属于父浮层内部，外部指针关闭仍把焦点交给用户点击目标。
+- `anchored-overlay-layer.ts` 统一 Portal 容器、外部点击、Escape、滚动和窗口变化生命周期；默认向锚点归还焦点，包装型交互 primitive 必须显式提供真实触发器的焦点归还策略。不会移动焦点的只读提示使用 `restoreFocus: false`，避免 hover 后按 Escape 抢走输入焦点并触发 focus 重开。
+- `overlay-dismissal-runtime.ts` 独占模态范围与浮层关闭仲裁。Escape 每次只由当前模态范围的最上层浮层消费，并执行其焦点策略；背景浮层不得拦截当前 Dialog，回调更新不得改变打开顺序。子 Portal 的内容属于父浮层内部，外部指针关闭仍把焦点交给用户点击目标。
 - 关闭仲裁注册必须在 DOM 提交后核对真实锚点与浮层节点；初始打开但延迟挂载、同容器节点替换及 Portal 迁移都必须注册新节点，节点未变时保留原顺序，关闭和卸载幂等注销。不得只依赖布尔打开态或 Portal 容器变化，也不得用轮询等待挂载。
 - `overlay-contract.ts` 定义打开态 DOM 契约，供嵌套 Dialog 判断 Escape 的唯一消费层。
 - `overlay-styles.ts` 只定义锚点浮层共用的材质与进出场；进场只动画 `opacity`/`transform`，定位层提交的 `left`/`top`/`bottom` 几何不得参与 transition；层级、尺寸和内容语义仍由消费者决定。
 - `layer-styles.ts` 把 select/action menu、popover、dialog、嵌套交互、tooltip、tour 与系统弹窗映射到主题 layer token；消费者选择语义层，不挑选或递增 z-index 整数。
-- `tooltip.tsx` 复用锚点定位与 Portal 生命周期，统一短延迟 hover、键盘 focus、Escape 焦点归还和深色轻量提示；业务按钮只提供可访问标签与可选快捷键。
+- `tooltip.tsx` 复用锚点定位与 Portal 生命周期，统一短延迟 hover、键盘 focus、Escape 关闭和深色轻量提示；打开和关闭都保持现有焦点，业务按钮只提供可访问标签与可选快捷键。
 
 本目录不解释菜单、选择器或业务内容。消费者提供定位语义和关闭命令，浮层内容仍归消费者所有；确有新几何时先与现有 preset 比较，只有存在稳定布局差异才新增 preset，并同步补齐合同测试。
 `anchored-overlay-layer.test.tsx` 使用真实 Portal、Tooltip、Select 与 Dialog 覆盖逐层 Escape、模态范围隔离、跨 Portal 内部点击与外部指针焦点；不得用孤立打开标记替代这组集成行为。

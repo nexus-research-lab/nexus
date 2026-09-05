@@ -30,7 +30,8 @@ interface AnchoredOverlayLayerOptions<T extends HTMLElement> {
   estimatePosition: (anchor: T) => UiAnchoredOverlayPosition;
   isOpen: boolean;
   onClose: () => void;
-  restoreFocus?: () => void;
+  // 只读 hover 提示不移动焦点，关闭时也不能抢走原控件的焦点。
+  restoreFocus?: false | (() => void);
 }
 
 interface AnchoredOverlayRegistration {
@@ -136,7 +137,7 @@ export function useAnchoredOverlayLayer<T extends HTMLElement>({
       onClose();
       if (restoreFocus) {
         restoreFocus();
-      } else {
+      } else if (restoreFocus !== false) {
         anchorRef.current?.focus();
       }
     };

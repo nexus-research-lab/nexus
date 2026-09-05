@@ -1,5 +1,5 @@
 // INPUT: 单个可聚焦触发器、短标签、可选快捷键与锚定方向。
-// OUTPUT: 具延迟 hover、即时 focus、ARIA 关联、Portal 定位和焦点归还的共享提示。
+// OUTPUT: 具延迟 hover、即时 focus、ARIA 关联与 Portal 定位且不移动焦点的共享提示。
 // POS: Tooltip primitive；不承担业务点击动作或长内容 Popover。
 "use client";
 
@@ -66,15 +66,6 @@ export function UiTooltip({
     clearOpenTimer();
     openTimerRef.current = setTimeout(openNow, TOOLTIP_OPEN_DELAY_MS);
   }, [clearOpenTimer, openNow]);
-  const restoreTriggerFocus = useCallback(() => {
-    const container = anchorRef.current;
-    const trigger = container?.firstElementChild;
-    if (trigger instanceof HTMLElement) {
-      trigger.focus();
-      return;
-    }
-    container?.focus();
-  }, []);
   const estimatePosition = useCallback(
     (container: HTMLSpanElement) => {
       const anchor = container.firstElementChild instanceof HTMLElement
@@ -106,7 +97,7 @@ export function UiTooltip({
     estimatePosition,
     isOpen,
     onClose: close,
-    restoreFocus: restoreTriggerFocus,
+    restoreFocus: false,
   });
 
   useEffect(() => clearOpenTimer, [clearOpenTimer]);

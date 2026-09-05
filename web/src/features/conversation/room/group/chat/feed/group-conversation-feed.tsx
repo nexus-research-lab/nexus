@@ -1,6 +1,6 @@
 /**
  * INPUT: Room root/Agent 节点 source、渲染器与共享滚动 refs。
- * OUTPUT: 静态/虚拟 Room Feed，并以真实内容高度驱动整组贴底增长。
+ * OUTPUT: 静态/虚拟 Room Feed；空前导 Feed 填满 viewport，其余内容以真实高度驱动整组贴底增长。
  * POS: Room 主消息流的分支装配入口。
  */
 import { memo, useMemo, useRef } from "react";
@@ -68,14 +68,15 @@ function StaticGroupConversationFeed({
     roundScrollRef: refs.roundScrollRef,
     scrollRef: refs.scrollRef ?? unavailableScrollRef,
   });
+  const fillsViewport = leadingContent != null && source.roundIds.length === 0;
 
   return (
     <div
       ref={refs.feedRef}
       className={
         isMobileLayout
-          ? "nexus-chat-feed flex flex-col"
-          : `nexus-chat-feed ${CONVERSATION_CONTENT_LANE_CLASS_NAME} flex flex-col`
+          ? `nexus-chat-feed flex flex-col${fillsViewport ? " min-h-full" : ""}`
+          : `nexus-chat-feed ${CONVERSATION_CONTENT_LANE_CLASS_NAME} flex flex-col${fillsViewport ? " min-h-full" : ""}`
       }
     >
       {leadingContent}

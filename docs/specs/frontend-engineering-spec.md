@@ -39,6 +39,7 @@
 - 从原生 DOM 控件、任意值样式、重复常量、同义 helper、过渡适配层、无引用导出、不可达分支、失效状态和过期文档反向扫描整个前端；
 - 每个命中项必须明确归入“合并到公共所有者”“直接删除”或“记录为有边界且有测试的例外”，不得以“以后可能复用”为理由保留无当前调用者的代码；
 - 删除或归并实现时同步更新 L3 契约、组件清单、Gallery、架构门禁和行为测试，避免代码与说明再次分叉。
+- 引用审计区分生产入口、生成协议与动态测试入口；只有旧测试调用的过期生产 helper 应删除，并把仍有效的断言迁到当前生产入口，不能为保留测试而维护第二套算法。生成类型不能仅凭前端零引用删除。
 
 第三阶段的退出条件是：不存在无说明的页面级普通控件和私有视觉规则，不存在无调用者的兼容壳、导出或状态分支；前端 lint、typecheck、构建、组件测试、架构合同以及 Web/macOS/Windows 代表性页面复查全部通过。
 
@@ -190,12 +191,15 @@ Primitive 同时拥有 DOM、键盘、焦点、ARIA 和视觉状态合同，例�
 - 页面内容、目录视图和列表筛选的标签切换统一使用只有中性底线选中态的 `UiTabs`；目录工具栏的紧凑、自适应宽度预设使用按类型命名的跨领域 `UiDirectoryTabs`，不得创建 `Capability*Tabs` 等业务域转发层。有限互斥配置值使用 `UiSegmentedControl`，不得在两者之间仅凭局部审美互换；
 - variant 必须存在真实视觉或行为差异；完全相同的 variant 合并；
 - 普通按钮、输入和模态不得绕过已有 primitive 手写第二套行为。
+- 已有详情浮层的 IconButton 必须通过 `tooltip={null}` 关闭自动短提示，并由详情拥有 `aria-describedby`。只读 Tooltip/用量详情使用浮层层的 `restoreFocus: false`，打开和关闭不移动焦点；交互式菜单和 Dialog 继续遵守其焦点归还合同。
 
 ### 4.4 Pattern
 
 Pattern 统一跨页面的结构、响应式几何或交互组合，例如 ResponsiveDialog、AnchoredPopover、FilterBar、SettingsSection、CatalogCard、FloatingDock，以及在一个共享边界中保留两个独立命令与焦点的 `UiSplitButton`。
 
 Pattern 与 Primitive 的区别是：Primitive 统一一个控件；Pattern 统一多个控件如何在页面和窗口尺寸中协作。
+
+能力目录的分类、状态、渠道、来源与 Agent 下拉统一由 `CapabilityFilterSelect` 组合紧凑 `UiSelectMenu`；领域 Pattern 固定必填文字标签并不暴露前导图标参数。视觉结构只在能力页设计规范定义，页面仍拥有选项、筛选状态和按内容调整的容器宽度。
 
 领域内跨子页重复的 Pattern 留在该领域 `shared`：例如 Skill、Connector、自定义 MCP、Loop 与 WorkGraph 详情统一由 `CapabilityDetailPage` 持有内容轴，并由唯一 `CapabilityDetailHeader` 组合全站 `UiBreadcrumb` 渲染“返回目录 / 当前对象”；Workspace 文件层级也只向 `UiBreadcrumb` 提供用户可见名称与相对路径段。导航下方的前导图标、标题、元数据、说明和响应式动作对齐统一由 `CapabilityDetailIdentity` 持有。业务子页不得直接引用底层 `WorkspaceContentDetailHeader`、手写 `objectTitle` 与动作容器、复制箭头、斜杠或间距，也不得把目录态 `WorkspaceContentHeader` 复用成对象身份区；详情路由不得残留目录 Header 或搜索控件。
 

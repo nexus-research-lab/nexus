@@ -1,4 +1,8 @@
-import { Search, SlidersHorizontal } from "lucide-react";
+// INPUT: Skill 目录/社区的搜索、分类、来源及用户命令。
+// OUTPUT: 统一目录标签、搜索动作和无额外图标的标签筛选器。
+// POS: Skill 工具区纯视图；筛选结构由 CapabilityFilterSelect 唯一拥有。
+
+import { Search } from "lucide-react";
 import { useRef, type KeyboardEvent } from "react";
 
 import { SKILLS_TOUR_ANCHORS } from "@/features/onboarding/tours/skills-tour";
@@ -126,7 +130,6 @@ export function SkillsSearchBar({
           <CapabilityFilterSelect
             ariaLabel={t("capability.skills_filter_aria")}
             label={t("capability.category_label")}
-            leading={<SlidersHorizontal className="h-3.5 w-3.5" />}
             onChange={onChangeCategory}
             options={categories.map((category) => ({
               label: category.label,
@@ -139,7 +142,6 @@ export function SkillsSearchBar({
         ) : (
           <CapabilityFilterSelect
             ariaLabel={t("capability.skill_source_search_scope")}
-            className="sm:w-[176px]"
             label={t("capability.skill_sources")}
             onChange={onChangeExternalSource}
             options={externalSources}

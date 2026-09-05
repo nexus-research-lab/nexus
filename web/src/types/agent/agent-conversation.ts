@@ -2,7 +2,7 @@
  * useAgentConversation Hook 类型定义
  *
  * [INPUT]: 依赖会话消息和权限协议
- * [OUTPUT]: 对外提供 UseAgentConversationOptions、带可靠性快照的 UseAgentConversationReturn、独立 set_goal 控制参数、Room execution/handoff/精确停止易失锚点、execution invalidation payload 与历史窗口解析状态
+ * [OUTPUT]: 对外提供实际消费的 UseAgentConversationOptions、带可靠性快照的 UseAgentConversationReturn、独立 set_goal 控制参数、Room execution/handoff/精确停止易失锚点、execution invalidation payload 与历史窗口解析状态；不重复声明会话 Store 快照
  * [POS]: types 模块的对话交互类型
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -194,13 +194,6 @@ export interface AgentConversationGoalOptions {
   /** Room Goal 的负责人候选；服务端仍会按当前 Room membership 重新验证。 */
   target_agent_ids?: string[];
   token_budget?: number | null;
-}
-
-export interface ConversationSnapshot {
-  session_key: string;
-  message_count: number;
-  last_activity_at: number;
-  session_id: string | null;
 }
 
 export interface RoomEventPayload {

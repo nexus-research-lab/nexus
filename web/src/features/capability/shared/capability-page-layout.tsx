@@ -1,6 +1,6 @@
 /**
  * INPUT: 能力页面标题、说明、动作、筛选控件、目录条目及详情导航/正文/配置内容。
- * OUTPUT: 能力目录与详情页的共享内容轴、移动页头动作、二级导航、对象身份区、目录网格和响应式分栏。
+ * OUTPUT: 能力目录与详情页的共享内容轴、统一标签筛选、移动页头动作、二级导航、对象身份区、目录网格和响应式分栏。
  * POS: 能力域页面级设计语法；通过中立页头动作 Context 适配宿主挂载点，不依赖 App 装配或解释具体领域状态。
  */
 "use client";
@@ -100,8 +100,7 @@ interface CapabilityFilterSelectProps {
   ariaLabel: string;
   className?: string;
   disabled?: boolean;
-  label?: ReactNode;
-  leading?: ReactNode;
+  label: string;
   onChange: (value: string) => void;
   options: UiSelectMenuOption[];
   placeholder?: string;
@@ -129,7 +128,7 @@ export const CAPABILITY_DIRECTORY_ROW_CLASS_NAME =
   "min-h-[80px] border-(--divider-subtle-color) bg-transparent px-3 py-3 hover:border-(--surface-interactive-hover-border)";
 
 /** 能力二级页统一使用“返回目录 / 当前对象”的单行桌面导航。 */
-export function CapabilityDetailHeader({
+function CapabilityDetailHeader({
   backLabel,
   currentTitle,
   onBack,
@@ -296,10 +295,10 @@ export function CapabilityPageLayout({
 
 export function CapabilityFilterSearchInput({
   action,
-  onChange: onChange,
-  onCompositionEnd: onCompositionEnd,
-  onCompositionStart: onCompositionStart,
-  onKeyDown: onKeyDown,
+  onChange,
+  onCompositionEnd,
+  onCompositionStart,
+  onKeyDown,
   placeholder,
   value,
 }: CapabilityFilterSearchInputProps) {
@@ -339,27 +338,25 @@ export function CapabilityItemIcon({
 }
 
 export function CapabilityFilterSelect({
-  ariaLabel: ariaLabel,
-  className: className,
+  ariaLabel,
+  className,
   disabled,
   label,
-  leading,
-  onChange: onChange,
+  onChange,
   options,
   placeholder,
-  tourAnchor: tourAnchor,
+  tourAnchor,
   value,
 }: CapabilityFilterSelectProps) {
   return (
     <div
-      className={cn("shrink-0 sm:w-[144px]", className)}
+      className={cn("shrink-0 sm:w-[176px]", className)}
       data-tour-anchor={tourAnchor}
     >
       <UiSelectMenu
         ariaLabel={ariaLabel}
         disabled={disabled}
         label={label}
-        leading={leading}
         onChange={onChange}
         options={options}
         placeholder={placeholder}

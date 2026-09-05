@@ -1,6 +1,6 @@
 /**
  * INPUT: Goal REST responses and server-derived Goal/Execution binding view.
- * OUTPUT: DM/Room Goal resource, server-derived continuation lifecycle and clear-gate types.
+ * OUTPUT: Consumed DM/Room Goal resource, server-derived continuation lifecycle and clear-gate types; no unused event mirror.
  * POS: Consumed Goal HTTP transport types; creation uses the control command, and metadata is never a WorkGraph binding source.
  */
 export type GoalStatus =
@@ -72,17 +72,6 @@ export type GoalExecutionBindingState =
 export interface GoalExecutionBinding {
   state: GoalExecutionBindingState;
   execution_id?: string;
-}
-
-export interface GoalEvent {
-  id: string;
-  goal_id: string;
-  session_key: string;
-  event_type: string;
-  source: "user" | "model" | "system" | "external";
-  round_id?: string;
-  payload?: Record<string, unknown>;
-  created_at: string;
 }
 
 export interface UpdateGoalInput {

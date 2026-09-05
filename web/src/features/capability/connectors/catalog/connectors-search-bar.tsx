@@ -4,8 +4,6 @@
 
 "use client";
 
-import { SlidersHorizontal } from "lucide-react";
-
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiDirectoryTabs } from "@/shared/ui/navigation/directory-tabs";
 import {
@@ -69,7 +67,6 @@ export function ConnectorsSearchBar({
           <CapabilityFilterSelect
             ariaLabel={t("capability.connectors_filter_aria")}
             label={t("capability.category_label")}
-            leading={<SlidersHorizontal className="h-3.5 w-3.5" />}
             onChange={onCategoryChange}
             options={["all", ...categoryKeys].map((category) => ({
               label: getConnectorCategoryLabel(category, t),

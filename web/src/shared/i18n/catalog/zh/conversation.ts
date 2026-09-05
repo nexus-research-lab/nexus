@@ -394,7 +394,7 @@ export const zhConversationMessages = {
   "dm.attachment_session_not_ready": "当前私聊尚未就绪，暂时无法附加文件。",
   "dm.goal_session_not_ready": "当前私聊尚未就绪，暂时无法启动 Goal。",
   "dm.goal_scope": "会话 Goal",
-  "conversation.empty_dm_title": "想让{name}帮你做什么？",
+  "conversation.empty_dm_title": "想让 {name} 帮你做什么？",
   "conversation.empty_main_title": "想让 Nexus 帮你管理什么？",
   "conversation.empty_room_title": "今天想在这个 Room 里协作什么？",
   "conversation.empty_main_agents": "创建并管理 Agent",

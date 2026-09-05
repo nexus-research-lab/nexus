@@ -9,7 +9,7 @@ L6 | 父级: web/src/features/conversation/shared/composer/components
 - `composer-session-controls.tsx`: 为 DM 装配直接模型/权限菜单，为 Room 装配统一权限与右侧模型入口
 - `composer-room-model-control.tsx`: 复用公共锚定浮层和 Action Menu 内容，按 Room Agent 级联其当前 Session 模型
 - `composer-session-control-options.tsx`: 统一投影 DM 与 Room 共用的模型/权限选项
-- `composer-context-usage*.ts*`: 把 runtime 每轮快照投影为模型控件左侧的只读上下文占用环；Room 入口显示最高占用，弹层逐 Agent 展示各自快照
+- `composer-context-usage*.ts*`: 把 runtime 每轮快照投影为模型控件左侧的只读上下文占用环；Room 入口显示最高占用，唯一详情浮层逐 Agent 展示各自快照；入口关闭 IconButton 自动 Tooltip，只读详情开关保持原焦点
 - `composer-footer-status.tsx`: 展示唯一的当前运行状态；只把 model 的语义 tone 和 indicator 交给共享 Typography/LoadingOrb，不让状态正文整体 pulse
 - `composer-footer-metadata.tsx`: 展示字符数和历史位置
 - `composer-footer-model.ts`: 定义状态优先级、语义 tone 和加载阶段，不得返回 class、字符帧或动效名称

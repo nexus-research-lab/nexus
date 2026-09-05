@@ -1331,7 +1331,7 @@ test("Room public activity survives the pause between reply text and tool work",
 
 test("resolved history rounds remain only when visible content was projected", async () => {
   const {
-    buildIndexedTimelineRoundIds,
+    buildIndexedConversationWindow,
     filterResolvedEmptyRoundIndexItems,
   } = await server.ssrLoadModule(
     "/src/features/conversation/shared/timeline/timeline-model.ts",
@@ -1345,7 +1345,7 @@ test("resolved history rounds remain only when visible content was projected", a
     [],
   );
   assert.deepEqual(
-    buildIndexedTimelineRoundIds(unresolvedItems, [visible.roundId]),
+    buildIndexedConversationWindow(unresolvedItems, [visible.roundId]).roundIds,
     [visible.roundId, internal.roundId],
     "an unresolved neighbor remains as an invisible history load anchor",
   );
@@ -3240,10 +3240,10 @@ test("Room terminal result keeps public structure, hides thinking, and preserves
   );
 });
 
-test("history restores only the latest assistant round error", async () => {
+test("history restores only the latest assistant round failure identity", async () => {
   const {
     DEFAULT_ASSISTANT_ERROR_MESSAGE,
-    latestAssistantResultErrorMessage,
+    latestAssistantResultFailure,
     normalizeAssistantMessages,
     resolveAssistantResultErrorMessage,
   } = await server.ssrLoadModule(
@@ -3290,14 +3290,14 @@ test("history restores only the latest assistant round error", async () => {
     "content-only normalization must not be discarded when stream status is already terminal",
   );
 
-  assert.equal(
-    latestAssistantResultErrorMessage([failed]),
-    "provider stream failed",
+  assert.deepEqual(
+    latestAssistantResultFailure([failed]),
+    { agent_round_id: null, code: "round_failed", round_id: "round-failed" },
   );
   const runtimeExitMessage =
     "Agent runtime 的响应流意外结束，本轮未完成。会话会在下一条消息自动恢复，请重试。";
-  assert.equal(
-    latestAssistantResultErrorMessage([assistantMessage({
+  assert.deepEqual(
+    latestAssistantResultFailure([assistantMessage({
       messageId: "assistant-runtime-exit",
       resultSummary: {
         duration_api_ms: 0,
@@ -3312,11 +3312,11 @@ test("history restores only the latest assistant round error", async () => {
       text: "",
       timestamp: 2,
     })]),
-    runtimeExitMessage,
-    "result-only runtime failure must use the structured reliability notice",
+    { agent_round_id: null, code: "round_failed", round_id: "round-runtime-exit" },
+    "result-only runtime failure must restore identity without exposing provider text",
   );
-  assert.equal(
-    latestAssistantResultErrorMessage([assistantMessage({
+  assert.deepEqual(
+    latestAssistantResultFailure([assistantMessage({
       messageId: "assistant-partial-runtime-exit",
       resultSummary: {
         duration_api_ms: 0,
@@ -3331,11 +3331,11 @@ test("history restores only the latest assistant round error", async () => {
       text: "已完成一部分输出",
       timestamp: 2,
     })]),
-    runtimeExitMessage,
-    "partial assistant output still needs a separate terminal error banner",
+    { agent_round_id: null, code: "round_failed", round_id: "round-partial-runtime-exit" },
+    "partial assistant output still needs a structured terminal failure",
   );
   assert.equal(
-    latestAssistantResultErrorMessage([
+    latestAssistantResultFailure([
       failed,
       assistantMessage({
         messageId: "assistant-retrying",
@@ -3347,9 +3347,10 @@ test("history restores only the latest assistant round error", async () => {
     null,
     "a newer active round must suppress the previous terminal error",
   );
-  assert.equal(
-    latestAssistantResultErrorMessage([
+  assert.deepEqual(
+    latestAssistantResultFailure([
       assistantMessage({
+        agentRoundId: "agent-round-failed",
         messageId: "assistant-room-failed",
         roundId: "room-round-1",
         resultSummary: {
@@ -3379,7 +3380,7 @@ test("history restores only the latest assistant round error", async () => {
         timestamp: 5,
       }),
     ]),
-    "slot provider failed",
+    { agent_round_id: "agent-round-failed", code: "round_failed", round_id: "room-round-1" },
     "same root round must retain a failing Room slot",
   );
   assert.equal(
@@ -5495,9 +5496,6 @@ test("Room exact stop survives slot cleanup and settles ACK/terminal races per A
   } = await server.ssrLoadModule(
     "/src/hooks/agent/runtime/state/use-conversation-volatile-state.ts",
   );
-  const { buildRoomExecutionActivityKey } = await server.ssrLoadModule(
-    "/src/features/conversation/room/group/chat/panel/controller/use-group-chat-panel-model.ts",
-  );
   const { parseInterruptAckData } = await server.ssrLoadModule(
     "/src/hooks/agent/transport/handlers/session-event-data.ts",
   );
@@ -5572,11 +5570,6 @@ test("Room exact stop survives slot cleanup and settles ACK/terminal races per A
     confirmRoomAgentExecutionStop(stoppedStates, stateA.agent_round_id),
     stoppedStates,
     "ACK-before-terminal and terminal-before-ACK must converge idempotently",
-  );
-  assert.notEqual(
-    buildRoomExecutionActivityKey(1, true, [stateA, stateB]),
-    buildRoomExecutionActivityKey(1, true, stoppedStates),
-    "the WorkGraph resource must refresh when one Agent reaches interrupted terminal",
   );
   assert.deepEqual(
     parseInterruptAckData({
