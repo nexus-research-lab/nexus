@@ -203,6 +203,12 @@ Pattern 与 Primitive 的区别是：Primitive 统一一个控件；Pattern 统�
 
 领域 Widget 只有在 DOM 命中区本身表达图形几何时才能保留原生交互节点，例如 WorkGraph 的边中点、节点卡和折叠计数；该例外只允许自定义几何，不允许在原生 button 可以表达时用 `div role=button` 和手写键盘事件模拟控件。缩放、搜索、定位、关闭、保存等标准动作仍必须复用 UiButton / UiIconButton，浮动工具条和搜索面复用语义 Surface，不能因位于画布内部而复制一套 hover、focus、圆角或阴影。
 
+WorkGraph 节点和连线详情统一由领域 `ExecutionGraphInspector` 持有外壳、标题、关闭
+动作和滚动内容区，复用 `surface-popover`、App Typography 与 `UiIconButton`。
+画布只负责精确选择身份、定位和逆缩放，详情保持屏幕尺寸；该只读非模态检查器
+不另建 Portal、模态锁或执行状态。顶栏生命周期、部分投影和旧快照提示通过
+`UiBadge` 的 tone/size/shape 表达，业务层不复制徽标颜色与边界配方。
+
 Widget 可以认识 Agent、Room、Goal 等产品对象，但只组合下层合同，不重新定义基础视觉。Conversation 的 Composer 浮动工作栈属于 conversation widget，不应为了复用 DM/Room 而放进全局 `shared`。
 
 Composer 附件的图片/文本预览与移除统一组合 `UiButton / UiIconButton`，保留独立兄弟命中区；领域只拥有缩略图几何、文件与草稿作用域。图片角上的移除动作使用共享 micro 尺寸，不再保留原生按钮例外。Chip、普通输入壳与 Composer 聚焦壳的圆角只由共享 recipe 定义，消费层不重复设置同值圆角。
@@ -385,6 +391,9 @@ Composer 附件夹具使用真实本地 File 验证图片/纯文本预览、长�
 主题矩阵另检查当前匹配根元素的实际 CSS 变量没有空解析结果；Tour 必须渲染真实
 锚点，高亮的圆角和外扩几何由浏览器测量，Escape 与页面目标点击均能关闭导览，
 且目标原有命令仍只执行一次。
+WorkGraph 夹具直接渲染真实画布，验证节点/连线的精确身份、原 Agent 文件动作、
+键盘关闭、节点与边详情的共同不透明表面，以及缩放后详情保持屏幕字号和宽度。
+画布可滚动，详情可通过滚动到达；这不等价于所有图节点同时适配一个视口。
 
 ## 9. Agent 修改流程
 

@@ -44,6 +44,54 @@ async function capture(surface: Locator, info: TestInfo, name: string) {
   });
 }
 
+test("WorkGraph inspectors share their surface and preserve exact node and edge actions through zoom", async ({ page }, info) => {
+  const { errors } = await openGallery(page, info, "workspace");
+  const graph = page.locator("[data-gallery-workgraph]");
+  await graph.scrollIntoViewIfNeeded();
+  const draft = graph.locator('[data-execution-graph-node-id="draft"]');
+  await draft.click();
+  const node = graph.locator('[data-execution-selected-node-detail="draft"]');
+  await expect(node).toBeVisible();
+  await expect(node.getByRole("heading", { level: 3 })).toHaveText("Draft report");
+  const metrics = async (inspector: Locator) => inspector.evaluate((element) => {
+    const style = getComputedStyle(element);
+    const header = getComputedStyle(element.querySelector("header")!);
+    return { radius: style.borderRadius, background: style.backgroundColor, headerBackground: header.backgroundColor,
+      width: element.getBoundingClientRect().width, font: getComputedStyle(element.querySelector("h3")!).fontSize };
+  });
+  const initial = await metrics(node);
+  expect(initial.radius).toBe("16px");
+  expect(initial.font).toBe("12px");
+  expect(initial.background).toBe(initial.headerBackground);
+  expect(initial.background).not.toBe("rgba(0, 0, 0, 0)");
+  await node.getByRole("button", { name: /^review\.md/ }).click();
+  await expect(graph.locator("[data-gallery-workgraph-file]")).toHaveText("author:reports/review.md");
+  await expect(node).toBeVisible();
+
+  await graph.getByRole("button", { name: copy(info, "放大工作图", "Zoom in"), exact: true }).click();
+  const enlarged = await metrics(node);
+  expect(enlarged.width).toBeCloseTo(initial.width, 0);
+  expect(enlarged.font).toBe(initial.font);
+  await capture(node, info, "workgraph-node-inspector");
+  await node.getByRole("button", { name: copy(info, "关闭节点详情", "Close node details"), exact: true }).click();
+  await expect(node).toHaveCount(0);
+
+  const edgeTrigger = graph.locator('[data-execution-edge-hit-target="draft-review"]');
+  await edgeTrigger.focus();
+  await page.keyboard.press("Enter");
+  const edge = graph.locator('[data-execution-selected-edge-detail="draft-review"]');
+  await expect(edge).toContainText("draft-run");
+  await expect(edge).toContainText("review-run");
+  const edgeMetrics = await metrics(edge);
+  expect(edgeMetrics.radius).toBe(initial.radius);
+  expect(edgeMetrics.background).toBe(initial.background);
+  await capture(edge, info, "workgraph-edge-inspector");
+  await page.keyboard.press("Escape");
+  await expect(edge).toHaveCount(0);
+  await expect(edgeTrigger).toBeFocused();
+  expect(errors).toEqual([]);
+});
+
 test("theme, long labels and button states fit the work plane", async ({ page }, info) => {
   const { gallery, errors } = await openGallery(page, info);
   await expect.poll(() => gallery.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);

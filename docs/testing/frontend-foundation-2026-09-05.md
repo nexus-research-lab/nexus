@@ -54,6 +54,9 @@
 - 新 token 门禁使用 CSS parser 与 TypeScript AST 检查静态引用、模板 CSS、注释、
   字符串内容和嵌套 fallback，并逐主题检查 canonical 别名缺失、循环与块内重复。
   运行时表达式、DOM 继承和属性类型仍需实际 Surface 审查，声明集合不能代替渲染。
+- WorkGraph 节点/连线详情归并为唯一领域检查器，复用公共浮层、排版和关闭按钮；
+  精确选择、图布局和平移/逆缩放仍由画布拥有。生命周期、部分投影和旧快照提示
+  改用公共 Badge 的语义属性，删除各自的徽标颜色配方。
 
 ## 本地验证
 
@@ -61,9 +64,9 @@
 | --- | --- |
 | ESLint、TypeScript、生产构建 | 通过 |
 | 纯模型、协议与架构合同 | 443 项通过（含 token 完整性、原生投影、列表/表单与静态视觉覆盖门禁） |
-| Vitest 组件与资源行为 | 144 个文件、349 项通过 |
-| Chromium | 三主题 × 双语 × 320/767/768/1440px，384 项通过 |
-| WebKit | 三主题 × 双语 × 320/1440px，192 项通过 |
+| Vitest 组件与资源行为 | 145 个文件、350 项通过 |
+| Chromium | 三主题 × 双语 × 320/767/768/1440px，408 项通过 |
+| WebKit | 三主题 × 双语 × 320/1440px，204 项通过 |
 | Windows 浅色 token 投影 | 新增合同通过；只检查源码颜色映射 |
 | macOS 宿主生产代码 | `swift build --package-path desktop/macos` 通过 |
 
@@ -91,13 +94,18 @@ Composer 附件验证本地图片与文本解码、长正文换行、预览/移�
 Tour 夹具包含真实目标；已复核浅色桌面与 WebKit 雨天窄屏的步骤卡片和 10px
 高亮圆角截图，验证目标外扩、Escape 关闭、目标点击透传和单次命令。三主题另
 检查当前匹配根元素的 CSS 变量没有空解析结果；此结论不等于每个业务页面已截图。
+WorkGraph 的真实画布夹具覆盖节点/连线切换、exact Run 引用和原 Agent 文件打开，
+验证关闭按钮与键盘 Escape、缩放后的屏幕宽度/字号及公共表面。已复核浅色桌面
+节点详情与 WebKit 雨天窄屏连线详情截图；长详情仍允许在画布及面板内滚动。
 
 ## 验证边界与后续迁移
 
 - GitHub Actions 已配置同一套门禁和证据归档；本次只做本地提交，没有推送或运行远端 CI。
 - Chromium/WebKit 覆盖 Web 渲染和输入行为；macOS/Windows 原生窗口 chrome、安全区、
   宿主可见性生命周期仍需在实际 App 上复查，不把浏览器结果称为原生宿主验收。
-- 本轮原生检查受环境限制：Mac 锁定使 App 操作无法开始，已请求解锁；本机 Command
+- 早期原生检查受 Mac 锁定限制；本批已能打开 Nexus 的 Launcher 和工作台。但已安装
+  App 在 34343 返回 `app-dr89c6zo.js`，当前本地构建为 `app-Bkvi2xn1.js`，因此此次
+  窗口观察不作为当前修改的 WKWebView 验收。未替换用户正在运行的 App。本机 Command
   Line Tools 缺少 XCTest，窗口指标测试编译失败（`no such module 'XCTest'`），生产
   Swift 编译通过。当前主机没有 Windows/.NET 环境，未执行 WPF/WebView2 测试。
 - 本地字体用于 App chrome 验收，远端聊天中文字体被显式阻断；没有建立跨平台像素基线，

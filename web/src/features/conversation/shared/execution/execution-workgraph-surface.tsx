@@ -1,11 +1,11 @@
 /**
  * INPUT: Room/DM 共用 Execution resource、Agent 目录与精确 Agent round Task run。
- * OUTPUT: 以共享标题动作、唯一历史下拉和明确空态切换已有历史的 WorkGraph 主视图。
+ * OUTPUT: 以共享标题动作和状态 Badge、唯一历史下拉和明确空态切换已有历史的 WorkGraph 主视图。
  * POS: 底部节点轨迹之外的完整图入口；只消费同一权威 ExecutionView，不解析 metadata 或另起状态机。
  */
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ComponentProps } from "react";
 import {
   Check,
   ChevronDown,
@@ -24,6 +24,7 @@ import { getErrorMessage } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
+import { UiBadge } from "@/shared/ui/display/badge";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import {
@@ -47,14 +48,14 @@ import { WorkGraphDistillationDialog } from "./workgraph-distillation-dialog";
 
 type WorkGraphSurfaceMode = "current" | "history";
 
-const EXECUTION_HEADER_STATUS_TONE: Record<ExecutionStatus, string> = {
-  active: "border-[color:color-mix(in_srgb,var(--success)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--success)_9%,transparent)] text-(--success)",
-  waiting: "border-[color:color-mix(in_srgb,var(--warning)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_9%,transparent)] text-(--warning)",
-  paused: "border-[color:color-mix(in_srgb,var(--warning)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_9%,transparent)] text-(--warning)",
-  completed: "border-[color:color-mix(in_srgb,var(--success)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--success)_9%,transparent)] text-(--success)",
-  failed: "border-destructive/20 bg-destructive/10 text-destructive",
-  cancelled: "border-(--surface-control-border) bg-(--surface-muted-background) text-(--text-soft)",
-  superseded: "border-(--surface-control-border) bg-(--surface-muted-background) text-(--text-soft)",
+const EXECUTION_HEADER_STATUS_TONE: Record<ExecutionStatus, ComponentProps<typeof UiBadge>["tone"]> = {
+  active: "active",
+  waiting: "warning",
+  paused: "warning",
+  completed: "success",
+  failed: "danger",
+  cancelled: "idle",
+  superseded: "idle",
 };
 
 export function ExecutionWorkGraphSurface({
@@ -264,15 +265,14 @@ export function ExecutionWorkGraphSurface({
           data-execution-header-actions
         >
           {header && header.status !== "active" ? (
-            <span
-              className={cn(
-                "inline-flex h-6 shrink-0 items-center rounded-full border px-2 text-xs font-semibold leading-none",
-                EXECUTION_HEADER_STATUS_TONE[header.status],
-              )}
+            <UiBadge
               data-execution-header-notice-status={header.status}
+              shape="pill"
+              size="md"
+              tone={EXECUTION_HEADER_STATUS_TONE[header.status]}
             >
               {t(header.statusLabelKey)}
-            </span>
+            </UiBadge>
           ) : null}
           {header?.status === "completed" && execution && sketchSessionKey ? (
             <UiButton
@@ -293,32 +293,36 @@ export function ExecutionWorkGraphSurface({
             </UiButton>
           ) : null}
           {runtimeProjectionPartial ? (
-            <span
+            <UiBadge
               aria-label={t("execution.surface_partial", {
                 nodes: execution?.graph?.runtime_node_total ?? 0,
                 edges: execution?.graph?.runtime_edge_total ?? 0,
               })}
-              className="flex shrink-0 items-center gap-1 rounded-full bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-1.5 py-0.5 text-2xs font-medium text-(--warning)"
+              icon={<CircleAlert aria-hidden="true" className="h-3 w-3" />}
+              shape="pill"
+              size="xs"
+              tone="warning"
               title={t("execution.surface_partial", {
                 nodes: execution?.graph?.runtime_node_total ?? 0,
                 edges: execution?.graph?.runtime_edge_total ?? 0,
               })}
             >
-              <CircleAlert aria-hidden="true" className="h-3 w-3" />
               <span>{t("execution.surface_partial_short")}</span>
-            </span>
+            </UiBadge>
           ) : null}
           {mode === "current" && resource.isStale ? (
-            <span
+            <UiBadge
               aria-label={t("execution.surface_stale")}
-              className="flex shrink-0 items-center gap-1 rounded-full bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-1.5 py-0.5 text-2xs font-medium text-(--warning)"
+              icon={<CircleAlert aria-hidden="true" className="h-3 w-3" />}
+              shape="pill"
+              size="xs"
+              tone="warning"
               title={lastSuccessfulAt
                 ? t("execution.surface_stale_at", { time: lastSuccessfulAt })
                 : t("execution.surface_stale")}
             >
-              <CircleAlert aria-hidden="true" className="h-3 w-3" />
               <span>{t("execution.surface_stale_short")}</span>
-            </span>
+            </UiBadge>
           ) : null}
         </div>
       </header>
