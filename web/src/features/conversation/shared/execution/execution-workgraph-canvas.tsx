@@ -1,6 +1,6 @@
 /**
  * INPUT: 权威 Execution Graph、Agent 目录、当前 Graph 节点、节点展示密度与精确 Agent round Task run。
- * OUTPUT: 在焦点稳定、全边界可达且不叠加伪主图底框的工作板上显示图标或可读摘要卡片、可整体悬停聚焦的子图、正交流程边、共享检查器关闭动作及完整交互的大图弹窗。
+ * OUTPUT: 在焦点稳定、全边界可达且不叠加伪主图底框的工作板上显示图标或可读摘要卡片、可整体悬停聚焦的子图、正交流程边、唯一节点/边检查器外壳、共享关闭动作及完整交互的大图弹窗。
  * POS: DM/Room 共用的只读 Execution Graph 主视图；一级运行树外框与内部方向边只按结构化父身份投影，不从自由文本反推关系。
  */
 "use client";
@@ -20,13 +20,13 @@ import {
   type ReactNode,
   type TouchEvent as ReactTouchEvent,
 } from "react";
-import { ChevronsDownUp, ChevronsUpDown, X } from "lucide-react";
+import { ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 
 import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
-import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -44,6 +44,7 @@ import type {
   ExecutionWorkItemView,
 } from "@/types/conversation/execution";
 
+import { ExecutionGraphInspector } from "./execution-graph-inspector";
 import { ExecutionNodeAvatar } from "./execution-node-avatar";
 import { ExecutionNodeRunHistory } from "./execution-node-run-history";
 import { ExecutionNodeTaskList } from "./execution-node-task-list";
@@ -1545,14 +1546,15 @@ function ExecutionNodeInspector({
       left.position - right.position || left.id.localeCompare(right.id)
     ));
   return (
-    <aside
-      className="soft-scrollbar absolute z-30 max-h-[min(70vh,28rem)] w-[19rem] max-w-[calc(100%-1rem)] cursor-auto overflow-auto rounded-[14px] border border-(--surface-popover-border) bg-(--surface-popover-background) shadow-(--surface-popover-shadow)"
-      aria-label={`${t("execution.details")}: ${heading}`}
-      data-execution-selected-node-detail={node.id}
-      data-execution-selected-node-detail-mode="popover"
+    <ExecutionGraphInspector
+      label={`${t("execution.details")}: ${heading}`}
+      detailId={node.id}
+      detailKind="node"
+      heading={heading}
+      closeLabel={t("execution.close_node_details")}
+      onClose={onClose}
       style={style}
-    >
-      <div className="sticky top-0 z-10 flex min-w-0 items-center gap-2 border-b dialog-divider bg-(--surface-popover-background) px-3 py-3">
+      leading={
         <ExecutionNodeAvatar
           agent={owner}
           current={status === "running"}
@@ -1562,127 +1564,114 @@ function ExecutionNodeInspector({
           title={heading}
           toolName={node.name}
         />
-        <div className="min-w-0 flex-1">
-          <h3 className="truncate text-compact font-semibold text-(--text-strong)">
-            {heading}
-          </h3>
-          <p className="mt-0.5 flex min-w-0 items-center gap-1 text-2xs text-(--text-soft)">
-            {owner ? <span className="truncate">{owner.name}</span> : null}
-            {owner ? <span aria-hidden="true">·</span> : null}
-            <span className={cn("shrink-0 font-medium", selectedStatusTone(status))}>
-              {statusLabel}
-            </span>
-          </p>
-        </div>
-        <UiIconButton
-          aria-label={t("execution.close_node_details")}
-          onClick={onClose}
-          size="sm"
-          tooltip={t("execution.close_node_details")}
-          variant="ghost"
-        >
-          <X aria-hidden="true" className="h-3.5 w-3.5" />
-        </UiIconButton>
-      </div>
-      <div className="space-y-3 px-3 py-3">
-        {relatedSubject ? (
-          <p className="text-xs font-medium leading-4 text-(--text-default)">
-            {relatedSubject}
-          </p>
-        ) : null}
-        {objective ? (
-          <NodeDetailSection label={t("execution.objective")}>
-            <p>{objective}</p>
-          </NodeDetailSection>
-        ) : null}
-        {showDeliverable ? (
-          <NodeDetailSection label={t("execution.deliverable")}>
-            <p>{deliverable}</p>
-          </NodeDetailSection>
-        ) : null}
-        {(item?.acceptance_criteria?.length ?? 0) > 0 ? (
-          <NodeDetailSection label={t("execution.acceptance")}>
-            <ul className="space-y-1">
-              {item?.acceptance_criteria?.slice(0, 4).map((criterion) => (
-                <li className="flex gap-2" key={criterion}>
-                  <span aria-hidden="true" className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-(--icon-muted)" />
-                  <span>{criterion}</span>
-                </li>
-              ))}
-            </ul>
-          </NodeDetailSection>
-        ) : null}
-        {item?.block_reason?.trim() ? (
-          <NodeDetailSection label={t("execution.blocker")}>
-            <p>{item.block_reason.trim()}</p>
-          </NodeDetailSection>
-        ) : null}
-        {item?.needed_input?.trim() ? (
-          <NodeDetailSection label={t("execution.needed_input")}>
-            <p>{item.needed_input.trim()}</p>
-          </NodeDetailSection>
-        ) : null}
-        {visibleErrorSummary ? (
-          <NodeDetailSection label={t("execution.error_summary")}>
-            <p>{visibleErrorSummary}</p>
-            {node.error_code?.trim() ? (
-              <p className="mt-1 font-mono text-2xs text-(--text-soft)">
-                {node.error_code.trim()}
-              </p>
-            ) : null}
-          </NodeDetailSection>
-        ) : null}
-        {resultSummary ? (
-          <NodeDetailSection label={t("execution.result_summary")}>
-            <p>{resultSummary}</p>
-            {node.summary_truncated ? (
-              <p className="mt-1 text-2xs text-(--text-soft)">
-                {t("execution.summary_truncated")}
-              </p>
-            ) : null}
-          </NodeDetailSection>
-        ) : null}
-        {(node.duration_ms ?? 0) > 0 ? (
-          <NodeDetailSection label={t("execution.duration")}>
-            <p>{formatNodeDuration(node.duration_ms ?? 0)}</p>
-          </NodeDetailSection>
-        ) : null}
-        {controlReturnObserved ? (
-          <NodeDetailSection label={t("execution.control_return")}>
-            <p>{t("execution.control_return_observed")}</p>
-          </NodeDetailSection>
-        ) : null}
-        {retryEdges.length > 0 ? (
-          <NodeDetailSection label={t("execution.retry_relation")}>
-            <p>{t("execution.retry_relation_count", { count: retryEdges.length })}</p>
-          </NodeDetailSection>
-        ) : null}
-        {submission ? (
-          <NodeDetailSection label={t("execution.submission")}>
-            <p>{submission}</p>
-          </NodeDetailSection>
-        ) : null}
-        {review ? (
-          <NodeDetailSection label={t("execution.review")}>
-            <p>{review}</p>
-          </NodeDetailSection>
-        ) : null}
-        {taskRun ? <ExecutionNodeTaskList run={taskRun} /> : null}
-        <ExecutionNodeRunHistory
-          item={item}
-          node={node}
-          onOpenWorkspaceFile={onOpenWorkspaceFile}
-          workspaceAgentId={owner?.id ?? node.agent_id}
+      }
+      description={
+        <>
+          {owner ? <span className="truncate">{owner.name}</span> : null}
+          {owner ? <span aria-hidden="true">·</span> : null}
+          <span className={cn("shrink-0 font-medium", selectedStatusTone(status))}>
+            {statusLabel}
+          </span>
+        </>
+      }
+    >
+      {relatedSubject ? (
+        <p className="text-xs font-medium leading-4 text-(--text-default)">
+          {relatedSubject}
+        </p>
+      ) : null}
+      {objective ? (
+        <NodeDetailSection label={t("execution.objective")}>
+          <p>{objective}</p>
+        </NodeDetailSection>
+      ) : null}
+      {showDeliverable ? (
+        <NodeDetailSection label={t("execution.deliverable")}>
+          <p>{deliverable}</p>
+        </NodeDetailSection>
+      ) : null}
+      {(item?.acceptance_criteria?.length ?? 0) > 0 ? (
+        <NodeDetailSection label={t("execution.acceptance")}>
+          <ul className="space-y-1">
+            {item?.acceptance_criteria?.slice(0, 4).map((criterion) => (
+              <li className="flex gap-2" key={criterion}>
+                <span aria-hidden="true" className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-(--icon-muted)" />
+                <span>{criterion}</span>
+              </li>
+            ))}
+          </ul>
+        </NodeDetailSection>
+      ) : null}
+      {item?.block_reason?.trim() ? (
+        <NodeDetailSection label={t("execution.blocker")}>
+          <p>{item.block_reason.trim()}</p>
+        </NodeDetailSection>
+      ) : null}
+      {item?.needed_input?.trim() ? (
+        <NodeDetailSection label={t("execution.needed_input")}>
+          <p>{item.needed_input.trim()}</p>
+        </NodeDetailSection>
+      ) : null}
+      {visibleErrorSummary ? (
+        <NodeDetailSection label={t("execution.error_summary")}>
+          <p>{visibleErrorSummary}</p>
+          {node.error_code?.trim() ? (
+            <p className="mt-1 font-mono text-2xs text-(--text-soft)">
+              {node.error_code.trim()}
+            </p>
+          ) : null}
+        </NodeDetailSection>
+      ) : null}
+      {resultSummary ? (
+        <NodeDetailSection label={t("execution.result_summary")}>
+          <p>{resultSummary}</p>
+          {node.summary_truncated ? (
+            <p className="mt-1 text-2xs text-(--text-soft)">
+              {t("execution.summary_truncated")}
+            </p>
+          ) : null}
+        </NodeDetailSection>
+      ) : null}
+      {(node.duration_ms ?? 0) > 0 ? (
+        <NodeDetailSection label={t("execution.duration")}>
+          <p>{formatNodeDuration(node.duration_ms ?? 0)}</p>
+        </NodeDetailSection>
+      ) : null}
+      {controlReturnObserved ? (
+        <NodeDetailSection label={t("execution.control_return")}>
+          <p>{t("execution.control_return_observed")}</p>
+        </NodeDetailSection>
+      ) : null}
+      {retryEdges.length > 0 ? (
+        <NodeDetailSection label={t("execution.retry_relation")}>
+          <p>{t("execution.retry_relation_count", { count: retryEdges.length })}</p>
+        </NodeDetailSection>
+      ) : null}
+      {submission ? (
+        <NodeDetailSection label={t("execution.submission")}>
+          <p>{submission}</p>
+        </NodeDetailSection>
+      ) : null}
+      {review ? (
+        <NodeDetailSection label={t("execution.review")}>
+          <p>{review}</p>
+        </NodeDetailSection>
+      ) : null}
+      {taskRun ? <ExecutionNodeTaskList run={taskRun} /> : null}
+      <ExecutionNodeRunHistory
+        item={item}
+        node={node}
+        onOpenWorkspaceFile={onOpenWorkspaceFile}
+        workspaceAgentId={owner?.id ?? node.agent_id}
+      />
+      {childNodes.length > 0 ? (
+        <ExecutionNodeRunList
+          directory={directory}
+          execution={execution}
+          nodes={childNodes}
         />
-        {childNodes.length > 0 ? (
-          <ExecutionNodeRunList
-            directory={directory}
-            execution={execution}
-            nodes={childNodes}
-          />
-        ) : null}
-      </div>
-    </aside>
+      ) : null}
+    </ExecutionGraphInspector>
   );
 }
 
@@ -1720,13 +1709,15 @@ function ExecutionEdgeInspector({
     targetNode?.error_summary || targetNode?.result_summary || "",
   );
   return (
-    <aside
-      aria-label={`${t("execution.edge_details")}: ${t(EDGE_KIND_LABEL_KEY[edge.kind])}`}
-      className="soft-scrollbar absolute z-30 max-h-[min(70vh,28rem)] w-[19rem] max-w-[calc(100%-1rem)] cursor-auto overflow-auto rounded-[14px] border border-(--surface-popover-border) bg-(--surface-popover-background) shadow-(--surface-popover-shadow)"
-      data-execution-selected-edge-detail={edge.id}
+    <ExecutionGraphInspector
+      label={`${t("execution.edge_details")}: ${t(EDGE_KIND_LABEL_KEY[edge.kind])}`}
+      detailId={edge.id}
+      detailKind="edge"
+      heading={t("execution.edge_details")}
+      closeLabel={t("execution.close_edge_details")}
+      onClose={onClose}
       style={style}
-    >
-      <div className="sticky top-0 z-10 flex min-w-0 items-center gap-2 border-b dialog-divider bg-(--surface-popover-background) px-3 py-3">
+      leading={
         <span
           aria-hidden="true"
           className={cn(
@@ -1738,58 +1729,41 @@ function ExecutionEdgeInspector({
               : "bg-(--icon-muted)",
           )}
         />
-        <div className="min-w-0 flex-1">
-          <h3 className="truncate text-compact font-semibold text-(--text-strong)">
-            {t("execution.edge_details")}
-          </h3>
-          <p className="mt-0.5 truncate text-2xs font-medium text-(--text-soft)">
-            {t(EDGE_KIND_LABEL_KEY[edge.kind])}
+      }
+      description={<span className="truncate">{t(EDGE_KIND_LABEL_KEY[edge.kind])}</span>}
+    >
+      <NodeDetailSection label={t("execution.edge_relation")}>
+        <p>{t(EDGE_KIND_DETAIL_KEY[edge.kind])}</p>
+      </NodeDetailSection>
+      <NodeDetailSection label={t("execution.edge_source")}>
+        <p className="font-medium text-(--text-default)">{sourceHeading}</p>
+        {sourceSummary ? (
+          <p className="mt-1 text-(--text-soft)">{sourceSummary}</p>
+        ) : null}
+      </NodeDetailSection>
+      <NodeDetailSection label={t("execution.edge_target")}>
+        <p className="font-medium text-(--text-default)">{targetHeading}</p>
+        {targetSummary ? (
+          <p className="mt-1 text-(--text-soft)">{targetSummary}</p>
+        ) : null}
+      </NodeDetailSection>
+      {edge.created_at ? (
+        <NodeDetailSection label={t("execution.edge_observed_at")}>
+          <p className="font-mono text-2xs">
+            {formatEdgeObservedAt(edge.created_at)}
           </p>
-        </div>
-        <UiIconButton
-          aria-label={t("execution.close_edge_details")}
-          onClick={onClose}
-          size="sm"
-          tooltip={t("execution.close_edge_details")}
-          variant="ghost"
-        >
-          <X aria-hidden="true" className="h-3.5 w-3.5" />
-        </UiIconButton>
-      </div>
-      <div className="space-y-3 px-3 py-3">
-        <NodeDetailSection label={t("execution.edge_relation")}>
-          <p>{t(EDGE_KIND_DETAIL_KEY[edge.kind])}</p>
         </NodeDetailSection>
-        <NodeDetailSection label={t("execution.edge_source")}>
-          <p className="font-medium text-(--text-default)">{sourceHeading}</p>
-          {sourceSummary ? (
-            <p className="mt-1 text-(--text-soft)">{sourceSummary}</p>
-          ) : null}
+      ) : null}
+      {edge.source_node_run_id || edge.target_node_run_id ? (
+        <NodeDetailSection label={t("execution.edge_run_identity")}>
+          <p className="break-all font-mono text-2xs text-(--text-soft)">
+            {edge.source_node_run_id || edge.source_node_id}
+            <span aria-hidden="true"> → </span>
+            {edge.target_node_run_id || edge.target_node_id}
+          </p>
         </NodeDetailSection>
-        <NodeDetailSection label={t("execution.edge_target")}>
-          <p className="font-medium text-(--text-default)">{targetHeading}</p>
-          {targetSummary ? (
-            <p className="mt-1 text-(--text-soft)">{targetSummary}</p>
-          ) : null}
-        </NodeDetailSection>
-        {edge.created_at ? (
-          <NodeDetailSection label={t("execution.edge_observed_at")}>
-            <p className="font-mono text-2xs">
-              {formatEdgeObservedAt(edge.created_at)}
-            </p>
-          </NodeDetailSection>
-        ) : null}
-        {edge.source_node_run_id || edge.target_node_run_id ? (
-          <NodeDetailSection label={t("execution.edge_run_identity")}>
-            <p className="break-all font-mono text-2xs text-(--text-soft)">
-              {edge.source_node_run_id || edge.source_node_id}
-              <span aria-hidden="true"> → </span>
-              {edge.target_node_run_id || edge.target_node_id}
-            </p>
-          </NodeDetailSection>
-        ) : null}
-      </div>
-    </aside>
+      ) : null}
+    </ExecutionGraphInspector>
   );
 }
 
@@ -1802,10 +1776,10 @@ function NodeDetailSection({
 }) {
   return (
     <section>
-      <h4 className="mb-1 text-2xs font-medium text-(--text-soft)">
+      <h4 className={cn("mb-1", getUiTypographyClassName({ role: "caption", tone: "soft", weight: "medium" }))}>
         {label}
       </h4>
-      <div className="text-xs leading-[1.55] text-(--text-default)">
+      <div className={getUiTypographyClassName({ role: "metadata", tone: "default" })}>
         {children}
       </div>
     </section>

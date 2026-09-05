@@ -45,6 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Consolidate WorkGraph node and relation inspectors into one shared surface pattern, reuse semantic status badges, and verify exact selection, workspace-file actions, and zoom behavior in real browsers.
 - Centralized control and surface radius tokens, restored Tour highlighting,
   and replaced undefined UI color references with existing semantic tokens.
   Added gates for missing static variables and broken theme aliases, plus

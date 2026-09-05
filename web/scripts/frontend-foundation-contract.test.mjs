@@ -863,10 +863,11 @@ test("WorkGraph surfaces share canvas, action, and revision Spinner roles", asyn
 });
 
 test("WorkGraph standard actions use shared controls while graph hit targets stay domain-owned", async () => {
-  const [controls, surface, canvas] = await Promise.all([
+  const [controls, surface, canvas, inspector] = await Promise.all([
     readSource("src/features/conversation/shared/execution/execution-workgraph-controls.tsx"),
     readSource("src/features/conversation/shared/execution/execution-workgraph-surface.tsx"),
     readSource("src/features/conversation/shared/execution/execution-workgraph-canvas.tsx"),
+    readSource("src/features/conversation/shared/execution/execution-graph-inspector.tsx"),
   ]);
 
   assert.match(controls, /<UiButton/);
@@ -878,8 +879,15 @@ test("WorkGraph standard actions use shared controls while graph hit targets sta
   assert.match(surface, /<UiButton[\s\S]*?data-workgraph-save-sketch/);
   assert.doesNotMatch(surface, /<button\b/);
 
-  assert.match(canvas, /<UiIconButton[\s\S]*?execution\.close_node_details/);
-  assert.match(canvas, /<UiIconButton[\s\S]*?execution\.close_edge_details/);
+  assert.match(inspector, /<UiIconButton\b/);
+  assert.match(inspector, /surface-popover/);
+  assert.match(inspector, /getUiTypographyClassName/);
+  assert.doesNotMatch(inspector, /<button\b|rounded-\[/);
+  assert.equal((canvas.match(/<ExecutionGraphInspector\b/g) ?? []).length, 2);
+  assert.match(canvas, /closeLabel=\{t\("execution\.close_node_details"\)\}/);
+  assert.match(canvas, /closeLabel=\{t\("execution\.close_edge_details"\)\}/);
+  assert.equal((surface.match(/<UiBadge\b/g) ?? []).length, 3);
+  assert.doesNotMatch(surface, /color-mix/);
   assert.match(canvas, /<button[\s\S]*?data-execution-edge-hit-target/);
   assert.match(canvas, /<button[\s\S]*?data-execution-graph-node-id/);
   assert.match(canvas, /<button[\s\S]*?data-execution-collapse-node/);
