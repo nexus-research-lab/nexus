@@ -178,12 +178,12 @@ function ComposerModelControl({
         aria-expanded={isOpen}
         aria-haspopup="menu"
         aria-label={t("composer.session_model")}
-        className={`${SESSION_CONTROL_BUTTON_CLASS_NAME} max-w-44 text-(--text-default)`}
+        className={`${SESSION_CONTROL_BUTTON_CLASS_NAME} max-w-44`}
         disabled={disabled || controller.modelBusy}
         onClick={() => setIsOpen((current) => !current)}
         size="xs"
         title={t("composer.session_model")}
-        variant="text"
+        variant="ghost"
       >
         <span className="truncate">{controller.modelLabel}</span>
         <ChevronDown className="h-3 w-3 shrink-0" />
@@ -223,4 +223,4 @@ const SESSION_PERMISSION_MENU_WIDTH = 288;
 const SESSION_MODEL_MENU_WIDTH = 256;
 
 const SESSION_CONTROL_BUTTON_CLASS_NAME =
-  "h-7 min-w-0 px-1.5 text-(--text-soft)";
+  "min-w-0";

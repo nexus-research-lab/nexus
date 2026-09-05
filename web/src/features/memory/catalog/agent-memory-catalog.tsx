@@ -83,7 +83,6 @@ export function AgentMemoryCatalog({
         />
         <UiSelectMenu
           ariaLabel={t("capability.memory_filter_aria")}
-          buttonClassName="gap-1 px-2.5 shadow-none"
           className="w-[86px] shrink-0"
           menuMinWidth={120}
           onChange={(value) => onFilterChange(value as MemoryFilter)}

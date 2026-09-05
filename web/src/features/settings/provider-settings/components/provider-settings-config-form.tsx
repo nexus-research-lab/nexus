@@ -102,11 +102,10 @@ function ProviderShapeControls({
       >
         <UiSelectMenu
           ariaLabel={t("settings.providers.kind")}
-          className="h-11"
           disabled={!selectedCanManage || isEditing || providerKindOptions.length <= 1}
           onChange={onProviderKindChange}
           options={providerKindOptions}
-          size="sm"
+          size="lg"
           value={draft.provider_kind}
         />
       </UiField>
@@ -130,11 +129,10 @@ function ProviderShapeControls({
       >
         <UiSelectMenu
           ariaLabel={t("settings.providers.api_format")}
-          className="h-11"
           disabled={!selectedCanManage || formatOptions.length <= 1}
           onChange={onApiFormatChange}
           options={formatOptions}
-          size="sm"
+          size="lg"
           value={draft.api_format}
         />
       </UiField>

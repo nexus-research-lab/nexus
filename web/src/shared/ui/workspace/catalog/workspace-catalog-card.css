@@ -1,0 +1,17 @@
+/* INPUT: 带 primaryAction 的目录 Article 与其原生独立动作。
+ * OUTPUT: 主按钮位于内容下方；静态内容透传命中，原生次动作保留独立命中。
+ * POS: 目录卡片局部堆叠与点击路由；不使用全局浮层层级。
+ */
+.workspace-catalog-card-action-surface {
+  isolation: isolate;
+  position: relative;
+  overflow: hidden;
+}
+
+.workspace-catalog-card-action-surface > :not(:is(button, a, input, select, textarea, label, summary)) {
+  pointer-events: none;
+}
+
+.workspace-catalog-card-action-surface :is(button, a, input, select, textarea, label, summary) {
+  pointer-events: auto;
+}

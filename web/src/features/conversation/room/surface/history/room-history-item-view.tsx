@@ -19,7 +19,7 @@ import { UiInput } from "@/shared/ui/form/form-control";
 import {
   UiListActionButton,
 } from "@/shared/ui/list/list-action";
-import type { UiListActionTone } from "@/shared/ui/list/list-action-styles";
+import type { UiListActionTone } from "@/shared/ui/list/list-action";
 import { UiListRow, UiListRowContent } from "@/shared/ui/list/list-row";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 

@@ -1,3 +1,7 @@
+// INPUT: Catalog content, semantic title sizes and header/body/footer layout options.
+// OUTPUT: Shared catalog composition slots with typography roles and bounded description clamping.
+// POS: Presentational catalog content owner; callers supply product content and actions.
+
 import type {
   ElementType,
   HTMLAttributes,

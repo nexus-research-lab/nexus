@@ -315,6 +315,21 @@ export function UiContractGallery() {
                 </UiNativeSelect>
               </UiField>
             </div>
+            <GalleryRow label="Select sizes">
+              {(["sm", "lg"] as const).map((size) => (
+                <UiSelectMenu
+                  ariaLabel={`Select ${size}`}
+                  key={size}
+                  onChange={setSelectedModel}
+                  options={[
+                    { label: galleryText(locale, "默认模型", "Default model"), value: "default" },
+                    { label: galleryText(locale, "快速模型", "Fast model"), value: "fast" },
+                  ]}
+                  size={size}
+                  value={selectedModel}
+                />
+              ))}
+            </GalleryRow>
             <GalleryRow label="Selection">
               {["fast", "balanced", "precise"].map((value) => (
                 <UiChoiceButton
@@ -395,6 +410,15 @@ export function UiContractGallery() {
               <UiAgentAvatar isWorking name="Maya Chen" />
               <UiRoomAvatar members={ROOM_MEMBERS} roomId="ui-contract" title="UI contract review" />
             </GalleryRow>
+            <div className="group/item flex items-center gap-2" data-gallery-list-actions>
+              <UiButton>{galleryText(locale, "列表主动作", "List primary action")}</UiButton>
+              <UiListActionButton aria-label="Hover list action" visibility="hover">
+                <Ellipsis className="h-4 w-4" />
+              </UiListActionButton>
+              <UiListActionButton aria-label="Disabled list action" disabled visibility="visible">
+                <Ellipsis className="h-4 w-4" />
+              </UiListActionButton>
+            </div>
             <div className="space-y-1">
               <UiListRow
                 active

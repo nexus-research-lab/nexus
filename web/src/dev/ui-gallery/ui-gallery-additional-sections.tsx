@@ -541,6 +541,7 @@ const WORKSPACE_TABS = [
 ];
 
 export function WorkspaceGallery({ locale }: { locale: Locale }) {
+  const [catalogActions, setCatalogActions] = useState({ primary: 0, secondary: 0 });
   const [activeSurfaceTab, setActiveSurfaceTab] = useState("overview");
   const [conversationId, setConversationId] = useState("gallery-one");
   const [conversationTabs, setConversationTabs] = useState(WORKSPACE_TABS);
@@ -558,7 +559,14 @@ export function WorkspaceGallery({ locale }: { locale: Locale }) {
       >
         <div className="grid gap-4 lg:grid-cols-3">
           <PreviewCard components={["WorkspaceCatalogCard", "WorkspaceCatalogHeader", "WorkspaceCatalogBody", "WorkspaceCatalogFooter", "WorkspaceCatalogTitle", "WorkspaceCatalogDescription", "WorkspaceIconFrame", "WorkspaceCatalogAction", "WorkspaceCatalogTextAction"]}>
-            <WorkspaceCatalogCard size="compact">
+            <WorkspaceCatalogCard
+              aria-label="Catalog action example"
+              primaryAction={{
+                label: "Open catalog item",
+                onClick: () => setCatalogActions((current) => ({ ...current, primary: current.primary + 1 })),
+              }}
+              size="compact"
+            >
               <WorkspaceCatalogHeader>
                 <WorkspaceIconFrame tone="primary"><Bot className="h-5 w-5" /></WorkspaceIconFrame>
                 <div className="min-w-0">
@@ -569,9 +577,13 @@ export function WorkspaceGallery({ locale }: { locale: Locale }) {
               <WorkspaceCatalogBody grow><UiBadge size="xs">shared/ui</UiBadge></WorkspaceCatalogBody>
               <WorkspaceCatalogFooter>
                 <WorkspaceCatalogTextAction>{galleryText(locale, "详情", "Details")}</WorkspaceCatalogTextAction>
-                <WorkspaceCatalogAction><MoreHorizontal className="h-4 w-4" /></WorkspaceCatalogAction>
+                <WorkspaceCatalogAction
+                  aria-label="Catalog secondary action"
+                  onClick={() => setCatalogActions((current) => ({ ...current, secondary: current.secondary + 1 }))}
+                ><MoreHorizontal className="h-4 w-4" /></WorkspaceCatalogAction>
               </WorkspaceCatalogFooter>
             </WorkspaceCatalogCard>
+            <output data-gallery-catalog-actions>{catalogActions.primary}:{catalogActions.secondary}</output>
           </PreviewCard>
 
           <PreviewCard components={["WorkspaceCatalogGhostAction"]}>

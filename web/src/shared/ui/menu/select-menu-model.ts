@@ -14,7 +14,7 @@ import {
 } from "../overlay/anchored-overlay-model";
 
 export type UiSelectMenuPlacement = UiAnchoredOverlayPlacement;
-export type UiSelectMenuSize = "xs" | "sm" | "md";
+export type UiSelectMenuSize = "xs" | "sm" | "md" | "lg";
 export type UiSelectMenuSurface = "surface" | "dialog";
 export type UiSelectMenuSelectionDirection = -1 | 1;
 

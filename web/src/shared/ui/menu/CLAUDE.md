@@ -3,6 +3,7 @@
 - `select-menu-model.ts` 只计算当前选项、键盘遍历、高度估算和锚点几何，不得返回视觉类；`select-menu-styles.ts` 独占菜单共用的尺寸、表面、标签换行和选中态视觉 recipe。业务需要组合多选或特殊 listbox 时可以复用 style recipe，但不得从 model 导入样式。
 - `use-select-menu-overlay.ts` 统一选择菜单的内部开关、锚点定位和触发键盘协议。
 - Select 进入 disabled 状态必须立即收起 listbox、清除 expanded/controls 关系并丢弃旧打开态；恢复可用后只能由用户重新打开。Select/Action Menu 的 Escape 和焦点归还交给共享 Overlay 仲裁，不自行抢先关闭父菜单。
+- Select 的 `xs / sm / md / lg` 尺寸只由 `select-menu-styles.ts` 投影；目录筛选用紧凑档，和大号输入同排的字段用 `lg`，消费者不得通过 `h-*` 或 `buttonClassName` 另造高度、间距和阴影。
 - `select-menu-primitives.tsx` 提供选择菜单共用的 `SelectMenuTrigger`、触发器内容、listbox 框架和 `SelectMenuOptionRow`；SelectMenuTrigger 统一单选与领域多选的原生 button、listbox ARIA、ref 和原生事件透传，直接消费既有样式投影，不改变调用者的开关、键盘或布局。所有单选、多选、Slash/Mention 类 listbox 条目由 OptionRow 持有原生 button、`role=option`、选中语义与基础交互底面，业务只组合行内容、密度和选择命令。
 - `select-menu-view.tsx` 只渲染共享单选菜单，不读取业务状态或决定选值。
 - 默认单选触发器与默认 Input 使用同一控件高度和 App `control` 文字角色；紧凑档位保留菜单原有密度。多选已选 Chip 的换行高度属于领域内容几何，不强塞进单行高度。

@@ -1,3 +1,7 @@
+// INPUT: Icon artwork, frame size, shape, semantic tone and native container attributes.
+// OUTPUT: A shared decorative icon frame using surface and semantic color tokens.
+// POS: Catalog icon presentation; interactive hit areas belong to the surrounding action owner.
+
 import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
 
 import { cn } from "@/shared/ui/class-name";

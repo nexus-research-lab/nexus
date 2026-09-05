@@ -1,3 +1,7 @@
+// INPUT: Native button attributes, catalog action content, size and semantic tone.
+// OUTPUT: Catalog icon and text actions delegated to shared list-action and button primitives.
+// POS: Catalog action adapters; shared controls own interaction states and visual recipes.
+
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 import { UiButton } from "@/shared/ui/button/button";

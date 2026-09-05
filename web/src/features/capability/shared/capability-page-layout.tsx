@@ -357,8 +357,6 @@ export function CapabilityFilterSelect({
     >
       <UiSelectMenu
         ariaLabel={ariaLabel}
-        buttonClassName="gap-1.5 px-2.5 shadow-none"
-        className="h-8"
         disabled={disabled}
         label={label}
         leading={leading}

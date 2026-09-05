@@ -113,7 +113,7 @@ export function ComposerAttachmentList({
               </span>
               <UiIconButton
                 aria-label={removeLabel}
-                className="ml-1 shrink-0 opacity-60 hover:opacity-100"
+                className="ml-1 shrink-0"
                 onClick={() => onRemove(attachment.id)}
                 shape="round"
                 size="2xs"
@@ -223,7 +223,7 @@ function ComposerTextAttachment({
       </button>
       <UiIconButton
         aria-label={removeLabel}
-        className="ml-1 shrink-0 opacity-60 hover:opacity-100"
+          className="ml-1 shrink-0"
         onClick={() => onRemove(attachment.id)}
         shape="round"
         size="2xs"

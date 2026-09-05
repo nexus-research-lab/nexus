@@ -9,7 +9,7 @@ import { ArrowDownToLine, Loader2, Plus, Trash2 } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiIconButton } from "@/shared/ui/button/button";
+import { UiListActionButton } from "@/shared/ui/list/list-action";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import {
   SettingsNavigationButton,
@@ -148,7 +148,7 @@ export function ProviderSettingsSidebar({
               const canShowDelete = isCustomProviderRecord(item) && item.can_manage;
               return (
                 <div
-                  className="group relative min-w-0"
+                  className="group/item relative min-w-0"
                   key={item.provider}
                 >
                   <SettingsNavigationButton
@@ -165,12 +165,9 @@ export function ProviderSettingsSidebar({
                     <span className="min-w-0 flex-1 truncate">{getProviderTitle(item)}</span>
                   </SettingsNavigationButton>
                   {canShowDelete ? (
-                    <UiIconButton
+                    <UiListActionButton
                       aria-label={t("settings.providers.delete_aria", { name: getProviderTitle(item) })}
-                      className={cn(
-                        "absolute right-1 top-1/2 -translate-y-1/2 transition-opacity group-hover:opacity-100 focus-visible:opacity-100",
-                        isActive ? "opacity-100" : "opacity-0",
-                      )}
+                      className="absolute right-1 top-1/2 -translate-y-1/2"
                       disabled={pendingAction !== null}
                       onClick={() => onRequestDeleteProvider(item)}
                       size="xs"
@@ -179,10 +176,10 @@ export function ProviderSettingsSidebar({
                         : t("settings.providers.delete_provider")}
                       tone={item.usage_count > 0 ? undefined : "danger"}
                       type="button"
-                      variant="ghost"
+                      visibility={isActive ? "visible" : "hover"}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
-                    </UiIconButton>
+                    </UiListActionButton>
                   ) : null}
                 </div>
               );

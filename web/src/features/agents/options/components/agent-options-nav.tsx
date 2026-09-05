@@ -46,7 +46,7 @@ export function AgentOptionsNav({
         return (
           <UiButton
             aria-current={isActive ? "page" : undefined}
-            className="h-9 w-full justify-start gap-2 px-2.5 text-left max-xl:min-w-[84px] max-xl:flex-1 max-xl:justify-center"
+            className="w-full justify-start text-left max-xl:min-w-[84px] max-xl:flex-1 max-xl:justify-center"
             key={item.key}
             onClick={() => onTabChange(item.key)}
             size="md"

@@ -52,7 +52,7 @@ describe("ChannelAccountsPanel", () => {
     expect(screen.getByText("capability.channel_account_error_title").className)
       .toContain("ui-type-metadata");
     expect(screen.queryByText(ACCOUNT.last_error)).toBeNull();
-    expect(screen.getByTitle("删除该账号").querySelector("svg")?.classList)
+    expect(screen.getByRole("button", { name: "删除该账号" }).querySelector("svg")?.classList)
       .toContain("motion-reduce:animate-none");
   });
 
@@ -61,7 +61,7 @@ describe("ChannelAccountsPanel", () => {
     const onDelete = vi.fn();
     renderPanel("", onDelete);
 
-    await user.click(screen.getByTitle("删除该账号"));
+    await user.click(screen.getByRole("button", { name: "删除该账号" }));
     expect(onDelete).toHaveBeenCalledWith(ACCOUNT);
   });
 });

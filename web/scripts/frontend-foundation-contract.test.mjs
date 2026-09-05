@@ -2110,7 +2110,7 @@ test("Skill directory chrome reuses shared actions, states, typography, and filt
   ]);
   const localVisualPattern = /rounded-\[|text-(?:2xs|xs|sm|base|compact)|font-(?:medium|semibold)|font-mono|animate-spin/;
 
-  assert.match(card, /<UiButton/);
+  assert.match(card, /primaryAction=\{\{ label: title, onClick: onSelect \}\}/);
   assert.match(card, /getUiTypographyClassName/);
   assert.doesNotMatch(card, /<button\b|rounded-\[|text-(?:2xs|xs|sm|base|compact)|font-(?:medium|semibold)|font-mono/);
   assert.match(grid, /<UiResourceState/);
@@ -2337,7 +2337,7 @@ test("Contacts directory and Agent cards use shared catalog, badge, typography, 
   assert.match(combined, /<WorkspaceCatalogCard|<WorkspaceCatalogGhostAction/);
   assert.match(combined, /<UiPanel/);
   assert.match(combined, /<UiBadge/);
-  assert.match(combined, /<UiButton/);
+  assert.match(card, /primaryAction=/);
   assert.match(combined, /getUiTypographyClassName/);
   for (const source of [directory, card]) {
     assert.doesNotMatch(
@@ -2819,7 +2819,8 @@ test("pinned and Room fallback navigation reuse shared action and list owners", 
 
   assert.match(pinned, /<SidebarRailAction/);
   assert.doesNotMatch(pinned, /<button\b/);
-  assert.match(pinned, /<UiIconButton/);
+  assert.match(pinned, /<UiListActionButton/);
+  assert.match(pinned, /visibility="hover"/);
   assert.match(fallback, /<UiListRow/);
   assert.doesNotMatch(fallback, /<button\b/);
 });

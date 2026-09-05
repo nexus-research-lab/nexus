@@ -107,7 +107,7 @@ export function ExecutionWorkGraphControls({
         </UiIconButton>
         <UiButton
           aria-label={t("execution.reset_zoom")}
-          className="h-7 min-w-11 px-1.5 tabular-nums"
+          className="min-w-11 tabular-nums"
           data-execution-graph-zoom
           onClick={onResetZoom}
           size="xs"

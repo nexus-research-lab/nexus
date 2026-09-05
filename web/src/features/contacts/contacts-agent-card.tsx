@@ -9,7 +9,6 @@ import { MessageCirclePlus, MessageSquareText } from "lucide-react";
 
 import { AGENT_PERMISSION_MODES } from "@/lib/agent-options";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { UiBadge } from "@/shared/ui/display/badge";
@@ -195,18 +194,10 @@ function ContactsAgentCompactCard({
   return (
     <WorkspaceCatalogCard
       align="start"
-      className="group relative h-full overflow-hidden hover:border-(--surface-interactive-active-border) hover:bg-(--surface-interactive-hover-background) md:hidden"
+      className="group h-full md:hidden"
+      primaryAction={{ label: `${editLabel} ${agent.name}`, onClick: onOpenProfile }}
       size="compact"
     >
-      <UiButton
-        aria-label={`${editLabel} ${agent.name}`}
-        className="surface-radius-md absolute inset-0 z-0 h-full min-h-0 w-full border-0 p-0 focus-visible:ring-inset"
-        onClick={onOpenProfile}
-        variant="ghost"
-      >
-        <span className="sr-only">{`${editLabel} ${agent.name}`}</span>
-      </UiButton>
-
       <div className="pointer-events-none relative z-10 flex w-full min-w-0 items-start gap-3">
         <UiAgentAvatar
           avatar={agent.avatar}
@@ -283,18 +274,10 @@ function ContactsAgentComfortCard({
   return (
     <WorkspaceCatalogCard
       align="center"
-      className="group relative hidden h-full overflow-hidden hover:border-(--surface-interactive-active-border) hover:bg-(--surface-interactive-hover-background) md:flex"
+      className="group hidden h-full md:flex"
+      primaryAction={{ label: `${editLabel} ${agent.name}`, onClick: onOpenProfile }}
       size="comfort"
     >
-      <UiButton
-        aria-label={`${editLabel} ${agent.name}`}
-        className="surface-radius-lg absolute inset-0 z-0 h-full min-h-0 w-full border-0 p-0 focus-visible:ring-inset"
-        onClick={onOpenProfile}
-        variant="ghost"
-      >
-        <span className="sr-only">{`${editLabel} ${agent.name}`}</span>
-      </UiButton>
-
       <div className="pointer-events-none relative z-10 flex w-full flex-col items-center">
         <UiAgentAvatar
           avatar={agent.avatar}

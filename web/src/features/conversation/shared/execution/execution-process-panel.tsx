@@ -90,7 +90,7 @@ export function ExecutionProcessPanel({
                       agent: owner?.name ?? t("execution.owner_unassigned"),
                     })
                   : `${t("execution.open_workgraph")} · ${title}`}
-                className="shrink-0 transition-transform hover:scale-[1.03]"
+                className="shrink-0"
                 data-execution-agent-activity={owner?.id ?? node.id}
                 data-execution-agent-live={live ? "true" : undefined}
                 data-execution-agent-round-id={node.agent_round_id || undefined}

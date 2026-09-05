@@ -312,7 +312,7 @@ export function ScheduledTaskCard({
           >
             <UiButton
               aria-label={`查看${attentionTitle}详情`}
-              className="min-h-0 w-full justify-start gap-2 px-2.5 py-2 text-left hover:bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_70%,transparent)] focus-visible:ring-inset"
+              className="w-full justify-start text-left"
               onClick={() => setIsAttentionOpen(true)}
               size="sm"
               variant="ghost"

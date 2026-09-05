@@ -201,12 +201,12 @@ export function ComposerRoomModelControl({
         aria-expanded={isOpen}
         aria-haspopup="dialog"
         aria-label={t("composer.session_model")}
-        className="h-7 min-w-0 max-w-44 px-1.5 text-(--text-default)"
+        className="min-w-0 max-w-44"
         disabled={disabled || controller.saving}
         onClick={toggle}
         size="xs"
         title={t("composer.session_model")}
-        variant="text"
+        variant="ghost"
       >
         <span className="truncate">
           {t("composer.room_model")}
@@ -435,7 +435,7 @@ function RoomModelHeader({
     <div className="flex h-10 shrink-0 items-center gap-2 border-b border-(--divider-subtle-color) px-2">
       <UiIconButton
         aria-label={t("composer.session_settings_back")}
-        className="shrink-0 text-(--icon-muted)"
+        className="shrink-0"
         onClick={onBack}
         size="sm"
         tooltip={t("composer.session_settings_back")}

@@ -200,7 +200,7 @@ export function SetupPage() {
               />
             ) : null}
 
-            <UiButton className="min-h-11 w-full" disabled={Boolean(validationKey) || isSubmitting} size="lg" tone="primary" type="submit" variant="solid">
+            <UiButton aria-busy={isSubmitting || undefined} className="w-full" disabled={Boolean(validationKey) || isSubmitting} size="lg" tone="primary" type="submit" variant="solid">
               {isSubmitting ? t("setup.submitting") : t("setup.submit")}
               <ArrowRight className="h-4 w-4" />
             </UiButton>
