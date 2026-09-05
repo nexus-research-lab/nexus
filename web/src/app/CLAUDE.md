@@ -9,5 +9,6 @@ L2 | 父级: web/src
 - `runtime-options-resource.ts` 拉取运行时配置并原子提交给 Config 快照。
 - `router/` 与 `layout/` 分别拥有路由树和常驻应用壳层。
 - 路由模板与资源身份编码统一消费 `shared/navigation/route-paths.ts`；App 不拥有供底层 Feature 反向依赖的路径常量。
+- `styles/theme-tokens.css` 持有主题、语义别名与跨组件几何尺度，`theme-recipes.css` 消费这些定义；静态缺失引用、主题循环与局部重复声明由 `frontend-token-contract.test.mjs` 拦截，浏览器负责实际解析和布局。完整规则只在 `docs/specs/frontend-engineering-spec.md` 与 `design.md` 维护。
 
 应用级副作用不得下沉到 `shared/`；Bootstrap 只调用这里的完整启动命令，不解释资源协议。

@@ -150,6 +150,10 @@ Token 是跨主题、跨组件的值真相，当前入口是 `web/src/app/styles
 
 业务文件不得出现 raw color、任意阴影或任意高层级。普通 Tailwind 间距刻度可以继续使用；只有跨页面必须同步变化的几何才晋升为语义 token。
 
+控件与独立表面圆角分别由 `--radius-control-* / --radius-surface-*` 统一定义，相关 class 和 Input/Chip/Popover/Dialog recipe 只引用变量；内容别名也指向相应语义尺度。Tour 高亮与 Tooltip 使用公共控件圆角，不能引用未定义名称或另造近似档位。
+
+使用 token 前必须确认当前定义与语义；旧名称应在消费端替换，不为拼写错误或过时名称补兼容别名。宿主或组件局部注入的可选变量必须有有效 fallback。静态声明存在不能证明 DOM 继承关系或 CSS 属性类型正确，运行时拼接、生成式文档和外部 CSS 仍需按实际 Surface 验证。
+
 Windows 原生反馈的 `NexusNativeTheme` 是 Web token 的平台投影，不能独立调色。
 当前实现只投影浅色主题；`native-theme-contract.test.mjs` 校验每个语义 Brush 与
 阴影颜色的来源，并显式保留顶层窗口背景不透明的宿主差异。调整 Web token 时必须
@@ -320,6 +324,7 @@ Composer 附件的图片/文本预览与移除统一组合 `UiButton / UiIconBut
 - `src/**/*.test.tsx`：与 primitive/pattern 共置的 Vitest + jsdom 行为测试，必须通过 Testing Library 从角色、名称和真实用户事件观察组件；
 - `scripts/*.test.mjs`：纯模型、协议、架构边界和禁止项合同；不得在这里伪造 DOM 交互结论，统一入口以有界并发运行，避免大量独立 Vite 转换进程使门禁随机崩溃；
 - `frontend-control-style-contract.test.mjs` 禁止公共 Button、ListRow/ListAction、Select 与 Form（Input/Textarea/NativeSelect/SearchInput/Checkbox/Choice）调用方的静态视觉覆盖；支持别名/命名空间导入、词法作用域内常量、条件表达式与对象展开，同时检查 `className`、`buttonClassName`、`inputClassName` 和内联 `style`。它允许布局与独立图标内容，不执行动态代码，也不能替代对外部 CSS 和运行时计算样式的审查。
+- `frontend-token-contract.test.mjs` 通过既有 CSS 工具链和 TypeScript AST 检查全部生产 CSS/TS 的静态 `var()`、Tailwind 简写和模板 CSS；必需引用必须有声明，可选注入必须有 fallback，三主题的 canonical 别名不得缺失、循环或在同一声明块重复。检查不执行运行时表达式，也不把全局声明集合当作 DOM 继承或 CSS 类型证明；没有逐文件违规额度。
 - `npm run test:components` 与 `npm run test:contracts` 可分别定位失败，`npm test` 必须串行覆盖两类测试。
 - `npm run check` 串行执行 lint、typecheck、上述两类测试和生产构建。
 - `npm run test:browser` 使用固定版本 Playwright 启动独立 Vite 服务器，执行真实浏览器合同；`npm run check:ui` / 根目录 `make check-web` 覆盖完整前端门禁。浏览器依赖首次使用通过 `npx playwright install chromium webkit` 安装，Linux CI 使用 `--with-deps`。
@@ -377,6 +382,9 @@ Agent 高级设置夹具直接渲染实际权限行与 Skill 卡片，验证开�
 Composer 附件夹具使用真实本地 File 验证图片/纯文本预览、长内容换行、键盘触发后
 焦点归还与 exact 附件移除；共置测试覆盖 Session 切换只关闭预览、Object URL
 释放及表单内默认按钮不提交，不把预览开关写进持久草稿或执行上传。
+主题矩阵另检查当前匹配根元素的实际 CSS 变量没有空解析结果；Tour 必须渲染真实
+锚点，高亮的圆角和外扩几何由浏览器测量，Escape 与页面目标点击均能关闭导览，
+且目标原有命令仍只执行一次。
 
 ## 9. Agent 修改流程
 

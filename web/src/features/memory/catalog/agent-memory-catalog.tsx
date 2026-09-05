@@ -55,7 +55,7 @@ export function AgentMemoryCatalog({
     value: option.value,
   }));
   return (
-    <aside className="nexus-memory-catalog flex min-h-0 min-w-0 flex-col bg-(--surface-raised-background)">
+    <aside className="nexus-memory-catalog flex min-h-0 min-w-0 flex-col bg-(--surface-shell-directory-background)">
       <div className="flex shrink-0 items-center gap-2 px-3 py-3">
         <UiSearchInput
           action={(

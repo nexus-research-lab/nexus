@@ -58,7 +58,7 @@ const SKILL_UPDATE_STATUS_ICON = {
 
 const SKILL_UPDATE_STATUS_SURFACE = {
   checking:
-    "border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-raised-background)_58%,transparent)]",
+    "border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-panel-background)_58%,transparent)]",
   current:
     "border-[color:color-mix(in_srgb,var(--success)_20%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--success)_4%,transparent)]",
   failure:

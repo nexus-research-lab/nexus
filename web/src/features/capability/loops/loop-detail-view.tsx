@@ -161,7 +161,7 @@ export function LoopDetailView({ slug, onBack: onBack }: LoopDetailViewProps) {
                       </p>
                       {step.shell_check ? (
                         <code className={cn(
-                          "mt-2 block overflow-x-auto radius-control-sm bg-(--surface-code-background) px-3 py-2",
+                          "mt-2 block overflow-x-auto radius-control-sm bg-(--content-code-background) px-3 py-2",
                           getUiTypographyClassName({ role: "code", tone: "default" }),
                         )}>
                           {step.shell_check}
@@ -186,7 +186,7 @@ export function LoopDetailView({ slug, onBack: onBack }: LoopDetailViewProps) {
             </p>
             {loop.exit_condition.command ? (
               <code className={cn(
-                "mt-2 block overflow-x-auto radius-control-sm bg-(--surface-code-background) px-3 py-2",
+                "mt-2 block overflow-x-auto radius-control-sm bg-(--content-code-background) px-3 py-2",
                 getUiTypographyClassName({ role: "code", tone: "default" }),
               )}>
                 {loop.exit_condition.command}
@@ -231,7 +231,7 @@ export function LoopDetailView({ slug, onBack: onBack }: LoopDetailViewProps) {
               </UiButton>
             </div>
             <pre className={cn(
-              "soft-scrollbar max-h-[360px] overflow-auto surface-radius-sm border border-(--divider-subtle-color) bg-(--surface-code-background) p-3",
+              "soft-scrollbar max-h-[360px] overflow-auto surface-radius-sm border border-(--divider-subtle-color) bg-(--content-code-background) p-3",
               getUiTypographyClassName({ role: "code", tone: "default" }),
             )}>
               {loop.kickoff_prompt}

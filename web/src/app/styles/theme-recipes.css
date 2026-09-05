@@ -1,3 +1,6 @@
+/* INPUT: canonical 语义 token 与公共组件的状态/结构 class。
+ * OUTPUT: 复用统一尺度、材质、焦点和层级的共享 CSS recipe。
+ * POS: UI 状态样式唯一所有者；公共尺度引用 token，特定内容几何留在命名 pattern。 */
 /**
  * =====================================================
  * @File   : theme-recipes.css
@@ -275,7 +278,7 @@
 
   .ui-tooltip {
     border: 1px solid rgb(255 255 255 / 8%);
-    border-radius: 11px;
+    border-radius: var(--radius-control-md);
     padding: 6px 10px;
     background: rgb(31 31 30 / 96%);
     box-shadow: 0 10px 30px rgb(0 0 0 / 24%);
@@ -756,7 +759,7 @@
     position: relative;
     overflow: hidden;
     /* 主面板默认只保留一档克制圆角，特殊壳层再显式提升。 */
-    border-radius: 12px;
+    border-radius: var(--radius-surface-md);
     background: var(--card);
     border: 1px solid var(--surface-panel-border);
     box-shadow: var(--surface-panel-shadow);
@@ -764,7 +767,7 @@
 
   .surface-inset,
   .surface-card {
-    border-radius: 12px;
+    border-radius: var(--radius-surface-md);
     background: transparent;
     border: 1px solid var(--divider-subtle-color);
     box-shadow: none;
@@ -942,7 +945,7 @@
     align-items: center;
     justify-content: center;
     border: 0 solid transparent;
-    border-radius: 6px;
+    border-radius: var(--radius-control-xs);
     background: transparent;
     padding: 0;
     color: var(--text-muted);
@@ -1104,14 +1107,14 @@
     --surface-chip-border: var(--chip-default-border);
     --surface-chip-shadow: var(--chip-default-shadow);
 
-    border-radius: 8px;
+    border-radius: var(--radius-control-sm);
     border: 1px solid var(--surface-chip-border);
     background: var(--surface-chip-background);
     box-shadow: var(--surface-chip-shadow);
   }
 
   .input-shell {
-    border-radius: 10px;
+    border-radius: var(--radius-control-md);
     background: color-mix(in srgb, var(--input-shell-background) 72%, transparent);
     border: 1px solid color-mix(in srgb, var(--input-shell-border) 92%, transparent);
     box-shadow: none;
@@ -1317,7 +1320,7 @@
   }
 
   .surface-popover {
-    border-radius: 16px;
+    border-radius: var(--radius-surface-lg);
     background: var(--surface-popover-background);
     border: 1px solid var(--surface-popover-border);
     background-clip: padding-box;
@@ -1327,7 +1330,7 @@
   .dialog-shell {
     position: relative;
     overflow: hidden;
-    border-radius: 16px;
+    border-radius: var(--radius-surface-lg);
     background: var(--modal-dialog-surface-background);
     border: 1px solid var(--modal-dialog-surface-border);
     background-clip: padding-box;
@@ -1395,13 +1398,13 @@
   }
 
   .dialog-nav {
-    border-radius: 12px;
+    border-radius: var(--radius-surface-md);
     background: var(--modal-nav-background);
     border: 1px solid var(--modal-nav-border);
   }
 
   .dialog-card {
-    border-radius: 12px;
+    border-radius: var(--radius-surface-md);
     background: var(--modal-card-background);
     border: 1px solid var(--modal-card-border);
     box-shadow: var(--modal-card-shadow);
@@ -1422,7 +1425,7 @@
   }
 
   .dialog-input {
-    border-radius: 10px;
+    border-radius: var(--radius-control-md);
     background: var(--modal-input-background);
     border: 1px solid color-mix(in srgb, var(--modal-input-border) 92%, transparent);
     box-shadow: none;
@@ -1449,7 +1452,7 @@
   }
 
   .dialog-button-secondary {
-    border-radius: 10px;
+    border-radius: var(--radius-control-md);
     background: var(--modal-btn-secondary-background);
     border: 1px solid var(--modal-btn-secondary-border);
     box-shadow: none;
@@ -1561,35 +1564,35 @@
 
   /* 控件只允许四档圆角，避免业务组件继续出现 9/13/15px 等近似值。 */
   .radius-control-xs {
-    border-radius: 6px;
+    border-radius: var(--radius-control-xs);
   }
 
   .radius-control-sm {
-    border-radius: 8px;
+    border-radius: var(--radius-control-sm);
   }
 
   .radius-control-md {
-    border-radius: 10px;
+    border-radius: var(--radius-control-md);
   }
 
   .radius-control-lg {
-    border-radius: 12px;
+    border-radius: var(--radius-control-lg);
   }
 
   .surface-radius-xl {
-    border-radius: 24px;
+    border-radius: var(--radius-surface-xl);
   }
 
   .surface-radius-lg {
-    border-radius: 16px;
+    border-radius: var(--radius-surface-lg);
   }
 
   .surface-radius-md {
-    border-radius: 12px;
+    border-radius: var(--radius-surface-md);
   }
 
   .surface-radius-sm {
-    border-radius: 8px;
+    border-radius: var(--radius-surface-sm);
   }
 
   .segmented-control {
@@ -1984,7 +1987,7 @@
     .nexus-chat-feed .nexus-chat-message-round-expanded .nexus-chat-avatar {
       width: 2rem;
       height: 2rem;
-      border-radius: 10px;
+      border-radius: var(--radius-control-md);
     }
 
     .nexus-chat-feed .nexus-chat-message-header {
