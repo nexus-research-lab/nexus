@@ -45,6 +45,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Reused shared buttons for Composer attachment previews and removal, preserving
+  independent actions, Session draft boundaries, and local preview cleanup.
+  Removed duplicate chip and input-shell radius overrides so their shared
+  recipes remain the visual owners.
 - Consolidated Agent authorization rows and Skill cards onto shared ListRow,
   Catalog, and typography primitives while preserving switch-only commands,
   disconnected-access removal, and locked or pending Skill behavior. Catalog

@@ -41,7 +41,7 @@ export function UserMessageEditor({
   };
 
   return (
-    <div className="input-shell workbench-input-shell ml-auto flex w-full max-w-full flex-col overflow-hidden rounded-[10px]">
+    <div className="input-shell ml-auto flex w-full max-w-full flex-col overflow-hidden">
       <textarea
         aria-label={t("message.edit_content")}
         className={cn(

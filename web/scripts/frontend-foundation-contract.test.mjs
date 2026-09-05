@@ -1169,7 +1169,10 @@ test("dense Composer and Room toolbars use the shared micro Button scale", async
     assert.doesNotMatch(source, /<button\b|rounded-\[/);
   }
   assert.match(attachments, /<UiIconButton/);
-  assert.equal(attachments.match(/<button\b/g)?.length, 3);
+  assert.match(attachments, /<UiButton/);
+  assert.doesNotMatch(attachments, /<button\b/);
+  const composerStyles = await readSource("src/features/conversation/shared/composer/composer-styles.ts");
+  assert.doesNotMatch(composerStyles, /rounded-\[|hover:|focus-visible:|workbench-input-shell/);
 });
 
 test("message header actions use shared Button tones without a domain adapter", async () => {

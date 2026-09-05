@@ -34,6 +34,7 @@ Slash 命令目录只消费后端从版本化内置清单合成的快照中的�
 常规桌面 Composer 在底部保留 8px 呼吸区，使输入壳贴近窗口底边但不截断边框与阴影；不得通过改变输入壳自身高度模拟抬升。紧凑模式继续取常规间距与系统 safe area 的较大值。
 常规桌面 Composer 与消息轨道保持同一中心线，但使用独立的 880px 外层上限；桌面横向内边距扣除后，输入壳约 832px 宽，不得随超宽屏继续拉成长条。
 Composer 输入壳以 20px 圆角、约 102px 空态高度和无分割线动作区形成独立聚焦面；只有输入壳保留黑色 3.5% 的短接触阴影，搜索框与普通表单不得继承这套尺寸。
+圆角与交互表面由共享 `theme-recipes.css` 的 `input-shell` / `nexus-chat-composer-shell` 唯一拥有；Composer 和消息编辑器只引用壳层标记，不另写同值圆角，也不保留无样式消费者的历史 class。
 Composer textarea 高度只以浏览器真实 `scrollHeight` 为准，并在 React 正文、原生 input/IME 组合输入与宽度变化时同步重测；测量必须包含实际字体、换行与内边距，短文本必须从旧上限立即回缩。正文最多把输入壳推高约 5 行，之后只在 textarea 内部滚动，不能继续挤压对话区。
 Composer 输入壳外层使用绝对定位、`pointer-events: none` 的 `::before` 将自身上缘向正文羽化；普通输入与权限、问答、计划确认替换面共用同一外缘。羽化不得挂到消息 viewport 或全宽 BottomArea、增加 padding/clearance、遮挡 Task/回到底部 Dock，或改变输入壳和虚拟列表测量。
 DM 或 Room 出现 pending permission、AskUserQuestion 或计划确认时，人工介入组件必须原位替换整个输入壳内容；不得悬浮在输入框上方，也不得在消息正文或 Thread 保留第二个操作入口。未发送草稿与附件继续保存在原 Session 草稿作用域，最后一个请求完成后输入壳原位恢复并重新聚焦。同一 pending interaction epoch 的输入壳外部高度只可增长，较短请求在壳内留出稳定空间，最后一个请求完成后再一次平滑恢复普通输入高度，禁止连续请求逐项挤压消息 viewport。多个请求按首次到达顺序在同一位置逐个接棒，重放的同 request 快照只能原位更新；Room 当前项显示请求 Agent 身份并按 `request_id` 回到原执行。
