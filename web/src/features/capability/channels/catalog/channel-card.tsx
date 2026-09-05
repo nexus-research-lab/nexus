@@ -148,9 +148,10 @@ export function ChannelCard({
     <UiListRow
       className={cn(
         CAPABILITY_DIRECTORY_ROW_CLASS_NAME,
-        planned && "cursor-default opacity-70",
+        planned && "cursor-default",
       )}
       leading={<ChannelIcon type={item.channel_type} />}
+      muted={planned}
       onClick={planned ? undefined : configure}
       right={(
         <ChannelCardActions action={model.action} onConfigure={configure} />

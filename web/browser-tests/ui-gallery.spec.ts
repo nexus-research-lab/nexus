@@ -350,6 +350,30 @@ test("catalog primary hit area preserves content and independent secondary actio
   expect(errors).toEqual([]);
 });
 
+test("list density and surfaces share geometry and inert rows suppress hover", async ({ page }, info) => {
+  const { errors } = await openGallery(page, info);
+  const narrow = page.viewportSize()!.width < 560;
+  for (const [name, expectedHeight] of [["sidebar", narrow ? 80 : 60], ["sidebar-compact", narrow ? 72 : 54]] as const) {
+    const row = page.locator(`[data-gallery-row="${name}"]`);
+    await row.scrollIntoViewIfNeeded();
+    expect((await row.boundingBox())!.height).toBe(expectedHeight);
+    expect(await row.evaluate((element) => getComputedStyle(element).borderRadius)).toBe(narrow ? "12px" : "10px");
+    await capture(row, info, `list-${name}`);
+  }
+  const flush = page.locator('[data-gallery-row="flush"]');
+  expect(await flush.evaluate((element) => getComputedStyle(element).borderRadius)).toBe("0px");
+  for (const name of ["static", "disabled"]) {
+    const row = page.locator(`[data-gallery-row="${name}"]`);
+    await page.mouse.move(0, 0);
+    const before = await row.evaluate((element) => getComputedStyle(element).backgroundColor);
+    await row.hover();
+    expect(await row.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(before);
+    if (name === "disabled") await expect(row).toHaveAttribute("aria-disabled", "true");
+    else await expect(row).not.toHaveAttribute("role");
+  }
+  expect(errors).toEqual([]);
+});
+
 test("list secondary actions reveal for keyboard and suppress disabled hover", async ({ page }, info) => {
   const { errors } = await openGallery(page, info);
   const row = page.locator("[data-gallery-list-actions]");

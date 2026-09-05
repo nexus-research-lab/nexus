@@ -244,7 +244,7 @@ export function ContactsDirectory({
               </>
             ) : (
               <UiListRow
-                className="min-h-[76px] rounded-none px-3 py-2.5"
+                className="min-h-[76px] px-3 py-2.5"
                 description={t("contacts.new_agent_description")}
                 leading={(
                   <WorkspaceIconFrame className="h-10 w-10 shrink-0" shape="round" size="md">
@@ -253,6 +253,7 @@ export function ContactsDirectory({
                 )}
                 onClick={onCreateAgent}
                 title={t("contacts.new_agent")}
+                variant="flush"
               />
             )}
             {filteredAgents.map((agent) => (

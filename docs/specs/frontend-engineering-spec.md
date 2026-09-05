@@ -171,6 +171,7 @@ Primitive 同时拥有 DOM、键盘、焦点、ARIA 和视觉状态合同，例�
 - 默认值必须能直接用于普通业务场景；
 - `className` 只用于外部布局和宽度约束，不得覆盖颜色、圆角、阴影、层级、hover 或 focus；
 - `UiListActionButton` 只在 `UiIconButton` 上组合事件隔离与可见性，不持有第二套按钮 DOM、tone、焦点或禁用样式；需要按行展示时选择 `visibility="hover"`，并由共享规则保证键盘和触摸可达。
+- `UiListRow` 的侧栏密度、连续列表/独立边界与弱化展示分别通过 `density / variant / muted` 表达；静态行没有 hover，禁用必须使用 `disabled` 保留语义并阻断命令，不能通过移除回调或私设透明度假装禁用。
 - 目录卡片的整卡主动作通过 `WorkspaceCatalogCard.primaryAction` 声明；Article 保留内容语义，主按钮在局部隔离堆叠中位于内容下方，原生次动作独立命中。业务不得复制覆盖按钮或整卡 hover/focus 配方。
 - 业务文字、导航链接和纯图标动作必须分别渲染 `UiButton / UiLinkButton / UiIconButton`；`button-styles.ts` 是 shared primitive 的实现细节，业务层不得借其 class 投影手写第二套 DOM；
 - `UiButton surface` 表达带底色的次级动作，`outline` 表达与页面同层、透明无阴影但需要稳定边界的动作组，`ghost / text` 表达默认无边界的轻动作；业务页不得用局部 `background / border / shadow` 把一种变体临时改造成另一种；
@@ -316,7 +317,7 @@ Widget 可以认识 Agent、Room、Goal 等产品对象，但只组合下层合�
 
 - `src/**/*.test.tsx`：与 primitive/pattern 共置的 Vitest + jsdom 行为测试，必须通过 Testing Library 从角色、名称和真实用户事件观察组件；
 - `scripts/*.test.mjs`：纯模型、协议、架构边界和禁止项合同；不得在这里伪造 DOM 交互结论，统一入口以有界并发运行，避免大量独立 Vite 转换进程使门禁随机崩溃；
-- `frontend-control-style-contract.test.mjs` 禁止公共 Button、ListAction、Select 与 Form（Input/Textarea/NativeSelect/SearchInput/Checkbox/Choice）调用方的静态视觉覆盖；支持别名/命名空间导入、词法作用域内常量、条件表达式与对象展开，同时检查 `className`、`buttonClassName`、`inputClassName` 和内联 `style`。它允许布局与独立图标内容，不执行动态代码，也不能替代对外部 CSS 和运行时计算样式的审查。
+- `frontend-control-style-contract.test.mjs` 禁止公共 Button、ListRow/ListAction、Select 与 Form（Input/Textarea/NativeSelect/SearchInput/Checkbox/Choice）调用方的静态视觉覆盖；支持别名/命名空间导入、词法作用域内常量、条件表达式与对象展开，同时检查 `className`、`buttonClassName`、`inputClassName` 和内联 `style`。它允许布局与独立图标内容，不执行动态代码，也不能替代对外部 CSS 和运行时计算样式的审查。
 - `npm run test:components` 与 `npm run test:contracts` 可分别定位失败，`npm test` 必须串行覆盖两类测试。
 - `npm run check` 串行执行 lint、typecheck、上述两类测试和生产构建。
 - `npm run test:browser` 使用固定版本 Playwright 启动独立 Vite 服务器，执行真实浏览器合同；`npm run check:ui` / 根目录 `make check-web` 覆盖完整前端门禁。浏览器依赖首次使用通过 `npx playwright install chromium webkit` 安装，Linux CI 使用 `--with-deps`。

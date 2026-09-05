@@ -99,12 +99,11 @@ function UpdateSkillRow({
     <UiListRow
       aria-label={title}
       aria-busy={busy || undefined}
-      className={cn(
-        "grid min-w-0 grid-cols-[32px_minmax(0,1fr)_auto] border-(--divider-subtle-color) bg-transparent py-2.5 hover:border-(--surface-interactive-active-border)",
-        busy && "opacity-70",
-      )}
+      className="grid min-w-0 grid-cols-[32px_minmax(0,1fr)_auto] py-2.5"
       density="compact"
       leading={<UiSeededAvatar seed={skill.name} size="xs" />}
+      muted={busy}
+      variant="outlined"
       onClick={onOpen}
       right={(
         <UiButton

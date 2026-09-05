@@ -129,7 +129,8 @@ function MCPToolRow({ tool }: { tool: CustomMCPTool }) {
   const { t } = useI18n();
   return (
     <UiListRow
-      className="min-h-[68px] rounded-none py-3"
+      className="min-h-[68px] py-3"
+      variant="flush"
       leading={(
         <span className="flex h-9 w-9 shrink-0 items-center justify-center radius-control-md border border-(--divider-subtle-color) bg-(--surface-panel-background)">
           <Wrench className="h-4 w-4 text-(--icon-default)" />

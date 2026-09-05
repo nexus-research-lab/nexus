@@ -11,6 +11,21 @@ import { UiListRow, UiListRowContent } from "@/shared/ui/list/list-row";
 import { UiListSectionDivider } from "@/shared/ui/list/list-section-divider";
 
 describe("UiListRow", () => {
+  it("keeps a muted row actionable while disabled preserves semantics and blocks activation", async () => {
+    const user = userEvent.setup();
+    const onOpen = vi.fn();
+    const { rerender } = render(<UiListRow muted onClick={onOpen} title="正在刷新" variant="outlined" />);
+    const row = screen.getByRole("button", { name: "正在刷新" });
+    await user.click(row);
+    await user.keyboard("{Enter}");
+    expect(onOpen).toHaveBeenCalledTimes(2);
+    rerender(<UiListRow disabled muted onClick={onOpen} title="正在刷新" variant="outlined" />);
+    expect(row.getAttribute("aria-disabled")).toBe("true");
+    await user.click(row);
+    await user.keyboard("{Enter} ");
+    expect(onOpen).toHaveBeenCalledTimes(2);
+  });
+
   it("becomes one keyboard-operable row only when it has an action", async () => {
     const user = userEvent.setup();
     const onOpen = vi.fn();

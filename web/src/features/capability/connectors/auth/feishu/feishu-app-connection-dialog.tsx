@@ -158,18 +158,16 @@ export function FeishuAppConnectionDialog({
           <UiDialogBody className="px-5">
             <div className="radius-control-lg divide-y divide-(--divider-subtle-color) overflow-hidden border border-(--divider-subtle-color)">
               <UiListRow
-                aria-disabled={busy}
-                className={busy ? "opacity-(--disabled-opacity)" : ""}
+                disabled={busy}
                 description="在飞书页面选择或创建应用。"
-                onClick={busy ? undefined : onScan}
+                onClick={onScan}
                 right={<ChevronRight className="h-4 w-4 text-(--icon-muted)" />}
                 title="扫码连接"
               />
               <UiListRow
-                aria-disabled={busy}
-                className={busy ? "opacity-(--disabled-opacity)" : ""}
+                disabled={busy}
                 description="填写 App ID 和 App Secret。"
-                onClick={busy ? undefined : () => setView("manual")}
+                onClick={() => setView("manual")}
                 right={<ChevronRight className="h-4 w-4 text-(--icon-muted)" />}
                 title="手动配置"
               />

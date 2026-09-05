@@ -114,7 +114,7 @@ function ConnectorFeatureList({
       >
         {features.map((feature) => (
           <UiListRow
-            className="min-h-[56px] rounded-none"
+            className="min-h-[56px]"
             description={feature.description}
             key={feature.name}
             leading={(
@@ -125,6 +125,7 @@ function ConnectorFeatureList({
             onClick={() => onSelect(feature.name)}
             right={<ChevronRight className="h-4 w-4 shrink-0 text-(--icon-muted)" />}
             title={feature.name}
+            variant="flush"
           />
         ))}
       </UiPanel>

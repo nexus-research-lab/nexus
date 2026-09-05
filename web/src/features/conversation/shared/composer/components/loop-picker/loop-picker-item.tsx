@@ -24,7 +24,6 @@ export function LoopPickerItem({
   return (
     <UiListRow
       aria-busy={busySlug === loop.slug || undefined}
-      className="bg-(--surface-raised-background)"
       disabled={busySlug !== null}
       onClick={() => void onSelect(loop)}
       right={(
