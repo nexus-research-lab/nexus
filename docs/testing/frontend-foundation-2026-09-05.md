@@ -74,6 +74,10 @@
 - 文件默认标签与打开提示接入双语目录；预览/下载保持独立，切换全局 Agent 后仍
   绑定原文件作用域。新增 DOM 回归覆盖该边界及 Goal 控制记录的不可编辑语义，
   普通同名 Slash 正文继续保留普通消息动作。
+- 新增 `make app-check-ui`：以独立 QA App 编译当前生产窗口、WKWebView 和 bridge，
+  直接加载真实 Gallery。测试有独立应用标识、偏好、状态根、端口和 Vite 缓存，
+  不启动产品 AppDelegate/sidecar，测试服务拒绝业务 API；脚本自动记录源码清单、
+  原生输入证据、窗口指标、恢复事件及截图，并在退出时关闭自己启动的进程。
 
 ## 本地验证
 
@@ -86,6 +90,7 @@
 | WebKit | 三主题 × 双语 × 320/1440px，228 项通过 |
 | Windows 浅色 token 投影 | 新增合同通过；只检查源码颜色映射 |
 | macOS 宿主生产代码 | `swift build --package-path desktop/macos` 通过 |
+| macOS 原生 WKWebView 组件宿主 | 三主题 × 双语 × 360/1280pt，12 组原生交互通过 |
 
 浏览器使用 Playwright 1.63.0、独立本地 Vite 和真实组件，重试为零。
 登录测试完全拦截认证接口，不接触真实账号或后端数据。几何、键盘、焦点、碰撞、
@@ -137,19 +142,35 @@ WorkGraph 另验证静态运行活动无按钮，以及缩略图的节点顺序�
 保留原 Agent 打开，并在中英文窄屏中不产生横向溢出。已复核桌面与 WebKit 雨天
 窄屏截图；文件卡片的原生命中区和独立外部按钮数量保持既有合同。
 
+原生批次在 macOS 26.6.2 / arm64 上从当前源码编译，完整矩阵验证 AppKit 点击、
+文本输入、Return/方向键/Option-Tab/Escape，DOM 观察到的输入事件均为 trusted。
+按钮保持 36px、14px/500、8px 图文间距，输入框保持 36px、14px/400；Select 在
+视口底部向上展开，禁用项跳过，嵌套 Portal 位于模态命中层之上，逐层关闭归还焦点。
+每个窗口隐藏超过宿主既有的五秒探针合并间隔后恢复，均得到新的 ready 探针，
+文档标记保留且未触发重载。原生红灯中心为 (16, 24)pt，窗口按钮安全区为 85pt。
+全部场景对业务 API 的请求数为零；产物保存在 `/tmp/nexus-native-ui/<run>/`。
+已复核浅色桌面弹窗、深色窄窗选择器和雨天中文窄窗弹窗，浮层、关闭与 Footer
+动作均可见；36 张 WKWebView 截图作为场景证据，不作为像素基线。
+
+首轮驱动曾读错 Gallery 数据属性；随后测量又读到远端字体 CSS 尚未完成时的默认
+控件样式。夹具已沿用浏览器测试的远端字体阻断，并等待页面和本地字体就绪。
+截图另等待有限动画与绘制帧，避免在浮层透明首帧取证；这些修正只影响验收程序。
+本批重跑 447 项合同，生产前端没有新增修改，组件/构建及 684 项浏览器结果沿用
+上一批已验证的生产源码基线，不把原生组件矩阵当作全部浏览器或业务验收的替代。
+
 ## 验证边界与后续迁移
 
 - GitHub Actions 已配置同一套门禁和证据归档；本次只做本地提交，没有推送或运行远端 CI。
-- Chromium/WebKit 覆盖 Web 渲染和输入行为；macOS/Windows 原生窗口 chrome、安全区、
-  宿主可见性生命周期仍需在实际 App 上复查，不把浏览器结果称为原生宿主验收。
+- Chromium/WebKit 覆盖 Web 渲染和输入行为；独立 macOS QA App 补充当前 WKWebView
+  组件输入、原生窗口指标和隐藏恢复。WKWebView 截图不含系统 chrome；完整 Launcher、
+  聊天业务、拖窗/缩放及 Windows 宿主仍需实际检查，不能由组件夹具推定通过。
 - 早期原生检查受 Mac 锁定限制；WorkGraph 批次已能打开 Nexus 的 Launcher 和工作台。但已安装
   App 在 34343 返回 `app-dr89c6zo.js`，当时本地构建为 `app-Bkvi2xn1.js`，因此此次
   窗口观察不作为当前修改的 WKWebView 验收。未替换用户正在运行的 App。本机 Command
   Line Tools 缺少 XCTest，窗口指标测试编译失败（`no such module 'XCTest'`），生产
   Swift 编译通过。当前主机没有 Windows/.NET 环境，未执行 WPF/WebView2 测试。
-- 原生宿主的 `SidecarPortAllocator` 固定使用 34343 并在被占用时失败，当前没有
-  可并行启动隔离开发宿主的端口覆盖入口；不能把旧 App 的资源或浏览器 WebKit
-  当作新构建的原生整体证据。
+- 产品 `SidecarPortAllocator` 仍固定使用 34343；QA 通过显式构造独立 runtime 复用
+  生产窗口，已绕开组件宿主验收的端口冲突，没有修改产品端口或替换用户运行的 App。
 - 本地字体用于 App chrome 验收，远端聊天中文字体被显式阻断；没有建立跨平台像素基线，
   也没有声称所有业务页面和全部阅读 Surface 均已视觉验收。
 - `hooks/store/types/lib` 的剩余目录整理继续按领域切片渐进迁移；当前严格依赖门禁与
@@ -167,9 +188,6 @@ User/Assistant 消息布局混合职责，并将六个相关模型纳入同一�
 字符串命中将它们认定为私有控件。任意圆角、色值和字号扫描仍需区分普通 UI 与
 文档/品牌/图形数据，运行时表达式与外部 CSS 的证据边界保持不变。
 
-原生验证尚未完成，但并非已经证明没有可推进路径：当前 `SidecarRuntimeConfig`
-可显式构造端口，`WebViewHost.load` 接受该 runtime 同源的 URL；独立的原生 UI
-验收程序可能复用实际 WebView 与窗口几何，同时避开 `SidecarPortAllocator`。
-下一步需验证独立进程、应用标识、存储、bridge 与测试服务是否可隔离，不能把
-读到构造入口等同于已完成 WKWebView/App 验收，也不能因侧车端口固定提前停止。
+独立 macOS 组件宿主路径已落地并通过 12 组检查。后续完整 App 检查仍须覆盖真实
+Launcher/工作台 chrome、窗口手势和业务布局，不能把 Gallery 当作这些页面的替身。
 Windows/.NET 的实际宿主证据仍未获得。
