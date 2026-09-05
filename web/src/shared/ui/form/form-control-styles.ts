@@ -1,5 +1,5 @@
 // INPUT: 表单字段的单行/多行语义、内容角色、尺寸、表面档位与搜索壳层类型。
-// OUTPUT: 输入字段及搜索壳层的共享尺寸、焦点、invalid 和 disabled 样式投影。
+// OUTPUT: 输入字段及搜索壳层的共享尺寸、可读占位提示、焦点、invalid 和 disabled 样式投影。
 // POS: Form primitive 内部视觉所有者；不渲染 DOM，不决定字段值、校验规则或搜索范围。
 
 import { cn } from "@/shared/ui/class-name";
@@ -17,7 +17,7 @@ interface UiFormControlStyleOptions {
 }
 
 const FORM_CONTROL_BASE_CLASS_NAME =
-  "w-full text-(--text-strong) outline-none transition-[background,border-color,box-shadow] duration-(--motion-duration-fast) placeholder:text-(--text-soft) focus-visible:outline-none aria-[invalid=true]:border-[color:color-mix(in_srgb,var(--destructive)_72%,transparent)] aria-[invalid=true]:shadow-[0_0_0_2px_color-mix(in_srgb,var(--destructive)_16%,transparent)] disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)";
+  "w-full text-(--text-strong) outline-none transition-[background,border-color,box-shadow] duration-(--motion-duration-fast) placeholder:text-(--text-muted) focus-visible:outline-none aria-[invalid=true]:border-[color:color-mix(in_srgb,var(--destructive)_72%,transparent)] aria-[invalid=true]:shadow-[0_0_0_2px_color-mix(in_srgb,var(--destructive)_16%,transparent)] disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)";
 
 const FORM_CONTROL_VARIANT_CLASS_MAP: Record<UiFormControlVariant, string> = {
   dialog: "dialog-input",

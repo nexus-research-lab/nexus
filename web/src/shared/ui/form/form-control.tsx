@@ -1,5 +1,5 @@
 // INPUT: 原生输入属性、内容角色、字段描述/错误与搜索值变更命令。
-// OUTPUT: 统一输入外观、原生校验反馈和可访问搜索清除行为。
+// OUTPUT: 统一输入外观与可读占位提示、原生校验反馈和可访问搜索清除行为。
 // POS: 文本表单控件原语；不持有业务草稿、提交事务或领域校验规则。
 "use client";
 
@@ -299,7 +299,7 @@ export const UiSearchInput = forwardRef<HTMLInputElement, UiSearchInputProps>(fu
       <Search className="h-4 w-4 shrink-0 text-(--icon-default)" />
       <input
         className={cn(
-          "min-w-0 flex-1 bg-transparent text-(--text-strong) outline-none shadow-none ring-0 placeholder:text-(--text-soft) focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none",
+          "min-w-0 flex-1 bg-transparent text-(--text-strong) outline-none shadow-none ring-0 placeholder:text-(--text-muted) focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none",
           inputClassName,
         )}
         disabled={disabled}

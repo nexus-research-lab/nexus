@@ -382,7 +382,7 @@
   --border-200-color: hsl(48deg 12.5% 72%);
   --text-strong: #eef3f8;
   --text-default: rgba(221, 231, 242, 0.92);
-  --text-muted: rgba(179, 194, 211, 0.84);
+  --text-muted: rgba(179, 194, 211, 0.92);
   --text-soft: rgba(146, 162, 179, 0.7);
   --icon-strong: rgba(238, 244, 250, 0.92);
   --icon-default: rgba(184, 199, 216, 0.82);

@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Improved placeholder readability in shared text, multiline and search fields
+  across themes and strengthened Rain's shared supporting-text contrast while
+  preserving existing typography, size and input behavior.
 - Preserve pinned sessions when another page saves its conversation tabs, and
   synchronize same-owner navigation changes without restoring another account's data.
 - Keep the shared sidebar rail compact in both languages, using clear short

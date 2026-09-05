@@ -116,6 +116,7 @@ export function UiContractGallery() {
   const [dialogViewport, setDialogViewport] = useState<UiDialogViewport>("adaptiveMax");
   const [promptOpen, setPromptOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("shared/ui");
+  const [emptySearchValue, setEmptySearchValue] = useState("");
   const [selectedChoice, setSelectedChoice] = useState("balanced");
   const [selectedRadioChoice, setSelectedRadioChoice] = useState("ask");
   const [showRemovableChip, setShowRemovableChip] = useState(true);
@@ -287,6 +288,20 @@ export function UiContractGallery() {
             <UiField label={galleryText(locale, "搜索", "Search")}>
               <UiSearchInput aria-label={galleryText(locale, "搜索", "Search")} onChange={setSearchValue} value={searchValue} />
             </UiField>
+            <div className="grid gap-4 bg-background p-3 sm:grid-cols-2" data-gallery-empty-fields>
+              <UiField htmlFor="gallery-empty-dialog" label={galleryText(locale, "弹窗字段", "Dialog field")}>
+                <UiInput id="gallery-empty-dialog" placeholder={galleryText(locale, "例如：资料助理", "e.g. Research assistant")} />
+              </UiField>
+              <UiField htmlFor="gallery-empty-surface" label={galleryText(locale, "页面字段", "Page field")}>
+                <UiInput id="gallery-empty-surface" placeholder={galleryText(locale, "填写名称", "Enter a name")} variant="surface" />
+              </UiField>
+              <UiField htmlFor="gallery-empty-notes" label={galleryText(locale, "补充说明", "Additional notes")}>
+                <UiTextarea id="gallery-empty-notes" placeholder={galleryText(locale, "描述需要完成的工作", "Describe the work to complete")} variant="surface" />
+              </UiField>
+              <UiField htmlFor="gallery-empty-search" label={galleryText(locale, "空白搜索", "Empty search")}>
+                <UiSearchInput id="gallery-empty-search" onChange={setEmptySearchValue} placeholder={galleryText(locale, "搜索组件", "Search components")} value={emptySearchValue} />
+              </UiField>
+            </div>
             <div className="grid gap-4 sm:grid-cols-3">
               <UiField label={galleryText(locale, "模型", "Model")}>
                 <UiSelectMenu
