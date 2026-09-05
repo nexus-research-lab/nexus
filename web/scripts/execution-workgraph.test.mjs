@@ -480,6 +480,7 @@ test("WorkGraph sketch confirmation schedules a hidden background round without 
   ), "utf8");
   assert.match(dialogSource, /scheduleWorkGraphWorkflowSaveApi\(sessionKey, workingPreview\.preview_id, \{/);
   assert.match(apiSource, /workgraph\/previews\/\$\{encodeURIComponent\(previewId\)\}\/save/);
+  assert.match(apiSource, /previewWorkGraphWorkflowApi[\s\S]*?timeout_ms: 185_000/);
   assert.doesNotMatch(dialogSource, /dispatchWorkGraphDistillationIntent|buildDistillationPrompt|onSendMessage/);
   assert.doesNotMatch(controllerSource, /WORKGRAPH_DISTILLATION_INTENT_EVENT|pendingWorkGraphPromptRef/);
 });

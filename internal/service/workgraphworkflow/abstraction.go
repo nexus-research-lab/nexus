@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	"github.com/nexus-research-lab/nexus/internal/service/llm"
@@ -19,8 +20,8 @@ import (
 )
 
 const (
-	abstractionTimeout      = 45 * time.Second
-	abstractionMaxTokens    = 4096
+	abstractionTimeout      = 3 * time.Minute
+	abstractionMaxTokens    = 16_384
 	abstractionSystemPrompt = `你是 WorkGraph 结构提炼器。请根据一张已经实际执行完成的责任图，提取可跨 Session、跨主题复用且尽量保留原结构的草图。
 严格要求：
 1. input.nodes 是宿主提供的完整权威结构。默认逐个保留节点及其 logical_key、父子层级和依赖拓扑；主要工作是抽象每个节点的具体任务语义，不是压缩节点数量。
@@ -134,10 +135,26 @@ func (a *LLMAbstractor) Abstract(ctx context.Context, ownerUserID string, input 
 		MaxTokens: abstractionMaxTokens, Temperature: 0, DisableReasoning: true,
 	})
 	if err != nil {
+		logx.Resolve(ctx, nil).Warn(
+			"工作图结构提炼模型调用失败",
+			"provider", config.Provider,
+			"model", config.Model,
+			"api_format", config.APIFormat,
+			"max_tokens", abstractionMaxTokens,
+			"err", err,
+		)
 		return AbstractionOutput{}, err
 	}
 	var output AbstractionOutput
 	if err := json.Unmarshal([]byte(stripJSONFence(raw)), &output); err != nil {
+		logx.Resolve(ctx, nil).Warn(
+			"工作图结构提炼响应不是有效 JSON",
+			"provider", config.Provider,
+			"model", config.Model,
+			"api_format", config.APIFormat,
+			"response_bytes", len(raw),
+			"err", err,
+		)
 		return AbstractionOutput{}, fmt.Errorf("invalid abstraction JSON: %w", err)
 	}
 	return output, nil
