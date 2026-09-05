@@ -55,8 +55,8 @@ def build(output: Path) -> dict:
     subprocess.run(["codesign", "--force", "--sign", "-", str(contents.parent)], check=True, capture_output=True)
     # Record both compiled native sources and the frontend served by Vite. This
     # evidence is for the working tree, which can differ from the current commit.
-    inputs = sources + sorted((ROOT / "web/src").rglob("*")) + [
-        Path(__file__).resolve(), ROOT / "web/browser-tests/native-ui-server.mjs",
+    inputs = sources + sorted((ROOT / "web/src").rglob("*")) + sorted((ROOT / "web/browser-tests").glob("native-ui-*")) + [
+        Path(__file__).resolve(), ROOT / "web/app.html",
         ROOT / "web/vite.config.ts", ROOT / "web/package-lock.json", ROOT / "web/pnpm-lock.yaml",
         ROOT / "web/package.json", ROOT / "web/ui-gallery.html",
     ]
@@ -146,10 +146,10 @@ class NativeClient:
         self.evaluate(f"(() => {{ const e = {element}; e.scrollIntoView({{block:'center'}}); e.focus(); return true; }})()")
         self.wait(f"document.activeElement === {element}", "fixture focus precondition")
 
-    def click(self, element: str):
+    def click(self, element: str, count: int = 1):
         point = self.evaluate(f"(() => {{ const e = {element}; e.scrollIntoView({{block:'center'}}); "
                               "const r=e.getBoundingClientRect(); return {x:r.x+r.width/2,y:r.y+r.height/2}; })()")
-        self.command("click", **point)
+        self.command("click", count=count, **point)
 
     def snapshot(self, name: str):
         # Geometry exists at an overlay's transparent first animation frame.
@@ -297,7 +297,74 @@ def run_case(client: NativeClient, theme: str, locale: str, width: int) -> dict:
             "native_events": events, "passed": True}
 
 
-def verify(settings: dict) -> None:
+def run_app_shell_case(client: NativeClient, theme: str, locale: str, width: int) -> dict:
+    name = f"app-{theme}-{locale}-{width}"
+    query = "document.querySelector('input[data-tour-anchor], [data-tour-anchor=launcher-composer] input')"
+    enter = "document.querySelector('[data-tour-anchor=launcher-enter-app]')"
+    sidebar = "document.querySelector('.sidebar-panel-shell')"
+    client.command("resize", width=width, height=820 if width > 360 else 640)
+    client.command("route", query=urlencode({"theme": theme, "locale": locale, "qa_case": name}))
+    client.wait(f"location.pathname === '/launcher' && new URL(location.href).searchParams.get('qa_case') === {json.dumps(name)} && !!({enter})",
+                f"real Launcher route {name}")
+    client.wait("document.readyState === 'complete' && document.fonts.status === 'loaded'", "App styles ready")
+    client.activate()
+    require(client.evaluate("document.documentElement.dataset.theme") == theme, "App theme did not hydrate")
+    require(client.evaluate("document.documentElement.lang") == ("zh-CN" if locale == "zh" else "en"), "App locale did not hydrate")
+    client.wait(inside(enter), "Launcher entry fits the window")
+    client.wait(inside(query), "Launcher input fits the window")
+    # Exercise DesktopWindow's drag-region double click. A CSS/JS resize cannot
+    # satisfy the native frame observations used for zoom and unzoom.
+    before_zoom = client.command("status")["window"]
+    client.click("document.querySelector('header[data-desktop-window-drag-region]')", count=2)
+    eventually(lambda: client.command("status")["window"] != before_zoom, "native title-region zoom")
+    client.click("document.querySelector('header[data-desktop-window-drag-region]')", count=2)
+    eventually(lambda: client.command("status")["window"] == before_zoom, "native title-region unzoom")
+    client.click(query)
+    client.key("q", 12)
+    client.wait(f"({query}).value === 'q'", "real controlled Launcher input")
+    client.snapshot(name + "-launcher")
+    client.click(enter)
+    client.wait(f"location.pathname === '/app' && !!({sidebar})", "Launcher navigates through the real App router")
+    client.wait(inside(sidebar), "workbench sidebar fits the native window")
+    client.wait("document.querySelector('main').scrollWidth <= innerWidth + 1", "workbench horizontal bounds")
+    client.wait("(() => { const labels = [...document.querySelectorAll('.shell-navigation-rail button[aria-pressed] > span:nth-child(2)')]; return labels.length === 3 && labels.every(e => { const range = document.createRange(); range.selectNodeContents(e); const text = range.getBoundingClientRect(); const box = e.getBoundingClientRect(); const style = getComputedStyle(e); return text.left >= box.left + parseFloat(style.paddingLeft) - 0.01 && text.right <= box.right - parseFloat(style.paddingRight) + 0.01; }); })()",
+                "primary navigation labels remain readable")
+    rail_width = client.evaluate("document.querySelector('.shell-navigation-rail').getBoundingClientRect().width")
+    require(rail_width == 64, "App navigation rail is not compact")
+    require(client.evaluate("document.querySelector('.desktop-app-stage') !== null") == (width > 559),
+            "workbench narrow directory handoff changed")
+    client.snapshot(name + "-workbench")
+    status = client.command("status")
+    require(status["webview"][0] == width, "App viewport differs from native content size")
+    require(abs(status["controls_center"][1] - 24) <= 1 and status["controls_inset"] > 60, "App native controls metrics changed")
+    client.evaluate("window.qaMarker = 'real-app-route-preserved'")
+    other_width = 360 if width > 360 else 1280
+    client.command("resize", width=other_width, height=640 if other_width == 360 else 820)
+    client.wait(f"innerWidth === {other_width} && (document.querySelector('.desktop-app-stage') !== null) === {str(other_width > 559).lower()}",
+                "live native resize updates responsive routing")
+    require(client.evaluate("window.qaMarker") == "real-app-route-preserved", "Resize reloaded the document")
+    client.command("resize", width=width, height=820 if width > 360 else 640)
+    client.wait(f"innerWidth === {width}", "native content size restored")
+    before_resume = client.command("timeline")
+    count = lambda entries, event: sum(entry["event"] == event for entry in entries)
+    client.command("hide")
+    require(not client.command("status")["visible"], "App window failed to hide")
+    time.sleep(5.1)
+    client.command("show")
+    client.activate()
+    eventually(lambda: count(client.command("timeline"), "webview.resume_check_ready") >
+               count(before_resume, "webview.resume_check_ready"), "App resume readiness")
+    require(client.evaluate("window.qaMarker") == "real-app-route-preserved", "App resume lost the document")
+    require(count(client.command("timeline"), "webview.load_begin") == count(before_resume, "webview.load_begin"),
+            "App resume unexpectedly reloaded the document")
+    require(client.evaluate("window.qaErrors") == [], "App reported a browser error")
+    events = client.evaluate("window.qaEvents")
+    require(all(event["trusted"] for event in events), "App received synthetic DOM input")
+    require({event["type"] for event in events} >= {"click", "input", "keydown"}, "Missing App native input evidence")
+    return {"case": name, "status": status, "navigation_width": rail_width, "native_events": events, "passed": True}
+
+
+def verify(settings: dict, suite: str = "foundation", smoke: bool = False) -> None:
     run = Path(settings["output"])
     with socket.socket() as candidate:
         candidate.bind(("127.0.0.1", 0))
@@ -308,7 +375,8 @@ def verify(settings: dict) -> None:
                        NEXUS_DESKTOP_STATE_ROOT=settings["state_root"],
                        NEXUS_DESKTOP_PREFERENCES_SUITE=settings["bundle_id"] + ".bootstrap",
                        NEXUS_DESKTOP_DISABLE_UPDATE_CHECK="1")
-    report = {"scope": "Current WindowManager/WKWebView with isolated Gallery; no AppDelegate or sidecar",
+    environment["NEXUS_UI_TEST_SURFACE"] = suite
+    report = {"scope": f"Current WindowManager/WKWebView with {suite}; no AppDelegate or sidecar",
               "platform": platform.platform(), "cases": []}
     client = None
     with (run / "server.log").open("w") as log:
@@ -326,16 +394,20 @@ def verify(settings: dict) -> None:
             ready = eventually(health, "fixture server readiness")
             require(ready["kind"] == "nexus-native-ui-fixture" and ready["port"] == port, "Wrong fixture server")
             client = NativeClient(settings, environment)
-            for theme in ["light", "dark", "rain"]:
-                for locale in ["en", "zh"]:
-                    for width in [1280, 360]:
-                        result = run_case(client, theme, locale, width)
+            runner = run_app_shell_case if suite == "app-shell" else run_case
+            for theme in (["light"] if smoke else ["light", "dark", "rain"]):
+                for locale in (["en"] if smoke else ["en", "zh"]):
+                    for width in ([1280] if smoke else [1280, 360]):
+                        result = runner(client, theme, locale, width)
                         report["cases"].append(result)
                         print(f"PASS {result['case']}", flush=True)
             report["timeline"] = client.command("timeline")
             report["user_agent"] = client.evaluate("navigator.userAgent")
             report["transport"] = health()
-            require(report["transport"]["rejectedBusinessRequests"] == 0, "Gallery attempted business transport")
+            require(report["transport"]["rejectedBusinessRequests"] == 0, "UI attempted an unsupported business request")
+            require(report["transport"]["rejected"] == [], "Unexpected fixture request or command")
+            if suite == "app-shell":
+                require(report["transport"]["socketConnections"] > 0, "App event transport was not exercised")
             report["passed"] = True
         except Exception as error:
             report["passed"] = False
@@ -363,11 +435,13 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=Path("/tmp/nexus-native-ui"))
     parser.add_argument("--build-only", action="store_true", help="Compile the isolated app without opening a window")
+    parser.add_argument("--suite", choices=["foundation", "app-shell"], default="foundation")
+    parser.add_argument("--smoke", action="store_true", help="Run only the light English desktop case")
     args = parser.parse_args()
     settings = build(args.output.resolve())
     print(json.dumps(settings, indent=2), flush=True)
     if not args.build_only:
-        verify(settings)
+        verify(settings, args.suite, args.smoke)
 
 
 if __name__ == "__main__":

@@ -17,7 +17,7 @@
 - Shell 在正式签名包中优先使用 macOS Keychain 持久化 connector credentials encryption key；开发模式和 ad-hoc 本地包默认直接使用 `~/.nexus/app/config/connector-credentials.key` 的 0600 本地密钥，避免反复重签后 Keychain ACL 弹密码或阻塞启动。sidecar 通过 `CONNECTOR_CREDENTIALS_KEY` 使用现有 Go 加密存储。
 - Shell 负责单实例、Dock 重新打开、标准菜单、外链拦截和 `nexus://` URL scheme；冷启动和重复启动已有实例默认显示 launcher，Dock 重新打开只恢复现有主窗口，不主动改写当前路由。
 - Shell 使用 `NSVisualEffectView` material 承载 WKWebView：主窗口使用 `windowBackground` material，WKWebView under-page 背景保持透明。
-- 主窗口使用 titlebar-only 原生框保留 16pt 系统圆角，标准 traffic lights 在每次原生布局后对齐 24pt 中线，让 full-size Web Header 获得 48pt 高度；宿主把窗口按钮尾部安全区和红色按钮双轴中心注入 Web，使 NEXUS、Launcher 灯组、折叠动作和红灯共用水平中线且上下等距，并由 X 中心把侧栏 Dock 图标对齐红灯。Web 只同步窗口手势面与编辑控件矩形，`NSWindow` 用 AppKit 事件跟踪仲裁完整鼠标序列：4pt 内松手仍向 WKWebView 分发原始点击，越过阈值则把原始 mouse-down 交给系统窗口拖动，双击执行缩放。标签、按钮和菜单因此同时支持点击与按住拖窗，输入控件不被接管。
+- 主窗口使用 titlebar-only 原生框保留 16pt 系统圆角，标准 traffic lights 在每次原生布局后对齐 24pt 中线，让 full-size Web Header 获得 48pt 高度；宿主把窗口按钮尾部安全区和红色按钮双轴中心注入 Web，使 NEXUS、Launcher 灯组、折叠动作和红灯共用水平中线且上下等距，导航轨的横向几何仍由 Web 设计规范持有。Web 只同步窗口手势面与编辑控件矩形，`NSWindow` 用 AppKit 事件跟踪仲裁完整鼠标序列：4pt 内松手仍向 WKWebView 分发原始点击，越过阈值则把原始 mouse-down 交给系统窗口拖动，双击执行缩放。标签、按钮和菜单因此同时支持点击与按住拖窗，输入控件不被接管。
 - 主窗口保持 `1280×820` 默认启动尺寸；常规屏幕可缩小到 `360×520`，极小可用工作区回退到 `320×480`，由 Web 层切换为手机布局。
 - Shell 不再默认注册 `Option + Space` 全局唤起；窗口菜单仍保留“显示启动器”入口，设置页不再展示启动器快捷键配置。
 - Shell 会按窗口职责加载 `app.html`、`settings.html`、`oauth-callback.html`，并用 `desktop_route` 把原始业务路由交给前端；`/launcher` 由主窗口 `app.html` 承载，sidecar 静态 fallback 支持直接刷新 `/launcher`、`/app`、`/settings` 和 OAuth callback。
@@ -54,13 +54,20 @@ scripts/desktop/package-macos-app.sh
 `WebViewHost` 和 bridge，通过临时端口加载当前前端 Gallery。它使用独立 Bundle ID、
 偏好 suite、状态根和 Vite 缓存，不启动 `AppDelegate`、sidecar 或更新器，业务 API
 在测试服务器上统一拒绝；远端聊天字体与浏览器夹具一样阻断，等待本地样式就绪后测量。
+`make app-check-ui-app` 改为加载真实 `app.html`、Launcher 与 App Router，提供固定的
+认证、目录、Provider 只读快照和空闲事件连接。测试服务器禁用 Vite 的 HTTP/WS
+后端代理，只接受已登记的读取及 ping/订阅；未知请求和业务命令均失败关闭。
+独立合同测试用本地哨兵确认不会向后端转发。
 需要已解锁的 macOS 图形会话、Command Line Tools、Node
 及已安装的 `web` 依赖；运行时 QA 窗口会取得焦点，应保持其在前台直到检查结束。
 三主题、双语和 360/1280pt 窗口检查原生输入、Select 碰撞、嵌套弹窗焦点与隐藏恢复。
+App 套件使用同一矩阵检查真实输入、Launcher 到工作台导航、完整标签、响应式切换、
+Header 双击缩放与窗口隐藏恢复；`--suite app-shell --smoke` 仅运行浅色英文桌面一组。
 产物默认保存于 `/tmp/nexus-native-ui/<run>/`，含源码 SHA-256 清单、日志、JSON
 报告和 WKWebView 截图；截图不含系统窗口 chrome，原生按钮指标另记录在报告中。
 `python3 scripts/desktop/check-macos-ui.py --build-only` 只编译，不能作为 UI 验收通过。
-这项组件宿主检查不覆盖完整 Launcher/聊天业务、系统拖窗/缩放、发布签名或 Windows。
+两套检查均不覆盖真实聊天读写、系统拖窗移动、发布签名或 Windows；App 只读夹具不能
+作为后端业务验收。锁屏阻止原生输入时应解锁后重新运行，不得据编译成功判定 UI 通过。
 `package-macos-app.sh` 会先构建目标架构的 `.app`、下载并预置同架构的 `nxs` runtime、跑 smoke，再输出 zip/dmg、sha256 和 metadata。
 人工 macOS App 验收维护在[回归目录](../../docs/testing/nexus-regression-catalog.md)的桌面升级与桌面集成章节；前端跨宿主验收范围见[前端工程规范](../../docs/specs/frontend-engineering-spec.md)。
 

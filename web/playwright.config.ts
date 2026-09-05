@@ -1,6 +1,6 @@
 // INPUT: 同仓库开发 Gallery 与固定浏览器、主题、语言、视口矩阵。
 // OUTPUT: 可本地和 CI 重复运行的浏览器几何、键盘、叠层测试及截图/失败 trace。
-// POS: 共享 UI 与登录页浏览器验收入口；独立 Vite 端口和依赖缓存，不依赖真实后端或登录凭据。
+// POS: 共享 UI、认证与真实 App 壳层浏览器验收入口；独立 Vite 端口和依赖缓存，不依赖真实后端或登录凭据。
 
 import { defineConfig } from "@playwright/test";
 

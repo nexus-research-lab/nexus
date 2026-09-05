@@ -38,6 +38,7 @@ src/
 - 模块只导出跨文件消费的契约；文件内部使用的函数、常量和类型保持私有，禁止为潜在复用扩大公开面
 - 跨领域协议声明归 `types/`，匹配算法和展示规则归消费层；API 通过 `types/api.ts` 共享 `ApiResponse<T>`
 - Store 使用 Zustand persist middleware，数据持久化到 localStorage
+- Room 导航命令必须以当前 owner 的最新持久快照为基础，不能让旧页面保存标签时覆盖新固定；同账号页面通过存储失效信号同步，恢复规则与 owner 绑定由 `store/room-navigation.ts` 持有，身份校验由 App 注入。
 - Agent WebSocket 信封校验与事件路由位于 `hooks/agent/transport/`，业务处理器不得回流到组件层
 - Agent WebSocket 业务事件按 `transport/handlers/` 的消息、权限、重同步、Session 和作用域映射分域；权限事件在 `handlers/permission/` 分离未知载荷解码与状态副作用，当前 Session 守卫、字段回退和事件所有权不得重复实现
 - Agent conversation 公共 Hook 只做领域装配；消息去重、ACK 失败和稳定事件分发分别归属 `message/`、`actions/` 与 `transport/`

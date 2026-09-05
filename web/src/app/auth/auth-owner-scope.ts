@@ -1,6 +1,6 @@
 /**
  * INPUT: 服务端权威 AuthStatus、跨标签页 owner marker 与认证生命周期。
- * OUTPUT: 先推进事件 generation，再跨 owner/登出同步清空的客户端状态。
+ * OUTPUT: 先推进 generation 再跨 owner/登出清空状态，并向导航持久化注入当前 owner 绑定与校验。
  * POS: AuthProvider 独占的用户作用域重置事务；身份字符串复用 shared/auth 合同，不改变服务端身份、资源 ID 或请求语义。
  */
 
@@ -28,7 +28,7 @@ import { resetComposerDraftOwnerScope } from "@/features/conversation/shared/com
 import { resetComposerHistoryOwnerScope } from "@/features/conversation/shared/composer/composer-history-store";
 import { resetHomeDirectoryOwnerScope } from "@/features/home/home-directory-resource";
 import { resetConversationOwnerScope } from "@/store/conversation";
-import { resetRoomNavigationOwnerScope } from "@/store/room-navigation";
+import { resetRoomNavigationOwnerScope, setRoomNavigationOwnerScope } from "@/store/room-navigation";
 
 export const AUTH_OWNER_SCOPE_STORAGE_KEY = "nexus-auth-owner-scope";
 
@@ -55,6 +55,11 @@ export function applyAuthOwnerScope(status: AuthStatus): boolean {
   }
   activeOwnerScope = nextOwnerScope;
   persistOwnerScope(nextOwnerScope);
+  setRoomNavigationOwnerScope(nextOwnerScope, () => {
+    const persistedOwnerScope = readPersistedOwnerScope();
+    return nextOwnerScope !== null && activeOwnerScope === nextOwnerScope
+      && (persistedOwnerScope === nextOwnerScope || persistedOwnerScope === undefined);
+  });
   return scopeChanged;
 }
 

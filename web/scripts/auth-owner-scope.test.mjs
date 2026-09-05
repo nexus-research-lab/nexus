@@ -256,11 +256,17 @@ test("auth owner scope clears unbound legacy data, preserves one owner, and fenc
   ownerScope.invalidateLocalAuthOwnerScope();
   assertOwnerStateCleared(stores);
   assert.equal(
+    JSON.parse(storageItems.get("nexus-room-navigation")).state.pinned_conversations[0].title,
+    "owner-c-external",
+    "local invalidation must preserve the shared navigation until authoritative auth binds",
+  );
+  assert.equal(
     storageItems.get(ownerScope.AUTH_OWNER_SCOPE_STORAGE_KEY),
     "user-id:owner-c",
     "an external-tab fence must not erase the authoritative marker written by that tab",
   );
   assert.equal(ownerScope.applyAuthOwnerScope(authenticatedStatus("owner-c")), true);
+  assert.equal(useRoomNavigationStore.getState().pinned_conversations[0].title, "owner-c-external");
 
   assert.equal(ownerScope.applyAuthOwnerScope(unauthenticatedStatus()), true);
   assert.equal(storageItems.has(ownerScope.AUTH_OWNER_SCOPE_STORAGE_KEY), false);

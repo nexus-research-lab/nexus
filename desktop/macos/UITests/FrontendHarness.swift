@@ -106,6 +106,22 @@ private final class FrontendHarnessDelegate: NSObject, NSApplicationDelegate {
         guard window.isKeyWindow, NSApp.isActive else { throw HarnessError("Activate the QA application before native input") }
         guard let x = command["x"] as? Double, let y = command["y"] as? Double else { throw HarnessError("Missing click coordinates") }
         let point = webView.convert(NSPoint(x: x, y: webView.isFlipped ? y : webView.bounds.height - y), to: nil)
+        let count = command["count"] as? Int ?? 1
+        guard count == 1 || count == 2 else { throw HarnessError("Invalid click count") }
+        if count == 2 {
+          // DesktopWindow synchronously tracks mouse-up inside a drag region.
+          // Queue it before dispatching mouse-down into the production handler.
+          guard let up = NSEvent.mouseEvent(with: .leftMouseUp, location: point, modifierFlags: [],
+            timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber, context: nil,
+            eventNumber: 0, clickCount: 2, pressure: 0),
+            let down = NSEvent.mouseEvent(with: .leftMouseDown, location: point, modifierFlags: [],
+            timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber, context: nil,
+            eventNumber: 0, clickCount: 2, pressure: 1) else { throw HarnessError("Cannot create native double click") }
+          NSApp.postEvent(up, atStart: true)
+          window.sendEvent(down)
+          reply(id, result: true)
+          return
+        }
         for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
           guard let event = NSEvent.mouseEvent(with: type, location: point, modifierFlags: [],
             timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber, context: nil,

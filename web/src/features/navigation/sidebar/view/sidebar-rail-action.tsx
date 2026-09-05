@@ -1,5 +1,5 @@
 // INPUT: 侧栏导航项图标、标签、选中态与原生按钮交互属性。
-// OUTPUT: 一级入口和固定会话共用的 Dock 动作、图标框、文字与计数结构。
+// OUTPUT: 一级入口和固定会话共用的 Dock 动作、图标框、文字与计数结构；一级动作使用可用轨宽保留完整标签。
 // POS: 宽侧栏导航轨的唯一动作 DOM/视觉所有者；不判断路由、排序或业务计数。
 
 import type { LucideIcon } from "lucide-react";
@@ -26,7 +26,7 @@ interface SidebarRailActionProps extends Omit<
 
 const BUTTON_LAYOUT_CLASS_NAMES: Record<SidebarRailActionLayout, string> = {
   primary:
-    "flex h-[50px] w-10 flex-col items-center justify-center gap-0.5 rounded-[12px]",
+    "flex h-[50px] w-full flex-col items-center justify-center gap-0.5 rounded-[12px]",
   pinned:
     "absolute inset-0 cursor-grab rounded-[12px] active:cursor-grabbing",
 };

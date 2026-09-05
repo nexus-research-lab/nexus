@@ -1,11 +1,11 @@
-// INPUT: Room 会话事实、持久偏好、路由延迟与可控创建/最终替换事务。
+// INPUT: 已绑定测试 owner 的 Room 事实、持久偏好、路由延迟与可控创建/最终替换事务。
 // OUTPUT: 验证恢复、显式打开、关闭邻居、固定保留和单飞事务的领域行为。
 // POS: 标签导航 Feature 回归，直接运行真实 Store 和 Hook，不模拟共享 DOM。
 
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { resetRoomNavigationOwnerScope, useRoomNavigationStore } from "@/store/room-navigation";
+import { setRoomNavigationOwnerScope, useRoomNavigationStore } from "@/store/room-navigation";
 import type { RoomConversationView } from "@/types/conversation/conversation";
 import { useRoomConversationTabs } from "./use-room-conversation-tabs";
 
@@ -30,7 +30,10 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-beforeEach(() => resetRoomNavigationOwnerScope());
+beforeEach(() => {
+  setRoomNavigationOwnerScope(null, () => false);
+  setRoomNavigationOwnerScope("user-id:room-tabs-test", () => true);
+});
 
 describe("useRoomConversationTabs", () => {
   it("opens only the selected conversation, then preserves explicit choices in creation order", () => {

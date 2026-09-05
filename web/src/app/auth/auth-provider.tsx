@@ -1,7 +1,7 @@
 /**
  * INPUT: 服务端认证状态、登录/登出命令、401 与跨标签页 owner 变化。
  * OUTPUT: 在 owner 客户端状态完成隔离后发布的 Auth Context 与运行时配置刷新。
- * POS: 应用认证装配层；业务缓存身份只由 auth-owner-scope 统一推进。
+ * POS: 应用认证装配层；业务缓存身份由 auth-owner-scope 推进，同 owner 的存储失效交回导航 Store 同步。
  */
 
 "use client";
@@ -26,6 +26,7 @@ import {
   invalidateLocalAuthOwnerScope,
   isAuthOwnerScopeStorageEvent,
 } from "./auth-owner-scope";
+import { synchronizeRoomNavigationStorage } from "@/store/room-navigation";
 import { runAuthStatusBootstrap } from "./auth-status-bootstrap";
 import { isAuthOwnerScopeSupersededError } from "@/shared/auth/auth-owner-generation";
 
@@ -137,6 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const handleOwnerScopeStorageChange = (event: StorageEvent) => {
       if (!isAuthOwnerScopeStorageEvent(event)) {
+        synchronizeRoomNavigationStorage(event);
         return;
       }
       // Cookie 与 localStorage 都跨标签页共享；先隐藏旧 owner，再读取服务端权威身份。
