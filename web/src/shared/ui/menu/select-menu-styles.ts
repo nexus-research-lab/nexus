@@ -37,7 +37,7 @@ const SELECT_MENU_SIZE_CONFIG: Record<UiSelectMenuSize, {
   },
   sm: {
     estimatedOptionHeight: 32,
-    heightClassName: "h-9",
+    heightClassName: "h-8",
     optionHeightClassName: "min-h-8 text-sm",
     roundedClassName: "radius-control-sm",
     textClassName: "text-compact",
@@ -48,6 +48,13 @@ const SELECT_MENU_SIZE_CONFIG: Record<UiSelectMenuSize, {
     optionHeightClassName: "min-h-7 text-compact",
     roundedClassName: "radius-control-xs",
     textClassName: "text-xs",
+  },
+  lg: {
+    estimatedOptionHeight: 32,
+    heightClassName: "h-11",
+    optionHeightClassName: "min-h-8 text-sm",
+    roundedClassName: "radius-control-lg",
+    textClassName: "ui-type-control ui-type-weight-regular",
   },
 };
 

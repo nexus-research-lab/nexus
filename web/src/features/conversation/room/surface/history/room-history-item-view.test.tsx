@@ -69,7 +69,7 @@ describe("RoomHistoryItemView", () => {
     const rename = screen.getByRole("button", { name: "重命名会话" });
     const remove = screen.getByRole("button", { name: "删除会话" });
     expect(rename.className).toContain("h-6 w-6");
-    expect(remove.className).toContain("hover:text-(--destructive)");
+    expect(remove.className).toContain("text-(--destructive)");
     await user.click(rename);
     await user.click(remove);
     expect(editor.start).toHaveBeenCalledOnce();

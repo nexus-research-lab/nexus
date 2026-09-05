@@ -6,6 +6,6 @@
 - 默认活动行与侧栏活动行都使用中性浅灰底面和强文字，不绘制边框、阴影、品牌色侧标或“当前”徽标。普通行保持透明且不绘制边界，hover 只增加更轻的中性底并提升文字；目录消费面可显式选择 `muted` 非活动文字层级，其他列表不得被连带降权。
 - 默认双行标题与摘要总高必须落在 40px 身份头像边界内，不能让文字从头像上下两端溢出；时间等短元数据使用 `meta` 固定在标题行尾，来源等次级身份使用 `description` 进入第二行，不能把可变宽标签塞进标题行或使用 `max-content` 让时间列逐项跳动。需要更复杂内容的目录使用 `children` 明确自定义，其中仍符合标题/元信息/描述结构的部分必须复用 `UiListRowContent`。
 - 默认内容的标题固定使用 `sectionTitle`，摘要固定使用 `metadata`；业务调用方只传内容，不得通过 `text-* / font-* / leading-*` 改写默认排版。
-- 行内图标动作统一使用 `UiListActionButton`；`default / primary / danger` 只表达普通、确认和破坏性语义，`visibility` 只表达常驻或次要层级，业务列表不得再复制尺寸、圆角、hover、focus 或危险色。
+- 行内图标动作统一使用 `UiListActionButton`，它组合 `UiIconButton`，只增加事件隔离与 `visible / subtle / hover` 可见性；按钮 DOM、尺寸、tone、disabled、焦点和 Tooltip 只有 IconButton 一个所有者。`hover` 在 `group/item` 的 hover/focus-within 或自身键盘焦点时展示，无 hover 的触摸设备常显；业务不得再复制尺寸、圆角、hover、focus 或危险色。
 - 不同来源或类型的条目需要在同一滚动列表中分区时，使用 `UiListSectionDivider` 的弱标签加水平线；业务层负责分组和顺序，不得用空白高度、私有 border 或彩色 Badge 假装分区。
 - 列表资源、选择状态和命令生命周期由业务目录负责。

@@ -323,10 +323,9 @@ function PairingRow({
             )}>
               <span>IM Session</span>
               <UiIconButton
-                className="h-6 w-6"
                 disabled={busy || !sessionKey}
                 onClick={() => void onCopySessionKey(item)}
-                size="sm"
+                size="xs"
                 title="复制 IM session key"
                 type="button"
                 variant="ghost"

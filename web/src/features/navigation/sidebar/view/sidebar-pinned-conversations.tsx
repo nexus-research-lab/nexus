@@ -6,7 +6,7 @@
 import { MessageSquareText, X } from "lucide-react";
 import { useRef, useState, type DragEvent } from "react";
 
-import { UiIconButton } from "@/shared/ui/button/button";
+import { UiListActionButton } from "@/shared/ui/list/list-action";
 import { cn } from "@/shared/ui/class-name";
 
 import { resolveSidebarPinnedConversationDropPlacement } from "./sidebar-pinned-conversations-model";
@@ -148,7 +148,7 @@ export function SidebarPinnedConversations({
         {items.map((item) => (
           <div
             className={cn(
-              "group/pinned relative h-14 w-14 shrink-0 transition-colors duration-(--motion-duration-fast)",
+              "group/item relative h-14 w-14 shrink-0 transition-colors duration-(--motion-duration-fast)",
               item.active
                 ? "text-(--text-strong)"
                 : "text-(--text-muted)",
@@ -186,18 +186,18 @@ export function SidebarPinnedConversations({
               supplementalLabel={reorderLabel}
               title={`${item.title} · ${reorderLabel}`}
             />
-            <UiIconButton
+            <UiListActionButton
               aria-label={`${unpinLabel}：${item.title}`}
-              className="absolute -right-1 -top-1 z-10 opacity-0 focus-visible:opacity-100 group-focus-within/pinned:opacity-100 group-hover/pinned:opacity-100"
+              className="absolute -right-1 -top-1 z-10"
               data-pinned-conversation-unpin="true"
               onClick={() => onUnpin(item)}
               shape="round"
               size="xs"
               title={unpinLabel}
-              variant="ghost"
+              visibility="hover"
             >
               <X className="h-3.5 w-3.5" />
-            </UiIconButton>
+            </UiListActionButton>
           </div>
         ))}
       </div>

@@ -60,10 +60,10 @@ function ChannelCardActions({
       ) : null}
       <UiListActionButton
         aria-label={t("capability.channel_configure_action")}
-        className="text-(--primary)"
         onClick={onConfigure}
         size="sm"
         stopPropagation
+        tone="primary"
         title={t("capability.channel_configure_action")}
         visibility="visible"
       >

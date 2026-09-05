@@ -276,7 +276,7 @@ export function ExecutionWorkGraphSurface({
           ) : null}
           {header?.status === "completed" && execution && sketchSessionKey ? (
             <UiButton
-              className="h-7 shrink-0"
+              className="shrink-0"
               data-workgraph-save-sketch
               disabled={sketchLoading}
               onClick={handleOpenSketch}

@@ -12,7 +12,7 @@ import ts from "typescript";
 
 const webRoot = fileURLToPath(new URL("..", import.meta.url));
 const GOVERNED_ROOTS = [
-  ...["button", "dialog", "form", "menu", "navigation", "overlay", "typography"]
+  ...["button", "dialog", "form", "list", "menu", "navigation", "overlay", "typography", "workspace/catalog"]
     .map((owner) => `src/shared/ui/${owner}`),
   "src/shared/lib",
   "src/shared/navigation",

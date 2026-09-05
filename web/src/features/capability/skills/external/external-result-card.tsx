@@ -80,11 +80,13 @@ function ExternalResultActions({
       </UiBadge>
       {importState.canImport ? (
         <UiListActionButton
-          className="pointer-events-auto text-(--primary) hover:text-(--primary)"
+          aria-busy={importState.busy || undefined}
+          className="pointer-events-auto"
           disabled={importState.busy}
           onClick={onImport}
           size="sm"
           stopPropagation
+          tone="primary"
           title={title}
           visibility="visible"
         >

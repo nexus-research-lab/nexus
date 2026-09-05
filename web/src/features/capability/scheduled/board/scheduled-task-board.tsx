@@ -183,11 +183,11 @@ function ScheduledTaskSuggestions({
           const SuggestionIcon = SUGGESTION_ICONS[suggestion.icon];
           return (
             <UiButton
-              className="group min-h-[104px] w-full items-start justify-start gap-2.5 border-(--divider-subtle-color) bg-transparent p-3 text-left hover:border-(--surface-interactive-hover-border)"
+              className="group min-h-[104px] w-full items-start justify-start gap-2.5 p-3 text-left"
               key={suggestion.title}
               onClick={() => onSelect(suggestion.preset)}
               size="sm"
-              variant="ghost"
+              variant="outline"
             >
               <span className="flex h-8 w-8 shrink-0 items-center justify-center radius-control-sm border border-(--divider-subtle-color) text-(--primary)">
                 <SuggestionIcon className="h-3.5 w-3.5" />

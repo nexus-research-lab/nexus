@@ -45,6 +45,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Consolidated catalog-card hit areas and list actions under shared owners,
+  restored keyboard visibility for row actions, and removed consumer color,
+  hover and shadow overrides with an import-aware contract gate. Select sizes
+  now cover compact filters and large form fields without local height recipes.
 - Removed unused frontend compatibility APIs, presentation helpers and duplicate
   runtime state; provider setup notices now reuse the shared inline component.
 - Aligned default shared Button, Form and Select typography and geometry with

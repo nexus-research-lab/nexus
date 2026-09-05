@@ -85,7 +85,7 @@ export function RoomAgentSwitcher({
           label: accessibleLabel,
           name: selectedMember.name,
         })}
-        className="w-full min-w-0 justify-start gap-1 px-1.5 py-1"
+        className="w-full min-w-0 justify-start"
         onClick={() => setIsOpen((prev) => !prev)}
         size="xs"
         variant="ghost"

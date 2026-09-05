@@ -13,7 +13,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar, UiRoomAvatar } from "@/shared/ui/display/avatar";
 import { UiBadge, UiCounterBadge } from "@/shared/ui/display/badge";
 import { UiSkeleton } from "@/shared/ui/display/skeleton";
-import { UiIconButton } from "@/shared/ui/button/button";
+import { UiListActionButton } from "@/shared/ui/list/list-action";
 import { UiListRow } from "@/shared/ui/list/list-row";
 import type { LauncherAgentSummary } from "@/types/app/launcher";
 
@@ -99,15 +99,15 @@ function ConversationRowMeta({
         <span
           className={cn(
             "text-xs tabular-nums text-(--text-soft) transition-opacity duration-(--motion-duration-fast)",
-            onDelete && "group-hover/item:opacity-0",
+            onDelete && "group-hover/item:opacity-0 group-focus-within/item:opacity-0",
           )}
         >
           {timeLabel}
         </span>
       ) : null}
       {onDelete ? (
-        <UiIconButton
-          className="absolute right-0 top-1/2 -translate-y-1/2 opacity-0 group-hover/item:opacity-100"
+        <UiListActionButton
+          className="absolute right-0 top-1/2 -translate-y-1/2"
           onClick={(event) => {
             event.stopPropagation();
             onDelete();
@@ -116,10 +116,10 @@ function ConversationRowMeta({
           title={deleteLabel}
           tone="danger"
           type="button"
-          variant="ghost"
+          visibility="hover"
         >
           <Trash2 className="h-3.5 w-3.5" />
-        </UiIconButton>
+        </UiListActionButton>
       ) : null}
     </span>
   );
@@ -239,18 +239,18 @@ export function ContactRow({
       )}
       onClick={onOpenDirectory}
       right={(
-        <UiIconButton
-          className="opacity-0 group-hover/item:opacity-100"
+        <UiListActionButton
           onClick={(event) => {
             event.stopPropagation();
             onChat();
           }}
           title={t("sidebar.start_chat")}
+          size="md"
           type="button"
-          variant="ghost"
+          visibility="hover"
         >
           <MessageCircle className="h-[18px] w-[18px]" />
-        </UiIconButton>
+        </UiListActionButton>
       )}
       title={agent.name}
     />

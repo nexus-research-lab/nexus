@@ -95,6 +95,10 @@ test("default form controls share readable typography and aligned field heights"
   for (const field of [input, nativeSelect, select, search.locator("..")]) {
     expect((await field.boundingBox())!.height).toBe(36);
   }
+  for (const [size, height] of [["sm", 32], ["lg", 44]] as const) {
+    const sizedSelect = page.getByRole("button", { name: `Select ${size}`, exact: true });
+    expect((await sizedSelect.boundingBox())!.height).toBe(height);
+  }
   await input.fill(copy(info, "可读的名称", "Readable name"));
   await expect(input).toHaveValue(copy(info, "可读的名称", "Readable name"));
   await nativeSelect.selectOption("admin");
@@ -293,5 +297,47 @@ test("controlled workspace tabs preserve selection while creating, pinning and c
   await expect(previous).toHaveAttribute("aria-current", "page");
   await expect(secondTab.getByRole("button", { name: copy(info, "从侧边栏取消固定", "Unpin from sidebar"), exact: true })).toHaveCount(1);
   await capture(tabs, info, "workspace-tabs");
+  expect(errors).toEqual([]);
+});
+
+test("catalog primary hit area preserves content and independent secondary actions", async ({ page }, info) => {
+  const { errors } = await openGallery(page, info, "workspace");
+  const card = page.getByRole("article", { name: "Catalog action example", exact: true });
+  await card.scrollIntoViewIfNeeded();
+  await expectInsideViewport(page, card);
+  const title = card.getByText("UI Auditor", { exact: true });
+  const bounds = (await title.boundingBox())!;
+  // Hit the visible content, not an imperatively targeted hidden button.
+  await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await expect(page.locator("[data-gallery-catalog-actions]")).toHaveText("1:0");
+  await card.getByRole("button", { name: "Catalog secondary action", exact: true }).click();
+  await expect(page.locator("[data-gallery-catalog-actions]")).toHaveText("1:1");
+  const primary = card.getByRole("button", { name: "Open catalog item", exact: true });
+  await primary.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("[data-gallery-catalog-actions]")).toHaveText("2:1");
+  expect(await primary.evaluate((element) => getComputedStyle(element).boxShadow)).not.toBe("none");
+  await capture(card, info, "catalog-actions");
+  expect(errors).toEqual([]);
+});
+
+test("list secondary actions reveal for keyboard and suppress disabled hover", async ({ page }, info) => {
+  const { errors } = await openGallery(page, info);
+  const row = page.locator("[data-gallery-list-actions]");
+  await row.scrollIntoViewIfNeeded();
+  await page.mouse.move(2, 2);
+  const action = row.getByRole("button", { name: "Hover list action", exact: true });
+  await expect(action).toHaveCSS("opacity", "0");
+  const primary = row.getByRole("button", { name: copy(info, "列表主动作", "List primary action"), exact: true });
+  await primary.focus();
+  await moveKeyboardFocus(page, info);
+  await expect(action).toBeFocused();
+  await expect(action).toHaveCSS("opacity", "1");
+  const disabled = row.getByRole("button", { name: "Disabled list action", exact: true });
+  const background = await disabled.evaluate((element) => getComputedStyle(element).backgroundColor);
+  await disabled.hover();
+  await expect(disabled).toBeDisabled();
+  expect(await disabled.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(background);
+  await capture(row, info, "list-actions");
   expect(errors).toEqual([]);
 });

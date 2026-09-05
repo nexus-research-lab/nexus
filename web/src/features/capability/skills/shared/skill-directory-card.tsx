@@ -7,7 +7,6 @@
 
 import type { ReactNode } from "react";
 
-import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
@@ -39,21 +38,13 @@ export function SkillDirectoryCard({
     <WorkspaceCatalogCard
       aria-busy={busy || undefined}
       className={cn(
-        "group relative h-full overflow-hidden hover:border-(--surface-interactive-active-border) hover:bg-(--surface-interactive-hover-background)",
+        "group h-full",
         !meta && "min-h-[116px]",
       )}
       muted={busy}
+      primaryAction={{ label: title, onClick: onSelect }}
       size="compact"
     >
-      <UiButton
-        aria-label={title}
-        className="surface-radius-md absolute inset-0 z-0 h-full min-h-0 w-full border-0 p-0 focus-visible:ring-inset"
-        onClick={onSelect}
-        variant="ghost"
-      >
-        <span className="sr-only">{title}</span>
-      </UiButton>
-
       <div className="pointer-events-none relative z-10 grid w-full min-w-0 grid-cols-[40px_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2">
         <UiSeededAvatar seed={seed} />
         <div className="flex min-h-10 min-w-0 items-center">
