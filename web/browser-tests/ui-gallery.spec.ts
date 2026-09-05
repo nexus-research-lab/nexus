@@ -329,6 +329,59 @@ test("controlled workspace tabs preserve selection while creating, pinning and c
   expect(errors).toEqual([]);
 });
 
+test("Composer draft previews preserve files and keep removal as an independent command", async ({ page }, info) => {
+  const { errors } = await openGallery(page, info, "workspace");
+  const fixture = page.locator("[data-gallery-composer-attachments]");
+  const shell = fixture.locator("[data-gallery-composer-shell]");
+  await shell.scrollIntoViewIfNeeded();
+  await expectInsideViewport(page, shell);
+  expect(await shell.evaluate((element) => getComputedStyle(element).borderRadius)).toBe("20px");
+  const imagePreview = fixture.getByRole("button", { name: /preview-sample.svg/ });
+  const textPreview = fixture.getByRole("button", { name: /review-notes-with-a-long-filename.txt/ });
+  const thumbnail = imagePreview.locator("..");
+  expect((await thumbnail.boundingBox())!.width).toBe(48);
+  expect((await thumbnail.boundingBox())!.height).toBe(48);
+  const removeImage = fixture.getByRole("button", { name: "Remove draft attachment", exact: true }).first();
+  expect((await removeImage.boundingBox())!.width).toBe(20);
+  await capture(shell, info, "composer-draft-attachments");
+
+  await imagePreview.focus();
+  await page.keyboard.press("Enter");
+  const imageDialog = page.getByRole("dialog", { name: "preview-sample.svg", exact: true });
+  await expectInsideViewport(page, imageDialog);
+  await expect.poll(() => imageDialog.getByRole("img").evaluate((element: HTMLImageElement) => element.naturalWidth)).toBe(480);
+  await expect(fixture.locator("[data-gallery-removed-attachments]")).toHaveText("");
+  await capture(imageDialog, info, "composer-image-preview");
+  await page.keyboard.press("Escape");
+  await expect(imagePreview).toBeFocused();
+
+  // Exercise the keyboard focus contract with the host's native traversal.
+  // macOS pointer activation does not necessarily focus a button.
+  await moveKeyboardFocus(page, info);
+  await moveKeyboardFocus(page, info);
+  await expect(textPreview).toBeFocused();
+  await page.keyboard.press("Enter");
+  const textDialog = page.getByRole("dialog", { name: "review-notes-with-a-long-filename.txt", exact: true });
+  await expectInsideViewport(page, textDialog);
+  await expect(textDialog.locator("pre")).toContainText("<script>window.attachmentExecuted = true</script>");
+  expect(await page.evaluate(() => "attachmentExecuted" in window)).toBe(false);
+  expect(await textDialog.locator("pre").evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+  await capture(textDialog, info, "composer-text-preview");
+  await page.keyboard.press("Escape");
+  await expect(textPreview).toBeFocused();
+
+  await removeImage.click();
+  await expect(fixture.locator("[data-gallery-removed-attachments]")).toHaveText("gallery-image");
+  await expect(imagePreview).toHaveCount(0);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(textPreview).toBeVisible();
+  await fixture.getByRole("button", { name: "Remove draft attachment", exact: true }).first().click();
+  await expect(fixture.locator("[data-gallery-removed-attachments]")).toHaveText("gallery-image,gallery-text");
+  await expect(textPreview).toHaveCount(0);
+  await expect(fixture.getByText("project-archive.zip", { exact: true })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 test("Agent configuration reuses shared rows and cards without widening toggle hit targets", async ({ page }, info) => {
   const { errors } = await openGallery(page, info, "workspace");
   const controls = page.locator("[data-gallery-agent-options]");

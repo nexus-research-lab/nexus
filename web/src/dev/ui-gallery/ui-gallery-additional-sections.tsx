@@ -27,6 +27,7 @@ import {
 
 import type { Locale } from "@/shared/i18n/messages";
 import { AgentOptionsGallery } from "./ui-gallery-agent-options";
+import { ComposerAttachmentsGallery } from "./ui-gallery-composer-attachments";
 import { UiButton, UiIconButton, UiLinkButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
@@ -555,6 +556,7 @@ export function WorkspaceGallery({ locale }: { locale: Locale }) {
   return (
     <div className="grid items-start gap-5" data-gallery-panel="workspace">
       <AgentOptionsGallery locale={locale} />
+      <ComposerAttachmentsGallery locale={locale} />
       <PreviewSection
         description={galleryText(locale, "目录卡、内容区和动作全部来自 Workspace 公共原语。", "Catalog cards, content slots, and actions all come from Workspace primitives.")}
         eyebrow="01 · CATALOG"

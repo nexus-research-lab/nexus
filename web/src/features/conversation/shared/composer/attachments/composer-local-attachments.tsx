@@ -1,7 +1,7 @@
 /**
  * INPUT: Composer 中尚未发送的本地附件与移除动作。
  * OUTPUT: 图片真实缩略图、普通文件胶囊及统一的可访问移除入口。
- * POS: Composer 草稿附件的唯一展示层。
+ * POS: Composer 草稿附件的唯一展示层；预览/移除复用公共按钮，领域只持有文件与独立命令。
  */
 "use client";
 
@@ -17,7 +17,9 @@ import {
 
 import type { MessageAttachmentKind } from "@/types/conversation/message/attachment";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiIconButton } from "@/shared/ui/button/button";
+import { UiButton, UiIconButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import type { ComposerLocalAttachment } from "./composer-local-attachment-model";
 import { ComposerAttachmentPreviewDialog } from "./composer-attachment-preview-dialog";
@@ -108,7 +110,7 @@ export function ComposerAttachmentList({
               title={`${presentation.label}：${attachment.file.name}`}
             >
               <AttachmentIcon size={16} className="text-(--icon-default)" />
-              <span className="max-w-[120px] truncate text-xs text-foreground/70">
+              <span className={cn("max-w-[120px] truncate", getUiTypographyClassName({ role: "caption", tone: "muted" }))}>
                 {attachment.file.name}
               </span>
               <UiIconButton
@@ -155,11 +157,12 @@ function ComposerImageAttachment({
       className={COMPOSER_IMAGE_ATTACHMENT_CLASS_NAME}
       title={`图片：${attachment.file.name}`}
     >
-      <button
+      <UiButton
         aria-label={previewLabel}
         className={COMPOSER_IMAGE_ATTACHMENT_PREVIEW_CLASS_NAME}
         onClick={onPreview}
-        type="button"
+        size="sm"
+        variant="ghost"
       >
         {previewUrl ? (
           <img
@@ -178,15 +181,19 @@ function ComposerImageAttachment({
         <span className="pointer-events-none absolute inset-0 flex items-end justify-start bg-black/0 p-1.5 transition-colors group-hover/preview:bg-black/10 group-focus-visible/preview:bg-black/10">
           <Maximize2 className="h-3.5 w-3.5 text-white opacity-0 drop-shadow-sm transition-opacity group-hover/preview:opacity-100 group-focus-visible/preview:opacity-100" />
         </span>
-      </button>
-      <button
+      </UiButton>
+      <UiIconButton
         aria-label={removeLabel}
         className={COMPOSER_IMAGE_ATTACHMENT_REMOVE_CLASS_NAME}
         onClick={() => onRemove(attachment.id)}
-        type="button"
+        shape="round"
+        size="2xs"
+        tone="danger"
+        tooltip={removeLabel}
+        variant="surface"
       >
         <X size={11} />
-      </button>
+      </UiIconButton>
     </div>
   );
 }
@@ -209,21 +216,22 @@ function ComposerTextAttachment({
       className={COMPOSER_ATTACHMENT_CLASS_NAME}
       title={`文本文件：${attachment.file.name}`}
     >
-      <button
+      <UiButton
         aria-label={previewLabel}
         className={COMPOSER_ATTACHMENT_PREVIEW_CLASS_NAME}
         onClick={onPreview}
-        type="button"
+        size="2xs"
+        variant="ghost"
       >
         <FileText size={16} className="shrink-0 text-(--icon-default)" />
-        <span className="max-w-[120px] truncate text-xs text-foreground/70">
+        <span className="max-w-[120px] truncate">
           {attachment.file.name}
         </span>
         <Eye className="h-3.5 w-3.5 shrink-0 text-(--icon-muted) opacity-55" />
-      </button>
+      </UiButton>
       <UiIconButton
         aria-label={removeLabel}
-          className="ml-1 shrink-0"
+        className="ml-1 shrink-0"
         onClick={() => onRemove(attachment.id)}
         shape="round"
         size="2xs"

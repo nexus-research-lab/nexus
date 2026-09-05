@@ -201,6 +201,8 @@ Pattern 与 Primitive 的区别是：Primitive 统一一个控件；Pattern 统�
 
 Widget 可以认识 Agent、Room、Goal 等产品对象，但只组合下层合同，不重新定义基础视觉。Conversation 的 Composer 浮动工作栈属于 conversation widget，不应为了复用 DM/Room 而放进全局 `shared`。
 
+Composer 附件的图片/文本预览与移除统一组合 `UiButton / UiIconButton`，保留独立兄弟命中区；领域只拥有缩略图几何、文件与草稿作用域。图片角上的移除动作使用共享 micro 尺寸，不再保留原生按钮例外。Chip、普通输入壳与 Composer 聚焦壳的圆角只由共享 recipe 定义，消费层不重复设置同值圆角。
+
 生成式结构化问答的选项行可以由领域 pattern 保留原生 `fieldset`、radio/checkbox 与内嵌无壳 textarea，因为命中区和选择标记共同表达题目几何；拒绝、提交等标准动作仍必须使用 `UiButton`，题目、说明、提示和终态摘要仍必须选择 App Typography role。原生语义例外不是页面复制按钮或字号配方的许可。
 
 以下是 `features/pages` 中原生 button 的唯一例外清单（路径相对 `web/`）。数量是当前结构事实，不是允许新增普通按钮的额度。架构门禁用 TypeScript AST 同时检查 JSX 和 `createElement`，新增、移除或迁移必须同步说明所有者、几何理由和相应行为验证；标准动作一律回到公共控件。
@@ -209,7 +211,6 @@ Widget 可以认识 Agent、Room、Goal 等产品对象，但只组合下层合�
 | 所有者 | 原生节点数 | 几何理由 |
 | --- | --- | --- |
 | `src/features/conversation/room/surface/mobile/room-mobile-conversation-switcher.tsx` | 1 | 顶栏下拉 Sheet 的整面 underlay 关闭热区；模态行为仍归共享 Dialog。 |
-| `src/features/conversation/shared/composer/attachments/composer-local-attachments.tsx` | 3 | 图片/长文本缩略图预览和图片角上的移除层；普通附件移除使用 IconButton。 |
 | `src/features/conversation/shared/execution/execution-workgraph-canvas.tsx` | 3 | 工作图边中点、节点卡和折叠计数的坐标命中区。 |
 | `src/features/conversation/shared/message/agent-mention-chip.tsx` | 1 | 随 Markdown 行内字号排布的 Agent 身份与 handoff 实体。 |
 | `src/features/conversation/shared/message/blocks/artifact/file/file-artifact-block.tsx` | 1 | 完整文件产物卡的打开热区；文件命令仍由产物领域持有。 |
@@ -373,6 +374,9 @@ Room 的持久化与最终替换规则由导航功能的共置行为测试独立
 字段高度也由浏览器直接测量，业务通过 `size` 选择，不添加局部高度或阴影配方。
 Agent 高级设置夹具直接渲染实际权限行与 Skill 卡片，验证开关独立命中、失联授权
 撤销、锁定/提交中不可变更，以及长设置页面中逐行滚动可达；不要求整页缩入视口。
+Composer 附件夹具使用真实本地 File 验证图片/纯文本预览、长内容换行、键盘触发后
+焦点归还与 exact 附件移除；共置测试覆盖 Session 切换只关闭预览、Object URL
+释放及表单内默认按钮不提交，不把预览开关写进持久草稿或执行上传。
 
 ## 9. Agent 修改流程
 
