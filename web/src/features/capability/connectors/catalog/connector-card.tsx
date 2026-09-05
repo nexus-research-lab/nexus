@@ -1,6 +1,6 @@
 /**
  * INPUT: Connector 身份、短摘要、状态动作与选择命令。
- * OUTPUT: 不重复分类元数据的紧凑 Connector 目录条目。
+ * OUTPUT: 使用公共 outlined 表面、不重复分类元数据的紧凑 Connector 目录条目。
  * POS: Connector 目录卡片纯视图。
  */
 "use client";
@@ -55,6 +55,7 @@ export function ConnectorCard({
 
   return (
     <UiListRow
+      variant="outlined"
       className={CAPABILITY_DIRECTORY_ROW_CLASS_NAME}
       description={connector.description}
       leading={<ConnectorIcon icon={connector.icon} title={connector.title} />}

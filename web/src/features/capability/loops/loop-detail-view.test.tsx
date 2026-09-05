@@ -89,7 +89,7 @@ describe("LoopDetailView", () => {
     expect(screen.getAllByText("npm test")[0].className).toContain("ui-type-code");
     expect(screen.getByText("Quality").className).toContain("text-2xs");
     expect(container.querySelectorAll(".surface-radius-sm").length).toBeGreaterThan(1);
-    expect(screen.getByRole("button", { name: "capability.loops" }).className).toContain("ui-type-metadata");
+    expect(screen.getByRole("button", { name: "capability.loops" }).className).toContain("ui-type-supporting");
     expect(container.querySelector("[data-slot='capability-detail-header']")).toBeTruthy();
     expect(container.querySelector("[data-slot='capability-detail-identity']")).toBeTruthy();
     expect(container.querySelector(

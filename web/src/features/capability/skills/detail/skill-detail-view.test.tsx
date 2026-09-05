@@ -37,7 +37,7 @@ describe("SkillDetailView", () => {
       name: "capability.skills_detail_back",
     });
     expect(backButton.className).toContain("radius-control-sm");
-    expect(backButton.className).toContain("ui-type-metadata");
+    expect(backButton.className).toContain("ui-type-supporting");
     expect(screen.getByRole("heading", {
       name: "capability.skills_detail_loading",
     }).className).toContain("ui-type-object-title");

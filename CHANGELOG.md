@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Align compact buttons and selects with matching input sizes, improve field and
+  settings label/description hierarchy, and remove redundant description spacing.
+  Settings selects retain shared keyboard focus styling; capability directory rows
+  now use the shared outlined surface without private border or hover overrides.
 - Improved placeholder readability in shared text, multiline and search fields
   across themes and strengthened Rain's shared supporting-text contrast while
   preserving existing typography, size and input behavior.

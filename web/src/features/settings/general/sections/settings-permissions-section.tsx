@@ -1,6 +1,6 @@
 /**
  * INPUT: 默认权限草稿、Preferences 可靠性反馈和恢复动作。
- * OUTPUT: 权限选择器及完整的设置结果提示。
+ * OUTPUT: 公共紧凑权限选择器、可读后果说明及完整的设置结果提示。
  * POS: General 权限分区视图；不另建单行错误投影。
  */
 "use client";
@@ -22,12 +22,10 @@ import type {
 
 import {
   SETTINGS_CARD_CLASS_NAME,
-  SETTINGS_CONTROL_HEIGHT_CLASS_NAME,
   SETTINGS_ICON_CLASS_NAME,
   SETTINGS_ITEM_DESCRIPTION_CLASS_NAME,
   SETTINGS_ITEM_TITLE_CLASS_NAME,
   SETTINGS_ROW_CLASS_NAME,
-  SETTINGS_SELECT_BUTTON_CLASS_NAME,
   SETTINGS_TEXT_ROW_CLASS_NAME,
 } from "../../shared/settings-panel-ui";
 
@@ -75,8 +73,6 @@ export function SettingsPermissionsSection({
           <div className="relative flex min-w-0 flex-col gap-1.5">
             <UiSelectMenu
               ariaLabel={t("settings.general.default_permission_mode")}
-              buttonClassName={SETTINGS_SELECT_BUTTON_CLASS_NAME}
-              className={SETTINGS_CONTROL_HEIGHT_CLASS_NAME}
               disabled={preferencesLoading || preferencesSaving}
               id="default-permission-mode"
               onChange={onPermissionModeChange}
@@ -85,10 +81,10 @@ export function SettingsPermissionsSection({
                 label: t(mode.labelKey),
               }))}
               placement="bottom"
-              size="xs"
+              size="sm"
               value={permissionMode}
             />
-            <p className={getUiTypographyClassName({ role: "caption", tone: "soft" })}>
+            <p className={getUiTypographyClassName({ role: "supporting", tone: "muted" })}>
               {t(selectedPermissionMode.descriptionKey)}
             </p>
           </div>

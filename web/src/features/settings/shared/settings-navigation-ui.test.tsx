@@ -30,7 +30,7 @@ describe("Settings navigation UI", () => {
     expect(button.getAttribute("aria-current")).toBe("page");
     expect(button.className).toContain("ui-type-control");
     expect(button.className).toContain("radius-control-md");
-    expect(screen.getByText("界面").className).toContain("ui-type-overline");
+    expect(screen.getByText("界面").className).toContain("ui-type-metadata");
 
     await user.click(button);
     expect(onClick).toHaveBeenCalledTimes(1);

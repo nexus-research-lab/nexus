@@ -184,6 +184,7 @@ disabled 降对比不隐藏、保留可解释文案；loading 保持原尺寸与
 - primary hover 只加深蓝，不换色相；secondary / ghost hover 用暖中性底。
 - label 用常规到 medium 字重；不用 `font-bold` 弥补层级不足。
 - 独立认证/引导壳可用共享 `lg` 档位承载较宽松的主动作；密集列表、标签与 code chrome 可用明确的紧凑档位。它们通过公共 size 选择，不能在页面重新设定按钮高度、行高或字重。
+- 普通文字按钮、输入框与单行选择器的紧凑档位配套使用：`xs` 为 28px 高 / 12px 字，`sm` 为 32px 高 / 13px 字；默认 `md` 为 36px 高 / 14px 字。按钮按内容保持最小高度，字段维持单行高度；不能为放大文字额外叠加垂直内边距，也不能在设置页另造更小的触发器。
 - 文本按钮水平 padding 12–14px；icon 与 label 间距 8px；触屏命中区至少 36px。
 - 「保存」「发送」「继续」等主动作只在可执行时变蓝；无输入或无变更时保持中性 disabled。
 - 原生 `disabled` 禁止 hover 反馈；运行中由调用方显式提供 `aria-busy=true`，保持原语义 tone。共享控件不从 disabled 或文案猜测正在提交；危险与成功语义不因 disabled 变成中性。
@@ -191,6 +192,7 @@ disabled 降对比不隐藏、保留可解释文案；loading 保持原尺寸与
 ### 5.4 输入、选择器、菜单与提示
 
 - text input / select 默认 36px 高、`control` / `control-lg` 圆角、白色或轻暖灰底、`1px` 控制边界；focus 只强化蓝色 border / ring，不加高饱和蓝底或 glow；placeholder 用 `--text-muted`。可用字段的普通尺寸占位文字与背景对比至少 4.5:1，按实际表面复核透明叠加；不能将其视为装饰文字而降到 soft tone。依据见 [W3C 文字对比度说明](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html)。
+- 普通字段 label 用 13px / 20px、medium、`--text-default`，说明与下方错误使用 supporting（13px / 20px），分别选 muted / danger。字段组内部只由容器提供 8px 间隔，说明不再另加上边距；同组标签应比说明清楚。设置项描述采用同一 supporting / muted 层级，导航分组采用 metadata / muted，不以更小的全大写淡字代替可扫描分组。
 - 路径、命令名和源码模板通过共享字段的 `textRole="code"` 使用等宽字体，字号与几何仍服从字段尺寸。验证码通过 `textRole="verification"` 使用 48px 高、居中等宽文字和统一字距；它仍是普通文本输入，保留前导零，格式与长度由业务验证，不拆成多个无独立语义的输入格。
 - segmented control 是选择器不是导航标签墙；整体轻底，active 用中性或白色 surface，边界与阴影极轻。
 - switch / checkbox / radio checked 时用 Nexus 蓝；label 与描述承担解释，颜色只确认状态。开关自身是唯一点击与键盘命中区，disabled 必须是真实不可用语义，不在外层再套可点击元素；需要说明“为何不能关闭”时让开关进入说明流程，而不是同时呈现可点击外壳和不可点击内核。

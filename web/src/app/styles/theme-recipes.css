@@ -1,5 +1,5 @@
 /* INPUT: canonical 语义 token 与公共组件的状态/结构 class。
- * OUTPUT: 复用统一尺度、材质、焦点和层级的共享 CSS recipe。
+ * OUTPUT: 复用统一尺度、材质、焦点和字段标签/间距层级的共享 CSS recipe。
  * POS: UI 状态样式唯一所有者；公共尺度引用 token，特定内容几何留在命名 pattern。 */
 /**
  * =====================================================
@@ -1551,15 +1551,16 @@
   .dialog-field {
     display: flex;
     flex-direction: column;
-    gap: 0.45rem;
+    gap: 0.5rem;
   }
 
   .dialog-label {
-    font-size: var(--text-compact);
+    font-size: var(--text-sm);
     font-weight: 500;
+    line-height: 1.25rem;
     letter-spacing: 0;
     text-transform: none;
-    color: var(--text-soft);
+    color: var(--text-default);
   }
 
   /* 控件只允许四档圆角，避免业务组件继续出现 9/13/15px 等近似值。 */
