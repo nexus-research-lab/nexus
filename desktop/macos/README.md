@@ -42,6 +42,7 @@ swift scripts/desktop/generate-macos-icon.swift
 scripts/desktop/build-macos-app.sh
 scripts/desktop/run-macos-app.sh
 scripts/desktop/smoke-macos-app.sh
+make app-check-ui
 scripts/desktop/package-macos-app.sh
 ```
 
@@ -49,6 +50,17 @@ scripts/desktop/package-macos-app.sh
 `generate-macos-icon.swift` 会从 `desktop/macos/Resources/AppIconSource.png` 生成 `desktop/macos/Resources/AppIcon.icns`，用于 `.app` 的 Finder / Dock 图标。
 `build-macos-app.sh` 会组装 `desktop/macos/.build/app/Nexus.app`，其中包含 Swift shell、Go sidecar、`web/dist`、`db/migrations` 与内置 `skills`。
 `smoke-macos-app.sh` 会启动已组装 `.app`，校验 ad-hoc Keychain 旁路、主窗口默认 launcher ready reveal、显式 `/app` 路由 ready、material 标记和退出后 sidecar 无残留。
+`make app-check-ui` 从当前 Swift 源码编译独立 QA App，复用实际 `WindowManager`、
+`WebViewHost` 和 bridge，通过临时端口加载当前前端 Gallery。它使用独立 Bundle ID、
+偏好 suite、状态根和 Vite 缓存，不启动 `AppDelegate`、sidecar 或更新器，业务 API
+在测试服务器上统一拒绝；远端聊天字体与浏览器夹具一样阻断，等待本地样式就绪后测量。
+需要已解锁的 macOS 图形会话、Command Line Tools、Node
+及已安装的 `web` 依赖；运行时 QA 窗口会取得焦点，应保持其在前台直到检查结束。
+三主题、双语和 360/1280pt 窗口检查原生输入、Select 碰撞、嵌套弹窗焦点与隐藏恢复。
+产物默认保存于 `/tmp/nexus-native-ui/<run>/`，含源码 SHA-256 清单、日志、JSON
+报告和 WKWebView 截图；截图不含系统窗口 chrome，原生按钮指标另记录在报告中。
+`python3 scripts/desktop/check-macos-ui.py --build-only` 只编译，不能作为 UI 验收通过。
+这项组件宿主检查不覆盖完整 Launcher/聊天业务、系统拖窗/缩放、发布签名或 Windows。
 `package-macos-app.sh` 会先构建目标架构的 `.app`、下载并预置同架构的 `nxs` runtime、跑 smoke，再输出 zip/dmg、sha256 和 metadata。
 人工 macOS App 验收维护在[回归目录](../../docs/testing/nexus-regression-catalog.md)的桌面升级与桌面集成章节；前端跨宿主验收范围见[前端工程规范](../../docs/specs/frontend-engineering-spec.md)。
 

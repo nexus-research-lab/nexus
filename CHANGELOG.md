@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added an isolated macOS frontend UI check that compiles the current native
+  window and WKWebView, verifies trusted input and nested overlay behavior across
+  themes, languages and window sizes, and records source hashes and screenshots.
 - Added a contract gate that keeps Windows native semantic colors aligned with
   their Web light-theme token owners, including native-theme CI path coverage.
 - Added a frontend CI gate with import-aware architecture checks, shared UI

@@ -356,6 +356,7 @@ Composer 的间距配方
 - `npm run check` 串行执行 lint、typecheck、上述两类测试和生产构建。
 - `npm run test:browser` 使用固定版本 Playwright 启动独立端口与依赖优化缓存的 Vite 服务器，执行真实浏览器合同；浏览器服务器固定使用 `browser-test` mode，避免并发开发或 SSR 合同检查使缓存失效并重建页面。`npm run check:ui` / 根目录 `make check-web` 覆盖完整前端门禁。浏览器依赖首次使用通过 `npx playwright install chromium webkit` 安装，Linux CI 使用 `--with-deps`。
 - `.github/workflows/frontend-check.yml` 对前端、规范与 Windows 原生主题变更运行同一套检查，失败不得通过跳过测试、增加重试或更新截图来消除。
+- `make app-check-ui` 在已解锁的 macOS 图形会话中编译独立 QA App，复用当前生产窗口与 WKWebView 源码，验证 Gallery 的原生输入、浮层、焦点及隐藏恢复。独立应用标识、偏好、状态根、端口和优化缓存隔离测试；不得启动产品 sidecar 或把旧安装包作为当前源码证据。源码清单、日志、报告与截图按运行保存，具体环境和边界见 `desktop/macos/README.md`；此入口不加入无图形会话的默认前端门禁，也不替代完整业务或 Windows 宿主检查。
 
 视觉回归矩阵至少覆盖：
 
