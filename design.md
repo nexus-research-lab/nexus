@@ -177,19 +177,21 @@ disabled 降对比不隐藏、保留可解释文案；loading 保持原尺寸与
 - 需要持续定位的侧栏 current 使用 `--surface-sidebar-active-background`，比通用 active / hover 深一档；仍不增加边框、阴影、蓝色或尺寸变化。
 - primary hover 只加深蓝，不换色相；secondary / ghost hover 用暖中性底。
 - label 用常规到 medium 字重；不用 `font-bold` 弥补层级不足。
+- 独立认证/引导壳可用共享 `lg` 档位承载较宽松的主动作；密集列表、标签与 code chrome 可用明确的紧凑档位。它们通过公共 size 选择，不能在页面重新设定按钮高度、行高或字重。
 - 文本按钮水平 padding 12–14px；icon 与 label 间距 8px；触屏命中区至少 36px。
 - 「保存」「发送」「继续」等主动作只在可执行时变蓝；无输入或无变更时保持中性 disabled。
+- 原生 `disabled` 禁止 hover 反馈；运行中由调用方显式提供 `aria-busy=true`，保持原语义 tone。共享控件不从 disabled 或文案猜测正在提交；危险与成功语义不因 disabled 变成中性。
 
 ### 5.4 输入、选择器、菜单与提示
 
 - text input / select 默认 36px 高、`control` / `control-lg` 圆角、白色或轻暖灰底、`1px` 控制边界；focus 只强化蓝色 border / ring，不加高饱和蓝底或 glow；placeholder 用 `--text-muted` 且必须可读。
 - segmented control 是选择器不是导航标签墙；整体轻底，active 用中性或白色 surface，边界与阴影极轻。
 - switch / checkbox / radio checked 时用 Nexus 蓝；label 与描述承担解释，颜色只确认状态。开关自身是唯一点击与键盘命中区，disabled 必须是真实不可用语义，不在外层再套可点击元素；需要说明“为何不能关闭”时让开关进入说明流程，而不是同时呈现可点击外壳和不可点击内核。
-- menu / popover：`overlay` 圆角、高不透明主题底、`1px` 边界、同一档阴影；Select、Action Menu、日期与头像选择器不得重写材质。条目统一使用 `control` 圆角和中性 hover / active 底面。
+- menu / popover：`overlay` 圆角、高不透明主题底、`1px` 边界、同一档阴影；Select、Action Menu、日期与头像选择器不得重写材质。条目统一使用下述同心行圆角和中性 hover / active 底面。
 - 菜单型浮层的外框为 16px 圆角、内容边缘 4px、行圆角 12px、行间距 2px，分隔线上下各留 4px；带说明行只增加自身高度。标题、搜索、图标网格与纯信息正文按内容语义使用 12–16px 留白，不套用菜单行节奏；这些值由共享 recipe 持有，业务不得局部覆盖。
 - dialog 与 menu / popover 共用底色、边界和 16px 外轮廓，只因尺寸使用更深一档同源阴影；dialog 只承载确认、编辑或短流程，标题、内容、footer 不重复套 card；危险操作保留明确文案与 destructive action。
 - tooltip 紧凑单行，只解释无文字的图标，不替代按钮 label。
-- Escape 每次只关闭当前模态范围内最上层的浮层；嵌套选择器/提示先退出，再退出父弹窗，并逐层归还触发器焦点。背景浮层不能阻止前景弹窗关闭；选择器进入 disabled 后立即收起，重新启用不恢复过期的打开状态。
+- Escape 每次只关闭当前模态范围内最上层的浮层；嵌套选择器/提示先退出，再退出父弹窗。锚定浮层归还触发器焦点；模态恢复打开前的焦点（键盘路径即触发器），鼠标是否先聚焦按钮遵循宿主原生规则。背景浮层不能阻止前景弹窗关闭；选择器进入 disabled 后立即收起，重新启用不恢复过期的打开状态。
 - chip / pill 只用于真实筛选、状态或可移除实体；没有交互或信息密度价值时不用。可移除实体共用同一紧凑圆角、文字层级和具名移除按钮；多选字段中移除与展开是两个并列动作，不把按钮相互嵌套。
 
 ### 5.5 高优先级组件规则

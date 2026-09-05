@@ -4,6 +4,8 @@
 
 import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
 
+import { moveKeyboardFocus } from "./keyboard";
+
 function copy(info: TestInfo, zh: string, en: string): string {
   return info.project.metadata.locale === "zh" ? zh : en;
 }
@@ -51,10 +53,22 @@ test("theme, long labels and button states fit the work plane", async ({ page },
   await expect(busy).toHaveAttribute("aria-busy", "true");
 
   const primary = page.getByRole("button", { name: copy(info, "新建会话", "New conversation"), exact: true });
+  const metrics = await primary.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { height: element.getBoundingClientRect().height, font: style.fontSize, weight: style.fontWeight, gap: style.columnGap };
+  });
+  expect(metrics).toEqual({ height: 36, font: "14px", weight: "500", gap: "8px" });
+  const unavailable = page.getByRole("button", { name: copy(info, "不可用", "Unavailable"), exact: true });
+  const primaryBackground = await primary.evaluate((element) => getComputedStyle(element).backgroundColor);
+  expect(await busy.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(primaryBackground);
+  const unavailableBackground = await unavailable.evaluate((element) => getComputedStyle(element).backgroundColor);
+  expect(unavailableBackground).not.toBe(primaryBackground);
+  await unavailable.hover();
+  expect(await unavailable.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(unavailableBackground);
   await primary.scrollIntoViewIfNeeded();
   await primary.focus();
-  await page.keyboard.press("Tab");
-  await page.keyboard.press("Shift+Tab");
+  await moveKeyboardFocus(page, info);
+  await moveKeyboardFocus(page, info, true);
   await expect(primary).toBeFocused();
   expect(await primary.evaluate((element) => element.matches(":focus-visible"))).toBe(true);
   expect(await primary.evaluate((element) => getComputedStyle(element).boxShadow)).not.toBe("none");
@@ -65,11 +79,49 @@ test("theme, long labels and button states fit the work plane", async ({ page },
   expect(errors).toEqual([]);
 });
 
+test("default form controls share readable typography and aligned field heights", async ({ page }, info) => {
+  const { errors } = await openGallery(page, info);
+  const input = page.getByRole("textbox", { name: copy(info, "名称", "Name"), exact: true });
+  const nativeSelect = page.getByRole("combobox", { name: copy(info, "原生角色", "Native role"), exact: true });
+  const select = page.getByRole("button", { name: copy(info, "选择模型", "Choose model"), exact: true });
+  const search = page.getByRole("searchbox", { name: copy(info, "搜索", "Search"), exact: true });
+  const notes = page.getByRole("textbox", { name: copy(info, "备注", "Notes"), exact: true });
+  for (const field of [input, nativeSelect, select, search, notes]) {
+    expect(await field.evaluate((element) => getComputedStyle(element).fontSize)).toBe("14px");
+    expect(await field.evaluate((element) => getComputedStyle(element).fontWeight)).toBe("400");
+  }
+  expect(await select.getByText(copy(info, "快速响应模型", "Fast response model"), { exact: true })
+    .evaluate((element) => getComputedStyle(element).fontWeight)).toBe("400");
+  for (const field of [input, nativeSelect, select, search.locator("..")]) {
+    expect((await field.boundingBox())!.height).toBe(36);
+  }
+  await input.fill(copy(info, "可读的名称", "Readable name"));
+  await expect(input).toHaveValue(copy(info, "可读的名称", "Readable name"));
+  await nativeSelect.selectOption("admin");
+  await expect(nativeSelect).toHaveValue("admin");
+  await search.fill("Nexus");
+  await expect(search).toHaveValue("Nexus");
+  await search.locator("..").getByRole("button", { name: copy(info, "清除", "Clear"), exact: true }).click();
+  await expect(search).toHaveValue("");
+  await notes.fill("Nexus\nshared controls");
+  await expect(notes).toHaveValue("Nexus\nshared controls");
+  // Tall sections extend beyond the Gallery's own scrollport. Capture each
+  // visible field instead of attaching an image with clipped, blank lower rows.
+  for (const [name, field] of [["input", input], ["search", search], ["select", select], ["notes", notes], ["native-select", nativeSelect]] as const) {
+    await field.scrollIntoViewIfNeeded();
+    await capture(field.locator("xpath=ancestor::*[contains(@class, 'dialog-field')][1]"), info, `form-${name}`);
+  }
+  expect(errors).toEqual([]);
+});
+
 test("dialog keeps actions visible and returns focus through nested surfaces", async ({ page }, info) => {
   const { errors } = await openGallery(page, info);
   const originalOverflow = await page.locator("body").evaluate((element) => element.style.overflow);
   const trigger = page.getByRole("button", { name: copy(info, "打开标准弹窗", "Open standard dialog"), exact: true });
-  await trigger.click();
+  // Keyboard activation gives the opener focus on every host. macOS WebKit
+  // intentionally does not focus a button on pointer click.
+  await trigger.focus();
+  await page.keyboard.press("Enter");
   const dialog = page.getByRole("dialog", { name: copy(info, "共享弹窗契约", "Shared dialog contract"), exact: true });
   const shell = dialog.locator(".dialog-shell");
   await expectInsideViewport(page, shell);
@@ -80,9 +132,9 @@ test("dialog keeps actions visible and returns focus through nested surfaces", a
   const confirm = dialog.getByRole("button", { name: copy(info, "确认", "Confirm"), exact: true });
   await expectInsideViewport(page, confirm);
   await confirm.focus();
-  await page.keyboard.press("Tab");
+  await moveKeyboardFocus(page, info);
   await expect(close).toBeFocused();
-  await page.keyboard.press("Shift+Tab");
+  await moveKeyboardFocus(page, info, true);
   await expect(confirm).toBeFocused();
   await capture(shell, info, "dialog");
 
@@ -101,7 +153,8 @@ test("dialog keeps actions visible and returns focus through nested surfaces", a
   await expect(select).toBeFocused();
 
   const nestedTrigger = dialog.getByRole("button", { name: copy(info, "打开嵌套确认", "Open nested prompt"), exact: true });
-  await nestedTrigger.click();
+  await nestedTrigger.focus();
+  await page.keyboard.press("Enter");
   const nested = page.getByRole("dialog", { name: copy(info, "新建文件夹", "New folder"), exact: true });
   await expectInsideViewport(page, nested.locator(".dialog-shell"));
   await expect(nested.getByRole("textbox")).toBeFocused();

@@ -2,7 +2,9 @@
 // OUTPUT: 证明 Switcher 跟随共享页头偏移、语义浮层和紧凑列表合同。
 // POS: Room 窄窗会话切换器行为测试；历史过滤规则由 history model 测试负责。
 
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { I18nProvider } from "@/shared/i18n/i18n-provider";
@@ -34,6 +36,46 @@ const CONVERSATIONS = [
 ] as RoomConversationView[];
 
 describe("RoomMobileConversationSwitcher", () => {
+  it("uses shared modal focus, scroll lock and keyboard dismissal", async () => {
+    const user = userEvent.setup();
+    const originalOverflow = document.body.style.overflow;
+    const bounds = vi.spyOn(HTMLElement.prototype, "getClientRects").mockReturnValue([{ width: 10, height: 10 }] as unknown as DOMRectList);
+    function Harness() {
+      const [open, setOpen] = useState(false);
+      return (
+        <I18nProvider>
+          <button onClick={() => setOpen(true)} type="button">历史</button>
+          <RoomMobileConversationSwitcher
+            activeConversationId="conversation-1"
+            conversations={CONVERSATIONS}
+            isOpen={open}
+            onClose={() => setOpen(false)}
+            onSelect={vi.fn()}
+          />
+        </I18nProvider>
+      );
+    }
+    try {
+      render(<Harness />);
+      const trigger = screen.getByRole("button", { name: "历史" });
+      await user.click(trigger);
+      const dialog = screen.getByRole("dialog");
+      const close = within(dialog).getByRole("button", { name: "Close" });
+      await waitFor(() => expect(document.activeElement).toBe(close));
+      expect(document.body.style.overflow).toBe("hidden");
+      await user.keyboard("{Shift>}{Tab}{/Shift}");
+      expect(document.activeElement).toBe(within(dialog).getByRole("button", { name: /交付检查/ }));
+      await user.keyboard("{Tab}");
+      expect(document.activeElement).toBe(close);
+      await user.keyboard("{Escape}");
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(document.activeElement).toBe(trigger);
+      expect(document.body.style.overflow).toBe(originalOverflow);
+    } finally {
+      bounds.mockRestore();
+    }
+  });
+
   it("uses shared geometry and selects one compact conversation row", () => {
     const onClose = vi.fn();
     const onSelect = vi.fn();

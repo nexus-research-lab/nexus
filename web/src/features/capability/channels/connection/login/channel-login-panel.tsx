@@ -122,6 +122,7 @@ function ChannelLoginVerifyCode({
           variant="dialog"
         />
         <UiButton
+          aria-busy={loading || undefined}
           disabled={!verifyCode.trim() || loading || blocked}
           onClick={() => void submit()}
           size="sm"

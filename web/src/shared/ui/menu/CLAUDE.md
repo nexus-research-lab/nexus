@@ -5,6 +5,7 @@
 - Select 进入 disabled 状态必须立即收起 listbox、清除 expanded/controls 关系并丢弃旧打开态；恢复可用后只能由用户重新打开。Select/Action Menu 的 Escape 和焦点归还交给共享 Overlay 仲裁，不自行抢先关闭父菜单。
 - `select-menu-primitives.tsx` 提供选择菜单共用的 `SelectMenuTrigger`、触发器内容、listbox 框架和 `SelectMenuOptionRow`；SelectMenuTrigger 统一单选与领域多选的原生 button、listbox ARIA、ref 和原生事件透传，直接消费既有样式投影，不改变调用者的开关、键盘或布局。所有单选、多选、Slash/Mention 类 listbox 条目由 OptionRow 持有原生 button、`role=option`、选中语义与基础交互底面，业务只组合行内容、密度和选择命令。
 - `select-menu-view.tsx` 只渲染共享单选菜单，不读取业务状态或决定选值。
+- 默认单选触发器与默认 Input 使用同一控件高度和 App `control` 文字角色；紧凑档位保留菜单原有密度。多选已选 Chip 的换行高度属于领域内容几何，不强塞进单行高度。
 - `select-menu.tsx` 只编排共享单选语义和浮层生命周期；带搜索、异步状态或多选规则的菜单归真实业务所有者。
 - `action-menu.tsx` 保持外部受控，不复用 Select 家族的内部开关状态；业务可显式选择与锚点起点或终点对齐。级联浮层复用 `UiActionMenuContent` 的条目和底部动作，不复制 Action Menu 行结构。
 - Action Menu 首次焦点必须等定位完成、浮层实际可见后进入首个可用条目；后续滚动/窗口变化只更新几何，不把用户当前条目焦点重置到第一项。

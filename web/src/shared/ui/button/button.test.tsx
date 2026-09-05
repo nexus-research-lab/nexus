@@ -1,6 +1,6 @@
 // INPUT: 文字、链接与图标 Button 的 type、disabled、名称和键盘行为。
 // OUTPUT: 证明动作不会误提交表单，且保持原生 button/link 与可访问名称合同。
-// POS: Button DOM 行为测试；视觉 token 组合由样式合同测试负责。
+// POS: Button DOM 行为测试；实际视觉状态、尺寸与交互几何由浏览器矩阵负责。
 
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -120,6 +120,23 @@ describe("UiButton", () => {
 
     const link = screen.getByRole("link", { name: "查看文档" });
     expect(link.getAttribute("href")).toBe("/docs");
+  });
+
+  it("keeps busy actions natively disabled and resumes keyboard activation when ready", async () => {
+    const user = userEvent.setup();
+    const onClick = vi.fn();
+    const { rerender } = render(
+      <UiButton aria-busy="true" disabled onClick={onClick} tone="primary" variant="solid">保存</UiButton>,
+    );
+    const button = screen.getByRole("button", { name: "保存" });
+    expect(button.getAttribute("aria-busy")).toBe("true");
+    await user.click(button);
+    expect(onClick).not.toHaveBeenCalled();
+    rerender(<UiButton onClick={onClick} tone="primary" variant="solid">保存</UiButton>);
+    expect(button.getAttribute("aria-busy")).toBeNull();
+    button.focus();
+    await user.keyboard("{Enter}");
+    expect(onClick).toHaveBeenCalledOnce();
   });
 
   it("derives an icon action name from the shared tooltip contract", () => {

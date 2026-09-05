@@ -30,10 +30,10 @@ const SELECT_MENU_SIZE_CONFIG: Record<UiSelectMenuSize, {
 }> = {
   md: {
     estimatedOptionHeight: 32,
-    heightClassName: "h-10",
+    heightClassName: "h-9",
     optionHeightClassName: "min-h-8 text-sm",
     roundedClassName: "radius-control-md",
-    textClassName: "text-sm",
+    textClassName: "ui-type-control ui-type-weight-regular",
   },
   sm: {
     estimatedOptionHeight: 32,

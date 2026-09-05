@@ -9,6 +9,7 @@
 - `workspace-conversation-tab-model.ts` 统一推导单标签的活动态样式、宽度、标题、固定/关闭态和稳定状态类；当前标签使用浅底和状态点，非当前标签保持透明并由短分隔线组织远端标签。
 - `workspace-conversation-tab.tsx` 只渲染单个标签；图钉切换固定偏好，共享 `UiTabDismissButton` 只关闭标签，两者不得合并语义；模型只给关闭按钮提供可见性，按钮几何、原生 title 和事件隔离由该原语拥有。不得自行推导会话集合状态或状态样式。
 - 调用方提供的活动标签必须属于受控打开集合；共享视图不通过 Effect 修正领域状态。
+- 标签选择按钮必须给兄弟固定/关闭按钮预留实际命中区，不能只加文字 padding；最窄标签的中心点击仍应选择标签，不能被操作区覆盖。
 - 窄容器仍保留当前会话标题；创建入口始终保持纯图标和可访问名称，但使用比普通 ghost 工具明确一档的中性浅底，避免核心入口消失在 Header 中。
 - 桌面标签轨道随共享顶栏使用 36px 导航带和 32px 标签/动作高度；宽度分配仍只由容器模型决定。
 - `workspace-conversation-tabs.test.tsx` 验证受控命令与 busy 投影；`conversation-tabs-model.test.ts` 验证固定边缘空间、活动权重和稳定溢出阈值；`workspace-conversation-tab.test.tsx` 验证关闭动作的键盘、标题和事件隔离。

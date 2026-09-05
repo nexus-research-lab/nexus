@@ -1,15 +1,17 @@
 /**
  * INPUT: Room 完整会话目录、当前会话与选择命令。
- * OUTPUT: 排除内部草稿但保留外部 Session 的移动端历史切换器。
- * POS: Room 窄窗历史投影视图，不维护标签目录、路由或选中真相。
+ * OUTPUT: 排除内部草稿但保留外部 Session、共享模态焦点/关闭协议的移动端历史切换器。
+ * POS: Room 窄窗历史投影视图；领域只拥有顶栏下拉几何与选择命令，模态行为归共享 Dialog。
  */
 
 import { X } from "lucide-react";
+import { useRef } from "react";
 
 import { formatRelativeTime } from "@/lib/format/relative-time";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
+import { useDialogModalBehavior } from "@/shared/ui/dialog/dialog-behavior";
 import { UiListRow } from "@/shared/ui/list/list-row";
 import { MOBILE_SHELL_HEADER_OFFSET_CLASS_NAME } from "@/shared/ui/layout/mobile-shell-header-layout";
 import { getUiOverlayLayerClassName } from "@/shared/ui/overlay/layer-styles";
@@ -34,6 +36,8 @@ export function RoomMobileConversationSwitcher({
   onSelect,
 }: RoomMobileConversationSwitcherProps) {
   const { t } = useI18n();
+  const rootRef = useRef<HTMLElement | null>(null);
+  useDialogModalBehavior({ enabled: isOpen, onClose, rootRef });
   const historyConversations = filterRoomHistoryConversations(conversations);
   if (!isOpen) {
     return null;
@@ -53,6 +57,7 @@ export function RoomMobileConversationSwitcher({
       />
 
       <section
+        ref={rootRef}
         aria-labelledby="mobile-conversation-switcher-title"
         aria-modal="true"
         className={cn(
@@ -61,6 +66,7 @@ export function RoomMobileConversationSwitcher({
           getUiOverlayLayerClassName("dialog"),
         )}
         role="dialog"
+        tabIndex={-1}
       >
         <header className="flex min-h-12 shrink-0 items-center justify-between gap-3 border-b divider-subtle px-4 py-2">
           <h2

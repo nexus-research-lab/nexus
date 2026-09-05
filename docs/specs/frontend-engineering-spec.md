@@ -194,6 +194,27 @@ Widget 可以认识 Agent、Room、Goal 等产品对象，但只组合下层合�
 
 生成式结构化问答的选项行可以由领域 pattern 保留原生 `fieldset`、radio/checkbox 与内嵌无壳 textarea，因为命中区和选择标记共同表达题目几何；拒绝、提交等标准动作仍必须使用 `UiButton`，题目、说明、提示和终态摘要仍必须选择 App Typography role。原生语义例外不是页面复制按钮或字号配方的许可。
 
+以下是 `features/pages` 中原生 button 的唯一例外清单（路径相对 `web/`）。数量是当前结构事实，不是允许新增普通按钮的额度。架构门禁用 TypeScript AST 同时检查 JSX 和 `createElement`，新增、移除或迁移必须同步说明所有者、几何理由和相应行为验证；标准动作一律回到公共控件。
+
+<!-- native-button-owners:start -->
+| 所有者 | 原生节点数 | 几何理由 |
+| --- | --- | --- |
+| `src/features/conversation/room/surface/mobile/room-mobile-conversation-switcher.tsx` | 1 | 顶栏下拉 Sheet 的整面 underlay 关闭热区；模态行为仍归共享 Dialog。 |
+| `src/features/conversation/shared/composer/attachments/composer-local-attachments.tsx` | 3 | 图片/长文本缩略图预览和图片角上的移除层；普通附件移除使用 IconButton。 |
+| `src/features/conversation/shared/execution/execution-workgraph-canvas.tsx` | 3 | 工作图边中点、节点卡和折叠计数的坐标命中区。 |
+| `src/features/conversation/shared/message/agent-mention-chip.tsx` | 1 | 随 Markdown 行内字号排布的 Agent 身份与 handoff 实体。 |
+| `src/features/conversation/shared/message/blocks/artifact/file/file-artifact-block.tsx` | 1 | 完整文件产物卡的打开热区；文件命令仍由产物领域持有。 |
+| `src/features/conversation/shared/message/blocks/artifact/image/image-block.tsx` | 1 | 原图等比缩略图的预览热区。 |
+| `src/features/conversation/shared/message/item/view/content/content-system-event.tsx` | 1 | 时间线系统重试行的原位展开，保留锚点与倒计时几何。 |
+| `src/features/conversation/shared/message/item/view/user/message-user-attachments.tsx` | 1 | 用户消息中的图片/文件整体预览入口。 |
+| `src/features/conversation/shared/message/ui/message-avatar.tsx` | 1 | 头像轮廓本身的详情热区；图像与交互尺寸一致。 |
+| `src/features/conversation/shared/scroll-to-latest-button.tsx` | 1 | 浮动滚动入口的 44px 热区包围较小状态芯片；DM/Thread 共用同一所有者。 |
+| `src/features/conversation/shared/session-navigator/conversation-session-navigator.tsx` | 2 | 连续轮次刻度与整张预览卡的导航热区。 |
+| `src/features/launcher/hero/launcher-hero-stage.tsx` | 2 | 随舞台整体缩放的品牌复合入口和发送角色图像热区；普通最近入口使用 UiButton。 |
+| `src/features/launcher/hero/pile/launcher-agent-token.tsx` | 1 | 物理舞台中的可拖动 Agent token，位置和热区由场景共同计算。 |
+| `src/features/navigation/sidebar/view/sidebar-rail-action.tsx` | 1 | 主导航和固定会话共用的 Dock 轨道入口，容纳计数、拖放与当前态几何。 |
+<!-- native-button-owners:end -->
+
 ## 5. 抽象与晋升规则
 
 发现重复时按以下顺序判断：
@@ -290,7 +311,7 @@ Widget 可以认识 Agent、Room、Goal 等产品对象，但只组合下层合�
 - `scripts/*.test.mjs`：纯模型、协议、架构边界和禁止项合同；不得在这里伪造 DOM 交互结论，统一入口以有界并发运行，避免大量独立 Vite 转换进程使门禁随机崩溃；
 - `npm run test:components` 与 `npm run test:contracts` 可分别定位失败，`npm test` 必须串行覆盖两类测试。
 - `npm run check` 串行执行 lint、typecheck、上述两类测试和生产构建。
-- `npm run test:browser` 使用固定版本 Playwright 启动独立 Vite 服务器，执行真实浏览器合同；`npm run check:ui` / 根目录 `make check-web` 覆盖完整前端门禁。浏览器依赖首次使用通过 `npx playwright install chromium` 安装，Linux CI 使用 `--with-deps`。
+- `npm run test:browser` 使用固定版本 Playwright 启动独立 Vite 服务器，执行真实浏览器合同；`npm run check:ui` / 根目录 `make check-web` 覆盖完整前端门禁。浏览器依赖首次使用通过 `npx playwright install chromium webkit` 安装，Linux CI 使用 `--with-deps`。
 - `.github/workflows/frontend-check.yml` 对前端与规范变更运行同一套检查，失败不得通过跳过测试、增加重试或更新截图来消除。
 
 视觉回归矩阵至少覆盖：
@@ -312,11 +333,18 @@ Provider 和 SVG Filter 等无独立界面的基础设施明确标注其真实�
 公开组件但没有登记时，Gallery 覆盖合同必须失败。
 
 `browser-tests/ui-gallery.spec.ts` 是浏览器行为真相入口。默认 Chromium 矩阵
-固定 light/dark/rain × 中文/英文 × 320/767/768/1440px，覆盖按钮禁用/忙碌、
+固定 light/dark/rain × 中文/英文 × 320/767/768/1440px；WebKit 使用同主题/语言
+与 320/1440px 的代表性矩阵。覆盖默认控件实际高度/字号/字重/图文间距、按钮禁用/忙碌、
 真实 focus-visible、hover 几何、选择器/动作菜单键盘与禁用项、碰撞翻转和滚动重定位、模态滚动锁、
 初始焦点、Tab 循环、弹窗内浮层命中、逐层 Escape、焦点归还及正常/减少动效。
 受控 Workspace 标签另覆盖选择、创建、固定与键盘关闭后的活动项恢复；业务
 Room 的持久化与最终替换规则由导航功能的共置行为测试独立验证。
+默认表单还覆盖实际输入、原生选择、搜索清除与多行编辑。键盘路径使用真实宿主
+遍历规则：macOS WebKit 使用 Option-Tab，其他项目使用 Tab；不修改用户系统
+偏好或伪造 DOM 焦点顺序。模态焦点链由键盘触发验证：关闭后恢复打开前的焦点，
+即键盘触发器；鼠标触发遵循宿主原生 button 聚焦行为，不强制改变 macOS 点击
+规则。平台差异依据 [Apple Safari 键盘说明](https://support.apple.com/guide/safari/cpsh003/mac)
+与 [WebKit 的鼠标焦点说明](https://bugs.webkit.org/show_bug.cgi?id=236322)。
 测试使用真实角色/名称和浏览器布局，不通过复制样式或 stub 组件伪造通过。
 `browser-tests/login.spec.ts` 在同一矩阵中打开真实登录路由，以隔离的认证
 响应验证提交、未知结果阻塞、只读恢复与禁用部署。远端聊天 CJK 字体明确
@@ -325,7 +353,7 @@ Room 的持久化与最终替换规则由导航功能的共置行为测试独立
 组件陈列面是验证夹具。截图随 HTML report 输出到 `playwright-report/`，
 失败 trace/截图输出到 `test-results/`，CI 保留 14 天；它们是可复查的视觉
 证据，当前不冒充跨平台像素基线门禁。提交说明必须明确实际检查的浏览器、
-主题、宽度和状态；Chromium 自动化不等于 macOS/Windows 原生窗口 chrome
+主题、宽度和状态；Chromium/WebKit 自动化不等于 macOS/Windows 原生窗口 chrome
 或完整业务页面已验收，这些仍按变更范围在实际宿主复查。
 
 ## 9. Agent 修改流程

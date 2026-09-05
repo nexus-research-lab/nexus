@@ -105,7 +105,7 @@ export function SelectMenuView({
           <span className="flex min-w-0 flex-1 items-center gap-2">
             <span
               className={cn(
-                "min-w-0 flex-1 font-semibold text-(--text-strong)",
+                "min-w-0 flex-1 text-(--text-strong)",
                 styles.triggerLabelClassName,
               )}
               title={model.activeLabel}

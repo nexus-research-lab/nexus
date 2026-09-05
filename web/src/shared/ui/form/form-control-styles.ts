@@ -25,21 +25,21 @@ const FORM_CONTROL_VARIANT_CLASS_MAP: Record<UiFormControlVariant, string> = {
 const FORM_CONTROL_SIZE_CLASS_MAP: Record<UiFormControlSize, string> = {
   xs: "h-7 radius-control-xs px-2 text-compact",
   sm: "h-8 radius-control-sm px-3 text-sm",
-  md: "h-9 radius-control-md px-3.5 text-sm",
+  md: "h-9 radius-control-md px-3.5 ui-type-control ui-type-weight-regular",
   lg: "h-11 radius-control-lg px-4 text-base",
 };
 
 const FORM_TEXTAREA_SIZE_CLASS_MAP: Record<UiFormControlSize, string> = {
   xs: "min-h-16 radius-control-xs px-2 py-1.5 text-compact",
   sm: "min-h-20 radius-control-sm px-3 py-2 text-sm",
-  md: "min-h-24 radius-control-md px-3.5 py-2.5 text-sm",
+  md: "min-h-24 radius-control-md px-3.5 py-2.5 ui-type-control ui-type-weight-regular",
   lg: "min-h-28 radius-control-lg px-4 py-3 text-base",
 };
 
 const SEARCH_SHELL_SIZE_CLASS_MAP: Record<UiFormControlSize, string> = {
   xs: "h-7 radius-control-xs px-2 text-compact",
   sm: "h-8 radius-control-sm px-3 text-sm",
-  md: "h-9 radius-control-md px-3.5 text-sm",
+  md: "h-9 radius-control-md px-3.5 ui-type-control ui-type-weight-regular",
   lg: "h-11 radius-control-lg px-4 text-base",
 };
 
