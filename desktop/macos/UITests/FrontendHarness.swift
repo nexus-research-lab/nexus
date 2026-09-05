@@ -102,6 +102,14 @@ private final class FrontendHarnessDelegate: NSObject, NSApplicationDelegate {
               (360...1600).contains(width), (520...1200).contains(height) else { throw HarnessError("Invalid test window size") }
         window.setContentSize(NSSize(width: width, height: height))
         reply(id, result: true)
+      case "can_track_drag":
+        guard let x = command["x"] as? Double, let y = command["y"] as? Double,
+              let contentView = window.contentView,
+              let state = (window as? DesktopWindow)?.interactionState else { throw HarnessError("Missing drag probe") }
+        let point = webView.convert(NSPoint(x: x, y: webView.isFlipped ? y : webView.bounds.height - y), to: contentView)
+        let viewportPoint = CGPoint(x: point.x - contentView.bounds.minX,
+          y: contentView.isFlipped ? point.y - contentView.bounds.minY : contentView.bounds.maxY - point.y)
+        reply(id, result: state.canTrackWindowDrag(at: viewportPoint))
       case "click":
         guard window.isKeyWindow, NSApp.isActive else { throw HarnessError("Activate the QA application before native input") }
         guard let x = command["x"] as? Double, let y = command["y"] as? Double else { throw HarnessError("Missing click coordinates") }

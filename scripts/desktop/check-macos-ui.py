@@ -149,6 +149,10 @@ class NativeClient:
     def click(self, element: str, count: int = 1):
         point = self.evaluate(f"(() => {{ const e = {element}; e.scrollIntoView({{block:'center'}}); "
                               "const r=e.getBoundingClientRect(); return {x:r.x+r.width/2,y:r.y+r.height/2}; })()")
+        if count == 2:
+            # AppKit resizes before WKWebView's next-frame bridge update. Observe
+            # the production hit-test state before sending the next gesture.
+            eventually(lambda: self.command("can_track_drag", **point), "native drag geometry synchronization")
         self.command("click", count=count, **point)
 
     def snapshot(self, name: str):
@@ -317,8 +321,10 @@ def run_app_shell_case(client: NativeClient, theme: str, locale: str, width: int
     before_zoom = client.command("status")["window"]
     client.click("document.querySelector('header[data-desktop-window-drag-region]')", count=2)
     eventually(lambda: client.command("status")["window"] != before_zoom, "native title-region zoom")
+    zoomed = client.command("status")["window"]
     client.click("document.querySelector('header[data-desktop-window-drag-region]')", count=2)
     eventually(lambda: client.command("status")["window"] == before_zoom, "native title-region unzoom")
+    restored = client.command("status")["window"]
     client.click(query)
     client.key("q", 12)
     client.wait(f"({query}).value === 'q'", "real controlled Launcher input")
@@ -361,7 +367,8 @@ def run_app_shell_case(client: NativeClient, theme: str, locale: str, width: int
     events = client.evaluate("window.qaEvents")
     require(all(event["trusted"] for event in events), "App received synthetic DOM input")
     require({event["type"] for event in events} >= {"click", "input", "keydown"}, "Missing App native input evidence")
-    return {"case": name, "status": status, "navigation_width": rail_width, "native_events": events, "passed": True}
+    return {"case": name, "status": status, "navigation_width": rail_width,
+            "zoom_sizes": [before_zoom, zoomed, restored], "native_events": events, "passed": True}
 
 
 def verify(settings: dict, suite: str = "foundation", smoke: bool = False) -> None:
