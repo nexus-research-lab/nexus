@@ -342,10 +342,3 @@ export function useSmoothStreamingMarkdownState(
     isStreaming: shouldRenderStreaming,
   };
 }
-
-export function useSmoothStreamingMarkdownContent(
-  content: string,
-  enabled: boolean,
-): string {
-  return useSmoothStreamingMarkdownState(content, enabled).content;
-}

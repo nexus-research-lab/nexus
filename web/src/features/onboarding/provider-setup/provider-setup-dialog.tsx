@@ -59,9 +59,9 @@ import {
   UiDialogPortal,
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
-import { getDialogNoteClassName } from "@/shared/ui/dialog/dialog-styles";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
 import { UiListRow } from "@/shared/ui/list/list-row";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
@@ -1340,9 +1340,10 @@ function ProviderScene({
           <ProviderSetupFailure kind={errorKind} />
         ) : null}
         {!loading && !error && presets.length === 0 ? (
-          <div className={getDialogNoteClassName("danger")} role="status">
-            {t("onboarding.provider_setup_provider_empty")}
-          </div>
+          <UiInlineNotice
+            message={t("onboarding.provider_setup_provider_empty")}
+            tone="danger"
+          />
         ) : null}
         {!loading && !error && presets.length > 0 ? (
           <div className="space-y-0.5">

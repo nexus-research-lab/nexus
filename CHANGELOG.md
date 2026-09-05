@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added a contract gate that keeps Windows native semantic colors aligned with
+  their Web light-theme token owners, including native-theme CI path coverage.
 - Added a frontend CI gate with import-aware architecture checks, shared UI
   file contracts, and a reproducible browser matrix across three themes,
   two languages, and narrow/desktop widths, with screenshots and failure traces.
@@ -43,6 +45,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Removed unused frontend compatibility APIs, presentation helpers and duplicate
+  runtime state; provider setup notices now reuse the shared inline component.
 - Aligned default shared Button, Form and Select typography and geometry with
   the design contract; unavailable primary actions are neutral, explicitly busy
   actions retain their tone, and disabled buttons no longer react to hover.

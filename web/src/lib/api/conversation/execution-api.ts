@@ -1,7 +1,7 @@
 /**
  * INPUT: 会话 session_key 与 exact 完成态 Execution。
  * OUTPUT: managed WorkGraph 读取、durable Draft/版本编辑、已保存草图目录与隐藏保存调度。
- * POS: Execution/WorkGraph HTTP 协议的 Web 客户端；命名图持久化仍由隐藏 Skill + CLI round 完成。
+ * POS: Execution/WorkGraph HTTP 协议的 Web 客户端；命名图持久化由隐藏 Skill + nexus.command round 完成，关闭编辑 UI 不删除 Session。
  */
 import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
 import { requestApi } from "@/lib/api/core/http";
@@ -98,17 +98,6 @@ export async function selectWorkGraphWorkflowEditorVersionApi(
       },
       method: "POST",
     },
-  );
-}
-
-export async function closeWorkGraphWorkflowEditorApi(
-  sessionKey: string,
-  editorId: string,
-): Promise<{ deleted: boolean }> {
-  const query = new URLSearchParams({ source_session_key: sessionKey });
-  return requestApi<{ deleted: boolean }>(
-    `${AGENT_API_BASE_URL}/workgraph/editors/${encodeURIComponent(editorId)}?${query.toString()}`,
-    { method: "DELETE" },
   );
 }
 

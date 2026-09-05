@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "web/**"
+      - "desktop/windows/Nexus.Desktop/Theme/**"
       - "design.md"
       - "docs/specs/**"
       - "makefile"
@@ -12,6 +13,7 @@ on:
     branches: [main, master]
     paths:
       - "web/**"
+      - "desktop/windows/Nexus.Desktop/Theme/**"
       - "design.md"
       - "docs/specs/**"
       - "makefile"

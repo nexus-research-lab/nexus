@@ -1,10 +1,6 @@
 // INPUT: Dialog 的结构语义、视口模式和调用方外部布局约束。
-// OUTPUT: Dialog 专属图标、遮罩和说明区 recipe 组成的稳定 className。
+// OUTPUT: Dialog 专属标题、图标与遮罩的稳定 className；行内说明复用公共 Notice。
 // POS: Dialog 视觉几何入口；不处理焦点、modal 栈或业务提交。
-
-import { CSSProperties } from "react";
-
-import { cn } from "@/shared/ui/class-name";
 
 export const DIALOG_HEADER_LEADING_CLASS_NAME = "flex min-w-0 items-center gap-2.5";
 
@@ -14,25 +10,3 @@ export const DIALOG_BACKDROP_CLASS_NAME =
 
 export const DIALOG_HEADER_ICON_CLASS_NAME =
   "flex h-8 w-8 shrink-0 items-center justify-center radius-control-sm bg-(--surface-interactive-hover-background) text-(--icon-default)";
-
-export function getDialogNoteClassName(tone: "default" | "danger", className?: string): string {
-  return cn(
-    "radius-control-lg px-4 py-[0.95rem] text-sm leading-[1.65]",
-    tone === "default"
-      ? "border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_76%,transparent)] bg-transparent text-(--text-default)"
-      : "border text-(--text-default)",
-    className,
-  );
-}
-
-export function getDialogNoteStyle(tone: "default" | "danger"): CSSProperties | undefined {
-  if (tone !== "danger") {
-    return undefined;
-  }
-
-  return {
-    background: "color-mix(in srgb, var(--destructive) 12%, var(--modal-dialog-body-background))",
-    borderColor: "color-mix(in srgb, var(--destructive) 26%, var(--modal-card-border))",
-    color: "var(--text-default)",
-  };
-}

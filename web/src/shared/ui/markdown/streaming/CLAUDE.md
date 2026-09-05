@@ -5,7 +5,7 @@
 - `adaptive-stream-clock.ts`: 根据追加字符的到达速度与最长间隔先建立短暂抗抖缓冲，再以约 18–90 grapheme/s 的可读节奏连续追赶；终态只温和提升到最多约 120 grapheme/s，避免传输间隙和完成瞬间触发突发刷新；公平池轮转等待必须完整累计，共享调度器未授予的当前 backlog 预算不得扣除，但累计信用不能超过已经到达的 backlog。
 - `stream-frame-scheduler.ts`: 所有可见 Markdown 流共用一个最高 30Hz RAF 和固定的每帧 4 grapheme 总额度；每帧只允许一条流实际消费并按订阅者身份轮转，返回 0 的 buffering 流不占提交名额、调度器继续探测后续流，空 backlog 必须立即退订。
 - `stream-text-units.ts`: 使用 `Intl.Segmenter` 以 grapheme 切分流式正文，追加时重分前一个尾单元与新 delta，保证跨 transport chunk 的 emoji ZWJ、肤色修饰符与组合附标仍作为一个展示单元；不支持时才退回 Unicode code point。
-- `use-smooth-streaming-markdown-content.ts`: 只对追加快照做单调追赶；增量字符原地追加到目标缓冲，大块 live 追加也按有界追赶速度展示而不瞬间扩高，终态继续排空已有 backlog；历史首挂、非前缀修正、页面重新可见或减少动态效果时立即对齐真实正文。
+- `use-smooth-streaming-markdown-content.ts`: 通过唯一 `useSmoothStreamingMarkdownState` 同时返回正文与真实渲染态，只对追加快照做单调追赶；增量字符原地追加到目标缓冲，大块 live 追加也按有界追赶速度展示而不瞬间扩高，终态继续排空已有 backlog；历史首挂、非前缀修正、页面重新可见或减少动态效果时立即对齐真实正文。
 
 相邻列表项属于同一个 Markdown 语义块，即使条目之间存在空行也不得拆开，否则有序列表会丢失连续计数；列表之外的已完成区块仍保持稳定身份。
 

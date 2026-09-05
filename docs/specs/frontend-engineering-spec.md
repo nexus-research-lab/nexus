@@ -150,6 +150,11 @@ Token 是跨主题、跨组件的值真相，当前入口是 `web/src/app/styles
 
 业务文件不得出现 raw color、任意阴影或任意高层级。普通 Tailwind 间距刻度可以继续使用；只有跨页面必须同步变化的几何才晋升为语义 token。
 
+Windows 原生反馈的 `NexusNativeTheme` 是 Web token 的平台投影，不能独立调色。
+当前实现只投影浅色主题；`native-theme-contract.test.mjs` 校验每个语义 Brush 与
+阴影颜色的来源，并显式保留顶层窗口背景不透明的宿主差异。调整 Web token 时必须
+同步该投影；这项源代码检查不能代替 WPF 渲染或原生多主题验收。
+
 ### 4.2 Visual recipe
 
 Recipe 把 token 组合成可复用视觉语法，例如 `surface-popover`、`input-shell`、`radius-control-md`。通用 recipe 位于 UI 基础设施；`.nexus-chat-*`、Workspace、Launcher 等领域样式归对应 widget/feature，不进入通用主题配方。
@@ -312,7 +317,7 @@ Widget 可以认识 Agent、Room、Goal 等产品对象，但只组合下层合�
 - `npm run test:components` 与 `npm run test:contracts` 可分别定位失败，`npm test` 必须串行覆盖两类测试。
 - `npm run check` 串行执行 lint、typecheck、上述两类测试和生产构建。
 - `npm run test:browser` 使用固定版本 Playwright 启动独立 Vite 服务器，执行真实浏览器合同；`npm run check:ui` / 根目录 `make check-web` 覆盖完整前端门禁。浏览器依赖首次使用通过 `npx playwright install chromium webkit` 安装，Linux CI 使用 `--with-deps`。
-- `.github/workflows/frontend-check.yml` 对前端与规范变更运行同一套检查，失败不得通过跳过测试、增加重试或更新截图来消除。
+- `.github/workflows/frontend-check.yml` 对前端、规范与 Windows 原生主题变更运行同一套检查，失败不得通过跳过测试、增加重试或更新截图来消除。
 
 视觉回归矩阵至少覆盖：
 

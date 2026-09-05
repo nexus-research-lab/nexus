@@ -1,7 +1,7 @@
 /**
  * INPUT: Goal REST responses and server-derived Goal/Execution binding view.
  * OUTPUT: DM/Room Goal resource, server-derived continuation lifecycle and clear-gate types.
- * POS: Goal HTTP transport types; metadata is never a WorkGraph binding source.
+ * POS: Consumed Goal HTTP transport types; creation uses the control command, and metadata is never a WorkGraph binding source.
  */
 export type GoalStatus =
   | "active"
@@ -62,17 +62,6 @@ export interface GoalBlocker {
   blocked_at?: string;
 }
 
-export interface GoalUsageReport {
-  goal_id: string;
-  session_key: string;
-  status: GoalStatus;
-  usage: GoalUsage;
-  time_used_seconds: number;
-  usage_finalized: boolean;
-  usage_finalized_at?: string | null;
-  goal_updated_at: string;
-}
-
 export type GoalExecutionBindingState =
   | "standalone"
   | "reserved"
@@ -94,15 +83,6 @@ export interface GoalEvent {
   round_id?: string;
   payload?: Record<string, unknown>;
   created_at: string;
-}
-
-export interface CreateGoalInput {
-  session_key: string;
-  objective: string;
-  token_budget?: number | null;
-  replace_existing?: boolean;
-  room_lead_agent_id?: string | null;
-  metadata?: Record<string, unknown> | null;
 }
 
 export interface UpdateGoalInput {

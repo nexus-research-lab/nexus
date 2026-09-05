@@ -10,8 +10,6 @@ export type AvatarIconFamily = "agent" | "room";
 
 export const AGENT_ICON_ID_START = 1;
 export const AGENT_ICON_ID_END = 53;
-/** Nexus 主智能体使用的品牌头像标识。 */
-export const DEFAULT_AGENT_AVATAR = "nexus";
 export const ROOM_ICON_ID_START = 1;
 export const ROOM_ICON_ID_END = 36;
 
