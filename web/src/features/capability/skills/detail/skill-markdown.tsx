@@ -1,3 +1,6 @@
+// INPUT: Skill 包说明、标题和简介。
+// OUTPUT: 归一化后的普通 Markdown，保留包内相对图片和安全外链。
+// POS: Skill 说明消费侧；没有 Workspace 来源，不将当前 Agent 作为资源基址。
 "use client";
 
 import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";

@@ -3,7 +3,7 @@
 import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { AppRouteBuilders } from "@/app/router/route-paths";
+import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 import {
   DM_CONVERSATION_TOUR_ID,
 } from "@/features/onboarding/tours/conversation-tour";

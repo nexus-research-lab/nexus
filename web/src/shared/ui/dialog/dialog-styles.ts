@@ -5,7 +5,6 @@
 import { CSSProperties } from "react";
 
 import { cn } from "@/shared/ui/class-name";
-import { getUiIconButtonClassName } from "@/shared/ui/button/button-styles";
 
 export const DIALOG_HEADER_LEADING_CLASS_NAME = "flex min-w-0 items-center gap-2.5";
 
@@ -15,11 +14,6 @@ export const DIALOG_BACKDROP_CLASS_NAME =
 
 export const DIALOG_HEADER_ICON_CLASS_NAME =
   "flex h-8 w-8 shrink-0 items-center justify-center radius-control-sm bg-(--surface-interactive-hover-background) text-(--icon-default)";
-
-export const DIALOG_ICON_BUTTON_CLASS_NAME = getUiIconButtonClassName({
-  size: "md",
-  variant: "ghost",
-});
 
 export function getDialogNoteClassName(tone: "default" | "danger", className?: string): string {
   return cn(

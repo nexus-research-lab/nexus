@@ -50,8 +50,25 @@ describe("RoomSkillMultiSelect", () => {
     expect(trigger.contains(removeResearch)).toBe(false);
     await user.click(removeResearch);
     expect(onChange).toHaveBeenCalledWith(["writing"]);
+    expect(screen.queryByRole("listbox")).toBeNull();
     await user.click(trigger);
     expect(screen.getByRole("listbox", { name: "Room 技能" })).toBeTruthy();
+  });
+
+  it("opens through the shared trigger keyboard protocol and keeps removal independent", async () => {
+    const user = userEvent.setup();
+    const onChange = renderSelect();
+    const trigger = screen.getByRole("button", { name: "Room 技能" });
+    await user.tab();
+    expect(document.activeElement).toBe(trigger);
+    await user.keyboard("{Enter}");
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
+    expect(trigger.getAttribute("aria-controls")).toBe(screen.getByRole("listbox", { name: "Room 技能" }).id);
+    expect(onChange).not.toHaveBeenCalled();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+    expect(trigger.hasAttribute("aria-controls")).toBe(false);
   });
 
   it("blocks both opening and removal when the field is disabled", async () => {

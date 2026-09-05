@@ -6,6 +6,7 @@
 import {
   type KeyboardEvent,
   useCallback,
+  useEffect,
   useRef,
   useState,
 } from "react";
@@ -52,6 +53,12 @@ export function useSelectMenuOverlay({
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const closeMenu = useCallback(() => setIsOpen(false), []);
+  const isMenuOpen = isOpen && !disabled;
+  useEffect(() => {
+    if (disabled) {
+      closeMenu();
+    }
+  }, [closeMenu, disabled]);
   const {
     overlayId: menuId,
     overlayPosition: menuPosition,
@@ -63,7 +70,7 @@ export function useSelectMenuOverlay({
     anchorRef: buttonRef,
     disabled,
     estimatePosition,
-    isOpen,
+    isOpen: isMenuOpen,
     onClose: closeMenu,
   });
 
@@ -94,26 +101,19 @@ export function useSelectMenuOverlay({
     if (disabled) {
       return;
     }
-    if (event.key === "Escape") {
-      if (isOpen) {
-        event.preventDefault();
-        closeMenu();
-      }
-      return;
-    }
     if (TOGGLE_KEYS.has(event.key)) {
       event.preventDefault();
       toggleMenu();
       return;
     }
     handleSelectionKey({ event, moveSelection, openMenu });
-  }, [closeMenu, disabled, isOpen, openMenu, toggleMenu]);
+  }, [disabled, openMenu, toggleMenu]);
 
   return {
     buttonRef,
     closeMenu,
     handleTriggerKeyDown,
-    isOpen,
+    isOpen: isMenuOpen,
     menuId,
     menuPosition,
     menuRef,

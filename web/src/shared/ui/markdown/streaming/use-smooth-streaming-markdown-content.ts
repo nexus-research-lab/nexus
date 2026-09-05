@@ -12,7 +12,7 @@ import {
   useState,
 } from "react";
 
-import { usePrefersReducedMotion } from "@/hooks/ui/use-prefers-reduced-motion";
+import { usePrefersReducedMotion } from "@/shared/lib/react/use-prefers-reduced-motion";
 import { AdaptiveStreamClock } from "./adaptive-stream-clock";
 import { conversationStreamFrameScheduler } from "./stream-frame-scheduler";
 import {

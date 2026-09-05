@@ -1,13 +1,14 @@
 // INPUT: 视图/筛选选项、当前值与切换/关闭命令。
-// OUTPUT: 以 button group 语义呈现的可横向滚动选择条。
+// OUTPUT: 以 button group 语义呈现的可横向滚动选择条，关闭动作复用独立 Tab dismiss 原语。
 // POS: 选择条 pattern；不是站点导航，也不拥有 tabpanel 或路由生命周期。
 "use client";
 
 import { type ReactNode } from "react";
-import { type LucideIcon, X } from "lucide-react";
+import { type LucideIcon } from "lucide-react";
+
+import { UiTabDismissButton } from "@/shared/ui/navigation/tab-dismiss-button";
 
 import {
-  getUiTabDismissClassName,
   getUiTabClassName,
   getUiTabsNavClassName,
   type UiTabsDensity,
@@ -98,20 +99,11 @@ export function UiTabs<TValue extends string>({
             key={option.value}
           >
             {tabButton}
-            <button
-              aria-label={dismissActiveLabel}
-              className={getUiTabDismissClassName(
-                "ui-navigation-tab-dismiss absolute right-1 top-1/2 -translate-y-1/2",
-              )}
-              onClick={(event) => {
-                event.stopPropagation();
-                onDismissActive(option.value);
-              }}
-              title={dismissActiveLabel}
-              type="button"
-            >
-              <X className="h-3 w-3" />
-            </button>
+            <UiTabDismissButton
+              className="ui-navigation-tab-dismiss absolute right-1 top-1/2 -translate-y-1/2"
+              label={dismissActiveLabel}
+              onDismiss={() => onDismissActive(option.value)}
+            />
           </span>
         );
       })}

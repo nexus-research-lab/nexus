@@ -2,7 +2,7 @@
 
 - `capability-page-layout.tsx` 只拥有能力域的页面编排、筛选节奏、目录网格、分区标题、详情页内容轴/二级导航、对象身份区、阅读列/配置侧栏和无品牌身份框；不得解释 Skill、Connector、Channel、Loop、WorkGraph 或定时任务状态。
 - 页面标题、用途说明和主动作必须通过 `CapabilityPageLayout` 进入全站 `WorkspaceContentHeader`；业务页面不得复制 Header、用绝对定位模拟右侧动作，或在移动端重复页面身份。
-- `actions` 在桌面进入内容 Header 右侧，在存在应用页头目标时通过 Portal 投影到移动端页头；两种布局必须渲染同一个动作节点和业务行为。
+- `actions` 在桌面进入内容 Header 右侧，通过 `shared/lib/react/page-header-actions-context.ts` 读取宿主目标后由本页 Portal 投影到移动端页头；两种布局必须渲染同一个动作节点和业务行为。挂载点变化或消失时迁移当前动作，不保留旧目标内容，也不反向依赖 App Provider。
 - 搜索与筛选只组合共享 Form/Menu/Navigation 原语；Skill、Connector 与 Pairing 等目录的内容模式和状态筛选统一使用跨领域 `UiDirectoryTabs`，由它固定单行、中性底线和自适应宽度，不得在业务页复制撑满规则、胶囊外观或带 Capability 名称的转发组件；目录只组合 `UiListRow` 或所属领域卡片，不在本文件保存请求和筛选状态。
 - App chrome 文字必须选择共享 Typography role；图标框和目录表面只使用语义圆角与边框，不得恢复页面私有字号、行高、字距、圆角或阴影。
 - 具有长正文和独立配置集合的能力详情统一使用 `CapabilityDetailSplitLayout`：宽工作面保持受控正文列与配置侧栏，窄窗口按“配置在前、长正文在后”收为单列；分区标题、说明和计数使用 `CapabilityDetailSectionHeader`，业务页不得复制断点与列宽。

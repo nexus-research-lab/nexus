@@ -3,7 +3,7 @@
 import { Navigate } from "react-router-dom";
 import { LoaderCircle } from "lucide-react";
 
-import { APP_ROUTE_PATHS, AppRouteBuilders } from "@/app/router/route-paths";
+import { APP_ROUTE_PATHS, AppRouteBuilders } from "@/shared/navigation/route-paths";
 import { isDesktopRuntime } from "@/config/desktop-runtime";
 import { canUseOperations } from "@/features/settings/operations/operations-access";
 import { useAuth } from "@/shared/auth/auth-context";

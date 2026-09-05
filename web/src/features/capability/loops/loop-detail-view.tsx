@@ -14,8 +14,8 @@ import {
 } from "@/features/capability/shared/capability-page-layout";
 import { getLoopApi } from "@/lib/api/capability/loop-api";
 import { getResourceFailure, type ResourceFailure } from "@/lib/error-message";
-import { writeTextToClipboard } from "@/hooks/ui/clipboard";
-import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { writeTextToClipboard } from "@/shared/lib/browser/clipboard";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";

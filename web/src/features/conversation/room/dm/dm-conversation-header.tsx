@@ -8,8 +8,8 @@ import { RoomHistoryMenu } from "@/features/conversation/room/surface/history/ro
 import { useSidebarStore } from "@/store/sidebar";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
-import { WorkspaceConversationTabs } from "@/shared/ui/workspace/controls/workspace-conversation-tabs";
-import type { FinalConversationReplacementHandler } from "@/shared/ui/workspace/controls/conversation-tabs/final-conversation-replacement";
+import { RoomConversationTabs } from "@/features/navigation/conversation-tabs/room-conversation-tabs";
+import type { FinalConversationReplacementHandler } from "@/features/navigation/conversation-tabs/final-conversation-replacement";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import type { RoomConversationView } from "@/types/conversation/conversation";
 import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
@@ -65,7 +65,7 @@ export const DmConversationHeader = memo(function DmConversationHeader({
       onChangeTab={onChangeTab}
       tabs={roomTabs}
       tabsLeading={(
-        <WorkspaceConversationTabs
+        <RoomConversationTabs
           conversationId={conversationId}
           conversations={conversations}
           leadingControl={(

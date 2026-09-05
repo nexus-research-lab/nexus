@@ -1,3 +1,8 @@
+// INPUT: 私域事件投影、密度与事件来源 Agent 的文件资源。
+// OUTPUT: 保留 exact 来源文件预览的消息气泡。
+// POS: 私域时间线消费侧；共享 Markdown 不解析业务身份。
+import { useWorkspaceMarkdown } from "@/hooks/agent/use-workspace-markdown";
+
 import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
 import { cn } from "@/shared/ui/class-name";
 
@@ -62,6 +67,7 @@ export function PrivateEventBubble({
   density: PrivateTimelineDensity;
   event: PrivateEventPresentation;
 }) {
+  const { resolveFilePath, getFilePreviewUrl } = useWorkspaceMarkdown(event.sourceAgentId);
   const direction = DIRECTION_STYLES[event.direction];
   const size = DENSITY_STYLES[density];
   return (
@@ -83,7 +89,8 @@ export function PrivateEventBubble({
           )}
           content={event.content}
           mermaidShowHeader={false}
-          workspaceAgentId={event.sourceAgentId}
+          getFilePreviewUrl={getFilePreviewUrl}
+          resolveFilePath={resolveFilePath}
         />
         <p className={cn("truncate font-semibold text-(--text-soft)", size.route)}>
           {event.routeLabel}

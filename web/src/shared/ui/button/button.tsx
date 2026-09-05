@@ -1,4 +1,4 @@
-// INPUT: 用户动作、原生 button/link 属性与有限的 size/tone/variant/shape 语义。
+// INPUT: 用户动作、原生 button/link 属性、有限的 size/tone/variant/shape 语义与可显式关闭的 Tooltip。
 // OUTPUT: 默认安全为 type=button、可聚焦且具统一状态样式的文字/图标动作控件。
 // POS: Button DOM 与可访问性原语；不判断业务权限、事务状态或页面布局。
 "use client";
@@ -121,13 +121,14 @@ export const UiIconButton = forwardRef<HTMLButtonElement, UiIconButtonProps>(fun
   },
   ref,
 ) {
-  const tooltipLabel = tooltip
+  const actionLabel = tooltip
     ?? (typeof title === "string" ? title : null)
     ?? (typeof ariaLabel === "string" ? ariaLabel : null);
+  const tooltipLabel = tooltip === null ? null : actionLabel;
   const button = (
     <button
       ref={ref}
-      aria-label={ariaLabel ?? tooltipLabel ?? undefined}
+      aria-label={ariaLabel ?? actionLabel ?? undefined}
       className={getUiIconButtonClassName({ shape, size, tone, variant }, cn(className))}
       type={type}
       {...props}

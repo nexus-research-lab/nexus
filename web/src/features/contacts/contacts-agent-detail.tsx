@@ -26,8 +26,8 @@ import type {
   AgentOptionsTabKey,
 } from "@/features/agents/options/agent-options-editor-model";
 import { AgentMemoryView } from "@/features/memory/agent-memory-view";
-import { useMediaQuery } from "@/hooks/ui/use-media-query";
-import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { useMediaQuery } from "@/shared/lib/react/use-media-query";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { APP_NARROW_VIEWPORT_MEDIA_QUERY } from "@/lib/layout/home-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";

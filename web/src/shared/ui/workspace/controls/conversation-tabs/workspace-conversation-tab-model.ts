@@ -1,10 +1,9 @@
 /**
  * INPUT: 单标签活动、固定、关闭和外部 Session 状态。
- * OUTPUT: 内容留白、动作可见性与稳定宽度/状态样式投影。
- * POS: Workspace 单会话标签的唯一样式模型。
+ * OUTPUT: 互不重叠的选择/动作命中区、动作可见性与稳定宽度/状态样式投影。
+ * POS: Workspace 单会话标签的样式模型；关闭按钮外观由共享 Tab dismiss 原语持有。
  */
 import { cn } from "@/shared/ui/class-name";
-import { getUiTabDismissClassName } from "@/shared/ui/navigation/tabs-styles";
 
 import {
   ACTIVE_TAB_MIN_WIDTH,
@@ -82,12 +81,12 @@ export function resolveWorkspaceConversationTabPresentation({
         : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100",
     ),
     ariaCurrent: isActive ? "page" : undefined,
-    closeClassName: getUiTabDismissClassName(cn(
-      state.closeClassName,
-    )),
+    closeClassName: state.closeClassName,
     contentClassName: cn(
-      "flex h-full w-full min-w-0 items-center justify-start pl-[22px] text-left",
-      canClose && canPin ? "pr-[52px]" : canClose || canPin ? "pr-7" : "pr-2.5",
+      "flex h-full min-w-0 flex-1 items-center justify-start pl-[22px] text-left",
+      // Reserve the sibling action hit areas, not just label padding: at the
+      // minimum tab width the selection button's center must still select it.
+      canClose && canPin ? "mr-[53px]" : canClose || canPin ? "mr-7" : "pr-2.5",
     ),
     indicatorClassName: cn(
       "absolute left-2.5 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full transition-[background-color,border-color] duration-(--motion-duration-fast)",

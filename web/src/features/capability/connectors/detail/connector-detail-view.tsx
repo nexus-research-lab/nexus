@@ -8,7 +8,7 @@
 import type { ReactNode } from "react";
 
 import { CapabilityDetailPage } from "@/features/capability/shared/capability-page-layout";
-import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import type { ResourceFailure } from "@/lib/error-message";
 import { UiButton } from "@/shared/ui/button/button";
 import { UiResourceState } from "@/shared/ui/display/resource-state";

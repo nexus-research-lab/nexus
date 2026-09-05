@@ -13,7 +13,7 @@ import {
   type PairingView,
   type UpdatePairingPayload,
 } from "@/lib/api/capability/channel-api";
-import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
+import { useCopyToClipboard } from "@/shared/lib/react/use-copy-to-clipboard";
 import type { Agent } from "@/types/agent/agent";
 import { useI18n } from "@/shared/i18n/i18n-context";
 

@@ -1,3 +1,7 @@
+// INPUT: 表单字段的单行/多行语义、尺寸、表面档位与搜索壳层类型。
+// OUTPUT: 输入字段及搜索壳层的共享尺寸、焦点、invalid 和 disabled 样式投影。
+// POS: Form primitive 内部视觉所有者；不渲染 DOM，不决定字段值、校验规则或搜索范围。
+
 import { cn } from "@/shared/ui/class-name";
 
 export type UiFormControlSize = "xs" | "sm" | "md" | "lg";

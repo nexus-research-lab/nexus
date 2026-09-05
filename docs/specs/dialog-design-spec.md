@@ -1,16 +1,14 @@
 # Web 弹窗设计规范
 
-本文记录 Nexus Web 当前弹窗的结构、文案与审计合同。业务弹窗必须复用共享 modality；设计差异只来自任务类型，不来自各功能自行添加装饰层级。
+本文记录 Nexus Web 弹窗按任务类型选择结构与文案的合同。全局视觉与交互以 [`design.md`](../../design.md) 为唯一入口；组件所有权、依赖和验证流程见 [`frontend-engineering-spec.md`](./frontend-engineering-spec.md)，本文不另设数值或行为标准。
 
-## 当前清单
+## 入口审计口径
 
-自动审计口径如下：
+审计产品调用点时使用以下口径：
 
-- 产品代码中 `<UiDialogBackdrop>`、`<ConfirmDialog>`、`<PromptDialog>` 的每个声明计为一个可独立出现的模态入口；共享 primitive 自身不计入。当前为 **61 个产品模态根**。
-- 未使用上述 primitive、但暴露 `role="dialog"` 或 `aria-modal="true"` 的交互面单独计为 dialog 型浮层。当前为 **5 个 dialog 型浮层**。
-- 当前审计范围共 **66 个**。新增或移除入口时，必须同步 `web/scripts/dialog-inventory.test.mjs`、本节数字和对应阶段的设计审计。
-
-模态根按产品域分布：Agent 3、Capability 26、Contacts 2、Conversation 16、Home 1、Memory 1、Onboarding 2、Contacts page 1、Provider import 1、Settings 5、共享 Mermaid 预览 1。Capability 新增的三个入口是 Skill 来源删除、定时任务删除和运行占用释放的共享确认框，用于替代未纳入产品 modality 的浏览器原生 `confirm`。
+- 产品代码中 `<UiDialogBackdrop>`、`<ConfirmDialog>`、`<PromptDialog>` 的每个声明计为一个可独立出现的模态入口；共享 primitive 和开发 Gallery 自身不计入。
+- 未使用上述 primitive、但暴露 `role="dialog"` 或 `aria-modal="true"` 的交互面单独审计，不以名称推断其具备模态行为。
+- 新增或移除入口时更新所属模块的所有权文档，并运行共享模态与所涉业务测试；历史数量只记录审计范围，不能代替当前调用点检查，也不能证明键盘或焦点行为正确。
 
 ## 设计语法
 
@@ -56,4 +54,4 @@
 
 ## 审计状态（non-normative）
 
-当前 61 个产品模态根和 5 个 dialog 型浮层已完成本轮审计与迁移：公共决策框、WorkGraph、Connector、Channel、Agent/Provider/Room 创建编辑表单、Composer 选择器、附件/Mermaid 预览、Skill/Scheduled 管理弹窗（含未确认投递与删除停止复核）、配对、MCP、引导中心、Goal、联系人、CC Switch、Provider 初始化向导，以及历史、移动端会话切换、模型选择、记忆说明和图标选择浮层均纳入同一设计语法。后续新增入口继续按上述合同审计；本段只记录推进状态，不改变完成标准。
+历史审计快照覆盖 61 个产品模态根和 5 个 dialog 型浮层：公共决策框、WorkGraph、Connector、Channel、Agent/Provider/Room 创建编辑表单、Composer 选择器、附件/Mermaid 预览、Skill/Scheduled 管理弹窗（含未确认投递与删除停止复核）、配对、MCP、引导中心、Goal、联系人、CC Switch、Provider 初始化向导，以及历史、移动端会话切换、模型选择、记忆说明和图标选择浮层。该数量并非自动维护的当前清单；后续新增入口继续按上述合同审计，不改变完成标准。

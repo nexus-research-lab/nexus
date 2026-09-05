@@ -1,16 +1,12 @@
 /**
- * =====================================================
- * @File   : markdown-renderer-shared.tsx
- * @Date   : 2026-04-05 15:26
- * @Author : leemysw
- * 2026-04-05 15:26   Create
- * =====================================================
+ * INPUT: Markdown 内容、受控文件解析与流式状态。
+ * OUTPUT: 通用插件、正文配方和保留受保护区域的规范化文本。
+ * POS: 共享 Markdown 解析配置；领域链接协议放行由消费侧维护。
  */
 
 "use client";
 
 import rehypeKatex from "rehype-katex";
-import { defaultUrlTransform } from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -44,11 +40,6 @@ export const MARKDOWN_PLUGINS = [
   remarkBreaks,
 ];
 export const REHYPE_PLUGINS = [rehypeKatex];
-
-// mention 使用内部协议，必须显式加入白名单，否则 react-markdown 会把 href 清空成普通文本链接。
-export function transformMarkdownUrl(value: string): string {
-  return value.startsWith("agent-mention://") ? value : defaultUrlTransform(value);
-}
 
 export const MARKDOWN_BODY_CLASS_NAME = "nexus-chat-markdown nexus-markdown-body message-cjk-font w-full min-w-0 max-w-full overflow-x-hidden text-md leading-[1.65rem] text-(--text-strong) [&_strong]:font-semibold [&_strong]:text-(--text-strong) [&_em]:italic";
 export const MARKDOWN_SUMMARY_CLASS_NAME = "nexus-chat-markdown message-cjk-font w-full min-w-0 max-w-full overflow-hidden text-base leading-[1.5] text-(--text-strong) [&_strong]:font-semibold [&_strong]:text-(--text-strong) [&_em]:italic";

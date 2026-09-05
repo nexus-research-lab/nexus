@@ -1,7 +1,7 @@
 /**
  * INPUT: 最后一个已打开 Conversation、runtime close、draft ensure 与带作用域校验的提交命令。
  * OUTPUT: draft 会话先停后复用，已开始会话先切换后在后台停止的提交顺序。
- * POS: Workspace 最后标签的异步替换事务，不拥有具体 Store 或路由。
+ * POS: Room 最后标签的异步替换事务，不拥有具体 Store 或路由。
  */
 
 import { isExternalSessionConversation } from "@/lib/conversation/external-session";

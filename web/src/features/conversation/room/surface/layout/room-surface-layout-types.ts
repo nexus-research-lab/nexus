@@ -18,7 +18,7 @@ import type {
   RoomConversationView,
 } from "@/types/conversation/conversation";
 import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
-import type { FinalConversationReplacementHandler } from "@/shared/ui/workspace/controls/conversation-tabs/final-conversation-replacement";
+import type { FinalConversationReplacementHandler } from "@/features/navigation/conversation-tabs/final-conversation-replacement";
 import type { TodoItem } from "@/types/conversation/todo";
 import type { AgentRuntimeKind } from "@/types/settings/preferences";
 import type { ResourceFailure } from "@/lib/error-message";

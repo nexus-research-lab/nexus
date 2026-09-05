@@ -93,7 +93,6 @@ import { WorkspaceSurfaceView } from "@/shared/ui/workspace/surface/workspace-su
 import { WorkspaceTaskPanel } from "@/shared/ui/workspace/surface/workspace-task-strip";
 import { WorkspaceFileTree } from "@/shared/ui/workspace/tree/workspace-file-tree";
 import type { WorkspaceFileEntry } from "@/types/agent/agent";
-import type { RoomConversationView } from "@/types/conversation/conversation";
 import type { TodoItem } from "@/types/conversation/todo";
 
 import {
@@ -350,6 +349,7 @@ export function InteractionGallery({ locale }: { locale: Locale }) {
   const [tourOpen, setTourOpen] = useState(false);
   const actionItems = useMemo(() => [
     { icon: <Check className="h-4 w-4" />, label: galleryText(locale, "设为当前", "Set as current"), value: "current", active: true },
+    { label: galleryText(locale, "暂不可用", "Temporarily unavailable"), value: "unavailable", disabled: true },
     { icon: <Settings2 className="h-4 w-4" />, label: galleryText(locale, "编辑设置", "Edit settings"), value: "settings" },
   ], [locale]);
   const footerItems = useMemo(() => [
@@ -534,15 +534,19 @@ const WORKSPACE_TODOS: TodoItem[] = [
   { content: "Verify 320px viewport", status: "pending" },
 ];
 
-const WORKSPACE_CONVERSATIONS: RoomConversationView[] = [
-  { conversation_id: "gallery-one", created_at: 1, last_activity_at: 3, options: {}, room_id: "gallery", session_id: null, session_key: "gallery/one", title: "UI coverage" },
-  { conversation_id: "gallery-two", created_at: 2, last_activity_at: 2, options: {}, room_id: "gallery", session_id: null, session_key: "gallery/two", title: "Responsive copy" },
-  { conversation_id: "gallery-three", created_at: 3, last_activity_at: 1, options: {}, room_id: "gallery", session_id: null, session_key: "gallery/three", title: "Keyboard states" },
+const WORKSPACE_TABS = [
+  { id: "gallery-one", titleZh: "UI 覆盖", titleEn: "UI coverage", isPinned: false },
+  { id: "gallery-two", titleZh: "响应式文案", titleEn: "Responsive copy", isPinned: false },
+  { id: "gallery-three", titleZh: "键盘状态", titleEn: "Keyboard states", isPinned: false },
 ];
 
 export function WorkspaceGallery({ locale }: { locale: Locale }) {
   const [activeSurfaceTab, setActiveSurfaceTab] = useState("overview");
   const [conversationId, setConversationId] = useState("gallery-one");
+  const [conversationTabs, setConversationTabs] = useState(WORKSPACE_TABS);
+  const nextConversationNumber = useRef(4);
+  const [standaloneTab, setStandaloneTab] = useState({ isOpen: true, isPinned: true, isActive: true });
+  const [scrollLeft, setScrollLeft] = useState(96);
   const [query, setQuery] = useState("");
 
   return (
@@ -721,39 +725,60 @@ export function WorkspaceGallery({ locale }: { locale: Locale }) {
         <PreviewCard components={["WorkspaceConversationTabs", "WorkspaceConversationTab", "ConversationTabsScrollRail"]}>
           <div className="rounded-[12px] border border-(--divider-subtle-color) px-2">
             <WorkspaceConversationTabs
-              conversationId={conversationId}
-              conversations={WORKSPACE_CONVERSATIONS.map((conversation, index) => ({
-                ...conversation,
-                title: [
-                  galleryText(locale, "UI 覆盖", "UI coverage"),
-                  galleryText(locale, "响应式文案", "Responsive copy"),
-                  galleryText(locale, "键盘状态", "Keyboard states"),
-                ][index],
+              activeConversationId={conversationId}
+              tabs={conversationTabs.map((tab) => ({
+                id: tab.id,
+                canClose: conversationTabs.length > 1,
+                canPin: true,
+                isPinned: tab.isPinned,
+                title: galleryText(locale, tab.titleZh, tab.titleEn),
               }))}
-              onCreateConversation={async () => null}
+              onCreateConversation={() => {
+                const number = nextConversationNumber.current++;
+                const id = `gallery-${number}`;
+                setConversationTabs((tabs) => [...tabs, {
+                  id,
+                  titleZh: `新会话 ${number}`,
+                  titleEn: `New session ${number}`,
+                  isPinned: false,
+                }]);
+                setConversationId(id);
+              }}
               onSelectConversation={setConversationId}
-              pinningEnabled={false}
+              onCloseConversation={(id) => {
+                const index = conversationTabs.findIndex((tab) => tab.id === id);
+                const nextTabs = conversationTabs.filter((tab) => tab.id !== id);
+                setConversationTabs(nextTabs);
+                if (conversationId === id) {
+                  setConversationId(nextTabs[index]?.id ?? nextTabs[index - 1]?.id ?? "");
+                }
+              }}
+              onTogglePin={(id) => setConversationTabs((tabs) => tabs.map((tab) => (
+                tab.id === id ? { ...tab, isPinned: !tab.isPinned } : tab
+              )))}
             />
           </div>
           <div className="relative h-12 overflow-hidden rounded-[12px] border border-(--divider-subtle-color) px-2 pt-1">
-            <WorkspaceConversationTab
+            {standaloneTab.isOpen ? <WorkspaceConversationTab
               canClose
               canPin
               closeLabel={galleryText(locale, "关闭会话", "Close conversation")}
               conversationId="standalone"
               externalSessionLabel="IM"
-              isActive
-              isPinned
-              onClose={() => undefined}
-              onSelect={() => undefined}
-              onTogglePin={() => undefined}
-              pinLabel={galleryText(locale, "取消固定", "Unpin")}
+              isActive={standaloneTab.isActive}
+              isPinned={standaloneTab.isPinned}
+              onClose={() => setStandaloneTab((tab) => ({ ...tab, isOpen: false }))}
+              onSelect={() => setStandaloneTab((tab) => ({ ...tab, isActive: !tab.isActive }))}
+              onTogglePin={() => setStandaloneTab((tab) => ({ ...tab, isPinned: !tab.isPinned }))}
+              pinLabel={standaloneTab.isPinned ? galleryText(locale, "取消固定", "Unpin") : galleryText(locale, "固定", "Pin")}
               title={galleryText(locale, "独立标签视图", "Standalone tab view")}
-            />
+            /> : <UiButton onClick={() => setStandaloneTab((tab) => ({ ...tab, isOpen: true }))} size="xs" variant="ghost">
+              {galleryText(locale, "恢复标签示例", "Restore tab example")}
+            </UiButton>}
             <ConversationTabsScrollRail
               ariaLabel={galleryText(locale, "会话滚动", "Conversation scroll")}
-              metrics={{ clientWidth: 240, maxScrollLeft: 320, scrollLeft: 96, scrollWidth: 560 }}
-              onChange={() => undefined}
+              metrics={{ clientWidth: 240, maxScrollLeft: 320, scrollLeft, scrollWidth: 560 }}
+              onChange={setScrollLeft}
             />
           </div>
         </PreviewCard>

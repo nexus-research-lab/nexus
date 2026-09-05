@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { useMediaQuery } from "@/hooks/ui/use-media-query";
+import { useMediaQuery } from "@/shared/lib/react/use-media-query";
 
 interface FileListLayoutSpec {
   defaultWidth: number;

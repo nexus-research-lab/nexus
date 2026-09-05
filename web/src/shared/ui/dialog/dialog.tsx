@@ -1,5 +1,5 @@
 // INPUT: 业务弹窗提供标题、正文、动作与可选的默认或 plain chrome。
-// OUTPUT: 统一的可访问模态骨架与可禁用关闭动作；plain chrome 用于连接、授权与紧凑表单。
+// OUTPUT: 统一的可访问模态骨架与复用 IconButton 的可禁用关闭动作；plain chrome 用于连接、授权与紧凑表单。
 // POS: Web 共享弹窗结构真相源，业务层只选择语义密度，不自行重写遮罩、焦点与关闭协议。
 "use client";
 
@@ -14,6 +14,7 @@ import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { useDialogModalBehavior } from "@/shared/ui/dialog/dialog-behavior";
 import {
@@ -24,7 +25,6 @@ import {
   DIALOG_BACKDROP_CLASS_NAME,
   DIALOG_HEADER_ICON_CLASS_NAME,
   DIALOG_HEADER_LEADING_CLASS_NAME,
-  DIALOG_ICON_BUTTON_CLASS_NAME,
 } from "@/shared/ui/dialog/dialog-styles";
 import {
   getUiOverlayLayerClassName,
@@ -311,9 +311,9 @@ export function UiDialogCloseButton({
 }) {
   const { t } = useI18n();
   return (
-    <button
+    <UiIconButton
       aria-label={ariaLabel ?? t("common.close")}
-      className={cn(DIALOG_ICON_BUTTON_CLASS_NAME, className)}
+      className={className}
       disabled={disabled}
       onClick={(event) => {
         event.preventDefault();
@@ -323,9 +323,12 @@ export function UiDialogCloseButton({
       onPointerDown={(event) => {
         event.stopPropagation();
       }}
+      size="md"
+      tooltip={null}
       type="button"
+      variant="ghost"
     >
       <X className="h-4 w-4" />
-    </button>
+    </UiIconButton>
   );
 }

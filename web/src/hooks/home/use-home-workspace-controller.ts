@@ -6,7 +6,7 @@ import {
   clampHomeSidePanelWidthPercent,
   HOME_SIDE_PANEL_DEFAULT_WIDTH_PERCENT,
 } from "@/lib/layout/home-layout";
-import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { useWorkspaceFilesStore } from "@/store/workspace-files";
 import { TodoItem } from "@/types/conversation/todo";
 import { HomeWorkspaceControllerOptions } from "@/types/app/workspace";

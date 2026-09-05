@@ -6,7 +6,7 @@
 import {
   APP_ROUTE_PATHS,
   AppRouteBuilders,
-} from "@/app/router/route-paths";
+} from "@/shared/navigation/route-paths";
 import {
   getSettingsSectionLabelKey,
   parseSettingsSection,

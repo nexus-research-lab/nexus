@@ -174,7 +174,7 @@ describe("UiDialog modal behavior", () => {
 
     const overlay = document.createElement("div");
     overlay.dataset.uiOverlayOpen = "true";
-    document.body.append(overlay);
+    screen.getByRole("dialog", { name: "设置" }).append(overlay);
     await user.keyboard("{Escape}");
     expect(screen.getByRole("dialog", { name: "设置" })).toBeTruthy();
 

@@ -1,8 +1,13 @@
+// INPUT: exact Agent、文件类型及已加载正文。
+// OUTPUT: 绑定文件归属的 Markdown 预览或对应文本渲染器。
+// POS: Workspace 文本预览消费侧；文件资源经窄能力注入共享 Markdown。
 import {
   lazy,
   Suspense,
   type ComponentType,
 } from "react";
+
+import { useWorkspaceMarkdown } from "@/hooks/agent/use-workspace-markdown";
 
 import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
 import { LazyMermaidView } from "@/shared/ui/markdown/mermaid/lazy-mermaid-view";
@@ -14,6 +19,7 @@ import {
 } from "../workspace-file-preview-kind";
 
 interface TextRendererProps {
+  agentId: string;
   content: string;
   fileName: string;
   isStreaming: boolean;
@@ -24,11 +30,14 @@ interface TextFileContentProps extends TextRendererProps {
   isLoading: boolean;
 }
 
-function MarkdownContent({ content }: TextRendererProps) {
+function MarkdownContent({ agentId, content }: TextRendererProps) {
+  const { resolveFilePath, getFilePreviewUrl } = useWorkspaceMarkdown(agentId);
   return (
     <UiMarkdownContent
       className="nexus-workspace-file-markdown min-h-full"
       content={content}
+      getFilePreviewUrl={getFilePreviewUrl}
+      resolveFilePath={resolveFilePath}
       mermaidShowHeader={false}
     />
   );
@@ -100,6 +109,7 @@ const TEXT_RENDERERS: Partial<
 };
 
 export function TextFileContent({
+  agentId,
   content,
   fileName,
   fileType,
@@ -118,6 +128,7 @@ export function TextFileContent({
     : (TEXT_RENDERERS[fileType] ?? PlainTextContent);
   return (
     <Renderer
+      agentId={agentId}
       content={content}
       fileName={fileName}
       isStreaming={isStreaming}

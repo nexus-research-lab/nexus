@@ -11,8 +11,8 @@ import {
   useCallback,
 } from "react";
 
-import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
-import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { useCopyToClipboard } from "@/shared/lib/react/use-copy-to-clipboard";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { UiButton, UiIconButton, UiLinkButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import {

@@ -62,8 +62,13 @@ describe("UiTabs", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "关闭当前视图" }));
+    const dismissButton = screen.getByRole("button", { name: "关闭当前视图" });
+    expect(dismissButton.getAttribute("title")).toBe("关闭当前视图");
+    await user.click(dismissButton);
     expect(dismissals).toEqual(["work"]);
+    await user.keyboard("{Enter}");
+    await user.keyboard(" ");
+    expect(dismissals).toEqual(["work", "work", "work"]);
     expect(changes).toEqual([]);
   });
 

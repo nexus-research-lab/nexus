@@ -7,7 +7,7 @@
 import { ArrowRight, MessageSquare, Sparkles, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-import { AppRouteBuilders } from "@/app/router/route-paths";
+import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 import { filterRoomHistoryConversations } from "@/features/conversation/room/surface/history/room-history-model";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiListRow } from "@/shared/ui/list/list-row";

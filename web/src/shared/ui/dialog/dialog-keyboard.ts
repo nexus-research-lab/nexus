@@ -1,3 +1,6 @@
+// INPUT: 按键、Shift、焦点位置、可聚焦数量与子浮层打开事实。
+// OUTPUT: 关闭、焦点循环或忽略的纯动作判定。
+// POS: Dialog 键盘规则真相；不读取 DOM 或执行关闭副作用。
 export type DialogKeyboardAction =
   | "close"
   | "focus-first"

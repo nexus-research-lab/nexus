@@ -1,3 +1,6 @@
+// INPUT: 模态根、初始焦点、关闭动作与启用状态。
+// OUTPUT: 模态栈注册、滚动锁、焦点循环及仅由当前模态子浮层让出的 Escape。
+// POS: Dialog 的 React 生命周期适配；焦点计算、键盘规则和栈状态分别归专用模块。
 "use client";
 
 import { type RefObject, useEffect, useRef } from "react";
@@ -25,8 +28,8 @@ interface DialogModalBehaviorOptions<T extends HTMLElement> {
   rootRef: RefObject<T | null>;
 }
 
-function hasOpenOverlayControl(): boolean {
-  return Boolean(document.querySelector(OPEN_OVERLAY_SELECTOR));
+function hasOpenOverlayControl(root: HTMLElement): boolean {
+  return Boolean(root.querySelector(OPEN_OVERLAY_SELECTOR));
 }
 
 interface DialogKeyboardActionContext {
@@ -80,7 +83,7 @@ export function useDialogModalBehavior<T extends HTMLElement>({
       return;
     }
 
-    const token = registerDialogModal();
+    const token = registerDialogModal(rootRef.current);
     const previousFocus = document.activeElement instanceof HTMLElement
       ? document.activeElement
       : null;
@@ -110,7 +113,7 @@ export function useDialogModalBehavior<T extends HTMLElement>({
       const action = resolveDialogKeyboardAction({
         ...focusState,
         focusableCount: focusable.length,
-        hasOpenOverlay: hasOpenOverlayControl(),
+        hasOpenOverlay: hasOpenOverlayControl(root),
         key: event.key,
         shiftKey: event.shiftKey,
       });

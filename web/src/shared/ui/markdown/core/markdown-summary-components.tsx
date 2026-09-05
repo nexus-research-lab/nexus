@@ -1,3 +1,8 @@
+/**
+ * INPUT: 摘要样式选项与可选受控文件能力。
+ * OUTPUT: 保留 Markdown 语义的内联摘要组件表，链接和图片保持静态文本。
+ * POS: 共享 Markdown 摘要投影；不解释领域 URI 或资源身份。
+ */
 "use client";
 
 import type { Components } from "react-markdown";
@@ -12,11 +17,10 @@ interface CreateMarkdownSummaryComponentsOptions {
 
 export function createMarkdownSummaryComponents(
   resolveFilePath: ResolveWorkspaceFilePath,
-  onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void,
-  currentAgentId?: string | null,
+  onOpenWorkspaceFile?: (path: string) => void,
   options: CreateMarkdownSummaryComponentsOptions = {},
 ): Components {
-  const baseComponents = createMarkdownComponents(resolveFilePath, onOpenWorkspaceFile, currentAgentId);
+  const baseComponents = createMarkdownComponents(resolveFilePath, onOpenWorkspaceFile);
   const headingClassName = options.monochrome
     ? `inline ${options.strongAsText ? "font-normal" : "font-medium"} text-inherit`
     : "inline font-medium text-foreground";

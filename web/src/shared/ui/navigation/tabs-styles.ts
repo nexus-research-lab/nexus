@@ -18,13 +18,6 @@ export function getUiTabsNavClassName(className?: string): string {
   );
 }
 
-export function getUiTabDismissClassName(className?: string): string {
-  return cn(
-    "flex h-6 w-6 shrink-0 items-center justify-center radius-control-xs text-(--icon-muted) transition-[background-color,color,opacity] duration-(--motion-duration-fast) hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] hover:text-(--destructive) hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_32%,transparent)]",
-    className,
-  );
-}
-
 export function getUiTabClassName(
   options: UiTabStyleOptions = {},
   className?: string,

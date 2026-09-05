@@ -10,6 +10,7 @@ import { RotateCcw } from "lucide-react";
 
 import { NamedWorkGraphSketch } from "@/features/conversation/shared/execution/named-workgraph-sketch";
 import { getWorkGraphWorkflowsApi } from "@/lib/api/conversation/execution-api";
+import { WORKGRAPH_WORKFLOWS_CHANGED_EVENT } from "@/lib/conversation/workgraph-workflow-events";
 import { getResourceFailure, type ResourceFailure } from "@/lib/error-message";
 import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
@@ -28,8 +29,6 @@ import { getSelectMenuOptionStateClassName } from "@/shared/ui/menu/select-menu-
 import { SelectMenuOptionRow } from "@/shared/ui/menu/select-menu-primitives";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { WorkGraphWorkflow } from "@/types/conversation/workgraph-workflow";
-
-import { WORKGRAPH_WORKFLOWS_CHANGED_EVENT } from "../../../execution/workgraph-distillation-intent";
 
 export function WorkGraphDistillationPickerDialog({
   isOpen,

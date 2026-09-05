@@ -1,3 +1,8 @@
+// INPUT: 不可变运行记录与当前任务的诊断展示数据。
+// OUTPUT: 运行输出、诊断行和结构化执行 Session 证明的文件归属。
+// POS: Scheduled 历史纯投影；当前任务或当前选择不能替代历史 run 身份。
+
+import { parseSessionKey } from "@/lib/conversation/session-key";
 import type { ScheduledTaskRunItem } from "@/types/capability/scheduled-task/run";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 
@@ -150,6 +155,11 @@ export function getRunOutputSections(run: ScheduledTaskRunItem): RunOutputSectio
       ? []
       : [{ content, label: definition.label, tone: definition.tone }];
   });
+}
+
+export function getRunWorkspaceAgentID(run: ScheduledTaskRunItem): string | null {
+  const session = parseSessionKey(run.session_key);
+  return session.is_structured && session.kind === "agent" ? session.agent_id : null;
 }
 
 export function buildRunDiagnostic(

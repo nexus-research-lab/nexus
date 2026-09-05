@@ -1,10 +1,10 @@
 # Markdown 核心
 
 - `markdown-code-model.ts`: 将语法节点投影为内联、代码块或 Mermaid 状态。
-- `markdown-components.tsx`: 按可判别状态路由正文元素，不承担语义识别。
+- `markdown-components.tsx`: 按可判别状态路由正文元素；受控 `renderLink` 先交消费侧解释自有 URI，普通链接继续由共享安全模型处理。图片预览 URL 和文件打开命令只消费已经绑定作用域的闭包。
 - `markdown-summary-components.tsx`: 只用于紧凑摘要的内联组件表。
 - `markdown-link-model.ts`: 统一链接协议、工作区目标、尾部标点、显示文本和流式 URL 尾部策略。
-- `markdown-renderer-shared.tsx`: 组织 React Markdown 插件、受保护区域和共享渲染配置。
+- `markdown-renderer-shared.tsx`: 组织 React Markdown 插件、受保护区域和共享渲染配置；内部领域 URI 的放行属于消费侧 URL transform。
 - `markdown-fence.ts`: Fence 边界识别。
 - `markdown-text-plugins.ts`: 用有序、无状态的节点转换规则处理换行和受控内联 HTML。
 

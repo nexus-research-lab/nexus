@@ -5,7 +5,7 @@
 import { useCallback, useId, type KeyboardEvent } from "react";
 import { Plus } from "lucide-react";
 
-import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { cn } from "@/shared/ui/class-name";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { UiRemovableChip } from "@/shared/ui/form/removable-chip";

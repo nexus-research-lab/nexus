@@ -1,4 +1,4 @@
-// INPUT: shared/ui 公开 primitive/pattern 与当前 theme、locale、viewport 状态。
+// INPUT: shared/ui 公开 primitive/pattern 与当前 theme、locale、viewport 和嵌套交互状态。
 // OUTPUT: 可交互、可固定 URL、可在真实浏览器截图的组件状态陈列面。
 // POS: 开发期视觉验收工具；只消费公共 UI，不定义或导出产品组件。
 
@@ -560,9 +560,23 @@ export function UiContractGallery() {
               />
               <UiDialogBody scrollable>
                 <div className="space-y-4">
-                  <UiField label={galleryText(locale, "变更摘要", "Change summary")}>
-                    <UiTextarea key={locale} defaultValue={galleryText(locale, "相同功能只保留一个公共视觉入口；页面负责业务组合，不覆盖阴影、层级、圆角或焦点样式。", "Equivalent features keep one shared visual entry; pages compose business behavior without overriding shadow, layer, radius, or focus styles.")} />
+                  <UiField htmlFor="gallery-dialog-summary" label={galleryText(locale, "变更摘要", "Change summary")}>
+                    <UiTextarea id="gallery-dialog-summary" key={locale} defaultValue={galleryText(locale, "相同功能只保留一个公共视觉入口；页面负责业务组合，不覆盖阴影、层级、圆角或焦点样式。", "Equivalent features keep one shared visual entry; pages compose business behavior without overriding shadow, layer, radius, or focus styles.")} />
                   </UiField>
+                  <UiField label={galleryText(locale, "弹窗内选择", "Selection inside dialog")}>
+                    <UiSelectMenu
+                      ariaLabel={galleryText(locale, "弹窗内模型", "Model inside dialog")}
+                      onChange={setSelectedModel}
+                      options={[
+                        { label: galleryText(locale, "默认对话模型", "Default conversation model"), value: "default" },
+                        { label: galleryText(locale, "快速响应模型", "Fast response model"), value: "fast" },
+                      ]}
+                      value={selectedModel}
+                    />
+                  </UiField>
+                  <UiButton onClick={() => setPromptOpen(true)} variant="surface">
+                    {galleryText(locale, "打开嵌套确认", "Open nested prompt")}
+                  </UiButton>
                   <UiPanel padding="md" variant="dashed">
                     <div className="flex items-start gap-3">
                       <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-(--warning)" />

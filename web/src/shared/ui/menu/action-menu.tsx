@@ -1,5 +1,5 @@
 // INPUT: 外部控制的打开态、锚点、菜单项与选择/关闭命令。
-// OUTPUT: 定位后的可键盘遍历 action menu，并在选择/Escape 后归还焦点。
+// OUTPUT: 可见后获得初始焦点、重定位时保留当前焦点的 action menu，选择/Escape 后归还触发器。
 // POS: Action Menu 交互 pattern；不持有业务值或决定命令是否允许。
 "use client";
 
@@ -86,21 +86,10 @@ const EMPTY_ACTION_MENU_ITEMS: UiActionMenuItem[] = [];
 const ENABLED_ACTION_MENU_ITEM_SELECTOR = '[role="menuitem"]:not([aria-disabled="true"])';
 
 function handleActionMenuKeyDown({
-  anchorRef,
   event,
-  onClose,
 }: {
-  anchorRef: RefObject<HTMLElement | null>;
   event: KeyboardEvent<HTMLDivElement>;
-  onClose: () => void;
 }) {
-  if (event.key === "Escape") {
-    event.preventDefault();
-    event.stopPropagation();
-    onClose();
-    anchorRef.current?.focus();
-    return;
-  }
   if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
     return;
   }
@@ -229,15 +218,16 @@ export function UiActionMenu({
     isOpen,
     onClose,
   });
+  const isMenuPositioned = menuPosition !== null;
 
   useEffect(() => {
-    if (!isOpen || !portalContainer) {
+    if (!isOpen || !portalContainer || !isMenuPositioned) {
       return;
     }
     menuRef.current
       ?.querySelector<HTMLElement>(ENABLED_ACTION_MENU_ITEM_SELECTOR)
       ?.focus();
-  }, [isOpen, menuRef, portalContainer]);
+  }, [isMenuPositioned, isOpen, menuRef, portalContainer]);
 
   if (!isOpen) {
     return null;
@@ -263,9 +253,7 @@ export function UiActionMenu({
       data-placement={menuPosition?.placement ?? "bottom"}
       data-state="open"
       onKeyDown={(event) => handleActionMenuKeyDown({
-        anchorRef,
         event,
-        onClose,
       })}
       role="menu"
       style={menuStyle}

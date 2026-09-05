@@ -5,6 +5,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { importLeafTypeScriptModule } from "./import-leaf-typescript-module.mjs";
+import { collectFrontendModuleReferences, resolveFrontendModule } from "./frontend-dependency-model.mjs";
 
 const webRoot = fileURLToPath(new URL("..", import.meta.url));
 const srcRoot = path.join(webRoot, "src");
@@ -37,6 +38,7 @@ const REQUIRED_SHARED_UI_BEHAVIOR_SUITES = [
   "src/shared/ui/button/button.test.tsx",
   "src/shared/ui/dialog/decision/decision-dialog.test.tsx",
   "src/shared/ui/dialog/dialog.test.tsx",
+  "src/shared/ui/dialog/dialog-close-button.test.tsx",
   "src/shared/ui/disclosure/disclosure.test.tsx",
   "src/shared/ui/display/display.test.tsx",
   "src/shared/ui/feedback/feedback.test.tsx",
@@ -48,14 +50,18 @@ const REQUIRED_SHARED_UI_BEHAVIOR_SUITES = [
   "src/shared/ui/liquid-glass/glass-switch.test.tsx",
   "src/shared/ui/markdown/mermaid/mermaid-view-parts.test.tsx",
   "src/shared/ui/menu/menu.test.tsx",
+  "src/shared/ui/menu/select-menu-trigger.test.tsx",
+  "src/shared/ui/mention/mention-target-popover.test.tsx",
   "src/shared/ui/navigation/breadcrumb.test.tsx",
   "src/shared/ui/navigation/tabs.test.tsx",
   "src/shared/ui/onboarding/overlay/tour-overlay-card.test.tsx",
   "src/shared/ui/onboarding/overlay/tour-overlay.test.tsx",
   "src/shared/ui/overlay/tooltip.test.tsx",
+  "src/shared/ui/overlay/anchored-overlay-layer.test.tsx",
   "src/shared/ui/panel.test.tsx",
   "src/shared/ui/sidebar/sidebar-empty-guide.test.tsx",
   "src/shared/ui/workspace/controls/workspace-conversation-tabs.test.tsx",
+  "src/shared/ui/workspace/controls/conversation-tabs/workspace-conversation-tab.test.tsx",
   "src/shared/ui/workspace/surface/workspace-task-strip.test.tsx",
 ];
 
@@ -73,6 +79,11 @@ async function collectSourceFiles(directory) {
     return /\.(?:css|ts|tsx)$/.test(entry.name) ? [target] : [];
   }));
   return nested.flat();
+}
+
+function importsFrontendModule(filePath, source, target) {
+  return collectFrontendModuleReferences(filePath, source)
+    .some(({ specifier }) => resolveFrontendModule(filePath, specifier) === target);
 }
 
 test("semantic overlay layers preserve the current visual stack without exposing integers", async () => {
@@ -2460,7 +2471,6 @@ test("only shared primitive adapters consume the internal button style projectio
   const files = await collectSourceFiles(srcRoot);
   const adapters = new Set([
     "src/shared/ui/button/button.tsx",
-    "src/shared/ui/dialog/dialog-styles.ts",
   ]);
   const violations = [];
 
@@ -2468,7 +2478,8 @@ test("only shared primitive adapters consume the internal button style projectio
     if (!/\.(?:ts|tsx)$/.test(file)) continue;
     const source = await readFile(file, "utf8");
     const relativePath = path.relative(webRoot, file);
-    if (!adapters.has(relativePath) && /@\/shared\/ui\/button\/button-styles/.test(source)) {
+    if (!adapters.has(relativePath)
+      && importsFrontendModule(relativePath, source, "src/shared/ui/button/button-styles")) {
       violations.push(relativePath);
     }
   }
@@ -2507,7 +2518,7 @@ test("form style projection and ordinary native selects keep explicit owners", a
     const relativePath = path.relative(webRoot, file);
     if (
       relativePath !== "src/shared/ui/form/form-control.tsx"
-      && /@\/shared\/ui\/form\/form-control-styles/.test(source)
+      && importsFrontendModule(relativePath, source, "src/shared/ui/form/form-control-styles")
     ) {
       violations.push(`${relativePath}: internal form style import`);
     }
@@ -2533,7 +2544,7 @@ test("ordinary Room fields and permission radios keep shared DOM owners", async 
     if (
       relativePath !== "src/shared/ui/form/choice.tsx"
       && relativePath !== "src/shared/ui/form/choice-styles.ts"
-      && /@\/shared\/ui\/form\/choice-styles/.test(source)
+      && importsFrontendModule(relativePath, source, "src/shared/ui/form/choice-styles")
     ) {
       choiceStyleConsumers.push(relativePath);
     }
@@ -2550,6 +2561,30 @@ test("ordinary Room fields and permission radios keep shared DOM owners", async 
   assert.doesNotMatch(toolPermission, /getUiChoiceClassName|<input\b/);
 });
 
+test("single and multiple selects keep one trigger DOM and style owner", async () => {
+  const owners = new Set([
+    "src/shared/ui/menu/select-menu-primitives.tsx",
+    "src/shared/ui/menu/select-menu-styles.ts",
+  ]);
+  const violations = [];
+  for (const file of await collectSourceFiles(srcRoot)) {
+    if (!/\.(?:ts|tsx)$/.test(file)) continue;
+    const relativePath = path.relative(webRoot, file);
+    if (!owners.has(relativePath) && /\bgetSelectMenuButtonClassName\b/.test(await readFile(file, "utf8"))) {
+      violations.push(relativePath);
+    }
+  }
+  assert.deepEqual(violations, []);
+  for (const consumer of [
+    "src/shared/ui/menu/select-menu-view.tsx",
+    "src/features/conversation/room/members/skills/room-skill-multi-select.tsx",
+  ]) {
+    const source = await readSource(consumer);
+    assert.match(source, /<SelectMenuTrigger\b/);
+    assert.doesNotMatch(source, /<button\b/);
+  }
+});
+
 test("removable entities share one chip action and never nest fake buttons", async () => {
   const [primitive, identityTags, roomSkills] = await Promise.all([
     readSource("src/shared/ui/form/removable-chip.tsx"),
@@ -2563,7 +2598,7 @@ test("removable entities share one chip action and never nest fake buttons", asy
     assert.match(consumer, /<UiRemovableChip/);
     assert.doesNotMatch(consumer, /role="button"/);
   }
-  assert.match(roomSkills, /className: cn\("absolute inset-0"/);
+  assert.match(roomSkills, /className=\{cn\("absolute inset-0"/);
   assert.match(roomSkills, /disabled=\{disabled\}/);
   assert.doesNotMatch(roomSkills, /rounded-\[6px\]|tabIndex=\{-1\}/);
 });
