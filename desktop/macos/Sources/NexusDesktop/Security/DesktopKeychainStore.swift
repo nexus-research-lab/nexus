@@ -76,12 +76,7 @@ enum DesktopKeychainStore {
     storage: String,
     reason: String
   ) -> DesktopCredentialsKey {
-    var candidates = existingFallbackKeys()
-    if storage != "keychain",
-       let keychain = try? readWithTimeout(account: connectorCredentialsKeyAccount),
-       !keychain.isEmpty {
-      candidates.insert(keychain, at: 0)
-    }
+    let candidates = existingFallbackKeys()
     var seen = Set<String>([value])
     let legacyValues = candidates.filter { candidate in
       guard !seen.contains(candidate) else { return false }

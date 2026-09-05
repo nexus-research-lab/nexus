@@ -3,6 +3,7 @@ package llm
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 
 	providersvc "github.com/nexus-research-lab/nexus/internal/service/provider"
@@ -36,12 +37,23 @@ func parseTextResponse(apiFormat string, body []byte) (string, error) {
 		if text := payload.firstText(); text != "" {
 			return text, nil
 		}
-		return "", errors.New("llm anthropic_messages response missing text")
+		return "", fmt.Errorf(
+			"llm anthropic_messages response missing text: stop_reason=%q output_tokens=%d content_types=%q",
+			strings.TrimSpace(payload.StopReason),
+			payload.Usage.OutputTokens,
+			strings.Join(payload.contentTypes(), ","),
+		)
 	}
 }
 
 type anthropicMessagesResponse struct {
-	Content []anthropicContentBlock `json:"content"`
+	Content    []anthropicContentBlock `json:"content"`
+	StopReason string                  `json:"stop_reason"`
+	Usage      anthropicUsage          `json:"usage"`
+}
+
+type anthropicUsage struct {
+	OutputTokens int `json:"output_tokens"`
 }
 
 type anthropicContentBlock struct {
@@ -56,6 +68,16 @@ func (r anthropicMessagesResponse) firstText() string {
 		}
 	}
 	return ""
+}
+
+func (r anthropicMessagesResponse) contentTypes() []string {
+	types := make([]string, 0, len(r.Content))
+	for _, item := range r.Content {
+		if itemType := strings.TrimSpace(item.Type); itemType != "" {
+			types = append(types, itemType)
+		}
+	}
+	return types
 }
 
 type chatCompletionsResponse struct {
