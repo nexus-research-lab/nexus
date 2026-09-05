@@ -1,6 +1,6 @@
 /**
  * INPUT: Loop 目录、筛选、复制动作与可选详情路由。
- * OUTPUT: 展示用途、触发方式与步骤规模的工作循环目录或当前 Loop 详情。
+ * OUTPUT: 使用公共 outlined 条目展示用途、触发方式与步骤规模的目录或当前 Loop 详情。
  * POS: “能力 > 工作循环”的唯一页面入口。
  */
 "use client";
@@ -209,6 +209,7 @@ export function LoopsDirectory() {
                 >
                   {filteredLoops.map((loop) => (
                     <UiListRow
+                      variant="outlined"
                       className={CAPABILITY_DIRECTORY_ROW_CLASS_NAME}
                       key={loop.slug}
                       onClick={() => navigate(AppRouteBuilders.loopDetail(loop.slug))}

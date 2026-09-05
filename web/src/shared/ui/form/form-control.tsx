@@ -1,5 +1,5 @@
 // INPUT: 原生输入属性、内容角色、字段描述/错误与搜索值变更命令。
-// OUTPUT: 统一输入外观与可读占位提示、原生校验反馈和可访问搜索清除行为。
+// OUTPUT: 统一输入外观、标签/说明层级与可读占位提示、原生校验反馈和可访问搜索清除行为。
 // POS: 文本表单控件原语；不持有业务草稿、提交事务或领域校验规则。
 "use client";
 
@@ -20,6 +20,7 @@ import { Search, X } from "lucide-react";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import {
   getUiFormControlClassName,
   getUiSearchInputShellClassName,
@@ -175,7 +176,7 @@ export function UiField({
           </label>
           {labelError ? (
             <span
-              className="shrink-0 text-xs leading-5 text-(--destructive)"
+              className={cn("shrink-0", getUiTypographyClassName({ role: "metadata", tone: "danger" }))}
               id={errorId}
               role="alert"
             >
@@ -187,14 +188,14 @@ export function UiField({
       {children}
       {contentError ? (
         <p
-          className="mt-2 text-xs leading-5 text-(--destructive)"
+          className={getUiTypographyClassName({ role: "supporting", tone: "danger" })}
           id={errorId}
           role="alert"
         >
           {contentError}
         </p>
       ) : description ? (
-        <p className="mt-2 text-xs leading-5 text-(--text-muted)">
+        <p className={getUiTypographyClassName({ role: "supporting", tone: "muted" })}>
           {description}
         </p>
       ) : null}

@@ -1,6 +1,6 @@
 /**
  * INPUT: 已投影的频道身份、状态、使用元数据与配置动作。
- * OUTPUT: 显示平台用途、状态和使用事实的频道条目。
+ * OUTPUT: 使用公共 outlined 表面、显示平台用途、状态和使用事实的频道条目。
  * POS: 频道目录卡片纯视图。
  */
 import {
@@ -146,6 +146,7 @@ export function ChannelCard({
 
   return (
     <UiListRow
+      variant="outlined"
       className={cn(
         CAPABILITY_DIRECTORY_ROW_CLASS_NAME,
         planned && "cursor-default",

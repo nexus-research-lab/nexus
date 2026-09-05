@@ -1,6 +1,6 @@
 /**
  * INPUT: 运行引擎、工具发现与网页搜索偏好。
- * OUTPUT: 以用户任务语言展示的运行设置和按需高级搜索配置。
+ * OUTPUT: 以用户任务语言展示的运行设置、公共紧凑搜索选择器和按需高级搜索配置。
  * POS: 设置目录的运行分区，不暴露底层 schema 或 bridge 教学。
  */
 "use client";
@@ -46,13 +46,11 @@ import type { TranslationKey } from "@/shared/i18n/messages";
 import { AGENT_RUNTIME_KIND_OPTIONS } from "./model/settings-runtime-options";
 import {
   SETTINGS_CARD_CLASS_NAME,
-  SETTINGS_CONTROL_HEIGHT_CLASS_NAME,
   SETTINGS_CONTROL_LABEL_CLASS_NAME,
   SETTINGS_ICON_CLASS_NAME,
   SETTINGS_ITEM_DESCRIPTION_CLASS_NAME,
   SETTINGS_ITEM_TITLE_CLASS_NAME,
   SETTINGS_ROW_CLASS_NAME,
-  SETTINGS_SELECT_BUTTON_CLASS_NAME,
   SETTINGS_TEXT_ROW_CLASS_NAME,
 } from "../shared/settings-panel-ui";
 import { useRuntimeSettingsController } from "./use-runtime-settings-controller";
@@ -295,8 +293,6 @@ function WebSearchRow({
           </span>
           <UiSelectMenu
             ariaLabel={t("settings.runtime.web_search_provider")}
-            buttonClassName={SETTINGS_SELECT_BUTTON_CLASS_NAME}
-            className={SETTINGS_CONTROL_HEIGHT_CLASS_NAME}
             disabled={disabled}
             onChange={(value) => {
               const nextProvider = value as WebSearchProvider;
@@ -312,7 +308,7 @@ function WebSearchRow({
               label: t(providerOption.labelKey),
             }))}
             placement="bottom"
-            size="xs"
+            size="sm"
             value={draft.provider ?? DEFAULT_WEB_SEARCH_PROVIDER}
           />
         </div>

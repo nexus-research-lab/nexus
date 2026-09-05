@@ -5,7 +5,7 @@
 import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
 
 import { moveKeyboardFocus } from "./keyboard";
-import { measurePlaceholderContrast } from "./color-contrast";
+import { measureTextContrast } from "./color-contrast";
 
 function copy(info: TestInfo, zh: string, en: string): string {
   return info.project.metadata.locale === "zh" ? zh : en;
@@ -53,13 +53,85 @@ test("empty form hints remain readable on each theme surface", async ({ page }, 
   const measurements = [];
   for (const control of await controls.all()) {
     await control.scrollIntoViewIfNeeded();
-    const result = await measurePlaceholderContrast(control);
+    const result = await measureTextContrast(control, "::placeholder");
     expect(result.placeholderShown).toBe(true);
     expect(result.ratio, await control.getAttribute("id") ?? "empty field").toBeGreaterThanOrEqual(4.5);
     measurements.push({ id: await control.getAttribute("id"), ...result });
   }
   await info.attach("empty-field-contrast", { body: JSON.stringify(measurements), contentType: "application/json" });
   await capture(fields, info, "empty-fields");
+  expect(errors).toEqual([]);
+});
+
+test("settings controls share readable compact sizes and preserve keyboard selection and saving locks", async ({ page }, info) => {
+  const { errors } = await openGallery(page, info, "content");
+  const settings = page.locator("[data-gallery-settings-controls]");
+  await settings.scrollIntoViewIfNeeded();
+  const modelRow = settings.locator("[data-gallery-settings-model]");
+  const permissionRow = settings.locator("[data-gallery-settings-permission]");
+  const model = modelRow.getByRole("button", { expanded: false });
+  const permission = permissionRow.getByRole("button", { expanded: false });
+  const saving = settings.locator("[data-gallery-settings-saving]");
+  const commands = settings.locator("[data-gallery-settings-commands]");
+  const contrast = [];
+  // Flat fixture surfaces isolate the theme's text paint from decorative rain.
+  for (const text of await settings.locator("p, .dialog-label, [data-gallery-settings-model] .ui-type-weight-medium").all()) {
+    const result = await measureTextContrast(text);
+    expect(result.ratio, await text.textContent() ?? "settings text").toBeGreaterThanOrEqual(4.5);
+    contrast.push({ text: await text.textContent(), ...result });
+  }
+  for (const size of ["xs", "sm"]) {
+    const group = settings.locator(`[data-gallery-compact-size="${size}"]`);
+    const controls = group.locator("input, button");
+    await expect(controls).toHaveCount(3);
+    for (const control of await controls.all()) {
+      const metrics = await control.evaluate((element) => ({
+        height: element.getBoundingClientRect().height,
+        font: getComputedStyle(element).fontSize,
+      }));
+      expect(metrics).toEqual({ height: size === "xs" ? 28 : 32, font: size === "xs" ? "12px" : "13px" });
+    }
+    const field = group.locator("..");
+    const description = field.locator(":scope > p");
+    const gap = (await description.boundingBox())!.y - ((await group.boundingBox())!.y + (await group.boundingBox())!.height);
+    expect(gap).toBeCloseTo(8, 1);
+    await field.locator("label").click();
+    await expect(group.getByRole("textbox")).toBeFocused();
+  }
+  for (const control of [model, permission]) {
+    expect(await control.evaluate((element) => ({ height: element.getBoundingClientRect().height,
+      font: getComputedStyle(element).fontSize }))).toEqual({ height: 32, font: "13px" });
+  }
+  await saving.focus();
+  await moveKeyboardFocus(page, info);
+  await expect(model).toBeFocused();
+  expect(await model.evaluate((element) => element.matches(":focus-visible"))).toBe(true);
+  expect(await model.evaluate((element) => getComputedStyle(element).boxShadow)).toMatch(/0px 0px 0px 2px/);
+  await capture(model, info, "settings-keyboard-focus");
+  await page.keyboard.press("Space");
+  await expect(page.getByRole("listbox")).toBeVisible();
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  await expect(commands).toHaveText('["agent_runtime:reasoning"]');
+  await expect(model).toBeFocused();
+  await expect(model).toHaveText(copy(info, "推理模型", "Reasoning model"));
+  await moveKeyboardFocus(page, info);
+  await expect(permission).toBeFocused();
+  await page.keyboard.press("Space");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  await expect(commands).toHaveText('["agent_runtime:reasoning","permission:plan"]');
+  await saving.click();
+  await expect(model).toBeDisabled();
+  await expect(permission).toBeDisabled();
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+  await saving.click();
+  await expect(model).toBeEnabled();
+  await expect(permission).toBeEnabled();
+  await expect(commands).toHaveText('["agent_runtime:reasoning","permission:plan"]');
+  expect(await settings.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
+  await info.attach("settings-text-contrast", { body: JSON.stringify(contrast), contentType: "application/json" });
+  await capture(settings, info, "settings-compact-controls");
   expect(errors).toEqual([]);
 });
 

@@ -31,6 +31,7 @@ import { ComposerAttachmentsGallery } from "./ui-gallery-composer-attachments";
 import { WorkGraphGallery } from "./ui-gallery-workgraph";
 import { MessageSurfacesGallery } from "./ui-gallery-message-surfaces";
 import { ProductControlsGallery } from "./ui-gallery-product-controls";
+import { SettingsControlsGallery } from "./ui-gallery-settings-controls";
 import { UiButton, UiIconButton, UiLinkButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
@@ -210,6 +211,7 @@ export function ContentGallery({ locale }: { locale: Locale }) {
   return (
     <div className="grid items-start gap-5 xl:grid-cols-2" data-gallery-panel="content">
       <ProductControlsGallery />
+      <SettingsControlsGallery />
       <MessageSurfacesGallery />
       <PreviewSection
         description={galleryText(locale, "通知、恢复说明与固定视口都使用产品中的真实反馈组件。", "Notices, recovery guidance, and the fixed viewport all use production feedback components.")}

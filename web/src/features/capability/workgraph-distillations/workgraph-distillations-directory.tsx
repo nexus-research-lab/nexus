@@ -1,6 +1,6 @@
 /**
  * INPUT: owner-scoped 命名工作图目录与可选详情路由。
- * OUTPUT: 带来源说明与创建指引的工作图目录、节点详情、复制、编辑与删除操作。
+ * OUTPUT: 使用公共 outlined 条目的工作图目录、来源说明、创建指引、节点详情及复制/编辑/删除操作。
  * POS: “能力 > 工作图”的唯一页面入口。
  */
 "use client";
@@ -311,6 +311,7 @@ export function WorkGraphDistillationsDirectory() {
           <div className={CAPABILITY_DIRECTORY_GRID_CLASS_NAME}>
             {filtered.map((item) => (
               <UiListRow
+                variant="outlined"
                 className={CAPABILITY_DIRECTORY_ROW_CLASS_NAME}
                 key={item.id}
                 leading={<UiSeededAvatar seed={item.slash_name} size="sm" />}

@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import { readdir, readFile } from "node:fs/promises";
 import test from "node:test";
 import { findControlVisualOverrides } from "./frontend-control-style-policy.mjs";
+import { resolveFrontendModule } from "./frontend-dependency-model.mjs";
 
 const samplePath = "src/features/example.tsx";
 const header = 'import { UiButton as Action } from "@/shared/ui/button/button";\n';
@@ -83,6 +84,29 @@ test("visual guard respects block and parameter shadowing", () => {
   assert.deepEqual(findControlVisualOverrides(samplePath, source).map((issue) => issue.value), ["bg-(--primary)"]);
 });
 
+test("visual guard follows imported constants and named re-exports without executing modules", () => {
+  const modules = new Map([
+    ["src/features/legacy", 'export const field = cn("w-full", "focus-visible:ring-0", "text-xs"); throw new Error("never execute");'],
+    ["src/features/forward", 'export { field as legacyField } from "./legacy";'],
+  ]);
+  const source = `import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
+    import { legacyField as custom } from "./forward";
+    const view = <UiSelectMenu buttonClassName={custom} />;`;
+  assert.deepEqual(findControlVisualOverrides(samplePath, source, modules).map((issue) => issue.value), ["focus-visible:ring-0", "text-xs"]);
+});
+
+test("imported style resolution preserves local shadowing, layout-only values and cycle bounds", () => {
+  const modules = new Map([
+    ["src/features/styles", 'export const custom = "bg-red-500"; const layout = "w-full min-w-0"; export { layout };'],
+    ["src/features/cycle", 'export { cycle } from "./cycle";'],
+  ]);
+  const source = header + `import { custom, layout } from "./styles";
+    import { cycle } from "./cycle";
+    function View({ custom }) { return <Action className={custom} />; }
+    const view = <Action className={layout} data-reference={custom} style={cycle} />;`;
+  assert.deepEqual(findControlVisualOverrides(samplePath, source, modules), []);
+});
+
 test("visual guard covers field content, search inputs and native selection controls", () => {
   const source = `
     import { UiInput as Input, UiTextarea, UiNativeSelect, UiSearchInput } from "@/shared/ui/form/form-control";
@@ -106,16 +130,20 @@ async function sourceFiles(directory) {
   const children = await readdir(new URL(`../${directory}/`, import.meta.url), { withFileTypes: true });
   const paths = await Promise.all(children.map((entry) => entry.isDirectory()
     ? sourceFiles(`${directory}/${entry.name}`)
-    : entry.name.endsWith(".tsx") && !entry.name.endsWith(".test.tsx") ? [`${directory}/${entry.name}`] : []));
+    : /\.[cm]?tsx?$/.test(entry.name) && !/\.(test|spec)\./.test(entry.name) ? [`${directory}/${entry.name}`] : []));
   return paths.flat();
 }
 
 test("product controls consume shared visual owners without private overrides", async () => {
-  const files = (await Promise.all([sourceFiles("src/features"), sourceFiles("src/pages")])).flat().sort();
+  const files = (await sourceFiles("src")).sort();
+  const sources = new Map(await Promise.all(files.map(async (file) => [
+    resolveFrontendModule(file, `/${file}`), await readFile(new URL(`../${file}`, import.meta.url), "utf8"),
+  ])));
   const violations = [];
   for (const file of files) {
-    const source = await readFile(new URL(`../${file}`, import.meta.url), "utf8");
-    for (const issue of findControlVisualOverrides(file, source)) {
+    if (!/^src\/(?:features|pages)\//.test(file) || !file.endsWith(".tsx")) continue;
+    const source = sources.get(resolveFrontendModule(file, `/${file}`));
+    for (const issue of findControlVisualOverrides(file, source, sources)) {
       violations.push(`${file}:${issue.line} ${issue.control}.${issue.property}: ${issue.value}`);
     }
   }

@@ -1,11 +1,11 @@
-// INPUT: A visible control on flat, unfiltered fixture surfaces and its rendered placeholder.
+// INPUT: Visible text or a placeholder on flat, unfiltered fixture surfaces.
 // OUTPUT: Browser-composited foreground/background contrast without glyph antialiasing.
 // POS: Visual QA measurement; rejects images, filters and group opacity instead of guessing their paint.
 
 import type { Locator } from "@playwright/test";
 
-export async function measurePlaceholderContrast(control: Locator) {
-  return control.evaluate((element) => {
+export async function measureTextContrast(control: Locator, pseudo: "::placeholder" | null = null) {
+  return control.evaluate((element, pseudo) => {
     const canvas = document.createElement("canvas");
     canvas.width = canvas.height = 1;
     const context = canvas.getContext("2d", { willReadFrequently: true })!;
@@ -32,9 +32,9 @@ export async function measurePlaceholderContrast(control: Locator) {
       context.fillRect(0, 0, 1, 1);
     }
     const background = Array.from(context.getImageData(0, 0, 1, 1).data).slice(0, 3);
-    const placeholder = getComputedStyle(element, "::placeholder");
-    context.globalAlpha = Number(placeholder.opacity);
-    context.fillStyle = placeholder.color;
+    const text = getComputedStyle(element, pseudo);
+    context.globalAlpha = Number(text.opacity);
+    context.fillStyle = text.color;
     context.fillRect(0, 0, 1, 1);
     const foreground = Array.from(context.getImageData(0, 0, 1, 1).data).slice(0, 3);
     const luminance = (rgb: number[]) => rgb.reduce((sum, channel, index) => {
@@ -49,5 +49,5 @@ export async function measurePlaceholderContrast(control: Locator) {
       background,
       placeholderShown: element.matches(":placeholder-shown"),
     };
-  });
+  }, pseudo);
 }

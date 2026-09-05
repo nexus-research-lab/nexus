@@ -1,5 +1,5 @@
 // INPUT: Button 的 size/tone/variant、原生 disabled/aria-busy、IconButton 的 shape 与调用方外部布局 class。
-// OUTPUT: 由共享 token/recipe 组成的稳定按钮样式投影。
+// OUTPUT: 与字段配套的紧凑字号/高度及共享 token/recipe 按钮状态投影。
 // POS: Button 视觉状态真相；不渲染 DOM，也不接受业务专属视觉覆盖。
 
 import { cn } from "@/shared/ui/class-name";
@@ -41,8 +41,8 @@ const BUTTON_BASE_CLASS_NAME =
 
 const BUTTON_SIZE_CLASS_MAP: Record<UiButtonSize, string> = {
   "2xs": "min-h-6 px-1.5 py-0.5 ui-type-caption",
-  xs: "min-h-7 px-2 py-1 ui-type-caption",
-  sm: "min-h-8 px-2.5 py-1.5 ui-type-metadata",
+  xs: "min-h-7 px-2 py-1 ui-type-metadata",
+  sm: "min-h-8 px-2.5 py-1 ui-type-supporting",
   md: "min-h-9 px-3.5 py-1.5 ui-type-control",
   lg: "min-h-10 px-4 py-2 ui-type-control",
 };

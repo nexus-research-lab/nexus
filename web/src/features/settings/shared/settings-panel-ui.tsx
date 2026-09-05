@@ -1,6 +1,6 @@
 /**
  * INPUT: 设置项标题、说明、选项、当前值与设置目录动作。
- * OUTPUT: 统一的设置卡片、行、控件、导航项与响应式信息层级样式。
+ * OUTPUT: 设置卡片与行布局、可读标签/说明及共享 Button 目录导航。
  * POS: 设置域共享视图 Pattern；行级说明在窄屏仍用于解释选项影响。
  */
 
@@ -28,19 +28,13 @@ export const SETTINGS_ITEM_TITLE_CLASS_NAME = getUiTypographyClassName({
 });
 export const SETTINGS_ITEM_DESCRIPTION_CLASS_NAME = cn(
   "mt-1 max-w-[520px]",
-  getUiTypographyClassName({ role: "supporting", tone: "soft" }),
+  getUiTypographyClassName({ role: "supporting", tone: "muted" }),
 );
 export const SETTINGS_CONTROL_LABEL_CLASS_NAME = getUiTypographyClassName({
-  role: "caption",
-  tone: "soft",
+  role: "supporting",
+  tone: "default",
   weight: "medium",
 });
-export const SETTINGS_CONTROL_HEIGHT_CLASS_NAME = "h-7";
-export const SETTINGS_SELECT_BUTTON_CLASS_NAME = cn(
-  SETTINGS_CONTROL_HEIGHT_CLASS_NAME,
-  "w-full radius-control-md border-(--divider-subtle-color) bg-transparent px-2.5 text-(--text-strong) shadow-none hover:border-(--divider-subtle-color) hover:bg-(--surface-interactive-hover-background) focus-visible:ring-0",
-  getUiTypographyClassName({ role: "caption", weight: "semibold" }),
-);
 
 interface SettingsNavigationButtonProps
   extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children"> {
@@ -81,7 +75,7 @@ export function SettingsNavigationGroupLabel({
     <p
       className={cn(
         "px-2 pb-1",
-        getUiTypographyClassName({ role: "overline", tone: "soft" }),
+        getUiTypographyClassName({ role: "metadata", tone: "muted", weight: "medium" }),
         className,
       )}
     >

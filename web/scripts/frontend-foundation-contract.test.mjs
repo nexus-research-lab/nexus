@@ -1888,7 +1888,7 @@ test("Settings navigation consumes shared Button and typography owners", async (
   assert.deepEqual(violations, []);
   assert.match(navigationPattern, /SettingsNavigationButton/);
   assert.match(navigationPattern, /<UiButton/);
-  assert.match(navigationPattern, /role: "overline"/);
+  assert.match(navigationPattern, /getUiTypographyClassName/);
   assert.match(buttonStyles, /md: "[^"]*ui-type-control"/);
   assert.match(buttonStyles, /lg: "[^"]*ui-type-control"/);
   assert.match(buttonStyles, /aria-\[current=page\]/);

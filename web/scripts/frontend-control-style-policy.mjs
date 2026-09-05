@@ -1,4 +1,4 @@
-// INPUT: React source and canonical shared control imports.
+// INPUT: React source, canonical shared control imports and optional local module sources.
 // OUTPUT: Statically provable className/style overrides of control-owned visuals.
 // POS: Architecture gate; layout is allowed, dynamic runtime CSS still requires review.
 
@@ -48,10 +48,11 @@ function isVisualClass(token) {
   return VISUAL_CLASS.test(utility) || Boolean(arbitraryProperty && isVisualProperty(arbitraryProperty[1]));
 }
 
-export function findControlVisualOverrides(filePath, source) {
+export function findControlVisualOverrides(filePath, source, moduleSources = new Map()) {
   const tree = ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const controls = new Set();
   const scopeBindings = new Map();
+  const moduleTrees = new Map();
   const violations = [];
   for (const node of tree.statements) {
     if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
@@ -90,6 +91,50 @@ export function findControlVisualOverrides(filePath, source) {
   }
   indexConstants(tree);
 
+  function moduleTree(modulePath) {
+    if (!modulePath || !moduleSources.has(modulePath)) return;
+    if (!moduleTrees.has(modulePath)) {
+      const parsed = ts.createSourceFile(modulePath, moduleSources.get(modulePath), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+      moduleTrees.set(modulePath, parsed);
+      indexConstants(parsed);
+    }
+    return moduleTrees.get(modulePath);
+  }
+  // Follow declared immutable exports only. This reads ASTs, never application code.
+  function exportedValue(modulePath, name, seen = new Set()) {
+    const key = `${modulePath}:${name}`;
+    if (seen.has(key)) return;
+    const parsed = moduleTree(modulePath);
+    if (!parsed) return;
+    const next = new Set([...seen, key]);
+    for (const statement of parsed.statements) {
+      if (ts.isVariableStatement(statement)
+          && statement.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword)
+          && (statement.declarationList.flags & ts.NodeFlags.Const)) {
+        const declaration = statement.declarationList.declarations.find((entry) => ts.isIdentifier(entry.name) && entry.name.text === name);
+        if (declaration) return declaration.initializer;
+      }
+      if (ts.isExportDeclaration(statement) && !statement.isTypeOnly
+          && statement.exportClause && ts.isNamedExports(statement.exportClause)) {
+        const entry = statement.exportClause.elements.find((entry) => !entry.isTypeOnly && entry.name.text === name);
+        if (!entry) continue;
+        const originalName = (entry.propertyName ?? entry.name).text;
+        return statement.moduleSpecifier && ts.isStringLiteral(statement.moduleSpecifier)
+          ? exportedValue(resolveFrontendModule(modulePath, statement.moduleSpecifier.text), originalName, next)
+          : scopeBindings.get(parsed)?.get(originalName) ?? importedValue(parsed, originalName, next);
+      }
+    }
+  }
+  function importedValue(parsed, name, seen) {
+    for (const statement of parsed.statements) {
+      if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier) || statement.importClause?.isTypeOnly) continue;
+      const bindings = statement.importClause?.namedBindings;
+      if (!bindings || !ts.isNamedImports(bindings)) continue;
+      const entry = bindings.elements.find((entry) => !entry.isTypeOnly && entry.name.text === name);
+      if (entry) return exportedValue(resolveFrontendModule(parsed.fileName, statement.moduleSpecifier.text), (entry.propertyName ?? entry.name).text, seen);
+    }
+  }
+
   function unwrap(node, seen = new Set()) {
     if (!node) return node;
     if (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isSatisfiesExpression(node)) return unwrap(node.expression, seen);
@@ -98,6 +143,10 @@ export function findControlVisualOverrides(filePath, source) {
         if (scopeBindings.get(scope)?.has(node.text)) {
           const value = scopeBindings.get(scope).get(node.text);
           return value ? unwrap(value, new Set([...seen, node])) : node;
+        }
+        if (ts.isSourceFile(scope)) {
+          const value = importedValue(scope, node.text);
+          if (value) return unwrap(value, new Set([...seen, node]));
         }
       }
     }

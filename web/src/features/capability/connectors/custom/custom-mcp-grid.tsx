@@ -1,6 +1,6 @@
 /**
  * INPUT: owner 级自定义 MCP 目录及增删改命令。
- * OUTPUT: 不重复页签标题和启用教程的 MCP 目录。
+ * OUTPUT: 复用公共 outlined 条目、不重复页签标题和启用教程的 MCP 目录。
  * POS: Connector 页的自定义 MCP 子目录视图。
  */
 "use client";
@@ -99,6 +99,7 @@ export function CustomMCPGrid({
           );
           return (
             <UiListRow
+              variant="outlined"
               className={CAPABILITY_DIRECTORY_ROW_CLASS_NAME}
               description={recoveryRequired ? (
                 t("capability.custom_mcp_recovery_summary")

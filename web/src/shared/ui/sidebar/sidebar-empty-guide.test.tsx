@@ -32,7 +32,7 @@ describe("SidebarEmptyGuide", () => {
     expect(screen.queryByText("网络恢复后重试。")).toBeNull();
 
     const action = screen.getByRole("button", { name: "重新加载" });
-    expect(action.className).toContain("ui-type-caption");
+    expect(action.className).toContain("ui-type-metadata");
     expect(action.className).toContain("radius-control-xs");
     fireEvent.click(action);
     expect(onAction).toHaveBeenCalledOnce();
