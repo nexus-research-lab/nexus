@@ -87,6 +87,46 @@ function importsFrontendModule(filePath, source, target) {
     .some(({ specifier }) => resolveFrontendModule(filePath, specifier) === target);
 }
 
+function countNativeElement(filePath, source, tagName) {
+  const tree = ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true, filePath.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+  const factories = new Set(["createElement"]);
+  for (const statement of tree.statements) {
+    if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier) || statement.moduleSpecifier.text !== "react") continue;
+    const bindings = statement.importClause?.namedBindings;
+    if (bindings && ts.isNamedImports(bindings)) {
+      for (const binding of bindings.elements) {
+        if ((binding.propertyName ?? binding.name).text === "createElement") factories.add(binding.name.text);
+      }
+    }
+  }
+  let count = 0;
+  function visit(node) {
+    if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && node.tagName.getText(tree) === tagName) count += 1;
+    if (ts.isCallExpression(node) && node.arguments[0] && ts.isStringLiteralLike(node.arguments[0]) && node.arguments[0].text === tagName) {
+      const callee = node.expression;
+      if ((ts.isIdentifier(callee) && factories.has(callee.text)) || (ts.isPropertyAccessExpression(callee) && callee.name.text === "createElement")) count += 1;
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(tree);
+  return count;
+}
+
+test("native element inventory follows factory aliases and ignores source examples", () => {
+  const source = `
+    import { createElement as element } from "react";
+    const example = "<select /> createElement('select')";
+    // <select />
+    const view = <><select /><UiNativeSelect /></>;
+    const factory = element("select", {});
+    const direct = React.createElement("select", {});
+    const dom = document.createElement("select");
+    const button = <button />;
+  `;
+  assert.equal(countNativeElement("example.tsx", source, "select"), 4);
+  assert.equal(countNativeElement("example.tsx", source, "button"), 1);
+});
+
 test("semantic overlay layers preserve the current visual stack without exposing integers", async () => {
   const { getUiOverlayLayerClassName } = await importLeafTypeScriptModule(
     webRoot,
@@ -608,17 +648,7 @@ test("domain native buttons match the single documented geometry-owner inventory
   const files = (await Promise.all(["features", "pages"].map((root) => collectSourceFiles(path.join(srcRoot, root))))).flat();
   for (const file of files.filter((file) => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file))) {
     const source = await readFile(file, "utf8");
-    const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
-    let count = 0;
-    function visit(node) {
-      if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && node.tagName.getText(tree) === "button") count += 1;
-      if (ts.isCallExpression(node) && node.arguments[0] && ts.isStringLiteral(node.arguments[0]) && node.arguments[0].text === "button") {
-        const callee = node.expression;
-        if ((ts.isIdentifier(callee) && callee.text === "createElement") || (ts.isPropertyAccessExpression(callee) && callee.name.text === "createElement")) count += 1;
-      }
-      ts.forEachChild(node, visit);
-    }
-    visit(tree);
+    const count = countNativeElement(file, source, "button");
     if (count) actual.set(path.relative(webRoot, file), count);
   }
   assert.deepEqual([...actual].sort(), [...expected].sort(), "Ordinary actions must consume shared controls; geometry exceptions require an explicit owner and behavior evidence.");
@@ -2554,7 +2584,8 @@ test("form style projection and ordinary native selects keep explicit owners", a
     if (
       !embeddedSelectOwners.has(relativePath)
       && relativePath !== "src/shared/ui/form/form-control.tsx"
-      && /<select\b/.test(source)
+      && !/\.(?:test|spec)\.tsx?$/.test(file)
+      && countNativeElement(file, source, "select") > 0
     ) {
       violations.push(`${relativePath}: unowned native select`);
     }

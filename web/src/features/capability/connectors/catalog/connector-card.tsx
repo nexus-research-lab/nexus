@@ -10,7 +10,6 @@ import { type MouseEvent } from "react";
 
 import { CAPABILITY_DIRECTORY_ROW_CLASS_NAME } from "@/features/capability/shared/capability-page-layout";
 import { UiIconButton } from "@/shared/ui/button/button";
-import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiListRow } from "@/shared/ui/list/list-row";
@@ -56,10 +55,11 @@ export function ConnectorCard({
 
   return (
     <UiListRow
-      className={cn(CAPABILITY_DIRECTORY_ROW_CLASS_NAME, busy && "opacity-65")}
+      className={CAPABILITY_DIRECTORY_ROW_CLASS_NAME}
       description={connector.description}
       leading={<ConnectorIcon icon={connector.icon} title={connector.title} />}
       meta={<ConnectorCardBadge badge={model.badge} />}
+      muted={busy}
       onClick={onSelect}
       right={(
         <span className="flex h-9 w-9 shrink-0 items-center justify-center">

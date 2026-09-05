@@ -109,7 +109,7 @@ function ContactsAgentListRow({
 
   return (
     <UiListRow
-      className="rounded-none"
+      variant="flush"
       leading={<UiAgentAvatar avatar={agent.avatar} name={agent.name} size="md" />}
       onClick={onOpenProfile}
       right={(

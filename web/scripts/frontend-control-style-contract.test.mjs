@@ -59,6 +59,17 @@ test("visual guard checks list actions and select trigger classes", () => {
   assert.deepEqual(findControlVisualOverrides(samplePath, source).map((issue) => issue.value), ["opacity-60", "hover:opacity-100", "shadow-none"]);
 });
 
+test("visual guard keeps list row state and surface choices in their owner", () => {
+  const source = `
+    import { UiListRow as Row } from "@/shared/ui/list/list-row";
+    const a = <Row className="rounded-none hover:bg-red-500 opacity-70" />;
+    const b = <Row density="sidebar" muted variant="outlined" className="min-w-0" />;
+  `;
+  assert.deepEqual(findControlVisualOverrides(samplePath, source).map((issue) => issue.value), [
+    "rounded-none", "hover:bg-red-500", "opacity-70",
+  ]);
+});
+
 test("visual guard respects block and parameter shadowing", () => {
   const source = header + `
     const style = "bg-(--primary)";

@@ -9,6 +9,7 @@ const CONTROL_MODULES = new Map([
   ["src/shared/ui/button/button", new Set(["UiButton", "UiLinkButton", "UiIconButton"])],
   ["src/shared/ui/button/split-button", new Set(["UiSplitButton"])],
   ["src/shared/ui/list/list-action", new Set(["UiListActionButton"])],
+  ["src/shared/ui/list/list-row", new Set(["UiListRow"])],
   ["src/shared/ui/menu/select-menu", new Set(["UiSelectMenu"])],
   ["src/shared/ui/form/form-control", new Set(["UiInput", "UiTextarea", "UiNativeSelect", "UiSearchInput"])],
   ["src/shared/ui/form/checkbox", new Set(["UiCheckbox"])],

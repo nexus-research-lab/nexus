@@ -12,6 +12,6 @@ Read the existing owner before changing code. Follow these canonical sources:
 
 Run focused tests while iterating. Before delivery, run `npm run check`;
 shared UI, layout and overlay changes also require `npm run test:browser`.
-Install its pinned browser with `npx playwright install chromium` when needed.
+Install its pinned browsers with `npx playwright install chromium webkit` when needed.
 `make check-web` runs both gates. Report actual browser/host coverage and any
 remaining migration debt without claiming untested native-host behavior.

@@ -30,8 +30,8 @@ export function SidebarListLoadingRows({ count = 4 }: { count?: number }) {
       role="status"
     >
       {Array.from({ length: count }, (_, index) => (
-        <div
-          className="flex min-h-[60px] w-full items-center gap-2.5 rounded-[8px] px-2 py-2 max-[559px]:min-h-[80px] max-[559px]:gap-3 max-[559px]:rounded-[12px] max-[559px]:px-3 max-[559px]:py-3"
+        <UiListRow
+          density="sidebar"
           key={index}
         >
           <UiSkeleton className="h-10 w-10 shrink-0 radius-control-sm" tone="strong" />
@@ -39,7 +39,7 @@ export function SidebarListLoadingRows({ count = 4 }: { count?: number }) {
             <UiSkeleton className="h-3.5 w-24" tone="strong" />
             <UiSkeleton className="h-3 w-36" tone="subtle" />
           </span>
-        </div>
+        </UiListRow>
       ))}
     </div>
   );
@@ -174,7 +174,7 @@ export function ConversationRow({
     <UiListRow
       active={isActive}
       activeTone="sidebar"
-      className="min-h-[60px] gap-2.5 rounded-[10px] px-2 py-2 max-[559px]:min-h-[80px] max-[559px]:gap-3 max-[559px]:rounded-[12px] max-[559px]:px-3 max-[559px]:py-3"
+      density="sidebar"
       description={item.summary ? <ConversationRowSummary item={item} /> : undefined}
       inactiveTone="muted"
       leading={<ConversationRowLeading isActive={hasActivity} item={item} />}
@@ -227,7 +227,7 @@ export function ContactRow({
     <UiListRow
       active={isActive}
       activeTone="sidebar"
-      className="min-h-[54px] gap-2.5 rounded-[10px] py-1.5 pl-2 pr-[3px] max-[559px]:min-h-[72px] max-[559px]:gap-3 max-[559px]:rounded-[12px] max-[559px]:px-3 max-[559px]:py-2.5"
+      density="sidebarCompact"
       description={subtitle}
       inactiveTone="muted"
       leading={(

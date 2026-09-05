@@ -45,6 +45,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Unified sidebar row and skeleton density, list surfaces and muted states under
+  shared ListRow props. Static rows no longer advertise hover interaction, and
+  busy Feishu connection choices retain accessible disabled semantics. Native
+  control ownership checks now recognize aliased React element factories.
 - Unified technical-text and verification-code field presentation through shared
   form roles, removed private input and search typography, and extended the
   visual ownership gate to native form and selection controls. Native values,

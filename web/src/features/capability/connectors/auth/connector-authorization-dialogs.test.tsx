@@ -11,6 +11,7 @@ import type { ConnectorDetail } from "@/types/capability/connector";
 
 import { ConnectorCredentialDialog } from "./connector-credential-dialog";
 import { ConnectorOAuthClientDialog } from "./connector-oauth-client-dialog";
+import { FeishuAppConnectionDialog } from "./feishu/feishu-app-connection-dialog";
 
 const AMAP_DETAIL = {
   auth_type: "api_key",
@@ -41,6 +42,30 @@ const FEISHU_DETAIL = {
 } satisfies ConnectorDetail;
 
 describe("Connector authorization dialogs", () => {
+  it("keeps busy Feishu connection choices named and inert until the operation settles", async () => {
+    const user = userEvent.setup();
+    const onScan = vi.fn();
+    const props = { isOpen: true, onClose: vi.fn(), onConnectManually: vi.fn(), onScan };
+    const view = (busy: boolean) => <I18nProvider><FeishuAppConnectionDialog {...props} busy={busy} /></I18nProvider>;
+    const { rerender } = render(view(false));
+    await user.click(screen.getByRole("button", { name: /扫码连接/ }));
+    expect(onScan).toHaveBeenCalledOnce();
+
+    rerender(view(true));
+    for (const name of [/扫码连接/, /手动配置/]) {
+      const choice = screen.getByRole("button", { name });
+      expect(choice.getAttribute("aria-disabled")).toBe("true");
+      expect(choice.hasAttribute("tabindex")).toBe(false);
+      await user.click(choice);
+      await user.keyboard("{Enter} ");
+    }
+    expect(onScan).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("textbox", { name: /App ID/ })).toBeNull();
+    rerender(view(false));
+    await user.click(screen.getByRole("button", { name: /手动配置/ }));
+    expect(screen.getByRole("textbox", { name: /App ID/ })).toBeTruthy();
+  });
+
   it("keeps direct credential copy semantic and submits the exact trimmed value", async () => {
     const user = userEvent.setup();
     const onSave = vi.fn();
