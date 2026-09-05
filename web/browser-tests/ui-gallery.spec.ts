@@ -5,6 +5,7 @@
 import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
 
 import { moveKeyboardFocus } from "./keyboard";
+import { measurePlaceholderContrast } from "./color-contrast";
 
 function copy(info: TestInfo, zh: string, en: string): string {
   return info.project.metadata.locale === "zh" ? zh : en;
@@ -43,6 +44,24 @@ async function capture(surface: Locator, info: TestInfo, name: string) {
     contentType: "image/png",
   });
 }
+
+test("empty form hints remain readable on each theme surface", async ({ page }, info) => {
+  const { errors } = await openGallery(page, info);
+  const fields = page.locator("[data-gallery-empty-fields]");
+  const controls = fields.locator("input, textarea");
+  await expect(controls).toHaveCount(4);
+  const measurements = [];
+  for (const control of await controls.all()) {
+    await control.scrollIntoViewIfNeeded();
+    const result = await measurePlaceholderContrast(control);
+    expect(result.placeholderShown).toBe(true);
+    expect(result.ratio, await control.getAttribute("id") ?? "empty field").toBeGreaterThanOrEqual(4.5);
+    measurements.push({ id: await control.getAttribute("id"), ...result });
+  }
+  await info.attach("empty-field-contrast", { body: JSON.stringify(measurements), contentType: "application/json" });
+  await capture(fields, info, "empty-fields");
+  expect(errors).toEqual([]);
+});
 
 test("WorkGraph inspectors share their surface and preserve exact node and edge actions through zoom", async ({ page }, info) => {
   const { errors } = await openGallery(page, info, "workspace");

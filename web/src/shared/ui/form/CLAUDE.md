@@ -4,6 +4,7 @@
 - 生产 TS/TSX 文件必须在首条代码前保留真实、非空的 `INPUT / OUTPUT / POS` 合同；`scripts/frontend-file-contract.test.mjs` 递归检查本所有者，新文件同样受约束。
 - 这里只处理通用输入语义，不维护业务草稿或提交事务。
 - 默认字段与搜索文字使用 App `control` 角色、常规字重；紧凑尺寸是有意保留的密度档位，不由消费者覆盖字号。尺寸和行高只在 `form-control-styles.ts` 投影。
+- 普通字段与搜索字段的占位文字统一使用 `--text-muted`；空白可用状态必须保持可读，不能用装饰性的 soft tone 代替。Gallery 的空白字段矩阵验证实际主题表面的文字对比。
 - Input/Textarea 的 `textRole="code"` 用于路径、命令标识与源码模板，保留共享尺寸并使用等宽字体；单行 `textRole="verification"` 拥有验证码的加大居中命中区与字距。内容角色只改变展示，不推断 `type`、`inputMode`、长度、自动填充或校验规则，不转换输入值。
 - 公共表单调用方的 `className / inputClassName / style` 同样受静态视觉覆盖门禁约束；搜索壳与内部输入都不能私设字号、字重、颜色或焦点状态。
 - `UiInput / UiTextarea / UiNativeSelect` 分别拥有普通文本、多行文本和原生下拉字段；`form-control-styles.ts` 是这些 primitive 的内部投影，业务层不得导入后再手写 DOM。嵌入 Composer 等复合控件内部的无壳原生字段必须由该 pattern 明确拥有，不能假装成普通 Field。
