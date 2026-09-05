@@ -1,9 +1,10 @@
 // INPUT: 用户消息编辑草稿、提交资格、键盘动作与 textarea 引用。
 // OUTPUT: 可取消或提交的原位消息编辑器。
-// POS: User message 编辑视图；不拥有按钮和输入框的跨页面视觉合同。
+// POS: User message 编辑视图；公共输入壳与按钮持有外观，原生 textarea 保留正文行高、60/64px 起始高度、120px 上限与独立动作 Footer 的组合几何。
 
 import type { KeyboardEvent, RefObject } from "react";
 
+import { isImeKeyboardEvent } from "@/shared/lib/browser/ime-keyboard-event";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
@@ -29,6 +30,9 @@ export function UserMessageEditor({
 }: UserMessageEditorProps) {
   const { t } = useI18n();
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (isImeKeyboardEvent(event.nativeEvent)) {
+      return;
+    }
     if (event.key === "Escape") {
       event.preventDefault();
       onCancel();

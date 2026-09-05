@@ -1,3 +1,7 @@
+// INPUT: Build mode, desktop entry selection and local proxy ports.
+// OUTPUT: Web/desktop bundles and independent browser-test dependency caches.
+// POS: Frontend toolchain assembly; browser tests must not share optimized modules with dev or SSR contract servers.
+
 import path from "node:path";
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
@@ -61,6 +65,7 @@ function resolveDevTarget(mode: string, key: string, fallbackPort: string): stri
 }
 
 export default defineConfig(({ mode }) => ({
+  cacheDir: mode === "browser-test" ? "node_modules/.vite-browser-test" : undefined,
   base: process.env.NEXUS_DESKTOP_BUILD === "1" ? "./" : "/",
   plugins: [react()],
   resolve: {

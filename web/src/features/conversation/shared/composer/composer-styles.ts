@@ -30,3 +30,34 @@ export const COMPOSER_COMPACT_LANE_CLASS_NAME =
 
 export const COMPOSER_FOOTER_CLASS_NAME =
   "nexus-chat-composer-footer text-(--text-soft)";
+
+const INPUT_ROW_PADDING: Record<
+  "compact" | "regular",
+  Record<"default" | "goal" | "queue", string>
+> = {
+  compact: {
+    default: "px-3.5 pb-0.5 pt-1",
+    goal: "px-3.5 pb-0.5 pt-1",
+    queue: "px-3.5 pb-0.5 pt-0",
+  },
+  regular: {
+    default: "px-3.5 pb-0.5 pt-1.5",
+    goal: "px-3.5 pb-0.5 pt-1.5",
+    queue: "px-3.5 pb-0.5 pt-0.5",
+  },
+};
+
+export function getComposerInputRowPaddingClass(
+  compact: boolean,
+  hasPendingQueue: boolean,
+  isGoalMode: boolean,
+): string {
+  const density = compact ? "compact" : "regular";
+  const candidates = [
+    { active: isGoalMode, state: "goal" },
+    { active: hasPendingQueue, state: "queue" },
+  ] as const;
+  const state = candidates.find((candidate) => candidate.active)?.state
+    ?? "default";
+  return INPUT_ROW_PADDING[density][state];
+}

@@ -207,7 +207,9 @@ WorkGraph 节点和连线详情统一由领域 `ExecutionGraphInspector` 持有�
 动作和滚动内容区，复用 `surface-popover`、App Typography 与 `UiIconButton`。
 画布只负责精确选择身份、定位和逆缩放，详情保持屏幕尺寸；该只读非模态检查器
 不另建 Portal、模态锁或执行状态。顶栏生命周期、部分投影和旧快照提示通过
-`UiBadge` 的 tone/size/shape 表达，业务层不复制徽标颜色与边界配方。
+`UiBadge` 的 tone/size/shape 表达，业务层不复制徽标颜色与边界配方。详情内的
+运行活动是静态内容行，由 `UiListRow` 持有外观；缩略图的拓扑列、连线、节点和
+终态微标签由 `NamedWorkGraphSketch` 持有图形几何，外围 Surface 和普通文字仍共享。
 
 Login 与 Setup 的产品入口共同消费 `features/access/AccessPageFrame` 和
 `AccessPageIntroduction`。Access 只拥有品牌背景、Logo、宣传标题和响应式两栏；
@@ -220,6 +222,13 @@ Login 与 Setup 的产品入口共同消费 `features/access/AccessPageFrame` �
 Widget 可以认识 Agent、Room、Goal 等产品对象，但只组合下层合同，不重新定义基础视觉。Conversation 的 Composer 浮动工作栈属于 conversation widget，不应为了复用 DM/Room 而放进全局 `shared`。
 
 Composer 附件的图片/文本预览与移除统一组合 `UiButton / UiIconButton`，保留独立兄弟命中区；领域只拥有缩略图几何、文件与草稿作用域。图片角上的移除动作使用共享 micro 尺寸，不再保留原生按钮例外。Chip、普通输入壳与 Composer 聚焦壳的圆角只由共享 recipe 定义，消费层不重复设置同值圆角。
+
+私域目录预览与时间线复用公共 filled Panel，标题、名称、时间和路由复用 Typography。
+事件视图只保留方向表达与 Markdown 阅读正文，头像叠放/溢出计数由身份图形拥有。
+User 消息编辑器组合公共输入壳、按钮与原生无壳 textarea；原位正文测量和独立
+Footer 属于该编辑器，不能以此复制普通表单控件。Composer 与消息编辑共用中立
+IME 事件识别，组合生命周期和快捷键策略留在各自控制边界。Composer 的间距配方
+只在视图消费 `composer-styles`，不得通过 controller/model 的返回值传递 CSS。
 
 生成式结构化问答的选项行可以由领域 pattern 保留原生 `fieldset`、radio/checkbox 与内嵌无壳 textarea，因为命中区和选择标记共同表达题目几何；拒绝、提交等标准动作仍必须使用 `UiButton`，题目、说明、提示和终态摘要仍必须选择 App Typography role。原生语义例外不是页面复制按钮或字号配方的许可。
 
@@ -341,7 +350,7 @@ Composer 附件的图片/文本预览与移除统一组合 `UiButton / UiIconBut
 - `frontend-token-contract.test.mjs` 通过既有 CSS 工具链和 TypeScript AST 检查全部生产 CSS/TS 的静态 `var()`、Tailwind 简写和模板 CSS；必需引用必须有声明，可选注入必须有 fallback，三主题的 canonical 别名不得缺失、循环或在同一声明块重复。检查不执行运行时表达式，也不把全局声明集合当作 DOM 继承或 CSS 类型证明；没有逐文件违规额度。
 - `npm run test:components` 与 `npm run test:contracts` 可分别定位失败，`npm test` 必须串行覆盖两类测试。
 - `npm run check` 串行执行 lint、typecheck、上述两类测试和生产构建。
-- `npm run test:browser` 使用固定版本 Playwright 启动独立 Vite 服务器，执行真实浏览器合同；`npm run check:ui` / 根目录 `make check-web` 覆盖完整前端门禁。浏览器依赖首次使用通过 `npx playwright install chromium webkit` 安装，Linux CI 使用 `--with-deps`。
+- `npm run test:browser` 使用固定版本 Playwright 启动独立端口与依赖优化缓存的 Vite 服务器，执行真实浏览器合同；浏览器服务器固定使用 `browser-test` mode，避免并发开发或 SSR 合同检查使缓存失效并重建页面。`npm run check:ui` / 根目录 `make check-web` 覆盖完整前端门禁。浏览器依赖首次使用通过 `npx playwright install chromium webkit` 安装，Linux CI 使用 `--with-deps`。
 - `.github/workflows/frontend-check.yml` 对前端、规范与 Windows 原生主题变更运行同一套检查，失败不得通过跳过测试、增加重试或更新截图来消除。
 
 视觉回归矩阵至少覆盖：
@@ -402,6 +411,9 @@ Composer 附件夹具使用真实本地 File 验证图片/纯文本预览、长�
 WorkGraph 夹具直接渲染真实画布，验证节点/连线的精确身份、原 Agent 文件动作、
 键盘关闭、节点与边详情的共同不透明表面，以及缩放后详情保持屏幕字号和宽度。
 画布可滚动，详情可通过滚动到达；这不等价于所有图节点同时适配一个视口。
+私域/消息夹具直接组合真实时间线与消息视图，验证两种密度、方向和元信息，以及
+编辑聚焦、普通 Enter、IME 期间不发命令、取消重置和原 round 的唯一提交。
+DOM 测试另覆盖兼容 IME 键码与空值/未变化草稿；合成事件不是操作系统输入法验收。
 
 ## 9. Agent 修改流程
 

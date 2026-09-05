@@ -1,5 +1,5 @@
 // INPUT: User 消息时间、引导状态与可用的重跑/编辑/复制命令。
-// OUTPUT: 无气泡消息尾部元数据与共享微型图标动作。
+// OUTPUT: 无气泡消息尾部公共元信息排版与共享微型图标动作。
 // POS: User 消息头纯视图；不拥有复制状态或消息 mutation。
 import {
   Check,
@@ -13,6 +13,7 @@ import {
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import type { UserMessagePresentation } from "./user-message-model";
 
@@ -51,12 +52,12 @@ export function UserMessageHeader({
       )}
     >
       {presentation.guided ? (
-        <span className="mr-1 inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-(--text-muted)">
+        <span className={cn("mr-1 inline-flex shrink-0 items-center gap-1", getUiTypographyClassName({ role: "caption", tone: "muted", weight: "semibold" }))}>
           <CornerDownRight className="h-3.5 w-3.5" />
           {t("message.guidance")}
         </span>
       ) : null}
-      <span className="nexus-chat-meta shrink-0 text-xs text-(--text-muted)">
+      <span className={cn("nexus-chat-meta shrink-0", getUiTypographyClassName({ role: "caption", tone: "muted" }))}>
         {presentation.timestamp}
       </span>
       <UserMessageActions

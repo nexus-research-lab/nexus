@@ -11,10 +11,8 @@ import type { Agent } from "@/types/agent/agent";
 import type { CommandCatalogData } from "@/types/generated/protocol";
 
 import { useComposerAttachments } from "../attachments/use-composer-attachments";
-import {
-  focusComposerInputAtEnd,
-  type ComposerPanelProps,
-} from "../composer-model";
+import type { ComposerPanelProps } from "../composer-model";
+import { focusComposerInputAtEnd } from "./composer-textarea";
 import { COMPOSER_TEXTAREA_MAX_HEIGHT_PX } from "../composer-styles";
 import { useComposerHistory } from "../use-composer-history";
 import { useComposerMention } from "../use-composer-mention";
@@ -35,7 +33,6 @@ const EMPTY_COMMAND_CATALOG: CommandCatalogData = {
 
 export function useComposerController({
   commandCatalog = EMPTY_COMMAND_CATALOG,
-  compact,
   defaultPlaceholder,
   defaultDeliveryPolicy,
   draftScopeKey,
@@ -258,7 +255,6 @@ export function useComposerController({
     attachmentError,
     canCreateGoal: goal.canCreateGoal,
     canUseLoop: goal.canUseLoop,
-    compact,
     copy: {
       defaultPlaceholder: defaultPlaceholder ?? t("composer.default_placeholder"),
       goalConfirm: t("composer.goal_confirm"),

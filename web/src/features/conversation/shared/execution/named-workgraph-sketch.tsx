@@ -1,7 +1,7 @@
 /**
  * INPUT: 默认对话模型抽取或已保存的抽象 WorkGraph 节点与依赖。
  * OUTPUT: 不含运行身份和工具事实、保留节点说明的紧凑只读结构草图。
- * POS: 目录卡片与消息卡片的缩略预览；对话确认、能力详情和编辑台使用完整共用画布。
+ * POS: 目录/消息卡片缩略预览；208px 节点列、连接标记及 9px terminal 微标签属于结构图几何，标题/说明与外壳使用公共排版/圆角。完整阅读入口使用共用画布。
  */
 "use client";
 
@@ -9,6 +9,7 @@ import { ArrowRight, CheckCircle2, GitBranch } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type {
   WorkGraphWorkflowDependency,
   WorkGraphWorkflowNode,
@@ -35,7 +36,7 @@ export function NamedWorkGraphSketch({
     <div
       aria-label={t("execution.workflow_sketch_label")}
       className={cn(
-        "soft-scrollbar overflow-x-auto rounded-[12px] border border-[color:color-mix(in_srgb,var(--primary)_18%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--surface-muted-background)_88%,transparent)] p-4",
+        "soft-scrollbar overflow-x-auto surface-radius-md border border-[color:color-mix(in_srgb,var(--primary)_18%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--surface-muted-background)_88%,transparent)] p-4",
         className,
       )}
       data-workgraph-sketch
@@ -69,8 +70,8 @@ export function NamedWorkGraphSketch({
                           : <GitBranch className="h-3 w-3" />}
                       </span>
                       <div className="min-w-0">
-                        <h4 className="text-xs font-semibold leading-4 text-(--text-strong)">{node.subject}</h4>
-                        <p className="mt-1 line-clamp-3 text-xs leading-4 text-(--text-muted)">{node.objective}</p>
+                        <h4 className={getUiTypographyClassName({ role: "caption", tone: "strong", weight: "semibold" })}>{node.subject}</h4>
+                        <p className={cn("mt-1 line-clamp-3", getUiTypographyClassName({ role: "caption", tone: "muted" }))}>{node.objective}</p>
                       </div>
                     </div>
                     {node.terminal ? (

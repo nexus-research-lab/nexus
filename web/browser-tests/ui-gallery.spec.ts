@@ -53,6 +53,10 @@ test("WorkGraph inspectors share their surface and preserve exact node and edge 
   const node = graph.locator('[data-execution-selected-node-detail="draft"]');
   await expect(node).toBeVisible();
   await expect(node.getByRole("heading", { level: 3 })).toHaveText("Draft report");
+  const activity = node.locator('[data-execution-runtime-node="evidence"]');
+  await expect(activity).toContainText("Read evidence");
+  await expect(activity.getByRole("button")).toHaveCount(0);
+  expect(await activity.locator(":scope > div").evaluate((element) => getComputedStyle(element).borderRadius)).toBe("10px");
   const metrics = async (inspector: Locator) => inspector.evaluate((element) => {
     const style = getComputedStyle(element);
     const header = getComputedStyle(element.querySelector("header")!);
@@ -89,6 +93,66 @@ test("WorkGraph inspectors share their surface and preserve exact node and edge 
   await page.keyboard.press("Escape");
   await expect(edge).toHaveCount(0);
   await expect(edgeTrigger).toBeFocused();
+  const sketch = graph.locator("[data-workgraph-sketch]");
+  await expect(sketch.locator("[data-workgraph-sketch-layer]")).toHaveCount(2);
+  await expect(sketch.locator('[data-workgraph-sketch-layer="0"] [data-workgraph-sketch-node]')).toHaveAttribute("data-workgraph-sketch-node", "draft");
+  await expect(sketch.locator('[data-workgraph-sketch-layer="1"] [data-workgraph-sketch-node]')).toHaveAttribute("data-workgraph-sketch-node", "review");
+  await expect(sketch.getByRole("button")).toHaveCount(0);
+  await capture(sketch, info, "workgraph-thumbnail");
+  expect(errors).toEqual([]);
+});
+
+test("private timelines share metadata and message editing preserves keyboard and exact round commands", async ({ page }, info) => {
+  const { errors } = await openGallery(page, info, "content");
+  const fixture = page.locator("[data-gallery-message-surfaces]");
+  for (const density of ["compact", "regular"]) {
+    const timeline = fixture.locator(`[data-private-timeline-density="${density}"]`);
+    await expect(timeline.locator("[data-private-event]")).toHaveCount(3);
+    for (const [id, alignment] of [["incoming", "flex-start"], ["outgoing", "flex-end"], ["self", "center"]]) {
+      const event = timeline.locator(`[data-private-event="${id}"]`);
+      await event.scrollIntoViewIfNeeded();
+      const metrics = await event.evaluate((element) => ({
+        alignment: getComputedStyle(element).justifyContent,
+        radius: getComputedStyle(element.firstElementChild!).borderRadius,
+        nameFont: getComputedStyle(element.querySelector(".ui-type-metadata")!).fontSize,
+      }));
+      expect(metrics).toEqual({ alignment, radius: "12px", nameFont: "12px" });
+    }
+    await expect.poll(() => timeline.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
+    await capture(timeline, info, `private-timeline-${density}`);
+  }
+  const view = fixture.locator("[data-gallery-message-editor]");
+  const commands = fixture.locator("[data-gallery-message-commands]");
+  const edit = view.getByRole("button", { name: copy(info, "编辑消息", "Edit message"), exact: true });
+  await edit.focus();
+  await page.keyboard.press("Enter");
+  let input = view.getByRole("textbox");
+  await expect(input).toBeFocused();
+  await input.fill("Discard this edit");
+  await page.keyboard.press("Escape");
+  await expect(input).toHaveCount(0);
+  await expect(view).toContainText("Original message for editing.");
+  await expect(commands).toHaveText("[]");
+  await edit.focus();
+  await page.keyboard.press("Enter");
+  input = view.getByRole("textbox");
+  const send = view.getByRole("button", { name: copy(info, "发送", "Send"), exact: true });
+  await expect(send).toBeDisabled();
+  await input.fill("  Revised line one");
+  await page.keyboard.press("Enter");
+  await page.keyboard.insertText("line two  ");
+  await expect(commands).toHaveText("[]");
+  await input.dispatchEvent("keydown", { key: "Enter", ctrlKey: true, isComposing: true, bubbles: true });
+  await expect(input).toBeFocused();
+  await expect(commands).toHaveText("[]");
+  await expect(send).toBeEnabled();
+  const height = await input.evaluate((element) => element.getBoundingClientRect().height);
+  expect(height).toBeGreaterThanOrEqual(64);
+  expect(height).toBeLessThanOrEqual(120);
+  await capture(view, info, "user-message-editing");
+  await page.keyboard.press("Control+Enter");
+  await expect(input).toHaveCount(0);
+  await expect(commands).toHaveText(JSON.stringify([{ round: "gallery-round", content: "Revised line one\nline two" }]));
   expect(errors).toEqual([]);
 });
 

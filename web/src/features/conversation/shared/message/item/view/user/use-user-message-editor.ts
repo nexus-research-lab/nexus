@@ -1,3 +1,7 @@
+// INPUT: Durable user message content, density and the consumer-owned exact-round submit callback.
+// OUTPUT: Ephemeral edit draft, focus/height binding and guarded cancel/submit commands.
+// POS: User-message edit state owner; trims only at submit, rejects unchanged/empty drafts and never dispatches a conversation command directly.
+
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useTextareaHeight } from "@/shared/lib/react/use-textarea-height";

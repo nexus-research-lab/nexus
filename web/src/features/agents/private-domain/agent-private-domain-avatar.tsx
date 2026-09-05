@@ -1,3 +1,7 @@
+// INPUT: Exact private-thread participants, owner identity and avatar density.
+// OUTPUT: Participant avatars and a bounded peer stack with overflow count.
+// POS: Private-domain identity geometry; the 14px counter is part of the 40px avatar stack, not ordinary metadata or an action.
+
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { AgentPrivateParticipant } from "@/types/agent/private-domain";
 import { cn } from "@/shared/ui/class-name";
