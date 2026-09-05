@@ -10,6 +10,7 @@ import { useCopyToClipboard } from "@/shared/lib/react/use-copy-to-clipboard";
 import type { UserMessage } from "@/types/conversation/message/entity";
 import type { AgentMentionDirectory } from "../../../agent-mention-chip";
 
+import { resolveUserMessageLayout } from "../message-reading-layout";
 import { UserMessageContent } from "./user-message-content";
 import { UserMessageEditor } from "./user-message-editor";
 import { UserMessageHeader } from "./user-message-header";
@@ -58,22 +59,22 @@ export function MessageUserSection({
     ),
   });
   const presentation = projectUserMessagePresentation(
-    compact,
     message.content,
     message,
   );
+  const layout = resolveUserMessageLayout(compact);
   const canEdit = Boolean(onEditUserMessage) && !presentation.goal;
 
   return (
     <div
       className={cn(
         "nexus-chat-message-section w-full",
-        presentation.sectionClassName,
+        layout.section,
       )}
       data-conversation-round-user-anchor="true"
     >
       <div className="w-full">
-        <div className={cn("flex min-w-0 justify-end", presentation.rowClassName)}>
+        <div className={cn("flex min-w-0 justify-end", layout.row)}>
           <div
             className="group relative ml-auto w-fit max-w-[min(100%,720px)] data-[editing=true]:w-full"
             data-editing={String(editor.isEditing)}
@@ -91,6 +92,7 @@ export function MessageUserSection({
             ) : (
               <>
                 <UserMessageContent
+                  contentClassName={layout.content}
                   agentMentions={message.agent_mentions}
                   agentMentionDirectory={agentMentionDirectory}
                   attachments={attachments}
@@ -101,6 +103,7 @@ export function MessageUserSection({
                   workspaceAgentId={workspaceAgentId}
                 />
                 <UserMessageHeader
+                  className={layout.header}
                   copied={copied}
                   onCopy={handleCopy}
                   onEdit={projectAvailableUserMessageAction(

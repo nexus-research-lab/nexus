@@ -45,6 +45,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Share one User/Assistant reading layout, keep queue and file-card styles out of data models, and localize file actions without changing message or workspace scope.
+
 - Reuse shared panels, typography and activity rows in private conversations and WorkGraph inspectors; preserve native message-edit geometry, guard IME shortcuts, and move Composer spacing and textarea effects out of state models.
 
 - Share the Login and Setup access layout, brand heading scale, and filled Panel surfaces; retain credential and initialization behavior with isolated browser coverage.

@@ -153,6 +153,31 @@ test("private timelines share metadata and message editing preserves keyboard an
   await page.keyboard.press("Control+Enter");
   await expect(input).toHaveCount(0);
   await expect(commands).toHaveText(JSON.stringify([{ round: "gallery-round", content: "Revised line one\nline two" }]));
+  const reading = fixture.locator("[data-gallery-message-reading]");
+  const openedFiles: string[] = [];
+  for (const density of ["compact", "expanded"]) {
+    const sample = reading.locator(`[data-reading-density="${density}"]`);
+    const typography = (surface: Locator) => surface.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return { font: style.fontSize, lineHeight: style.lineHeight };
+    });
+    const userBody = await typography(sample.locator(".nexus-chat-user-content"));
+    expect(await typography(sample.locator(".nexus-chat-message-content"))).toEqual(userBody);
+    expect(userBody).toEqual(density === "compact"
+      ? { font: "14px", lineHeight: "24px" }
+      : { font: "16px", lineHeight: "28px" });
+    const sections = sample.locator(".nexus-chat-message-section");
+    const padding = await sections.evaluateAll((elements) => elements.map((element) => getComputedStyle(element).paddingLeft));
+    expect(padding[0]).toBe(padding[1]);
+    await expect(sample.getByText(copy(info, "已保存到", "Saved to"), { exact: true })).toBeVisible();
+    const open = sample.getByRole("button", { name: /^source\.md/ });
+    await expect(open).toContainText(copy(info, "打开", "Open"));
+    await open.click();
+    openedFiles.push("author:reports/source.md");
+    await expect(reading.locator("[data-gallery-reading-files]")).toHaveText(JSON.stringify(openedFiles));
+    await expect.poll(() => sample.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
+    await capture(sample, info, `message-reading-${density}`);
+  }
   expect(errors).toEqual([]);
 });
 

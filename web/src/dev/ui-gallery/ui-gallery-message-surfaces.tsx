@@ -10,6 +10,7 @@ import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styl
 import type { AgentPrivateEvent, AgentPrivateThread } from "@/types/agent/private-domain";
 import type { UserMessage } from "@/types/conversation/message/entity";
 import { galleryText } from "./ui-gallery-copy";
+import { MessageReadingGallery } from "./ui-gallery-message-reading";
 
 const PARTICIPANTS = [{ agent_id: "observer", name: "Nexus" }, { agent_id: "author", name: "Author" }];
 const THREAD: AgentPrivateThread = {
@@ -48,6 +49,7 @@ export function MessageSurfacesGallery() {
         }} />
       </div>
       <output className={getUiTypographyClassName({ role: "caption", tone: "soft" })} data-gallery-message-commands>{JSON.stringify(commands)}</output>
+      <MessageReadingGallery />
     </section>
   );
 }

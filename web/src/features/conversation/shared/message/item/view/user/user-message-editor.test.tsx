@@ -3,11 +3,32 @@
 // POS: User-message editing integration; all commands terminate in the local Gallery fixture.
 
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { MessageSurfacesGallery } from "@/dev/ui-gallery/ui-gallery-message-surfaces";
 import { I18nProvider } from "@/shared/i18n/i18n-provider";
+import { MessageUserSection } from "./message-user-section";
+import type { UserMessage } from "@/types/conversation/message/entity";
 
 describe("User message editing", () => {
+  it("withholds edit/rerun only for durable Goal control records, not ordinary slash text", () => {
+    const onEdit = vi.fn();
+    const message: UserMessage = {
+      message_id: "goal-control", session_key: "goal-session", agent_id: "author", round_id: "goal-round", role: "user",
+      timestamp: 1788566400000, content: "/goal Preserve exact file scope", metadata: { subtype: "goal_set" },
+    };
+    const view = (value: UserMessage) => <I18nProvider><MessageUserSection compact message={value} onEditUserMessage={onEdit} /></I18nProvider>;
+    const { rerender, container } = render(view(message));
+    expect(screen.queryByRole("button", { name: /Edit message|编辑消息/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Run again|重新运行/ })).toBeNull();
+    expect(container.querySelector('[data-goal-control="true"]')?.textContent).toContain("Preserve exact file scope");
+    expect(container.querySelector('[data-goal-control="true"]')?.textContent).not.toContain("/goal");
+    rerender(view({ ...message, metadata: undefined }));
+    expect(screen.getByRole("button", { name: /Edit message|编辑消息/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Run again|重新运行/ })).toBeTruthy();
+    expect(container.querySelector('[data-goal-control="false"]')?.textContent).toContain("/goal");
+    expect(onEdit).not.toHaveBeenCalled();
+  });
+
   it("submits only a changed nonempty draft with the original round identity", () => {
     const { container } = render(<I18nProvider><MessageSurfacesGallery /></I18nProvider>);
     const view = container.querySelector<HTMLElement>("[data-gallery-message-editor]")!;

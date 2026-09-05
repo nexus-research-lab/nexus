@@ -1094,16 +1094,20 @@ test("Composer shell actions use shared Button primitives", async () => {
   assert.doesNotMatch(roomModelControl, /<button\b/);
 });
 
-test("Composer models keep CSS and textarea side effects in their explicit owners", async () => {
+test("Conversation models keep CSS and textarea side effects in their explicit owners", async () => {
   const models = await Promise.all([
     readSource("src/features/conversation/shared/composer/composer-model.ts"),
     readSource("src/features/conversation/shared/composer/controller/composer-controller-model.ts"),
+    readSource("src/features/conversation/shared/composer/components/pending-queue/pending-queue-model.ts"),
+    readSource("src/features/conversation/shared/message/item/view/user/user-message-model.ts"),
+    readSource("src/features/conversation/shared/message/item/view/assistant/assistant-message-model.ts"),
+    readSource("src/features/conversation/shared/message/blocks/artifact/file/file-artifact-model.ts"),
   ]);
   for (const model of models) {
     const code = ts.createPrinter({ removeComments: true }).printFile(
       ts.createSourceFile("model.ts", model, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS),
     );
-    assert.doesNotMatch(code, /ClassName|PaddingClass|CSSProperties|composer-styles|px-\d|pt-\d|pb-\d|\.focus\(|setSelectionRange|scrollTop\s*=/);
+    assert.doesNotMatch(code, /ClassName|PaddingClass|CSSProperties|composer-styles|message-reading-layout|file-artifact-layout|DENSITY_STYLE|px-\d|pt-\d|pb-\d|\.focus\(|setSelectionRange|scrollTop\s*=/);
   }
 });
 

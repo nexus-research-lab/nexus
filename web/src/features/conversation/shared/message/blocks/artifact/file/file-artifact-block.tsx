@@ -1,8 +1,14 @@
 "use client";
 
+// INPUT: 文件 Artifact 协议、workspace 身份与紧凑展示开关。
+// OUTPUT: 按领域阅读布局组合文件身份、原 scope 打开和独立外部动作。
+// POS: File Artifact 视图；纯模型只投影身份与资格，内容几何来自 file-artifact-layout。
+
 import { memo } from "react";
 import { FileText, FolderOpen } from "lucide-react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
+import { resolveFileArtifactLayout } from "./file-artifact-layout";
 import { cn } from "@/shared/ui/class-name";
 import { useAgentStore } from "@/store/agent";
 
@@ -29,14 +35,15 @@ function FileArtifactBlockComponent({
   className,
   compact = false,
   displayPath,
-  label = "已保存到",
+  label,
   onOpenWorkspaceFile,
   path,
   workspaceAgentId,
 }: FileArtifactBlockProps) {
+  const { t } = useI18n();
+  const layout = resolveFileArtifactLayout(compact);
   const currentAgentId = useAgentStore((state) => state.current_agent_id);
   const projection = projectFileArtifact({
-    compact,
     currentAgentId,
     displayPath,
     hasOpenHandler: Boolean(onOpenWorkspaceFile),
@@ -45,20 +52,21 @@ function FileArtifactBlockComponent({
   });
   const actionable = [projection.canOpen, Boolean(projection.action)].some(Boolean);
   return (
-    <div className={cn(projection.style.wrapper, "min-w-0", className)}>
+    <div className={cn(layout.wrapper, "min-w-0", className)}>
       <FileArtifactLabel
-        className={projection.style.label}
-        label={label}
+        className={layout.label}
+        label={label ?? t("workspace_file.saved_to")}
       />
       <div
         className={cn(
           "content-artifact-row group flex w-full min-w-0 items-center text-left",
-          projection.style.card,
+          layout.card,
           !actionable && "opacity-80",
         )}
         data-actionable={actionable ? "true" : undefined}
       >
         <FileArtifactOpenButton
+          layout={layout}
           onOpen={() => onOpenWorkspaceFile?.(path, projection.openAgentId)}
           path={path}
           projection={projection}
@@ -91,6 +99,7 @@ function FileArtifactLabel({
 }
 
 function FileArtifactOpenButton({
+  layout,
   onOpen,
   path,
   projection,
@@ -98,6 +107,7 @@ function FileArtifactOpenButton({
   onOpen: () => void;
   path: string;
   projection: FileArtifactProjection;
+  layout: ReturnType<typeof resolveFileArtifactLayout>;
 }) {
   return (
     <button
@@ -110,16 +120,16 @@ function FileArtifactOpenButton({
       <span
         className={cn(
           "content-artifact-icon",
-          projection.style.iconFrame,
+          layout.iconFrame,
         )}
       >
-        <FileText className={projection.style.fileIcon} />
+        <FileText className={layout.fileIcon} />
       </span>
       <span className="min-w-0 flex-1">
         <span
           className={cn(
             "message-cjk-code-font block truncate font-medium text-(--text-strong)",
-            projection.style.fileName,
+            layout.fileName,
           )}
         >
           {projection.fileName}
@@ -130,7 +140,7 @@ function FileArtifactOpenButton({
         </span>
       </span>
       <FileArtifactOpenBadge
-        className={projection.style.openBadge}
+        className={layout.openBadge}
         visible={projection.canOpen}
       />
     </button>
@@ -144,6 +154,7 @@ function FileArtifactOpenBadge({
   className: string;
   visible: boolean;
 }) {
+  const { t } = useI18n();
   if (!visible) {
     return null;
   }
@@ -154,7 +165,7 @@ function FileArtifactOpenBadge({
         className,
       )}
     >
-      打开
+      {t("workspace_file.open")}
     </span>
   );
 }
