@@ -329,6 +329,51 @@ test("controlled workspace tabs preserve selection while creating, pinning and c
   expect(errors).toEqual([]);
 });
 
+test("Agent configuration reuses shared rows and cards without widening toggle hit targets", async ({ page }, info) => {
+  const { errors } = await openGallery(page, info, "workspace");
+  const controls = page.locator("[data-gallery-agent-options]");
+  const permissions = controls.locator("[data-gallery-agent-permissions]");
+  const bash = permissions.getByRole("switch", { name: "Bash", exact: true });
+  await expect(bash).toHaveAttribute("aria-checked", "true");
+  await permissions.getByText("Bash", { exact: true }).click();
+  await expect(bash).toHaveAttribute("aria-checked", "true");
+  await bash.click();
+  await expect(bash).toHaveAttribute("aria-checked", "false");
+  await expect(permissions.getByRole("switch", { name: "Unavailable connector", exact: true })).toBeDisabled();
+  const previous = permissions.getByRole("switch", { name: "Previously enabled connector", exact: true });
+  await previous.click();
+  await expect(previous).toHaveAttribute("aria-checked", "false");
+  await expect(previous).toBeDisabled();
+  const skills = controls.locator("[data-gallery-agent-skills]");
+  const skill = skills.getByRole("switch", { name: "Toggle Review sample", exact: true });
+  await skills.getByText("Review sample", { exact: true }).click();
+  await expect(skill).toHaveAttribute("aria-checked", "false");
+  await skill.click();
+  await expect(skill).toHaveAttribute("aria-checked", "true");
+  await controls.getByRole("button", { name: "Toggle pending Skill", exact: true }).click();
+  await expect(skill).toBeDisabled();
+  expect(await skills.getByRole("switch").count()).toBe(1);
+  for (const card of await skills.getByRole("article").all()) {
+    expect(await card.evaluate((element) => getComputedStyle(element).borderRadius)).toBe("10px");
+  }
+  await skills.scrollIntoViewIfNeeded();
+  await capture(skills, info, "agent-skill-cards");
+  const bounds = (await permissions.boundingBox())!;
+  expect(bounds.x).toBeGreaterThanOrEqual(0);
+  expect(bounds.x + bounds.width).toBeLessThanOrEqual(page.viewportSize()!.width + 1);
+  expect(await permissions.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+  // This is a scrollable product section, not a viewport-sized modal. Every
+  // authorization row must become fully reachable without shrinking the page.
+  for (const control of await permissions.getByRole("switch").all()) {
+    const row = control.locator("..");
+    await row.scrollIntoViewIfNeeded();
+    await expectInsideViewport(page, row);
+  }
+  await bash.locator("..").scrollIntoViewIfNeeded();
+  await capture(bash.locator(".."), info, "agent-authorization-row");
+  expect(errors).toEqual([]);
+});
+
 test("catalog primary hit area preserves content and independent secondary actions", async ({ page }, info) => {
   const { errors } = await openGallery(page, info, "workspace");
   const card = page.getByRole("article", { name: "Catalog action example", exact: true });
@@ -347,6 +392,19 @@ test("catalog primary hit area preserves content and independent secondary actio
   await expect(page.locator("[data-gallery-catalog-actions]")).toHaveText("2:1");
   expect(await primary.evaluate((element) => getComputedStyle(element).boxShadow)).not.toBe("none");
   await capture(card, info, "catalog-actions");
+  const create = page.getByRole("button", { name: "Create catalog item", exact: true });
+  await create.click();
+  await expect(page.locator("[data-gallery-catalog-creations]")).toHaveText("1");
+  expect(await create.evaluate((element) => getComputedStyle(element).borderRadius)).toBe("12px");
+  const unavailable = page.getByRole("button", { name: "Disabled catalog creation", exact: true });
+  await unavailable.scrollIntoViewIfNeeded();
+  await expect(unavailable).toBeDisabled();
+  await page.mouse.move(0, 0);
+  const background = await unavailable.evaluate((element) => getComputedStyle(element).backgroundColor);
+  await unavailable.hover();
+  expect(await unavailable.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(background);
+  await expectInsideViewport(page, unavailable);
+  await capture(unavailable, info, "catalog-disabled-creation");
   expect(errors).toEqual([]);
 });
 
