@@ -76,6 +76,7 @@ export const zhCoreMessages = {
   "markdown.mermaid.source": "源码",
   "markdown.mermaid.updating": "更新中",
   "markdown.mermaid.waiting": "等待完整图表",
+  "workspace_file.saved_to": "已保存到",
   "workspace_file.default_name": "文件",
   "workspace_file.reveal_named": "在文件夹中显示 {name}",
   "workspace_file.open": "打开",

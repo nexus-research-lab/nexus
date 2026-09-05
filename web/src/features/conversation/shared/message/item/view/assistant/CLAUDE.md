@@ -1,6 +1,7 @@
 # Assistant 消息视图
 
-- `assistant-message-model.ts`: 声明消费侧窄状态，并投影 Agent 作用域与紧凑/展开布局。
+- `assistant-message-model.ts`: 声明消费侧窄状态并投影 Agent 作用域，不返回样式。
+- 紧凑/展开阅读布局统一消费上级 `message-reading-layout.ts`，与 User 消息共用正文尺度和外侧间距；角色专有的内容留白、阅读轴和 metadata 可见性仍由该布局表达。
 - `message-assistant-section.tsx`: 只组合助手外壳、头部、正文和统计。
 - `assistant-message-content.tsx`: 按 direct 过程、归档过程、稳定最终回复、Room 实时活动、警告和权限顺序组合正文段；Room 把全部 pending request 固定交给唯一交互轨道，DM 只保留 Composer-owned 请求的只读过程证据。Room Result 的 direct 过程不进入主 Feed；未收口工具在最新可见正文之后用不可展开的单行活动面复用工具组图标栈与当前工具标题，不读取 Provider ToolUseSummary，其余状态回退共享活动提示。DM/Thread 的执行段严格服从 direct 投影中的正文边界，不在视图层重排 active 段。流式 final 只显示正文，不得重复同义活动提示；所有 final 都是独立答案面，不继承过程轨道、边线或节点，前面存在过程内容时与上下信息保持对称间距。
 - 最终回复达到模型输出上限时只向 `UiInlineNotice` 提供警告事实；消息视图不得重新定义提示框圆角、颜色、字号或图标布局。

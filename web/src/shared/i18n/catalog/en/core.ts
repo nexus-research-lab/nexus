@@ -79,6 +79,7 @@ export const enCoreMessages = {
   "markdown.mermaid.source": "Source",
   "markdown.mermaid.updating": "Updating",
   "markdown.mermaid.waiting": "Waiting for complete chart",
+  "workspace_file.saved_to": "Saved to",
   "workspace_file.default_name": "file",
   "workspace_file.reveal_named": "Show {name} in folder",
   "workspace_file.open": "Open",

@@ -13,10 +13,8 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiIconButton } from "@/shared/ui/button/button";
 import type { InputQueueItem } from "@/types/agent/agent-conversation";
 
-import {
-  getPendingQueuePaddingClassName,
-  projectPendingQueueItem,
-} from "./pending-queue-model";
+import { getPendingQueuePaddingClassName } from "../../composer-styles";
+import { projectPendingQueueItem } from "./pending-queue-model";
 import { PendingQueueItem } from "./pending-queue-item";
 import { usePendingQueueController } from "./use-pending-queue-controller";
 

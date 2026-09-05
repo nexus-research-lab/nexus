@@ -227,8 +227,12 @@ Composer 附件的图片/文本预览与移除统一组合 `UiButton / UiIconBut
 事件视图只保留方向表达与 Markdown 阅读正文，头像叠放/溢出计数由身份图形拥有。
 User 消息编辑器组合公共输入壳、按钮与原生无壳 textarea；原位正文测量和独立
 Footer 属于该编辑器，不能以此复制普通表单控件。Composer 与消息编辑共用中立
-IME 事件识别，组合生命周期和快捷键策略留在各自控制边界。Composer 的间距配方
-只在视图消费 `composer-styles`，不得通过 controller/model 的返回值传递 CSS。
+IME 事件识别，组合生命周期和快捷键策略留在各自控制边界。User/Assistant 的正文
+尺度与外侧节奏唯一归 `message-reading-layout`，数据投影不携带布局字段；文件卡片
+同样分离 exact 路径/Agent/动作投影与阅读几何。文件预览和外部动作继续独立，缺少
+预览 handler 不能禁用有效的下载/显示动作，切换全局 Agent 不能重写显式文件来源。
+Composer 的间距配方
+（含待发送队列）只在视图消费 `composer-styles`，不得通过 controller/model 的返回值传递 CSS。
 
 生成式结构化问答的选项行可以由领域 pattern 保留原生 `fieldset`、radio/checkbox 与内嵌无壳 textarea，因为命中区和选择标记共同表达题目几何；拒绝、提交等标准动作仍必须使用 `UiButton`，题目、说明、提示和终态摘要仍必须选择 App Typography role。原生语义例外不是页面复制按钮或字号配方的许可。
 
@@ -413,7 +417,9 @@ WorkGraph 夹具直接渲染真实画布，验证节点/连线的精确身份、
 画布可滚动，详情可通过滚动到达；这不等价于所有图节点同时适配一个视口。
 私域/消息夹具直接组合真实时间线与消息视图，验证两种密度、方向和元信息，以及
 编辑聚焦、普通 Enter、IME 期间不发命令、取消重置和原 round 的唯一提交。
-DOM 测试另覆盖兼容 IME 键码与空值/未变化草稿；合成事件不是操作系统输入法验收。
+同一夹具检查 User/Assistant 在两种密度中的实际正文尺度、外侧间距与文件文案，
+文件动作只更新本地观察值。DOM 测试另覆盖原 Agent 的预览/下载隔离、Goal 控制
+记录的不可编辑语义、兼容 IME 键码与空值/未变化草稿；合成事件不是操作系统输入法验收。
 
 ## 9. Agent 修改流程
 

@@ -1,3 +1,7 @@
+// INPUT: Pending messages, drag identities and reorder targets.
+// OUTPUT: Pure content, guidance and ordering projections without visual recipes.
+// POS: Composer queue model; padding belongs to composer-styles and DOM drag state to its controller.
+
 import type { InputQueueItem } from "@/types/agent/agent-conversation";
 
 export interface PendingQueueDragState {
@@ -21,11 +25,6 @@ interface PendingQueueContentCandidate {
   active: boolean;
   content: PendingQueueItemContent;
 }
-
-const QUEUE_PADDING_CLASS_NAME = {
-  compact: "px-2 pb-0.5 pt-1",
-  regular: "px-3 pb-1 pt-1",
-} as const;
 
 export function projectPendingQueueItem(
   item: InputQueueItem,
@@ -80,8 +79,4 @@ export function reorderPendingMessageIds(
   const [source] = reorderedItems.splice(sourceIndex, 1);
   reorderedItems.splice(targetIndex, 0, source);
   return reorderedItems.map((item) => item.id);
-}
-
-export function getPendingQueuePaddingClassName(compact: boolean): string {
-  return QUEUE_PADDING_CLASS_NAME[compact ? "compact" : "regular"];
 }

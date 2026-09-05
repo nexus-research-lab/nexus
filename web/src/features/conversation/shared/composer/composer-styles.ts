@@ -61,3 +61,12 @@ export function getComposerInputRowPaddingClass(
     ?? "default";
   return INPUT_ROW_PADDING[density][state];
 }
+
+const QUEUE_PADDING_CLASS_NAME = {
+  compact: "px-2 pb-0.5 pt-1",
+  regular: "px-3 pb-1 pt-1",
+} as const;
+
+export function getPendingQueuePaddingClassName(compact: boolean): string {
+  return QUEUE_PADDING_CLASS_NAME[compact ? "compact" : "regular"];
+}

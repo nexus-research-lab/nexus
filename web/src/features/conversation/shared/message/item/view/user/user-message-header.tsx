@@ -18,6 +18,7 @@ import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styl
 import type { UserMessagePresentation } from "./user-message-model";
 
 interface UserMessageHeaderProps {
+  className?: string;
   copied: boolean;
   onCopy: () => Promise<void>;
   onEdit?: () => void;
@@ -36,6 +37,7 @@ const COPY_ACTION_PRESENTATION: Record<"copied" | "idle", CopyActionPresentation
 };
 
 export function UserMessageHeader({
+  className,
   copied,
   onCopy,
   onEdit,
@@ -48,7 +50,7 @@ export function UserMessageHeader({
       className={cn(
         "nexus-chat-user-actions mt-1.5 flex items-center justify-end gap-1 text-(--text-muted) transition-[opacity,transform] duration-(--motion-duration-fast)",
         "sm:pointer-events-none sm:translate-y-0.5 sm:opacity-0 sm:group-focus-within:pointer-events-auto sm:group-focus-within:translate-y-0 sm:group-focus-within:opacity-100 sm:group-hover:pointer-events-auto sm:group-hover:translate-y-0 sm:group-hover:opacity-100",
-        presentation.headerClassName,
+        className,
       )}
     >
       {presentation.guided ? (

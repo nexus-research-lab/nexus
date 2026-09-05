@@ -20,7 +20,6 @@ import type {
   PermissionDecisionPayload,
 } from "@/types/conversation/interaction/permission";
 
-import { CONVERSATION_ASSISTANT_FRAME_WIDTH_CLASS_NAME } from "../../../../conversation-panel-styles";
 import type {
   AssistantContentMode,
   ContentProjection,
@@ -184,23 +183,4 @@ function resolveContentWorkspaceAgentId(
   workspaceAgentId?: string | null,
 ) {
   return assistantAgentId ?? workspaceAgentId;
-}
-
-const ASSISTANT_LAYOUTS = {
-  compact: {
-    content: "pt-1 text-base leading-6",
-    inner: "max-w-full",
-    section: "px-0",
-    showMetadata: true,
-  },
-  expanded: {
-    content: "w-full max-w-full pt-3 text-md leading-7",
-    inner: CONVERSATION_ASSISTANT_FRAME_WIDTH_CLASS_NAME,
-    section: "px-2 sm:px-3",
-    showMetadata: false,
-  },
-} as const;
-
-export function resolveAssistantMessageLayout(compact: boolean) {
-  return ASSISTANT_LAYOUTS[compact ? "compact" : "expanded"];
 }

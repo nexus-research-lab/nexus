@@ -10,14 +10,10 @@ import { I18nProvider } from "@/shared/i18n/i18n-provider";
 import { UserMessageHeader } from "./user-message-header";
 
 const PRESENTATION = {
-  contentClassName: "",
   displayContent: "测试消息",
   goal: false,
   guided: false,
   hasContent: true,
-  headerClassName: "",
-  rowClassName: "",
-  sectionClassName: "",
   timestamp: "10:24",
 };
 

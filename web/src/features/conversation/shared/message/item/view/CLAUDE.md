@@ -1,5 +1,6 @@
 # 消息项视图层
 
+- `message-reading-layout.ts`: User/Assistant 共用的正文尺度与外侧节奏，以及各角色的头部、内容几何和 User 折叠阈值；这是阅读内容布局，不是 App chrome Typography 的第二套实现。
 - `assistant/`: 助手身份、权限、过程调用链和正文编排。
 - `content/`: Markdown/结构化内容投影、块分派、系统事件与时间线。
 - `user/`: 用户正文、编辑状态和附件展示。

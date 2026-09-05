@@ -23,8 +23,8 @@ import { MessageUserAttachments } from "./message-user-attachments";
 import {
   isUserMessageContentCollapsible,
   USER_MESSAGE_COLLAPSED_HEIGHT,
-  type UserMessagePresentation,
-} from "./user-message-model";
+} from "../message-reading-layout";
+import type { UserMessagePresentation } from "./user-message-model";
 import type { AgentMentionDirectory } from "../../../agent-mention-chip";
 
 interface UserMessageContentProps {
@@ -32,6 +32,7 @@ interface UserMessageContentProps {
   agentMentions?: AgentMention[];
   agentMentionDirectory?: AgentMentionDirectory;
   content: string;
+  contentClassName: string;
   onOpenAgentContact?: (agentId: string) => void;
   onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void;
   presentation: UserMessagePresentation;
@@ -43,6 +44,7 @@ export function UserMessageContent({
   agentMentions,
   agentMentionDirectory,
   content,
+  contentClassName,
   onOpenAgentContact,
   onOpenWorkspaceFile,
   presentation,
@@ -72,7 +74,7 @@ export function UserMessageContent({
 
   return (
     <div
-      className="nexus-chat-user-content-shell ml-auto flex w-fit max-w-full flex-col items-end rounded-[12px] bg-(--surface-message-user-background) px-3.5 py-2.5"
+      className="nexus-chat-user-content-shell ml-auto flex w-fit max-w-full flex-col items-end surface-radius-md bg-(--surface-message-user-background) px-3.5 py-2.5"
       ref={expansion.anchorRef as RefObject<HTMLDivElement>}
       data-goal-control={String(presentation.goal)}
     >
@@ -101,7 +103,7 @@ export function UserMessageContent({
               <ContentRenderer
                 className={cn(
                   "nexus-chat-user-content w-fit max-w-[min(100%,760px)] self-end break-words text-left text-(--text-strong)",
-                  presentation.contentClassName,
+                  contentClassName,
                 )}
                 content={content}
                 agentMentions={agentMentions}
