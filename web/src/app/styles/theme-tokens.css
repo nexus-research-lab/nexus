@@ -1,3 +1,6 @@
+/* INPUT: light/dark/rain 材质与跨主题共用的语义尺度。
+ * OUTPUT: App UI 的 canonical token、无环别名与 Tailwind 投影。
+ * POS: 产品 token 定义真相；组件只消费，局部几何仍由对应 pattern 持有。 */
 /**
  * =====================================================
  * @File   : theme-tokens.css
@@ -7,7 +10,7 @@
  * =====================================================
  */
 
-/* 整套 /app 视觉只暴露 ambient / material / text / divider / interaction 五组语义令牌；界面控件以 14px 为基准，阅读正文自行声明字号。 */
+/* 主题材质由 ambient / material / text / divider / interaction 派生；跨主题几何在下方共享定义，阅读正文保留所属 Surface 的字号。 */
 :root,
 :root[data-theme="light"] {
   --nexus-page-background-light: transparent;
@@ -413,10 +416,17 @@
 :root[data-theme="light"],
 :root[data-theme="dark"],
 :root[data-theme="rain"] {
-  /*
-   * 浮层层级先保持历史可见顺序，再逐步交给统一 stack 分配。
-   * 业务组件只能消费语义 layer，不得通过继续增加整数解决遮挡。
-   */
+  /* 控件与独立表面分别按语义命名，recipe 不再重复数值。 */
+  --radius-control-xs: 6px;
+  --radius-control-sm: 8px;
+  --radius-control-md: 10px;
+  --radius-control-lg: 12px;
+  --radius-surface-sm: 8px;
+  --radius-surface-md: 12px;
+  --radius-surface-lg: 16px;
+  --radius-surface-xl: 24px;
+
+  /* 业务组件只能消费语义 layer，不得通过继续增加整数解决遮挡。 */
   --layer-select-menu: 120;
   --layer-action-menu: 130;
   --layer-popover: 140;
@@ -510,10 +520,10 @@
   --surface-paper-shadow: var(--material-paper-shadow);
 
   /* 内容渲染只在可执行或独立阅读时上浮，正文中的 code、quote 和 table 统一使用低噪音语义表面。 */
-  --content-radius-inline: 6px;
-  --content-radius-control-xs: 6px;
-  --content-radius-control: var(--radius-md);
-  --content-radius-surface: var(--radius-lg);
+  --content-radius-inline: var(--radius-control-xs);
+  --content-radius-control-xs: var(--radius-control-xs);
+  --content-radius-control: var(--radius-control-sm);
+  --content-radius-surface: var(--radius-surface-md);
   --content-inline-code-background: color-mix(
     in srgb,
     var(--surface-panel-background) 78%,

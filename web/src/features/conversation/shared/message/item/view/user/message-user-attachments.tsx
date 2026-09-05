@@ -71,7 +71,7 @@ function MessageUserAttachment({
       <span className="min-w-0 truncate">
         {attachmentView.displayName}
       </span>
-      <span className="shrink-0 text-2xs text-(--text-faint)">
+      <span className="shrink-0 text-2xs text-(--text-soft)">
         {t(presentation.labelKey)}
       </span>
     </>
@@ -125,7 +125,7 @@ function resolveAttachmentClassName(canOpen: boolean): string {
     "inline-flex max-w-[260px] items-center radius-control-sm gap-1.5 border px-2.5 py-1 text-xs font-medium",
     "border-(--divider-subtle-color) bg-transparent text-(--text-muted)",
     canOpen
-      ? "cursor-pointer transition-colors hover:border-(--accent-color) hover:text-(--text-strong)"
+      ? "cursor-pointer transition-colors hover:border-(--surface-interactive-hover-border) hover:text-(--text-strong)"
       : "cursor-default",
   );
 }

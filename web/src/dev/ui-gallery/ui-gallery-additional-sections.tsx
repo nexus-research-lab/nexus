@@ -349,6 +349,7 @@ export function InteractionGallery({ locale }: { locale: Locale }) {
   const [icon, setIcon] = useState("agent-3");
   const [mentionRect, setMentionRect] = useState<DOMRect | null>(null);
   const [tourOpen, setTourOpen] = useState(false);
+  const [tourTargetActions, setTourTargetActions] = useState(0);
   const actionItems = useMemo(() => [
     { icon: <Check className="h-4 w-4" />, label: galleryText(locale, "设为当前", "Set as current"), value: "current", active: true },
     { label: galleryText(locale, "暂不可用", "Temporarily unavailable"), value: "unavailable", disabled: true },
@@ -366,7 +367,8 @@ export function InteractionGallery({ locale }: { locale: Locale }) {
         { icon: "puzzle" as const, text: galleryText(locale, "逐项检查真实组件", "Inspect real components one by one") },
         { icon: "users" as const, text: galleryText(locale, "验证中英文长度", "Verify Chinese and English lengths") },
       ],
-      placement: "center" as const,
+      placement: "top" as const,
+      target: "gallery-tour-target",
       title: galleryText(locale, "组件预览导览", "Component gallery tour"),
     }],
   }), [locale]);
@@ -508,6 +510,10 @@ export function InteractionGallery({ locale }: { locale: Locale }) {
           <UiButton onClick={() => setTourOpen(true)} variant="surface">
             {galleryText(locale, "全屏导览检查", "Preview full tour overlay")}
           </UiButton>
+          <UiButton data-tour-anchor="gallery-tour-target" onClick={() => setTourTargetActions((count) => count + 1)}>
+            {galleryText(locale, "示例动作", "Example action")}
+          </UiButton>
+          <output data-gallery-tour-actions>{tourTargetActions}</output>
           {tourOpen ? (
             <OnboardingTourOverlay
               onClose={() => setTourOpen(false)}

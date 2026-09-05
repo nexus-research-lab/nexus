@@ -134,17 +134,17 @@ Settings 不单独维护字号和字重：区块标题、设置项名称、说�
 
 ```css
 4px   micro        /* kbd、极小承载体 */
-6px   control-xs   /* 紧凑图标、列表当前态 */
-8px   control      /* 默认按钮、menu item、input、方形头像 */
-10px  control-lg   /* 大输入、选择器、目录头像 */
-12px  content      /* 独立可操作内容面、user 消息壳 */
-16px  overlay      /* popover、dialog、sheet */
+6px   control-xs   /* micro / xs 控件 */
+8px   control-sm / surface-sm /* 紧凑控件、内容内小表面 */
+10px  control-md   /* 默认字段/按钮、目录头像、Tooltip */
+12px  control-lg / surface-md /* 大控件、独立内容面、user 消息壳 */
+16px  surface-lg   /* popover、dialog、sheet */
 20px  composer     /* 唯一的主输入焦点 */
 24px  shell        /* 认证、故障等独立壳 */
 999px full         /* 状态点、真实 pill、明确要求的圆形头像或主图标动作 */
 ```
 
-- button、input、menu item 用 `control`；不用 `lg`、`xl` 或 pill 制造「高级感」，不把常规按钮和筛选项 pill 化。
+- button、input、menu item 通过公共组件的 `size / variant` 选择 control 档位；不通过局部圆角放大普通按钮、筛选项或改成 pill。控件与表面尺度分别由 `--radius-control-* / --radius-surface-*` 定义，recipe 只引用 token。
 - 聊天 / 目录的人物头像是方形，圆角取 control 系（8–12px 随尺寸）；禁止 `full` 使头像近似圆形。
 - 常规 panel、rail、nav row 不使用外阴影；Composer 只用极轻边界与低透明阴影让白色 surface 脱离画布；menu / popover 使用同一档浮层阴影，dialog 只按尺寸加深同源阴影，不用内阴影、双描边、发光或毛玻璃。
 - 不新增无消费者的渐变；删除后信息层级不变的渐变默认删除。

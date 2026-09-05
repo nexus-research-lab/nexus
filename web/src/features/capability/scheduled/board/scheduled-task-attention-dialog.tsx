@@ -253,7 +253,7 @@ export function ScheduledTaskAttentionDialog({
                       )}>
                         {isWebResource(resourceSummary) ? (
                           <a
-                            className="underline decoration-(--divider-color) underline-offset-2 hover:text-(--primary)"
+                            className="underline decoration-(--divider-subtle-color) underline-offset-2 hover:text-(--primary)"
                             href={resourceSummary}
                             rel="noreferrer"
                             target="_blank"

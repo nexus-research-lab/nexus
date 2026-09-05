@@ -249,7 +249,7 @@ function SourceRow({
 }: SourceRowProps) {
   const { t } = useI18n();
   return (
-    <div className="flex min-w-0 items-center gap-3 bg-(--surface-raised-background) px-3.5 py-3">
+    <div className="flex min-w-0 items-center gap-3 bg-(--surface-panel-background) px-3.5 py-3">
       <div className="min-w-0 flex-1">
         <div className={cn(
           "truncate",

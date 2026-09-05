@@ -45,6 +45,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Centralized control and surface radius tokens, restored Tour highlighting,
+  and replaced undefined UI color references with existing semantic tokens.
+  Added gates for missing static variables and broken theme aliases, plus
+  browser checks for token resolution and non-blocking Tour target actions.
 - Reused shared buttons for Composer attachment previews and removal, preserving
   independent actions, Session draft boundaries, and local preview cleanup.
   Removed duplicate chip and input-shell radius overrides so their shared

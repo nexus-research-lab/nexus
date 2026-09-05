@@ -88,7 +88,7 @@ export function AgentCommunicationDirectory({
   return (
     <>
       <aside className={cn(
-        "min-h-0 min-w-0 flex-col overflow-hidden bg-(--surface-raised-background) md:flex",
+        "min-h-0 min-w-0 flex-col overflow-hidden bg-(--surface-shell-directory-background) md:flex",
         selectedContactId ? "hidden" : "flex",
       )}>
         <div className="flex shrink-0 items-center gap-2 px-2 py-3">

@@ -211,7 +211,7 @@ function OpenWorkGraphDistillationPickerDialog({
                   ))}
                 </div>
                 {selected ? (
-                  <div className="soft-scrollbar min-h-0 overflow-y-auto border-t border-(--divider-subtle-color) bg-(--surface-raised-background) p-4 md:border-t-0">
+                  <div className="soft-scrollbar min-h-0 overflow-y-auto border-t border-(--divider-subtle-color) bg-(--surface-panel-background) p-4 md:border-t-0">
                     <div className="flex items-center justify-between gap-3">
                       <h3 className="min-w-0 flex-1 text-sm font-semibold text-(--text-strong)">{selected.title}</h3>
                       <UiButton

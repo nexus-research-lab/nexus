@@ -329,6 +329,51 @@ test("controlled workspace tabs preserve selection while creating, pinning and c
   expect(errors).toEqual([]);
 });
 
+test("theme tokens resolve and Tour highlights the real target without swallowing its command", async ({ page }, info) => {
+  const { errors } = await openGallery(page, info, "interaction");
+  const rootTokens = await page.evaluate(() => {
+    const root = document.documentElement;
+    const names = new Set<string>();
+    function inspect(rules: CSSRuleList) {
+      for (const rule of Array.from(rules)) {
+        if (rule instanceof CSSStyleRule && rule.selectorText.includes(":root") && root.matches(rule.selectorText)) {
+          for (const name of Array.from(rule.style)) if (name.startsWith("--")) names.add(name);
+        }
+        if ("cssRules" in rule) inspect((rule as CSSGroupingRule).cssRules);
+      }
+    }
+    for (const sheet of Array.from(document.styleSheets)) inspect(sheet.cssRules);
+    const style = getComputedStyle(root);
+    return { count: names.size, empty: [...names].filter((name) => !style.getPropertyValue(name).trim()) };
+  });
+  expect(rootTokens.count).toBeGreaterThan(150);
+  expect(rootTokens.empty).toEqual([]);
+  const launch = page.getByRole("button", { name: copy(info, "全屏导览检查", "Preview full tour overlay"), exact: true });
+  const target = page.locator('[data-tour-anchor="gallery-tour-target"]');
+  await launch.scrollIntoViewIfNeeded();
+  await launch.click();
+  const highlight = page.locator(".tour-target-highlight");
+  await expect(highlight).toBeVisible();
+  expect(await highlight.evaluate((element) => getComputedStyle(element).borderRadius)).toBe("10px");
+  await expect.poll(async () => {
+    const anchor = (await target.boundingBox())!;
+    const bounds = (await highlight.boundingBox())!;
+    return Math.max(Math.abs(bounds.x - anchor.x + 6), Math.abs(bounds.y - anchor.y + 6), Math.abs(bounds.width - anchor.width - 12), Math.abs(bounds.height - anchor.height - 12));
+  }).toBeLessThan(1);
+  const card = page.locator("[data-onboarding-tour-card]");
+  await expectInsideViewport(page, card);
+  await capture(card, info, "tour-target-card");
+  await capture(highlight, info, "tour-target-radius");
+  await page.keyboard.press("Escape");
+  await expect(highlight).toHaveCount(0);
+  await launch.click();
+  await expect(highlight).toBeVisible();
+  await target.click();
+  await expect(highlight).toHaveCount(0);
+  await expect(page.locator("[data-gallery-tour-actions]")).toHaveText("1");
+  expect(errors).toEqual([]);
+});
+
 test("Composer draft previews preserve files and keep removal as an independent command", async ({ page }, info) => {
   const { errors } = await openGallery(page, info, "workspace");
   const fixture = page.locator("[data-gallery-composer-attachments]");

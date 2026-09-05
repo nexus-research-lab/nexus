@@ -226,7 +226,7 @@ export function AgentPrivateDomainView({
 
   return (
     <div className="nexus-private-domain-layout grid min-h-0 min-w-0 flex-1 overflow-hidden">
-      <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-(--surface-raised-background)">
+      <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-(--surface-shell-directory-background)">
         <PrivateDomainToolbar
           count={threads.length}
           isLoading={threadsLoading || eventsLoading}

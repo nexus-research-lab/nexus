@@ -379,7 +379,7 @@ function MemoryConflictReview({
   const { t } = useI18n();
   return (
     <div className="nexus-memory-document-content grid min-h-0 flex-1 gap-2 py-4 lg:grid-cols-2">
-      <section className="flex min-h-[240px] min-w-0 flex-col rounded-[10px] border border-[color:color-mix(in_srgb,var(--warning)_26%,var(--border-subtle))] bg-[color:color-mix(in_srgb,var(--warning)_4%,transparent)]">
+      <section className="flex min-h-[240px] min-w-0 flex-col radius-control-md border border-[color:color-mix(in_srgb,var(--warning)_26%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--warning)_4%,transparent)]">
         <h3 className="shrink-0 px-3 pb-2 pt-3 text-xs font-semibold text-(--text-strong)">
           {t("capability.memory_local_draft")}
         </h3>
@@ -391,7 +391,7 @@ function MemoryConflictReview({
           value={controller.draft}
         />
       </section>
-      <section className="flex min-h-[240px] min-w-0 flex-col rounded-[10px] border border-(--border-subtle) bg-(--surface-subtle)">
+      <section className="flex min-h-[240px] min-w-0 flex-col radius-control-md border border-(--divider-subtle-color) bg-(--surface-panel-subtle-background)">
         <h3 className="shrink-0 px-3 pb-2 pt-3 text-xs font-semibold text-(--text-strong)">
           {t("capability.memory_saved_version")}
         </h3>

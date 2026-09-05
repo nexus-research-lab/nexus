@@ -44,7 +44,7 @@ export function ComposerLocalDirectories({
         const name = localDirectoryName(directory);
         return (
           <div
-            className="radius-control-sm group flex h-8 min-w-0 shrink-0 items-center gap-1.5 border border-(--divider-subtle-color) bg-(--surface-raised-background) px-2.5 text-xs text-(--text-default)"
+            className="radius-control-sm group flex h-8 min-w-0 shrink-0 items-center gap-1.5 border border-(--divider-subtle-color) bg-(--surface-panel-background) px-2.5 text-xs text-(--text-default)"
             key={directory}
             title={directory}
           >
