@@ -96,7 +96,7 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
           </SidebarSearchAction>
         )}
         onChange={setQuery}
-        placeholder={t("sidebar.search_contacts")}
+        label={t("sidebar.search_contacts")}
         value={query}
       />
 

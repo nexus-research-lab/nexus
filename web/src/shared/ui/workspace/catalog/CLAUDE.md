@@ -8,7 +8,7 @@
 - `workspace-catalog-card.css` 仅拥有带主动作时的局部堆叠和命中路由：静态内容透传给底部主按钮，原生次动作继续独立命中，不要求业务复制定位和 pointer-events 配方。
 - `size="dense"` 表达设置面中的紧凑目录卡，统一保留 104px 最小高度、10px 圆角与紧凑内边距。卡片和主动作的圆角使用同一映射；GhostAction 将虚线创建卡的几何组合到 `UiButton variant="outline"`，不复制原生按钮、禁用/焦点/hover 状态。
 - `workspace-catalog-content.tsx` 只负责标题、正文、标签和内容区布局。
-- `workspace-catalog-actions.tsx` 只负责目录动作按钮外观。
+- `workspace-catalog-actions.tsx` 只负责联系人和群聊目录共用的文字动作组合，状态与外观由共享 Button 持有；不预留没有生产消费者的图标按钮封装。
 - `workspace-icon-frame.tsx` 只负责图标容器的尺寸、形状和色调；默认图标基座使用共享暖色控制面和轻阴影，不得回退为高亮纯白圆块。
 - 消费者按职责直接导入具体模块；不得恢复混合导出的聚合入口。
 - 领域判断、权限、状态文案和命令互斥留在所属 Feature。

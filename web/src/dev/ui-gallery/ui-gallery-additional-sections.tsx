@@ -10,7 +10,6 @@ import {
   Ellipsis,
   FileCode2,
   Grid2X2,
-  MoreHorizontal,
   Plus,
   RefreshCw,
   Settings2,
@@ -74,7 +73,7 @@ import { TourOverlayCard } from "@/shared/ui/onboarding/overlay/tour-overlay-car
 import { OnboardingTourOverlay } from "@/shared/ui/onboarding/overlay/tour-overlay";
 import { SidebarEmptyGuide } from "@/shared/ui/sidebar/sidebar-empty-guide";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
-import { WorkspaceCatalogAction, WorkspaceCatalogTextAction } from "@/shared/ui/workspace/catalog/workspace-catalog-actions";
+import { WorkspaceCatalogTextAction } from "@/shared/ui/workspace/catalog/workspace-catalog-actions";
 import { WorkspaceCatalogCard, WorkspaceCatalogGhostAction } from "@/shared/ui/workspace/catalog/workspace-catalog-card";
 import {
   WorkspaceCatalogBody,
@@ -143,7 +142,7 @@ export function FoundationCompleteness({ locale }: { locale: Locale }) {
             <SidebarSearchField
               action={<SidebarSearchAction aria-label={galleryText(locale, "新建", "Create")}><Plus /></SidebarSearchAction>}
               onChange={setSidebarSearch}
-              placeholder={galleryText(locale, "搜索组件", "Search components")}
+              label={galleryText(locale, "搜索组件", "Search components")}
               value={sidebarSearch}
             />
           </div>
@@ -568,7 +567,7 @@ export function WorkspaceGallery({ locale }: { locale: Locale }) {
         title={galleryText(locale, "Workspace 目录", "Workspace catalog")}
       >
         <div className="grid gap-4 lg:grid-cols-3">
-          <PreviewCard components={["WorkspaceCatalogCard", "WorkspaceCatalogHeader", "WorkspaceCatalogBody", "WorkspaceCatalogFooter", "WorkspaceCatalogTitle", "WorkspaceCatalogDescription", "WorkspaceIconFrame", "WorkspaceCatalogAction", "WorkspaceCatalogTextAction"]}>
+          <PreviewCard components={["WorkspaceCatalogCard", "WorkspaceCatalogHeader", "WorkspaceCatalogBody", "WorkspaceCatalogFooter", "WorkspaceCatalogTitle", "WorkspaceCatalogDescription", "WorkspaceIconFrame", "WorkspaceCatalogTextAction"]}>
             <WorkspaceCatalogCard
               aria-label="Catalog action example"
               primaryAction={{
@@ -586,11 +585,10 @@ export function WorkspaceGallery({ locale }: { locale: Locale }) {
               </WorkspaceCatalogHeader>
               <WorkspaceCatalogBody grow><UiBadge size="xs">shared/ui</UiBadge></WorkspaceCatalogBody>
               <WorkspaceCatalogFooter>
-                <WorkspaceCatalogTextAction>{galleryText(locale, "详情", "Details")}</WorkspaceCatalogTextAction>
-                <WorkspaceCatalogAction
+                <WorkspaceCatalogTextAction
                   aria-label="Catalog secondary action"
                   onClick={() => setCatalogActions((current) => ({ ...current, secondary: current.secondary + 1 }))}
-                ><MoreHorizontal className="h-4 w-4" /></WorkspaceCatalogAction>
+                >{galleryText(locale, "详情", "Details")}</WorkspaceCatalogTextAction>
               </WorkspaceCatalogFooter>
             </WorkspaceCatalogCard>
             <output data-gallery-catalog-actions>{catalogActions.primary}:{catalogActions.secondary}</output>

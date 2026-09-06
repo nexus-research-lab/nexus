@@ -20,11 +20,13 @@ import {
   UiTextarea,
 } from "@/shared/ui/form/form-control";
 import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
+import { SidebarSearchAction, SidebarSearchField } from "@/shared/ui/form/sidebar-search-field";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 
 function renderWithI18n(children: ReactNode) {
   const messages: Record<string, string> = {
     "common.clear": "清除",
+    "common.search": "搜索",
     "common.invalid_field": "字段格式不正确",
     "common.required_field": "请填写此字段",
   };
@@ -267,6 +269,53 @@ describe("form primitives", () => {
     expect(screen.getByRole("searchbox", { name: "搜索 Agent" })).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "清除" }));
     expect(onChange).toHaveBeenCalledWith("");
+  });
+
+  it("keeps sidebar search, clear and creation independent with a concise named field", async () => {
+    const user = userEvent.setup();
+    const onCreate = vi.fn();
+    const onSubmit = vi.fn();
+    function Harness({ disabled = false }: { disabled?: boolean }) {
+      const [query, setQuery] = useState("");
+      return (
+        <form onSubmit={(event) => { event.preventDefault(); onSubmit(); }}>
+          <SidebarSearchField
+            action={<SidebarSearchAction disabled={disabled} onClick={onCreate} title="新建智能体"><List /></SidebarSearchAction>}
+            label="搜索联系人"
+            onChange={setQuery}
+            value={query}
+          />
+        </form>
+      );
+    }
+    const { rerender } = renderWithI18n(<Harness />);
+    const search = screen.getByRole("searchbox", { name: "搜索联系人" }) as HTMLInputElement;
+    const create = screen.getByRole("button", { name: "新建智能体" }) as HTMLButtonElement;
+    expect(search.placeholder).toBe("搜索");
+    expect(create.type).toBe("button");
+    expect(create.hasAttribute("title")).toBe(false);
+
+    await user.type(search, "Research");
+    expect(search.value).toBe("Research");
+    await user.click(screen.getByRole("button", { name: "清除" }));
+    expect(search.value).toBe("");
+    expect(document.activeElement).toBe(search);
+    expect(onCreate).not.toHaveBeenCalled();
+
+    await user.tab();
+    expect(document.activeElement).toBe(create);
+    await user.keyboard("{Enter}");
+    expect(onCreate).toHaveBeenCalledOnce();
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(search.value).toBe("");
+
+    rerender(<Harness disabled />);
+    expect(create.disabled).toBe(true);
+    await user.click(create);
+    await user.type(search, "Nexus");
+    expect(search.value).toBe("Nexus");
+    expect(onCreate).toHaveBeenCalledOnce();
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 
   it("keeps native select semantics while sharing form geometry", async () => {

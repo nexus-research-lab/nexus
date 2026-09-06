@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Unify sidebar search actions with the shared IconButton, retain independent
+  search/clear/create commands, and use readable shared text with concise bilingual
+  placeholders and full accessible names within the existing sidebar width.
 - Reuse the shared segmented control for skill-source authentication, preserve
   selected-option keyboard focus, suppress disabled hover styling, and align
   icons with their labels without changing credential or save behavior.
@@ -502,6 +505,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- Removed the Gallery-only catalog icon-action adapter; production catalog text
+  actions continue to use the shared Button.
 - Removed the unused metadata-grid and glass-magnifier components, their Gallery
   demos, and three magnifier-only images after checking all production entries
   and repository references. The production glass switch remains in use.

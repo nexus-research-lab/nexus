@@ -139,7 +139,7 @@ export const UI_GALLERY_COVERAGE_GROUPS: readonly UiGalleryCoverageGroup[] = [
     mode: "direct",
     renderer: "Workspace catalog",
     components: [
-      "WorkspaceCatalogAction", "WorkspaceCatalogTextAction", "WorkspaceCatalogCard",
+      "WorkspaceCatalogTextAction", "WorkspaceCatalogCard",
       "WorkspaceCatalogGhostAction", "WorkspaceCatalogHeader", "WorkspaceCatalogBody",
       "WorkspaceCatalogFooter", "WorkspaceCatalogTitle", "WorkspaceCatalogDescription",
       "WorkspaceIconFrame",

@@ -1,10 +1,11 @@
 // INPUT: Real App entry/Router, isolated read snapshots, theme/locale/viewport matrix.
-// OUTPUT: Launcher/navigation geometry and multi-page pin, reload and unpin evidence.
+// OUTPUT: Launcher/navigation/search geometry, local contact filtering and multi-page pin persistence.
 // POS: App-shell browser regression; all HTTP/WS traffic stays in local fixtures.
 
 import { expect, test } from "@playwright/test";
 import { createRequire } from "node:module";
 import { appShellRead, APP_SHELL_INIT_SCRIPT } from "./native-ui-app-fixtures.mjs";
+import { measureTextContrast } from "./color-contrast";
 
 const localLottieWasm = createRequire(__filename).resolve("@lottiefiles/dotlottie-web/dotlottie-player.wasm");
 
@@ -82,6 +83,53 @@ test("real Launcher navigates to a readable responsive workbench and pins surviv
   await expect.poll(() => page.locator("main").evaluate((e) => e.scrollWidth - e.clientWidth)).toBeLessThanOrEqual(1);
   await expect(page.locator(".desktop-app-stage")).toHaveCount(page.viewportSize()!.width <= 559 ? 0 : 1);
   await info.attach("app-workbench", { body: await page.screenshot(), contentType: "image/png" });
+  await page.locator('[data-tour-anchor="sidebar-contacts-tab"]').click();
+  const contacts = page.locator('[data-tour-anchor="sidebar-contacts-list"]');
+  const isChinese = info.project.metadata.locale === "zh";
+  const search = contacts.getByRole("searchbox", { name: isChinese ? "搜索联系人" : "Search contacts" });
+  const create = contacts.getByRole("button", { name: isChinese ? "新建智能体" : "New Agent", exact: true });
+  await expect(search).toHaveAttribute("placeholder", isChinese ? "搜索" : "Search");
+  const searchGeometry = await search.evaluate((input) => {
+    const style = getComputedStyle(input);
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d")!;
+    ctx.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+    return {
+      fontSize: parseFloat(style.fontSize),
+      availableWidth: input.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
+      placeholderWidth: ctx.measureText((input as HTMLInputElement).placeholder).width,
+      height: input.parentElement!.getBoundingClientRect().height,
+      radius: getComputedStyle(input.parentElement!).borderRadius,
+    };
+  });
+  const actionGeometry = await create.evaluate((button) => ({
+    height: button.getBoundingClientRect().height,
+    width: button.getBoundingClientRect().width,
+    radius: getComputedStyle(button).borderRadius,
+  }));
+  expect(searchGeometry.fontSize).toBe(14);
+  expect(searchGeometry.placeholderWidth).toBeLessThanOrEqual(searchGeometry.availableWidth);
+  const height = page.viewportSize()!.width <= 559 ? 48 : 36;
+  expect(searchGeometry.height).toBe(height);
+  expect(actionGeometry).toEqual({ height, width: height, radius: searchGeometry.radius });
+  const contrast = await measureTextContrast(search, "::placeholder");
+  expect(contrast.ratio).toBeGreaterThanOrEqual(4.5);
+  await search.focus();
+  await page.keyboard.press("Tab");
+  await expect(create).toBeFocused();
+  expect(await create.getAttribute("title")).toBeNull();
+  await expect(page.getByRole("tooltip", { name: isChinese ? "新建智能体" : "New Agent" })).toBeVisible();
+  await search.fill("Research");
+  await expect(contacts.getByText("Research", { exact: true })).toBeVisible();
+  await expect(contacts.getByText("Nexus", { exact: true })).toHaveCount(0);
+  await contacts.getByRole("button", { name: isChinese ? "清除" : "Clear", exact: true }).click();
+  await expect(search).toHaveValue("");
+  await expect(search).toBeFocused();
+  await expect(contacts.getByText("Nexus", { exact: true })).toBeVisible();
+  await expect.poll(() => contacts.evaluate((e) => e.scrollWidth - e.clientWidth)).toBeLessThanOrEqual(1);
+  await info.attach("sidebar-search-metrics", { body: JSON.stringify({ searchGeometry, actionGeometry, contrast }), contentType: "application/json" });
+  await info.attach("app-contacts-search", { body: await page.screenshot(), contentType: "image/png" });
+  await page.locator('[data-tour-anchor="sidebar-chat-tab"]').click();
   const sibling = await context.newPage();
   await sibling.goto("/app");
   await expect(sibling.locator(".sidebar-panel-shell")).toBeVisible();
