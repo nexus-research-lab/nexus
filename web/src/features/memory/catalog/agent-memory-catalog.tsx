@@ -1,7 +1,7 @@
 /**
  * INPUT: 已投影的记忆分区、筛选、查询和目录动作。
  * OUTPUT: 同行共享搜索/类型筛选、互斥空状态与紧凑记忆目录，保留可读摘要和文档名。
- * POS: Agent 记忆页左栏，不读取正文或解释路径协议。
+ * POS: Agent 记忆页左栏，底色继承详情容器，不读取正文或解释路径协议。
  */
 import { RefreshCw, Search } from "lucide-react";
 
@@ -60,7 +60,7 @@ export function AgentMemoryCatalog({
     value: option.value,
   }));
   return (
-    <aside className="nexus-memory-catalog flex min-h-0 min-w-0 flex-col bg-(--surface-shell-directory-background)">
+    <aside className="nexus-memory-catalog flex min-h-0 min-w-0 flex-col">
       <div className="flex shrink-0 items-center gap-2 px-2.5 py-3 max-[559px]:px-4">
         <UiSearchInput
           action={(
