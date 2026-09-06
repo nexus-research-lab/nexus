@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Image and PDF previews share scoped native-media state and reset on file or
+  account changes. Image recovery remains scrollable in short panels; PDF gains
+  an explicit reload action instead of relying on unavailable iframe errors.
+  Streaming HTML shares source-preview styling and uses one commit timer while
+  preserving its sandbox, storage shim and immediate final update.
 - Large text previews reset pagination when the file or account changes and
   ignore obsolete reads. Chunk navigation retains its controls while loading,
   uses fresh byte offsets and keeps only one chunk. Plain and chunked text share

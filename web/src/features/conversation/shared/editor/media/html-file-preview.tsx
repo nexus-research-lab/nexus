@@ -1,6 +1,11 @@
+// INPUT: Current HTML content, streaming state and an accessible file title.
+// OUTPUT: A throttled opaque-origin iframe, or shared source preview while its head is incomplete.
+// POS: HTML presentation; retains the storage shim and sandbox, without file I/O or parent access.
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { cn } from "@/shared/ui/class-name";
+import { UI_SOURCE_PREVIEW_SCROLL_CLASS_NAME, UI_SOURCE_TEXT_CLASS_NAME } from "@/shared/ui/form/source-text-styles";
 
 const HTML_PREVIEW_COMMIT_INTERVAL_MS = 250;
 
@@ -76,59 +81,24 @@ function useHtmlPreviewDocument(content: string, isStreaming: boolean) {
       ? null
       : content),
   );
-  const latestContentRef = useRef(content);
   const lastCommitTsRef = useRef(0);
-  const pendingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const clearPendingTimer = useCallback(() => {
-    if (pendingTimerRef.current) {
-      clearTimeout(pendingTimerRef.current);
-      pendingTimerRef.current = null;
-    }
-  }, []);
-
-  const commitContent = useCallback((nextContent: string) => {
-    clearPendingTimer();
-    lastCommitTsRef.current = Date.now();
-    setCommittedContent(nextContent);
-  }, [clearPendingTimer]);
 
   useEffect(() => {
-    latestContentRef.current = content;
-  }, [content]);
-
-  useEffect(() => {
-    if (!isStreaming) {
-      commitContent(content);
+    if (isStreaming && shouldDeferHtmlPreviewCommit(content)) return;
+    const commit = () => {
+      lastCommitTsRef.current = Date.now();
+      setCommittedContent(content);
+    };
+    const delay = isStreaming
+      ? Math.max(0, HTML_PREVIEW_COMMIT_INTERVAL_MS - (Date.now() - lastCommitTsRef.current))
+      : 0;
+    if (delay === 0) {
+      commit();
       return;
     }
-
-    if (shouldDeferHtmlPreviewCommit(content)) {
-      return;
-    }
-
-    const elapsed = Date.now() - lastCommitTsRef.current;
-    if (elapsed >= HTML_PREVIEW_COMMIT_INTERVAL_MS) {
-      commitContent(content);
-      return;
-    }
-
-    if (pendingTimerRef.current) {
-      return;
-    }
-
-    pendingTimerRef.current = setTimeout(() => {
-      pendingTimerRef.current = null;
-      const latestContent = latestContentRef.current;
-      if (!shouldDeferHtmlPreviewCommit(latestContent)) {
-        commitContent(latestContent);
-      }
-    }, HTML_PREVIEW_COMMIT_INTERVAL_MS - elapsed);
-
-    return () => clearPendingTimer();
-  }, [clearPendingTimer, commitContent, content, isStreaming]);
-
-  useEffect(() => () => clearPendingTimer(), [clearPendingTimer]);
+    const timer = setTimeout(commit, delay);
+    return () => clearTimeout(timer);
+  }, [content, isStreaming]);
 
   const previewDocument = useMemo(
     () => committedContent === null
@@ -138,31 +108,31 @@ function useHtmlPreviewDocument(content: string, isStreaming: boolean) {
   );
 
   return {
-    has_committedContent: committedContent !== null,
-    is_waiting_for_head:
+    isWaitingForHead:
       isStreaming &&
       committedContent === null &&
       shouldDeferHtmlPreviewCommit(content),
-    preview_document: previewDocument,
+    previewDocument,
   };
 }
 
 export function HtmlFilePreview({
   content,
-  isStreaming: isStreaming = false,
+  isStreaming = false,
   title,
 }: {
   content: string;
   isStreaming?: boolean;
   title: string;
 }) {
-  const { has_committedContent, is_waiting_for_head: isWaitingForHead, preview_document: previewDocument } =
+  const { isWaitingForHead, previewDocument } =
     useHtmlPreviewDocument(content, isStreaming);
 
-  if (!has_committedContent && isWaitingForHead) {
+  if (isWaitingForHead) {
     return (
-      <div className="soft-scrollbar h-full min-h-0 w-full overflow-auto bg-(--surface-panel-subtle-background) p-4">
-        <pre className="message-cjk-code-font whitespace-pre-wrap break-words text-sm leading-6 text-(--text-muted)">
+      // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- The named source region needs a Tab stop for native keyboard scrolling while HTML is incomplete.
+      <div aria-label={title} className={cn("h-full w-full bg-(--surface-panel-subtle-background) p-4", UI_SOURCE_PREVIEW_SCROLL_CLASS_NAME)} role="region" tabIndex={0}>
+        <pre className={cn("whitespace-pre-wrap break-words text-(--text-muted)", UI_SOURCE_TEXT_CLASS_NAME)}>
           {content}
         </pre>
       </div>
