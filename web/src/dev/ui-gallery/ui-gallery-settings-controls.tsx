@@ -1,13 +1,13 @@
-// INPUT: 当前语言及本地默认模型、权限和保存中状态。
+// INPUT: 当前语言及本地默认模型、权限、记忆开关和保存中状态。
 // OUTPUT: 真实设置行和公共紧凑控件的密度、可读性及选择回调预览。
 // POS: 开发期消费夹具；不请求设置服务，不写入用户偏好。
 
-import { MonitorCog } from "lucide-react";
+import { Brain, MonitorCog } from "lucide-react";
 import { useState } from "react";
 
 import { SettingsDefaultModelRow } from "@/features/settings/general/components/settings-default-model-row";
 import { SettingsPermissionsSection } from "@/features/settings/general/sections/settings-permissions-section";
-import { SettingsNavigationGroupLabel } from "@/features/settings/shared/settings-panel-ui";
+import { SettingsNavigationGroupLabel, SettingsToggleRow } from "@/features/settings/shared/settings-panel-ui";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
@@ -17,10 +17,11 @@ import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styl
 import { galleryText } from "./ui-gallery-copy";
 
 export function SettingsControlsGallery() {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const [model, setModel] = useState("balanced");
   const [permission, setPermission] = useState("default");
   const [saving, setSaving] = useState(false);
+  const [consolidation, setConsolidation] = useState(true);
   const [commands, setCommands] = useState<string[]>([]);
   const options = [
     { value: "balanced", label: galleryText(locale, "均衡模型", "Balanced model") },
@@ -52,6 +53,15 @@ export function SettingsControlsGallery() {
         preferencesRecovery={{ canCompare: false, canRepairProjection: false, checking: false,
           checkLatest: () => undefined, reapplyDraft: () => undefined, repairProjection: () => undefined, repairing: false }}
         preferencesSaving={saving} />
+    </div>
+    <div data-gallery-settings-toggle>
+      <SettingsToggleRow checked={consolidation} disabled={saving}
+        description={t("settings.general.auto_dream_description")}
+        title={t("settings.general.auto_dream_title")} icon={<Brain className="h-3.5 w-3.5" />}
+        onChange={(checked) => {
+          setConsolidation(checked);
+          setCommands((current) => [...current, `consolidation:${checked}`]);
+        }} />
     </div>
     <div className="grid gap-4 sm:grid-cols-2">
       {(["xs", "sm"] as const).map((size) => <UiField key={size} htmlFor={`gallery-compact-${size}`}

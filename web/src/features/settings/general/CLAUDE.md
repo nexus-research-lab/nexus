@@ -14,7 +14,7 @@ L4 | 父级: web/src/features/settings
 - `sections/`: 桌面应用、外观、行为、工作区和权限纯视图，不直接调用 API 或 Desktop Bridge
 - `components/`: 默认模型与引导复位行
 
-布局常量和分段控件来自 `../shared/settings-panel-ui.tsx`，General 不拥有跨域共享 UI。
+布局常量与具名 `SettingsToggleRow` 来自 `../shared/settings-panel-ui.tsx`，General 不拥有跨域共享 UI；分段控件直接使用共享 UiSegmentedControl。行为分区共置测试覆盖双语名称、独立说明身份及 Preferences/Echo 的各自禁用条件和叶子更新。
 
 设置行在桌面与窄屏都保留影响用户判断的短说明；说明不解释 bridge、SDK 或请求链路等内部实现。
 

@@ -1,6 +1,6 @@
 /**
  * INPUT: 运行引擎、工具发现与网页搜索偏好。
- * OUTPUT: 以公共 Field 精确关联标签、错误和输入，保留失焦保存的运行与搜索设置。
+ * OUTPUT: 以公共 Field 关联输入和错误，以 SettingsToggleRow 关联开关与说明，保留失焦保存。
  * POS: 设置目录的运行分区，不暴露底层 schema 或 bridge 教学。
  */
 "use client";
@@ -23,7 +23,6 @@ import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { UiCheckboxRow } from "@/shared/ui/form/checkbox-row";
 import { UiField, UiInput, UiTextarea } from "@/shared/ui/form/form-control";
 import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
-import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import { PreferencesReliabilityNotice } from "../general/components/preferences-reliability-notice";
@@ -41,7 +40,7 @@ import type { TranslationKey } from "@/shared/i18n/messages";
 import { AGENT_RUNTIME_KIND_OPTIONS } from "./model/settings-runtime-options";
 import {
   SETTINGS_CARD_CLASS_NAME,
-  SETTINGS_CONTROL_LABEL_CLASS_NAME,
+  SettingsToggleRow,
   SETTINGS_ICON_CLASS_NAME,
   SETTINGS_ITEM_DESCRIPTION_CLASS_NAME,
   SETTINGS_ITEM_TITLE_CLASS_NAME,
@@ -766,33 +765,14 @@ function ToolSearchRow({
 }) {
   const { t } = useI18n();
   return (
-    <div className={SETTINGS_ROW_CLASS_NAME}>
-      <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
-        <div className={SETTINGS_ICON_CLASS_NAME}>
-          <Search className="h-3.5 w-3.5" />
-        </div>
-        <div className="min-w-0">
-          <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
-            {t("settings.runtime.tool_search_title")}
-          </h3>
-          <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
-            {t("settings.runtime.tool_search_description")}
-          </p>
-        </div>
-      </div>
-      <div className="flex min-w-0 items-center justify-between gap-3 md:justify-end">
-        <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
-          {t("settings.runtime.tool_search_label")}
-        </span>
-        <GlassSwitch
-          aria-label={t("settings.runtime.tool_search_label")}
-          checked={checked}
-          disabled={disabled}
-          onChange={onChange}
-          size="sm"
-        />
-      </div>
-    </div>
+    <SettingsToggleRow
+      checked={checked}
+      description={t("settings.runtime.tool_search_description")}
+      disabled={disabled}
+      icon={<Search className="h-3.5 w-3.5" />}
+      onChange={onChange}
+      title={t("settings.runtime.tool_search_title")}
+    />
   );
 }
 

@@ -1749,6 +1749,17 @@ test("Agent authorization and Skill cards keep shared list, catalog and typograp
   assert.doesNotMatch(catalog, /<button\b/);
 });
 
+test("General and runtime binary settings retain one domain row owner", async () => {
+  for (const file of [
+    "src/features/settings/general/sections/settings-general-behavior-section.tsx",
+    "src/features/settings/runtime/settings-runtime-section.tsx",
+  ]) {
+    const source = await readSource(file);
+    assert.match(source, /<SettingsToggleRow\b/, file);
+    assert.doesNotMatch(source, /<GlassSwitch\b|liquid-glass\/glass-switch/, file);
+  }
+});
+
 test("Agent private threads separate data projection from ListRow layout recipes", async () => {
   const [list, layout, model] = await Promise.all([
     readSource("src/features/agents/private-domain/agent-private-domain-thread-list.tsx"),

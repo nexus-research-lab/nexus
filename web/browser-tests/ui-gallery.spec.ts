@@ -137,6 +137,39 @@ test("settings controls share readable compact sizes and preserve keyboard selec
   expect(errors).toEqual([]);
 });
 
+test("setting switches retain readable wrapped text, one hit target and independent saving state", async ({ page }, info) => {
+  const { errors } = await openGallery(page, info, "content");
+  const settings = page.locator("[data-gallery-settings-controls]");
+  const row = settings.locator("[data-gallery-settings-toggle]");
+  const control = row.getByRole("switch", { name: copy(info, "自动整理记忆", "Automatic memory consolidation") });
+  const description = row.locator("p");
+  await row.scrollIntoViewIfNeeded();
+  await expect(control).toHaveAccessibleDescription(await description.innerText());
+  await expect(control).toHaveAttribute("aria-checked", "true");
+  expect(await description.evaluate((node) => getComputedStyle(node).fontSize)).toBe("13px");
+  const bounds = await control.boundingBox();
+  for (const text of [row.getByRole("heading"), description]) {
+    const box = (await text.boundingBox())!;
+    expect(box.x + box.width).toBeLessThanOrEqual(bounds!.x - 11);
+    expect((await measureTextContrast(text)).ratio).toBeGreaterThanOrEqual(4.5);
+  }
+  expect(await row.evaluate((node) => node.scrollWidth - node.clientWidth)).toBeLessThanOrEqual(1);
+  await description.click();
+  await expect(settings.locator("[data-gallery-settings-commands]")).toHaveText("[]");
+  await control.focus();
+  await page.keyboard.press("Space");
+  await expect(control).toBeFocused();
+  await expect(control).toHaveAttribute("aria-checked", "false");
+  await expect(settings.locator("[data-gallery-settings-commands]")).toHaveText('["consolidation:false"]');
+  await settings.locator("[data-gallery-settings-saving]").click();
+  await expect(control).toBeDisabled();
+  await capture(row, info, "settings-toggle-saving");
+  await settings.locator("[data-gallery-settings-saving]").click();
+  await expect(control).toBeEnabled();
+  await expect(control).toHaveAttribute("aria-checked", "false");
+  expect(errors).toEqual([]);
+});
+
 test("segmented selections retain keyboard focus, aligned icon text and disabled states", async ({ page }, info) => {
   const { errors } = await openGallery(page, info, "content");
   const fixture = page.locator("[data-gallery-segmented]");
