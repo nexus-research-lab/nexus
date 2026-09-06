@@ -1446,6 +1446,8 @@ test("List and Badge primitives expose semantic typography, sections, and shape"
   for (const connectorList of [connectorCard, customMcpGrid]) {
     assert.match(connectorList, /description=/);
     assert.match(connectorList, /title=/);
+    assert.match(connectorList, /<UiListActionButton\b/);
+    assert.doesNotMatch(connectorList, /<UiIconButton\b/);
     assert.doesNotMatch(connectorList, /text-base font-(?:medium|semibold)/);
   }
   assert.match(connectorCard, /meta=\{<ConnectorCardBadge/);

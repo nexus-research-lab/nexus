@@ -1,5 +1,5 @@
 // INPUT: 列表行的选择状态、交互开关、tone、密度、表面与外部布局 class。
-// OUTPUT: 由共享 token/recipe 组成的列表行样式、角色和焦点入口。
+// OUTPUT: 由共享 token/recipe 组成的列表行样式、角色与不被滚动容器裁切的键盘焦点。
 // POS: ListRow 内部展示配方；不渲染 DOM，也不判断业务选择或路由。
 
 import { cn } from "@/shared/ui/class-name";
@@ -64,7 +64,7 @@ export function getUiListRowPresentation({
       LIST_ROW_DENSITY_CLASS_NAMES[density],
       variant === "flush" && "rounded-none",
       variant === "outlined" && "border-(--divider-subtle-color) bg-transparent",
-      interactive && !disabled && "cursor-pointer",
+      interactive && !disabled && "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:var(--ring)]",
       LIST_ROW_STATE_CLASS_NAMES[state],
       interactive && !disabled && !active && "hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
       variant === "outlined" && interactive && !disabled && !active && "hover:border-(--surface-interactive-active-border)",

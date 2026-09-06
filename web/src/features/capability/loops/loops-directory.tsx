@@ -1,6 +1,6 @@
 /**
  * INPUT: Loop 目录、筛选、复制动作与可选详情路由。
- * OUTPUT: 使用公共 outlined 条目展示用途、触发方式与步骤规模的目录或当前 Loop 详情。
+ * OUTPUT: 公共 outlined 条目与独立 ListAction 复制入口组成的目录或当前 Loop 详情。
  * POS: “能力 > 工作循环”的唯一页面入口。
  */
 "use client";
@@ -21,12 +21,12 @@ import {
 import { listLoopsApi } from "@/lib/api/capability/loop-api";
 import { getResourceFailure, type ResourceFailure } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 import { UiListRow } from "@/shared/ui/list/list-row";
+import { UiListActionButton } from "@/shared/ui/list/list-action";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type { LoopCatalogItem } from "@/types/capability/loop";
@@ -215,20 +215,18 @@ export function LoopsDirectory() {
                       onClick={() => navigate(AppRouteBuilders.loopDetail(loop.slug))}
                       leading={<UiSeededAvatar seed={loop.slug} size="sm" />}
                       right={(
-                        <UiIconButton
+                        <UiListActionButton
                           aria-label={t("capability.loops_copy_prompt")}
                           className="shrink-0"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            void copyPrompt(loop);
-                          }}
+                          onClick={() => { void copyPrompt(loop); }}
                           size="md"
-                          variant="ghost"
+                          stopPropagation
+                          visibility="visible"
                         >
                           {copiedSlug === loop.slug
                             ? <Check className="h-4 w-4" />
                             : <Copy className="h-4 w-4" />}
-                        </UiIconButton>
+                        </UiListActionButton>
                       )}
                     >
                       <div className="min-w-0 flex-1">

@@ -538,6 +538,38 @@ Gallery 使用实际共享设置行及双语长说明，浏览器检查覆盖窄
 视图/原语保留 in_progress；482 项清单当前为 430 pending、49 in_progress、
 3 removed，所有存活条目的源码摘要已同步。
 
+## A17：公共列表焦点与 Connector/MCP/Loop 目录动作（待浏览器复核）
+
+全局焦点层仅覆盖原生控件，带 role=button 的 UiListRow 没有消费同一焦点
+配方。现由 ListRow 内部样式为可交互行提供 2px、语义 ring、内嵌焦点环，
+避免滚动容器边缘裁切；active 行继续显示焦点，静态和 disabled 行不增加
+Tab 入口。原有 Enter/Space、阻止冒泡和 busy/muted 语义保持不变。
+
+Connector 卡片、自定义 MCP 编辑/删除和 Loop 复制入口统一使用
+UiListActionButton，删除私有 IconButton 包装与动作事件 helper。MCP 开关
+仍保留自己的事件隔离边界，busy 或 recovery_required 阻止原有写操作，
+查看详情仍可用；复制保持原始指令文本并不触发详情导航。Connector 卡片
+改为由模型输出本地化 key，视图使用当前语言及真实名称；删除私有规则数组和
+不必要的泛型查找 helper，保留忙碌、已连接、即将推出、应用/凭证配置、普通
+连接的原有优先级。目录仍不会展示 coming_soon 占位资源。
+
+Connector 与 MCP 的私有加载/空态改用 UiResourceState，消除单独字号、
+高度和边框组合。目录首次空集保留原有添加动作，过滤无结果不新增动作，
+读取失败继续显示原有显式恢复入口；未改变读取、过滤、授权或 CRUD 协议。
+
+31 项组件/模型测试与 155 项架构、样式和资源可靠性合同通过；lint、
+typecheck、构建通过。最终组件日志没有异步 act 警告，相关日志为
+`/tmp/nexus-design-a17-components-final.log`、
+`/tmp/nexus-design-a17-contracts-final.log` 和
+`/tmp/nexus-design-a17-{lint-final,typecheck-final,build-final}.log`。
+
+实际 Gallery 已补充键盘顺序与内嵌焦点检查，覆盖侧栏、紧凑、flush、active
+行、静态/禁用项跳过及尺寸稳定。浏览器清单现有 1116 项，仅完成注册
+（`/tmp/nexus-design-a17-browser-list.log`）；此前启动的自动审批复核超时
+尚未解除，不将注册项算作执行结果。五个相关条目保留 in_progress，清单为
+428 pending、51 in_progress、3 removed，存活源码摘要一致。目录长名称与
+元信息密度、Connector 详情中的硬编码中文及实际主题/宿主效果仍需继续审查。
+
 ## 待进一步判断
 
 - A8 已统一侧栏搜索文字与动作所有权，仍需执行真实双语目录的宽度、对比度和
