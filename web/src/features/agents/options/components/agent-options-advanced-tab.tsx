@@ -1,11 +1,12 @@
 /**
  * INPUT: Agent 权限模式、预授权工具和连接器选择状态。
- * OUTPUT: 同时展示模式差异、工具用途、连接器状态与对应开关的高级配置页。
+ * OUTPUT: 完整展示权限模式名称/说明、工具用途与连接器状态，选择项分别关联名称和描述。
  * POS: Agent 详情中的授权决策面；说明用于比较选择而非装饰。
  */
 
 "use client";
 
+import { useId } from "react";
 import {
   Bot,
   Check,
@@ -76,6 +77,7 @@ export function AgentOptionsAdvancedTab({
   onToggleConnector,
 }: AgentOptionsAdvancedTabProps) {
   const { t } = useI18n();
+  const permissionGroupId = useId();
   const isBypassPermissionMode = permissionMode === "bypassPermissions";
   const preauthorizedToolCount = countVisibleAgentPreauthorizedTools(allowedTools);
 
@@ -89,23 +91,28 @@ export function AgentOptionsAdvancedTab({
         <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2">
           {AGENT_PERMISSION_MODES.map((mode) => {
             const isActive = permissionMode === mode.value;
+            const titleId = `${permissionGroupId}-${mode.value}-title`;
+            const descriptionId = `${permissionGroupId}-${mode.value}-description`;
             return (
               <UiChoiceButton
                 active={isActive}
+                aria-describedby={descriptionId}
+                aria-labelledby={titleId}
                 choiceSize="lg"
                 className="min-h-[72px] min-w-0 flex-col items-stretch justify-start gap-0 text-left"
+                data-agent-permission-mode={mode.value}
                 key={mode.value}
                 onClick={() => onPermissionModeChange(mode.value)}
                 tone="neutral"
                 type="button"
               >
-                <span className={cn("flex w-full min-w-0 items-center gap-2", getUiTypographyClassName({ role: "control", tone: "strong", weight: "semibold" }))}>
-                  <span className="min-w-0 flex-1 truncate">{t(mode.labelKey)}</span>
-                  {isActive ? <Check className="h-3.5 w-3.5 shrink-0" /> : null}
+                <span className={cn("flex w-full min-w-0 items-center gap-2", getUiTypographyClassName({ role: "control", tone: "strong", weight: "medium" }))}>
+                  <span className="min-w-0 flex-1 break-words" id={titleId}>{t(mode.labelKey)}</span>
+                  {isActive ? <Check aria-hidden className="h-3.5 w-3.5 shrink-0" /> : null}
                 </span>
                 <span
-                  className={cn("mt-1 line-clamp-2", getUiTypographyClassName({ role: "caption", tone: "muted" }))}
-                  title={t(mode.descriptionKey)}
+                  className={cn("mt-1 break-words", getUiTypographyClassName({ role: "supporting", tone: "muted" }))}
+                  id={descriptionId}
                 >
                   {t(mode.descriptionKey)}
                 </span>

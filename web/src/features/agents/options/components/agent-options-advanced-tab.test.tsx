@@ -7,6 +7,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
+import { AGENT_PERMISSION_MODES } from "@/lib/agent-options";
 import type { ConnectorInfo } from "@/types/capability/connector";
 
 import { AgentOptionsAdvancedTab } from "./agent-options-advanced-tab";
@@ -106,6 +107,10 @@ describe("AgentOptionsAdvancedTab", () => {
     expect(defaultMode.getAttribute("aria-pressed")).toBe("true");
     expect(defaultMode.className).toContain("bg-(--surface-interactive-active-background)");
     expect(defaultMode.className).not.toContain("shadow-[");
+    for (const mode of AGENT_PERMISSION_MODES) {
+      const control = screen.getByRole("button", { name: mode.labelKey });
+      expect(document.getElementById(control.getAttribute("aria-describedby")!)?.textContent).toBe(mode.descriptionKey);
+    }
     await user.click(planMode);
     expect(onPermissionModeChange).toHaveBeenCalledWith("plan");
   });

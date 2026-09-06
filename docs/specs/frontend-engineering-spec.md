@@ -186,6 +186,7 @@ Primitive 同时拥有 DOM、键盘、焦点、ARIA 和视觉状态合同，例�
 - 没有 `htmlFor` 的具名 `UiField` 表达复合区域：可见名称通过 `aria-labelledby` 关联 `role=group`，说明与显式整组错误属于该组，不生成无目标的 label，也不把整组错误写到每个输入。单个输入仍要显式配对，复合输入仍保留各自可访问名称；
 - 可增删的表单行必须保留草稿生命周期内稳定的行身份，不能按当前数组下标或可编辑的值生成 React key；行名称和移除动作要区分当前项，错误关联仍指向原控件。纯模型只接收身份并投影草稿，新增身份由视图事件创建；本地行身份不得混入保存协议或替代服务端资源身份；
 - 按钮式选择统一使用 `UiChoiceButton`，权限范围等互斥表单选择统一使用保留 native radio 的 `UiRadioChoice`；业务层不得导入 `choice-styles.ts` 手写第二套 DOM，生成式问答等稳定领域 Widget 的原生选项按其独立合同保留；
+- 同一权限请求可存在多个展示实例，native radio 的 `name` 必须由视图实例生成，不能只复用 request ID 而把两个展示区合成一个浏览器选择组。请求身份与授权回调仍由原业务控制器持有，DOM 分组身份不参与授权。权限组复用具名 Field 关联禁用说明；带完整说明的权限卡分别关联标题与描述，选择不能隐式触发允许/拒绝命令；
 - 带整行命中区的复选项直接组合 `UiCheckboxRow`；公共层持有实例级名称/说明关联，默认只以可见 label 命名，description 与调用方已有描述合并，装饰图标不参与名称。显式 `aria-label / aria-labelledby` 保留优先级；整行点击和 Space 仍由唯一 native checkbox 改值，disabled 或所属 fieldset 禁用时不触发命令及 hover。业务只提供值、密度、说明和回调，不为纯属性转发增加私有包装；
 - 二元开关统一由 `GlassSwitch` 的单一 native button/`role=switch` 持有 checked、键盘、焦点和真实 disabled；业务不得在 disabled switch 外套 `span role=button` 等第二命中区，需要解释受保护状态时由可操作 switch 的 `onChange` 进入业务确认或说明；
 - 标签输入和多选字段中的已选实体统一使用 `UiRemovableChip`；移除动作必须是具名 native IconButton，复合字段的菜单触发器与移除按钮必须为兄弟节点，不得嵌套 button 或用 `span role=button` 绕过合法 DOM；

@@ -205,6 +205,8 @@ disabled 降对比不隐藏、保留可解释文案；loading 保持原尺寸与
 - 导航侧栏的搜索行使用简短本地化占位提示，完整搜索范围保留在可访问名称；不通过加宽侧栏或缩小字号容纳重复的目录名称。文字继承字段默认 control 角色，搜索和尾部创建按钮桌面同为 36px、窄于 560px 时同为 48px，圆角分别使用 control / control-lg。尾部动作默认透明，hover、active、disabled、焦点与唯一短提示复用公共 IconButton，不另设抬升基座。
 - 路径、命令名和源码模板通过共享字段的 `textRole="code"` 使用等宽字体，字号与几何仍服从字段尺寸。验证码通过 `textRole="verification"` 使用 48px 高、居中等宽文字和统一字距；它仍是普通文本输入，保留前导零，格式与长度由业务验证，不拆成多个无独立语义的输入格。
 - segmented control 是有限选项的选择器；整体轻底，active 用中性或白色 surface 和轻边界，不加装饰阴影，保留键盘 focus-visible 焦点环。可见组名沿用 Field 的标签与间距，不额外重复标题或短提示。图标与文字同行，disabled 选项保留当前选择但不响应 hover 底色或执行变更。
+- 独立选择项 `UiChoiceButton / UiRadioChoice` 的普通 surface 档位与按钮/字段配套：xs / sm / md / lg 最小高度 28 / 32 / 36 / 40px，字号 12 / 13 / 14 / 14px，统一 medium。日历格保持 32px 高、13px 等宽数字；时间列保持 40px 高、16px 等宽数字。数字选择共用公共 primary 按钮的成对背景/前景，头像选择保留图片尺寸档位；所有 variant 共用 `--ring` 焦点及原生/fieldset 禁用状态，禁止以 pointer-events 穿透模拟禁用或清除已选 tone。
+- 权限模式卡的名称、说明是比较依据：完整换行，标题使用 control / medium，说明使用 supporting / muted；不能截断为两行后只依赖悬停。卡片高度随内容增长，所选模式仍通过中性底面和选择标记表达。
 - switch / checkbox / radio checked 时用 Nexus 蓝；label 与描述承担解释，颜色只确认状态。开关自身是唯一点击与键盘命中区，disabled 必须是真实不可用语义，不在外层再套可点击元素；需要说明“为何不能关闭”时让开关进入说明流程，而不是同时呈现可点击外壳和不可点击内核。
 - 复选行由 `UiCheckboxRow` 提供整行原生命中：标准标题使用 control / medium，紧凑标题与两档说明使用 supporting（13px），说明为 muted。标准留白维持 16px / 12px、内容间距 12px；紧凑行最小高度 32px、水平留白 10px、内容间距 8px。长名称与说明允许换行，装饰图标不收缩；原生输入或所属 fieldset 禁用时整行无 hover，文字、图标与选择框各弱化一次。
 - 设置中的普通二元选项使用同一行：左侧图标、control 标题和 supporting / muted 说明，右侧固定尺寸 sm 开关。行内水平留白 16px、垂直留白 12px、内容与开关间距 12px；窄屏允许标题和说明换行，开关不压缩，也不另起一行重复“启用”。独立权限风险卡和嵌入模型表单的开关保留各自信息层级，说明仍必须关联到实际开关。

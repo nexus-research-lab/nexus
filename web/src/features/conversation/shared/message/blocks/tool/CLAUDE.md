@@ -2,6 +2,7 @@
 
 - `tool-block-model.ts` 只组装唯一执行阶段、权限详情和结果摘要，并向 Composer 紧凑确认面暴露同一必要参数与可读权限建议投影；折叠态统一渲染为单行工具记录，以状态图标表达完成、运行或失败，成功态不再重复状态徽标，工具对象与动作保持同一阅读行。折叠摘要、展开输入与结果必须保持独立语义：展开时头部不再重复折叠摘要，完整输入转入明细区，与结果文本完全相同时只显示一份。工具标题只能调用 `tool-activity.ts` 的统一 i18n resolver，状态和权限字段也由 i18n 上下文一次投影，模型不得保存固定语言或回退显示 raw MCP 名，也不得为 `status` 再维护运行中、待确认等镜像布尔值。消息级执行已停止且缺少 provider `tool_result` 时必须显式投影 `stopped`，不得继续显示 running。
 - `use-tool-block-controller.ts` 管理单条工具的展开、复制和权限选择；主组件只编排头部、结果与权限详情。
+- `tool-block-permission.tsx` 直接组合 `UiRadioChoice` 与具名 `UiField`，用实例 ID 隔离同一请求的多个 DOM 单选组，并将禁用原因关联到组；无可复用范围时仍保留原因与完整输入。展示层只接受精确建议索引回调，请求身份和允许/拒绝命令留在原控制器，不保留纯转发的 PermissionChoice 包装。
 - `tool-block-detail.tsx` 保留代码、JSON、图片和普通文本结果的完整消息列宽；只有 rejected / superseded 这类短 mutation 状态复用 `UiInlineNotice width="compact"` 的共享阅读宽度，窄窗自然回落到可用宽度。不得把这一限制写入 `MessageDetailFrame` / `MessageDetailScroll`，也不得恢复私有错误框的圆角、边框、底色、宽度或字号。
 - `tool-block-model.ts` 在纯投影层消除与工具可见标题相同的 input 摘要；视图层不得针对 operation 名称写特例，也不得重复渲染工具身份来制造伪详情。
 - `header/` 直接从唯一 ToolBlock view model 解释可点击性和动作能力，不再维护第二套状态投影；工具与 Thought 行统一使用 20px 图标槽、14px 图标、常规字重、同一文字起点和紧凑行高，普通记录整行使用辅助灰阶。图标只表达读取、编辑、命令等动作语义，成功或失败由动作颜色表达，不得恢复满屏勾叉、重复失败文字或用粗体放大状态。展开保持单行工具头的图标、标题、状态、元信息与操作几何稳定，但隐藏已转入下方明细的折叠摘要；权限文字动作与结果复制分别复用共享微型 `UiButton`、`UiIconButton`，禁用原因只作原生提示，不得另建按钮样式状态机；复制动作也只在详情展开后出现。

@@ -73,6 +73,7 @@ import {
   WorkspaceGallery,
 } from "./ui-gallery-additional-sections";
 import { galleryText } from "./ui-gallery-copy";
+import { ChoiceGallery } from "./ui-gallery-choices";
 
 const THEME_OPTIONS: Array<{ label: string; value: VisualTheme }> = [
   { label: "Light", value: "light" },
@@ -357,6 +358,7 @@ export function UiContractGallery() {
                 />
               ))}
             </GalleryRow>
+            <ChoiceGallery locale={locale} />
             <GalleryRow label="Selection">
               {["fast", "balanced", "precise"].map((value) => (
                 <UiChoiceButton
