@@ -102,7 +102,7 @@ test("unchanged navigation commands keep their state reference and cannot trigge
   const unsubscribe = current.useRoomNavigationStore.subscribe(() => { changes += 1; });
   t.after(unsubscribe);
   current.state().remember_last_active_conversation("room", "conversation");
-  current.state().save_room_conversation_tabs("room", ["conversation"], "conversation");
+  current.state().close_conversation_tab("room", "conversation", "conversation");
   current.synchronizeRoomNavigationStorage({ key: navigationKey });
   assert.equal(current.state(), before);
   assert.equal(changes, 0);
