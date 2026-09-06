@@ -888,6 +888,45 @@ Gallery 组合真实草稿/调度 Hook 与生产面板，固定本地候选，�
 3 removed；四个生产视图保持 in_progress，源码摘要一致。实际完整弹窗、资源
 失败/对账、三主题和原生宿主继续待复查，不宣称定时任务页面已完整验收。
 
+## A27：公共分段选择的密度、完整标签与提示所有权（待实际浏览器复查）
+
+审查公共分段选择与九个生产消费者中的十三处用法：Settings 外观/行为/Runtime、
+联系人视图、Mermaid、Custom MCP、Skill 导入/来源认证及定时任务。此次记录只
+覆盖这些选择器，不将消费者整页标为完成。原先两档文字均为 11px semibold，
+强制单行，文字选项高度也与同档纯图标项不一致。当前常规/紧凑分别采用
+control 14px / supporting 13px、medium 和 32/28px 选项最小高度；保留外壳
+padding/border、图标尺寸与所有选项值。文字可在受限栏宽内换行，同组文字项
+随内容等高；stretch 按内容伸缩填满栏宽，避免较长短词被强制等分宽度挤压。
+没有改变 native button、aria-pressed、业务回调或 Preferences 保存边界。
+
+纯图标选项复用 UiTooltip 的 hover/focus 与 Escape 生命周期，移除按钮及组的
+原生 title，文字组不再额外提示自身名称。删除只有 Gallery 主题选择曾使用的
+组图标参数、展示分支及独占 CSS/token；类型检查发现并收口该 Gallery 调用，
+生产选项图标继续保留。General 默认消息行为移除手写标题/包装，使用 showLabel
+形成唯一可见 Field 组，排队/打断命令及禁用条件保持。
+
+新增回归先在完整语言夹具下证明两项旧合同不符：图标提示仍是原生 title，
+默认消息行为的可见标题未关联到 group（2 failed / 10 passed，
+`/tmp/nexus-design-a27-before-valid.log`）；原生 prop/fieldset 禁用用例原本即通过。
+本批四项新增组件回归覆盖唯一键盘提示、Escape 焦点保留、受控值、禁用恢复、
+不提交外层表单及精确偏好命令。样式门禁加入 UiSegmentedControl，验证别名、
+展开属性中的字体/颜色/圆角覆盖被拒绝，外部布局继续允许。
+
+全量组件 171 文件、519 项通过，153 项架构/文件/控件/token 合同通过；lint、
+typecheck 和构建通过。最终横向布局调整后，相关 32 项组件回归与构建重新通过，
+没有重复无关全量检查。日志为 `/tmp/nexus-design-a27-all-components.log`、
+`/tmp/nexus-design-a27-contracts.log`、`/tmp/nexus-design-a27-lint-final.log`、
+`/tmp/nexus-design-a27-typecheck-final.log`、`/tmp/nexus-design-a27-layout-final.log`、
+`/tmp/nexus-design-a27-build-final.log`。构建仍保留既有大 chunk 提示。
+
+Gallery 增加两档长名称，并扩展实际浏览器检查：计算字号/字重、图文统一高度、
+窄栏完整换行与等高、唯一键盘提示、禁用及 280px 调度短选项单行；分组逐一截图，
+避免长夹具整体截图中的滚动裁切。1332 项仅完成注册，尚未执行；此前浏览器
+启动被自动审批复核连续超时拦住，仍待许可，完整 check 的监听端口夹具也未运行。
+482 项清单为 393 pending、86 in_progress、3 removed，所有源码摘要一致。字号
+改变后的真实业务布局、三主题与宿主验收继续待核对；Skill 导入及来源编辑中
+发现的固定字段 ID 留在各自业务表单审查中，不把本批分段改进视为全表单完成。
+
 ## 待进一步判断
 
 - A8 已统一侧栏搜索文字与动作所有权，仍需执行真实双语目录的宽度、对比度和

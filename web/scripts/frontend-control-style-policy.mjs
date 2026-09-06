@@ -14,6 +14,7 @@ const CONTROL_MODULES = new Map([
   ["src/shared/ui/form/form-control", new Set(["UiInput", "UiTextarea", "UiNativeSelect", "UiSearchInput"])],
   ["src/shared/ui/form/checkbox", new Set(["UiCheckbox"])],
   ["src/shared/ui/form/choice", new Set(["UiChoiceButton", "UiRadioChoice"])],
+  ["src/shared/ui/form/segmented-control", new Set(["UiSegmentedControl"])],
 ]);
 const VISUAL_CLASS = /^(?:bg-|border(?:$|-)|text-(?!(?:left|right|center|justify|start|end|ellipsis|clip|wrap|nowrap|balance|pretty)$)|font-|ui-type-|message-code-font$|accent-|caret-|leading-|tracking-|rounded(?:$|-)|radius-control-|surface-radius-|(?:drop-)?shadow(?:$|-)|(?:ring|outline)(?:$|-)|opacity-|transition(?:$|-)|duration-|ease-|animate-|scale-|rotate-|skew-)/;
 const VISUAL_PROPERTIES = new Set([

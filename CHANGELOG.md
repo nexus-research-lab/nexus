@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Improve shared segmented controls with readable density, aligned option
+  heights, wrapping labels and keyboard-accessible icon hints. Remove the
+  Gallery-only group-icon API and a duplicate settings field wrapper; guard consumers
+  against private visual overrides while preserving selection commands.
 - Refine scheduled-task forms with instance-scoped field labels, named choice
   groups and shared help text. Align interval controls, give schedule choices
   their own row, and preserve raw instructions, schedules and task routing.

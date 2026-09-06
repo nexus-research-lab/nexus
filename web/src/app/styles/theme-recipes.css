@@ -1594,10 +1594,6 @@
     box-shadow: none;
   }
 
-  .segmented-control-icon {
-    color: var(--chip-segmented-icon-color);
-  }
-
   .segmented-control-option {
     border: 1px solid transparent;
     color: var(--chip-segmented-option-color);

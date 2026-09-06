@@ -339,7 +339,7 @@ test("setting switches retain readable wrapped text, one hit target and independ
   expect(errors).toEqual([]);
 });
 
-test("segmented selections retain keyboard focus, aligned icon text and disabled states", async ({ page }, info) => {
+test("segmented selections share readable density, wrapping, focus hints and disabled states", async ({ page }, info) => {
   const { errors } = await openGallery(page, info, "content");
   const fixture = page.locator("[data-gallery-segmented]");
   const lock = fixture.locator("[data-gallery-segmented-lock]");
@@ -363,6 +363,11 @@ test("segmented selections retain keyboard focus, aligned icon text and disabled
 
   const measurements = [];
   for (const button of await fixture.locator(".segmented-control-option").all()) {
+    const groupCase = await button.evaluate((element) => element.closest("[data-segmented-case]")!.getAttribute("data-segmented-case")!);
+    const compact = groupCase.startsWith("compact");
+    expect(await button.evaluate((element) => getComputedStyle(element).fontSize)).toBe(compact ? "13px" : "14px");
+    expect(await button.evaluate((element) => getComputedStyle(element).fontWeight)).toBe("500");
+    if (!groupCase.endsWith("long")) expect((await button.boundingBox())!.height).toBe(compact ? 28 : 32);
     const contrast = await measureTextContrast(button);
     expect(contrast.ratio).toBeGreaterThanOrEqual(4.5);
     measurements.push({ ...contrast, ...await button.evaluate((element) => ({
@@ -379,12 +384,33 @@ test("segmented selections retain keyboard focus, aligned icon text and disabled
     expect(Math.abs(icon.y + icon.height / 2 - text.y - text.height / 2)).toBeLessThanOrEqual(1);
     expect(text.x).toBeGreaterThan(icon.x + icon.width);
   }
+  for (const longCase of await fixture.locator('[data-segmented-case$="-long"]').all()) {
+    expect(await longCase.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+    const buttons = longCase.getByRole("button");
+    expect((await buttons.first().boundingBox())!.height).toBe((await buttons.last().boundingBox())!.height);
+    for (const label of await buttons.locator("span").all()) {
+      expect((await label.boundingBox())!.height).toBeGreaterThan(20);
+      expect(await label.evaluate((element) => element.scrollHeight <= element.clientHeight + 1 && element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+    }
+    await longCase.scrollIntoViewIfNeeded();
+    await capture(longCase, info, (await longCase.getAttribute("data-segmented-case"))!);
+  }
+  const icon = fixture.locator('[data-segmented-case="compact-icons"]').getByRole("button").first();
+  await icon.focus();
+  await expect(page.getByRole("tooltip", { name: copy(info, "预览", "Preview"), exact: true })).toBeVisible();
+  await expect(icon).not.toHaveAttribute("title");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
+  await expect(icon).toBeFocused();
   await lock.click();
   for (const button of await fixture.locator(".segmented-control-option").all()) await expect(button).toBeDisabled();
   const beforeHover = await first.evaluate((element) => getComputedStyle(element).backgroundColor);
   await first.hover();
   expect(await first.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(beforeHover);
-  await capture(fixture, info, "segmented-disabled-states");
+  for (const groupCase of await fixture.locator("[data-segmented-case]").all()) {
+    await groupCase.scrollIntoViewIfNeeded();
+    await capture(groupCase, info, `disabled-${await groupCase.getAttribute("data-segmented-case")}`);
+  }
   await expect(fixture.locator("[data-gallery-segmented-commands]")).toHaveText('["default-text:source"]');
   expect(await fixture.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
   expect(errors).toEqual([]);
@@ -1134,6 +1160,7 @@ test("scheduled task fields stay named and aligned in narrow panes while preserv
     const rect = (await option.boundingBox())!;
     expect(rect.x).toBeGreaterThanOrEqual(bounds.x);
     expect(rect.x + rect.width).toBeLessThanOrEqual(bounds.x + bounds.width + 1);
+    expect((await option.locator("span").boundingBox())!.height).toBe(20);
   }
   const amount = schedule.getByRole("spinbutton", { name: copy(info, "每隔", "Every"), exact: true });
   const unit = schedule.getByRole("button", { name: copy(info, "选择间隔单位", "Select interval unit"), exact: true });
