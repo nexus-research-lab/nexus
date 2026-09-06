@@ -91,7 +91,7 @@ export function SelectMenuView({
       <SelectMenuTrigger
         ariaLabel={ariaLabel}
         buttonRef={buttonRef}
-        className={buttonClassName}
+        className={cn(styles.triggerLayoutClassName, buttonClassName)}
         disabled={disabled}
         id={id}
         isOpen={isOpen}

@@ -1,5 +1,5 @@
 // INPUT: Select Menu 尺寸、标签换行、表面和选中状态。
-// OUTPUT: 与字段配套的触发器字号/高度、选项及标签布局共享 recipe。
+// OUTPUT: 与字段配套的字号、固定/随换行增高的触发器、选项及标签布局共享 recipe。
 // POS: Select Menu 唯一视觉投影；不决定当前值、键盘遍历或浮层位置。
 
 import { cn } from "@/shared/ui/class-name";
@@ -18,8 +18,16 @@ export interface SelectMenuStyleProjection {
   optionLabelClassName: string;
   roundedClassName: string;
   textClassName: string;
+  triggerLayoutClassName?: string;
   triggerLabelClassName: string;
 }
+
+const WRAPPING_TRIGGER_CLASS_NAMES: Record<UiSelectMenuSize, string> = {
+  xs: "h-auto min-h-7 py-1",
+  sm: "h-auto min-h-8 py-1",
+  md: "h-auto min-h-9 py-1.5",
+  lg: "h-auto min-h-11 py-2.5",
+};
 
 const SELECT_MENU_SIZE_CONFIG: Record<UiSelectMenuSize, {
   estimatedOptionHeight: number;
@@ -95,6 +103,8 @@ export function getSelectMenuStyleProjection({
   ];
   return {
     ...sizeConfig,
+    heightClassName: allowLabelWrap ? "h-auto" : sizeConfig.heightClassName,
+    triggerLayoutClassName: allowLabelWrap ? WRAPPING_TRIGGER_CLASS_NAMES[size] : undefined,
     estimatedOptionHeight: Math.max(
       sizeConfig.estimatedOptionHeight,
       labelLayout.minimumOptionHeight,

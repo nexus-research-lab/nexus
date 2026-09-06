@@ -45,6 +45,67 @@ async function capture(surface: Locator, info: TestInfo, name: string) {
   });
 }
 
+test("Agent identity fields share labels, preserve tag composition and grow long model choices", async ({ page }, info) => {
+  const { errors } = await openGallery(page, info, "content");
+  const fixture = page.locator("[data-gallery-identity-fields]");
+  const create = fixture.locator('[data-gallery-identity-variant="dialog"]');
+  const inline = fixture.locator('[data-gallery-identity-variant="inline"]');
+  const name = create.getByRole("textbox", { name: copy(info, "名称", "Name"), exact: true });
+  const inlineName = inline.getByRole("textbox", { name: copy(info, "名称", "Name"), exact: true });
+  expect(await name.getAttribute("id")).not.toBe(await inlineName.getAttribute("id"));
+  await create.locator("label").filter({ hasText: copy(info, "名称", "Name") }).click();
+  await expect(name).toBeFocused();
+  for (const label of await fixture.locator("label").all()) {
+    const style = await label.evaluate((element) => {
+      const css = getComputedStyle(element);
+      return { transform: css.textTransform, size: css.fontSize, weight: css.fontWeight };
+    });
+    expect(style).toEqual({ transform: "none", size: "14px", weight: "500" });
+  }
+  const business = create.getByRole("textbox", { name: copy(info, "业务标签", "Business tags"), exact: true });
+  const tagsShell = business.locator("xpath=../..");
+  const heightBefore = (await tagsShell.boundingBox())!.height;
+  await business.fill("研究");
+  await business.dispatchEvent("keydown", { key: "Enter", isComposing: true });
+  await expect(business).toHaveValue("研究");
+  await business.press("Enter");
+  await expect(business).toHaveValue("");
+  await expect(create.getByRole("button", { name: copy(info, "移除 研究", "Remove 研究"), exact: true })).toBeVisible();
+  expect((await tagsShell.boundingBox())!.height).toBe(heightBefore);
+  expect(heightBefore).toBe(36);
+  expect(await tagsShell.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+  await create.getByRole("button", { name: copy(info, "移除 研究", "Remove 研究"), exact: true }).click();
+  await expect(business).toBeFocused();
+  await create.getByRole("button", { name: "Toggle name error", exact: true }).click();
+  await expect(name).toHaveAttribute("aria-invalid", "true");
+  const error = create.getByRole("alert");
+  expect(await error.getAttribute("id")).toBe(await name.getAttribute("aria-errormessage"));
+  expect(await error.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+  const template = create.getByRole("textbox", { name: copy(info, "行为模板", "Behavior template"), exact: true });
+  await expect(template).toHaveAccessibleDescription(/AGENTS\.md/);
+  await create.getByRole("button", { name: "Toggle template loading" }).click();
+  await expect(template).toBeDisabled();
+  await expect(inline.getByRole("button", { name: copy(info, "模型", "Model"), exact: true })).toBeDisabled();
+
+  const wrapping = page.locator("[data-gallery-wrapping-selects]");
+  for (const size of ["xs", "sm", "md", "lg"]) {
+    const trigger = wrapping.getByRole("button", { name: `Wrapping ${size}`, exact: true });
+    await trigger.evaluate((element) => { element.parentElement!.style.width = "160px"; });
+    const geometry = await trigger.evaluate((element) => {
+      const bounds = element.getBoundingClientRect();
+      const label = element.querySelector("[title]")!;
+      const labelBounds = label.getBoundingClientRect();
+      return { height: bounds.height, fits: label.scrollWidth <= label.clientWidth + 1 && labelBounds.bottom <= bounds.bottom && labelBounds.top >= bounds.top,
+        parentHeight: element.parentElement!.getBoundingClientRect().height };
+    });
+    expect(geometry.height).toBeGreaterThan(44);
+    expect(geometry.fits).toBe(true);
+    expect(geometry.parentHeight).toBe(geometry.height);
+  }
+  await capture(create, info, "agent-identity-fields");
+  expect(errors).toEqual([]);
+});
+
 test("avatars preserve readable initials and rounded-square member geometry", async ({ page }, info) => {
   const { errors } = await openGallery(page, info);
   const fixture = page.locator("[data-gallery-avatar-geometry]");

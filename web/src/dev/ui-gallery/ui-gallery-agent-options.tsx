@@ -5,6 +5,8 @@
 import { useState } from "react";
 import { AgentOptionsAdvancedTab } from "@/features/agents/options/components/agent-options-advanced-tab";
 import { AgentSkillCard } from "@/features/agents/options/components/skills/agent-skill-card";
+import { AgentOptionsIdentityTab } from "@/features/agents/options/components/identity/agent-options-identity-tab";
+import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import type { Locale } from "@/shared/i18n/messages";
 import { UiButton } from "@/shared/ui/button/button";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
@@ -39,6 +41,17 @@ export function AgentOptionsGallery({ locale }: { locale: Locale }) {
       <h2 className={getUiTypographyClassName({ role: "pageTitle", tone: "strong" })}>
         {galleryText(locale, "Agent 配置真实视图", "Agent configuration views")}
       </h2>
+      <div className="grid gap-5 lg:grid-cols-2" data-gallery-identity-fields>
+        <AgentIdentityFixture locale={locale} variant="dialog" />
+        <AgentIdentityFixture locale={locale} variant="inline" />
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2" data-gallery-wrapping-selects>
+        {(["xs", "sm", "md", "lg"] as const).map((size) => (
+          <UiSelectMenu allowLabelWrap ariaLabel={`Wrapping ${size}`} key={size} onChange={() => undefined}
+            options={[{ value: "long", label: "ProviderWithAnUnusuallyLongName / ReasoningModelWithExtendedContextAndRegionalRouting" }]}
+            size={size} value="long" />
+        ))}
+      </div>
       <div data-gallery-agent-permissions>
         <AgentOptionsAdvancedTab
           allowedTools={allowedTools} connectorIds={connectorIds} connectors={CONNECTORS}
@@ -57,5 +70,40 @@ export function AgentOptionsGallery({ locale }: { locale: Locale }) {
         Toggle pending Skill
       </UiButton>
     </section>
+  );
+}
+
+function AgentIdentityFixture({ locale, variant }: { locale: Locale; variant: "dialog" | "inline" }) {
+  const [title, setTitle] = useState("Nova · Research and planning");
+  const [avatar, setAvatar] = useState("1");
+  const [businessTags, setBusinessTags] = useState(["Research", "Product planning", "跨产品协作与长期研究"]);
+  const [vibeTags, setVibeTags] = useState(["Concise", "Thoughtful"]);
+  const [description, setDescription] = useState("");
+  const [profileTemplate, setProfileTemplate] = useState("# Working rules\nKeep the scope clear.");
+  const [model, setModel] = useState("");
+  const [provider, setProvider] = useState("");
+  const [nameError, setNameError] = useState(false);
+  const [templateLoading, setTemplateLoading] = useState(false);
+  return (
+    <div className="min-w-0 space-y-3" data-gallery-identity-variant={variant}>
+      <AgentOptionsIdentityTab
+        avatar={avatar} businessTags={businessTags}
+        defaultModel="Reasoning model with extended context and regional routing" defaultProvider="Provider with an unusually long name"
+        description={description} isMain={variant === "inline"} isValidatingName={false} model={model}
+        nameValidation={nameError ? { name: title, normalized_name: title, is_valid: false, is_available: true,
+          reason: galleryText(locale, "名称不能包含换行，请修改后继续。当前输入不会丢失。", "The name cannot contain a newline. Edit it to continue; your current input is preserved.") } : null}
+        onAvatarChange={setAvatar} onBusinessTagsChange={setBusinessTags} onDescriptionChange={setDescription}
+        onModelChange={setModel} onProfileTemplateChange={setProfileTemplate} onProviderChange={setProvider}
+        onRetryProfileTemplate={() => undefined} onTitleChange={setTitle} onVibeTagsChange={setVibeTags}
+        profileTemplate={profileTemplate} profileTemplateError={null} profileTemplateLoading={templateLoading}
+        provider={provider} providerOptions={[]} providerOptionsError={null} providerOptionsLoading={false}
+        scopeKey={`gallery-${variant}`} sourceMode={variant === "dialog" ? "create" : "edit"} title={title}
+        variant={variant} vibeTags={vibeTags}
+      />
+      <div className="flex flex-wrap gap-2">
+        <UiButton aria-pressed={nameError} onClick={() => setNameError((current) => !current)}>Toggle name error</UiButton>
+        {variant === "dialog" ? <UiButton aria-pressed={templateLoading} onClick={() => setTemplateLoading((current) => !current)}>Toggle template loading</UiButton> : null}
+      </div>
+    </div>
   );
 }

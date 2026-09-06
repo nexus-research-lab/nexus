@@ -1,5 +1,8 @@
 "use client";
 
+// INPUT: 当前头像、名称、编辑上下文和选择命令。
+// OUTPUT: 固定 56px 身份锚点与共享网格选择浮层。
+// POS: 身份页头像入口；上下文只改变对齐，尺寸和交互由公共组件持有。
 import {
   AGENT_ICON_ID_END,
   AGENT_ICON_ID_START,
@@ -21,11 +24,6 @@ interface IdentityAvatarPickerProps {
   variant: AgentIdentityVariant;
 }
 
-const AVATAR_TRIGGER_SIZE = {
-  dialog: "lg",
-  inline: "lg",
-} as const satisfies Record<AgentIdentityVariant, "lg" | "xl">;
-
 export function IdentityAvatarPicker({
   avatar,
   avatarAlt,
@@ -46,7 +44,7 @@ export function IdentityAvatarPicker({
             avatar={avatar}
             className="transition-[border-color] duration-(--motion-duration-fast) group-hover:border-(--surface-interactive-active-border)"
             name={name || avatarAlt}
-            size={AVATAR_TRIGGER_SIZE[variant]}
+            size="lg"
           />
           <IconPickerTriggerLabel isOpen={isOpen}>
             {t("agent_options.identity.change_avatar")}

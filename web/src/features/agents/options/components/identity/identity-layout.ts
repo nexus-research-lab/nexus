@@ -1,10 +1,8 @@
-export type AgentIdentityVariant = "dialog" | "inline";
+// INPUT: Agent 身份页所在的弹窗或内联上下文。
+// OUTPUT: 同一资料/标签/模型阅读顺序下的响应式布局。
+// POS: 身份页只拥有布局差异；标签、文字、反馈与控件外观归共享 Field。
 
-export const IDENTITY_FIELD_LABEL_CLASS_NAMES = {
-  dialog: "text-xs font-semibold text-(--text-muted)",
-  inline:
-    "text-xs font-semibold uppercase tracking-[0.12em] text-(--text-soft)",
-} as const satisfies Record<AgentIdentityVariant, string>;
+export type AgentIdentityVariant = "dialog" | "inline";
 
 interface IdentityLayout {
   contentClassName: string;
