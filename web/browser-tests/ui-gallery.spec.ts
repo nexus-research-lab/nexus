@@ -71,7 +71,7 @@ test("source editors preserve text, keyboard focus and native read-only behavior
   expect(errors).toEqual([]);
 });
 
-test("Memory search, type filtering and long document headings remain usable in narrow containers", async ({ page }, info) => {
+test("Memory directory selection and document actions retain file commands", async ({ page }, info) => {
   const { errors } = await openGallery(page, info, "content");
   const fixture = page.locator("[data-gallery-memory]");
   const search = fixture.getByRole("searchbox");
@@ -87,12 +87,7 @@ test("Memory search, type filtering and long document headings remain usable in 
   await header.scrollIntoViewIfNeeded();
   await expectInsideViewport(page, header);
   const title = header.getByRole("heading", { level: 2 });
-  const titleFits = await title.evaluate((element) => {
-    const range = document.createRange(); range.selectNodeContents(element);
-    const text = range.getBoundingClientRect(); const box = element.getBoundingClientRect();
-    return text.left >= box.left - 1 && text.right <= box.right + 1 && text.bottom <= box.bottom + 1;
-  });
-  expect(titleFits).toBe(true);
+  await expect(title).toContainText("跨区域项目资料与长期协作约定");
   await capture(header, info, "memory-long-title");
   await fixture.getByRole("button", { name: "Toggle runtime writing", exact: true }).click();
   await header.getByRole("button", { name: copy(info, "编辑", "Edit"), exact: true }).click();

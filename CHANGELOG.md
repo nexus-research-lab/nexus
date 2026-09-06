@@ -27,10 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Aligned the standalone Memory directory background with sibling Agent tabs,
-  while preserving the document surface and split-pane appearance.
-- Restored a single-row search and type filter in the standalone Memory
-  directory, retaining stacked controls in the narrow document sidebar.
+- Restored the previous Memory page layout as a whole, including its compact
+  search/filter row, directory, document header and split-pane surfaces, while
+  retaining shared source editing and file recovery behavior.
 - Unified workspace file loading and empty states across media, Office and text
   previews, removed duplicate header feedback and unused status copy, and
   localized unsupported-file guidance for browser download and desktop reveal.

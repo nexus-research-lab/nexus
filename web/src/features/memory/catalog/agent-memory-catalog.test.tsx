@@ -48,7 +48,7 @@ it("clears both query and type when their combined result is empty", async () =>
 it("names search and type separately and keeps selection available during refresh", async () => {
   const { actions } = catalog({ refreshing: true });
   const search = screen.getByRole("searchbox", { name: MESSAGES.en["capability.memory_search_placeholder"] });
-  expect(search.getAttribute("placeholder")).toBe("Search");
+  expect(search.getAttribute("placeholder")).toBe(MESSAGES.en["capability.memory_search_placeholder"]);
   expect(screen.getByRole("button", { name: "Filter memory type" })).toBeTruthy();
   expect((screen.getByRole("button", { name: "Refresh" }) as HTMLButtonElement).disabled).toBe(true);
   await userEvent.click(screen.getByRole("button", { name: /跨区域项目资料/ }));
