@@ -1318,3 +1318,33 @@ lint、生产构建及 8 项 token 合同通过，日志见
 lint、typecheck 和生产构建通过。日志：`/tmp/nexus-memory-restore-{behavior,contracts,checks}.log`。
 本批检查时工作树同时包含独立的公共选择条清理，其结果另记 A41；源码与文档
 分批提交。页面视觉验收仍按用户要求暂停，Goal 范围不变。
+
+
+## A41：普通选择条删除闲置关闭分支，收口六个公共所有者
+
+按用户暂停视觉验收、优先代码重构的要求，本节的 retained/improved 表示完成了
+相应文件的代码与行为审查，不代表已验证渲染效果。保留全部原审查范围，其他
+文件不能因消费这些组件而自动标记完成。
+
+`UiTabs` 的 `onDismissActive` / `dismissActiveLabel` 在全仓只剩定义与一项测试，
+没有生产或动态调用。删除这两个参数、仅供该分支的重复包装/关闭节点与中文
+默认文案；普通视图和筛选仍使用原具名 group、独立按钮、aria-pressed、稳定
+option 包装、tour anchor 和当前值回调。样式接入公共 metadata 角色，移除重复
+字号/字重映射，保留高度、底线、横向滚动与焦点状态。
+
+实际会话链路的 `WorkspaceConversationTabs`、`WorkspaceConversationTab`、
+会话模型和 Session store 均未修改；其仍使用 `UiTabDismissButton`。后者继续
+具有真实生产消费者，不作为无用导出删除。移除的仅是与已删除 API 配套的测试，
+保留并运行真实会话的创建状态、选择、固定、鼠标/Enter/Space 关闭命令隔离回归。
+
+其余逐文件结论：SplitButton 保留两个独立共享按钮及可选菜单语义，适合权限
+操作；Disclosure 保留原生 details/summary、有限样式与受控/非受控切换；
+Breadcrumb 保留唯一层级、链接/返回动作、当前项与截断 owner；DirectoryTabs
+保留跨业务使用的紧凑布局预设。各具体理由和测试入口写入 CSV，不为已有合理
+结构新增平行组件或无意义改写。
+
+验证：导航、按钮、Disclosure、Workspace 会话标签与表格选择共 26 项 DOM 回归
+通过，日志 `/tmp/nexus-navigation-cleanup-behavior.log`。与 A40 一并运行的 149
+项合同、lint、typecheck 和生产 build 通过，相关日志见 A40；之后只更新文档
+和清单。未执行视觉验证。当前共 485 项：354 pending、122 in_progress、5 retained、
+1 improved、3 removed；现存源码摘要全部匹配。全 Goal 尚未完成。

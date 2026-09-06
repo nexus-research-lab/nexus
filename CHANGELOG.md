@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Removed unused dismiss behavior from ordinary view/filter selectors and
+  centralized their typography; workspace session tab controls remain intact.
 - Restored the previous Memory page layout as a whole, including its compact
   search/filter row, directory, document header and split-pane surfaces, while
   retaining shared source editing and file recovery behavior.

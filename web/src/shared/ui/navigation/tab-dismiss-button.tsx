@@ -1,6 +1,6 @@
 // INPUT: 标签关闭名称、关闭命令与父级提供的位置/可见性 class。
 // OUTPUT: 保持原生 title、固定关闭图标与既有命中区的独立关闭按钮。
-// POS: 普通视图与 Workspace 标签共用的关闭 DOM owner；不选择标签或管理标签集合。
+// POS: Workspace 标签的关闭 DOM owner；不选择标签或管理标签集合。
 
 import { X } from "lucide-react";
 
