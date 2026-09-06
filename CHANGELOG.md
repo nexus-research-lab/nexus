@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Bound Provider model and usage dialogs to the shared viewport, keep actions
+  visible while their body scrolls, and show full model and agent names. Share
+  field sizing and focus handling, retain named busy actions, and consolidate
+  repeated capability rows without changing model or deletion commands.
 - Adapt Provider configuration columns to the actual detail-pane width, align
   standard field sizes, and present fixed endpoints as read-only rows. Isolate
   field labels per instance while retaining permissions and blur-save callbacks.

@@ -1,7 +1,7 @@
 // INPUT: 单个 Provider 模型的能力、窗口、输出限制和 JSON Options 草稿。
-// OUTPUT: 目标模型明确、设置行克制的 plain 配置弹窗。
+// OUTPUT: 完整模型身份、共享字段/技术文本与始终具名的保存动作。
 // POS: Provider 模型覆写入口，不把每项能力包装成图标卡片。
-import { type Dispatch, type SetStateAction } from "react";
+import { useId, type Dispatch, type SetStateAction } from "react";
 import { Loader2 } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
@@ -15,7 +15,7 @@ import {
   UiDialogPortal,
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
-import { UiInput, UiTextarea } from "@/shared/ui/form/form-control";
+import { UiField, UiInput, UiTextarea } from "@/shared/ui/form/form-control";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
@@ -32,6 +32,14 @@ interface ProviderModelOptionsDialogProps {
   setModelOptions: Dispatch<SetStateAction<ModelOptionsState | null>>;
 }
 
+const CAPABILITY_FIELDS = [
+  { key: "vision", label: "settings.providers.capability_vision" },
+  { key: "image_output", label: "settings.providers.capability_image_output" },
+  { key: "tool_calling", label: "settings.providers.capability_tool_calling" },
+  { key: "reasoning", label: "settings.providers.capability_reasoning" },
+  { key: "embedding", label: "settings.providers.capability_embedding" },
+] as const;
+
 export function ProviderModelOptionsDialog({
   modelOptions,
   onClose,
@@ -41,6 +49,7 @@ export function ProviderModelOptionsDialog({
   setModelOptions,
 }: ProviderModelOptionsDialogProps) {
   const { t } = useI18n();
+  const dialogId = useId();
 
   if (!modelOptions) {
     return null;
@@ -50,18 +59,18 @@ export function ProviderModelOptionsDialog({
     <UiDialogPortal>
       <UiDialogBackdrop
         layer="dialog"
-        labelledBy="provider-model-options-title"
+        labelledBy={`${dialogId}-title`}
         onClose={onClose}
       >
-        <UiDialogShell size="lg">
+        <UiDialogShell size="lg" viewport="adaptiveMax">
           <UiDialogHeader
             appearance="plain"
             onClose={onClose}
             title={t("settings.providers.model_options")}
-            titleId="provider-model-options-title"
+            titleId={`${dialogId}-title`}
           />
           <UiDialogBody className="space-y-5 px-5" scrollable>
-            <code className={cn("block truncate", getUiTypographyClassName({ role: "code", tone: "muted" }))}>
+            <code className={cn("block break-all", getUiTypographyClassName({ role: "code", tone: "muted" }))}>
               {modelOptions.model.model_id}
             </code>
             <section className="space-y-2.5">
@@ -69,114 +78,79 @@ export function ProviderModelOptionsDialog({
                 <h3 className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong" })}>
                   {t("settings.providers.model_capabilities")}
                 </h3>
-                <p className={cn("mt-0.5", getUiTypographyClassName({ role: "caption", tone: "muted" }))}>
+                <p className={cn("mt-0.5", getUiTypographyClassName({ role: "supporting", tone: "muted" }))}>
                   {t("settings.providers.model_capabilities_description")}
                 </p>
               </div>
               <div className="divide-y divide-(--divider-subtle-color) border-y border-(--divider-subtle-color)">
-                <CapabilitySwitch
-                  checked={!!modelOptions.capabilities.vision}
-                  label={t("settings.providers.capability_vision")}
-                  onChange={(checked) => setModelOptions((current) => current ? ({
-                    ...current,
-                    capabilities: { ...current.capabilities, vision: checked },
-                  }) : current)}
-                />
-                <CapabilitySwitch
-                  checked={!!modelOptions.capabilities.image_output}
-                  label={t("settings.providers.capability_image_output")}
-                  onChange={(checked) => setModelOptions((current) => current ? ({
-                    ...current,
-                    capabilities: { ...current.capabilities, image_output: checked },
-                  }) : current)}
-                />
-                <CapabilitySwitch
-                  checked={!!modelOptions.capabilities.tool_calling}
-                  label={t("settings.providers.capability_tool_calling")}
-                  onChange={(checked) => setModelOptions((current) => current ? ({
-                    ...current,
-                    capabilities: { ...current.capabilities, tool_calling: checked },
-                  }) : current)}
-                />
-                <CapabilitySwitch
-                  checked={!!modelOptions.capabilities.reasoning}
-                  label={t("settings.providers.capability_reasoning")}
-                  onChange={(checked) => setModelOptions((current) => current ? ({
-                    ...current,
-                    capabilities: { ...current.capabilities, reasoning: checked },
-                  }) : current)}
-                />
-                <CapabilitySwitch
-                  checked={!!modelOptions.capabilities.embedding}
-                  label={t("settings.providers.capability_embedding")}
-                  onChange={(checked) => setModelOptions((current) => current ? ({
-                    ...current,
-                    capabilities: { ...current.capabilities, embedding: checked },
-                  }) : current)}
-                />
+                {CAPABILITY_FIELDS.map(({ key, label }) => (
+                  <CapabilitySwitch
+                    checked={!!modelOptions.capabilities[key]}
+                    key={key}
+                    label={t(label)}
+                    onChange={(checked) => setModelOptions((current) => current ? ({
+                      ...current,
+                      capabilities: { ...current.capabilities, [key]: checked },
+                    }) : current)}
+                  />
+                ))}
               </div>
             </section>
 
-            <section className="grid gap-3 md:grid-cols-2">
-              <label className="space-y-1.5">
-                <span className={getUiTypographyClassName({ role: "metadata", tone: "muted", weight: "medium" })}>
-                  {t("settings.providers.context_window")}
-                </span>
+            <section className="grid gap-3 sm:grid-cols-2">
+              <UiField htmlFor={`${dialogId}-context`} label={t("settings.providers.context_window")}>
                 <UiInput
-                  controlSize="sm"
+                  controlSize="md"
+                  id={`${dialogId}-context`}
                   inputMode="numeric"
                   onChange={(event) => setModelOptions((current) => current ? ({ ...current, context_window: event.target.value }) : current)}
                   placeholder="auto"
                   value={modelOptions.context_window}
                 />
-              </label>
-              <label className="space-y-1.5">
-                <span className={getUiTypographyClassName({ role: "metadata", tone: "muted", weight: "medium" })}>
-                  {t("settings.providers.max_output_tokens")}
-                </span>
+              </UiField>
+              <UiField htmlFor={`${dialogId}-output`} label={t("settings.providers.max_output_tokens")}>
                 <UiInput
-                  controlSize="sm"
+                  controlSize="md"
+                  id={`${dialogId}-output`}
                   inputMode="numeric"
                   onChange={(event) => setModelOptions((current) => current ? ({ ...current, max_output_tokens: event.target.value }) : current)}
                   placeholder="auto"
                   value={modelOptions.max_output_tokens}
                 />
-              </label>
+              </UiField>
             </section>
 
-            <label className="block space-y-1.5">
-              <span className={getUiTypographyClassName({ role: "metadata", tone: "muted", weight: "medium" })}>
-                {t("settings.providers.provider_options_json")}
-              </span>
+            <UiField htmlFor={`${dialogId}-options`} label={t("settings.providers.provider_options_json")}>
               <UiTextarea
-                className={cn("min-h-28", getUiTypographyClassName({ role: "code", tone: "strong" }))}
                 controlSize="md"
+                id={`${dialogId}-options`}
                 onChange={(event) => setModelOptions((current) => current ? ({ ...current, provider_options_text: event.target.value }) : current)}
                 spellCheck={false}
+                textRole="code"
                 value={modelOptions.provider_options_text}
               />
-            </label>
+            </UiField>
           </UiDialogBody>
-          <UiDialogFooter appearance="plain" className="gap-2">
+          <UiDialogFooter appearance="plain">
             <UiButton
               onClick={onClose}
-              size="sm"
               type="button"
               variant="surface"
             >
               {t("common.cancel")}
             </UiButton>
             <UiButton
+              aria-busy={pendingAction?.kind === "save-model-options"}
               disabled={pendingAction?.kind === "save-model-options" || !selectedCanManage}
               onClick={onSave}
-              size="sm"
               tone="primary"
               type="button"
               variant="solid"
             >
               {pendingAction?.kind === "save-model-options" ? (
                 <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
-              ) : t("common.save")}
+              ) : null}
+              {pendingAction?.kind === "save-model-options" ? t("common.saving") : t("common.save")}
             </UiButton>
           </UiDialogFooter>
         </UiDialogShell>

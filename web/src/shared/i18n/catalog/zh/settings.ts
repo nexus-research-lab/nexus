@@ -745,6 +745,7 @@ export const zhSettingsMessages = {
   "settings.providers.delete_usage_subtitle": "删除 {name}",
   "settings.providers.force_delete_description": "删除后，以下 Agent 暂时使用默认模型；恢复同名服务和模型后会自动切回。",
   "settings.providers.used_by_agents": "使用中的 Agent",
+  "settings.providers.agent_name_unavailable": "Agent 名称不可用",
   "settings.providers.disabled_title": "服务已停用",
   "settings.providers.disabled_follow_default_message": "已保留 {count} 个 Agent 的模型选择；它们会暂时使用默认模型，恢复该服务和模型后会自动切回。",
   "settings.providers.restored_title": "服务已启用",

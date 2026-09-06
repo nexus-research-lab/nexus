@@ -1,3 +1,7 @@
+// INPUT: Provider 配置/预设、表单草稿与调用方的本地化说明。
+// OUTPUT: 配置展示、校验及载荷的纯投影；缺少使用者名称时不暴露内部身份。
+// POS: Provider 配置模型，不执行保存、删除或 UI 生命周期。
+
 import type { TranslationKey } from "@/shared/i18n/messages";
 import type {
   ProviderConfigPayload,
@@ -42,8 +46,9 @@ export function isCustomProviderRecord(item: ProviderConfigRecord): boolean {
 
 export function getUsageAgentTitle(
   agent: ProviderConfigRecord["used_by_agents"][number],
+  unavailableLabel: string,
 ): string {
-  return agent.display_name?.trim() || agent.name?.trim() || agent.agent_id;
+  return agent.display_name?.trim() || agent.name?.trim() || unavailableLabel;
 }
 
 function getEffectiveEndpointFormat(
