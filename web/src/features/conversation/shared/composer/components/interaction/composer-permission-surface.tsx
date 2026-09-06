@@ -3,7 +3,7 @@
 /**
  * INPUT: 当前 Composer-owned 权限/计划请求、Agent 身份与响应动作。
  * OUTPUT: 工具类型、人话摘要、必要参数和单一决策行组成的精简确认面。
- * POS: Composer 人工介入中非结构化问答请求的唯一可操作视图。
+ * POS: Composer 人工介入的唯一确认视图；范围菜单按 request_id 重置且服从当前可提交状态。
  */
 import {
   ChevronDown,
@@ -34,6 +34,7 @@ import {
   type I18nContextValue,
   useI18n,
 } from "@/shared/i18n/i18n-context";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { UiButton } from "@/shared/ui/button/button";
 import { UiSplitButton } from "@/shared/ui/button/split-button";
 import { cn } from "@/shared/ui/class-name";
@@ -89,7 +90,10 @@ export function ComposerPermissionSurface({
 }: ComposerPermissionSurfaceProps) {
   const localization = useI18n();
   const { t } = localization;
-  const [isScopeMenuOpen, setIsScopeMenuOpen] = useState(false);
+  const [isScopeMenuOpen, setIsScopeMenuOpen] = useResettableState(
+    false,
+    permission.request_id,
+  );
   const [secretDraft, setSecretDraft] = useState(() =>
     createConfigurationSecretDraft(permission.request_id));
   const scopeMenuAnchorRef = useRef<HTMLButtonElement>(null);
@@ -127,6 +131,10 @@ export function ComposerPermissionSurface({
   const ToolIcon = presentation.icon;
   const hasScopeChoices = presentation.suggestions.length > 0
     || (permission.source === "automation" && permission.automation?.allow_task);
+  const canChooseScope = !interactionDisabled && hasCompleteSecrets && Boolean(hasScopeChoices);
+  useEffect(() => {
+    if (!canChooseScope) setIsScopeMenuOpen(false);
+  }, [canChooseScope, setIsScopeMenuOpen]);
   const decisionWidthClassName = hasScopeChoices
     ? "w-28"
     : "w-24";
@@ -135,6 +143,7 @@ export function ComposerPermissionSurface({
     suggestionIndex?: number,
     automationScope?: PermissionDecisionPayload["automation_scope"],
   ) => {
+    if (interactionDisabled) return false;
     const configurationSecrets = decision === "allow"
       ? selectConfigurationSecrets(secretSlots, secretValues)
       : undefined;
@@ -162,6 +171,7 @@ export function ComposerPermissionSurface({
         : {}),
     });
     if (accepted) {
+      setIsScopeMenuOpen(false);
       setSecretDraft(createConfigurationSecretDraft(permission.request_id));
     }
     return accepted;
@@ -317,7 +327,7 @@ export function ComposerPermissionSurface({
           align="end"
           anchorRef={scopeMenuAnchorRef}
           ariaLabel={t("composer.permission_scope_menu")}
-          isOpen={isScopeMenuOpen}
+          isOpen={isScopeMenuOpen && canChooseScope}
           items={scopeItems}
           minWidth={228}
           onClose={() => setIsScopeMenuOpen(false)}
@@ -331,7 +341,7 @@ export function ComposerPermissionSurface({
               return;
             }
             const suggestionIndex = Number(value);
-            if (Number.isInteger(suggestionIndex)) {
+            if (Number.isInteger(suggestionIndex) && permission.suggestions?.[suggestionIndex]) {
               respond("allow", suggestionIndex);
             }
           }}

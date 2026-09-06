@@ -3,7 +3,7 @@
 /**
  * INPUT: Room 内各 Agent 的当前 Session 模型投影与更新动作。
  * OUTPUT: 同一模型列表在并排/逐级布局间保持焦点，尺寸服从公共视口边界，失效目标关闭。
- * POS: 群聊模型入口；保留用户选择的 Agent/Session 绑定，菜单与浮层合同归共享 owner。
+ * POS: 群聊模型入口；保留用户选择的 Agent/Session 绑定，选项命令与 DM 共用，菜单与浮层合同归共享 owner。
  */
 
 import {
@@ -54,8 +54,7 @@ import type {
 import {
   buildResetSessionSettingItem,
   buildSessionModelItems,
-  decodeSessionModelValue,
-  RESET_SESSION_SETTING_VALUE,
+  applySessionModelSelection,
 } from "./composer-session-control-options";
 
 import {
@@ -213,20 +212,7 @@ export function ComposerRoomModelControl({
       closeAndRestoreFocus();
       return;
     }
-    if (value === RESET_SESSION_SETTING_VALUE) {
-      void controller.resetModel();
-      closeAndRestoreFocus();
-      return;
-    }
-    const [provider, model] = decodeSessionModelValue(value);
-    if (
-      provider === controller.inheritedProvider
-      && model === controller.inheritedModel
-    ) {
-      void controller.resetModel();
-    } else {
-      void controller.updateModel(provider, model);
-    }
+    applySessionModelSelection(controller, value);
     closeAndRestoreFocus();
   };
 
