@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added DM and group session-header regressions covering creation with delayed
+  catalog refresh, history opening, tab switching, close/reopen and persisted
+  tab/pin restoration through the real page navigation and command handlers.
 - Added real Launcher/workbench browser and native UI fixtures with read-only
   HTTP/WebSocket boundaries and a regression that prevents backend forwarding.
 - Added an isolated macOS frontend UI check that compiles the current native
