@@ -45,6 +45,56 @@ async function capture(surface: Locator, info: TestInfo, name: string) {
   });
 }
 
+test("connector details wrap inside narrow panes and preserve named capability dialogs", async ({ page }, info) => {
+  const { errors } = await openGallery(page, info, "content");
+  const fixture = page.locator("[data-gallery-connector-detail]");
+  const body = fixture.locator("[data-gallery-connector-detail-body]");
+  // Exercise a narrow content pane even when the browser viewport is wide.
+  await body.evaluate((element) => { element.style.width = "360px"; });
+  const identity = body.locator('[data-slot="capability-detail-identity"]');
+  const connect = identity.getByRole("button", { name: copy(info, "添加到 Nexus", "Add to Nexus"), exact: true });
+  const title = identity.getByRole("heading");
+  await expect(title).toHaveText("RichMail-MultiAccountMailboxAndCalendarConnectorWithAnExtendedName");
+  for (const content of [body, title, ...await body.locator("dd").all()]) {
+    expect(await content.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+  }
+  await connect.scrollIntoViewIfNeeded();
+  await expectInsideViewport(page, connect);
+  const paneBounds = (await body.boundingBox())!;
+  const actionBounds = (await connect.boundingBox())!;
+  expect(actionBounds.x + actionBounds.width).toBeLessThanOrEqual(paneBounds.x + paneBounds.width + 1);
+  const note = body.getByRole("note");
+  await expect(note.getByRole("heading")).toHaveCount(1);
+  await capture(note, info, "connector-preparation");
+  await fixture.locator("[data-gallery-connector-busy]").click();
+  await expect(connect).toBeDisabled();
+  await fixture.locator("[data-gallery-connector-busy]").click();
+  await expect(connect).toBeEnabled();
+
+  await page.setViewportSize({ ...page.viewportSize()!, height: 420 });
+  const feature = body.getByRole("button").filter({ hasText: "Mailbox capability" });
+  await feature.focus();
+  await page.keyboard.press("Enter");
+  const dialog = page.getByRole("dialog", { name: "Mailbox capability", exact: true });
+  await expectInsideViewport(page, dialog.locator(".dialog-shell"));
+  await expect(dialog).toHaveAccessibleDescription(/RichMail/);
+  const scopeDisclosure = dialog.locator("details");
+  await expect(scopeDisclosure).not.toHaveAttribute("open");
+  await scopeDisclosure.locator("summary").click();
+  await expect(scopeDisclosure).toHaveAttribute("open", "");
+  const scope = dialog.locator("code");
+  await expect(scope).toHaveText(`mail:${"account/".repeat(28)}read`);
+  expect(await scope.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+  await capture(dialog.locator(".dialog-shell"), info, "connector-feature-dialog");
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(feature).toBeFocused();
+  await connect.click();
+  await expect(note).toHaveCount(0);
+  await expect(identity.getByRole("button", { name: copy(info, "断开连接", "Disconnect"), exact: true })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 test("empty form hints remain readable on each theme surface", async ({ page }, info) => {
   const { errors } = await openGallery(page, info);
   const fields = page.locator("[data-gallery-empty-fields]");
