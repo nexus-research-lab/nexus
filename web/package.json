@@ -72,7 +72,7 @@
     "typescript": "^5",
     "typescript-eslint": "^8.46.1",
     "vite": "npm:rolldown-vite@latest",
-    "vitest": "3.2.4",
+    "vitest": "3.2.7",
     "ws": "8.21.3"
   },
   "pnpm": {
