@@ -1,5 +1,5 @@
-// INPUT: Workspace 文件层级、预览状态、文件动作与可选标题栏 Portal。
-// OUTPUT: 复用 UiBreadcrumb 的单行文件 chrome、可读元数据及统一下载/聚焦/编辑动作。
+// INPUT: Workspace 文件层级、预览状态、文件动作、owner 代次与可选标题栏 Portal。
+// OUTPUT: 共享文件 chrome；外部操作反馈只属于当前文件/owner 的最近一次操作，文案随语言更新。
 // POS: Workspace 文件预览外壳；不读取文件内容，也不拥有全站导航视觉。
 "use client";
 
@@ -8,7 +8,9 @@ import {
   type ReactNode,
   useCallback,
   useContext,
-  useState,
+  useEffect,
+  useRef,
+  useSyncExternalStore,
 } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -20,7 +22,13 @@ import {
 
 import { downloadWorkspaceFileApi } from "@/lib/api/agent/agent-api";
 import { getWorkspaceFileExternalActionCopy } from "@/lib/workspace-file-action";
+import {
+  captureAuthOwnerScopeGeneration,
+  isAuthOwnerScopeGenerationCurrent,
+  subscribeAuthOwnerScopeGeneration,
+} from "@/shared/auth/auth-owner-generation";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import type { FeedbackBannerProps } from "@/shared/ui/feedback/feedback-banner-contract";
@@ -128,21 +136,40 @@ export function WorkspaceFileDownloadButton({
 }) {
   const { t } = useI18n();
   const fileActionCopy = getWorkspaceFileExternalActionCopy(t, fileName);
-  const [failure, setFailure] = useState<FeedbackBannerProps | null>(null);
+  const ownerGeneration = useSyncExternalStore(
+    subscribeAuthOwnerScopeGeneration,
+    captureAuthOwnerScopeGeneration,
+    captureAuthOwnerScopeGeneration,
+  );
+  const scopeKey = JSON.stringify([ownerGeneration, agentId, path, fileName]);
+  const scopeRef = useRef(scopeKey);
+  scopeRef.current = scopeKey;
+  const requestRef = useRef(0);
+  const [hasFailure, setHasFailure] = useResettableState(false, scopeKey);
+  useEffect(() => () => {
+    requestRef.current += 1;
+  }, [scopeKey]);
+
   const handleExternalAction = useCallback(() => {
-    setFailure(null);
+    if (!isAuthOwnerScopeGenerationCurrent(ownerGeneration)) return;
+    const requestId = ++requestRef.current;
+    setHasFailure(false);
     void downloadWorkspaceFileApi(agentId, path, fileName).catch((error) => {
+      // 只限制迟到反馈的归属；已发出的下载/宿主操作不会因此取消或重放。
+      if (scopeRef.current !== scopeKey || requestRef.current !== requestId
+        || !isAuthOwnerScopeGenerationCurrent(ownerGeneration)) return;
       console.error(`[WorkspaceFileDownloadButton] ${fileActionCopy.label} workspace 文件失败:`, error);
-      setFailure({
-        impact: t("workspace_file.external_action_failed_impact"),
-        nextStep: t("workspace_file.external_action_failed_next_step"),
-        onDismiss: () => setFailure(null),
-        title: t("workspace_file.external_action_failed"),
-        tone: "error",
-        urgency: "polite",
-      });
+      setHasFailure(true);
     });
-  }, [agentId, fileActionCopy.label, fileName, path, t]);
+  }, [agentId, fileActionCopy.label, fileName, ownerGeneration, path, scopeKey, setHasFailure]);
+  const failure: FeedbackBannerProps | null = hasFailure ? {
+    impact: t("workspace_file.external_action_failed_impact"),
+    nextStep: t("workspace_file.external_action_failed_next_step"),
+    onDismiss: () => setHasFailure(false),
+    title: t("workspace_file.external_action_failed"),
+    tone: "error",
+    urgency: "polite",
+  } : null;
 
   return (
     <>

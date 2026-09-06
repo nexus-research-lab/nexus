@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Workspace file actions keep failure feedback scoped to the current file,
+  account and latest explicit attempt, and update it when the language changes.
+  Text editor read/save recovery states share one compact layout while preserving
+  explicit reconciliation and conflict decisions. Header sync metadata uses the
+  shared icon sizes and retains its lightweight presentation.
 - Workspace directories distinguish a failed initial read from a confirmed
   empty list, with one retry surface. Cached files remain available after a
   refresh failure, and dismissing feedback preserves the failure state. Focused

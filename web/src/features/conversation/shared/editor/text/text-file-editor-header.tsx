@@ -1,10 +1,11 @@
 // INPUT: 文件元信息、纯展示模型和 exact editor 命令。
-// OUTPUT: 下载、聚焦、编辑、保存与外部同步状态工具栏。
+// OUTPUT: 共享图标动作与轻量外部同步元数据；状态装饰不重复定义字号或胶囊外观。
 // POS: 文本编辑器 Header；只投影可用性，不拥有保存或恢复语义。
 import { type ComponentType } from "react";
 import { Eye, LoaderCircle, Pencil, Save } from "lucide-react";
 
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import { WORKSPACE_PANEL_HEADER_ICON_CLASS } from "@/shared/ui/workspace/surface/workspace-header-layout";
 import {
   WorkspaceFileDownloadButton,
   WorkspaceFilePreviewFocusButton,
@@ -40,44 +41,24 @@ const EDIT_ACTION_ICONS: Record<
   preview: Eye,
 };
 
-function WritingStatus({ label }: { label: string }) {
-  return (
-    <>
-      <LoaderCircle
-        className={getUiSpinnerClassName({ size: "xs", tone: "primary" })}
-      />
-      <span className="truncate">{label}</span>
-    </>
-  );
-}
-
-function SyncedStatus({ label }: { label: string }) {
-  return (
-    <>
-      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-(--success)" />
-      <span className="truncate">{label}</span>
-    </>
-  );
-}
-
-const SYNC_STATUS_VIEWS: Record<
-  TextEditorSyncPresentation["kind"],
-  ComponentType<{ label: string }>
-> = {
-  synced: SyncedStatus,
-  writing: WritingStatus,
-};
-
 function TextEditorSyncStatus({
   presentation,
 }: {
-  presentation: TextEditorSyncPresentation | null;
+  presentation: TextEditorSyncPresentation;
 }) {
-  if (!presentation) {
-    return null;
-  }
-  const Status = SYNC_STATUS_VIEWS[presentation.kind];
-  return <Status label={presentation.label} />;
+  return (
+    <>
+      {presentation.kind === "writing" ? (
+        <LoaderCircle
+          aria-hidden="true"
+          className={getUiSpinnerClassName({ size: "xs", tone: "primary" })}
+        />
+      ) : (
+        <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-(--success)" />
+      )}
+      <span className="truncate">{presentation.label}</span>
+    </>
+  );
 }
 
 export function TextFileEditorHeader({
@@ -109,14 +90,14 @@ export function TextFileEditorHeader({
             onClick={onToggleEditing}
             title={presentation.editLabel}
           >
-            <EditIcon className="h-3.5 w-3.5" />
+            <EditIcon className={WORKSPACE_PANEL_HEADER_ICON_CLASS} />
           </WorkspaceFileToolbarButton>
           <WorkspaceFileToolbarButton
             disabled={presentation.saveDisabled}
             onClick={onSave}
             title={presentation.saveLabel}
           >
-            <Save className="h-3.5 w-3.5" />
+            <Save className={WORKSPACE_PANEL_HEADER_ICON_CLASS} />
           </WorkspaceFileToolbarButton>
         </>
       )}

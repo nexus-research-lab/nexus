@@ -1953,3 +1953,41 @@ CSS 数值或键盘处理。公共分隔条与 inline Thread 装配完成代码�
 验证：npm run check 通过，含 lint、typecheck、477 项合同、208 个文件的
 714 项组件测试及生产 build，日志 /tmp/nexus-workspace-a56-check.log；目标集
 见 /tmp/nexus-workspace-a56-target.log。构建只有既有大型分块提示。
+
+## A57：文件动作反馈与文本编辑状态布局（2026-09-07）
+
+本轮完成文件 chrome、文本 Header/恢复视图、预览 Panel 和加载外壳的代码与
+行为审查。正文渲染、完整文本控制器、Office 与媒体业务继续保留各自未完成范围；
+不以本轮局部回归代替真实下载、宿主定位或整个编辑业务验收。
+
+外部文件按钮原先把已翻译的完整反馈属性保存在状态中，连续操作时较早的失败
+仍可覆盖较新的成功；语言切换也不能更新已出现的反馈。现在只保留失败事实，
+在 render 使用当前语言投影公共 FeedbackBanner。反馈绑定 owner 代次、Agent、
+路径、文件名与最近一次显式操作；owner 推进但尚未发布时也拒绝迟到回调，
+作用域变化及卸载使请求失去反馈提交资格。Panel 原有 Agent/path key 已覆盖
+普通文件切换，本次进一步约束动作自身生命周期；不宣称取消已发出的操作，
+不引入重放、通用 mutation journal 或新的下载实现。
+
+文本恢复视图删除重复的分支布局和两个只传递属性的私有状态组件，统一为一处
+UiResourceState 与纯事实描述。读取失败优先、权限文案、保留旧内容的影响说明、
+未知结果对账、冲突读取/审阅、明确可重试、危险覆盖及忙碌按钮均保留原语义。
+标题栏删除两个同步状态包装及组件映射，状态文字只渲染一次，装饰图标隐藏于
+辅助技术；同步继续作为轻量 metadata，不额外套 Badge，图标尺寸归共享 Header。
+
+Panel 保留 exact Agent/path 的 renderer 边界，位置、专注和语言变化不重建草稿；
+切换 Agent/path 或关闭预览才卸载。加载外壳保留为领域内必要的 ResourceState/
+Spinner 组合，继续由调用者持有加载事实；无需为这个窄职责增加公共组件。
+
+新增 27 项离线组件回归覆盖上述反馈时序、当前语言、显式恢复动作、revision
+门禁、忙碌状态、Header 命令和 Panel 草稿生命周期；文件外部操作及 Panel 的
+内容 renderer 使用受控替身，不读取文件或发起真实下载。加上既有正文和预览
+状态回归共 38 项通过，见 /tmp/nexus-editor-a57-target.log。合同门禁改为约束
+唯一 UiResourceState 和单句影响说明，不依赖原 JSX 属性写法。
+
+清单仍为 485 项：304 pending、127 in_progress、17 retained、31 improved、
+6 removed。对应存活源码摘要已同步，其余摘要全部一致；公共组件仍为 118 项。
+整体 Goal 继续，所有浏览器、截图和宿主视觉验证仍按用户要求暂停。
+
+验证：npm run check 通过，含 lint、typecheck、477 项合同、211 个文件的
+741 项组件测试及生产 build，日志 /tmp/nexus-editor-a57-check.log；构建只有
+既有大型分块提示。未修改后端，未扩大为 Go 或浏览器验证。
