@@ -1,5 +1,5 @@
 // INPUT: Memory 文档控制面、目录动作和 workspace live 状态。
-// OUTPUT: 具名加载、访问失败返回、公共源码编辑与按文档宽度排列的冲突双版决策。
+// OUTPUT: 既有正文布局、具名加载、访问失败返回、公共源码编辑与冲突双版决策。
 // POS: Memory 正文可视化；不自动合并或覆盖并发版本。
 "use client";
 
@@ -382,9 +382,9 @@ function MemoryConflictReview({
 }) {
   const { t } = useI18n();
   return (
-    <div className="nexus-memory-document-content nexus-memory-conflict-review grid min-h-0 flex-1 gap-2 py-4">
+    <div className="nexus-memory-document-content grid min-h-0 flex-1 gap-2 py-4 lg:grid-cols-2">
       <section className="flex min-h-[240px] min-w-0 flex-col radius-control-md border border-[color:color-mix(in_srgb,var(--warning)_26%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--warning)_4%,transparent)]">
-        <h3 className={cn("shrink-0 px-3 pb-2 pt-3", getUiTypographyClassName({ role: "supporting", tone: "strong", weight: "medium" }))}>
+        <h3 className={cn("shrink-0 px-3 pb-2 pt-3", getUiTypographyClassName({ role: "metadata", tone: "strong", weight: "semibold" }))}>
           {t("capability.memory_local_draft")}
         </h3>
         <UiSourceEditor
@@ -395,7 +395,7 @@ function MemoryConflictReview({
         />
       </section>
       <section className="flex min-h-[240px] min-w-0 flex-col radius-control-md border border-(--divider-subtle-color) bg-(--surface-panel-subtle-background)">
-        <h3 className={cn("shrink-0 px-3 pb-2 pt-3", getUiTypographyClassName({ role: "supporting", tone: "strong", weight: "medium" }))}>
+        <h3 className={cn("shrink-0 px-3 pb-2 pt-3", getUiTypographyClassName({ role: "metadata", tone: "strong", weight: "semibold" }))}>
           {t("capability.memory_saved_version")}
         </h3>
         <UiSourceEditor

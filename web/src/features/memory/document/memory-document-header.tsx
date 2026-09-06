@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前记忆文档、编辑状态、实时写入状态与操作。
- * OUTPUT: 可换行摘要标题、可读更新时间和随可用宽度换行的编辑/删除动作。
+ * OUTPUT: 可读摘要标题、更新时间和真实编辑/删除动作。
  * POS: 记忆正文唯一 Header；内部路径只保留为悬停诊断。
  */
 import {
@@ -14,8 +14,6 @@ import {
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
-import { cn } from "@/shared/ui/class-name";
-import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import type { MemoryDocument } from "@/types/memory/memory";
 
@@ -74,7 +72,7 @@ export function MemoryDocumentHeader({
   });
   return (
     <div className="shrink-0">
-      <div className="nexus-memory-document-content flex min-h-[60px] flex-wrap items-start gap-x-3 gap-y-2 py-3">
+      <div className="nexus-memory-document-content flex min-h-[60px] items-center gap-3 py-3">
         <UiIconButton
           aria-label={t("capability.memory_back_to_directory")}
           className="nexus-memory-compact-only"
@@ -85,16 +83,18 @@ export function MemoryDocumentHeader({
         >
           <ArrowLeft className="h-4 w-4" />
         </UiIconButton>
-        <div className="min-w-0 flex-1 basis-36">
-          <h2
-            className={cn("break-words [overflow-wrap:anywhere]", getUiTypographyClassName({ role: "sectionTitle", tone: "strong" }))}
-            title={document.path}
-          >
-            {getMemoryDocumentDisplayTitle(document)}
-          </h2>
-          <div className={cn("mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1", getUiTypographyClassName({ role: "metadata", tone: "muted" }))}>
-            <span>{formatMemoryModifiedTime(document.modified_at, locale)}</span>
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-2">
+            <h2
+              className="truncate text-base font-semibold text-(--text-strong)"
+              title={document.path}
+            >
+              {getMemoryDocumentDisplayTitle(document)}
+            </h2>
             {runtimeWriting ? <MemoryRuntimeWritingStatus /> : null}
+          </div>
+          <div className="mt-0.5 text-xs text-(--text-soft)">
+            {formatMemoryModifiedTime(document.modified_at, locale)}
           </div>
         </div>
         <MemoryHeaderActions
@@ -111,9 +111,9 @@ export function MemoryDocumentHeader({
 function MemoryRuntimeWritingStatus() {
   const { t } = useI18n();
   return (
-    <span className={cn("inline-flex items-center gap-1", getUiTypographyClassName({ role: "metadata", tone: "brand", weight: "medium" }))} role="status">
+    <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-(--primary)">
       <LoaderCircle
-        aria-hidden className={getUiSpinnerClassName({ size: "xs", tone: "primary" })}
+        className={getUiSpinnerClassName({ size: "xs", tone: "primary" })}
       />
       {t("capability.memory_runtime_writing")}
     </span>

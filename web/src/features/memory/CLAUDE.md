@@ -19,5 +19,7 @@
 - 删除只接受当前快照中 `memory/` 下的正文文档，必须确认后调用专用接口；`MEMORY.md` 索引不可删除，服务端负责同步清理索引行。删除结果未知时按 exact owner generation + Agent + path 锁定并先只读核对；条目仍在或核对失败都不得自动再次 DELETE，只有 `not_applied` 可安全重试，其他情况必须由用户显式开始并再次确认新意图。
 - Memory UI 不读取或展示旧 `memory/sessions` 遗留结构。
 - 文档类型的图标、色调和标签只由 Catalog 单一描述表定义，视图不得维护平行映射。
-- 目录单页继承 Agent 详情容器底色，和工具、技能等同级栏目一致；单篇正文保留原混色与羽化阴影，宽容器仍以 8px 同色槽与目录底色表达软分栏。`memory-view.css` 按容器布局区分这两种工作面，不用重复摘要、文件路径或装饰性硬线制造层级。标题、提示、索引和正文统一使用 `nexus-memory-document-content` 阅读轴，目录激活态复用侧栏选择样式，仅异常和编辑状态可以使用强调边界。
-- Memory 目录和正文初始加载使用具名 `UiResourceState` 及其共享 Spinner，Header 与按钮内瞬时状态使用共享 Spinner/按钮配方；业务视图不得自行拼接旋转、颜色或 reduced-motion class。
+- 常态工作面以 8px 同色槽、轻微明度差和向左羽化阴影区分目录与正文，与 Room 右侧工作区保持同一种软分栏；不用重复摘要、文件路径或装饰性硬线制造层级。标题、提示、索引和正文统一使用 `nexus-memory-document-content` 阅读轴，目录激活态复用侧栏选择样式，仅异常和编辑状态可以使用强调边界。
+- Memory 空目录和正文加载使用共享 Spinner 的 `lg`，Header 与按钮内瞬时状态使用 `xs/sm/md`；业务视图不得自行拼接旋转、颜色或 reduced-motion class。
+
+- 用户选择保留改版前整套 Memory 布局（`a4d9254ba` 的正常工作面）：目录、正文和背景不再混用后续试改。具名加载、访问失败返回和保存/删除对账继续保留；当前 UI 决定见根 `design.md`。
