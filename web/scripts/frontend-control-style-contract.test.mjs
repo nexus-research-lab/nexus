@@ -134,6 +134,7 @@ test("visual guard covers field content, search inputs and native selection cont
   const source = `
     import { UiInput as Input, UiTextarea, UiNativeSelect, UiSearchInput } from "@/shared/ui/form/form-control";
     import { UiCheckbox } from "@/shared/ui/form/checkbox";
+    import { UiSourceEditor } from "@/shared/ui/form/source-editor";
     import { UiChoiceButton, UiRadioChoice } from "@/shared/ui/form/choice";
     const a = <Input className="font-mono" />;
     const b = <UiTextarea className="message-code-font leading-relaxed" />;
@@ -142,10 +143,11 @@ test("visual guard covers field content, search inputs and native selection cont
     const e = <UiCheckbox className="accent-red-500" />;
     const f = <UiChoiceButton style={{ borderColor: "red" }} />;
     const g = <UiRadioChoice className="bg-red-500" />;
+    const h = <UiSourceEditor className="font-sans focus-visible:ring-0" />;
   `;
   assert.deepEqual(findControlVisualOverrides(samplePath, source).map((issue) => issue.value), [
     "font-mono", "message-code-font", "leading-relaxed", "rounded-full", "ui-type-caption",
-    "font-medium", "accent-red-500", "borderColor", "bg-red-500",
+    "font-medium", "accent-red-500", "borderColor", "bg-red-500", "font-sans", "focus-visible:ring-0",
   ]);
 });
 

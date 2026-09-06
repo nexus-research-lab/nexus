@@ -45,6 +45,32 @@ async function capture(surface: Locator, info: TestInfo, name: string) {
   });
 }
 
+test("source editors preserve text, keyboard focus and native read-only behavior", async ({ page }, info) => {
+  const { errors } = await openGallery(page, info);
+  const fixture = page.locator("[data-gallery-source-editor]");
+  const source = fixture.getByRole("textbox", { name: copy(info, "源码草稿", "Source draft"), exact: true });
+  const value = Array.from({ length: 24 }, (_, index) => `line ${index}  · 中文\tvalue`).join("\n");
+  await source.fill(value);
+  await expect(source).toHaveValue(value);
+  await expect(source).toHaveCSS("font-size", "14px");
+  await expect(source).toHaveCSS("line-height", "24px");
+  expect(await source.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
+  await page.keyboard.press("ArrowLeft");
+  expect(await source.evaluate((element) => getComputedStyle(element).boxShadow)).not.toBe("none");
+  await capture(source.locator(".."), info, "source-editor-focus");
+  await page.keyboard.press("Tab");
+  const saved = fixture.getByRole("textbox", { name: copy(info, "只读源码", "Read-only source"), exact: true });
+  await expect(saved).toBeFocused();
+  await page.keyboard.type("replacement");
+  await expect(saved).toHaveValue("Saved  source\n\t只读内容");
+  await expect(fixture.getByRole("textbox", { name: copy(info, "不可编辑的源码", "Disabled source"), exact: true })).toBeDisabled();
+  await fixture.getByRole("button", { name: copy(info, "记录草稿", "Record draft"), exact: true }).click();
+  await expect(fixture.locator("[data-gallery-source-record]")).toHaveText(JSON.stringify(value));
+  await source.scrollIntoViewIfNeeded();
+  await expectInsideViewport(page, source);
+  expect(errors).toEqual([]);
+});
+
 test("Memory search, type filtering and long document headings remain usable in narrow containers", async ({ page }, info) => {
   const { errors } = await openGallery(page, info, "content");
   const fixture = page.locator("[data-gallery-memory]");

@@ -14,6 +14,13 @@ export interface UiGalleryCoverageGroup {
 
 export const UI_GALLERY_COVERAGE_GROUPS: readonly UiGalleryCoverageGroup[] = [
   {
+    id: "source-editing",
+    section: "foundation",
+    mode: "direct",
+    renderer: "SourceEditorGallery",
+    components: ["UiSourceEditor"],
+  },
+  {
     id: "core-controls",
     section: "foundation",
     mode: "direct",

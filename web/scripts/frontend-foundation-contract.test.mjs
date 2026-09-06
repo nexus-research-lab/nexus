@@ -777,6 +777,20 @@ test("Memory navigation and Room member choices reuse dense shared list rows", a
   assert.match(roomMembers, /<UiChoiceButton/);
 });
 
+test("File and Memory source editing have one native primitive owner", async () => {
+  const ownerPath = "src/shared/ui/form/source-editor.tsx";
+  const [owner, fileBody, memoryPanel] = await Promise.all([
+    readSource(ownerPath),
+    readSource("src/features/conversation/shared/editor/text/text-file-editor-body.tsx"),
+    readSource("src/features/memory/document/memory-document-panel.tsx"),
+  ]);
+  assert.equal(countNativeElement(ownerPath, owner, "textarea"), 1);
+  for (const consumer of [fileBody, memoryPanel]) {
+    assert.match(consumer, /<UiSourceEditor\b/);
+    assert.doesNotMatch(consumer, /<textarea\b/);
+  }
+});
+
 test("General, Personal, and Browser settings share semantic Spinner roles", async () => {
   const paths = [
     "src/features/settings/browser/browser-settings-section.tsx",
@@ -2750,6 +2764,7 @@ test("form style and accessibility internals and native selects keep explicit ow
   const files = await collectSourceFiles(srcRoot);
   const fieldAccessibilityConsumers = new Set([
     "src/shared/ui/form/form-control.tsx",
+    "src/shared/ui/form/source-editor.tsx",
     "src/shared/ui/menu/select-menu-primitives.tsx",
   ]);
   const embeddedSelectOwners = new Set([

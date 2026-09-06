@@ -48,6 +48,7 @@ import {
   UiSearchInput,
   UiTextarea,
 } from "@/shared/ui/form/form-control";
+import { SourceEditorGallery } from "./ui-gallery-source-editor";
 import { UiRemovableChip } from "@/shared/ui/form/removable-chip";
 import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
 import { UiListActionButton } from "@/shared/ui/list/list-action";
@@ -322,6 +323,7 @@ export function UiContractGallery() {
               <UiField htmlFor="gallery-notes" label={galleryText(locale, "备注", "Notes")}>
                 <UiTextarea id="gallery-notes" key={locale} defaultValue={galleryText(locale, "长内容需要在 320px 下保持可读，不横向溢出。", "Long content must remain readable at 320px without horizontal overflow.")} variant="surface" />
               </UiField>
+              <SourceEditorGallery />
               <UiField htmlFor="gallery-native-role" label={galleryText(locale, "原生角色", "Native role")}>
                 <UiNativeSelect
                   id="gallery-native-role"

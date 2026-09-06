@@ -1,5 +1,5 @@
 // INPUT: Memory 文档控制面、目录动作和 workspace live 状态。
-// OUTPUT: 具名加载、访问失败返回、正文与按文档宽度排列的冲突双版决策。
+// OUTPUT: 具名加载、访问失败返回、公共源码编辑与按文档宽度排列的冲突双版决策。
 // POS: Memory 正文可视化；不自动合并或覆盖并发版本。
 "use client";
 
@@ -16,6 +16,7 @@ import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
+import { UiSourceEditor } from "@/shared/ui/form/source-editor";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
 import type { WorkspaceLiveFileState } from "@/types/app/workspace-live";
 import type { MemoryDocument } from "@/types/memory/memory";
@@ -344,11 +345,10 @@ function MemoryDocumentBody({
       return <MemoryConflictReview controller={controller} />;
     }
     return (
-      <textarea
+      <UiSourceEditor
         aria-label={t("capability.memory_editor_aria")}
-        className="nexus-memory-document-content message-cjk-code-font min-h-0 flex-1 resize-none overflow-y-auto bg-transparent py-4 text-sm leading-6 text-(--text-default) outline-none"
+        className="nexus-memory-document-content flex-1 py-4"
         onChange={(event) => controller.setDraft(event.target.value)}
-        spellCheck={false}
         value={controller.draft}
       />
     );
@@ -387,11 +387,10 @@ function MemoryConflictReview({
         <h3 className={cn("shrink-0 px-3 pb-2 pt-3", getUiTypographyClassName({ role: "supporting", tone: "strong", weight: "medium" }))}>
           {t("capability.memory_local_draft")}
         </h3>
-        <textarea
+        <UiSourceEditor
           aria-label={t("capability.memory_local_draft")}
-          className="message-cjk-code-font min-h-[200px] flex-1 resize-none overflow-auto bg-transparent px-3 pb-3 text-sm leading-6 text-(--text-default) outline-none"
+          className="min-h-[200px] flex-1 px-3 pb-3"
           onChange={(event) => controller.setDraft(event.target.value)}
-          spellCheck={false}
           value={controller.draft}
         />
       </section>
@@ -399,11 +398,10 @@ function MemoryConflictReview({
         <h3 className={cn("shrink-0 px-3 pb-2 pt-3", getUiTypographyClassName({ role: "supporting", tone: "strong", weight: "medium" }))}>
           {t("capability.memory_saved_version")}
         </h3>
-        <textarea
+        <UiSourceEditor
           aria-label={t("capability.memory_saved_version")}
-          className="message-cjk-code-font min-h-[200px] flex-1 resize-none overflow-auto bg-transparent px-3 pb-3 text-sm leading-6 text-(--text-muted) outline-none"
+          className="min-h-[200px] flex-1 px-3 pb-3"
           readOnly
-          spellCheck={false}
           value={controller.content}
         />
       </section>

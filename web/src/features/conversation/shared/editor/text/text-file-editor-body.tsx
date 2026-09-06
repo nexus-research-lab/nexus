@@ -1,5 +1,5 @@
 // INPUT: exact Agent 与文件正文、模式、编辑命令和布局观察。
-// OUTPUT: 保留文件归属的预览或编辑视图。
+// OUTPUT: 保留文件归属的预览或公共源码编辑视图，透传可选字段身份。
 // POS: 文本编辑器正文装配；所有渲染模式透传同一 Agent scope。
 import {
   useEffect,
@@ -14,6 +14,7 @@ import {
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { TypewriterFileView } from "@/shared/ui/feedback/typewriter-file-view";
+import { UiSourceEditor } from "@/shared/ui/form/source-editor";
 
 import type { WorkspaceFilePreviewKind } from "../workspace-file-preview-kind";
 import { TextFileContent } from "./text-file-content";
@@ -24,6 +25,8 @@ interface TextEditorBodyViewProps {
   containerWidth: number;
   content: string;
   exitEditingOnBlur: boolean;
+  editorId?: string;
+  editorLabel?: string;
   fileName: string;
   fileType: WorkspaceFilePreviewKind;
   isLoading: boolean;
@@ -84,6 +87,8 @@ function PreviewBody(props: TextEditorBodyViewProps) {
 
 function EditingBody({
   content,
+  editorId,
+  editorLabel,
   exitEditingOnBlur,
   isLoading,
   setContent,
@@ -92,10 +97,11 @@ function EditingBody({
 }: TextEditorBodyViewProps) {
   const { t } = useI18n();
   return (
-    <textarea
-      aria-label={t("workspace_file.edit_content")}
-      className="soft-scrollbar h-full min-h-0 w-full resize-none border-0 bg-transparent p-0 font-mono text-sm leading-6 text-(--text-default) shadow-none outline-none ring-0 focus:border-0 focus:bg-transparent focus:shadow-none focus:outline-none focus:ring-0 focus-visible:border-0 focus-visible:bg-transparent focus-visible:shadow-none focus-visible:outline-none focus-visible:ring-0 disabled:opacity-70"
+    <UiSourceEditor
+      aria-label={editorLabel ?? t("workspace_file.edit_content")}
+      className="h-full"
       disabled={isLoading}
+      id={editorId}
       onBlur={exitEditingOnBlur ? () => setIsEditing(false) : undefined}
       onChange={(event) => setContent(event.target.value)}
       ref={textareaRef}
