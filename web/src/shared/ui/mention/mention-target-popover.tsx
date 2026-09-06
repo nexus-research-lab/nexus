@@ -1,12 +1,13 @@
 // INPUT: 锚点显示状态、已过滤候选、当前文本与选择/关闭命令。
-// OUTPUT: 仅在浮层可见时接管编辑器导航键的 Mention 候选视图。
-// POS: 共享 Mention 交互适配；隐藏组件不得持有全局键盘所有权。
+// OUTPUT: 仅在浮层可见且不处于 IME 组合输入时接管导航键的 Mention 候选视图。
+// POS: 共享 Mention 交互适配；隐藏组件与输入法确认不得转为全局选择命令。
 "use client";
 
 import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 
 import { useResettableState } from "@/shared/lib/react/use-resettable-state";
+import { isImeKeyboardEvent } from "@/shared/lib/browser/ime-keyboard-event";
 import { cn } from "@/shared/ui/class-name";
 import {
   getMenuItemStateClassName,
@@ -61,6 +62,9 @@ export const MentionTargetPopover = memo(function MentionTargetPopover({
   }, [filteredItems.length, onClose]);
 
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
+    if (isImeKeyboardEvent(event)) {
+      return;
+    }
     const action = getMentionKeyboardAction(event.key);
     if (!action || filteredItems.length === 0) {
       return;

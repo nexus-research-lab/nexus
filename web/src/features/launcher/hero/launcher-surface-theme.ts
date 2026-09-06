@@ -1,3 +1,6 @@
+// INPUT: 当前主题与 Launcher 云朵、品牌入口和角色发送场景的颜色配置。
+// OUTPUT: 仅供场景消费者使用的 CSS 变量；普通查询字段直接使用公共输入 token。
+// POS: Launcher 专用材质投影；不拥有通用控件字体、焦点或无消费者的历史变量。
 import { CSSProperties } from "react";
 
 import { Theme } from "@/shared/theme/theme-context";
@@ -6,7 +9,6 @@ type LauncherSurfaceThemeStyle = CSSProperties &
   Record<`--launcher-${string}`, string>;
 
 interface LauncherSurfaceConfig {
-  dividerColor: string;
   heroAura: string;
   heroInnerFill: string;
   heroInnerStroke: string;
@@ -19,15 +21,11 @@ interface LauncherSurfaceConfig {
   heroTint3: string;
   heroTint4: string;
   inputFill: string;
-  inputIcon: string;
   inputInnerFill: string;
   inputInnerStroke: string;
-  inputPlaceholder: string;
   inputStroke: string;
   inputText: string;
-  metaText: string;
   submitBackground: string;
-  submitBorder: string;
   submitColor: string;
   submitShadow: string;
 }
@@ -37,7 +35,6 @@ function buildLauncherSurfaceThemeStyle(
 ): LauncherSurfaceThemeStyle {
   return {
     "--launcher-stage-pattern": "var(--ambient-page-pattern)",
-    "--launcher-divider-color": config.dividerColor,
     "--launcher-hero-aura": config.heroAura,
     "--launcher-hero-stop-1": config.heroStop1,
     "--launcher-hero-stop-2": config.heroStop2,
@@ -53,14 +50,10 @@ function buildLauncherSurfaceThemeStyle(
     "--launcher-input-stroke": config.inputStroke,
     "--launcher-input-inner-fill": config.inputInnerFill,
     "--launcher-input-inner-stroke": config.inputInnerStroke,
-    "--launcher-input-icon": config.inputIcon,
     "--launcher-input-text": config.inputText,
-    "--launcher-input-placeholder": config.inputPlaceholder,
     "--launcher-submit-background": config.submitBackground,
-    "--launcher-submit-border": config.submitBorder,
     "--launcher-submit-color": config.submitColor,
     "--launcher-submit-shadow": config.submitShadow,
-    "--launcher-meta-text": config.metaText,
     backgroundAttachment: "fixed",
     backgroundColor: "var(--background)",
     backgroundImage: "var(--launcher-stage-pattern)",
@@ -71,7 +64,6 @@ function buildLauncherSurfaceThemeStyle(
 }
 
 const LIGHT_LAUNCHER_SURFACE_THEME_STYLE = buildLauncherSurfaceThemeStyle({
-  dividerColor: "rgba(83, 88, 101, 0.10)",
   heroAura:
     "radial-gradient(30% 16% at 50% 82%, rgba(133, 119, 255, 0.22), rgba(133, 119, 255, 0) 74%), radial-gradient(12% 20% at 86% 22%, rgba(118, 231, 206, 0.12), rgba(118, 231, 206, 0) 76%), radial-gradient(14% 18% at 16% 34%, rgba(191, 219, 254, 0.12), rgba(191, 219, 254, 0) 76%), radial-gradient(40% 12% at 50% 12%, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0) 74%)",
   heroInnerFill: "rgba(216, 226, 247, 0.10)",
@@ -85,22 +77,17 @@ const LIGHT_LAUNCHER_SURFACE_THEME_STYLE = buildLauncherSurfaceThemeStyle({
   heroTint3: "transparent",
   heroTint4: "rgba(255, 255, 255, 0)",
   inputFill: "rgba(255, 255, 255, 0.08)",
-  inputIcon: "rgba(76, 82, 96, 0.72)",
   inputInnerFill: "rgba(255, 255, 255, 0.04)",
   inputInnerStroke: "rgba(255, 255, 255, 0.08)",
-  inputPlaceholder: "rgba(76, 87, 109, 0.84)",
   inputStroke: "rgba(255, 255, 255, 0.32)",
   inputText: "rgba(28, 31, 39, 0.92)",
-  metaText: "rgba(74, 80, 94, 0.76)",
   submitBackground:
     "linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(244, 248, 253, 0.92))",
-  submitBorder: "rgba(255,255,255,0.34)",
   submitColor: "#182131",
   submitShadow: "0 10px 20px rgba(110, 117, 142, 0.14)",
 });
 
 const DARK_LAUNCHER_SURFACE_THEME_STYLE = buildLauncherSurfaceThemeStyle({
-  dividerColor: "rgba(255, 255, 255, 0.08)",
   heroAura:
     "radial-gradient(30% 16% at 50% 82%, rgba(118, 169, 255, 0.24), rgba(118, 169, 255, 0) 74%), radial-gradient(12% 20% at 86% 22%, rgba(117, 218, 195, 0.14), rgba(117, 218, 195, 0) 76%), radial-gradient(12% 18% at 14% 38%, rgba(243, 184, 109, 0.16), rgba(243, 184, 109, 0) 76%), radial-gradient(40% 12% at 50% 12%, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0) 74%)",
   heroInnerFill: "rgba(255, 255, 255, 0.04)",
@@ -114,22 +101,17 @@ const DARK_LAUNCHER_SURFACE_THEME_STYLE = buildLauncherSurfaceThemeStyle({
   heroTint3: "transparent",
   heroTint4: "rgba(255, 255, 255, 0)",
   inputFill: "rgba(255, 255, 255, 0.06)",
-  inputIcon: "rgba(204, 208, 218, 0.70)",
   inputInnerFill: "rgba(255, 255, 255, 0.03)",
   inputInnerStroke: "rgba(255, 255, 255, 0.09)",
-  inputPlaceholder: "rgba(209, 199, 183, 0.42)",
   inputStroke: "rgba(255, 255, 255, 0.20)",
   inputText: "rgba(244, 245, 248, 0.94)",
-  metaText: "rgba(186, 190, 200, 0.74)",
   submitBackground:
     "linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.12))",
-  submitBorder: "rgba(255,255,255,0.34)",
   submitColor: "#f5ecde",
   submitShadow: "0 10px 24px rgba(0, 0, 0, 0.24)",
 });
 
 const RAIN_LAUNCHER_SURFACE_THEME_STYLE = buildLauncherSurfaceThemeStyle({
-  dividerColor: "rgba(73, 88, 111, 0.10)",
   heroAura:
     "radial-gradient(30% 16% at 50% 82%, rgba(100, 140, 190, 0.22), rgba(100, 140, 190, 0) 74%), radial-gradient(12% 20% at 86% 22%, rgba(90, 160, 180, 0.12), rgba(90, 160, 180, 0) 76%), radial-gradient(14% 18% at 16% 34%, rgba(120, 148, 180, 0.12), rgba(120, 148, 180, 0) 76%), radial-gradient(40% 12% at 50% 12%, rgba(160, 185, 220, 0.10), rgba(160, 185, 220, 0) 74%)",
   heroInnerFill: "rgba(138, 168, 212, 0.08)",
@@ -143,16 +125,12 @@ const RAIN_LAUNCHER_SURFACE_THEME_STYLE = buildLauncherSurfaceThemeStyle({
   heroTint3: "transparent",
   heroTint4: "rgba(255, 255, 255, 0)",
   inputFill: "rgba(138, 168, 212, 0.07)",
-  inputIcon: "rgba(84, 100, 124, 0.70)",
   inputInnerFill: "rgba(138, 168, 212, 0.03)",
   inputInnerStroke: "rgba(160, 185, 220, 0.07)",
-  inputPlaceholder: "rgba(180, 198, 220, 0.42)",
   inputStroke: "rgba(160, 185, 220, 0.22)",
   inputText: "rgba(35, 44, 58, 0.92)",
-  metaText: "rgba(78, 93, 115, 0.76)",
   submitBackground:
     "linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(138, 168, 212, 0.18))",
-  submitBorder: "rgba(255,255,255,0.28)",
   submitColor: "#d4e2f2",
   submitShadow: "0 10px 24px rgba(0, 0, 0, 0.28)",
 });

@@ -1447,3 +1447,47 @@ theme recipe；backwards fill 仅作用于等待阶段，完成后无常驻 tran
 临时 localhost 夹具在授权范围内完成，未开启浏览器或访问运行中的产品后端。
 构建仍只有既有大型分块提示。日志：`/tmp/nexus-motion-a44-components.log`、
 `/tmp/nexus-motion-a44-typecheck.log`、`/tmp/nexus-motion-a44-check.log`。
+
+## A45：Launcher 查询归并公共字段，修复 Mention 输入法确认
+
+继续审查实际页面代码，不做视觉验收。Launcher 查询曾单独实现输入字号、
+颜色、placeholder、去焦点样式及一层玻璃字段壳，现在直接使用 UiInput 的
+lg/surface 档位，外层只保留输入与角色发送的同行布局。字段改用公共 44px 高度、
+字号、边框和焦点；角色热区仍为 44px，草稿、Mention ref/光标、禁用和全部输入
+回调保持同一 owner。移除重复玻璃壳和无业务信息的前置图标，保留原 420px 列宽
+与舞台缩放。发送按钮现在始终有本地化名称，忙时有 aria-busy/disabled；图像
+改为装饰，避免名称依赖图片在等待时消失。两个场景按钮共享 ring 和 fast 动效
+token，品牌箭头遵循减少动态效果；不为从未改变 transform 的云朵 wrapper
+保留无效过渡。
+
+代码检查发现输入与可见 Mention 全局捕获都未完整排除 IME：前者只检查
+isComposing，后者会把输入法 Enter 当成选值。两处现在共同使用唯一
+isImeKeyboardEvent，保留 composition ref，并拒绝 Process/229 等兼容事件。
+新增实际 Hero + 公共字段 + 公共 Mention 的 7 项离线回归，覆盖受理后 trim/清空、
+空白忽略、拒绝保留草稿与外部替换、等待防重复点击、IME 后独立提交、@Agent /
+#Room 选择与光标回位，以及工作台导航/主 Agent 交接。测试只替换装饰 Pile 与
+Lottie，不替换查询 Hook 或 Mention 行为，不请求业务后端。
+
+沿引用核实后移除五组无消费者的 Launcher 主题变量：input-icon、
+input-placeholder、divider-color、meta-text、submit-border；同时移除配置字段、
+三主题值和投影。前两项随公共字段归并失去用途，后三项此前只剩声明。品牌入口
+仍消费的 input 材质与发送等待态颜色保留，未删除有意义的主题分支。
+
+最近入口完整核对现有纯模型、布局、稳定标记、长名提示和导航职责，保留共享
+Button/Tooltip/FadeSlideIn 组合；删除重复 inline-flex 包装，交接文字和箭头
+间距交给 Button。品牌复合入口、角色发送和云朵几何继续是已有规范中的场景
+例外，不新加公共变体或取消场景身份。HeroBlobShell 保留稳定独立 SVG ID、
+主题材质与不拦截指针的装饰层，补齐合同并删除重复参数绑定。
+
+审计清单仍为 485 项：343 pending、123 in_progress、8 retained、8 improved、
+3 removed；现存文件摘要匹配，公共 UI 仍为 122 项。Hero 与最近入口完成本批
+代码审查，Console/Pile、Mention 的整体浮层/行控件审查仍未完成；未因父页面
+消费它们而自动勾选。整个 Goal 继续，未扩展或执行视觉测试。
+
+验证：9 项目标组件回归与 typecheck 通过，随后完整 `npm run check` 成功，
+含 lint、typecheck、469 项合同、194 个文件的 623 项组件回归及生产 build。
+末次检查将品牌箭头悬停位移限制为 motion-safe（适配 Tailwind 的独立 translate
+属性），只重跑受影响的 CSS 生产构建，通过；未重复无关行为测试。日志在
+`/tmp/nexus-launcher-a45-components.log`、`/tmp/nexus-launcher-a45-typecheck.log`、
+`/tmp/nexus-launcher-a45-check.log` 和 `/tmp/nexus-launcher-a45-build.log`。
+构建继续只有已知大型分块提示，无视觉或原生播放验收结论。
