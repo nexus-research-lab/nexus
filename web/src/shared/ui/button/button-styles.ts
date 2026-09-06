@@ -1,5 +1,5 @@
 // INPUT: Button 的 size/tone/variant、原生 disabled/aria-busy、IconButton 的 shape 与调用方外部布局 class。
-// OUTPUT: 与字段配套的紧凑字号/高度及共享 token/recipe 按钮状态投影。
+// OUTPUT: 与字段配套的紧凑字号/高度、语义色配对前景及共享 token/recipe 按钮状态投影。
 // POS: Button 视觉状态真相；不渲染 DOM，也不接受业务专属视觉覆盖。
 
 import { cn } from "@/shared/ui/class-name";
@@ -55,6 +55,15 @@ const BUTTON_ROUNDED_CLASS_MAP: Record<UiButtonSize, string> = {
   lg: "radius-control-lg",
 };
 
+const SEMANTIC_GHOST_CLASS_MAP: Record<Exclude<UiButtonTone, "default">, string> = {
+  primary:
+    "border-transparent bg-transparent text-(--brand-action) [&:not(:disabled):hover]:border-[color:color-mix(in_srgb,var(--brand-action)_24%,var(--surface-interactive-hover-border))] [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--brand)_8%,var(--surface-interactive-hover-background))]",
+  danger:
+    "border-transparent bg-transparent text-(--destructive) [&:not(:disabled):hover]:border-[color:color-mix(in_srgb,var(--destructive)_22%,var(--surface-interactive-hover-border))] [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--destructive)_8%,var(--surface-interactive-hover-background))]",
+  success:
+    "border-transparent bg-transparent text-(--success) [&:not(:disabled):hover]:border-[color:color-mix(in_srgb,var(--success)_22%,var(--surface-interactive-hover-border))] [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--success)_8%,var(--surface-interactive-hover-background))]",
+};
+
 const BUTTON_VARIANT_TONE_CLASS_MAP: Record<UiButtonVariant, Record<UiButtonTone, string>> = {
   surface: {
     default:
@@ -82,35 +91,25 @@ const BUTTON_VARIANT_TONE_CLASS_MAP: Record<UiButtonVariant, Record<UiButtonTone
     primary:
       "border-(--button-primary-border) bg-(--button-primary-background) text-(--button-primary-color) [&:not(:disabled):hover]:border-(--button-primary-hover-border) [&:not(:disabled):hover]:bg-(--button-primary-hover-background)",
     danger:
-      "border-[color:color-mix(in_srgb,var(--destructive)_62%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_82%,white_18%)] text-white [&:not(:disabled):hover]:border-[color:color-mix(in_srgb,var(--destructive)_74%,transparent)] [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--destructive)_88%,white_12%)]",
+      "border-[color:color-mix(in_srgb,var(--destructive)_62%,transparent)] bg-(--destructive) text-(--destructive-foreground) [&:not(:disabled):hover]:border-[color:color-mix(in_srgb,var(--destructive)_74%,transparent)] [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--destructive)_88%,black_12%)]",
     success:
-      "border-[color:color-mix(in_srgb,var(--success)_62%,transparent)] bg-(--success) text-white [&:not(:disabled):hover]:border-[color:color-mix(in_srgb,var(--success)_74%,transparent)] [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--success)_88%,black_12%)]",
+      "border-[color:color-mix(in_srgb,var(--success)_62%,transparent)] bg-(--success) text-(--success-foreground) [&:not(:disabled):hover]:border-[color:color-mix(in_srgb,var(--success)_74%,transparent)] [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--success)_88%,black_12%)]",
   },
   ghost: {
+    ...SEMANTIC_GHOST_CLASS_MAP,
     default: cn(
       "border-transparent bg-transparent text-(--text-default) [&:not(:disabled):hover]:bg-(--surface-interactive-hover-background) [&:not(:disabled):hover]:text-(--text-strong)",
       NEUTRAL_ACTIVE_BACKGROUND_CLASS_NAME,
       NEUTRAL_ACTIVE_TEXT_CLASS_NAME,
     ),
-    primary:
-      "border-transparent bg-transparent text-(--brand-action) [&:not(:disabled):hover]:border-[color:color-mix(in_srgb,var(--brand-action)_24%,var(--surface-interactive-hover-border))] [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--brand)_8%,var(--surface-interactive-hover-background))]",
-    danger:
-      "border-transparent bg-transparent text-(--destructive) [&:not(:disabled):hover]:border-[color:color-mix(in_srgb,var(--destructive)_22%,var(--surface-interactive-hover-border))] [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--destructive)_8%,var(--surface-interactive-hover-background))]",
-    success:
-      "border-transparent bg-transparent text-(--success) [&:not(:disabled):hover]:border-[color:color-mix(in_srgb,var(--success)_22%,var(--surface-interactive-hover-border))] [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--success)_8%,var(--surface-interactive-hover-background))]",
   },
   text: {
+    ...SEMANTIC_GHOST_CLASS_MAP,
     default: cn(
       "border-transparent bg-transparent text-(--text-muted) [&:not(:disabled):hover]:bg-(--surface-interactive-hover-background) [&:not(:disabled):hover]:text-(--text-strong)",
       NEUTRAL_ACTIVE_BACKGROUND_CLASS_NAME,
       NEUTRAL_ACTIVE_TEXT_CLASS_NAME,
     ),
-    primary:
-      "border-transparent bg-transparent text-(--brand-action) [&:not(:disabled):hover]:border-[color:color-mix(in_srgb,var(--brand-action)_24%,var(--surface-interactive-hover-border))] [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--brand)_8%,var(--surface-interactive-hover-background))]",
-    danger:
-      "border-transparent bg-transparent text-(--destructive) [&:not(:disabled):hover]:border-[color:color-mix(in_srgb,var(--destructive)_22%,var(--surface-interactive-hover-border))] [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--destructive)_8%,var(--surface-interactive-hover-background))]",
-    success:
-      "border-transparent bg-transparent text-(--success) [&:not(:disabled):hover]:border-[color:color-mix(in_srgb,var(--success)_22%,var(--surface-interactive-hover-border))] [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--success)_8%,var(--surface-interactive-hover-background))]",
   },
 };
 
@@ -138,17 +137,12 @@ const ICON_BUTTON_VARIANT_TONE_CLASS_MAP: Record<Exclude<UiButtonVariant, "text"
   outline: BUTTON_VARIANT_TONE_CLASS_MAP.outline,
   solid: BUTTON_VARIANT_TONE_CLASS_MAP.solid,
   ghost: {
+    ...SEMANTIC_GHOST_CLASS_MAP,
     default: cn(
       "border-transparent bg-transparent text-(--icon-default) [&:not(:disabled):hover]:bg-(--surface-interactive-hover-background) [&:not(:disabled):hover]:text-(--icon-strong)",
       NEUTRAL_ACTIVE_BACKGROUND_CLASS_NAME,
       NEUTRAL_ACTIVE_ICON_CLASS_NAME,
     ),
-    primary:
-      "border-transparent bg-transparent text-(--brand-action) [&:not(:disabled):hover]:border-[color:color-mix(in_srgb,var(--brand-action)_24%,var(--surface-interactive-hover-border))] [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--brand)_8%,var(--surface-interactive-hover-background))]",
-    danger:
-      "border-transparent bg-transparent text-(--destructive) [&:not(:disabled):hover]:border-[color:color-mix(in_srgb,var(--destructive)_22%,var(--surface-interactive-hover-border))] [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--destructive)_8%,var(--surface-interactive-hover-background))]",
-    success:
-      "border-transparent bg-transparent text-(--success) [&:not(:disabled):hover]:border-[color:color-mix(in_srgb,var(--success)_22%,var(--surface-interactive-hover-border))] [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--success)_8%,var(--surface-interactive-hover-background))]",
   },
 };
 

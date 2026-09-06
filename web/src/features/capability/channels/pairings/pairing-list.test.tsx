@@ -69,6 +69,11 @@ describe("PairingList", () => {
       .toContain("ui-type-code");
     expect(container.querySelector("section.surface-radius-sm")).toBeTruthy();
 
+    await user.click(screen.getByText("处理智能体"));
+    expect(screen.getByRole("listbox", { name: "选择配对处理智能体" })).toBeTruthy();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("listbox")).toBeNull();
+
     await user.click(screen.getByRole("button", { name: "停用" }));
     expect(onUpdatePairing).toHaveBeenCalledWith(PAIRING, {
       status: "disabled",

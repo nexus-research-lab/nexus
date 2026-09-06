@@ -5,6 +5,7 @@
 - `UiQRCode` 只把调用方已经选定的 payload 投影为二维码和兜底链接，不解释登录或授权协议；动态生成必须区分加载中与已失败，业务方可提供不暴露载荷的完整失败说明。外层表面、圆角、状态文案与可选 payload 使用共享 Panel、shape 与 Typography，只有二维码纸张保留固定扫描尺寸。
 - 业务状态必须先由消费者投影，共享组件不解析领域协议。
 - `UiBadge` 默认使用共享紧凑圆角；只有数字聚合、版本等明确胶囊语义才传 `shape="pill"`。业务层不得再用 `rounded-*` 覆盖徽标外形。
+- `UiCounterBadge` 的实底与文字使用同一危险语义色及主题配对前景；`UiBadge` 的 active/success 共用外观配方，但保留消费者传入的业务语义。信息徽标的颜色只由当前 Badge recipe 派生，不保留第二套无消费者的主题色表。
 - `UiResourceState` 的 error 态最多提供一个安全恢复动作；需要“采用最新/覆盖草稿”这类双向业务选择时必须显式使用 decision 态，不得伪装成失败恢复。
 - `UiStateBlock` 的标题、说明和图标承载体只能选择 App Typography 与语义 shape role；空态使用对象标题层级，紧凑错误/决策态使用分区标题层级，不在业务调用方重写字号和圆角。
 - `spinner-styles.ts` 是圆形加载指示器尺寸、颜色、旋转与 reduced-motion 行为的唯一 recipe；业务容器负责 `role/status`、`aria-busy` 和可见文案，不得把装饰性 Spinner 自己暴露成第二个播报节点。生产 `web/src` 的页面、Feature、App 壳与共享组件均由合同测试禁止直接使用 `animate-spin` 或边框 Spinner；启动猫与 Composer 字符动效是明确的品牌/交互例外。

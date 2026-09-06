@@ -1,5 +1,5 @@
 // INPUT: Select trigger 的开关/禁用事实、既有样式投影、内容与原生事件，以及 listbox/选项数据。
-// OUTPUT: 稳定的触发器、选择面板和 option button 语义 DOM。
+// OUTPUT: 稳定的触发器、精确 Field 说明/错误关联、选择面板和 option button 语义 DOM。
 // POS: Select Menu 视图原语；不管理开关、选值或定位计算。
 
 import type {
@@ -11,6 +11,7 @@ import type {
 import { ChevronDown } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
+import { useFieldControlAttributes } from "@/shared/ui/form/field-accessibility";
 
 import type { UiAnchoredOverlayPosition } from "../overlay/anchored-overlay-model";
 import { OPEN_OVERLAY_DATA_ATTRIBUTES } from "../overlay/overlay-contract";
@@ -59,9 +60,11 @@ export function SelectMenuTrigger({
   surface,
   ...props
 }: SelectMenuTriggerProps) {
+  const fieldAttributes = useFieldControlAttributes(props);
   return (
     <button
       {...props}
+      {...fieldAttributes}
       ref={buttonRef}
       aria-controls={isOpen ? menuId : undefined}
       aria-disabled={disabled}

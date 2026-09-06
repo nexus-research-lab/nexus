@@ -6,6 +6,7 @@
 - Select 的 `xs / sm / md / lg` 尺寸只由 `select-menu-styles.ts` 投影；目录筛选用紧凑档，和大号输入同排的字段用 `lg`，消费者不得通过 `h-*` 或 `buttonClassName` 另造高度、间距和阴影。
 - `select-menu-primitives.tsx` 提供选择菜单共用的 `SelectMenuTrigger`、触发器内容、listbox 框架和 `SelectMenuOptionRow`；SelectMenuTrigger 统一单选与领域多选的原生 button、listbox ARIA、ref 和原生事件透传，直接消费既有样式投影，不改变调用者的开关、键盘或布局。所有单选、多选、Slash/Mention 类 listbox 条目由 OptionRow 持有原生 button、`role=option`、选中语义与基础交互底面，业务只组合行内容、密度和选择命令。
 - `select-menu-view.tsx` 只渲染共享单选菜单，不读取业务状态或决定选值。
+- Select trigger 通过 `form/field-accessibility.ts` 复用 Field 的精确说明/错误关联；菜单项不继承该字段身份，业务不必复制一套 ARIA 错误属性。
 - 默认单选触发器与默认 Input 使用同一控件高度和 App `control` 文字角色；紧凑档位保留菜单原有密度。多选已选 Chip 的换行高度属于领域内容几何，不强塞进单行高度。
 - `select-menu.tsx` 只编排共享单选语义和浮层生命周期；带搜索、异步状态或多选规则的菜单归真实业务所有者。
 - `action-menu.tsx` 保持外部受控，不复用 Select 家族的内部开关状态；业务可显式选择与锚点起点或终点对齐。级联浮层复用 `UiActionMenuContent` 的条目和底部动作，不复制 Action Menu 行结构。

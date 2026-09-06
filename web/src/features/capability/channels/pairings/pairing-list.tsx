@@ -1,6 +1,6 @@
 /**
  * INPUT: 分组配对、Agent 目录与配对写命令。
- * OUTPUT: 可识别的外部对象摘要和按需展开的内部技术详情。
+ * OUTPUT: 可识别的外部对象摘要、标签关联的 Agent 选择器和按需展开的内部技术详情。
  * POS: 配对目录列表纯视图；外部身份属于管理对象，内部绑定键才延后展示。
  */
 "use client";
@@ -12,6 +12,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
+import { useId } from "react";
 
 import type {
   ImPairingStatus,
@@ -203,6 +204,7 @@ function PairingRow({
   onDeletePairing: PairingListProps["onDeletePairing"];
   onUpdatePairing: PairingListProps["onUpdatePairing"];
 }) {
+  const agentFieldId = useId();
   const bindingKey = pairingBindingKey(item);
   const sessionKey = pairingSessionKey(item);
   const activityAt = item.last_message_at || item.updated_at;
@@ -254,10 +256,11 @@ function PairingRow({
           </div>
         </div>
 
-        <UiField className="min-w-0" label="处理智能体">
+        <UiField className="min-w-0" htmlFor={agentFieldId} label="处理智能体">
           <UiSelectMenu
             ariaLabel="选择配对处理智能体"
             disabled={busy}
+            id={agentFieldId}
             onChange={(value) => void onUpdatePairing(item, { agent_id: value })}
             options={agents.map((agent) => ({
               value: agent.agent_id,

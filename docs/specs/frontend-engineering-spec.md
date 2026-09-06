@@ -182,6 +182,8 @@ Primitive 同时拥有 DOM、键盘、焦点、ARIA 和视觉状态合同，例�
 - 业务文字、导航链接和纯图标动作必须分别渲染 `UiButton / UiLinkButton / UiIconButton`；`button-styles.ts` 是 shared primitive 的实现细节，业务层不得借其 class 投影手写第二套 DOM；
 - `UiButton surface` 表达带底色的次级动作，`outline` 表达与页面同层、透明无阴影但需要稳定边界的动作组，`ghost / text` 表达默认无边界的轻动作；业务页不得用局部 `background / border / shadow` 把一种变体临时改造成另一种；
 - 普通单行、多行和原生选择字段必须分别渲染 `UiInput / UiTextarea / UiNativeSelect`；业务层不得导入 `form-control-styles.ts` 复制输入壳，嵌入领域复合控件的无壳原生输入由其 pattern 明确负责；
+- `UiField` 内的普通输入和选择 trigger 使用公共控件。字段的 `htmlFor` 必须与目标控件 `id` 显式配对，公共层把当前可见说明加入 `aria-describedby`，把当前错误关联到 `aria-errormessage / aria-invalid`；调用方已有描述必须保留。多输入组不能把同一字段身份自动复制给所有 children，分段选择等复合字段由业务明确提供组名和各控件名称。原生校验只定位当前表单中首个可校验的无效输入，由最近的 Field 显示一次；错误恢复后声明式恢复调用方最新 ARIA 属性，不通过 `removeAttribute` 擦除业务校验。浏览器 validity 与业务错误是独立事实，公共层不推断业务值是否有效；
+- 没有 `htmlFor` 的具名 `UiField` 表达复合区域：可见名称通过 `aria-labelledby` 关联 `role=group`，说明与显式整组错误属于该组，不生成无目标的 label，也不把整组错误写到每个输入。单个输入仍要显式配对，复合输入仍保留各自可访问名称；
 - 按钮式选择统一使用 `UiChoiceButton`，权限范围等互斥表单选择统一使用保留 native radio 的 `UiRadioChoice`；业务层不得导入 `choice-styles.ts` 手写第二套 DOM，生成式问答等稳定领域 Widget 的原生选项按其独立合同保留；
 - 二元开关统一由 `GlassSwitch` 的单一 native button/`role=switch` 持有 checked、键盘、焦点和真实 disabled；业务不得在 disabled switch 外套 `span role=button` 等第二命中区，需要解释受保护状态时由可操作 switch 的 `onChange` 进入业务确认或说明；
 - 标签输入和多选字段中的已选实体统一使用 `UiRemovableChip`；移除动作必须是具名 native IconButton，复合字段的菜单触发器与移除按钮必须为兄弟节点，不得嵌套 button 或用 `span role=button` 绕过合法 DOM；
@@ -355,7 +357,7 @@ Composer 的间距配方
 - `src/**/*.test.tsx`：与 primitive/pattern 共置的 Vitest + jsdom 行为测试，必须通过 Testing Library 从角色、名称和真实用户事件观察组件；
 - `scripts/*.test.mjs`：纯模型、协议、架构边界和禁止项合同；不得在这里伪造 DOM 交互结论，统一入口以有界并发运行，避免大量独立 Vite 转换进程使门禁随机崩溃；
 - `frontend-control-style-contract.test.mjs` 禁止公共 Button、ListRow/ListAction、Select 与 Form（Input/Textarea/NativeSelect/SearchInput/Checkbox/Choice）调用方的静态视觉覆盖；支持控件别名/命名空间导入、词法作用域内常量、条件表达式与对象展开，并追踪本地模块的具名不可变常量导入与具名转导出，同时检查 `className`、`buttonClassName`、`inputClassName` 和内联 `style`。它保留局部遮蔽、参数和循环边界，允许布局与独立图标内容，不执行模块或函数。命名空间样式常量、星号转导出、外部 CSS 和运行时计算样式仍需审查，不能将静态门禁通过视为全部视觉实现无覆盖。
-- `frontend-token-contract.test.mjs` 通过既有 CSS 工具链和 TypeScript AST 检查全部生产 CSS/TS 的静态 `var()`、Tailwind 简写和模板 CSS；必需引用必须有声明，可选注入必须有 fallback，三主题的 canonical 别名不得缺失、循环或在同一声明块重复。检查不执行运行时表达式，也不把全局声明集合当作 DOM 继承或 CSS 类型证明；没有逐文件违规额度。
+- `frontend-token-contract.test.mjs` 通过既有 CSS 工具链和 TypeScript AST 检查全部生产 CSS/TS 的静态 `var()`、Tailwind 简写和模板 CSS；必需引用必须有声明，可选注入必须有 fallback，三主题的 canonical 别名不得缺失、循环或在同一声明块重复。明确进入 `color-mix()` 的公共控件颜色槽还需解析其别名并通过既有 DOM CSS 解析器的颜色校验，拒绝把已声明的渐变误用为颜色。检查不执行运行时表达式，也不把全局声明集合或解析器接受当作 DOM 继承、实际绘制或文字对比度证明；没有逐文件违规额度。
 - `npm run test:components` 与 `npm run test:contracts` 可分别定位失败，`npm test` 必须串行覆盖两类测试。
 - `npm run check` 串行执行 lint、typecheck、上述两类测试和生产构建。
 - `npm run test:browser` 使用固定版本 Playwright 启动独立端口与依赖优化缓存的 Vite 服务器，执行真实浏览器合同；浏览器服务器固定使用 `browser-test` mode，避免并发开发或 SSR 合同检查使缓存失效并重建页面。`npm run check:ui` / 根目录 `make check-web` 覆盖完整前端门禁。浏览器依赖首次使用通过 `npx playwright install chromium webkit` 安装，Linux CI 使用 `--with-deps`。

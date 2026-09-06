@@ -1,5 +1,5 @@
-// INPUT: Field、SearchInput、Checkbox、Choice/RadioChoice 与 SegmentedControl 的用户事件。
-// OUTPUT: 证明校验、清除、布尔切换与互斥选择使用真实 DOM/ARIA 合同。
+// INPUT: Field/Select 关联、原生/业务校验、SearchInput、Checkbox 与选择控件的用户事件。
+// OUTPUT: 证明描述/错误归属、最新调用方属性恢复、清除与互斥选择使用真实 DOM/ARIA 合同。
 // POS: 表单原语交互测试；业务草稿和网络提交由各 feature 测试负责。
 
 import { fireEvent, render, screen, within } from "@testing-library/react";
@@ -20,6 +20,7 @@ import {
   UiTextarea,
 } from "@/shared/ui/form/form-control";
 import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
+import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 
 function renderWithI18n(children: ReactNode) {
   const messages: Record<string, string> = {
@@ -27,7 +28,7 @@ function renderWithI18n(children: ReactNode) {
     "common.invalid_field": "字段格式不正确",
     "common.required_field": "请填写此字段",
   };
-  return render(
+  const wrapper = ({ children }: { children: ReactNode }) => (
     <I18N_CONTEXT.Provider
       value={{
         locale: "zh",
@@ -36,11 +37,174 @@ function renderWithI18n(children: ReactNode) {
       }}
     >
       {children}
-    </I18N_CONTEXT.Provider>,
+    </I18N_CONTEXT.Provider>
   );
+  return render(children, { wrapper });
 }
 
 describe("form primitives", () => {
+  it.each(["input", "textarea", "native-select", "search", "select-menu"])(
+    "associates the %s with its visible description and explicit error",
+    (kind) => {
+      function Harness({ error }: { error?: string }) {
+        return (
+          <UiField description="Visible help" error={error} htmlFor="field-control" label="Field">
+            {kind === "input" ? <UiInput id="field-control" /> : null}
+            {kind === "textarea" ? <UiTextarea id="field-control" /> : null}
+            {kind === "native-select" ? <UiNativeSelect id="field-control"><option>A</option></UiNativeSelect> : null}
+            {kind === "search" ? <UiSearchInput aria-label="Field" id="field-control" onChange={vi.fn()} value="" /> : null}
+            {kind === "select-menu" ? <UiSelectMenu ariaLabel="Field" id="field-control" onChange={vi.fn()} options={[{ label: "A", value: "a" }]} value="a" /> : null}
+          </UiField>
+        );
+      }
+      const { rerender } = renderWithI18n(<Harness />);
+      const control = screen.getByLabelText("Field");
+      expect(document.getElementById(control.getAttribute("aria-describedby")!)?.textContent).toBe("Visible help");
+
+      rerender(<Harness error="Already in use" />);
+      expect(control.getAttribute("aria-invalid")).toBe("true");
+      expect(document.getElementById(control.getAttribute("aria-errormessage")!)?.textContent).toBe("Already in use");
+      expect(control.hasAttribute("aria-describedby")).toBe(false);
+      expect(screen.queryByText("Visible help")).toBeNull();
+
+      rerender(<Harness />);
+      expect(control.hasAttribute("aria-invalid")).toBe(false);
+      expect(control.hasAttribute("aria-errormessage")).toBe(false);
+      expect(document.getElementById(control.getAttribute("aria-describedby")!)?.textContent).toBe("Visible help");
+    },
+  );
+
+  it("adds help only to the explicitly bound control and preserves caller descriptions", () => {
+    renderWithI18n(
+      <UiField description="Field help" htmlFor="primary-field" label="Primary">
+        <span id="external-help">External help</span>
+        <UiInput aria-describedby="external-help external-help" id="primary-field" />
+        <UiInput aria-describedby="external-help" aria-label="Secondary" />
+      </UiField>,
+    );
+    const primary = screen.getByLabelText("Primary");
+    const descriptionIds = primary.getAttribute("aria-describedby")!.split(" ");
+    expect(descriptionIds).toHaveLength(2);
+    expect(descriptionIds.map((id) => document.getElementById(id)?.textContent)).toEqual(["External help", "Field help"]);
+    expect(screen.getByLabelText("Secondary").getAttribute("aria-describedby")).toBe("external-help");
+  });
+
+  it("names compound fields as groups without assigning their aggregate error to every input", () => {
+    const { container } = renderWithI18n(
+      <UiField error="Duplicate key" label="Environment variables">
+        <UiInput aria-label="Key" />
+        <UiInput aria-label="Value" />
+      </UiField>,
+    );
+    const group = screen.getByRole("group", { name: "Environment variables" });
+    expect(group.getAttribute("aria-invalid")).toBe("true");
+    expect(group.getAttribute("aria-errormessage")).toBe(screen.getByRole("alert").id);
+    expect(container.querySelector("label")).toBeNull();
+    for (const input of screen.getAllByRole("textbox")) {
+      expect(input.hasAttribute("aria-invalid")).toBe(false);
+    }
+  });
+
+  it("restores the latest caller error attributes after native validity recovers", async () => {
+    const user = userEvent.setup();
+    function Harness() {
+      const [updated, setUpdated] = useState(false);
+      return (
+        <>
+          <UiField htmlFor="draft" label="Draft">
+            <UiInput aria-errormessage={updated ? "latest-error" : "original-error"} aria-invalid={updated ? "grammar" : "spelling"} id="draft" required />
+          </UiField>
+          <button onClick={() => setUpdated(true)}>Update validation</button>
+          <p id="original-error">Original error</p>
+          <p id="latest-error">Latest error</p>
+        </>
+      );
+    }
+    renderWithI18n(<Harness />);
+    const input = screen.getByLabelText("Draft");
+    fireEvent.invalid(input);
+    expect(input.getAttribute("aria-errormessage")).toBe(screen.getByRole("alert").id);
+    await user.click(screen.getByText("Update validation"));
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+    await user.type(input, "Nexus");
+    expect(input.getAttribute("aria-invalid")).toBe("grammar");
+    expect(input.getAttribute("aria-errormessage")).toBe("latest-error");
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("clears an obsolete native error when a controlled field is reset programmatically", async () => {
+    const user = userEvent.setup();
+    function Harness() {
+      const [value, setValue] = useState("");
+      return (
+        <>
+          <UiField htmlFor="controlled-draft" label="Draft">
+            <UiInput id="controlled-draft" onChange={(event) => setValue(event.target.value)} required value={value} />
+          </UiField>
+          <button onClick={() => setValue("Restored draft")}>Restore</button>
+        </>
+      );
+    }
+    renderWithI18n(<Harness />);
+    const input = screen.getByLabelText("Draft");
+    fireEvent.invalid(input);
+    expect(screen.getByRole("alert")).toBeTruthy();
+    await user.click(screen.getByText("Restore"));
+    expect(input.getAttribute("aria-invalid")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("keeps an explicit business error after the native input becomes valid", async () => {
+    const user = userEvent.setup();
+    renderWithI18n(
+      <UiField error="名称已被占用" htmlFor="unique-name" label="Name">
+        <UiInput id="unique-name" required />
+      </UiField>,
+    );
+    const input = screen.getByLabelText("Name");
+    fireEvent.invalid(input);
+    await user.type(input, "Nexus");
+    expect((input as HTMLInputElement).validity.valid).toBe(true);
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+    expect(input.getAttribute("aria-errormessage")).toBe(screen.getByRole("alert").id);
+    expect(screen.getByRole("alert").textContent).toBe("名称已被占用");
+  });
+
+  it("keeps compound and nested field validation attached to the exact native control", () => {
+    const onInvalid = vi.fn();
+    renderWithI18n(
+      <form onInvalid={onInvalid}>
+        <UiField label="Compound">
+          <UiInput aria-label="First" />
+          <UiField label="Nested">
+            <UiInput aria-label="Second" required />
+          </UiField>
+        </UiField>
+      </form>,
+    );
+    const input = screen.getByLabelText("Second");
+    fireEvent.invalid(input);
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(input.getAttribute("aria-errormessage")).toBe(screen.getByRole("alert").id);
+    expect(screen.getByLabelText("First").hasAttribute("aria-invalid")).toBe(false);
+    expect(onInvalid).toHaveBeenCalledOnce();
+    expect(document.activeElement).toBe(input);
+  });
+
+  it("skips controls barred from validation when focusing the first invalid field", () => {
+    renderWithI18n(
+      <form>
+        <UiInput aria-label="Disabled" disabled ref={(input) => { input?.setCustomValidity("Unavailable"); }} />
+        <UiField htmlFor="first-invalid" label="First" required><UiInput id="first-invalid" required /></UiField>
+        <UiField htmlFor="second-invalid" label="Second" required><UiInput id="second-invalid" required /></UiField>
+      </form>,
+    );
+    fireEvent.invalid(screen.getByRole("textbox", { name: "First" }));
+    fireEvent.invalid(screen.getByRole("textbox", { name: "Second" }));
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "First" }));
+  });
+
   it("keeps technical text and verification codes as exact native form values", async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();

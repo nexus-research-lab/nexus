@@ -1,5 +1,5 @@
 // INPUT: Choice 的选择状态、尺寸、形状、tone 与视觉 variant。
-// OUTPUT: 不改变几何且不依赖阴影表达选中的样式投影。
+// OUTPUT: 不改变几何、使用可读行动蓝且不依赖阴影表达选中的样式投影。
 // POS: Choice 视觉状态真相；不渲染 DOM 或管理选项集合。
 
 import { cn } from "@/shared/ui/class-name";
@@ -44,7 +44,7 @@ const SURFACE_CHOICE_ROUNDED_CLASS_MAP: Record<UiChoiceSize, string> = {
 
 const CHOICE_ACTIVE_CLASS_MAP: Record<UiChoiceTone, string> = {
   primary:
-    "border-[color:color-mix(in_srgb,var(--primary)_28%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-(--primary)",
+    "border-[color:color-mix(in_srgb,var(--primary)_28%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-(--brand-action)",
   neutral:
     "border-(--surface-interactive-active-border) bg-(--surface-interactive-active-background) text-(--text-strong)",
   danger:

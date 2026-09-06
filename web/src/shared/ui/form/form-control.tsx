@@ -1,5 +1,5 @@
 // INPUT: 原生输入属性、内容角色、字段描述/错误与搜索值变更命令。
-// OUTPUT: 统一输入外观、标签/说明层级与可读占位提示、原生校验反馈和可访问搜索清除行为。
+// OUTPUT: 统一输入外观、精确关联的标签/说明/错误、原生校验反馈和可访问搜索清除行为。
 // POS: 文本表单控件原语；不持有业务草稿、提交事务或领域校验规则。
 "use client";
 
@@ -12,6 +12,7 @@ import {
   type TextareaHTMLAttributes,
   forwardRef,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -21,6 +22,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
+import { FIELD_ACCESSIBILITY_CONTEXT, useFieldControlAttributes } from "./field-accessibility";
 import {
   getUiFormControlClassName,
   getUiSearchInputShellClassName,
@@ -86,7 +88,7 @@ function findFirstInvalidControl(form: HTMLFormElement | null) {
     element instanceof HTMLInputElement
     || element instanceof HTMLSelectElement
     || element instanceof HTMLTextAreaElement
-  ) && !element.validity.valid) as
+  ) && element.willValidate && !element.validity.valid) as
     | HTMLInputElement
     | HTMLSelectElement
     | HTMLTextAreaElement
@@ -95,49 +97,60 @@ function findFirstInvalidControl(form: HTMLFormElement | null) {
 
 export function UiField({
   children,
-  className: className,
+  className,
   description,
   error,
-  htmlFor: htmlFor,
+  htmlFor,
   label,
   labelClassName,
   required = false,
 }: UiFieldProps) {
   const { t } = useI18n();
   const errorId = useId();
+  const descriptionId = useId();
+  const labelId = useId();
+  const isGroup = !htmlFor && Boolean(label);
+  const Label = htmlFor ? "label" : "span";
   const invalidTargetRef = useRef<
     HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null
   >(null);
-  const [nativeError, setNativeError] = useState<string | null>(null);
-  const labelError = label && !error ? nativeError : null;
-  const contentError = error ?? (!label ? nativeError : null);
+  const [nativeError, setNativeError] = useState<{ controlId: string; message: string } | null>(null);
+  const labelError = label && !error ? nativeError?.message : null;
+  const contentError = error ?? (!label ? nativeError?.message : null);
+  const visibleDescriptionId = description && !contentError ? descriptionId : undefined;
 
   const clearNativeError = () => {
-    invalidTargetRef.current?.removeAttribute("aria-errormessage");
-    invalidTargetRef.current?.removeAttribute("aria-invalid");
     invalidTargetRef.current = null;
     setNativeError(null);
   };
 
-  const handleInvalid = (event: FormEvent<HTMLDivElement>) => {
-    event.preventDefault();
+  // 值被业务重置、控件被移除或禁用时，旧原生错误不能继续覆盖当前属性。
+  useLayoutEffect(() => {
+    const target = invalidTargetRef.current;
+    if (target && (!target.isConnected || !target.willValidate || target.validity.valid)) {
+      clearNativeError();
+    }
+  });
 
+  const handleInvalid = (event: FormEvent<HTMLDivElement>) => {
     const target = event.target as
       | HTMLInputElement
       | HTMLSelectElement
       | HTMLTextAreaElement;
+    if (target.closest("[data-ui-field]") !== event.currentTarget) {
+      return;
+    }
+    event.preventDefault();
     const firstInvalid = findFirstInvalidControl(target.form);
     if (firstInvalid && firstInvalid !== target) {
       return;
     }
 
-    clearNativeError();
     invalidTargetRef.current = target;
-    target.setAttribute("aria-errormessage", errorId);
-    target.setAttribute("aria-invalid", "true");
-    setNativeError(
-      t(target.validity.valueMissing ? "common.required_field" : "common.invalid_field"),
-    );
+    setNativeError({
+      controlId: target.id,
+      message: t(target.validity.valueMissing ? "common.required_field" : "common.invalid_field"),
+    });
     target.focus();
   };
 
@@ -150,63 +163,78 @@ export function UiField({
       return;
     }
     if (!target.validity.valid) {
-      setNativeError(
-        t(target.validity.valueMissing ? "common.required_field" : "common.invalid_field"),
-      );
+      setNativeError({
+        controlId: target.id,
+        message: t(target.validity.valueMissing ? "common.required_field" : "common.invalid_field"),
+      });
       return;
     }
     clearNativeError();
   };
 
   return (
-    <div
-      className={cn("dialog-field", className)}
-      onInputCapture={handleInput}
-      onInvalid={handleInvalid}
-    >
-      {label ? (
-        <div className="flex min-h-5 items-center justify-between gap-2">
-          <label className={cn("dialog-label min-w-0", labelClassName)} htmlFor={htmlFor}>
-            {label}
-            {required ? (
-              <span aria-hidden="true" className="ml-0.5 text-(--destructive)">
-                *
+    <FIELD_ACCESSIBILITY_CONTEXT.Provider value={{
+      controlId: htmlFor,
+      descriptionId: visibleDescriptionId,
+      errorId,
+      hasError: Boolean(error),
+      nativeInvalidControlId: nativeError?.controlId,
+    }}>
+      <div
+        aria-describedby={isGroup ? visibleDescriptionId : undefined}
+        aria-errormessage={isGroup && error ? errorId : undefined}
+        aria-invalid={isGroup && error ? true : undefined}
+        aria-labelledby={isGroup ? labelId : undefined}
+        className={cn("dialog-field", className)}
+        data-ui-field=""
+        onInputCapture={handleInput}
+        onInvalid={handleInvalid}
+        role={isGroup ? "group" : undefined}
+      >
+        {label ? (
+          <div className="flex min-h-5 items-center justify-between gap-2">
+            <Label className={cn("dialog-label min-w-0", labelClassName)} htmlFor={htmlFor} id={labelId}>
+              {label}
+              {required ? (
+                <span aria-hidden="true" className="ml-0.5 text-(--destructive)">
+                  *
+                </span>
+              ) : null}
+            </Label>
+            {labelError ? (
+              <span
+                className={cn("shrink-0", getUiTypographyClassName({ role: "metadata", tone: "danger" }))}
+                id={errorId}
+                role="alert"
+              >
+                {labelError}
               </span>
             ) : null}
-          </label>
-          {labelError ? (
-            <span
-              className={cn("shrink-0", getUiTypographyClassName({ role: "metadata", tone: "danger" }))}
-              id={errorId}
-              role="alert"
-            >
-              {labelError}
-            </span>
-          ) : null}
-        </div>
-      ) : null}
-      {children}
-      {contentError ? (
-        <p
-          className={getUiTypographyClassName({ role: "supporting", tone: "danger" })}
-          id={errorId}
-          role="alert"
-        >
-          {contentError}
-        </p>
-      ) : description ? (
-        <p className={getUiTypographyClassName({ role: "supporting", tone: "muted" })}>
-          {description}
-        </p>
-      ) : null}
-    </div>
+          </div>
+        ) : null}
+        {children}
+        {contentError ? (
+          <p
+            className={getUiTypographyClassName({ role: "supporting", tone: "danger" })}
+            id={errorId}
+            role="alert"
+          >
+            {contentError}
+          </p>
+        ) : description ? (
+          <p className={getUiTypographyClassName({ role: "supporting", tone: "muted" })} id={descriptionId}>
+            {description}
+          </p>
+        ) : null}
+      </div>
+    </FIELD_ACCESSIBILITY_CONTEXT.Provider>
   );
 }
 
 export const UiInput = forwardRef<HTMLInputElement, UiInputProps>(function UiInput(
   {
     className,
-    controlSize: controlSize,
+    controlSize,
     type = "text",
     textRole,
     variant,
@@ -214,6 +242,7 @@ export const UiInput = forwardRef<HTMLInputElement, UiInputProps>(function UiInp
   },
   ref,
 ) {
+  const fieldAttributes = useFieldControlAttributes(props);
   return (
     <input
       ref={ref}
@@ -223,6 +252,7 @@ export const UiInput = forwardRef<HTMLInputElement, UiInputProps>(function UiInp
       )}
       type={type}
       {...props}
+      {...fieldAttributes}
     />
   );
 });
@@ -237,6 +267,7 @@ export const UiNativeSelect = forwardRef<HTMLSelectElement, UiNativeSelectProps>
     },
     ref,
   ) {
+    const fieldAttributes = useFieldControlAttributes(props);
     return (
       <select
         ref={ref}
@@ -245,6 +276,7 @@ export const UiNativeSelect = forwardRef<HTMLSelectElement, UiNativeSelectProps>
           cn(className),
         )}
         {...props}
+        {...fieldAttributes}
       />
     );
   },
@@ -253,13 +285,14 @@ export const UiNativeSelect = forwardRef<HTMLSelectElement, UiNativeSelectProps>
 export const UiTextarea = forwardRef<HTMLTextAreaElement, UiTextareaProps>(function UiTextarea(
   {
     className,
-    controlSize: controlSize,
+    controlSize,
     textRole,
     variant,
     ...props
   },
   ref,
 ) {
+  const fieldAttributes = useFieldControlAttributes(props);
   return (
     <textarea
       ref={ref}
@@ -268,6 +301,7 @@ export const UiTextarea = forwardRef<HTMLTextAreaElement, UiTextareaProps>(funct
         cn("resize-y", className),
       )}
       {...props}
+      {...fieldAttributes}
     />
   );
 });
@@ -275,10 +309,10 @@ export const UiTextarea = forwardRef<HTMLTextAreaElement, UiTextareaProps>(funct
 export const UiSearchInput = forwardRef<HTMLInputElement, UiSearchInputProps>(function UiSearchInput({
   action,
   className,
-  controlSize: controlSize,
+  controlSize,
   disabled,
-  inputClassName: inputClassName,
-  onChange: onChange,
+  inputClassName,
+  onChange,
   placeholder = "搜索",
   readOnly,
   value,
@@ -286,6 +320,7 @@ export const UiSearchInput = forwardRef<HTMLInputElement, UiSearchInputProps>(fu
   ...props
 }: UiSearchInputProps, ref) {
   const { t } = useI18n();
+  const fieldAttributes = useFieldControlAttributes(props);
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
     onChange(event.target.value);
   };
@@ -313,6 +348,7 @@ export const UiSearchInput = forwardRef<HTMLInputElement, UiSearchInputProps>(fu
         value={value}
         ref={ref}
         {...props}
+        {...fieldAttributes}
       />
       {value ? (
         <UiIconButton

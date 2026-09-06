@@ -13,7 +13,6 @@ import {
   MoreHorizontal,
   Plus,
   RefreshCw,
-  Search,
   Settings2,
   Sparkles,
   Trash2,
@@ -32,13 +31,14 @@ import { WorkGraphGallery } from "./ui-gallery-workgraph";
 import { MessageSurfacesGallery } from "./ui-gallery-message-surfaces";
 import { ProductControlsGallery } from "./ui-gallery-product-controls";
 import { SettingsControlsGallery } from "./ui-gallery-settings-controls";
+import { SemanticColorsGallery } from "./ui-gallery-semantic-colors";
+import { SegmentedControlsGallery } from "./ui-gallery-segmented-controls";
 import { UiButton, UiIconButton, UiLinkButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { UiDisclosure } from "@/shared/ui/disclosure/disclosure";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { UiBadge } from "@/shared/ui/display/badge";
-import { UiMetaGrid, UiMetaItem } from "@/shared/ui/display/meta-grid";
 import { UiQRCode } from "@/shared/ui/display/qr-code";
 import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
 import { UiSkeleton, UiSkeletonCardList } from "@/shared/ui/display/skeleton";
@@ -61,7 +61,6 @@ import {
 import { AppLoadingState } from "@/shared/ui/layout/app-loading-screen";
 import { PanelResizeHandle } from "@/shared/ui/layout/panel-resize-handle";
 import { WorkspaceContentDetailHeader, WorkspaceContentHeader } from "@/shared/ui/layout/workspace-content-header";
-import { GlassMagnifier } from "@/shared/ui/liquid-glass/glass-magnifier";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import { CodeBlock } from "@/shared/ui/markdown/code/code-block";
 import { StreamingCodeBlock } from "@/shared/ui/markdown/code/streaming-code-block";
@@ -150,7 +149,7 @@ export function FoundationCompleteness({ locale }: { locale: Locale }) {
           </div>
         </PreviewCard>
 
-        <PreviewCard components={["UiAgentAvatar", "UiRoomAvatar", "UiSeededAvatar", "UiMetaGrid", "UiMetaItem"]}>
+        <PreviewCard components={["UiAgentAvatar", "UiRoomAvatar", "UiSeededAvatar"]}>
           <div className="flex items-center gap-3">
             <UiAgentAvatar isWorking name="Nexus" size="md" />
             <UiSeededAvatar seed="nexus-ui-gallery" size="lg" />
@@ -160,11 +159,6 @@ export function FoundationCompleteness({ locale }: { locale: Locale }) {
               <p className={getUiTypographyClassName({ role: "caption", tone: "muted" })}>{galleryText(locale, "稳定种子头像", "Stable seeded avatar")}</p>
             </div>
           </div>
-          <UiMetaGrid>
-            <UiMetaItem label={galleryText(locale, "主题", "Theme")} value="Light / Dark / Rain" />
-            <UiMetaItem label={galleryText(locale, "语言", "Locale")} value={locale === "zh" ? "简体中文" : "English"} />
-            <UiMetaItem label={galleryText(locale, "来源", "Source")} value="shared/ui" />
-          </UiMetaGrid>
         </PreviewCard>
 
         <PreviewCard components={["UiSkeleton", "UiSkeletonCardList"]}>
@@ -212,6 +206,8 @@ export function ContentGallery({ locale }: { locale: Locale }) {
     <div className="grid items-start gap-5 xl:grid-cols-2" data-gallery-panel="content">
       <ProductControlsGallery />
       <SettingsControlsGallery />
+      <SegmentedControlsGallery />
+      <SemanticColorsGallery />
       <MessageSurfacesGallery />
       <PreviewSection
         description={galleryText(locale, "通知、恢复说明与固定视口都使用产品中的真实反馈组件。", "Notices, recovery guidance, and the fixed viewport all use production feedback components.")}
@@ -462,22 +458,17 @@ export function InteractionGallery({ locale }: { locale: Locale }) {
       </PreviewSection>
 
       <PreviewSection
-        description={galleryText(locale, "玻璃开关和放大镜直接运行真实能力检测与交互 Hook。", "The glass switch and magnifier run their production capability checks and interaction hooks.")}
+        description={galleryText(locale, "玻璃开关直接运行真实能力检测与交互 Hook。", "The glass switch runs its production capability checks and interaction hooks.")}
         eyebrow="02 · MATERIAL"
         title="Liquid glass"
       >
-        <PreviewCard components={["GlassSwitch", "GlassSwitchFilter", "GlassMagnifier", "GlassMagnifierFilter"]}>
+        <PreviewCard components={["GlassSwitch", "GlassSwitchFilter"]}>
           <div className="flex min-h-28 items-center justify-around rounded-[16px] bg-[radial-gradient(circle_at_25%_25%,color-mix(in_srgb,var(--primary)_28%,transparent),transparent_42%),linear-gradient(135deg,var(--surface-panel-background),var(--surface-control-background))] p-5">
             <GlassSwitch
               aria-label={galleryText(locale, "启用玻璃效果", "Enable glass effect")}
               checked={glassChecked}
               onChange={setGlassChecked}
             />
-            <GlassMagnifier
-              underlay={<div className="h-full w-full bg-[linear-gradient(90deg,var(--primary),var(--success))]" />}
-            >
-              <Search className="h-4 w-4 text-white" />
-            </GlassMagnifier>
           </div>
         </PreviewCard>
       </PreviewSection>
@@ -703,10 +694,9 @@ export function WorkspaceGallery({ locale }: { locale: Locale }) {
                 header={{ action: <UiButton size="xs" variant="text">{galleryText(locale, "刷新", "Refresh")}</UiButton>, kind: "page" }}
                 title={galleryText(locale, "预览工作面", "Preview surface")}
               >
-                <UiMetaGrid>
-                  <UiMetaItem label="Section" value={activeSurfaceTab} />
-                  <UiMetaItem label="Locale" value={locale} />
-                </UiMetaGrid>
+                <p className={getUiTypographyClassName({ role: "body", tone: "default" })}>
+                  {galleryText(locale, "当前工作面：", "Current surface:")} {activeSurfaceTab}
+                </p>
               </WorkspaceSurfaceView>
             </div>
             <div className="flex h-28 flex-col overflow-hidden rounded-[12px] border border-(--divider-subtle-color)">

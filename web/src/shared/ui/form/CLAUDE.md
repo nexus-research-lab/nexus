@@ -3,6 +3,7 @@
 - 本目录拥有选择项、原生复选框、复选行、表单控件和分段控制器。
 - 生产 TS/TSX 文件必须在首条代码前保留真实、非空的 `INPUT / OUTPUT / POS` 合同；`scripts/frontend-file-contract.test.mjs` 递归检查本所有者，新文件同样受约束。
 - 这里只处理通用输入语义，不维护业务草稿或提交事务。
+- `UiField` 的精确标签、说明与错误关联合同归 `docs/specs/frontend-engineering-spec.md`；`field-accessibility.ts` 是 Field、原生输入与 Select trigger 共用的内部上下文，不允许业务自行导入后写第二套属性投影。
 - 默认字段与搜索文字使用 App `control` 角色、常规字重；紧凑尺寸是有意保留的密度档位，不由消费者覆盖字号。尺寸和行高只在 `form-control-styles.ts` 投影。
 - 普通字段与搜索字段的占位文字统一使用 `--text-muted`；空白可用状态必须保持可读，不能用装饰性的 soft tone 代替。Gallery 的空白字段矩阵验证实际主题表面的文字对比。
 - Input/Textarea 的 `textRole="code"` 用于路径、命令标识与源码模板，保留共享尺寸并使用等宽字体；单行 `textRole="verification"` 拥有验证码的加大居中命中区与字距。内容角色只改变展示，不推断 `type`、`inputMode`、长度、自动填充或校验规则，不转换输入值。
@@ -15,4 +16,5 @@
 - `UiCheckbox` 是所有普通原生 checkbox 的尺寸、品牌色、焦点、`indeterminate` mixed 语义与 disabled 入口；带说明或整行热区的选择继续组合 `UiCheckboxRow`，其 `default / compact` 密度分别对应标准表单与紧凑设置。生成式问答等自绘选择器不属于该原语。
 - `UiRemovableChip` 是标签输入和多选字段中“已选实体 + 移除动作”的唯一原语；实体集合由业务持有，移除必须是具名 native IconButton。复合选择器的菜单触发器与移除按钮必须是兄弟节点，禁止把 `span role=button` 或真实 button 嵌入另一个 button。
 - `UiSegmentedControl` 是有限互斥选项的唯一入口；选中态使用背景与文字对比，不加阴影，普通设置不使用胶囊圆角。业务页面只提供选项、当前值和尺寸密度，不得再定义私有分段选择器。
+- 分段选项的 icon/text 使用同一个行内布局；全局 `focus-visible` 继续拥有键盘焦点，不能被选中底面的 `box-shadow: none` 清除。禁用选项继续显示当前值，但不触发 hover 背景或变更命令。
 - `form-controls.test.tsx` 与 `removable-chip.test.tsx` 以真实 invalid/input、select、键盘和点击事件覆盖 Field、Input、NativeSelect、SearchInput、Checkbox/CheckboxRow、Choice/RadioChoice、RemovableChip 与 SegmentedControl 的 ARIA/状态合同。
