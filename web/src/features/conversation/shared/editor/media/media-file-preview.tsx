@@ -1,12 +1,10 @@
+// INPUT: Exact file URL, native media load/error events and existing file actions.
+// OUTPUT: PDF/image previews with one shared state surface and localized unsupported-file guidance.
+// POS: Media presentation; keeps native PDF sandbox, retries and file commands unchanged.
 "use client";
 
 import { useCallback, useState } from "react";
-import {
-  Eye,
-  EyeOff,
-  FileWarning,
-  LoaderCircle,
-} from "lucide-react";
+import { FileWarning } from "lucide-react";
 
 import {
   getWorkspaceFilePreviewUrl,
@@ -15,7 +13,7 @@ import { getWorkspaceFileExternalActionCopy } from "@/lib/workspace-file-action"
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
-import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import { WorkspaceFilePreviewLoading } from "../workspace-file-preview-loading";
 import {
   WorkspaceFileDownloadButton,
   WorkspaceFilePreviewFocusButton,
@@ -30,7 +28,6 @@ export function PdfPreview({
   isPreviewFocused,
   onTogglePreviewFocus,
 }: WorkspaceFilePreviewProps) {
-  const { t } = useI18n();
   const [loadState, setLoadState] = useState<"error" | "loaded" | "loading">("loading");
   const [retryRevision, setRetryRevision] = useState(0);
   const previewUrl = getWorkspaceFilePreviewUrl(agentId, path);
@@ -51,28 +48,10 @@ export function PdfPreview({
             />
           </>
         )}
-        meta={(
-          loadState === "error" ? (
-            <span className="flex items-center gap-1 text-destructive">
-              <EyeOff className="h-3 w-3" />
-              {t("workspace_file.preview_failed_status")}
-            </span>
-          ) : loadState === "loaded" ? (
-            <span className="flex items-center gap-1 text-(--success)">
-              <Eye className="h-3 w-3" />
-              {t("workspace_file.preview_loaded")}
-            </span>
-          ) : (
-            <span className="flex items-center gap-1">
-              <LoaderCircle className={getUiSpinnerClassName({ size: "xs" })} />
-              {t("workspace_file.preview_loading")}
-            </span>
-          )
-        )}
         title={fileName}
       />
 
-      <div className="min-h-0 flex-1 overflow-hidden bg-[var(--surface-panel-subtle-background)]">
+      <div className="relative min-h-0 flex-1 overflow-hidden bg-[var(--surface-panel-subtle-background)]">
         {loadState === "error" ? (
           <MediaPreviewFailure
             onRetry={retryPreview}
@@ -89,6 +68,7 @@ export function PdfPreview({
             title={fileName}
           />
         )}
+        {loadState === "loading" ? <WorkspaceFilePreviewLoading className="pointer-events-none absolute inset-0" /> : null}
       </div>
     </>
   );
@@ -101,7 +81,6 @@ export function ImagePreview({
   isPreviewFocused,
   onTogglePreviewFocus,
 }: WorkspaceFilePreviewProps) {
-  const { t } = useI18n();
   const [loadState, setLoadState] = useState<"error" | "loaded" | "loading">("loading");
   const [retryRevision, setRetryRevision] = useState(0);
   const previewUrl = getWorkspaceFilePreviewUrl(agentId, path);
@@ -122,28 +101,10 @@ export function ImagePreview({
             />
           </>
         )}
-        meta={(
-          loadState === "error" ? (
-            <span className="flex items-center gap-1 text-destructive">
-              <EyeOff className="h-3 w-3" />
-              {t("workspace_file.preview_failed_status")}
-            </span>
-          ) : loadState === "loaded" ? (
-            <span className="flex items-center gap-1 text-(--success)">
-              <Eye className="h-3 w-3" />
-              {t("workspace_file.preview_loaded")}
-            </span>
-          ) : (
-            <span className="flex items-center gap-1">
-              <LoaderCircle className={getUiSpinnerClassName({ size: "xs" })} />
-              {t("workspace_file.preview_loading")}
-            </span>
-          )
-        )}
         title={fileName}
       />
 
-      <div className="min-h-0 flex-1 overflow-hidden bg-[var(--surface-panel-subtle-background)] p-6">
+      <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-[var(--surface-panel-subtle-background)] p-6">
         {loadState === "error" ? (
           <MediaPreviewFailure
             onRetry={retryPreview}
@@ -159,6 +120,7 @@ export function ImagePreview({
             onError={() => setLoadState("error")}
           />
         )}
+        {loadState === "loading" ? <WorkspaceFilePreviewLoading className="pointer-events-none absolute inset-0" /> : null}
       </div>
     </>
   );
@@ -200,9 +162,6 @@ export function BinaryFilePlaceholder({
 }: WorkspaceFilePreviewProps) {
   const { t } = useI18n();
   const fileActionCopy = getWorkspaceFileExternalActionCopy(t, fileName);
-  const actionDescription = fileActionCopy.mode === "reveal"
-    ? "在文件夹中显示此文件"
-    : "获取此文件";
   return (
     <>
       <WorkspaceFilePreviewHeader
@@ -215,26 +174,17 @@ export function BinaryFilePlaceholder({
             />
           </>
         )}
-        meta={(
-          <span className="flex items-center gap-1">
-            <FileWarning className="h-3 w-3" />
-            此文件类型不支持预览
-          </span>
-        )}
         title={fileName}
       />
 
-      <div className="min-h-0 flex-1 overflow-hidden bg-[var(--surface-panel-subtle-background)] p-8">
-        <div className="m-auto max-w-xs text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center surface-radius-md border border-(--surface-panel-subtle-border) bg-(--card-default-background)">
-            <FileWarning className="h-8 w-8 text-(--icon-muted)" />
-          </div>
-          <p className="text-sm font-medium text-(--text-strong)">不支持预览此文件</p>
-          <p className="mt-2 text-xs leading-5 text-(--text-soft)">
-            当前预览仅支持文本、PDF、图片、xlsx、docx 和 pptx 文件。您可以点击上方"{fileActionCopy.label}"按钮{actionDescription}。
-          </p>
-        </div>
-      </div>
+      <UiResourceState
+        className="min-h-0 flex-1"
+        description={t(fileActionCopy.mode === "reveal"
+          ? "workspace_file.unsupported_preview_reveal" : "workspace_file.unsupported_preview_download")}
+        icon={<FileWarning aria-hidden className="h-8 w-8 text-(--icon-muted)" />}
+        size="sm" state="empty" variant="plain"
+        title={t("workspace_file.unsupported_preview_title")}
+      />
     </>
   );
 }

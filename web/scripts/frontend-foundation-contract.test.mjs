@@ -702,26 +702,26 @@ test("domain native buttons match the single documented geometry-owner inventory
   assert.deepEqual([...actual].sort(), [...expected].sort(), "Ordinary actions must consume shared controls; geometry exceptions require an explicit owner and behavior evidence.");
 });
 
-test("Workspace file previews share compact and canvas spinner sizes", async () => {
+test("Workspace file previews share one named loading surface", async () => {
   const paths = [
     "src/features/conversation/shared/editor/office-preview-fallbacks.tsx",
     "src/features/conversation/shared/editor/media/media-file-preview.tsx",
     "src/features/conversation/shared/editor/presentation/presentation-file-preview.tsx",
     "src/features/conversation/shared/editor/document/document-preview-view.tsx",
     "src/features/conversation/shared/editor/spreadsheet/spreadsheet-file-preview.tsx",
-    "src/features/conversation/shared/editor/text/text-file-editor-header.tsx",
     "src/features/conversation/shared/editor/text/large-text-file-preview.tsx",
+    "src/features/conversation/shared/editor/text/text-file-content.tsx",
   ];
   const sources = await Promise.all(paths.map(readSource));
-  const combined = sources.join("\n");
-
   for (const source of sources) {
-    assert.match(source, /getUiSpinnerClassName/);
+    assert.match(source, /<WorkspaceFilePreviewLoading/);
     assert.doesNotMatch(source, /\banimate-spin\b/);
+    assert.doesNotMatch(source, /getUiSpinnerClassName|preview_failed_status|preview_loaded/);
   }
-  assert.match(combined, /size: "xs"/);
-  assert.match(combined, /size: "sm"/);
-  assert.match(combined, /size: "2xl", tone: "primary"/);
+  const loading = await readSource("src/features/conversation/shared/editor/workspace-file-preview-loading.tsx");
+  assert.match(loading, /<UiResourceState/);
+  assert.match(loading, /state="loading"/);
+  assert.match(loading, /size: "2xl", tone: "muted"/);
 });
 
 test("Workspace preview chrome and presentation controls share Button and Typography owners", async () => {

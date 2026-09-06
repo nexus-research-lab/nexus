@@ -1,5 +1,5 @@
 // INPUT: exact Agent、文件类型及已加载正文。
-// OUTPUT: 绑定文件归属的 Markdown 预览或对应文本渲染器。
+// OUTPUT: 具名共享加载状态、绑定文件归属的 Markdown 预览或对应文本渲染器。
 // POS: Workspace 文本预览消费侧；文件资源经窄能力注入共享 Markdown。
 import {
   lazy,
@@ -13,6 +13,7 @@ import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
 import { LazyMermaidView } from "@/shared/ui/markdown/mermaid/lazy-mermaid-view";
 
 import { HtmlFilePreview } from "../media/html-file-preview";
+import { WorkspaceFilePreviewLoading } from "../workspace-file-preview-loading";
 import {
   getWorkspaceFileCodeLanguage,
   type WorkspaceFilePreviewKind,
@@ -117,11 +118,7 @@ export function TextFileContent({
   isStreaming,
 }: TextFileContentProps) {
   if (isLoading) {
-    return (
-      <div className="font-mono text-sm leading-6 text-(--text-muted)">
-        加载中...
-      </div>
-    );
+    return <WorkspaceFilePreviewLoading className="h-full" />;
   }
   const Renderer = fileType === "text"
     ? SourceCodeContent

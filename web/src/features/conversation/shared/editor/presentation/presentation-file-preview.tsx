@@ -1,15 +1,15 @@
 // INPUT: 工作区 PPTX 标识、预览聚焦状态与文件动作。
-// OUTPUT: 可重试的幻灯片预览、共享标题栏、缩略图选择与本地化翻页动作。
+// OUTPUT: 可重试的幻灯片预览、共享标题栏/状态、缩略图选择与本地化翻页动作。
 // POS: 演示文稿预览视图；解析归 presentation parser，通用动作与排版归 shared/ui。
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Eye, FileWarning, LoaderCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
-import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import { WorkspaceFilePreviewLoading } from "../workspace-file-preview-loading";
 import { UiChoiceButton } from "@/shared/ui/form/choice";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
@@ -117,26 +117,7 @@ export function PresentationFilePreview({
             />
           </>
         )}
-        meta={(
-          hasError ? (
-            <span className="flex items-center gap-1 text-destructive">
-              <FileWarning className="h-3 w-3" />
-              {t("workspace_file.preview_failed_status")}
-            </span>
-          ) : isLoaded ? (
-            <span className="flex items-center gap-1 text-(--success)">
-              <Eye className="h-3 w-3" />
-              {t("workspace_file.presentation_loaded", {
-                count: status.slideCount,
-              })}
-            </span>
-          ) : (
-            <span className="flex items-center gap-1">
-              <LoaderCircle className={getUiSpinnerClassName({ size: "xs" })} />
-              {t("workspace_file.preview_loading")}
-            </span>
-          )
-        )}
+        meta={isLoaded ? t("workspace_file.presentation_loaded", { count: status.slideCount }) : undefined}
         title={fileName}
       />
 
@@ -220,22 +201,7 @@ export function PresentationFilePreview({
             </div>
           </div>
         ) : (
-          <div className="flex h-full items-center justify-center p-8 text-center">
-            <div className="max-w-xs">
-              <LoaderCircle
-                className={getUiSpinnerClassName(
-                  { size: "2xl", tone: "primary" },
-                  "mx-auto",
-                )}
-              />
-              <p className={cn(
-                "mt-3",
-                getUiTypographyClassName({ role: "body", tone: "strong", weight: "medium" }),
-              )}>
-                {t("workspace_file.preview_loading")}
-              </p>
-            </div>
-          </div>
+          <WorkspaceFilePreviewLoading className="h-full" />
         )}
       </div>
     </>

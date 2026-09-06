@@ -1,5 +1,5 @@
 // INPUT: Workspace 文件层级、预览状态、文件动作与可选标题栏 Portal。
-// OUTPUT: 复用 UiBreadcrumb 的单行文件 chrome，以及统一下载、聚焦和编辑动作。
+// OUTPUT: 复用 UiBreadcrumb 的单行文件 chrome、可读元数据及统一下载/聚焦/编辑动作。
 // POS: Workspace 文件预览外壳；不读取文件内容，也不拥有全站导航视觉。
 "use client";
 
@@ -102,7 +102,7 @@ export function WorkspaceFilePreviewHeader({
         {meta ? (
           <div className={cn(
             "hidden min-w-0 shrink items-center gap-2 overflow-hidden whitespace-nowrap sm:flex",
-            getUiTypographyClassName({ role: "caption", tone: "soft" }),
+            getUiTypographyClassName({ role: "metadata", tone: "muted" }),
           )}>
             {meta}
           </div>
