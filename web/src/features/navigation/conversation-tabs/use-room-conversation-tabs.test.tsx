@@ -51,13 +51,13 @@ describe("useRoomConversationTabs", () => {
     expect(result.current.orderedConversations.map((item) => item.conversation_id)).toEqual(["first", "third"]);
     expect(useRoomNavigationStore.getState().conversation_tabs_by_room.room).toEqual({
       active_conversation_id: "first",
-      open_conversation_ids: ["first", "third"],
+      open_conversation_ids: ["third", "first"],
     });
     rerender("first");
     expect(result.current.activeConversationId).toBe("first");
   });
 
-  it("restores only surviving open tabs and appends an externally selected conversation", () => {
+  it("renders available open tabs and appends external selection without deleting unavailable preferences", () => {
     useRoomNavigationStore.getState().save_room_conversation_tabs("room", ["missing", "first"], "first");
     const { result } = renderHook(() => useRoomConversationTabs({
       conversations,
@@ -66,7 +66,7 @@ describe("useRoomConversationTabs", () => {
     }));
     expect(result.current.orderedConversations.map((item) => item.conversation_id)).toEqual(["first", "third"]);
     expect(useRoomNavigationStore.getState().conversation_tabs_by_room.room.open_conversation_ids)
-      .toEqual(["first", "third"]);
+      .toEqual(["missing", "first", "third"]);
   });
 
   it("closes the active tab to its next neighbor before the route catches up, preserving its pin", () => {
@@ -114,6 +114,52 @@ describe("useRoomConversationTabs", () => {
     });
     expect(result.current.isCreating).toBe(false);
     expect(result.current.activeConversationId).toBe("first");
+  });
+
+  it("does not erase another opened tab while this page still has an older conversation snapshot", () => {
+    const first = conversation("first", 1);
+    const second = conversation("second", 2);
+    const { result, rerender } = renderHook((items: RoomConversationView[]) => useRoomConversationTabs({
+      conversations: items,
+      conversationId: "first",
+      onSelectConversation: vi.fn(),
+    }), { initialProps: [first] });
+
+    act(() => useRoomNavigationStore.getState().remember_last_active_conversation("room", "second"));
+    expect(useRoomNavigationStore.getState().conversation_tabs_by_room.room.open_conversation_ids)
+      .toEqual(["first", "second"]);
+    rerender([first, second]);
+    expect(result.current.orderedConversations.map((item) => item.conversation_id)).toEqual(["first", "second"]);
+  });
+
+  it("retains unseen tabs when selecting or closing a known tab from a stale list", () => {
+    const first = conversation("first", 1);
+    const second = conversation("second", 2);
+    const { result, rerender } = renderHook((id: string) => useRoomConversationTabs({
+      conversations: [first, second], conversationId: id, onSelectConversation: vi.fn(),
+    }), { initialProps: "first" });
+    act(() => useRoomNavigationStore.getState().remember_last_active_conversation("room", "unseen"));
+    act(() => result.current.selectConversation("second"));
+    expect(useRoomNavigationStore.getState().conversation_tabs_by_room.room.open_conversation_ids)
+      .toEqual(["first", "unseen", "second"]);
+    rerender("second");
+    act(() => result.current.closeConversation("first"));
+    expect(useRoomNavigationStore.getState().conversation_tabs_by_room.room.open_conversation_ids)
+      .toEqual(["unseen", "second"]);
+  });
+
+  it("does not fight another mounted page's active route when shared tabs update", () => {
+    const { result } = renderHook(() => ({
+      first: useRoomConversationTabs({ conversations, conversationId: "first", onSelectConversation: vi.fn() }),
+      second: useRoomConversationTabs({ conversations, conversationId: "second", onSelectConversation: vi.fn() }),
+    }));
+    expect(result.current.first.activeConversationId).toBe("first");
+    expect(result.current.second.activeConversationId).toBe("second");
+    const before = useRoomNavigationStore.getState().conversation_tabs_by_room.room;
+    act(() => useRoomNavigationStore.getState().remember_last_active_conversation("room", "third"));
+    expect(useRoomNavigationStore.getState().conversation_tabs_by_room.room.active_conversation_id).toBe("third");
+    expect(useRoomNavigationStore.getState().conversation_tabs_by_room.room.open_conversation_ids)
+      .toEqual([...before.open_conversation_ids, "third"]);
   });
 
   it("retains the last tab until replacement commits and rejects competing commands", async () => {

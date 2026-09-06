@@ -322,7 +322,7 @@ features/memory,web/src/features/memory/catalog/memory-deletion-issue-notice.tsx
 features/memory,web/src/features/memory/document/index/memory-index-entries.tsx,MemoryIndexEntries,pending,,,a805055000e1855a9aad937618199524266a237cb41686c52250fc162d442f10
 features/memory,web/src/features/memory/document/memory-document-header.tsx,MemoryDocumentHeader,pending,,,f4c8adf648eae0d93c78646fd1a7f48da15d03cb7948425c2841bf2babdcd3e1
 features/memory,web/src/features/memory/document/memory-document-panel.tsx,MemoryDocumentPanel,pending,,,490b2ed62a1aa073f42406b068beb2e9f13936a03b3d6fe8fa4fc78d1cedfeef
-features/navigation,web/src/features/navigation/conversation-tabs/room-conversation-tabs.tsx,RoomConversationTabs,pending,,,ddd3245e8151a2b79baeb9219ada16fe93190b42d242d65dfbec99f085e76ddb
+features/navigation,web/src/features/navigation/conversation-tabs/room-conversation-tabs.tsx,RoomConversationTabs,in_progress,A15: prevent stale conversation snapshots from replacing opened tabs; verify creation/history/close/restore; actual browser and visual review remain,frontend-design-review-2026-09-06.md,ddd3245e8151a2b79baeb9219ada16fe93190b42d242d65dfbec99f085e76ddb
 features/navigation,web/src/features/navigation/sidebar/sidebar-wide-panel.tsx,SidebarWidePanel,pending,,,c0d67313ce78153b291e07156f9083ddd72fb0e06b8f48430fbd734e4172aee0
 features/navigation,web/src/features/navigation/sidebar/view/sidebar-brand-link.tsx,SidebarBrandLink,pending,,,63485194e311c9229bf3a28333a43839331004d4bd10819ef4dc8ce1d1319ba5
 features/navigation,web/src/features/navigation/sidebar/view/sidebar-panel.tsx,SidebarPanel,pending,,,49d8c0b6c00c53574d57305825948f54ce867d474c3c2820f535db3c65f6e262
