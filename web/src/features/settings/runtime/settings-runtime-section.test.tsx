@@ -56,6 +56,28 @@ function renderSettings(children: ReactNode = <SettingsRuntimeSection />) {
 beforeEach(() => vi.clearAllMocks());
 
 describe("runtime fields", () => {
+  it.each<WebSearchProvider>(["tavily", "exa", "firecrawl"])("keeps %s advanced checkboxes independent and locked while saving", async (provider) => {
+    const user = userEvent.setup();
+    const controller = configure(provider);
+    const { rerender } = renderSettings();
+    await user.click(screen.getByRole("button", { name: text("web_search_more") }));
+    const privateNetwork = screen.getByRole("checkbox", { name: text("web_search_private_network") }) as HTMLInputElement;
+    const extract = screen.getByRole("checkbox", { name: text("web_search_provider_extract") }) as HTMLInputElement;
+    await user.click(screen.getByText(text("web_search_private_network")));
+    expect(controller.onWebSearchPatch).toHaveBeenCalledExactlyOnceWith({ allow_private_network: true });
+    expect(extract.checked).toBe(false);
+    await user.click(screen.getByText(text("web_search_provider_extract")));
+    expect(controller.onWebSearchPatch.mock.calls).toEqual([[{ allow_private_network: true }], [{ use_provider_extract: true }]]);
+    expect(privateNetwork.checked).toBe(true);
+    useController.mockReturnValue({ ...controller, preferencesBusy: true });
+    rerender(<SettingsRuntimeSection />);
+    expect(privateNetwork.disabled).toBe(true);
+    expect(extract.disabled).toBe(true);
+    await user.click(screen.getByText(text("web_search_private_network")));
+    await user.click(screen.getByText(text("web_search_provider_extract")));
+    expect(controller.onWebSearchPatch).toHaveBeenCalledTimes(2);
+  });
+
   it("names tool discovery from its title and preserves its exact toggle and saving lock", async () => {
     const user = userEvent.setup();
     const controller = configure("brave");

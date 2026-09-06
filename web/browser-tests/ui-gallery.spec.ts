@@ -1322,6 +1322,47 @@ test("catalog primary hit area preserves content and independent secondary actio
   expect(errors).toEqual([]);
 });
 
+test("checkbox rows separate names and help, wrap at narrow widths and suppress disabled hover", async ({ page }, info) => {
+  const { errors } = await openGallery(page, info);
+  const standard = page.getByRole("checkbox", { name: copy(info, "启用完整组件巡检", "Enable complete component audit"), exact: true });
+  const fixture = page.locator("[data-gallery-compact-checkbox]");
+  await fixture.evaluate((element) => { element.style.width = "min(280px, 100%)"; });
+  const compact = fixture.getByRole("checkbox", { name: copy(info, "使用任务独立配置", "Use the task’s independent configuration"), exact: true });
+  const row = fixture.locator('[data-slot="checkbox-row"]');
+  const help = row.locator("[id$='-description']");
+  await expect(compact).toHaveAccessibleDescription(copy(info, "配置只影响当前任务，保存时暂时禁用。", "This configuration only applies to the current task and is disabled while saving."));
+  await expect(row.locator("[id$='-label']")).toHaveCSS("font-size", "13px");
+  await expect(help).toHaveCSS("font-size", "13px");
+  expect(await row.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+  await help.click();
+  await expect(compact).toBeChecked();
+  await expect(compact).toBeFocused();
+  await compact.press("Space");
+  await expect(compact).not.toBeChecked();
+
+  await standard.uncheck();
+  await expect(compact).toBeDisabled();
+  await row.scrollIntoViewIfNeeded();
+  await page.mouse.move(0, 0);
+  const before = await row.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return [style.backgroundColor, style.borderColor];
+  });
+  await row.hover();
+  await expect(row).toHaveCSS("cursor", "not-allowed");
+  await expect.poll(() => row.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return [style.backgroundColor, style.borderColor];
+  })).toEqual(before);
+  await help.click();
+  await expect(compact).not.toBeChecked();
+  await standard.check();
+  await help.click();
+  await expect(compact).toBeChecked();
+  await capture(row, info, "compact-checkbox-row");
+  expect(errors).toEqual([]);
+});
+
 test("list density and surfaces share geometry and inert rows suppress hover", async ({ page }, info) => {
   const { errors } = await openGallery(page, info);
   const narrow = page.viewportSize()!.width < 560;

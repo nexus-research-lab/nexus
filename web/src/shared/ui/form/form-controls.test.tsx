@@ -407,7 +407,7 @@ describe("form primitives", () => {
     const row = checkbox.closest("label");
     expect(row?.className).toContain("radius-control-md");
     expect(row?.className).not.toContain("rounded-[");
-    expect(screen.getByText("允许私有网络").className).toContain("ui-type-caption");
+    expect(screen.getByText("允许私有网络").className).toContain("ui-type-supporting");
     await user.click(checkbox);
     expect(onChange).toHaveBeenCalledWith(true);
   });
