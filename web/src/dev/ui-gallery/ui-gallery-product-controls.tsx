@@ -1,5 +1,5 @@
 // INPUT: 当前语言和本地分类、来源、状态及上下文快照夹具。
-// OUTPUT: 真实目录筛选工具区与 DM/Room 上下文指标的可复现交互。
+// OUTPUT: 真实目录筛选工具区与 DM、三成员及长列表 Room 上下文指标的可复现交互。
 // POS: 开发期消费场景；复用产品组件，无 API 请求或业务写入。
 
 import { useState } from "react";
@@ -47,11 +47,15 @@ export function ProductControlsGallery() {
         onChange={setStatus} options={[{ label: t("capability.category_all"), value: "all" },
           { label: galleryText(locale, "已连接", "Connected"), value: "connected" }]} value={status} />
     </div>
-    <div className="flex items-center justify-end gap-6">
+    <div className="flex flex-wrap items-center justify-end gap-6">
       <div className="flex items-center gap-2" data-gallery-context="dm"><span>DM</span><ComposerContextUsage usage={usage} /></div>
       <div className="flex items-center gap-2" data-gallery-context="room"><span>Room</span><ComposerContextUsage items={[
         { agentId: "reader", name: "Reader", usage }, { agentId: "writer", name: "Writer", usage: null },
+        { agentId: "reviewer", name: "Reviewer", usage: { ...usage, percentage: 3, total_tokens: 29_500 } },
       ]} usage={null} /></div>
+      <div className="flex items-center gap-2" data-gallery-context="room-many"><span>Room · 12</span><ComposerContextUsage items={Array.from({ length: 12 }, (_, index) => ({
+        agentId: `member-${index + 1}`, name: `Agent ${index + 1}`, usage,
+      }))} usage={null} /></div>
     </div>
   </section>;
 }

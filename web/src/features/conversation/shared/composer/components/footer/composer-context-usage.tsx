@@ -1,6 +1,6 @@
 /**
  * INPUT: runtime 每轮结束后上报的上下文占用快照。
- * OUTPUT: Composer 模型控件左侧的紧凑环形指标与唯一的悬浮详情。
+ * OUTPUT: Composer 模型控件左侧的紧凑环形指标与随内容展开、受视口约束的唯一详情。
  * POS: DM 与 Room 共用的只读上下文用量视图。
  */
 
@@ -49,18 +49,16 @@ export function ComposerContextUsage({
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const projection = projectComposerContextUsage({ items, usage });
-  const rowCount = projection?.items.length ?? 0;
+  const grouped = projection?.grouped ?? false;
   const estimatePosition = useCallback(
     (anchor: HTMLButtonElement) => resolveUiAnchoredOverlayPosition({
       align: "end",
       anchor,
-      estimatedContentHeight: rowCount > 0
-        ? 36 + rowCount * 32
-        : undefined,
       placement: "top",
-      preset: rowCount > 0 ? "status-list" : "status-summary",
+      // 双行用量、字体与成员名称决定实际高度；preset 只提供上限，不能用行数估算裁切内容。
+      preset: grouped ? "status-list" : "status-summary",
     }),
-    [rowCount],
+    [grouped],
   );
   const cancelScheduledClose = useCallback(() => {
     if (closeTimerRef.current) {
@@ -173,7 +171,7 @@ export function ComposerContextUsage({
         ? createPortal(
             <div
               ref={overlayRef}
-              className={`pointer-events-auto fixed left-0 top-0 ui-layer-dialog-interaction overflow-hidden shadow-(--surface-popover-shadow) ${OVERLAY_SURFACE_CLASS_NAME} ${ANCHORED_OVERLAY_MOTION_CLASS_NAME}`}
+              className={`pointer-events-auto fixed left-0 top-0 ui-layer-dialog-interaction flex flex-col overflow-hidden shadow-(--surface-popover-shadow) ${OVERLAY_SURFACE_CLASS_NAME} ${ANCHORED_OVERLAY_MOTION_CLASS_NAME}`}
               data-placement={overlayPosition?.placement ?? "top"}
               id={overlayId}
               onMouseEnter={cancelScheduledClose}
@@ -243,16 +241,16 @@ function GroupedContextUsage({
   title: string;
 }) {
   return (
-    <div className="min-w-0">
-      <div className="border-b border-(--divider-subtle-color) px-2.5 py-1.5 text-2xs font-medium text-(--text-strong)">
+    <>
+      <div className="shrink-0 border-b border-(--divider-subtle-color) px-2.5 py-1.5 text-2xs font-medium text-(--text-strong)">
         {title}
       </div>
-      <div className="max-h-52 overflow-y-auto p-1">
+      <ul aria-label={title} className="soft-scrollbar min-h-0 overflow-y-auto overscroll-contain p-1">
         {items.map((item) => (
           <ContextUsageAgentRow item={item} key={item.agentId} />
         ))}
-      </div>
-    </div>
+      </ul>
+    </>
   );
 }
 
@@ -263,7 +261,7 @@ function ContextUsageAgentRow({
 }) {
   const { t } = useI18n();
   return (
-    <div className="radius-control-sm flex min-h-8 items-center gap-1.5 px-1.5 py-1">
+    <li className="radius-control-sm flex min-h-8 items-center gap-1.5 px-1.5 py-1">
       <UiAgentAvatar
         avatar={item.avatar}
         name={item.name}
@@ -288,6 +286,6 @@ function ContextUsageAgentRow({
           {t("composer.context_no_snapshot")}
         </span>
       )}
-    </div>
+    </li>
   );
 }

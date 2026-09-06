@@ -487,6 +487,57 @@ test("catalog filters share one shape and context usage has one detail surface",
   expect(errors).toEqual([]);
 });
 
+test("Room context details fit three agents and scroll the last row inside a constrained surface", async ({ page }, info) => {
+  const { errors } = await openGallery(page, info, "content");
+  const fixture = page.locator("[data-gallery-product-controls]");
+
+  for (const { kind, count, height } of [
+    { kind: "room", count: 3, height: page.viewportSize()!.height },
+    { kind: "room-many", count: 12, height: page.viewportSize()!.height },
+    { kind: "room-many", count: 12, height: 240 },
+  ]) {
+    await page.setViewportSize({ width: page.viewportSize()!.width, height });
+    const trigger = fixture.locator(`[data-gallery-context="${kind}"]`).getByRole("button");
+    await trigger.evaluate((element) => element.scrollIntoView({ block: "end", inline: "nearest" }));
+    await trigger.hover();
+    const detail = page.getByRole("tooltip");
+    const list = detail.getByRole("list", { name: copy(info, "上下文窗口", "Context window") });
+    await expect(list.getByRole("listitem")).toHaveCount(count);
+    await expectInsideViewport(page, detail);
+    expect((await detail.boundingBox())!.width).toBe(232);
+    const title = detail.getByText(copy(info, "上下文窗口", "Context window"), { exact: true });
+    const titleBounds = await title.boundingBox();
+
+    if (count === 3) {
+      // A small list grows to its rendered rows, without either clipping or a tall empty shell.
+      expect((await detail.boundingBox())!.height).toBeLessThan(248);
+      expect(await list.evaluate((element) => element.scrollHeight - element.clientHeight)).toBeLessThanOrEqual(1);
+    } else {
+      expect(await list.evaluate((element) => element.scrollHeight - element.clientHeight)).toBeGreaterThan(0);
+      await list.hover();
+      await page.mouse.wheel(0, 3_000);
+      await expect.poll(() => list.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+    }
+
+    await expect.poll(async () => {
+      const surface = (await detail.boundingBox())!;
+      const scrollport = (await list.boundingBox())!;
+      const lastRow = (await list.getByRole("listitem").last().boundingBox())!;
+      return {
+        listInsideSurface: scrollport.y >= surface.y && scrollport.y + scrollport.height <= surface.y + surface.height + 1,
+        lastRowVisible: lastRow.y >= scrollport.y && lastRow.y + lastRow.height <= scrollport.y + scrollport.height + 1,
+      };
+    }).toEqual({ listInsideSurface: true, lastRowVisible: true });
+    expect(await title.boundingBox()).toEqual(titleBounds);
+    await expect(detail).toHaveCount(1);
+    await capture(detail, info, `context-height-${kind}-${height}`);
+    await page.keyboard.press("Escape");
+    await expect(detail).toHaveCount(0);
+    await trigger.blur();
+  }
+  expect(errors).toEqual([]);
+});
+
 test("technical fields share monospace presentation and preserve verification zeros", async ({ page }, info) => {
   const { errors } = await openGallery(page, info);
   const path = page.getByRole("textbox", { name: copy(info, "配置路径", "Config path"), exact: true });
