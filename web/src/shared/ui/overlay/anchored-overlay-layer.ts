@@ -1,5 +1,5 @@
 // INPUT: 锚点、开关状态、定位投影以及可选的焦点归还策略。
-// OUTPUT: Portal 容器、稳定浮层身份、定位样式与按模态范围仲裁的关闭/重定位生命周期。
+// OUTPUT: Portal、定位与按模态范围仲裁的关闭生命周期；输入法候选键不触发退出。
 // POS: 锚定浮层浏览器适配层；不决定 Menu、Tooltip 或 Popover 的内容与键盘语义。
 "use client";
 
@@ -13,6 +13,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { isImeKeyboardEvent } from "@/shared/lib/browser/ime-keyboard-event";
 
 import {
   areAnchoredOverlayPositionsEqual,
@@ -128,6 +129,7 @@ export function useAnchoredOverlayLayer<T extends HTMLElement>({
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
       if (
         event.key !== "Escape"
+        || isImeKeyboardEvent(event)
         || event.defaultPrevented
         || !isTopAnchoredOverlay(overlayRef.current)
       ) {

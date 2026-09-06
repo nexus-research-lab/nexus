@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Make shared prompts and overlay dismissal IME-aware, localize default decision
+  actions and hints, and bind prompt errors and descriptions to named fields.
+  Keep workspace prompts locked during writes and localize Shopify validation
+  without clearing drafts when the interface language changes.
 - Refine desktop and mobile conversation history with shared readable metadata,
   row-action visibility, scrollable batch-result feedback and a localized empty
   state. Keep IME candidate keys out of title saving, restore editing focus,

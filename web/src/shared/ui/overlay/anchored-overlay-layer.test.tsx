@@ -2,7 +2,7 @@
 // OUTPUT: 证明 Escape 只关闭当前模态范围的最上层浮层，且焦点归还不越过该范围。
 // POS: Anchored Overlay 生命周期集成测试；不复制业务菜单或定位计算。
 
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useCallback, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -50,6 +50,7 @@ function NestedOverlayHarness({ deferUntilAnchor = false, initialOpen = false, r
           style={overlayStyle}
           {...OPEN_OVERLAY_DATA_ATTRIBUTES}
         >
+          <input aria-label="Overlay input" />
           <UiTooltip label="子提示">
             <button type="button">说明</button>
           </UiTooltip>
@@ -67,6 +68,22 @@ function NestedOverlayHarness({ deferUntilAnchor = false, initialOpen = false, r
 }
 
 describe("anchored overlay dismissal", () => {
+  it("leaves composition Escape to an overlay input before normal dismissal", async () => {
+    const user = userEvent.setup();
+    render(<NestedOverlayHarness />);
+    const trigger = screen.getByRole("button", { name: "打开浮层" });
+    await user.click(trigger);
+    const input = screen.getByRole("textbox", { name: "Overlay input" });
+    input.focus();
+    fireEvent.keyDown(input, { key: "Escape", isComposing: true });
+    fireEvent.keyDown(input, { key: "Escape", keyCode: 229 });
+    expect(screen.getByRole("dialog", { name: "父浮层" })).toBeTruthy();
+    expect(document.activeElement).toBe(input);
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "父浮层" })).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+  });
+
   it("registers a delayed initial overlay in the same portal container and releases it after closing", async () => {
     const user = userEvent.setup();
     const view = render(<NestedOverlayHarness deferUntilAnchor initialOpen />);

@@ -1,9 +1,10 @@
-// INPUT: 模态根、初始焦点、关闭动作与启用状态。
+// INPUT: 模态根、初始焦点、关闭动作、启用状态与非输入法键盘事件。
 // OUTPUT: 模态栈注册、滚动锁、焦点循环及仅由当前模态子浮层让出的 Escape。
 // POS: Dialog 的 React 生命周期适配；焦点计算、键盘规则和栈状态分别归专用模块。
 "use client";
 
 import { type RefObject, useEffect, useRef } from "react";
+import { isImeKeyboardEvent } from "@/shared/lib/browser/ime-keyboard-event";
 
 import {
   focusDialogElement,
@@ -104,7 +105,7 @@ export function useDialogModalBehavior<T extends HTMLElement>({
 
     const handleKeyDown = (event: KeyboardEvent) => {
       const root = rootRef.current;
-      if (!root || !isTopDialogModal(token) || event.defaultPrevented) {
+      if (!root || !isTopDialogModal(token) || event.defaultPrevented || isImeKeyboardEvent(event)) {
         return;
       }
 

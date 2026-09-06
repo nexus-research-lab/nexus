@@ -1,6 +1,11 @@
 export const zhCapabilityMessages = {
   "capability.skills": "技能",
   "capability.connectors": "连接器",
+  "capability.shop_domain_title": "Shopify 店铺",
+  "capability.shop_domain_label": "店铺子域名",
+  "capability.shop_domain_description": "输入 myshopify.com 前面的店铺子域名。",
+  "capability.shop_domain_invalid": "请输入有效的 Shopify 店铺子域名。",
+  "capability.shop_domain_pending": "店铺域名输入请求仍在处理中。",
   "capability.scheduled": "定时任务",
   "capability.scheduled_history_load_failed": "运行历史暂时无法加载",
   "capability.scheduled_history_refresh_failed": "暂时无法更新运行历史",

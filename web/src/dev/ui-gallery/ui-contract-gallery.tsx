@@ -114,7 +114,8 @@ export function UiContractGallery() {
   const [activeTab, setActiveTab] = useState<GalleryTab>(getInitialGalleryTab);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogViewport, setDialogViewport] = useState<UiDialogViewport>("adaptiveMax");
-  const [promptOpen, setPromptOpen] = useState(false);
+  const [promptMode, setPromptMode] = useState<"single" | "multiline" | null>(null);
+  const [promptResult, setPromptResult] = useState("");
   const [searchValue, setSearchValue] = useState("shared/ui");
   const [emptySearchValue, setEmptySearchValue] = useState("");
   const [selectedChoice, setSelectedChoice] = useState("balanced");
@@ -548,7 +549,7 @@ export function UiContractGallery() {
                 >
                   {galleryText(locale, "打开紧凑弹窗", "Open compact dialog")}
                 </UiButton>
-                <UiButton onClick={() => setPromptOpen(true)} variant="surface">
+                <UiButton onClick={() => setPromptMode("single")} variant="surface">
                   {galleryText(locale, "新建文件夹弹窗", "New folder prompt")}
                 </UiButton>
                 <UiButton
@@ -629,9 +630,13 @@ export function UiContractGallery() {
                       value={selectedModel}
                     />
                   </UiField>
-                  <UiButton onClick={() => setPromptOpen(true)} variant="surface">
+                  <UiButton onClick={() => setPromptMode("single")} variant="surface">
                     {galleryText(locale, "打开嵌套确认", "Open nested prompt")}
                   </UiButton>
+                  <UiButton onClick={() => setPromptMode("multiline")} variant="surface">
+                    {galleryText(locale, "打开多行输入", "Open multiline prompt")}
+                  </UiButton>
+                  <output className="block whitespace-pre-wrap" data-gallery-prompt-result>{promptResult}</output>
                   <UiPanel padding="md" variant="dashed">
                     <div className="flex items-start gap-3">
                       <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-(--warning)" />
@@ -651,14 +656,15 @@ export function UiContractGallery() {
         </UiDialogPortal>
       ) : null}
       <PromptDialog
-        cancelText={galleryText(locale, "取消", "Cancel")}
-        confirmText={galleryText(locale, "创建", "Create")}
-        defaultValue={galleryText(locale, "新文件夹", "new-folder")}
-        isOpen={promptOpen}
-        onCancel={() => setPromptOpen(false)}
-        onConfirm={() => setPromptOpen(false)}
-        placeholder={galleryText(locale, "例如：新文件夹", "For example: new-folder")}
-        title={galleryText(locale, "新建文件夹", "New folder")}
+        confirmText={promptMode === "single" ? galleryText(locale, "创建", "Create") : undefined}
+        defaultValue={promptMode === "multiline" ? "" : galleryText(locale, "新文件夹", "new-folder")}
+        isOpen={promptMode !== null}
+        message={promptMode === "multiline" ? galleryText(locale, "输入下一步说明，确认后保留原始换行。", "Describe the next step. Confirmation preserves your line breaks.") : undefined}
+        multiline={promptMode === "multiline"}
+        onCancel={() => setPromptMode(null)}
+        onConfirm={(value) => { setPromptResult(value); setPromptMode(null); }}
+        placeholder={promptMode === "multiline" ? galleryText(locale, "例如：核对引用并补充结论。", "For example: verify sources and update the conclusion.") : galleryText(locale, "例如：新文件夹", "For example: new-folder")}
+        title={promptMode === "multiline" ? galleryText(locale, "补充指令", "Add instruction") : galleryText(locale, "新建文件夹", "New folder")}
       />
     </main>
   );

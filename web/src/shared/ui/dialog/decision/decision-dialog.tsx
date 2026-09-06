@@ -1,6 +1,6 @@
 /**
- * INPUT: 业务提供的明确标题、后果文案、输入值与确认/取消动作。
- * OUTPUT: 紧凑决策弹窗；异步期间防重复提交，并可就地呈现结果、影响和下一步。
+ * INPUT: 业务标题、后果文案、初值、字段错误、执行状态与确认/取消动作。
+ * OUTPUT: 双语紧凑决策弹窗、输入法安全的键盘提交、具名字段及执行中关闭锁。
  * POS: 全站轻量确认框与输入框；业务风险和失败事实只能由调用方具体说明。
  */
 "use client";
@@ -20,9 +20,11 @@ import {
   UiDialogHeader,
 } from "@/shared/ui/dialog/dialog";
 import { cn } from "@/shared/ui/class-name";
+import { isImeKeyboardEvent } from "@/shared/lib/browser/ime-keyboard-event";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { RecoverySummary } from "@/shared/ui/feedback/recovery-summary";
-import { UiInput, UiTextarea } from "@/shared/ui/form/form-control";
+import { UiField, UiInput, UiTextarea } from "@/shared/ui/form/form-control";
 
 import {
   DecisionDialogActions,
@@ -56,9 +58,12 @@ interface ConfirmDialogProps {
 }
 
 interface PromptDialogProps {
+  busy?: boolean;
   cancelText?: string;
   confirmText?: string;
   defaultValue?: string;
+  error?: string;
+  inputLabel?: string;
   isOpen: boolean;
   message?: string;
   multiline?: boolean;
@@ -72,8 +77,8 @@ interface PromptDialogProps {
 
 export function ConfirmDialog({
   busy = false,
-  cancelText = "取消",
-  confirmText = "确认",
+  cancelText,
+  confirmText,
   failure,
   isOpen,
   message,
@@ -83,6 +88,7 @@ export function ConfirmDialog({
   title,
   variant = "default",
 }: ConfirmDialogProps) {
+  const { t } = useI18n();
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
   const messageId = useId();
   const titleId = useId();
@@ -151,10 +157,10 @@ export function ConfirmDialog({
       </UiDialogBody>
       <DecisionDialogActions
         busy={busy}
-        cancelText={cancelText}
+        cancelText={cancelText ?? t("common.cancel")}
         confirmButtonRef={confirmButtonRef}
         confirmClassName="min-w-[110px]"
-        confirmText={confirmText}
+        confirmText={confirmText ?? t("common.confirm")}
         confirmTone={presentation.actionTone}
         onCancel={onCancel}
         onConfirm={onConfirm}
@@ -166,9 +172,12 @@ export function ConfirmDialog({
 function ignoreDialogClose(): void {}
 
 export function PromptDialog({
-  cancelText = "取消",
-  confirmText = "确认",
+  busy = false,
+  cancelText,
+  confirmText,
   defaultValue = "",
+  error,
+  inputLabel,
   isOpen,
   message,
   multiline = false,
@@ -179,14 +188,18 @@ export function PromptDialog({
   shortcutHint,
   title,
 }: PromptDialogProps) {
+  const { t } = useI18n();
   if (!isOpen) {
     return null;
   }
   return (
     <PromptDialogContent
-      cancelText={cancelText}
-      confirmText={confirmText}
+      busy={busy}
+      cancelText={cancelText ?? t("common.cancel")}
+      confirmText={confirmText ?? t("common.confirm")}
       defaultValue={defaultValue}
+      error={error}
+      inputLabel={inputLabel}
       key={defaultValue}
       message={message}
       multiline={multiline}
@@ -194,16 +207,19 @@ export function PromptDialog({
       onConfirm={onConfirm}
       placeholder={placeholder}
       rows={rows}
-      shortcutHint={shortcutHint}
+      shortcutHint={shortcutHint ?? t("dialog.prompt_shortcut_hint")}
       title={title}
     />
   );
 }
 
 function PromptDialogContent({
+  busy,
   cancelText,
   confirmText,
   defaultValue,
+  error,
+  inputLabel,
   message,
   multiline,
   onCancel,
@@ -217,19 +233,23 @@ function PromptDialogContent({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [value, setValue] = useState(defaultValue);
   const titleId = useId();
+  const messageId = useId();
+  const inputId = useId();
   const mode: PromptInputMode = multiline ? "multiline" : "single";
   const initialFocusRef: RefObject<HTMLElement | null> = multiline
     ? textareaRef
     : inputRef;
 
   const cancel = () => {
+    if (busy) return;
     setValue(defaultValue);
     onCancel();
   };
-  const submit = () => onConfirm(value);
+  const submit = () => { if (!busy) onConfirm(value); };
   const handleInputKeyDown = (
     event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
+    if (busy || isImeKeyboardEvent(event.nativeEvent)) return;
     const action = resolvePromptKeyboardAction({
       ctrlKey: event.ctrlKey,
       key: event.key,
@@ -245,34 +265,41 @@ function PromptDialogContent({
 
   return (
     <DecisionDialogFrame
+      describedBy={message ? messageId : undefined}
       initialFocusRef={initialFocusRef}
       labelledBy={titleId}
       onClose={cancel}
       size={multiline ? "sm" : "xs"}
     >
       <UiDialogHeader
+        actions={<UiDialogCloseButton disabled={busy} onClose={cancel} />}
         appearance="plain"
-        onClose={cancel}
         title={title}
         titleId={titleId}
       />
       <UiDialogBody className="space-y-3 px-5 pb-4 pt-2">
         {message ? (
-          <p className="text-sm leading-6 text-(--text-muted)">{message}</p>
+          <p className={getUiTypographyClassName({ role: "supporting", tone: "muted" })} id={messageId}>{message}</p>
         ) : null}
-        <PromptInput
-          inputRef={inputRef}
-          mode={mode}
-          onChange={setValue}
-          onKeyDown={handleInputKeyDown}
-          placeholder={placeholder}
-          rows={rows}
-          shortcutHint={shortcutHint}
-          textareaRef={textareaRef}
-          value={value}
-        />
+        <UiField description={multiline ? shortcutHint : undefined} error={error} htmlFor={inputId}>
+          <PromptInput
+            busy={busy}
+            inputId={inputId}
+            inputLabel={inputLabel}
+            inputRef={inputRef}
+            mode={mode}
+            onChange={setValue}
+            onKeyDown={handleInputKeyDown}
+            placeholder={placeholder}
+            rows={rows}
+            textareaRef={textareaRef}
+            titleId={titleId}
+            value={value}
+          />
+        </UiField>
       </UiDialogBody>
       <DecisionDialogActions
+        busy={busy}
         cancelText={cancelText}
         confirmText={confirmText}
         onCancel={cancel}
@@ -283,9 +310,12 @@ function PromptDialogContent({
 }
 
 interface PromptDialogContentProps {
+  busy: boolean;
   cancelText: string;
   confirmText: string;
   defaultValue: string;
+  error?: string;
+  inputLabel?: string;
   message?: string;
   multiline: boolean;
   onCancel: () => void;
@@ -297,57 +327,60 @@ interface PromptDialogContentProps {
 }
 
 interface PromptInputProps {
+  busy: boolean;
+  inputId: string;
+  inputLabel?: string;
   inputRef: RefObject<HTMLInputElement | null>;
   mode: PromptInputMode;
   onChange: (value: string) => void;
   onKeyDown: (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   placeholder: string;
   rows?: number;
-  shortcutHint?: string;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
+  titleId: string;
   value: string;
 }
 
 function PromptInput({
+  busy,
+  inputId,
+  inputLabel,
   inputRef,
   mode,
   onChange,
   onKeyDown,
   placeholder,
   rows,
-  shortcutHint,
   textareaRef,
+  titleId,
   value,
 }: PromptInputProps) {
   if (mode === "multiline") {
     return (
-      <>
-        <UiTextarea
-          aria-label={placeholder || "输入内容"}
-          className="min-h-[180px] leading-6"
-          controlSize="lg"
-          onChange={(event) => onChange(event.target.value)}
-          onFocus={movePromptTextareaCursorToEnd}
-          onKeyDown={onKeyDown}
-          placeholder={placeholder}
-          ref={textareaRef}
-          rows={rows}
-          value={value}
-        />
-        {shortcutHint ? (
-          <p className="pt-2 text-xs text-(--text-soft)">{shortcutHint}</p>
-        ) : (
-          <p className="pt-2 text-xs text-(--text-soft)">
-            按 <kbd className="rounded bg-black/5 px-1 py-0.5 text-xs">Cmd/Ctrl + Enter</kbd> 可直接保存。
-          </p>
-        )}
-      </>
+      <UiTextarea
+        aria-label={inputLabel}
+        aria-labelledby={inputLabel ? undefined : titleId}
+        className="min-h-[180px] leading-6"
+        controlSize="lg"
+        disabled={busy}
+        id={inputId}
+        onChange={(event) => onChange(event.target.value)}
+        onFocus={movePromptTextareaCursorToEnd}
+        onKeyDown={onKeyDown}
+        placeholder={placeholder}
+        ref={textareaRef}
+        rows={rows}
+        value={value}
+      />
     );
   }
   return (
     <UiInput
-      aria-label={placeholder || "输入内容"}
+      aria-label={inputLabel}
+      aria-labelledby={inputLabel ? undefined : titleId}
       controlSize="lg"
+      disabled={busy}
+      id={inputId}
       onChange={(event) => onChange(event.target.value)}
       onFocus={selectPromptInput}
       onKeyDown={onKeyDown}
