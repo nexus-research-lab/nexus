@@ -1,3 +1,10 @@
+/**
+ * INPUT: 头像标识、名称与稳定 Room identity。
+ * OUTPUT: 图片路径、完整 Unicode 姓名缩写与默认图标编号。
+ * POS: 跨目录、聊天和 Launcher 的身份投影；尺寸与图片失败回退由公共 Avatar 持有。
+ */
+import { splitTextGraphemes } from "./text-graphemes";
+
 const AVATAR_PASSTHROUGH_PREFIXES = [
   "http://",
   "https://",
@@ -27,13 +34,12 @@ export function getInitials(
     return fallback;
   }
   if (parts.length === 1) {
-    return parts[0].slice(0, maxLength).toUpperCase();
+    return splitTextGraphemes(parts[0].toUpperCase()).slice(0, maxLength).join("");
   }
   return parts
     .slice(0, maxLength)
-    .map((part) => part[0] ?? "")
-    .join("")
-    .toUpperCase();
+    .map((part) => splitTextGraphemes(part.toUpperCase())[0] ?? "")
+    .join("");
 }
 
 /** 将头像标识解析为可直接使用的图片地址。 */

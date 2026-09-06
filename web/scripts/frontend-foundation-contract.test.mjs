@@ -1504,6 +1504,27 @@ test("List and Badge primitives expose semantic typography, sections, and shape"
   assert.match(customMcpGrid, /role: "code"/);
 });
 
+test("avatar fallbacks and text boundaries retain one implementation owner", async () => {
+  const [avatar, initials, launcher, hero, streaming] = await Promise.all([
+    readSource("src/shared/ui/display/avatar.tsx"),
+    readSource("src/lib/avatar.ts"),
+    readSource("src/features/launcher/console/launcher-console-helpers.ts"),
+    readSource("src/shared/ui/feedback/animated-hero-text.tsx"),
+    readSource("src/shared/ui/markdown/streaming/stream-text-units.ts"),
+  ]);
+  // Member tiles must not rebuild full-sized Agent avatars and override their internals.
+  assert.doesNotMatch(avatar, /<UiAgentAvatar\b|!rounded-/);
+  for (const radius of ["xs", "sm", "md", "lg"]) {
+    assert.match(avatar, new RegExp(`--radius-control-${radius}`));
+  }
+  assert.match(launcher, /import \{ getInitials \} from "@\/lib\/avatar"/);
+  assert.doesNotMatch(launcher, /function getInitials/);
+  for (const consumer of [initials, hero, streaming]) {
+    assert.match(consumer, /import \{ splitTextGraphemes \} from .*text-graphemes/);
+    assert.doesNotMatch(consumer, /new Intl\.Segmenter|IntlSegmenterCtor/);
+  }
+});
+
 test("Seeded resource avatars use semantic rounded-square and running-state roles", async () => {
   const seededAvatar = await readSource("src/shared/ui/display/seeded-avatar.tsx");
 

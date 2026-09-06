@@ -91,6 +91,10 @@ const ROOM_MEMBERS = [
   { id: "noah", name: "Noah" },
 ];
 
+const AVATAR_MEMBERS = Array.from({ length: 9 }, (_, index) => ({
+  id: `avatar-${index}`, name: "研发团队",
+}));
+
 type GalleryTab = "foundation" | "content" | "interaction" | "workspace" | "coverage";
 
 const GALLERY_TABS: readonly GalleryTab[] = [
@@ -437,6 +441,21 @@ export function UiContractGallery() {
               <UiAgentAvatar isWorking name="Maya Chen" />
               <UiRoomAvatar members={ROOM_MEMBERS} roomId="ui-contract" title="UI contract review" />
             </GalleryRow>
+            <div className="space-y-3" data-gallery-avatar-geometry>
+              <div className="flex flex-wrap items-center gap-3" data-gallery-agent-avatars>
+                {(["xs", "sm", "md", "lg", "xl"] as const).map((size) => (
+                  <UiAgentAvatar data-avatar-size={size} key={size} name="👩‍💻 Nova" size={size} />
+                ))}
+                <UiAgentAvatar avatar="data:image/png;base64,invalid" data-gallery-avatar-failure name="Maya Chen" />
+              </div>
+              {(["sm", "md", "lg"] as const).map((size) => (
+                <div className="flex flex-wrap items-center gap-3" data-gallery-room-avatars={size} key={size}>
+                  {[0, 1, 2, 4, 9].map((count) => (
+                    <UiRoomAvatar data-member-count={count} key={count} members={AVATAR_MEMBERS.slice(0, count)} roomId="gallery-avatar" size={size} title={`Room ${size} ${count}`} />
+                  ))}
+                </div>
+              ))}
+            </div>
             <div className="group/item flex items-center gap-2" data-gallery-list-actions>
               <UiButton>{galleryText(locale, "列表主动作", "List primary action")}</UiButton>
               <UiListActionButton aria-label="Hover list action" visibility="hover">

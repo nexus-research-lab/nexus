@@ -1,7 +1,13 @@
 "use client";
 
+/**
+ * INPUT: Hero 文本、字体测量和逐字延迟。
+ * OUTPUT: 稳定字符身份的渐显文本。
+ * POS: Hero 展示动效；pretext 测量不可用时复用基础 grapheme 边界。
+ */
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { prepareWithSegments } from "@chenglou/pretext";
+import { splitTextGraphemes } from "@/lib/text-graphemes";
 import { cn } from "@/shared/ui/class-name";
 
 // ─── AnimatedHeroText ────────────────────────────────────────────────────────
@@ -17,24 +23,12 @@ interface AnimatedHeroTextProps {
   initialDelayMs?: number;
 }
 
-// Intl.Segmenter is available in TypeScript ≥ 4.7 / ES2022 lib; cast via unknown
-// for envs that ship an older lib but have the runtime API.
-type IntlSegmenterCtor = new (
-  locale?: string,
-  options?: { granularity?: "grapheme" | "word" | "sentence" },
-) => { segment(input: string): Iterable<{ segment: string }> };
-
 function splitGraphemes(text: string, font: string): string[] {
   try {
     const prepared = prepareWithSegments(text, font);
     return prepared.segments;
   } catch {
-    if (typeof Intl !== "undefined" && "Segmenter" in Intl) {
-      const SegmenterCtor = (Intl as unknown as { Segmenter: IntlSegmenterCtor }).Segmenter;
-      const seg = new SegmenterCtor(undefined, { granularity: "grapheme" });
-      return Array.from(seg.segment(text), (s) => s.segment);
-    }
-    return [...text];
+    return splitTextGraphemes(text);
   }
 }
 

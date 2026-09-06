@@ -45,6 +45,52 @@ async function capture(surface: Locator, info: TestInfo, name: string) {
   });
 }
 
+test("avatars preserve readable initials and rounded-square member geometry", async ({ page }, info) => {
+  const { errors } = await openGallery(page, info);
+  const fixture = page.locator("[data-gallery-avatar-geometry]");
+  await fixture.scrollIntoViewIfNeeded();
+  const failed = fixture.locator("[data-gallery-avatar-failure]");
+  await expect(failed).toHaveText("MC");
+  await expect(failed.locator("img")).toHaveCount(0);
+  const agentMetrics = await fixture.locator("[data-avatar-size]").evaluateAll((avatars) => avatars.map((avatar) => {
+    const bounds = avatar.getBoundingClientRect();
+    return { width: bounds.width, height: bounds.height, radius: Number.parseFloat(getComputedStyle(avatar).borderTopLeftRadius) };
+  }));
+  expect(agentMetrics).toEqual([22, 28, 40, 56, 64].map((width, index) => ({ width, height: width, radius: [6, 8, 10, 12, 12][index] })));
+  for (const row of await fixture.locator("[data-gallery-room-avatars]").all()) {
+    const roomSize = await row.getAttribute("data-gallery-room-avatars");
+    for (const count of [1, 2, 4, 9]) {
+      const room = row.getByRole("img", { name: `Room ${roomSize} ${count}`, exact: true });
+      await expect(room.locator(":scope > span")).toHaveCount(count);
+      const geometry = await room.evaluate((element) => {
+        const bounds = element.getBoundingClientRect();
+        const tiles = Array.from(element.children, (tile) => {
+          const rect = tile.getBoundingClientRect();
+          const range = document.createRange();
+          range.selectNodeContents(tile.firstElementChild!);
+          const text = range.getBoundingClientRect();
+          return { x: rect.x, y: rect.y, right: rect.right, bottom: rect.bottom, width: rect.width,
+            fits: text.width <= rect.width + 1 && text.height <= rect.height + 1 };
+        });
+        return { left: bounds.left, top: bounds.top, right: bounds.right, bottom: bounds.bottom, tiles };
+      });
+      for (const tile of geometry.tiles) {
+        expect(tile.fits).toBe(true);
+        expect(tile.x).toBeGreaterThanOrEqual(geometry.left);
+        expect(tile.y).toBeGreaterThanOrEqual(geometry.top);
+        expect(tile.right).toBeLessThanOrEqual(geometry.right);
+        expect(tile.bottom).toBeLessThanOrEqual(geometry.bottom);
+      }
+      if (count === 2) {
+        expect(geometry.tiles[0].x).toBeLessThan(geometry.tiles[1].x);
+        expect(geometry.tiles[0].right).toBeGreaterThan(geometry.tiles[1].x);
+      }
+    }
+  }
+  await capture(fixture, info, "avatar-identity-geometry");
+  expect(errors).toEqual([]);
+});
+
 test("connector details wrap inside narrow panes and preserve named capability dialogs", async ({ page }, info) => {
   const { errors } = await openGallery(page, info, "content");
   const fixture = page.locator("[data-gallery-connector-detail]");

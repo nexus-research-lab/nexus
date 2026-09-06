@@ -364,20 +364,20 @@ test("公平池等待信用不会预付给未来尚未到达的正文", async ()
 });
 
 test("流式展示不拆分 emoji ZWJ 和组合字符", async () => {
+  const { splitTextGraphemes } = await server.ssrLoadModule("/src/lib/text-graphemes.ts");
   const {
     appendStreamingTextUnits,
     joinStreamingTextPrefix,
-    splitStreamingTextUnits,
   } = await server.ssrLoadModule(
     "/src/shared/ui/markdown/streaming/stream-text-units.ts",
   );
 
   assert.deepEqual(
-    splitStreamingTextUnits("中文👨‍👩‍👧‍👦e\u0301👍🏽"),
+    splitTextGraphemes("中文👨‍👩‍👧‍👦e\u0301👍🏽"),
     ["中", "文", "👨‍👩‍👧‍👦", "e\u0301", "👍🏽"],
   );
 
-  const emojiUnits = splitStreamingTextUnits("👩");
+  const emojiUnits = splitTextGraphemes("👩");
   const emojiAppend = appendStreamingTextUnits(emojiUnits, "\u200d💻");
   assert.deepEqual(emojiUnits, ["👩‍💻"]);
   assert.deepEqual(
@@ -385,7 +385,7 @@ test("流式展示不拆分 emoji ZWJ 和组合字符", async () => {
     { appendedCount: 0, replacedTrailingUnit: true },
   );
 
-  const combiningUnits = splitStreamingTextUnits("a");
+  const combiningUnits = splitTextGraphemes("a");
   const combiningAppend = appendStreamingTextUnits(combiningUnits, "\u0301");
   assert.deepEqual(combiningUnits, ["a\u0301"]);
   assert.deepEqual(
@@ -393,7 +393,7 @@ test("流式展示不拆分 emoji ZWJ 和组合字符", async () => {
     { appendedCount: 0, replacedTrailingUnit: true },
   );
 
-  const largeSuffixUnits = splitStreamingTextUnits("a");
+  const largeSuffixUnits = splitTextGraphemes("a");
   const largeSuffixAppend = appendStreamingTextUnits(
     largeSuffixUnits,
     `\u0301${"后".repeat(1_000)}`,

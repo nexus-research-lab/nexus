@@ -13,4 +13,5 @@
 - `UiSeededAvatar` 的尺寸只映射到共享 `radius-control-*` 档位，瞬时执行状态只通过 `state="running"` 使用主题级 running 外环；不得在业务层用 `rounded-[Npx]`、品牌色 ring 或 shadow 重建头像状态。目录与详情传同一稳定资源标识，保证视觉身份连续。
 - `UiSeededAvatar` 是全部数学曲线资源头像的唯一渲染入口；外轮廓与 `UiAgentAvatar` 一样按尺寸使用 rounded-square，不提供圆形变体。静态 SVG 曲线由稳定标识散列出的居中曲线族、旋转阶数、细节强度和整体朝向共同决定，消费者必须传入稳定 ID，不得直接读取生成器、内联同类 SVG、使用运行时随机数或随语言变化的标题作为种子。正文内联身份使用 24px，能力目录卡使用 40px，弹窗标题使用 32px，详情身份使用 48px；只能接收图片地址的消息头像通过同一生成器导出静态 Data URL。
 - `UiRoomAvatar` 的双成员组合使用两枚自然比例的 rounded-square 错位轻叠；不得把成员裁成半幅，也不得退化成圆形。
+- `avatar.tsx` 内部 `AvatarContent` 共用图片加载失败回退；只有地址变化才重试，成员拼图直接使用内容层，不套普通头像再强制重写尺寸。Agent/Room 根节点各提供唯一可访问名称，Room 内部成员图片作为装饰。拼图限制、微字号与形状合同归 `design.md`。
 - `running` 表示仍在执行中的瞬时信息状态，必须使用主题级低饱和蓝灰 token；`success` 只表示完成，`primary` 只表达品牌或主动作，三者不得混用。

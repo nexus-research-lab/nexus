@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Keep Agent and Room identities readable when avatar images fail; fit initials
+  to member mosaics and preserve complete Unicode characters. Share character
+  segmentation across avatars, Launcher and text rendering, and remove duplicate
+  initials and image-rendering implementations.
 - Unify Contacts grid cards and creation/search entries across breakpoints, make
   Agent names and Provider metadata readable, add clear-filter recovery, and
   share the labeled directory filter with capability pages through `UiFilterSelect`.
