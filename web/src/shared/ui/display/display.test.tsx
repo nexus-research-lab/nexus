@@ -109,6 +109,32 @@ describe("UiResourceState", () => {
     expect(onRetry).toHaveBeenCalledOnce();
   });
 
+  it("keeps both decision commands distinct while one action is busy", async () => {
+    const user = userEvent.setup();
+    const onKeep = vi.fn();
+    const onReplace = vi.fn();
+    const node = (busy: boolean) => <UiResourceState
+      impact="The current document changed while this draft was open."
+      nextStep="Choose a version."
+      primaryAction={{ busy, busyLabel: "Applying the draft", label: "Use the current draft", onClick: onReplace }}
+      secondaryAction={{ label: "Keep the saved version", onClick: onKeep }}
+      size="sm"
+      state="decision"
+      title="Choose which document version to keep"
+      tone="warning"
+    />;
+    const { rerender } = render(node(true));
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(screen.queryByText("Choose a version.")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Applying the draft" }));
+    expect(onReplace).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Keep the saved version" }));
+    expect(onKeep).toHaveBeenCalledOnce();
+    rerender(node(false));
+    await user.click(screen.getByRole("button", { name: "Use the current draft" }));
+    expect(onReplace).toHaveBeenCalledOnce();
+  });
+
   it("locks a busy action and replaces its label", () => {
     render(
       <UiResourceState

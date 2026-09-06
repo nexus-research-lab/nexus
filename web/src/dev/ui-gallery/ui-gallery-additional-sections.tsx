@@ -13,7 +13,6 @@ import {
   Plus,
   RefreshCw,
   Settings2,
-  Sparkles,
   Trash2,
 } from "lucide-react";
 import {
@@ -74,7 +73,7 @@ import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
 import { MermaidView } from "@/shared/ui/markdown/mermaid/mermaid-view";
 import { WorkspaceFileButton } from "@/shared/ui/markdown/workspace/markdown-workspace-file-button";
 import { MentionTargetPopover } from "@/shared/ui/mention/mention-target-popover";
-import { UiInput } from "@/shared/ui/form/form-control";
+import { UiInput, UiSearchInput } from "@/shared/ui/form/form-control";
 import { UiActionMenu, UiActionMenuContent } from "@/shared/ui/menu/action-menu";
 import { UiBreadcrumb } from "@/shared/ui/navigation/breadcrumb";
 import { TourOverlayCard } from "@/shared/ui/onboarding/overlay/tour-overlay-card";
@@ -91,11 +90,9 @@ import {
   WorkspaceCatalogTitle,
 } from "@/shared/ui/workspace/catalog/workspace-catalog-content";
 import { WorkspaceIconFrame } from "@/shared/ui/workspace/catalog/workspace-icon-frame";
-import { WorkspaceActionBar, WorkspaceActionCard } from "@/shared/ui/workspace/controls/workspace-action-bar";
 import { ConversationTabsScrollRail } from "@/shared/ui/workspace/controls/conversation-tabs/conversation-tabs-scroll-rail";
 import { WorkspaceConversationTab } from "@/shared/ui/workspace/controls/conversation-tabs/workspace-conversation-tab";
 import { WorkspaceConversationTabs } from "@/shared/ui/workspace/controls/workspace-conversation-tabs";
-import { WorkspaceSearchInput } from "@/shared/ui/workspace/controls/workspace-search-input";
 import { WorkspaceStatusBadge } from "@/shared/ui/workspace/controls/workspace-status-badge";
 import { WorkspaceLoadingState } from "@/shared/ui/workspace/frame/workspace-loading-state";
 import { WorkspacePageFrame } from "@/shared/ui/workspace/frame/workspace-page-frame";
@@ -632,12 +629,7 @@ export function WorkspaceGallery({ locale }: { locale: Locale }) {
             <output data-gallery-catalog-creations>{catalogCreations}</output>
           </PreviewCard>
 
-          <PreviewCard components={["WorkspaceActionBar", "WorkspaceActionCard"]}>
-            <WorkspaceActionBar variant="cards">
-              <WorkspaceActionCard icon={<Sparkles className="h-5 w-5" />} onClick={() => undefined} title={galleryText(locale, "生成预览", "Generate preview")} />
-              <WorkspaceActionCard description={galleryText(locale, "打开完整目录", "Open full catalog")} icon={<Grid2X2 className="h-5 w-5" />} onClick={() => undefined} title={galleryText(locale, "浏览", "Browse")} />
-            </WorkspaceActionBar>
-          </PreviewCard>
+
         </div>
       </PreviewSection>
 
@@ -751,8 +743,8 @@ export function WorkspaceGallery({ locale }: { locale: Locale }) {
         title={galleryText(locale, "Workspace 控件", "Workspace controls")}
       >
         <div className="grid gap-4 lg:grid-cols-2">
-          <PreviewCard components={["WorkspaceSearchInput", "WorkspaceStatusBadge"]}>
-            <WorkspaceSearchInput onChange={setQuery} placeholder={galleryText(locale, "搜索工作区", "Search workspace")} value={query} />
+          <PreviewCard components={["UiSearchInput", "WorkspaceStatusBadge"]}>
+            <UiSearchInput onChange={setQuery} placeholder={galleryText(locale, "搜索工作区", "Search workspace")} value={query} />
             <div className="flex flex-wrap gap-2">
               <WorkspaceStatusBadge label={galleryText(locale, "运行中", "Running")} tone="running" />
               <WorkspaceStatusBadge icon={<Check className="h-3.5 w-3.5" />} label={galleryText(locale, "已完成", "Complete")} tone="success" />

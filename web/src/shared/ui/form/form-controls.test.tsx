@@ -258,6 +258,25 @@ describe("form primitives", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
+  it("updates default search text with locale while preserving explicit labels and input content", () => {
+    const onChange = vi.fn();
+    const node = (locale: "zh" | "en", placeholder?: string, label?: string) => (
+      <I18N_CONTEXT.Provider value={{ locale, setLocale: vi.fn(), t: (key) => key === "common.search" ? (locale === "zh" ? "搜索" : "Search") : key }}>
+        <UiSearchInput aria-label={label} onChange={onChange} placeholder={placeholder} value="existing query" />
+      </I18N_CONTEXT.Provider>
+    );
+    const { rerender } = render(node("zh"));
+    const search = screen.getByRole("searchbox", { name: "搜索" }) as HTMLInputElement;
+    rerender(node("en"));
+    expect(screen.getByRole("searchbox", { name: "Search" })).toBe(search);
+    expect(search.placeholder).toBe("Search");
+    expect(search.value).toBe("existing query");
+    rerender(node("en", "Find agents", "Agent directory"));
+    expect(screen.getByRole("searchbox", { name: "Agent directory" })).toBe(search);
+    expect(search.placeholder).toBe("Find agents");
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
   it("gives search a name and clears through the shared icon action", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();

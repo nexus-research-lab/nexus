@@ -8,7 +8,7 @@
 - `UiBadge` 默认使用共享紧凑圆角；只有数字聚合、版本等明确胶囊语义才传 `shape="pill"`。业务层不得再用 `rounded-*` 覆盖徽标外形。
 - `UiCounterBadge` 的实底与文字使用同一危险语义色及主题配对前景；`UiBadge` 的 active/success 共用外观配方，但保留消费者传入的业务语义。信息徽标的颜色只由当前 Badge recipe 派生，不保留第二套无消费者的主题色表。
 - `UiResourceState` 的 error 态最多提供一个安全恢复动作；需要“采用最新/覆盖草稿”这类双向业务选择时必须显式使用 decision 态，不得伪装成失败恢复。
-- `UiStateBlock` 的标题、说明和图标承载体只能选择 App Typography 与语义 shape role；空态使用对象标题层级，紧凑错误/决策态使用分区标题层级，不在业务调用方重写字号和圆角。
+- `UiStateBlock` 的标题、说明和图标承载体只能选择 App Typography 与语义 shape role；空态使用对象标题层级，紧凑错误/决策态使用分区标题层级，不在业务调用方重写字号和圆角。状态根允许长路径/标识换行，标题、说明和动作均受可用宽度约束；图标是装饰，不形成重复名称。ResourceState 保留动作 busy/disabled 与显式 tone，动作排布不能把长恢复文案撑出状态面。
 - `spinner-styles.ts` 是圆形加载指示器尺寸、颜色、旋转与 reduced-motion 行为的唯一 recipe；业务容器负责 `role/status`、`aria-busy` 和可见文案，不得把装饰性 Spinner 自己暴露成第二个播报节点。生产 `web/src` 的页面、Feature、App 壳与共享组件均由合同测试禁止直接使用 `animate-spin` 或边框 Spinner；启动猫与 Composer 字符动效是明确的品牌/交互例外。
 - `UiAgentAvatar` 与 `UiRoomAvatar` 的 `md` 是列表、工作区 Header 与完整消息共同使用的 40px 主身份基线；所有尺寸统一采用随尺寸缩放的 rounded-square 外轮廓，头像 API 不提供圆形变体。紧凑消息、成员堆叠、正文内联和导航图标可保留更小的语境尺寸，展示型 Profile 可保留更大尺寸。
 - `UiSeededAvatar` 的尺寸只映射到共享 `radius-control-*` 档位，瞬时执行状态只通过 `state="running"` 使用主题级 running 外环；不得在业务层用 `rounded-[Npx]`、品牌色 ring 或 shadow 重建头像状态。目录与详情传同一稳定资源标识，保证视觉身份连续。

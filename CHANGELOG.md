@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Workspace search now uses the shared input directly, with localized default
+  text and a reliable accessible name. Room fallback navigation uses shared
+  catalog actions; retired its separate action-card wrapper and unused layout
+  variant. State messages, recovery actions and catalog content now wrap long
+  text within the available width.
 - Composer settings menus now close when their Session changes, and permission
   scope menus reset with the request or when actions become unavailable. Failed
   permission delivery preserves entered secrets for retry. DM/Room share model
