@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Composer settings menus now close when their Session changes, and permission
+  scope menus reset with the request or when actions become unavailable. Failed
+  permission delivery preserves entered secrets for retry. DM/Room share model
+  selection handling, and long Provider labels leave space for model names.
 - Room model menus now keep one options list across wide and narrow layouts,
   preserving focus and scroll position. Shared overlay bounds constrain the
   full panel width, narrow headers count toward the height budget, and DM/Room

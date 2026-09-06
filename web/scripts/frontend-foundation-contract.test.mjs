@@ -3238,3 +3238,17 @@ test("Room Session model layouts preserve one option list and delegate viewport 
   assert.match(layout, /export const SESSION_MODEL_MENU_WIDTH = 256/);
   assert.doesNotMatch(room + direct, /const (?:ROOM|SESSION)_MODEL_MENU_WIDTH =/);
 });
+
+test("DM and Room model option commands have one selection owner", async () => {
+  const [room, direct, options] = await Promise.all([
+    readSource("src/features/conversation/shared/composer/components/footer/composer-room-model-control.tsx"),
+    readSource("src/features/conversation/shared/composer/components/footer/composer-session-controls.tsx"),
+    readSource("src/features/conversation/shared/composer/components/footer/composer-session-control-options.tsx"),
+  ]);
+  for (const consumer of [room, direct]) {
+    assert.match(consumer, /applySessionModelSelection\(controller, value\)/);
+    assert.doesNotMatch(consumer, /controller\.(?:resetModel|updateModel)\(/);
+    assert.doesNotMatch(consumer, /decodeSessionModelValue|JSON\.parse/);
+  }
+  assert.match(options, /export function applySessionModelSelection/);
+});

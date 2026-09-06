@@ -6,11 +6,11 @@ L6 | 父级: web/src/features/conversation/shared/composer/components
 
 - `composer-footer.tsx`: 以输入壳命名容器装配动作、Session 设置、Goal 标记、状态、元数据和提交动作，并在中心显示可按容器宽度收敛的 `Powered by Nexus`
 - `composer-footer-actions.tsx`: 构造附件、本机文件夹、Goal/Loop 动作菜单、当前 Session Connector 显式开关并按动作表分派命令
-- `composer-session-controls.tsx`: 为 DM 装配直接模型/权限菜单，为 Room 装配统一权限与右侧模型入口
+- `composer-session-controls.tsx`: 为 DM 装配直接模型/权限菜单，为 Room 装配统一权限与右侧模型入口；领先权限入口共用一条装配分支。直接菜单按 target.sessionKey 重置，busy/disabled 关闭后不得自动恢复。DM 选择继承权限写空 override，Room 仍显式写所选模式。
 - `composer-room-model-control.tsx`: 复用公共锚定浮层、菜单键盘和 Action Menu 内容，按 Room Agent 级联其当前 Session 模型；定位完成才给 Agent 菜单初始焦点，点击/右方向键进入模型，左方向键或首个 Escape 返回原 Agent，第二次 Escape 才退出。悬浮只更新级联目标，不抢焦点；选择和 Tab 退出归还入口。行高估算共用 getMenuItemLayout，领域只拥有菜单宽度与级联结构。
 - `composer-session-control-layout.ts` 统一 DM/Room 模型的 256px 内容宽度、Room 返回栏 recipe 和可见面板总高。双栏是否可用由两列内容、公共间距和视口留白组成的媒体查询决定，订阅使用公共 useMediaQuery；定位/限宽继续交给 Overlay，单栏 Panel 填满约束后的宽度。宽窄两种布局只渲染同一份 RoomModelOptions，保留真实列表 DOM、焦点和滚动；返回栏计入整体限高，正文独立滚动，不让两套选项 JSX 漂移。
 - Room 菜单为用户选中的 Agent/Session 保存临时绑定，目标失效或换 Session 时关闭；提交前还要对上当前控制器目标，不因目录刷新把迟到点击落到另一个 Session。持久设置和失败对账仍完全归控制器。布局变化只在原焦点节点已移除且焦点掉到 body 时恢复，不抢外部控件或上层模态焦点。
-- `composer-session-control-options.tsx`: 统一投影 DM 与 Room 共用的模型/权限选项
+- `composer-session-control-options.tsx`: 统一投影 DM 与 Room 共用的模型/权限选项，并唯一分派模型值的解码、继承重置与显式更新；控制器继续拥有持久化/失败对账，非法值不能变成清空配置。模型名占剩余空间，Provider 元信息最多占 40%，两者保留完整原文提示。
 - `composer-context-usage*.ts*`: 把 runtime 每轮快照投影为模型控件左侧的只读上下文占用环；Room 入口显示最高占用，唯一详情浮层逐 Agent 展示各自快照；详情按实际内容展开到公共 preset/视口上限，标题固定、列表内部滚动，不用估算行高裁切成员；入口关闭 IconButton 自动 Tooltip，只读详情开关保持原焦点
 - `composer-footer-status.tsx`: 展示唯一的当前运行状态；只把 model 的语义 tone 和 indicator 交给共享 Typography/LoadingOrb，不让状态正文整体 pulse
 - `composer-footer-metadata.tsx`: 展示字符数和历史位置

@@ -1670,3 +1670,42 @@ IME、Tab、hover、模型更新/继承/重置和 disabled 场景继续通过。
 667 项组件测试和生产 build，仍只有既有大型分块提示。权威日志为
 /tmp/nexus-room-model-a49-check.log。此前目标集 35 项已通过；最终门禁还验证了
 自动关闭 effect 合并和 Tooltip 焦点夹具的 act 修正，未运行浏览器或宿主视觉校验。
+
+
+## A50：会话设置与权限范围菜单绑定当前业务身份
+
+完成直接会话控件、选项投影、权限确认和范围选项四个文件的代码/行为审查。
+直接模型与权限菜单原本只保存布尔展开值，切换 Session 后仍可能呈现另一个
+目标的可操作菜单。现复用 useResettableState，以 target.sessionKey 在同一次
+渲染中重置；busy/disabled 继续关闭并清除展开态，恢复时不自动重开。领先权限
+入口删除 DM/Room 重复装配分支，保留 DM 选择继承模式写空 override、Room
+显式写模式及恢复默认动作，不修改控制器事务或 Agent 默认值。
+
+模型选项的 JSON 解码、继承值恢复和显式更新唯一归属
+composer-session-control-options，DM 与 Room 都调用同一分派；非法/空值不再
+可能成为清空配置请求。Room 原有 exact Agent/Session guard 和单一响应式
+列表保持。模型名称占剩余空间，次要 Provider 名称最多占 40%，长名称可省略
+并提供完整原文提示；保留公共紧凑菜单的字号、行高、分隔和选中状态，不新增
+另一套菜单或宽度配方。删除重复模型分派、重复领先分支和无语义的 class 别名。
+
+权限范围菜单按 request_id 重置；interactionDisabled、必需密钥不完整或
+范围选项消失时立即隐藏并关闭，不在重新可提交后自动恢复。响应入口同步检查
+禁用状态，成功后清空密钥与展开态，发送失败保留密钥供用户重试。范围项保持
+纯投影：单次、Automation allow_task 与 runtime suggestions 各自表达真实
+授权，选中原始建议原样回传，既不猜测规则也不退化为无建议的静默授权。
+保留 Agent/工具元信息、摘要、有限高度参数、必要密钥和唯一决策行的层级。
+
+新增八项 Session 控件回归及五项权限确认回归，验证精确 Session 切换/返回、
+Provider 身份与继承/reset、DM/Room 权限差异、busy/disabled、不可重置状态、
+无效编码、权限请求切换、禁用/缺密钥/失去范围、失败密钥保留和原建议重试。
+Room 原 11 项级联/响应式/键盘/身份回归保持通过；共 27 项目标测试通过。
+新门禁约束两个消费者不得再自行解码或直接分派模型设置。当前没有浏览器、
+截图或宿主视觉校验，也没有扩充 Gallery。
+
+清单仍为 485 项：335 pending、123 in_progress、9 retained、15 improved、
+3 removed。上述五个相关 TSX 的记录和存活摘要已同步；公共组件仍为 122 项。
+整个 Goal 继续，其他目录及页面没有因本批完成而被视为已经审查。
+
+验证：最终 npm run check 通过，含 lint、typecheck、473 项合同、199 个文件的
+680 项组件测试和生产 build，仍只有既有大型分块提示。权威日志
+/tmp/nexus-session-a50-check.log；未执行任何浏览器或宿主视觉校验。
