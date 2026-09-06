@@ -1,5 +1,5 @@
 // INPUT: Room 会话、路由选择、持久标签偏好与创建/关闭/替换命令。
-// OUTPUT: 已打开会话、乐观活动项、单飞事务和精确打开/关闭命令；旧列表不清除持久标签。
+// OUTPUT: 已打开会话、乐观活动项、单飞事务和精确打开/关闭命令；旧列表与最后标签替换不覆盖其他持久标签。
 // POS: Room 标签业务控制器；共享视图独立拥有 DOM、测量与滚动。
 
 import {
@@ -54,9 +54,6 @@ export function useRoomConversationTabs({
   const persistedTabs = useRoomNavigationStore((state) => (
     roomId ? state.conversation_tabs_by_room[roomId] : undefined
   ));
-  const saveRoomConversationTabs = useRoomNavigationStore(
-    (state) => state.save_room_conversation_tabs,
-  );
   const rememberLastActiveConversation = useRoomNavigationStore((state) => state.remember_last_active_conversation);
   const closeConversationTab = useRoomNavigationStore((state) => state.close_conversation_tab);
   const orderedConversationIds = useMemo(
@@ -192,9 +189,9 @@ export function useRoomConversationTabs({
         targetConversation,
         (nextConversationId) => {
           flushSync(() => {
-            saveRoomConversationTabs(
+            closeConversationTab(
               roomId,
-              [nextConversationId],
+              targetConversationId,
               nextConversationId,
             );
             if (nextConversationId !== targetConversationId) {

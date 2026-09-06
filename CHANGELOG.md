@@ -548,6 +548,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Preserve other open Session tabs when closing the last visible tab creates a
+  replacement conversation, including tabs opened from another page while the
+  replacement is pending. Remove the remaining whole-tab-set overwrite command.
 - Preserve open Session tabs when an older conversation list refreshes. Creating
   a Session or selecting history appends its tab; closing removes only that tab
   while retaining other open tabs and pinned Sessions across reloads.
