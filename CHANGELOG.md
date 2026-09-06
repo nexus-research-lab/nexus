@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Adapt Provider configuration columns to the actual detail-pane width, align
+  standard field sizes, and present fixed endpoints as read-only rows. Isolate
+  field labels per instance while retaining permissions and blur-save callbacks.
 - Keep Custom MCP parameter and secret rows stable during edits and removal,
   give each input and delete action a distinct name, and share technical input
   typography and labeled choice groups while preserving masked-secret saves.
