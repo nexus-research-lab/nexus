@@ -37,6 +37,7 @@ export const enCoreMessages = {
   "common.edit": "Edit",
   "common.delete": "Delete",
   "common.clear": "Clear",
+  "common.file_tree": "File tree",
   "common.search": "Search",
   "common.location_aria": "Current location",
   "common.required_field": "Required",

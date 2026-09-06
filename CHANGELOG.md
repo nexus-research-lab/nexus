@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Workspace file trees preserve nested expansion after parent collapse and
+  directory refresh, and discard preferences for removed directories. File
+  rows use shared buttons, named disclosure states and full-path action labels;
+  bounded names and indentation keep actions within the panel. Initial file
+  loading and empty directories now reuse shared state components.
 - Catalog headers, descriptions and footer actions now respect narrow columns;
   removed unused body growth, description reservation and icon tone options.
   Scheduled history uses the shared Badge directly, and list dividers use
