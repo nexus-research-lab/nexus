@@ -1,5 +1,5 @@
 // INPUT: 原生输入属性、内容角色、字段描述/错误与搜索值变更命令。
-// OUTPUT: 统一输入外观、精确关联的标签/说明/错误、原生校验反馈和可访问搜索清除行为。
+// OUTPUT: 统一输入外观、精确字段关联与独立标签动作、原生校验反馈和可访问搜索清除行为。
 // POS: 文本表单控件原语；不持有业务草稿、提交事务或领域校验规则。
 "use client";
 
@@ -46,6 +46,7 @@ interface UiFieldProps {
   error?: ReactNode;
   htmlFor?: string;
   label?: ReactNode;
+  labelAction?: ReactNode;
   labelClassName?: string;
   required?: boolean;
 }
@@ -102,6 +103,7 @@ export function UiField({
   error,
   htmlFor,
   label,
+  labelAction,
   labelClassName,
   required = false,
 }: UiFieldProps) {
@@ -192,7 +194,7 @@ export function UiField({
         role={isGroup ? "group" : undefined}
       >
         {label ? (
-          <div className="flex min-h-5 items-center justify-between gap-2">
+          <div className={cn("flex min-h-5 items-center justify-between gap-2", labelAction && "flex-wrap")}>
             <Label className={cn("dialog-label min-w-0", labelClassName)} htmlFor={htmlFor} id={labelId}>
               {label}
               {required ? (
@@ -210,6 +212,7 @@ export function UiField({
                 {labelError}
               </span>
             ) : null}
+            {labelAction ? <div className="shrink-0">{labelAction}</div> : null}
           </div>
         ) : null}
         {children}

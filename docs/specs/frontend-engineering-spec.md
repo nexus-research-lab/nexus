@@ -181,7 +181,7 @@ Primitive 同时拥有 DOM、键盘、焦点、ARIA 和视觉状态合同，例�
 - 紧凑目录内容使用 `WorkspaceCatalogCard size="dense"`；目录创建入口 `WorkspaceCatalogGhostAction` 只在 `UiButton outline` 上组合卡片尺寸与虚线边界，不另写按钮 DOM 或状态样式。授权行使用静态 `UiListRow` 组合唯一的 `GlassSwitch`，不能把整行或 Skill 卡片变成第二个切换命中区；失联但已授权的 Connector 必须仍可取消。
 - 业务文字、导航链接和纯图标动作必须分别渲染 `UiButton / UiLinkButton / UiIconButton`；`button-styles.ts` 是 shared primitive 的实现细节，业务层不得借其 class 投影手写第二套 DOM；
 - `UiButton surface` 表达带底色的次级动作，`outline` 表达与页面同层、透明无阴影但需要稳定边界的动作组，`ghost / text` 表达默认无边界的轻动作；业务页不得用局部 `background / border / shadow` 把一种变体临时改造成另一种；
-- 普通单行、多行和原生选择字段必须分别渲染 `UiInput / UiTextarea / UiNativeSelect`；业务层不得导入 `form-control-styles.ts` 复制输入壳，嵌入领域复合控件的无壳原生输入由其 pattern 明确负责；
+- 普通单行、多行和原生选择字段必须分别渲染 `UiInput / UiTextarea / UiNativeSelect`；工作区、资料文件与记忆等源码编辑使用 `UiSourceEditor`，保留原生编辑事件且不接管业务草稿/保存/快捷键。业务层不得导入 `form-control-styles.ts` 复制输入壳，嵌入其他领域复合控件的无壳原生输入由其 pattern 明确负责；
 - `UiField` 内的普通输入和选择 trigger 使用公共控件。字段的 `htmlFor` 必须与目标控件 `id` 显式配对，公共层把当前可见说明加入 `aria-describedby`，把当前错误关联到 `aria-errormessage / aria-invalid`；调用方已有描述必须保留。多输入组不能把同一字段身份自动复制给所有 children，分段选择等复合字段由业务明确提供组名和各控件名称。原生校验只定位当前表单中首个可校验的无效输入，由最近的 Field 显示一次；错误恢复后声明式恢复调用方最新 ARIA 属性，不通过 `removeAttribute` 擦除业务校验。浏览器 validity 与业务错误是独立事实，公共层不推断业务值是否有效；
 - 没有 `htmlFor` 的具名 `UiField` 表达复合区域：可见名称通过 `aria-labelledby` 关联 `role=group`，说明与显式整组错误属于该组，不生成无目标的 label，也不把整组错误写到每个输入。单个输入仍要显式配对，复合输入仍保留各自可访问名称；
 - 可增删的表单行必须保留草稿生命周期内稳定的行身份，不能按当前数组下标或可编辑的值生成 React key；行名称和移除动作要区分当前项，错误关联仍指向原控件。纯模型只接收身份并投影草稿，新增身份由视图事件创建；本地行身份不得混入保存协议或替代服务端资源身份；

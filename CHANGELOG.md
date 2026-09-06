@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Share source-editor typography, scrolling and keyboard focus across workspace,
+  profile and Memory surfaces; associate profile labels with their editor and
+  isolate pending save confirmations while preserving newer drafts.
 - Make Memory search and type filters readable, consolidate empty/loading states,
   wrap document headings and actions, and preserve navigation on access failures.
   Size conflict comparisons to the document pane instead of the browser window.

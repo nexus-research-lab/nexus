@@ -1,9 +1,9 @@
 // INPUT: exact Agent 的 AGENTS.md 文件 scope 与资料页保存确认。
-// OUTPUT: 复用通用 revision 编辑、冲突选择和未知结果核对的资料文件编辑器。
+// OUTPUT: 具名公共源码编辑器与 Agent 隔离的忙碌保存确认，保留较新的草稿。
 // POS: Agent 身份页适配层；不绕过 workspace 文本编辑器的可靠性边界。
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { buildTextFileEditorPresentation } from "@/features/conversation/shared/editor/text/text-file-editor-model";
 import { TextFileEditorBody } from "@/features/conversation/shared/editor/text/text-file-editor-body";
@@ -13,6 +13,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { UiButton } from "@/shared/ui/button/button";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
+import { UiField } from "@/shared/ui/form/form-control";
 
 const AGENT_PROFILE_FILE_PATH = "AGENTS.md";
 
@@ -21,7 +22,11 @@ interface AgentProfileFileEditorProps {
   label: string;
 }
 
-export function AgentProfileFileEditor({
+export function AgentProfileFileEditor(props: AgentProfileFileEditorProps) {
+  return <AgentProfileFileEditorScope key={props.agentId} {...props} />;
+}
+
+function AgentProfileFileEditorScope({
   agentId,
   label,
 }: AgentProfileFileEditorProps) {
@@ -33,9 +38,16 @@ export function AgentProfileFileEditor({
     path: AGENT_PROFILE_FILE_PATH,
   });
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [confirmBusy, setConfirmBusy] = useState(false);
+  const editorId = useId();
+  const mountedRef = useRef(true);
+  const submittingRef = useRef(false);
+  const currentEditorRef = useRef(editor);
+  useLayoutEffect(() => { currentEditorRef.current = editor; }, [editor]);
   useEffect(() => {
-    setIsConfirmOpen(false);
-  }, [agentId]);
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
   const revisionReady = Boolean(editor.revision);
   const saveBlocked = Boolean(
     editor.saveIssue
@@ -56,12 +68,17 @@ export function AgentProfileFileEditor({
     saveBlocked,
     translate: t,
   });
-  const isBusy = !editor.hasLoadedContent
+  const isBusy = confirmBusy || !editor.hasLoadedContent
+    || !revisionReady
     || editor.isLoading
     || editor.isExternalWriting
     || editor.isSaving
     || editor.isReconciling
     || saveBlocked;
+
+  useEffect(() => {
+    if (!confirmBusy && (!editor.hasLoadedContent || !revisionReady || saveBlocked)) setIsConfirmOpen(false);
+  }, [confirmBusy, editor.hasLoadedContent, revisionReady, saveBlocked]);
 
   const handleEditAction = useCallback(() => {
     if (isBusy) {
@@ -79,28 +96,32 @@ export function AgentProfileFileEditor({
   }, [editor, isBusy]);
 
   const handleConfirmSave = useCallback(async () => {
-    if (editor.isSaving) {
-      return;
-    }
-    const didSave = await editor.save();
-    if (!didSave) {
+    if (isBusy || submittingRef.current || !isConfirmOpen) return;
+    const submittedDraft = editor.draftContent;
+    submittingRef.current = true;
+    setConfirmBusy(true);
+    try {
+      const didSave = await editor.save();
+      if (!mountedRef.current) return;
       setIsConfirmOpen(false);
-      return;
+      const current = currentEditorRef.current;
+      if (didSave && (current.draftContent === submittedDraft || !current.isDirty)) {
+        current.setIsEditing(false);
+      }
+    } finally {
+      submittingRef.current = false;
+      if (mountedRef.current) setConfirmBusy(false);
     }
-    setIsConfirmOpen(false);
-    editor.setIsEditing(false);
-  }, [editor]);
+  }, [editor, isBusy, isConfirmOpen]);
 
   const handleCancelConfirmation = useCallback(() => {
-    setIsConfirmOpen(false);
+    if (!submittingRef.current) setIsConfirmOpen(false);
   }, []);
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
-      <div className="flex shrink-0 items-center justify-between gap-3">
-        <label className="text-xs font-semibold text-(--text-muted)">
-          {label}
-        </label>
+    <UiField className="flex min-h-0 min-w-0 flex-1 flex-col gap-2"
+      htmlFor={presentation.bodyMode === "editing" ? editorId : undefined} label={label}
+      labelAction={(
         <UiButton
           disabled={isBusy}
           onClick={handleEditAction}
@@ -110,7 +131,7 @@ export function AgentProfileFileEditor({
         >
           {editor.isEditing ? t("common.save") : t("common.edit")}
         </UiButton>
-      </div>
+      )}>
 
       <div
         className={cn(
@@ -123,6 +144,8 @@ export function AgentProfileFileEditor({
         <TextFileEditorBody
           agentId={agentId}
           content={editor.displayContent}
+          editorId={editorId}
+          editorLabel={label}
           exitEditingOnBlur={false}
           fileName={AGENT_PROFILE_FILE_PATH}
           fileType="markdown"
@@ -150,6 +173,7 @@ export function AgentProfileFileEditor({
       />
 
       <ConfirmDialog
+        busy={confirmBusy || editor.isSaving || editor.isReconciling}
         cancelText={t("agent_options.identity.profile_save_confirm_cancel")}
         confirmText={t("agent_options.identity.profile_save_confirm_action")}
         isOpen={isConfirmOpen}
@@ -160,6 +184,6 @@ export function AgentProfileFileEditor({
         }}
         title={t("agent_options.identity.profile_save_confirm_title")}
       />
-    </div>
+    </UiField>
   );
 }
