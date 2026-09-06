@@ -30,8 +30,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed unused dismiss behavior from ordinary view/filter selectors and
   centralized their typography; workspace session tab controls remain intact.
 - Restored the previous Memory page layout as a whole, including its compact
-  search/filter row, directory, document header and split-pane surfaces, while
-  retaining shared source editing and file recovery behavior.
+  search/filter row, directory, document header and split-pane structure, while
+  aligning the base background with sibling Agent tabs, retaining document
+  surface depth, shared source editing and file recovery behavior.
 - Unified workspace file loading and empty states across media, Office and text
   previews, removed duplicate header feedback and unused status copy, and
   localized unsupported-file guidance for browser download and desktop reveal.
