@@ -1,6 +1,6 @@
 /**
  * INPUT: Room 会话目录、当前会话和既有创建/选择/删除/重命名命令。
- * OUTPUT: 带固定高度列表、批量操作，以及未确认删除项 Problem/Impact/Recovery 的历史菜单。
+ * OUTPUT: 固定标题/操作区、可读时间与多选状态；未确认删除说明复用公共提示并随列表滚动。
  * POS: Room Header 历史交互层；只按命令结果展示恢复事实，不猜测底层提交状态。
  */
 
@@ -21,6 +21,8 @@ import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { cn } from "@/shared/ui/class-name";
 import { UiCheckbox } from "@/shared/ui/form/checkbox";
 import { UiListSectionDivider } from "@/shared/ui/list/list-section-divider";
+import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { useSelectMenuOverlay } from "@/shared/ui/menu/use-select-menu-overlay";
 import { resolveUiAnchoredOverlayPosition } from "@/shared/ui/overlay/anchored-overlay-layout";
 import {
@@ -303,7 +305,7 @@ export function RoomHistoryMenu({
         >
           <header className="flex shrink-0 items-center border-b border-(--divider-subtle-color) px-3.5 py-2.5">
             <h2
-              className="truncate text-compact font-semibold text-(--text-strong)"
+              className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong", weight: "semibold" })}
               id={historyTitleId}
             >
               {t("room.history")}
@@ -312,11 +314,12 @@ export function RoomHistoryMenu({
 
           {isSelecting ? (
             <div className="shrink-0 border-b border-(--divider-subtle-color) px-2.5 py-1.5">
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
                 <label
                   className={cn(
-                    "inline-flex h-6 min-w-0 items-center gap-2 radius-control-xs px-1.5 text-xs font-medium text-(--text-default) transition-colors hover:bg-(--surface-interactive-hover-background)",
-                    !hasSelectableEntries && "cursor-not-allowed opacity-(--disabled-opacity)",
+                    "inline-flex min-h-8 min-w-0 items-center gap-2 px-1.5",
+                    getUiTypographyClassName({ role: "supporting", tone: "default", weight: "medium" }),
+                    hasSelectableEntries ? "cursor-pointer" : "cursor-not-allowed opacity-(--disabled-opacity)",
                   )}
                 >
                   <UiCheckbox
@@ -328,35 +331,12 @@ export function RoomHistoryMenu({
                   />
                   <span className="truncate">{t("room.history_select_all")}</span>
                 </label>
-                <span className="shrink-0 text-2xs text-(--text-soft)">
+                <span className={cn("shrink-0", getUiTypographyClassName({ role: "metadata", tone: "muted" }))}>
                   {t("room.history_selection_count", {
                     count: selectedIds.size,
                   })}
                 </span>
               </div>
-              {bulkDeleteFailure ? (
-                <div
-                  aria-atomic="true"
-                  aria-live="polite"
-                  className="space-y-0.5 px-1.5 pt-1 text-2xs leading-4"
-                  role="status"
-                >
-                  <p className="font-medium text-(--destructive)">
-                    {t("room.history_batch_delete_failed", {
-                      count: bulkDeleteFailure.failedCount,
-                    })}
-                  </p>
-                  <p className="text-(--text-muted)">
-                    {t("room.history_batch_delete_impact", {
-                      completed: bulkDeleteFailure.totalCount - bulkDeleteFailure.failedCount,
-                      pending: bulkDeleteFailure.failedCount,
-                    })}
-                  </p>
-                  <p className="font-medium text-(--text-default)">
-                    {t("room.history_batch_delete_next_step")}
-                  </p>
-                </div>
-              ) : null}
             </div>
           ) : null}
 
@@ -364,6 +344,20 @@ export function RoomHistoryMenu({
             className="soft-scrollbar min-h-0 flex-1 overflow-auto overscroll-contain p-1.5"
             data-room-history-scroll-viewport
           >
+            {isSelecting && bulkDeleteFailure ? (
+              <UiInlineNotice
+                className="mb-2"
+                message={<>
+                  <p>{t("room.history_batch_delete_impact", {
+                    completed: bulkDeleteFailure.totalCount - bulkDeleteFailure.failedCount,
+                    pending: bulkDeleteFailure.failedCount,
+                  })}</p>
+                  <p className="mt-1">{t("room.history_batch_delete_next_step")}</p>
+                </>}
+                title={t("room.history_batch_delete_failed", { count: bulkDeleteFailure.failedCount })}
+                tone="warning"
+              />
+            ) : null}
             {entries.length > 0 ? (
               <div
                 className="min-w-full space-y-1 pb-1"
@@ -384,8 +378,8 @@ export function RoomHistoryMenu({
                 ) : null}
               </div>
             ) : (
-              <div className="flex h-full min-h-[150px] items-center justify-center px-5 py-8 text-center">
-                <p className="text-sm text-(--text-soft)">
+              <div className="flex h-full items-center justify-center px-5 py-6 text-center">
+                <p className={getUiTypographyClassName({ role: "supporting", tone: "muted" })} role="status">
                   {t("room.no_conversations")}
                 </p>
               </div>
@@ -393,12 +387,12 @@ export function RoomHistoryMenu({
           </div>
 
           {hasSelectableEntries || isSelecting ? (
-            <footer className="flex shrink-0 items-center justify-between gap-2 border-t border-(--divider-subtle-color) px-2.5 py-1.5">
+            <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-(--divider-subtle-color) px-2.5 py-1.5">
               {hasSelectableEntries ? (
                 <UiButton
                   className="shrink-0"
                   onClick={toggleSelectionMode}
-                  size="xs"
+                  size="sm"
                   variant="text"
                 >
                   {isSelecting
@@ -411,7 +405,7 @@ export function RoomHistoryMenu({
                   className="shrink-0"
                   disabled={selectedIds.size === 0}
                   onClick={requestBulkDelete}
-                  size="xs"
+                  size="sm"
                   tone="danger"
                   variant="text"
                 >

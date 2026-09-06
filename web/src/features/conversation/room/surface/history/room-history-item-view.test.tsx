@@ -35,6 +35,7 @@ describe("RoomHistoryItemView", () => {
       confirm: vi.fn(),
       draft: "项目讨论",
       inputRef: createRef<HTMLInputElement>(),
+      triggerRef: createRef<HTMLButtonElement>(),
       setDraft: vi.fn(),
       start: vi.fn(),
     };
@@ -57,7 +58,7 @@ describe("RoomHistoryItemView", () => {
     expect(row.className).toContain("min-h-10");
     expect(row.className).not.toContain("w-max");
     expect(row.getAttribute("aria-current")).toBe("page");
-    expect(screen.getByText("刚刚").className).toContain("ui-type-caption");
+    expect(screen.getByText("刚刚").className).toContain("ui-type-metadata");
     expect(screen.getByText("飞书 · 账号 816684 · 历史").className)
       .toContain("ui-type-metadata");
     await user.click(row);

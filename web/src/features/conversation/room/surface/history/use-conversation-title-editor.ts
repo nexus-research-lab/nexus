@@ -1,3 +1,7 @@
+// INPUT: 当前会话标题与明确的重命名命令。
+// OUTPUT: 可空编辑草稿、编辑输入焦点与退出编辑后的动作焦点恢复。
+// POS: 历史标题编辑生命周期；不持有菜单开关或会话切换命令。
+
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
 
 interface UseConversationTitleEditorOptions {
@@ -11,12 +15,17 @@ export function useConversationTitleEditor({
 }: UseConversationTitleEditorOptions) {
   const [draft, setDraft] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const wasEditingRef = useRef(false);
   const isEditing = draft !== null;
 
   useEffect(() => {
     if (isEditing) {
       inputRef.current?.focus();
+    } else if (wasEditingRef.current) {
+      triggerRef.current?.focus();
     }
+    wasEditingRef.current = isEditing;
   }, [isEditing]);
 
   const start = useCallback((event: MouseEvent) => {
@@ -36,6 +45,7 @@ export function useConversationTitleEditor({
     draft: draft ?? "",
     isEditing,
     inputRef,
+    triggerRef,
     setDraft,
     start,
     cancel,

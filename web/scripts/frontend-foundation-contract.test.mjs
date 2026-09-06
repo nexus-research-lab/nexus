@@ -1420,6 +1420,8 @@ test("Room history controls use the shared Button, Form, and whole-row List owne
   assert.match(item, /getUiTypographyClassName/);
   assert.match(item, /activeTone="sidebar"/);
   assert.match(item, /density="dense"/);
+  assert.match(item, /visibility=\{presentation.actionsPersistent \? "visible" : "hover"\}/);
+  assert.doesNotMatch(item, /group-hover\/item:opacity|"opacity-0/);
   assert.doesNotMatch(
     item,
     /<button\b|ENTRY_STYLES|rounded-\[|color-mix|\bw-max\b|grid-cols-\[max-content|\btext-(?:2xs|xs|compact|sm|base)\b|\bfont-(?:medium|semibold)\b/,

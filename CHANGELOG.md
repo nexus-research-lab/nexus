@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Refine desktop and mobile conversation history with shared readable metadata,
+  row-action visibility, scrollable batch-result feedback and a localized empty
+  state. Keep IME candidate keys out of title saving, restore editing focus,
+  and give mobile history instances distinct accessible names.
 - Unify Composer Loop and WorkGraph picker surfaces and readable metadata,
   focus search on opening, and add keyboard navigation to WorkGraph previews.
   Prevent duplicate Loop starts and late completion from closing a reopened
