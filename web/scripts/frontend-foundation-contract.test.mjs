@@ -1813,6 +1813,27 @@ test("Action, Workspace, and Room model menus share one menu-item row DOM owner"
   assert.match(roomModelMenu, /role="menu"/);
 });
 
+test("Mention suggestions share overlay, option DOM and menu geometry owners", async () => {
+  const [mention, model, action, row, launcher, composer] = await Promise.all([
+    readSource("src/shared/ui/mention/mention-target-popover.tsx"),
+    readSource("src/shared/ui/mention/mention-target-model.ts"),
+    readSource("src/shared/ui/menu/action-menu.tsx"),
+    readSource("src/shared/ui/menu/menu-action-row.tsx"),
+    readSource("src/features/launcher/hero/launcher-hero-stage.tsx"),
+    readSource("src/features/conversation/shared/composer/components/composer-input-row.tsx"),
+  ]);
+  for (const owner of [mention, action, row]) assert.match(owner, /getMenuItemLayout/);
+  assert.match(mention, /useAnchoredOverlayLayer/);
+  assert.match(mention, /preset: "reference-list"/);
+  assert.match(mention, /<SelectMenuPanel\b/);
+  assert.match(mention, /<SelectMenuOptionRow\b/);
+  assert.doesNotMatch(mention, /<button\b|document\.body|ui-layer-dialog|anchorRect/);
+  assert.doesNotMatch(model, /PopoverLayout|POPOVER_GAP|POPOVER_MAX_HEIGHT|MentionPlacement/);
+  for (const consumer of [launcher, composer]) {
+    assert.match(consumer, /<MentionTargetPopover\s+anchorRef=/);
+  }
+});
+
 test("cross-domain warnings reuse the shared inline feedback owner", async () => {
   const [roomSkills, subagents, agentOptions, assistantMessage, memoryDocument, toolDetail] =
     await Promise.all([

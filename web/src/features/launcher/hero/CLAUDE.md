@@ -8,6 +8,7 @@
 - `launcher-recent-entry-styles.ts` 只从稳定入口键投影语义色身份点；不得把按钮底色、边框、字号或交互态带回业务配方。
 - `launcher-recent-entries.tsx` 只编排最近入口与主 Agent 交接动作；两类动作固定复用透明 `UiButton`，DM 以彩色身份点替代机器人图标，Room 保留 `#` 语义，入口说明复用 `shared/ui/overlay/tooltip`，不得恢复原生按钮、常驻胶囊底或局部层级的 Tooltip。
 - `use-launcher-query-input.ts` 拥有受控输入、IME、Mention 和提交交互。
+- Mention 只接收原输入 ref，定位、listbox/活动候选关联和浮层关闭由共享所有者处理；Hero 不再捕获一次性矩形或强制向下方向。
 - 输入键盘与公共 Mention 捕获都复用 `isImeKeyboardEvent`，composition、Process 和 229 不能触发选择或提交；同步受理成功才清理草稿，拒绝保留原文，外部恢复和 Mention 光标插入仍由本输入 owner 处理。
 - `use-launcher-stage-scale.ts` 拥有唯一的响应式缩放系数；云朵画布上移居中（锚点 40%）、Token 堆锚定视口底部共用系数，禁止再引入断点补丁 CSS。
 - `pile/` 独立拥有 Agent Pile 的描述表、Matter 生命周期和 Token 视图，不回流 Console。

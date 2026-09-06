@@ -100,13 +100,13 @@ export function resolveAnchoredOverlayPosition({
       ? {
           bottom: Math.max(
             viewportMargin,
-            viewportHeight - rect.top + gap,
+            Math.min(viewportHeight - rect.top + gap, viewportHeight - viewportMargin - resolvedMaxHeight),
           ),
         }
       : {
-          top: Math.min(
-            rect.bottom + gap,
-            viewportHeight - viewportMargin - resolvedMaxHeight,
+          top: Math.max(
+            viewportMargin,
+            Math.min(rect.bottom + gap, viewportHeight - viewportMargin - resolvedMaxHeight),
           ),
         }),
   };

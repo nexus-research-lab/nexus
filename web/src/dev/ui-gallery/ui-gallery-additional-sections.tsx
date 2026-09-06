@@ -74,6 +74,7 @@ import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
 import { MermaidView } from "@/shared/ui/markdown/mermaid/mermaid-view";
 import { WorkspaceFileButton } from "@/shared/ui/markdown/workspace/markdown-workspace-file-button";
 import { MentionTargetPopover } from "@/shared/ui/mention/mention-target-popover";
+import { UiInput } from "@/shared/ui/form/form-control";
 import { UiActionMenu, UiActionMenuContent } from "@/shared/ui/menu/action-menu";
 import { UiBreadcrumb } from "@/shared/ui/navigation/breadcrumb";
 import { TourOverlayCard } from "@/shared/ui/onboarding/overlay/tour-overlay-card";
@@ -366,12 +367,12 @@ export function ContentGallery({ locale }: { locale: Locale }) {
 
 export function InteractionGallery({ locale }: { locale: Locale }) {
   const actionAnchorRef = useRef<HTMLButtonElement>(null);
-  const mentionAnchorRef = useRef<HTMLButtonElement>(null);
+  const mentionAnchorRef = useRef<HTMLInputElement>(null);
   const [actionMenuOpen, setActionMenuOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [glassChecked, setGlassChecked] = useState(true);
   const [icon, setIcon] = useState("agent-3");
-  const [mentionRect, setMentionRect] = useState<DOMRect | null>(null);
+  const [mentionOpen, setMentionOpen] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
   const [tourTargetActions, setTourTargetActions] = useState(0);
   const actionItems = useMemo(() => [
@@ -457,23 +458,26 @@ export function InteractionGallery({ locale }: { locale: Locale }) {
               startIconId={1}
               value={icon}
             />
-            <UiButton
+            <UiInput
               ref={mentionAnchorRef}
-              onClick={() => setMentionRect(mentionAnchorRef.current?.getBoundingClientRect() ?? null)}
+              aria-label={galleryText(locale, "提及成员", "Mention member")}
+              onFocus={() => setMentionOpen(true)}
+              onClick={() => setMentionOpen(true)}
+              placeholder="@"
+              readOnly
               variant="surface"
-            >
-              @ {galleryText(locale, "选择成员", "Mention member")}
-            </UiButton>
+            />
           </div>
           <MentionTargetPopover
-            anchorRect={mentionRect}
+            anchorRef={mentionAnchorRef}
+            isOpen={mentionOpen}
             filter=""
             items={[
               { id: "maya", label: "Maya", marker: "M", subtitle: galleryText(locale, "前端", "Frontend") },
               { id: "lin", label: "Lin", marker: "L", subtitle: galleryText(locale, "设计系统", "Design system") },
             ]}
-            onClose={() => setMentionRect(null)}
-            onSelect={() => setMentionRect(null)}
+            onClose={() => setMentionOpen(false)}
+            onSelect={() => setMentionOpen(false)}
           />
         </PreviewCard>
       </PreviewSection>

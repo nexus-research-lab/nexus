@@ -1,4 +1,4 @@
-// INPUT: 锚点、开关状态、定位投影以及可选的焦点归还策略。
+// INPUT: 锚点、开关状态、定位投影、可选的 Escape 捕获阶段及焦点归还策略。
 // OUTPUT: Portal、定位与按模态范围仲裁的关闭生命周期；输入法候选键不触发退出。
 // POS: 锚定浮层浏览器适配层；不决定 Menu、Tooltip 或 Popover 的内容与键盘语义。
 "use client";
@@ -27,6 +27,8 @@ import {
 
 interface AnchoredOverlayLayerOptions<T extends HTMLElement> {
   anchorRef: RefObject<T | null>;
+  // Text-editor suggestions retain focus in a field whose parent may stop key bubbling.
+  captureEscape?: boolean;
   disabled: boolean;
   estimatePosition: (anchor: T) => UiAnchoredOverlayPosition;
   isOpen: boolean;
@@ -69,6 +71,7 @@ function resolvePortalContainer(anchor: HTMLElement | null): Element | null {
 /** 统一锚定浮层的浏览器生命周期，消费者只负责交互语义和内容。 */
 export function useAnchoredOverlayLayer<T extends HTMLElement>({
   anchorRef,
+  captureEscape = false,
   disabled,
   estimatePosition,
   isOpen,
@@ -136,6 +139,7 @@ export function useAnchoredOverlayLayer<T extends HTMLElement>({
         return;
       }
       event.preventDefault();
+      if (captureEscape) event.stopPropagation();
       onClose();
       if (restoreFocus) {
         restoreFocus();
@@ -145,16 +149,16 @@ export function useAnchoredOverlayLayer<T extends HTMLElement>({
     };
 
     document.addEventListener("pointerdown", handlePointerDown, true);
-    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("keydown", handleKeyDown, captureEscape);
     window.addEventListener("resize", updatePosition);
     window.addEventListener("scroll", updatePosition, true);
     return () => {
       document.removeEventListener("pointerdown", handlePointerDown, true);
-      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("keydown", handleKeyDown, captureEscape);
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
     };
-  }, [anchorRef, disabled, isOpen, onClose, restoreFocus, updatePosition]);
+  }, [anchorRef, captureEscape, disabled, isOpen, onClose, restoreFocus, updatePosition]);
 
   useLayoutEffect(() => {
     if (isOpen && !disabled) {

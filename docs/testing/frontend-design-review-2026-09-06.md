@@ -1491,3 +1491,48 @@ Button/Tooltip/FadeSlideIn 组合；删除重复 inline-flex 包装，交接文�
 `/tmp/nexus-launcher-a45-components.log`、`/tmp/nexus-launcher-a45-typecheck.log`、
 `/tmp/nexus-launcher-a45-check.log` 和 `/tmp/nexus-launcher-a45-build.log`。
 构建继续只有已知大型分块提示，无视觉或原生播放验收结论。
+
+## A46：Mention 候选复用公共浮层与选项行
+
+对公共 Mention 的定位、候选结构、命中区、键盘与关闭生命周期继续审查。
+原实现直接 Portal 到 body，使用一次性 DOMRect、52px 行高估算和私有最大高度，
+无法跟随滚动刷新，也没有参与模态范围关闭仲裁。现消费真实 input/textarea ref，
+复用 anchored layer 与 reference-list preset 自动选位、限宽/限高、监听滚动和
+窗口变化，并进入当前 Dialog Portal。Launcher 和 Composer 只传原编辑器 ref，
+删除重复矩形计算、强制上下方向、私有定位函数/类型/常量；模型只保留文本匹配、
+插入、筛选和键盘动作。Gallery 仅适配既有 Mention 场景为真实输入锚点，未增加
+或执行任何视觉场景。
+
+候选复用 SelectMenuPanel/SelectMenuOptionRow 与 Menu 行密度，外框材质、层级、
+圆角、行间距和状态不再另写。单行 36px/说明行 44px，标记是装饰性 24px 中性
+圆角方块；标题保留完整可访问文本和原文提示，说明复用 caption role。原始
+onMouseDown 立即选择改为按下保持输入焦点、click 单次选择，以支持普通点击与
+辅助技术激活。键盘仍留在编辑器，通过 aria-controls/activedescendant/autocomplete
+关联实际候选，关闭或替换输入节点时恢复原属性，不接管值、role 或输入命令。
+
+候选方向键/Enter/Tab 只接受当前模态范围最上层、且来自本锚点/列表的事件；
+IME 和其他输入框不被截获。Escape、外部点击和焦点策略统一归 Overlay；为父级
+会阻止输入事件冒泡的场景增加显式 captureEscape，仍服从相同最上层/模态/IME
+仲裁，其他消费者继续原冒泡阶段。嵌套弹窗先关闭候选，下一次才关闭父级。
+
+Action 行的四档渲染尺寸及对应高度归入 getMenuItemLayout，Mention、UiMenuActionRow
+和 Action Menu 估算共用；删除 Action Menu 另一份高度表，现有菜单几何保持。
+滚动回归同时暴露公共定位器在锚点越过视口上缘时会返回负坐标；top/bottom
+最终结果现在都夹紧到视口留白，新增三项越界/强制方向坐标回归。
+
+Mention 新增七项代码行为回归，覆盖当前候选关联及属性恢复、输入节点替换、
+外部输入/IME 隔离、单次点击与焦点、外部点击、滚动/过滤、嵌套真实 Dialog Portal
+和后台候选隔离；已有 Launcher 实际查询回归继续参与。它们证明 DOM、事件与
+坐标投影，不代替用户已暂停的视觉或真实宿主验收。
+
+清单仍为 485 项：340 pending、124 in_progress、8 retained、10 improved、
+3 removed；摘要匹配，公共 UI 仍为 122 项。Action Menu 全部键盘语义和 Composer
+的其他分支保持待审，不因共用已改进的底层而自动完成。整个 Goal 继续。
+
+验证：目标组件及既有菜单/浮层回归通过，新增 Mention 测试单独通过；最终完整
+`npm run check` 成功，含 lint、typecheck、470 项合同、194 个文件的 633 项
+组件回归及生产 build，仍只有既有大型分块提示。日志为
+`/tmp/nexus-mention-a46-components.log`（添加完整模态用例时的初次结果）、
+`/tmp/nexus-mention-a46-focused.log`（补齐 jsdom 可见性夹具后的通过结果）、
+`/tmp/nexus-mention-a46-typecheck.log` 和 `/tmp/nexus-mention-a46-check.log`
+（最终全部通过）。未运行浏览器或真实宿主视觉验证。

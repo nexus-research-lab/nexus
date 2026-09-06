@@ -15,6 +15,7 @@ import { createPortal } from "react-dom";
 import { cn } from "@/shared/ui/class-name";
 
 import {
+  getMenuItemLayout,
   MENU_ITEM_GAP_PX,
   MENU_LIST_CLASS_NAME,
   MENU_SURFACE_VERTICAL_PADDING_PX,
@@ -73,14 +74,6 @@ interface UiActionMenuProps {
 }
 
 const ACTION_MENU_MAX_HEIGHT = 320;
-const ACTION_MENU_ITEM_HEIGHT = {
-  compact: 32,
-  default: 36,
-} as const;
-const ACTION_MENU_DESCRIBED_ITEM_HEIGHT = {
-  compact: 40,
-  default: 44,
-} as const;
 const ACTION_MENU_FOOTER_SEPARATOR_HEIGHT = 9;
 const EMPTY_ACTION_MENU_ITEMS: UiActionMenuItem[] = [];
 const ENABLED_ACTION_MENU_ITEM_SELECTOR = '[role="menuitem"]:not([aria-disabled="true"])';
@@ -134,11 +127,7 @@ function estimateActionMenuHeight({
   const hasFooter = footerItems.length > 0;
   const contentBlockCount = allItems.length + (hasFooter ? 1 : 0);
   return allItems.reduce(
-    (height, item) => height + (
-      item.description
-        ? ACTION_MENU_DESCRIBED_ITEM_HEIGHT[density]
-        : ACTION_MENU_ITEM_HEIGHT[density]
-    ),
+    (height, item) => height + getMenuItemLayout({ density, hasDescription: Boolean(item.description) }).height,
     MENU_SURFACE_VERTICAL_PADDING_PX
       + (hasFooter ? ACTION_MENU_FOOTER_SEPARATOR_HEIGHT : 0),
   ) + MENU_ITEM_GAP_PX * Math.max(0, contentBlockCount - 1);
@@ -168,14 +157,14 @@ function resolveActionMenuPosition({
   });
   const estimatedHeight = Math.min(
     ACTION_MENU_MAX_HEIGHT,
-    Math.max(ACTION_MENU_ITEM_HEIGHT[density], contentHeight),
+    Math.max(getMenuItemLayout({ density }).height, contentHeight),
   );
   return resolveAnchoredOverlayPosition({
     align,
     anchor,
     estimatedHeight,
     maxHeight: ACTION_MENU_MAX_HEIGHT,
-    minHeight: ACTION_MENU_ITEM_HEIGHT[density],
+    minHeight: getMenuItemLayout({ density }).height,
     minWidth,
     placement,
   });

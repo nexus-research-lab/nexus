@@ -4,7 +4,7 @@ L5 | 父级: web/src/features/conversation/shared/composer
 
 ## 职责
 
-- `composer-input-row.tsx`: 装配后端权威 Slash/Mention 补全与 textarea，提交和其他动作留在底部工具行
+- `composer-input-row.tsx`: 装配后端权威 Slash/Mention 补全与 textarea，提交和其他动作留在底部工具行；Mention 直接使用真实 textarea ref，共享浮层负责实时位置、可访问候选关联和输入焦点保留，不在消费侧计算矩形或强制方向
 - `slash-command-popover.tsx`: 复用 Shared Select Menu 展示后端静态命令目录、`/model` 模型子面板、`/skills` 技能子面板及异步/空状态
 - `composer-submit-button.tsx`: 以单一投影选择停止、加载、Goal 或发送动作
 - `composer-local-directories.tsx`: 以单行横向滑动的 Nexus 文件夹胶囊展示当前 Session 的本机工作目录，并用共享微型 IconButton 提供添加与移除动作

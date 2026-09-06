@@ -135,14 +135,11 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
             >
                 {queryInput.mention.match ? (
                   <MentionTargetPopover
-                    anchorRect={
-                      queryInput.input.ref.current?.getBoundingClientRect() ?? null
-                    }
+                    anchorRef={queryInput.input.ref}
                     filter={queryInput.mention.match.filter}
                     items={queryInput.mention.targets}
                     onClose={queryInput.mention.close}
                     onSelect={queryInput.mention.select}
-                    placement="below"
                   />
                 ) : null}
                 <UiInput
