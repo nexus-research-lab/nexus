@@ -826,6 +826,9 @@ test("dialog keeps actions visible and returns focus through nested surfaces", a
   await trigger.focus();
   await page.keyboard.press("Enter");
   const dialog = page.getByRole("dialog", { name: copy(info, "共享弹窗契约", "Shared dialog contract"), exact: true });
+  const titleId = await dialog.getByRole("heading", { level: 2 }).getAttribute("id");
+  expect(titleId).toBeTruthy();
+  await expect(dialog).toHaveAttribute("aria-labelledby", titleId!);
   const shell = dialog.locator(".dialog-shell");
   await expectInsideViewport(page, shell);
   const close = dialog.getByRole("button", { name: copy(info, "关闭", "Close"), exact: true });
@@ -859,11 +862,13 @@ test("dialog keeps actions visible and returns focus through nested surfaces", a
   await nestedTrigger.focus();
   await page.keyboard.press("Enter");
   const nested = page.getByRole("dialog", { name: copy(info, "新建文件夹", "New folder"), exact: true });
+  expect(await nested.getAttribute("aria-labelledby")).not.toBe(titleId);
   await expectInsideViewport(page, nested.locator(".dialog-shell"));
   await expect(nested.getByRole("textbox")).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(nested).toHaveCount(0);
   await expect(dialog).toBeVisible();
+  await expect(dialog).toHaveAttribute("aria-labelledby", titleId!);
   await expect(nestedTrigger).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);

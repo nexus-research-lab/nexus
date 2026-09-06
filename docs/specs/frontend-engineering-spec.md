@@ -195,6 +195,7 @@ Primitive 同时拥有 DOM、键盘、焦点、ARIA 和视觉状态合同，例�
 - variant 必须存在真实视觉或行为差异；完全相同的 variant 合并；
 - 带可见组名的分段选择使用 `UiSegmentedControl showLabel` 组合公共 Field，由外层持有唯一 group 名称；不能包入原生 label 或叠加同名 group。单输入 Field 的标签仍通过实例级 htmlFor/id 指向真实控件，不能靠包装整个复合区域推断目标；
 - 普通按钮、输入和模态不得绕过已有 primitive 手写第二套行为。
+- 普通 Dialog 的名称由 `UiDialogHeader.title` 自动关联到最近 `UiDialogBackdrop`；公共层持有实例唯一 ID 和标题注册/释放，业务不重复接线。显式 `labelledBy` / `aria-labelledby` / `aria-label` 优先于自动标题；自定义 Header 内容或无标题栏预览必须显式命名。说明关联仍由业务指定，不自动将复杂正文压成一条可访问描述。
 - 已有详情浮层的 IconButton 必须通过 `tooltip={null}` 关闭自动短提示，并由详情拥有 `aria-describedby`。只读 Tooltip/用量详情使用浮层层的 `restoreFocus: false`，打开和关闭不移动焦点；交互式菜单和 Dialog 继续遵守其焦点归还合同。
 
 ### 4.4 Pattern

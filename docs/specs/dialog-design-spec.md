@@ -49,6 +49,7 @@
 - Dialog、Popover、Tooltip、Tour 等高层界面不得在业务组件里直接声明数值 `z-index`；统一通过 `UiDialogBackdrop.layer` 或 `shared/ui/overlay/layer-styles.ts` 的语义层级表达遮挡关系。
 - 小窗口边距与 Dialog 高度不得在页面里重复 `dvh`/像素公式；统一通过 `UiDialogBackdrop.inset` 与 `UiDialogShell.viewport` / `UiDialogFormShell.viewport` 选择共享 recipe。
 - `UiDialogBackdrop` 统一提供焦点陷阱、Escape、背景滚动锁和可访问命名；业务层不得复制 modality。
+- 普通弹窗直接使用可见 Header 标题作为可访问名称，随当前步骤标题更新；嵌套弹窗和同名实例各自独立。自定义标题区或无标题栏的预览由调用方提供明确名称，不能从按钮、图标或正文猜测。只有必要的简短说明才显式关联为描述，复杂内容保留结构阅读。
 - 关闭、取消业务操作和提交必须保持不同语义。关闭不能暗中提交或撤销，业务取消必须调用原有控制动作。
 - 异步状态原位替换当前动作或显示一行短状态，不新增重复弹窗。
 

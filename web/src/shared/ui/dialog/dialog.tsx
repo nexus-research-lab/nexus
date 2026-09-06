@@ -1,5 +1,5 @@
 // INPUT: 业务弹窗提供标题、正文、动作与可选的默认或 plain chrome。
-// OUTPUT: 统一的可访问模态骨架与复用 IconButton 的可禁用关闭动作；plain chrome 用于连接、授权与紧凑表单。
+// OUTPUT: 自动关联 Header 标题、保留显式命名的模态骨架与公共可禁用关闭动作；plain chrome 用于连接、授权与紧凑表单。
 // POS: Web 共享弹窗结构真相源，业务层只选择语义密度，不自行重写遮罩、焦点与关闭协议。
 "use client";
 
@@ -8,7 +8,11 @@ import {
   type HTMLAttributes,
   type ReactNode,
   type RefObject,
+  useContext,
+  useId,
+  useLayoutEffect,
   useRef,
+  useState,
 } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
@@ -17,6 +21,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { useDialogModalBehavior } from "@/shared/ui/dialog/dialog-behavior";
+import { DIALOG_TITLE_CONTEXT } from "@/shared/ui/dialog/dialog-title-context";
 import {
   getUiDialogViewportClassName,
   type UiDialogViewport,
@@ -111,6 +116,8 @@ export function UiDialogPortal({ children }: UiDialogPortalProps) {
 
 /** 中文注释：弹窗骨架统一处理遮罩点击，避免业务弹窗各写一套事件判断。 */
 export function UiDialogBackdrop({
+  "aria-label": ariaLabel,
+  "aria-labelledby": ariaLabelledBy,
   children,
   className,
   closeOnBackdrop = true,
@@ -125,6 +132,7 @@ export function UiDialogBackdrop({
   ...props
 }: UiDialogBackdropProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const [registeredTitleId, setRegisteredTitleId] = useState<string>();
   useDialogModalBehavior({
     enabled: trapFocus,
     initialFocusRef,
@@ -136,8 +144,9 @@ export function UiDialogBackdrop({
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- 模态根节点统一承载遮罩关闭，键盘协议由行为层监听。
     <div
       ref={rootRef}
+      aria-label={ariaLabel}
       aria-describedby={describedBy}
-      aria-labelledby={labelledBy}
+      aria-labelledby={ariaLabelledBy ?? labelledBy ?? (ariaLabel ? undefined : registeredTitleId)}
       aria-modal="true"
       className={cn(
         DIALOG_BACKDROP_CLASS_NAME,
@@ -161,7 +170,9 @@ export function UiDialogBackdrop({
       tabIndex={-1}
       {...props}
     >
-      {children}
+      <DIALOG_TITLE_CONTEXT.Provider value={setRegisteredTitleId}>
+        {children}
+      </DIALOG_TITLE_CONTEXT.Provider>
     </div>
   );
 }
@@ -226,6 +237,16 @@ export function UiDialogHeader({
   titleId,
   ...props
 }: UiDialogHeaderProps) {
+  const generatedTitleId = useId();
+  const resolvedTitleId = titleId ?? generatedTitleId;
+  const registerTitle = useContext(DIALOG_TITLE_CONTEXT);
+  const hasTitle = children == null && Boolean(title);
+  useLayoutEffect(() => {
+    if (!hasTitle || !registerTitle) return;
+    registerTitle(resolvedTitleId);
+    return () => registerTitle((current) => current === resolvedTitleId ? undefined : current);
+  }, [hasTitle, registerTitle, resolvedTitleId]);
+
   return (
     <div
       className={cn(
@@ -244,7 +265,7 @@ export function UiDialogHeader({
           ) : null}
           <div className="min-w-0 flex-1">
             {title ? (
-              <h2 className="dialog-title" id={titleId}>
+              <h2 className="dialog-title" id={resolvedTitleId}>
                 {title}
               </h2>
             ) : null}

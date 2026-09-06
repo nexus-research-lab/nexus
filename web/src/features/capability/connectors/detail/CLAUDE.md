@@ -8,4 +8,4 @@
 - 飞书云文档详情仅在当前 owner 的活动连接持有 OAuth 应用配置时显示“更换飞书应用”；动作打开统一连接方式弹窗，官方扫码可选择已有应用或创建新应用，手工 App ID / Secret 仅作兜底。普通断开也必须清除用户授权和 owner 级应用凭据，避免后续静默复用固定 App ID。
 - 多分支状态使用有序规则与映射表达，不在 JSX 中堆叠条件链。
 - RichMail 连接准备说明使用 `UiPanel` 的 filled 表面，保留一个可执行主标题，阅读步骤使用 supporting、路径分组使用 metadata；长操作步骤是自然换行正文。连接事实按实际工作面宽度分列，原始端点允许换行；没有服务端有效期事实时不显示固定 Token 到期天数。
-- 能力详情弹窗以能力名和正文为主；实际 Backdrop dialog 用 Header 的实例唯一 ID 关联名称，以隐藏说明关联 Connector 身份，不重复可见副标题或成功图标。能力项使用共享紧凑 ListRow，OAuth scopes 通过共享 `UiDisclosure` 默认折叠，正文和技术标识允许换行。
+- 能力详情弹窗以能力名和正文为主；Header 自动为实际 Backdrop dialog 提供名称，业务只以隐藏说明关联 Connector 身份，不重复可见副标题或成功图标。能力项使用共享紧凑 ListRow，OAuth scopes 通过共享 `UiDisclosure` 默认折叠，正文和技术标识允许换行。

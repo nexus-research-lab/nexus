@@ -223,6 +223,54 @@ test("product anchored overlays choose shared semantic geometry presets", async 
   }
 });
 
+test("product dialogs provide an explicit name or a standard Header owned by that modal", async () => {
+  const dialogModule = path.join(srcRoot, "shared/ui/dialog/dialog.tsx");
+  const files = (await Promise.all(productUiRoots.map(collectSourceFiles))).flat();
+  const violations = [];
+  for (const filePath of files.filter((file) => file.endsWith(".tsx") && !file.endsWith(".test.tsx"))) {
+    const source = await readFile(filePath, "utf8");
+    if (!importsFrontendModule(filePath, source, dialogModule)) continue;
+    const tree = ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const names = {};
+    for (const statement of tree.statements) {
+      if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)
+        || resolveFrontendModule(filePath, statement.moduleSpecifier.text) !== dialogModule) continue;
+      const bindings = statement.importClause?.namedBindings;
+      if (bindings && ts.isNamedImports(bindings)) for (const binding of bindings.elements) {
+        names[binding.propertyName?.text ?? binding.name.text] = binding.name.text;
+      }
+    }
+    const hasAttribute = (opening, key) => opening.attributes.properties.some((attribute) => (
+      ts.isJsxAttribute(attribute) && attribute.name.getText(tree) === key
+    ));
+    function hasOwnHeader(node) {
+      if (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node)) {
+        const opening = ts.isJsxElement(node) ? node.openingElement : node;
+        const name = opening.tagName.getText(tree);
+        if (name === names.UiDialogBackdrop) return false;
+        if (name === names.UiDialogHeader) {
+          const customChildren = ts.isJsxElement(node) && node.children.some((child) => (
+            ts.isJsxText(child) ? child.text.trim().length > 0 : !ts.isJsxExpression(child) || Boolean(child.expression)
+          ));
+          return hasAttribute(opening, "title") && !hasAttribute(opening, "children") && !customChildren;
+        }
+      }
+      return Boolean(ts.forEachChild(node, hasOwnHeader));
+    }
+    function visit(node) {
+      if (ts.isJsxElement(node) && node.openingElement.tagName.getText(tree) === names.UiDialogBackdrop) {
+        const named = ["labelledBy", "aria-labelledby", "aria-label"].some((key) => hasAttribute(node.openingElement, key));
+        if (!named && !node.children.some(hasOwnHeader)) {
+          violations.push(`${path.relative(webRoot, filePath)}:${tree.getLineAndCharacterOfPosition(node.getStart(tree)).line + 1}`);
+        }
+      }
+      ts.forEachChild(node, visit);
+    }
+    visit(tree);
+  }
+  assert.deepEqual(violations, [], "custom dialog content must supply its own accessible name");
+});
+
 test("dialog viewport modes expose one shared responsive geometry contract", async () => {
   const { getUiDialogViewportClassName } = await importLeafTypeScriptModule(
     webRoot,

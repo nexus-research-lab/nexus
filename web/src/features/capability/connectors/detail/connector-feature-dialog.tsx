@@ -35,13 +35,12 @@ export function ConnectorFeatureDialog({
   }
   return (
     <UiDialogPortal>
-      <UiDialogBackdrop describedBy={connectorDescriptionId} labelledBy={`${connectorDescriptionId}-title`} layer="dialog" onClose={onClose}>
+      <UiDialogBackdrop describedBy={connectorDescriptionId} layer="dialog" onClose={onClose}>
         <UiDialogShell size="lg" viewport="compactMax">
           <UiDialogHeader
             appearance="plain"
             onClose={onClose}
             title={feature.name}
-            titleId={`${connectorDescriptionId}-title`}
           />
           <UiDialogBody className="space-y-4" scrollable>
             <p className={cn("break-words [overflow-wrap:anywhere]", getUiTypographyClassName({ role: "body", tone: "default" }))}>

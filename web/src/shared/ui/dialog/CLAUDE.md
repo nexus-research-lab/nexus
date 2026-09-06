@@ -1,6 +1,7 @@
 # Shared Dialog
 
 - `dialog.tsx` 只提供 Portal、Backdrop、Shell、Header、Body 与 Footer 结构原语。
+- 普通 `UiDialogHeader.title` 自动通过 `dialog-title-context.ts` 的实例内协议关联到最近 Backdrop 的可访问名称；标题变化、卸载与嵌套 Portal 保持各自身份。业务不重复生成或连接同一标题 ID；自定义 Header.children、隐藏标题和无标题预览必须由 Backdrop 的 `labelledBy` / `aria-labelledby` / `aria-label` 显式命名，已有显式名称优先，说明仍显式提供 `describedBy`。
 - Backdrop 默认使用 `dialog` 语义层，只有真实嵌套、交互或系统场景才通过 `layer` 选择其他共享层级；`.dialog-backdrop` 自身不得设置 z-index 回退。窄窗口留白只通过 `inset` 选择，业务不得在 `className` 中写高位 z-index 或复制小窗口 padding。
 - `dialog-layout.ts` 独占 `content / compact / compactMax / adaptive / adaptiveMax / visualPreview / documentPreview / workbench` 视口模式；选择器和短向导使用固定 620px 上限的 `compact`，内容量不固定但应保持紧凑的目录使用 `compactMax`，长表单使用 `adaptive` 或只限高的 `adaptiveMax`，图片与短文本查看分别使用 `visualPreview`、`documentPreview`，大型图形编辑与对照界面同时选择 `size="workbench"`。
 - 业务 Shell 只能选择 `size + viewport`，不得通过 `className/style` 复制桌面/窄窗口高度或覆盖宽度；新增尺寸先证明它属于新的跨业务内容语义。
@@ -18,4 +19,4 @@
 - Dialog 只为自身模态根内带共享打开态契约的子浮层让出 Escape，由最内层浮层先关闭；背景页面或其他 Dialog 的浮层不得阻止当前 Dialog 关闭。
 - 遮罩关闭是显式策略；迁移旧弹窗时不得借共享骨架改变原有关闭语义。
 - 业务弹窗不得自行注册全局 Escape、焦点循环或页面滚动锁。
-- `dialog.test.tsx` 是 Portal 模态的可执行行为合同：必须覆盖初始焦点、Tab 循环、嵌套关闭顺序、子浮层 Escape、遮罩策略、滚动锁计数和焦点归还。
+- `dialog.test.tsx` 是 Portal 模态的可执行行为合同：必须覆盖自动/显式命名、动态标题、相同标题的实例隔离、StrictMode 与嵌套 Portal，以及初始焦点、Tab 循环、嵌套关闭顺序、子浮层 Escape、遮罩策略、滚动锁计数和焦点归还。
