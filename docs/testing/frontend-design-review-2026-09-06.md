@@ -1403,3 +1403,47 @@ Gallery 只删除已不存在的宽度参数，未增加场景或执行视觉校
 500 kB。日志分别为 `/tmp/nexus-feedback-a43-check.log`、
 `/tmp/nexus-feedback-a43-fixtures.log`、`/tmp/nexus-feedback-a43-components.log`
 和 `/tmp/nexus-feedback-a43-build.log`。未把拆开完成的门禁记录成整条命令成功。
+
+## A44：统一装饰动效偏好，删除播放、测量和监听的重复实现
+
+继续按用户选择只做代码与行为校验。上批已提交并保持工作树干净，本批接续
+审查 Lottie、Hero 字符渐显及通用进入容器；保留全部前端范围，未将本批成果
+当成整个 Goal 已完成。
+
+`LottiePlayer` 原本同时开启 autoplay 并持有实例再调用 play，且不消费系统
+减少动态效果偏好。现统一使用共享偏好，普通模式循环、低动态模式静态展示，
+装饰 Canvas 不进入可访问树。检查当前安装的 dotlottie-react 类型及实现后确认
+autoplay 只在加载配置中读取，普通 prop 更新不会暂停已播放实例，因此偏好切换
+使用不同 React key 销毁旧生命周期并创建当前模式，源变更仍交给第三方加载。
+删除重复播放 effect/实例 state、冗余参数绑定及只有两个 undefined 生产调用的
+inlineStyle API；两个 Launcher 消费者只删除无值参数，原尺寸与位置不变。
+
+媒体偏好原本与 `useMediaQuery` 各自维护同一监听逻辑；减少动态效果的初值还是
+false，导致已启用偏好的用户先进入动画路径。现只保留 useMediaQuery 一份首次
+读取/变更/清理 owner，无 matchMedia 环境返回默认 false；偏好 Hook 只提供查询。
+四项回归覆盖首个 render、切换/卸载、替换 query 拒绝旧事件、缺失媒体 API，
+以及真实流式 Markdown consumer 不先隐藏完整内容。Home ASCII 的既有平台选择
+不在本批改写，普通响应式布局仍使用原查询。
+
+Hero 原先只消费 pretext 的 segments，却为此读取计算字体并维护 effect、派生
+state 和 16ms 定时器；没有消费宽度或其他测量结果。现在直接复用唯一 Unicode
+grapheme owner，首次渲染即包含完整文本与名称，保留相同字符的稳定身份。
+字符只做轻微 opacity 渐显，以普通 inline 保留自然断词；不再逐字位移或缩放。
+FadeSlideIn 保留时序、纵向偏移、样式透传和 child identity，两者动效收口静态
+theme recipe；backwards fill 仅作用于等待阶段，完成后无常驻 transform，低动态
+模式立即显示。删除两个挂载定时器，不在业务层产生第二套 CSS 动画。
+
+新增三项 Hero 内容/交互、三项 Lottie adapter 生命周期回归和一项所有权门禁。
+这些测试证明 React 逻辑与静态配置，未模拟 WASM 绘制或宣称真实屏幕效果；
+未运行浏览器或原生视觉校验，未新增 Gallery 场景。pretext 仍被消息高度测量
+使用，因此只删除这里的无用调用，不删除依赖。
+
+当前清单 485 项：346 pending、123 in_progress、7 retained、6 improved、
+3 removed，现存摘要匹配；公共 UI 仍为 122 项。两个 Launcher 页面只记部分进展，
+专用按钮/输入、Header 与整体页面审查仍未完成。
+
+验证：22 项目标组件回归与 typecheck 先通过；最终完整 `npm run check` 成功，
+含 lint、typecheck、468 项合同、193 个文件的 616 项组件回归及生产 build。
+临时 localhost 夹具在授权范围内完成，未开启浏览器或访问运行中的产品后端。
+构建仍只有既有大型分块提示。日志：`/tmp/nexus-motion-a44-components.log`、
+`/tmp/nexus-motion-a44-typecheck.log`、`/tmp/nexus-motion-a44-check.log`。

@@ -114,7 +114,6 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
           <div className="relative inline-block">
             <LottiePlayer
               className="pointer-events-none absolute -right-16 -top-14 h-24 w-24 opacity-[0.46]"
-              inlineStyle={undefined}
               src={ANIMATIONS.SPARKLES}
             />
             <h1 className="mb-2 text-2xl font-semibold leading-[1.05] tracking-[-0.02em] text-foreground/96">

@@ -1,36 +1,31 @@
+// INPUT: Decorative animation source and outer layout classes.
+// OUTPUT: A looping decoration, or its static first frame when reduced motion is preferred.
+// POS: Shared Lottie lifecycle owner; no business state or accessible content.
 "use client";
 
-import { useEffect, useState } from "react";
-import type { DotLottie } from "@lottiefiles/dotlottie-react";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
-import { CSSProperties } from "react";
+import { usePrefersReducedMotion } from "@/shared/lib/react/use-prefers-reduced-motion";
 
 interface LottiePlayerProps {
   src: string;
   className?: string;
-  inlineStyle?: CSSProperties;
 }
 
-export function LottiePlayer({ src, className: className, inlineStyle: inlineStyle }: LottiePlayerProps) {
-  const [dotLottieInstance, setDotLottieInstance] = useState<DotLottie | null>(null);
-
-  useEffect(() => {
-    if (dotLottieInstance) {
-      dotLottieInstance.play();
-    }
-  }, [dotLottieInstance]);
+export function LottiePlayer({ src, className }: LottiePlayerProps) {
+  const reducedMotion = usePrefersReducedMotion();
 
   return (
     <div
+      aria-hidden="true"
       className={className}
-      style={inlineStyle}
     >
       <DotLottieReact
-        autoplay
+        autoplay={!reducedMotion}
         backgroundColor="transparent"
         className="block h-full w-full"
-        dotLottieRefCallback={setDotLottieInstance}
-        loop
+        // The player reads autoplay at load time, so preference changes replace its lifecycle.
+        key={reducedMotion ? "still" : "playing"}
+        loop={!reducedMotion}
         src={src}
       />
     </div>
