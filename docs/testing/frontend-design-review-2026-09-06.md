@@ -627,6 +627,40 @@ in_progress；482 项清单为 425 pending、54 in_progress、3 removed，
 生产 TSX，482 项视觉审计数量保持不变；浏览器启动自动审批复核超时仍未解除，
 不宣称用户当前窗口的实际多标签操作已验收。
 
+## A20：公共弹窗自动命名与实例隔离（待浏览器复核）
+
+此前标准 Header 和实际 dialog 根的名称关联全靠消费页手动连接，扫描发现
+12 个产品入口已有公共 Header.title 却没有关联：Skill 导入、来源管理/编辑、
+外部 Skill 预览、OAuth 应用配置、Device Flow、RichMail 配对、直接凭据、
+飞书手动/方式选择、WorkGraph 选择器与 Loop 选择器。该扫描只证明当前静态
+接线缺项，不将源码存在等同于这些业务页面已逐一视觉验收。
+
+现在 Header 在布局提交阶段将实际标题 ID 注册到最近 Backdrop，标题变化
+保留实例身份，标题消失释放关联，嵌套 Portal 不污染外层名称。同名弹窗使用
+各自 useId；StrictMode 下的注册/释放已覆盖。已有显式 labelledBy、
+aria-labelledby 和 aria-label 继续优先。自定义 Header.children 或无标题
+预览仍显式命名，复杂正文不会被自动扁平化为描述。删除能力详情弹窗和标准
+Gallery 的重复标题 ID 接线，保留 Connector 身份的独立描述关联。
+
+新增公共命名回归在修改前复现缺名；修改后 25 项定向组件测试通过，包括动态
+标题、同名/嵌套隔离、自定义标题、显式名称优先，以及飞书步骤切换、凭据提交、
+来源编辑和权限范围预览。公共 primitive 影响所有消费者，因此补跑全量组件
+测试：161 个文件、462 项全部通过；154 项架构/样式/OAuth 合同、lint、
+typecheck、生产构建通过。相关日志：`/tmp/nexus-design-a20-before.log`、
+`/tmp/nexus-design-a20-components-final.log`、
+`/tmp/nexus-design-a20-components-all.log`、
+`/tmp/nexus-design-a20-contracts-final.log`、
+`/tmp/nexus-design-a20-{lint-final,typecheck-final,build}.log`。
+
+新增 import-aware 源码门禁要求产品 Dialog 提供显式名称或同一模态内的标准
+Header，嵌套 Dialog 内的 Header 不能替外层命名；实际有效文本与条件分支仍由
+行为测试和浏览器负责。标准 Gallery 现直接消费自动命名，既有浏览器案例补充
+标题 ID 关联、嵌套身份分离和关闭后外层名称保留。浏览器仍只有 1152 项注册
+（`/tmp/nexus-design-a20-browser-list.log`）；启动自动审批复核超时尚未解除，
+未执行实际浏览器/原生宿主检查。公共 Dialog 与能力预览保持 in_progress，
+清单为 424 pending、55 in_progress、3 removed，存活源码摘要已同步；其余
+12 个入口的文字、布局和业务视觉仍保留各自待审状态。
+
 ## 待进一步判断
 
 - A8 已统一侧栏搜索文字与动作所有权，仍需执行真实双语目录的宽度、对比度和

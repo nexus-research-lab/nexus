@@ -601,7 +601,6 @@ export function UiContractGallery() {
         <UiDialogPortal>
           <UiDialogBackdrop
             inset={isGalleryViewer(dialogViewport) ? "compact" : "default"}
-            labelledBy="gallery-dialog-title"
             onClose={() => setDialogOpen(false)}
           >
             <UiDialogShell
@@ -613,7 +612,6 @@ export function UiContractGallery() {
                 onClose={() => setDialogOpen(false)}
                 subtitle={galleryText(locale, "检查标题、正文、Footer、焦点圈与窄窗口边距。", "Inspect title, body, footer, focus ring, and narrow-window insets.")}
                 title={getGalleryDialogTitle(dialogViewport, locale)}
-                titleId="gallery-dialog-title"
               />
               <UiDialogBody scrollable>
                 <div className="space-y-4">

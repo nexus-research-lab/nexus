@@ -548,6 +548,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Name standard dialogs automatically from their visible headings, including
+  Skill import, Connector authorization and Composer pickers. Keep nested and
+  same-named instances isolated, update names across steps, and preserve explicit
+  preview names without duplicating title wiring in each page.
 - Preserve other open Session tabs when closing the last visible tab creates a
   replacement conversation, including tabs opened from another page while the
   replacement is pending. Remove the remaining whole-tab-set overwrite command.

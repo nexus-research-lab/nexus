@@ -1,5 +1,5 @@
 // INPUT: 直接凭证与 OAuth Connector 详情，以及用户填写和提交动作。
-// OUTPUT: 证明授权弹窗复用共享排版/表单并只提交完整的业务凭证。
+// OUTPUT: 证明授权弹窗随步骤标题命名、复用共享排版/表单并只提交完整的业务凭证。
 // POS: Connector 授权弹窗 DOM 合同；Device Flow 时序由相邻 poller 测试负责。
 
 import { render, screen } from "@testing-library/react";
@@ -48,6 +48,7 @@ describe("Connector authorization dialogs", () => {
     const props = { isOpen: true, onClose: vi.fn(), onConnectManually: vi.fn(), onScan };
     const view = (busy: boolean) => <I18nProvider><FeishuAppConnectionDialog {...props} busy={busy} /></I18nProvider>;
     const { rerender } = render(view(false));
+    const dialog = screen.getByRole("dialog", { name: "连接飞书云文档" });
     await user.click(screen.getByRole("button", { name: /扫码连接/ }));
     expect(onScan).toHaveBeenCalledOnce();
 
@@ -63,6 +64,7 @@ describe("Connector authorization dialogs", () => {
     expect(screen.queryByRole("textbox", { name: /App ID/ })).toBeNull();
     rerender(view(false));
     await user.click(screen.getByRole("button", { name: /手动配置/ }));
+    expect(screen.getByRole("dialog", { name: "手动连接飞书" })).toBe(dialog);
     expect(screen.getByRole("textbox", { name: /App ID/ })).toBeTruthy();
   });
 
@@ -80,6 +82,7 @@ describe("Connector authorization dialogs", () => {
       </I18nProvider>,
     );
 
+    expect(screen.getByRole("dialog", { name: "连接 高德地图" })).toBeTruthy();
     expect(screen.getByText("粘贴高德开放平台的 Web 服务 Key。").className)
       .toContain("ui-type-supporting");
     await user.type(screen.getByLabelText("API Key*"), "  secret-key  ");
@@ -103,6 +106,7 @@ describe("Connector authorization dialogs", () => {
       </I18nProvider>,
     );
 
+    expect(screen.getByRole("dialog", { name: "配置 飞书云文档" })).toBeTruthy();
     expect(screen.getByText(/先在飞书开放平台应用添加回调地址/).className)
       .toContain("ui-type-supporting");
     expect(container.querySelector("code")?.className).toContain("ui-type-code");

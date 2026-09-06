@@ -1,5 +1,5 @@
 // INPUT: 来源编辑器的认证选择、Token 草稿、保存命令与等待态。
-// OUTPUT: 证明公共互斥选择保留认证分支、已存凭证留空语义和精确保存载荷。
+// OUTPUT: 证明嵌套弹窗名称隔离，公共互斥选择保留认证分支、已存凭证留空语义和精确保存载荷。
 // POS: 来源管理的真实弹窗交互测试；不模拟远端来源验证或持久化。
 
 import { render, screen } from "@testing-library/react";
@@ -39,7 +39,10 @@ describe("Skill source authentication", () => {
     const user = userEvent.setup();
     const onSave = vi.fn().mockResolvedValue(false);
     render(view(onSave));
+    const manager = screen.getByRole("dialog", { name: "capability.skill_sources_title" });
     await user.click(screen.getByRole("button", { name: "capability.skill_source_add" }));
+    const editor = screen.getByRole("dialog", { name: "capability.skill_source_add_title" });
+    expect(editor.getAttribute("aria-labelledby")).not.toBe(manager.getAttribute("aria-labelledby"));
     await user.type(screen.getByRole("textbox", { name: "capability.skill_source_name" }), "Team skills");
     await user.type(screen.getByRole("textbox", { name: "capability.skill_source_url" }), SOURCE.url);
     const none = screen.getByRole("button", { name: "capability.skill_source_auth_none" });
@@ -67,6 +70,7 @@ describe("Skill source authentication", () => {
     const onSave = vi.fn().mockResolvedValue(false);
     const { rerender } = render(view(onSave, [SOURCE]));
     await user.click(screen.getByRole("button", { name: "capability.skill_source_edit" }));
+    expect(screen.getByRole("dialog", { name: "capability.skill_source_edit_title" })).toBeTruthy();
     const token = screen.getByLabelText(/^capability.skill_source_token/) as HTMLInputElement;
     expect(token.value).toBe("");
     expect(token.required).toBe(false);
