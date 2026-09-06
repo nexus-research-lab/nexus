@@ -345,6 +345,32 @@ lint、typecheck、13 项现有组件回归、135 项公共所有权/样式/文�
 字号、换行或视觉密度已通过验收。四个文件仍为 in_progress，公共角色源码归本节
 记录；实际页面/检查器三主题、双语和窄屏渲染仍待此前浏览器启动授权。
 
+## A10：运行设置字段与唯一分段组名（实现与离线验证，待浏览器复核）
+
+删除 Runtime 私有 SettingsField 和装饰性字段图标，输入及 Provider 选择直接组合
+UiField，并以 useId 派生的实例级 htmlFor/id 精确关联。密钥输入、清除按钮和获取
+地址不再嵌入同一个 label；高级面板也不共用固定 ID。AnySearch 的原有 JSON
+对象校验继续在 blur 时提交，错误统一交给 Field，一次播报且只关联当前输入；
+保留原有三句纠正说明，JSON 字段改用公共 sm / code，不再私设字号和错误容器。
+公共 Field 的容器允许在网格/弹性列内收缩，保留此前 Runtime 私有容器的布局能力。
+
+UiSegmentedControl 的 showLabel 只表达需要可见组名的组合：通过 Field 显示 title，
+且只保留外层的一个具名 group。默认无可见标签的调用继续由控件自己提供 group。
+Runtime 引擎/搜索深度/提取深度与 Skill 来源认证复用该组合，移除包裹 label 或
+重复同名 Field。Gallery 的两档文字组选项也覆盖 showLabel，既有浏览器场景补上
+唯一 group 断言；源码、规范和组件地图同步更新，没有扩张业务控制器写入范围。
+
+新增 10 项真实 Runtime 页面测试，覆盖六种服务的全部当前显式标签、分段组名、
+数字夹限、文本 trim、密钥替换/清除、禁用和两份页面的 JSON 错误/面板隔离。
+全组件 151 文件 / 389 项、149 项相关合同、lint/typecheck 和生产构建通过；日志
+位于 `/tmp/nexus-design-a10-{all-components,contracts,check,build}.log`。另用 TS AST
+确认本页 14 个 onBlur、24 个 onChange、2 个 onClick、27 个 disabled 和 3 个
+required 属性与提交前完全一致，报告为 `/tmp/nexus-design-a10-behavior-attributes.json`。
+这支持现有业务处理器未被此次布局迁移改写，不代替后端事务或完整页面视觉验收。
+
+当前仍是本地中间提交。公共 Field、分段控件和两个领域视图继续为 in_progress；
+实际窗口中的 label 对齐、JSON 高度、组宽与焦点显示仍待此前浏览器启动授权。
+
 ## 待进一步判断
 
 - A8 已统一侧栏搜索文字与动作所有权，仍需执行真实双语目录的宽度、对比度和
@@ -357,11 +383,9 @@ lint、typecheck、13 项现有组件回归、135 项公共所有权/样式/文�
   和 hover 矩阵复核 Badge、Button、Counter、Choice 与错误文字，不能只以 RGB
   计算或 CSS 类型检查代替最终可读性验收。
 - A4 已补齐 Field 的单控件与复合组关联；浏览器可访问树与实际宿主输入仍需复核。
-  A5 已将 Skill 来源认证迁入公共分段选择器；继续检查动态参数/环境键值行的
-  名称与错误能否精确区分，以及复合 Field 与自带组名的控件组合是否重复播报。
+  A10 已收口 Runtime 与 Skill 来源的分段组名；继续检查其他动态参数/环境键值行的
+  名称与错误能否精确区分，以及其他复合 Field 是否还有重复命名。
 - A9 已移除普通 overline 配方；其他直接使用 text-2xs 的菜单说明、Composer 元信息、
   记忆分组和图形微标签继续按内容任务判断，不能把本批六处迁移当作全部微文字完成。
-- Runtime 的私有 SettingsField 仍以包裹 label 承载输入、选择器及复合密钥行；
-  下一批核对精确控件关联和 blur 保存行为，再归入公共 Field。
 - A6—A7 已完成失联模块和具名值导出的第一轮保守检查；无必要公开的内部 helper、
   函数内部旧分支、重复数据映射和未使用样式仍需沿业务调用继续复核。

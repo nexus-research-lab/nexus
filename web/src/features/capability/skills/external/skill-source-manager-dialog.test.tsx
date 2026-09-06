@@ -44,6 +44,8 @@ describe("Skill source authentication", () => {
     await user.type(screen.getByRole("textbox", { name: "capability.skill_source_url" }), SOURCE.url);
     const none = screen.getByRole("button", { name: "capability.skill_source_auth_none" });
     const bearer = screen.getByRole("button", { name: "capability.skill_source_auth_bearer" });
+    expect(screen.getAllByRole("group", { name: "capability.skill_source_auth_type" })).toHaveLength(1);
+    expect(none.closest("label")).toBeNull();
     expect(none.getAttribute("aria-pressed")).toBe("true");
     await user.click(bearer);
     expect(bearer.getAttribute("aria-pressed")).toBe("true");

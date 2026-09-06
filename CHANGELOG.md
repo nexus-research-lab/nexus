@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Move runtime search settings onto shared Field labels and errors, isolate
+  control and advanced-panel IDs per instance, and keep secret actions separate
+  from labels. Labeled segmented controls now expose one named group; runtime
+  and skill-source choices retain their existing draft and save behavior.
 - Replace decorative microtext in configuration groups and run details with
   existing readable typography roles, improve execution-history text hierarchy,
   and simplify RichMail connection guidance to one heading.

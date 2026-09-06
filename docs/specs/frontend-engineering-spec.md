@@ -192,6 +192,7 @@ Primitive 同时拥有 DOM、键盘、焦点、ARIA 和视觉状态合同，例�
 - Action Menu 与业务上下文菜单的行统一由 `UiMenuActionRow` 持有原生 button、`role=menuitem`、禁用语义、命中几何与活动/hover/focus/tone 状态；业务层只组合菜单内容、级联关系和命令，不得导入 `MENU_ITEM_BASE_CLASS_NAME` 手写 `menuitem`；
 - 页面内容、目录视图和列表筛选的标签切换统一使用只有中性底线选中态的 `UiTabs`；目录工具栏的紧凑、自适应宽度预设使用按类型命名的跨领域 `UiDirectoryTabs`，不得创建 `Capability*Tabs` 等业务域转发层。有限互斥配置值使用 `UiSegmentedControl`，不得在两者之间仅凭局部审美互换；
 - variant 必须存在真实视觉或行为差异；完全相同的 variant 合并；
+- 带可见组名的分段选择使用 `UiSegmentedControl showLabel` 组合公共 Field，由外层持有唯一 group 名称；不能包入原生 label 或叠加同名 group。单输入 Field 的标签仍通过实例级 htmlFor/id 指向真实控件，不能靠包装整个复合区域推断目标；
 - 普通按钮、输入和模态不得绕过已有 primitive 手写第二套行为。
 - 已有详情浮层的 IconButton 必须通过 `tooltip={null}` 关闭自动短提示，并由详情拥有 `aria-describedby`。只读 Tooltip/用量详情使用浮层层的 `restoreFocus: false`，打开和关闭不移动焦点；交互式菜单和 Dialog 继续遵守其焦点归还合同。
 

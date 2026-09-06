@@ -141,6 +141,11 @@ test("segmented selections retain keyboard focus, aligned icon text and disabled
   const { errors } = await openGallery(page, info, "content");
   const fixture = page.locator("[data-gallery-segmented]");
   const lock = fixture.locator("[data-gallery-segmented-lock]");
+  for (const groupCase of await fixture.locator('[data-segmented-case$="-text"]').all()) {
+    await expect(groupCase.getByRole("group")).toHaveCount(1);
+    await expect(groupCase.getByRole("group")).toHaveAccessibleName(/Display mode|显示方式/);
+    await expect(groupCase.locator("label button, [role=group] [role=group]")).toHaveCount(0);
+  }
   const first = fixture.locator('[data-segmented-case="default-text"]').getByRole("button").first();
   await lock.focus();
   await moveKeyboardFocus(page, info);
