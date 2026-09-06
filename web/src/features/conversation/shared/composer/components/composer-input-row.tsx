@@ -132,12 +132,11 @@ export function ComposerInputRow({
         />
       ) : mention.active && mention.items.length > 0 ? (
         <MentionTargetPopover
-          anchorRect={textareaRef.current?.getBoundingClientRect() ?? null}
+          anchorRef={textareaRef}
           filter={mention.filter}
           items={mention.items}
           onClose={mention.onClose}
           onSelect={mention.onSelect}
-          placement="above"
         />
       ) : null}
       <div className="relative min-w-0 flex-1">

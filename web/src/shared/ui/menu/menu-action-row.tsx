@@ -8,11 +8,13 @@ import { cn } from "@/shared/ui/class-name";
 
 import {
   getMenuItemStateClassName,
+  getMenuItemLayout,
   MENU_ITEM_BASE_CLASS_NAME,
+  type UiMenuItemDensity,
   type UiMenuItemTone,
 } from "./menu-styles";
 
-export type UiMenuActionRowDensity = "compact" | "default";
+export type UiMenuActionRowDensity = UiMenuItemDensity;
 
 interface UiMenuActionRowProps extends Omit<
   ButtonHTMLAttributes<HTMLButtonElement>,
@@ -24,17 +26,6 @@ interface UiMenuActionRowProps extends Omit<
   hasDescription?: boolean;
   tone?: UiMenuItemTone;
 }
-
-const MENU_ACTION_ROW_CLASS_NAME = {
-  compact: {
-    described: "h-10 gap-2 px-2 py-0.5 text-compact",
-    plain: "h-8 gap-2 px-2 text-compact",
-  },
-  default: {
-    described: "h-11 gap-3 px-2.5 py-1 text-sm",
-    plain: "h-9 gap-3 px-2.5 text-sm",
-  },
-} as const;
 
 /** Action menus and contextual menus share this native menu-item button. */
 export function UiMenuActionRow({
@@ -54,7 +45,7 @@ export function UiMenuActionRow({
       className={cn(
         MENU_ITEM_BASE_CLASS_NAME,
         "flex cursor-pointer items-center text-left",
-        MENU_ACTION_ROW_CLASS_NAME[density][hasDescription ? "described" : "plain"],
+        getMenuItemLayout({ density, hasDescription }).className,
         disabled && "cursor-not-allowed opacity-(--disabled-opacity)",
         getMenuItemStateClassName({ active, tone }),
         className,

@@ -16,6 +16,7 @@ export const zhCoreMessages = {
   "common.back": "上一步",
   "common.refresh": "刷新",
   "common.loading": "正在加载…",
+  "common.mention_suggestions": "提及候选",
   "common.qr_loading": "正在生成二维码…",
   "common.qr_failed": "二维码暂不可用。",
   "common.qr_failed_with_payload": "二维码暂不可用，可复制下方内容。",

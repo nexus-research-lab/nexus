@@ -1,10 +1,12 @@
 # Shared Overlay
 
 - `anchored-overlay-model.ts` 只计算锚点浮层在视口内的位置、尺寸与起点/终点对齐；它接收已经解析的数字约束，不认识产品语义。
+- 锚点滚出视口或强制方向的空间不足时，最终 top/bottom 坐标仍夹在视口留白内，不能把旧锚点坐标直接投影成不可见的负位置。
 - `anchored-overlay-layout.ts` 是锚定浮层 geometry preset 的唯一 owner：`directory-list / reference-list / form-picker / status-summary / status-list / cascade-menu / command-list / command-picker` 固定既有 gap、视口内边距与宽高边界。消费者只选择语义 preset，并按需提供内容估算高度、方向和对齐，不得重新散落同组数字。
 - `anchored-overlay-layer.ts` 统一 Portal 容器、外部点击、Escape、滚动和窗口变化生命周期；默认向锚点归还焦点，包装型交互 primitive 必须显式提供真实触发器的焦点归还策略。不会移动焦点的只读提示使用 `restoreFocus: false`，避免 hover 后按 Escape 抢走输入焦点并触发 focus 重开。
 - `overlay-dismissal-runtime.ts` 独占模态范围与浮层关闭仲裁。Escape 每次只由当前模态范围的最上层浮层消费，并执行其焦点策略；背景浮层不得拦截当前 Dialog，回调更新不得改变打开顺序。子 Portal 的内容属于父浮层内部，外部指针关闭仍把焦点交给用户点击目标。
 - 全局 Escape 先通过公共 isImeKeyboardEvent 排除输入法候选事件及兼容 229 键码；这些按键继续由输入框处理，不关闭浮层或移动焦点。
+- 保持文本输入焦点、且祖先会阻止键盘冒泡的候选列表可显式使用 captureEscape；同一关闭层仍执行模态范围、最上层和 IME 仲裁，捕获成功后阻止继续传播。其他浮层继续使用原冒泡阶段。
 - 关闭仲裁注册必须在 DOM 提交后核对真实锚点与浮层节点；初始打开但延迟挂载、同容器节点替换及 Portal 迁移都必须注册新节点，节点未变时保留原顺序，关闭和卸载幂等注销。不得只依赖布尔打开态或 Portal 容器变化，也不得用轮询等待挂载。
 - `overlay-contract.ts` 定义打开态 DOM 契约，供嵌套 Dialog 判断 Escape 的唯一消费层。
 - `overlay-styles.ts` 只定义锚点浮层共用的材质与进出场；进场只动画 `opacity`/`transform`，定位层提交的 `left`/`top`/`bottom` 几何不得参与 transition；层级、尺寸和内容语义仍由消费者决定。

@@ -27,6 +27,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Mention suggestions now share the common listbox surface, option rows and
+  live anchor positioning; keyboard handling respects the current editor and
+  modal scope, with active-option accessibility and focus preserved on selection.
+  Shared overlay bounds now stay visible when anchors scroll outside the viewport.
+- Unified menu row sizing with popup height estimates and removed Mention's
+  duplicate positioning constants and one-time anchor snapshots.
 - Launcher queries now use the shared input style and keyboard focus treatment;
   the mascot send action keeps its accessible name while busy. Removed unused
   Launcher color variables and redundant recent-entry wrappers, and fixed IME

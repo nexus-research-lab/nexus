@@ -121,6 +121,23 @@ function createAnchor({
 }
 
 describe("anchored overlay layout presets", () => {
+  it.each([
+    { top: -120, placement: "bottom" as const },
+    { top: 4, placement: "top" as const },
+    { top: 1_004, placement: "bottom" as const },
+  ])("keeps a $placement panel visible when its anchor moves beyond the viewport (top=$top)", ({ top, placement }) => {
+    setViewport(600, 400);
+    const position = resolveUiAnchoredOverlayPosition({
+      anchor: createAnchor({ top, bottom: top + 32 }),
+      estimatedContentHeight: 180,
+      preset: "reference-list",
+      placement,
+    });
+    const panelTop = position.top ?? window.innerHeight - position.bottom! - position.maxHeight;
+    expect(panelTop).toBeGreaterThanOrEqual(12);
+    expect(panelTop + position.maxHeight).toBeLessThanOrEqual(window.innerHeight - 12);
+  });
+
   it.each(PRESET_EXPECTATIONS)(
     "keeps the $preset roomy viewport geometry",
     ({ gap, maxHeight, minWidth, preset, viewportInset }) => {
