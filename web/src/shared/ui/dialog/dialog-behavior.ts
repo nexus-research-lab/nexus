@@ -5,11 +5,11 @@
 
 import { type RefObject, useEffect, useRef } from "react";
 import { isImeKeyboardEvent } from "@/shared/lib/browser/ime-keyboard-event";
+import { getTabbableElements } from "@/shared/lib/browser/focus-navigation";
 
 import {
   focusDialogElement,
   getDialogFocusState,
-  getDialogFocusableElements,
 } from "@/shared/ui/dialog/dialog-focus";
 import {
   type DialogKeyboardAction,
@@ -98,7 +98,7 @@ export function useDialogModalBehavior<T extends HTMLElement>({
       const autoFocusTarget =
         initialFocusRef?.current ??
         root.querySelector<HTMLElement>("[data-autofocus='true'], [autofocus]") ??
-        getDialogFocusableElements(root)[0] ??
+        getTabbableElements(root)[0] ??
         root;
       focusDialogElement(autoFocusTarget);
     }, 0);
@@ -109,7 +109,7 @@ export function useDialogModalBehavior<T extends HTMLElement>({
         return;
       }
 
-      const focusable = getDialogFocusableElements(root);
+      const focusable = getTabbableElements(root);
       const focusState = getDialogFocusState(root, focusable);
       const action = resolveDialogKeyboardAction({
         ...focusState,

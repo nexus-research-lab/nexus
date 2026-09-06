@@ -2,8 +2,8 @@
 
 /**
  * INPUT: Room 内各 Agent 的当前 Session 模型投影与更新动作。
- * OUTPUT: Composer 右侧按 Agent 级联选择模型的紧凑浮层。
- * POS: 群聊模型入口；宽屏悬浮级联，窄屏点击逐级进入。
+ * OUTPUT: Composer 右侧按 Agent 级联选择模型的紧凑浮层，支持逐级键盘进入/返回与 Tab 退出。
+ * POS: 群聊模型入口；宽屏悬浮级联，窄屏点击逐级进入；菜单遍历与行尺寸由 shared/menu 拥有。
  */
 
 import {
@@ -15,6 +15,7 @@ import {
 import {
   type CSSProperties,
   type ReactNode,
+  type RefObject,
   useCallback,
   useEffect,
   useRef,
@@ -23,6 +24,7 @@ import {
 import { createPortal } from "react-dom";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { isImeKeyboardEvent } from "@/shared/lib/browser/ime-keyboard-event";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
@@ -32,7 +34,9 @@ import {
   type UiActionMenuItem,
 } from "@/shared/ui/menu/action-menu";
 import { UiMenuActionRow } from "@/shared/ui/menu/menu-action-row";
+import { focusFirstMenuItem, handleMenuKeyDown } from "@/shared/ui/menu/menu-keyboard";
 import {
+  getMenuItemLayout,
   MENU_ITEM_GAP_PX,
   MENU_LIST_CLASS_NAME,
   MENU_SURFACE_VERTICAL_PADDING_PX,
@@ -44,6 +48,7 @@ import {
   resolveUiAnchoredOverlayPosition,
 } from "@/shared/ui/overlay/anchored-overlay-layout";
 import { OPEN_OVERLAY_DATA_ATTRIBUTES } from "@/shared/ui/overlay/overlay-contract";
+import { isTopAnchoredOverlay } from "@/shared/ui/overlay/overlay-dismissal-runtime";
 import {
   ANCHORED_OVERLAY_MOTION_CLASS_NAME,
   OVERLAY_SURFACE_CLASS_NAME,
@@ -69,8 +74,6 @@ type RoomModelView = "agents" | "models";
 const ROOM_MODEL_AGENT_MENU_WIDTH = getUiAnchoredOverlayMinimumWidth("cascade-menu");
 const ROOM_MODEL_MENU_WIDTH = 256;
 const ROOM_MODEL_MENU_GAP = 8;
-const ROOM_MODEL_AGENT_ROW_HEIGHT = 36;
-const ROOM_MODEL_ITEM_HEIGHT = 32;
 
 export function ComposerRoomModelControl({
   controller,
@@ -78,6 +81,10 @@ export function ComposerRoomModelControl({
 }: ComposerRoomModelControlProps) {
   const { t } = useI18n();
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const agentMenuRef = useRef<HTMLDivElement>(null);
+  const modelMenuRef = useRef<HTMLDivElement>(null);
+  const pendingFocusRef = useRef<RoomModelView | null>(null);
+  const returnAgentIdRef = useRef<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [view, setView] = useState<RoomModelView>("agents");
   const resetTarget = controller.resetTarget;
@@ -87,6 +94,7 @@ export function ComposerRoomModelControl({
     t,
   );
   const close = useCallback(() => {
+    pendingFocusRef.current = null;
     setIsOpen(false);
     setView("agents");
     resetTarget();
@@ -157,6 +165,19 @@ export function ComposerRoomModelControl({
   const panelStyle = { maxHeight: overlayStyle.maxHeight };
 
   useEffect(() => {
+    if (!isOpen || !overlayPosition || !pendingFocusRef.current) return;
+    const pendingView = pendingFocusRef.current;
+    const menu = pendingView === "agents" ? agentMenuRef.current : modelMenuRef.current;
+    if (!menu) return;
+    pendingFocusRef.current = null;
+    const agent = pendingView === "agents" ? Array.from(
+      menu.querySelectorAll<HTMLElement>("[data-agent-id]"),
+    ).find((item) => item.dataset.agentId === returnAgentIdRef.current) : undefined;
+    if (agent) agent.focus();
+    else focusFirstMenuItem(menu);
+  });
+
+  useEffect(() => {
     if ((disabled || controller.saving) && isOpen) {
       close();
     }
@@ -168,17 +189,36 @@ export function ComposerRoomModelControl({
       return;
     }
     setView("agents");
+    pendingFocusRef.current = "agents";
+    returnAgentIdRef.current = null;
     setIsOpen(true);
     void controller.ensureTargetsLoaded();
   };
-  const selectAgent = (agentId: string) => {
+  const selectAgent = (agentId: string, moveFocus = false) => {
+    returnAgentIdRef.current = agentId;
+    if (moveFocus) {
+      if (view === "models" && controller.target?.agentId === agentId && modelMenuRef.current) {
+        // 悬浮已打开同一目标时不会产生新提交，键盘进入应立即移动焦点。
+        focusFirstMenuItem(modelMenuRef.current);
+      } else {
+        pendingFocusRef.current = "models";
+      }
+    }
     controller.selectTarget(agentId);
     setView("models");
+  };
+  const closeAndRestoreFocus = () => {
+    close();
+    triggerRef.current?.focus();
+  };
+  const backToAgents = () => {
+    pendingFocusRef.current = "agents";
+    setView("agents");
   };
   const selectModel = (value: string) => {
     if (value === RESET_SESSION_SETTING_VALUE) {
       void controller.resetModel();
-      close();
+      closeAndRestoreFocus();
       return;
     }
     const [provider, model] = decodeSessionModelValue(value);
@@ -190,7 +230,7 @@ export function ComposerRoomModelControl({
     } else {
       void controller.updateModel(provider, model);
     }
-    close();
+    closeAndRestoreFocus();
   };
 
   return (
@@ -215,6 +255,7 @@ export function ComposerRoomModelControl({
       </UiButton>
 
       {isOpen && portalContainer ? createPortal(
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- 非模态 dialog 统一委派内部菜单导航、逐级返回和 Tab 退出，不充当动作按钮。
         <div
           ref={overlayRef}
           aria-label={t("composer.session_model")}
@@ -227,6 +268,19 @@ export function ComposerRoomModelControl({
           )}
           data-placement={overlayPosition?.placement ?? "top"}
           id={overlayId}
+          onKeyDown={(event) => {
+            if (event.defaultPrevented || isImeKeyboardEvent(event.nativeEvent)
+              || !isTopAnchoredOverlay(overlayRef.current)
+              || !(event.target instanceof Node) || !event.currentTarget.contains(event.target)) return;
+            if (view === "models" && (event.key === "Escape"
+              || (event.key === "ArrowLeft" && modelMenuRef.current?.contains(event.target)))) {
+              event.preventDefault();
+              event.stopPropagation();
+              backToAgents();
+              return;
+            }
+            handleMenuKeyDown(event, closeAndRestoreFocus);
+          }}
           role="dialog"
           style={layoutStyle}
           {...OPEN_OVERLAY_DATA_ATTRIBUTES}
@@ -246,6 +300,8 @@ export function ComposerRoomModelControl({
                   canHoverSelect
                   controller={controller}
                   disabled={disabled}
+                  menuRef={agentMenuRef}
+                  modelMenuId={`${overlayId}-models`}
                   onSelect={selectAgent}
                 />
               </RoomModelPanel>
@@ -254,6 +310,8 @@ export function ComposerRoomModelControl({
                   controller={controller}
                   disabled={disabled}
                   items={modelItems}
+                  menuId={`${overlayId}-models`}
+                  menuRef={modelMenuRef}
                   onSelect={selectModel}
                   resetItem={resetItem}
                   style={panelStyle}
@@ -269,17 +327,23 @@ export function ComposerRoomModelControl({
                 <RoomModelAgentList
                   controller={controller}
                   disabled={disabled}
+                  menuRef={agentMenuRef}
+                  modelMenuId={`${overlayId}-models`}
                   onSelect={selectAgent}
                 />
               ) : (
                 <>
                   <RoomModelHeader
-                    onBack={() => setView("agents")}
+                    onBack={backToAgents}
                     title={controller.target?.name ?? ""}
                   />
                   <div
+                    aria-label={t("composer.room_model_agent", { name: controller.target?.name ?? "" })}
                     className="soft-scrollbar min-h-0 overflow-y-auto overscroll-contain p-1"
+                    id={`${overlayId}-models`}
+                    ref={modelMenuRef}
                     role="menu"
+                    tabIndex={-1}
                   >
                     <UiActionMenuContent
                       density="compact"
@@ -327,39 +391,51 @@ function RoomModelAgentList({
   canHoverSelect = false,
   controller,
   disabled,
+  menuRef,
+  modelMenuId,
   onSelect,
 }: {
   activeAgentId?: string;
   canHoverSelect?: boolean;
   controller: ComposerSessionSettingsController;
   disabled: boolean;
-  onSelect: (agentId: string) => void;
+  menuRef: RefObject<HTMLDivElement | null>;
+  modelMenuId: string;
+  onSelect: (agentId: string, moveFocus?: boolean) => void;
 }) {
   const { t } = useI18n();
   return (
     <div className={cn(
       MENU_LIST_CLASS_NAME,
       "soft-scrollbar min-h-0 overflow-y-auto overscroll-contain p-1",
-    )} role="menu">
+    )} aria-label={t("composer.room_model")} ref={menuRef} role="menu" tabIndex={-1}>
       {controller.targetViews.map((targetView) => {
         const isActive = targetView.target.agentId === activeAgentId;
-        const select = () => onSelect(targetView.target.agentId);
         return (
           <UiMenuActionRow
             active={canHoverSelect && isActive}
+            aria-controls={isActive ? modelMenuId : undefined}
+            aria-expanded={isActive}
+            aria-haspopup="menu"
             aria-label={t("composer.room_model_agent", {
               name: targetView.target.name,
             })}
             disabled={disabled || controller.saving}
             key={targetView.target.agentId}
-            onClick={select}
+            data-agent-id={targetView.target.agentId}
+            onClick={() => onSelect(targetView.target.agentId, true)}
+            onKeyDown={(event) => {
+              if (event.defaultPrevented || isImeKeyboardEvent(event.nativeEvent) || event.key !== "ArrowRight") return;
+              event.preventDefault();
+              onSelect(targetView.target.agentId, true);
+            }}
             onPointerEnter={(event) => {
               if (
                 canHoverSelect
                 && event.pointerType === "mouse"
                 && !isActive
               ) {
-                select();
+                onSelect(targetView.target.agentId);
               }
             }}
           >
@@ -392,6 +468,8 @@ function RoomModelOptions({
   controller,
   disabled,
   items,
+  menuId,
+  menuRef,
   onSelect,
   resetItem,
   style,
@@ -399,17 +477,24 @@ function RoomModelOptions({
   controller: ComposerSessionSettingsController;
   disabled: boolean;
   items: UiActionMenuItem[];
+  menuId: string;
+  menuRef: RefObject<HTMLDivElement | null>;
   onSelect: (value: string) => void;
   resetItem: UiActionMenuItem;
   style: CSSProperties;
 }) {
+  const { t } = useI18n();
   return (
     <div
+      aria-label={t("composer.room_model_agent", { name: controller.target?.name ?? "" })}
       className={cn(
         "soft-scrollbar min-h-0 shrink-0 overflow-y-auto overscroll-contain p-1",
         OVERLAY_SURFACE_CLASS_NAME,
       )}
       role="menu"
+      id={menuId}
+      ref={menuRef}
+      tabIndex={-1}
       style={{ ...style, width: ROOM_MODEL_MENU_WIDTH }}
     >
       <UiActionMenuContent
@@ -458,11 +543,11 @@ function estimateRoomModelMenuHeight({
   modelCount: number;
 }): number {
   const agentHeight = MENU_SURFACE_VERTICAL_PADDING_PX
-    + agentCount * ROOM_MODEL_AGENT_ROW_HEIGHT
+    + agentCount * getMenuItemLayout().height
     + Math.max(0, agentCount - 1) * MENU_ITEM_GAP_PX;
   const modelItemCount = modelCount + 1;
   const modelHeight = 17
-    + modelItemCount * ROOM_MODEL_ITEM_HEIGHT
+    + modelItemCount * getMenuItemLayout({ density: "compact" }).height
     + modelItemCount * MENU_ITEM_GAP_PX;
   return Math.max(agentHeight, modelHeight);
 }

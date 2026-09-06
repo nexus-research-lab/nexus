@@ -8,7 +8,7 @@
 - 关闭按钮默认可访问名称使用当前语言的 `common.close`；业务只有在语义更具体时才覆盖。
 - `dialog-behavior.ts` 只装配 React 生命周期，不保存键盘规则或模态全局状态。
 - `dialog-modal-runtime.ts` 独占模态栈与页面滚动锁，并将真实模态根注册到共享 Overlay 关闭仲裁；叠层关闭顺序由栈顶令牌决定。
-- `dialog-focus.ts` 独占可聚焦元素发现、可见性过滤与无滚动聚焦。
+- `dialog-focus.ts` 只计算根内焦点位置与无滚动聚焦；可用 Tab 目录统一归 `shared/lib/browser/focus-navigation.ts`，与菜单退出共用可见性、原生/fieldset 禁用、inert、负 tabindex、radio 组和顺序规则。
 - `dialog-keyboard.ts` 用有序规则投影 Escape 与 Tab 动作，不直接读写 DOM。
 - `decision/` 组合确认与输入弹窗，复用共享模态协议，不自行注册焦点或键盘生命周期。
 - Dialog 的确认、取消与业务动作直接渲染 `UiButton` 并选择 size/tone/variant；`dialog-styles.ts` 只拥有 Dialog 专属结构 recipe，不再提供可被业务层绕过 Button DOM 的动作 className 适配器。

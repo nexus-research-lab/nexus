@@ -27,6 +27,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Action, Room model and Workspace menus now share keyboard traversal and Tab
+  exit behavior, skip disabled items and preserve IME input. Cascades support
+  keyboard entry and stepwise return without moving focus on hover; Session
+  model and desktop file commands keep their original targets. Dialogs and
+  menus share one DOM focus order, and Room menu height estimates use shared
+  row metrics instead of duplicate constants.
 - Mention suggestions now share the common listbox surface, option rows and
   live anchor positioning; keyboard handling respects the current editor and
   modal scope, with active-option accessibility and focus preserved on selection.

@@ -1,6 +1,10 @@
+// INPUT: Workspace 文件、右键位置、桌面应用目录与外部动作/关闭命令。
+// OUTPUT: 支持分组与打开方式级联的上下文菜单；共用方向键遍历，显式退出归还原焦点。
+// POS: Workspace 纯视图；业务命令仍归调用方，坐标式定位与指针关闭暂由本文件维护。
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -34,9 +38,11 @@ import type {
   DesktopWorkspaceFileOpenTarget,
 } from "@/lib/desktop-bridge/desktop-bridge";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { isImeKeyboardEvent } from "@/shared/lib/browser/ime-keyboard-event";
 import { cn } from "@/shared/ui/class-name";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiMenuActionRow } from "@/shared/ui/menu/menu-action-row";
+import { focusFirstMenuItem, handleMenuKeyDown } from "@/shared/ui/menu/menu-keyboard";
 import { MENU_LIST_CLASS_NAME } from "@/shared/ui/menu/menu-styles";
 import { OVERLAY_SURFACE_CLASS_NAME } from "@/shared/ui/overlay/overlay-styles";
 import type { WorkspaceFileEntry } from "@/types/agent/agent";
@@ -94,7 +100,7 @@ export function WorkspaceContextMenu({
   const { t } = useI18n();
   const menuRef = useRef<HTMLDivElement>(null);
   const [openSubmenuId, setOpenSubmenuId] = useState<string | null>(null);
-  useWorkspaceContextMenuDismiss(menuRef, position !== null, onClose);
+  const closeAndRestoreFocus = useWorkspaceContextMenuDismiss(menuRef, position !== null, onClose);
 
   useEffect(() => {
     setOpenSubmenuId(null);
@@ -150,7 +156,10 @@ export function WorkspaceContextMenu({
         OVERLAY_SURFACE_CLASS_NAME,
       )}
       ref={menuRef}
+      aria-label={entry?.name ?? t("room.workspace")}
+      onKeyDown={(event) => handleMenuKeyDown(event, closeAndRestoreFocus)}
       role="menu"
+      tabIndex={-1}
       style={{
         left: `${position.x}px`,
         minWidth: isDesktopFile ? "200px" : "180px",
@@ -165,7 +174,7 @@ export function WorkspaceContextMenu({
             ) : null}
             <WorkspaceContextMenuActions
               actions={actions}
-              onClose={onClose}
+              onClose={closeAndRestoreFocus}
               openSubmenuId={openSubmenuId}
               position={position}
               setOpenSubmenuId={setOpenSubmenuId}
@@ -362,6 +371,21 @@ function WorkspaceContextMenuActions({
   position: { x: number; y: number };
   setOpenSubmenuId: (value: string | null) => void;
 }) {
+  const pendingTriggerRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const trigger = pendingTriggerRef.current;
+    if (!trigger || !openSubmenuId) return;
+    focusFirstMenuItem(trigger.parentElement?.querySelector<HTMLElement>('[role="menu"]') ?? null);
+    pendingTriggerRef.current = null;
+  }, [openSubmenuId]);
+  const enterSubmenu = (id: string, trigger: HTMLElement) => {
+    if (openSubmenuId === id) {
+      focusFirstMenuItem(trigger.parentElement?.querySelector<HTMLElement>('[role="menu"]') ?? null);
+    } else {
+      pendingTriggerRef.current = trigger;
+      setOpenSubmenuId(id);
+    }
+  };
   return (
     <div className={MENU_LIST_CLASS_NAME} role="none">
       {actions.map((action) => {
@@ -389,21 +413,22 @@ function WorkspaceContextMenuActions({
               aria-haspopup={submenu ? "menu" : undefined}
               aria-label={ariaLabel}
               disabled={disabled}
-              onClick={() => {
+              onClick={(event) => {
                 if (disabled) {
                   return;
                 }
                 if (submenu) {
-                  setOpenSubmenuId(id);
+                  enterSubmenu(id, event.currentTarget);
                   return;
                 }
                 onSelect?.();
                 onClose();
               }}
               onKeyDown={(event) => {
+                if (event.defaultPrevented || isImeKeyboardEvent(event.nativeEvent)) return;
                 if (submenu && event.key === "ArrowRight") {
                   event.preventDefault();
-                  setOpenSubmenuId(id);
+                  enterSubmenu(id, event.currentTarget);
                 }
               }}
               onPointerEnter={() => setOpenSubmenuId(submenu ? id : null)}
@@ -420,6 +445,11 @@ function WorkspaceContextMenuActions({
                 actions={submenu}
                 maxHeight={window.innerHeight - position.y - 8}
                 onClose={onClose}
+                onBack={(submenuElement) => {
+                  setOpenSubmenuId(null);
+                  const trigger = submenuElement.previousElementSibling;
+                  if (trigger instanceof HTMLElement) trigger.focus();
+                }}
                 openOnLeft={position.x + 384 > window.innerWidth}
               />
             ) : null}
@@ -434,11 +464,13 @@ function WorkspaceContextSubmenu({
   actions,
   maxHeight,
   onClose,
+  onBack,
   openOnLeft,
 }: {
   actions: WorkspaceMenuAction[];
   maxHeight: number;
   onClose: () => void;
+  onBack: (submenu: HTMLElement) => void;
   openOnLeft: boolean;
 }) {
   return (
@@ -450,6 +482,15 @@ function WorkspaceContextSubmenu({
         OVERLAY_SURFACE_CLASS_NAME,
       )}
       role="menu"
+      tabIndex={-1}
+      onKeyDown={(event) => {
+        if (event.defaultPrevented || isImeKeyboardEvent(event.nativeEvent)) return;
+        if (event.key === "ArrowLeft" || event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+          onBack(event.currentTarget);
+        }
+      }}
       style={{maxHeight: `${Math.max(36, maxHeight)}px`}}
     >
       {actions.map((action) => (
@@ -486,7 +527,20 @@ function useWorkspaceContextMenuDismiss(
   menuRef: RefObject<HTMLDivElement | null>,
   isOpen: boolean,
   onClose: () => void,
-): void {
+): () => void {
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+  const closeAndRestoreFocus = useCallback(() => {
+    onClose();
+    previousFocusRef.current?.focus();
+  }, [onClose]);
+  useEffect(() => {
+    if (!isOpen) return;
+    // StrictMode 重放 effect 时焦点已在菜单内，不能覆盖最初的外部返回位置。
+    if (!menuRef.current?.contains(document.activeElement)) {
+      previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    }
+    focusFirstMenuItem(menuRef.current);
+  }, [isOpen, menuRef]);
   useEffect(() => {
     if (!isOpen) {
       return;
@@ -497,8 +551,10 @@ function useWorkspaceContextMenuDismiss(
       }
     };
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
+      if (event.key === "Escape" && !event.defaultPrevented && !isImeKeyboardEvent(event)
+        && event.target instanceof Node && menuRef.current?.contains(event.target)) {
+        event.preventDefault();
+        closeAndRestoreFocus();
       }
     };
     document.addEventListener("mousedown", handlePointerDown);
@@ -507,5 +563,6 @@ function useWorkspaceContextMenuDismiss(
       document.removeEventListener("mousedown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen, menuRef, onClose]);
+  }, [closeAndRestoreFocus, isOpen, menuRef, onClose]);
+  return closeAndRestoreFocus;
 }
