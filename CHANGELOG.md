@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Refine Skill import and source management with instance-scoped fields,
+  readable source addresses/statuses and import guidance, shared list surfaces,
+  technical input typography and explicit busy states. Remove forwarding
+  wrappers while retaining Git drafts, stored-credential semantics and commands.
 - Improve shared segmented controls with readable density, aligned option
   heights, wrapping labels and keyboard-accessible icon hints. Remove the
   Gallery-only group-icon API and a duplicate settings field wrapper; guard consumers

@@ -933,6 +933,80 @@ test("Provider model dialogs keep long content scrollable and actions visible in
   expect(errors).toEqual([]);
 });
 
+test("Skill source and import dialogs keep full metadata, readable guidance and exact local commands", async ({ page }, info) => {
+  const { errors } = await openGallery(page, info, "content");
+  await page.setViewportSize({ width: page.viewportSize()!.width, height: 560 });
+  const fixture = page.locator("[data-gallery-skill-management]");
+  const commands = fixture.locator("[data-gallery-skill-commands]");
+  await fixture.getByRole("button", { name: copy(info, "打开来源管理", "Open source manager"), exact: true }).click();
+  const manager = page.getByRole("dialog", { name: copy(info, "管理技能来源", "Manage Skill Sources"), exact: true });
+  const sourceName = "Engineering research and design systems";
+  const sourceUrl = "https://registry.example.test/organization/engineering/design-systems/skills";
+  const actions = manager.getByRole("group", { name: sourceName, exact: true });
+  const row = actions.locator("..");
+  await row.scrollIntoViewIfNeeded();
+  for (const [text, size] of [[sourceName, "14px"], [copy(info, "已配置凭据", "Credentials configured"), "13px"],
+    [copy(info, "该来源搜索失败。", "This source could not be searched."), "13px"]]) {
+    const label = row.getByText(text, { exact: true });
+    expect(await label.evaluate((element) => getComputedStyle(element).fontSize)).toBe(size);
+    expect(await label.evaluate((element) => element.scrollWidth <= element.clientWidth + 1 && element.scrollHeight <= element.clientHeight + 1)).toBe(true);
+  }
+  await expect(actions.getByRole("switch")).toHaveAccessibleDescription(new RegExp(sourceUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  expect(await row.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+  await expectInsideViewport(page, manager.locator(".dialog-footer"));
+  await capture(row, info, "skill-source-row");
+  await actions.getByRole("button", { name: copy(info, "编辑来源", "Edit source"), exact: true }).click();
+  const editor = page.getByRole("dialog", { name: copy(info, "编辑自定义 Skill 来源", "Edit Custom Skill Source"), exact: true });
+  const url = editor.getByRole("textbox", { name: copy(info, "服务地址", "Service URL"), exact: true });
+  await expect(url).toBeDisabled();
+  await expect(url).toHaveValue(sourceUrl);
+  const token = editor.getByLabel("Token", { exact: true });
+  await expect(token).toHaveValue("");
+  await expect(token).toHaveAccessibleDescription(copy(info, "留空会继续使用当前 Token。", "Leave blank to keep the current token."));
+  await editor.getByRole("button", { name: copy(info, "验证并保存", "Validate and save"), exact: true }).click();
+  await expect.poll(async () => JSON.parse((await commands.textContent())!)).toEqual([{
+    type: "save", sourceId: "private-gallery", name: sourceName, url: sourceUrl, authType: "bearer", tokenProvided: false,
+  }]);
+  await expectInsideViewport(page, editor.locator(".dialog-shell"));
+  await expectInsideViewport(page, editor.locator(".dialog-footer"));
+  await editor.getByRole("button", { name: copy(info, "取消", "Cancel"), exact: true }).click();
+  await manager.locator(".dialog-footer").getByRole("button", { name: copy(info, "关闭", "Close"), exact: true }).click();
+
+  await fixture.getByRole("button", { name: copy(info, "打开 Skill 导入", "Open Skill import"), exact: true }).click();
+  const importer = page.getByRole("dialog", { name: copy(info, "导入 Skill", "Import Skill"), exact: true });
+  const repository = importer.getByRole("textbox", { name: copy(info, "Git 仓库 URL", "Git repository URL"), exact: true });
+  const branch = importer.getByRole("textbox", { name: "Branch", exact: true });
+  const path = importer.getByRole("textbox", { name: copy(info, "子目录 Path", "Subdirectory path"), exact: true });
+  for (const field of [repository, branch, path]) {
+    expect(await field.evaluate((element) => ({ font: getComputedStyle(element).fontSize, mono: /mono/i.test(getComputedStyle(element).fontFamily) })))
+      .toEqual({ font: "14px", mono: true });
+  }
+  await repository.fill("https://example.test/team/repo.git");
+  await branch.fill(" feature/skill ");
+  await path.fill("  skills/room playbook  ");
+  await importer.getByRole("button", { name: copy(info, "本地 zip", "Local zip"), exact: true }).click();
+  const fileChooser = page.waitForEvent("filechooser");
+  await importer.getByRole("button", { name: copy(info, "选择 zip 文件", "Choose zip file"), exact: true }).click();
+  // This fixture records the native file entry only; it does not parse/import an archive.
+  await (await fileChooser).setFiles({ name: "fixture.zip", mimeType: "application/zip", buffer: Buffer.from([]) });
+  await importer.getByRole("button", { name: copy(info, "Git 仓库", "Git repository"), exact: true }).click();
+  await expect(branch).toHaveValue(" feature/skill ");
+  await importer.getByRole("button", { name: copy(info, "导入 Git Skill", "Import Git Skill"), exact: true }).click();
+  await expect.poll(async () => JSON.parse((await commands.textContent())!).slice(1)).toEqual([
+    { type: "file", name: "fixture.zip" }, { type: "import-git", url: "https://example.test/team/repo.git", branch: " feature/skill ", path: "  skills/room playbook  " },
+  ]);
+  await importer.locator("summary").filter({ hasText: copy(info, "SKILL.md 规范", "SKILL.md requirements") }).click();
+  expect(await importer.locator("aside ul").evaluate((element) => getComputedStyle(element).fontSize)).toBe("13px");
+  expect(await importer.locator(".dialog-body--scroll").evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+  await expectInsideViewport(page, importer.locator(".dialog-footer"));
+  const rules = await importer.locator("aside li").all();
+  for (let index = 0; index < rules.length; index += 1) {
+    await rules[index].scrollIntoViewIfNeeded();
+    await capture(rules[index], info, `skill-import-rule-${index}`);
+  }
+  expect(errors).toEqual([]);
+});
+
 test("technical fields share monospace presentation and preserve verification zeros", async ({ page }, info) => {
   const { errors } = await openGallery(page, info);
   const path = page.getByRole("textbox", { name: copy(info, "配置路径", "Config path"), exact: true });

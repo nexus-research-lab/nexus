@@ -1,12 +1,12 @@
 /**
  * INPUT: Skill 来源目录、来源写命令与私有来源草稿。
- * OUTPUT: 扁平来源管理列表、具唯一认证组名的公共互斥选择表单与受控删除确认。
+ * OUTPUT: 可读来源行及具名独立动作、实例级认证表单/提交 busy 与受控删除确认。
  * POS: 技能市场的来源管理边界；不展示来源教程或回显私密 Token。
  */
 "use client";
 
 import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useId, useState, type FormEvent } from "react";
 
 import type { PrivateSkillSourceDraft } from "@/features/capability/skills/controller/skill-marketplace-controller";
 import {
@@ -30,6 +30,7 @@ import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
 import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
+import { UiListRow } from "@/shared/ui/list/list-row";
 import { UiPanel } from "@/shared/ui/panel";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { ExternalSkillSourceInfo } from "@/types/capability/skill";
@@ -53,7 +54,6 @@ const SOURCE_KIND_LABELS: Record<string, string> = {
   clawhub: "clawhub.ai",
   git: "Git",
   hermes_index: "Hermes Index",
-  private_registry: "Private Registry",
   skills_sh: "skills.sh",
   url: "URL",
   well_known: "Well-known",
@@ -168,7 +168,7 @@ export function SkillSourceManagerDialog({
                   className="divide-y divide-(--divider-subtle-color) overflow-hidden"
                   padding="none"
                   radius="md"
-                  variant="card"
+                  variant="filled"
                 >
                   {sortedSources.map((source) => (
                     <SourceRow
@@ -249,29 +249,32 @@ function SourceRow({
   source,
 }: SourceRowProps) {
   const { t } = useI18n();
+  const rowId = useId();
+  const descriptionIds = [`${rowId}-address`, source.deletable ? `${rowId}-credential` : null,
+    source.last_error ? `${rowId}-error` : null].filter(Boolean).join(" ");
   return (
-    <div className="flex min-w-0 items-center gap-3 bg-(--surface-panel-background) px-3.5 py-3">
+    <UiListRow className="items-start" variant="flush">
       <div className="min-w-0 flex-1">
-        <div className={cn(
-          "truncate",
+        <div id={`${rowId}-name`} className={cn(
+          "[overflow-wrap:anywhere]",
           getUiTypographyClassName({
-            role: "supporting",
+            role: "control",
             tone: "strong",
             weight: "medium",
           }),
         )}>
           {source.name}
         </div>
-        <div className={cn(
-          "mt-0.5 truncate",
-          getUiTypographyClassName({ role: "caption", tone: "muted" }),
+        <div id={`${rowId}-address`} className={cn(
+          "mt-0.5 [overflow-wrap:anywhere]",
+          getUiTypographyClassName({ role: "metadata", tone: "muted" }),
         )}>
           {sourceKindLabel(source.kind, t)} · {source.url}
         </div>
         {source.deletable ? (
-          <div className={cn(
+          <div id={`${rowId}-credential`} className={cn(
             "mt-1",
-            getUiTypographyClassName({ role: "caption", tone: "soft" }),
+            getUiTypographyClassName({ role: "supporting", tone: "muted" }),
           )}>
             {source.credential_configured
               ? t("capability.skill_source_credential_configured")
@@ -279,15 +282,15 @@ function SourceRow({
           </div>
         ) : null}
         {source.last_error ? (
-          <div className={cn(
-            "mt-1 truncate",
-            getUiTypographyClassName({ role: "caption", tone: "danger" }),
+          <div id={`${rowId}-error`} className={cn(
+            "mt-1",
+            getUiTypographyClassName({ role: "supporting", tone: "danger" }),
           )}>
             {t("capability.skills_external_source_failed_description")}
           </div>
         ) : null}
       </div>
-      <div className="flex shrink-0 items-center gap-1">
+      <div aria-labelledby={`${rowId}-name`} className="flex shrink-0 items-center gap-1" role="group">
         {source.deletable ? (
           <>
             <UiIconButton
@@ -312,6 +315,7 @@ function SourceRow({
           </>
         ) : null}
         <GlassSwitch
+          aria-describedby={descriptionIds}
           aria-label={t("capability.skill_source_toggle", {
             name: source.name,
           })}
@@ -321,7 +325,7 @@ function SourceRow({
           size="sm"
         />
       </div>
-    </div>
+    </UiListRow>
   );
 }
 
@@ -343,6 +347,7 @@ function PrivateSourceEditorDialog({
   onSubmit,
 }: PrivateSourceEditorDialogProps) {
   const { t } = useI18n();
+  const fieldId = useId();
   const updateDraft = <K extends keyof PrivateSkillSourceDraft>(
     key: K,
     value: PrivateSkillSourceDraft[K],
@@ -368,14 +373,14 @@ function PrivateSourceEditorDialog({
           />
           <UiDialogBody className="space-y-4" scrollable>
             <UiField
-              htmlFor="private-skill-source-name"
+              htmlFor={`${fieldId}-name`}
               label={t("capability.skill_source_name")}
               required
             >
               <UiInput
                 data-autofocus="true"
                 disabled={loading}
-                id="private-skill-source-name"
+                id={`${fieldId}-name`}
                 onChange={(event) => updateDraft("name", event.target.value)}
                 pattern=".*\S.*"
                 placeholder={t("capability.skill_source_name_placeholder")}
@@ -387,16 +392,17 @@ function PrivateSourceEditorDialog({
               description={editingSource
                 ? t("capability.skill_source_url_immutable")
                 : t("capability.skill_source_url_description")}
-              htmlFor="private-skill-source-url"
+              htmlFor={`${fieldId}-url`}
               label={t("capability.skill_source_url")}
               required
             >
               <UiInput
                 disabled={loading || Boolean(editingSource)}
-                id="private-skill-source-url"
+                id={`${fieldId}-url`}
                 onChange={(event) => updateDraft("url", event.target.value)}
                 placeholder="https://skills.example.com/registry"
                 required
+                textRole="code"
                 type="url"
                 value={draft.url}
               />
@@ -417,14 +423,14 @@ function PrivateSourceEditorDialog({
                 description={editingSource?.credential_configured
                   ? t("capability.skill_source_token_keep")
                   : t("capability.skill_source_token_description")}
-                htmlFor="private-skill-source-token"
+                htmlFor={`${fieldId}-token`}
                 label={t("capability.skill_source_token")}
                 required={!editingSource?.credential_configured}
               >
                 <UiInput
                   autoComplete="new-password"
                   disabled={loading}
-                  id="private-skill-source-token"
+                  id={`${fieldId}-token`}
                   onChange={(event) => updateDraft("token", event.target.value)}
                   pattern=".*\S.*"
                   placeholder={editingSource?.credential_configured ? "••••••••" : "token"}
@@ -445,6 +451,7 @@ function PrivateSourceEditorDialog({
               {t("common.cancel")}
             </UiButton>
             <UiButton
+              aria-busy={loading || undefined}
               disabled={loading}
               size="sm"
               tone="primary"

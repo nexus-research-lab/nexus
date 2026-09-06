@@ -20,3 +20,4 @@
 - 来源管理列表不展示各适配器的教程式说明；实现差异留在服务合同和必要错误中，用户只需看到来源身份、地址和可操作状态。
 - 搜索阶段、来源空态、来源选择、来源列表和导入加载状态分别复用 ResourceState、Panel、ChoiceButton、Typography 与 Spinner；外部来源视图不得再创建私有状态卡或把选择态塞进普通动作按钮。
 - 私有来源的认证方式复用 `UiSegmentedControl showLabel`，以 pressed 状态暴露当前值且只显示一个具名 group；编辑草稿、切换时保留 Token、已保存凭证留空和 loading 锁继续归来源编辑器，公共选择器不解析或转换这些业务值。
+- 来源管理以 filled Panel 和静态 flush ListRow 拥有表面/行密度；名称和地址完整换行，凭据状态及错误使用 supporting，独立动作以来源名分组，Switch 关联该行地址和状态说明。编辑字段按实例关联，服务地址使用 code 字体，提交显式投影 busy；不改变列表排序、Token 留空、不可编辑地址、确认删除及保存结果语义。

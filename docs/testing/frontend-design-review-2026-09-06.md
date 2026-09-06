@@ -927,6 +927,48 @@ Gallery 增加两档长名称，并扩展实际浏览器检查：计算字号/�
 改变后的真实业务布局、三主题与宿主验收继续待核对；Skill 导入及来源编辑中
 发现的固定字段 ID 留在各自业务表单审查中，不把本批分段改进视为全表单完成。
 
+## A28：Skill 导入与来源管理的完整字段、说明和动作边界（待实际浏览器复查）
+
+沿 A27 的消费者继续检查 Git/本地导入、格式指南和来源列表/认证编辑。Git 与
+私有来源编辑原先使用固定 ID；两个实例并存时，标签会指向另一份字段。新增
+用例在修改前连同来源动作组/提交 busy 检查共出现 4 failed / 3 passed
+（`/tmp/nexus-design-a28-before.log`）。当前字段以 useId 隔离，地址、branch 与
+path 使用公共 code 文字角色，提交原始值、原生 URL/必填验证保持。双编辑器
+测试显式作用于第二个实例，不把 jsdom 视为原生模态遮挡或点击命中证明。
+
+来源列表组合 filled Panel 与静态 flush ListRow，让公共所有者负责表面和行
+密度；名称使用 control、地址使用 metadata 并完整换行，凭据状态和本地化错误
+使用 supporting，不再截断或缩到 soft caption。编辑/删除/Switch 形成以来源名
+命名的动作组，Switch 关联本行地址和状态说明；整行仍不可点击，删除仍先确认，
+原始诊断不回显。认证编辑维持不可改地址、Token 留空沿用、模式切换保留草稿和
+保存失败保留编辑器；仅为原在途状态增加 aria-busy。移除早已被本地化分支覆盖
+的 private_registry 英文映射，不改变其他 kind 的回退或目录排序。
+
+导入区删除四个单次调用的转发/状态包装，直接组合公共分段、Button 与 Spinner；
+Git 和 zip 动作显式展示 importing busy。zip 说明和格式规则改为 supporting，
+frontmatter 示例用 filled Panel 替代局部 color-mix，示例内容与指南下载保持。
+保留 SOURCE_VIEWS 模式映射、草稿/提交 Hook 和文件输入引用，未改市场请求、
+恢复控制器、导入格式解析或后端协议。
+
+9 项相关组件回归通过，覆盖双实例身份/精确命令、Token 保留、具名独立来源
+动作与删除确认、Git 草稿跨模式保留、本地文件入口、原样提交、关闭重置和
+importing 下的输入/模式/提交/Escape 锁。全量 172 文件、524 项组件测试通过；
+157 项架构、文件、控件、token 和 Skill 恢复合同通过，后者验证操作身份隔离、
+只读对账及不能从 Git/本地导入读取猜测写成功。lint、typecheck、构建通过，
+构建保留既有大 chunk 提示。日志为 `/tmp/nexus-design-a28-focused-final.log`、
+`/tmp/nexus-design-a28-all-components.log`、`/tmp/nexus-design-a28-contracts.log`、
+`/tmp/nexus-design-a28-lint-final.log`、`/tmp/nexus-design-a28-typecheck-final.log`、
+`/tmp/nexus-design-a28-build.log`。
+
+Gallery 使用真实导入/来源弹窗、固定本地目录与命令记录；不发业务请求、不
+持久化、不记录 Token 值。浏览器案例检查长名称/地址/说明、短窗口 Footer、
+既有凭据留空、技术字段、原生文件入口与跨模式草稿，长指南按条截图；文件
+夹具只证明入口连通，不冒充 zip 解析验收。1368 项仅完成注册
+（`/tmp/nexus-design-a28-browser-list.log`）；此前浏览器启动被自动审批复核连续
+超时拦住，实际运行及完整 check 中监听端口的夹具仍待许可。482 项清单为
+390 pending、89 in_progress、3 removed，五个相关视图保持 in_progress，源码
+摘要一致。完整来源请求/恢复、真实文件与下载、三主题及宿主视觉继续待验收。
+
 ## 待进一步判断
 
 - A8 已统一侧栏搜索文字与动作所有权，仍需执行真实双语目录的宽度、对比度和
