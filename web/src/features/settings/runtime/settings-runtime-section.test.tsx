@@ -56,6 +56,23 @@ function renderSettings(children: ReactNode = <SettingsRuntimeSection />) {
 beforeEach(() => vi.clearAllMocks());
 
 describe("runtime fields", () => {
+  it("names tool discovery from its title and preserves its exact toggle and saving lock", async () => {
+    const user = userEvent.setup();
+    const controller = configure("brave");
+    const { rerender } = renderSettings();
+    const control = screen.getByRole("switch", { name: text("tool_search_title") }) as HTMLButtonElement;
+    expect(document.getElementById(control.getAttribute("aria-describedby")!)?.textContent)
+      .toBe(text("tool_search_description"));
+    await user.click(control);
+    expect(controller.onToolSearchChange).toHaveBeenCalledExactlyOnceWith(true);
+    expect(controller.onWebSearchPatch).not.toHaveBeenCalled();
+    useController.mockReturnValue({ ...controller, preferencesBusy: true });
+    rerender(<SettingsRuntimeSection />);
+    expect(control.disabled).toBe(true);
+    await user.click(control);
+    expect(controller.onToolSearchChange).toHaveBeenCalledOnce();
+  });
+
   it.each<WebSearchProvider>(["brave", "tavily", "exa", "firecrawl", "searxng", "anysearch"])(
     "binds all %s fields to exact controls and names each visible selection group once",
     async (provider) => {

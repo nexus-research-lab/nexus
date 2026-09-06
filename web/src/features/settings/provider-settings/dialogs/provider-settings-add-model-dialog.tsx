@@ -1,5 +1,5 @@
 // INPUT: 当前 Provider 的手工模型草稿、启用选择和添加命令状态。
-// OUTPUT: 实例级 Model ID 字段与启用开关，复用 Dialog 初始焦点和 Field 技术文本。
+// OUTPUT: 实例级 Model ID 字段与具名/关联说明的启用开关，复用 Dialog 焦点和 Field 技术文本。
 // POS: Provider 手工模型入口，不重复解释后续模型配置能力。
 import { useId, useRef } from "react";
 import { Loader2 } from "lucide-react";
@@ -107,11 +107,12 @@ export function ProviderAddModelDialog({
                 <div className={getUiTypographyClassName({ role: "control", tone: "strong", weight: "semibold" })}>
                   {t("settings.providers.enable_after_add")}
                 </div>
-                <div className={cn("mt-0.5", getUiTypographyClassName({ role: "supporting", tone: "muted" }))}>
+                <div id={`${dialogId}-enable-description`} className={cn("mt-0.5", getUiTypographyClassName({ role: "supporting", tone: "muted" }))}>
                   {t("settings.providers.enable_after_add_description")}
                 </div>
               </div>
               <GlassSwitch
+                aria-describedby={`${dialogId}-enable-description`}
                 aria-label={t("settings.providers.enable_after_add")}
                 checked={manualModelEnabled}
                 size="xs"

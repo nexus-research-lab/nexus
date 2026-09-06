@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   getStatus: vi.fn(),
   openSetup: vi.fn(),
   updatePreferences: vi.fn(),
+  preferences: { loading: false, saving: false, writable: true },
 }));
 
 vi.mock("@/lib/api/settings/browser-api", () => ({
@@ -27,12 +28,10 @@ vi.mock("@/lib/desktop-bridge/desktop-bridge", () => ({
 vi.mock("../general/use-user-preferences", () => ({
   useUserPreferences: () => ({
     feedback: null,
-    loading: false,
     preferences: { browser_cdp_enabled: false },
     recovery: undefined,
-    saving: false,
     updatePreferences: mocks.updatePreferences,
-    writable: true,
+    ...mocks.preferences,
   }),
 }));
 
@@ -55,10 +54,39 @@ describe("Browser settings surface", () => {
     mocks.getStatus.mockReset();
     mocks.openSetup.mockReset();
     mocks.updatePreferences.mockReset();
+    Object.assign(mocks.preferences, { loading: false, saving: false, writable: true });
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it("binds each CDP switch to its own risk and description while retaining the permission gate", async () => {
+    mocks.getStatus.mockResolvedValue({ connected: false, connection_state: "disconnected" });
+    const { rerender } = renderWithI18n(<><BrowserSettingsSection /><BrowserSettingsSection /></>);
+    expect(await screen.findAllByRole("button", { name: "settings.browser.install_action" })).toHaveLength(2);
+    const controls = screen.getAllByRole("switch", { name: "settings.browser.cdp_toggle" });
+    const refs = controls.map((control) => control.getAttribute("aria-describedby")!.split(" "));
+    expect(new Set(refs.flat()).size).toBe(4);
+    for (const ids of refs) {
+      expect(ids.map((id) => document.getElementById(id)?.textContent))
+        .toEqual(["settings.browser.cdp_risk", "settings.browser.cdp_description"]);
+    }
+    fireEvent.click(document.getElementById(refs[0][0])!);
+    expect(mocks.updatePreferences).not.toHaveBeenCalled();
+    fireEvent.click(controls[1]);
+    expect(mocks.updatePreferences).toHaveBeenCalledOnce();
+    const current = { browser_cdp_enabled: false, version: 7, emotion_enabled: true };
+    expect(mocks.updatePreferences.mock.calls[0][0](current)).toEqual({ ...current, browser_cdp_enabled: true });
+    mocks.preferences.writable = false;
+    rerender(<I18N_CONTEXT.Provider value={{ locale: "zh", setLocale: vi.fn(), t: (key) => key }}>
+      <BrowserSettingsSection />
+    </I18N_CONTEXT.Provider>);
+    const control = screen.getByRole("switch", { name: "settings.browser.cdp_toggle" }) as HTMLButtonElement;
+    expect(control.disabled).toBe(true);
+    fireEvent.click(control);
+    expect(mocks.updatePreferences).toHaveBeenCalledOnce();
+    await screen.findByRole("button", { name: "settings.browser.install_action" });
   });
 
   it("projects a connected extension through shared semantic owners", async () => {

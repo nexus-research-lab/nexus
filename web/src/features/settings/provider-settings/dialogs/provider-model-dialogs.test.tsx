@@ -62,7 +62,10 @@ describe("Provider model dialogs", () => {
     const description = document.getElementById(input.getAttribute("aria-describedby")!);
     expect(description?.textContent).toBe("settings.providers.add_model_description");
     await user.type(input, "  tenant/model  ");
-    await user.click(screen.getByRole("switch", { name: "settings.providers.enable_after_add" }));
+    const enable = screen.getByRole("switch", { name: "settings.providers.enable_after_add" });
+    expect(document.getElementById(enable.getAttribute("aria-describedby")!)?.textContent)
+      .toBe("settings.providers.enable_after_add_description");
+    await user.click(enable);
     await user.click(screen.getByRole("button", { name: "settings.providers.add" }));
     expect(onAdd).toHaveBeenCalledWith({ id: "  tenant/model  ", enabled: false });
     await user.click(screen.getByRole("button", { name: "common.cancel" }));

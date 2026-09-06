@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Unify six General and Runtime toggle rows with readable, wrapping descriptions
+  and setting-specific accessible names. Associate Browser permission risks and
+  model-enable hints with their switches, preserve independent saving locks,
+  and remove twelve unused English/Chinese toggle labels.
 - Bound Provider model and usage dialogs to the shared viewport, keep actions
   visible while their body scrolls, and show full model and agent names. Share
   field sizing and focus handling, retain named busy actions, and consolidate

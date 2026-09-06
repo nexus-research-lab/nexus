@@ -207,6 +207,13 @@ Pattern 与 Primitive 的区别是：Primitive 统一一个控件；Pattern 统�
 
 领域内跨子页重复的 Pattern 留在该领域 `shared`：例如 Skill、Connector、自定义 MCP、Loop 与 WorkGraph 详情统一由 `CapabilityDetailPage` 持有内容轴，并由唯一 `CapabilityDetailHeader` 组合全站 `UiBreadcrumb` 渲染“返回目录 / 当前对象”；Workspace 文件层级也只向 `UiBreadcrumb` 提供用户可见名称与相对路径段。导航下方的前导图标、标题、元数据、说明和响应式动作对齐统一由 `CapabilityDetailIdentity` 持有。业务子页不得直接引用底层 `WorkspaceContentDetailHeader`、手写 `objectTitle` 与动作容器、复制箭头、斜杠或间距，也不得把目录态 `WorkspaceContentHeader` 复用成对象身份区；详情路由不得残留目录 Header 或搜索控件。
 
+设置域的普通二元行由 `settings/shared/settings-panel-ui.tsx` 的 `SettingsToggleRow`
+组合唯一 GlassSwitch，标题作为可访问名称，实例级说明 ID 通过 aria-describedby
+关联；行与说明本身不增加点击命令。Preferences、Echo 和运行偏好的 checked、
+禁用条件和变更回调仍由各自调用方拥有。带独立风险内容的 Browser 权限卡、模型
+表单内联开关和授权列表继续使用各自领域布局，并直接复用 GlassSwitch 的说明
+关联能力；不能为统一行布局而吞掉确认、恢复或提交边界。
+
 ### 4.5 Domain widget
 
 领域 Widget 只有在 DOM 命中区本身表达图形几何时才能保留原生交互节点，例如 WorkGraph 的边中点、节点卡和折叠计数；该例外只允许自定义几何，不允许在原生 button 可以表达时用 `div role=button` 和手写键盘事件模拟控件。缩放、搜索、定位、关闭、保存等标准动作仍必须复用 UiButton / UiIconButton，浮动工具条和搜索面复用语义 Surface，不能因位于画布内部而复制一套 hover、focus、圆角或阴影。

@@ -9,6 +9,20 @@ import { describe, expect, it, vi } from "vitest";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 
 describe("GlassSwitch", () => {
+  it("preserves all supplied description references on the native switch", () => {
+    render(<>
+      <p id="switch-risk">仅为可信页面开启</p>
+      <p id="switch-description">允许访问完整调试功能</p>
+      <GlassSwitch aria-label="完整浏览器访问" aria-describedby="switch-risk switch-description"
+        checked={false} onChange={vi.fn()} />
+    </>);
+    const control = screen.getByRole("switch", { name: "完整浏览器访问" });
+    expect(control.tagName).toBe("BUTTON");
+    const descriptions = control.getAttribute("aria-describedby")!.split(" ")
+      .map((id) => document.getElementById(id)?.textContent);
+    expect(descriptions).toEqual(["仅为可信页面开启", "允许访问完整调试功能"]);
+  });
+
   it("activates one native switch through pointer and keyboard", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();

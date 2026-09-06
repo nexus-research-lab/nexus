@@ -1,16 +1,17 @@
 /**
  * INPUT: 设置项标题、说明、选项、当前值与设置目录动作。
- * OUTPUT: 设置卡片与行布局、可读标签/说明及共享 Button 目录导航。
+ * OUTPUT: 设置卡片、具名开关行、可读标签/说明及共享 Button 目录导航。
  * POS: 设置域共享视图 Pattern；行级说明在窄屏仍用于解释选项影响。
  */
 
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { useId, type ButtonHTMLAttributes, type ReactNode } from "react";
 
 import {
   UiButton,
   type UiButtonSize,
 } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
+import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 export const SETTINGS_SECTION_TITLE_CLASS_NAME = cn(
@@ -35,6 +36,40 @@ export const SETTINGS_CONTROL_LABEL_CLASS_NAME = getUiTypographyClassName({
   tone: "default",
   weight: "medium",
 });
+
+interface SettingsToggleRowProps {
+  checked: boolean;
+  description: string;
+  disabled?: boolean;
+  icon: ReactNode;
+  onChange: (checked: boolean) => void;
+  title: string;
+}
+
+export function SettingsToggleRow({
+  checked, description, disabled, icon, onChange, title,
+}: SettingsToggleRowProps) {
+  const descriptionId = useId();
+  return (
+    <div className="flex min-w-0 items-center gap-3 px-4 py-3">
+      <div className={cn(SETTINGS_TEXT_ROW_CLASS_NAME, "flex-1")}>
+        <div aria-hidden="true" className={SETTINGS_ICON_CLASS_NAME}>{icon}</div>
+        <div className="min-w-0 break-words">
+          <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>{title}</h3>
+          <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME} id={descriptionId}>{description}</p>
+        </div>
+      </div>
+      <GlassSwitch
+        aria-describedby={descriptionId}
+        aria-label={title}
+        checked={checked}
+        disabled={disabled}
+        onChange={onChange}
+        size="sm"
+      />
+    </div>
+  );
+}
 
 interface SettingsNavigationButtonProps
   extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children"> {
