@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Room model menus now keep one options list across wide and narrow layouts,
+  preserving focus and scroll position. Shared overlay bounds constrain the
+  full panel width, narrow headers count toward the height budget, and DM/Room
+  reuse the same model width. Removed duplicate options markup and viewport
+  calculations; menus close when their selected Agent Session changes.
 - Workspace context menus now use shared pointer/cascade overlay bounds, modal
   dismissal and scrolling; long application lists update in place, and crossing
   a submenu gap keeps it open. Removed file-specific size estimates and private

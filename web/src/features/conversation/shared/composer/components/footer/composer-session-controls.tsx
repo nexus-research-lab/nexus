@@ -3,7 +3,7 @@
 /**
  * INPUT: 当前 Composer 可配置的 Session 目标、Agent 默认值与 runtime 类型。
  * OUTPUT: DM 直接配置当前 Session；Room 统一权限并按 Agent 配置模型。
- * POS: Composer Footer 内的会话运行时设置入口，不写回 Agent 默认配置。
+ * POS: Composer Footer 会话设置入口；模型宽度与 Room 共用 layout owner，不写回 Agent 默认配置。
  */
 
 import {
@@ -23,6 +23,7 @@ import type {
   ComposerSessionSettingsController,
 } from "../../controller/use-composer-session-settings";
 import { ComposerRoomModelControl } from "./composer-room-model-control";
+import { SESSION_MODEL_MENU_WIDTH } from "./composer-session-control-layout";
 import {
   buildResetSessionSettingItem,
   buildSessionModelItems,
@@ -220,7 +221,6 @@ function ComposerModelControl({
 }
 
 const SESSION_PERMISSION_MENU_WIDTH = 288;
-const SESSION_MODEL_MENU_WIDTH = 256;
 
 const SESSION_CONTROL_BUTTON_CLASS_NAME =
   "min-w-0";

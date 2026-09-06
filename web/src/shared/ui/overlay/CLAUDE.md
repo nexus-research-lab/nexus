@@ -3,6 +3,7 @@
 - `anchored-overlay-model.ts` 只计算锚点浮层在视口内的位置、尺寸与起点/终点对齐；它接收已经解析的数字约束，不认识产品语义。
 - 锚点滚出视口或强制方向的空间不足时，最终 top/bottom 坐标仍夹在视口留白内，不能把旧锚点坐标直接投影成不可见的负位置。
 - `anchored-overlay-layout.ts` 是锚定浮层 geometry preset 的唯一 owner：`directory-list / reference-list / form-picker / status-summary / status-list / cascade-menu / command-list / command-picker` 固定既有 gap、视口内边距与宽高边界。消费者只选择语义 preset，并按需提供内容估算高度、方向和对齐，不得重新散落同组数字。
+- 有明确内容几何的复合浮层可提供 contentWidth（例如 Agent/模型双栏之和），仍由同一锚定求解器夹紧到视口；不在业务层二次改写 left/width。getUiAnchoredOverlayGap 与既有宽度/留白 getter 只用于内容能否并排的组合判断，不新增一套产品断点。
 - 指针菜单与侧向子菜单分别通过 `resolveUiPointOverlayPosition` / `resolveUiSideOverlayPosition` 复用同一 preset，底层 model 只做坐标求解。调用方提供原始点或真实行，不按文件/宿主类型维护宽高表；指针层夹回视口，侧向层沿行对齐、右侧不足时向左，内容超过上限则在层内滚动。
 - `anchored-overlay-layer.ts` 统一 Portal 容器、外部点击、Escape、滚动和窗口变化生命周期；默认向锚点归还焦点，包装型交互 primitive 必须显式提供真实触发器的焦点归还策略。不会移动焦点的只读提示使用 `restoreFocus: false`，避免 hover 后按 Escape 抢走输入焦点并触发 focus 重开。
 - `overlay-dismissal-runtime.ts` 独占模态范围与浮层关闭仲裁。Escape 每次只由当前模态范围的最上层浮层消费，并执行其焦点策略；背景浮层不得拦截当前 Dialog，回调更新不得改变打开顺序。子 Portal 的内容属于父浮层内部，外部指针关闭仍把焦点交给用户点击目标。

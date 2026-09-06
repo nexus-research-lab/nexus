@@ -3205,17 +3205,36 @@ test("the UI contract gallery stays reproducible and outside production entries"
 
 
 test("Workspace context menus use shared point/cascade geometry and dismissal instead of target-size tables", async () => {
-  const [view, model, interaction, actionMenu, roomMenu] = await Promise.all([
+  const [view, model, interaction, actionMenu, roomMenu, roomLayout] = await Promise.all([
     readSource("src/features/conversation/room/workspace/view/workspace-context-menu.tsx"),
     readSource("src/features/conversation/room/workspace/controller/interaction/workspace-interaction-model.ts"),
     readSource("src/features/conversation/room/workspace/controller/interaction/use-workspace-interaction-state.ts"),
     readSource("src/shared/ui/menu/action-menu.tsx"),
     readSource("src/features/conversation/shared/composer/components/footer/composer-room-model-control.tsx"),
+    readSource("src/features/conversation/shared/composer/components/footer/composer-session-control-layout.ts"),
   ]);
   assert.match(view, /resolveUiPointOverlayPosition/);
   assert.match(view, /resolveUiSideOverlayPosition/);
   assert.equal((view.match(/useAnchoredOverlayLayer\(/g) ?? []).length, 2);
   assert.doesNotMatch(view, /document\.addEventListener|window\.inner(?:Width|Height)|openOnLeft|useWorkspaceContextMenuDismiss/);
   assert.doesNotMatch(model + interaction, /resolveWorkspaceMenuPosition|MENU_HEIGHT_BY_TARGET|viewport\.height|viewport\.width/);
-  for (const source of [view, actionMenu, roomMenu]) assert.match(source, /getMenuContentHeight/);
+  assert.match(roomMenu, /getRoomModelMenuLayout/);
+  for (const source of [view, actionMenu, roomLayout]) assert.match(source, /getMenuContentHeight/);
+});
+
+
+test("Room Session model layouts preserve one option list and delegate viewport bounds", async () => {
+  const [room, direct, layout] = await Promise.all([
+    readSource("src/features/conversation/shared/composer/components/footer/composer-room-model-control.tsx"),
+    readSource("src/features/conversation/shared/composer/components/footer/composer-session-controls.tsx"),
+    readSource("src/features/conversation/shared/composer/components/footer/composer-session-control-layout.ts"),
+  ]);
+  assert.equal((room.match(/<UiActionMenuContent/g) ?? []).length, 1);
+  assert.match(room, /useMediaQuery\(ROOM_MODEL_CASCADE_QUERY\)/);
+  assert.match(room, /contentWidth: menuLayout\.width/);
+  assert.doesNotMatch(room, /window\.inner(?:Width|Height)|layoutStyle|Math\.(?:min|max)\(/);
+  assert.match(room, /SESSION_MODEL_MENU_WIDTH/);
+  assert.match(direct, /SESSION_MODEL_MENU_WIDTH/);
+  assert.match(layout, /export const SESSION_MODEL_MENU_WIDTH = 256/);
+  assert.doesNotMatch(room + direct, /const (?:ROOM|SESSION)_MODEL_MENU_WIDTH =/);
 });

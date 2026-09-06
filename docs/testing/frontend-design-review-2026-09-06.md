@@ -1627,3 +1627,46 @@ Workspace 私有全局监听和级联偏移。Context source 采用显式 outsid
 /tmp/nexus-workspace-a48-check.log。目标集初次已通过 56 项；随后失效源夹具因
 手动移除 React 节点在 teardown 报错，恢复节点后由最终完整门禁验证通过。
 未运行浏览器、截图或实际宿主视觉检查。
+
+
+## A49：Room 模型菜单共用内容几何并保留响应式焦点
+
+完成 ComposerRoomModelControl 文件的代码/行为审视。此前宽屏与窄屏分别渲染
+模型列表，布局切换会换掉 DOM；窄屏返回栏未计入总高度，且内容 Panel 再用固定
+256px 覆盖外层的视口收敛。现在只有一份 RoomModelOptions，使用稳定组件位置/
+key，宽窄切换保留模型行、焦点和滚动；被移除的 Agent 行或返回按钮才按当前层级
+恢复焦点，而且只在焦点已掉到 body、当前浮层仍处于最上层时执行，不抢外部焦点。
+
+composer-session-control-layout 统一 DM/Room 模型的 256px 内容宽度、返回栏 recipe
+及当前可见面板总高度。Agent 列继续取 cascade-menu 宽度，列间距与留白来自同一
+公共 preset；是否并排使用由这些内容尺寸组成的媒体查询，并复用 useMediaQuery
+订阅，所以单纯 viewport 变化即使没有改变原 Agent 菜单几何也能更新悬浮规则。
+只显示 Agent 时只预算该列表；逐级进入时把 40px 返回栏计入限高；两列同时显示
+才取最大内容高度。选项区独立滚动，单栏 Panel 填满约束后的宽度。
+
+共享锚定定位器接受明确的复合 contentWidth，但仍在同一 solver 内处理视口夹紧；
+Room 删除 window.innerWidth、二次 left/width 修补及重复模型 JSX，没有新增 geometry
+preset。DM 只迁移共享模型宽度来源，不改变权限或模型命令。新增架构门禁锁定
+唯一模型选项视图、公共 media 订阅/定位与宽度 owner；上一批总高门禁也跟随新的
+实际领域 layout owner，不再要求视图直接持有尺寸计算。
+
+模型菜单为用户选中的 Agent/Session 保留临时绑定：目标被移除或换 Session 时
+关闭，提交前也核对当前控制器的 exact pair；同一目录刷新/模型列表增长和普通
+响应式变化保留当前选择。持久修改、继承/重置、busy 和失败对账仍由原控制器拥有。
+自动关闭合并到同一 effect，避免 busy 与失效检查重复执行关闭。
+
+新增七项组件回归：复合宽度夹紧一项；Room 宽/窄/180px 约束下的同节点/焦点/
+滚动保持、移除焦点节点时的恢复与外部焦点隔离、只改变媒体条件时的 hover 更新、
+返回栏限高与长目录、Session 替换/移除后的无命令关闭共六项。原键盘进入/返回、
+IME、Tab、hover、模型更新/继承/重置和 disabled 场景继续通过。DOM 与坐标断言
+不作为用户已经暂停的视觉或实际宿主验收。
+
+清单仍为 485 项：338 pending、124 in_progress、8 retained、12 improved、
+3 removed。两个涉及 TSX 的记录/摘要已同步，所有存活摘要一致；新增 layout 是
+非组件 TS，公共组件仍为 122 项。直接 Session/权限控件与其他页面保持原范围待审，
+整个 Goal 继续。
+
+验证：最终 npm run check 通过，含 lint、typecheck、472 项合同、198 个文件的
+667 项组件测试和生产 build，仍只有既有大型分块提示。权威日志为
+/tmp/nexus-room-model-a49-check.log。此前目标集 35 项已通过；最终门禁还验证了
+自动关闭 effect 合并和 Tooltip 焦点夹具的 act 修正，未运行浏览器或宿主视觉校验。

@@ -209,6 +209,19 @@ describe("anchored overlay layout presets", () => {
 });
 
 describe("point and side overlays share preset boundaries", () => {
+  it("constrains composed content width through the same anchored viewport solver", () => {
+    setViewport(180, 300);
+    const anchor = document.createElement("button");
+    const rect = vi.spyOn(anchor, "getBoundingClientRect").mockReturnValue(new DOMRect(50, 200, 80, 28));
+    const position = resolveUiAnchoredOverlayPosition({
+      anchor, contentWidth: 486, estimatedContentHeight: 80, placement: "top", preset: "cascade-menu",
+    });
+    expect(position.width).toBe(156);
+    expect(position.left).toBe(12);
+    expect(position.maxHeight).toBe(80);
+    rect.mockRestore();
+  });
+
   it("moves a pointer menu back inside the viewport without changing its content height", () => {
     setViewport(800, 600);
     const position = resolveUiPointOverlayPosition({
