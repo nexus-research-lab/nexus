@@ -1,4 +1,4 @@
-// INPUT: 锚点/指针、方向与对齐、语义 geometry preset 和可选内容估算高度。
+// INPUT: 锚点/指针、方向与对齐、语义 preset、内容估算高度及复合内容宽度。
 // OUTPUT: 共用既有八类浮层尺寸的上下/指针/侧向位置，以及复合布局需要的 preset 边界。
 // POS: 锚定浮层语义几何唯一 owner；不解释菜单、选择器或业务内容。
 
@@ -104,15 +104,22 @@ export function getUiAnchoredOverlayMinimumWidth(
   return UI_ANCHORED_OVERLAY_GEOMETRY[preset].minWidth;
 }
 
+export function getUiAnchoredOverlayGap(preset: UiAnchoredOverlayPreset): number {
+  return UI_ANCHORED_OVERLAY_GEOMETRY[preset].gap;
+}
+
 export function resolveUiAnchoredOverlayPosition({
   align,
   anchor,
+  contentWidth,
   estimatedContentHeight,
   placement,
   preset,
 }: {
   align?: UiAnchoredOverlayAlignment;
   anchor: HTMLElement;
+  // 复合内容可提供自身有限宽度；视口夹紧和定位仍由同一个求解器拥有。
+  contentWidth?: number;
   estimatedContentHeight?: number;
   placement: UiAnchoredOverlayPlacement;
   preset: UiAnchoredOverlayPreset;
@@ -129,7 +136,7 @@ export function resolveUiAnchoredOverlayPosition({
     gap: geometry.gap,
     maxHeight: geometry.maxHeight,
     minHeight: geometry.minHeight,
-    minWidth: geometry.minWidth,
+    minWidth: contentWidth ?? geometry.minWidth,
     placement,
     viewportMargin: geometry.viewportInset,
   });
