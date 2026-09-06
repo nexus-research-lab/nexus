@@ -1,5 +1,5 @@
 // INPUT: 当前 Agent 与工作区预载范围。
-// OUTPUT: 文件打开目标、预载与受限辅助面板宽度/拖动状态。
+// OUTPUT: 文件打开目标、预载与辅助面板受限百分比；鼠标/键盘共用尺寸 owner。
 // POS: 首页工作区协调；鼠标监听归共享 useMouseDrag，文件请求归 store。
 
 "use client";
@@ -81,6 +81,9 @@ export function useHomeWorkspaceController({
     setSidePanelWidthPercent(clampHomeSidePanelWidthPercent(nextPercent));
   }, []);
   const { isDragging, startDragging } = useMouseDrag(handleResizeMove);
+  const handleSidePanelWidthChange = useCallback((width: number) => {
+    if (Number.isFinite(width)) setSidePanelWidthPercent(clampHomeSidePanelWidthPercent(width));
+  }, []);
 
   return {
     activeWorkspacePath,
@@ -91,5 +94,6 @@ export function useHomeWorkspaceController({
     setCurrentTodos,
     handleOpenWorkspaceFile,
     handleStartSidePanelResize: startDragging,
+    handleSidePanelWidthChange,
   };
 }

@@ -18,8 +18,8 @@ export const APP_NARROW_VIEWPORT_MEDIA_QUERY = "(max-width: 559px)";
 export const APP_NARROW_VIEWPORT_HIDDEN_CLASS_NAME = "max-[559px]:hidden";
 
 export const HOME_SIDE_PANEL_DEFAULT_WIDTH_PERCENT = 56;
-const HOME_SIDE_PANEL_MIN_WIDTH_PERCENT = 30;
-const HOME_SIDE_PANEL_MAX_WIDTH_PERCENT = 56;
+export const HOME_SIDE_PANEL_MIN_WIDTH_PERCENT = 30;
+export const HOME_SIDE_PANEL_MAX_WIDTH_PERCENT = 56;
 
 export function clampHomeSidePanelWidthPercent(widthPercent: number): number {
   return Math.min(

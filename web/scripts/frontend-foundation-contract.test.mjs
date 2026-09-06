@@ -3279,3 +3279,17 @@ test("Auxiliary and file panel controllers share the mouse drag lifecycle", asyn
     assert.doesNotMatch(source, /window\.(?:add|remove)EventListener\(["'](?:mousemove|mouseup|blur)["']/);
   }
 });
+
+test("Right panel bounds and resize keyboard handling retain unique owners", async () => {
+  const panels = await Promise.all([
+    readSource("src/features/conversation/room/surface/layout/room-thread-inline-panel.tsx"),
+    readSource("src/features/conversation/room/surface/layout/room-surface-auxiliary-panel.tsx"),
+  ]);
+  for (const source of panels) {
+    assert.match(source, /useRoomSidePanelResize\(/);
+    assert.doesNotMatch(source, /\b(?:minWidth|maxWidth):|onKeyDown=/);
+  }
+  const files = await readSource("src/features/conversation/room/workspace/view/workspace-file-browser.tsx");
+  assert.match(files, /<PanelResizeHandle/);
+  assert.doesNotMatch(files, /onKeyDown=/);
+});

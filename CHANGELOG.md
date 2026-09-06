@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Desktop file, Thread and auxiliary splitters now support arrow keys and
+  Home/End, with visible keyboard focus and announced width ranges. Keyboard
+  resizing starts from the effective CSS-limited width and updates the existing
+  layout preference; viewport changes preserve that preference. Panel width
+  limits and resize keyboard handling have shared owners.
 - Auxiliary and workspace file panels share mouse drag cleanup. Resizing ends
   on window blur, hidden documents or a released primary button, and file-list
   dragging stops when switching to stacked or focused preview layouts. Secondary

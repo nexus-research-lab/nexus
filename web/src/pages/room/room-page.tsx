@@ -1,3 +1,7 @@
+// INPUT: 路由、Room 控制器职责分组与页面级事件。
+// OUTPUT: 活跃 Room 装配或目录降级，并转交原文件/宽度/会话命令。
+// POS: 页面入口；不重新解释分栏几何或服务端业务规则。
+
 import { useMemo } from "react";
 import { useParams } from "react-router-dom";
 
@@ -78,6 +82,7 @@ function ActiveRoomPage({
         onConversationSnapshotChange={conversation.handleSnapshotChange}
         onInitialDraftConsumed={navigation.consumeInitialDraft}
         onStartSidePanelResize={workspace.handleStartSidePanelResize}
+        onSidePanelWidthChange={workspace.handleSidePanelWidthChange}
         onTodosChange={workspace.setCurrentTodos}
         onValidateAgentName={actions.validateAgentName}
         surfaceSplitRef={workspace.surfaceSplitRef}

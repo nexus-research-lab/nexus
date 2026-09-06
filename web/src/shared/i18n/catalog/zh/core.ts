@@ -35,6 +35,7 @@ export const zhCoreMessages = {
   "common.delete": "删除",
   "common.clear": "清除",
   "common.file_tree": "文件目录",
+  "common.panel_width_pixels": "宽度 {width} 像素",
   "common.search": "搜索",
   "common.location_aria": "当前位置",
   "common.required_field": "必填",

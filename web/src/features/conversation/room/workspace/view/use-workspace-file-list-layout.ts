@@ -1,5 +1,5 @@
 // INPUT: 当前紧凑断点与外部是否允许调整目录宽度。
-// OUTPUT: 有界目录宽度和共享鼠标拖动生命周期。
+// OUTPUT: 有界目录宽度、键盘调整范围和共享鼠标拖动生命周期。
 // POS: Workspace 文件列表尺寸 owner；不处理文件导航或写入。
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -44,10 +44,15 @@ export function useWorkspaceFileListLayout(enabled = true) {
     }
   }, [spec]);
   const { isDragging, startDragging, stopDragging } = useMouseDrag(handleMove, enabled);
+  const changeWidth = useCallback((next: number) => {
+    if (enabled && Number.isFinite(next)) setWidth(clampWidth(next, spec));
+  }, [enabled, spec]);
+  const visibleWidth = clampWidth(width, spec);
 
   return {
     panelRef,
-    width,
+    width: visibleWidth,
+    resizeControl: enabled ? { value: visibleWidth, min: spec.minWidth, max: spec.maxWidth, onChange: changeWidth } : null,
     isResizing: isDragging,
     startResizing: startDragging,
     stopResizing: stopDragging,

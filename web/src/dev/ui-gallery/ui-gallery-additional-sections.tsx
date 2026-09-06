@@ -728,9 +728,9 @@ export function WorkspaceGallery({ locale }: { locale: Locale }) {
             <div className="relative flex h-56 overflow-hidden rounded-[12px] border border-(--divider-subtle-color)">
               <div className="grid flex-1 place-items-center text-xs text-(--text-muted)">{galleryText(locale, "主面板", "Main panel")}</div>
               <div className="relative w-2 bg-(--surface-panel-subtle-background)">
-                <PanelResizeHandle ariaLabel={galleryText(locale, "调整面板宽度", "Resize panel")} onResizeStart={() => undefined} variant="overlay" />
+                <PanelResizeHandle ariaLabel={galleryText(locale, "调整面板宽度", "Resize panel")} controls="gallery-resize-panel" control={null} onResizeStart={() => undefined} variant="overlay" />
               </div>
-              <div className="grid w-1/3 place-items-center border-l border-(--divider-subtle-color) text-xs text-(--text-muted)">{galleryText(locale, "辅助面板", "Side panel")}</div>
+              <div id="gallery-resize-panel" className="grid w-1/3 place-items-center border-l border-(--divider-subtle-color) text-xs text-(--text-muted)">{galleryText(locale, "辅助面板", "Side panel")}</div>
             </div>
           </PreviewCard>
         </div>
