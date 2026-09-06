@@ -1,3 +1,9 @@
+/**
+ * INPUT: Launcher 目录摘要、搜索标签和会话时间。
+ * OUTPUT: 装饰身份、Mention 与最近会话的纯投影。
+ * POS: Launcher Console 数据适配；姓名缩写复用 lib/avatar 的完整字符边界。
+ */
+import { getInitials } from "@/lib/avatar";
 import type {
   LauncherAgentSummary,
   LauncherConversationSummary,
@@ -21,17 +27,6 @@ const TOKEN_SWATCHES = [
   { fill: "#8B9089", text: "#FFFFFF", ring: "#B6BAB4" },
   { fill: "#E8945A", text: "#FFFFFF", ring: "#F0B186" },
 ];
-
-function getInitials(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) {
-    return "AG";
-  }
-  if (parts.length === 1) {
-    return parts[0].slice(0, 2).toUpperCase();
-  }
-  return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
-}
 
 export function truncateLauncherChipLabel(
   label: string,

@@ -1032,6 +1032,40 @@ scroll/pointer 占位仅用于 jsdom；实际浏览器启动仍受此前两次�
 布局、点击命中或原生宿主验收。清单为 385 pending、95 in_progress、3 removed，
 483 项中所有存活文件摘要一致；完整 Contacts 详情/联络和全前端 Goal 仍未完成。
 
+## A31：公共头像回退与完整字符边界（待实际浏览器复查）
+
+Room 拼图原先嵌套 `UiAgentAvatar size="md"`，再强制覆盖宽高、圆角、边框和
+阴影。九宫格中的普通 14px 双字符回退因此超过格宽；普通头像与 Launcher 又各有
+一份 UTF-16 截断逻辑，会拆坏 emoji、组合附标和扩展汉字。图片失败也没有回退。
+
+`avatar.tsx` 内部现在由一份 `AvatarContent` 承担图片与回退，地址变化才重建
+失败状态，同地址不循环重试；Agent/Room 根节点各有唯一可访问名称，群内成员
+作为装饰。多成员只取一个完整字符，字号由 Room 尺寸与格数共同决定；最多九名，
+Header 的四名限制和双成员错位轻叠保留。空 Room 仍使用稳定默认图片，图片失败
+再显示 Room 图标。普通头像尺寸与圆角数值保持，圆角改为读取 control token；
+图形节点和任务条仍有真实 `imageClassName` 消费者，本批不删除该 API。数学曲线
+头像已有稳定身份、语义圆角与运行态 API，七项回归通过，本批保留实现。
+
+`lib/text-graphemes.ts` 抽取原流式字符切分作为无状态基础 owner，供姓名缩写、
+Hero 的测量失败回退和 Markdown 共用。删除 Launcher 私有缩写、Hero 的重复
+Segmenter 类型适配、旧流式切分导出和无语义转发函数；所有消费者直接迁移。
+流式层继续独立拥有尾字符重分、backlog 和调度，跨 delta 的 ZWJ/组合附标修复
+仍通过原行为测试。Hero 的 pretext 主路径、渐显与 FadeSlideIn 未作设计调整，
+因此该文件只登记部分审查。
+
+改前新增测试记录四种 Unicode 截断失败及 Avatar 合同缺口。改后全部 **546 项
+组件/基础函数测试（178 文件）、170 项选定合同、lint、typecheck 与生产构建
+通过**；合同包含字符增量、Gallery 覆盖和 Launcher 命中路径。产物中确认语义
+圆角及外环 calc 均实际生成。日志位于 `/tmp/nexus-design-a31-{before,focused,
+components,contracts,build-list,final-lint-types}.log`。
+
+Gallery 增加五档普通头像、三档 Room 的 0/1/2/4/9 成员与破图夹具；浏览器用例
+检查尺寸/圆角、回退文字格内边界、双成员重叠及截图。`--list` 登记 **1,440 个
+矩阵用例**，没有启动浏览器，不能作为几何或宿主验收。此前两次自动审批超时仍
+未解除，本批不重试启动。审查清单为 **382 pending、98 in_progress、3 removed**，
+共 483 项，全部存活源码摘要一致。用户偏好的居中联系人卡片结构继续保留；
+全前端 Goal 仍在进行。
+
 ## 待进一步判断
 
 - A8 已统一侧栏搜索文字与动作所有权，仍需执行真实双语目录的宽度、对比度和
