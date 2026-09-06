@@ -1,5 +1,5 @@
 // INPUT: 已挂载的模态范围、锚点与真实 Portal 浮层元素。
-// OUTPUT: 当前模态范围内的最上层浮层身份，以及跨 Portal 的父子命中关系。
+// OUTPUT: 当前模态范围最上层身份、跨 Portal 的父子/祖先关系及源区域命中语义。
 // POS: Overlay 关闭仲裁真相源；不持有业务开关、关闭回调或页面滚动锁。
 
 interface ModalScope {
@@ -71,7 +71,19 @@ export function isTopAnchoredOverlay(root: HTMLElement | null): boolean {
   )))?.root === root;
 }
 
-export function isAnchoredOverlayOutsidePress(root: HTMLElement | null, target: Node): boolean {
+/** 键盘退出可在关闭前记录父层，避免把即将消失的跨 Portal 菜单当作下一个 Tab 位置。 */
+export function getAnchoredOverlayAncestorRoots(root: HTMLElement): HTMLElement[] {
+  const current = anchoredOverlays.find((overlay) => overlay.root === root);
+  if (!current) return [root];
+  return anchoredOverlays.filter((overlay) => overlay === current || isDescendantOverlay(current, overlay))
+    .map((overlay) => overlay.root);
+}
+
+export function isAnchoredOverlayOutsidePress(
+  root: HTMLElement | null,
+  target: Node,
+  anchorPress: "inside" | "outside" = "inside",
+): boolean {
   const overlays = getCurrentScopeOverlays();
   const current = overlays.find((overlay) => overlay.root === root);
   if (!current) {
@@ -79,6 +91,7 @@ export function isAnchoredOverlayOutsidePress(root: HTMLElement | null, target: 
   }
   return !overlays.some((overlay) => (
     (overlay === current || isDescendantOverlay(overlay, current))
-    && (overlay.root.contains(target) || overlay.anchor.contains(target))
+    && (overlay.root.contains(target)
+      || ((overlay !== current || anchorPress === "inside") && overlay.anchor.contains(target)))
   ));
 }

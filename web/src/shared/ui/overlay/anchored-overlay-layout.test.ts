@@ -8,6 +8,8 @@ import {
   getUiAnchoredOverlayMinimumWidth,
   getUiAnchoredOverlayViewportInset,
   resolveUiAnchoredOverlayPosition,
+  resolveUiPointOverlayPosition,
+  resolveUiSideOverlayPosition,
   type UiAnchoredOverlayPreset,
 } from "./anchored-overlay-layout";
 
@@ -203,5 +205,35 @@ describe("anchored overlay layout presets", () => {
     expect(defaultEstimate.maxHeight).toBe(248);
     expect(boundedEstimate.maxHeight).toBe(140);
     expect(oversizedEstimate.maxHeight).toBe(248);
+  });
+});
+
+describe("point and side overlays share preset boundaries", () => {
+  it("moves a pointer menu back inside the viewport without changing its content height", () => {
+    setViewport(800, 600);
+    const position = resolveUiPointOverlayPosition({
+      point: { x: 799, y: 599 }, preset: "cascade-menu", estimatedContentHeight: 256,
+    });
+    expect(position).toEqual({ left: 564, top: 332, width: 224, maxHeight: 256, placement: "top" });
+  });
+
+  it("uses one internal scroll limit when content or viewport is too small", () => {
+    setViewport(180, 240);
+    const position = resolveUiPointOverlayPosition({
+      point: { x: -20, y: -30 }, preset: "cascade-menu", estimatedContentHeight: 900,
+    });
+    expect(position).toEqual({ left: 12, top: 12, width: 156, maxHeight: 216, placement: "bottom" });
+  });
+
+  it("aligns a side menu to its actual row and flips left when the right edge cannot fit", () => {
+    setViewport(800, 600);
+    const anchor = document.createElement("button");
+    const rect = vi.spyOn(anchor, "getBoundingClientRect").mockReturnValue(new DOMRect(200, 100, 224, 36));
+    expect(resolveUiSideOverlayPosition({ anchor, preset: "cascade-menu", estimatedContentHeight: 158 }))
+      .toEqual({ left: 430, top: 100, width: 224, maxHeight: 158, placement: "bottom" });
+    rect.mockReturnValue(new DOMRect(564, 500, 224, 36));
+    expect(resolveUiSideOverlayPosition({ anchor, preset: "cascade-menu", estimatedContentHeight: 900 }))
+      .toEqual({ left: 334, top: 268, width: 224, maxHeight: 320, placement: "bottom" });
+    rect.mockRestore();
   });
 });

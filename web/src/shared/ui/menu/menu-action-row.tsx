@@ -1,8 +1,8 @@
 // INPUT: Menu action 的原生按钮属性、密度、活动态与语义 tone。
-// OUTPUT: 统一的 button/role=menuitem DOM、禁用语义、命中几何与视觉状态。
+// OUTPUT: 统一的 button/role=menuitem DOM 与原生 ref、禁用语义、命中几何和视觉状态。
 // POS: Shared Menu action row primitive；不管理菜单定位、开关、命令或业务内容。
 
-import type { ButtonHTMLAttributes } from "react";
+import type { ComponentPropsWithRef } from "react";
 
 import { cn } from "@/shared/ui/class-name";
 
@@ -17,7 +17,7 @@ import {
 export type UiMenuActionRowDensity = UiMenuItemDensity;
 
 interface UiMenuActionRowProps extends Omit<
-  ButtonHTMLAttributes<HTMLButtonElement>,
+  ComponentPropsWithRef<"button">,
   "aria-disabled" | "className" | "role" | "type"
 > {
   active?: boolean;
@@ -44,7 +44,7 @@ export function UiMenuActionRow({
       aria-disabled={disabled || undefined}
       className={cn(
         MENU_ITEM_BASE_CLASS_NAME,
-        "flex cursor-pointer items-center text-left",
+        "flex shrink-0 cursor-pointer items-center text-left",
         getMenuItemLayout({ density, hasDescription }).className,
         disabled && "cursor-not-allowed opacity-(--disabled-opacity)",
         getMenuItemStateClassName({ active, tone }),

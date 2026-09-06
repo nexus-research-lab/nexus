@@ -1581,3 +1581,49 @@ DOM/夹具不作为用户已暂停的视觉验收证据。
 Tab helper，最终再次完成 lint、typecheck 和六个目标文件的 37 项 DOM 回归，
 日志分别为 /tmp/nexus-menu-a47-final-lint.log、
 /tmp/nexus-menu-a47-final-typecheck.log 和 /tmp/nexus-menu-a47-final-focused.log。
+
+
+## A48：Workspace 上下文菜单统一浮层、尺寸与关闭边界
+
+完成 WorkspaceContextMenu 文件的代码/行为审视。原控制器按 root/directory/file
+硬编码高度，视图另算 180/200px 主层、180px 子层、偏移和窗口碰撞；这些估算
+与真实分组/行高不同，应用目录变化后也不会重新计算。现在交互状态只保留源
+元素、原始指针点和文件；键盘 contextmenu 从源元素下缘调用，scope 切换清空。
+删除 resolveWorkspaceMenuPosition、目标高度表及其桌面环境依赖。
+
+主层/子层分别调用 resolveUiPointOverlayPosition / resolveUiSideOverlayPosition，
+复用既有 cascade-menu preset（224px、12px 视口留白、320px 上限），没有新增
+另一个尺寸档位。原始点夹回视口，子层按真实 menuitem ref 对齐与向左翻转，
+滚动/窗口变化重新定位，长应用目录在内部滚动。UiMenuActionRow 透传 button ref，
+并保留不可压缩行高；getMenuContentHeight 和共用分隔线 recipe 同时用于 Action、
+Workspace 与 Room 模型，移除各自重复的 footer 高度/组合数字。
+
+两层 Portal、外部指针、Escape 和模态范围统一归 anchored-overlay-layer，删除
+Workspace 私有全局监听和级联偏移。Context source 采用显式 outside 命中策略，
+点击调用区域也收起菜单，但子 Portal 继续属于父级内部。父子间隙不触发立即
+关闭或新 timer；进入另一主项才切换，hover 不抢焦点，显式进入才聚焦子层。
+失效源元素在重定位/指针/Escape 时清理，不抢新模态的按键或焦点，空 ref 的
+延迟挂载语义保持。全部菜单关闭的 Tab 同时排除跨 Portal 的父层，避免焦点落
+到马上卸载的父项；祖先关系读取同一 Overlay registry，不猜 DOM 同级顺序。
+
+原桌面默认应用/Finder/Terminal/指定应用路径、Web 外部文件、复制、加入聊天、
+创建、重命名和删除动作表保持。WorkspaceDialogs 只增加源元素传递；原 Prompt
+锁定与三种输入模式回归继续通过。WorkspaceContextMenu 按已明确的代码阶段
+标为 improved，视觉/实际宿主验收仍暂停；Room 模型宽高/响应式和其他 Action
+消费者继续 in_progress，未以底层复用替代整个业务组件审查。
+
+新增十二项组件回归：指针/侧向几何三项，真实交互事件/scope 一项，Workspace
+边缘与 resize、动态长应用目录与滚动、父子间隙、真实模态两层 Portal、后台模态
+隔离、三种失效源清理、跨层 Tab 等八项；既有行测试增加原生 ref 验证。新架构
+合同阻止 Workspace 恢复私有位置表和全局关闭监听，并要求三处复用总高 owner。
+这些是 DOM/坐标/事件证据，不作为浏览器或实际宿主视觉验收。
+
+清单仍为 485 项：338 pending、125 in_progress、8 retained、11 improved、
+3 removed。五个涉及 TSX 的审查记录和摘要已同步，所有存活摘要一致；公共组件
+仍为 122 项。原 Goal 全量范围保持。
+
+验证：最终完整 npm run check 成功，包含 lint、typecheck、471 项合同、198 个
+文件的 660 项组件回归及生产 build，只有既有大型分块提示。最终证据为
+/tmp/nexus-workspace-a48-check.log。目标集初次已通过 56 项；随后失效源夹具因
+手动移除 React 节点在 teardown 报错，恢复节点后由最终完整门禁验证通过。
+未运行浏览器、截图或实际宿主视觉检查。

@@ -1,5 +1,5 @@
-// INPUT: 菜单条目密度、说明存在性、active 状态与 default/primary/danger tone。
-// OUTPUT: Action、Mention 与上下文菜单共用的行尺寸/估算高度、圆角和状态样式。
+// INPUT: 菜单条目密度、说明、行高/分隔线数量、active 与 default/primary/danger tone。
+// OUTPUT: 菜单共用的行尺寸、列表总高度、分隔线、圆角和状态样式。
 // POS: Menu 视觉合同；不渲染 DOM、定位浮层或持有业务选值。
 
 export type UiMenuItemTone = "default" | "primary" | "danger";
@@ -28,6 +28,15 @@ export function getMenuItemLayout({ density = "default", hasDescription = false 
 export const MENU_LIST_CLASS_NAME = "flex flex-col gap-0.5";
 export const MENU_ITEM_GAP_PX = 2;
 export const MENU_SURFACE_VERTICAL_PADDING_PX = 8;
+export const MENU_SEPARATOR_CLASS_NAME = "mx-1 my-1 border-t border-(--divider-subtle-color)";
+
+/** 行、分隔线及条目间距必须和同一 flex 菜单列表的渲染高度一致。 */
+export function getMenuContentHeight(itemHeights: readonly number[], separatorCount = 0): number {
+  return MENU_SURFACE_VERTICAL_PADDING_PX
+    + itemHeights.reduce((total, height) => total + height, 0)
+    + separatorCount * 9
+    + Math.max(0, itemHeights.length + separatorCount - 1) * MENU_ITEM_GAP_PX;
+}
 
 export const MENU_ITEM_BASE_CLASS_NAME =
   "w-full radius-control-lg text-left transition-[background-color,color] duration-(--motion-duration-fast) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]";

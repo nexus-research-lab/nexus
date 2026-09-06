@@ -37,9 +37,8 @@ import { UiMenuActionRow } from "@/shared/ui/menu/menu-action-row";
 import { focusFirstMenuItem, handleMenuKeyDown } from "@/shared/ui/menu/menu-keyboard";
 import {
   getMenuItemLayout,
-  MENU_ITEM_GAP_PX,
+  getMenuContentHeight,
   MENU_LIST_CLASS_NAME,
-  MENU_SURFACE_VERTICAL_PADDING_PX,
 } from "@/shared/ui/menu/menu-styles";
 import { useAnchoredOverlayLayer } from "@/shared/ui/overlay/anchored-overlay-layer";
 import {
@@ -542,12 +541,10 @@ function estimateRoomModelMenuHeight({
   agentCount: number;
   modelCount: number;
 }): number {
-  const agentHeight = MENU_SURFACE_VERTICAL_PADDING_PX
-    + agentCount * getMenuItemLayout().height
-    + Math.max(0, agentCount - 1) * MENU_ITEM_GAP_PX;
-  const modelItemCount = modelCount + 1;
-  const modelHeight = 17
-    + modelItemCount * getMenuItemLayout({ density: "compact" }).height
-    + modelItemCount * MENU_ITEM_GAP_PX;
+  const agentHeight = getMenuContentHeight(Array.from({ length: agentCount }, () => getMenuItemLayout().height));
+  const modelHeight = getMenuContentHeight(
+    Array.from({ length: modelCount + 1 }, () => getMenuItemLayout({ density: "compact" }).height),
+    1,
+  );
   return Math.max(agentHeight, modelHeight);
 }
