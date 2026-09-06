@@ -1709,3 +1709,46 @@ Room 原 11 项级联/响应式/键盘/身份回归保持通过；共 27 项目�
 验证：最终 npm run check 通过，含 lint、typecheck、473 项合同、199 个文件的
 680 项组件测试和生产 build，仍只有既有大型分块提示。权威日志
 /tmp/nexus-session-a50-check.log；未执行任何浏览器或宿主视觉校验。
+
+
+## A51：清理工作区透传/动作封装并收口公共状态布局
+
+本批完成八个公共组件文件的代码审查：ResourceState、StateBlock、目录卡片
+改善长文本边界，启动加载、工作区加载及侧栏空态保留其明确的语境布局，删除
+两个没有独立公共职责的文件。ContactsDirectory 的搜索此前只经
+WorkspaceSearchInput 原样转发到 UiSearchInput；现直接使用真正所有者，
+保留受控查询、回调、明确占位与外部宽度。默认搜索占位与可访问名称随语言
+更新，新增测试还发现显式 aria-label={undefined} 会由 props spread 覆盖
+回退名称，已调整属性顺序；显式文案与 Field 关联不受影响。
+
+WorkspaceActionBar / WorkspaceActionCard 只有 Room 降级页一个生产消费者，
+其 pills 变体未被使用。三个原导航动作现由领域内稳定 ID 的动作数据装配，
+直接使用现有 WorkspaceCatalogCard 的主按钮/hover/focus/圆角与公共 Typography，
+保留 launcher、contacts、handoff 路由以及原三列断点，删除单独的原生卡片按钮
+配方。最近会话的精确 Room 过滤、排除未开始草稿、排序和数量保持原逻辑；
+该降级页的其他身份/元信息区域继续列为 in_progress，没有扩大完成结论。
+
+状态块允许在窄父容器中收敛，连续路径/标识可换行；标题、说明及恢复动作受
+可用宽度约束，图标作为装饰。ResourceState 的有限状态、单恢复动作/独立双向
+决策、busy/disabled 保留，显式 action tone 不再被主次位置覆盖。目录卡片
+同样可在网格内收缩和换行，Article 主动作与次动作仍保持 CSS 的局部命中隔离。
+没有新增业务状态推断、第二套按钮或新的主题数值。
+
+启动品牌加载保留静态 reduced-motion 帧与 supporting 文字，工作区加载保留
+铺满 Frame 的 Spinner/标签布局，侧栏空态保留 caption 密度、impact/nextStep
+去重和公共动作；三者不因都显示状态就合并为强制套卡的单一页面外形。原相关
+行为回归继续通过。新增三项 Room 键盘导航、一项搜索语言/可访问名称以及一项
+双向决策的忙碌隔离测试，目标集 42 项通过。该集为 DOM 功能回归，未做视觉、
+浏览器或宿主检查；Gallery 仅删除退休示例、迁移已有搜索示例并更新登记。
+
+清单仍为 485 项：326 pending、124 in_progress、12 retained、18 improved、
+5 removed。十一条涉及记录已更新，存活 source_sha256 全部一致；两个被删除
+文件的原始摘要保留作追溯。公共组件由 122 减至 119；减少的三个导出都有迁移
+或唯一消费者证据，不缩减原审查基线。整个 Goal 继续。
+
+验证：npm run check 通过，含 lint、typecheck、473 项合同、200 个文件的
+685 项组件测试和生产 build，日志 /tmp/nexus-state-a51-check.log。最终复查
+补上 ResourceState 动作容器的 min/max 宽度（避免 sm:w-auto 在桌面窄分栏
+按长动作内容展开），随后 lint、9 项状态回归与 build 再通过；最终复验日志
+/tmp/nexus-state-a51-final-{lint,state,build}.log。构建仍只有既有大型分块提示。
+未运行任何浏览器、截图或宿主视觉校验。

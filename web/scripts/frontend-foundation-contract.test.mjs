@@ -3153,6 +3153,8 @@ test("pinned and Room fallback navigation reuse shared action and list owners", 
   assert.match(pinned, /<UiListActionButton/);
   assert.match(pinned, /visibility="hover"/);
   assert.match(fallback, /<UiListRow/);
+  assert.match(fallback, /<WorkspaceCatalogCard/);
+  assert.doesNotMatch(fallback, /WorkspaceActionBar|WorkspaceActionCard/);
   assert.doesNotMatch(fallback, /<button\b/);
 });
 

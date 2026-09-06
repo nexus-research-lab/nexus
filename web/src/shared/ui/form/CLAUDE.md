@@ -26,3 +26,5 @@
 - 分段选项的 icon/text 使用同一个行内布局；全局 `focus-visible` 继续拥有键盘焦点，不能被选中底面的 `box-shadow: none` 清除。禁用选项继续显示当前值，但不触发 hover 背景或变更命令。
 - 分段常规/紧凑文字与最小高度直接在该组件投影，长名称可换行并随组等高；纯图标选项组合 UiTooltip，组不产生重复原生 title。仅供 Gallery 装饰的组图标参数及独占 recipe/token 已移除，产品选项图标继续保留；样式门禁覆盖其消费者，独立回归验证原生/fieldset 禁用和键盘提示。
 - `form-controls.test.tsx` 与 `removable-chip.test.tsx` 以真实 invalid/input、select、键盘和点击事件覆盖 Field、Input、NativeSelect、SearchInput、Checkbox/CheckboxRow、Choice/RadioChoice、RemovableChip 与 SegmentedControl 的 ARIA/状态合同。
+
+- UiSearchInput 直接供目录和页面复用，不再通过 WorkspaceSearchInput 透传包装；未指定 placeholder 时采用当前语言的 common.search，可访问名称默认与它一致，显式 undefined 不能覆盖掉回退名称。显式名称、占位文案、Field 关联和受控查询仍由调用方传入。

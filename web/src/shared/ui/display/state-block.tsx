@@ -1,3 +1,7 @@
+// INPUT: 状态标题、说明、装饰图标、正文/动作槽及有限样式语义。
+// OUTPUT: 共享状态块排版、图标与长文本约束；播报由语义调用层负责。
+// POS: 纯状态布局 owner，不订阅资源或派发领域命令。
+
 "use client";
 
 import { type HTMLAttributes, type ReactNode } from "react";
@@ -44,8 +48,9 @@ export function UiStateBlock({
     >
       {icon ? (
         <div
+          aria-hidden="true"
           className={cn(
-            "chip-default flex items-center justify-center",
+            "chip-default flex shrink-0 items-center justify-center",
             tone === "default"
               ? "h-14 w-14 surface-radius-md"
               : "h-9 w-9 radius-control-md",
@@ -57,6 +62,7 @@ export function UiStateBlock({
       {title ? (
         <h3
           className={cn(
+            "max-w-full",
             tone === "default"
               ? getUiTypographyClassName({ role: "objectTitle", tone: "strong" })
               : getUiTypographyClassName({ role: "sectionTitle", tone: "strong" }),
@@ -70,7 +76,7 @@ export function UiStateBlock({
       {description ? (
         <p
           className={cn(
-            "max-w-md",
+            "w-full max-w-md",
             tone === "default"
               ? cn("mt-2", getUiTypographyClassName({ role: "supporting", tone: "default" }))
               : cn("mt-1.5", getUiTypographyClassName({ role: "metadata", tone: "default" })),
@@ -80,7 +86,7 @@ export function UiStateBlock({
         </p>
       ) : null}
       {children}
-      {actions ? <div className="mt-4 flex flex-wrap items-center justify-center gap-3">{actions}</div> : null}
+      {actions ? <div className="mt-4 flex max-w-full flex-wrap items-center justify-center gap-3">{actions}</div> : null}
     </div>
   );
 }

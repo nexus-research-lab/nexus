@@ -1,6 +1,6 @@
 /**
  * INPUT: Agent 目录与创建、详情、私聊、群聊导航命令。
- * OUTPUT: 单一搜索入口、共享具名筛选、可恢复空态和卡片/列表 Agent 目录。
+ * OUTPUT: 直接复用公共搜索输入、共享具名筛选、可恢复空态和卡片/列表 Agent 目录。
  * POS: 联系人正文根目录；承载选择 Agent 所需的识别和能力概况。
  */
 "use client";
@@ -28,7 +28,7 @@ import {
   WorkspaceCatalogTitle,
 } from "@/shared/ui/workspace/catalog/workspace-catalog-content";
 import { WorkspaceIconFrame } from "@/shared/ui/workspace/catalog/workspace-icon-frame";
-import { WorkspaceSearchInput } from "@/shared/ui/workspace/controls/workspace-search-input";
+import { UiSearchInput } from "@/shared/ui/form/form-control";
 import { Agent } from "@/types/agent/agent";
 import { formatProviderLabel } from "@/types/capability/provider";
 
@@ -111,7 +111,7 @@ export function ContactsDirectory({
   ];
 
   const headerTrailing = (
-    <WorkspaceSearchInput
+    <UiSearchInput
       className="w-full sm:w-[240px]"
       onChange={setSearchQuery}
       placeholder={t("common.search_agents")}

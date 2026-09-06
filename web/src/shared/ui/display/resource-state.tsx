@@ -1,5 +1,5 @@
 // INPUT: 上层已经确定的加载、空、失败、决策或完成展示内容与可选动作。
-// OUTPUT: 失败面最多一个安全恢复动作；需要双向选择的冲突使用独立 decision 态。
+// OUTPUT: 状态文案与动作受可用宽度约束；失败面最多一个安全恢复动作；需要双向选择的冲突使用独立 decision 态。
 // POS: 纯展示组件；不判断 query、mutation、access、离线或重试语义。
 "use client";
 
@@ -156,9 +156,9 @@ export function UiResourceState({
       role={urgency === "assertive" ? "alert" : "status"}
       size={size}
       title={compactState ? (
-        <span className="inline-flex items-center gap-2">
-          {resolvedIcon}
-          <span>{title}</span>
+        <span className="inline-flex max-w-full items-center gap-2">
+          <span aria-hidden="true" className="shrink-0">{resolvedIcon}</span>
+          <span className="min-w-0">{title}</span>
         </span>
       ) : title}
       tone={recovery ? tone : "default"}
@@ -196,7 +196,7 @@ export function UiResourceState({
       ) : null}
       {primaryAction || secondaryAction ? (
         <div className={cn(
-          "flex w-full flex-col items-center justify-center gap-2 sm:w-auto sm:flex-row sm:flex-wrap",
+          "flex min-w-0 w-full max-w-full flex-col items-center justify-center gap-2 sm:w-auto sm:flex-row sm:flex-wrap",
           compactState
             ? "mt-2.5 flex-row flex-wrap justify-start sm:w-full sm:justify-start"
             : recovery
@@ -225,15 +225,11 @@ function ResourceStateAction({
   return (
     <UiButton
       aria-busy={action.busy}
-      className={cn(action.busy && "cursor-wait")}
+      className={cn("min-w-0 max-w-full", action.busy && "cursor-wait")}
       disabled={action.disabled || action.busy}
       onClick={action.onClick}
       size="sm"
-      tone={action.tone === "danger"
-        ? "danger"
-        : primary
-          ? "primary"
-          : "default"}
+      tone={action.tone ?? (primary ? "primary" : "default")}
       variant={primary ? "surface" : "text"}
     >
       {action.busy ? (

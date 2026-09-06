@@ -1,5 +1,5 @@
 // INPUT: 原生输入属性、内容角色、字段描述/错误与搜索值变更命令。
-// OUTPUT: 统一输入外观、精确字段关联与独立标签动作、原生校验反馈和可访问搜索清除行为。
+// OUTPUT: 统一输入外观、精确字段关联与独立标签动作、原生校验反馈和随语言更新的默认搜索名称及可访问清除行为。
 // POS: 文本表单控件原语；不持有业务草稿、提交事务或领域校验规则。
 "use client";
 
@@ -316,13 +316,14 @@ export const UiSearchInput = forwardRef<HTMLInputElement, UiSearchInputProps>(fu
   disabled,
   inputClassName,
   onChange,
-  placeholder = "搜索",
+  placeholder,
   readOnly,
   value,
   variant,
   ...props
 }: UiSearchInputProps, ref) {
   const { t } = useI18n();
+  const searchPlaceholder = placeholder ?? t("common.search");
   const fieldAttributes = useFieldControlAttributes(props);
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
     onChange(event.target.value);
@@ -342,9 +343,8 @@ export const UiSearchInput = forwardRef<HTMLInputElement, UiSearchInputProps>(fu
           inputClassName,
         )}
         disabled={disabled}
-        aria-label={props["aria-label"] ?? placeholder}
         onChange={handleChange}
-        placeholder={placeholder}
+        placeholder={searchPlaceholder}
         readOnly={readOnly}
         role="searchbox"
         type="text"
@@ -352,6 +352,7 @@ export const UiSearchInput = forwardRef<HTMLInputElement, UiSearchInputProps>(fu
         ref={ref}
         {...props}
         {...fieldAttributes}
+        aria-label={props["aria-label"] ?? searchPlaceholder}
       />
       {value ? (
         <UiIconButton

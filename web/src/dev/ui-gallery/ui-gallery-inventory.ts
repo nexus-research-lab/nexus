@@ -176,7 +176,6 @@ export const UI_GALLERY_COVERAGE_GROUPS: readonly UiGalleryCoverageGroup[] = [
     mode: "direct",
     renderer: "Workspace controls",
     components: [
-      "WorkspaceActionBar", "WorkspaceActionCard", "WorkspaceSearchInput",
       "WorkspaceStatusBadge", "WorkspaceConversationTabs", "WorkspaceConversationTab",
       "ConversationTabsScrollRail", "WorkspaceTaskPanel",
     ],

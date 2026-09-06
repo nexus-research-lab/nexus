@@ -1,6 +1,6 @@
 /**
  * INPUT: 无法进入完整 Room surface 时的 Room、Agent 与会话目录。
- * OUTPUT: 基础返回动作和排除未开始 draft 的最近会话入口。
+ * OUTPUT: 共享目录卡承载的返回动作和排除未开始 draft 的最近会话入口。
  * POS: Room 缺少完整上下文时的降级导航页。
  */
 
@@ -11,7 +11,8 @@ import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 import { filterRoomHistoryConversations } from "@/features/conversation/room/surface/history/room-history-model";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiListRow } from "@/shared/ui/list/list-row";
-import { WorkspaceActionBar, WorkspaceActionCard } from "@/shared/ui/workspace/controls/workspace-action-bar";
+import { WorkspaceCatalogCard } from "@/shared/ui/workspace/catalog/workspace-catalog-card";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { Agent } from "@/types/agent/agent";
 import { RoomConversationView } from "@/types/conversation/conversation";
 
@@ -47,25 +48,46 @@ export function GroupRouteEntry({
           {roomAgent ? roomAgent.name : t("room.route_empty_title")}
         </h2>
 
-        <WorkspaceActionBar variant="cards">
-          <WorkspaceActionCard
-            description={t("room.route_back_launcher_description")}
-            icon={<MessageSquare className="h-5 w-5 text-(--icon-strong)" />}
-            onClick={() => navigate(AppRouteBuilders.launcher())}
-            title={t("room.route_back_launcher")}
-          />
-          <WorkspaceActionCard
-            description={t("room.route_browse_agents_description")}
-            icon={<Users className="h-5 w-5 text-(--icon-strong)" />}
-            onClick={() => navigate(AppRouteBuilders.contacts())}
-            title={t("room.route_browse_agents")}
-          />
-          <WorkspaceActionCard
-            icon={<Sparkles className="h-5 w-5 text-(--icon-strong)" />}
-            onClick={() => navigate(AppRouteBuilders.launcher())}
-            title={t("room.route_handoff")}
-          />
-        </WorkspaceActionBar>
+        <div className="mt-6 grid gap-3 md:grid-cols-3">
+          {[
+            {
+              id: "launcher",
+              title: t("room.route_back_launcher"),
+              description: t("room.route_back_launcher_description"),
+              Icon: MessageSquare,
+              route: AppRouteBuilders.launcher(),
+            },
+            {
+              id: "contacts",
+              title: t("room.route_browse_agents"),
+              description: t("room.route_browse_agents_description"),
+              Icon: Users,
+              route: AppRouteBuilders.contacts(),
+            },
+            {
+              id: "handoff",
+              title: t("room.route_handoff"),
+              Icon: Sparkles,
+              route: AppRouteBuilders.launcher(),
+            },
+          ].map(({ id, title, description, Icon, route }) => (
+            <WorkspaceCatalogCard
+              key={id}
+              primaryAction={{ label: title, onClick: () => navigate(route) }}
+              size="compact"
+            >
+              <Icon aria-hidden className="h-5 w-5 shrink-0 text-(--icon-strong)" />
+              <p className={`mt-3 ${getUiTypographyClassName({ role: "control", tone: "strong", weight: "semibold" })}`}>
+                {title}
+              </p>
+              {description ? (
+                <p className={`mt-1 ${getUiTypographyClassName({ role: "caption", tone: "soft" })}`}>
+                  {description}
+                </p>
+              ) : null}
+            </WorkspaceCatalogCard>
+          ))}
+        </div>
       </section>
 
       <aside className="surface-radius-md border border-(--divider-subtle-color) px-5 py-5">
