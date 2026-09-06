@@ -45,6 +45,48 @@ async function capture(surface: Locator, info: TestInfo, name: string) {
   });
 }
 
+test("contact directory shares search chrome and keeps pending friend additions reviewable", async ({ page }, info) => {
+  const { errors } = await openGallery(page, info, "content");
+  const fixture = page.locator("[data-gallery-contact-communication]");
+  const search = fixture.getByRole("searchbox", { name: copy(info, "搜索联系人", "Search contacts"), exact: true });
+  await search.fill("missing");
+  await expect(fixture.getByText(copy(info, "没有匹配的联系人", "No matching contacts"), { exact: true })).toBeVisible();
+  await fixture.getByRole("button", { name: copy(info, "清除", "Clear"), exact: true }).first().click();
+  await expect(fixture.getByRole("button", { name: "Operations partner · 跨区域运营协作伙伴", exact: true })).toBeVisible();
+  await fixture.getByRole("button", { name: copy(info, "添加好友", "Add friend"), exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: copy(info, "添加好友", "Add friend"), exact: true });
+  await expectInsideViewport(page, dialog.locator(".dialog-shell"));
+  const candidates = dialog.getByRole("searchbox", { name: copy(info, "搜索可添加的 Agent", "Search Agents to add"), exact: true });
+  await expect(candidates).toBeFocused();
+  await dialog.getByRole("button", { name: "Writer · 写作者", exact: true }).click();
+  const note = dialog.getByRole("textbox", { name: copy(info, "备注", "Note"), exact: true });
+  await note.fill("Research partner");
+  await candidates.fill("missing");
+  await expect(dialog.getByText(copy(info, "没有匹配的 Agent", "No matching Agents"), { exact: true })).toBeVisible();
+  await expect(note).toHaveAccessibleDescription(/Writer/);
+  const submit = dialog.getByRole("button", { name: copy(info, "添加好友", "Add friend"), exact: true });
+  await submit.click();
+  await expect(submit).toBeDisabled();
+  await expect(candidates).toBeDisabled();
+  await expect(note).toBeDisabled();
+  for (const button of await dialog.getByRole("button").all()) await expect(button).toBeDisabled();
+  await page.keyboard.press("Escape");
+  await page.mouse.click(1, 1);
+  await expect(dialog).toBeVisible();
+  await expect(fixture.locator("[data-gallery-communication-commands]")).toHaveText('["add:writer:Research partner"]');
+  await capture(dialog.locator(".dialog-shell"), info, "contact-add-pending");
+  await page.evaluate(() => window.dispatchEvent(new Event("nexus-gallery-contact-add-result")));
+  await expect(submit).toBeEnabled();
+  await expect(note).toHaveValue("Research partner");
+  await dialog.getByRole("button", { name: copy(info, "取消", "Cancel"), exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await fixture.getByRole("button", { name: "Toggle stale contacts", exact: true }).click();
+  await expect(fixture.getByRole("button", { name: "Operations partner · 跨区域运营协作伙伴", exact: true })).toBeVisible();
+  await fixture.getByRole("button", { name: copy(info, "刷新", "Refresh"), exact: true }).click();
+  await expect(fixture.getByRole("button", { name: "Toggle stale contacts", exact: true })).toHaveAttribute("aria-pressed", "false");
+  expect(errors).toEqual([]);
+});
+
 test("Agent identity fields share labels, preserve tag composition and grow long model choices", async ({ page }, info) => {
   const { errors } = await openGallery(page, info, "content");
   const fixture = page.locator("[data-gallery-identity-fields]");

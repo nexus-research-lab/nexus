@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前 Agent、联络读模型、Session、私信事件、失败事实与页面命令。
- * OUTPUT: 编排独立目录、共享聊天面板、Header 与删除确认的 Agent 联络工作面。
+ * OUTPUT: 编排独立目录、共享聊天面板、Header 与固定目标/提交状态的删除确认。
  * POS: Contacts 详情“联络”根编排；不定义目录行、添加表单或资源状态样式。
  */
 "use client";
@@ -91,6 +91,7 @@ export interface AgentCommunicationViewState {
   isDirectoryLoading: boolean;
   isHistoryLoading: boolean;
   isMessagesLoading: boolean;
+  isRemoving: boolean;
   isSending: boolean;
   mutationFailure: AgentCommunicationMutationFailure | null;
   pendingAgentId: string | null;
@@ -130,7 +131,7 @@ export function AgentCommunicationView({
   state,
 }: AgentCommunicationViewProps) {
   const { t } = useI18n();
-  const [removeDialogOpen, setRemoveDialogOpen] = useResettableState(false, agent.agent_id);
+  const [pendingRemoval, setPendingRemoval] = useResettableState<AgentContact | null>(null, agent.agent_id);
   const agentsById = useMemo(
     () => new Map(agents.map((item) => [item.agent_id, item])),
     [agents],
@@ -186,7 +187,7 @@ export function AgentCommunicationView({
                 state.conversationFailure?.kind
                 ?? (state.conversationId ? "messages" : "channel"),
               )}
-              onRemove={() => setRemoveDialogOpen(true)}
+              onRemove={() => setPendingRemoval({ ...selectedContact })}
               onSelectConversation={onSelectConversation}
             />
             <ContactConversation
@@ -214,24 +215,27 @@ export function AgentCommunicationView({
         )}
       </main>
       <ConfirmDialog
+        busy={state.isRemoving}
         confirmText={t("agent_options.contact.remove_friend")}
-        isOpen={removeDialogOpen && selectedContact !== null}
-        message={selectedContact
+        isOpen={pendingRemoval !== null}
+        message={pendingRemoval
           ? t("agent_options.contact.remove_friend_confirm", {
-            name: getCommunicationContactLabel(selectedContact),
+            name: getCommunicationContactLabel(pendingRemoval),
           })
           : ""}
-        onCancel={() => setRemoveDialogOpen(false)}
+        onCancel={() => setPendingRemoval(null)}
         onConfirm={() => {
-          if (selectedContact) {
-            void onRemoveContact(selectedContact.contact_agent_id).then((removed) => {
+          if (pendingRemoval && !state.isRemoving) {
+            const target = pendingRemoval;
+            void onRemoveContact(target.contact_agent_id).then((removed) => {
               if (removed) {
-                setRemoveDialogOpen(false);
+                setPendingRemoval((current) => current === target ? null : current);
               }
             });
           }
         }}
         title={t("agent_options.contact.remove_friend")}
+        variant="danger"
       />
     </div>
   );

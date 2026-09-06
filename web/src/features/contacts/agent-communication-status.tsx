@@ -1,4 +1,4 @@
-// INPUT: 联络资源的空/加载状态，或服务端已分类的读取失败事实。
+// INPUT: 联络资源的空/加载状态、可选空状态动作，或服务端已分类的读取失败事实。
 // OUTPUT: 使用共享 ResourceState 呈现的一致状态与单一恢复动作。
 // POS: Contacts 联络状态投影；不推断失败原因或执行读取命令。
 
@@ -10,10 +10,12 @@ import { UiResourceState } from "@/shared/ui/display/resource-state";
 import type { AgentCommunicationReadFailure } from "@/types/agent/communication";
 
 export function AgentCommunicationEmptyState({
+  action,
   icon: Icon,
   label,
   loading = false,
 }: {
+  action?: { label: string; onClick: () => void };
   icon?: LucideIcon;
   label: string;
   loading?: boolean;
@@ -25,6 +27,7 @@ export function AgentCommunicationEmptyState({
         <Icon className="h-5 w-5 text-(--icon-default)" />
       ) : undefined}
       size="sm"
+      primaryAction={loading ? undefined : action}
       state={loading ? "loading" : "empty"}
       title={label}
       variant="plain"
