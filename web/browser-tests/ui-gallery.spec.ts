@@ -580,6 +580,58 @@ test("custom MCP fields preserve row identity, technical typography and narrow f
   expect(errors).toEqual([]);
 });
 
+test("Provider configuration follows its container width and distinguishes fixed endpoints", async ({ page }, info) => {
+  const { errors } = await openGallery(page, info, "content");
+  const fixture = page.locator("[data-gallery-provider-form]");
+  const host = fixture.locator("[data-gallery-provider-host]");
+  const widths = fixture.getByRole("group", { name: copy(info, "表单宽度", "Form width"), exact: true });
+  const name = host.getByLabel(copy(info, "服务名称", "Provider Name"), { exact: false });
+  const kind = host.getByRole("button", { name: copy(info, "服务类型", "Provider kind"), exact: true });
+  const format = host.getByRole("button", { name: copy(info, "接口协议", "API Format"), exact: true });
+  for (const width of [320, 560, 800]) {
+    const choice = widths.getByRole("button", { name: `${width}px`, exact: true });
+    await choice.click();
+    await expect(choice).toHaveAttribute("aria-pressed", "true");
+    const bounds = (await host.boundingBox())!;
+    const [nameBox, kindBox, formatBox] = await Promise.all([name, kind, format].map(async (input) => (await input.boundingBox())!));
+    for (const inputBox of [nameBox, kindBox, formatBox]) {
+      expect(inputBox.height).toBe(36);
+      expect(inputBox.x).toBeGreaterThanOrEqual(bounds.x - 1);
+      expect(inputBox.x + inputBox.width).toBeLessThanOrEqual(bounds.x + bounds.width + 1);
+    }
+    if (bounds.width >= 720) {
+      expect(nameBox.y).toBe(kindBox.y);
+      expect(kindBox.y).toBe(formatBox.y);
+      expect(kindBox.x).toBeGreaterThan(nameBox.x);
+      expect(formatBox.x).toBeGreaterThan(kindBox.x);
+    } else if (bounds.width >= 480) {
+      expect(nameBox.y).toBeLessThan(kindBox.y);
+      expect(kindBox.y).toBe(formatBox.y);
+      expect(formatBox.x).toBeGreaterThan(kindBox.x);
+    } else {
+      expect(nameBox.y).toBeLessThan(kindBox.y);
+      expect(kindBox.y).toBeLessThan(formatBox.y);
+    }
+    expect(await host.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
+    await host.scrollIntoViewIfNeeded();
+    await capture(host, info, `provider-container-${width}`);
+  }
+  const endpoint = host.getByLabel(copy(info, "服务地址", "Base URL"), { exact: false });
+  const beforeBlur = Number(await host.getAttribute("data-blur-count"));
+  await endpoint.fill("https://example.com/updated");
+  await endpoint.press("Tab");
+  await expect(endpoint).toHaveValue("https://example.com/updated");
+  await expect(host).toHaveAttribute("data-blur-count", String(beforeBlur + 1));
+  await fixture.locator("[data-gallery-provider-fixed]").click();
+  const fixed = host.getByRole("group", { name: copy(info, "服务地址", "Base URL"), exact: true });
+  await expect(fixed.getByRole("textbox")).toHaveCount(0);
+  await expect(fixed.getByRole("button")).toHaveCount(0);
+  await expect(fixed).toContainText("https://example.com/api/compatible/chat/completions");
+  expect(await fixed.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
+  await capture(fixed, info, "provider-fixed-endpoints");
+  expect(errors).toEqual([]);
+});
+
 test("technical fields share monospace presentation and preserve verification zeros", async ({ page }, info) => {
   const { errors } = await openGallery(page, info);
   const path = page.getByRole("textbox", { name: copy(info, "配置路径", "Config path"), exact: true });

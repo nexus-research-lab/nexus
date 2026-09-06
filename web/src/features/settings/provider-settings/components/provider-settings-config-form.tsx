@@ -1,5 +1,5 @@
 // INPUT: Provider 预设/配置草稿、格式能力、管理权限与字段修改命令。
-// OUTPUT: 精确关联标签的形态、凭证和端点字段组。
+// OUTPUT: 实例级字段关联、按详情栏宽度排列的形态/凭证字段，以及可编辑或只读端点。
 // POS: Provider 配置表单视图；不拥有保存事务或凭证保留规则。
 "use client";
 
@@ -11,6 +11,7 @@ import { UiBadge } from "@/shared/ui/display/badge";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
+import { UiListRow } from "@/shared/ui/list/list-row";
 import type { UiSelectMenuOption } from "@/shared/ui/menu/select-menu-model";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type {
@@ -25,6 +26,8 @@ import {
   formatTokenPreview,
 } from "../model/provider-settings-presentation";
 import type { ProviderDraft } from "../model/provider-settings-types";
+
+import "./provider-settings-config-form.css";
 
 interface ProviderSettingsConfigFormProps {
   builtinEndpointFormats: ProviderPresetFormat[];
@@ -80,71 +83,74 @@ function ProviderShapeControls({
     return null;
   }
   return (
-    <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_180px_260px]">
-      <UiField
-        htmlFor="provider-display-name"
-        label={t("settings.providers.provider_name")}
-        required={draft.preset_key === "custom"}
-      >
-        <UiInput
-          autoCapitalize="off"
-          autoCorrect="off"
-          controlSize="lg"
-          disabled={!selectedCanManage || draft.preset_key !== "custom"}
-          id="provider-display-name"
-          onChange={(event) => onProviderDisplayNameChange(event.target.value)}
-          onBlur={onFieldBlur}
-          placeholder={t("settings.providers.provider_name_placeholder")}
+    <div className="provider-config-shape">
+      <div className="provider-config-shape-fields">
+        <UiField
+          className="provider-config-name-field"
+          htmlFor={`${fieldId}-name`}
+          label={t("settings.providers.provider_name")}
           required={draft.preset_key === "custom"}
-          spellCheck={false}
-          type="text"
-          value={draft.display_name}
-        />
-      </UiField>
+        >
+          <UiInput
+            autoCapitalize="off"
+            autoCorrect="off"
+            controlSize="md"
+            disabled={!selectedCanManage || draft.preset_key !== "custom"}
+            id={`${fieldId}-name`}
+            onChange={(event) => onProviderDisplayNameChange(event.target.value)}
+            onBlur={onFieldBlur}
+            placeholder={t("settings.providers.provider_name_placeholder")}
+            required={draft.preset_key === "custom"}
+            spellCheck={false}
+            type="text"
+            value={draft.display_name}
+          />
+        </UiField>
 
-      <UiField
-        htmlFor={`${fieldId}-kind`}
-        label={t("settings.providers.kind")}
-      >
-        <UiSelectMenu
-          ariaLabel={t("settings.providers.kind")}
-          id={`${fieldId}-kind`}
-          disabled={!selectedCanManage || isEditing || providerKindOptions.length <= 1}
-          onChange={onProviderKindChange}
-          options={providerKindOptions}
-          size="lg"
-          value={draft.provider_kind}
-        />
-      </UiField>
+        <UiField
+          htmlFor={`${fieldId}-kind`}
+          label={t("settings.providers.kind")}
+        >
+          <UiSelectMenu
+            ariaLabel={t("settings.providers.kind")}
+            id={`${fieldId}-kind`}
+            disabled={!selectedCanManage || isEditing || providerKindOptions.length <= 1}
+            onChange={onProviderKindChange}
+            options={providerKindOptions}
+            size="md"
+            value={draft.provider_kind}
+          />
+        </UiField>
 
-      <UiField
-        htmlFor={`${fieldId}-format`}
-        label={(
-          <span className="inline-flex items-center gap-2">
-            {t("settings.providers.api_format")}
-          {showRuntimeFormatBadge ? (
-            <UiBadge
-              size="xs"
-              tone="idle"
-              title={t("settings.providers.api_format_runtime_hint")}
-            >
-              {t("settings.providers.api_format_runtime_badge")}
-            </UiBadge>
-          ) : null}
-          </span>
-        )}
-        required
-      >
-        <UiSelectMenu
-          ariaLabel={t("settings.providers.api_format")}
-          id={`${fieldId}-format`}
-          disabled={!selectedCanManage || formatOptions.length <= 1}
-          onChange={onApiFormatChange}
-          options={formatOptions}
-          size="lg"
-          value={draft.api_format}
-        />
-      </UiField>
+        <UiField
+          htmlFor={`${fieldId}-format`}
+          label={(
+            <span className="inline-flex flex-wrap items-center gap-2">
+              {t("settings.providers.api_format")}
+            {showRuntimeFormatBadge ? (
+              <UiBadge
+                size="xs"
+                tone="idle"
+                title={t("settings.providers.api_format_runtime_hint")}
+              >
+                {t("settings.providers.api_format_runtime_badge")}
+              </UiBadge>
+            ) : null}
+            </span>
+          )}
+          required
+        >
+          <UiSelectMenu
+            ariaLabel={t("settings.providers.api_format")}
+            id={`${fieldId}-format`}
+            disabled={!selectedCanManage || formatOptions.length <= 1}
+            onChange={onApiFormatChange}
+            options={formatOptions}
+            size="md"
+            value={draft.api_format}
+          />
+        </UiField>
+      </div>
     </div>
   );
 }
@@ -176,9 +182,10 @@ function ProviderApiKeyField({
         t("settings.providers.api_key_empty"),
       )
     : t("settings.providers.api_key_placeholder");
+  const fieldId = useId();
   return (
     <UiField
-      htmlFor="provider-auth-token"
+      htmlFor={fieldId}
       label={t("settings.providers.api_key")}
       required={!isEditing}
     >
@@ -190,7 +197,7 @@ function ProviderApiKeyField({
         data-form-type="other"
         data-lpignore="true"
         disabled={!selectedCanManage}
-        id="provider-auth-token"
+        id={fieldId}
         name="provider-auth-token"
         onChange={(event) => onAuthTokenChange(event.target.value)}
         onBlur={onFieldBlur}
@@ -204,7 +211,7 @@ function ProviderApiKeyField({
         <a
           className={cn(
             "inline-flex items-center gap-1 hover:underline",
-            getUiTypographyClassName({ role: "metadata", tone: "brand", weight: "medium" }),
+            getUiTypographyClassName({ role: "supporting", tone: "brand", weight: "medium" }),
           )}
           href={currentPreset.key_url}
           rel="noreferrer"
@@ -237,21 +244,21 @@ function ProviderEndpointField({
   | "usesBuiltinEndpoint"
 >) {
   const { t } = useI18n();
+  const fieldId = useId();
   return (
     <UiField
-      htmlFor="provider-base-url"
+      htmlFor={usesBuiltinEndpoint ? undefined : fieldId}
       label={t("settings.providers.base_url")}
       required={!usesBuiltinEndpoint}
     >
       {usesBuiltinEndpoint ? (
         <div className="space-y-1.5">
           {builtinEndpointFormats.map((format) => (
-            <div
-              className={cn(
-                "input-shell radius-control-lg grid min-h-9 grid-cols-1 items-center gap-1.5 px-3.5 py-1.5 sm:grid-cols-[88px_minmax(0,1fr)] sm:gap-3",
-                getUiTypographyClassName({ role: "control", tone: "default" }),
-              )}
+            <UiListRow
+              className="flex-wrap items-start"
+              density="dense"
               key={format.api_format}
+              variant="outlined"
             >
               <UiBadge
                 className="w-fit max-w-full"
@@ -261,10 +268,10 @@ function ProviderEndpointField({
               >
                 {API_FORMAT_SHORT_LABELS[format.api_format]}
               </UiBadge>
-              <span className={cn("min-w-0 break-all", getUiTypographyClassName({ role: "code", tone: "strong" }))}>
+              <span className={cn("min-w-0 flex-1 basis-40 break-all", getUiTypographyClassName({ role: "code", tone: "strong" }))}>
                 {format.base_url}
               </span>
-            </div>
+            </UiListRow>
           ))}
         </div>
       ) : (
@@ -273,7 +280,7 @@ function ProviderEndpointField({
           autoCorrect="off"
           controlSize="md"
           disabled={!selectedCanManage}
-          id="provider-base-url"
+          id={fieldId}
           onChange={(event) => onBaseUrlChange(event.target.value)}
           onBlur={onFieldBlur}
           placeholder={currentFormat?.base_url_placeholder
@@ -292,7 +299,6 @@ function ProviderEndpointField({
 export function ProviderSettingsConfigForm(
   props: ProviderSettingsConfigFormProps,
 ) {
-
   return (
     <>
       <ProviderShapeControls {...props} />

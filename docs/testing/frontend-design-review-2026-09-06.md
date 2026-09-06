@@ -421,6 +421,37 @@ Gallery 新增实际 CustomMCPDialog 的隔离编辑入口，只计数本地保�
 已注册，未执行；此前启动审批超时仍待用户回复。此领域视图继续 in_progress，
 不把 DOM 测试或测试清单当作完整视觉验收。
 
+## A13：Provider 详情栏表单密度与只读端点（实现与离线验证，待浏览器复核）
+
+延伸 A12 检查的显式下标 key 命中中，Sidebar/Scheduled Board 使用的是加载骨架，
+StructuredContentRenderer 使用的是协议内容块序号；这些命中不属于可编辑表单行，
+没有机械替换，也不据此宣称这些文件或所有历史分支已完成审查。
+
+Settings 与 Operations 复用的 Provider 配置表单仍按整窗 md 断点排列三列，其中
+两列固定占 180/260px；详情栏被目录挤窄时，名称字段可能只剩很小空间。新增
+专用布局 owner，按该表单实际宽度切换：不足 480px 为单列，480px 起名称独占
+首行、下方两个选择器按 2:3 分配，720px 起才恢复原来的三列宽度。此时名称至少
+获得 248px（扣除原有 16px 列距）；长标签允许换行，同行控件底部对齐。此处是
+布局选择，实际文字与平台字体仍需浏览器复核。
+
+形态控件统一使用现有 md 尺寸，与 API 密钥/地址一致；获取密钥链接使用公共
+supporting 角色。名称、密钥和地址不再共用固定 DOM ID。固定端点从没有输入目标
+的 label 和私有 input-shell 改为 Field 的只读具名组与静态 UiListRow，保留格式
+Badge、完整地址及公共 code 文字。所有字段回调、required、disabled 与 preset
+条件均保持原义，没有更改 Provider 配置、授权或保存事务。
+
+新增六项实际配置表单测试，覆盖多实例标签、原样文本/精确选择回调、失焦提交、
+固定/可编辑切换、管理与单选项锁、编辑模式下的空秘密保留和预设名称限制。
+相关 41 项组件测试、143 项合同、lint、typecheck 和生产构建通过；日志为
+`/tmp/nexus-design-a13-{components,contracts,build}.log`。构建产物包含 480/720px
+容器查询，记录为 `/tmp/nexus-design-a13-css.log`；这只能证明样式已进入构建。
+
+新增真实 ProviderSettingsConfigForm 的 Gallery 场景，在同一个视口内改变容器
+上限为 320/560/800px，检查列布局、36px 控件、横向边界、失焦回调及只读端点。
+浏览器目前注册 1008 项（`/tmp/nexus-design-a13-browser-list.log`），尚未执行；
+此前浏览器启动的审批复核超时仍待回复。完整 Provider 页面、其他模型弹窗和三
+主题实际画面继续待审查，本表单保持 in_progress。
+
 ## 待进一步判断
 
 - A8 已统一侧栏搜索文字与动作所有权，仍需执行真实双语目录的宽度、对比度和
