@@ -1,12 +1,12 @@
-// INPUT: 视图/筛选选项、当前值与切换/关闭命令。
-// OUTPUT: 以 button group 语义呈现的可横向滚动选择条，关闭动作复用独立 Tab dismiss 原语。
+// INPUT: 视图/筛选选项、当前值与切换命令。
+// OUTPUT: 以 button group 语义呈现的可横向滚动选择条，每项保留稳定布局包装。
 // POS: 选择条 pattern；不是站点导航，也不拥有 tabpanel 或路由生命周期。
 "use client";
 
 import { type ReactNode } from "react";
 import { type LucideIcon } from "lucide-react";
 
-import { UiTabDismissButton } from "@/shared/ui/navigation/tab-dismiss-button";
+import { cn } from "@/shared/ui/class-name";
 
 import {
   getUiTabClassName,
@@ -31,21 +31,17 @@ export interface UiTabsProps<TValue extends string> {
   itemClassName?: string;
   navAnchor?: string;
   onChange?: (value: TValue) => void;
-  onDismissActive?: (value: TValue) => void;
-  dismissActiveLabel?: string;
   options: Array<UiTabOption<TValue>>;
 }
 
 export function UiTabs<TValue extends string>({
-  activeValue: activeValue,
-  ariaLabel: ariaLabel,
-  className: className,
+  activeValue,
+  ariaLabel,
+  className,
   density,
-  itemClassName: itemClassName,
-  navAnchor: navAnchor,
-  onChange: onChange,
-  onDismissActive: onDismissActive,
-  dismissActiveLabel: dismissActiveLabel = "关闭",
+  itemClassName,
+  navAnchor,
+  onChange,
   options,
 }: UiTabsProps<TValue>) {
   return (
@@ -58,52 +54,22 @@ export function UiTabs<TValue extends string>({
       {options.map((option) => {
         const Icon = option.icon;
         const isActive = activeValue === option.value;
-        const wrapperClassName = [
-          "ui-navigation-tab-item",
-          onDismissActive ? "ui-navigation-tab-item-dismissible" : "",
-          option.className ?? "",
-        ].filter(Boolean).join(" ");
-        const tabButton = (
-          <button
-            aria-pressed={isActive}
-            className={getUiTabClassName(
-              { active: isActive, density },
-              onDismissActive
-                ? `${itemClassName ?? ""} pr-8`
-                : itemClassName,
-            )}
-            data-tour-anchor={option.anchor}
-            onClick={() => onChange?.(option.value)}
-            title={option.title}
-            type="button"
-          >
-            {Icon ? <Icon className="h-3.5 w-3.5" /> : null}
-            {option.label}
-          </button>
-        );
-
-        if (!isActive || !onDismissActive) {
-          return (
-            <span
-              className={`${wrapperClassName} inline-flex h-full shrink-0 items-center`}
-              key={option.value}
-            >
-              {tabButton}
-            </span>
-          );
-        }
-
         return (
           <span
-            className={`${wrapperClassName} relative inline-flex h-full shrink-0 items-center`}
+            className={cn("ui-navigation-tab-item inline-flex h-full shrink-0 items-center", option.className)}
             key={option.value}
           >
-            {tabButton}
-            <UiTabDismissButton
-              className="ui-navigation-tab-dismiss absolute right-1 top-1/2 -translate-y-1/2"
-              label={dismissActiveLabel}
-              onDismiss={() => onDismissActive(option.value)}
-            />
+            <button
+              aria-pressed={isActive}
+              className={getUiTabClassName({ active: isActive, density }, itemClassName)}
+              data-tour-anchor={option.anchor}
+              onClick={() => onChange?.(option.value)}
+              title={option.title}
+              type="button"
+            >
+              {Icon ? <Icon aria-hidden="true" className="h-3.5 w-3.5" /> : null}
+              {option.label}
+            </button>
           </span>
         );
       })}

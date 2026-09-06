@@ -17,7 +17,7 @@
 - 公共视觉 API 只暴露有限的 `size / tone / variant / density / elevation / layer / viewport`；`className` 只用于外部布局，不用于覆盖内部颜色、圆角、阴影、层级、hover 或 focus。
 - App chrome 的标题、正文、说明、元数据与短代码标识通过 `typography/typography-styles.ts` 选择语义角色；业务组件不得重新拼接同一角色的字号、行高、字重与 tracking。聊天/文件阅读正文、品牌字形和图形内微标签由各自 Surface 显式负责。
 - 业务文字、链接和图标动作直接渲染 `UiButton / UiLinkButton / UiIconButton`；`button-styles.ts` 只供 shared primitive 内部组合，不能作为业务层复制原生按钮的逃生口。
-- 相同交互语义只有一个 DOM 和样式所有者：弹窗关闭复用 `UiIconButton`；单选与多选触发器复用 `menu/SelectMenuTrigger`；普通标签与工作区标签关闭复用 `navigation/UiTabDismissButton`。标签关闭保留既有命中区与阻止标签选择的冒泡合同，调用处只拥有位置和可见性。
+- 相同交互语义只有一个 DOM 和样式所有者：弹窗关闭复用 `UiIconButton`；单选与多选触发器复用 `menu/SelectMenuTrigger`；工作区会话标签关闭复用 `navigation/UiTabDismissButton`，普通视图/筛选选择条不拥有关闭命令。标签关闭保留既有命中区与阻止标签选择的冒泡合同，调用处只拥有位置和可见性。
 - 第一阶段以公共组件归并和行为保持为准，字体、字号、间距、配色与整体密度优化留在第二阶段。场景专用样式须说明独有的语义、交互或几何约束；不能仅以历史实现或局部偏好复制公共样式。
 - 消费者直接导入职责文件；本目录不提供聚合导出，根目录只保留无法归入具体交互职责的基础原语。
 - `UiPanel` 的 `card / filled / dashed / plain` 分别表达透明边界、装饰背景上的填充内容、虚线边界和无壳内容；filled 与 card 都无投影，填充只消费面板 token。不要用新名字复制同一组 class；需要业务状态表面时组合 `UiResourceState`，需要交互时使用 Button/List/Menu 等对应 primitive。

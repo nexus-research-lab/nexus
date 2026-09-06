@@ -2650,6 +2650,9 @@ test("content and filter tabs use one underline owner while form choices stay se
   ]);
 
   assert.doesNotMatch(tabs, /variant/);
+  assert.doesNotMatch(tabs, /onDismissActive|dismissActiveLabel|UiTabDismissButton/);
+  assert.match(tabStyles, /getUiTypographyClassName/);
+  assert.doesNotMatch(tabStyles, /\btext-xs\b|\bfont-(?:medium|semibold)\b/);
   assert.doesNotMatch(tabStyles, /UiTabsVariant|surface-interactive|radius-control-sm/);
   assert.match(tabStyles, /border-b-2/);
   assert.match(directoryTabs, /export function UiDirectoryTabs/);

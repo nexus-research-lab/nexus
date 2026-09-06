@@ -44,34 +44,6 @@ describe("UiTabs", () => {
     expect(active.hasAttribute("aria-current")).toBe(false);
   });
 
-  it("keeps dismiss separate from selecting the active item", async () => {
-    const user = userEvent.setup();
-    const changes: string[] = [];
-    const dismissals: string[] = [];
-    render(
-      <UiTabs
-        activeValue="work"
-        ariaLabel="工作区视图"
-        dismissActiveLabel="关闭当前视图"
-        onChange={(value) => changes.push(value)}
-        onDismissActive={(value) => dismissals.push(value)}
-        options={[
-          { label: "工作", value: "work" },
-          { label: "文件", value: "files" },
-        ]}
-      />,
-    );
-
-    const dismissButton = screen.getByRole("button", { name: "关闭当前视图" });
-    expect(dismissButton.getAttribute("title")).toBe("关闭当前视图");
-    await user.click(dismissButton);
-    expect(dismissals).toEqual(["work"]);
-    await user.keyboard("{Enter}");
-    await user.keyboard(" ");
-    expect(dismissals).toEqual(["work", "work", "work"]);
-    expect(changes).toEqual([]);
-  });
-
   it("renders page-level choices as a stable single-line indicator", () => {
     render(
       <UiTabs
