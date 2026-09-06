@@ -1,12 +1,13 @@
 // INPUT: 原生 checkbox 属性、三态值与 small/default 两档控件尺寸。
-// OUTPUT: 统一品牌色、焦点环、mixed ARIA 和 disabled 状态的原生 checkbox。
+// OUTPUT: 统一品牌色、焦点环、受控 mixed DOM/ARIA 和 disabled 状态的原生 checkbox。
 // POS: Checkbox DOM 原语；不渲染标签、说明或业务选择逻辑。
 "use client";
 
 import {
   forwardRef,
   type InputHTMLAttributes,
-  useEffect,
+  useLayoutEffect,
+  type ChangeEvent,
   useImperativeHandle,
   useRef,
 } from "react";
@@ -31,17 +32,30 @@ export const UiCheckbox = forwardRef<HTMLInputElement, UiCheckboxProps>(function
     checkboxSize = "default",
     className,
     indeterminate = false,
+    onChange,
     ...props
   },
   ref,
 ) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const committedMixedRef = useRef(indeterminate);
   useImperativeHandle(ref, () => inputRef.current as HTMLInputElement);
-  useEffect(() => {
+  useLayoutEffect(() => {
+    committedMixedRef.current = indeterminate;
     if (inputRef.current) {
       inputRef.current.indeterminate = indeterminate;
     }
   }, [indeterminate]);
+
+  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+    // 原生点击会先清除 mixed；先交付用户选择，再保持调用方尚未接受的投影。
+    const input = event.currentTarget;
+    try {
+      onChange?.(event);
+    } finally {
+      input.indeterminate = committedMixedRef.current;
+    }
+  };
 
   return (
     <input
@@ -52,6 +66,7 @@ export const UiCheckbox = forwardRef<HTMLInputElement, UiCheckboxProps>(function
         CHECKBOX_SIZE_CLASS_MAP[checkboxSize],
         className,
       )}
+      onChange={handleChange}
       type="checkbox"
       {...props}
     />

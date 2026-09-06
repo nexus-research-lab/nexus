@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Catalog headers, descriptions and footer actions now respect narrow columns;
+  removed unused body growth, description reservation and icon tone options.
+  Scheduled history uses the shared Badge directly, and list dividers use
+  their visible group labels as accessible names. Mixed checkboxes now keep
+  DOM and ARIA aligned until the parent accepts the selection.
 - Workspace search now uses the shared input directly, with localized default
   text and a reliable accessible name. Room fallback navigation uses shared
   catalog actions; retired its separate action-card wrapper and unused layout

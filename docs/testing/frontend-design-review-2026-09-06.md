@@ -1752,3 +1752,44 @@ WorkspaceActionBar / WorkspaceActionCard 只有 Room 降级页一个生产消费
 按长动作内容展开），随后 lint、9 项状态回归与 build 再通过；最终复验日志
 /tmp/nexus-state-a51-final-{lint,state,build}.log。构建仍只有既有大型分块提示。
 未运行任何浏览器、截图或宿主视觉校验。
+
+
+## A52：目录内容、状态标记与列表三态控件
+
+完成目录内容、图标框、列表分隔、复选框、行次动作与可移除 chip 的公共文件
+代码审查，并删除 WorkspaceStatusBadge。它的两个生产消费者都属于定时任务
+历史，实际只用紧凑圆点与状态模型提供的 label/tone；直接换成 UiBadge 的
+xs/showDot 后参数和业务模型不变，既有 Gallery 图标/圆点例子也迁往同一 owner。
+没有改写运行状态、权限、重试或投递规则。
+
+按 TypeScript AST 清点全部生产/开发 JSX 后，删除没有消费者的 Catalog
+Description minHeight（固定 40px 预留）与没有生产 grow=true 的 Body 开关；
+唯一生产显式 false 来自联系人卡片，去掉该空操作仍保留用户选定结构。默认
+标题、说明字号映射与有限行数不变，Header/Body 和文本可随分栏收窄，Footer
+在空间不足时换行，不强撑动作。图标框保留实际 default/primary、圆形/圆角和
+尺寸，删除无生产/开发使用的 success/warning 色表；显式布局 style 与主题
+样式合并，undefined 不再覆盖 primary 的色彩。Gallery 只迁移旧 API 和登记，
+未新增任何视觉场景。
+
+UiListSectionDivider 原来需要调用方再手工传同名 aria-label，否则可见分组
+名称不成为 separator 名称；现以内部稳定 ID 默认关联，同时尊重外部名称。
+长名称可换行，去掉标签不会留下悬空引用。UiListAction 保留有实际职责的行内
+可见性/事件隔离，并继续调用 IconButton；可移除 chip 保留紧凑几何、实体命名
+和禁用删除边界，不因其也是按钮组合就删除有独立用途的模式。
+
+新回归证实 UiCheckbox 在父级未接受全选时，原生点击会清除 indeterminate，
+造成视觉 false 与 aria-checked=mixed 分离。现先发出原生选择意图，再按最近
+已提交的 prop 恢复 DOM；useLayoutEffect 保持 props 与真实节点在绘制前同步。
+另一个回归覆盖 onChange 内父级同步提交，防止旧闭包把已接受的新状态覆盖回去。
+两份失败复现分别位于 /tmp/nexus-catalog-a52-repro.log 与
+/tmp/nexus-catalog-a52-sync-repro.log。新增两项 checkbox 和一项分隔线命名回归；
+先前目标集 41 项通过，完整门禁验证最终 committed ref 修正。
+
+清单仍为 485 项：317 pending、126 in_progress、14 retained、22 improved、
+6 removed。十条涉及记录已更新且所有存活摘要一致，公共组件由 119 减至 118。
+历史弹窗/单项及联系人卡片仍按原范围保留 in_progress，不以公共组件迁移视为
+全部页面审查完成。整体 Goal 继续，浏览器、宿主和所有视觉验收仍按用户要求暂停。
+
+验证：最终 npm run check 通过，含 lint、typecheck、473 项合同、200 个文件的
+688 项组件测试和生产 build，日志 /tmp/nexus-catalog-a52-check.log。最终版本
+包含 mixed 的同步提交修正，构建仍只有既有大型分块提示；未做视觉验收。

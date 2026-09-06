@@ -168,6 +168,24 @@ describe("UiListActionButton", () => {
 });
 
 describe("UiListSectionDivider", () => {
+  it("uses visible group names by default and preserves explicit naming across updates", () => {
+    const { rerender } = render(<>
+      <UiListSectionDivider label="Active conversations" />
+      <UiListSectionDivider aria-label="Pinned" label="Current selection" />
+    </>);
+    const named = screen.getByRole("separator", { name: "Active conversations" });
+    expect(named.getAttribute("aria-labelledby")).toBe(screen.getByText("Active conversations").id);
+    expect(screen.getByRole("separator", { name: "Pinned" }).hasAttribute("aria-labelledby")).toBe(false);
+    rerender(<>
+      <span id="external-group-name">Saved conversations</span>
+      <UiListSectionDivider aria-labelledby="external-group-name" label="Archived" />
+      <UiListSectionDivider />
+    </>);
+    expect(screen.getByRole("separator", { name: "Saved conversations" })).toBeTruthy();
+    const unnamed = screen.getByRole("separator", { name: "" });
+    expect(unnamed.hasAttribute("aria-labelledby")).toBe(false);
+  });
+
   it("owns the labeled horizontal separation between list groups", () => {
     const { container } = render(<UiListSectionDivider aria-label="IM" label="IM" />);
     const divider = screen.getByRole("separator", { name: "IM" });

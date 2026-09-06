@@ -5,6 +5,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { LayoutGrid, List } from "lucide-react";
 import userEvent from "@testing-library/user-event";
+import { flushSync } from "react-dom";
 import { createRef, useState, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -395,6 +396,39 @@ describe("form primitives", () => {
     await user.keyboard(" ");
     expect(enabled.checked).toBe(true);
     expect((screen.getByRole("checkbox", { name: "不可用" }) as HTMLInputElement).disabled).toBe(true);
+  });
+
+  it("keeps the mixed projection until the parent accepts a bulk selection", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn((event: React.ChangeEvent<HTMLInputElement>) => {
+      expect(event.currentTarget.checked).toBe(true);
+      expect(event.currentTarget.indeterminate).toBe(false);
+    });
+    const { rerender } = render(<UiCheckbox aria-label="Select all" checked={false} indeterminate onChange={onChange} />);
+    const checkbox = screen.getByRole("checkbox", { name: "Select all" }) as HTMLInputElement;
+    await user.click(checkbox);
+    expect(onChange).toHaveBeenCalledOnce();
+    expect(checkbox.checked).toBe(false);
+    expect(checkbox.indeterminate).toBe(true);
+    expect(checkbox.getAttribute("aria-checked")).toBe("mixed");
+    rerender(<UiCheckbox aria-label="Select all" checked indeterminate={false} onChange={onChange} />);
+    expect(checkbox.checked).toBe(true);
+    expect(checkbox.indeterminate).toBe(false);
+    expect(checkbox.hasAttribute("aria-checked")).toBe(false);
+  });
+
+  it("preserves a parent mixed-state update committed during the change callback", async () => {
+    const user = userEvent.setup();
+    function Harness() {
+      const [mixed, setMixed] = useState(true);
+      return <UiCheckbox aria-label="Select all" checked={!mixed} indeterminate={mixed} onChange={() => flushSync(() => setMixed(false))} />;
+    }
+    render(<Harness />);
+    const checkbox = screen.getByRole("checkbox", { name: "Select all" }) as HTMLInputElement;
+    await user.click(checkbox);
+    expect(checkbox.checked).toBe(true);
+    expect(checkbox.indeterminate).toBe(false);
+    expect(checkbox.hasAttribute("aria-checked")).toBe(false);
   });
 
   it("projects an indeterminate checkbox as one native mixed state", () => {
