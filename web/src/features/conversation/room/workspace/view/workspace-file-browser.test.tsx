@@ -19,7 +19,7 @@ describe("WorkspaceFileBrowser", () => {
       handleContextMenu: vi.fn(), handleRootContextMenu: vi.fn(),
     };
     const node = (current = controller) => <I18N_CONTEXT.Provider value={{ locale: "en", setLocale: vi.fn(), t: (key) => key }}>
-      <WorkspaceFileBrowser activePath={null} controller={current} onResizeStart={vi.fn()} stacked width={240} />
+      <WorkspaceFileBrowser activePath={null} controller={current} onResizeStart={vi.fn()} resizeControl={null} stacked width={240} />
     </I18N_CONTEXT.Provider>;
     const { rerender } = render(node());
     expect(screen.getByRole("status").textContent).toBe("common.loading");

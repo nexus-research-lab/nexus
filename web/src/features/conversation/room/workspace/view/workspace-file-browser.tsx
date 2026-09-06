@@ -1,15 +1,15 @@
 // INPUT: 已确定的文件目录、读取/变更状态、页面命令与外部分栏尺寸。
-// OUTPUT: 共享文件树、具名加载与紧凑空态；目录动作仍连接原控制器。
+// OUTPUT: 共享文件树、具名状态和关联目录的分隔条；目录动作仍连接原控制器。
 // POS: Workspace 目录面组合，导航/变更语义和宽度状态归调用方。
 
-import type { MouseEvent } from "react";
+import { useId, type MouseEvent } from "react";
 import { FilePlus, FolderPlus, FolderTree, LoaderCircle, Upload } from "lucide-react";
 
 import { WorkspaceFileToolbarButton } from "@/features/conversation/shared/editor/workspace-file-preview-chrome";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
-import { PanelResizeHandle } from "@/shared/ui/layout/panel-resize-handle";
+import { PanelResizeHandle, type PanelResizeControl } from "@/shared/ui/layout/panel-resize-handle";
 import { WORKSPACE_PANEL_HEADER_ICON_CLASS } from "@/shared/ui/workspace/surface/workspace-header-layout";
 import { SidebarEmptyGuide } from "@/shared/ui/sidebar/sidebar-empty-guide";
 import { WorkspaceLoadingState } from "@/shared/ui/workspace/frame/workspace-loading-state";
@@ -36,6 +36,7 @@ interface WorkspaceFileBrowserProps {
   activePath: string | null;
   controller: WorkspaceFileBrowserController;
   onResizeStart: () => void;
+  resizeControl: PanelResizeControl | null;
   stacked?: boolean;
   width: number;
 }
@@ -129,10 +130,12 @@ export function WorkspaceFileBrowser({
   activePath,
   controller,
   onResizeStart,
+  resizeControl,
   stacked = false,
   width,
 }: WorkspaceFileBrowserProps) {
   const {t} = useI18n();
+  const panelId = useId();
   return (
     <div
       className={cn(
@@ -145,11 +148,14 @@ export function WorkspaceFileBrowser({
       {!stacked ? (
         <PanelResizeHandle
           ariaLabel={t("room.resize_workspace_file_list")}
+          control={resizeControl}
+          controls={panelId}
           onResizeStart={onResizeStart}
         />
       ) : null}
 
       <div
+        id={panelId}
         className="min-h-0 flex-1 overflow-hidden"
         onContextMenu={controller.handleRootContextMenu}
       >

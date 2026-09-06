@@ -17,5 +17,6 @@
 - 桌面辅助面板切换时内容起点必须稳定：工作图、简介标签栏、工作区文件栏、子智能体调用者与 Thread 检查器共用 Workspace Surface 的紧凑头部几何与图标基线；移动端工作图复用同一内容 Surface，不另建图资源。
 - 桌面辅助面板的 Agent 导航、文件上传和全部缩放拖拽入口必须使用当前界面语言生成可访问名称，不得在业务 Surface 固定中文。
 - 桌面分栏、右侧面板与 Thread 编排统一位于 `layout/`。
+- Shell 只转交共享右栏宽度和调整命令；像素/CSS 限宽由 layout 投影，键盘与鼠标都更新原百分比 owner，不在 Surface 新建宽度状态。
 - 会话历史排序、能力投影、标题编辑和条目视图统一位于 `history/`。
 - Thread 的初始等待状态使用共享 `md` muted Spinner；Surface 不自行维护尺寸、颜色、旋转或 reduced-motion class。

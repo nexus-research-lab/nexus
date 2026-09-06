@@ -1,3 +1,7 @@
+// INPUT: Room 桌面装配需要的数据、身份和已绑定命令。
+// OUTPUT: 窄 Surface 参数合同，包括交给原 owner 的鼠标/键盘尺寸请求。
+// POS: Room 布局消费侧类型；不定义业务真相或新的宽度状态。
+
 import type { RefObject } from "react";
 
 import type { ExecutionResource } from "@/features/conversation/shared/execution/use-execution-resource";
@@ -86,6 +90,7 @@ export interface RoomSurfaceLayoutProps {
     workspaceAgentId?: string | null,
   ) => void;
   onStartSidePanelResize: () => void;
+  onSidePanelWidthChange: (percent: number) => void;
   onTodosChange: (todos: TodoItem[]) => void;
   onConversationSnapshotChange: (
     snapshot: ConversationSnapshotPayload,

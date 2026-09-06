@@ -41,6 +41,13 @@ it("preserves width limits and stops resizing after blur or pane deactivation", 
   expect(result.current.width).toBe(280);
   rerender({ enabled: false });
   expect(result.current.isResizing).toBe(false);
+  expect(result.current.resizeControl).toBeNull();
   rerender({ enabled: true });
   expect(result.current.isResizing).toBe(false);
+  act(() => result.current.resizeControl?.onChange(230));
+  expect(result.current.width).toBe(230);
+  act(() => result.current.resizeControl?.onChange(100));
+  expect(result.current.width).toBe(160);
+  act(() => result.current.resizeControl?.onChange(Number.NaN));
+  expect(result.current.width).toBe(160);
 });

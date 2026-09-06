@@ -164,6 +164,7 @@ export function RoomWorkspaceView({
                 activePath={activeWorkspacePath}
                 controller={controller.browser}
                 onResizeStart={fileListLayout.startResizing}
+                resizeControl={fileListLayout.resizeControl}
                 stacked={isStacked}
                 width={fileListLayout.width}
               />

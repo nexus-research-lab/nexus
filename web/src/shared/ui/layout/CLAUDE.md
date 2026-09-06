@@ -7,5 +7,7 @@
 - 普通目录条目复用共享响应式网格，桌面显示三列、窄窗逐级收拢；定时任务正式看板保持四列并在宽度不足时横向滚动。
 - `workspace-content-header.tsx` 是管理页正文标题、单句说明、页面动作与二级导航的唯一 Header；桌面态的标题、说明、动作和详情面包屑必须压进共享顶栏，浏览器使用 60px，macOS 由原生红灯 Y 中心推导高度，底部分隔线与侧栏品牌栏贯通。共享顶部补偿必须让 Web 标题与二级导航对齐侧栏品牌栏、让 macOS 内容避开并对齐原生控件；统一标题栏还必须参与窗口手势，并在侧栏折叠或无侧栏时通过共享横向安全区避开 traffic lights 与侧栏展开入口，不得给具体页面添加私有 padding。
 - `mobile-shell-header-layout.ts` 是窄窗普通页面、Room Header 及其下缘浮层的共享几何合同；浏览器和 Windows 使用 52px 客户区高度，macOS 从宿主窗口控件中心投影实际高度。消费者只组合内容，不得再写自己的 `h-[52px]`、`top-[52px]` 或响应式 gutter。
-- `panel-resize-handle.tsx` 只在主鼠标键按下时发出横向拖拽开始事件并阻止原生选字；宽度状态和边界归真实布局所有者，鼠标窗口监听复用 `shared/lib/react/use-mouse-drag.ts`。`gutter` 变体占据真实分栏间距，不渲染线条或拖手，只通过拖拽光标提供反馈。键盘调整与完整可访问分隔条语义尚待后续落实，本轮鼠标修复不等于该原语完整审查完成。
+- `panel-resize-handle.tsx` 是桌面右侧分栏的鼠标/键盘交互 owner：主键开始拖动并阻止原生选字，左右方向键按 16px 移动分隔条，Home/End 到有效最小/最大宽度；Tab 保持原生焦点顺序，平台组合键留给页面，Enter/Space 不隐式关闭面板。控件只请求像素宽度，原布局 owner 保留状态、边界和百分比换算；鼠标监听复用 `shared/lib/react/use-mouse-drag.ts`。
+- 分栏用具名、可聚焦的竖向 separator，通过 controls 关联右面板，暴露有效像素范围及本地化当前宽度；未测量/固定宽度不进入 Tab 顺序，键盘焦点使用共享 ring token。无操作时 `gutter` 仍只占原有 8px 同色间距，`overlay` 保留原 12px 命中区；不增加常驻线条或拖手。
+- [WAI-ARIA 的 separator 定义](https://www.w3.org/TR/wai-aria-1.2/#separator) 将可聚焦分隔条视为 widget，因此只在该具名可调 div 上说明 `no-noninteractive-element-interactions` 的局部例外，不放宽全局 lint。可关闭面板仍由其独立关闭动作拥有，不将 Enter 映射为业务页面关闭。
 - 应用路由壳层归 `app/layout/`；通用布局不得组合业务 Feature。

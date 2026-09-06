@@ -28,3 +28,16 @@ it("bounds auxiliary width, ignores zero-width containers and ends on blur", () 
   fireEvent.mouseMove(window, { buttons: 1, clientX: 600 });
   expect(result.current.sidePanelWidthPercent).toBe(56);
 });
+
+it("applies keyboard requests through the same finite percentage boundary", () => {
+  const { result } = renderHook(() => useHomeWorkspaceController({ currentAgentId: null }));
+  act(() => result.current.handleSidePanelWidthChange(34));
+  expect(result.current.sidePanelWidthPercent).toBe(34);
+  act(() => result.current.handleSidePanelWidthChange(10));
+  expect(result.current.sidePanelWidthPercent).toBe(30);
+  act(() => result.current.handleSidePanelWidthChange(Number.NaN));
+  expect(result.current.sidePanelWidthPercent).toBe(30);
+  act(() => result.current.handleSidePanelWidthChange(80));
+  expect(result.current.sidePanelWidthPercent).toBe(56);
+  expect(result.current.isResizingSidePanel).toBe(false);
+});
