@@ -1525,7 +1525,8 @@ test("Workspace directory and context menu loading share Spinner roles", async (
   ]);
 
   assert.match(fileBrowser, /getUiSpinnerClassName\(\{ size: "sm" \}\)/);
-  assert.match(fileBrowser, /size: "md", tone: "muted"/);
+  assert.match(fileBrowser, /<WorkspaceLoadingState/);
+  assert.match(fileBrowser, /<SidebarEmptyGuide/);
   assert.match(contextMenu, /size: "md", tone: "muted"/);
   for (const source of [fileBrowser, contextMenu]) {
     assert.doesNotMatch(source, /\banimate-spin\b/);
@@ -3253,4 +3254,17 @@ test("DM and Room model option commands have one selection owner", async () => {
     assert.doesNotMatch(consumer, /decodeSessionModelValue|JSON\.parse/);
   }
   assert.match(options, /export function applySessionModelSelection/);
+});
+
+
+test("Workspace file rows reuse shared buttons and typography", async () => {
+  const [row, model] = await Promise.all([
+    readSource("src/shared/ui/workspace/tree/workspace-file-tree-row.tsx"),
+    readSource("src/shared/ui/workspace/tree/workspace-file-tree-model.ts"),
+  ]);
+  assert.match(row, /<UiButton/);
+  assert.match(row, /<UiListActionButton/);
+  assert.doesNotMatch(row, /<button\b|hover:bg-|hover:text-/);
+  assert.match(model, /getUiTypographyClassName/);
+  assert.doesNotMatch(model, /text-sm|leading-\[/);
 });

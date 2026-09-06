@@ -1,3 +1,7 @@
+// INPUT: 已确定的文件目录、读取/变更状态、页面命令与外部分栏尺寸。
+// OUTPUT: 共享文件树、具名加载与紧凑空态；目录动作仍连接原控制器。
+// POS: Workspace 目录面组合，导航/变更语义和宽度状态归调用方。
+
 import type { MouseEvent } from "react";
 import { FilePlus, FolderPlus, FolderTree, LoaderCircle, Upload } from "lucide-react";
 
@@ -7,6 +11,8 @@ import { cn } from "@/shared/ui/class-name";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { PanelResizeHandle } from "@/shared/ui/layout/panel-resize-handle";
 import { WORKSPACE_PANEL_HEADER_ICON_CLASS } from "@/shared/ui/workspace/surface/workspace-header-layout";
+import { SidebarEmptyGuide } from "@/shared/ui/sidebar/sidebar-empty-guide";
+import { WorkspaceLoadingState } from "@/shared/ui/workspace/frame/workspace-loading-state";
 import { WorkspaceFileTree } from "@/shared/ui/workspace/tree/workspace-file-tree";
 import type { WorkspaceFileEntry } from "@/types/agent/agent";
 
@@ -105,23 +111,17 @@ function WorkspaceFileList({
   }
   if (controller.isLoadingFiles) {
     return (
-      <div className="flex h-full items-center justify-center text-(--text-soft)">
-        <LoaderCircle
-          className={getUiSpinnerClassName({ size: "md", tone: "muted" })}
-        />
+      <div className="flex h-full min-h-0">
+        <WorkspaceLoadingState label={t("common.loading")} />
       </div>
     );
   }
   return (
-    <div className="rounded-[12px] border border-(--divider-subtle-color) px-6 py-10 text-center">
-      <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-(--icon-default) shadow-(--surface-avatar-shadow)">
-        <FolderTree className="h-4 w-4" />
-      </div>
-      <p className="mt-4 text-base font-semibold text-(--text-strong)">{t("room.no_files")}</p>
-      <p className="mt-1 text-compact leading-6 text-(--text-soft)">
-        {t("room.workspace_empty_description")}
-      </p>
-    </div>
+    <SidebarEmptyGuide
+      description={t("room.workspace_empty_description")}
+      icon={FolderTree}
+      title={t("room.no_files")}
+    />
   );
 }
 

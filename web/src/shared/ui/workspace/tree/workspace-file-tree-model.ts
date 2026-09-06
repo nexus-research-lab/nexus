@@ -1,3 +1,7 @@
+// INPUT: 已列出的文件快照、文件名与当前行选择/展开值。
+// OUTPUT: 层级节点、Material 图标与有限文件行投影。
+// POS: 文件树纯模型；不请求文件、持有展开状态或执行目录动作。
+
 import archiveIconSrc from "material-icon-theme/icons/zip.svg";
 import audioIconSrc from "material-icon-theme/icons/audio.svg";
 import cIconSrc from "material-icon-theme/icons/c.svg";
@@ -56,6 +60,7 @@ import xmlIconSrc from "material-icon-theme/icons/xml.svg";
 import yamlIconSrc from "material-icon-theme/icons/yaml.svg";
 
 import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { WorkspaceFileEntry } from "@/types/agent/agent";
 
 export interface WorkspaceFileTreeNode {
@@ -225,12 +230,16 @@ export function getWorkspaceFileTreeRowPresentation({
     isDirectoryTarget,
     isSelected,
     nameClassName: cn(
-      "shrink-0 whitespace-nowrap text-sm leading-[1.3rem]",
-      entry.is_dir || isSelected ? "font-medium" : "font-normal",
+      "min-w-0 truncate",
+      getUiTypographyClassName({
+        role: "supporting",
+        tone: isSelected ? "strong" : "default",
+        weight: entry.is_dir || isSelected ? "medium" : "regular",
+      }),
     ),
     paddingLeft: 8 + depth * 12,
     rowClassName: cn(
-      "group relative flex min-w-full w-max items-center radius-control-md pr-2 text-left transition-colors",
+      "group/item relative flex min-w-0 w-full items-center radius-control-md pr-1 text-left transition-colors",
       isSelected
         ? "bg-(--surface-sidebar-active-background) text-(--text-strong)"
         : "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
