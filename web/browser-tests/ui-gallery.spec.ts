@@ -45,6 +45,42 @@ async function capture(surface: Locator, info: TestInfo, name: string) {
   });
 }
 
+test("Memory search, type filtering and long document headings remain usable in narrow containers", async ({ page }, info) => {
+  const { errors } = await openGallery(page, info, "content");
+  const fixture = page.locator("[data-gallery-memory]");
+  const search = fixture.getByRole("searchbox");
+  await search.fill("missing");
+  await expect(fixture.getByText(copy(info, "没有匹配的记忆文件", "No matching memory files"), { exact: true })).toBeVisible();
+  await fixture.getByRole("button", { name: copy(info, "清除筛选", "Clear filters"), exact: true }).click();
+  const filter = fixture.getByRole("button", { name: copy(info, "筛选记忆类型", "Filter memory type"), exact: true });
+  await filter.click();
+  await page.getByRole("option", { name: copy(info, "引用", "Reference"), exact: true }).click();
+  await expect(filter).toContainText(copy(info, "引用", "Reference"));
+  await fixture.getByRole("button", { name: /跨区域项目资料与长期协作约定/ }).click();
+  const header = fixture.locator(".nexus-memory-document-content").filter({ has: page.getByRole("heading", { level: 2 }) });
+  await header.scrollIntoViewIfNeeded();
+  await expectInsideViewport(page, header);
+  const title = header.getByRole("heading", { level: 2 });
+  const titleFits = await title.evaluate((element) => {
+    const range = document.createRange(); range.selectNodeContents(element);
+    const text = range.getBoundingClientRect(); const box = element.getBoundingClientRect();
+    return text.left >= box.left - 1 && text.right <= box.right + 1 && text.bottom <= box.bottom + 1;
+  });
+  expect(titleFits).toBe(true);
+  await capture(header, info, "memory-long-title");
+  await fixture.getByRole("button", { name: "Toggle runtime writing", exact: true }).click();
+  await header.getByRole("button", { name: copy(info, "编辑", "Edit"), exact: true }).click();
+  const save = header.getByRole("button", { name: copy(info, "保存", "Save"), exact: true });
+  await expectInsideViewport(page, save);
+  await save.click();
+  await expect(fixture.locator("[data-gallery-memory-commands]")).toContainText('"save"');
+  const back = header.getByRole("button", { name: copy(info, "返回记忆目录", "Back to memory list"), exact: true });
+  if (await back.isVisible()) await back.click();
+  await fixture.getByRole("button", { name: "Toggle empty memory", exact: true }).click();
+  await expect(fixture.locator('[data-resource-state="empty"]')).toHaveCount(1);
+  expect(errors).toEqual([]);
+});
+
 test("contact directory shares search chrome and keeps pending friend additions reviewable", async ({ page }, info) => {
   const { errors } = await openGallery(page, info, "content");
   const fixture = page.locator("[data-gallery-contact-communication]");
