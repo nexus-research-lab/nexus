@@ -5,7 +5,9 @@
 - `text-file-editor.tsx` 只连接文件控制器、状态投影和窄视图，不拥有渲染策略。
 - `text-file-editor-model.ts` 统一决定正文模式、工具栏状态和外部写入提示。
 - `text-file-editor-recovery.ts` 只根据读取 revision、保存意图和 exact live 文件事实决定保存对账与实时更新；`text-file-editor-reliability.tsx` 使用统一资源状态展示 Problem / Impact / Recovery，不解释内部请求或 revision。
+- Reliability 只保留一处 `UiResourceState` 布局；各分支投影标题、影响、语气和已有动作。读取失败优先于保存问题；未确认结果只提供对账，冲突已读取后才提供采用/覆盖选择。动作忙碌和 revision 可用性保持控制器事实，`text-file-editor-controls.test.tsx` 覆盖这些视图边界。
 - Header 只组合文件元信息和命令；Body 只管理渲染器选择和输入框焦点。流式正文委托 TypewriterFileView，不再为行数维护宽度观察器。
+- Header 的同步提示保留轻量文字与装饰性状态图标，字号由共享 chrome 的 metadata 角色拥有；不为同步状态另建 Badge 或状态组件映射。工具栏图标尺寸复用 Workspace Header 常量。
 - Body 的编辑模式复用 `UiSourceEditor`，不自行维护 textarea 字体、滚动或焦点；默认失焦退出与显式保存消费者的 opt-out 保持不变，可选 editorId/editorLabel 只建立字段身份。
 - Markdown 预览可以占满滚动视口，但正文行高与块间距只由共享 Markdown 配方决定；短内容的剩余高度必须留在文末，不参与段落分配。
 - 文件编辑器与 Agent 资料编辑器必须将 exact `agentId` 透传到 Body/Content；Markdown 预览在消费侧绑定资源能力，不跟随全局当前 Agent 选择。

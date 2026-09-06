@@ -6,6 +6,8 @@
 - `workspace-file-preview-types.ts` 只描述工作区内嵌预览的真实契约，不保留无消费者的独立宽度或拖拽模式。
 - `workspace-file-preview-chrome.tsx` 统一文件位置、状态、下载与聚焦操作，不读取文件内容。它只把 Agent 显示名、相对父目录和文件名投影给全站 `UiBreadcrumb`；不得自行绘制箭头、拼接斜杠或定义层级字级。位置、必要状态与纯图标操作共用单行 chrome，文件名保持紧凑中等字重，不重复显示文件类型“预览”标签。所有标题栏图标动作固定复用 `UiIconButton size="sm" variant="ghost"`，不得再维护私有按钮 class；保存动作保持稳定槽位，内容边界只保留一条底部结构线。
 - 文件外部操作、聚焦、编辑、预览、保存和同步状态的文案必须由当前界面语言生成；纯展示模型接收翻译函数，不读取 React 上下文或保存固定中文。
+- 外部文件动作的失败事实由 chrome 中的动作组件持有；只允许当前 owner 代次、Agent、路径、文件名及最近一次显式操作提交反馈。切换或卸载使旧反馈失效，文案在当前 render 翻译；这不取消已发出的下载/宿主操作，也不自动重放。对应行为见 `workspace-file-actions.test.tsx`。
+- `workspace-file-preview-panel.test.tsx` 固定预览 scope 边界：相同文件的专注、位置文案和语言变化保留 renderer；Agent/path 变化或关闭会卸载它，旧本地草稿不能进入另一文件。
 - `workspace-file-preview-kind.ts` 只负责扩展名分类；具体加载、解析和渲染归各文件类型子目录。
 - `workspace-file-preview-loading.tsx` 独占预览正文的共享 ResourceState/Spinner 组合；PDF、图片、Office、表格和文本入口只投影已有加载状态。Header 保留计数与独立写入同步事实，正文状态不再重复到 Header；布局与字号规则见根 `design.md`。
 - 大型文本在整文件读取被服务端拒绝后只用 HTTP Range 分段只读展示，不在 WebView 中拼接；PDF 交给浏览器 Range，图片与 Office 等不可安全分段的预览由服务端限制载荷。
