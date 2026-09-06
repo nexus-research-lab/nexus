@@ -1,5 +1,5 @@
 // INPUT: Room/DM 的 Workspace 选择、当前相对路径、成员身份与面板布局状态。
-// OUTPUT: 文件目录、预览、切换器和弹窗组成的响应式 Workspace 工作面；堆叠/专注时停用目录拖动。
+// OUTPUT: 响应式 Workspace 工作面；专注时保留同 Agent 目录状态，堆叠/专注时停用横向调整。
 // POS: Conversation Workspace 组合层；不拥有文件事务或公共 Breadcrumb 视觉。
 "use client";
 
@@ -9,6 +9,7 @@ import { WorkspaceFilePreviewPanel } from "@/features/conversation/shared/editor
 import { useMediaQuery } from "@/shared/lib/react/use-media-query";
 import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import {
@@ -108,7 +109,7 @@ export function RoomWorkspaceView({
       <WorkspaceSurfaceView
         bodyClassName="px-0 py-0"
         bodyScrollable={false}
-        contentClassName="flex h-full min-h-0 min-w-0 gap-4"
+        contentClassName="flex h-full min-h-0 min-w-0"
         maxWidthClassName="max-w-none"
         title={t("room.workspace_title")}
       >
@@ -128,7 +129,7 @@ export function RoomWorkspaceView({
               {!activeWorkspacePath ? (
                 <div className="flex h-full min-w-0 items-center">
                   {agentSwitcher ?? (
-                    <span className="truncate text-xs font-normal text-(--text-soft)">
+                    <span className={cn("truncate", getUiTypographyClassName({ role: "metadata", tone: "muted" }))}>
                       {workspaceRootLabel}
                     </span>
                   )}
@@ -159,16 +160,16 @@ export function RoomWorkspaceView({
               />
             </div>
 
-            {!isPreviewFocused ? (
-              <WorkspaceFileBrowser
-                activePath={activeWorkspacePath}
-                controller={controller.browser}
-                onResizeStart={fileListLayout.startResizing}
-                resizeControl={fileListLayout.resizeControl}
-                stacked={isStacked}
-                width={fileListLayout.width}
-              />
-            ) : null}
+            <WorkspaceFileBrowser
+              activePath={activeWorkspacePath}
+              controller={controller.browser}
+              hidden={isPreviewFocused}
+              key={controller.agent.viewAgentId}
+              onResizeStart={fileListLayout.startResizing}
+              resizeControl={fileListLayout.resizeControl}
+              stacked={isStacked}
+              width={fileListLayout.width}
+            />
           </div>
         </div>
       </WorkspaceSurfaceView>

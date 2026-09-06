@@ -3293,3 +3293,15 @@ test("Right panel bounds and resize keyboard handling retain unique owners", asy
   assert.match(files, /<PanelResizeHandle/);
   assert.doesNotMatch(files, /onKeyDown=/);
 });
+
+test("Workspace directory feedback and header typography use shared owners", async () => {
+  const [browser, view] = await Promise.all([
+    readSource("src/features/conversation/room/workspace/view/workspace-file-browser.tsx"),
+    readSource("src/features/conversation/room/workspace/room-workspace-view.tsx"),
+  ]);
+  assert.match(browser, /<UiResourceState/);
+  assert.match(browser, /<WorkspaceFileToolbarButton/);
+  assert.doesNotMatch(browser, /<button\b|\banimate-spin\b|\btext-(?:xs|sm|base|compact)\b/);
+  assert.match(view, /getUiTypographyClassName/);
+  assert.doesNotMatch(view, /\btext-(?:xs|sm|base|compact)\b|\bfont-(?:normal|medium|semibold)\b/);
+});

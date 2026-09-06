@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Workspace directories distinguish a failed initial read from a confirmed
+  empty list, with one retry surface. Cached files remain available after a
+  refresh failure, and dismissing feedback preserves the failure state. Focused
+  previews retain the directory instance and expansion within the same Agent;
+  stacked directories shrink with short windows and share one scroll container.
 - Desktop file, Thread and auxiliary splitters now support arrow keys and
   Home/End, with visible keyboard focus and announced width ranges. Keyboard
   resizing starts from the effective CSS-limited width and updates the existing
