@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Large text previews reset pagination when the file or account changes and
+  ignore obsolete reads. Chunk navigation retains its controls while loading,
+  uses fresh byte offsets and keeps only one chunk. Plain and chunked text share
+  source metrics and named keyboard-scrollable viewports; paging controls can
+  wrap and read failures remain scrollable in short panels.
 - Workspace file actions keep failure feedback scoped to the current file,
   account and latest explicit attempt, and update it when the language changes.
   Text editor read/save recovery states share one compact layout while preserving
