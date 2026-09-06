@@ -4,12 +4,12 @@
 
 "use client";
 
+import { UiFilterSelect } from "@/shared/ui/menu/filter-select";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiDirectoryTabs } from "@/shared/ui/navigation/directory-tabs";
 import {
   CapabilityFilterBar,
   CapabilityFilterSearchInput,
-  CapabilityFilterSelect,
 } from "@/features/capability/shared/capability-page-layout";
 
 import { getConnectorCategoryLabel } from "./connectors-categories";
@@ -64,7 +64,7 @@ export function ConnectorsSearchBar({
           value={searchQuery}
         />
         {mode === "catalog" ? (
-          <CapabilityFilterSelect
+          <UiFilterSelect
             ariaLabel={t("capability.connectors_filter_aria")}
             label={t("capability.category_label")}
             onChange={onCategoryChange}

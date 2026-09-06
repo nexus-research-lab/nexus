@@ -5,6 +5,7 @@
  */
 "use client";
 
+import { UiFilterSelect } from "@/shared/ui/menu/filter-select";
 import { useEffect, useMemo, useState } from "react";
 import { Check, Copy, Repeat2, RotateCcw } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -15,7 +16,6 @@ import {
   CAPABILITY_DIRECTORY_ROW_CLASS_NAME,
   CapabilityFilterBar,
   CapabilityFilterSearchInput,
-  CapabilityFilterSelect,
   CapabilityPageLayout,
 } from "@/features/capability/shared/capability-page-layout";
 import { listLoopsApi } from "@/lib/api/capability/loop-api";
@@ -134,7 +134,7 @@ export function LoopsDirectory() {
               placeholder={t("capability.loops_search_placeholder")}
               value={query}
             />
-            <CapabilityFilterSelect
+            <UiFilterSelect
               ariaLabel={t("capability.loops_filter_aria")}
               label={t("capability.category_label")}
               onChange={setCategory}

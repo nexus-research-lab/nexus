@@ -37,6 +37,7 @@ import { ConnectorDetailGallery } from "./ui-gallery-connector-detail";
 import { SemanticColorsGallery } from "./ui-gallery-semantic-colors";
 import { SegmentedControlsGallery } from "./ui-gallery-segmented-controls";
 import { SkillManagementGallery } from "./ui-gallery-skill-management";
+import { ContactsGallery } from "./ui-gallery-contacts";
 import { UiButton, UiIconButton, UiLinkButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
@@ -224,6 +225,7 @@ export function ContentGallery({ locale }: { locale: Locale }) {
       <ProviderDialogsGallery />
       <ConnectorDetailGallery />
       <SkillManagementGallery />
+      <ContactsGallery />
       <SegmentedControlsGallery />
       <SemanticColorsGallery />
       <MessageSurfacesGallery />

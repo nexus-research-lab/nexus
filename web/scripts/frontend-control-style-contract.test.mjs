@@ -71,6 +71,17 @@ test("visual guard keeps list row state and surface choices in their owner", () 
   ]);
 });
 
+test("directory filters share select visuals while allowing content-specific widths", () => {
+  const source = `
+    import { UiFilterSelect as Filter } from "@/shared/ui/menu/filter-select";
+    const valid = <Filter className="w-full sm:w-[232px] min-w-0" />;
+    const invalid = <Filter className="rounded-full text-xs" style={{ backgroundColor: "red" }} />;
+  `;
+  assert.deepEqual(findControlVisualOverrides(samplePath, source).map((issue) => issue.value), [
+    "rounded-full", "text-xs", "backgroundColor",
+  ]);
+});
+
 test("visual guard owns segmented paint and typography while allowing layout", () => {
   const source = `
     import { UiSegmentedControl as Choices } from "@/shared/ui/form/segmented-control";

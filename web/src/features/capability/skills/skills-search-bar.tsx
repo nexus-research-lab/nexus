@@ -1,7 +1,8 @@
 // INPUT: Skill 目录/社区的搜索、分类、来源及用户命令。
 // OUTPUT: 统一目录标签、搜索动作和无额外图标的标签筛选器。
-// POS: Skill 工具区纯视图；筛选结构由 CapabilityFilterSelect 唯一拥有。
+// POS: Skill 工具区纯视图；筛选结构由 UiFilterSelect 唯一拥有。
 
+import { UiFilterSelect } from "@/shared/ui/menu/filter-select";
 import { Search } from "lucide-react";
 import { useRef, type KeyboardEvent } from "react";
 
@@ -13,7 +14,6 @@ import { UiDirectoryTabs } from "@/shared/ui/navigation/directory-tabs";
 import {
   CapabilityFilterBar,
   CapabilityFilterSearchInput,
-  CapabilityFilterSelect,
 } from "@/features/capability/shared/capability-page-layout";
 import type { DiscoveryMode } from "./controller/skill-marketplace-controller";
 
@@ -127,7 +127,7 @@ export function SkillsSearchBar({
         />
 
         {discoveryMode === "catalog" ? (
-          <CapabilityFilterSelect
+          <UiFilterSelect
             ariaLabel={t("capability.skills_filter_aria")}
             label={t("capability.category_label")}
             onChange={onChangeCategory}
@@ -140,7 +140,7 @@ export function SkillsSearchBar({
             value={activeCategory}
           />
         ) : (
-          <CapabilityFilterSelect
+          <UiFilterSelect
             ariaLabel={t("capability.skill_source_search_scope")}
             label={t("capability.skill_sources")}
             onChange={onChangeExternalSource}

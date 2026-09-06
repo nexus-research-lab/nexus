@@ -2,7 +2,7 @@
 // OUTPUT: 证明网格和列表复用共享视觉原语且动作边界互不串联。
 // POS: Contacts Agent 卡片 DOM 合同；不覆盖目录筛选或详情保存。
 
-import { render, screen } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -45,30 +45,32 @@ function renderCard(view: "grid" | "list") {
 }
 
 describe("ContactsAgentCard", () => {
-  it("uses shared card actions, badges, and semantic radii in grid mode", async () => {
+  it.each(["grid", "list"] as const)("keeps one identity and independent keyboard/pointer actions in %s view", async (view) => {
     const user = userEvent.setup();
-    const { actions } = renderCard("grid");
-    const profileActions = screen.getAllByRole("button", {
-      name: "common.edit Researcher",
-    });
-
-    expect(profileActions[0].className).toContain("surface-radius-md");
-    expect(profileActions[1].className).toContain("surface-radius-lg");
-    expect(screen.getAllByText("研究")[0].className).toContain("rounded-full");
-    await user.click(profileActions[0]);
-    expect(actions.onOpenProfile).toHaveBeenCalledOnce();
-  });
-
-  it("keeps list-row navigation separate from communication actions", async () => {
-    const user = userEvent.setup();
-    const { actions, container } = renderCard("list");
-    const row = container.querySelector("div[role='button']");
-
-    expect(row).toBeTruthy();
-    await user.click(screen.getByRole("button", { name: "contacts.chat" }));
+    const { actions } = renderCard(view);
+    const open = screen.getByRole("button", { name: "common.edit Researcher" });
+    expect(screen.getAllByRole("heading", { name: "Researcher" })).toHaveLength(1);
+    expect(screen.getAllByText("研究")).toHaveLength(1);
+    expect(screen.getByText("contacts.metadata.provider").tagName).toBe("DT");
+    expect(screen.getByText("Anthropic").tagName).toBe("DD");
+    const chat = screen.getByRole("button", { name: "contacts.chat Researcher" });
+    const team = screen.getByRole("button", { name: "contacts.create_team Researcher" });
+    await user.click(chat);
+    act(() => team.focus());
+    await user.keyboard("{Enter}");
     expect(actions.onOpenRoom).toHaveBeenCalledOnce();
+    expect(actions.onCreateTeam).toHaveBeenCalledOnce();
     expect(actions.onOpenProfile).not.toHaveBeenCalled();
-    await user.click(row!);
+    act(() => open.focus());
+    await user.keyboard("{Enter}");
     expect(actions.onOpenProfile).toHaveBeenCalledOnce();
+    if (view === "grid") {
+      expect(screen.getAllByRole("article")).toHaveLength(1);
+      expect(within(screen.getByRole("article")).getAllByRole("button")).toHaveLength(3);
+    } else {
+      await user.tab();
+      expect(screen.getByRole("tooltip").textContent).toBe("contacts.chat");
+      expect(chat.getAttribute("title")).toBeNull();
+    }
   });
 });

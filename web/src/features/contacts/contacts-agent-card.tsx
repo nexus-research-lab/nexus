@@ -1,6 +1,6 @@
 /**
  * INPUT: Agent 身份与打开详情、私聊、群聊的页面命令。
- * OUTPUT: 窄屏摘要卡、桌面完整卡与高密度列表行。
+ * OUTPUT: 单一目录卡片与列表行；完整身份和元信息共享投影，主次动作独立。
  * POS: 联系人管理目录卡片；默认层承担 Agent 选择所需的比较信息。
  */
 "use client";
@@ -9,6 +9,7 @@ import { MessageCirclePlus, MessageSquareText } from "lucide-react";
 
 import { AGENT_PERMISSION_MODES } from "@/lib/agent-options";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { UiBadge } from "@/shared/ui/display/badge";
@@ -46,9 +47,9 @@ interface ContactsAgentCardViewProps extends Omit<ContactsAgentCardProps, "view"
 
 export function ContactsAgentCard({
   agent,
-  onOpenProfile: onOpenProfile,
-  onOpenRoom: onOpenRoom,
-  onCreateTeam: onCreateTeam,
+  onOpenProfile,
+  onOpenRoom,
+  onCreateTeam,
   view,
 }: ContactsAgentCardProps) {
   const { t } = useI18n();
@@ -84,90 +85,33 @@ export function ContactsAgentCard({
     return <ContactsAgentListRow {...viewProps} />;
   }
 
-  return (
-    <>
-      <ContactsAgentCompactCard {...viewProps} />
-      <ContactsAgentComfortCard {...viewProps} />
-    </>
-  );
+  return <ContactsAgentGridCard {...viewProps} />;
 }
 
-function ContactsAgentListRow({
-  agent,
-  allowedToolsCount,
-  businessTags,
-  chatLabel,
-  createTeamLabel,
-  onCreateTeam,
-  onOpenProfile,
-  onOpenRoom,
-  permissionMode,
-  provider,
-  skillsCount,
-}: ContactsAgentCardViewProps) {
+function ContactsAgentListRow(props: ContactsAgentCardViewProps) {
+  const { agent, businessTags, editLabel, onOpenProfile, permissionMode } = props;
   const { t } = useI18n();
-
   return (
     <UiListRow
+      aria-label={`${editLabel} ${agent.name}`}
+      className="items-start"
       variant="flush"
       leading={<UiAgentAvatar avatar={agent.avatar} name={agent.name} size="md" />}
       onClick={onOpenProfile}
-      right={(
-        <div className="flex shrink-0 items-center gap-1">
-          <WorkspaceCatalogTextAction
-            aria-label={chatLabel}
-            onClick={(event) => {
-              event.stopPropagation();
-              onOpenRoom();
-            }}
-            tone="primary"
-          >
-            <MessageSquareText className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">{chatLabel}</span>
-          </WorkspaceCatalogTextAction>
-          <WorkspaceCatalogTextAction
-            aria-label={createTeamLabel}
-            onClick={(event) => {
-              event.stopPropagation();
-              onCreateTeam();
-            }}
-          >
-            <MessageCirclePlus className="h-3.5 w-3.5" />
-            <span className="hidden lg:inline">{createTeamLabel}</span>
-          </WorkspaceCatalogTextAction>
-        </div>
-      )}
+      right={<ContactsAgentActions {...props} compact />}
     >
       <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-center gap-2">
-          <h3 className={cn(
-            "truncate",
-            getUiTypographyClassName({
-              role: "sectionTitle",
-              tone: "strong",
-            }),
-          )}>
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+          <WorkspaceCatalogTitle className="min-w-0 [overflow-wrap:anywhere]" size="sm">
             {agent.name}
-          </h3>
-          <UiBadge className="max-w-[128px] truncate" size="xs" tone="idle">
+          </WorkspaceCatalogTitle>
+          <UiBadge className="max-w-full whitespace-normal [overflow-wrap:anywhere]" size="sm" tone="idle">
             {permissionMode}
           </UiBadge>
           <ContactsAgentBusinessTags className="hidden md:flex" tags={businessTags} />
-          <span className={cn(
-            "min-w-0 flex-1 truncate",
-            getUiTypographyClassName({ role: "caption", tone: "soft" }),
-          )}>
-            {t("contacts.metadata.provider")}: {provider}
-            {" · "}
-            {t("contacts.metadata.tools")} {allowedToolsCount}
-            {" · "}
-            {t("contacts.metadata.skills")} {skillsCount}
-          </span>
         </div>
-        <p className={cn(
-          "mt-0.5 truncate",
-          getUiTypographyClassName({ role: "metadata", tone: "muted" }),
-        )}>
+        <ContactsAgentMetadata provider={props.provider} allowedToolsCount={props.allowedToolsCount} skillsCount={props.skillsCount} />
+        <p className={cn("mt-1 truncate", getUiTypographyClassName({ role: "metadata", tone: "muted" }))}>
           {agent.description || t("contacts.no_description")}
         </p>
       </div>
@@ -175,169 +119,77 @@ function ContactsAgentListRow({
   );
 }
 
-function ContactsAgentCompactCard({
-  agent,
-  allowedToolsCount,
-  businessTags,
-  chatLabel,
-  createTeamLabel,
-  editLabel,
-  onCreateTeam,
-  onOpenProfile,
-  onOpenRoom,
-  permissionMode,
-  provider,
-  skillsCount,
-}: ContactsAgentCardViewProps) {
-  const { t } = useI18n();
-
+function ContactsAgentGridCard(props: ContactsAgentCardViewProps) {
+  const { agent, businessTags, editLabel, onOpenProfile } = props;
   return (
     <WorkspaceCatalogCard
-      align="start"
-      className="group h-full md:hidden"
+      align="center"
+      className="h-full min-w-0"
       primaryAction={{ label: `${editLabel} ${agent.name}`, onClick: onOpenProfile }}
-      size="compact"
+      size="comfort"
     >
-      <div className="pointer-events-none relative z-10 flex w-full min-w-0 items-start gap-3">
-        <UiAgentAvatar
-          avatar={agent.avatar}
-          name={agent.name}
-          size="md"
-        />
-
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-2">
-            <WorkspaceCatalogTitle className="min-w-0 flex-1" size="sm" truncate>
-              {agent.name}
-            </WorkspaceCatalogTitle>
-            <UiBadge className="max-w-[112px] truncate" size="xs" tone="idle">
-              {permissionMode}
-            </UiBadge>
-          </div>
-
-          {agent.description && (
-            <WorkspaceCatalogDescription className="mt-1" lines={1}>
+      <div className="flex w-full min-w-0 flex-1 flex-col items-center">
+        <UiAgentAvatar avatar={agent.avatar} name={agent.name} size="lg" />
+        <WorkspaceCatalogBody className="mt-3 w-full" grow={false}>
+          <WorkspaceCatalogTitle className="[overflow-wrap:anywhere]" size="lg">
+            {agent.name}
+          </WorkspaceCatalogTitle>
+          {agent.description ? (
+            <WorkspaceCatalogDescription className="mt-1.5" lines={2}>
               {agent.description}
             </WorkspaceCatalogDescription>
-          )}
-
-          <ContactsAgentBusinessTags className="mt-1.5" tags={businessTags} />
-
-          <div className={cn(
-            "mt-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1",
-            getUiTypographyClassName({ role: "caption", tone: "soft" }),
-          )}>
-            <span className="min-w-0 max-w-full truncate">
-              <span className="text-(--text-default)">{t("contacts.metadata.provider")}</span>
-              {" · "}
-              {provider}
-            </span>
-            <span>{t("contacts.metadata.tools")} {allowedToolsCount}</span>
-            <span>{t("contacts.metadata.skills")} {skillsCount}</span>
-          </div>
-        </div>
+          ) : null}
+          <ContactsAgentBusinessTags className="mt-2 justify-center" tags={businessTags} />
+          <ContactsAgentMetadata {...props} className="justify-center" />
+        </WorkspaceCatalogBody>
       </div>
-
-      <WorkspaceCatalogFooter
-        className="relative z-20 mt-3 w-full gap-4 border-t border-(--divider-subtle-color) pt-2.5"
-        justify="start"
-      >
-        <WorkspaceCatalogTextAction onClick={onOpenRoom} tone="primary">
-          <MessageSquareText className="h-3 w-3" />
-          {chatLabel}
-        </WorkspaceCatalogTextAction>
-        <WorkspaceCatalogTextAction onClick={onCreateTeam}>
-          <MessageCirclePlus className="h-3 w-3" />
-          {createTeamLabel}
-        </WorkspaceCatalogTextAction>
+      <WorkspaceCatalogFooter className="mt-2 w-full" justify="center">
+        <ContactsAgentActions {...props} />
       </WorkspaceCatalogFooter>
     </WorkspaceCatalogCard>
   );
 }
 
-function ContactsAgentComfortCard({
-  agent,
-  allowedToolsCount,
-  businessTags,
-  chatLabel,
-  createTeamLabel,
-  editLabel,
-  onCreateTeam,
-  onOpenProfile,
-  onOpenRoom,
-  permissionMode,
-  provider,
-  skillsCount,
-}: ContactsAgentCardViewProps) {
+function ContactsAgentMetadata({ provider, allowedToolsCount, skillsCount, permissionMode, className }:
+  Pick<ContactsAgentCardViewProps, "provider" | "allowedToolsCount" | "skillsCount"> & { permissionMode?: string; className?: string }) {
   const { t } = useI18n();
-
-  return (
-    <WorkspaceCatalogCard
-      align="center"
-      className="group hidden h-full md:flex"
-      primaryAction={{ label: `${editLabel} ${agent.name}`, onClick: onOpenProfile }}
-      size="comfort"
-    >
-      <div className="pointer-events-none relative z-10 flex w-full flex-col items-center">
-        <UiAgentAvatar
-          avatar={agent.avatar}
-          className="mx-auto"
-          name={agent.name}
-          size="lg"
-        />
-
-        <WorkspaceCatalogBody className="mt-3 w-full" grow={false}>
-          <WorkspaceCatalogTitle size="lg" truncate>
-            {agent.name}
-          </WorkspaceCatalogTitle>
-
-          {agent.description && (
-            <WorkspaceCatalogDescription
-              className="mt-1.5"
-              minHeight={false}
-            >
-              {agent.description}
-            </WorkspaceCatalogDescription>
-          )}
-          <ContactsAgentBusinessTags
-            className="mt-2 justify-center"
-            tags={businessTags}
-          />
-
-          <div className={cn(
-            "mt-2 flex flex-col items-center justify-center gap-1 text-center",
-            getUiTypographyClassName({ role: "caption", tone: "soft" }),
-          )}>
-            <div className="flex flex-wrap gap-1.5">
-              <span className="text-(--text-default)">{t("contacts.metadata.permission")}:</span>
-              <span className="text-(--text-muted)">{permissionMode}</span>
-            </div>
-            <div className="flex flex-wrap items-center justify-center gap-1.5">
-              <span className="text-(--text-default)">{t("contacts.metadata.provider")}:</span>
-              <span className="text-(--text-muted)">{provider}</span>
-              <span className="mx-0.5">•</span>
-              <span className="text-(--text-default)">{t("contacts.metadata.tools")}:</span>
-              <span className="text-(--text-muted)">{allowedToolsCount}</span>
-              <span className="mx-0.5">•</span>
-              <span className="text-(--text-default)">{t("contacts.metadata.skills")}:</span>
-              <span className="text-(--text-muted)">{skillsCount}</span>
-            </div>
-          </div>
-        </WorkspaceCatalogBody>
+  return <dl className={cn("mt-2 flex min-w-0 flex-wrap gap-x-3 gap-y-1",
+    getUiTypographyClassName({ role: "metadata", tone: "muted" }), className)}>
+    {permissionMode ? (
+      <div className="min-w-0 basis-full [overflow-wrap:anywhere]">
+        <dt className="inline">{t("contacts.metadata.permission")}</dt>{" "}
+        <dd className="inline">{permissionMode}</dd>
       </div>
+    ) : null}
+    <div className="min-w-0 max-w-full [overflow-wrap:anywhere]">
+      <dt className="inline">{t("contacts.metadata.provider")}</dt>{" "}
+      <dd className="inline">{provider}</dd>
+    </div>
+    <div className="flex gap-1"><dt>{t("contacts.metadata.tools")}</dt><dd>{allowedToolsCount}</dd></div>
+    <div className="flex gap-1"><dt>{t("contacts.metadata.skills")}</dt><dd>{skillsCount}</dd></div>
+  </dl>;
+}
 
-      <WorkspaceCatalogFooter className="relative z-20 mt-2 w-full gap-4" justify="center">
-        <WorkspaceCatalogTextAction onClick={onOpenRoom} tone="primary">
-          <MessageSquareText className="h-3 w-3" />
-          {chatLabel}
-        </WorkspaceCatalogTextAction>
-        <WorkspaceCatalogTextAction onClick={onCreateTeam}>
-          <MessageCirclePlus className="h-3 w-3" />
-          {createTeamLabel}
-        </WorkspaceCatalogTextAction>
-      </WorkspaceCatalogFooter>
-    </WorkspaceCatalogCard>
-  );
+function ContactsAgentActions({ agent, chatLabel, createTeamLabel, onOpenRoom, onCreateTeam, compact = false }:
+  Pick<ContactsAgentCardViewProps, "agent" | "chatLabel" | "createTeamLabel" | "onOpenRoom" | "onCreateTeam"> & { compact?: boolean }) {
+  const actions = [
+    { label: chatLabel, command: onOpenRoom, Icon: MessageSquareText, tone: "primary" as const },
+    { label: createTeamLabel, command: onCreateTeam, Icon: MessageCirclePlus, tone: "default" as const },
+  ];
+  return <div className={cn("flex flex-wrap items-center", compact ? "gap-1" : "gap-x-3 gap-y-1")}>
+    {actions.map(({ label, command, Icon, tone }) => compact ? (
+      <UiIconButton aria-label={`${label} ${agent.name}`} key={label} onClick={(event) => {
+        event.stopPropagation();
+        command();
+      }} size="sm" title={label} tone={tone}>
+        <Icon aria-hidden className="h-4 w-4" />
+      </UiIconButton>
+    ) : (
+      <WorkspaceCatalogTextAction aria-label={`${label} ${agent.name}`} key={label} onClick={command} tone={tone}>
+        <Icon aria-hidden className="h-4 w-4" />{label}
+      </WorkspaceCatalogTextAction>
+    ))}
+  </div>;
 }
 
 function ContactsAgentBusinessTags({
@@ -352,13 +204,13 @@ function ContactsAgentBusinessTags({
     return null;
   }
   return (
-    <div className={cn("flex min-w-0 items-center gap-1", className)}>
+    <div className={cn("flex min-w-0 flex-wrap items-center gap-1", className)}>
       {visibleTags.map((tag) => (
         <UiBadge
-          className="max-w-[140px] truncate"
+          className="max-w-full whitespace-normal [overflow-wrap:anywhere]"
           key={tag}
           shape="pill"
-          size="xs"
+          size="sm"
           title={tag}
           tone="idle"
         >
@@ -368,7 +220,7 @@ function ContactsAgentBusinessTags({
       {tags.length > visibleTags.length ? (
         <span className={cn(
           "shrink-0",
-          getUiTypographyClassName({ role: "caption", tone: "soft" }),
+          getUiTypographyClassName({ role: "metadata", tone: "muted" }),
         )}>
           +{tags.length - visibleTags.length}
         </span>

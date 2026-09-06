@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Unify Contacts grid cards and creation/search entries across breakpoints, make
+  Agent names and Provider metadata readable, add clear-filter recovery, and
+  share the labeled directory filter with capability pages through `UiFilterSelect`.
 - Refine Skill import and source management with instance-scoped fields,
   readable source addresses/statuses and import guidance, shared list surfaces,
   technical input typography and explicit busy states. Remove forwarding
