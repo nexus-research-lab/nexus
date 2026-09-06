@@ -807,6 +807,23 @@ test("Streaming source shares editor metrics and uses the static motion owner", 
   assert.match(recipes, /@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{\s*\.ui-source-write-cursor\s*\{\s*animation:\s*none;/);
 });
 
+test("Hero decoration reuses media and text owners with static reduced-motion recipes", async () => {
+  const [hero, lottie, preference, recipes] = await Promise.all([
+    readSource("src/shared/ui/feedback/animated-hero-text.tsx"),
+    readSource("src/shared/ui/feedback/lottie-player.tsx"),
+    readSource("src/shared/lib/react/use-prefers-reduced-motion.ts"),
+    readSource("src/app/styles/theme-recipes.css"),
+  ]);
+  assert.match(hero, /splitTextGraphemes\(text\)/);
+  assert.doesNotMatch(hero, /pretext|setTimeout|getComputedStyle|useEffect|opacity-0/);
+  assert.match(preference, /return useMediaQuery\("\(prefers-reduced-motion: reduce\)"\)/);
+  assert.doesNotMatch(preference, /matchMedia|addEventListener|useState/);
+  assert.match(lottie, /usePrefersReducedMotion/);
+  assert.doesNotMatch(lottie, /\.play\(|dotLottieRefCallback|inlineStyle/);
+  assert.match(recipes, /@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{[^}]*\}[\s\S]*?\.ui-hero-grapheme,\s*\.ui-fade-slide-in\s*\{\s*animation:\s*none;/);
+  assert.match(recipes, /\.ui-fade-slide-in\s*\{[^}]*\bbackwards\b/);
+});
+
 test("General, Personal, and Browser settings share semantic Spinner roles", async () => {
   const paths = [
     "src/features/settings/browser/browser-settings-section.tsx",

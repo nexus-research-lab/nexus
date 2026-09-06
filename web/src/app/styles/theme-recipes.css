@@ -374,6 +374,27 @@
     }
   }
 
+  @keyframes nexus-hero-grapheme-enter {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes nexus-fade-slide-enter {
+    from { opacity: 0; transform: translateY(var(--ui-enter-offset, 10px)); }
+    to { opacity: 1; transform: none; }
+  }
+
+  /* Backwards fill hides only the delay phase; completed content retains no transform. */
+  .ui-hero-grapheme {
+    animation: nexus-hero-grapheme-enter 450ms var(--motion-ease-standard) backwards;
+    animation-delay: var(--ui-enter-delay, 0ms);
+  }
+
+  .ui-fade-slide-in {
+    animation: nexus-fade-slide-enter var(--ui-enter-duration, 420ms) var(--motion-ease-standard) backwards;
+    animation-delay: var(--ui-enter-delay, 0ms);
+  }
+
   @keyframes nexus-source-cursor-blink {
     0%, 48% { opacity: 1; }
     52%, 100% { opacity: 0; }
@@ -391,6 +412,11 @@
 
   @media (prefers-reduced-motion: reduce) {
     .ui-source-write-cursor {
+      animation: none;
+    }
+
+    .ui-hero-grapheme,
+    .ui-fade-slide-in {
       animation: none;
     }
 

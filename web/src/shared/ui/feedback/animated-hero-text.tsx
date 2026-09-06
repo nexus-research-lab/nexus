@@ -1,18 +1,13 @@
+/**
+ * INPUT: Hero 文本、进入动效参数与布局。
+ * OUTPUT: 完整可访问文本和稳定字符身份的渐显、容器进入效果。
+ * POS: Hero 展示动效；字符边界归 text-graphemes，动画与减少动态效果归主题 recipe。
+ */
 "use client";
 
-/**
- * INPUT: Hero 文本、字体测量和逐字延迟。
- * OUTPUT: 稳定字符身份的渐显文本。
- * POS: Hero 展示动效；pretext 测量不可用时复用基础 grapheme 边界。
- */
-import { CSSProperties, useEffect, useRef, useState } from "react";
-import { prepareWithSegments } from "@chenglou/pretext";
+import { type CSSProperties, useMemo } from "react";
 import { splitTextGraphemes } from "@/lib/text-graphemes";
 import { cn } from "@/shared/ui/class-name";
-
-// ─── AnimatedHeroText ────────────────────────────────────────────────────────
-// Uses pretext to split text into grapheme clusters (handles CJK + emoji + bidi)
-// then reveals each grapheme with a stagger CSS transition.
 
 interface AnimatedHeroTextProps {
   text: string;
@@ -21,15 +16,6 @@ interface AnimatedHeroTextProps {
   staggerMs?: number;
   /** Delay before first grapheme starts appearing */
   initialDelayMs?: number;
-}
-
-function splitGraphemes(text: string, font: string): string[] {
-  try {
-    const prepared = prepareWithSegments(text, font);
-    return prepared.segments;
-  } catch {
-    return splitTextGraphemes(text);
-  }
 }
 
 interface KeyedGrapheme {
@@ -59,50 +45,23 @@ function getKeyedGraphemes(graphemes: string[]): KeyedGrapheme[] {
 
 export function AnimatedHeroText({
   text,
-  className: className,
-  staggerMs: staggerMs = 26,
-  initialDelayMs: initialDelayMs = 100,
+  className,
+  staggerMs = 26,
+  initialDelayMs = 100,
 }: AnimatedHeroTextProps) {
-  const [graphemes, setGraphemes] = useState<string[]>([]);
-  const [visible, setVisible] = useState(false);
-  const ref = useRef<HTMLSpanElement>(null);
-
-  useEffect(() => {
-    const el = ref.current;
-    const font = el
-      ? window.getComputedStyle(el).font || "800 42px system-ui"
-      : "800 42px system-ui";
-    setGraphemes(splitGraphemes(text, font));
-    const t = setTimeout(() => setVisible(true), 16);
-    return () => clearTimeout(t);
-  }, [text]);
-
-  if (graphemes.length === 0) {
-    return (
-      <span ref={ref} className={cn("opacity-0", className)} aria-hidden>
-        {text}
-      </span>
-    );
-  }
+  const graphemes = useMemo(() => getKeyedGraphemes(splitTextGraphemes(text)), [text]);
 
   return (
-    <span ref={ref} className={className} aria-label={text}>
-      {getKeyedGraphemes(graphemes).map(({ char, key, position }) => (
+    <span className={className} aria-label={text}>
+      {graphemes.map(({ char, key, position }) => (
         <span
           key={key}
           aria-hidden
-          className="inline-block"
+          className="ui-hero-grapheme"
           style={{
-            // 进入动画结束后移除最终态 transform，
-            // 避免标题里的每个字长期保留独立合成层。
-            ...(visible ? null : {
-              opacity: 0,
-              transform: "translateY(8px) scale(0.94)",
-            }),
-            transition: "opacity 0.4s ease, transform 0.45s cubic-bezier(0.22,1,0.36,1)",
-            transitionDelay: visible ? `${initialDelayMs + position * staggerMs}ms` : "0ms",
+            "--ui-enter-delay": `${initialDelayMs + position * staggerMs}ms`,
             whiteSpace: char === " " ? "pre" : undefined,
-          }}
+          } as CSSProperties}
         >
           {char}
         </span>
@@ -117,7 +76,7 @@ interface FadeSlideInProps {
   children: React.ReactNode;
   delayMs?: number;
   durationMs?: number;
-  /** 初始纵向偏移；负值表示从下方向上归位。 */
+  /** 初始纵向偏移；正值表示从下方向上归位。 */
   yOffset?: number;
   className?: string;
   style?: CSSProperties;
@@ -131,27 +90,15 @@ export function FadeSlideIn({
   className,
   style,
 }: FadeSlideInProps) {
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    const t = setTimeout(() => setVisible(true), 16);
-    return () => clearTimeout(t);
-  }, []);
-
   return (
     <div
-      className={className}
+      className={cn("ui-fade-slide-in", className)}
       style={{
-        // 容器完成进入动画后不再保留 transform，
-        // 这样 launcher 推荐按钮和 Hero 分组不会持续挂在独立层上。
-        ...(visible ? null : {
-          opacity: 0,
-          transform: `translateY(${yOffset}px)`,
-        }),
-        transition: `opacity ${durationMs}ms ease, transform ${durationMs}ms cubic-bezier(0.22,1,0.36,1)`,
-        transitionDelay: `${delayMs}ms`,
+        "--ui-enter-offset": `${yOffset}px`,
+        "--ui-enter-duration": `${durationMs}ms`,
+        "--ui-enter-delay": `${delayMs}ms`,
         ...style,
-      }}
+      } as CSSProperties}
     >
       {children}
     </div>

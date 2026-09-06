@@ -1,6 +1,7 @@
 # Launcher Hero
 
 - `launcher-hero-stage.tsx` 只渲染首屏、输入框和最近入口。
+- 标题渐显、容器进入和装饰 Lottie 委托公共反馈组件；业务只传内容、布局与进入时序，不测量标题字体、注入动画样式或控制播放器实例。
 - `launcher-recent-entry-model.ts` 只投影 DM/Room 标签、可访问名称与截断提示，不得返回 class、style、颜色、尺寸、阴影或动画参数。
 - `launcher-recent-entry-layout.ts` 只拥有 Hero 最近入口的排列和渐入时序；按钮形状、尺寸、字阶与交互状态仍归共享 Button。
 - `launcher-recent-entry-styles.ts` 只从稳定入口键投影语义色身份点；不得把按钮底色、边框、字号或交互态带回业务配方。

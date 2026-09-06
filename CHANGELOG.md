@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Launcher decorations now respect reduced motion from the first render:
+  Lottie switches between looping and static lifecycles, while Hero text and
+  entry containers use shared CSS motion rules. Removed duplicate playback,
+  media-query listeners, unused style props, font measurement and entry timers.
 - Shared streaming file previews now use the source editor's text metrics,
   localized logical line counts outside the text, and a motion-aware cursor;
   removed redundant width measurement and runtime style injection.
