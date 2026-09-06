@@ -4,7 +4,7 @@
 
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useRef, useState } from "react";
+import { createRef, useRef, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UiActionMenu } from "@/shared/ui/menu/action-menu";
@@ -199,10 +199,11 @@ describe("UiActionMenu", () => {
   it("owns native menu action rows and their state semantics", async () => {
     const user = userEvent.setup();
     const onClick = vi.fn();
+    const actionRef = createRef<HTMLButtonElement>();
 
     render(
       <div aria-label="文件操作" role="menu">
-        <UiMenuActionRow active onClick={onClick} tone="danger">
+        <UiMenuActionRow ref={actionRef} active onClick={onClick} tone="danger">
           删除
         </UiMenuActionRow>
         <UiMenuActionRow disabled>不可用</UiMenuActionRow>
@@ -211,6 +212,7 @@ describe("UiActionMenu", () => {
 
     const action = screen.getByRole("menuitem", { name: "删除" });
     const disabledAction = screen.getByRole("menuitem", { name: "不可用" });
+    expect(actionRef.current).toBe(action);
     expect(action.getAttribute("type")).toBe("button");
     expect(action.getAttribute("data-active")).toBe("true");
     expect(action.className).toContain("radius-control-lg");

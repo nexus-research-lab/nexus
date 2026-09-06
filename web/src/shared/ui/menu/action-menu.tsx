@@ -17,9 +17,9 @@ import { focusFirstMenuItem, handleMenuKeyDown } from "./menu-keyboard";
 
 import {
   getMenuItemLayout,
-  MENU_ITEM_GAP_PX,
+  getMenuContentHeight,
   MENU_LIST_CLASS_NAME,
-  MENU_SURFACE_VERTICAL_PADDING_PX,
+  MENU_SEPARATOR_CLASS_NAME,
 } from "./menu-styles";
 import {
   UiMenuActionRow,
@@ -75,7 +75,6 @@ interface UiActionMenuProps {
 }
 
 const ACTION_MENU_MAX_HEIGHT = 320;
-const ACTION_MENU_FOOTER_SEPARATOR_HEIGHT = 9;
 const EMPTY_ACTION_MENU_ITEMS: UiActionMenuItem[] = [];
 
 function estimateActionMenuHeight({
@@ -87,14 +86,10 @@ function estimateActionMenuHeight({
   footerItems?: UiActionMenuItem[];
   items: UiActionMenuItem[];
 }): number {
-  const allItems = [...items, ...footerItems];
-  const hasFooter = footerItems.length > 0;
-  const contentBlockCount = allItems.length + (hasFooter ? 1 : 0);
-  return allItems.reduce(
-    (height, item) => height + getMenuItemLayout({ density, hasDescription: Boolean(item.description) }).height,
-    MENU_SURFACE_VERTICAL_PADDING_PX
-      + (hasFooter ? ACTION_MENU_FOOTER_SEPARATOR_HEIGHT : 0),
-  ) + MENU_ITEM_GAP_PX * Math.max(0, contentBlockCount - 1);
+  return getMenuContentHeight(
+    [...items, ...footerItems].map((item) => getMenuItemLayout({ density, hasDescription: Boolean(item.description) }).height),
+    footerItems.length > 0 ? 1 : 0,
+  );
 }
 
 function resolveActionMenuPosition({
@@ -243,7 +238,7 @@ export function UiActionMenuContent({
       ))}
       {footerItems.length > 0 ? (
         <>
-          <div className="mx-1 my-1 border-t border-(--divider-subtle-color)" />
+          <div className={MENU_SEPARATOR_CLASS_NAME} role="separator" />
           {footerItems.map((item) => (
             <ActionMenuItem
               density={density}

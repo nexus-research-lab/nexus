@@ -6,6 +6,7 @@ import type { KeyboardEvent } from "react";
 
 import { isImeKeyboardEvent } from "@/shared/lib/browser/ime-keyboard-event";
 import { getTabbableElements } from "@/shared/lib/browser/focus-navigation";
+import { getAnchoredOverlayAncestorRoots } from "@/shared/ui/overlay/overlay-dismissal-runtime";
 
 function getMenuItems(menu: HTMLElement): HTMLElement[] {
   return Array.from(menu.querySelectorAll<HTMLElement>(
@@ -29,8 +30,9 @@ export function handleMenuKeyDown(
     // Portal 关闭会移除原始事件目标；显式从归还的锚点续接，避免焦点落到 body。
     event.preventDefault();
     event.stopPropagation();
+    const exitingRoots = getAnchoredOverlayAncestorRoots(event.currentTarget);
     onTabExit();
-    focusAfterMenuExit(event.currentTarget, event.shiftKey);
+    focusAfterMenuExit(exitingRoots, event.shiftKey);
     return;
   }
   const menu = target.closest<HTMLElement>('[role="menu"]');
@@ -50,12 +52,14 @@ export function handleMenuKeyDown(
   items[index].focus();
 }
 
-function focusAfterMenuExit(menuRoot: HTMLElement, backwards: boolean): void {
+function focusAfterMenuExit(menuRoots: readonly HTMLElement[], backwards: boolean): void {
   const anchor = document.activeElement;
-  if (!(anchor instanceof HTMLElement) || menuRoot.contains(anchor)) return;
+  if (!(anchor instanceof HTMLElement)) return;
+  const exitingRoots = menuRoots.filter((root) => !root.contains(anchor));
+  if (!exitingRoots.length) return;
   const modal = anchor.closest<HTMLElement>("[data-modal-root='true']");
   const targets = getTabbableElements(modal ?? document.body)
-    .filter((element) => !menuRoot.contains(element));
+    .filter((element) => !exitingRoots.some((root) => root.contains(element)));
   const index = targets.indexOf(anchor);
   let adjacent: HTMLElement | undefined;
   if (index >= 0) {

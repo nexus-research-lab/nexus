@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Workspace context menus now use shared pointer/cascade overlay bounds, modal
+  dismissal and scrolling; long application lists update in place, and crossing
+  a submenu gap keeps it open. Removed file-specific size estimates and private
+  positioning/listeners. Menus share total row/separator geometry, and Tab exit
+  skips closing parent portals; stale invoking elements dismiss cleanly.
 - Action, Room model and Workspace menus now share keyboard traversal and Tab
   exit behavior, skip disabled items and preserve IME input. Cascades support
   keyboard entry and stepwise return without moving focus on hover; Session

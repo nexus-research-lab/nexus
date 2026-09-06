@@ -25,7 +25,7 @@ describe("Workspace dialogs", () => {
     const asyncNoop = vi.fn(async () => undefined);
     const controller: ComponentProps<typeof WorkspaceDialogs>["controller"] = {
       closeContextMenu: noop, closeDeletePrompt: noop, closePrompt: noop,
-      contextMenu: { entry: null, position: null }, deleteTarget: null, isMutating: false, promptState,
+      contextMenu: { anchor: null, entry: null, position: null }, deleteTarget: null, isMutating: false, promptState,
       handleUploadClick: noop, openCreatePrompt: noop, openRenamePrompt: noop,
       handlePromptConfirm: asyncNoop, handleConfirmDelete: asyncNoop, handleAddContextEntryToChat: asyncNoop,
       handleCopyContextEntryPath: asyncNoop, handleDownloadContextEntry: asyncNoop, handleOpenContextEntry: asyncNoop,
