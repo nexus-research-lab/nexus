@@ -130,7 +130,7 @@ test("Composer catalog pickers keep search focus, readable metadata and reachabl
       const row = dialog.getByRole("button").filter({ hasText: loop.title });
       await expect(row).toBeVisible();
       const metadata = row.getByText("Quality assurance · manual", { exact: true });
-      await expect(metadata).toHaveCSS("font-size", "13px");
+      await expect(metadata).toHaveCSS("font-size", "12px");
       await row.focus();
       await capture(dialog.locator(".dialog-shell"), info, "composer-loop-picker");
       await page.keyboard.press("Enter");
@@ -152,6 +152,65 @@ test("Composer catalog pickers keep search focus, readable metadata and reachabl
     await expect(dialog).toHaveCount(0);
   }
   expect(rejected).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test("history menus keep readable metadata, editing focus and reachable batch feedback", async ({ page }, info) => {
+  const { errors } = await openGallery(page, info);
+  const unexpected: string[] = [];
+  await page.route("**/nexus/v1/**", (route) => { unexpected.push(route.request().url()); return route.abort(); });
+  await page.setViewportSize({ ...page.viewportSize()!, height: 420 });
+  await page.evaluate(async (locale) => {
+    localStorage.setItem("nexus-locale", locale);
+    const modulePath = "/src/dev/ui-gallery/mount-room-history-fixture.ts";
+    const { mountRoomHistoryFixture } = await import(modulePath);
+    mountRoomHistoryFixture();
+  }, String(info.project.metadata.locale));
+  const fixture = page.locator("[data-room-history-fixture]");
+  const trigger = fixture.getByRole("button", { name: copy(info, "历史", "History"), exact: true });
+  await trigger.click();
+  const history = page.getByRole("dialog", { name: copy(info, "历史", "History"), exact: true });
+  await expectInsideViewport(page, history);
+  const beta = history.getByRole("button", { name: /ResearchEvidenceAndVerification/ });
+  await beta.focus();
+  const rename = beta.getByRole("button", { name: copy(info, "重命名", "Rename"), exact: true });
+  await expect(rename).toHaveCSS("opacity", "1");
+  await expect(beta.getByText(copy(info, "刚刚", "Just now"), { exact: true })).toHaveCSS("font-size", "12px");
+  await rename.click();
+  const input = history.getByRole("textbox");
+  await expect(input).toBeFocused();
+  await input.fill("Changed title");
+  await page.keyboard.press("Escape");
+  await expect(input).toHaveCount(0);
+  await expect(rename).toBeFocused();
+  await expect(history).toBeVisible();
+  await expect(fixture.locator("[data-history-commands]")).toHaveText("");
+  await history.getByRole("button", { name: copy(info, "多选", "Select"), exact: true }).click();
+  await history.getByRole("checkbox", { name: copy(info, "全选", "Select all"), exact: true }).check();
+  const clearText = copy(info, "清空历史", "Clear history");
+  await history.getByRole("button", { name: clearText, exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: clearText, exact: true }).click();
+  const notice = history.getByRole("status");
+  await expect(notice).toContainText(copy(info, "不要重复删除", "Do not delete them again"));
+  await expect(notice.getByRole("button")).toHaveCount(0);
+  const scroll = history.locator("[data-room-history-scroll-viewport]");
+  expect(await scroll.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+  await expectInsideViewport(page, history.getByRole("button", { name: copy(info, "取消", "Cancel"), exact: true }));
+  await expect(fixture.locator("[data-history-commands]")).toHaveText("create|delete:beta|delete:alpha");
+  await capture(history, info, "history-batch-feedback");
+  // Clicking the trigger explicitly closes history without depending on pointer-open tooltips.
+  await trigger.click();
+  await expect(history).toHaveCount(0);
+  await fixture.getByRole("button", { name: "Open mobile history", exact: true }).click();
+  const mobile = page.getByRole("dialog", { name: copy(info, "切换会话", "Switch conversation"), exact: true });
+  await expectInsideViewport(page, mobile);
+  await expect(mobile.getByText(copy(info, "刚刚", "Just now"), { exact: true }).first()).toHaveCSS("font-size", "12px");
+  await capture(mobile, info, "mobile-history");
+  await mobile.getByRole("button", { name: copy(info, "关闭", "Close"), exact: true }).click();
+  await fixture.getByRole("button", { name: "Use empty history", exact: true }).click();
+  await fixture.getByRole("button", { name: "Open mobile history", exact: true }).click();
+  await expect(mobile.getByRole("status")).toHaveText(copy(info, "暂无对话", "No conversations yet"));
+  expect(unexpected).toEqual([]);
   expect(errors).toEqual([]);
 });
 

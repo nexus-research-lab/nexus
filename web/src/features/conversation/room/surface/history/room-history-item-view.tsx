@@ -1,6 +1,6 @@
 /**
  * INPUT: 已投影的历史条目、标题编辑器与选择/切换/删除回调。
- * OUTPUT: 阅读、编辑和批量选择三种互斥模式的可访问条目视图。
+ * OUTPUT: 具公共次动作显隐和可读时间的历史条目；编辑键盘隔离输入法与菜单关闭。
  * POS: Room 历史单项纯视图，不判断会话协议与删除资格。
  */
 
@@ -14,6 +14,7 @@ import {
 import { Check, Pencil, Trash2, X } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
+import { isImeKeyboardEvent } from "@/shared/lib/browser/ime-keyboard-event";
 import { UiCheckbox } from "@/shared/ui/form/checkbox";
 import { UiInput } from "@/shared/ui/form/form-control";
 import {
@@ -34,6 +35,7 @@ interface TitleEditorView {
   confirm: () => void;
   draft: string;
   inputRef: RefObject<HTMLInputElement | null>;
+  triggerRef: RefObject<HTMLButtonElement | null>;
   setDraft: (value: string) => void;
   start: (event: MouseEvent) => void;
 }
@@ -46,8 +48,6 @@ interface RoomHistoryItemViewProps {
   presentation: RoomHistoryItemPresentation;
   selectionLabel: string;
 }
-
-interface ItemContentProps extends RoomHistoryItemViewProps {}
 
 interface ActionStyle {
   icon: ComponentType<{ className?: string }>;
@@ -75,7 +75,7 @@ function RoomHistoryActivity({
   return (
     <span className={cn(
       "shrink-0 tabular-nums",
-      getUiTypographyClassName({ role: "caption", tone: "soft" }),
+      getUiTypographyClassName({ role: "metadata", tone: "muted" }),
       className,
     )}>
       {label}
@@ -103,7 +103,7 @@ function SelectingItemContent({
   onToggleSelection,
   presentation,
   selectionLabel,
-}: ItemContentProps) {
+}: RoomHistoryItemViewProps) {
   const checkboxId = useId();
   const selection = presentation.selection;
   if (!selection) {
@@ -135,17 +135,19 @@ function handleTitleEditorKeyDown(
   event: KeyboardEvent<HTMLInputElement>,
   editor: TitleEditorView,
 ) {
-  const actions: Partial<Record<string, () => void>> = {
-    Enter: editor.confirm,
-    Escape: editor.cancel,
-  };
-  actions[event.key]?.();
+  if (event.key !== "Enter" && event.key !== "Escape") return;
+  // Composition keys belong to the input, including Escape candidate dismissal.
+  event.stopPropagation();
+  if (isImeKeyboardEvent(event.nativeEvent)) return;
+  event.preventDefault();
+  if (event.key === "Enter") editor.confirm();
+  else editor.cancel();
 }
 
 function EditingItemContent({
   editor,
   presentation,
-}: ItemContentProps) {
+}: RoomHistoryItemViewProps) {
   return (
     <>
       <div className="flex items-center gap-1.5">
@@ -188,7 +190,7 @@ function EditingItemContent({
 
 const CONTENT_VIEWS: Record<
   Exclude<RoomHistoryItemMode, "reading">,
-  ComponentType<ItemContentProps>
+  ComponentType<RoomHistoryItemViewProps>
 > = {
   editing: EditingItemContent,
   selecting: SelectingItemContent,
@@ -198,7 +200,7 @@ function RoomHistoryItemActions({
   editor,
   onDelete,
   presentation,
-}: ItemContentProps) {
+}: RoomHistoryItemViewProps) {
   if (presentation.actions.length === 0) {
     return null;
   }
@@ -207,12 +209,7 @@ function RoomHistoryItemActions({
     rename: editor.start,
   };
   return (
-    <div className={cn(
-      "flex shrink-0 items-center gap-1 transition-opacity duration-(--motion-duration-fast)",
-      presentation.actionsPersistent
-        ? "opacity-100"
-        : "opacity-0 group-hover/item:opacity-100 focus-within:opacity-100",
-    )}>
+    <div className="flex shrink-0 items-center gap-1">
       {presentation.actions.map((action) => {
         const style = ACTION_STYLES[action];
         const Icon = style.icon;
@@ -221,10 +218,11 @@ function RoomHistoryItemActions({
             aria-label={presentation.actionLabels[action]}
             key={action}
             onClick={actionHandlers[action]}
+            ref={action === "rename" ? editor.triggerRef : undefined}
             size="xs"
             stopPropagation
             tone={style.tone}
-            visibility="visible"
+            visibility={presentation.actionsPersistent ? "visible" : "hover"}
           >
             <Icon className="h-3 w-3" />
           </UiListActionButton>

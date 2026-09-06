@@ -8,6 +8,8 @@ import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { I18nProvider } from "@/shared/i18n/i18n-provider";
+import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
+import { MESSAGES, type Locale } from "@/shared/i18n/messages";
 import type { RoomConversationView } from "@/types/conversation/conversation";
 
 import { RoomMobileConversationSwitcher } from "./room-mobile-conversation-switcher";
@@ -36,6 +38,26 @@ const CONVERSATIONS = [
 ] as RoomConversationView[];
 
 describe("RoomMobileConversationSwitcher", () => {
+  it.each(["en", "zh"] as const)("uses %s time labels and explains an empty history without exposing drafts", (locale: Locale) => {
+    const props = { activeConversationId: null, isOpen: true, onClose: vi.fn(), onSelect: vi.fn() };
+    const wrapper = ({ children }: { children: React.ReactNode }) => <I18N_CONTEXT.Provider value={{ locale, setLocale: vi.fn(), t: (key) => MESSAGES[locale][key] }}>{children}</I18N_CONTEXT.Provider>;
+    const view = render(<RoomMobileConversationSwitcher {...props} conversations={[{ ...CONVERSATIONS[0], last_activity_at: 0 }]} />, { wrapper });
+    expect(within(screen.getByRole("dialog")).getByText(locale === "en" ? "Just now" : "刚刚")).toBeTruthy();
+    view.rerender(<RoomMobileConversationSwitcher {...props} conversations={[{ ...CONVERSATIONS[0], is_draft: true }]} />);
+    expect(screen.queryByRole("button", { name: /产品讨论/ })).toBeNull();
+    expect(within(screen.getByRole("dialog")).getByRole("status").textContent).toBe(locale === "en" ? "No conversations yet" : "暂无对话");
+    expect(props.onSelect).not.toHaveBeenCalled();
+  });
+
+  it("names each instance from its own heading", () => {
+    const props = { activeConversationId: null, conversations: [], isOpen: true, onClose: vi.fn(), onSelect: vi.fn() };
+    render(<I18nProvider><RoomMobileConversationSwitcher {...props} /><RoomMobileConversationSwitcher {...props} /></I18nProvider>);
+    const dialogs = screen.getAllByRole("dialog");
+    const ids = dialogs.map((dialog) => dialog.getAttribute("aria-labelledby"));
+    expect(new Set(ids).size).toBe(2);
+    dialogs.forEach((dialog, index) => expect(document.getElementById(ids[index]!)).toBe(within(dialog).getByRole("heading")));
+  });
+
   it("uses shared modal focus, scroll lock and keyboard dismissal", async () => {
     const user = userEvent.setup();
     const originalOverflow = document.body.style.overflow;
