@@ -2,7 +2,9 @@
 
 - 本目录只提供联系人目录、卡片和详情视图，不读取 URL、Store 或调用 Agent/Room API。
 - `contacts-directory-helpers.test.ts` 通过共置 Vitest 直接验证真实搜索、过滤和候选去重模型；`scripts/contacts-directory.test.mjs` 只检查共享控件所有权，不启动 Vite Server 执行行为测试。
-- Agent 管理目录提供卡片与高密度列表两种本地视图；卡片仅在手机与窄窗使用紧凑摘要，`md` 起恢复 comfort 大卡片，并在铺满工作面的共享管理内容区内逐级扩展到桌面三列。目录标题、说明与搜索复用共享正文 Header；搜索只命中用于管理分类的业务标签，不得把进入提示词的风格标签当成业务标签，目录可按业务标签、Provider 和权限即时筛选，标签选项沿用带滚动边界的共享 SelectMenu 承载大量值。卡片与列表统一展示描述、业务标签、权限、Provider、工具数和技能数，使用户无需逐个进入详情即可比较。主体动作由本领域以独立按钮承载，不得嵌套在共享卡片交互语义中。
+- `contacts-directory.tsx` 提供卡片与列表两种本地视图；标题、说明和唯一搜索入口复用共享正文 Header，三种筛选直接使用跨领域 `UiFilterSelect`。搜索只命中用于管理分类的业务标签，不得把进入提示词的风格标签当成业务标签。空筛选复用 `UiResourceState`，清除搜索和所有筛选时保留当前视图，创建入口始终保留。
+- `contacts-agent-card.tsx` 的卡片只有一个 DOM，沿用共享 comfort 密度和响应式网格；列表仍由 `UiListRow` 承载。内部元信息与动作各有一个所有者，整卡主动作、聊天与建群保持独立；列表次动作使用带共享提示的 IconButton，名称包含 Agent 身份。名称/Provider 与有限说明预览的设计边界见 `design.md`，不复制共享卡片的 pointer-events 或 z-index 配方。
+- `contacts-directory.test.tsx` 验证真实搜索、联合筛选、视图切换、无结果恢复和精确 Agent 命令；`contacts-agent-card.test.tsx` 验证每种视图只有一份身份/动作以及键盘、点击和提示边界，实际命中与长文本布局另由 Gallery 浏览器用例验收。
 - 联系人侧栏行与管理目录的 Agent 卡片主体必须进入同一个 `agent` 查询参数详情页；既有 Agent 只在详情页编辑，目录卡片不得另开一套编辑弹窗。
 - Agent 管理目录的创建入口、Agent 卡片、徽标、元数据和空筛选结果必须复用 Workspace Catalog、`UiPanel`、`UiBadge`、Typography 与共享 Button；卡片/列表互斥视图切换固定复用支持图标选项的 `UiSegmentedControl`，目录不得手写原生按钮、任意圆角、字号或字重。
 - 详情页复用 Agent Options 的可编辑字段投影、保存命令和名称校验；桌面 Header 左侧必须提供明确的返回智能体目录动作，不能要求用户猜测全局联系人导航，手机继续由应用级 Header 提供唯一返回入口。

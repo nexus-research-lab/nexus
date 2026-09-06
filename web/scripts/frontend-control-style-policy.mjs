@@ -11,6 +11,7 @@ const CONTROL_MODULES = new Map([
   ["src/shared/ui/list/list-action", new Set(["UiListActionButton"])],
   ["src/shared/ui/list/list-row", new Set(["UiListRow"])],
   ["src/shared/ui/menu/select-menu", new Set(["UiSelectMenu"])],
+  ["src/shared/ui/menu/filter-select", new Set(["UiFilterSelect"])],
   ["src/shared/ui/form/form-control", new Set(["UiInput", "UiTextarea", "UiNativeSelect", "UiSearchInput"])],
   ["src/shared/ui/form/checkbox", new Set(["UiCheckbox"])],
   ["src/shared/ui/form/choice", new Set(["UiChoiceButton", "UiRadioChoice"])],

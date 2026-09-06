@@ -6,7 +6,7 @@ import { useState } from "react";
 
 import { ConnectorsSearchBar, type ConnectorDirectoryMode } from "@/features/capability/connectors/catalog/connectors-search-bar";
 import { CustomMCPDialog } from "@/features/capability/connectors/custom/custom-mcp-dialog";
-import { CapabilityFilterSelect } from "@/features/capability/shared/capability-page-layout";
+import { UiFilterSelect } from "@/shared/ui/menu/filter-select";
 import { SkillsSearchBar } from "@/features/capability/skills/skills-search-bar";
 import type { DiscoveryMode } from "@/features/capability/skills/controller/skill-marketplace-controller";
 import { ComposerContextUsage } from "@/features/conversation/shared/composer/components/footer/composer-context-usage";
@@ -47,7 +47,7 @@ export function ProductControlsGallery() {
         onQueryChange={setQuery} searchQuery={query} />
     </div>
     <div data-gallery-filter="status">
-      <CapabilityFilterSelect ariaLabel={t("capability.channels_filter_aria")} label={t("capability.status_label")}
+      <UiFilterSelect ariaLabel={t("capability.channels_filter_aria")} label={t("capability.status_label")}
         onChange={setStatus} options={[{ label: t("capability.category_all"), value: "all" },
           { label: galleryText(locale, "已连接", "Connected"), value: "connected" }]} value={status} />
     </div>

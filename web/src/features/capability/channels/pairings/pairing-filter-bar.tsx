@@ -3,10 +3,10 @@
 // POS: Pairing 工具区纯视图；不拥有筛选图标或菜单 DOM。
 "use client";
 
+import { UiFilterSelect } from "@/shared/ui/menu/filter-select";
 import {
   CapabilityFilterBar,
   CapabilityFilterSearchInput,
-  CapabilityFilterSelect,
 } from "@/features/capability/shared/capability-page-layout";
 import type { ImChannelType } from "@/lib/api/capability/channel-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -78,7 +78,7 @@ export function PairingFilterBar({
           placeholder={searchPlaceholder}
           value={filters.query}
         />
-        <CapabilityFilterSelect
+        <UiFilterSelect
           ariaLabel="按渠道筛选"
           label={t("capability.channel_label")}
           onChange={(value) => onChange(
@@ -91,7 +91,7 @@ export function PairingFilterBar({
           ]}
           value={filters.channel}
         />
-        <CapabilityFilterSelect
+        <UiFilterSelect
           ariaLabel="按处理智能体筛选"
           className="sm:w-[220px]"
           label={t("capability.agent_label")}

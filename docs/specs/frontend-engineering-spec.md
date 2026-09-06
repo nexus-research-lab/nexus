@@ -207,7 +207,7 @@ Pattern 统一跨页面的结构、响应式几何或交互组合，例如 Respo
 
 Pattern 与 Primitive 的区别是：Primitive 统一一个控件；Pattern 统一多个控件如何在页面和窗口尺寸中协作。
 
-能力目录的分类、状态、渠道、来源与 Agent 下拉统一由 `CapabilityFilterSelect` 组合紧凑 `UiSelectMenu`；领域 Pattern 固定必填文字标签并不暴露前导图标参数。视觉结构只在能力页设计规范定义，页面仍拥有选项、筛选状态和按内容调整的容器宽度。
+能力与联系人等目录的具名下拉筛选统一由 `shared/ui/menu/filter-select.tsx` 的 `UiFilterSelect` 组合紧凑 `UiSelectMenu`；跨领域 Pattern 固定必填文字标签并不暴露前导图标参数，不保留领域命名的转发层。视觉结构只在 `design.md` 定义，页面仍拥有选项、筛选状态和按内容调整的容器宽度。普通表单选择继续直接使用 `UiSelectMenu`。
 
 领域内跨子页重复的 Pattern 留在该领域 `shared`：例如 Skill、Connector、自定义 MCP、Loop 与 WorkGraph 详情统一由 `CapabilityDetailPage` 持有内容轴，并由唯一 `CapabilityDetailHeader` 组合全站 `UiBreadcrumb` 渲染“返回目录 / 当前对象”；Workspace 文件层级也只向 `UiBreadcrumb` 提供用户可见名称与相对路径段。导航下方的前导图标、标题、元数据、说明和响应式动作对齐统一由 `CapabilityDetailIdentity` 持有。业务子页不得直接引用底层 `WorkspaceContentDetailHeader`、手写 `objectTitle` 与动作容器、复制箭头、斜杠或间距，也不得把目录态 `WorkspaceContentHeader` 复用成对象身份区；详情路由不得残留目录 Header 或搜索控件。
 
@@ -369,7 +369,7 @@ Composer 的间距配方
 
 - `src/**/*.test.tsx`：与 primitive/pattern 共置的 Vitest + jsdom 行为测试，必须通过 Testing Library 从角色、名称和真实用户事件观察组件；
 - `scripts/*.test.mjs`：纯模型、协议、架构边界和禁止项合同；不得在这里伪造 DOM 交互结论，统一入口以有界并发运行，避免大量独立 Vite 转换进程使门禁随机崩溃；
-- `frontend-control-style-contract.test.mjs` 禁止公共 Button、ListRow/ListAction、Select 与 Form（Input/Textarea/NativeSelect/SearchInput/Checkbox/Choice/SegmentedControl）调用方的静态视觉覆盖；支持控件别名/命名空间导入、词法作用域内常量、条件表达式与对象展开，并追踪本地模块的具名不可变常量导入与具名转导出，同时检查 `className`、`buttonClassName`、`inputClassName` 和内联 `style`。它保留局部遮蔽、参数和循环边界，允许布局与独立图标内容，不执行模块或函数。命名空间样式常量、星号转导出、外部 CSS 和运行时计算样式仍需审查，不能将静态门禁通过视为全部视觉实现无覆盖。
+- `frontend-control-style-contract.test.mjs` 禁止公共 Button、ListRow/ListAction、Select/FilterSelect 与 Form（Input/Textarea/NativeSelect/SearchInput/Checkbox/Choice/SegmentedControl）调用方的静态视觉覆盖；支持控件别名/命名空间导入、词法作用域内常量、条件表达式与对象展开，并追踪本地模块的具名不可变常量导入与具名转导出，同时检查 `className`、`buttonClassName`、`inputClassName` 和内联 `style`。它保留局部遮蔽、参数和循环边界，允许布局与独立图标内容，不执行模块或函数。命名空间样式常量、星号转导出、外部 CSS 和运行时计算样式仍需审查，不能将静态门禁通过视为全部视觉实现无覆盖。
 - `frontend-token-contract.test.mjs` 通过既有 CSS 工具链和 TypeScript AST 检查全部生产 CSS/TS 的静态 `var()`、Tailwind 简写和模板 CSS；必需引用必须有声明，可选注入必须有 fallback，三主题的 canonical 别名不得缺失、循环或在同一声明块重复。明确进入 `color-mix()` 的公共控件颜色槽还需解析其别名并通过既有 DOM CSS 解析器的颜色校验，拒绝把已声明的渐变误用为颜色。检查不执行运行时表达式，也不把全局声明集合或解析器接受当作 DOM 继承、实际绘制或文字对比度证明；没有逐文件违规额度。
 - `npm run test:components` 与 `npm run test:contracts` 可分别定位失败，`npm test` 必须串行覆盖两类测试。
 - `npm run check` 串行执行 lint、typecheck、上述两类测试和生产构建。

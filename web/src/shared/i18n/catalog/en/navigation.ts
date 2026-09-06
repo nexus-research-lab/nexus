@@ -122,6 +122,7 @@ export const enNavigationMessages = {
   "contacts.no_description": "No description",
   "contacts.no_matches": "No agents match the current filters",
   "contacts.result_count": "Showing {count} of {total} agents",
+  "contacts.filters.tag_label": "Tag",
   "contacts.filters.tags": "Filter by business tag",
   "contacts.filters.all_tags": "All business tags",
   "contacts.filters.providers": "Filter by provider",

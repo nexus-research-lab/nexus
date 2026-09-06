@@ -1,6 +1,6 @@
 /**
  * INPUT: 能力页面标题、说明、动作、筛选控件、目录条目及详情导航/正文/配置内容。
- * OUTPUT: 能力目录与详情页的共享内容轴、统一标签筛选、移动页头动作、二级导航、按工作面宽度换行的对象身份区、目录内容几何和响应式分栏。
+ * OUTPUT: 能力目录与详情页的共享内容轴、目录筛选布局、移动页头动作、二级导航、按工作面宽度换行的对象身份区、目录内容几何和响应式分栏。
  * POS: 能力域页面级设计语法；通过中立页头动作 Context 适配宿主挂载点，不依赖 App 装配或解释具体领域状态。
  */
 "use client";
@@ -25,8 +25,6 @@ import {
   WorkspaceContentDetailHeader,
   WorkspaceContentHeader,
 } from "@/shared/ui/layout/workspace-content-header";
-import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
-import type { UiSelectMenuOption } from "@/shared/ui/menu/select-menu-model";
 import { UiBreadcrumb } from "@/shared/ui/navigation/breadcrumb";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
@@ -93,18 +91,6 @@ interface CapabilityFilterSearchInputProps {
   onCompositionStart?: CompositionEventHandler<HTMLInputElement>;
   onKeyDown?: KeyboardEventHandler<HTMLInputElement>;
   placeholder: string;
-  value: string;
-}
-
-interface CapabilityFilterSelectProps {
-  ariaLabel: string;
-  className?: string;
-  disabled?: boolean;
-  label: string;
-  onChange: (value: string) => void;
-  options: UiSelectMenuOption[];
-  placeholder?: string;
-  tourAnchor?: string;
   value: string;
 }
 
@@ -334,36 +320,6 @@ export function CapabilityItemIcon({
     >
       {children}
     </span>
-  );
-}
-
-export function CapabilityFilterSelect({
-  ariaLabel,
-  className,
-  disabled,
-  label,
-  onChange,
-  options,
-  placeholder,
-  tourAnchor,
-  value,
-}: CapabilityFilterSelectProps) {
-  return (
-    <div
-      className={cn("shrink-0 sm:w-[176px]", className)}
-      data-tour-anchor={tourAnchor}
-    >
-      <UiSelectMenu
-        ariaLabel={ariaLabel}
-        disabled={disabled}
-        label={label}
-        onChange={onChange}
-        options={options}
-        placeholder={placeholder}
-        size="sm"
-        value={value}
-      />
-    </div>
   );
 }
 

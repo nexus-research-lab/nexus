@@ -672,6 +672,9 @@ test("catalog filters share one shape and context usage has one detail surface",
     ["connectors", copy(info, "筛选连接器分类", "Filter connector categories")],
     ["status", copy(info, "筛选频道状态", "Filter channel status")],
   ].map(([kind, name]) => fixture.locator(`[data-gallery-filter="${kind}"]`).getByRole("button", { name, exact: true }));
+  categories.push(page.locator("[data-gallery-contacts]").getByRole("button", {
+    name: copy(info, "按业务标签筛选", "Filter by business tag"), exact: true,
+  }));
   const metrics = [];
   for (const trigger of categories) {
     await expect(trigger).toHaveCount(1);
@@ -684,6 +687,7 @@ test("catalog filters share one shape and context usage has one detail surface",
   }
   expect(metrics[0]).toEqual(metrics[1]);
   expect(metrics[0]).toEqual(metrics[2]);
+  expect(metrics[0]).toEqual(metrics[3]);
   await categories[0].click();
   await page.getByRole("option", { name: copy(info, "写作", "Writing"), exact: true }).click();
   await expect(categories[0]).toContainText(copy(info, "写作", "Writing"));
@@ -1654,5 +1658,62 @@ test("interactive list rows keep an inset keyboard focus ring through active and
   }
   await expect(page.locator('[data-gallery-row="static"]')).not.toHaveAttribute("tabindex");
   await expect(page.locator('[data-gallery-row="disabled"]')).not.toHaveAttribute("tabindex");
+  expect(errors).toEqual([]);
+});
+
+test("Contacts directory uses one identity tree, readable metadata and independent actions", async ({ page }, info) => {
+  const { errors } = await openGallery(page, info, "content");
+  const fixture = page.locator("[data-gallery-contacts]");
+  const name = "Research and product planning · 跨产品研究规划";
+  const card = fixture.getByRole("article").filter({ has: page.getByRole("heading", { name, exact: true }) });
+  const title = card.getByRole("heading", { name, exact: true });
+  const create = fixture.getByRole("button", { name: copy(info, "新建智能体", "New Agent"), exact: true });
+  await expect(fixture.getByRole("searchbox")).toHaveCount(1);
+  await expect(create).toHaveCount(1);
+  await expect(fixture.getByRole("article")).toHaveCount(3);
+  await title.scrollIntoViewIfNeeded();
+  expect(await title.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { font: style.fontSize, align: style.textAlign, overflow: element.scrollWidth > element.clientWidth + 1,
+      clipped: element.scrollHeight > element.clientHeight + 1 };
+  })).toEqual({ font: "20px", align: "center", overflow: false, clipped: false });
+  expect(await card.locator("dl").evaluate((element) => getComputedStyle(element).fontSize)).toBe("12px");
+  const provider = card.getByText("custom-research-model-provider-with-a-long-name", { exact: true });
+  expect(await provider.evaluate((element) => element.parentElement!.scrollWidth - element.parentElement!.clientWidth)).toBeLessThanOrEqual(1);
+  expect(await card.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
+  // Static content must route the pointer to the shared primary hit area.
+  const titleBounds = (await title.boundingBox())!;
+  await page.mouse.click(titleBounds.x + titleBounds.width / 2, titleBounds.y + titleBounds.height / 2);
+  const chatLabel = `${copy(info, "聊天", "Chat")} ${name}`;
+  const team = card.getByRole("button", { name: `${copy(info, "发起群聊", "Create Team")} ${name}`, exact: true });
+  await card.getByRole("button", { name: chatLabel, exact: true }).click();
+  await team.focus();
+  await page.keyboard.press("Enter");
+  const commands = fixture.locator("[data-gallery-contacts-commands]");
+  await expect(commands).toHaveText(JSON.stringify(["profile:research", "chat:research", "team:research"]));
+  await capture(card, info, "contacts-grid-card");
+
+  const listToggle = fixture.getByRole("button", { name: copy(info, "列表视图", "List view"), exact: true });
+  await listToggle.click();
+  await expect(fixture.getByRole("article")).toHaveCount(0);
+  const row = fixture.getByRole("button", { name: `${copy(info, "编辑", "Edit")} ${name}`, exact: true });
+  const listChat = row.getByRole("button", { name: chatLabel, exact: true });
+  await listChat.focus();
+  await expect(page.getByRole("tooltip")).toHaveText(copy(info, "聊天", "Chat"));
+  await expect(listChat).not.toHaveAttribute("title");
+  expect(await row.getByRole("heading").evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
+  await page.keyboard.press("Escape");
+  await capture(row, info, "contacts-list-row");
+
+  await fixture.getByRole("button", { name: copy(info, "按业务标签筛选", "Filter by business tag"), exact: true }).click();
+  await page.getByRole("option", { name: "Research and writing", exact: true }).click();
+  await expect(fixture.getByRole("heading", { name: "Writer · 写作者", exact: true })).toHaveCount(0);
+  await fixture.getByRole("searchbox").fill("no matching agent");
+  await expect(fixture.getByRole("status")).toContainText(copy(info, "没有符合当前筛选条件的智能体", "No agents match the current filters"));
+  await expect(create).toHaveCount(1);
+  await fixture.getByRole("button", { name: copy(info, "清除筛选", "Clear filters"), exact: true }).click();
+  await expect(fixture.getByRole("searchbox")).toHaveValue("");
+  await expect(listToggle).toHaveAttribute("aria-pressed", "true");
+  await expect(fixture.getByRole("heading", { name: "Writer · 写作者", exact: true })).toHaveCount(1);
   expect(errors).toEqual([]);
 });

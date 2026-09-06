@@ -5,6 +5,7 @@
  */
 "use client";
 
+import { UiFilterSelect } from "@/shared/ui/menu/filter-select";
 import {
   MessageCircle,
   RefreshCw,
@@ -14,7 +15,6 @@ import {
   CAPABILITY_DIRECTORY_GRID_CLASS_NAME,
   CapabilityFilterBar,
   CapabilityFilterSearchInput,
-  CapabilityFilterSelect,
   CapabilityPageLayout,
 } from "@/features/capability/shared/capability-page-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -79,7 +79,7 @@ export function ChannelsDirectory() {
               placeholder={t("capability.channels_search_placeholder")}
               value={controller.searchQuery}
             />
-            <CapabilityFilterSelect
+            <UiFilterSelect
               ariaLabel={t("capability.channels_filter_aria")}
               label={t("capability.status_label")}
               onChange={(value) => controller.setChannelFilter(

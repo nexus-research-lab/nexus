@@ -48,6 +48,13 @@ export const UI_GALLERY_COVERAGE_GROUPS: readonly UiGalleryCoverageGroup[] = [
     ],
   },
   {
+    id: "directory-filters",
+    section: "content",
+    mode: "direct",
+    renderer: "ProductControlsGallery",
+    components: ["UiFilterSelect"],
+  },
+  {
     id: "feedback",
     section: "content",
     mode: "direct",
