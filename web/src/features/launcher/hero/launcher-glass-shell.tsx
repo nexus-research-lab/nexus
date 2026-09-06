@@ -1,3 +1,6 @@
+// INPUT: Launcher 品牌内容与外部场景布局类。
+// OUTPUT: 使用稳定独立 SVG ID、主题材质和不拦截指针的云朵品牌容器。
+// POS: Launcher 专用装饰几何；不承载控件、业务状态或通用浮层样式。
 "use client";
 
 import { ReactNode, useId } from "react";
@@ -24,7 +27,7 @@ const OUTER_INNER_PATH_2 = createClosedSplinePath(
   createInnerPoints(DEFAULT_OUTER_POINTS, 0.992, 0.99),
 );
 
-export function HeroBlobShell({ children, className: className }: HeroBlobShellProps) {
+export function HeroBlobShell({ children, className }: HeroBlobShellProps) {
   const gradientId = useId();
   const outerEdgeGlowGradientId = useId();
   const outerEdgeGlowId = useId();

@@ -1375,6 +1375,22 @@ test("Launcher, desktop update, and onboarding loading states share Spinner role
   }
 });
 
+test("Launcher queries reuse the shared input and composition boundary", async () => {
+  const [hero, query, mention, theme] = await Promise.all([
+    readSource("src/features/launcher/hero/launcher-hero-stage.tsx"),
+    readSource("src/features/launcher/hero/use-launcher-query-input.ts"),
+    readSource("src/shared/ui/mention/mention-target-popover.tsx"),
+    readSource("src/features/launcher/hero/launcher-surface-theme.ts"),
+  ]);
+  assert.match(hero, /<UiInput\b/);
+  assert.doesNotMatch(hero, /<input\b|placeholder:text-|focus-visible:ring-0|<MessageSquare\b/);
+  for (const source of [query, mention]) {
+    assert.match(source, /import \{ isImeKeyboardEvent \} from .*ime-keyboard-event/);
+    assert.match(source, /if \([^\n]*isImeKeyboardEvent\(/);
+  }
+  assert.doesNotMatch(theme, /--launcher-(?:input-icon|input-placeholder|divider-color|meta-text|submit-border)/);
+});
+
 test("Launcher recent-entry data stays visual-free and actions share transparent Buttons", async () => {
   const [view, model, layout, markerStyles, surfaceTheme] = await Promise.all([
     readSource("src/features/launcher/hero/launcher-recent-entries.tsx"),

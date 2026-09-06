@@ -1,3 +1,6 @@
+// INPUT: 外部查询草稿、可提及实体与同步受理回调。
+// OUTPUT: 即时输入、IME 安全键盘提交、Mention 插入及受理后的草稿清理。
+// POS: Launcher 输入交互所有者；不发送请求，提交成功与互斥由 Console 控制器决定。
 "use client";
 
 import {
@@ -21,6 +24,7 @@ import {
 } from "@/shared/ui/mention/mention-target-model";
 
 import type { LauncherMentionTarget } from "../console/launcher-console-types";
+import { isImeKeyboardEvent } from "@/shared/lib/browser/ime-keyboard-event";
 
 interface UseLauncherQueryInputOptions {
   mentionTargets: LauncherMentionTarget[];
@@ -106,7 +110,7 @@ export function useLauncherQueryInput({
   }, [onQueryChange, onSubmit, value]);
 
   const handleKeyDown = useCallback((event: KeyboardEvent<HTMLInputElement>) => {
-    if (composingRef.current || event.nativeEvent.isComposing) {
+    if (composingRef.current || isImeKeyboardEvent(event.nativeEvent)) {
       return;
     }
     if (

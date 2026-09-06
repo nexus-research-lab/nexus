@@ -68,15 +68,13 @@ function LauncherRecentEntryChip({
       style={{ display: "inline-flex" }}
       yOffset={6}
     >
-      <div className="inline-flex">
-        {model.tooltipLabel
-          ? (
-              <UiTooltip label={model.tooltipLabel} placement="bottom">
-                {entryButton}
-              </UiTooltip>
-            )
-          : entryButton}
-      </div>
+      {model.tooltipLabel
+        ? (
+            <UiTooltip label={model.tooltipLabel} placement="bottom">
+              {entryButton}
+            </UiTooltip>
+          )
+        : entryButton}
     </FadeSlideIn>
   );
 }
@@ -122,10 +120,8 @@ export function LauncherRecentEntries({
           tone="primary"
           variant="text"
         >
-          <span className="inline-flex items-center gap-1.5">
-            {handoffLabel}
-            <ArrowRight className="h-3.5 w-3.5" />
-          </span>
+          {handoffLabel}
+          <ArrowRight className="h-3.5 w-3.5" />
         </UiButton>
       </FadeSlideIn>
     </div>

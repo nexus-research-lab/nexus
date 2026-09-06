@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Launcher queries now use the shared input style and keyboard focus treatment;
+  the mascot send action keeps its accessible name while busy. Removed unused
+  Launcher color variables and redundant recent-entry wrappers, and fixed IME
+  confirmation being captured as a Mention selection or query submission.
 - Launcher decorations now respect reduced motion from the first render:
   Lottie switches between looping and static lifecycles, while Hero text and
   entry containers use shared CSS motion rules. Removed duplicate playback,
