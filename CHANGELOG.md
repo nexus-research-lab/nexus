@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Make Memory search and type filters readable, consolidate empty/loading states,
+  wrap document headings and actions, and preserve navigation on access failures.
+  Size conflict comparisons to the document pane instead of the browser window.
 - Unify contact communication search and empty-state actions, keep pending friend
   additions reviewable, and bind removal confirmations to their original target.
 - Unify Agent identity labels and field density, associate name validation and

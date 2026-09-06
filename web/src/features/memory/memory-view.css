@@ -11,6 +11,8 @@
 }
 
 .nexus-memory-document {
+  container-name: nexus-memory-document;
+  container-type: inline-size;
   background: color-mix(
     in srgb,
     var(--surface-panel-background) 72%,
@@ -32,6 +34,12 @@
 
 .nexus-memory-compact-only {
   display: none;
+}
+
+@container nexus-memory-document (min-width: 640px) {
+  .nexus-memory-conflict-review {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @container nexus-memory-view (max-width: 760px) {

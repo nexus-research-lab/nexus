@@ -754,11 +754,10 @@ test("Memory surfaces share one semantic spinner scale", async () => {
   const sources = await Promise.all(paths.map(readSource));
   const combined = sources.join("\n");
 
-  for (const source of sources) {
-    assert.match(source, /getUiSpinnerClassName/);
-    assert.doesNotMatch(source, /\banimate-spin\b/);
-  }
-  for (const size of ["xs", "sm", "md", "lg"]) {
+  for (const source of sources) assert.doesNotMatch(source, /\banimate-spin\b/);
+  for (const source of [sources[0], sources[3]]) assert.match(source, /state="loading"/);
+  for (const source of [sources[1], sources[2]]) assert.match(source, /getUiSpinnerClassName/);
+  for (const size of ["xs", "sm", "md"]) {
     assert.match(combined, new RegExp(`size: "${size}"`));
   }
 });
