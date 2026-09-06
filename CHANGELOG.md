@@ -24,6 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Localize Connector detail actions and connection guidance, share resource
+  states and compact capability rows, and give capability dialogs explicit
+  accessible names. Wrap long object names, endpoints and instructions to the
+  actual pane width, consolidate OAuth configuration buttons, and remove an
+  unsupported fixed token-expiry hint without changing connection commands.
 - Give shared interactive list rows a consistent inset keyboard focus ring.
   Unify Connector, custom MCP and Loop row actions, localize Connector card
   labels, and replace private Connector/MCP loading and empty views with shared

@@ -10,9 +10,7 @@ import type { ReactNode } from "react";
 import { CapabilityDetailPage } from "@/features/capability/shared/capability-page-layout";
 import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import type { ResourceFailure } from "@/lib/error-message";
-import { UiButton } from "@/shared/ui/button/button";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
-import { UiStateBlock } from "@/shared/ui/display/state-block";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type {
   ConnectorDetail,
@@ -78,12 +76,13 @@ function ConnectorDetailLoading({
   detail,
   onBack,
 }: Pick<ConnectorDetailViewProps, "detail" | "onBack">) {
+  const { t } = useI18n();
   return (
     <ConnectorDetailFrame detail={detail} onBack={onBack}>
-      <UiStateBlock
-        className="min-h-[420px]"
-        size="md"
-        title="加载连接器详情中..."
+      <UiResourceState
+        size="lg"
+        state="loading"
+        title={t("capability.connector_detail_loading")}
         variant="plain"
       />
     </ConnectorDetailFrame>
@@ -91,17 +90,15 @@ function ConnectorDetailLoading({
 }
 
 function ConnectorDetailMissing({ onBack }: { onBack: () => void }) {
+  const { t } = useI18n();
   return (
     <ConnectorDetailFrame detail={null} onBack={onBack}>
-      <UiStateBlock
-        actions={(
-          <UiButton onClick={onBack} size="sm" type="button">
-            返回连接器
-          </UiButton>
-        )}
-        className="min-h-[420px]"
-        size="md"
-        title="连接器不存在"
+      <UiResourceState
+        primaryAction={{ label: t("capability.connector_back_to_catalog"), onClick: onBack }}
+        description={t("capability.connector_missing_message")}
+        size="lg"
+        state="empty"
+        title={t("capability.connector_missing_title")}
         variant="plain"
       />
     </ConnectorDetailFrame>
@@ -119,7 +116,7 @@ function ConnectorDetailFailure({
   return (
     <ConnectorDetailFrame detail={null} onBack={onBack}>
       <UiResourceState
-        className="min-h-[420px]"
+        size="lg"
         impact={t("capability.connector_detail_load_failed_impact")}
         primaryAction={{
           label: t("capability.connector_detail_refresh"),

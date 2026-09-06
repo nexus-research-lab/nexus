@@ -32,6 +32,7 @@ import { ProductControlsGallery } from "./ui-gallery-product-controls";
 import { SettingsControlsGallery } from "./ui-gallery-settings-controls";
 import { ProviderFormGallery } from "./ui-gallery-provider-form";
 import { ProviderDialogsGallery } from "./ui-gallery-provider-dialogs";
+import { ConnectorDetailGallery } from "./ui-gallery-connector-detail";
 import { SemanticColorsGallery } from "./ui-gallery-semantic-colors";
 import { SegmentedControlsGallery } from "./ui-gallery-segmented-controls";
 import { UiButton, UiIconButton, UiLinkButton } from "@/shared/ui/button/button";
@@ -209,6 +210,7 @@ export function ContentGallery({ locale }: { locale: Locale }) {
       <SettingsControlsGallery />
       <ProviderFormGallery />
       <ProviderDialogsGallery />
+      <ConnectorDetailGallery />
       <SegmentedControlsGallery />
       <SemanticColorsGallery />
       <MessageSurfacesGallery />
