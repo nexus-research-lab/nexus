@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Give shared interactive list rows a consistent inset keyboard focus ring.
+  Unify Connector, custom MCP and Loop row actions, localize Connector card
+  labels, and replace private Connector/MCP loading and empty views with shared
+  resource states while preserving command targets and recovery behavior.
 - Unify six General and Runtime toggle rows with readable, wrapping descriptions
   and setting-specific accessible names. Associate Browser permission risks and
   model-enable hints with their switches, preserve independent saving locks,

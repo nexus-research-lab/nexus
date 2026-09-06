@@ -453,6 +453,7 @@ export function UiContractGallery() {
               <UiListRow data-gallery-row="flush" onClick={() => undefined} title="Flush row" variant="flush" />
               <UiListRow
                 active
+                data-gallery-row="active"
                 actions={<UiListActionButton aria-label={galleryText(locale, "条目更多操作", "More row actions")} visibility="visible"><Ellipsis className="h-4 w-4" /></UiListActionButton>}
                 description={galleryText(locale, "当前选中态不使用浮起阴影", "The active state does not use an elevated shadow")}
                 leading={<UiAgentAvatar name="Lin" size="sm" />}

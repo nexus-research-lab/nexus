@@ -1170,3 +1170,25 @@ test("list secondary actions reveal for keyboard and suppress disabled hover", a
   await capture(row, info, "list-actions");
   expect(errors).toEqual([]);
 });
+
+test("interactive list rows keep an inset keyboard focus ring through active and disabled neighbors", async ({ page }, info) => {
+  const { errors } = await openGallery(page, info);
+  const preceding = page.locator("[data-gallery-list-actions]").getByRole("button", { name: "Hover list action", exact: true });
+  await preceding.scrollIntoViewIfNeeded();
+  await preceding.focus();
+  for (const kind of ["sidebar", "sidebar-compact", "flush", "active"]) {
+    const row = page.locator(`[data-gallery-row="${kind}"]`);
+    const before = await row.boundingBox();
+    await moveKeyboardFocus(page, info);
+    await expect(row).toBeFocused();
+    const after = await row.boundingBox();
+    expect(after?.width).toBe(before?.width);
+    expect(after?.height).toBe(before?.height);
+    expect(await row.evaluate((node) => node.matches(":focus-visible"))).toBe(true);
+    expect(await row.evaluate((node) => getComputedStyle(node).boxShadow)).toMatch(/2px.*inset/);
+    await capture(row, info, `list-row-${kind}-focus`);
+  }
+  await expect(page.locator('[data-gallery-row="static"]')).not.toHaveAttribute("tabindex");
+  await expect(page.locator('[data-gallery-row="disabled"]')).not.toHaveAttribute("tabindex");
+  expect(errors).toEqual([]);
+});

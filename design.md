@@ -185,6 +185,8 @@ Settings 不单独维护字号和字重：区块标题、设置项名称、说�
 
 disabled 降对比不隐藏、保留可解释文案；loading 保持原尺寸与文案占位。危险、成功与运行中等领域状态仍使用自己的语义色，不套用普通 active 规则。
 
+可交互列表行使用 2px 内嵌语义焦点环，在侧栏与滚动列表中不被边缘裁掉，也不改变行宽高；活动行同样显示键盘焦点。行内次动作继续使用自身按钮焦点，不能把父行的 focus-within 当作主动作被聚焦。
+
 - 需要持续定位的侧栏 current 使用 `--surface-sidebar-active-background`，比通用 active / hover 深一档；仍不增加边框、阴影、蓝色或尺寸变化。
 - primary hover 只加深蓝，不换色相；secondary / ghost hover 用暖中性底。
 - label 用常规到 medium 字重；不用 `font-bold` 弥补层级不足。
