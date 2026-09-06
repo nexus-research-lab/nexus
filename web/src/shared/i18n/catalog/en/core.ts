@@ -11,6 +11,8 @@ export const enCoreMessages = {
   "theme.sunny": "Sunny",
   "theme.rain": "Rain",
   "common.cancel": "Cancel",
+  "common.confirm": "Confirm",
+  "dialog.prompt_shortcut_hint": "Press Cmd/Ctrl + Enter to confirm.",
   "common.save": "Save",
   "common.saving": "Saving...",
   "common.close": "Close",

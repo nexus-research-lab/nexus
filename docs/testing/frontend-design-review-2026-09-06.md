@@ -37,11 +37,11 @@
 | A | 所有公共 primitive / pattern | 文字可读性、控件密度、尺寸、分隔、状态与组合关系 | 进行中 |
 | B | Launcher、Home、主侧栏、首次空会话、全局导航 | 品牌与工作区层级、空间分配、搜索、窄屏导航 | 待审查 |
 | C | Contacts、Agent 详情/编辑/授权/私域、Memory | 目录扫描、信息主次、长内容、表单与保存反馈 | 待审查 |
-| D | Room、DM、Thread、子任务、Composer、Goal | 阅读节奏、消息身份、过程/最终回复分层、状态堆叠、输入空间 | 待审查 |
+| D | Room、DM、Thread、子任务、Composer、Goal | 阅读节奏、消息身份、过程/最终回复分层、状态堆叠、输入空间 | 进行中（Composer、历史与输入弹窗；其余待审） |
 | E | Workspace、文件/文档/表格/演示预览、Artifact、WorkGraph | 画布与工具栏、缩放、长文档、详情、图形专用几何 | 待审查 |
-| F | Skills、Connectors/Custom MCP、Loops、WorkGraph 目录与详情 | 目录/详情一致性、筛选、说明、次级操作、授权流程 | 待审查 |
+| F | Skills、Connectors/Custom MCP、Loops、WorkGraph 目录与详情 | 目录/详情一致性、筛选、说明、次级操作、授权流程 | 进行中（Connector、目录选择器与配置字段；其余待审） |
 | G | Channels、Pairings、Scheduled Tasks 及编辑/历史 | 配置阶段、任务状态、日期时间、复杂表单与失败恢复 | 待审查 |
-| H | Settings 全部栏目、Operations 全部栏目 | 分组与分割、说明密度、设置行、模型/成员/套餐表单 | 待审查 |
+| H | Settings 全部栏目、Operations 全部栏目 | 分组与分割、说明密度、设置行、模型/成员/套餐表单 | 进行中（通用配置与 Provider；其余待审） |
 | I | Login、Setup、OAuth 回调、引导、独立桌面设置窗口 | 独立壳层、错误/加载、响应式及原生入口差异 | 待审查 |
 | J | 全前端引用与依赖复核 | 旧适配层、无效分支、重复样式/常量、失效测试与文档 | 待审查 |
 
@@ -733,6 +733,44 @@ output；其他 API 请求拒绝转发。新增短窗口案例检查搜索焦点
 本批三项 TSX 保持 in_progress；482 项清单为 416 pending、63 in_progress、
 3 removed，存活源码摘要一致。
 
+## A23：公共输入弹窗与输入法关闭边界（待浏览器复核）
+
+沿 A22 的输入法问题检查公共 Prompt、模态和锚定浮层。后两者在修改前会消费
+候选 Escape，Prompt 的字段名称还直接使用占位示例；有效修改前证据见
+`/tmp/nexus-design-a23-before.log` 的模态/浮层及字段命名回归。该初次日志中的
+两个 Prompt IME 用例缺少 Provider，是夹具问题，修正后才纳入有效行为检查。
+现三处事件边界复用既有 isImeKeyboardEvent；不新增 composition 延时/标记状态，
+保留非输入法单行 Enter、多行普通换行和 Cmd/Ctrl+Enter 提交。模态与浮层
+仍各自拥有关闭仲裁和焦点规则。
+
+Confirm/Prompt 的默认按钮及多行快捷键说明通过 i18n 提供，显式业务文案优先。
+输入默认用标题命名，Shopify 通过 inputLabel 明确命名为店铺子域名；占位文字
+保留示例职责。业务消息关联到弹窗，UiField 精确绑定控件 ID、字段错误和
+多行快捷键说明；删除 Prompt 私有小字提示及 kbd 色块。Prompt busy 同时限制
+字段、按钮、键盘与遮罩退出，由调用方提供状态，不猜测命令结果。
+
+已核对全部三个生产 Prompt 入口：Workspace 创建文件/目录及重命名接入既有
+isMutating，三个模式分别验证原始值与执行中关闭锁；Shopify 保留相同域名
+规范化与一次性 Promise 结算，删除模型中的中文提示常量，invalid 状态由
+视图本地化为字段错误，切换语言保持草稿，用途说明不被错误替换；子任务补充
+指令继续传递自身发送文案、五行输入、专用快捷键说明与原有 scope/capability
+判断，本批不改其控制命令或任务资源。最后一项为调用点复查，不能替代整个
+子任务页面的独立验收。DecisionFrame 的宽度、Footer 与 Button 组合保持现有
+所有权，未增加另一套弹窗骨架。
+
+公共行为变更后全量组件回归最终通过：166 文件、486 项测试，包含本批新增
+12 项共享/Workspace/Shopify 回归。145 项架构、文件合同、样式与 token 门禁
+通过；lint、typecheck 和构建通过。日志为
+`/tmp/nexus-design-a23-all-components-final.log`、
+`/tmp/nexus-design-a23-contracts.log`、`/tmp/nexus-design-a23-lint-final.log`、
+`/tmp/nexus-design-a23-typecheck-final.log`、`/tmp/nexus-design-a23-build.log`。
+
+Gallery 在原有嵌套 Prompt 案例中补充多行输入、双语名称/说明、短窗口与原始
+换行提交，并保留默认/显式动作测试。1224 项仅完成注册；浏览器启动审批超时
+仍未解除，DOM 合成 composition 事件也不能作为原生输入法验收。本批四个
+TSX 条目保持 in_progress，482 项清单为 412 pending、67 in_progress、
+3 removed，存活源码摘要一致。
+
 ## 待进一步判断
 
 - A8 已统一侧栏搜索文字与动作所有权，仍需执行真实双语目录的宽度、对比度和
@@ -751,5 +789,5 @@ output；其他 API 请求拒绝转发。新增短窗口案例检查搜索焦点
   记忆分组和图形微标签继续按内容任务判断，不能把本批六处迁移当作全部微文字完成。
 - A6—A7 已完成失联模块和具名值导出的第一轮保守检查；无必要公开的内部 helper、
   函数内部旧分支、重复数据映射和未使用样式仍需沿业务调用继续复核。
-- A22 核对标题编辑时发现公共 PromptDialog 也直接解释 Enter；下一批需沿全部
-  单行/多行消费者核对输入法、默认键盘提交与关闭协议，不能只用历史修复代表全站。
+- A23 已处理共享模态/浮层的输入法候选键；其他业务自有快捷键仍需随各页面
+  核对，原生输入法、实际短窗口与三主题复查不能由 DOM 键盘事件替代。

@@ -8,6 +8,8 @@ export const zhCoreMessages = {
   "theme.sunny": "晴",
   "theme.rain": "雨",
   "common.cancel": "取消",
+  "common.confirm": "确认",
+  "dialog.prompt_shortcut_hint": "按 Cmd/Ctrl + Enter 确认。",
   "common.save": "保存",
   "common.saving": "保存中...",
   "common.close": "关闭",

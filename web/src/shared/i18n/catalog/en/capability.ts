@@ -4,6 +4,11 @@ import type { zhCapabilityMessages } from "../zh/capability";
 export const enCapabilityMessages = {
   "capability.skills": "Skills",
   "capability.connectors": "Connectors",
+  "capability.shop_domain_title": "Shopify store",
+  "capability.shop_domain_label": "Store subdomain",
+  "capability.shop_domain_description": "Enter the store subdomain before myshopify.com.",
+  "capability.shop_domain_invalid": "Enter a valid Shopify store subdomain.",
+  "capability.shop_domain_pending": "A store subdomain request is already in progress.",
   "capability.scheduled": "Scheduled",
   "capability.scheduled_history_load_failed": "Run history is temporarily unavailable",
   "capability.scheduled_history_refresh_failed": "Run history could not be refreshed",

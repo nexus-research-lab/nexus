@@ -14,6 +14,8 @@
 - Dialog 的确认、取消与业务动作直接渲染 `UiButton` 并选择 size/tone/variant；`dialog-styles.ts` 只拥有 Dialog 专属结构 recipe，不再提供可被业务层绕过 Button DOM 的动作 className 适配器。
 - Dialog 内的普通行内说明复用 `UiInlineNotice`；不维护第二套 Note 字号、边界或危险配色 helper。
 - 单行 `PromptDialog` 固定使用 `xs` 决策宽度，多行 Prompt 使用 `sm`；标题、输入控件和主次动作必须分别复用 `UiDialogHeader`、`UiInput/UiTextarea` 与共享 Button recipe，业务只提供文案和提交命令。
+- Confirm/Prompt 的默认动作跟随界面语言；Prompt 输入默认以标题命名，可用 inputLabel 明确覆盖，不把占位示例当作字段名。消息关联到弹窗，字段错误和多行快捷键说明通过精确 htmlFor/id 的 UiField 关联；错误不替换业务用途说明，业务仍拥有校验和 busy 真相。
+- 输入法标记和兼容 229 键码统一由 shared/lib/browser 的 isImeKeyboardEvent 判断；Prompt 不提交候选 Enter，模态适配层也不把候选 Escape/Tab 当作关闭/焦点循环。普通单行 Enter、多行 Cmd/Ctrl+Enter 和逐层 Escape 语义保留。
 - 异步确认执行中必须禁用关闭、取消和重复确认；高后果操作的失败留在原弹窗内，用自然文案完整说明结果、已有数据影响和安全下一步。
 - Dialog 与锚点浮层使用同一高不透明主题表面、16px 外轮廓与细边界；Dialog 只在尺寸层级上使用更深一档同源阴影。
 - Dialog 只为自身模态根内带共享打开态契约的子浮层让出 Escape，由最内层浮层先关闭；背景页面或其他 Dialog 的浮层不得阻止当前 Dialog 关闭。

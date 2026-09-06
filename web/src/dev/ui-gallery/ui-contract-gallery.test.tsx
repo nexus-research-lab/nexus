@@ -80,7 +80,8 @@ describe("UI contract gallery", () => {
     fireEvent.click(screen.getByRole("button", { name: "新建文件夹弹窗" }));
     const prompt = screen.getByRole("dialog", { name: "新建文件夹" });
     expect(prompt.querySelector(".max-w-sm")).toBeTruthy();
-    expect(screen.getByRole("textbox", { name: "例如：新文件夹" })).toBeTruthy();
+    const input = screen.getByRole("textbox", { name: "新建文件夹" });
+    expect(input.getAttribute("placeholder")).toBe("例如：新文件夹");
   });
 
   it("exposes both attachment viewer viewport contracts", () => {

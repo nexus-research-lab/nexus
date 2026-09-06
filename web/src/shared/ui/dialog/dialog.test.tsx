@@ -2,7 +2,7 @@
 // OUTPUT: 证明动态/显式标题和实例隔离，以及 Portal 模态的焦点圈、关闭顺序、遮罩策略、滚动锁和焦点归还合同。
 // POS: Dialog primitive DOM 行为测试；业务确认结果和具体文案由 feature 测试负责。
 
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StrictMode, useState } from "react";
@@ -53,6 +53,23 @@ afterEach(() => {
 });
 
 describe("UiDialog modal behavior", () => {
+  it("does not dismiss or move focus while the keyboard is composing text", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    render(<UiDialogBackdrop aria-label="Editor" onClose={onClose}><input aria-label="Name" /></UiDialogBackdrop>);
+    const input = screen.getByRole("textbox", { name: "Name" });
+    await waitFor(() => expect(document.activeElement).toBe(input));
+    for (const event of [{ key: "Escape", isComposing: true }, { key: "Escape", keyCode: 229 }, { key: "Tab", isComposing: true }]) {
+      const original = new KeyboardEvent("keydown", { ...event, bubbles: true, cancelable: true });
+      fireEvent(input, original);
+      expect(original.defaultPrevented).toBe(false);
+    }
+    expect(onClose).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(input);
+    await user.keyboard("{Escape}");
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
   it("names a dialog from its mounted Header and updates or clears the relationship with that title", () => {
     const view = (title: string | null) => <StrictMode>
       <UiDialogBackdrop trapFocus={false}>
