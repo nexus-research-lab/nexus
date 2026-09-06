@@ -9,3 +9,4 @@
 - 基础表单由 `task-basics-model.ts` 统一投影目标、会话和文案，`task-basics-advanced.tsx` 只组合窄字段视图。
 - 执行与投递分组统一使用 `UiPanel` 的语义 padding/radius，失效重绑提示统一使用 `UiInlineNotice`；字段帮助与高级摘要统一使用 Typography role，高级区统一组合 `UiDisclosure`，业务层不得再渲染或装饰原生 `details/summary`。
 - 视图只消费自己声明的 model/actions 接口，不从资源对象重新推导业务状态。
+- 基础/高级字段以 useId 隔离实例，窄 Session 字段自己持有标签与控件身份；执行、投递与权限选择组组合 UiField 关联名称和说明。原始输入与选项回调继续交给草稿命令。
