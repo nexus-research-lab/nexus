@@ -28,3 +28,5 @@
 - `form-controls.test.tsx` 与 `removable-chip.test.tsx` 以真实 invalid/input、select、键盘和点击事件覆盖 Field、Input、NativeSelect、SearchInput、Checkbox/CheckboxRow、Choice/RadioChoice、RemovableChip 与 SegmentedControl 的 ARIA/状态合同。
 
 - UiSearchInput 直接供目录和页面复用，不再通过 WorkspaceSearchInput 透传包装；未指定 placeholder 时采用当前语言的 common.search，可访问名称默认与它一致，显式 undefined 不能覆盖掉回退名称。显式名称、占位文案、Field 关联和受控查询仍由调用方传入。
+
+- UiCheckbox 的 indeterminate 是受控展示：原生点击意图先交给 onChange，随后 DOM 保持最近已提交的 mixed 属性；父级在回调内同步提交时以新值为准，不能把视觉与 aria-checked 拆成两份状态。字段标签、checked 与批量选择集合仍归调用方。

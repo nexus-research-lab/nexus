@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前 owner scope、定时任务、运行历史资源与恢复/重试动作。
- * OUTPUT: 以任务名和状态命名的 plain 运行历史工作面。
+ * OUTPUT: 以任务名和公共 Badge 状态命名的 plain 运行历史工作面。
  * POS: Scheduled 历史模态边界；内部 Job ID 只留在诊断详情。
  */
 "use client";
@@ -19,7 +19,7 @@ import {
   UiDialogPortal,
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
-import { WorkspaceStatusBadge } from "@/shared/ui/workspace/controls/workspace-status-badge";
+import { UiBadge } from "@/shared/ui/display/badge";
 import type { ScheduledTaskRunItem } from "@/types/capability/scheduled-task/run";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 
@@ -135,11 +135,9 @@ export function ScheduledTaskRunHistoryDialog({
                 <h2 className="dialog-title" id="scheduled-task-run-history-title">
                   {activeTask.name}
                 </h2>
-                <WorkspaceStatusBadge
-                  label={taskStatus.label}
-                  size="compact"
-                  tone={taskStatus.tone}
-                />
+                <UiBadge showDot size="xs" tone={taskStatus.tone}>
+                  {taskStatus.label}
+                </UiBadge>
               </div>
             </UiDialogHeader>
 

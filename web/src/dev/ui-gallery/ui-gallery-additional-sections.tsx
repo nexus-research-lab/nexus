@@ -93,7 +93,6 @@ import { WorkspaceIconFrame } from "@/shared/ui/workspace/catalog/workspace-icon
 import { ConversationTabsScrollRail } from "@/shared/ui/workspace/controls/conversation-tabs/conversation-tabs-scroll-rail";
 import { WorkspaceConversationTab } from "@/shared/ui/workspace/controls/conversation-tabs/workspace-conversation-tab";
 import { WorkspaceConversationTabs } from "@/shared/ui/workspace/controls/workspace-conversation-tabs";
-import { WorkspaceStatusBadge } from "@/shared/ui/workspace/controls/workspace-status-badge";
 import { WorkspaceLoadingState } from "@/shared/ui/workspace/frame/workspace-loading-state";
 import { WorkspacePageFrame } from "@/shared/ui/workspace/frame/workspace-page-frame";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
@@ -607,7 +606,7 @@ export function WorkspaceGallery({ locale }: { locale: Locale }) {
                   <WorkspaceCatalogDescription lines={2}>{galleryText(locale, "检查真实组件的主题、语言和交互状态。", "Checks real component themes, locales, and interaction states.")}</WorkspaceCatalogDescription>
                 </div>
               </WorkspaceCatalogHeader>
-              <WorkspaceCatalogBody grow><UiBadge size="xs">shared/ui</UiBadge></WorkspaceCatalogBody>
+              <WorkspaceCatalogBody><UiBadge size="xs">shared/ui</UiBadge></WorkspaceCatalogBody>
               <WorkspaceCatalogFooter>
                 <WorkspaceCatalogTextAction
                   aria-label="Catalog secondary action"
@@ -743,11 +742,11 @@ export function WorkspaceGallery({ locale }: { locale: Locale }) {
         title={galleryText(locale, "Workspace 控件", "Workspace controls")}
       >
         <div className="grid gap-4 lg:grid-cols-2">
-          <PreviewCard components={["UiSearchInput", "WorkspaceStatusBadge"]}>
+          <PreviewCard components={["UiSearchInput", "UiBadge"]}>
             <UiSearchInput onChange={setQuery} placeholder={galleryText(locale, "搜索工作区", "Search workspace")} value={query} />
             <div className="flex flex-wrap gap-2">
-              <WorkspaceStatusBadge label={galleryText(locale, "运行中", "Running")} tone="running" />
-              <WorkspaceStatusBadge icon={<Check className="h-3.5 w-3.5" />} label={galleryText(locale, "已完成", "Complete")} tone="success" />
+              <UiBadge showDot tone="running">{galleryText(locale, "运行中", "Running")}</UiBadge>
+              <UiBadge icon={<Check className="h-3.5 w-3.5" />} tone="success">{galleryText(locale, "已完成", "Complete")}</UiBadge>
             </div>
           </PreviewCard>
           <PreviewCard components={["WorkspaceTaskPanel"]}>

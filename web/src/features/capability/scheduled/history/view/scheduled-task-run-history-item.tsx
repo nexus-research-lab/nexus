@@ -1,5 +1,5 @@
 // INPUT: 单次运行、所属任务、命令状态与诊断/恢复动作。
-// OUTPUT: 共享 Disclosure 历史行，组合状态、结果详情与合法动作。
+// OUTPUT: 共享 Disclosure 历史行，组合公共 Badge 状态、结果详情与合法动作。
 // POS: Scheduled 历史单项装配层；状态与动作资格来自 history model。
 
 "use client";
@@ -7,7 +7,7 @@
 import { cn } from "@/shared/ui/class-name";
 import { UiDisclosure } from "@/shared/ui/disclosure/disclosure";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
-import { WorkspaceStatusBadge } from "@/shared/ui/workspace/controls/workspace-status-badge";
+import { UiBadge } from "@/shared/ui/display/badge";
 import type { ScheduledTaskRunItem } from "@/types/capability/scheduled-task/run";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 
@@ -87,7 +87,7 @@ export function ScheduledTaskRunHistoryItem({
             </span>
           </span>
         )}
-        leading={<WorkspaceStatusBadge label={status.label} size="compact" tone={status.tone} />}
+        leading={<UiBadge showDot size="xs" tone={status.tone}>{status.label}</UiBadge>}
         variant="row"
       >
           <ScheduledTaskRunDetails

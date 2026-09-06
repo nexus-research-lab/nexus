@@ -1,7 +1,7 @@
 /**
  * INPUT: Agent 身份与打开详情、私聊、群聊的页面命令。
  * OUTPUT: 单一目录卡片与列表行；完整身份和元信息共享投影，主次动作独立。
- * POS: 联系人管理目录卡片；默认层承担 Agent 选择所需的比较信息。
+ * POS: 联系人管理目录卡片；正文复用共享槽位的外部布局，默认层承担 Agent 选择所需的比较信息。
  */
 "use client";
 
@@ -130,7 +130,7 @@ function ContactsAgentGridCard(props: ContactsAgentCardViewProps) {
     >
       <div className="flex w-full min-w-0 flex-1 flex-col items-center">
         <UiAgentAvatar avatar={agent.avatar} name={agent.name} size="lg" />
-        <WorkspaceCatalogBody className="mt-3 w-full" grow={false}>
+        <WorkspaceCatalogBody className="mt-3 w-full">
           <WorkspaceCatalogTitle className="[overflow-wrap:anywhere]" size="lg">
             {agent.name}
           </WorkspaceCatalogTitle>
