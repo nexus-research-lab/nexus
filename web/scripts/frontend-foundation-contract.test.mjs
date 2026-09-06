@@ -718,6 +718,11 @@ test("Workspace file previews share one named loading surface", async () => {
     assert.doesNotMatch(source, /\banimate-spin\b/);
     assert.doesNotMatch(source, /getUiSpinnerClassName|preview_failed_status|preview_loaded/);
   }
+  const media = sources[1];
+  assert.match(media, /useNativeMediaPreview/);
+  assert.equal((media.match(/<WorkspaceFilePreviewLoading\b/g) ?? []).length, 1);
+  assert.doesNotMatch(media, /pdf_preview_failed|min-h-\[240px\]/);
+  assert.doesNotMatch(media, /<iframe\b[^>]*\bonError=/);
   const loading = await readSource("src/features/conversation/shared/editor/workspace-file-preview-loading.tsx");
   assert.match(loading, /<UiResourceState/);
   assert.match(loading, /state="loading"/);
@@ -792,23 +797,24 @@ test("File and Memory source editing have one native primitive owner", async () 
 });
 
 test("Source editing, streaming and plain previews share metrics and bounded viewport owners", async () => {
-  const [editor, streaming, fileBody, recipes, text, chunks] = await Promise.all([
+  const [editor, streaming, fileBody, recipes, text, chunks, html] = await Promise.all([
     readSource("src/shared/ui/form/source-editor.tsx"),
     readSource("src/shared/ui/feedback/typewriter-file-view.tsx"),
     readSource("src/features/conversation/shared/editor/text/text-file-editor-body.tsx"),
     readSource("src/app/styles/theme-recipes.css"),
     readSource("src/features/conversation/shared/editor/text/text-file-content.tsx"),
     readSource("src/features/conversation/shared/editor/text/large-text-file-preview.tsx"),
+    readSource("src/features/conversation/shared/editor/media/html-file-preview.tsx"),
   ]);
-  for (const source of [editor, streaming, text, chunks]) {
+  for (const source of [editor, streaming, text, chunks, html]) {
     assert.match(source, /import \{[^}]*\bUI_SOURCE_TEXT_CLASS_NAME\b[^}]*\} from/);
   }
-  for (const source of [fileBody, chunks]) {
+  for (const source of [fileBody, chunks, html]) {
     assert.match(source, /UI_SOURCE_PREVIEW_SCROLL_CLASS_NAME/);
     assert.match(source, /role="region"/);
     assert.match(source, /tabIndex=\{0\}/);
   }
-  assert.doesNotMatch(text + chunks, /\btext-(?:xs|sm)\b|\bleading-(?:\d|\[)/);
+  assert.doesNotMatch(text + chunks + html, /\btext-(?:xs|sm)\b|\bleading-(?:\d|\[)/);
   assert.match(streaming, /<UiBadge\b/);
   assert.doesNotMatch(streaming, /@chenglou\/pretext|document\.createElement|document\.head/);
   assert.doesNotMatch(streaming + fileBody, /containerWidth|ResizeObserver/);

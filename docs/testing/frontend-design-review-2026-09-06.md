@@ -2033,3 +2033,46 @@ API 函数和假 Fetch 响应验证 512KiB 边界、中文/emoji 完整性、非
 验证：npm run check 通过，含 lint、typecheck、477 项合同、213 个文件的
 758 项测试及生产 build，日志 /tmp/nexus-text-a58-check.log。构建仅有既有
 大型分块提示；未运行 Go、浏览器、截图或宿主视觉验证。
+
+## A59：原生媒体生命周期与 HTML 流式预览（2026-09-07）
+
+图片/PDF 原先重复维护加载状态、重试计数和标题栏；图片错误又嵌套在带 padding
+的内容面内，恢复容器强制至少 240px 高，在短面板中可能被外层裁切。现在两个
+路由入口保留类型职责，共用 NativeMediaPreview 和 useNativeMediaPreview；
+图片内在比例、留白及原生 PDF URL/沙箱仍保留。图片失败面单独滚动，去掉硬性
+最小高度与双层 padding。二进制占位的宿主/语言提示与文件动作保持。
+
+原生元素及回调绑定 owner 代次、Agent/path、本地切换代次与显式重新加载计数；
+返回曾看过的文件也不能复用旧回调。文件/账号或重新加载产生新元素，标题、语言
+与专注变化保留元素。owner 尚未发布时旧事件/重新加载就失去资格；这些代次只
+拥有 UI 生命周期，不形成新的资源身份、缓存或服务端请求协议。
+
+回归揭示图片与 PDF 不能等同处理：按 [MDN 的 iframe 事件说明](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/iframe#error_and_load_event_behavior)，
+iframe 不提供可靠的 error 事件，load 也不能证明文件成功。已移除 PDF 的不可达
+错误分支与独占中英文文案，增加始终可用的公共工具栏“重新加载预览”按钮；
+load 只结束等待，状态名 settled 不表达文件成功。图片继续基于原生 error 事实
+提供显式重试。不预读整份 PDF、不扩大沙箱、不自动重放；这次只查阅平台文档，
+未启动浏览器或做产品视觉检查。
+
+HTML 预览把流式提交收敛为单个 effect 的定时器与清理，删除 latest content/
+pending timer 两个 ref、重复清理 effect/callback 及冗余/混合命名的返回字段。
+原 250ms 节流期限、末次内容即时提交、半截 Head 保留已有画面、storage shim
+插入与 opaque-origin 沙箱均保留。尚无已提交文档的半截 Head 改为共享源码排版
+及按文件名命名的可聚焦滚动区域；局部 Tab lint 例外沿用 A58 的只读滚动理由。
+文档本身继续使用 iframe 原有纸面与布局，没有注入 Nexus 字号或视觉样式。
+
+新增 12 项离线回归，连同已有状态/文件动作回归共 21 项通过，见
+/tmp/nexus-media-a59-target.log。覆盖图片重试、PDF 等待中/结束后的显式重新
+加载、原生元素保持/重建、返回原文件的旧事件、未发布 owner 代次，以及 HTML
+shim 插入顺序、沙箱属性、具名源码、250ms 合并、最终刷新和卸载清理。测试不
+执行 frame 脚本/storage，也不加载 PDF 或图片资源；不宣称原生渲染验收完成。
+所有权门禁约束一个媒体加载组合、共享源码配方和已移除的不可用分支。
+
+清单仍为 485 项：303 pending、123 in_progress、17 retained、36 improved、
+6 removed。两个媒体文件完成本轮代码/行为审查，存活源码摘要已同步且其余全部
+一致；公共组件仍为 118 项。整体 Goal 继续，视觉与宿主验收仍按用户要求暂停。
+
+验证：npm run check 通过，含 lint、typecheck、477 项合同、215 个文件的
+770 项测试及生产 build，日志 /tmp/nexus-media-a59-check.log；构建仍仅有既有
+大型分块提示。HTML 的提交间隔、storage shim 和 Head/document 准备函数与
+本轮前版本逐字比对一致，未扩张为原生脚本/宿主验收。
