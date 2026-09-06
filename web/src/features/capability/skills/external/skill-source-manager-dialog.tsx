@@ -1,6 +1,6 @@
 /**
  * INPUT: Skill 来源目录、来源写命令与私有来源草稿。
- * OUTPUT: 扁平来源管理列表、复用共享互斥选择的私有来源表单与受控删除确认。
+ * OUTPUT: 扁平来源管理列表、具唯一认证组名的公共互斥选择表单与受控删除确认。
  * POS: 技能市场的来源管理边界；不展示来源教程或回显私密 Token。
  */
 "use client";
@@ -401,18 +401,17 @@ function PrivateSourceEditorDialog({
                 value={draft.url}
               />
             </UiField>
-            <UiField label={t("capability.skill_source_auth_type")}>
-              <UiSegmentedControl
-                disabled={loading}
-                onChange={(authType) => updateDraft("authType", authType)}
-                options={[
-                  { label: t("capability.skill_source_auth_none"), value: "none" },
-                  { label: t("capability.skill_source_auth_bearer"), value: "bearer" },
-                ]}
-                title={t("capability.skill_source_auth_type")}
-                value={draft.authType}
-              />
-            </UiField>
+            <UiSegmentedControl
+              disabled={loading}
+              onChange={(authType) => updateDraft("authType", authType)}
+              options={[
+                { label: t("capability.skill_source_auth_none"), value: "none" },
+                { label: t("capability.skill_source_auth_bearer"), value: "bearer" },
+              ]}
+              showLabel
+              title={t("capability.skill_source_auth_type")}
+              value={draft.authType}
+            />
             {draft.authType === "bearer" ? (
               <UiField
                 description={editingSource?.credential_configured

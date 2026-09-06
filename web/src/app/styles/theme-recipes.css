@@ -1541,6 +1541,7 @@
 
   .dialog-field {
     display: flex;
+    min-width: 0;
     flex-direction: column;
     gap: 0.5rem;
   }

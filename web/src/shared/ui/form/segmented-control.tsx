@@ -1,5 +1,5 @@
-// INPUT: 有限互斥选项、可选图标/图标模式、当前值与变更命令。
-// OUTPUT: 以 aria-pressed 暴露状态、图标文字同行并保留键盘焦点与禁用反馈的紧凑分段按钮组。
+// INPUT: 有限互斥选项、可选图标/可见组名、当前值与变更命令。
+// OUTPUT: 以 aria-pressed 暴露状态、可复用 Field 展示唯一组名的紧凑分段按钮组。
 // POS: Segmented control pattern；不解释业务选项或持有选中值。
 "use client";
 
@@ -7,6 +7,7 @@ import { type LucideIcon } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
+import { UiField } from "./form-control";
 
 interface UiSegmentedControlOption<T extends string> {
   icon?: LucideIcon;
@@ -22,6 +23,7 @@ interface UiSegmentedControlProps<T extends string> {
   icon?: LucideIcon;
   onChange: (value: T) => void;
   options: ReadonlyArray<UiSegmentedControlOption<T>>;
+  showLabel?: boolean;
   stretch?: boolean;
   title: string;
   value: T;
@@ -34,22 +36,23 @@ export function UiSegmentedControl<T extends string>({
   icon: Icon,
   onChange,
   options,
+  showLabel = false,
   stretch = false,
   title,
   value,
 }: UiSegmentedControlProps<T>) {
-  return (
+  const control = (
     <div
-      aria-label={title}
+      aria-label={showLabel ? undefined : title}
       className={cn(
         "segmented-control items-center gap-px surface-radius-md",
         stretch ? "flex w-full" : "inline-flex",
         density === "compact" ? "p-0.5" : "p-1",
         !Icon && "gap-0",
-        className,
+        !showLabel && className,
       )}
-      role="group"
-      title={title}
+      role={showLabel ? undefined : "group"}
+      title={showLabel ? undefined : title}
     >
       {Icon ? (
         <span
@@ -94,4 +97,5 @@ export function UiSegmentedControl<T extends string>({
       })}
     </div>
   );
+  return showLabel ? <UiField className={className} label={title}>{control}</UiField> : control;
 }

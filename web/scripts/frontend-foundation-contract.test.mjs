@@ -1849,6 +1849,8 @@ test("settings reuse semantic typography and the shared segmented control", asyn
     assert.match(consumer, /UiSegmentedControl/);
     assert.doesNotMatch(consumer, /SettingsSegmentedControl/);
   }
+  assert.match(runtime, /<UiField/);
+  assert.doesNotMatch(runtime, /function SettingsField|<label\b|runtime-anysearch-params-error/);
 });
 
 test("Settings feature code consumes shared form DOM owners", async () => {
