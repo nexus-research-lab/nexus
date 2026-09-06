@@ -622,6 +622,7 @@ export const enConversationMessages = {
   "room.workspace_refresh_action": "Refresh",
   "room.workspace_allow_new_intent_action": "Allow retry",
   "room.workspace_list_failed_title": "File list could not be loaded",
+  "room.workspace_list_unavailable_impact": "The workspace file list is not available yet.",
   "room.workspace_list_failed_impact": "This file list may be out of date. Refresh to check.",
   "room.workspace_list_failed_next": "Check the connection or service, then reload the file list.",
   "room.workspace_read_action_failed_impact": "The file action did not finish. Please try again later.",

@@ -13,6 +13,7 @@ describe("WorkspaceFileBrowser", () => {
   it("announces initial loading, keeps files during refresh and shows one empty guide", () => {
     const controller: ComponentProps<typeof WorkspaceFileBrowser>["controller"] = {
       files: [], isLoadingFiles: true, isMutating: false, isUploading: false,
+      hasLoadError: false, handleReloadFiles: vi.fn(),
       focusedDirectoryPath: null,
       handleClickFile: vi.fn(), handleClickDirectory: vi.fn(), handleUploadClick: vi.fn(),
       openCreatePrompt: vi.fn(), openDeletePrompt: vi.fn(), openRenamePrompt: vi.fn(),

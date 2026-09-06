@@ -619,6 +619,7 @@ export const zhConversationMessages = {
   "room.workspace_refresh_action": "刷新",
   "room.workspace_allow_new_intent_action": "允许重试",
   "room.workspace_list_failed_title": "文件列表加载失败",
+  "room.workspace_list_unavailable_impact": "暂时无法显示工作区的文件目录。",
   "room.workspace_list_failed_impact": "显示的文件列表可能不是最新内容，请刷新。",
   "room.workspace_list_failed_next": "检查网络或服务状态后，重新加载文件列表。",
   "room.workspace_read_action_failed_impact": "文件操作没有完成，请稍后重试。",
