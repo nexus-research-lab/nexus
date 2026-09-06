@@ -791,16 +791,24 @@ test("File and Memory source editing have one native primitive owner", async () 
   }
 });
 
-test("Streaming source shares editor metrics and uses the static motion owner", async () => {
-  const [editor, streaming, fileBody, recipes] = await Promise.all([
+test("Source editing, streaming and plain previews share metrics and bounded viewport owners", async () => {
+  const [editor, streaming, fileBody, recipes, text, chunks] = await Promise.all([
     readSource("src/shared/ui/form/source-editor.tsx"),
     readSource("src/shared/ui/feedback/typewriter-file-view.tsx"),
     readSource("src/features/conversation/shared/editor/text/text-file-editor-body.tsx"),
     readSource("src/app/styles/theme-recipes.css"),
+    readSource("src/features/conversation/shared/editor/text/text-file-content.tsx"),
+    readSource("src/features/conversation/shared/editor/text/large-text-file-preview.tsx"),
   ]);
-  for (const source of [editor, streaming]) {
-    assert.match(source, /import \{ UI_SOURCE_TEXT_CLASS_NAME \} from/);
+  for (const source of [editor, streaming, text, chunks]) {
+    assert.match(source, /import \{[^}]*\bUI_SOURCE_TEXT_CLASS_NAME\b[^}]*\} from/);
   }
+  for (const source of [fileBody, chunks]) {
+    assert.match(source, /UI_SOURCE_PREVIEW_SCROLL_CLASS_NAME/);
+    assert.match(source, /role="region"/);
+    assert.match(source, /tabIndex=\{0\}/);
+  }
+  assert.doesNotMatch(text + chunks, /\btext-(?:xs|sm)\b|\bleading-(?:\d|\[)/);
   assert.match(streaming, /<UiBadge\b/);
   assert.doesNotMatch(streaming, /@chenglou\/pretext|document\.createElement|document\.head/);
   assert.doesNotMatch(streaming + fileBody, /containerWidth|ResizeObserver/);
