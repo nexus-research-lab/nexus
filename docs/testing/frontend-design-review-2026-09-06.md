@@ -771,6 +771,42 @@ Gallery 在原有嵌套 Prompt 案例中补充多行输入、双语名称/说明
 TSX 条目保持 in_progress，482 项清单为 412 pending、67 in_progress、
 3 removed，存活源码摘要一致。
 
+## A24：复选行的可读文字、说明身份与禁用一致性（待实际浏览器复查）
+
+公共 `UiCheckboxRow` 的 compact 标签仍使用 11px caption，与常规紧凑字段
+不一致；说明使用 12px metadata，且处在隐式 label 内，没有独立描述关联。
+原生 checkbox 虽已禁用，外层仍无条件响应 hover。已检查全部两个生产消费
+文件：Runtime 的私有网络/服务商提取选项，以及 Scheduled Task 的启用项。
+新增五项 DOM 回归在修改前均因名称或描述关联不符合预期失败，记录为
+`/tmp/nexus-design-a24-before.log`；这不是五个独立缺陷，也不是视觉证据。
+
+compact 标签与两档说明统一为 supporting / 13px，标准标签维持 control；
+compact 内容间距调整为 8px，保持原有最小高度与水平留白。长文字可以换行，
+装饰图标不参与名称；实例级 label/description ID 保留调用方显式名称和
+额外描述。原生 input 或所属 fieldset 禁用时不产生行 hover，选择框、文字
+与图标分别弱化一次。整行点击、Space 和业务布尔值回调继续由 native checkbox
+持有，不新增点击代理。设计与工程合同分别更新唯一规范。
+
+Runtime 删除无状态、只转发属性的 `SettingsCheckSetting`，两处直接消费公共
+行；三个提取服务的实际页面回归证明两个选项分别提交精确 patch，保存时均
+禁止变更。Scheduled Task 的启用回调保持不变；此次只审查该行，不宣称复杂
+调度表单已完成。ChoiceButton / RadioChoice 仅完成所有者定位，其他密度和
+业务选择分支仍待后续审查。
+
+本批针对性 50 项测试通过；随后全量组件 167 文件、494 项测试通过，145 项
+架构/文件/控件样式/token 合同通过，lint、typecheck 和生产构建通过。日志为
+`/tmp/nexus-design-a24-components-final.log`、
+`/tmp/nexus-design-a24-all-components.log`、`/tmp/nexus-design-a24-contracts.log`、
+`/tmp/nexus-design-a24-lint.log`、`/tmp/nexus-design-a24-typecheck.log`、
+`/tmp/nexus-design-a24-build.log`。
+
+Gallery 增加真实 compact 复选行和可切换 fieldset 禁用范围，浏览器案例检查
+双语名称/描述、13px 文字、窄行换行、键盘与禁用 hover。1260 项仅完成注册
+（`/tmp/nexus-design-a24-browser-list.log`），浏览器启动自动审批复核超时仍待
+用户许可；没有执行完整 `npm run check` 中需监听端口的夹具或浏览器门禁，
+也不将 DOM 回归当作布局/原生宿主验收。482 项清单为 410 pending、69
+in_progress、3 removed，本批相关条目保持 in_progress，存活源码摘要一致。
+
 ## 待进一步判断
 
 - A8 已统一侧栏搜索文字与动作所有权，仍需执行真实双语目录的宽度、对比度和

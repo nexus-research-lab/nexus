@@ -1,6 +1,6 @@
 /**
  * INPUT: 运行引擎、工具发现与网页搜索偏好。
- * OUTPUT: 以公共 Field 关联输入和错误，以 SettingsToggleRow 关联开关与说明，保留失焦保存。
+ * OUTPUT: 公共 Field 关联输入和错误，直接复用 CheckboxRow 与 SettingsToggleRow，保留原有提交时机。
  * POS: 设置目录的运行分区，不暴露底层 schema 或 bridge 教学。
  */
 "use client";
@@ -528,8 +528,9 @@ function WebSearchRow({
               </>
             ) : null}
             {capabilities.privateNetwork ? (
-              <SettingsCheckSetting
+              <UiCheckboxRow
                 checked={draft.allow_private_network === true}
+                density="compact"
                 disabled={disabled}
                 icon={<ShieldCheck className="h-3.5 w-3.5" />}
                 label={t("settings.runtime.web_search_private_network")}
@@ -537,8 +538,9 @@ function WebSearchRow({
               />
             ) : null}
             {supportsProviderExtract(provider.value) ? (
-              <SettingsCheckSetting
+              <UiCheckboxRow
                 checked={draft.use_provider_extract === true}
+                density="compact"
                 disabled={disabled}
                 label={t("settings.runtime.web_search_provider_extract")}
                 onChange={(checked) => commitPatch({ use_provider_extract: checked })}
@@ -726,31 +728,6 @@ function SettingsSubsectionTitle({ children }: { children: ReactNode }) {
     )}>
       {children}
     </h4>
-  );
-}
-
-function SettingsCheckSetting({
-  checked,
-  disabled,
-  icon,
-  label,
-  onChange,
-}: {
-  checked: boolean;
-  disabled: boolean;
-  icon?: ReactNode;
-  label: string;
-  onChange: (checked: boolean) => void;
-}) {
-  return (
-    <UiCheckboxRow
-      checked={checked}
-      density="compact"
-      disabled={disabled}
-      icon={icon}
-      label={label}
-      onChange={onChange}
-    />
   );
 }
 

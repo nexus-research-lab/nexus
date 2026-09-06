@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Refine shared checkbox rows with readable compact labels, separately named
+  help, wrapping text and native disabled hover handling. Remove a redundant
+  Runtime settings wrapper while preserving independent setting updates.
 - Make shared prompts and overlay dismissal IME-aware, localize default decision
   actions and hints, and bind prompt errors and descriptions to named fields.
   Keep workspace prompts locked during writes and localize Shopify validation

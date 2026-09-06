@@ -111,6 +111,7 @@ import { galleryText } from "./ui-gallery-copy";
 
 export function FoundationCompleteness({ locale }: { locale: Locale }) {
   const [checked, setChecked] = useState(true);
+  const [compactChecked, setCompactChecked] = useState(false);
   const [sidebarSearch, setSidebarSearch] = useState("");
 
   return (
@@ -132,6 +133,15 @@ export function FoundationCompleteness({ locale }: { locale: Locale }) {
             label={galleryText(locale, "启用完整组件巡检", "Enable complete component audit")}
             onChange={setChecked}
           />
+          <fieldset disabled={!checked} data-gallery-compact-checkbox>
+            <UiCheckboxRow
+              checked={compactChecked}
+              density="compact"
+              description={galleryText(locale, "配置只影响当前任务，保存时暂时禁用。", "This configuration only applies to the current task and is disabled while saving.")}
+              label={galleryText(locale, "使用任务独立配置", "Use the task’s independent configuration")}
+              onChange={setCompactChecked}
+            />
+          </fieldset>
           <UiDisclosure
             label={galleryText(locale, "共享展开区域", "Shared disclosure")}
             meta={galleryText(locale, "2 项", "2 items")}

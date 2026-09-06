@@ -14,6 +14,7 @@
 - `SidebarSearchField` 只统一侧栏搜索壳层和可选动作，不持有业务状态；可见短提示由公共翻译提供，消费者的完整 `label` 作为搜索框可访问名称。字号继承 `UiSearchInput`，不另设密度；`SidebarSearchAction` 组合 `UiIconButton`，只拥有与搜索框配套的桌面/触屏几何和图标尺寸，状态、焦点、禁用和唯一 Tooltip 归公共按钮，消费者只传业务图标与命令。
 - `UiChoiceButton` 持有按钮式选择，`surface / picker / calendar / icon` 分别覆盖文字选项、紧凑选择器、日历单元格和图片图标；`UiRadioChoice` 持有互斥表单选择的原生 radio、整项热区、焦点和禁用语义。`choice-styles.ts` 只是二者的内部视觉投影，业务不得导入后手写第二套 button 或 label/input DOM。生成式问答等稳定领域 Widget 可以按自身合同保留原生选项。
 - `UiCheckbox` 是所有普通原生 checkbox 的尺寸、品牌色、焦点、`indeterminate` mixed 语义与 disabled 入口；带说明或整行热区的选择继续组合 `UiCheckboxRow`，其 `default / compact` 密度分别对应标准表单与紧凑设置。生成式问答等自绘选择器不属于该原语。
+- `checkbox-row.tsx` 直接拥有行密度、装饰图标、实例名称/说明和原生 disabled 视觉；调用方的显式名称与额外描述保留。`checkbox-row.test.tsx` 覆盖两档整行点击、Space、实例隔离、描述更新和 input/fieldset 禁用；最终几何与主题验收归 Gallery 浏览器案例。
 - `UiRemovableChip` 是标签输入和多选字段中“已选实体 + 移除动作”的唯一原语；实体集合由业务持有，移除必须是具名 native IconButton。复合选择器的菜单触发器与移除按钮必须是兄弟节点，禁止把 `span role=button` 或真实 button 嵌入另一个 button。
 - `UiSegmentedControl` 是有限互斥选项的唯一入口；选中态使用背景与文字对比，不加阴影，普通设置不使用胶囊圆角。业务页面只提供选项、当前值和尺寸密度，不得再定义私有分段选择器。
 - 需要可见组名时使用 `UiSegmentedControl showLabel`；它用 UiField 显示 title，且只由该 Field 命名一个 group。消费者不再包裹 label 或重复命名的 Field；未开启时仍由控件自己的 group 提供名称。
