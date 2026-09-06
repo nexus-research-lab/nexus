@@ -95,6 +95,66 @@ test("connector details wrap inside narrow panes and preserve named capability d
   expect(errors).toEqual([]);
 });
 
+test("Composer catalog pickers keep search focus, readable metadata and reachable selection", async ({ page }, info) => {
+  const { errors } = await openGallery(page, info);
+  const rejected: string[] = [];
+  const loop = { id: "verify", slug: "verify", title: "Review evidence and verify the final delivery", description: "Check the complete result before starting another iteration.",
+    category: "Quality assurance", trigger_type: "manual", tags: [], compatible_agents: [], trigger_config: {}, steps: [],
+    exit_condition: { type: "manual", description: "Stop after review." }, kickoff_prompt: "Verify", install_bundle: {}, best_for_agents: [], author: "Nexus",
+    author_slug: "nexus", author_official: true, source: "builtin", guardrails: [], examples: [], copies: 0, installs: 0, views: 0,
+    featured: false, is_published: true, created_at: "" };
+  const graph = { id: "review", title: "Evidence review", slash_name: "review-evidence-with-a-long-reusable-command-name", description: "Verify the full source evidence.",
+    objective: "Inspect references", built_in: true, source_execution_id: "", source_session_key: "", nodes: [], dependencies: [], version: 1, created_at: "", updated_at: "" };
+  await page.route("**/nexus/v1/**", (route) => {
+    const request = route.request();
+    const pathname = new URL(request.url()).pathname;
+    if (request.method() === "GET" && pathname.endsWith("/capability/loops")) return route.fulfill({ json: { data: [loop] } });
+    if (request.method() === "GET" && pathname.endsWith("/workgraph/workflows")) return route.fulfill({ json: { data: [graph, { ...graph, id: "research", title: "Research topic", slash_name: "research" }] } });
+    rejected.push(`${request.method()} ${pathname}`);
+    return route.abort();
+  });
+  await page.setViewportSize({ ...page.viewportSize()!, height: 420 });
+  await page.evaluate((locale) => localStorage.setItem("nexus-locale", locale), String(info.project.metadata.locale));
+  for (const kind of ["loop", "workgraph"] as const) {
+    await page.evaluate(async (pickerKind) => {
+      const modulePath = "/src/dev/ui-gallery/mount-composer-picker-fixture.ts";
+      const { mountComposerPickerFixture } = await import(modulePath);
+      mountComposerPickerFixture(pickerKind);
+    }, kind);
+    const dialog = page.getByRole("dialog");
+    await expectInsideViewport(page, dialog.locator(".dialog-shell"));
+    const search = dialog.getByRole("searchbox");
+    await expect(search).toBeFocused();
+    expect(await dialog.locator(".dialog-body").evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+    if (kind === "loop") {
+      const row = dialog.getByRole("button").filter({ hasText: loop.title });
+      await expect(row).toBeVisible();
+      const metadata = row.getByText("Quality assurance · manual", { exact: true });
+      await expect(metadata).toHaveCSS("font-size", "13px");
+      await row.focus();
+      await capture(dialog.locator(".dialog-shell"), info, "composer-loop-picker");
+      await page.keyboard.press("Enter");
+      await expect(page.locator('[data-composer-picker-result="loop"]')).toHaveText("verify");
+    } else {
+      const options = dialog.getByRole("option");
+      await expect(options).toHaveCount(2);
+      await options.first().focus();
+      await page.keyboard.press("End");
+      await expect(options.last()).toBeFocused();
+      await expect(options.last()).toHaveAttribute("aria-selected", "true");
+      const use = dialog.getByRole("button", { name: copy(info, "使用这个工作图", "Use this WorkGraph"), exact: true });
+      await use.scrollIntoViewIfNeeded();
+      await expectInsideViewport(page, use);
+      await capture(dialog.locator(".dialog-shell"), info, "composer-workgraph-picker");
+      await use.click();
+      await expect(page.locator('[data-composer-picker-result="workgraph"]')).toHaveText("/research ");
+    }
+    await expect(dialog).toHaveCount(0);
+  }
+  expect(rejected).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
 test("empty form hints remain readable on each theme surface", async ({ page }, info) => {
   const { errors } = await openGallery(page, info);
   const fields = page.locator("[data-gallery-empty-fields]");
