@@ -7,11 +7,34 @@
   display: grid;
   grid-template-columns: minmax(240px, 288px) minmax(0, 1fr);
   column-gap: 8px;
+  background: var(--surface-canvas-background);
+}
+
+.nexus-memory-catalog {
+  background: var(--surface-shell-directory-background);
+}
+
+.nexus-memory-catalog-controls {
+  flex-wrap: wrap;
+}
+
+.nexus-memory-type-filter {
+  width: 100%;
 }
 
 .nexus-memory-document {
   container-name: nexus-memory-document;
   container-type: inline-size;
+  background: color-mix(
+    in srgb,
+    var(--surface-panel-background) 72%,
+    transparent
+  );
+  box-shadow: -8px 0 20px -18px color-mix(
+    in srgb,
+    var(--shadow-color) 14%,
+    transparent
+  );
 }
 
 .nexus-memory-document-content {
@@ -35,6 +58,7 @@
   .nexus-memory-layout {
     display: block;
     height: 100%;
+    background: transparent;
   }
 
   .nexus-memory-document {
@@ -44,6 +68,15 @@
 
   .nexus-memory-catalog {
     height: 100%;
+    background: transparent;
+  }
+
+  .nexus-memory-catalog-controls {
+    flex-wrap: nowrap;
+  }
+
+  .nexus-memory-type-filter {
+    width: 128px;
   }
 
   .nexus-memory-view[data-document-open="true"] .nexus-memory-catalog {
