@@ -9,7 +9,7 @@
 - `memory-deletion-recovery.ts` 只根据服务端 effect 与 exact path 目录核对结果决定安全重试、继续核对或显式新删除意图。
 - `memory-deletion-issue-notice.tsx` 持久展示每个未解决删除的 Problem / Impact / Recovery，不解释错误正文。
 - `use-agent-memory.ts` 通过共享作用域提交协议绑定 owner generation、Agent、path 和命令代次；删除提交与目录刷新分阶段，完整 DELETE 成功后只允许重刷目录。
-- `agent-memory-catalog.tsx` 只遍历 Catalog 投影，不重新解释快照、筛选或文档类型规则；搜索与刷新组合 `UiSearchInput` 的 action 槽和 `UiIconButton`，类型筛选在同一行复用 `UiFilterSelect`；只在目录拥有同行布局与筛选宽度，输入、菜单和按钮样式由公共组件维护。目录项复用 `UiListRow density="dense"`，以可读摘要为主标题，它与文档名不同时保留文档名作为次级身份，完整路径只参与搜索与悬停说明。
+- `agent-memory-catalog.tsx` 只遍历 Catalog 投影，不重新解释快照、筛选或文档类型规则；搜索与刷新组合 `UiSearchInput` 的 action 槽和 `UiIconButton`，类型筛选复用 `UiFilterSelect`；目录单页使用同行布局，正文分栏中的窄目录保持分行，布局和筛选宽度由 `memory-view.css` 拥有，输入、菜单和按钮样式由公共组件维护。目录项复用 `UiListRow density="dense"`，以可读摘要为主标题，它与文档名不同时保留文档名作为次级身份，完整路径只参与搜索与悬停说明。
 - 真空目录和无匹配结果互斥，均复用 `UiResourceState`；无匹配时的清除动作只重置当前 query/type，不触发读取或写入。分组与截断说明使用共享 Typography，不维护私有弱色微标签。
 - 刷新按钮仅在真实刷新期间使用共享 Spinner 动效，尺寸服从输入框内的共享 IconButton；静止状态继续显示普通刷新图标，Catalog 不拥有旋转或 reduced-motion 样式。
 
