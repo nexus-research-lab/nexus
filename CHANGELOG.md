@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Keep Custom MCP parameter and secret rows stable during edits and removal,
+  give each input and delete action a distinct name, and share technical input
+  typography and labeled choice groups while preserving masked-secret saves.
 - Let Room context details grow to their content within the shared viewport limit,
   keep the heading visible, and scroll longer member lists instead of clipping
   the final agent's token usage.

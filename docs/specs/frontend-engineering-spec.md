@@ -184,6 +184,7 @@ Primitive 同时拥有 DOM、键盘、焦点、ARIA 和视觉状态合同，例�
 - 普通单行、多行和原生选择字段必须分别渲染 `UiInput / UiTextarea / UiNativeSelect`；业务层不得导入 `form-control-styles.ts` 复制输入壳，嵌入领域复合控件的无壳原生输入由其 pattern 明确负责；
 - `UiField` 内的普通输入和选择 trigger 使用公共控件。字段的 `htmlFor` 必须与目标控件 `id` 显式配对，公共层把当前可见说明加入 `aria-describedby`，把当前错误关联到 `aria-errormessage / aria-invalid`；调用方已有描述必须保留。多输入组不能把同一字段身份自动复制给所有 children，分段选择等复合字段由业务明确提供组名和各控件名称。原生校验只定位当前表单中首个可校验的无效输入，由最近的 Field 显示一次；错误恢复后声明式恢复调用方最新 ARIA 属性，不通过 `removeAttribute` 擦除业务校验。浏览器 validity 与业务错误是独立事实，公共层不推断业务值是否有效；
 - 没有 `htmlFor` 的具名 `UiField` 表达复合区域：可见名称通过 `aria-labelledby` 关联 `role=group`，说明与显式整组错误属于该组，不生成无目标的 label，也不把整组错误写到每个输入。单个输入仍要显式配对，复合输入仍保留各自可访问名称；
+- 可增删的表单行必须保留草稿生命周期内稳定的行身份，不能按当前数组下标或可编辑的值生成 React key；行名称和移除动作要区分当前项，错误关联仍指向原控件。纯模型只接收身份并投影草稿，新增身份由视图事件创建；本地行身份不得混入保存协议或替代服务端资源身份；
 - 按钮式选择统一使用 `UiChoiceButton`，权限范围等互斥表单选择统一使用保留 native radio 的 `UiRadioChoice`；业务层不得导入 `choice-styles.ts` 手写第二套 DOM，生成式问答等稳定领域 Widget 的原生选项按其独立合同保留；
 - 二元开关统一由 `GlassSwitch` 的单一 native button/`role=switch` 持有 checked、键盘、焦点和真实 disabled；业务不得在 disabled switch 外套 `span role=button` 等第二命中区，需要解释受保护状态时由可操作 switch 的 `onChange` 进入业务确认或说明；
 - 标签输入和多选字段中的已选实体统一使用 `UiRemovableChip`；移除动作必须是具名 native IconButton，复合字段的菜单触发器与移除按钮必须为兄弟节点，不得嵌套 button 或用 `span role=button` 绕过合法 DOM；

@@ -538,6 +538,48 @@ test("Room context details fit three agents and scroll the last row inside a con
   expect(errors).toEqual([]);
 });
 
+test("custom MCP fields preserve row identity, technical typography and narrow form geometry", async ({ page }, info) => {
+  const { errors } = await openGallery(page, info, "content");
+  const fixture = page.locator("[data-gallery-custom-mcp]");
+  await fixture.getByRole("button").click();
+  const dialog = page.getByRole("dialog", { name: copy(info, "编辑自定义 MCP", "Edit custom MCP"), exact: true });
+  await expectInsideViewport(page, dialog);
+  await expect(dialog.getByRole("group", { name: copy(info, "类型", "Type"), exact: true })).toHaveCount(1);
+  const rowName = (index: number) => copy(info, `环境变量第 ${index} 行`, `Environment variables, row ${index}`);
+  const keyName = (index: number) => `${rowName(index)} ${copy(info, "键", "Key")}`;
+  const valueName = (index: number) => `${rowName(index)} ${copy(info, "值", "Value")}`;
+  const removeName = (index: number) => copy(info, `删除${rowName(index)}`, `Delete ${rowName(index)}`);
+  const key = dialog.getByLabel(keyName(2), { exact: true });
+  const value = dialog.getByLabel(valueName(2), { exact: true });
+  await value.scrollIntoViewIfNeeded();
+  const keyBounds = (await key.boundingBox())!;
+  const valueBounds = (await value.boundingBox())!;
+  if (page.viewportSize()!.width < 640) {
+    expect(valueBounds.y).toBeGreaterThanOrEqual(keyBounds.y + keyBounds.height);
+  } else {
+    expect(valueBounds.y).toBe(keyBounds.y);
+  }
+  for (const input of [key, dialog.getByLabel(copy(info, "启动命令", "Launch command"), { exact: false }),
+    dialog.getByRole("textbox", { name: copy(info, "参数第 1 行", "Arguments, row 1"), exact: true })]) {
+    expect(await input.evaluate((element) => getComputedStyle(element).fontFamily)).toMatch(/mono/i);
+  }
+  const id = await value.getAttribute("id");
+  await value.fill("replacement");
+  await dialog.getByRole("button", { name: removeName(1), exact: true }).click();
+  const retained = dialog.getByLabel(valueName(1), { exact: true });
+  await expect(retained).toHaveAttribute("id", id!);
+  await expect(retained).toHaveValue("replacement");
+  await dialog.getByRole("button", { name: copy(info, "添加环境变量", "Add environment variable"), exact: true }).click();
+  await dialog.getByLabel(keyName(2), { exact: true }).fill("NEXT");
+  await dialog.getByLabel(valueName(2), { exact: true }).fill("new-value");
+  expect(await dialog.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
+  await capture(dialog, info, "custom-mcp-dynamic-rows");
+  await dialog.getByRole("button", { name: copy(info, "保存", "Save"), exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(fixture).toHaveAttribute("data-save-count", "1");
+  expect(errors).toEqual([]);
+});
+
 test("technical fields share monospace presentation and preserve verification zeros", async ({ page }, info) => {
   const { errors } = await openGallery(page, info);
   const path = page.getByRole("textbox", { name: copy(info, "配置路径", "Config path"), exact: true });

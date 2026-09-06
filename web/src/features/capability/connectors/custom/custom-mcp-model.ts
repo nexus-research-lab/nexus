@@ -1,3 +1,7 @@
+// INPUT: 脱敏的自定义 MCP 快照、视图提供的本地身份与当前表单草稿。
+// OUTPUT: 带稳定本地行身份的草稿、现有配置校验和不含行身份的协议输入。
+// POS: Custom MCP 草稿/目录投影；秘密 null 保留语义归配置协议，不恢复原始秘密。
+
 import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 import type {
   CustomMCPAuthType,
@@ -7,14 +11,20 @@ import type {
   CustomMCPServerType,
 } from "@/types/capability/connector";
 
+export interface CustomMCPArgumentDraft {
+  id: string;
+  value: string;
+}
+
 export interface CustomMCPSecretDraft {
   configured: boolean;
+  id: string;
   key: string;
   value: string;
 }
 
 export interface CustomMCPDraft {
-  args: string[];
+  args: CustomMCPArgumentDraft[];
   authType: CustomMCPAuthType;
   bearerToken: string;
   bearerTokenConfigured: boolean;
@@ -35,16 +45,28 @@ export type CustomMCPDraftError =
   | "name"
   | "url";
 
-export function createCustomMCPDraft(server?: CustomMCPServer): CustomMCPDraft {
+export function createCustomMCPArgumentDraft(id: string, value = ""): CustomMCPArgumentDraft {
+  return { id, value };
+}
+
+export function createCustomMCPSecretDraft(
+  id: string,
+  key = "",
+  value: string | null = "",
+): CustomMCPSecretDraft {
+  return { configured: value === null, id, key, value: value ?? "" };
+}
+
+export function createCustomMCPDraft(server: CustomMCPServer | undefined, draftId: string): CustomMCPDraft {
   return {
-    args: server?.args?.length ? [...server.args] : [],
+    args: server?.args?.map((value, index) => createCustomMCPArgumentDraft(`${draftId}-arg-${index}`, value)) ?? [],
     authType: server?.auth_type ?? "none",
     bearerToken: server?.bearer_token ?? "",
     bearerTokenConfigured:
       server?.auth_type === "bearer" && server.bearer_token == null,
     command: server?.command ?? "",
-    env: secretMapToDraft(server?.env),
-    headers: secretMapToDraft(server?.headers),
+    env: secretMapToDraft(server?.env, `${draftId}-env`),
+    headers: secretMapToDraft(server?.headers, `${draftId}-header`),
     name: server?.name ?? "",
     type: server?.type ?? "stdio",
     url: server?.url ?? "",
@@ -59,7 +81,7 @@ export function validateCustomMCPDraft(
   }
   if (draft.type === "stdio") {
     if (!draft.command.trim()) return "command";
-    if (draft.args.some((value) => !value.length)) return "args";
+    if (draft.args.some((row) => !row.value.length)) return "args";
     return validateSecretRows(draft.env) ? "env" : null;
   }
   try {
@@ -94,7 +116,7 @@ export function buildCustomMCPServerInput(
     return {
       ...base,
       command: draft.command.trim(),
-      args: draft.args,
+      args: draft.args.map((row) => row.value),
       env: secretDraftToMap(draft.env),
     };
   }
@@ -168,13 +190,13 @@ export function getCustomMCPDisplayName(
 }
 
 function secretMapToDraft(
-  values?: CustomMCPSecretMap,
+  values: CustomMCPSecretMap | undefined,
+  idPrefix: string,
 ): CustomMCPSecretDraft[] {
-  return Object.keys(values ?? {}).sort().map((key) => ({
-    configured: values?.[key] === null,
-    key,
-    value: values?.[key] ?? "",
-  }));
+  if (!values) return [];
+  return Object.keys(values).sort().map((key, index) => (
+    createCustomMCPSecretDraft(`${idPrefix}-${index}`, key, values[key])
+  ));
 }
 
 function secretDraftToMap(rows: CustomMCPSecretDraft[]): CustomMCPSecretMap {

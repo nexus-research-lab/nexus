@@ -511,6 +511,8 @@ export const enCapabilityMessages = {
   "capability.custom_mcp_add_header": "Add header",
   "capability.custom_mcp_key": "Key",
   "capability.custom_mcp_value": "Value",
+  "capability.custom_mcp_row_label": "{group}, row {index}",
+  "capability.custom_mcp_remove_row": "Delete {row}",
   "capability.custom_mcp_secret_saved": "Saved; leave blank to keep it",
   "capability.custom_mcp_error_name": "Use 1–64 letters, numbers, dots, underscores, or hyphens.",
   "capability.custom_mcp_error_command": "Enter a launch command.",
