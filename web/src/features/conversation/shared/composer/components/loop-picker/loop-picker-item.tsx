@@ -1,6 +1,6 @@
 /**
  * INPUT: 单个 Loop、当前启动状态与选择动作。
- * OUTPUT: 复用共享列表状态、排版和禁用语义的一次点击目录行。
+ * OUTPUT: 具可读动作/元信息、可换行标题、共享禁用语义的连续目录行。
  * POS: Loop picker 列表项，只组合 Loop 内容与启动命令。
  */
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -25,22 +25,23 @@ export function LoopPickerItem({
     <UiListRow
       aria-busy={busySlug === loop.slug || undefined}
       disabled={busySlug !== null}
+      variant="flush"
       onClick={() => void onSelect(loop)}
       right={(
         <span className={getUiTypographyClassName({
-          role: "caption",
-          tone: "brand",
-          weight: "semibold",
+          role: "supporting",
+          tone: "default",
+          weight: "medium",
         })}>
           {actionLabel}
         </span>
       )}
     >
       <span className="min-w-0 flex-1">
-        <span className={getUiTypographyClassName({
+        <span className={`break-words [overflow-wrap:anywhere] ${getUiTypographyClassName({
           role: "sectionTitle",
           tone: "strong",
-        })}>
+        })}`}>
           {loop.title}
         </span>
         <span className={`mt-0.5 block line-clamp-2 ${getUiTypographyClassName({
@@ -50,8 +51,8 @@ export function LoopPickerItem({
           {loop.description}
         </span>
         <span className={`mt-1 block ${getUiTypographyClassName({
-          role: "caption",
-          tone: "soft",
+          role: "metadata",
+          tone: "muted",
         })}`}>
           {loop.category} · {loop.trigger_type}
         </span>

@@ -42,7 +42,7 @@ function OpenLoopPickerDialog({
   const controller = useLoopPickerController({ onClose, onSelect });
   return (
     <UiDialogPortal>
-      <UiDialogBackdrop onClose={onClose}>
+      <UiDialogBackdrop initialFocusRef={controller.refs.searchInputRef} onClose={onClose}>
         <UiDialogShell
           size="lg"
           viewport="compact"

@@ -85,7 +85,6 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
           isOpen={isWorkGraphPickerOpen}
           onClose={() => setWorkGraphPickerOpen(false)}
           onUseCommand={(command) => actions.handleInputChange(command)}
-          sessionKey={props.workGraphSessionKey}
         />
       ) : null}
 

@@ -661,6 +661,43 @@ Header，嵌套 Dialog 内的 Header 不能替外层命名；实际有效文本�
 清单为 424 pending、55 in_progress、3 removed，存活源码摘要已同步；其余
 12 个入口的文字、布局和业务视觉仍保留各自待审状态。
 
+## A21：Composer 目录选择器与异步选择收口（待浏览器复核）
+
+Loop 和工作图选择器改用公共 Panel 持有外边界，删除两处私有圆角/边框组合，
+加载和空/失败主面使用 ResourceState 的共享 sm 尺寸。Loop 连续行使用 flush
+ListRow，动作与分类/触发元信息分别采用 supporting 和 metadata，避免 11px
+淡字；标题允许长单词换行，原用途摘要保留两行。工作图 Slash 和内置来源信息
+改为可读 metadata，预览标题/说明和使用按钮复用公共排版/尺寸，保持目录和
+只读草图的既有层级。
+
+两种选择器都通过公共 Dialog.initialFocusRef 把初始焦点交给搜索，删除 Loop
+与模态默认聚焦竞争的额外 effect。工作图 listbox 以选中项作为唯一 Tab 入口，
+方向键、Home/End 同时移动焦点与预览；浏览不会插入命令，明确使用才按原格式
+写入 `/<slash_name> `。删除从 Composer 向 owner 目录传递、却从未消费的
+Session 参数，保留父级入口资格判断，不更改命令的当前 Composer 目标。
+
+Loop 选择发现两个可复现遗漏：连续调用在 React 提交 busy 前可重复启动；
+关闭并重新打开后，旧启动成功仍调用 onClose。修改前两项回归失败
+（`/tmp/nexus-design-a21-before.log`），现同步认领单飞并在开放作用域结束后
+忽略旧结果的 UI 收尾。已经开始的业务操作继续由原命令负责，不自动重放或
+因为关闭选择器而取消。分类匹配删除逐行构造 Set/布尔数组的无必要 helper，
+仍按同一分类和原始字段搜索。
+
+34 项定向组件测试通过，包含 7 项新增选择器/控制器回归和已有公共 Dialog、
+List 行为。覆盖搜索焦点、过滤/清理、精确启动、错误重试、访问失效隐藏、普通
+刷新失败保留、键盘选项、原始 Slash、重新打开以及迟到结果隔离。156 项
+架构、样式和资源可靠性合同通过；lint、typecheck、生产构建通过。
+日志：`/tmp/nexus-design-a21-components-final.log`、
+`/tmp/nexus-design-a21-contracts.log`、`/tmp/nexus-design-a21-lint.log`、
+`/tmp/nexus-design-a21-typecheck-final.log`、`/tmp/nexus-design-a21-build.log`。
+
+浏览器夹具挂载实际完整选择器，目录 GET 由案例内固定响应拦截，选择只写本地
+output；其他 API 请求拒绝转发。新增短窗口案例检查搜索焦点、13px 元信息、
+宽度边界、选项键盘与明确使用。现有 1188 项仅完成注册
+（`/tmp/nexus-design-a21-browser-list.log`），浏览器启动审批复核超时仍未解除，
+不作为执行证据。五个相关 TSX 条目保持 in_progress；482 项清单为
+419 pending、60 in_progress、3 removed，存活源码摘要一致。
+
 ## 待进一步判断
 
 - A8 已统一侧栏搜索文字与动作所有权，仍需执行真实双语目录的宽度、对比度和

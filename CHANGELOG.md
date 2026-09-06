@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Unify Composer Loop and WorkGraph picker surfaces and readable metadata,
+  focus search on opening, and add keyboard navigation to WorkGraph previews.
+  Prevent duplicate Loop starts and late completion from closing a reopened
+  picker; remove unused Session plumbing from the owner-wide WorkGraph catalog.
 - Localize Connector detail actions and connection guidance, share resource
   states and compact capability rows, and give capability dialogs explicit
   accessible names. Wrap long object names, endpoints and instructions to the
