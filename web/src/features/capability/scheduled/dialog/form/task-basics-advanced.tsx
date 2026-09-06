@@ -1,15 +1,14 @@
 // INPUT: 执行/投递/权限草稿、资源投影与字段变更命令。
-// OUTPUT: 使用共享字段、Panel、Typography 与 Disclosure 的高级任务配置。
+// OUTPUT: 以实例级字段/具名选择组、共享说明与折叠摘要展示高级任务配置。
 // POS: Scheduled 基础表单的高级视图；不维护资源请求或提交事务。
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 
 import { Link2Off, Settings2 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { cn } from "@/shared/ui/class-name";
 import { UiDisclosure } from "@/shared/ui/disclosure/disclosure";
 import { UiChoiceButton } from "@/shared/ui/form/choice";
 import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
@@ -61,24 +60,21 @@ interface TaskChoiceFieldProps<Value extends string> {
   value: Value;
 }
 
-const OPTION_ENABLED = () => false;
-
 function TaskChoiceField<Value extends string>({
   help,
-  isDisabled = OPTION_ENABLED,
+  isDisabled,
   label,
   onChange,
   options,
   value,
 }: TaskChoiceFieldProps<Value>) {
   return (
-    <div className="dialog-field">
-      <span className="dialog-label">{label}</span>
+    <UiField description={help} label={label}>
       <div className="flex flex-wrap gap-2">
         {options.map((option) => (
           <UiChoiceButton
             active={value === option.key}
-            disabled={isDisabled(option.key)}
+            disabled={isDisabled?.(option.key)}
             key={option.key}
             onClick={() => onChange(option.key)}
           >
@@ -86,25 +82,18 @@ function TaskChoiceField<Value extends string>({
           </UiChoiceButton>
         ))}
       </div>
-      {help ? (
-        <p className={cn(
-          "mt-2",
-          getUiTypographyClassName({ role: "caption", tone: "muted" }),
-        )}>{help}</p>
-      ) : null}
-    </div>
+    </UiField>
   );
 }
 
 function TaskSessionField({
-  id,
   onChange,
   presentation,
 }: {
-  id: string;
   onChange: (value: string) => void;
   presentation: TaskSelectPresentation;
 }) {
+  const id = useId();
   return (
     <div className="space-y-2">
       <UiField
@@ -180,7 +169,6 @@ function TaskDeliveryTargetField({
   }
   return (
     <TaskSessionField
-      id="task-delivery-target"
       onChange={deliveryTargetActions[form.deliveryTargetType]}
       presentation={deliveryTarget}
     />
@@ -192,16 +180,17 @@ function TaskDedicatedSessionField({
   form,
 }: Pick<TaskBasicsAdvancedProps, "actions" | "form">) {
   const { t } = useI18n();
+  const id = useId();
   if (form.executionMode !== "dedicated") {
     return null;
   }
   return (
     <UiField
-      htmlFor="task-dedicated-session-key"
+      htmlFor={id}
       label={t("capability.scheduled_dialog_dedicated_session")}
     >
       <UiInput
-        id="task-dedicated-session-key"
+        id={id}
         onChange={(event) => actions.setDedicatedSessionKey(event.target.value)}
         placeholder={t("capability.scheduled_dialog_dedicated_session_placeholder")}
         value={form.dedicatedSessionKey}
@@ -250,7 +239,6 @@ function TaskExecutionSessionField({
   }
   return (
     <TaskSessionField
-      id="task-session-key"
       onChange={actions.setSelectedSessionKey}
       presentation={presentation}
     />
@@ -271,7 +259,6 @@ function TaskRoomAgentField({
     : t("capability.scheduled_dialog_select_room_agent");
   return (
     <TaskSessionField
-      id="task-execution-room-agent"
       onChange={actions.setSelectedAgentId}
       presentation={{
         ariaLabel: t("capability.scheduled_dialog_select_room_agent"),
@@ -302,7 +289,6 @@ function TaskReplySessionField({
   }
   return (
     <TaskSessionField
-      id="task-reply-session-key"
       onChange={actions.setSelectedReplySessionKey}
       presentation={buildReplySessionPresentation(form, data, t)}
     />
@@ -325,7 +311,6 @@ function TaskDeliveryRoomAgentField({
     : t("capability.scheduled_dialog_select_room_agent");
   return (
     <TaskSessionField
-      id="task-delivery-room-agent"
       onChange={actions.setSelectedDeliveryPresenterAgentId}
       presentation={{
         ariaLabel: t("capability.scheduled_dialog_select_delivery_room_agent"),
@@ -399,14 +384,15 @@ function TaskExpirationField({
   form,
 }: Pick<TaskBasicsAdvancedProps, "actions" | "form">) {
   const { t } = useI18n();
+  const id = useId();
   return (
     <UiField
       description={t("capability.scheduled_dialog_expiration_description")}
-      htmlFor="task-expires-at"
+      htmlFor={id}
       label={t("capability.scheduled_dialog_expiration")}
     >
       <UiInput
-        id="task-expires-at"
+        id={id}
         onChange={(event) => actions.setExpiresAt(event.target.value)}
         type="datetime-local"
         value={form.expiresAt}
@@ -450,7 +436,7 @@ export function TaskBasicsAdvanced(props: TaskBasicsAdvancedProps) {
         label={t("capability.scheduled_dialog_advanced")}
         leading={<Settings2 className="h-3.5 w-3.5 text-(--icon-default)" />}
         meta={(
-          <span className={getUiTypographyClassName({ role: "caption", tone: "muted" })}>
+          <span className={getUiTypographyClassName({ role: "metadata", tone: "muted" })}>
             {buildTaskAdvancedSummary(form, t)}
           </span>
         )}

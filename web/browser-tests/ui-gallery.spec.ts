@@ -1112,6 +1112,73 @@ test("loading stays still in reduced motion and keeps its footprint when animate
   expect(errors).toEqual([]);
 });
 
+test("scheduled task fields stay named and aligned in narrow panes while preserving draft commands", async ({ page }, info) => {
+  const { errors } = await openGallery(page, info, "workspace");
+  const fixture = page.locator("[data-gallery-task-form]");
+  const basics = fixture.locator("[data-gallery-task-basics]");
+  const schedule = fixture.locator("[data-gallery-task-schedule]");
+  const draft = fixture.locator("[data-gallery-task-draft]");
+  const location = basics.getByRole("group", { name: copy(info, "执行位置", "Execution location"), exact: true });
+  await expect(location).toHaveAccessibleDescription(copy(info,
+    "选择由智能体独立处理，或让 Room 成员结合 Room 上下文处理。",
+    "Run independently with an agent, or let a Room member work with the Room context."));
+  expect(await location.evaluate((element) => getComputedStyle(document.getElementById(element.getAttribute("aria-describedby")!)!).fontSize)).toBe("13px");
+  expect(await fixture.evaluate((element) => [...element.querySelectorAll<HTMLLabelElement>("label[for]")]
+    .every((label) => label.control && element.contains(label.control)))).toBe(true);
+
+  // Exercise the production panel in a constrained column independently of the Gallery viewport.
+  await schedule.evaluate((element) => { (element as HTMLElement).style.width = "min(280px, 100%)"; });
+  const kinds = schedule.getByRole("group", { name: copy(info, "调度", "Schedule"), exact: true });
+  const bounds = (await schedule.boundingBox())!;
+  for (const option of await kinds.getByRole("button").all()) {
+    const rect = (await option.boundingBox())!;
+    expect(rect.x).toBeGreaterThanOrEqual(bounds.x);
+    expect(rect.x + rect.width).toBeLessThanOrEqual(bounds.x + bounds.width + 1);
+  }
+  const amount = schedule.getByRole("spinbutton", { name: copy(info, "每隔", "Every"), exact: true });
+  const unit = schedule.getByRole("button", { name: copy(info, "选择间隔单位", "Select interval unit"), exact: true });
+  const amountRect = (await amount.boundingBox())!;
+  const unitRect = (await unit.boundingBox())!;
+  expect(amountRect.height).toBe(36);
+  expect(unitRect.height).toBe(36);
+  expect(Math.abs(amountRect.y - unitRect.y)).toBeLessThanOrEqual(1);
+  await amount.locator("xpath=ancestor::*[@data-ui-field][1]").locator("label").click();
+  await expect(amount).toBeFocused();
+  await amount.fill("007");
+  await unit.click();
+  await page.getByRole("option", { name: copy(info, "分钟", "minutes"), exact: true }).click();
+  const instruction = schedule.getByRole("textbox", { name: copy(info, "任务指令", "Task instruction"), exact: true });
+  await instruction.fill("  Keep\nthese exact lines  ");
+  await expect.poll(async () => {
+    const state = JSON.parse((await draft.textContent())!);
+    return [state.schedule.everyValue, state.schedule.everyUnit, state.form.instruction];
+  }).toEqual(["007", "minutes", "  Keep\nthese exact lines  "]);
+  expect(await schedule.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+  await amount.scrollIntoViewIfNeeded();
+  await capture(amount.locator("xpath=ancestor::*[@data-ui-field][1]/.."), info, "task-interval-fields");
+
+  await kinds.getByRole("button", { name: copy(info, "每月", "Monthly"), exact: true }).click();
+  const day = schedule.getByRole("spinbutton", { name: copy(info, "每月日期", "Day of month"), exact: true });
+  await expect(day).toHaveAccessibleDescription(copy(info, "填写 1 至 31；当月没有该日期时，本月不执行。", "Enter 1 to 31. Months without that date are skipped."));
+  expect((await day.boundingBox())!.height).toBe(36);
+  await kinds.getByRole("button", { name: "Cron", exact: true }).click();
+  const cron = schedule.getByRole("textbox", { name: copy(info, "Cron 表达式", "Cron expression"), exact: true });
+  await expect(cron).toHaveAccessibleDescription(copy(info,
+    "标准五段：分钟 小时 日 月 星期，例如 0 9 15 * *。",
+    "Standard five fields: minute hour day month weekday, for example 0 9 15 * *."));
+  expect(await cron.evaluate((element) => /mono/i.test(getComputedStyle(element).fontFamily))).toBe(true);
+  await cron.fill("  0 9 15 * *  ");
+  await expect.poll(async () => JSON.parse((await draft.textContent())!).schedule.cronExpression).toBe("  0 9 15 * *  ");
+  await kinds.getByRole("button", { name: copy(info, "每天", "Daily"), exact: true }).click();
+  const days = schedule.getByRole("group", { name: copy(info, "执行日", "Run days"), exact: true });
+  await expect(days).toHaveAccessibleDescription(copy(info,
+    "选中的日期会在这个时间执行；全选就是每天执行。", "Run at this time on the selected days. Select all days to run daily."));
+  expect(await schedule.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+  await days.scrollIntoViewIfNeeded();
+  await capture(days, info, "task-weekday-fields");
+  expect(errors).toEqual([]);
+});
+
 test("controlled workspace tabs preserve selection while creating, pinning and closing", async ({ page }, info) => {
   const { errors } = await openGallery(page, info, "workspace");
   const tabs = page.getByRole("navigation", { name: copy(info, "对话标签页", "Conversation tabs"), exact: true });

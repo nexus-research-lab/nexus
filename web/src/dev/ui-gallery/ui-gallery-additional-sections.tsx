@@ -1,5 +1,5 @@
 // INPUT: 当前 Gallery locale 与只用于演示交互的本地状态。
-// OUTPUT: 直接渲染 shared/ui 真实组件的补全预览分组。
+// OUTPUT: 直接组合 shared/ui、真实领域视图与本地任务草稿的补全预览分组。
 // POS: 开发期 Gallery 场景装配；只写 fixture，不复制产品组件实现。
 
 import {
@@ -25,6 +25,7 @@ import {
 
 import type { Locale } from "@/shared/i18n/messages";
 import { AgentOptionsGallery } from "./ui-gallery-agent-options";
+import { TaskFormGallery } from "./ui-gallery-task-form";
 import { ComposerAttachmentsGallery } from "./ui-gallery-composer-attachments";
 import { WorkGraphGallery } from "./ui-gallery-workgraph";
 import { MessageSurfacesGallery } from "./ui-gallery-message-surfaces";
@@ -575,6 +576,7 @@ export function WorkspaceGallery({ locale }: { locale: Locale }) {
   return (
     <div className="grid items-start gap-5" data-gallery-panel="workspace">
       <AgentOptionsGallery locale={locale} />
+      <TaskFormGallery />
       <ComposerAttachmentsGallery locale={locale} />
       <WorkGraphGallery locale={locale} />
       <PreviewSection

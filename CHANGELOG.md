@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Refine scheduled-task forms with instance-scoped field labels, named choice
+  groups and shared help text. Align interval controls, give schedule choices
+  their own row, and preserve raw instructions, schedules and task routing.
 - Align shared Choice sizes and interaction states, reuse primary token colors
   for date/time selections, and preserve native disabled hit targets. Show full
   Agent permission descriptions and isolate repeated tool-permission radio
