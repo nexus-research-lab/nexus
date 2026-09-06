@@ -1,5 +1,5 @@
 // INPUT: 有限互斥选项、可选图标/图标模式、当前值与变更命令。
-// OUTPUT: 以 aria-pressed 暴露状态、且标签或图标选项保持紧凑的分段按钮组。
+// OUTPUT: 以 aria-pressed 暴露状态、图标文字同行并保留键盘焦点与禁用反馈的紧凑分段按钮组。
 // POS: Segmented control pattern；不解释业务选项或持有选中值。
 "use client";
 
@@ -28,11 +28,11 @@ interface UiSegmentedControlProps<T extends string> {
 }
 
 export function UiSegmentedControl<T extends string>({
-  className: className,
+  className,
   density = "default",
   disabled = false,
   icon: Icon,
-  onChange: onChange,
+  onChange,
   options,
   stretch = false,
   title,
@@ -70,7 +70,7 @@ export function UiSegmentedControl<T extends string>({
             key={option.value}
             aria-pressed={value === option.value}
             className={cn(
-              "segmented-control-option whitespace-nowrap radius-control-sm",
+              "segmented-control-option inline-flex items-center justify-center gap-1.5 whitespace-nowrap radius-control-sm disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
               getUiTypographyClassName({ role: "caption", weight: "semibold" }),
               density === "compact" ? "px-2 py-1" : "px-2.5 py-1.5",
               iconOnly && (density === "compact" ? "h-7 w-7 px-0" : "h-8 w-8 px-0"),

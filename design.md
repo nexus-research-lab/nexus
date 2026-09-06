@@ -71,6 +71,9 @@ Nexus 蓝是唯一通用强调色，三主题共用一个语义：**`--primary` 
 - `--accent` 只用于文件、记忆等领域语义，不得与行动蓝争夺品牌注意力；成功、警告、危险保持语义色。
 - 禁止把蓝色大面积铺到 rail、页面背景、普通卡片或所有按钮上。
 - 颜色不是唯一状态信号：进行中、危险、禁用与选择态必须同时有文案、图标、边界或位置变化。
+- 可用 UI 的状态文案、辅助文字和徽标同样是需要阅读的信息；普通文字与实际表面的对比至少 4.5:1。`soft` 用于降低信息优先级，不等于不可读；不靠禁用透明度处理普通说明。
+- 成功与危险实底表面必须配对使用 `--success-foreground / --destructive-foreground`，由主题决定浅色或深色文字；不能在按钮、计数器中固定白字。浅色小型行动蓝文字使用 `--brand-action`，背景与边界仍从所属语义色派生。
+- 传入 `color-mix()` 的控件底色 token 必须是 CSS color；渐变属于 image，不能充当混色输入。普通按钮、chip 与字段保持单层颜色材质，需要图像的画布或身份表面由各自所有者明确处理。
 
 ### 3.2 视觉语法
 
@@ -194,7 +197,7 @@ disabled 降对比不隐藏、保留可解释文案；loading 保持原尺寸与
 - text input / select 默认 36px 高、`control` / `control-lg` 圆角、白色或轻暖灰底、`1px` 控制边界；focus 只强化蓝色 border / ring，不加高饱和蓝底或 glow；placeholder 用 `--text-muted`。可用字段的普通尺寸占位文字与背景对比至少 4.5:1，按实际表面复核透明叠加；不能将其视为装饰文字而降到 soft tone。依据见 [W3C 文字对比度说明](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html)。
 - 普通字段 label 用 13px / 20px、medium、`--text-default`，说明与下方错误使用 supporting（13px / 20px），分别选 muted / danger。字段组内部只由容器提供 8px 间隔，说明不再另加上边距；同组标签应比说明清楚。设置项描述采用同一 supporting / muted 层级，导航分组采用 metadata / muted，不以更小的全大写淡字代替可扫描分组。
 - 路径、命令名和源码模板通过共享字段的 `textRole="code"` 使用等宽字体，字号与几何仍服从字段尺寸。验证码通过 `textRole="verification"` 使用 48px 高、居中等宽文字和统一字距；它仍是普通文本输入，保留前导零，格式与长度由业务验证，不拆成多个无独立语义的输入格。
-- segmented control 是选择器不是导航标签墙；整体轻底，active 用中性或白色 surface，边界与阴影极轻。
+- segmented control 是有限选项的选择器；整体轻底，active 用中性或白色 surface 和轻边界，不加装饰阴影，保留键盘 focus-visible 焦点环。图标与文字同行，disabled 选项保留当前选择但不响应 hover 底色或执行变更。
 - switch / checkbox / radio checked 时用 Nexus 蓝；label 与描述承担解释，颜色只确认状态。开关自身是唯一点击与键盘命中区，disabled 必须是真实不可用语义，不在外层再套可点击元素；需要说明“为何不能关闭”时让开关进入说明流程，而不是同时呈现可点击外壳和不可点击内核。
 - menu / popover：`overlay` 圆角、高不透明主题底、`1px` 边界、同一档阴影；Select、Action Menu、日期与头像选择器不得重写材质。条目统一使用下述同心行圆角和中性 hover / active 底面。
 - 菜单型浮层的外框为 16px 圆角、内容边缘 4px、行圆角 12px、行间距 2px，分隔线上下各留 4px；带说明行只增加自身高度。标题、搜索、图标网格与纯信息正文按内容语义使用 12–16px 留白，不套用菜单行节奏；这些值由共享 recipe 持有，业务不得局部覆盖。

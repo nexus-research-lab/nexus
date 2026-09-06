@@ -10,8 +10,10 @@
 - [逐文件清单](frontend-design-review-2026-09-06.csv) 覆盖基线中的 482 个生产 TSX
   文件，包含页面、领域视图、内部子组件、共享组件及装配/上下文文件；测试、开发
   Gallery 及其专用入口排除。公开组件名称用于定位，不能替代文件内部视图审查。
-- 公共 UI 的 125 个公开 React 组件沿用现有 Gallery 的完整名单与所有者，
-  不另建组件库。对应 token、recipe、状态模型和消费者随组件一起检查。
+- 基线公共 UI 的 125 个公开 React 组件沿用现有 Gallery 的完整名单与所有者，
+  不另建组件库。对应 token、recipe、状态模型和消费者随组件一起检查。经 A6
+  删除已证明无生产用途的 4 个导出后，当前 Gallery 登记 121 个；原始范围与删除
+  证据仍保留在清单中，不通过缩小基线计数宣称整个审查完成。
 - 全部 16 个产品页面入口都在范围内；单页中的详情、编辑、错误、空态、加载、
   权限和窄屏分支也属于该页。Settings、Operations 和 Room 不因路由只有一个
   入口就按一个静态截图验收。
@@ -138,6 +140,145 @@ A1 的原生通过记录沿用为本批通过证据。Windows 继续按用户要
 这批处理通用控件和几个设置/目录消费者，不代表整个 Settings、Capability 或 Button
 全部视觉状态已完成审查。
 
+## A3：状态颜色、配对前景与控件材质（候选，待浏览器复核）
+
+**源代码与离线证据：** 原成功实底 Button 直接使用状态色并固定白字，按源码的
+sRGB 色对计算，浅色/深色/雨天分别约为 2.527 / 1.949 / 1.882:1；这些数值只说明
+该不透明色对，不伪称实际页面截图测量。初筛计算保存在
+`/tmp/nexus-design-a3-color-calculations.json`，其中候选值属于探索过程，不能当作
+当前代码已经达到对比度目标的证明。
+
+深色/雨天 `--material-chip-background` 和输入材质曾声明为 linear-gradient，
+却通过别名进入只接受颜色的 `color-mix()`。使用现有 DOM CSS 解析器可复现：混入
+渐变的值被拒绝，换成 RGBA 后被接受。新合同检查解析三主题八个公共控件颜色槽及其
+别名，并用旧渐变作为负例；真实浏览器还要验证 CSS.supports 和实际绘制。
+`--material-input-background` 虽没有直接 TSX 消费者，但由 `--input-shell-background`
+进入现有输入壳，因此保留并修正类型，未按单文件零引用误删。
+
+**当前候选实现：** 在唯一主题 token 中调整浅色状态色、雨天危险/成功色和辅助
+soft 色；危险/成功 Button 与 Counter 使用已有语义色的主题配对前景。Badge 与
+Choice 的小型行动蓝文字复用 brand-action。控件的 chip / input / focus 材质改为
+可混合颜色，专用 canvas / avatar 图像材质保留。Windows 浅色危险画刷同步 Web，
+静态投影合同通过，不代表 Windows 实机验收。
+
+**冗余清理：** ghost / text / icon 三处完全相同的非中性按钮 tone 配方合并；
+Badge 的 active/success 共享相同配方但保留业务 tone。`--status-info-soft-*` 的
+九处旧主题定义在基线全仓搜索中只有声明，未发现别名、生产或动态构造消费者；
+已删除，当前 info Badge 继续从唯一 recipe 派生。
+
+**验证状态：** 已通过 lint、typecheck、149 文件 / 364 项组件测试与构建，记录于
+`/tmp/nexus-design-a3-local-check.log`；137 项相关合同通过，记录于
+`/tmp/nexus-design-a3-contracts.log`。配方去重后补跑 Button/Form 的 23 项行为测试、
+typecheck 及 token/control/native-theme 的 21 项合同亦通过。这里只报告已执行的
+检查，不将其代替完整浏览器或 macOS 输入验证。
+
+新 Gallery 直接组合全部徽标 tone、文字 tone、Button tone/variant、Counter、
+Choice 和字段错误，在 page/card/overlay 三种表面测量，卡片上另测全部按钮 hover。
+实际浏览器启动的自动审批连续两次超时，进程均未启动；已请求用户明确授权，尚未
+收到答复。本批没有浏览器基线或完成截图，不沿用 A2 的 828 项结果。当前实现和规范
+调整以本地中间提交保存，仍须真实渲染及回归复核；提交不代表验收通过，Goal 继续进行。
+
+## A4：字段标签、说明和错误归属（实现与离线验证，待浏览器复核）
+
+**发现与范围：** 检查全部 74 处生产 `UiField` JSX 调用点，原说明只显示文字、未
+关联控件；显式业务错误没有统一写入控件的错误关系。原生错误消失时直接删除
+`aria-invalid / aria-errormessage`，可能擦掉调用方已有或刚更新的业务属性。
+源码调查记录位于 `/tmp/nexus-design-a4-field-audit.json`；这是调用点证据，不是
+全部页面或动态实例已通过浏览器验收的证明。
+
+**落实：** `field-accessibility.ts` 在 Field 与公共输入/Select trigger 之间提供
+唯一声明式关联。明确的 `htmlFor/id` 配对接收可见说明和错误，已有描述合并保留；
+原生错误结束后恢复当前调用方属性。只有最近的 Field 显示原生错误，首个错误的
+定位忽略不参与校验的 disabled 控件；业务恢复受控草稿时清除过期的原生错误。
+业务错误不会因为 native validity 已满足而消失，字段值、ref 与提交事件继续透传。
+
+补齐频道配置、配对创建/行内 Agent 选择和 Provider 形态/格式的标签关联后，
+68 处调用以 `htmlFor/id` 明确指向目标控件。其余 6 处为 Custom MCP 的分段配置、
+参数/环境输入组、Skill 来源认证选择和 Discord 授权动作区：无 `htmlFor` 的具名
+Field 统一表达有可访问名称的 group，不再生成无目标 label；整组错误只属于该组，
+各输入继续保持自己的名称与原生错误身份，不批量复制同一个 ID。
+
+删除了手写设置/删除错误属性的路径、颜色 Gallery 的重复错误关联和控件参数的
+同名别名。新增内部依赖门禁只允许 Field 与 Select trigger 导入关联实现，业务层
+通过公共组件消费；Provider 配置文件补上与当前职责相符的顶部合同。
+
+**已执行验证：** lint、typecheck、149 文件 / **376 项组件测试**及构建通过，
+包含新增 12 项字段关联与错误归属用例。配对行测试额外证明点击可见标签打开正确
+选择器，原有状态/删除命令仍然通过。完整组件和构建记录位于
+`/tmp/nexus-design-a4-components-final.log`、`/tmp/nexus-design-a4-build-final.log`。
+142 项相关静态合同已通过（`/tmp/nexus-design-a4-contracts.log`）；更新后的 141 项
+依赖/所有者检查通过，单独记录于 `/tmp/nexus-design-a4-ownership-final.log`。这些检查证明 DOM、行为和
+源码边界，不等同于实际屏幕阅读器发声或宿主输入验收。
+
+既有浏览器场景加入真实可访问说明/错误断言，颜色夹具直接消费公共错误关系。
+浏览器启动仍受 A3 所述自动审批超时及待答复授权影响，未尝试绕过；A3/A4 以本地
+中间提交保存当前实现，待实际浏览器回归后继续修正。整个页面/组件清单继续保持未完成。
+
+## A5：分段选择所有权与交互状态（实现与离线验证，待浏览器复核）
+
+**源码发现：** 私有 Skill 来源的认证方式用两枚普通 Button 判断 tone/variant，
+未暴露当前选中值。公共分段控件自身还有两个状态冲突：active recipe 的
+`box-shadow: none` 会覆盖全局键盘焦点层，hover recipe 未排除 disabled。带图标
+的文字选项也未声明行内布局，不能依靠 SVG 的默认 display 保证同行。
+
+**落实：** 认证方式改用 `UiSegmentedControl`，删除页面上的选中配方与按钮循环。
+选择器继续只传回 `none/bearer`；Token 草稿、已存凭证留空、等待锁和提交载荷保持
+由原编辑器负责。公共分段控件统一图标/文字同行与禁用外观；active 只拥有底色与
+边界，键盘焦点仍由唯一全局层绘制，disabled 不再应用 hover 底色。
+
+对 feature 中直接 `UiButton` 的内联条件 tone/variant 与 aria-pressed 做了
+AST 候选扫描，剩余 8 处分别是提交、启停成员、修改密码、Thread 开关、浏览器
+设置、权限菜单、文件编辑/保存和 Agent 保存动作。按当前按钮命令语义保留；不能
+因为颜色随状态变化就把动作迁入互斥选择器。记录位于
+`/tmp/nexus-design-a5-button-candidates.json`。该扫描不涵盖别名或模型间接输出的
+所有状态配方，也不表示这些文件的其他视图已审查完毕。
+
+**已执行验证：** lint/typecheck、150 文件 / **378 项组件测试**、149 项相关合同
+及构建通过。新增真实来源管理弹窗测试，覆盖 pressed 状态、认证分支往返后的
+Token 草稿保留、已有凭证留空、等待锁和精确保存载荷；测试没有导出内部编辑器，
+也没有调用远端来源。记录为 `/tmp/nexus-design-a5-components.log`、
+`/tmp/nexus-design-a5-contracts.log`、`/tmp/nexus-design-a5-build.log`。
+
+新 Gallery 使用公共组件覆盖两档密度及文字/图标文字/纯图标三种模式，浏览器场景
+检查已选项的键盘焦点、图标文字对齐、disabled hover、回调和文字对比度，并记录
+实际字号/高度。因前述浏览器审批仍待用户答复，这些新断言尚未执行，不作为实际
+绘制或视觉验收证据。`playwright test --list` 已识别完整 900 项矩阵，结果位于
+`/tmp/nexus-design-a5-browser-list.log`；列举场景未启动浏览器或本地服务，不计为测试通过。
+共享配方目前仍使用 11px caption，其字号、行高和窄屏宽度
+必须与设置、Mermaid、联系人、导入和五选项定时配置一起复核，本批未宣称该设计
+已最终合理。实现先保存为本地中间提交，浏览器回归仍是待完成事项。
+
+## A6：无生产用途的组件与静态资产
+
+**引用证据：** 从 Vite 明确构建的 `index/app/settings/oauth-callback` 四个 HTML
+入口出发，复用现有 TypeScript 依赖解析器检查 1,439 个 TS/TSX 文件。图包含普通、
+副作用、重导出、类型和字符串动态导入；扫描未发现无法解析参数的动态 import，
+也没有 `import.meta.glob`。保守可达集合为 1,269 个文件。类型边使这个集合偏宽，
+因此“可达”不能证明每个导出都被执行，本批不把模块图当作全部冗余代码已清零。
+
+五个未从生产入口到达的候选中，`src/test/setup.ts` 由 `vitest.config.ts` 的
+`setupFiles` 加载，应保留。其余四个文件只用于 Gallery：`UiMetaGrid/UiMetaItem`
+的旧 metadata 网格，以及 `GlassMagnifier`、其 SVG Filter 和动画 Hook。全仓按
+模块名、导出名与资源路径检索后，没有产品、宿主或其他动态入口；当前也没有真实
+业务任务需要这些实现。删除四个源码文件共 440 行，并删除放大镜独用的三张 PNG
+共 43,824 字节。`GlassSwitch` 的生产消费者、滤镜和两张资源保留，通用离线导出
+脚本没有放大镜专用分支，继续服务当前开关资源。
+
+Gallery 移除相应演示、四个导出登记和未使用图标导入，工作面示例改为一行普通
+内容，不把旧网格搬成另一套私有组件。液态玻璃文档同步移除旧生命周期说明与
+个人机器路径。原始三个 TSX 审查条目保留并标为 removed，关联 Hook/PNG 的删除
+也在本节记录；它们不再占用后续组件视觉优化范围，但原 482 项总范围保持可追踪。
+
+**验证：** typecheck、Gallery/Switch 的 10 项行为测试、123 项相关架构/覆盖合同
+与生产构建通过。删除后生产可达计数仍为 1,269，唯一剩余候选是已确认的测试入口。
+覆盖合同确认当前 121 个公开组件登记完整且不重复；构建目录中的 liquid-glass
+只剩开关实际使用的 displacement/specular 两张 PNG。临时引用报告与删除前哈希
+分别位于 `/tmp/nexus-design-a6-reachability-before.json`、
+`/tmp/nexus-design-a6-reachability.json`、`/tmp/nexus-design-a6-deletions.json`；
+检查日志为 `/tmp/nexus-design-a6-components.log`、`/tmp/nexus-design-a6-contracts.log`
+和 `/tmp/nexus-design-a6-build.log`。该删除没有改变生产调用链；Gallery 的整体浏览器
+回归仍与 A3—A5 一起等待前述授权，不借此宣称全部前端已完成验收。
+
 ## 待进一步判断
 
 - 侧栏搜索在固定宽度内如何分配图标、占位文字与尾部动作；结合真实双语目录
@@ -148,11 +289,13 @@ A1 的原生通过记录沿用为本批通过证据。Windows 继续按用户要
   的真实页面审查收口；当前不将其标为已经优化。
 - A2 已调整 Settings 标签/说明、删除私有选择器 recipe 并统一紧凑文字尺寸；
   仍需在完整设置页面、Operations 和目录的真实布局里检查长内容及不同状态。
-- Badge、Button 和 Typography 的 success/warning/danger 可读文字直接复用状态色，
-  实底动作还使用白字；需要区分状态信号、文字和实底动作表面的对比度。Badge 的
-  idle 使用 soft，Counter 使用危险色底 / 白字，同属下一批候选；不能只修改徽标
-  留下同色错误提示与危险操作的问题。
-- UiField 的说明未统一关联到字段 `aria-describedby`，显式错误与原生错误路径也需
-  区分。后续按实际字段和组合控件消费方式补齐，不通过任意克隆 children 猜测控件。
+- A3 已形成状态色、配对前景与控件材质的候选修正；还需通过实际 page/card/overlay
+  和 hover 矩阵复核 Badge、Button、Counter、Choice 与错误文字，不能只以 RGB
+  计算或 CSS 类型检查代替最终可读性验收。
+- A4 已补齐 Field 的单控件与复合组关联；浏览器可访问树与实际宿主输入仍需复核。
+  A5 已将 Skill 来源认证迁入公共分段选择器；继续检查动态参数/环境键值行的
+  名称与错误能否精确区分，以及复合 Field 与自带组名的控件组合是否重复播报。
 - overline recipe 的全大写与 0.16em 字距和设计规范的克制排版原则存在冲突；
   下一批核对其分组标签消费者，区分导航扫描和品牌装饰语义。
+- A6 完成文件级失联模块检查；生产可达文件中的旧导出、测试独占 helper、重复
+  数据映射和未使用的样式仍需继续按真实符号/别名与动态调用关系复核。

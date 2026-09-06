@@ -1,5 +1,5 @@
 /* INPUT: canonical 语义 token 与公共组件的状态/结构 class。
- * OUTPUT: 复用统一尺度、材质、焦点和字段标签/间距层级的共享 CSS recipe。
+ * OUTPUT: 复用统一尺度、材质与字段层级，并保留选择控件焦点/禁用语义的共享 CSS recipe。
  * POS: UI 状态样式唯一所有者；公共尺度引用 token，特定内容几何留在命名 pattern。 */
 /**
  * =====================================================
@@ -1615,15 +1615,15 @@
       border-color var(--motion-duration-fast) ease;
   }
 
-  .segmented-control-option:hover {
+  .segmented-control-option:not(:disabled):hover {
     background: var(--chip-segmented-option-hover-background);
     color: var(--chip-segmented-option-hover-color);
   }
 
+  /* 选中态只拥有底色和边界；focus-visible 继续由 theme-base 的全局焦点层拥有。 */
   .segmented-control-option[data-active="true"] {
     background: var(--chip-segmented-option-active-background);
     color: var(--chip-segmented-option-active-color);
-    box-shadow: none;
     border: 1px solid var(--surface-interactive-active-border);
   }
 

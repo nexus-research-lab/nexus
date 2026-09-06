@@ -1,6 +1,6 @@
 /**
  * INPUT: Agent 目录、配对草稿与创建命令。
- * OUTPUT: 必填信息优先、可选路由字段按需展开的 plain 配对表单。
+ * OUTPUT: 标签/说明关联到具体控件、必填信息优先与可选路由字段按需展开的 plain 配对表单。
  * POS: IM 配对目录的手动创建边界；不在标题区解释匹配协议。
  */
 "use client";
@@ -9,6 +9,7 @@ import { Loader2 } from "lucide-react";
 import {
   type FormEvent,
   useEffect,
+  useId,
   useRef,
   useState,
 } from "react";
@@ -63,6 +64,7 @@ export function CreatePairingDialog({
   onClose,
   onCreate,
 }: CreatePairingDialogProps) {
+  const fieldId = useId();
   const savingRef = useRef(false);
   const [draft, setDraft] = useState(() => createPairingDraft(
     agents[0]?.agent_id || "",
@@ -128,9 +130,10 @@ export function CreatePairingDialog({
           <UiDialogBody className="space-y-4" scrollable>
             {failure ? <FeedbackBanner {...failure} /> : null}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <UiField label="渠道">
+              <UiField htmlFor={`${fieldId}-channel`} label="渠道">
                 <UiSelectMenu
                   ariaLabel="选择 IM 渠道"
+                  id={`${fieldId}-channel`}
                   onChange={(value) => setField(
                     "channelType",
                     value as ImChannelType,
@@ -140,9 +143,10 @@ export function CreatePairingDialog({
                   value={draft.channelType}
                 />
               </UiField>
-              <UiField label="会话类型">
+              <UiField htmlFor={`${fieldId}-chat-type`} label="会话类型">
                 <UiSelectMenu
                   ariaLabel="选择会话类型"
+                  id={`${fieldId}-chat-type`}
                   onChange={(value) => setField(
                     "chatType",
                     value as ImChatType,
@@ -173,8 +177,9 @@ export function CreatePairingDialog({
               />
             </UiField>
 
-            <UiField label="显示名称">
+            <UiField htmlFor={`${fieldId}-name`} label="显示名称">
               <UiInput
+                id={`${fieldId}-name`}
                 onChange={(event) => setField("externalName", event.target.value)}
                 placeholder="可选，用于配对列表识别"
                 value={draft.externalName}
@@ -182,9 +187,10 @@ export function CreatePairingDialog({
               />
             </UiField>
 
-            <UiField label="处理智能体" required>
+            <UiField htmlFor={`${fieldId}-agent`} label="处理智能体" required>
                 <UiSelectMenu
                   ariaLabel="选择处理智能体"
+                  id={`${fieldId}-agent`}
                   disabled={agents.length === 0}
                   onChange={(value) => setField("agentId", value)}
                   options={agents.map((agent) => ({
@@ -204,26 +210,30 @@ export function CreatePairingDialog({
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <UiField
                   description="多账号接入时用于区分同一个外部对象。"
+                  htmlFor={`${fieldId}-account`}
                   label="通道账号 ID"
                 >
                   <UiInput
+                    id={`${fieldId}-account`}
                     onChange={(event) => setField("accountId", event.target.value)}
                     placeholder="扫码账号 ID / bot id"
                     value={draft.accountId}
                     variant="dialog"
                   />
                 </UiField>
-                <UiField label="Thread / 话题 ID">
+                <UiField htmlFor={`${fieldId}-thread`} label="Thread / 话题 ID">
                   <UiInput
+                    id={`${fieldId}-thread`}
                     onChange={(event) => setField("threadId", event.target.value)}
                     placeholder="Telegram topic / Discord thread"
                     value={draft.threadId}
                     variant="dialog"
                   />
                 </UiField>
-                <UiField label="初始状态">
+                <UiField htmlFor={`${fieldId}-status`} label="初始状态">
                   <UiSelectMenu
                     ariaLabel="选择初始配对状态"
+                    id={`${fieldId}-status`}
                     onChange={(value) => setField(
                       "status",
                       value as ImPairingStatus,

@@ -24,6 +24,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Reuse the shared segmented control for skill-source authentication, preserve
+  selected-option keyboard focus, suppress disabled hover styling, and align
+  icons with their labels without changing credential or save behavior.
+- Associate shared field descriptions and errors with their exact input or select,
+  preserve current caller validation attributes after native errors recover, and
+  complete missing labels in channel configuration and pairing creation forms.
+- Refine shared status and supporting-text colors, pair solid danger/success
+  controls with theme-aware foregrounds, and replace invalid gradient inputs in
+  control color mixing. Remove unused info-color tokens and duplicate Button/Badge
+  recipes; add CSS color-type checks and a rendered semantic-color review fixture.
 - Align compact buttons and selects with matching input sizes, improve field and
   settings label/description hierarchy, and remove redundant description spacing.
   Settings selects retain shared keyboard focus styling; capability directory rows
@@ -489,6 +499,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Moved floating feedback and shared resource states onto named surface, layer,
   typography, shape, and Button contracts, with DOM tests for recovery,
   dismissal, live-region behavior, and auto-dismiss timing resets.
+
+### Removed
+
+- Removed the unused metadata-grid and glass-magnifier components, their Gallery
+  demos, and three magnifier-only images after checking all production entries
+  and repository references. The production glass switch remains in use.
 
 ### Fixed
 

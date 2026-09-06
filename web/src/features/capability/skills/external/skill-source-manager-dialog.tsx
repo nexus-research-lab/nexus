@@ -1,6 +1,6 @@
 /**
  * INPUT: Skill 来源目录、来源写命令与私有来源草稿。
- * OUTPUT: 扁平来源管理列表、私有来源表单与受控删除确认。
+ * OUTPUT: 扁平来源管理列表、复用共享互斥选择的私有来源表单与受控删除确认。
  * POS: 技能市场的来源管理边界；不展示来源教程或回显私密 Token。
  */
 "use client";
@@ -28,6 +28,7 @@ import {
 } from "@/shared/ui/dialog/dialog";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
+import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import { UiPanel } from "@/shared/ui/panel";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
@@ -401,22 +402,16 @@ function PrivateSourceEditorDialog({
               />
             </UiField>
             <UiField label={t("capability.skill_source_auth_type")}>
-              <div className="flex flex-wrap gap-1.5">
-                {(["none", "bearer"] as const).map((authType) => (
-                  <UiButton
-                    disabled={loading}
-                    key={authType}
-                    onClick={() => updateDraft("authType", authType)}
-                    size="sm"
-                    tone={draft.authType === authType ? "primary" : undefined}
-                    variant={draft.authType === authType ? "solid" : "surface"}
-                  >
-                    {t(authType === "none"
-                      ? "capability.skill_source_auth_none"
-                      : "capability.skill_source_auth_bearer")}
-                  </UiButton>
-                ))}
-              </div>
+              <UiSegmentedControl
+                disabled={loading}
+                onChange={(authType) => updateDraft("authType", authType)}
+                options={[
+                  { label: t("capability.skill_source_auth_none"), value: "none" },
+                  { label: t("capability.skill_source_auth_bearer"), value: "bearer" },
+                ]}
+                title={t("capability.skill_source_auth_type")}
+                value={draft.authType}
+              />
             </UiField>
             {draft.authType === "bearer" ? (
               <UiField

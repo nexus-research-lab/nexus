@@ -2258,6 +2258,8 @@ test("Skill import and external sources reuse shared controls, states, and typog
   assert.match(combined, /getUiTypographyClassName/);
   assert.match(combined, /getUiSpinnerClassName/);
   assert.match(sources[0], /<UiDialogFormShell[\s\S]*size="md"/);
+  assert.match(sources[5], /<UiSegmentedControl/);
+  assert.doesNotMatch(sources[5], /(?:tone|variant)=\{draft\.authType/);
   for (const source of sources) {
     assert.doesNotMatch(source, /rounded-\[|animate-spin|text-(?:2xs|xs|sm|base|lg|xl|2xl)|font-(?:normal|medium|semibold|bold)|<button/);
   }
@@ -2644,8 +2646,12 @@ test("Dialog actions render the shared Button primitive instead of a class adapt
   assert.doesNotMatch(decisionActions, /<button\b/);
 });
 
-test("form style projection and ordinary native selects keep explicit owners", async () => {
+test("form style and accessibility internals and native selects keep explicit owners", async () => {
   const files = await collectSourceFiles(srcRoot);
+  const fieldAccessibilityConsumers = new Set([
+    "src/shared/ui/form/form-control.tsx",
+    "src/shared/ui/menu/select-menu-primitives.tsx",
+  ]);
   const embeddedSelectOwners = new Set([
     "src/features/conversation/room/group/chat/panel/view/room-goal-lead-control.tsx",
   ]);
@@ -2660,6 +2666,12 @@ test("form style projection and ordinary native selects keep explicit owners", a
       && importsFrontendModule(relativePath, source, "src/shared/ui/form/form-control-styles")
     ) {
       violations.push(`${relativePath}: internal form style import`);
+    }
+    if (
+      !fieldAccessibilityConsumers.has(relativePath)
+      && importsFrontendModule(relativePath, source, "src/shared/ui/form/field-accessibility")
+    ) {
+      violations.push(`${relativePath}: internal field accessibility import`);
     }
     if (
       !embeddedSelectOwners.has(relativePath)

@@ -44,7 +44,7 @@ export const UI_GALLERY_COVERAGE_GROUPS: readonly UiGalleryCoverageGroup[] = [
     components: [
       "UiAgentAvatar", "UiRoomAvatar", "UiSeededAvatar", "UiBadge", "UiCounterBadge",
       "UiResourceState", "UiStateBlock", "UiSkeleton", "UiSkeletonCardList",
-      "UiMetaGrid", "UiMetaItem", "UiQRCode",
+      "UiQRCode",
     ],
   },
   {
@@ -110,14 +110,14 @@ export const UI_GALLERY_COVERAGE_GROUPS: readonly UiGalleryCoverageGroup[] = [
     section: "interaction",
     mode: "direct",
     renderer: "Liquid glass",
-    components: ["GlassSwitch", "GlassMagnifier"],
+    components: ["GlassSwitch"],
   },
   {
     id: "liquid-glass-filters",
     section: "interaction",
     mode: "composed",
-    renderer: "GlassSwitch / GlassMagnifier",
-    components: ["GlassSwitchFilter", "GlassMagnifierFilter"],
+    renderer: "GlassSwitch",
+    components: ["GlassSwitchFilter"],
   },
   {
     id: "onboarding",

@@ -93,6 +93,8 @@ test("settings controls share readable compact sizes and preserve keyboard selec
     }
     const field = group.locator("..");
     const description = field.locator(":scope > p");
+    await expect(group.getByRole("textbox")).toHaveAccessibleDescription(await description.innerText());
+    await expect(group.getByRole("button").first()).not.toHaveAttribute("aria-describedby");
     const gap = (await description.boundingBox())!.y - ((await group.boundingBox())!.y + (await group.boundingBox())!.height);
     expect(gap).toBeCloseTo(8, 1);
     await field.locator("label").click();
@@ -132,6 +134,89 @@ test("settings controls share readable compact sizes and preserve keyboard selec
   expect(await settings.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
   await info.attach("settings-text-contrast", { body: JSON.stringify(contrast), contentType: "application/json" });
   await capture(settings, info, "settings-compact-controls");
+  expect(errors).toEqual([]);
+});
+
+test("segmented selections retain keyboard focus, aligned icon text and disabled states", async ({ page }, info) => {
+  const { errors } = await openGallery(page, info, "content");
+  const fixture = page.locator("[data-gallery-segmented]");
+  const lock = fixture.locator("[data-gallery-segmented-lock]");
+  const first = fixture.locator('[data-segmented-case="default-text"]').getByRole("button").first();
+  await lock.focus();
+  await moveKeyboardFocus(page, info);
+  await expect(first).toBeFocused();
+  await expect(first).toHaveAttribute("aria-pressed", "true");
+  expect(await first.evaluate((element) => ({ visible: element.matches(":focus-visible"), shadow: getComputedStyle(element).boxShadow })))
+    .toEqual({ visible: true, shadow: expect.stringMatching(/0px 0px 0px 4px/) });
+  await capture(first, info, "segmented-selected-keyboard-focus");
+  await moveKeyboardFocus(page, info);
+  await page.keyboard.press("Space");
+  await expect(fixture.locator("[data-gallery-segmented-commands]")).toHaveText('["default-text:source"]');
+  await expect(first).toHaveAttribute("aria-pressed", "false");
+
+  const measurements = [];
+  for (const button of await fixture.locator(".segmented-control-option").all()) {
+    const contrast = await measureTextContrast(button);
+    expect(contrast.ratio).toBeGreaterThanOrEqual(4.5);
+    measurements.push({ ...contrast, ...await button.evaluate((element) => ({
+      active: element.getAttribute("aria-pressed"),
+      font: getComputedStyle(element).fontSize,
+      height: element.getBoundingClientRect().height,
+      label: element.textContent,
+    })) });
+  }
+  await info.attach("segmented-control-metrics", { body: JSON.stringify(measurements), contentType: "application/json" });
+  for (const button of await fixture.locator('[data-segmented-case$="-mixed"] button').all()) {
+    const icon = (await button.locator("svg").boundingBox())!;
+    const text = (await button.locator("span").boundingBox())!;
+    expect(Math.abs(icon.y + icon.height / 2 - text.y - text.height / 2)).toBeLessThanOrEqual(1);
+    expect(text.x).toBeGreaterThan(icon.x + icon.width);
+  }
+  await lock.click();
+  for (const button of await fixture.locator(".segmented-control-option").all()) await expect(button).toBeDisabled();
+  const beforeHover = await first.evaluate((element) => getComputedStyle(element).backgroundColor);
+  await first.hover();
+  expect(await first.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(beforeHover);
+  await capture(fixture, info, "segmented-disabled-states");
+  await expect(fixture.locator("[data-gallery-segmented-commands]")).toHaveText('["default-text:source"]');
+  expect(await fixture.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
+  expect(errors).toEqual([]);
+});
+
+test("semantic text and actions stay readable on page, card and overlay surfaces", async ({ page }, info) => {
+  const { errors } = await openGallery(page, info, "content");
+  const fixture = page.locator("[data-gallery-semantic-colors]");
+  const invalidPaint = await page.evaluate(() => {
+    const style = getComputedStyle(document.documentElement);
+    return ["--material-chip-background", "--material-input-background", "--material-input-focus-background",
+      "--modal-btn-secondary-background", "--button-tonal-background", "--chip-segmented-background"]
+      .map((token) => ({ token, value: style.getPropertyValue(token).trim() }))
+      .filter(({ value }) => !CSS.supports("background-color", value));
+  });
+  const measurements = [];
+  for (const surface of await fixture.locator("[data-gallery-color-surface]").all()) {
+    const name = await surface.getAttribute("data-gallery-color-surface");
+    await expect(surface.getByRole("textbox")).toHaveAccessibleErrorMessage(
+      await surface.locator('[data-color-sample="field-error"]').innerText(),
+    );
+    for (const sample of await surface.locator("[data-color-sample]").all()) {
+      const id = await sample.getAttribute("data-color-sample");
+      const initial = await measureTextContrast(sample);
+      measurements.push({ surface: name, id, state: "rest", ...initial });
+      // The card also exercises hover for every button variant. Other surfaces
+      // cover the same shared recipes at rest with their different backgrounds.
+      if (name === "card" && id?.startsWith("button:")) {
+        await sample.hover();
+        measurements.push({ surface: name, id, state: "hover", ...await measureTextContrast(sample) });
+        await page.mouse.move(0, 0);
+      }
+    }
+    expect(await surface.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
+    await capture(surface, info, `semantic-colors-${name}`);
+  }
+  await info.attach("semantic-color-contrast", { body: JSON.stringify(measurements), contentType: "application/json" });
+  expect(invalidPaint).toEqual([]);
+  expect(measurements.filter(({ ratio }) => ratio < 4.5).map(({ surface, id, state, ratio }) => ({ surface, id, state, ratio }))).toEqual([]);
   expect(errors).toEqual([]);
 });
 

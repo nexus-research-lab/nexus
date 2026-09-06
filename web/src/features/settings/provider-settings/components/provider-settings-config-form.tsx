@@ -1,6 +1,10 @@
+// INPUT: Provider 预设/配置草稿、格式能力、管理权限与字段修改命令。
+// OUTPUT: 精确关联标签的形态、凭证和端点字段组。
+// POS: Provider 配置表单视图；不拥有保存事务或凭证保留规则。
 "use client";
 
 import { ExternalLink } from "lucide-react";
+import { useId } from "react";
 
 import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
@@ -71,6 +75,7 @@ function ProviderShapeControls({
   | "showRuntimeFormatBadge"
 >) {
   const { t } = useI18n();
+  const fieldId = useId();
   if (!showProviderShapeControls) {
     return null;
   }
@@ -98,10 +103,12 @@ function ProviderShapeControls({
       </UiField>
 
       <UiField
+        htmlFor={`${fieldId}-kind`}
         label={t("settings.providers.kind")}
       >
         <UiSelectMenu
           ariaLabel={t("settings.providers.kind")}
+          id={`${fieldId}-kind`}
           disabled={!selectedCanManage || isEditing || providerKindOptions.length <= 1}
           onChange={onProviderKindChange}
           options={providerKindOptions}
@@ -111,6 +118,7 @@ function ProviderShapeControls({
       </UiField>
 
       <UiField
+        htmlFor={`${fieldId}-format`}
         label={(
           <span className="inline-flex items-center gap-2">
             {t("settings.providers.api_format")}
@@ -129,6 +137,7 @@ function ProviderShapeControls({
       >
         <UiSelectMenu
           ariaLabel={t("settings.providers.api_format")}
+          id={`${fieldId}-format`}
           disabled={!selectedCanManage || formatOptions.length <= 1}
           onChange={onApiFormatChange}
           options={formatOptions}
