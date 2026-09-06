@@ -8,6 +8,7 @@
 - 详情内容轴和二级导航复用 `CapabilityDetailPage`，图标、标题、状态、连接目标和动作对齐复用 `CapabilityDetailIdentity`；其余事实和恢复提示复用 Connector 详情相同的 Button、Typography、Badge、Panel 与 Resource State 语法，不保留 Custom MCP 私有控件、面包屑或反馈样式。
 - `env` 与 `headers` 的服务端返回值只允许为 `null`，表示已配置但不回显；编辑时空值必须保留原秘密。
 - 表单只投影 stdio、HTTP、SSE 已实现字段，不引入另一套配置协议；传输和认证方式是配置值，必须使用 `UiSegmentedControl`，不得借页面 `UiTabs` 表达。
+- 类型和认证使用 `UiSegmentedControl showLabel` 的唯一具名组，普通字段及标题按弹窗实例关联。参数、环境变量和请求头行在草稿中保留稳定本地身份，名称和删除动作区分行；身份由视图提供，model 维持纯投影，保存时只输出既有协议字段。命令、参数和键名复用公共 Input 的 code 文本角色，秘密值沿用 password 控件。
 - 写命令共享唯一 ref 互斥入口，成功后同时刷新自定义目录和 Connector 目录。
 - 写失败只在服务端明确 `not_applied` 时允许按原输入重试；旧响应与传输中断保持结果未知，并提供“重新加载并检查”而不自动重复 CRUD。
 - 创建编辑弹窗使用随内容增长的 plain 表单，不显示 Connector 装饰图标或秘密保存副标题；动态参数和秘密行使用紧凑文字动作，窄屏必须纵向收拢。

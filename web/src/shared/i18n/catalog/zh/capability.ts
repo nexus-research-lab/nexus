@@ -508,6 +508,8 @@ export const zhCapabilityMessages = {
   "capability.custom_mcp_add_header": "添加请求头",
   "capability.custom_mcp_key": "键",
   "capability.custom_mcp_value": "值",
+  "capability.custom_mcp_row_label": "{group}第 {index} 行",
+  "capability.custom_mcp_remove_row": "删除{row}",
   "capability.custom_mcp_secret_saved": "已保存；留空则保持不变",
   "capability.custom_mcp_error_name": "名称需为 1–64 位字母、数字、点、下划线或连字符。",
   "capability.custom_mcp_error_command": "请输入启动命令。",
