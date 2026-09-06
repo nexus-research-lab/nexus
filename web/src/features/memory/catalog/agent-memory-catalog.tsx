@@ -1,15 +1,16 @@
 /**
  * INPUT: 已投影的记忆分区、筛选、查询和目录动作。
- * OUTPUT: 共享搜索/类型筛选、互斥空状态与紧凑记忆目录，保留可读摘要和文档名。
+ * OUTPUT: 同行共享搜索/类型筛选、互斥空状态与紧凑记忆目录，保留可读摘要和文档名。
  * POS: Agent 记忆页左栏，不读取正文或解释路径协议。
  */
 import { RefreshCw, Search } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
+import { UiIconButton } from "@/shared/ui/button/button";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { SidebarSearchAction, SidebarSearchField } from "@/shared/ui/form/sidebar-search-field";
+import { UiSearchInput } from "@/shared/ui/form/form-control";
 import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 import { UiListRow } from "@/shared/ui/list/list-row";
 import { UiFilterSelect } from "@/shared/ui/menu/filter-select";
@@ -60,37 +61,38 @@ export function AgentMemoryCatalog({
   }));
   return (
     <aside className="nexus-memory-catalog flex min-h-0 min-w-0 flex-col bg-(--surface-shell-directory-background)">
-      <div className="shrink-0 space-y-1 pt-3">
-        <SidebarSearchField
+      <div className="flex shrink-0 items-center gap-2 px-2.5 py-3 max-[559px]:px-4">
+        <UiSearchInput
           action={(
-            <SidebarSearchAction
+            <UiIconButton
               aria-label={t("capability.refresh")}
               aria-busy={refreshing || undefined}
               disabled={refreshing}
               onClick={onRefresh}
-              title={t("capability.refresh")}
+              size="xs"
+              tooltip={t("capability.refresh")}
             >
               <RefreshCw
                 className={refreshing
                   ? getUiSpinnerClassName({ size: "sm" })
                   : undefined}
               />
-            </SidebarSearchAction>
+            </UiIconButton>
           )}
-          label={t("capability.memory_search_placeholder")}
+          aria-label={t("capability.memory_search_placeholder")}
+          className="min-w-0 flex-1"
           onChange={onQueryChange}
+          placeholder={t("common.search")}
           value={query}
         />
-        <div className="px-2.5 pb-2 max-[559px]:px-4">
-          <UiFilterSelect
-            ariaLabel={t("capability.memory_filter_aria")}
-            className="w-full sm:w-full"
-            label={t("capability.memory_filter_label")}
-            onChange={(value) => onFilterChange(value as MemoryFilter)}
-            options={filterOptions}
-            value={filter}
-          />
-        </div>
+        <UiFilterSelect
+          ariaLabel={t("capability.memory_filter_aria")}
+          className="w-[128px] sm:w-[128px]"
+          label={t("capability.memory_filter_label")}
+          onChange={(value) => onFilterChange(value as MemoryFilter)}
+          options={filterOptions}
+          value={filter}
+        />
       </div>
 
       <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-2 pb-3">

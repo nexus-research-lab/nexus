@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Restored a single-row Memory search and type filter, with refresh inside the
+  shared search input and a compact filter alongside it.
 - Unified workspace file loading and empty states across media, Office and text
   previews, removed duplicate header feedback and unused status copy, and
   localized unsupported-file guidance for browser download and desktop reveal.
