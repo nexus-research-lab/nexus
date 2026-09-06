@@ -1,5 +1,5 @@
 /* INPUT: canonical 语义 token 与公共组件的状态/结构 class。
- * OUTPUT: 复用统一尺度、材质与字段层级，并保留选择控件焦点/禁用语义的共享 CSS recipe。
+ * OUTPUT: 复用统一尺度、可读分组/说明层级、材质与控件焦点/禁用语义的共享 CSS recipe。
  * POS: UI 状态样式唯一所有者；公共尺度引用 token，特定内容几何留在命名 pattern。 */
 /**
  * =====================================================
@@ -31,8 +31,7 @@
   .ui-type-control,
   .ui-type-supporting,
   .ui-type-metadata,
-  .ui-type-caption,
-  .ui-type-overline {
+  .ui-type-caption {
     font-family: var(--font-sans);
   }
 
@@ -99,14 +98,6 @@
     font-size: var(--text-xs);
     font-weight: 400;
     line-height: 1rem;
-  }
-
-  .ui-type-overline {
-    font-size: var(--text-2xs);
-    font-weight: 600;
-    line-height: 1rem;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
   }
 
   .ui-type-code {

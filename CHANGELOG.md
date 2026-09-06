@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Replace decorative microtext in configuration groups and run details with
+  existing readable typography roles, improve execution-history text hierarchy,
+  and simplify RichMail connection guidance to one heading.
 - Unify sidebar search actions with the shared IconButton, retain independent
   search/clear/create commands, and use readable shared text with concise bilingual
   placeholders and full accessible names within the existing sidebar width.
@@ -505,6 +508,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- Removed the redundant uppercase overline typography role and recipe after
+  migrating its production consumers to their existing semantic text roles.
 - Removed the Gallery-only catalog icon-action adapter; production catalog text
   actions continue to use the shared Button.
 - Removed the unused metadata-grid and glass-magnifier components, their Gallery

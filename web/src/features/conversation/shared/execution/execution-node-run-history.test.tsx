@@ -70,7 +70,7 @@ describe("ExecutionNodeRunHistory", () => {
     expect(runs).toHaveLength(2);
     expect((runs[0] as HTMLDetailsElement).open).toBe(false);
     expect((runs[1] as HTMLDetailsElement).open).toBe(true);
-    expect(runs[1].querySelector("summary")?.className).toContain("ui-type-caption");
+    expect(runs[1].querySelector("summary")?.className).toContain("ui-type-supporting");
 
     const safeReference = screen.getByTitle("output/report.md");
     expect(safeReference.className).toContain("radius-control-xs");

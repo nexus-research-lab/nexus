@@ -1,4 +1,4 @@
-// INPUT: App chrome 的稳定文本角色、可选语义 tone 与有限字重覆盖。
+// INPUT: App chrome 的标题、正文、辅助说明与紧凑元数据角色、可选 tone 和有限字重。
 // OUTPUT: 指向 theme recipe 的排版 class；不改变调用方选择的 HTML 语义标签。
 // POS: shared/ui 排版所有权；阅读正文、品牌字形和图形内文字仍由所属 Surface 负责。
 
@@ -13,7 +13,6 @@ export type UiTypographyRole =
   | "supporting"
   | "metadata"
   | "caption"
-  | "overline"
   | "code";
 
 export type UiTypographyTone =
@@ -46,7 +45,6 @@ const ROLE_CLASS_NAMES: Record<UiTypographyRole, string> = {
   supporting: "ui-type-supporting",
   metadata: "ui-type-metadata",
   caption: "ui-type-caption",
-  overline: "ui-type-overline",
   code: "ui-type-code",
 };
 

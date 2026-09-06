@@ -1,6 +1,6 @@
 /**
  * INPUT: Connector 详情、连接状态、能力条目与文档地址。
- * OUTPUT: 当前对象的状态、能力与文档，不重复通用协议介绍。
+ * OUTPUT: 当前对象的状态、能力、文档及单标题的可读连接准备说明。
  * POS: Connector 详情正文纯视图。
  */
 import type { ReactNode } from "react";
@@ -206,18 +206,12 @@ function RichMailConnectionSection({
               <Power className="h-4 w-4" />
             </span>
             <div className="min-w-0">
-              <p className={getUiTypographyClassName({ role: "overline", tone: "brand" })}>
-                连接前准备
-              </p>
-              <h3 className={cn(
-                "mt-1",
-                getUiTypographyClassName({ role: "control", tone: "strong", weight: "semibold" }),
-              )}>
+              <h3 className={getUiTypographyClassName({ role: "control", tone: "strong", weight: "semibold" })}>
                 请先在 RichMail 开启 Agent MCP 服务
               </h3>
               <p className={cn(
                 "mt-1",
-                getUiTypographyClassName({ role: "caption", tone: "muted" }),
+                getUiTypographyClassName({ role: "supporting", tone: "muted" }),
               )}>
                 打开 RichMail 并保持后台运行，然后按照下面的路径完成设置。
               </p>
@@ -226,12 +220,12 @@ function RichMailConnectionSection({
 
           <div className="mt-4 flex flex-col gap-3 border-t border-[color:color-mix(in_srgb,var(--brand-action)_14%,var(--divider-subtle-color))] pt-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
-              <p className={getUiTypographyClassName({ role: "caption", tone: "soft", weight: "medium" })}>
+              <p className={getUiTypographyClassName({ role: "metadata", tone: "muted", weight: "medium" })}>
                 RichMail 设置路径
               </p>
               <p className={cn(
                 "mt-1",
-                getUiTypographyClassName({ role: "caption", tone: "default", weight: "medium" }),
+                getUiTypographyClassName({ role: "supporting", tone: "default" }),
               )}>
                 设置 → Rwork → 智能体与能力 → 对外 MCP 服务
               </p>
@@ -248,7 +242,7 @@ function RichMailConnectionSection({
 
           <p className={cn(
             "mt-3",
-            getUiTypographyClassName({ role: "caption", tone: "muted" }),
+            getUiTypographyClassName({ role: "supporting", tone: "muted" }),
           )}>
             完成后返回 Nexus 开始连接，并在 RichMail 中批准本次授权。
           </p>

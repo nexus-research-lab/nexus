@@ -890,7 +890,7 @@ function PreviewSection({
   return (
     <section className={cn("surface-panel min-w-0 p-4 sm:p-5", className)} data-gallery-section={title}>
       <div className="mb-5 border-b border-(--divider-subtle-color) pb-4">
-        <p className={getUiTypographyClassName({ role: "overline", tone: "brand" })}>{eyebrow}</p>
+        <p className={getUiTypographyClassName({ role: "metadata", tone: "brand", weight: "medium" })}>{eyebrow}</p>
         <h2 className={cn("mt-1", getUiTypographyClassName({ role: "objectTitle", tone: "strong" }))}>{title}</h2>
         <p className={cn("mt-1.5 max-w-3xl", getUiTypographyClassName({ role: "caption", tone: "muted" }))}>{description}</p>
       </div>
