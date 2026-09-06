@@ -124,6 +124,7 @@ export const zhAgentMessages = {
   "agent_options.identity.change_avatar": "更换头像",
   "agent_options.identity.vibe_tags": "风格标签",
   "agent_options.identity.add_tag": "添加标签",
+  "agent_options.identity.remove_tag": "移除 {tag}",
   "agent_options.identity.business_tags": "业务标签",
   "agent_options.identity.add_business_tag": "添加业务标签",
   "agent_options.identity.provider": "模型服务",

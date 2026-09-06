@@ -32,7 +32,6 @@ function renderSelector({
           onProviderChange={onProviderChange}
           options={[]}
           provider={provider}
-          variant="dialog"
         />
       </I18N_CONTEXT.Provider>,
     ),

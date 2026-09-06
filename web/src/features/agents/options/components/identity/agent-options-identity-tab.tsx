@@ -3,9 +3,10 @@
 // POS: Agent 身份表单组合层；共享控件持有视觉状态，保存与权限归上层流程。
 "use client";
 
+import { useId } from "react";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
-import { UiTextarea } from "@/shared/ui/form/form-control";
+import { UiField, UiTextarea } from "@/shared/ui/form/form-control";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import type { AgentNameValidationResult, AgentProvider } from "@/types/agent/agent";
 import type { ProviderOption } from "@/types/capability/provider";
@@ -88,6 +89,8 @@ export function AgentOptionsIdentityTab({
   vibeTags,
 }: AgentOptionsIdentityTabProps) {
   const { t } = useI18n();
+  const descriptionId = useId();
+  const templateId = useId();
   const layout = IDENTITY_LAYOUTS[variant];
   const isInline = variant === "inline";
   const shouldShowDescriptionField =
@@ -104,14 +107,13 @@ export function AgentOptionsIdentityTab({
       onProviderChange={onProviderChange}
       options={providerOptions}
       provider={provider}
-      variant={variant}
     />
   );
 
   return (
     <div
       className={cn(
-        "animate-in slide-in-from-right-4 duration-300",
+        "animate-in slide-in-from-right-4 duration-300 motion-reduce:animate-none",
         isInline
           ? "flex h-full min-h-0 flex-1 flex-col gap-5 overflow-hidden"
           : "space-y-6",
@@ -141,7 +143,6 @@ export function AgentOptionsIdentityTab({
             onChange={onBusinessTagsChange}
             resetKey={`${scopeKey}:business`}
             tags={businessTags}
-            variant={variant}
           />
           <IdentityTags
             addLabel={t("agent_options.identity.add_tag")}
@@ -149,7 +150,6 @@ export function AgentOptionsIdentityTab({
             onChange={onVibeTagsChange}
             resetKey={`${scopeKey}:vibe`}
             tags={vibeTags}
-            variant={variant}
           />
         </div>
 
@@ -166,31 +166,27 @@ export function AgentOptionsIdentityTab({
         />
       ) : null}
       {shouldShowDescriptionField ? (
-        <div className="space-y-2.5">
-          <label className="text-xs font-semibold text-(--text-muted)">
-            {t("agent_options.identity.description")}
-          </label>
+        <UiField htmlFor={descriptionId} label={t("agent_options.identity.description")}>
           <UiTextarea
+            id={descriptionId}
             onChange={(event) => onDescriptionChange(event.target.value)}
             placeholder={t("agent_options.identity.description_placeholder")}
             rows={3}
             value={description}
           />
-        </div>
+        </UiField>
       ) : null}
       {sourceMode === "create" ? (
-        <div className="space-y-2">
-          <div>
-            <label className="text-xs font-semibold text-(--text-muted)">
-              {t("agent_options.identity.profile_template")}
-            </label>
-            <p className="mt-1 text-compact leading-5 text-(--text-soft)">
-              {t("agent_options.identity.profile_template_hint")}
-            </p>
-          </div>
+        <UiField
+          description={t("agent_options.identity.profile_template_hint")}
+          htmlFor={templateId}
+          label={t("agent_options.identity.profile_template")}
+        >
           <UiTextarea
+            aria-busy={profileTemplateLoading || undefined}
             className="min-h-[180px]"
             disabled={profileTemplateLoading}
+            id={templateId}
             onChange={(event) => onProfileTemplateChange(event.target.value)}
             placeholder={
               profileTemplateLoading
@@ -217,7 +213,7 @@ export function AgentOptionsIdentityTab({
               variant="card"
             />
           ) : null}
-        </div>
+        </UiField>
       ) : null}
     </div>
   );

@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Unify Agent identity labels and field density, associate name validation and
+  template guidance with their inputs, and let shared Select controls grow for
+  long model names. Preserve IME composition in tag drafts, localize removal
+  actions, and restore input focus after adding or removing a tag.
 - Keep Agent and Room identities readable when avatar images fail; fit initials
   to member mosaics and preserve complete Unicode characters. Share character
   segmentation across avatars, Launcher and text rendering, and remove duplicate

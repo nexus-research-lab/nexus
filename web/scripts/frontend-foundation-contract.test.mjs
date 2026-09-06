@@ -2834,6 +2834,26 @@ test("single and multiple selects keep one trigger DOM and style owner", async (
   }
 });
 
+test("Agent identity uses shared fields, composition-safe tags and public wrapping selects", async () => {
+  const [profile, tags, model, identity, layout] = await Promise.all([
+    readSource("src/features/agents/options/components/identity/identity-profile-fields.tsx"),
+    readSource("src/features/agents/options/components/identity/identity-tags.tsx"),
+    readSource("src/features/agents/options/components/identity/identity-model-selector.tsx"),
+    readSource("src/features/agents/options/components/identity/agent-options-identity-tab.tsx"),
+    readSource("src/features/agents/options/components/identity/identity-layout.ts"),
+  ]);
+  for (const view of [profile, tags, model, identity]) {
+    assert.match(view, /<UiField\b/);
+    assert.match(view, /useId/);
+    assert.doesNotMatch(view, /<label\b|IDENTITY_FIELD_LABEL_CLASS_NAMES/);
+  }
+  assert.doesNotMatch(layout, /uppercase|tracking-|text-soft|LABEL_CLASS/);
+  assert.match(tags, /isImeKeyboardEvent\(event\.nativeEvent\)/);
+  assert.doesNotMatch(tags, /placeholder:text-\(--text-soft\)|removeLabel=\{`移除/);
+  assert.match(model, /allowLabelWrap/);
+  assert.doesNotMatch(model, /buttonClassName|MODEL_SELECTOR_LAYOUTS/);
+});
+
 test("removable entities share one chip action and never nest fake buttons", async () => {
   const [primitive, identityTags, roomSkills] = await Promise.all([
     readSource("src/shared/ui/form/removable-chip.tsx"),
