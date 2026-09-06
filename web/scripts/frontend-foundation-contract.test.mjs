@@ -2265,6 +2265,20 @@ test("Skill import and external sources reuse shared controls, states, and typog
   }
 });
 
+test("sidebar search composes shared input and icon actions without private state or text styles", async () => {
+  const search = await readSource("src/shared/ui/form/sidebar-search-field.tsx");
+  assert.match(search, /<UiSearchInput/);
+  assert.match(search, /<UiIconButton/);
+  assert.match(search, /aria-label=\{label\}/);
+  assert.doesNotMatch(search, /<button\b|inputClassName|hover:|focus-visible:|text-\(/);
+  const consumers = await Promise.all([
+    "src/features/home/sidebar/chat-sidebar-panel.tsx",
+    "src/features/home/sidebar/contacts-sidebar-panel.tsx",
+    "src/features/capability/sidebar/capability-sidebar-panel.tsx",
+  ].map(readSource));
+  for (const consumer of consumers) assert.match(consumer, /label=\{t\("sidebar\.search_/);
+});
+
 test("Capability sidebar reuses shared list, typography, and shape owners", async () => {
   const [panel, item] = await Promise.all([
     readSource("src/features/capability/sidebar/capability-sidebar-panel.tsx"),
