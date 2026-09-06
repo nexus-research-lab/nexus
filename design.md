@@ -107,10 +107,12 @@ App chrome 使用 `shared/ui/typography/typography-styles.ts` 的语义角色，
 | `objectTitle` | `20px` | 当前业务对象主标题 |
 | `pageTitle / sectionTitle` | `16 / 14px` | 页面与内容分区标题 |
 | `body / control / supporting` | `14 / 14 / 13px` | 正文、控件文字与辅助说明 |
-| `metadata / caption / overline` | `12 / 11 / 10px` | 元数据、计数与短分组标签 |
+| `metadata / caption` | `12 / 11px` | 元数据、计数与次级短标签 |
 | `code` | `13px` | App chrome 中的短技术标识 |
 
 业务组件只选择 role、tone 和有限的 weight；margin、截断与布局仍由调用方负责。Launcher 品牌字、Markdown/文件阅读正文以及 WorkGraph/图形内必须像素对齐的微标签由所属 Surface 独立管理，并在其所有者文档说明理由。
+
+普通分组标签使用 metadata / medium，设置内的配置分组使用 supporting / medium；说明和运行结果使用 supporting，不缩成计数字号。保留英文原始大小写与正常字距，不提供全大写、大字距的 overline 角色。10px 阶梯保留供公共紧凑徽标、头像字母与图形微标签使用，不能套到普通配置标题、错误或截断提示。相邻小标题与主标题表达同一件事时，只保留能说明下一步的主标题。
 
 Login/Setup 的宣传标题是共用 Access 品牌 Surface：640px 以下 44px，以上 64px，
 600 字重与 1.02 行高统一由 `features/access/access-page.css` 持有，不扩展普通 App

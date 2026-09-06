@@ -1,6 +1,6 @@
 /**
  * INPUT: GraphNode 下的有界 NodeRun 历史、结构化 workspace Artifact 与正式交付引用。
- * OUTPUT: 可展开的运行结果/错误时间线和可打开文件引用。
+ * OUTPUT: 使用说明文字层级的运行结果/错误时间线、清晰分组与可打开文件引用。
  * POS: 节点悬浮检查器的深入事实视图；不从摘要推断状态或触发重试。
  */
 "use client";
@@ -58,15 +58,15 @@ export function ExecutionNodeRunHistory({
         <>
           <div className="mb-1 flex items-center justify-between gap-2">
             <h4 className={getUiTypographyClassName({
-              role: "caption",
-              tone: "soft",
+              role: "metadata",
+              tone: "default",
               weight: "medium",
             })}>
               {t("execution.run_history")}
             </h4>
             <span className={cn(
               "tabular-nums",
-              getUiTypographyClassName({ role: "caption", tone: "soft" }),
+              getUiTypographyClassName({ role: "metadata", tone: "muted" }),
             )}>
               {t("execution.run_history_count", { count: runs.length })}
             </span>
@@ -89,8 +89,8 @@ export function ExecutionNodeRunHistory({
           <h4 className={cn(
             "mb-1",
             getUiTypographyClassName({
-              role: "caption",
-              tone: "soft",
+              role: "metadata",
+              tone: "default",
               weight: "medium",
             }),
           )}>
@@ -166,13 +166,13 @@ function ExecutionNodeRunDetail({
         />
       )}
       meta={timeLabel ? <span className="tabular-nums">{timeLabel}</span> : null}
-      summaryRole="caption"
+      summaryRole="supporting"
       surfaceTone="subtle"
       variant="panel"
     >
       <div className={cn(
-        "space-y-2",
-        getUiTypographyClassName({ role: "caption", tone: "default" }),
+        "space-y-2 break-words",
+        getUiTypographyClassName({ role: "supporting", tone: "default" }),
       )}>
         {run.error_summary?.trim() ? (
           <div className="radius-control-xs bg-[color:color-mix(in_srgb,var(--warning)_8%,transparent)] px-2 py-1.5">
@@ -180,7 +180,7 @@ function ExecutionNodeRunDetail({
             {run.error_code?.trim() ? (
               <p className={cn(
                 "mt-1",
-                getUiTypographyClassName({ role: "code", tone: "soft" }),
+                getUiTypographyClassName({ role: "code", tone: "muted" }),
               )}>
                 {run.error_code.trim()}
               </p>
@@ -189,13 +189,13 @@ function ExecutionNodeRunDetail({
         ) : null}
         {run.result_summary?.trim() ? <p>{run.result_summary.trim()}</p> : null}
         {run.summary_truncated ? (
-          <p className={getUiTypographyClassName({ role: "overline", tone: "soft" })}>
+          <p className={getUiTypographyClassName({ role: "supporting", tone: "muted" })}>
             {t("execution.summary_truncated")}
           </p>
         ) : null}
         {(run.artifacts?.length ?? 0) > 0 ? (
           <div className="space-y-1.5 pt-0.5">
-            <p className={getUiTypographyClassName({ role: "overline", tone: "soft" })}>
+            <p className={getUiTypographyClassName({ role: "metadata", tone: "default", weight: "medium" })}>
               {t("execution.artifacts")}
             </p>
             {run.artifacts?.map((artifact) => (
@@ -215,7 +215,7 @@ function ExecutionNodeRunDetail({
         {!run.error_summary?.trim()
           && !run.result_summary?.trim()
           && (run.artifacts?.length ?? 0) === 0 ? (
-            <p className="text-(--text-soft)">{run.id}</p>
+            <p className={getUiTypographyClassName({ role: "code", tone: "muted" })}>{run.id}</p>
           ) : null}
       </div>
     </UiDisclosure>

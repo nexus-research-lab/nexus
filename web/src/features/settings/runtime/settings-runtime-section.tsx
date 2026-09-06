@@ -1,6 +1,6 @@
 /**
  * INPUT: 运行引擎、工具发现与网页搜索偏好。
- * OUTPUT: 以用户任务语言展示的运行设置、公共紧凑搜索选择器和按需高级搜索配置。
+ * OUTPUT: 以任务语言、可读分组标题和公共控件展示运行设置与按需高级搜索配置。
  * POS: 设置目录的运行分区，不暴露底层 schema 或 bridge 教学。
  */
 "use client";
@@ -762,12 +762,12 @@ function SettingsField({
 
 function SettingsSubsectionTitle({ children }: { children: ReactNode }) {
   return (
-    <div className={cn(
-      "md:col-span-2 flex items-center gap-1.5 border-t border-(--divider-subtle-color) pt-1.5",
-      getUiTypographyClassName({ role: "overline", tone: "default", weight: "semibold" }),
+    <h4 className={cn(
+      "md:col-span-2 flex items-center gap-1.5 border-t border-(--divider-subtle-color) pt-3",
+      getUiTypographyClassName({ role: "supporting", tone: "default", weight: "medium" }),
     )}>
       {children}
-    </div>
+    </h4>
   );
 }
 

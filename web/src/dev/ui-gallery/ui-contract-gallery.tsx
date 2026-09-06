@@ -223,10 +223,10 @@ export function UiContractGallery() {
               <TypographySample label="Page title · 16/20" textRole="pageTitle">{galleryText(locale, "界面与交互", "Interface and interaction")}</TypographySample>
               <TypographySample label="Section title · 14/20" textRole="sectionTitle">{galleryText(locale, "基础组件", "Foundation components")}</TypographySample>
               <TypographySample label="Body · 14/24" textRole="body">{galleryText(locale, "普通正文用于稳定阅读和必要说明。", "Body copy supports comfortable reading and essential guidance.")}</TypographySample>
+              <TypographySample label="Control · 14/20" textRole="control">{galleryText(locale, "输入与动作标签", "Input and action labels")}</TypographySample>
               <TypographySample label="Supporting · 13/20" textRole="supporting" tone="muted">{galleryText(locale, "辅助信息不与主要内容争夺注意力。", "Supporting information stays quieter than primary content.")}</TypographySample>
               <TypographySample label="Metadata · 12/18" textRole="metadata" tone="muted">{galleryText(locale, "更新于 2 分钟前 · 3 个成员", "Updated 2 minutes ago · 3 members")}</TypographySample>
               <TypographySample label="Caption · 11/16" textRole="caption" tone="soft">{galleryText(locale, "只用于计数和次级元数据", "Reserved for counts and secondary metadata")}</TypographySample>
-              <TypographySample label="Overline · 10/16" textRole="overline" tone="brand">Foundation</TypographySample>
               <TypographySample label="Code · 13/20" textRole="code" tone="default">workspace/ui-contract</TypographySample>
             </div>
           </GallerySection>
@@ -681,7 +681,7 @@ function GallerySection({
   return (
     <section className={`surface-panel min-w-0 p-4 sm:p-5 ${className ?? ""}`} data-gallery-section={title}>
       <div className="mb-5 border-b border-(--divider-subtle-color) pb-4">
-        <p className={getUiTypographyClassName({ role: "overline", tone: "brand" })}>{eyebrow}</p>
+        <p className={getUiTypographyClassName({ role: "metadata", tone: "brand", weight: "medium" })}>{eyebrow}</p>
         <h2 className={cn(
           "mt-1",
           getUiTypographyClassName({ role: "objectTitle", tone: "strong" }),

@@ -5,3 +5,4 @@
 - `use-runtime-settings-controller.ts` 复用 General 的 version CAS 偏好事务，负责 runtime 切换和 nxs 设置更新；读取失败、冲突和未知结果共用持续的对账提示。
 - `settings-runtime-section.tsx` 只负责运行时设置的展示，不直接调用 API；用户可见标题使用“运行引擎 / 工具发现 / 网页搜索”等任务语言，不把 ToolSearch、WebSearch、schema 或 bridge 当作页面说明；网页搜索首屏只显示服务与必填项，其余通用参数和服务参数放在“更多设置”中，密钥字段只作为更新请求输入，不展示服务端返回的明文。
 - `model/` 只保存 runtime 选择项等纯展示模型，不依赖 General 分区。
+- 高级配置中的分组标题保留真实 heading 语义，复用公共 supporting / medium；分割与分组间距只在本分区的组合组件持有，不再使用大字距微标签。

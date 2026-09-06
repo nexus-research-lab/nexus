@@ -1789,7 +1789,6 @@ test("App typography exposes one typed semantic role map", async () => {
       "supporting",
       "metadata",
       "caption",
-      "overline",
       "code",
     ].map((role) => getUiTypographyClassName({ role })),
     [
@@ -1803,7 +1802,6 @@ test("App typography exposes one typed semantic role map", async () => {
       "ui-type-supporting",
       "ui-type-metadata",
       "ui-type-caption",
-      "ui-type-overline",
       "ui-type-code",
     ],
   );
