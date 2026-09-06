@@ -49,3 +49,6 @@ yarn-error.log*
 !/src/lib/**
 !/src/shared/lib/
 !/src/shared/lib/**
+
+# npm lockfile (project uses pnpm)
+package-lock.json
