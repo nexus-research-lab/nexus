@@ -1,6 +1,6 @@
 /**
  * INPUT: 通用偏好、Echo 与默认模型目录状态。
- * OUTPUT: 分域恢复提示、唯一设置开关行和通用行为设置控件。
+ * OUTPUT: 分域恢复提示、唯一设置开关行与具名分段偏好字段。
  * POS: General 行为分区视图；Preferences 写入仍由版本化控制器负责。
  */
 "use client";
@@ -29,7 +29,6 @@ import { DELIVERY_POLICY_OPTIONS } from "../model/settings-options";
 import {
   SettingsToggleRow,
   SETTINGS_CARD_CLASS_NAME,
-  SETTINGS_CONTROL_LABEL_CLASS_NAME,
   SETTINGS_ICON_CLASS_NAME,
   SETTINGS_ITEM_DESCRIPTION_CLASS_NAME,
   SETTINGS_ITEM_TITLE_CLASS_NAME,
@@ -288,23 +287,20 @@ export function SettingsGeneralBehaviorSection({
               </p>
             </div>
           </div>
-          <div className="flex min-w-0 flex-col gap-1.5">
-            <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
-              {t("settings.general.default_delivery")}
-            </span>
-            <UiSegmentedControl
-              density="compact"
-              disabled={preferencesLoading || preferencesSaving}
-              onChange={onDefaultDeliveryPolicyChange}
-              options={DELIVERY_POLICY_OPTIONS.map((option) => ({
-                value: option.value,
-                label: t(option.labelKey),
-              }))}
-              stretch
-              title={t("settings.general.default_delivery")}
-              value={chatDefaultDeliveryPolicy}
-            />
-          </div>
+          <UiSegmentedControl
+            className="min-w-0"
+            density="compact"
+            disabled={preferencesLoading || preferencesSaving}
+            onChange={onDefaultDeliveryPolicyChange}
+            options={DELIVERY_POLICY_OPTIONS.map((option) => ({
+              value: option.value,
+              label: t(option.labelKey),
+            }))}
+            showLabel
+            stretch
+            title={t("settings.general.default_delivery")}
+            value={chatDefaultDeliveryPolicy}
+          />
         </div>
 
         <SettingsOnboardingRow onReset={onResetTours} />

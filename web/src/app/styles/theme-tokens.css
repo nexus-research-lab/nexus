@@ -634,7 +634,6 @@
 
   --chip-segmented-background: color-mix(in srgb, var(--material-chip-background) 92%, transparent);
   --chip-segmented-border: var(--material-chip-border);
-  --chip-segmented-icon-color: var(--icon-default);
   --chip-segmented-option-color: var(--text-default);
   --chip-segmented-option-hover-background: color-mix(in srgb, var(--interaction-hover-background) 88%, transparent);
   --chip-segmented-option-hover-color: var(--text-strong);

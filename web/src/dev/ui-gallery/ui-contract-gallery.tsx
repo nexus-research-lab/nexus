@@ -11,7 +11,6 @@ import {
   Layers3,
   LoaderCircle,
   MousePointer2,
-  Palette,
   Plus,
   RefreshCw,
   Search,
@@ -173,7 +172,6 @@ export function UiContractGallery() {
 
           <div className="flex flex-wrap items-center gap-2 lg:justify-end">
             <UiSegmentedControl
-              icon={Palette}
               onChange={setTheme}
               options={THEME_OPTIONS}
               title={galleryText(locale, "视觉主题", "Visual theme")}

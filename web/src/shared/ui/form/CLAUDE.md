@@ -19,5 +19,7 @@
 - `UiRemovableChip` 是标签输入和多选字段中“已选实体 + 移除动作”的唯一原语；实体集合由业务持有，移除必须是具名 native IconButton。复合选择器的菜单触发器与移除按钮必须是兄弟节点，禁止把 `span role=button` 或真实 button 嵌入另一个 button。
 - `UiSegmentedControl` 是有限互斥选项的唯一入口；选中态使用背景与文字对比，不加阴影，普通设置不使用胶囊圆角。业务页面只提供选项、当前值和尺寸密度，不得再定义私有分段选择器。
 - 需要可见组名时使用 `UiSegmentedControl showLabel`；它用 UiField 显示 title，且只由该 Field 命名一个 group。消费者不再包裹 label 或重复命名的 Field；未开启时仍由控件自己的 group 提供名称。
+- stretch 填满可用宽度但按内容伸缩，避免长短标签必须等分宽度；无论是否 stretch，受限容器中的长名称都允许换行。
 - 分段选项的 icon/text 使用同一个行内布局；全局 `focus-visible` 继续拥有键盘焦点，不能被选中底面的 `box-shadow: none` 清除。禁用选项继续显示当前值，但不触发 hover 背景或变更命令。
+- 分段常规/紧凑文字与最小高度直接在该组件投影，长名称可换行并随组等高；纯图标选项组合 UiTooltip，组不产生重复原生 title。仅供 Gallery 装饰的组图标参数及独占 recipe/token 已移除，产品选项图标继续保留；样式门禁覆盖其消费者，独立回归验证原生/fieldset 禁用和键盘提示。
 - `form-controls.test.tsx` 与 `removable-chip.test.tsx` 以真实 invalid/input、select、键盘和点击事件覆盖 Field、Input、NativeSelect、SearchInput、Checkbox/CheckboxRow、Choice/RadioChoice、RemovableChip 与 SegmentedControl 的 ARIA/状态合同。

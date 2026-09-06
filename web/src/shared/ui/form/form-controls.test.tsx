@@ -445,9 +445,9 @@ describe("form primitives", () => {
     expect(group.className).not.toContain("rounded-full");
     expect(once.getAttribute("aria-pressed")).toBe("true");
     expect(once.className).toContain("radius-control-sm");
-    expect(once.className).toContain("ui-type-caption");
-    expect(once.className).toContain("whitespace-nowrap");
-    expect(once.className).not.toContain("min-w-0");
+    expect(once.className).toContain("ui-type-control");
+    expect(once.className).toContain("whitespace-normal");
+    expect(once.className).toContain("min-w-0");
     expect(once.className).not.toContain("shadow-");
     expect(recurring.getAttribute("aria-pressed")).toBe("false");
     await user.click(recurring);

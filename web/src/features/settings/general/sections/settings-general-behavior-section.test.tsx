@@ -51,6 +51,21 @@ function view(children: ReactNode, locale: "zh" | "en" = "zh") {
 }
 
 describe("General setting switches", () => {
+  it("uses one visible delivery group and preserves exact preference selection and saving locks", async () => {
+    const user = userEvent.setup();
+    const props = preferences();
+    const { rerender } = render(view(<SettingsGeneralBehaviorSection {...props} />));
+    const group = screen.getByRole("group", { name: "默认消息行为" });
+    expect(document.getElementById(group.getAttribute("aria-labelledby")!)?.textContent).toBe("默认消息行为");
+    expect(screen.getAllByText("默认消息行为")).toHaveLength(1);
+    await user.click(within(group).getByRole("button", { name: "打断" }));
+    expect(props.onDefaultDeliveryPolicyChange).toHaveBeenCalledExactlyOnceWith("interrupt");
+    expect(props.onEchoEnabledChange).not.toHaveBeenCalled();
+    rerender(view(<SettingsGeneralBehaviorSection {...props} preferencesSaving />));
+    await user.click(within(group).getByRole("button", { name: "排队" }));
+    expect(props.onDefaultDeliveryPolicyChange).toHaveBeenCalledTimes(1);
+  });
+
   it.each(["zh", "en"] as const)("names each %s setting and changes only the selected leaf", async (locale) => {
     const user = userEvent.setup();
     const props = preferences();

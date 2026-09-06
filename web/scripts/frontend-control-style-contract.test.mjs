@@ -71,6 +71,18 @@ test("visual guard keeps list row state and surface choices in their owner", () 
   ]);
 });
 
+test("visual guard owns segmented paint and typography while allowing layout", () => {
+  const source = `
+    import { UiSegmentedControl as Choices } from "@/shared/ui/form/segmented-control";
+    const custom = { className: "font-bold bg-red-500 rounded-full" };
+    const invalid = <Choices {...custom} />;
+    const layout = <Choices density="compact" stretch className="min-w-0 w-full shrink-0" />;
+  `;
+  assert.deepEqual(findControlVisualOverrides(samplePath, source).map((issue) => issue.value), [
+    "font-bold", "bg-red-500", "rounded-full",
+  ]);
+});
+
 test("visual guard respects block and parameter shadowing", () => {
   const source = header + `
     const style = "bg-(--primary)";

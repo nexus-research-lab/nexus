@@ -1903,10 +1903,9 @@ test("settings reuse semantic typography and the shared segmented control", asyn
   assert.doesNotMatch(settingsStyles, /SettingsSegmentedControl/);
   assert.doesNotMatch(settingsStyles, /(?:text|leading|tracking|font)-\[/);
   assert.doesNotMatch(settingsStyles, /rounded-\[/);
-  assert.match(segmentedControl, /getUiTypographyClassName\(\{ role: "caption"/);
+  assert.match(segmentedControl, /getUiTypographyClassName\(\{ role: density === "compact" \? "supporting" : "control"/);
   assert.match(segmentedControl, /surface-radius-md/);
-  assert.match(segmentedControl, /whitespace-nowrap/);
-  assert.doesNotMatch(segmentedControl, /min-w-0/);
+  assert.match(segmentedControl, /whitespace-normal/);
   assert.doesNotMatch(segmentedControl, /rounded-full|shadow-/);
   for (const consumer of [appearance, behavior, runtime]) {
     assert.match(consumer, /UiSegmentedControl/);

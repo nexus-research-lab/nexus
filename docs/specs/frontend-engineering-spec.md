@@ -196,6 +196,7 @@ Primitive 同时拥有 DOM、键盘、焦点、ARIA 和视觉状态合同，例�
 - 页面内容、目录视图和列表筛选的标签切换统一使用只有中性底线选中态的 `UiTabs`；目录工具栏的紧凑、自适应宽度预设使用按类型命名的跨领域 `UiDirectoryTabs`，不得创建 `Capability*Tabs` 等业务域转发层。有限互斥配置值使用 `UiSegmentedControl`，不得在两者之间仅凭局部审美互换；
 - variant 必须存在真实视觉或行为差异；完全相同的 variant 合并；
 - 带可见组名的分段选择使用 `UiSegmentedControl showLabel` 组合公共 Field，由外层持有唯一 group 名称；不能包入原生 label 或叠加同名 group。单输入 Field 的标签仍通过实例级 htmlFor/id 指向真实控件，不能靠包装整个复合区域推断目标；
+- 分段选择的文字角色、密度、图文高度与换行由 UiSegmentedControl 统一拥有；消费者只声明选项图标、值、命令和外部布局。纯图标选项复用 UiTooltip，不叠加原生 title；受控选择继续使用原生按钮与 aria-pressed，不由提示或焦点移动改写业务值；
 - 普通按钮、输入和模态不得绕过已有 primitive 手写第二套行为。
 - 普通 Dialog 的名称由 `UiDialogHeader.title` 自动关联到最近 `UiDialogBackdrop`；公共层持有实例唯一 ID 和标题注册/释放，业务不重复接线。显式 `labelledBy` / `aria-labelledby` / `aria-label` 优先于自动标题；自定义 Header 内容或无标题栏预览必须显式命名。说明关联仍由业务指定，不自动将复杂正文压成一条可访问描述。
 - 已有详情浮层的 IconButton 必须通过 `tooltip={null}` 关闭自动短提示，并由详情拥有 `aria-describedby`。只读 Tooltip/用量详情使用浮层层的 `restoreFocus: false`，打开和关闭不移动焦点；交互式菜单和 Dialog 继续遵守其焦点归还合同。
@@ -368,7 +369,7 @@ Composer 的间距配方
 
 - `src/**/*.test.tsx`：与 primitive/pattern 共置的 Vitest + jsdom 行为测试，必须通过 Testing Library 从角色、名称和真实用户事件观察组件；
 - `scripts/*.test.mjs`：纯模型、协议、架构边界和禁止项合同；不得在这里伪造 DOM 交互结论，统一入口以有界并发运行，避免大量独立 Vite 转换进程使门禁随机崩溃；
-- `frontend-control-style-contract.test.mjs` 禁止公共 Button、ListRow/ListAction、Select 与 Form（Input/Textarea/NativeSelect/SearchInput/Checkbox/Choice）调用方的静态视觉覆盖；支持控件别名/命名空间导入、词法作用域内常量、条件表达式与对象展开，并追踪本地模块的具名不可变常量导入与具名转导出，同时检查 `className`、`buttonClassName`、`inputClassName` 和内联 `style`。它保留局部遮蔽、参数和循环边界，允许布局与独立图标内容，不执行模块或函数。命名空间样式常量、星号转导出、外部 CSS 和运行时计算样式仍需审查，不能将静态门禁通过视为全部视觉实现无覆盖。
+- `frontend-control-style-contract.test.mjs` 禁止公共 Button、ListRow/ListAction、Select 与 Form（Input/Textarea/NativeSelect/SearchInput/Checkbox/Choice/SegmentedControl）调用方的静态视觉覆盖；支持控件别名/命名空间导入、词法作用域内常量、条件表达式与对象展开，并追踪本地模块的具名不可变常量导入与具名转导出，同时检查 `className`、`buttonClassName`、`inputClassName` 和内联 `style`。它保留局部遮蔽、参数和循环边界，允许布局与独立图标内容，不执行模块或函数。命名空间样式常量、星号转导出、外部 CSS 和运行时计算样式仍需审查，不能将静态门禁通过视为全部视觉实现无覆盖。
 - `frontend-token-contract.test.mjs` 通过既有 CSS 工具链和 TypeScript AST 检查全部生产 CSS/TS 的静态 `var()`、Tailwind 简写和模板 CSS；必需引用必须有声明，可选注入必须有 fallback，三主题的 canonical 别名不得缺失、循环或在同一声明块重复。明确进入 `color-mix()` 的公共控件颜色槽还需解析其别名并通过既有 DOM CSS 解析器的颜色校验，拒绝把已声明的渐变误用为颜色。检查不执行运行时表达式，也不把全局声明集合或解析器接受当作 DOM 继承、实际绘制或文字对比度证明；没有逐文件违规额度。
 - `npm run test:components` 与 `npm run test:contracts` 可分别定位失败，`npm test` 必须串行覆盖两类测试。
 - `npm run check` 串行执行 lint、typecheck、上述两类测试和生产构建。
