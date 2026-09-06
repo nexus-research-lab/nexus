@@ -1,3 +1,7 @@
+// INPUT: 当前 Agent 与工作区预载范围。
+// OUTPUT: 文件打开目标、预载与受限辅助面板宽度/拖动状态。
+// POS: 首页工作区协调；鼠标监听归共享 useMouseDrag，文件请求归 store。
+
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -7,6 +11,7 @@ import {
   HOME_SIDE_PANEL_DEFAULT_WIDTH_PERCENT,
 } from "@/lib/layout/home-layout";
 import { useResettableState } from "@/shared/lib/react/use-resettable-state";
+import { useMouseDrag } from "@/shared/lib/react/use-mouse-drag";
 import { useWorkspaceFilesStore } from "@/store/workspace-files";
 import { TodoItem } from "@/types/conversation/todo";
 import { HomeWorkspaceControllerOptions } from "@/types/app/workspace";
@@ -18,7 +23,6 @@ export function useHomeWorkspaceController({
   const agentResetKey = currentAgentId ? "has-agent" : "no-agent";
   const [activeWorkspacePath, setActiveWorkspacePath] = useResettableState<string | null>(null, agentResetKey);
   const [sidePanelWidthPercent, setSidePanelWidthPercent] = useState(HOME_SIDE_PANEL_DEFAULT_WIDTH_PERCENT);
-  const [isResizingSidePanel, setIsResizingSidePanel] = useState(false);
   const [currentTodos, setCurrentTodos] = useResettableState<TodoItem[]>([], agentResetKey);
   const surfaceSplitRef = useRef<HTMLElement | null>(null);
   const filesByAgent = useWorkspaceFilesStore((state) => state.files_by_agent);
@@ -70,47 +74,22 @@ export function useHomeWorkspaceController({
     }
   }, [requestOpenAgent, setActiveWorkspacePath]);
 
-  const handleStartSidePanelResize = useCallback(() => {
-    setIsResizingSidePanel(true);
+  const handleResizeMove = useCallback((event: MouseEvent) => {
+    const bounds = surfaceSplitRef.current?.getBoundingClientRect();
+    if (!bounds || bounds.width <= 0) return;
+    const nextPercent = ((bounds.right - event.clientX) / bounds.width) * 100;
+    setSidePanelWidthPercent(clampHomeSidePanelWidthPercent(nextPercent));
   }, []);
-
-  useEffect(() => {
-    if (!isResizingSidePanel) {
-      return;
-    }
-
-    const handleMouseMove = (event: MouseEvent) => {
-      const container = surfaceSplitRef.current;
-      if (!container) {
-        return;
-      }
-
-      const bounds = container.getBoundingClientRect();
-      const nextPercent = ((bounds.right - event.clientX) / bounds.width) * 100;
-      setSidePanelWidthPercent(clampHomeSidePanelWidthPercent(nextPercent));
-    };
-
-    const handleMouseUp = () => {
-      setIsResizingSidePanel(false);
-    };
-
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
-
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [isResizingSidePanel]);
+  const { isDragging, startDragging } = useMouseDrag(handleResizeMove);
 
   return {
     activeWorkspacePath,
     sidePanelWidthPercent,
-    isResizingSidePanel,
+    isResizingSidePanel: isDragging,
     currentTodos,
     surfaceSplitRef,
     setCurrentTodos,
     handleOpenWorkspaceFile,
-    handleStartSidePanelResize,
+    handleStartSidePanelResize: startDragging,
   };
 }

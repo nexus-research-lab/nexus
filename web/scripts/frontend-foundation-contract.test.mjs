@@ -3268,3 +3268,14 @@ test("Workspace file rows reuse shared buttons and typography", async () => {
   assert.match(model, /getUiTypographyClassName/);
   assert.doesNotMatch(model, /text-sm|leading-\[/);
 });
+
+test("Auxiliary and file panel controllers share the mouse drag lifecycle", async () => {
+  const controllers = await Promise.all([
+    readSource("src/hooks/home/use-home-workspace-controller.ts"),
+    readSource("src/features/conversation/room/workspace/view/use-workspace-file-list-layout.ts"),
+  ]);
+  for (const source of controllers) {
+    assert.match(source, /useMouseDrag\(/);
+    assert.doesNotMatch(source, /window\.(?:add|remove)EventListener\(["'](?:mousemove|mouseup|blur)["']/);
+  }
+});

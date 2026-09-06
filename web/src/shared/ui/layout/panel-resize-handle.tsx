@@ -1,3 +1,7 @@
+// INPUT: 横向分栏入口名称、布局变体与调用方的开始拖动命令。
+// OUTPUT: 只响应主鼠标键的分栏热区，避免原生文字选择。
+// POS: 共享分栏命中区；尺寸与拖动生命周期归布局控制器。
+
 "use client";
 
 import type { MouseEventHandler } from "react";
@@ -25,7 +29,11 @@ export function PanelResizeHandle({
           ? "relative w-2 shrink-0 self-stretch"
           : "absolute left-0 top-0 w-3",
       )}
-      onMouseDown={onResizeStart}
+      onMouseDown={(event) => {
+        if (event.button !== 0) return;
+        event.preventDefault();
+        onResizeStart(event);
+      }}
       type="button"
     />
   );
