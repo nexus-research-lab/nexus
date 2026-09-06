@@ -1,5 +1,5 @@
 // INPUT: Room/DM 的 Workspace 选择、当前相对路径、成员身份与面板布局状态。
-// OUTPUT: 文件目录、预览、切换器和弹窗组成的响应式 Workspace 工作面。
+// OUTPUT: 文件目录、预览、切换器和弹窗组成的响应式 Workspace 工作面；堆叠/专注时停用目录拖动。
 // POS: Conversation Workspace 组合层；不拥有文件事务或公共 Breadcrumb 视觉。
 "use client";
 
@@ -55,11 +55,11 @@ export function RoomWorkspaceView({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [previewHeaderTarget, setPreviewHeaderTarget] =
     useState<HTMLDivElement | null>(null);
-  const fileListLayout = useWorkspaceFileListLayout();
   const [isPreviewFocused, setIsPreviewFocused] = useResettableState(
     false,
     activeWorkspacePath ? "has-path" : "no-path",
   );
+  const fileListLayout = useWorkspaceFileListLayout(!isStacked && !isPreviewFocused);
   const controller = useRoomWorkspaceController({
     activeWorkspacePath,
     agentId,

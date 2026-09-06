@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Auxiliary and workspace file panels share mouse drag cleanup. Resizing ends
+  on window blur, hidden documents or a released primary button, and file-list
+  dragging stops when switching to stacked or focused preview layouts. Secondary
+  mouse buttons no longer start a resize; zero-width containers keep their size.
 - Workspace file trees preserve nested expansion after parent collapse and
   directory refresh, and discard preferences for removed directories. File
   rows use shared buttons, named disclosure states and full-path action labels;
