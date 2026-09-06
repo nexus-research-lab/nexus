@@ -5,12 +5,19 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useRef, useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UiActionMenu } from "@/shared/ui/menu/action-menu";
+import { UiDialogBackdrop, UiDialogPortal, UiDialogShell } from "@/shared/ui/dialog/dialog";
 import { UiMenuActionRow } from "@/shared/ui/menu/menu-action-row";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import { SelectMenuOptionRow } from "@/shared/ui/menu/select-menu-primitives";
+
+// jsdom 不计算布局；为焦点目录提供可见控件的矩形，不模拟浏览器视觉验收。
+beforeEach(() => {
+  vi.spyOn(HTMLElement.prototype, "getClientRects").mockReturnValue([new DOMRect(0, 0, 100, 32)] as unknown as DOMRectList);
+});
+afterEach(() => vi.restoreAllMocks());
 
 describe("UiSelectMenu", () => {
   it("owns reusable listbox option semantics and preserves consumer events", async () => {
@@ -214,6 +221,78 @@ describe("UiActionMenu", () => {
     await user.click(action);
     await user.click(disabledAction);
     expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([false, true])("exits on Tab with shift=%s and continues from the anchor", async (shift) => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    function Harness() {
+      const anchorRef = useRef<HTMLButtonElement>(null);
+      const [isOpen, setIsOpen] = useState(false);
+      return <>
+        <button type="button">之前</button>
+        <button type="button" ref={anchorRef} onClick={() => setIsOpen(true)}>菜单</button>
+        <button type="button">之后</button>
+        <UiActionMenu anchorRef={anchorRef} ariaLabel="动作" isOpen={isOpen}
+          items={[{ label: "打开", value: "open" }, { label: "删除", value: "delete" }]}
+          onClose={() => setIsOpen(false)} onSelect={onSelect} />
+      </>;
+    }
+    render(<Harness />);
+    await user.click(screen.getByRole("button", { name: "菜单" }));
+    await user.keyboard("{End}");
+    expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: "删除" }));
+    await user.tab({ shift });
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: shift ? "之前" : "之后" }));
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("keeps Tab exit inside the enclosing real modal, including its wrap boundary", async () => {
+    const user = userEvent.setup();
+    const onDialogClose = vi.fn();
+    function Harness() {
+      const anchorRef = useRef<HTMLButtonElement>(null);
+      const [isOpen, setIsOpen] = useState(false);
+      return <>
+        <button type="button">背景动作</button>
+        <UiDialogPortal><UiDialogBackdrop aria-label="设置" onClose={onDialogClose}><UiDialogShell>
+          <button type="button">弹窗首项</button>
+          <button ref={anchorRef} type="button" onClick={() => setIsOpen(true)}>菜单</button>
+          <UiActionMenu anchorRef={anchorRef} ariaLabel="动作" isOpen={isOpen}
+            items={[{ label: "打开", value: "open" }]}
+            onClose={() => setIsOpen(false)} onSelect={vi.fn()} />
+        </UiDialogShell></UiDialogBackdrop></UiDialogPortal>
+      </>;
+    }
+    render(<Harness />);
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "弹窗首项" })));
+    await user.click(screen.getByRole("button", { name: "菜单" }));
+    await user.tab();
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "弹窗首项" }));
+    expect(onDialogClose).not.toHaveBeenCalled();
+  });
+
+  it("keeps an all-disabled menu focusable and lets Escape return to its trigger", async () => {
+    const user = userEvent.setup();
+    function Harness() {
+      const anchorRef = useRef<HTMLButtonElement>(null);
+      const [isOpen, setIsOpen] = useState(false);
+      return <>
+        <button ref={anchorRef} type="button" onClick={() => setIsOpen(true)}>菜单</button>
+        <UiActionMenu anchorRef={anchorRef} ariaLabel="不可用动作" isOpen={isOpen}
+          items={[{ label: "等待中", value: "wait", disabled: true }]}
+          onClose={() => setIsOpen(false)} onSelect={vi.fn()} />
+      </>;
+    }
+    render(<Harness />);
+    const trigger = screen.getByRole("button", { name: "菜单" });
+    await user.click(trigger);
+    expect(document.activeElement).toBe(screen.getByRole("menu"));
+    await user.keyboard("{ArrowDown}{Escape}");
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(document.activeElement).toBe(trigger);
   });
 
   it("focuses and traverses enabled items, then restores the anchor", async () => {

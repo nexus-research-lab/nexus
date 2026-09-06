@@ -1,10 +1,9 @@
 // INPUT: 外部控制的打开态、锚点、菜单项与选择/关闭命令。
-// OUTPUT: 可见后获得初始焦点、重定位时保留当前焦点的 action menu，选择/Escape 后归还触发器。
+// OUTPUT: 可见后获得初始焦点、重定位时保留焦点的 action menu；选择/Escape 归还触发器，Tab 退出到相邻控件。
 // POS: Action Menu 交互 pattern；不持有业务值或决定命令是否允许。
 "use client";
 
 import {
-  type KeyboardEvent,
   type ReactNode,
   type RefObject,
   useCallback,
@@ -13,6 +12,8 @@ import {
 import { createPortal } from "react-dom";
 
 import { cn } from "@/shared/ui/class-name";
+
+import { focusFirstMenuItem, handleMenuKeyDown } from "./menu-keyboard";
 
 import {
   getMenuItemLayout,
@@ -76,43 +77,6 @@ interface UiActionMenuProps {
 const ACTION_MENU_MAX_HEIGHT = 320;
 const ACTION_MENU_FOOTER_SEPARATOR_HEIGHT = 9;
 const EMPTY_ACTION_MENU_ITEMS: UiActionMenuItem[] = [];
-const ENABLED_ACTION_MENU_ITEM_SELECTOR = '[role="menuitem"]:not([aria-disabled="true"])';
-
-function handleActionMenuKeyDown({
-  event,
-}: {
-  event: KeyboardEvent<HTMLDivElement>;
-}) {
-  if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
-    return;
-  }
-  const items = Array.from(
-    event.currentTarget.querySelectorAll<HTMLElement>(
-      ENABLED_ACTION_MENU_ITEM_SELECTOR,
-    ),
-  );
-  if (items.length === 0) {
-    return;
-  }
-  event.preventDefault();
-  const currentIndex = items.indexOf(document.activeElement as HTMLElement);
-  if (event.key === "Home") {
-    items[0].focus();
-    return;
-  }
-  if (event.key === "End") {
-    items[items.length - 1].focus();
-    return;
-  }
-  const direction = event.key === "ArrowDown" ? 1 : -1;
-  const fallbackIndex = direction > 0 ? -1 : 0;
-  const nextIndex = (
-    (currentIndex >= 0 ? currentIndex : fallbackIndex)
-    + direction
-    + items.length
-  ) % items.length;
-  items[nextIndex].focus();
-}
 
 function estimateActionMenuHeight({
   density = "default",
@@ -213,9 +177,7 @@ export function UiActionMenu({
     if (!isOpen || !portalContainer || !isMenuPositioned) {
       return;
     }
-    menuRef.current
-      ?.querySelector<HTMLElement>(ENABLED_ACTION_MENU_ITEM_SELECTOR)
-      ?.focus();
+    focusFirstMenuItem(menuRef.current);
   }, [isMenuPositioned, isOpen, menuRef, portalContainer]);
 
   if (!isOpen) {
@@ -224,10 +186,13 @@ export function UiActionMenu({
   if (!portalContainer) {
     return null;
   }
-  const select = (value: string) => {
-    onSelect(value);
+  const closeAndRestoreFocus = () => {
     onClose();
     anchorRef.current?.focus();
+  };
+  const select = (value: string) => {
+    onSelect(value);
+    closeAndRestoreFocus();
   };
 
   return createPortal(
@@ -241,9 +206,7 @@ export function UiActionMenu({
       )}
       data-placement={menuPosition?.placement ?? "bottom"}
       data-state="open"
-      onKeyDown={(event) => handleActionMenuKeyDown({
-        event,
-      })}
+      onKeyDown={(event) => handleMenuKeyDown(event, closeAndRestoreFocus)}
       role="menu"
       style={menuStyle}
       tabIndex={-1}

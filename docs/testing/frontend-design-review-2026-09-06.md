@@ -1536,3 +1536,48 @@ Mention 新增七项代码行为回归，覆盖当前候选关联及属性恢复
 `/tmp/nexus-mention-a46-focused.log`（补齐 jsdom 可见性夹具后的通过结果）、
 `/tmp/nexus-mention-a46-typecheck.log` 和 `/tmp/nexus-mention-a46-check.log`
 （最终全部通过）。未运行浏览器或真实宿主视觉验证。
+
+
+## A47：动作与级联菜单共用键盘和焦点目录
+
+Action、Workspace 文件上下文菜单与 Room 模型菜单统一消费 menu-keyboard 的
+首项焦点、当前层级方向键/Home/End 遍历。查询只包含当前 menu 的可用条目，
+跳过 native/fieldset disabled 和 aria-disabled；不跨进子菜单，不截获编辑框的
+移动键、IME、已处理事件或外部 Portal 的 React 冒泡。空菜单或全部不可用时
+聚焦可退出的菜单根。Action 原有 private 键盘实现已删除，选值和命令合同不变。
+
+Tab 回归暴露 Portal 关闭后原始事件目标消失会令焦点落到 body；菜单现在先
+关闭并归还锚点，再按页面/模态的相邻 Tab 位置移动，模态内保持循环，页面边界
+没有相邻项时留在锚点。Dialog 原有可用 DOM 目录移到中立的 focus-navigation，
+两者共用可见性、inert、原生/fieldset 禁用、负 tabindex、radio 组及 Tab 排序，
+dialog-focus 只保留自身焦点位置与无滚动聚焦，未引入第二份 selector。
+
+Room 模型入口在完成定位后进入 Agent 菜单；点击/右方向键进入模型，左方向键
+或第一次 Escape 返回此前 Agent，第二次 Escape 才关闭。宽屏悬浮只投影目标，
+不移动键盘焦点；悬浮已打开同一目标后，键盘进入立即聚焦，不等待不会发生的
+状态提交。窄屏返回通过 Agent identity 找到重新挂载的行，模型/重置菜单都有
+名称和归属关系。模型更新、继承值重置、显式底部重置与 busy 保持原控制器命令。
+菜单行高估算删除两份领域常量，直接消费 getMenuItemLayout。
+
+Workspace 主/子菜单复用同一遍历，点击/右方向键进入打开方式，左方向键/Escape
+逐层返回。显式关闭归还打开前焦点，外部点击保持目标焦点；StrictMode effect
+重放不会把返回位置覆盖成菜单内按钮。补齐文件 INPUT/OUTPUT/POS。其坐标碰撞、
+Portal/模态仲裁和鼠标级联边界仍待后续收口；Room 的宽高及响应式切换也继续
+审查，未因复用了菜单行就标记整项完成。
+
+新增 15 项组件回归覆盖共享导航、Tab/反向 Tab、真实 Dialog 内的循环边界、
+全禁用菜单、原生焦点目录、宽窄模型选择/返回、悬浮与键盘衔接、模型继承/重置、
+busy 和外部 disabled、Workspace 键盘级联与 StrictMode 下的退出。现有菜单、
+Workspace 桌面打开命令及 Dialog 回归一起通过。没有启动浏览器或实际宿主，
+DOM/夹具不作为用户已暂停的视觉验收证据。
+
+清单仍为 485 项：338 pending、126 in_progress、8 retained、10 improved、
+3 removed；三个涉及视图的源码摘要已更新，所有存活摘要一致。新增文件都是
+中立 TS 或行为测试，公共组件清单仍为 122 项。整个 Goal 继续。
+
+验证：完整 npm run check 成功（lint、typecheck、470 项合同、197 个文件的
+648 项组件回归及生产 build，保留既有大型分块提示），日志为
+/tmp/nexus-menu-a47-check.log。随后补齐悬浮衔接和 StrictMode 焦点边界，并整理
+Tab helper，最终再次完成 lint、typecheck 和六个目标文件的 37 项 DOM 回归，
+日志分别为 /tmp/nexus-menu-a47-final-lint.log、
+/tmp/nexus-menu-a47-final-typecheck.log 和 /tmp/nexus-menu-a47-final-focused.log。
