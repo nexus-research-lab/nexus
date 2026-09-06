@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Let Room context details grow to their content within the shared viewport limit,
+  keep the heading visible, and scroll longer member lists instead of clipping
+  the final agent's token usage.
 - Move runtime search settings onto shared Field labels and errors, isolate
   control and advanced-panel IDs per instance, and keep secret actions separate
   from labels. Labeled segmented controls now expose one named group; runtime

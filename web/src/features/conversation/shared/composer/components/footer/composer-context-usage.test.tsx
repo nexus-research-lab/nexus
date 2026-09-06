@@ -1,5 +1,5 @@
 // INPUT: DM/Room 上下文快照与 hover、focus、Escape 和清空事件。
-// OUTPUT: 证明只有一份关联详情，延迟 Tooltip 不叠加，Room 保留逐 Agent 快照。
+// OUTPUT: 证明唯一详情、焦点和逐 Agent 快照保持，Room 高度只由共享边界和视口约束。
 // POS: 上下文指标 DOM 回归；实际碰撞与截图由浏览器矩阵验证。
 
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
@@ -12,7 +12,10 @@ import { ComposerContextUsage } from "./composer-context-usage";
 const USAGE = { max_tokens: 1_000_000, percentage: 2, total_tokens: 16_900 };
 const LOCALIZATION = { locale: "en" as const, setLocale: () => undefined, t: (key: string) => key };
 
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
 
 describe("ComposerContextUsage", () => {
   it("keeps one hover detail after the generic tooltip delay and preserves keyboard focus", () => {
@@ -78,5 +81,36 @@ describe("ComposerContextUsage", () => {
     expect(screen.queryByRole("button")).toBeNull();
     expect(screen.queryByRole("tooltip")).toBeNull();
     expect(container.querySelector('[data-context-usage-slot="empty"]')).toBeTruthy();
+  });
+
+  it("lets Room content use the available height without a guessed per-row cap and updates on resize", () => {
+    const view = (count: number) => <I18N_CONTEXT.Provider value={LOCALIZATION}>
+      <ComposerContextUsage items={Array.from({ length: count }, (_, index) => ({
+        agentId: `agent-${index}`, name: `Agent ${index}`, usage: USAGE,
+      }))} usage={null} />
+    </I18N_CONTEXT.Provider>;
+    const { rerender } = render(view(3));
+    const trigger = screen.getByRole("button");
+    const measure = vi.spyOn(trigger, "getBoundingClientRect")
+      .mockReturnValue(new DOMRect(240, 360, 28, 28));
+    fireEvent.mouseEnter(trigger);
+    const detail = screen.getByRole("tooltip");
+    const list = within(detail).getByRole("list", { name: "composer.context_window_by_agent" });
+    expect(within(list).getAllByRole("listitem")).toHaveLength(3);
+    expect(detail.style.maxHeight).toBe("248px");
+    expect(detail.style.height).toBe("");
+
+    measure.mockReturnValue(new DOMRect(240, 150, 28, 28));
+    fireEvent.resize(window);
+    expect(detail.style.maxHeight).toBe("132px");
+    rerender(view(12));
+    expect(within(list).getAllByRole("listitem")).toHaveLength(12);
+    expect(detail.style.maxHeight).toBe("132px");
+
+    measure.mockReturnValue(new DOMRect(240, 360, 28, 28));
+    fireEvent.resize(window);
+    expect(detail.style.maxHeight).toBe("248px");
+    expect(screen.getAllByRole("tooltip")).toHaveLength(1);
+    expect(trigger.getAttribute("aria-describedby")).toBe(detail.id);
   });
 });
