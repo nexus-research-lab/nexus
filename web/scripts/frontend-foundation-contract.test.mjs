@@ -791,6 +791,22 @@ test("File and Memory source editing have one native primitive owner", async () 
   }
 });
 
+test("Streaming source shares editor metrics and uses the static motion owner", async () => {
+  const [editor, streaming, fileBody, recipes] = await Promise.all([
+    readSource("src/shared/ui/form/source-editor.tsx"),
+    readSource("src/shared/ui/feedback/typewriter-file-view.tsx"),
+    readSource("src/features/conversation/shared/editor/text/text-file-editor-body.tsx"),
+    readSource("src/app/styles/theme-recipes.css"),
+  ]);
+  for (const source of [editor, streaming]) {
+    assert.match(source, /import \{ UI_SOURCE_TEXT_CLASS_NAME \} from/);
+  }
+  assert.match(streaming, /<UiBadge\b/);
+  assert.doesNotMatch(streaming, /@chenglou\/pretext|document\.createElement|document\.head/);
+  assert.doesNotMatch(streaming + fileBody, /containerWidth|ResizeObserver/);
+  assert.match(recipes, /@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{\s*\.ui-source-write-cursor\s*\{\s*animation:\s*none;/);
+});
+
 test("General, Personal, and Browser settings share semantic Spinner roles", async () => {
   const paths = [
     "src/features/settings/browser/browser-settings-section.tsx",

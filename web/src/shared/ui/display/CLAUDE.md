@@ -2,7 +2,8 @@
 
 - 本目录拥有头像、徽标、元数据、骨架屏和状态块等只读展示组件。
 - `UiSkeleton` 是加载占位颜色、胶囊外形、脉冲动效和 reduced-motion 行为的唯一所有者；`strong/default/subtle` 只表达同一占位组内的信息层级，业务调用方只传布局宽高和必要的语义 shape，不得重写颜色或 `animate-pulse`。
-- `UiQRCode` 只把调用方已经选定的 payload 投影为二维码和兜底链接，不解释登录或授权协议；动态生成必须区分加载中与已失败，业务方可提供不暴露载荷的完整失败说明。外层表面、圆角、状态文案与可选 payload 使用共享 Panel、shape 与 Typography，只有二维码纸张保留固定扫描尺寸。
+- `UiSkeletonCardList` 只播报一次本地化加载状态，各占位卡作为装饰隐藏，数量不增加重复播报。
+- `UiQRCode` 只把调用方已经选定的 payload 投影为二维码和可选原文，不解释登录或授权协议；动态生成按当前 payload 隔离迟到结果，生成失败及内嵌/生成图片解码失败均进入本地化反馈，新 payload 才重新开始。业务方可提供完整失败说明，`showPayload=false` 时不能显示原文。外层表面、圆角、状态文案与可选 payload 使用共享 Panel、shape 与 Typography，只有二维码纸张保留固定扫描尺寸。
 - 业务状态必须先由消费者投影，共享组件不解析领域协议。
 - `UiBadge` 默认使用共享紧凑圆角；只有数字聚合、版本等明确胶囊语义才传 `shape="pill"`。业务层不得再用 `rounded-*` 覆盖徽标外形。
 - `UiCounterBadge` 的实底与文字使用同一危险语义色及主题配对前景；`UiBadge` 的 active/success 共用外观配方，但保留消费者传入的业务语义。信息徽标的颜色只由当前 Badge recipe 派生，不保留第二套无消费者的主题色表。

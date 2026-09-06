@@ -1362,3 +1362,44 @@ lint、生产 build 和 8 项 token 合同通过，日志
 `/tmp/nexus-memory-approved-background.log`。本批只有三个背景声明变化，未改动
 业务逻辑，未重复上一批 Memory 功能测试，也未执行视觉验收。清单摘要全部
 匹配，数量与整个 Goal 范围保持不变。
+
+## A43：收口反馈组件生命周期与流式源码展示
+
+按用户要求继续代码与行为审查，未进行视觉验证。逐一核对二维码、骨架占位、
+流式源码、活动字符和反馈定位的公共所有者与生产消费者；本节的 improved /
+retained 沿用 A41 的代码审查含义，不能作为渲染或真实宿主验收证据。
+
+`UiQRCode` 保留原有 Panel、Typography、固定扫描尺寸与调用方授权流程，
+默认加载/失败反馈接入中英文目录。动态生成仍只接受当前 payload 的结果，
+旧 effect 已取消时不再开始编码；内嵌与生成图片的解码错误现在都进入失败态，
+更换 payload 重新开始。调用方定制说明和隐藏原文选项保留，组件不推断授权动作。
+七项生命周期回归覆盖旧任务晚成功/失败、图片失败、新 payload 恢复、语言切换、
+生成拒绝/空结果、原文隐私以及首尾空白不触发重复生成。
+
+`UiSkeleton` 原有颜色、形状与 reduced-motion 配方适合装饰占位，保留。
+`UiSkeletonCardList` 改为一条本地化加载状态，各卡片只作装饰，删除每张卡重复
+的中文播报和冗余参数绑定，保留任务历史的数量与布局输入。
+
+`TypewriterFileView` 共用新增的 `form/source-text-styles.ts` 度量所有者，
+源码编辑与写入预览不再分别维护等宽字体、字号和行高。行数按真实换行计算，
+窗口尚未测量或变窄不会改变计数，空文件与末尾换行按当前插入行计数；徽标放在
+正文之外，避免覆盖文件内容。保留原文与追加时跟随底部，使用公共 running 徽标，
+光标移到静态主题 recipe 并支持减少动态效果。移除 pretext 测量常量、行数派生
+状态、宽度传参、Body 专用 ResizeObserver 和运行时 style 注入；pretext 仍有
+其他生产用途，不能删除依赖。新增三项行为回归及共享字体/静态动效所有权门禁。
+
+LoadingOrb 的两种语义帧型、固定装饰尺寸与静态动效配方继续保留；
+FeedbackBannerViewport 的单条反馈定位、窄屏布局和语义 layer 也继续保留，
+没有建立替代组件或附加状态。Lottie 及领域页面仍在后续审查范围。
+
+清单仍为 485 项：349 pending、122 in_progress、7 retained、4 improved、
+3 removed；现存文件摘要全部匹配。只新增内部样式模块，公共 UI 仍为 122 项；
+Gallery 只删除已不存在的宽度参数，未增加场景或执行视觉校验。整个 Goal 继续。
+
+验证：`npm run check` 中 lint、typecheck 及 466 项合同先通过；唯一受沙箱限制
+的临时 localhost HTTP/WS 夹具测试（`listen EPERM`）在获准监听端口后单独通过，
+合计 467 项合同通过，未启动浏览器或连接运行中的业务服务。随后完整组件测试
+190 个文件、606 项回归及生产 build 全部通过；构建仍提示大型依赖分块超过
+500 kB。日志分别为 `/tmp/nexus-feedback-a43-check.log`、
+`/tmp/nexus-feedback-a43-fixtures.log`、`/tmp/nexus-feedback-a43-components.log`
+和 `/tmp/nexus-feedback-a43-build.log`。未把拆开完成的门禁记录成整条命令成功。

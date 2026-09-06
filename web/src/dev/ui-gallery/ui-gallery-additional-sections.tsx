@@ -305,7 +305,6 @@ export function ContentGallery({ locale }: { locale: Locale }) {
           </div>
           <TypewriterFileView
             content={galleryText(locale, "共享组件来自唯一实现。\n语言切换只改变 fixture 文案。", "Shared components come from one implementation.\nLocale changes only replace fixture copy.")}
-            containerWidth={520}
           />
         </PreviewCard>
       </PreviewSection>

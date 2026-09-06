@@ -374,7 +374,26 @@
     }
   }
 
+  @keyframes nexus-source-cursor-blink {
+    0%, 48% { opacity: 1; }
+    52%, 100% { opacity: 0; }
+  }
+
+  .ui-source-write-cursor {
+    display: inline-block;
+    width: 2px;
+    height: 1em;
+    margin-inline-start: 1px;
+    vertical-align: -0.12em;
+    background: var(--primary);
+    animation: nexus-source-cursor-blink 0.8s step-end infinite;
+  }
+
   @media (prefers-reduced-motion: reduce) {
+    .ui-source-write-cursor {
+      animation: none;
+    }
+
     [data-scroll-to-latest][data-generating="true"] .nexus-scroll-latest-dot,
     .nexus-live-tool-text {
       animation: none;

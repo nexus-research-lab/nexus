@@ -1,46 +1,33 @@
+// INPUT: Exact file contents as they grow and outer layout classes.
+// OUTPUT: Read-only source text, localized logical line count and a decorative writing cursor.
+// POS: Streaming file presentation; preserves bottom-follow behavior and owns no file commands.
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { prepare, layout } from "@chenglou/pretext";
-
-// Font matching the textarea: font-mono text-sm leading-6
-const MONO_FONT = "400 14px ui-monospace, SFMono-Regular, Menlo, monospace";
-const LINE_HEIGHT = 24; // leading-6 = 1.5rem = 24px
+import { useEffect, useMemo, useRef } from "react";
+import { useI18n } from "@/shared/i18n/i18n-context";
+import { cn } from "@/shared/ui/class-name";
+import { UiBadge } from "@/shared/ui/display/badge";
+import { UI_SOURCE_TEXT_CLASS_NAME } from "@/shared/ui/form/source-text-styles";
 
 interface TypewriterFileViewProps {
   /** The full content being written (grows over time) */
   content: string;
-  /** Width of the view container in px; used to measure line wraps */
-  containerWidth?: number;
   className?: string;
 }
 
 /**
  * Replaces the plain textarea when an agent is actively writing a file.
  *
- * Uses pretext to measure how many lines the current content fills, then
- * displays a live line-count badge and a blinking write-cursor at the end.
- * The text itself renders in a read-only pre element to match the textarea style.
+ * Counts file lines rather than display wraps, so resizing never changes the count.
+ * Source text shares the editor metrics and remains selectable without an overlay.
  */
 export function TypewriterFileView({
   content,
-  containerWidth: containerWidth,
-  className: className,
+  className,
 }: TypewriterFileViewProps) {
-  const [lineCount, setLineCount] = useState(1);
+  const { t } = useI18n();
+  const lineCount = useMemo(() => content.split(/\r\n|\r|\n/).length, [content]);
   const preRef = useRef<HTMLPreElement>(null);
-
-  useEffect(() => {
-    if (!containerWidth || containerWidth <= 0) return;
-    try {
-      const prepared = prepare(content, MONO_FONT);
-      const result = layout(prepared, containerWidth, LINE_HEIGHT);
-      setLineCount(Math.max(1, Math.round(result.height / LINE_HEIGHT)));
-    } catch {
-      // Fallback: count raw newlines
-      setLineCount(content.split("\n").length);
-    }
-  }, [content, containerWidth]);
 
   // Scroll to bottom as content grows
   useEffect(() => {
@@ -49,58 +36,20 @@ export function TypewriterFileView({
   }, [content]);
 
   return (
-    <div className={`relative flex h-full min-h-0 flex-col overflow-hidden font-mono text-sm leading-6 ${className ?? ""}`}>
-      {/* Line count badge */}
-      <div className="absolute right-4 top-3 z-10 flex items-center gap-1.5 rounded-[6px] border border-[color:color-mix(in_srgb,var(--primary)_14%,transparent)] bg-transparent px-2 py-0.5 text-2xs font-semibold text-primary/80">
-        <span
-          className="h-1.5 w-1.5 rounded-full bg-primary/70"
-        />
-        {lineCount} {lineCount === 1 ? "line" : "lines"}
+    <div className={cn("flex h-full min-h-0 flex-col overflow-hidden", className)}>
+      <div className="flex shrink-0 justify-end pb-2">
+        <UiBadge className="tabular-nums" tone="running">
+          {t(lineCount === 1 ? "common.source_line_count_one" : "common.source_line_count_other", { count: lineCount })}
+        </UiBadge>
       </div>
 
       <pre
         ref={preRef}
-        className="soft-scrollbar h-full w-full overflow-auto whitespace-pre-wrap break-all rounded-[12px] border border-(--divider-subtle-color) bg-transparent p-5 text-(--text-strong)"
-        style={{ wordBreak: "break-word" }}
+        className={cn("soft-scrollbar min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain whitespace-pre-wrap break-words text-(--text-default)", UI_SOURCE_TEXT_CLASS_NAME)}
       >
         {content}
-        <WriteCursor />
+        <span className="ui-source-write-cursor" aria-hidden="true" />
       </pre>
     </div>
   );
-}
-
-// A block-level write cursor: thicker than the streaming cursor,
-// using a bright amber/green accent to signal "agent writing"
-let writeCursorStyleInjected = false;
-function ensureWriteCursorStyle() {
-  if (writeCursorStyleInjected || typeof document === "undefined") return;
-  writeCursorStyleInjected = true;
-  const style = document.createElement("style");
-  style.textContent = `
-    @keyframes _nexus_write_cursor {
-      0%   { opacity: 1; }
-      48%  { opacity: 1; }
-      52%  { opacity: 0; }
-      100% { opacity: 0; }
-    }
-    .nexus-write-cursor {
-      display: inline-block;
-      width: 8px;
-      height: 1em;
-      margin-left: 1px;
-      margin-bottom: -0.12em;
-      border-radius: 2px;
-      background: linear-gradient(180deg, var(--success) 0%, color-mix(in srgb, var(--success) 78%, black) 100%);
-      box-shadow: 0 0 8px 2px color-mix(in srgb, var(--success) 50%, transparent);
-      animation: _nexus_write_cursor 0.8s step-end infinite;
-      vertical-align: baseline;
-    }
-  `;
-  document.head.appendChild(style);
-}
-
-function WriteCursor() {
-  useEffect(() => { ensureWriteCursorStyle(); }, []);
-  return <span className="nexus-write-cursor" aria-hidden />;
 }

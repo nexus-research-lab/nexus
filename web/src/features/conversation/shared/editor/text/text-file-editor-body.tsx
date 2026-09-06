@@ -1,10 +1,9 @@
-// INPUT: exact Agent 与文件正文、模式、编辑命令和布局观察。
+// INPUT: exact Agent 与文件正文、模式和编辑命令。
 // OUTPUT: 保留文件归属的预览或公共源码编辑视图，透传可选字段身份。
 // POS: 文本编辑器正文装配；所有渲染模式透传同一 Agent scope。
 import {
   useEffect,
   useRef,
-  useState,
   type ComponentType,
   type Dispatch,
   type RefObject,
@@ -22,7 +21,6 @@ import type { TextEditorBodyMode } from "./text-file-editor-model";
 
 interface TextEditorBodyViewProps {
   agentId: string;
-  containerWidth: number;
   content: string;
   exitEditingOnBlur: boolean;
   editorId?: string;
@@ -38,20 +36,18 @@ interface TextEditorBodyViewProps {
 
 interface TextFileEditorBodyProps extends Omit<
   TextEditorBodyViewProps,
-  "containerWidth" | "exitEditingOnBlur" | "textareaRef"
+  "exitEditingOnBlur" | "textareaRef"
 > {
   exitEditingOnBlur?: boolean;
   mode: TextEditorBodyMode;
 }
 
 function StreamingBody({
-  containerWidth,
   content,
 }: TextEditorBodyViewProps) {
   return (
     <TypewriterFileView
       className="h-full min-h-0"
-      containerWidth={containerWidth > 0 ? containerWidth - 40 : undefined}
       content={content}
     />
   );
@@ -120,32 +116,12 @@ const TEXT_EDITOR_BODIES: Record<
   streaming: StreamingBody,
 };
 
-function useElementWidth(ref: RefObject<HTMLDivElement | null>): number {
-  const [width, setWidth] = useState(0);
-  useEffect(() => {
-    const element = ref.current;
-    if (!element) {
-      return;
-    }
-    const observer = new ResizeObserver(([entry]) => {
-      if (entry) {
-        setWidth(entry.contentRect.width);
-      }
-    });
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [ref]);
-  return width;
-}
-
 export function TextFileEditorBody({
   exitEditingOnBlur = true,
   mode,
   ...props
 }: TextFileEditorBodyProps) {
-  const editorAreaRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const editorWidth = useElementWidth(editorAreaRef);
   const Body = TEXT_EDITOR_BODIES[mode];
 
   useEffect(() => {
@@ -160,11 +136,9 @@ export function TextFileEditorBody({
         "h-full min-h-0 min-w-0 flex-1 overflow-hidden",
         mode === "html" ? "p-0" : "px-4 py-4",
       )}
-      ref={editorAreaRef}
     >
       <Body
         {...props}
-        containerWidth={editorWidth}
         exitEditingOnBlur={exitEditingOnBlur}
         textareaRef={textareaRef}
       />

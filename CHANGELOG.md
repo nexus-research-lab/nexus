@@ -27,6 +27,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Shared streaming file previews now use the source editor's text metrics,
+  localized logical line counts outside the text, and a motion-aware cursor;
+  removed redundant width measurement and runtime style injection.
+- QR displays now localize loading and failure feedback, handle image decode
+  failures, and discard outdated generation work; skeleton card lists announce
+  loading once instead of repeating it for every placeholder.
 - Removed unused dismiss behavior from ordinary view/filter selectors and
   centralized their typography; workspace session tab controls remain intact.
 - Restored the previous Memory page layout as a whole, including its compact

@@ -5,11 +5,13 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
+import { MESSAGES } from "@/shared/i18n/messages";
 
 import { UiBadge, UiCounterBadge } from "@/shared/ui/display/badge";
 import { UiQRCode } from "@/shared/ui/display/qr-code";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
-import { UiSkeleton } from "@/shared/ui/display/skeleton";
+import { UiSkeleton, UiSkeletonCardList } from "@/shared/ui/display/skeleton";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
 
 describe("display badges", () => {
@@ -46,11 +48,29 @@ describe("UiSkeleton", () => {
   });
 });
 
+describe("UiSkeletonCardList", () => {
+  it("announces one localized loading state for all decorative cards", () => {
+    const view = (locale: "en" | "zh") => <I18N_CONTEXT.Provider value={{ locale, setLocale: vi.fn(), t: (key) => MESSAGES[locale][key] }}>
+      <UiSkeletonCardList count={3} />
+    </I18N_CONTEXT.Provider>;
+    const { container, rerender } = render(view("en"));
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(screen.getAllByText("Loading…")).toHaveLength(1);
+    expect(screen.getByRole("status").getAttribute("aria-busy")).toBe("true");
+    expect(container.querySelectorAll('[aria-hidden="true"]')).toHaveLength(3);
+    rerender(view("zh"));
+    expect(screen.queryByText("Loading…")).toBeNull();
+    expect(screen.getAllByText(MESSAGES.zh["common.loading"])).toHaveLength(1);
+  });
+});
+
 describe("UiQRCode", () => {
   it("uses the shared surface, shape, and code typography contracts", () => {
     const payload = "data:image/png;base64,AAAA";
     const { container } = render(
-      <UiQRCode alt="授权二维码" payload={payload} />,
+      <I18N_CONTEXT.Provider value={{ locale: "zh", setLocale: vi.fn(), t: (key) => MESSAGES.zh[key] }}>
+        <UiQRCode alt="授权二维码" payload={payload} />
+      </I18N_CONTEXT.Provider>,
     );
 
     expect(container.querySelector("section.surface-radius-md")).toBeTruthy();
