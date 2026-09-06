@@ -76,6 +76,24 @@ test("same-owner storage signals reload current data without an echo write", asy
   assert.deepEqual(second.state().pinned_conversations, []);
 });
 
+test("stale same-Room commands preserve other opened tabs and exact tab closing preserves pins", async () => {
+  const first = await page();
+  const stale = await page();
+  first.state().remember_last_active_conversation("room", "first");
+  stale.state().remember_last_active_conversation("room", "second");
+  first.state().remember_last_active_conversation("room", "third");
+  first.state().toggle_pinned_conversation({ room_id: "room", conversation_id: "second", session_key: "second", title: "Second" });
+  stale.state().close_conversation_tab("room", "first", "second");
+  assert.deepEqual(saved().conversation_tabs_by_room.room, {
+    open_conversation_ids: ["second", "third"], active_conversation_id: "second",
+  });
+  first.state().close_conversation_tab("room", "second", "third");
+  assert.deepEqual(saved().conversation_tabs_by_room.room.open_conversation_ids, ["third"]);
+  assert.equal(saved().pinned_conversations[0].conversation_id, "second");
+  const refreshed = await page();
+  assert.deepEqual(refreshed.state().conversation_tabs_by_room.room.open_conversation_ids, ["third"]);
+});
+
 test("unchanged navigation commands keep their state reference and cannot trigger a render loop", async (t) => {
   const current = await page();
   current.state().remember_last_active_conversation("room", "conversation");

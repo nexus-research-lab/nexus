@@ -535,6 +535,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Preserve open Session tabs when an older conversation list refreshes. Creating
+  a Session or selecting history appends its tab; closing removes only that tab
+  while retaining other open tabs and pinned Sessions across reloads.
 - Restored conversation WorkGraph draft cards when `nexus.command` returns its
   structured result through the MCP wrapper.
 - Accepted bridge-preserved JSON integer tokens at the command schema boundary,

@@ -1,8 +1,8 @@
 /**
  * Room 导航偏好 Store
  *
- * [INPUT]: Room 导航命令、持久快照、应用注入的 owner 校验与 owner reset
- * [OUTPUT]: 合并当前 owner 最新快照的标签与固定偏好，跨页面恢复不覆盖其他导航操作
+ * [INPUT]: Room 导航及精确标签关闭命令、持久快照、应用注入的 owner 校验与 owner reset
+ * [OUTPUT]: 合并当前 owner 最新快照的标签与固定偏好，旧页面只增删明确目标，不覆盖其他已打开标签
  * [POS]: store 模块的页面导航工作区状态，不参与服务端会话排序
  */
 
@@ -47,6 +47,11 @@ interface RoomNavigationState {
   remember_last_active_conversation: (
     roomId: string,
     conversationId: string,
+  ) => void;
+  close_conversation_tab: (
+    roomId: string,
+    conversationId: string,
+    activeConversationId: string,
   ) => void;
   save_room_conversation_tabs: (
     roomId: string,
@@ -144,6 +149,18 @@ export const useRoomNavigationStore = create<RoomNavigationState>()(
             ...state.conversation_tabs_by_room,
             [normalizedRoomId]: nextTabs,
           },
+        };
+      }),
+      close_conversation_tab: (roomId, conversationId, activeConversationId) => set((state) => {
+        const normalizedRoomId = roomId.trim();
+        const normalizedConversationId = conversationId.trim();
+        const currentTabs = state.conversation_tabs_by_room[normalizedRoomId];
+        if (!currentTabs || !currentTabs.open_conversation_ids.includes(normalizedConversationId)) return state;
+        const nextIds = currentTabs.open_conversation_ids.filter((id) => id !== normalizedConversationId);
+        const nextTabs = buildConversationTabsState(nextIds, activeConversationId);
+        if (!nextTabs || nextTabs.active_conversation_id === normalizedConversationId) return state;
+        return {
+          conversation_tabs_by_room: { ...state.conversation_tabs_by_room, [normalizedRoomId]: nextTabs },
         };
       }),
       save_room_conversation_tabs: (

@@ -1,5 +1,5 @@
 // INPUT: Room 会话、路由选择、持久标签偏好与创建/关闭/替换命令。
-// OUTPUT: 已打开会话、乐观活动项、单飞事务和按 Room 持久化的导航命令。
+// OUTPUT: 已打开会话、乐观活动项、单飞事务和精确打开/关闭命令；旧列表不清除持久标签。
 // POS: Room 标签业务控制器；共享视图独立拥有 DOM、测量与滚动。
 
 import {
@@ -57,6 +57,8 @@ export function useRoomConversationTabs({
   const saveRoomConversationTabs = useRoomNavigationStore(
     (state) => state.save_room_conversation_tabs,
   );
+  const rememberLastActiveConversation = useRoomNavigationStore((state) => state.remember_last_active_conversation);
+  const closeConversationTab = useRoomNavigationStore((state) => state.close_conversation_tab);
   const orderedConversationIds = useMemo(
     () => getConversationIdsByCreationTime(conversations),
     [conversations],
@@ -106,7 +108,6 @@ export function useRoomConversationTabs({
     if (
       !roomId
       || !activeConversationId
-      || openConversationIds.length === 0
       || !shouldPersistConversationTabs({
         activeConversationId,
         routeConversationId: conversationId,
@@ -114,14 +115,14 @@ export function useRoomConversationTabs({
     ) {
       return;
     }
-    // 中文注释：路由追上乐观活动项后再收敛持久化，避免旧路由把点击事务反向覆盖。
-    saveRoomConversationTabs(roomId, openConversationIds, activeConversationId);
+    // A route change opens its exact target. List refreshes are presentation
+    // updates and must not remove tabs opened by another page or newer command.
+    rememberLastActiveConversation(roomId, activeConversationId);
   }, [
     activeConversationId,
     conversationId,
-    openConversationIds,
     roomId,
-    saveRoomConversationTabs,
+    rememberLastActiveConversation,
   ]);
 
   useEffect(() => {
@@ -143,19 +144,9 @@ export function useRoomConversationTabs({
     if (pendingActionRef.current?.kind === "replace") {
       return;
     }
-    const nextOpenConversationIds = reconcileOpenConversationIds({
-      conversationId: nextConversationId,
-      currentIds: openConversationIds,
-      orderedIds: orderedConversationIds,
-      pendingClosedId: null,
-    });
     flushSync(() => {
       if (roomId) {
-        saveRoomConversationTabs(
-          roomId,
-          nextOpenConversationIds,
-          nextConversationId,
-        );
+        rememberLastActiveConversation(roomId, nextConversationId);
       }
       setOptimisticActiveId(nextConversationId);
     });
@@ -236,18 +227,15 @@ export function useRoomConversationTabs({
       return;
     }
 
-    const nextOpenConversationIds = openConversationIds.filter(
-      (id) => id !== targetConversationId,
-    );
     const nextActiveConversationId = targetConversationId === activeConversationId
       ? fallbackConversationId
       : activeConversationId;
 
     flushSync(() => {
       if (roomId && nextActiveConversationId) {
-        saveRoomConversationTabs(
+        closeConversationTab(
           roomId,
-          nextOpenConversationIds,
+          targetConversationId,
           nextActiveConversationId,
         );
       }
