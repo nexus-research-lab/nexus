@@ -2590,6 +2590,10 @@ test("Contacts communication separates orchestration and reuses shared directory
   assert.match(directory, /<UiListRow/);
   assert.match(directory, /<UiPanel/);
   assert.match(directory, /<UiDialogFormShell/);
+  assert.match(directory, /<SidebarSearchField/);
+  assert.match(directory, /<SidebarSearchAction/);
+  assert.match(view, /busy=\{state\.isRemoving\}/);
+  assert.match(view, /variant="danger"/);
   assert.match(directory, /getUiSpinnerClassName/);
   assert.match(status, /<UiResourceState/);
   assert.doesNotMatch(

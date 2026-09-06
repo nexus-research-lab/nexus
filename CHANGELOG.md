@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Unify contact communication search and empty-state actions, keep pending friend
+  additions reviewable, and bind removal confirmations to their original target.
 - Unify Agent identity labels and field density, associate name validation and
   template guidance with their inputs, and let shared Select controls grow for
   long model names. Preserve IME composition in tag drafts, localize removal

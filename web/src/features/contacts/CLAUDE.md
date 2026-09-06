@@ -19,6 +19,9 @@
 - 视图回调由页面消费者定义，保持具体且不暴露整页控制器。
 - “联络”栏目由 `agent-communication-view.tsx` 只编排 Agent 视角的好友私聊工作面；`agent-communication-directory.tsx` 独立拥有搜索、好友行和添加弹窗，`agent-communication-model.ts` 统一名称/筛选投影，`agent-communication-status.tsx` 统一空、加载和读取失败。左侧只列好友并提供搜索/添加，普通群聊继续使用“聊天”入口；目录和候选项复用 `UiListRow`，容器、状态、动作和表单分别复用 `UiPanel / UiResourceState / UiButton / UiField`，不得手写原生按钮、字号、字重、任意圆角或 Spinner。右侧必须用 `WorkspaceSurfaceHeader` 与导航域 `RoomConversationTabs` 组成和聊天页同构的单行 Header，并复用 `ConversationPanelLayout`、`MessageItem` 和 `ComposerPanel`，不得复制消息气泡、输入壳、通讯录配置页或独立记录页。
 - 通讯录、会话、当前消息和更早消息的读取失败必须在原位置说明发生了什么、已有内容是否受影响以及下一步，并提供只刷新失败阶段的动作；同作用域有成功快照时继续展示并明确可能过期，没有快照时显示失败而不是空状态，权限失效、资源不存在或切换作用域后不得继续展示旧内容。
+- 联络目录搜索与添加入口由 `SidebarSearchField / SidebarSearchAction` 持有；无匹配提供清除动作，真实空目录提供添加动作，过滤后的空结果不得覆盖已有目录的刷新状态。
+- 添加好友弹窗在提交期间锁定关闭、候选、搜索与备注；当前有效候选是提交目标，搜索隐藏选择时明确显示已选身份，离开当前 Agent 后的迟到成功不得关闭另一个弹窗。
+- 删除好友确认保存打开时的目标快照，并投影控制器 `isRemoving`；目录选择变化不得改写确认目标，旧目标完成不得关闭新的确认。
 - 好友首次联络没有既有 Session 时也必须显示 Composer；首条手动消息由通讯发送接口原子确保隐藏通道，并用回执 Session 接续历史。
 - 好友私聊向上滚动时复用共享历史加载与前插锚定，按 `timestamp + message_id` 游标拉取更早消息，不得回退为扩大一次性 limit。
 - 联络 Header 可删除双向好友关系，但不得删除隐藏 Room 和消息历史；再次添加同一好友对时恢复原通道。
