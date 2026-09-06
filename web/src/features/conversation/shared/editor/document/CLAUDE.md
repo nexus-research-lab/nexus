@@ -5,3 +5,4 @@
 - `document-preview-dom.ts` 集中 docx 渲染产物的页面测量与媒体归一化，不承载 React 状态。
 - `document-preview-view.tsx` 只渲染状态、工具栏和预览容器，不发起网络请求或直接调用 docx 解析器。
 - Office 文件下载与载荷上限统一经过相邻的 `office-preview-resource.ts`。
+- `document-preview-view.tsx` 使用上层统一加载/失败面；加载时仍挂载测量容器与样式宿主，状态展示不得改动 DOCX 渲染样式、缩放或资源控制器。

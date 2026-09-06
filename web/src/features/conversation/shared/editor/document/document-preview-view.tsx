@@ -1,9 +1,10 @@
-import type { CSSProperties, ReactNode, RefObject } from "react";
-import { Eye, FileWarning, LoaderCircle } from "lucide-react";
+// INPUT: Parsed DOCX status, host refs, scale and file actions.
+// OUTPUT: One shared preview state while retaining the document renderer and its measurement hosts.
+// POS: DOCX presentation; no fetching or parsing.
+import type { CSSProperties, RefObject } from "react";
 
 import { cn } from "@/shared/ui/class-name";
-import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
-import { useI18n } from "@/shared/i18n/i18n-context";
+import { WorkspaceFilePreviewLoading } from "../workspace-file-preview-loading";
 import { OfficePreviewFailureState } from "../office-preview-fallbacks";
 import {
   WorkspaceFileDownloadButton,
@@ -81,7 +82,6 @@ export function DocumentPreviewView({
         isPreviewFocused={isPreviewFocused}
         onTogglePreviewFocus={onTogglePreviewFocus}
         path={path}
-        status={status}
       />
       <DocumentPreviewViewport
         containerRef={containerRef}
@@ -101,7 +101,6 @@ interface DocumentPreviewHeaderProps {
   isPreviewFocused: boolean;
   onTogglePreviewFocus: () => void;
   path: string;
-  status: DocumentPreviewStatus;
 }
 
 function DocumentPreviewHeader({
@@ -110,7 +109,6 @@ function DocumentPreviewHeader({
   isPreviewFocused,
   onTogglePreviewFocus,
   path,
-  status,
 }: DocumentPreviewHeaderProps) {
   return (
     <WorkspaceFilePreviewHeader
@@ -127,38 +125,9 @@ function DocumentPreviewHeader({
           />
         </>
       )}
-      meta={<DocumentPreviewStatusMeta status={status} />}
       title={fileName}
     />
   );
-}
-
-function DocumentPreviewStatusMeta({
-  status,
-}: { status: DocumentPreviewStatus }) {
-  const { t } = useI18n();
-  const statusViews = {
-    error: (
-      <span className="flex items-center gap-1 text-destructive">
-        <FileWarning className="h-3 w-3" />
-        {t("workspace_file.preview_failed_status")}
-      </span>
-    ),
-    loaded: (
-      <span className="flex items-center gap-1 text-(--success)">
-        <Eye className="h-3 w-3" />
-        {t("workspace_file.preview_loaded")}
-      </span>
-    ),
-    loading: (
-      <span className="flex items-center gap-1">
-        <LoaderCircle className={getUiSpinnerClassName({ size: "xs" })} />
-        {t("workspace_file.preview_loading")}
-      </span>
-    ),
-  } satisfies Record<DocumentPreviewStatus["state"], ReactNode>;
-
-  return statusViews[status.state];
 }
 
 interface DocumentPreviewViewportProps {
@@ -202,20 +171,8 @@ function DocumentPreviewViewport({
         />
       )}
       {status.state === "loading" ? (
-        <DocumentPreviewLoading />
+        <WorkspaceFilePreviewLoading className="pointer-events-none absolute inset-0" />
       ) : null}
-    </div>
-  );
-}
-
-function DocumentPreviewLoading() {
-  const { t } = useI18n();
-  return (
-    <div className="pointer-events-none absolute inset-x-0 top-24 flex justify-center">
-      <div className="inline-flex items-center gap-2 rounded-full border border-(--divider-subtle-color) bg-(--surface-panel-background) px-3 py-1.5 text-xs text-(--text-muted) shadow-sm">
-        <LoaderCircle className={getUiSpinnerClassName({ size: "sm" })} />
-        <span>{t("workspace_file.preview_loading")}</span>
-      </div>
     </div>
   );
 }

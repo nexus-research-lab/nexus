@@ -1,9 +1,11 @@
-import { LoaderCircle } from "lucide-react";
+// INPUT: Office preview kind, file scope, focus action and an explicit retry callback.
+// OUTPUT: Shared loading/failure surfaces with one file header and domain-specific failure copy.
+// POS: Lazy Office module fallback; no binary fetch or parsing.
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
-import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import { WorkspaceFilePreviewLoading } from "./workspace-file-preview-loading";
 import {
   WorkspaceFileDownloadButton,
   WorkspaceFilePreviewFocusButton,
@@ -16,23 +18,13 @@ export type OfficePreviewKind =
   | "presentation"
   | "spreadsheet";
 
-interface OfficePreviewDescriptor {
-  failureTitleKey: TranslationKey;
-}
-
 const OFFICE_PREVIEW_DESCRIPTORS: Record<
   OfficePreviewKind,
-  OfficePreviewDescriptor
+  TranslationKey
 > = {
-  document: {
-    failureTitleKey: "workspace_file.document_preview_failed",
-  },
-  presentation: {
-    failureTitleKey: "workspace_file.presentation_preview_failed",
-  },
-  spreadsheet: {
-    failureTitleKey: "workspace_file.spreadsheet_preview_failed",
-  },
+  document: "workspace_file.document_preview_failed",
+  presentation: "workspace_file.presentation_preview_failed",
+  spreadsheet: "workspace_file.spreadsheet_preview_failed",
 };
 
 export function OfficePreviewFallback({
@@ -43,7 +35,6 @@ export function OfficePreviewFallback({
   onTogglePreviewFocus,
   path,
 }: WorkspaceFilePreviewProps & { kind: OfficePreviewKind }) {
-  const { t } = useI18n();
   return (
     <>
       <WorkspaceFilePreviewHeader
@@ -60,29 +51,13 @@ export function OfficePreviewFallback({
             />
           </>
         )}
-        meta={(
-          <span className="flex items-center gap-1">
-            <LoaderCircle className={getUiSpinnerClassName({ size: "xs" })} />
-            {t("workspace_file.preview_loading")}
-          </span>
-        )}
         title={fileName}
       />
       <div
         className="flex min-h-0 flex-1 items-center justify-center bg-[var(--surface-panel-subtle-background)] p-8 text-center"
         data-office-preview-kind={kind}
       >
-        <div className="max-w-xs">
-          <LoaderCircle
-            className={getUiSpinnerClassName(
-              { size: "2xl", tone: "primary" },
-              "mx-auto",
-            )}
-          />
-          <p className="mt-3 text-sm font-medium text-(--text-strong)">
-            {t("workspace_file.preview_loading")}
-          </p>
-        </div>
+        <WorkspaceFilePreviewLoading />
       </div>
     </>
   );
@@ -106,7 +81,7 @@ export function OfficePreviewFailureState({
       }}
       size="sm"
       state="error"
-      title={t(OFFICE_PREVIEW_DESCRIPTORS[kind].failureTitleKey)}
+      title={t(OFFICE_PREVIEW_DESCRIPTORS[kind])}
       urgency="polite"
       variant="card"
     />

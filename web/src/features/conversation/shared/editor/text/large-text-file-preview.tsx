@@ -1,16 +1,16 @@
 // INPUT: 已确认超过整文件读取上限的 UTF-8 workspace 文本。
-// OUTPUT: 每次至多 512KiB 的只读 Range 分段预览。
+// OUTPUT: 每次至多 512KiB 的只读 Range 分段预览与共享加载状态。
 // POS: 大型文本预览边界；不把片段拼接成整文件，也不提供编辑语义。
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, LoaderCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { getWorkspaceFileTextChunkApi } from "@/lib/api/agent/agent-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
-import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import { WorkspaceFilePreviewLoading } from "../workspace-file-preview-loading";
 import type { WorkspaceFileTextChunk } from "@/types/agent/agent";
 
 import {
@@ -110,12 +110,7 @@ export function LargeTextFilePreview({
             />
           </div>
         ) : loadState === "loading" || !chunk ? (
-          <div className="flex h-full items-center justify-center text-sm text-(--text-soft)">
-            <LoaderCircle
-              className={getUiSpinnerClassName({ size: "md" }, "mr-2")}
-            />
-            {t("workspace_file.loading")}
-          </div>
+          <WorkspaceFilePreviewLoading className="h-full" title={t("workspace_file.loading")} />
         ) : (
           <>
             <div className="flex shrink-0 items-center justify-between gap-3 border-b divider-subtle px-4 py-2">

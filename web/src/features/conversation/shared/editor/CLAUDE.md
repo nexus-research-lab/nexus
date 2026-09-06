@@ -7,7 +7,7 @@
 - `workspace-file-preview-chrome.tsx` 统一文件位置、状态、下载与聚焦操作，不读取文件内容。它只把 Agent 显示名、相对父目录和文件名投影给全站 `UiBreadcrumb`；不得自行绘制箭头、拼接斜杠或定义层级字级。位置、必要状态与纯图标操作共用单行 chrome，文件名保持紧凑中等字重，不重复显示文件类型“预览”标签。所有标题栏图标动作固定复用 `UiIconButton size="sm" variant="ghost"`，不得再维护私有按钮 class；保存动作保持稳定槽位，内容边界只保留一条底部结构线。
 - 文件外部操作、聚焦、编辑、预览、保存和同步状态的文案必须由当前界面语言生成；纯展示模型接收翻译函数，不读取 React 上下文或保存固定中文。
 - `workspace-file-preview-kind.ts` 只负责扩展名分类；具体加载、解析和渲染归各文件类型子目录。
-- 文件预览 Header/状态行只使用共享 Spinner 的 `xs/sm` 尺寸，预览主体使用 `2xl` 尺寸；PDF、图片、Office、表格和大型文本不得自行拼接旋转动效、颜色或 reduced-motion class。
+- `workspace-file-preview-loading.tsx` 独占预览正文的共享 ResourceState/Spinner 组合；PDF、图片、Office、表格和文本入口只投影已有加载状态。Header 保留计数与独立写入同步事实，正文状态不再重复到 Header；布局与字号规则见根 `design.md`。
 - 大型文本在整文件读取被服务端拒绝后只用 HTTP Range 分段只读展示，不在 WebView 中拼接；PDF 交给浏览器 Range，图片与 Office 等不可安全分段的预览由服务端限制载荷。
 
 通用布局能力不得反向放入本目录。新增文件类型时先扩展分类和路由描述表，再由对应子域拥有实现。

@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Unified workspace file loading and empty states across media, Office and text
+  previews, removed duplicate header feedback and unused status copy, and
+  localized unsupported-file guidance for browser download and desktop reveal.
 - Share source-editor typography, scrolling and keyboard focus across workspace,
   profile and Memory surfaces; associate profile labels with their editor and
   isolate pending save confirmations while preserving newer drafts.
