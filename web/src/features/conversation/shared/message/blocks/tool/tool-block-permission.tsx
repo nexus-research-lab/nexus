@@ -1,14 +1,16 @@
-// INPUT: 工具权限请求、建议作用域、当前选择与交互禁用事实。
-// OUTPUT: 使用共享原生 Radio choice 的可访问权限范围选择区。
-// POS: ToolBlock 权限展示/选择层；不提交权限决定或解释后端授权。
+// INPUT: 建议作用域、当前选择、必要工具参数与交互禁用事实。
+// OUTPUT: 实例隔离的原生单选组、可读标签和关联的禁用原因。
+// POS: ToolBlock 权限展示/选择层；实例身份只控制 DOM 分组，不参与请求授权或提交决定。
 
+import { useId } from "react";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiRadioChoice } from "@/shared/ui/form/choice";
+import { UiField } from "@/shared/ui/form/form-control";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import { MessageDetailScroll } from "../../ui/message-rail";
 import type {
   ToolBlockViewModel,
-  ToolPermissionRequest,
 } from "./tool-block-types";
 
 interface ToolBlockPermissionProps {
@@ -16,7 +18,6 @@ interface ToolBlockPermissionProps {
   interactionDisabledReason?: string;
   model: ToolBlockViewModel;
   onSelectedSuggestionIndexChange: (index: number) => void;
-  permissionRequest: ToolPermissionRequest;
   selectedSuggestionIndex: number;
 }
 
@@ -25,15 +26,15 @@ export function ToolBlockPermission({
   interactionDisabledReason,
   model,
   onSelectedSuggestionIndexChange,
-  permissionRequest,
   selectedSuggestionIndex,
 }: ToolBlockPermissionProps) {
   const { t } = useI18n();
+  const scopeName = useId();
   return (
     <div className="message-cjk-font ml-7 mt-2 space-y-2 border-t border-(--divider-subtle-color) pt-2">
       {model.primaryInputDetail?.value.trim() ? (
         <div className="space-y-1 px-0 py-0 text-compact leading-5 text-(--text-default)">
-          <div className="text-2xs font-semibold uppercase tracking-[0.14em] text-(--text-soft)">
+          <div className={getUiTypographyClassName({ role: "metadata", tone: "muted", weight: "medium" })}>
             {model.primaryInputDetail.label}
           </div>
           <MessageDetailScroll>
@@ -45,63 +46,40 @@ export function ToolBlockPermission({
       ) : null}
 
       {model.readableSuggestions.length > 0 ? (
-        <div className="space-y-1">
-          <div className="text-2xs font-semibold uppercase tracking-[0.14em] text-(--text-soft)">
-            {t("message.tool_permission_scope")}
-          </div>
+        <UiField
+          label={t("message.tool_permission_scope")}
+          description={interactionDisabled ? interactionDisabledReason : undefined}
+        >
           <div className="flex flex-wrap items-center gap-1.5">
-            <PermissionChoice
+            <UiRadioChoice
               checked={selectedSuggestionIndex === -1}
+              choiceSize="xs"
               disabled={interactionDisabled}
-              label={t("message.tool_permission_once")}
-              name={`permission-suggestion-${permissionRequest.request_id}`}
-              onSelect={() => onSelectedSuggestionIndexChange(-1)}
-            />
+              name={scopeName}
+              onChange={() => onSelectedSuggestionIndexChange(-1)}
+            >
+              {t("message.tool_permission_once")}
+            </UiRadioChoice>
             {model.readableSuggestions.map((suggestion) => (
-              <PermissionChoice
+              <UiRadioChoice
                 key={suggestion.index}
                 checked={selectedSuggestionIndex === suggestion.index}
+                choiceSize="xs"
                 disabled={interactionDisabled}
-                label={suggestion.label}
-                name={`permission-suggestion-${permissionRequest.request_id}`}
-                onSelect={() => onSelectedSuggestionIndexChange(suggestion.index)}
-              />
+                name={scopeName}
+                onChange={() => onSelectedSuggestionIndexChange(suggestion.index)}
+              >
+                {suggestion.label}
+              </UiRadioChoice>
             ))}
           </div>
-        </div>
+        </UiField>
       ) : null}
-      {interactionDisabled && interactionDisabledReason ? (
-        <div className="text-xs text-(--text-soft)">
+      {model.readableSuggestions.length === 0 && interactionDisabled && interactionDisabledReason ? (
+        <div className={getUiTypographyClassName({ role: "supporting", tone: "muted" })}>
           {interactionDisabledReason}
         </div>
       ) : null}
     </div>
-  );
-}
-
-function PermissionChoice({
-  checked,
-  disabled,
-  label,
-  name,
-  onSelect,
-}: {
-  checked: boolean;
-  disabled: boolean;
-  label: string;
-  name: string;
-  onSelect: () => void;
-}) {
-  return (
-    <UiRadioChoice
-      checked={checked}
-      choiceSize="xs"
-      disabled={disabled}
-      name={name}
-      onChange={() => onSelect()}
-      variant="surface"
-    >
-      {label}
-    </UiRadioChoice>
   );
 }

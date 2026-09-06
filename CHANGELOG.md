@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Align shared Choice sizes and interaction states, reuse primary token colors
+  for date/time selections, and preserve native disabled hit targets. Show full
+  Agent permission descriptions and isolate repeated tool-permission radio
+  groups without changing authorization commands.
 - Refine shared checkbox rows with readable compact labels, separately named
   help, wrapping text and native disabled hover handling. Remove a redundant
   Runtime settings wrapper while preserving independent setting updates.

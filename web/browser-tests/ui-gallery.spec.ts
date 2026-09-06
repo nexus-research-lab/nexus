@@ -1247,6 +1247,16 @@ test("Agent configuration reuses shared rows and cards without widening toggle h
   const { errors } = await openGallery(page, info, "workspace");
   const controls = page.locator("[data-gallery-agent-options]");
   const permissions = controls.locator("[data-gallery-agent-permissions]");
+  for (const card of await permissions.locator("[data-agent-permission-mode]").all()) {
+    const description = card.locator("[id$='-description']");
+    const title = card.locator("[id$='-title']");
+    await expect(description).toHaveCSS("font-size", "13px");
+    for (const text of [title, description]) {
+      expect(await text.evaluate((element) => element.scrollHeight <= element.clientHeight + 1 && element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+    }
+    await card.scrollIntoViewIfNeeded();
+    await expectInsideViewport(page, card);
+  }
   const bash = permissions.getByRole("switch", { name: "Bash", exact: true });
   await expect(bash).toHaveAttribute("aria-checked", "true");
   await permissions.getByText("Bash", { exact: true }).click();
@@ -1319,6 +1329,55 @@ test("catalog primary hit area preserves content and independent secondary actio
   expect(await unavailable.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(background);
   await expectInsideViewport(page, unavailable);
   await capture(unavailable, info, "catalog-disabled-creation");
+  expect(errors).toEqual([]);
+});
+
+test("choices share readable sizes, native disabled paint and instance-scoped radio keyboard groups", async ({ page }, info) => {
+  const { errors } = await openGallery(page, info);
+  const fixture = page.locator("[data-gallery-choices]");
+  for (const [size, height, fontSize] of [["xs", 28, 12], ["sm", 32, 13], ["md", 36, 14], ["lg", 40, 14]] as const) {
+    const button = fixture.locator(`[data-gallery-choice-size="${size}"]`);
+    await expect(button).toHaveCSS("font-size", `${fontSize}px`);
+    await expect(button).toHaveCSS("font-weight", "500");
+    expect((await button.boundingBox())!.height).toBe(height);
+  }
+  for (const variant of ["picker", "calendar"]) {
+    const button = fixture.getByRole("button", { name: `Choice button ${variant}`, exact: true });
+    await button.click();
+    await expect(button).toHaveAttribute("aria-pressed", "true");
+    await button.evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)));
+    expect((await measureTextContrast(button)).ratio).toBeGreaterThanOrEqual(4.5);
+    await expect(button).toHaveCSS("font-size", variant === "picker" ? "16px" : "13px");
+    expect((await button.boundingBox())!.height).toBe(variant === "picker" ? 40 : 32);
+  }
+  await fixture.getByRole("checkbox", { name: copy(info, "允许修改选项", "Enable choice changes"), exact: true }).uncheck();
+  for (const variant of ["surface", "picker", "calendar", "icon"]) {
+    const button = fixture.getByRole("button", { name: `Choice button ${variant}`, exact: true });
+    const radio = fixture.getByRole("radio", { name: `Choice radio ${variant}`, exact: true });
+    await expect(button).toBeDisabled();
+    await expect(radio).toBeDisabled();
+    for (const surface of [button, radio.locator("..")]) {
+      await surface.scrollIntoViewIfNeeded();
+      await page.mouse.move(0, 0);
+      const before = await surface.evaluate((element) => [getComputedStyle(element).backgroundColor, getComputedStyle(element).borderColor]);
+      await surface.hover();
+      await surface.evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)));
+      await expect(surface).toHaveCSS("cursor", "not-allowed");
+      await expect(surface).toHaveCSS("pointer-events", "auto");
+      await expect(surface).toHaveCSS("opacity", "0.5");
+      expect(await surface.evaluate((element) => [getComputedStyle(element).backgroundColor, getComputedStyle(element).borderColor])).toEqual(before);
+    }
+  }
+  const first = fixture.getByRole("region", { name: "First permission view" });
+  const second = fixture.getByRole("region", { name: "Second permission view" });
+  const last = first.getByRole("radio", { name: copy(info, "当前工作区", "Current workspace"), exact: true });
+  await last.check();
+  await last.press("ArrowRight");
+  await expect(first.getByRole("radio").first()).toBeFocused();
+  await expect(first.getByRole("radio").first()).toBeChecked();
+  await expect(second.getByRole("radio", { name: copy(info, "当前会话", "Current session"), exact: true })).toBeChecked();
+  expect(await first.getByRole("radio").first().locator("..").evaluate((element) => getComputedStyle(element).boxShadow)).not.toBe("none");
+  await capture(fixture.locator("[data-gallery-permission-instances]"), info, "isolated-permission-choices");
   expect(errors).toEqual([]);
 });
 

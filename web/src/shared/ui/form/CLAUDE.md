@@ -13,6 +13,7 @@
 - `search-query.ts` 是客户端搜索的唯一字符串语义：统一做 `NFKC`、去除首尾空白和稳定小写化，默认空查询直通，并允许业务选择包含或前缀匹配。业务模型必须显式声明可搜索字段、空查询结果、类别/权限/状态条件以及搜索范围，不得再手写 `trim().toLowerCase().includes(...)`。侧栏搜索默认只筛当前导航数据，不承诺下探子目录；本地、远端或未来跨域深搜由具体页面的资源 controller 决定，其 debounce、请求取消和最短长度也留在该层。
 - `SidebarSearchField` 只统一侧栏搜索壳层和可选动作，不持有业务状态；可见短提示由公共翻译提供，消费者的完整 `label` 作为搜索框可访问名称。字号继承 `UiSearchInput`，不另设密度；`SidebarSearchAction` 组合 `UiIconButton`，只拥有与搜索框配套的桌面/触屏几何和图标尺寸，状态、焦点、禁用和唯一 Tooltip 归公共按钮，消费者只传业务图标与命令。
 - `UiChoiceButton` 持有按钮式选择，`surface / picker / calendar / icon` 分别覆盖文字选项、紧凑选择器、日历单元格和图片图标；`UiRadioChoice` 持有互斥表单选择的原生 radio、整项热区、焦点和禁用语义。`choice-styles.ts` 只是二者的内部视觉投影，业务不得导入后手写第二套 button 或 label/input DOM。生成式问答等稳定领域 Widget 可以按自身合同保留原生选项。
+- Choice 的四种 variant 共用单一焦点/禁用配方和公共 opacity/ring；数字选择共用 primary 前景/背景，surface 与普通控件共用字号角色。disabled 与 fieldset 禁用由原生元素决定，不再由样式参数复制状态或移除 pointer events；`choice.test.tsx` 覆盖全部按钮 variant 的键盘/表单/禁用和 native radio 互斥。
 - `UiCheckbox` 是所有普通原生 checkbox 的尺寸、品牌色、焦点、`indeterminate` mixed 语义与 disabled 入口；带说明或整行热区的选择继续组合 `UiCheckboxRow`，其 `default / compact` 密度分别对应标准表单与紧凑设置。生成式问答等自绘选择器不属于该原语。
 - `checkbox-row.tsx` 直接拥有行密度、装饰图标、实例名称/说明和原生 disabled 视觉；调用方的显式名称与额外描述保留。`checkbox-row.test.tsx` 覆盖两档整行点击、Space、实例隔离、描述更新和 input/fieldset 禁用；最终几何与主题验收归 Gallery 浏览器案例。
 - `UiRemovableChip` 是标签输入和多选字段中“已选实体 + 移除动作”的唯一原语；实体集合由业务持有，移除必须是具名 native IconButton。复合选择器的菜单触发器与移除按钮必须是兄弟节点，禁止把 `span role=button` 或真实 button 嵌入另一个 button。

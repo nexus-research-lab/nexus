@@ -807,6 +807,51 @@ Gallery 增加真实 compact 复选行和可切换 fieldset 禁用范围，浏�
 也不将 DOM 回归当作布局/原生宿主验收。482 项清单为 410 pending、69
 in_progress、3 removed，本批相关条目保持 in_progress，存活源码摘要一致。
 
+## A25：选择控件的公共状态与权限信息完整性（待实际浏览器复查）
+
+检查 `UiChoiceButton / UiRadioChoice` 的全部当前生产调用位置：十一处 Feature
+文件及共享 IconPicker，包含执行位置/高级设置、星期多选、日期/时间、来源过滤、
+幻灯片缩略图、WorkGraph 版本、成员参与状态、Agent 权限模式和工具授权范围。
+普通 surface 的旧 xs/sm/md/lg 字号为 11/12/12/13px；日期/时间分别复制了禁用、
+动效和选中色，使用 `pointer-events-none` 代替禁用命中，还存在 40% 与公共
+disabled token 不同的透明度。Radio label 对 fieldset 原生禁用没有配套视觉。
+
+现在普通选择项使用 12/13/14/14px 的公共 Typography 与 medium，28/32/36/40px
+最小高度配套调整垂直留白，图标间距为 8px。日期保留 32px 网格格高，改为
+13px 等宽数字；时间列保留 40px block 行和 16px 等宽数字，二者共用公共 primary
+前景/背景。头像、缩略图、版本胶囊与星期选择的内容几何和业务状态保留。
+四种 variant 共用 native/fieldset disabled、opacity 与 ring，不再复制禁用
+样式参数、穿透命中区或在 disabled 时覆盖选中 tone。删除重复数字样式、默认值
+转发 helper 与 Radio 的重复焦点/禁用配方。
+
+工具权限的两个展示实例原先以同一个 request ID 命名原生 radio group；新增测试
+确认其 name 相同且没有具名描述组，修复前记录为 `/tmp/nexus-design-a25-before.log`。
+这证明 DOM 身份/关联问题，不声称 jsdom 已验证浏览器的方向键分组：尝试的
+user-event ArrowRight 因环境缺少 CSS.escape 无法执行，已移除该断言并将它交给
+真实浏览器案例，没有用伪造键盘处理器替代。当前视图用 useId 隔离原生组，直接
+组合 UiRadioChoice 与 UiField；删除 PermissionChoice 纯包装和仅为 DOM 分组
+传入的完整请求。业务控制器仍按原 request ID 重置索引并持有允许/拒绝命令。
+三项视图回归覆盖独立实例、精确建议索引、具名禁用原因和没有可复用范围时的
+完整输入/原因保留，选择本身不执行授权。
+
+Agent 权限卡移除标题截断、两行说明限制和补偿性的原生 title；control 标题与
+supporting 说明完整换行，卡片随内容增长。实例级名称/描述分别关联到实际按钮，
+原模式值、危险提示和工具/Connector 开关命中行为保持不变。
+
+全量组件 169 文件、507 项测试通过；145 项架构/文件/控件样式/token 合同、lint、
+typecheck 与构建通过。最后检查保持数字选择 block 布局及 8px 公共间距后，相关
+12 项回归与构建再次通过，没有重复无关全量检查。日志为
+`/tmp/nexus-design-a25-all-components.log`、`/tmp/nexus-design-a25-contracts.log`、
+`/tmp/nexus-design-a25-lint-final.log`、`/tmp/nexus-design-a25-typecheck-final.log`、
+`/tmp/nexus-design-a25-numeric-final.log`、`/tmp/nexus-design-a25-build-final.log`。
+
+Gallery 新增四档尺寸、四 variant、fieldset 禁用和两个真实权限视图；浏览器案例
+覆盖计算字号/高度、数字选中色对比度、禁用 hover/cursor、方向键组内循环和
+Agent 卡片完整说明。1296 项只完成注册，没有执行浏览器或原生宿主验收；启动
+自动审批复核超时仍待许可，完整 check 中需要监听端口的夹具也未运行。482 项
+清单为 398 pending、81 in_progress、3 removed；本批十四个相关条目保持
+in_progress，消费者记录只覆盖选择项用法，不宣称完整页面已完成，源码摘要一致。
+
 ## 待进一步判断
 
 - A8 已统一侧栏搜索文字与动作所有权，仍需执行真实双语目录的宽度、对比度和
