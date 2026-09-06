@@ -748,6 +748,7 @@ export const enSettingsMessages = {
   "settings.providers.delete_usage_subtitle": "Delete {name}",
   "settings.providers.force_delete_description": "These Agents use the default model until the same Provider and model are restored.",
   "settings.providers.used_by_agents": "Agents using this Provider",
+  "settings.providers.agent_name_unavailable": "Agent name unavailable",
   "settings.providers.disabled_title": "Provider disabled",
   "settings.providers.disabled_follow_default_message": "Kept the model selections for {count} Agents. They will temporarily use the default model and switch back automatically when this Provider and model are restored.",
   "settings.providers.restored_title": "Provider enabled",

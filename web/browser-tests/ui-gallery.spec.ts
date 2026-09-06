@@ -632,6 +632,79 @@ test("Provider configuration follows its container width and distinguishes fixed
   expect(errors).toEqual([]);
 });
 
+test("Provider model dialogs keep long content scrollable and actions visible in short windows", async ({ page }, info) => {
+  const { errors } = await openGallery(page, info, "content");
+  await page.setViewportSize({ width: page.viewportSize()!.width, height: 360 });
+  const fixture = page.locator("[data-gallery-provider-dialogs]");
+  const dialog = page.getByRole("dialog");
+  const body = dialog.locator(".dialog-body--scroll");
+  const footer = dialog.locator(".dialog-footer");
+  const cancel = dialog.getByRole("button", { name: copy(info, "取消", "Cancel"), exact: true });
+  const checkFrame = async () => {
+    await expectInsideViewport(page, dialog.locator(".dialog-shell"));
+    await expectInsideViewport(page, footer);
+    await expect(body).toHaveCount(1);
+    expect(await dialog.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
+    expect(await body.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
+  };
+
+  const addTrigger = fixture.locator("[data-gallery-provider-add]");
+  await addTrigger.focus();
+  await addTrigger.press("Space");
+  const model = dialog.getByLabel(copy(info, "模型 ID", "Model ID"), { exact: false });
+  await expect(model).toBeFocused();
+  expect(await model.evaluate((element) => ({ font: getComputedStyle(element).fontSize,
+    mono: /mono/i.test(getComputedStyle(element).fontFamily), height: element.getBoundingClientRect().height,
+  }))).toEqual({ font: "14px", mono: true, height: 36 });
+  await model.fill("tenant/model");
+  await checkFrame();
+  await capture(dialog, info, "provider-add-short-window");
+  await cancel.click();
+  await expect(addTrigger).toBeFocused();
+
+  await fixture.locator("[data-gallery-provider-options]").click();
+  const identity = dialog.locator("code");
+  await expect(identity).toContainText("extended-context-model-with-a-long-deployment-name");
+  expect(await identity.evaluate((element) => ({ overflow: getComputedStyle(element).textOverflow,
+    overflowWidth: element.scrollWidth - element.clientWidth }))).toEqual({ overflow: "clip", overflowWidth: 0 });
+  const context = dialog.getByLabel(copy(info, "上下文窗口", "Context Window"), { exact: true });
+  expect((await context.boundingBox())!.height).toBe(36);
+  await context.fill("256000");
+  const options = dialog.getByLabel(copy(info, "高级参数（JSON）", "Provider Options (JSON)"), { exact: true });
+  await options.fill('{"budget":2}');
+  expect(await options.evaluate((element) => getComputedStyle(element).fontFamily)).toMatch(/mono/i);
+  const save = dialog.getByRole("button", { name: copy(info, "保存", "Save"), exact: true });
+  expect((await save.boundingBox())!.height).toBe(36);
+  await checkFrame();
+  await save.click();
+  const saving = dialog.getByRole("button", { name: copy(info, "保存中...", "Saving..."), exact: true });
+  await expect(saving).toBeDisabled();
+  await expect(saving).toHaveAttribute("aria-busy", "true");
+  await capture(dialog, info, "provider-options-short-window");
+  await cancel.click();
+
+  await fixture.locator("[data-gallery-provider-delete]").click();
+  await checkFrame();
+  const footerBefore = await footer.boundingBox();
+  expect(await body.evaluate((element) => element.scrollHeight - element.clientHeight)).toBeGreaterThan(0);
+  expect(await body.evaluate((element) => [...element.querySelectorAll("*")].filter((child) =>
+    /auto|scroll/.test(getComputedStyle(child).overflowY) && child.scrollHeight > child.clientHeight).length)).toBe(0);
+  await body.hover();
+  await page.mouse.wheel(0, 4_000);
+  const lastAgent = body.getByText(/^16 ·/);
+  await expect.poll(async () => {
+    const area = (await body.boundingBox())!;
+    const row = (await lastAgent.boundingBox())!;
+    return row.y >= area.y && row.y + row.height <= area.y + area.height + 1;
+  }).toBe(true);
+  expect(await footer.boundingBox()).toEqual(footerBefore);
+  await capture(dialog, info, "provider-usage-last-agent");
+  await dialog.getByRole("button", { name: copy(info, "仍要删除", "Delete anyway"), exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(fixture).toHaveAttribute("data-delete-count", "1");
+  expect(errors).toEqual([]);
+});
+
 test("technical fields share monospace presentation and preserve verification zeros", async ({ page }, info) => {
   const { errors } = await openGallery(page, info);
   const path = page.getByRole("textbox", { name: copy(info, "配置路径", "Config path"), exact: true });

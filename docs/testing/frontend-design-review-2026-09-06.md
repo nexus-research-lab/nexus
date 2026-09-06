@@ -452,6 +452,34 @@ Badge、完整地址及公共 code 文字。所有字段回调、required、disa
 此前浏览器启动的审批复核超时仍待回复。完整 Provider 页面、其他模型弹窗和三
 主题实际画面继续待审查，本表单保持 in_progress。
 
+## A14：Provider 模型与占用确认弹窗（实现与离线验证，待浏览器复核）
+
+三个弹窗此前使用没有高度上限的 content Shell；仅给正文 overflow 不能保证短
+窗口中的操作可见。现选择公共 `adaptiveMax`，由唯一 Body 滚动，删除确认移除
+第二层列表滚动。模型完整标识和受影响 Agent 名称允许换行；占用列表复用静态
+UiListRow。名称投影去除首尾空白，缺失时展示本地化说明，不再回退内部 Agent ID。
+
+标题、Model ID、上下文/输出限制和 JSON 字段按实例关联；初始焦点交给公共
+Backdrop。字段与保存/取消统一 md 尺寸，技术输入只选择 code 字体，说明使用
+supporting。五段能力开关合并为一份保序目录，仍逐项更新原草稿；保存中保留
+动作名称，添加、保存和删除按各自真实 pending kind 提供 aria-busy。未改动
+请求载荷、命令互斥、权限、原始草稿或调用方关闭策略。
+
+新增六项真实 Dialog 行为测试，覆盖初始/归还焦点、五种能力的独立更新、原样
+数值/JSON 草稿、多实例标签、权限/忙碌禁用、名称回退和显式删除。相关 53 项
+组件测试通过（`/tmp/nexus-design-a14-components.log` 的 30 项与
+`/tmp/nexus-design-a14-fields.log` 的 23 项），136 项架构/公共 UI 合同、lint、
+typecheck 和构建通过，日志为 `/tmp/nexus-design-a14-{contracts-final,lint,typecheck,build}.log`。
+首次合同运行发现 Settings 原生按钮门禁扫描了测试 Harness；现在两项 Settings
+DOM 所有权检查只排除 test/spec 文件，所有生产文件仍受原有检查。
+
+Gallery 增加实际三个弹窗，模拟长模型标识、16 位长名称使用者与保存中状态，
+所有回调仅改本地夹具。新增浏览器检查在 360px 高窗口验证完整边界、正文唯一
+滚动、最后一项可达、Footer 位置、14px 技术输入、36px 控件与焦点归还。
+当前浏览器清单 1044 项（`/tmp/nexus-design-a14-browser-list.log`），只是注册，
+尚未执行；此前启动审批复核超时仍待用户回复。三个视图标为 in_progress；完整
+Provider 页面、数值校验、请求中关闭策略及三主题实际画面继续待审查。
+
 ## 待进一步判断
 
 - A8 已统一侧栏搜索文字与动作所有权，仍需执行真实双语目录的宽度、对比度和

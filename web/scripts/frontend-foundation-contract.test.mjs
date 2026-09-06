@@ -1858,7 +1858,7 @@ test("Settings feature code consumes shared form DOM owners", async () => {
   const violations = [];
 
   for (const file of files) {
-    if (!/\.(?:ts|tsx)$/.test(file)) continue;
+    if (!/\.(?:ts|tsx)$/.test(file) || /\.(?:test|spec)\.tsx?$/.test(file)) continue;
     const source = await readFile(file, "utf8");
     if (/<(?:input|textarea|select)\b/.test(source)) {
       violations.push(path.relative(webRoot, file));
@@ -1873,7 +1873,7 @@ test("Settings navigation consumes shared Button and typography owners", async (
   const violations = [];
 
   for (const file of files) {
-    if (!/\.(?:ts|tsx)$/.test(file)) continue;
+    if (!/\.(?:ts|tsx)$/.test(file) || /\.(?:test|spec)\.tsx?$/.test(file)) continue;
     const source = await readFile(file, "utf8");
     if (/<button\b/.test(source)) {
       violations.push(path.relative(webRoot, file));
