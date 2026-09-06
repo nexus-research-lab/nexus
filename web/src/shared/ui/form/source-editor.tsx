@@ -5,6 +5,7 @@
 import { forwardRef, type TextareaHTMLAttributes } from "react";
 import { cn } from "@/shared/ui/class-name";
 import { useFieldControlAttributes } from "./field-accessibility";
+import { UI_SOURCE_TEXT_CLASS_NAME } from "./source-text-styles";
 
 export const UiSourceEditor = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(
   function UiSourceEditor({ className, spellCheck = false, autoCapitalize = "off", autoCorrect = "off", ...props }, ref) {
@@ -15,7 +16,8 @@ export const UiSourceEditor = forwardRef<HTMLTextAreaElement, TextareaHTMLAttrib
       autoCapitalize={autoCapitalize}
       autoCorrect={autoCorrect}
       className={cn(
-        "soft-scrollbar min-h-0 min-w-0 w-full resize-none overflow-auto overscroll-contain border-0 bg-transparent p-0 font-mono text-sm leading-6 text-(--text-default) outline-none read-only:text-(--text-muted) focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:var(--ring)] disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
+        "soft-scrollbar min-h-0 min-w-0 w-full resize-none overflow-auto overscroll-contain border-0 bg-transparent p-0 text-(--text-default) outline-none read-only:text-(--text-muted) focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:var(--ring)] disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
+        UI_SOURCE_TEXT_CLASS_NAME,
         className,
       )}
       ref={ref}
