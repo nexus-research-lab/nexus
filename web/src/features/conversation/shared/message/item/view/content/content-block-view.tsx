@@ -1,8 +1,9 @@
 /**
  * INPUT: 单个 ContentBlock、流式身份与消息级渲染上下文。
- * OUTPUT: 稳定内容块视图；live 空文本预挂载，同帧首批非空正文从空显示态平滑追赶。
+ * OUTPUT: 稳定内容块视图与文件来源上下文；live 空文本预挂载，同帧首批非空正文从空显示态平滑追赶。
  * POS: 结构化内容注册表的穷尽分派边界，不负责消息投影或时间线排序。
  */
+import type { WorkspaceFileOpenHandler } from "@/lib/workspace-file-action";
 import type { ReactNode } from "react";
 
 import type { ContentBlock } from "@/types/conversation/message/content";
@@ -38,7 +39,7 @@ export interface ContentBlockRenderContext {
     toolUseId: string,
     hostAgentId?: string | null,
   ) => void;
-  onOpenWorkspaceFile?: (path: string) => void;
+  onOpenWorkspaceFile?: WorkspaceFileOpenHandler;
   onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
   pendingInteractionOwner: PendingInteractionOwner;
   pendingPermissionsByToolUseId?: ReadonlyMap<string, PendingPermission>;
@@ -194,6 +195,7 @@ function renderWorkspaceFileArtifactBlock(
     <WorkspaceFileArtifactBlock
       artifact={block}
       onOpenWorkspaceFile={context.onOpenWorkspaceFile}
+      workspaceAgentId={context.workspaceAgentId}
     />
   );
 }

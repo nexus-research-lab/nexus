@@ -2,12 +2,13 @@
 // OUTPUT: 证明可读运行状态、统一时间边界、展开保持、共享错误和精确文件引用。
 // POS: Execution 节点运行历史 DOM 合同；路径安全规则仍归 interaction model。
 
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { I18N_CONTEXT, type I18nContextValue } from "@/shared/i18n/i18n-context";
 import { MESSAGES } from "@/shared/i18n/messages";
+import { useAgentStore } from "@/store/agent";
 import type {
   ExecutionGraphNodeView,
   ExecutionWorkItemView,
@@ -186,5 +187,26 @@ describe("ExecutionNodeRunHistory", () => {
     }, "en", onOpen));
     await user.click(screen.getByTitle("output/result.md"));
     expect(onOpen).toHaveBeenCalledWith("output/result.md", "artifact-owner");
+  });
+
+  it("uses a known node workspace for legacy artifacts and disables opening when its source is unavailable", async () => {
+    const onOpen = vi.fn();
+    const node: ExecutionGraphNodeView = { ...NODE, runs: [{ id: "legacy-run", artifacts: [{ type: "workspace_file_artifact", path: "output/legacy.md" }] }] };
+    const { rerender } = render(history(node, "en", onOpen));
+    const user = userEvent.setup();
+    await user.click(screen.getByTitle("output/legacy.md"));
+    expect(onOpen).toHaveBeenCalledExactlyOnceWith("output/legacy.md", "fallback-agent");
+    act(() => useAgentStore.setState({ current_agent_id: "unrelated-viewer" }));
+    try {
+      rerender(<I18N_CONTEXT.Provider value={{ locale: "en", setLocale: vi.fn(), t: (key) => MESSAGES.en[key] }}><ExecutionNodeRunHistory item={null} node={node} onOpenWorkspaceFile={onOpen} workspaceAgentId={null} /></I18N_CONTEXT.Provider>);
+      const button = screen.getByTitle("output/legacy.md");
+      expect(button.hasAttribute("disabled")).toBe(true);
+      await user.click(button);
+      expect(onOpen).toHaveBeenCalledOnce();
+      expect(screen.queryByRole("button", { name: /Download/ })).toBeNull();
+      expect(screen.getByText("The source workspace is unavailable, so this file cannot be opened.")).toBeTruthy();
+    } finally {
+      act(() => useAgentStore.setState({ current_agent_id: null }));
+    }
   });
 });

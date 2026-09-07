@@ -2798,3 +2798,40 @@ WorkGraph 保存代码仍在工作区中，本批只记录并提交自身范围�
 具体日志分别为 /tmp/nexus-a79-check.log、/tmp/nexus-a79-invalidation-retry.log、
 /tmp/nexus-a79-components.log 与 /tmp/nexus-a79-build.log。未运行 Go 或产品服务；
 仅本地提交，不推送。
+
+
+## A80 — 文件产物来源与阅读型卡片
+
+文件原语过去在缺少 workspace Agent 时订阅全局当前 Agent，同时预览资格只检查
+path/handler，外部下载却另外检查 Agent。现将两种动作的路径与来源资格收口到
+同一纯投影，取消原语的全局选择订阅；缺失路径或来源时保留名称/目录，以当前
+语言说明原因并通过 aria-describedby 关联到禁用的文件按钮，来源清空立即撤销
+旧动作。没有预览 handler 时，独立下载/桌面定位仍可用。
+
+结构化适配器成为 Artifact 自带非空 owner → 明确消息/节点 workspace → 无来源
+的唯一解析入口。正文、归档收起过程、live 工具收起段和 NodeRun 历史都传入原
+上下文；Room Thread 稳定回调修复仅传 path、丢掉 workspaceAgentId 的实际桥接
+问题。文件原语不再自行猜测来源；Markdown 的既有上下文适配与子智能体宿主
+绑定保持原合同，后者的完整 Thread 身份映射仍需随子智能体领域继续审查。
+
+文件名使用 body/supporting，目录与集合标题使用 metadata，打开提示使用 caption；
+两行复合文件按钮和图标框保留阅读型领域几何，材质继续由 content recipe 拥有。
+删除重复解构别名、硬编码中英文标签和“没有预览 handler 就隐藏整个文件集合”
+的分支；缺少 handler 不再隐藏用户已生成的文件证据。
+
+新增 14 项回归，连同既有 Markdown、文件动作和运行历史，定向 5 文件 43 项通过，
+见 /tmp/nexus-a80-target.log。覆盖四个真实消息/集合入口、Artifact/上下文优先级、
+空白或缺失来源、选择切换、来源清空、当前语言、无预览时外部动作、稳定 Thread
+回调更新/清理及 NodeRun 旧文件。类型检查发现一次上下文参数编辑重复，删除
+重复属性后重新通过；没有改变业务类型以规避检查。
+
+485 项清单现为 260 pending、129 in_progress、70 improved、20 retained、6 removed；
+公共 UI 仍为 118 项。文件原语与结构化适配器完成本批代码/行为审查；其他消息
+和图形文件只登记本批来源切片，保持进行中。同步外部已提交的 63f7afc07 保存
+对话框源码哈希并保留待复查状态，不把其工作计为本批审查。视觉/浏览器/宿主
+验证继续按用户要求暂停，未运行产品服务或 Go 测试，整体 Goal 保持进行中。
+
+完整门禁在 63f7afc07 加本批精确改动的隔离快照通过：lint、typecheck、481 项合同、
+245 文件的 1024 项组件/模型测试及 build 全部成功，见 /tmp/nexus-a80-check.log；
+构建仅保留既有大分块提示。快照文件清单见 /tmp/nexus-a80-review.json，485 项
+生产审计源哈希全部匹配。只本地提交，不推送。

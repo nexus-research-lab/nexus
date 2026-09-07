@@ -91,6 +91,8 @@ export const zhCoreMessages = {
   "markdown.mermaid.waiting": "等待完整图表",
   "workspace_file.saved_to": "已保存到",
   "workspace_file.default_name": "文件",
+  "workspace_file.path_unavailable": "缺少文件路径，暂时无法打开此文件。",
+  "workspace_file.workspace_unavailable": "无法确定来源工作区，暂时无法打开此文件。",
   "workspace_file.reveal_named": "在文件夹中显示 {name}",
   "workspace_file.open": "打开",
   "workspace_file.download_named": "下载 {name}",
