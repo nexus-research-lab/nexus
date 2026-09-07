@@ -471,7 +471,6 @@ export const enConversationMessages = {
   "room.session_navigator_current_processing": "Processing the current round",
   "room.session_navigator_round": "Round {count}",
   "room.session_navigator_user": "User",
-  "room.session_navigator_agent": "Agent",
   "room.session_navigator_unloaded": "Not loaded",
   "room.close_conversation": "Close tab",
   "room.pin_conversation": "Pin to sidebar",

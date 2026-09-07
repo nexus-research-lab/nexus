@@ -3,6 +3,7 @@
 本目录拥有跨 Feature 复用的 Markdown 渲染能力，不解释 Conversation 轮次或消息内容块协议。
 
 - `markdown-content.tsx` 是静态、流式、正文和摘要的公共入口。
+- `summary` 使用语法树公式标记且跳过 KaTeX，调用方通过 `summaryMathLabel` 注入当前语言（未注入时为 `[Formula]`）；该入口不读取语言或业务 Store。正文与摘要共享识别规则，但摘要不继承正文公式视口。
 - 文件索引、预览 URL 和打开动作仅通过 `resolveFilePath`、`getFilePreviewUrl` 与单路径 `onOpenWorkspaceFile` 注入；共享入口没有当前 Agent、Session、owner 或 Store 订阅。消费侧必须在能力闭包中固定资源作用域。
 - `core/` 负责元素语义、链接、插件和 Fence。
 - `streaming/` 负责增量分块与平滑显示。

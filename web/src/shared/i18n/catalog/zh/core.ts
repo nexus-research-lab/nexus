@@ -1,4 +1,5 @@
 export const zhCoreMessages = {
+  "markdown.math_summary": "[公式]",
   "language.switch_title": "切换语言",
   "language.zh": "中",
   "language.en": "EN",

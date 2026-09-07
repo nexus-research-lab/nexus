@@ -1,5 +1,6 @@
 # sidebar/ - Home 侧栏
 
+- 聊天摘要使用共享 Markdown `summary` 入口并注入当前语言的公式标记；不在侧栏运行 KaTeX、展示公式滚动区或修改原始摘要。行高/截断仍由共享列表及目录密度负责。
 - `sidebar-directory.ts` 只提供共享 Home 目录；聊天和联系人入口都不得在侧栏订阅 Agent runtime。
 - `../home-directory-refresh-error-notice.tsx` 是 Launcher、聊天侧栏和联系人侧栏共用的 stale 目录恢复入口；它只提供安全重读，并通过 `UiInlineNotice` 获取提示与动作视觉，不得自建错误卡片。
 - `../room-activity-resource.ts` 在每个 Room ID 内按精确 Conversation/Session source 隔离瞬时执行集合，再为聊天行取并集；DM 与群组不分叉，另一个空会话不得清掉仍运行的会话，待确认优先于工作中。

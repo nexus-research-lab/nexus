@@ -1,6 +1,7 @@
 # 前端基础库
 
 - 根目录只保留跨领域复用且无业务状态的纯基础能力。
+- `agent-display-name.ts` 是 Agent/Subagent 非空展示名称的纯所有者，只接收名称、当前翻译能力和角色，不接收 ID，不改写资源身份；真实目录和“自己”等领域判断仍由消费者负责。
 - `unknown-value.ts` 只提供未知值的结构读取、枚举收窄和批量必填字段校验原语；领域字段集合由消费者定义。
 - `agent-runtime-status.ts` 统一跨页面 Agent 运行状态解码。
 - `agent-options.ts` 统一跨 Config、Settings、Contacts、Room 与 Agent 编辑器复用的 Options 默认值、目录和纯投影。

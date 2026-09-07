@@ -66,7 +66,7 @@ export function PrivateEventBubble({
     <div className={cn("flex", direction.alignment)} data-private-event={event.id}>
       <div className={cn("surface-radius-md w-fit", size.bubble, direction.bubble)}>
         <div className={cn("flex min-w-0 items-center", size.header)}>
-          <PrivateParticipantAvatar participant={event.source} size="sm" />
+          <PrivateParticipantAvatar name={event.sourceName} participant={event.source} size="sm" />
           <span className={cn("truncate", getUiTypographyClassName({ role: "metadata", tone: "strong", weight: "semibold" }))}>
             {event.sourceName}
           </span>

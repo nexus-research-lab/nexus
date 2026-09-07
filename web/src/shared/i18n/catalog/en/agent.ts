@@ -2,6 +2,8 @@ import type { MessageSegment } from "../message-segment";
 import type { zhAgentMessages } from "../zh/agent";
 
 export const enAgentMessages = {
+  "agent.name_fallback": "Agent",
+  "agent.subagent_name_fallback": "Subagent",
   "agent_options.default_name": "Agent",
   "agent_options.title_create": "Create Agent",
   "agent_options.close_dialog": "Close dialog",

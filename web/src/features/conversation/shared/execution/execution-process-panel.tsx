@@ -65,7 +65,7 @@ export function ExecutionProcessPanel({
       >
         {agentNodes.map((node, index) => {
           const item = resolveExecutionGraphNodeItem(execution, node);
-          const owner = resolveExecutionGraphNodeAgent(directory, node, item);
+          const owner = resolveExecutionGraphNodeAgent(directory, node, item, t);
           const status = resolveExecutionGraphNodeStatus(node, item);
           const live = status === "running";
           const statusLabel = t(WORK_ITEM_STATUS_LABEL_KEY[status]);

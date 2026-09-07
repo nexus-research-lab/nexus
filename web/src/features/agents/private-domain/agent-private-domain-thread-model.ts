@@ -3,6 +3,7 @@
 // POS: Agent 私域线程列表纯模型；不拥有布局、Typography、DOM 或交互样式。
 
 import { formatRelativeTime } from "@/lib/format/relative-time";
+import { getAgentDisplayName } from "@/lib/agent-display-name";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type { AgentPrivateThread } from "@/types/agent/private-domain";
 
@@ -39,7 +40,7 @@ export function privateThreadTitle(
     return localization.t("agent_options.contact.private_note");
   }
   return peers
-    .map((participant) => participant.name || participant.agent_id)
+    .map((participant) => getAgentDisplayName(participant.name, localization.t))
     .join(localization.locale === "zh" ? "、" : ", ");
 }
 

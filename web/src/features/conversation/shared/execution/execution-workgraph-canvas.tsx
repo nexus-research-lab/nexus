@@ -1226,7 +1226,7 @@ export function ExecutionWorkGraphCanvas({
           ))}
 
           {layout.nodes.map(({ height, item, node, size, width, x, y }) => {
-            const owner = resolveExecutionGraphNodeAgent(directory, node, item);
+            const owner = resolveExecutionGraphNodeAgent(directory, node, item, t);
             const status = resolveExecutionGraphNodeStatus(node, item);
             const selected = node.id === selectedId;
             const current = node.id === currentId;
@@ -1237,6 +1237,7 @@ export function ExecutionWorkGraphCanvas({
             const summaryObjective = compactExecutionNodeObjective(
               item?.objective ?? node.description ?? "",
               owner?.name,
+              owner?.nameIsFallback,
             );
             const descendantCount = collapse.descendantCountByNodeId.get(node.id) ?? 0;
             const collapsed = collapsedNodeIds.has(node.id);
@@ -1499,15 +1500,15 @@ function ExecutionNodeInspector({
       candidate.id === parentNode.work_item_id
     )) ?? null
     : null;
-  const owner = resolveExecutionGraphNodeAgent(directory, node, item)
+  const owner = resolveExecutionGraphNodeAgent(directory, node, item, t)
     ?? (parentNode
-      ? resolveExecutionGraphNodeAgent(directory, parentNode, parentItem)
+      ? resolveExecutionGraphNodeAgent(directory, parentNode, parentItem, t)
       : null);
   const objectiveSource = item?.objective
     ?? node.description
     ?? node.name
     ?? "";
-  const objective = compactExecutionNodeObjective(objectiveSource, owner?.name);
+  const objective = compactExecutionNodeObjective(objectiveSource, owner?.name, owner?.nameIsFallback);
   const deliverable = item?.deliverable.trim() ?? "";
   const showDeliverable = deliverable
     && deliverable.toLocaleLowerCase() !== objective.toLocaleLowerCase();
@@ -1804,7 +1805,7 @@ function ExecutionNodeRunList({
           const item = execution.work_items?.find(
             (candidate) => candidate.id === node.work_item_id,
           ) ?? null;
-          const owner = resolveExecutionGraphNodeAgent(directory, node, item);
+          const owner = resolveExecutionGraphNodeAgent(directory, node, item, t);
           const status = resolveExecutionGraphNodeStatus(node, item);
           const summary = node.error_summary?.trim()
             || node.result_summary?.trim()

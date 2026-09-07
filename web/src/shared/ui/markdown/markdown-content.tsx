@@ -1,6 +1,6 @@
 /**
- * INPUT: Markdown 内容、受控文件索引解析器及可选文件预览和打开命令。
- * OUTPUT: 静态或流式的通用 Markdown 正文/摘要。
+ * INPUT: Markdown 内容、本地化摘要公式标记、受控文件解析/预览/打开能力。
+ * OUTPUT: 静态或流式正文，以及不排版公式的紧凑摘要。
  * POS: 无业务状态的共享入口；消费者绑定资源身份，不读取当前 Agent 或 Store。
  */
 "use client";
@@ -8,12 +8,14 @@
 import { useMemo } from "react";
 import type { Components } from "react-markdown";
 import { defaultUrlTransform } from "react-markdown";
+import type { PluggableList } from "unified";
 
 import { cn } from "@/shared/ui/class-name";
 
 import "katex/dist/katex.min.css";
 import { createMarkdownComponents } from "./core/markdown-components";
 import { createMarkdownSummaryComponents } from "./core/markdown-summary-components";
+import { remarkMathSummary } from "./core/markdown-math";
 import {
   MARKDOWN_BODY_CLASS_NAME,
   MARKDOWN_SUMMARY_CLASS_NAME,
@@ -36,6 +38,7 @@ interface UiMarkdownContentProps {
   resolveFilePath?: ResolveWorkspaceFilePath;
   summaryMonochrome?: boolean;
   summaryStrongAsText?: boolean;
+  summaryMathLabel?: string;
   getFilePreviewUrl?: (path: string) => string;
   variant?: "body" | "summary";
 }
@@ -49,6 +52,7 @@ export function UiMarkdownContent({
   resolveFilePath = resolveNoWorkspaceFile,
   summaryMonochrome = false,
   summaryStrongAsText = false,
+  summaryMathLabel = "[Formula]",
   getFilePreviewUrl,
   variant = "body",
 }: UiMarkdownContentProps) {
@@ -85,11 +89,16 @@ export function UiMarkdownContent({
     onOpenWorkspaceFile,
     { is_streaming: shouldRenderStreaming },
   );
+  const plugins = useMemo(() => ({
+    rehypePlugins: variant === "summary" ? [] : REHYPE_PLUGINS,
+    remarkPlugins: variant === "summary"
+      ? [...MARKDOWN_PLUGINS, [remarkMathSummary, { label: summaryMathLabel }]] as PluggableList
+      : MARKDOWN_PLUGINS,
+  }), [summaryMathLabel, variant]);
   const sharedProps = {
+    ...plugins,
     components: components.stable,
     content: normalizedContent,
-    rehypePlugins: REHYPE_PLUGINS,
-    remarkPlugins: MARKDOWN_PLUGINS,
     urlTransform: defaultUrlTransform,
   };
 

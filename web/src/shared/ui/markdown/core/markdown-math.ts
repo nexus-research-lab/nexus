@@ -1,5 +1,5 @@
-// INPUT: Markdown 数学 token、原始正文和 KaTeX 生成树。
-// OUTPUT: 完整公式、未闭合原文及可聚焦的横向公式视口。
+// INPUT: Markdown 数学 token、原始正文、摘要标记和 KaTeX 生成树。
+// OUTPUT: 正文完整公式/未闭合原文、纯文本公式摘要及可聚焦的正文横向公式视口。
 // POS: 共享公式兼容/降级策略；不修补公式内容或改变模型/历史数据。
 
 import type { Nodes, Root } from "mdast";
@@ -7,6 +7,13 @@ import type { Extension as FromMarkdownExtension } from "mdast-util-from-markdow
 import type { Extension } from "micromark-util-types";
 import type { Processor } from "unified";
 import { LATEX_MATH_SYNTAX } from "./markdown-latex-syntax";
+
+declare module "mdast" {
+  interface Data {
+    /** An ambiguous dollar token retained as literal prose, not a pending formula. */
+    nexusMathLiteral?: boolean;
+  }
+}
 
 const latexFromMarkdown: FromMarkdownExtension = {
   enter: { nexusMath(token) {
@@ -42,12 +49,32 @@ export function remarkLatexMath(this: Processor) {
         // remark-math accepts unterminated block fences. Streaming keeps these literal until closed.
         const ambiguousPrice = node.type === "inlineMath" && /^\$\d/.test(raw) && /\d/.test(source[node.position.end.offset ?? source.length] ?? "");
         if (ambiguousPrice || (node.type === "math" && raw.startsWith("$$") && !hasClosingDollarFence(raw))) {
-          node.data = { hName: "span", hProperties: { className: ["nexus-math-pending"] }, hChildren: [{ type: "text", value: raw }] };
+          node.data = { nexusMathLiteral: ambiguousPrice, hName: "span", hProperties: { className: ["nexus-math-pending"] }, hChildren: [{ type: "text", value: raw }] };
         } else if (node.type === "inlineMath" && raw.startsWith("$$")) {
           node.data!.hProperties = { className: ["math-display"] };
         }
       }
       if ("children" in node) node.children.forEach(visit);
+    }
+    visit(tree);
+  };
+}
+
+// 摘要复用解析结果，省去 KaTeX 排版；价格歧义与普通代码保持文本语义。
+export function remarkMathSummary({ label }: { label: string }) {
+  return (tree: Root) => {
+    function visit(node: Nodes) {
+      if (!("children" in node)) return;
+      node.children.forEach((child, index) => {
+        const isMath = child.type === "math" || child.type === "inlineMath";
+        if (isMath || (child.type === "code" && child.lang === "math")) {
+          const literal = isMath && child.data?.nexusMathLiteral ? child.data.hChildren?.[0] : undefined;
+          // Literal prices also lose the body's pending-math wrapping style in a compact summary.
+          node.children[index] = { type: "text", value: literal?.type === "text" ? literal.value : label };
+        } else {
+          visit(child);
+        }
+      });
     }
     visit(tree);
   };
