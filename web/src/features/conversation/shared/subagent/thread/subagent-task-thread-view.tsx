@@ -1,7 +1,7 @@
 /**
  * INPUT: exact 子智能体任务、只读 transcript 资源和任务控制结果。
- * OUTPUT: 线程内容、精确控制，以及完整说明发生事项、数据影响和恢复动作的原位异常面。
- * POS: 子智能体详情纯视图；不根据文案推断写入结果，停止结果未知时禁止普通重复停止。
+ * OUTPUT: 公共头像/排版/状态构成的任务详情，文件沿精确来源打开，控制保持 capability 边界。
+ * POS: 子智能体详情纯视图；任务展示身份不当作工作区，停止结果未知时禁止普通重复停止。
  */
 "use client";
 
@@ -10,17 +10,20 @@ import { Loader2, MessageSquareMore, Square } from "lucide-react";
 import { ConversationThreadPanel } from "@/features/conversation/shared/thread/conversation-thread-panel";
 import type { ConversationThreadRound } from "@/features/conversation/shared/thread/conversation-thread-model";
 import { getSeededAvatarDataUrl } from "@/lib/seeded-avatar";
+import type { WorkspaceFileOpenHandler } from "@/lib/workspace-file-action";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { Message } from "@/types/conversation/message/entity";
 import type {
   SubagentTask,
   SubagentTaskMessagesResponse,
 } from "@/types/conversation/subagent-task";
 
-import { SubagentTaskAvatar } from "../subagent-task-list";
 import {
   canSendSubagentTaskMessage,
   isSubagentTaskActive,
@@ -51,7 +54,7 @@ interface SubagentTaskThreadViewProps {
   layout: "desktop" | "mobile";
   model: SubagentTaskThreadViewModel;
   onBack: () => void;
-  onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void;
+  onOpenWorkspaceFile?: WorkspaceFileOpenHandler;
 }
 
 export function SubagentTaskThreadView({
@@ -60,10 +63,8 @@ export function SubagentTaskThreadView({
   onBack,
   onOpenWorkspaceFile,
 }: SubagentTaskThreadViewProps) {
-  const taskTitle = subagentTaskTitle(model.task);
-  const handleOpenWorkspaceFile = onOpenWorkspaceFile
-    ? (path: string) => onOpenWorkspaceFile(path, model.task.host_agent_id ?? null)
-    : undefined;
+  const { t } = useI18n();
+  const taskTitle = subagentTaskTitle(model.task, t);
 
   return (
     <ConversationThreadPanel
@@ -73,6 +74,7 @@ export function SubagentTaskThreadView({
       emptyContent={(
         <ThreadEmptyContent
           detail={model.detail}
+          hasError={model.error !== null}
           isLoading={model.isLoading}
           task={model.task}
         />
@@ -87,11 +89,11 @@ export function SubagentTaskThreadView({
 				/>
 			)}
       headerAvatar={(
-        <SubagentTaskAvatar
-          className="mt-0 h-7 w-7"
-          isActive={isSubagentTaskActive(model.task)}
-          name={taskTitle}
+        <UiSeededAvatar
           seed={subagentTaskAvatarSeed(model.task)}
+          size="xs"
+          state={isSubagentTaskActive(model.task) ? "running" : "default"}
+          title={taskTitle}
         />
       )}
       headerSubtitle={null}
@@ -101,11 +103,11 @@ export function SubagentTaskThreadView({
       navigation="back"
       notice={<ThreadNotice error={model.error} onRetry={model.onRetry} />}
       onClose={onBack}
-      onOpenWorkspaceFile={handleOpenWorkspaceFile}
+      onOpenWorkspaceFile={onOpenWorkspaceFile}
       roundId={model.task.round_id ?? model.task.task_id}
       rounds={model.rounds}
       sessionKey={model.sessionKey}
-      workspaceAgentId={model.task.host_agent_id ?? null}
+      workspaceAgentId={model.task.host_agent_id?.trim() || null}
     />
   );
 }
@@ -136,26 +138,27 @@ function SubagentTaskControls({
 		? "subagents.controls_unsupported"
 		: "subagents.resume_unsupported";
 	return (
-		<footer className="shrink-0 border-t border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-panel-background)_88%,transparent)] px-3 py-2.5 backdrop-blur-[14px]">
+		<footer className="shrink-0 border-t border-(--divider-subtle-color) bg-(--surface-panel-background) px-3 py-2.5">
 			{actions.error ? (
 				<SubagentActionFailureState
 					failure={actions.error}
 					onRefresh={onRefresh}
 				/>
 			) : actions.feedback ? (
-				<p className="mb-2 px-1 text-xs leading-5 text-(--text-muted)" role="status">
+				<p className={cn("mb-2 px-1", getUiTypographyClassName({ role: "metadata", tone: "muted" }))} role="status">
 					{t(actions.feedback)}
 				</p>
 			) : null}
-			<div className="flex items-center justify-between gap-2">
-				<p className="min-w-0 flex-1 text-xs leading-4 text-(--text-soft)">
+			<div className="flex flex-wrap items-center justify-between gap-2">
+				<p className={cn("min-w-0 basis-40 grow", getUiTypographyClassName({ role: "metadata", tone: "muted" }))}>
 					{canSend || canStop
 						? t(active ? "subagents.controls_active_hint" : "subagents.controls_resume_hint")
 						: t(unsupportedKey)}
 				</p>
-				<div className="flex shrink-0 items-center gap-1.5">
+				<div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-1.5">
 					{canStop ? (
 						<UiButton
+							aria-busy={actions.pendingAction === "stop"}
 							disabled={pending || stopResultUnconfirmed}
 							onClick={onStopRequest}
 							size="sm"
@@ -163,15 +166,16 @@ function SubagentTaskControls({
 							variant="ghost"
 						>
 							{actions.pendingAction === "stop" ? (
-								<Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
+								<Loader2 aria-hidden="true" className={getUiSpinnerClassName({ size: "sm" })} />
 							) : (
-								<Square className="h-3.5 w-3.5" />
+								<Square aria-hidden="true" className="h-3.5 w-3.5" />
 							)}
 							{t("subagents.stop")}
 						</UiButton>
 					) : null}
 					{canSend ? (
 						<UiButton
+							aria-busy={actions.pendingAction === "send"}
 							disabled={pending}
 							onClick={onSendRequest}
 							size="sm"
@@ -179,9 +183,9 @@ function SubagentTaskControls({
 							variant="surface"
 						>
 							{actions.pendingAction === "send" ? (
-								<Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
+								<Loader2 aria-hidden="true" className={getUiSpinnerClassName({ size: "sm" })} />
 							) : (
-								<MessageSquareMore className="h-3.5 w-3.5" />
+								<MessageSquareMore aria-hidden="true" className="h-3.5 w-3.5" />
 							)}
 							{t(active ? "subagents.send_message" : "subagents.resume")}
 						</UiButton>
@@ -270,58 +274,57 @@ function SubagentActionFailureState({
 
 function ThreadEmptyContent({
   detail,
+  hasError,
   isLoading,
   task,
 }: {
   detail: SubagentTaskMessagesResponse | null;
+  hasError: boolean;
   isLoading: boolean;
   task: SubagentTask;
 }) {
   const { t } = useI18n();
   if (isLoading && !detail) {
     return (
-      <div className="flex min-h-36 items-center justify-center gap-2 text-sm text-(--text-muted)">
-        <Loader2
-          className={getUiSpinnerClassName({ size: "md", tone: "muted" })}
-        />
-        {t("subagents.transcript_loading")}
-      </div>
+      <UiResourceState
+        icon={<Loader2 aria-hidden="true" className={getUiSpinnerClassName({ size: "md", tone: "muted" })} />}
+        size="sm"
+        state="loading"
+        title={t("subagents.transcript_loading")}
+        variant="plain"
+      />
     );
   }
   if (!task.capabilities.transcript) {
     return (
-      <ThreadEmptyState
+      <UiResourceState
         description={t("subagents.transcript_unsupported_description")}
+        icon={false}
+        size="sm"
+        state="empty"
         title={t("subagents.transcript_unsupported")}
+        variant="plain"
       />
     );
   }
   if (detail?.output?.trim()) {
     return (
-      <pre className="whitespace-pre-wrap break-words text-sm leading-6 text-(--text-default)">
+      <pre className={cn("whitespace-pre-wrap [overflow-wrap:anywhere]", getUiTypographyClassName({ role: "code", tone: "default" }))}>
         {detail.output}
       </pre>
     );
   }
+  if (hasError) {
+    return null;
+  }
   return (
-    <ThreadEmptyState
+    <UiResourceState
       description={t("subagents.transcript_empty_description")}
+      icon={false}
+      size="sm"
+      state="empty"
       title={t("subagents.transcript_empty")}
+      variant="plain"
     />
-  );
-}
-
-function ThreadEmptyState({
-  description,
-  title,
-}: {
-  description: string;
-  title: string;
-}) {
-  return (
-    <div className="flex min-h-36 flex-col items-center justify-center px-4 text-center">
-      <p className="text-sm font-medium text-(--text-strong)">{title}</p>
-      <p className="mt-1 max-w-sm text-xs leading-5 text-(--text-soft)">{description}</p>
-    </div>
   );
 }

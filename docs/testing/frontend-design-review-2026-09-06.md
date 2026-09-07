@@ -2835,3 +2835,52 @@ path/handler，外部下载却另外检查 Agent。现将两种动作的路径�
 245 文件的 1024 项组件/模型测试及 build 全部成功，见 /tmp/nexus-a80-check.log；
 构建仅保留既有大分块提示。快照文件清单见 /tmp/nexus-a80-review.json，485 项
 生产审计源哈希全部匹配。只本地提交，不推送。
+
+
+## A81 — 子智能体详情与 Thread 产物链路
+
+沿 A80 的后续审查确认：服务端 task.agent_id 为 runtime 子任务接收者身份，
+host_agent_id 才是承载它的 Nexus Agent；transcript reader 将宿主 Agent 传入
+消息投影。共享 Thread 过去将显式 null 工作区通过 ?? 回退为展示任务身份，
+子任务预览闭包又覆盖文件已解析的 owner，导致预览与独立下载可能指向不同来源。
+现仅在省略 workspace 参数时保留既有展示 Agent 默认值，明确空值维持未知；
+预览回调完整透传文件来源，不额外改绑宿主。消息来源为空白时使用上游明确
+workspace，不阻断合法来源，也不使用全局当前 Agent。
+
+真实 MessageItem/Thread 测试揭示上游可见块注册表遗漏 workspace_file_artifact，
+导致文件原语虽存在，独立文件回复却不显示。现保留该已知块，并把最终回复尾部
+文件与相邻正文一起投影到稳定 final surface；Room 最终轮优先级接受无正文文件
+交付，不能因此退回旧说明。完整 transcript 展示文件，过程检查器排除最终尾部
+文件，但更早工具过程的文件仍保留且只显示一次。补齐当前消息规范和 L3 合同，
+没有修改传输、持久化、模型输入或业务命令。
+
+详情 Header 直接使用 UiSeededAvatar 的 xs/32px，移除从列表跨视图导入头像后
+私自改为 28px 的覆盖。任务标题仍按 name/description/type 的原优先级，缺失时
+与目录一起交给共享当前语言通称。底栏使用实体 panel token、单条分隔和 metadata，
+去掉私有混色/模糊；说明与动作组可换行，Button 明确 aria-busy，停止确认、能力
+门槛和未知停止防重维持原语义。加载/空记录改用公共 ResourceState；已有输出
+按 code 保留字面换行，读取失败保留输出但不再同时声称暂无记录。
+
+控制弹窗沿 controller 的 canonical sessionKey 使用同步 reset 原语，删除重复
+作用域字符串和 effect 清空；继续保留 exact scope 确认守卫。实际共享 Confirm/
+Prompt 验证取消不发送、确认只执行一次、任务/来源切换立即移除旧弹窗及草稿，
+返回旧任务不恢复已清空的操作。
+
+新增 24 项回归，定向 6 文件 27 项通过，见 /tmp/nexus-a81-target.log；类型检查
+通过。完整链路回归推动修复了文件入口遗漏、空白来源遮挡已知 workspace，以及
+只有文件的 Room 交付丢失，未用增加伪造正文或缩小断言绕过失败。中英文任务名、
+两种布局的文件来源、Artifact owner 优先级、忙态、未确定停止、加载/读取失败与
+保留输出均有证据；首次测试对刷新文案和列表同名标题的定位已按实际共享文案与
+可操作任务行修正。没有进行浏览器/原生/视觉验证或运行产品服务。
+
+485 项清单为 255 pending、132 in_progress、72 improved、20 retained、6 removed；
+公共 UI 仍为 118 项。两份子任务详情/装配文件完成本批代码行为审查；列表和共享
+Thread 仅登记本批切片，其他状态与滚动保持进行中。同步外部已提交 7b7d489aa 的
+WorkGraph 编辑器哈希并保留待复查说明，不将外批业务计作本批完成。Goal 继续。
+
+完整门禁在 7b7d489aa 加本批精确改动的隔离快照中通过：lint、typecheck、481 项
+合同、250 文件的 1052 项组件/模型测试和 build 全部成功，见 /tmp/nexus-a81-check.log。
+最后将三份纯模型的 L3 合同及新增 import 移到文件顶部，逻辑不变；最终快照再次
+通过 lint、typecheck 和 build，见 /tmp/nexus-a81-final-check.log。构建只保留既有
+大分块提示；快照清单见 /tmp/nexus-a81-review.json。485 项生产源哈希核对一致。
+未执行 Go/产品服务/浏览器或宿主验证，只本地提交，不推送。

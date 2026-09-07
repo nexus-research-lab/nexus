@@ -2,10 +2,11 @@
 
 /**
  * INPUT: Thread 视图模型、消息上下文与滚动/触摸/pointer 处理器。
- * OUTPUT: 禁用浏览器锚点争抢的 Thread 标题、消息流和回到底部入口。
+ * OUTPUT: Thread 标题、保留明确空工作区的消息流和回到底部入口；不争抢滚动锚点。
  * POS: Agent Thread 的纯展示与事件绑定层。
  */
 import { ArrowLeft, Bot, X, type LucideIcon } from "lucide-react";
+import type { WorkspaceFileOpenHandler } from "@/lib/workspace-file-action";
 import type {
   PointerEventHandler,
   ReactNode,
@@ -43,11 +44,11 @@ import type {
 export interface ConversationThreadMessageContext {
   agentAvatar: string | null;
   agentName: string;
-  onOpenWorkspaceFile?: (path: string) => void;
+  onOpenWorkspaceFile?: WorkspaceFileOpenHandler;
   onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
   onStopMessage?: (msgId: string) => void;
   unresolvedToolStatus?: UnresolvedToolStatus;
-  workspaceAgentId: string;
+  workspaceAgentId: string | null;
 }
 
 interface ConversationThreadViewProps {

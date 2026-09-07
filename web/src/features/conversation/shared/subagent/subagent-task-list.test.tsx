@@ -7,6 +7,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
+import { MESSAGES } from "@/shared/i18n/messages";
 import type { SubagentTask } from "@/types/conversation/subagent-task";
 
 import { SubagentTaskList } from "./subagent-task-list";
@@ -29,6 +30,15 @@ const ACTIVE_TASK: SubagentTask = {
 };
 
 describe("SubagentTaskList", () => {
+  it("uses the same localized missing task name as the details header", () => {
+    const task = { ...ACTIVE_TASK, name: " ", description: " ", agent_type: " " };
+    const view = (locale: "en" | "zh") => <I18N_CONTEXT.Provider value={{ locale, setLocale: vi.fn(), t: (key) => MESSAGES[locale][key] }}><SubagentTaskList data={null} error={null} isLoading={false} onClose={vi.fn()} onRefresh={vi.fn()} onSelectTask={vi.fn()} tasks={[task]} /></I18N_CONTEXT.Provider>;
+    const { rerender } = render(view("zh"));
+    expect(screen.getByRole("button", { name: new RegExp(MESSAGES.zh["agent.subagent_name_fallback"]) })).toBeTruthy();
+    rerender(view("en"));
+    expect(screen.getByRole("button", { name: new RegExp(MESSAGES.en["agent.subagent_name_fallback"]) })).toBeTruthy();
+  });
+
   it("keeps one shared retry notice when the task list cannot refresh", async () => {
     const user = userEvent.setup();
     const onRefresh = vi.fn();

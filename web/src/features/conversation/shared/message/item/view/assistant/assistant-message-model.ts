@@ -1,6 +1,6 @@
 /**
  * INPUT: controller 已投影的 Assistant 活动、内容、权限及交互状态。
- * OUTPUT: Assistant 子视图按职责消费的窄状态与环境契约。
+ * OUTPUT: Assistant 子视图按职责消费的窄状态与来源环境；空白消息身份不阻断明确工作区。
  * POS: MessageItem controller 到 Assistant 视图的类型边界，不选择内容模式策略。
  */
 import type {
@@ -182,5 +182,5 @@ function resolveContentWorkspaceAgentId(
   assistantAgentId: string | null,
   workspaceAgentId?: string | null,
 ) {
-  return assistantAgentId ?? workspaceAgentId;
+  return assistantAgentId?.trim() || workspaceAgentId;
 }

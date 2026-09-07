@@ -117,6 +117,7 @@ round 结束只由 terminal `round_status` 定义，前端不再自己猜测。
 
 ### 3.3 内容块兼容
 
+- `workspace_file_artifact` 属于已知可见内容，只有文件而没有自然语言正文的回复仍须展示。最终回复末尾的文件与相邻正文共用 final surface；Room 最终轮选择不得跳过文件交付而回退旧正文。更早工具过程中的文件继续留在过程，完整 transcript 保留全部，Room 过程检查器不重复主 Feed 的最终正文和尾部文件。
 - 已知内容块按协议类型显式解码，不靠全局字段改名。
 - Claude Code 的 `server_tool_use` / `web_search_tool_result` 等块保留原始 `source_type`，同时投影到 Nexus 现有工具渲染模型。
 - 新版本 runtime 发来未知或字段不完整的内容块时，前端保留原始类型和 payload，并安全隐藏；单个未知块不能让整条消息解析失败或让会话停止。
