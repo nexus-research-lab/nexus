@@ -1,6 +1,6 @@
 /**
  * INPUT: 分组配对、Agent 目录与配对写命令。
- * OUTPUT: 可识别的外部对象摘要、标签关联的 Agent 选择器和按需展开的内部技术详情。
+ * OUTPUT: 外部对象摘要、共享 Agent 选择文字/缺项绑定与按需展开的技术详情。
  * POS: 配对目录列表纯视图；外部身份属于管理对象，内部绑定键才延后展示。
  */
 "use client";
@@ -13,6 +13,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useId } from "react";
+import { useI18n } from "@/shared/i18n/i18n-context";
+import { buildAgentSelectionOptions, includeUnavailableAgentSelection, type AgentSelectionOption } from "@/lib/agent-selection-options";
 
 import type {
   ImPairingStatus,
@@ -116,11 +118,13 @@ export function PairingList({
   onDeletePairing,
   onUpdatePairing,
 }: PairingListProps) {
+  const { t } = useI18n();
+  const agentOptions = buildAgentSelectionOptions(agents, t);
   return (
     <div className="space-y-5">
       {pendingItems.length > 0 ? (
         <PairingSection
-          agents={agents}
+          agentOptions={agentOptions}
           busy={busy}
           description="首次消息正在等待授权"
           items={pendingItems}
@@ -132,7 +136,7 @@ export function PairingList({
       ) : null}
       {groups.map((group) => (
         <PairingSection
-          agents={agents}
+          agentOptions={agentOptions}
           busy={busy}
           items={group.items}
           key={group.agent_id}
@@ -147,7 +151,7 @@ export function PairingList({
 }
 
 function PairingSection({
-  agents,
+  agentOptions,
   busy,
   description,
   items,
@@ -156,7 +160,7 @@ function PairingSection({
   onUpdatePairing,
   title,
 }: {
-  agents: Agent[];
+  agentOptions: AgentSelectionOption[];
   busy: boolean;
   description?: string;
   items: PairingView[];
@@ -175,7 +179,7 @@ function PairingSection({
       <div className="space-y-2">
         {items.map((item) => (
           <PairingRow
-            agents={agents}
+            agentOptions={agentOptions}
             busy={busy}
             item={item}
             key={item.pairing_id}
@@ -190,20 +194,21 @@ function PairingSection({
 }
 
 function PairingRow({
-  agents,
+  agentOptions,
   busy,
   item,
   onCopySessionKey,
   onDeletePairing,
   onUpdatePairing,
 }: {
-  agents: Agent[];
+  agentOptions: AgentSelectionOption[];
   busy: boolean;
   item: PairingView;
   onCopySessionKey: PairingListProps["onCopySessionKey"];
   onDeletePairing: PairingListProps["onDeletePairing"];
   onUpdatePairing: PairingListProps["onUpdatePairing"];
 }) {
+  const { t } = useI18n();
   const agentFieldId = useId();
   const bindingKey = pairingBindingKey(item);
   const sessionKey = pairingSessionKey(item);
@@ -262,10 +267,7 @@ function PairingRow({
             disabled={busy}
             id={agentFieldId}
             onChange={(value) => void onUpdatePairing(item, { agent_id: value })}
-            options={agents.map((agent) => ({
-              value: agent.agent_id,
-              label: agent.name,
-            }))}
+            options={includeUnavailableAgentSelection(agentOptions, item.agent_id, t)}
             size="sm"
             value={item.agent_id}
           />

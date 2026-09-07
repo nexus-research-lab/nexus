@@ -1,6 +1,6 @@
 /**
  * INPUT: Agent 目录、配对草稿与创建命令。
- * OUTPUT: 标签/说明关联到具体控件、必填信息优先与可选路由字段按需展开的 plain 配对表单。
+ * OUTPUT: plain 配对表单；缺项 Agent 保留原选择并阻止提交，不能自动改绑其他对象。
  * POS: IM 配对目录的手动创建边界；不在标题区解释匹配协议。
  */
 "use client";
@@ -21,6 +21,8 @@ import {
   type ImPairingStatus,
 } from "@/lib/api/capability/channel-api";
 import { UiButton } from "@/shared/ui/button/button";
+import { buildAgentSelectionOptions, includeUnavailableAgentSelection } from "@/lib/agent-selection-options";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -64,17 +66,18 @@ export function CreatePairingDialog({
   onClose,
   onCreate,
 }: CreatePairingDialogProps) {
+  const { t } = useI18n();
   const fieldId = useId();
   const savingRef = useRef(false);
   const [draft, setDraft] = useState(() => createPairingDraft(
     agents[0]?.agent_id || "",
   ));
   const [saving, setSaving] = useState(false);
+  const selectedAgentAvailable = agents.some((agent) => agent.agent_id === draft.agentId);
+  const agentOptions = includeUnavailableAgentSelection(buildAgentSelectionOptions(agents, t), draft.agentId, t);
 
   useEffect(() => {
-    if (draft.agentId && agents.some(
-      (agent) => agent.agent_id === draft.agentId,
-    )) {
+    if (draft.agentId) {
       return;
     }
     setDraft((current) => ({
@@ -93,7 +96,7 @@ export function CreatePairingDialog({
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     const payload = buildCreatePairingPayload(draft);
-    if (!payload || savingRef.current || blocked) {
+    if (!payload || !selectedAgentAvailable || savingRef.current || blocked) {
       return;
     }
     savingRef.current = true;
@@ -112,7 +115,7 @@ export function CreatePairingDialog({
     <UiDialogPortal>
       <UiDialogBackdrop
         layer="dialog"
-        labelledBy="create-pairing-dialog-title"
+        labelledBy={`${fieldId}-title`}
         onClose={onClose}
       >
         <UiDialogFormShell
@@ -124,7 +127,7 @@ export function CreatePairingDialog({
             appearance="plain"
             onClose={onClose}
             title="新增配对"
-            titleId="create-pairing-dialog-title"
+            titleId={`${fieldId}-title`}
           />
 
           <UiDialogBody className="space-y-4" scrollable>
@@ -160,12 +163,12 @@ export function CreatePairingDialog({
 
             <UiField
               description="同一智能体可以绑定多个不同外部对象，每个对象会生成独立 IM session。"
-              htmlFor="pairing-external-ref"
+              htmlFor={`${fieldId}-external-ref`}
               label="外部对象 ID"
               required
             >
               <UiInput
-                id="pairing-external-ref"
+                id={`${fieldId}-external-ref`}
                 onChange={(event) => setField("externalRef", event.target.value)}
                 pattern=".*\S.*"
                 placeholder={draft.chatType === "group"
@@ -193,10 +196,7 @@ export function CreatePairingDialog({
                   id={`${fieldId}-agent`}
                   disabled={agents.length === 0}
                   onChange={(value) => setField("agentId", value)}
-                  options={agents.map((agent) => ({
-                    value: agent.agent_id,
-                    label: agent.name,
-                  }))}
+                  options={agentOptions}
                   size="sm"
                   value={draft.agentId}
                 />
@@ -259,7 +259,7 @@ export function CreatePairingDialog({
               取消
             </UiButton>
             <UiButton
-              disabled={saving || blocked || !draft.agentId}
+              disabled={saving || blocked || !selectedAgentAvailable}
               tone="primary"
               type="submit"
               variant="solid"

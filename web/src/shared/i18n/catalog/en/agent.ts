@@ -4,6 +4,8 @@ import type { zhAgentMessages } from "../zh/agent";
 export const enAgentMessages = {
   "agent.name_fallback": "Agent",
   "agent.subagent_name_fallback": "Subagent",
+  "agent.selection_numbered": "{number} · {name}",
+  "agent.selection_unavailable": "Current Agent unavailable",
   "agent_options.default_name": "Agent",
   "agent_options.title_create": "Create Agent",
   "agent_options.close_dialog": "Close dialog",

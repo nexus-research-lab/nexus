@@ -27,6 +27,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Unified Agent selection labels across pairings and scheduled tasks, using
+  display-only ordinals for duplicate or missing names without exposing IDs.
+  Missing bindings remain visible, and pairing creation no longer silently
+  switches to the first Agent when the selected Agent leaves the directory.
+- Isolated pairing dialog title and field IDs so multiple instances retain
+  correct label associations.
+
 - Removed unused legacy Room round projections and kept timeline grouping
   independent of display names and avatars. Room cards now resolve current names
   at the display boundary while preserving exact Thread and stop targets.
