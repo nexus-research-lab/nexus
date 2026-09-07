@@ -306,6 +306,13 @@
     box-shadow: var(--surface-control-shadow);
   }
 
+  /* 单动作任务摘要保持平面，透明边框沿用同一几何；多动作 Dock 保留容器材质。 */
+  .conversation-activity-plain {
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+  }
+
   /* 多动作活动条用更轻的投影，避免小型快捷入口呈现为另一层卡片。 */
   .conversation-activity-toolbar {
     box-shadow: 0 1px 3px color-mix(in srgb, var(--text-strong) 6%, transparent);

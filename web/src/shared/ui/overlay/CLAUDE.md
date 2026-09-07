@@ -21,3 +21,5 @@
 `anchored-overlay-layer.test.tsx` 使用真实 Portal、Tooltip、Select 与 Dialog 覆盖逐层 Escape、模态范围隔离、跨 Portal 内部点击与外部指针焦点；不得用孤立打开标记替代这组集成行为。
 定位层只在几何值真实变化时写 state；相同位置必须保持原对象，不能让不稳定的业务回调放大成 React render loop。
 定位完成后必须把未使用的 `top`/`bottom` 轴显式重置为 `auto`，避免消费者的初始原点 class 与最终坐标同时生效。
+
+- `overlay-focus-navigation.ts` 统一 Menu 与非模态明细的 Tab 退出续接：调用方先关闭并归还锚点，再跳过正在移除的 Portal，进入同页或同模态的相邻控件；非模态明细的反向退出可直接回锚点，不添加焦点锁。

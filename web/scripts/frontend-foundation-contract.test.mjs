@@ -523,6 +523,11 @@ test("Conversation activity chips share one semantic typography and icon-action 
   assert.doesNotMatch(execution, /className="conversation-activity-chip/);
   assert.match(tasks, /role: "caption"/);
   assert.match(tasks, /<UiIconButton/);
+  assert.match(tasks, /useAnchoredOverlayLayer/);
+  assert.match(tasks, /resolveUiAnchoredOverlayPosition/);
+  assert.match(tasks, /OPEN_OVERLAY_DATA_ATTRIBUTES/);
+  assert.match(tasks, /focusAfterAnchoredOverlayExit/);
+  assert.doesNotMatch(tasks, /max-h-\[|bottom-\[calc|rounded-\[5px\]/);
   assert.match(execution, /<UiIconButton/);
   assert.match(execution, /data-execution-agent-activity[\s\S]*?size="md"/);
   assert.match(execution, /data-execution-open-workgraph[\s\S]*?size="md"[\s\S]*?h-4 w-4/);
