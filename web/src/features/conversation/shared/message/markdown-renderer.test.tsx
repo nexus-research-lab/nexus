@@ -19,6 +19,11 @@ function workspaceFile(path: string): WorkspaceFileEntry {
   return { depth: 1, is_dir: false, modified_at: "2026-09-05", name: path.split("/").at(-1)!, path };
 }
 
+it("shares scientific formula compatibility with the generic Markdown surface", () => {
+  const { container } = render(<I18nProvider><MarkdownRenderer content={String.raw`解离速率 \(k_{\mathrm{off}}\)，单位 \(s^{-1}\)`} /></I18nProvider>);
+  expect(Array.from(container.querySelectorAll('annotation[encoding="application/x-tex"]'), (node) => node.textContent)).toEqual([String.raw`k_{\mathrm{off}}`, String.raw`s^{-1}`]);
+});
+
 beforeEach(() => {
   window.localStorage.setItem(LOCALE_STORAGE_KEY, "en");
   resetWorkspaceFilesOwnerScope();

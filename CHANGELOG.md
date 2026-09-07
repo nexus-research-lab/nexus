@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Added shared model-output formula compatibility for LaTeX bracket delimiters,
+  protected formula source from Markdown preprocessing, and kept incomplete or
+  invalid formulas readable. Display equations retain blank lines while streaming
+  and use keyboard-accessible horizontal scrolling when wider than the content.
+
 - Unified Composer question typography and decision touch targets, isolated radio
   groups and request drafts, and made asynchronous submission survive effect
   replays and request changes without stale completion or duplicate dispatch.

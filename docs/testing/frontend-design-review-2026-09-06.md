@@ -2313,3 +2313,42 @@ StrictMode 用于证明生命周期稳健性，不声称当前产品根入口已
 验证：npm run check 全部通过，含 lint、typecheck、480 项合同、227 个文件的
 833 项测试及 build；日志 /tmp/nexus-question-a65-check.log。构建只有既有大型
 分块提示，未启动产品服务、浏览器或原生宿主。
+
+
+## A66 — 模型公式兼容、源文保护与流式边界（代码/行为）
+
+响应 [Issue #262](https://github.com/nexus-research-lab/nexus/issues/262) 的公式渲染
+反馈。截图中的科学记号裸露与未识别 LaTeX 括号分隔一致，但 issue 未提供原始
+消息，因此不把截图推断当作原始输入证据。以明确的模型输出构造回归，新增共享
+micromark text/flow 扩展支持 `\(...\)`、`\[...\]`；已有美元分隔继续使用
+remark-math，行内双美元也投影为显示公式。没有修改模型提示、历史内容或服务端。
+
+解析按真实 Markdown token 处理，代码、转义字符、链接目标由原解析器隔离。
+列表/引用保持所属容器；块级分隔独占行，可包含空行。流式分块保留完整公式，
+终态继续复用原起点和 KaTeX 节点。未闭合括号/美元块保留源文；错误公式沿用
+rehype-katex 的局部降级，trust 显式关闭。块级闭符后混入同一行正文属于无法可靠
+收口的格式，保留原文，不以迟到 tokenizer 回退破坏容器。普通括号/裸 LaTeX
+不靠语义猜测，数字美元符号的歧义邻接形式也保持原文，不修补数学内容。
+
+预处理单独取得保守保护范围，避免原有标识符星号转义、文件链接和 URL 尾部修复
+改写公式；该范围只阻止改写，不成为第二份渲染语法。显示公式由唯一主题配方
+提供横向滚动、最小内容宽度、上下余量和可见键盘焦点；错误/未闭合源文可换行。
+保留数学字体与上下标比例，不缩小公式以塞入正文，不在插件中添加字号/行距设置。
+
+19 项共享公式回归加 1 项真实 Conversation 入口回归覆盖科学记号、现有美元语法、
+嵌套容器、代码/链接/转义、价格、文件预处理、逐字符未闭合、错误/不可信 LaTeX
+及流式空行/终态节点稳定。初始 12 项用例中 10 失败、2 通过，见
+/tmp/nexus-math-262-repro.log；其中包含本次新增兼容与可聚焦视口要求，并非十个
+独立生产故障。依据 [micromark 扩展接口](https://github.com/micromark/micromark#creating-a-micromark-extension)
+和 [KaTeX 配置](https://katex.org/docs/options.html) 实现；依赖只显式登记已存在的
+字符工具与开发类型，两份锁文件未升级已有运行依赖。pnpm 锁在独立临时目录校验，
+未重建工作区 node_modules。
+
+清单仍为 485 项：282 pending、119 in_progress、20 retained、58 improved、
+6 removed。共享解析配置进入增量审查，其他 Markdown 页面不能据此宣称整体完成；
+公共 UI 仍为 118 项，视觉/宿主验收继续暂停，整体 Goal 继续。
+
+验证：与 A67 导航名称修复一起运行 npm run check，lint、typecheck、480 项合同、
+228 个文件的 854 项测试及 build 全部通过，日志 /tmp/nexus-math-navigator-check.log。
+公式定向 19 项全部通过 /tmp/nexus-math-262-final-target.log。构建仅保留既有大型
+分块提示；未启动产品服务、浏览器或原生宿主，未向 issue 发评论或关闭 issue。

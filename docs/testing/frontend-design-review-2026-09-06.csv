@@ -439,7 +439,7 @@ shared/ui/markdown,web/src/shared/ui/markdown/code/code-block.tsx,CodeBlock,pend
 shared/ui/markdown,web/src/shared/ui/markdown/code/code-shell.tsx,CodeShell,pending,,,310277a2c823ca41c2603141c4da91d10eb1299bc35e0ac265da7a00da492ed9
 shared/ui/markdown,web/src/shared/ui/markdown/code/streaming-code-block.tsx,StreamingCodeBlock,pending,,,3dd1499a6744d4cc7fb7774ba1f465210216e2376ff7d74c0f0c0402dc630a8f
 shared/ui/markdown,web/src/shared/ui/markdown/core/markdown-components.tsx,,pending,,,383627c093ba7c51fb0cebaf2d787b2e79631770e29566bb41cf9c5de76bb7cc
-shared/ui/markdown,web/src/shared/ui/markdown/core/markdown-renderer-shared.tsx,,pending,,,03cdc3ba08719be8299a76cf4b8877097f686bbff8a78603d12c4088445c42a0
+shared/ui/markdown,web/src/shared/ui/markdown/core/markdown-renderer-shared.tsx,,in_progress,A66：#262 公式分隔兼容、预处理源文保护及流式/溢出边界增量审查；其他 Markdown 分支和视觉仍待审。,A66：markdown-math.test.tsx、message/markdown-renderer.test.tsx、/tmp/nexus-math-navigator-check.log。,aaf8576e4bfb93c198eb15a4a3b2d233a95e03c5b51c9af6ebcb5562ab253a71
 shared/ui/markdown,web/src/shared/ui/markdown/core/markdown-summary-components.tsx,,pending,,,fe0d881dbff7a4c64035d7c0c0fec3c20de0c9ee50272edfe13fd079b8c3ef89
 shared/ui/markdown,web/src/shared/ui/markdown/markdown-content.tsx,UiMarkdownContent,pending,,,6b57cc0766a0df1d052eb5214e6724784e0bad5ceb3683f8bfa69e1708bc8cc6
 shared/ui/markdown,web/src/shared/ui/markdown/mermaid/lazy-mermaid-view.tsx,LazyMermaidView,pending,,,7b488a545ac79ef4f69742b75a3a0f0a184026359f3db09b4b7f122e4dee0faa

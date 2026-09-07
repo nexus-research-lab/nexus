@@ -1832,6 +1832,29 @@
     margin-bottom: 0;
   }
 
+  /* 数学内容保持 KaTeX 字体/几何；长式独立滚动，不能被正文 overflow 裁掉。 */
+  .nexus-chat-markdown .katex-display {
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    padding-block: 0.25em;
+  }
+
+  .nexus-chat-markdown .katex-display > .katex {
+    min-width: max-content;
+  }
+
+  .nexus-chat-markdown .katex-display:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: -2px;
+  }
+
+  .nexus-chat-markdown :is(.nexus-math-pending, .katex-error) {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
   .nexus-chat-feed .nexus-markdown-body [data-markdown-anchor] {
     margin: 0;
     color: var(--text-strong);
