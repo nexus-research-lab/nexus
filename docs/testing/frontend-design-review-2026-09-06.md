@@ -3233,3 +3233,56 @@ lint、typecheck、481 项合同、265 文件的 1184 项组件/模型测试及 
 lint 警告和大分块构建提示。快照 /tmp/nexus-a88-review-ytxsn6j_，文件清单
 /tmp/nexus-a88-review.json；最终证据只更新本文，提交前核对工作树、暂存区与
 快照的精确字节及全部审查哈希。
+
+
+## A89 — 公共 Header 导航与无消费者接口清理
+
+本批继续 A88 的公共 Header 审查，逐一检查 DM、Group、联络、联系人详情、Provider
+与现有 Gallery 消费入口，并读完 Header 样式。普通页面窄窗视图原先单独组合
+Button、ActionMenu、蓝色选中框与本地开关，本批直接使用公共 sm Select Menu：
+32px 高度、13px supporting、160px 且不超过可用空间的宽度、共享键盘/Portal/
+ARIA/focus 协议。当前视图进入唯一可访问名称，长名有完整提示；未命中当前值时
+只显示选择提示，不把首项伪装成当前项。候选身份或当前值改变消费打开态，名称/
+语言刷新保留；候选匹配后才调用真实 onChangeTab，不用字符串强制断言派发业务值。
+
+窄窗开关仍由 Header CSS 的 container query 决定，局部尺寸 observer 只读取结果，
+不复制 breakpoint 数字。隐藏 trigger 后投影 disabled，公共 Select 消费旧打开态，
+重新显示不复活旧浮层；保留外部焦点，卸载断开 observer/listener。带 Session 导航
+的 Header 从来不展示此选择器，现在直接不挂载隐藏副本。已有视图条和协作入口
+继续使用原 container 收缩，UiTabs 直接提供 metadata 排版，删除两处等值 12px
+覆盖；禁用成员入口不再被 Header 的 hover/expanded CSS 重新高亮。
+
+删除生产中没有消费者的 narrowMode、titleTrailing、tabsNavAnchor、subtitle 与
+对应私有子组件/CSS；subtitle 仅剩测试/Gallery 示例，本次仅删现有示例的失效
+prop，没有扩展或运行 Gallery。leadingClassName 的唯一消费者是联系人目录返回
+按钮，通过强制宽高/背景绕过图标壳；改为明确 action 插槽，由按钮自身持有外观。
+所有真实身份仍直接传公共 md Avatar。删除无使用者的 section 图标壳、旧新建标签
+文案 class 与动态 tab item class，主标题保留完整原生 title。
+
+ProviderSettingsPanel 的两处真实入口在设置和运营中始终传 embedded，独立 Header
+分支不可进入。本批删除该分支、embedded prop、单项 SettingsTabKey/SETTINGS_TABS
+及相应进口，两处调用者同步收口。运营 public scope 与 section 布局、私有 Provider
+默认 scope、资源/草稿/写事务都没有改变。Header 外形与公共 Provider 的壳层所有权
+进入源码门禁；补 Provider presentation、Settings 入口 L3，并同步相关 L2/design。
+
+公共 Header DOM 套件从 2 项扩为 7 项，定向 6 文件 38 项与 typecheck 通过，日志
+/tmp/nexus-a89-target.log 与 /tmp/nexus-a89-types-final.log。覆盖公共 Select 选项/
+aria-controls、鼠标与键盘选择、Escape/focus、未知值、名称/语言/候选/当前值更新、
+CSS 可见性变化与外部焦点、observer 清理、Session/空导航不挂载菜单、返回动作。
+真实 DM/Group 页面标签导航与成员入口、联络确认和共享菜单回归继续通过。DOM
+只显式提供 CSS 可见性结果，不把 jsdom 测试冒充 container query 或视觉验收。
+旧测试还传入已删除 subtitle 时的首次 typecheck 按预期失败，迁移后通过；未保留
+只为旧测试存在的生产接口。完整门禁结果以最终隔离快照为准。
+
+485 项清单为 237 pending、133 in_progress、89 improved、20 retained、6 removed；
+公共 UI 仍为 118 项。Header 完成本批代码/离线交互审查，联系人详情和 Provider
+根只完成上述切片，Settings/Operations 两处机械接线仍保留 pending，不把整页
+审查记成完成。全部存量源哈希已核对。按用户要求未运行视觉、浏览器或宿主验证，
+不启动产品服务、不改后端；整体 Goal 继续，只本地提交，不推送。
+
+最终完整 npm run check 在基线 69864a69c 与本批 20 个精确文件的隔离快照通过：
+lint、typecheck、482 项合同、265 文件的 1189 项组件/模型测试及 build 全部完成，
+见 /tmp/nexus-a89-check.log。仅保留既有 workgraph-metadata-editor-dialog effect-ref
+lint 警告和大分块构建提示。快照 /tmp/nexus-a89-review-nih2ckmm，文件清单
+/tmp/nexus-a89-review.json；最终证据只更新本文，提交前核对暂存区、工作树与
+测试快照字节及全部审查哈希。

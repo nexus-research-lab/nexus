@@ -31,6 +31,7 @@ export const zhCoreMessages = {
   "common.view_guide": "查看引导",
   "common.more_actions": "更多操作",
   "common.view_switcher": "视图切换",
+  "common.view_switcher_current": "{label}：{view}",
   "common.reset_guides": "重置所有引导",
   "common.reviewed": "已看过",
   "common.edit": "编辑",

@@ -684,7 +684,6 @@ export function WorkspaceGallery({ locale }: { locale: Locale }) {
             leading={<UiSeededAvatar seed="workspace-gallery" size="md" />}
             leadingVariant="identity"
             onChangeTab={setActiveSurfaceTab}
-            subtitle={galleryText(locale, "真实共享头部", "Real shared header")}
             tabs={[
               { icon: Grid2X2, key: "overview", label: galleryText(locale, "概览", "Overview") },
               { icon: FileCode2, key: "files", label: galleryText(locale, "文件", "Files") },

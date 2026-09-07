@@ -31,6 +31,7 @@ const PROHIBITED_PRODUCT_STYLE_PATTERNS = [
 ];
 
 const REQUIRED_SHARED_UI_BEHAVIOR_SUITES = [
+  "src/shared/ui/workspace/surface/workspace-surface-header.test.tsx",
   "src/features/conversation/room/group/header/group-conversation-header.test.tsx",
   "src/features/conversation/room/group/header/group-member-avatar-stack.test.tsx",
   "src/pages/room/orchestration/room-session-navigation.test.tsx",
@@ -480,11 +481,11 @@ test("Workspace Surface primitives own their semantic typography and identity sh
     assert.match(primitive, /getUiTypographyClassName/);
   }
   assert.match(header, /role: "pageTitle"/);
-  assert.match(header, /role: "metadata"/);
   assert.match(header, /workspace-surface-header-identity-avatar h-10 w-10/);
   assert.doesNotMatch(header, /surface-avatar-border|surface-avatar-background/);
   assert.doesNotMatch(headerStyles, /\.workspace-surface-header-identity-avatar\s*\{/);
-  assert.match(header, /<UiButton/);
+  assert.match(header, /<UiSelectMenu/);
+  assert.doesNotMatch(header, /UiActionMenu|leadingClassName|narrowMode|tabsNavAnchor|titleTrailing|subtitle/);
   assert.doesNotMatch(header, /rounded-\[10px\]/);
   assert.match(
     headerStyles,
@@ -2219,6 +2220,19 @@ test("Provider settings cannot redefine App typography, badges, or shape", async
     await readSource("src/features/settings/provider-settings/model/provider-settings-presentation.ts"),
     /CLASS_NAME|className/,
   );
+});
+
+test("Provider management stays inside its real settings and operations shells", async () => {
+  const [provider, presentation, settings, operations] = await Promise.all([
+    readSource("src/features/settings/provider-settings/provider-settings-panel.tsx"),
+    readSource("src/features/settings/provider-settings/model/provider-settings-presentation.ts"),
+    readSource("src/features/settings/settings-panel.tsx"),
+    readSource("src/features/settings/operations/operations-panel.tsx"),
+  ]);
+  assert.doesNotMatch(provider, /embedded|WorkspaceSurfaceHeader|WorkspaceSurfaceScaffold|SETTINGS_TABS/);
+  assert.doesNotMatch(presentation, /SettingsTabKey|SETTINGS_TABS/);
+  assert.match(settings, /<ProviderSettingsPanel \/>/);
+  assert.match(operations, /<ProviderSettingsPanel\s+layout="section"\s+visibilityScope="public"/);
 });
 
 test("Provider default models keep one actionable shared switch owner", async () => {
