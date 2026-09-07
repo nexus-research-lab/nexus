@@ -1,5 +1,5 @@
 // INPUT: 保存草图表单、编辑器受理回调与数据库提交回执。
-// OUTPUT: 验证改名直接保存、只传显式表单修改、关闭重开与失败重开的元信息边界。
+// OUTPUT: 验证连续改名保存、已保存内容判定、当前版本续用，以及编辑器显式元信息边界。
 // POS: WorkGraph 保存确认表单 DOM 回归；模型编辑和画布由独立边界替身代替。
 
 import { act, render, screen, waitFor } from "@testing-library/react";
@@ -45,7 +45,12 @@ const PREVIEW: WorkGraphWorkflowPreview = {
 };
 beforeEach(() => {
   mocks.state.mockReset().mockResolvedValue({ preview: PREVIEW, status: "unsaved", saved_revision: 0 });
-  mocks.save.mockReset().mockResolvedValue({ preview_id: PREVIEW.preview_id, status: "saved", workflow: { ...PREVIEW, slash_name: "chain", id: "workflow-a", version: 1 } });
+  mocks.save.mockReset().mockImplementation(async (_session, _preview, metadata) => {
+    const preview = { ...PREVIEW, ...metadata, head_revision: metadata.head_revision + 1, selected_revision: metadata.head_revision + 1 };
+    const workflow = { ...preview, id: "workflow-a", version: metadata.head_revision };
+    mocks.state.mockResolvedValue({ preview, workflow, status: "saved", saved_revision: preview.selected_revision });
+    return { preview_id: preview.preview_id, status: "saved", workflow };
+  });
   mocks.metadata.mockClear();
 });
 afterEach(() => vi.restoreAllMocks());
@@ -76,12 +81,78 @@ describe("WorkGraph save form metadata", () => {
     await user.click(screen.getByRole("button", { name: "execution.workflow_save_sketch" }));
     expect(screen.queryByText("execution.workflow_saved_title")).toBeNull();
     expect(dispatch).not.toHaveBeenCalledWith(refresh);
+    const persistedPreview = { ...PREVIEW, slash_name: "research-rich", head_revision: 2, selected_revision: 2 };
+    mocks.state.mockResolvedValue({ preview: persistedPreview, workflow: persistedPreview, status: "saved", saved_revision: 2 });
     await act(async () => completeSave({
       preview_id: PREVIEW.preview_id, status: "saved", workflow: { ...PREVIEW, slash_name: "research-rich" },
     }));
     expect(screen.getByText("execution.workflow_saved_title")).toBeTruthy();
     expect(screen.getByLabelText<HTMLInputElement>("execution.workflow_slash_name").value).toBe("research-rich");
     expect(dispatch).toHaveBeenCalledWith(refresh);
+  });
+
+  it("keeps the saved form editable and uses the committed revision for the next save", async () => {
+    const onSaved = vi.fn();
+    const user = userEvent.setup();
+    render(<WorkGraphDistillationDialog agents={[]} onClose={vi.fn()} onSaved={onSaved} preview={PREVIEW} sessionKey="session-a" />);
+    const name = screen.getByLabelText<HTMLInputElement>("execution.workflow_slash_name");
+    await waitFor(() => expect(name.disabled).toBe(false));
+    await user.clear(name);
+    await user.type(name, "chain");
+    await user.click(screen.getByRole("button", { name: "execution.workflow_save_sketch" }));
+    await screen.findByText("execution.workflow_saved_title");
+    expect(name.disabled).toBe(false);
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "execution.workflow_edit_with_chat" }).disabled).toBe(false);
+    await user.clear(name);
+    await user.type(name, "research-rich");
+    expect(screen.queryByText("execution.workflow_saved_title")).toBeNull();
+    const title = screen.getByLabelText("execution.workflow_title");
+    await user.clear(title);
+    await user.type(title, "新标题");
+    const description = screen.getByLabelText("execution.workflow_description");
+    await user.clear(description);
+    await user.type(description, "新描述");
+    await user.click(screen.getByRole("button", { name: "execution.workflow_save_sketch" }));
+    expect(mocks.save).toHaveBeenNthCalledWith(2, "session-a", "preview-a", {
+      head_revision: 2, selected_revision: 2, slash_name: "research-rich", title: "新标题", description: "新描述",
+    });
+    await screen.findByText("execution.workflow_saved_title");
+    expect(name.disabled).toBe(false);
+    expect(onSaved).toHaveBeenCalledTimes(2);
+    expect(onSaved.mock.calls.map(([workflow]) => workflow.id)).toEqual(["workflow-a", "workflow-a"]);
+  });
+
+  it("recognizes a reopened saved graph and restores saved status when metadata edits are reverted", async () => {
+    mocks.state.mockResolvedValue({ preview: PREVIEW, workflow: { ...PREVIEW, id: "workflow-a" }, status: "saved", saved_revision: 1 });
+    const user = userEvent.setup();
+    render(<WorkGraphDistillationDialog agents={[]} onClose={vi.fn()} preview={PREVIEW} sessionKey="session-a" />);
+    await screen.findByText("execution.workflow_saved_title");
+    for (const [label, value] of [["execution.workflow_slash_name", "report"], ["execution.workflow_title", "报告"], ["execution.workflow_description", "生成报告"]]) {
+      const field = screen.getByLabelText(label);
+      await user.type(field, "a");
+      expect(screen.queryByText("execution.workflow_saved_title")).toBeNull();
+      expect(screen.getByRole<HTMLButtonElement>("button", { name: "execution.workflow_save_sketch" }).disabled).toBe(false);
+      await user.clear(field);
+      await user.type(field, value);
+      expect(screen.getByText("execution.workflow_saved_title")).toBeTruthy();
+    }
+    expect(mocks.save).not.toHaveBeenCalled();
+  });
+
+  it("preserves committed success when refreshing the saved Draft fails and resumes after a read", async () => {
+    const user = userEvent.setup();
+    render(<WorkGraphDistillationDialog agents={[]} onClose={vi.fn()} preview={PREVIEW} sessionKey="session-a" />);
+    const name = screen.getByLabelText<HTMLInputElement>("execution.workflow_slash_name");
+    await waitFor(() => expect(name.disabled).toBe(false));
+    mocks.state.mockRejectedValueOnce(new Error("read failed after commit"));
+    await user.click(screen.getByRole("button", { name: "execution.workflow_save_sketch" }));
+    await screen.findByText("execution.workflow_state_failed");
+    expect(screen.getByText("execution.workflow_saved_title")).toBeTruthy();
+    expect(name.disabled).toBe(true);
+    expect(screen.queryByRole("button", { name: "execution.workflow_check_save" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "execution.workflow_reload_draft" }));
+    expect(name.disabled).toBe(false);
+    expect(mocks.save).toHaveBeenCalledTimes(1);
   });
 
   it("does not treat a legacy scheduled response as a completed save", async () => {
@@ -155,11 +226,19 @@ describe("WorkGraph save form metadata", () => {
     expect(screen.queryByText("execution.workflow_saved_title")).toBeNull();
     expect(onSaved).not.toHaveBeenCalled();
     const persisted = { ...PREVIEW, id: "workflow-a", version: 2 };
-    mocks.state.mockResolvedValueOnce({ preview: PREVIEW, workflow: persisted, status: "saved" });
+    mocks.state.mockResolvedValueOnce({ preview: { ...PREVIEW, head_revision: 3, selected_revision: 2 }, workflow: persisted, status: "saved" });
     await user.click(check);
     expect(screen.getByText("execution.workflow_saved_title")).toBeTruthy();
     expect(onSaved).toHaveBeenCalledExactlyOnceWith(persisted);
     expect(mocks.save).toHaveBeenCalledTimes(1);
+    const name = screen.getByLabelText<HTMLInputElement>("execution.workflow_slash_name");
+    expect(name.disabled).toBe(false);
+    await user.clear(name);
+    await user.type(name, "after-check");
+    await user.click(screen.getByRole("button", { name: "execution.workflow_save_sketch" }));
+    expect(mocks.save).toHaveBeenNthCalledWith(2, "session-a", "preview-a", {
+      head_revision: 3, selected_revision: 2, slash_name: "after-check", title: "报告", description: "生成报告",
+    });
   });
 
   it("keeps save disabled when current Draft state cannot be loaded", async () => {
