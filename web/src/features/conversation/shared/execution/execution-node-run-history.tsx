@@ -1,6 +1,6 @@
 /**
  * INPUT: GraphNode 下的有界 NodeRun 历史、结构化 workspace Artifact 与正式交付引用。
- * OUTPUT: 本地化运行历史、共享行内错误与精确文件引用；缺失事实不以内部身份冒充可读详情。
+ * OUTPUT: 本地化运行历史、共享行内错误与来源节点工作区的文件引用；缺失事实不以内部身份冒充可读详情。
  * POS: 节点悬浮检查器的深入事实视图；不从摘要推断状态或触发重试。
  */
 "use client";
@@ -201,11 +201,11 @@ function ExecutionNodeRunDetail({
                 artifact={{
                   ...artifact,
                   scope: "agentWorkspace",
-                  workspace_agent_id: artifact.workspace_agent_id ?? workspaceAgentId,
                 }}
                 compact
                 key={artifact.id || `${artifact.source_tool_use_id}:${artifact.path}`}
                 onOpenWorkspaceFile={onOpenWorkspaceFile}
+                workspaceAgentId={workspaceAgentId}
               />
             ))}
           </div>

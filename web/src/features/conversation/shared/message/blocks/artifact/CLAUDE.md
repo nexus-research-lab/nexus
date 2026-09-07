@@ -4,6 +4,8 @@ L6 | 父级: web/src/features/conversation/shared/message/blocks
 
 ## 职责
 
+结构化文件由 `workspace-file-artifacts.tsx` 在唯一入口解析归属：Artifact 自带的非空 workspace Agent 优先，其次为消息或节点传入的明确来源；没有来源时不读取全局当前 Agent。正文、收起态过程和运行历史都必须传入已知来源，集合不会因缺少预览 handler 而隐藏文件证据。Markdown 文件段继续由既有 workspace Markdown 适配器解析其上下文，再传给同一文件原语。
+
 - `artifact-path-model.ts`: 统一路径归一化、文件名和父目录投影
 - `workspace-artifact-action-model.ts`: 构造可执行的工作区外部动作
 - `workspace-artifact-external-action.tsx`: 组合文字 Button 与公共反馈，通过 `hooks/agent/use-workspace-file-external-action.ts` 执行下载/桌面定位，不再自己调用 API 或吞掉失败

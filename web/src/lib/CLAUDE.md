@@ -1,6 +1,7 @@
 # 前端基础库
 
 - 根目录只保留跨领域复用且无业务状态的纯基础能力。
+- `workspace-file-action.ts` 拥有来源工作区随 path 传递的预览回调类型，以及浏览器下载/桌面定位的本地化文案；不推断文件归属、不执行命令。
 - `agent-display-name.ts` 是 Agent/Subagent 非空展示名称的纯所有者，只接收名称、当前翻译能力和角色，不接收 ID，不改写资源身份；真实目录和“自己”等领域判断仍由消费者负责。
 - `agent-selection-options.ts` 是 Agent 选择文字的跨领域适配：只把 Agent 候选、显示目录与本地化通称映射到 `shared/lib/selection-options.ts` 的唯一序号/缺项算法，不复制排序或分组。完整目录只稳定显示，不能加入新候选；原 value 和缺项绑定保持。
 - `unknown-value.ts` 只提供未知值的结构读取、枚举收窄和批量必填字段校验原语；领域字段集合由消费者定义。

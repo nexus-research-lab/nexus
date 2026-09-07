@@ -1,7 +1,7 @@
 /**
  * INPUT: DM/Room live 过程、当前 ToolUseSummary、final 恢复信号与人工交互工具集合。
  * OUTPUT: 执行中覆盖整段 process 的单行摘要，终态切换为中性审计入口；首层展开过程目录，各子项再独立展开详情。
- * POS: Assistant live 共用过程视图；权限、用户提问与生成式 UI 不进入折叠批次。
+ * POS: Assistant live 共用过程视图；权限、用户提问与生成式 UI 不进入折叠批次；收起态文件继承消息来源工作区。
  */
 "use client";
 
@@ -283,6 +283,7 @@ function ToolRun({
               className="ml-5 pt-1"
               label={generatedFilesLabel}
               onOpenWorkspaceFile={environment.onOpenWorkspaceFile}
+              workspaceAgentId={environment.workspaceAgentId}
             />
             {streaming && activity.state ? (
               <LocalizedMessageActivityStatus

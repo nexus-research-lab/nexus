@@ -1,3 +1,8 @@
+// INPUT: Archived process, assistant content environment and disclosure state.
+// OUTPUT: Process disclosure and generated files bound to the source message workspace.
+// POS: Archived Assistant process orchestration; file cards own action eligibility.
+
+import type { WorkspaceFileOpenHandler } from "@/lib/workspace-file-action";
 import type { RefObject } from "react";
 import { Wrench } from "lucide-react";
 
@@ -58,6 +63,7 @@ export function AssistantProcessCallchain({
         artifacts={collapsedFileArtifacts}
         label={generatedFilesLabel}
         onOpenWorkspaceFile={environment.onOpenWorkspaceFile}
+        workspaceAgentId={environment.workspaceAgentId}
         visible={!process.expanded}
       />
       <ExpandedProcessContent
@@ -165,11 +171,13 @@ function CollapsedProcessArtifacts({
   label,
   onOpenWorkspaceFile,
   visible,
+  workspaceAgentId,
 }: {
   artifacts: WorkspaceFileArtifactContent[];
   label: string;
-  onOpenWorkspaceFile?: (path: string) => void;
+  onOpenWorkspaceFile?: WorkspaceFileOpenHandler;
   visible: boolean;
+  workspaceAgentId?: string | null;
 }) {
   if (!visible) {
     return null;
@@ -180,6 +188,7 @@ function CollapsedProcessArtifacts({
       className="ml-5 pb-1"
       label={label}
       onOpenWorkspaceFile={onOpenWorkspaceFile}
+      workspaceAgentId={workspaceAgentId}
     />
   );
 }

@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- File artifacts now preserve their source workspace through message bodies,
+  collapsed processes, WorkGraph history and Room Thread callbacks. Missing
+  file identity remains visible with a localized explanation instead of opening
+  the selected Agent's workspace; downloads remain available without preview.
+  File cards share typography roles and localized collection labels.
 - WorkGraph node steps now use readable shared typography, wrap long text and
   offer access to the full list, with counts and rows based on the same normalized
   tasks. Node and run details share localized status/time formatting; unknown

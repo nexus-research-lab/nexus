@@ -1,3 +1,8 @@
+// INPUT: Current Room Thread live data and exact-scope action callbacks.
+// OUTPUT: Single replaceable source shared by desktop and mobile Thread views.
+// POS: Ephemeral Thread store; no workspace inference or domain projection.
+
+import type { WorkspaceFileOpenHandler } from "@/lib/workspace-file-action";
 import { create } from "zustand";
 
 import type { Message } from "@/types/conversation/message/entity";
@@ -14,7 +19,7 @@ export interface RoomThreadLiveSource {
   agentAvatarMap: Record<string, string | null>;
   agentNameMap: Record<string, string>;
   messageGroups: Map<string, Message[]>;
-  onOpenWorkspaceFile?: (path: string) => void;
+  onOpenWorkspaceFile?: WorkspaceFileOpenHandler;
   onPermissionResponse: (payload: PermissionDecisionPayload) => boolean;
   pendingPermissionGroups: Map<string, PendingPermission[]>;
   pendingSlotGroups: Map<string, RoomPendingAgentSlotState[]>;

@@ -1,3 +1,8 @@
+// INPUT: Exact Room conversation data and source-aware file/permission callbacks.
+// OUTPUT: Stable live Thread source preserving file path and workspace identity.
+// POS: Room Thread publication boundary; callback updates do not replace the source.
+
+import type { WorkspaceFileOpenHandler } from "@/lib/workspace-file-action";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import type { Message } from "@/types/conversation/message/entity";
@@ -21,7 +26,7 @@ interface UseRoomThreadSourceOptions {
   agentNameMap: Record<string, string>;
   conversationId: string | null;
   messageGroups: Map<string, Message[]>;
-  onOpenWorkspaceFile?: (path: string) => void;
+  onOpenWorkspaceFile?: WorkspaceFileOpenHandler;
   pendingPermissionGroups: Map<string, PendingPermission[]>;
   pendingSlotGroups: Map<string, RoomPendingAgentSlotState[]>;
   roomAgentExecutionStateGroups: Map<string, RoomAgentExecutionState[]>;
@@ -96,8 +101,8 @@ function useStableRoomThreadActions({
     };
   }, [onOpenWorkspaceFile, sendPermissionResponse]);
 
-  const openWorkspaceFile = useCallback((path: string) => {
-    callbacksRef.current.onOpenWorkspaceFile?.(path);
+  const openWorkspaceFile = useCallback<WorkspaceFileOpenHandler>((path, workspaceAgentId) => {
+    callbacksRef.current.onOpenWorkspaceFile?.(path, workspaceAgentId);
   }, []);
   const respondPermission = useCallback(
     (payload: PermissionDecisionPayload) =>
