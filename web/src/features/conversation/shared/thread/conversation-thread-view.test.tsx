@@ -6,7 +6,8 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { createRef } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { I18nProvider } from "@/shared/i18n/i18n-provider";
+import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
+import { MESSAGES } from "@/shared/i18n/messages";
 
 import type { ConversationThreadModel } from "./conversation-thread-model";
 import { ConversationThreadView } from "./conversation-thread-view";
@@ -23,10 +24,10 @@ const MOBILE_MODEL: ConversationThreadModel = {
 };
 
 describe("ConversationThreadView", () => {
-  it("uses the shared mobile shell header and keeps navigation interactive", () => {
+  it.each(["en", "zh"] as const)("uses the shared mobile header and localized navigation in %s", (locale) => {
     const onClose = vi.fn();
     const { container } = render(
-      <I18nProvider>
+      <I18N_CONTEXT.Provider value={{ locale, setLocale: vi.fn(), t: (key) => MESSAGES[locale][key] }}>
         <ConversationThreadView
           agentAvatar={null}
           agentName="研究助手"
@@ -41,7 +42,7 @@ describe("ConversationThreadView", () => {
             agentName: "研究助手",
             workspaceAgentId: "agent-1",
           }}
-          model={MOBILE_MODEL}
+          model={{ ...MOBILE_MODEL, trailingAction: "close" }}
           notice={null}
           onClose={onClose}
           onPointerDown={vi.fn()}
@@ -55,11 +56,11 @@ describe("ConversationThreadView", () => {
           showScrollToLatest={false}
           subtitle="Thread"
         />
-      </I18nProvider>,
+      </I18N_CONTEXT.Provider>,
     );
 
     const header = container.querySelector("header");
-    const back = screen.getByRole("button", { name: "返回" });
+    const back = screen.getByRole("button", { name: MESSAGES[locale]["common.back"] });
     expect(header?.className).toContain("h-[var(--mobile-shell-header-height,52px)]");
     expect(header?.className).toContain("border-b");
     expect(header?.hasAttribute("data-desktop-window-drag-region")).toBe(true);
@@ -69,5 +70,7 @@ describe("ConversationThreadView", () => {
 
     fireEvent.click(back);
     expect(onClose).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("button", { name: MESSAGES[locale]["room.thread_close"] }));
+    expect(onClose).toHaveBeenCalledTimes(2);
   });
 });

@@ -2,7 +2,7 @@
 
 /**
  * INPUT: Thread 视图模型、消息上下文与滚动/触摸/pointer 处理器。
- * OUTPUT: Thread 标题、保留明确空工作区的消息流和回到底部入口；不争抢滚动锚点。
+ * OUTPUT: 当前语言的 Thread 导航、保留明确空工作区的消息流与回到底部入口；不争抢滚动锚点。
  * POS: Agent Thread 的纯展示与事件绑定层。
  */
 import { ArrowLeft, Bot, X, type LucideIcon } from "lucide-react";
@@ -19,6 +19,8 @@ import type {
 import { MessageItem } from "@/features/conversation/shared/message/item/message-item";
 import { MessageAvatar } from "@/features/conversation/shared/message/ui/message-avatar";
 import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
+import { useI18n } from "@/shared/i18n/i18n-context";
+import type { TranslationKey } from "@/shared/i18n/messages";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import {
@@ -93,7 +95,7 @@ interface ThreadFeedProps {
 
 interface ThreadNavigationPresentation {
   Icon: LucideIcon;
-  ariaLabel: string;
+  labelKey: TranslationKey;
 }
 
 type ThreadNavigationButtonAction = Exclude<
@@ -105,8 +107,8 @@ const THREAD_NAVIGATION_PRESENTATION: Record<
   ThreadNavigationButtonAction,
   ThreadNavigationPresentation
 > = {
-  back: { Icon: ArrowLeft, ariaLabel: "返回" },
-  close: { Icon: X, ariaLabel: "关闭 Thread" },
+  back: { Icon: ArrowLeft, labelKey: "common.back" },
+  close: { Icon: X, labelKey: "room.thread_close" },
 };
 
 export function ConversationThreadView({
@@ -251,6 +253,7 @@ function ThreadNavigationButton({
   isMobile: boolean;
   onClick: () => void;
 }) {
+  const { t } = useI18n();
   if (!action) {
     return null;
   }
@@ -258,14 +261,14 @@ function ThreadNavigationButton({
   const { Icon } = presentation;
   return (
     <UiIconButton
-      aria-label={presentation.ariaLabel}
+      aria-label={t(presentation.labelKey)}
       className="shrink-0"
       onClick={onClick}
       shape={isMobile ? "round" : "rounded"}
       size={isMobile ? "md" : "sm"}
       variant="ghost"
     >
-      <Icon className={WORKSPACE_PANEL_HEADER_ICON_CLASS} />
+      <Icon aria-hidden="true" className={WORKSPACE_PANEL_HEADER_ICON_CLASS} />
     </UiIconButton>
   );
 }

@@ -31,6 +31,8 @@ const PROHIBITED_PRODUCT_STYLE_PATTERNS = [
 ];
 
 const REQUIRED_SHARED_UI_BEHAVIOR_SUITES = [
+  "src/features/conversation/room/surface/room-subagent-task-surface.test.tsx",
+  "src/features/conversation/room/surface/mobile/room-mobile-subagent-overlay.test.tsx",
   "src/features/capability/channels/pairings/pairing-filter-bar.test.tsx",
   "src/features/conversation/shared/message/blocks/question/ask-user-question-view.test.tsx",
   "src/features/conversation/shared/execution/execution-node-run-history.test.tsx",
@@ -1916,8 +1918,6 @@ test("cross-domain warnings reuse the shared inline feedback owner", async () =>
         "src/features/conversation/shared/message/blocks/tool/tool-block-detail.tsx",
       ),
     ]);
-  const subagentNotice =
-    subagents.match(/\{error \? \([\s\S]*?\) : null\}/)?.[0] ?? "";
   const bypassNotice =
     agentOptions.match(/\{isBypassPermissionMode \? \([\s\S]*?\) : null\}/)?.[0] ?? "";
   const maxTokensNotice =
@@ -1926,11 +1926,11 @@ test("cross-domain warnings reuse the shared inline feedback owner", async () =>
     memoryDocument.match(/function MemoryDocumentAlerts[\s\S]*?function MemorySaveIssueNotice/)?.[0]
       ?? "";
 
-  for (const consumer of [roomSkills, subagentNotice, bypassNotice, maxTokensNotice, memoryAlerts]) {
+  for (const consumer of [roomSkills, subagents, bypassNotice, maxTokensNotice, memoryAlerts]) {
     assert.match(consumer, /<UiInlineNotice/);
     assert.doesNotMatch(consumer, /rounded-\[/);
   }
-  assert.doesNotMatch(subagentNotice, /<button\b/);
+  assert.doesNotMatch(subagents, /<button\b/);
   assert.match(agentOptions, /getUiSpinnerClassName/);
   assert.match(agentOptions, /<UiChoiceButton[\s\S]*tone="neutral"/);
   const permissionChoices =

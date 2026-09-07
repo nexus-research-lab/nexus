@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { SubagentTask, SubagentTaskListResponse } from "@/types/conversation/subagent-task";
-import { buildSubagentTaskListModel } from "./subagent-task-list-model";
+import { buildSubagentTaskListModel, filterSubagentTasksByHostAgent } from "./subagent-task-list-model";
 import { canSendSubagentTaskMessage, getSubagentTaskStatus, isSubagentTaskActive, normalizeSubagentTaskListResponse, preferFreshSubagentTask, subagentTaskTimestamp } from "./subagent-task-model";
 
 const NOW = 1_788_761_000_000;
@@ -99,4 +99,14 @@ describe("Subagent task directory", () => {
     expect(result.activeTasks).toEqual([]);
     expect(result.activeEmptyState).toBeNull();
   });
+});
+
+
+it("keeps omitted caller filters separate from an explicitly unavailable caller", () => {
+  const tasks = [{ ...TASK, host_agent_id: "host" }];
+  expect(filterSubagentTasksByHostAgent(tasks)).toBe(tasks);
+  expect(filterSubagentTasksByHostAgent(tasks, null)).toBe(tasks);
+  expect(filterSubagentTasksByHostAgent(tasks, "")).toEqual([]);
+  expect(filterSubagentTasksByHostAgent(tasks, " ")).toEqual([]);
+  expect(filterSubagentTasksByHostAgent(tasks, " host ")).toEqual(tasks);
 });

@@ -170,3 +170,24 @@ it("omits invalid times and provides an exact date plus updated minute labels fo
   expect(refresh).not.toHaveBeenCalled();
   expect(screen.getByRole("region", { name: "Active" })).toBeTruthy();
 });
+
+
+it.each(["en", "zh"] as const)("keeps a missing requested task actionable with one busy feedback surface in %s", (locale) => {
+  const refresh = vi.fn();
+  const data = { runtime_kind: ACTIVE_TASK.runtime_kind, capabilities: ACTIVE_TASK.capabilities, items: [] };
+  const { rerender } = render(list({ data, requestedTaskUnavailable: true, isLoading: true, onRefresh: refresh }, locale));
+  expect(screen.getAllByRole("status")).toHaveLength(1);
+  expect(screen.getByText(MESSAGES[locale]["subagents.requested_task_missing_title"])).toBeTruthy();
+  expect(screen.queryByText(MESSAGES[locale]["subagents.no_active"])).toBeNull();
+  const retry = screen.getByRole("button", { name: MESSAGES[locale]["subagents.retry"] });
+  expect(retry.getAttribute("aria-busy")).toBe("true");
+  expect(retry.hasAttribute("disabled")).toBe(true);
+  fireEvent.click(retry);
+  expect(refresh).not.toHaveBeenCalled();
+  rerender(list({ data, requestedTaskUnavailable: true, error: "offline", onRefresh: refresh }, locale));
+  expect(screen.getAllByRole("status")).toHaveLength(1);
+  expect(screen.getByText(MESSAGES[locale]["subagents.list_load_failed_title"])).toBeTruthy();
+  expect(screen.queryByText(MESSAGES[locale]["subagents.requested_task_missing_title"])).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: MESSAGES[locale]["subagents.retry"] }));
+  expect(refresh).toHaveBeenCalledOnce();
+});

@@ -1,6 +1,6 @@
 /**
  * INPUT: Room 完整会话目录、当前会话与选择命令。
- * OUTPUT: 排除内部草稿、明确空历史、跟随语言显示时间并复用模态焦点/关闭协议的移动切换器。
+ * OUTPUT: 排除内部草稿、明确空历史、当前语言时间及具备 Portal 归属与模态焦点/关闭协议的移动切换器。
  * POS: Room 窄窗历史投影视图；领域只拥有顶栏下拉几何与选择命令，模态行为归共享 Dialog。
  */
 
@@ -61,6 +61,7 @@ export function RoomMobileConversationSwitcher({
         ref={rootRef}
         aria-labelledby={titleId}
         aria-modal="true"
+        data-modal-root="true"
         className={cn(
           "absolute inset-x-0 flex max-h-[56dvh] flex-col overflow-hidden rounded-b-2xl border-b border-[color:color-mix(in_srgb,var(--divider-subtle-color)_82%,transparent)] bg-[color:color-mix(in_srgb,var(--background)_84%,var(--surface-panel-background)_16%)] shadow-(--surface-popover-shadow) backdrop-blur-[20px] animate-in fade-in-0 slide-in-from-top-2 duration-(--motion-duration-fast)",
           MOBILE_SHELL_HEADER_OFFSET_CLASS_NAME,

@@ -363,6 +363,8 @@ export const enConversationMessages = {
   "subagents.status_stopped": "Stopped",
   "subagents.no_active": "No active subagents",
   "subagents.loading": "Loading subagents...",
+  "subagents.requested_task_missing_title": "Task not in the current list",
+  "subagents.requested_task_missing_detail": "Refresh to check whether this task is available, or choose another task.",
   "subagents.list_load_failed_title": "The subagent task list isn't up to date",
   "subagents.list_load_failed_impact": "This task list may be out of date. Refresh to check.",
   "subagents.list_load_failed_next_step": "Reload the task list to check the latest progress.",

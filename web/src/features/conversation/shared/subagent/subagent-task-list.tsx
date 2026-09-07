@@ -1,4 +1,4 @@
-// INPUT: 当前 scope 的任务快照、读取状态与刷新动作，以及可见页面的分钟时钟。
+// INPUT: 当前 scope 的任务快照、读取/定向任务缺项状态与刷新动作，以及可见页面的分钟时钟。
 // OUTPUT: 当前语言的运行/历史/未知状态目录、可读时间及保留快照的单一读取反馈。
 // POS: 子智能体目录纯视图；不解释底层异常，也不改变任务执行状态。
 "use client";
@@ -69,6 +69,7 @@ interface SubagentTaskListProps {
   onClose: () => void;
   onRefresh: () => void;
   onSelectTask: (taskId: string) => void;
+  requestedTaskUnavailable?: boolean;
   showTitle?: boolean;
   tasks: SubagentTask[];
 }
@@ -78,6 +79,7 @@ export function SubagentTaskList({
   error,
   headerLeading,
   isLoading,
+  requestedTaskUnavailable = false,
   onClose,
   onRefresh,
   onSelectTask,
@@ -97,23 +99,24 @@ export function SubagentTaskList({
       ) : null}
 
       <SubagentTaskSection
-        emptyState={model.activeEmptyState}
+        emptyState={requestedTaskUnavailable ? null : model.activeEmptyState}
         label={t("subagents.active_section")}
         now={now}
         onSelectTask={onSelectTask}
         tasks={model.activeTasks}
       />
 
-      {error ? (
+      {error || requestedTaskUnavailable ? (
         <UiInlineNotice
           action={{
             label: t("subagents.retry"),
             onClick: onRefresh,
+            pending: isLoading,
           }}
           className="mt-3"
-          message={t("subagents.list_load_failed_impact")}
-          title={t("subagents.list_load_failed_title")}
-          tone="danger"
+          message={t(error ? "subagents.list_load_failed_impact" : "subagents.requested_task_missing_detail")}
+          title={t(error ? "subagents.list_load_failed_title" : "subagents.requested_task_missing_title")}
+          tone={error ? "danger" : "neutral"}
         />
       ) : null}
 
@@ -290,6 +293,7 @@ function SubagentTaskRow({
 
   return (
     <UiListRow
+      data-subagent-task-id={task.task_id}
       className="items-start"
       density="dense"
       leading={(
