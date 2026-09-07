@@ -9,7 +9,7 @@
 - Header 只组合文件元信息和命令；Body 只管理渲染器选择和输入框焦点。流式正文委托 TypewriterFileView，不再为行数维护宽度观察器。
 - Header 的同步提示保留轻量文字与装饰性状态图标，字号由共享 chrome 的 metadata 角色拥有；不为同步状态另建 Badge 或状态组件映射。工具栏图标尺寸复用 Workspace Header 常量。
 - Body 的编辑模式复用 `UiSourceEditor`，不自行维护 textarea 字体、滚动或焦点；默认失焦退出与显式保存消费者的 opt-out 保持不变，可选 editorId/editorLabel 只建立字段身份。
-- Body 的普通预览由按文件名命名、可 Tab 聚焦的单一 region 承载滚动与内嵌焦点；HTML 继续把滚动交给自己的内容宿主。纯文本和大型文本分段复用 `source-text-styles.ts`，不另写字号、行高或滚动焦点配方；Markdown、Mermaid 和语法高亮继续归各自渲染所有者。
+- Body 的普通预览由按文件名命名、可 Tab 聚焦的单一 region 承载滚动与内嵌焦点；HTML 继续把滚动交给自己的内容宿主。纯文本和大型文本分段复用 `source-text-styles.ts` 的排版与 `layout/preview-viewport-styles.ts` 的视口，不另写字号、行高或滚动焦点配方；Markdown、Mermaid 和语法高亮继续归各自渲染所有者。
 - Markdown 预览可以占满滚动视口，但正文行高与块间距只由共享 Markdown 配方决定；短内容的剩余高度必须留在文末，不参与段落分配。
 - 文件编辑器与 Agent 资料编辑器必须将 exact `agentId` 透传到 Body/Content；Markdown 预览在消费侧绑定资源能力，不跟随全局当前 Agent 选择。
 - 已识别的源码文本通过文件扩展名映射到共享 Prism 语义色板，只渲染内容本身；工作区 Header、复制动作和滚动仍归预览 chrome，未知纯文本继续使用无高亮 `<pre>`。

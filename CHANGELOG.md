@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Composer files and local directories share removable chips and named actions.
+  Image/text previews share one accessible dialog header and scrollable recovery;
+  file and Session changes clear obsolete preview state, and blocked directory
+  mutations are visibly disabled while reload remains available.
 - Spreadsheet previews now preserve source point-to-pixel font sizing and
   vertical alignment, share readable coordinate labels and keyboard-scroll
   styling, and expose ordered virtual rows and merged cells as a read-only table.
