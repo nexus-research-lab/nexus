@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前 owner scope、定时任务、运行历史资源与恢复/重试动作。
- * OUTPUT: 由公共标题协议命名、随语言更新状态/确认文案并标注刷新在途的 plain 历史工作面。
+ * OUTPUT: 公共标题命名、随语言更新的 plain 历史工作面；结果事实分别映射 success/warning/error 反馈。
  * POS: Scheduled 历史模态边界；内部 Job ID 只留在诊断详情。
  */
 "use client";
@@ -145,10 +145,12 @@ export function ScheduledTaskRunHistoryDialog({
               {actions.feedback ? (
                 <UiResourceState
                   className="mb-3 min-h-0 py-4"
-                  impact={actions.feedback.impact ?? t("capability.scheduled_history_feedback_fallback_impact")}
-                  nextStep={actions.feedback.nextStep ?? t("capability.scheduled_history_feedback_fallback_next_step")}
+                  impact={actions.feedback.impact}
+                  nextStep={actions.feedback.nextStep}
                   size="sm"
-                  state={actions.feedback.tone === "success" ? "success" : "error"}
+                  {...(actions.feedback.tone === "success"
+                    ? { state: "success" as const }
+                    : { state: "error" as const, tone: actions.feedback.tone === "warning" ? "warning" as const : "danger" as const })}
                   title={actions.feedback.title}
                 />
               ) : null}

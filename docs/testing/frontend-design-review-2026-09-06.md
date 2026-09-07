@@ -2643,3 +2643,37 @@ improved；历史动作仅完成文件路径，运行状态/操作文案仍需�
 最终 npm run check 的 lint、typecheck、481 项合同、240 文件的 936 项组件/模型测试
 及 build 全部通过，见 /tmp/nexus-a75-check.log；构建仅保留既有大分块提示。本批只
 修改前端、合同与审计文档，未改后端或启动产品服务；只本地提交，整体 Goal 继续。
+
+## A76 — 历史异步反馈与进入代次
+
+继续审查历史控制器，发现仅比较 owner+Job 字符串不足以区分离开后再返回同一
+任务：旧命令仍可能发布反馈、发起旧刷新，并删除同名的新防重项。现每次进入
+生成独立代次，公开动作验证当前 scope 和 run.job_id，旧完成只结束已发送命令，
+不再写新弹窗状态或发起刷新；finally 只删除自己注册的 Promise。Promise 先注册
+再执行，同步抛错也不会留下已经结束却仍被当作在途的防重项。原命令确认、真实
+投递 attempt 与目录的持久未确认锁继续独立，不因本地 pending 清空而解除。
+
+历史反馈改存 completed/refresh_failed/failed/blocked/clipboard 等结果事实，当前
+语言由 scheduled-task-run-feedback-model.ts 在渲染时投影。删除冗余 RunActionCopy、
+未被界面读取的内部 message 拼接和两条不会再使用的兜底词条。最近显式操作拥有
+反馈，旧命令仍可独立结束其在途状态；命令已提交但刷新失败保持 warning，装配
+明确把 warning tone 传给公共 ResourceState，避免此前统一 error 布局把它显示成
+危险错误。复制成功/失败、FailureCore effect 与删除拦截均在切换语言后即时更新，
+不能触发额外命令。输出模型从未产生 label，删除该字段与两套条件标题/间距分支；
+异常输出保留原内容与 danger 正文，边界直接采用公共 Panel，不维护局部混色边框。
+
+新增 16 项 Hook 回归和 1 项真实装配回归：覆盖语言切换期间/之后的完成、已提交但
+读取失败、四种 effect 和未来 effect、同步抛错、Job/owner/关闭后原身份恢复、旧
+回调、同名新请求防重、复制与命令竞争、剪贴板迟到、删除拦截及非法 scope；原有
+历史归属与精确确认回归全部保留。定向 3 文件 41 项测试通过，见
+/tmp/nexus-a76-target.log。Node 单结果合同只去掉已删除的 undefined label 字段。
+
+485 项清单更新为 270 pending、125 in_progress、64 improved、20 retained、6 removed；
+公共 UI 118 项。历史装配完成代码/行为审查，详情仍保留 in_progress：已确认
+scheduled-task-error-copy.ts 的两个已知错误映射仍写死中文，看板消费者也需随业务
+整理；历史内容页的权限恢复/错误重试控件仍待完整切片审查。所有源哈希已核对，
+不把关联文件的局部改善计作完成。视觉、浏览器与宿主检查继续暂停。
+
+最终 npm run check 的 lint、typecheck、481 项合同、241 文件的 953 项组件/模型测试
+及 build 全部通过，见 /tmp/nexus-a76-check.log；仅保留既有大分块提示。本批未改
+后端、未启动产品服务，只本地提交；整体 Goal 继续，不推送。

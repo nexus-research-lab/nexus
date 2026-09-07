@@ -1,11 +1,11 @@
 /**
  * INPUT: 当前 owner scope、任务、运行记录动作与历史刷新命令。
- * OUTPUT: 绑定精确 owner+Job 的动作状态、恢复/投递核对目标、反馈及当前语言的诊断复制。
- * POS: Scheduled 运行历史动作控制器；决策由产品内确认框承载。
+ * OUTPUT: 绑定 owner+Job 进入代次的动作状态、确认目标、当前语言反馈与诊断复制。
+ * POS: Scheduled 历史动作控制器；旧进入代次不写状态/刷新，新操作独占反馈，已发命令不取消或重放。
  */
 "use client";
 
-import { useCallback, useLayoutEffect, useRef } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef } from "react";
 
 import { writeTextToClipboard } from "@/shared/lib/browser/clipboard";
 import { useResettableState } from "@/shared/lib/react/use-resettable-state";
@@ -18,18 +18,17 @@ import {
   type PendingCommandState,
   setPendingCommand,
 } from "../controller/pending-command-model";
-import type { ScheduledTaskFeedback } from "../controller/scheduled-task-directory-model";
-import { projectScheduledTaskMutationFailure } from "../controller/scheduled-task-mutation-outcome";
+import { projectMutationFailure } from "@/lib/error-message";
+import { projectRunHistoryFeedback, type RunHistoryAction, type RunHistoryFeedback } from "./scheduled-task-run-feedback-model";
 import { buildRunDiagnostic } from "./scheduled-task-run-diagnostic-model";
 
 const RUN_HISTORY_ACTIONS = ["recover", "retry", "retryDelivery"] as const;
-type RunHistoryAction = typeof RUN_HISTORY_ACTIONS[number];
 type RunHistoryPendingActions = PendingCommandState<RunHistoryAction>;
 
 interface RunHistoryActionState {
   copiedRunId: string | null;
   deliveryVerificationTarget: ScheduledTaskRunItem | null;
-  feedback: ScheduledTaskFeedback | null;
+  feedback: RunHistoryFeedback | null;
   pending: RunHistoryPendingActions;
   recoveryTarget: ScheduledTaskRunItem | null;
 }
@@ -62,12 +61,6 @@ interface RunHistoryActionsOptions extends RunHistoryActionCommands {
   task: ScheduledTaskItem | null;
 }
 
-interface RunActionCopy {
-  failure: string;
-  refreshFailure: string;
-  success: string;
-}
-
 function createInitialActionState(): RunHistoryActionState {
   return {
     copiedRunId: null,
@@ -94,23 +87,26 @@ export function useScheduledTaskRunHistoryActions({
   const { locale, t } = useI18n();
   const taskJobId = task?.job_id ?? null;
   const taskKey = runHistoryTaskKey(scopeKey, taskJobId);
+  const scopeGeneration = useMemo(() => Symbol(taskKey ?? "closed"), [taskKey]);
   const taskDeletionState = task?.deletion_state?.trim() ?? "";
   const [state, setState] = useResettableState(
     createInitialActionState(),
-    taskKey ?? "closed",
+    scopeGeneration,
   );
-  const activeTaskKeyRef = useRef<string | null>(taskKey);
+  const activeScopeRef = useRef<symbol | null>(null);
+  const feedbackRequestRef = useRef(0);
   const pendingPromisesRef = useRef(new Map<string, Promise<void>>());
 
   useLayoutEffect(() => {
-    activeTaskKeyRef.current = taskKey;
+    activeScopeRef.current = scopeGeneration;
+    feedbackRequestRef.current += 1;
     pendingPromisesRef.current.clear();
     return () => {
-      if (activeTaskKeyRef.current === taskKey) {
-        activeTaskKeyRef.current = null;
+      if (activeScopeRef.current === scopeGeneration) {
+        activeScopeRef.current = null;
       }
     };
-  }, [taskKey]);
+  }, [scopeGeneration]);
 
   useLayoutEffect(() => {
     if (!taskJobId || !taskDeletionState) {
@@ -127,10 +123,20 @@ export function useScheduledTaskRunHistoryActions({
     jobId: string,
     update: (current: RunHistoryActionState) => RunHistoryActionState,
   ): void => {
-    if (activeTaskKeyRef.current === runHistoryTaskKey(scopeKey, jobId)) {
+    if (jobId === taskJobId && activeScopeRef.current === scopeGeneration) {
       setState(update);
     }
-  }, [scopeKey, setState]);
+  }, [scopeGeneration, setState, taskJobId]);
+
+  const updateFeedback = useCallback((request: number, feedback: RunHistoryFeedback | null): void => {
+    if (taskJobId && feedbackRequestRef.current === request) {
+      updateActiveState(taskJobId, (current) => ({ ...current, feedback }));
+    }
+  }, [taskJobId, updateActiveState]);
+
+  const isCurrentRun = useCallback((run: ScheduledTaskRunItem): boolean => (
+    Boolean(taskKey && taskJobId === run.job_id && activeScopeRef.current === scopeGeneration)
+  ), [scopeGeneration, taskJobId, taskKey]);
 
   const runAction = useCallback((
     action: RunHistoryAction,
@@ -138,22 +144,15 @@ export function useScheduledTaskRunHistoryActions({
     execute: (
       activeTask: ScheduledTaskItem,
     ) => ScheduledTaskRunHistoryActionResult | Promise<ScheduledTaskRunHistoryActionResult>,
-    copy: RunActionCopy,
   ): Promise<void> => {
-    if (!task) {
-      return Promise.resolve();
-    }
-    const commandKey = `${taskKey ?? "no-task"}:${action}:${run.run_id}`;
+    if (!task || !isCurrentRun(run)) return Promise.resolve();
+    const commandKey = `${action}:${run.run_id}`;
     const pendingPromise = pendingPromisesRef.current.get(commandKey);
-    if (pendingPromise) {
-      return pendingPromise;
-    }
+    if (pendingPromise) return pendingPromise;
     const activeTask = task;
+    const feedbackRequest = ++feedbackRequestRef.current;
     if (activeTask.deletion_state?.trim()) {
-      updateActiveState(activeTask.job_id, (current) => ({
-        ...current,
-        feedback: blockedActionFeedback(activeTask),
-      }));
+      updateFeedback(feedbackRequest, blockedActionFeedback(activeTask));
       return Promise.resolve();
     }
     updateActiveState(activeTask.job_id, (current) => ({
@@ -161,114 +160,58 @@ export function useScheduledTaskRunHistoryActions({
       feedback: null,
       pending: setPendingCommand(current.pending, action, run.run_id, true),
     }));
-    const nextPromise = (async () => {
+    // 注册 Promise 后再执行，同步抛错也能按同一身份清理，不遗留已结束的防重项。
+    const nextPromise = Promise.resolve().then(async () => {
       try {
         const result = await execute(activeTask);
+        if (activeScopeRef.current !== scopeGeneration) return;
         if (result.status === "blocked") {
-          updateActiveState(activeTask.job_id, (current) => ({
-            ...current,
-            feedback: blockedActionFeedback(activeTask, result.message),
-          }));
+          updateFeedback(feedbackRequest, blockedActionFeedback(activeTask));
           return;
         }
-        updateActiveState(activeTask.job_id, (current) => ({
-          ...current,
-          feedback: {
-            impact: "服务端已接受这次操作；页面刷新不会再次提交它。",
-            message: copy.success,
-            nextStep: "运行历史会自动刷新，也可以使用右上角“刷新”再次核对。",
-            title: copy.success,
-            tone: "success",
-          },
-        }));
+        updateFeedback(feedbackRequest, { action, kind: "completed" });
         try {
           await refresh();
-        } catch (error) {
-          const projection = projectScheduledTaskMutationFailure(error, copy.refreshFailure);
-          updateActiveState(activeTask.job_id, (current) => ({
-            ...current,
-            feedback: {
-              impact: "操作已经提交；下方仍显示提交前加载的历史，请勿重复操作。",
-              message: `${copy.success}；${projection.message}`,
-              nextStep: "点击右上角“刷新”核对最新运行记录。",
-              title: "操作已提交，历史尚未刷新",
-              tone: "warning",
-            },
-          }));
+        } catch {
+          updateFeedback(feedbackRequest, { kind: "refresh_failed" });
         }
       } catch (error) {
-        const projection = projectScheduledTaskMutationFailure(error, copy.failure);
-        const notApplied = projection.effect === "not_applied";
-        updateActiveState(activeTask.job_id, (current) => ({
-          ...current,
-          feedback: {
-            impact: t(notApplied
-              ? "capability.scheduled_mutation_not_applied_impact"
-              : projection.effect === "accepted"
-                ? "capability.scheduled_mutation_accepted_impact"
-                : projection.effect === "committed"
-                  ? "capability.scheduled_mutation_committed_impact"
-                  : "capability.scheduled_mutation_unknown_impact"),
-            message: projection.message,
-            nextStep: t(notApplied
-              ? "capability.scheduled_mutation_not_applied_next_step"
-              : "capability.scheduled_mutation_unknown_next_step"),
-            title: notApplied
-              ? copy.failure
-              : t(projection.effect === "accepted"
-                ? "capability.scheduled_mutation_accepted_title"
-                : projection.effect === "committed"
-                  ? "capability.scheduled_mutation_committed_title"
-                  : "capability.scheduled_mutation_unknown_title"),
-            tone: notApplied ? "error" : "warning",
-          },
-        }));
+        updateFeedback(feedbackRequest, {
+          action,
+          effect: projectMutationFailure(error, "").effect,
+          kind: "failed",
+        });
       } finally {
-        pendingPromisesRef.current.delete(commandKey);
+        if (pendingPromisesRef.current.get(commandKey) === nextPromise) {
+          pendingPromisesRef.current.delete(commandKey);
+        }
         updateActiveState(activeTask.job_id, (current) => ({
           ...current,
           pending: setPendingCommand(current.pending, action, run.run_id, false),
         }));
       }
-    })();
+    });
     pendingPromisesRef.current.set(commandKey, nextPromise);
     return nextPromise;
-  }, [refresh, t, task, taskKey, updateActiveState]);
+  }, [isCurrentRun, refresh, scopeGeneration, task, updateActiveState, updateFeedback]);
 
   const copyDiagnostic = useCallback(async (run: ScheduledTaskRunItem): Promise<void> => {
-    if (!task) {
-      return;
-    }
+    if (!task || !isCurrentRun(run)) return;
+    const feedbackRequest = ++feedbackRequestRef.current;
+    updateFeedback(feedbackRequest, null);
     const copied = await writeTextToClipboard(buildRunDiagnostic(task, run, { locale, t }));
+    if (feedbackRequestRef.current !== feedbackRequest) return;
     updateActiveState(task.job_id, (current) => ({
       ...current,
       copiedRunId: copied ? run.run_id : current.copiedRunId,
-      feedback: copied
-        ? {
-            impact: "任务和运行记录没有变化。",
-            message: "诊断信息已复制到剪贴板。",
-            nextStep: "可以把诊断信息粘贴到需要的位置。",
-            title: "诊断信息已复制",
-            tone: "success",
-          }
-        : {
-            impact: "运行记录仍然保留。",
-            message: "浏览器没有允许写入剪贴板。",
-            nextStep: "请使用运行产物查看完整诊断，或允许剪贴板权限后再试。",
-            title: "无法复制诊断信息",
-            tone: "error",
-          },
+      feedback: { copied, kind: "clipboard" },
     }));
-  }, [locale, t, task, updateActiveState]);
+  }, [isCurrentRun, locale, t, task, updateActiveState, updateFeedback]);
 
   const retry = useCallback((run: ScheduledTaskRunItem): Promise<void> => (
     runAction("retry", run, (activeTask) => (
       onRetryTask(activeTask, reconcileHistory)
-    ), {
-      failure: "重新运行失败",
-      refreshFailure: "运行历史刷新失败",
-      success: "已触发重新运行",
-    })
+    ))
   ), [onRetryTask, reconcileHistory, runAction]);
 
   const executeRetryDelivery = useCallback((
@@ -279,15 +222,13 @@ export function useScheduledTaskRunHistoryActions({
       onRetryDelivery(activeTask, run, reconcileHistory, {
         confirmUnverifiedAttempt,
       })
-    ), {
-      failure: "重试投递失败",
-      refreshFailure: "运行历史刷新失败",
-      success: "已重试投递",
-    })
+    ))
   ), [onRetryDelivery, reconcileHistory, runAction]);
 
   const retryDelivery = useCallback((run: ScheduledTaskRunItem): Promise<void> => {
+    if (!isCurrentRun(run)) return Promise.resolve();
     if (task?.deletion_state?.trim()) {
+      feedbackRequestRef.current += 1;
       updateActiveState(task.job_id, (current) => ({
         ...current,
         feedback: blockedActionFeedback(task),
@@ -305,7 +246,7 @@ export function useScheduledTaskRunHistoryActions({
       deliveryVerificationTarget: run,
     }));
     return Promise.resolve();
-  }, [executeRetryDelivery, task, updateActiveState]);
+  }, [executeRetryDelivery, isCurrentRun, task, updateActiveState]);
 
   const cancelDeliveryVerification = useCallback(() => {
     if (!task) return;
@@ -316,8 +257,9 @@ export function useScheduledTaskRunHistoryActions({
   }, [task, updateActiveState]);
 
   const confirmDeliveryVerification = useCallback((): Promise<void> => {
-    if (!task || !state.deliveryVerificationTarget) return Promise.resolve();
+    if (!task || !state.deliveryVerificationTarget || !isCurrentRun(state.deliveryVerificationTarget)) return Promise.resolve();
     if (task.deletion_state?.trim()) {
+      feedbackRequestRef.current += 1;
       updateActiveState(task.job_id, (current) => ({
         ...current,
         deliveryVerificationTarget: null,
@@ -331,11 +273,12 @@ export function useScheduledTaskRunHistoryActions({
       deliveryVerificationTarget: null,
     }));
     return executeRetryDelivery(run, true);
-  }, [executeRetryDelivery, state.deliveryVerificationTarget, task, updateActiveState]);
+  }, [executeRetryDelivery, isCurrentRun, state.deliveryVerificationTarget, task, updateActiveState]);
 
   const recover = useCallback((run: ScheduledTaskRunItem): Promise<void> => {
-    if (!task) return Promise.resolve();
+    if (!task || !isCurrentRun(run)) return Promise.resolve();
     if (task.deletion_state?.trim()) {
+      feedbackRequestRef.current += 1;
       updateActiveState(task.job_id, (current) => ({
         ...current,
         feedback: blockedActionFeedback(task),
@@ -347,7 +290,7 @@ export function useScheduledTaskRunHistoryActions({
       recoveryTarget: run,
     }));
     return Promise.resolve();
-  }, [task, updateActiveState]);
+  }, [isCurrentRun, task, updateActiveState]);
 
   const cancelRecovery = useCallback(() => {
     if (!task) return;
@@ -358,8 +301,9 @@ export function useScheduledTaskRunHistoryActions({
   }, [task, updateActiveState]);
 
   const confirmRecovery = useCallback((): Promise<void> => {
-    if (!task || !state.recoveryTarget) return Promise.resolve();
+    if (!task || !state.recoveryTarget || !isCurrentRun(state.recoveryTarget)) return Promise.resolve();
     if (task.deletion_state?.trim()) {
+      feedbackRequestRef.current += 1;
       updateActiveState(task.job_id, (current) => ({
         ...current,
         feedback: blockedActionFeedback(task),
@@ -374,15 +318,12 @@ export function useScheduledTaskRunHistoryActions({
     }));
     return runAction("recover", run, (activeTask) => (
       onRecoverTaskRun(activeTask, run)
-    ), {
-      failure: "释放运行占用失败",
-      refreshFailure: "运行历史刷新失败",
-      success: "已释放运行占用",
-    });
-  }, [onRecoverTaskRun, runAction, state.recoveryTarget, task, updateActiveState]);
+    ));
+  }, [isCurrentRun, onRecoverTaskRun, runAction, state.recoveryTarget, task, updateActiveState]);
 
   return {
     ...state,
+    feedback: projectRunHistoryFeedback(state.feedback, t),
     cancelDeliveryVerification,
     cancelRecovery,
     confirmDeliveryVerification,
@@ -394,23 +335,10 @@ export function useScheduledTaskRunHistoryActions({
   };
 }
 
-function blockedActionFeedback(
-  task: ScheduledTaskItem,
-  message?: string,
-): ScheduledTaskFeedback {
-  const deletionState = task.deletion_state?.trim() ?? "";
-  const reviewRequired = deletionState === "review_required";
+function blockedActionFeedback(task: ScheduledTaskItem): RunHistoryFeedback {
+  const deletionState = task.deletion_state?.trim();
   return {
-    impact: "本次点击没有修改任务、运行记录或投递状态。",
-    message: message ?? (reviewRequired
-      ? "删除正在等待管理员处理，任务不再接受新的运行或投递操作。"
-      : "删除已经受理，任务不再接受新的运行或投递操作。"),
-    nextStep: reviewRequired
-      ? "返回任务详情，确认原执行端已经停止后再继续删除；也可以先刷新或查看历史。"
-      : deletionState
-        ? "等待删除收尾完成；也可以先刷新任务状态或查看历史。"
-        : "先刷新任务和运行历史，完成当前待处理操作后再试。",
-    title: "操作未执行",
-    tone: "warning",
+    deletion: deletionState === "review_required" ? "review_required" : deletionState ? "deleting" : null,
+    kind: "blocked",
   };
 }

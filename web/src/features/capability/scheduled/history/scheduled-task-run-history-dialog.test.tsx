@@ -94,6 +94,26 @@ describe("ScheduledTaskRunHistoryDialog", () => {
     expect(callbacks.onRecoverTaskRun).not.toHaveBeenCalled();
   });
 
+  it("presents a submitted action with stale history as a warning in the current language", async () => {
+    const run: ScheduledTaskRunItem = { ...RUN, status: "failed" };
+    vi.mocked(listScheduledTaskRunsApi).mockResolvedValue([run]);
+    const callbacks = props();
+    const { rerender } = render(view([callbacks]));
+    const retry = await screen.findByRole("button", { name: "Run again" });
+    vi.mocked(listScheduledTaskRunsApi).mockRejectedValue(new Error("private-read-failure"));
+    fireEvent.click(retry);
+    const title = await screen.findByText("Action submitted; history not refreshed");
+    const feedback = title.closest('[data-resource-state="error"]')!;
+    expect(feedback.querySelector('svg')?.getAttribute("class")).toContain("text-(--warning)");
+    expect(feedback.textContent).toContain("do not repeat the action");
+    expect(feedback.textContent).not.toContain("private-read-failure");
+    rerender(view([callbacks], "zh"));
+    expect(screen.getByText("操作已提交，历史尚未刷新")).toBeTruthy();
+    expect(callbacks.onRetryTask).toHaveBeenCalledOnce();
+    expect(callbacks.onRetryDelivery).not.toHaveBeenCalled();
+    expect(callbacks.onRecoverTaskRun).not.toHaveBeenCalled();
+  });
+
   it.each(["recover", "delivery"] as const)("preserves the %s confirmation target across a language change", async (kind) => {
     const recovering = kind === "recover";
     const run: ScheduledTaskRunItem = recovering

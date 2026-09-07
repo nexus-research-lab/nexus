@@ -1,5 +1,5 @@
 // INPUT: 单次运行的规范化输出、持久 Session 身份、诊断行与复制动作。
-// OUTPUT: 绑定历史执行 Agent、随语言更新日期/诊断控件与错误前缀的预览和可折叠诊断详情。
+// OUTPUT: 绑定历史执行 Agent、随语言更新诊断的结果/错误预览；分组边界由公共 Panel 承载。
 // POS: Scheduled 历史详情消费侧；不猜测历史资源归属，不决定重跑或投递恢复行为。
 
 "use client";
@@ -41,7 +41,7 @@ export function ScheduledTaskRunDetails({
   return (
     <>
       {outputSections.map((section, index) => (
-        <RunOutput key={`${section.label ?? section.tone}:${index}`} section={section} workspaceAgentId={workspaceAgentId} />
+        <RunOutput key={`${section.tone}:${index}`} section={section} workspaceAgentId={workspaceAgentId} />
       ))}
       <UiDisclosure
         className="mt-4"
@@ -78,16 +78,8 @@ function RunOutput({ section, workspaceAgentId }: {
   if (section.tone === "default") {
     return (
       <div className="mt-3 min-w-0">
-        {section.label ? (
-          <p className={getUiTypographyClassName({ role: "metadata", tone: "default", weight: "medium" })}>
-            {section.label}
-          </p>
-        ) : null}
         <UiMarkdownContent
-          className={cn(
-            getUiTypographyClassName({ role: "supporting", tone: "default" }),
-            section.label && "mt-2",
-          )}
+          className={getUiTypographyClassName({ role: "supporting", tone: "default" })}
           content={section.content}
           getFilePreviewUrl={getFilePreviewUrl}
           mermaidShowHeader={false}
@@ -98,15 +90,10 @@ function RunOutput({ section, workspaceAgentId }: {
   }
   return (
     <UiPanel
-      className="mt-3 min-w-0 border-[color:color-mix(in_srgb,var(--destructive)_15%,transparent)]"
+      className="mt-3 min-w-0"
       padding="sm"
       radius="sm"
     >
-      {section.label ? (
-        <p className={getUiTypographyClassName({ role: "metadata", tone: "default", weight: "medium" })}>
-          {section.label}
-        </p>
-      ) : null}
       <p className={cn(
         "whitespace-pre-wrap break-words",
         getUiTypographyClassName({ role: "supporting", tone: "danger" }),
