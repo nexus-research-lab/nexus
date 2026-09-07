@@ -1319,7 +1319,6 @@ test("dense Composer and Room toolbars use the shared micro Button scale", async
   const paths = [
     "src/features/conversation/shared/composer/components/composer-local-directories.tsx",
     "src/features/conversation/shared/composer/components/footer/composer-footer-status.tsx",
-    "src/features/conversation/shared/composer/components/pending-queue/composer-pending-queue.tsx",
     "src/features/conversation/shared/composer/components/pending-queue/pending-queue-item.tsx",
     "src/features/conversation/room/group/thread/round-card/group-agent-execution-shell.tsx",
     "src/features/conversation/room/group/thread/round-card/thread-action-button.tsx",
@@ -3360,4 +3359,19 @@ test("Composer Footer consumes shared checked-menu and typography owners", async
     assert.match(source, /getUiTypographyClassName/, file);
     assert.doesNotMatch(source, /text-2xs|text-xs|text-sm|leading-3|leading-4/, file);
   }
+});
+
+
+test("Queued input uses shared Disclosure, menu and typography with Session isolation", async () => {
+  const [queue, item, panel] = await Promise.all([
+    readSource("src/features/conversation/shared/composer/components/pending-queue/composer-pending-queue.tsx"),
+    readSource("src/features/conversation/shared/composer/components/pending-queue/pending-queue-item.tsx"),
+    readSource("src/features/conversation/shared/composer/composer-panel.tsx"),
+  ]);
+  assert.match(queue, /<UiDisclosure\b/);
+  assert.doesNotMatch(queue, /PendingQueueHeader|<summary|<button|text-2xs/);
+  assert.match(item, /<UiActionMenu\b/);
+  assert.match(item, /getUiTypographyClassName/);
+  assert.doesNotMatch(item, /text-compact|line-clamp|<button\b/);
+  assert.match(panel, /<ComposerPendingQueue\s+key=\{props\.draftScopeKey\}/);
 });

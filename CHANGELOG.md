@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Consolidated queued-message headers into shared Disclosure, added keyboard
+  move actions and full-content descriptions, and limited dragging to its handle.
+  Queue commands now reject stale/no-op orders, serialize dispatch, and stop
+  idle edge scrolling; transient queue UI resets on Session changes.
+
 - Unified Composer footer metadata and context details with shared typography,
   and consolidated Goal and Connector toggles into accessible checked menu rows.
   Fixed first-click context dismissal, retained keyboard-focused details, and
