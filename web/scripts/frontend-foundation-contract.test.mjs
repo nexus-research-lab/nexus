@@ -1807,6 +1807,8 @@ test("Select, Slash, and multi-select options share one listbox row DOM owner", 
     assert.match(consumer, /<SelectMenuOptionRow/);
     assert.doesNotMatch(consumer, /role="option"|aria-selected=|MENU_ITEM_BASE_CLASS_NAME/);
   }
+  assert.match(selectView, /<UiBadge\b/);
+  assert.doesNotMatch(selectView, /color-mix|text-\[9px\]|rounded-\[6px\]/);
 });
 
 test("Select Menu separates state and geometry from its visual recipe", async () => {
@@ -1821,6 +1823,8 @@ test("Select Menu separates state and geometry from its visual recipe", async ()
   assert.doesNotMatch(model, /\bclassName\b|rounded-|shadow-|text-\(|bg-\(|color-mix/);
   assert.match(styles, /getSelectMenuStyleProjection/);
   assert.match(styles, /SELECT_MENU_BUTTON_SURFACE_CLASS_NAMES/);
+  assert.match(styles, /getUiTypographyClassName/);
+  assert.doesNotMatch(styles, /\btext-sm\b|\btext-compact\b/);
   assert.match(select, /buildSelectMenuModel/);
   assert.match(select, /getSelectMenuStyleProjection/);
   for (const consumer of [roomSkills, workgraphPicker]) {

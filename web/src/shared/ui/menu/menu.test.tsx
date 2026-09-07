@@ -1,5 +1,5 @@
 // INPUT: Select/Action Menu 的触发器、选项、disabled 项与用户键盘/点击事件。
-// OUTPUT: 证明 Portal 菜单的 ARIA、选择、遍历、关闭和焦点归还合同。
+// OUTPUT: 证明 Portal 菜单的 ARIA、选择、输入法/已处理事件边界、遍历、关闭和焦点归还合同。
 // POS: Menu pattern DOM 行为测试；定位数学和业务菜单内容分别由模型/feature 测试负责。
 
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -49,7 +49,7 @@ describe("UiSelectMenu", () => {
     expect(onClick).toHaveBeenCalledTimes(1);
   });
 
-  it("opens a named listbox, selects an option, and returns focus", async () => {
+  it("opens a named listbox, selects an option with its badge, and returns focus", async () => {
     const user = userEvent.setup();
 
     function Harness() {
@@ -61,7 +61,7 @@ describe("UiSelectMenu", () => {
           options={[
             { label: "Alpha", value: "alpha" },
             { disabled: true, label: "Beta", value: "beta" },
-            { label: "Gamma", value: "gamma" },
+            { badge: "Room", label: "Gamma", value: "gamma" },
           ]}
           value={value}
         />
@@ -75,9 +75,52 @@ describe("UiSelectMenu", () => {
     expect(screen.getByRole("listbox", { name: "选择模型" })).toBeTruthy();
     expect((screen.getByRole("option", { name: "Beta" }) as HTMLButtonElement).disabled).toBe(true);
 
-    await user.click(screen.getByRole("option", { name: "Gamma" }));
+    await user.click(screen.getByRole("option", { name: "Gamma Room" }));
     expect(screen.queryByRole("listbox", { name: "选择模型" })).toBeNull();
     expect(trigger.textContent).toContain("Gamma");
+    expect(trigger.textContent).toContain("Room");
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it.each(["composing", "legacy-ime", "handled"] as const)("ignores %s trigger keys while preserving normal selection and toggling", async (mode) => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    let blockKeyboard = true;
+    const ignoredEvent = mode === "composing" ? { isComposing: true }
+      : mode === "legacy-ime" ? { keyCode: 229 } : {};
+    function Harness() {
+      const [value, setValue] = useState("alpha");
+      return (
+        <div onKeyDownCapture={(event) => {
+          if (mode === "handled" && blockKeyboard) event.preventDefault();
+        }}>
+          <UiSelectMenu ariaLabel="输入边界" value={value}
+            options={[{ label: "Alpha", value: "alpha" }, { label: "Gamma", value: "gamma" }]}
+            onChange={(nextValue) => { onChange(nextValue); setValue(nextValue); }} />
+        </div>
+      );
+    }
+    render(<Harness />);
+    const trigger = screen.getByRole("button", { name: "输入边界" });
+    trigger.focus();
+    for (const key of ["Enter", " ", "ArrowDown", "ArrowUp"]) {
+      fireEvent.keyDown(trigger, { key, ...ignoredEvent });
+      expect(screen.queryByRole("listbox")).toBeNull();
+    }
+    expect(trigger.textContent).toContain("Alpha");
+    expect(onChange).not.toHaveBeenCalled();
+
+    blockKeyboard = false;
+    await user.keyboard("{ArrowDown}");
+    expect(onChange.mock.calls).toEqual([["gamma"]]);
+    expect(screen.getByRole("listbox")).toBeTruthy();
+
+    blockKeyboard = true;
+    fireEvent.keyDown(trigger, { key: "Enter", ...ignoredEvent });
+    expect(screen.getByRole("listbox")).toBeTruthy();
+    blockKeyboard = false;
+    await user.keyboard("{Enter}");
+    expect(screen.queryByRole("listbox")).toBeNull();
     expect(document.activeElement).toBe(trigger);
   });
 

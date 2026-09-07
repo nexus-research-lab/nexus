@@ -1,5 +1,5 @@
 // INPUT: Select Menu disabled 状态、定位函数和触发器键盘事件。
-// OUTPUT: 内部开关、锚点引用、Portal/定位状态与统一键盘协议。
+// OUTPUT: 内部开关、锚点引用、Portal/定位状态与忽略输入法及已处理事件的触发键盘协议。
 // POS: Select Menu 生命周期 adapter；不解释选项、值或业务权限。
 "use client";
 
@@ -12,6 +12,7 @@ import {
 } from "react";
 
 import { useAnchoredOverlayLayer } from "../overlay/anchored-overlay-layer";
+import { isImeKeyboardEvent } from "@/shared/lib/browser/ime-keyboard-event";
 import type { UiAnchoredOverlayPosition } from "../overlay/anchored-overlay-model";
 
 type MoveSelection = (direction: 1 | -1) => boolean;
@@ -98,7 +99,7 @@ export function useSelectMenuOverlay({
     event: KeyboardEvent<HTMLButtonElement>,
     moveSelection?: MoveSelection,
   ) => {
-    if (disabled) {
+    if (disabled || event.defaultPrevented || isImeKeyboardEvent(event.nativeEvent)) {
       return;
     }
     if (TOGGLE_KEYS.has(event.key)) {

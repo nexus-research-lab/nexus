@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Reused shared Badge and Typography styles in select menus, removing the
+  private 9px badge. Select triggers now ignore composition and already-handled
+  keyboard events so input-method confirmation cannot change a selection.
 - Unified Agent selection labels across pairings and scheduled tasks, using
   display-only ordinals for duplicate or missing names without exposing IDs.
   Missing bindings remain visible, and pairing creation no longer silently
