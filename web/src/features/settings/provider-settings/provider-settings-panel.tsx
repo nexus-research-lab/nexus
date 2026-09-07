@@ -1,12 +1,11 @@
 /**
  * INPUT: Provider 可见范围、目录资源、草稿与写命令。
- * OUTPUT: Provider 目录、当前配置和模型操作，首层不展示预设宣传说明。
+ * OUTPUT: 由上层设置/运营壳层承载的 Provider 目录、当前配置和模型操作。
  * POS: 设置与运营复用的 Provider 管理工作区。
  */
 "use client";
 
 import { useState } from "react";
-import { Cable } from "lucide-react";
 
 import { isDesktopRuntime } from "@/config/desktop-runtime";
 import { ProviderCCSwitchDialog } from "@/features/provider-imports/cc-switch/provider-ccswitch-dialog";
@@ -17,8 +16,6 @@ import { completeFeedbackBanner } from "@/shared/ui/feedback/feedback-banner-con
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import { WorkspaceContentHeader } from "@/shared/ui/layout/workspace-content-header";
 import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
-import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
-import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type { ProviderConfigRecord } from "@/types/capability/provider";
 
 import { ProviderSettingsConfigForm } from "./components/provider-settings-config-form";
@@ -29,17 +26,14 @@ import { ProviderAddModelDialog } from "./dialogs/provider-settings-add-model-di
 import { ProviderDeleteUsageDialog } from "./dialogs/provider-settings-delete-usage-dialog";
 import { ProviderModelOptionsDialog } from "./dialogs/provider-settings-model-options-dialog";
 import { getProviderTitle } from "./model/provider-config-model";
-import { SETTINGS_TABS } from "./model/provider-settings-presentation";
 import { useProviderSettingsController } from "./use-provider-settings-controller";
 
 interface ProviderSettingsPanelProps {
-  embedded?: boolean;
   layout?: "page" | "section";
   visibilityScope?: ProviderConfigRecord["visibility"];
 }
 
 export function ProviderSettingsPanel({
-  embedded = false,
   layout = "page",
   visibilityScope = "private",
 }: ProviderSettingsPanelProps) {
@@ -160,25 +154,7 @@ export function ProviderSettingsPanel({
 
   return (
     <>
-      {embedded ? panelContent : (
-        <WorkspaceSurfaceScaffold
-          bodyScrollable
-          stableGutter
-          header={(
-            <WorkspaceSurfaceHeader
-              activeTab="providers"
-              leading={<Cable className="h-4 w-4" />}
-              tabs={SETTINGS_TABS.map((item) => ({
-                key: item.key,
-                label: t(item.labelKey),
-              }))}
-              title={t("settings.title")}
-            />
-          )}
-        >
-          {panelContent}
-        </WorkspaceSurfaceScaffold>
-      )}
+      {panelContent}
 
       <FeedbackBannerViewport
         item={state.feedback

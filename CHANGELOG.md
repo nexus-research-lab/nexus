@@ -27,6 +27,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Compact workspace view selection now uses the shared Select Menu with a
+  named current view, keyboard navigation and focus return. Hidden triggers and
+  changed selection contexts discard open menus. Removed unused Header slots,
+  stale styles, hidden session-header selectors and the unreachable standalone
+  Provider header; contact directory returns use an explicit action slot.
+
 - DM, Room and contact headers now use the standard 40px avatar directly,
   removing duplicate avatar frames and shadows. Room member summaries keep
   compact shared avatars and a readable, growing extra-member badge, with one

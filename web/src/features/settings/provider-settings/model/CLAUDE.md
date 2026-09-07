@@ -6,3 +6,5 @@
 - `provider-catalog-model.ts` 只处理 Provider 列表顺序和选择。
 - `provider-settings-presentation.ts` 分阶段集中目录、格式、标题、端点与能力标志等纯展示投影，不读取交互状态。
 - 模型层保持纯函数，不发请求、不持有 React 状态。
+
+- `provider-settings-presentation.ts` 只投影 Provider 目录与配置字段，不保留没有生产消费者的 Settings Tab 表。

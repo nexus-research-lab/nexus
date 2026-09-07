@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前运营标签、访问范围与返回动作。
- * OUTPUT: 运营设置页签和对应管理内容，移动端避免重复页面标题。
+ * OUTPUT: 运营设置页签与对应管理内容；公共 Provider 只提供分区内容，避免重复页头。
  * POS: 设置内嵌与独立运营入口共用的页面装配层。
  */
 "use client";
@@ -64,7 +64,6 @@ const OPERATIONS_TAB_DEFINITIONS: Record<
     labelKey: "operations.tabs.subscription_providers",
     renderContent: () => (
       <ProviderSettingsPanel
-        embedded
         layout="section"
         visibilityScope="public"
       />

@@ -1,3 +1,7 @@
+// INPUT: Provider 草稿、预设、目录与当前语言。
+// OUTPUT: Provider 目录/详情的字段选项、状态和短展示值。
+// POS: Provider 管理内容的纯投影；不拥有设置页面导航或外层 Header。
+
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type {
   ProviderApiFormat,
@@ -20,15 +24,6 @@ import {
   uniquePresetFormats,
 } from "./provider-preset-model";
 import type { ProviderDraft } from "./provider-settings-types";
-
-export type SettingsTabKey = "providers";
-
-export const SETTINGS_TABS: {
-  key: SettingsTabKey;
-  labelKey: "settings.tabs.providers";
-}[] = [
-  { key: "providers", labelKey: "settings.tabs.providers" },
-];
 
 export const API_FORMAT_LABELS: Record<ProviderApiFormat, string> = {
   chat_completions: "Chat Completions (/chat/completions)",

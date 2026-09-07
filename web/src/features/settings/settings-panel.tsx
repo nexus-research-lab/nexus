@@ -1,3 +1,7 @@
+// INPUT: 当前设置路由、宿主形态与账号访问范围。
+// OUTPUT: 唯一设置侧栏/内容壳层及不重复页头的 Provider 管理内容。
+// POS: 设置入口装配；各配置领域继续持有读取、草稿与写事务。
+
 "use client";
 
 import { Navigate } from "react-router-dom";
@@ -80,7 +84,7 @@ function SettingsSectionContent({
     return <PersonalSettingsPanel />;
   }
   if (section === "providers") {
-    return <ProviderSettingsPanel embedded />;
+    return <ProviderSettingsPanel />;
   }
   if (section === "runtime") {
     return <SettingsRuntimeSection />;

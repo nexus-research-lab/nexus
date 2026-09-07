@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前 Agent、可编辑配置、联络资源与目录/协作导航命令。
- * OUTPUT: 带显式桌面目录返回入口的 Agent 分栏详情页。
+ * OUTPUT: 使用 Header action 插槽承载桌面目录返回的 Agent 分栏详情页。
  * POS: 联系人目录的二级页面；手机返回由应用页头承载。
  */
 "use client";
@@ -206,7 +206,7 @@ export function ContactsAgentDetail({
         activeTab={activeTab}
         compactTabsLabel={t("contacts.title")}
         leading={directoryNavigation}
-        leadingClassName="!h-auto !w-auto !bg-transparent"
+        leadingVariant="action"
         onChangeTab={setActiveTab}
         tabs={configTabs}
         trailing={trailing}

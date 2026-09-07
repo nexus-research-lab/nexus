@@ -31,3 +31,5 @@ Provider 标题、字段名、说明、状态、模型标识和图标首字母�
 Provider 目录加载与模型启停使用共享 `md` Spinner，Header、按钮和弹窗命令使用 `sm`；静止状态保留动作图标，业务文件不得自行拼旋转、颜色或 reduced-motion class。
 Provider 预设用 `endpoint_mode` 区分固定目录端点、资源级 Base URL 与完全自定义端点；Azure 只开放资源 Base URL，deployment name 通过手工添加模型进入模型卡。
 内置 Provider 侧栏按英文显示名排序；目录声明顺序不承担展示顺序语义。
+
+- `ProviderSettingsPanel` 只输出设置和运营壳层内的管理内容；`layout` 控制页面或分区留白，`visibilityScope` 保持私有/公共资源范围。没有独立 Provider Header、单项 Settings Tab 或 embedded 分支；上层继续持有唯一页面导航。
