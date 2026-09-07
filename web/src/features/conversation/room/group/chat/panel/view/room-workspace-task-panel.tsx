@@ -1,12 +1,13 @@
 /**
  * INPUT: Room 成员、按 Agent 隔离的进程集合与会话 scope。
- * OUTPUT: 默认跟随最近进程、允许用户稳定切换 Agent 的 Workspace Task 面板。
+ * OUTPUT: 默认跟随最近进程的 Workspace Task 面板；候选仅含实际进程，姓名以完整成员目录区分。
  * POS: Room 多 Agent 任务投影到共享任务面板与成员切换器之间的视图适配层。
  */
 "use client";
 
 import { useMemo } from "react";
 
+import { getAgentDisplayName } from "@/lib/agent-display-name";
 import type { ConversationTodoProcess } from "@/features/conversation/shared/todos/todo-projection-model";
 import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -46,11 +47,12 @@ export function RoomWorkspaceTaskPanel({
   const source: WorkspaceTaskSource = {
     agentId: selection.process.agentId,
     avatar: selection.member.avatar ?? null,
-    name: selection.member.name,
+    name: getAgentDisplayName(selection.member.name, t),
   };
   const sourceControl = selection.members.length > 1 ? (
     <RoomAgentSwitcher
       ariaLabel={t("tasks.switch_agent")}
+      directory={roomMembers}
       members={selection.members}
       onSelect={setSelectedAgentId}
       selectedId={selection.process.agentId}
