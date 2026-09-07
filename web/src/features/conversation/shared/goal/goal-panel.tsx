@@ -2,7 +2,7 @@
 
 /**
  * INPUT: session-scoped Goal controller/reliability state and panel presentation props.
- * OUTPUT: localized status, single-location recovery notices, edit and objective-bound clear confirmation.
+ * OUTPUT: localized status, optional domain presentation derived from the current Goal, recovery and scoped confirmation.
  * POS: Goal panel composition layer; it does not infer Execution binding or call APIs.
  */
 
@@ -27,13 +27,13 @@ import { useGoalController } from "./use-goal-controller";
 interface GoalPanelProps {
   activityKey?: number | string | null;
   compact?: boolean;
-  continuationHold?: GoalContinuationHold | null;
+  continuationHold?: GoalContinuationHold | null | ((goal: Goal) => GoalContinuationHold | null);
   disabled?: boolean;
   isGenerating?: boolean;
   onGoalChange?: (goal: Goal | null) => void;
   scopeLabel?: string;
   sessionKey: string | null;
-  statusExtra?: ReactNode;
+  statusExtra?: ReactNode | ((goal: Goal) => ReactNode);
 }
 
 function GoalConfirmationDialog({
@@ -74,13 +74,13 @@ function GoalPanelContent({
   statusExtra,
 }: {
   compact: boolean;
-  continuationHold: GoalContinuationHold | null;
+  continuationHold: NonNullable<GoalPanelProps["continuationHold"]> | null;
   controller: ReturnType<typeof useGoalController>;
   disabled: boolean;
   isGenerating: boolean;
   scopeLabel: string;
   sessionKey: string | null;
-  statusExtra: ReactNode;
+  statusExtra: GoalPanelProps["statusExtra"];
 }) {
   const { actions, dialog, draft, goal } = controller;
   if (!sessionKey) {
@@ -110,7 +110,7 @@ function GoalPanelContent({
         canResume={controller.canResume}
         clearDisabledReason={controller.clearDisabledReason}
         compact={compact}
-        continuationHold={continuationHold}
+        continuationHold={typeof continuationHold === "function" ? continuationHold(goal) : continuationHold}
         disabled={disabled}
         executionBinding={controller.executionBinding}
         goal={goal}
@@ -120,7 +120,7 @@ function GoalPanelContent({
         mutationBlocked={controller.mutationsBlocked}
         pendingAction={controller.pendingAction}
         scopeLabel={scopeLabel}
-        statusExtra={statusExtra}
+        statusExtra={typeof statusExtra === "function" ? statusExtra(goal) : statusExtra}
         onClearRequest={actions.startClearing}
         onEdit={actions.startEditing}
         onPause={actions.pause}

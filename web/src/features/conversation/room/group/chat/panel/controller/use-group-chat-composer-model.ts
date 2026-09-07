@@ -1,13 +1,12 @@
 /**
  * INPUT: Room Composer 会话、成员 Session、精确 Agent execution/slot/stopping 状态与发送资源。
- * OUTPUT: 带共享本机目录和点击时精确目标快照“全部停止”的 Room Composer 模型。
+ * OUTPUT: 带共享本机目录、Goal 当前成员校验与点击时精确目标快照“全部停止”的 Room Composer 模型。
  * POS: Room 会话能力到共享 Composer Props 的唯一动作装配边界。
  */
 import { useCallback } from "react";
 
 import { prepareRoomConversationAttachments } from "@/features/conversation/shared/composer/attachments/composer-attachments";
 import { useConversationComposerHandlers } from "@/features/conversation/shared/composer/use-conversation-composer-handlers";
-import { ROOM_GOAL_SCOPE_LABEL } from "@/features/conversation/shared/goal/goal-continuation-hold";
 import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversation-tour";
 import { useDefaultChatDeliveryPolicy } from "@/hooks/settings/use-default-chat-delivery-policy";
 import {
@@ -25,6 +24,7 @@ import type { GroupChatComposerModel } from "../view/group-chat-panel-view";
 import {
   buildRoomLoopGoalMetadata,
   buildRoomLoopGoalObjective,
+  resolveRoomGoalCreateDisabledReason,
 } from "../../room-goal-model";
 import { projectRoomPendingInputQueueItems } from "./group-chat-panel-projection";
 import type { RoomGoalComposerModel } from "./use-room-goal-composer";
@@ -136,16 +136,15 @@ export function useGroupChatComposerModel({
       throw new Error(t("room.goal_session_not_ready"));
     }
     const leadAgentId = goal.leadAgentId.trim();
-    if (!leadAgentId) {
-      throw new Error(t("room.goal_lead_required"));
-    }
+    const disabledReason = resolveRoomGoalCreateDisabledReason(roomMembers, leadAgentId, t);
+    if (disabledReason) throw new Error(disabledReason);
     await setGoal(objective, {
       ...(metadata ? { metadata } : {}),
       replace_existing: true,
       target_agent_ids: [leadAgentId],
       token_budget: null,
     });
-  }, [goal.leadAgentId, sessionKey, setGoal, t]);
+  }, [goal.leadAgentId, roomMembers, sessionKey, setGoal, t]);
   const createLoopGoal = useCallback(async (loop: LoopCatalogItem) => {
     await createGoal(
       buildRoomLoopGoalObjective(loop),
@@ -166,7 +165,7 @@ export function useGroupChatComposerModel({
     draftScopeKey,
     enableLoops: true,
     goalCreateDisabledReason: goal.createDisabledReason,
-    goalScopeLabel: ROOM_GOAL_SCOPE_LABEL,
+    goalScopeLabel: t("goal.scope_room"),
     historyScopeKey,
     inputQueueItems: projectRoomPendingInputQueueItems(
       conversation.input_queue_items,

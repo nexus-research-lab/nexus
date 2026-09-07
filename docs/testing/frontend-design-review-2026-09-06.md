@@ -3135,3 +3135,51 @@ lint、typecheck、481 项合同、260 文件的 1158 项组件/模型测试及 
 见 /tmp/nexus-a86-check.log。仅保留既有 workgraph-metadata-editor-dialog effect-ref
 lint 警告与大分块构建提示。快照为 /tmp/nexus-a86-review-6i7oupz0，清单保存在
 /tmp/nexus-a86-review.json；提交前再次核对工作树/暂存区与快照字节及审计哈希。
+
+## A87 — Room Goal 负责人选择与当前 Goal 展示
+
+Room Goal Footer 原先有独立原生 select、字段背景/边框和微字号，本批改为公共
+xs Select Menu，沿现有 Composer container query 收缩，采用共享定位/键盘/Portal。
+该业务原生 select 是门禁最后一处例外，现在移除例外，原生 select 仅允许公共
+form-control owner。负责人使用统一 Agent 名称目录，重名/缺名有稳定序号，缺失
+绑定显示禁用的不可用项，当前可访问名称包含动作与选择；空选择仍可显式选择。
+
+UiSelectMenu 新增可选 resetKey，现有消费者不传时行为不变。Room Goal 传入精确
+Session 与排序后的候选身份集合，变化时用已有 resettable state 丢弃打开态，
+保持 trigger DOM 与外部焦点，旧上下文恢复后不自动重开。名称/语言或排序更新
+保留菜单；禁用态仍即时收起。该纯上下文机制归公共 overlay adapter，页面不
+复制浮层状态或以 React key 重建整个控件。
+
+原负责人草稿控制器会在成员暂空或被移除后用 effect 改写为默认成员，可能导致
+原本选择的负责人被自动替换。本批保留显式草稿，失效就要求用户改选；初始 null
+草稿继续沿既有宿主/唯一成员默认规则，显式空值仍表达未选择。控件可用性与
+set_goal 派发边界共用同一当前成员校验；只要目标不在当前 Room 就不发命令。
+实际 Goal 创建仍使用独立宿主 set_goal、replace_existing 和单个真实 target，
+不调用普通 send_message，预算仍为 null；Loop objective/metadata 构造没有改变。
+
+Room Goal Panel 原先缓存另一份 Goal，且只在子面板 onGoalChange 回调后更新，
+读取进行中时会显示默认负责人或旧会话的权限提示。本批移除重复 Goal state 和
+回写回调，通过共享 GoalPanel 的可选展示函数直接消费同一 scoped Goal；原
+onGoalChange 直接转交外部观察者。负责人标签、Plan 解释与创建选择沿同一姓名
+算法，空白名称不回显 ID。Room 范围和 DM/Room continuation hold 文案按当前
+语言投影，既有单成员、明确负责人和群主接管分支不变；hold 不写回 Goal 状态。
+移除固定中文范围常量、单次透传 hold 包装和重复参数别名，补齐三个领域文件 L3。
+
+新增 17 项回归，定向 10 文件 78 项与 typecheck 全部通过：双语/缺名/重名、缺项
+不可点击、空选择、禁用态、候选和 Session 变化不复活旧菜单、公共 trigger/focus、
+真实草稿 Store 的 Session 恢复与 owner reset、成员失效禁止 set_goal、有效 Goal
+只走宿主控制命令、刷新中直接读取当前 Goal 与新的 owner/Session 展示、DM 语言
+切换保留刷新序列。日志 /tmp/nexus-a87-target.log 与 /tmp/nexus-a87-types.log；
+两个新增 Room DOM 套件进入合同必备清单，hook/纯模型测试由 Vitest 正常运行。
+
+485 项审查清单为 243 pending、131 in_progress、85 improved、20 retained、6 removed；
+公共 UI 仍为 118 项。两个 Room Goal 视图完成本批代码/行为审查，共享 GoalPanel
+追加当前 Goal 投影证据，SelectMenu 只完成上下文重置切片，完整消费者审查继续。
+全部存量源哈希已核对。未做视觉、浏览器或宿主验收，未启动产品服务，不改后端。
+完整门禁证据如下；整体 Goal 继续，只本地提交，不推送。
+
+最终完整 npm run check 在基线 7daaa7921 与本批 30 个精确文件的隔离快照通过：
+lint、typecheck、481 项合同、264 文件的 1175 项组件/模型测试及 build 全部完成，
+见 /tmp/nexus-a87-check.log。仅保留既有 workgraph-metadata-editor-dialog effect-ref
+lint 警告与大分块构建提示。快照 /tmp/nexus-a87-review-645m4zyd，文件清单
+/tmp/nexus-a87-review.json；提交前核对工作树、暂存区与快照字节及全部审查哈希。

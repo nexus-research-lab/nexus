@@ -31,6 +31,8 @@ const PROHIBITED_PRODUCT_STYLE_PATTERNS = [
 ];
 
 const REQUIRED_SHARED_UI_BEHAVIOR_SUITES = [
+  "src/features/conversation/room/group/chat/panel/view/room-goal-lead-control.test.tsx",
+  "src/features/conversation/room/group/chat/room-goal-panel.test.tsx",
   "src/features/conversation/shared/goal/goal-draft-form.test.tsx",
   "src/features/conversation/shared/goal/goal-status-strip.test.tsx",
   "src/features/conversation/shared/goal/use-goal-controller.test.tsx",
@@ -2922,9 +2924,6 @@ test("form style and accessibility internals and native selects keep explicit ow
     "src/shared/ui/form/source-editor.tsx",
     "src/shared/ui/menu/select-menu-primitives.tsx",
   ]);
-  const embeddedSelectOwners = new Set([
-    "src/features/conversation/room/group/chat/panel/view/room-goal-lead-control.tsx",
-  ]);
   const violations = [];
 
   for (const file of files) {
@@ -2944,8 +2943,7 @@ test("form style and accessibility internals and native selects keep explicit ow
       violations.push(`${relativePath}: internal field accessibility import`);
     }
     if (
-      !embeddedSelectOwners.has(relativePath)
-      && relativePath !== "src/shared/ui/form/form-control.tsx"
+      relativePath !== "src/shared/ui/form/form-control.tsx"
       && !/\.(?:test|spec)\.tsx?$/.test(file)
       && countNativeElement(file, source, "select") > 0
     ) {
