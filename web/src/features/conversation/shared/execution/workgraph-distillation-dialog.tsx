@@ -1,7 +1,7 @@
 /**
  * INPUT: 默认对话模型从 exact 完成图抽取的临时草图。
- * OUTPUT: 命名表单、完整工作图画布、保存/调整动作，以及明确说明事务保存结果的恢复状态。
- * POS: 完成态 WorkGraph 到持久化流程的确认台；只向编辑器提交本次表单修改，命名预检不替代服务端栅栏。
+ * OUTPUT: 可连续修改并保存的命名表单、完整工作图画布，以及明确说明事务保存结果的恢复状态。
+ * POS: 完成态 WorkGraph 到持久化流程的确认台；保存后读取当前 Draft 版本，已保存只表达内容一致，不锁定编辑。
  */
 "use client";
 
@@ -61,7 +61,7 @@ export function WorkGraphDistillationDialog({
   sessionKey: string;
 }) {
   const { t } = useI18n();
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
+  const [saveState, setSaveState] = useState<"idle" | "saving">("idle");
   const [saveFailure, setSaveFailure] = useState<WorkGraphSaveFailure | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -92,13 +92,16 @@ export function WorkGraphDistillationDialog({
     }
   }, [preview.preview_id, sessionKey]);
   useEffect(() => { void loadCurrentDraft(); }, [loadCurrentDraft]);
-  const locked = loading || loadFailed || saveState !== "idle" || Boolean(saveFailure && (saveFailure.changed || saveFailure.effect !== "not_applied"));
+  const locked = loading || loadFailed || saveState === "saving" || Boolean(saveFailure && (saveFailure.changed || saveFailure.effect !== "not_applied"));
   const normalizedSlashName = slashName.trim().replace(/^\/+/, "").toLowerCase();
+  const isSaved = saveState !== "saving" && !saveFailure && savedWorkGraphMatchesPreview(savedWorkflow, {
+    ...workingPreview, slash_name: normalizedSlashName, title: title.trim(), description: description.trim(),
+  });
   const slashNameFormatError = !WORKGRAPH_SLASH_NAME_PATTERN.test(normalizedSlashName)
     ? t("execution.workflow_slash_invalid")
     : null;
   const slashNameAvailability = useWorkGraphSlashNameAvailability({
-    enabled: slashNameFormatError === null && saveState === "idle",
+    enabled: slashNameFormatError === null && !locked && !isSaved,
     previewId: workingPreview.preview_id,
     slashName: normalizedSlashName,
   });
@@ -147,10 +150,14 @@ export function WorkGraphDistillationDialog({
         throw new Error("WorkGraph save was not confirmed");
       }
       setSlashName(receipt.workflow.slash_name);
-      setSaveState("saved");
+      setTitle(receipt.workflow.title);
+      setDescription(receipt.workflow.description ?? "");
       setSavedWorkflow(receipt.workflow);
       onSaved?.(receipt.workflow);
       window.dispatchEvent(new CustomEvent(WORKGRAPH_WORKFLOWS_CHANGED_EVENT));
+      // Metadata saves can append a Draft revision. Read the server's current
+      // baseline before allowing another edit; never guess its next revision.
+      await loadCurrentDraft();
     } catch (reason: unknown) {
       if (reason instanceof ApiRequestError && reason.status === 409) {
         setConfirmedConflictName(normalizedSlashName);
@@ -163,6 +170,7 @@ export function WorkGraphDistillationDialog({
         );
         setSaveFailure({ effect: failure.effect });
       }
+    } finally {
       setSaveState("idle");
     }
   };
@@ -174,7 +182,10 @@ export function WorkGraphDistillationDialog({
       const intended = { ...workingPreview, slash_name: normalizedSlashName, title: title.trim(), description: description.trim() };
       if (current.workflow && savedWorkGraphMatchesPreview(current.workflow, intended)) {
         setSaveFailure(null);
-        setSaveState("saved");
+        setWorkingPreview(current.preview);
+        setSlashName(current.preview.slash_name);
+        setTitle(current.preview.title);
+        setDescription(current.preview.description ?? "");
         onSaved?.(current.workflow);
         window.dispatchEvent(new CustomEvent(WORKGRAPH_WORKFLOWS_CHANGED_EVENT));
       }
@@ -307,7 +318,7 @@ export function WorkGraphDistillationDialog({
                     impact={t("execution.workflow_state_failed_impact")}
                     primaryAction={{ label: t("execution.workflow_reload_draft"), onClick: () => void loadCurrentDraft() }} />
                 ) : null}
-                {saveState === "saved" ? (
+                {isSaved ? (
                   <div className="flex items-start gap-2 text-xs text-(--text-default)">
                     <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-(--success)" />
                     <div>
@@ -324,7 +335,7 @@ export function WorkGraphDistillationDialog({
                   <WorkGraphSaveFailureState failure={saveFailure} checking={loading}
                     onCheck={() => { void verifySave().catch(() => {}); }} onReload={() => void loadCurrentDraft()} />
                 ) : null}
-                {saveState === "saved" || (saveFailure && saveFailure.effect !== "not_applied") ? (
+                {isSaved || (saveFailure && saveFailure.effect !== "not_applied") ? (
                   <UiButton className="w-full" onClick={onClose} size="sm" tone="primary" variant="solid">
                     {t("common.close")}
                   </UiButton>

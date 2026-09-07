@@ -792,6 +792,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Unified WorkGraph command editing and saving around the current Draft and its active command; stale selections are rejected, lost responses can be checked without resubmitting, and historical commands from the same source retain independent drafts. Deleting a command preserves its editable draft.
 
+- Keep saved WorkGraph forms editable in the same dialog. Renaming or editing
+  metadata restores the save action, and each confirmed save refreshes the Draft
+  revision so subsequent saves update the same command without a model round.
+
 - Confirmed WorkGraph sketches and command-name edits now save directly in one
   database transaction, without a background model round; the UI confirms the
   persisted command immediately. Existing pending saves can be completed this way.
