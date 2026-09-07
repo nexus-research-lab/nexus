@@ -156,3 +156,20 @@ describe("Subagent task details", () => {
     expect(screen.queryByText("No transcript yet")).toBeNull();
   });
 });
+
+
+it.each(["en", "zh"] as const)("keeps unknown task state neutral and capability-driven in %s", (locale) => {
+  const task = { ...TASK, status: "private_future_status" };
+  const value = model({ task });
+  const view = (value: Model) => localized(<SubagentTaskThreadView layout="desktop" model={value} onBack={vi.fn()} />, locale);
+  const { container, rerender } = render(view(value));
+  expect(screen.queryByRole("button", { name: MESSAGES[locale]["subagents.stop"] })).toBeNull();
+  expect(screen.queryByRole("button", { name: MESSAGES[locale]["subagents.resume"] })).toBeNull();
+  expect(screen.getByText(MESSAGES[locale]["subagents.controls_unknown_hint"])).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: MESSAGES[locale]["subagents.send_message"] }));
+  expect(value.onSendRequest).toHaveBeenCalledOnce();
+  expect(container.textContent).not.toContain("private_future_status");
+  expect(container.querySelector('header [title]')?.className).not.toContain("status-running");
+  rerender(view({ ...value, task: { ...task, capabilities: { ...task.capabilities, send_message: false } } }));
+  expect(screen.queryByRole("button", { name: MESSAGES[locale]["subagents.send_message"] })).toBeNull();
+});

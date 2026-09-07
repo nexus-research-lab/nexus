@@ -1,6 +1,6 @@
 /**
  * INPUT: exact 子智能体任务、只读 transcript 资源和任务控制结果。
- * OUTPUT: 公共头像/排版/状态构成的任务详情，文件沿精确来源打开，控制保持 capability 边界。
+ * OUTPUT: 公共头像/排版构成的详情与中性未知状态；文件沿精确来源打开，控制保持 capability 边界。
  * POS: 子智能体详情纯视图；任务展示身份不当作工作区，停止结果未知时禁止普通重复停止。
  */
 "use client";
@@ -26,6 +26,7 @@ import type {
 
 import {
   canSendSubagentTaskMessage,
+  getSubagentTaskStatus,
   isSubagentTaskActive,
   subagentTaskAvatarSeed,
   subagentTaskTitle,
@@ -127,12 +128,13 @@ function SubagentTaskControls({
 }) {
 	const { t } = useI18n();
 	const active = isSubagentTaskActive(task);
+	const unknown = getSubagentTaskStatus(task) === "unknown";
 	const canSend = canSendSubagentTaskMessage(task);
 	const canStop = active && task.capabilities.stop;
 	const stopResultUnconfirmed = actions.error?.action === "stop"
 		&& actions.error.effect !== "not_applied";
 	const pending = actions.pendingAction !== null;
-	const unsupportedKey = task.status.trim().toLowerCase() === "deleted"
+	const unsupportedKey = typeof task.status === "string" && task.status.trim().toLowerCase() === "deleted"
 		? "subagents.deleted_unsupported"
 		: active
 		? "subagents.controls_unsupported"
@@ -151,7 +153,7 @@ function SubagentTaskControls({
 			) : null}
 			<div className="flex flex-wrap items-center justify-between gap-2">
 				<p className={cn("min-w-0 basis-40 grow", getUiTypographyClassName({ role: "metadata", tone: "muted" }))}>
-					{canSend || canStop
+					{unknown ? t("subagents.controls_unknown_hint") : canSend || canStop
 						? t(active ? "subagents.controls_active_hint" : "subagents.controls_resume_hint")
 						: t(unsupportedKey)}
 				</p>
@@ -187,7 +189,7 @@ function SubagentTaskControls({
 							) : (
 								<MessageSquareMore aria-hidden="true" className="h-3.5 w-3.5" />
 							)}
-							{t(active ? "subagents.send_message" : "subagents.resume")}
+							{t(active || unknown ? "subagents.send_message" : "subagents.resume")}
 						</UiButton>
 					) : null}
 				</div>

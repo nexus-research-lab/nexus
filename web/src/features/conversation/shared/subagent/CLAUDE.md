@@ -6,8 +6,8 @@
 
 - `subagent-task-model.ts` 只做服务端任务数据的归一化与纯派生；实例标题优先使用模型拉起任务时给出的名称/短描述，`agent_type` 仅作缺省回退；消息任务入口只能通过精确 `tool_use_id`（旧记录允许同值 `task_id`）解析详情，不按标题或时间猜测。列表、线程和消息入口头像统一复用 Skill 数学曲线生成器，以 `tool_use_id` 为稳定种子，旧记录回退 `task_id`。
 - 列表和详情标题共用 `subagentTaskTitle(task, t)`；名称、短描述与类型都缺失时交给 `lib/agent-display-name.ts` 使用当前语言通称，不另保留硬编码英文兜底。
-- `subagent-task-list-model.ts` 按可选 `host_agent_id` 过滤当前 Session 的全部任务，再单次分组并排序，同时投影加载与 runtime 支持状态。
-- `subagent-task-list.tsx` 只装配 active/completed 分组与选择命令；任务整行必须复用 `UiListRow` 的 `dense` 密度，标题、时间、摘要和说明必须选择 App Typography 角色。数学曲线头像通过 `UiSeededAvatar state="running"` 表达执行态，业务层不得复制行 hover/focus、字号/行高或品牌色 ring。
+- `subagent-task-list-model.ts` 按可选 `host_agent_id` 过滤当前 Session 的全部任务，再按 active/history/unknown 单次分组并排序，同时投影加载与 runtime 支持状态；失败不抹掉仍可读取的快照，也不同时声称没有任务。
+- `subagent-task-list.tsx` 只装配运行、历史和未知状态分组与选择命令；任务整行必须复用 `UiListRow` 的 `dense` 密度，标题、时间、摘要和说明必须选择 App Typography 角色。数学曲线头像通过 `UiSeededAvatar state="running"` 表达执行态，业务层不得复制行 hover/focus、字号/行高或品牌色 ring。
 - `use-scoped-resource.ts` 统一来源/任务作用域、请求代次和原子快照提交，不解释业务状态。
 - `use-subagent-task-realtime-refresh.ts` 独占 `subagent_task_changed` 的作用域过滤、短合并、后台延迟刷新与断线重连补拉；不得启动 HTTP 定时轮询。
 - `use-subagent-tasks.ts` 只管理来源级列表加载；实时事件必须按精确 Session/Room/Conversation 与可选 host Agent 失效当前列表。
@@ -17,6 +17,9 @@
 ## 不变量
 
 - 所有异步资源统一通过作用域资源原语提交，旧作用域不得写回新页面。
-- capabilities 归一化由统一字段表驱动；新增能力时不得在返回对象中复制逐字段回退。
+- capabilities 归一化由统一字段表驱动；缺省/空字段保留既有父级能力继承，出现非布尔值则关闭该项。新增能力时不得在返回对象中复制逐字段回退。
 - 切换来源必须重建选择状态，不保留上一个来源的任务详情。
 - 列表读取失败使用 `UiInlineNotice` 保留标题、影响和唯一刷新动作；视图不得复制错误卡片、字号或文字按钮样式，也不在已有动作旁重复同义恢复说明。
+
+- 状态别名只接受自有映射项；未知值单独展示为当前语言的未知状态，不猜测运行或终态，不回显 wire 值。相同时间的未知观察不能覆盖已知状态，已知终态继续优先于同时间运行态；明确更晚的观察优先。
+- 时间只接受有限、正值且在日期范围内的观察，updated_at 无效时回退有效 started_at，否则不展示。相对文字唯一调用 `lib/format/relative-time.ts` 的 compact 模式，并用具备 dateTime/完整日期提示的 time 元素承载；目录使用 `shared/lib/react/use-minute-clock.ts` 在可见时按分钟刷新显示，不触发读取或改变任务分组。
