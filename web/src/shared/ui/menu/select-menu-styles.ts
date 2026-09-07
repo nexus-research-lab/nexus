@@ -1,9 +1,10 @@
 // INPUT: Select Menu 尺寸、标签换行、表面和选中状态。
-// OUTPUT: 与字段配套的字号、固定/随换行增高的触发器、选项及标签布局共享 recipe。
+// OUTPUT: 复用 App Typography 的字段字号、固定/随换行增高的触发器与选项布局 recipe。
 // POS: Select Menu 唯一视觉投影；不决定当前值、键盘遍历或浮层位置。
 
 import { cn } from "@/shared/ui/class-name";
 import { getMenuItemStateClassName } from "@/shared/ui/menu/menu-styles";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import type {
   UiSelectMenuSize,
@@ -39,30 +40,30 @@ const SELECT_MENU_SIZE_CONFIG: Record<UiSelectMenuSize, {
   md: {
     estimatedOptionHeight: 32,
     heightClassName: "h-9",
-    optionHeightClassName: "min-h-8 text-sm",
+    optionHeightClassName: cn("min-h-8", getUiTypographyClassName({ role: "supporting" })),
     roundedClassName: "radius-control-md",
-    textClassName: "ui-type-control ui-type-weight-regular",
+    textClassName: getUiTypographyClassName({ role: "control", weight: "regular" }),
   },
   sm: {
     estimatedOptionHeight: 32,
     heightClassName: "h-8",
-    optionHeightClassName: "min-h-8 text-sm",
+    optionHeightClassName: cn("min-h-8", getUiTypographyClassName({ role: "supporting" })),
     roundedClassName: "radius-control-sm",
-    textClassName: "text-sm",
+    textClassName: getUiTypographyClassName({ role: "supporting" }),
   },
   xs: {
     estimatedOptionHeight: 28,
     heightClassName: "h-7",
-    optionHeightClassName: "min-h-7 text-compact",
+    optionHeightClassName: cn("min-h-7", getUiTypographyClassName({ role: "metadata" })),
     roundedClassName: "radius-control-xs",
-    textClassName: "text-compact",
+    textClassName: getUiTypographyClassName({ role: "metadata" }),
   },
   lg: {
     estimatedOptionHeight: 32,
     heightClassName: "h-11",
-    optionHeightClassName: "min-h-8 text-sm",
+    optionHeightClassName: cn("min-h-8", getUiTypographyClassName({ role: "supporting" })),
     roundedClassName: "radius-control-lg",
-    textClassName: "ui-type-control ui-type-weight-regular",
+    textClassName: getUiTypographyClassName({ role: "control", weight: "regular" }),
   },
 };
 

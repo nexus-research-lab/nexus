@@ -10,9 +10,11 @@
 - `allowLabelWrap` 同时由该 recipe 持有触发器最小高度、垂直留白和外层自动高度；长活动标签必须完整位于触发器中，不能只换行文字再由业务修补固定壳高。普通单行模式保留原四档固定高度。
 - `select-menu-primitives.tsx` 提供选择菜单共用的 `SelectMenuTrigger`、触发器内容、listbox 框架和 `SelectMenuOptionRow`；SelectMenuTrigger 统一单选与领域多选的原生 button、listbox ARIA、ref 和原生事件透传，直接消费既有样式投影，不改变调用者的开关、键盘或布局。所有单选、多选、Slash/Mention 类 listbox 条目由 OptionRow 持有原生 button、`role=option`、选中语义与基础交互底面，业务只组合行内容、密度和选择命令。
 - `select-menu-view.tsx` 只渲染共享单选菜单，不读取业务状态或决定选值。
+- 当前值与选项的可选徽标直接组合公共 `UiBadge`，不保留私有 badge helper、字号或颜色；`select-menu-styles.ts` 的各尺寸文字通过 `getUiTypographyClassName` 投影，具体档位以根目录 `design.md` 为准。
 - Select trigger 通过 `form/field-accessibility.ts` 复用 Field 的精确说明/错误关联；菜单项不继承该字段身份，业务不必复制一套 ARIA 错误属性。
 - 默认单选触发器与默认 Input 使用同一控件高度和 App `control` 文字角色；紧凑档位保留菜单原有密度。多选已选 Chip 的换行高度属于领域内容几何，不强塞进单行高度。
 - `select-menu.tsx` 只编排共享单选语义和浮层生命周期；带搜索、异步状态或多选规则的菜单归真实业务所有者。
+- 共用 `useSelectMenuOverlay` 的触发键盘入口先尊重 `defaultPrevented`，再通过 `isImeKeyboardEvent` 排除输入法组合事件；单选、Room 技能多选与历史菜单复用同一边界，普通 Enter/Space、方向键选择及关闭仍走原有路径。
 - `action-menu.tsx` 保持外部受控，不复用 Select 家族的内部开关状态；业务可显式选择与锚点起点或终点对齐。级联浮层复用 `UiActionMenuContent` 的条目和底部动作，不复制 Action Menu 行结构。
 - Action Menu 首次焦点必须等定位完成、浮层实际可见后进入首个可用条目；后续滚动/窗口变化只更新几何，不把用户当前条目焦点重置到第一项。
 - `menu-keyboard.ts` 是 Action、Room 模型和 Workspace 菜单的首项焦点与方向键/Home/End 遍历所有者；只遍历当前 menu 的可用项，不混入子菜单。它忽略 IME、已处理事件和外部 Portal 冒泡，输入框保留自己的编辑键。Tab 由调用方关闭并归还锚点，再按共享 DOM 焦点目录续接到同一页面/模态的相邻控件；全部禁用时菜单根仍可聚焦退出。级联进入/返回与实际命令仍由业务拥有。
