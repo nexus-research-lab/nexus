@@ -9,7 +9,8 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
-import { UI_SOURCE_PREVIEW_SCROLL_CLASS_NAME, UI_SOURCE_TEXT_CLASS_NAME } from "@/shared/ui/form/source-text-styles";
+import { UI_SOURCE_TEXT_CLASS_NAME } from "@/shared/ui/form/source-text-styles";
+import { UI_PREVIEW_VIEWPORT_CLASS_NAME } from "@/shared/ui/layout/preview-viewport-styles";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { useLargeTextFilePreview } from "./use-large-text-file-preview";
 import { WorkspaceFilePreviewLoading } from "../workspace-file-preview-loading";
@@ -102,7 +103,7 @@ export function LargeTextFilePreview({
           // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- This named read-only scroll region needs a Tab stop for native keyboard scrolling.
           <pre tabIndex={0}
             aria-label={fileName}
-            className={cn("flex-1 whitespace-pre-wrap break-words p-4 text-(--text-default)", UI_SOURCE_PREVIEW_SCROLL_CLASS_NAME, UI_SOURCE_TEXT_CLASS_NAME)}
+            className={cn("flex-1 whitespace-pre-wrap break-words p-4 text-(--text-default)", UI_PREVIEW_VIEWPORT_CLASS_NAME, UI_SOURCE_TEXT_CLASS_NAME)}
             role="region"
           >
             {chunk.content}

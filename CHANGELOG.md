@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Spreadsheet previews now preserve source point-to-pixel font sizing and
+  vertical alignment, share readable coordinate labels and keyboard-scroll
+  styling, and expose ordered virtual rows and merged cells as a read-only table.
+  Slide thumbnails reuse the full-size content layout; repeated paragraphs and
+  text runs no longer collide during React updates.
 - DOCX, XLSX and PPTX previews share file, account and retry scope handling;
   stale reads and parses cannot replace current content, and obsolete slide
   resources are released. DOCX retains its rendering hosts after failure so

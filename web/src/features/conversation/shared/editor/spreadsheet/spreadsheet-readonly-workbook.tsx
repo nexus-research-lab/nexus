@@ -1,6 +1,6 @@
 // INPUT: 已投影的 Workbook、当前工作表索引与切换命令。
-// OUTPUT: 共享底线式工作表选择条和只读虚拟化表格。
-// POS: Spreadsheet 预览视图；不解析 ExcelJS，不拥有全局 Tabs 外观。
+// OUTPUT: 共享工作表选择条和可键盘滚动的只读虚拟表格，保留行列位置与合并语义。
+// POS: Spreadsheet 视图；行投影与内容样式归本目录，Tabs、元数据排版和滚动配方归 shared/ui。
 "use client";
 
 import { useCallback, useMemo, useRef, useState } from "react";
@@ -8,12 +8,15 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiTabs } from "@/shared/ui/navigation/tabs";
+import { cn } from "@/shared/ui/class-name";
+import { UI_PREVIEW_VIEWPORT_CLASS_NAME } from "@/shared/ui/layout/preview-viewport-styles";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import { createSpreadsheetCellStyle } from "./spreadsheet-cell-style";
 import {
   columnIndexToLabel,
   createColumnSizeTable,
-  createRenderedSpreadsheetCells,
+  createRenderedSpreadsheetRows,
   createRowSizeTable,
   SPREADSHEET_GRID_DIMENSIONS,
 } from "./spreadsheet-grid-model";
@@ -27,6 +30,8 @@ interface SpreadsheetReadonlyWorkbookProps {
   onSelectSheet: (index: number) => void;
   workbook: SpreadsheetPreviewWorkbookData;
 }
+
+const coordinateTypography = getUiTypographyClassName({ role: "caption", tone: "muted", weight: "medium" });
 
 export function SpreadsheetReadonlyWorkbook({
   activeSheetIndex,
@@ -43,7 +48,7 @@ export function SpreadsheetReadonlyWorkbook({
     return null;
   }
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex h-full min-h-0 min-w-0 flex-col">
       {workbook.sheets.length > 1 ? (
         <UiTabs
           activeValue={String(resolvedSheetIndex)}
@@ -95,7 +100,7 @@ function SpreadsheetReadonlySheet({
   });
   const virtualRows = rowVirtualizer.getVirtualItems();
   const virtualColumns = columnVirtualizer.getVirtualItems();
-  const renderedCells = createRenderedSpreadsheetCells(
+  const renderedRows = createRenderedSpreadsheetRows(
     sheet,
     rowSizes,
     columnSizes,
@@ -114,7 +119,7 @@ function SpreadsheetReadonlySheet({
 
   return (
     <div
-      className="grid min-h-0 flex-1 bg-[var(--surface-panel-subtle-background)] text-xs text-(--text-default)"
+      className={cn("grid min-h-0 min-w-0 flex-1 bg-[var(--surface-panel-subtle-background)]", getUiTypographyClassName({ role: "caption" }))}
       style={{
         gridTemplateColumns:
           `${SPREADSHEET_GRID_DIMENSIONS.rowHeaderWidth}px minmax(0, 1fr)`,
@@ -122,8 +127,8 @@ function SpreadsheetReadonlySheet({
           `${SPREADSHEET_GRID_DIMENSIONS.columnHeaderHeight}px minmax(0, 1fr)`,
       }}
     >
-      <div className="z-30 border-r border-b border-(--divider-subtle-color) bg-(--surface-panel-background)" />
-      <div className="relative overflow-hidden border-b border-(--divider-subtle-color) bg-(--surface-panel-background)">
+      <div aria-hidden="true" className="z-30 border-r border-b border-(--divider-subtle-color) bg-(--surface-panel-background)" />
+      <div aria-hidden="true" className="relative overflow-hidden border-b border-(--divider-subtle-color) bg-(--surface-panel-background)">
         <div
           className="relative h-full"
           style={{
@@ -133,7 +138,7 @@ function SpreadsheetReadonlySheet({
         >
           {virtualColumns.map((column) => (
             <div
-              className="absolute top-0 flex h-full items-center justify-center border-r border-(--divider-subtle-color) px-2 text-2xs font-semibold text-(--text-muted)"
+              className={cn("absolute top-0 flex h-full items-center justify-center border-r border-(--divider-subtle-color) px-2 tabular-nums", coordinateTypography)}
               key={column.key}
               style={{
                 transform: `translateX(${column.start}px)`,
@@ -145,7 +150,7 @@ function SpreadsheetReadonlySheet({
           ))}
         </div>
       </div>
-      <div className="relative overflow-hidden border-r border-(--divider-subtle-color) bg-(--surface-panel-background)">
+      <div aria-hidden="true" className="relative overflow-hidden border-r border-(--divider-subtle-color) bg-(--surface-panel-background)">
         <div
           className="relative w-full"
           style={{
@@ -155,7 +160,7 @@ function SpreadsheetReadonlySheet({
         >
           {virtualRows.map((row) => (
             <div
-              className="absolute left-0 flex w-full items-center justify-end border-b border-(--divider-subtle-color) px-2 text-2xs font-medium text-(--text-muted)"
+              className={cn("absolute left-0 flex w-full items-center justify-end border-b border-(--divider-subtle-color) px-2 tabular-nums", coordinateTypography)}
               key={row.key}
               style={{
                 height: row.size,
@@ -168,33 +173,49 @@ function SpreadsheetReadonlySheet({
         </div>
       </div>
       <div
-        className="overflow-auto bg-(--card-default-background)"
+        aria-label={sheet.name}
+        className={cn("bg-(--surface-paper-background) text-(--surface-paper-foreground)", UI_PREVIEW_VIEWPORT_CLASS_NAME)}
         onScroll={handleScroll}
         ref={scrollRef}
+        role="region"
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- Named read-only viewport needs native keyboard scrolling.
+        tabIndex={0}
       >
         <div
+          aria-label={sheet.name}
+          aria-colcount={sheet.column_count}
+          aria-rowcount={sheet.row_count}
           className="relative"
-          role="grid"
+          role="table"
           style={{ height: rowSizes.total, width: columnSizes.total }}
         >
-          {renderedCells.map((cell) => (
+          {renderedRows.map((row) => (
             <div
-              className="absolute overflow-hidden border-r border-b border-(--divider-subtle-color) px-2 py-1"
-              key={`${cell.rowIndex}:${cell.columnIndex}`}
-              role="gridcell"
-              style={{
-                ...createSpreadsheetCellStyle(
-                  sheet.styles,
-                  cell.cell?.style,
-                ),
-                height: cell.height,
-                transform:
-                  `translate(${cell.columnStart}px, ${cell.rowStart}px)`,
-                width: cell.width,
-              }}
-              title={cell.cell?.text || undefined}
+              aria-rowindex={row.index + 1}
+              className="absolute left-0 top-0 w-full"
+              key={row.index}
+              role="row"
+              style={{ height: row.height, transform: `translateY(${row.start}px)` }}
             >
-              {cell.cell?.text || ""}
+              {row.cells.map((cell) => (
+                <div
+                  aria-colindex={cell.columnIndex + 1}
+                  aria-colspan={cell.columnSpan > 1 ? cell.columnSpan : undefined}
+                  aria-rowspan={cell.rowSpan > 1 ? cell.rowSpan : undefined}
+                  className="absolute left-0 top-0 overflow-hidden border-r border-b border-(--surface-paper-border) px-2 py-0.5"
+                  key={cell.columnIndex}
+                  role="cell"
+                  style={{
+                    ...createSpreadsheetCellStyle(sheet.styles, cell.cell?.style),
+                    height: cell.height,
+                    transform: `translateX(${cell.columnStart}px)`,
+                    width: cell.width,
+                  }}
+                  title={cell.cell?.text || undefined}
+                >
+                  <span className="min-w-0 shrink-0">{cell.cell?.text || ""}</span>
+                </div>
+              ))}
             </div>
           ))}
         </div>

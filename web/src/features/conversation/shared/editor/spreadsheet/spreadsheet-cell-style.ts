@@ -1,3 +1,6 @@
+// INPUT: ExcelJS formatting or an indexed preview cell style.
+// OUTPUT: Source formatting in CSS pixels plus wrapping/alignment for read-only flex cells.
+// POS: Sole spreadsheet cell-style projection; source document fonts remain independent of app chrome.
 import type {
   Alignment,
   Border,
@@ -8,7 +11,9 @@ import type {
 } from "exceljs";
 import type { CSSProperties } from "react";
 
-const EXCEL_ROW_HEIGHT_TO_PX = 4 / 3;
+// Spreadsheet font size is in points; CSS uses 96 px per 72 pt.
+// https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.spreadsheet.fontsize
+const POINTS_TO_CSS_PIXELS = 96 / 72;
 const THEME_COLORS = [
   "#ffffff", "#000000", "#bfbfbf", "#323232", "#4472c4",
   "#ed7d31", "#a5a5a5", "#ffc000", "#5b9bd5", "#71ad47",
@@ -83,19 +88,20 @@ export function createSpreadsheetCellStyle(
   styles: readonly SpreadsheetPreviewCellStyle[],
   styleIndex?: number,
 ): CSSProperties {
-  const previewStyle = resolvePreviewStyle(styles, styleIndex);
-  if (!previewStyle) {
-    return {};
-  }
+  const previewStyle = resolvePreviewStyle(styles, styleIndex) ?? {};
 
   return {
+    display: "flex",
+    flexDirection: "column",
+    lineHeight: "normal",
+    justifyContent: previewStyle.valign === "middle" ? "center"
+      : previewStyle.valign === "bottom" ? "flex-end" : "flex-start",
     backgroundColor: previewStyle.bgcolor,
     ...createBorderStyles(previewStyle.border),
     color: previewStyle.color,
     ...createFontCss(previewStyle),
     textAlign: previewStyle.align,
     textDecoration: createTextDecoration(previewStyle),
-    verticalAlign: previewStyle.valign,
     whiteSpace: previewStyle.textwrap ? "pre-wrap" : "nowrap",
   };
 }
@@ -127,7 +133,7 @@ function createFontCss(
   }
   return {
     fontFamily: font.name,
-    fontSize: font.size ? Math.max(10, font.size) : undefined,
+    fontSize: font.size,
     fontStyle: font.italic ? "italic" : undefined,
     fontWeight: font.bold ? 700 : undefined,
   };
@@ -212,7 +218,7 @@ function getFontStyle(
     italic: enabledStyle(font.italic),
     name: font.name ?? undefined,
     size: font.size
-      ? Math.round(font.size / EXCEL_ROW_HEIGHT_TO_PX)
+      ? font.size * POINTS_TO_CSS_PIXELS
       : undefined,
   };
   return Object.values(result).some((value) => value !== undefined)

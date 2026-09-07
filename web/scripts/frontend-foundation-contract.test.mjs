@@ -810,8 +810,8 @@ test("File and Memory source editing have one native primitive owner", async () 
   }
 });
 
-test("Source editing, streaming and plain previews share metrics and bounded viewport owners", async () => {
-  const [editor, streaming, fileBody, recipes, text, chunks, html] = await Promise.all([
+test("Source metrics and read-only preview viewports have independent shared owners", async () => {
+  const [editor, streaming, fileBody, recipes, text, chunks, html, spreadsheet, viewport] = await Promise.all([
     readSource("src/shared/ui/form/source-editor.tsx"),
     readSource("src/shared/ui/feedback/typewriter-file-view.tsx"),
     readSource("src/features/conversation/shared/editor/text/text-file-editor-body.tsx"),
@@ -819,15 +819,20 @@ test("Source editing, streaming and plain previews share metrics and bounded vie
     readSource("src/features/conversation/shared/editor/text/text-file-content.tsx"),
     readSource("src/features/conversation/shared/editor/text/large-text-file-preview.tsx"),
     readSource("src/features/conversation/shared/editor/media/html-file-preview.tsx"),
+    readSource("src/features/conversation/shared/editor/spreadsheet/spreadsheet-readonly-workbook.tsx"),
+    readSource("src/shared/ui/layout/preview-viewport-styles.ts"),
   ]);
   for (const source of [editor, streaming, text, chunks, html]) {
     assert.match(source, /import \{[^}]*\bUI_SOURCE_TEXT_CLASS_NAME\b[^}]*\} from/);
   }
-  for (const source of [fileBody, chunks, html]) {
-    assert.match(source, /UI_SOURCE_PREVIEW_SCROLL_CLASS_NAME/);
+  for (const source of [fileBody, chunks, html, spreadsheet]) {
+    assert.match(source, /UI_PREVIEW_VIEWPORT_CLASS_NAME/);
     assert.match(source, /role="region"/);
     assert.match(source, /tabIndex=\{0\}/);
   }
+  assert.match(viewport, /focus-visible:ring-inset/);
+  assert.match(spreadsheet, /getUiTypographyClassName/);
+  assert.doesNotMatch(spreadsheet, /\btext-(?:2xs|xs|sm)\b|font-(?:medium|semibold)|UI_SOURCE_TEXT_CLASS_NAME/);
   assert.doesNotMatch(text + chunks + html, /\btext-(?:xs|sm)\b|\bleading-(?:\d|\[)/);
   assert.match(streaming, /<UiBadge\b/);
   assert.doesNotMatch(streaming, /@chenglou\/pretext|document\.createElement|document\.head/);

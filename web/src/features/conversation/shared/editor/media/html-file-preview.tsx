@@ -5,7 +5,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/shared/ui/class-name";
-import { UI_SOURCE_PREVIEW_SCROLL_CLASS_NAME, UI_SOURCE_TEXT_CLASS_NAME } from "@/shared/ui/form/source-text-styles";
+import { UI_SOURCE_TEXT_CLASS_NAME } from "@/shared/ui/form/source-text-styles";
+import { UI_PREVIEW_VIEWPORT_CLASS_NAME } from "@/shared/ui/layout/preview-viewport-styles";
 
 const HTML_PREVIEW_COMMIT_INTERVAL_MS = 250;
 
@@ -131,7 +132,7 @@ export function HtmlFilePreview({
   if (isWaitingForHead) {
     return (
       // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- The named source region needs a Tab stop for native keyboard scrolling while HTML is incomplete.
-      <div aria-label={title} className={cn("h-full w-full bg-(--surface-panel-subtle-background) p-4", UI_SOURCE_PREVIEW_SCROLL_CLASS_NAME)} role="region" tabIndex={0}>
+      <div aria-label={title} className={cn("h-full w-full bg-(--surface-panel-subtle-background) p-4", UI_PREVIEW_VIEWPORT_CLASS_NAME)} role="region" tabIndex={0}>
         <pre className={cn("whitespace-pre-wrap break-words text-(--text-muted)", UI_SOURCE_TEXT_CLASS_NAME)}>
           {content}
         </pre>
