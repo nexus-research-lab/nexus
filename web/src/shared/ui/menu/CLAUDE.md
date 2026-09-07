@@ -22,12 +22,12 @@
 - `menu-action-row.tsx` 是 Action Menu 与业务上下文菜单的唯一行级 DOM 所有者；它使用原生 button、普通 `role=menuitem` 或受控 `checked` 对应的 `menuitemcheckbox/aria-checked`、`aria-disabled`、有限密度和共享状态。业务只组合图标、标签、尾部内容与命令，不得重新导入菜单样式拼装按钮。
 - Action Menu 的可选数组默认值必须引用模块级稳定空值；禁止在参数默认值中写 `[]`，否则锚定层的定位状态更新会让回调引用反复失效并形成 render loop。
 - Action Menu 的重置等次级动作通过 `footerItems` 进入带分隔线的底部区域，不能混入主要选项伪装成普通值。
-- Action Menu 默认普通行保持 36px，带一行短说明时使用 44px；纯单行选择可显式使用 `compact` 密度收至 32px，但带说明的权限菜单必须保留默认密度，不允许业务层用大块卡片高度破坏菜单节奏。
+- Action Menu 默认普通行最小 36px，带说明最小 48px；compact 分别为 32/44px。默认/紧凑正文采用 control/supporting，说明采用 metadata/muted，统一 regular；完整标签/说明随内容增高，权限菜单保持默认密度，不靠截断隐藏范围或失败原因。固定几何的 Mention 与上下文行仍沿同一 recipe 的 fixed 档位，不接受自由尺寸。
 - Action、Select、Mention、Slash、级联模型与 Workspace 上下文菜单统一使用 4px 内容内边距和 2px 条目间距；间距由 `menu-styles.ts` 的共享列表合同提供，业务层不得按页面覆盖。浮层必须把间距计入内容高度，在自身上限内随条目增长，达到上限后才滚动。
 - `menu-styles.ts` 统一 Action、Select 与上下文菜单的行级圆角、焦点和状态层级；业务菜单不得复制整套条目样式。
 - 16px 外框配合 4px 内容内边距时，菜单行固定使用 12px 圆角，保证选中底面与外框同心。
 - Action Menu 的活动项使用中性活动底面；`primary` 只控制文字或小型状态提示，不再给整行铺品牌色。
-- Action Menu 标签统一使用正常字重；选择与危险状态由底面和色调表达，不靠加粗制造层级。
+- Menu 行统一使用正常字重；选择与危险状态由底面和色调表达，不靠加粗制造层级。所有 tone 的 active 都使用中性活动底面，disabled 项不响应悬停底色/前景。
 - 活动项悬浮时继续保持活动底面，避免鼠标经过反而降低当前位置的辨识度；非活动项 hover 才使用更轻一档的中性底。
 - `menu.test.tsx` 使用真实 Portal、点击和键盘覆盖 Select 的 listbox 选择、disabled 跳过、Escape，以及 Action Menu 的初始焦点、方向键、Home/End、选择后焦点归还；源码断言不能替代这组合同。
 - `select-menu-trigger.test.tsx` 单独验证共用触发器的原生按钮/表单、ref、受控 ARIA 和禁用/键盘委派；Room 多选测试继续证明 Chip 移除与菜单开关互不触发。
@@ -37,3 +37,5 @@
 - `checked` 由调用方持有；Action Menu 提供非交互勾选标记，MenuActionRow 拥有 ARIA 状态，menu-keyboard 同时遍历普通动作与勾选项。条目名称、图标、说明与 trailing 只能包含非交互内容，不能在原生行按钮内再套 Switch/按钮。选择继续走唯一 onSelect 与关闭/焦点归还路径。
 
 - `UiSelectMenu` 默认占位文案属于双语 catalog，空候选时禁用且不改变受控值；显式激活须匹配当前可用候选。单行选项保留完整原生提示，装饰图标不进入辅助名称。默认值在唯一组件入口解析，不保留透传包装层或按钮视觉 class 接口。会执行测试等命令的入口必须使用 Action Menu，不能借选择器的方向键选值副作用执行。
+
+- `UiActionMenuContent` 透传内容根 ref；Action Menu 只测量未限高内容的 scrollHeight，加实际外框 padding/border 后交回原 Overlay 求解器。内容/字体/宽度变化通过 ResizeObserver 与既有 resize/scroll 更新，关闭/卸载清理；尺寸变化不得重置首项焦点。初始未测量使用同一行 recipe 估算，后续按内容增长/缩短至既有视口与 320px 上限。只有 footer 时不画孤立分隔线，估算与 DOM 保持同构。业务复合模型标签继续拥有主次布局并保留完整名称提示。

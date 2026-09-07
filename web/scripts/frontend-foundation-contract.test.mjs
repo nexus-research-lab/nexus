@@ -1858,6 +1858,20 @@ test("Select, Slash, and multi-select options share one listbox row DOM owner", 
   assert.doesNotMatch(selectView, /color-mix|text-\[9px\]|rounded-\[6px\]/);
 });
 
+test("Action Menu owns complete copy, measured content and semantic row typography", async () => {
+  const [action, styles, options] = await Promise.all([
+    readSource("src/shared/ui/menu/action-menu.tsx"),
+    readSource("src/shared/ui/menu/menu-styles.ts"),
+    readSource("src/features/conversation/shared/composer/components/footer/composer-session-control-options.tsx"),
+  ]);
+  assert.match(action, /ResizeObserver/);
+  assert.match(action, /scrollHeight/);
+  assert.match(action, /getUiTypographyClassName/);
+  assert.match(styles, /getUiTypographyClassName/);
+  assert.doesNotMatch(action + styles, /text-2xs|text-compact|text-sm|font-semibold/);
+  assert.doesNotMatch(options, /text-2xs|text-\(--text-soft\)/);
+});
+
 test("Provider tests use explicit action menus and Select keeps one public visual API", async () => {
   const [header, select, view] = await Promise.all([
     readSource("src/features/settings/provider-settings/components/provider-settings-detail-header.tsx"),

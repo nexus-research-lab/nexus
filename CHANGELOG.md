@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Improved shared action menus with readable semantic typography, complete
+  wrapping labels and descriptions, content-based popup sizing, consistent
+  selected/disabled states and clearer Provider metadata in model menus.
+
 - Unified Select keyboard focus, Tab exit, localized placeholders and full option
   labels; Provider testing now uses an explicit action menu so browsing models
   with arrow keys cannot start a test. Provider names and actions wrap cleanly.

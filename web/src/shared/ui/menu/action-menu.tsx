@@ -1,18 +1,22 @@
 // INPUT: 外部控制的打开态、锚点、菜单项与选择/关闭命令。
-// OUTPUT: 统一动作/勾选项与唯一激活入口；可见后聚焦、重定位保留焦点，选择/Escape 归还触发器，Tab 退出。
+// OUTPUT: 完整动作/说明与唯一激活入口；按内容测高、可见后聚焦、重定位保留焦点及统一退出。
 // POS: Action Menu 交互 pattern；不持有业务值或决定命令是否允许。
 "use client";
 
 import {
   type ReactNode,
+  type Ref,
   type RefObject,
   useCallback,
   useEffect,
+  useLayoutEffect,
+  useRef,
 } from "react";
 import { createPortal } from "react-dom";
 import { Check } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import { focusFirstMenuItem, handleMenuKeyDown } from "./menu-keyboard";
 
@@ -54,6 +58,7 @@ export interface UiActionMenuItem {
 export type UiActionMenuDensity = UiMenuActionRowDensity;
 
 export interface UiActionMenuContentProps {
+  ref?: Ref<HTMLDivElement>;
   density?: UiActionMenuDensity;
   disabled?: boolean;
   footerItems?: UiActionMenuItem[];
@@ -91,7 +96,7 @@ function estimateActionMenuHeight({
 }): number {
   return getMenuContentHeight(
     [...items, ...footerItems].map((item) => getMenuItemLayout({ density, hasDescription: Boolean(item.description) }).height),
-    footerItems.length > 0 ? 1 : 0,
+    footerItems.length > 0 && items.length > 0 ? 1 : 0,
   );
 }
 
@@ -102,6 +107,7 @@ function resolveActionMenuPosition({
   items,
   footerItems,
   minWidth,
+  measuredContentHeight,
   placement,
 }: {
   align: UiAnchoredOverlayAlignment;
@@ -110,9 +116,10 @@ function resolveActionMenuPosition({
   items: UiActionMenuItem[];
   footerItems: UiActionMenuItem[];
   minWidth: number;
+  measuredContentHeight: number | null;
   placement: UiActionMenuPlacement;
 }) {
-  const contentHeight = estimateActionMenuHeight({
+  const contentHeight = measuredContentHeight ?? estimateActionMenuHeight({
     density,
     footerItems,
     items,
@@ -134,17 +141,18 @@ function resolveActionMenuPosition({
 
 export function UiActionMenu({
   align = "start",
-  anchorRef: anchorRef,
-  ariaLabel: ariaLabel,
+  anchorRef,
+  ariaLabel,
   density = "default",
   footerItems = EMPTY_ACTION_MENU_ITEMS,
-  isOpen: isOpen,
+  isOpen,
   items,
-  minWidth: minWidth = 220,
+  minWidth = 220,
   placement = "auto",
-  onClose: onClose,
-  onSelect: onSelect,
+  onClose,
+  onSelect,
 }: UiActionMenuProps) {
+  const contentRef = useRef<HTMLDivElement>(null);
   const estimatePosition = useCallback(
     (anchor: HTMLElement) => resolveActionMenuPosition({
       align,
@@ -153,6 +161,7 @@ export function UiActionMenu({
       footerItems,
       items,
       minWidth,
+      measuredContentHeight: measureActionMenuHeight(contentRef.current),
       placement,
     }),
     [align, density, footerItems, items, minWidth, placement],
@@ -162,6 +171,7 @@ export function UiActionMenu({
     overlayRef: menuRef,
     overlayStyle: menuStyle,
     portalContainer,
+    updateOverlayPosition,
   } = useAnchoredOverlayLayer({
     anchorRef,
     disabled: false,
@@ -169,6 +179,16 @@ export function UiActionMenu({
     isOpen,
     onClose,
   });
+  // 只观察未限高的内容；不能用已被 maxHeight 裁过的菜单壳测量，否则无法重新长高。
+  useLayoutEffect(() => {
+    const content = contentRef.current;
+    if (!isOpen || !portalContainer || !content) return;
+    updateOverlayPosition();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(updateOverlayPosition);
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, [isOpen, menuPosition?.width, portalContainer, updateOverlayPosition]);
   const isMenuPositioned = menuPosition !== null;
 
   useEffect(() => {
@@ -211,6 +231,7 @@ export function UiActionMenu({
       {...OPEN_OVERLAY_DATA_ATTRIBUTES}
     >
       <UiActionMenuContent
+        ref={contentRef}
         density={density}
         footerItems={footerItems}
         items={items}
@@ -222,6 +243,7 @@ export function UiActionMenu({
 }
 
 export function UiActionMenuContent({
+  ref,
   density = "default",
   disabled = false,
   footerItems = EMPTY_ACTION_MENU_ITEMS,
@@ -229,7 +251,7 @@ export function UiActionMenuContent({
   onSelect,
 }: UiActionMenuContentProps) {
   return (
-    <div className={MENU_LIST_CLASS_NAME} role="none">
+    <div ref={ref} className={MENU_LIST_CLASS_NAME} role="none">
       {items.map((item) => (
         <ActionMenuItem
           density={density}
@@ -241,7 +263,7 @@ export function UiActionMenuContent({
       ))}
       {footerItems.length > 0 ? (
         <>
-          <div className={MENU_SEPARATOR_CLASS_NAME} role="separator" />
+          {items.length > 0 ? <div className={MENU_SEPARATOR_CLASS_NAME} role="separator" /> : null}
           {footerItems.map((item) => (
             <ActionMenuItem
               density={density}
@@ -278,6 +300,7 @@ function ActionMenuItem({
     <UiMenuActionRow
       active={item.active}
       checked={item.checked}
+      contentSized
       density={density}
       disabled={disabled || item.disabled}
       hasDescription={Boolean(item.description)}
@@ -286,16 +309,16 @@ function ActionMenuItem({
     >
       <span className="flex min-w-0 flex-1 items-center gap-2">
         {item.icon ? (
-          <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+          <span aria-hidden="true" className="flex h-4 w-4 shrink-0 items-center justify-center">
             {item.icon}
           </span>
         ) : null}
         <span className="min-w-0 flex-1">
-          <span className="block truncate font-normal">
+          <span className="block whitespace-normal wrap-anywhere">
             {item.label}
           </span>
           {item.description ? (
-            <span className="block truncate text-2xs font-normal text-(--text-soft)">
+            <span className={cn("block whitespace-normal wrap-anywhere", getUiTypographyClassName({ role: "metadata", tone: "muted", weight: "regular" }))}>
               {item.description}
             </span>
           ) : null}
@@ -313,4 +336,12 @@ function ActionMenuItem({
       ) : null}
     </UiMenuActionRow>
   );
+}
+
+/** 内容层不带 padding/border；外框尺寸读取实际 recipe，避免复制另一组边框数字。 */
+function measureActionMenuHeight(content: HTMLDivElement | null): number | null {
+  if (!content || content.scrollHeight <= 0 || !content.parentElement) return null;
+  const style = window.getComputedStyle(content.parentElement);
+  return content.scrollHeight + [style.paddingTop, style.paddingBottom, style.borderTopWidth, style.borderBottomWidth]
+    .reduce((height, value) => height + (Number.parseFloat(value) || 0), 0);
 }

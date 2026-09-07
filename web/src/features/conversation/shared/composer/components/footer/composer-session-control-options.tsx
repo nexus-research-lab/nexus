@@ -2,7 +2,7 @@
 
 /**
  * INPUT: 当前 Session 设置、Agent 继承值与 Provider 模型目录。
- * OUTPUT: 模型和权限菜单共用的选项投影、编码与模型选择分派。
+ * OUTPUT: 模型/权限菜单共用选项、语义 Provider 元信息、编码与精确模型选择分派。
  * POS: DM 直接菜单与 Room Agent 设置浮层之间的无状态共享层。
  */
 
@@ -15,6 +15,9 @@ import {
   ShieldAlert,
   ShieldOff,
 } from "lucide-react";
+
+import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import { AGENT_PERMISSION_MODES } from "@/lib/agent-options";
 import type { useI18n } from "@/shared/i18n/i18n-context";
@@ -82,7 +85,7 @@ export function buildSessionModelItems(
               {model.display_name || model.model_id}
             </span>
             <span
-              className="max-w-[40%] shrink-0 truncate text-2xs font-normal text-(--text-soft)"
+              className={cn("max-w-[40%] shrink-0 truncate", getUiTypographyClassName({ role: "metadata", tone: "muted", weight: "regular" }))}
               title={provider.display_name || provider.provider}
             >
               {provider.display_name || provider.provider}

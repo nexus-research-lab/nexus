@@ -1,27 +1,36 @@
 // INPUT: 菜单条目密度、说明、行高/分隔线数量、active 与 default/primary/danger tone。
-// OUTPUT: 菜单共用的行尺寸、列表总高度、分隔线、圆角和状态样式。
+// OUTPUT: 菜单共用的语义排版、固定/自适应行最小尺寸、总高、分隔与排除禁用态的视觉反馈。
 // POS: Menu 视觉合同；不渲染 DOM、定位浮层或持有业务选值。
+
+import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 export type UiMenuItemTone = "default" | "primary" | "danger";
 export type UiMenuItemDensity = "compact" | "default";
 
 const MENU_ITEM_LAYOUT = {
   compact: {
-    described: { className: "h-10 gap-2 px-2 py-0.5 text-compact", height: 40 },
-    plain: { className: "h-8 gap-2 px-2 text-compact", height: 32 },
+    described: { fixed: "h-11", minimum: "min-h-11", spacing: "gap-2 px-2 py-0.5", height: 44 },
+    plain: { fixed: "h-8", minimum: "min-h-8", spacing: "gap-2 px-2 py-0.5", height: 32 },
   },
   default: {
-    described: { className: "h-11 gap-3 px-2.5 py-1 text-sm", height: 44 },
-    plain: { className: "h-9 gap-3 px-2.5 text-sm", height: 36 },
+    described: { fixed: "h-12", minimum: "min-h-12", spacing: "gap-3 px-2.5 py-1", height: 48 },
+    plain: { fixed: "h-9", minimum: "min-h-9", spacing: "gap-3 px-2.5 py-1", height: 36 },
   },
 } as const;
 
-/** Action rows and text suggestions share the same rendered and estimated geometry. */
-export function getMenuItemLayout({ density = "default", hasDescription = false }: {
+/** 固定建议行与随内容增长的动作行共用最小尺寸；实际长文本高度由浮层测量。 */
+export function getMenuItemLayout({ density = "default", hasDescription = false, contentSized = false }: {
   density?: UiMenuItemDensity;
   hasDescription?: boolean;
+  contentSized?: boolean;
 } = {}) {
-  return MENU_ITEM_LAYOUT[density][hasDescription ? "described" : "plain"];
+  const layout = MENU_ITEM_LAYOUT[density][hasDescription ? "described" : "plain"];
+  return {
+    height: layout.height,
+    className: cn(contentSized ? layout.minimum : layout.fixed, layout.spacing,
+      getUiTypographyClassName({ role: density === "compact" ? "supporting" : "control", weight: "regular" })),
+  };
 }
 
 /** 菜单型浮层统一使用 4px 外边距和 2px 条目节奏。 */
@@ -49,14 +58,16 @@ export function getMenuItemStateClassName({
   tone?: UiMenuItemTone;
 }): string {
   if (tone === "danger") {
-    return "text-(--destructive) hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)]";
+    return active
+      ? "bg-(--surface-interactive-active-background) text-(--destructive)"
+      : "text-(--destructive) [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)]";
   }
   if (tone === "primary") {
     return active
-      ? "bg-(--surface-interactive-active-background) font-semibold text-(--brand-action)"
-      : "text-(--brand-action) hover:bg-(--surface-interactive-hover-background)";
+      ? "bg-(--surface-interactive-active-background) text-(--brand-action)"
+      : "text-(--brand-action) [&:not(:disabled):hover]:bg-(--surface-interactive-hover-background)";
   }
   return active
-    ? "bg-(--surface-interactive-active-background) font-semibold text-(--text-strong)"
-    : "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)";
+    ? "bg-(--surface-interactive-active-background) text-(--text-strong)"
+    : "text-(--text-default) [&:not(:disabled):hover]:bg-(--surface-interactive-hover-background) [&:not(:disabled):hover]:text-(--text-strong)";
 }

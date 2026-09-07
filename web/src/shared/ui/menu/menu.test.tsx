@@ -2,12 +2,12 @@
 // OUTPUT: 证明 Portal 菜单的 ARIA、选择、输入法/已处理事件边界、遍历、关闭和焦点归还合同。
 // POS: Menu pattern DOM 行为测试；定位数学和业务菜单内容分别由模型/feature 测试负责。
 
-import { fireEvent, render as renderReact, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render as renderReact, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createRef, useRef, useState, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { UiActionMenu } from "@/shared/ui/menu/action-menu";
+import { UiActionMenu, UiActionMenuContent } from "@/shared/ui/menu/action-menu";
 import { UiDialogBackdrop, UiDialogPortal, UiDialogShell } from "@/shared/ui/dialog/dialog";
 import { UiMenuActionRow } from "@/shared/ui/menu/menu-action-row";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -21,7 +21,7 @@ function render(ui: ReactNode) { return renderReact(ui, { wrapper: I18nProvider 
 beforeEach(() => {
   vi.spyOn(HTMLElement.prototype, "getClientRects").mockReturnValue([new DOMRect(0, 0, 100, 32)] as unknown as DOMRectList);
 });
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe("UiSelectMenu", () => {
   it("owns reusable listbox option semantics and preserves consumer events", async () => {
@@ -295,6 +295,86 @@ describe("UiSelectMenu listbox navigation", () => {
 });
 
 describe("UiActionMenu", () => {
+  it("keeps complete action copy in semantic, content-sized rows and hides decorative icons", async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    const label = "An action with a complete and unusually long label";
+    const description = "A long permission scope or failure reason must remain readable before choosing this action.";
+    render(<div role="menu"><UiActionMenuContent items={[{
+      value: "approve", label, description, icon: <svg role="img" aria-label="Decorative symbol" />,
+    }, { value: "disabled", label: "Unavailable", description, disabled: true, tone: "danger" }]} onSelect={onSelect} /></div>);
+    const action = screen.getByRole("menuitem", { name: `${label} ${description}` });
+    expect(screen.getByText(label).className).toContain("whitespace-normal");
+    expect(screen.getByText(label).className).not.toContain("truncate");
+    expect(action.className).toContain("min-h-12");
+    expect(action.className).toContain("ui-type-control");
+    for (const copy of screen.getAllByText(description)) {
+      expect(copy.className).toContain("ui-type-metadata");
+      expect(copy.className).toContain("ui-type-tone-muted");
+      expect(copy.className).not.toContain("truncate");
+    }
+    expect(screen.queryByRole("img")).toBeNull();
+    const disabled = screen.getByRole("menuitem", { name: `Unavailable ${description}` });
+    expect(disabled.className).toContain("[&:not(:disabled):hover]:");
+    await user.click(disabled);
+    expect(onSelect).not.toHaveBeenCalled();
+    await user.click(action);
+    expect(onSelect).toHaveBeenCalledExactlyOnceWith("approve");
+  });
+
+  it("renders footer-only actions without an orphan separator and respects content-level disabled", async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    const view = render(<div role="menu"><UiActionMenuContent disabled items={[]} footerItems={[{ label: "Reset", value: "reset" }]} onSelect={onSelect} /></div>);
+    expect(screen.queryByRole("separator")).toBeNull();
+    await user.click(screen.getByRole("menuitem", { name: "Reset" }));
+    expect(onSelect).not.toHaveBeenCalled();
+    view.rerender(<div role="menu"><UiActionMenuContent items={[{ label: "Open", value: "open" }]} footerItems={[{ label: "Reset", value: "reset" }]} onSelect={onSelect} /></div>);
+    expect(screen.getAllByRole("separator")).toHaveLength(1);
+    await user.click(screen.getByRole("menuitem", { name: "Reset" }));
+    expect(onSelect).toHaveBeenCalledExactlyOnceWith("reset");
+  });
+
+  it("measures unclipped content including actual frame spacing, grows and shrinks without resetting focus", async () => {
+    const user = userEvent.setup();
+    let notifyResize: () => void = () => undefined;
+    const disconnect = vi.fn();
+    vi.stubGlobal("ResizeObserver", class {
+      constructor(callback: () => void) { notifyResize = callback; }
+      observe() {}
+      disconnect = disconnect;
+    });
+    function Harness() {
+      const anchorRef = useRef<HTMLButtonElement>(null);
+      const [isOpen, setIsOpen] = useState(false);
+      return <><button ref={anchorRef} onClick={() => setIsOpen(true)}>Measured menu</button>
+        <UiActionMenu anchorRef={anchorRef} ariaLabel="Measured actions" isOpen={isOpen}
+          items={[{ value: "a", label: "Alpha" }, { value: "b", label: "Beta" }]}
+          onClose={() => setIsOpen(false)} onSelect={() => undefined} /></>;
+    }
+    const view = render(<Harness />);
+    await user.click(screen.getByRole("button", { name: "Measured menu" }));
+    const menu = screen.getByRole("menu");
+    menu.style.padding = "4px";
+    menu.style.border = "1px solid black";
+    const content = menu.firstElementChild!;
+    const height = vi.spyOn(content, "scrollHeight", "get").mockReturnValue(170);
+    await user.keyboard("{End}");
+    const beta = screen.getByRole("menuitem", { name: "Beta" });
+    act(() => notifyResize());
+    expect(menu.style.maxHeight).toBe("180px");
+    expect(document.activeElement).toBe(beta);
+    height.mockReturnValue(600);
+    act(() => notifyResize());
+    expect(menu.style.maxHeight).toBe("320px");
+    height.mockReturnValue(70);
+    act(() => notifyResize());
+    expect(menu.style.maxHeight).toBe("80px");
+    expect(document.activeElement).toBe(beta);
+    view.unmount();
+    expect(disconnect).toHaveBeenCalled();
+  });
+
   it("navigates mixed actions and checked items and activates each toggle once", async () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();
@@ -408,6 +488,7 @@ describe("UiActionMenu", () => {
     const action = screen.getByRole("menuitem", { name: "删除" });
     const disabledAction = screen.getByRole("menuitem", { name: "不可用" });
     expect(actionRef.current).toBe(action);
+    expect(action.className).toContain("bg-(--surface-interactive-active-background)");
     expect(action.getAttribute("type")).toBe("button");
     expect(action.getAttribute("data-active")).toBe("true");
     expect(action.className).toContain("radius-control-lg");

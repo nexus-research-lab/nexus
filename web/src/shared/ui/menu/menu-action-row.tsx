@@ -1,5 +1,5 @@
 // INPUT: Menu action 的原生按钮属性、密度、活动态与语义 tone。
-// OUTPUT: 统一的原生 menuitem/menuitemcheckbox 按钮与 ref、选中/禁用语义、命中几何和视觉状态。
+// OUTPUT: 统一的原生 menuitem/menuitemcheckbox 按钮与 ref、选中/禁用语义、固定或内容自适应命中几何和视觉状态。
 // POS: Shared Menu action row primitive；不管理菜单定位、开关、命令或业务内容。
 
 import type { ComponentPropsWithRef } from "react";
@@ -24,6 +24,8 @@ interface UiMenuActionRowProps extends Omit<
   checked?: boolean;
   className?: string;
   density?: UiMenuActionRowDensity;
+  /** 动作内容允许完整换行；固定几何的上下文/建议行保持默认。 */
+  contentSized?: boolean;
   hasDescription?: boolean;
   tone?: UiMenuItemTone;
 }
@@ -35,6 +37,7 @@ export function UiMenuActionRow({
   children,
   className,
   density = "default",
+  contentSized = false,
   disabled = false,
   hasDescription = false,
   tone = "default",
@@ -48,7 +51,7 @@ export function UiMenuActionRow({
       className={cn(
         MENU_ITEM_BASE_CLASS_NAME,
         "flex shrink-0 cursor-pointer items-center text-left",
-        getMenuItemLayout({ density, hasDescription }).className,
+        getMenuItemLayout({ density, hasDescription, contentSized }).className,
         disabled && "cursor-not-allowed opacity-(--disabled-opacity)",
         getMenuItemStateClassName({ active, tone }),
         className,
