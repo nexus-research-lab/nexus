@@ -1,6 +1,6 @@
 /**
  * INPUT: 定时任务 durable 删除、绑定、权限或运行注意事项与后续动作。
- * OUTPUT: 以任务名为标题、复用 Badge/Panel/Typography 的注意事项处理面。
+ * OUTPUT: 以任务名为标题、复用 Badge/Panel/Typography 的处理面，已知错误按当前语言解释且保留完整诊断。
  * POS: Scheduled 看板处理边界；只组合业务事实与共享 UI，不暴露内部删除 token。
  */
 "use client";
@@ -24,6 +24,7 @@ import type { AutomationPermissionDecision } from "@/types/capability/scheduled-
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 
 import { getScheduledTaskErrorCopy } from "../scheduled-task-error-copy";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import {
   getScheduledPermissionCapabilityLabel,
   getScheduledPermissionResourceSummary,
@@ -80,6 +81,7 @@ export function ScheduledTaskAttentionDialog({
   task,
   title,
 }: ScheduledTaskAttentionDialogProps) {
+  const { t } = useI18n();
   if (!isOpen) {
     return null;
   }
@@ -90,7 +92,7 @@ export function ScheduledTaskAttentionDialog({
   const resourceSummary = request
     ? getScheduledPermissionResourceSummary(request)
     : null;
-  const errorCopy = getScheduledTaskErrorCopy(task.last_error);
+  const errorCopy = getScheduledTaskErrorCopy(task.last_error, t);
   const errorEchoesPermission = Boolean(
     request?.capability.tool_name
       && task.last_error?.includes(request.capability.tool_name),

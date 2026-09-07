@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Scheduled task cards and run history now share localized error summaries;
+  internal run and delivery details remain available in diagnostics and copied
+  reports. History retries share loading behavior, retain usable snapshots after
+  transient failures, and keep inaccessible records hidden during recovery.
+
 - Scheduled history feedback now follows the current language and preserves
   warning semantics when an action succeeded but history could not refresh.
   Reopening the same task no longer accepts old command feedback or clears new
