@@ -2,7 +2,7 @@
 
 /**
  * INPUT: Agent/Room 身份、头像路径、成员集合与调用方投影的运行态。
- * OUTPUT: 带唯一可访问名称的 rounded-square 身份，图片失败时保留可读回退。
+ * OUTPUT: 从紧凑选择器到完整身份的唯一具名 rounded-square 头像，图片失败时保留完整字符回退。
  * POS: 头像尺寸、图片回退与最多九成员拼图的唯一 UI owner；不读取业务状态。
  */
 import { type HTMLAttributes, type ReactNode, useState } from "react";
@@ -15,7 +15,7 @@ import {
 } from "@/lib/avatar";
 import { cn } from "@/shared/ui/class-name";
 
-type UiAvatarSize = "xs" | "sm" | "md" | "lg" | "xl";
+type UiAvatarSize = "xxs" | "xs" | "sm" | "md" | "lg" | "xl";
 type UiRoomAvatarSize = "sm" | "md" | "lg";
 
 interface UiAvatarMember {
@@ -45,6 +45,7 @@ interface UiRoomAvatarProps extends HTMLAttributes<HTMLSpanElement> {
 }
 
 const AVATAR_SIZE_CLASS_MAP: Record<UiAvatarSize, string> = {
+  xxs: "h-4 w-4 text-[8px]",
   xs: "h-5.5 w-5.5 text-[8px]",
   sm: "h-7 w-7 text-2xs",
   md: "h-10 w-10 text-compact",
@@ -53,6 +54,7 @@ const AVATAR_SIZE_CLASS_MAP: Record<UiAvatarSize, string> = {
 };
 
 const AVATAR_RADIUS_CLASS_MAP: Record<UiAvatarSize, string> = {
+  xxs: "rounded-(--radius-control-xs)",
   xs: "rounded-(--radius-control-xs)",
   sm: "rounded-(--radius-control-sm)",
   md: "rounded-(--radius-control-md)",
@@ -61,6 +63,7 @@ const AVATAR_RADIUS_CLASS_MAP: Record<UiAvatarSize, string> = {
 };
 
 const AVATAR_HALO_RADIUS_CLASS_MAP: Record<UiAvatarSize, string> = {
+  xxs: "after:rounded-[calc(var(--radius-control-xs)+3px)]",
   xs: "after:rounded-[calc(var(--radius-control-xs)+3px)]",
   sm: "after:rounded-[calc(var(--radius-control-sm)+3px)]",
   md: "after:rounded-[calc(var(--radius-control-md)+3px)]",
@@ -146,7 +149,7 @@ export function UiAgentAvatar({
       {...props}
     >
       <AvatarContent
-        fallback={getInitials(name, "AG", size === "xs" || size === "sm" ? 1 : 2)}
+        fallback={getInitials(name, "AG", size === "xxs" || size === "xs" || size === "sm" ? 1 : 2)}
         imageClassName={imageClassName}
         key={avatarSrc}
         src={avatarSrc}

@@ -31,6 +31,9 @@ const PROHIBITED_PRODUCT_STYLE_PATTERNS = [
 ];
 
 const REQUIRED_SHARED_UI_BEHAVIOR_SUITES = [
+  "src/features/conversation/room/surface/room-agent-switcher.test.tsx",
+  "src/features/conversation/room/group/chat/panel/view/room-workspace-task-panel.test.tsx",
+  "src/shared/ui/display/avatar.test.tsx",
   "src/features/conversation/room/surface/room-subagent-task-surface.test.tsx",
   "src/features/conversation/room/surface/mobile/room-mobile-subagent-overlay.test.tsx",
   "src/features/capability/channels/pairings/pairing-filter-bar.test.tsx",
@@ -1563,6 +1566,10 @@ test("Room header identity and conversation triggers share Button ownership", as
   for (const source of sources) {
     assert.match(source, /<UiButton/);
   }
+  assert.match(sources[0], /<UiAgentAvatar/);
+  assert.match(sources[0], /buildAgentSelectionOptions/);
+  assert.match(sources[0], /includeUnavailableAgentSelection/);
+  assert.doesNotMatch(sources[0], /<img\b|getIconAvatarSrc|getInitials|rounded-\[/);
 });
 
 test("Provider import and Operations route loading share Spinner roles", async () => {

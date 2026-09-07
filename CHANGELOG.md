@@ -27,6 +27,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Room member selectors now share the compact public avatar, recover failed
+  images and distinguish duplicate or unnamed members without exposing IDs.
+  Missing selections stay visibly unavailable; stale menus close when their
+  candidates or controlled selection change. Task selectors use the full Room
+  directory for stable names while preserving their actual task candidates.
+
 - Subagent navigation now respects manual caller/task choices, preserves them
   across catalog reorder and consumes old links when switching conversations.
   Missing targets offer one refresh action. Narrow task panels use shared modal

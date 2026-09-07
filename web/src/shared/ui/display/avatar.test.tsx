@@ -26,8 +26,8 @@ describe("public avatars", () => {
     expect(screen.getAllByRole("img")).toHaveLength(1);
   });
 
-  it("exposes a complete Unicode identity even in a compact initial", () => {
-    render(<UiAgentAvatar name="👩‍💻 Nova" size="xs" />);
+  it.each(["xxs", "xs"] as const)("exposes a complete Unicode identity in a %s initial", (size) => {
+    render(<UiAgentAvatar name="👩‍💻 Nova" size={size} />);
     expect(screen.getByRole("img", { name: "👩‍💻 Nova" }).textContent).toBe("👩‍💻");
   });
 
