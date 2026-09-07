@@ -3,6 +3,7 @@
 ## 职责
 
 - `group-round-card-model.ts` 聚合一轮内的用户消息、Agent 执行身份、人工介入请求和权威展示顺序。
+- 模型只输出 `entries` 与 root 用户消息，不接受姓名/头像目录或翻译函数；没有旧版 completed/pending 数组及第二次兼容归组。`group-agent-reply.tsx` 必须接收当前完整身份目录，在显示边界用共享名称所有者处理缺失成员，不能把 UI 姓名混入结构归组或稳定 key。
 - `group-round-card-group.tsx` 按统一 entries 顺序编排用户消息与 Agent slot，不按运行状态重排。
 - `group-agent-reply.tsx` 只把 canonical public entry 装配进 `group-agent-execution-shell.tsx`；成功且明确无公开回复的 entry 已由 `group-agent-timeline-model.ts` 在节点投影时移除，视图不得再次返回空壳。可见输出判定必须与 ContentRenderer 一致，单独的 `tool_result`、`task_progress`、document/resource 等内部块和被主 Feed 隐藏的任务工具不能建立公开卡片。执行外壳从 pending、streaming、stopping 到 terminal 始终复用同一个 `MessageItem` Assistant 外壳；首次 handoff 直接进入真实几何流，不附加位移动画。`group-agent-execution-model.ts` 从 pending 起复用“正在思考”，正文流式时复用“正在回复”，工具收口后回到 Agent“正在思考”而不是回放工具前的旧状态，其余按已有 slot/message/permission 证据翻译共享 activity 语义，并为没有任何 Assistant 消息的失败/停止终态补齐窄投影，不复制运行状态机、正文或 result 规则。
 - 进行中的 Agent 卡片复用 assistant 消息通道的宽度与响应式基线，禁止在 feed 通道内再次居中或叠加横向缩进。
@@ -11,7 +12,7 @@
 
 ## 边界
 
-- 身份映射由群聊面板完整提供，本目录不接受缺失目录后再补空对象。
+- 视图身份映射由群聊面板完整提供，不接受缺失目录后再补空对象；时间线结构模型不依赖该目录。
 - 活动状态与最终正文沿用共享 `MessageItem` 投影；Room 只从同一 execution entry 投影“思考/执行/回复/等待”语义，并补充执行身份、Thread/停止动作和无消息终态。
 - 公区保留进行中 slot 的身份、加载标识和 Thread 入口；流式正文直接在同一 Assistant 内容列增长，不得先压成单行摘要再整体切换终态组件。
 - 公区正文的单次 turn 即使已经完成，只要同一 `agent_round_id` 的 lifecycle 仍 active，就必须在原卡片正文后继续显示共享活动提示；只有 lifecycle terminal 或 `result_summary` 才移除。

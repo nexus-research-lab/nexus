@@ -1,5 +1,5 @@
 /**
- * INPUT: 一个 Room feed 节点的 root/agent_round 子集与交互回调。
+ * INPUT: 一个 Room feed 节点的 root/agent_round 子集、当前身份目录与交互回调。
  * OUTPUT: global user、目标 agent round 紧前的定向 guided user、对应回复卡片。
  * POS: Group round 卡片的渲染顺序真相源。
  */
@@ -57,21 +57,17 @@ function GroupRoundCardGroupInner({
   pendingSlots,
   roomAgentExecutionStates,
   roundId,
-  stoppingAgentRoundIds = [],
+  stoppingAgentRoundIds,
 }: GroupRoundCardGroupProps) {
   const { activeThread, closeThread, openThread } = useGroupThread();
   const model = useMemo(
     () => buildGroupRoundCardModel({
-      agentAvatarMap,
-      agentNameMap,
       executionStates: roomAgentExecutionStates,
       messages,
       pendingPermissions,
       pendingSlots,
     }),
     [
-      agentAvatarMap,
-      agentNameMap,
       messages,
       pendingPermissions,
       pendingSlots,

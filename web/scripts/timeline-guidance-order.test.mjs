@@ -804,6 +804,7 @@ test("Room keeps every pending runtime human interaction in the Composer", async
         isLastRoundPendingPermissions: [permission],
         onPermissionResponse: () => true,
         onStopAgentRound: () => {},
+        stoppingAgentRoundIds: [],
         runtimePhase: null,
       },
       state: {
@@ -902,6 +903,7 @@ test("Room keeps every pending runtime human interaction in the Composer", async
         ],
         onPermissionResponse: () => true,
         onStopAgentRound: () => {},
+        stoppingAgentRoundIds: [],
         runtimePhase: null,
       },
       state: completedState,
@@ -960,6 +962,7 @@ test("Room keeps every pending runtime human interaction in the Composer", async
         isLastRoundPendingPermissions: [questionOnlyPermission],
         onPermissionResponse: () => true,
         onStopAgentRound: () => {},
+        stoppingAgentRoundIds: [],
         runtimePhase: null,
       },
       state: questionOnlyState,
@@ -989,8 +992,6 @@ test("Room streams and completes inside one stable Agent execution shell", async
     timestamp: 2,
   });
   const entry = {
-    agentAvatar: null,
-    agentName: "Stream Agent",
     agent_id: "agent-stream",
     agent_round_id: "agent-round-stream",
     assistant_messages: [message],
@@ -1016,6 +1017,7 @@ test("Room streams and completes inside one stable Agent execution shell", async
       I18nProvider,
       null,
       React.createElement(GroupAgentReply, {
+        agentMentionDirectory: { avatars: {}, names: { "agent-stream": "Stream Agent" } },
         entry: nextEntry,
         isThreadActive: false,
         onClickThread: () => {},
@@ -4344,8 +4346,6 @@ test("Room Agent replies keep their first display order through completion", asy
     timestamp: 6,
   });
   const model = buildGroupRoundCardModel({
-    agentAvatarMap: {},
-    agentNameMap: { "agent-1": "Agent1", "agent-2": "Agent2" },
     messages: [rootUser, agent1Partial, agent2Done, guide, agent1Done],
     pendingPermissions: [],
     pendingSlots: [],
@@ -5300,8 +5300,6 @@ test("Room terminal execution rejects stale active evidence and late interaction
     tool_name: "AskUserQuestion",
   };
   const model = buildGroupRoundCardModel({
-    agentAvatarMap: {},
-    agentNameMap: {},
     executionStates: [terminalState],
     messages: [staleMessage],
     pendingPermissions: [lateQuestion],
@@ -5527,8 +5525,6 @@ test("Room exact stop survives slot cleanup and settles ACK/terminal races per A
     timestamp: 2,
   });
   const model = buildGroupRoundCardModel({
-    agentAvatarMap: {},
-    agentNameMap: {},
     executionStates: [stateA, stateB],
     messages: [completedTurn],
     pendingPermissions: [],
@@ -5756,8 +5752,6 @@ test("Room guidance stays on its exact consumed agent round", async () => {
     timestamp: 13,
   });
   const model = buildGroupRoundCardModel({
-    agentAvatarMap: {},
-    agentNameMap: { "agent-1": "Agent1" },
     messages: [guide, oldResult, newStream],
     pendingPermissions: [],
     pendingSlots: [{

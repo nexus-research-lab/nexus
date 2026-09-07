@@ -27,6 +27,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Removed unused legacy Room round projections and kept timeline grouping
+  independent of display names and avatars. Room cards now resolve current names
+  at the display boundary while preserving exact Thread and stop targets.
+- Updated pairing group headings from the current Agent directory and normalized
+  unnamed Agent labels in pairing and skill deployment feedback. Skill deployment
+  feedback now belongs to the operation controller instead of the detail page.
+
 - Kept sidebar and private-thread previews compact by replacing parsed equations
   with localized inline labels, while retaining prose, prices, code examples and
   full formula rendering in message bodies.
