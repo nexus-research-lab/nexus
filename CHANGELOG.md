@@ -785,6 +785,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Unified WorkGraph command editing and saving around the current Draft and its active command; stale selections are rejected, lost responses can be checked without resubmitting, and historical commands from the same source retain independent drafts. Deleting a command preserves its editable draft.
+
+- Confirmed WorkGraph sketches and command-name edits now save directly in one
+  database transaction, without a background model round; the UI confirms the
+  persisted command immediately. Existing pending saves can be completed this way.
+- WorkGraph save-dialog renames now survive reopening the existing sketch editor.
+  Save receipts verify persisted content before reporting success, and confirming
+  a save repairs stale revision markers without creating a duplicate command.
 - Name standard dialogs automatically from their visible headings, including
   Skill import, Connector authorization and Composer pickers. Keep nested and
   same-named instances isolated, update names across steps, and preserve explicit

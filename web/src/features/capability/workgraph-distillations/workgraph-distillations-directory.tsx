@@ -19,14 +19,13 @@ import {
   CapabilityPageLayout,
 } from "@/features/capability/shared/capability-page-layout";
 import { notifyCapabilitySummaryMutated } from "@/features/capability/capability-summary-events";
-import { WorkGraphMetadataEditorDialog } from "@/features/conversation/shared/execution/workgraph-metadata-editor-dialog";
+import { WorkGraphDistillationDialog } from "@/features/conversation/shared/execution/workgraph-distillation-dialog";
 import { WORKGRAPH_WORKFLOWS_CHANGED_EVENT } from "@/lib/conversation/workgraph-workflow-events";
 import { writeTextToClipboard } from "@/shared/lib/browser/clipboard";
 import {
   deleteWorkGraphWorkflowApi,
   getWorkGraphWorkflowsApi,
   previewSavedWorkGraphWorkflowApi,
-  scheduleWorkGraphWorkflowSaveApi,
 } from "@/lib/api/conversation/execution-api";
 import {
   getResourceFailure,
@@ -416,35 +415,14 @@ export function WorkGraphDistillationsDirectory() {
         variant="danger"
       />
       {!accessBlocked && editingPreview ? (
-        <WorkGraphMetadataEditorDialog
+        <WorkGraphDistillationDialog
           agents={agents}
           preview={editingPreview}
           sessionKey={editingPreview.source_session_key}
-          onApply={async (nextPreview) => {
+          onSaved={(workflow) => {
             if (accessBlockedRef.current) return;
-            await scheduleWorkGraphWorkflowSaveApi(nextPreview.source_session_key, nextPreview.preview_id, {
-              description: nextPreview.description,
-              slash_name: nextPreview.slash_name,
-              title: nextPreview.title,
-            });
-            const workflowId = editingWorkflowId;
-            if (workflowId) {
-              setItems((current) => current.map((item) => item.id === workflowId ? {
-                ...item,
-                completion_criteria: nextPreview.completion_criteria,
-                dependencies: nextPreview.dependencies,
-                description: nextPreview.description,
-                nodes: nextPreview.nodes,
-                objective: nextPreview.objective,
-                slash_name: nextPreview.slash_name,
-                title: nextPreview.title,
-                // The save is scheduled asynchronously; keep the persisted aggregate
-                // version until the refreshed directory confirms the new revision.
-                version: item.version,
-              } : item));
-            }
-            setEditingPreview(null);
-            setEditingWorkflowId(null);
+            setItems((current) => current.map((item) => item.id === editingWorkflowId ? workflow : item));
+            notifyCapabilitySummaryMutated({ domain: "workgraph_distillation" });
           }}
           onClose={() => {
             setEditingPreview(null);

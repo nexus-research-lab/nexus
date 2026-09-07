@@ -1,6 +1,6 @@
-// INPUT: WorkGraph editor Apply 的既有 owner、editor_id、revision 与失败结果。
-// OUTPUT: 成功链路兼容性、原身份透传和 FailureCore 写入边界回归。
-// POS: Execution HTTP 边界的低风险失败协议样板测试。
+// INPUT: WorkGraph editor Apply 与直接确认保存的 owner、资源身份、revision 和失败结果。
+// OUTPUT: 成功回执、原身份透传、保存冲突和 FailureCore 写入边界回归。
+// POS: Execution HTTP 边界的保存与失败协议测试。
 package execution
 
 import (
@@ -280,4 +280,68 @@ func newApplyWorkflowTestRouter(stub *applyWorkflowStub) http.Handler {
 	router.Use(handlershared.RequestContextMiddleware(api.BaseLogger()))
 	router.Post("/workgraph/editors/{editor_id}/apply", handler.HandleApplyWorkGraphWorkflowEditor)
 	return router
+}
+
+type confirmWorkflowStub struct {
+	applyWorkflowStub
+	err     error
+	owner   string
+	request protocol.ConfirmWorkGraphWorkflowSaveRequest
+}
+
+func (stub *confirmWorkflowStub) ConfirmSave(_ context.Context, owner string, request protocol.ConfirmWorkGraphWorkflowSaveRequest) (*protocol.WorkGraphWorkflowSaveReceipt, error) {
+	stub.owner, stub.request = owner, request
+	if stub.err != nil {
+		return nil, stub.err
+	}
+	return &protocol.WorkGraphWorkflowSaveReceipt{
+		PreviewID: request.PreviewID, Status: "saved",
+		Workflow: &protocol.WorkGraphWorkflow{ID: "workflow-a", SlashName: "research-rich", Version: 2},
+	}, nil
+}
+
+func TestConfirmWorkGraphWorkflowSaveReturnsPersistedCommandAndRejectsConflicts(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		err    error
+		status int
+	}{
+		{"committed", nil, http.StatusOK},
+		{"name taken", workgraphworkflowsvc.ErrNameConflict, http.StatusConflict},
+		{"stale draft", workgraphworkflowsvc.ErrRevisionConflict, http.StatusPreconditionFailed},
+		{"wrong source", workgraphworkflowsvc.ErrNotFound, http.StatusNotFound},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			stub := &confirmWorkflowStub{err: test.err}
+			api := handlershared.NewAPI(slog.New(slog.NewTextHandler(io.Discard, nil)))
+			handler := New(api, nil, stub)
+			router := chi.NewRouter()
+			router.Post("/workgraph/previews/{preview_id}/save", handler.HandleConfirmWorkGraphWorkflowSave)
+			request := httptest.NewRequest(http.MethodPost, "/workgraph/previews/preview-a/save",
+				strings.NewReader(`{"source_session_key":"session-a","preview_id":"ignored-body-id","slash_name":"research-rich","title":"报告","description":"生成报告"}`))
+			recorder := httptest.NewRecorder()
+			router.ServeHTTP(recorder, request)
+			if recorder.Code != test.status {
+				t.Fatalf("save status=%d body=%s", recorder.Code, recorder.Body.String())
+			}
+			if stub.owner != authsvc.SystemUserID || stub.request.PreviewID != "preview-a" ||
+				stub.request.SourceSessionKey != "session-a" || stub.request.SlashName != "research-rich" ||
+				stub.request.Title != "报告" || stub.request.Description != "生成报告" {
+				t.Fatalf("confirmed save identity or metadata changed: owner=%q request=%#v", stub.owner, stub.request)
+			}
+			if test.err == nil {
+				var payload struct {
+					Success bool                                  `json:"success"`
+					Data    protocol.WorkGraphWorkflowSaveReceipt `json:"data"`
+				}
+				if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+					t.Fatal(err)
+				}
+				if !payload.Success || payload.Data.Status != "saved" || payload.Data.PreviewID != "preview-a" ||
+					payload.Data.Workflow == nil || payload.Data.Workflow.SlashName != "research-rich" || payload.Data.Workflow.Version != 2 {
+					t.Fatalf("missing committed command in receipt: %#v", payload)
+				}
+			}
+		})
+	}
 }

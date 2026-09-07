@@ -29,19 +29,26 @@ func NewRepository(cfg config.Config, db *sql.DB) *Repository {
 }
 
 // Create 原子写入 Workflow、节点与依赖。
-func (r *Repository) Create(
-	ctx context.Context,
-	workflow protocol.WorkGraphWorkflow,
-) (*protocol.WorkGraphWorkflow, error) {
-	criteriaJSON, err := marshalJSON(workflow.CompletionCriteria)
-	if err != nil {
-		return nil, err
-	}
+func (r *Repository) Create(ctx context.Context, workflow protocol.WorkGraphWorkflow) (*protocol.WorkGraphWorkflow, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = tx.Rollback() }()
+	if err = r.createWorkflow(ctx, tx, workflow); err != nil {
+		return nil, err
+	}
+	if err = tx.Commit(); err != nil {
+		return nil, err
+	}
+	return r.GetByID(ctx, workflow.OwnerUserID, workflow.ID)
+}
+
+func (r *Repository) createWorkflow(ctx context.Context, tx *sql.Tx, workflow protocol.WorkGraphWorkflow) error {
+	criteriaJSON, err := marshalJSON(workflow.CompletionCriteria)
+	if err != nil {
+		return err
+	}
 	_, err = tx.ExecContext(ctx, `
 INSERT INTO workgraph_workflows (
     workflow_id, owner_user_id, slash_name, title, description,
@@ -65,12 +72,12 @@ INSERT INTO workgraph_workflows (
 		r.timestamp(workflow.UpdatedAt),
 	)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	for _, node := range workflow.Nodes {
 		acceptanceJSON, marshalErr := marshalJSON(node.AcceptanceCriteria)
 		if marshalErr != nil {
-			return nil, marshalErr
+			return marshalErr
 		}
 		_, err = tx.ExecContext(ctx, `
 INSERT INTO workgraph_workflow_nodes (
@@ -96,7 +103,7 @@ INSERT INTO workgraph_workflow_nodes (
 			node.Position,
 		)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 	for _, node := range workflow.Nodes {
@@ -110,7 +117,7 @@ WHERE workflow_id = `+r.bind(2)+` AND logical_key = `+r.bind(3),
 			node.ParentLogicalKey, workflow.ID, node.LogicalKey,
 		)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 	for _, dependency := range workflow.Dependencies {
@@ -124,8 +131,21 @@ INSERT INTO workgraph_workflow_dependencies (
 			dependency.Kind,
 		)
 		if err != nil {
-			return nil, err
+			return err
 		}
+	}
+	return nil
+}
+
+// Update 以 aggregate version CAS 原子替换命名图语义、节点和依赖。
+func (r *Repository) Update(ctx context.Context, workflow protocol.WorkGraphWorkflow) (*protocol.WorkGraphWorkflow, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if err = r.updateWorkflow(ctx, tx, workflow); err != nil {
+		return nil, err
 	}
 	if err = tx.Commit(); err != nil {
 		return nil, err
@@ -133,23 +153,14 @@ INSERT INTO workgraph_workflow_dependencies (
 	return r.GetByID(ctx, workflow.OwnerUserID, workflow.ID)
 }
 
-// Update 以 aggregate version CAS 原子替换命名图语义、节点和依赖。
-func (r *Repository) Update(
-	ctx context.Context,
-	workflow protocol.WorkGraphWorkflow,
-) (*protocol.WorkGraphWorkflow, error) {
+func (r *Repository) updateWorkflow(ctx context.Context, tx *sql.Tx, workflow protocol.WorkGraphWorkflow) error {
 	if workflow.Version <= 1 {
-		return nil, errors.New("updated WorkGraph workflow requires version > 1")
+		return errors.New("updated WorkGraph workflow requires version > 1")
 	}
 	criteriaJSON, err := marshalJSON(workflow.CompletionCriteria)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = tx.Rollback() }()
 	result, err := tx.ExecContext(ctx, `
 UPDATE workgraph_workflows
 SET slash_name = `+r.bind(1)+`, title = `+r.bind(2)+`, description = `+r.bind(3)+`,
@@ -164,25 +175,25 @@ WHERE owner_user_id = `+r.bind(10)+` AND workflow_id = `+r.bind(11)+`
 		workflow.OwnerUserID, workflow.ID, workflow.Version-1,
 	)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	affected, err := result.RowsAffected()
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if affected != 1 {
-		return nil, errors.New("WorkGraph workflow version changed")
+		return ErrRevisionConflict
 	}
 	if _, err = tx.ExecContext(ctx, `DELETE FROM workgraph_workflow_dependencies WHERE workflow_id = `+r.bind(1), workflow.ID); err != nil {
-		return nil, err
+		return err
 	}
 	if _, err = tx.ExecContext(ctx, `DELETE FROM workgraph_workflow_nodes WHERE workflow_id = `+r.bind(1), workflow.ID); err != nil {
-		return nil, err
+		return err
 	}
 	for _, node := range workflow.Nodes {
 		acceptanceJSON, marshalErr := marshalJSON(node.AcceptanceCriteria)
 		if marshalErr != nil {
-			return nil, marshalErr
+			return marshalErr
 		}
 		_, err = tx.ExecContext(ctx, `
 INSERT INTO workgraph_workflow_nodes (
@@ -198,7 +209,7 @@ INSERT INTO workgraph_workflow_nodes (
 			node.Required, node.Terminal, nil, node.Position,
 		)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 	for _, node := range workflow.Nodes {
@@ -210,7 +221,7 @@ UPDATE workgraph_workflow_nodes SET parent_logical_key = `+r.bind(1)+`
 WHERE workflow_id = `+r.bind(2)+` AND logical_key = `+r.bind(3),
 			node.ParentLogicalKey, workflow.ID, node.LogicalKey,
 		); err != nil {
-			return nil, err
+			return err
 		}
 	}
 	for _, dependency := range workflow.Dependencies {
@@ -220,13 +231,10 @@ INSERT INTO workgraph_workflow_dependencies (
 ) VALUES (`+r.bind(1)+`,`+r.bind(2)+`,`+r.bind(3)+`,`+r.bind(4)+`)`,
 			workflow.ID, dependency.LogicalKey, dependency.DependsOnLogicalKey, dependency.Kind,
 		); err != nil {
-			return nil, err
+			return err
 		}
 	}
-	if err = tx.Commit(); err != nil {
-		return nil, err
-	}
-	return r.GetByID(ctx, workflow.OwnerUserID, workflow.ID)
+	return nil
 }
 
 // List 返回 owner 的完整沉淀 aggregates，供 UI 和命令目录共同消费。
@@ -315,7 +323,18 @@ func (r *Repository) Delete(
 	ownerUserID string,
 	workflowID string,
 ) (bool, error) {
-	result, err := r.db.ExecContext(ctx, `
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err = tx.ExecContext(ctx, `UPDATE workgraph_workflow_drafts
+SET saved_workflow_id = '', saved_revision = 0, save_scheduled = FALSE
+WHERE owner_user_id = `+r.bind(1)+` AND saved_workflow_id = `+r.bind(2),
+		strings.TrimSpace(ownerUserID), strings.TrimSpace(workflowID)); err != nil {
+		return false, err
+	}
+	result, err := tx.ExecContext(ctx, `
 DELETE FROM workgraph_workflows
 WHERE owner_user_id = `+r.bind(1)+` AND workflow_id = `+r.bind(2),
 		strings.TrimSpace(ownerUserID), strings.TrimSpace(workflowID))
@@ -323,7 +342,10 @@ WHERE owner_user_id = `+r.bind(1)+` AND workflow_id = `+r.bind(2),
 		return false, err
 	}
 	affected, err := result.RowsAffected()
-	return affected > 0, err
+	if err != nil {
+		return false, err
+	}
+	return affected > 0, tx.Commit()
 }
 
 func (r *Repository) loadGraph(

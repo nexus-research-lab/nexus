@@ -1,5 +1,5 @@
 // INPUT: exact WorkGraph Draft、Nexus 主智能体隐藏 Session 与模型提交的完整草图版本。
-// OUTPUT: 可恢复编辑对话、不可变版本历史、版本选择、CAS revision，以及应用前的 DAG/交付语义校验。
+// OUTPUT: 保留保存表单最新元信息的可恢复编辑对话、不可变版本、CAS revision 与应用前的 DAG/交付语义校验。
 // POS: 对话式草图编辑边界；普通 DM 负责消息/流式 UI，本服务拥有 Draft 版本和受限 CLI 修改授权。
 package workgraphworkflow
 
@@ -74,11 +74,12 @@ func (s *Service) StartMetadataEditor(
 	s.previewMu.Lock()
 	s.cleanupExpiredPreviews(s.now().UTC())
 	previewRecord, ok := s.previews[previewCacheKey(ownerUserID, request.PreviewID)]
+	existingEditorID := ""
+	var existingEditor workflowEditorRecord
 	if existingKey := s.editorByPreview[previewCacheKey(ownerUserID, request.PreviewID)]; existingKey != "" {
 		if existing, exists := s.editors[existingKey]; exists && existing.sourceSessionKey == request.SourceSessionKey {
-			existingID := editorIDFromCacheKey(existingKey)
-			s.previewMu.Unlock()
-			return editorSession(existingID, existing), nil
+			existingEditorID = editorIDFromCacheKey(existingKey)
+			existingEditor = cloneEditorRecord(existing)
 		}
 	}
 	s.previewMu.Unlock()
@@ -86,6 +87,9 @@ func (s *Service) StartMetadataEditor(
 		return nil, ErrNotFound
 	}
 	preview := cloneWorkflowPreview(previewRecord.preview)
+	if existingEditorID != "" {
+		preview = cloneWorkflowPreview(existingEditor.preview)
+	}
 	if slashName := normalizeSlashName(request.SlashName); slashName != "" {
 		preview.SlashName = slashName
 	}
@@ -114,6 +118,35 @@ func (s *Service) StartMetadataEditor(
 			s.hydrateDraft(*loadedDraft)
 			preview = cloneWorkflowPreview(loadedDraft.Preview)
 		}
+	}
+	if existingEditorID != "" {
+		if loadedDraft != nil {
+			current, _, getErr := s.getEditorRecord(ownerUserID, request.SourceSessionKey, existingEditorID)
+			if getErr != nil {
+				return nil, getErr
+			}
+			return editorSession(existingEditorID, current), nil
+		}
+		// The in-memory repository keeps unapplied editor versions separately.
+		if existingEditor.preview.SlashName != preview.SlashName ||
+			existingEditor.preview.Title != preview.Title || existingEditor.preview.Description != preview.Description {
+			s.previewMu.Lock()
+			key := previewCacheKey(ownerUserID, existingEditorID)
+			latest, exists := s.editors[key]
+			if !exists || latest.revision != existingEditor.revision || previewRecord.saveScheduled {
+				s.previewMu.Unlock()
+				return nil, ErrRevisionConflict
+			}
+			existingEditor.preview = preview
+			existingEditor.revision++
+			existingEditor.selectedRevision = existingEditor.revision
+			existingEditor.versions = append(existingEditor.versions, protocol.WorkGraphWorkflowPreviewVersion{
+				Revision: existingEditor.revision, Preview: cloneWorkflowPreview(preview), CreatedAt: s.now().UTC(),
+			})
+			s.editors[key] = existingEditor
+			s.previewMu.Unlock()
+		}
+		return editorSession(existingEditorID, existingEditor), nil
 	}
 	if previewRecord.sourceAgentID == "" {
 		return nil, fmt.Errorf("%w: source Execution has no coordinator Agent", ErrInvalidInput)
@@ -469,6 +502,10 @@ func (s *Service) ApplyMetadataEditor(
 	if ownerUserID == "" || request.SourceSessionKey == "" || request.EditorID == "" || request.Revision <= 0 {
 		return nil, fmt.Errorf("%w: editor apply request is incomplete", ErrInvalidInput)
 	}
+	// Read the durable selection before applying; the cache may predate another window.
+	if _, _, err := s.getEditorRecord(ownerUserID, request.SourceSessionKey, request.EditorID); err != nil {
+		return nil, err
+	}
 	s.previewMu.Lock()
 	defer s.previewMu.Unlock()
 	s.cleanupExpiredPreviews(s.now().UTC())
@@ -477,7 +514,7 @@ func (s *Service) ApplyMetadataEditor(
 	if !ok || record.sourceSessionKey != request.SourceSessionKey {
 		return nil, ErrNotFound
 	}
-	if record.revision != request.Revision {
+	if record.revision != request.Revision || record.selectedRevision != request.SelectedRevision {
 		return nil, fmt.Errorf("%w: editor revision changed", ErrRevisionConflict)
 	}
 	previewKey := previewCacheKey(ownerUserID, record.previewID)
@@ -488,6 +525,7 @@ func (s *Service) ApplyMetadataEditor(
 	previewRecord.preview = cloneWorkflowPreview(record.preview)
 	s.previews[previewKey] = previewRecord
 	result := cloneWorkflowPreview(record.preview)
+	result.HeadRevision, result.SelectedRevision = record.revision, record.selectedRevision
 	return &result, nil
 }
 
@@ -526,6 +564,19 @@ func (s *Service) getEditorRecord(ownerUserID string, sourceSessionKey string, e
 	if s == nil || ownerUserID == "" || sourceSessionKey == "" || editorID == "" {
 		return workflowEditorRecord{}, "", fmt.Errorf("%w: editor scope is incomplete", ErrInvalidInput)
 	}
+	if repository, ok := s.repository.(DraftRepository); ok {
+		draft, err := repository.GetDraftByEditorID(context.Background(), ownerUserID, editorID)
+		if err != nil {
+			return workflowEditorRecord{}, "", err
+		}
+		if draft == nil || draft.SourceSessionKey != sourceSessionKey {
+			return workflowEditorRecord{}, "", ErrNotFound
+		}
+		if err = s.renewDraftLease(context.Background(), repository, draft); err != nil {
+			return workflowEditorRecord{}, "", err
+		}
+		s.hydrateDraft(*draft)
+	}
 	s.previewMu.Lock()
 	defer s.previewMu.Unlock()
 	s.cleanupExpiredPreviews(s.now().UTC())
@@ -537,6 +588,8 @@ func (s *Service) getEditorRecord(ownerUserID string, sourceSessionKey string, e
 }
 
 func editorSession(editorID string, record workflowEditorRecord) *protocol.WorkGraphWorkflowEditorSession {
+	preview := cloneWorkflowPreview(record.preview)
+	preview.HeadRevision, preview.SelectedRevision = record.revision, record.selectedRevision
 	return &protocol.WorkGraphWorkflowEditorSession{
 		EditorID:              editorID,
 		Revision:              record.revision,
@@ -544,7 +597,7 @@ func editorSession(editorID string, record workflowEditorRecord) *protocol.WorkG
 		AgentID:               record.agentID,
 		SessionKey:            record.sessionKey,
 		DisplayAfterUnixMilli: record.displayAfterUnixMilli,
-		Preview:               cloneWorkflowPreview(record.preview),
+		Preview:               preview,
 		Versions:              previewVersionSummaries(record.versions, record.selectedRevision),
 		ExpiresAt:             record.expiresAt,
 	}
