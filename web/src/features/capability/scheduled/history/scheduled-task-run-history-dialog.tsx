@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前 owner scope、定时任务、运行历史资源与恢复/重试动作。
- * OUTPUT: 以任务名和公共 Badge 状态命名的 plain 运行历史工作面。
+ * OUTPUT: 由公共标题协议命名、随语言更新状态/确认文案并标注刷新在途的 plain 历史工作面。
  * POS: Scheduled 历史模态边界；内部 Job ID 只留在诊断详情。
  */
 "use client";
@@ -106,13 +106,12 @@ export function ScheduledTaskRunHistoryDialog({
     return null;
   }
 
-  const taskStatus = getTaskStatusMeta(activeTask);
+  const taskStatus = getTaskStatusMeta(activeTask, t);
   return (
     <>
       <UiDialogPortal>
         <UiDialogBackdrop
           closeOnBackdrop={false}
-          labelledBy="scheduled-task-run-history-title"
           onClose={onClose}
         >
         <UiDialogShell size="xl" viewport="adaptive">
@@ -120,26 +119,27 @@ export function ScheduledTaskRunHistoryDialog({
               appearance="plain"
               actions={(
                 <UiButton
+                  aria-busy={resource.isLoading}
+                  disabled={resource.isLoading}
                   onClick={() => void refreshAndReconcile().catch(() => undefined)}
                   size="xs"
                   type="button"
                   variant="text"
                 >
                   <RefreshCw className="h-3.5 w-3.5" />
-                  刷新
+                  {t("common.refresh")}
                 </UiButton>
               )}
               onClose={onClose}
-            >
-              <div className="flex min-w-0 flex-1 items-center gap-2">
-                <h2 className="dialog-title" id="scheduled-task-run-history-title">
-                  {activeTask.name}
-                </h2>
-                <UiBadge showDot size="xs" tone={taskStatus.tone}>
-                  {taskStatus.label}
-                </UiBadge>
-              </div>
-            </UiDialogHeader>
+              title={(
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="min-w-0 truncate">{activeTask.name}</span>
+                  <UiBadge showDot size="xs" tone={taskStatus.tone}>
+                    {taskStatus.label}
+                  </UiBadge>
+                </span>
+              )}
+            />
 
             <UiDialogBody className="min-h-0 flex-1" scrollable>
               {actions.feedback ? (
@@ -174,9 +174,9 @@ export function ScheduledTaskRunHistoryDialog({
         </UiDialogBackdrop>
       </UiDialogPortal>
       <ConfirmDialog
-        confirmText="释放占用"
+        confirmText={t("capability.scheduled_history_recover")}
         isOpen={!accessBlocked && !deletionBlocked && actions.recoveryTarget !== null}
-        message="这次运行会标记为已取消，任务随后可以重新运行。"
+        message={t("capability.scheduled_history_recover_message")}
         onCancel={cancelRecovery}
         onConfirm={() => {
           if (accessBlocked || deletionBlocked) {
@@ -185,13 +185,13 @@ export function ScheduledTaskRunHistoryDialog({
           }
           void actions.confirmRecovery();
         }}
-        title="释放运行占用"
+        title={t("capability.scheduled_history_recover_title")}
         variant="danger"
       />
       <ConfirmDialog
-        confirmText="确认未收到，重新投递"
+        confirmText={t("capability.scheduled_history_delivery_confirm")}
         isOpen={!accessBlocked && !deletionBlocked && actions.deliveryVerificationTarget !== null}
-        message="上次投递状态待核对。先到接收位置确认；只有确认未收到时才重新发送。这不会重新运行任务。"
+        message={t("capability.scheduled_history_delivery_confirm_message")}
         onCancel={cancelDeliveryVerification}
         onConfirm={() => {
           if (accessBlocked || deletionBlocked) {
@@ -200,7 +200,7 @@ export function ScheduledTaskRunHistoryDialog({
           }
           void actions.confirmDeliveryVerification();
         }}
-        title="确认重新投递"
+        title={t("capability.scheduled_history_delivery_confirm_title")}
       />
     </>
   );

@@ -2,6 +2,7 @@
 
 - 内容视图统一加载、错误、空态和记录列表，不解释请求身份。
 - 单项视图只装配状态、时间、详情和动作，不维护异步状态。
+- 状态/时长/动作标签与说明由 history model 接收当前 t 投影，日期显式使用当前 locale；语言切换保留 Disclosure 和原动作目标。只给实际请求中的 UiButton 设置 aria-busy，未确认结果继续 disabled，不伪装成持续加载。
 - 详情视图只消费诊断与输出投影，动作视图只渲染模型给出的有序动作并提交用户命令。
 - 输出分组标签使用公共 metadata / medium，结果和错误使用 supporting；不能把需阅读的事实缩成装饰性全大写微标签。
 - 结果 Markdown 的资源归属只能来自 run 持久化的结构化 Agent Session，业务 Hook 绑定图片预览与文件索引；不能从当前任务 `agent_id`、投递 Session 或全局选择推断旧 run 的执行者。Room shared/缺失/非法 Session 缺少不可变 Agent 证据时保持普通 Markdown。

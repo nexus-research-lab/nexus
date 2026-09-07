@@ -1,10 +1,11 @@
 // INPUT: 单次运行、所属任务、命令状态与诊断/恢复动作。
-// OUTPUT: 共享 Disclosure 历史行，组合公共 Badge 状态、结果详情与合法动作。
+// OUTPUT: 随当前语言更新状态/日期/时长的共享 Disclosure 历史行、结果详情与合法动作。
 // POS: Scheduled 历史单项装配层；状态与动作资格来自 history model。
 
 "use client";
 
 import { cn } from "@/shared/ui/class-name";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiDisclosure } from "@/shared/ui/disclosure/disclosure";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { UiBadge } from "@/shared/ui/display/badge";
@@ -53,8 +54,9 @@ export function ScheduledTaskRunHistoryItem({
   run,
   task,
 }: ScheduledTaskRunHistoryItemProps) {
-  const status = getStatusMeta(run.status);
-  const deliveryStatus = getDeliveryStatusMeta(run.delivery_status);
+  const { locale, t } = useI18n();
+  const status = getStatusMeta(run.status, t);
+  const deliveryStatus = getDeliveryStatusMeta(run.delivery_status, t);
   const showDeliveryStatus = run.delivery_status !== "not_required"
     && run.delivery_status !== "skipped";
   return (
@@ -71,13 +73,17 @@ export function ScheduledTaskRunHistoryItem({
                 weight: "medium",
               }),
             )}>
-              {formatScheduledDatetime(run.scheduled_for, { includeSeconds: true })}
+              {formatScheduledDatetime(run.scheduled_for, {
+                emptyLabel: t("capability.scheduled_history_not_recorded"),
+                includeSeconds: true,
+                locale,
+              })}
             </span>
             <span className={cn(
               "mt-0.5 flex flex-wrap items-center gap-x-1.5",
               getUiTypographyClassName({ role: "caption", tone: "muted" }),
             )}>
-              <span>{formatDuration(run.started_at, run.finished_at)}</span>
+              <span>{formatDuration(run.started_at, run.finished_at, t)}</span>
               {showDeliveryStatus && deliveryStatus ? (
                 <>
                   <span aria-hidden="true">·</span>

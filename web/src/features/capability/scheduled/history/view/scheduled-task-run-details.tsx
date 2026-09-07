@@ -1,5 +1,5 @@
 // INPUT: 单次运行的规范化输出、持久 Session 身份、诊断行与复制动作。
-// OUTPUT: 绑定历史执行 Agent、以可读标签区分结果/错误的预览与可折叠诊断详情。
+// OUTPUT: 绑定历史执行 Agent、随语言更新日期/诊断控件与错误前缀的预览和可折叠诊断详情。
 // POS: Scheduled 历史详情消费侧；不猜测历史资源归属，不决定重跑或投递恢复行为。
 
 "use client";
@@ -7,6 +7,7 @@
 import { Copy } from "lucide-react";
 
 import { useWorkspaceMarkdown } from "@/hooks/agent/use-workspace-markdown";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiDisclosure } from "@/shared/ui/disclosure/disclosure";
@@ -33,8 +34,9 @@ export function ScheduledTaskRunDetails({
   onCopyDiagnostic,
   run,
 }: ScheduledTaskRunDetailsProps) {
-  const diagnosticRows = getRunDiagnosticRows(run);
-  const outputSections = getRunOutputSections(run);
+  const { locale, t } = useI18n();
+  const diagnosticRows = getRunDiagnosticRows(run, { locale, t });
+  const outputSections = getRunOutputSections(run, t);
   const workspaceAgentId = getRunWorkspaceAgentID(run);
   return (
     <>
@@ -43,7 +45,7 @@ export function ScheduledTaskRunDetails({
       ))}
       <UiDisclosure
         className="mt-4"
-        label="诊断详情"
+        label={t("capability.scheduled_history_diagnostics")}
         summaryRole="caption"
         variant="inline"
       >
@@ -60,7 +62,7 @@ export function ScheduledTaskRunDetails({
             variant="text"
           >
             <Copy className="h-3.5 w-3.5" />
-            {isCopied ? "已复制" : "复制诊断"}
+            {t(isCopied ? "capability.scheduled_history_copied" : "capability.scheduled_history_copy_diagnostics")}
           </UiButton>
         </UiPanel>
       </UiDisclosure>
