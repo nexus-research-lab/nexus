@@ -47,6 +47,9 @@ export interface WorkGraphWorkflow {
 }
 
 export interface WorkGraphWorkflowPreview {
+	/** Absent only in historical transcript artifacts; load save state before confirming. */
+  head_revision?: number;
+  selected_revision?: number;
   preview_id: string;
   slash_name: string;
   title: string;
@@ -62,7 +65,15 @@ export interface WorkGraphWorkflowPreview {
 
 export interface WorkGraphWorkflowSaveReceipt {
   preview_id: string;
-  status: "scheduled";
+  status: "saved";
+  workflow: WorkGraphWorkflow;
+}
+
+export interface WorkGraphWorkflowSaveState {
+  preview: WorkGraphWorkflowPreview;
+  workflow?: WorkGraphWorkflow;
+  status: "saved" | "unsaved";
+  saved_revision: number;
 }
 
 export interface WorkGraphWorkflowSlashNameAvailability {

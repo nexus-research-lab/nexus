@@ -1,5 +1,5 @@
 /**
- * INPUT: exact WorkGraph preview、源 Session 与源会话可见 Agent。
+ * INPUT: exact WorkGraph preview、显式表单元信息修改、源 Session 与源会话可见 Agent。
  * OUTPUT: 补载全局 Agent 目录解析隐藏编辑 Agent，展示专用 DM、画布、版本选择和区分读取/写入结果的恢复状态。
  * POS: 关闭页面不删除会话；应用只投影所选版本，unknown 写入在当前页面锁定且不改写源 Execution/聊天。
  */
@@ -48,6 +48,9 @@ import { projectWorkGraphWorkflowCanvasExecution } from "./workgraph-workflow-ca
 
 interface WorkGraphMetadataEditorDialogProps {
   agents: readonly Agent[];
+  savedCommandName?: string;
+  metadata?: Partial<Pick<WorkGraphWorkflowPreview, "slash_name" | "title" | "description">>;
+  onMetadataApplied?: (acceptedPreview: WorkGraphWorkflowPreview) => void;
   onApply: (preview: WorkGraphWorkflowPreview) => void | Promise<void>;
   onClose: () => void;
   preview: WorkGraphWorkflowPreview;
@@ -80,6 +83,9 @@ const EMPTY_EXECUTION_RESOURCE: ExecutionResource = {
 
 export function WorkGraphMetadataEditorDialog({
   agents,
+  savedCommandName,
+  metadata,
+  onMetadataApplied,
   onApply,
   onClose,
   preview,
@@ -88,6 +94,8 @@ export function WorkGraphMetadataEditorDialog({
   const { locale, t } = useI18n();
   const runtimeKind = useDefaultAgentRuntimeKind();
   const initialPreviewRef = useRef(preview);
+  const initialMetadataRef = useRef(metadata);
+  const onMetadataAppliedRef = useRef(onMetadataApplied);
   const sourceAgentsRef = useRef(agents);
   const catalogAgents = useAgentStore((state) => state.agents);
   const loadAgents = useAgentStore((state) => state.load_agents_from_server);
@@ -112,9 +120,13 @@ export function WorkGraphMetadataEditorDialog({
     let active = true;
     const initialPreview = initialPreviewRef.current;
     const startContext = startContextRef.current;
-    void startWorkGraphWorkflowEditorApi(sessionKey, initialPreview, startContext.locale)
+    void startWorkGraphWorkflowEditorApi(sessionKey, {
+      preview_id: initialPreview.preview_id,
+      ...initialMetadataRef.current,
+    }, startContext.locale)
       .then(async (session) => {
         if (!active) return;
+        onMetadataAppliedRef.current?.(session.preview);
         const hasEditorAgent = sourceAgentsRef.current.some(
           (item) => item.agent_id === session.agent_id,
         ) || useAgentStore.getState().get_agent(session.agent_id) !== undefined;
@@ -217,7 +229,7 @@ export function WorkGraphMetadataEditorDialog({
         && failure.effect !== "not_applied"
       )
     )) return;
-    const current = await refreshEditor();
+    const current = editorRef.current;
     if (!current || busy || applying) return;
     setApplying(true);
     setFailure(null);
@@ -226,6 +238,7 @@ export function WorkGraphMetadataEditorDialog({
         sessionKey,
         current.editor_id,
         current.revision,
+        current.selected_revision,
       );
       try {
         await onApply(applied);
@@ -247,7 +260,7 @@ export function WorkGraphMetadataEditorDialog({
     } finally {
       setApplying(false);
     }
-  }, [applying, busy, failure, onApply, refreshEditor, sessionKey, t]);
+  }, [applying, busy, failure, onApply, sessionKey, t]);
 
   const handleRetryProjection = useCallback(async () => {
     if (!failure || failure.kind !== "apply_projection" || applying) return;
@@ -376,8 +389,13 @@ export function WorkGraphMetadataEditorDialog({
                       "mt-1 block",
                       getUiTypographyClassName({ role: "code", tone: "soft" }),
                     )}>
-                      /{currentPreview.slash_name}
+                      {t("execution.workflow_draft_command", { command: `/${currentPreview.slash_name}` })}
                     </code>
+                    {savedCommandName ? (
+                      <p className={getUiTypographyClassName({ role: "metadata", tone: "muted" })}>
+                        {t("execution.workflow_current_command", { command: `/${savedCommandName}` })}
+                      </p>
+                    ) : null}
                   </div>
                   <UiButton
                     disabled={!editor || busy || applying || mutationBlocked}

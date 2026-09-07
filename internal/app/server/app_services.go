@@ -304,9 +304,6 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	roomRealtime.SetRuntimeAdmissionResolver(authService)
 	roomRealtime.SetQueueAdmissionStore(queueAdmissionRepository)
 	roomRealtime.SetTitleGenerator(titleService)
-	workGraphWorkflowService.SetSaveRoundDispatcher(
-		serverworkgraph.NewSaveRoundDispatcher(dmService),
-	)
 	orchestrationService.SetAssignmentTargetAuthorizer(roomRealtime)
 	orchestrationService.SetExecutionDispatchConsumer(roomRealtime)
 	orchestrationService.SetExecutionReviewDispatchConsumer(roomRealtime)

@@ -465,7 +465,7 @@ test("WorkGraph model keeps the managed/runtime boundary and current node summar
   );
 });
 
-test("WorkGraph sketch confirmation schedules a hidden background round without sending chat", async () => {
+test("WorkGraph sketch confirmation directly saves the confirmed Draft without sending chat", async () => {
   const dialogSource = await readFile(path.join(
     webRoot,
     "src/features/conversation/shared/execution/workgraph-distillation-dialog.tsx",
@@ -478,7 +478,7 @@ test("WorkGraph sketch confirmation schedules a hidden background round without 
     webRoot,
     "src/lib/api/conversation/execution-api.ts",
   ), "utf8");
-  assert.match(dialogSource, /scheduleWorkGraphWorkflowSaveApi\(sessionKey, workingPreview\.preview_id, \{/);
+  assert.match(dialogSource, /saveWorkGraphWorkflowApi\(sessionKey, workingPreview\.preview_id, \{/);
   assert.match(apiSource, /workgraph\/previews\/\$\{encodeURIComponent\(previewId\)\}\/save/);
   assert.match(apiSource, /previewWorkGraphWorkflowApi[\s\S]*?timeout_ms: 185_000/);
   assert.doesNotMatch(dialogSource, /dispatchWorkGraphDistillationIntent|buildDistillationPrompt|onSendMessage/);
@@ -612,7 +612,7 @@ test("WorkGraph sketch editor reuses DM and applies a validated graph revision",
   assert.doesNotMatch(apiSource, /workgraph\/editors\/\$\{encodeURIComponent\(editorId\)\}\/messages/);
 });
 
-test("Saved WorkGraph capability reopens the same Draft editor and schedules an update", async () => {
+test("Saved WorkGraph capability reopens the same Draft editor and saves a confirmed update", async () => {
   const directorySource = await readFile(path.join(
     webRoot,
     "src/features/capability/workgraph-distillations/workgraph-distillations-directory.tsx",
@@ -623,8 +623,8 @@ test("Saved WorkGraph capability reopens the same Draft editor and schedules an 
   ), "utf8");
 
   assert.match(directorySource, /previewSavedWorkGraphWorkflowApi/);
-  assert.match(directorySource, /<WorkGraphMetadataEditorDialog/);
-  assert.match(directorySource, /scheduleWorkGraphWorkflowSaveApi/);
+  assert.match(directorySource, /<WorkGraphDistillationDialog/);
+  assert.match(directorySource, /onSaved=/);
   assert.match(directorySource, /capability\.workgraph_edit/);
   assert.match(directorySource, /!item\.built_in/);
   assert.match(directorySource, /capability\.workgraph_builtin/);

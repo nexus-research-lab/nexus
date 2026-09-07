@@ -1,6 +1,6 @@
 // INPUT: 已认证 owner、session_key/exact Execution/草图确认与命名工作图查询参数。
-// OUTPUT: 当前/历史安全 WorkGraph、durable Draft/版本编辑、隐藏后台保存调度、命名目录读取/删除及 Apply 结构化失败。
-// POS: Web/桌面端 WorkGraph 管理 HTTP 边界；草图持久化只允许后台 Agent 的 Skill + CLI。
+// OUTPUT: 当前/历史安全 WorkGraph、durable Draft/版本编辑、确认后的直接事务保存、命名目录读取/删除及 Apply 结构化失败。
+// POS: Web/桌面端 WorkGraph 管理 HTTP 边界；确认表单只可修改元信息，图结构来自服务端 Draft。
 package execution
 
 import (
@@ -36,8 +36,12 @@ type workflowManager interface {
 	Delete(context.Context, string, string) (bool, error)
 }
 
-type workflowSaveScheduler interface {
-	ScheduleSave(context.Context, string, protocol.ScheduleWorkGraphWorkflowSaveRequest) (*protocol.WorkGraphWorkflowSaveReceipt, error)
+type workflowSaveConfirmer interface {
+	ConfirmSave(context.Context, string, protocol.ConfirmWorkGraphWorkflowSaveRequest) (*protocol.WorkGraphWorkflowSaveReceipt, error)
+}
+
+type workflowSaveStateReader interface {
+	GetSaveState(context.Context, string, string, string) (*protocol.WorkGraphWorkflowSaveState, error)
 }
 
 type workflowSlashNameChecker interface {
@@ -236,28 +240,50 @@ func (h *Handlers) HandlePreviewWorkGraphWorkflow(
 	h.api.WriteSuccess(writer, preview)
 }
 
-// HandleScheduleWorkGraphWorkflowSave 将确认过的 preview 交给不进入聊天时间线的内部 Agent round。
-func (h *Handlers) HandleScheduleWorkGraphWorkflowSave(
+// HandleGetWorkGraphWorkflowSaveState 核对 exact 草图与实际生效命令，不调度任何保存。
+func (h *Handlers) HandleGetWorkGraphWorkflowSaveState(writer http.ResponseWriter, request *http.Request) {
+	reader, ok := h.workflows.(workflowSaveStateReader)
+	if !ok {
+		h.api.WriteFailure(writer, http.StatusServiceUnavailable, "工作图保存查询不可用")
+		return
+	}
+	state, err := reader.GetSaveState(request.Context(), authsvc.OwnerUserID(request.Context()),
+		request.URL.Query().Get("source_session_key"), chi.URLParam(request, "preview_id"))
+	if err != nil {
+		if errors.Is(err, workgraphworkflowsvc.ErrNotFound) {
+			h.api.WriteFailure(writer, http.StatusNotFound, "草图不存在")
+		} else {
+			h.api.WriteFailure(writer, http.StatusServiceUnavailable, "暂时无法核对保存结果")
+		}
+		return
+	}
+	h.api.WriteSuccess(writer, state)
+}
+
+// HandleConfirmWorkGraphWorkflowSave 直接保存确认过的 preview 与元信息，成功响应表示已提交。
+func (h *Handlers) HandleConfirmWorkGraphWorkflowSave(
 	writer http.ResponseWriter,
 	request *http.Request,
 ) {
-	scheduler, ok := h.workflows.(workflowSaveScheduler)
-	if !ok || scheduler == nil {
-		h.api.WriteFailure(writer, http.StatusServiceUnavailable, "工作图后台保存服务不可用")
+	confirmer, ok := h.workflows.(workflowSaveConfirmer)
+	if !ok || confirmer == nil {
+		h.api.WriteFailure(writer, http.StatusServiceUnavailable, "工作图保存服务不可用")
 		return
 	}
-	var payload protocol.ScheduleWorkGraphWorkflowSaveRequest
+	var payload protocol.ConfirmWorkGraphWorkflowSaveRequest
 	if !h.api.BindJSON(writer, request, &payload) {
 		return
 	}
 	payload.PreviewID = strings.TrimSpace(chi.URLParam(request, "preview_id"))
-	receipt, err := scheduler.ScheduleSave(
+	receipt, err := confirmer.ConfirmSave(
 		request.Context(),
 		authsvc.OwnerUserID(request.Context()),
 		payload,
 	)
 	if err != nil {
 		switch {
+		case errors.Is(err, workgraphworkflowsvc.ErrRevisionConflict):
+			h.api.WriteFailure(writer, http.StatusPreconditionFailed, "草图已变化，请重新打开后确认保存")
 		case errors.Is(err, workgraphworkflowsvc.ErrInvalidInput):
 			h.api.WriteFailure(writer, http.StatusUnprocessableEntity, "工作图草图保存请求无效")
 		case errors.Is(err, workgraphworkflowsvc.ErrNotFound):
@@ -265,7 +291,7 @@ func (h *Handlers) HandleScheduleWorkGraphWorkflowSave(
 		case errors.Is(err, workgraphworkflowsvc.ErrNameConflict):
 			h.api.WriteFailure(writer, http.StatusConflict, "斜杠命令已存在或不可使用")
 		default:
-			h.api.WriteFailure(writer, http.StatusServiceUnavailable, "工作图后台保存启动失败")
+			h.api.WriteFailure(writer, http.StatusServiceUnavailable, "工作图保存失败")
 		}
 		return
 	}

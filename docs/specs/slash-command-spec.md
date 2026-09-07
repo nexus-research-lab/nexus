@@ -22,7 +22,7 @@ control response 与 nxs 的同形能力仍可供 bridge 的其他宿主使用�
 | `nexus-agent-sdk-bridge` | 统一普通文本发送和待发送内部上下文缓冲清理；保留通用初始化能力读取 | 合并或同步 Nexus Composer 目录；发明 Slash RPC |
 | Nexus `runtime.Manager` | 管理业务 session/runtime 连接与 round 生命周期 | 持有 Slash 目录或为补全请求启动子进程 |
 | Nexus `service/slashcommand` | 持有当前 Nexus 版本的 nxs/Claude 静态清单与 `/visualize`、`/workgraph` 固定产品提示 | 读取 runtime 私有 metadata；保存命名工作图；绑定 session |
-| Nexus `service/workgraphworkflow` | 维护只读内置 WorkGraph 模板；从 exact 完成态 managed Execution 生成/复用 durable Draft；统一 UI 与普通对话的查询、版本化编辑、选择和确认保存；在 runtime 投递时展开动态 Slash | 让模型伪造 owner/session/source；把内置模板写进 owner 数据；通过 UI HTTP 直接持久化命名图；保存 Tool、Assignment、Attempt、Submission、Review、Acceptance 或旧运行身份；在抽取失败时回退保存原始语义 |
+| Nexus `service/workgraphworkflow` | 维护只读内置 WorkGraph 模板；从 exact 完成态 managed Execution 生成/复用 durable Draft；统一 UI 与普通对话的查询、版本化编辑、选择和确认保存；在 runtime 投递时展开动态 Slash | 让模型伪造 owner/session/source；把内置模板写进 owner 数据；让 UI 改写服务端 Draft 图结构；保存 Tool、Assignment、Attempt、Submission、Review、Acceptance 或旧运行身份；在抽取失败时回退保存原始语义 |
 | WebSocket handler | 在 bind 时按当前 Agent runtime 选择内置清单，合并 host/product/runtime、内置模板与 owner 命名工作图描述并广播完整快照 | 启动 runtime、让前端查询目录或拼接隐藏上下文 |
 | Web Composer | 只消费当前 session 的完整快照，选择后发送原始 Slash 文本 | 启动 runtime、查询目录、判断命令归属 |
 
@@ -139,13 +139,12 @@ Composer 选择任意 `host` 或 `runtime` 描述后，仍发送一条普通 `ch
   每次调用必须创建新的 Execution/Plan/Work Item identity，
   不得复制源图的 Agent、状态、结果、Artifact 或审核事实；
 - 用户在完成态图标题栏请求保存时，Web 通过 `POST /workgraph/previews` 让 service 使用 owner 默认对话模型接收完整 source logical-key、父子层级和依赖，默认保留宿主标记的结构关键节点，并主要抽象具体任务语义。Draft 按 owner/session/source Execution 唯一并进入数据库，不进入命令目录；再次请求同一 source 直接恢复。每次修改保存不可变完整版本，`head_revision` 做 CAS，`selected_revision` 表达用户偏好。一个 Session 有多张 WorkGraph 时通过 exact execution_id/preview_id 区分。
-  用户可直接修改元信息，也可进入 Nexus 主智能体承载的目录隐藏专用 DM；该 Session 不 fork 或继承来源 transcript、Connector、workspace 或权限，关闭 UI 不删除，再次打开继续对话。左侧展示本地接待说明和隐藏会话自身的编辑消息，右侧展示实时 preview 与版本目录；只开放 `execution-orchestrator`、`revise_workgraph_preview` 与 `select_workgraph_preview_revision`。服务端校验完整草图、revision、logical key、kind、父子结构、DAG、key 主路径和 terminal 交付。对本地格式合法的 `slash_name`，保存确认页通过 owner-scoped availability 查询做防抖预检，并携带 exact `preview_id` 以允许已保存 aggregate 保留自己的命令名；格式错误、名称占用和检查失败必须分开反馈，只有当前输入的查询结果为可用时才能提交。该预检不替代保存调度中的同源检查和数据库唯一索引；并发冲突仍以 HTTP 409 回到命名输入框。用户确认后，
-  Web 调用 preview save 调度端点，宿主在 fresh 目录隐藏内部 DM Session 启动 `HiddenFromUser + Synthetic +
-  purpose=workgraph_distillation` 的 Agent round；该 Session 不 fork 或续写源 transcript，只通过 capability 绑定原 source session 与 exact preview，pending、过程、工具与完成事件全程隐藏，不生成聊天消息或改写源 Composer；
-  `execution-orchestrator` 读取 fresh contract 并通过 `distill_workgraph` CLI mutation 原样保存。
-  Agent 不得重新 inspect、选节点、命名或抽象，HTTP 调度端点不得直接创建命名图；
+  用户可直接修改元信息，也可进入 Nexus 主智能体承载的目录隐藏专用 DM；该 Session 不 fork 或继承来源 transcript、Connector、workspace 或权限，关闭 UI 不删除，再次打开继续对话。左侧展示本地接待说明和隐藏会话自身的编辑消息，右侧展示实时 preview 与版本目录；只开放 `execution-orchestrator`、`revise_workgraph_preview` 与 `select_workgraph_preview_revision`。服务端校验完整草图、revision、logical key、kind、父子结构、DAG、key 主路径和 terminal 交付。对本地格式合法的 `slash_name`，保存确认页通过 owner-scoped availability 查询做防抖预检，并携带 exact `preview_id` 以允许已保存 aggregate 保留自己的命令名；格式错误、名称占用和检查失败必须分开反馈，只有当前输入的查询结果为可用时才能提交。该预检不替代保存事务前的同源检查和数据库唯一索引；并发冲突仍以 HTTP 409 回到命名输入框。用户确认后，
+  Web 调用 preview save 端点，宿主直接把已生成的 exact Draft、用户确认的命令名/标题/描述和命名图写入同一个数据库事务，不启动模型 round。图结构只能来自服务端草图，表单不能提交节点或依赖；请求必须携带用户已看到的 `head_revision + selected_revision`，任一变化以 HTTP 412 拒绝，新窗口不能静默保存另一版本。相同完整内容已提交时重试只返回原命名图，不追加版本或变更当前 Draft。草图 head/selected/saved identity 与命名图 version 共同做 CAS；旧后台保存迟到也必须经过同一事务栅栏。成功回执固定为 `status=saved` 并携带已持久化 `workflow`，前端据此显示“已保存”、更新原目录项并刷新 Slash 补全；失败或仅受理不能冒充保存完成；
+- 来源图和能力页使用同一个保存确认表单；打开时通过 `GET /workgraph/previews/{preview_id}/save-state?source_session_key=...` 读取当前草稿及实际生效命令，分别展示草稿命令名与当前生效名。保存状态按命名图完整内容核对，历史 `saved_revision` 不能单独证明成功。保存响应丢失时只读核对完整用户确认内容，不自动重放；删除命名图同事务解除 Draft 保存绑定，草稿和版本保留。编辑器读取按 durable editor identity 恢复，应用同时校验 head 与 selected revision。
 - 普通 DM/Room 中用户也可以要求智能体沉淀或继续编辑 WorkGraph。模型加载 `execution-orchestrator`，先调用 `inspect_workgraph_library` 读取当前 Session 的 completed sources、Drafts 和 owner 命名图，再用 exact `extract_workgraph_preview`、`get_workgraph_preview`、`revise_workgraph_preview`、`select_workgraph_preview_revision`、`save_workgraph_preview`；这些 operation 不依赖 active Execution，保存只接受当前对话中的明确确认，并且只回复当前会话，不向来源或其他 Session 透传。成功结果自动把最后一份完整图快照渲染为当前回复的草图卡片，来源对照只在用户显式打开后按 exact source identity 加载；
-- 已保存命名图可从能力页恢复原 Draft、selected revision 和隐藏编辑 Session；旧数据没有 Draft 时只建立一次初始版本。后续保存更新同一命名图 aggregate 并追加版本，不重复抽取、不制造同名副本；
+- 已保存命名图可从能力页恢复原 Draft、selected revision 和隐藏编辑 Session；旧数据没有 Draft 时从该命名图完整内容建立一次初始版本，并以不可变 `origin_workflow_id` 隔离不同的历史同源命令；完成图抽取仍按空 origin 的 owner/session/source Execution 唯一，不借用或重绑另一命名图的草稿。后续保存更新同一命名图 aggregate 并追加版本，不重复抽取、不制造同名副本；
+  保存表单修改命令名、标题或描述后再次进入已有编辑会话，必须先把修改追加为 Draft 版本，再恢复同一会话。保存幂等回执与“已保存”短路都必须核验命名图的完整持久内容；旧 request_id 对应的内容与当前确认草图不同时返回 revision conflict，不能推进新版本的保存标记。若历史保存标记与实际内容不一致，用户再次确认保存时更新原 aggregate；
 - inline Skill 的完整正文只作为 runtime 内部 meta user 进入模型上下文，不作为
   tool result、普通用户正文或 Nexus next-turn context；`context: fork` 由 runtime
   自己执行并只回写本地结果。

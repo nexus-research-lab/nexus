@@ -1,11 +1,11 @@
 /**
  * INPUT: 默认对话模型从 exact 完成图抽取的临时草图。
- * OUTPUT: 命名表单、完整工作图画布、保存/调整动作，以及明确说明保存调度结果的恢复状态。
- * POS: 完成态 WorkGraph 到持久化流程的确认台；命名预检不替代服务端栅栏，同一 preview 的后台调度可安全复用。
+ * OUTPUT: 命名表单、完整工作图画布、保存/调整动作，以及明确说明事务保存结果的恢复状态。
+ * POS: 完成态 WorkGraph 到持久化流程的确认台；只向编辑器提交本次表单修改，命名预检不替代服务端栅栏。
  */
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   CheckCircle2,
   LoaderCircle,
@@ -14,8 +14,9 @@ import {
   Workflow,
 } from "lucide-react";
 
-import { scheduleWorkGraphWorkflowSaveApi } from "@/lib/api/conversation/execution-api";
+import { getWorkGraphWorkflowSaveStateApi, saveWorkGraphWorkflowApi } from "@/lib/api/conversation/execution-api";
 import { ApiRequestError } from "@/lib/api/core/http-error";
+import { WORKGRAPH_WORKFLOWS_CHANGED_EVENT } from "@/lib/conversation/workgraph-workflow-events";
 import {
   projectMutationFailure,
   type MutationFailureEffect,
@@ -32,38 +33,66 @@ import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiField, UiInput, UiTextarea } from "@/shared/ui/form/form-control";
 import type { Agent } from "@/types/agent/agent";
-import type { WorkGraphWorkflowPreview } from "@/types/conversation/workgraph-workflow";
+import type { WorkGraphWorkflow, WorkGraphWorkflowPreview } from "@/types/conversation/workgraph-workflow";
 
 import { WorkGraphMetadataEditorDialog } from "./workgraph-metadata-editor-dialog";
 import { WorkGraphWorkflowCanvasPreview } from "./workgraph-workflow-canvas-preview";
 import { useWorkGraphSlashNameAvailability } from "./use-workgraph-slash-name-availability";
+import { savedWorkGraphMatchesPreview } from "./workgraph-save-state";
 
 const WORKGRAPH_SLASH_NAME_PATTERN = /^[a-z][a-z0-9-]{0,63}$/;
 
 interface WorkGraphSaveFailure {
   effect: MutationFailureEffect;
+  changed?: boolean;
 }
 
 export function WorkGraphDistillationDialog({
   agents,
   onClose,
+  onSaved,
   preview,
   sessionKey,
 }: {
   agents: readonly Agent[];
   onClose: () => void;
+  onSaved?: (workflow: WorkGraphWorkflow) => void;
   preview: WorkGraphWorkflowPreview;
   sessionKey: string;
 }) {
   const { t } = useI18n();
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "scheduled">("idle");
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const [saveFailure, setSaveFailure] = useState<WorkGraphSaveFailure | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [savedWorkflow, setSavedWorkflow] = useState<WorkGraphWorkflow>();
   const [editorOpen, setEditorOpen] = useState(false);
+  const [editorMetadata, setEditorMetadata] = useState<Partial<Pick<WorkGraphWorkflowPreview, "slash_name" | "title" | "description">>>({});
   const [workingPreview, setWorkingPreview] = useState(preview);
   const [slashName, setSlashName] = useState(preview.slash_name);
   const [title, setTitle] = useState(preview.title);
   const [description, setDescription] = useState(preview.description ?? "");
   const [confirmedConflictName, setConfirmedConflictName] = useState<string | null>(null);
+  const loadCurrentDraft = useCallback(async () => {
+    setLoading(true);
+    setLoadFailed(false);
+    try {
+      const current = await getWorkGraphWorkflowSaveStateApi(sessionKey, preview.preview_id);
+      setWorkingPreview(current.preview);
+      setSlashName(current.preview.slash_name);
+      setTitle(current.preview.title);
+      setDescription(current.preview.description ?? "");
+      setSavedWorkflow(current.workflow);
+      setSaveFailure(null);
+      setSaveState("idle");
+    } catch {
+      setLoadFailed(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [preview.preview_id, sessionKey]);
+  useEffect(() => { void loadCurrentDraft(); }, [loadCurrentDraft]);
+  const locked = loading || loadFailed || saveState !== "idle" || Boolean(saveFailure && (saveFailure.changed || saveFailure.effect !== "not_applied"));
   const normalizedSlashName = slashName.trim().replace(/^\/+/, "").toLowerCase();
   const slashNameFormatError = !WORKGRAPH_SLASH_NAME_PATTERN.test(normalizedSlashName)
     ? t("execution.workflow_slash_invalid")
@@ -89,19 +118,44 @@ export function WorkGraphDistillationDialog({
     : !title.trim() || !description.trim()
       ? t("execution.workflow_metadata_required")
       : null;
+  const handleOpenEditor = () => {
+    const nextMetadata = {
+      slash_name: normalizedSlashName,
+      title: title.trim(),
+      description: description.trim(),
+    };
+    setEditorMetadata({
+      ...(nextMetadata.slash_name !== workingPreview.slash_name ? { slash_name: nextMetadata.slash_name } : {}),
+      ...(nextMetadata.title !== workingPreview.title ? { title: nextMetadata.title } : {}),
+      ...(nextMetadata.description !== (workingPreview.description ?? "") ? { description: nextMetadata.description } : {}),
+    });
+    setEditorOpen(true);
+  };
   const handleSave = async () => {
+    if (locked) return;
     setSaveState("saving");
     setSaveFailure(null);
     try {
-      await scheduleWorkGraphWorkflowSaveApi(sessionKey, workingPreview.preview_id, {
+      const receipt = await saveWorkGraphWorkflowApi(sessionKey, workingPreview.preview_id, {
+        head_revision: workingPreview.head_revision,
+        selected_revision: workingPreview.selected_revision,
         description: description.trim(),
         slash_name: normalizedSlashName,
         title: title.trim(),
       });
-      setSaveState("scheduled");
+      if (receipt.status !== "saved" || !receipt.workflow) {
+        throw new Error("WorkGraph save was not confirmed");
+      }
+      setSlashName(receipt.workflow.slash_name);
+      setSaveState("saved");
+      setSavedWorkflow(receipt.workflow);
+      onSaved?.(receipt.workflow);
+      window.dispatchEvent(new CustomEvent(WORKGRAPH_WORKFLOWS_CHANGED_EVENT));
     } catch (reason: unknown) {
       if (reason instanceof ApiRequestError && reason.status === 409) {
         setConfirmedConflictName(normalizedSlashName);
+      } else if (reason instanceof ApiRequestError && reason.status === 412) {
+        setSaveFailure({ effect: "not_applied", changed: true });
       } else {
         const failure = projectMutationFailure(
           reason,
@@ -110,6 +164,22 @@ export function WorkGraphDistillationDialog({
         setSaveFailure({ effect: failure.effect });
       }
       setSaveState("idle");
+    }
+  };
+  const verifySave = async () => {
+    setLoading(true);
+    try {
+      const current = await getWorkGraphWorkflowSaveStateApi(sessionKey, workingPreview.preview_id);
+      setSavedWorkflow(current.workflow);
+      const intended = { ...workingPreview, slash_name: normalizedSlashName, title: title.trim(), description: description.trim() };
+      if (current.workflow && savedWorkGraphMatchesPreview(current.workflow, intended)) {
+        setSaveFailure(null);
+        setSaveState("saved");
+        onSaved?.(current.workflow);
+        window.dispatchEvent(new CustomEvent(WORKGRAPH_WORKFLOWS_CHANGED_EVENT));
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -180,7 +250,7 @@ export function WorkGraphDistillationDialog({
                       autoCapitalize="none"
                       autoComplete="off"
                       className="pl-11"
-                      disabled={saveState !== "idle"}
+                      disabled={locked}
                       id="workgraph-slash-name"
                       maxLength={64}
                       spellCheck={false}
@@ -195,10 +265,16 @@ export function WorkGraphDistillationDialog({
                   </div>
                 </UiField>
 
+                {!loading && !loadFailed ? <p className="text-xs text-(--text-muted)">
+                  {savedWorkflow
+                    ? t("execution.workflow_current_command", { command: `/${savedWorkflow.slash_name}` })
+                    : t("execution.workflow_no_saved_command")}
+                </p> : null}
+
                 <div className="space-y-4 border-t border-(--divider-subtle-color) pt-5">
                   <UiField htmlFor="workgraph-title" label={t("execution.workflow_title")}>
                     <UiInput
-                      disabled={saveState !== "idle"}
+                      disabled={locked}
                       id="workgraph-title"
                       maxLength={120}
                       value={title}
@@ -213,7 +289,7 @@ export function WorkGraphDistillationDialog({
                   >
                     <UiTextarea
                       className="min-h-28 resize-none"
-                      disabled={saveState !== "idle"}
+                      disabled={locked}
                       id="workgraph-description"
                       maxLength={500}
                       value={description}
@@ -225,13 +301,19 @@ export function WorkGraphDistillationDialog({
               </div>
 
               <div className="mt-5 space-y-3 border-t border-(--divider-subtle-color) pt-5">
-                {saveState === "scheduled" ? (
+                {loadFailed ? (
+                  <UiResourceState state="error" size="sm" variant="card"
+                    title={t("execution.workflow_state_failed")}
+                    impact={t("execution.workflow_state_failed_impact")}
+                    primaryAction={{ label: t("execution.workflow_reload_draft"), onClick: () => void loadCurrentDraft() }} />
+                ) : null}
+                {saveState === "saved" ? (
                   <div className="flex items-start gap-2 text-xs text-(--text-default)">
                     <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-(--success)" />
                     <div>
-                      <div className="font-semibold text-(--text-strong)">{t("execution.workflow_scheduled_title")}</div>
+                      <div className="font-semibold text-(--text-strong)">{t("execution.workflow_saved_title")}</div>
                       <div className="mt-0.5 leading-5 text-(--text-muted)">
-                    {t("execution.workflow_scheduled_message", {
+                    {t("execution.workflow_saved_message", {
                       command: `/${normalizedSlashName}`,
                     })}
                       </div>
@@ -239,14 +321,15 @@ export function WorkGraphDistillationDialog({
                   </div>
                 ) : null}
                 {saveFailure ? (
-                  <WorkGraphSaveFailureState failure={saveFailure} />
+                  <WorkGraphSaveFailureState failure={saveFailure} checking={loading}
+                    onCheck={() => { void verifySave().catch(() => {}); }} onReload={() => void loadCurrentDraft()} />
                 ) : null}
-                {saveState === "scheduled" || (saveFailure && saveFailure.effect !== "not_applied") ? (
+                {saveState === "saved" || (saveFailure && saveFailure.effect !== "not_applied") ? (
                   <UiButton className="w-full" onClick={onClose} size="sm" tone="primary" variant="solid">
                     {t("common.close")}
                   </UiButton>
                 ) : (
-                  <UiButton className="w-full" disabled={saveState === "saving" || metadataError !== null || !slashNameAvailable} onClick={() => void handleSave()} size="sm" tone="primary" variant="solid">
+                  <UiButton className="w-full" disabled={locked || metadataError !== null || !slashNameAvailable} onClick={() => void handleSave()} size="sm" tone="primary" variant="solid">
                     {saveState === "saving" ? (
                       <LoaderCircle className={getUiSpinnerClassName({ size: "sm" })} />
                     ) : null}
@@ -266,8 +349,8 @@ export function WorkGraphDistillationDialog({
                   {t("execution.workflow_sketch_label")}
                 </h3>
                 <UiButton
-                  disabled={saveState !== "idle" || metadataError !== null}
-                  onClick={() => setEditorOpen(true)}
+                  disabled={locked || metadataError !== null}
+                  onClick={handleOpenEditor}
                   size="sm"
                   variant="surface"
                 >
@@ -287,12 +370,19 @@ export function WorkGraphDistillationDialog({
       {editorOpen ? (
         <WorkGraphMetadataEditorDialog
           agents={agents}
-          preview={{
-            ...workingPreview,
-            description: description.trim(),
-            slash_name: normalizedSlashName,
-            title: title.trim(),
+          savedCommandName={savedWorkflow?.slash_name}
+          metadata={editorMetadata}
+          onMetadataApplied={(acceptedPreview) => {
+            // Advance the baseline only after the editor accepts these edits.
+            // A plain reopen must preserve later chat edits; a failed start must retry them.
+            setWorkingPreview((current) => {
+              const confirmed = { ...current, ...editorMetadata };
+              // Carry the accepted revision only when the visible graph is unchanged.
+              // Other chat edits still require the editor's explicit Apply action.
+              return savedWorkGraphMatchesPreview(acceptedPreview, confirmed) ? acceptedPreview : confirmed;
+            });
           }}
+          preview={workingPreview}
           sessionKey={sessionKey}
           onApply={(nextPreview) => {
             setWorkingPreview(nextPreview);
@@ -311,12 +401,18 @@ export function WorkGraphDistillationDialog({
 
 function WorkGraphSaveFailureState({
   failure,
+  checking,
+  onCheck,
+  onReload,
 }: {
   failure: WorkGraphSaveFailure;
+  checking: boolean;
+  onCheck: () => void;
+  onReload: () => void;
 }) {
   const { t } = useI18n();
   const notApplied = failure.effect === "not_applied";
-  const title = notApplied
+  const title = failure.changed ? t("execution.workflow_draft_changed") : notApplied
     ? t("execution.workflow_save_not_applied_title")
     : failure.effect === "accepted"
       ? t("execution.workflow_save_accepted_title")
@@ -326,10 +422,13 @@ function WorkGraphSaveFailureState({
   return (
     <UiResourceState
       className="min-h-0 py-3"
-      impact={t(notApplied
+      impact={t(failure.changed ? "execution.workflow_draft_changed_impact" : notApplied
         ? "execution.workflow_save_not_applied_impact"
         : "execution.workflow_save_unknown_impact")}
       size="sm"
+      primaryAction={failure.changed
+        ? { label: t("execution.workflow_reload_draft"), onClick: onReload }
+        : !notApplied ? { label: t("execution.workflow_check_save"), busy: checking, onClick: onCheck } : undefined}
       state="error"
       title={title}
       urgency="polite"

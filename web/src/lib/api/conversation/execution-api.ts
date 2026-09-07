@@ -1,7 +1,7 @@
 /**
  * INPUT: 会话 session_key 与 exact 完成态 Execution。
- * OUTPUT: managed WorkGraph 读取、durable Draft/版本编辑、已保存草图目录与隐藏保存调度。
- * POS: Execution/WorkGraph HTTP 协议的 Web 客户端；命名图持久化由隐藏 Skill + nexus.command round 完成，关闭编辑 UI 不删除 Session。
+ * OUTPUT: managed WorkGraph 读取、仅显式元信息修改的 Draft 编辑恢复、版本选择、命名图目录与确认后的直接保存。
+ * POS: Execution/WorkGraph HTTP 协议的 Web 客户端；保存响应必须来自草图与命名图事务提交，关闭编辑 UI 不删除 Session。
  */
 import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
 import { requestApi } from "@/lib/api/core/http";
@@ -39,7 +39,7 @@ export async function getExecutionApi(
 
 export async function startWorkGraphWorkflowEditorApi(
   sessionKey: string,
-  preview: WorkGraphWorkflowPreview,
+  preview: Pick<WorkGraphWorkflowPreview, "preview_id"> & Partial<Pick<WorkGraphWorkflowPreview, "slash_name" | "title" | "description">>,
   outputLanguage: "zh" | "en",
 ): Promise<WorkGraphWorkflowEditorSession> {
   return requestApi<WorkGraphWorkflowEditorSession>(
@@ -72,11 +72,12 @@ export async function applyWorkGraphWorkflowEditorApi(
   sessionKey: string,
   editorId: string,
   revision: number,
+  selectedRevision: number,
 ): Promise<WorkGraphWorkflowPreview> {
   return requestApi<WorkGraphWorkflowPreview>(
     `${AGENT_API_BASE_URL}/workgraph/editors/${encodeURIComponent(editorId)}/apply`,
     {
-      body: { revision, source_session_key: sessionKey },
+      body: { revision, selected_revision: selectedRevision, source_session_key: sessionKey },
       method: "POST",
     },
   );
@@ -167,15 +168,17 @@ export async function previewWorkGraphWorkflowApi(
   );
 }
 
-export async function scheduleWorkGraphWorkflowSaveApi(
+export async function saveWorkGraphWorkflowApi(
   sessionKey: string,
   previewId: string,
-  metadata: Pick<WorkGraphWorkflowPreview, "description" | "slash_name" | "title">,
+  metadata: Pick<WorkGraphWorkflowPreview, "description" | "slash_name" | "title" | "head_revision" | "selected_revision">,
 ): Promise<WorkGraphWorkflowSaveReceipt> {
   return requestApi<WorkGraphWorkflowSaveReceipt>(
     `${AGENT_API_BASE_URL}/workgraph/previews/${encodeURIComponent(previewId)}/save`,
     {
       body: {
+        head_revision: metadata.head_revision,
+        selected_revision: metadata.selected_revision,
         description: metadata.description,
         slash_name: metadata.slash_name,
         source_session_key: sessionKey,
@@ -184,6 +187,11 @@ export async function scheduleWorkGraphWorkflowSaveApi(
       method: "POST",
     },
   );
+}
+
+export async function getWorkGraphWorkflowSaveStateApi(sessionKey: string, previewId: string): Promise<import("@/types/conversation/workgraph-workflow").WorkGraphWorkflowSaveState> {
+  const query = new URLSearchParams({ source_session_key: sessionKey });
+  return requestApi(`${AGENT_API_BASE_URL}/workgraph/previews/${encodeURIComponent(previewId)}/save-state?${query}`, { method: "GET" });
 }
 
 export async function deleteWorkGraphWorkflowApi(
