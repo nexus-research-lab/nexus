@@ -3345,3 +3345,55 @@ lint、typecheck、483 项合同、266 文件的 1214 项组件/模型测试及 
 lint 警告和大分块构建提示。快照 /tmp/nexus-a90-review-pe69otfw，文件清单
 /tmp/nexus-a90-review.json；最终证据只更新本文，提交前核对工作树、暂存区与
 测试快照字节及全部审查哈希。
+
+## A91 — 动作菜单完整文案、内容高度与共享状态
+
+延续 A90 审查公共 ActionMenu、Content、MenuActionRow、menu-styles 与 Overlay
+求解/生命周期，逐项读取全部 13 处生产调用的属性和条目结构：权限/模型、Room
+模型内容和成员、窄窗动作、Composer 附件/Connector/排队、工作图历史、任务、
+Skill、联系人与 Provider 测试。AST 调用证据保存于
+/tmp/nexus-a91-action-consumers.json；未扩展或运行现有 Gallery。各业务开关、
+身份、资源和命令继续由领域拥有，不把本次公共内容审查冒充整页完成。
+
+原 Action Menu 说明使用 10px soft，标签/说明都强制 truncate，权限范围与任务
+失败原因可能不可见。现默认/紧凑正文分别为 control 14px/supporting 13px，说明
+为 metadata 12px/muted，统一 regular。普通行最小 36/32px，说明行最小 48/44px，
+保留垂直留白；label/description 完整换行。行高度和初始估算仍由 menu-styles
+单一 recipe 持有，MenuActionRow 的 contentSized 只选择 min-height，固定建议与
+上下文行保持 fixed 档位。Mention 同步消费 48px 说明行与一致估算，不另造数字。
+
+Action Menu 透传内容 ref，只观察未被 maxHeight 限制的内容 scrollHeight，加
+当前实际外框 padding/border 后交回原 Overlay 求解器；打开/宽度与内容变化进行
+测量，ResizeObserver 观察字体/内容尺寸变化，关闭/卸载清理。首帧无测量仍用
+原 recipe 估算，后续可增长或缩短，仍受 320px 与视口上限约束。不能以已被裁切
+的外壳高度作下一轮估算，否则长内容无法重新展开。重定位继续保留当前聚焦项，
+没有另写全局定位、监听器或键盘所有者。只有 footer 时去掉孤立分隔，估算同改。
+
+图标装饰槽不进入辅助名称。共享状态 recipe 排除 disabled 的 hover 前景/底色，
+所有 tone 的 active 都用中性活动底面，删除随选择额外加粗的样式；保留 primary/
+danger 语义前景和所有原生禁用/点击合同。DM/Room 共用模型选项中的 Provider
+次级标签也从私有 10px soft 改为 metadata/muted，保留 40% 宽度、单行结构与
+完整 title；复合模型标签仍由领域拥有，没有把模型长名扩展成另一套菜单。
+
+定向 9 文件 97 项通过（/tmp/nexus-a91-target.log），随后菜单、直接 Session 与
+Room 级联的 3 文件 49 项通过（/tmp/nexus-a91-target-final.log）。新增回归明确
+验证长文案未裁切的 DOM 合同、语义字号、装饰图标、禁用/选中状态、footer-only
+动作，以及内容高度 170→600→70px 时外框按实际留白得到 180→320→80px 上限，
+当前项焦点不重置且卸载清理 observer。该测量由 jsdom 显式夹具提供，不声明实际
+浏览器排版已验收。任务动作、权限确认、精确模型选择/继承重置、成员选择、
+Workspace 级联与 Mention 回归保持；测试回调的首次 TypeScript 推断过窄已修正，
+最终 typecheck 通过（/tmp/nexus-a91-types-final.log）。最后少量 recipe 状态/留白
+与源码门禁调整以最终完整隔离快照验证为准。
+
+485 项清单为 236 pending、130 in_progress、93 improved、20 retained、6 removed；
+公共 UI 仍为 118 项。Action Menu 完成本批代码/离线行为和消费者内容审查，公共
+行与 Session 选项追加证据，其他领域业务仍按各自清单推进。全部现存源哈希已
+核对。规范与代码地图同步，未启动产品服务、视觉/浏览器/原生验证，也不改后端。
+整体 Goal 保持 active，只分批本地提交，不推送。
+
+最终完整 npm run check 在基线 acf3c527a 与本批 13 个精确文件的隔离快照通过：
+lint、typecheck、484 项合同、266 文件的 1217 项组件/模型测试及 build 全部完成，
+见 /tmp/nexus-a91-check.log。仅保留既有 workgraph-metadata-editor-dialog effect-ref
+lint 警告和大分块构建提示。快照 /tmp/nexus-a91-review-nhimyc28，文件清单
+/tmp/nexus-a91-review.json；最终证据只更新本文，提交前核对暂存区、工作树与
+测试快照字节及全部审查哈希。
