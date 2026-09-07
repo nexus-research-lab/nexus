@@ -1624,7 +1624,7 @@ test("Room no-reply terminal status closes its published thinking snapshot", asy
     agentId: "agent-lucy",
     agentRoundId: "agent-round-no-reply",
     roundId: "round-root",
-  });
+  }, (key) => key);
   assert.equal(
     thread?.isLoading,
     false,

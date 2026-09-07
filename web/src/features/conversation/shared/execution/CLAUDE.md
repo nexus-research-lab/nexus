@@ -1,5 +1,6 @@
 # Execution WorkGraph
 
+- Agent/Subagent 展示标签复用共享名称所有者，通称由当前语言决定；原 ID、子智能体头像种子和无负责人状态保持。展示身份保留 `nameIsFallback`，目标前缀压缩不能把通称当真实负责人姓名；有名目录与模型名字继续按原权威来源投影。
 - 节点运行详情中的折叠标题、结果和截断说明使用公共 supporting，分组使用 metadata；它们属于普通阅读界面，不继承画布图形微标签的像素密度。该排版不改变 NodeRun 身份、展开状态或安全文件引用。
 
 - `execution-graph-inspector.tsx` 是节点与边详情唯一外壳，组合共享 Popover recipe、Typography 与 IconButton；`execution-workgraph-canvas.tsx` 保留精确选择、平移与逆缩放几何。顶栏三类状态提示由 `UiBadge` 渲染。检查器中的运行活动使用静态 `UiListRow` 与 Typography，不能复制节点卡材质或制造点击动作。`named-workgraph-sketch.tsx` 只拥有缩略图的拓扑列、连线、节点与终态微标签几何；外围 Surface 和普通标题/说明仍复用公共语义，不能将图形微标签推广到工具栏或表单。工程/UI 所有权合同见 `docs/specs/frontend-engineering-spec.md`，实际画布的浏览器夹具位于 `dev/ui-gallery/ui-gallery-workgraph.tsx`。

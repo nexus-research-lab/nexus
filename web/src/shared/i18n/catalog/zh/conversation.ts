@@ -468,7 +468,6 @@ export const zhConversationMessages = {
   "room.session_navigator_current_processing": "正在处理当前轮次",
   "room.session_navigator_round": "第 {count} 轮",
   "room.session_navigator_user": "用户",
-  "room.session_navigator_agent": "智能体",
   "room.session_navigator_unloaded": "未加载",
   "room.close_conversation": "关闭标签页",
   "room.pin_conversation": "固定到侧边栏",

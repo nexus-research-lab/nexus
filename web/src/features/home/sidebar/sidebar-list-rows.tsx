@@ -1,5 +1,5 @@
 // INPUT: Home 目录加载数量，以及已投影的会话、联系人、活动和操作数据。
-// OUTPUT: 复用共享列表、身份、徽标、按钮与骨架原语的侧栏目录行。
+// OUTPUT: 复用共享原语的侧栏目录行，公式仅在摘要中显示本地化内联标记。
 // POS: Home sidebar 行级视图；不拥有基础组件视觉 recipe 或业务数据获取。
 
 import {
@@ -149,12 +149,14 @@ function ConversationRowStatus({
 }
 
 function ConversationRowSummary({ item }: { item: SidebarConversationItem }) {
+  const { t } = useI18n();
   return (
     <UiMarkdownContent
       className="nexus-sidebar-conversation-summary truncate text-compact leading-[1.125rem] text-(--text-soft) [&_*]:leading-[1.125rem]"
       content={item.summary}
       mermaidShowHeader={false}
       summaryMonochrome
+      summaryMathLabel={t("markdown.math_summary")}
       summaryStrongAsText
       variant="summary"
     />

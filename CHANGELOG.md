@@ -27,6 +27,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Kept sidebar and private-thread previews compact by replacing parsed equations
+  with localized inline labels, while retaining prose, prices, code examples and
+  full formula rendering in message bodies.
+- Centralized missing Agent/Subagent display names across previews, private
+  threads and execution views without changing IDs, navigation or avatar seeds.
+  Generic role labels no longer count as real owner names when shortening objectives.
+
 - Restored Agent names in DM and Room session-navigation previews by passing the
   current name directory through the shared panel model. Missing or blank names
   now use a localized generic label instead of exposing internal ID prefixes.

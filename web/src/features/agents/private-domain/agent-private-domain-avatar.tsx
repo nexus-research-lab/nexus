@@ -1,17 +1,21 @@
-// INPUT: Exact private-thread participants, owner identity and avatar density.
-// OUTPUT: Participant avatars and a bounded peer stack with overflow count.
+// INPUT: Exact participants/owner identity, avatar density and localized display names.
+// OUTPUT: Participant avatars with readable names and a bounded peer stack with overflow count.
 // POS: Private-domain identity geometry; the 14px counter is part of the 40px avatar stack, not ordinary metadata or an action.
 
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
+import { getAgentDisplayName } from "@/lib/agent-display-name";
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import { AgentPrivateParticipant } from "@/types/agent/private-domain";
 import { cn } from "@/shared/ui/class-name";
 
 export function PrivateParticipantAvatarStack({
   ownerAgentId: ownerAgentId,
   participants,
+  t,
 }: {
   ownerAgentId: string;
   participants: AgentPrivateParticipant[];
+  t: I18nContextValue["t"];
 }) {
   const peers = participants.filter((participant) => participant.agent_id !== ownerAgentId);
   const stackParticipants = peers.length ? peers : participants;
@@ -26,7 +30,7 @@ export function PrivateParticipantAvatarStack({
           key={participant.agent_id}
           style={{ zIndex: 10 - index }}
         >
-          <PrivateParticipantAvatar participant={participant} size={isGroup ? "stack" : "md"} />
+          <PrivateParticipantAvatar name={getAgentDisplayName(participant.name, t)} participant={participant} size={isGroup ? "stack" : "md"} />
         </span>
       ))}
       {overflowCount > 0 ? (
@@ -39,9 +43,11 @@ export function PrivateParticipantAvatarStack({
 }
 
 export function PrivateParticipantAvatar({
+  name,
   participant,
   size,
 }: {
+  name: string;
   participant?: AgentPrivateParticipant;
   size: "sm" | "stack" | "md";
 }) {
@@ -50,7 +56,7 @@ export function PrivateParticipantAvatar({
     <UiAgentAvatar
       avatar={participant?.avatar}
       className={size === "sm" ? "h-5 w-5" : size === "stack" ? "h-6 w-6" : "h-8 w-8"}
-      name={participant?.name || participant?.agent_id || "Agent"}
+      name={name}
       size={avatarSize}
     />
   );

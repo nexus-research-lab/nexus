@@ -1,4 +1,6 @@
 export const zhAgentMessages = {
+  "agent.name_fallback": "智能体",
+  "agent.subagent_name_fallback": "子智能体",
   "agent_options.default_name": "Agent",
   "agent_options.title_create": "创建 Agent",
   "agent_options.close_dialog": "关闭对话框",

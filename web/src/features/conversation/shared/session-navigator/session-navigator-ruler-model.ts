@@ -3,6 +3,7 @@
 // POS: 会话导航的纯展示模型；ID 仅用于稳定配色，缺失名称使用本地化通称。
 
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
+import { getAgentDisplayName } from "@/lib/agent-display-name";
 
 import type { SessionNavigationItem } from "./session-navigator-model";
 
@@ -89,7 +90,7 @@ export function formatSpeakerSummary(
     : [];
   speakers.push(
     ...item.agentIds.map(
-      (agentId) => agentNameMap?.[agentId]?.trim() || t("room.session_navigator_agent"),
+      (agentId) => getAgentDisplayName(agentNameMap?.[agentId], t),
     ),
   );
   return speakers.join(" · ") || t("room.session_navigator_unloaded");
