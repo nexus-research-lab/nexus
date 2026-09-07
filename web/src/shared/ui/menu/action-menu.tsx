@@ -1,5 +1,5 @@
 // INPUT: 外部控制的打开态、锚点、菜单项与选择/关闭命令。
-// OUTPUT: 可见后获得初始焦点、重定位时保留焦点的 action menu；选择/Escape 归还触发器，Tab 退出到相邻控件。
+// OUTPUT: 统一动作/勾选项与唯一激活入口；可见后聚焦、重定位保留焦点，选择/Escape 归还触发器，Tab 退出。
 // POS: Action Menu 交互 pattern；不持有业务值或决定命令是否允许。
 "use client";
 
@@ -10,6 +10,7 @@ import {
   useEffect,
 } from "react";
 import { createPortal } from "react-dom";
+import { Check } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
 
@@ -44,6 +45,8 @@ export interface UiActionMenuItem {
   icon?: ReactNode;
   trailing?: ReactNode;
   active?: boolean;
+  /** Controlled checked state; labels, icons and trailing content must be non-interactive. */
+  checked?: boolean;
   disabled?: boolean;
   tone?: "default" | "primary" | "danger";
 }
@@ -274,6 +277,7 @@ function ActionMenuItem({
   return (
     <UiMenuActionRow
       active={item.active}
+      checked={item.checked}
       density={density}
       disabled={disabled || item.disabled}
       hasDescription={Boolean(item.description)}
@@ -300,6 +304,11 @@ function ActionMenuItem({
       {item.trailing ? (
         <span className="flex shrink-0 items-center">
           {item.trailing}
+        </span>
+      ) : null}
+      {item.checked !== undefined ? (
+        <span aria-hidden="true" className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+          {item.checked ? <Check className="h-3.5 w-3.5" /> : null}
         </span>
       ) : null}
     </UiMenuActionRow>

@@ -1,5 +1,5 @@
 // INPUT: Menu DOM、原生焦点与 React 键盘事件，以及可选的 Tab 退出命令。
-// OUTPUT: 当前菜单内的首项焦点、方向键/Home/End 遍历，以及关闭后从锚点续接的 Tab 焦点。
+// OUTPUT: 当前菜单内动作和勾选项的首项焦点、方向键/Home/End 遍历，以及关闭后从锚点续接的 Tab 焦点。
 // POS: Action/业务菜单共用键盘边界；不管理浮层、级联状态或执行业务命令。
 
 import type { KeyboardEvent } from "react";
@@ -10,7 +10,7 @@ import { getAnchoredOverlayAncestorRoots } from "@/shared/ui/overlay/overlay-dis
 
 function getMenuItems(menu: HTMLElement): HTMLElement[] {
   return Array.from(menu.querySelectorAll<HTMLElement>(
-    '[role="menuitem"]:not([aria-disabled="true"]):not(:disabled)',
+    ':is([role="menuitem"], [role="menuitemcheckbox"]):not([aria-disabled="true"]):not(:disabled)',
   )).filter((item) => item.closest('[role="menu"]') === menu);
 }
 

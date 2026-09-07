@@ -1273,9 +1273,9 @@ test("Conversation status models expose semantics while LoadingOrb owns motion",
     );
   }
   for (const view of [statusView, metadataView]) {
-    assert.match(view, /getUiToneClassName/);
+    assert.match(view, /getUiTypographyClassName/);
   }
-  assert.match(statusView, /<LoadingOrb variant=\{indicator\}/);
+  assert.match(statusView, /<LoadingOrb\b/);
   assert.doesNotMatch(statusView, /animate-pulse|frames=/);
   assert.match(submitButton, /<LoadingOrb variant="preparing"/);
   assert.doesNotMatch(submitButton, /frames=/);
@@ -1844,7 +1844,8 @@ test("Action, Workspace, and Room model menus share one menu-item row DOM owner"
 
   assert.match(primitive, /function UiMenuActionRow/);
   assert.match(primitive, /<button/);
-  assert.match(primitive, /role="menuitem"/);
+  assert.match(primitive, /"menuitem" : "menuitemcheckbox"/);
+  assert.match(primitive, /aria-checked=\{checked\}/);
   assert.match(primitive, /aria-disabled=\{disabled \|\| undefined\}/);
   assert.match(primitive, /MENU_ITEM_BASE_CLASS_NAME/);
   for (const consumer of [actionMenu, workspaceMenu, roomModelMenu]) {
@@ -3347,4 +3348,16 @@ test("Workspace directory feedback and header typography use shared owners", asy
   assert.doesNotMatch(browser, /<button\b|\banimate-spin\b|\btext-(?:xs|sm|base|compact)\b/);
   assert.match(view, /getUiTypographyClassName/);
   assert.doesNotMatch(view, /\btext-(?:xs|sm|base|compact)\b|\bfont-(?:normal|medium|semibold)\b/);
+});
+
+
+test("Composer Footer consumes shared checked-menu and typography owners", async () => {
+  const actions = await readSource("src/features/conversation/shared/composer/components/footer/composer-footer-actions.tsx");
+  assert.match(actions, /<UiActionMenu\b/);
+  assert.doesNotMatch(actions, /GlassSwitch|stopPropagation|trailing:/);
+  for (const file of ["composer-footer", "composer-footer-status", "composer-footer-metadata", "composer-context-usage"]) {
+    const source = await readSource(`src/features/conversation/shared/composer/components/footer/${file}.tsx`);
+    assert.match(source, /getUiTypographyClassName/, file);
+    assert.doesNotMatch(source, /text-2xs|text-xs|text-sm|leading-3|leading-4/, file);
+  }
 });

@@ -141,6 +141,47 @@ describe("UiSelectMenu", () => {
 });
 
 describe("UiActionMenu", () => {
+  it("navigates mixed actions and checked items and activates each toggle once", async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    function Harness() {
+      const anchorRef = useRef<HTMLButtonElement>(null);
+      const [isOpen, setIsOpen] = useState(false);
+      const [checked, setChecked] = useState(false);
+      return <>
+        <button ref={anchorRef} onClick={() => setIsOpen(true)} type="button">选项</button>
+        <UiActionMenu anchorRef={anchorRef} ariaLabel="混合动作" isOpen={isOpen}
+          items={[
+            { label: "切换", value: "toggle", checked },
+            { label: "锁定", value: "locked", checked: true, disabled: true },
+            { label: "打开", value: "open" },
+          ]}
+          onClose={() => setIsOpen(false)}
+          onSelect={(value) => { onSelect(value); if (value === "toggle") setChecked((current) => !current); }} />
+      </>;
+    }
+    render(<Harness />);
+    const anchor = screen.getByRole("button", { name: "选项" });
+    await user.click(anchor);
+    const toggle = screen.getByRole("menuitemcheckbox", { name: "切换", checked: false });
+    expect(document.activeElement).toBe(toggle);
+    expect(toggle.querySelector("button, input")).toBeNull();
+    await user.click(screen.getByRole("menuitemcheckbox", { name: "锁定", checked: true }));
+    expect(onSelect).not.toHaveBeenCalled();
+    toggle.focus();
+    await user.keyboard("{ArrowDown}");
+    expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: "打开" }));
+    await user.keyboard("{ArrowDown}{Enter}");
+    expect(onSelect.mock.calls).toEqual([["toggle"]]);
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(document.activeElement).toBe(anchor);
+    await user.click(anchor);
+    expect(screen.getByRole("menuitemcheckbox", { name: "切换", checked: true })).toBe(document.activeElement);
+    await user.keyboard(" ");
+    expect(onSelect.mock.calls).toEqual([["toggle"], ["toggle"]]);
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
   it("focuses only after positioning makes the menu visible and preserves focus while repositioning", async () => {
     const user = userEvent.setup();
     const focusVisibility: string[] = [];
