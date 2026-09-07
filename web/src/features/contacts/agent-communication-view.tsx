@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前 Agent、联络读模型、Session、私信事件、失败事实与页面命令。
- * OUTPUT: 编排独立目录、共享聊天面板、Header 与固定目标/提交状态的删除确认。
+ * OUTPUT: 编排独立目录、共享聊天面板、标准主身份 Header 与固定目标/提交状态的删除确认。
  * POS: Contacts 详情“联络”根编排；不定义目录行、添加表单或资源状态样式。
  */
 "use client";
@@ -279,13 +279,12 @@ function CommunicationHeader({
             </UiIconButton>
             <UiAgentAvatar
               avatar={contact.avatar}
-              className="hidden h-full w-full border-0 shadow-none md:flex"
+              className="hidden md:flex"
               name={label}
-              size="sm"
+              size="md"
             />
           </>
         )}
-        leadingClassName="h-10 w-10 max-md:border-0 max-md:bg-transparent max-md:shadow-none"
         leadingVariant="identity"
         tabsLeading={(
           <RoomConversationTabs

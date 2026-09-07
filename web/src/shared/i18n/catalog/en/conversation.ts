@@ -622,6 +622,7 @@ export const enConversationMessages = {
   "conversation.round_index_access_next_step": "Restore sign-in or access, then refresh the index.",
   "room.scroll_to_latest": "Back to latest",
   "room.members": "Members",
+  "room.members_with_count": "Members ({count})",
   "room.settings": "Group chat settings",
   "room.chat": "Chat",
   "room.panels": "Panels",

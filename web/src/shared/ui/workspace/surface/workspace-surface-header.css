@@ -82,13 +82,6 @@
   max-width: 260px;
 }
 
-.workspace-surface-header-identity-avatar {
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, var(--background) 72%, transparent),
-    0 2px 5px color-mix(in srgb, var(--text-strong) 8%, transparent),
-    0 8px 18px color-mix(in srgb, var(--text-strong) 10%, transparent);
-}
-
 .workspace-surface-header-section-icon {
   box-shadow: none;
 }

@@ -6,6 +6,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { I18nProvider } from "@/shared/i18n/i18n-provider";
+import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { UiButton } from "@/shared/ui/button/button";
 
 import { WorkspaceSurfaceHeader } from "./workspace-surface-header";
@@ -17,7 +18,7 @@ describe("WorkspaceSurfaceHeader", () => {
       <I18nProvider>
         <WorkspaceSurfaceHeader
           activeTab="files"
-          leading={<span aria-hidden="true">N</span>}
+          leading={<UiAgentAvatar name="Nova" size="md" />}
           leadingVariant="identity"
           onChangeTab={onChangeTab}
           subtitle="资料与工具"
@@ -38,8 +39,12 @@ describe("WorkspaceSurfaceHeader", () => {
     expect(screen.getByText("工作区").className).toContain("ui-type-page-title");
     expect(screen.getByText("资料与工具").className).toContain("ui-type-metadata");
     expect(screen.getByRole("button", { name: "新建" }).className).toContain("ui-type-caption");
-    expect(container.querySelector(".workspace-surface-header-identity-avatar")?.className)
-      .toContain("radius-control-md");
+    const identity = container.querySelector(".workspace-surface-header-identity-avatar")!;
+    const avatar = screen.getByRole("img", { name: "Nova" });
+    expect(identity.className).not.toMatch(/border|radius|shadow|bg-/);
+    expect(avatar.parentElement).toBe(identity);
+    expect(avatar.className).toContain("h-10 w-10");
+    expect(avatar.className).toContain("rounded-(--radius-control-md)");
 
     fireEvent.click(screen.getByRole("button", { name: "动态" }));
     expect(onChangeTab).toHaveBeenCalledWith("activity");

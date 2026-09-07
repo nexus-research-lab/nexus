@@ -7,8 +7,8 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes, useParams } from "react-router-dom";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { RoomHistoryMenu } from "@/features/conversation/room/surface/history/room-history-menu";
-import { RoomConversationTabs } from "@/features/navigation/conversation-tabs/room-conversation-tabs";
+import { DmConversationHeader } from "@/features/conversation/room/dm/dm-conversation-header";
+import { GroupConversationHeader } from "@/features/conversation/room/group/header/group-conversation-header";
 import { resolveSelectedDraftConversationId } from "@/features/navigation/conversation-tabs/room-conversation-tabs-model";
 import { closeRoomConversationRuntime, createRoomConversation } from "@/lib/api/conversation/room-command-api";
 import { getRoomContexts } from "@/lib/api/conversation/room-resource-api";
@@ -80,14 +80,18 @@ function HeaderPage() {
     createConversation: commands.handleCreateConversation, deleteConversation: commands.handleDeleteConversation,
   });
   if (data.isRoomLoading) return null;
-  return <RoomConversationTabs
-    conversations={conversations} conversationId={selectedId}
-    onSelectConversation={navigation.selectConversation} onCreateConversation={navigation.createConversation}
-    onCloseConversation={commands.handleCloseConversation} onReplaceFinalConversation={navigation.replaceFinalConversation}
-    leadingControl={<RoomHistoryMenu conversations={conversations} conversationId={selectedId}
-      onSelectConversation={navigation.selectConversation} onCreateConversation={navigation.createConversation}
-      onDeleteConversation={navigation.deleteConversation} />}
-  />;
+  const headerProps = {
+    activeTab: "chat" as const, conversations, conversationId: selectedId,
+    onChangeTab: () => undefined,
+    onSelectConversation: navigation.selectConversation, onCreateConversation: navigation.createConversation,
+    onCloseConversation: commands.handleCloseConversation, onReplaceFinalConversation: navigation.replaceFinalConversation,
+    onDeleteConversation: navigation.deleteConversation,
+  };
+  return data.roomContexts[0]?.room.room_type === "dm"
+    ? <DmConversationHeader {...headerProps} currentAgentName="Nova" />
+    : <GroupConversationHeader {...headerProps} roomId="room" currentRoomTitle="Research"
+        roomMembers={[]} availableRoomAgents={[]} roomHostAutoReplyEnabled roomPrivateMessagesEnabled
+        roomSkillNames={[]} onManageRoom={async () => undefined} onOpenMemberManager={async () => undefined} />;
 }
 
 function page(initialRoute: string) {

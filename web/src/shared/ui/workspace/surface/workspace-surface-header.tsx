@@ -1,5 +1,5 @@
 // INPUT: Workspace 身份、标题、导航标签、窄窗策略与业务动作插槽。
-// OUTPUT: 统一内容轴、语义排版、身份外形和响应式导航的 Workspace Header。
+// OUTPUT: 统一内容轴、语义排版和响应式导航的 Workspace Header；身份外形由传入的公共 Avatar 持有。
 // POS: Workspace 顶部导航原语；不拥有业务标签、当前选择或动作事务。
 
 "use client";
@@ -130,7 +130,7 @@ function WorkspaceSurfaceIdentity({
         <div className={cn(
           "workspace-surface-header-leading flex shrink-0 items-center justify-center text-(--icon-default)",
           leadingVariant === "identity"
-            ? "workspace-surface-header-identity-avatar h-10 w-10 radius-control-md border border-(--surface-avatar-border) bg-(--surface-avatar-background)"
+            ? "workspace-surface-header-identity-avatar h-10 w-10"
             : "workspace-surface-header-section-icon h-8 w-8 radius-control-sm bg-(--surface-interactive-hover-background)",
           leadingClassName,
         )}>

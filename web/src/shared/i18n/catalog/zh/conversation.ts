@@ -619,6 +619,7 @@ export const zhConversationMessages = {
   "conversation.round_index_access_next_step": "恢复登录或访问权限后刷新索引。",
   "room.scroll_to_latest": "回到底部",
   "room.members": "成员",
+  "room.members_with_count": "成员（{count} 人）",
   "room.settings": "群聊设置",
   "room.chat": "聊天",
   "room.panels": "面板",
