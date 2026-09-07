@@ -429,3 +429,30 @@ describe("UiActionMenu", () => {
     expect(document.activeElement).toBe(anchor);
   });
 });
+
+describe("UiSelectMenu context changes", () => {
+  it("discards an open context without replacing the trigger or stealing outside focus", async () => {
+    const user = userEvent.setup();
+    const element = (resetKey: string) => <>
+      <UiSelectMenu ariaLabel="Scoped choice" value="alpha" resetKey={resetKey} onChange={vi.fn()}
+        options={[{ label: "Alpha", value: "alpha" }]} />
+      <button type="button">Outside</button>
+    </>;
+    const { rerender } = render(element("first"));
+    const trigger = screen.getByRole("button", { name: "Scoped choice" });
+    await user.click(trigger);
+    expect(screen.getByRole("listbox")).toBeTruthy();
+    const outside = screen.getByRole("button", { name: "Outside" }); outside.focus();
+    rerender(element("second"));
+    expect(screen.getByRole("button", { name: "Scoped choice" })).toBe(trigger);
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    expect(trigger.getAttribute("aria-controls")).toBeNull();
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(document.activeElement).toBe(outside);
+    rerender(element("first"));
+    expect(screen.queryByRole("listbox")).toBeNull();
+    await user.click(trigger);
+    await user.click(screen.getByRole("option", { name: "Alpha" }));
+    expect(document.activeElement).toBe(trigger);
+  });
+});

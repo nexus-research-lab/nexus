@@ -5,6 +5,7 @@
 - `filter-select.tsx` 的 `UiFilterSelect` 是能力与联系人目录共用的具名筛选 Pattern：必填可见标签，选项、值、命令和内容宽度由业务拥有，菜单与控件外观直接复用 `UiSelectMenu`；不接受前导图标或第二套按钮样式。交互和视觉合同见根目录 `design.md`。
 - `select-menu-model.ts` 只计算当前选项、键盘遍历、高度估算和锚点几何，不得返回视觉类；`select-menu-styles.ts` 独占菜单共用的尺寸、表面、标签换行和选中态视觉 recipe。业务需要组合多选或特殊 listbox 时可以复用 style recipe，但不得从 model 导入样式。
 - `use-select-menu-overlay.ts` 统一选择菜单的内部开关、锚点定位和触发键盘协议。
+- `UiSelectMenu.resetKey` 由调用方描述选择上下文；变化时通过共享 resettable state 丢弃菜单打开态，不重建 trigger DOM，也不改变当前选值或外部焦点。Room Goal 传精确 Session 与候选身份集合，普通名称、顺序或语言更新不关闭菜单；无 resetKey 的既有消费者保持原行为。
 - Select 进入 disabled 状态必须立即收起 listbox、清除 expanded/controls 关系并丢弃旧打开态；恢复可用后只能由用户重新打开。Select/Action Menu 的 Escape 和焦点归还交给共享 Overlay 仲裁，不自行抢先关闭父菜单。
 - Select 的 `xs / sm / md / lg` 尺寸只由 `select-menu-styles.ts` 投影；目录筛选用紧凑档，和大号输入同排的字段用 `lg`，消费者不得通过 `h-*` 或 `buttonClassName` 另造高度、间距和阴影。
 - `allowLabelWrap` 同时由该 recipe 持有触发器最小高度、垂直留白和外层自动高度；长活动标签必须完整位于触发器中，不能只换行文字再由业务修补固定壳高。普通单行模式保留原四档固定高度。

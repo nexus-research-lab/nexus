@@ -27,6 +27,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Room Goal owner selection now uses the shared compact Select Menu and the
+  same disambiguated names as status and Plan-mode explanations. Missing owners
+  remain explicit and must be reselected instead of silently assigning another
+  member; creation checks the current roster before sending the host command.
+  Room Goal status reads the canonical Goal directly, removing a delayed local
+  copy. Session/candidate changes close stale menus while preserving the trigger,
+  and Room/DM continuation explanations follow the current interface language.
+
 - Goal controls now localize status, editing and confirmation copy, wrap long
   blocking instructions and identify the action actually in progress. Budget
   editing rejects partial or unsafe numbers instead of changing their value.

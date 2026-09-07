@@ -1,4 +1,4 @@
-// INPUT: Select Menu disabled 状态、定位函数和触发器键盘事件。
+// INPUT: Select Menu disabled 状态、选择上下文、定位函数和触发器键盘事件。
 // OUTPUT: 内部开关、锚点引用、Portal/定位状态与忽略输入法及已处理事件的触发键盘协议。
 // POS: Select Menu 生命周期 adapter；不解释选项、值或业务权限。
 "use client";
@@ -8,9 +8,9 @@ import {
   useCallback,
   useEffect,
   useRef,
-  useState,
 } from "react";
 
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { useAnchoredOverlayLayer } from "../overlay/anchored-overlay-layer";
 import { isImeKeyboardEvent } from "@/shared/lib/browser/ime-keyboard-event";
 import type { UiAnchoredOverlayPosition } from "../overlay/anchored-overlay-model";
@@ -19,6 +19,7 @@ type MoveSelection = (direction: 1 | -1) => boolean;
 
 interface UseSelectMenuOverlayOptions {
   disabled: boolean;
+  resetKey?: string;
   estimatePosition: (button: HTMLButtonElement) => UiAnchoredOverlayPosition;
 }
 
@@ -50,10 +51,11 @@ function handleSelectionKey({
 export function useSelectMenuOverlay({
   disabled,
   estimatePosition,
+  resetKey,
 }: UseSelectMenuOverlayOptions) {
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const [isOpen, setIsOpen] = useState(false);
-  const closeMenu = useCallback(() => setIsOpen(false), []);
+  const [isOpen, setIsOpen] = useResettableState(false, resetKey);
+  const closeMenu = useCallback(() => setIsOpen(false), [setIsOpen]);
   const isMenuOpen = isOpen && !disabled;
   useEffect(() => {
     if (disabled) {
@@ -81,7 +83,7 @@ export function useSelectMenuOverlay({
     }
     updateMenuPosition();
     setIsOpen(true);
-  }, [disabled, updateMenuPosition]);
+  }, [disabled, setIsOpen, updateMenuPosition]);
 
   const toggleMenu = useCallback(() => {
     if (disabled) {
@@ -93,7 +95,7 @@ export function useSelectMenuOverlay({
       }
       return !open;
     });
-  }, [disabled, updateMenuPosition]);
+  }, [disabled, setIsOpen, updateMenuPosition]);
 
   const handleTriggerKeyDown = useCallback((
     event: KeyboardEvent<HTMLButtonElement>,

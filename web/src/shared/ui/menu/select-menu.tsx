@@ -1,4 +1,4 @@
-// INPUT: 当前单选值、有限选项、显示密度与变更命令。
+// INPUT: 当前单选值、有限选项、显示密度、选择上下文与变更命令。
 // OUTPUT: 可点击和键盘切换、选中后归还触发器焦点的共享 Select Menu。
 // POS: 单选菜单 pattern；不支持业务搜索、异步资源或多选状态机。
 "use client";
@@ -38,6 +38,8 @@ interface UiSelectMenuProps {
   options: UiSelectMenuOption[];
   placement?: UiSelectMenuPlacement;
   placeholder?: string;
+  /** Changed selection context closes the menu while retaining the trigger DOM. */
+  resetKey?: string;
   size?: UiSelectMenuSize;
   surface?: UiSelectMenuSurface;
   value: string;
@@ -85,6 +87,7 @@ function UiSelectMenuController({
   options,
   placement,
   placeholder,
+  resetKey,
   size,
   surface,
   value,
@@ -123,6 +126,7 @@ function UiSelectMenuController({
   } = useSelectMenuOverlay({
     disabled,
     estimatePosition,
+    resetKey,
   });
 
   const changeValue = useCallback((nextValue: string) => {
