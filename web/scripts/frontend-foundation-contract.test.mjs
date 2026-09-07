@@ -729,6 +729,20 @@ test("Workspace file previews share one named loading surface", async () => {
   assert.match(loading, /size: "2xl", tone: "muted"/);
 });
 
+test("Office preview controllers share file, owner and retry scope ownership", async () => {
+  const controllers = await Promise.all([
+    "src/features/conversation/shared/editor/document/use-document-preview.ts",
+    "src/features/conversation/shared/editor/spreadsheet/use-spreadsheet-preview.ts",
+    "src/features/conversation/shared/editor/presentation/presentation-file-preview.tsx",
+  ].map(readSource));
+  for (const source of controllers) {
+    assert.match(source, /useOfficePreviewScope/);
+    assert.match(source, /fetchOfficePreviewBuffer/);
+    assert.doesNotMatch(source, /const previewKey\s*=|\[retryRevision,\s*setRetryRevision\]/);
+    assert.doesNotMatch(source, /subscribeAuthOwnerScopeGeneration/);
+  }
+});
+
 test("Workspace preview chrome and presentation controls share Button and Typography owners", async () => {
   const [chrome, presentation, headerLayout] = await Promise.all([
     readSource("src/features/conversation/shared/editor/workspace-file-preview-chrome.tsx"),

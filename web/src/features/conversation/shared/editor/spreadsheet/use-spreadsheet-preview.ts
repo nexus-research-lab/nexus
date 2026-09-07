@@ -1,7 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+// INPUT: Exact workbook scope and explicit retry.
+// OUTPUT: Current workbook/count/loading facts; selection stays scoped to the file identity.
+// POS: Spreadsheet read/parse lifecycle; stale completions cannot publish another file or owner data.
+import { useEffect } from "react";
 
 import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { fetchOfficePreviewBuffer } from "../office-preview-resource";
+import { useOfficePreviewScope } from "../use-office-preview-scope";
 
 import {
   workbookToSpreadsheetPreviewData,
@@ -27,26 +31,21 @@ async function parseSpreadsheetBuffer(
 }
 
 export function useSpreadsheetPreview(agentId: string, path: string) {
-  const previewKey = `${agentId}\x1f${path}`;
+  const { scopeKey, requestKey, isCurrent, retryPreview } = useOfficePreviewScope(agentId, path);
   const [workbook, setWorkbook] = useResettableState<
     SpreadsheetPreviewWorkbookData | null
-  >(null, previewKey);
+  >(null, scopeKey);
   const [activeSheetIndex, setActiveSheetIndex] = useResettableState(
     0,
-    previewKey,
+    scopeKey,
   );
   const [status, setStatus] = useResettableState<SpreadsheetPreviewStatus>({
     state: "loading",
-  }, previewKey);
-  const [retryRevision, setRetryRevision] = useState(0);
-  const retryPreview = useCallback(() => {
-    setRetryRevision((current) => current + 1);
-  }, []);
-
+  }, requestKey);
   useEffect(() => {
+    if (!isCurrent()) return;
     const abortController = new AbortController();
     let active = true;
-    setStatus({ state: "loading" });
     const loadPreview = async (): Promise<void> => {
       try {
         const buffer = await fetchOfficePreviewBuffer({
@@ -55,12 +54,11 @@ export function useSpreadsheetPreview(agentId: string, path: string) {
           path,
           signal: abortController.signal,
         });
-        if (!active) {
+        if (!active || !isCurrent()) {
           return;
         }
-        setStatus({ state: "loading" });
         const nextWorkbook = await parseSpreadsheetBuffer(buffer);
-        if (!active) {
+        if (!active || !isCurrent()) {
           return;
         }
         setWorkbook(nextWorkbook);
@@ -69,7 +67,7 @@ export function useSpreadsheetPreview(agentId: string, path: string) {
           sheetCount: nextWorkbook.sheets.length,
         });
       } catch {
-        if (!active || abortController.signal.aborted) {
+        if (!active || !isCurrent() || abortController.signal.aborted) {
           return;
         }
         setWorkbook(null);
@@ -83,7 +81,7 @@ export function useSpreadsheetPreview(agentId: string, path: string) {
       active = false;
       abortController.abort();
     };
-  }, [agentId, path, retryRevision, setStatus, setWorkbook]);
+  }, [agentId, isCurrent, path, setStatus, setWorkbook]);
 
   return {
     activeSheetIndex,
