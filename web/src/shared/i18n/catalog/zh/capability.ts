@@ -11,6 +11,7 @@ export const zhCapabilityMessages = {
   "capability.scheduled_history_refresh_failed": "暂时无法更新运行历史",
   "capability.scheduled_history_stale_impact": "显示的运行历史可能不是最新内容，请刷新。",
   "capability.scheduled_history_empty_title": "暂无运行记录",
+  "capability.scheduled_history_artifact_unavailable": "这条历史记录未保留明确的产物位置",
   "capability.scheduled_history_empty_description": "这个任务还没有产生运行记录。",
   "capability.scheduled_history_empty_next_step": "关闭历史窗口，回到任务页面查看当前状态和可用操作。",
   "capability.scheduled_history_feedback_fallback_impact": "运行历史暂时无法更新，请稍后重试。",

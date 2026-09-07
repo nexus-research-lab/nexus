@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Bound scheduled-run artifact actions to their historical executor instead of
+  the task's current Agent. Unproven locations now show a disabled action with
+  an explanation, and copied diagnostics distinguish current and historical IDs.
+- Shared file-action failure handling across previews, message artifacts and
+  run history, with localized feedback isolated by account, source and file.
 - Kept scheduled-task Room and session selectors compact and free of internal-ID
   fallbacks. Duplicate names share one numbering rule, and missing selections
   remain visible through catalog refreshes without changing saved bindings.

@@ -4,6 +4,7 @@
 - `use-scheduled-task-run-history-actions.ts` 独占复制、重跑、重试投递、释放占用确认目标和在途状态；状态代次绑定 owner+Job，旧 scope 或旧 Job 的命令结果不得写回当前弹窗。
 - 命令成功与历史刷新是两个结果：刷新失败不得把已经成功的命令反馈改成失败。
 - `scheduled-task-run-history-model.ts` 按固定顺序投影运行状态、时长和重跑、重试投递、释放占用动作；`scheduled-task-run-diagnostic-model.ts` 独占诊断行、输出区块与复制文本定义。
+- 历史文件按钮与结果 Markdown 共用 `getRunWorkspaceAgentID`，只接受 run 持久 Session 中的明确 Agent 身份；当前任务改绑、当前全局 Agent 或投递目标均不能替代。复制诊断分别标注当前任务 Agent/执行类型和历史 Run Agent，未知历史身份留空。
 - 任务处于 `deleting` 或 `review_required` 时历史仍可读取和刷新，但重跑、重试投递与释放占用都必须禁用；目录事件 handler 同时保留第二道 guard。
 - `scheduled-task-run-history-dialog.tsx` 只装配共享 Dialog 壳层、资源、命令与内容视图。
 - `view/` 保存内容状态、单项、诊断详情与动作视图，只消费窄接口，不直接请求运行历史或维护命令状态。

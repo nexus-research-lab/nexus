@@ -1,16 +1,12 @@
 // INPUT: Workspace 文件层级、预览状态、文件动作、owner 代次与可选标题栏 Portal。
 // OUTPUT: 共享文件 chrome；外部操作反馈只属于当前文件/owner 的最近一次操作，文案随语言更新。
-// POS: Workspace 文件预览外壳；不读取文件内容，也不拥有全站导航视觉。
+// POS: Workspace 文件预览外壳；文件动作生命周期归公共领域 Hook，不读取文件内容或拥有全站导航视觉。
 "use client";
 
 import {
   createContext,
   type ReactNode,
-  useCallback,
   useContext,
-  useEffect,
-  useRef,
-  useSyncExternalStore,
 } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -20,18 +16,10 @@ import {
   Minimize2,
 } from "lucide-react";
 
-import { downloadWorkspaceFileApi } from "@/lib/api/agent/agent-api";
-import { getWorkspaceFileExternalActionCopy } from "@/lib/workspace-file-action";
-import {
-  captureAuthOwnerScopeGeneration,
-  isAuthOwnerScopeGenerationCurrent,
-  subscribeAuthOwnerScopeGeneration,
-} from "@/shared/auth/auth-owner-generation";
+import { useWorkspaceFileExternalAction } from "@/hooks/agent/use-workspace-file-external-action";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
-import type { FeedbackBannerProps } from "@/shared/ui/feedback/feedback-banner-contract";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import { UiBreadcrumb } from "@/shared/ui/navigation/breadcrumb";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
@@ -134,48 +122,14 @@ export function WorkspaceFileDownloadButton({
   path: string;
   fileName: string;
 }) {
-  const { t } = useI18n();
-  const fileActionCopy = getWorkspaceFileExternalActionCopy(t, fileName);
-  const ownerGeneration = useSyncExternalStore(
-    subscribeAuthOwnerScopeGeneration,
-    captureAuthOwnerScopeGeneration,
-    captureAuthOwnerScopeGeneration,
-  );
-  const scopeKey = JSON.stringify([ownerGeneration, agentId, path, fileName]);
-  const scopeRef = useRef(scopeKey);
-  scopeRef.current = scopeKey;
-  const requestRef = useRef(0);
-  const [hasFailure, setHasFailure] = useResettableState(false, scopeKey);
-  useEffect(() => () => {
-    requestRef.current += 1;
-  }, [scopeKey]);
-
-  const handleExternalAction = useCallback(() => {
-    if (!isAuthOwnerScopeGenerationCurrent(ownerGeneration)) return;
-    const requestId = ++requestRef.current;
-    setHasFailure(false);
-    void downloadWorkspaceFileApi(agentId, path, fileName).catch((error) => {
-      // 只限制迟到反馈的归属；已发出的下载/宿主操作不会因此取消或重放。
-      if (scopeRef.current !== scopeKey || requestRef.current !== requestId
-        || !isAuthOwnerScopeGenerationCurrent(ownerGeneration)) return;
-      console.error(`[WorkspaceFileDownloadButton] ${fileActionCopy.label} workspace 文件失败:`, error);
-      setHasFailure(true);
-    });
-  }, [agentId, fileActionCopy.label, fileName, ownerGeneration, path, scopeKey, setHasFailure]);
-  const failure: FeedbackBannerProps | null = hasFailure ? {
-    impact: t("workspace_file.external_action_failed_impact"),
-    nextStep: t("workspace_file.external_action_failed_next_step"),
-    onDismiss: () => setHasFailure(false),
-    title: t("workspace_file.external_action_failed"),
-    tone: "error",
-    urgency: "polite",
-  } : null;
+  const { copy: fileActionCopy, disabled, failure, onAction } = useWorkspaceFileExternalAction({ agentId, path, fileName });
 
   return (
     <>
       <UiIconButton
         aria-label={fileActionCopy.ariaLabel}
-        onClick={handleExternalAction}
+        disabled={disabled}
+        onClick={onAction}
         size="sm"
         tooltip={fileActionCopy.title}
         variant="ghost"
