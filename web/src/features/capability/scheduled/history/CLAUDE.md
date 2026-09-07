@@ -1,8 +1,11 @@
 # 定时任务运行历史
 
 - `use-scheduled-task-run-history-resource.ts` 独占当前 owner+Job 的运行记录、请求身份和加载错误；旧 scope 请求不仅不能写视图，也必须以 superseded 结束，禁止把旧运行数组返回给对账调用方。
-- `use-scheduled-task-run-history-actions.ts` 独占复制、重跑、重试投递、释放占用确认目标和在途状态；状态代次绑定 owner+Job，旧 scope 或旧 Job 的命令结果不得写回当前弹窗。
+- `use-scheduled-task-run-history-actions.ts` 独占复制、重跑、重试投递、释放占用确认目标和在途状态；每次进入 owner+Job 都拥有独立代次，离开再返回相同字符串身份也不能接收旧动作反馈、触发旧刷新或清除新防重项。公开动作必须验证当前 owner scope 和 run.job_id；已发命令不因关闭页面而取消或重放。
+- 同一进入代次按 action+Run 合并在途命令，先注册 Promise 再执行，保证同步抛错也清理防重项。反馈只由最近一次显式操作拥有，旧请求仍独立收口自身在途状态；全局 mutation 未确认锁继续归目录控制器，不由反馈消失或本地 pending 清空解除。
+- `scheduled-task-run-feedback-model.ts` 只接收命令结果、FailureCore effect、删除事实和剪贴板结果，并在渲染时翻译；状态不持有旧语言或未展示的内部错误 message。未知副作用继续提示核对，不提供自动重放。
 - 命令成功与历史刷新是两个结果：刷新失败不得把已经成功的命令反馈改成失败。
+- 已提交但未刷新、未确认或被拦截的反馈使用公共 ResourceState warning tone；明确未生效才使用 error/danger，成功使用 success，不因复用 error 布局丢失 warning 语义。
 - `scheduled-task-run-history-model.ts` 按固定顺序投影运行状态、时长和重跑、重试投递、释放占用动作；`scheduled-task-run-diagnostic-model.ts` 独占诊断行、输出区块与复制文本定义。
 - 状态、时长、动作、诊断控件和确认文案在渲染时消费当前语言；日期和复制诊断显式传入 locale/t，零时间戳有效，缺失或非法日期使用本地化缺省文案。诊断中的 wire 字段名/原始值继续保留，未知状态不能作为用户可见标签或额外授予动作。
 - 动作的 `busy` 只来自实际在途请求，`disabled` 继续独立受未确认、删除与运行资格约束；刷新只读取/对账，读取中原生禁用并标记 aria-busy。

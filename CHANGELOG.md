@@ -27,6 +27,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Scheduled history feedback now follows the current language and preserves
+  warning semantics when an action succeeded but history could not refresh.
+  Reopening the same task no longer accepts old command feedback or clears new
+  pending actions; synchronous command errors also release local deduplication.
+  Removed unused output labels and the history-specific error border recipe.
+
 - Scheduled run history now updates status, duration, dates, action hints and
   confirmation labels with the current language while preserving expanded rows
   and exact confirmation targets. Request busy states remain distinct from

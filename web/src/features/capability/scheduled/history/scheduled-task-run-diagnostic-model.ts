@@ -1,5 +1,5 @@
 // INPUT: 不可变运行记录、当前任务与调用方的当前语言。
-// OUTPUT: 运行输出、诊断行、区分当前配置/历史执行者的复制文本与结构化 Session 证明的文件归属。
+// OUTPUT: 唯一结果/错误输出、诊断行、区分当前配置/历史执行者的复制文本与 Session 证明的文件归属；无空标签占位。
 // POS: Scheduled 历史纯投影；当前任务或当前选择不能替代历史 run 身份。
 
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
@@ -23,7 +23,6 @@ export interface RunDiagnosticRow {
 
 export interface RunOutputSection {
   content: string;
-  label?: string;
   tone: "danger" | "default";
 }
 
@@ -35,7 +34,6 @@ interface RunDiagnosticRowDefinition {
 
 interface RunOutputSectionDefinition {
   content: (run: ScheduledTaskRunItem, t: Translate) => string | null;
-  label?: string;
   tone: RunOutputSection["tone"];
 }
 
@@ -159,7 +157,7 @@ export function getRunOutputSections(run: ScheduledTaskRunItem, t: Translate): R
     const content = definition.content(run, t);
     return content === null
       ? []
-      : [{ content, label: definition.label, tone: definition.tone }];
+      : [{ content, tone: definition.tone }];
   });
 }
 
