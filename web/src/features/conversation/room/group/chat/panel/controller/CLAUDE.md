@@ -11,3 +11,5 @@
 
 接口由消费阶段定义，只传实际读取的数据；不得通过 Hook `ReturnType` 反向依赖完整 Session 控制器，也不得重新引入恒定权限标记。
 Thread 数据只通过 `group/thread/live/use-room-thread-source.ts` 发布，不在 Chat 域保存桥接状态。
+
+Room 的目录 names 同时传给共享 Frame 导航、Feed 和人工介入投影；目录缺失成员的显示降级由消费侧处理，不能把 ID 当作讲者名称。

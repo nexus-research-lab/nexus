@@ -69,6 +69,20 @@ const EMPTY_TIMELINE: ConversationTimeline = {
 };
 
 describe("ConversationSessionNavigator", () => {
+  it("projects current names and keeps missing or blank names free of internal IDs", () => {
+    const scrollRef = createRef<HTMLDivElement>();
+    const view = (agentNameMap?: Record<string, string>) => <I18nProvider><ConversationSessionNavigator scopeKey="agent:session" scrollRef={scrollRef} timeline={EMPTY_TIMELINE} agentNameMap={agentNameMap} /></I18nProvider>;
+    const { container, rerender } = render(view());
+    const preview = () => container.querySelector("[data-session-navigator-preview='true']")!.textContent;
+    expect(preview()).not.toContain("agent-");
+    rerender(view({ "agent-2": "  Nova  " }));
+    expect(preview()).toContain("Nova");
+    expect(preview()).not.toContain("agent-");
+    rerender(view({ "agent-2": "   " }));
+    expect(preview()).not.toContain("Nova");
+    expect(preview()).not.toContain("agent-");
+  });
+
   beforeEach(() => {
     navigation.clearPreview.mockClear();
     navigation.jumpToRound.mockClear();

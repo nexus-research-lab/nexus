@@ -1,3 +1,7 @@
+// INPUT: 已投影的轮次、名称目录与本地化能力。
+// OUTPUT: 刻度几何/颜色和不暴露内部身份的讲者摘要。
+// POS: 会话导航的纯展示模型；ID 仅用于稳定配色，缺失名称使用本地化通称。
+
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 
 import type { SessionNavigationItem } from "./session-navigator-model";
@@ -85,7 +89,7 @@ export function formatSpeakerSummary(
     : [];
   speakers.push(
     ...item.agentIds.map(
-      (agentId) => agentNameMap?.[agentId] || `Agent ${agentId.slice(0, 6)}`,
+      (agentId) => agentNameMap?.[agentId]?.trim() || t("room.session_navigator_agent"),
     ),
   );
   return speakers.join(" · ") || t("room.session_navigator_unloaded");
