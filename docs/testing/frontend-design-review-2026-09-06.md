@@ -2352,3 +2352,28 @@ rehype-katex 的局部降级，trust 显式关闭。块级闭符后混入同一�
 228 个文件的 854 项测试及 build 全部通过，日志 /tmp/nexus-math-navigator-check.log。
 公式定向 19 项全部通过 /tmp/nexus-math-262-final-target.log。构建仅保留既有大型
 分块提示；未启动产品服务、浏览器或原生宿主，未向 issue 发评论或关闭 issue。
+
+
+## A67 — 会话预览卡的名称来源与 ID 兜底（代码/行为）
+
+用户截图中的 `用户 · Agent 05d838` 来自 Session Navigator 的讲者摘要。
+定位发现 DM/Room 两个投影都通过共享 Frame 创建 navigator，但 Frame 未传入
+agentNameMap；缺少名称时视觉模型又把 ID 前六位拼到 Agent 后。补齐共享 Frame
+的必传名称目录参数，DM 复用当前身份名称表，Room 直接使用现有目录 names，
+并将缺失/空白名称改为中英文通称。名称变更继续随当前 props 投影，不持久化
+旧目录或私自读取全局 Store；原 round 身份、点击目标、稳定配色均保留。
+
+新增真实预览 DOM 回归覆盖无名称、后到名称和空白名称；新增用例在基线失败，
+见 /tmp/nexus-navigator-id-repro.log，修复后两项视图用例均通过。共享 Frame 的
+必传类型同时约束两条生产装配入口，避免仅替换兜底却继续丢失真实名称。
+
+与 A66 合并执行代码门禁：lint、typecheck、480 项合同、228 文件的 854 项测试
+及 build 均通过，见 /tmp/nexus-math-navigator-check.log；此后仅补充注释和文档，
+不重复跑整套测试。新增 20 项公式与 1 项导航用例合计使 833 增至 854。
+清单状态为 281 pending、120 in_progress、20 retained、58 improved、6 removed，
+公共 UI 118 项；导航视图进入增量审查并追加输入链记录，整体 Goal 继续，视觉验收继续暂停。
+
+后续定向代码审查线索（尚未修复，不能将本次结论扩大为全前端 ID 清理）：Thread
+面板、私域姓名/头像、Execution 子智能体标签、Skill 部署失败与 Channels/Automation
+资源候选仍存在以 agent_id 作为显示兜底的分支。按各自领域名称权威和错误语义
+继续审查，不通过全局字符串替换破坏真实资源身份。

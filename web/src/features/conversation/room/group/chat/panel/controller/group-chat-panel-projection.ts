@@ -1,7 +1,7 @@
 /**
  * INPUT: Group Chat 会话、Room 目录、Goal、Composer 与面板环境。
  * OUTPUT: Feed、交接 mention、Goal、统一回到底部动作和输入区的纯视图模型。
- * POS: Group Chat 控制器状态到纯视图 props 的唯一投影入口。
+ * POS: Group Chat 控制器状态到纯视图 props 的唯一投影入口。 导航复用同一成员名称目录。
  */
 import type { RefObject } from "react";
 
@@ -145,7 +145,7 @@ export function buildGroupChatPanelViewModel({
   roomMembers,
   session,
 }: BuildGroupChatPanelViewModelOptions): GroupChatPanelViewModel {
-  const frame = buildConversationPanelFrameModel(session, environment);
+  const frame = buildConversationPanelFrameModel(session, environment, directory.names);
   return {
     ...frame,
     collaborationActivity: projectRoomCollaborationActivity(

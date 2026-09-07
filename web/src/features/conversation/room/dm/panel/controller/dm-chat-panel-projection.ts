@@ -1,7 +1,7 @@
 /**
  * INPUT: DM 会话、当前 Agent、Goal、Composer 与面板环境。
  * OUTPUT: Feed、Goal、带来源的进程和输入区纯视图模型。
- * POS: DM Chat 控制器状态到纯视图 props 的唯一投影入口。
+ * POS: DM Chat 控制器状态到纯视图 props 的唯一投影入口；导航与人工介入共用当前身份名称表。
  */
 import type { RefObject } from "react";
 
@@ -104,8 +104,11 @@ export function buildDmChatPanelViewModel({
   todos,
   workspaceAgentId,
 }: BuildDmChatPanelViewModelOptions): DmChatPanelViewModel {
+  const agentNameMap = workspaceAgentId && currentAgentName
+    ? { [workspaceAgentId]: currentAgentName }
+    : {};
   return {
-    ...buildConversationPanelFrameModel(session, environment),
+    ...buildConversationPanelFrameModel(session, environment, agentNameMap),
     embedded: false,
     embeddedIntroduction: null,
     composer,
@@ -113,9 +116,7 @@ export function buildDmChatPanelViewModel({
       agentAvatarMap: workspaceAgentId
         ? { [workspaceAgentId]: currentAgentAvatar }
         : undefined,
-      agentNameMap: workspaceAgentId && currentAgentName
-        ? { [workspaceAgentId]: currentAgentName }
-        : undefined,
+      agentNameMap,
       fallbackAgentId: workspaceAgentId,
       onResponse: session.conversation.send_permission_response,
       permissions: coalescePendingPermissions(

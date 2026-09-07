@@ -9,3 +9,5 @@
 
 Frame、导航、视口和滚动控件统一复用 `shared/conversation-panel-model.ts`。
 接口由消费阶段定义，只传实际读取的数据；不得通过 Hook `ReturnType` 反向依赖完整 Session 控制器。
+
+DM 的当前 Agent 身份名称表同时传给共享 Frame 导航和人工介入投影；不得只给正文传名称而让预览卡回退到内部 ID。

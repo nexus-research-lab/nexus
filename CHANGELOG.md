@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Restored Agent names in DM and Room session-navigation previews by passing the
+  current name directory through the shared panel model. Missing or blank names
+  now use a localized generic label instead of exposing internal ID prefixes.
+
 - Added shared model-output formula compatibility for LaTeX bracket delimiters,
   protected formula source from Markdown preprocessing, and kept incomplete or
   invalid formulas readable. Display equations retain blank lines while streaming
