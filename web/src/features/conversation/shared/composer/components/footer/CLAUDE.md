@@ -24,3 +24,8 @@ Footer 的普通动作、模型/权限触发器和返回动作必须使用共享
 上下文压缩沿用运行状态指示器；正文流与停止按钮已经表达回复进行中，Composer 不再重复显示“回复中”文案或动效，只保留可执行的停止快捷键提示。停止提示只在 DM Composer 明确提供停止能力时显示，Room 的停止按钮由 Agent slot 头部渲染。
 
 Footer 的 Connector 初始读取使用共享 `md` muted Spinner，Room Agent 模型更新使用 `sm` muted Spinner；菜单与级联控件不得自行维护尺寸、颜色、旋转或 reduced-motion class。
+
+- Footer 的品牌、Goal/运行状态、计数和上下文详情消费 Typography；辅助文字层级以根 design.md 为准，空计数不保留 flex 间距。状态投影仍由 footer-model 唯一排序，视图不复制 LoadingOrb 或优先级。
+- Footer Actions 的 Goal/Connector 使用 Action Menu 受控 checked；每行只有一次激活，不嵌套 Switch 或用 stopPropagation 保留第二条切换路径。目录选择服从控制器已有 blocksMutation，附件和其他无关命令保持独立。
+- Context Usage 的 hover/focus/click 都展开同一详情；点击不反转 focus 刚打开的状态，鼠标离开不关闭仍有键盘焦点的指标。快照可用性变化清空打开态，普通占用更新保留详情；内容和关闭时序不改变终态 snapshot 权威。
+- Session settings reliability 只渲染一个失败面，写入失败优先，其次 Session/Provider/Connector 读取。读取重试按资源路由；写入未知只显式重新核对 Session，读忙碌防重，mutation lock 不禁用核对动作。没有本控制器恢复命令的资源不显示空操作。

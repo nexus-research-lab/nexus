@@ -2204,3 +2204,43 @@ Header/Body/Reliability 组合及超限 Range 路由职责清晰，予以保留�
 800 项测试及生产 build，日志 /tmp/nexus-attachments-a62-check.log。类型门禁
 先纠正了 Badge tone 枚举用法；最终构建仍仅有既有大型分块提示。未启动浏览器、
 原生宿主或产品服务。
+
+
+## A63 — Composer 底栏状态、动作和恢复入口（代码/行为）
+
+完成 Footer、Actions、Status、Metadata、Context Usage、Session Settings Reliability
+六个视图的代码与行为审查，提交按钮保留。普通三列/居中品牌、Goal 下一行状态、
+发送/停止 32px 几何与停止优先级符合现有任务分工，不为统一而改写布局或命令。
+底栏状态/计数/品牌与上下文详情消费共享 Typography；长 Agent 名称与状态可换行，
+没有计数时不保留空 flex 容器。移除三个无独立职责的状态包装与双份失败渲染/重试分支。
+
+发现 Goal 菜单行内嵌套原生 Switch 按钮：引入公共 Action Menu checked 契约，由
+MenuActionRow 投影 menuitemcheckbox/aria-checked，共享 keyboard 遍历普通动作和
+勾选项。Goal/Connector 移除私有开关、传播拦截和勾选图标，整行只触发一次命令。
+契约参考 [WAI-ARIA Menu Pattern](https://www.w3.org/WAI/ARIA/apg/patterns/menubar/)
+的勾选项语义及激活后关闭行为；项目既有禁用项跳过和 Tab 焦点合同继续保留。
+MenuActionRow 本轮代码审查收口；Action Menu 仍保持 in_progress，长说明溢出和
+其余消费者不能因本次新增 checked 就被当作已经全部审查。
+
+Context Usage 原先 focus/hover 先打开、click 随即反转关闭；修改为幂等打开，
+鼠标离开也不关闭仍有键盘焦点的详情，可用快照消失后不恢复旧打开态。保留唯一
+详情、共享宽高上限、固定组标题与列表内部滚动，不恢复猜测行高或第二份 Tooltip。
+新增菜单/上下文用例在修复前共出现 3 项失败，日志 /tmp/nexus-footer-a63-repro.log；
+快照消失/恢复用例也补齐了已有关闭行为的回归保护。
+
+目录新增入口补用已有 blocksMutation，保持与目录 Chip 相同的权威锁；不改变保存
+控制器。设置错误继续 mutation 优先，然后 Session/Provider/Connector 读取，只显示
+一个 ResourceState。未知写入的显式核对按 settingsLoading 防重，busy 写锁本身不能
+关闭恢复入口；不把读取重试当成 mutation 成功，也不展示无实际命令的重试动作。
+新增/扩展真实菜单与反馈面测试，涵盖单次键盘/点击切换、精确 Connector、Goal
+禁用、目录锁、恢复路由/忙碌/失败优先级及停止优先；共享类型完整的控制器夹具
+消除测试重复装配。追加公共 owner 门禁防止 Footer 再引入私有字号或嵌套开关。
+
+清单仍为 485 项：290 pending、118 in_progress、20 retained、51 improved、
+6 removed。公共 UI 仍为 118 项；六个 Footer 视图改善、提交入口保留，公共菜单
+增量审查记录及生产源码摘要同步。整体 Goal 继续，视觉/原生宿主按用户要求暂停。
+
+验证：npm run check 全部通过，含 lint、typecheck、479 项合同、223 个文件的
+813 项测试及生产 build，日志 /tmp/nexus-footer-a63-check.log；本轮新增 13 项
+行为测试和 1 项所有权合同。首次类型检查纠正了 Typography 参数形状，最终无新增
+lint 警告；构建仍仅有既有大型分块提示。未启动浏览器、原生宿主或产品服务。

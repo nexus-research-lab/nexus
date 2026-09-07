@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Unified Composer footer metadata and context details with shared typography,
+  and consolidated Goal and Connector toggles into accessible checked menu rows.
+  Fixed first-click context dismissal, retained keyboard-focused details, and
+  kept directory and Session recovery actions aligned with mutation locks.
+
 - Composer files and local directories share removable chips and named actions.
   Image/text previews share one accessible dialog header and scrollable recovery;
   file and Session changes clear obsolete preview state, and blocked directory

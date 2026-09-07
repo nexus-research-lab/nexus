@@ -16,7 +16,7 @@
 - `action-menu.tsx` 保持外部受控，不复用 Select 家族的内部开关状态；业务可显式选择与锚点起点或终点对齐。级联浮层复用 `UiActionMenuContent` 的条目和底部动作，不复制 Action Menu 行结构。
 - Action Menu 首次焦点必须等定位完成、浮层实际可见后进入首个可用条目；后续滚动/窗口变化只更新几何，不把用户当前条目焦点重置到第一项。
 - `menu-keyboard.ts` 是 Action、Room 模型和 Workspace 菜单的首项焦点与方向键/Home/End 遍历所有者；只遍历当前 menu 的可用项，不混入子菜单。它忽略 IME、已处理事件和外部 Portal 冒泡，输入框保留自己的编辑键。Tab 由调用方关闭并归还锚点，再按共享 DOM 焦点目录续接到同一页面/模态的相邻控件；全部禁用时菜单根仍可聚焦退出。级联进入/返回与实际命令仍由业务拥有。
-- `menu-action-row.tsx` 是 Action Menu 与业务上下文菜单的唯一行级 DOM 所有者；它使用原生 button、`role=menuitem`、`aria-disabled`、有限密度和共享状态。业务只组合图标、标签、尾部内容与命令，不得重新导入菜单样式拼装按钮。
+- `menu-action-row.tsx` 是 Action Menu 与业务上下文菜单的唯一行级 DOM 所有者；它使用原生 button、普通 `role=menuitem` 或受控 `checked` 对应的 `menuitemcheckbox/aria-checked`、`aria-disabled`、有限密度和共享状态。业务只组合图标、标签、尾部内容与命令，不得重新导入菜单样式拼装按钮。
 - Action Menu 的可选数组默认值必须引用模块级稳定空值；禁止在参数默认值中写 `[]`，否则锚定层的定位状态更新会让回调引用反复失效并形成 render loop。
 - Action Menu 的重置等次级动作通过 `footerItems` 进入带分隔线的底部区域，不能混入主要选项伪装成普通值。
 - Action Menu 默认普通行保持 36px，带一行短说明时使用 44px；纯单行选择可显式使用 `compact` 密度收至 32px，但带说明的权限菜单必须保留默认密度，不允许业务层用大块卡片高度破坏菜单节奏。
@@ -30,3 +30,5 @@
 - `select-menu-trigger.test.tsx` 单独验证共用触发器的原生按钮/表单、ref、受控 ARIA 和禁用/键盘委派；Room 多选测试继续证明 Chip 移除与菜单开关互不触发。
 
 菜单组件直接导入，不通过另一个菜单文件隐式转出。锚点定位、材质与浏览器生命周期统一复用 `shared/ui/overlay/`；业务需要扩大弹层时传 `menuMinWidth`，不得开放或使用菜单表面样式类覆盖定位、圆角、内边距与条目节奏。Action Menu 的高度估算必须包含带说明行、共享条目间距与完整 surface 内边距，正常内容不得因估算偏小产生内部滚动，只有真实可用视口不足时才允许滚动。单行触发器保留完整活动标签的原生 `title` 兜底，并独立声明正常行高，避免继承紧凑按钮的 `leading-none` 后裁掉英文下行字形。
+
+- `checked` 由调用方持有；Action Menu 提供非交互勾选标记，MenuActionRow 拥有 ARIA 状态，menu-keyboard 同时遍历普通动作与勾选项。条目名称、图标、说明与 trailing 只能包含非交互内容，不能在原生行按钮内再套 Switch/按钮。选择继续走唯一 onSelect 与关闭/焦点归还路径。

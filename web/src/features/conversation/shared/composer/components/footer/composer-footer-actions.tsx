@@ -1,9 +1,8 @@
 // INPUT: Composer 附件/目录/Goal/Loop/WorkGraph 动作与 Connector 只读目录。
-// OUTPUT: 主动作菜单及已加载的 Session Connector 开关项。
+// OUTPUT: 主动作菜单与受控 Goal/Connector 勾选项；每行只有一个原生激活入口。
 // POS: Composer Footer 动作入口；Connector 读取失败由外层可靠性面统一展示。
-import type { ReactNode, RefObject } from "react";
+import type { RefObject } from "react";
 import {
-  Check,
   FolderPlus,
   Loader2,
   Paperclip,
@@ -21,7 +20,6 @@ import {
   UiActionMenu,
   type UiActionMenuItem,
 } from "@/shared/ui/menu/action-menu";
-import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import type { ComposerSessionSettingsController } from "../../controller/use-composer-session-settings";
 import type { ComposerLocalDirectoriesController } from "../../controller/use-composer-local-directories";
 
@@ -79,27 +77,13 @@ export function ComposerFooterActions({
     canUseLocalDirectories: localDirectoriesController.available,
     canUseLoop,
     canUseWorkGraphDistillations,
-    goalSwitch: (
-      <span
-        onClick={(event) => event.stopPropagation()}
-        onKeyDown={(event) => event.stopPropagation()}
-        role="presentation"
-      >
-        <GlassSwitch
-          aria-label={t("composer.start_goal")}
-          checked={isGoalMode}
-          disabled={!canCreateGoal || isGoalCreating}
-          onChange={onGoalToggle}
-          size="xs"
-        />
-      </span>
-    ),
     isGoalCreating,
     isGoalMode,
     isLocalDirectoryBusy:
       sessionSettingsDisabled
       || localDirectoriesController.loading
-      || localDirectoriesController.saving,
+      || localDirectoriesController.saving
+      || Boolean(localDirectoriesController.failure?.blocksMutation),
     isPreparingAttachments,
     labels: {
       attachment: t("composer.add_attachment"),
@@ -200,9 +184,7 @@ function buildConnectorItems({
         />
       ),
       label: connector.title,
-      trailing: active
-        ? <Check className="h-3.5 w-3.5 text-(--text-strong)" />
-        : undefined,
+      checked: active,
       value: `connector:${connector.connector_id}`,
     };
   });
@@ -213,7 +195,6 @@ function buildActionItems({
   canUseLocalDirectories,
   canUseLoop,
   canUseWorkGraphDistillations,
-  goalSwitch,
   isGoalCreating,
   isGoalMode,
   isLocalDirectoryBusy,
@@ -224,7 +205,6 @@ function buildActionItems({
   canUseLocalDirectories: boolean;
   canUseLoop: boolean;
   canUseWorkGraphDistillations: boolean;
-  goalSwitch: ReactNode;
   isGoalCreating: boolean;
   isGoalMode: boolean;
   isLocalDirectoryBusy: boolean;
@@ -281,7 +261,7 @@ function buildActionItems({
         ),
         label: labels.goal,
         tone: isGoalMode ? "primary" : "default",
-        trailing: goalSwitch,
+        checked: isGoalMode,
         value: "goal",
       },
       visible: true,

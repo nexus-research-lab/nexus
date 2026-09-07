@@ -1,6 +1,6 @@
 /**
  * INPUT: runtime 每轮结束后上报的上下文占用快照。
- * OUTPUT: Composer 模型控件左侧的紧凑环形指标与随内容展开、受视口约束的唯一详情。
+ * OUTPUT: 紧凑环形指标与唯一详情；点击幂等展开、键盘焦点保留，快照消失即清空打开态。
  * POS: DM 与 Room 共用的只读上下文用量视图。
  */
 
@@ -8,12 +8,12 @@ import {
   useCallback,
   useEffect,
   useRef,
-  useState,
 } from "react";
 import { createPortal } from "react-dom";
 
 import { formatTokens } from "@/lib/format/token-count";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { useAnchoredOverlayLayer } from "@/shared/ui/overlay/anchored-overlay-layer";
@@ -23,7 +23,7 @@ import {
   ANCHORED_OVERLAY_MOTION_CLASS_NAME,
   OVERLAY_SURFACE_CLASS_NAME,
 } from "@/shared/ui/overlay/overlay-styles";
-import { getUiToneClassName } from "@/shared/ui/typography/typography-styles";
+import { getUiToneClassName, getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { ContextUsageData } from "@/types/generated/protocol";
 
 import type { ComposerContextUsageItem } from "../../composer-model";
@@ -47,8 +47,8 @@ export function ComposerContextUsage({
   const { t } = useI18n();
   const anchorRef = useRef<HTMLButtonElement>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [isOpen, setIsOpen] = useState(false);
   const projection = projectComposerContextUsage({ items, usage });
+  const [isOpen, setIsOpen] = useResettableState(false, Boolean(projection));
   const grouped = projection?.grouped ?? false;
   const estimatePosition = useCallback(
     (anchor: HTMLButtonElement) => resolveUiAnchoredOverlayPosition({
@@ -69,19 +69,22 @@ export function ComposerContextUsage({
   const close = useCallback(() => {
     cancelScheduledClose();
     setIsOpen(false);
-  }, [cancelScheduledClose]);
+  }, [cancelScheduledClose, setIsOpen]);
   const open = useCallback(() => {
     cancelScheduledClose();
     setIsOpen(true);
-  }, [cancelScheduledClose]);
+  }, [cancelScheduledClose, setIsOpen]);
   const scheduleClose = useCallback(() => {
     cancelScheduledClose();
     closeTimerRef.current = setTimeout(
-      () => setIsOpen(false),
+      () => {
+        closeTimerRef.current = null;
+        if (document.activeElement !== anchorRef.current) setIsOpen(false);
+      },
       CONTEXT_USAGE_CLOSE_DELAY_MS,
     );
-  }, [cancelScheduledClose]);
-  useEffect(() => cancelScheduledClose, [cancelScheduledClose]);
+  }, [cancelScheduledClose, setIsOpen]);
+  useEffect(() => cancelScheduledClose, [cancelScheduledClose, setIsOpen]);
   const {
     overlayId,
     overlayPosition,
@@ -130,7 +133,7 @@ export function ComposerContextUsage({
         data-context-usage={summary.percentage}
         data-context-usage-slot="ready"
         onBlur={scheduleClose}
-        onClick={() => isOpen ? close() : open()}
+        onClick={open}
         onFocus={open}
         onMouseEnter={open}
         onMouseLeave={scheduleClose}
@@ -215,15 +218,15 @@ function SingleContextUsage({
   const { t } = useI18n();
   return (
     <div className="px-3 py-2 text-center">
-      <span className="block text-2xs font-medium text-(--text-soft)">
+      <span className={`block ${getUiTypographyClassName({ role: "caption", tone: "muted" })}`}>
         {title}
       </span>
-      <span className="mt-0.5 block text-sm font-medium text-(--text-strong)">
+      <span className={`mt-0.5 block ${getUiTypographyClassName({ role: "control", tone: "strong", weight: "medium" })}`}>
         {t("composer.context_used_percent", {
           percentage: projection.percentage,
         })}
       </span>
-      <span className="mt-0.5 block whitespace-nowrap text-xs text-(--text-default)">
+      <span className={`mt-0.5 block tabular-nums ${getUiTypographyClassName({ role: "caption", tone: "default" })}`}>
         {t("composer.context_token_usage", {
           max: maxTokens,
           used: usedTokens,
@@ -242,7 +245,7 @@ function GroupedContextUsage({
 }) {
   return (
     <>
-      <div className="shrink-0 border-b border-(--divider-subtle-color) px-2.5 py-1.5 text-2xs font-medium text-(--text-strong)">
+      <div className={`shrink-0 border-b border-(--divider-subtle-color) px-2.5 py-1.5 ${getUiTypographyClassName({ role: "caption", tone: "strong", weight: "medium" })}`}>
         {title}
       </div>
       <ul aria-label={title} className="soft-scrollbar min-h-0 overflow-y-auto overscroll-contain p-1">
@@ -267,22 +270,22 @@ function ContextUsageAgentRow({
         name={item.name}
         size="xs"
       />
-      <span className="min-w-0 flex-1 truncate text-xs font-medium text-(--text-strong)">
+      <span className={`min-w-0 flex-1 [overflow-wrap:anywhere] ${getUiTypographyClassName({ role: "caption", tone: "strong", weight: "medium" })}`}>
         {item.name}
       </span>
       {item.usage ? (
-        <span className="shrink-0 text-right">
-          <span className="block text-2xs font-medium text-(--text-default)">
+        <span className="shrink-0 text-right tabular-nums">
+          <span className={`block ${getUiTypographyClassName({ role: "caption", tone: "default", weight: "medium" })}`}>
             {t("composer.context_used_percent", {
               percentage: item.usage.percentage,
             })}
           </span>
-          <span className="block text-2xs leading-3 text-(--text-soft)">
+          <span className={`block ${getUiTypographyClassName({ role: "caption", tone: "muted" })}`}>
             {formatTokens(item.usage.totalTokens)} / {formatTokens(item.usage.maxTokens)}
           </span>
         </span>
       ) : (
-        <span className="shrink-0 text-2xs text-(--text-soft)">
+        <span className={`shrink-0 ${getUiTypographyClassName({ role: "caption", tone: "muted" })}`}>
           {t("composer.context_no_snapshot")}
         </span>
       )}

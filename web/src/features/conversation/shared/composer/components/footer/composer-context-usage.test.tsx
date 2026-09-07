@@ -3,6 +3,7 @@
 // POS: 上下文指标 DOM 回归；实际碰撞与截图由浏览器矩阵验证。
 
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
@@ -18,6 +19,42 @@ afterEach(() => {
 });
 
 describe("ComposerContextUsage", () => {
+  it("opens on the first click even when hover and focus precede activation", async () => {
+    const user = userEvent.setup();
+    render(<I18N_CONTEXT.Provider value={LOCALIZATION}><ComposerContextUsage usage={USAGE} /></I18N_CONTEXT.Provider>);
+    const trigger = screen.getByRole("button", { name: "composer.context_usage_label" });
+    await user.click(trigger);
+    expect(screen.getAllByRole("tooltip")).toHaveLength(1);
+    await user.click(trigger);
+    expect(screen.getAllByRole("tooltip")).toHaveLength(1);
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("keeps keyboard-focused detail open when the pointer leaves, until focus leaves", () => {
+    vi.useFakeTimers();
+    render(<I18N_CONTEXT.Provider value={LOCALIZATION}><ComposerContextUsage usage={USAGE} /></I18N_CONTEXT.Provider>);
+    const trigger = screen.getByRole("button", { name: "composer.context_usage_label" });
+    act(() => trigger.focus());
+    fireEvent.mouseLeave(trigger);
+    act(() => vi.advanceTimersByTime(150));
+    expect(screen.getAllByRole("tooltip")).toHaveLength(1);
+    act(() => trigger.blur());
+    act(() => vi.advanceTimersByTime(150));
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("does not reopen an old detail when a usage snapshot becomes available again", () => {
+    const view = (usage: typeof USAGE | null) => <I18N_CONTEXT.Provider value={LOCALIZATION}><ComposerContextUsage usage={usage} /></I18N_CONTEXT.Provider>;
+    const { rerender } = render(view(USAGE));
+    fireEvent.mouseEnter(screen.getByRole("button", { name: "composer.context_usage_label" }));
+    expect(screen.getByRole("tooltip")).toBeTruthy();
+    rerender(view(null));
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    rerender(view(USAGE));
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
   it("keeps one hover detail after the generic tooltip delay and preserves keyboard focus", () => {
     vi.useFakeTimers();
     render(<I18N_CONTEXT.Provider value={LOCALIZATION}><ComposerContextUsage usage={USAGE} /></I18N_CONTEXT.Provider>);

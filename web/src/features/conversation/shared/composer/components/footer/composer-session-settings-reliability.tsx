@@ -1,5 +1,5 @@
 // INPUT: Composer Provider/Connector/Session-setting 读取与 mutation 失败投影。
-// OUTPUT: 就近、持久、polite 的 Problem/Impact/Recovery 状态和显式动作。
+// OUTPUT: 单一就近失败面；写入未知优先，恢复动作按资源投影并在读取中防重。
 // POS: Composer Session controls 共用可见错误面；不把读取当作 mutation 对账。
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
@@ -13,82 +13,48 @@ export function ComposerSessionSettingsReliability({
   controller: ComposerSessionSettingsController;
 }) {
   const { t } = useI18n();
-  const readFailures = [
-    controller.settingsReadFailure,
-    controller.providerFailure,
-    controller.connectorsFailure,
-  ].filter((failure): failure is ComposerReadFailure => Boolean(failure));
-  if (readFailures.length === 0 && !controller.mutationFailure) {
-    return null;
-  }
-  const activeReadFailure = controller.mutationFailure ? null : readFailures[0] ?? null;
+  const mutationFailure = controller.mutationFailure;
+  const readFailure = controller.settingsReadFailure ?? controller.providerFailure ?? controller.connectorsFailure;
+  const failure = mutationFailure ?? readFailure;
+  if (!failure) return null;
+
+  const retry = mutationFailure
+    ? mutationFailure.blocksRepeat ? {
+      busy: controller.settingsLoading,
+      onClick: () => void controller.retrySessionSettings(),
+    } : undefined
+    : readFailure ? getReadRecovery(controller, readFailure) : undefined;
 
   return (
     <div className="px-2" data-composer-settings-reliability>
-      {activeReadFailure ? (
-        <UiResourceState
-          impact={activeReadFailure.impact}
-          primaryAction={{
-            busy: isReadRetrying(controller, activeReadFailure),
-            label: t("state.retry"),
-            onClick: () => retryReadFailure(controller, activeReadFailure),
-          }}
-          size="sm"
-          state="error"
-          title={activeReadFailure.title}
-          variant="card"
-        />
-      ) : null}
-      {controller.mutationFailure ? (
-        <UiResourceState
-          impact={controller.mutationFailure.impact}
-          primaryAction={controller.mutationFailure.blocksRepeat ? {
-            label: t("state.reload_check"),
-            onClick: () => void controller.retrySessionSettings(),
-          } : undefined}
-          size="sm"
-          state="error"
-          title={controller.mutationFailure.title}
-          variant="card"
-        />
-      ) : null}
+      <UiResourceState
+        impact={failure.impact}
+        primaryAction={retry ? {
+          ...retry,
+          label: t(mutationFailure ? "state.reload_check" : "state.retry"),
+        } : undefined}
+        size="sm"
+        state="error"
+        title={failure.title}
+        variant="card"
+      />
     </div>
   );
 }
 
-function isReadRetrying(
+function getReadRecovery(
   controller: ComposerSessionSettingsController,
   failure: ComposerReadFailure,
-): boolean {
+): { busy: boolean; onClick: () => void } | undefined {
   switch (failure.resource) {
     case "connectors":
-      return controller.connectorsLoading;
+      return { busy: controller.connectorsLoading, onClick: controller.retryConnectors };
     case "providers":
-      return controller.providerOptionsLoading;
+      return { busy: controller.providerOptionsLoading, onClick: controller.retryProviderOptions };
     case "session_settings":
-      return controller.settingsLoading;
+      return { busy: controller.settingsLoading, onClick: () => void controller.retrySessionSettings() };
     case "models":
     case "skills":
-      return false;
-  }
-}
-
-function retryReadFailure(
-  controller: ComposerSessionSettingsController,
-  failure: ComposerReadFailure,
-): void {
-  switch (failure.resource) {
-    case "connectors":
-      controller.retryConnectors();
-      return;
-    case "providers":
-      controller.retryProviderOptions();
-      return;
-    case "session_settings":
-      void controller.retrySessionSettings();
-      return;
-    case "models":
-    case "skills":
-      return;
+      return undefined;
   }
 }
