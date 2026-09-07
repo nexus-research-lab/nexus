@@ -1,3 +1,7 @@
+// INPUT: DM 身份、会话目录、当前标签与导航命令。
+// OUTPUT: 使用标准主身份头像与共享会话导航的 DM Header。
+// POS: DM 顶栏装配；标签持久化与创建/关闭事务归 navigation owner。
+
 "use client";
 
 import { memo } from "react";
@@ -55,12 +59,10 @@ export const DmConversationHeader = memo(function DmConversationHeader({
       leading={(
         <UiAgentAvatar
           avatar={currentAgentAvatar}
-          className="h-full w-full border-0 shadow-none"
           name={headerTitle}
-          size="sm"
+          size="md"
         />
       )}
-      leadingClassName="h-10 w-10"
       leadingVariant="identity"
       onChangeTab={onChangeTab}
       tabs={roomTabs}

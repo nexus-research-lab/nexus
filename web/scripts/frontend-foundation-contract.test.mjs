@@ -31,6 +31,9 @@ const PROHIBITED_PRODUCT_STYLE_PATTERNS = [
 ];
 
 const REQUIRED_SHARED_UI_BEHAVIOR_SUITES = [
+  "src/features/conversation/room/group/header/group-conversation-header.test.tsx",
+  "src/features/conversation/room/group/header/group-member-avatar-stack.test.tsx",
+  "src/pages/room/orchestration/room-session-navigation.test.tsx",
   "src/features/conversation/room/group/chat/panel/view/room-goal-lead-control.test.tsx",
   "src/features/conversation/room/group/chat/room-goal-panel.test.tsx",
   "src/features/conversation/shared/goal/goal-draft-form.test.tsx",
@@ -478,7 +481,9 @@ test("Workspace Surface primitives own their semantic typography and identity sh
   }
   assert.match(header, /role: "pageTitle"/);
   assert.match(header, /role: "metadata"/);
-  assert.match(header, /radius-control-md/);
+  assert.match(header, /workspace-surface-header-identity-avatar h-10 w-10/);
+  assert.doesNotMatch(header, /surface-avatar-border|surface-avatar-background/);
+  assert.doesNotMatch(headerStyles, /\.workspace-surface-header-identity-avatar\s*\{/);
   assert.match(header, /<UiButton/);
   assert.doesNotMatch(header, /rounded-\[10px\]/);
   assert.match(
@@ -1578,6 +1583,8 @@ test("Room header identity and conversation triggers share Button ownership", as
     assert.match(source, /<UiButton/);
   }
   assert.match(sources[0], /<UiAgentAvatar/);
+  assert.match(sources[1], /<UiBadge/);
+  assert.doesNotMatch(sources[1], /color-mix|text-\[8px\]|rounded-full|shadow-/);
   assert.match(sources[0], /buildAgentSelectionOptions/);
   assert.match(sources[0], /includeUnavailableAgentSelection/);
   assert.doesNotMatch(sources[0], /<img\b|getIconAvatarSrc|getInitials|rounded-\[/);

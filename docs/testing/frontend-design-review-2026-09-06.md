@@ -3183,3 +3183,53 @@ lint、typecheck、481 项合同、264 文件的 1175 项组件/模型测试及 
 见 /tmp/nexus-a87-check.log。仅保留既有 workgraph-metadata-editor-dialog effect-ref
 lint 警告与大分块构建提示。快照 /tmp/nexus-a87-review-645m4zyd，文件清单
 /tmp/nexus-a87-review.json；提交前核对工作树、暂存区与快照字节及全部审查哈希。
+
+
+## A88 — 会话 Header 身份与群聊成员入口
+
+DM、Group 与联络 Header 原先把较小头像拉满外层 40px 基座，再覆盖自身圆角、
+边框和阴影；共享 Header 另持有一套多层阴影。本批三个生产 identity 消费者
+直接选择公共 md Avatar，Header 只提供 40px 对齐空间，删除局部尺寸/外形覆盖
+与整段重复阴影 CSS。Gallery 已直接消费公共 SeededAvatar，无需新增变体或
+修改场景。联络窄屏的返回按钮保持原位置和命令；设置/目录的 section 图标不变。
+共享 Header 只完成身份切片，不将完整导航/响应式审查标成完成。
+
+群聊成员入口保留共享 Header 的 36px 高度、四枚 22px 头像与 6px 轻叠，并沿用
+窄窗收为图标的现有 container query。移除成员私有 ring，额外人数使用公共
+sm/pill Badge，数字可增长而非挤在固定 22px、8px 字号的圆内。成员头像与窄窗
+图标是装饰，不形成额外无障碍身份或逐个原生 title；唯一按钮名称和提示含真实
+人数，中英目录各有对应文本，缺名使用公共通称，不回显 ID。空 Room 仍可进入
+成员管理，只有没有有效 Room 或目录正在加载时禁用入口，并提供 aria-busy。
+
+外层 RoomSurfaceHeader 原有 Room key 已能挡住正常切房间后的迟到弹窗，本批
+补齐 Header 自身的 lifecycle：目录准备单飞，Room/owner 或卸载使旧请求失效，
+A→B→A 也不复活旧打开态；旧表单完成的关闭回调不得关闭新弹窗。标题/目录
+更新不清空当前弹窗。辅助目录读取失败后仍沿用 AgentStore 既有行为，打开当前
+成员与已保留目录，不把读取失败改成成员写事务或自动重试。新增私有 Hook，
+补齐三个 Header 视图的 L3 与所属 L2；不变更 Room 管理提交协议或会话导航所有权。
+
+新增 9 项回归；定向 5 文件 17 项通过，见 /tmp/nexus-a88-target-final.log。
+覆盖共享头像几何归属、四枚装饰图、双语完整计数和大数字 Badge、空目录、加载/
+禁用时鼠标与键盘防重、Room/owner/卸载迟到隔离、旧回调隔离与辅助目录失败。
+现有页面导航集成现直接渲染真实 DmConversationHeader / GroupConversationHeader，
+继续通过真实页面资源、命令、路由与 Store 覆盖延迟创建、历史打开、标签切换、
+关闭/重开、固定与持久恢复；只替代 HTTP 结果与 jsdom 缺失的滚动 API。成员入口
+DOM 测试只替代成员表单内容，未声称重新验证其独立 Skill 读取和编辑协议。
+Header、成员摘要与页面导航套件加入必备 DOM 清单，源码合同禁止重复头像基座
+与成员计数外形。typecheck 通过，见 /tmp/nexus-a88-types-web.log。
+
+485 项清单为 239 pending、132 in_progress、88 improved、20 retained、6 removed，
+公共 UI 仍为 118 项；全部存量源哈希已核对。DM/Group Header 与成员摘要完成本批
+代码/离线行为审查，公共 Header 与联络根保留 in_progress。按用户要求不做视觉、
+浏览器或宿主验收，不启动产品服务，不改后端。整体 Goal 继续，只本地提交。
+
+首轮完整门禁在合同通过、DOM 套件运行中主动中断，以将额外人数移到头像轻叠
+区域之外，避免负间距与徽标留白相互抵消；空头像组不生成无内容布局项。原日志
+保留 /tmp/nexus-a88-check-interrupted.log，未记录测试失败；以最终重跑结果为准。
+
+最终完整 npm run check 在基线 ae12ba277 与本批 21 个精确文件的隔离快照通过：
+lint、typecheck、481 项合同、265 文件的 1184 项组件/模型测试及 build 全部完成，
+见 /tmp/nexus-a88-check.log。仅保留既有 workgraph-metadata-editor-dialog effect-ref
+lint 警告和大分块构建提示。快照 /tmp/nexus-a88-review-ytxsn6j_，文件清单
+/tmp/nexus-a88-review.json；最终证据只更新本文，提交前核对工作树、暂存区与
+快照的精确字节及全部审查哈希。

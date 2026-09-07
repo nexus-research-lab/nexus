@@ -27,6 +27,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- DM, Room and contact headers now use the standard 40px avatar directly,
+  removing duplicate avatar frames and shadows. Room member summaries keep
+  compact shared avatars and a readable, growing extra-member badge, with one
+  accessible count. Loading prevents duplicate opens, and Room/owner changes
+  discard pending or open member dialogs without reviving them on return.
+
 - Room Goal owner selection now uses the shared compact Select Menu and the
   same disambiguated names as status and Plan-mode explanations. Missing owners
   remain explicit and must be reselected instead of silently assigning another
