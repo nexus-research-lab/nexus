@@ -1,6 +1,8 @@
-# Shared browser and React adapters
+# Shared selection, browser and React adapters
 
-本目录只持有与 Nexus 业务身份无关的浏览器能力和 React 生命周期；组件 DOM、样式和业务决策由调用者持有。
+本目录只持有与 Nexus 业务身份无关的纯选择投影、浏览器能力和 React 生命周期；组件 DOM、样式和业务决策由调用者持有。
+
+- `selection-options.ts` 是同名/缺名候选序号与缺项当前值显示的中立算法；候选和显示目录分离，目录不能增加候选。调用方传入普通 value、名称、可选创建时间与文案，不读取 Agent/Room 类型或 Store；原顺序/value 保留，序号不持久化，禁用显示项不成为资源资格。
 
 - `browser/ime-keyboard-event.ts`：唯一原生输入法事件识别，覆盖 composition、Process 和兼容键码；不持有应用快捷键、提交命令或 composition 结束后的计时状态。
 - `browser/clipboard.ts`：唯一剪贴板能力适配，处理异步 API、原生回退、临时元素释放与焦点恢复。

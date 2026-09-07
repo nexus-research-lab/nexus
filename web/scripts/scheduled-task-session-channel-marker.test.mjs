@@ -14,6 +14,9 @@ const server = await createServer({
   server: { middlewareMode: true },
 });
 
+const { MESSAGES } = await server.ssrLoadModule("/src/shared/i18n/messages.ts");
+const t = (key, params) => Object.entries(params ?? {}).reduce((text, [name, value]) => text.replaceAll(`{${name}}`, String(value)), MESSAGES.zh[key]);
+
 test.after(async () => {
   await server.close();
 });
@@ -150,17 +153,16 @@ test("scheduled task session options mark external IM channels only", async () =
   const result = buildTaskDialogSessionData(
     "agent",
     { agentSessions, roomContexts: resource([]) },
-    new Map([["nexus", "nexus"]]),
-    "未命名会话",
+    t,
   );
 
   assert.deepEqual(
     result.options.map(({ badge, label }) => ({ badge: badge ?? null, label })),
     [
-      { badge: "IM · 微信 · 账号 A1B2C3 · 当前", label: "定时任务回传测试 · nexus" },
-      { badge: null, label: "普通对话 · nexus" },
-      { badge: "IM · Telegram · 当前", label: "Telegram 对话 · nexus" },
-      { badge: "IM · 企业微信 · 当前", label: "企业微信对话 · nexus" },
+      { badge: "IM · 微信 · 账号 A1B2C3 · 当前", label: "定时任务回传测试" },
+      { badge: null, label: "普通对话" },
+      { badge: "IM · Telegram · 当前", label: "Telegram 对话" },
+      { badge: "IM · 企业微信 · 当前", label: "企业微信对话" },
     ],
   );
 });
@@ -193,8 +195,7 @@ test("scheduled task selectors hide every unpaired external IM session", async (
       }))),
       roomContexts: resource([]),
     },
-    new Map([["nexus", "nexus"]]),
-    "未命名会话",
+    t,
   );
 
   assert.deepEqual(result.options, []);
@@ -226,11 +227,11 @@ test("scheduled task Room targets exclude every DM-backed room", async () => {
     },
   ];
 
-  assert.deepEqual(buildRoomOptions(rooms), [
+  assert.deepEqual(buildRoomOptions(rooms, t), [
     { label: "研究小组", value: "group-room" },
     { label: "暂停小组", value: "paused-room" },
   ]);
-  assert.deepEqual(buildExecutionRoomOptions(rooms), [
+  assert.deepEqual(buildExecutionRoomOptions(rooms, t), [
     { label: "研究小组", value: "group-room" },
   ]);
 });
@@ -314,9 +315,7 @@ test("Agent delivery includes Room-backed DM but excludes Room member sessions",
       unavailableRecipientIM,
       legacyInbox,
     ]),
-    new Map([["agent-a", "A"], ["agent-b", "B"]]),
-    new Map(),
-    "未命名会话",
+    t,
   );
 
   assert.deepEqual(result.options.map(({ sessionKey }) => sessionKey), [
@@ -370,9 +369,7 @@ test("Room delivery exposes a shared conversation, then its exact member agents"
       selectedDeliveryRoomId: "room-1",
     },
     resource(roomSessions),
-    new Map(),
-    new Map([["room-1", "研发 Room"]]),
-    "未命名会话",
+    t,
   );
 
   assert.deepEqual(result.options.map(({ sessionKey, value }) => ({ sessionKey, value })), [
@@ -395,8 +392,7 @@ test("Room delivery exposes a shared conversation, then its exact member agents"
     ],
   });
   const duplicateNames = ["agent-a", "agent-b", "not-a-member"].map((agent_id, created_at) => ({ agent_id, name: "Nova", created_at }));
-  const numbered = (_key, params) => `${params.number} · ${params.name}`;
-  const scoped = buildDeliveryRoomAgentData(roomSessions, [], "room-1", "room:group:conversation-1", duplicateNames, numbered);
+  const scoped = buildDeliveryRoomAgentData(roomSessions, [], "room-1", "room:group:conversation-1", duplicateNames, t);
   assert.deepEqual(scoped.options, [{ value: "agent-a", label: "1 · Nova" }, { value: "agent-b", label: "2 · Nova" }]);
   assert.equal(scoped.defaultAgentId, "");
 });
@@ -425,11 +421,10 @@ test("Room execution exposes conversation before member and defaults to host", a
   const sessionData = buildTaskDialogSessionData(
     "room",
     { agentSessions: resource([]), roomContexts: resource([context]) },
-    new Map([["agent-a", "A"], ["agent-b", "B"]]),
-    "未命名会话",
+    t,
   );
   assert.deepEqual(sessionData.options.map(({ label, value }) => ({ label, value })), [{
-    label: "研发 Room · 方案讨论",
+    label: "方案讨论",
     value: "room:group:conversation-1",
   }]);
   assert.deepEqual(buildExecutionRoomAgentData(
@@ -445,8 +440,7 @@ test("Room execution exposes conversation before member and defaults to host", a
     ],
   });
   const directory = ["agent-c", "agent-a", "agent-b", "not-a-member"].map((agent_id, created_at) => ({ agent_id, name: "Nova", created_at }));
-  const numbered = (_key, params) => `${params.number} · ${params.name}`;
-  const scoped = buildExecutionRoomAgentData([{ ...context, sessions: [{ agent_id: "agent-b" }] }], "room:group:conversation-1", directory, numbered);
+  const scoped = buildExecutionRoomAgentData([{ ...context, sessions: [{ agent_id: "agent-b" }] }], "room:group:conversation-1", directory, t);
   assert.deepEqual(scoped.options, [{ value: "agent-b", label: "3 · Nova" }]);
   assert.equal(scoped.defaultAgentId, "", "a default host without an eligible exact Session cannot be selected");
 });
@@ -550,7 +544,7 @@ test("Room execution payload uses explicit member after the shared session", asy
     },
     selectedReplySession: null,
     selectedSession: {
-      label: "研发 Room · 方案讨论",
+      label: "方案讨论",
       sessionKey: "room:group:conversation-1",
       value: roomSession,
     },

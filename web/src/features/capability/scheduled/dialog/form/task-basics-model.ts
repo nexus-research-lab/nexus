@@ -1,8 +1,8 @@
 // INPUT: Automation 草稿、资源候选与当前语言。
-// OUTPUT: 字段标签、选项与读取反馈；缺项 Agent 保留禁用显示项，不改写草稿。
+// OUTPUT: 字段标签、选项与读取反馈；缺项 Agent/Room/Session 保留禁用显示项，不改写草稿。
 // POS: 基础/高级表单的只读投影，候选资格和提交校验保持各自领域所有者。
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
-import { includeUnavailableAgentSelection } from "@/lib/agent-selection-options";
+import { includeUnavailableSelection } from "@/shared/lib/selection-options";
 
 import type {
   DeliveryTargetType,
@@ -167,8 +167,10 @@ function buildSessionCopy(t: Translate): Record<TargetType, SessionCopy> {
 function buildTaskSelectOptions(
   placeholder: string,
   options: TaskDialogLabelOption[],
+  value: string,
+  unavailableLabel: string,
 ): TaskDialogLabelOption[] {
-  return [{ label: placeholder, value: "" }, ...options];
+  return [{ label: placeholder, value: "" }, ...includeUnavailableSelection(options, value, unavailableLabel)];
 }
 
 export function buildTaskTargetPresentation(
@@ -189,9 +191,8 @@ export function buildTaskTargetPresentation(
     disabled: source.resource.loading || source.options.length === 0,
     error: source.resource.error,
     label: copy.label,
-    options: buildTaskSelectOptions(placeholder, targetType === "agent"
-      ? includeUnavailableAgentSelection(source.options, source.value, t)
-      : source.options),
+    options: buildTaskSelectOptions(placeholder, source.options, source.value,
+      t(targetType === "agent" ? "agent.selection_unavailable" : "capability.scheduled_dialog_room_unavailable")),
     retry: source.resource.retry,
     targetType,
     value: source.value,
@@ -228,9 +229,8 @@ export function buildTaskDeliveryTargetPresentation(
     disabled: source.resource.loading || source.options.length === 0,
     error: source.resource.error,
     label,
-    options: buildTaskSelectOptions(placeholder, targetType === "agent"
-      ? includeUnavailableAgentSelection(source.options, source.value, t)
-      : source.options),
+    options: buildTaskSelectOptions(placeholder, source.options, source.value,
+      t(targetType === "agent" ? "agent.selection_unavailable" : "capability.scheduled_dialog_room_unavailable")),
     retry: source.resource.retry,
     targetType,
     value: source.value,
@@ -315,6 +315,8 @@ export function buildExecutionSessionPresentation(
     options: buildTaskSelectOptions(
       sessionPlaceholder(data.sessions.loading, copy.emptyPlaceholder, t),
       data.sessionOptions,
+      form.selectedSessionKey,
+      t("capability.scheduled_dialog_session_unavailable"),
     ),
     retry: data.sessions.retry,
     value: form.selectedSessionKey,
@@ -349,6 +351,8 @@ export function buildReplySessionPresentation(
         t,
       ),
       data.deliverySessionOptions,
+      form.selectedReplySessionKey,
+      t("capability.scheduled_dialog_session_unavailable"),
     ),
     retry: data.deliverySessions.retry,
     value: form.selectedReplySessionKey,

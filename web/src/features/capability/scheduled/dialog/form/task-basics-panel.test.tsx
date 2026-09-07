@@ -1,5 +1,5 @@
 // INPUT: Scheduled 高级表单草稿、资源状态与字段变更命令。
-// OUTPUT: 证明字段实例隔离、选择组具名、共享表单样式及原样输入/精确选择命令。
+// OUTPUT: 证明字段实例隔离、资源缺项/恢复显示、选择组具名及原样输入/精确选择命令。
 // POS: Scheduled 基础表单 DOM 合同；不覆盖资源加载与提交事务。
 
 import { fireEvent, render, screen, within } from "@testing-library/react";
@@ -80,6 +80,52 @@ function createActions(): TaskBasicsActions {
 }
 
 describe("TaskBasicsAdvanced", () => {
+  it.each(["agent", "room"] as const)("preserves %s targets and sessions through loading, failure and catalog recovery", async (targetType) => {
+    const user = userEvent.setup();
+    const actions = createActions();
+    const form: TaskFormDraft = {
+      ...FORM, targetType, executionMode: "existing", selectedRoomId: "room-one", selectedSessionKey: "execution-one",
+      replyMode: "selected", deliveryTargetType: targetType, selectedDeliveryAgentId: "agent-1",
+      selectedDeliveryRoomId: "room-two", selectedReplySessionKey: "delivery-one",
+    };
+    const data: TaskBasicsData = {
+      ...DATA, agentOptions: [{ value: "agent-1", label: "Nova" }],
+      roomOptions: [{ value: "room-one", label: "Research" }], deliveryRoomOptions: [{ value: "room-two", label: "Team" }],
+      sessionOptions: [{ value: "execution-one", sessionKey: "execution-one", label: "执行会话" }, { value: "execution-two", sessionKey: "execution-two", label: "另一个会话" }],
+      deliverySessionOptions: [{ value: "delivery-one", sessionKey: "delivery-one", label: "接收会话" }],
+    };
+    const view = (current: TaskBasicsData) => <I18N_CONTEXT.Provider value={{ locale: "zh", setLocale: vi.fn(), t: (key) => key }}>
+      <TaskBasicsPanel actions={actions} data={current} form={form} isEditing nameRef={createRef<HTMLInputElement>()} needsSessionRebind={false} />
+    </I18N_CONTEXT.Provider>;
+    const { rerender } = render(view(data));
+    const targetName = `capability.scheduled_dialog_select_target_${targetType}`;
+    const deliveryName = `capability.scheduled_dialog_delivery_${targetType}`;
+    const executionName = "capability.scheduled_dialog_select_execution_session";
+    const replyName = "capability.scheduled_dialog_select_reply_session";
+    expect(screen.getByRole("button", { name: executionName }).textContent).toContain("执行会话");
+    for (const status of [READY_RESOURCE, { ...READY_RESOURCE, loading: true }, { ...READY_RESOURCE, error: "not shown" }]) {
+      rerender(view({ ...DATA, agents: status, rooms: status, sessions: status, deliverySessions: status }));
+      for (const name of [targetName, deliveryName]) {
+        expect(screen.getByRole("button", { name }).textContent).toContain(targetType === "agent" ? "agent.selection_unavailable" : "capability.scheduled_dialog_room_unavailable");
+      }
+      for (const name of [executionName, replyName]) {
+        const trigger = screen.getByRole("button", { name });
+        expect(trigger.textContent).toContain("capability.scheduled_dialog_session_unavailable");
+        expect((trigger as HTMLButtonElement).disabled).toBe(true);
+        await user.click(trigger);
+      }
+    }
+    for (const action of Object.values(actions)) expect(action).not.toHaveBeenCalled();
+    rerender(view(data));
+    expect(screen.getByRole("button", { name: targetName }).textContent).toContain(targetType === "agent" ? "Nova" : "Research");
+    expect(screen.getByRole("button", { name: replyName }).textContent).toContain("接收会话");
+    await user.click(screen.getByRole("button", { name: executionName }));
+    await user.click(screen.getByRole("option", { name: "另一个会话" }));
+    expect(actions.setSelectedSessionKey).toHaveBeenCalledExactlyOnceWith("execution-two");
+    expect(form.selectedSessionKey).toBe("execution-one");
+    expect(data.sessionOptions).toHaveLength(2);
+  });
+
   it("keeps unavailable explicit Agent bindings separate from empty/default choices", () => {
     const t = (key: TranslationKey) => key;
     const data = { ...DATA, agentOptions: [{ value: "available", label: "Nova" }] };

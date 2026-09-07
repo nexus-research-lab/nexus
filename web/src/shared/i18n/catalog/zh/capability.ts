@@ -1048,6 +1048,8 @@ export const zhCapabilityMessages = {
   "capability.scheduled_dialog_resource_load_title": "列表暂时无法加载",
   "capability.scheduled_dialog_resource_load_next_step": "重新加载这个列表；成功后再确认选择。",
   "capability.scheduled_dialog_unnamed_session": "未命名会话",
+  "capability.scheduled_dialog_room_unavailable": "当前群聊不在列表中",
+  "capability.scheduled_dialog_session_unavailable": "当前会话不在列表中",
   "capability.scheduled_dialog_session_rebind_required": "原绑定已失效",
   "capability.scheduled_dialog_session_rebind_description": "旧版定时任务收件箱、已解绑或已删除的会话不会出现在选择器中。请选择一个当前可用的真实 Nexus、Room 或 IM 会话，或改为仅保存在任务中。",
   "capability.reload": "重新加载",

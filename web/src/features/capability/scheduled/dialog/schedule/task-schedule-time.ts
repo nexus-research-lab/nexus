@@ -1,5 +1,5 @@
-// INPUT: 时区、日期输入、周期单位与既有 Session 标签。
-// OUTPUT: 定时任务时间转换、周期校验与标签格式化。
+// INPUT: 时区、日期输入与周期单位。
+// OUTPUT: 定时任务时间转换与周期校验。
 // POS: 定时任务表单的纯时间模型；真实执行/投递身份由专属选择器解析。
 
 import { type Weekday, WEEKDAY_OPTIONS } from "../../pickers/picker-types";
@@ -265,8 +265,4 @@ export function toIntervalSeconds(value: string, unit: EveryUnit): number | null
     return null;
   }
   return numericValue * INTERVAL_MULTIPLIERS[unit];
-}
-
-export function formatSessionLabel(title: string, agentName: string): string {
-  return `${title} · ${agentName}`;
 }
