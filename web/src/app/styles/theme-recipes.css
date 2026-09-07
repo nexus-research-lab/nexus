@@ -306,6 +306,11 @@
     box-shadow: var(--surface-control-shadow);
   }
 
+  /* 多动作活动条用更轻的投影，避免小型快捷入口呈现为另一层卡片。 */
+  .conversation-activity-toolbar {
+    box-shadow: 0 1px 3px color-mix(in srgb, var(--text-strong) 6%, transparent);
+  }
+
   @keyframes nexus-scroll-latest-dot-wave {
     0%,
     60%,

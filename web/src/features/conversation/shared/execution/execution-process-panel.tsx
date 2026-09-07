@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前托管 Execution、Agent 目录、打开完整工作图与精确 Agent round 导航动作。
- * OUTPUT: Composer 上方只包含一级 Agent 的实时活动 Dock；不复制完整图、Tool、Gate 或 Subagent。
+ * OUTPUT: Composer 上方只包含一级 Agent 的实时活动 Dock；头像区域可滚动，完整工作图入口固定可达。
  * POS: DM 与 Room 共用的 WorkGraph 快速入口；完整节点关系与详情只在右侧 WorkGraph Surface 展示。
  */
 "use client";
@@ -60,68 +60,78 @@ export function ExecutionProcessPanel({
       data-execution-status={execution.status}
     >
       <div
-        className={getConversationActivityToolbarClassName("pointer-events-auto flex max-w-full items-center overflow-hidden")}
+        className={getConversationActivityToolbarClassName("pointer-events-auto flex min-w-0 max-w-full items-center")}
         data-execution-agent-activity-dock
       >
-        {agentNodes.map((node, index) => {
-          const item = resolveExecutionGraphNodeItem(execution, node);
-          const owner = resolveExecutionGraphNodeAgent(directory, node, item, t);
-          const status = resolveExecutionGraphNodeStatus(node, item);
-          const live = status === "running";
-          const statusLabel = t(WORK_ITEM_STATUS_LABEL_KEY[status]);
-          const subject = item?.subject.trim()
-            || node.description?.trim()
-            || owner?.name
-            || t("execution.owner_unassigned");
-          const title = `${owner?.name ?? t("execution.owner_unassigned")} · ${subject} · ${statusLabel}`;
-          const canNavigate = Boolean(node.agent_round_id && onNavigateToRound);
-          return (
-            <span className="inline-flex shrink-0 items-center gap-1" key={node.id}>
-              {index > 0 ? (
-                <span
-                  aria-hidden="true"
-                  className="h-px w-2.5 bg-(--divider-subtle-color)"
-                  data-execution-agent-connection
-                />
-              ) : null}
-              <UiIconButton
-                aria-label={canNavigate
-                  ? t("execution.jump_to_agent_output", {
-                      agent: owner?.name ?? t("execution.owner_unassigned"),
-                    })
-                  : `${t("execution.open_workgraph")} · ${title}`}
-                className="shrink-0"
-                data-execution-agent-activity={owner?.id ?? node.id}
-                data-execution-agent-live={live ? "true" : undefined}
-                data-execution-agent-round-id={node.agent_round_id || undefined}
-                onClick={() => {
-                  if (node.agent_round_id && onNavigateToRound) {
-                    onNavigateToRound(node.agent_round_id);
-                    return;
-                  }
-                  onOpenGraph?.();
-                }}
-                size="md"
-                tooltip={title}
-              >
-                <ExecutionNodeAvatar
-                  agent={owner}
-                  current={live}
-                  kind="agent"
-                  size="dock"
-                  status={status}
-                  title={title}
-                  tone="activity"
-                />
-              </UiIconButton>
-            </span>
-          );
-        })}
-
-        <span
-          aria-hidden="true"
-          className="mx-1 h-5 w-px shrink-0 bg-(--divider-subtle-color)"
-        />
+        {agentNodes.length > 0 ? (
+          <>
+            <div
+              className="scrollbar-hide flex min-w-0 items-center gap-1 overflow-x-auto overflow-y-hidden"
+              data-execution-agent-activity-list
+            >
+              {agentNodes.map((node, index) => {
+                const item = resolveExecutionGraphNodeItem(execution, node);
+                const owner = resolveExecutionGraphNodeAgent(directory, node, item, t);
+                const status = resolveExecutionGraphNodeStatus(node, item);
+                const live = status === "running";
+                const statusLabel = t(WORK_ITEM_STATUS_LABEL_KEY[status]);
+                const subject = item?.subject.trim()
+                  || node.description?.trim()
+                  || owner?.name
+                  || t("execution.owner_unassigned");
+                const title = `${owner?.name ?? t("execution.owner_unassigned")} · ${subject} · ${statusLabel}`;
+                const canNavigate = Boolean(node.agent_round_id && onNavigateToRound);
+                return (
+                  <span className="inline-flex shrink-0 items-center gap-1" key={node.id}>
+                    {index > 0 ? (
+                      <span
+                        aria-hidden="true"
+                        className="h-px w-2.5 bg-(--divider-subtle-color)"
+                        data-execution-agent-connection
+                      />
+                    ) : null}
+                    <UiIconButton
+                      aria-label={canNavigate
+                        ? t("execution.jump_to_agent_output", {
+                            agent: owner?.name ?? t("execution.owner_unassigned"),
+                          })
+                        : `${t("execution.open_workgraph")} · ${title}`}
+                      className="shrink-0"
+                      data-execution-agent-activity={owner?.id ?? node.id}
+                      data-execution-agent-live={live ? "true" : undefined}
+                      data-execution-agent-round-id={node.agent_round_id || undefined}
+                      focusInset
+                      onClick={() => {
+                        if (node.agent_round_id && onNavigateToRound) {
+                          onNavigateToRound(node.agent_round_id);
+                          return;
+                        }
+                        onOpenGraph?.();
+                      }}
+                      size="md"
+                      tooltip={title}
+                    >
+                      <ExecutionNodeAvatar
+                        agent={owner}
+                        current={live}
+                        kind="agent"
+                        size="dock"
+                        status={status}
+                        title={title}
+                        tone="activity"
+                      />
+                    </UiIconButton>
+                  </span>
+                );
+              })}
+            </div>
+            <span
+              aria-hidden="true"
+              className="h-4 w-px shrink-0 bg-(--divider-subtle-color)"
+              data-execution-agent-activity-divider
+            />
+          </>
+        ) : null}
         <UiIconButton
           aria-label={t("execution.open_workgraph")}
           className="shrink-0"
@@ -130,7 +140,7 @@ export function ExecutionProcessPanel({
           size="md"
           tooltip={`${t("execution.open_workgraph")} · ${nodeSummary.summary} · ${nodeProgressLabel}`}
         >
-          <Workflow aria-hidden="true" className="h-[18px] w-[18px]" />
+          <Workflow aria-hidden="true" className="h-4 w-4" />
         </UiIconButton>
       </div>
     </aside>

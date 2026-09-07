@@ -508,7 +508,7 @@ test("Conversation activity chips share one semantic typography and icon-action 
 
   assert.match(styles, /getUiTypographyClassName\(\{ role: "metadata" \}\)/);
   assert.match(styles, /getConversationActivityToolbarClassName/);
-  assert.match(styles, /min-h-10 gap-1 px-1 py-1/);
+  assert.match(styles, /conversation-activity-toolbar h-9 gap-1 px-1 py-px/);
   for (const consumer of [tasks, room]) {
     assert.match(consumer, /getConversationActivityChipClassName/);
     assert.doesNotMatch(consumer, /className="conversation-activity-chip/);
@@ -520,7 +520,7 @@ test("Conversation activity chips share one semantic typography and icon-action 
   assert.match(tasks, /<UiIconButton/);
   assert.match(execution, /<UiIconButton/);
   assert.match(execution, /data-execution-agent-activity[\s\S]*?size="md"/);
-  assert.match(execution, /data-execution-open-workgraph[\s\S]*?size="md"[\s\S]*?h-\[18px\]/);
+  assert.match(execution, /data-execution-open-workgraph[\s\S]*?size="md"[\s\S]*?h-4 w-4/);
   assert.doesNotMatch(tasks, /\btext-(?:xs|compact)\b|rounded-\[6px\]/);
   assert.doesNotMatch(execution, /rounded-\[8px\]/);
   assert.doesNotMatch(

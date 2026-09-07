@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Composer Agent activity docks now pair clearer 26px avatars with a lighter
+  36px toolbar while retaining 32px click targets. Status uses one corner dot;
+  narrow layouts scroll the avatar strip while keeping the WorkGraph entry
+  available, with keyboard navigation and exact round links preserved.
+
 - Scheduled task cards and run history now share localized error summaries;
   internal run and delivery details remain available in diagnostics and copied
   reports. History retries share loading behavior, retain usable snapshots after

@@ -1,4 +1,4 @@
-// INPUT: Button 的 size/tone/variant、原生 disabled/aria-busy、IconButton 的 shape 与调用方外部布局 class。
+// INPUT: Button 的 size/tone/variant、原生 disabled/aria-busy、IconButton 的 shape/focusInset 与调用方外部布局 class。
 // OUTPUT: 与字段配套的紧凑字号/高度、语义色配对前景及共享 token/recipe 按钮状态投影。
 // POS: Button 视觉状态真相；不渲染 DOM，也不接受业务专属视觉覆盖。
 
@@ -22,6 +22,7 @@ interface UiButtonStyleOptions {
 
 interface UiIconButtonStyleOptions {
   busy?: boolean;
+  focusInset?: boolean;
   disabled?: boolean;
   shape?: UiIconButtonShape;
   size?: UiIconButtonSize;
@@ -182,6 +183,7 @@ export function getUiIconButtonClassName(
   const {
     busy = false,
     disabled = false,
+    focusInset = false,
     shape = "rounded",
     size = "md",
     tone = "default",
@@ -190,6 +192,7 @@ export function getUiIconButtonClassName(
 
   return cn(
     ICON_BUTTON_BASE_CLASS_NAME,
+    focusInset && "focus-visible:ring-inset",
     ICON_BUTTON_SIZE_CLASS_MAP[size],
     shape === "round" ? "rounded-full" : ICON_BUTTON_ROUNDED_CLASS_MAP[size],
     ICON_BUTTON_VARIANT_TONE_CLASS_MAP[variant][resolveButtonTone(tone, disabled, busy)],

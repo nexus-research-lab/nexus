@@ -1,4 +1,4 @@
-// INPUT: 用户动作、原生 disabled/aria-busy 与 button/link 属性、有限的 size/tone/variant/shape 语义和 Tooltip。
+// INPUT: 用户动作、原生 disabled/aria-busy 与 button/link 属性、有限的 size/tone/variant/shape 语义、IconButton 内嵌焦点选项和 Tooltip。
 // OUTPUT: 默认安全为 type=button、可聚焦且具统一状态样式的文字/图标动作控件。
 // POS: Button DOM 与可访问性原语；不判断业务权限、事务状态或页面布局。
 "use client";
@@ -46,6 +46,8 @@ interface UiLinkButtonProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
 }
 
 interface UiIconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  /** 滚动或裁剪容器中的图标动作把焦点环保持在自身命中区内。 */
+  focusInset?: boolean;
   children: ReactNode;
   className?: string;
   shape?: UiIconButtonShape;
@@ -113,6 +115,7 @@ export const UiIconButton = forwardRef<HTMLButtonElement, UiIconButtonProps>(fun
     "aria-label": ariaLabel,
     children,
     className,
+    focusInset,
     shape,
     size,
     tone,
@@ -136,7 +139,7 @@ export const UiIconButton = forwardRef<HTMLButtonElement, UiIconButtonProps>(fun
       className={getUiIconButtonClassName({
         busy: props["aria-busy"] === true || props["aria-busy"] === "true",
         disabled: props.disabled,
-        shape, size, tone, variant,
+        focusInset, shape, size, tone, variant,
       }, cn(className))}
       type={type}
       {...props}
