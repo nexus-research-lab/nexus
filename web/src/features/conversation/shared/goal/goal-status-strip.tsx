@@ -2,7 +2,7 @@
 
 /**
  * INPUT: Goal status projection inputs, server-derived clear reason, mutation block reason and action callbacks.
- * OUTPUT: 使用共享 Panel/Badge/Typography 的可访问 Goal 状态条与有效 WorkGraph binding。
+ * OUTPUT: 本地化且可换行的 Goal 状态条、完整阻塞说明与精确动作忙碌反馈。
  * POS: Goal panel renderer; lifecycle and server-derived binding policy remain in the pure model/controller.
  */
 
@@ -10,6 +10,7 @@ import type { ReactNode } from "react";
 import {
   CircleSlash,
   GaugeCircle,
+  Loader2,
   Pause,
   Pencil,
   Play,
@@ -18,6 +19,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import type { TranslationKey } from "@/shared/i18n/messages";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
@@ -40,7 +42,7 @@ import {
 } from "./goal-model";
 
 const GOAL_PANEL_ROW_CLASS_NAME =
-  "group -mx-1 flex min-h-8 items-center gap-2 px-1 py-0.5 text-(--text-default)";
+  "group -mx-1 flex min-h-8 flex-wrap items-center gap-x-2 gap-y-1 px-1 py-0.5 text-(--text-default)";
 
 interface GoalStatusStripProps {
   canResume: boolean;
@@ -54,6 +56,7 @@ interface GoalStatusStripProps {
   isLoading: boolean;
   mutationBlockReason: GoalMutationBlockReason | null;
   mutationBlocked: boolean;
+  pendingAction?: GoalStatusAction | null;
   scopeLabel: string;
   statusExtra?: ReactNode;
   onClearRequest: () => void;
@@ -65,8 +68,7 @@ interface GoalStatusStripProps {
 
 interface GoalActionPresentation {
   Icon: LucideIcon;
-  label: string;
-  requiresIdle: boolean;
+  labelKey: TranslationKey;
   tone?: "danger" | "primary";
 }
 
@@ -78,17 +80,15 @@ const GOAL_ACTION_PRESENTATION: Record<
 > = {
   clear: {
     Icon: CircleSlash,
-    label: "清除",
-    requiresIdle: true,
+    labelKey: "common.clear",
     tone: "danger",
   },
-  edit: { Icon: Pencil, label: "编辑", requiresIdle: true },
-  pause: { Icon: Pause, label: "暂停", requiresIdle: true },
-  refresh: { Icon: RefreshCw, label: "刷新", requiresIdle: false },
+  edit: { Icon: Pencil, labelKey: "common.edit" },
+  pause: { Icon: Pause, labelKey: "goal.action_pause" },
+  refresh: { Icon: RefreshCw, labelKey: "common.refresh" },
   resume: {
     Icon: Play,
-    label: "继续",
-    requiresIdle: true,
+    labelKey: "goal.action_resume",
     tone: "primary",
   },
 };
@@ -115,6 +115,7 @@ export function GoalStatusStrip({
   isLoading,
   mutationBlockReason,
   mutationBlocked,
+  pendingAction = null,
   scopeLabel,
   statusExtra = null,
   onClearRequest,
@@ -123,7 +124,10 @@ export function GoalStatusStrip({
   onRefresh,
   onResume,
 }: GoalStatusStripProps) {
+  const { locale, t } = useI18n();
   const model = buildGoalStatusStripModel({
+    locale,
+    t,
     canResume,
     clearDisabledReason,
     continuationHold,
@@ -163,6 +167,7 @@ export function GoalStatusStrip({
             isLoading={isLoading}
             mutationBlockReason={mutationBlockReason}
             mutationBlocked={mutationBlocked}
+            pendingAction={pendingAction}
           />
         </div>
         <GoalAttentionMessage
@@ -183,7 +188,7 @@ function GoalLeadingIcon({ model }: { model: GoalStatusStripModel }) {
       size="xs"
       tone={model.tone}
     >
-      <Target className="h-3.5 w-3.5" />
+      <Target aria-hidden="true" className="h-3.5 w-3.5" />
     </UiBadge>
   );
 }
@@ -200,9 +205,9 @@ function GoalStatusSummary({
   statusExtra: ReactNode;
 }) {
   return (
-    <div className="min-w-0 flex-1">
+    <div className="min-w-0 flex-1 basis-40">
       <div className={cn(
-        "flex min-w-0 items-center gap-1.5",
+        "flex min-w-0 flex-wrap items-center gap-1.5",
         getUiTypographyClassName({ role: "caption", tone: "soft", weight: "medium" }),
       )}>
         <span className="truncate">{scopeLabel}</span>
@@ -259,7 +264,7 @@ function GoalUsage({ label }: { label: string | null }) {
       "hidden shrink-0 items-center gap-1 tabular-nums sm:inline-flex",
       getUiTypographyClassName({ role: "caption", tone: "muted", weight: "medium" }),
     )}>
-      <GaugeCircle className="h-3.5 w-3.5 shrink-0" />
+      <GaugeCircle aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
       <span>{label}</span>
     </span>
   );
@@ -273,6 +278,7 @@ function GoalStatusActions({
   isLoading,
   mutationBlockReason,
   mutationBlocked,
+  pendingAction,
 }: {
   actionDisabledReasons: GoalStatusStripModel["actionDisabledReasons"];
   actions: GoalStatusAction[];
@@ -281,10 +287,11 @@ function GoalStatusActions({
   isLoading: boolean;
   mutationBlockReason: GoalMutationBlockReason | null;
   mutationBlocked: boolean;
+  pendingAction: GoalStatusAction | null;
 }) {
   const { t } = useI18n();
   return (
-    <div className="ml-auto flex shrink-0 items-center gap-1">
+    <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-1">
       {actions.map((action) => {
         const presentation = GOAL_ACTION_PRESENTATION[action];
         const disabledReason = actionDisabledReasons[action]
@@ -296,23 +303,25 @@ function GoalStatusActions({
         const unavailable = isLoading || (
           action !== "refresh" && disabled
         );
-        const { Icon } = presentation;
+        const label = t(presentation.labelKey);
+        const busy = isLoading && action === (pendingAction ?? "refresh");
+        const Icon = busy ? Loader2 : presentation.Icon;
         return (
           <UiIconButton
             key={action}
-            aria-label={disabledReason
-              ? `${presentation.label}：${disabledReason}`
-              : presentation.label}
+            aria-busy={busy || undefined}
+            aria-label={disabledReason ? `${label}: ${disabledReason}` : label}
             disabled={Boolean(disabledReason) || unavailable}
             size="sm"
-            title={disabledReason ?? presentation.label}
+            tooltip={disabledReason ?? label}
             tone={presentation.tone}
             type="button"
             variant="ghost"
             onClick={handlers[action]}
           >
             <Icon
-              className={action === "refresh" && isLoading
+              aria-hidden="true"
+              className={busy
                 ? getUiSpinnerClassName({ size: "md" })
                 : "h-4 w-4"}
             />
@@ -346,9 +355,9 @@ function GoalAttentionMessage({
   return (
     <div
       className={cn(
-        "ml-7 line-clamp-1 pb-1",
+        "ml-7 whitespace-pre-wrap pb-1 [overflow-wrap:anywhere]",
         getUiTypographyClassName({
-          role: "caption",
+          role: "supporting",
           tone: tone === "warning" ? "warning" : "danger",
         }),
       )}

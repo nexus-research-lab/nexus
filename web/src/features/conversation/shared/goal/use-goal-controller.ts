@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * INPUT: Goal/binding/reliability resource, scope-bound UI draft/dialog state and user lifecycle actions.
+ * INPUT: Goal/binding/reliability resource, scope-bound UI draft/dialog state, whole-budget validation and user lifecycle actions.
  * OUTPUT: Goal panel controller with exact mutation intents, stale-read gates and safe read-only recovery.
  * POS: Goal interaction orchestrator; the backend remains the final mutation authority.
  */
@@ -10,7 +10,6 @@ import {
   type FormEvent,
   useCallback,
   useEffect,
-  useState,
 } from "react";
 
 import {
@@ -19,13 +18,16 @@ import {
   resumeGoalApi,
   updateGoalApi,
 } from "@/lib/api/conversation/goal-api";
+import { useI18n } from "@/shared/i18n/i18n-context";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import type { Goal } from "@/types/conversation/goal";
 
 import {
   buildGoalControllerProjection,
   createGoalDraft,
   EMPTY_GOAL_DIALOG,
-  nextGoalBudgetInput,
+  parseGoalBudgetInput,
+  resolveGoalClearDisabledReason,
   type GoalDialog,
   type GoalDraft,
 } from "./goal-model";
@@ -51,8 +53,7 @@ export function useGoalController({
   onGoalChange,
   sessionKey,
 }: GoalControllerOptions) {
-  const [draft, setDraft] = useState<GoalDraft | null>(null);
-  const [dialog, setDialog] = useState<GoalDialog>(EMPTY_GOAL_DIALOG);
+  const { t } = useI18n();
 
   const resource = useGoalResource({
     sessionKey,
@@ -69,7 +70,15 @@ export function useGoalController({
     reliability,
     runCommand,
   } = resource;
+  const scopeKey = JSON.stringify([ownerScopeGeneration, sessionKey, goal?.id]);
+  const [draft, setDraft] = useResettableState<GoalDraft | null>(null, scopeKey);
+  // A confirmation belongs to the displayed objective and current clear permission.
+  const [dialog, setDialog] = useResettableState<GoalDialog>(EMPTY_GOAL_DIALOG, JSON.stringify([
+    scopeKey, goal?.objective, resolveGoalClearDisabledReason(executionBinding, t) === null,
+    disabled || isLoading || mutationsBlocked,
+  ]));
   const projection = buildGoalControllerProjection({
+    t,
     dialog,
     draft,
     executionBinding,
@@ -81,12 +90,13 @@ export function useGoalController({
     if (
       !goal
       || disabled
+      || isLoading
       || mutationsBlocked
       || projection.clearDisabledReason
     ) {
       return;
     }
-    const outcome = await runCommand(
+    await runCommand(
       { operation: "clear" },
       async (goalId) => {
         await clearGoalApi(goalId);
@@ -95,12 +105,10 @@ export function useGoalController({
         return null;
       },
     );
-    if (outcome.ok && !outcome.goal) {
-      setDraft(null);
-    }
   }, [
     disabled,
     goal,
+    isLoading,
     mutationsBlocked,
     projection.clearDisabledReason,
     runCommand,
@@ -112,13 +120,16 @@ export function useGoalController({
     if (
       !goal
       || !currentDraft?.objective.trim()
+      || isLoading
       || disabled
       || mutationsBlocked
     ) {
       return;
     }
     const objective = currentDraft.objective.trim();
-    const tokenBudget = nextGoalBudgetInput(goal, currentDraft.budget);
+    const budget = parseGoalBudgetInput(currentDraft.budget);
+    if (!budget.valid) return;
+    const tokenBudget = budget.value ?? (goal.token_budget ? null : undefined);
     const outcome = await runCommand(
       {
         objective,
@@ -131,9 +142,9 @@ export function useGoalController({
       }),
     );
     if (outcome.ok) {
-      setDraft(null);
+      setDraft((current) => current === currentDraft ? null : current);
     }
-  }, [disabled, goal, mutationsBlocked, projection.draft, runCommand]);
+  }, [disabled, goal, isLoading, mutationsBlocked, projection.draft, runCommand, setDraft]);
 
   const confirmDialog = useCallback(() => {
     const currentDialog = projection.dialog;
@@ -141,16 +152,11 @@ export function useGoalController({
     if (currentDialog.kind === "clear") {
       void clearGoal();
     }
-  }, [clearGoal, projection.dialog]);
+  }, [clearGoal, projection.dialog, setDialog]);
 
   useEffect(() => {
     void refresh();
   }, [activityKey, refresh]);
-
-  useEffect(() => {
-    setDraft(null);
-    setDialog(EMPTY_GOAL_DIALOG);
-  }, [ownerScopeGeneration, sessionKey]);
 
   useEffect(() => {
     if (
@@ -164,7 +170,7 @@ export function useGoalController({
     ) {
       setDraft(null);
     }
-  }, [reliability?.kind, reliability?.operation]);
+  }, [reliability?.kind, reliability?.operation, setDraft]);
 
   useEffect(() => {
     if (!isLoading) {
@@ -178,13 +184,13 @@ export function useGoalController({
       cancelEditing: () => setDraft(null),
       confirmDialog,
       pause: () => {
-        if (!disabled && !mutationsBlocked) {
+        if (!disabled && !isLoading && !mutationsBlocked) {
           void runCommand({ operation: "pause" }, pauseGoalApi);
         }
       },
       refresh: () => void refresh(),
       resume: () => {
-        if (!disabled && !mutationsBlocked) {
+        if (!disabled && !isLoading && !mutationsBlocked) {
           void runCommand({ operation: "resume" }, resumeGoalApi);
         }
       },
@@ -195,12 +201,12 @@ export function useGoalController({
         updateGoalDraft(current, { objective })
       )),
       startClearing: () => {
-        if (goal && !mutationsBlocked && !projection.clearDisabledReason) {
+        if (goal && !disabled && !isLoading && !mutationsBlocked && !projection.clearDisabledReason) {
           setDialog({ goal, kind: "clear" });
         }
       },
       startEditing: () => {
-        if (goal && !mutationsBlocked) {
+        if (goal && !disabled && !isLoading && !mutationsBlocked) {
           setDraft(createGoalDraft(goal));
         }
       },
@@ -213,9 +219,13 @@ export function useGoalController({
     executionBinding,
     goal,
     isLoading,
-    loadingLabel: projection.loadingLabel,
+    loadingLabel: projection.loadingLabel ?? (isLoading ? t("state.reload_check") : null),
     mutationBlockReason,
     mutationsBlocked,
+    pendingAction: phase === "clearing" ? "clear" as const
+      : phase === "pausing" ? "pause" as const
+      : phase === "resuming" ? "resume" as const
+      : phase === "updating" ? "edit" as const : null,
     reliability,
   };
 }

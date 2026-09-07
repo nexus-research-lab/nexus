@@ -1,6 +1,6 @@
 /**
- * INPUT: Goal state, server-derived Execution binding, UI command phase and mutation availability.
- * OUTPUT: Goal lifecycle、WorkGraph binding、clear capability、表单与控制器纯投影。
+ * INPUT: Goal state, server-derived Execution binding, locale, UI command phase and complete budget input.
+ * OUTPUT: 本地化 Goal 生命周期、保守未知态、完整预算校验与目标正文绑定的确认投影。
  * POS: Goal 纯模型；metadata 不参与 WorkGraph binding，也不输出布局或视觉 class。
  */
 import type {
@@ -9,7 +9,8 @@ import type {
   GoalExecutionBindingState,
   GoalStatus,
 } from "@/types/conversation/goal";
-import type { TranslationKey } from "@/shared/i18n/messages";
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
+import type { Locale, TranslationKey } from "@/shared/i18n/messages";
 import type { UiBadgeTone } from "@/shared/ui/display/badge-styles";
 import type { GoalContinuationHold } from "./goal-continuation-hold";
 
@@ -25,7 +26,7 @@ export type GoalDialog =
   | { kind: "clear"; goal: Goal }
   | { kind: "none" };
 
-export interface GoalControllerProjection {
+interface GoalControllerProjection {
   canResume: boolean;
   clearDisabledReason: string | null;
   dialog: GoalDialog;
@@ -33,7 +34,8 @@ export interface GoalControllerProjection {
   loadingLabel: string | null;
 }
 
-export interface GoalDraftFormModel {
+interface GoalDraftFormModel {
+  budgetInvalid: boolean;
   canClose: boolean;
   fieldsDisabled: boolean;
   isLoading: boolean;
@@ -68,9 +70,11 @@ interface GoalStatusProjectionInput {
   executionBinding?: GoalExecutionBinding | null;
   goal: Goal;
   isGenerating: boolean;
+  locale: Locale;
+  t: I18nContextValue["t"];
 }
 
-export type GoalBindingDisplayState =
+type GoalBindingDisplayState =
   | Exclude<GoalExecutionBindingState, "standalone" | "reserved">
   | "unavailable";
 
@@ -83,7 +87,7 @@ export interface GoalBindingBadgeModel {
 
 interface VisibleGoalStatus {
   label: string;
-  status: GoalStatus;
+  status: GoalStatus | "unknown";
 }
 
 interface GoalActionRule {
@@ -91,13 +95,13 @@ interface GoalActionRule {
   visible: (input: GoalStatusProjectionInput) => boolean;
 }
 
-const GOAL_STATUS_LABEL: Record<GoalStatus, string> = {
-  active: "运行中",
-  blocked: "已阻塞",
-  budget_limited: "预算耗尽",
-  complete: "已完成",
-  paused: "已暂停",
-  usage_limited: "续跑受限",
+const GOAL_STATUS_LABEL: Record<GoalStatus, TranslationKey> = {
+  active: "goal.status_active",
+  blocked: "goal.status_blocked",
+  budget_limited: "goal.status_budget_limited",
+  complete: "goal.status_complete",
+  paused: "goal.status_paused",
+  usage_limited: "goal.status_usage_limited",
 };
 
 const GOAL_STATUS_TONE: Record<GoalStatus, UiBadgeTone> = {
@@ -139,11 +143,6 @@ const GOAL_BINDING_BADGE: Record<
   },
 };
 
-const EMPTY_PROGRESS_LABEL = "自动续跑已停止";
-const GOAL_EXECUTING_LABEL = "执行中";
-const EMPTY_PROGRESS_MESSAGE =
-  "上一轮未产生可计入进展，系统已停止自动续跑；这不是 Agent 主动暂停。";
-
 const GOAL_ACTION_RULES: GoalActionRule[] = [
   { action: "refresh", visible: () => true },
   { action: "edit", visible: () => true },
@@ -170,7 +169,7 @@ function positiveTokenCount(value: number | null | undefined): number {
   return Number.isFinite(value) ? Math.max(0, value ?? 0) : 0;
 }
 
-export function goalActualTokens(goal: Goal | null): number {
+function goalActualTokens(goal: Goal | null): number {
   const usage = goal?.usage;
   if (!usage) {
     return 0;
@@ -206,8 +205,10 @@ function goalActualTokensEstimated(goal: Goal): boolean {
       || positiveTokenCount(usage.actual_tokens) === 0);
 }
 
-function goalStatusTone(status: GoalStatus): UiBadgeTone {
-  return GOAL_STATUS_TONE[status];
+function goalStatusTone(status: GoalStatus | "unknown"): UiBadgeTone {
+  return Object.hasOwn(GOAL_STATUS_TONE, status)
+    ? GOAL_STATUS_TONE[status as GoalStatus]
+    : "idle";
 }
 
 export function buildGoalStatusStripModel(
@@ -222,51 +223,57 @@ export function buildGoalStatusStripModel(
     actionDisabledReasons: input.clearDisabledReason
       ? { clear: input.clearDisabledReason }
       : {},
-    actions: GOAL_ACTION_RULES.filter((rule) => rule.visible(activeInput)).map(
-      (rule) => rule.action,
-    ),
+    actions: visibleStatus.status === "unknown"
+      ? ["refresh"]
+      : GOAL_ACTION_RULES.filter((rule) => rule.visible(activeInput)).map((rule) => rule.action),
     attentionMessage: resolveGoalAttentionMessage(activeInput),
     attentionTone: resolveGoalAttentionTone(activeInput),
     bindingBadge: resolveGoalBindingBadgeModel(input.executionBinding ?? null),
     statusLabel: visibleStatus.label,
     statusTitle: resolveGoalStatusTitle(activeInput, visibleStatus),
     tone: goalStatusTone(visibleStatus.status),
-    usageLabel: buildGoalUsageLabel(input.goal),
+    usageLabel: buildGoalUsageLabel(input.goal, input.locale),
   };
 }
 
-export function resolveGoalBindingBadgeModel(
+function resolveGoalBindingBadgeModel(
   binding: GoalExecutionBinding | null,
 ): GoalBindingBadgeModel | null {
   if (binding?.state === "standalone" || binding?.state === "reserved") {
     return null;
   }
-  return GOAL_BINDING_BADGE[binding?.state ?? "unavailable"];
+  const state = binding?.state ?? "unavailable";
+  return Object.hasOwn(GOAL_BINDING_BADGE, state)
+    ? GOAL_BINDING_BADGE[state]
+    : GOAL_BINDING_BADGE.unavailable;
 }
 
 function resolveVisibleGoalStatus(
   input: GoalStatusProjectionInput,
 ): VisibleGoalStatus {
+  if (!Object.hasOwn(GOAL_STATUS_LABEL, input.goal.status)) {
+    return { label: input.t("goal.status_unknown"), status: "unknown" };
+  }
   if (input.goal.status === "active" && input.isGenerating) {
-    return { label: GOAL_EXECUTING_LABEL, status: "active" };
+    return { label: input.t("goal.status_executing"), status: "active" };
   }
   if (!isIdleActiveGoal(input)) {
     return {
-      label: GOAL_STATUS_LABEL[input.goal.status],
+      label: input.t(GOAL_STATUS_LABEL[input.goal.status]),
       status: input.goal.status,
     };
   }
   if (input.goal.last_error) {
-    return { label: "需处理", status: "blocked" };
+    return { label: input.t("goal.status_attention"), status: "blocked" };
   }
   if (input.continuationHold) {
     return { label: input.continuationHold.label, status: "paused" };
   }
   if (goalContinuationSuppressed(input.goal)) {
-    return { label: EMPTY_PROGRESS_LABEL, status: "paused" };
+    return { label: input.t("goal.continuation_stopped"), status: "paused" };
   }
   return {
-    label: GOAL_STATUS_LABEL[input.goal.status],
+    label: input.t(GOAL_STATUS_LABEL[input.goal.status]),
     status: input.goal.status,
   };
 }
@@ -281,7 +288,7 @@ function resolveGoalStatusTitle(
   if (input.goal.status === "active" &&
     goalContinuationSuppressed(input.goal) &&
     !input.isGenerating) {
-    return `${EMPTY_PROGRESS_MESSAGE} 点击“继续”可重试。`;
+    return input.t("goal.continuation_stopped_title");
   }
   return visibleStatus.label;
 }
@@ -292,7 +299,7 @@ function resolveGoalAttentionMessage(
   if (input.goal.status === "active" &&
     goalContinuationSuppressed(input.goal) &&
     !input.isGenerating) {
-    return EMPTY_PROGRESS_MESSAGE;
+    return input.t("goal.continuation_stopped_detail");
   }
   return null;
 }
@@ -315,7 +322,7 @@ function isIdleActiveGoal(input: GoalStatusProjectionInput): boolean {
   return input.goal.status === "active" && !input.isGenerating;
 }
 
-function buildGoalUsageLabel(goal: Goal): string | null {
+function buildGoalUsageLabel(goal: Goal, locale: Locale): string | null {
   if (
     !goal.usage
     || (goal.status === "complete" && goal.usage_finalized !== true)
@@ -326,7 +333,7 @@ function buildGoalUsageLabel(goal: Goal): string | null {
   if (actual <= 0) {
     return null;
   }
-  const actualLabel = `${goalActualTokensEstimated(goal) ? "≈" : ""}${actual.toLocaleString()}`;
+  const actualLabel = `${goalActualTokensEstimated(goal) ? "≈" : ""}${actual.toLocaleString(locale)}`;
   return `${actualLabel} tokens`;
 }
 
@@ -339,27 +346,33 @@ export function buildGoalActivityKey(
 }
 
 export function buildGoalDraftFormModel({
+  budget,
   disabled,
   isLoading,
   loadingLabel,
   mutationBlocked,
   objective,
+  t,
 }: {
+  budget: string;
   disabled: boolean;
   isLoading: boolean;
   loadingLabel: string | null;
   mutationBlocked?: boolean;
   objective: string;
+  t: I18nContextValue["t"];
 }): GoalDraftFormModel {
   const hasObjective = objective.trim().length > 0;
   const commandBusy = disabled || isLoading;
   const fieldsDisabled = commandBusy || Boolean(mutationBlocked);
+  const budgetInvalid = !parseGoalBudgetInput(budget).valid;
   return {
+    budgetInvalid,
     canClose: !commandBusy,
     fieldsDisabled,
     isLoading,
-    submitDisabled: fieldsDisabled || Boolean(mutationBlocked) || !hasObjective,
-    submitLabel: isLoading ? loadingLabel ?? "保存中" : "保存",
+    submitDisabled: fieldsDisabled || !hasObjective || budgetInvalid,
+    submitLabel: isLoading ? loadingLabel ?? t("common.saving") : t("common.save"),
     submitTone: hasObjective ? "primary" : "default",
   };
 }
@@ -370,41 +383,46 @@ export function buildGoalControllerProjection({
   draft,
   goal,
   phase,
+  t,
 }: {
   dialog: GoalDialog;
   draft: GoalDraft | null;
   executionBinding: GoalExecutionBinding | null;
   goal: Goal | null;
   phase: GoalCommandPhase | null;
+  t: I18nContextValue["t"];
 }): GoalControllerProjection {
   const clearDisabledReason = goal
-    ? resolveGoalClearDisabledReason(executionBinding)
+    ? resolveGoalClearDisabledReason(executionBinding, t)
     : null;
   return {
     canResume: goal ? canResumeGoal(goal) : false,
     clearDisabledReason,
     dialog: visibleGoalDialog(dialog, goal, clearDisabledReason === null),
     draft: draft?.goalId === goal?.id ? draft : null,
-    loadingLabel: phase === "updating" ? "正在更新目标" : null,
+    loadingLabel: phase === "updating" ? t("goal.updating") : null,
   };
 }
 
 export function resolveGoalClearDisabledReason(
   binding: GoalExecutionBinding | null,
+  t: I18nContextValue["t"],
 ): string | null {
   if (!binding) {
-    return "正在确认 Goal 与工作图的绑定状态，暂时不能清除。";
+    return t("goal.clear_unavailable");
   }
   switch (binding.state) {
     case "standalone":
     case "reserved":
       return null;
     case "pending":
-      return "Goal 与工作图的绑定正在确认，暂时不能清除。";
+      return t("goal.clear_pending");
     case "confirmed":
-      return "Goal 已绑定工作图，请先完成或终止工作图。";
+      return t("goal.clear_confirmed");
     case "conflict":
-      return "Goal 与工作图的绑定存在冲突，请刷新后检查工作图。";
+      return t("goal.clear_conflict");
+    default:
+      return t("goal.clear_unavailable");
   }
 }
 
@@ -416,19 +434,17 @@ export function createGoalDraft(goal: Goal): GoalDraft {
   };
 }
 
-export function nextGoalBudgetInput(
-  goal: Goal,
-  value: string,
-): number | null | undefined {
-  if (value.trim()) {
-    return normalizeGoalBudget(value);
-  }
-  return goal.token_budget ? null : undefined;
-}
-
-function normalizeGoalBudget(value: string): number | null {
-  const parsed = Number.parseInt(value.trim(), 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+/** Blank removes a budget; invalid text must never become a different budget or removal. */
+export function parseGoalBudgetInput(value: string):
+  | { valid: true; value: number | null }
+  | { valid: false } {
+  const input = value.trim();
+  if (!input) return { valid: true, value: null };
+  if (!/^\d+$/.test(input)) return { valid: false };
+  const parsed = Number(input);
+  return Number.isSafeInteger(parsed) && parsed > 0
+    ? { valid: true, value: parsed }
+    : { valid: false };
 }
 
 function canResumeGoal(goal: Goal): boolean {
@@ -449,6 +465,7 @@ function visibleGoalDialog(
     dialog.kind !== "clear"
     || !goal
     || dialog.goal.id !== goal.id
+    || dialog.goal.objective !== goal.objective
     || !clearAllowed
   ) {
     return EMPTY_GOAL_DIALOG;

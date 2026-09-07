@@ -27,6 +27,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Goal controls now localize status, editing and confirmation copy, wrap long
+  blocking instructions and identify the action actually in progress. Budget
+  editing rejects partial or unsafe numbers instead of changing their value.
+  Session/owner/Goal changes discard old drafts and confirmations; changed
+  objectives or clear permissions invalidate confirmation without reviving it.
+  Stale successful writes retain a read-only recovery action, and editing shows
+  recovery feedback once with independent accessible field and dialog names.
+
 - Task summaries now use the shared flat surface and standard small avatars.
   Task details share bounded popover positioning, layered dismissal and keyboard
   focus navigation. Session changes clear old panels, reordered or replaced

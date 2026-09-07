@@ -9,10 +9,11 @@
 - current Goal 主读取失败时保留同 owner/Session 的上次快照但锁住生命周期修改，直到只读刷新成功；只有 binding 辅助读取失败时可继续不依赖 binding 的修改，清除仍保持 fail closed。未知 update 期间草稿保留但不可修改或提交，用户仍可主动关闭；确认写入后不保留一份会诱导重复保存的旧草稿。
 - 生命周期写入只有服务端明确返回 `not_applied` 才能直接解锁重试。`accepted`、transport failure 和没有 FailureCore 的旧响应都按结果未知处理，当前页面锁定 exact Session/Goal 意图并只用 owner-scoped current Goal 读取核对；读取未变化不能证明原请求不会稍后提交。权威状态已经达到目标时可以解除当前页面锁；原 Goal 不再是 current 时也只解除当前面板的锁，并明确保留“旧操作仍可能影响原 Goal 历史”的数据影响。其他并发版本变化、objective rewrite 和不一致结果必须继续 fail closed。锁不跨页面刷新持久化，前端不得声称具备持久防重。
 - mutation 响应成功后先采用该响应的权威结果，再单独刷新 Goal/binding；后续读取失败只能报告“写入已完成、刷新失败”，不得降格成写入失败。401/403 或 Session 切换必须清除可见旧快照并拒绝旧异步结果，任何恢复都不得自动重发 lifecycle mutation、prompt 或其他副作用。
-- 编辑表单使用单一草稿对象，并采用无装饰图标与副标题的 plain chrome；只有清除 Goal 需要确认弹窗，状态恢复由面板内显式动作直接执行。
-- `goal-panel.tsx` 只组合状态条、编辑弹窗和单一确认弹窗，不直接调用 API。
+- 编辑草稿与确认状态通过共享 `useResettableState` 在 owner/Session/Goal 身份变化时同步清空。清除确认还绑定已展示 objective 与当前清除资格/可操作状态，失效后不随旧状态恢复而重开；语言切换和普通进度刷新保留有效编辑与确认。旧提交结果只能关闭当时的草稿，不得清除新会话的编辑。只有清除 Goal 需要确认。
+- `goal-panel.tsx` 只组合状态条、编辑弹窗和单一确认弹窗，不直接调用 API；编辑期间把当前恢复提示集中到弹窗。已证明写入成功但状态仍旧的反馈必须保留只读核对动作，不能降格写入事实或自动重放。
 - `goal-model.ts` 统一 Goal 生命周期、有意义的 server-derived WorkGraph binding 徽标与清除能力、实际 token 用量、预算表单、控制器可见性、动作规则与外部活动版本的纯投影；状态只返回共享 Badge tone，纯模型不得导出 DOM class、圆角、背景、阴影或 lane。Goal 活跃但没有执行时显示“运行中”，真实生成期间以同一个主状态原位替换为“执行中”，禁止同时展示两个同层状态。状态条只展示一个实际用量数字，估算值以 `≈` 标记，complete 但尚未 finalized 时隐藏 token，不展示预算计量、进度条或用量 tooltip。
 - `status=paused` 只投影为真实“已暂停”；active Goal 的自动续跑状态只消费服务端 `continuation_state`，`recovering` 仍是 active，只有 `suspended` 显示“自动续跑已停止”及“不是 Agent 主动暂停”的行内原因，并保留继续动作。前端不得根据 `empty_progress_count` 重建门槛。Plan/权限 hold 使用服务端 hold 自己的 label/detail，不与前两者合并。
 - `goal-panel-layout.ts` 只拥有状态条与可靠性提示对齐正文/紧凑 Composer 的 lane；`goal-status-strip.tsx` 只渲染状态模型并把动作分发给控制器，不解释 Goal 运行规则，其表面固定复用无阴影、透明底的 `UiPanel`。Goal 的 lifecycle/activity 共用一个主状态槽并复用 `UiBadge`，预算/耗时只是无壳 Typography 元信息，不得再生成 Goal 私有胶囊；`standalone|reserved` 不显示冗余 binding 徽标，但服务端状态仍负责清除授权；`pending|confirmed|conflict` 分别显示确认中、已关联和冲突，读取失败显示状态不可用并保持 fail closed。
-- Goal 状态条属于 Composer 向上工作栈的第一层；桌面使用略窄于 Composer 的内容 lane、圆角浮层和 8px 层间距，移动端沿用紧凑 lane。长目标保持单行截断并保留完整 DOM 文本与悬停标题，不能把运行控制条铺满画布。
-- 编辑提交和状态刷新统一使用共享 `md` Spinner；非加载状态保留原生命周期动作图标，Goal 视图不得维护旋转或 reduced-motion class。
+- Goal 状态、编辑和确认文案由 conversation 翻译分片持有；纯模型显式接收翻译器和 locale，不订阅语言状态。未知生命周期显示中性通称并只提供刷新；未知绑定按不可读取处理，不暴露 wire 值或开放清除。字段、Panel、Badge、Button 与 Spinner 的视觉规格只遵循根 `design.md`。
+- `parseGoalBudgetInput` 是现有 Goal 编辑的唯一预算解析入口，表单和命令边界共用：仅接受完整正安全整数或空值，不接受截断、小数、指数或混杂字符。空值继续按是否存在预算分别发送 null（移除）或省略字段；无效输入不调用 API。创建入口的宿主控制消息语义不变。
+- 控制器按实际 command phase 投影忙碌动作，读取核对不能显示为保存；视图使用公共 Button 的 aria-busy 与共享 Spinner。四个 Goal DOM 行为套件列入合同门禁，另有纯模型 Vitest 回归，资源读写事务仍由原 owner 负责。

@@ -31,6 +31,10 @@ const PROHIBITED_PRODUCT_STYLE_PATTERNS = [
 ];
 
 const REQUIRED_SHARED_UI_BEHAVIOR_SUITES = [
+  "src/features/conversation/shared/goal/goal-draft-form.test.tsx",
+  "src/features/conversation/shared/goal/goal-status-strip.test.tsx",
+  "src/features/conversation/shared/goal/use-goal-controller.test.tsx",
+  "src/features/conversation/shared/goal/goal-reliability-notice.test.tsx",
   "src/features/conversation/room/surface/room-agent-switcher.test.tsx",
   "src/features/conversation/room/group/chat/panel/view/room-workspace-task-panel.test.tsx",
   "src/shared/ui/display/avatar.test.tsx",
