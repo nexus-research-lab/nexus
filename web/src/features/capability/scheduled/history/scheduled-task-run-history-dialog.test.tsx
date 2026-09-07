@@ -7,6 +7,7 @@ import { StrictMode, type ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { listScheduledTaskRunsApi } from "@/lib/api/capability/scheduled-task-api";
+import { ApiRequestError } from "@/lib/api/core/http-error";
 import { I18N_CONTEXT, type I18nContextValue } from "@/shared/i18n/i18n-context";
 import { MESSAGES } from "@/shared/i18n/messages";
 import type { ScheduledTaskRunItem } from "@/types/capability/scheduled-task/run";
@@ -112,6 +113,74 @@ describe("ScheduledTaskRunHistoryDialog", () => {
     expect(callbacks.onRetryTask).toHaveBeenCalledOnce();
     expect(callbacks.onRetryDelivery).not.toHaveBeenCalled();
     expect(callbacks.onRecoverTaskRun).not.toHaveBeenCalled();
+  });
+
+  it.each([401, 403])("hides an inaccessible snapshot and keeps its retry disabled while recovering from %s", async (status) => {
+    const run = { ...RUN, result_text: "private historical result" };
+    vi.mocked(listScheduledTaskRunsApi).mockResolvedValue([run]);
+    const callbacks = props();
+    render(view([callbacks]));
+    expect(await screen.findByText(run.result_text)).toBeTruthy();
+    vi.mocked(listScheduledTaskRunsApi).mockRejectedValue(new ApiRequestError("private denial detail", status));
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    expect(await screen.findByText("This account cannot access this content")).toBeTruthy();
+    expect(screen.queryByText(run.result_text)).toBeNull();
+    expect(document.body.textContent).not.toContain("private denial detail");
+    vi.mocked(listScheduledTaskRunsApi).mockClear();
+    let resolve!: (runs: ScheduledTaskRunItem[]) => void;
+    vi.mocked(listScheduledTaskRunsApi).mockReturnValue(new Promise((done) => { resolve = done; }));
+    const retry = screen.getByRole("button", { name: "Retry" }) as HTMLButtonElement;
+    fireEvent.click(retry);
+    expect(retry.disabled).toBe(true);
+    expect(retry.getAttribute("aria-busy")).toBe("true");
+    expect((screen.getByRole("button", { name: "Refresh" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(retry);
+    expect(listScheduledTaskRunsApi).toHaveBeenCalledExactlyOnceWith(TASK.job_id);
+    expect(screen.queryByText(run.result_text)).toBeNull();
+    await act(async () => resolve([]));
+    expect(screen.getByText("No runs yet")).toBeTruthy();
+    expect(callbacks.onRunHistoryReconciled).toHaveBeenCalledExactlyOnceWith(TASK, []);
+    expect(callbacks.onRetryTask).not.toHaveBeenCalled();
+    expect(callbacks.onRetryDelivery).not.toHaveBeenCalled();
+    expect(callbacks.onRecoverTaskRun).not.toHaveBeenCalled();
+  });
+
+  it("retains the existing result after a transient read failure and replaces it only when retry succeeds", async () => {
+    const run = { ...RUN, result_text: "Previous result" };
+    vi.mocked(listScheduledTaskRunsApi).mockResolvedValue([run]);
+    const callbacks = props();
+    render(view([callbacks]));
+    const original = await screen.findByText(run.result_text);
+    vi.mocked(listScheduledTaskRunsApi).mockRejectedValue(new Error("private read error"));
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    expect(await screen.findByText("Run history could not be refreshed")).toBeTruthy();
+    expect(screen.getByText(run.result_text)).toBe(original);
+    let resolve!: (runs: ScheduledTaskRunItem[]) => void;
+    vi.mocked(listScheduledTaskRunsApi).mockReturnValue(new Promise((done) => { resolve = done; }));
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(screen.getByText(run.result_text)).toBe(original);
+    expect((screen.getByRole("button", { name: "Refresh" }) as HTMLButtonElement).disabled).toBe(true);
+    const next = { ...RUN, result_text: "Current result" };
+    await act(async () => resolve([next]));
+    expect(screen.queryByText(run.result_text)).toBeNull();
+    expect(screen.getByText(next.result_text)).toBeTruthy();
+    expect(callbacks.onRunHistoryReconciled).toHaveBeenCalledExactlyOnceWith(TASK, [next]);
+    expect(callbacks.onRetryTask).not.toHaveBeenCalled();
+    expect(callbacks.onRetryDelivery).not.toHaveBeenCalled();
+  });
+
+  it("recovers from an initial read failure to a genuine empty state without running a task", async () => {
+    vi.mocked(listScheduledTaskRunsApi).mockRejectedValue(new Error("unreachable private server"));
+    const callbacks = props();
+    const { rerender } = render(view([callbacks]));
+    expect(await screen.findByText("Run history is temporarily unavailable")).toBeTruthy();
+    rerender(view([callbacks], "zh"));
+    expect(screen.getByText(MESSAGES.zh["capability.scheduled_history_load_failed"])).toBeTruthy();
+    vi.mocked(listScheduledTaskRunsApi).mockResolvedValue([]);
+    fireEvent.click(screen.getByRole("button", { name: MESSAGES.zh["state.retry"] }));
+    expect(await screen.findByText(MESSAGES.zh["capability.scheduled_history_empty_title"])).toBeTruthy();
+    expect(callbacks.onRetryTask).not.toHaveBeenCalled();
+    expect(callbacks.onRunHistoryReconciled).toHaveBeenCalledExactlyOnceWith(TASK, []);
   });
 
   it.each(["recover", "delivery"] as const)("preserves the %s confirmation target across a language change", async (kind) => {

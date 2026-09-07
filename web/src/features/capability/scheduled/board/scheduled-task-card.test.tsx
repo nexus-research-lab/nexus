@@ -6,7 +6,8 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
+import { I18N_CONTEXT, type I18nContextValue } from "@/shared/i18n/i18n-context";
+import { MESSAGES } from "@/shared/i18n/messages";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 
 import { ScheduledTaskCard } from "./scheduled-task-card";
@@ -31,10 +32,11 @@ const TASK: ScheduledTaskItem = {
   source: { kind: "user_page" },
 };
 
-function view(task: ScheduledTaskItem, onRunNow = vi.fn()) {
+function view(task: ScheduledTaskItem, onRunNow = vi.fn(), locale: "zh" | "en" = "zh") {
+  const t: I18nContextValue["t"] = (key, params) => Object.entries(params ?? {}).reduce((text, [name, value]) => text.replaceAll(`{${name}}`, String(value)), MESSAGES[locale][key]);
   return (
     <I18N_CONTEXT.Provider
-      value={{ locale: "zh", setLocale: vi.fn(), t: (key) => key }}
+      value={{ locale, setLocale: vi.fn(), t }}
     >
       <ScheduledTaskCard
         isDeleteUnconfirmed={false}
@@ -64,6 +66,30 @@ function view(task: ScheduledTaskItem, onRunNow = vi.fn()) {
 }
 
 describe("ScheduledTaskCard", () => {
+  it("keeps internal error text out of the card and retains it in explicit diagnostics", async () => {
+    const error = "private-agent-id: /private/workspace\nprovider details";
+    const task = { ...TASK, last_error: error, failure_streak: 1 };
+    const { container, rerender } = render(view(task, vi.fn(), "en"));
+    expect(screen.getByText("This run encountered a problem. View diagnostics for details.")).toBeTruthy();
+    expect(container.textContent).not.toContain("private-agent-id");
+    await userEvent.setup().click(screen.getByRole("button", { name: /查看.*详情/ }));
+    expect(screen.getByRole("dialog").textContent).toContain(error);
+    rerender(view(task, vi.fn(), "zh"));
+    expect(screen.getByText("运行遇到问题，可查看诊断了解详情")).toBeTruthy();
+    expect(screen.getByRole("dialog").textContent).toContain(error);
+  });
+
+  it("uses one known-error translation in both the card and the open diagnostic", async () => {
+    const task = { ...TASK, last_error: "Permission request timeout", failure_streak: 1 };
+    const { rerender } = render(view(task, vi.fn(), "en"));
+    expect(screen.getByText("Timed out waiting for a permission response")).toBeTruthy();
+    await userEvent.setup().click(screen.getByRole("button", { name: /查看.*详情/ }));
+    expect(screen.getByRole("dialog").textContent).toContain("Technical details: Permission request timeout");
+    rerender(view(task, vi.fn(), "zh"));
+    expect(screen.getByText("等待权限响应超时")).toBeTruthy();
+    expect(screen.getByRole("dialog").textContent).toContain("技术信息：Permission request timeout");
+  });
+
   it("uses the shared catalog card and typography while preserving actions", async () => {
     const onRunNow = vi.fn();
     const user = userEvent.setup();

@@ -1,5 +1,5 @@
 // INPUT: 不可变运行记录、当前任务与调用方的当前语言。
-// OUTPUT: 唯一结果/错误输出、诊断行、区分当前配置/历史执行者的复制文本与 Session 证明的文件归属；无空标签占位。
+// OUTPUT: 唯一结果/本地化错误摘要、含完整错误的折叠诊断、复制文本与 Session 证明的文件归属。
 // POS: Scheduled 历史纯投影；当前任务或当前选择不能替代历史 run 身份。
 
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
@@ -93,15 +93,17 @@ const RUN_DIAGNOSTIC_ROW_DEFINITIONS: readonly RunDiagnosticRowDefinition[] = [
   { label: "Started", value: (run, i18n) => formatDatetime(run.started_at, i18n) },
   { label: "Finished", value: (run, i18n) => formatDatetime(run.finished_at, i18n) },
   { label: "Attempts", value: (run) => String(run.attempts) },
+  { breakAll: true, label: "Error", value: (run, { t }) => getScheduledTaskErrorCopy(run.error_message, t)?.detail ?? null },
+  { breakAll: true, label: "Delivery error", value: (run) => optionalText(run.delivery_error) },
 ];
 
 const RUN_OUTPUT_SECTION_DEFINITIONS: readonly RunOutputSectionDefinition[] = [
   {
-    content: (run) => getScheduledTaskErrorCopy(run.error_message)?.detail ?? null,
+    content: (run, t) => getScheduledTaskErrorCopy(run.error_message, t)?.summary ?? null,
     tone: "danger",
   },
   {
-    content: (run, t) => run.delivery_error ? t("capability.scheduled_history_delivery_error", { error: run.delivery_error }) : null,
+    content: (run, t) => run.delivery_error ? t("capability.scheduled_history_delivery_error") : null,
     tone: "danger",
   },
   { content: primaryResultText, tone: "default" },

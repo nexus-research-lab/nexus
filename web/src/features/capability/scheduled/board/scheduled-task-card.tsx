@@ -1,6 +1,6 @@
 /**
  * INPUT: 单项定时任务、durable 删除/命令状态与任务动作。
- * OUTPUT: 共享目录卡中的名称、指令摘要、计划、时间状态与单一注意事项。
+ * OUTPUT: 共享目录卡中的名称、指令摘要、计划、时间状态与单一注意事项；错误摘要本地化且不包含内部诊断。
  * POS: 定时任务看板卡片；复用 CatalogCard/Panel/Button，不拥有业务状态视觉 recipe。
  */
 "use client";
@@ -41,6 +41,7 @@ import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 import type { AutomationPermissionDecision } from "@/types/capability/scheduled-task/permission";
 
 import { getScheduledTaskErrorCopy } from "../scheduled-task-error-copy";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { ScheduledTaskAttentionDialog } from "./scheduled-task-attention-dialog";
 import {
   getScheduledPermissionCapabilityLabel,
@@ -121,6 +122,7 @@ export function ScheduledTaskCard({
   onToggleEnabled,
   task,
 }: ScheduledTaskCardProps) {
+  const { t } = useI18n();
   const [isAttentionOpen, setIsAttentionOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuAnchorRef = useRef<HTMLButtonElement>(null);
@@ -138,7 +140,7 @@ export function ScheduledTaskCard({
   });
   const TaskIdentityIcon = TASK_IDENTITY_ICONS[presentation.columnId];
   const permissionRequest = task.pending_permission_request;
-  const errorCopy = getScheduledTaskErrorCopy(presentation.lastError);
+  const errorCopy = getScheduledTaskErrorCopy(presentation.lastError, t);
   const attentionTitle = presentation.deletion?.title
     ?? presentation.binding?.title
     ?? presentation.permission?.title

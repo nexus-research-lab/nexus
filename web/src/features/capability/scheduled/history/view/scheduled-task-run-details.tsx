@@ -1,5 +1,5 @@
 // INPUT: 单次运行的规范化输出、持久 Session 身份、诊断行与复制动作。
-// OUTPUT: 绑定历史执行 Agent、随语言更新诊断的结果/错误预览；分组边界由公共 Panel 承载。
+// OUTPUT: 绑定历史执行 Agent 的结果/错误摘要，完整错误仅进入折叠诊断，分组边界由公共 Panel 承载。
 // POS: Scheduled 历史详情消费侧；不猜测历史资源归属，不决定重跑或投递恢复行为。
 
 "use client";
@@ -51,7 +51,7 @@ export function ScheduledTaskRunDetails({
       >
         <UiPanel className="space-y-1.5" padding="sm" radius="sm">
           {diagnosticRows.map((row) => (
-            <p className={cn(row.breakAll && "break-all")} key={row.label}>
+            <p className={cn("whitespace-pre-wrap", row.breakAll && "break-all")} key={row.label}>
               {row.label} {row.value}
             </p>
           ))}

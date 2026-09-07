@@ -4,7 +4,7 @@
 
 import type { ComponentProps, ReactNode } from "react";
 
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -19,6 +19,9 @@ import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 import { ScheduledTaskRunHistoryItem } from "./scheduled-task-run-history-item";
 import { ScheduledTaskRunDetails } from "./scheduled-task-run-details";
 import { ScheduledTaskRunActions } from "./scheduled-task-run-actions";
+import { ScheduledTaskRunHistoryContent } from "./scheduled-task-run-history-content";
+import { createPendingCommandState, setPendingCommand } from "../../controller/pending-command-model";
+import { SCHEDULED_TASK_COMMAND_KINDS, scheduledTaskCommandTarget, scheduledTaskDeliveryCommandTarget } from "../../controller/scheduled-task-directory-model";
 import { buildRunDiagnostic } from "../scheduled-task-run-diagnostic-model";
 import { formatDuration, getDeliveryStatusMeta, getStatusMeta } from "../scheduled-task-run-history-model";
 import { formatScheduledDatetime } from "../../scheduled-formatters";
@@ -173,12 +176,84 @@ describe("run history language and command states", () => {
     expect(diagnostic.open).toBe(true);
     expect(screen.getByText("59s")).toBeTruthy();
     expect(screen.getByText("Failed")).toBeTruthy();
-    expect(screen.getByText("Delivery failed: destination unavailable")).toBeTruthy();
+    expect(screen.getByText("Result delivery failed. Expand diagnostics for details.")).toBeTruthy();
+    expect(diagnostic.textContent).toContain("destination unavailable");
     fireEvent.click(screen.getByRole("button", { name: "Copy diagnostics" }));
     expect(onCopyDiagnostic).toHaveBeenCalledExactlyOnceWith(run);
     expect(screen.getByRole("button", { name: "Run again" }).getAttribute("title"))
       .toBe("Run once with the current task configuration.");
     expect(screen.queryByText("59 秒")).toBeNull();
+  });
+
+  it("isolates list action locks by run and exact delivery attempt", () => {
+    const first: ScheduledTaskRunItem = { ...RUN, status: "running", delivery_status: "failed", delivery_attempts: 2 };
+    const second: ScheduledTaskRunItem = { ...first, run_id: "run-2", delivery_attempts: 1 };
+    const unconfirmed = setPendingCommand(setPendingCommand(
+      createPendingCommandState(SCHEDULED_TASK_COMMAND_KINDS), "recover",
+      scheduledTaskCommandTarget(TASK.job_id, first.run_id), true,
+    ), "retryDelivery", scheduledTaskDeliveryCommandTarget(TASK.job_id, first.run_id, 2), true);
+    const onRetryDelivery = vi.fn();
+    const content = (firstRun: ScheduledTaskRunItem) => localized(<ScheduledTaskRunHistoryContent
+      copiedRunId={null} failure={null} hasSnapshot isLoading={false} runs={[firstRun, second]}
+      task={{ ...TASK, running: true }} unconfirmed={unconfirmed}
+      pendingRecoveries={new Set([second.run_id])} pendingRetries={new Set()} pendingRetryDeliveries={new Set()}
+      onCopyDiagnostic={vi.fn()} onRecover={vi.fn()} onRefresh={vi.fn()} onRetry={vi.fn()} onRetryDelivery={onRetryDelivery}
+    />, "en");
+    const { container, rerender } = render(content(first));
+    const articles = container.querySelectorAll("article");
+    fireEvent.click(articles[1].querySelector("summary")!);
+    const firstRow = within(articles[0]);
+    const secondRow = within(articles[1]);
+    const unconfirmedRecovery = firstRow.getByRole("button", { name: "Release unconfirmed" }) as HTMLButtonElement;
+    expect(unconfirmedRecovery.disabled).toBe(true);
+    expect(unconfirmedRecovery.getAttribute("aria-busy")).toBe("false");
+    const activeRecovery = secondRow.getByRole("button", { name: "Releasing" }) as HTMLButtonElement;
+    expect(activeRecovery.disabled).toBe(true);
+    expect(activeRecovery.getAttribute("aria-busy")).toBe("true");
+    fireEvent.click(firstRow.getByRole("button", { name: "Delivery unconfirmed" }));
+    expect(onRetryDelivery).not.toHaveBeenCalled();
+    fireEvent.click(secondRow.getByRole("button", { name: "Retry delivery" }));
+    expect(onRetryDelivery).toHaveBeenCalledExactlyOnceWith(second);
+    const updated = { ...first, delivery_attempts: 3 };
+    rerender(content(updated));
+    fireEvent.click(firstRow.getByRole("button", { name: "Retry delivery" }));
+    expect(onRetryDelivery).toHaveBeenLastCalledWith(updated);
+    expect(firstRow.getByRole("button", { name: "Release unconfirmed" })).toBe(unconfirmedRecovery);
+  });
+
+  it("keeps raw run and delivery errors inside diagnostics while preserving the copied report", () => {
+    const error = "runtime private-agent-id /private/workspace\n<script>private detail</script>";
+    const deliveryError = "delivery private-session-id\nreceiver private-path";
+    const run = { ...RUN, error_message: error, delivery_error: deliveryError };
+    const { container, rerender } = render(localized(<ScheduledTaskRunDetails run={run} isCopied={false} onCopyDiagnostic={vi.fn()} />, "en"));
+    const summary = screen.getByText("This run encountered a problem. View diagnostics for details.").closest("section")!;
+    const delivery = screen.getByText("Result delivery failed. Expand diagnostics for details.").closest("section")!;
+    expect(summary.textContent).not.toContain("private-");
+    expect(delivery.textContent).not.toContain("private-");
+    const diagnostics = screen.getByText("Diagnostics").closest("details")!;
+    expect(diagnostics.open).toBe(false);
+    expect(diagnostics.textContent).toContain(error);
+    expect(diagnostics.textContent).toContain(deliveryError);
+    expect(container.querySelector("script")).toBeNull();
+    expect(buildRunDiagnostic(TASK, run, language("en"))).toContain(`Error:\n${error}`);
+    expect(buildRunDiagnostic(TASK, run, language("en"))).toContain(`Delivery Error:\n${deliveryError}`);
+    rerender(localized(<ScheduledTaskRunDetails run={run} isCopied={false} onCopyDiagnostic={vi.fn()} />, "zh"));
+    expect(screen.getByText("运行遇到问题，可查看诊断了解详情")).toBeTruthy();
+    expect(diagnostics.textContent).toContain(error);
+  });
+
+  it.each([
+    { error: "previous run is still running; overlap_policy=skip", summary: "This schedule was skipped because the previous run is still active", zh: "上一次运行未结束，本次调度已跳过" },
+    { error: "Permission request timeout", summary: "Timed out waiting for a permission response", zh: "等待权限响应超时" },
+  ])("localizes the known error $error while retaining its technical evidence", ({ error, summary, zh }) => {
+    const run = { ...RUN, error_message: error };
+    const view = (locale: "zh" | "en") => localized(<ScheduledTaskRunDetails run={run} isCopied={false} onCopyDiagnostic={vi.fn()} />, locale);
+    const { rerender } = render(view("en"));
+    expect(screen.getByText(summary)).toBeTruthy();
+    expect(screen.getByText("Diagnostics").closest("details")?.textContent).toContain(`Technical details: ${error}`);
+    rerender(view("zh"));
+    expect(screen.getByText(zh)).toBeTruthy();
+    expect(screen.getByText("诊断详情").closest("details")?.textContent).toContain(`技术信息：${error}`);
   });
 
   it.each([
