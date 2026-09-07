@@ -1,5 +1,5 @@
 // INPUT: exact WorkGraph Draft、Nexus 主智能体隐藏 Session 与模型提交的完整草图版本。
-// OUTPUT: 保留保存表单最新元信息的可恢复编辑对话、不可变版本、CAS revision 与应用前的 DAG/交付语义校验。
+// OUTPUT: 保留保存表单最新元信息的可恢复编辑对话、不可变版本、exact committed revision 回执与应用前的 DAG/交付语义校验。
 // POS: 对话式草图编辑边界；普通 DM 负责消息/流式 UI，本服务拥有 Draft 版本和受限 CLI 修改授权。
 package workgraphworkflow
 
@@ -396,7 +396,13 @@ func (s *Service) ReviseEditorPreview(
 			return nil, fmt.Errorf("%w: editor revision changed", ErrInvalidInput)
 		}
 		s.hydrateDraft(*draft)
-		record = s.editors[key]
+		// Return this committed revision, not a cache snapshot that concurrent
+		// editor reads can replace after hydrateDraft releases its lock.
+		record.preview = cloneWorkflowPreview(draft.Preview)
+		record.revision = draft.HeadRevision
+		record.selectedRevision = draft.SelectedRevision
+		record.versions = cloneWorkflowPreviewVersions(draft.Versions)
+		record.expiresAt = draft.ExpiresAt
 	} else {
 		s.previewMu.Lock()
 		latest, exists := s.editors[key]

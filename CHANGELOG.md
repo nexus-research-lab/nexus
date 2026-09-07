@@ -801,6 +801,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   metadata restores the save action, and each confirmed save refreshes the Draft
   revision so subsequent saves update the same command without a model round.
 
+- Prevent WorkGraph editor version switches and delayed refreshes from applying
+  an older sketch; failed reads block changes until recovery, and rejected
+  applications offer a refresh action. Return the committed editor revision
+  directly so concurrent status reads cannot race with its mutation receipt.
+
 - Confirmed WorkGraph sketches and command-name edits now save directly in one
   database transaction, without a background model round; the UI confirms the
   persisted command immediately. Existing pending saves can be completed this way.

@@ -12,4 +12,5 @@
 //
 // 内置模板只读且拥有稳定 Slash；历史同名 owner 保存图在升级后优先，避免命令语义被替换。Draft 按 exact source Execution 去重并保存不可变版本、head CAS 与 selected preference；关闭编辑 UI 不删除隐藏会话。修改必须通过 DAG、父子结构、key 主路径与 terminal 交付校验。UI 对已生成草图与元信息确认直接执行数据库事务，不启动模型 round；普通对话继续通过 Skill/command 在用户明确确认后调用同一事务保存边界。运行、工具与交付历史始终留在源 Execution。
 // 已保存命名图按 origin_workflow_id 独立恢复草稿，抽取来源仍唯一；保存查询核对完整命名内容，Apply/Confirm 同时 fence head 与 selected revision。
+// 模型修订回执直接投影本次持久提交的 Draft，不从可被并发刷新替换的编辑缓存重建版本。
 package workgraphworkflow
