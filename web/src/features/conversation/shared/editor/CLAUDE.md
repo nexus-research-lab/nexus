@@ -11,6 +11,7 @@
 - `workspace-file-preview-kind.ts` 只负责扩展名分类；具体加载、解析和渲染归各文件类型子目录。
 - `media/CLAUDE.md` 描述图片/PDF 的共用原生生命周期与 HTML 的流式文档提交；PDF 不从 iframe load/error 推断成功失败，显式重新加载继续复用统一文件工具栏。
 - `workspace-file-preview-loading.tsx` 独占预览正文的共享 ResourceState/Spinner 组合；PDF、图片、Office、表格和文本入口只投影已有加载状态。Header 保留计数与独立写入同步事实，正文状态不再重复到 Header；布局与字号规则见根 `design.md`。
+- `use-office-preview-scope.ts` 独占 DOCX/XLSX/PPTX 的 owner 代次、Agent/path、本地切换代次与显式重试状态；返回曾打开的文件也不得接受原来的回调。owner 尚未发布时旧任务即失去提交资格。各格式继续负责 AbortController、解析、DOM/对象 URL 释放；这些本地代次不构成服务端资源身份或缓存协议。
 - 大型文本在整文件读取被服务端拒绝后只用 HTTP Range 分段只读展示，不在 WebView 中拼接；PDF 交给浏览器 Range，图片与 Office 等不可安全分段的预览由服务端限制载荷。
 
 通用布局能力不得反向放入本目录。新增文件类型时先扩展分类和路由描述表，再由对应子域拥有实现。

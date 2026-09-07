@@ -1,3 +1,6 @@
+// INPUT: Exact workspace DOCX identity and file chrome commands.
+// OUTPUT: The document controller bound to its persistent render/measurement hosts.
+// POS: DOCX entry composition; no parsing, resizing policy or file mutation.
 "use client";
 
 import type { WorkspaceFilePreviewProps } from "../workspace-file-preview-types";

@@ -1,5 +1,5 @@
 // INPUT: Workbook preview controller and file actions.
-// OUTPUT: Sheet count, workbook and one shared loading/failure surface.
+// OUTPUT: Sheet count, workbook and one shared state surface; failed reads stay scrollable in short panels.
 // POS: Spreadsheet presentation; workbook selection and parsing stay with their existing owners.
 "use client";
 
@@ -75,7 +75,7 @@ function SpreadsheetPreviewOverlay({
   const isError = status.state === "error";
   if (isError) {
     return (
-      <div className="absolute inset-0 flex items-center justify-center bg-[var(--surface-panel-subtle-background)] p-8">
+      <div className="soft-scrollbar absolute inset-0 overflow-auto overscroll-contain bg-[var(--surface-panel-subtle-background)] p-4">
         <OfficePreviewFailureState kind="spreadsheet" onRetry={onRetry} />
       </div>
     );

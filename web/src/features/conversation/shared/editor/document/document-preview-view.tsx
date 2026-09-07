@@ -1,5 +1,5 @@
 // INPUT: Parsed DOCX status, host refs, scale and file actions.
-// OUTPUT: One shared preview state while retaining the document renderer and its measurement hosts.
+// OUTPUT: Shared state and persistent render/style hosts; loading/error content stays hidden and inert.
 // POS: DOCX presentation; no fetching or parsing.
 import type { CSSProperties, RefObject } from "react";
 
@@ -158,18 +158,17 @@ function DocumentPreviewViewport({
     >
       <style>{DOCUMENT_PREVIEW_STYLES}</style>
       <div ref={styleContainerRef} aria-hidden="true" className="contents" />
-      {status.state === "error" ? (
-        <OfficePreviewFailureState kind="document" onRetry={retryPreview} />
-      ) : (
-        <div
-          ref={containerRef}
-          className={cn(
-            "nexus-docx-preview-host mx-auto flex min-h-full w-full min-w-0 justify-center",
-            status.state === "loaded" ? "opacity-100" : "opacity-0",
-          )}
-          style={hostStyle}
-        />
-      )}
+      {status.state === "error" ? <OfficePreviewFailureState kind="document" onRetry={retryPreview} /> : null}
+      <div
+        ref={containerRef}
+        aria-hidden={status.state !== "loaded"}
+        inert={status.state !== "loaded"}
+        className={cn(
+          "nexus-docx-preview-host mx-auto flex min-h-full w-full min-w-0 justify-center",
+          status.state === "error" ? "hidden" : status.state === "loaded" ? "opacity-100" : "opacity-0",
+        )}
+        style={hostStyle}
+      />
       {status.state === "loading" ? (
         <WorkspaceFilePreviewLoading className="pointer-events-none absolute inset-0" />
       ) : null}

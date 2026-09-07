@@ -1,5 +1,5 @@
 // INPUT: Office preview kind, file scope, focus action and an explicit retry callback.
-// OUTPUT: Shared loading/failure surfaces with one file header and domain-specific failure copy.
+// OUTPUT: Bounded shared loading/failure surfaces with one file header and domain-specific failure copy.
 // POS: Lazy Office module fallback; no binary fetch or parsing.
 
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -54,10 +54,10 @@ export function OfficePreviewFallback({
         title={fileName}
       />
       <div
-        className="flex min-h-0 flex-1 items-center justify-center bg-[var(--surface-panel-subtle-background)] p-8 text-center"
+        className="soft-scrollbar min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain bg-[var(--surface-panel-subtle-background)]"
         data-office-preview-kind={kind}
       >
-        <WorkspaceFilePreviewLoading />
+        <WorkspaceFilePreviewLoading className="min-h-full" />
       </div>
     </>
   );
@@ -73,7 +73,7 @@ export function OfficePreviewFailureState({
   const { t } = useI18n();
   return (
     <UiResourceState
-      className="m-auto min-h-0 w-full max-w-lg py-5"
+      className="mx-auto min-h-0 w-full max-w-lg py-5"
       impact={t("workspace_file.office_preview_failed_impact")}
       primaryAction={{
         label: t("workspace_file.retry_preview"),

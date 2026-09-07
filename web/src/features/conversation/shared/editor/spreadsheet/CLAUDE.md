@@ -6,4 +6,4 @@
 - `spreadsheet-grid-model.ts` 按视口解析、普通单元格投影、合并锚点投影和布局计算四个阶段生成可见网格，不重新读取 ExcelJS 对象。
 - `spreadsheet-readonly-workbook.tsx` 只编排工作表选择与虚拟网格；多工作表切换必须消费全局底线式 `UiTabs`，不得恢复表格专属胶囊或选中底色。
 - 新增 CellValue 成员时扩展格式化规则表；默认规则只负责暴露空文本边界，不在视图猜测对象结构。
-- `spreadsheet-file-preview.tsx` 组合上层统一加载/失败面，成功后仅向 Header 投影工作表数量；工作簿读取与重试继续归资源 Hook。
+- `spreadsheet-file-preview.tsx` 组合上层统一加载/失败面，成功后仅向 Header 投影工作表数量，失败面独立滚动；工作簿读取与重试继续归资源 Hook。`use-spreadsheet-preview.ts` 消费上层 Office scope，文件/账号变化重置工作簿与工作表选择，旧读入或解析结果不得回写。

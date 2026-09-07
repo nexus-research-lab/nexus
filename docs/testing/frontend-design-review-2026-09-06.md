@@ -2076,3 +2076,39 @@ shim 插入顺序、沙箱属性、具名源码、250ms 合并、最终刷新和
 770 项测试及生产 build，日志 /tmp/nexus-media-a59-check.log；构建仍仅有既有
 大型分块提示。HTML 的提交间隔、storage shim 和 Head/document 准备函数与
 本轮前版本逐字比对一致，未扩张为原生脚本/宿主验收。
+
+## A60：Office 预览重试与资源生命周期（2026-09-07）
+
+DOCX 失败时原先卸载了渲染容器。点击重试只推进计数，下载 effect 在 loading
+重新挂载容器前捕获空 ref，随后提前返回并一直停在加载态。真实入口、控制器
+和视图的离线回归先复现该失败（/tmp/nexus-docx-a60-repro.log），再通过保留
+渲染与样式宿主修复。未完成内容隐藏并 inert，成功后才进入可访问树；离屏
+解析、纸面 CSS、DOCX 选项、媒体归一化和缩放计算保持原有职责。
+
+DOCX、XLSX 和 PPTX 现在消费同一个 useOfficePreviewScope，移除三处重复的
+文件 key、重试 callback 和 loading 写入。owner 代次、Agent/path、本地切换
+代次和重试计数共同限定当前工作；离开再返回同一文件也不得接收旧回调，owner
+尚未通知订阅者时旧结果即失去提交资格。格式控制器继续拥有 AbortController、
+离屏解析、DOM 和 object URL 的释放，公共 Hook 不发起 IO 或建立新服务端协议。
+文件/账号切换重置表格选择与幻灯片页码；PPTX 迟到结果只释放自身资源，不触碰
+当前文稿。DOCX 旧 RAF、ResizeObserver 和 window resize 回调也按请求隔离。
+
+Office 懒加载容器和表格/幻灯片错误面改为受控滚动；共同错误组件只横向居中，
+删除会把内容挤出短面板的纵向居中和额外大留白。继续使用公共文件动作、状态、
+Typography 与 Choice/Button，不重新定义文档、工作簿或幻灯片内容排版。
+
+新增 12 项行为回归，连同既有状态与翻页回归共 22 项通过，日志
+/tmp/nexus-office-a60-target.log。覆盖 DOCX 真正重试完成、旧解析与尺寸回调、
+XLSX 离开/返回同一文件的迟到成功和失败、未发布 owner 切换、工作表选择重置、
+显式重试/卸载，以及 PPTX 当前/迟到/卸载资源释放。解析和 Canvas 使用受控
+夹具，未验证 Office 文件解析保真或宿主渲染。新增所有权门禁防止三种格式重新
+各自维护文件、账号和重试状态。
+
+清单仍为 485 项：302 pending、119 in_progress、18 retained、40 improved、
+6 removed。五个入口/视图完成本轮代码与行为审查；表格网格、幻灯片 Canvas
+和各格式解析器仍由独立清单范围继续审查。五项源码摘要已更新，其余存活摘要
+全部一致，公共组件仍为 118 项。整体 Goal 继续，视觉与宿主验收仍暂停。
+
+验证：npm run check 通过，含 lint、typecheck、478 项合同、218 个文件的
+782 项测试及生产 build，日志 /tmp/nexus-office-a60-check.log；构建仍仅有
+既有大型分块提示。未启动浏览器、原生宿主或产品服务。

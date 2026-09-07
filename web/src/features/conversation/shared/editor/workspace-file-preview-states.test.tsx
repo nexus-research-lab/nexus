@@ -101,7 +101,9 @@ it("preserves the DOCX measurement host while loading and keeps failure retry in
   expect(styleContainerRef.current).toBe(styles);
   expect(screen.queryByRole("status")).toBeNull();
   rerender(localized(<DocumentPreviewView {...props} status={{ state: "error" }} />));
-  expect(containerRef.current).toBeNull();
+  expect(containerRef.current).toBe(host);
+  expect(host?.hasAttribute("inert")).toBe(true);
+  expect(host?.getAttribute("aria-hidden")).toBe("true");
   expect(styleContainerRef.current).toBe(styles);
   await userEvent.click(screen.getByRole("button", { name: MESSAGES.en["workspace_file.retry_preview"] }));
   expect(retryPreview).toHaveBeenCalledTimes(1);

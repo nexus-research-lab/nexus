@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- DOCX, XLSX and PPTX previews share file, account and retry scope handling;
+  stale reads and parses cannot replace current content, and obsolete slide
+  resources are released. DOCX retains its rendering hosts after failure so
+  retry can complete; Office loading and recovery surfaces remain scrollable
+  in constrained panels without changing document, workbook or slide layout.
 - Image and PDF previews share scoped native-media state and reset on file or
   account changes. Image recovery remains scrollable in short panels; PDF gains
   an explicit reload action instead of relying on unavailable iframe errors.
