@@ -1,5 +1,5 @@
 // INPUT: history model 投影的动作、运行产物与用户命令。
-// OUTPUT: 共享 Button 呈现的运行恢复动作与绑定历史执行身份的文件动作/反馈。
+// OUTPUT: 随当前语言投影的共享 Button 动作/忙碌状态与绑定历史执行身份的文件动作/反馈。
 // POS: Scheduled 历史动作适配；运行资格归模型，文件动作生命周期归公共领域 Hook。
 
 "use client";
@@ -61,6 +61,7 @@ export function ScheduledTaskRunActions({
   run,
   task,
 }: ScheduledTaskRunActionsProps) {
+  const { t } = useI18n();
   const actions = getRunActionPresentations({
     isRecoveryUnconfirmed,
     isRecovering,
@@ -70,7 +71,7 @@ export function ScheduledTaskRunActions({
     isRetryingDelivery,
     run,
     task,
-  });
+  }, t);
   const actionHandlers: Record<ScheduledTaskRunActionKind, () => void | Promise<void>> = {
     recover: onRecover,
     retry: onRetry,
@@ -86,6 +87,7 @@ export function ScheduledTaskRunActions({
           const Icon = RUN_ACTION_ICONS[action.kind];
           return (
             <UiButton
+              aria-busy={action.busy}
               className="justify-end"
               disabled={action.disabled}
               key={action.kind}

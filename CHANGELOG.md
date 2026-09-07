@@ -27,6 +27,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Scheduled run history now updates status, duration, dates, action hints and
+  confirmation labels with the current language while preserving expanded rows
+  and exact confirmation targets. Request busy states remain distinct from
+  unconfirmed outcomes; refresh is disabled while loading, and dialog titles use
+  the shared instance naming protocol. Invalid history dates degrade gracefully.
+
 - Bound scheduled-run artifact actions to their historical executor instead of
   the task's current Agent. Unproven locations now show a disabled action with
   an explanation, and copied diagnostics distinguish current and historical IDs.

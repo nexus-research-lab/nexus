@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前 owner scope、任务、运行记录动作与历史刷新命令。
- * OUTPUT: 绑定精确 owner+Job 的动作状态、恢复/投递核对目标与反馈。
+ * OUTPUT: 绑定精确 owner+Job 的动作状态、恢复/投递核对目标、反馈及当前语言的诊断复制。
  * POS: Scheduled 运行历史动作控制器；决策由产品内确认框承载。
  */
 "use client";
@@ -91,7 +91,7 @@ export function useScheduledTaskRunHistoryActions({
   scopeKey,
   task,
 }: RunHistoryActionsOptions) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const taskJobId = task?.job_id ?? null;
   const taskKey = runHistoryTaskKey(scopeKey, taskJobId);
   const taskDeletionState = task?.deletion_state?.trim() ?? "";
@@ -239,7 +239,7 @@ export function useScheduledTaskRunHistoryActions({
     if (!task) {
       return;
     }
-    const copied = await writeTextToClipboard(buildRunDiagnostic(task, run));
+    const copied = await writeTextToClipboard(buildRunDiagnostic(task, run, { locale, t }));
     updateActiveState(task.job_id, (current) => ({
       ...current,
       copiedRunId: copied ? run.run_id : current.copiedRunId,
@@ -259,7 +259,7 @@ export function useScheduledTaskRunHistoryActions({
             tone: "error",
           },
     }));
-  }, [task, updateActiveState]);
+  }, [locale, t, task, updateActiveState]);
 
   const retry = useCallback((run: ScheduledTaskRunItem): Promise<void> => (
     runAction("retry", run, (activeTask) => (

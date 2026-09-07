@@ -70,7 +70,7 @@ test("scheduled task run history shows one canonical result", async () => {
     result_text: "runtime result",
   };
 
-  assert.deepEqual(getRunOutputSections(run), [{
+  assert.deepEqual(getRunOutputSections(run, t), [{
     content: "runtime result",
     label: undefined,
     tone: "default",
@@ -78,7 +78,7 @@ test("scheduled task run history shows one canonical result", async () => {
   assert.deepEqual(getRunOutputSections({
     ...run,
     result_text: " ",
-  }), [{
+  }, t), [{
     content: "assistant answer",
     label: undefined,
     tone: "default",
