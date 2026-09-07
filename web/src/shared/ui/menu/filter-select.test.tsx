@@ -6,6 +6,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it } from "vitest";
+import { I18nProvider } from "@/shared/i18n/i18n-provider";
 import { UiFilterSelect } from "./filter-select";
 
 describe("UiFilterSelect", () => {
@@ -21,7 +22,7 @@ describe("UiFilterSelect", () => {
           options={[{ label: "All", value: "all" }, { label: "Connected", value: "connected" }]} value={status} />
       </>;
     }
-    render(<Filters />);
+    render(<Filters />, { wrapper: I18nProvider });
     const category = screen.getByRole("button", { name: "Category" });
     const status = screen.getByRole("button", { name: "Status" });
     expect(category.className).toBe(status.className);

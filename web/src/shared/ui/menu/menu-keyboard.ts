@@ -1,6 +1,6 @@
-// INPUT: Menu DOM、原生焦点与 React 键盘事件，以及可选的 Tab 退出命令。
-// OUTPUT: 当前菜单内首项/方向键/Home/End 遍历，Tab 退出委托共享浮层焦点续接规则。
-// POS: Action/业务菜单共用键盘边界；不管理浮层、级联状态或执行业务命令。
+// INPUT: Menu/Listbox DOM、原生焦点、React 键盘事件与可选 Tab 退出命令。
+// OUTPUT: 当前层级首项/当前选项与方向键/Home/End 遍历，Tab 退出使用共享焦点续接。
+// POS: Action/Select/业务菜单共用键盘边界；不管理浮层、级联状态或执行业务命令。
 
 import type { KeyboardEvent } from "react";
 
@@ -8,18 +8,38 @@ import { isImeKeyboardEvent } from "@/shared/lib/browser/ime-keyboard-event";
 import { focusAfterAnchoredOverlayExit } from "@/shared/ui/overlay/overlay-focus-navigation";
 import { getAnchoredOverlayAncestorRoots } from "@/shared/ui/overlay/overlay-dismissal-runtime";
 
-function getMenuItems(menu: HTMLElement): HTMLElement[] {
-  return Array.from(menu.querySelectorAll<HTMLElement>(
-    ':is([role="menuitem"], [role="menuitemcheckbox"]):not([aria-disabled="true"]):not(:disabled)',
-  )).filter((item) => item.closest('[role="menu"]') === menu);
+type PopupRole = "menu" | "listbox";
+
+function getPopupItems(popup: HTMLElement, role: PopupRole): HTMLElement[] {
+  const itemSelector = role === "menu"
+    ? ':is([role="menuitem"], [role="menuitemcheckbox"])'
+    : '[role="option"]';
+  return Array.from(popup.querySelectorAll<HTMLElement>(
+    `${itemSelector}:not([aria-disabled="true"]):not(:disabled)`,
+  )).filter((item) => item.closest(`[role="${role}"]`) === popup);
 }
 
 export function focusFirstMenuItem(menu: HTMLElement | null): void {
-  if (menu) (getMenuItems(menu)[0] ?? menu).focus();
+  if (menu) (getPopupItems(menu, "menu")[0] ?? menu).focus();
 }
 
-export function handleMenuKeyDown(
+export function focusSelectedListboxItem(listbox: HTMLElement | null): void {
+  if (!listbox) return;
+  const items = getPopupItems(listbox, "listbox");
+  (items.find((item) => item.getAttribute("aria-selected") === "true") ?? items[0] ?? listbox).focus();
+}
+
+export function handleMenuKeyDown(event: KeyboardEvent<HTMLElement>, onTabExit?: () => void): void {
+  handlePopupKeyDown(event, "menu", onTabExit);
+}
+
+export function handleListboxKeyDown(event: KeyboardEvent<HTMLElement>, onTabExit?: () => void): void {
+  handlePopupKeyDown(event, "listbox", onTabExit);
+}
+
+function handlePopupKeyDown(
   event: KeyboardEvent<HTMLElement>,
+  role: PopupRole,
   onTabExit?: () => void,
 ): void {
   if (event.defaultPrevented || isImeKeyboardEvent(event.nativeEvent)) return;
@@ -35,11 +55,11 @@ export function handleMenuKeyDown(
     focusAfterAnchoredOverlayExit(exitingRoots, event.shiftKey);
     return;
   }
-  const menu = target.closest<HTMLElement>('[role="menu"]');
+  const menu = target.closest<HTMLElement>(`[role="${role}"]`);
   if (!menu || !event.currentTarget.contains(menu)) return;
   if (target.closest('input, textarea, select, [contenteditable="true"]')) return;
   if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
-  const items = getMenuItems(menu);
+  const items = getPopupItems(menu, role);
   if (!items.length) return;
   event.preventDefault();
   event.stopPropagation();

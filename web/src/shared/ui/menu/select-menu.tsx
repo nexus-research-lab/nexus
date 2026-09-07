@@ -1,5 +1,5 @@
 // INPUT: 当前单选值、有限选项、显示密度、选择上下文与变更命令。
-// OUTPUT: 可点击和键盘切换、选中后归还触发器焦点的共享 Select Menu。
+// OUTPUT: 本地化单选字段、当前目录校验、受控方向键选值与显式打开后的焦点遍历/退出。
 // POS: 单选菜单 pattern；不支持业务搜索、异步资源或多选状态机。
 "use client";
 
@@ -7,7 +7,12 @@ import {
   type KeyboardEvent,
   type ReactNode,
   useCallback,
+  useEffect,
+  useRef,
 } from "react";
+
+import { useI18n } from "@/shared/i18n/i18n-context";
+import { isImeKeyboardEvent } from "@/shared/lib/browser/ime-keyboard-event";
 
 import {
   buildSelectMenuModel,
@@ -23,11 +28,11 @@ import {
 import { getSelectMenuStyleProjection } from "./select-menu-styles";
 import { SelectMenuView } from "./select-menu-view";
 import { useSelectMenuOverlay } from "./use-select-menu-overlay";
+import { focusSelectedListboxItem } from "./menu-keyboard";
 
 interface UiSelectMenuProps {
   ariaLabel: string;
   allowLabelWrap?: boolean;
-  buttonClassName?: string;
   className?: string;
   disabled?: boolean;
   id?: string;
@@ -45,53 +50,29 @@ interface UiSelectMenuProps {
   value: string;
 }
 
-const SELECT_MENU_DEFAULT_PROPS = {
-  allowLabelWrap: false,
-  disabled: false,
-  placement: "auto",
-  placeholder: "请选择",
-  size: "md",
-  surface: "surface",
-} as const satisfies Partial<UiSelectMenuProps>;
-
-type SelectMenuDefaultProp = keyof typeof SELECT_MENU_DEFAULT_PROPS;
-type ResolvedUiSelectMenuProps = Omit<UiSelectMenuProps, SelectMenuDefaultProp>
-  & Required<Pick<UiSelectMenuProps, SelectMenuDefaultProp>>;
-
-/** 共享自定义下拉菜单，避免业务侧重复实现原生 select 无法控制的弹层定位。 */
-export function UiSelectMenu(props: UiSelectMenuProps) {
-  const resolvedProps: ResolvedUiSelectMenuProps = {
-    ...props,
-    allowLabelWrap:
-      props.allowLabelWrap ?? SELECT_MENU_DEFAULT_PROPS.allowLabelWrap,
-    disabled: props.disabled ?? SELECT_MENU_DEFAULT_PROPS.disabled,
-    placement: props.placement ?? SELECT_MENU_DEFAULT_PROPS.placement,
-    placeholder: props.placeholder ?? SELECT_MENU_DEFAULT_PROPS.placeholder,
-    size: props.size ?? SELECT_MENU_DEFAULT_PROPS.size,
-    surface: props.surface ?? SELECT_MENU_DEFAULT_PROPS.surface,
-  };
-  return <UiSelectMenuController {...resolvedProps} />;
-}
-
-function UiSelectMenuController({
+/** 共享单选语义；真正的执行命令使用 Action Menu，不能借方向键选值执行。 */
+export function UiSelectMenu({
   ariaLabel,
-  allowLabelWrap,
-  buttonClassName,
+  allowLabelWrap = false,
   className,
-  disabled,
+  disabled: disabledProp = false,
   id,
   label,
   leading,
   menuMinWidth,
   onChange,
   options,
-  placement,
-  placeholder,
+  placement = "auto",
+  placeholder: explicitPlaceholder,
   resetKey,
-  size,
-  surface,
+  size = "md",
+  surface = "surface",
   value,
-}: ResolvedUiSelectMenuProps) {
+}: UiSelectMenuProps) {
+  const { t } = useI18n();
+  const placeholder = explicitPlaceholder ?? t("common.select_placeholder");
+  const disabled = disabledProp || options.length === 0;
+  const focusMenuOnOpenRef = useRef(false);
   const model = buildSelectMenuModel({
     options,
     placeholder,
@@ -129,14 +110,23 @@ function UiSelectMenuController({
     resetKey,
   });
 
-  const changeValue = useCallback((nextValue: string) => {
-    if (disabled) {
-      return;
-    }
-    onChange(nextValue);
+  const closeAndRestoreFocus = useCallback(() => {
     closeMenu();
     buttonRef.current?.focus();
-  }, [buttonRef, closeMenu, disabled, onChange]);
+  }, [buttonRef, closeMenu]);
+
+  const changeValue = useCallback((nextValue: string) => {
+    if (disabled || !options.some((option) => option.value === nextValue && !option.disabled)) return;
+    onChange(nextValue);
+    closeAndRestoreFocus();
+  }, [closeAndRestoreFocus, disabled, onChange, options]);
+
+  useEffect(() => {
+    if (!isOpen) { focusMenuOnOpenRef.current = false; return; }
+    if (!focusMenuOnOpenRef.current || !portalContainer || !menuPosition) return;
+    focusMenuOnOpenRef.current = false;
+    focusSelectedListboxItem(menuRef.current);
+  }, [isOpen, menuPosition, menuRef, portalContainer]);
 
   const moveSelection = useCallback((direction: UiSelectMenuSelectionDirection): boolean => {
     if (disabled) {
@@ -151,13 +141,18 @@ function UiSelectMenuController({
   }, [disabled, onChange, options, value]);
 
   const onTriggerKeyDown = useCallback((event: KeyboardEvent<HTMLButtonElement>) => {
+    if (disabled || event.defaultPrevented || isImeKeyboardEvent(event.nativeEvent)) return;
+    if (event.key === "Tab") {
+      closeMenu();
+      return; // Trigger 仍在页面顺序中；让浏览器自然续接焦点。
+    }
+    focusMenuOnOpenRef.current = event.key === "Enter" || event.key === " ";
     handleOverlayTriggerKeyDown(event, moveSelection);
-  }, [handleOverlayTriggerKeyDown, moveSelection]);
+  }, [closeMenu, disabled, handleOverlayTriggerKeyDown, moveSelection]);
 
   return (
     <SelectMenuView
       ariaLabel={ariaLabel}
-      buttonClassName={buttonClassName}
       buttonRef={buttonRef}
       className={className}
       disabled={disabled}
@@ -170,7 +165,8 @@ function UiSelectMenuController({
       menuRef={menuRef}
       menuStyle={menuStyle}
       onSelect={changeValue}
-      onTriggerClick={toggleMenu}
+      onTabExit={closeAndRestoreFocus}
+      onTriggerClick={() => { focusMenuOnOpenRef.current = true; toggleMenu(); }}
       onTriggerKeyDown={onTriggerKeyDown}
       options={options}
       portalContainer={portalContainer}

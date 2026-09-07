@@ -1,16 +1,19 @@
 /**
- * INPUT: 当前 Provider 名称、启用状态、测试选项与写权限。
- * OUTPUT: 名称、真实状态和直接操作组成的紧凑详情头。
+ * INPUT: 精确 Provider 身份、名称、启用状态、测试选项与写权限。
+ * OUTPUT: 完整名称、公共状态徽标与显式执行的 Provider 测试动作菜单。
  * POS: Provider 配置正文的对象身份栏，不承载预设营销说明。
  */
-import { Loader2, Play } from "lucide-react";
+import { ChevronDown, Loader2, Play } from "lucide-react";
+import { useRef } from "react";
+import { UiButton } from "@/shared/ui/button/button";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 
 import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
-import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
+import { UiActionMenu } from "@/shared/ui/menu/action-menu";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import type { ProviderPendingAction } from "../actions/use-provider-command";
@@ -24,6 +27,7 @@ interface ProviderSettingsDetailHeaderProps {
   onEnabledChange: (checked: boolean) => void;
   onTestSelection: (value: string) => void;
   pendingAction: ProviderPendingAction | null;
+  providerId: string | null;
   selectedCanManage: boolean;
   testModelOptions: Array<{ label: string; value: string }>;
 }
@@ -46,7 +50,6 @@ function ProviderStatusBadge({
   }
   return (
     <UiBadge
-      className="rounded-full"
       size="sm"
       tone={enabled ? "success" : "idle"}
     >
@@ -62,36 +65,51 @@ function ProviderTestMenu({
   isEditing,
   onTestSelection,
   pendingAction,
+  providerId,
   testModelOptions,
 }: Pick<
   ProviderSettingsDetailHeaderProps,
-  "isEditing" | "onTestSelection" | "pendingAction" | "testModelOptions"
+  "isEditing" | "onTestSelection" | "pendingAction" | "providerId" | "testModelOptions"
 > & { disabled: boolean }) {
   const { t } = useI18n();
-  if (!isEditing) {
-    return null;
-  }
-  const isTesting = pendingAction
-    ? TEST_PENDING_ACTIONS.has(pendingAction.kind)
-    : false;
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const unavailable = disabled || !providerId || testModelOptions.length === 0;
+  const [isOpen, setIsOpen] = useResettableState(false,
+    JSON.stringify([providerId, isEditing, unavailable, testModelOptions.map((option) => option.value).sort()]));
+  if (!isEditing) return null;
+  const isTesting = pendingAction ? TEST_PENDING_ACTIONS.has(pendingAction.kind) : false;
+  const menuOpen = isOpen && !unavailable;
   return (
-    <UiSelectMenu
-      ariaLabel={t("settings.providers.test_provider")}
-      buttonClassName="px-2"
-      className="w-auto min-w-18"
-      disabled={disabled}
-      leading={isTesting ? (
-        <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
-      ) : (
-        <Play className="h-3.5 w-3.5" />
-      )}
-      menuMinWidth={220}
-      onChange={onTestSelection}
-      options={testModelOptions}
-      placeholder={t("settings.providers.test")}
-      size="xs"
-      value=""
-    />
+    <>
+      <UiButton
+        ref={buttonRef}
+        aria-busy={isTesting || undefined}
+        aria-expanded={menuOpen}
+        aria-haspopup="menu"
+        aria-label={t("settings.providers.test_provider")}
+        disabled={unavailable}
+        onClick={() => setIsOpen((open) => !open)}
+        size="xs"
+        title={t("settings.providers.test_provider")}
+        variant="surface"
+      >
+        {isTesting ? <Loader2 aria-hidden="true" className={getUiSpinnerClassName({ size: "sm" })} />
+          : <Play aria-hidden="true" className="h-3.5 w-3.5" />}
+        {t("settings.providers.test")}
+        <ChevronDown aria-hidden="true" className="h-3.5 w-3.5" />
+      </UiButton>
+      <UiActionMenu
+        anchorRef={buttonRef}
+        ariaLabel={t("settings.providers.test_provider")}
+        isOpen={menuOpen}
+        items={testModelOptions}
+        minWidth={220}
+        onClose={() => setIsOpen(false)}
+        onSelect={(value) => {
+          if (!unavailable && testModelOptions.some((option) => option.value === value)) onTestSelection(value);
+        }}
+      />
+    </>
   );
 }
 
@@ -104,6 +122,7 @@ export function ProviderSettingsDetailHeader({
   onEnabledChange,
   onTestSelection,
   pendingAction,
+  providerId,
   selectedCanManage,
   testModelOptions,
 }: ProviderSettingsDetailHeaderProps) {
@@ -113,12 +132,12 @@ export function ProviderSettingsDetailHeader({
     || !selectedCanManage;
 
   return (
-    <div className="mb-4 flex shrink-0 items-start justify-between gap-3">
-      <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-center gap-2.5">
+    <div className="mb-4 flex shrink-0 flex-wrap items-start justify-between gap-3">
+      <div className="min-w-0 flex-1 basis-48">
+        <div className="flex min-w-0 flex-wrap items-center gap-2.5">
           <h2
             className={cn(
-              "truncate",
+              "min-w-0 wrap-anywhere",
               getUiTypographyClassName({ role: "pageTitle", tone: "strong" }),
             )}
           >
@@ -134,6 +153,7 @@ export function ProviderSettingsDetailHeader({
           isEditing={isEditing}
           onTestSelection={onTestSelection}
           pendingAction={pendingAction}
+          providerId={providerId}
           testModelOptions={testModelOptions}
         />
         <GlassSwitch

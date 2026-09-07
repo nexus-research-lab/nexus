@@ -2,19 +2,22 @@
 // OUTPUT: 证明 Escape 只关闭当前模态范围的最上层浮层，且焦点归还不越过该范围。
 // POS: Anchored Overlay 生命周期集成测试；不复制业务菜单或定位计算。
 
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render as renderReact, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { describe, expect, it, vi } from "vitest";
 
 import { UiDialogBackdrop, UiDialogPortal, UiDialogShell } from "@/shared/ui/dialog/dialog";
+import { I18nProvider } from "@/shared/i18n/i18n-provider";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 
 import { useAnchoredOverlayLayer } from "./anchored-overlay-layer";
 import { resolveUiAnchoredOverlayPosition } from "./anchored-overlay-layout";
 import { OPEN_OVERLAY_DATA_ATTRIBUTES } from "./overlay-contract";
 import { UiTooltip } from "./tooltip";
+
+function render(ui: ReactNode) { return renderReact(ui, { wrapper: I18nProvider }); }
 
 function NestedOverlayHarness({ deferUntilAnchor = false, initialOpen = false, revision = 0 }: {
   deferUntilAnchor?: boolean;

@@ -31,6 +31,7 @@ const PROHIBITED_PRODUCT_STYLE_PATTERNS = [
 ];
 
 const REQUIRED_SHARED_UI_BEHAVIOR_SUITES = [
+  "src/features/settings/provider-settings/provider-settings-detail-header.test.tsx",
   "src/shared/ui/workspace/surface/workspace-surface-header.test.tsx",
   "src/features/conversation/room/group/header/group-conversation-header.test.tsx",
   "src/features/conversation/room/group/header/group-member-avatar-stack.test.tsx",
@@ -1855,6 +1856,19 @@ test("Select, Slash, and multi-select options share one listbox row DOM owner", 
   }
   assert.match(selectView, /<UiBadge\b/);
   assert.doesNotMatch(selectView, /color-mix|text-\[9px\]|rounded-\[6px\]/);
+});
+
+test("Provider tests use explicit action menus and Select keeps one public visual API", async () => {
+  const [header, select, view] = await Promise.all([
+    readSource("src/features/settings/provider-settings/components/provider-settings-detail-header.tsx"),
+    readSource("src/shared/ui/menu/select-menu.tsx"),
+    readSource("src/shared/ui/menu/select-menu-view.tsx"),
+  ]);
+  assert.match(header, /<UiActionMenu\b/);
+  assert.match(header, /<UiButton\b/);
+  assert.doesNotMatch(header, /UiSelectMenu/);
+  assert.doesNotMatch(select + view, /buttonClassName/);
+  assert.match(select, /t\("common\.select_placeholder"\)/);
 });
 
 test("Select Menu separates state and geometry from its visual recipe", async () => {

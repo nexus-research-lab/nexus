@@ -89,6 +89,7 @@ export function ProviderSettingsPanel({
                 onEnabledChange={actions.handleEnabledChange}
                 onTestSelection={modelActions.handleTestSelection}
                 pendingAction={state.pendingAction}
+                providerId={state.selectedRecord?.id ?? null}
                 selectedCanManage={state.selectedCanManage}
                 testModelOptions={modelActions.testModelOptions}
               />

@@ -53,6 +53,15 @@ describe("Provider configuration fields", () => {
       for (const label of section.querySelectorAll<HTMLLabelElement>("label[for]")) {
         expect(label.control?.closest("section")).toBe(section);
         await user.click(label);
+        if (label.control?.getAttribute("aria-haspopup") === "listbox") {
+          const popupId = label.control.getAttribute("aria-controls");
+          const listbox = popupId ? document.getElementById(popupId) : null;
+          expect(listbox?.getAttribute("role")).toBe("listbox");
+          expect(document.activeElement?.closest("[role=listbox]")).toBe(listbox);
+          expect(document.activeElement?.getAttribute("aria-selected")).toBe("true");
+          await user.keyboard("{Escape}");
+          expect(screen.queryByRole("listbox")).toBeNull();
+        }
         expect(document.activeElement).toBe(label.control);
       }
     }

@@ -3286,3 +3286,62 @@ lint、typecheck、482 项合同、265 文件的 1189 项组件/模型测试及 
 lint 警告和大分块构建提示。快照 /tmp/nexus-a89-review-nih2ckmm，文件清单
 /tmp/nexus-a89-review.json；最终证据只更新本文，提交前核对暂存区、工作树与
 测试快照字节及全部审查哈希。
+
+## A90 — 公共单选菜单与 Provider 显式测试动作
+
+逐项检查公共 Select 的 model、recipe、overlay、trigger、view 与共享键盘边界，
+并按 TypeScript AST 提取全部 27 处生产调用的属性；调用证据保存在
+/tmp/nexus-a90-select-consumers.json。覆盖设置、Provider、身份、记忆、配对/联络、
+定时任务、订阅运营、Room 与 Header。尺寸仍由现有 xs/sm/md/lg recipe 持有，
+唯一业务 buttonClassName 覆盖是 Provider 测试入口；其他 className 只承担布局。
+各领域硬编码文案、独立业务资源与状态继续归其未完成审查，不将机械调用视为整页完成。
+
+单选原默认中文占位改为 catalog 的双语文案；显式 placeholder 保留。没有候选时
+禁用并消费旧打开态，不派发选值。显式点击/Enter/Space 打开后，菜单定位可见才
+聚焦当前可用项，否则首项或全禁用的根；后续几何更新不重置焦点。浮层内方向键、
+Home/End 只浏览，明确激活才提交当前可用候选；Tab 关闭并使用共享 overlay 焦点
+续接。触发器方向键即时选值/打开的既有合同保持，trigger Tab 保留自然顺序。
+IME、已处理事件、外部 Portal 与可编辑输入边界继续共用 menu-keyboard；按角色
+隔离 menu/listbox 项，不引入另一套定位、退出或多选状态机。
+
+单行选项补完整原生提示，前导/箭头/勾选保持装饰语义，选中勾与活动底面使用中性
+图标色；标签使用已有 metadata role。Panel 只增加可选键盘委派与 tabIndex=-1，
+领域多选/Slash/历史的行为继续由原调用方持有。删除单选冗余默认值包装层和
+buttonClassName 公共/视图透传，尺寸、表面与包裹模式仍由唯一 recipe 决定。
+
+Provider 原用 value="" 的 Select 执行测试，箭头选择会直接调用真实测试命令。
+改为公共 xs Button + Action Menu，方向键只浏览，点击或 Enter/Space 明确选择才
+提交原 onTestSelection；真实测试、自动选择模型值与命令互斥未改。菜单以 exact
+Provider ID、候选身份、编辑/权限/忙碌边界重置，切换后返回不复活旧打开态；名称/
+语言刷新保持。空候选/缺 Provider 禁用，实际测试时保留共享 Spinner/aria-busy。
+详情身份、状态、动作允许随可用宽度换行，全名不再截断，状态复用公共 Badge。
+
+定向 9 文件 89 项测试与 typecheck 通过，日志 /tmp/nexus-a90-target.log 和
+/tmp/nexus-a90-types.log。新增 25 项覆盖明确打开与提交、当前项焦点、禁用跳过、
+Home/End、重定位不抢焦点、双向 Tab、IME/已处理事件、全禁用与空候选、语言提示，
+以及 Provider 菜单的执行次数、身份/候选/权限/编辑切换、名称刷新和原启用开关。
+已有菜单、Field、真实嵌套 Overlay、公共 Header 与 Provider 排版继续通过。严格
+I18n Context 保持，旧裸 Select 测试夹具显式加入真实 Provider。迭代首轮发现误用
+不存在的 Button variant，类型与原 Spinner 回归同时失败，修正为公共 surface 后
+通过，未增加别名接口。源码门禁约束执行菜单所有权和单选唯一视觉 API，新行为
+套件进入必跑清单。完整门禁以最终隔离快照结果为准。
+
+485 项清单为 236 pending、131 in_progress、92 improved、20 retained、6 removed；
+公共 UI 仍为 118 项。单选编排/视图与 Provider 详情头完成本批代码/离线行为审查，
+Panel 原语保留多领域审查、Provider 根保留配置工作面的未完成范围。全部现存源
+哈希已核对；无新增 Gallery、视觉/浏览器/宿主测试或产品服务，不改后端。活动 Dock
+继续保留 A78 已落地的 36px 外框、32px 命中区与 26px 头像，不因同一反馈反复改尺寸。
+整体 Goal 继续，只本地提交，不推送。
+
+首轮完整门禁的 483 项合同通过，组件为 1213 通过、1 失败：Provider 配置多实例
+标签测试仍要求点击 Select 标签后焦点停留 trigger。更新该夹具，明确验证标签关联
+到本实例的 aria-controls listbox、当前选中项获得焦点、Escape 后只关闭该菜单并
+回到本实例字段；没有放宽多实例关联断言。随后 10 文件 95 项定向回归通过，见
+/tmp/nexus-a90-target-final.log；首轮日志保留为 /tmp/nexus-a90-check-initial.log。
+
+最终完整 npm run check 在基线 c91dc4c2a 与本批 21 个精确文件的隔离快照通过：
+lint、typecheck、483 项合同、266 文件的 1214 项组件/模型测试及 build 全部完成，
+见 /tmp/nexus-a90-check.log。仅保留既有 workgraph-metadata-editor-dialog effect-ref
+lint 警告和大分块构建提示。快照 /tmp/nexus-a90-review-pe69otfw，文件清单
+/tmp/nexus-a90-review.json；最终证据只更新本文，提交前核对工作树、暂存区与
+测试快照字节及全部审查哈希。
