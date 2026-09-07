@@ -2158,3 +2158,49 @@ ExcelJS 只生成样式对象，未读取真实 XLSX，虚拟视窗为夹具输�
 验证：npm run check 通过，含 lint、typecheck、478 项合同、220 个文件的
 790 项测试及生产 build，日志 /tmp/nexus-office-content-a61-check.log；仍仅有
 既有大型分块提示。未启动浏览器、原生宿主或产品服务。
+
+## A62：Composer 附件、目录与文本入口（2026-09-07）
+
+普通文件/文本附件和本机目录原先分别维护 Chip 外壳、字号与移除按钮，现在
+消费 UiRemovableChip 的 xs 档位；目录范围说明消费 Badge，添加仍用共享
+IconButton。完整文件名/路径保留 title，附件移除动作包含文件名，移除与文本
+预览没有嵌套按钮或冒泡耦合。图片仍保留 48px 内容缩略图和覆盖式独立删除动作。
+删除未再需要的附件样式常量、固定中文类型表、重复删除布局，以及相同条件下
+重复判断的目录组；目录变更按已有 blocksMutation 事实明确禁用，reload 继续
+可用，不在视图新增授权或保存判定。
+
+图片和文本预览合为一个公共 Dialog/Header 外壳，交给 Header 自动生成并
+关联实例标题，去掉两套标题/关闭 DOM、固定 title ID、私有标题字号和关闭
+按钮尺寸覆盖。文件名仍为唯一标题，图片/文本各自保留已有灯箱尺寸与正文行为。
+错误和加载共用一处 ResourceState，可滚动的恢复面不再依赖 m-auto 居中；
+文本复用公共源码排版和中立预览视口，按文件名命名且可 Tab 聚焦，仍只读取
+512 KiB slice，不扩大文件读入上限。
+
+图片失败原先会跟随同一个预览组件进入下一个附件；现在正文按附件 ID 隔离，
+图片失败和本地 URL 进一步按 File 重置。File 替换时先同步清空旧 URL，旧
+Object URL 在替换/卸载时释放。Session 变化同步清空临时选择，移除当前附件
+也清空选择，之后恢复同一草稿不会自动重开预览；这些变化不移除草稿附件本身。
+文本读取保留取消过期提交，加载状态按 File 同步重置。
+
+新增/扩展 10 项回归，附件与目录共三个文件 12 项通过，日志
+/tmp/nexus-attachments-a62-target.log；最初的四项失败记录于
+/tmp/nexus-attachments-a62-repro.log。覆盖图片失败切换、并存弹窗名称、
+有界文本读取及迟到成功/失败、具名滚动、预览/移除独立、Session/移除后的
+预览关闭、URL 释放、精确路径动作、禁用与安全 reload。File 读入、图片事件
+和目录控制器为离线夹具，未执行真实图片解码、原生目录选择或视觉验收。
+所有权门禁约束普通 Chip、单一预览 Header 与公共源码/视口消费。
+
+同时完成 TextFileEditor 入口的代码审查：exact Agent/path 控制器、模式投影、
+Header/Body/Reliability 组合及超限 Range 路由职责清晰，予以保留。入口继续只
+传递真实 revision、草稿、保存/对账忙碌和故障事实；已有 workspace-text-editor-scope.test.mjs
+合同与视图控制回归提供支持，本轮没有改写保存控制器、传输或编辑行为。
+
+清单仍为 485 项：296 pending、119 in_progress、19 retained、45 improved、
+6 removed。四个入口/视图完成本轮代码/行为审查；三个变更源码摘要已同步，
+保留项与其余存活摘要一致。公共组件仍为 118 项，整体 Goal 继续，视觉与宿主
+验收仍按用户要求暂停。
+
+验证：npm run check 通过，含 lint、typecheck、478 项合同、222 个文件的
+800 项测试及生产 build，日志 /tmp/nexus-attachments-a62-check.log。类型门禁
+先纠正了 Badge tone 枚举用法；最终构建仍仅有既有大型分块提示。未启动浏览器、
+原生宿主或产品服务。

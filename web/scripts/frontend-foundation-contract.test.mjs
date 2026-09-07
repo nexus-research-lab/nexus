@@ -1338,9 +1338,19 @@ test("dense Composer and Room toolbars use the shared micro Button scale", async
   }
   assert.match(attachments, /<UiIconButton/);
   assert.match(attachments, /<UiButton/);
+  for (const source of [attachments, sources[0]]) {
+    assert.match(source, /<UiRemovableChip/);
+    assert.doesNotMatch(source, /COMPOSER_ATTACHMENT_CLASS_NAME|\btext-(?:xs|sm)\b|\bfont-(?:medium|semibold)\b/);
+  }
   assert.doesNotMatch(attachments, /<button\b/);
   const composerStyles = await readSource("src/features/conversation/shared/composer/composer-styles.ts");
   assert.doesNotMatch(composerStyles, /rounded-\[|hover:|focus-visible:|workbench-input-shell/);
+  assert.doesNotMatch(composerStyles, /COMPOSER_ATTACHMENT_(?:CLASS_NAME|PREVIEW_CLASS_NAME)/);
+  const preview = await readSource("src/features/conversation/shared/composer/attachments/composer-attachment-preview-dialog.tsx");
+  assert.equal((preview.match(/<UiDialogHeader\b/g) ?? []).length, 1);
+  assert.match(preview, /UI_SOURCE_TEXT_CLASS_NAME/);
+  assert.match(preview, /UI_PREVIEW_VIEWPORT_CLASS_NAME/);
+  assert.doesNotMatch(preview, /PREVIEW_TITLE_ID|<h2\b|\btext-(?:xs|sm)\b|\bfont-(?:mono|medium)\b/);
 });
 
 test("message header actions use shared Button tones without a domain adapter", async () => {

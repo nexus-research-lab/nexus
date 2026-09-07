@@ -1,16 +1,21 @@
 /**
  * INPUT: 当前选中的本地图片或文本附件与关闭动作。
- * OUTPUT: 支持遮罩/Escape 关闭、焦点恢复的大图灯箱或只读文本预览。
- * POS: Composer 草稿附件的模态预览边界。
+ * OUTPUT: 单一具名模态外壳、按附件隔离的图片/有界文本预览与共享滚动状态面。
+ * POS: Composer 草稿预览边界；标题/关闭/焦点归 Dialog，源码与视口样式归 shared/ui。
  */
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
+
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
+import { cn } from "@/shared/ui/class-name";
+import { UI_SOURCE_TEXT_CLASS_NAME } from "@/shared/ui/form/source-text-styles";
+import { UI_PREVIEW_VIEWPORT_CLASS_NAME } from "@/shared/ui/layout/preview-viewport-styles";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
   UiDialogBackdrop,
-  UiDialogCloseButton,
   UiDialogHeader,
   UiDialogPortal,
   UiDialogShell,
@@ -21,8 +26,6 @@ import type { ComposerLocalAttachment } from "./composer-local-attachment-model"
 import { useComposerLocalFileUrl } from "./use-composer-local-file-url";
 
 const MAX_TEXT_PREVIEW_BYTES = 512 * 1024;
-const IMAGE_PREVIEW_TITLE_ID = "composer-image-preview-title";
-const TEXT_PREVIEW_TITLE_ID = "composer-text-preview-title";
 
 interface ComposerAttachmentPreviewDialogProps {
   attachment: ComposerLocalAttachment | null;
@@ -39,96 +42,57 @@ export function ComposerAttachmentPreviewDialog({
   attachment,
   onClose,
 }: ComposerAttachmentPreviewDialogProps) {
-  if (!attachment) {
-    return null;
-  }
-  if (attachment.kind === "image") {
-    return (
-      <ComposerImagePreviewDialog
-        attachment={attachment}
-        onClose={onClose}
-      />
-    );
-  }
-  if (attachment.kind === "text") {
-    return (
-      <ComposerTextPreviewDialog
-        attachment={attachment}
-        onClose={onClose}
-      />
-    );
-  }
-  return null;
-}
-
-function ComposerImagePreviewDialog({
-  attachment,
-  onClose,
-}: {
-  attachment: ComposerLocalAttachment;
-  onClose: () => void;
-}) {
   const { t } = useI18n();
-  const imageUrl = useComposerLocalFileUrl(attachment.file);
-  const [imageFailed, setImageFailed] = useState(false);
-
+  if (!attachment || attachment.kind === "file") return null;
+  const isImage = attachment.kind === "image";
   return (
     <UiDialogPortal>
-      <UiDialogBackdrop
-        className="overscroll-contain"
-        inset="compact"
-        labelledBy={IMAGE_PREVIEW_TITLE_ID}
-        layer="dialogNested"
-        onClose={onClose}
-      >
-        <UiDialogShell
-          size="xl"
-          viewport="visualPreview"
-        >
+      <UiDialogBackdrop className="overscroll-contain" inset="compact" layer="dialogNested" onClose={onClose}>
+        <UiDialogShell size={isImage ? "xl" : "lg"} viewport={isImage ? "visualPreview" : "documentPreview"}>
           <UiDialogHeader
             appearance="plain"
-            actions={
-              <UiDialogCloseButton
-                ariaLabel={t("composer.close_attachment_preview")}
-                className="h-7 w-7"
-                onClose={onClose}
-              />
-            }
-            className="gap-2 px-3 py-1.5"
-          >
-            <div className="flex min-w-0 flex-1 items-center">
-              <h2
-                className="min-w-0 flex-1 truncate text-sm font-medium text-(--text-strong)"
-                id={IMAGE_PREVIEW_TITLE_ID}
-              >
-                {attachment.file.name}
-              </h2>
-            </div>
-          </UiDialogHeader>
-          <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-(--surface-paper-background) p-3 sm:p-4">
-            {imageFailed ? (
-              <AttachmentPreviewFailure onClose={onClose} />
-            ) : imageUrl ? (
-              <img
-                alt={attachment.file.name}
-                className="max-h-full max-w-full radius-control-md object-contain shadow-(--surface-paper-shadow)"
-                draggable={false}
-                onError={() => setImageFailed(true)}
-                src={imageUrl}
-              />
-            ) : (
-              <p className="text-sm text-(--text-soft)">
-                {t("composer.attachment_preview_loading")}
-              </p>
-            )}
-          </div>
+            className="items-center gap-2 px-3 py-1.5"
+            closeLabel={t("composer.close_attachment_preview")}
+            onClose={onClose}
+            title={<span className="block truncate" title={attachment.file.name}>{attachment.file.name}</span>}
+          />
+          {isImage ? (
+            <ComposerImagePreview attachment={attachment} key={attachment.id} onClose={onClose} />
+          ) : (
+            <ComposerTextPreview attachment={attachment} key={attachment.id} onClose={onClose} />
+          )}
         </UiDialogShell>
       </UiDialogBackdrop>
     </UiDialogPortal>
   );
 }
 
-function ComposerTextPreviewDialog({
+function ComposerImagePreview({
+  attachment,
+  onClose,
+}: {
+  attachment: ComposerLocalAttachment;
+  onClose: () => void;
+}) {
+  const imageUrl = useComposerLocalFileUrl(attachment.file);
+  const [imageFailed, setImageFailed] = useResettableState(false, attachment.file);
+  if (imageFailed || !imageUrl) {
+    return <AttachmentPreviewState failed={imageFailed} onClose={onClose} />;
+  }
+  return (
+    <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-(--surface-paper-background) p-3 sm:p-4">
+      <img
+        alt={attachment.file.name}
+        className="max-h-full max-w-full radius-control-md object-contain shadow-(--surface-paper-shadow)"
+        draggable={false}
+        onError={() => setImageFailed(true)}
+        src={imageUrl}
+      />
+    </div>
+  );
+}
+
+function ComposerTextPreview({
   attachment,
   onClose,
 }: {
@@ -137,112 +101,58 @@ function ComposerTextPreviewDialog({
 }) {
   const { t } = useI18n();
   const preview = useComposerTextPreview(attachment.file);
-
+  if (preview.status !== "ready") {
+    return <AttachmentPreviewState failed={preview.status === "error"} onClose={onClose} />;
+  }
   return (
-    <UiDialogPortal>
-      <UiDialogBackdrop
-        className="overscroll-contain"
-        inset="compact"
-        labelledBy={TEXT_PREVIEW_TITLE_ID}
-        layer="dialogNested"
-        onClose={onClose}
+    <div className="flex min-h-0 flex-1 flex-col bg-(--surface-paper-background)">
+      {preview.isTruncated ? (
+        <p className={cn("shrink-0 border-b border-(--divider-subtle-color) bg-(--surface-panel-subtle-background) px-5 py-2", getUiTypographyClassName({ role: "caption", tone: "muted" }))}>
+          {t("composer.text_preview_truncated")}
+        </p>
+      ) : null}
+      <pre
+        aria-label={attachment.file.name}
+        className={cn("flex-1 whitespace-pre-wrap break-words px-5 py-4 text-(--surface-paper-foreground)", UI_PREVIEW_VIEWPORT_CLASS_NAME, UI_SOURCE_TEXT_CLASS_NAME)}
+        role="region"
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- Named read-only text needs native keyboard scrolling.
+        tabIndex={0}
       >
-        <UiDialogShell
-          size="lg"
-          viewport="documentPreview"
-        >
-          <UiDialogHeader
-            appearance="plain"
-            actions={
-              <UiDialogCloseButton
-                ariaLabel={t("composer.close_attachment_preview")}
-                className="h-7 w-7"
-                onClose={onClose}
-              />
-            }
-            className="gap-2 px-3 py-1.5"
-          >
-            <div className="flex min-w-0 flex-1 items-center">
-              <h2
-                className="min-w-0 flex-1 truncate text-sm font-medium text-(--text-strong)"
-                id={TEXT_PREVIEW_TITLE_ID}
-              >
-                {attachment.file.name}
-              </h2>
-            </div>
-          </UiDialogHeader>
-          <div className="flex min-h-0 flex-1 flex-col bg-(--surface-paper-background)">
-            {preview.isTruncated ? (
-              <p className="border-b border-(--divider-subtle-color) bg-(--surface-panel-subtle-background) px-5 py-2 text-xs text-(--text-soft)">
-                {t("composer.text_preview_truncated")}
-              </p>
-            ) : null}
-            <ComposerTextPreviewContent onClose={onClose} preview={preview} />
-          </div>
-        </UiDialogShell>
-      </UiDialogBackdrop>
-    </UiDialogPortal>
+        {preview.content || t("composer.text_preview_empty")}
+      </pre>
+    </div>
   );
 }
 
-function ComposerTextPreviewContent({
-  onClose,
-  preview,
-}: {
-  onClose: () => void;
-  preview: TextPreviewState;
-}) {
-  const { t } = useI18n();
-  if (preview.status === "loading") {
-    return (
-      <p className="m-auto text-sm text-(--text-soft)">
-        {t("composer.attachment_preview_loading")}
-      </p>
-    );
-  }
-  if (preview.status === "error") {
-    return <AttachmentPreviewFailure onClose={onClose} />;
-  }
-  return (
-    <pre className="soft-scrollbar min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words px-5 py-4 font-mono text-sm leading-6 text-(--surface-paper-foreground)">
-      {preview.content || t("composer.text_preview_empty")}
-    </pre>
-  );
-}
-
-function AttachmentPreviewFailure({ onClose }: { onClose: () => void }) {
+function AttachmentPreviewState({ failed, onClose }: { failed: boolean; onClose: () => void }) {
   const { t } = useI18n();
   return (
-    <UiResourceState
-      className="m-auto min-h-0 w-full max-w-md py-5"
-      impact={t("composer.attachment_preview_failed_impact")}
-      primaryAction={{
-        label: t("composer.close_attachment_preview"),
-        onClick: onClose,
-      }}
-      size="sm"
-      state="error"
-      title={t("composer.attachment_preview_failed")}
-      urgency="polite"
-      variant="card"
-    />
+    <div className={cn("flex-1 bg-(--surface-paper-background) p-4", UI_PREVIEW_VIEWPORT_CLASS_NAME)}>
+      <UiResourceState
+        {...(failed ? {
+          state: "error" as const,
+          impact: t("composer.attachment_preview_failed_impact"),
+          primaryAction: { label: t("composer.close_attachment_preview"), onClick: onClose },
+        } : { state: "loading" as const })}
+        className="mx-auto min-h-0 w-full max-w-md py-5"
+        size="sm"
+        title={t(failed ? "composer.attachment_preview_failed" : "composer.attachment_preview_loading")}
+        urgency="polite"
+        variant={failed ? "card" : "plain"}
+      />
+    </div>
   );
 }
 
 function useComposerTextPreview(file: File): TextPreviewState {
-  const [preview, setPreview] = useState<TextPreviewState>({
+  const [preview, setPreview] = useResettableState<TextPreviewState>({
     content: "",
     isTruncated: false,
     status: "loading",
-  });
+  }, file);
 
   useEffect(() => {
     let isCurrent = true;
-    setPreview({
-      content: "",
-      isTruncated: file.size > MAX_TEXT_PREVIEW_BYTES,
-      status: "loading",
-    });
     void file
       .slice(0, MAX_TEXT_PREVIEW_BYTES)
       .text()
@@ -267,7 +177,7 @@ function useComposerTextPreview(file: File): TextPreviewState {
     return () => {
       isCurrent = false;
     };
-  }, [file]);
+  }, [file, setPreview]);
 
   return preview;
 }

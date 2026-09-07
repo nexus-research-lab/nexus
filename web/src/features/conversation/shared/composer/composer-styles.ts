@@ -2,12 +2,6 @@
 // OUTPUT: 只描述 Conversation Composer 领域结构的稳定 class 和测量常量。
 // POS: Composer 视觉 pattern；按钮 DOM 与状态样式由 shared UiButton 原语负责。
 
-export const COMPOSER_ATTACHMENT_CLASS_NAME =
-  "chip-default group relative inline-flex items-center gap-2 px-2.5 py-1.5";
-
-export const COMPOSER_ATTACHMENT_PREVIEW_CLASS_NAME =
-  "group/preview min-h-0 min-w-0 gap-2 p-0";
-
 export const COMPOSER_ATTACHMENT_ROW_CLASS_NAME =
   "flex flex-wrap gap-2 border-b border-(--divider-subtle-color) px-2.5 py-2";
 
