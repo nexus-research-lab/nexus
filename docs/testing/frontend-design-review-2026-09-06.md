@@ -2244,3 +2244,42 @@ Context Usage 原先 focus/hover 先打开、click 随即反转关闭；修改�
 813 项测试及生产 build，日志 /tmp/nexus-footer-a63-check.log；本轮新增 13 项
 行为测试和 1 项所有权合同。首次类型检查纠正了 Typography 参数形状，最终无新增
 lint 警告；构建仍仅有既有大型分块提示。未启动浏览器、原生宿主或产品服务。
+
+
+## A64 — 待发送队列的共享折叠、键盘排序与派发边界（代码/行为）
+
+完成 ComposerPendingQueue 和 PendingQueueItem 的代码/行为审查。原私有折叠头、
+箭头和控制器折叠状态迁移到公共 Disclosure；标题使用 caption，正文 supporting，
+保留有界列表、微型引导/删除入口和临时拖动目标标记。有序列表与每行内容描述
+建立语义关系，长正文/附件名称提供完整 title，无内容时有可识别占位。排序手柄
+独立于可选正文，既支持原生拖动，也可用共享 Action Menu 的上移/下移操作。
+首尾禁用无效方向，没有相邻项或派发中关闭菜单，恢复后不重新打开旧菜单。
+
+控制器检查发现：同位/目标消失拖放仍派发原顺序、引导保护依赖下一次 render
+才生效、删除/重排没有相同的 Promise 边界，以及非队列拖动和到达滚动边界后
+仍会申请动画帧。统一当前 IDs 的非空重排与同步 ref 派发保护，引导/删除/重排
+都终止旧拖动；拒绝的 Promise 只收口，不重复创建错误面或自动重试。Conversation
+原有 sendInputQueueCommand/sendConversationCommand 仍拥有连接失败投影，Promise
+完成只表示本地命令派发阶段结束，不能据此推断后端受理。顺序继续使用服务端
+props，不建立私有乐观排序或持久 mutation journal。
+
+边缘滚动只接受当前队列真实拖动，并在可滚范围内夹紧；到边界/中间、源条目
+消失、折叠、拖动结束和卸载时终止。ComposerPanel 通过完整 draftScopeKey 为
+队列实例建立 Session 边界；本轮只审查该连接，Panel 继续 in_progress。清理
+PendingQueueContentCandidate 和无必要布尔数组/类型断言、私有 Header，以及两条
+仅由已移除折叠按钮使用的中英文文案。没有新增公共组件或另一套重排控件。
+
+新增 5 项控制器用例在基线上全部失败（其中相邻移动为新增能力），日志
+/tmp/nexus-queue-a64-repro.log。随后补齐 7 项真实组件回归，覆盖折叠、有序列表、
+键盘菜单、精确 ID、有效原生拖放、内容描述/附件优先级、派发禁用和菜单恢复。
+Session key 由实际 ComposerPanel 装配及所有权合同约束；未声称已经覆盖完整
+Composer 端到端流程或原生浏览器拖动手感。
+
+清单仍为 485 项：288 pending、118 in_progress、20 retained、53 improved、
+6 removed；两个 Queue 视图改善，ComposerPanel 增量记录和三份生产 TSX 摘要
+同步，公共 UI 仍为 118 项。整体 Goal 继续，视觉与宿主验收按用户要求暂停。
+
+验证：npm run check 全部通过，含 lint、typecheck、480 项合同、225 个文件的
+825 项测试与生产 build，日志 /tmp/nexus-queue-a64-check.log。本轮新增 12 项
+行为测试和 1 项所有权合同；修正测试 focus 的 act 包装后最终无新增 React/ESLint
+警告。构建仍只有既有大型分块提示，未启动浏览器、原生宿主或产品服务。

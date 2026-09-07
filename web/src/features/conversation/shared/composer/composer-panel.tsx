@@ -2,7 +2,7 @@
 
 /**
  * INPUT: 当前会话草稿、投递能力、Goal/附件动作、人工介入与 runtime 状态。
- * OUTPUT: 带自身上缘羽化的稳定 Composer 壳，内容在普通输入与原位人工确认之间二选一。
+ * OUTPUT: 稳定 Composer 壳与互斥输入/人工确认；队列临时交互按完整 Session 草稿作用域隔离。
  * POS: DM 与 Room 共用 Composer 的纯视图装配入口。
  */
 
@@ -106,6 +106,7 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
           {props.interactionSurface ?? (
             <>
               <ComposerPendingQueue
+                key={props.draftScopeKey}
                 compact={props.compact}
                 inputQueueItems={props.inputQueueItems}
                 onDeleteQueuedMessage={props.onDeleteQueuedMessage}
