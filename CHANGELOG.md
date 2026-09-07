@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Unified Agent save feedback and full error details with shared overlays,
+  accessible status text and keyboard dismissal. Compact contact actions now
+  close when switching Agents and use explicit, named commands.
+
 - Improved shared action menus with readable semantic typography, complete
   wrapping labels and descriptions, content-based popup sizing, consistent
   selected/disabled states and clearer Provider metadata in model menus.

@@ -8,6 +8,7 @@ export const zhAgentMessages = {
   "agent_options.delete_agent": "删除 Agent",
   "agent_options.save_changes": "保存更改",
   "agent_options.save_success": "已保存",
+  "agent_options.save_status": "保存状态",
   "agent_options.save_failed": "保存失败",
   "agent_options.save_not_applied_message": "这次更改没有保存。",
   "agent_options.save_not_applied_impact": "已有设置、会话和文件没有受到影响。",

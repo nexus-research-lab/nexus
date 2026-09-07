@@ -3397,3 +3397,62 @@ lint、typecheck、484 项合同、266 文件的 1217 项组件/模型测试及 
 lint 警告和大分块构建提示。快照 /tmp/nexus-a91-review-nhimyc28，文件清单
 /tmp/nexus-a91-review.json；最终证据只更新本文，提交前核对暂存区、工作树与
 测试快照字节及全部审查哈希。
+
+## A92 — 联系人详情保存反馈与对象动作
+
+沿 A91 的动作入口消费审查，继续读取联系人详情 Header 与两处子组件、编辑器
+持久化状态回调及当前工程地图。窄窗动作真实有唯一详情消费者，不能误删为死码；
+它只用本地 useState，切换 Agent 后旧打开菜单会沿用新回调，末尾默认分支还把
+任何未知值解释为删除。现按 exact Agent ID 通过 resettable state 消费旧打开态，
+姓名/语言刷新不打断；入口与菜单使用完整本地化姓名，缺名复用 getAgentDisplayName，
+不读取或显示 ID。聊天、建群、删除按显式值分派，未知值无动作；删除继续只调用
+原页面确认入口。移除冗余原生 type，图标/唯一 Tooltip 与菜单复用公共所有者。
+
+保存反馈原使用 caption/soft，错误文案 aria-hidden，移动错误浮层自行写绝对定位、
+视口公式和 sm breakpoint，未接入 Escape/外部关闭/Portal 仲裁。现状态采用 metadata
+12px 与 muted/success/danger，唯一 live status 始终包含完整原始文案；宽窗可见
+摘要限宽，父级现有窄窗判断直接传入 compact，避免 559px 与 sm 的两份边界。
+错误在宽窄两种布局都可由 32px 公共图标按钮显式查看，按钮具名、关联完整状态，
+并关闭自动 Tooltip 和原生 title，避免重复浮层。
+
+错误详情复用 useAnchoredOverlayLayer、reference-list preset、模态范围与关闭
+仲裁，正文 supporting 13px、完整换行与内部滚动。非模态 dialog 开放自身焦点以
+支持键盘阅读；Escape 回入口，Tab/Shift+Tab 关闭并从入口续接相邻控件，外部点击
+保留实际目标焦点。Agent、保存阶段/文案或 Header 密度变化消费旧详情，返回不
+复活；UI 仅解释收到的消息，不推断保存资格、不重放或新增保存/重试动作。原有
+Spinner reduced-motion 行为保持；删除私有定位公式、手写边框与延迟关闭 effect。
+
+定向 5 文件 57 项与 typecheck 通过，见 /tmp/nexus-a92-target-final.log 和
+/tmp/nexus-a92-types-final.log。保存状态套件从 2 项扩为 11 项，新对象动作套件
+3 项，覆盖完整辅助文案、宽窄入口、Portal/ARIA、键盘 focus/Escape/双向 Tab/IME、
+点击外部、同错误内容跨 Agent 切换、阶段/文案/密度失效、模态内第一/第二次 Escape，
+以及三个动作精确次数、名称刷新、A→B→A 关闭和英文/缺名兜底。首次夹具误用
+Backdrop 的 ariaLabel，DOM 与类型检查共同失败；改为公共 aria-label 后通过，
+未修改生产接口或放宽命名断言。原菜单、Header、嵌套 Overlay 回归保持。两套
+行为测试进入必跑清单，源码合同约束真实 Agent 接线与共享浮层/动作所有权。
+
+485 项清单为 234 pending、130 in_progress、95 improved、20 retained、6 removed；
+公共 UI 仍为 118 项。保存反馈与窄窗动作完成本批代码/离线行为审查，联系人详情
+根仅完成 Header 接线，其自动保存资源/完整编辑生命周期仍保持 in_progress。
+此次也确认 RoomMobileActionsMenu 有真实入口，Room 会话绑定与窄窗业务留待后续
+独立审查，没有混入本批。全部现存源哈希已核对。规范与地图同步；不启动产品
+服务，不做视觉/浏览器/原生验证、不改后端。整体 Goal 继续，只本地提交，不推送。
+
+首轮完整门禁在 lint 阶段发现非交互 dialog 的 JSX onKeyDown 不符合可访问性规则。
+按现有只读浮层模式改为打开时在详情根绑定原生 Tab 退出监听，关闭/卸载清理，
+既有 IME/defaultPrevented 和共享焦点续接保留；没有禁用规则、给正文伪造按钮角色
+或新建全局监听。首轮日志保留于 /tmp/nexus-a92-check-initial.log。
+
+后续源码复查确认 buildPersistenceState 把 error 与 warning feedback 都投影为 error
+阶段；因此将详情入口/标题改为中性双语“保存状态”，增加待确认结果回归，禁止从
+该阶段断言“保存失败”。改文案前的完整门禁已通过 485 合同与 1229 项组件/模型
+测试，日志保留 /tmp/nexus-a92-check-before-copy-review.log；最终新增用例和文案
+仍以最终隔离快照复跑结果为准。
+
+最终完整 npm run check 在基线 9d4433f89 与本批 15 个精确文件的隔离快照通过：
+lint、typecheck、485 项合同、267 文件的 1230 项组件/模型测试及 build 全部完成，
+见 /tmp/nexus-a92-check.log。保存反馈套件最终为 12 项，待确认结果原文与中性入口
+同时受回归约束。仅保留既有 workgraph-metadata-editor-dialog effect-ref lint 警告
+和大分块构建提示。快照 /tmp/nexus-a92-review-z0_2bg67，文件清单
+/tmp/nexus-a92-review.json；最终证据只更新本文，提交前核对暂存区、工作树与
+测试快照字节及全部审查哈希。

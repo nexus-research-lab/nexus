@@ -31,6 +31,8 @@ const PROHIBITED_PRODUCT_STYLE_PATTERNS = [
 ];
 
 const REQUIRED_SHARED_UI_BEHAVIOR_SUITES = [
+  "src/features/contacts/agent-options-persistence-status.test.tsx",
+  "src/features/contacts/contacts-agent-detail-actions-menu.test.tsx",
   "src/features/settings/provider-settings/provider-settings-detail-header.test.tsx",
   "src/shared/ui/workspace/surface/workspace-surface-header.test.tsx",
   "src/features/conversation/room/group/header/group-conversation-header.test.tsx",
@@ -2782,6 +2784,11 @@ test("Contacts detail persistence status uses shared action, spinner, typography
   assert.match(status, /<UiIconButton/);
   assert.match(status, /getUiSpinnerClassName/);
   assert.match(status, /getUiOverlayLayerClassName\("popover"\)/);
+  assert.match(status, /useAnchoredOverlayLayer/);
+  assert.match(status, /resolveUiAnchoredOverlayPosition/);
+  assert.match(status, /focusAfterAnchoredOverlayExit/);
+  assert.doesNotMatch(status, /mobileErrorOpen|absolute right-0|calc\(100vw/);
+  assert.match(detail, /<AgentOptionsPersistenceStatus agentId=\{agent\.agent_id\}/);
   assert.match(status, /OVERLAY_SURFACE_CLASS_NAME/);
   assert.match(status, /getUiTypographyClassName/);
   for (const source of [detail, status]) {
@@ -2790,6 +2797,18 @@ test("Contacts detail persistence status uses shared action, spinner, typography
       /<button\b|rounded-\[|\bz-\[|\bz-\d+\b|\banimate-spin\b|text-(?:2xs|xs|compact|sm|base|md|lg|xl|2xl)|font-(?:normal|medium|semibold|bold)|tracking-\[/,
     );
   }
+});
+
+test("Contacts narrow actions stay bound to their exact Agent and explicit commands", async () => {
+  const [detail, actions] = await Promise.all([
+    readSource("src/features/contacts/contacts-agent-detail.tsx"),
+    readSource("src/features/contacts/contacts-agent-detail-actions-menu.tsx"),
+  ]);
+  assert.match(detail, /<ContactsAgentDetailActionsMenu\s+agentId=\{agent\.agent_id\}/);
+  assert.match(actions, /useResettableState\(false, agentId\)/);
+  assert.match(actions, /getAgentDisplayName/);
+  assert.match(actions, /if \(value === "delete"\) onDelete\(\)/);
+  assert.doesNotMatch(actions, /useState|<button\b/);
 });
 
 test("Contacts communication separates orchestration and reuses shared directory chrome", async () => {
