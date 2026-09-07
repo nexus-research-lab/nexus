@@ -1,4 +1,8 @@
+// INPUT: Automation 草稿、资源候选与当前语言。
+// OUTPUT: 字段标签、选项与读取反馈；缺项 Agent 保留禁用显示项，不改写草稿。
+// POS: 基础/高级表单的只读投影，候选资格和提交校验保持各自领域所有者。
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
+import { includeUnavailableAgentSelection } from "@/lib/agent-selection-options";
 
 import type {
   DeliveryTargetType,
@@ -185,7 +189,9 @@ export function buildTaskTargetPresentation(
     disabled: source.resource.loading || source.options.length === 0,
     error: source.resource.error,
     label: copy.label,
-    options: buildTaskSelectOptions(placeholder, source.options),
+    options: buildTaskSelectOptions(placeholder, targetType === "agent"
+      ? includeUnavailableAgentSelection(source.options, source.value, t)
+      : source.options),
     retry: source.resource.retry,
     targetType,
     value: source.value,
@@ -222,7 +228,9 @@ export function buildTaskDeliveryTargetPresentation(
     disabled: source.resource.loading || source.options.length === 0,
     error: source.resource.error,
     label,
-    options: buildTaskSelectOptions(placeholder, source.options),
+    options: buildTaskSelectOptions(placeholder, targetType === "agent"
+      ? includeUnavailableAgentSelection(source.options, source.value, t)
+      : source.options),
     retry: source.resource.retry,
     targetType,
     value: source.value,

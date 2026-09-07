@@ -1,5 +1,5 @@
 /**
- * INPUT: Automation 表单目标、Agent/Room 目录与统一 Session 读模型。
+ * INPUT: Automation 表单目标、当前语言、Agent/Room 目录与统一 Session 读模型。
  * OUTPUT: 严格按 DM/Room 身份隔离的执行与结果接收候选、资源状态和 Room 解析。
  * POS: 定时任务弹窗所有目标与 Session 候选的唯一纯投影入口。
  */
@@ -12,6 +12,8 @@ import {
   parseSessionKey,
 } from "@/lib/conversation/session-key";
 import type { Agent, AgentSession } from "@/types/agent/agent";
+import { buildAgentSelectionOptions } from "@/lib/agent-selection-options";
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type {
   RoomAggregate,
   RoomContextAggregate,
@@ -124,15 +126,8 @@ export function buildTaskDialogResourceKeys(
   };
 }
 
-export function buildAgentNameIndex(agents: Agent[]): Map<string, string> {
-  return new Map(agents.map((agent) => [agent.agent_id, agent.name]));
-}
-
-export function buildAgentOptions(agents: Agent[]): TaskDialogLabelOption[] {
-  return agents.map((agent) => ({
-    label: agent.name || agent.agent_id,
-    value: agent.agent_id,
-  }));
+export function buildAgentNameIndex(agents: Agent[], t: I18nContextValue["t"]): Map<string, string> {
+  return new Map(buildAgentSelectionOptions(agents, t).map((option) => [option.value, option.label]));
 }
 
 export function buildRoomOptions(
@@ -200,6 +195,8 @@ export function buildTaskDialogDeliverySessionData(
 export function buildExecutionRoomAgentData(
   contexts: RoomContextAggregate[],
   selectedSessionKey: string,
+  agents: Agent[],
+  t: I18nContextValue["t"],
 ): TaskDialogRoomAgentData {
   const conversationId = roomConversationId(selectedSessionKey);
   const context = contexts.find((item) => (
@@ -212,13 +209,12 @@ export function buildExecutionRoomAgentData(
   const availableAgentIds = new Set(context.sessions.map((session) => (
     session.agent_id.trim()
   )).filter(Boolean));
-  const options = context.member_agents.filter((agent) => (
+  const eligibleAgents = context.member_agents.filter((agent) => (
     availableAgentIds.has(agent.agent_id)
     && !agent.room_participation_paused
-  )).map((agent) => ({
-    label: agent.name || agent.agent_id,
-    value: agent.agent_id,
-  }));
+  ));
+  const eligibleIds = new Set(eligibleAgents.map((agent) => agent.agent_id));
+  const options = buildAgentSelectionOptions(context.member_agents, t, agents).filter((option) => eligibleIds.has(option.value));
   const defaultAgentId = context.room.host_agent_id?.trim() || "";
   return {
     defaultAgentId: options.some((option) => option.value === defaultAgentId)
@@ -233,7 +229,8 @@ export function buildDeliveryRoomAgentData(
   rooms: RoomAggregate[],
   roomId: string,
   selectedSessionKey: string,
-  agentNameById: Map<string, string>,
+  agents: Agent[],
+  t: I18nContextValue["t"],
 ): TaskDialogRoomAgentData {
   const normalizedRoomId = roomId.trim();
   const conversationId = roomConversationId(selectedSessionKey);
@@ -241,7 +238,7 @@ export function buildDeliveryRoomAgentData(
     return { defaultAgentId: "", options: [] };
   }
   const seen = new Set<string>();
-  const options: TaskDialogLabelOption[] = [];
+  const candidates: Array<{ agent_id: string }> = [];
   sessions.filter((session) => (
     session.room_id === normalizedRoomId
     && session.conversation_id === conversationId
@@ -252,11 +249,11 @@ export function buildDeliveryRoomAgentData(
       return;
     }
     seen.add(agentId);
-    options.push({
-      label: agentNameById.get(agentId) || agentId,
-      value: agentId,
+    candidates.push({
+      agent_id: agentId,
     });
   });
+  const options = buildAgentSelectionOptions(candidates, t, agents);
   const defaultAgentId = rooms.find((room) => (
     isGroupRoom(room) && room.room.id === normalizedRoomId
   ))?.room.host_agent_id?.trim() || "";

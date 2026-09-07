@@ -385,7 +385,8 @@ test("Room delivery exposes a shared conversation, then its exact member agents"
     [{ room: { host_agent_id: "agent-a", id: "room-1", room_type: "room" } }],
     "room-1",
     "room:group:conversation-1",
-    new Map([["agent-a", "A"], ["agent-b", "B"]]),
+    [{ agent_id: "agent-a", name: "A" }, { agent_id: "agent-b", name: "B" }],
+    (key) => key,
   ), {
     defaultAgentId: "agent-a",
     options: [
@@ -393,6 +394,11 @@ test("Room delivery exposes a shared conversation, then its exact member agents"
       { label: "B", value: "agent-b" },
     ],
   });
+  const duplicateNames = ["agent-a", "agent-b", "not-a-member"].map((agent_id, created_at) => ({ agent_id, name: "Nova", created_at }));
+  const numbered = (_key, params) => `${params.number} · ${params.name}`;
+  const scoped = buildDeliveryRoomAgentData(roomSessions, [], "room-1", "room:group:conversation-1", duplicateNames, numbered);
+  assert.deepEqual(scoped.options, [{ value: "agent-a", label: "1 · Nova" }, { value: "agent-b", label: "2 · Nova" }]);
+  assert.equal(scoped.defaultAgentId, "");
 });
 
 test("Room execution exposes conversation before member and defaults to host", async () => {
@@ -429,6 +435,8 @@ test("Room execution exposes conversation before member and defaults to host", a
   assert.deepEqual(buildExecutionRoomAgentData(
     [context],
     "room:group:conversation-1",
+    context.member_agents,
+    (key) => key,
   ), {
     defaultAgentId: "agent-a",
     options: [
@@ -436,6 +444,11 @@ test("Room execution exposes conversation before member and defaults to host", a
       { label: "B", value: "agent-b" },
     ],
   });
+  const directory = ["agent-c", "agent-a", "agent-b", "not-a-member"].map((agent_id, created_at) => ({ agent_id, name: "Nova", created_at }));
+  const numbered = (_key, params) => `${params.number} · ${params.name}`;
+  const scoped = buildExecutionRoomAgentData([{ ...context, sessions: [{ agent_id: "agent-b" }] }], "room:group:conversation-1", directory, numbered);
+  assert.deepEqual(scoped.options, [{ value: "agent-b", label: "3 · Nova" }]);
+  assert.equal(scoped.defaultAgentId, "", "a default host without an eligible exact Session cannot be selected");
 });
 
 test("scheduled task payload keeps executor and recipient identities independent", async () => {

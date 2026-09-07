@@ -1,8 +1,12 @@
+// INPUT: Automation 草稿、打开状态与当前语言。
+// OUTPUT: 精确资源请求、带稳定显示名称的领域候选与可恢复读取状态。
+// POS: 资源请求装配；选择身份留在草稿，公共名称规则不决定候选资格。
 "use client";
 
 import { useMemo } from "react";
 
 import { getAgents } from "@/lib/api/agent/agent-api";
+import { buildAgentSelectionOptions } from "@/lib/agent-selection-options";
 import {
   getAgentSessionsApi,
   getAllSessionsApi,
@@ -25,7 +29,6 @@ import type {
 } from "../scheduled-task-dialog-types";
 import {
   buildAgentNameIndex,
-  buildAgentOptions,
   buildExecutionRoomOptions,
   buildExecutionRoomAgentData,
   buildDeliveryRoomAgentData,
@@ -117,12 +120,12 @@ export function useTaskDialogData({
     t("capability.scheduled_dialog_load_agent_sessions_failed"),
   );
   const agentNameById = useMemo(
-    () => buildAgentNameIndex(agents.items),
-    [agents.items],
+    () => buildAgentNameIndex(agents.items, t),
+    [agents.items, t],
   );
   const agentOptions = useMemo(
-    () => buildAgentOptions(agents.items),
-    [agents.items],
+    () => buildAgentSelectionOptions(agents.items, t),
+    [agents.items, t],
   );
   const roomOptions = useMemo(
     () => buildExecutionRoomOptions(rooms.items),
@@ -159,8 +162,10 @@ export function useTaskDialogData({
     () => buildExecutionRoomAgentData(
       roomContexts.items,
       form.selectedSessionKey,
+      agents.items,
+      t,
     ),
-    [form.selectedSessionKey, roomContexts.items],
+    [agents.items, form.selectedSessionKey, roomContexts.items, t],
   );
   const deliveryRoomAgentData = useMemo(
     () => buildDeliveryRoomAgentData(
@@ -168,14 +173,16 @@ export function useTaskDialogData({
       rooms.items,
       form.selectedDeliveryRoomId,
       form.selectedReplySessionKey,
-      agentNameById,
+      agents.items,
+      t,
     ),
     [
-      agentNameById,
+      agents.items,
       allSessions.items,
       form.selectedDeliveryRoomId,
       form.selectedReplySessionKey,
       rooms.items,
+      t,
     ],
   );
   const resolvedExecutionRoomId = form.targetType === "room"

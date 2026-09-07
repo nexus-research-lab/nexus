@@ -8,11 +8,13 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
+import type { TranslationKey } from "@/shared/i18n/messages";
 
 import type { TaskFormDraft } from "../scheduled-task-dialog-types";
 import { TaskBasicsAdvanced } from "./task-basics-advanced";
 import { TaskBasicsPanel } from "./task-basics-panel";
 import type { TaskBasicsActions, TaskBasicsData } from "./task-basics-model";
+import { buildTaskDeliveryTargetPresentation, buildTaskTargetPresentation } from "./task-basics-model";
 
 const READY_RESOURCE = {
   error: null,
@@ -78,6 +80,37 @@ function createActions(): TaskBasicsActions {
 }
 
 describe("TaskBasicsAdvanced", () => {
+  it("keeps unavailable explicit Agent bindings separate from empty/default choices", () => {
+    const t = (key: TranslationKey) => key;
+    const data = { ...DATA, agentOptions: [{ value: "available", label: "Nova" }] };
+    const form = { ...FORM, selectedAgentId: "missing-executor", selectedDeliveryAgentId: "missing-recipient" };
+    const execution = buildTaskTargetPresentation(form, data, t);
+    const delivery = buildTaskDeliveryTargetPresentation(form, data, t);
+    expect(execution.value).toBe("missing-executor");
+    expect(delivery.value).toBe("missing-recipient");
+    expect(execution.options.find((option) => option.value === execution.value)).toEqual({ value: "missing-executor", label: "agent.selection_unavailable", disabled: true });
+    expect(delivery.options.find((option) => option.value === delivery.value)?.disabled).toBe(true);
+    expect(execution.options[0].value).toBe("");
+    expect(form.selectedAgentId).toBe("missing-executor");
+  });
+
+  it("shows unavailable Room executor and presenter without invoking replacement actions", () => {
+    const actions = createActions();
+    const t = (key: TranslationKey) => key;
+    const data = { ...DATA, executionRoomAgentOptions: [{ value: "available", label: "Nova" }], deliveryRoomAgentOptions: [{ value: "available", label: "Nova" }] };
+    const form: TaskFormDraft = { ...FORM, targetType: "room", selectedSessionKey: "room:group:one", replyMode: "selected", deliveryTargetType: "room", selectedReplySessionKey: "room:group:two", selectedDeliveryPresenterAgentId: "missing-presenter" };
+    render(<I18N_CONTEXT.Provider value={{ locale: "zh", setLocale: vi.fn(), t }}>
+      <TaskBasicsAdvanced actions={actions} data={data} form={form} isEditing={false} needsSessionRebind={false}
+        deliveryTarget={buildTaskDeliveryTargetPresentation(form, data, t)}
+        deliveryTargetActions={{ agent: actions.setSelectedDeliveryAgentId, room: actions.setSelectedDeliveryRoomId }}
+      />
+    </I18N_CONTEXT.Provider>);
+    expect(screen.getByRole("button", { name: "capability.scheduled_dialog_select_room_agent" }).textContent).toContain("agent.selection_unavailable");
+    expect(screen.getByRole("button", { name: "capability.scheduled_dialog_select_delivery_room_agent" }).textContent).toContain("agent.selection_unavailable");
+    expect(actions.setSelectedAgentId).not.toHaveBeenCalled();
+    expect(actions.setSelectedDeliveryPresenterAgentId).not.toHaveBeenCalled();
+  });
+
   it.each(["agent", "room"] as const)("isolates two %s forms and names their choice groups", async (targetType) => {
     const user = userEvent.setup();
     const actions = [createActions(), createActions()];

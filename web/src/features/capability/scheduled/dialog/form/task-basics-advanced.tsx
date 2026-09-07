@@ -1,5 +1,5 @@
 // INPUT: 执行/投递/权限草稿、资源投影与字段变更命令。
-// OUTPUT: 以实例级字段/具名选择组、共享说明与折叠摘要展示高级任务配置。
+// OUTPUT: 实例级字段/具名选择组与高级摘要；显式缺项 Agent 保留为禁用显示项。
 // POS: Scheduled 基础表单的高级视图；不维护资源请求或提交事务。
 
 "use client";
@@ -9,6 +9,7 @@ import { useEffect, useId, useState } from "react";
 import { Link2Off, Settings2 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { includeUnavailableAgentSelection } from "@/lib/agent-selection-options";
 import { UiDisclosure } from "@/shared/ui/disclosure/disclosure";
 import { UiChoiceButton } from "@/shared/ui/form/choice";
 import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
@@ -270,7 +271,7 @@ function TaskRoomAgentField({
         label: t("capability.scheduled_dialog_execution_agent"),
         options: [
           { label: defaultLabel, value: "" },
-          ...data.executionRoomAgentOptions,
+          ...includeUnavailableAgentSelection(data.executionRoomAgentOptions, form.selectedAgentId, t),
         ],
         value: form.selectedAgentId,
       }}
@@ -322,7 +323,7 @@ function TaskDeliveryRoomAgentField({
         label: t("capability.scheduled_dialog_delivery_room_agent"),
         options: [
           { label: defaultLabel, value: "" },
-          ...data.deliveryRoomAgentOptions,
+          ...includeUnavailableAgentSelection(data.deliveryRoomAgentOptions, form.selectedDeliveryPresenterAgentId, t),
         ],
         value: form.selectedDeliveryPresenterAgentId,
       }}
