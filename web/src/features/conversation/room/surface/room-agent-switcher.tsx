@@ -1,6 +1,6 @@
 /**
  * INPUT: Room 成员目录、当前选择与业务外观语境。
- * OUTPUT: 复用共享菜单生命周期的成员身份切换器及行高自适应的 Panel/Task 紧凑触发器。
+ * OUTPUT: 复用共享菜单的成员切换器；装饰头像不重复播报，Panel/Task 触发器保持紧凑。
  * POS: Workspace、Subagent 与 Room 进程共用的成员切换视图。
  */
 "use client";
@@ -126,7 +126,7 @@ function RoomAgentAvatar({
 }) {
   const avatarSrc = getIconAvatarSrc(member.avatar);
   return (
-    <span className={cn(
+    <span aria-hidden="true" className={cn(
       "flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded-[5px] border border-(--surface-avatar-border) bg-(--surface-avatar-background) shadow-(--surface-avatar-shadow)",
       className,
     )}>

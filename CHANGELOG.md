@@ -27,6 +27,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Subagent navigation now respects manual caller/task choices, preserves them
+  across catalog reorder and consumes old links when switching conversations.
+  Missing targets offer one refresh action. Narrow task panels use shared modal
+  focus and layered dismissal, and returning from details restores row focus;
+  Thread navigation labels follow the current language.
+
 - Subagent directories now distinguish active, historical and unknown tasks,
   label queued/failed/stopped work and preserve readable tasks after refresh
   failures. Valid observation times use shared localized labels that refresh

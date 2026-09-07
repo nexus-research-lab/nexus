@@ -6,7 +6,7 @@
 - `dialog-layout.ts` 独占 `content / compact / compactMax / adaptive / adaptiveMax / visualPreview / documentPreview / workbench` 视口模式；选择器和短向导使用固定 620px 上限的 `compact`，内容量不固定但应保持紧凑的目录使用 `compactMax`，长表单使用 `adaptive` 或只限高的 `adaptiveMax`，图片与短文本查看分别使用 `visualPreview`、`documentPreview`，大型图形编辑与对照界面同时选择 `size="workbench"`。
 - 业务 Shell 只能选择 `size + viewport`，不得通过 `className/style` 复制桌面/窄窗口高度或覆盖宽度；新增尺寸先证明它属于新的跨业务内容语义。
 - 关闭按钮默认可访问名称使用当前语言的 `common.close`；业务只有在语义更具体时才覆盖。
-- `dialog-behavior.ts` 只装配 React 生命周期，不保存键盘规则或模态全局状态。
+- `dialog-behavior.ts` 只装配 React 生命周期，不保存键盘规则或模态全局状态。调用该适配的自定义模态也必须在同一 rootRef 根声明 `data-modal-root="true"`；Portal 容器、菜单 Tab 退出与 Overlay 身份仲裁共同使用该真实根，不能只注册键盘行为却让菜单落到背景页面。
 - `dialog-modal-runtime.ts` 独占模态栈与页面滚动锁，并将真实模态根注册到共享 Overlay 关闭仲裁；叠层关闭顺序由栈顶令牌决定。
 - `dialog-focus.ts` 只计算根内焦点位置与无滚动聚焦；可用 Tab 目录统一归 `shared/lib/browser/focus-navigation.ts`，与菜单退出共用可见性、原生/fieldset 禁用、inert、负 tabindex、radio 组和顺序规则。
 - `dialog-keyboard.ts` 用有序规则投影 Escape 与 Tab 动作，不直接读写 DOM。

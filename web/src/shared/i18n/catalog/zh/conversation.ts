@@ -360,6 +360,8 @@ export const zhConversationMessages = {
   "subagents.status_stopped": "已停止",
   "subagents.no_active": "没有已开启的子智能体",
   "subagents.loading": "正在读取子智能体...",
+  "subagents.requested_task_missing_title": "当前目录中没有这项任务",
+  "subagents.requested_task_missing_detail": "可刷新检查这项任务是否可用，或选择其他任务。",
   "subagents.list_load_failed_title": "子智能体任务列表暂时无法更新",
   "subagents.list_load_failed_impact": "显示的任务列表可能不是最新状态，请刷新。",
   "subagents.list_load_failed_next_step": "重新读取任务列表，确认最新进度。",

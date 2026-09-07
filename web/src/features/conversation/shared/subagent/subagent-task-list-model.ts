@@ -1,4 +1,4 @@
-// INPUT: Task snapshot, read/loading state and authoritative runtime observation support.
+// INPUT: Task snapshot, optional/unavailable caller filter, read state and authoritative observation support.
 // OUTPUT: Active/history/unknown groups and truthful empty/support states without dropping readable cached tasks on read failure.
 // POS: Pure subagent directory projection; no UI styles, clocks or query execution.
 
@@ -28,10 +28,9 @@ export function filterSubagentTasksByHostAgent(
   tasks: SubagentTask[],
   hostAgentId?: string | null,
 ): SubagentTask[] {
-  const normalizedHostAgentId = hostAgentId?.trim() ?? "";
-  if (!normalizedHostAgentId) {
-    return tasks;
-  }
+  if (hostAgentId == null) return tasks;
+  const normalizedHostAgentId = hostAgentId.trim();
+  if (!normalizedHostAgentId) return [];
   return tasks.filter(
     (task) => task.host_agent_id?.trim() === normalizedHostAgentId,
   );

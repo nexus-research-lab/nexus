@@ -1,7 +1,11 @@
 // INPUT: Room 子智能体来源、成员筛选、精确任务请求与关闭命令。
-// OUTPUT: 使用语义 dialog 层和稳定纵向骨架的窄窗子智能体表面。
+// OUTPUT: 具名窄窗任务模态，复用焦点/键盘/滚动锁协议并保持稳定纵向骨架。
 // POS: Room 窄窗子智能体挂载点；不拥有列表、任务详情或读取状态。
 
+import { useRef } from "react";
+import type { WorkspaceFileOpenHandler } from "@/lib/workspace-file-action";
+import { useI18n } from "@/shared/i18n/i18n-context";
+import { useDialogModalBehavior } from "@/shared/ui/dialog/dialog-behavior";
 import { cn } from "@/shared/ui/class-name";
 import { getUiOverlayLayerClassName } from "@/shared/ui/overlay/layer-styles";
 import type { Agent } from "@/types/agent/agent";
@@ -12,7 +16,7 @@ import { RoomSubagentTaskSurface } from "../room-subagent-task-surface";
 interface RoomMobileSubagentOverlayProps {
   currentAgentId: string;
   onClose: () => void;
-  onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void;
+  onOpenWorkspaceFile?: WorkspaceFileOpenHandler;
   requestKey?: number;
   requestedHostAgentId?: string | null;
   requestedTaskToolUseId?: string | null;
@@ -30,12 +34,22 @@ export function RoomMobileSubagentOverlay({
   roomMembers,
   source,
 }: RoomMobileSubagentOverlayProps) {
+  const { t } = useI18n();
+  const rootRef = useRef<HTMLDivElement>(null);
+  useDialogModalBehavior({ enabled: source !== null, onClose, rootRef });
   if (!source) {
     return null;
   }
 
   return (
-    <div className={cn(
+    <div
+      ref={rootRef}
+      role="dialog"
+      aria-modal="true"
+      data-modal-root="true"
+      aria-label={t("subagents.panel_title")}
+      tabIndex={-1}
+      className={cn(
       "fixed inset-0 flex min-h-0 flex-col [background:var(--surface-popover-background)] backdrop-blur-2xl",
       getUiOverlayLayerClassName("dialog"),
     )}>

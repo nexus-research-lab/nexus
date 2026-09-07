@@ -89,6 +89,10 @@ describe("RoomMobileConversationSwitcher", () => {
       expect(document.activeElement).toBe(within(dialog).getByRole("button", { name: /交付检查/ }));
       await user.keyboard("{Tab}");
       expect(document.activeElement).toBe(close);
+      await screen.findByRole("tooltip", { name: "Close" });
+      await user.keyboard("{Escape}");
+      expect(screen.queryByRole("tooltip")).toBeNull();
+      expect(screen.getByRole("dialog")).toBe(dialog);
       await user.keyboard("{Escape}");
       expect(screen.queryByRole("dialog")).toBeNull();
       expect(document.activeElement).toBe(trigger);
