@@ -2430,3 +2430,43 @@ A68/A69 合并定向 50 项回归通过，首次整套门禁通过 lint、typech
 233 文件的 879 项测试与 build 全部通过。价格分支收口后的 33 项定向回归及
 typecheck 也通过，见 /tmp/nexus-a69-final-target.log 与 /tmp/nexus-a69-final-types.log。
 构建只保留已有大型分块提示；未启动产品服务、浏览器或原生宿主。
+
+## A70 — 群聊归组去冗余与名称显示边界（代码/行为）
+
+上一批本地提交 `3e4cd72bb` 为已验证进展；本批从干净工作区接续名称与所有权
+审查。发现 `GroupRoundCardModel` 仍计算 `completedEntries` / `pendingEntries`，
+但基线 `git grep` 在整个 web 中只找到模型自身的定义、计算和返回，没有消费者。
+删除这两组数组、第二次 `buildRoomAgentRoundEntries` 以及只服务旧兼容结果的
+单目标回复过滤；真实 `entries`、guided user 归属、权限过滤及排序算法保持。
+
+结构归组同时移除姓名/头像字段。Feed 不再伪造空目录，GroupRoundCardGroup 的
+结构 memo 不再依赖名称；GroupAgentReply 接收必传的完整当前目录，在显示时
+用共享姓名所有者产生真实名称或当前语言通称。两个薄装配文件完整审查后保留
+其职责：一个拥有 root/guided user 顺序、稳定 entry key 与精确 Thread/停止动作，
+另一个将结构 entry 绑定到唯一 MessageItem 执行壳；不重复基础视觉或时间线状态机。
+用户消息分隔、内容列、边界提示与字段能力均保留，未为名称变化重建 shell。
+
+配对分组优先采用当前目录的非空名称，缺项时保留响应中的历史名称，最终使用
+共享通称；重新分组依赖当前语言。既有配对对象、ID 筛选、更新与外部标识不变。
+Skill 部署失败反馈也复用该通称，保留准确失败数、前三名与剩余提示，不回显
+runtime 错误；它仅由技能操作控制器使用，因此从 detail 归入 controller 并移除
+反向依赖。没有更改技能更新/部署事务或用户操作的结果语义。
+
+新增 6 项中英文回归：真实卡片在缺名/改名/切换语言后仍保留 shell、精确两个
+执行轮的 Thread/停止目标；配对名称优先级不改变分组身份；Skill 反馈保留数量与
+部分成功。定向通过见 /tmp/nexus-a70-target.log。首次整套门禁暴露旧 JS 渲染夹具
+未提供类型已要求的 `stoppingAgentRoundIds`，此前被视图伪缺省掩盖；生产投影
+已从 conversation 传入真实数组。补齐三处旧夹具的空数组，不恢复生产假可选合同，
+也未删除任何原有断言。最终结果记录于本节末。
+
+清单为 485 项：272 pending、127 in_progress、60 improved、20 retained、6 removed；
+两个完整审查的薄视图记为代码层 improved，全部存量源哈希核对，公共 UI 仍为
+118 项。视觉/浏览器/原生宿主验收继续暂停，整体 Goal 仍在推进；本批只本地提交。
+下一处明确待审：Pairing 与 Automation 的 Agent 选择器仍直接构建姓名选项，
+缺名或同名候选的辨认、绑定丢失后的展示和统一选择器所有权需要一并处理，不能
+仅用通称覆盖选项后宣称全前端名称问题完成。
+
+最终验证：/tmp/nexus-a70-final-check.log 的 lint、typecheck、480 项合同、236 文件
+的 885 项组件/模型测试及 build 全部通过；原有公开顺序、guide 归属、精确停止、
+Composer 唯一人工介入及流式外壳断言均保留。构建仅有既有大型分块提示。
+未运行视觉验证、产品服务或原生宿主；无后端改动，也未推送远端。

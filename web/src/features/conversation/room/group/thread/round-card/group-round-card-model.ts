@@ -1,7 +1,7 @@
 /**
  * INPUT: Room 根轮次内的 user / assistant 消息、slot、权限与 execution 首见状态。
- * OUTPUT: root-global user、可先于消息建立 entry 的人工介入，以及按精确消费 agent_round_id 和稳定展示槽排列的 Agent 卡片。
- * POS: Group round feed 的唯一展示归组入口。
+ * OUTPUT: root-global user 与按精确 agent_round_id/稳定展示槽排列的唯一 entries，保留人工介入和停止目标。
+ * POS: Group round feed 的唯一结构归组入口；姓名/头像/语言由显示层绑定。
  */
 import { isAutomationTriggerUserMessage } from "@/types/conversation/automation-message";
 import type {
@@ -29,8 +29,6 @@ export interface GroupRoundUserMessageModel {
 }
 
 export interface GroupRoundAgentCardModel extends RoomAgentRoundEntry {
-  agentAvatar: string | null;
-  agentName: string;
   guidedUserMessages: GroupRoundUserMessageModel[];
   pendingPermissions: PendingPermission[];
   stopAgentRoundId: string | null;
@@ -39,15 +37,9 @@ export interface GroupRoundAgentCardModel extends RoomAgentRoundEntry {
 export interface GroupRoundCardModel {
   entries: GroupRoundAgentCardModel[];
   userMessages: GroupRoundUserMessageModel[];
-  /** 兼容旧版时间线消费者，统一模型仍以 entries 为唯一真相。 */
-  completedEntries: GroupRoundAgentCardModel[];
-  /** 兼容旧版时间线消费者，统一模型仍以 entries 为唯一真相。 */
-  pendingEntries: GroupRoundAgentCardModel[];
 }
 
 interface BuildGroupRoundCardModelOptions {
-  agentAvatarMap: Record<string, string | null>;
-  agentNameMap: Record<string, string>;
   executionStates?: RoomAgentExecutionState[];
   messages: Message[];
   pendingPermissions: PendingPermission[];
@@ -60,8 +52,6 @@ interface PermissionGroups {
 }
 
 export function buildGroupRoundCardModel({
-  agentAvatarMap,
-  agentNameMap,
   executionStates = [],
   messages,
   pendingPermissions,
@@ -109,91 +99,27 @@ export function buildGroupRoundCardModel({
 
   const cards = entries.map((entry) => buildAgentCard(
     entry,
-    agentAvatarMap,
-    agentNameMap,
     permissionsForEntry(entry, entriesByAgent, permissionGroups),
     guidedUserMessagesByEntry.get(entry.entry_id) ?? [],
   )).sort(compareAgentCards);
-  const compatibilityEntryIds = new Set(
-    buildRoomAgentRoundEntries(
-      filterNonTargetAgentReplies(messages),
-      pendingSlots,
-      visiblePendingPermissions,
-      executionStates,
-    ).map((entry) => entry.entry_id),
-  );
-  const completedEntries = cards.filter(
-    (entry) => compatibilityEntryIds.has(entry.entry_id)
-      && entry.status === "done",
-  );
-  const pendingEntries = cards.filter(
-    (entry) => compatibilityEntryIds.has(entry.entry_id)
-      && entry.status !== "done",
-  );
 
   return {
     entries: cards,
     userMessages,
-    completedEntries,
-    pendingEntries,
   };
-}
-
-function filterNonTargetAgentReplies(messages: Message[]): Message[] {
-  const guidedTargetAgentIds = new Set<string>();
-  let hasMultiTargetGuide = false;
-
-  for (const message of messages) {
-    if (message.role !== "user" || message.delivery_policy !== "guide") {
-      continue;
-    }
-    const targets = normalizedTargetAgentIds(message);
-    if (targets.length > 1) {
-      hasMultiTargetGuide = true;
-    }
-    targets.forEach((target) => guidedTargetAgentIds.add(target));
-  }
-
-  if (hasMultiTargetGuide || guidedTargetAgentIds.size !== 1) {
-    return messages;
-  }
-  const [targetAgentId] = guidedTargetAgentIds;
-  // 单目标引导的公区只展示被引导 Agent，避免把其他执行链误投影到同一轮。
-  return messages.filter(
-    (message) =>
-      message.role !== "assistant" || message.agent_id === targetAgentId,
-  );
 }
 
 function buildAgentCard(
   entry: RoomAgentRoundEntry,
-  agentAvatarMap: Record<string, string | null>,
-  agentNameMap: Record<string, string>,
   pendingPermissions: PendingPermission[],
   guidedUserMessages: GroupRoundUserMessageModel[],
 ): GroupRoundAgentCardModel {
   return {
     ...entry,
-    agentAvatar: resolveAgentAvatar(agentAvatarMap, entry.agent_id),
-    agentName: resolveAgentName(agentNameMap, entry.agent_id),
     guidedUserMessages,
     pendingPermissions,
     stopAgentRoundId: resolveStopAgentRoundId(entry),
   };
-}
-
-function resolveAgentAvatar(
-  avatarMap: Record<string, string | null>,
-  agentId: string,
-): string | null {
-  return avatarMap[agentId] ?? null;
-}
-
-function resolveAgentName(
-  nameMap: Record<string, string>,
-  agentId: string,
-): string {
-  return nameMap[agentId] ?? agentId;
 }
 
 function resolveStopAgentRoundId(entry: RoomAgentRoundEntry): string | null {
