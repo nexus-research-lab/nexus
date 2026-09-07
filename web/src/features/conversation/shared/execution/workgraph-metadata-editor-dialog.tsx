@@ -1,7 +1,7 @@
 /**
  * INPUT: exact WorkGraph preview、显式表单元信息修改、源 Session 与源会话可见 Agent。
  * OUTPUT: 补载全局 Agent 目录解析隐藏编辑 Agent，展示专用 DM、画布、版本选择和区分读取/写入结果的恢复状态。
- * POS: 关闭页面不删除会话；应用只投影所选版本，unknown 写入在当前页面锁定且不改写源 Execution/聊天。
+ * POS: 关闭页面不删除会话；版本切换与应用互斥，迟到读取不得回退当前草图，unknown 写入保持锁定且不改写源 Execution/聊天。
  */
 "use client";
 
@@ -103,6 +103,7 @@ export function WorkGraphMetadataEditorDialog({
     locale,
   });
   const editorRef = useRef<WorkGraphWorkflowEditorSession | null>(null);
+  const readGenerationRef = useRef(0);
   const [editor, setEditor] = useState<WorkGraphWorkflowEditorSession | null>(null);
   const [busy, setBusy] = useState(false);
   const [applying, setApplying] = useState(false);
@@ -110,8 +111,13 @@ export function WorkGraphMetadataEditorDialog({
   const [selectingRevision, setSelectingRevision] = useState<number | null>(null);
   const [failure, setFailure] = useState<WorkGraphEditorFailure | null>(null);
   const [startAttempt, setStartAttempt] = useState(0);
+  const mutationBlocked = failure?.kind === "refresh" || failure?.kind === "apply_projection" || (
+    (failure?.kind === "apply" || failure?.kind === "select")
+    && failure.effect !== "not_applied"
+  );
 
   const updateEditor = useCallback((next: WorkGraphWorkflowEditorSession) => {
+    readGenerationRef.current++;
     editorRef.current = next;
     setEditor(next);
   }, []);
@@ -146,6 +152,7 @@ export function WorkGraphMetadataEditorDialog({
       });
     return () => {
       active = false;
+      readGenerationRef.current++;
     };
   }, [loadAgents, sessionKey, startAttempt, updateEditor]);
 
@@ -158,11 +165,16 @@ export function WorkGraphMetadataEditorDialog({
   const refreshEditor = useCallback(async () => {
     const current = editorRef.current;
     if (!current) return current;
+    const generation = ++readGenerationRef.current;
     try {
       const next = await getWorkGraphWorkflowEditorApi(sessionKey, current.editor_id);
+      if (generation !== readGenerationRef.current) return null;
       updateEditor(next);
       setFailure((existing) => {
         if (!existing || existing.kind === "refresh") {
+          return null;
+        }
+        if ((existing.kind === "apply" || existing.kind === "select") && existing.effect === "not_applied") {
           return null;
         }
         if (
@@ -175,6 +187,7 @@ export function WorkGraphMetadataEditorDialog({
       });
       return next;
     } catch {
+      if (generation !== readGenerationRef.current) return null;
       setFailure((existing) => {
         if (existing?.kind === "apply" || existing?.kind === "select") {
           return existing;
@@ -196,7 +209,8 @@ export function WorkGraphMetadataEditorDialog({
 
   const handleSelectRevision = useCallback(async (selectedRevision: number) => {
     const current = editorRef.current;
-    if (!current || busy || applying || selectingRevision !== null || current.selected_revision === selectedRevision) return;
+    if (!current || busy || applying || mutationBlocked || selectingRevision !== null || current.selected_revision === selectedRevision) return;
+    readGenerationRef.current++;
     setSelectingRevision(selectedRevision);
     setFailure(null);
     try {
@@ -220,15 +234,10 @@ export function WorkGraphMetadataEditorDialog({
     } finally {
       setSelectingRevision(null);
     }
-  }, [applying, busy, selectingRevision, sessionKey, t, updateEditor]);
+  }, [applying, busy, mutationBlocked, selectingRevision, sessionKey, t, updateEditor]);
 
   const handleApply = useCallback(async () => {
-    if (failure && (
-      failure.kind === "apply_projection" || (
-        (failure.kind === "apply" || failure.kind === "select")
-        && failure.effect !== "not_applied"
-      )
-    )) return;
+    if (mutationBlocked || selectingRevision !== null) return;
     const current = editorRef.current;
     if (!current || busy || applying) return;
     setApplying(true);
@@ -260,7 +269,7 @@ export function WorkGraphMetadataEditorDialog({
     } finally {
       setApplying(false);
     }
-  }, [applying, busy, failure, onApply, sessionKey, t]);
+  }, [applying, busy, mutationBlocked, onApply, selectingRevision, sessionKey, t]);
 
   const handleRetryProjection = useCallback(async () => {
     if (!failure || failure.kind !== "apply_projection" || applying) return;
@@ -289,10 +298,6 @@ export function WorkGraphMetadataEditorDialog({
     [agents, catalogAgents, editor],
   );
   const currentPreview = editor?.preview ?? preview;
-  const mutationBlocked = failure?.kind === "apply_projection" || (
-    (failure?.kind === "apply" || failure?.kind === "select")
-    && failure.effect !== "not_applied"
-  );
   const canvasExecution = useMemo(
     () => projectWorkGraphWorkflowCanvasExecution(
       currentPreview,
@@ -398,7 +403,7 @@ export function WorkGraphMetadataEditorDialog({
                     ) : null}
                   </div>
                   <UiButton
-                    disabled={!editor || busy || applying || mutationBlocked}
+                    disabled={!editor || busy || applying || selectingRevision !== null || mutationBlocked}
                     onClick={() => void handleApply()}
                     size="sm"
                     tone="primary"
@@ -543,7 +548,7 @@ function WorkGraphEditorFailureState({
     <UiResourceState
       className="mt-3 min-h-0 py-3"
       impact={t(impactKey)}
-      {...(!notApplied && selecting
+      {...(selecting || notApplied
         ? {
             primaryAction: {
               icon: <RefreshCw className="h-3.5 w-3.5" />,

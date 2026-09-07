@@ -8,6 +8,8 @@ import (
 	"database/sql"
 	"errors"
 	"path/filepath"
+	"strconv"
+	"sync"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
@@ -382,5 +384,60 @@ func TestEditorApplyAndConfirmSaveFenceBothHeadAndSelection(t *testing.T) {
 	applied, err := s.ApplyMetadataEditor("owner-a", request)
 	if err != nil || applied.HeadRevision != 2 || applied.SelectedRevision != 1 || applied.SlashName != preview.SlashName {
 		t.Fatalf("exact old version apply: %#v %v", applied, err)
+	}
+}
+
+func TestEditorRevisionReceiptRemainsExactDuringConcurrentReads(t *testing.T) {
+	s, _, preview := newDurableMetadataTestService(t)
+	ctx := context.Background()
+	editor, err := s.StartMetadataEditor(ctx, "owner-a", protocol.StartWorkGraphWorkflowEditorRequest{
+		PreviewID: preview.PreviewID, SourceSessionKey: "session-a", OutputLanguage: "zh",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := protocol.GetWorkGraphWorkflowEditorRequest{SourceSessionKey: "session-a", EditorID: editor.EditorID}
+	stop := make(chan struct{})
+	errorsFound := make(chan error, 3)
+	var readers sync.WaitGroup
+	for range 3 {
+		readers.Add(1)
+		go func() {
+			defer readers.Done()
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+					if _, readErr := s.GetMetadataEditor("owner-a", request); readErr != nil {
+						errorsFound <- readErr
+						return
+					}
+				}
+			}
+		}()
+	}
+	defer func() {
+		close(stop)
+		readers.Wait()
+		close(errorsFound)
+		for readErr := range errorsFound {
+			t.Error(readErr)
+		}
+	}()
+	for index := range 12 {
+		current, readErr := s.GetMetadataEditor("owner-a", request)
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		revision := editorRevisionRequest(current.Revision, current.Preview)
+		revision.Title = "编辑版本 " + strconv.Itoa(index)
+		next, reviseErr := s.ReviseEditorPreview(ctx, "owner-a", editor.SessionKey, revision)
+		if reviseErr != nil {
+			t.Fatal(reviseErr)
+		}
+		if next.Revision != revision.Revision+1 || next.Preview.Title != revision.Title {
+			t.Fatalf("revision receipt regressed during concurrent reads: %#v", next)
+		}
 	}
 }
