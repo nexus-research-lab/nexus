@@ -1,11 +1,11 @@
 // INPUT: Menu DOM、原生焦点与 React 键盘事件，以及可选的 Tab 退出命令。
-// OUTPUT: 当前菜单内动作和勾选项的首项焦点、方向键/Home/End 遍历，以及关闭后从锚点续接的 Tab 焦点。
+// OUTPUT: 当前菜单内首项/方向键/Home/End 遍历，Tab 退出委托共享浮层焦点续接规则。
 // POS: Action/业务菜单共用键盘边界；不管理浮层、级联状态或执行业务命令。
 
 import type { KeyboardEvent } from "react";
 
 import { isImeKeyboardEvent } from "@/shared/lib/browser/ime-keyboard-event";
-import { getTabbableElements } from "@/shared/lib/browser/focus-navigation";
+import { focusAfterAnchoredOverlayExit } from "@/shared/ui/overlay/overlay-focus-navigation";
 import { getAnchoredOverlayAncestorRoots } from "@/shared/ui/overlay/overlay-dismissal-runtime";
 
 function getMenuItems(menu: HTMLElement): HTMLElement[] {
@@ -32,7 +32,7 @@ export function handleMenuKeyDown(
     event.stopPropagation();
     const exitingRoots = getAnchoredOverlayAncestorRoots(event.currentTarget);
     onTabExit();
-    focusAfterMenuExit(exitingRoots, event.shiftKey);
+    focusAfterAnchoredOverlayExit(exitingRoots, event.shiftKey);
     return;
   }
   const menu = target.closest<HTMLElement>('[role="menu"]');
@@ -50,25 +50,4 @@ export function handleMenuKeyDown(
     : event.key === "End" ? items.length - 1
       : (start + direction + items.length) % items.length;
   items[index].focus();
-}
-
-function focusAfterMenuExit(menuRoots: readonly HTMLElement[], backwards: boolean): void {
-  const anchor = document.activeElement;
-  if (!(anchor instanceof HTMLElement)) return;
-  const exitingRoots = menuRoots.filter((root) => !root.contains(anchor));
-  if (!exitingRoots.length) return;
-  const modal = anchor.closest<HTMLElement>("[data-modal-root='true']");
-  const targets = getTabbableElements(modal ?? document.body)
-    .filter((element) => !exitingRoots.some((root) => root.contains(element)));
-  const index = targets.indexOf(anchor);
-  let adjacent: HTMLElement | undefined;
-  if (index >= 0) {
-    adjacent = targets[index + (backwards ? -1 : 1)];
-  } else if (backwards) {
-    adjacent = targets.findLast((element) => Boolean(anchor.compareDocumentPosition(element) & Node.DOCUMENT_POSITION_PRECEDING));
-  } else {
-    adjacent = targets.find((element) => Boolean(anchor.compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING));
-  }
-  if (!adjacent && modal) adjacent = backwards ? targets.at(-1) : targets[0];
-  (adjacent ?? anchor).focus();
 }

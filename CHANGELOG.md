@@ -27,6 +27,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Task summaries now use the shared flat surface and standard small avatars.
+  Task details share bounded popover positioning, layered dismissal and keyboard
+  focus navigation. Session changes clear old panels, reordered or replaced
+  tasks cannot inherit another task's open details, and valid live updates keep
+  reading focus. Room task selection recovers from removed members/processes
+  without reviving obsolete manual choices; summaries and menus share names.
+
 - Room member selectors now share the compact public avatar, recover failed
   images and distinguish duplicate or unnamed members without exposing IDs.
   Missing selections stay visibly unavailable; stale menus close when their

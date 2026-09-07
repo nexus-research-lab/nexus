@@ -29,11 +29,88 @@ function panel(props: Parameters<typeof RoomWorkspaceTaskPanel>[0]) {
 }
 
 describe("RoomWorkspaceTaskPanel identities", () => {
+  it("follows the latest eligible process until the user makes an explicit choice", () => {
+    const props = { roomMembers: members, processes, scopeKey: "room:session" };
+    const { rerender } = render(panel(props));
+    const summary = screen.getByRole("button", { name: t("tasks.expand_panel") });
+    expect(summary.textContent).toContain("Task for beta");
+    rerender(panel({ ...props, processes: [{ ...processes[0], latestTaskEventIndex: 10 }, processes[1]] }));
+    expect(summary.textContent).toContain("Task for alpha");
+    rerender(panel({ ...props, roomMembers: [members[0]] }));
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+  it("keeps a valid manual choice, then commits a surviving fallback when the selected member leaves", async () => {
+    const user = userEvent.setup();
+    const props = { roomMembers: members, processes, scopeKey: "room:session" };
+    const { rerender } = render(panel(props));
+    await user.click(screen.getByRole("button", { name: t("tasks.expand_panel") }));
+    await user.click(screen.getByRole("button", { name: /3 · Nova/ }));
+    await user.click(screen.getByRole("menuitem", { name: "2 · Nova" }));
+    const summary = screen.getByRole("button", { name: t("tasks.collapse_panel"), expanded: true });
+    expect(summary.textContent).toContain("Task for alpha");
+    rerender(panel({ ...props, processes: [processes[0], { ...processes[1], latestTaskEventIndex: 20 }] }));
+    expect(summary.textContent).toContain("Task for alpha");
+    // 旧 Agent 的进程事实仍存在，不能让这个事实覆盖当前成员目录。
+    rerender(panel({ ...props, roomMembers: [members[2]] }));
+    expect(summary.textContent).toContain("Task for beta");
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    rerender(panel(props));
+    expect(summary.textContent).toContain("Task for beta");
+    expect(screen.getByRole("button", { name: /3 · Nova/ })).toBeTruthy();
+  });
+
+  it("does not restore an obsolete manual choice when its task process returns", async () => {
+    const user = userEvent.setup();
+    const props = { roomMembers: members, processes, scopeKey: "room:session" };
+    const { rerender } = render(panel(props));
+    await user.click(screen.getByRole("button", { name: t("tasks.expand_panel") }));
+    await user.click(screen.getByRole("button", { name: /3 · Nova/ }));
+    await user.click(screen.getByRole("menuitem", { name: "2 · Nova" }));
+    rerender(panel({ ...props, processes: [processes[1]] }));
+    const summary = screen.getByRole("button", { name: t("tasks.collapse_panel"), expanded: true });
+    expect(summary.textContent).toContain("Task for beta");
+    rerender(panel({ ...props, processes: [{ ...processes[0], latestTaskEventIndex: 30 }, processes[1]] }));
+    expect(summary.textContent).toContain("Task for beta");
+  });
+
+  it("resets manual selection and closes the shared popup on exact session changes", async () => {
+    const user = userEvent.setup();
+    const props = { roomMembers: members, processes, scopeKey: "room:session-a" };
+    const { rerender } = render(panel(props));
+    await user.click(screen.getByRole("button", { name: t("tasks.expand_panel") }));
+    await user.click(screen.getByRole("button", { name: /3 · Nova/ }));
+    await user.click(screen.getByRole("menuitem", { name: "2 · Nova" }));
+    rerender(panel({ ...props, scopeKey: "room:session-b" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("button", { name: t("tasks.expand_panel") }).textContent).toContain("Task for beta");
+    rerender(panel(props));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("button", { name: t("tasks.expand_panel") }).textContent).toContain("Task for beta");
+  });
+
+  it("clears a manual choice when all eligible members disappear", async () => {
+    const user = userEvent.setup();
+    const props = { roomMembers: members, processes, scopeKey: "room:session" };
+    const { rerender } = render(panel(props));
+    await user.click(screen.getByRole("button", { name: t("tasks.expand_panel") }));
+    await user.click(screen.getByRole("button", { name: /3 · Nova/ }));
+    await user.click(screen.getByRole("menuitem", { name: "2 · Nova" }));
+    rerender(panel({ ...props, roomMembers: [] }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("button")).toBeNull();
+    rerender(panel(props));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("button", { name: t("tasks.expand_panel") }).textContent).toContain("Task for beta");
+  });
+
   it("numbers against the full directory while preserving process candidates and exact task selection", async () => {
     const user = userEvent.setup();
     render(panel({ roomMembers: members, processes, scopeKey: "room:session" }));
     const summary = screen.getByRole("button", { name: t("tasks.expand_panel") });
     expect(summary.textContent).toContain("Task for beta");
+    const identity = summary.querySelector('[data-workspace-task-agent-id="beta"]');
+    expect(identity?.getAttribute("title")).toBe("3 · Nova");
+    expect(identity?.querySelector('[role="img"]')?.textContent).toBe("N");
     await user.click(summary);
     await user.click(screen.getByRole("button", { name: /3 · Nova/ }));
     expect(screen.getAllByRole("menuitem")).toHaveLength(2);
@@ -47,7 +124,7 @@ describe("RoomWorkspaceTaskPanel identities", () => {
   it("uses a localized source name for an unnamed sole member", () => {
     render(panel({ roomMembers: [{ ...members[1], name: "  " }], processes: [processes[0]], scopeKey: "room:session" }));
     const summary = screen.getByRole("button", { name: t("tasks.expand_panel") });
-    expect(summary.querySelector('[data-workspace-task-agent-id="alpha"]')?.getAttribute("title")).toBe("Agent");
+    expect(summary.querySelector('[data-workspace-task-agent-id="alpha"]')?.getAttribute("title")).toBe("1 · Agent");
     expect(summary.textContent).toContain("Agent");
     expect(summary.textContent).toContain("Task for alpha");
   });
