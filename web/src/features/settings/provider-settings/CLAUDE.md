@@ -33,3 +33,5 @@ Provider 预设用 `endpoint_mode` 区分固定目录端点、资源级 Base URL
 内置 Provider 侧栏按英文显示名排序；目录声明顺序不承担展示顺序语义。
 
 - `ProviderSettingsPanel` 只输出设置和运营壳层内的管理内容；`layout` 控制页面或分区留白，`visibilityScope` 保持私有/公共资源范围。没有独立 Provider Header、单项 Settings Tab 或 embedded 分支；上层继续持有唯一页面导航。
+
+- 详情头完整显示对象名，窄工作面允许状态与动作换行；状态复用公共 Badge。测试由公共 Button + Action Menu 明确提交，方向键只浏览候选；精确 Provider 身份、候选身份、编辑/权限/忙碌边界变化消费旧打开态，名称/语言刷新保留。真实测试命令与互斥仍属于 actions；目录为空时禁用测试入口。

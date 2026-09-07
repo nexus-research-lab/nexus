@@ -33,6 +33,7 @@ describe("Provider settings typography", () => {
       <>
         <ProviderIcon name="Custom Provider" size="md" />
         <ProviderSettingsDetailHeader
+          providerId="provider-1"
           detailTitle="Custom Provider"
           enabled
           hasSelectedRecord
@@ -48,7 +49,7 @@ describe("Provider settings typography", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Custom Provider" }).className).toContain("ui-type-page-title");
-    expect(screen.getByText("settings.providers.status_active").className).toContain("rounded-full");
+    expect(screen.getByText("settings.providers.status_active").className).toContain("radius-control-xs");
     expect(screen.getByText("settings.providers.status_active").className).toContain("var(--success)");
     expect(screen.getByText("CP").className).toContain("ui-type-control");
     expect(screen.getByText("CP").className).toContain("radius-control-md");
@@ -87,6 +88,7 @@ describe("Provider settings typography", () => {
   it("uses the shared compact Spinner while testing a Provider", () => {
     const { container } = renderWithI18n(
       <ProviderSettingsDetailHeader
+        providerId="provider-1"
         detailTitle="Custom Provider"
         enabled
         hasSelectedRecord

@@ -21,6 +21,7 @@ export const enCoreMessages = {
   "common.back": "Back",
   "common.refresh": "Refresh",
   "common.loading": "Loading…",
+  "common.select_placeholder": "Select…",
   "common.mention_suggestions": "Mention suggestions",
   "common.qr_loading": "Generating QR code…",
   "common.qr_failed": "QR code is unavailable.",

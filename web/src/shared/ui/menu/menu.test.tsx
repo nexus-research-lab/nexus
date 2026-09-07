@@ -2,16 +2,20 @@
 // OUTPUT: 证明 Portal 菜单的 ARIA、选择、输入法/已处理事件边界、遍历、关闭和焦点归还合同。
 // POS: Menu pattern DOM 行为测试；定位数学和业务菜单内容分别由模型/feature 测试负责。
 
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render as renderReact, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createRef, useRef, useState } from "react";
+import { createRef, useRef, useState, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UiActionMenu } from "@/shared/ui/menu/action-menu";
 import { UiDialogBackdrop, UiDialogPortal, UiDialogShell } from "@/shared/ui/dialog/dialog";
 import { UiMenuActionRow } from "@/shared/ui/menu/menu-action-row";
+import { useI18n } from "@/shared/i18n/i18n-context";
+import { I18nProvider } from "@/shared/i18n/i18n-provider";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import { SelectMenuOptionRow } from "@/shared/ui/menu/select-menu-primitives";
+
+function render(ui: ReactNode) { return renderReact(ui, { wrapper: I18nProvider }); }
 
 // jsdom 不计算布局；为焦点目录提供可见控件的矩形，不模拟浏览器视觉验收。
 beforeEach(() => {
@@ -180,6 +184,113 @@ describe("UiSelectMenu", () => {
     expect(screen.queryByRole("listbox", { name: "保存中的模型" })).toBeNull();
     await user.click(trigger);
     expect(screen.getByRole("listbox", { name: "保存中的模型" })).toBeTruthy();
+  });
+});
+
+describe("UiSelectMenu listbox navigation", () => {
+  const options = [
+    { label: "Alpha", value: "alpha" },
+    { label: "Disabled", value: "disabled", disabled: true },
+    { label: "Gamma with a complete model name", value: "gamma" },
+  ];
+
+  it.each(["click", "Enter", "Space"])("focuses the selected item on %s and commits only explicit option activation", async (opening) => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<UiSelectMenu ariaLabel="Model" options={options} value="gamma" onChange={onChange} />);
+    const trigger = screen.getByRole("button", { name: "Model" });
+    if (opening === "click") await user.click(trigger);
+    else { trigger.focus(); await user.keyboard(opening === "Enter" ? "{Enter}" : " "); }
+    const gamma = screen.getByRole("option", { name: options[2].label });
+    expect(document.activeElement).toBe(gamma);
+    expect(gamma.querySelector("[title]")?.getAttribute("title")).toBe(options[2].label);
+    await user.keyboard("{ArrowUp}");
+    expect(document.activeElement).toBe(screen.getByRole("option", { name: "Alpha" }));
+    await user.keyboard("{End}{Home}{ArrowUp}");
+    expect(document.activeElement).toBe(gamma);
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent(window, new Event("resize"));
+    expect(document.activeElement).toBe(gamma);
+    await user.keyboard("{Home}{Enter}");
+    expect(onChange.mock.calls).toEqual([["alpha"]]);
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it.each([false, true])("exits the popup with Shift=%s to the adjacent page control", async (shift) => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<><button>Before</button><UiSelectMenu ariaLabel="Model" options={options} value="alpha" onChange={onChange} /><button>After</button></>);
+    await user.click(screen.getByRole("button", { name: "Model" }));
+    await user.tab({ shift });
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: shift ? "Before" : "After" }));
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("uses current-language placeholder copy and respects an explicit override", async () => {
+    const user = userEvent.setup();
+    function Harness({ placeholder }: { placeholder?: string }) {
+      const { setLocale } = useI18n();
+      return <><button onClick={() => setLocale("en")}>English</button><button onClick={() => setLocale("zh")}>中文</button>
+        <UiSelectMenu ariaLabel="Model" options={options} value="missing" onChange={vi.fn()} placeholder={placeholder} /></>;
+    }
+    const view = render(<Harness />);
+    const trigger = screen.getByRole("button", { name: "Model" });
+    await user.click(screen.getByRole("button", { name: "English" }));
+    expect(trigger.textContent).toBe("Select…");
+    await user.click(screen.getByRole("button", { name: "中文" }));
+    expect(trigger.textContent).toBe("请选择");
+    view.rerender(<Harness placeholder="Choose a model" />);
+    expect(trigger.textContent).toBe("Choose a model");
+  });
+
+  it.each(["composing", "legacy-ime", "handled"] as const)("does not navigate options for %s events", async (mode) => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<div onKeyDownCapture={(event) => { if (mode === "handled") event.preventDefault(); }}>
+      <UiSelectMenu ariaLabel="Model" options={options} value="alpha" onChange={onChange} />
+    </div>);
+    await user.click(screen.getByRole("button", { name: "Model" }));
+    const alpha = screen.getByRole("option", { name: "Alpha" });
+    const extras = mode === "composing" ? { isComposing: true } : mode === "legacy-ime" ? { keyCode: 229 } : {};
+    for (const key of ["ArrowDown", "End", "Tab"]) fireEvent.keyDown(alpha, { key, ...extras });
+    expect(document.activeElement).toBe(alpha);
+    expect(screen.getByRole("listbox")).toBeTruthy();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("keeps trigger arrow selection and natural Tab exit", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<><UiSelectMenu ariaLabel="Model" options={options} value="alpha" onChange={onChange} /><button>After</button></>);
+    const trigger = screen.getByRole("button", { name: "Model" });
+    trigger.focus();
+    await user.keyboard("{ArrowDown}");
+    expect(onChange.mock.calls).toEqual([["gamma"]]);
+    expect(document.activeElement).toBe(trigger);
+    await user.tab();
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "After" }));
+  });
+
+  it("allows exit from an all-disabled list and closes when its catalog becomes empty", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const view = render(<UiSelectMenu ariaLabel="Model" options={options.map((option) => ({ ...option, disabled: true }))} value="alpha" onChange={onChange} />);
+    const trigger = screen.getByRole("button", { name: "Model" });
+    await user.click(trigger);
+    expect(document.activeElement).toBe(screen.getByRole("listbox"));
+    await user.keyboard("{ArrowDown}{Enter}{Escape}");
+    expect(onChange).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(trigger);
+    await user.click(trigger);
+    view.rerender(<UiSelectMenu ariaLabel="Model" options={[]} value="alpha" onChange={onChange} />);
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect((trigger as HTMLButtonElement).disabled).toBe(true);
+    view.rerender(<UiSelectMenu ariaLabel="Model" options={options} value="alpha" onChange={onChange} />);
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(onChange).not.toHaveBeenCalled();
   });
 });
 

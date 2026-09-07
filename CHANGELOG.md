@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Unified Select keyboard focus, Tab exit, localized placeholders and full option
+  labels; Provider testing now uses an explicit action menu so browsing models
+  with arrow keys cannot start a test. Provider names and actions wrap cleanly.
+
 - Compact workspace view selection now uses the shared Select Menu with a
   named current view, keyboard navigation and focus return. Hidden triggers and
   changed selection contexts discard open menus. Removed unused Header slots,

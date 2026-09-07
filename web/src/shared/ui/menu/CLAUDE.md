@@ -15,10 +15,10 @@
 - Select trigger 通过 `form/field-accessibility.ts` 复用 Field 的精确说明/错误关联；菜单项不继承该字段身份，业务不必复制一套 ARIA 错误属性。
 - 默认单选触发器与默认 Input 使用同一控件高度和 App `control` 文字角色；紧凑档位保留菜单原有密度。多选已选 Chip 的换行高度属于领域内容几何，不强塞进单行高度。
 - `select-menu.tsx` 只编排共享单选语义和浮层生命周期；带搜索、异步状态或多选规则的菜单归真实业务所有者。
-- 共用 `useSelectMenuOverlay` 的触发键盘入口先尊重 `defaultPrevented`，再通过 `isImeKeyboardEvent` 排除输入法组合事件；单选、Room 技能多选与历史菜单复用同一边界，普通 Enter/Space、方向键选择及关闭仍走原有路径。
+- 共用 `useSelectMenuOverlay` 的触发键盘入口先尊重 `defaultPrevented`，再通过 `isImeKeyboardEvent` 排除输入法组合事件；单选、Room 技能多选与历史菜单复用同一边界。单选触发器方向键继续即时改变受控值并打开菜单；显式点击/Enter/Space 打开后，定位可见才聚焦当前可用选项（否则首项/根），条目方向键/Home/End 只移动焦点，明确激活才选值；Tab 关闭并续接页面/模态焦点。多选与历史菜单的业务键盘语义保持独立。
 - `action-menu.tsx` 保持外部受控，不复用 Select 家族的内部开关状态；业务可显式选择与锚点起点或终点对齐。级联浮层复用 `UiActionMenuContent` 的条目和底部动作，不复制 Action Menu 行结构。
 - Action Menu 首次焦点必须等定位完成、浮层实际可见后进入首个可用条目；后续滚动/窗口变化只更新几何，不把用户当前条目焦点重置到第一项。
-- `menu-keyboard.ts` 是 Action、Room 模型和 Workspace 菜单的首项焦点与方向键/Home/End 遍历所有者；只遍历当前 menu 的可用项，不混入子菜单。它忽略 IME、已处理事件和外部 Portal 冒泡，输入框保留自己的编辑键。Tab 由调用方关闭并归还锚点，再通过 `overlay/overlay-focus-navigation.ts` 续接到同一页面/模态的相邻控件；全部禁用时菜单根仍可聚焦退出。级联进入/返回与实际命令仍由业务拥有。
+- `menu-keyboard.ts` 是 Action/Select、Room 模型和 Workspace 菜单的首项/当前选项焦点与方向键/Home/End 遍历所有者；按 menu/listbox 角色只遍历当前层可用项，不混入子层。它忽略 IME、已处理事件和外部 Portal 冒泡，输入框保留自己的编辑键。Tab 由调用方关闭并归还锚点，再通过 `overlay/overlay-focus-navigation.ts` 续接到同一页面/模态的相邻控件；全部禁用时菜单根仍可聚焦退出。级联进入/返回与实际命令仍由业务拥有。
 - `menu-action-row.tsx` 是 Action Menu 与业务上下文菜单的唯一行级 DOM 所有者；它使用原生 button、普通 `role=menuitem` 或受控 `checked` 对应的 `menuitemcheckbox/aria-checked`、`aria-disabled`、有限密度和共享状态。业务只组合图标、标签、尾部内容与命令，不得重新导入菜单样式拼装按钮。
 - Action Menu 的可选数组默认值必须引用模块级稳定空值；禁止在参数默认值中写 `[]`，否则锚定层的定位状态更新会让回调引用反复失效并形成 render loop。
 - Action Menu 的重置等次级动作通过 `footerItems` 进入带分隔线的底部区域，不能混入主要选项伪装成普通值。
@@ -35,3 +35,5 @@
 菜单组件直接导入，不通过另一个菜单文件隐式转出。锚点定位、材质与浏览器生命周期统一复用 `shared/ui/overlay/`；业务需要扩大弹层时传 `menuMinWidth`，不得开放或使用菜单表面样式类覆盖定位、圆角、内边距与条目节奏。Action Menu 的高度估算必须包含带说明行、共享条目间距与完整 surface 内边距，正常内容不得因估算偏小产生内部滚动，只有真实可用视口不足时才允许滚动。单行触发器保留完整活动标签的原生 `title` 兜底，并独立声明正常行高，避免继承紧凑按钮的 `leading-none` 后裁掉英文下行字形。
 
 - `checked` 由调用方持有；Action Menu 提供非交互勾选标记，MenuActionRow 拥有 ARIA 状态，menu-keyboard 同时遍历普通动作与勾选项。条目名称、图标、说明与 trailing 只能包含非交互内容，不能在原生行按钮内再套 Switch/按钮。选择继续走唯一 onSelect 与关闭/焦点归还路径。
+
+- `UiSelectMenu` 默认占位文案属于双语 catalog，空候选时禁用且不改变受控值；显式激活须匹配当前可用候选。单行选项保留完整原生提示，装饰图标不进入辅助名称。默认值在唯一组件入口解析，不保留透传包装层或按钮视觉 class 接口。会执行测试等命令的入口必须使用 Action Menu，不能借选择器的方向键选值副作用执行。
