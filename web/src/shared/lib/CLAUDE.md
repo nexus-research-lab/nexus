@@ -10,6 +10,7 @@
 - `react/use-resettable-state.ts`：按调用者提供的 key 重置本地状态，不解释 Session、Room 或资源 revision。
 - `react/use-mouse-drag.ts`：首页辅助面板与文件目录分栏的共用鼠标拖动生命周期；主键松开、窗口失焦、文档隐藏和调用方停用均结束，卸载释放监听。只传递仍按住主键的移动，尺寸、方向和边界留在布局 owner；侧栏的指针捕获/折叠热区保留独立职责。
 - `react/use-media-query.ts` 是媒体条件首次读取、变更订阅和清理的唯一所有者；没有 matchMedia 时返回 false。`use-prefers-reduced-motion.ts` 只绑定固定系统动效查询，不重复实现监听，不定义业务断点或动画。
+- `react/use-minute-clock.ts`：按自然分钟更新纯展示时钟；停用、文档隐藏或卸载时释放计时器，回到前台立即同步。每个消费列表共用一个时钟，不调用业务读取或推断任务状态。
 - `react/use-textarea-height.ts`：依据真实 textarea 排版、输入和宽度变化测量高度；不通过 React 状态替代浏览器几何。
 - `react/page-header-actions-context.ts`：跨层共享无 DOM 的页头动作插槽；App 持有挂载点和响应式生命周期，页面只读取目标。
 

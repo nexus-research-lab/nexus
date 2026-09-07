@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Subagent directories now distinguish active, historical and unknown tasks,
+  label queued/failed/stopped work and preserve readable tasks after refresh
+  failures. Valid observation times use shared localized labels that refresh
+  while visible; unknown states cannot clear an unconfirmed stop result.
+
 - Subagent details now use shared avatar sizes, typography and resource states,
   with wrapping controls, accessible pending actions and localized fallback names.
   Thread file actions preserve the resolved source workspace; explicit missing
