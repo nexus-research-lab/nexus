@@ -1,20 +1,15 @@
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  type MutableRefObject,
-} from "react";
+// INPUT: 精确问题作用域、草稿、提交能力和布尔受理结果。
+// OUTPUT: 同步防重、独立作用域代次与异步提交/折叠收口。
+// POS: 问答提交生命周期；拒绝由调用方处理，不重放命令或推断服务端结果。
 
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import type { UserQuestionAnswer } from "@/types/conversation/interaction/ask-user-question";
+import { buildQuestionAnswers, type QuestionDraft } from "../ask-user-question-model";
 
-import {
-  buildQuestionAnswers,
-  type QuestionDraft,
-} from "../ask-user-question-model";
-
-interface SubmissionToken {
+interface SubmissionOwner {
   scopeKey: string;
+  active: boolean;
 }
 
 interface UseQuestionSubmissionOptions {
@@ -39,111 +34,32 @@ export function useQuestionSubmission({
   submissionReady,
   toolUseId,
 }: UseQuestionSubmissionOptions) {
-  const activeScopeRef = useRef(scopeKey);
-  activeScopeRef.current = scopeKey;
-  const activeSubmissionRef = useRef<SubmissionToken | null>(null);
-  const [isSubmitting, setIsSubmitting] = useResettableState(false, scopeKey);
-  const submitEnabled = [submissionReady, !isSubmitting].every(Boolean);
+  // 同一个字符串作用域重新进入时必须取得新身份，不能让旧 Promise 认领新表单。
+  const owner = useMemo<SubmissionOwner>(() => ({ scopeKey, active: false }), [scopeKey]);
+  const pendingOwnerRef = useRef<SubmissionOwner | null>(null);
+  const [isSubmitting, setIsSubmitting] = useResettableState(false, owner);
+  const submitEnabled = submissionReady && !isSubmitting;
 
-  useEffect(() => () => {
-    if (activeScopeRef.current === scopeKey) {
-      activeScopeRef.current = "";
-    }
-  }, [scopeKey]);
+  useEffect(() => {
+    owner.active = true;
+    return () => { owner.active = false; };
+  }, [owner]);
 
   const submit = useCallback(async () => {
-    await runQuestionSubmission({
-      activeScopeRef,
-      activeSubmissionRef,
-      draft,
-      onAccepted,
-      onCollapse,
-      onSubmit,
-      scopeKey,
-      setIsSubmitting,
-      submitEnabled,
-      toolUseId,
-    });
-  }, [
-    draft,
-    onAccepted,
-    onCollapse,
-    onSubmit,
-    scopeKey,
-    setIsSubmitting,
-    submitEnabled,
-    toolUseId,
-  ]);
+    if (!owner.active || !submitEnabled || pendingOwnerRef.current === owner) return;
+    pendingOwnerRef.current = owner;
+    setIsSubmitting(true);
+    try {
+      const accepted = await onSubmit(toolUseId, buildQuestionAnswers(draft));
+      if (accepted && owner.active && pendingOwnerRef.current === owner) {
+        onAccepted();
+        onCollapse();
+      }
+    } finally {
+      if (pendingOwnerRef.current === owner) pendingOwnerRef.current = null;
+      if (owner.active) setIsSubmitting(false);
+    }
+  }, [draft, onAccepted, onCollapse, onSubmit, owner, setIsSubmitting, submitEnabled, toolUseId]);
 
   return { isSubmitting, submit, submitEnabled };
-}
-
-interface QuestionSubmissionTransaction {
-  activeScopeRef: MutableRefObject<string>;
-  activeSubmissionRef: MutableRefObject<SubmissionToken | null>;
-  draft: QuestionDraft;
-  onAccepted: () => void;
-  onCollapse: () => void;
-  onSubmit: UseQuestionSubmissionOptions["onSubmit"];
-  scopeKey: string;
-  setIsSubmitting: (value: boolean) => void;
-  submitEnabled: boolean;
-  toolUseId: string;
-}
-
-async function runQuestionSubmission(
-  transaction: QuestionSubmissionTransaction,
-): Promise<void> {
-  const token = beginSubmission(transaction);
-  if (!token) {
-    return;
-  }
-  try {
-    const accepted = await transaction.onSubmit(
-      transaction.toolUseId,
-      buildQuestionAnswers(transaction.draft),
-    );
-    applyAcceptedSubmission(transaction, token, accepted);
-  } finally {
-    finishSubmission(transaction, token);
-  }
-}
-
-function beginSubmission(
-  transaction: QuestionSubmissionTransaction,
-): SubmissionToken | null {
-  const duplicate =
-    transaction.activeSubmissionRef.current?.scopeKey === transaction.scopeKey;
-  if (!transaction.submitEnabled || duplicate) {
-    return null;
-  }
-  const token = { scopeKey: transaction.scopeKey };
-  transaction.activeSubmissionRef.current = token;
-  transaction.setIsSubmitting(true);
-  return token;
-}
-
-function applyAcceptedSubmission(
-  transaction: QuestionSubmissionTransaction,
-  token: SubmissionToken,
-  accepted: boolean,
-): void {
-  const currentScope = transaction.activeScopeRef.current === token.scopeKey;
-  if (!accepted || !currentScope) {
-    return;
-  }
-  transaction.onAccepted();
-  transaction.onCollapse();
-}
-
-function finishSubmission(
-  transaction: QuestionSubmissionTransaction,
-  token: SubmissionToken,
-): void {
-  if (transaction.activeSubmissionRef.current === token) {
-    transaction.activeSubmissionRef.current = null;
-  }
-  if (transaction.activeScopeRef.current === token.scopeKey) {
-    transaction.setIsSubmitting(false);
-  }
 }

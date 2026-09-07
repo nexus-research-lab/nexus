@@ -51,6 +51,18 @@ function renderView(
 }
 
 describe("AskUserQuestionView", () => {
+  it("freezes both answers and decisions while submission is pending", async () => {
+    const user = userEvent.setup();
+    const { props } = renderView({ isSubmitting: true, submitEnabled: false, draft: [{ customAnswer: "Submitted answer", selectedOptions: new Set<string>() }] });
+    for (const control of screen.getAllByRole("radio").concat(screen.getByRole("textbox"), screen.getAllByRole("button"))) {
+      expect(control.matches(":disabled")).toBe(true);
+    }
+    await user.click(screen.getByRole("radio"));
+    await user.type(screen.getByRole("textbox"), "late answer");
+    expect(props.onToggleOption).not.toHaveBeenCalled();
+    expect(props.onUpdateCustomAnswer).not.toHaveBeenCalled();
+  });
+
   it("uses shared decision actions without changing question input behavior", async () => {
     const user = userEvent.setup();
     const { props } = renderView();
@@ -80,7 +92,7 @@ describe("AskUserQuestionView", () => {
     expect(props.onUpdateCustomAnswer).toHaveBeenCalledWith(0, "补充回答");
     expect(screen.getByText(QUESTION.question).className).toContain("ui-type-body");
     expect(screen.getByText(QUESTION.options[0].description).className)
-      .toContain("ui-type-metadata");
+      .toContain("ui-type-supporting");
   });
 
   it("uses semantic typography for the collapsed terminal resolution", () => {
