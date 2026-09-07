@@ -2283,3 +2283,33 @@ Composer 端到端流程或原生浏览器拖动手感。
 825 项测试与生产 build，日志 /tmp/nexus-queue-a64-check.log。本轮新增 12 项
 行为测试和 1 项所有权合同；修正测试 focus 的 act 包装后最终无新增 React/ESLint
 警告。构建仍只有既有大型分块提示，未启动浏览器、原生宿主或产品服务。
+
+
+## A65 — 人工问答的请求隔离与统一决定动作（代码/行为）
+
+审查 Composer 人工介入入口及四个问答视图。问题正文、选项和说明分别使用
+body/control/supporting；长摘要允许换行，单选 name 按实例隔离，多选删除重复
+勾选标记。自定义答案复用共享文本域测高，条件挂载由输入自身接入生命周期。
+拒绝/提交通过领域配方显式保留触屏命中区，移除根容器对全部后代按钮的尺寸覆盖；
+权限视图沿用同一配方和已有 SplitButton 几何，没有新增公共控件。
+
+移除 PendingHumanQuestion 从未使用的 toolUse 覆盖入口，精确 request_id 继续
+拥有草稿身份，后到 tool ID 不重置用户答案。提交期间冻结答案；同步异常释放派发
+保护并保留草稿，业务 transport 仍是唯一错误投影，不自动重试或伪造受理。
+异步提交控制器移除重复事务门面，以每次 scope 生命周期对象隔离 Promise；修复
+React effect 重放后不再活跃，以及 A→B→A 旧请求阻塞新请求/迟到完成的问题。
+StrictMode 用于证明生命周期稳健性，不声称当前产品根入口已经启用 StrictMode。
+
+新增 4 项控制器和 3 项真实 Composer 集成用例，另增 1 项提交冻结回归：覆盖
+同轮防重、false/异常保留、卸载、旧结果隔离、后到工具身份、精确拒绝和多个
+表单的 radio 互不影响。控制器修复前 2 失败/2 通过，见
+/tmp/nexus-question-a65-repro.log。初次集成测试纠正了自定义答案的既有协议形状，
+冻结测试使用原生 fieldset 的 :disabled 语义，最终所有行为通过。
+
+清单仍为 485 项：283 pending、118 in_progress、20 retained、58 improved、
+6 removed；五个待审视图改善，权限视图增量记录和生产摘要同步。公共 UI 118 项，
+整体 Goal 继续；视觉/宿主验收按用户要求暂停。
+
+验证：npm run check 全部通过，含 lint、typecheck、480 项合同、227 个文件的
+833 项测试及 build；日志 /tmp/nexus-question-a65-check.log。构建只有既有大型
+分块提示，未启动产品服务、浏览器或原生宿主。

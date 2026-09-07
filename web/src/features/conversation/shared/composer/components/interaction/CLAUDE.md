@@ -13,3 +13,5 @@ L6 | 父级: web/src/features/conversation/shared/composer/components
 结构化问答与权限确认共用 Agent/工具元信息节奏和底部决策行；Composer 壳是唯一边界，问题与选项不得再叠加 rail、footer card 或逐项阴影。
 权限确认默认不得复用完整 ToolBlock 的状态徽标、时间、提示词分区和权限范围平铺；首屏只呈现决策所需信息，低频范围选择收进明确的次级菜单。主动作与菜单触发器的组合几何由 `UiSplitButton` 唯一持有，业务不得再写颜色、边框、圆角、focus 或移动端高度配方；动作名、匹配规则和保存范围必须投影 Nexus runtime 的真实权限体系，禁止复制其它产品的权限文案。
 持久权限规则必须原样来自 runtime 的 `suggestions`：有建议时显示相邻下拉并随允许响应回传；没有建议时只能允许本次，禁止 Composer 猜测工具匹配规则或伪造 `localSettings` 更新。
+
+决定按钮的触屏命中区由 `conversation-panel-styles.ts` 的领域配方提供，只显式应用到对应按钮，不从人工介入根容器覆盖后代控件。同步响应异常只释放本地派发保护，保留草稿；错误投影继续由 Conversation transport 拥有。

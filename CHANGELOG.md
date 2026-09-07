@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Unified Composer question typography and decision touch targets, isolated radio
+  groups and request drafts, and made asynchronous submission survive effect
+  replays and request changes without stale completion or duplicate dispatch.
+
 - Consolidated queued-message headers into shared Disclosure, added keyboard
   move actions and full-content descriptions, and limited dragging to its handle.
   Queue commands now reject stale/no-op orders, serialize dispatch, and stop

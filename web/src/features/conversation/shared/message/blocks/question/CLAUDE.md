@@ -14,3 +14,5 @@
 - SDK 的 `multiSelect` 只在输入解析时兼容，内部问题契约统一使用 `multi_select`。
 - 问答提交属于标准动作，使用共享 `md` Spinner；视图不得自行维护旋转、尺寸或 reduced-motion class。
 - `ask-user-question-view.test.tsx` 必须覆盖拒绝/提交事件隔离、选项与自定义回答载荷、共享动作/排版和折叠终态摘要。
+
+Pending 请求 ID 是 Composer 问答的唯一身份，后到 tool ID 不得重建草稿。原生 radio name 使用实例 ID，防止两个问题面互相取消；选项主标签与说明分别用 control/supporting。自定义文本域在自身挂载时接入共享测高；提交期间答案和动作均只读，失败保留草稿。

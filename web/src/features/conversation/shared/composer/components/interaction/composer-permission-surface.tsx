@@ -3,7 +3,7 @@
 /**
  * INPUT: 当前 Composer-owned 权限/计划请求、Agent 身份与响应动作。
  * OUTPUT: 工具类型、人话摘要、必要参数和单一决策行组成的精简确认面。
- * POS: Composer 人工介入的唯一确认视图；范围菜单按 request_id 重置且服从当前可提交状态。
+ * POS: Composer 人工介入的唯一确认视图；范围菜单按 request_id 重置且服从当前可提交状态，决定动作显式消费领域命中区配方。
  */
 import {
   ChevronDown,
@@ -35,6 +35,7 @@ import {
   useI18n,
 } from "@/shared/i18n/i18n-context";
 import { useResettableState } from "@/shared/lib/react/use-resettable-state";
+import { CONVERSATION_DECISION_ACTION_CLASS_NAME } from "../../../conversation-panel-styles";
 import { UiButton } from "@/shared/ui/button/button";
 import { UiSplitButton } from "@/shared/ui/button/split-button";
 import { cn } from "@/shared/ui/class-name";
@@ -293,7 +294,7 @@ export function ComposerPermissionSurface({
 
       <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
         <UiButton
-          className={decisionWidthClassName}
+          className={cn(CONVERSATION_DECISION_ACTION_CLASS_NAME, decisionWidthClassName)}
           data-composer-permission-action="deny"
           data-composer-permission-decision="deny"
           disabled={interactionDisabled}
