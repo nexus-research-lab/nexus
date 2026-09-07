@@ -1,6 +1,6 @@
 /**
  * INPUT: GraphNode 下的有界 NodeRun 历史、结构化 workspace Artifact 与正式交付引用。
- * OUTPUT: 使用说明文字层级的运行结果/错误时间线、清晰分组与可打开文件引用。
+ * OUTPUT: 本地化运行历史、共享行内错误与精确文件引用；缺失事实不以内部身份冒充可读详情。
  * POS: 节点悬浮检查器的深入事实视图；不从摘要推断状态或触发重试。
  */
 "use client";
@@ -9,10 +9,10 @@ import { FileText } from "lucide-react";
 
 import { WorkspaceFileArtifactBlock } from "@/features/conversation/shared/message/blocks/artifact/workspace-file-artifacts";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import type { TranslationKey } from "@/shared/i18n/messages";
 import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiDisclosure } from "@/shared/ui/disclosure/disclosure";
+import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type {
   ExecutionGraphNodeRunView,
@@ -21,16 +21,7 @@ import type {
 } from "@/types/conversation/execution";
 
 import { resolveExecutionWorkspaceReference } from "./execution-workgraph-interaction-model";
-
-const RUN_STATUS_LABEL_KEY: Record<string, TranslationKey> = {
-  cancelled: "execution.attempt_cancelled",
-  failed: "execution.attempt_failed",
-  interrupted: "execution.attempt_interrupted",
-  pending: "execution.attempt_pending",
-  running: "execution.attempt_running",
-  succeeded: "execution.attempt_succeeded",
-  timed_out: "execution.attempt_timed_out",
-};
+import { formatExecutionRunTime, getExecutionRunStatusLabel } from "./execution-run-presentation";
 
 export function ExecutionNodeRunHistory({
   item,
@@ -144,18 +135,18 @@ function ExecutionNodeRunDetail({
   run: ExecutionGraphNodeRunView;
   workspaceAgentId?: string | null;
 }) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const status = run.status?.trim() ?? "";
-  const statusLabel = RUN_STATUS_LABEL_KEY[status]
-    ? t(RUN_STATUS_LABEL_KEY[status])
-    : status;
-  const timeLabel = formatExecutionRunTime(run);
+  const statusLabel = getExecutionRunStatusLabel(status, t);
+  const timeLabel = formatExecutionRunTime(run, { locale, t });
+  const errorSummary = run.error_summary?.trim();
+  const errorCode = run.error_code?.trim();
   return (
     <UiDisclosure
       data-execution-node-run={run.id}
       defaultOpen={defaultOpen}
       density="compact"
-      label={statusLabel || run.id}
+      label={statusLabel}
       leading={(
         <span
           aria-hidden="true"
@@ -174,20 +165,27 @@ function ExecutionNodeRunDetail({
         "space-y-2 break-words",
         getUiTypographyClassName({ role: "supporting", tone: "default" }),
       )}>
-        {run.error_summary?.trim() ? (
-          <div className="radius-control-xs bg-[color:color-mix(in_srgb,var(--warning)_8%,transparent)] px-2 py-1.5">
-            <p>{run.error_summary.trim()}</p>
-            {run.error_code?.trim() ? (
-              <p className={cn(
-                "mt-1",
-                getUiTypographyClassName({ role: "code", tone: "muted" }),
-              )}>
-                {run.error_code.trim()}
-              </p>
-            ) : null}
-          </div>
+        {errorSummary || errorCode ? (
+          <UiInlineNotice
+            aria-live="off"
+            message={(
+              <>
+                {errorSummary ? <p className="whitespace-pre-wrap">{errorSummary}</p> : null}
+                {errorCode ? (
+                  <p className={cn(
+                    errorSummary && "mt-1",
+                    getUiTypographyClassName({ role: "code", tone: "muted" }),
+                  )}>
+                    {errorCode}
+                  </p>
+                ) : null}
+              </>
+            )}
+            role="note"
+            tone="warning"
+          />
         ) : null}
-        {run.result_summary?.trim() ? <p>{run.result_summary.trim()}</p> : null}
+        {run.result_summary?.trim() ? <p className="whitespace-pre-wrap">{run.result_summary.trim()}</p> : null}
         {run.summary_truncated ? (
           <p className={getUiTypographyClassName({ role: "supporting", tone: "muted" })}>
             {t("execution.summary_truncated")}
@@ -212,10 +210,12 @@ function ExecutionNodeRunDetail({
             ))}
           </div>
         ) : null}
-        {!run.error_summary?.trim()
+        {!errorSummary && !errorCode
           && !run.result_summary?.trim()
           && (run.artifacts?.length ?? 0) === 0 ? (
-            <p className={getUiTypographyClassName({ role: "code", tone: "muted" })}>{run.id}</p>
+            <p className={getUiTypographyClassName({ role: "supporting", tone: "muted" })}>
+              {t("execution.run_details_unavailable")}
+            </p>
           ) : null}
       </div>
     </UiDisclosure>
@@ -233,31 +233,6 @@ function collectExecutionOutputReferences(
     ),
   ];
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
-}
-
-function formatExecutionRunTime(run: ExecutionGraphNodeRunView): string {
-  if ((run.duration_ms ?? 0) > 0) {
-    const milliseconds = run.duration_ms ?? 0;
-    if (milliseconds < 1_000) {
-      return `${Math.round(milliseconds)}ms`;
-    }
-    const seconds = milliseconds / 1_000;
-    return seconds < 60
-      ? `${seconds < 10 ? seconds.toFixed(1) : Math.round(seconds)}s`
-      : `${Math.floor(seconds / 60)}m ${Math.round(seconds % 60)}s`;
-  }
-  const timestamp = run.finished_at ?? run.started_at;
-  if (!timestamp) {
-    return "";
-  }
-  const date = new Date(timestamp);
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-  return new Intl.DateTimeFormat(undefined, {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
 }
 
 function runStatusTone(status: string): string {

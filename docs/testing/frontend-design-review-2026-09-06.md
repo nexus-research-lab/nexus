@@ -2750,3 +2750,51 @@ typecheck、481 项合同、241 文件的 971 项组件/模型测试及 build �
 /tmp/nexus-a78-check.log；仅保留既有大分块提示。快照位置与文件清单见
 /tmp/nexus-a78-review.json。本批只提交活动条及其公共所有者、回归和规范，另批
 保存流程的工作区修改继续保留；未运行 Go、产品服务或视觉验证，不推送。
+
+
+## A79 — 工作图局部步骤与运行详情
+
+局部任务清单原先从共享模型取得归一化计数，却用原始 run.todos 选取窗口并渲染。
+现在整个视图消费同一份 taskState.todos，旧 task/activeForm、空内容和异常项继续
+服从既有归一化所有者，不另写一份兼容 parser。标题/计数改用 metadata，任务
+正文改用 supporting；移除局部 9/10px 字号与单行永久截断，状态图标进入等宽列，
+长任务可换行，运行文案与 title 一致。默认仍展示当前步骤附近五项，通过公共
+Button 展开全部/收起，原生序号保留在完整列表中的位置。展开只受当前 Agent 与
+agent round 身份约束，语言与同轮数据更新不重置，多实例的 heading/list ID 独立。
+
+运行详情原先将未知状态和缺失正文回退成 wire 状态或 Run ID，状态映射也会命中
+对象原型键；现使用当前语言的可读空态，并用自有键检查拒绝原型继承。Canvas 的
+Attempt 标签与 NodeRun 标签、节点与历史中重复的耗时函数统一进入
+execution-run-presentation.ts；零耗时保留，负值/非有限值/不可安全表示的数值不
+展示为时长，无合法时长时尝试有效的结束/开始时间。统一先舍入再分解分钟和秒，
+不产生 1 分 60 秒；时间及单位随当前 UI 语言变化，既有展开选择不会因语言或
+历史追加而关闭。运行 ID 仍作为精确数据键保留，不再冒充普通详情。
+
+历史错误使用公共 InlineNotice 的 warning、静态 note 与 aria-live=off，替换私有
+警示底色/边界。正文与错误保留换行，缺少摘要时独立错误码仍可查看，不以空详情
+覆盖技术证据。文件引用的安全路径判断、原 workspace 参数及 structured Artifact
+自身 owner 优先级保持；没有新增重试、恢复或其他业务命令。
+
+新增 28 项回归：七项局部步骤行为，21 项运行详情行为；连同既有文件引用及真实
+Canvas 检查器回归，定向 3 文件 30 项通过，见 /tmp/nexus-a79-target.log。覆盖旧
+载荷归一化、键盘展开、实例/Agent/round 隔离、语言更新、原型键、空记录、零值、
+亚秒与分钟进位、非法耗时/观测时间、历史展开保持、纯文本错误与 Artifact owner。
+
+485 项清单更新为 265 pending、126 in_progress、68 improved、20 retained、6 removed；
+公共 UI 仍为 118 项。局部任务清单完成代码/行为审查；运行详情和 Canvas 继续
+in_progress，尤其文件原语缺少明确 workspace 身份时仍会回退当前 Agent，需沿
+Artifact 业务继续审查，不能把本批文案与时间改进称为完整图形业务完成。另一批
+WorkGraph 保存代码仍在工作区中，本批只记录并提交自身范围。视觉、浏览器和
+宿主验证继续按用户要求暂停，整体 Goal 保持进行中。
+
+并行保存流程已以 4f97994f8 合入，本批同步该提交涉及的三个既有 TSX 源哈希，
+保留其 pending/in_progress 与待复查说明，不把外批代码计作本批审查完成。最终
+校验快照基于此新提交并仅叠加本批改动；保存对话框仍在进行的后续修改未纳入。
+
+最终验证记录见 /tmp/nexus-a79-verification.md。新基线的 lint 与 typecheck 通过；
+482 项合同中 481 项首跑通过，execution-invalidation 测试进程收到 SIGBUS 后退出，
+未报告断言失败；同一隔离测试单独复跑 1/1 通过，未修改测试或放宽门禁。余下
+243 文件的 1007 项组件/模型测试与 build 均通过；构建只保留既有大分块提示。
+具体日志分别为 /tmp/nexus-a79-check.log、/tmp/nexus-a79-invalidation-retry.log、
+/tmp/nexus-a79-components.log 与 /tmp/nexus-a79-build.log。未运行 Go 或产品服务；
+仅本地提交，不推送。

@@ -1,6 +1,6 @@
 /**
  * INPUT: 权威 Execution Graph、Agent 目录、当前 Graph 节点、节点展示密度与精确 Agent round Task run。
- * OUTPUT: 在焦点稳定、全边界可达且不叠加伪主图底框的工作板上显示图标或可读摘要卡片、可整体悬停聚焦的子图、正交流程边、唯一节点/边检查器外壳、公共静态运行活动行、共享关闭动作及完整交互的大图弹窗。
+ * OUTPUT: 在焦点稳定、全边界可达且不叠加伪主图底框的工作板上显示图标或可读摘要卡片、可整体悬停聚焦的子图、正交流程边、唯一节点/边检查器外壳、公共静态运行活动行、共享关闭动作、统一节点/运行耗时及完整交互的大图弹窗。
  * POS: DM/Room 共用的只读 Execution Graph 主视图；一级运行树外框与内部方向边只按结构化父身份投影，不从自由文本反推关系。
  */
 "use client";
@@ -47,6 +47,7 @@ import type {
 
 import { ExecutionGraphInspector } from "./execution-graph-inspector";
 import { ExecutionNodeAvatar } from "./execution-node-avatar";
+import { formatExecutionDuration, getExecutionRunStatusLabel } from "./execution-run-presentation";
 import { ExecutionNodeRunHistory } from "./execution-node-run-history";
 import { ExecutionNodeTaskList } from "./execution-node-task-list";
 import { resolveExecutionNodeTaskRun } from "./execution-node-task-model";
@@ -78,19 +79,6 @@ import {
   resolveExecutionGraphWheelZoom,
   searchExecutionGraphNodes,
 } from "./execution-workgraph-interaction-model";
-
-const ATTEMPT_STATUS_LABEL_KEY: Record<
-  ExecutionAttemptView["status"],
-  TranslationKey
-> = {
-  cancelled: "execution.attempt_cancelled",
-  failed: "execution.attempt_failed",
-  interrupted: "execution.attempt_interrupted",
-  pending: "execution.attempt_pending",
-  running: "execution.attempt_running",
-  succeeded: "execution.attempt_succeeded",
-  timed_out: "execution.attempt_timed_out",
-};
 
 const EDGE_KIND_LABEL_KEY: Record<ExecutionGraphEdgeKind, TranslationKey> = {
   coordination: "execution.edge_coordination",
@@ -1490,7 +1478,8 @@ function ExecutionNodeInspector({
   style: CSSProperties;
   taskRun: ConversationTaskRun | null;
 }) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
+  const durationLabel = formatExecutionDuration(node.duration_ms, { locale, t });
   const parentNode = node.parent_node_id
     ? execution.graph?.nodes?.find((candidate) => candidate.id === node.parent_node_id)
       ?? null
@@ -1514,7 +1503,7 @@ function ExecutionNodeInspector({
     && deliverable.toLocaleLowerCase() !== objective.toLocaleLowerCase();
   const status = resolveExecutionGraphNodeStatus(node, item);
   const statusLabel = attempt && node.kind === "subagent"
-    ? t(ATTEMPT_STATUS_LABEL_KEY[attempt.status])
+    ? getExecutionRunStatusLabel(attempt.status, t)
     : t(WORK_ITEM_STATUS_LABEL_KEY[status]);
   const heading = graphNodeHeading(node, item, t);
   const relatedSubject = node.kind === "agent" ? "" : item?.subject.trim() ?? "";
@@ -1634,9 +1623,9 @@ function ExecutionNodeInspector({
           ) : null}
         </NodeDetailSection>
       ) : null}
-      {(node.duration_ms ?? 0) > 0 ? (
+      {durationLabel !== null ? (
         <NodeDetailSection label={t("execution.duration")}>
-          <p>{formatNodeDuration(node.duration_ms ?? 0)}</p>
+          <p>{durationLabel}</p>
         </NodeDetailSection>
       ) : null}
       {controlReturnObserved ? (
@@ -1899,18 +1888,6 @@ function resolveNodeInspectorStyle(
     transformOrigin: "top left",
     width: visualWidth,
   };
-}
-
-function formatNodeDuration(durationMS: number): string {
-  if (durationMS < 1_000) {
-    return `${Math.round(durationMS)}ms`;
-  }
-  const seconds = durationMS / 1_000;
-  if (seconds < 60) {
-    return `${seconds < 10 ? seconds.toFixed(1) : Math.round(seconds)}s`;
-  }
-  const minutes = Math.floor(seconds / 60);
-  return `${minutes}m ${Math.round(seconds % 60)}s`;
 }
 
 function formatEdgeObservedAt(value: string): string {

@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- WorkGraph node steps now use readable shared typography, wrap long text and
+  offer access to the full list, with counts and rows based on the same normalized
+  tasks. Node and run details share localized status/time formatting; unknown
+  records no longer display internal IDs, and historical errors use shared feedback.
+
 - Composer Agent activity docks now pair clearer 26px avatars with a lighter
   36px toolbar while retaining 32px click targets. Status uses one corner dot;
   narrow layouts scroll the avatar strip while keeping the WorkGraph entry
