@@ -1051,6 +1051,8 @@ export const enCapabilityMessages = {
   "capability.scheduled_dialog_resource_load_title": "This list could not be loaded",
   "capability.scheduled_dialog_resource_load_next_step": "Reload this list, then confirm the selection after it succeeds.",
   "capability.scheduled_dialog_unnamed_session": "Untitled session",
+  "capability.scheduled_dialog_room_unavailable": "Current group chat is not listed",
+  "capability.scheduled_dialog_session_unavailable": "Current session is not listed",
   "capability.scheduled_dialog_session_rebind_required": "The original binding is no longer available",
   "capability.scheduled_dialog_session_rebind_description": "Legacy scheduled-task inboxes and unpaired or deleted conversations are hidden from the selector. Choose an available real Nexus, Room, or IM conversation, or keep the result in the task only.",
   "capability.reload": "Reload",

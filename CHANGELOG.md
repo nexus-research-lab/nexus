@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Kept scheduled-task Room and session selectors compact and free of internal-ID
+  fallbacks. Duplicate names share one numbering rule, and missing selections
+  remain visible through catalog refreshes without changing saved bindings.
+  Removed redundant parent-name indexes and duplicate session-label formatting.
 - Reused shared Badge and Typography styles in select menus, removing the
   private 9px badge. Select triggers now ignore composition and already-handled
   keyboard events so input-method confirmation cannot change a selection.
