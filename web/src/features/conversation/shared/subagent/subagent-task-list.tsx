@@ -1,5 +1,5 @@
 // INPUT: 当前 scope 的子智能体任务快照、读取状态与刷新动作。
-// OUTPUT: 保留已有任务快照并完整说明读取失败影响和恢复路径的任务列表。
+// OUTPUT: 当前语言的任务列表，保留快照并完整说明读取失败影响和恢复路径。
 // POS: 子智能体目录纯视图；不解释底层异常，也不改变任务执行状态。
 "use client";
 
@@ -244,7 +244,7 @@ function SubagentTaskRow({
 }) {
   const { locale, t } = useI18n();
   const timestamp = subagentTaskTimestamp(task);
-  const title = subagentTaskTitle(task);
+  const title = subagentTaskTitle(task, t);
   const description = task.description?.trim() ?? "";
   const summary = [
     task.summary,

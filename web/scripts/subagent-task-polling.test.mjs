@@ -91,12 +91,14 @@ test("subagent title uses the model-provided task description before its generic
   } = await server.ssrLoadModule(
     "/src/features/conversation/shared/subagent/subagent-task-model.ts",
   );
+  const { MESSAGES } = await server.ssrLoadModule("/src/shared/i18n/messages.ts");
+  const t = (key) => MESSAGES.en[key];
 
   assert.equal(
     subagentTaskTitle({
       agent_type: "Explore",
       description: "调研 iPhone Air 硬件规格",
-    }),
+    }, t),
     "调研 iPhone Air 硬件规格",
   );
   assert.equal(
@@ -104,10 +106,11 @@ test("subagent title uses the model-provided task description before its generic
       agent_type: "Explore",
       description: "调研 iPhone Air 硬件规格",
       name: "硬件规格研究员",
-    }),
+    }, t),
     "硬件规格研究员",
   );
-  assert.equal(subagentTaskTitle({ agent_type: "Explore" }), "Explore");
+  assert.equal(subagentTaskTitle({ agent_type: "Explore" }, t), "Explore");
+  assert.equal(subagentTaskTitle({}, t), MESSAGES.en["agent.subagent_name_fallback"]);
   assert.equal(
     subagentTaskAvatarSeed({
       task_id: "task-one",

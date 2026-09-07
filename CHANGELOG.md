@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Subagent details now use shared avatar sizes, typography and resource states,
+  with wrapping controls, accessible pending actions and localized fallback names.
+  Thread file actions preserve the resolved source workspace; explicit missing
+  scope never falls back to a runtime task ID. File-only replies remain visible,
+  and final file deliverables appear once alongside the final response.
 - File artifacts now preserve their source workspace through message bodies,
   collapsed processes, WorkGraph history and Room Thread callbacks. Missing
   file identity remains visible with a localized explanation instead of opening

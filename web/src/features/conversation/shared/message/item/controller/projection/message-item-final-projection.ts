@@ -1,6 +1,6 @@
 /**
  * INPUT: Assistant 内容模式、streamed ContentBlock、过程尾部与 canonical Room result。
- * OUTPUT: DM 单调正文、正文后独立 WorkGraph 交付物、Room 公区最终回复与 Thread 纯过程投影。
+ * OUTPUT: DM 单调正文与尾部文件产物、独立 WorkGraph 交付物、Room 最终回复与 Thread 纯过程投影。
  * POS: MessageItem 最终回复与过程归档的纯投影真相源。
  */
 import type {
@@ -297,7 +297,7 @@ function resolveFinalAssistantTurn(
   roundId: string,
   userMessageId: string | null,
   visibleAssistantTurns: AssistantTurnEntry[],
-  preferText: boolean,
+  preferAnswer: boolean,
 ) {
   // 顶层 assistant 的 parent 指向本轮 user message（旧数据指向 round_id）；
   // 其他 parent（tool_use / slot msg）属于子执行，不能当最终回复。
@@ -313,7 +313,7 @@ function resolveFinalAssistantTurn(
         (candidate) => candidate.messageId === message.message_id,
       ) ?? null;
       latestTopLevelTurn ??= turn;
-      if (!preferText || turn?.textContent.length) {
+      if (!preferAnswer || hasFinalAnswerContent(turn)) {
         return turn;
       }
     }
@@ -321,11 +321,16 @@ function resolveFinalAssistantTurn(
   if (latestTopLevelTurn) {
     return latestTopLevelTurn;
   }
-  return preferText
-    ? visibleAssistantTurns.findLast((turn) => turn.textContent.length > 0)
+  return preferAnswer
+    ? visibleAssistantTurns.findLast(hasFinalAnswerContent)
       ?? visibleAssistantTurns.at(-1)
       ?? null
     : visibleAssistantTurns.at(-1) ?? null;
+}
+
+function hasFinalAnswerContent(turn: AssistantTurnEntry | null): boolean {
+  return Boolean(turn?.textContent.length
+    || turn?.content.some((block) => block.type === "workspace_file_artifact"));
 }
 
 function resolveFinalTailEntries(
@@ -346,7 +351,9 @@ function resolveFinalTailEntries(
     if (entry.sourceMessageId !== finalAssistantTurn.messageId) {
       break;
     }
-    if (entry.block.type !== "text" || !entry.block.text.trim()) {
+    // 文件产物可独立构成最终交付；与相邻正文一起离开过程，避免主回复丢失或 Thread 重复。
+    if (entry.block.type !== "workspace_file_artifact"
+      && (entry.block.type !== "text" || !entry.block.text.trim())) {
       break;
     }
     tailEntries.unshift(entry);

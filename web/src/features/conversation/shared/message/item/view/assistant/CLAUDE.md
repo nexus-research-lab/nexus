@@ -12,6 +12,8 @@
 - `assistant-process-callchain.tsx`: 只管理归档过程的外层折叠和收起态生成文件；归档与 live 工具段的收起态文件列表都传递 environment.workspaceAgentId，展开切换不得改变文件来源；外层标题在展开前后始终保留同一份思路、动作、异常和最近动作摘要，展开后的内层工具组才使用中性的“执行过程”审计入口。归档过程与 live DM/Room Thread 均复用 `assistant-dm-tool-runs.tsx` 消费 `dm-tool-run-segments.ts`，本组件不得再建立第二套活动组。
 
 本目录只消费控制器已经推导出的显示状态；不得重新排序消息、匹配权限或选择最终回复。
+消息来源 Agent 只有非空身份才覆盖已知 workspace 上下文；空白字段不阻断明确来源，接续 Artifact 的精确 owner 优先级。
+
 Assistant 入口按 header、permissions、direct、process、final、activity、footer 和 layout 消费状态；子视图只接收职责内切片，不索引上层聚合状态。
 Room result 的普通工具活动由共享折叠工具行承载；没有工具内容时才由 `MessageActivityStatus` 占据原活动位，正文流式时跟随内容，三种阶段不得同时重复。
 流式正文只保持内容身份稳定，不缓存历史最大高度；同一 turn 的 Markdown 前缀按共享公平池追加，工具、活动与 final surface 切换后容器立即服从当前 intrinsic layout，不得用空白偿还先前高度。

@@ -1,3 +1,10 @@
+// INPUT: Server task identities, capability/status aliases and current-language task naming.
+// OUTPUT: Normalized task facts, exact-source matching and readable task names without identity fallbacks.
+// POS: Pure subagent task domain projection; generic display names belong to agent-display-name.
+
+import { getAgentDisplayName } from "@/lib/agent-display-name";
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
+
 import type {
   SubagentRuntimeKind,
   SubagentTask,
@@ -80,12 +87,13 @@ export function canSendSubagentTaskMessage(task: SubagentTask): boolean {
     && task.capabilities.resume;
 }
 
-export function subagentTaskTitle(task: SubagentTask): string {
-  return (
+export function subagentTaskTitle(task: SubagentTask, t: I18nContextValue["t"]): string {
+  return getAgentDisplayName(
     task.name?.trim() ||
     task.description?.trim() ||
-    task.agent_type?.trim() ||
-    "Subagent"
+    task.agent_type?.trim(),
+    t,
+    "subagent",
   );
 }
 
