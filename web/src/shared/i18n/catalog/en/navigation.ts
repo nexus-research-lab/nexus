@@ -117,6 +117,7 @@ export const enNavigationMessages = {
   "contacts.description": "Create and configure agents, then start collaborating.",
   "contacts.new_agent": "New Agent",
   "contacts.new_agent_description": "Create an AI member for chats and teams",
+  "contacts.agent_actions": "Actions for {name}",
   "contacts.chat": "Chat",
   "contacts.create_team": "Create Team",
   "contacts.no_description": "No description",

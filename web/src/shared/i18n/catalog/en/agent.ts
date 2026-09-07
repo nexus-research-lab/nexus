@@ -11,6 +11,7 @@ export const enAgentMessages = {
   "agent_options.delete_agent": "Delete Agent",
   "agent_options.save_changes": "Save changes",
   "agent_options.save_success": "Saved",
+  "agent_options.save_status": "Save status",
   "agent_options.save_failed": "Save failed",
   "agent_options.save_not_applied_message": "The changes were not saved.",
   "agent_options.save_not_applied_impact": "Existing settings, conversations, and files were not affected.",

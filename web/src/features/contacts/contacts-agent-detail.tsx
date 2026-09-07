@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前 Agent、可编辑配置、联络资源与目录/协作导航命令。
- * OUTPUT: 使用 Header action 插槽承载桌面目录返回的 Agent 分栏详情页。
+ * OUTPUT: 共享 Header 承载目录返回与精确 Agent 作用域的保存反馈/动作；详情栏目保持连续。
  * POS: 联系人目录的二级页面；手机返回由应用页头承载。
  */
 "use client";
@@ -145,6 +145,8 @@ export function ContactsAgentDetail({
 
   const actionControls = isCompactLayout ? (
     <ContactsAgentDetailActionsMenu
+      agentId={agent.agent_id}
+      agentName={agent.name}
       onCreateTeam={() => onCreateTeam(agent.agent_id)}
       onDelete={() => onDeleteAgent(agent.agent_id)}
       onOpenDirectRoom={() => onOpenDirectRoom(agent.agent_id)}
@@ -182,7 +184,7 @@ export function ContactsAgentDetail({
   const trailing = (
     <div className="flex shrink-0 items-center justify-end gap-0.5">
       {isEditorTab ? (
-        <AgentOptionsPersistenceStatus state={persistenceState} />
+        <AgentOptionsPersistenceStatus agentId={agent.agent_id} compact={isCompactLayout} state={persistenceState} />
       ) : null}
       {actionControls}
     </div>

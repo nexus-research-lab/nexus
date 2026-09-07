@@ -114,6 +114,7 @@ export const zhNavigationMessages = {
   "contacts.description": "创建和配置智能体，并从这里进入协作。",
   "contacts.new_agent": "新建智能体",
   "contacts.new_agent_description": "创建可加入聊天与群聊的 AI 成员",
+  "contacts.agent_actions": "{name}的操作",
   "contacts.chat": "聊天",
   "contacts.create_team": "发起群聊",
   "contacts.no_description": "暂无描述",
