@@ -62,6 +62,9 @@ importers:
       mermaid:
         specifier: ^11.16.1
         version: 11.17.2
+      micromark-util-character:
+        specifier: ^2.1.1
+        version: 2.1.1
       qrcode:
         specifier: ^1.5.4
         version: 1.5.4
@@ -117,6 +120,9 @@ importers:
       '@types/katex':
         specifier: ^0.16.7
         version: 0.16.7
+      '@types/mdast':
+        specifier: ^4.0.4
+        version: 4.0.4
       '@types/node':
         specifier: ^20
         version: 20.19.25
@@ -150,6 +156,12 @@ importers:
       jsdom:
         specifier: 26.1.0
         version: 26.1.0
+      mdast-util-from-markdown:
+        specifier: ^2.0.2
+        version: 2.0.2
+      micromark-util-types:
+        specifier: ^2.0.2
+        version: 2.0.2
       pngjs:
         specifier: ^7.0.0
         version: 7.0.0
@@ -162,6 +174,9 @@ importers:
       typescript-eslint:
         specifier: ^8.46.1
         version: 8.48.0(eslint@9.39.1(jiti@2.6.1))(typescript@5.9.3)
+      unified:
+        specifier: ^11.0.5
+        version: 11.0.5
       vite:
         specifier: npm:rolldown-vite@latest
         version: rolldown-vite@7.3.1(@emnapi/core@1.7.1)(@emnapi/runtime@1.7.1)(@types/node@20.19.25)(jiti@2.6.1)
