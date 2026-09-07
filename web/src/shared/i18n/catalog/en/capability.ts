@@ -14,6 +14,7 @@ export const enCapabilityMessages = {
   "capability.scheduled_history_refresh_failed": "Run history could not be refreshed",
   "capability.scheduled_history_stale_impact": "This run history may be out of date. Refresh to check.",
   "capability.scheduled_history_empty_title": "No runs yet",
+  "capability.scheduled_history_artifact_unavailable": "This run did not retain an identifiable artifact location",
   "capability.scheduled_history_empty_description": "This task has not produced a run record yet.",
   "capability.scheduled_history_empty_next_step": "Close history and return to the task page to review its status and available actions.",
   "capability.scheduled_history_feedback_fallback_impact": "Run history cannot update right now. Please try again later.",

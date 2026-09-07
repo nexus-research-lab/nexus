@@ -1,5 +1,5 @@
 // INPUT: 不可变运行记录与当前任务的诊断展示数据。
-// OUTPUT: 运行输出、诊断行和结构化执行 Session 证明的文件归属。
+// OUTPUT: 运行输出、诊断行、区分当前配置/历史执行者的复制文本与结构化 Session 证明的文件归属。
 // POS: Scheduled 历史纯投影；当前任务或当前选择不能替代历史 run 身份。
 
 import { parseSessionKey } from "@/lib/conversation/session-key";
@@ -107,9 +107,10 @@ const RUN_OUTPUT_SECTION_DEFINITIONS: readonly RunOutputSectionDefinition[] = [
 const DIAGNOSTIC_COPY_FIELD_DEFINITIONS: readonly DiagnosticCopyFieldDefinition[] = [
   { label: "Task", value: (task) => task.name },
   { label: "Job ID", value: (task) => task.job_id },
-  { label: "Agent ID", value: (task) => task.agent_id },
-  { label: "Execution", value: (task) => task.execution_kind ?? "agent" },
+  { label: "Current Task Agent ID", value: (task) => task.agent_id },
+  { label: "Current Execution Kind", value: (task) => task.execution_kind ?? "agent" },
   { label: "Run ID", value: (_task, run) => run.run_id },
+  { label: "Run Agent ID", value: (_task, run) => getRunWorkspaceAgentID(run) ?? "" },
   { label: "Status", value: (_task, run) => run.status },
   { label: "Delivery Status", value: (_task, run) => run.delivery_status || "" },
   { label: "Delivery Attempts", value: (_task, run) => String(run.delivery_attempts ?? 0) },

@@ -7,7 +7,7 @@ L2 | 父级: web/CLAUDE.md
 ## 成员清单
 
 - `home/`: 首页文件打开与预载、辅助面板百分比尺寸；鼠标拖动复用中立 `useMouseDrag`，不在业务 Hook 重复注册移动/松开/失焦监听；键盘宽度请求也交给同一有限百分比边界，不新增持久化偏好
-- `agent/`: Agent 对话控制器；公开入口只负责装配，动作、会话、运行态和 WebSocket 传输各自维护内部边界
+- `agent/`: Agent 对话控制器与显式 Agent Workspace 的 Markdown/文件动作；公开入口只负责装配，动作、会话、运行态和 WebSocket 传输各自维护内部边界
 - `capability/`: Provider readiness 等轻量能力门禁；缓存与单飞必须同时绑定 auth owner generation 和实际 runtime，旧 owner promise 不得发布或清除新请求
 - `conversation/`: 会话内容合并、轮次索引、Session 加载和虚拟列表高度估算
 - `room-page-controller/`: Room 页面编排；数据资源、纯投影、Room 命令、会话快照和现有 Agent 配置各自管理作用域

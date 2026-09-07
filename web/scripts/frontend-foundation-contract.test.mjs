@@ -763,6 +763,24 @@ test("Workspace preview chrome and presentation controls share Button and Typogr
   );
 });
 
+test("Workspace file buttons share command feedback ownership and keep historical executor scope", async () => {
+  const consumers = await Promise.all([
+    "src/features/conversation/shared/editor/workspace-file-preview-chrome.tsx",
+    "src/features/conversation/shared/message/blocks/artifact/workspace-artifact-external-action.tsx",
+    "src/features/capability/scheduled/history/view/scheduled-task-run-actions.tsx",
+  ].map(readSource));
+  for (const source of consumers) {
+    assert.match(source, /useWorkspaceFileExternalAction/);
+    assert.match(source, /<FeedbackBannerViewport/);
+    assert.doesNotMatch(source, /downloadWorkspaceFileApi|subscribeAuthOwnerScopeGeneration/);
+  }
+  assert.match(consumers[2], /getRunWorkspaceAgentID\(run\)/);
+  assert.doesNotMatch(consumers[2], /task\.agent_id/);
+  const owner = await readSource("src/hooks/agent/use-workspace-file-external-action.ts");
+  assert.match(owner, /downloadWorkspaceFileApi/);
+  assert.doesNotMatch(owner, /current_agent_id|@\/features\//);
+});
+
 test("Memory surfaces share one semantic spinner scale", async () => {
   const paths = [
     "src/features/memory/agent-memory-view.tsx",
