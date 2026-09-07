@@ -14,7 +14,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { TypewriterFileView } from "@/shared/ui/feedback/typewriter-file-view";
 import { UiSourceEditor } from "@/shared/ui/form/source-editor";
-import { UI_SOURCE_PREVIEW_SCROLL_CLASS_NAME } from "@/shared/ui/form/source-text-styles";
+import { UI_PREVIEW_VIEWPORT_CLASS_NAME } from "@/shared/ui/layout/preview-viewport-styles";
 
 import type { WorkspaceFilePreviewKind } from "../workspace-file-preview-kind";
 import { TextFileContent } from "./text-file-content";
@@ -70,7 +70,7 @@ function HtmlPreviewBody(props: TextEditorBodyViewProps) {
 function PreviewBody(props: TextEditorBodyViewProps) {
   return (
     // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- This named read-only scroll region needs a Tab stop for native keyboard scrolling.
-    <div aria-label={props.fileName} className={cn("h-full", UI_SOURCE_PREVIEW_SCROLL_CLASS_NAME)} role="region" tabIndex={0}>
+    <div aria-label={props.fileName} className={cn("h-full", UI_PREVIEW_VIEWPORT_CLASS_NAME)} role="region" tabIndex={0}>
       <TextFileContent
         agentId={props.agentId}
         content={props.content}

@@ -2112,3 +2112,49 @@ XLSX 离开/返回同一文件的迟到成功和失败、未发布 owner 切换�
 验证：npm run check 通过，含 lint、typecheck、478 项合同、218 个文件的
 782 项测试及生产 build，日志 /tmp/nexus-office-a60-check.log；构建仍仅有
 既有大型分块提示。未启动浏览器、原生宿主或产品服务。
+
+## A61：表格内容排版与幻灯片画布（2026-09-07）
+
+表格字号原先除以 4/3 再套 10px 下限，12pt 最终只显示为 10px；已按
+[Open XML 字号单位](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.spreadsheet.fontsize?view=openxml-3.0.1)
+和 [CSS 绝对长度关系](https://www.w3.org/TR/css-values-4/#absolute-lengths) 改为
+乘 96/72，去掉会覆盖源字体的小字号下限与提前取整。单元格使用自然行高和
+2px 上下留白，默认单行、显式 wrap 才保留换行。原先作用于普通 div 的
+vertical-align 没有效果，现由真实 flex 容器承载上/中/下对齐。纸面背景、
+文字和边界统一消费已有 paper token，避免 App 深色底改变源文件配色关系；
+坐标栏仍用 App 材质，两个方向共用 caption/medium/muted，不再各写 10px 字号。
+
+虚拟化结果从平铺单元格收口成有序行；原有视口、尺寸、合并区间与补入离屏
+锚点计算保留，补入的锚点参与行列排序并携带受工作表范围约束的 span。视图
+按 [WAI table pattern](https://www.w3.org/WAI/ARIA/apg/patterns/table/) 与
+[虚拟表格属性](https://www.w3.org/WAI/ARIA/apg/practices/grid-and-table-properties/)
+输出 table/row/cell、总行列数、源索引和合并 span，去掉没有行容器和方向键
+交互的 grid 声明。具名 region 提供原生 Tab/键盘滚动入口；视觉坐标栏隐藏于
+可访问树，数据位置由行列索引表达。换工作表仍重建滚动区域，原滚动偏移不会
+带入下一张表；行列标签继续随实际 scrollLeft/scrollTop 同步。
+
+`layout/preview-viewport-styles.ts` 接管中立预览的 overflow/overscroll/focus
+配方。文本、分段文本、HTML 源码与表格共同消费；从 source-text-styles 移动的
+class 字符串已逐字比对一致，文本/HTML 的时序、内容排版、编辑与沙箱均未改动。
+源码等宽排版继续由 form/source-text-styles 持有，没有把表格字体套成源码。
+
+幻灯片曾为缩略图和主画布分别计算文字内边距，同一文稿因此具有两份内容布局；
+现在缩略图直接缩放相同 SVG 内容，只保留外部缩略图阴影。段落/Run 的正文
+拼接 key 会在重复内容时冲突，已用不可变解析序列的位置表达身份，删除两段
+拼接函数和透传 shapeId/thumbnail 参数。源几何、图片比例、形状、颜色、字体、
+项目符号与段落行距继续由 Canvas 持有，解析器没有改动。
+
+新增/扩展 8 项行为回归，相关三个测试文件共 9 项通过；最初 6 项失败已在
+/tmp/nexus-office-content-a61-repro.log 记录，覆盖原字号、对齐及缩略图/key
+问题。最终门禁同时覆盖受控视窗中的真实合并投影、行列顺序、样式和滚动同步；
+ExcelJS 只生成样式对象，未读取真实 XLSX，虚拟视窗为夹具输入，SVG 只检查 DOM。
+这些证据不代表 Office 解析保真、真实测量、屏幕阅读器或宿主视觉验收完成。
+
+清单仍为 485 项：300 pending、119 in_progress、18 retained、42 improved、
+6 removed。网格视图与幻灯片画布完成本轮代码/行为审查；两者及三个配方迁移
+消费者的摘要已更新，其余存活摘要全部一致。公共组件仍为 118 项；整体 Goal
+继续，全部视觉与宿主验收仍按用户要求暂停。
+
+验证：npm run check 通过，含 lint、typecheck、478 项合同、220 个文件的
+790 项测试及生产 build，日志 /tmp/nexus-office-content-a61-check.log；仍仅有
+既有大型分块提示。未启动浏览器、原生宿主或产品服务。
