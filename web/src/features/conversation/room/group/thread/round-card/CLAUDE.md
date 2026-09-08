@@ -7,7 +7,7 @@
 - `group-round-card-group.tsx` 按统一 entries 顺序编排用户消息与 Agent slot，不按运行状态重排。
 - `group-agent-reply.tsx` 只把 canonical public entry 装配进 `group-agent-execution-shell.tsx`；成功且明确无公开回复的 entry 已由 `group-agent-timeline-model.ts` 在节点投影时移除，视图不得再次返回空壳。可见输出判定必须与 ContentRenderer 一致，单独的 `tool_result`、`task_progress`、document/resource 等内部块和被主 Feed 隐藏的任务工具不能建立公开卡片。执行外壳从 pending、streaming、stopping 到 terminal 始终复用同一个 `MessageItem` Assistant 外壳；首次 handoff 直接进入真实几何流，不附加位移动画。`group-agent-execution-model.ts` 从 pending 起复用“正在思考”，正文流式时复用“正在回复”，工具收口后回到 Agent“正在思考”而不是回放工具前的旧状态，其余按已有 slot/message/permission 证据翻译共享 activity 语义，并为没有任何 Assistant 消息的失败/停止终态补齐窄投影，不复制运行状态机、正文或 result 规则。
 - 进行中的 Agent 卡片复用 assistant 消息通道的宽度与响应式基线，禁止在 feed 通道内再次居中或叠加横向缩进。
-- `thread-action-button.tsx` 是主 Feed 中 Thread 开关的唯一语义适配；可见文案固定为 `Thread`，选中态通过共享 `2xs` Button 的 pressed 合同表达，右栏按钮提供显式关闭入口，开关动作由无障碍标签准确描述。
+- `thread-action-button.tsx` 是主 Feed 中 Thread 开关的唯一语义适配；可见文案固定为 `Thread`，使用共享 xs Button（28px/metadata）并通过 aria-expanded 表达展开，完整可访问名称含当前 Agent 展示名与打开/关闭动作；右栏保留显式关闭入口。
 - 相邻 Agent 依靠身份头、留白与头像同轴的短提示建立边界，不使用贯穿正文列的横线；Markdown `hr` 只表达模型正文语义。
 
 ## 边界
@@ -26,3 +26,4 @@
 - 带 root round 与 `agent_round_id` 的权限若对应 execution 已由 lifecycle 收口，必须在卡片与 root fallback 两层同时过滤，不能以通用交互卡重新出现。
 - 所有会让 runtime 等待用户响应的请求都由 Composer 原位替换输入框并成为唯一操作面；Room 主卡片与 Thread 只保留请求身份、等待状态和执行结果等只读证据，不得重复批准、回答或计划确认按钮。
 - 每个活动卡片只在 Agent 标题行右侧保留一组单层 Thread/停止工具栏，不把运行操作散落到状态行或正文；Thread 固定为最右侧入口，停止只在运行时出现在其左侧并绑定 entry 自身的精确 `agent_round_id`，`stopping` 时原位禁用，terminal/ACK 到达后不得被迟到的 streaming 事件复活。
+- 执行头控制条保留 Thread 最右、停止在左的单层顺序，两动作共用 xs Button；外壳最小 32px 高、2px 内边距，不固定高度裁切。stopping 同时 disabled/aria-busy，仅禁用精确停止命令，Thread 继续可用；终态短反馈使用 metadata/muted，停止图标只装饰，不新增运行状态机或人工交互面。

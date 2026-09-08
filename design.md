@@ -306,6 +306,8 @@ disabled 降对比不隐藏、保留可解释文案；loading 保持原尺寸与
 **对话与协作状态**
 
 - 时间线负责顺序，正文、最终状态和摘要留在 Feed；过程细节进入 Thread。
+- Room 执行头的停止/Thread 控制条采用同一 xs Button（28px、metadata 12px），外壳最小 32px；Thread 固定在右，可见短标签保持稳定，辅助名称含当前 Agent 展示名，以 expanded 描述详情展开。停止中原位禁用并显示 busy，仍允许查看详情；终态反馈使用 metadata/muted，不恢复停止动作或制造空工具条。
+- Thread 的等待/无额外详情沿公共 sm/plain 资源状态面展示，保持无边框、无空态图标底座；正文 supporting/muted，加载图标为 16px 装饰 Spinner，唯一 live status 公布阶段变化。现有会话切换生命周期关闭旧详情，身份目录刷新保持阅读，禁止重复保存或恢复旧展开快照。
 - Goal 控制条使用透明、无阴影的公共 Panel，与 Composer 内容 lane 对齐；目标使用 supporting / medium 单行摘要并保留完整标题。状态与作用域使用 caption 和公共 Badge，窄空间允许元信息与动作换行；阻塞原因及所需输入使用 supporting 完整换行，不能裁成一行。只有实际在途动作显示共享 md Spinner 与 aria-busy；读取核对和保存使用不同文案。编辑采用 plain Dialog，标题由公共注册协议命名，字段身份按实例生成；预算错误通过公共 Field 关联到输入框。编辑弹窗开启时，当前恢复提示集中在弹窗内，关闭后恢复到控制条下方。
 - Room Goal 负责人选择复用公共 xs Select Menu：28px 高、metadata 字号和 14px 语义图标，沿 Composer 容器宽度收缩；浮层向上展开，保持公共定位、边界与条目节奏。触发器同时声明操作及当前选择，完整名称由公共 title 保留；重名、缺名与已失效选择沿共用姓名规则展示。显式空选择继续可达，无成员或不可操作时禁用；负责人、续跑提示和面板范围随界面语言更新。
 - guide、queue、wake、Todo 与权限请求贴近目标内容，不伪装成完整聊天气泡。
