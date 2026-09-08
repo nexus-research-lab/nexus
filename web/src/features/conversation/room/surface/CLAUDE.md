@@ -2,7 +2,7 @@
 
 - `room-chat-surface.tsx` 是 DM/Group 与 desktop/mobile 共用的聊天参数装配边界；布局和 Room Host 身份沿唯一上游保持显式。
 - `room-chat-error-boundary.tsx` 按会话身份隔离渲染错误，`room-chat-error-view.tsx` 只负责 i18n 回退视图。
-- `room-thread-empty-state.tsx` 为桌面和移动端 Thread 检查器提供同一个等待/无额外执行详情状态，禁止两端复制提示样式。
+- `room-thread-empty-state.tsx` 为桌面和移动端 Thread 检查器提供同一个等待/无额外执行详情状态，禁止两端复制提示样式。 它复用 sm/plain ResourceState 的几何、live status 和 busy 语义；保留 supporting/muted 的行内说明与 16px 装饰 Spinner，不附加空态图标底座、边框或业务动作。
 - `header/` 保存 DM/Group 共用导航，`mobile/` 按头部、会话 Sheet 和全屏 Overlay 分离移动端职责。
 - Surface Tab 是 Header 导航契约，不得在全局 `types/` 重复定义 UI 状态。
 

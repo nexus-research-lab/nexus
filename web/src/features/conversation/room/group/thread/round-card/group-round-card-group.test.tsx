@@ -22,7 +22,7 @@ describe("Room card display identity", () => {
     const openThread = vi.fn();
     const closeThread = vi.fn();
     const view = (language: Locale, names: Record<string, string>, activeThread: ThreadTarget | null = null) => (
-      <I18N_CONTEXT.Provider value={{ locale: language, setLocale: vi.fn(), t: (key) => MESSAGES[language][key] }}>
+      <I18N_CONTEXT.Provider value={{ locale: language, setLocale: vi.fn(), t: (key, params) => Object.entries(params ?? {}).reduce((text, [name, value]) => text.replaceAll(`{${name}}`, String(value)), MESSAGES[language][key]) }}>
         <ThreadControlContext.Provider value={{ activeThread, closeThread, openThread }}>
           <GroupRoundCardGroup
             agentAvatarMap={{}} agentNameMap={names} messages={[]}
@@ -38,7 +38,7 @@ describe("Room card display identity", () => {
     expect(container.textContent).not.toContain("internal-agent");
     const shells = Array.from(container.querySelectorAll("[data-room-agent-execution-shell]"));
     expect(shells).toHaveLength(2);
-    fireEvent.click(screen.getAllByRole("button", { name: MESSAGES[locale]["room.thread_open"] })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: MESSAGES[locale]["room.thread_action_open"].replace("{name}", MESSAGES[locale]["agent.name_fallback"]) })[0]);
     expect(openThread).toHaveBeenCalledWith("root", "internal-agent", "execution-1");
     fireEvent.click(screen.getAllByRole("button", { name: MESSAGES[locale]["room.agent_stop_action"] })[1]);
     expect(onStop).toHaveBeenCalledWith("execution-2");
@@ -47,7 +47,7 @@ describe("Room card display identity", () => {
     expect(container.textContent).toContain("Nova");
     const currentShells = container.querySelectorAll("[data-room-agent-execution-shell]");
     shells.forEach((shell, index) => expect(currentShells[index]).toBe(shell));
-    fireEvent.click(screen.getByRole("button", { name: MESSAGES[locale]["room.thread_close"] }));
+    fireEvent.click(screen.getByRole("button", { name: MESSAGES[locale]["room.thread_action_close"].replace("{name}", "Nova") }));
     expect(closeThread).toHaveBeenCalledOnce();
 
     const nextLocale = locale === "zh" ? "en" : "zh";

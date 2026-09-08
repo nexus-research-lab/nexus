@@ -551,6 +551,8 @@ export const enConversationMessages = {
   "room.thread_close": "Close Thread",
   "room.thread_label": "Thread",
   "room.thread_dialog": "Execution details for {name}",
+  "room.thread_action_open": "View Thread for {name}",
+  "room.thread_action_close": "Close Thread for {name}",
   "room.thread_empty": "No additional execution details for this turn",
   "room.thread_waiting": "Waiting for execution details",
   "room.resize_auxiliary_panel": "Resize side panel",

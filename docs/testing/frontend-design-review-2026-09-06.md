@@ -3531,3 +3531,38 @@ RoomMobileOverlayFrame，统一材质、纵向骨架、真实模态根与 Dialog
 仅保留既有 workgraph-metadata-editor-dialog effect-ref lint 警告和构建大分块
 提示。基线 f533872b8，17 文件快照清单 /tmp/nexus-a94-review.json；全部 486 项
 审计源哈希一致。通过后只追加本段证据，提交前复核工作树、暂存区与测试快照。
+
+## A95 — Thread 执行入口与状态面
+
+沿 A94 追踪 Thread 两种布局、控制 Provider、live 发布 Hook 和真实消费模型，
+确认现有 use-room-thread-source 已按 conversationId 关闭旧目标、卸载清理源；
+不再在 Provider 或界面补第二套重置。新增独立发布者/消费叶子的 DOM 回归，
+验证同 Agent 不同 agent_round、重复同目标、legacy null、目录刷新、显式关闭、
+A→B→A 与缺失会话清理，原按钮节点保持挂载。控制 Provider 完整审查后保留。
+
+执行头 Thread 和停止统一选择公共 xs Button（28px、metadata 12px），控制条
+最小 32px、2px 内边距；停止图标 14px 且只装饰，stopping 同时 disabled/aria-busy，
+详情仍可进入。终态短反馈使用 metadata/muted；停止/Thread 顺序、无动作空条
+隐藏、稳定 MessageItem 外壳及已有活动/终态证据投影保持。Thread 可见标签继续
+为 Thread，完整辅助名称含当前 Agent 展示名/通称，以 aria-expanded 表达打开
+详情，替换会随动作名改变的 pressed 语义；不新增技术 ID 或第二套名称所有者。
+
+Thread 等待/无额外详情现在复用公共 sm/plain ResourceState 的几何、live status
+和 busy 语义。保持 supporting/muted 的小型行内说明与 16px 公共 Spinner，明确
+关闭默认空态图标底座；没有边框、附加动作或另一份加载判断。补齐文件 L3。
+
+定向 6 文件 16 项及 typecheck 首轮通过，日志 /tmp/nexus-a95-target.log 与
+/tmp/nexus-a95-types.log。测试包括真实 MessageItem 执行壳、真实双轮卡片和精确
+命令、Thread live 生命周期、双语按键/缺名开关、等待/空态唯一播报，以及上一批
+真实窄窗 Thread。无测试替身修改生产接口，无视觉/浏览器/宿主检查或产品服务。
+
+486 项清单更新为 225 pending、130 in_progress、104 improved、21 retained、
+6 removed；公共 UI 仍 118 项。完成执行壳、Thread 按钮和空态适配审查，保留轻量
+控制 Provider；未把发布/消息模型或整个 Room 页面计为完成。唯一规范、目录地图
+和必跑回归同步，最终提交以完整隔离门禁及源哈希核对为准。Goal 继续，本地提交。
+
+最终隔离 npm run check 通过 lint、typecheck、485 项合同、275 文件的 1269 项
+组件/模型测试及 build，见 /tmp/nexus-a95-check.log。基线 fbd3ddf4e，18 文件
+快照清单 /tmp/nexus-a95-review.json；全部 486 项源哈希一致。没有新增测试警告，
+仅保留既有 workgraph-metadata-editor-dialog effect-ref lint 警告与大分块构建
+提示。通过后仅追加本段证据，提交前核对暂存区、工作树及受测快照字节。

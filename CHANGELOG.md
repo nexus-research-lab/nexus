@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Improved Room execution controls with consistent 28px buttons, 12px labels,
+  Agent-named Thread actions and explicit expanded/busy states. Thread empty
+  details now use the shared resource state, including accessible announcements.
 - Unified narrow Room auxiliary, Thread and subagent overlays with one modal
   frame, keyboard dismissal, focus return and scroll locking. Improved the
   narrow header's session subtitle readability and complete accessible titles.

@@ -2,7 +2,7 @@
 
 /**
  * INPUT: Room Agent 执行身份、消息、stopping/人工介入状态、局部说话人边界与用户动作。
- * OUTPUT: 从 pending、stopping 到 terminal 始终复用 MessageItem 的稳定 Agent 执行外壳与单层精确控制条，首次 handoff 也直接占据真实几何位置。
+ * OUTPUT: 始终复用 MessageItem 的稳定执行外壳与共享 xs 动作；精确停止/Thread 命令、忙碌和终态沿同一控制条投影。
  * POS: Room 主 Feed 单个 agent_round 的唯一 Assistant 展示面。
  */
 import { Square } from "lucide-react";
@@ -12,6 +12,8 @@ import type { AgentMentionDirectory } from "@/features/conversation/shared/messa
 import { MessageItem } from "@/features/conversation/shared/message/item/message-item";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type {
   AssistantMessage,
   ResultSummary,
@@ -148,27 +150,28 @@ function GroupAgentExecutionShellInner({
         assistantHeaderAction={showThread || showStop || terminalLabel ? (
           <div
             aria-label={t("room.agent_actions")}
-            className="radius-control-sm inline-flex h-7 items-center bg-(--surface-control-field-background) p-0.5"
+            className="radius-control-sm inline-flex min-h-8 items-center bg-(--surface-control-field-background) p-0.5"
             data-room-agent-execution-actions
             role="group"
           >
             {terminalLabel ? (
-              <span className="px-1.5 text-xs text-(--text-muted)">
+              <span className={cn("px-2", getUiTypographyClassName({ role: "metadata", tone: "muted" }))}>
                 {terminalLabel}
               </span>
             ) : null}
             {showStop ? (
               <UiButton
+                aria-busy={isStopping || undefined}
                 aria-label={stopActionLabel}
                 data-room-agent-action="stop"
                 disabled={isStopping}
                 onClick={onStopAgentRound}
-                size="2xs"
+                size="xs"
                 title={stopActionLabel}
                 tone="danger"
                 variant="text"
               >
-                <Square className="h-3 w-3 fill-current" />
+                <Square aria-hidden="true" className="h-3.5 w-3.5 fill-current" />
                 <span className="hidden sm:inline">{stopLabel}</span>
               </UiButton>
             ) : null}
@@ -181,6 +184,7 @@ function GroupAgentExecutionShellInner({
             {showThread ? (
               <ThreadActionButton
                 active={isThreadActive}
+                agentName={agentName}
                 onClick={onClickThread}
               />
             ) : null}
