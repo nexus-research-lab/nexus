@@ -1,5 +1,5 @@
 // INPUT: 应用配置、数据库与基础服务依赖。
-// OUTPUT: 完整 AppServices 依赖图、跨域 runtime 装配及自有数据库生命周期。
+// OUTPUT: 完整 AppServices 依赖图、可选 Team Relay client、跨域 runtime 装配及自有数据库生命周期。
 // POS: Nexus server 服务装配根。
 package server
 
@@ -9,6 +9,7 @@ import (
 	"errors"
 	"log/slog"
 	"strings"
+	"time"
 
 	serverexecution "github.com/nexus-research-lab/nexus/internal/app/server/execution"
 	servergoal "github.com/nexus-research-lab/nexus/internal/app/server/goal"
@@ -41,6 +42,7 @@ import (
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	projectpermissionsvc "github.com/nexus-research-lab/nexus/internal/service/projectpermission"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
+	relaysvc "github.com/nexus-research-lab/nexus/internal/service/relay"
 	roomrealtime "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 	skillsvc "github.com/nexus-research-lab/nexus/internal/service/skills"
 	slashcommandsvc "github.com/nexus-research-lab/nexus/internal/service/slashcommand"
@@ -51,6 +53,7 @@ import (
 	goalstore "github.com/nexus-research-lab/nexus/internal/storage/goal"
 	orchestrationstore "github.com/nexus-research-lab/nexus/internal/storage/orchestration"
 	queueadmissionstore "github.com/nexus-research-lab/nexus/internal/storage/queueadmission"
+	teamrelaystore "github.com/nexus-research-lab/nexus/internal/storage/teamrelay"
 	workgraphworkflowstore "github.com/nexus-research-lab/nexus/internal/storage/workgraphworkflow"
 )
 
@@ -90,6 +93,8 @@ type AppServices struct {
 	Loops                  *loopsvc.Service
 	MemoryMaintenance      *memorymaintenancesvc.Coordinator
 	Browser                *browsersvc.Service
+	Relay                  *relaysvc.Client
+	TeamRelay              *teamrelaystore.Repository
 	SlashCatalog           *slashcommandsvc.Catalog
 	SlashRegistry          *slashcommandsvc.Registry
 	ownsDB                 bool
@@ -118,13 +123,28 @@ func (s *AppServices) Close(ctx context.Context) error {
 
 // NewAppServices 创建完整应用依赖容器。
 func NewAppServices(cfg config.Config, logger *slog.Logger) (*AppServices, error) {
+	relayClient, err := newOptionalRelayClient(cfg)
+	if err != nil {
+		return nil, err
+	}
 	db, err := OpenDB(cfg)
 	if err != nil {
 		return nil, err
 	}
 	services := NewAppServicesWithDB(cfg, db, logger)
+	services.Relay = relayClient
 	services.ownsDB = true
 	return services, nil
+}
+
+func newOptionalRelayClient(cfg config.Config) (*relaysvc.Client, error) {
+	if strings.TrimSpace(cfg.RelayURL) == "" {
+		return nil, nil
+	}
+	return relaysvc.NewClient(
+		cfg.RelayURL,
+		time.Duration(cfg.RelayRequestTimeoutSeconds)*time.Second,
+	)
 }
 
 // NewAppServicesWithDB 使用共享 DB 创建完整应用依赖容器。
@@ -485,6 +505,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		Loops:                  loopService,
 		MemoryMaintenance:      memoryMaintenance,
 		Browser:                browserService,
+		TeamRelay:              teamrelaystore.NewRepository(cfg, db),
 		SlashCatalog:           slashCommandCatalog,
 		SlashRegistry:          slashCommandRegistry,
 	}

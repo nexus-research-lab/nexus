@@ -3,7 +3,7 @@
 // L2 | 父级: internal（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - config.go：Config 运行时配置与 Load，包括 Connector active/legacy host key 选择参数。
+//   - config.go：Config 运行时配置与 Load，包括可选 Relay HTTP 端点与 Connector active/legacy host key 选择参数。
 //   - loadenv.go：LoadDotEnv 从 .env 注入进程环境变量。
 //   - workspace_path.go：部署环境 workspace 根规范化。
 //

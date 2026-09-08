@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Store each Team Conversation and Relay Message once per deployment while keeping only per-owner recovery cursors, including migration of existing duplicated projections.
+
+- Keep Team local-projection cursors behind failed writes, recover Relay stream-epoch changes through a typed WebSocket reset, and replay committed sends through difference before advancing the browser cursor.
+
 - Accept automatic review in DM/Room session settings and classify validation failures as not applied. Show save failures in a dismissible dialog without leaving an error banner or refresh action.
 
 ### Changed
@@ -27,6 +31,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Alert users to pending approvals and questions while Nexus is in the background with a numeric macOS Dock badge (without bouncing) and Windows taskbar flashing; clear attention on return or resolution.
 
 - Added local system-font selection, font size, and line spacing preferences with live preview, row-based appearance controls, and one-click theme and typography reset.
+
+- Added opt-in Nexus Relay configuration, fixed-audience Control user token
+  exchange, an independent typed Relay M1 HTTP client, and authenticated
+  `/nexus/v1/team/...` browser gateway endpoints with Relay stream-epoch propagation,
+  WSS-triggered difference recovery, owner-scoped local projection, and a shared
+  General Room in the existing chat UI.
 
 ### Fixed
 

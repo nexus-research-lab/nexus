@@ -13,6 +13,7 @@
 //   - connectors/：OAuth client 与人类批准的 durable Connector authorization flow，
 //     包括加密临时凭据、轮询领取和事务终态。
 //   - skills/：保存 owner Skill catalog、持久单调版本及跨进程 mutation transaction。
+//   - teamrelay/：按 deployment 幂等保存一份 Relay Message 与 room_seq，并为各 owner 保存独立恢复游标。
 //
 // 暴露接口：OpenDB、OpenMigrationDB、MigrationDirName、GooseDialect、
 // NullableTime、LockRoomForMutation。

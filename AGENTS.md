@@ -31,10 +31,10 @@ skills/     - 随产品发布的平台内置 Skill（每个目录自含 SKILL.md
 internal/   - 后端核心（各子包 L2 见其 doc.go）:
   protocol/   - 跨 HTTP/WS/前端/运行时的协议真相源（会话/房间/Goal/Execution Graph 与命名工作图模型、NodeRun 历史/可恢复结构化产物/显式 partial/total/控制回连事实与 Room creator/lead 身份、事件、枚举、TS codegen 输入）
   runtime/    - nxs/Claude Code 共用宿主主链（bridge client、manager 生命周期、workspace isolation Hook）
-  service/    - 业务服务（auth 的 Desktop Local 与外部 Control adapter / agent / communication / dm / echo / room / room/realtime / configuration / session / workspace / skills / connectors / automation / llm ...）
+  service/    - 业务服务（auth 的 Desktop Local 与外部 Control adapter / relay 的可选 typed HTTP client / agent / communication / dm / echo / room / room/realtime / configuration / session / workspace / skills / connectors / automation / llm ...）
   service/objectivealignment/ - Goal completion 与 Execution loop guard 共用的无状态目标对齐审计契约
   chat/       - 对话领域（dm / room）
-  handler/    - HTTP / WebSocket 处理器
+  handler/    - HTTP / WebSocket 处理器；team 是浏览器到可选多人服务的认证 gateway
   message/    - runtime/SDK 消息 → Nexus 事件与 assistant 快照的映射投影
   echo/       - 用户级 DM 主动跟进策略、attempt 状态与会话覆盖领域模型
   automation/ - 定时任务调度域（任务级 capability grant、持久审批、主会话事件派发、run 阻塞与安全恢复）
@@ -53,6 +53,7 @@ docs/       - 开源文档入口；README.md 是索引，guides/ 面向用户与
 
 - `.nexus` 是统一 `NEXUS_STATE_ROOT`；Nexus 宿主数据位于 `.nexus/app`，独立 Control 数据位于 `.nexus/control`，供 Nexus 读取的公钥镜像位于 `.nexus/control-public`。
 - 服务端 Web 的 User、密码和 Session 权威位于独立 `nexus-control`；同一套 Nexus Web Shell 将 `/auth/v1` 的登录、登出、资料、改密、首次初始化和成员管理请求同源发送给 Control，Nexus Server 只验证短期签名 Principal，并用 `local_owner_bindings` 将 Control 身份确定性映射到本地 owner key，展示资料只投影到 `owner_profiles`。每个 Nexus 副本独立消费 Control 的持久身份失效序列：登出只清 exact browser Session 与 WebSocket，资料变更刷新 owner 连接但保留 Agent runtime，角色变更或停用才关闭该 owner 的连接与 runtime。Desktop Local 使用无密码本地主体；旧 `users`/认证表只允许迁移代码读取，不再属于运行时账号系统。
+- 多人 Team 浏览器 API 固定使用 `/nexus/v1/team/...` 产品路径，只接收现有 HttpOnly Session。Nexus 从认证上下文读取已验证 Control Principal，经 `/internal/humans/verify` 换取固定 `nexus-relay-user` 短令牌后访问 Relay；浏览器正文、查询和 Header 都不能指定 user、deployment 或 audience。非零同步游标和快照续页必须原样传递 Relay 返回的 `stream_epoch`，世代失配由 WSS `stream.reset_required` 或 difference 触发全量快照。`NEXUS_RELAY_URL` 留空或运行 Desktop Local 时不挂载 Team 路由；M1 WSS 只转发提交水位，正文由 difference/snapshot 恢复。同一 deployment 的 Conversation/Message 和 `room_seq` 在 Nexus 原数据库只保存一份，各 owner 仅保存独立 `relay_seq` 恢复游标；共享消息与当前 owner 游标在同一事务中提交。bootstrap/snapshot/difference 只有在本地投影成功后才确认；Relay 已提交的 message mutation 保持成功，Browser 必须从原 cursor 走 difference 补齐后再推进。
 - 服务端 Web 的订阅套餐与成员 entitlement 写权威也位于 `nexus-control`。Nexus 只保存 `owner_entitlements` 本地投影、持久 Control 事件游标和自身 token 用量，并在新 runtime 请求前按投影校验额度；`entitlement_changed` 只刷新投影，不中断正在执行的 Agent。旧 `subscription_plans`/`user_subscriptions` 只允许迁移读取。运营页中的公共 Provider 与项目 ACL 仍属于 Nexus 运行资源，不迁入 Control。
 - 桌面端只迁移完整 `NEXUS_STATE_ROOT`：原生宿主退出 sidecar 后离线复制 `app/`、`users/` 与其余状态，切换宿主外的启动指针并直接重启；启动提交阶段必须先重映射持久路径与路径派生的 Session 删除恢复文件名，再通过健康检查提交新根；业务进程不支持拆分或在线迁移局部子树。
 - 用户数据位于 `.nexus/users/<owner>/`，该 owner 的 runtime 对整棵用户数据根拥有读写权限，跨 owner 访问仍拒绝；`workspace/` 保存 Agent 工作目录与 `.rooms/` 公共附件，`runtime/` 同时作为 `NEXUS_CONFIG_DIR` 与 `CLAUDE_CONFIG_DIR`，Room ledger 固定写入 `state/rooms/`。
