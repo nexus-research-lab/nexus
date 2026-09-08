@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Aligned Room profile tabs with shared compact navigation. Profile member choices
+  now discard removed members and stale Room/owner requests while preserving
+  sections across same-Room session changes and ordinary catalog refreshes.
 - Improved Room execution controls with consistent 28px buttons, 12px labels,
   Agent-named Thread actions and explicit expanded/busy states. Thread empty
   details now use the shared resource state, including accessible announcements.

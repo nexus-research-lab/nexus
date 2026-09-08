@@ -1,7 +1,7 @@
 # Room 桌面布局
 
 - 入口只选择 DM 或 Room Thread 上下文；`RoomSurfaceContent` 组合主聊天和右栏。
-- 控制器负责 Tab、联系人请求、子智能体来源和宽侧栏联动，视图不重复派生。
+- 控制器负责 Tab、联系人请求、子智能体来源和宽侧栏联动，视图不重复派生。简介请求按 owner/Room/当前 Agent 隔离并同步丢弃旧目标；同 Room 的 Session 切换不重置配置栏目，具体联络查询由内容领域更新。
 - Header、辅助面板和 Thread 装配各自消费窄接口；消息轨道统一复用 `conversation/shared/thread/`，聊天面板必须常驻挂载。
 - `room-surface-split.css` 统一主聊天与 Thread、工作区、子智能体、简介右栏的软分栏：8px 同色隐形拖拽槽配合右栏的轻微明度差，只保留极弱的向左羽化阴影，不使用导航层灰带、硬竖线或中央拖手。
 - 桌面 Room/DM Header 保持共享桌面高度基线与拖窗热区；浏览器回退 60px，macOS 跟随原生红灯中心。非交互渐隐由主聊天容器裁剪，禁止越过分栏覆盖工作区，也禁止改成绝对 Header 或用消息 padding 补偿。移动端无并列工作区，渐隐仍从整宽 Header 下缘延伸。
