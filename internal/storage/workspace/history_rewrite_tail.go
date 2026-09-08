@@ -1,5 +1,5 @@
 // INPUT: SDK transcript 主链、Nexus round marker 与目标 round_id。
-// OUTPUT: 可安全删除的精确 transcript UUID 尾部，或可分类的边界缺失错误。
+// OUTPUT: 包含空白 Goal 续跑边界的精确 transcript UUID 尾部，或可分类的边界缺失错误。
 // POS: DM rewrite/fork 在修改 runtime 历史前的只读边界解析器。
 package workspace
 
@@ -131,10 +131,13 @@ func transcriptEntryRoundID(
 	if err != nil || decoded.Type != sdkprotocol.MessageTypeUser {
 		return ""
 	}
-	if isTranscriptToolResult(decoded) || !shouldMaterializeTranscriptUserTurn(entry.Data) {
+	if isTranscriptToolResult(decoded) || !shouldAlignTranscriptUserTurn(entry.Data) {
 		return ""
 	}
 	marker := consumeTranscriptRoundMarker(alignedMarkers, markerIndex)
+	if !shouldMaterializeTranscriptUserTurn(entry.Data) && !transcriptRoundMarkerPresent(marker) {
+		return ""
+	}
 	return firstNonEmpty(marker.RoundID, buildTranscriptRoundID(decoded.UUID))
 }
 
