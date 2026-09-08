@@ -1,7 +1,8 @@
 // INPUT: 业务反馈事实，以及旧调用方尚未提供时的兜底恢复文案。
 // OUTPUT: 标题、一句说明和至多一个直接动作的反馈合同。
 // POS: 业务反馈到共享展示的类型适配边界；不推测请求结果。
-import type { FeedbackBannerTone } from "./feedback-banner-model";
+
+export type FeedbackBannerTone = "info" | "success" | "warning" | "error";
 
 export type FeedbackBannerUrgency = "assertive" | "polite";
 

@@ -1,0 +1,484 @@
+# Web 前端工程与设计系统治理规范
+
+本文定义 Nexus Web 前端的代码所有权、依赖方向、组件抽象、视觉系统、注释、测试与迁移合同。它回答“代码应放在哪里、为什么能复用、修改后应影响哪些界面、如何证明没有产生第二套实现”。
+
+视觉判断以 [`design.md`](../../design.md) 为唯一入口；弹窗、页面信息密度和能力页面的产品语法分别由 [`dialog-design-spec.md`](./dialog-design-spec.md)、[`web-surface-density-spec.md`](./web-surface-density-spec.md) 与 [`capability-page-design-spec.md`](./capability-page-design-spec.md) 定义。本文不重复这些产品规则，只定义它们如何落成可维护代码。
+
+## 0. 重构执行顺序
+
+整体前端治理必须按以下三个阶段进行，不得用第二阶段的局部视觉调整绕过第一阶段的组件归属治理；第三阶段负责反向验证前两阶段没有遗留死代码、兼容壳或失去所有者的实现。
+
+### 第一阶段：统一实现与所有权
+
+- 本阶段以“相同语义的组件只有一个实现和样式所有者”为交付目标；先归并公共组件、重复 DOM/交互和消费者覆盖，不同时进行全局字体、字号、间距、配色或密度优化，这些统一留在第二阶段；
+- 盘点按钮、表单、菜单、标签页、弹窗、浮层、列表行、文字层级、状态反馈和页面布局中的私有实现；
+- 相同交互合同归并到唯一 primitive，跨页面的相同几何归并到唯一 pattern，业务页只保留无法抽离的领域状态和特殊几何；
+- 无法归并的原生控件或命中区必须在所属模块文档中说明为什么是例外，并用行为测试锁定语义；
+- 共享组件必须同时拥有 token、状态、焦点、键盘、ARIA、主题和窄屏合同，不得只抽出一段 className。
+
+同一公共组件在不同页面默认使用同一实现与既有语义 variant，不能在消费者
+各自重写一组内部样式。只有业务语义、交互或内容几何确实更适合独立表现时，
+才允许由该领域拥有局部样式；必须写明差异理由、适用范围和行为验证，不能
+以“历史页面就是这样”或“这个页面看起来更好”为由保留第二套普通按钮。
+
+第一阶段的退出条件是：存量私有实现已归并或有明确例外记录，新代码不再扩大重复实现，关键公共行为已有测试和架构门禁。
+
+### 第二阶段：复核规范与整体体验
+
+- 以第一阶段得到的唯一实现为基线，重新判断统一规范本身是否合理，不把“已经共享”误当成“设计已经正确”；
+- 同时验收 Web、macOS 和 Windows 宿主下的整体尺寸、窗口 chrome、安全区、页面 gutter、内容密度和窄窗退化，判断 App 整体及局部控件是否过大、过松或比例失衡；
+- 系统检查按钮与其他点击目标的可见尺寸、实际命中区、间距、图标、阴影、高亮、hover、active、focus-visible、disabled 和动效；
+- 检查字体栈、字号、字重、行高、对比度、截断与多语言长度，保证信息层级清楚而不依赖业务文件的局部字号；
+- 检查首次渲染、资源刷新、路由切换、弹层开关、主题切换与动画期间的跳动、频闪、重复反馈和误触；
+- 功能相近、信息层级相近的模块必须使用相近的布局、密度和交互语法，差异必须来自明确业务含义，不得来自历史页面各自实现。
+
+第二阶段的退出条件是：统一规范经真实页面与典型窗口尺寸验证，发现的问题修复在共享所有者而非单页补丁中，并且主题、语言、键盘、宿主差异与关键动态过程均有可复现验收证据。
+
+### 第三阶段：反向审计与债务清理
+
+- 从原生 DOM 控件、任意值样式、重复常量、同义 helper、过渡适配层、无引用导出、不可达分支、失效状态和过期文档反向扫描整个前端；
+- 每个命中项必须明确归入“合并到公共所有者”“直接删除”或“记录为有边界且有测试的例外”，不得以“以后可能复用”为理由保留无当前调用者的代码；
+- 删除或归并实现时同步更新 L3 契约、组件清单、Gallery、架构门禁和行为测试，避免代码与说明再次分叉。
+- 引用审计区分生产入口、生成协议与动态测试入口；只有旧测试调用的过期生产 helper 应删除，并把仍有效的断言迁到当前生产入口，不能为保留测试而维护第二套算法。生成类型不能仅凭前端零引用删除。
+
+第三阶段的退出条件是：不存在无说明的页面级普通控件和私有视觉规则，不存在无调用者的兼容壳、导出或状态分支；前端 lint、typecheck、构建、组件测试、架构合同以及 Web/macOS/Windows 代表性页面复查全部通过。
+
+## 1. 完成标准
+
+前端改动只有同时满足以下条件才算完成：
+
+1. 目录可以解释代码所有者，import 可以解释依赖方向；
+2. 相同交互合同只存在一个 primitive，相同跨页面几何只存在一个 pattern；
+3. 业务页面通过语义 Props 选择样式，不复制颜色、阴影、圆角、层级、断点或浮层几何；
+4. 业务规则变化同步更新文件 `INPUT / OUTPUT / POS` 契约和所属模块文档；
+5. 公共行为有自动化测试，视觉变化覆盖主题、窄屏、焦点和状态矩阵；
+6. `lint`、`typecheck`、目标行为测试和前端架构门禁通过。
+
+## 2. 代码地图与依赖方向
+
+目标代码地图如下。迁移期间现有目录可以保留，但新增代码必须按此判断所有权，不得扩大历史债务。
+
+```text
+src/
+├── entries/       多入口；只选择并启动 app
+├── app/           Provider、Router、全局样式和应用生命周期
+├── pages/         路由页面与页面级协调；不拥有可复用业务规则
+├── widgets/       可独立理解的大块界面，如 ConversationPanel、WorkspaceBrowser
+├── features/      用户动作与用例，如 send-message、set-goal、connect-provider
+├── entities/      Agent、Room、Session、Goal、Execution 等业务资源
+├── shared/        不依赖 Nexus 业务对象的 UI、transport、i18n 与通用函数
+└── generated/     后端协议生成物；不承载手写业务规则
+```
+
+允许的依赖方向：
+
+```text
+entries -> app -> pages -> widgets -> features -> entities -> shared
+                         \-----------> entities -> shared
+```
+
+上层可以跳过中间层依赖更底层；底层不得反向 import 上层。特别是：
+
+- `shared` 不得 import `entities / features / widgets / pages / app`；
+- `entities` 不得 import `features / widgets / pages / app`；
+- `features` 不得 import `widgets / pages / app`；
+- `widgets` 不得 import `pages / app`；
+- 页面路由能力由 page/app 注入，或通过无业务状态的共享 route contract 使用；
+- 完成目标结构迁移的 entity/feature/widget 切片之间，只访问对方的 `public.ts`，不得穿透内部目录；尚未迁移的历史目录继续直接导入其职责文件，不为满足命名形式新增全域 barrel。
+
+`web/scripts/frontend-boundaries.test.mjs` 解析 TypeScript AST，统一检查别名、
+相对路径、重导出、动态与 side-effect import。已知反向依赖已清零，门禁不再
+保留历史白名单；不得通过改写 import、移动到含混目录或增加例外恢复向上耦合。
+尚未完成的目录形态迁移仍按下表渐进进行。无状态路由合同由 `shared/navigation/route-paths.ts` 持有，
+页面和 Feature 不得为构造 URL 导入 App 装配层。
+
+### 2.1 现有目录的归属
+
+| 当前代码 | 目标所有者 |
+| --- | --- |
+| 中立 UI Hook（原 `hooks/ui`，已迁移） | `shared/lib/react`；非 React 剪贴板适配归 `shared/lib/browser` |
+| `hooks/agent`、`hooks/conversation` | 对应 entity model 或具体 feature |
+| `store/agent`、`store/conversation` | 对应 entity model |
+| 应用壳状态 store | `app/model` 或对应 widget |
+| `lib/api/core` | `shared/api` |
+| `lib/websocket` | `shared/transport/websocket` |
+| 领域 API | 对应 entity/feature 的 `api` |
+| `types/generated` | `generated` |
+| 其他业务 types | 对应 entity/feature 的 `model` |
+| `shared/ui/workspace` | workspace widget；只留下真正无业务的原语 |
+| `shared/ui/onboarding` | onboarding feature |
+| `conversation/shared/feed`、`composer`、`thread` | 对应 conversation widgets |
+| `conversation/shared/session`、`goal`、`execution` | 对应 entities 与用户动作 features |
+
+迁移必须按业务切片渐进完成，不提交一次性全树移动。旧路径可以在一个迁移阶段保留窄兼容入口，但新代码不得继续从旧聚合目录扩散。
+
+## 3. 切片内部结构
+
+Entity、Feature 与 Widget 只在需要时使用以下目录：
+
+```text
+<slice>/
+├── api/       transport 调用、DTO 与边界 mapper；不依赖 React
+├── model/     类型、状态机、selector、resource hook 与 store
+├── ui/        受控视图与局部交互
+├── lib/       仅本切片使用的纯函数
+└── public.ts  显式公共入口；禁止 export *
+```
+
+- 少于三个紧密相关文件时不创建子目录；
+- `controller` 只用于协调多个资源、命令或生命周期的复杂流程；
+- 普通组件的局部状态留在组件内，不为了形式拆出 controller；
+- 避免 `utils.ts`、`helpers.ts`、`common.ts` 等无法表达所有权的名称；
+- `model` 中可测试的投影和状态转换必须保持纯函数，React Hook 只负责绑定生命周期；模型只返回业务语义，不返回 `className`、`CSSProperties`、Tailwind utility、颜色/阴影或动效时序，视图几何进入有明确所有权的 `*-layout` / `*-styles` recipe，控件外形与状态进入共享原语。
+
+## 4. UI 系统分层
+
+UI 实现固定分为五层：
+
+```text
+design token -> visual recipe -> primitive -> pattern -> domain widget
+```
+
+### 4.1 Design token
+
+Token 是跨主题、跨组件的值真相，当前入口是 `web/src/app/styles/theme-tokens.css`。Token 分为：
+
+- 主题基础：颜色、字体、状态色；
+- 语义表面：surface、modal、button、input、chip；
+- 几何：控件高度、圆角、页面 gutter、浮层 gap、视口 inset；
+- 空间层级：sticky、menu、popover、dialog、tooltip、tour；
+- 动效：duration 与 easing。
+
+业务文件不得出现 raw color、任意阴影或任意高层级。普通 Tailwind 间距刻度可以继续使用；只有跨页面必须同步变化的几何才晋升为语义 token。
+
+控件与独立表面圆角分别由 `--radius-control-* / --radius-surface-*` 统一定义，相关 class 和 Input/Chip/Popover/Dialog recipe 只引用变量；内容别名也指向相应语义尺度。Tour 高亮与 Tooltip 使用公共控件圆角，不能引用未定义名称或另造近似档位。
+
+使用 token 前必须确认当前定义与语义；旧名称应在消费端替换，不为拼写错误或过时名称补兼容别名。宿主或组件局部注入的可选变量必须有有效 fallback。静态声明存在不能证明 DOM 继承关系或 CSS 属性类型正确，运行时拼接、生成式文档和外部 CSS 仍需按实际 Surface 验证。
+
+Windows 原生反馈的 `NexusNativeTheme` 是 Web token 的平台投影，不能独立调色。
+当前实现只投影浅色主题；`native-theme-contract.test.mjs` 校验每个语义 Brush 与
+阴影颜色的来源，并显式保留顶层窗口背景不透明的宿主差异。调整 Web token 时必须
+同步该投影；这项源代码检查不能代替 WPF 渲染或原生多主题验收。
+
+### 4.2 Visual recipe
+
+Recipe 把 token 组合成可复用视觉语法，例如 `surface-popover`、`input-shell`、`radius-control-md`。通用 recipe 位于 UI 基础设施；`.nexus-chat-*`、Workspace、Launcher 等领域样式归对应 widget/feature，不进入通用主题配方。
+
+业务组件不得使用 `rounded-[Npx]`、`shadow-[...]` 或 raw `color-mix` 复刻已有 recipe。同值不代表同语义：10px 必须说明它是 control radius 还是其他几何。
+
+App chrome 的字体、字号、行高、默认字重与 tracking 由 `theme-tokens.css` 的字号阶梯、`theme-recipes.css` 的 `.ui-type-*` 配方和 `shared/ui/typography/typography-styles.ts` 的 typed role 共同拥有。业务组件选择 `display / featureTitle / objectTitle / pageTitle / sectionTitle / body / control / supporting / metadata / caption / code`，只自行负责 HTML 标签、布局、截断和换行；不得在每个文件重新拼一套相同文本角色。聊天、Workspace 文件、品牌字形和图形内微标签是显式独立 Surface，必须由其所有者声明阅读或像素对齐理由。
+
+### 4.3 Primitive
+
+Primitive 同时拥有 DOM、键盘、焦点、ARIA 和视觉状态合同，例如 Button、Input、Dialog、Popover、Menu、Tabs、Tooltip。
+
+- Props 使用 `size / tone / variant / density / elevation / layer / viewport` 等有限语义；
+- 默认值必须能直接用于普通业务场景；
+- `className` 只用于外部布局和宽度约束，不得覆盖颜色、圆角、阴影、层级、hover 或 focus；
+- `UiListActionButton` 只在 `UiIconButton` 上组合事件隔离与可见性，不持有第二套按钮 DOM、tone、焦点或禁用样式；需要按行展示时选择 `visibility="hover"`，并由共享规则保证键盘和触摸可达。
+- `UiListRow` 的侧栏密度、连续列表/独立边界与弱化展示分别通过 `density / variant / muted` 表达；静态行没有 hover，禁用必须使用 `disabled` 保留语义并阻断命令，不能通过移除回调或私设透明度假装禁用。
+- 目录卡片的整卡主动作通过 `WorkspaceCatalogCard.primaryAction` 声明；Article 保留内容语义，主按钮在局部隔离堆叠中位于内容下方，原生次动作独立命中。业务不得复制覆盖按钮或整卡 hover/focus 配方。
+- 紧凑目录内容使用 `WorkspaceCatalogCard size="dense"`；目录创建入口 `WorkspaceCatalogGhostAction` 只在 `UiButton outline` 上组合卡片尺寸与虚线边界，不另写按钮 DOM 或状态样式。授权行使用静态 `UiListRow` 组合唯一的 `GlassSwitch`，不能把整行或 Skill 卡片变成第二个切换命中区；失联但已授权的 Connector 必须仍可取消。
+- 业务文字、导航链接和纯图标动作必须分别渲染 `UiButton / UiLinkButton / UiIconButton`；`button-styles.ts` 是 shared primitive 的实现细节，业务层不得借其 class 投影手写第二套 DOM；
+- `UiButton surface` 表达带底色的次级动作，`outline` 表达与页面同层、透明无阴影但需要稳定边界的动作组，`ghost / text` 表达默认无边界的轻动作；业务页不得用局部 `background / border / shadow` 把一种变体临时改造成另一种；
+- 普通单行、多行和原生选择字段必须分别渲染 `UiInput / UiTextarea / UiNativeSelect`；工作区、资料文件与记忆等源码编辑使用 `UiSourceEditor`，保留原生编辑事件且不接管业务草稿/保存/快捷键。业务层不得导入 `form-control-styles.ts` 复制输入壳，嵌入其他领域复合控件的无壳原生输入由其 pattern 明确负责；
+- `UiField` 内的普通输入和选择 trigger 使用公共控件。字段的 `htmlFor` 必须与目标控件 `id` 显式配对，公共层把当前可见说明加入 `aria-describedby`，把当前错误关联到 `aria-errormessage / aria-invalid`；调用方已有描述必须保留。多输入组不能把同一字段身份自动复制给所有 children，分段选择等复合字段由业务明确提供组名和各控件名称。原生校验只定位当前表单中首个可校验的无效输入，由最近的 Field 显示一次；错误恢复后声明式恢复调用方最新 ARIA 属性，不通过 `removeAttribute` 擦除业务校验。浏览器 validity 与业务错误是独立事实，公共层不推断业务值是否有效；
+- 没有 `htmlFor` 的具名 `UiField` 表达复合区域：可见名称通过 `aria-labelledby` 关联 `role=group`，说明与显式整组错误属于该组，不生成无目标的 label，也不把整组错误写到每个输入。单个输入仍要显式配对，复合输入仍保留各自可访问名称；
+- 可增删的表单行必须保留草稿生命周期内稳定的行身份，不能按当前数组下标或可编辑的值生成 React key；行名称和移除动作要区分当前项，错误关联仍指向原控件。纯模型只接收身份并投影草稿，新增身份由视图事件创建；本地行身份不得混入保存协议或替代服务端资源身份；
+- 按钮式选择统一使用 `UiChoiceButton`，权限范围等互斥表单选择统一使用保留 native radio 的 `UiRadioChoice`；业务层不得导入 `choice-styles.ts` 手写第二套 DOM，生成式问答等稳定领域 Widget 的原生选项按其独立合同保留；
+- 同一权限请求可存在多个展示实例，native radio 的 `name` 必须由视图实例生成，不能只复用 request ID 而把两个展示区合成一个浏览器选择组。请求身份与授权回调仍由原业务控制器持有，DOM 分组身份不参与授权。权限组复用具名 Field 关联禁用说明；带完整说明的权限卡分别关联标题与描述，选择不能隐式触发允许/拒绝命令；
+- 带整行命中区的复选项直接组合 `UiCheckboxRow`；公共层持有实例级名称/说明关联，默认只以可见 label 命名，description 与调用方已有描述合并，装饰图标不参与名称。显式 `aria-label / aria-labelledby` 保留优先级；整行点击和 Space 仍由唯一 native checkbox 改值，disabled 或所属 fieldset 禁用时不触发命令及 hover。业务只提供值、密度、说明和回调，不为纯属性转发增加私有包装；
+- 二元开关统一由 `GlassSwitch` 的单一 native button/`role=switch` 持有 checked、键盘、焦点和真实 disabled；业务不得在 disabled switch 外套 `span role=button` 等第二命中区，需要解释受保护状态时由可操作 switch 的 `onChange` 进入业务确认或说明；
+- 标签输入和多选字段中的已选实体统一使用 `UiRemovableChip`；移除动作必须是具名 native IconButton，复合字段的菜单触发器与移除按钮必须为兄弟节点，不得嵌套 button 或用 `span role=button` 绕过合法 DOM；
+- 搜索入口统一渲染 `UiSearchInput`，客户端字符串标准化和字段匹配统一调用 `shared/ui/form/search-query.ts`；具体页面仍拥有可搜索字段、包含/前缀规则、空查询含义、资源筛选条件和本地/远端/跨域搜索范围。导航侧栏不得把当前列表筛选伪装成下探搜索，远端请求生命周期也不得进入 UI primitive；
+- Select、Slash 和多选 listbox 的条目统一由 `SelectMenuOptionRow` 持有原生 button、`role=option`、`aria-selected` 与活动数据属性；业务层只提供行内容、密度、disabled 规则和选择命令，不得把共享菜单 class 重新拼成第二套 option DOM；
+- Action Menu 与业务上下文菜单的行统一由 `UiMenuActionRow` 持有原生 button、`role=menuitem`、禁用语义、命中几何与活动/hover/focus/tone 状态；业务层只组合菜单内容、级联关系和命令，不得导入 `MENU_ITEM_BASE_CLASS_NAME` 手写 `menuitem`；
+- 页面内容、目录视图和列表筛选的标签切换统一使用只有中性底线选中态的 `UiTabs`；目录工具栏的紧凑、自适应宽度预设使用按类型命名的跨领域 `UiDirectoryTabs`，不得创建 `Capability*Tabs` 等业务域转发层。有限互斥配置值使用 `UiSegmentedControl`，不得在两者之间仅凭局部审美互换；
+- variant 必须存在真实视觉或行为差异；完全相同的 variant 合并；
+- 带可见组名的分段选择使用 `UiSegmentedControl showLabel` 组合公共 Field，由外层持有唯一 group 名称；不能包入原生 label 或叠加同名 group。单输入 Field 的标签仍通过实例级 htmlFor/id 指向真实控件，不能靠包装整个复合区域推断目标；
+- 分段选择的文字角色、密度、图文高度与换行由 UiSegmentedControl 统一拥有；消费者只声明选项图标、值、命令和外部布局。纯图标选项复用 UiTooltip，不叠加原生 title；受控选择继续使用原生按钮与 aria-pressed，不由提示或焦点移动改写业务值；
+- 普通按钮、输入和模态不得绕过已有 primitive 手写第二套行为。
+- 普通 Dialog 的名称由 `UiDialogHeader.title` 自动关联到最近 `UiDialogBackdrop`；公共层持有实例唯一 ID 和标题注册/释放，业务不重复接线。显式 `labelledBy` / `aria-labelledby` / `aria-label` 优先于自动标题；自定义 Header 内容或无标题栏预览必须显式命名。说明关联仍由业务指定，不自动将复杂正文压成一条可访问描述。
+- 已有详情浮层的 IconButton 必须通过 `tooltip={null}` 关闭自动短提示，并由详情拥有 `aria-describedby`。只读 Tooltip/用量详情使用浮层层的 `restoreFocus: false`，打开和关闭不移动焦点；交互式菜单和 Dialog 继续遵守其焦点归还合同。
+
+### 4.4 Pattern
+
+Pattern 统一跨页面的结构、响应式几何或交互组合，例如 ResponsiveDialog、AnchoredPopover、FilterBar、SettingsSection、CatalogCard、FloatingDock，以及在一个共享边界中保留两个独立命令与焦点的 `UiSplitButton`。
+
+Pattern 与 Primitive 的区别是：Primitive 统一一个控件；Pattern 统一多个控件如何在页面和窗口尺寸中协作。
+
+能力与联系人等目录的具名下拉筛选统一由 `shared/ui/menu/filter-select.tsx` 的 `UiFilterSelect` 组合紧凑 `UiSelectMenu`；跨领域 Pattern 固定必填文字标签并不暴露前导图标参数，不保留领域命名的转发层。视觉结构只在 `design.md` 定义，页面仍拥有选项、筛选状态和按内容调整的容器宽度。普通表单选择继续直接使用 `UiSelectMenu`。
+
+领域内跨子页重复的 Pattern 留在该领域 `shared`：例如 Skill、Connector、自定义 MCP、Loop 与 WorkGraph 详情统一由 `CapabilityDetailPage` 持有内容轴，并由唯一 `CapabilityDetailHeader` 组合全站 `UiBreadcrumb` 渲染“返回目录 / 当前对象”；Workspace 文件层级也只向 `UiBreadcrumb` 提供用户可见名称与相对路径段。导航下方的前导图标、标题、元数据、说明和响应式动作对齐统一由 `CapabilityDetailIdentity` 持有。业务子页不得直接引用底层 `WorkspaceContentDetailHeader`、手写 `objectTitle` 与动作容器、复制箭头、斜杠或间距，也不得把目录态 `WorkspaceContentHeader` 复用成对象身份区；详情路由不得残留目录 Header 或搜索控件。
+
+设置域的普通二元行由 `settings/shared/settings-panel-ui.tsx` 的 `SettingsToggleRow`
+组合唯一 GlassSwitch，标题作为可访问名称，实例级说明 ID 通过 aria-describedby
+关联；行与说明本身不增加点击命令。Preferences、Echo 和运行偏好的 checked、
+禁用条件和变更回调仍由各自调用方拥有。带独立风险内容的 Browser 权限卡、模型
+表单内联开关和授权列表继续使用各自领域布局，并直接复用 GlassSwitch 的说明
+关联能力；不能为统一行布局而吞掉确认、恢复或提交边界。
+
+### 4.5 Domain widget
+
+领域 Widget 只有在 DOM 命中区本身表达图形几何时才能保留原生交互节点，例如 WorkGraph 的边中点、节点卡和折叠计数；该例外只允许自定义几何，不允许在原生 button 可以表达时用 `div role=button` 和手写键盘事件模拟控件。缩放、搜索、定位、关闭、保存等标准动作仍必须复用 UiButton / UiIconButton，浮动工具条和搜索面复用语义 Surface，不能因位于画布内部而复制一套 hover、focus、圆角或阴影。
+
+WorkGraph 节点和连线详情统一由领域 `ExecutionGraphInspector` 持有外壳、标题、关闭
+动作和滚动内容区，复用 `surface-popover`、App Typography 与 `UiIconButton`。
+画布只负责精确选择身份、定位和逆缩放，详情保持屏幕尺寸；该只读非模态检查器
+不另建 Portal、模态锁或执行状态。顶栏生命周期、部分投影和旧快照提示通过
+`UiBadge` 的 tone/size/shape 表达，业务层不复制徽标颜色与边界配方。详情内的
+运行活动是静态内容行，由 `UiListRow` 持有外观；缩略图的拓扑列、连线、节点和
+终态微标签由 `NamedWorkGraphSketch` 持有图形几何，外围 Surface 和普通文字仍共享。
+
+Login 与 Setup 的产品入口共同消费 `features/access/AccessPageFrame` 和
+`AccessPageIntroduction`。Access 只拥有品牌背景、Logo、宣传标题和响应式两栏；
+单列凭证与并排初始化字段通过 regular/wide 表单宽度表达。宣传标题属于品牌 Surface，
+由同一配方拥有尺度；普通文字与表单仍使用 Typography、Panel、Field、Input 和 Button。
+页面不得复制背景或表单材质，也不得把认证状态和初始化命令移入这个展示 Pattern。
+装饰背景上的独立表单使用 `UiPanel variant="filled"`，只由 Panel 消费已有面板
+背景 token；默认透明 card、虚线和无壳 plain 各自保留用途，不在消费者另加背景和阴影。
+
+Widget 可以认识 Agent、Room、Goal 等产品对象，但只组合下层合同，不重新定义基础视觉。Conversation 的 Composer 浮动工作栈属于 conversation widget，不应为了复用 DM/Room 而放进全局 `shared`。
+
+Composer 附件的图片/文本预览与移除统一组合 `UiButton / UiIconButton`，保留独立兄弟命中区；领域只拥有缩略图几何、文件与草稿作用域。图片角上的移除动作使用共享 micro 尺寸，不再保留原生按钮例外。Chip、普通输入壳与 Composer 聚焦壳的圆角只由共享 recipe 定义，消费层不重复设置同值圆角。
+
+私域目录预览与时间线复用公共 filled Panel，标题、名称、时间和路由复用 Typography。
+事件视图只保留方向表达与 Markdown 阅读正文，头像叠放/溢出计数由身份图形拥有。
+User 消息编辑器组合公共输入壳、按钮与原生无壳 textarea；原位正文测量和独立
+Footer 属于该编辑器，不能以此复制普通表单控件。Composer 与消息编辑共用中立
+IME 事件识别，组合生命周期和快捷键策略留在各自控制边界。User/Assistant 的正文
+尺度与外侧节奏唯一归 `message-reading-layout`，数据投影不携带布局字段；文件卡片
+同样分离 exact 路径/Agent/动作投影与阅读几何。文件预览和外部动作继续独立，缺少
+预览 handler 不能禁用有效的下载/显示动作，切换全局 Agent 不能重写显式文件来源。
+Composer 的间距配方
+（含待发送队列）只在视图消费 `composer-styles`，不得通过 controller/model 的返回值传递 CSS。
+
+生成式结构化问答的选项行可以由领域 pattern 保留原生 `fieldset`、radio/checkbox 与内嵌无壳 textarea，因为命中区和选择标记共同表达题目几何；拒绝、提交等标准动作仍必须使用 `UiButton`，题目、说明、提示和终态摘要仍必须选择 App Typography role。原生语义例外不是页面复制按钮或字号配方的许可。
+
+以下是 `features/pages` 中原生 button 的唯一例外清单（路径相对 `web/`）。数量是当前结构事实，不是允许新增普通按钮的额度。架构门禁用 TypeScript AST 同时检查 JSX 和 `createElement`，新增、移除或迁移必须同步说明所有者、几何理由和相应行为验证；标准动作一律回到公共控件。
+
+<!-- native-button-owners:start -->
+| 所有者 | 原生节点数 | 几何理由 |
+| --- | --- | --- |
+| `src/features/conversation/room/surface/mobile/room-mobile-conversation-switcher.tsx` | 1 | 顶栏下拉 Sheet 的整面 underlay 关闭热区；模态行为仍归共享 Dialog。 |
+| `src/features/conversation/shared/execution/execution-workgraph-canvas.tsx` | 3 | 工作图边中点、节点卡和折叠计数的坐标命中区。 |
+| `src/features/conversation/shared/message/agent-mention-chip.tsx` | 1 | 随 Markdown 行内字号排布的 Agent 身份与 handoff 实体。 |
+| `src/features/conversation/shared/message/blocks/artifact/file/file-artifact-block.tsx` | 1 | 完整文件产物卡的打开热区；文件命令仍由产物领域持有。 |
+| `src/features/conversation/shared/message/blocks/artifact/image/image-block.tsx` | 1 | 原图等比缩略图的预览热区。 |
+| `src/features/conversation/shared/message/item/view/content/content-system-event.tsx` | 1 | 时间线系统重试行的原位展开，保留锚点与倒计时几何。 |
+| `src/features/conversation/shared/message/item/view/user/message-user-attachments.tsx` | 1 | 用户消息中的图片/文件整体预览入口。 |
+| `src/features/conversation/shared/message/ui/message-avatar.tsx` | 1 | 头像轮廓本身的详情热区；图像与交互尺寸一致。 |
+| `src/features/conversation/shared/scroll-to-latest-button.tsx` | 1 | 浮动滚动入口的 44px 热区包围较小状态芯片；DM/Thread 共用同一所有者。 |
+| `src/features/conversation/shared/session-navigator/conversation-session-navigator.tsx` | 2 | 连续轮次刻度与整张预览卡的导航热区。 |
+| `src/features/launcher/hero/launcher-hero-stage.tsx` | 2 | 随舞台整体缩放的品牌复合入口和发送角色图像热区；普通最近入口使用 UiButton。 |
+| `src/features/launcher/hero/pile/launcher-agent-token.tsx` | 1 | 物理舞台中的可拖动 Agent token，位置和热区由场景共同计算。 |
+| `src/features/navigation/sidebar/view/sidebar-rail-action.tsx` | 1 | 主导航和固定会话共用的 Dock 轨道入口，容纳计数、拖放与当前态几何。 |
+<!-- native-button-owners:end -->
+
+## 5. 抽象与晋升规则
+
+发现重复时按以下顺序判断：
+
+| 重复事实 | 抽象位置 |
+| --- | --- |
+| 同一颜色、圆角、阴影、层级或关键尺寸 | Token |
+| 多个视觉 class 总是共同出现 | Recipe |
+| DOM、交互、键盘与 ARIA 相同 | Primitive |
+| 响应式布局、浮动几何或组件组合相同 | Pattern |
+| 业务对象和业务状态相同 | Entity/Feature/Widget |
+
+默认从业务局部实现开始。第二个消费者出现时比较差异；跨两个领域出现第三个稳定消费者，或交互/可访问性必须全局一致时，再晋升到 shared。单消费者透传 wrapper、只为缩短 className 的组件和假想未来复用不得晋升。
+
+## 6. 视觉与交互治理
+
+### 6.1 阴影
+
+阴影表达空间高度，不表达业务重要性：
+
+- 普通 button、nav row、panel、card 默认无阴影；
+- primary action 通过行动色表达，不由页面附加阴影；
+- menu/popover、dialog 与真正悬浮的 floating action 使用对应 elevation；
+- selected/current 使用中性背景、文字或位置表达，不使用阴影；
+- 业务代码不得写 `shadow-[...]`；`features/pages` 的任意阴影门禁基线为零，真实 elevation 必须选择语义 recipe/token。
+
+### 6.2 状态
+
+`hover / active / selected / pressed / primary / focus-visible / running` 是不同语义。即使当前颜色接近，也必须使用不同 token/recipe，使后续设计可以独立调整。颜色不得成为状态的唯一信号。
+
+### 6.3 浮层与小窗口
+
+- anchored overlay 的 gap、viewport inset、min/max 宽高、碰撞、翻转、滚动跟随和 Portal 由共享定位层负责；
+- 业务消费者只能选择命名 layout preset、`placement / align / layer` 与真实内容高度估算，不得导入底层定位模型或提交 `gap / viewportMargin / minWidth / minHeight / maxHeight`；
+- dialog 的桌面限高、窄屏 inset、固定 header/footer 与 body scroll 由 viewport variant 负责；
+- 选择器和短向导使用 `viewport="compact"`，自然高度的紧凑目录使用 `compactMax`，长表单使用 `adaptive` 或 `adaptiveMax`，图片/短文本查看使用 `visualPreview` 或 `documentPreview`，大型图形/对照工作台使用 `workbench`；内容量不是业务侧发明相近像素高度的理由；
+- 不允许业务弹窗复制 `82dvh / 760px / 16px` 等产品级视口公式；
+- 业务弹窗宽度只通过 `size` 选择，禁止在 Shell 上补写 `max-width / vw`；如果现有档位不合适，先判断是否真的是可跨业务复用的新内容类型；
+- 单行命名/创建类 Prompt 使用紧凑决策宽度，多行输入才提升一档；Prompt 的 Header、Input 与确认动作由共享 Decision Dialog 统一，业务页面不得用局部宽高或弱化的私有按钮修补；
+- z-index 只通过语义 layer 使用，禁止通过增加整数解决遮挡；嵌套 modal 的顺序由 modal stack 负责。
+- 全局 feedback 固定复用 popover 材质、`feedback` 语义 layer、App Typography 与共享 Button；内容流提示通过 `UiInlineNotice` 的 `full / compact` 档位统一拥有可用列宽和短状态阅读宽度。业务只提供已经确认的标题、影响、下一步和至多一个动作，不得通过局部宽度、阴影、圆角或 z-index 抬高反馈。
+
+### 6.4 响应式
+
+- 仅布局变化使用 CSS media/container query；
+- 由组件自身宽度决定的布局优先 container query；
+- 只有行为发生变化才使用 `useMediaQuery`；
+- 产品断点通过共享语义入口使用，业务组件不得新增近似断点；
+- 窄屏不建立第二套主题或第二套组件，只改变密度、排列和导航呈现。
+
+## 7. 注释与文档合同
+
+业务入口、状态机、协议 mapper、复杂 hook 和跨文件基础组件使用三行文件契约：
+
+```ts
+// INPUT: 接受的可信事实、上游资源或用户动作。
+// OUTPUT: 对外产生的视图、命令、状态或副作用。
+// POS: 在模块中的唯一职责，以及明确不负责的内容。
+```
+
+要求：
+
+- 修改输入、输出、所有权或副作用时同步更新文件契约；
+- 注释解释“为什么、边界和失败语义”，不复述函数名或 JSX；
+- 导出的复杂类型/函数只在调用者无法从签名判断约束时写 TSDoc；
+- 每个 entity/feature/widget 根目录最多保留一份职责文档；只有独立状态机或协议边界才增加子目录文档；
+- 文档写稳定不变量，进行中的迁移计划必须标记 `non-normative`；
+- 代码、测试和文档冲突时，不得只改其中一相后结束任务。
+
+`web/scripts/frontend-file-contract.test.mjs` 对已治理的 `shared/ui/button`、
+`dialog / form / list / menu / navigation / overlay / typography / workspace/catalog`，以及共享 `lib` 与
+`navigation` 合同递归强制执行文件合同，识别第一条代码前的真实注释，
+拒绝缺项、重复、空内容与占位文本。其他领域随所有权迁移逐批纳入；不能因
+历史文件没有合同而省略新增或修改的业务边界说明，也不为凑覆盖率写机械模板。
+
+## 8. 测试合同
+
+| 层级 | 必测内容 |
+| --- | --- |
+| Token/Recipe | 语义入口存在、禁止值不再新增、主题映射完整 |
+| Primitive | DOM、真实键盘事件、焦点、ARIA、disabled 与状态组合 |
+| Entity model | mapper、selector、状态机、recovery 与 stale response fence |
+| Feature | 一次用户动作从输入到 command/result 的完整状态流 |
+| Widget | 关键组合状态、窄屏结构和资源失败降级 |
+| Page | 路由、恢复与少量主路径浏览器 smoke test |
+
+源码正则只能作为架构或禁止项门禁，不能替代组件行为测试。涉及布局、Portal、碰撞和视口尺寸的 UI 必须使用真实浏览器验证。
+
+`features/pages` 中的任意阴影与数字 z-index 已归零；`frontend-foundation-contract.test.mjs` 直接禁止两者，不再保留可上调的逐文件额度。真实 elevation 和浮层顺序只能选择语义 token、recipe 与 layer。
+
+测试入口固定为：
+
+- `src/**/*.test.tsx`：与 primitive/pattern 共置的 Vitest + jsdom 行为测试，必须通过 Testing Library 从角色、名称和真实用户事件观察组件；
+- `scripts/*.test.mjs`：纯模型、协议、架构边界和禁止项合同；不得在这里伪造 DOM 交互结论，统一入口以有界并发运行，避免大量独立 Vite 转换进程使门禁随机崩溃；
+- `frontend-control-style-contract.test.mjs` 禁止公共 Button、ListRow/ListAction、Select/FilterSelect 与 Form（Input/Textarea/NativeSelect/SearchInput/Checkbox/Choice/SegmentedControl）调用方的静态视觉覆盖；支持控件别名/命名空间导入、词法作用域内常量、条件表达式与对象展开，并追踪本地模块的具名不可变常量导入与具名转导出，同时检查 `className`、`buttonClassName`、`inputClassName` 和内联 `style`。它保留局部遮蔽、参数和循环边界，允许布局与独立图标内容，不执行模块或函数。命名空间样式常量、星号转导出、外部 CSS 和运行时计算样式仍需审查，不能将静态门禁通过视为全部视觉实现无覆盖。
+- `frontend-token-contract.test.mjs` 通过既有 CSS 工具链和 TypeScript AST 检查全部生产 CSS/TS 的静态 `var()`、Tailwind 简写和模板 CSS；必需引用必须有声明，可选注入必须有 fallback，三主题的 canonical 别名不得缺失、循环或在同一声明块重复。明确进入 `color-mix()` 的公共控件颜色槽还需解析其别名并通过既有 DOM CSS 解析器的颜色校验，拒绝把已声明的渐变误用为颜色。检查不执行运行时表达式，也不把全局声明集合或解析器接受当作 DOM 继承、实际绘制或文字对比度证明；没有逐文件违规额度。
+- `npm run test:components` 与 `npm run test:contracts` 可分别定位失败，`npm test` 必须串行覆盖两类测试。
+- `npm run check` 串行执行 lint、typecheck、上述两类测试和生产构建。
+- `npm run test:browser` 使用固定版本 Playwright 启动独立端口与依赖优化缓存的 Vite 服务器，执行真实浏览器合同；浏览器服务器固定使用 `browser-test` mode，避免并发开发或 SSR 合同检查使缓存失效并重建页面。`npm run check:ui` / 根目录 `make check-web` 覆盖完整前端门禁。浏览器依赖首次使用通过 `npx playwright install chromium webkit` 安装，Linux CI 使用 `--with-deps`。
+- `.github/workflows/frontend-check.yml` 对前端、规范与 Windows 原生主题变更运行同一套检查，失败不得通过跳过测试、增加重试或更新截图来消除。
+- `make app-check-ui` 在已解锁的 macOS 图形会话中编译独立 QA App，复用当前生产窗口与 WKWebView 源码，验证 Gallery 的原生输入、浮层、焦点及隐藏恢复。独立应用标识、偏好、状态根、端口和优化缓存隔离测试；不得启动产品 sidecar 或把旧安装包作为当前源码证据。源码清单、日志、报告与截图按运行保存，具体环境和边界见 `desktop/macos/README.md`；此入口不加入无图形会话的默认前端门禁，也不替代完整业务或 Windows 宿主检查。
+- `make app-check-ui-app` 用同一宿主验证真实 Launcher/工作台、响应式导航、Header 双击缩放与恢复。读取和空闲订阅必须由隔离夹具提供，Vite HTTP/WS 代理必须禁用；`native-ui-fixtures.test.mjs` 用真实本地服务验证读写边界与零转发。锁屏或无图形会话不能用脚本合成 DOM 事件代替原生输入证据。
+
+视觉回归矩阵至少覆盖：
+
+- light / dark / rain；
+- 320px、产品窄屏断点附近和桌面宽度；
+- default / hover / focus / disabled / selected / loading / error；
+- 中英文长文案与 reduced motion。
+
+当前共享组件的浏览器验收入口固定为
+`http://localhost:3000/ui-gallery.html?theme=light&locale=zh`。它是独立的开发
+HTML 入口，不经过登录态、业务 API 或产品路由，也不得加入 Vite 的生产
+`rollupOptions.input`。`theme=light|dark|rain`、`locale=zh|en` 与
+`section=foundation|content|interaction|workspace|coverage` 必须写回 URL，使
+人工复查和后续截图工具使用同一可复现地址。陈列面必须直接 import 并渲染
+真实 `shared/ui` 组件；不得建立只为截图存在的视觉替身。公开 React 组件必须
+进入唯一覆盖清单：可视组件直接渲染，复合组件的内部原语由真实父组件覆盖，
+Provider 和 SVG Filter 等无独立界面的基础设施明确标注其真实消费路径。新增
+公开组件但没有登记时，Gallery 覆盖合同必须失败。
+
+`browser-tests/ui-gallery.spec.ts` 是浏览器行为真相入口。默认 Chromium 矩阵
+固定 light/dark/rain × 中文/英文 × 320/767/768/1440px；WebKit 使用同主题/语言
+与 320/1440px 的代表性矩阵。覆盖默认控件实际高度/字号/字重/图文间距、按钮禁用/忙碌、
+真实 focus-visible、hover 几何、选择器/动作菜单键盘与禁用项、碰撞翻转和滚动重定位、模态滚动锁、
+初始焦点、Tab 循环、弹窗内浮层命中、逐层 Escape、焦点归还及正常/减少动效。
+受控 Workspace 标签另覆盖选择、创建、固定与键盘关闭后的活动项恢复；业务
+Room 的持久化与最终替换规则由导航功能的共置行为测试独立验证。
+Room 导航偏好在同一持久快照中绑定 owner；每次保存先读取同 owner 的最新值，
+再应用当前选择、固定、排序或移除命令，不能用旧页面的整份内存覆盖其他操作。
+新建成功、历史选择和明确路由选择只追加精确 Conversation，普通关闭只移除
+精确目标且保留固定偏好。列表缺项可能来自旧快照，展示过滤不能回写为标签
+删除；会话删除仍由显式删除命令清理。标签显示继续按创建时间排序。最后标签
+替换事务同样只从最新集合移除原目标并加入替代项，保留事务前后其他页面打开
+的标签；运行时不暴露完整集合覆盖命令。
+存储事件只表示失效，接收页重新读当前快照且不回写，未改变的导航保持原状态引用。
+App 独占 owner 的受理与校验，Store 不导入认证装配层；旧无绑定记录仅在既有
+owner 迁移检查后认领，其他 owner 的已绑定快照在认证绑定前后都不可恢复。
+跨页面身份失效先清空本页并阻止迟到命令，不写空共享快照；下一次权威身份绑定
+只恢复相同 owner 的记录，确认登出才清除持久记录，避免旧页面清掉新账号偏好。
+默认表单还覆盖实际输入、原生选择、搜索清除与多行编辑；技术字段覆盖等宽字体、
+验证码的居中命中区与前导零保留，原生 FormData 测试验证展示角色不改写提交值。
+键盘路径使用真实宿主
+遍历规则：macOS WebKit 使用 Option-Tab，其他项目使用 Tab；不修改用户系统
+偏好或伪造 DOM 焦点顺序。模态焦点链由键盘触发验证：关闭后恢复打开前的焦点，
+即键盘触发器；鼠标触发遵循宿主原生 button 聚焦行为，不强制改变 macOS 点击
+规则。平台差异依据 [Apple Safari 键盘说明](https://support.apple.com/guide/safari/cpsh003/mac)
+与 [WebKit 的鼠标焦点说明](https://bugs.webkit.org/show_bug.cgi?id=236322)。
+测试使用真实角色/名称和浏览器布局，不通过复制样式或 stub 组件伪造通过。
+`browser-tests/login.spec.ts` 在同一矩阵中打开真实登录路由，以隔离的认证
+响应验证提交、未知结果阻塞、只读恢复与禁用部署。远端聊天 CJK 字体明确
+阻断，截图验收 App 本地字体；不得据此声称远端字体或聊天阅读面已验收。
+`browser-tests/app-shell.spec.ts` 在同一浏览器矩阵加载真实 App 入口，以固定只读
+快照和本地事件连接验证 Launcher 输入、导航往返、完整侧栏标签、窄屏工作区切换，
+以及同账号多页面保存、刷新后的固定与取消固定。
+播放器 CDN 请求由已安装的 WASM 二进制响应，所有业务写入仍拒绝，不能因此宣称
+真实业务数据、第三方 CDN 或原生窗口手势已经验证。
+
+组件陈列面是验证夹具。截图随 HTML report 输出到 `playwright-report/`，
+失败 trace/截图输出到 `test-results/`，CI 保留 14 天；它们是可复查的视觉
+证据，当前不冒充跨平台像素基线门禁。提交说明必须明确实际检查的浏览器、
+主题、宽度和状态；Chromium/WebKit 自动化不等于 macOS/Windows 原生窗口 chrome
+或完整业务页面已验收，这些仍按变更范围在实际宿主复查。
+
+目录卡片另外通过真实坐标验证内容上的整卡命中、独立次动作和键盘主动作；列表
+次动作验证 hover/focus 可见性以及 disabled 时无 hover 反馈。Select 的紧凑和大号
+字段高度也由浏览器直接测量，业务通过 `size` 选择，不添加局部高度或阴影配方。
+Agent 高级设置夹具直接渲染实际权限行与 Skill 卡片，验证开关独立命中、失联授权
+撤销、锁定/提交中不可变更，以及长设置页面中逐行滚动可达；不要求整页缩入视口。
+Composer 附件夹具使用真实本地 File 验证图片/纯文本预览、长内容换行、键盘触发后
+焦点归还与 exact 附件移除；共置测试覆盖 Session 切换只关闭预览、Object URL
+释放及表单内默认按钮不提交，不把预览开关写进持久草稿或执行上传。
+主题矩阵另检查当前匹配根元素的实际 CSS 变量没有空解析结果；Tour 必须渲染真实
+锚点，高亮的圆角和外扩几何由浏览器测量，Escape 与页面目标点击均能关闭导览，
+且目标原有命令仍只执行一次。
+WorkGraph 夹具直接渲染真实画布，验证节点/连线的精确身份、原 Agent 文件动作、
+键盘关闭、节点与边详情的共同不透明表面，以及缩放后详情保持屏幕字号和宽度。
+画布可滚动，详情可通过滚动到达；这不等价于所有图节点同时适配一个视口。
+私域/消息夹具直接组合真实时间线与消息视图，验证两种密度、方向和元信息，以及
+编辑聚焦、普通 Enter、IME 期间不发命令、取消重置和原 round 的唯一提交。
+同一夹具检查 User/Assistant 在两种密度中的实际正文尺度、外侧间距与文件文案，
+文件动作只更新本地观察值。DOM 测试另覆盖原 Agent 的预览/下载隔离、Goal 控制
+记录的不可编辑语义、兼容 IME 键码与空值/未变化草稿；合成事件不是操作系统输入法验收。
+
+## 9. Agent 修改流程
+
+后续 Agent 修改前端时必须：
+
+1. 先定位所有者与现有 primitive/pattern，不以页面搜索结果直接复制实现；
+2. 修改公共视觉前列出受影响消费者，判断应改 token、recipe、primitive 还是 pattern；
+3. 业务页面需要覆盖公共组件视觉时，先证明是新的稳定 variant，而不是添加任意 class；
+4. 同步 `INPUT / OUTPUT / POS`、模块文档和唯一规范；
+5. 添加与变更层级匹配的测试；
+6. 迭代期间运行目标测试，交付前运行 `npm run check`；
+7. UI 改动检查窄屏、三主题、键盘焦点和叠层关系；
+8. 用户可见变化同步 `CHANGELOG.md`。
+
+## 10. 迁移阶段（non-normative）
+
+1. **基础门禁**：冻结新的反向依赖、任意高 z-index、重复 dialog viewport 和公共组件视觉覆盖；
+2. **Primitive 收口**：Button、Form、Dialog、Overlay、Menu、Tabs 补齐语义 API 与行为测试；
+3. **Pattern 收口**：统一 ResponsiveDialog、AnchoredPopover、FilterBar、SettingsSection 与 Conversation 浮动工作栈；
+4. **所有权迁移**：按业务切片迁移 `hooks / store / types / lib/api`，拆分 `conversation/shared`；
+5. **视觉回归**：组件陈列面、浏览器行为矩阵与 CI 截图证据已建立；跨平台像素基线和原生宿主整体审查继续按实际环境渐进完成；
+6. **清债**：移除兼容导入、闲置组件、无差异 variant 和过细目录文档，开启强制门禁。
+
+迁移状态不得改变上文规范；尚未迁移的旧代码是已知债务，不是新代码继续复制的先例。

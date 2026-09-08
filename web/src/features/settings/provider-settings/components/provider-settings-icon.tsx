@@ -1,4 +1,5 @@
 import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 interface ProviderIconProps {
   active?: boolean;
@@ -10,7 +11,7 @@ interface ProviderIconProps {
 interface ProviderIconSizeStyle {
   container: string;
   glyph: string;
-  initials: string;
+  initialsTypography: string;
 }
 
 const PROVIDER_ICON_SRC: Record<string, string> = {
@@ -35,17 +36,25 @@ const PROVIDER_ICON_SIZE_STYLE: Record<
   md: {
     container: "h-10 w-10",
     glyph: "h-6 w-6",
-    initials: "text-sm",
+    initialsTypography: getUiTypographyClassName({
+      role: "control",
+      tone: "strong",
+      weight: "semibold",
+    }),
   },
   sm: {
     container: "h-7 w-7",
     glyph: "h-4.5 w-4.5",
-    initials: "text-2xs",
+    initialsTypography: getUiTypographyClassName({
+      role: "caption",
+      tone: "strong",
+      weight: "semibold",
+    }),
   },
 };
 
 const PROVIDER_ICON_BASE_CLASS_NAME =
-  "inline-flex shrink-0 items-center justify-center rounded-[10px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_82%,white)]";
+  "inline-flex shrink-0 items-center justify-center radius-control-md border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_82%,white)]";
 
 const PROVIDER_ICON_ACTIVE_CLASS_NAME =
   "border-[color:color-mix(in_srgb,var(--success)_42%,var(--divider-subtle-color))]";
@@ -75,10 +84,9 @@ function ProviderInitialsIcon({
       aria-hidden="true"
       className={cn(
         PROVIDER_ICON_BASE_CLASS_NAME,
-        "font-semibold tracking-tight text-(--text-strong)",
         active && PROVIDER_ICON_ACTIVE_CLASS_NAME,
         sizeStyle.container,
-        sizeStyle.initials,
+        sizeStyle.initialsTypography,
       )}
     >
       {getCustomProviderInitials(name)}

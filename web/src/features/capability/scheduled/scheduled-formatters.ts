@@ -1,17 +1,13 @@
-/**
- * =====================================================
- * @File   : scheduled-formatters.ts
- * @Date   : 2026-04-16 14:00
- * @Author : leemysw
- * 2026-04-16 14:00   Create
- * =====================================================
- */
+// INPUT: 定时计划、可空时间戳与调用方指定的日期语言/缺省文案。
+// OUTPUT: 有限合法日期的显示文本与既有计划摘要；无效日期退回缺省文案。
+// POS: Scheduled 日期/计划纯格式化；历史消费者传入当前语言，既有计划摘要保留原协议。
 
 import type { ScheduledTaskSchedule } from "@/types/capability/scheduled-task/task";
 
 interface FormatScheduledDatetimeOptions {
   emptyLabel?: string;
   includeSeconds?: boolean;
+  locale?: string;
 }
 
 const WEEKDAY_LABELS: Record<string, string> = {
@@ -31,13 +27,14 @@ export function formatScheduledDatetime(
   const {
     emptyLabel = "未记录",
     includeSeconds = false,
+    locale = "zh-CN",
   } = options;
 
-  if (!value) {
+  if (value === null || !Number.isFinite(value) || !Number.isFinite(new Date(value).getTime())) {
     return emptyLabel;
   }
 
-  return new Intl.DateTimeFormat("zh-CN", {
+  return new Intl.DateTimeFormat(locale, {
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",

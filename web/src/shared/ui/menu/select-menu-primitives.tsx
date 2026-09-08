@@ -1,11 +1,19 @@
+// INPUT: Select trigger 的开关/禁用事实、既有样式投影、内容与原生事件，以及 listbox/选项数据。
+// OUTPUT: 稳定触发器、精确 Field 关联、可聚焦/委派键盘的 listbox 和 option button 语义 DOM。
+// POS: Select Menu 视图原语；不管理开关、选值或定位计算。
+
 import type {
+  ButtonHTMLAttributes,
   CSSProperties,
+  KeyboardEventHandler,
   ReactNode,
   RefObject,
 } from "react";
 import { ChevronDown } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
+import { useFieldControlAttributes } from "@/shared/ui/form/field-accessibility";
 
 import type { UiAnchoredOverlayPosition } from "../overlay/anchored-overlay-model";
 import { OPEN_OVERLAY_DATA_ATTRIBUTES } from "../overlay/overlay-contract";
@@ -14,6 +22,68 @@ import {
   OVERLAY_SURFACE_CLASS_NAME,
 } from "../overlay/overlay-styles";
 import type { UiSelectMenuSurface } from "./select-menu-model";
+import { MENU_ITEM_BASE_CLASS_NAME } from "./menu-styles";
+import {
+  getSelectMenuButtonClassName,
+  type SelectMenuStyleProjection,
+} from "./select-menu-styles";
+
+interface SelectMenuTriggerProps extends Omit<
+  ButtonHTMLAttributes<HTMLButtonElement>,
+  "aria-controls" | "aria-disabled" | "aria-expanded" | "aria-haspopup" | "aria-label" | "type"
+> {
+  ariaLabel: string;
+  buttonRef: RefObject<HTMLButtonElement | null>;
+  children: ReactNode;
+  disabled: boolean;
+  isOpen: boolean;
+  menuId: string;
+  styles: Pick<SelectMenuStyleProjection, "roundedClassName" | "textClassName">;
+  surface: UiSelectMenuSurface;
+}
+
+interface SelectMenuOptionRowProps extends Omit<
+  ButtonHTMLAttributes<HTMLButtonElement>,
+  "aria-selected" | "className" | "role" | "type"
+> {
+  active: boolean;
+  className?: string;
+}
+
+/** 单选与领域多选共用的触发器 DOM；开关和键盘决策仍由上游控制器负责。 */
+export function SelectMenuTrigger({
+  ariaLabel,
+  buttonRef,
+  className,
+  disabled,
+  isOpen,
+  menuId,
+  styles,
+  surface,
+  ...props
+}: SelectMenuTriggerProps) {
+  const fieldAttributes = useFieldControlAttributes(props);
+  return (
+    <button
+      {...props}
+      {...fieldAttributes}
+      ref={buttonRef}
+      aria-controls={isOpen ? menuId : undefined}
+      aria-disabled={disabled}
+      aria-expanded={isOpen}
+      aria-haspopup="listbox"
+      aria-label={ariaLabel}
+      className={getSelectMenuButtonClassName({
+        roundedClassName: styles.roundedClassName,
+        surface,
+        textClassName: styles.textClassName,
+        className,
+      })}
+      disabled={disabled}
+      type="button"
+    />
+  );
+}
 
 export function SelectMenuTriggerContent({
   children,
@@ -30,11 +100,11 @@ export function SelectMenuTriggerContent({
     <>
       <span className="flex min-w-0 flex-1 items-center gap-2">
         {leading ? (
-          <span className="shrink-0 text-(--icon-default)">{leading}</span>
+          <span aria-hidden="true" className="shrink-0 text-(--icon-default)">{leading}</span>
         ) : null}
         {label ? (
           <>
-            <span className="shrink-0 text-compact font-medium text-(--text-muted)">
+            <span className={cn("shrink-0", getUiTypographyClassName({ role: "metadata", tone: "muted", weight: "medium" }))}>
               {label}
             </span>
             <span className="h-3.5 w-px shrink-0 bg-(--divider-subtle-color)" />
@@ -43,6 +113,7 @@ export function SelectMenuTriggerContent({
         {children}
       </span>
       <ChevronDown
+        aria-hidden="true"
         className={cn(
           "h-4 w-4 shrink-0 text-(--icon-muted) transition-transform",
           isOpen && "rotate-180",
@@ -57,6 +128,7 @@ export function SelectMenuPanel({
   children,
   id,
   layoutClassName,
+  onKeyDown,
   panelRef,
   placement,
   style,
@@ -66,6 +138,7 @@ export function SelectMenuPanel({
   children: ReactNode;
   id: string;
   layoutClassName: string;
+  onKeyDown?: KeyboardEventHandler<HTMLDivElement>;
   panelRef: RefObject<HTMLDivElement | null>;
   placement?: UiAnchoredOverlayPosition["placement"];
   style: CSSProperties;
@@ -76,7 +149,7 @@ export function SelectMenuPanel({
       ref={panelRef}
       aria-label={ariaLabel}
       className={cn(
-        "fixed z-[120]",
+        "fixed ui-layer-select-menu",
         OVERLAY_SURFACE_CLASS_NAME,
         ANCHORED_OVERLAY_MOTION_CLASS_NAME,
         layoutClassName,
@@ -86,10 +159,30 @@ export function SelectMenuPanel({
       data-surface={surface}
       id={id}
       role="listbox"
+      onKeyDown={onKeyDown}
+      tabIndex={-1}
       style={style}
       {...OPEN_OVERLAY_DATA_ATTRIBUTES}
     >
       {children}
     </div>
+  );
+}
+
+/** Listbox 选项统一持有原生 button、选中语义和菜单交互底面。 */
+export function SelectMenuOptionRow({
+  active,
+  className,
+  ...props
+}: SelectMenuOptionRowProps) {
+  return (
+    <button
+      {...props}
+      aria-selected={active}
+      className={cn(MENU_ITEM_BASE_CLASS_NAME, className)}
+      data-active={active ? "true" : undefined}
+      role="option"
+      type="button"
+    />
   );
 }

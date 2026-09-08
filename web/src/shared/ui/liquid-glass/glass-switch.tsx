@@ -1,3 +1,7 @@
+// INPUT: 二元 checked/disabled 状态、可访问名称/说明引用、尺寸与变更命令。
+// OUTPUT: 单一原生 button/role=switch 的键盘、指针、禁用与液态玻璃视觉合同。
+// POS: Shared Switch primitive；不拥有业务校验、确认弹窗或状态提交。
+
 import type { CSSProperties } from "react";
 
 import { cn } from "@/shared/ui/class-name";
@@ -11,11 +15,13 @@ import {
 
 interface GlassSwitchProps {
   "aria-label": string;
+  "aria-describedby"?: string;
   checked: boolean;
   disabled?: boolean;
   onChange: (checked: boolean) => void;
   className?: string;
   size?: "xs" | "sm" | "md";
+  title?: string;
 }
 
 const SOURCE_TRACK_WIDTH = 160;
@@ -108,12 +114,14 @@ function getGlassSwitchPresentation({
 
 /** 开关保留专用折射几何，避免通用面板材质抹平 thumb 的曲面和高光。 */
 export function GlassSwitch({
+  "aria-describedby": ariaDescribedBy,
   "aria-label": ariaLabel,
   checked,
   disabled = false,
   onChange,
   className,
   size = "md",
+  title,
 }: GlassSwitchProps) {
   const filterId = useLiquidGlassFilterId("glass-switch-thumb");
   const canUseTrueGlass = useSupportsTrueLiquidGlass();
@@ -131,13 +139,16 @@ export function GlassSwitch({
     <button
       {...interaction.buttonHandlers}
       aria-checked={checked}
+      aria-describedby={ariaDescribedBy}
       aria-label={ariaLabel}
       className={cn(
         "relative inline-flex shrink-0 items-center overflow-visible rounded-full transition-[background-color] duration-(--motion-duration-fast) ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
         disabled && "cursor-not-allowed opacity-(--disabled-opacity)",
         className,
       )}
+      disabled={disabled}
       role="switch"
+      title={title}
       type="button"
       style={presentation.trackStyle}
     >

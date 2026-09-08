@@ -1,9 +1,15 @@
+// INPUT: Room 窄窗作用域、可用动作、成员加载态与业务命令。
+// OUTPUT: 切换作用域即消费打开态的语义动作菜单；只分派明确动作。
+// POS: Room 专注模式尾部动作装配；不拥有菜单项规则或业务事务。
+
 "use client";
 
 import { MoreHorizontal } from "lucide-react";
-import { useRef, useState } from "react";
+import { useRef } from "react";
 
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiIconButton } from "@/shared/ui/button/button";
 import { UiActionMenu } from "@/shared/ui/menu/action-menu";
 import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
 
@@ -13,6 +19,8 @@ type RoomMobileAuxiliaryTab = Exclude<RoomSurfaceTabKey, "chat">;
 
 interface RoomMobileActionsMenuProps {
   canOpenSubagents: boolean;
+  isMembersLoading: boolean;
+  scopeKey: string;
   onCreateConversation: () => Promise<string | null>;
   onManageMembers?: () => void;
   onOpenAuxiliaryTab: (tab: RoomMobileAuxiliaryTab) => void;
@@ -20,33 +28,36 @@ interface RoomMobileActionsMenuProps {
 
 export function RoomMobileActionsMenu({
   canOpenSubagents,
+  isMembersLoading,
+  scopeKey,
   onCreateConversation,
   onManageMembers,
   onOpenAuxiliaryTab,
 }: RoomMobileActionsMenuProps) {
   const { t } = useI18n();
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useResettableState(false, scopeKey);
   const items = buildRoomMobileActionItems({
     canOpenSubagents,
     includeMembers: Boolean(onManageMembers),
+    isMembersLoading,
     t,
   });
 
   return (
     <>
-      <button
+      <UiIconButton
         ref={buttonRef}
         aria-expanded={isOpen}
         aria-haspopup="menu"
         aria-label={t("common.more_actions")}
-        className="inline-flex h-9 w-9 items-center justify-center rounded-full text-(--icon-default) transition hover:bg-(--interaction-hover-background) hover:text-(--text-strong)"
         onClick={() => setIsOpen((current) => !current)}
-        title={t("common.more_actions")}
-        type="button"
+        shape="round"
+        size="lg"
+        variant="ghost"
       >
-        <MoreHorizontal className="h-4 w-4" />
-      </button>
+        <MoreHorizontal aria-hidden="true" className="h-4 w-4" />
+      </UiIconButton>
       <UiActionMenu
         anchorRef={buttonRef}
         ariaLabel={t("common.more_actions")}
@@ -60,10 +71,13 @@ export function RoomMobileActionsMenu({
             return;
           }
           if (value === "members") {
-            onManageMembers?.();
+            if (!isMembersLoading) onManageMembers?.();
             return;
           }
-          onOpenAuxiliaryTab(value as RoomMobileAuxiliaryTab);
+          if (value === "subagents" && canOpenSubagents) onOpenAuxiliaryTab(value);
+          if (value === "about" || value === "workgraph" || value === "workspace") {
+            onOpenAuxiliaryTab(value);
+          }
         }}
       />
     </>

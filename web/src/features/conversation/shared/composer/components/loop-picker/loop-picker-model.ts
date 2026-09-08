@@ -1,3 +1,8 @@
+// INPUT: Loop 目录、分类、查询与已确认的资源状态。
+// OUTPUT: 分类选项、保留原始条目的搜索结果与加载/错误/空/列表投影。
+// POS: Loop picker 纯模型；不发起请求或复制公共视图样式。
+
+import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 import type { LoopCatalogItem } from "@/types/capability/loop";
 
 export const ALL_LOOP_CATEGORIES = "__all__";
@@ -22,29 +27,16 @@ export function filterLoops(
   category: string,
   query: string,
 ): LoopCatalogItem[] {
-  const normalizedQuery = query.trim().toLowerCase();
-  return loops.filter((loop) => [
-    matchesLoopCategory(loop, category),
-    buildLoopSearchText(loop).includes(normalizedQuery),
-  ].every(Boolean));
-}
-
-function matchesLoopCategory(
-  loop: LoopCatalogItem,
-  category: string,
-): boolean {
-  return new Set([ALL_LOOP_CATEGORIES, loop.category]).has(category);
-}
-
-function buildLoopSearchText(loop: LoopCatalogItem): string {
-  return [
-    loop.title,
-    loop.description,
-    loop.category,
-    loop.trigger_type,
-    ...loop.tags,
-    ...loop.compatible_agents,
-  ].join(" ").toLowerCase();
+  const search = createUiSearchMatcher(query);
+  return loops.filter((loop) => (category === ALL_LOOP_CATEGORIES || category === loop.category)
+    && search.matches([
+      loop.title,
+      loop.description,
+      loop.category,
+      loop.trigger_type,
+      ...loop.tags,
+      ...loop.compatible_agents,
+    ]));
 }
 
 export function projectLoopPickerContentKind({

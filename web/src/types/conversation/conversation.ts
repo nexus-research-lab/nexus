@@ -1,3 +1,7 @@
+// INPUT: 当前会话 API、导航、Store 与快照同步调用。
+// OUTPUT: 已接入的会话视图、API 响应和快照类型。
+// POS: 会话身份与读模型契约；不镜像未使用的创建/更新请求。
+
 import { SessionId } from "@/types/system/sdk";
 
 export interface BaseConversation {
@@ -37,15 +41,6 @@ export interface ApiConversation {
   title: string | null;
   message_count: number;
   options: Record<string, unknown> | null;
-}
-
-export interface CreateConversationParams {
-  title?: string;
-  agent_id?: string;
-}
-
-export interface UpdateConversationParams {
-  title?: string;
 }
 
 interface BaseSnapshotPayload {

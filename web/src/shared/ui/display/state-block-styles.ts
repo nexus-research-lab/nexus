@@ -1,3 +1,7 @@
+// INPUT: 状态容器的有限尺寸、tone、variant 与外部布局。
+// OUTPUT: 唯一状态块几何和主题 recipe，长文本随可用宽度换行。
+// POS: 中立状态表面样式；不判断加载或失败语义。
+
 import { cn } from "@/shared/ui/class-name";
 
 export type UiStateBlockSize = "sm" | "md" | "lg";
@@ -11,7 +15,7 @@ interface UiStateBlockStyleOptions {
 }
 
 const STATE_BLOCK_BASE_CLASS_NAME =
-  "flex flex-col items-center justify-center text-center";
+  "flex min-w-0 flex-col items-center justify-center text-center [overflow-wrap:anywhere]";
 
 const STATE_BLOCK_SIZE_CLASS_MAP: Record<UiStateBlockSize, string> = {
   sm: "min-h-32 surface-radius-sm px-4 py-5",

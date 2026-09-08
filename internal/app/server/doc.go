@@ -10,7 +10,7 @@
 //   - channel_external_session.go / dm_external_reply.go：外部通道会话与 DM 外部回复。
 //   - goal/：Goal 命令、会话所有权、续跑与 Goal/Execution 绑定。
 //   - execution/：Execution command context、精确取消与 Subagent 历史投影。
-//   - workgraph/：WorkGraph 隐藏编辑 Session 与隔离保存 round。
+//   - workgraph/：WorkGraph 隐藏编辑 Session。
 //   - runtime/：round-scoped nexus MCP、配置 broker、Connector/Channel 授权与内建 runtime 工具装配。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）

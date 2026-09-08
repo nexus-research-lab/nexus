@@ -1,6 +1,10 @@
+// INPUT: Room 身份、成员、会话导航与目录准备/管理命令。
+// OUTPUT: 标准群头像、共享标签与按当前 Room/owner 隔离的成员入口。
+// POS: 群聊 Header 装配；成员写事务归页面命令，临时打开流程归本目录 Hook。
+
 "use client";
 
-import { memo, useState } from "react";
+import { memo } from "react";
 
 import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
 import { RoomMemberManagerDialog } from "@/features/conversation/room/members/room-member-manager-dialog";
@@ -8,8 +12,8 @@ import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversat
 import { useSidebarStore } from "@/store/sidebar";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiRoomAvatar } from "@/shared/ui/display/avatar";
-import { WorkspaceConversationTabs } from "@/shared/ui/workspace/controls/workspace-conversation-tabs";
-import type { FinalConversationReplacementHandler } from "@/shared/ui/workspace/controls/conversation-tabs/final-conversation-replacement";
+import { RoomConversationTabs } from "@/features/navigation/conversation-tabs/room-conversation-tabs";
+import type { FinalConversationReplacementHandler } from "@/features/navigation/conversation-tabs/final-conversation-replacement";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import type { Agent } from "@/types/agent/agent";
 import type { RoomConversationView } from "@/types/conversation/conversation";
@@ -18,6 +22,7 @@ import { buildRoomHeaderTabs } from "@/features/conversation/room/surface/header
 import { RoomHistoryMenu } from "@/features/conversation/room/surface/history/room-history-menu";
 
 import { GroupMemberAvatarStack } from "./group-member-avatar-stack";
+import { useRoomMemberManager } from "../../members/use-room-member-manager";
 
 interface GroupConversationHeaderProps {
   activeTab: RoomSurfaceTabKey;
@@ -68,17 +73,9 @@ export const GroupConversationHeader = memo(function GroupConversationHeader({
 }: GroupConversationHeaderProps) {
   const { t } = useI18n();
   const widePanelCollapsed = useSidebarStore((state) => state.wide_panel_collapsed);
-  const [memberDialogRoomId, setMemberDialogRoomId] = useState<string | null>(null);
+  const memberManager = useRoomMemberManager(roomId, onOpenMemberManager);
   const headerTitle = currentRoomTitle?.trim() || t("room.untitled_collaboration");
   const roomTabs = buildRoomHeaderTabs(t);
-  const handleOpenMemberList = async () => {
-    const scopeRoomId = roomId;
-    if (!scopeRoomId) {
-      return;
-    }
-    await onOpenMemberManager();
-    setMemberDialogRoomId(scopeRoomId);
-  };
 
   return (
     <>
@@ -88,7 +85,6 @@ export const GroupConversationHeader = memo(function GroupConversationHeader({
         leading={(
           <UiRoomAvatar
             avatar={roomAvatar}
-            className="h-full w-full radius-control-sm border-0 shadow-none"
             maxMembers={4}
             members={roomMembers.map((member) => ({
               avatar: member.avatar,
@@ -96,22 +92,24 @@ export const GroupConversationHeader = memo(function GroupConversationHeader({
               name: member.name,
             }))}
             roomId={roomId}
+            size="md"
             title={headerTitle}
           />
         )}
-        leadingClassName="h-10 w-10 rounded-[10px]"
         leadingVariant="identity"
         onChangeTab={onChangeTab}
         navigationTrailing={(
           <GroupMemberAvatarStack
+            disabled={!roomId}
+            isLoading={memberManager.isLoading}
             members={roomMembers}
-            onClick={() => void handleOpenMemberList()}
+            onClick={memberManager.open}
             tourAnchor={CONVERSATION_TOUR_ANCHORS.member_manage}
           />
         )}
         tabs={roomTabs}
         tabsLeading={(
-          <WorkspaceConversationTabs
+          <RoomConversationTabs
             conversationId={conversationId}
             conversations={conversations}
             leadingControl={(
@@ -143,8 +141,8 @@ export const GroupConversationHeader = memo(function GroupConversationHeader({
         initialName={headerTitle}
         initialPrivateMessagesEnabled={roomPrivateMessagesEnabled}
         initialRoomSkillNames={roomSkillNames}
-        isOpen={roomId !== null && memberDialogRoomId === roomId}
-        onClose={() => setMemberDialogRoomId(null)}
+        isOpen={memberManager.isOpen}
+        onClose={memberManager.close}
         onManageRoom={onManageRoom}
         roomMembers={roomMembers}
       />

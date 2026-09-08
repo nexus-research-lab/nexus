@@ -1,0 +1,3495 @@
+import assert from "node:assert/strict";
+import { readdir, readFile } from "node:fs/promises";
+import path from "node:path";
+import test from "node:test";
+import { fileURLToPath } from "node:url";
+import ts from "typescript";
+
+import { importLeafTypeScriptModule } from "./import-leaf-typescript-module.mjs";
+import { collectFrontendModuleReferences, resolveFrontendModule } from "./frontend-dependency-model.mjs";
+
+const webRoot = fileURLToPath(new URL("..", import.meta.url));
+const srcRoot = path.join(webRoot, "src");
+const productUiRoots = [
+  path.join(srcRoot, "features"),
+  path.join(srcRoot, "pages"),
+];
+
+const PROHIBITED_PRODUCT_STYLE_PATTERNS = [
+  {
+    label: "arbitrary shadow",
+    pattern: /(?:drop-)?shadow-\[[^\]]+\]/,
+  },
+  {
+    label: "arbitrary numeric z-index",
+    pattern: /\bz-\[\d+\]/,
+  },
+  {
+    label: "arbitrary app typography scale",
+    pattern: /\btext-\[(?:10|11|12|13|14|15|16|17|19|20|22|24|28|36)px\]/,
+  },
+];
+
+const REQUIRED_SHARED_UI_BEHAVIOR_SUITES = [
+  "src/features/conversation/room/group/thread/round-card/thread-action-button.test.tsx",
+  "src/features/conversation/room/group/thread/round-card/group-agent-execution-shell.test.tsx",
+  "src/features/conversation/room/group/thread/group-thread-context.test.tsx",
+  "src/features/conversation/room/surface/mobile/room-mobile-header.test.tsx",
+  "src/features/conversation/room/surface/mobile/room-mobile-thread-overlay.test.tsx",
+  "src/features/conversation/room/surface/mobile/room-mobile-auxiliary-overlay.test.tsx",
+  "src/features/conversation/room/surface/mobile/room-mobile-overlay-frame.test.tsx",
+  "src/features/conversation/room/surface/mobile/room-mobile-actions-menu.test.tsx",
+  "src/features/conversation/room/surface/mobile/room-mobile-surface.test.tsx",
+  "src/features/contacts/agent-options-persistence-status.test.tsx",
+  "src/features/contacts/contacts-agent-detail-actions-menu.test.tsx",
+  "src/features/settings/provider-settings/provider-settings-detail-header.test.tsx",
+  "src/shared/ui/workspace/surface/workspace-surface-header.test.tsx",
+  "src/features/conversation/room/group/header/group-conversation-header.test.tsx",
+  "src/features/conversation/room/group/header/group-member-avatar-stack.test.tsx",
+  "src/pages/room/orchestration/room-session-navigation.test.tsx",
+  "src/features/conversation/room/group/chat/panel/view/room-goal-lead-control.test.tsx",
+  "src/features/conversation/room/group/chat/room-goal-panel.test.tsx",
+  "src/features/conversation/shared/goal/goal-draft-form.test.tsx",
+  "src/features/conversation/shared/goal/goal-status-strip.test.tsx",
+  "src/features/conversation/shared/goal/use-goal-controller.test.tsx",
+  "src/features/conversation/shared/goal/goal-reliability-notice.test.tsx",
+  "src/features/conversation/room/surface/room-agent-switcher.test.tsx",
+  "src/features/conversation/room/group/chat/panel/view/room-workspace-task-panel.test.tsx",
+  "src/shared/ui/display/avatar.test.tsx",
+  "src/features/conversation/room/surface/room-subagent-task-surface.test.tsx",
+  "src/features/conversation/room/surface/mobile/room-mobile-subagent-overlay.test.tsx",
+  "src/features/capability/channels/pairings/pairing-filter-bar.test.tsx",
+  "src/features/conversation/shared/message/blocks/question/ask-user-question-view.test.tsx",
+  "src/features/conversation/shared/execution/execution-node-run-history.test.tsx",
+  "src/features/conversation/shared/execution/execution-process-panel.test.tsx",
+  "src/features/conversation/shared/composer/components/interaction/composer-permission-surface.test.tsx",
+  "src/shared/ui/button/button.test.tsx",
+  "src/shared/ui/dialog/decision/decision-dialog.test.tsx",
+  "src/shared/ui/dialog/dialog.test.tsx",
+  "src/shared/ui/dialog/dialog-close-button.test.tsx",
+  "src/shared/ui/disclosure/disclosure.test.tsx",
+  "src/shared/ui/display/display.test.tsx",
+  "src/shared/ui/feedback/feedback.test.tsx",
+  "src/shared/ui/feedback/inline-notice.test.tsx",
+  "src/shared/ui/form/form-controls.test.tsx",
+  "src/shared/ui/form/removable-chip.test.tsx",
+  "src/shared/ui/icon-picker/icon-picker.test.tsx",
+  "src/shared/ui/list/list.test.tsx",
+  "src/shared/ui/liquid-glass/glass-switch.test.tsx",
+  "src/shared/ui/markdown/mermaid/mermaid-view-parts.test.tsx",
+  "src/shared/ui/menu/menu.test.tsx",
+  "src/shared/ui/menu/select-menu-trigger.test.tsx",
+  "src/shared/ui/mention/mention-target-popover.test.tsx",
+  "src/shared/ui/navigation/breadcrumb.test.tsx",
+  "src/shared/ui/navigation/tabs.test.tsx",
+  "src/shared/ui/onboarding/overlay/tour-overlay-card.test.tsx",
+  "src/shared/ui/onboarding/overlay/tour-overlay.test.tsx",
+  "src/shared/ui/overlay/tooltip.test.tsx",
+  "src/shared/ui/overlay/anchored-overlay-layer.test.tsx",
+  "src/shared/ui/panel.test.tsx",
+  "src/shared/ui/sidebar/sidebar-empty-guide.test.tsx",
+  "src/shared/ui/workspace/controls/workspace-conversation-tabs.test.tsx",
+  "src/shared/ui/workspace/controls/conversation-tabs/workspace-conversation-tab.test.tsx",
+  "src/shared/ui/workspace/surface/workspace-task-strip.test.tsx",
+];
+
+async function readSource(relativePath) {
+  return readFile(path.join(webRoot, relativePath), "utf8");
+}
+
+async function collectSourceFiles(directory) {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const nested = await Promise.all(entries.map(async (entry) => {
+    const target = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      return collectSourceFiles(target);
+    }
+    return /\.(?:css|ts|tsx)$/.test(entry.name) ? [target] : [];
+  }));
+  return nested.flat();
+}
+
+function importsFrontendModule(filePath, source, target) {
+  return collectFrontendModuleReferences(filePath, source)
+    .some(({ specifier }) => resolveFrontendModule(filePath, specifier) === target);
+}
+
+function countNativeElement(filePath, source, tagName) {
+  const tree = ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true, filePath.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+  const factories = new Set(["createElement"]);
+  for (const statement of tree.statements) {
+    if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier) || statement.moduleSpecifier.text !== "react") continue;
+    const bindings = statement.importClause?.namedBindings;
+    if (bindings && ts.isNamedImports(bindings)) {
+      for (const binding of bindings.elements) {
+        if ((binding.propertyName ?? binding.name).text === "createElement") factories.add(binding.name.text);
+      }
+    }
+  }
+  let count = 0;
+  function visit(node) {
+    if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && node.tagName.getText(tree) === tagName) count += 1;
+    if (ts.isCallExpression(node) && node.arguments[0] && ts.isStringLiteralLike(node.arguments[0]) && node.arguments[0].text === tagName) {
+      const callee = node.expression;
+      if ((ts.isIdentifier(callee) && factories.has(callee.text)) || (ts.isPropertyAccessExpression(callee) && callee.name.text === "createElement")) count += 1;
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(tree);
+  return count;
+}
+
+test("native element inventory follows factory aliases and ignores source examples", () => {
+  const source = `
+    import { createElement as element } from "react";
+    const example = "<select /> createElement('select')";
+    // <select />
+    const view = <><select /><UiNativeSelect /></>;
+    const factory = element("select", {});
+    const direct = React.createElement("select", {});
+    const dom = document.createElement("select");
+    const button = <button />;
+  `;
+  assert.equal(countNativeElement("example.tsx", source, "select"), 4);
+  assert.equal(countNativeElement("example.tsx", source, "button"), 1);
+});
+
+test("semantic overlay layers preserve the current visual stack without exposing integers", async () => {
+  const { getUiOverlayLayerClassName } = await importLeafTypeScriptModule(
+    webRoot,
+    "src/shared/ui/overlay/layer-styles.ts",
+  );
+  const [dialog, recipes] = await Promise.all([
+    readSource("src/shared/ui/dialog/dialog.tsx"),
+    readSource("src/app/styles/theme-recipes.css"),
+  ]);
+
+  assert.deepEqual(
+    [
+      "selectMenu",
+      "actionMenu",
+      "popover",
+      "feedback",
+      "dialogUnderlay",
+      "dialog",
+      "dialogNested",
+      "dialogInteraction",
+      "tooltip",
+      "tour",
+      "tourDialog",
+      "systemDialog",
+    ].map((layer) => getUiOverlayLayerClassName(layer)),
+    [
+      "ui-layer-select-menu",
+      "ui-layer-action-menu",
+      "ui-layer-popover",
+      "ui-layer-feedback",
+      "ui-layer-dialog-underlay",
+      "ui-layer-dialog",
+      "ui-layer-dialog-nested",
+      "ui-layer-dialog-interaction",
+      "ui-layer-tooltip",
+      "ui-layer-tour",
+      "ui-layer-tour-dialog",
+      "ui-layer-system-dialog",
+    ],
+  );
+  assert.match(dialog, /layer = "dialog"/);
+  assert.doesNotMatch(
+    recipes,
+    /\.dialog-backdrop\s*\{[^}]*\bz-index\s*:/s,
+  );
+});
+
+test("product anchored overlays choose shared semantic geometry presets", async () => {
+  const files = (await Promise.all(productUiRoots.map(collectSourceFiles))).flat();
+  const lowLevelConsumers = [];
+  for (const file of files) {
+    const source = await readFile(file, "utf8");
+    if (
+      /shared\/ui\/overlay\/anchored-overlay-model/.test(source)
+      || /\bresolveAnchoredOverlayPosition\s*\(/.test(source)
+    ) {
+      lowLevelConsumers.push(path.relative(webRoot, file));
+    }
+  }
+  assert.deepEqual(lowLevelConsumers, []);
+
+  const consumerPresets = new Map([
+    [
+      "src/features/conversation/room/surface/history/room-history-menu.tsx",
+      ["directory-list"],
+    ],
+    [
+      "src/features/conversation/shared/message/item/view/assistant/assistant-message-stats.tsx",
+      ["reference-list"],
+    ],
+    [
+      "src/features/capability/scheduled/pickers/picker-popover.tsx",
+      ["form-picker"],
+    ],
+    [
+      "src/features/conversation/shared/composer/components/footer/composer-context-usage.tsx",
+      ["status-list", "status-summary"],
+    ],
+    [
+      "src/features/conversation/shared/composer/components/footer/composer-room-model-control.tsx",
+      ["cascade-menu"],
+    ],
+    [
+      "src/features/conversation/shared/composer/components/slash-command-popover.tsx",
+      ["command-list", "command-picker"],
+    ],
+  ]);
+  for (const [consumer, presets] of consumerPresets) {
+    const source = await readSource(consumer);
+    assert.match(source, /resolveUiAnchoredOverlayPosition\s*\(/, consumer);
+    for (const preset of presets) {
+      assert.match(source, new RegExp(`"${preset}"`), `${consumer}: ${preset}`);
+    }
+  }
+});
+
+test("product dialogs provide an explicit name or a standard Header owned by that modal", async () => {
+  const dialogModule = path.join(srcRoot, "shared/ui/dialog/dialog.tsx");
+  const files = (await Promise.all(productUiRoots.map(collectSourceFiles))).flat();
+  const violations = [];
+  for (const filePath of files.filter((file) => file.endsWith(".tsx") && !file.endsWith(".test.tsx"))) {
+    const source = await readFile(filePath, "utf8");
+    if (!importsFrontendModule(filePath, source, dialogModule)) continue;
+    const tree = ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const names = {};
+    for (const statement of tree.statements) {
+      if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)
+        || resolveFrontendModule(filePath, statement.moduleSpecifier.text) !== dialogModule) continue;
+      const bindings = statement.importClause?.namedBindings;
+      if (bindings && ts.isNamedImports(bindings)) for (const binding of bindings.elements) {
+        names[binding.propertyName?.text ?? binding.name.text] = binding.name.text;
+      }
+    }
+    const hasAttribute = (opening, key) => opening.attributes.properties.some((attribute) => (
+      ts.isJsxAttribute(attribute) && attribute.name.getText(tree) === key
+    ));
+    function hasOwnHeader(node) {
+      if (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node)) {
+        const opening = ts.isJsxElement(node) ? node.openingElement : node;
+        const name = opening.tagName.getText(tree);
+        if (name === names.UiDialogBackdrop) return false;
+        if (name === names.UiDialogHeader) {
+          const customChildren = ts.isJsxElement(node) && node.children.some((child) => (
+            ts.isJsxText(child) ? child.text.trim().length > 0 : !ts.isJsxExpression(child) || Boolean(child.expression)
+          ));
+          return hasAttribute(opening, "title") && !hasAttribute(opening, "children") && !customChildren;
+        }
+      }
+      return Boolean(ts.forEachChild(node, hasOwnHeader));
+    }
+    function visit(node) {
+      if (ts.isJsxElement(node) && node.openingElement.tagName.getText(tree) === names.UiDialogBackdrop) {
+        const named = ["labelledBy", "aria-labelledby", "aria-label"].some((key) => hasAttribute(node.openingElement, key));
+        if (!named && !node.children.some(hasOwnHeader)) {
+          violations.push(`${path.relative(webRoot, filePath)}:${tree.getLineAndCharacterOfPosition(node.getStart(tree)).line + 1}`);
+        }
+      }
+      ts.forEachChild(node, visit);
+    }
+    visit(tree);
+  }
+  assert.deepEqual(violations, [], "custom dialog content must supply its own accessible name");
+});
+
+test("dialog viewport modes expose one shared responsive geometry contract", async () => {
+  const { getUiDialogViewportClassName } = await importLeafTypeScriptModule(
+    webRoot,
+    "src/shared/ui/dialog/dialog-layout.ts",
+  );
+
+  assert.equal(getUiDialogViewportClassName("content"), "");
+  assert.equal(
+    getUiDialogViewportClassName("compact"),
+    "ui-dialog-viewport-compact",
+  );
+  assert.equal(
+    getUiDialogViewportClassName("compactMax"),
+    "ui-dialog-viewport-compact-max",
+  );
+  assert.equal(
+    getUiDialogViewportClassName("adaptive"),
+    "ui-dialog-viewport-adaptive",
+  );
+  assert.equal(
+    getUiDialogViewportClassName("adaptiveMax"),
+    "ui-dialog-viewport-adaptive-max",
+  );
+  assert.equal(
+    getUiDialogViewportClassName("visualPreview"),
+    "ui-dialog-viewport-visual-preview",
+  );
+  assert.equal(
+    getUiDialogViewportClassName("documentPreview"),
+    "ui-dialog-viewport-document-preview",
+  );
+  assert.equal(
+    getUiDialogViewportClassName("workbench"),
+    "ui-dialog-viewport-workbench",
+  );
+});
+
+test("product source does not reintroduce numeric high layers or shared dialog viewport formulas", async () => {
+  const files = await collectSourceFiles(srcRoot);
+  const violations = [];
+  for (const file of files) {
+    const source = await readFile(file, "utf8");
+    const relativePath = path.relative(webRoot, file);
+    if (/z-\[(?:120|130|140|9998|9999|10000|10020|10030|11000|11050|12000)\]/.test(source)) {
+      violations.push(`${relativePath}: numeric high overlay layer`);
+    }
+    if (
+      /\.(?:ts|tsx)$/.test(file)
+      && /(?:min\((?:64dvh,\s*620px|68dvh,\s*560px|78dvh,\s*620px|84vh,\s*640px)\)|min\(620px,\s*calc\(100dvh\s*-\s*(?:72px|2rem)\)\)|min\(640px,\s*calc\(100vh\s*-\s*96px\)\)|min\(82dvh,\s*(?:680px|740px|760px)\)|(?:max-)?h-\[(?:82|84|86|88|92)d?vh\]|calc\(100dvh\s*-\s*(?:16px|2rem|32px)\)|min\(820px,\s*calc\(100dvh\s*-\s*56px\)\)|min\(94vw,\s*1440px\))/.test(source)
+    ) {
+      violations.push(`${relativePath}: duplicated dialog viewport formula`);
+    }
+    if (
+      /\.(?:ts|tsx)$/.test(file)
+      && /<UiDialog(?:Form)?Shell\b(?:(?!>)[\s\S]){0,500}(?:max-w|w)-\[/.test(source)
+    ) {
+      violations.push(`${relativePath}: feature-owned dialog width`);
+    }
+    if (
+      relativePath !== "src/shared/ui/form/checkbox.tsx"
+      && /type="checkbox"/.test(source)
+    ) {
+      violations.push(`${relativePath}: raw ordinary checkbox`);
+    }
+  }
+
+  assert.deepEqual(violations, []);
+});
+
+test("theme recipes own the semantic layer and adaptive dialog geometry implementations", async () => {
+  const [tokens, recipes] = await Promise.all([
+    readSource("src/app/styles/theme-tokens.css"),
+    readSource("src/app/styles/theme-recipes.css"),
+  ]);
+
+  assert.match(tokens, /--layer-dialog:\s*9999/);
+  assert.match(tokens, /--layer-feedback:\s*150/);
+  assert.match(tokens, /--dialog-compact-height:\s*min\(620px, calc\(100dvh - 72px\)\)/);
+  assert.match(tokens, /--dialog-adaptive-height:\s*min\(82dvh, 760px\)/);
+  assert.match(tokens, /--dialog-visual-preview-height:\s*min\(72dvh, 600px\)/);
+  assert.match(tokens, /--dialog-document-preview-height:\s*min\(64dvh, 520px\)/);
+  assert.match(tokens, /--dialog-workbench-height:\s*min\(820px, calc\(100dvh - 56px\)\)/);
+  assert.match(recipes, /\.ui-layer-dialog\s*\{/);
+  assert.match(recipes, /\.ui-layer-feedback\s*\{/);
+  assert.match(recipes, /\.ui-dialog-viewport-compact\s*\{/);
+  assert.match(recipes, /\.ui-dialog-viewport-compact-max\s*\{/);
+  assert.match(recipes, /\.ui-dialog-viewport-adaptive\s*\{/);
+  assert.match(recipes, /\.ui-dialog-viewport-adaptive-max\s*\{/);
+  assert.match(recipes, /\.ui-dialog-viewport-visual-preview\s*\{/);
+  assert.match(recipes, /\.ui-dialog-viewport-document-preview\s*\{/);
+  assert.match(recipes, /\.ui-dialog-viewport-workbench\s*\{/);
+  assert.match(recipes, /\.ui-dialog-size-workbench\s*\{/);
+  assert.match(recipes, /\.ui-dialog-backdrop-compact\s*\{/);
+  assert.match(recipes, /\.ui-type-display\s*\{/);
+  assert.match(recipes, /\.ui-type-page-title\s*\{/);
+  assert.match(recipes, /\.ui-type-body\s*\{/);
+  assert.match(recipes, /\.ui-type-code\s*\{/);
+});
+
+test("narrow app and Room chrome share one platform-aware shell geometry", async () => {
+  const [
+    layout,
+    homeLayout,
+    appLayout,
+    appHeader,
+    contentHeader,
+    roomHeader,
+    switcher,
+    auxiliary,
+    actions,
+    recipes,
+  ] = await Promise.all([
+    readSource("src/shared/ui/layout/mobile-shell-header-layout.ts"),
+    readSource("src/lib/layout/home-layout.ts"),
+    readSource("src/app/layout/app-layout.tsx"),
+    readSource("src/app/layout/mobile-app-page-header.tsx"),
+    readSource("src/shared/ui/layout/workspace-content-header.tsx"),
+    readSource("src/features/conversation/room/surface/mobile/room-mobile-header.tsx"),
+    readSource("src/features/conversation/room/surface/mobile/room-mobile-conversation-switcher.tsx"),
+    readSource("src/features/conversation/room/surface/mobile/room-mobile-auxiliary-overlay.tsx"),
+    readSource("src/features/conversation/room/surface/mobile/room-mobile-actions-menu.tsx"),
+    readSource("src/app/styles/theme-recipes.css"),
+  ]);
+
+  assert.match(layout, /--mobile-shell-header-height,52px/);
+  assert.match(layout, /MOBILE_SHELL_HEADER_GUTTER_CLASS_NAME/);
+  assert.match(layout, /MOBILE_SHELL_HEADER_OFFSET_CLASS_NAME/);
+  assert.match(homeLayout, /APP_NARROW_VIEWPORT_MEDIA_QUERY = "\(max-width: 559px\)"/);
+  assert.match(homeLayout, /APP_NARROW_VIEWPORT_HIDDEN_CLASS_NAME = "max-\[559px\]:hidden"/);
+  assert.match(appLayout, /useMediaQuery\(APP_NARROW_VIEWPORT_MEDIA_QUERY\)/);
+  assert.match(contentHeader, /APP_NARROW_VIEWPORT_HIDDEN_CLASS_NAME/);
+  assert.doesNotMatch(contentHeader, /hidden h-\[var\(--workspace-header-height,60px\)\][\s\S]*lg:block/);
+  for (const consumer of [appHeader, roomHeader]) {
+    assert.match(consumer, /MOBILE_SHELL_HEADER_HEIGHT_CLASS_NAME/);
+    assert.match(consumer, /MOBILE_SHELL_HEADER_GUTTER_CLASS_NAME/);
+    assert.match(consumer, /<UiIconButton/);
+    assert.match(consumer, /shape="round"/);
+    assert.match(consumer, /getUiTypographyClassName/);
+    assert.doesNotMatch(consumer, /h-\[52px\]|px-2 sm:px-3/);
+  }
+  assert.match(switcher, /MOBILE_SHELL_HEADER_OFFSET_CLASS_NAME/);
+  assert.match(switcher, /getUiOverlayLayerClassName\("dialogUnderlay"\)/);
+  assert.match(switcher, /getUiOverlayLayerClassName\("dialog"\)/);
+  assert.match(switcher, /<UiListRow/);
+  assert.match(switcher, /density="compact"/);
+  assert.doesNotMatch(switcher, /top-\[52px\]|\bz-\d+/);
+  assert.match(auxiliary, /MOBILE_SHELL_HEADER_HEIGHT_CLASS_NAME/);
+  assert.match(auxiliary, /MOBILE_SHELL_HEADER_GUTTER_CLASS_NAME/);
+  assert.match(auxiliary, /<RoomMobileOverlayFrame/);
+  assert.match(auxiliary, /data-desktop-window-drag-region/);
+  assert.doesNotMatch(auxiliary, /h-\[52px\]|\bz-\d+/);
+  assert.match(actions, /<UiIconButton/);
+  assert.match(actions, /shape="round"/);
+  assert.match(
+    recipes,
+    /:root\[data-desktop-platform="macos"\][\s\S]*--mobile-shell-header-height:\s*var\(--workspace-header-height\)/,
+  );
+});
+
+test("Room Thread and subagent overlays reuse the narrow shell and semantic layer owners", async () => {
+  const [frame, threadOverlay, subagentOverlay, threadView, subagentList, workspaceView] = await Promise.all([
+    readSource("src/features/conversation/room/surface/mobile/room-mobile-overlay-frame.tsx"),
+    readSource("src/features/conversation/room/surface/mobile/room-mobile-thread-overlay.tsx"),
+    readSource("src/features/conversation/room/surface/mobile/room-mobile-subagent-overlay.tsx"),
+    readSource("src/features/conversation/shared/thread/conversation-thread-view.tsx"),
+    readSource("src/features/conversation/shared/subagent/subagent-task-list.tsx"),
+    readSource("src/shared/ui/workspace/surface/workspace-surface-view.tsx"),
+  ]);
+
+  for (const overlay of [threadOverlay, subagentOverlay]) {
+    assert.match(overlay, /<RoomMobileOverlayFrame/);
+    assert.doesNotMatch(overlay, /\bz-\d+|fixed inset-0|useDialogModalBehavior/);
+  }
+  assert.match(frame, /getUiOverlayLayerClassName\("dialog"\)/);
+  assert.match(frame, /--surface-popover-background/);
+  assert.match(frame, /flex min-h-0 min-w-0 flex-col/);
+  assert.match(frame, /useDialogModalBehavior/);
+  assert.match(frame, /data-modal-root="true"/);
+  assert.doesNotMatch(frame, /\bz-\d+/);
+  assert.match(threadView, /MOBILE_SHELL_HEADER_HEIGHT_CLASS_NAME/);
+  assert.match(threadView, /MOBILE_SHELL_HEADER_GUTTER_CLASS_NAME/);
+  assert.match(threadView, /<UiIconButton/);
+  assert.doesNotMatch(threadView, /h-\[52px\]/);
+  assert.match(subagentList, /kind: "mobile"/);
+  assert.match(subagentList, /shape="round"/);
+  assert.match(workspaceView, /MOBILE_SHELL_HEADER_HEIGHT_CLASS_NAME/);
+  assert.match(workspaceView, /data-desktop-window-drag-region/);
+});
+
+test("Workspace Surface primitives own their semantic typography and identity shape", async () => {
+  const [header, headerStyles, view] = await Promise.all([
+    readSource("src/shared/ui/workspace/surface/workspace-surface-header.tsx"),
+    readSource("src/shared/ui/workspace/surface/workspace-surface-header.css"),
+    readSource("src/shared/ui/workspace/surface/workspace-surface-view.tsx"),
+  ]);
+
+  for (const primitive of [header, view]) {
+    assert.match(primitive, /getUiTypographyClassName/);
+  }
+  assert.match(header, /role: "pageTitle"/);
+  assert.match(header, /workspace-surface-header-identity-avatar h-10 w-10/);
+  assert.doesNotMatch(header, /surface-avatar-border|surface-avatar-background/);
+  assert.doesNotMatch(headerStyles, /\.workspace-surface-header-identity-avatar\s*\{/);
+  assert.match(header, /<UiSelectMenu/);
+  assert.doesNotMatch(header, /UiActionMenu|leadingClassName|narrowMode|tabsNavAnchor|titleTrailing|subtitle/);
+  assert.doesNotMatch(header, /rounded-\[10px\]/);
+  assert.match(
+    headerStyles,
+    /workspace-surface-header:not\(\.workspace-surface-header-with-session-tabs\)[\s\S]*\.workspace-surface-header-view-tabs\s*\{\s*display:\s*none !important;/,
+  );
+  assert.doesNotMatch(headerStyles, /nav\.workspace-surface-header-view-tabs/);
+  assert.match(view, /role: "pageTitle"/);
+});
+
+test("Page Header actions use the base Button owner without a domain adapter", async () => {
+  const paths = [
+    "src/features/capability/channels/channels-directory.tsx",
+    "src/features/capability/channels/pairings-directory.tsx",
+    "src/features/capability/connectors/connectors-directory.tsx",
+    "src/features/capability/scheduled/scheduled-tasks-directory.tsx",
+    "src/features/capability/skills/skills-header-actions.tsx",
+    "src/features/settings/operations/operations-panel.tsx",
+  ];
+  const sources = await Promise.all(paths.map(readSource));
+
+  for (const source of sources) {
+    assert.match(source, /<UiButton/);
+    assert.match(source, /size="2xs"/);
+    assert.match(source, /variant="text"/);
+    assert.doesNotMatch(source, /WorkspaceSurfaceToolbarAction/);
+  }
+});
+
+test("Conversation activity chips share one semantic typography and icon-action owner", async () => {
+  const [styles, tasks, execution, room, recipes] = await Promise.all([
+    readSource("src/shared/ui/workspace/surface/conversation-activity-chip-styles.ts"),
+    readSource("src/shared/ui/workspace/surface/workspace-task-strip.tsx"),
+    readSource("src/features/conversation/shared/execution/execution-process-panel.tsx"),
+    readSource("src/features/conversation/room/group/chat/panel/view/group-chat-panel-view.tsx"),
+    readSource("src/app/styles/theme-recipes.css"),
+  ]);
+
+  assert.match(styles, /getUiTypographyClassName\(\{ role: "metadata" \}\)/);
+  assert.match(styles, /getConversationActivityToolbarClassName/);
+  assert.match(styles, /conversation-activity-toolbar h-9 gap-1 px-1 py-px/);
+  for (const consumer of [tasks, room]) {
+    assert.match(consumer, /getConversationActivityChipClassName/);
+    assert.doesNotMatch(consumer, /className="conversation-activity-chip/);
+  }
+  assert.match(execution, /getConversationActivityToolbarClassName/);
+  assert.doesNotMatch(execution, /getConversationActivityChipClassName/);
+  assert.doesNotMatch(execution, /className="conversation-activity-chip/);
+  assert.match(tasks, /role: "caption"/);
+  assert.match(tasks, /<UiIconButton/);
+  assert.match(tasks, /useAnchoredOverlayLayer/);
+  assert.match(tasks, /resolveUiAnchoredOverlayPosition/);
+  assert.match(tasks, /OPEN_OVERLAY_DATA_ATTRIBUTES/);
+  assert.match(tasks, /focusAfterAnchoredOverlayExit/);
+  assert.doesNotMatch(tasks, /max-h-\[|bottom-\[calc|rounded-\[5px\]/);
+  assert.match(execution, /<UiIconButton/);
+  assert.match(execution, /data-execution-agent-activity[\s\S]*?size="md"/);
+  assert.match(execution, /data-execution-open-workgraph[\s\S]*?size="md"[\s\S]*?h-4 w-4/);
+  assert.doesNotMatch(tasks, /\btext-(?:xs|compact)\b|rounded-\[6px\]/);
+  assert.doesNotMatch(execution, /rounded-\[8px\]/);
+  assert.doesNotMatch(
+    recipes.match(/\.conversation-activity-chip\s*\{[^}]*\}/s)?.[0] ?? "",
+    /font-size|line-height/,
+  );
+});
+
+test("Onboarding Tour card and target highlight consume shared typography and recipes", async () => {
+  const [card, overlay, recipes] = await Promise.all([
+    readSource("src/shared/ui/onboarding/overlay/tour-overlay-card.tsx"),
+    readSource("src/shared/ui/onboarding/overlay/tour-overlay.tsx"),
+    readSource("src/app/styles/theme-recipes.css"),
+  ]);
+
+  assert.match(card, /role: "pageTitle"/);
+  assert.match(card, /role: "supporting"/);
+  assert.match(card, /role: "metadata"/);
+  assert.match(card, /role: "caption"/);
+  assert.match(card, /<UiButton/);
+  assert.doesNotMatch(
+    card,
+    /\btext-(?:xs|compact|md)\b|\bfont-(?:medium|semibold)\b|\bleading-(?:5|tight)\b/,
+  );
+  assert.match(overlay, /className="tour-target-highlight pointer-events-none absolute"/);
+  assert.doesNotMatch(overlay, /shadow-\[0_0_0_9999px|rounded-\[10px\]/);
+  assert.match(recipes, /\.tour-target-highlight\s*\{[^}]*box-shadow:/s);
+});
+
+test("Sidebar empty and recovery guidance consume shared typography, shape, and actions", async () => {
+  const guide = await readSource("src/shared/ui/sidebar/sidebar-empty-guide.tsx");
+
+  assert.match(guide, /getUiTypographyClassName/);
+  assert.match(guide, /role: "caption"/);
+  assert.match(guide, /surface-radius-md/);
+  assert.match(guide, /<UiButton/);
+  assert.doesNotMatch(
+    guide,
+    /<button\b|\btext-xs\b|\bfont-(?:medium|semibold)\b|\bleading-relaxed\b|rounded-\[12px\]/,
+  );
+});
+
+test("Home sidebar loading rows consume the shared skeleton owner", async () => {
+  const [rows, skeleton] = await Promise.all([
+    readSource("src/features/home/sidebar/sidebar-list-rows.tsx"),
+    readSource("src/shared/ui/display/skeleton.tsx"),
+  ]);
+
+  assert.match(skeleton, /SKELETON_TONE_CLASS_MAP/);
+  assert.match(skeleton, /motion-safe:animate-pulse/);
+  assert.match(rows, /<UiSkeleton/);
+  assert.match(rows, /aria-busy="true"/);
+  assert.match(rows, /role="status"/);
+  assert.doesNotMatch(
+    rows,
+    /\banimate-pulse\b|bg-\[color:color-mix\(in_srgb,var\(--surface-interactive-hover-background\)/,
+  );
+});
+
+test("loading indicators share one size, tone, and reduced-motion recipe", async () => {
+  const [
+    spinnerStyles,
+    resourceState,
+    decisionDialog,
+    appRouter,
+    desktopEntry,
+    workspaceState,
+    appLoading,
+    mermaidParts,
+    lazyMermaid,
+    conversationTabs,
+  ] = await Promise.all([
+    readSource("src/shared/ui/display/spinner-styles.ts"),
+    readSource("src/shared/ui/display/resource-state.tsx"),
+    readSource("src/shared/ui/dialog/decision/decision-dialog-frame.tsx"),
+    readSource("src/app/router/app-router.tsx"),
+    readSource("src/app/router/desktop-entry-layout.tsx"),
+    readSource("src/shared/ui/workspace/frame/workspace-loading-state.tsx"),
+    readSource("src/shared/ui/layout/app-loading-screen.tsx"),
+    readSource("src/shared/ui/markdown/mermaid/mermaid-view-parts.tsx"),
+    readSource("src/shared/ui/markdown/mermaid/lazy-mermaid-view.tsx"),
+    readSource("src/shared/ui/workspace/controls/workspace-conversation-tabs.tsx"),
+  ]);
+
+  assert.match(spinnerStyles, /SPINNER_SIZE_CLASS_MAP/);
+  assert.match(spinnerStyles, /SPINNER_TONE_CLASS_MAP/);
+  assert.match(spinnerStyles, /motion-reduce:animate-none/);
+  for (const consumer of [
+    resourceState,
+    decisionDialog,
+    appRouter,
+    desktopEntry,
+    workspaceState,
+    mermaidParts,
+    lazyMermaid,
+    conversationTabs,
+  ]) {
+    assert.match(consumer, /getUiSpinnerClassName/);
+    assert.doesNotMatch(consumer, /\banimate-spin\b|border-t-transparent/);
+  }
+  assert.match(appRouter, /useI18n/);
+  assert.match(desktopEntry, /useI18n/);
+  assert.match(workspaceState, /getUiTypographyClassName/);
+  assert.match(workspaceState, /aria-busy="true"/);
+  assert.match(appLoading, /getUiTypographyClassName/);
+  assert.match(appLoading, /useI18n/);
+  assert.match(appLoading, /cat-loading-static\.webp/);
+
+  const productionSourceFiles = await collectSourceFiles(srcRoot);
+  const rawSpinnerViolations = [];
+  for (const file of productionSourceFiles) {
+    const relativePath = path.relative(webRoot, file);
+    if (
+      relativePath === "src/shared/ui/display/spinner-styles.ts"
+      || relativePath.startsWith("src/dev/")
+      || /\.test\.[jt]sx?$/.test(relativePath)
+    ) {
+      continue;
+    }
+    const source = await readFile(file, "utf8");
+    if (/\banimate-spin\b|border-t-transparent/.test(source)) {
+      rawSpinnerViolations.push(relativePath);
+    }
+  }
+  assert.deepEqual(rawSpinnerViolations, []);
+});
+
+test("Mermaid chrome shares standard controls and keeps one native diagram target", async () => {
+  const [view, parts] = await Promise.all([
+    readSource("src/shared/ui/markdown/mermaid/mermaid-view.tsx"),
+    readSource("src/shared/ui/markdown/mermaid/mermaid-view-parts.tsx"),
+  ]);
+
+  assert.match(view, /<UiIconButton/);
+  assert.match(view, /<UiSegmentedControl/);
+  assert.doesNotMatch(
+    view,
+    /MermaidModeButton|<button\b|role="tablist"|rounded-\[6px\]/,
+  );
+  assert.match(
+    parts,
+    /<button[\s\S]*aria-label=\{t\("markdown\.mermaid\.open_preview"\)\}[\s\S]*type="button"/,
+  );
+  assert.doesNotMatch(
+    parts,
+    /MermaidModeButton|role="button"|onKeyDown=|tabIndex=/,
+  );
+});
+
+test("product React does not reintroduce fake button roles", async () => {
+  const productionSourceFiles = (await collectSourceFiles(srcRoot)).filter(
+    (file) => file.endsWith(".tsx") && !file.endsWith(".test.tsx"),
+  );
+  const violations = [];
+  for (const file of productionSourceFiles) {
+    const source = await readFile(file, "utf8");
+    if (/\brole="button"/.test(source)) {
+      violations.push(path.relative(srcRoot, file));
+    }
+  }
+  assert.deepEqual(violations, []);
+});
+
+test("domain native buttons match the single documented geometry-owner inventory", async () => {
+  const spec = await readSource("../docs/specs/frontend-engineering-spec.md");
+  const inventory = spec.split("<!-- native-button-owners:start -->")[1]
+    ?.split("<!-- native-button-owners:end -->")[0];
+  assert.ok(inventory, "The native button ownership inventory must remain explicit.");
+  const expected = new Map([...inventory.matchAll(/^\| `(src\/[^`]+)` \| (\d+) \| (.+) \|$/gm)]
+    .map(([, file, count]) => [file, Number(count)]));
+  assert.ok(expected.size > 0);
+  const actual = new Map();
+  const files = (await Promise.all(["features", "pages"].map((root) => collectSourceFiles(path.join(srcRoot, root))))).flat();
+  for (const file of files.filter((file) => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file))) {
+    const source = await readFile(file, "utf8");
+    const count = countNativeElement(file, source, "button");
+    if (count) actual.set(path.relative(webRoot, file), count);
+  }
+  assert.deepEqual([...actual].sort(), [...expected].sort(), "Ordinary actions must consume shared controls; geometry exceptions require an explicit owner and behavior evidence.");
+});
+
+test("Workspace file previews share one named loading surface", async () => {
+  const paths = [
+    "src/features/conversation/shared/editor/office-preview-fallbacks.tsx",
+    "src/features/conversation/shared/editor/media/media-file-preview.tsx",
+    "src/features/conversation/shared/editor/presentation/presentation-file-preview.tsx",
+    "src/features/conversation/shared/editor/document/document-preview-view.tsx",
+    "src/features/conversation/shared/editor/spreadsheet/spreadsheet-file-preview.tsx",
+    "src/features/conversation/shared/editor/text/large-text-file-preview.tsx",
+    "src/features/conversation/shared/editor/text/text-file-content.tsx",
+  ];
+  const sources = await Promise.all(paths.map(readSource));
+  for (const source of sources) {
+    assert.match(source, /<WorkspaceFilePreviewLoading/);
+    assert.doesNotMatch(source, /\banimate-spin\b/);
+    assert.doesNotMatch(source, /getUiSpinnerClassName|preview_failed_status|preview_loaded/);
+  }
+  const media = sources[1];
+  assert.match(media, /useNativeMediaPreview/);
+  assert.equal((media.match(/<WorkspaceFilePreviewLoading\b/g) ?? []).length, 1);
+  assert.doesNotMatch(media, /pdf_preview_failed|min-h-\[240px\]/);
+  assert.doesNotMatch(media, /<iframe\b[^>]*\bonError=/);
+  const loading = await readSource("src/features/conversation/shared/editor/workspace-file-preview-loading.tsx");
+  assert.match(loading, /<UiResourceState/);
+  assert.match(loading, /state="loading"/);
+  assert.match(loading, /size: "2xl", tone: "muted"/);
+});
+
+test("Office preview controllers share file, owner and retry scope ownership", async () => {
+  const controllers = await Promise.all([
+    "src/features/conversation/shared/editor/document/use-document-preview.ts",
+    "src/features/conversation/shared/editor/spreadsheet/use-spreadsheet-preview.ts",
+    "src/features/conversation/shared/editor/presentation/presentation-file-preview.tsx",
+  ].map(readSource));
+  for (const source of controllers) {
+    assert.match(source, /useOfficePreviewScope/);
+    assert.match(source, /fetchOfficePreviewBuffer/);
+    assert.doesNotMatch(source, /const previewKey\s*=|\[retryRevision,\s*setRetryRevision\]/);
+    assert.doesNotMatch(source, /subscribeAuthOwnerScopeGeneration/);
+  }
+});
+
+test("Workspace preview chrome and presentation controls share Button and Typography owners", async () => {
+  const [chrome, presentation, headerLayout] = await Promise.all([
+    readSource("src/features/conversation/shared/editor/workspace-file-preview-chrome.tsx"),
+    readSource("src/features/conversation/shared/editor/presentation/presentation-file-preview.tsx"),
+    readSource("src/shared/ui/workspace/surface/workspace-header-layout.ts"),
+  ]);
+
+  assert.match(chrome, /<UiIconButton/);
+  assert.match(chrome, /getUiTypographyClassName/);
+  assert.doesNotMatch(chrome, /<button\b|WORKSPACE_FILE_TOOLBAR_BUTTON_CLASS_NAME|rounded-\[/);
+  assert.doesNotMatch(headerLayout, /WORKSPACE_PANEL_HEADER_BUTTON_CLASS/);
+  assert.match(presentation, /<UiChoiceButton/);
+  assert.match(presentation, /<UiIconButton/);
+  assert.match(presentation, /getUiTypographyClassName/);
+  assert.doesNotMatch(
+    presentation,
+    /<button\b|rounded-\[|text-(?:2xs|xs|sm|base)|font-(?:medium|semibold)/,
+  );
+});
+
+test("Workspace file buttons share command feedback ownership and keep historical executor scope", async () => {
+  const consumers = await Promise.all([
+    "src/features/conversation/shared/editor/workspace-file-preview-chrome.tsx",
+    "src/features/conversation/shared/message/blocks/artifact/workspace-artifact-external-action.tsx",
+    "src/features/capability/scheduled/history/view/scheduled-task-run-actions.tsx",
+  ].map(readSource));
+  for (const source of consumers) {
+    assert.match(source, /useWorkspaceFileExternalAction/);
+    assert.match(source, /<FeedbackBannerViewport/);
+    assert.doesNotMatch(source, /downloadWorkspaceFileApi|subscribeAuthOwnerScopeGeneration/);
+  }
+  assert.match(consumers[2], /getRunWorkspaceAgentID\(run\)/);
+  assert.doesNotMatch(consumers[2], /task\.agent_id/);
+  const owner = await readSource("src/hooks/agent/use-workspace-file-external-action.ts");
+  assert.match(owner, /downloadWorkspaceFileApi/);
+  assert.doesNotMatch(owner, /current_agent_id|@\/features\//);
+});
+
+test("Memory surfaces share one semantic spinner scale", async () => {
+  const paths = [
+    "src/features/memory/agent-memory-view.tsx",
+    "src/features/memory/catalog/agent-memory-catalog.tsx",
+    "src/features/memory/document/memory-document-header.tsx",
+    "src/features/memory/document/memory-document-panel.tsx",
+  ];
+  const sources = await Promise.all(paths.map(readSource));
+  const combined = sources.join("\n");
+
+  for (const source of sources) assert.doesNotMatch(source, /\banimate-spin\b/);
+  for (const source of [sources[0], sources[3]]) assert.match(source, /state="loading"/);
+  for (const source of [sources[1], sources[2]]) assert.match(source, /getUiSpinnerClassName/);
+  for (const size of ["xs", "sm", "md"]) {
+    assert.match(combined, new RegExp(`size: "${size}"`));
+  }
+});
+
+test("Memory navigation and Room member choices reuse dense shared list rows", async () => {
+  const [catalog, indexEntries, roomMembers] = await Promise.all([
+    readSource("src/features/memory/catalog/agent-memory-catalog.tsx"),
+    readSource("src/features/memory/document/index/memory-index-entries.tsx"),
+    readSource("src/features/conversation/room/members/room-member-selector.tsx"),
+  ]);
+
+  for (const source of [catalog, indexEntries, roomMembers]) {
+    assert.match(source, /<UiListRow/);
+    assert.match(source, /density="dense"/);
+    assert.doesNotMatch(source, /<button\b/);
+  }
+  assert.match(roomMembers, /<UiChoiceButton/);
+});
+
+test("File and Memory source editing have one native primitive owner", async () => {
+  const ownerPath = "src/shared/ui/form/source-editor.tsx";
+  const [owner, fileBody, memoryPanel] = await Promise.all([
+    readSource(ownerPath),
+    readSource("src/features/conversation/shared/editor/text/text-file-editor-body.tsx"),
+    readSource("src/features/memory/document/memory-document-panel.tsx"),
+  ]);
+  assert.equal(countNativeElement(ownerPath, owner, "textarea"), 1);
+  for (const consumer of [fileBody, memoryPanel]) {
+    assert.match(consumer, /<UiSourceEditor\b/);
+    assert.doesNotMatch(consumer, /<textarea\b/);
+  }
+});
+
+test("Source metrics and read-only preview viewports have independent shared owners", async () => {
+  const [editor, streaming, fileBody, recipes, text, chunks, html, spreadsheet, viewport] = await Promise.all([
+    readSource("src/shared/ui/form/source-editor.tsx"),
+    readSource("src/shared/ui/feedback/typewriter-file-view.tsx"),
+    readSource("src/features/conversation/shared/editor/text/text-file-editor-body.tsx"),
+    readSource("src/app/styles/theme-recipes.css"),
+    readSource("src/features/conversation/shared/editor/text/text-file-content.tsx"),
+    readSource("src/features/conversation/shared/editor/text/large-text-file-preview.tsx"),
+    readSource("src/features/conversation/shared/editor/media/html-file-preview.tsx"),
+    readSource("src/features/conversation/shared/editor/spreadsheet/spreadsheet-readonly-workbook.tsx"),
+    readSource("src/shared/ui/layout/preview-viewport-styles.ts"),
+  ]);
+  for (const source of [editor, streaming, text, chunks, html]) {
+    assert.match(source, /import \{[^}]*\bUI_SOURCE_TEXT_CLASS_NAME\b[^}]*\} from/);
+  }
+  for (const source of [fileBody, chunks, html, spreadsheet]) {
+    assert.match(source, /UI_PREVIEW_VIEWPORT_CLASS_NAME/);
+    assert.match(source, /role="region"/);
+    assert.match(source, /tabIndex=\{0\}/);
+  }
+  assert.match(viewport, /focus-visible:ring-inset/);
+  assert.match(spreadsheet, /getUiTypographyClassName/);
+  assert.doesNotMatch(spreadsheet, /\btext-(?:2xs|xs|sm)\b|font-(?:medium|semibold)|UI_SOURCE_TEXT_CLASS_NAME/);
+  assert.doesNotMatch(text + chunks + html, /\btext-(?:xs|sm)\b|\bleading-(?:\d|\[)/);
+  assert.match(streaming, /<UiBadge\b/);
+  assert.doesNotMatch(streaming, /@chenglou\/pretext|document\.createElement|document\.head/);
+  assert.doesNotMatch(streaming + fileBody, /containerWidth|ResizeObserver/);
+  assert.match(recipes, /@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{\s*\.ui-source-write-cursor\s*\{\s*animation:\s*none;/);
+});
+
+test("Hero decoration reuses media and text owners with static reduced-motion recipes", async () => {
+  const [hero, lottie, preference, recipes] = await Promise.all([
+    readSource("src/shared/ui/feedback/animated-hero-text.tsx"),
+    readSource("src/shared/ui/feedback/lottie-player.tsx"),
+    readSource("src/shared/lib/react/use-prefers-reduced-motion.ts"),
+    readSource("src/app/styles/theme-recipes.css"),
+  ]);
+  assert.match(hero, /splitTextGraphemes\(text\)/);
+  assert.doesNotMatch(hero, /pretext|setTimeout|getComputedStyle|useEffect|opacity-0/);
+  assert.match(preference, /return useMediaQuery\("\(prefers-reduced-motion: reduce\)"\)/);
+  assert.doesNotMatch(preference, /matchMedia|addEventListener|useState/);
+  assert.match(lottie, /usePrefersReducedMotion/);
+  assert.doesNotMatch(lottie, /\.play\(|dotLottieRefCallback|inlineStyle/);
+  assert.match(recipes, /@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{[^}]*\}[\s\S]*?\.ui-hero-grapheme,\s*\.ui-fade-slide-in\s*\{\s*animation:\s*none;/);
+  assert.match(recipes, /\.ui-fade-slide-in\s*\{[^}]*\bbackwards\b/);
+});
+
+test("General, Personal, and Browser settings share semantic Spinner roles", async () => {
+  const paths = [
+    "src/features/settings/browser/browser-settings-section.tsx",
+    "src/features/settings/general/components/settings-default-model-row.tsx",
+    "src/features/settings/general/sections/settings-desktop-section.tsx",
+    "src/features/settings/general/sections/settings-workspace-section.tsx",
+    "src/features/settings/personal/personal-avatar-picker.tsx",
+    "src/features/settings/personal/personal-password-section.tsx",
+    "src/features/settings/personal/personal-settings-panel.tsx",
+  ];
+  const sources = await Promise.all(paths.map(readSource));
+  const combined = sources.join("\n");
+
+  for (const source of sources) {
+    assert.match(source, /getUiSpinnerClassName/);
+    assert.doesNotMatch(source, /\banimate-spin\b/);
+  }
+  for (const size of ["xs", "sm", "lg"]) {
+    assert.match(combined, new RegExp(`size: "${size}"`));
+  }
+});
+
+test("Provider settings share one directory and action Spinner scale", async () => {
+  const paths = [
+    "src/features/settings/provider-settings/components/provider-settings-detail-header.tsx",
+    "src/features/settings/provider-settings/components/provider-settings-model-list.tsx",
+    "src/features/settings/provider-settings/components/provider-settings-sidebar.tsx",
+    "src/features/settings/provider-settings/dialogs/provider-settings-add-model-dialog.tsx",
+    "src/features/settings/provider-settings/dialogs/provider-settings-model-options-dialog.tsx",
+  ];
+  const sources = await Promise.all(paths.map(readSource));
+  const combined = sources.join("\n");
+
+  for (const source of sources) {
+    assert.match(source, /getUiSpinnerClassName/);
+    assert.doesNotMatch(source, /\banimate-spin\b/);
+  }
+  assert.match(combined, /size: "sm"/);
+  assert.match(combined, /size: "md", tone: "muted"/);
+});
+
+test("Operations settings share one compact command Spinner role", async () => {
+  const paths = [
+    "src/features/settings/operations/control-members-panel.tsx",
+    "src/features/settings/operations/project-admin/project-admin-panel.tsx",
+    "src/features/settings/operations/subscription-admin/subscription-account-view.tsx",
+    "src/features/settings/operations/subscription-admin/subscription-plan-view.tsx",
+  ];
+  const sources = await Promise.all(paths.map(readSource));
+
+  for (const source of sources) {
+    assert.match(source, /getUiSpinnerClassName\(\{ size: "sm" \}\)/);
+    assert.doesNotMatch(source, /\banimate-spin\b/);
+  }
+});
+
+test("Capability directories share semantic action Spinner roles", async () => {
+  const paths = [
+    "src/features/capability/channels/pairings/pairing-create-dialog.tsx",
+    "src/features/capability/connectors/catalog/connector-card.tsx",
+    "src/features/capability/scheduled/scheduled-tasks-directory.tsx",
+  ];
+  const sources = await Promise.all(paths.map(readSource));
+  const combined = sources.join("\n");
+
+  for (const source of sources) {
+    assert.match(source, /getUiSpinnerClassName/);
+    assert.doesNotMatch(source, /(?:motion-safe:)?animate-spin/);
+  }
+  assert.match(combined, /size: "sm"/);
+  assert.match(combined, /size: "md"/);
+});
+
+test("Goal editing and status chrome share Spinner, Badge, and Typography owners", async () => {
+  const paths = [
+    "src/features/conversation/shared/goal/goal-draft-form.tsx",
+    "src/features/conversation/shared/goal/goal-status-strip.tsx",
+  ];
+  const sources = await Promise.all(paths.map(readSource));
+  const goalModel = await readSource(
+    "src/features/conversation/shared/goal/goal-model.ts",
+  );
+  const goalLayout = await readSource(
+    "src/features/conversation/shared/goal/goal-panel-layout.ts",
+  );
+
+  for (const source of sources) {
+    assert.match(source, /getUiSpinnerClassName\(\{ size: "md" \}\)/);
+    assert.doesNotMatch(source, /\banimate-spin\b/);
+  }
+  assert.match(sources[1], /<UiBadge/);
+  assert.match(sources[1], /<UiPanel[\s\S]*padding="none"[\s\S]*radius="lg"/);
+  assert.match(sources[1], /getUiTypographyClassName/);
+  assert.doesNotMatch(
+    sources[1],
+    /GOAL_PANEL_(?:BADGE|SURFACE)_CLASS_NAME|rounded-\[(?:6|8|16)px\]|\btext-(?:2xs|xs|compact)\b|\bfont-(?:medium|semibold)\b/,
+  );
+  assert.match(goalModel, /active: "active"/);
+  assert.doesNotMatch(
+    goalModel,
+    /CLASS_NAME|className|rounded-|shadow-|border-|bg-|text-\(|color-mix|COMPOSER_|CONVERSATION_/,
+  );
+  assert.match(goalLayout, /CONVERSATION_CONTENT_LANE_CLASS_NAME/);
+  assert.match(goalLayout, /COMPOSER_COMPACT_LANE_CLASS_NAME/);
+  assert.doesNotMatch(goalLayout, /rounded-|shadow-|bg-/);
+});
+
+test("WorkGraph surfaces share canvas, action, and revision Spinner roles", async () => {
+  const paths = [
+    "src/features/conversation/shared/execution/execution-workgraph-surface.tsx",
+    "src/features/conversation/shared/execution/workgraph-distillation-dialog.tsx",
+    "src/features/conversation/shared/execution/workgraph-metadata-editor-dialog.tsx",
+  ];
+  const sources = await Promise.all(paths.map(readSource));
+  const combined = sources.join("\n");
+
+  for (const source of sources) {
+    assert.match(source, /getUiSpinnerClassName/);
+    assert.doesNotMatch(source, /\banimate-spin\b/);
+  }
+  for (const size of ["xs", "sm", "md", "lg"]) {
+    assert.match(combined, new RegExp(`size: "${size}"`));
+  }
+  const editor = sources[2];
+  assert.match(editor, /<UiChoiceButton/);
+  assert.match(editor, /getUiTypographyClassName/);
+  assert.doesNotMatch(
+    editor,
+    /<button\b|rounded-full border px-2\.5 py-1|\btext-(?:xs|lg)\b|\bfont-(?:medium|semibold)\b/,
+  );
+});
+
+test("WorkGraph standard actions use shared controls while graph hit targets stay domain-owned", async () => {
+  const [controls, surface, canvas, inspector] = await Promise.all([
+    readSource("src/features/conversation/shared/execution/execution-workgraph-controls.tsx"),
+    readSource("src/features/conversation/shared/execution/execution-workgraph-surface.tsx"),
+    readSource("src/features/conversation/shared/execution/execution-workgraph-canvas.tsx"),
+    readSource("src/features/conversation/shared/execution/execution-graph-inspector.tsx"),
+  ]);
+
+  assert.match(controls, /<UiButton/);
+  assert.match(controls, /<UiIconButton/);
+  assert.match(controls, /surface-popover surface-radius-sm/);
+  assert.match(controls, /getUiTypographyClassName/);
+  assert.doesNotMatch(controls, /<button\b|GraphControlButton|rounded-\[/);
+
+  assert.match(surface, /<UiButton[\s\S]*?data-workgraph-save-sketch/);
+  assert.doesNotMatch(surface, /<button\b/);
+
+  assert.match(inspector, /<UiIconButton\b/);
+  assert.match(inspector, /surface-popover/);
+  assert.match(inspector, /getUiTypographyClassName/);
+  assert.doesNotMatch(inspector, /<button\b|rounded-\[/);
+  assert.equal((canvas.match(/<ExecutionGraphInspector\b/g) ?? []).length, 2);
+  assert.match(canvas, /closeLabel=\{t\("execution\.close_node_details"\)\}/);
+  assert.match(canvas, /closeLabel=\{t\("execution\.close_edge_details"\)\}/);
+  assert.equal((surface.match(/<UiBadge\b/g) ?? []).length, 3);
+  assert.doesNotMatch(surface, /color-mix/);
+  assert.match(canvas, /<UiListRow[\s\S]*?density="dense"[\s\S]*?variant="outlined"/);
+  assert.doesNotMatch(canvas, /rounded-\[9px\]/);
+  assert.match(canvas, /<button[\s\S]*?data-execution-edge-hit-target/);
+  assert.match(canvas, /<button[\s\S]*?data-execution-graph-node-id/);
+  assert.match(canvas, /<button[\s\S]*?data-execution-collapse-node/);
+});
+
+test("Session navigator limits raw buttons to documented geometry-owned hit targets", async () => {
+  const [navigator, moduleGuide] = await Promise.all([
+    readSource(
+      "src/features/conversation/shared/session-navigator/conversation-session-navigator.tsx",
+    ),
+    readSource("src/features/conversation/shared/session-navigator/CLAUDE.md"),
+  ]);
+
+  assert.equal((navigator.match(/<button\b/g) ?? []).length, 2);
+  assert.match(navigator, /getUiTypographyClassName/);
+  assert.doesNotMatch(
+    navigator,
+    /text-(?:2xs|xs|sm)\b|font-(?:medium|semibold)\b|leading-\[(?:18px)\]/,
+  );
+  assert.match(moduleGuide, /连续命中区/);
+  assert.match(moduleGuide, /App Typography/);
+});
+
+test("Subagent thread loading and command actions share Spinner roles", async () => {
+  const source = await readSource(
+    "src/features/conversation/shared/subagent/thread/subagent-task-thread-view.tsx",
+  );
+
+  assert.match(source, /getUiSpinnerClassName\(\{ size: "sm" \}\)/);
+  assert.match(source, /size: "md", tone: "muted"/);
+  assert.doesNotMatch(source, /\banimate-spin\b/);
+});
+
+test("Product disclosure surfaces share one native details and summary owner", async () => {
+  const productFiles = (
+    await Promise.all(productUiRoots.map((root) => collectSourceFiles(root)))
+  ).flat();
+  const violations = [];
+  for (const file of productFiles) {
+    if (!/\.(?:ts|tsx)$/.test(file)) continue;
+    const source = await readFile(file, "utf8");
+    if (/<(?:details|summary)\b/.test(source)) {
+      violations.push(path.relative(webRoot, file));
+    }
+  }
+
+  const [primitive, executionRuns, scheduledRuns, channelGuide] = await Promise.all([
+    readSource("src/shared/ui/disclosure/disclosure.tsx"),
+    readSource("src/features/conversation/shared/execution/execution-node-run-history.tsx"),
+    readSource("src/features/capability/scheduled/history/view/scheduled-task-run-history-item.tsx"),
+    readSource("src/features/capability/channels/connection/channel-guide.tsx"),
+  ]);
+
+  assert.deepEqual(violations, []);
+  assert.match(primitive, /<details/);
+  assert.match(primitive, /<summary/);
+  assert.match(primitive, /focus-visible:ring-2/);
+  assert.match(primitive, /group-open\/disclosure:rotate-180/);
+  for (const consumer of [executionRuns, scheduledRuns, channelGuide]) {
+    assert.match(consumer, /<UiDisclosure/);
+    assert.doesNotMatch(consumer, /<details|<summary/);
+  }
+  assert.match(executionRuns, /<UiButton/);
+  assert.doesNotMatch(
+    executionRuns,
+    /<button\b|rounded-\[|\btext-(?:2xs|xs|compact|sm|base)\b|\bfont-(?:medium|semibold)\b|\btext-\[9px\]/,
+  );
+});
+
+test("Subagent task directory shares dense List, Typography, and avatar state owners", async () => {
+  const [directory, avatar] = await Promise.all([
+    readSource("src/features/conversation/shared/subagent/subagent-task-list.tsx"),
+    readSource("src/shared/ui/display/seeded-avatar.tsx"),
+  ]);
+
+  assert.match(directory, /<UiListRow/);
+  assert.match(directory, /density="dense"/);
+  assert.match(directory, /getUiTypographyClassName/);
+  assert.match(directory, /state=\{isActive \? "running" : "default"\}/);
+  assert.doesNotMatch(
+    directory,
+    /<button\b|rounded-\[|color-mix|\btext-(?:2xs|xs|compact|sm|base)\b|\bfont-(?:medium|semibold)\b|\bleading-(?:4\.5|5|6)\b/,
+  );
+  assert.match(avatar, /status-running-soft-border/);
+});
+
+test("Room history, thread, and collaboration states share Spinner roles", async () => {
+  const [historyMenu, threadEmptyState, groupPanel] = await Promise.all([
+    readSource("src/features/conversation/room/surface/history/room-history-menu.tsx"),
+    readSource("src/features/conversation/room/surface/room-thread-empty-state.tsx"),
+    readSource("src/features/conversation/room/group/chat/panel/view/group-chat-panel-view.tsx"),
+  ]);
+
+  assert.match(historyMenu, /getUiSpinnerClassName\(\{ size: "sm" \}\)/);
+  assert.match(threadEmptyState, /size: "md", tone: "muted"/);
+  assert.match(groupPanel, /size: "xs", tone: "muted"/);
+  for (const source of [historyMenu, threadEmptyState, groupPanel]) {
+    assert.doesNotMatch(source, /\banimate-spin\b/);
+  }
+});
+
+test("Message actions, task status, and artifact loading share Spinner roles", async () => {
+  const paths = [
+    "src/features/conversation/shared/message/blocks/question/ask-user-question-view.tsx",
+    "src/features/conversation/shared/message/blocks/tool/subagent-task-tool-entry.tsx",
+    "src/features/conversation/shared/message/item/view/assistant/assistant-message-stats.tsx",
+    "src/features/conversation/shared/message/blocks/artifact/image/image-block.tsx",
+    "src/features/conversation/shared/message/blocks/artifact/workgraph/workgraph-artifact-block.tsx",
+  ];
+  const sources = await Promise.all(paths.map(readSource));
+  const combined = sources.join("\n");
+
+  for (const source of sources) {
+    assert.match(source, /getUiSpinnerClassName/);
+    assert.doesNotMatch(source, /\banimate-spin\b/);
+  }
+  for (const size of ["xs", "sm", "md"]) {
+    assert.match(combined, new RegExp(`size: "${size}"`));
+  }
+  assert.match(combined, /tone: "muted"/);
+
+  const workGraphArtifact = sources[4];
+  for (const owner of ["UiPanel", "UiButton", "UiBadge", "UiTabs", "getUiTypographyClassName"]) {
+    assert.match(workGraphArtifact, new RegExp(owner));
+  }
+  assert.doesNotMatch(
+    workGraphArtifact,
+    /<button\b|getDialogActionClassName|rounded-\[(?:8|14)px\]|\btext-(?:2xs|xs|sm)\b|\bfont-(?:medium|semibold)\b|\bshadow-sm\b/,
+  );
+});
+
+test("structured questions share Button and typography while retaining native option semantics", async () => {
+  const [view, item] = await Promise.all([
+    readSource("src/features/conversation/shared/message/blocks/question/ask-user-question-view.tsx"),
+    readSource("src/features/conversation/shared/message/blocks/question/ask-user-question-item.tsx"),
+  ]);
+
+  for (const source of [view, item]) {
+    assert.match(source, /getUiTypographyClassName/);
+    assert.doesNotMatch(
+      source,
+      /\btext-(?:2xs|xs|sm|md|base)\b|\bfont-(?:medium|semibold|bold)\b/,
+    );
+  }
+  assert.match(view, /<UiButton/);
+  assert.doesNotMatch(view, /<button\b/);
+  assert.match(item, /<fieldset\b/);
+  assert.match(item, /<input\b/);
+  assert.match(item, /<textarea\b/);
+  assert.doesNotMatch(item, /<UiButton|<UiInput|<UiTextarea/);
+});
+
+test("Assistant footer and ToolBlock header actions use shared micro control owners", async () => {
+  const [assistantFooter, toolHeaderActions] = await Promise.all([
+    readSource("src/features/conversation/shared/message/item/view/assistant/assistant-message-stats.tsx"),
+    readSource("src/features/conversation/shared/message/blocks/tool/header/tool-block-header-actions.tsx"),
+  ]);
+
+  assert.match(assistantFooter, /<UiIconButton/);
+  assert.match(assistantFooter, /getUiTypographyClassName/);
+  assert.match(assistantFooter, /size="2xs"/);
+  assert.match(assistantFooter, /shape="round"/);
+  assert.doesNotMatch(assistantFooter, /<button\b|COPY_ACTION_PRESENTATION/);
+
+  assert.match(toolHeaderActions, /<UiButton/);
+  assert.match(toolHeaderActions, /<UiIconButton/);
+  assert.match(toolHeaderActions, /size="2xs"/);
+  assert.match(toolHeaderActions, /size="xs"/);
+  assert.doesNotMatch(
+    toolHeaderActions,
+    /<button\b|getPermissionButtonState|rounded-\[|color-mix/,
+  );
+});
+
+test("Composer Connector and Room model menus share compact Spinner roles", async () => {
+  const [footerActions, roomModelControl] = await Promise.all([
+    readSource("src/features/conversation/shared/composer/components/footer/composer-footer-actions.tsx"),
+    readSource("src/features/conversation/shared/composer/components/footer/composer-room-model-control.tsx"),
+  ]);
+
+  assert.match(footerActions, /size: "md", tone: "muted"/);
+  assert.match(roomModelControl, /size: "sm", tone: "muted"/);
+  for (const source of [footerActions, roomModelControl]) {
+    assert.doesNotMatch(source, /\banimate-spin\b/);
+  }
+});
+
+test("Composer shell actions use shared Button primitives", async () => {
+  const [footerActions, sessionControls, roomModelControl] = await Promise.all([
+    readSource("src/features/conversation/shared/composer/components/footer/composer-footer-actions.tsx"),
+    readSource("src/features/conversation/shared/composer/components/footer/composer-session-controls.tsx"),
+    readSource("src/features/conversation/shared/composer/components/footer/composer-room-model-control.tsx"),
+  ]);
+
+  assert.match(footerActions, /<UiIconButton/);
+  assert.doesNotMatch(footerActions, /<button\b/);
+  assert.match(sessionControls, /<UiButton/);
+  assert.doesNotMatch(sessionControls, /<button\b|rounded-\[/);
+  assert.match(roomModelControl, /<UiButton/);
+  assert.match(roomModelControl, /<UiIconButton/);
+  assert.match(roomModelControl, /<UiMenuActionRow/);
+  assert.doesNotMatch(roomModelControl, /<button\b/);
+});
+
+test("Conversation models keep CSS and textarea side effects in their explicit owners", async () => {
+  const models = await Promise.all([
+    readSource("src/features/conversation/shared/composer/composer-model.ts"),
+    readSource("src/features/conversation/shared/composer/controller/composer-controller-model.ts"),
+    readSource("src/features/conversation/shared/composer/components/pending-queue/pending-queue-model.ts"),
+    readSource("src/features/conversation/shared/message/item/view/user/user-message-model.ts"),
+    readSource("src/features/conversation/shared/message/item/view/assistant/assistant-message-model.ts"),
+    readSource("src/features/conversation/shared/message/blocks/artifact/file/file-artifact-model.ts"),
+  ]);
+  for (const model of models) {
+    const code = ts.createPrinter({ removeComments: true }).printFile(
+      ts.createSourceFile("model.ts", model, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS),
+    );
+    assert.doesNotMatch(code, /ClassName|PaddingClass|CSSProperties|composer-styles|message-reading-layout|file-artifact-layout|DENSITY_STYLE|px-\d|pt-\d|pb-\d|\.focus\(|setSelectionRange|scrollTop\s*=/);
+  }
+});
+
+test("private reading surfaces share Panel and metadata owners without removing domain content", async () => {
+  const [timeline, event, css] = await Promise.all([
+    readSource("src/features/agents/private-domain/timeline/agent-private-domain-timeline.tsx"),
+    readSource("src/features/agents/private-domain/timeline/agent-private-domain-event.tsx"),
+    readSource("src/features/agents/private-domain/agent-private-domain.css"),
+  ]);
+  assert.match(timeline, /<UiPanel\b/);
+  assert.match(timeline, /variant="filled"/);
+  assert.match(timeline, /getUiTypographyClassName/);
+  assert.doesNotMatch(css, /nexus-private-domain-reader|box-shadow/);
+  assert.match(event, /getUiTypographyClassName/);
+  assert.match(event, /useWorkspaceMarkdown\(event\.sourceAgentId\)/);
+});
+
+test("Conversation status models expose semantics while LoadingOrb owns motion", async () => {
+  const [footerModel, contextModel, statusView, metadataView, submitButton, messageActivity, loadingOrb, recipes, design, packageJson] = await Promise.all([
+    readSource("src/features/conversation/shared/composer/components/footer/composer-footer-model.ts"),
+    readSource("src/features/conversation/shared/composer/components/footer/composer-context-usage-model.ts"),
+    readSource("src/features/conversation/shared/composer/components/footer/composer-footer-status.tsx"),
+    readSource("src/features/conversation/shared/composer/components/footer/composer-footer-metadata.tsx"),
+    readSource("src/features/conversation/shared/composer/components/composer-submit-button.tsx"),
+    readSource("src/features/conversation/shared/message/item/view/message-activity-status.tsx"),
+    readSource("src/shared/ui/feedback/loading-orb.tsx"),
+    readSource("src/app/styles/theme-recipes.css"),
+    readFile(path.join(webRoot, "..", "design.md"), "utf8"),
+    readFile(path.join(webRoot, "package.json"), "utf8"),
+  ]);
+
+  for (const model of [footerModel, contextModel]) {
+    assert.doesNotMatch(
+      model,
+      /\bclassName\b|CSSProperties|toneClassName|messageClassName|animate-|rounded-|shadow-|text-\(|color-mix|frames:/,
+    );
+  }
+  for (const view of [statusView, metadataView]) {
+    assert.match(view, /getUiTypographyClassName/);
+  }
+  assert.match(statusView, /<LoadingOrb\b/);
+  assert.doesNotMatch(statusView, /animate-pulse|frames=/);
+  assert.match(submitButton, /<LoadingOrb variant="preparing"/);
+  assert.doesNotMatch(submitButton, /frames=/);
+  assert.match(messageActivity, /<LoadingOrb variant=\{presentation\.indicator\}/);
+  assert.doesNotMatch(
+    messageActivity,
+    /unicode-animations|message-activity-label-flow|message-activity-spinner-track|CSSProperties/,
+  );
+  assert.doesNotMatch(packageJson, /unicode-animations/);
+  assert.match(loadingOrb, /LoadingOrbVariant = "active" \| "preparing"/);
+  assert.match(loadingOrb, /inline-flex h-3 w-3 shrink-0/);
+  assert.match(loadingOrb, /ui-loading-orb-frame absolute inset-0/);
+  assert.doesNotMatch(loadingOrb, /document\.createElement|document\.head|ensureStyle|setTimeout/);
+  assert.match(recipes, /prefers-reduced-motion: no-preference/);
+  assert.match(recipes, /nexus-loading-orb-frame-4/);
+  assert.match(recipes, /nexus-loading-orb-frame-5/);
+  assert.match(design, /状态正文、图标、按钮和容器不得流光、位移或整体 `pulse`/);
+});
+
+test("Composer permission decisions reuse shared Button, Form, and typography owners", async () => {
+  const [surface, scopeItems, splitButton] = await Promise.all([
+    readSource(
+      "src/features/conversation/shared/composer/components/interaction/composer-permission-surface.tsx",
+    ),
+    readSource(
+      "src/features/conversation/shared/composer/components/interaction/composer-permission-scope-items.tsx",
+    ),
+    readSource("src/shared/ui/button/split-button.tsx"),
+  ]);
+
+  for (const owner of ["UiButton", "UiSplitButton", "UiInput", "getUiTypographyClassName"]) {
+    assert.match(surface, new RegExp(`<${owner}|${owner}`));
+  }
+  assert.doesNotMatch(surface, /<button\b|<input\b|rounded-\[|color-mix|\btext-(?:xs|sm|md)\b|\bfont-(?:medium|semibold)\b/);
+  assert.doesNotMatch(scopeItems, /\btext-(?:xs|sm|md)\b|\bfont-(?:medium|semibold)\b/);
+  assert.match(splitButton, /role="group"/);
+  assert.match(splitButton, /<UiButton/);
+});
+
+test("dense Composer and Room toolbars use the shared micro Button scale", async () => {
+  const paths = [
+    "src/features/conversation/shared/composer/components/composer-local-directories.tsx",
+    "src/features/conversation/shared/composer/components/footer/composer-footer-status.tsx",
+    "src/features/conversation/shared/composer/components/pending-queue/pending-queue-item.tsx",
+    "src/features/conversation/room/group/thread/round-card/group-agent-execution-shell.tsx",
+    "src/features/conversation/room/group/thread/round-card/thread-action-button.tsx",
+  ];
+  const sources = await Promise.all(paths.map(readSource));
+  const attachments = await readSource(
+    "src/features/conversation/shared/composer/attachments/composer-local-attachments.tsx",
+  );
+  const buttonStyles = await readSource("src/shared/ui/button/button-styles.ts");
+
+  assert.match(buttonStyles, /"2xs": "min-h-6[^\n]*ui-type-caption"/);
+  assert.match(buttonStyles, /"2xs": "h-5 w-5"/);
+  for (const source of sources) {
+    assert.match(source, /<Ui(?:Icon)?Button/);
+    assert.doesNotMatch(source, /<button\b|rounded-\[/);
+  }
+  assert.match(attachments, /<UiIconButton/);
+  assert.match(attachments, /<UiButton/);
+  for (const source of [attachments, sources[0]]) {
+    assert.match(source, /<UiRemovableChip/);
+    assert.doesNotMatch(source, /COMPOSER_ATTACHMENT_CLASS_NAME|\btext-(?:xs|sm)\b|\bfont-(?:medium|semibold)\b/);
+  }
+  assert.doesNotMatch(attachments, /<button\b/);
+  const composerStyles = await readSource("src/features/conversation/shared/composer/composer-styles.ts");
+  assert.doesNotMatch(composerStyles, /rounded-\[|hover:|focus-visible:|workbench-input-shell/);
+  assert.doesNotMatch(composerStyles, /COMPOSER_ATTACHMENT_(?:CLASS_NAME|PREVIEW_CLASS_NAME)/);
+  const preview = await readSource("src/features/conversation/shared/composer/attachments/composer-attachment-preview-dialog.tsx");
+  assert.equal((preview.match(/<UiDialogHeader\b/g) ?? []).length, 1);
+  assert.match(preview, /UI_SOURCE_TEXT_CLASS_NAME/);
+  assert.match(preview, /UI_PREVIEW_VIEWPORT_CLASS_NAME/);
+  assert.doesNotMatch(preview, /PREVIEW_TITLE_ID|<h2\b|\btext-(?:xs|sm)\b|\bfont-(?:mono|medium)\b/);
+});
+
+test("message header actions use shared Button tones without a domain adapter", async () => {
+  const [userHeader, assistantHeader, buttonStyles] = await Promise.all([
+    readSource("src/features/conversation/shared/message/item/view/user/user-message-header.tsx"),
+    readSource("src/features/conversation/shared/message/item/view/assistant/assistant-message-header.tsx"),
+    readSource("src/shared/ui/button/button-styles.ts"),
+  ]);
+  const files = await collectSourceFiles(srcRoot);
+  const adapterReferences = [];
+
+  assert.match(userHeader, /<UiIconButton/);
+  assert.match(assistantHeader, /<UiButton/);
+  assert.match(buttonStyles, /success:\s*\n?\s*"[^"]*text-\(--success\)/);
+  for (const source of [userHeader, assistantHeader]) {
+    assert.doesNotMatch(source, /<button\b|rounded-\[/);
+  }
+  for (const file of files) {
+    const source = await readFile(file, "utf8");
+    if (/MessageActionButton|message-action-button/.test(source)) {
+      adapterReferences.push(path.relative(webRoot, file));
+    }
+  }
+  assert.deepEqual(adapterReferences, []);
+});
+
+test("Agent Skill and private-domain loading states share Spinner roles", async () => {
+  const paths = [
+    "src/features/agents/options/components/skills/agent-options-skills-content.tsx",
+    "src/features/agents/options/components/skills/agent-skill-card.tsx",
+    "src/features/agents/private-domain/agent-private-domain-thread-list.tsx",
+    "src/features/agents/private-domain/agent-private-domain-toolbar.tsx",
+    "src/features/agents/private-domain/timeline/agent-private-domain-timeline.tsx",
+  ];
+  const sources = await Promise.all(paths.map(readSource));
+  const combined = sources.join("\n");
+
+  for (const source of sources) {
+    assert.match(source, /getUiSpinnerClassName/);
+    assert.doesNotMatch(source, /\banimate-spin\b/);
+  }
+  for (const size of ["sm", "md", "lg"]) {
+    assert.match(combined, new RegExp(`size: "${size}"`));
+  }
+  assert.match(combined, /tone: "muted"/);
+});
+
+test("Launcher, desktop update, and onboarding loading states share Spinner roles", async () => {
+  const [launcher, updateIndicator, providerSetup] = await Promise.all([
+    readSource("src/features/launcher/hero/launcher-hero-stage.tsx"),
+    readSource("src/features/navigation/sidebar/view/sidebar-update-indicator.tsx"),
+    readSource("src/features/onboarding/provider-setup/provider-setup-dialog.tsx"),
+  ]);
+
+  assert.match(launcher, /getUiSpinnerClassName\(\{ size: "md" \}\)/);
+  assert.match(updateIndicator, /getUiSpinnerClassName/);
+  assert.match(updateIndicator, /h-\[18px\] w-\[18px\]/);
+  assert.match(providerSetup, /size: "lg", tone: "muted"/);
+  assert.match(providerSetup, /size: "sm", tone: "primary"/);
+  assert.match(providerSetup, /<UiListRow/);
+  assert.match(providerSetup, /<UiBadge size="xs" tone="success"/);
+  assert.doesNotMatch(providerSetup, /<button\b/);
+  for (const source of [launcher, updateIndicator, providerSetup]) {
+    assert.doesNotMatch(source, /\banimate-spin\b/);
+  }
+});
+
+test("Launcher queries reuse the shared input and composition boundary", async () => {
+  const [hero, query, mention, theme] = await Promise.all([
+    readSource("src/features/launcher/hero/launcher-hero-stage.tsx"),
+    readSource("src/features/launcher/hero/use-launcher-query-input.ts"),
+    readSource("src/shared/ui/mention/mention-target-popover.tsx"),
+    readSource("src/features/launcher/hero/launcher-surface-theme.ts"),
+  ]);
+  assert.match(hero, /<UiInput\b/);
+  assert.doesNotMatch(hero, /<input\b|placeholder:text-|focus-visible:ring-0|<MessageSquare\b/);
+  for (const source of [query, mention]) {
+    assert.match(source, /import \{ isImeKeyboardEvent \} from .*ime-keyboard-event/);
+    assert.match(source, /if \([^\n]*isImeKeyboardEvent\(/);
+  }
+  assert.doesNotMatch(theme, /--launcher-(?:input-icon|input-placeholder|divider-color|meta-text|submit-border)/);
+});
+
+test("Launcher recent-entry data stays visual-free and actions share transparent Buttons", async () => {
+  const [view, model, layout, markerStyles, surfaceTheme] = await Promise.all([
+    readSource("src/features/launcher/hero/launcher-recent-entries.tsx"),
+    readSource("src/features/launcher/hero/launcher-recent-entry-model.ts"),
+    readSource("src/features/launcher/hero/launcher-recent-entry-layout.ts"),
+    readSource("src/features/launcher/hero/launcher-recent-entry-styles.ts"),
+    readSource("src/features/launcher/hero/launcher-surface-theme.ts"),
+  ]);
+
+  assert.match(view, /<UiButton/);
+  assert.match(view, /variant="text"/);
+  assert.match(view, /LauncherRecentEntryLayout\.listClassName/);
+  assert.match(view, /data-launcher-recent-entry-marker/);
+  assert.match(view, /getLauncherRecentEntryMarkerClassName/);
+  assert.doesNotMatch(
+    view,
+    /<button\b|<Bot\b|chipStyle|markerStyle|rounded-full|\btext-(?:xs|sm|base)\b|\bfont-(?:medium|semibold)\b/,
+  );
+  assert.doesNotMatch(
+    model,
+    /CSSProperties|className|style:|background|boxShadow|color:|delayMs|rounded-|shadow-/,
+  );
+  assert.match(layout, /ENTRY_DELAY_START_MS/);
+  assert.match(layout, /ENTRY_DELAY_STEP_MS/);
+  assert.match(markerStyles, /var\(--success\)/);
+  assert.match(markerStyles, /var\(--warning\)/);
+  assert.match(markerStyles, /var\(--primary\)/);
+  assert.match(markerStyles, /entryKey\.charCodeAt/);
+  assert.doesNotMatch(
+    `${model}\n${surfaceTheme}`,
+    /launcher-(?:agent|room)-chip|launcher-handoff-(?:color|hover-color)/,
+  );
+});
+
+test("Sidebar utility actions share the round IconButton owner", async () => {
+  const [utilities, updateIndicator] = await Promise.all([
+    readSource("src/features/navigation/sidebar/view/sidebar-utility-actions.tsx"),
+    readSource("src/features/navigation/sidebar/view/sidebar-update-indicator.tsx"),
+  ]);
+
+  for (const source of [utilities, updateIndicator]) {
+    assert.match(source, /<UiIconButton/);
+    assert.match(source, /shape="round"/);
+    assert.doesNotMatch(source, /<button\b/);
+  }
+  assert.match(utilities, /aria-current=/);
+});
+
+test("Sidebar primary and pinned entries share one rail action owner", async () => {
+  const [railAction, primaryTabs, pinnedConversations, sidebarDocs] = await Promise.all([
+    readSource("src/features/navigation/sidebar/view/sidebar-rail-action.tsx"),
+    readSource("src/features/navigation/sidebar/view/sidebar-primary-tabs.tsx"),
+    readSource("src/features/navigation/sidebar/view/sidebar-pinned-conversations.tsx"),
+    readSource("src/features/navigation/sidebar/view/CLAUDE.md"),
+  ]);
+
+  assert.match(railAction, /function SidebarRailAction/);
+  assert.match(railAction, /getUiTypographyClassName/);
+  assert.match(railAction, /SIDEBAR_SELECTION_CLASS_NAME/);
+  assert.match(railAction, /h-8 w-8/);
+  assert.match(railAction, /h-\[18px\] w-\[18px\]/);
+  for (const consumer of [primaryTabs, pinnedConversations]) {
+    assert.match(consumer, /<SidebarRailAction/);
+    assert.doesNotMatch(
+      consumer,
+      /<button\b|SIDEBAR_SELECTION_CLASS_NAME|h-8 w-8|h-\[(?:17|18)px\]|\btext-2xs\b|\bfont-medium\b/,
+    );
+  }
+  assert.doesNotMatch(primaryTabs, /sidebar-primary-tabs-model/);
+  assert.match(sidebarDocs, /不得再建立返回 className 的展示 model/);
+});
+
+test("Room history controls use the shared Button, Form, and whole-row List owners", async () => {
+  const [menu, item, tabs] = await Promise.all([
+    readSource("src/features/conversation/room/surface/history/room-history-menu.tsx"),
+    readSource("src/features/conversation/room/surface/history/room-history-item-view.tsx"),
+    readSource("src/shared/ui/workspace/controls/workspace-conversation-tabs.tsx"),
+  ]);
+
+  assert.match(menu, /<UiIconButton/);
+  assert.match(menu, /<UiCheckbox/);
+  assert.match(menu, /<UiButton/);
+  assert.match(menu, /<UiListSectionDivider/);
+  assert.match(menu, /groupRoomHistoryEntries/);
+  assert.match(item, /<UiInput/);
+  assert.match(item, /<UiListActionButton/);
+  assert.match(item, /<UiListRow/);
+  assert.match(item, /<UiListRowContent/);
+  assert.match(item, /getUiTypographyClassName/);
+  assert.match(item, /activeTone="sidebar"/);
+  assert.match(item, /density="dense"/);
+  assert.match(item, /visibility=\{presentation.actionsPersistent \? "visible" : "hover"\}/);
+  assert.doesNotMatch(item, /group-hover\/item:opacity|"opacity-0/);
+  assert.doesNotMatch(
+    item,
+    /<button\b|ENTRY_STYLES|rounded-\[|color-mix|\bw-max\b|grid-cols-\[max-content|\btext-(?:2xs|xs|compact|sm|base)\b|\bfont-(?:medium|semibold)\b/,
+  );
+  assert.match(tabs, /<UiIconButton/);
+});
+
+test("Room header identity and conversation triggers share Button ownership", async () => {
+  const sources = await Promise.all([
+    readSource("src/features/conversation/room/surface/room-agent-switcher.tsx"),
+    readSource("src/features/conversation/room/group/header/group-member-avatar-stack.tsx"),
+    readSource("src/features/conversation/room/surface/mobile/room-mobile-header.tsx"),
+  ]);
+
+  for (const source of sources) {
+    assert.match(source, /<UiButton/);
+  }
+  assert.match(sources[0], /<UiAgentAvatar/);
+  assert.match(sources[1], /<UiBadge/);
+  assert.doesNotMatch(sources[1], /color-mix|text-\[8px\]|rounded-full|shadow-/);
+  assert.match(sources[0], /buildAgentSelectionOptions/);
+  assert.match(sources[0], /includeUnavailableAgentSelection/);
+  assert.doesNotMatch(sources[0], /<img\b|getIconAvatarSrc|getInitials|rounded-\[/);
+});
+
+test("Provider import and Operations route loading share Spinner roles", async () => {
+  const [providerImport, operationsPage] = await Promise.all([
+    readSource("src/features/provider-imports/cc-switch/provider-ccswitch-dialog.tsx"),
+    readSource("src/pages/operations/operations-page.tsx"),
+  ]);
+
+  assert.match(providerImport, /size: "md", tone: "muted"/);
+  assert.match(providerImport, /getUiSpinnerClassName\(\{ size: "sm" \}\)/);
+  assert.match(operationsPage, /size: "xl", tone: "primary"/);
+  for (const source of [providerImport, operationsPage]) {
+    assert.doesNotMatch(source, /\banimate-spin\b/);
+    assert.doesNotMatch(source, /border-t-transparent/);
+  }
+});
+
+test("Workspace directory and context menu loading share Spinner roles", async () => {
+  const [fileBrowser, contextMenu] = await Promise.all([
+    readSource("src/features/conversation/room/workspace/view/workspace-file-browser.tsx"),
+    readSource("src/features/conversation/room/workspace/view/workspace-context-menu.tsx"),
+  ]);
+
+  assert.match(fileBrowser, /getUiSpinnerClassName\(\{ size: "sm" \}\)/);
+  assert.match(fileBrowser, /<WorkspaceLoadingState/);
+  assert.match(fileBrowser, /<SidebarEmptyGuide/);
+  assert.match(contextMenu, /size: "md", tone: "muted"/);
+  for (const source of [fileBrowser, contextMenu]) {
+    assert.doesNotMatch(source, /\banimate-spin\b/);
+  }
+});
+
+test("List and Badge primitives expose semantic typography, sections, and shape", async () => {
+  const [listRow, listDivider, badge, badgeStyles, providerModels, connectorCard, customMcpGrid] = await Promise.all([
+    readSource("src/shared/ui/list/list-row.tsx"),
+    readSource("src/shared/ui/list/list-section-divider.tsx"),
+    readSource("src/shared/ui/display/badge.tsx"),
+    readSource("src/shared/ui/display/badge-styles.ts"),
+    readSource("src/features/settings/provider-settings/components/provider-settings-model-list.tsx"),
+    readSource("src/features/capability/connectors/catalog/connector-card.tsx"),
+    readSource("src/features/capability/connectors/custom/custom-mcp-grid.tsx"),
+  ]);
+
+  assert.match(listRow, /role: "sectionTitle"/);
+  assert.match(listRow, /role: "metadata"/);
+  assert.match(listRow, /export function UiListRowContent/);
+  assert.doesNotMatch(listRow, /text-base font-semibold|text-compact leading-/);
+  assert.match(listDivider, /role="separator"/);
+  assert.match(listDivider, /bg-\(--divider-subtle-color\)/);
+  assert.match(listDivider, /getUiTypographyClassName/);
+  assert.match(badge, /shape\?: UiBadgeShape/);
+  assert.match(badgeStyles, /pill: "rounded-full"/);
+  assert.match(badgeStyles, /rounded: "radius-control-xs"/);
+  assert.match(providerModels, /<UiBadge shape="pill"/);
+  assert.doesNotMatch(providerModels, /<UiBadge className="rounded-full"/);
+  for (const connectorList of [connectorCard, customMcpGrid]) {
+    assert.match(connectorList, /description=/);
+    assert.match(connectorList, /title=/);
+    assert.match(connectorList, /<UiListActionButton\b/);
+    assert.doesNotMatch(connectorList, /<UiIconButton\b/);
+    assert.doesNotMatch(connectorList, /text-base font-(?:medium|semibold)/);
+  }
+  assert.match(connectorCard, /meta=\{<ConnectorCardBadge/);
+  assert.match(customMcpGrid, /role: "code"/);
+});
+
+test("avatar fallbacks and text boundaries retain one implementation owner", async () => {
+  const [avatar, initials, launcher, hero, streaming] = await Promise.all([
+    readSource("src/shared/ui/display/avatar.tsx"),
+    readSource("src/lib/avatar.ts"),
+    readSource("src/features/launcher/console/launcher-console-helpers.ts"),
+    readSource("src/shared/ui/feedback/animated-hero-text.tsx"),
+    readSource("src/shared/ui/markdown/streaming/stream-text-units.ts"),
+  ]);
+  // Member tiles must not rebuild full-sized Agent avatars and override their internals.
+  assert.doesNotMatch(avatar, /<UiAgentAvatar\b|!rounded-/);
+  for (const radius of ["xs", "sm", "md", "lg"]) {
+    assert.match(avatar, new RegExp(`--radius-control-${radius}`));
+  }
+  assert.match(launcher, /import \{ getInitials \} from "@\/lib\/avatar"/);
+  assert.doesNotMatch(launcher, /function getInitials/);
+  for (const consumer of [initials, hero, streaming]) {
+    assert.match(consumer, /import \{ splitTextGraphemes \} from .*text-graphemes/);
+    assert.doesNotMatch(consumer, /new Intl\.Segmenter|IntlSegmenterCtor/);
+  }
+});
+
+test("Seeded resource avatars use semantic rounded-square and running-state roles", async () => {
+  const seededAvatar = await readSource("src/shared/ui/display/seeded-avatar.tsx");
+
+  for (const role of [
+    "radius-control-xs",
+    "radius-control-sm",
+    "radius-control-md",
+    "radius-control-lg",
+  ]) {
+    assert.match(seededAvatar, new RegExp(role));
+  }
+  assert.match(seededAvatar, /state\?: UiSeededAvatarState/);
+  assert.match(seededAvatar, /status-running-soft-border/);
+  assert.doesNotMatch(seededAvatar, /rounded-\[/);
+  assert.doesNotMatch(seededAvatar, /Math\.random/);
+});
+
+test("desktop hosts share viewport bounds but keep platform chrome ownership separate", async () => {
+  const desktopRoot = path.join(webRoot, "..", "desktop");
+  const [macWindow, windowsWindow, windowsXaml, windowsWebView, recipes] = await Promise.all([
+    readFile(path.join(desktopRoot, "macos/Sources/NexusDesktop/Window/WindowManager.swift"), "utf8"),
+    readFile(path.join(desktopRoot, "windows/Nexus.Desktop/Window/MainWindow.xaml.cs"), "utf8"),
+    readFile(path.join(desktopRoot, "windows/Nexus.Desktop/Window/MainWindow.xaml"), "utf8"),
+    readFile(path.join(desktopRoot, "windows/Nexus.Desktop/WebView/WebViewHost.cs"), "utf8"),
+    readSource("src/app/styles/theme-recipes.css"),
+  ]);
+
+  for (const [macPattern, windowsPattern] of [
+    [/preferredWindowSize = NSSize\(width: 1280, height: 820\)/, /PreferredWindowWidth = 1280;[\s\S]*PreferredWindowHeight = 820;/],
+    [/preferredMinimumWindowSize = NSSize\(width: 360, height: 520\)/, /PreferredMinimumWindowWidth = 360;[\s\S]*PreferredMinimumWindowHeight = 520;/],
+    [/compactMinimumWindowSize = NSSize\(width: 320, height: 480\)/, /CompactMinimumWindowWidth = 320;[\s\S]*CompactMinimumWindowHeight = 480;/],
+    [/screenPadding: CGFloat = 48/, /ScreenPadding = 48;/],
+  ]) {
+    assert.match(macWindow, macPattern);
+    assert.match(windowsWindow, windowsPattern);
+  }
+
+  assert.match(macWindow, /\.fullSizeContentView/);
+  assert.match(macWindow, /titlebarAppearsTransparent = true/);
+  assert.match(windowsXaml, /<RowDefinition Height="34"\s*\/>[\s\S]*<RowDefinition Height="\*"\s*\/>/);
+  assert.match(windowsXaml, /x:Name="WebViewContainer"[\s\S]*Grid\.Row="1"/);
+  assert.match(windowsWebView, /IsNonClientRegionSupportEnabled = false/);
+  assert.match(recipes, /:root\[data-desktop-platform="macos"\][\s\S]*\[data-desktop-window-drag-region\]/);
+  assert.doesNotMatch(recipes, /:root\[data-desktop-platform="windows"\][\s\S]*\[data-desktop-window-drag-region\]/);
+});
+
+test("floating feedback reuses shared surface, layer, and typography recipes", async () => {
+  const [
+    banner,
+    bannerModel,
+    viewport,
+    recovery,
+    inlineNotice,
+    conversationNotice,
+    providerNotice,
+    readResourceNotice,
+    conversationPanel,
+  ] = await Promise.all([
+    readSource("src/shared/ui/feedback/feedback-banner.tsx"),
+    readSource("src/shared/ui/feedback/feedback-banner-model.ts"),
+    readSource("src/shared/ui/feedback/feedback-banner-viewport.tsx"),
+    readSource("src/shared/ui/feedback/recovery-summary.tsx"),
+    readSource("src/shared/ui/feedback/inline-notice.tsx"),
+    readSource("src/features/conversation/shared/conversation-reliability-notice.tsx"),
+    readSource("src/features/conversation/shared/provider-unavailable-banner.tsx"),
+    readSource("src/features/conversation/shared/read-resource-reliability-notice.tsx"),
+    readSource("src/features/conversation/shared/conversation-panel-layout.tsx"),
+  ]);
+
+  assert.match(banner, /surface-popover surface-radius-md/);
+  assert.match(banner, /getUiTypographyClassName/);
+  assert.match(banner, /getUiToneClassName/);
+  assert.doesNotMatch(banner, /shadow-\[/);
+  assert.doesNotMatch(banner, /rounded-\[/);
+  assert.doesNotMatch(bannerModel, /lucide-react|className|text-\(|shadow-|rounded-/);
+  assert.match(viewport, /getUiOverlayLayerClassName\("feedback"\)/);
+  assert.doesNotMatch(viewport, /\bz-(?:\d+|\[)/);
+  assert.match(recovery, /getUiTypographyClassName/);
+  assert.match(inlineNotice, /<UiButton/);
+  assert.match(inlineNotice, /getUiTypographyClassName/);
+  assert.match(inlineNotice, /surface-radius-sm/);
+  for (const consumer of [conversationNotice, providerNotice, readResourceNotice]) {
+    assert.match(consumer, /<UiInlineNotice/);
+    assert.doesNotMatch(consumer, /<button\b|rounded-\[/);
+  }
+  assert.match(conversationPanel, /<ReadResourceReliabilityNotice[\s\S]*variant="contained"/);
+  assert.doesNotMatch(conversationPanel, /<ReadResourceReliabilityNotice[\s\S]*rounded-\[/);
+});
+
+test("business inline notices reuse feedback and spinner owners", async () => {
+  const [customMcp, loopPicker, roomSkills] = await Promise.all([
+    readSource("src/features/capability/connectors/custom/custom-mcp-dialog.tsx"),
+    readSource(
+      "src/features/conversation/shared/composer/components/loop-picker/loop-picker-dialog.tsx",
+    ),
+    readSource(
+      "src/features/conversation/room/members/skills/room-skill-multi-select.tsx",
+    ),
+  ]);
+
+  assert.equal((customMcp.match(/<UiInlineNotice/g) ?? []).length, 2);
+  assert.doesNotMatch(customMcp, /rounded-\[/);
+  assert.match(loopPicker, /actionError[\s\S]*<UiInlineNotice/);
+  assert.doesNotMatch(loopPicker, /rounded-\[/);
+  const roomErrorBody =
+    roomSkills.match(/function ErrorMenuBody[\s\S]*?function EmptyMenuBody/)?.[0] ?? "";
+  assert.match(roomErrorBody, /<UiInlineNotice/);
+  assert.doesNotMatch(roomErrorBody, /rounded-\[|animate-spin/);
+  assert.match(roomSkills, /getUiSpinnerClassName/);
+});
+
+test("auth, Agent, and capability recovery surfaces reuse one inline notice owner", async () => {
+  const consumers = new Map([
+    ["src/pages/login/login-auth-panel.tsx", 1],
+    ["src/pages/setup/setup-page.tsx", 1],
+    ["src/features/agents/options/components/agent-options-editor-actions.tsx", 1],
+    ["src/features/agents/options/components/identity/identity-model-selector.tsx", 2],
+    ["src/features/capability/channels/authorization/channel-authorization-dialog.tsx", 2],
+    ["src/features/capability/channels/connection/channel-accounts-panel.tsx", 1],
+    ["src/features/capability/scheduled/dialog/form/task-basics-advanced.tsx", 1],
+  ]);
+
+  for (const [consumerPath, noticeCount] of consumers) {
+    const consumer = await readSource(consumerPath);
+    assert.equal(
+      (consumer.match(/<UiInlineNotice/g) ?? []).length,
+      noticeCount,
+      consumerPath,
+    );
+    assert.doesNotMatch(
+      consumer,
+      /border-\[color:color-mix\(in_srgb,var\(--(?:destructive|warning)\)[\s\S]*?bg-\[color:color-mix\(in_srgb,var\(--(?:destructive|warning)\)/,
+      consumerPath,
+    );
+  }
+});
+
+test("Login and Setup consume one branded access layout and shared form surfaces", async () => {
+  const [login, setup, frame, brandCSS] = await Promise.all([
+    readSource("src/pages/login/login-page.tsx"),
+    readSource("src/pages/setup/setup-page.tsx"),
+    readSource("src/features/access/access-page-frame.tsx"),
+    readSource("src/features/access/access-page.css"),
+  ]);
+  for (const page of [login, setup]) {
+    assert.match(page, /<AccessPageFrame\b/);
+    assert.match(page, /<AccessPageIntroduction\b/);
+    assert.doesNotMatch(page, /linear-gradient|text-\[\d+px\]|login-brand-mark|access-hero-title/);
+  }
+  assert.match(setup, /<UiPanel\b/);
+  assert.doesNotMatch(setup, /rounded-\[|color-mix|backdrop-blur|shadow-/);
+  assert.match(frame, /access-hero-title/);
+  assert.match(frame, /getUiTypographyClassName/);
+  assert.match(brandCSS, /\.access-page-background/);
+  assert.match(brandCSS, /\.access-hero-title/);
+});
+
+test("Select, Slash, and multi-select options share one listbox row DOM owner", async () => {
+  const [primitive, selectView, slashPicker, roomSkills] = await Promise.all([
+    readSource("src/shared/ui/menu/select-menu-primitives.tsx"),
+    readSource("src/shared/ui/menu/select-menu-view.tsx"),
+    readSource(
+      "src/features/conversation/shared/composer/components/slash-command-popover.tsx",
+    ),
+    readSource(
+      "src/features/conversation/room/members/skills/room-skill-multi-select.tsx",
+    ),
+  ]);
+
+  assert.match(primitive, /function SelectMenuOptionRow/);
+  assert.match(primitive, /aria-selected=\{active\}/);
+  assert.match(primitive, /role="option"/);
+  assert.match(primitive, /MENU_ITEM_BASE_CLASS_NAME/);
+  for (const consumer of [selectView, slashPicker, roomSkills]) {
+    assert.match(consumer, /<SelectMenuOptionRow/);
+    assert.doesNotMatch(consumer, /role="option"|aria-selected=|MENU_ITEM_BASE_CLASS_NAME/);
+  }
+  assert.match(selectView, /<UiBadge\b/);
+  assert.doesNotMatch(selectView, /color-mix|text-\[9px\]|rounded-\[6px\]/);
+});
+
+test("Action Menu owns complete copy, measured content and semantic row typography", async () => {
+  const [action, styles, options] = await Promise.all([
+    readSource("src/shared/ui/menu/action-menu.tsx"),
+    readSource("src/shared/ui/menu/menu-styles.ts"),
+    readSource("src/features/conversation/shared/composer/components/footer/composer-session-control-options.tsx"),
+  ]);
+  assert.match(action, /ResizeObserver/);
+  assert.match(action, /scrollHeight/);
+  assert.match(action, /getUiTypographyClassName/);
+  assert.match(styles, /getUiTypographyClassName/);
+  assert.doesNotMatch(action + styles, /text-2xs|text-compact|text-sm|font-semibold/);
+  assert.doesNotMatch(options, /text-2xs|text-\(--text-soft\)/);
+});
+
+test("Provider tests use explicit action menus and Select keeps one public visual API", async () => {
+  const [header, select, view] = await Promise.all([
+    readSource("src/features/settings/provider-settings/components/provider-settings-detail-header.tsx"),
+    readSource("src/shared/ui/menu/select-menu.tsx"),
+    readSource("src/shared/ui/menu/select-menu-view.tsx"),
+  ]);
+  assert.match(header, /<UiActionMenu\b/);
+  assert.match(header, /<UiButton\b/);
+  assert.doesNotMatch(header, /UiSelectMenu/);
+  assert.doesNotMatch(select + view, /buttonClassName/);
+  assert.match(select, /t\("common\.select_placeholder"\)/);
+});
+
+test("Select Menu separates state and geometry from its visual recipe", async () => {
+  const [model, styles, select, roomSkills, workgraphPicker] = await Promise.all([
+    readSource("src/shared/ui/menu/select-menu-model.ts"),
+    readSource("src/shared/ui/menu/select-menu-styles.ts"),
+    readSource("src/shared/ui/menu/select-menu.tsx"),
+    readSource("src/features/conversation/room/members/skills/room-skill-multi-select.tsx"),
+    readSource("src/features/conversation/shared/composer/components/workgraph-distillation-picker/workgraph-distillation-picker-dialog.tsx"),
+  ]);
+
+  assert.doesNotMatch(model, /\bclassName\b|rounded-|shadow-|text-\(|bg-\(|color-mix/);
+  assert.match(styles, /getSelectMenuStyleProjection/);
+  assert.match(styles, /SELECT_MENU_BUTTON_SURFACE_CLASS_NAMES/);
+  assert.match(styles, /getUiTypographyClassName/);
+  assert.doesNotMatch(styles, /\btext-sm\b|\btext-compact\b/);
+  assert.match(select, /buildSelectMenuModel/);
+  assert.match(select, /getSelectMenuStyleProjection/);
+  for (const consumer of [roomSkills, workgraphPicker]) {
+    assert.match(consumer, /select-menu-styles/);
+    assert.doesNotMatch(consumer, /select-menu-model[^;]*getSelectMenu(?:Button|Option|Size)/);
+  }
+});
+
+test("Action, Workspace, and Room model menus share one menu-item row DOM owner", async () => {
+  const [primitive, actionMenu, workspaceMenu, roomModelMenu] = await Promise.all([
+    readSource("src/shared/ui/menu/menu-action-row.tsx"),
+    readSource("src/shared/ui/menu/action-menu.tsx"),
+    readSource(
+      "src/features/conversation/room/workspace/view/workspace-context-menu.tsx",
+    ),
+    readSource(
+      "src/features/conversation/shared/composer/components/footer/composer-room-model-control.tsx",
+    ),
+  ]);
+
+  assert.match(primitive, /function UiMenuActionRow/);
+  assert.match(primitive, /<button/);
+  assert.match(primitive, /"menuitem" : "menuitemcheckbox"/);
+  assert.match(primitive, /aria-checked=\{checked\}/);
+  assert.match(primitive, /aria-disabled=\{disabled \|\| undefined\}/);
+  assert.match(primitive, /MENU_ITEM_BASE_CLASS_NAME/);
+  for (const consumer of [actionMenu, workspaceMenu, roomModelMenu]) {
+    assert.match(consumer, /<UiMenuActionRow/);
+    assert.doesNotMatch(consumer, /MENU_ITEM_BASE_CLASS_NAME/);
+    assert.doesNotMatch(consumer, /<(?:button|div)[^>]*role="menuitem"/s);
+  }
+  assert.equal((workspaceMenu.match(/<UiMenuActionRow/g) ?? []).length, 2);
+  assert.doesNotMatch(workspaceMenu, /<button/);
+  assert.match(roomModelMenu, /role="menu"/);
+});
+
+test("Mention suggestions share overlay, option DOM and menu geometry owners", async () => {
+  const [mention, model, action, row, launcher, composer] = await Promise.all([
+    readSource("src/shared/ui/mention/mention-target-popover.tsx"),
+    readSource("src/shared/ui/mention/mention-target-model.ts"),
+    readSource("src/shared/ui/menu/action-menu.tsx"),
+    readSource("src/shared/ui/menu/menu-action-row.tsx"),
+    readSource("src/features/launcher/hero/launcher-hero-stage.tsx"),
+    readSource("src/features/conversation/shared/composer/components/composer-input-row.tsx"),
+  ]);
+  for (const owner of [mention, action, row]) assert.match(owner, /getMenuItemLayout/);
+  assert.match(mention, /useAnchoredOverlayLayer/);
+  assert.match(mention, /preset: "reference-list"/);
+  assert.match(mention, /<SelectMenuPanel\b/);
+  assert.match(mention, /<SelectMenuOptionRow\b/);
+  assert.doesNotMatch(mention, /<button\b|document\.body|ui-layer-dialog|anchorRect/);
+  assert.doesNotMatch(model, /PopoverLayout|POPOVER_GAP|POPOVER_MAX_HEIGHT|MentionPlacement/);
+  for (const consumer of [launcher, composer]) {
+    assert.match(consumer, /<MentionTargetPopover\s+anchorRef=/);
+  }
+});
+
+test("cross-domain warnings reuse the shared inline feedback owner", async () => {
+  const [roomSkills, subagents, agentOptions, assistantMessage, memoryDocument, toolDetail] =
+    await Promise.all([
+      readSource(
+        "src/features/conversation/room/members/skills/room-skills-selector.tsx",
+      ),
+      readSource("src/features/conversation/shared/subagent/subagent-task-list.tsx"),
+      readSource("src/features/agents/options/components/agent-options-advanced-tab.tsx"),
+      readSource(
+        "src/features/conversation/shared/message/item/view/assistant/assistant-message-content.tsx",
+      ),
+      readSource("src/features/memory/document/memory-document-panel.tsx"),
+      readSource(
+        "src/features/conversation/shared/message/blocks/tool/tool-block-detail.tsx",
+      ),
+    ]);
+  const bypassNotice =
+    agentOptions.match(/\{isBypassPermissionMode \? \([\s\S]*?\) : null\}/)?.[0] ?? "";
+  const maxTokensNotice =
+    assistantMessage.match(/function MaxTokensWarning[\s\S]*$/)?.[0] ?? "";
+  const memoryAlerts =
+    memoryDocument.match(/function MemoryDocumentAlerts[\s\S]*?function MemorySaveIssueNotice/)?.[0]
+      ?? "";
+
+  for (const consumer of [roomSkills, subagents, bypassNotice, maxTokensNotice, memoryAlerts]) {
+    assert.match(consumer, /<UiInlineNotice/);
+    assert.doesNotMatch(consumer, /rounded-\[/);
+  }
+  assert.doesNotMatch(subagents, /<button\b/);
+  assert.match(agentOptions, /getUiSpinnerClassName/);
+  assert.match(agentOptions, /<UiChoiceButton[\s\S]*tone="neutral"/);
+  const permissionChoices =
+    agentOptions.match(/AGENT_PERMISSION_MODES\.map[\s\S]*?<\/div>/)?.[0] ?? "";
+  assert.notEqual(permissionChoices, "");
+  assert.doesNotMatch(permissionChoices, /<button\b/);
+  assert.doesNotMatch(agentOptions, /<Loader2 className="[^"]*animate-spin/);
+  assert.match(toolDetail, /<UiInlineNotice/);
+  assert.match(toolDetail, /width="compact"/);
+  assert.doesNotMatch(toolDetail, /className="max-w-/);
+  assert.doesNotMatch(toolDetail, /rounded-\[|color-mix|surface-muted-background/);
+});
+
+test("Agent Options navigation consumes the shared Button active-state contract", async () => {
+  const navigation = await readSource(
+    "src/features/agents/options/components/agent-options-nav.tsx",
+  );
+
+  assert.match(navigation, /<UiButton/);
+  assert.match(navigation, /aria-current=/);
+  assert.match(navigation, /variant="ghost"/);
+  assert.doesNotMatch(navigation, /<button\b|rounded-\[|shadow-/);
+});
+
+test("Agent authorization and Skill cards keep shared list, catalog and typography owners", async () => {
+  const [authorization, skill, catalog] = await Promise.all([
+    readSource("src/features/agents/options/components/agent-options-advanced-tab.tsx"),
+    readSource("src/features/agents/options/components/skills/agent-skill-card.tsx"),
+    readSource("src/shared/ui/workspace/catalog/workspace-catalog-card.tsx"),
+  ]);
+  assert.match(authorization, /<UiListRow/);
+  assert.match(skill, /<WorkspaceCatalogCard/);
+  for (const source of [authorization, skill]) {
+    assert.match(source, /<GlassSwitch/);
+    assert.match(source, /getUiTypographyClassName/);
+    assert.doesNotMatch(source, /rounded-\[|SIDEBAR_SELECTION_CLASS_NAME/);
+  }
+  assert.doesNotMatch(catalog, /<button\b/);
+});
+
+test("General and runtime binary settings retain one domain row owner", async () => {
+  for (const file of [
+    "src/features/settings/general/sections/settings-general-behavior-section.tsx",
+    "src/features/settings/runtime/settings-runtime-section.tsx",
+  ]) {
+    const source = await readSource(file);
+    assert.match(source, /<SettingsToggleRow\b/, file);
+    assert.doesNotMatch(source, /<GlassSwitch\b|liquid-glass\/glass-switch/, file);
+  }
+});
+
+test("Agent private threads separate data projection from ListRow layout recipes", async () => {
+  const [list, layout, model] = await Promise.all([
+    readSource("src/features/agents/private-domain/agent-private-domain-thread-list.tsx"),
+    readSource("src/features/agents/private-domain/agent-private-domain-thread-layout.ts"),
+    readSource("src/features/agents/private-domain/agent-private-domain-thread-model.ts"),
+  ]);
+
+  assert.match(list, /<UiListRow/);
+  assert.match(list, /activeTone="sidebar"/);
+  assert.match(layout, /getUiTypographyClassName/);
+  assert.match(layout, /UiListRowDensity/);
+  assert.doesNotMatch(
+    model,
+    /\bclassName\b|getUiTypographyClassName|UiListRowDensity|CSSProperties|rounded-|shadow-/,
+  );
+  assert.doesNotMatch(`${list}\n${layout}\n${model}`, /<button\b|rounded-\[|\btext-(?:2xs|xs|compact)\b/);
+});
+
+test("App typography exposes one typed semantic role map", async () => {
+  const { getUiToneClassName, getUiTypographyClassName } = await importLeafTypeScriptModule(
+    webRoot,
+    "src/shared/ui/typography/typography-styles.ts",
+  );
+  const [tokens, design] = await Promise.all([
+    readSource("src/app/styles/theme-tokens.css"),
+    readFile(path.join(webRoot, "..", "design.md"), "utf8"),
+  ]);
+
+  assert.deepEqual(
+    [
+      "display",
+      "featureTitle",
+      "objectTitle",
+      "pageTitle",
+      "sectionTitle",
+      "body",
+      "control",
+      "supporting",
+      "metadata",
+      "caption",
+      "code",
+    ].map((role) => getUiTypographyClassName({ role })),
+    [
+      "ui-type-display",
+      "ui-type-feature-title",
+      "ui-type-object-title",
+      "ui-type-page-title",
+      "ui-type-section-title",
+      "ui-type-body",
+      "ui-type-control",
+      "ui-type-supporting",
+      "ui-type-metadata",
+      "ui-type-caption",
+      "ui-type-code",
+    ],
+  );
+  assert.equal(
+    getUiTypographyClassName({ role: "supporting", tone: "muted", weight: "medium" }),
+    "ui-type-supporting ui-type-tone-muted ui-type-weight-medium",
+  );
+  assert.equal(getUiToneClassName("warning"), "ui-type-tone-warning");
+  for (const [token, value] of [
+    ["2xs", "10px"],
+    ["xs", "11px"],
+    ["compact", "12px"],
+    ["sm", "13px"],
+    ["base", "14px"],
+    ["md", "16px"],
+    ["lg", "20px"],
+    ["xl", "24px"],
+    ["2xl", "36px"],
+  ]) {
+    assert.match(tokens, new RegExp(`--text-${token}:\\s*${value}`));
+  }
+  assert.match(design, /10 \/ 11 \/ 12 \/ 13 \/ 14 \/ 16 \/ 20 \/ 24 \/ 36px/);
+  assert.doesNotMatch(design, /字号阶梯：`10 \/ 11 \/ 12 \/ 13 \/ 15 \/ 17/);
+});
+
+test("settings reuse semantic typography and the shared segmented control", async () => {
+  const [settingsStyles, segmentedControl, appearance, behavior, runtime] = await Promise.all([
+    readSource("src/features/settings/shared/settings-panel-ui.tsx"),
+    readSource("src/shared/ui/form/segmented-control.tsx"),
+    readSource("src/features/settings/general/sections/settings-appearance-section.tsx"),
+    readSource("src/features/settings/general/sections/settings-general-behavior-section.tsx"),
+    readSource("src/features/settings/runtime/settings-runtime-section.tsx"),
+  ]);
+
+  assert.match(settingsStyles, /getUiTypographyClassName/);
+  assert.doesNotMatch(settingsStyles, /SettingsSegmentedControl/);
+  assert.doesNotMatch(settingsStyles, /(?:text|leading|tracking|font)-\[/);
+  assert.doesNotMatch(settingsStyles, /rounded-\[/);
+  assert.match(segmentedControl, /getUiTypographyClassName\(\{ role: density === "compact" \? "supporting" : "control"/);
+  assert.match(segmentedControl, /surface-radius-md/);
+  assert.match(segmentedControl, /whitespace-normal/);
+  assert.doesNotMatch(segmentedControl, /rounded-full|shadow-/);
+  for (const consumer of [appearance, behavior, runtime]) {
+    assert.match(consumer, /UiSegmentedControl/);
+    assert.doesNotMatch(consumer, /SettingsSegmentedControl/);
+  }
+  assert.match(runtime, /<UiField/);
+  assert.doesNotMatch(runtime, /function SettingsField|<label\b|runtime-anysearch-params-error/);
+});
+
+test("Settings feature code consumes shared form DOM owners", async () => {
+  const files = await collectSourceFiles(path.join(srcRoot, "features", "settings"));
+  const violations = [];
+
+  for (const file of files) {
+    if (!/\.(?:ts|tsx)$/.test(file) || /\.(?:test|spec)\.tsx?$/.test(file)) continue;
+    const source = await readFile(file, "utf8");
+    if (/<(?:input|textarea|select)\b/.test(source)) {
+      violations.push(path.relative(webRoot, file));
+    }
+  }
+
+  assert.deepEqual(violations, []);
+});
+
+test("Settings navigation consumes shared Button and typography owners", async () => {
+  const files = await collectSourceFiles(path.join(srcRoot, "features", "settings"));
+  const violations = [];
+
+  for (const file of files) {
+    if (!/\.(?:ts|tsx)$/.test(file) || /\.(?:test|spec)\.tsx?$/.test(file)) continue;
+    const source = await readFile(file, "utf8");
+    if (/<button\b/.test(source)) {
+      violations.push(path.relative(webRoot, file));
+    }
+  }
+
+  const [navigationPattern, buttonStyles] = await Promise.all([
+    readSource("src/features/settings/shared/settings-panel-ui.tsx"),
+    readSource("src/shared/ui/button/button-styles.ts"),
+  ]);
+
+  assert.deepEqual(violations, []);
+  assert.match(navigationPattern, /SettingsNavigationButton/);
+  assert.match(navigationPattern, /<UiButton/);
+  assert.match(navigationPattern, /getUiTypographyClassName/);
+  assert.match(buttonStyles, /md: "[^"]*ui-type-control"/);
+  assert.match(buttonStyles, /lg: "[^"]*ui-type-control"/);
+  assert.match(buttonStyles, /aria-\[current=page\]/);
+});
+
+test("Personal settings cannot redefine App typography or card shape", async () => {
+  const personalRoot = path.join(srcRoot, "features", "settings", "personal");
+  const files = await collectSourceFiles(personalRoot);
+  const violations = [];
+  const localTypographyPattern = /\b(?:text-(?:2xs|xs|compact|sm|base|md|lg|xl|2xl)|font-(?:normal|medium|semibold|bold|mono)|leading-(?:none|\d+|\[[^\]]+\])|tracking-(?:tight|wide|\[[^\]]+\])|rounded-\[[^\]]+\])/;
+
+  for (const file of files) {
+    if (!/\.(?:ts|tsx)$/.test(file)) continue;
+    const source = await readFile(file, "utf8");
+    if (localTypographyPattern.test(source)) {
+      violations.push(path.relative(webRoot, file));
+    }
+  }
+
+  const [profile, usage, password, avatar] = await Promise.all([
+    readSource("src/features/settings/personal/personal-profile-section.tsx"),
+    readSource("src/features/settings/personal/personal-token-usage-section.tsx"),
+    readSource("src/features/settings/personal/personal-password-section.tsx"),
+    readSource("src/features/settings/personal/personal-avatar-picker.tsx"),
+  ]);
+
+  assert.deepEqual(violations, []);
+  for (const consumer of [profile, usage, password]) {
+    assert.match(consumer, /getUiTypographyClassName/);
+  }
+  assert.match(avatar, /<IconPickerTriggerLabel/);
+  assert.match(profile, /<UiBadge/);
+  for (const consumer of [profile, usage, password]) {
+    assert.match(consumer, /SETTINGS_CARD_CLASS_NAME/);
+  }
+});
+
+test("Provider settings cannot redefine App typography, badges, or shape", async () => {
+  const providerRoot = path.join(srcRoot, "features", "settings", "provider-settings");
+  const files = await collectSourceFiles(providerRoot);
+  const violations = [];
+  const localTypographyPattern = /\b(?:text-(?:2xs|xs|compact|sm|base|md|lg|xl|2xl)|font-(?:normal|medium|semibold|bold|mono)|leading-(?:none|\d+|\[[^\]]+\])|tracking-(?:tight|wide|\[[^\]]+\])|rounded-\[[^\]]+\])/;
+
+  for (const file of files) {
+    if (!/\.(?:ts|tsx)$/.test(file)) continue;
+    const source = await readFile(file, "utf8");
+    if (localTypographyPattern.test(source)) {
+      violations.push(path.relative(webRoot, file));
+    }
+  }
+
+  const consumers = await Promise.all([
+    "components/provider-settings-capability-switch.tsx",
+    "components/provider-settings-config-form.tsx",
+    "components/provider-settings-detail-header.tsx",
+    "components/provider-settings-icon.tsx",
+    "components/provider-settings-model-list.tsx",
+    "dialogs/provider-settings-add-model-dialog.tsx",
+    "dialogs/provider-settings-delete-usage-dialog.tsx",
+    "dialogs/provider-settings-model-options-dialog.tsx",
+  ].map((file) => readSource(`src/features/settings/provider-settings/${file}`)));
+
+  assert.deepEqual(violations, []);
+  for (const consumer of consumers) {
+    assert.match(consumer, /getUiTypographyClassName/);
+  }
+  for (const consumer of [consumers[1], consumers[2], consumers[4], consumers[6]]) {
+    assert.match(consumer, /<UiBadge/);
+  }
+  assert.doesNotMatch(
+    await readSource("src/features/settings/provider-settings/model/provider-settings-presentation.ts"),
+    /CLASS_NAME|className/,
+  );
+});
+
+test("Provider management stays inside its real settings and operations shells", async () => {
+  const [provider, presentation, settings, operations] = await Promise.all([
+    readSource("src/features/settings/provider-settings/provider-settings-panel.tsx"),
+    readSource("src/features/settings/provider-settings/model/provider-settings-presentation.ts"),
+    readSource("src/features/settings/settings-panel.tsx"),
+    readSource("src/features/settings/operations/operations-panel.tsx"),
+  ]);
+  assert.doesNotMatch(provider, /embedded|WorkspaceSurfaceHeader|WorkspaceSurfaceScaffold|SETTINGS_TABS/);
+  assert.doesNotMatch(presentation, /SettingsTabKey|SETTINGS_TABS/);
+  assert.match(settings, /<ProviderSettingsPanel \/>/);
+  assert.match(operations, /<ProviderSettingsPanel\s+layout="section"\s+visibilityScope="public"/);
+});
+
+test("Provider default models keep one actionable shared switch owner", async () => {
+  const [switchPrimitive, providerModels] = await Promise.all([
+    readSource("src/shared/ui/liquid-glass/glass-switch.tsx"),
+    readSource("src/features/settings/provider-settings/components/provider-settings-model-list.tsx"),
+  ]);
+  const defaultToggle = providerModels.match(
+    /function DefaultModelToggle[\s\S]*?function ProviderModelToggle/,
+  )?.[0] ?? "";
+
+  assert.notEqual(defaultToggle, "");
+  assert.match(switchPrimitive, /disabled=\{disabled\}/);
+  assert.match(switchPrimitive, /role="switch"/);
+  assert.match(defaultToggle, /<GlassSwitch/);
+  assert.match(defaultToggle, /onChange=\{\(\) => requestDisable\(\)\}/);
+  assert.doesNotMatch(defaultToggle, /role="button"|<span\b|\bdisabled\b/);
+});
+
+test("Browser settings use shared typography, status, recovery, and shape owners", async () => {
+  const browserRoot = path.join(srcRoot, "features", "settings", "browser");
+  const files = await collectSourceFiles(browserRoot);
+  const violations = [];
+  const localTypographyPattern = /\b(?:text-(?:2xs|xs|compact|sm|base|md|lg|xl|2xl)|font-(?:normal|medium|semibold|bold|mono)|leading-(?:none|\d+|\[[^\]]+\])|tracking-(?:tight|wide|\[[^\]]+\])|rounded-\[[^\]]+\])/;
+
+  for (const file of files) {
+    if (!/\.(?:ts|tsx)$/.test(file)) continue;
+    const source = await readFile(file, "utf8");
+    if (localTypographyPattern.test(source)) {
+      violations.push(path.relative(webRoot, file));
+    }
+  }
+
+  const section = await readSource(
+    "src/features/settings/browser/browser-settings-section.tsx",
+  );
+  assert.deepEqual(violations, []);
+  assert.match(section, /getUiTypographyClassName/);
+  assert.match(section, /<UiBadge showDot/);
+  assert.match(section, /<UiResourceState/);
+  assert.match(section, /SETTINGS_CARD_CLASS_NAME/);
+  assert.match(section, /SETTINGS_SECTION_TITLE_CLASS_NAME/);
+  assert.doesNotMatch(section, /statusColor|statusDot/);
+});
+
+test("standalone Settings collapse the panel to the shared rail on narrow windows", async () => {
+  const [panel, navigation] = await Promise.all([
+    readSource("src/features/settings/settings-panel.tsx"),
+    readSource("src/features/settings/settings-sidebar-navigation.tsx"),
+  ]);
+
+  assert.match(panel, /data-settings-navigation="panel"/);
+  assert.match(panel, /hidden h-full w-\[224px\][^\n]*sm:flex/);
+  assert.match(panel, /data-settings-navigation="rail"/);
+  assert.match(panel, /w-14[^\n]*sm:hidden/);
+  assert.match(panel, /<SettingsSidebarNavigation variant="panel"/);
+  assert.match(panel, /<SettingsSidebarNavigation variant="rail"/);
+  assert.match(navigation, /aria-current=\{active \? "page" : undefined\}/);
+});
+
+test("Operations settings use shared typography, badges, resource states, and shapes", async () => {
+  const operationsRoot = path.join(srcRoot, "features", "settings", "operations");
+  const files = await collectSourceFiles(operationsRoot);
+  const violations = [];
+  const localTypographyPattern = /\b(?:text-(?:2xs|xs|compact|sm|base|md|lg|xl|2xl)|font-(?:normal|medium|semibold|bold|mono)|leading-(?:none|\d+|\[[^\]]+\])|tracking-(?:tight|wide|\[[^\]]+\])|rounded-\[[^\]]+\])/;
+
+  for (const file of files) {
+    if (!/\.(?:ts|tsx)$/.test(file) || file.endsWith(".test.tsx")) continue;
+    const source = await readFile(file, "utf8");
+    if (localTypographyPattern.test(source)) {
+      violations.push(path.relative(webRoot, file));
+    }
+  }
+
+  const [members, accounts, plans, projects] = await Promise.all([
+    readSource("src/features/settings/operations/control-members-panel.tsx"),
+    readSource("src/features/settings/operations/subscription-admin/subscription-account-view.tsx"),
+    readSource("src/features/settings/operations/subscription-admin/subscription-plan-view.tsx"),
+    readSource("src/features/settings/operations/project-admin/project-admin-panel.tsx"),
+  ]);
+  const operationsUi = [members, accounts, plans, projects].join("\n");
+
+  assert.deepEqual(violations, []);
+  assert.match(operationsUi, /getUiTypographyClassName/);
+  assert.match(operationsUi, /<UiBadge/);
+  assert.match(operationsUi, /<UiResourceState/);
+  assert.match(operationsUi, /SETTINGS_CARD_CLASS_NAME/);
+  assert.match(operationsUi, /SETTINGS_CONTROL_LABEL_CLASS_NAME/);
+  assert.doesNotMatch(operationsUi, /Subscription(?:Loading|Empty)State/);
+});
+
+test("Settings app chrome does not redefine semantic typography or arbitrary radii", async () => {
+  const settingsRoot = path.join(srcRoot, "features", "settings");
+  const files = await collectSourceFiles(settingsRoot);
+  const violations = [];
+  const localTypographyPattern = /\b(?:text-(?:2xs|xs|compact|sm|base|md|lg|xl|2xl)|font-(?:normal|medium|semibold|bold|mono)|leading-(?:none|\d+|\[[^\]]+\])|tracking-(?:tight|wide|\[[^\]]+\])|rounded-\[[^\]]+\])/;
+
+  for (const file of files) {
+    if (!/\.(?:ts|tsx)$/.test(file) || file.includes(".test.")) continue;
+    const source = await readFile(file, "utf8");
+    if (localTypographyPattern.test(source)) {
+      violations.push(path.relative(webRoot, file));
+    }
+  }
+
+  assert.deepEqual(violations, []);
+});
+
+test("Capability detail chrome uses shared actions, typography, states, and shapes", async () => {
+  const detailPaths = [
+    "src/features/capability/connectors/detail/connector-detail-header.tsx",
+    "src/features/capability/connectors/detail/connector-detail-content.tsx",
+    "src/features/capability/connectors/custom/detail/custom-mcp-detail-view.tsx",
+    "src/features/capability/connectors/mcp/mcp-tools-section.tsx",
+    "src/features/capability/skills/detail/skill-detail-view.tsx",
+  ];
+  const sources = await Promise.all(detailPaths.map(readSource));
+  const localTypographyPattern = /\b(?:text-(?:2xs|xs|compact|sm|base|md|lg|xl|2xl)|font-(?:normal|medium|semibold|bold|mono)|leading-(?:none|\d+|\[[^\]]+\])|tracking-(?:tight|wide|\[[^\]]+\])|rounded-\[[^\]]+\])/;
+
+  assert.deepEqual(
+    detailPaths.filter((_, index) => localTypographyPattern.test(sources[index])),
+    [],
+  );
+  const detailChrome = sources.join("\n");
+  assert.match(detailChrome, /getUiTypographyClassName/);
+  assert.match(detailChrome, /<UiButton/);
+  assert.match(detailChrome, /<UiLinkButton/);
+  assert.match(detailChrome, /<UiBadge/);
+  assert.match(detailChrome, /<UiResourceState/);
+  assert.doesNotMatch(detailChrome, /<button/);
+  assert.match(sources[3], /flex flex-col items-start gap-3 sm:flex-row/);
+  assert.match(sources[3], /className="shrink-0"/);
+});
+
+test("Capability page chrome has one Header, typography, action, and shape owner", async () => {
+  const [
+    capabilityLayout,
+    workspaceHeader,
+    skillDetail,
+    connectorDetail,
+    connectorIdentity,
+    customMcpDetail,
+    loopDetail,
+    workGraphDetail,
+    workGraphDirectory,
+  ] = await Promise.all([
+    readSource("src/features/capability/shared/capability-page-layout.tsx"),
+    readSource("src/shared/ui/layout/workspace-content-header.tsx"),
+    readSource("src/features/capability/skills/detail/skill-detail-view.tsx"),
+    readSource("src/features/capability/connectors/detail/connector-detail-view.tsx"),
+    readSource("src/features/capability/connectors/detail/connector-detail-header.tsx"),
+    readSource("src/features/capability/connectors/custom/detail/custom-mcp-detail-view.tsx"),
+    readSource("src/features/capability/loops/loop-detail-view.tsx"),
+    readSource("src/features/capability/workgraph-distillations/workgraph-distillation-detail.tsx"),
+    readSource("src/features/capability/workgraph-distillations/workgraph-distillations-directory.tsx"),
+  ]);
+  const localTypographyPattern = /\b(?:text-(?:2xs|xs|compact|sm|base|md|lg|xl|2xl)|font-(?:normal|medium|semibold|bold|mono)|leading-(?:none|\d+|\[[^\]]+\])|tracking-(?:tight|wide|\[[^\]]+\])|rounded-\[[^\]]+\])/;
+
+  assert.doesNotMatch(capabilityLayout, localTypographyPattern);
+  assert.doesNotMatch(workspaceHeader, localTypographyPattern);
+  assert.match(capabilityLayout, /<WorkspaceContentHeader/);
+  assert.match(capabilityLayout, /createPortal/);
+  assert.match(capabilityLayout, /getUiTypographyClassName/);
+  assert.match(capabilityLayout, /radius-control-sm/);
+  assert.match(capabilityLayout, /CapabilityDetailSplitLayout/);
+  assert.match(capabilityLayout, /capability-detail-aside/);
+  assert.match(capabilityLayout, /xl:grid-cols-\[minmax\(0,760px\)_minmax\(280px,360px\)\]/);
+  assert.match(capabilityLayout, /CapabilityDetailSectionHeader/);
+  assert.match(capabilityLayout, /CapabilityDetailPage/);
+  assert.match(capabilityLayout, /CapabilityDetailIdentity/);
+  assert.match(capabilityLayout, /data-slot="capability-detail-header"/);
+  assert.match(capabilityLayout, /data-slot="capability-detail-body"/);
+  assert.match(capabilityLayout, /flex min-h-0 flex-1 flex-col pt-5/);
+  for (const consumer of [
+    skillDetail,
+    connectorDetail,
+    customMcpDetail,
+    loopDetail,
+    workGraphDetail,
+  ]) {
+    assert.match(consumer, /<CapabilityDetailPage/);
+    assert.doesNotMatch(consumer, /WorkspaceContentDetailHeader/);
+    assert.doesNotMatch(consumer, /className="pt-5"/);
+  }
+  assert.doesNotMatch(loopDetail, /className="mt-3 space-y-5"/);
+  assert.doesNotMatch(workGraphDetail, /className="mt-3 flex min-h-0/);
+  for (const consumer of [
+    skillDetail,
+    connectorIdentity,
+    customMcpDetail,
+    loopDetail,
+    workGraphDetail,
+  ]) {
+    assert.match(consumer, /<CapabilityDetailIdentity/);
+    assert.doesNotMatch(consumer, /role: "objectTitle"/);
+  }
+  assert.doesNotMatch(loopDetail, /<WorkspaceContentHeader/);
+  assert.match(loopDetail, /<UiSeededAvatar seed=\{loop\.slug\} size="lg"/);
+  assert.match(workGraphDetail, /<UiSeededAvatar seed=\{item\.slash_name\} size="lg"/);
+  assert.match(workGraphDirectory, /detailRouteContent/);
+  assert.doesNotMatch(workGraphDirectory, /className=\{selected \?/);
+  assert.match(skillDetail, /<CapabilityDetailSplitLayout/);
+  assert.match(skillDetail, /<CapabilityDetailSectionHeader/);
+  assert.doesNotMatch(skillDetail, /max-w-\[760px\]/);
+  assert.match(workspaceHeader, /getUiTypographyClassName/);
+});
+
+test("Capability auxiliary states reuse resource, list, typography, and spinner owners", async () => {
+  const [
+    pairings,
+    pairingList,
+    skillUpdates,
+    channelAccounts,
+    channelLogin,
+    channelLoginQr,
+    channelFooter,
+  ] = await Promise.all([
+    readSource("src/features/capability/channels/pairings-directory.tsx"),
+    readSource("src/features/capability/channels/pairings/pairing-list.tsx"),
+    readSource("src/features/capability/skills/catalog/skills-update-highlight.tsx"),
+    readSource("src/features/capability/channels/connection/channel-accounts-panel.tsx"),
+    readSource("src/features/capability/channels/connection/login/channel-login-panel.tsx"),
+    readSource("src/features/capability/channels/connection/login/login-qr-code.tsx"),
+    readSource("src/features/capability/channels/connection/view/channel-connect-dialog-footer.tsx"),
+  ]);
+
+  assert.match(pairings, /<UiResourceState/);
+  assert.doesNotMatch(pairings, /text-base|font-(?:medium|semibold)/);
+  assert.match(pairingList, /<UiPanel/);
+  assert.match(pairingList, /getUiTypographyClassName/);
+  assert.doesNotMatch(pairingList, /rounded-\[|text-(?:2xs|xs|sm|base|compact)|font-(?:medium|semibold)|font-mono/);
+  assert.match(skillUpdates, /<UiPanel/);
+  assert.match(skillUpdates, /<UiListRow/);
+  assert.match(skillUpdates, /getUiTypographyClassName/);
+  assert.match(skillUpdates, /getUiSpinnerClassName/);
+  assert.doesNotMatch(skillUpdates, /<button\b|rounded-\[|animate-spin/);
+  for (const source of [channelAccounts, channelLogin, channelLoginQr]) {
+    assert.match(source, /getUiTypographyClassName/);
+    assert.doesNotMatch(source, /rounded-\[|text-(?:2xs|xs|sm|base|compact)|font-(?:medium|semibold)|font-mono/);
+  }
+  assert.match(channelAccounts, /<UiPanel/);
+  assert.match(channelAccounts, /getUiSpinnerClassName/);
+  assert.match(channelLogin, /<UiPanel/);
+  assert.match(channelFooter, /getUiSpinnerClassName/);
+  assert.doesNotMatch(channelFooter, /animate-spin/);
+});
+
+test("Skill directory chrome reuses shared actions, states, typography, and filters", async () => {
+  const [card, grid, search, header, externalCard, detail] = await Promise.all([
+    readSource("src/features/capability/skills/shared/skill-directory-card.tsx"),
+    readSource("src/features/capability/skills/catalog/skills-catalog-grid.tsx"),
+    readSource("src/features/capability/skills/skills-search-bar.tsx"),
+    readSource("src/features/capability/skills/skills-header-actions.tsx"),
+    readSource("src/features/capability/skills/external/external-result-card.tsx"),
+    readSource("src/features/capability/skills/detail/skill-detail-view.tsx"),
+  ]);
+  const localVisualPattern = /rounded-\[|text-(?:2xs|xs|sm|base|compact)|font-(?:medium|semibold)|font-mono|animate-spin/;
+
+  assert.match(card, /primaryAction=\{\{ label: title, onClick: onSelect \}\}/);
+  assert.match(card, /getUiTypographyClassName/);
+  assert.doesNotMatch(card, /<button\b|rounded-\[|text-(?:2xs|xs|sm|base|compact)|font-(?:medium|semibold)|font-mono/);
+  assert.match(grid, /<UiResourceState/);
+  assert.doesNotMatch(grid, /Loader2/);
+  assert.match(search, /<UiDirectoryTabs/);
+  assert.doesNotMatch(search, /<UiSegmentedControl/);
+  assert.match(search, /<UiIconButton/);
+  assert.doesNotMatch(search, /<button\b/);
+  assert.match(header, /<UiIconButton/);
+  assert.match(header, /getUiSpinnerClassName/);
+  assert.doesNotMatch(header, /<button\b|animate-spin|rounded-\[/);
+  assert.match(externalCard, /getUiSpinnerClassName/);
+  assert.match(detail, /state="loading"/);
+  assert.match(detail, /getUiSpinnerClassName/);
+  assert.doesNotMatch(externalCard, localVisualPattern);
+  assert.doesNotMatch(detail, /animate-spin/);
+});
+
+test("Skill import and external sources reuse shared controls, states, and typography", async () => {
+  const paths = [
+    "src/features/capability/skills/import/skill-import-dialog.tsx",
+    "src/features/capability/skills/import/skill-import-footer.tsx",
+    "src/features/capability/skills/import/skill-import-source.tsx",
+    "src/features/capability/skills/import/skill-import-guide.tsx",
+    "src/features/capability/skills/external/skills-external-results.tsx",
+    "src/features/capability/skills/external/skill-source-manager-dialog.tsx",
+    "src/features/capability/skills/external/external-skill-preview-dialog.tsx",
+  ];
+  const sources = await Promise.all(paths.map(readSource));
+  const combined = sources.join("\n");
+
+  assert.match(combined, /UiSegmentedControl/);
+  assert.match(combined, /UiResourceState/);
+  assert.match(combined, /<UiPanel/);
+  assert.match(combined, /getUiTypographyClassName/);
+  assert.match(combined, /getUiSpinnerClassName/);
+  assert.match(sources[0], /<UiDialogFormShell[\s\S]*size="md"/);
+  assert.match(sources[5], /<UiSegmentedControl/);
+  assert.doesNotMatch(sources[5], /(?:tone|variant)=\{draft\.authType/);
+  for (const source of sources) {
+    assert.doesNotMatch(source, /rounded-\[|animate-spin|text-(?:2xs|xs|sm|base|lg|xl|2xl)|font-(?:normal|medium|semibold|bold)|<button/);
+  }
+});
+
+test("sidebar search composes shared input and icon actions without private state or text styles", async () => {
+  const search = await readSource("src/shared/ui/form/sidebar-search-field.tsx");
+  assert.match(search, /<UiSearchInput/);
+  assert.match(search, /<UiIconButton/);
+  assert.match(search, /aria-label=\{label\}/);
+  assert.doesNotMatch(search, /<button\b|inputClassName|hover:|focus-visible:|text-\(/);
+  const consumers = await Promise.all([
+    "src/features/home/sidebar/chat-sidebar-panel.tsx",
+    "src/features/home/sidebar/contacts-sidebar-panel.tsx",
+    "src/features/capability/sidebar/capability-sidebar-panel.tsx",
+  ].map(readSource));
+  for (const consumer of consumers) assert.match(consumer, /label=\{t\("sidebar\.search_/);
+});
+
+test("Capability sidebar reuses shared list, typography, and shape owners", async () => {
+  const [panel, item] = await Promise.all([
+    readSource("src/features/capability/sidebar/capability-sidebar-panel.tsx"),
+    readSource("src/features/capability/sidebar/capability-sidebar-item.tsx"),
+  ]);
+
+  assert.match(panel, /SidebarSearchField/);
+  assert.match(panel, /getUiTypographyClassName/);
+  assert.doesNotMatch(panel, /text-(?:2xs|xs|sm|base|compact)|font-(?:medium|semibold)|rounded-\[/);
+  assert.match(item, /<UiListRow/);
+  assert.match(item, /getUiTypographyClassName/);
+  assert.match(item, /radius-control-md/);
+  assert.doesNotMatch(item, /rounded-\[|text-(?:2xs|xs|sm|base|compact)|font-(?:medium|semibold)/);
+});
+
+test("Channel catalog shares resource, typography, action, and brand icon owners", async () => {
+  const [directory, card, channelIcon, connectorIcon, brandIcon] = await Promise.all([
+    readSource("src/features/capability/channels/channels-directory.tsx"),
+    readSource("src/features/capability/channels/catalog/channel-card.tsx"),
+    readSource("src/features/capability/channels/channel-icon.tsx"),
+    readSource("src/features/capability/connectors/connector-icon.tsx"),
+    readSource("src/features/capability/shared/capability-brand-icon.tsx"),
+  ]);
+  const localTypographyPattern = /\b(?:text-(?:2xs|xs|compact|sm|base|md|lg|xl|2xl)|font-(?:normal|medium|semibold|bold|mono)|leading-(?:none|\d+|\[[^\]]+\])|tracking-(?:tight|wide|\[[^\]]+\])|rounded-\[[^\]]+\])/;
+
+  assert.doesNotMatch(directory, localTypographyPattern);
+  assert.doesNotMatch(card, localTypographyPattern);
+  assert.match(directory, /state="loading"/);
+  assert.doesNotMatch(directory, /ChannelLoadingGrid|Loader2/);
+  assert.match(card, /getUiTypographyClassName/);
+  assert.match(card, /<UiLinkButton/);
+  assert.match(card, /<UiListActionButton/);
+  assert.doesNotMatch(card, /<a\b|<button\b|list-action-styles/);
+  assert.match(channelIcon, /<CapabilityBrandIcon/);
+  assert.match(connectorIcon, /<CapabilityBrandIcon/);
+  assert.doesNotMatch(channelIcon, /#[0-9a-f]{3,8}|bg-\[|text-white|lucide-react/i);
+  assert.match(brandIcon, /var\(--text-strong\)/);
+  assert.match(brandIcon, /radius-control-sm/);
+
+  const channelSources = Array.from(
+    channelIcon.matchAll(/src: "([^"]+)"/g),
+    (match) => match[1],
+  );
+  assert.equal(channelSources.length, 6);
+  assert.equal(new Set(channelSources).size, channelSources.length);
+});
+
+test("Capability authorization dialogs reuse shared form, status, and typography owners", async () => {
+  const paths = [
+    "src/features/capability/channels/authorization/channel-authorization-dialog.tsx",
+    "src/features/capability/connectors/auth/device-flow/connector-device-auth-dialog.tsx",
+    "src/features/capability/connectors/auth/richmail/richmail-pairing-dialog.tsx",
+    "src/features/capability/connectors/auth/connector-oauth-client-dialog.tsx",
+    "src/features/capability/connectors/auth/connector-credential-dialog.tsx",
+    "src/features/capability/connectors/auth/feishu/feishu-app-connection-dialog.tsx",
+  ];
+  const sources = await Promise.all(paths.map(readSource));
+  const combined = sources.join("\n");
+
+  assert.match(combined, /getUiTypographyClassName/);
+  assert.match(combined, /getUiSpinnerClassName/);
+  assert.match(combined, /<UiPanel/);
+  assert.match(combined, /<UiField/);
+  for (const source of sources) {
+    assert.doesNotMatch(source, /rounded-\[|animate-spin|text-(?:2xs|xs|sm|base|lg|xl|2xl)|font-(?:normal|medium|semibold|bold)/);
+  }
+});
+
+test("Scheduled task board chrome uses shared action, typography, loading, and radius owners", async () => {
+  const board = await readSource(
+    "src/features/capability/scheduled/board/scheduled-task-board.tsx",
+  );
+
+  assert.match(board, /<UiButton/);
+  assert.match(board, /getUiTypographyClassName/);
+  assert.match(board, /getUiSpinnerClassName/);
+  assert.match(board, /surface-radius-sm/);
+  assert.doesNotMatch(
+    board,
+    /<button\b|rounded-\[|\banimate-spin\b|text-(?:2xs|xs|sm|base|md|lg|xl|2xl)|font-(?:normal|medium|semibold|bold)/,
+  );
+});
+
+test("Scheduled task cards and attention details use shared semantic UI owners", async () => {
+  const paths = [
+    "src/features/capability/scheduled/board/scheduled-task-card.tsx",
+    "src/features/capability/scheduled/board/scheduled-task-attention-dialog.tsx",
+  ];
+  const sources = await Promise.all(paths.map(readSource));
+  const combined = sources.join("\n");
+
+  assert.match(sources[0], /<WorkspaceCatalogCard/);
+  assert.match(combined, /<UiPanel/);
+  assert.match(combined, /<UiButton/);
+  assert.match(combined, /<UiBadge/);
+  assert.match(combined, /getUiTypographyClassName/);
+  assert.match(combined, /getUiSpinnerClassName/);
+  for (const source of sources) {
+    assert.doesNotMatch(
+      source,
+      /<button\b|rounded-\[|\bmotion-safe:animate-spin\b|text-(?:2xs|xs|sm|base|md|lg|xl|2xl)|font-(?:normal|medium|semibold|bold)/,
+    );
+  }
+});
+
+test("Scheduled task run history uses shared panel, action, typography, and radius owners", async () => {
+  const paths = [
+    "src/features/capability/scheduled/history/view/scheduled-task-run-actions.tsx",
+    "src/features/capability/scheduled/history/view/scheduled-task-run-details.tsx",
+    "src/features/capability/scheduled/history/view/scheduled-task-run-history-item.tsx",
+  ];
+  const sources = await Promise.all(paths.map(readSource));
+  const combined = sources.join("\n");
+
+  assert.match(combined, /<UiButton/);
+  assert.match(combined, /<UiPanel/);
+  assert.match(combined, /<UiDisclosure/);
+  assert.match(combined, /getUiTypographyClassName/);
+  for (const source of sources) {
+    assert.doesNotMatch(
+      source,
+      /<button\b|rounded-\[|text-(?:2xs|xs|sm|base|md|lg|xl|2xl)|font-(?:normal|medium|semibold|bold)|tracking-\[/,
+    );
+  }
+});
+
+test("Scheduled task forms use shared panel, typography, and semantic radius owners", async () => {
+  const paths = [
+    "src/features/capability/scheduled/dialog/form/task-basics-advanced.tsx",
+    "src/features/capability/scheduled/dialog/form/task-basics-panel.tsx",
+    "src/features/capability/scheduled/dialog/schedule/task-schedule-panel.tsx",
+  ];
+  const sources = await Promise.all(paths.map(readSource));
+  const combined = sources.join("\n");
+
+  assert.match(combined, /<UiPanel/);
+  assert.match(combined, /<UiDisclosure/);
+  assert.match(combined, /getUiTypographyClassName/);
+  for (const source of sources) {
+    assert.doesNotMatch(
+      source,
+      /rounded-\[|text-(?:2xs|xs|sm|base|md|lg|xl|2xl)|font-(?:normal|medium|semibold|bold)|tracking-\[/,
+    );
+  }
+});
+
+test("Scheduled pickers use shared actions, typography, and anchored overlay owners", async () => {
+  const paths = [
+    "src/features/capability/scheduled/pickers/daily-time-picker.tsx",
+    "src/features/capability/scheduled/pickers/single-run-picker.tsx",
+    "src/features/capability/scheduled/pickers/time-picker-column.tsx",
+    "src/features/capability/scheduled/pickers/picker-trigger.tsx",
+  ];
+  const sources = await Promise.all(paths.map(readSource));
+  const popover = await readSource(
+    "src/features/capability/scheduled/pickers/picker-popover.tsx",
+  );
+  const combined = sources.join("\n");
+
+  assert.match(combined, /<UiButton/);
+  assert.match(combined, /<UiIconButton/);
+  assert.match(combined, /<UiChoiceButton/);
+  assert.match(combined, /getUiTypographyClassName/);
+  assert.match(sources[1], /md:grid-cols-\[196px_minmax\(0,1fr\)\]/);
+  assert.match(popover, /useAnchoredOverlayLayer/);
+  assert.match(popover, /role="dialog"/);
+  for (const source of sources) {
+    assert.doesNotMatch(
+      source,
+      /<button\b|rounded-\[|text-(?:2xs|xs|sm|base|md|lg|xl|2xl)|font-(?:normal|medium|semibold|bold)|tracking-\[/,
+    );
+  }
+});
+
+test("Contacts directory and Agent cards use shared catalog, badge, typography, and action owners", async () => {
+  const [directory, card] = await Promise.all([
+    readSource("src/features/contacts/contacts-directory.tsx"),
+    readSource("src/features/contacts/contacts-agent-card.tsx"),
+  ]);
+  const combined = `${directory}\n${card}`;
+
+  assert.match(combined, /<WorkspaceCatalogCard|<WorkspaceCatalogGhostAction/);
+  assert.match(combined, /<UiPanel/);
+  assert.match(combined, /<UiBadge/);
+  assert.match(card, /primaryAction=/);
+  assert.match(combined, /getUiTypographyClassName/);
+  for (const source of [directory, card]) {
+    assert.doesNotMatch(
+      source,
+      /<button\b|rounded-\[|text-(?:2xs|xs|compact|sm|base|md|lg|xl|2xl)|font-(?:normal|medium|semibold|bold)|tracking-\[/,
+    );
+  }
+});
+
+test("Contacts detail persistence status uses shared action, spinner, typography, and overlay owners", async () => {
+  const [detail, status] = await Promise.all([
+    readSource("src/features/contacts/contacts-agent-detail.tsx"),
+    readSource("src/features/contacts/agent-options-persistence-status.tsx"),
+  ]);
+
+  assert.match(detail, /<AgentOptionsPersistenceStatus/);
+  assert.match(status, /<UiIconButton/);
+  assert.match(status, /getUiSpinnerClassName/);
+  assert.match(status, /getUiOverlayLayerClassName\("popover"\)/);
+  assert.match(status, /useAnchoredOverlayLayer/);
+  assert.match(status, /resolveUiAnchoredOverlayPosition/);
+  assert.match(status, /focusAfterAnchoredOverlayExit/);
+  assert.doesNotMatch(status, /mobileErrorOpen|absolute right-0|calc\(100vw/);
+  assert.match(detail, /<AgentOptionsPersistenceStatus agentId=\{agent\.agent_id\}/);
+  assert.match(status, /OVERLAY_SURFACE_CLASS_NAME/);
+  assert.match(status, /getUiTypographyClassName/);
+  for (const source of [detail, status]) {
+    assert.doesNotMatch(
+      source,
+      /<button\b|rounded-\[|\bz-\[|\bz-\d+\b|\banimate-spin\b|text-(?:2xs|xs|compact|sm|base|md|lg|xl|2xl)|font-(?:normal|medium|semibold|bold)|tracking-\[/,
+    );
+  }
+});
+
+test("Contacts narrow actions stay bound to their exact Agent and explicit commands", async () => {
+  const [detail, actions] = await Promise.all([
+    readSource("src/features/contacts/contacts-agent-detail.tsx"),
+    readSource("src/features/contacts/contacts-agent-detail-actions-menu.tsx"),
+  ]);
+  assert.match(detail, /<ContactsAgentDetailActionsMenu\s+agentId=\{agent\.agent_id\}/);
+  assert.match(actions, /useResettableState\(false, agentId\)/);
+  assert.match(actions, /getAgentDisplayName/);
+  assert.match(actions, /if \(value === "delete"\) onDelete\(\)/);
+  assert.doesNotMatch(actions, /useState|<button\b/);
+});
+
+test("Contacts communication separates orchestration and reuses shared directory chrome", async () => {
+  const [view, directory, status] = await Promise.all([
+    readSource("src/features/contacts/agent-communication-view.tsx"),
+    readSource("src/features/contacts/agent-communication-directory.tsx"),
+    readSource("src/features/contacts/agent-communication-status.tsx"),
+  ]);
+  const combined = `${view}\n${directory}\n${status}`;
+
+  assert.match(view, /<AgentCommunicationDirectory/);
+  assert.match(view, /<WorkspaceSurfaceHeader/);
+  assert.match(view, /<ConversationPanelLayout/);
+  assert.match(directory, /<UiListRow/);
+  assert.match(directory, /<UiPanel/);
+  assert.match(directory, /<UiDialogFormShell/);
+  assert.match(directory, /<SidebarSearchField/);
+  assert.match(directory, /<SidebarSearchAction/);
+  assert.match(view, /busy=\{state\.isRemoving\}/);
+  assert.match(view, /variant="danger"/);
+  assert.match(directory, /getUiSpinnerClassName/);
+  assert.match(status, /<UiResourceState/);
+  assert.doesNotMatch(
+    combined,
+    /<button\b|rounded-\[|\banimate-spin\b|text-(?:2xs|xs|compact|sm|base|md|lg|xl|2xl)|font-(?:normal|medium|semibold|bold)|tracking-\[/,
+  );
+});
+
+test("Connector catalog exposes only implemented products and derives real categories", async () => {
+  const [serverCatalog, catalogHook, catalogModel, categoryModel, searchBar] = await Promise.all([
+    readSource("../internal/service/connectors/catalog.go"),
+    readSource("src/features/capability/connectors/controller/use-connector-catalog.ts"),
+    readSource("src/features/capability/connectors/catalog/connector-catalog-model.ts"),
+    readSource("src/features/capability/connectors/catalog/connectors-categories.ts"),
+    readSource("src/features/capability/connectors/catalog/connectors-search-bar.tsx"),
+  ]);
+
+  assert.doesNotMatch(serverCatalog, /coming_soon|ConnectorID:\s*"outlook"|ConnectorID:\s*"gmail"/);
+  assert.match(catalogHook, /getConnectorsApi\(\{ status: "available" \}\)/);
+  assert.match(catalogModel, /connector\.status === "available"/);
+  assert.match(catalogModel, /getAvailableConnectorCategoryKeys/);
+  assert.doesNotMatch(catalogModel, /COMING_SOON|connector_section_featured/);
+  assert.match(categoryModel, /getAvailableConnectorCategoryKeys/);
+  assert.match(searchBar, /categoryKeys/);
+  assert.match(searchBar, /<UiDirectoryTabs/);
+  assert.doesNotMatch(searchBar, /<UiTabs|<UiSegmentedControl/);
+  assert.doesNotMatch(searchBar, /CONNECTOR_CATEGORY_OPTIONS/);
+});
+
+test("content and filter tabs use one underline owner while form choices stay segmented", async () => {
+  const [tabs, tabStyles, directoryTabs, capabilityLayout, pairingFilter, customMcpDialog, spreadsheet] = await Promise.all([
+    readSource("src/shared/ui/navigation/tabs.tsx"),
+    readSource("src/shared/ui/navigation/tabs-styles.ts"),
+    readSource("src/shared/ui/navigation/directory-tabs.tsx"),
+    readSource("src/features/capability/shared/capability-page-layout.tsx"),
+    readSource("src/features/capability/channels/pairings/pairing-filter-bar.tsx"),
+    readSource("src/features/capability/connectors/custom/custom-mcp-dialog.tsx"),
+    readSource(
+      "src/features/conversation/shared/editor/spreadsheet/spreadsheet-readonly-workbook.tsx",
+    ),
+  ]);
+
+  assert.doesNotMatch(tabs, /variant/);
+  assert.doesNotMatch(tabs, /onDismissActive|dismissActiveLabel|UiTabDismissButton/);
+  assert.match(tabStyles, /getUiTypographyClassName/);
+  assert.doesNotMatch(tabStyles, /\btext-xs\b|\bfont-(?:medium|semibold)\b/);
+  assert.doesNotMatch(tabStyles, /UiTabsVariant|surface-interactive|radius-control-sm/);
+  assert.match(tabStyles, /border-b-2/);
+  assert.match(directoryTabs, /export function UiDirectoryTabs/);
+  assert.doesNotMatch(directoryTabs, /@\/features\/capability|CapabilityDirectoryTabs/);
+  assert.doesNotMatch(capabilityLayout, /DirectoryTabs|<UiTabs/);
+  assert.match(pairingFilter, /<UiDirectoryTabs/);
+  assert.doesNotMatch(pairingFilter, /<UiTabs|<UiSegmentedControl/);
+  assert.match(customMcpDialog, /<UiSegmentedControl/g);
+  assert.doesNotMatch(customMcpDialog, /<UiTabs/);
+  assert.match(spreadsheet, /<UiTabs/);
+  assert.doesNotMatch(spreadsheet, /<button\b|bg-primary|rounded-md/);
+});
+
+test("Loop surfaces use semantic typography, badges, panels, and responsive actions", async () => {
+  const loopPaths = [
+    "src/features/capability/loops/loops-directory.tsx",
+    "src/features/capability/loops/loop-detail-view.tsx",
+  ];
+  const sources = await Promise.all(loopPaths.map(readSource));
+  const localTypographyPattern = /\b(?:text-(?:2xs|xs|compact|sm|base|md|lg|xl|2xl)|font-(?:normal|medium|semibold|bold|mono)|leading-(?:none|\d+|\[[^\]]+\])|tracking-(?:tight|wide|\[[^\]]+\])|rounded-\[[^\]]+\])/;
+
+  assert.deepEqual(
+    loopPaths.filter((_, index) => localTypographyPattern.test(sources[index])),
+    [],
+  );
+  const loopChrome = sources.join("\n");
+  assert.match(loopChrome, /getUiTypographyClassName/);
+  assert.match(loopChrome, /<UiBadge/);
+  assert.match(loopChrome, /<UiPanel/);
+  assert.match(loopChrome, /<UiResourceState/);
+  assert.match(sources[1], /<CapabilityDetailIdentity/);
+});
+
+test("WorkGraph capability directory and detail keep separate semantic owners", async () => {
+  const workGraphPaths = [
+    "src/features/capability/workgraph-distillations/workgraph-distillations-directory.tsx",
+    "src/features/capability/workgraph-distillations/workgraph-distillation-detail.tsx",
+  ];
+  const sources = await Promise.all(workGraphPaths.map(readSource));
+  const localTypographyPattern = /\b(?:text-(?:2xs|xs|compact|sm|base|md|lg|xl|2xl)|font-(?:normal|medium|semibold|bold|mono)|leading-(?:none|\d+|\[[^\]]+\])|tracking-(?:tight|wide|\[[^\]]+\])|rounded-\[[^\]]+\])/;
+
+  assert.deepEqual(
+    workGraphPaths.filter((_, index) => localTypographyPattern.test(sources[index])),
+    [],
+  );
+  const workGraphChrome = sources.join("\n");
+  assert.match(sources[0], /<WorkGraphDistillationDetail/);
+  assert.match(sources[0], /getUiTypographyClassName/);
+  assert.match(sources[1], /<UiButton/);
+  assert.match(sources[1], /<UiPanel/);
+  assert.match(sources[1], /<WorkGraphWorkflowCanvasPreview/);
+  assert.doesNotMatch(workGraphChrome, /<button\b/);
+  assert.match(sources[1], /<CapabilityDetailIdentity/);
+});
+
+test("product source contains no arbitrary shadows or numeric z-index values", async () => {
+  const files = (await Promise.all(productUiRoots.map(collectSourceFiles))).flat();
+  const violations = [];
+
+  for (const rule of PROHIBITED_PRODUCT_STYLE_PATTERNS) {
+    for (const file of files) {
+      const source = await readFile(file, "utf8");
+      const relativePath = path.relative(webRoot, file);
+      if (rule.pattern.test(source)) {
+        violations.push(`${relativePath}: ${rule.label}`);
+      }
+    }
+  }
+
+  assert.deepEqual(violations, []);
+});
+
+test("only shared primitive adapters consume the internal button style projection", async () => {
+  const files = await collectSourceFiles(srcRoot);
+  const adapters = new Set([
+    "src/shared/ui/button/button.tsx",
+  ]);
+  const violations = [];
+
+  for (const file of files) {
+    if (!/\.(?:ts|tsx)$/.test(file)) continue;
+    const source = await readFile(file, "utf8");
+    const relativePath = path.relative(webRoot, file);
+    if (!adapters.has(relativePath)
+      && importsFrontendModule(relativePath, source, "src/shared/ui/button/button-styles")) {
+      violations.push(relativePath);
+    }
+  }
+
+  assert.deepEqual(violations, []);
+});
+
+test("Dialog actions render the shared Button primitive instead of a class adapter", async () => {
+  const sourceFiles = await collectSourceFiles(srcRoot);
+  const adapterConsumers = [];
+  for (const file of sourceFiles) {
+    const source = await readFile(file, "utf8");
+    if (/getDialogActionClassName/.test(source)) {
+      adapterConsumers.push(path.relative(webRoot, file));
+    }
+  }
+  assert.deepEqual(adapterConsumers, []);
+
+  const decisionActions = await readSource(
+    "src/shared/ui/dialog/decision/decision-dialog-frame.tsx",
+  );
+  assert.match(decisionActions, /<UiButton/);
+  assert.doesNotMatch(decisionActions, /<button\b/);
+});
+
+test("form style and accessibility internals and native selects keep explicit owners", async () => {
+  const files = await collectSourceFiles(srcRoot);
+  const fieldAccessibilityConsumers = new Set([
+    "src/shared/ui/form/form-control.tsx",
+    "src/shared/ui/form/source-editor.tsx",
+    "src/shared/ui/menu/select-menu-primitives.tsx",
+  ]);
+  const violations = [];
+
+  for (const file of files) {
+    if (!/\.(?:ts|tsx)$/.test(file)) continue;
+    const source = await readFile(file, "utf8");
+    const relativePath = path.relative(webRoot, file);
+    if (
+      relativePath !== "src/shared/ui/form/form-control.tsx"
+      && importsFrontendModule(relativePath, source, "src/shared/ui/form/form-control-styles")
+    ) {
+      violations.push(`${relativePath}: internal form style import`);
+    }
+    if (
+      !fieldAccessibilityConsumers.has(relativePath)
+      && importsFrontendModule(relativePath, source, "src/shared/ui/form/field-accessibility")
+    ) {
+      violations.push(`${relativePath}: internal field accessibility import`);
+    }
+    if (
+      relativePath !== "src/shared/ui/form/form-control.tsx"
+      && !/\.(?:test|spec)\.tsx?$/.test(file)
+      && countNativeElement(file, source, "select") > 0
+    ) {
+      violations.push(`${relativePath}: unowned native select`);
+    }
+  }
+
+  assert.deepEqual(violations, []);
+});
+
+test("ordinary Room fields and permission radios keep shared DOM owners", async () => {
+  const files = await collectSourceFiles(srcRoot);
+  const choiceStyleConsumers = [];
+  for (const file of files) {
+    if (!/\.(?:ts|tsx)$/.test(file)) continue;
+    const source = await readFile(file, "utf8");
+    const relativePath = path.relative(webRoot, file);
+    if (
+      relativePath !== "src/shared/ui/form/choice.tsx"
+      && relativePath !== "src/shared/ui/form/choice-styles.ts"
+      && importsFrontendModule(relativePath, source, "src/shared/ui/form/choice-styles")
+    ) {
+      choiceStyleConsumers.push(relativePath);
+    }
+  }
+  assert.deepEqual(choiceStyleConsumers, []);
+
+  const [roomSettings, toolPermission] = await Promise.all([
+    readSource("src/features/conversation/room/members/room-settings-form.tsx"),
+    readSource("src/features/conversation/shared/message/blocks/tool/tool-block-permission.tsx"),
+  ]);
+  assert.match(roomSettings, /<UiInput/);
+  assert.doesNotMatch(roomSettings, /<input\b/);
+  assert.match(toolPermission, /<UiRadioChoice/);
+  assert.doesNotMatch(toolPermission, /getUiChoiceClassName|<input\b/);
+});
+
+test("single and multiple selects keep one trigger DOM and style owner", async () => {
+  const owners = new Set([
+    "src/shared/ui/menu/select-menu-primitives.tsx",
+    "src/shared/ui/menu/select-menu-styles.ts",
+  ]);
+  const violations = [];
+  for (const file of await collectSourceFiles(srcRoot)) {
+    if (!/\.(?:ts|tsx)$/.test(file)) continue;
+    const relativePath = path.relative(webRoot, file);
+    if (!owners.has(relativePath) && /\bgetSelectMenuButtonClassName\b/.test(await readFile(file, "utf8"))) {
+      violations.push(relativePath);
+    }
+  }
+  assert.deepEqual(violations, []);
+  for (const consumer of [
+    "src/shared/ui/menu/select-menu-view.tsx",
+    "src/features/conversation/room/members/skills/room-skill-multi-select.tsx",
+  ]) {
+    const source = await readSource(consumer);
+    assert.match(source, /<SelectMenuTrigger\b/);
+    assert.doesNotMatch(source, /<button\b/);
+  }
+});
+
+test("Agent identity uses shared fields, composition-safe tags and public wrapping selects", async () => {
+  const [profile, tags, model, identity, layout] = await Promise.all([
+    readSource("src/features/agents/options/components/identity/identity-profile-fields.tsx"),
+    readSource("src/features/agents/options/components/identity/identity-tags.tsx"),
+    readSource("src/features/agents/options/components/identity/identity-model-selector.tsx"),
+    readSource("src/features/agents/options/components/identity/agent-options-identity-tab.tsx"),
+    readSource("src/features/agents/options/components/identity/identity-layout.ts"),
+  ]);
+  for (const view of [profile, tags, model, identity]) {
+    assert.match(view, /<UiField\b/);
+    assert.match(view, /useId/);
+    assert.doesNotMatch(view, /<label\b|IDENTITY_FIELD_LABEL_CLASS_NAMES/);
+  }
+  assert.doesNotMatch(layout, /uppercase|tracking-|text-soft|LABEL_CLASS/);
+  assert.match(tags, /isImeKeyboardEvent\(event\.nativeEvent\)/);
+  assert.doesNotMatch(tags, /placeholder:text-\(--text-soft\)|removeLabel=\{`移除/);
+  assert.match(model, /allowLabelWrap/);
+  assert.doesNotMatch(model, /buttonClassName|MODEL_SELECTOR_LAYOUTS/);
+});
+
+test("removable entities share one chip action and never nest fake buttons", async () => {
+  const [primitive, identityTags, roomSkills] = await Promise.all([
+    readSource("src/shared/ui/form/removable-chip.tsx"),
+    readSource("src/features/agents/options/components/identity/identity-tags.tsx"),
+    readSource("src/features/conversation/room/members/skills/room-skill-multi-select.tsx"),
+  ]);
+
+  assert.match(primitive, /function UiRemovableChip/);
+  assert.match(primitive, /<UiIconButton/);
+  for (const consumer of [identityTags, roomSkills]) {
+    assert.match(consumer, /<UiRemovableChip/);
+    assert.doesNotMatch(consumer, /role="button"/);
+  }
+  assert.match(roomSkills, /className=\{cn\("absolute inset-0"/);
+  assert.match(roomSkills, /disabled=\{disabled\}/);
+  assert.doesNotMatch(roomSkills, /rounded-\[6px\]|tabIndex=\{-1\}/);
+});
+
+test("avatar pickers share image choices, triggers, and visual-free data models", async () => {
+  const [picker, popover, model, layout, choiceStyles, room, personal, identity, docs] = await Promise.all([
+    readSource("src/shared/ui/icon-picker/icon-picker.tsx"),
+    readSource("src/shared/ui/icon-picker/icon-picker-popover.tsx"),
+    readSource("src/shared/ui/icon-picker/icon-picker-model.ts"),
+    readSource("src/shared/ui/icon-picker/icon-picker-layout.ts"),
+    readSource("src/shared/ui/form/choice-styles.ts"),
+    readSource("src/features/conversation/room/members/room-avatar-picker.tsx"),
+    readSource("src/features/settings/personal/personal-avatar-picker.tsx"),
+    readSource("src/features/agents/options/components/identity/identity-avatar-picker.tsx"),
+    readSource("src/shared/ui/icon-picker/CLAUDE.md"),
+  ]);
+
+  assert.match(picker, /<UiChoiceButton/);
+  assert.match(picker, /variant="icon"/);
+  assert.match(picker, /<UiButton/);
+  assert.doesNotMatch(picker, /<button\b|item\.className/);
+  assert.match(popover, /function IconPickerTriggerLabel/);
+  assert.doesNotMatch(popover, /triggerClassName/);
+  assert.doesNotMatch(
+    model,
+    /\bclassName\b|CSSProperties|rounded-|shadow-|color-mix|GRID_COLUMN|ICON_SIZE/,
+  );
+  assert.match(layout, /GRID_COLUMN_CLASS_NAMES/);
+  assert.match(choiceStyles, /icon: resolveIconChoiceClasses/);
+  assert.doesNotMatch(choiceStyles, /ICON_CHOICE[\s\S]*?shadow-/);
+  for (const consumer of [room, personal, identity]) {
+    assert.match(consumer, /<IconPickerTriggerLabel/);
+    assert.doesNotMatch(consumer, /triggerClassName|ChevronDown/);
+  }
+  assert.match(docs, /不得恢复原生按钮或私有选中阴影/);
+});
+
+test("search surfaces share input and query semantics without inventing deep search", async () => {
+  const queryConsumers = [
+    "src/features/agents/options/components/skills/agent-skills-model.ts",
+    "src/features/capability/channels/catalog/channel-catalog-model.ts",
+    "src/features/capability/channels/pairings/pairing-model.ts",
+    "src/features/capability/connectors/catalog/connector-catalog-model.ts",
+    "src/features/capability/connectors/custom/custom-mcp-model.ts",
+    "src/features/capability/loops/loops-directory.tsx",
+    "src/features/capability/sidebar/capability-sidebar-model.ts",
+    "src/features/capability/workgraph-distillations/workgraph-distillations-directory.tsx",
+    "src/features/contacts/agent-communication-model.ts",
+    "src/features/contacts/contacts-directory-helpers.ts",
+    "src/features/conversation/shared/composer/slash-command-model.ts",
+    "src/features/conversation/shared/execution/execution-workgraph-interaction-model.ts",
+    "src/features/home/sidebar/use-chat-sidebar-controller.ts",
+    "src/features/memory/catalog/memory-catalog-model.ts",
+    "src/features/settings/provider-settings/model/provider-model-model.ts",
+    "src/shared/ui/mention/mention-target-model.ts",
+  ];
+
+  for (const consumerPath of queryConsumers) {
+    const source = await readSource(consumerPath);
+    assert.match(source, /@\/shared\/ui\/form\/search-query/, consumerPath);
+    assert.doesNotMatch(
+      source,
+      /(?:toLowerCase|toLocaleLowerCase)\(\)\s*\.includes\(/,
+      consumerPath,
+    );
+  }
+
+  const productFiles = await collectSourceFiles(srcRoot);
+  const nativeSearchInputs = [];
+  for (const file of productFiles) {
+    if (!/\.(?:ts|tsx)$/.test(file)) continue;
+    const source = await readFile(file, "utf8");
+    if (/<input\b[^>]*\btype=["']search["']/.test(source)) {
+      nativeSearchInputs.push(path.relative(webRoot, file));
+    }
+  }
+  assert.deepEqual(nativeSearchInputs, []);
+
+  const capabilitySidebar = await readSource(
+    "src/features/capability/sidebar/capability-sidebar-model.ts",
+  );
+  assert.match(capabilitySidebar, /search\.matches\(\[item\.label, item\.meta\]\)/);
+
+  const [roomSkillMenu, workGraphControls] = await Promise.all([
+    readSource("src/features/conversation/room/members/skills/room-skill-multi-select.tsx"),
+    readSource("src/features/conversation/shared/execution/execution-workgraph-controls.tsx"),
+  ]);
+  assert.match(roomSkillMenu, /<UiSearchInput[\s\S]*?variant="menu"/);
+  assert.match(workGraphControls, /<UiSearchInput[\s\S]*?variant="toolbar"/);
+  assert.doesNotMatch(roomSkillMenu, /<input\b/);
+  assert.doesNotMatch(workGraphControls, /<input\b/);
+});
+
+test("critical shared UI groups keep co-located DOM behavior suites", async () => {
+  for (const suitePath of REQUIRED_SHARED_UI_BEHAVIOR_SUITES) {
+    const source = await readSource(suitePath);
+    assert.match(source, /@testing-library\/react/, suitePath);
+    assert.match(source, /(?:userEvent|fireEvent)/, suitePath);
+  }
+});
+
+test("Capability and Workspace headers share the Breadcrumb owner", async () => {
+  const [capabilityLayout, workspaceChrome, workspacePathModel] = await Promise.all([
+    readSource("src/features/capability/shared/capability-page-layout.tsx"),
+    readSource("src/features/conversation/shared/editor/workspace-file-preview-chrome.tsx"),
+    readSource("src/features/conversation/room/workspace/controller/workspace-path-model.ts"),
+  ]);
+
+  for (const source of [capabilityLayout, workspaceChrome]) {
+    assert.match(source, /<UiBreadcrumb/);
+    assert.doesNotMatch(source, /WorkspaceFileBreadcrumb|ChevronRight/);
+  }
+  assert.match(workspacePathModel, /getWorkspaceFileLocationSegments/);
+  assert.doesNotMatch(workspacePathModel, /getWorkspaceFileLocationLabel/);
+});
+
+test("Loop and WorkGraph pickers consume shared interactive row owners", async () => {
+  const [loopItem, workGraphPicker] = await Promise.all([
+    readSource("src/features/conversation/shared/composer/components/loop-picker/loop-picker-item.tsx"),
+    readSource("src/features/conversation/shared/composer/components/workgraph-distillation-picker/workgraph-distillation-picker-dialog.tsx"),
+  ]);
+
+  assert.match(loopItem, /<UiListRow/);
+  assert.match(loopItem, /disabled=\{busySlug !== null\}/);
+  assert.doesNotMatch(loopItem, /<button\b|\btext-(?:xs|sm|base|compact)\b|\bfont-(?:medium|semibold)\b/);
+  assert.match(workGraphPicker, /role="listbox"/);
+  assert.match(workGraphPicker, /<SelectMenuOptionRow/);
+  assert.doesNotMatch(workGraphPicker, /<button\b/);
+});
+
+test("conversation suggestions, compact actions, and context usage share Button DOM owners", async () => {
+  const paths = [
+    "src/features/conversation/shared/conversation-empty-introduction.tsx",
+    "src/features/conversation/shared/message/item/view/user/user-message-content.tsx",
+    "src/features/conversation/shared/message/blocks/tool/subagent-task-tool-entry.tsx",
+    "src/features/conversation/shared/message/blocks/artifact/workspace-artifact-external-action.tsx",
+    "src/features/conversation/shared/composer/components/footer/composer-context-usage.tsx",
+  ];
+  const sources = await Promise.all(paths.map(readSource));
+
+  for (const source of sources) {
+    assert.doesNotMatch(source, /<button\b/);
+  }
+  for (const source of sources.slice(0, 4)) {
+    assert.match(source, /<UiButton/);
+  }
+  const introductionAction = sources[0].match(
+    /<UiButton[\s\S]*?<\/UiButton>/,
+  )?.[0] ?? "";
+  assert.match(introductionAction, /variant="outline"/);
+  assert.doesNotMatch(introductionAction, /variant="surface"|shadow-/);
+  assert.match(sources[0], /<MessagesSquare className="-translate-x-0\.5 h-6 w-6"/);
+  assert.match(
+    sources[0],
+    /empty_room_delegate[\s\S]*empty_room_workspace[\s\S]*empty_room_workgraph/,
+  );
+  assert.match(sources[4], /<UiIconButton/);
+  const contextUsageButton = sources[4].match(
+    /<UiIconButton[\s\S]*?<\/UiIconButton>/,
+  )?.[0] ?? "";
+  assert.doesNotMatch(
+    contextUsageButton,
+    /radius-control-|focus-visible:bg-|hover:bg-\(--surface-interactive-hover-background\)/,
+  );
+});
+
+test("message Thought and process disclosures share one domain toggle owner", async () => {
+  const [toggle, thought, callchain, toolRuns] = await Promise.all([
+    readSource("src/features/conversation/shared/message/ui/message-detail-toggle.tsx"),
+    readSource("src/features/conversation/shared/message/blocks/thinking-block.tsx"),
+    readSource("src/features/conversation/shared/message/item/view/assistant/assistant-process-callchain.tsx"),
+    readSource("src/features/conversation/shared/message/item/view/assistant/assistant-dm-tool-runs.tsx"),
+  ]);
+
+  assert.match(toggle, /<UiButton/);
+  assert.match(toggle, /aria-expanded=\{expanded\}/);
+  assert.match(toggle, /expanded && "rotate-90"/);
+  for (const source of [thought, callchain, toolRuns]) {
+    assert.match(source, /<MessageDetailToggle/);
+    assert.doesNotMatch(source, /<button\b|ChevronDown|ChevronRight/);
+  }
+});
+
+test("pinned and Room fallback navigation reuse shared action and list owners", async () => {
+  const [pinned, fallback] = await Promise.all([
+    readSource("src/features/navigation/sidebar/view/sidebar-pinned-conversations.tsx"),
+    readSource("src/features/conversation/room/group/group-route-entry.tsx"),
+  ]);
+
+  assert.match(pinned, /<SidebarRailAction/);
+  assert.doesNotMatch(pinned, /<button\b/);
+  assert.match(pinned, /<UiListActionButton/);
+  assert.match(pinned, /visibility="hover"/);
+  assert.match(fallback, /<UiListRow/);
+  assert.match(fallback, /<WorkspaceCatalogCard/);
+  assert.doesNotMatch(fallback, /WorkspaceActionBar|WorkspaceActionCard/);
+  assert.doesNotMatch(fallback, /<button\b/);
+});
+
+test("browser verification keeps optimized dependencies separate from development and SSR", async () => {
+  const { resolveConfig } = await import("vite");
+  const development = await resolveConfig({ root: webRoot }, "serve", "development");
+  const browser = await resolveConfig({ root: webRoot }, "serve", "browser-test");
+  assert.notEqual(browser.cacheDir, development.cacheDir);
+  assert.equal(browser.cacheDir, path.join(webRoot, "node_modules/.vite-browser-test"));
+  assert.match(await readSource("playwright.config.ts"), /--mode browser-test/);
+});
+
+test("the UI contract gallery stays reproducible and outside production entries", async () => {
+  const [html, entry, gallery, additionalGallery, inventory, viteConfig] = await Promise.all([
+    readSource("ui-gallery.html"),
+    readSource("src/entries/ui-gallery.tsx"),
+    readSource("src/dev/ui-gallery/ui-contract-gallery.tsx"),
+    readSource("src/dev/ui-gallery/ui-gallery-additional-sections.tsx"),
+    readSource("src/dev/ui-gallery/ui-gallery-inventory.ts"),
+    readSource("vite.config.ts"),
+  ]);
+
+  assert.match(html, /src\/entries\/ui-gallery\.tsx/);
+  assert.match(entry, /bootstrapPublicReactApp/);
+  assert.match(entry, /UiContractGallery/);
+  assert.doesNotMatch(viteConfig, /ui-gallery\.html/);
+  for (const section of [
+    "Typography hierarchy",
+    "Buttons & actions",
+    "Forms & selection",
+    "Identity & navigation",
+    "Resource states",
+    "Overlay & responsive checks",
+  ]) {
+    assert.match(gallery, new RegExp(section));
+  }
+  for (const section of [
+    "FoundationCompleteness",
+    "ContentGallery",
+    "InteractionGallery",
+    "WorkspaceGallery",
+    "CoverageInventory",
+  ]) {
+    assert.match(additionalGallery, new RegExp(`export function ${section}`));
+  }
+  assert.match(gallery, /query\.set\("section", activeTab\)/);
+  assert.match(inventory, /UI_GALLERY_COVERAGE_GROUPS/);
+  assert.match(entry, /OnboardingTourProvider/);
+});
+
+
+test("Workspace context menus use shared point/cascade geometry and dismissal instead of target-size tables", async () => {
+  const [view, model, interaction, actionMenu, roomMenu, roomLayout] = await Promise.all([
+    readSource("src/features/conversation/room/workspace/view/workspace-context-menu.tsx"),
+    readSource("src/features/conversation/room/workspace/controller/interaction/workspace-interaction-model.ts"),
+    readSource("src/features/conversation/room/workspace/controller/interaction/use-workspace-interaction-state.ts"),
+    readSource("src/shared/ui/menu/action-menu.tsx"),
+    readSource("src/features/conversation/shared/composer/components/footer/composer-room-model-control.tsx"),
+    readSource("src/features/conversation/shared/composer/components/footer/composer-session-control-layout.ts"),
+  ]);
+  assert.match(view, /resolveUiPointOverlayPosition/);
+  assert.match(view, /resolveUiSideOverlayPosition/);
+  assert.equal((view.match(/useAnchoredOverlayLayer\(/g) ?? []).length, 2);
+  assert.doesNotMatch(view, /document\.addEventListener|window\.inner(?:Width|Height)|openOnLeft|useWorkspaceContextMenuDismiss/);
+  assert.doesNotMatch(model + interaction, /resolveWorkspaceMenuPosition|MENU_HEIGHT_BY_TARGET|viewport\.height|viewport\.width/);
+  assert.match(roomMenu, /getRoomModelMenuLayout/);
+  for (const source of [view, actionMenu, roomLayout]) assert.match(source, /getMenuContentHeight/);
+});
+
+
+test("Room Session model layouts preserve one option list and delegate viewport bounds", async () => {
+  const [room, direct, layout] = await Promise.all([
+    readSource("src/features/conversation/shared/composer/components/footer/composer-room-model-control.tsx"),
+    readSource("src/features/conversation/shared/composer/components/footer/composer-session-controls.tsx"),
+    readSource("src/features/conversation/shared/composer/components/footer/composer-session-control-layout.ts"),
+  ]);
+  assert.equal((room.match(/<UiActionMenuContent/g) ?? []).length, 1);
+  assert.match(room, /useMediaQuery\(ROOM_MODEL_CASCADE_QUERY\)/);
+  assert.match(room, /contentWidth: menuLayout\.width/);
+  assert.doesNotMatch(room, /window\.inner(?:Width|Height)|layoutStyle|Math\.(?:min|max)\(/);
+  assert.match(room, /SESSION_MODEL_MENU_WIDTH/);
+  assert.match(direct, /SESSION_MODEL_MENU_WIDTH/);
+  assert.match(layout, /export const SESSION_MODEL_MENU_WIDTH = 256/);
+  assert.doesNotMatch(room + direct, /const (?:ROOM|SESSION)_MODEL_MENU_WIDTH =/);
+});
+
+test("DM and Room model option commands have one selection owner", async () => {
+  const [room, direct, options] = await Promise.all([
+    readSource("src/features/conversation/shared/composer/components/footer/composer-room-model-control.tsx"),
+    readSource("src/features/conversation/shared/composer/components/footer/composer-session-controls.tsx"),
+    readSource("src/features/conversation/shared/composer/components/footer/composer-session-control-options.tsx"),
+  ]);
+  for (const consumer of [room, direct]) {
+    assert.match(consumer, /applySessionModelSelection\(controller, value\)/);
+    assert.doesNotMatch(consumer, /controller\.(?:resetModel|updateModel)\(/);
+    assert.doesNotMatch(consumer, /decodeSessionModelValue|JSON\.parse/);
+  }
+  assert.match(options, /export function applySessionModelSelection/);
+});
+
+
+test("Workspace file rows reuse shared buttons and typography", async () => {
+  const [row, model] = await Promise.all([
+    readSource("src/shared/ui/workspace/tree/workspace-file-tree-row.tsx"),
+    readSource("src/shared/ui/workspace/tree/workspace-file-tree-model.ts"),
+  ]);
+  assert.match(row, /<UiButton/);
+  assert.match(row, /<UiListActionButton/);
+  assert.doesNotMatch(row, /<button\b|hover:bg-|hover:text-/);
+  assert.match(model, /getUiTypographyClassName/);
+  assert.doesNotMatch(model, /text-sm|leading-\[/);
+});
+
+test("Auxiliary and file panel controllers share the mouse drag lifecycle", async () => {
+  const controllers = await Promise.all([
+    readSource("src/hooks/home/use-home-workspace-controller.ts"),
+    readSource("src/features/conversation/room/workspace/view/use-workspace-file-list-layout.ts"),
+  ]);
+  for (const source of controllers) {
+    assert.match(source, /useMouseDrag\(/);
+    assert.doesNotMatch(source, /window\.(?:add|remove)EventListener\(["'](?:mousemove|mouseup|blur)["']/);
+  }
+});
+
+test("Right panel bounds and resize keyboard handling retain unique owners", async () => {
+  const panels = await Promise.all([
+    readSource("src/features/conversation/room/surface/layout/room-thread-inline-panel.tsx"),
+    readSource("src/features/conversation/room/surface/layout/room-surface-auxiliary-panel.tsx"),
+  ]);
+  for (const source of panels) {
+    assert.match(source, /useRoomSidePanelResize\(/);
+    assert.doesNotMatch(source, /\b(?:minWidth|maxWidth):|onKeyDown=/);
+  }
+  const files = await readSource("src/features/conversation/room/workspace/view/workspace-file-browser.tsx");
+  assert.match(files, /<PanelResizeHandle/);
+  assert.doesNotMatch(files, /onKeyDown=/);
+});
+
+test("Workspace directory feedback and header typography use shared owners", async () => {
+  const [browser, view] = await Promise.all([
+    readSource("src/features/conversation/room/workspace/view/workspace-file-browser.tsx"),
+    readSource("src/features/conversation/room/workspace/room-workspace-view.tsx"),
+  ]);
+  assert.match(browser, /<UiResourceState/);
+  assert.match(browser, /<WorkspaceFileToolbarButton/);
+  assert.doesNotMatch(browser, /<button\b|\banimate-spin\b|\btext-(?:xs|sm|base|compact)\b/);
+  assert.match(view, /getUiTypographyClassName/);
+  assert.doesNotMatch(view, /\btext-(?:xs|sm|base|compact)\b|\bfont-(?:normal|medium|semibold)\b/);
+});
+
+
+test("Composer Footer consumes shared checked-menu and typography owners", async () => {
+  const actions = await readSource("src/features/conversation/shared/composer/components/footer/composer-footer-actions.tsx");
+  assert.match(actions, /<UiActionMenu\b/);
+  assert.doesNotMatch(actions, /GlassSwitch|stopPropagation|trailing:/);
+  for (const file of ["composer-footer", "composer-footer-status", "composer-footer-metadata", "composer-context-usage"]) {
+    const source = await readSource(`src/features/conversation/shared/composer/components/footer/${file}.tsx`);
+    assert.match(source, /getUiTypographyClassName/, file);
+    assert.doesNotMatch(source, /text-2xs|text-xs|text-sm|leading-3|leading-4/, file);
+  }
+});
+
+
+test("Queued input uses shared Disclosure, menu and typography with Session isolation", async () => {
+  const [queue, item, panel] = await Promise.all([
+    readSource("src/features/conversation/shared/composer/components/pending-queue/composer-pending-queue.tsx"),
+    readSource("src/features/conversation/shared/composer/components/pending-queue/pending-queue-item.tsx"),
+    readSource("src/features/conversation/shared/composer/composer-panel.tsx"),
+  ]);
+  assert.match(queue, /<UiDisclosure\b/);
+  assert.doesNotMatch(queue, /PendingQueueHeader|<summary|<button|text-2xs/);
+  assert.match(item, /<UiActionMenu\b/);
+  assert.match(item, /getUiTypographyClassName/);
+  assert.doesNotMatch(item, /text-compact|line-clamp|<button\b/);
+  assert.match(panel, /<ComposerPendingQueue\s+key=\{props\.draftScopeKey\}/);
+});

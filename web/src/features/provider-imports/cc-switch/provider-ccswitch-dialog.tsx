@@ -32,7 +32,9 @@ import {
   UiDialogPortal,
 } from "@/shared/ui/dialog/dialog";
 import { UiInput } from "@/shared/ui/form/form-control";
+import { UiCheckbox } from "@/shared/ui/form/checkbox";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import type {
   CCSwitchPreview,
   CCSwitchProviderPreview,
@@ -205,13 +207,12 @@ export function ProviderCCSwitchDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        className="z-[12000]"
+        layer="systemDialog"
         closeOnBackdrop={!syncing}
         labelledBy="provider-ccswitch-title"
         onClose={syncing ? undefined : onClose}
       >
         <UiDialogFormShell
-          className="max-h-[min(82dvh,680px)] !max-w-[620px]"
           onSubmit={(event) => {
             event.preventDefault();
             if (failure?.kind === "committed_refresh") {
@@ -221,6 +222,7 @@ export function ProviderCCSwitchDialog({
             }
           }}
           size="lg"
+          viewport="adaptiveMax"
         >
           <UiDialogHeader
             appearance="plain"
@@ -245,7 +247,9 @@ export function ProviderCCSwitchDialog({
           <UiDialogBody className="!min-h-0 !flex-1 p-0" scrollable>
             {loading ? (
               <div className="flex h-full min-h-[180px] items-center justify-center gap-2 text-sm text-(--text-muted)">
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2
+                  className={getUiSpinnerClassName({ size: "md", tone: "muted" })}
+                />
                 {t("settings.providers.ccswitch_detecting")}
               </div>
             ) : null}
@@ -298,12 +302,11 @@ export function ProviderCCSwitchDialog({
                   "flex cursor-pointer items-center gap-2 text-xs text-(--text-muted)",
                   !canSetDefault && "cursor-not-allowed opacity-(--disabled-opacity)",
                 )}>
-                  <input
+                  <UiCheckbox
                     checked={setDefault && canSetDefault}
-                    className="h-3.5 w-3.5 accent-(--primary)"
+                    checkboxSize="small"
                     disabled={!canSetDefault || controlsLocked || syncing}
                     onChange={(event) => setSetDefault(event.target.checked)}
-                    type="checkbox"
                   />
                   {t("settings.providers.ccswitch_set_default")}
                 </label>
@@ -313,7 +316,7 @@ export function ProviderCCSwitchDialog({
                 </span>
               ) : null}
               {selectedSources.size > 1 || selectedModelCount > 1 ? (
-                <div className="mt-1 text-[11px] text-(--text-soft)">
+                <div className="mt-1 text-xs text-(--text-soft)">
                   {t("settings.providers.ccswitch_selected_summary", {
                     models: selectedModelCount,
                     providers: selectedSources.size,
@@ -331,7 +334,9 @@ export function ProviderCCSwitchDialog({
                 type="submit"
                 variant="solid"
               >
-                {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                {syncing ? (
+                  <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
+                ) : null}
                 {syncing
                   ? t(requireDefault
                     ? "settings.providers.ccswitch_importing"
@@ -436,15 +441,20 @@ function CCSwitchSourceBar({
       <div className="flex items-center gap-2 border-b border-(--divider-subtle-color) px-5 py-3">
         <UiInput
           aria-label={t("settings.providers.ccswitch_path")}
-          className="min-w-0 flex-1 font-mono text-xs"
+          className="min-w-0 flex-1"
           controlSize="sm"
           disabled={locked}
           onChange={(event) => onConfigDirChange(event.target.value)}
           placeholder="~/.cc-switch"
+          textRole="code"
           value={configDir}
         />
         <UiButton disabled={loading || locked || !configDir.trim()} onClick={onDetect} size="sm" variant="surface">
-          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+          {loading ? (
+            <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
+          ) : (
+            <RotateCcw className="h-3.5 w-3.5" />
+          )}
           {t("settings.providers.ccswitch_detect")}
         </UiButton>
       </div>
@@ -460,7 +470,11 @@ function CCSwitchSourceBar({
         {t("settings.providers.ccswitch_change_path")}
       </UiButton>
       <UiButton disabled={loading || locked} onClick={onDetect} size="xs" variant="ghost">
-        <RotateCcw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+        <RotateCcw
+          className={loading
+            ? getUiSpinnerClassName({ size: "sm", tone: "muted" })
+            : "h-3.5 w-3.5"}
+        />
         {t("settings.providers.ccswitch_refresh")}
       </UiButton>
     </div>
@@ -490,26 +504,24 @@ function CCSwitchProviderRow({
         : "cursor-not-allowed bg-(--surface-muted-background) opacity-70",
       checked && "bg-[color:color-mix(in_srgb,var(--brand)_5%,transparent)]",
     )}>
-      <input
+      <UiCheckbox
         checked={checked}
-        className="h-4 w-4 shrink-0 accent-(--primary)"
         disabled={!item.can_sync || disabled}
         onChange={(event) => onChange(event.target.checked)}
-        type="checkbox"
       />
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-(--divider-subtle-color) bg-(--background) text-[11px] font-semibold text-(--text-default)">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-(--divider-subtle-color) bg-(--background) text-xs font-semibold text-(--text-default)">
         {item.app_type === "claude" ? "CC" : "CX"}
       </span>
       <span className="min-w-0 flex-1">
         <span className="flex min-w-0 items-center gap-2">
           <span className="truncate text-sm font-semibold text-(--text-strong)">{item.name}</span>
           {item.current ? (
-            <span className="shrink-0 rounded-full bg-[color:color-mix(in_srgb,var(--brand)_10%,transparent)] px-2 py-0.5 text-[10px] font-semibold text-(--brand-action)">
+            <span className="shrink-0 rounded-full bg-[color:color-mix(in_srgb,var(--brand)_10%,transparent)] px-2 py-0.5 text-2xs font-semibold text-(--brand-action)">
               {t("settings.providers.ccswitch_current")}
             </span>
           ) : null}
           {item.existing ? (
-            <span className="shrink-0 text-[10px] text-(--text-soft)">
+            <span className="shrink-0 text-2xs text-(--text-soft)">
               {t("settings.providers.ccswitch_will_update")}
             </span>
           ) : null}

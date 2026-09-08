@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import { Bot, Clock3, RadioTower, Square } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 
 import {
@@ -14,7 +15,6 @@ import {
   type AgentMentionDirectory,
 } from "../../../agent-mention-chip";
 import { formatMessageTime } from "../../../message-time";
-import { MessageActionButton } from "../../../ui/message-action-button";
 import { MessageAvatar } from "../../../ui/message-avatar";
 
 interface AssistantMessageHeaderProps {
@@ -101,7 +101,7 @@ function AssistantEchoBadge({ visible }: { visible: boolean }) {
     return null;
   }
   return (
-    <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-(--divider-subtle-color) bg-(--surface-control-field-background) px-1.5 py-0.5 text-[10px] font-medium leading-none text-(--text-muted)">
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-(--divider-subtle-color) bg-(--surface-control-field-background) px-1.5 py-0.5 text-2xs font-medium leading-none text-(--text-muted)">
       <RadioTower className="h-2.5 w-2.5" />
       {t("message.echo")}
     </span>
@@ -115,7 +115,7 @@ function AssistantAutomationBadge({ taskName }: { taskName?: string | null }) {
   }
   return (
     <span
-      className="inline-flex shrink-0 items-center gap-1 rounded-full border border-(--divider-subtle-color) bg-(--surface-control-field-background) px-1.5 py-0.5 text-[10px] font-medium leading-none text-(--text-muted)"
+      className="inline-flex shrink-0 items-center gap-1 rounded-full border border-(--divider-subtle-color) bg-(--surface-control-field-background) px-1.5 py-0.5 text-2xs font-medium leading-none text-(--text-muted)"
       title={taskName || t("message.scheduled_task")}
     >
       <Clock3 className="h-2.5 w-2.5" />
@@ -186,16 +186,16 @@ function AssistantStopAction({
     return null;
   }
   return (
-    <MessageActionButton
+    <UiButton
       aria-label={t("composer.stop_generation")}
-      className="flex items-center gap-1 px-1.5 py-0.5 text-xs"
       onClick={onStop}
-      tone="default"
-      type="button"
+      size="2xs"
+      tone="danger"
+      variant="text"
     >
       <Square className="h-3 w-3 fill-current" />
       <span>{t("composer.stop_generation")}</span>
-    </MessageActionButton>
+    </UiButton>
   );
 }
 

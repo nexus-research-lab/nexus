@@ -1,3 +1,7 @@
+// INPUT: 列表内容、共享密度/表面/状态语义、可选悬停说明/行级动作与原生 div 属性。
+// OUTPUT: 静态内容行或具统一键盘行为的单一交互列表行。
+// POS: ListRow DOM 原语；不拥有资源、选择真相或业务命令生命周期。
+
 "use client";
 
 import {
@@ -6,7 +10,16 @@ import {
   type ReactNode,
 } from "react";
 
-import { getUiListRowPresentation } from "./list-row-model";
+import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
+
+import {
+  getUiListRowPresentation,
+  type UiListRowDensity,
+  type UiListRowVariant,
+} from "./list-row-styles";
+
+export type { UiListRowDensity, UiListRowVariant } from "./list-row-styles";
 
 interface UiListRowProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
   actions?: ReactNode;
@@ -15,11 +28,23 @@ interface UiListRowProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
   children?: ReactNode;
   className?: string;
   description?: ReactNode;
+  density?: UiListRowDensity;
+  disabled?: boolean;
   inactiveTone?: "default" | "muted";
   leading?: ReactNode;
   meta?: ReactNode;
+  muted?: boolean;
   onClick?: () => void;
   right?: ReactNode;
+  subtitleTrailing?: ReactNode;
+  title?: ReactNode;
+  tooltip?: string;
+  variant?: UiListRowVariant;
+}
+
+export interface UiListRowContentProps {
+  description?: ReactNode;
+  meta?: ReactNode;
   subtitleTrailing?: ReactNode;
   title?: ReactNode;
 }
@@ -31,34 +56,49 @@ export function UiListRow({
   children,
   className,
   description,
+  density = "default",
+  disabled = false,
   inactiveTone = "default",
   leading,
   meta,
+  muted,
   onClick: onClick,
   right,
   subtitleTrailing: subtitleTrailing,
   title,
+  tooltip,
+  variant,
   ...props
 }: UiListRowProps) {
   const presentation = getUiListRowPresentation({
     active,
     activeTone,
     className,
+    density,
+    disabled,
     inactiveTone,
     interactive: Boolean(onClick),
+    muted,
+    variant,
   });
   return (
     <div
       className={presentation.className}
       {...props}
-      onClick={onClick}
-      onKeyDown={(event) => handleListRowKeyDown(event, props.onKeyDown, onClick)}
+      aria-disabled={disabled || undefined}
+      onClick={disabled ? undefined : onClick}
+      onKeyDown={(event) => handleListRowKeyDown(
+        event,
+        props.onKeyDown,
+        disabled ? undefined : onClick,
+      )}
       role={presentation.role}
       tabIndex={presentation.tabIndex}
+      title={tooltip}
     >
       {leading}
       {children ?? (
-        <UiListRowDefaultContent
+        <UiListRowContent
           description={description}
           meta={meta}
           subtitleTrailing={subtitleTrailing}
@@ -90,25 +130,28 @@ function handleListRowKeyDown(
   }
 }
 
-function UiListRowDefaultContent({
+export function UiListRowContent({
   description,
   meta,
   subtitleTrailing,
   title,
-}: Pick<
-  UiListRowProps,
-  "description" | "meta" | "subtitleTrailing" | "title"
->) {
+}: UiListRowContentProps) {
   return (
     <div className="min-w-0 flex-1">
       <div className="flex min-w-0 items-center gap-2">
-        <span className="min-w-0 flex-1 truncate text-base font-semibold leading-5">{title}</span>
+        <span className={cn(
+          "min-w-0 flex-1 truncate",
+          getUiTypographyClassName({ role: "sectionTitle" }),
+        )}>{title}</span>
         {meta}
       </div>
       {description || subtitleTrailing ? (
         <div className="mt-0.5 flex min-w-0 items-center gap-2">
           {description ? (
-            <div className="min-w-0 flex-1 truncate text-compact leading-[1.125rem] text-(--text-muted)">
+            <div className={cn(
+              "min-w-0 flex-1 truncate",
+              getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+            )}>
               {description}
             </div>
           ) : (

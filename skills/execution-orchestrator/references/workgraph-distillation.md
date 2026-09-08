@@ -10,11 +10,11 @@
 - 提取只接受当前 Session 的 completed source Execution。调用 `extract_workgraph_preview` 时，宿主会先按 owner/session/source 查找可恢复 Draft；已有 Draft 直接返回，不重复模型提取。首次提取把完整 source logical-key、父子层级和依赖交给抽象模型，强制保留 required/terminal、拓扑引用、验证/复核和协作边界等关键节点，主要抽象节点内的具体任务语义；只有不影响任何结构语义的非关键孤立节点才可省略，无法确定时保留。`slash_name` 默认用不冲突的短单词，只有准确单词均冲突时才用两个短词。
 - Draft 按 source Execution 唯一并跨页面恢复。每次修改追加不可变版本；`head_revision` 是并发 CAS，`selected_revision` 是用户当前偏好版本。选择旧版本不删除新版本，下一次修改从 selected 内容继续但仍提交 fresh head revision。模型不得把“选择 v1”解释成重写一份近似 v1。
 - 草图编辑统一由 owner 的 Nexus 主智能体承载在隐藏专用 DM 中。它不进入主智能体普通 DM 目录，不继承来源 DM/Room transcript、连接器或权限；来源只通过完整 Draft 与 source WorkGraph 事实提供。关闭 UI 不删除该 Session，再次打开继续同一对话。该 Session 只开放本 Skill、`revise_workgraph_preview` 和 `select_workgraph_preview_revision`。
-- 保存命名图必须由宿主在独立目录隐藏内部 DM 中启动 `HiddenFromUser + Synthetic + purpose=workgraph_distillation` Agent round，并通过 `nexus.command` 调用 `execution/invoke` 的 `distill_workgraph`；该 Session 不 fork、resume 或续写源 transcript。mutation 只接收用户刚确认、由宿主 round identity 绑定的 exact `preview_id`；UI 调度端点不直接落库，Agent 也不得重新读取源图、重选节点或重写草图，更不能向聊天时间线补发保存请求。
+- UI 确认保存已生成草图时，宿主直接在数据库事务内保存命名图与 Draft 保存标记，不再启动后台模型 round。表单只提供 exact `preview_id` 和可选命令名、标题、描述，完整图结构由服务端读取；只改元信息同样直接保存。保存不得重新读取源图、重选节点或重写草图。普通对话中的明确保存继续通过 `save_workgraph_preview` 进入同一事务边界。
 - 用户在普通对话中明确要求保存当前 Draft 时，不需要再创建 UI round：读取 `save_workgraph_preview` fresh contract，以 exact preview_id 直接保存 selected version。保存前必须已经向用户展示或概述当前 Draft 且本轮存在明确保存意图；“看看”“比较”“先改一下”不构成保存确认。
 - 普通 DM/Room 中，成功的 `extract_workgraph_preview`、`get_workgraph_preview`、`revise_workgraph_preview`、`select_workgraph_preview_revision` 和 `save_workgraph_preview` 会由宿主把最后一份完整图自动渲染为当前回复里的草图卡片；卡片可按需打开“来源图 / 当前草图”对照。这是回答“草图在哪看、是否已更新、怎么对照”时使用的界面事实，不是每次回复都要重复的固定话术。不要复述完整节点 JSON，或假装自己另外绘制了界面；没有 applied/ready/selected 成功结果时不得声称卡片已更新。
 - 已保存工作图从能力页“继续编辑”时必须恢复其原 Draft、selected revision 和隐藏编辑 Session；若历史数据尚无 Draft，则从该命名图建立一次可继续编辑的初始版本。再次保存更新同一个命名 WorkGraph 并追加聚合版本，不重复抽取、不创建同名副本。
-- 该内部保存 round 的思考摘要、过程状态、工具调用说明和结束文本必须使用简体中文；只有命令、Skill 名称和标识符保留原始形式，禁止输出英文叙述。
+- 历史内部保存 round 的思考摘要、过程状态、工具调用说明和结束文本必须使用简体中文；只有命令、Skill 名称和标识符保留原始形式，禁止输出英文叙述。
 - 模型不可用、JSON 无效、输出不是源 logical key 子集、遗漏宿主标记的结构关键节点、缺少 key 主路径/terminal 交付或语义字段不完整时预览失败关闭，绝不回退展示或保存原始具体内容。
 
 ## 信息补充与草图检查门槛
@@ -24,7 +24,7 @@
 - `extract_workgraph_preview` 或 `revise_workgraph_preview` 成功后，宿主会把最新完整草图渲染到当前回复的草图卡片；隐藏编辑 Session 则实时刷新右侧预览。此时必须调用 `AskUserQuestion` 暂停，请用户检查目标和范围、节点与依赖、关键交付与验收条件是否准确且无遗漏。问题应提供“确认当前草图”和“需要修改或补充”的清晰路径；原请求已经写过“保存”也不能替代这次草图后的检查。
 - 用户指出缺漏或错误时，先读取当前 selected 完整 Draft，把用户补充作为精确修改要求调用 `revise_workgraph_preview`，成功渲染新版本后再次进入同一检查门槛。不要在用户仍要求修改时保存，也不要用聊天中的修正说明代替 durable Draft revision。
 - 用户在草图显示后明确确认无遗漏，才算通过检查。若原意图包含保存，可把明确的“确认并保存”答案作为当前草图的保存确认；若原意图只是查看或编辑，确认只结束检查，不自动扩大为保存意图。用户选择暂不保存时保留 Draft，结束当前流程。
-- `HiddenFromUser + Synthetic + purpose=workgraph_distillation` 的内部保存 round 不执行这套问答：它收到的 host-bound `preview_id` 已代表用户在可见界面完成检查并确认保存，重复提问会形成不可见阻塞。
+- 历史遗留的 `HiddenFromUser + Synthetic + purpose=workgraph_distillation` 内部保存 round 不执行这套问答：它收到的 host-bound `preview_id` 已代表用户在可见界面完成检查并确认保存，重复提问会形成不可见阻塞。新 UI 保存不启动这类 round。
 
 ## 普通对话中的查询、提取与版本化编辑
 
@@ -38,9 +38,9 @@
 
 用户询问界面时可回答：提取或修改后的当前版本显示在回复草图卡片中，点“与来源图对照”查看来源图和当前草图；保存成功后卡片会标记为已保存。正常操作回复只需说明对用户有用的结果，不必主动介绍这些界面。不要把“测试草图展示”理解成执行草图中的任务——如果用户是在验证展示链路，只完成最小的提取或修改即可。
 
-## UI 隐藏 round 保存用户已确认的草图
+## 历史隐藏保存 round（兼容）
 
-当宿主内部 `workgraph_distillation` round 含有生成的 `preview_id` 时，确认它明确表示用户刚刚看过并选择保存的草图。不要从历史消息、标题、时间或 Execution id 猜 preview；普通可见用户消息不是这条保存链的必要组成。
+仅处理升级前已启动的宿主内部 `workgraph_distillation` round。其生成的 `preview_id` 必须明确表示用户已看过并选择保存的草图；不要从历史消息、标题、时间或 Execution id 猜 preview。宿主通过 Draft 和命名图版本栅栏拒绝迟到保存覆盖新版本。
 
 1. 不运行 `execution inspect`，不读取源图，不分析 key/collaboration，也不修改已确认的命令名或语义。预览和用户确认已经完成这些工作；宿主会按 owner、当前 Session、有效期严格校验。
 2. 读取 fresh contract；只有目录实际列出该 operation 且 schema 只要求 `preview_id` 才继续：

@@ -1,17 +1,20 @@
 /**
  * INPUT: Connector 详情、连接状态、能力条目与文档地址。
- * OUTPUT: 当前对象的状态、能力与文档，不重复通用协议介绍。
+ * OUTPUT: 本地化状态、能力和文档，具可换行事实与准备步骤的公共连接说明面板。
  * POS: Connector 详情正文纯视图。
  */
 import type { ReactNode } from "react";
-import { Check, ChevronRight, ExternalLink, Power } from "lucide-react";
+import { Check, ChevronRight, ExternalLink } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { getUiButtonClassName } from "@/shared/ui/button/button-styles";
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
+import { UiLinkButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiListRow } from "@/shared/ui/list/list-row";
 import { UiPanel } from "@/shared/ui/panel";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { ResourceFailure } from "@/lib/error-message";
 import type {
   ConnectorDetail,
@@ -25,25 +28,25 @@ import type {
   ConnectorState,
   ConnectorStatusTone,
 } from "../model/connector-state-model";
-import { getConnectorAuthLabel } from "./connector-detail-model";
+import { getConnectorAuthLabelKey } from "./connector-detail-model";
 
 const STATUS_BADGE: Record<
   ConnectorStatusTone,
-  (state: ConnectorState) => ReactNode
+  (state: ConnectorState, t: I18nContextValue["t"]) => ReactNode
 > = {
-  connected: () => (
+  connected: (_, t) => (
     <UiBadge tone="success">
       <Check className="h-3.5 w-3.5" />
-      已连接
+      {t("capability.connector_status_connected")}
     </UiBadge>
   ),
-  "coming-soon": () => <UiBadge>即将推出</UiBadge>,
-  unconfigured: (state) => (
+  "coming-soon": (_, t) => <UiBadge>{t("capability.connector_card_coming_soon")}</UiBadge>,
+  unconfigured: (state, t) => (
     <UiBadge tone="warning">
-      {state.oauthClientAction ? "待配置应用" : "后端未配置"}
+      {t(state.oauthClientAction ? "capability.connector_status_app_unconfigured" : "capability.connector_service_unconfigured")}
     </UiBadge>
   ),
-  disconnected: () => <UiBadge>未连接</UiBadge>,
+  disconnected: (_, t) => <UiBadge>{t("capability.connector_status_disconnected")}</UiBadge>,
 };
 
 function ConnectorStatusBadges({
@@ -56,11 +59,11 @@ function ConnectorStatusBadges({
   const { t } = useI18n();
   return (
     <div className="flex flex-wrap gap-2">
-      {STATUS_BADGE[state.status](state)}
-      <UiBadge>{getConnectorAuthLabel(detail.auth_type)}</UiBadge>
+      {STATUS_BADGE[state.status](state, t)}
+      <UiBadge>{t(getConnectorAuthLabelKey(detail.auth_type))}</UiBadge>
       <UiBadge>{getConnectorCategoryLabel(detail.category, t)}</UiBadge>
       {detail.scopes.length > 0 ? (
-        <UiBadge>{detail.scopes.length} 项权限范围</UiBadge>
+        <UiBadge>{t("capability.connector_scopes_count", { count: detail.scopes.length })}</UiBadge>
       ) : null}
     </div>
   );
@@ -93,33 +96,33 @@ function ConnectorFeatureList({
   features: ConnectorFeatureDetail[];
   onSelect: (featureName: string) => void;
 }) {
+  const { t } = useI18n();
   if (features.length === 0) {
     return null;
   }
   return (
     <section>
-      <h2 className="mb-2 text-base font-medium text-(--text-strong)">
-        包含内容
+      <h2 className={cn(
+        "mb-2",
+        getUiTypographyClassName({ role: "sectionTitle", tone: "strong" }),
+      )}>
+        {t("capability.connector_features_title")}
       </h2>
       <UiPanel
         className="divide-y divide-(--divider-subtle-color)"
         padding="none"
         radius="md"
-        variant="inset"
+        variant="card"
       >
         {features.map((feature) => (
           <UiListRow
-            className="min-h-[56px] rounded-none"
+            density="compact"
             description={feature.description}
             key={feature.name}
-            leading={(
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-(--divider-subtle-color) bg-(--surface-panel-background)">
-                <Check className="h-4 w-4 text-(--icon-muted)" />
-              </span>
-            )}
             onClick={() => onSelect(feature.name)}
             right={<ChevronRight className="h-4 w-4 shrink-0 text-(--icon-muted)" />}
             title={feature.name}
+            variant="flush"
           />
         ))}
       </UiPanel>
@@ -128,22 +131,22 @@ function ConnectorFeatureList({
 }
 
 function ConnectorDocsLink({ url }: { url: string | undefined }) {
+  const { t } = useI18n();
   if (!url) {
     return null;
   }
   return (
-    <a
-      className={getUiButtonClassName(
-        { size: "sm", variant: "text" },
-        "w-fit",
-      )}
+    <UiLinkButton
+      className="w-fit"
       href={url}
       rel="noopener noreferrer"
+      size="sm"
       target="_blank"
+      variant="text"
     >
       <ExternalLink className="h-3.5 w-3.5" />
-      查看文档
-    </a>
+      {t("capability.connector_docs")}
+    </UiLinkButton>
   );
 }
 
@@ -162,76 +165,66 @@ function RichMailConnectionSection({
   catalog: CustomMCPToolCatalog | null;
   detail: ConnectorDetail;
 }) {
+  const { t } = useI18n();
   const connected = detail.connection_state === "connected";
   const serverName = catalog?.server_title
     || catalog?.server_name
-    || "连接后获取";
+    || t("capability.connector_richmail_metadata_pending");
   return (
     <section className="border-y border-(--divider-subtle-color) py-5">
-      <h2 className="text-base font-medium text-(--text-strong)">
-        连接信息
+      <h2 className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong" })}>
+        {t("capability.connector_connection_info")}
       </h2>
-      <dl className="mt-3 grid gap-x-8 gap-y-3 sm:grid-cols-2">
-        <ConnectorFact label="服务地址" value={detail.mcp_server_url || "http://127.0.0.1:3100/mcp"} />
-        <ConnectorFact label="传输" value="Streamable HTTP" />
-        <ConnectorFact label="认证" value="RichMail 本机审批 · Bearer Token" />
+      <dl className="mt-3 grid grid-cols-[repeat(auto-fit,minmax(min(100%,280px),1fr))] gap-x-8 gap-y-3">
+        <ConnectorFact label={t("capability.connector_fact_endpoint")} value={detail.mcp_server_url || "http://127.0.0.1:3100/mcp"} />
+        <ConnectorFact label={t("capability.connector_fact_transport")} value="Streamable HTTP" />
+        <ConnectorFact label={t("capability.connector_fact_auth")} value={t("capability.connector_richmail_auth")} />
         <ConnectorFact
-          label="服务器"
+          label={t("capability.connector_fact_server")}
           value={catalog?.server_version
             ? `${serverName} · ${catalog.server_version}`
             : serverName}
         />
         <ConnectorFact
-          label="协议版本"
-          value={catalog?.protocol_version || "连接后获取"}
+          label={t("capability.connector_fact_protocol")}
+          value={catalog?.protocol_version || t("capability.connector_richmail_metadata_pending")}
         />
         <ConnectorFact
           label="Token"
-          value={connected ? "已安全保存 · 通常 7 天有效" : "批准后由 RichMail 签发"}
+          value={t(connected ? "capability.connector_richmail_token_saved" : "capability.connector_richmail_token_pending")}
         />
       </dl>
       {!connected ? (
-        <div
-          aria-label="RichMail 连接前准备"
-          className="mt-5 surface-radius-md border border-[color:color-mix(in_srgb,var(--brand-action)_20%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--brand-action)_4%,transparent)] p-4"
+        <UiPanel
+          aria-label={t("capability.connector_richmail_prepare_title")}
+          className="mt-5"
           role="note"
+          variant="filled"
         >
-          <div className="flex items-start gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] bg-[color:color-mix(in_srgb,var(--brand-action)_11%,transparent)] text-(--brand-action)">
-              <Power className="h-4 w-4" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold tracking-[0.08em] text-(--brand-action)">
-                连接前准备
-              </p>
-              <h3 className="mt-1 text-sm font-semibold text-(--text-strong)">
-                请先在 RichMail 开启 Agent MCP 服务
-              </h3>
-              <p className="mt-1 text-xs leading-5 text-(--text-muted)">
-                打开 RichMail 并保持后台运行，然后按照下面的路径完成设置。
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-4 flex flex-col gap-3 border-t border-[color:color-mix(in_srgb,var(--brand-action)_14%,var(--divider-subtle-color))] pt-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <p className="text-[11px] font-medium text-(--text-soft)">
-                RichMail 设置路径
-              </p>
-              <p className="mt-1 text-xs font-medium leading-5 text-(--text-default)">
-                设置 → Rwork → 智能体与能力 → 对外 MCP 服务
-              </p>
-            </div>
-            <span className="inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full border border-[color:color-mix(in_srgb,var(--brand-action)_22%,var(--divider-subtle-color))] bg-(--surface-panel-background) px-2.5 py-1 text-xs font-medium text-(--text-strong)">
-              <Check className="h-3.5 w-3.5 text-(--brand-action)" />
-              开启「启用 Agent MCP 服务」
-            </span>
-          </div>
-
-          <p className="mt-3 text-xs leading-5 text-(--text-muted)">
-            完成后返回 Nexus 开始连接，并在 RichMail 中批准本次授权。
+          <h3 className={getUiTypographyClassName({ role: "control", tone: "strong", weight: "semibold" })}>
+            {t("capability.connector_richmail_prepare_title")}
+          </h3>
+          <p className={cn("mt-1", getUiTypographyClassName({ role: "supporting", tone: "muted" }))}>
+            {t("capability.connector_richmail_prepare_intro")}
           </p>
-        </div>
+          <dl className="mt-4 border-t border-(--divider-subtle-color) pt-3">
+            <dt className={getUiTypographyClassName({ role: "metadata", tone: "muted", weight: "medium" })}>
+              {t("capability.connector_richmail_settings_path_label")}
+            </dt>
+            <dd className={cn("mt-1 break-words", getUiTypographyClassName({ role: "supporting", tone: "default" }))}>
+              {t("capability.connector_richmail_settings_path")}
+            </dd>
+          </dl>
+          <p className={cn("mt-2", getUiTypographyClassName({ role: "supporting", tone: "default", weight: "medium" }))}>
+            {t("capability.connector_richmail_enable_setting")}
+          </p>
+          <p className={cn(
+            "mt-3",
+            getUiTypographyClassName({ role: "supporting", tone: "muted" }),
+          )}>
+            {t("capability.connector_richmail_prepare_next")}
+          </p>
+        </UiPanel>
       ) : null}
     </section>
   );
@@ -239,9 +232,12 @@ function RichMailConnectionSection({
 
 function ConnectorFact({ label, value }: { label: string; value: string }) {
   return (
-    <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-3 text-sm">
-      <dt className="text-(--text-soft)">{label}</dt>
-      <dd className="min-w-0 break-words text-(--text-default)">{value}</dd>
+    <div className={cn(
+      "grid grid-cols-[88px_minmax(0,1fr)] gap-3",
+      getUiTypographyClassName({ role: "supporting" }),
+    )}>
+      <dt className="ui-type-tone-muted ui-type-weight-medium">{label}</dt>
+      <dd className="min-w-0 break-words [overflow-wrap:anywhere] ui-type-tone-default">{value}</dd>
     </div>
   );
 }
@@ -259,6 +255,7 @@ export function ConnectorDetailContent({
   onSelectFeature: (featureName: string) => void;
   state: ConnectorState;
 }) {
+  const { t } = useI18n();
   return (
     <div className="mt-6 space-y-5">
       <ConnectorStatusBadges detail={detail} state={state} />
@@ -274,11 +271,11 @@ export function ConnectorDetailContent({
         <MCPToolsSection
           available={detail.connection_state === "connected"}
           catalog={mcpTools.catalog}
-          description="这些名称、说明和参数来自 RichMail 的 MCP tools/list，连接后可供对话选择。"
+          description={t("capability.connector_richmail_tools_description")}
           failure={mcpTools.failure}
           loading={mcpTools.loading}
           onRetry={mcpTools.refresh}
-          unavailableMessage="连接 RichMail 后即可读取并查看当前工具。"
+          unavailableMessage={t("capability.connector_richmail_tools_unavailable")}
         />
       ) : null}
       <ConnectorDocsLink url={detail.docs_url} />

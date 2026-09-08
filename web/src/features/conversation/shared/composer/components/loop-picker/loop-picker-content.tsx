@@ -1,6 +1,6 @@
 /**
  * INPUT: Loop 目录的加载、错误、空态或筛选结果。
- * OUTPUT: 单一状态消息或无卡片嵌套的 Loop 列表。
+ * OUTPUT: 公共资源状态与公共 Panel 内的连续 Loop 列表。
  * POS: Loop picker 的内容投影，不维护选择器生命周期。
  */
 import type { ReactNode } from "react";
@@ -9,6 +9,7 @@ import { RotateCcw } from "lucide-react";
 import type { ResourceFailure } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { UiPanel } from "@/shared/ui/panel";
 import type { LoopCatalogItem } from "@/types/capability/loop";
 
 import {
@@ -49,7 +50,6 @@ export function LoopPickerContent({
   const content: Record<LoopPickerContentKind, ReactNode> = {
     empty: (
       <UiResourceState
-        className="min-h-48"
         impact={hasCatalogItems ? t("state.filter_impact") : undefined}
         primaryAction={hasCatalogItems ? {
           label: t("state.clear_filters"),
@@ -67,7 +67,6 @@ export function LoopPickerContent({
     ),
     error: error ? (
       <UiResourceState
-        className="min-h-48"
         impact={t(error.access
           ? "state.access_failure_impact"
           : "state.read_failure_impact")}
@@ -85,7 +84,7 @@ export function LoopPickerContent({
       />
     ) : null,
     list: (
-      <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto rounded-[10px] border border-(--divider-subtle-color)">
+      <UiPanel className="soft-scrollbar min-h-0 flex-1 overflow-y-auto" padding="none" radius="sm">
         <div className="divide-y divide-(--divider-subtle-color)">
           {loops.map((loop) => (
             <LoopPickerItem
@@ -96,11 +95,10 @@ export function LoopPickerContent({
             />
           ))}
         </div>
-      </div>
+      </UiPanel>
     ),
     loading: (
       <UiResourceState
-        className="min-h-48"
         size="sm"
         state="loading"
         title={t("composer.loop_picker_loading")}

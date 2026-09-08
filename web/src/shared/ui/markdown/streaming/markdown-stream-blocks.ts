@@ -1,3 +1,7 @@
+// INPUT: 持续追加的 Markdown，包括代码和显示公式边界。
+// OUTPUT: 保留列表与公式完整性的稳定起点分块。
+// POS: 流式渲染分块 owner；只识别不可分割边界，语法与公式内容仍归 core。
+
 import { readMarkdownFenceMarker } from "../core/markdown-fence";
 
 type MarkdownStreamBlockState = "revealed" | "streaming";
@@ -21,6 +25,11 @@ function getLinesWithEndings(content: string): string[] {
 
 function isBlankLine(line: string): boolean {
   return line.trim().length === 0;
+}
+
+function readMathFence(line: string): string {
+  return line.replace(/^(?:[ \t]*>[ \t]?)+/, "").trim()
+    .replace(/^(?:[-+*]|\d{1,9}[.)])[ \t]+/, "").trim();
 }
 
 function isStandaloneBlockLine(line: string): boolean {
@@ -61,7 +70,7 @@ function splitMarkdownRawBlocks(content: string): MarkdownRawBlock[] {
   let blockStartOffset = 0;
   let cursorOffset = 0;
   let openFence: { marker: "`" | "~"; length: number } | null = null;
-  let openMath = false;
+  let openMath: string | null = null;
 
   const flushBuffer = () => {
     if (buffer.length === 0) {
@@ -95,15 +104,20 @@ function splitMarkdownRawBlocks(content: string): MarkdownRawBlock[] {
       continue;
     }
 
-    if (/^ {0,3}\${2,}\s*$/.test(line)) {
-      openMath = !openMath;
-      if (!openMath) flushBuffer();
+    if (openMath) {
+      const closing = readMathFence(line);
+      if (closing === openMath || (openMath.startsWith("$") && /^\${2,}$/.test(closing) && closing.length >= openMath.length)) openMath = null;
       continue;
     }
-    if (openMath) continue;
 
     if (fenceMarker) {
       openFence = fenceMarker;
+      continue;
+    }
+
+    const mathFence = readMathFence(line);
+    if ((mathFence.startsWith("\\[") && !mathFence.includes("\\]")) || /^\${2,}$/.test(mathFence)) {
+      openMath = mathFence.startsWith("\\[") ? "\\]" : mathFence;
       continue;
     }
 

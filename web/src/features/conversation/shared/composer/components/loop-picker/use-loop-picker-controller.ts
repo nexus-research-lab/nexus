@@ -1,3 +1,7 @@
+// INPUT: 当前语言、目录读取和精确 Loop 选择/关闭命令。
+// OUTPUT: 资源快照、筛选和同步单飞的选择状态，迟到结果不改变已关闭的窗口。
+// POS: Loop picker 开放作用域控制器；焦点由公共 Dialog 使用 searchInputRef 持有。
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { listLoopsApi } from "@/lib/api/capability/loop-api";
@@ -48,9 +52,12 @@ export function useLoopPickerController({
   const [actionError, setActionError] = useState<string | null>(null);
   const [loadRevision, setLoadRevision] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const selectingRef = useRef(false);
+  const mountedRef = useRef(false);
 
   useEffect(() => {
-    searchInputRef.current?.focus();
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
   }, []);
 
   useEffect(() => {
@@ -105,20 +112,22 @@ export function useLoopPickerController({
   );
 
   const selectLoop = useCallback(async (loop: LoopCatalogItem) => {
-    if (busySlug) {
+    if (selectingRef.current || !mountedRef.current) {
       return;
     }
+    selectingRef.current = true;
     setBusySlug(loop.slug);
     setActionError(null);
     try {
       await onSelect(loop);
-      onClose();
+      if (mountedRef.current) onClose();
     } catch (error) {
-      setActionError(getErrorMessage(error, t("composer.loop_picker_failed")));
+      if (mountedRef.current) setActionError(getErrorMessage(error, t("composer.loop_picker_failed")));
     } finally {
-      setBusySlug(null);
+      selectingRef.current = false;
+      if (mountedRef.current) setBusySlug(null);
     }
-  }, [busySlug, onClose, onSelect, t]);
+  }, [onClose, onSelect, t]);
 
   return {
     actions: {

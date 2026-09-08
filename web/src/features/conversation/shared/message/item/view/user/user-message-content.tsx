@@ -1,3 +1,8 @@
+/**
+ * INPUT: 用户消息正文、附件、mention 目录与折叠状态。
+ * OUTPUT: 可测量、可展开并能打开关联资源的用户消息内容面。
+ * POS: User Message 视图组合层；展开动作复用共享 Button，不拥有控件状态样式。
+ */
 import {
   useLayoutEffect,
   useRef,
@@ -8,6 +13,7 @@ import { ChevronDown, Target } from "lucide-react";
 
 import { useScrollAnchoredState } from "@/features/conversation/shared/timeline/scroll/use-scroll-anchored-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import type { MessageAttachment } from "@/types/conversation/message/attachment";
 import type { AgentMention } from "@/types/conversation/message/entity";
@@ -17,8 +23,8 @@ import { MessageUserAttachments } from "./message-user-attachments";
 import {
   isUserMessageContentCollapsible,
   USER_MESSAGE_COLLAPSED_HEIGHT,
-  type UserMessagePresentation,
-} from "./user-message-model";
+} from "../message-reading-layout";
+import type { UserMessagePresentation } from "./user-message-model";
 import type { AgentMentionDirectory } from "../../../agent-mention-chip";
 
 interface UserMessageContentProps {
@@ -26,6 +32,7 @@ interface UserMessageContentProps {
   agentMentions?: AgentMention[];
   agentMentionDirectory?: AgentMentionDirectory;
   content: string;
+  contentClassName: string;
   onOpenAgentContact?: (agentId: string) => void;
   onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void;
   presentation: UserMessagePresentation;
@@ -37,6 +44,7 @@ export function UserMessageContent({
   agentMentions,
   agentMentionDirectory,
   content,
+  contentClassName,
   onOpenAgentContact,
   onOpenWorkspaceFile,
   presentation,
@@ -66,7 +74,7 @@ export function UserMessageContent({
 
   return (
     <div
-      className="nexus-chat-user-content-shell ml-auto flex w-fit max-w-full flex-col items-end rounded-[12px] bg-(--surface-message-user-background) px-3.5 py-2.5"
+      className="nexus-chat-user-content-shell ml-auto flex w-fit max-w-full flex-col items-end surface-radius-md bg-(--surface-message-user-background) px-3.5 py-2.5"
       ref={expansion.anchorRef as RefObject<HTMLDivElement>}
       data-goal-control={String(presentation.goal)}
     >
@@ -95,7 +103,7 @@ export function UserMessageContent({
               <ContentRenderer
                 className={cn(
                   "nexus-chat-user-content w-fit max-w-[min(100%,760px)] self-end break-words text-left text-(--text-strong)",
-                  presentation.contentClassName,
+                  contentClassName,
                 )}
                 content={content}
                 agentMentions={agentMentions}
@@ -108,11 +116,12 @@ export function UserMessageContent({
             </div>
           </div>
           {collapsible ? (
-            <button
+            <UiButton
               aria-expanded={expansion.isOpen}
-              className="mt-1.5 inline-flex h-8 self-start items-center gap-1 rounded-[7px] px-1.5 text-sm font-medium text-(--text-muted) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
+              className="mt-1.5 self-start"
               onClick={expansion.toggle}
-              type="button"
+              size="sm"
+              variant="text"
             >
               {expansion.isOpen ? t("message.show_less") : t("message.show_more")}
               <ChevronDown
@@ -122,7 +131,7 @@ export function UserMessageContent({
                   expansion.isOpen && "rotate-180",
                 )}
               />
-            </button>
+            </UiButton>
           ) : null}
         </>
       ) : null}

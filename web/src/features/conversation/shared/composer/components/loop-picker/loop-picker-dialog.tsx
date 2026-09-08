@@ -13,6 +13,7 @@ import {
   UiDialogPortal,
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
+import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import type { LoopCatalogItem } from "@/types/capability/loop";
@@ -41,10 +42,10 @@ function OpenLoopPickerDialog({
   const controller = useLoopPickerController({ onClose, onSelect });
   return (
     <UiDialogPortal>
-      <UiDialogBackdrop onClose={onClose}>
+      <UiDialogBackdrop initialFocusRef={controller.refs.searchInputRef} onClose={onClose}>
         <UiDialogShell
           size="lg"
-          style={{ maxHeight: "min(640px, calc(100vh - 96px))" }}
+          viewport="compact"
         >
           <UiDialogHeader
             appearance="plain"
@@ -57,7 +58,6 @@ function OpenLoopPickerDialog({
                 ref={controller.refs.searchInputRef}
                 aria-label={t("composer.loop_search_placeholder")}
                 className="min-w-0 flex-1"
-                inputClassName="text-sm"
                 onChange={controller.actions.setQuery}
                 placeholder={t("composer.loop_search_placeholder")}
                 value={controller.state.query}
@@ -73,12 +73,16 @@ function OpenLoopPickerDialog({
               />
             </div>
             {controller.state.actionError ? (
-              <div
-                className="rounded-[8px] border border-[color:color-mix(in_srgb,var(--destructive)_18%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_5%,transparent)] px-3 py-2 text-xs leading-5 text-(--destructive)"
+              <UiInlineNotice
+                message={(
+                  <>
+                    {controller.state.actionError}{" "}
+                    {t("composer.loop_start_failed_next_step")}
+                  </>
+                )}
                 role="alert"
-              >
-                {controller.state.actionError} {t("composer.loop_start_failed_next_step")}
-              </div>
+                tone="danger"
+              />
             ) : null}
             <LoopPickerContent
               busySlug={controller.state.busySlug}

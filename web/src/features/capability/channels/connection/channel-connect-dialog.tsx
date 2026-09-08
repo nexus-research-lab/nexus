@@ -66,15 +66,15 @@ export function ChannelConnectDialog({
     <>
       <UiDialogPortal>
         <UiDialogBackdrop
-          className="z-[9999]"
+          layer="dialog"
           labelledBy="channel-connect-dialog-title"
           onClose={controller.close}
         >
           <UiDialogFormShell
             autoComplete="off"
-            className="max-h-[86vh]"
             onSubmit={handleSubmit}
             size="lg"
+            viewport="adaptiveMax"
           >
             <UiDialogHeader
               appearance="plain"
@@ -100,7 +100,7 @@ export function ChannelConnectDialog({
                   description="频道接入将在后续版本补充，当前版本暂不支持配置机器人或配对。"
                   size="sm"
                   title="该频道未上线"
-                  variant="inset"
+                  variant="card"
                 />
               ) : (
                 <ChannelConnectionFields

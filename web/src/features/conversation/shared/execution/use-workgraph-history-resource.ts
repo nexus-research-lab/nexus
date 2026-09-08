@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useRef } from "react";
 
-import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { getExecutionHistoryApi } from "@/lib/api/conversation/execution-api";
 import { getErrorMessage } from "@/lib/error-message";
 import type { ExecutionView } from "@/types/conversation/execution";

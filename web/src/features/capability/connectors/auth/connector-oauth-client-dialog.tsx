@@ -11,9 +11,10 @@ import {
   useCallback,
 } from "react";
 
-import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
-import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { useCopyToClipboard } from "@/shared/lib/react/use-copy-to-clipboard";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { UiButton, UiIconButton, UiLinkButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -23,6 +24,7 @@ import {
 } from "@/shared/ui/dialog/dialog";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
 import { UiPanel } from "@/shared/ui/panel";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { ConnectorDetail } from "@/types/capability/connector";
 
 import {
@@ -53,9 +55,9 @@ export function ConnectorOAuthClientDialog({
   return (
     <UiDialogBackdrop onClose={onClose}>
       <UiDialogFormShell
-        className="max-h-[84vh]"
         onSubmit={form.handleSubmit}
         size="sm"
+        viewport="compactMax"
       >
         <UiDialogHeader
           appearance="plain"
@@ -132,7 +134,7 @@ function ConnectorOauthClientIntroduction({
 }) {
   return (
     <>
-      <p className="text-sm leading-6 text-(--text-muted)">
+      <p className={getUiTypographyClassName({ role: "supporting", tone: "muted" })}>
         先在{model.providerName}添加回调地址，再填写应用凭据。
       </p>
       {model.docsUrl ? (
@@ -156,9 +158,16 @@ function ConnectorOauthCallbackField({ callbackUrl }: { callbackUrl: string }) {
   const { copied, copy } = useCopyToClipboard();
   return (
     <div className="space-y-1">
-      <div className="text-compact font-medium text-(--text-muted)">Callback URL</div>
-      <UiPanel className="flex min-h-9 items-center gap-2" padding="sm" radius="sm" variant="inset">
-        <code className="min-w-0 flex-1 break-all text-xs leading-5 text-(--text-strong)">
+      <div className={getUiTypographyClassName({
+        role: "metadata",
+        tone: "muted",
+        weight: "medium",
+      })}>Callback URL</div>
+      <UiPanel className="flex min-h-9 items-center gap-2" padding="sm" radius="sm" variant="card">
+        <code className={cn(
+          "min-w-0 flex-1 break-all",
+          getUiTypographyClassName({ role: "code", tone: "strong" }),
+        )}>
           {callbackUrl}
         </code>
         <UiIconButton

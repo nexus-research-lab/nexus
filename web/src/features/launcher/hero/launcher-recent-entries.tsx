@@ -1,15 +1,26 @@
+// INPUT: 最近 DM/Room 数据、主 Agent 交接文案与导航动作。
+// OUTPUT: 使用共享 Button、Tooltip 与动效原语的 Launcher 最近入口。
+// POS: Launcher Hero 最近入口编排层；不定义控件圆角、字号、颜色或阴影。
+
 import { ArrowRight } from "lucide-react";
 
 import { LAUNCHER_TOUR_ANCHORS } from "@/features/onboarding/tours/launcher-tour";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button/button";
 import { FadeSlideIn } from "@/shared/ui/feedback/animated-hero-text";
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 
 import type { RecentLauncherEntry } from "../console/launcher-console-types";
 import {
-  type LauncherRecentEntryPresentation,
-  buildLauncherRecentEntryPresentation,
-  getLauncherHandoffDelay,
+  type LauncherRecentEntryModel,
+  buildLauncherRecentEntryModel,
 } from "./launcher-recent-entry-model";
+import {
+  getLauncherHandoffDelayMs,
+  getLauncherRecentEntryDelayMs,
+  LauncherRecentEntryLayout,
+} from "./launcher-recent-entry-layout";
+import { getLauncherRecentEntryMarkerClassName } from "./launcher-recent-entry-styles";
 
 interface LauncherRecentEntriesProps {
   handoffLabel: string;
@@ -20,49 +31,50 @@ interface LauncherRecentEntriesProps {
 }
 
 function LauncherRecentEntryChip({
+  index,
+  model,
   onOpen,
-  presentation,
 }: {
+  index: number;
+  model: LauncherRecentEntryModel;
   onOpen: (entry: RecentLauncherEntry) => void;
-  presentation: LauncherRecentEntryPresentation;
 }) {
+  const entryButton = (
+    <UiButton
+      aria-label={model.ariaLabel}
+      data-launcher-recent-entry={model.entry.type}
+      onClick={(event) => {
+        event.stopPropagation();
+        onOpen(model.entry);
+      }}
+      size="sm"
+      variant="text"
+    >
+      {model.entry.type === "dm" ? (
+        <span
+          aria-hidden="true"
+          className={getLauncherRecentEntryMarkerClassName(model.entry.key)}
+          data-launcher-recent-entry-marker
+        />
+      ) : null}
+      {model.chipLabel}
+    </UiButton>
+  );
+
   return (
     <FadeSlideIn
-      delayMs={presentation.delayMs}
+      delayMs={getLauncherRecentEntryDelayMs(index)}
       durationMs={360}
       style={{ display: "inline-flex" }}
       yOffset={6}
     >
-      <div className="group relative inline-flex">
-        {presentation.tooltipLabel ? (
-          <div
-            className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 w-max max-w-[220px] -translate-x-1/2 translate-y-1 surface-radius-lg px-3 py-2 text-center text-xs font-medium leading-5 opacity-0 shadow-[0_18px_42px_rgba(38,52,76,0.16)] transition duration-200 ease-out group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100"
-            style={{
-              background: "rgba(247, 249, 253, 0.96)",
-              boxShadow:
-                "0 18px 42px rgba(38, 52, 76, 0.16), inset 0 0 0 1px rgba(255, 255, 255, 0.52)",
-              color: "rgba(39, 50, 74, 0.88)",
-            }}
-          >
-            {presentation.tooltipLabel}
-          </div>
-        ) : null}
-        <button
-          aria-label={presentation.ariaLabel}
-          className="inline-flex items-center gap-1 rounded-full px-2 py-1.5 text-sm font-medium transition-colors duration-150 ease-out hover:text-(--launcher-handoff-hover-color)"
-          onClick={(event) => {
-            event.stopPropagation();
-            onOpen(presentation.entry);
-          }}
-          style={presentation.chipStyle}
-          type="button"
-        >
-          {presentation.markerStyle ? (
-            <span className="h-4 w-4 rounded-full" style={presentation.markerStyle} />
-          ) : null}
-          {presentation.chipLabel}
-        </button>
-      </div>
+      {model.tooltipLabel
+        ? (
+            <UiTooltip label={model.tooltipLabel} placement="bottom">
+              {entryButton}
+            </UiTooltip>
+          )
+        : entryButton}
     </FadeSlideIn>
   );
 }
@@ -79,38 +91,38 @@ export function LauncherRecentEntries({
     dm: t("launcher.recent_dm"),
     room: t("launcher.recent_room"),
   };
-  const presentations = recentEntries.map((entry, index) =>
-    buildLauncherRecentEntryPresentation(entry, index, typeLabels));
+  const models = recentEntries.map((entry) =>
+    buildLauncherRecentEntryModel(entry, typeLabels));
   return (
     <div
       data-tour-anchor={LAUNCHER_TOUR_ANCHORS.recent}
-      className="mx-auto mt-4 flex w-full max-w-[420px] flex-wrap items-center justify-center gap-1"
+      className={LauncherRecentEntryLayout.listClassName}
     >
-      {presentations.map((presentation) => (
+      {models.map((model, index) => (
         <LauncherRecentEntryChip
-          key={presentation.entry.key}
+          index={index}
+          key={model.entry.key}
+          model={model}
           onOpen={onOpen}
-          presentation={presentation}
         />
       ))}
       <FadeSlideIn
-        delayMs={getLauncherHandoffDelay(recentEntries.length)}
+        delayMs={getLauncherHandoffDelayMs(recentEntries.length)}
         durationMs={360}
         style={{ display: "inline-flex" }}
         yOffset={6}
       >
-        <button
+        <UiButton
           data-tour-anchor={LAUNCHER_TOUR_ANCHORS.handoff}
-          className="px-1 text-sm font-medium transition-colors duration-150 ease-out hover:text-(--launcher-handoff-hover-color)"
           onClick={() => onHandoff(initialPrompt)}
-          style={{ color: "var(--launcher-handoff-color)" }}
-          type="button"
+          shape="pill"
+          size="sm"
+          tone="primary"
+          variant="text"
         >
-          <span className="inline-flex items-center gap-1.5">
-            {handoffLabel}
-            <ArrowRight className="h-3.5 w-3.5" />
-          </span>
-        </button>
+          {handoffLabel}
+          <ArrowRight className="h-3.5 w-3.5" />
+        </UiButton>
       </FadeSlideIn>
     </div>
   );

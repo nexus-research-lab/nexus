@@ -2,10 +2,11 @@
 
 /**
  * INPUT: Thread 视图模型、消息上下文与滚动/触摸/pointer 处理器。
- * OUTPUT: 禁用浏览器锚点争抢的 Thread 标题、消息流和回到底部入口。
+ * OUTPUT: 当前语言的 Thread 导航、保留明确空工作区的消息流与回到底部入口；不争抢滚动锚点。
  * POS: Agent Thread 的纯展示与事件绑定层。
  */
 import { ArrowLeft, Bot, X, type LucideIcon } from "lucide-react";
+import type { WorkspaceFileOpenHandler } from "@/lib/workspace-file-action";
 import type {
   PointerEventHandler,
   ReactNode,
@@ -18,9 +19,16 @@ import type {
 import { MessageItem } from "@/features/conversation/shared/message/item/message-item";
 import { MessageAvatar } from "@/features/conversation/shared/message/ui/message-avatar";
 import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
+import { useI18n } from "@/shared/i18n/i18n-context";
+import type { TranslationKey } from "@/shared/i18n/messages";
+import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import {
-  WORKSPACE_PANEL_HEADER_BUTTON_CLASS,
+  MOBILE_SHELL_HEADER_GUTTER_CLASS_NAME,
+  MOBILE_SHELL_HEADER_HEIGHT_CLASS_NAME,
+} from "@/shared/ui/layout/mobile-shell-header-layout";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
+import {
   WORKSPACE_PANEL_HEADER_HEIGHT_CLASS,
   WORKSPACE_PANEL_HEADER_ICON_CLASS,
   WORKSPACE_PANEL_HEADER_PADDING_CLASS,
@@ -38,11 +46,11 @@ import type {
 export interface ConversationThreadMessageContext {
   agentAvatar: string | null;
   agentName: string;
-  onOpenWorkspaceFile?: (path: string) => void;
+  onOpenWorkspaceFile?: WorkspaceFileOpenHandler;
   onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
   onStopMessage?: (msgId: string) => void;
   unresolvedToolStatus?: UnresolvedToolStatus;
-  workspaceAgentId: string;
+  workspaceAgentId: string | null;
 }
 
 interface ConversationThreadViewProps {
@@ -87,8 +95,7 @@ interface ThreadFeedProps {
 
 interface ThreadNavigationPresentation {
   Icon: LucideIcon;
-  ariaLabel: string;
-  title: string;
+  labelKey: TranslationKey;
 }
 
 type ThreadNavigationButtonAction = Exclude<
@@ -100,8 +107,8 @@ const THREAD_NAVIGATION_PRESENTATION: Record<
   ThreadNavigationButtonAction,
   ThreadNavigationPresentation
 > = {
-  back: { Icon: ArrowLeft, ariaLabel: "返回", title: "返回" },
-  close: { Icon: X, ariaLabel: "关闭 Thread", title: "关闭 Thread" },
+  back: { Icon: ArrowLeft, labelKey: "common.back" },
+  close: { Icon: X, labelKey: "room.thread_close" },
 };
 
 export function ConversationThreadView({
@@ -198,11 +205,17 @@ function ThreadHeader({
     <header
       className={cn(
         "flex shrink-0 items-center gap-2",
-        isMobile ? "h-[52px]" : WORKSPACE_PANEL_HEADER_HEIGHT_CLASS,
-        WORKSPACE_PANEL_HEADER_PADDING_CLASS,
-        presentation === "transcript"
+        isMobile
+          ? MOBILE_SHELL_HEADER_HEIGHT_CLASS_NAME
+          : WORKSPACE_PANEL_HEADER_HEIGHT_CLASS,
+        isMobile
+          ? MOBILE_SHELL_HEADER_GUTTER_CLASS_NAME
+          : WORKSPACE_PANEL_HEADER_PADDING_CLASS,
+        (isMobile || presentation === "transcript")
           && "border-b border-(--divider-subtle-color)",
       )}
+      data-desktop-window-controls-leading={isMobile ? true : undefined}
+      data-desktop-window-drag-region={isMobile ? true : undefined}
     >
       <ThreadNavigationButton
         action={leadingAction}
@@ -213,7 +226,10 @@ function ThreadHeader({
         <ThreadAgentAvatar avatarUrl={agentAvatar} isMobile={isMobile} />
       )}
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold text-(--text-strong)">
+        <p className={cn(
+          "truncate",
+          getUiTypographyClassName({ role: "supporting", tone: "strong", weight: "semibold" }),
+        )}>
           {agentName}
         </p>
         <ThreadSubtitle>{subtitle}</ThreadSubtitle>
@@ -237,24 +253,23 @@ function ThreadNavigationButton({
   isMobile: boolean;
   onClick: () => void;
 }) {
+  const { t } = useI18n();
   if (!action) {
     return null;
   }
   const presentation = THREAD_NAVIGATION_PRESENTATION[action];
   const { Icon } = presentation;
   return (
-    <button
-      aria-label={presentation.ariaLabel}
-      className={cn(
-        "flex shrink-0 items-center justify-center rounded-lg text-(--icon-default) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)",
-        isMobile ? "h-8 w-8" : WORKSPACE_PANEL_HEADER_BUTTON_CLASS,
-      )}
+    <UiIconButton
+      aria-label={t(presentation.labelKey)}
+      className="shrink-0"
       onClick={onClick}
-      title={presentation.title}
-      type="button"
+      shape={isMobile ? "round" : "rounded"}
+      size={isMobile ? "md" : "sm"}
+      variant="ghost"
     >
-      <Icon className={WORKSPACE_PANEL_HEADER_ICON_CLASS} />
-    </button>
+      <Icon aria-hidden="true" className={WORKSPACE_PANEL_HEADER_ICON_CLASS} />
+    </UiIconButton>
   );
 }
 
@@ -283,7 +298,11 @@ function ThreadSubtitle({ children }: { children: ReactNode }) {
   if (!children) {
     return null;
   }
-  return <div className="text-xs text-(--text-soft)">{children}</div>;
+  return (
+    <div className={getUiTypographyClassName({ role: "caption", tone: "soft" })}>
+      {children}
+    </div>
+  );
 }
 
 function ThreadFeed({

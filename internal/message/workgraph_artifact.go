@@ -1,4 +1,4 @@
-// INPUT: exact nexus.command tool_use、历史 CLI tool_use 与成功的 typed tool_result。
+// INPUT: exact nexus.command tool_use、直接/包装的 MCP structured tool_result 与历史 CLI tool_use。
 // OUTPUT: 带完整 Draft/命名图快照的 workgraph_artifact assistant 内容块。
 // POS: 受管 WorkGraph authoring 结果进入普通 DM/Room 最终回复的唯一消息投影。
 package message
@@ -33,7 +33,7 @@ func (p *Processor) workGraphArtifactForToolResult(
 		return nil
 	}
 	operation := commandOperation
-	data := structuredOutput
+	data := nativeWorkGraphArtifactData(operation, toolResult, structuredOutput)
 	if !native {
 		payload := firstWorkGraphArtifactPayload(toolResultContentText(toolResult["content"]))
 		operation = normalizeString(payload["operation"])
@@ -81,6 +81,44 @@ func (p *Processor) workGraphArtifactForToolResult(
 		return nil
 	}
 	return artifact.Map()
+}
+
+func nativeWorkGraphArtifactData(
+	operation string,
+	toolResult map[string]any,
+	structuredOutput map[string]any,
+) map[string]any {
+	candidates := []any{
+		toolResult["structured_output"],
+		structuredOutput["structuredContent"],
+		structuredOutput["structured_content"],
+		structuredOutput["structured_output"],
+		structuredOutput["content"],
+		structuredOutput,
+	}
+	for _, candidate := range candidates {
+		data := mapValue(candidate)
+		if workGraphArtifactDataMatchesOperation(operation, data) {
+			return data
+		}
+	}
+	return nil
+}
+
+func workGraphArtifactDataMatchesOperation(operation string, data map[string]any) bool {
+	if len(data) == 0 {
+		return false
+	}
+	switch operation {
+	case "extract_workgraph_preview", "get_workgraph_preview":
+		return decodeWorkGraphPreview(data["preview"]) != nil
+	case "revise_workgraph_preview", "select_workgraph_preview_revision":
+		return decodeWorkGraphPreview(mapValue(data["draft"])["preview"]) != nil
+	case "save_workgraph_preview":
+		return decodeWorkGraphWorkflow(data["workflow"]) != nil
+	default:
+		return false
+	}
 }
 
 func managedExecutionCommandOperation(toolUse map[string]any) (string, bool) {

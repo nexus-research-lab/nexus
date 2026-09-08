@@ -1,3 +1,7 @@
+// INPUT: DM 身份、会话目录、当前标签与导航命令。
+// OUTPUT: 使用标准主身份头像与共享会话导航的 DM Header。
+// POS: DM 顶栏装配；标签持久化与创建/关闭事务归 navigation owner。
+
 "use client";
 
 import { memo } from "react";
@@ -8,8 +12,8 @@ import { RoomHistoryMenu } from "@/features/conversation/room/surface/history/ro
 import { useSidebarStore } from "@/store/sidebar";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
-import { WorkspaceConversationTabs } from "@/shared/ui/workspace/controls/workspace-conversation-tabs";
-import type { FinalConversationReplacementHandler } from "@/shared/ui/workspace/controls/conversation-tabs/final-conversation-replacement";
+import { RoomConversationTabs } from "@/features/navigation/conversation-tabs/room-conversation-tabs";
+import type { FinalConversationReplacementHandler } from "@/features/navigation/conversation-tabs/final-conversation-replacement";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import type { RoomConversationView } from "@/types/conversation/conversation";
 import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
@@ -55,17 +59,15 @@ export const DmConversationHeader = memo(function DmConversationHeader({
       leading={(
         <UiAgentAvatar
           avatar={currentAgentAvatar}
-          className="h-full w-full border-0 shadow-none"
           name={headerTitle}
-          size="sm"
+          size="md"
         />
       )}
-      leadingClassName="h-10 w-10"
       leadingVariant="identity"
       onChangeTab={onChangeTab}
       tabs={roomTabs}
       tabsLeading={(
-        <WorkspaceConversationTabs
+        <RoomConversationTabs
           conversationId={conversationId}
           conversations={conversations}
           leadingControl={(

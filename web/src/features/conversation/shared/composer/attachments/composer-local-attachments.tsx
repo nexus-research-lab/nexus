@@ -1,11 +1,10 @@
 /**
  * INPUT: Composer 中尚未发送的本地附件与移除动作。
- * OUTPUT: 图片真实缩略图、普通文件胶囊及统一的可访问移除入口。
- * POS: Composer 草稿附件的唯一展示层。
+ * OUTPUT: 图片缩略图和共享文件 Chip；预览按 Session 同步重置，移除入口包含文件名。
+ * POS: Composer 草稿展示；普通胶囊归 RemovableChip，图片覆盖动作保留独立缩略图几何。
  */
 "use client";
 
-import { useEffect, useState } from "react";
 import {
   Eye,
   File as FileIcon,
@@ -15,30 +14,20 @@ import {
   X,
 } from "lucide-react";
 
-import type { MessageAttachmentKind } from "@/types/conversation/message/attachment";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
+import { UiRemovableChip } from "@/shared/ui/form/removable-chip";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 
 import type { ComposerLocalAttachment } from "./composer-local-attachment-model";
 import { ComposerAttachmentPreviewDialog } from "./composer-attachment-preview-dialog";
 import { useComposerLocalFileUrl } from "./use-composer-local-file-url";
 import {
-  COMPOSER_ATTACHMENT_CLASS_NAME,
-  COMPOSER_ATTACHMENT_PREVIEW_CLASS_NAME,
-  COMPOSER_ATTACHMENT_REMOVE_CLASS_NAME,
   COMPOSER_ATTACHMENT_ROW_CLASS_NAME,
   COMPOSER_IMAGE_ATTACHMENT_CLASS_NAME,
   COMPOSER_IMAGE_ATTACHMENT_PREVIEW_CLASS_NAME,
   COMPOSER_IMAGE_ATTACHMENT_REMOVE_CLASS_NAME,
 } from "../composer-styles";
-
-const ATTACHMENT_PRESENTATION: Record<
-  MessageAttachmentKind,
-  { icon: typeof FileIcon; label: string }
-> = {
-  file: { icon: FileIcon, label: "工作文件" },
-  image: { icon: ImageIcon, label: "图片" },
-  text: { icon: FileText, label: "文本文件" },
-};
 
 export function ComposerAttachmentList({
   attachments,
@@ -52,16 +41,14 @@ export function ComposerAttachmentList({
   removeLabel: string;
 }) {
   const { t } = useI18n();
-  const [previewAttachmentId, setPreviewAttachmentId] = useState<string | null>(
-    null,
-  );
+  const [previewAttachmentId, setPreviewAttachmentId] = useResettableState<string | null>(null, previewResetKey);
   const previewAttachment = attachments.find(
     (attachment) => attachment.id === previewAttachmentId,
   ) ?? null;
 
-  useEffect(() => {
+  if (previewAttachmentId !== null && !previewAttachment) {
     setPreviewAttachmentId(null);
-  }, [previewResetKey]);
+  }
 
   if (attachments.length === 0) {
     return null;
@@ -71,7 +58,7 @@ export function ComposerAttachmentList({
     <>
       <div className={COMPOSER_ATTACHMENT_ROW_CLASS_NAME}>
         {attachments.map((attachment) => {
-          const presentation = ATTACHMENT_PRESENTATION[attachment.kind];
+          const namedRemoveLabel = `${removeLabel}: ${attachment.file.name}`;
           if (attachment.kind === "image") {
             return (
               <ComposerImageAttachment
@@ -82,44 +69,19 @@ export function ComposerAttachmentList({
                 previewLabel={t("composer.preview_image", {
                   name: attachment.file.name,
                 })}
-                removeLabel={removeLabel}
+                removeLabel={namedRemoveLabel}
               />
             );
           }
-          if (attachment.kind === "text") {
-            return (
-              <ComposerTextAttachment
-                attachment={attachment}
-                key={attachment.id}
-                onPreview={() => setPreviewAttachmentId(attachment.id)}
-                onRemove={onRemove}
-                previewLabel={t("composer.preview_text", {
-                  name: attachment.file.name,
-                })}
-                removeLabel={removeLabel}
-              />
-            );
-          }
-          const AttachmentIcon = presentation.icon;
           return (
-            <div
+            <ComposerFileAttachment
+              attachment={attachment}
               key={attachment.id}
-              className={COMPOSER_ATTACHMENT_CLASS_NAME}
-              title={`${presentation.label}：${attachment.file.name}`}
-            >
-              <AttachmentIcon size={16} className="text-(--icon-default)" />
-              <span className="max-w-[120px] truncate text-xs text-foreground/70">
-                {attachment.file.name}
-              </span>
-              <button
-                aria-label={removeLabel}
-                className={COMPOSER_ATTACHMENT_REMOVE_CLASS_NAME}
-                onClick={() => onRemove(attachment.id)}
-                type="button"
-              >
-                <X size={12} />
-              </button>
-            </div>
+              onPreview={() => setPreviewAttachmentId(attachment.id)}
+              onRemove={onRemove}
+              previewLabel={t("composer.preview_text", { name: attachment.file.name })}
+              removeLabel={namedRemoveLabel}
+            />
           );
         })}
       </div>
@@ -149,13 +111,14 @@ function ComposerImageAttachment({
   return (
     <div
       className={COMPOSER_IMAGE_ATTACHMENT_CLASS_NAME}
-      title={`图片：${attachment.file.name}`}
+      title={attachment.file.name}
     >
-      <button
+      <UiButton
         aria-label={previewLabel}
         className={COMPOSER_IMAGE_ATTACHMENT_PREVIEW_CLASS_NAME}
         onClick={onPreview}
-        type="button"
+        size="sm"
+        variant="ghost"
       >
         {previewUrl ? (
           <img
@@ -174,20 +137,24 @@ function ComposerImageAttachment({
         <span className="pointer-events-none absolute inset-0 flex items-end justify-start bg-black/0 p-1.5 transition-colors group-hover/preview:bg-black/10 group-focus-visible/preview:bg-black/10">
           <Maximize2 className="h-3.5 w-3.5 text-white opacity-0 drop-shadow-sm transition-opacity group-hover/preview:opacity-100 group-focus-visible/preview:opacity-100" />
         </span>
-      </button>
-      <button
+      </UiButton>
+      <UiIconButton
         aria-label={removeLabel}
         className={COMPOSER_IMAGE_ATTACHMENT_REMOVE_CLASS_NAME}
         onClick={() => onRemove(attachment.id)}
-        type="button"
+        shape="round"
+        size="2xs"
+        tone="danger"
+        tooltip={removeLabel}
+        variant="surface"
       >
         <X size={11} />
-      </button>
+      </UiIconButton>
     </div>
   );
 }
 
-function ComposerTextAttachment({
+function ComposerFileAttachment({
   attachment,
   onPreview,
   onRemove,
@@ -200,31 +167,22 @@ function ComposerTextAttachment({
   previewLabel: string;
   removeLabel: string;
 }) {
+  const isText = attachment.kind === "text";
+  const Icon = isText ? FileText : FileIcon;
+  const content = <>
+    <Icon aria-hidden size={16} className="shrink-0 text-(--icon-default)" />
+    <span className="max-w-[120px] truncate">{attachment.file.name}</span>
+    {isText ? <Eye aria-hidden className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" /> : null}
+  </>;
   return (
-    <div
-      className={COMPOSER_ATTACHMENT_CLASS_NAME}
-      title={`文本文件：${attachment.file.name}`}
-    >
-      <button
-        aria-label={previewLabel}
-        className={COMPOSER_ATTACHMENT_PREVIEW_CLASS_NAME}
-        onClick={onPreview}
-        type="button"
-      >
-        <FileText size={16} className="shrink-0 text-(--icon-default)" />
-        <span className="max-w-[120px] truncate text-xs text-foreground/70">
-          {attachment.file.name}
-        </span>
-        <Eye className="h-3.5 w-3.5 shrink-0 text-(--icon-muted) opacity-55" />
-      </button>
-      <button
-        aria-label={removeLabel}
-        className={COMPOSER_ATTACHMENT_REMOVE_CLASS_NAME}
-        onClick={() => onRemove(attachment.id)}
-        type="button"
-      >
-        <X size={12} />
-      </button>
-    </div>
+    <UiRemovableChip onRemove={() => onRemove(attachment.id)} removeLabel={removeLabel} size="xs">
+      {isText ? (
+        <UiButton aria-label={previewLabel} className="min-h-0 min-w-0 gap-1.5 p-0" onClick={onPreview} size="2xs" title={attachment.file.name} variant="ghost">
+          {content}
+        </UiButton>
+      ) : (
+        <span className="inline-flex min-w-0 items-center gap-1.5" title={attachment.file.name}>{content}</span>
+      )}
+    </UiRemovableChip>
   );
 }

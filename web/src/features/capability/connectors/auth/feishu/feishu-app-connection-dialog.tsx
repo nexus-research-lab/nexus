@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { type FormEvent } from "react";
 
-import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { UiButton } from "@/shared/ui/button/button";
 import {
   UiDialogBackdrop,
@@ -22,6 +22,7 @@ import {
 } from "@/shared/ui/dialog/dialog";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
 import { UiListRow } from "@/shared/ui/list/list-row";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import { feishuManualCredentialsComplete } from "./feishu-app-connection-model";
 
@@ -62,7 +63,7 @@ export function FeishuAppConnectionDialog({
     };
     return (
       <UiDialogPortal>
-        <UiDialogBackdrop className="z-[9999]" onClose={onClose}>
+        <UiDialogBackdrop layer="dialog" onClose={onClose}>
           <UiDialogFormShell onSubmit={handleSubmit} size="sm">
             <UiDialogHeader
               appearance="plain"
@@ -81,7 +82,7 @@ export function FeishuAppConnectionDialog({
                 <ArrowLeft className="h-3.5 w-3.5" />
                 返回
               </UiButton>
-              <p className="text-sm leading-6 text-(--text-muted)">
+              <p className={getUiTypographyClassName({ role: "supporting", tone: "muted" })}>
                 仅在扫码不可用时填写应用凭据。
               </p>
               <UiField htmlFor="feishu-existing-app-id" label="App ID" required>
@@ -147,7 +148,7 @@ export function FeishuAppConnectionDialog({
 
   return (
     <UiDialogPortal>
-      <UiDialogBackdrop className="z-[9999]" onClose={onClose}>
+      <UiDialogBackdrop layer="dialog" onClose={onClose}>
         <UiDialogShell size="sm">
           <UiDialogHeader
             appearance="plain"
@@ -157,18 +158,16 @@ export function FeishuAppConnectionDialog({
           <UiDialogBody className="px-5">
             <div className="radius-control-lg divide-y divide-(--divider-subtle-color) overflow-hidden border border-(--divider-subtle-color)">
               <UiListRow
-                aria-disabled={busy}
-                className={busy ? "opacity-(--disabled-opacity)" : ""}
+                disabled={busy}
                 description="在飞书页面选择或创建应用。"
-                onClick={busy ? undefined : onScan}
+                onClick={onScan}
                 right={<ChevronRight className="h-4 w-4 text-(--icon-muted)" />}
                 title="扫码连接"
               />
               <UiListRow
-                aria-disabled={busy}
-                className={busy ? "opacity-(--disabled-opacity)" : ""}
+                disabled={busy}
                 description="填写 App ID 和 App Secret。"
-                onClick={busy ? undefined : () => setView("manual")}
+                onClick={() => setView("manual")}
                 right={<ChevronRight className="h-4 w-4 text-(--icon-muted)" />}
                 title="手动配置"
               />

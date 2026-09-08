@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
 import type { AgentSkillEntry } from "@/types/capability/skill";
@@ -83,7 +84,7 @@ function EnabledSkillsSection({
         <UiStateBlock
           description={t("agent_options.skills.empty_enabled")}
           size="sm"
-          variant="inset"
+          variant="card"
         />
       ) : (
         <div className={AGENT_SKILL_GRID_CLASS_NAME}>
@@ -157,7 +158,7 @@ function AvailableSkillsSection({
         <UiStateBlock
           description={emptyMessage}
           size="sm"
-          variant="inset"
+          variant="card"
         />
       ) : (
         <div className={AGENT_SKILL_GRID_CLASS_NAME}>
@@ -187,7 +188,7 @@ export function AgentOptionsSkillsContent(
       <UiStateBlock
         description={t("agent_options.skills.create_first")}
         size="sm"
-        variant="inset"
+        variant="card"
       />
     );
   }
@@ -195,9 +196,13 @@ export function AgentOptionsSkillsContent(
     return (
       <UiStateBlock
         className="py-10"
-        icon={<Loader2 className="h-4 w-4 animate-spin" />}
+        icon={(
+          <Loader2
+            className={getUiSpinnerClassName({ size: "md", tone: "muted" })}
+          />
+        )}
         size="sm"
-        variant="inset"
+        variant="card"
       />
     );
   }

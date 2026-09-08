@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前运营标签、访问范围与返回动作。
- * OUTPUT: 运营设置页签和对应管理内容，移动端避免重复页面标题。
+ * OUTPUT: 运营设置页签与对应管理内容；公共 Provider 只提供分区内容，避免重复页头。
  * POS: 设置内嵌与独立运营入口共用的页面装配层。
  */
 "use client";
@@ -9,14 +9,14 @@ import { ArrowLeft } from "lucide-react";
 import { useCallback, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { APP_ROUTE_PATHS } from "@/app/router/route-paths";
+import { APP_ROUTE_PATHS } from "@/shared/navigation/route-paths";
 import { ProviderSettingsPanel } from "@/features/settings/provider-settings/provider-settings-panel";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { WorkspaceContentHeader } from "@/shared/ui/layout/workspace-content-header";
 import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import { UiTabs } from "@/shared/ui/navigation/tabs";
-import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 
 import { ProjectAdminPanel } from "./project-admin/project-admin-panel";
@@ -64,7 +64,6 @@ const OPERATIONS_TAB_DEFINITIONS: Record<
     labelKey: "operations.tabs.subscription_providers",
     renderContent: () => (
       <ProviderSettingsPanel
-        embedded
         layout="section"
         visibilityScope="public"
       />
@@ -98,10 +97,14 @@ export function OperationsPanel({ embedded = false }: { embedded?: boolean }) {
     )}>
       <WorkspaceContentHeader
         actions={!embedded ? (
-          <WorkspaceSurfaceToolbarAction onClick={handleBackToWorkspace}>
+          <UiButton
+            onClick={handleBackToWorkspace}
+            size="2xs"
+            variant="text"
+          >
             <ArrowLeft className="h-3.5 w-3.5" />
             {t("settings.back_to_workspace")}
-          </WorkspaceSurfaceToolbarAction>
+          </UiButton>
         ) : undefined}
         className="max-sm:hidden"
         description={t("operations.description")}

@@ -1,3 +1,8 @@
+/**
+ * INPUT: ToolBlock 展开、复制、权限资格与交互禁用状态。
+ * OUTPUT: 复用共享微型 Button/IconButton 的权限与结果动作，以及只读展开指示。
+ * POS: ToolBlock Header 的唯一动作组；不拥有整行展开事件或权限状态推导。
+ */
 import type { MouseEventHandler } from "react";
 import {
   Check,
@@ -7,7 +12,7 @@ import {
 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { cn } from "@/shared/ui/class-name";
+import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 
 interface ToolBlockHeaderActionsProps {
   canCopyResult: boolean;
@@ -70,52 +75,30 @@ function PermissionActions({
   if (!visible || !onAllow || !onDeny) {
     return null;
   }
-  const state = getPermissionButtonState(disabled, disabledReason);
+  const title = disabled ? disabledReason : undefined;
   return (
     <>
-      <button
-        className={cn(
-          "radius-control-sm border border-(--divider-subtle-color) px-2 py-1 text-xs font-medium text-(--text-muted) transition-colors",
-          state.denyClassName,
-        )}
+      <UiButton
         disabled={disabled}
         onClick={stopPropagationAndRun(onDeny)}
-        title={state.title}
-        type="button"
+        size="2xs"
+        title={title}
+        variant="surface"
       >
         {t("room.permission_deny")}
-      </button>
-      <button
-        className={cn(
-          "radius-control-sm border px-2 py-1 text-xs font-medium transition-colors",
-          state.allowClassName,
-        )}
+      </UiButton>
+      <UiButton
         disabled={disabled}
         onClick={stopPropagationAndRun(onAllow)}
-        title={state.title}
-        type="button"
+        size="2xs"
+        title={title}
+        tone="primary"
+        variant="surface"
       >
         {t("room.permission_allow")}
-      </button>
+      </UiButton>
     </>
   );
-}
-
-function getPermissionButtonState(
-  disabled: boolean,
-  disabledReason?: string,
-) {
-  return disabled
-    ? {
-      allowClassName: "cursor-not-allowed border-(--divider-subtle-color) bg-transparent text-(--text-soft)",
-      denyClassName: "cursor-not-allowed opacity-(--disabled-opacity)",
-      title: disabledReason,
-    }
-    : {
-      allowClassName: "border-primary/24 bg-primary/8 text-primary hover:bg-primary/12",
-      denyClassName: "hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
-      title: undefined,
-    };
 }
 
 function CopyResultAction({
@@ -136,20 +119,16 @@ function CopyResultAction({
     ? "message.tool_copied_result"
     : "message.tool_copy_result");
   return (
-    <button
+    <UiIconButton
       aria-label={label}
-      className={cn(
-        "inline-flex h-6 w-6 items-center justify-center rounded-[6px] transition-colors",
-        copied
-          ? "bg-[color:color-mix(in_srgb,var(--success)_10%,transparent)] text-(--success)"
-          : "text-(--icon-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
-      )}
       onClick={stopPropagationAndRun(onCopyResult)}
-      title={label}
-      type="button"
+      size="xs"
+      tone={copied ? "success" : "default"}
+      tooltip={label}
+      variant="ghost"
     >
       <CopyIcon className="h-3.5 w-3.5" />
-    </button>
+    </UiIconButton>
   );
 }
 

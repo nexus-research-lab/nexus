@@ -165,7 +165,7 @@ func TestMigrationDeduplicatesExistingOwnerProjection(t *testing.T) {
 	if err = goose.SetDialect("sqlite3"); err != nil {
 		t.Fatal(err)
 	}
-	if err = goose.UpTo(db, "../../../db/migrations/sqlite", 134); err != nil {
+	if err = goose.UpTo(db, "../../../db/migrations/sqlite", 135); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = db.Exec(`INSERT INTO owner_profiles (
@@ -187,7 +187,7 @@ author_user_id, author_username, author_display_name, client_message_id, content
 ('owner-2', 'conversation-1', 'message-1', 1, 1, 'user', 'user-1', 'alice', 'Alice', 'client-1', '{"version":"v1","blocks":[]}', CURRENT_TIMESTAMP)`); err != nil {
 		t.Fatal(err)
 	}
-	if err = goose.UpTo(db, "../../../db/migrations/sqlite", 135); err != nil {
+	if err = goose.UpTo(db, "../../../db/migrations/sqlite", 136); err != nil {
 		t.Fatal(err)
 	}
 
@@ -208,7 +208,7 @@ author_user_id, author_username, author_display_name, client_message_id, content
 		t.Fatalf("messages=%d cursors=%d room_seq=%d next_room_seq=%d",
 			messageCount, cursorCount, roomSeq, nextRoomSeq)
 	}
-	if err = goose.DownTo(db, "../../../db/migrations/sqlite", 134); err != nil {
+	if err = goose.DownTo(db, "../../../db/migrations/sqlite", 135); err != nil {
 		t.Fatal(err)
 	}
 	if err = db.QueryRow(`SELECT COUNT(*) FROM team_relay_messages`).Scan(&messageCount); err != nil {

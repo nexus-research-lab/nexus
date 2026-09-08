@@ -1,18 +1,23 @@
 /**
  * INPUT: 当前导入模式、Git 草稿与本地文件入口。
- * OUTPUT: 文字分段选择及对应的单一导入表单。
+ * OUTPUT: 文字分段选择、实例级 Git 技术字段与具明确忙碌态的本地导入入口。
  * POS: Skill 导入弹窗的主内容，不承载格式教程。
  */
 import {
   type ComponentType,
   type RefObject,
+  useId,
 } from "react";
 import { FolderUp, Loader2 } from "lucide-react";
 
 import { UiButton } from "@/shared/ui/button/button";
-import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
+import { useI18n } from "@/shared/i18n/i18n-context";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
+import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
+import { UiPanel } from "@/shared/ui/panel";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import type { SkillImportDialogMode } from "../controller/skill-marketplace-controller";
 import {
@@ -38,37 +43,6 @@ interface SourceViewProps extends Omit<
   "mode" | "onSelectMode"
 > {}
 
-function SkillImportModeTabs({
-  importing,
-  mode,
-  onSelectMode,
-}: Pick<SkillImportSourceProps, "importing" | "mode" | "onSelectMode">) {
-  const { t } = useI18n();
-  return (
-    <div className="inline-flex rounded-[10px] border border-(--divider-subtle-color) p-1">
-      {SKILL_IMPORT_MODES.map((option) => {
-        const isActive = mode === option.key;
-        return (
-          <button
-            className={cn(
-              "inline-flex min-h-8 items-center gap-1.5 radius-control-sm px-3 text-xs font-medium transition-[background,color]",
-              isActive
-                ? "bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-(--primary)"
-                : "text-(--text-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
-            )}
-            disabled={importing}
-            key={option.key}
-            onClick={() => onSelectMode(option.key)}
-            type="button"
-          >
-            {t(option.labelKey)}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 function GitSkillImportSource({
   draft,
   gitUrlInputRef,
@@ -76,21 +50,23 @@ function GitSkillImportSource({
   setDraftField,
 }: SourceViewProps) {
   const { t } = useI18n();
+  const fieldId = useId();
   return (
     <div className="space-y-4">
       <UiField
         description={t("capability.skills_import_git_url_description")}
-        htmlFor="skill-import-git-url"
+        htmlFor={`${fieldId}-url`}
         label={t("capability.skills_import_git_url")}
         required
       >
         <UiInput
           disabled={importing}
-          id="skill-import-git-url"
+          id={`${fieldId}-url`}
           onChange={(event) => setDraftField("url", event.target.value)}
           placeholder="https://github.com/owner/repo.git"
           ref={gitUrlInputRef}
           required
+          textRole="code"
           type="url"
           value={draft.url}
         />
@@ -98,27 +74,29 @@ function GitSkillImportSource({
       <div className="grid gap-3 sm:grid-cols-2">
         <UiField
           description={t("capability.skills_import_git_branch_description")}
-          htmlFor="skill-import-git-branch"
+          htmlFor={`${fieldId}-branch`}
           label={t("capability.skills_import_git_branch")}
         >
           <UiInput
             disabled={importing}
-            id="skill-import-git-branch"
+            id={`${fieldId}-branch`}
             onChange={(event) => setDraftField("branch", event.target.value)}
             placeholder="main"
+            textRole="code"
             value={draft.branch}
           />
         </UiField>
         <UiField
           description={t("capability.skills_import_git_path_description")}
-          htmlFor="skill-import-git-path"
+          htmlFor={`${fieldId}-path`}
           label={t("capability.skills_import_git_path")}
         >
           <UiInput
             disabled={importing}
-            id="skill-import-git-path"
+            id={`${fieldId}-path`}
             onChange={(event) => setDraftField("path", event.target.value)}
             placeholder="skills/room-playbook"
+            textRole="code"
             value={draft.path}
           />
         </UiField>
@@ -127,41 +105,43 @@ function GitSkillImportSource({
   );
 }
 
-function ImportingIcon({ importing }: { importing: boolean }) {
-  return importing
-    ? <Loader2 className="h-4 w-4 animate-spin" />
-    : <FolderUp className="h-4 w-4" />;
-}
-
 function LocalSkillImportSource({
   fileInputRef,
   importing,
 }: SourceViewProps) {
   const { t } = useI18n();
   return (
-    <div className="rounded-[10px] border border-dashed border-(--divider-subtle-color) px-4 py-5">
-        <div className="min-w-0 text-center">
-          <h3 className="text-sm font-medium text-(--text-strong)">
-            {t("capability.skills_import_zip_title")}
-          </h3>
-          <p className="mt-1 text-compact leading-5 text-(--text-muted)">
-            {t("capability.skills_import_zip_description")}
-          </p>
-          <UiButton
-            className="mt-3"
-            disabled={importing}
-            onClick={() => fileInputRef.current?.click()}
-            size="sm"
-            tone="primary"
-            variant="solid"
-          >
-            <ImportingIcon importing={importing} />
-            {importing
-              ? t("capability.skills_importing")
-              : t("capability.skills_import_choose_zip")}
-          </UiButton>
+    <UiPanel padding="lg" radius="md" variant="dashed">
+      <div className="min-w-0 text-center">
+        <h3 className={getUiTypographyClassName({
+          role: "sectionTitle",
+          tone: "strong",
+          weight: "medium",
+        })}>
+          {t("capability.skills_import_zip_title")}
+        </h3>
+        <p className={cn(
+          "mt-1",
+          getUiTypographyClassName({ role: "supporting", tone: "muted" }),
+        )}>
+          {t("capability.skills_import_zip_description")}
+        </p>
+        <UiButton
+          aria-busy={importing || undefined}
+          className="mt-3"
+          disabled={importing}
+          onClick={() => fileInputRef.current?.click()}
+          size="sm"
+          tone="primary"
+          variant="solid"
+        >
+          {importing ? <Loader2 className={getUiSpinnerClassName()} /> : <FolderUp className="h-4 w-4" />}
+          {importing
+            ? t("capability.skills_importing")
+            : t("capability.skills_import_choose_zip")}
+        </UiButton>
       </div>
-    </div>
+    </UiPanel>
   );
 }
 
@@ -178,13 +158,17 @@ export function SkillImportSource({
   onSelectMode,
   ...props
 }: SkillImportSourceProps) {
+  const { t } = useI18n();
   const Source = SOURCE_VIEWS[mode];
   return (
     <section className="space-y-4">
-      <SkillImportModeTabs
-        importing={props.importing}
-        mode={mode}
-        onSelectMode={onSelectMode}
+      <UiSegmentedControl
+        density="compact"
+        disabled={props.importing}
+        onChange={onSelectMode}
+        options={SKILL_IMPORT_MODES.map((option) => ({ label: t(option.labelKey), value: option.key }))}
+        title={t("capability.skills_import_title")}
+        value={mode}
       />
       <Source {...props} />
     </section>

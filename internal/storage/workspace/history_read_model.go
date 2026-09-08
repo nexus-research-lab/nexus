@@ -1,5 +1,5 @@
 // INPUT: 稳定 canonical source 快照、规范化 physical round groups 与分页请求。
-// OUTPUT: 宿主控制面 SQLite/B-Tree 中原子代际化、可校验且可淘汰的分页与大内容 detail 读模型。
+// OUTPUT: 宿主控制面 SQLite/B-Tree 中原子代际化、随历史投影版本重建的分页与大内容 detail 读模型。
 // POS: workspace canonical 历史之上的唯一当前派生查询层；数据库可整体删除重建。
 package workspace
 
@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	historyReadModelSchemaVersion = 4
+	historyReadModelSchemaVersion = 5 // 重建曾丢失空白 Goal 续跑边界的派生历史。
 	historyReadModelFileName      = "history-read-model.v1.sqlite"
 	historyReadModelBusyTimeoutMS = 5000
 	historyReadModelMaxGroups     = 1_000_000

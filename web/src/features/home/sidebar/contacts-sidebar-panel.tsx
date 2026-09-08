@@ -7,7 +7,7 @@ import { CircleAlert, CirclePlus, Users2 } from "lucide-react";
 import { memo, useCallback, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
-import { AppRouteBuilders } from "@/app/router/route-paths";
+import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 import { buildChatNotificationTargetKey } from "@/features/home/notifications/chat-notification-target";
 import { HomeDirectoryRefreshErrorNotice } from "@/features/home/home-directory-refresh-error-notice";
 import { resolveDirectRoomNavigationTarget } from "@/features/navigation/direct-room/direct-room-navigation";
@@ -17,10 +17,10 @@ import {
   SidebarSearchAction,
   SidebarSearchField,
 } from "@/shared/ui/form/sidebar-search-field";
+import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 import { SIDEBAR_TOUR_ANCHORS } from "@/features/onboarding/tours/sidebar-navigation-tour";
 import { useSidebarStore } from "@/store/sidebar";
 
-import { normalizeSidebarQuery } from "./sidebar-conversation-model";
 import { useSidebarDirectory } from "./sidebar-directory";
 import {
   ContactRow,
@@ -47,10 +47,8 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
     ? new URLSearchParams(location.search).get("agent")
     : null;
   const filteredAgents = useMemo(() => {
-    const normalizedQuery = normalizeSidebarQuery(query);
-    return normalizedQuery
-      ? agents.filter((agent) => agent.name.toLowerCase().includes(normalizedQuery))
-      : agents;
+    const search = createUiSearchMatcher(query);
+    return agents.filter((agent) => search.matches([agent.name]));
   }, [agents, query]);
 
   const openContactsDirectory = useCallback(() => {
@@ -98,7 +96,7 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
           </SidebarSearchAction>
         )}
         onChange={setQuery}
-        placeholder={t("sidebar.search_contacts")}
+        label={t("sidebar.search_contacts")}
         value={query}
       />
 

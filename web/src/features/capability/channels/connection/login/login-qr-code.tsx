@@ -1,9 +1,10 @@
 // INPUT: Opaque Channel login QR payload.
 // OUTPUT: Scannable QR without exposing the underlying token or URL as text.
 // POS: Channel login QR presentation boundary.
-import { UiQRCode } from "@/shared/ui/display/qr-code";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiQRCode } from "@/shared/ui/display/qr-code";
 import { FeedbackBanner } from "@/shared/ui/feedback/feedback-banner";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 export function LoginQRCode({
   payload,
@@ -28,12 +29,24 @@ export function LoginQRCode({
       alt="频道扫码登录二维码"
       failureFallback={(
         <div className="space-y-1.5 text-left">
-          <p className="font-semibold text-(--text-strong)">
+          <p className={getUiTypographyClassName({
+            role: "metadata",
+            tone: "strong",
+            weight: "semibold",
+          })}>
             {t("capability.channel_login_qr_failed_title")}
           </p>
-          <p>{t("capability.channel_login_qr_failed_message")}</p>
-          <p>{t("capability.channel_login_qr_failed_impact")}</p>
-          <p className="font-medium text-(--text-default)">
+          <p className={getUiTypographyClassName({ role: "metadata", tone: "muted" })}>
+            {t("capability.channel_login_qr_failed_message")}
+          </p>
+          <p className={getUiTypographyClassName({ role: "metadata", tone: "muted" })}>
+            {t("capability.channel_login_qr_failed_impact")}
+          </p>
+          <p className={getUiTypographyClassName({
+            role: "metadata",
+            tone: "default",
+            weight: "medium",
+          })}>
             {t("capability.channel_login_qr_failed_next_step")}
           </p>
         </div>

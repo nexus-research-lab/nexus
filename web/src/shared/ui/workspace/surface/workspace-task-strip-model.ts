@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前会话投影出的只读任务列表。
- * OUTPUT: 当前步骤、总数、执行态与胶囊摘要的稳定纯投影。
+ * OUTPUT: 当前步骤、总数、执行态与任务摘要的稳定纯投影。
  * POS: Workspace Task 浮动入口的无状态展示模型。
  */
 import type { TodoItem } from "@/types/conversation/todo";

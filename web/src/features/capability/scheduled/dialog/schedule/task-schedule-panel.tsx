@@ -1,9 +1,10 @@
 // INPUT: Scheduled 计划表单、提交/对账状态与 mutation failure 投影。
-// OUTPUT: 可编辑计划字段和统一回答事实、数据影响、下一步的失败面。
+// OUTPUT: 实例级计划字段、具名选择/间隔输入、共享说明及保持原样的失败恢复面。
 // POS: Scheduled 创建/编辑右侧表单；不发请求或自行判断 mutation 结果。
 
 "use client";
 
+import { useId } from "react";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { Locale, TranslationKey } from "@/shared/i18n/messages";
 import { UiCheckboxRow } from "@/shared/ui/form/checkbox-row";
@@ -152,27 +153,19 @@ export function TaskSchedulePanel({
   view,
 }: TaskSchedulePanelProps) {
   const { locale, t } = useI18n();
+  const formId = useId();
   const instructionLabel = t("capability.scheduled_dialog_instruction");
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      <div className="dialog-field">
-        <div className="flex items-center justify-between gap-4">
-          <span className="dialog-label !mb-0">
-            {t("capability.scheduled_dialog_schedule")}
-          </span>
-          <UiSegmentedControl
-            className="shrink-0"
-            onChange={actions.setKind}
-            options={buildScheduleOptions(t).map((option) => ({
-              label: option.label,
-              value: option.key,
-            }))}
-            title={t("capability.scheduled_dialog_schedule")}
-            value={schedule.kind}
-          />
-        </div>
-      </div>
+      <UiSegmentedControl
+        onChange={actions.setKind}
+        options={buildScheduleOptions(t).map((option) => ({ label: option.label, value: option.key }))}
+        showLabel
+        stretch
+        title={t("capability.scheduled_dialog_schedule")}
+        value={schedule.kind}
+      />
 
       {schedule.kind === "at" ? (
         <SingleRunPicker
@@ -208,13 +201,12 @@ export function TaskSchedulePanel({
           {schedule.kind === "monthly" ? (
             <UiField
               description={t("capability.scheduled_dialog_monthly_day_help")}
-              htmlFor="task-monthly-day"
+              htmlFor={`${formId}-monthly-day`}
               label={t("capability.scheduled_dialog_monthly_day")}
               required
             >
               <UiInput
-                controlSize="lg"
-                id="task-monthly-day"
+                id={`${formId}-monthly-day`}
                 max="31"
                 min="1"
                 onChange={(event) => actions.setMonthlyDay(event.target.value)}
@@ -239,10 +231,10 @@ export function TaskSchedulePanel({
             onToggle={actions.toggleDailyPicker}
           />
           {schedule.kind === "cron" ? (
-            <div className="dialog-field">
-              <span className="dialog-label">
-                {t("capability.scheduled_dialog_execution_days")}
-              </span>
+            <UiField
+              description={t("capability.scheduled_dialog_execution_days_help")}
+              label={t("capability.scheduled_dialog_execution_days")}
+            >
               <div className="flex flex-wrap gap-2">
                 {WEEKDAY_OPTIONS.map((option) => (
                   <UiChoiceButton
@@ -257,10 +249,7 @@ export function TaskSchedulePanel({
                   </UiChoiceButton>
                 ))}
               </div>
-              <p className="text-xs leading-5 text-(--text-muted)">
-                {t("capability.scheduled_dialog_execution_days_help")}
-              </p>
-            </div>
+            </UiField>
           ) : null}
         </div>
       ) : null}
@@ -268,61 +257,53 @@ export function TaskSchedulePanel({
       {schedule.kind === "custom" ? (
         <UiField
           description={t("capability.scheduled_dialog_custom_cron_help")}
-          htmlFor="task-custom-cron"
+          htmlFor={`${formId}-custom-cron`}
           label={t("capability.scheduled_dialog_custom_cron")}
           required
         >
           <UiInput
-            controlSize="lg"
-            id="task-custom-cron"
+            id={`${formId}-custom-cron`}
             onChange={(event) => actions.setCronExpression(event.target.value)}
             placeholder="0 9 15 * *"
             required
+            textRole="code"
             value={schedule.cronExpression}
           />
         </UiField>
       ) : null}
 
       {schedule.kind === "every" ? (
-        <UiPanel padding="md" variant="inset">
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="text-sm font-semibold text-(--text-default)">
-              {t("capability.scheduled_dialog_every")}
-            </span>
-            <UiInput
-              className="min-w-[96px]"
-              controlSize="lg"
-              id="task-every-value"
-              max="999"
-              min="1"
-              onChange={(event) => actions.setEveryValue(event.target.value)}
-              step="1"
-              type="number"
-              value={schedule.everyValue}
-            />
-            <UiSelectMenu
-              ariaLabel={t("capability.scheduled_dialog_select_interval_unit")}
-              className="min-w-[132px]"
-              id="task-every-unit"
-              onChange={(value) => actions.setEveryUnit(value as EveryUnit)}
-              options={buildEveryUnitOptions(t).map((option) => ({
-                label: option.label,
-                value: option.key,
-              }))}
-              surface="dialog"
-              value={schedule.everyUnit}
-            />
+        <UiPanel padding="md" variant="card">
+          <div className="grid grid-cols-2 items-end gap-3">
+            <UiField htmlFor={`${formId}-every-value`} label={t("capability.scheduled_dialog_every")}>
+              <UiInput
+                id={`${formId}-every-value`}
+                max="999"
+                min="1"
+                onChange={(event) => actions.setEveryValue(event.target.value)}
+                step="1"
+                type="number"
+                value={schedule.everyValue}
+              />
+            </UiField>
+            <UiField htmlFor={`${formId}-every-unit`} label={t("capability.scheduled_dialog_select_interval_unit")}>
+              <UiSelectMenu
+                ariaLabel={t("capability.scheduled_dialog_select_interval_unit")}
+                id={`${formId}-every-unit`}
+                onChange={(value) => actions.setEveryUnit(value as EveryUnit)}
+                options={buildEveryUnitOptions(t).map((option) => ({ label: option.label, value: option.key }))}
+                surface="dialog"
+                value={schedule.everyUnit}
+              />
+            </UiField>
           </div>
         </UiPanel>
       ) : null}
 
-      <div className="dialog-field">
-        <label className="dialog-label" htmlFor="task-timezone">
-          {t("capability.scheduled_dialog_timezone")}
-        </label>
+      <UiField htmlFor={`${formId}-timezone`} label={t("capability.scheduled_dialog_timezone")}>
         <UiSelectMenu
           ariaLabel={t("capability.scheduled_dialog_select_timezone")}
-          id="task-timezone"
+          id={`${formId}-timezone`}
           onChange={actions.setTimezone}
           options={TIMEZONE_OPTIONS.map((timezone) => ({
             label: timezone,
@@ -331,12 +312,12 @@ export function TaskSchedulePanel({
           surface="dialog"
           value={schedule.timezone}
         />
-      </div>
+      </UiField>
 
-      <UiField htmlFor="task-instruction" label={instructionLabel} required>
+      <UiField htmlFor={`${formId}-instruction`} label={instructionLabel} required>
         <UiTextarea
           className="resize-none"
-          id="task-instruction"
+          id={`${formId}-instruction`}
           onChange={(event) => formActions.setInstruction(event.target.value)}
           placeholder={t("capability.scheduled_dialog_instruction_placeholder")}
           required

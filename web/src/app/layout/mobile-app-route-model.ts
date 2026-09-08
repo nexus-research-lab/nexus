@@ -1,12 +1,12 @@
 /**
  * INPUT: 当前路径与查询参数。
- * OUTPUT: 移动端目录/详情布局、返回目标和与当前分区一致的页头标题。
+ * OUTPUT: 移动端目录/详情布局、返回目标和独立于导航短标签的完整页头标题。
  * POS: AppLayout 的纯路由展示模型，不维护导航状态。
  */
 import {
   APP_ROUTE_PATHS,
   AppRouteBuilders,
-} from "@/app/router/route-paths";
+} from "@/shared/navigation/route-paths";
 import {
   getSettingsSectionLabelKey,
   parseSettingsSection,
@@ -87,7 +87,7 @@ export function resolveMobileAppRoute({
       ? {
           backPath: AppRouteBuilders.contacts(),
           mode: "detail",
-          titleKey: "sidebar.tab_contacts",
+          titleKey: "sidebar.contacts",
         }
       : { mode: "directory" };
   }

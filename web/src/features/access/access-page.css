@@ -1,0 +1,28 @@
+/* INPUT: Access-page theme tokens and viewport width.
+ * OUTPUT: Shared brand backdrop, logo projection and promotional heading geometry.
+ * POS: Login/Setup brand surface; ordinary form text and controls remain shared UI recipes.
+ */
+
+.access-page-background {
+  background-color: var(--secondary);
+  background-image: linear-gradient(rgba(255,255,255,0.18),rgba(255,255,255,0.18)),
+    linear-gradient(90deg,rgba(255,255,255,0.46) 1px,transparent 1px),
+    linear-gradient(60deg,rgba(255,255,255,0.42) 1px,transparent 1px),
+    linear-gradient(120deg,rgba(255,255,255,0.42) 1px,transparent 1px);
+  background-size: 100% 100%, 160px 138px, 160px 138px, 160px 138px;
+}
+
+.access-brand-mark {
+  filter: drop-shadow(0 12px 24px color-mix(in srgb, var(--brand) 18%, transparent));
+}
+
+/* Promotional copy shares one responsive scale; it is not an App chrome title. */
+.access-hero-title {
+  font-size: 44px;
+  font-weight: 600;
+  line-height: 1.02;
+}
+
+@media (min-width: 640px) {
+  .access-hero-title { font-size: 64px; }
+}

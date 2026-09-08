@@ -1,3 +1,6 @@
+// INPUT: 用户动作、原生 disabled/aria-busy 与 button/link 属性、有限的 size/tone/variant/shape 语义、IconButton 内嵌焦点选项和 Tooltip。
+// OUTPUT: 默认安全为 type=button、可聚焦且具统一状态样式的文字/图标动作控件。
+// POS: Button DOM 与可访问性原语；不判断业务权限、事务状态或页面布局。
 "use client";
 
 import { AnchorHTMLAttributes, ButtonHTMLAttributes, forwardRef, ReactNode } from "react";
@@ -6,16 +9,28 @@ import { cn } from "@/shared/ui/class-name";
 import {
   getUiButtonClassName,
   getUiIconButtonClassName,
+  type UiButtonShape,
   type UiButtonSize,
   type UiButtonTone,
   type UiButtonVariant,
+  type UiIconButtonShape,
   type UiIconButtonSize,
 } from "@/shared/ui/button/button-styles";
 import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 
+export type {
+  UiButtonShape,
+  UiButtonSize,
+  UiButtonTone,
+  UiButtonVariant,
+  UiIconButtonShape,
+  UiIconButtonSize,
+} from "@/shared/ui/button/button-styles";
+
 interface UiButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode;
   className?: string;
+  shape?: UiButtonShape;
   size?: UiButtonSize;
   tone?: UiButtonTone;
   variant?: UiButtonVariant;
@@ -24,14 +39,18 @@ interface UiButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 interface UiLinkButtonProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
   children: ReactNode;
   className?: string;
+  shape?: UiButtonShape;
   size?: UiButtonSize;
   tone?: UiButtonTone;
   variant?: UiButtonVariant;
 }
 
 interface UiIconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  /** 滚动或裁剪容器中的图标动作把焦点环保持在自身命中区内。 */
+  focusInset?: boolean;
   children: ReactNode;
   className?: string;
+  shape?: UiIconButtonShape;
   size?: UiIconButtonSize;
   tone?: UiButtonTone;
   tooltip?: string | null;
@@ -43,6 +62,7 @@ export const UiButton = forwardRef<HTMLButtonElement, UiButtonProps>(function Ui
   {
     children,
     className,
+    shape,
     size,
     tone,
     type = "button",
@@ -54,7 +74,11 @@ export const UiButton = forwardRef<HTMLButtonElement, UiButtonProps>(function Ui
   return (
     <button
       ref={ref}
-      className={getUiButtonClassName({ size, tone, variant }, cn(className))}
+      className={getUiButtonClassName({
+        busy: props["aria-busy"] === true || props["aria-busy"] === "true",
+        disabled: props.disabled,
+        shape, size, tone, variant,
+      }, cn(className))}
       type={type}
       {...props}
     >
@@ -67,6 +91,7 @@ export const UiLinkButton = forwardRef<HTMLAnchorElement, UiLinkButtonProps>(fun
   {
     children,
     className,
+    shape,
     size,
     tone,
     variant,
@@ -77,7 +102,7 @@ export const UiLinkButton = forwardRef<HTMLAnchorElement, UiLinkButtonProps>(fun
   return (
     <a
       ref={ref}
-      className={getUiButtonClassName({ size, tone, variant }, cn(className))}
+      className={getUiButtonClassName({ shape, size, tone, variant }, cn(className))}
       {...props}
     >
       {children}
@@ -90,6 +115,8 @@ export const UiIconButton = forwardRef<HTMLButtonElement, UiIconButtonProps>(fun
     "aria-label": ariaLabel,
     children,
     className,
+    focusInset,
+    shape,
     size,
     tone,
     title,
@@ -101,14 +128,19 @@ export const UiIconButton = forwardRef<HTMLButtonElement, UiIconButtonProps>(fun
   },
   ref,
 ) {
-  const tooltipLabel = tooltip
+  const actionLabel = tooltip
     ?? (typeof title === "string" ? title : null)
     ?? (typeof ariaLabel === "string" ? ariaLabel : null);
+  const tooltipLabel = tooltip === null ? null : actionLabel;
   const button = (
     <button
       ref={ref}
-      aria-label={ariaLabel ?? tooltipLabel ?? undefined}
-      className={getUiIconButtonClassName({ size, tone, variant }, cn(className))}
+      aria-label={ariaLabel ?? actionLabel ?? undefined}
+      className={getUiIconButtonClassName({
+        busy: props["aria-busy"] === true || props["aria-busy"] === "true",
+        disabled: props.disabled,
+        focusInset, shape, size, tone, variant,
+      }, cn(className))}
       type={type}
       {...props}
     >

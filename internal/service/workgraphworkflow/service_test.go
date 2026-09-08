@@ -121,16 +121,6 @@ func (m *workflowEditorSessionManager) DeleteWorkGraphEditorSession(_ context.Co
 	return nil
 }
 
-type workflowSaveRoundRecorder struct {
-	requests []SaveRoundRequest
-	err      error
-}
-
-func (r *workflowSaveRoundRecorder) DispatchWorkGraphSave(_ context.Context, request SaveRoundRequest) error {
-	r.requests = append(r.requests, request)
-	return r.err
-}
-
 func reusableTestAbstractor(_ context.Context, _ string, input AbstractionInput) (AbstractionOutput, error) {
 	nodes := make([]AbstractedNode, 0, len(input.Nodes))
 	for _, node := range input.Nodes {
@@ -416,119 +406,6 @@ func TestSavePreviewRejectsWrongSessionAndExpiredPreview(t *testing.T) {
 	}
 }
 
-func TestScheduleSaveDispatchesOneHiddenPromptWithoutGraphContent(t *testing.T) {
-	service := NewService(
-		&workflowMemoryRepository{items: make(map[string]protocol.WorkGraphWorkflow)},
-		workflowExecutionViewer{view: workflowSourceView()},
-	)
-	service.SetAbstractor(workflowAbstractor(reusableTestAbstractor))
-	dispatcher := &workflowSaveRoundRecorder{}
-	service.SetSaveRoundDispatcher(dispatcher)
-	preview, err := service.PreviewFromExecution(context.Background(), "owner-a", protocol.PreviewWorkGraphWorkflowRequest{
-		SourceSessionKey: "session-a", SourceExecutionID: "execution-a",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	request := protocol.ScheduleWorkGraphWorkflowSaveRequest{
-		SourceSessionKey: "session-a", PreviewID: preview.PreviewID,
-		SlashName: "evidence-review", Title: "证据审查", Description: "整理证据并完成独立复核",
-	}
-	receipt, err := service.ScheduleSave(context.Background(), "owner-a", request)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if receipt.Status != "scheduled" || receipt.PreviewID != preview.PreviewID || len(dispatcher.requests) != 1 {
-		t.Fatalf("receipt=%#v requests=%#v", receipt, dispatcher.requests)
-	}
-	dispatched := dispatcher.requests[0]
-	if dispatched.OwnerUserID != "owner-a" || dispatched.AgentID != "agent-a" || dispatched.SourceSessionKey != "session-a" || dispatched.PreviewID != preview.PreviewID {
-		t.Fatalf("dispatch request = %#v", dispatched)
-	}
-	for _, expected := range []string{
-		"execution-orchestrator Skill",
-		"distill_workgraph",
-		preview.PreviewID,
-		"/evidence-review",
-		"所有思考摘要、过程状态、工具调用说明和最终回复都必须使用简体中文",
-		"禁止输出英文叙述",
-	} {
-		if !strings.Contains(dispatched.Prompt, expected) {
-			t.Fatalf("background prompt missing %q: %s", expected, dispatched.Prompt)
-		}
-	}
-	for _, forbidden := range []string{"work-research", "Reusable research", "tool-secret", "attempt-secret"} {
-		if strings.Contains(dispatched.Prompt, forbidden) {
-			t.Fatalf("background prompt leaked graph content %q: %s", forbidden, dispatched.Prompt)
-		}
-	}
-	if _, err = service.ScheduleSave(context.Background(), "owner-a", request); err != nil || len(dispatcher.requests) != 1 {
-		t.Fatalf("repeated schedule err=%v requests=%d, want idempotent acceptance", err, len(dispatcher.requests))
-	}
-	created, err := service.SavePreview(context.Background(), "owner-a", protocol.SaveWorkGraphWorkflowRequest{
-		SourceSessionKey: "session-a", PreviewID: preview.PreviewID,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if created.SlashName != request.SlashName || created.Title != request.Title || created.Description != request.Description {
-		t.Fatalf("saved metadata = (%q, %q, %q)", created.SlashName, created.Title, created.Description)
-	}
-	if _, err = service.ScheduleSave(context.Background(), "owner-a", request); err != nil || len(dispatcher.requests) != 1 {
-		t.Fatalf("post-save replay err=%v requests=%d, want idempotent receipt", err, len(dispatcher.requests))
-	}
-}
-
-func TestScheduleSaveRejectsConflictingSlashNameBeforeDispatch(t *testing.T) {
-	repository := &workflowMemoryRepository{items: map[string]protocol.WorkGraphWorkflow{
-		"existing": {ID: "existing", OwnerUserID: "owner-a", SlashName: "evidence-review"},
-	}}
-	service := NewService(repository, workflowExecutionViewer{view: workflowSourceView()})
-	service.SetAbstractor(workflowAbstractor(reusableTestAbstractor))
-	dispatcher := &workflowSaveRoundRecorder{}
-	service.SetSaveRoundDispatcher(dispatcher)
-	preview, err := service.PreviewFromExecution(context.Background(), "owner-a", protocol.PreviewWorkGraphWorkflowRequest{
-		SourceSessionKey: "session-a", SourceExecutionID: "execution-a",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = service.ScheduleSave(context.Background(), "owner-a", protocol.ScheduleWorkGraphWorkflowSaveRequest{
-		SourceSessionKey: "session-a", PreviewID: preview.PreviewID,
-		SlashName: "evidence-review", Title: "证据审查", Description: "整理证据并完成独立复核",
-	})
-	if !errors.Is(err, ErrNameConflict) {
-		t.Fatalf("schedule conflict error = %v, want ErrNameConflict", err)
-	}
-	if len(dispatcher.requests) != 0 {
-		t.Fatalf("conflicting save dispatched %d background rounds", len(dispatcher.requests))
-	}
-}
-
-func TestScheduleSaveReleasesClaimWhenDispatchFails(t *testing.T) {
-	service := NewService(
-		&workflowMemoryRepository{items: make(map[string]protocol.WorkGraphWorkflow)},
-		workflowExecutionViewer{view: workflowSourceView()},
-	)
-	service.SetAbstractor(workflowAbstractor(reusableTestAbstractor))
-	dispatcher := &workflowSaveRoundRecorder{err: errors.New("dispatch failed")}
-	service.SetSaveRoundDispatcher(dispatcher)
-	preview, err := service.PreviewFromExecution(context.Background(), "owner-a", protocol.PreviewWorkGraphWorkflowRequest{
-		SourceSessionKey: "session-a", SourceExecutionID: "execution-a",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	request := protocol.ScheduleWorkGraphWorkflowSaveRequest{SourceSessionKey: "session-a", PreviewID: preview.PreviewID}
-	if _, err = service.ScheduleSave(context.Background(), "owner-a", request); err == nil {
-		t.Fatal("dispatch failure was accepted")
-	}
-	dispatcher.err = nil
-	if _, err = service.ScheduleSave(context.Background(), "owner-a", request); err != nil || len(dispatcher.requests) != 2 {
-		t.Fatalf("retry err=%v requests=%d, want released claim", err, len(dispatcher.requests))
-	}
-}
-
 func TestMetadataEditorAppliesValidatedGraphRevisionAndDiscardsTransientSession(t *testing.T) {
 	service := NewService(
 		&workflowMemoryRepository{items: make(map[string]protocol.WorkGraphWorkflow)},
@@ -617,7 +494,7 @@ func TestMetadataEditorAppliesValidatedGraphRevisionAndDiscardsTransientSession(
 		t.Fatalf("stale apply changed preview = %#v, err=%v", unchanged, err)
 	}
 	applied, err := service.ApplyMetadataEditor("owner-a", protocol.ApplyWorkGraphWorkflowEditorRequest{
-		SourceSessionKey: "session-a", EditorID: editor.EditorID, Revision: revised.Revision,
+		SourceSessionKey: "session-a", EditorID: editor.EditorID, Revision: revised.Revision, SelectedRevision: revised.SelectedRevision,
 	})
 	if err != nil || len(applied.Nodes) != 4 || applied.Nodes[3].LogicalKey != "publish" {
 		t.Fatalf("applied preview = %#v, err=%v", applied, err)

@@ -1,6 +1,11 @@
+// INPUT: 当前紧凑断点与外部是否允许调整目录宽度。
+// OUTPUT: 有界目录宽度、键盘调整范围和共享鼠标拖动生命周期。
+// POS: Workspace 文件列表尺寸 owner；不处理文件导航或写入。
+
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { useMediaQuery } from "@/hooks/ui/use-media-query";
+import { useMediaQuery } from "@/shared/lib/react/use-media-query";
+import { useMouseDrag } from "@/shared/lib/react/use-mouse-drag";
 
 interface FileListLayoutSpec {
   defaultWidth: number;
@@ -17,13 +22,12 @@ function clampWidth(width: number, spec: FileListLayoutSpec): number {
   return Math.min(Math.max(width, spec.minWidth), spec.maxWidth);
 }
 
-export function useWorkspaceFileListLayout() {
+export function useWorkspaceFileListLayout(enabled = true) {
   const panelRef = useRef<HTMLDivElement>(null);
   const isCompact = useMediaQuery("(max-width: 1280px)");
   const mode = isCompact ? "compact" : "regular";
   const spec = FILE_LIST_LAYOUT_BY_MODE[mode];
   const [width, setWidth] = useState(FILE_LIST_LAYOUT_BY_MODE.regular.defaultWidth);
-  const [isResizing, setIsResizing] = useState(false);
 
   useEffect(() => {
     setWidth((current) => (
@@ -33,35 +37,24 @@ export function useWorkspaceFileListLayout() {
     ));
   }, [isCompact, spec.defaultWidth]);
 
-  useEffect(() => {
-    if (!isResizing) {
-      return;
+  const handleMove = useCallback((event: MouseEvent) => {
+    const bounds = panelRef.current?.getBoundingClientRect();
+    if (bounds && bounds.width > 0) {
+      setWidth(clampWidth(bounds.right - event.clientX, spec));
     }
-
-    const handleMouseMove = (event: MouseEvent) => {
-      const bounds = panelRef.current?.getBoundingClientRect();
-      if (bounds) {
-        setWidth(clampWidth(bounds.right - event.clientX, spec));
-      }
-    };
-    const handleMouseUp = () => setIsResizing(false);
-
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [isResizing, spec]);
-
-  const startResizing = useCallback(() => setIsResizing(true), []);
-  const stopResizing = useCallback(() => setIsResizing(false), []);
+  }, [spec]);
+  const { isDragging, startDragging, stopDragging } = useMouseDrag(handleMove, enabled);
+  const changeWidth = useCallback((next: number) => {
+    if (enabled && Number.isFinite(next)) setWidth(clampWidth(next, spec));
+  }, [enabled, spec]);
+  const visibleWidth = clampWidth(width, spec);
 
   return {
     panelRef,
-    width,
-    isResizing,
-    startResizing,
-    stopResizing,
+    width: visibleWidth,
+    resizeControl: enabled ? { value: visibleWidth, min: spec.minWidth, max: spec.maxWidth, onChange: changeWidth } : null,
+    isResizing: isDragging,
+    startResizing: startDragging,
+    stopResizing: stopDragging,
   };
 }

@@ -2,7 +2,7 @@
 
 /**
  * INPUT: Goal status projection inputs, server-derived clear reason, mutation block reason and action callbacks.
- * OUTPUT: accessible Goal status strip with primary lifecycle, descender-safe compact labels and only meaningful WorkGraph binding state.
+ * OUTPUT: 本地化且可换行的 Goal 状态条、完整阻塞说明与精确动作忙碌反馈。
  * POS: Goal panel renderer; lifecycle and server-derived binding policy remain in the pure model/controller.
  */
 
@@ -10,6 +10,7 @@ import type { ReactNode } from "react";
 import {
   CircleSlash,
   GaugeCircle,
+  Loader2,
   Pause,
   Pencil,
   Play,
@@ -18,24 +19,30 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import type { TranslationKey } from "@/shared/i18n/messages";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { cn } from "@/shared/ui/class-name";
 import { UiIconButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
+import { UiBadge } from "@/shared/ui/display/badge";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import { UiPanel } from "@/shared/ui/panel";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { Goal, GoalExecutionBinding } from "@/types/conversation/goal";
 import type { GoalContinuationHold } from "./goal-continuation-hold";
 import type { GoalMutationBlockReason } from "./goal-lifecycle-recovery";
 import {
-  buildGoalStatusStripModel,
-  GOAL_PANEL_BADGE_CLASS_NAME,
   GOAL_PANEL_COMPACT_CLASS_NAME,
-  GOAL_PANEL_LEADING_ICON_CLASS_NAME,
-  GOAL_PANEL_ROW_CLASS_NAME,
   GOAL_PANEL_STRIP_CLASS_NAME,
-  GOAL_PANEL_SURFACE_CLASS_NAME,
+} from "./goal-panel-layout";
+import {
+  buildGoalStatusStripModel,
   type GoalBindingBadgeModel,
   type GoalStatusAction,
   type GoalStatusStripModel,
 } from "./goal-model";
+
+const GOAL_PANEL_ROW_CLASS_NAME =
+  "group -mx-1 flex min-h-8 flex-wrap items-center gap-x-2 gap-y-1 px-1 py-0.5 text-(--text-default)";
 
 interface GoalStatusStripProps {
   canResume: boolean;
@@ -49,6 +56,7 @@ interface GoalStatusStripProps {
   isLoading: boolean;
   mutationBlockReason: GoalMutationBlockReason | null;
   mutationBlocked: boolean;
+  pendingAction?: GoalStatusAction | null;
   scopeLabel: string;
   statusExtra?: ReactNode;
   onClearRequest: () => void;
@@ -60,8 +68,7 @@ interface GoalStatusStripProps {
 
 interface GoalActionPresentation {
   Icon: LucideIcon;
-  label: string;
-  requiresIdle: boolean;
+  labelKey: TranslationKey;
   tone?: "danger" | "primary";
 }
 
@@ -73,29 +80,27 @@ const GOAL_ACTION_PRESENTATION: Record<
 > = {
   clear: {
     Icon: CircleSlash,
-    label: "清除",
-    requiresIdle: true,
+    labelKey: "common.clear",
     tone: "danger",
   },
-  edit: { Icon: Pencil, label: "编辑", requiresIdle: true },
-  pause: { Icon: Pause, label: "暂停", requiresIdle: true },
-  refresh: { Icon: RefreshCw, label: "刷新", requiresIdle: false },
+  edit: { Icon: Pencil, labelKey: "common.edit" },
+  pause: { Icon: Pause, labelKey: "goal.action_pause" },
+  refresh: { Icon: RefreshCw, labelKey: "common.refresh" },
   resume: {
     Icon: Play,
-    label: "继续",
-    requiresIdle: true,
+    labelKey: "goal.action_resume",
     tone: "primary",
   },
 };
 
 const GOAL_BINDING_BADGE_TONE: Record<
   GoalBindingBadgeModel["tone"],
-  string
+  "danger" | "idle" | "info" | "warning"
 > = {
-  conflict: "border-destructive/20 bg-destructive/10 text-destructive",
-  confirmed: "border-(--status-info-soft-border) bg-(--status-info-soft-bg) text-(--status-info-soft-text)",
-  pending: "border-[color:color-mix(in_srgb,var(--warning)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_9%,transparent)] text-(--warning)",
-  unavailable: "border-(--surface-control-border) bg-(--surface-muted-background) text-(--text-soft)",
+  conflict: "danger",
+  confirmed: "info",
+  pending: "warning",
+  unavailable: "idle",
 };
 
 export function GoalStatusStrip({
@@ -110,6 +115,7 @@ export function GoalStatusStrip({
   isLoading,
   mutationBlockReason,
   mutationBlocked,
+  pendingAction = null,
   scopeLabel,
   statusExtra = null,
   onClearRequest,
@@ -118,7 +124,10 @@ export function GoalStatusStrip({
   onRefresh,
   onResume,
 }: GoalStatusStripProps) {
+  const { locale, t } = useI18n();
   const model = buildGoalStatusStripModel({
+    locale,
+    t,
     canResume,
     clearDisabledReason,
     continuationHold,
@@ -140,7 +149,7 @@ export function GoalStatusStrip({
         compact ? GOAL_PANEL_COMPACT_CLASS_NAME : GOAL_PANEL_STRIP_CLASS_NAME
       }
     >
-      <div className={GOAL_PANEL_SURFACE_CLASS_NAME}>
+      <UiPanel className="px-3 py-1.5" padding="none" radius="lg">
         <div className={GOAL_PANEL_ROW_CLASS_NAME}>
           <GoalLeadingIcon model={model} />
           <GoalStatusSummary
@@ -158,6 +167,7 @@ export function GoalStatusStrip({
             isLoading={isLoading}
             mutationBlockReason={mutationBlockReason}
             mutationBlocked={mutationBlocked}
+            pendingAction={pendingAction}
           />
         </div>
         <GoalAttentionMessage
@@ -165,16 +175,21 @@ export function GoalStatusStrip({
           message={model.attentionMessage}
           tone={model.attentionTone}
         />
-      </div>
+      </UiPanel>
     </div>
   );
 }
 
 function GoalLeadingIcon({ model }: { model: GoalStatusStripModel }) {
   return (
-    <span className={cn(GOAL_PANEL_LEADING_ICON_CLASS_NAME, model.tone.icon)}>
-      <Target className="h-3.5 w-3.5" />
-    </span>
+    <UiBadge
+      aria-hidden="true"
+      className="h-5 w-5 !p-0"
+      size="xs"
+      tone={model.tone}
+    >
+      <Target aria-hidden="true" className="h-3.5 w-3.5" />
+    </UiBadge>
   );
 }
 
@@ -190,20 +205,27 @@ function GoalStatusSummary({
   statusExtra: ReactNode;
 }) {
   return (
-    <div className="min-w-0 flex-1">
-      <div className="flex min-w-0 items-center gap-1.5 text-2xs font-medium text-(--text-soft)">
+    <div className="min-w-0 flex-1 basis-40">
+      <div className={cn(
+        "flex min-w-0 flex-wrap items-center gap-1.5",
+        getUiTypographyClassName({ role: "caption", tone: "soft", weight: "medium" }),
+      )}>
         <span className="truncate">{scopeLabel}</span>
-        <span
-          className={cn(GOAL_PANEL_BADGE_CLASS_NAME, model.tone.badge)}
+        <UiBadge
+          size="xs"
           title={model.statusTitle}
+          tone={model.tone}
         >
           {model.statusLabel}
-        </span>
+        </UiBadge>
         {model.bindingBadge ? <GoalBindingBadge model={model.bindingBadge} /> : null}
         {statusExtra}
       </div>
       <div
-        className="mt-0.5 line-clamp-1 text-compact font-medium leading-5 text-(--text-strong)"
+        className={cn(
+          "mt-0.5 line-clamp-1",
+          getUiTypographyClassName({ role: "supporting", tone: "strong", weight: "medium" }),
+        )}
         title={objective}
       >
         {objective}
@@ -220,17 +242,16 @@ function GoalBindingBadge({
   const { t } = useI18n();
   const title = t(model.titleKey);
   return (
-    <span
+    <UiBadge
       aria-label={title}
-      className={cn(
-        "inline-flex max-w-32 shrink-0 items-center truncate rounded-[6px] border px-1.5 py-0.5 text-2xs font-medium leading-tight",
-        GOAL_BINDING_BADGE_TONE[model.tone],
-      )}
+      className="max-w-32 truncate"
       data-goal-binding-state={model.state}
+      size="xs"
       title={title}
+      tone={GOAL_BINDING_BADGE_TONE[model.tone]}
     >
       {t(model.labelKey)}
-    </span>
+    </UiBadge>
   );
 }
 
@@ -239,8 +260,11 @@ function GoalUsage({ label }: { label: string | null }) {
     return null;
   }
   return (
-    <span className="hidden h-6 shrink-0 items-center gap-1 rounded-[8px] px-1.5 text-xs font-medium tabular-nums text-(--text-muted) sm:inline-flex">
-      <GaugeCircle className="h-3.5 w-3.5 shrink-0" />
+    <span className={cn(
+      "hidden shrink-0 items-center gap-1 tabular-nums sm:inline-flex",
+      getUiTypographyClassName({ role: "caption", tone: "muted", weight: "medium" }),
+    )}>
+      <GaugeCircle aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
       <span>{label}</span>
     </span>
   );
@@ -254,6 +278,7 @@ function GoalStatusActions({
   isLoading,
   mutationBlockReason,
   mutationBlocked,
+  pendingAction,
 }: {
   actionDisabledReasons: GoalStatusStripModel["actionDisabledReasons"];
   actions: GoalStatusAction[];
@@ -262,10 +287,11 @@ function GoalStatusActions({
   isLoading: boolean;
   mutationBlockReason: GoalMutationBlockReason | null;
   mutationBlocked: boolean;
+  pendingAction: GoalStatusAction | null;
 }) {
   const { t } = useI18n();
   return (
-    <div className="ml-auto flex shrink-0 items-center gap-1">
+    <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-1">
       {actions.map((action) => {
         const presentation = GOAL_ACTION_PRESENTATION[action];
         const disabledReason = actionDisabledReasons[action]
@@ -277,28 +303,27 @@ function GoalStatusActions({
         const unavailable = isLoading || (
           action !== "refresh" && disabled
         );
-        const { Icon } = presentation;
+        const label = t(presentation.labelKey);
+        const busy = isLoading && action === (pendingAction ?? "refresh");
+        const Icon = busy ? Loader2 : presentation.Icon;
         return (
           <UiIconButton
             key={action}
-            aria-label={disabledReason
-              ? `${presentation.label}：${disabledReason}`
-              : presentation.label}
+            aria-busy={busy || undefined}
+            aria-label={disabledReason ? `${label}: ${disabledReason}` : label}
             disabled={Boolean(disabledReason) || unavailable}
             size="sm"
-            title={disabledReason ?? presentation.label}
+            tooltip={disabledReason ?? label}
             tone={presentation.tone}
             type="button"
             variant="ghost"
             onClick={handlers[action]}
           >
             <Icon
-              className={cn(
-                "h-4 w-4",
-                action === "refresh"
-                  && isLoading
-                  && "animate-spin motion-reduce:animate-none",
-              )}
+              aria-hidden="true"
+              className={busy
+                ? getUiSpinnerClassName({ size: "md" })
+                : "h-4 w-4"}
             />
           </UiIconButton>
         );
@@ -330,8 +355,11 @@ function GoalAttentionMessage({
   return (
     <div
       className={cn(
-        "ml-7 line-clamp-1 pb-1 text-xs leading-4",
-        tone === "warning" ? "text-(--warning)" : "text-(--destructive)",
+        "ml-7 whitespace-pre-wrap pb-1 [overflow-wrap:anywhere]",
+        getUiTypographyClassName({
+          role: "supporting",
+          tone: tone === "warning" ? "warning" : "danger",
+        }),
       )}
     >
       {resolvedMessage}

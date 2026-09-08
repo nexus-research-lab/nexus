@@ -1,5 +1,10 @@
+// INPUT: Archived process, assistant content environment and disclosure state.
+// OUTPUT: Process disclosure and generated files bound to the source message workspace.
+// POS: Archived Assistant process orchestration; file cards own action eligibility.
+
+import type { WorkspaceFileOpenHandler } from "@/lib/workspace-file-action";
 import type { RefObject } from "react";
-import { ChevronDown, ChevronRight, Wrench } from "lucide-react";
+import { Wrench } from "lucide-react";
 
 import type {
   ContentBlock,
@@ -24,6 +29,7 @@ import type {
   AssistantProcessState,
 } from "./assistant-message-model";
 import { AssistantToolRuns } from "./assistant-dm-tool-runs";
+import { MessageDetailToggle } from "../../../ui/message-detail-toggle";
 
 const EMPTY_CONTENT_BLOCKS: ContentBlock[] = [];
 
@@ -57,6 +63,7 @@ export function AssistantProcessCallchain({
         artifacts={collapsedFileArtifacts}
         label={generatedFilesLabel}
         onOpenWorkspaceFile={environment.onOpenWorkspaceFile}
+        workspaceAgentId={environment.workspaceAgentId}
         visible={!process.expanded}
       />
       <ExpandedProcessContent
@@ -83,17 +90,18 @@ function selectCollapsedProcessContent(
 function ProcessToggleButton({ process }: { process: AssistantProcessState }) {
   const { t } = useI18n();
   return (
-    <button
-      className="flex min-h-7 w-full items-center gap-1.5 py-0.5 text-left text-(--text-muted) transition-colors duration-(--motion-duration-fast) hover:text-(--text-strong)"
+    <MessageDetailToggle
+      expanded={process.expanded}
+      leading={(
+        <Wrench
+          className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)"
+          strokeWidth={1.8}
+        />
+      )}
       onClick={process.toggle}
-      type="button"
     >
-      <Wrench className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" strokeWidth={1.8} />
-      <div className="min-w-0 flex-1 truncate text-sm font-normal leading-5 text-(--text-muted)">
-        {formatProcessSummary(process.summary, t)}
-      </div>
-      <ProcessExpansionIcon expanded={process.expanded} />
-    </button>
+      {formatProcessSummary(process.summary, t)}
+    </MessageDetailToggle>
   );
 }
 
@@ -158,25 +166,18 @@ function formatProcessDetail(
     : title;
 }
 
-function ProcessExpansionIcon({ expanded }: { expanded: boolean }) {
-  const Icon = expanded ? ChevronDown : ChevronRight;
-  return (
-    <div className="text-(--icon-muted)">
-      <Icon className="h-3.5 w-3.5" />
-    </div>
-  );
-}
-
 function CollapsedProcessArtifacts({
   artifacts,
   label,
   onOpenWorkspaceFile,
   visible,
+  workspaceAgentId,
 }: {
   artifacts: WorkspaceFileArtifactContent[];
   label: string;
-  onOpenWorkspaceFile?: (path: string) => void;
+  onOpenWorkspaceFile?: WorkspaceFileOpenHandler;
   visible: boolean;
+  workspaceAgentId?: string | null;
 }) {
   if (!visible) {
     return null;
@@ -187,6 +188,7 @@ function CollapsedProcessArtifacts({
       className="ml-5 pb-1"
       label={label}
       onOpenWorkspaceFile={onOpenWorkspaceFile}
+      workspaceAgentId={workspaceAgentId}
     />
   );
 }

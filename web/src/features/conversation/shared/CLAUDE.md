@@ -7,11 +7,12 @@
 - `conversation-panel-layout.tsx`：会话面板通用布局和浮层控件。
 - `conversation-panel-styles.ts`：统一消息流、助手正文、告警与 Composer 的桌面宽度阶梯。
 - `conversation-panel-model.ts`：把共享会话控制器和面板环境投影为 Frame、导航、视口和滚动控件模型。
-- `conversation-empty-introduction.tsx`：在 DM/Room canonical timeline 为空时展示同一静态身份与建议面板；只在用户选择建议后发出普通消息，不持久化自身。
+- `conversation-empty-introduction.tsx`：在 DM/Room canonical timeline 为空时，以可见 Feed 为基准居中展示同一静态身份与建议面板；四条建议固定复用同构的纵向轻边框 `UiButton outline`，图标在左上、文案在左下并保持足够卡片宽度和高度，Room 文案还需平衡左右列的视觉重量；这些同层快捷入口默认透明且不加阴影，只以边框和 hover 底色反馈交互。身份图形允许在居中外框内做 1–2px 光学校正，但不得移动整组中心线；只在用户选择建议后发出普通消息，不持久化自身。
 - `use-conversation-panel-environment.ts`：统一读取布局模式和 Provider 告警状态；用户头像已退出消息渲染契约，不得沿面板链保留无消费字段。
 - `use-conversation-snapshot-reporter.ts`：按会话作用域报告稳定快照，并统一活跃时间、当前已加载消息计数与显式 `has_user_input` 投影；只有可见且非 synthetic 的 user 消息属于用户输入，消息计数不得代替该事实。Conversation scope 切换后的首个 effect 必须跳过，且消息 identity 必须属于当前 scope，防止上一会话的消息集合在清空前污染新 draft。
-- `conversation-reliability-notice.tsx`：只消费结构化可靠性快照，在 Composer 状态层投影标题和一句说明；不渲染内部详情，只为消息结果确认和会话内容加载提供“刷新”，其余情况复用当前 Composer、权限卡或设置入口。
-- `read-resource-reliability-notice.tsx`：为外部 Session、round index 等只读资源说明当前不可用内容和一个直接恢复方式；提示保持可见，不抢焦点、不自动重试。
+- `conversation-reliability-notice.tsx`：只消费结构化可靠性快照，在 Composer 状态层投影标题和一句说明；不渲染内部详情，只为消息结果确认和会话内容加载提供“刷新”，其余情况复用当前 Composer、权限卡或设置入口；提示骨架、tone 和动作状态复用 `UiInlineNotice`。
+- `read-resource-reliability-notice.tsx`：为外部 Session、round index 等只读资源说明当前不可用内容和一个直接恢复方式；提示保持可见，不抢焦点、不自动重试，并与 Conversation failure 共用 `UiInlineNotice` 而不另写边框、圆角和按钮。
+- `provider-unavailable-banner.tsx`：只负责 Provider 配置入口和弹窗生命周期；可见提示同样复用 `UiInlineNotice`，不得把配置恢复重新做成独立告警卡。
 - `editor/text/` 与 `editor/workspace-file-preview-panel.tsx`：文本草稿、加载/保存响应和编辑入口按 exact Agent + path 隔离；文件切换立即重建预览，未成功读取不得显示或保存上一文件内容。
 - `slash-command-presentation.ts` 与 `slash-command-token.tsx`：识别消息开头的通用 `/<command>`，为 Composer 镜像和用户消息提供同一轻量命令标签，不改写草稿或持久化正文。
 - `execution/`：读取后端安全的 managed `ExecutionView`，以同一 WorkGraph 在 DM/Room 投影目标、Plan revision、Work Item、依赖、Assignment、Attempt、Submission 与 Acceptance；planless/runtime-only Graph 不属于这个公共资源，也不得填充固定工作图入口的 Surface 或触发 Agent Dock。

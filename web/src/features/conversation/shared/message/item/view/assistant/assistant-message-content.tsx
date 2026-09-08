@@ -6,6 +6,7 @@
 import { AlertTriangle } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import type {
   ContentBlock,
   ToolUseContent,
@@ -345,9 +346,11 @@ function MaxTokensWarning({ visible }: { visible: boolean }) {
     return null;
   }
   return (
-    <div className="mt-2 flex items-center gap-1.5 rounded-[8px] border border-[color:color-mix(in_srgb,var(--warning)_18%,transparent)] px-3 py-2 text-xs leading-5 text-(--warning)">
-      <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-      <span>{t("message.max_tokens_warning")}</span>
-    </div>
+    <UiInlineNotice
+      className="mt-2"
+      icon={<AlertTriangle />}
+      message={t("message.max_tokens_warning")}
+      tone="warning"
+    />
   );
 }

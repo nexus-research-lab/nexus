@@ -1,4 +1,4 @@
-// INPUT: Owner Pairing/Agent snapshots and exact create/update/delete intents.
+// INPUT: Owner Pairing/Agent snapshots, current locale and exact create/update/delete intents.
 // OUTPUT: Stale-safe reads, conservative mutation reconciliation, and replay locks.
 // POS: Pairing directory controller; unknown writes are reconciled by reads, never auto-replayed.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -13,7 +13,7 @@ import {
   type PairingView,
   type UpdatePairingPayload,
 } from "@/lib/api/capability/channel-api";
-import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
+import { useCopyToClipboard } from "@/shared/lib/react/use-copy-to-clipboard";
 import type { Agent } from "@/types/agent/agent";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
@@ -52,7 +52,7 @@ interface PairingMutationRecovery {
 }
 
 export function usePairingsController() {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const requestIdRef = useRef(0);
   const { copy } = useCopyToClipboard();
   const [items, setItems] = useState<PairingView[]>([]);
@@ -142,8 +142,9 @@ export function usePairingsController() {
     () => groupPairings(
       visibleItems.filter((item) => item.status !== "pending"),
       agents,
+      { locale, t },
     ),
-    [agents, visibleItems],
+    [agents, locale, t, visibleItems],
   );
 
   const updatePairing = useCallback(async (

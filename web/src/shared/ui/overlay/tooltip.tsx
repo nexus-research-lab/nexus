@@ -1,3 +1,6 @@
+// INPUT: 单个可聚焦触发器、短标签、可选快捷键与锚定方向。
+// OUTPUT: 具延迟 hover、即时 focus、ARIA 关联与 Portal 定位且不移动焦点的共享提示。
+// POS: Tooltip primitive；不承担业务点击动作或长内容 Popover。
 "use client";
 
 import {
@@ -94,6 +97,7 @@ export function UiTooltip({
     estimatePosition,
     isOpen,
     onClose: close,
+    restoreFocus: false,
   });
 
   useEffect(() => clearOpenTimer, [clearOpenTimer]);
@@ -132,7 +136,7 @@ export function UiTooltip({
             <div
               ref={overlayRef}
               className={cn(
-                "ui-tooltip pointer-events-none fixed left-0 top-0 z-[10030] flex w-max max-w-[calc(100vw-24px)] items-center gap-2",
+                "ui-tooltip pointer-events-none fixed left-0 top-0 ui-layer-tooltip flex w-max max-w-[calc(100vw-24px)] items-center gap-2",
                 ANCHORED_OVERLAY_MOTION_CLASS_NAME,
               )}
               data-placement={overlayPosition?.placement ?? placement}

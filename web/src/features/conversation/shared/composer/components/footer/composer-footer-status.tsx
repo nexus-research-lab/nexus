@@ -1,6 +1,6 @@
 /**
  * INPUT: Composer Goal 模式、runtime 活动态及其取消/负责人控件。
- * OUTPUT: 可在普通模式左列与 Goal 模式独立状态行间重排的 Footer 状态。
+ * OUTPUT: 使用公共 caption 排版、可在普通左列与 Goal 独立状态行间重排的唯一状态面。
  * POS: Composer Footer 的唯一运行状态投影。
  */
 
@@ -8,11 +8,12 @@ import type { ReactNode } from "react";
 import { Target, X } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiIconButton } from "@/shared/ui/button/button";
 import { LoadingOrb } from "@/shared/ui/feedback/loading-orb";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { ComposerRuntimeActivity } from "../../composer-model";
 
 import {
-  type ComposerFooterStatusProjection,
   projectComposerFooterStatus,
 } from "./composer-footer-model";
 
@@ -34,22 +35,24 @@ export function ComposerGoalModeIndicator({
     return null;
   }
   return (
-    <span className="nexus-chat-composer-goal-mode flex min-w-0 flex-1 items-center gap-1.5 font-semibold text-(--primary)">
+    <span className={`nexus-chat-composer-goal-mode flex min-w-0 flex-1 items-center gap-1.5 ${getUiTypographyClassName({ role: "caption", tone: "brand", weight: "semibold" })}`}>
       <Target className="h-3.5 w-3.5 shrink-0" />
       <span className="shrink-0 whitespace-nowrap">{t("composer.goal_mode")}</span>
-      <span className="nexus-chat-composer-goal-scope truncate font-medium text-(--text-muted)">
+      <span className={`nexus-chat-composer-goal-scope truncate ${getUiTypographyClassName({ role: "caption", tone: "muted", weight: "medium" })}`}>
         {scopeLabel}
       </span>
       {extra}
-      <button
+      <UiIconButton
         aria-label={t("composer.cancel_goal_mode")}
-        className="nexus-chat-composer-goal-cancel pointer-events-auto inline-flex h-6 w-6 shrink-0 items-center justify-center radius-control-xs text-(--text-soft) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
+        className="nexus-chat-composer-goal-cancel pointer-events-auto shrink-0"
         disabled={isCreating}
         onClick={onCancel}
-        type="button"
+        size="xs"
+        tooltip={t("composer.cancel_goal_mode")}
+        variant="ghost"
       >
         <X className="h-3 w-3" />
-      </button>
+      </UiIconButton>
     </span>
   );
 }
@@ -88,39 +91,13 @@ export function ComposerFooterStatus({
     return null;
   }
   return (
-    <span className={`nexus-chat-composer-runtime-status flex min-w-0 items-center gap-2 ${status.className}`}>
-      <ComposerStatusIndicator frames={status.frames} />
-      <ComposerStatusMessage status={status} />
-      <ComposerStatusHint status={status} />
+    <span
+      className={`nexus-chat-composer-runtime-status flex min-w-0 items-center gap-2 ${getUiTypographyClassName({ role: "caption", tone: status.tone })}`}
+      data-composer-status={status.kind}
+    >
+      {status.indicator ? <LoadingOrb variant={status.indicator} /> : null}
+      {status.message ? <span className="min-w-0 [overflow-wrap:anywhere]">{status.message}</span> : null}
+      {status.hint ? <span className="text-(--text-soft)">{status.hint}</span> : null}
     </span>
   );
-}
-
-function ComposerStatusIndicator({ frames }: { frames: string[] | null }) {
-  if (!frames) {
-    return null;
-  }
-  return <LoadingOrb frames={frames} />;
-}
-
-function ComposerStatusMessage({
-  status,
-}: {
-  status: ComposerFooterStatusProjection;
-}) {
-  if (!status.message) {
-    return null;
-  }
-  return <span className={status.messageClassName}>{status.message}</span>;
-}
-
-function ComposerStatusHint({
-  status,
-}: {
-  status: ComposerFooterStatusProjection;
-}) {
-  if (!status.hint) {
-    return null;
-  }
-  return <span className="text-(--text-soft)">{status.hint}</span>;
 }

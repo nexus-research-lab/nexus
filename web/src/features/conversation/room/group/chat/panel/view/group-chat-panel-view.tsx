@@ -28,6 +28,8 @@ import type { ConversationPanelFrameModel } from "@/features/conversation/shared
 import { ConversationEmptyIntroduction } from "@/features/conversation/shared/conversation-empty-introduction";
 import { ConversationSessionNavigator } from "@/features/conversation/shared/session-navigator/conversation-session-navigator";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import { getConversationActivityChipClassName } from "@/shared/ui/workspace/surface/conversation-activity-chip-styles";
 import type { Agent } from "@/types/agent/agent";
 
 import { GroupConversationFeed } from "../../feed/group-conversation-feed";
@@ -189,7 +191,7 @@ function RoomCollaborationActivity({
     <aside
       aria-label={t("room.collaboration_activity_label")}
       aria-live="polite"
-      className="conversation-activity-chip flex min-w-0 max-w-[460px] items-center gap-1.5 px-2 text-(--text-muted)"
+      className={getConversationActivityChipClassName("flex min-w-0 max-w-[460px] items-center gap-1.5 px-2 text-(--text-muted)")}
       data-room-collaboration-activity={state}
     >
       <LockKeyhole aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
@@ -200,7 +202,7 @@ function RoomCollaborationActivity({
       </span>
       <LoaderCircle
         aria-hidden="true"
-        className="h-3 w-3 shrink-0 animate-spin motion-reduce:animate-none"
+        className={getUiSpinnerClassName({ size: "xs", tone: "muted" })}
       />
     </aside>
   );

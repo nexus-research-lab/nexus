@@ -1,8 +1,12 @@
+// INPUT: 当前设置路由、宿主形态与账号访问范围。
+// OUTPUT: 唯一设置侧栏/内容壳层及不重复页头的 Provider 管理内容。
+// POS: 设置入口装配；各配置领域继续持有读取、草稿与写事务。
+
 "use client";
 
 import { Navigate } from "react-router-dom";
 
-import { AppRouteBuilders } from "@/app/router/route-paths";
+import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 import { isDesktopRuntime } from "@/config/desktop-runtime";
 import { useAuth } from "@/shared/auth/auth-context";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
@@ -33,8 +37,17 @@ export function SettingsPanel({ standalone = false }: { standalone?: boolean }) 
   if (standalone) {
     return (
       <WorkspaceSurfaceScaffold bodyClassName="flex">
-        <aside className="desktop-rail flex h-full w-[224px] shrink-0 flex-col">
+        <aside
+          className="desktop-rail hidden h-full w-[224px] shrink-0 flex-col sm:flex"
+          data-settings-navigation="panel"
+        >
           <SettingsSidebarNavigation variant="panel" />
+        </aside>
+        <aside
+          className="desktop-rail flex h-full w-14 shrink-0 flex-col px-1 py-2.5 sm:hidden"
+          data-settings-navigation="rail"
+        >
+          <SettingsSidebarNavigation variant="rail" />
         </aside>
         <div className="soft-scrollbar scrollbar-stable-gutter min-h-0 min-w-0 flex-1 overflow-y-auto">
           {content}
@@ -71,7 +84,7 @@ function SettingsSectionContent({
     return <PersonalSettingsPanel />;
   }
   if (section === "providers") {
-    return <ProviderSettingsPanel embedded />;
+    return <ProviderSettingsPanel />;
   }
   if (section === "runtime") {
     return <SettingsRuntimeSection />;

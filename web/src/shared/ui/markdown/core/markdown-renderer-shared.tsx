@@ -1,19 +1,18 @@
 /**
- * =====================================================
- * @File   : markdown-renderer-shared.tsx
- * @Date   : 2026-04-05 15:26
- * @Author : leemysw
- * 2026-04-05 15:26   Create
- * =====================================================
+ * INPUT: Markdown 内容、受控文件解析与流式状态。
+ * OUTPUT: 通用插件、正文配方和保留受保护区域的规范化文本。
+ * POS: 共享 Markdown 解析配置；公式源文排除预处理改写，领域链接协议放行由消费侧维护。
  */
 
 "use client";
 
+import { remarkLatexMath, rehypeMathViewport } from "./markdown-math";
+import { isInMarkdownMathRange, readMarkdownMathRanges } from "./markdown-math-ranges";
 import rehypeKatex from "rehype-katex";
-import { defaultUrlTransform } from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
+import type { PluggableList } from "unified";
 
 import { findOpenMarkdownFenceLanguage, readMarkdownFenceMarker } from "./markdown-fence";
 import { stabilizeStreamingMarkdownUrlTail } from "./markdown-link-model";
@@ -37,20 +36,19 @@ const MARKDOWN_IDENTIFIER_ASTERISK_BEFORE_BRACKET_PATTERN = /(?<=[\p{L}\p{N}_./-
 // 数学语法必须先于 GFM 表格解析，避免公式里的 `|` 被误判为列分隔符。
 export const MARKDOWN_PLUGINS = [
   remarkMath,
+  remarkLatexMath,
   remarkGfm,
   remarkMarkdownBreaks,
   remarkInlineHtmlTags,
   remarkMixedScript,
   remarkBreaks,
 ];
-export const REHYPE_PLUGINS = [rehypeKatex];
+export const REHYPE_PLUGINS: PluggableList = [
+  [rehypeKatex, { trust: false, errorColor: "var(--text-muted)" }],
+  rehypeMathViewport,
+];
 
-// mention 使用内部协议，必须显式加入白名单，否则 react-markdown 会把 href 清空成普通文本链接。
-export function transformMarkdownUrl(value: string): string {
-  return value.startsWith("agent-mention://") ? value : defaultUrlTransform(value);
-}
-
-export const MARKDOWN_BODY_CLASS_NAME = "nexus-chat-markdown nexus-markdown-body message-cjk-font w-full min-w-0 max-w-full overflow-x-hidden text-[16px] leading-[1.65rem] text-(--text-strong) [&_strong]:font-semibold [&_strong]:text-(--text-strong) [&_em]:italic";
+export const MARKDOWN_BODY_CLASS_NAME = "nexus-chat-markdown nexus-markdown-body message-cjk-font w-full min-w-0 max-w-full overflow-x-hidden text-md leading-[1.65rem] text-(--text-strong) [&_strong]:font-semibold [&_strong]:text-(--text-strong) [&_em]:italic";
 export const MARKDOWN_SUMMARY_CLASS_NAME = "nexus-chat-markdown message-cjk-font w-full min-w-0 max-w-full overflow-hidden text-base leading-[1.5] text-(--text-strong) [&_strong]:font-semibold [&_strong]:text-(--text-strong) [&_em]:italic";
 
 export function normalizeMarkdownContent(
@@ -59,14 +57,19 @@ export function normalizeMarkdownContent(
   onOpenWorkspaceFile?: (path: string) => void,
   options: NormalizeMarkdownContentOptions = {},
 ): string {
-  const escapedContent = escapeIdentifierAsterisksBeforeBrackets(normalizeMathDelimiters(content));
+  const mathRanges = readMarkdownMathRanges(content, (offset) => isInsideMarkdownProtectedRegion(content, offset));
+  const escapedContent = escapeIdentifierAsterisksBeforeBrackets(content, (offset) => isInMarkdownMathRange(mathRanges, offset));
+  const escapedMathRanges = readMarkdownMathRanges(escapedContent, (offset) => isInsideMarkdownProtectedRegion(escapedContent, offset));
   const normalizedContent = stabilizeStreamingMarkdownUrlTail(
     escapedContent,
     Boolean(options.is_streaming),
-    (offset) => isInsideMarkdownProtectedRegion(escapedContent, offset),
+    (offset) => isInsideMarkdownProtectedRegion(escapedContent, offset) || isInMarkdownMathRange(escapedMathRanges, offset),
   );
+  const normalizedMathRanges = normalizedContent === escapedContent ? escapedMathRanges
+    : readMarkdownMathRanges(normalizedContent, (offset) => isInsideMarkdownProtectedRegion(normalizedContent, offset));
   return normalizedContent.replace(WORKSPACE_FILE_PATTERN, (match, offset: number) => {
     if (
+      isInMarkdownMathRange(normalizedMathRanges, offset) ||
       isInsideMarkdownProtectedRegion(normalizedContent, offset) ||
       isInsideMarkdownLinkDestination(normalizedContent, offset, match.length)
     ) {
@@ -77,11 +80,14 @@ export function normalizeMarkdownContent(
   });
 }
 
-function escapeIdentifierAsterisksBeforeBrackets(content: string): string {
+function escapeIdentifierAsterisksBeforeBrackets(content: string, isMath: (offset: number) => boolean): string {
   let openFence: { marker: "`" | "~"; length: number } | null = null;
+  let cursor = 0;
 
   return (content.match(/[^\n]*(?:\n|$)/g)?.filter((line) => line.length > 0) ?? [])
     .map((line) => {
+      const lineOffset = cursor;
+      cursor += line.length;
       const fenceMarker = readMarkdownFenceMarker(line);
 
       if (openFence) {
@@ -100,18 +106,21 @@ function escapeIdentifierAsterisksBeforeBrackets(content: string): string {
         return line;
       }
 
-      return escapeInlineMarkdownIdentifierAsterisks(line);
+      return escapeInlineMarkdownIdentifierAsterisks(line, (offset) => isMath(lineOffset + offset));
     })
     .join("");
 }
 
-function escapeInlineMarkdownIdentifierAsterisks(line: string): string {
+function escapeInlineMarkdownIdentifierAsterisks(line: string, isMath: (offset: number) => boolean): string {
   let inCode = false;
   let codeMarker = "";
+  let cursor = 0;
 
   return line
     .split(/(`+)/)
     .map((part) => {
+      const partOffset = cursor;
+      cursor += part.length;
       if (/^`+$/.test(part)) {
         if (!inCode) {
           inCode = true;
@@ -125,7 +134,7 @@ function escapeInlineMarkdownIdentifierAsterisks(line: string): string {
 
       return inCode
         ? part
-        : part.replace(MARKDOWN_IDENTIFIER_ASTERISK_BEFORE_BRACKET_PATTERN, "\\*");
+        : part.replace(MARKDOWN_IDENTIFIER_ASTERISK_BEFORE_BRACKET_PATTERN, (match, offset: number) => isMath(partOffset + offset) ? match : "\\*");
     })
     .join("");
 }
@@ -137,7 +146,6 @@ function isInsideInlineCode(content: string, offset: number): boolean {
 
 function isInsideMarkdownProtectedRegion(content: string, offset: number): boolean {
   return (
-    isInsideMath(content, offset) ||
     isInsideInlineCode(content, offset) ||
     findOpenMarkdownFenceLanguage(content.slice(0, offset)) !== null
   );
@@ -163,42 +171,4 @@ function isInsideMarkdownLinkDestination(
   const closeParenIndex = after.indexOf(")");
   const newlineIndex = after.search(/\r?\n/);
   return closeParenIndex >= 0 && (newlineIndex < 0 || closeParenIndex < newlineIndex);
-}
-
-function normalizeMathDelimiters(content: string): string {
-  let fence: ReturnType<typeof readMarkdownFenceMarker> = null;
-  let text = "";
-  let result = "";
-  for (const line of content.match(/[^\n]*(?:\n|$)/g) ?? []) {
-    const marker = readMarkdownFenceMarker(line);
-    if (fence) {
-      result += line;
-      if (marker?.marker === fence.marker && marker.length >= fence.length) fence = null;
-    } else if (marker) {
-      result += normalizeMathText(text) + line;
-      text = "";
-      fence = marker;
-    } else {
-      text += line;
-    }
-  }
-  return result + normalizeMathText(text);
-}
-
-function normalizeMathText(content: string): string {
-  // 先匹配字面区域，避免把代码示例、链接或已有公式二次解释成公式。
-  return content.replace(
-    /^ {4}[^\n]*(?:\n|$)|(`+)[\s\S]*?\1(?!`)|!?\[[^\]\n]*\]\([^\n]*?\)|<[^>\n]*>|https?:\/\/\S+|(\${1,2})[^$]*?\2|\\\\|\\\(([\s\S]*?)\\\)|\\\[([\s\S]*?)(\\\]|$)/gm,
-    (match, _code, _dollars, inline, display, closing) => {
-      if (inline !== undefined) return `$${inline}$`;
-      if (display !== undefined) return `\n$$\n${display}${closing ? "\n$$\n" : ""}`;
-      return match;
-    },
-  );
-}
-
-function isInsideMath(content: string, offset: number): boolean {
-  return Array.from(content.matchAll(/(?<!\\)(\${1,2})([\s\S]*?)(?:\1|$)/g)).some(
-    (match) => offset >= match.index && offset < match.index + match[0].length,
-  );
 }

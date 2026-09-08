@@ -1,14 +1,17 @@
 "use client";
 
-import { ChevronDown } from "lucide-react";
-
+// INPUT: 当前头像、名称、编辑上下文和选择命令。
+// OUTPUT: 固定 56px 身份锚点与共享网格选择浮层。
+// POS: 身份页头像入口；上下文只改变对齐，尺寸和交互由公共组件持有。
 import {
   AGENT_ICON_ID_END,
   AGENT_ICON_ID_START,
 } from "@/lib/avatar";
-import { cn } from "@/shared/ui/class-name";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
-import { IconPickerPopover } from "@/shared/ui/icon-picker/icon-picker-popover";
+import {
+  IconPickerPopover,
+  IconPickerTriggerLabel,
+} from "@/shared/ui/icon-picker/icon-picker-popover";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
 import type { AgentIdentityVariant } from "./identity-layout";
@@ -20,11 +23,6 @@ interface IdentityAvatarPickerProps {
   onChange: (value: string) => void;
   variant: AgentIdentityVariant;
 }
-
-const AVATAR_TRIGGER_SIZE = {
-  dialog: "lg",
-  inline: "lg",
-} as const satisfies Record<AgentIdentityVariant, "lg" | "xl">;
 
 export function IdentityAvatarPicker({
   avatar,
@@ -46,27 +44,15 @@ export function IdentityAvatarPicker({
             avatar={avatar}
             className="transition-[border-color] duration-(--motion-duration-fast) group-hover:border-(--surface-interactive-active-border)"
             name={name || avatarAlt}
-            size={AVATAR_TRIGGER_SIZE[variant]}
+            size="lg"
           />
-          <span className={cn(
-            "inline-flex h-7 items-center gap-1 radius-control-sm text-compact font-medium text-(--text-muted) transition-[background,color] duration-(--motion-duration-fast) group-hover:bg-(--surface-interactive-hover-background) group-hover:text-(--text-strong)",
-            variant === "inline" ? "-ml-1 px-1" : "px-2",
-          )}>
+          <IconPickerTriggerLabel isOpen={isOpen}>
             {t("agent_options.identity.change_avatar")}
-            <ChevronDown
-              className={cn(
-                "h-3 w-3 transition-transform duration-(--motion-duration-fast)",
-                isOpen && "rotate-180",
-              )}
-            />
-          </span>
+          </IconPickerTriggerLabel>
         </>
       )}
       startIconId={AGENT_ICON_ID_START}
-      triggerClassName={cn(
-        "group relative flex shrink-0 flex-col gap-1.5 rounded-[12px] text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_30%,transparent)] focus-visible:ring-offset-2 focus-visible:ring-offset-(--background)",
-        variant === "inline" ? "items-start" : "items-center",
-      )}
+      triggerAlign={variant === "inline" ? "start" : "center"}
       value={avatar}
     />
   );

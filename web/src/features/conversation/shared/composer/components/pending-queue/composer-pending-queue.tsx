@@ -1,15 +1,18 @@
 "use client";
 
-import { ChevronDown, ChevronUp } from "lucide-react";
+/**
+ * INPUT: 待发送消息与排序/引导/删除命令。
+ * OUTPUT: 共享 Disclosure 内的有序队列；支持拖动和键盘排序，命令只按当前条目派发。
+ * POS: Composer 输入队列装配层；队列事务由 controller 持有。
+ */
 
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiDisclosure } from "@/shared/ui/disclosure/disclosure";
 import type { InputQueueItem } from "@/types/agent/agent-conversation";
 
-import {
-  getPendingQueuePaddingClassName,
-  projectPendingQueueItem,
-} from "./pending-queue-model";
+import { getPendingQueuePaddingClassName } from "../../composer-styles";
+import { projectPendingQueueItem } from "./pending-queue-model";
 import { PendingQueueItem } from "./pending-queue-item";
 import { usePendingQueueController } from "./use-pending-queue-controller";
 
@@ -28,6 +31,7 @@ export function ComposerPendingQueue({
   onGuideQueuedMessage,
   onReorderQueueMessages,
 }: ComposerPendingQueueProps) {
+  const { t } = useI18n();
   const controller = usePendingQueueController({
     commands: {
       deleteMessage: onDeleteQueuedMessage,
@@ -41,31 +45,33 @@ export function ComposerPendingQueue({
   }
 
   return (
-    <div
+    <UiDisclosure
+      defaultOpen
+      density="compact"
+      label={t("composer.pending_queue")}
+      meta={<span className="tabular-nums">{inputQueueItems.length}</span>}
+      onToggle={(event) => { if (!event.currentTarget.open) controller.actions.finishDrag(); }}
+      summaryRole="caption"
+      summaryTone="muted"
       className={cn(
         "border-b border-(--surface-canvas-border)",
         getPendingQueuePaddingClassName(compact),
       )}
     >
-      <PendingQueueHeader
-        collapsed={controller.state.isCollapsed}
-        count={inputQueueItems.length}
-        onToggle={controller.actions.toggleCollapsed}
-      />
-      <div
-        className={cn(
-          "soft-scrollbar flex max-h-[112px] flex-col divide-y divide-(--divider-subtle-color) overflow-y-auto pr-1",
-          controller.state.isCollapsed ? "hidden" : "mt-0.5",
-        )}
+      <ol
+        aria-label={t("composer.pending_queue")}
+        className="soft-scrollbar flex max-h-28 flex-col divide-y divide-(--divider-subtle-color) overflow-y-auto overscroll-contain pr-1"
         onDragOver={(event) => {
           event.preventDefault();
           controller.actions.startAutoScroll(event.clientY);
         }}
         ref={controller.refs.scrollRef}
       >
-        {inputQueueItems.map((item) => (
+        {inputQueueItems.map((item, index) => (
           <PendingQueueItem
             key={item.id}
+            canMoveUp={index > 0}
+            canMoveDown={index < inputQueueItems.length - 1}
             isActionRunning={controller.state.isActionRunning}
             item={item}
             onDelete={controller.actions.deleteMessage}
@@ -73,6 +79,7 @@ export function ComposerPendingQueue({
             onDragOver={controller.actions.dragOver}
             onDragStart={controller.actions.startDrag}
             onDrop={controller.actions.dropOnMessage}
+            onMove={controller.actions.moveMessage}
             onGuide={(messageId) => {
               void controller.actions.guideMessage(messageId);
             }}
@@ -82,39 +89,7 @@ export function ComposerPendingQueue({
             )}
           />
         ))}
-      </div>
-    </div>
-  );
-}
-
-function PendingQueueHeader({
-  collapsed,
-  count,
-  onToggle,
-}: {
-  collapsed: boolean;
-  count: number;
-  onToggle: () => void;
-}) {
-  const { t } = useI18n();
-  const CollapseIcon = collapsed ? ChevronDown : ChevronUp;
-  const label = collapsed
-    ? t("composer.expand_pending_queue")
-    : t("composer.collapse_pending_queue");
-  return (
-    <div className="flex items-center justify-between gap-2 text-2xs font-medium text-(--text-soft)">
-      <span className="inline-flex items-center gap-1.5">
-        {t("composer.pending_queue")}
-        <span className="tabular-nums">{count}</span>
-      </span>
-      <button
-        aria-label={label}
-        className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-(--text-soft) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
-        onClick={onToggle}
-        type="button"
-      >
-        <CollapseIcon className="h-3 w-3" />
-      </button>
-    </div>
+      </ol>
+    </UiDisclosure>
   );
 }

@@ -1,53 +1,41 @@
 /**
  * INPUT: Loop 目录、筛选、复制动作与可选详情路由。
- * OUTPUT: 展示用途、触发方式与步骤规模的工作循环目录或当前 Loop 详情。
+ * OUTPUT: 公共 outlined 条目与独立 ListAction 复制入口组成的目录或当前 Loop 详情。
  * POS: “能力 > 工作循环”的唯一页面入口。
  */
 "use client";
 
+import { UiFilterSelect } from "@/shared/ui/menu/filter-select";
 import { useEffect, useMemo, useState } from "react";
 import { Check, Copy, Repeat2, RotateCcw } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 
-import { AppRouteBuilders } from "@/app/router/route-paths";
+import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 import {
   CAPABILITY_DIRECTORY_GRID_CLASS_NAME,
   CAPABILITY_DIRECTORY_ROW_CLASS_NAME,
   CapabilityFilterBar,
   CapabilityFilterSearchInput,
-  CapabilityFilterSelect,
   CapabilityPageLayout,
 } from "@/features/capability/shared/capability-page-layout";
 import { listLoopsApi } from "@/lib/api/capability/loop-api";
 import { getResourceFailure, type ResourceFailure } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiIconButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
 import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 import { UiListRow } from "@/shared/ui/list/list-row";
+import { UiListActionButton } from "@/shared/ui/list/list-action";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type { LoopCatalogItem } from "@/types/capability/loop";
-import { writeTextToClipboard } from "@/hooks/ui/clipboard";
+import { writeTextToClipboard } from "@/shared/lib/browser/clipboard";
 
 import { LoopDetailView } from "./loop-detail-view";
 import { getLoopTriggerLabel } from "./loop-presentation";
 
 const ALL_CATEGORIES = "__all__";
-
-function matchesLoop(loop: LoopCatalogItem, query: string): boolean {
-  if (!query) {
-    return true;
-  }
-  const haystack = [
-    loop.title,
-    loop.description,
-    loop.category,
-    loop.trigger_type,
-    ...loop.tags,
-    ...loop.compatible_agents,
-  ].join(" ").toLowerCase();
-  return haystack.includes(query);
-}
 
 export function LoopsDirectory() {
   const { locale, t } = useI18n();
@@ -104,10 +92,17 @@ export function LoopsDirectory() {
   }, [loops, t]);
 
   const filteredLoops = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
+    const search = createUiSearchMatcher(query);
     return loops.filter((loop) =>
       (category === ALL_CATEGORIES || loop.category === category) &&
-      matchesLoop(loop, normalizedQuery),
+      search.matches([
+        loop.title,
+        loop.description,
+        loop.category,
+        loop.trigger_type,
+        ...loop.tags,
+        ...loop.compatible_agents,
+      ]),
     );
   }, [category, loops, query]);
   const hasSnapshot = loadedLocale === locale;
@@ -139,7 +134,7 @@ export function LoopsDirectory() {
               placeholder={t("capability.loops_search_placeholder")}
               value={query}
             />
-            <CapabilityFilterSelect
+            <UiFilterSelect
               ariaLabel={t("capability.loops_filter_aria")}
               label={t("capability.category_label")}
               onChange={setCategory}
@@ -214,35 +209,43 @@ export function LoopsDirectory() {
                 >
                   {filteredLoops.map((loop) => (
                     <UiListRow
+                      variant="outlined"
                       className={CAPABILITY_DIRECTORY_ROW_CLASS_NAME}
                       key={loop.slug}
                       onClick={() => navigate(AppRouteBuilders.loopDetail(loop.slug))}
                       leading={<UiSeededAvatar seed={loop.slug} size="sm" />}
                       right={(
-                        <UiIconButton
+                        <UiListActionButton
                           aria-label={t("capability.loops_copy_prompt")}
                           className="shrink-0"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            void copyPrompt(loop);
-                          }}
+                          onClick={() => { void copyPrompt(loop); }}
                           size="md"
-                          variant="ghost"
+                          stopPropagation
+                          visibility="visible"
                         >
                           {copiedSlug === loop.slug
                             ? <Check className="h-4 w-4" />
                             : <Copy className="h-4 w-4" />}
-                        </UiIconButton>
+                        </UiListActionButton>
                       )}
                     >
                       <div className="min-w-0 flex-1">
-                        <h3 className="truncate text-base font-medium text-(--text-strong)">
+                        <h3 className={cn(
+                          "truncate",
+                          getUiTypographyClassName({ role: "control", tone: "strong", weight: "medium" }),
+                        )}>
                           {loop.title}
                         </h3>
-                        <p className="mt-0.5 truncate text-compact leading-[1.125rem] text-(--text-muted)">
+                        <p className={cn(
+                          "mt-0.5 truncate",
+                          getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+                        )}>
                           {loop.description}
                         </p>
-                        <div className="mt-0.5 flex min-w-0 items-center gap-1.5 overflow-hidden text-2xs leading-4 text-(--text-soft)">
+                        <div className={cn(
+                          "mt-0.5 flex min-w-0 items-center gap-1.5 overflow-hidden",
+                          getUiTypographyClassName({ role: "caption", tone: "soft" }),
+                        )}>
                           <span className="truncate">{loop.category}</span>
                           <span aria-hidden="true">·</span>
                           <span className="shrink-0">

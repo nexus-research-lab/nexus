@@ -1,7 +1,7 @@
 /**
- * INPUT: exact WorkGraph preview、源 Session 与源会话可见 Agent。
+ * INPUT: exact WorkGraph preview、显式表单元信息修改、源 Session 与源会话可见 Agent。
  * OUTPUT: 补载全局 Agent 目录解析隐藏编辑 Agent，展示专用 DM、画布、版本选择和区分读取/写入结果的恢复状态。
- * POS: 关闭页面不删除会话；应用只投影所选版本，unknown 写入在当前页面锁定且不改写源 Execution/聊天。
+ * POS: 关闭页面不删除会话；版本切换与应用互斥，迟到读取不得回退当前草图，unknown 写入保持锁定且不改写源 Execution/聊天。
  */
 "use client";
 
@@ -22,6 +22,8 @@ import {
 } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { useAgentStore } from "@/store/agent";
+import { UiButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -29,8 +31,10 @@ import {
   UiDialogPortal,
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
-import { getDialogActionClassName } from "@/shared/ui/dialog/dialog-styles";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import { UiChoiceButton } from "@/shared/ui/form/choice";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { Agent } from "@/types/agent/agent";
 import type { SessionSnapshotPayload } from "@/types/conversation/conversation";
 import type { ExecutionResource } from "./use-execution-resource";
@@ -44,6 +48,9 @@ import { projectWorkGraphWorkflowCanvasExecution } from "./workgraph-workflow-ca
 
 interface WorkGraphMetadataEditorDialogProps {
   agents: readonly Agent[];
+  savedCommandName?: string;
+  metadata?: Partial<Pick<WorkGraphWorkflowPreview, "slash_name" | "title" | "description">>;
+  onMetadataApplied?: (acceptedPreview: WorkGraphWorkflowPreview) => void;
   onApply: (preview: WorkGraphWorkflowPreview) => void | Promise<void>;
   onClose: () => void;
   preview: WorkGraphWorkflowPreview;
@@ -76,6 +83,9 @@ const EMPTY_EXECUTION_RESOURCE: ExecutionResource = {
 
 export function WorkGraphMetadataEditorDialog({
   agents,
+  savedCommandName,
+  metadata,
+  onMetadataApplied,
   onApply,
   onClose,
   preview,
@@ -84,6 +94,8 @@ export function WorkGraphMetadataEditorDialog({
   const { locale, t } = useI18n();
   const runtimeKind = useDefaultAgentRuntimeKind();
   const initialPreviewRef = useRef(preview);
+  const initialMetadataRef = useRef(metadata);
+  const onMetadataAppliedRef = useRef(onMetadataApplied);
   const sourceAgentsRef = useRef(agents);
   const catalogAgents = useAgentStore((state) => state.agents);
   const loadAgents = useAgentStore((state) => state.load_agents_from_server);
@@ -91,6 +103,7 @@ export function WorkGraphMetadataEditorDialog({
     locale,
   });
   const editorRef = useRef<WorkGraphWorkflowEditorSession | null>(null);
+  const readGenerationRef = useRef(0);
   const [editor, setEditor] = useState<WorkGraphWorkflowEditorSession | null>(null);
   const [busy, setBusy] = useState(false);
   const [applying, setApplying] = useState(false);
@@ -98,8 +111,13 @@ export function WorkGraphMetadataEditorDialog({
   const [selectingRevision, setSelectingRevision] = useState<number | null>(null);
   const [failure, setFailure] = useState<WorkGraphEditorFailure | null>(null);
   const [startAttempt, setStartAttempt] = useState(0);
+  const mutationBlocked = failure?.kind === "refresh" || failure?.kind === "apply_projection" || (
+    (failure?.kind === "apply" || failure?.kind === "select")
+    && failure.effect !== "not_applied"
+  );
 
   const updateEditor = useCallback((next: WorkGraphWorkflowEditorSession) => {
+    readGenerationRef.current++;
     editorRef.current = next;
     setEditor(next);
   }, []);
@@ -108,9 +126,13 @@ export function WorkGraphMetadataEditorDialog({
     let active = true;
     const initialPreview = initialPreviewRef.current;
     const startContext = startContextRef.current;
-    void startWorkGraphWorkflowEditorApi(sessionKey, initialPreview, startContext.locale)
+    void startWorkGraphWorkflowEditorApi(sessionKey, {
+      preview_id: initialPreview.preview_id,
+      ...initialMetadataRef.current,
+    }, startContext.locale)
       .then(async (session) => {
         if (!active) return;
+        onMetadataAppliedRef.current?.(session.preview);
         const hasEditorAgent = sourceAgentsRef.current.some(
           (item) => item.agent_id === session.agent_id,
         ) || useAgentStore.getState().get_agent(session.agent_id) !== undefined;
@@ -130,6 +152,7 @@ export function WorkGraphMetadataEditorDialog({
       });
     return () => {
       active = false;
+      readGenerationRef.current++;
     };
   }, [loadAgents, sessionKey, startAttempt, updateEditor]);
 
@@ -142,11 +165,16 @@ export function WorkGraphMetadataEditorDialog({
   const refreshEditor = useCallback(async () => {
     const current = editorRef.current;
     if (!current) return current;
+    const generation = ++readGenerationRef.current;
     try {
       const next = await getWorkGraphWorkflowEditorApi(sessionKey, current.editor_id);
+      if (generation !== readGenerationRef.current) return null;
       updateEditor(next);
       setFailure((existing) => {
         if (!existing || existing.kind === "refresh") {
+          return null;
+        }
+        if ((existing.kind === "apply" || existing.kind === "select") && existing.effect === "not_applied") {
           return null;
         }
         if (
@@ -159,6 +187,7 @@ export function WorkGraphMetadataEditorDialog({
       });
       return next;
     } catch {
+      if (generation !== readGenerationRef.current) return null;
       setFailure((existing) => {
         if (existing?.kind === "apply" || existing?.kind === "select") {
           return existing;
@@ -180,7 +209,8 @@ export function WorkGraphMetadataEditorDialog({
 
   const handleSelectRevision = useCallback(async (selectedRevision: number) => {
     const current = editorRef.current;
-    if (!current || busy || applying || selectingRevision !== null || current.selected_revision === selectedRevision) return;
+    if (!current || busy || applying || mutationBlocked || selectingRevision !== null || current.selected_revision === selectedRevision) return;
+    readGenerationRef.current++;
     setSelectingRevision(selectedRevision);
     setFailure(null);
     try {
@@ -204,16 +234,11 @@ export function WorkGraphMetadataEditorDialog({
     } finally {
       setSelectingRevision(null);
     }
-  }, [applying, busy, selectingRevision, sessionKey, t, updateEditor]);
+  }, [applying, busy, mutationBlocked, selectingRevision, sessionKey, t, updateEditor]);
 
   const handleApply = useCallback(async () => {
-    if (failure && (
-      failure.kind === "apply_projection" || (
-        (failure.kind === "apply" || failure.kind === "select")
-        && failure.effect !== "not_applied"
-      )
-    )) return;
-    const current = await refreshEditor();
+    if (mutationBlocked || selectingRevision !== null) return;
+    const current = editorRef.current;
     if (!current || busy || applying) return;
     setApplying(true);
     setFailure(null);
@@ -222,6 +247,7 @@ export function WorkGraphMetadataEditorDialog({
         sessionKey,
         current.editor_id,
         current.revision,
+        current.selected_revision,
       );
       try {
         await onApply(applied);
@@ -243,7 +269,7 @@ export function WorkGraphMetadataEditorDialog({
     } finally {
       setApplying(false);
     }
-  }, [applying, busy, failure, onApply, refreshEditor, sessionKey, t]);
+  }, [applying, busy, mutationBlocked, onApply, selectingRevision, sessionKey, t]);
 
   const handleRetryProjection = useCallback(async () => {
     if (!failure || failure.kind !== "apply_projection" || applying) return;
@@ -272,10 +298,6 @@ export function WorkGraphMetadataEditorDialog({
     [agents, catalogAgents, editor],
   );
   const currentPreview = editor?.preview ?? preview;
-  const mutationBlocked = failure?.kind === "apply_projection" || (
-    (failure?.kind === "apply" || failure?.kind === "select")
-    && failure.effect !== "not_applied"
-  );
   const canvasExecution = useMemo(
     () => projectWorkGraphWorkflowCanvasExecution(
       currentPreview,
@@ -287,14 +309,14 @@ export function WorkGraphMetadataEditorDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        className="z-[10000]"
+        layer="dialogNested"
         labelledBy="workgraph-metadata-editor-title"
         onClose={handleClose}
       >
         <UiDialogShell
-          className="pointer-events-auto relative h-[min(840px,calc(100dvh-56px))] max-h-[calc(100dvh-56px)]"
-          size="wide"
-          style={{ maxWidth: "min(1440px, calc(100vw - 56px))" }}
+          className="pointer-events-auto relative"
+          size="workbench"
+          viewport="workbench"
         >
           <h2 className="sr-only" id="workgraph-metadata-editor-title">
             {currentPreview.title}
@@ -306,9 +328,12 @@ export function WorkGraphMetadataEditorDialog({
           <UiDialogBody className="grid min-h-0 flex-1 overflow-hidden p-0 md:grid-cols-[minmax(360px,0.42fr)_minmax(0,0.58fr)]">
             <div className="relative flex min-h-0 min-w-0 flex-col overflow-hidden border-r border-(--divider-subtle-color) bg-(--surface-muted-background) [--conversation-composer-backdrop:var(--surface-muted-background)]">
               {loading ? (
-                <div className="grid min-h-0 flex-1 place-items-center text-xs text-(--text-muted)">
+                <div className={cn(
+                  "grid min-h-0 flex-1 place-items-center",
+                  getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+                )}>
                   <span className="inline-flex items-center gap-2">
-                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                    <LoaderCircle className={getUiSpinnerClassName({ size: "md" })} />
                     {t("execution.workflow_editor_starting")}
                   </span>
                 </div>
@@ -359,44 +384,63 @@ export function WorkGraphMetadataEditorDialog({
               <div className="shrink-0 border-b border-(--divider-subtle-color) px-8 py-5 pr-16">
                 <div className="flex min-w-0 items-start justify-between gap-6">
                   <div className="min-w-0">
-                    <h3 className="truncate text-[19px] font-semibold leading-7 tracking-[-0.015em] text-(--text-strong)">{currentPreview.title}</h3>
-                    <code className="mt-1 block text-xs text-(--text-soft)">/{currentPreview.slash_name}</code>
+                    <h3 className={cn(
+                      "truncate",
+                      getUiTypographyClassName({ role: "objectTitle", tone: "strong" }),
+                    )}>
+                      {currentPreview.title}
+                    </h3>
+                    <code className={cn(
+                      "mt-1 block",
+                      getUiTypographyClassName({ role: "code", tone: "soft" }),
+                    )}>
+                      {t("execution.workflow_draft_command", { command: `/${currentPreview.slash_name}` })}
+                    </code>
+                    {savedCommandName ? (
+                      <p className={getUiTypographyClassName({ role: "metadata", tone: "muted" })}>
+                        {t("execution.workflow_current_command", { command: `/${savedCommandName}` })}
+                      </p>
+                    ) : null}
                   </div>
-                  <button
-                    className={getDialogActionClassName("primary", "compact")}
-                    disabled={!editor || busy || applying || mutationBlocked}
-                    type="button"
+                  <UiButton
+                    disabled={!editor || busy || applying || selectingRevision !== null || mutationBlocked}
                     onClick={() => void handleApply()}
+                    size="sm"
+                    tone="primary"
+                    variant="solid"
                   >
-                    {applying ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : null}
+                    {applying ? (
+                      <LoaderCircle className={getUiSpinnerClassName({ size: "sm" })} />
+                    ) : null}
                     {t("execution.workflow_editor_apply")}
-                  </button>
+                  </UiButton>
                 </div>
                 {editor && editor.versions.length > 1 ? (
                   <div className="mt-4 flex min-w-0 items-center gap-2 border-t border-(--divider-subtle-color) pt-3">
-                    <span className="inline-flex shrink-0 items-center gap-1.5 text-[11px] font-medium text-(--text-muted)">
+                    <span className={cn(
+                      "inline-flex shrink-0 items-center gap-1.5",
+                      getUiTypographyClassName({ role: "metadata", tone: "muted", weight: "medium" }),
+                    )}>
                       <History className="h-3.5 w-3.5" />
                       {t("execution.workflow_editor_versions")}
                     </span>
                     <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                       {editor.versions.map((version) => (
-                        <button
+                        <UiChoiceButton
                           key={version.revision}
-                          aria-pressed={version.selected}
-                          className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
-                            version.selected
-                              ? "border-[color:color-mix(in_srgb,var(--primary)_36%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] font-semibold text-(--primary)"
-                              : "border-(--divider-subtle-color) bg-(--surface-control-background) text-(--text-muted) hover:text-(--text-strong)"
-                          }`}
+                          active={version.selected}
+                          choiceSize="xs"
                           disabled={busy || applying || selectingRevision !== null || mutationBlocked}
+                          shape="pill"
                           title={`${version.title} · ${version.node_count} ${t("execution.workflow_editor_version_nodes")}`}
-                          type="button"
                           onClick={() => void handleSelectRevision(version.revision)}
                         >
                           {version.selected ? <Check className="h-3 w-3" /> : null}
                           v{version.revision}
-                          {selectingRevision === version.revision ? <LoaderCircle className="h-3 w-3 animate-spin" /> : null}
-                        </button>
+                          {selectingRevision === version.revision ? (
+                            <LoaderCircle className={getUiSpinnerClassName({ size: "xs" })} />
+                          ) : null}
+                        </UiChoiceButton>
                       ))}
                     </div>
                   </div>
@@ -504,7 +548,7 @@ function WorkGraphEditorFailureState({
     <UiResourceState
       className="mt-3 min-h-0 py-3"
       impact={t(impactKey)}
-      {...(!notApplied && selecting
+      {...(selecting || notApplied
         ? {
             primaryAction: {
               icon: <RefreshCw className="h-3.5 w-3.5" />,

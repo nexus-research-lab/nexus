@@ -1,4 +1,4 @@
-import { APP_ROUTE_PATHS } from "@/app/router/route-paths";
+import { APP_ROUTE_PATHS } from "@/shared/navigation/route-paths";
 import { projectMutationFailure } from "@/lib/error-message";
 import type { AuthStatus } from "@/lib/api/account/auth-api";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";

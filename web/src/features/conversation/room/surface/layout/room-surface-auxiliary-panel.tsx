@@ -1,3 +1,7 @@
+// INPUT: Room 辅助页内容、共享右栏百分比与页面/布局命令。
+// OUTPUT: 保持挂载的辅助工作面及具名键盘分隔条。
+// POS: 右栏内容装配；宽度限制与交互分别归布局模型、共享分隔条。
+
 import type { ReactNode } from "react";
 
 import { ExecutionWorkGraphSurface } from "@/features/conversation/shared/execution/execution-workgraph-surface";
@@ -20,11 +24,7 @@ import { RoomAgentAboutSurface } from "../room-agent-about-surface";
 import { RoomSubagentTaskSurface } from "../room-subagent-task-surface";
 import { RoomWorkspaceView } from "../../workspace/room-workspace-view";
 import type { RoomAgentAboutRequest } from "./room-surface-layout-types";
-
-const AUXILIARY_PANEL_WIDTH_LIMITS = {
-  minWidth: "min(520px, 46vw)",
-  maxWidth: "min(860px, 54vw)",
-};
+import { useRoomSidePanelResize } from "./use-room-side-panel-resize";
 
 interface RoomSurfaceAuxiliaryPanelProps {
   aboutRequest: RoomAgentAboutRequest;
@@ -49,6 +49,7 @@ interface RoomSurfaceAuxiliaryPanelProps {
     identity: AgentIdentityDraft,
   ) => Promise<void>;
   onStartSidePanelResize: () => void;
+  onSidePanelWidthChange: (percent: number) => void;
   onValidateAgentName: (
     name: string,
     agentId?: string,
@@ -78,6 +79,7 @@ export function RoomSurfaceAuxiliaryPanel({
   onOpenWorkspaceFile,
   onSaveAgentOptions,
   onStartSidePanelResize,
+  onSidePanelWidthChange,
   onValidateAgentName,
   roomId,
   roomMembers,
@@ -85,6 +87,7 @@ export function RoomSurfaceAuxiliaryPanel({
   subagentTaskSource,
 }: RoomSurfaceAuxiliaryPanelProps) {
   const { t } = useI18n();
+  const resize = useRoomSidePanelResize("auxiliary", sidePanelWidthPercent, onSidePanelWidthChange);
   const executionAgents = [
     ...roomMembers.filter((agent) => agent.agent_id !== currentAgent.agent_id),
     currentAgent,
@@ -142,15 +145,19 @@ export function RoomSurfaceAuxiliaryPanel({
     <>
       <PanelResizeHandle
         ariaLabel={t("room.resize_auxiliary_panel")}
+        control={resize.control}
+        controls={resize.panelId}
         onResizeStart={onStartSidePanelResize}
         variant="gutter"
       />
 
       <section
+        id={resize.panelId}
+        ref={resize.panelRef}
         className="nexus-room-surface-side-panel relative flex min-h-0 min-w-0 shrink-0 flex-col overflow-hidden"
         style={{
           width: `${sidePanelWidthPercent}%`,
-          ...AUXILIARY_PANEL_WIDTH_LIMITS,
+          ...resize.widthStyle,
         }}
       >
         {persistentPanels.map((panel) => (

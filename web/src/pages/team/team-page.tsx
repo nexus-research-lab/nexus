@@ -28,7 +28,7 @@ export function TeamPage() {
 
   return (
     <WorkspacePageFrame contentPaddingClassName="p-0">
-      <header className="flex h-16 shrink-0 items-center border-b border-(--border-subtle) px-5">
+      <header className="flex h-16 shrink-0 items-center border-b border-(--divider-subtle-color) px-5">
         <div className="min-w-0">
           <h1 className="truncate text-base font-semibold">
             {room.bootstrap?.room.name ?? t("team.general")}
@@ -76,7 +76,7 @@ export function TeamPage() {
         <div ref={endRef} />
       </div>
 
-      <form className="shrink-0 border-t border-(--border-subtle) p-3 sm:px-8" onSubmit={submit}>
+      <form className="shrink-0 border-t border-(--divider-subtle-color) p-3 sm:px-8" onSubmit={submit}>
         <div className="mx-auto flex w-full max-w-3xl items-end gap-2">
           <UiTextarea
             aria-label={t("team.message")}

@@ -1,8 +1,15 @@
+/**
+ * INPUT: 管理页标题、用途说明、可选动作与二级页导航内容。
+ * OUTPUT: 与 Workspace 内容轴和移动端投影合同一致的标准页头。
+ * POS: 全站管理型内容页 Header owner；不解释具体业务动作或页面状态。
+ */
 "use client";
 
 import type { ReactNode } from "react";
 
+import { APP_NARROW_VIEWPORT_HIDDEN_CLASS_NAME } from "@/lib/layout/home-layout";
 import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 interface WorkspaceContentHeaderProps {
   actions?: ReactNode;
@@ -36,11 +43,14 @@ export function WorkspaceContentHeader({
     >
       <div className="workspace-content-header-inner flex min-h-[52px] flex-col gap-3 sm:h-full sm:min-h-0 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0 flex-1">
-          <h1 className="text-md font-semibold leading-5 tracking-[-0.02em] text-(--text-strong)">
+          <h1 className={getUiTypographyClassName({ role: "pageTitle", tone: "strong" })}>
             {title}
           </h1>
           {description ? (
-            <p className="mt-0.5 max-w-[640px] text-compact leading-4 text-(--text-muted)">
+            <p className={cn(
+              "mt-0.5 max-w-[640px]",
+              getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+            )}>
               {description}
             </p>
           ) : null}
@@ -63,7 +73,8 @@ export function WorkspaceContentDetailHeader({
   return (
     <header
       className={cn(
-        "workspace-content-header hidden h-[var(--workspace-header-height,60px)] shrink-0 lg:block",
+        "workspace-content-header h-[var(--workspace-header-height,60px)] shrink-0",
+        APP_NARROW_VIEWPORT_HIDDEN_CLASS_NAME,
         className,
       )}
       data-desktop-window-drag-region

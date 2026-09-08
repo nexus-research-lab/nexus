@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 
-import { AppRouteBuilders } from "@/app/router/route-paths";
+import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 import {
   getConnectorOauthRedirectUri,
   getDesktopConnectorsReturnUri,

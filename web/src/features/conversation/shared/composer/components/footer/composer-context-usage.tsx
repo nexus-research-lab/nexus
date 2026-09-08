@@ -1,6 +1,6 @@
 /**
  * INPUT: runtime 每轮结束后上报的上下文占用快照。
- * OUTPUT: Composer 模型控件左侧的紧凑环形指标与悬浮详情。
+ * OUTPUT: 紧凑环形指标与唯一详情；点击幂等展开、键盘焦点保留，快照消失即清空打开态。
  * POS: DM 与 Room 共用的只读上下文用量视图。
  */
 
@@ -8,20 +8,22 @@ import {
   useCallback,
   useEffect,
   useRef,
-  useState,
 } from "react";
 import { createPortal } from "react-dom";
 
 import { formatTokens } from "@/lib/format/token-count";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
+import { UiIconButton } from "@/shared/ui/button/button";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { useAnchoredOverlayLayer } from "@/shared/ui/overlay/anchored-overlay-layer";
-import { resolveAnchoredOverlayPosition } from "@/shared/ui/overlay/anchored-overlay-model";
+import { resolveUiAnchoredOverlayPosition } from "@/shared/ui/overlay/anchored-overlay-layout";
 import { OPEN_OVERLAY_DATA_ATTRIBUTES } from "@/shared/ui/overlay/overlay-contract";
 import {
   ANCHORED_OVERLAY_MOTION_CLASS_NAME,
   OVERLAY_SURFACE_CLASS_NAME,
 } from "@/shared/ui/overlay/overlay-styles";
+import { getUiToneClassName, getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { ContextUsageData } from "@/types/generated/protocol";
 
 import type { ComposerContextUsageItem } from "../../composer-model";
@@ -45,22 +47,18 @@ export function ComposerContextUsage({
   const { t } = useI18n();
   const anchorRef = useRef<HTMLButtonElement>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [isOpen, setIsOpen] = useState(false);
   const projection = projectComposerContextUsage({ items, usage });
-  const rowCount = projection?.items.length ?? 0;
+  const [isOpen, setIsOpen] = useResettableState(false, Boolean(projection));
+  const grouped = projection?.grouped ?? false;
   const estimatePosition = useCallback(
-    (anchor: HTMLButtonElement) => resolveAnchoredOverlayPosition({
+    (anchor: HTMLButtonElement) => resolveUiAnchoredOverlayPosition({
       align: "end",
       anchor,
-      estimatedHeight: rowCount > 0
-        ? Math.min(248, 36 + rowCount * 32)
-        : 72,
-      maxHeight: rowCount > 0 ? 248 : 72,
-      minHeight: rowCount > 0 ? 64 : 72,
-      minWidth: rowCount > 0 ? 232 : 192,
       placement: "top",
+      // 双行用量、字体与成员名称决定实际高度；preset 只提供上限，不能用行数估算裁切内容。
+      preset: grouped ? "status-list" : "status-summary",
     }),
-    [rowCount],
+    [grouped],
   );
   const cancelScheduledClose = useCallback(() => {
     if (closeTimerRef.current) {
@@ -71,19 +69,22 @@ export function ComposerContextUsage({
   const close = useCallback(() => {
     cancelScheduledClose();
     setIsOpen(false);
-  }, [cancelScheduledClose]);
+  }, [cancelScheduledClose, setIsOpen]);
   const open = useCallback(() => {
     cancelScheduledClose();
     setIsOpen(true);
-  }, [cancelScheduledClose]);
+  }, [cancelScheduledClose, setIsOpen]);
   const scheduleClose = useCallback(() => {
     cancelScheduledClose();
     closeTimerRef.current = setTimeout(
-      () => setIsOpen(false),
+      () => {
+        closeTimerRef.current = null;
+        if (document.activeElement !== anchorRef.current) setIsOpen(false);
+      },
       CONTEXT_USAGE_CLOSE_DELAY_MS,
     );
-  }, [cancelScheduledClose]);
-  useEffect(() => cancelScheduledClose, [cancelScheduledClose]);
+  }, [cancelScheduledClose, setIsOpen]);
+  useEffect(() => cancelScheduledClose, [cancelScheduledClose, setIsOpen]);
   const {
     overlayId,
     overlayPosition,
@@ -96,6 +97,7 @@ export function ComposerContextUsage({
     estimatePosition,
     isOpen,
     onClose: close,
+    restoreFocus: false,
   });
   if (!projection) {
     return (
@@ -123,19 +125,21 @@ export function ComposerContextUsage({
 
   return (
     <>
-      <button
+      <UiIconButton
         ref={anchorRef}
         aria-describedby={isOpen ? overlayId : undefined}
         aria-label={ariaLabel}
-        className="radius-control-sm inline-flex h-7 w-7 shrink-0 items-center justify-center outline-none transition-colors hover:bg-(--surface-interactive-hover-background) focus-visible:bg-(--surface-interactive-hover-background)"
+        className="shrink-0"
         data-context-usage={summary.percentage}
         data-context-usage-slot="ready"
         onBlur={scheduleClose}
-        onClick={() => isOpen ? close() : open()}
+        onClick={open}
         onFocus={open}
         onMouseEnter={open}
         onMouseLeave={scheduleClose}
-        type="button"
+        size="sm"
+        tooltip={null}
+        variant="ghost"
       >
         <svg
           aria-hidden="true"
@@ -153,7 +157,7 @@ export function ComposerContextUsage({
             strokeWidth="2"
           />
           <circle
-            className={summary.toneClassName}
+            className={getUiToneClassName(summary.tone)}
             cx="10"
             cy="10"
             fill="none"
@@ -165,12 +169,12 @@ export function ComposerContextUsage({
             strokeWidth="2"
           />
         </svg>
-      </button>
+      </UiIconButton>
       {isOpen && anchorRef.current && portalContainer
         ? createPortal(
             <div
               ref={overlayRef}
-              className={`pointer-events-auto fixed left-0 top-0 z-[10020] overflow-hidden shadow-(--surface-popover-shadow) ${OVERLAY_SURFACE_CLASS_NAME} ${ANCHORED_OVERLAY_MOTION_CLASS_NAME}`}
+              className={`pointer-events-auto fixed left-0 top-0 ui-layer-dialog-interaction flex flex-col overflow-hidden shadow-(--surface-popover-shadow) ${OVERLAY_SURFACE_CLASS_NAME} ${ANCHORED_OVERLAY_MOTION_CLASS_NAME}`}
               data-placement={overlayPosition?.placement ?? "top"}
               id={overlayId}
               onMouseEnter={cancelScheduledClose}
@@ -214,15 +218,15 @@ function SingleContextUsage({
   const { t } = useI18n();
   return (
     <div className="px-3 py-2 text-center">
-      <span className="block text-2xs font-medium text-(--text-soft)">
+      <span className={`block ${getUiTypographyClassName({ role: "caption", tone: "muted" })}`}>
         {title}
       </span>
-      <span className="mt-0.5 block text-sm font-medium text-(--text-strong)">
+      <span className={`mt-0.5 block ${getUiTypographyClassName({ role: "control", tone: "strong", weight: "medium" })}`}>
         {t("composer.context_used_percent", {
           percentage: projection.percentage,
         })}
       </span>
-      <span className="mt-0.5 block whitespace-nowrap text-xs text-(--text-default)">
+      <span className={`mt-0.5 block tabular-nums ${getUiTypographyClassName({ role: "caption", tone: "default" })}`}>
         {t("composer.context_token_usage", {
           max: maxTokens,
           used: usedTokens,
@@ -240,16 +244,16 @@ function GroupedContextUsage({
   title: string;
 }) {
   return (
-    <div className="min-w-0">
-      <div className="border-b border-(--divider-subtle-color) px-2.5 py-1.5 text-2xs font-medium text-(--text-strong)">
+    <>
+      <div className={`shrink-0 border-b border-(--divider-subtle-color) px-2.5 py-1.5 ${getUiTypographyClassName({ role: "caption", tone: "strong", weight: "medium" })}`}>
         {title}
       </div>
-      <div className="max-h-52 overflow-y-auto p-1">
+      <ul aria-label={title} className="soft-scrollbar min-h-0 overflow-y-auto overscroll-contain p-1">
         {items.map((item) => (
           <ContextUsageAgentRow item={item} key={item.agentId} />
         ))}
-      </div>
-    </div>
+      </ul>
+    </>
   );
 }
 
@@ -260,31 +264,31 @@ function ContextUsageAgentRow({
 }) {
   const { t } = useI18n();
   return (
-    <div className="radius-control-sm flex min-h-8 items-center gap-1.5 px-1.5 py-1">
+    <li className="radius-control-sm flex min-h-8 items-center gap-1.5 px-1.5 py-1">
       <UiAgentAvatar
         avatar={item.avatar}
         name={item.name}
         size="xs"
       />
-      <span className="min-w-0 flex-1 truncate text-xs font-medium text-(--text-strong)">
+      <span className={`min-w-0 flex-1 [overflow-wrap:anywhere] ${getUiTypographyClassName({ role: "caption", tone: "strong", weight: "medium" })}`}>
         {item.name}
       </span>
       {item.usage ? (
-        <span className="shrink-0 text-right">
-          <span className="block text-2xs font-medium text-(--text-default)">
+        <span className="shrink-0 text-right tabular-nums">
+          <span className={`block ${getUiTypographyClassName({ role: "caption", tone: "default", weight: "medium" })}`}>
             {t("composer.context_used_percent", {
               percentage: item.usage.percentage,
             })}
           </span>
-          <span className="block text-[10px] leading-3 text-(--text-soft)">
+          <span className={`block ${getUiTypographyClassName({ role: "caption", tone: "muted" })}`}>
             {formatTokens(item.usage.totalTokens)} / {formatTokens(item.usage.maxTokens)}
           </span>
         </span>
       ) : (
-        <span className="shrink-0 text-2xs text-(--text-soft)">
+        <span className={`shrink-0 ${getUiTypographyClassName({ role: "caption", tone: "muted" })}`}>
           {t("composer.context_no_snapshot")}
         </span>
       )}
-    </div>
+    </li>
   );
 }

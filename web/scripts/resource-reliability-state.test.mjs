@@ -471,8 +471,8 @@ test("Room external tabs and round indexes retain only same-scope read snapshots
   assert.match(conversationSessionSource, /roundIndexResource\.error !== null/);
   assert.match(conversationSessionSource, /roundIndexResource\.items/);
   assert.match(noticeSource, /data-read-resource-state/);
-  assert.match(noticeSource, /<RecoverySummary[\s\S]*impact=\{impact\}/);
-  assert.match(noticeSource, /onClick=\{onRefresh\}/);
+  assert.match(noticeSource, /<UiInlineNotice[\s\S]*message=\{impact\}/);
+  assert.match(noticeSource, /action=\{\{[\s\S]*onClick: onRefresh/);
   assert.match(panelLayoutSource, /resource="session-round-index"/);
   assert.match(desktopRoomSource, /resource="room-external-sessions"/);
   assert.match(mobileRoomSource, /resource="room-external-sessions"/);

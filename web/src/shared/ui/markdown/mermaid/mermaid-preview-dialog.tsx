@@ -5,7 +5,7 @@
  */
 import { useEffect, useMemo, useRef, type PointerEvent } from "react";
 
-import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import {
@@ -96,8 +96,9 @@ export function MermaidPreviewDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        className="z-[10000] overscroll-contain animate-in fade-in duration-(--motion-duration-fast)"
+        className="overscroll-contain animate-in fade-in duration-(--motion-duration-fast)"
         labelledBy="mermaid-image-preview-title"
+        layer="dialogNested"
         onClose={onClose}
         onWheel={(event) => {
           if (event.target === event.currentTarget) {
@@ -106,8 +107,9 @@ export function MermaidPreviewDialog({
         }}
       >
         <UiDialogShell
-          className="relative h-[88vh] w-[94vw] max-w-7xl overscroll-contain"
-          size="wide"
+          className="relative overscroll-contain"
+          size="workbench"
+          viewport="workbench"
         >
           <h2 className="sr-only" id="mermaid-image-preview-title">
             {t("markdown.mermaid.preview_title")}

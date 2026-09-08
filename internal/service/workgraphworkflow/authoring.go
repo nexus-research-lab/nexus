@@ -15,7 +15,7 @@ type executionHistoryViewer interface {
 	ListHistoryViews(context.Context, string, string, int) ([]protocol.ExecutionView, error)
 }
 
-// PreviewSavedWorkflow 为能力目录中的命名图恢复或创建同源 Draft。
+// PreviewSavedWorkflow 按命名图身份恢复 Draft；历史同源命令各有独立草稿，不挪用提取草稿或伪造已保存标记。
 func (s *Service) PreviewSavedWorkflow(
 	ctx context.Context,
 	ownerUserID string,
@@ -35,16 +35,6 @@ func (s *Service) PreviewSavedWorkflow(
 	if !ok {
 		return nil, errorsUnavailableDraftPersistence()
 	}
-	if existing, err := drafts.GetDraftBySavedWorkflowID(ctx, ownerUserID, workflowID); err != nil {
-		return nil, err
-	} else if existing != nil {
-		if err = s.renewDraftLease(ctx, drafts, existing); err != nil {
-			return nil, err
-		}
-		s.hydrateDraft(*existing)
-		preview := cloneWorkflowPreview(existing.Preview)
-		return &preview, nil
-	}
 	workflow, err := s.repository.GetByID(ctx, ownerUserID, workflowID)
 	if err != nil {
 		return nil, err
@@ -52,26 +42,12 @@ func (s *Service) PreviewSavedWorkflow(
 	if workflow == nil {
 		return nil, ErrNotFound
 	}
-	if existing, lookupErr := drafts.GetDraftBySource(
-		ctx, ownerUserID, workflow.SourceSessionKey, workflow.SourceExecutionID,
-	); lookupErr != nil {
-		return nil, lookupErr
+	if existing, err := drafts.GetDraftBySavedWorkflowID(ctx, ownerUserID, workflowID); err != nil {
+		return nil, err
 	} else if existing != nil {
 		if err = s.renewDraftLease(ctx, drafts, existing); err != nil {
 			return nil, err
 		}
-		if existing.SavedWorkflowID != "" && existing.SavedWorkflowID != workflow.ID {
-			return nil, fmt.Errorf("%w: source Draft belongs to another named WorkGraph", ErrInvalidInput)
-		}
-		if err = drafts.SetDraftSaveState(
-			ctx, ownerUserID, existing.PreviewID, false, workflow.ID,
-			existing.SelectedRevision, s.now().UTC(),
-		); err != nil {
-			return nil, err
-		}
-		existing.SavedWorkflowID = workflow.ID
-		existing.SavedRevision = existing.SelectedRevision
-		existing.SaveScheduled = false
 		s.hydrateDraft(*existing)
 		preview := cloneWorkflowPreview(existing.Preview)
 		return &preview, nil
@@ -96,7 +72,7 @@ func (s *Service) PreviewSavedWorkflow(
 		ExpiresAt: now.Add(workflowPreviewTTL),
 	}
 	created, err := drafts.CreateDraft(ctx, protocol.WorkGraphWorkflowDraft{
-		PreviewID: preview.PreviewID, OwnerUserID: ownerUserID,
+		PreviewID: preview.PreviewID, OwnerUserID: ownerUserID, OriginWorkflowID: workflow.ID,
 		SourceExecutionID: preview.SourceExecutionID, SourceSessionKey: preview.SourceSessionKey,
 		SourceAgentID: strings.TrimSpace(mainAgent.AgentID), OutputLanguage: outputLanguage,
 		HeadRevision: 1, SelectedRevision: 1, Preview: cloneWorkflowPreview(preview),

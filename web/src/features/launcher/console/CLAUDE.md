@@ -1,7 +1,8 @@
 # Launcher Console
 
 - `launcher-console.tsx` 只组合 Tour、目录投影、控制器、Hero 和当前唯一的持久反馈条。
-- `launcher-console-helpers.ts` 保存最近会话、Mention 目标和装饰 Token 的纯投影。
+- Header 灯组只向公共 LottiePlayer 传动画源与外部布局；播放器独占播放/静态偏好与销毁生命周期，Console 不持有播放实例或备用样式参数。
+- `launcher-console-helpers.ts` 保存最近会话、Mention 目标和装饰 Token 的纯投影；姓名缩写直接复用 `lib/avatar.ts`，不复制 Unicode 字符截断逻辑。
 - `launcher-console-types.ts` 定义 Console 与 Hero 的消费者接口。
 - `launcher-operation-failure.ts` 统一投影查询、Room 读取、目录缺项和 DM ensure 的 Problem / Impact / Recovery。
 - `use-launcher-console-controller.ts` 拥有查询互斥、穷尽动作分发、读取安全重试和会话导航。

@@ -11,6 +11,7 @@ import {
 import type { ConnectorInfo } from "@/types/capability/connector";
 
 import { filterConnectors } from "../catalog/connector-catalog-model";
+import { getAvailableConnectorCategoryKeys } from "../catalog/connectors-categories";
 
 interface UseConnectorCatalogOptions {
   failureFallback: string;
@@ -30,7 +31,7 @@ export function useConnectorCatalog({
     const requestId = ++requestIdRef.current;
     setLoading(true);
     try {
-      const items = await getConnectorsApi();
+      const items = await getConnectorsApi({ status: "available" });
       if (requestId === requestIdRef.current) {
         setAllConnectors(items);
         setFailure(null);
@@ -57,9 +58,23 @@ export function useConnectorCatalog({
   }, [refresh]);
 
   const catalogConnectors = useMemo(
-    () => allConnectors.filter((item) => item.kind !== "custom_mcp"),
+    () => allConnectors.filter((item) => (
+      item.kind !== "custom_mcp" && item.status === "available"
+    )),
     [allConnectors],
   );
+  const categoryKeys = useMemo(
+    () => getAvailableConnectorCategoryKeys(catalogConnectors),
+    [catalogConnectors],
+  );
+  useEffect(() => {
+    if (
+      activeCategory !== "all"
+      && !categoryKeys.includes(activeCategory)
+    ) {
+      setActiveCategory("all");
+    }
+  }, [activeCategory, categoryKeys]);
   const connectors = useMemo(() => filterConnectors(
     catalogConnectors,
     activeCategory,
@@ -69,6 +84,7 @@ export function useConnectorCatalog({
   return {
     activeCategory,
     allConnectors,
+    categoryKeys,
     connectors,
     failure,
     loading,
