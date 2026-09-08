@@ -1,22 +1,20 @@
 /**
- * INPUT: Agent 权限模式、预授权工具和连接器选择状态。
- * OUTPUT: 同时展示模式差异、工具用途、连接器状态与对应开关的高级配置页。
+ * INPUT: Agent 权限模式和连接器选择状态。
+ * OUTPUT: 默认折叠的独立权限设置与连接器配置页。
  * POS: Agent 详情中的授权决策面；说明用于比较选择而非装饰。
  */
 
 "use client";
 
+import { useDefaultAgentRuntimeKind } from "@/hooks/settings/use-default-agent-runtime-kind";
+import { Link } from "react-router-dom";
+
+import { AppRouteBuilders } from "@/app/router/route-paths";
+
 import {
-  Bot,
   Check,
-  FilePlus2,
-  Globe2,
   Loader2,
-  Pencil,
-  Search,
-  Terminal,
   TriangleAlert,
-  type LucideIcon,
 } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
@@ -27,16 +25,13 @@ import { SIDEBAR_SELECTION_CLASS_NAME } from "@/shared/ui/sidebar/sidebar-select
 import { ConnectorIcon } from "@/features/capability/connectors/connector-icon";
 import type { ConnectorInfo } from "@/types/capability/connector";
 import {
-  AGENT_PERMISSION_MODES,
-  AVAILABLE_AGENT_TOOLS,
-  countVisibleAgentPreauthorizedTools,
+  getAgentPermissionChoices,
+  resolveRuntimePermissionMode,
 } from "@/lib/agent-options";
 
 interface AgentOptionsAdvancedTabProps {
   permissionMode: string;
   onPermissionModeChange: (mode: string) => void;
-  allowedTools: string[];
-  onToggleTool: (toolName: string, type: "allowed" | "disallowed") => void;
   connectorIds: string[];
   connectors: ConnectorInfo[];
   connectorsError: string | null;
@@ -45,24 +40,10 @@ interface AgentOptionsAdvancedTabProps {
   onToggleConnector: (connectorId: string) => void;
 }
 
-const TOOL_ICONS: Record<
-  (typeof AVAILABLE_AGENT_TOOLS)[number]["name"],
-  LucideIcon
-> = {
-  Agent: Bot,
-  Bash: Terminal,
-  Edit: Pencil,
-  WebFetch: Globe2,
-  WebSearch: Search,
-  Write: FilePlus2,
-};
-
-/** Advanced Tab 组件 — 权限控制与工具授权 */
+/** Advanced Tab 展示连接器及折叠的独立权限设置。 */
 export function AgentOptionsAdvancedTab({
   permissionMode: permissionMode,
   onPermissionModeChange: onPermissionModeChange,
-  allowedTools: allowedTools,
-  onToggleTool: onToggleTool,
   connectorIds,
   connectors,
   connectorsError,
@@ -71,75 +52,12 @@ export function AgentOptionsAdvancedTab({
   onToggleConnector,
 }: AgentOptionsAdvancedTabProps) {
   const { t } = useI18n();
+  const runtimeKind = useDefaultAgentRuntimeKind();
+  const effectivePermissionMode = resolveRuntimePermissionMode(permissionMode, runtimeKind);
   const isBypassPermissionMode = permissionMode === "bypassPermissions";
-  const preauthorizedToolCount = countVisibleAgentPreauthorizedTools(allowedTools);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200 [overflow-anchor:none]">
-      <section className="space-y-3">
-        <SectionHeader
-          description={t("agent_options.advanced.permission_control_hint")}
-          title={t("agent_options.advanced.permission_control")}
-        />
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2">
-          {AGENT_PERMISSION_MODES.map((mode) => {
-            const isActive = permissionMode === mode.value;
-            return (
-              <button
-                aria-pressed={isActive}
-                className={cn(
-                  "flex min-h-[72px] min-w-0 flex-col rounded-[10px] border px-3 py-2.5 text-left transition-[background,border-color] duration-(--motion-duration-fast)",
-                  isActive
-                    ? SIDEBAR_SELECTION_CLASS_NAME
-                    : "border-(--divider-subtle-color) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)",
-                )}
-                key={mode.value}
-                onClick={() => onPermissionModeChange(mode.value)}
-                type="button"
-              >
-                <span className="flex w-full min-w-0 items-center gap-2 text-sm font-semibold text-(--text-strong)">
-                  <span className="min-w-0 flex-1 truncate">{t(mode.labelKey)}</span>
-                  {isActive ? <Check className="h-3.5 w-3.5 shrink-0" /> : null}
-                </span>
-                <span
-                  className="mt-1 line-clamp-2 text-xs leading-[1.45] text-(--text-muted)"
-                  title={t(mode.descriptionKey)}
-                >
-                  {t(mode.descriptionKey)}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-        {isBypassPermissionMode ? (
-          <div className="flex items-start gap-2 rounded-[8px] bg-[color:color-mix(in_srgb,var(--warning)_7%,transparent)] px-3 py-2 text-xs leading-5 text-(--warning)">
-            <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            <span>{t("agent_options.advanced.bypass_warning")}</span>
-          </div>
-        ) : null}
-      </section>
-
-      <section className="space-y-3">
-        <SectionHeader
-          description={t("agent_options.advanced.security_hint")}
-          title={t("agent_options.advanced.tool_access")}
-          trailing={t("agent_options.advanced.enabled_tools", {
-            count: preauthorizedToolCount,
-          })}
-        />
-        <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3 [overflow-anchor:none]">
-          {AVAILABLE_AGENT_TOOLS.map((tool) => (
-            <ToolAuthorizationRow
-              checked={allowedTools.includes(tool.name)}
-              description={t(tool.descriptionKey)}
-              key={tool.name}
-              name={tool.name}
-              onToggle={() => onToggleTool(tool.name, "allowed")}
-            />
-          ))}
-        </div>
-      </section>
-
       <section className="space-y-3">
         <SectionHeader
           description={t("agent_options.advanced.connector_access_hint")}
@@ -189,6 +107,54 @@ export function AgentOptionsAdvancedTab({
           </div>
         ) : null}
       </section>
+
+      <details className="rounded-[10px] border border-(--divider-subtle-color) p-3">
+        <summary className="cursor-pointer text-sm font-medium text-(--text-strong)">
+          {t("agent_options.advanced.permission_settings")}
+        </summary>
+        <div className="mt-3 space-y-3">
+          <SectionHeader
+            description={t("agent_options.advanced.permission_control_hint")}
+            title={t("agent_options.advanced.permission_control")}
+          />
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2">
+            {getAgentPermissionChoices(runtimeKind).map((mode) => {
+              const isActive = effectivePermissionMode === mode.value;
+              return (
+                <button
+                  aria-pressed={isActive}
+                  className={cn(
+                    "flex min-h-[72px] min-w-0 flex-col rounded-[10px] border px-3 py-2.5 text-left transition-[background,border-color] duration-(--motion-duration-fast)",
+                    isActive
+                      ? SIDEBAR_SELECTION_CLASS_NAME
+                      : "border-(--divider-subtle-color) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)",
+                  )}
+                  key={mode.value}
+                  onClick={() => onPermissionModeChange(mode.value)}
+                  type="button"
+                >
+                  <span className="flex w-full min-w-0 items-center gap-2 text-sm font-semibold text-(--text-strong)">
+                    <span className="min-w-0 flex-1 truncate">{t(mode.labelKey)}</span>
+                    {isActive ? <Check className="h-3.5 w-3.5 shrink-0" /> : null}
+                  </span>
+                  <span
+                    className="mt-1 line-clamp-2 text-xs leading-[1.45] text-(--text-muted)"
+                    title={t(mode.descriptionKey)}
+                  >
+                    {t(mode.descriptionKey)}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          {isBypassPermissionMode ? (
+            <div className="flex items-start gap-2 rounded-[8px] bg-[color:color-mix(in_srgb,var(--warning)_7%,transparent)] px-3 py-2 text-xs leading-5 text-(--warning)">
+              <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>{t("agent_options.advanced.bypass_warning")}</span>
+            </div>
+          ) : null}
+        </div>
+      </details>
     </div>
   );
 }
@@ -219,51 +185,6 @@ function SectionHeader({
   );
 }
 
-function ToolAuthorizationRow({
-  checked,
-  description,
-  name,
-  onToggle,
-}: {
-  checked: boolean;
-  description: string;
-  name: (typeof AVAILABLE_AGENT_TOOLS)[number]["name"];
-  onToggle: () => void;
-}) {
-  const Icon = TOOL_ICONS[name];
-  return (
-    <div
-      className={cn(
-        "grid min-h-[64px] grid-cols-[30px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[10px] border px-3 py-2.5 transition-[background,border-color] duration-(--motion-duration-fast)",
-        checked
-          ? SIDEBAR_SELECTION_CLASS_NAME
-          : "border-(--divider-subtle-color) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)",
-      )}
-    >
-      <span className="flex h-[30px] w-[30px] items-center justify-center rounded-[8px] bg-(--surface-panel-subtle-background) text-(--icon-muted)">
-        <Icon className="h-4 w-4" />
-      </span>
-      <span className="min-w-0">
-        <span className="block truncate text-compact font-semibold text-(--text-strong)">
-          {name}
-        </span>
-        <span
-          className="mt-0.5 block truncate text-xs leading-4 text-(--text-muted)"
-          title={description}
-        >
-          {description}
-        </span>
-      </span>
-      <GlassSwitch
-        aria-label={name}
-        checked={checked}
-        onChange={onToggle}
-        size="xs"
-      />
-    </div>
-  );
-}
-
 function ConnectorAuthorizationRow({
   checked,
   connector,
@@ -278,28 +199,34 @@ function ConnectorAuthorizationRow({
   return (
     <div
       className={cn(
-        "grid min-h-[64px] grid-cols-[30px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[10px] border px-3 py-2.5 transition-[background,border-color] duration-(--motion-duration-fast)",
+        "grid min-h-[64px] grid-cols-[minmax(0,1fr)_auto] items-center gap-2.5 rounded-[10px] border px-3 py-2.5 transition-[background,border-color] duration-(--motion-duration-fast)",
         checked
           ? SIDEBAR_SELECTION_CLASS_NAME
           : "border-(--divider-subtle-color) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)",
-        !connected && !checked && "opacity-(--disabled-opacity)",
+        !connected && "opacity-(--disabled-opacity)",
       )}
     >
-      <ConnectorIcon
-        className="h-[30px] w-[30px] rounded-[8px]"
-        icon={connector.icon}
-        title={connector.title}
-      />
-      <span className="min-w-0">
-        <span className="block truncate text-compact font-semibold text-(--text-strong)">
-          {connector.title}
+      <Link
+        aria-label={connector.title}
+        className="group/connector grid min-w-0 grid-cols-[30px_minmax(0,1fr)] items-center gap-2.5 rounded-[8px] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-(--text-strong)"
+        to={AppRouteBuilders.connectorDetail(connector.connector_id)}
+      >
+        <ConnectorIcon
+          className="h-[30px] w-[30px] rounded-[8px]"
+          icon={connector.icon}
+          title={connector.title}
+        />
+        <span className="min-w-0">
+          <span className="block truncate text-compact font-semibold text-(--text-strong) group-hover/connector:underline">
+            {connector.title}
+          </span>
+          <span className="mt-0.5 block truncate text-xs leading-4 text-(--text-muted)">
+            {connected
+              ? connector.description
+              : t("agent_options.advanced.connector_disconnected")}
+          </span>
         </span>
-        <span className="mt-0.5 block truncate text-xs leading-4 text-(--text-muted)">
-          {connected
-            ? connector.description
-            : t("agent_options.advanced.connector_disconnected")}
-        </span>
-      </span>
+      </Link>
       <GlassSwitch
         aria-label={connector.title}
         checked={checked}

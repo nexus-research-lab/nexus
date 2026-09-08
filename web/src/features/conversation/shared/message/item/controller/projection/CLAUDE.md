@@ -11,3 +11,5 @@
 内容模式差异必须进入穷尽策略表或小型阶段函数，禁止在主 Hook 中恢复条件矩阵。
 `resolveAssistantResponseSurface` 是跨 live / terminal 的正文身份真相源；DM 两种模式必须都解析为 `final`，禁止在终态把已挂载正文迁移到另一个 React 子树。
 已有 `projectionFromOrderedEntries` 是有序条目到内容投影的唯一转换，局部编排不得重复实现索引映射。
+
+`permission_review` 是绑定工具调用的审核审计，仅在 DM/对应 Room Thread 展示，不作为可操作权限卡，也不在 Room 公区展示。

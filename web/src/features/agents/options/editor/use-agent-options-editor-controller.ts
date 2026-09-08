@@ -324,11 +324,10 @@ function buildSkillsProps(
 }
 
 function buildAdvancedProps(
-  { draft, toggleTool, updateField }: DraftController,
+  { draft, updateField }: DraftController,
   connectors: ReturnType<typeof useAgentConnectors>,
 ) {
   return {
-    allowedTools: draft.allowedTools,
     connectorIds: draft.connectorIds,
     connectors: connectors.items,
     connectorsError: connectors.error,
@@ -341,7 +340,6 @@ function buildAdvancedProps(
         ? draft.connectorIds.filter((value) => value !== connectorId)
         : [...draft.connectorIds, connectorId],
     ),
-    onToggleTool: toggleTool,
     permissionMode: draft.permissionMode,
   };
 }

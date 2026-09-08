@@ -639,8 +639,8 @@ func TestRealtimeServiceChatRequestCanOverridePermissionHandler(t *testing.T) {
 	if options.Callbacks.PermissionHandler == nil {
 		t.Fatalf("room 请求级权限处理器未透传: %+v", options)
 	}
-	if len(options.Tools.Allow) != 0 {
-		t.Fatalf("room runtime 不应在无显式白名单时收窄 allowed tools: %+v", options.Tools.Allow)
+	if !slices.Equal(options.Tools.Allow, []string{"WebFetch", "WebSearch"}) {
+		t.Fatalf("Room 默认只预授权低风险网页检索: %+v", options.Tools.Allow)
 	}
 	goalDecision, err := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{
 		ToolName: "mcp__nexus__command",

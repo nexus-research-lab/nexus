@@ -31,6 +31,7 @@ type RouteContext struct {
 
 // PendingRequest 表示一个会阻塞 runtime、等待用户响应的请求。
 type PendingRequest struct {
+	DecisionReason           string
 	RequestID                string
 	SessionKey               string
 	DispatchSessionKey       string
@@ -56,6 +57,7 @@ func (c *Context) newPendingRequest(sessionKey string, request sdkpermission.Req
 		SessionKey:         sessionKey,
 		DispatchSessionKey: firstNonEmpty(route.DispatchSessionKey, sessionKey),
 		ToolName:           toolName,
+		DecisionReason:     strings.TrimSpace(request.DecisionReason),
 		ToolInput:          toolInput,
 		ConfigurationSecretSlots: secretinput.SlotsFromToolInput(
 			toolName,

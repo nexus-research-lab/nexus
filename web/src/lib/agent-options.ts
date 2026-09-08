@@ -2,8 +2,8 @@ import type { AgentOptions } from "@/types/agent/agent";
 
 export const DEFAULT_AGENT_OPTION_PROVIDER = "";
 export const DEFAULT_AGENT_OPTION_MODEL = "";
-// 新建 Agent 默认批准文件编辑，其他操作仍交给 runtime 权限规则。
-export const DEFAULT_AGENT_PERMISSION_MODE = "acceptEdits";
+// 新建 Agent 默认独立审核未决操作，无法确认时交给用户。
+export const DEFAULT_AGENT_PERMISSION_MODE = "auto";
 
 export const AGENT_PERMISSION_MODES = [
   {
@@ -22,6 +22,11 @@ export const AGENT_PERMISSION_MODES = [
     descriptionKey: "agent_options.advanced.permission.accept_edits.description",
   },
   {
+    value: "auto",
+    labelKey: "agent_options.advanced.permission.auto.label",
+    descriptionKey: "agent_options.advanced.permission.auto.description",
+  },
+  {
     value: "bypassPermissions",
     labelKey: "agent_options.advanced.permission.bypass.label",
     descriptionKey: "agent_options.advanced.permission.bypass.description",
@@ -33,20 +38,14 @@ export const AGENT_PERMISSION_MODES = [
   },
 ] as const;
 
-export const AVAILABLE_AGENT_TOOLS = [
-  { name: "Agent", descriptionKey: "agent_options.advanced.tool.agent" },
-  { name: "Bash", descriptionKey: "agent_options.advanced.tool.bash" },
-  { name: "Edit", descriptionKey: "agent_options.advanced.tool.edit" },
-  { name: "Write", descriptionKey: "agent_options.advanced.tool.write" },
-  { name: "WebFetch", descriptionKey: "agent_options.advanced.tool.web_fetch" },
-  { name: "WebSearch", descriptionKey: "agent_options.advanced.tool.web_search" },
-] as const;
+// 旧模式仍可读取，但产品不再提供规划、不询问和自动接受编辑模式的设置入口。
+export const AGENT_PERMISSION_CHOICES = AGENT_PERMISSION_MODES.filter(
+  (mode) => mode.value !== "plan"
+    && mode.value !== "dontAsk"
+    && mode.value !== "acceptEdits",
+);
 
 export const DEFAULT_AGENT_ALLOWED_TOOLS: readonly string[] = [];
-
-const VISIBLE_AGENT_PREAUTHORIZED_TOOLS = new Set<string>(
-  AVAILABLE_AGENT_TOOLS.map((tool) => tool.name),
-);
 
 // 历史持久化值只在编辑入口清洗，内部草稿不继续传播已退休工具名。
 const RETIRED_AGENT_PREAUTH_TOOL_ALIASES: Record<string, string | null> = {
@@ -114,14 +113,6 @@ export function normalizeAgentAllowedToolsForEditor(
   return result;
 }
 
-export function countVisibleAgentPreauthorizedTools(
-  tools: readonly string[],
-): number {
-  return tools.filter((toolName) =>
-    VISIBLE_AGENT_PREAUTHORIZED_TOOLS.has(toolName.trim()),
-  ).length;
-}
-
 export function normalizeAgentOptionProvider(provider?: string | null): string {
   const normalizedProvider = provider?.trim();
   return normalizedProvider || DEFAULT_AGENT_OPTION_PROVIDER;
@@ -141,4 +132,14 @@ export function pickAgentEditableOptions(options: AgentOptions): AgentOptions {
     // Skill 绑定由技能域独立保存，不能随普通 Agent 草稿回写旧快照。
     setting_sources: options.setting_sources,
   };
+}
+
+/** 自动审核只在原生运行时展示；后端仍通过协议能力协商校验版本。 */
+export function getAgentPermissionChoices(runtimeKind: string) {
+  return AGENT_PERMISSION_CHOICES.filter((mode) => runtimeKind === "nxs" || mode.value !== "auto");
+}
+
+/** 切换到不支持自动审核的运行时，使用更保守的人工审批。 */
+export function resolveRuntimePermissionMode<T extends string>(mode: T, runtimeKind: string): T | "default" {
+  return mode === "auto" && runtimeKind !== "nxs" ? "default" : mode;
 }

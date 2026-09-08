@@ -96,6 +96,9 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
           controller={localDirectories}
           disabled={props.isLoading || state.runtimeActivity !== null}
         />
+        {!props.interactionSurface ? (
+          <ComposerSessionSettingsReliability controller={sessionSettings} />
+        ) : null}
         <div
           ref={refs.composerShellRef}
           className={COMPOSER_SHELL_CLASS_NAME}
@@ -174,10 +177,6 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
                   status: slashCommand.status,
                 }}
                 textareaRef={refs.textareaRef}
-              />
-
-              <ComposerSessionSettingsReliability
-                controller={sessionSettings}
               />
 
               <ComposerFooter

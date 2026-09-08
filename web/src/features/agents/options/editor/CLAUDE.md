@@ -5,7 +5,7 @@
 ## 职责边界
 
 - `agent-options-draft.ts` 定义单一草稿对象、来源重置键、稳定命令作用域键和保存载荷纯投影。
-- `use-agent-options-draft.ts` 只管理草稿字段与工具集合变更。
+- `use-agent-options-draft.ts` 只管理草稿字段变更；未展示的既有工具规则随原配置保留。
 - `use-agent-provider-options.ts` 只管理 runtime 维度的 Provider 目录请求。
 - `use-agent-connectors.ts` 只在工具页可见时加载可挂载的 Connector 目录。
 - `use-agent-profile-template.ts` 只在创建来源下加载服务端默认行为模板；控制器把成功结果写入当前草稿一次，用户随后清空或修改时不得被异步结果覆盖。

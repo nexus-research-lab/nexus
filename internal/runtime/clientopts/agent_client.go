@@ -195,6 +195,10 @@ func BuildAgentClientOptionsWithConfig(
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, hostManagedScheduleRuntimeEnv(effectiveRuntimeKind))
 
 	permissionMode := runtimepermission.NormalizeMode(input.PermissionMode)
+	// Claude 不具备原生自动审核，切换时保守使用人工审批，不改写已保存的原生配置。
+	if effectiveRuntimeKind == runtimeKindClaude && permissionMode == sdkpermission.ModeAuto {
+		permissionMode = sdkpermission.ModeDefault
+	}
 	additionalDirectories := appendDistinctStrings(
 		input.SkillDirectories,
 		input.AdditionalDirectories...,
@@ -213,7 +217,7 @@ func BuildAgentClientOptionsWithConfig(
 		},
 		Tools: agentclient.ToolOptions{
 			Available: runtimeAvailableTools(effectiveRuntimeKind),
-			Allow:     slices.Clone(input.AllowedTools),
+			Allow:     runtimePreauthorizedTools(input.AllowedTools),
 			Deny:      appendDistinctStrings(input.DisallowedTools, agentSessionDeniedTools...),
 		},
 		Runtime: agentclient.RuntimeOptions{
@@ -339,6 +343,22 @@ func firstNonEmptyRuntimeValue(values ...string) string {
 		}
 	}
 	return ""
+}
+
+// runtimePreauthorizedTools 默认授权网页检索；保留用户已有的工具及域名范围规则。
+// 文件读取等基础能力由 runtime 自身判定，不能用无范围的 Read 授权绕过路径审批。
+func runtimePreauthorizedTools(configured []string) []string {
+	result := slices.Clone(configured)
+	for _, tool := range []string{"WebFetch", "WebSearch"} {
+		configuredTool := slices.ContainsFunc(configured, func(rule string) bool {
+			rule = strings.TrimSpace(rule)
+			return rule == tool || strings.HasPrefix(rule, tool+"(")
+		})
+		if !configuredTool {
+			result = append(result, tool)
+		}
+	}
+	return result
 }
 
 func runtimeAvailableTools(runtimeKind string) []string {

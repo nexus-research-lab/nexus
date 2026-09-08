@@ -23,3 +23,5 @@
 - 模型文件只做纯数据转换，不读取 Store、不触发副作用。
 
 聊天排版偏好改变后，虚拟 Feed 在下一帧清除高度缓存，已挂载行继续用 ResizeObserver 测量。
+
+`permission_review` 是绑定工具调用的审核审计，仅在 DM/对应 Room Thread 展示，不作为可操作权限卡，也不在 Room 公区展示。
