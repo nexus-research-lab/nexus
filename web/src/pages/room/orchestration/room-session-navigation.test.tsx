@@ -1,14 +1,15 @@
-// INPUT: Local Room API responses, real catalog refresh/commands, route navigation and header controls.
+// INPUT: Local Room API responses, real catalog refresh/commands, route navigation and desktop Surface Header.
 // OUTPUT: Browser-style session tabs survive creation, history selection, closing and owner-bound reload.
 // POS: Page integration regression; replaces only HTTP results and jsdom's absent scrolling APIs.
 
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { MemoryRouter, Route, Routes, useParams } from "react-router-dom";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DmConversationHeader } from "@/features/conversation/room/dm/dm-conversation-header";
-import { GroupConversationHeader } from "@/features/conversation/room/group/header/group-conversation-header";
+import { RoomSurfaceHeader } from "@/features/conversation/room/surface/layout/room-surface-header";
+import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
 import { resolveSelectedDraftConversationId } from "@/features/navigation/conversation-tabs/room-conversation-tabs-model";
 import { closeRoomConversationRuntime, createRoomConversation } from "@/lib/api/conversation/room-command-api";
 import { getRoomContexts } from "@/lib/api/conversation/room-resource-api";
@@ -62,6 +63,7 @@ function context(id: string, roomType: string, day: number, draft = false): Room
 }
 
 function HeaderPage() {
+  const [activeSurfaceTab, setActiveSurfaceTab] = useState<RoomSurfaceTabKey>("chat");
   const params = useParams();
   const data = useRoomPageData({ roomId: params.roomId });
   const conversations = buildRoomConversationViews(data.roomContexts);
@@ -80,18 +82,16 @@ function HeaderPage() {
     createConversation: commands.handleCreateConversation, deleteConversation: commands.handleDeleteConversation,
   });
   if (data.isRoomLoading) return null;
-  const headerProps = {
-    activeTab: "chat" as const, conversations, conversationId: selectedId,
-    onChangeTab: () => undefined,
-    onSelectConversation: navigation.selectConversation, onCreateConversation: navigation.createConversation,
-    onCloseConversation: commands.handleCloseConversation, onReplaceFinalConversation: navigation.replaceFinalConversation,
-    onDeleteConversation: navigation.deleteConversation,
-  };
-  return data.roomContexts[0]?.room.room_type === "dm"
-    ? <DmConversationHeader {...headerProps} currentAgentName="Nova" />
-    : <GroupConversationHeader {...headerProps} roomId="room" currentRoomTitle="Research"
-        roomMembers={[]} availableRoomAgents={[]} roomHostAutoReplyEnabled roomPrivateMessagesEnabled
-        roomSkillNames={[]} onManageRoom={async () => undefined} onOpenMemberManager={async () => undefined} />;
+  return <RoomSurfaceHeader
+    activeSurfaceTab={activeSurfaceTab} conversations={conversations} conversationId={selectedId}
+    onChangeSurfaceTab={setActiveSurfaceTab} onCloseAuxiliaryPanel={() => setActiveSurfaceTab("chat")}
+    onSelectConversation={navigation.selectConversation} onCreateConversation={navigation.createConversation}
+    onCloseConversation={commands.handleCloseConversation} onReplaceFinalConversation={navigation.replaceFinalConversation}
+    onDeleteConversation={navigation.deleteConversation}
+    currentAgent={{ agent_id: "agent", name: "Nova", workspace_path: "/workspace", options: {}, status: "idle", created_at: 1 }}
+    isDm={data.roomContexts[0]?.room.room_type === "dm"} roomId="room" currentRoomTitle="Research"
+    roomMembers={[]} availableRoomAgents={[]} roomHostAgentId={null} roomHostAutoReplyEnabled roomPrivateMessagesEnabled
+    roomSkillNames={[]} onManageRoom={async () => undefined} onOpenMemberManager={async () => undefined} />;
 }
 
 function page(initialRoute: string) {
@@ -119,6 +119,17 @@ describe("session header navigation through page commands", () => {
     const nav = within(await screen.findByRole("navigation", { name: "room.session_tabs_label" }));
     expect(nav.getByRole("button", { name: "First" })).toBeTruthy();
     expect(nav.queryByRole("button", { name: "History" })).toBeNull();
+
+    const first = nav.getByRole("button", { name: "First" });
+    const workspace = screen.getByRole("button", { name: "room.workspace" });
+    await user.click(workspace);
+    expect(workspace.getAttribute("aria-pressed")).toBe("true");
+    expect(nav.getByRole("button", { name: "First" })).toBe(first);
+    await user.click(workspace);
+    expect(workspace.getAttribute("aria-pressed")).toBe("false");
+    expect(first.getAttribute("aria-current")).toBe("page");
+    expect(createRoomConversation).not.toHaveBeenCalled();
+    expect(closeRoomConversationRuntime).not.toHaveBeenCalled();
 
     let finishRefresh!: (value: RoomContextAggregate[]) => void;
     vi.mocked(getRoomContexts).mockImplementationOnce(() => new Promise((resolve) => { finishRefresh = resolve; }));
