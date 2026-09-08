@@ -13,5 +13,5 @@
 //   - runtime_admission.go：认证转场到 Agent runtime admission 与强隔离要求的动态依赖边界。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
-// Claude 下原生 auto 预设保守映射到 default；nxs 仍由 bridge 协商审核能力。
+// auto 原样传给两种运行时；bridge 协商 nxs 能力并确认 Claude 原生模式。
 package clientopts

@@ -134,12 +134,12 @@ export function pickAgentEditableOptions(options: AgentOptions): AgentOptions {
   };
 }
 
-/** 自动审核只在原生运行时展示；后端仍通过协议能力协商校验版本。 */
+/** 两个运行时共用权限入口；后端分别协商 nxs 能力和确认 Claude 原生模式。 */
 export function getAgentPermissionChoices(runtimeKind: string) {
-  return AGENT_PERMISSION_CHOICES.filter((mode) => runtimeKind === "nxs" || mode.value !== "auto");
+  return AGENT_PERMISSION_CHOICES.filter((mode) => runtimeKind === "nxs" || runtimeKind === "claude" || mode.value !== "auto");
 }
 
-/** 切换到不支持自动审核的运行时，使用更保守的人工审批。 */
+/** 运行时尚未确定时，保守展示人工审批。 */
 export function resolveRuntimePermissionMode<T extends string>(mode: T, runtimeKind: string): T | "default" {
-  return mode === "auto" && runtimeKind !== "nxs" ? "default" : mode;
+  return mode === "auto" && runtimeKind !== "nxs" && runtimeKind !== "claude" ? "default" : mode;
 }
