@@ -16,6 +16,7 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
   private let globalShortcutAcceleratorUpdater: (String) -> [String: Any]
   private let globalShortcutAcceleratorResetter: () -> [String: Any]
   private let updateStarter: () -> String
+  private var pendingAttentionCount = 0
 
   init(
     runtime: SidecarRuntimeConfig,
@@ -39,6 +40,21 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
 
   func attach(webView: WKWebView) {
     self.webView = webView
+    for name in [NSApplication.didBecomeActiveNotification, NSApplication.didResignActiveNotification,
+                 NSWindow.didMiniaturizeNotification, NSWindow.didDeminiaturizeNotification] {
+      NotificationCenter.default.addObserver(self, selector: #selector(updateAttention), name: name, object: nil)
+    }
+  }
+
+  deinit {
+    NotificationCenter.default.removeObserver(self)
+    NSApp.dockTile.badgeLabel = nil
+  }
+
+  @objc private func updateAttention() {
+    // 由原生生命周期判断后台状态，最小化后不依赖网页的可见性计时器。
+    let background = !NSApp.isActive || webView?.window?.isMiniaturized == true
+    NSApp.dockTile.badgeLabel = pendingAttentionCount > 0 && background ? String(pendingAttentionCount) : nil
   }
 
   func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -86,6 +102,10 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
         "build_number": runtime.buildNumber,
         "platform": runtime.platform,
       ]
+    case "app.set_attention":
+      pendingAttentionCount = max(0, (request.payload["count"] as? Int) ?? 0)
+      updateAttention()
+      return ["updated": true]
     case "app.get_system_fonts":
       return ["families": NSFontManager.shared.availableFontFamilies.sorted()]
     case "app.get_state_root":

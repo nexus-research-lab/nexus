@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Alert users to pending approvals and questions while Nexus is in the background with a numeric macOS Dock badge (without bouncing) and Windows taskbar flashing; clear attention on return or resolution.
+
 - Added local system-font selection, font size, and line spacing preferences with live preview, row-based appearance controls, and one-click theme and typography reset.
 
 ### Fixed

@@ -68,6 +68,7 @@ internal sealed class DesktopBridgeHandler
                     families = System.Windows.Media.Fonts.SystemFontFamilies
                         .Select(font => font.Source).Distinct().OrderBy(name => name).ToArray(),
                 },
+                "app.set_attention" => SetAttention(payload),
                 "app.get_state_root" => SafeStateRootStatus(),
                 "app.choose_state_root" => ChooseStateRoot(payload),
                 "app.relocate_state_root" => RelocateStateRoot(payload),
@@ -541,6 +542,19 @@ internal sealed class DesktopBridgeHandler
 
         await openRoute(route);
         return new { opened = true };
+    }
+
+    private static object SetAttention(JsonElement payload)
+    {
+        bool pending = payload.TryGetProperty("payload", out JsonElement body)
+            && body.TryGetProperty("count", out JsonElement value)
+            && value.ValueKind == JsonValueKind.Number
+            && value.TryGetInt32(out int count) && count > 0;
+        if (System.Windows.Application.Current?.MainWindow is Nexus.Desktop.Window.MainWindow window)
+        {
+            window.SetNeedsAttention(pending);
+        }
+        return new { updated = true };
     }
 
     private static string StringPayload(JsonElement payload, string name)

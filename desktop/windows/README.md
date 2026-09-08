@@ -105,3 +105,5 @@ pwsh desktop/windows/.build/app/Nexus/register-nexus-protocol.ps1
 - GitHub `Publish Release` workflow 会在 `windows-latest` 上构建、烟测并上传 Windows installer exe、sha256 与 metadata；未配置 Windows 签名证书时产物会明确标记为 unsigned。托盘在后续阶段补齐。
 
 外观设置通过 `app.get_system_fonts` 读取 WPF Fonts.SystemFontFamilies 的本机字体家族目录。
+
+待人工确认（含提问）通过 `app.set_attention` 同步到宿主；后台或最小化时用 FlashWindowEx 闪烁任务栏，回到窗口或清空待处理请求时停止，不抢焦点。隐藏 WebView 只停止绘制，不暂停事件连接。
