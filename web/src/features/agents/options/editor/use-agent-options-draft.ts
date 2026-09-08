@@ -7,13 +7,6 @@ import {
 } from "./agent-options-draft";
 
 type AgentOptionsDraftField = keyof AgentOptionsDraft;
-type ToolListKind = "allowed" | "disallowed";
-
-const TOOL_FIELD_BY_KIND: Readonly<Record<ToolListKind, "allowedTools" | "disallowedTools">> = {
-  allowed: "allowedTools",
-  disallowed: "disallowedTools",
-};
-
 interface AgentOptionsDraftSourceState {
   editorScopeKey: string;
   initialDraft: AgentOptionsDraft;
@@ -77,29 +70,6 @@ export function useAgentOptionsDraft({
     });
   }, [editorScopeKey, initialDraft, onChange, sourceScopeKey]);
 
-  const toggleTool = useCallback((toolName: string, kind: ToolListKind) => {
-    onChange();
-    revisionRef.current += 1;
-    const revision = revisionRef.current;
-    const field = TOOL_FIELD_BY_KIND[kind];
-    setStoredState((current) => {
-      const reconciled = reconcileDraftState(current, {
-        editorScopeKey,
-        initialDraft,
-        sourceScopeKey,
-      });
-      const tools = reconciled.draft[field];
-      const nextTools = tools.includes(toolName)
-        ? tools.filter((name) => name !== toolName)
-        : [...tools, toolName];
-      return {
-        ...reconciled,
-        draft: { ...reconciled.draft, [field]: nextTools },
-        revision,
-      };
-    });
-  }, [editorScopeKey, initialDraft, onChange, sourceScopeKey]);
-
   const draftKey = buildAgentOptionsDraftKey(state.draft);
   return {
     draft: state.draft,
@@ -107,7 +77,6 @@ export function useAgentOptionsDraft({
     isDirty: draftKey !== buildAgentOptionsDraftKey(state.sourceDraft),
     revision: state.revision,
     revisionRef,
-    toggleTool,
     updateField,
   };
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import { resolveRuntimePermissionMode } from "@/lib/agent-options";
+import { useDefaultAgentRuntimeKind } from "@/hooks/settings/use-default-agent-runtime-kind";
 import { useEffect, useState } from "react";
 
 import { Link2Off, Settings2 } from "lucide-react";
@@ -368,16 +370,18 @@ function TaskPermissionModeField({
   form,
 }: Pick<TaskBasicsAdvancedProps, "actions" | "form">) {
   const { t } = useI18n();
+  const runtimeKind = useDefaultAgentRuntimeKind();
+  const effectivePermissionMode = resolveRuntimePermissionMode(form.permissionMode, runtimeKind);
   if (form.executionKind !== "agent") {
     return null;
   }
   return (
     <TaskChoiceField
-      help={getPermissionModeHelp(form.permissionMode, t)}
+      help={getPermissionModeHelp(effectivePermissionMode, t)}
       label={t("capability.scheduled_dialog_permission_mode")}
       onChange={actions.setPermissionMode}
-      options={buildPermissionModeOptions(t)}
-      value={form.permissionMode}
+      options={buildPermissionModeOptions(t, true, runtimeKind)}
+      value={effectivePermissionMode}
     />
   );
 }

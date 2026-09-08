@@ -49,6 +49,7 @@ interface TimelineNode {
 const ROOM_AGENT_NODE_PREFIX = "room-agent-round:";
 const ROOM_THREAD_ONLY_SYSTEM_SUBTYPES = new Set([
   "memory_saved",
+  "permission_review",
 ]);
 
 /** 每次 agent_round 从 pending 到 terminal 都保持同一个 feed node identity。 */

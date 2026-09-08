@@ -24,6 +24,7 @@ type systemMessageProjection struct {
 }
 
 var systemMessageProjections = map[string]systemMessageProjection{
+	"permission_review": {projector: (*Processor).projectPermissionReviewSystemMessage, delivery: systemMessageDurable},
 	"api_retry":         {projector: (*Processor).projectAPIRetrySystemMessage, delivery: systemMessageEphemeral},
 	"compact_boundary":  {projector: (*Processor).projectCompactBoundarySystemMessage, delivery: systemMessageDurable},
 	"memory_saved":      {projector: (*Processor).projectMemorySavedSystemMessage, delivery: systemMessageDurable},
@@ -230,4 +231,24 @@ func NewGuidedInputMessage(input GuidedInputMessageInput) protocol.Message {
 		message["session_id"] = sessionID
 	}
 	return message
+}
+
+// projectPermissionReviewSystemMessage 将一次审核原因保留为会话审计，不生成可操作权限卡。
+func (p *Processor) projectPermissionReviewSystemMessage(message sdkprotocol.SystemMessage) *protocol.Message {
+	review, ok := message.Data["review"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	rationale := normalizeString(review["rationale"])
+	toolID := normalizeString(message.Data["tool_use_id"])
+	if rationale == "" || toolID == "" {
+		return nil
+	}
+	title := "需要你批准："
+	if normalizeString(review["status"]) == "approved" {
+		title = "已自动批准："
+	}
+	metadata := cloneMapOrEmpty(message.Data)
+	metadata["subtype"] = "permission_review"
+	return p.buildSystemEventMessage("permission_review_"+p.ctx.RoundID+"_"+toolID, title+rationale, metadata)
 }

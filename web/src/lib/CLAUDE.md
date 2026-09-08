@@ -16,3 +16,7 @@
 - 禁止恢复 `utils.ts` catch-all；样式类名组合直接依赖 `shared/ui/class-name.ts`。
 
 `desktop-bridge` 的 `app.get_system_fonts` 只读返回原生字体家族名称，不读取或传输字体文件。
+
+权限选择统一为 default/auto/bypassPermissions；auto 是 SDK 动态审核，历史 acceptEdits 只读保留，不把旧值伪装成已启用审核。
+
+权限选项通过 getAgentPermissionChoices 按运行时过滤；Claude 下 auto 仅以 default 投影与执行，保存值不被静默改写。

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Accept automatic review in DM/Room session settings and classify validation failures as not applied. Show save failures in a dismissible dialog without leaving an error banner or refresh action.
+
+### Changed
+
+- Replace the selectable automatic-edit mode with “Approve for me”, backed by native SDK review, and preserve review reasons in conversations and scheduled-task approvals. New Agents default to automatic review; existing modes remain unchanged.
+- Keep automatic review hidden for Claude until its native mode is integrated; project saved automatic-review presets to manual approval in the current Claude adapter.
+- Move Agent-specific permissions into collapsed advanced settings, explain their relationship to system defaults, and remove per-tool authorization switches. Preauthorize web search and fetch while preserving explicit restrictions.
+- Link Agent connector cards to connector settings, retain gray styling for disconnected connectors, and keep activation switches independent.
+
 ### Added
 
 - Added local system-font selection, font size, and line spacing preferences with live preview, row-based appearance controls, and one-click theme and typography reset.

@@ -120,6 +120,8 @@ func (s *Service) roomSessionPermissionMode(
 
 func concreteTaskPermissionMode(mode string) string {
 	switch strings.TrimSpace(mode) {
+	case automationdomain.PermissionModeAuto:
+		return automationdomain.PermissionModeAuto
 	case automationdomain.PermissionModePlan:
 		return automationdomain.PermissionModePlan
 	case automationdomain.PermissionModeAcceptEdits:
