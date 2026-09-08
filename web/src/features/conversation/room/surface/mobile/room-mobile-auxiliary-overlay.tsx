@@ -1,5 +1,5 @@
 // INPUT: Room 当前辅助页、会话/Agent 数据、工作区路径与业务命令。
-// OUTPUT: 复用平台页头和语义层的工作图、工作区或简介全屏表面。
+// OUTPUT: 共用窄窗模态外壳与平台页头的工作图、工作区或简介表面。
 // POS: Room 窄窗辅助页装配；不拥有各子页面的数据和事务真相。
 
 import { ArrowLeft } from "lucide-react";
@@ -16,7 +16,6 @@ import {
   MOBILE_SHELL_HEADER_GUTTER_CLASS_NAME,
   MOBILE_SHELL_HEADER_HEIGHT_CLASS_NAME,
 } from "@/shared/ui/layout/mobile-shell-header-layout";
-import { getUiOverlayLayerClassName } from "@/shared/ui/overlay/layer-styles";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type {
   Agent,
@@ -26,6 +25,7 @@ import type {
 } from "@/types/agent/agent";
 
 import { RoomAgentAboutSurface } from "../room-agent-about-surface";
+import { RoomMobileOverlayFrame } from "./room-mobile-overlay-frame";
 
 export type RoomMobileAuxiliaryTab = "about" | "workgraph" | "workspace";
 
@@ -83,12 +83,10 @@ export function RoomMobileAuxiliaryOverlay({
     : activeTab === "workgraph"
     ? t("room.workgraph")
     : t("room.about");
+  const agents = [...roomMembers.filter((agent) => agent.agent_id !== currentAgent.agent_id), currentAgent];
 
   return (
-    <div className={cn(
-      "fixed inset-0 flex min-h-0 flex-col [background:var(--surface-popover-background)] backdrop-blur-2xl",
-      getUiOverlayLayerClassName("dialog"),
-    )}>
+    <RoomMobileOverlayFrame key={activeTab} label={title} onClose={onClose}>
       <header
         className={cn(
           "flex shrink-0 items-center gap-2 border-b divider-subtle",
@@ -106,7 +104,7 @@ export function RoomMobileAuxiliaryOverlay({
           size="lg"
           variant="ghost"
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft aria-hidden="true" className="h-4 w-4" />
         </UiIconButton>
         <h2 className={cn(
           "truncate",
@@ -119,18 +117,8 @@ export function RoomMobileAuxiliaryOverlay({
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {activeTab === "workgraph" ? (
           <ExecutionWorkGraphSurface
-            agents={[
-              ...roomMembers.filter((agent) => (
-                agent.agent_id !== currentAgent.agent_id
-              )),
-              currentAgent,
-            ]}
-            directory={buildExecutionAgentDirectory([
-              ...roomMembers.filter((agent) => (
-                agent.agent_id !== currentAgent.agent_id
-              )),
-              currentAgent,
-            ])}
+            agents={agents}
+            directory={buildExecutionAgentDirectory(agents)}
             onOpenWorkspaceFile={onOpenWorkspaceFile}
             resource={executionResource}
             taskRuns={executionTaskRuns}
@@ -159,6 +147,6 @@ export function RoomMobileAuxiliaryOverlay({
           />
         )}
       </div>
-    </div>
+    </RoomMobileOverlayFrame>
   );
 }

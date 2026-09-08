@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Unified narrow Room auxiliary, Thread and subagent overlays with one modal
+  frame, keyboard dismissal, focus return and scroll locking. Improved the
+  narrow header's session subtitle readability and complete accessible titles.
 - Unified narrow and desktop Room member opening, preventing duplicate catalog
   loads and late dialogs after navigation. Narrow action menus and task/auxiliary
   overlays now clear on session or owner changes while preserving equivalent
