@@ -3566,3 +3566,44 @@ Thread 等待/无额外详情现在复用公共 sm/plain ResourceState 的几何
 快照清单 /tmp/nexus-a95-review.json；全部 486 项源哈希一致。没有新增测试警告，
 仅保留既有 workgraph-metadata-editor-dialog effect-ref lint 警告与大分块构建
 提示。通过后仅追加本段证据，提交前核对暂存区、工作树及受测快照字节。
+
+
+## A96 — Room 简介导航与成员选择
+
+简介页保留当前 44px 头部、12px 横向内边距和 112×28px 成员入口；栏目直接
+使用公共 compact UiTabs（32px、metadata、中性底线），移除局部 28px 覆盖，
+成员与栏目间隔从 20px 收到 8px，横向收缩和滚动继续由公共导航拥有。未强行
+套用 60px 的 Workspace 页面 Header；内联设置、记忆目录/正文与联络布局保留。
+同步修正目录地图中与根 design.md/公共导航已不一致的旧轻底说明。
+
+原成员选择只在渲染时回退，目录恢复会重新展示失效的旧目标；现把回退提交到
+本地选择。显式请求与导航改用公共同步重置状态，去掉 effect 双状态重置。
+桌面请求在其所有者按 owner/Room/当前 Agent 隔离，简介消费同一业务边界；
+同 Room 的 Session 切换、可见性、成员对象/顺序/姓名更新保留人工选择与栏目。
+联络仍接收当前 Room/Conversation，配置保存与校验仍绑定当前展示 Agent，
+不新增草稿副本或自动写入。重复显式打开可重新定位同一成员及栏目。
+
+新增真实 Tabs/成员菜单与桌面请求控制器的双语 DOM 回归；编辑器、记忆和联络
+只用类型化内容边界隔离 API。覆盖键盘进入记忆、成员切换保留栏目、同 Room
+Session 更新、移除/恢复、缺失请求目标、重复请求、Room A→B→A、相同 ID 下
+owner 更换，以及精确保存/校验命令。登记为必跑回归；本批不新增视觉检查、
+浏览器/原生测试、Gallery 或产品服务。
+
+486 项清单现为 224 pending、130 in_progress、105 improved、21 retained、
+6 removed；公共 UI 仍 118 项。只将简介装配标为本批完成；布局控制器仅审查
+简介请求切片，不把整个 Room 计为完成。Goal 保持 active，仅本地提交。
+
+
+定向 3 文件 23 项与 typecheck 首轮通过（/tmp/nexus-a96-target.log、
+/tmp/nexus-a96-types.log）。最终隔离 npm run check 首轮通过 lint、typecheck、
+485 项合同、276 文件的 1277 项组件/模型测试及 build，见 /tmp/nexus-a96-check.log。
+基线 a067a88a6，10 文件快照清单 /tmp/nexus-a96-review.json；全部 486 项源哈希
+一致。无新增测试警告，保留既有 workgraph-metadata-editor-dialog effect-ref
+lint 警告与大分块提示。完整门禁后仅追加本段证据，提交前核对工作树、暂存内容
+与受测快照字节；没有推送。
+
+
+提交前主分支新增独立后端修复 14a4a6607（隐藏 Goal continuation 历史边界），
+相对受测基线的 web 代码、配置及门禁输入完全未变；保留该提交与其 CHANGELOG
+条目。提交父级更新为 14a4a6607，受测前端仍为上述精确快照，不重复运行无变化
+的门禁；manifest 同时记录 tested_base 和新的提交 base。
