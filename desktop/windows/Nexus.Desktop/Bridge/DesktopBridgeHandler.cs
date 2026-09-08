@@ -63,6 +63,11 @@ internal sealed class DesktopBridgeHandler
                     build_number = runtime.BuildNumber,
                     platform = runtime.Platform,
                 },
+                "app.get_system_fonts" => new
+                {
+                    families = System.Windows.Media.Fonts.SystemFontFamilies
+                        .Select(font => font.Source).Distinct().OrderBy(name => name).ToArray(),
+                },
                 "app.get_state_root" => SafeStateRootStatus(),
                 "app.choose_state_root" => ChooseStateRoot(payload),
                 "app.relocate_state_root" => RelocateStateRoot(payload),

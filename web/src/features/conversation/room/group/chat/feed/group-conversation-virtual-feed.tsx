@@ -3,7 +3,8 @@
  * OUTPUT: 使用稳定身份、可拉取的未加载占位、真实内容高度和 pending slot 估高的群聊虚拟消息流。
  * POS: Room 会话超过虚拟化阈值后的 Feed 渲染入口。
  */
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
+import { useChatTypography } from "@/shared/theme/chat-typography";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { ConversationFeedTail } from "@/features/conversation/shared/feed/conversation-feed-tail";
@@ -41,6 +42,7 @@ export function GroupConversationVirtualFeed({
   renderer,
   source,
 }: GroupConversationVirtualFeedProps) {
+  const typography = useChatTypography((state) => state.typography);
   const metrics = useConversationVirtualMetrics(
     refs.scrollRef,
     refs.feedRef,
@@ -88,6 +90,11 @@ export function GroupConversationVirtualFeed({
     overscan: 5,
     scrollPaddingStart: metrics.scrollPaddingStart,
   });
+  useEffect(() => {
+    // 排版变量提交后清除未挂载行的旧高度，已挂载行继续由 ResizeObserver 测量。
+    const frame = requestAnimationFrame(() => virtualizer.measure());
+    return () => cancelAnimationFrame(frame);
+  }, [typography, virtualizer]);
   virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (
     item,
     delta,

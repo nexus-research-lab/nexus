@@ -59,7 +59,7 @@ export function normalizeMarkdownContent(
   onOpenWorkspaceFile?: (path: string) => void,
   options: NormalizeMarkdownContentOptions = {},
 ): string {
-  const escapedContent = escapeIdentifierAsterisksBeforeBrackets(content);
+  const escapedContent = escapeIdentifierAsterisksBeforeBrackets(normalizeMathDelimiters(content));
   const normalizedContent = stabilizeStreamingMarkdownUrlTail(
     escapedContent,
     Boolean(options.is_streaming),
@@ -137,6 +137,7 @@ function isInsideInlineCode(content: string, offset: number): boolean {
 
 function isInsideMarkdownProtectedRegion(content: string, offset: number): boolean {
   return (
+    isInsideMath(content, offset) ||
     isInsideInlineCode(content, offset) ||
     findOpenMarkdownFenceLanguage(content.slice(0, offset)) !== null
   );
@@ -162,4 +163,42 @@ function isInsideMarkdownLinkDestination(
   const closeParenIndex = after.indexOf(")");
   const newlineIndex = after.search(/\r?\n/);
   return closeParenIndex >= 0 && (newlineIndex < 0 || closeParenIndex < newlineIndex);
+}
+
+function normalizeMathDelimiters(content: string): string {
+  let fence: ReturnType<typeof readMarkdownFenceMarker> = null;
+  let text = "";
+  let result = "";
+  for (const line of content.match(/[^\n]*(?:\n|$)/g) ?? []) {
+    const marker = readMarkdownFenceMarker(line);
+    if (fence) {
+      result += line;
+      if (marker?.marker === fence.marker && marker.length >= fence.length) fence = null;
+    } else if (marker) {
+      result += normalizeMathText(text) + line;
+      text = "";
+      fence = marker;
+    } else {
+      text += line;
+    }
+  }
+  return result + normalizeMathText(text);
+}
+
+function normalizeMathText(content: string): string {
+  // 先匹配字面区域，避免把代码示例、链接或已有公式二次解释成公式。
+  return content.replace(
+    /^ {4}[^\n]*(?:\n|$)|(`+)[\s\S]*?\1(?!`)|!?\[[^\]\n]*\]\([^\n]*?\)|<[^>\n]*>|https?:\/\/\S+|(\${1,2})[^$]*?\2|\\\\|\\\(([\s\S]*?)\\\)|\\\[([\s\S]*?)(\\\]|$)/gm,
+    (match, _code, _dollars, inline, display, closing) => {
+      if (inline !== undefined) return `$${inline}$`;
+      if (display !== undefined) return `\n$$\n${display}${closing ? "\n$$\n" : ""}`;
+      return match;
+    },
+  );
+}
+
+function isInsideMath(content: string, offset: number): boolean {
+  return Array.from(content.matchAll(/(?<!\\)(\${1,2})([\s\S]*?)(?:\1|$)/g)).some(
+    (match) => offset >= match.index && offset < match.index + match[0].length,
+  );
 }

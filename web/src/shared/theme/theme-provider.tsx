@@ -19,9 +19,16 @@ import {
   ThemeContextValue,
   THEME_STORAGE_KEY,
 } from "./theme-context";
+import { applyChatTypography, syncChatTypography, useChatTypography } from "./chat-typography";
 import { ThemeOverlay } from "./theme-overlay";
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
+  const typography = useChatTypography((state) => state.typography);
+  useEffect(() => { applyChatTypography(typography); }, [typography]);
+  useEffect(() => {
+    window.addEventListener("storage", syncChatTypography);
+    return () => window.removeEventListener("storage", syncChatTypography);
+  }, []);
   const [theme, setTheme] = useState<Theme>(detectInitialTheme);
 
   useEffect(() => {

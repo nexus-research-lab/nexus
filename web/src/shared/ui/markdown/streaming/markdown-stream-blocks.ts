@@ -61,6 +61,7 @@ function splitMarkdownRawBlocks(content: string): MarkdownRawBlock[] {
   let blockStartOffset = 0;
   let cursorOffset = 0;
   let openFence: { marker: "`" | "~"; length: number } | null = null;
+  let openMath = false;
 
   const flushBuffer = () => {
     if (buffer.length === 0) {
@@ -93,6 +94,13 @@ function splitMarkdownRawBlocks(content: string): MarkdownRawBlock[] {
       }
       continue;
     }
+
+    if (/^ {0,3}\${2,}\s*$/.test(line)) {
+      openMath = !openMath;
+      if (!openMath) flushBuffer();
+      continue;
+    }
+    if (openMath) continue;
 
     if (fenceMarker) {
       openFence = fenceMarker;

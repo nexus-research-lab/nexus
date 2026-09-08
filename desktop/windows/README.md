@@ -103,3 +103,5 @@ pwsh desktop/windows/.build/app/Nexus/register-nexus-protocol.ps1
 - 启动、更新和桌面桥接失败统一说明“发生了什么、已有数据是否受影响、接下来能做什么”；底层异常、诊断路径和进程输出只进入 Trace 或诊断报告，不直接显示给用户。更新检查与下载/校验失败按实际阶段分别说明，后者在安装器启动前不会替换当前版本。
 - 应用启动后会检测一次 GitHub Release 中的 Windows metadata，并每 4 小时在后台复查；仅桌面侧栏会在宿主确认有新版本时显示更新入口，点击后通过桌面桥直接下载 `NexusSetup-*.exe` 与对应 `.sha256` 到 `~/.nexus/app/cache/updates`，校验通过后提示是否退出 Nexus 并启动安装器。新版本首次启动成功后会清理旧的更新缓存目录；用户选择“稍后”时，当前版本的已下载包会保留。可设置 `NEXUS_DESKTOP_DISABLE_UPDATE_CHECK=1` 禁用检测。
 - GitHub `Publish Release` workflow 会在 `windows-latest` 上构建、烟测并上传 Windows installer exe、sha256 与 metadata；未配置 Windows 签名证书时产物会明确标记为 unsigned。托盘在后续阶段补齐。
+
+外观设置通过 `app.get_system_fonts` 读取 WPF Fonts.SystemFontFamilies 的本机字体家族目录。

@@ -1,5 +1,6 @@
 type DesktopBridgeKind =
   | "app.get_app_version"
+  | "app.get_system_fonts"
   | "app.get_state_root"
   | "app.choose_state_root"
   | "app.relocate_state_root"
@@ -222,4 +223,8 @@ async function invokeDesktopBridge<TPayload, TResult>(
     kind,
     payload,
   });
+}
+
+export function getDesktopSystemFonts(): Promise<{ families: string[] }> {
+  return invokeDesktopBridge("app.get_system_fonts", {});
 }

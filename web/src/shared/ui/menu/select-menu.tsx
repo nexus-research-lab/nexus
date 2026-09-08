@@ -31,6 +31,7 @@ interface UiSelectMenuProps {
   leading?: ReactNode;
   menuMinWidth?: number;
   onChange: (value: string) => void;
+  onOpen?: () => void;
   options: UiSelectMenuOption[];
   placement?: UiSelectMenuPlacement;
   placeholder?: string;
@@ -78,6 +79,7 @@ function UiSelectMenuController({
   leading,
   menuMinWidth,
   onChange,
+  onOpen,
   options,
   placement,
   placeholder,
@@ -144,8 +146,9 @@ function UiSelectMenuController({
   }, [disabled, onChange, options, value]);
 
   const onTriggerKeyDown = useCallback((event: KeyboardEvent<HTMLButtonElement>) => {
+    if (!disabled && !isOpen && ["Enter", " ", "ArrowDown", "ArrowUp"].includes(event.key)) onOpen?.();
     handleOverlayTriggerKeyDown(event, moveSelection);
-  }, [handleOverlayTriggerKeyDown, moveSelection]);
+  }, [disabled, isOpen, onOpen, handleOverlayTriggerKeyDown, moveSelection]);
 
   return (
     <SelectMenuView
@@ -163,7 +166,10 @@ function UiSelectMenuController({
       menuRef={menuRef}
       menuStyle={menuStyle}
       onSelect={changeValue}
-      onTriggerClick={toggleMenu}
+      onTriggerClick={() => {
+        if (!disabled && !isOpen) onOpen?.();
+        toggleMenu();
+      }}
       onTriggerKeyDown={onTriggerKeyDown}
       options={options}
       portalContainer={portalContainer}

@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added local system-font selection, font size, and line spacing preferences with live preview, row-based appearance controls, and one-click theme and typography reset.
+
 ### Fixed
+
+- Fixed LaTeX parenthesis/bracket delimiters and formulas containing blank lines in streamed replies.
 
 - Fixed Room scheduled tasks remaining running after their round completed, and
   restored owner-scoped transcript permission repair for Room history, page
