@@ -1,29 +1,29 @@
 /**
  * INPUT: 定时任务初值、创建/更新回调与当前 Agent 作用域。
- * OUTPUT: 自动关联标题的 plain 双栏表单、显式提交 busy 与原有提交事务。
- * POS: 定时任务创建/编辑模态边界，不在标题区复述表单结构。
+ * OUTPUT: 页内右侧编辑表单、显式提交 busy 与原有提交事务。
+ * POS: 定时任务创建/编辑工作面，不在标题区复述表单结构。
  */
 "use client";
 
+import { useEffect } from "react";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { ResourceFailure } from "@/lib/error-message";
 import { UiButton } from "@/shared/ui/button/button";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
 import {
-  UiDialogBackdrop,
   UiDialogBody,
+  UiDialogCloseButton,
   UiDialogFooter,
-  UiDialogFormShell,
   UiDialogHeader,
-  UiDialogPortal,
 } from "@/shared/ui/dialog/dialog";
 import type {
   ScheduledTaskCreateRequestStatus,
   ScheduledTaskItem,
 } from "@/types/capability/scheduled-task/task";
 
+import { buildTaskConfirmationSummary } from "./form/task-basics-model";
 import { TaskBasicsPanel } from "./form/task-basics-panel";
-import { TaskSchedulePanel } from "./schedule/task-schedule-panel";
+import { TaskSchedulePanel, TaskScheduleAdvanced } from "./schedule/task-schedule-panel";
 import type { TaskDialogCreatePreset } from "./scheduled-task-dialog-types";
 import { useTaskDialogController } from "./use-task-dialog-controller";
 
@@ -32,6 +32,7 @@ interface ScheduledTaskDialogProps {
   createPreset?: TaskDialogCreatePreset | null;
   initialTask?: ScheduledTaskItem | null;
   isOpen: boolean;
+  onBusyChange?: (busy: boolean) => void;
   onAccessFailure?: (failure: ResourceFailure) => void;
   onClose: () => void;
   onCreated?: (task: ScheduledTaskItem) => void | Promise<void>;
@@ -48,6 +49,7 @@ export function ScheduledTaskDialog({
   createPreset = null,
   initialTask = null,
   isOpen,
+  onBusyChange,
   onAccessFailure,
   onClose,
   onCreated,
@@ -75,6 +77,16 @@ export function ScheduledTaskDialog({
     scopeKey,
   });
 
+  useEffect(() => {
+    onBusyChange?.(isOpen && controller.isCloseBlocked);
+    return () => onBusyChange?.(false);
+  }, [isOpen, controller.isCloseBlocked, onBusyChange]);
+
+  const nameRef = controller.refs.nameRef;
+  useEffect(() => {
+    if (isOpen) nameRef.current?.focus();
+  }, [isOpen, nameRef]);
+
   if (!isOpen) {
     return null;
   }
@@ -90,39 +102,26 @@ export function ScheduledTaskDialog({
     : t("capability.scheduled_dialog_creating");
 
   return (
-    <UiDialogPortal>
-      <UiDialogBackdrop
-        closeOnBackdrop={canClose}
-        initialFocusRef={controller.refs.nameRef}
-        inset="compact"
-        layer="dialog"
-        onClose={canClose ? onClose : () => undefined}
-        onPointerDown={(event) => event.stopPropagation()}
-        onPointerMove={(event) => event.stopPropagation()}
-        onPointerUp={(event) => event.stopPropagation()}
-      >
-        <UiDialogFormShell
-          onSubmit={(event) => {
-            event.preventDefault();
-            void controller.handleSubmit();
-          }}
-          size="wide"
-          viewport="adaptive"
-        >
-          <UiDialogHeader
+    <form
+      aria-label={initialTask ? t("capability.scheduled_dialog_edit_title") : t("capability.scheduled_dialog_new_title")}
+      className="flex h-full min-h-0 min-w-0 flex-col"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void controller.handleSubmit();
+      }}
+    >
+          {isLegacyScriptTask ? <UiDialogHeader
             appearance="plain"
             onClose={canClose ? onClose : undefined}
-            title={initialTask
-              ? t("capability.scheduled_dialog_edit_title")
-              : t("capability.scheduled_dialog_new_title")}
-          />
+            title={t("capability.scheduled_dialog_edit_title")}
+          /> : null}
 
           <UiDialogBody
-            className="grid grid-cols-1 gap-6 md:grid-cols-2 md:items-start"
+            className="flex flex-col gap-6"
             scrollable
           >
             {isLegacyScriptTask ? (
-              <div className="md:col-span-2">
+              <div className="min-w-0">
                 <UiStateBlock
                   description={t("capability.scheduled_dialog_legacy_script_description")}
                   size="sm"
@@ -136,29 +135,36 @@ export function ScheduledTaskDialog({
                 form={controller.form.draft}
                 isEditing={initialTask !== null}
                 needsSessionRebind={controller.needsSessionRebind}
+                expandAdvanced={Boolean(controller.formError)}
                 nameRef={controller.refs.nameRef}
-              />
+                titleAction={<UiDialogCloseButton disabled={!canClose} onClose={onClose} />}
+                advancedFields={<TaskScheduleAdvanced actions={controller.schedule.actions} form={controller.form.draft} formActions={controller.form.actions} schedule={controller.schedule.draft} />}
+              >
+                <TaskSchedulePanel
+                  actions={controller.schedule.actions}
+                  formError={controller.formError}
+                  form={controller.form.draft}
+                  formActions={controller.form.actions}
+                  isReconciling={controller.isReconciling}
+                  isRestoredCreateIntent={controller.isRestoredCreateIntent}
+                  isMutationReviewed={controller.isMutationReviewed}
+                  mutationFailure={controller.mutationFailure}
+                  onConfirmMutationReviewed={controller.confirmReviewedMutation}
+                  onReconcile={() => void controller.reconcileMutation()}
+                  onStartNewCreateIntent={controller.startNewCreateIntent}
+                  refs={controller.refs}
+                  schedule={controller.schedule.draft}
+                  view={controller.schedule.view}
+                />
+              </TaskBasicsPanel>
             )}
-            {!isLegacyScriptTask ? (
-              <TaskSchedulePanel
-                actions={controller.schedule.actions}
-                formError={controller.formError}
-                form={controller.form.draft}
-                formActions={controller.form.actions}
-                isReconciling={controller.isReconciling}
-                isRestoredCreateIntent={controller.isRestoredCreateIntent}
-                isMutationReviewed={controller.isMutationReviewed}
-                mutationFailure={controller.mutationFailure}
-                onConfirmMutationReviewed={controller.confirmReviewedMutation}
-                onReconcile={() => void controller.reconcileMutation()}
-                onStartNewCreateIntent={controller.startNewCreateIntent}
-                refs={controller.refs}
-                schedule={controller.schedule.draft}
-                view={controller.schedule.view}
-              />
-            ) : null}
           </UiDialogBody>
 
+          {!isLegacyScriptTask ? (
+            <p aria-live="polite" className="shrink-0 px-6 pt-3 text-sm leading-relaxed text-(--text-secondary) break-words">
+              {buildTaskConfirmationSummary(controller.form.draft, controller.schedule.draft, controller.data, t)}
+            </p>
+          ) : null}
           <UiDialogFooter appearance="plain">
             <UiButton
               className="min-w-[104px]"
@@ -182,8 +188,6 @@ export function ScheduledTaskDialog({
               </UiButton>
             ) : null}
           </UiDialogFooter>
-        </UiDialogFormShell>
-      </UiDialogBackdrop>
-    </UiDialogPortal>
+    </form>
   );
 }

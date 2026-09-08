@@ -54,6 +54,16 @@ export function ScheduledTasksDirectory() {
   const { status: authStatus } = useAuth();
   const navigate = useNavigate();
   const [dialog, setDialog] = useState<TaskDialogState>({ kind: "closed" });
+  const [editorBusy, setEditorBusy] = useState(false);
+  const [nextEditor, setNextEditor] = useState<TaskDialogState | null>(null);
+  const openEditor = (next: TaskDialogState) => {
+    if (editorBusy) return;
+    if (dialog.kind !== "closed") {
+      setNextEditor(next);
+      return;
+    }
+    setDialog(next);
+  };
   const [historyTask, setHistoryTask] = useState<ScheduledTaskItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ScheduledTaskItem | null>(null);
   const [deletionStoppedTarget, setDeletionStoppedTarget] = useState<
@@ -129,7 +139,7 @@ export function ScheduledTasksDirectory() {
         ? {
             action: {
               label: t("capability.scheduled_create_pending_review_action"),
-              onClick: () => setDialog({ kind: "create", preset: null }),
+              onClick: () => openEditor({ kind: "create", preset: null }),
             },
             impact: t("capability.scheduled_create_pending_impact"),
             title: t("capability.scheduled_create_pending_title"),
@@ -187,6 +197,7 @@ export function ScheduledTasksDirectory() {
     ));
     setCreateRequestResolution(null);
     setDialog({ kind: "closed" });
+    setNextEditor(null);
     setHistoryTask(null);
     setDeleteTarget(null);
     setDeletionStoppedTarget(null);
@@ -207,6 +218,7 @@ export function ScheduledTasksDirectory() {
       return;
     }
     setDialog({ kind: "closed" });
+    setNextEditor(null);
     setHistoryTask(null);
     setDeleteTarget(null);
     setDeletionStoppedTarget(null);
@@ -274,6 +286,7 @@ export function ScheduledTasksDirectory() {
       || (!current && resource.hasSnapshot)
     ) {
       setDialog({ kind: "closed" });
+      setNextEditor(null);
     }
   }, [editingJobId, resource.hasSnapshot, resource.items]);
 
@@ -434,12 +447,12 @@ export function ScheduledTasksDirectory() {
                 {t("capability.refresh")}
               </UiButton>
               <UiButton
-                disabled={scopeUnavailable
+                disabled={editorBusy || scopeUnavailable
                   || accessBlocked
                   || (resource.isLoading && !resource.hasSnapshot)}
                 onClick={() => {
                   if (!scopeUnavailable && !accessBlockedRef.current) {
-                    setDialog({ kind: "create", preset: null });
+                    openEditor({ kind: "create", preset: null });
                   }
                 }}
                 size="2xs"
@@ -455,6 +468,8 @@ export function ScheduledTasksDirectory() {
           className="flex h-full min-h-0 flex-col"
           title={t("capability.scheduled_intro_title")}
         >
+          <div className="flex min-h-0 flex-1 overflow-hidden">
+          <div className={dialog.kind === "closed" ? "flex min-h-0 min-w-0 flex-1 overflow-hidden" : "hidden min-h-0 min-w-0 flex-1 overflow-hidden lg:flex"}>
           <ScheduledTaskBoard
             failure={resource.failure}
             hasSnapshot={resource.hasSnapshot}
@@ -463,19 +478,19 @@ export function ScheduledTasksDirectory() {
             items={resource.items}
             onCreate={() => {
               if (!scopeUnavailable && !accessBlockedRef.current) {
-                setDialog({ kind: "create", preset: null });
+                openEditor({ kind: "create", preset: null });
               }
             }}
             onCreateFromPreset={(preset) => {
               if (!scopeUnavailable && !accessBlockedRef.current) {
-                setDialog({ kind: "create", preset });
+                openEditor({ kind: "create", preset });
               }
             }}
             onConfirmDeletionStopped={requestDeletionStoppedConfirmation}
             onDelete={deleteTask}
             onEdit={(task) => {
               if (taskAcceptsMutations(task)) {
-                setDialog({ kind: "edit", task });
+                openEditor({ kind: "edit", task });
               }
             }}
             onOpenHistory={(task) => {
@@ -493,10 +508,11 @@ export function ScheduledTasksDirectory() {
             permissionFailure={resource.permissionFailure}
             unconfirmed={commands.unconfirmed}
           />
-        </CapabilityPageLayout>
-      </WorkspaceSurfaceScaffold>
-
+          </div>
+          <aside aria-label={t("capability.scheduled_editor")}
+            className={dialog.kind === "closed" ? "hidden" : "relative min-h-0 w-full shrink-0 bg-(--background) border-l border-(--divider-subtle-color) lg:ml-4 lg:w-[55%] lg:min-w-[420px] lg:max-w-[760px]"}>
       <ScheduledTaskDialog
+        onBusyChange={setEditorBusy}
         agentId={resource.agentId}
         createPreset={createPreset}
         initialTask={editingTask}
@@ -513,6 +529,22 @@ export function ScheduledTasksDirectory() {
         onReconcile={commands.reconcile}
         onSaved={commands.acceptSavedTask}
         scopeKey={ownerScopeKey}
+      />
+          </aside>
+          </div>
+        </CapabilityPageLayout>
+      </WorkspaceSurfaceScaffold>
+
+      <ConfirmDialog
+        isOpen={nextEditor !== null && !editorBusy && !scopeUnavailable && !accessBlocked}
+        title={t("capability.scheduled_discard_title")}
+        message={t("capability.scheduled_discard_message")}
+        confirmText={t("capability.scheduled_continue")}
+        onCancel={() => setNextEditor(null)}
+        onConfirm={() => {
+          if (nextEditor && !editorBusy) setDialog(nextEditor);
+          setNextEditor(null);
+        }}
       />
       <ScheduledTaskRunHistoryDialog
         isOpen={!scopeUnavailable && !accessBlocked && visibleHistoryTask !== null}

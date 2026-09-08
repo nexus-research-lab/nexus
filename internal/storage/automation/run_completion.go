@@ -259,6 +259,7 @@ FROM automation_task_runs
 WHERE owner_user_id = %s
   AND job_id = %s
   AND status IN (%s, %s, %s)
+  AND finished_at IS NULL
 ORDER BY started_at DESC, run_id DESC
 LIMIT 1`, r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5)),
 		ownerUserID,

@@ -1,6 +1,6 @@
 // INPUT: Scheduled 计划表单、提交/对账状态与 mutation failure 投影。
 // OUTPUT: 实例级计划字段、具名选择/间隔输入、共享说明及保持原样的失败恢复面。
-// POS: Scheduled 创建/编辑右侧表单；不发请求或自行判断 mutation 结果。
+// POS: Scheduled 创建/编辑内容与时间表单；不发请求或自行判断 mutation 结果。
 
 "use client";
 
@@ -11,7 +11,6 @@ import { UiCheckboxRow } from "@/shared/ui/form/checkbox-row";
 import { UiChoiceButton } from "@/shared/ui/form/choice";
 import { UiField, UiInput, UiTextarea } from "@/shared/ui/form/form-control";
 import { UiPanel } from "@/shared/ui/panel";
-import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 
@@ -158,14 +157,26 @@ export function TaskSchedulePanel({
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      <UiSegmentedControl
-        onChange={actions.setKind}
-        options={buildScheduleOptions(t).map((option) => ({ label: option.label, value: option.key }))}
-        showLabel
-        stretch
-        title={t("capability.scheduled_dialog_schedule")}
-        value={schedule.kind}
-      />
+      <UiField htmlFor={`${formId}-instruction`}>
+        <UiTextarea
+          aria-label={instructionLabel}
+          className="resize-none"
+          id={`${formId}-instruction`}
+          onChange={(event) => formActions.setInstruction(event.target.value)}
+          placeholder={t("capability.scheduled_dialog_instruction_placeholder")}
+          required
+          rows={3}
+          value={form.instruction}
+        />
+      </UiField>
+
+
+      <UiField className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-4 border-b border-(--divider-subtle-color) pb-2" htmlFor={`${formId}-kind`} label={t("capability.scheduled_dialog_schedule")}>
+        <UiSelectMenu id={`${formId}-kind`} ariaLabel={t("capability.scheduled_dialog_schedule")}
+          onChange={(value) => actions.setKind(value as ScheduleKind)}
+          options={buildScheduleOptions(t).map((option) => ({label: option.label, value: option.key}))}
+          className="[&>button]:border-0 [&>button]:bg-transparent [&>button]:text-right [&>button]:shadow-none" value={schedule.kind} />
+      </UiField>
 
       {schedule.kind === "at" ? (
         <SingleRunPicker
@@ -273,9 +284,9 @@ export function TaskSchedulePanel({
       ) : null}
 
       {schedule.kind === "every" ? (
-        <UiPanel padding="md" variant="card">
-          <div className="grid grid-cols-2 items-end gap-3">
-            <UiField htmlFor={`${formId}-every-value`} label={t("capability.scheduled_dialog_every")}>
+        <UiPanel padding="sm" variant="card">
+          <div className="grid grid-cols-2 items-center gap-3">
+            <UiField className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2" htmlFor={`${formId}-every-value`} label={t("capability.scheduled_dialog_every")}>
               <UiInput
                 id={`${formId}-every-value`}
                 max="999"
@@ -286,7 +297,7 @@ export function TaskSchedulePanel({
                 value={schedule.everyValue}
               />
             </UiField>
-            <UiField htmlFor={`${formId}-every-unit`} label={t("capability.scheduled_dialog_select_interval_unit")}>
+            <UiField htmlFor={`${formId}-every-unit`}>
               <UiSelectMenu
                 ariaLabel={t("capability.scheduled_dialog_select_interval_unit")}
                 id={`${formId}-every-unit`}
@@ -299,38 +310,6 @@ export function TaskSchedulePanel({
           </div>
         </UiPanel>
       ) : null}
-
-      <UiField htmlFor={`${formId}-timezone`} label={t("capability.scheduled_dialog_timezone")}>
-        <UiSelectMenu
-          ariaLabel={t("capability.scheduled_dialog_select_timezone")}
-          id={`${formId}-timezone`}
-          onChange={actions.setTimezone}
-          options={TIMEZONE_OPTIONS.map((timezone) => ({
-            label: timezone,
-            value: timezone,
-          }))}
-          surface="dialog"
-          value={schedule.timezone}
-        />
-      </UiField>
-
-      <UiField htmlFor={`${formId}-instruction`} label={instructionLabel} required>
-        <UiTextarea
-          className="resize-none"
-          id={`${formId}-instruction`}
-          onChange={(event) => formActions.setInstruction(event.target.value)}
-          placeholder={t("capability.scheduled_dialog_instruction_placeholder")}
-          required
-          rows={4}
-          value={form.instruction}
-        />
-      </UiField>
-
-      <UiCheckboxRow
-        checked={form.enabled}
-        label={t("capability.scheduled_dialog_enabled")}
-        onChange={formActions.setEnabled}
-      />
 
       {mutationFailure ? (
         <UiResourceState
@@ -380,4 +359,34 @@ export function TaskSchedulePanel({
       ) : null}
     </div>
   );
+}
+
+// 次要设置放在表单底部，与主计划字段共用同一草稿。
+export function TaskScheduleAdvanced({ actions, form, formActions, schedule }: Pick<TaskSchedulePanelProps, "actions" | "form" | "formActions" | "schedule">) {
+  const { t } = useI18n();
+  const formId = useId();
+  return <>
+      <UiField htmlFor={`${formId}-timezone`} label={t("capability.scheduled_dialog_timezone")}>
+        <UiSelectMenu
+          ariaLabel={t("capability.scheduled_dialog_select_timezone")}
+          id={`${formId}-timezone`}
+          onChange={actions.setTimezone}
+          options={TIMEZONE_OPTIONS.map((timezone) => ({
+            label: timezone,
+            value: timezone,
+          }))}
+          surface="dialog"
+          value={schedule.timezone}
+        />
+      </UiField>
+
+
+
+      <UiCheckboxRow
+        checked={form.enabled}
+        label={t("capability.scheduled_dialog_enabled")}
+        onChange={formActions.setEnabled}
+      />
+
+  </>;
 }

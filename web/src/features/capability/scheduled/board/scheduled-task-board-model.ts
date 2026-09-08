@@ -327,7 +327,7 @@ function getTimingSummary(
 ): string {
   if (columnId === "running") {
     return `开始于 ${formatScheduledDatetime(task.running_started_at, {
-      emptyLabel: "刚刚",
+      emptyLabel: "时间未记录",
       includeSeconds: true,
     })}`;
   }
