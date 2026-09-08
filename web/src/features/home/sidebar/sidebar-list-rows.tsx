@@ -47,7 +47,7 @@ function ConversationRowLeading({
   isActive: boolean;
   item: SidebarConversationItem;
 }) {
-  if (item.kind === "room") {
+  if (item.kind !== "dm") {
     return (
       <UiRoomAvatar
         avatar={item.avatar}

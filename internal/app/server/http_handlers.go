@@ -1,5 +1,5 @@
 // INPUT: AppServices 与共享 HTTP API adapter。
-// OUTPUT: 含 Execution 历史和命名工作图目录管理的完整 handlerSet。
+// OUTPUT: 含可选 Team gateway、Execution 历史和命名工作图目录管理的完整 handlerSet。
 // POS: 领域 service 到 HTTP handler 的唯一装配入口。
 package server
 
@@ -25,8 +25,10 @@ import (
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	skillhandler "github.com/nexus-research-lab/nexus/internal/handler/skill"
 	subscriptionhandler "github.com/nexus-research-lab/nexus/internal/handler/subscription"
+	teamhandler "github.com/nexus-research-lab/nexus/internal/handler/team"
 	handlerwebsocket "github.com/nexus-research-lab/nexus/internal/handler/websocket"
 	workspacehandler "github.com/nexus-research-lab/nexus/internal/handler/workspace"
+	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 )
 
 type handlerSet struct {
@@ -48,6 +50,7 @@ type handlerSet struct {
 	loop         *loophandler.Handlers
 	workspace    *workspacehandler.Handlers
 	project      *projectpermissionhandler.Handlers
+	team         *teamhandler.Handlers
 	websocket    *handlerwebsocket.Handler
 	browser      *browserhandler.Handler
 }
@@ -113,7 +116,19 @@ func newHandlerSet(
 		loop:         loophandler.New(api, services.Loops),
 		workspace:    workspacehandler.New(api, services.Workspace),
 		project:      projectpermissionhandler.New(api, services.ProjectPermission),
+		team:         newTeamHandler(api, services),
 		websocket:    websocketHandler,
 		browser:      browserhandler.New(api, services.Browser),
 	}
+}
+
+func newTeamHandler(api *handlershared.API, services *AppServices) *teamhandler.Handlers {
+	if services == nil || services.Relay == nil {
+		return nil
+	}
+	control, ok := services.Auth.(*authsvc.ControlAuthority)
+	if !ok {
+		return nil
+	}
+	return teamhandler.New(api, control, services.Relay, services.TeamRelay)
 }
