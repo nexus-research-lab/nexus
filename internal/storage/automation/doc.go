@@ -7,6 +7,7 @@
 //   - task*.go / heartbeat.go / heartbeat_wake.go：任务创建幂等、完整配置版本 CAS、durable deletion claim/finalize、scheduler 单列停用 CAS、创建 provenance/独立 delivery grant、Room 结果回复 Agent、会话绑定失效状态；heartbeat 配置与 wake acceptance 共用配置事务栅栏（首次无配置行时以稳定 Agent 行串行化），wake outbox 按 owner/request/intent 唯一，以 exact claim 收口；未领取行可恢复，过期 processing 只 fail closed、不重投。
 //   - run*.go / event.go / retry.go / runtime.go / lease.go：
 //     运行、事件、最早投递重试 deadline、运行时与调度租约/expiry 读写；执行领取以 exact owner/job/run/configuration/permission snapshot 与首条 run ledger 同事务提交，人工 request 在 owner 内唯一并可按 intent 重放 exact run；run 在开始时固化首次投递目标，重投递必须先以 owner/job/run、配置版本、attempts 和内部 token 原子领取，再按 exact token 完成。
+//     活跃运行必须尚无 finished_at；目录审计只在有结束证据且无其他活跃运行时清理残留占用，旧 runtime 快照不得复活已结束身份。
 //     execution terminal 与 exact task runtime 在同一事务提交；首次投递先保存 pending，
 //     再以内部 attempt token 唯一领取。删除态 terminal 只允许 exact 私有 deletion token
 //     的独立 suppressed CAS，强制 not_attempted/dead-letter 且不改任务摘要；人工停止

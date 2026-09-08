@@ -40,9 +40,6 @@ function validateBasics(
   { form }: TaskDialogSubmitContext,
   t: Translate,
 ): string | null {
-  if (!form.taskName.trim()) {
-    return t("capability.scheduled_dialog_validation_name");
-  }
   if (!form.instruction.trim()) {
     return t("capability.scheduled_dialog_validation_instruction");
   }
@@ -268,7 +265,7 @@ function buildSessionDelivery(
   };
 }
 
-function buildSchedule(
+export function buildSchedule(
   schedule: TaskScheduleDraft,
   t: Translate,
 ): ScheduledTaskSchedule {
@@ -370,7 +367,7 @@ export function buildScheduledTaskPayload(
     enabled: form.enabled,
     expires_at: buildExpiresAt(form, schedule, t),
     instruction: form.instruction.trim(),
-    name: form.taskName.trim(),
+    name: form.taskName.trim() || form.instruction.trim().replace(/\s+/g, " ").slice(0, 40),
     permission_mode: form.permissionMode === "copy"
       ? undefined
       : form.permissionMode,

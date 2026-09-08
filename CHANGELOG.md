@@ -9,9 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Simplify automation creation with a right-side editor alongside the unchanged board, searchable two-column execution and recipient pickers with Agent/group-chat filters, clearly labeled optional task titles with an inline close button and no empty editor header, generated task names, live confirmation summaries and concrete inherited permission labels, explicit result delivery, safe unique-session defaults, and secondary options grouped under advanced settings; retain the existing task board.
+
 - Expose “Approve for me” for Claude and preserve native auto mode through session and task configuration; confirm activation in the bridge instead of silently using manual approval.
 
 ### Fixed
+
+- Fix completed legacy queued runs being restored as active task occupancy; reconcile proven finished remnants during scheduler audits, reject stale runtime snapshots, and show unknown start times honestly.
 
 - Store each Team Conversation and Relay Message once per deployment while keeping only per-owner recovery cursors, including migration of existing duplicated projections.
 

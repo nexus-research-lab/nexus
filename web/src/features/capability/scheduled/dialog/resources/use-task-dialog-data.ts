@@ -26,8 +26,11 @@ import type {
   TaskDialogLabelOption,
   TaskDialogSessionOption,
   TaskFormDraft,
+  TaskDestinationOption,
 } from "../scheduled-task-dialog-types";
 import {
+  resolveTaskInheritedPermission,
+  buildTaskDestinations,
   buildExecutionRoomOptions,
   buildExecutionRoomAgentData,
   buildDeliveryRoomAgentData,
@@ -66,6 +69,9 @@ async function loadRoomContexts(
 }
 
 export interface TaskDialogData {
+  inheritedPermissionMode: string | null;
+  destinations: TaskDestinationOption[];
+  destinationStatus: DialogResourceStatus;
   agentOptions: TaskDialogLabelOption[];
   agents: DialogResourceStatus;
   deliveryRoomOptions: TaskDialogLabelOption[];
@@ -179,6 +185,9 @@ export function useTaskDialogData({
     ? resolveTaskDialogRoomId(allSessions.items, form.selectedReplySessionKey)
     : "";
   return {
+    inheritedPermissionMode: resolveTaskInheritedPermission(form, agents, agentSessions, roomContexts, executionRoomAgentData.defaultAgentId),
+    destinations: buildTaskDestinations(allSessions.items, agentOptions, deliveryRoomOptions, t),
+    destinationStatus: resourceStatus(allSessions),
     agentOptions,
     agents: resourceStatus(agents),
     deliveryRoomOptions,

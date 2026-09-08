@@ -5,10 +5,10 @@
 import { describe, expect, it, vi } from "vitest";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import { MESSAGES } from "@/shared/i18n/messages";
-import type { AgentSession } from "@/types/agent/agent";
+import type { Agent, AgentSession } from "@/types/agent/agent";
 import type { RoomAggregate, RoomContextAggregate } from "@/types/conversation/room";
 import type { TaskFormDraft } from "../scheduled-task-dialog-types";
-import { buildExecutionRoomOptions, buildRoomOptions, buildTaskDialogSessionData, buildTaskDialogDeliverySessionData } from "./task-dialog-resource-model";
+import { resolveTaskInheritedPermission, buildTaskDestinations, buildExecutionRoomOptions, buildRoomOptions, buildTaskDialogSessionData, buildTaskDialogDeliverySessionData } from "./task-dialog-resource-model";
 
 function resource<T>(items: T[]) { return { items, error: null, loading: false, retry: vi.fn() }; }
 
@@ -38,6 +38,17 @@ const form: TaskFormDraft = {
 
 describe.each(["zh", "en"] as const)("scheduled selection labels in %s", (locale) => {
   const t: I18nContextValue["t"] = (key, params) => Object.entries(params ?? {}).reduce((text, [name, value]) => text.replaceAll(`{${name}}`, String(value)), MESSAGES[locale][key]);
+
+  it("combines complete destinations without internal delivery sessions or duplicate Room members", () => {
+    const dm = session("dm");
+    const member = session("group", "group");
+    const internal = {...session("hidden"), options: {created_by: "automation_delivery"}};
+    const options = buildTaskDestinations([dm, internal, member, {...member, agent_id: "another"}], [{value: "agent-private", label: "Agent"}], [{value: "room-private", label: "Room"}], t);
+    expect(options).toHaveLength(2);
+    expect(options[0]).toMatchObject({agentId: "agent-private", roomId: "", targetType: "agent", sessionKey: dm.session_key});
+    expect(options[1]).toMatchObject({agentId: "", roomId: "room-private", targetType: "room"});
+    expect(options[1].sessionKey).not.toBe(member.session_key);
+  });
 
   it("shares Room labels across eligibility filters and directory reordering", () => {
     const a = room("room-private-a", " Research ", "2026-09-02");
@@ -88,4 +99,16 @@ describe.each(["zh", "en"] as const)("scheduled selection labels in %s", (locale
     const renamed = buildTaskDialogSessionData("room", { agentSessions: resource([]), roomContexts: resource(contexts) }, t).options;
     expect(renamed).toEqual(execution);
   });
+});
+
+it("previews session permissions before Agent defaults and never guesses on a failed read", () => {
+  const agents = resource([{agent_id: "agent-private", name: "Agent", workspace_path: "", created_at: 0, status: "active", options: {permission_mode: "auto"}} satisfies Agent]);
+  const dm = {...session("permission"), options: {permission_mode: "default"}};
+  const draft = {...form, selectedSessionKey: dm.session_key};
+  expect(resolveTaskInheritedPermission(draft, agents, resource([dm]), resource([]), "")).toBe("default");
+  expect(resolveTaskInheritedPermission({...draft, executionMode: "temporary"}, agents, resource([dm]), resource([]), "")).toBe("auto");
+  expect(resolveTaskInheritedPermission(draft, agents, {...resource([dm]), error: "failed"}, resource([]), "")).toBeNull();
+  const member = {id: "member", conversation_id: "group", agent_id: "agent-private", runtime_id: "runtime", version_no: 1, branch_key: "", is_primary: false, options: {permission_mode: "default"}, status: "active"};
+  const context: RoomContextAggregate = {...room("room-private", "Research", "2026-09-01"), member_agents: agents.items, conversation: {id: "group", room_id: "room-private", conversation_type: "room"}, sessions: [member, {...member, id: "primary", is_primary: true, options: {permission_mode: "bypassPermissions"}}]};
+  expect(resolveTaskInheritedPermission({...draft, targetType: "room", selectedAgentId: "", selectedSessionKey: "room:group:group"}, agents, resource([]), resource([context]), "agent-private")).toBe("bypassPermissions");
 });

@@ -361,7 +361,7 @@ function ScheduledTaskReadyBoard({
   columns: ScheduledTaskBoardColumn[];
 }) {
   return (
-    <section className="flex min-h-0 flex-1 flex-col" aria-label="定时任务看板">
+    <section className="flex min-h-0 min-w-0 flex-1 flex-col" aria-label="定时任务看板">
       <div className={cn(
         WORKSPACE_CONTENT_BLEED_CLASS_NAME,
         "soft-scrollbar min-h-0 flex-1 overflow-x-auto overflow-y-hidden",
@@ -412,7 +412,7 @@ export function ScheduledTaskBoard(props: ScheduledTaskBoardProps) {
     );
   }
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {props.isLoading || props.isPermissionLoading ? (
         <div
           className={cn(
