@@ -1,13 +1,15 @@
 // INPUT: Room 辅助页内容、共享右栏百分比与页面/布局命令。
-// OUTPUT: 保持挂载的辅助工作面及具名键盘分隔条。
+// OUTPUT: 按需首次挂载、右栏打开期间保留已访问内容的辅助工作面及具名键盘分隔条。
 // POS: 右栏内容装配；宽度限制与交互分别归布局模型、共享分隔条。
 
-import type { ReactNode } from "react";
+import { useSyncExternalStore, type ReactNode } from "react";
 
 import { ExecutionWorkGraphSurface } from "@/features/conversation/shared/execution/execution-workgraph-surface";
 import { buildExecutionAgentDirectory } from "@/features/conversation/shared/execution/execution-process-model";
 import type { ExecutionResource } from "@/features/conversation/shared/execution/use-execution-resource";
 import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
+import { captureAuthOwnerScopeGeneration, subscribeAuthOwnerScopeGeneration } from "@/shared/auth/auth-owner-generation";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { PanelResizeHandle } from "@/shared/ui/layout/panel-resize-handle";
@@ -87,6 +89,14 @@ export function RoomSurfaceAuxiliaryPanel({
   subagentTaskSource,
 }: RoomSurfaceAuxiliaryPanelProps) {
   const { t } = useI18n();
+  const ownerGeneration = useSyncExternalStore(
+    subscribeAuthOwnerScopeGeneration, captureAuthOwnerScopeGeneration, captureAuthOwnerScopeGeneration,
+  );
+  const visitScope = JSON.stringify([ownerGeneration, roomId, isDm, isDm ? currentAgent.agent_id : null]);
+  const [visitedTabs, setVisitedTabs] = useResettableState<RoomSurfaceTabKey[]>([activeSurfaceTab], visitScope);
+  if (!visitedTabs.includes(activeSurfaceTab)) {
+    setVisitedTabs([...visitedTabs, activeSurfaceTab]);
+  }
   const resize = useRoomSidePanelResize("auxiliary", sidePanelWidthPercent, onSidePanelWidthChange);
   const executionAgents = [
     ...roomMembers.filter((agent) => agent.agent_id !== currentAgent.agent_id),
@@ -152,6 +162,7 @@ export function RoomSurfaceAuxiliaryPanel({
       />
 
       <section
+        aria-label={t("room.panels")}
         id={resize.panelId}
         ref={resize.panelRef}
         className="nexus-room-surface-side-panel relative flex min-h-0 min-w-0 shrink-0 flex-col overflow-hidden"
@@ -160,7 +171,7 @@ export function RoomSurfaceAuxiliaryPanel({
           ...resize.widthStyle,
         }}
       >
-        {persistentPanels.map((panel) => (
+        {persistentPanels.filter((panel) => visitedTabs.includes(panel.key)).map((panel) => (
           <div
             key={panel.key}
             className={cn(

@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Deferred desktop auxiliary page initialization until first use while retaining
+  visited pages during panel navigation. The resizable panel now has a localized
+  accessible region name, with unchanged file commands and width preferences.
 - Aligned Room profile tabs with shared compact navigation. Profile member choices
   now discard removed members and stale Room/owner requests while preserving
   sections across same-Room session changes and ordinary catalog refreshes.
