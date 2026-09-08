@@ -1,7 +1,7 @@
 ---
 name: nexus-configuration
 title: Nexus 配置
-description: 在当前 Nexus 私聊或 Room 中读取、规划、确认并验证调用者有权管理的产品配置，包括 Agent、Room、Provider、偏好、Channel、Connector、Skill、Session、模型、工具和 MCP 设置。
+description: 在当前 Nexus 私聊或 Room 中读取、规划、确认并验证调用者有权管理的产品配置，包括管理员的用户账号、Agent、Room、Provider、偏好、Channel、Connector、Skill、Session、模型、工具和 MCP 设置。
 scope: any
 tags: [nexus, configuration, settings, agent, room]
 ---
@@ -40,9 +40,13 @@ tags: [nexus, configuration, settings, agent, room]
 
 ## 秘密与权限
 
-- 不向用户索取或在聊天、命令参数、文件、日志中写入 token、密码、私有 header、授权码或密钥。Agent 永不使用 `--secrets-stdin`；出现 secret slot 时，引导用户在 Settings 或人工终端完成。
+- 不向用户索取或在聊天、命令参数、文件、日志中写入 token、密码、私有 header、授权码或密钥。Agent 永不使用 `--secrets-stdin`；`members.create` 使用 `{"$secret":"member-password"}` 占位，apply 由宿主确认卡片收集密码；其他域出现 secret slot 时，引导用户在 Settings 或人工终端完成。
 - Connector OAuth/device 与 Channel 扫码、验证码继续使用对应专用授权流程，不把凭据塞进通用 config input。
 - permission denied 表示当前 Agent/DM/Room 没有该 operation。报告真实边界，不换 target、不伪造身份，也不传隐藏的 `--scope-user-id` / `--global-scope`。
 - `host` 只读；部署环境、启动参数和桌面状态根通过部署或原生桌面控制面修改。
 
 回复简要说明真实变更、作用域、生效时机和验证结果；不要输出脱敏前配置、capability 或完整审计载荷。
+
+## 管理用户
+
+管理员需要新增、修改或移除用户时，读取 [references/members.md](references/members.md)。不要调用旧 `nexusctl user/auth`，不要操作 Control 数据库或索取服务令牌。

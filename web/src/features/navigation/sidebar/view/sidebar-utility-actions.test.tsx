@@ -2,11 +2,12 @@
 // OUTPUT: 证明系统动作复用共享圆形 IconButton，并转发精确命令。
 // POS: 侧栏底部动作 DOM 行为测试；路由和更新桥接由各自所有者负责。
 
+import { MemoryRouter } from "react-router-dom";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { SidebarPanelToggleAction } from "./sidebar-utility-actions";
+import { SidebarFooterActions, SidebarPanelToggleAction } from "./sidebar-utility-actions";
 
 describe("SidebarPanelToggleAction", () => {
   it("uses the shared round icon action and keeps panel commands distinct", async () => {
@@ -32,4 +33,36 @@ describe("SidebarPanelToggleAction", () => {
     expect(onCollapse).toHaveBeenCalledOnce();
     expect(onExpand).not.toHaveBeenCalled();
   });
+});
+
+vi.mock("./use-sidebar-update-version", () => ({ useSidebarUpdateVersion: () => null }));
+
+it("opens account actions and only logs out after selecting the menu item", async () => {
+  const user = userEvent.setup();
+  const onLogout = vi.fn();
+  const onOpenGuide = vi.fn();
+  render(<MemoryRouter><SidebarFooterActions
+    accountName="测试用户"
+    guideOpen={false}
+    labels={{ collapse: "收起", expand: "展开", settings: "设置", logout: "退出登录", guide: "帮助" }}
+    onCollapse={vi.fn()}
+    onExpand={vi.fn()}
+    onLogout={onLogout}
+    onOpenGuide={onOpenGuide}
+    settingsActive={false}
+    showLogout
+    showPanelToggle
+    showSettings
+  /></MemoryRouter>);
+  expect(screen.queryByRole("menuitem", { name: "退出登录" })).toBeNull();
+  await user.click(screen.getByRole("button", { name: "测试用户" }));
+  expect(screen.getByRole("menuitem", { name: "设置" })).toBeTruthy();
+  expect(screen.getAllByRole("separator")).toHaveLength(1);
+  expect(screen.queryByRole("menuitem", { name: "测试用户" })).toBeNull();
+  expect(onLogout).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("menuitem", { name: "退出登录" }));
+  expect(onLogout).toHaveBeenCalledOnce();
+  expect(screen.queryByRole("menu")).toBeNull();
+  await user.click(screen.getByRole("button", { name: "帮助" }));
+  expect(onOpenGuide).toHaveBeenCalledOnce();
 });

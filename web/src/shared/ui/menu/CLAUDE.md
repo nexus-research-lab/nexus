@@ -40,3 +40,5 @@
 - `UiSelectMenu` 默认占位文案属于双语 catalog，空候选时禁用且不改变受控值；显式激活须匹配当前可用候选。单行选项保留完整原生提示，装饰图标不进入辅助名称。默认值在唯一组件入口解析，不保留透传包装层或按钮视觉 class 接口。会执行测试等命令的入口必须使用 Action Menu，不能借选择器的方向键选值副作用执行。
 
 - `UiActionMenuContent` 透传内容根 ref；Action Menu 只测量未限高内容的 scrollHeight，加实际外框 padding/border 后交回原 Overlay 求解器。内容/字体/宽度变化通过 ResizeObserver 与既有 resize/scroll 更新，关闭/卸载清理；尺寸变化不得重置首项焦点。初始未测量使用同一行 recipe 估算，后续按内容增长/缩短至既有视口与 320px 上限。只有 footer 时不画孤立分隔线，估算与 DOM 保持同构。业务复合模型标签继续拥有主次布局并保留完整名称提示。
+
+Action Menu 可传入非交互 header 作为身份说明，位于动作区上方并由共享分隔线隔开；header 纳入现有内容测高，不参与菜单键盘动作遍历。

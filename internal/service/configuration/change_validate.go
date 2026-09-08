@@ -46,6 +46,9 @@ func requireInputFields(input json.RawMessage, required []string) error {
 }
 
 func validateChangeRequest(request ChangeRequest) error {
+	if request.Domain == DomainMembers {
+		return validateMemberChange(request)
+	}
 	target := strings.TrimSpace(request.Target)
 	requireTarget := func() error {
 		if target == "" {

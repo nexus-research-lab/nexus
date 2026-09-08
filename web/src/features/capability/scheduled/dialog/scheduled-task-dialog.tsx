@@ -161,7 +161,7 @@ export function ScheduledTaskDialog({
           </UiDialogBody>
 
           {!isLegacyScriptTask ? (
-            <p aria-live="polite" className="shrink-0 px-6 pt-3 text-sm leading-relaxed text-(--text-secondary) break-words">
+            <p aria-live="polite" className="shrink-0 px-6 pt-3 text-sm leading-relaxed text-(--text-muted) break-words">
               {buildTaskConfirmationSummary(controller.form.draft, controller.schedule.draft, controller.data, t)}
             </p>
           ) : null}

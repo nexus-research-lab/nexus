@@ -50,6 +50,7 @@ export const zhNavigationMessages = {
   "sidebar.tour_capabilities_description": "技能、连接器、消息渠道和定时任务都在这里，也可以直接搜索。",
   "sidebar.tour_restart_title": "重新导览",
   "sidebar.tour_restart_description": "设置旁的指南针，随时重看任意导览。",
+  "guide_center.online_docs": "线上文档",
   "guide_center.section_basics": "基础导览",
   "guide_center.section_advanced": "进阶功能",
   "guide_center.open_feature": "前往使用",

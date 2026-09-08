@@ -22,33 +22,31 @@ export function SidebarBrandLink({
       aria-label={label}
       aria-hidden={collapsed || undefined}
       className={cn(
-        "group/brand relative isolate flex h-10 cursor-default items-center overflow-hidden transition-opacity duration-(--motion-duration-fast)",
+        "group/brand relative isolate flex h-10 min-w-0 flex-1 cursor-default items-center overflow-hidden transition-opacity duration-(--motion-duration-fast)",
         collapsed
           ? "min-w-0 flex-1 pointer-events-none opacity-0"
-          : "shrink-0",
+          : "",
       )}
       data-tour-anchor={SIDEBAR_TOUR_ANCHORS.launcher}
       tabIndex={collapsed ? -1 : undefined}
       to={AppRouteBuilders.launcher()}
     >
       <span
-        className="sidebar-brand-wordmark relative cursor-pointer whitespace-nowrap uppercase leading-none"
+        className="sidebar-brand-wordmark relative w-full cursor-pointer whitespace-nowrap uppercase leading-none"
         style={{
           fontFamily: '"Panchang", var(--font-sans)',
           fontSize: "var(--sidebar-brand-font-size, var(--text-lg))",
           fontWeight: 280,
-          letterSpacing:
-            "var(--sidebar-brand-letter-spacing, 0.98em)",
         }}
       >
         <span
           aria-hidden="true"
-          className="absolute inset-x-0 top-0 translate-y-[1.5px] text-[color:color-mix(in_srgb,var(--text-strong)_38%,transparent)] opacity-60 blur-[0.2px]"
+          className="absolute inset-x-0 top-0 flex justify-between translate-y-[1.5px] text-[color:color-mix(in_srgb,var(--text-strong)_38%,transparent)] opacity-60 blur-[0.2px]"
         >
-          {wordmark}
+          {Array.from(wordmark, (letter, index) => <span key={index}>{letter}</span>)}
         </span>
         <span
-          className="relative bg-clip-text text-transparent transition-opacity duration-(--motion-duration-fast) group-hover/brand:opacity-80"
+          className="relative flex justify-between bg-clip-text text-transparent transition-opacity duration-(--motion-duration-fast) group-hover/brand:opacity-80"
           style={{
             backgroundImage:
               "linear-gradient(180deg, color-mix(in srgb, var(--text-strong) 94%, white 6%) 4%, var(--text-default) 48%, color-mix(in srgb, var(--text-muted) 72%, var(--text-strong) 28%) 100%)",
@@ -57,7 +55,7 @@ export function SidebarBrandLink({
             WebkitBackgroundClip: "text",
           }}
         >
-          {wordmark}
+          {Array.from(wordmark, (letter, index) => <span key={index}>{letter}</span>)}
         </span>
       </span>
     </Link>

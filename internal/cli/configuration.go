@@ -156,7 +156,7 @@ func newConfigurationApplyCommand(services *cliServiceProvider) *cobra.Command {
 				if err != nil {
 					return err
 				}
-			} else if len(plan.SecretSlots) > 0 {
+			} else if len(plan.SecretSlots) > 0 && !(runtimeConfigurationBrokerConfigured() && strings.EqualFold(strings.TrimSpace(request.Domain), configurationsvc.DomainMembers)) {
 				return usageErrorf("该变更需要 secret slot；请在人工终端使用 --secrets-stdin，Agent 不得代填秘密")
 			}
 			request.RequestID = strings.TrimSpace(requestID)
@@ -500,7 +500,14 @@ func (c *runtimeConfigurationController) call(
 	}
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set(protocol.NexusConfigCapabilityHeader, c.token)
-	response, err := c.client.Do(request)
+	client := c.client
+	if command.Action == "apply" && strings.EqualFold(strings.TrimSpace(command.Change.Domain), configurationsvc.DomainMembers) {
+		// 等待人工卡片时不受普通 broker 请求的两分钟限制，仍服从调用方取消。
+		copyClient := *client
+		copyClient.Timeout = 0
+		client = &copyClient
+	}
+	response, err := client.Do(request)
 	if err != nil {
 		return fmt.Errorf("调用 nexuscfg broker: %w", err)
 	}

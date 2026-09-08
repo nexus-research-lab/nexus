@@ -17,3 +17,9 @@ L2 | 父级: web/src/features
 - 设置页主内容加载使用共享 Spinner 的 `lg`，按钮、选择器与局部命令使用 `xs/sm/md`；各分区不得自行拼接旋转、颜色或 reduced-motion class。
 
 设置域内部可以组合兄弟分区；不得再建立独立顶层 Operations Feature 反向依赖设置域。
+
+设置侧栏搜索复用 UiSearchInput 和公共字段匹配器，按本地化入口/分组名称及具体设置项名称、说明筛选；保留权限过滤，空分组隐藏，图标 rail 不受搜索草稿影响。`settings-sidebar-navigation.test.tsx` 覆盖筛选、清空和入口选择。
+
+`settings-search-items.ts` 登记各设置模块可搜索的现有文案键，搜索结果在模块下方列出匹配内容；点击通过 target 文案键进入所属模块并定位设置项，始终沿用平台与管理员入口过滤，不索引用户资料值或 API 密钥。
+
+`use-settings-search-target.ts` 在内容容器内定位搜索目标，等待异步加载并在再次点击相同结果时重新滚动；只处理当前模块登记的文案键，不触发字段操作。对应测试验证真实路由和延迟内容定位。

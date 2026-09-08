@@ -10,4 +10,5 @@
 //   - runtime_admission.go：Control 状态核对与 Agent runtime admission 的安全边界。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
+//   - control_members.go：宿主绑定真人 Session 的 Control 成员管理适配，运行时不持有服务凭据。
 package auth

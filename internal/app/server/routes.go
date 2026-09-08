@@ -13,7 +13,7 @@ import (
 func (s *Server) mountRoutes() {
 	s.router.Post(
 		s.prefixPath("/internal/runtime/configuration"),
-		serverruntime.NewConfigurationHandler(s.services.Configuration),
+		serverruntime.NewConfigurationHandler(s.services.Configuration, s.services.Permission),
 	)
 	if s.handlers.browser != nil {
 		s.router.Get(
