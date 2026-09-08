@@ -20,3 +20,5 @@
 权限选择统一为 default/auto/bypassPermissions；auto 是 SDK 动态审核，历史 acceptEdits 只读保留，不把旧值伪装成已启用审核。
 
 权限选项通过 getAgentPermissionChoices 按运行时过滤；Claude 下 auto 仅以 default 投影与执行，保存值不被静默改写。
+
+`desktop-bridge` 的 `app.set_attention` 聚合各会话待确认状态；原生宿主根据窗口前后台状态控制 Dock/任务栏提醒，不改变窗口焦点。
