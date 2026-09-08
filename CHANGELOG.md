@@ -874,6 +874,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed hidden Goal continuations attaching their report to an earlier question
+  after history reload, hiding that question's answer and duplicating the report.
+  Empty runtime inputs now preserve their Goal round, and cached history is rebuilt.
+
 - Unified WorkGraph command editing and saving around the current Draft and its active command; stale selections are rejected, lost responses can be checked without resubmitting, and historical commands from the same source retain independent drafts. Deleting a command preserves its editable draft.
 
 - Keep saved WorkGraph forms editable in the same dialog. Renaming or editing

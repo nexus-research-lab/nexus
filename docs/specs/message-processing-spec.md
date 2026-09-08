@@ -137,6 +137,7 @@ round 结束只由 terminal `round_status` 定义，前端不再自己猜测。
 - transcript 保存 agent 私有正文历史
 - overlay 只保存 Nexus 自己补的语义；允许用同 `message_id` 保存不改写正文的 assistant 补充快照
 - Goal 完成收据作为 Nexus 补充语义写入同 `message_id` 的 overlay assistant 快照，并在 compact 后合并回 transcript assistant
+- runtime 在 user 落盘前提取隐藏 Goal reminder 后，transcript 可只留下空白 user。历史投影与 rewrite/fork 必须共用轮次边界识别：只有与隐藏 Goal continuation marker 唯一匹配的空白输入才建立续跑轮次，普通空白、缺少有效时间或匹配冲突不得消耗可见用户 marker。隐藏输入不展示，但后续 assistant、result 和完成收据必须保留续跑身份，不能继承上一条真实问题的轮次；投影版本升级后重建派生索引。
 - transcript 与 overlay 的职责必须严格分开，禁止混用
 
 ### 4.2 overlay 里保存什么
