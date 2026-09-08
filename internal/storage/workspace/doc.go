@@ -8,7 +8,7 @@
 //   - history_page_index.go / agent_history_page_index.go / room_history_page_index.go：DM/Room 共用的 round 分页编排、有界 exact-scope rebuild admission、source preflight/resolver selection 依赖与删除栅栏。
 //   - history_read_model.go / history_message_detail.go：宿主 SQLite/B-Tree 派生读模型，以原子 generation、source/payload 校验、有界 metadata window、淘汰、整库版本重建和大型 Tool/图片按需 detail 提供按页读取；canonical 历史不迁移。
 //   - agent_history*.go：Agent 历史门面、K3 工具面换代后的分段 transcript lineage 读取、overlay 与共享模型。
-//   - runtime_repair.go：enforce 模式下 owner runtime 权限修复与受限重试。
+//   - runtime_repair.go：enforce 模式下 owner runtime 权限修复与受限重试；transcript reader 与分页指纹共用修复入口。
 //   - transcript_*.go：transcript cache、重复 UUID/自指链修复、reader、path、session、project、
 //     可见性安全的 marker 对齐、guidance 与 root/source round 投影。
 //   - input_queue.go / input_queue_codec.go / input_queue_replay.go：输入队列存取、携带非授权 Goal collaboration attribution、完整 Execution WorkBinding 或独立 ReviewBinding 的跨派发持久幂等入队、责任项禁止 guide/合并的 capability envelope fence、可返回规范化提交的原子批量登记、预检版本一致的整批 conversation guidance 认领、按执行 scope 隔离的编解码与事件重放。
