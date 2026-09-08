@@ -12,3 +12,6 @@
 - DM/Group 聊天参数统一经过 `../room-chat-surface.tsx`；专注模式不得复制 Panel 分支。
 
 - 子智能体全屏层使用同一共享模态适配和真实模态根，按当前语言命名；菜单、只读 Tooltip 与确认/输入弹窗逐层消费 Escape，外层关闭恢复原会话触发器的焦点。空 source 不挂载、不锁滚动。业务层不自行增加全局键盘监听。
+- `room-mobile-surface.tsx` 的临时导航按 owner、Room、会话及 DM 的精确 Agent/session key 重置；标题、目录与等价 Session 对象刷新保留打开态，A→B→A 不缓存旧浮层。只重置本地导航，不写会话标签、草稿或工作区资源。
+- 成员入口共用 `../../members/use-room-member-manager.ts`，其身份仍是 Room 而不是选中的 Session；加载时菜单中的成员动作禁用，其他动作可用。成员窗打开时关闭旧菜单，明确转向辅助页/任务/会话切换器会撤销待完成的打开意图，目录读取本身继续。
+- `room-mobile-actions-model.tsx` 独占项目顺序、成员准备禁用与任务来源能力；ActionsMenu 只分派明确的六个动作，不把任意菜单字符串断言为辅助页。

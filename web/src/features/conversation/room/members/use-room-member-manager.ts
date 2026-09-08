@@ -1,6 +1,6 @@
 // INPUT: 当前 Room、owner 代次与辅助 Agent 目录准备命令。
 // OUTPUT: 单飞加载和临时弹窗状态；切 Room/owner 或卸载后丢弃迟到打开。
-// POS: 群聊 Header 成员入口生命周期；不写成员，不取消/重放目录请求。
+// POS: Room 成员入口共用生命周期；不写成员，不取消/重放目录请求。
 
 import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 
