@@ -3,7 +3,8 @@
 ## 职责边界
 
 - `create-room-dialog.tsx` 只负责弹窗生命周期、区块组合和提交入口，消费已经完整化的具体参数。
-- `room-member-manager-dialog.tsx` 统一桌面与手机入口的管理模式初始值、Agent 目录合并和提交关闭事务；各 Header/Surface 只维护与 `roomId` 绑定的打开状态。
+- `room-member-manager-dialog.tsx` 统一桌面与手机入口的管理模式初始值、Agent 目录合并和提交关闭事务；各 Header/Surface 共用 `use-room-member-manager.ts` 的单飞目录准备与临时打开态。
+- `use-room-member-manager.ts` 只持有成员入口生命周期，不写成员或取消/重放目录请求；Room/owner 或挂载代次改变使迟到打开失效。它保留标题/目录刷新和同 Room 会话选择，辅助读取失败继续使用已有成员。
 - `create-room-dialog-model.ts` 负责可选参数默认化、弹窗重建身份和创建/管理标签投影，不持有 React 状态。
 - 创建群聊入口可以使用 Lucide `MessageCirclePlus`，弹窗本身使用 plain Header，只让标题表达创建或管理模式。
 - `use-create-room-form.ts` 独占表单状态、不变量归一化和提交模型构造；成员移除后群主失效、暂停草稿只保留已选成员等联动必须在这里完成。

@@ -31,6 +31,8 @@ const PROHIBITED_PRODUCT_STYLE_PATTERNS = [
 ];
 
 const REQUIRED_SHARED_UI_BEHAVIOR_SUITES = [
+  "src/features/conversation/room/surface/mobile/room-mobile-actions-menu.test.tsx",
+  "src/features/conversation/room/surface/mobile/room-mobile-surface.test.tsx",
   "src/features/contacts/agent-options-persistence-status.test.tsx",
   "src/features/contacts/contacts-agent-detail-actions-menu.test.tsx",
   "src/features/settings/provider-settings/provider-settings-detail-header.test.tsx",

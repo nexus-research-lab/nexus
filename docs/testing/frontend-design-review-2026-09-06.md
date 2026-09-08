@@ -3456,3 +3456,37 @@ lint、typecheck、485 项合同、267 文件的 1230 项组件/模型测试及 
 和大分块构建提示。快照 /tmp/nexus-a92-review-z0_2bg67，文件清单
 /tmp/nexus-a92-review.json；最终证据只更新本文，提交前核对暂存区、工作树与
 测试快照字节及全部审查哈希。
+
+## A93 — 窄窗导航作用域与 Room 成员入口复用
+
+窄窗 Surface 原有多份无作用域 useState，成员目录 await 后可沿旧 Room 打开，
+任务层还按 Session 对象引用判等。现成员准备 hook 从 group/header 晋升到 members，
+桌面与窄窗共用同一 owner/Room/挂载代次与单飞保护。成员编辑仍属于 Room，切换同
+Room 的 Session 保留表单；读取失败沿既有辅助目录语义保留当前成员，不新增写入。
+
+窄窗菜单、历史切换器和辅助/任务层按 owner、Room、会话与 DM Agent/session key
+消费旧打开态，返回旧身份不复活；标题/目录/等价身份快照刷新保持当前层。任务打开
+状态与请求归入同一个本地状态，删除旧对象引用门槛。明确选择辅助页、任务文件或
+会话切换器会撤销待完成成员打开，真正打开成员窗则消费旧菜单。其他持久导航、
+会话创建/选择、聊天 viewport、草稿与工作区数据 owner 不变。
+
+动作菜单移除任意字符串到辅助页的断言，只分派六个明确命令。保留空工作图入口、
+DM 隐藏成员和无来源任务禁用；目录加载仅禁用成员项。继续复用圆形 lg IconButton、
+ActionMenu 与现有 190px 最小宽，不引入私有样式或复制公共键盘/定位行为。
+
+初轮定向 3 文件 19 项及 typecheck 通过，见 /tmp/nexus-a93-target.log 和
+/tmp/nexus-a93-types.log。新增两套 DOM 回归纳入必跑清单，使用真实 Header、菜单、
+历史切换器与成员准备，聊天/任务/表单边界用类型化替身隔离独立 HTTP/runtime。
+后续增加迟到成员打开与新导航意图、成员打开关闭菜单的回归，最终以隔离门禁为准。
+
+485 项清单为 231 pending、131 in_progress、97 improved、20 retained、6 removed；
+公共 UI 仍为 118 项。动作菜单/模型完成代码与离线审查；Surface 仅完成临时导航
+生命周期，聊天、Thread 及辅助页面完整审查继续，保持 in_progress。没有视觉、
+浏览器或宿主验证，没有运行产品服务。整体 Goal 继续，只本地提交、不推送。
+
+最终隔离 npm run check 全部通过：lint、typecheck、485 项合同、269 文件的
+1245 项组件/模型测试及 build；新增 Surface 11 项、动作菜单 4 项。日志见
+/tmp/nexus-a93-check.log，精确 17 文件快照清单见 /tmp/nexus-a93-review.json，
+基线 a156b991f。仅保留既有 workgraph-metadata-editor-dialog effect-ref lint 警告
+与大分块构建提示。提交前只追加证据并校正清单的公共 lg 图标按钮尺寸说明为
+36px，生产代码保持受测字节；再次核对全部源哈希、工作树/暂存区与测试快照。

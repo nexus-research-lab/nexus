@@ -22,7 +22,7 @@ import { buildRoomHeaderTabs } from "@/features/conversation/room/surface/header
 import { RoomHistoryMenu } from "@/features/conversation/room/surface/history/room-history-menu";
 
 import { GroupMemberAvatarStack } from "./group-member-avatar-stack";
-import { useRoomMemberManager } from "./use-room-member-manager";
+import { useRoomMemberManager } from "../../members/use-room-member-manager";
 
 interface GroupConversationHeaderProps {
   activeTab: RoomSurfaceTabKey;

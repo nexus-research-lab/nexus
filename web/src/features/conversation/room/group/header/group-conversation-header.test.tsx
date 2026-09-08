@@ -11,7 +11,7 @@ import type { RoomMemberManagerDialog } from "@/features/conversation/room/membe
 import { advanceAuthOwnerScopeGeneration, publishAuthOwnerScopeGeneration } from "@/shared/auth/auth-owner-generation";
 import { I18nProvider } from "@/shared/i18n/i18n-provider";
 import { GroupConversationHeader } from "./group-conversation-header";
-import { useRoomMemberManager } from "./use-room-member-manager";
+import { useRoomMemberManager } from "../../members/use-room-member-manager";
 
 vi.mock("@/features/conversation/room/members/room-member-manager-dialog", () => ({
   RoomMemberManagerDialog: ({ isOpen, initialName, onClose, roomMembers }: ComponentProps<typeof RoomMemberManagerDialog>) =>

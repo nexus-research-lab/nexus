@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Unified narrow and desktop Room member opening, preventing duplicate catalog
+  loads and late dialogs after navigation. Narrow action menus and task/auxiliary
+  overlays now clear on session or owner changes while preserving equivalent
+  identity refreshes and Room-scoped member editing.
 - Unified Agent save feedback and full error details with shared overlays,
   accessible status text and keyboard dismissal. Compact contact actions now
   close when switching Agents and use explicit, named commands.
