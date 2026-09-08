@@ -103,3 +103,5 @@ cmd -> app -> handler -> service -> domain/storage
 长流程按业务阶段拆成私有函数，阶段之间传递有语义的结构体；一个产品语义只保留一个投影入口。Go 文件不设机械行数上限，按业务内聚、依赖边界和阅读路径决定拆合；同一业务散落时优先合并，不以透传参数包或多层薄包装掩盖复杂度。
 
 自动审核产品预设为 `permission_mode=auto`，实现边界见 `docs/auto-review.md`。SDK 负责独立模型审核，bridge 协商 auto_review_v1，产品保留人工审批与任务持久恢复。
+
+用户账号的对话管理统一通过 nexuscfg members，由 runtime broker 展示绑定当前真人 Session 的确认卡片，再调用 Control 内部成员 API。只向有效管理员的主智能体 DM 开放；不恢复 nexusctl auth/user，不传递 Control 服务凭据给命令参数。members.remove 撤销部署访问并保留数据。

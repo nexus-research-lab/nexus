@@ -139,7 +139,7 @@ export function SidebarPinnedConversations({
       onDragOver={handleScrollAreaDragOver}
       onDrop={resetDragState}
     >
-      <div className="mx-auto flex w-14 flex-col items-center gap-2 pt-3">
+      <div className="mx-auto flex w-12 flex-col items-center gap-2 pt-3">
         <div
           aria-hidden="true"
           className="h-px w-10 shrink-0 bg-(--divider-subtle-color)"
@@ -148,7 +148,7 @@ export function SidebarPinnedConversations({
         {items.map((item) => (
           <div
             className={cn(
-              "group/item relative h-14 w-14 shrink-0 transition-colors duration-(--motion-duration-fast)",
+              "group/item relative h-14 w-12 shrink-0 transition-colors duration-(--motion-duration-fast)",
               item.active
                 ? "text-(--text-strong)"
                 : "text-(--text-muted)",

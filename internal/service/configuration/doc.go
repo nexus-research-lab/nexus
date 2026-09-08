@@ -19,4 +19,5 @@
 //     任意配置树的凭据与内部提示词脱敏。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
+//   - member_change.go：管理员主智能体私聊的 Control 成员创建、资料/权限修改、撤销与写后核对。
 package configuration

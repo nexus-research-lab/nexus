@@ -62,6 +62,7 @@ export interface UiActionMenuContentProps {
   density?: UiActionMenuDensity;
   disabled?: boolean;
   footerItems?: UiActionMenuItem[];
+  header?: ReactNode;
   items: UiActionMenuItem[];
   onSelect: (value: string) => void;
 }
@@ -74,6 +75,7 @@ interface UiActionMenuProps {
   ariaLabel: string;
   density?: UiActionMenuDensity;
   footerItems?: UiActionMenuItem[];
+  header?: ReactNode;
   isOpen: boolean;
   items: UiActionMenuItem[];
   minWidth?: number;
@@ -140,6 +142,7 @@ function resolveActionMenuPosition({
 }
 
 export function UiActionMenu({
+  header,
   align = "start",
   anchorRef,
   ariaLabel,
@@ -233,6 +236,7 @@ export function UiActionMenu({
       <UiActionMenuContent
         ref={contentRef}
         density={density}
+        header={header}
         footerItems={footerItems}
         items={items}
         onSelect={select}
@@ -243,6 +247,7 @@ export function UiActionMenu({
 }
 
 export function UiActionMenuContent({
+  header,
   ref,
   density = "default",
   disabled = false,
@@ -252,6 +257,10 @@ export function UiActionMenuContent({
 }: UiActionMenuContentProps) {
   return (
     <div ref={ref} className={MENU_LIST_CLASS_NAME} role="none">
+      {header ? <>
+        <div className="px-2.5 py-2" role="presentation">{header}</div>
+        <div className={MENU_SEPARATOR_CLASS_NAME} role="separator" />
+      </> : null}
       {items.map((item) => (
         <ActionMenuItem
           density={density}

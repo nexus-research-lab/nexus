@@ -684,14 +684,12 @@
   @container sidebar-panel (max-width: 320px) {
     .sidebar-brand-wordmark {
       --sidebar-brand-font-size: 18px;
-      --sidebar-brand-letter-spacing: 0.58em;
     }
   }
 
   @container sidebar-panel (max-width: 280px) {
     .sidebar-brand-wordmark {
       --sidebar-brand-font-size: 16px;
-      --sidebar-brand-letter-spacing: 0.32em;
     }
   }
 
@@ -737,6 +735,9 @@
   .shell-navigation-rail {
     position: relative;
     z-index: 2;
+    /* 将壳层左侧留白纳入导航轨，图标与标签在整个可见区域内居中。 */
+    margin-left: calc(-1 * var(--sidebar-shell-leading-padding, 4px));
+    width: calc(56px + var(--sidebar-shell-leading-padding, 4px));
     background: var(--surface-shell-navigation-background);
     box-shadow: var(--surface-shell-inner-shadow);
   }

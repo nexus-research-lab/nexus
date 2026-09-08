@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+### Added
+
+- Restore conversational administrator user management through Control-backed `nexuscfg members`, with human approval, secure password entry, profile/role updates, and deployment access revocation. Remove obsolete user/auth CLI instructions.
+
+### Changed
+
+- Search settings item names and descriptions in addition to navigation labels, listing matching items under their accessible module.
+
+- Add settings navigation search by section or group name and soften the back-to-workspace label weight.
+
+- Align settings navigation icons and the back action with section headings using a shared 8px content inset.
+
+- Narrow the primary navigation rail by 8px to give the adjacent directory more room, keeping pinned items centered.
+
+- Distribute the sidebar NEXUS wordmark across the available header width with balanced spacing and a reserved collapse action.
+
+- Refine the sidebar account menu with an avatar header, grouped actions, regular-weight account text, and width aligned to the footer.
+
+- Compact the sidebar account footer to 48px and add online documentation to the guide center.
+
+- Restore the unified glass Launcher composer with an inset mascot, larger recent-entry markers, and a separate centered handoff row.
+
+- Group sidebar settings and sign-out under the account menu, with a dedicated help action at the bottom right.
+
 ### Changed
 
 - Simplify automation creation with a right-side editor alongside the unchanged board, searchable two-column execution and recipient pickers with Agent/group-chat filters, clearly labeled optional task titles with an inline close button and no empty editor header, generated task names, live confirmation summaries and concrete inherited permission labels, explicit result delivery, safe unique-session defaults, and secondary options grouped under advanced settings; retain the existing task board.
@@ -14,6 +39,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Expose “Approve for me” for Claude and preserve native auto mode through session and task configuration; confirm activation in the bridge instead of silently using manual approval.
 
 ### Fixed
+
+- Navigate settings search results to the matching field, including repeated clicks within the same section and asynchronously loaded content.
+
+- Center sidebar navigation icons and labels across the full visible rail, including the shell's leading inset.
 
 - Fix completed legacy queued runs being restored as active task occupancy; reconcile proven finished remnants during scheduler audits, reject stale runtime snapshots, and show unknown start times honestly.
 

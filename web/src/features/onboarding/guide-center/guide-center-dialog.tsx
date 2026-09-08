@@ -5,7 +5,7 @@
  */
 "use client";
 
-import { Check, RotateCcw } from "lucide-react";
+import { BookOpen, Check, RotateCcw } from "lucide-react";
 
 import {
   UiDialogBackdrop,
@@ -15,7 +15,7 @@ import {
   UiDialogPortal,
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
-import { UiButton } from "@/shared/ui/button/button";
+import { UiButton, UiLinkButton } from "@/shared/ui/button/button";
 
 import type {
   GuideCenterItem,
@@ -24,6 +24,7 @@ import type {
 
 interface GuideCenterDialogProps {
   closeLabel: string;
+  docsLabel: string;
   isOpen: boolean;
   items: readonly GuideCenterItem[];
   onClose: () => void;
@@ -42,6 +43,7 @@ const GUIDE_CENTER_SECTIONS: readonly GuideCenterSection[] = [
 
 export function GuideCenterDialog({
   closeLabel,
+  docsLabel,
   isOpen,
   items,
   onClose,
@@ -139,6 +141,16 @@ export function GuideCenterDialog({
                 <RotateCcw className="h-3 w-3" />
                 {resetLabel}
               </UiButton>
+              <UiLinkButton
+                href="https://www.nexusos.cn/docs"
+                target="_blank"
+                rel="noopener noreferrer"
+                size="xs"
+                variant="text"
+              >
+                <BookOpen className="h-3.5 w-3.5" />
+                {docsLabel}
+              </UiLinkButton>
               <UiButton
                 onClick={onClose}
                 size="xs"

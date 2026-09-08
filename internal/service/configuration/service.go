@@ -34,6 +34,7 @@ var (
 
 // Service 聚合现有领域服务，不直接复刻其业务规则。
 type Service struct {
+	members                    memberController
 	cfg                        config.Config
 	db                         *sql.DB
 	dialect                    storage.SQLDialect
@@ -122,6 +123,7 @@ func (s *Service) SetPrincipalVerifiers(
 	roleResolver activePrincipalRoleResolver,
 ) {
 	s.humanVerifier = humanVerifier
+	s.members, _ = humanVerifier.(memberController)
 	s.roleResolver = roleResolver
 }
 

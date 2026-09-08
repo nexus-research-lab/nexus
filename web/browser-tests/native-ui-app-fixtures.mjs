@@ -13,6 +13,7 @@ const READS = new Map([
   ["/nexus/v1/auth/status", { auth_required: false, authenticated: true,
     password_login_enabled: false, setup_required: false, username: "ui-fixture",
     user_id: "ui-fixture", display_name: "UI Fixture", role: "admin", auth_method: "desktop_local" }],
+  ["/nexus/v1/agents", AGENTS],
   ["/nexus/v1/runtime/options", { default_agent_id: "qa-main" }],
   ["/nexus/v1/launcher/bootstrap", { agents: AGENTS, rooms: [], conversations: [] }],
   ["/nexus/v1/settings/providers/options", { default_selection: { provider: "qa", model: "qa-model" },
@@ -20,6 +21,17 @@ const READS = new Map([
 ]);
 
 export function appShellRead(method, pathname) {
+  if (method === "POST" && pathname === "/nexus/v1/team/bootstrap") {
+    return { data: {
+      team: { id: "qa-team", deployment_id: "qa-deployment", name: "QA Team" },
+      room: { id: "qa-room", team_id: "qa-team", name: "QA Room" },
+      conversation: {
+        id: "qa-conversation", room_id: "qa-room", type: "room",
+        high_water_message_seq: 0, sync_stream_id: "qa-stream",
+        stream_epoch: "qa-epoch", high_water_sync_event_seq: 0,
+      },
+    } };
+  }
   return method === "GET" && READS.has(pathname) ? { data: READS.get(pathname) } : null;
 }
 

@@ -53,6 +53,7 @@ export const enNavigationMessages = {
   "sidebar.tour_capabilities_description": "Skills, connectors, message channels, and scheduled tasks live here with search.",
   "sidebar.tour_restart_title": "Replay Anytime",
   "sidebar.tour_restart_description": "The compass next to Settings replays any tour.",
+  "guide_center.online_docs": "Online documentation",
   "guide_center.section_basics": "Essentials",
   "guide_center.section_advanced": "Advanced features",
   "guide_center.open_feature": "Open",

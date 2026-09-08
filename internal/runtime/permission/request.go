@@ -41,7 +41,6 @@ type PendingRequest struct {
 	ToolUseID                string
 	Suggestions              []sdkpermission.Update
 	CreatedAt                time.Time
-	ExpiresAt                time.Time
 	Route                    RouteContext
 	ResponseCh               chan sdkpermission.Decision
 	finalizeOnce             sync.Once
@@ -66,7 +65,6 @@ func (c *Context) newPendingRequest(sessionKey string, request sdkpermission.Req
 		ToolUseID:   strings.TrimSpace(request.ToolUseID),
 		Suggestions: slices.Clone(request.PermissionSuggestions),
 		CreatedAt:   now,
-		ExpiresAt:   now.Add(c.requestTimeout),
 		Route:       route,
 		ResponseCh:  make(chan sdkpermission.Decision, 1),
 	}
@@ -209,7 +207,6 @@ func (c *Context) buildPermissionDecision(
 				RuntimeSessionKey:  pending.SessionKey,
 				DispatchSessionKey: pending.DispatchSessionKey,
 				Route:              pending.Route,
-				ExpiresAt:          pending.ExpiresAt,
 			})
 			if err != nil {
 				return sdkpermission.Deny(

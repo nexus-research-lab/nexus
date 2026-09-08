@@ -2,20 +2,11 @@
 
 只在管理认证用户或 Agent 资源时读取本文件。示例中的 `nexusctl` 代表主 Skill 规定的宿主入口，所有调用都加 `--json`。
 
-## Auth 与 user
+## 用户账号
 
-```bash
-nexusctl --json auth status
-nexusctl --json auth init-owner --username '<username>' --display-name '<name>' --password-stdin
-nexusctl --json user list
-nexusctl --json user create --username '<username>' --display-name '<name>' --role member --password-stdin
-nexusctl --json user reset-password --username '<username>' --password-stdin
-nexusctl --json user reset-password --user-id '<user-id>' --password-stdin
-```
+创建、修改和移除部署用户统一使用 `nexus-configuration` Skill 的 `members` 域，先执行 `"$NEXUSCFG_COMMAND_PATH" --json inspect --domain members`。`nexusctl` 不再提供 auth/user 子命令。
 
-- `auth init-owner` 只用于系统尚无 owner 的初始化；先读 `auth status`，已有用户时不调用。
-- create/reset 前先 `user list` 精确定位。reset 使用 username 或 user ID，不同时猜两个 locator。
-- 密码只能通过安全 stdin 提供；不能安全提供时停止并交给人工终端。最终回复不复述密码。
+仅有效 owner/admin 登录的主智能体私聊可操作；移除表示撤销部署访问权限，保留用户和工作区数据。密码通过宿主确认卡片输入，不出现在命令或聊天里。若当前部署尚不支持 members，使用 Web 设置 → 运营 → 部署成员，不尝试旧二进制、数据库或隐藏 scope 参数。
 
 ## Agent
 

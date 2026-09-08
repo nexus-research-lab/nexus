@@ -28,6 +28,12 @@ func (s *Service) executeChange(
 	request ChangeRequest,
 	stateVersion int64,
 ) (any, error) {
+	if request.Domain == DomainMembers {
+		if s.members == nil {
+			return nil, errors.New("Control 成员管理未装配")
+		}
+		return s.members.ManageMembers(ctx, actor.OwnerUserID, actor.AuthSessionID, request.Operation, request.Target, request.Input, stateVersion)
+	}
 	if request.Domain == DomainProviders {
 		ctx = privateProviderMutationContext(ctx, actor.Actor)
 	}

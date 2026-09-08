@@ -1,12 +1,12 @@
 # Launcher Hero
 
 - `launcher-hero-stage.tsx` 只渲染首屏、输入框和最近入口。
-- 查询字段使用 `UiInput` 的 lg/surface 档位，字体、占位文案颜色、边框与焦点由公共输入 recipe 持有；外层只排列字段和角色发送热区，不另套输入玻璃壳。品牌复合入口和角色图像按钮保留已登记的场景几何例外，发送按钮始终具有本地化名称，等待时保持 busy/disabled。
+- 查询字段复用 `UiInput` 的 lg 档位；Launcher 场景将消息图标、透明字段与角色发送热区合并在同一个玻璃输入壳内，焦点由外壳的 focus-within 表达。品牌复合入口和角色图像按钮保留已登记的场景几何例外，发送按钮始终具有本地化名称，等待时保持 busy/disabled。
 - 标题渐显、容器进入和装饰 Lottie 委托公共反馈组件；业务只传内容、布局与进入时序，不测量标题字体、注入动画样式或控制播放器实例。
 - `launcher-recent-entry-model.ts` 只投影 DM/Room 标签、可访问名称与截断提示，不得返回 class、style、颜色、尺寸、阴影或动画参数。
 - `launcher-recent-entry-layout.ts` 只拥有 Hero 最近入口的排列和渐入时序；按钮形状、尺寸、字阶与交互状态仍归共享 Button。
 - `launcher-recent-entry-styles.ts` 只从稳定入口键投影语义色身份点；不得把按钮底色、边框、字号或交互态带回业务配方。
-- `launcher-recent-entries.tsx` 只编排最近入口与主 Agent 交接动作；两类动作固定复用透明 `UiButton`，DM 以彩色身份点替代机器人图标，Room 保留 `#` 语义，入口说明复用 `shared/ui/overlay/tooltip`，不得恢复原生按钮、常驻胶囊底或局部层级的 Tooltip。
+- `launcher-recent-entries.tsx` 只编排最近入口与主 Agent 交接动作；两类动作固定复用透明 `UiButton`；最近入口单独成行，交接动作居中置于下一行，DM 以彩色身份点替代机器人图标，Room 保留 `#` 语义，入口说明复用 `shared/ui/overlay/tooltip`，不得恢复原生按钮、常驻胶囊底或局部层级的 Tooltip。
 - `use-launcher-query-input.ts` 拥有受控输入、IME、Mention 和提交交互。
 - Mention 只接收原输入 ref，定位、listbox/活动候选关联和浮层关闭由共享所有者处理；Hero 不再捕获一次性矩形或强制向下方向。
 - 输入键盘与公共 Mention 捕获都复用 `isImeKeyboardEvent`，composition、Process 和 229 不能触发选择或提交；同步受理成功才清理草稿，拒绝保留原文，外部恢复和 Mention 光标插入仍由本输入 owner 处理。

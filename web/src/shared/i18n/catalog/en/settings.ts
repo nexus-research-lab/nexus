@@ -2,6 +2,8 @@ import type { MessageSegment } from "../message-segment";
 import type { zhSettingsMessages } from "../zh/settings";
 
 export const enSettingsMessages = {
+  "settings.search_navigation": "Search settings…",
+  "settings.search_no_results": "No matching settings",
   "settings.title": "Settings",
   "settings.tabs.general": "General",
   "settings.tabs.runtime": "Runtime",

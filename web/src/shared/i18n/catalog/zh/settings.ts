@@ -1,4 +1,6 @@
 export const zhSettingsMessages = {
+  "settings.search_navigation": "搜索设置…",
+  "settings.search_no_results": "未找到匹配的设置",
   "settings.title": "设置",
   "settings.tabs.general": "常规",
   "settings.tabs.runtime": "运行",
