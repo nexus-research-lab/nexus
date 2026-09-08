@@ -195,10 +195,6 @@ func BuildAgentClientOptionsWithConfig(
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, hostManagedScheduleRuntimeEnv(effectiveRuntimeKind))
 
 	permissionMode := runtimepermission.NormalizeMode(input.PermissionMode)
-	// Claude 不具备原生自动审核，切换时保守使用人工审批，不改写已保存的原生配置。
-	if effectiveRuntimeKind == runtimeKindClaude && permissionMode == sdkpermission.ModeAuto {
-		permissionMode = sdkpermission.ModeDefault
-	}
 	additionalDirectories := appendDistinctStrings(
 		input.SkillDirectories,
 		input.AdditionalDirectories...,

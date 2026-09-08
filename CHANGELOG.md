@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Expose “Approve for me” for Claude and preserve native auto mode through session and task configuration; confirm activation in the bridge instead of silently using manual approval.
+
 ### Fixed
 
 - Accept automatic review in DM/Room session settings and classify validation failures as not applied. Show save failures in a dismissible dialog without leaving an error banner or refresh action.

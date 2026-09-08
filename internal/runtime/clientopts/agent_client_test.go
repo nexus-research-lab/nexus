@@ -724,7 +724,7 @@ func TestRuntimePreauthorizationPreservesExplicitRules(t *testing.T) {
 	}
 }
 
-// TestAutoReviewModeFollowsRuntime 防止切换 Claude 后继续发送其不支持的自动审核模式。
+// TestAutoReviewModeFollowsRuntime 验证两种运行时都接收 auto，由各自运行时确认可用性。
 func TestAutoReviewModeFollowsRuntime(t *testing.T) {
 	for _, kind := range []string{runtimeKindClaude, runtimeKindNXS} {
 		options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{RuntimeKind: kind, PermissionMode: sdkpermission.ModeAuto})
@@ -732,9 +732,6 @@ func TestAutoReviewModeFollowsRuntime(t *testing.T) {
 			t.Fatal(err)
 		}
 		want := sdkpermission.ModeAuto
-		if kind == runtimeKindClaude {
-			want = sdkpermission.ModeDefault
-		}
 		if options.Runtime.PermissionMode != want {
 			t.Fatalf("%s mode=%s, want %s", kind, options.Runtime.PermissionMode, want)
 		}

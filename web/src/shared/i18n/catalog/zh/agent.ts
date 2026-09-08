@@ -160,7 +160,7 @@ export const zhAgentMessages = {
   "agent_options.advanced.permission.plan.label": "规划模式",
   "agent_options.advanced.permission.plan.description": "只读探索并生成计划；写入操作仍需确认。",
   "agent_options.advanced.permission.auto.label": "帮我批准",
-  "agent_options.advanced.permission.auto.description": "自动评估操作风险和你的授权；无法确认时再询问你。需要支持自动审核的运行时。",
+  "agent_options.advanced.permission.auto.description": "由当前运行时自动审核操作；未通过时可能拒绝或请求你确认。",
   "agent_options.advanced.permission.accept_edits.label": "自动接受编辑",
   "agent_options.advanced.permission.accept_edits.description": "自动批准文件编辑和受支持的文件系统操作；其他操作仍按默认规则处理。",
   "agent_options.advanced.permission.bypass.label": "完全访问",

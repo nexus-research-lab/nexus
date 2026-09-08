@@ -163,7 +163,7 @@ export const enAgentMessages = {
   "agent_options.advanced.permission.plan.label": "Plan mode",
   "agent_options.advanced.permission.plan.description": "Explores and plans read-only; write operations still require approval.",
   "agent_options.advanced.permission.auto.label": "Approve for me",
-  "agent_options.advanced.permission.auto.description": "Reviews action risk and your authorization; asks you when uncertain. Requires a runtime with automatic review support.",
+  "agent_options.advanced.permission.auto.description": "The current runtime reviews actions automatically; actions that do not pass may be blocked or require your approval.",
   "agent_options.advanced.permission.accept_edits.label": "Accept edits",
   "agent_options.advanced.permission.accept_edits.description": "Auto-approves file edits and supported filesystem operations; other tools use default rules.",
   "agent_options.advanced.permission.bypass.label": "Full access",
