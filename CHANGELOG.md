@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Consolidated desktop DM and Room header navigation wiring and stabilized Thread
+  controls across unrelated page updates. Extended real session-tab and layout
+  regressions for panel switching, retained chat input and read-failure recovery.
 - Deferred desktop auxiliary page initialization until first use while retaining
   visited pages during panel navigation. The resizable panel now has a localized
   accessible region name, with unchanged file commands and width preferences.

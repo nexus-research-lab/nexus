@@ -3639,3 +3639,38 @@ Agent/owner 变化、子任务来源与挂载、文件路由的精确参数及�
 基线 f018c96b8，8 文件快照 /tmp/nexus-a97-review.json；全部 486 项源哈希一致。
 保留既有 effect-ref lint 警告与大分块提示，无新增测试警告。完整门禁后仅追加
 本段证据，提交前核对工作树和暂存区均与受测快照一致；没有推送。
+
+
+## A98 — 桌面 Header 与聊天布局连续性
+
+完成 RoomSurfaceHeader、RoomSurfaceLayout 和 RoomSurfaceContent 的代码/装配
+审查。Header 的 DM/群聊分支原本重复传递相同会话回调，现只构造一份导航参数，
+分支继续拥有各自身份与成员管理。重复点击当前辅助栏目仍关闭右栏，Header key、
+共享尺寸/头像、会话标签集合、渐隐裁剪与成员准备不变，不新建会话导航 owner。
+
+Room Thread Provider 的打开回调原先随任意页面快照重新创建，造成控制 Context
+变化；现在回调只依赖原页面切换命令。标题/宽度刷新不会通知无关的 memo 控制
+消费者，替换导航命令时仍立即使用最新命令；不改变 live store 或再建关闭状态。
+主内容层经完整阅读与集成回归后保留：辅助页在原分栏位置切换，主聊天保持同一
+实例；Thread 由精确 source 更新，进入辅助页关闭 Thread，打开 Thread 返回 chat。
+Session 变化继续由已存在的 live 发布 owner 清理，DM 不挂 Room Thread 上下文。
+
+现有页面级多标签回归升级为真实 RoomSurfaceHeader，仍经过真实目录/API 边界、
+页面命令和导航 Store，覆盖 DM/群聊的延迟新建、历史打开、切换、关闭/重开与
+固定恢复；新增辅助页开关不改写 Session 集合的断言。新增布局 DOM 回归使用
+真实 Surface/Thread 控制、发布和空阅读面，仅将聊天连接、外部顶栏和辅助资源
+替换为类型化边界，验证挂载/输入连续、精确 Thread 互斥和 Session 清理、控制
+稳定、DM 读取失败三种影响及显式刷新、DM/Room 子任务来源和缺源关闭。没有
+新增视觉/浏览器/宿主测试、Gallery 或产品服务；样式规则保持现有唯一 owner。
+
+486 项清单现为 222 pending、128 in_progress、108 improved、22 retained、
+6 removed；公共 UI 仍 118 项。两处装配改进、主内容装配审查后保留，未把其
+所有聊天/文件/编辑器叶子或整个 Room 页面宣称完成；Goal 继续，仅本地提交。
+
+
+定向 4 文件 20 项与 typecheck 首轮通过，见 /tmp/nexus-a98-target.log、
+/tmp/nexus-a98-types.log。最终隔离 npm run check 首轮通过 lint、typecheck、
+485 项合同、278 文件的 1293 项组件/模型测试及 build，见 /tmp/nexus-a98-check.log。
+基线 4d0c830d3，9 文件快照 /tmp/nexus-a98-review.json；全部 486 项源哈希一致。
+只有既有 effect-ref lint 警告与大分块提示，没有新增测试警告。通过后仅追加
+本段审计证据，提交前核对源文件、暂存区和受测快照字节；不推送。
