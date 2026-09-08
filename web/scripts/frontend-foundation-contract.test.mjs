@@ -31,6 +31,10 @@ const PROHIBITED_PRODUCT_STYLE_PATTERNS = [
 ];
 
 const REQUIRED_SHARED_UI_BEHAVIOR_SUITES = [
+  "src/features/conversation/room/surface/mobile/room-mobile-header.test.tsx",
+  "src/features/conversation/room/surface/mobile/room-mobile-thread-overlay.test.tsx",
+  "src/features/conversation/room/surface/mobile/room-mobile-auxiliary-overlay.test.tsx",
+  "src/features/conversation/room/surface/mobile/room-mobile-overlay-frame.test.tsx",
   "src/features/conversation/room/surface/mobile/room-mobile-actions-menu.test.tsx",
   "src/features/conversation/room/surface/mobile/room-mobile-surface.test.tsx",
   "src/features/contacts/agent-options-persistence-status.test.tsx",
@@ -439,7 +443,7 @@ test("narrow app and Room chrome share one platform-aware shell geometry", async
   assert.doesNotMatch(switcher, /top-\[52px\]|\bz-\d+/);
   assert.match(auxiliary, /MOBILE_SHELL_HEADER_HEIGHT_CLASS_NAME/);
   assert.match(auxiliary, /MOBILE_SHELL_HEADER_GUTTER_CLASS_NAME/);
-  assert.match(auxiliary, /getUiOverlayLayerClassName\("dialog"\)/);
+  assert.match(auxiliary, /<RoomMobileOverlayFrame/);
   assert.match(auxiliary, /data-desktop-window-drag-region/);
   assert.doesNotMatch(auxiliary, /h-\[52px\]|\bz-\d+/);
   assert.match(actions, /<UiIconButton/);
@@ -451,7 +455,8 @@ test("narrow app and Room chrome share one platform-aware shell geometry", async
 });
 
 test("Room Thread and subagent overlays reuse the narrow shell and semantic layer owners", async () => {
-  const [threadOverlay, subagentOverlay, threadView, subagentList, workspaceView] = await Promise.all([
+  const [frame, threadOverlay, subagentOverlay, threadView, subagentList, workspaceView] = await Promise.all([
+    readSource("src/features/conversation/room/surface/mobile/room-mobile-overlay-frame.tsx"),
     readSource("src/features/conversation/room/surface/mobile/room-mobile-thread-overlay.tsx"),
     readSource("src/features/conversation/room/surface/mobile/room-mobile-subagent-overlay.tsx"),
     readSource("src/features/conversation/shared/thread/conversation-thread-view.tsx"),
@@ -460,11 +465,15 @@ test("Room Thread and subagent overlays reuse the narrow shell and semantic laye
   ]);
 
   for (const overlay of [threadOverlay, subagentOverlay]) {
-    assert.match(overlay, /getUiOverlayLayerClassName\("dialog"\)/);
-    assert.match(overlay, /--surface-popover-background/);
-    assert.doesNotMatch(overlay, /\bz-\d+/);
+    assert.match(overlay, /<RoomMobileOverlayFrame/);
+    assert.doesNotMatch(overlay, /\bz-\d+|fixed inset-0|useDialogModalBehavior/);
   }
-  assert.match(subagentOverlay, /flex min-h-0 flex-col/);
+  assert.match(frame, /getUiOverlayLayerClassName\("dialog"\)/);
+  assert.match(frame, /--surface-popover-background/);
+  assert.match(frame, /flex min-h-0 min-w-0 flex-col/);
+  assert.match(frame, /useDialogModalBehavior/);
+  assert.match(frame, /data-modal-root="true"/);
+  assert.doesNotMatch(frame, /\bz-\d+/);
   assert.match(threadView, /MOBILE_SHELL_HEADER_HEIGHT_CLASS_NAME/);
   assert.match(threadView, /MOBILE_SHELL_HEADER_GUTTER_CLASS_NAME/);
   assert.match(threadView, /<UiIconButton/);

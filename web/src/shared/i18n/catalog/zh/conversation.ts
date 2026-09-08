@@ -547,6 +547,7 @@ export const zhConversationMessages = {
   "room.thread_open": "查看 Thread",
   "room.thread_close": "关闭 Thread",
   "room.thread_label": "Thread",
+  "room.thread_dialog": "{name}的执行详情",
   "room.thread_empty": "本轮没有额外执行详情",
   "room.thread_waiting": "正在等待执行详情",
   "room.resize_auxiliary_panel": "调整右侧面板宽度",

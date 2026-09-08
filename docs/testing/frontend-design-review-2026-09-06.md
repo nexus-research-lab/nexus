@@ -12,7 +12,8 @@
   Gallery 及其专用入口排除。公开组件名称用于定位，不能替代文件内部视图审查。
   A30 将跨领域 `UiFilterSelect` 从多组件文件中提取为独立生产文件，追加登记后共
   483 项；A35 新增公共源码编辑 owner 后为 484 项，A36 新增领域预览加载 owner
-  后为 485 项。基线文件和删除证据继续保留。
+  后为 485 项；A94 合并三处窄窗全屏壳新增领域 owner 后为 486 项。基线文件和
+  删除证据继续保留。
 - 基线公共 UI 的 125 个公开 React 组件沿用现有 Gallery 的完整名单与所有者，
   不另建组件库。对应 token、recipe、状态模型和消费者随组件一起检查。经 A6—A7
   删除已证明无生产用途的 5 个导出后，A7 时 Gallery 登记 120 个；原始范围与删除
@@ -3490,3 +3491,43 @@ ActionMenu 与现有 190px 最小宽，不引入私有样式或复制公共键�
 基线 a156b991f。仅保留既有 workgraph-metadata-editor-dialog effect-ref lint 警告
 与大分块构建提示。提交前只追加证据并校正清单的公共 lg 图标按钮尺寸说明为
 36px，生产代码保持受测字节；再次核对全部源哈希、工作树/暂存区与测试快照。
+
+## A94 — 窄窗全屏壳与页头阅读层级
+
+继续审查上一批保留的辅助层、Thread 和 Header。辅助页与 Thread 原只有 fixed
+全屏外观，子任务层独自接入共享模态协议；现三个入口共同使用领域内的
+RoomMobileOverlayFrame，统一材质、纵向骨架、真实模态根与 Dialog 行为。删除
+重复层级 class、模态属性和生命周期装配，公共 Dialog 的栈、滚动锁、IME、焦点
+循环与逐层 Escape 保持唯一 owner，不另建全局监听或第二套键盘规则。
+
+辅助页关闭回到原触发器，模式切换重新进入新页；同页名称或语言更新不重建。
+保留平台 Header 和业务内容，空 WorkGraph 继续显示真实共享空态；其 Agent 去重
+数组仅构造一次，图与展示目录共用。Thread 仍消费既有 live model/完整消息面板，
+缺源不挂载；模态可访问名称用该模型的 Agent 展示名与当前语言，不插入内部 ID。
+子任务原有四项真实目录/任务/嵌套输入弹窗回归随同验证。
+
+窄窗 Header 副标题从 caption/soft 改为 metadata/muted（12px/18px 行高）；主标题
+保留 sectionTitle（14px/20px），原平台高度、拖窗、按钮命中和下缘渐隐不变。
+空白/等价标题统一，重复身份不占第二行；全名通过实例独立描述 ID 与单份 title
+保留，装饰箭头不命名，按钮内部改为 phrasing 节点。返回/切换命令及展开态不变。
+
+定向 6 文件 30 项与 typecheck 已通过，见 /tmp/nexus-a94-target-final.log 和
+/tmp/nexus-a94-types-final.log。覆盖真实空工作图、Thread live source/面板、
+四种菜单/嵌套模态/空根场景、焦点返还、语言更新、辅助页模式更换与标题可访问
+描述。初版测试把 spy 作为 beforeEach 返回值，被 Vitest 当成清理函数无 receiver
+调用；改为显式 void setup。类型检查同时拦下 Workspace 替身传入原接口没有的
+第二参数，已沿真实单参数命令修正，未改变生产协议；原 fallback 文案断言改为
+当前双语目录事实。首次日志保留 /tmp/nexus-a94-target.log 和 /tmp/nexus-a94-types.log。
+通过后清理 Thread fixture 的 act 警告与 Header 的按钮内容语义，最终以隔离门禁为准。
+
+新领域外壳登记后清单为 486 项：228 pending、131 in_progress、101 improved、
+20 retained、6 removed；公共 UI 仍 118 项。本批完成三个窄窗挂载组件和 Header 的
+代码/离线行为审查，不把其内部工作区、简介编辑器或 Thread 消息组件一并标记
+完成。地图、唯一视觉规则与必跑测试同步，不做视觉/浏览器/宿主验收或启动产品
+服务。Goal 继续；仅本地提交，不推送。
+
+最终隔离 npm run check 通过 lint、typecheck、485 项合同、272 文件的 1259 项
+组件/模型测试及 build，日志 /tmp/nexus-a94-check.log。新增测试无 act 警告；
+仅保留既有 workgraph-metadata-editor-dialog effect-ref lint 警告和构建大分块
+提示。基线 f533872b8，17 文件快照清单 /tmp/nexus-a94-review.json；全部 486 项
+审计源哈希一致。通过后只追加本段证据，提交前复核工作树、暂存区与测试快照。
