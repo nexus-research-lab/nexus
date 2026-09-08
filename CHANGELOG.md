@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed Room scheduled tasks remaining running after their round completed, and
+  restored owner-scoped transcript permission repair for Room history, page
+  loading, Agent wakeups, and scheduled result delivery.
+
 ## [0.1.40] - 2026-09-04
 
 ### Added
