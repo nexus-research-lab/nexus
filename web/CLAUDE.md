@@ -156,3 +156,5 @@ src/
 - `postcss.config.mjs` - PostCSS + Tailwind 4
 - `tsconfig.json` - TypeScript 配置
 - `Dockerfile` - 生产容器构建
+
+聊天排版由 `shared/theme/chat-typography.ts` 统一清洗、持久化并跨窗口同步；ThemeProvider 应用 CSS 变量，DM/Room 虚拟 Feed 在排版变化后清除旧测量。代码和公式保留专用字体。

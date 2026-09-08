@@ -14,3 +14,5 @@
 - Feature 不得通过本目录建立领域转发层；消费者直接导入具体基础函数。
 - Config 与 Feature 只能共同依赖基础规则，不得让基础配置反向读取 Feature 实现。
 - 禁止恢复 `utils.ts` catch-all；样式类名组合直接依赖 `shared/ui/class-name.ts`。
+
+`desktop-bridge` 的 `app.get_system_fonts` 只读返回原生字体家族名称，不读取或传输字体文件。

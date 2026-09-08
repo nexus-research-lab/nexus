@@ -86,6 +86,8 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
         "build_number": runtime.buildNumber,
         "platform": runtime.platform,
       ]
+    case "app.get_system_fonts":
+      return ["families": NSFontManager.shared.availableFontFamilies.sorted()]
     case "app.get_state_root":
       var payload = DesktopStateRootStore.statusPayload()
       if payload["migration_error"] != nil {
