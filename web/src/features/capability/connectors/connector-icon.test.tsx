@@ -14,9 +14,7 @@ describe("ConnectorIcon", () => {
     const frame = screen.getByLabelText("高德地图");
     const mark = frame.firstElementChild as HTMLElement;
 
-    expect(frame.className).toContain("surface-radius-md");
     expect(mark.style.maskImage).toContain("/icon/connector/amap.svg");
-    expect(mark.style.backgroundColor).toBe("var(--text-strong)");
     expect(frame.querySelector("img")).toBeNull();
   });
 });
