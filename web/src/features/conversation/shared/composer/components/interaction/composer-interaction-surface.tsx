@@ -2,7 +2,7 @@
 
 /**
  * INPUT: 当前 DM/Room 的 pending interaction 队列与响应动作。
- * OUTPUT: 原位替换输入壳内容的权限、计划确认或结构化问答组件。
+ * OUTPUT: 按 request_id 隔离的唯一权限/计划/问答面；未发送响应可重试，正文不覆盖后代控件尺寸。
  * POS: Composer 内唯一可操作的会话人工介入 surface。
  */
 import { MessageSquare } from "lucide-react";
@@ -11,6 +11,7 @@ import { useRef, useState, type ReactNode } from "react";
 import { PendingHumanQuestion } from "@/features/conversation/shared/message/blocks/question/pending-human-question";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { cn } from "@/shared/ui/class-name";
 import type {
   PendingPermission,
@@ -77,17 +78,24 @@ function ComposerInteractionRequest({
   const respondingRef = useRef(false);
   const [isResponding, setIsResponding] = useState(false);
   const respond = (payload: PermissionDecisionPayload): boolean => {
-    if (respondingRef.current) {
+    if (respondingRef.current || payload.request_id !== permission.request_id) {
       return false;
     }
     respondingRef.current = true;
     setIsResponding(true);
-    const sent = onResponse(payload);
-    if (!sent) {
-      respondingRef.current = false;
-      setIsResponding(false);
+    let sent = false;
+    try {
+      sent = onResponse(payload);
+      return sent;
+    } catch (error) {
+      console.error("Interaction response failed:", error);
+      return false;
+    } finally {
+      if (!sent) {
+        respondingRef.current = false;
+        setIsResponding(false);
+      }
     }
-    return sent;
   };
 
   return (
@@ -102,10 +110,10 @@ function ComposerInteractionRequest({
     >
       <div
         className={cn(
-          "soft-scrollbar max-h-[min(46vh,30rem)] overflow-y-auto [&_button]:min-h-11 [&_button]:min-w-11 sm:[&_button]:min-w-0",
+          "soft-scrollbar max-h-[min(46vh,30rem)] overflow-y-auto overscroll-contain",
           kind === "question"
-            ? "p-3 sm:p-4 sm:[&_button]:min-h-8"
-            : "p-4 sm:p-5 sm:[&_button]:min-h-8",
+            ? "p-3 sm:p-4"
+            : "p-4 sm:p-5",
         )}
       >
         <InteractionBody
@@ -192,7 +200,7 @@ function QuestionRequester({
 }) {
   const { t } = useI18n();
   return (
-    <div className="flex min-w-0 items-center gap-2 text-sm text-(--text-muted)">
+    <div className={`flex min-w-0 flex-wrap items-center gap-2 ${getUiTypographyClassName({ role: "control", tone: "muted" })}`}>
       {requester.name ? (
         <>
           <UiAgentAvatar
@@ -201,7 +209,7 @@ function QuestionRequester({
             name={requester.name}
             size="xs"
           />
-          <span className="truncate font-medium text-(--text-strong)">
+          <span className={`min-w-0 [overflow-wrap:anywhere] ${getUiTypographyClassName({ role: "control", tone: "strong", weight: "medium" })}`}>
             {requester.name}
           </span>
           <span aria-hidden className="text-(--text-soft)">·</span>
@@ -216,7 +224,7 @@ function QuestionRequester({
       </span>
       {total > 1 ? (
         <span
-          className="ml-auto shrink-0 text-xs tabular-nums text-(--text-soft)"
+          className={`ml-auto shrink-0 tabular-nums ${getUiTypographyClassName({ role: "caption", tone: "muted" })}`}
           data-composer-interaction-queue
         >
           1 / {total}

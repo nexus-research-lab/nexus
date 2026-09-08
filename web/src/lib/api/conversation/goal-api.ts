@@ -1,16 +1,14 @@
 /**
  * INPUT: authenticated Goal identifiers, owner-scoped lifecycle payloads and session keys.
  * OUTPUT: Goal resources plus the server-derived Goal/Execution binding read view.
- * POS: Web Goal REST adapter; it never interprets Goal metadata as WorkGraph state.
+ * POS: Web Goal REST read/lifecycle adapter; creation belongs to the Composer set_goal command, and metadata never becomes WorkGraph state.
  */
 import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
 import { requestApi } from "@/lib/api/core/http";
 import type {
   ClearGoalResult,
-  CreateGoalInput,
   Goal,
   GoalExecutionBinding,
-  GoalUsageReport,
   UpdateGoalInput,
 } from "@/types/conversation/goal";
 
@@ -26,15 +24,6 @@ export async function getCurrentGoalApi(sessionKey: string): Promise<Goal | null
   );
 }
 
-export async function getGoalUsageApi(goalId: string): Promise<GoalUsageReport> {
-  return requestApi<GoalUsageReport>(
-    `${AGENT_API_BASE_URL}/goals/${encodeURIComponent(goalId)}/usage`,
-    {
-      method: "GET",
-    },
-  );
-}
-
 export async function getGoalExecutionBindingApi(
   goalId: string,
 ): Promise<GoalExecutionBinding> {
@@ -44,20 +33,6 @@ export async function getGoalExecutionBindingApi(
       method: "GET",
     },
   );
-}
-
-export async function createGoalApi(input: CreateGoalInput): Promise<Goal> {
-  return requestApi<Goal>(`${AGENT_API_BASE_URL}/goals`, {
-    method: "POST",
-    body: {
-      session_key: input.session_key,
-      objective: input.objective,
-      token_budget: input.token_budget ?? null,
-      replace_existing: input.replace_existing ?? false,
-      room_lead_agent_id: input.room_lead_agent_id ?? null,
-      metadata: input.metadata ?? null,
-    },
-  });
 }
 
 export async function updateGoalApi(

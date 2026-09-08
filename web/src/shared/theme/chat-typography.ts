@@ -1,10 +1,16 @@
 /** INPUT: 本机阅读偏好。OUTPUT: 持久设置与正文 CSS 变量。POS: 聊天排版的唯一状态源。 */
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist, type StateStorage } from "zustand/middleware";
 
 const STORAGE_KEY = "nexus-chat-typography";
 export const DEFAULT_CHAT_TYPOGRAPHY = { font: "default", fontSize: 16, lineHeight: 1.65 } as const;
 type ChatTypography = { font: string; fontSize: number; lineHeight: number };
+
+const CHAT_TYPOGRAPHY_STORAGE: StateStorage = {
+  getItem: (name) => typeof window === "undefined" ? null : window.localStorage.getItem(name),
+  removeItem: (name) => { if (typeof window !== "undefined") window.localStorage.removeItem(name); },
+  setItem: (name, value) => { if (typeof window !== "undefined") window.localStorage.setItem(name, value); },
+};
 
 export function normalizeChatTypography(value: unknown): ChatTypography {
   const input = (value && typeof value === "object" ? value : {}) as Partial<ChatTypography>;
@@ -26,6 +32,7 @@ export const useChatTypography = create<{
   setTypography: (value) => set((state) => ({ typography: normalizeChatTypography({ ...state.typography, ...value }) })),
 }), {
   name: STORAGE_KEY,
+  storage: createJSONStorage(() => CHAT_TYPOGRAPHY_STORAGE),
   partialize: (state) => ({ typography: state.typography }),
   merge: (saved, current) => ({ ...current, typography: normalizeChatTypography((saved as { typography?: unknown } | null)?.typography) }),
 }));
@@ -43,7 +50,7 @@ export function applyChatTypography(typography: ChatTypography) {
   const family = Object.hasOwn(families, typography.font)
     ? families[typography.font] : `${JSON.stringify(typography.font.trim())}, var(--font-sans)`;
   style.setProperty("--chat-font-family", family);
-  style.setProperty("--chat-cjk-font-family", typography.font === "default" ? "var(--font-prose)" : "var(--chat-font-family)");
+  style.setProperty("--chat-cjk-font-family", typography.font === "default" ? "var(--font-prose)" : "var(--chat-font-family, var(--font-sans))");
 }
 
 export function syncChatTypography(event: StorageEvent) {

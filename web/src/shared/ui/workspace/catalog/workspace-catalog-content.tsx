@@ -1,3 +1,7 @@
+// INPUT: Catalog content, semantic title sizes and header/body/footer layout options.
+// OUTPUT: Catalog slots with shared typography, wrapping footer actions and bounded description clamping.
+// POS: Presentational catalog content owner; callers supply product content and actions.
+
 import type {
   ElementType,
   HTMLAttributes,
@@ -5,6 +9,10 @@ import type {
 } from "react";
 
 import { cn } from "@/shared/ui/class-name";
+import {
+  getUiTypographyClassName,
+  type UiTypographyRole,
+} from "@/shared/ui/typography/typography-styles";
 
 type CatalogCardAlign = "start" | "center";
 type CatalogFooterJustify = "between" | "start" | "end" | "center";
@@ -21,14 +29,14 @@ const FOOTER_JUSTIFY_CLASSES: Record<CatalogFooterJustify, string> = {
   end: "justify-end",
   center: "justify-center",
 };
-const TITLE_CLASSES: Record<CatalogTitleSize, string> = {
-  sm: "text-base font-semibold",
-  md: "text-md font-semibold",
-  lg: "text-lg font-semibold",
+const TITLE_ROLES: Record<CatalogTitleSize, UiTypographyRole> = {
+  sm: "sectionTitle",
+  md: "pageTitle",
+  lg: "objectTitle",
 };
-const DESCRIPTION_CLASSES: Record<CatalogDescriptionSize, string> = {
-  sm: "text-sm leading-[1.55]",
-  md: "text-base leading-6",
+const DESCRIPTION_ROLES: Record<CatalogDescriptionSize, UiTypographyRole> = {
+  sm: "supporting",
+  md: "body",
 };
 const LINE_CLAMP_CLASSES = {
   1: "line-clamp-1",
@@ -45,19 +53,17 @@ export function WorkspaceCatalogHeader({
   children: ReactNode;
   align?: CatalogCardAlign;
 }) {
-  return <div className={cn(HEADER_ALIGN_CLASSES[align], className)} {...props}>{children}</div>;
+  return <div className={cn("min-w-0", HEADER_ALIGN_CLASSES[align], className)} {...props}>{children}</div>;
 }
 
 export function WorkspaceCatalogBody({
   children,
   className,
-  grow = false,
   ...props
 }: HTMLAttributes<HTMLDivElement> & {
   children: ReactNode;
-  grow?: boolean;
 }) {
-  return <div className={cn("mt-2.5", grow && "flex-1", className)} {...props}>{children}</div>;
+  return <div className={cn("mt-2.5 min-w-0", className)} {...props}>{children}</div>;
 }
 
 export function WorkspaceCatalogFooter({
@@ -72,7 +78,7 @@ export function WorkspaceCatalogFooter({
   return (
     <div
       className={cn(
-        "mt-3 flex min-h-[32px] items-end gap-3",
+        "mt-3 flex min-h-8 min-w-0 flex-wrap items-end gap-3",
         FOOTER_JUSTIFY_CLASSES[justify],
         className,
       )}
@@ -99,7 +105,12 @@ export function WorkspaceCatalogTitle({
   const Component = as ?? "h3";
   return (
     <Component
-      className={cn(TITLE_CLASSES[size], "text-(--text-strong)", truncate && "truncate", className)}
+      className={cn(
+        "min-w-0 [overflow-wrap:anywhere]",
+        getUiTypographyClassName({ role: TITLE_ROLES[size], tone: "strong" }),
+        truncate && "truncate",
+        className,
+      )}
       {...props}
     >
       {children}
@@ -111,22 +122,19 @@ export function WorkspaceCatalogDescription({
   children,
   className,
   lines = 2,
-  minHeight = false,
   size = "sm",
   ...props
 }: HTMLAttributes<HTMLParagraphElement> & {
   children: ReactNode;
   lines?: 1 | 2 | 3;
-  minHeight?: boolean;
   size?: CatalogDescriptionSize;
 }) {
   return (
     <p
       className={cn(
-        DESCRIPTION_CLASSES[size],
-        "text-(--text-default)",
+        "min-w-0 [overflow-wrap:anywhere]",
+        getUiTypographyClassName({ role: DESCRIPTION_ROLES[size], tone: "default" }),
         LINE_CLAMP_CLASSES[lines],
-        minHeight && lines === 2 && "min-h-[40px]",
         className,
       )}
       {...props}

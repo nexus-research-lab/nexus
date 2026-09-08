@@ -1,20 +1,17 @@
-"use client";
-
 /**
- * INPUT: 图片块与可选 generation-bound detail 引用。
- * OUTPUT: 带桌面认证、可取消 Blob 生命周期的图片展示。
- * POS: 图片 Artifact 的 React 资源边界。
+ * INPUT: 图片块、归属 Agent 与可选 generation-bound detail 引用。
+ * OUTPUT: 绑定消费侧 Workspace 资源、带桌面认证和可取消 Blob 生命周期的图片展示。
+ * POS: 图片 Artifact 的 React 资源边界；共享 Markdown 不读取业务身份或文件 Store。
  */
+"use client";
 
 import { ImageIcon, LoaderCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import {
-  useMarkdownCurrentAgentID,
-  useMarkdownFileResolver,
-} from "@/shared/ui/markdown/workspace/use-markdown-workspace-files";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import { useWorkspaceMarkdown } from "@/hooks/agent/use-workspace-markdown";
 import type { ImageContent } from "@/types/conversation/message/content";
 import { getSessionMessageImageDetailApi } from "@/lib/api/conversation/session-api";
 
@@ -39,8 +36,7 @@ export function ImageBlock({
   workspaceAgentId,
 }: ImageBlockProps) {
   const { t } = useI18n();
-  const resolveFilePath = useMarkdownFileResolver(workspaceAgentId);
-  const currentAgentId = useMarkdownCurrentAgentID(workspaceAgentId);
+  const { resolveFilePath, currentAgentId } = useWorkspaceMarkdown(workspaceAgentId);
   const deferredImage = useDeferredImageDetail(block);
   const projection = projectImageArtifact({
     block,
@@ -77,8 +73,7 @@ export function ImageBlock({
       <ImageArtifactCaption caption={block.alt} />
       <WorkspaceArtifactExternalActionButton
         action={projection.action}
-        className="content-artifact-external-action mt-1.5 px-2 py-1 text-xs font-medium"
-        iconClassName="h-3.5 w-3.5"
+        className="content-artifact-external-action mt-1.5"
       />
     </figure>
   );
@@ -129,7 +124,9 @@ function useDeferredImageDetail(block: ImageContent): {
 function LoadingImageArtifact({ label }: { label: string }) {
   return (
     <div className="content-artifact-empty content-media-frame my-2 flex items-center justify-center gap-2 px-3 py-2 text-sm">
-      <LoaderCircle className="h-4 w-4 shrink-0 animate-spin" />
+      <LoaderCircle
+        className={getUiSpinnerClassName({ size: "md", tone: "muted" })}
+      />
       {label}
     </div>
   );

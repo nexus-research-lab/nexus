@@ -1,9 +1,10 @@
+// INPUT: Composer input, capabilities, local UI state and runtime facts.
+// OUTPUT: Semantic view state and action eligibility without CSS or layout tokens.
+// POS: Composer controller projection; the panel resolves presentation from these facts.
+
 import type { AgentConversationRuntimePhase } from "@/types/agent/agent-conversation";
 
-import {
-  type ComposerInputMode,
-  getComposerInputRowPaddingClass,
-} from "../composer-model";
+import type { ComposerInputMode } from "../composer-model";
 import {
   type ComposerViewCopy,
   projectComposerActions,
@@ -17,7 +18,6 @@ interface ComposerViewStateOptions {
   attachmentError: string | null;
   canCreateGoal: boolean;
   canUseLoop: boolean;
-  compact: boolean;
   copy: ComposerViewCopy;
   goalCreateBlockedReason: string | null;
   goalError: string | null;
@@ -73,11 +73,6 @@ export function buildComposerViewState(
     canCreateGoal: options.canCreateGoal,
     canUseLoop: options.canUseLoop,
     charCount: inputState.charCount,
-    composerInputRowPaddingClass: getComposerInputRowPaddingClass(
-      options.compact,
-      options.queueItemCount > 0,
-      modeState.isGoalMode,
-    ),
     historyIndex: options.historyIndex,
     input: options.input,
     inputHistoryLength: options.historyItemCount,

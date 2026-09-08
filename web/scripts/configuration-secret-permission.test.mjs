@@ -212,14 +212,14 @@ test("Composer masks requested secrets and blocks allow while fields are empty",
   assert.equal((html.match(/autoComplete="new-password"/g) ?? []).length, 2);
   assert.match(html, /service\.token/);
   assert.match(html, /service\.password/);
-  assert.match(
-    html,
-    /data-composer-permission-decision="allow"[^>]*disabled=""/,
-  );
-  assert.doesNotMatch(
-    html,
-    /data-composer-permission-decision="deny"[^>]*disabled=""/,
-  );
+  const allowTag = html.match(
+    /<button[^>]*data-composer-permission-decision="allow"[^>]*>/,
+  )?.[0] ?? "";
+  const denyTag = html.match(
+    /<button[^>]*data-composer-permission-decision="deny"[^>]*>/,
+  )?.[0] ?? "";
+  assert.match(allowTag, /disabled=""/);
+  assert.doesNotMatch(denyTag, /disabled=""/);
 });
 
 test("scheduled-task Composer offers a task-scoped approval choice", async () => {

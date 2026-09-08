@@ -1,3 +1,7 @@
+// INPUT: 已分类的文件类型、精确文件身份与预览交互参数。
+// OUTPUT: 稳定渲染表分派的直接或懒加载预览；Office 复用同一加载外壳。
+// POS: 文件预览类型路由，不拥有文件 IO、布局状态或业务写命令。
+
 import {
   lazy,
   Suspense,
@@ -74,14 +78,13 @@ function createOfficePreviewRenderer(
   };
 }
 
-const TEXT_PREVIEW_RENDERER = TextPreviewRenderer;
 const PREVIEW_RENDERERS: Record<WorkspaceFilePreviewKind, PreviewRenderer> = {
   binary: createDirectPreviewRenderer(BinaryFilePlaceholder),
   document: createOfficePreviewRenderer("document", DocumentFilePreview),
-  html: TEXT_PREVIEW_RENDERER,
+  html: TextPreviewRenderer,
   image: createDirectPreviewRenderer(ImagePreview),
-  markdown: TEXT_PREVIEW_RENDERER,
-  mermaid: TEXT_PREVIEW_RENDERER,
+  markdown: TextPreviewRenderer,
+  mermaid: TextPreviewRenderer,
   pdf: createDirectPreviewRenderer(PdfPreview),
   presentation: createOfficePreviewRenderer(
     "presentation",
@@ -91,7 +94,7 @@ const PREVIEW_RENDERERS: Record<WorkspaceFilePreviewKind, PreviewRenderer> = {
     "spreadsheet",
     SpreadsheetFilePreview,
   ),
-  text: TEXT_PREVIEW_RENDERER,
+  text: TextPreviewRenderer,
 };
 
 /** 文件类型路由由完整描述表维护，新增预览类型不再修改面板分支。 */

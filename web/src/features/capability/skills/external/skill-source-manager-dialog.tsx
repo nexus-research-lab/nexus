@@ -1,12 +1,12 @@
 /**
  * INPUT: Skill 来源目录、来源写命令与私有来源草稿。
- * OUTPUT: 扁平来源管理列表、私有来源表单与受控删除确认。
+ * OUTPUT: 可读来源行及具名独立动作、实例级认证表单/提交 busy 与受控删除确认。
  * POS: 技能市场的来源管理边界；不展示来源教程或回显私密 Token。
  */
 "use client";
 
 import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useId, useState, type FormEvent } from "react";
 
 import type { PrivateSkillSourceDraft } from "@/features/capability/skills/controller/skill-marketplace-controller";
 import {
@@ -14,6 +14,9 @@ import {
   type I18nContextValue,
 } from "@/shared/i18n/i18n-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -25,7 +28,11 @@ import {
 } from "@/shared/ui/dialog/dialog";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
+import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
+import { UiListRow } from "@/shared/ui/list/list-row";
+import { UiPanel } from "@/shared/ui/panel";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { ExternalSkillSourceInfo } from "@/types/capability/skill";
 
 interface SkillSourceManagerDialogProps {
@@ -47,7 +54,6 @@ const SOURCE_KIND_LABELS: Record<string, string> = {
   clawhub: "clawhub.ai",
   git: "Git",
   hermes_index: "Hermes Index",
-  private_registry: "Private Registry",
   skills_sh: "skills.sh",
   url: "URL",
   well_known: "Well-known",
@@ -142,37 +148,47 @@ export function SkillSourceManagerDialog({
   return (
     <>
       <UiDialogPortal>
-        <UiDialogBackdrop className="z-[9999]" onClose={onClose}>
-          <UiDialogShell className="max-h-[min(68dvh,560px)]" size="lg">
+        <UiDialogBackdrop layer="dialog" onClose={onClose}>
+          <UiDialogShell size="lg" viewport="compactMax">
             <UiDialogHeader
               appearance="plain"
               onClose={onClose}
               title={t("capability.skill_sources_title")}
             />
             <UiDialogBody scrollable>
-            {loading && !sortedSources.length ? (
-              <div className="flex items-center justify-center gap-2 py-12 text-sm text-(--text-soft)">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                {t("capability.skill_sources_loading")}
-              </div>
-            ) : sortedSources.length ? (
-              <div className="divide-y divide-(--divider-subtle-color) overflow-hidden rounded-[10px] border border-(--divider-subtle-color)">
-                {sortedSources.map((source) => (
-                  <SourceRow
-                    key={source.source_id}
-                    disabled={loading}
-                    onDelete={() => setDeleteTarget(source)}
-                    onEdit={() => openEditEditor(source)}
-                    onToggle={(enabled) => onToggle(source, enabled)}
-                    source={source}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-[8px] border border-dashed border-(--divider-subtle-color) px-4 py-6 text-center text-compact text-(--text-soft)">
-                {t("capability.skill_sources_empty")}
-              </div>
-            )}
+              {loading && !sortedSources.length ? (
+                <UiResourceState
+                  size="sm"
+                  state="loading"
+                  title={t("capability.skill_sources_loading")}
+                  variant="plain"
+                />
+              ) : sortedSources.length ? (
+                <UiPanel
+                  className="divide-y divide-(--divider-subtle-color) overflow-hidden"
+                  padding="none"
+                  radius="md"
+                  variant="filled"
+                >
+                  {sortedSources.map((source) => (
+                    <SourceRow
+                      key={source.source_id}
+                      disabled={loading}
+                      onDelete={() => setDeleteTarget(source)}
+                      onEdit={() => openEditEditor(source)}
+                      onToggle={(enabled) => onToggle(source, enabled)}
+                      source={source}
+                    />
+                  ))}
+                </UiPanel>
+              ) : (
+                <UiResourceState
+                  size="sm"
+                  state="empty"
+                  title={t("capability.skill_sources_empty")}
+                  variant="inset"
+                />
+              )}
             </UiDialogBody>
 
             <UiDialogFooter appearance="plain" className="gap-2">
@@ -233,29 +249,48 @@ function SourceRow({
   source,
 }: SourceRowProps) {
   const { t } = useI18n();
+  const rowId = useId();
+  const descriptionIds = [`${rowId}-address`, source.deletable ? `${rowId}-credential` : null,
+    source.last_error ? `${rowId}-error` : null].filter(Boolean).join(" ");
   return (
-    <div className="flex min-w-0 items-center gap-3 bg-(--surface-raised-background) px-3.5 py-3">
+    <UiListRow className="items-start" variant="flush">
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium text-(--text-strong)">
+        <div id={`${rowId}-name`} className={cn(
+          "[overflow-wrap:anywhere]",
+          getUiTypographyClassName({
+            role: "control",
+            tone: "strong",
+            weight: "medium",
+          }),
+        )}>
           {source.name}
         </div>
-        <div className="mt-0.5 truncate text-xs text-(--text-muted)">
+        <div id={`${rowId}-address`} className={cn(
+          "mt-0.5 [overflow-wrap:anywhere]",
+          getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+        )}>
           {sourceKindLabel(source.kind, t)} · {source.url}
         </div>
         {source.deletable ? (
-          <div className="mt-1 text-xs text-(--text-soft)">
+          <div id={`${rowId}-credential`} className={cn(
+            "mt-1",
+            getUiTypographyClassName({ role: "supporting", tone: "muted" }),
+          )}>
             {source.credential_configured
               ? t("capability.skill_source_credential_configured")
               : t("capability.skill_source_auth_none")}
           </div>
         ) : null}
         {source.last_error ? (
-          <div className="mt-1 truncate text-xs text-(--destructive)">
+          <div id={`${rowId}-error`} className={cn(
+            "mt-1",
+            getUiTypographyClassName({ role: "supporting", tone: "danger" }),
+          )}>
             {t("capability.skills_external_source_failed_description")}
           </div>
         ) : null}
       </div>
-      <div className="flex shrink-0 items-center gap-1">
+      <div aria-labelledby={`${rowId}-name`} className="flex shrink-0 items-center gap-1" role="group">
         {source.deletable ? (
           <>
             <UiIconButton
@@ -280,6 +315,7 @@ function SourceRow({
           </>
         ) : null}
         <GlassSwitch
+          aria-describedby={descriptionIds}
           aria-label={t("capability.skill_source_toggle", {
             name: source.name,
           })}
@@ -289,7 +325,7 @@ function SourceRow({
           size="sm"
         />
       </div>
-    </div>
+    </UiListRow>
   );
 }
 
@@ -311,6 +347,7 @@ function PrivateSourceEditorDialog({
   onSubmit,
 }: PrivateSourceEditorDialogProps) {
   const { t } = useI18n();
+  const fieldId = useId();
   const updateDraft = <K extends keyof PrivateSkillSourceDraft>(
     key: K,
     value: PrivateSkillSourceDraft[K],
@@ -318,14 +355,14 @@ function PrivateSourceEditorDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        className="z-[9999]"
+        layer="dialog"
         closeOnBackdrop={!loading}
         onClose={loading ? undefined : onCancel}
       >
         <UiDialogFormShell
-          className="max-h-[calc(100dvh-2rem)]"
           onSubmit={onSubmit}
           size="md"
+          viewport="adaptiveMax"
         >
           <UiDialogHeader
             appearance="plain"
@@ -336,14 +373,14 @@ function PrivateSourceEditorDialog({
           />
           <UiDialogBody className="space-y-4" scrollable>
             <UiField
-              htmlFor="private-skill-source-name"
+              htmlFor={`${fieldId}-name`}
               label={t("capability.skill_source_name")}
               required
             >
               <UiInput
                 data-autofocus="true"
                 disabled={loading}
-                id="private-skill-source-name"
+                id={`${fieldId}-name`}
                 onChange={(event) => updateDraft("name", event.target.value)}
                 pattern=".*\S.*"
                 placeholder={t("capability.skill_source_name_placeholder")}
@@ -355,51 +392,45 @@ function PrivateSourceEditorDialog({
               description={editingSource
                 ? t("capability.skill_source_url_immutable")
                 : t("capability.skill_source_url_description")}
-              htmlFor="private-skill-source-url"
+              htmlFor={`${fieldId}-url`}
               label={t("capability.skill_source_url")}
               required
             >
               <UiInput
                 disabled={loading || Boolean(editingSource)}
-                id="private-skill-source-url"
+                id={`${fieldId}-url`}
                 onChange={(event) => updateDraft("url", event.target.value)}
                 placeholder="https://skills.example.com/registry"
                 required
+                textRole="code"
                 type="url"
                 value={draft.url}
               />
             </UiField>
-            <UiField label={t("capability.skill_source_auth_type")}>
-              <div className="flex flex-wrap gap-1.5">
-                {(["none", "bearer"] as const).map((authType) => (
-                  <UiButton
-                    disabled={loading}
-                    key={authType}
-                    onClick={() => updateDraft("authType", authType)}
-                    size="sm"
-                    tone={draft.authType === authType ? "primary" : undefined}
-                    variant={draft.authType === authType ? "solid" : "surface"}
-                  >
-                    {t(authType === "none"
-                      ? "capability.skill_source_auth_none"
-                      : "capability.skill_source_auth_bearer")}
-                  </UiButton>
-                ))}
-              </div>
-            </UiField>
+            <UiSegmentedControl
+              disabled={loading}
+              onChange={(authType) => updateDraft("authType", authType)}
+              options={[
+                { label: t("capability.skill_source_auth_none"), value: "none" },
+                { label: t("capability.skill_source_auth_bearer"), value: "bearer" },
+              ]}
+              showLabel
+              title={t("capability.skill_source_auth_type")}
+              value={draft.authType}
+            />
             {draft.authType === "bearer" ? (
               <UiField
                 description={editingSource?.credential_configured
                   ? t("capability.skill_source_token_keep")
                   : t("capability.skill_source_token_description")}
-                htmlFor="private-skill-source-token"
+                htmlFor={`${fieldId}-token`}
                 label={t("capability.skill_source_token")}
                 required={!editingSource?.credential_configured}
               >
                 <UiInput
                   autoComplete="new-password"
                   disabled={loading}
-                  id="private-skill-source-token"
+                  id={`${fieldId}-token`}
                   onChange={(event) => updateDraft("token", event.target.value)}
                   pattern=".*\S.*"
                   placeholder={editingSource?.credential_configured ? "••••••••" : "token"}
@@ -420,13 +451,16 @@ function PrivateSourceEditorDialog({
               {t("common.cancel")}
             </UiButton>
             <UiButton
+              aria-busy={loading || undefined}
               disabled={loading}
               size="sm"
               tone="primary"
               type="submit"
               variant="solid"
             >
-              {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+              {loading ? (
+                <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
+              ) : null}
               {t(editingSource
                 ? "capability.skill_source_validate_and_save"
                 : "capability.skill_source_validate_and_add")}

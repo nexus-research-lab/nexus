@@ -1,12 +1,20 @@
+// INPUT: 工作区 PPTX 标识、预览聚焦状态与文件动作。
+// OUTPUT: 可重试的幻灯片预览、共享标题栏/状态、缩略图选择与本地化翻页动作。
+// POS: 演示文稿预览与资源释放；Office scope 隔离迟到结果，解析归 parser，动作与排版归 shared/ui。
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Eye, FileWarning, LoaderCircle } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
-import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
+import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
+import { WorkspaceFilePreviewLoading } from "../workspace-file-preview-loading";
+import { UiChoiceButton } from "@/shared/ui/form/choice";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { fetchOfficePreviewBuffer } from "../office-preview-resource";
+import { useOfficePreviewScope } from "../use-office-preview-scope";
 import { OfficePreviewFailureState } from "../office-preview-fallbacks";
 import { parsePptx } from "./presentation-pptx-parser";
 import {
@@ -31,24 +39,19 @@ export function PresentationFilePreview({
 }: WorkspaceFilePreviewProps) {
   const { t } = useI18n();
   const cleanupUrlsRef = useRef<() => void>(() => undefined);
-  const previewKey = `${agentId}\x1f${path}`;
-  const [slides, setSlides] = useResettableState<PresentationSlide[]>([], previewKey);
-  const [activeSlideIndex, setActiveSlideIndex] = useResettableState(0, previewKey);
+  const { scopeKey, requestKey, isCurrent, retryPreview } = useOfficePreviewScope(agentId, path);
+  const [slides, setSlides] = useResettableState<PresentationSlide[]>([], scopeKey);
+  const [activeSlideIndex, setActiveSlideIndex] = useResettableState(0, scopeKey);
   const [status, setStatus] = useResettableState<PresentationPreviewStatus>({
     state: "loading",
-  }, previewKey);
-  const [retryRevision, setRetryRevision] = useState(0);
-  const retryPreview = useCallback(() => {
-    setRetryRevision((current) => current + 1);
-  }, []);
-
+  }, requestKey);
   useEffect(() => {
+    if (!isCurrent()) return;
     const abortController = new AbortController();
     let cancelled = false;
 
     cleanupUrlsRef.current();
     cleanupUrlsRef.current = () => undefined;
-    setStatus({ state: "loading" });
 
     async function loadPreview() {
       try {
@@ -58,13 +61,12 @@ export function PresentationFilePreview({
           path,
           signal: abortController.signal,
         });
-        if (cancelled) {
+        if (cancelled || !isCurrent()) {
           return;
         }
 
-        setStatus({ state: "loading" });
         const result = await parsePptx(buffer);
-        if (cancelled) {
+        if (cancelled || !isCurrent()) {
           revokeObjectUrls(result.objectUrls);
           return;
         }
@@ -74,7 +76,7 @@ export function PresentationFilePreview({
         setActiveSlideIndex(0);
         setStatus({ state: "loaded", slideCount: result.slides.length });
       } catch {
-        if (cancelled || abortController.signal.aborted) {
+        if (cancelled || !isCurrent() || abortController.signal.aborted) {
           return;
         }
         cleanupUrlsRef.current();
@@ -92,7 +94,7 @@ export function PresentationFilePreview({
       cleanupUrlsRef.current();
       cleanupUrlsRef.current = () => undefined;
     };
-  }, [agentId, path, retryRevision, setActiveSlideIndex, setSlides, setStatus]);
+  }, [agentId, isCurrent, path, setActiveSlideIndex, setSlides, setStatus]);
 
   const isLoaded = status.state === "loaded";
   const hasError = status.state === "error";
@@ -110,32 +112,13 @@ export function PresentationFilePreview({
             />
           </>
         )}
-        meta={(
-          hasError ? (
-            <span className="flex items-center gap-1 text-destructive">
-              <FileWarning className="h-3 w-3" />
-              {t("workspace_file.preview_failed_status")}
-            </span>
-          ) : isLoaded ? (
-            <span className="flex items-center gap-1 text-(--success)">
-              <Eye className="h-3 w-3" />
-              {t("workspace_file.presentation_loaded", {
-                count: status.slideCount,
-              })}
-            </span>
-          ) : (
-            <span className="flex items-center gap-1">
-              <LoaderCircle className="h-3 w-3 animate-spin" />
-              {t("workspace_file.preview_loading")}
-            </span>
-          )
-        )}
+        meta={isLoaded ? t("workspace_file.presentation_loaded", { count: status.slideCount }) : undefined}
         title={fileName}
       />
 
       <div className="min-h-0 flex-1 overflow-hidden bg-[var(--surface-panel-subtle-background)]">
         {hasError ? (
-          <div className="flex h-full items-center justify-center p-8 text-center">
+          <div className="soft-scrollbar h-full min-h-0 min-w-0 overflow-auto overscroll-contain p-4">
             <OfficePreviewFailureState
               kind="presentation"
               onRetry={retryPreview}
@@ -147,22 +130,28 @@ export function PresentationFilePreview({
               <aside className="soft-scrollbar hidden w-36 shrink-0 overflow-auto border-r divider-subtle bg-(--surface-panel-background) p-3 md:block">
                 <div className="space-y-2">
                   {slides.map((slide, index) => (
-                    <button
+                    <UiChoiceButton
+                      active={index === activeSlideIndex}
                       className={cn(
-                        "w-full rounded-[6px] border p-1 text-left transition-colors",
-                        index === activeSlideIndex
-                          ? "border-primary/45 bg-primary/8"
-                          : "border-(--divider-subtle-color) bg-(--surface-panel-subtle-background) hover:border-primary/30",
+                        "h-auto w-full flex-col items-stretch justify-start gap-0 p-1 text-left",
                       )}
+                      choiceSize="xs"
                       key={slide.id}
                       onClick={() => setActiveSlideIndex(index)}
-                      type="button"
+                      tone="neutral"
                     >
-                      <PresentationSlideCanvas className="rounded-[2px] shadow-none" slide={slide} thumbnail />
-                      <span className="mt-1 block truncate text-2xs font-medium text-(--text-muted)">
+                      <PresentationSlideCanvas className="shadow-none" slide={slide} thumbnail />
+                      <span className={cn(
+                        "mt-1 block truncate text-left",
+                        getUiTypographyClassName({
+                          role: "caption",
+                          tone: "muted",
+                          weight: "medium",
+                        }),
+                      )}>
                         {index + 1}. {slide.title}
                       </span>
-                    </button>
+                    </UiChoiceButton>
                   ))}
                 </div>
               </aside>
@@ -170,30 +159,35 @@ export function PresentationFilePreview({
 
             <div className="soft-scrollbar min-h-0 flex-1 overflow-auto p-5">
               <div className="mx-auto flex w-full max-w-6xl flex-col gap-3">
-                <div className="flex items-center justify-between gap-3 text-xs text-(--text-muted)">
+                <div className={cn(
+                  "flex items-center justify-between gap-3",
+                  getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+                )}>
                   <span className="min-w-0 truncate">
                     {activeSlideIndex + 1} / {slides.length} · {activeSlide.title}
                   </span>
                   {slides.length > 1 ? (
                     <div className="flex shrink-0 items-center gap-1">
-                      <button
-                        aria-label="上一页幻灯片"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-[6px] border border-(--divider-subtle-color) bg-(--surface-panel-background) text-(--text-default) transition-colors hover:border-primary/30 hover:text-primary disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)"
+                      <UiIconButton
+                        aria-label={t("workspace_file.previous_slide")}
                         disabled={activeSlideIndex <= 0}
                         onClick={() => setActiveSlideIndex((index) => Math.max(index - 1, 0))}
-                        type="button"
+                        size="md"
+                        tooltip={t("workspace_file.previous_slide")}
+                        variant="surface"
                       >
                         <ChevronLeft className="h-4 w-4" />
-                      </button>
-                      <button
-                        aria-label="下一页幻灯片"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-[6px] border border-(--divider-subtle-color) bg-(--surface-panel-background) text-(--text-default) transition-colors hover:border-primary/30 hover:text-primary disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)"
+                      </UiIconButton>
+                      <UiIconButton
+                        aria-label={t("workspace_file.next_slide")}
                         disabled={activeSlideIndex >= slides.length - 1}
                         onClick={() => setActiveSlideIndex((index) => Math.min(index + 1, slides.length - 1))}
-                        type="button"
+                        size="md"
+                        tooltip={t("workspace_file.next_slide")}
+                        variant="surface"
                       >
                         <ChevronRight className="h-4 w-4" />
-                      </button>
+                      </UiIconButton>
                     </div>
                   ) : null}
                 </div>
@@ -202,14 +196,7 @@ export function PresentationFilePreview({
             </div>
           </div>
         ) : (
-          <div className="flex h-full items-center justify-center p-8 text-center">
-            <div className="max-w-xs">
-              <LoaderCircle className="mx-auto h-8 w-8 animate-spin text-primary" />
-              <p className="mt-3 text-sm font-medium text-(--text-strong)">
-                {t("workspace_file.preview_loading")}
-              </p>
-            </div>
-          </div>
+          <WorkspaceFilePreviewLoading className="h-full" />
         )}
       </div>
     </>

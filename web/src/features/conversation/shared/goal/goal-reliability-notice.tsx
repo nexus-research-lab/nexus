@@ -1,6 +1,6 @@
 /**
  * INPUT: one scope-fenced Goal reliability fact and the safe read-only reconciliation action.
- * OUTPUT: compact Problem / Impact / Recovery copy without exposing IDs or replaying mutations.
+ * OUTPUT: localized Problem / Impact / Recovery copy; stale success retains read-only recovery without downgrading write evidence.
  * POS: Goal panel reliability renderer; mutation evidence remains owned by use-goal-resource.
  */
 "use client";
@@ -66,6 +66,13 @@ export function GoalReliabilityNotice({
     className: cn("min-h-0 px-3 py-2", className),
     "data-goal-mutation-blocked": mutationBlocked ? "true" : undefined,
     "data-goal-reliability-kind": state.kind,
+    primaryAction: canRefresh ? {
+      busy: isRefreshing,
+      busyLabel: t("state.reload_check"),
+      icon: <RefreshCw aria-hidden="true" className="h-3.5 w-3.5" />,
+      label: t("state.reload_check"),
+      onClick: onRefresh,
+    } : undefined,
     impact: copy.impact,
     nextStep: copy.nextStep,
     size: "sm" as const,
@@ -79,13 +86,6 @@ export function GoalReliabilityNotice({
   return (
     <UiResourceState
       {...commonProps}
-      primaryAction={canRefresh ? {
-        busy: isRefreshing,
-        busyLabel: t("state.reload_check"),
-        icon: <RefreshCw className="h-3.5 w-3.5" />,
-        label: t("state.reload_check"),
-        onClick: onRefresh,
-      } : undefined}
       state="error"
       tone={copy.tone === "error" ? "danger" : "warning"}
     />

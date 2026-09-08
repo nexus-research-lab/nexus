@@ -1,17 +1,27 @@
-import type { MouseEvent } from "react";
+// INPUT: 已确定的文件目录、读取/变更状态、页面命令与外部分栏尺寸。
+// OUTPUT: 单一滚动目录、互斥读取/空/失败状态与关联分隔条；隐藏保留目录实例。
+// POS: Workspace 目录面组合；不把读取失败推断为空，导航/变更与宽度归调用方。
+
+import { useId, type MouseEvent } from "react";
 import { FilePlus, FolderPlus, FolderTree, LoaderCircle, Upload } from "lucide-react";
 
 import { WorkspaceFileToolbarButton } from "@/features/conversation/shared/editor/workspace-file-preview-chrome";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
-import { PanelResizeHandle } from "@/shared/ui/layout/panel-resize-handle";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import { PanelResizeHandle, type PanelResizeControl } from "@/shared/ui/layout/panel-resize-handle";
 import { WORKSPACE_PANEL_HEADER_ICON_CLASS } from "@/shared/ui/workspace/surface/workspace-header-layout";
+import { SidebarEmptyGuide } from "@/shared/ui/sidebar/sidebar-empty-guide";
+import { WorkspaceLoadingState } from "@/shared/ui/workspace/frame/workspace-loading-state";
 import { WorkspaceFileTree } from "@/shared/ui/workspace/tree/workspace-file-tree";
 import type { WorkspaceFileEntry } from "@/types/agent/agent";
 
 interface WorkspaceFileBrowserController {
   files: WorkspaceFileEntry[];
   isLoadingFiles: boolean;
+  hasLoadError: boolean;
+  handleReloadFiles: () => void;
   isMutating: boolean;
   isUploading: boolean;
   focusedDirectoryPath: string | null;
@@ -29,6 +39,8 @@ interface WorkspaceFileBrowserProps {
   activePath: string | null;
   controller: WorkspaceFileBrowserController;
   onResizeStart: () => void;
+  resizeControl: PanelResizeControl | null;
+  hidden?: boolean;
   stacked?: boolean;
   width: number;
 }
@@ -56,7 +68,7 @@ export function WorkspaceDirectoryToolbar({
         title={t(uploadKey)}
       >
         {controller.isUploading ? (
-          <LoaderCircle className={cn(WORKSPACE_PANEL_HEADER_ICON_CLASS, "animate-spin")} />
+          <LoaderCircle className={getUiSpinnerClassName({ size: "sm" })} />
         ) : (
           <Upload className={WORKSPACE_PANEL_HEADER_ICON_CLASS} />
         )}
@@ -88,7 +100,7 @@ function WorkspaceFileList({
   const {t} = useI18n();
   if (controller.files.length > 0) {
     return (
-      <div className="soft-scrollbar h-full overflow-auto py-1">
+      <div className="py-1">
         <WorkspaceFileTree
           activePath={activePath}
           entries={controller.files}
@@ -104,21 +116,30 @@ function WorkspaceFileList({
   }
   if (controller.isLoadingFiles) {
     return (
-      <div className="flex h-full items-center justify-center text-(--text-soft)">
-        <LoaderCircle className="h-4 w-4 animate-spin" />
+      <div className="flex h-full min-h-0">
+        <WorkspaceLoadingState label={t("common.loading")} />
       </div>
     );
   }
+  if (controller.hasLoadError) {
+    return (
+      <UiResourceState
+        className="h-full min-h-0"
+        impact={t("room.workspace_list_unavailable_impact")}
+        primaryAction={{ label: t("room.workspace_refresh_action"), onClick: controller.handleReloadFiles }}
+        size="sm"
+        state="error"
+        title={t("room.workspace_list_failed_title")}
+        variant="plain"
+      />
+    );
+  }
   return (
-    <div className="rounded-[12px] border border-(--divider-subtle-color) px-6 py-10 text-center">
-      <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-(--icon-default) shadow-(--surface-avatar-shadow)">
-        <FolderTree className="h-4 w-4" />
-      </div>
-      <p className="mt-4 text-base font-semibold text-(--text-strong)">{t("room.no_files")}</p>
-      <p className="mt-1 text-compact leading-6 text-(--text-soft)">
-        {t("room.workspace_empty_description")}
-      </p>
-    </div>
+    <SidebarEmptyGuide
+      description={t("room.workspace_empty_description")}
+      icon={FolderTree}
+      title={t("room.no_files")}
+    />
   );
 }
 
@@ -126,28 +147,36 @@ export function WorkspaceFileBrowser({
   activePath,
   controller,
   onResizeStart,
+  resizeControl,
+  hidden = false,
   stacked = false,
   width,
 }: WorkspaceFileBrowserProps) {
   const {t} = useI18n();
+  const panelId = useId();
   return (
     <div
+      hidden={hidden}
       className={cn(
         "relative flex min-h-0 shrink-0 flex-col border-l divider-subtle pl-4",
         stacked &&
-          "h-[42%] min-h-[220px] max-h-[320px] w-full border-l-0 border-b pb-3 pl-0",
+          "h-[42%] max-h-[320px] w-full border-l-0 border-b pb-3 pl-0",
+        hidden && "hidden",
       )}
       style={{width: stacked ? "100%" : `${width}px`}}
     >
       {!stacked ? (
         <PanelResizeHandle
           ariaLabel={t("room.resize_workspace_file_list")}
+          control={resizeControl}
+          controls={panelId}
           onResizeStart={onResizeStart}
         />
       ) : null}
 
       <div
-        className="min-h-0 flex-1 overflow-hidden"
+        id={panelId}
+        className="soft-scrollbar min-h-0 flex-1 overflow-auto"
         onContextMenu={controller.handleRootContextMenu}
       >
         <WorkspaceFileList activePath={activePath} controller={controller} />

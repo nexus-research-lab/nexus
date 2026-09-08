@@ -3,7 +3,7 @@
 /**
  * INPUT: 当前 Composer 可配置的 Session 目标、Agent 默认值与 runtime 类型。
  * OUTPUT: DM 直接配置当前 Session；Room 统一权限并按 Agent 配置模型。
- * POS: Composer Footer 内的会话运行时设置入口，不写回 Agent 默认配置。
+ * POS: Composer Footer 会话设置入口；临时菜单按精确 Session 重置，模型宽度/选择与 Room 共用 owner，不写回 Agent 默认配置。
  */
 
 import {
@@ -13,21 +13,22 @@ import {
 import {
   useEffect,
   useRef,
-  useState,
 } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { cn } from "@/shared/ui/class-name";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
+import { UiButton } from "@/shared/ui/button/button";
 import { UiActionMenu } from "@/shared/ui/menu/action-menu";
 import type {
   ComposerSessionSettingsController,
 } from "../../controller/use-composer-session-settings";
 import { ComposerRoomModelControl } from "./composer-room-model-control";
+import { SESSION_MODEL_MENU_WIDTH } from "./composer-session-control-layout";
 import {
   buildResetSessionSettingItem,
   buildSessionModelItems,
   buildSessionPermissionItems,
-  decodeSessionModelValue,
+  applySessionModelSelection,
   RESET_SESSION_SETTING_VALUE,
 } from "./composer-session-control-options";
 
@@ -46,35 +47,20 @@ export function ComposerSessionControls({
   if (!scope || !controller.target) {
     return null;
   }
-  if (scope.targets.length > 1) {
-    if (slot === "leading") {
-      return (
-        <div className="flex min-w-0 items-center gap-1">
-          <ComposerPermissionControl
-            controller={controller}
-            disabled={disabled}
-            roomWide
-          />
-        </div>
-      );
-    }
-    return (
-      <ComposerRoomModelControl
-        controller={controller}
-        disabled={disabled}
-        triggerClassName={SESSION_CONTROL_BUTTON_CLASS_NAME}
-      />
-    );
-  }
+  const roomWide = scope.targets.length > 1;
   if (slot === "leading") {
     return (
       <div className="flex min-w-0 items-center gap-1">
         <ComposerPermissionControl
           controller={controller}
           disabled={disabled}
+          roomWide={roomWide}
         />
       </div>
     );
+  }
+  if (roomWide) {
+    return <ComposerRoomModelControl controller={controller} disabled={disabled} />;
   }
   return (
     <ComposerModelControl
@@ -95,12 +81,12 @@ function ComposerPermissionControl({
 }) {
   const { t } = useI18n();
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useResettableState(false, controller.target?.sessionKey);
   useEffect(() => {
     if (disabled || controller.busy) {
       setIsOpen(false);
     }
-  }, [controller.busy, disabled]);
+  }, [controller.busy, disabled, setIsOpen]);
   const permissionItems = buildSessionPermissionItems(controller, t);
   const resetItem = buildResetSessionSettingItem(
     !controller.hasPermissionOverride,
@@ -108,26 +94,25 @@ function ComposerPermissionControl({
   );
   return (
     <div className="min-w-0">
-      <button
+      <UiButton
         ref={buttonRef}
         aria-expanded={isOpen}
         aria-haspopup="menu"
         aria-label={t("composer.session_permission")}
-        className={cn(
-          SESSION_CONTROL_BUTTON_CLASS_NAME,
-          controller.isDangerousPermission && "text-(--destructive)",
-        )}
+        className="min-w-0"
         disabled={disabled || controller.busy}
         onClick={() => setIsOpen((current) => !current)}
+        size="xs"
         title={t("composer.session_permission")}
-        type="button"
+        tone={controller.isDangerousPermission ? "danger" : "default"}
+        variant="text"
       >
         <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
         <span className="nexus-chat-composer-session-permission-label max-w-24 truncate">
           {controller.permissionLabel}
         </span>
         <ChevronDown className="h-3 w-3 shrink-0" />
-      </button>
+      </UiButton>
       <UiActionMenu
         anchorRef={buttonRef}
         ariaLabel={t("composer.session_permission")}
@@ -162,12 +147,12 @@ function ComposerModelControl({
 }) {
   const { t } = useI18n();
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useResettableState(false, controller.target?.sessionKey);
   useEffect(() => {
     if (disabled || controller.modelBusy) {
       setIsOpen(false);
     }
-  }, [controller.modelBusy, disabled]);
+  }, [controller.modelBusy, disabled, setIsOpen]);
   const modelItems = buildSessionModelItems(controller);
   const resetItem = buildResetSessionSettingItem(
     !controller.hasModelOverride,
@@ -175,23 +160,21 @@ function ComposerModelControl({
   );
   return (
     <div className="min-w-0">
-      <button
+      <UiButton
         ref={buttonRef}
         aria-expanded={isOpen}
         aria-haspopup="menu"
         aria-label={t("composer.session_model")}
-        className={cn(
-          SESSION_CONTROL_BUTTON_CLASS_NAME,
-          "max-w-44 text-(--text-default)",
-        )}
+        className="min-w-0 max-w-44"
         disabled={disabled || controller.modelBusy}
         onClick={() => setIsOpen((current) => !current)}
+        size="xs"
         title={t("composer.session_model")}
-        type="button"
+        variant="ghost"
       >
         <span className="truncate">{controller.modelLabel}</span>
         <ChevronDown className="h-3 w-3 shrink-0" />
-      </button>
+      </UiButton>
       <UiActionMenu
         align="end"
         anchorRef={buttonRef}
@@ -203,19 +186,7 @@ function ComposerModelControl({
         minWidth={SESSION_MODEL_MENU_WIDTH}
         onClose={() => setIsOpen(false)}
         onSelect={(value) => {
-          if (value === RESET_SESSION_SETTING_VALUE) {
-            void controller.resetModel();
-            return;
-          }
-          const [provider, model] = decodeSessionModelValue(value);
-          if (
-            provider === controller.inheritedProvider
-            && model === controller.inheritedModel
-          ) {
-            void controller.resetModel();
-            return;
-          }
-          void controller.updateModel(provider, model);
+          applySessionModelSelection(controller, value);
         }}
         placement="top"
       />
@@ -224,11 +195,3 @@ function ComposerModelControl({
 }
 
 const SESSION_PERMISSION_MENU_WIDTH = 288;
-const SESSION_MODEL_MENU_WIDTH = 256;
-
-const SESSION_CONTROL_BUTTON_CLASS_NAME = cn(
-  "inline-flex h-7 min-w-0 items-center gap-1.5 rounded-[8px] px-1.5",
-  "text-xs font-medium text-(--text-soft) transition-colors",
-  "hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
-  "disabled:pointer-events-none disabled:opacity-(--disabled-opacity)",
-);

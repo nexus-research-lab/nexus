@@ -1,14 +1,24 @@
 # Shared Dialog
 
 - `dialog.tsx` 只提供 Portal、Backdrop、Shell、Header、Body 与 Footer 结构原语。
+- 普通 `UiDialogHeader.title` 自动通过 `dialog-title-context.ts` 的实例内协议关联到最近 Backdrop 的可访问名称；标题变化、卸载与嵌套 Portal 保持各自身份。业务不重复生成或连接同一标题 ID；自定义 Header.children、隐藏标题和无标题预览必须由 Backdrop 的 `labelledBy` / `aria-labelledby` / `aria-label` 显式命名，已有显式名称优先，说明仍显式提供 `describedBy`。
+- Backdrop 默认使用 `dialog` 语义层，只有真实嵌套、交互或系统场景才通过 `layer` 选择其他共享层级；`.dialog-backdrop` 自身不得设置 z-index 回退。窄窗口留白只通过 `inset` 选择，业务不得在 `className` 中写高位 z-index 或复制小窗口 padding。
+- `dialog-layout.ts` 独占 `content / compact / compactMax / adaptive / adaptiveMax / visualPreview / documentPreview / workbench` 视口模式；选择器和短向导使用固定 620px 上限的 `compact`，内容量不固定但应保持紧凑的目录使用 `compactMax`，长表单使用 `adaptive` 或只限高的 `adaptiveMax`，图片与短文本查看分别使用 `visualPreview`、`documentPreview`，大型图形编辑与对照界面同时选择 `size="workbench"`。
+- 业务 Shell 只能选择 `size + viewport`，不得通过 `className/style` 复制桌面/窄窗口高度或覆盖宽度；新增尺寸先证明它属于新的跨业务内容语义。
 - 关闭按钮默认可访问名称使用当前语言的 `common.close`；业务只有在语义更具体时才覆盖。
-- `dialog-behavior.ts` 只装配 React 生命周期，不保存键盘规则或模态全局状态。
-- `dialog-modal-runtime.ts` 独占模态栈与页面滚动锁；叠层关闭顺序由栈顶令牌决定。
-- `dialog-focus.ts` 独占可聚焦元素发现、可见性过滤与无滚动聚焦。
+- `dialog-behavior.ts` 只装配 React 生命周期，不保存键盘规则或模态全局状态。调用该适配的自定义模态也必须在同一 rootRef 根声明 `data-modal-root="true"`；Portal 容器、菜单 Tab 退出与 Overlay 身份仲裁共同使用该真实根，不能只注册键盘行为却让菜单落到背景页面。
+- `dialog-modal-runtime.ts` 独占模态栈与页面滚动锁，并将真实模态根注册到共享 Overlay 关闭仲裁；叠层关闭顺序由栈顶令牌决定。
+- `dialog-focus.ts` 只计算根内焦点位置与无滚动聚焦；可用 Tab 目录统一归 `shared/lib/browser/focus-navigation.ts`，与菜单退出共用可见性、原生/fieldset 禁用、inert、负 tabindex、radio 组和顺序规则。
 - `dialog-keyboard.ts` 用有序规则投影 Escape 与 Tab 动作，不直接读写 DOM。
 - `decision/` 组合确认与输入弹窗，复用共享模态协议，不自行注册焦点或键盘生命周期。
+- Dialog 的确认、取消与业务动作直接渲染 `UiButton` 并选择 size/tone/variant；`dialog-styles.ts` 只拥有 Dialog 专属结构 recipe，不再提供可被业务层绕过 Button DOM 的动作 className 适配器。
+- Dialog 内的普通行内说明复用 `UiInlineNotice`；不维护第二套 Note 字号、边界或危险配色 helper。
+- 单行 `PromptDialog` 固定使用 `xs` 决策宽度，多行 Prompt 使用 `sm`；标题、输入控件和主次动作必须分别复用 `UiDialogHeader`、`UiInput/UiTextarea` 与共享 Button recipe，业务只提供文案和提交命令。
+- Confirm/Prompt 的默认动作跟随界面语言；Prompt 输入默认以标题命名，可用 inputLabel 明确覆盖，不把占位示例当作字段名。消息关联到弹窗，字段错误和多行快捷键说明通过精确 htmlFor/id 的 UiField 关联；错误不替换业务用途说明，业务仍拥有校验和 busy 真相。
+- 输入法标记和兼容 229 键码统一由 shared/lib/browser 的 isImeKeyboardEvent 判断；Prompt 不提交候选 Enter，模态适配层也不把候选 Escape/Tab 当作关闭/焦点循环。普通单行 Enter、多行 Cmd/Ctrl+Enter 和逐层 Escape 语义保留。
 - 异步确认执行中必须禁用关闭、取消和重复确认；高后果操作的失败留在原弹窗内，用自然文案完整说明结果、已有数据影响和安全下一步。
 - Dialog 与锚点浮层使用同一高不透明主题表面、16px 外轮廓与细边界；Dialog 只在尺寸层级上使用更深一档同源阴影。
-- Dialog 遇到带共享打开态契约的子浮层时不消费 Escape，由最内层浮层先关闭。
+- Dialog 只为自身模态根内带共享打开态契约的子浮层让出 Escape，由最内层浮层先关闭；背景页面或其他 Dialog 的浮层不得阻止当前 Dialog 关闭。
 - 遮罩关闭是显式策略；迁移旧弹窗时不得借共享骨架改变原有关闭语义。
 - 业务弹窗不得自行注册全局 Escape、焦点循环或页面滚动锁。
+- `dialog.test.tsx` 是 Portal 模态的可执行行为合同：必须覆盖自动/显式命名、动态标题、相同标题的实例隔离、StrictMode 与嵌套 Portal，以及初始焦点、Tab 循环、嵌套关闭顺序、子浮层 Escape、遮罩策略、滚动锁计数和焦点归还。

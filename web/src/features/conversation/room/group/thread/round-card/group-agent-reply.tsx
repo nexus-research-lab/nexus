@@ -1,11 +1,13 @@
 /**
- * INPUT: 同一个 agent round 的消息、人工介入、身份、相邻说话人边界与操作。
+ * INPUT: 同一个 agent round 的结构 entry、当前身份目录/语言、相邻说话人边界与操作。
  * OUTPUT: pending、streaming、waiting 与 terminal 共用的稳定 Agent 执行外壳。
  * POS: Room 主 Feed 把 Agent entry 绑定到唯一 Assistant 展示面的薄装配层。
  */
 "use client";
 
 import type { AgentMentionDirectory } from "@/features/conversation/shared/message/agent-mention-chip";
+import { getAgentDisplayName } from "@/lib/agent-display-name";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import type { PermissionDecisionPayload } from "@/types/conversation/interaction/permission";
 
 import type { GroupRoundAgentCardModel } from "./group-round-card-model";
@@ -26,7 +28,7 @@ interface GroupAgentReplyProps {
   onStopAgentRound?: () => void;
   roundId: string;
   showAgentBoundary?: boolean;
-  agentMentionDirectory?: AgentMentionDirectory;
+  agentMentionDirectory: Required<AgentMentionDirectory>;
 }
 
 export function GroupAgentReply({
@@ -43,12 +45,13 @@ export function GroupAgentReply({
   showAgentBoundary,
   agentMentionDirectory,
 }: GroupAgentReplyProps) {
+  const { t } = useI18n();
   return (
     <GroupAgentExecutionShell
-      agentAvatar={entry.agentAvatar}
+      agentAvatar={agentMentionDirectory.avatars[entry.agent_id] ?? null}
       agentId={entry.agent_id}
       agentMentionDirectory={agentMentionDirectory}
-      agentName={entry.agentName}
+      agentName={getAgentDisplayName(agentMentionDirectory.names[entry.agent_id], t)}
       isThreadActive={isThreadActive}
       isStopping={isStopping}
       messages={entry.assistant_messages}

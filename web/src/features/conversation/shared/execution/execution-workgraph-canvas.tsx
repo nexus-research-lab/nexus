@@ -1,6 +1,6 @@
 /**
  * INPUT: 权威 Execution Graph、Agent 目录、当前 Graph 节点、节点展示密度与精确 Agent round Task run。
- * OUTPUT: 在焦点稳定、全边界可达且不叠加伪主图底框的工作板上显示图标或可读摘要卡片、可整体悬停聚焦的子图、跨子图边框端口、带语义分叉点的中性正交流程边、按需展开的精确端点短引线、降饱和控制回连、节点完整上下游路径聚焦，以及无可见标题栏并复用全部交互能力的大图弹窗。
+ * OUTPUT: 在焦点稳定、全边界可达且不叠加伪主图底框的工作板上显示图标或可读摘要卡片、可整体悬停聚焦的子图、正交流程边、唯一节点/边检查器外壳、公共静态运行活动行、共享关闭动作、统一节点/运行耗时及完整交互的大图弹窗。
  * POS: DM/Room 共用的只读 Execution Graph 主视图；一级运行树外框与内部方向边只按结构化父身份投影，不从自由文本反推关系。
  */
 "use client";
@@ -20,12 +20,14 @@ import {
   type ReactNode,
   type TouchEvent as ReactTouchEvent,
 } from "react";
-import { ChevronsDownUp, ChevronsUpDown, X } from "lucide-react";
+import { ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 
 import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import { cn } from "@/shared/ui/class-name";
+import { UiListRow } from "@/shared/ui/list/list-row";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -43,7 +45,9 @@ import type {
   ExecutionWorkItemView,
 } from "@/types/conversation/execution";
 
+import { ExecutionGraphInspector } from "./execution-graph-inspector";
 import { ExecutionNodeAvatar } from "./execution-node-avatar";
+import { formatExecutionDuration, getExecutionRunStatusLabel } from "./execution-run-presentation";
 import { ExecutionNodeRunHistory } from "./execution-node-run-history";
 import { ExecutionNodeTaskList } from "./execution-node-task-list";
 import { resolveExecutionNodeTaskRun } from "./execution-node-task-model";
@@ -75,19 +79,6 @@ import {
   resolveExecutionGraphWheelZoom,
   searchExecutionGraphNodes,
 } from "./execution-workgraph-interaction-model";
-
-const ATTEMPT_STATUS_LABEL_KEY: Record<
-  ExecutionAttemptView["status"],
-  TranslationKey
-> = {
-  cancelled: "execution.attempt_cancelled",
-  failed: "execution.attempt_failed",
-  interrupted: "execution.attempt_interrupted",
-  pending: "execution.attempt_pending",
-  running: "execution.attempt_running",
-  succeeded: "execution.attempt_succeeded",
-  timed_out: "execution.attempt_timed_out",
-};
 
 const EDGE_KIND_LABEL_KEY: Record<ExecutionGraphEdgeKind, TranslationKey> = {
   coordination: "execution.edge_coordination",
@@ -962,7 +953,7 @@ export function ExecutionWorkGraphCanvas({
                 className={cn(
                   "pointer-events-auto absolute z-0 rounded-[18px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_78%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-control-background)_48%,transparent)] transition-[border-color,background-color,box-shadow,opacity] duration-150",
                   hovered
-                    && "border-[color:color-mix(in_srgb,var(--primary)_48%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_4%,var(--surface-control-background))] shadow-[0_0_0_2px_color-mix(in_srgb,var(--primary)_8%,transparent)]",
+                    && "border-[color:color-mix(in_srgb,var(--primary)_48%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_4%,var(--surface-control-background))] ring-2 ring-[color:color-mix(in_srgb,var(--primary)_8%,transparent)]",
                 )}
                 data-execution-subgraph-hovered={hovered ? "true" : undefined}
                 data-execution-subgraph-root={group.id}
@@ -1223,7 +1214,7 @@ export function ExecutionWorkGraphCanvas({
           ))}
 
           {layout.nodes.map(({ height, item, node, size, width, x, y }) => {
-            const owner = resolveExecutionGraphNodeAgent(directory, node, item);
+            const owner = resolveExecutionGraphNodeAgent(directory, node, item, t);
             const status = resolveExecutionGraphNodeStatus(node, item);
             const selected = node.id === selectedId;
             const current = node.id === currentId;
@@ -1234,6 +1225,7 @@ export function ExecutionWorkGraphCanvas({
             const summaryObjective = compactExecutionNodeObjective(
               item?.objective ?? node.description ?? "",
               owner?.name,
+              owner?.nameIsFallback,
             );
             const descendantCount = collapse.descendantCountByNodeId.get(node.id) ?? 0;
             const collapsed = collapsedNodeIds.has(node.id);
@@ -1245,7 +1237,7 @@ export function ExecutionWorkGraphCanvas({
                 className={cn(
                   "absolute z-10 transition-[left,top,transform,border-color,box-shadow,opacity,filter] duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--primary)",
                   nodePresentation === "summary"
-                    ? "grid grid-cols-[auto_minmax(0,1fr)] items-start gap-2 overflow-hidden rounded-[14px] border border-(--surface-control-border) bg-(--surface-panel-background) px-3 py-2 text-left shadow-[0_5px_18px_color-mix(in_srgb,var(--shadow-color)_9%,transparent)] hover:border-[color:color-mix(in_srgb,var(--primary)_34%,var(--surface-control-border))] hover:shadow-[0_8px_22px_color-mix(in_srgb,var(--shadow-color)_13%,transparent)]"
+                    ? "grid grid-cols-[auto_minmax(0,1fr)] items-start gap-2 overflow-hidden rounded-[14px] border border-(--surface-control-border) bg-(--surface-panel-background) px-3 py-2 text-left shadow-(--surface-control-shadow) hover:border-[color:color-mix(in_srgb,var(--primary)_34%,var(--surface-control-border))]"
                     : "grid place-items-center rounded-[16px]",
                   selected
                     && nodePresentation === "summary"
@@ -1308,7 +1300,7 @@ export function ExecutionWorkGraphCanvas({
                         ) : null}
                       </span>
                       {summaryObjective ? (
-                        <span className="mt-0.5 line-clamp-2 max-h-[30px] overflow-hidden text-[10px] leading-[15px] text-(--text-muted)">
+                        <span className="mt-0.5 line-clamp-2 max-h-[30px] overflow-hidden text-2xs leading-[15px] text-(--text-muted)">
                           {summaryObjective}
                         </span>
                       ) : null}
@@ -1427,15 +1419,16 @@ function ExecutionWorkGraphExpandedDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        className="z-[10000] p-4"
         data-execution-workgraph-expanded-dialog
+        inset="compact"
         labelledBy={titleId}
+        layer="dialogNested"
         onClose={onClose}
       >
         <UiDialogShell
-          className="relative h-[calc(100dvh-32px)]"
-          size="wide"
-          style={{ maxWidth: "calc(100vw - 32px)" }}
+          className="relative"
+          size="workbench"
+          viewport="workbench"
         >
           <h2 className="sr-only" id={titleId}>
             {t("execution.label")}
@@ -1485,7 +1478,8 @@ function ExecutionNodeInspector({
   style: CSSProperties;
   taskRun: ConversationTaskRun | null;
 }) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
+  const durationLabel = formatExecutionDuration(node.duration_ms, { locale, t });
   const parentNode = node.parent_node_id
     ? execution.graph?.nodes?.find((candidate) => candidate.id === node.parent_node_id)
       ?? null
@@ -1495,21 +1489,21 @@ function ExecutionNodeInspector({
       candidate.id === parentNode.work_item_id
     )) ?? null
     : null;
-  const owner = resolveExecutionGraphNodeAgent(directory, node, item)
+  const owner = resolveExecutionGraphNodeAgent(directory, node, item, t)
     ?? (parentNode
-      ? resolveExecutionGraphNodeAgent(directory, parentNode, parentItem)
+      ? resolveExecutionGraphNodeAgent(directory, parentNode, parentItem, t)
       : null);
   const objectiveSource = item?.objective
     ?? node.description
     ?? node.name
     ?? "";
-  const objective = compactExecutionNodeObjective(objectiveSource, owner?.name);
+  const objective = compactExecutionNodeObjective(objectiveSource, owner?.name, owner?.nameIsFallback);
   const deliverable = item?.deliverable.trim() ?? "";
   const showDeliverable = deliverable
     && deliverable.toLocaleLowerCase() !== objective.toLocaleLowerCase();
   const status = resolveExecutionGraphNodeStatus(node, item);
   const statusLabel = attempt && node.kind === "subagent"
-    ? t(ATTEMPT_STATUS_LABEL_KEY[attempt.status])
+    ? getExecutionRunStatusLabel(attempt.status, t)
     : t(WORK_ITEM_STATUS_LABEL_KEY[status]);
   const heading = graphNodeHeading(node, item, t);
   const relatedSubject = node.kind === "agent" ? "" : item?.subject.trim() ?? "";
@@ -1543,14 +1537,15 @@ function ExecutionNodeInspector({
       left.position - right.position || left.id.localeCompare(right.id)
     ));
   return (
-    <aside
-      className="soft-scrollbar absolute z-30 max-h-[min(70vh,28rem)] w-[19rem] max-w-[calc(100%-1rem)] cursor-auto overflow-auto rounded-[14px] border border-(--surface-popover-border) bg-(--surface-popover-background) shadow-(--surface-popover-shadow)"
-      aria-label={`${t("execution.details")}: ${heading}`}
-      data-execution-selected-node-detail={node.id}
-      data-execution-selected-node-detail-mode="popover"
+    <ExecutionGraphInspector
+      label={`${t("execution.details")}: ${heading}`}
+      detailId={node.id}
+      detailKind="node"
+      heading={heading}
+      closeLabel={t("execution.close_node_details")}
+      onClose={onClose}
       style={style}
-    >
-      <div className="sticky top-0 z-10 flex min-w-0 items-center gap-2 border-b dialog-divider bg-(--surface-popover-background) px-3 py-3">
+      leading={
         <ExecutionNodeAvatar
           agent={owner}
           current={status === "running"}
@@ -1560,127 +1555,114 @@ function ExecutionNodeInspector({
           title={heading}
           toolName={node.name}
         />
-        <div className="min-w-0 flex-1">
-          <h3 className="truncate text-compact font-semibold text-(--text-strong)">
-            {heading}
-          </h3>
-          <p className="mt-0.5 flex min-w-0 items-center gap-1 text-[10px] text-(--text-soft)">
-            {owner ? <span className="truncate">{owner.name}</span> : null}
-            {owner ? <span aria-hidden="true">·</span> : null}
-            <span className={cn("shrink-0 font-medium", selectedStatusTone(status))}>
-              {statusLabel}
-            </span>
-          </p>
-        </div>
-        <button
-          aria-label={t("execution.close_node_details")}
-          className="grid h-7 w-7 shrink-0 place-items-center rounded-[8px] text-(--icon-muted) transition-[background,color] hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--primary)"
-          onClick={onClose}
-          title={t("execution.close_node_details")}
-          type="button"
-        >
-          <X aria-hidden="true" className="h-3.5 w-3.5" />
-        </button>
-      </div>
-      <div className="space-y-3 px-3 py-3">
-        {relatedSubject ? (
-          <p className="text-[11px] font-medium leading-4 text-(--text-default)">
-            {relatedSubject}
-          </p>
-        ) : null}
-        {objective ? (
-          <NodeDetailSection label={t("execution.objective")}>
-            <p>{objective}</p>
-          </NodeDetailSection>
-        ) : null}
-        {showDeliverable ? (
-          <NodeDetailSection label={t("execution.deliverable")}>
-            <p>{deliverable}</p>
-          </NodeDetailSection>
-        ) : null}
-        {(item?.acceptance_criteria?.length ?? 0) > 0 ? (
-          <NodeDetailSection label={t("execution.acceptance")}>
-            <ul className="space-y-1">
-              {item?.acceptance_criteria?.slice(0, 4).map((criterion) => (
-                <li className="flex gap-2" key={criterion}>
-                  <span aria-hidden="true" className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-(--icon-muted)" />
-                  <span>{criterion}</span>
-                </li>
-              ))}
-            </ul>
-          </NodeDetailSection>
-        ) : null}
-        {item?.block_reason?.trim() ? (
-          <NodeDetailSection label={t("execution.blocker")}>
-            <p>{item.block_reason.trim()}</p>
-          </NodeDetailSection>
-        ) : null}
-        {item?.needed_input?.trim() ? (
-          <NodeDetailSection label={t("execution.needed_input")}>
-            <p>{item.needed_input.trim()}</p>
-          </NodeDetailSection>
-        ) : null}
-        {visibleErrorSummary ? (
-          <NodeDetailSection label={t("execution.error_summary")}>
-            <p>{visibleErrorSummary}</p>
-            {node.error_code?.trim() ? (
-              <p className="mt-1 font-mono text-[10px] text-(--text-soft)">
-                {node.error_code.trim()}
-              </p>
-            ) : null}
-          </NodeDetailSection>
-        ) : null}
-        {resultSummary ? (
-          <NodeDetailSection label={t("execution.result_summary")}>
-            <p>{resultSummary}</p>
-            {node.summary_truncated ? (
-              <p className="mt-1 text-[10px] text-(--text-soft)">
-                {t("execution.summary_truncated")}
-              </p>
-            ) : null}
-          </NodeDetailSection>
-        ) : null}
-        {(node.duration_ms ?? 0) > 0 ? (
-          <NodeDetailSection label={t("execution.duration")}>
-            <p>{formatNodeDuration(node.duration_ms ?? 0)}</p>
-          </NodeDetailSection>
-        ) : null}
-        {controlReturnObserved ? (
-          <NodeDetailSection label={t("execution.control_return")}>
-            <p>{t("execution.control_return_observed")}</p>
-          </NodeDetailSection>
-        ) : null}
-        {retryEdges.length > 0 ? (
-          <NodeDetailSection label={t("execution.retry_relation")}>
-            <p>{t("execution.retry_relation_count", { count: retryEdges.length })}</p>
-          </NodeDetailSection>
-        ) : null}
-        {submission ? (
-          <NodeDetailSection label={t("execution.submission")}>
-            <p>{submission}</p>
-          </NodeDetailSection>
-        ) : null}
-        {review ? (
-          <NodeDetailSection label={t("execution.review")}>
-            <p>{review}</p>
-          </NodeDetailSection>
-        ) : null}
-        {taskRun ? <ExecutionNodeTaskList run={taskRun} /> : null}
-        <ExecutionNodeRunHistory
-          item={item}
-          node={node}
-          onOpenWorkspaceFile={onOpenWorkspaceFile}
-          workspaceAgentId={owner?.id ?? node.agent_id}
+      }
+      description={
+        <>
+          {owner ? <span className="truncate">{owner.name}</span> : null}
+          {owner ? <span aria-hidden="true">·</span> : null}
+          <span className={cn("shrink-0 font-medium", selectedStatusTone(status))}>
+            {statusLabel}
+          </span>
+        </>
+      }
+    >
+      {relatedSubject ? (
+        <p className="text-xs font-medium leading-4 text-(--text-default)">
+          {relatedSubject}
+        </p>
+      ) : null}
+      {objective ? (
+        <NodeDetailSection label={t("execution.objective")}>
+          <p>{objective}</p>
+        </NodeDetailSection>
+      ) : null}
+      {showDeliverable ? (
+        <NodeDetailSection label={t("execution.deliverable")}>
+          <p>{deliverable}</p>
+        </NodeDetailSection>
+      ) : null}
+      {(item?.acceptance_criteria?.length ?? 0) > 0 ? (
+        <NodeDetailSection label={t("execution.acceptance")}>
+          <ul className="space-y-1">
+            {item?.acceptance_criteria?.slice(0, 4).map((criterion) => (
+              <li className="flex gap-2" key={criterion}>
+                <span aria-hidden="true" className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-(--icon-muted)" />
+                <span>{criterion}</span>
+              </li>
+            ))}
+          </ul>
+        </NodeDetailSection>
+      ) : null}
+      {item?.block_reason?.trim() ? (
+        <NodeDetailSection label={t("execution.blocker")}>
+          <p>{item.block_reason.trim()}</p>
+        </NodeDetailSection>
+      ) : null}
+      {item?.needed_input?.trim() ? (
+        <NodeDetailSection label={t("execution.needed_input")}>
+          <p>{item.needed_input.trim()}</p>
+        </NodeDetailSection>
+      ) : null}
+      {visibleErrorSummary ? (
+        <NodeDetailSection label={t("execution.error_summary")}>
+          <p>{visibleErrorSummary}</p>
+          {node.error_code?.trim() ? (
+            <p className="mt-1 font-mono text-2xs text-(--text-soft)">
+              {node.error_code.trim()}
+            </p>
+          ) : null}
+        </NodeDetailSection>
+      ) : null}
+      {resultSummary ? (
+        <NodeDetailSection label={t("execution.result_summary")}>
+          <p>{resultSummary}</p>
+          {node.summary_truncated ? (
+            <p className="mt-1 text-2xs text-(--text-soft)">
+              {t("execution.summary_truncated")}
+            </p>
+          ) : null}
+        </NodeDetailSection>
+      ) : null}
+      {durationLabel !== null ? (
+        <NodeDetailSection label={t("execution.duration")}>
+          <p>{durationLabel}</p>
+        </NodeDetailSection>
+      ) : null}
+      {controlReturnObserved ? (
+        <NodeDetailSection label={t("execution.control_return")}>
+          <p>{t("execution.control_return_observed")}</p>
+        </NodeDetailSection>
+      ) : null}
+      {retryEdges.length > 0 ? (
+        <NodeDetailSection label={t("execution.retry_relation")}>
+          <p>{t("execution.retry_relation_count", { count: retryEdges.length })}</p>
+        </NodeDetailSection>
+      ) : null}
+      {submission ? (
+        <NodeDetailSection label={t("execution.submission")}>
+          <p>{submission}</p>
+        </NodeDetailSection>
+      ) : null}
+      {review ? (
+        <NodeDetailSection label={t("execution.review")}>
+          <p>{review}</p>
+        </NodeDetailSection>
+      ) : null}
+      {taskRun ? <ExecutionNodeTaskList run={taskRun} /> : null}
+      <ExecutionNodeRunHistory
+        item={item}
+        node={node}
+        onOpenWorkspaceFile={onOpenWorkspaceFile}
+        workspaceAgentId={owner?.id ?? node.agent_id}
+      />
+      {childNodes.length > 0 ? (
+        <ExecutionNodeRunList
+          directory={directory}
+          execution={execution}
+          nodes={childNodes}
         />
-        {childNodes.length > 0 ? (
-          <ExecutionNodeRunList
-            directory={directory}
-            execution={execution}
-            nodes={childNodes}
-          />
-        ) : null}
-      </div>
-    </aside>
+      ) : null}
+    </ExecutionGraphInspector>
   );
 }
 
@@ -1718,13 +1700,15 @@ function ExecutionEdgeInspector({
     targetNode?.error_summary || targetNode?.result_summary || "",
   );
   return (
-    <aside
-      aria-label={`${t("execution.edge_details")}: ${t(EDGE_KIND_LABEL_KEY[edge.kind])}`}
-      className="soft-scrollbar absolute z-30 max-h-[min(70vh,28rem)] w-[19rem] max-w-[calc(100%-1rem)] cursor-auto overflow-auto rounded-[14px] border border-(--surface-popover-border) bg-(--surface-popover-background) shadow-(--surface-popover-shadow)"
-      data-execution-selected-edge-detail={edge.id}
+    <ExecutionGraphInspector
+      label={`${t("execution.edge_details")}: ${t(EDGE_KIND_LABEL_KEY[edge.kind])}`}
+      detailId={edge.id}
+      detailKind="edge"
+      heading={t("execution.edge_details")}
+      closeLabel={t("execution.close_edge_details")}
+      onClose={onClose}
       style={style}
-    >
-      <div className="sticky top-0 z-10 flex min-w-0 items-center gap-2 border-b dialog-divider bg-(--surface-popover-background) px-3 py-3">
+      leading={
         <span
           aria-hidden="true"
           className={cn(
@@ -1736,58 +1720,41 @@ function ExecutionEdgeInspector({
               : "bg-(--icon-muted)",
           )}
         />
-        <div className="min-w-0 flex-1">
-          <h3 className="truncate text-compact font-semibold text-(--text-strong)">
-            {t("execution.edge_details")}
-          </h3>
-          <p className="mt-0.5 truncate text-[10px] font-medium text-(--text-soft)">
-            {t(EDGE_KIND_LABEL_KEY[edge.kind])}
+      }
+      description={<span className="truncate">{t(EDGE_KIND_LABEL_KEY[edge.kind])}</span>}
+    >
+      <NodeDetailSection label={t("execution.edge_relation")}>
+        <p>{t(EDGE_KIND_DETAIL_KEY[edge.kind])}</p>
+      </NodeDetailSection>
+      <NodeDetailSection label={t("execution.edge_source")}>
+        <p className="font-medium text-(--text-default)">{sourceHeading}</p>
+        {sourceSummary ? (
+          <p className="mt-1 text-(--text-soft)">{sourceSummary}</p>
+        ) : null}
+      </NodeDetailSection>
+      <NodeDetailSection label={t("execution.edge_target")}>
+        <p className="font-medium text-(--text-default)">{targetHeading}</p>
+        {targetSummary ? (
+          <p className="mt-1 text-(--text-soft)">{targetSummary}</p>
+        ) : null}
+      </NodeDetailSection>
+      {edge.created_at ? (
+        <NodeDetailSection label={t("execution.edge_observed_at")}>
+          <p className="font-mono text-2xs">
+            {formatEdgeObservedAt(edge.created_at)}
           </p>
-        </div>
-        <button
-          aria-label={t("execution.close_edge_details")}
-          className="grid h-7 w-7 shrink-0 place-items-center rounded-[8px] text-(--icon-muted) transition-[background,color] hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--primary)"
-          onClick={onClose}
-          title={t("execution.close_edge_details")}
-          type="button"
-        >
-          <X aria-hidden="true" className="h-3.5 w-3.5" />
-        </button>
-      </div>
-      <div className="space-y-3 px-3 py-3">
-        <NodeDetailSection label={t("execution.edge_relation")}>
-          <p>{t(EDGE_KIND_DETAIL_KEY[edge.kind])}</p>
         </NodeDetailSection>
-        <NodeDetailSection label={t("execution.edge_source")}>
-          <p className="font-medium text-(--text-default)">{sourceHeading}</p>
-          {sourceSummary ? (
-            <p className="mt-1 text-(--text-soft)">{sourceSummary}</p>
-          ) : null}
+      ) : null}
+      {edge.source_node_run_id || edge.target_node_run_id ? (
+        <NodeDetailSection label={t("execution.edge_run_identity")}>
+          <p className="break-all font-mono text-2xs text-(--text-soft)">
+            {edge.source_node_run_id || edge.source_node_id}
+            <span aria-hidden="true"> → </span>
+            {edge.target_node_run_id || edge.target_node_id}
+          </p>
         </NodeDetailSection>
-        <NodeDetailSection label={t("execution.edge_target")}>
-          <p className="font-medium text-(--text-default)">{targetHeading}</p>
-          {targetSummary ? (
-            <p className="mt-1 text-(--text-soft)">{targetSummary}</p>
-          ) : null}
-        </NodeDetailSection>
-        {edge.created_at ? (
-          <NodeDetailSection label={t("execution.edge_observed_at")}>
-            <p className="font-mono text-[10px]">
-              {formatEdgeObservedAt(edge.created_at)}
-            </p>
-          </NodeDetailSection>
-        ) : null}
-        {edge.source_node_run_id || edge.target_node_run_id ? (
-          <NodeDetailSection label={t("execution.edge_run_identity")}>
-            <p className="break-all font-mono text-[10px] text-(--text-soft)">
-              {edge.source_node_run_id || edge.source_node_id}
-              <span aria-hidden="true"> → </span>
-              {edge.target_node_run_id || edge.target_node_id}
-            </p>
-          </NodeDetailSection>
-        ) : null}
-      </div>
-    </aside>
+      ) : null}
+    </ExecutionGraphInspector>
   );
 }
 
@@ -1800,10 +1767,10 @@ function NodeDetailSection({
 }) {
   return (
     <section>
-      <h4 className="mb-1 text-[10px] font-medium text-(--text-soft)">
+      <h4 className={cn("mb-1", getUiTypographyClassName({ role: "caption", tone: "soft", weight: "medium" }))}>
         {label}
       </h4>
-      <div className="text-[11px] leading-[1.55] text-(--text-default)">
+      <div className={getUiTypographyClassName({ role: "metadata", tone: "default" })}>
         {children}
       </div>
     </section>
@@ -1827,7 +1794,7 @@ function ExecutionNodeRunList({
           const item = execution.work_items?.find(
             (candidate) => candidate.id === node.work_item_id,
           ) ?? null;
-          const owner = resolveExecutionGraphNodeAgent(directory, node, item);
+          const owner = resolveExecutionGraphNodeAgent(directory, node, item, t);
           const status = resolveExecutionGraphNodeStatus(node, item);
           const summary = node.error_summary?.trim()
             || node.result_summary?.trim()
@@ -1835,44 +1802,51 @@ function ExecutionNodeRunList({
             || "";
           return (
             <li
-              className="flex min-w-0 gap-2 rounded-[9px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-control-background)_68%,transparent)] px-2 py-1.5"
               data-execution-runtime-node={node.id}
               key={node.id}
             >
-              <ExecutionNodeAvatar
-                agent={owner}
-                current={status === "running"}
-                kind={node.kind}
-                size="nested"
-                status={status}
-                title={graphNodeHeading(node, item, t)}
-                toolName={node.name}
-              />
-              <div className="min-w-0 flex-1">
-                <div className="flex min-w-0 items-center gap-1.5">
-                  <span className="truncate font-medium text-(--text-default)">
-                    {graphNodeHeading(node, item, t)}
-                  </span>
-                  <span
-                    aria-hidden="true"
-                    className={cn(
-                      "h-1.5 w-1.5 shrink-0 rounded-full bg-current",
-                      selectedStatusTone(status),
-                    )}
-                  />
+              <UiListRow
+                className="items-start gap-2"
+                density="dense"
+                variant="outlined"
+                leading={
+                <ExecutionNodeAvatar
+                  agent={owner}
+                  current={status === "running"}
+                  kind={node.kind}
+                  size="nested"
+                  status={status}
+                  title={graphNodeHeading(node, item, t)}
+                  toolName={node.name}
+                />
+                }
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <span className={cn("truncate", getUiTypographyClassName({ role: "metadata", tone: "default", weight: "medium" }))}>
+                      {graphNodeHeading(node, item, t)}
+                    </span>
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        "h-1.5 w-1.5 shrink-0 rounded-full bg-current",
+                        selectedStatusTone(status),
+                      )}
+                    />
+                  </div>
+                  {summary ? (
+                    <p className={cn("mt-0.5 line-clamp-2", getUiTypographyClassName({ role: "caption", tone: "soft" }))}>
+                      {summary}
+                    </p>
+                  ) : null}
                 </div>
-                {summary ? (
-                  <p className="mt-0.5 line-clamp-2 text-[10px] leading-4 text-(--text-soft)">
-                    {summary}
-                  </p>
-                ) : null}
-              </div>
+              </UiListRow>
             </li>
           );
         })}
       </ul>
       {nodes.length > 8 ? (
-        <p className="mt-1 text-[10px] text-(--text-soft)">
+        <p className={cn("mt-1", getUiTypographyClassName({ role: "caption", tone: "soft" }))}>
           {t("execution.runtime_activity_more", { count: nodes.length - 8 })}
         </p>
       ) : null}
@@ -1914,18 +1888,6 @@ function resolveNodeInspectorStyle(
     transformOrigin: "top left",
     width: visualWidth,
   };
-}
-
-function formatNodeDuration(durationMS: number): string {
-  if (durationMS < 1_000) {
-    return `${Math.round(durationMS)}ms`;
-  }
-  const seconds = durationMS / 1_000;
-  if (seconds < 60) {
-    return `${seconds < 10 ? seconds.toFixed(1) : Math.round(seconds)}s`;
-  }
-  const minutes = Math.floor(seconds / 60);
-  return `${minutes}m ${Math.round(seconds % 60)}s`;
 }
 
 function formatEdgeObservedAt(value: string): string {

@@ -1,6 +1,6 @@
 /**
  * INPUT: controller 已投影的 Assistant 活动、内容、权限及交互状态。
- * OUTPUT: Assistant 子视图按职责消费的窄状态与环境契约。
+ * OUTPUT: Assistant 子视图按职责消费的窄状态与来源环境；空白消息身份不阻断明确工作区。
  * POS: MessageItem controller 到 Assistant 视图的类型边界，不选择内容模式策略。
  */
 import type {
@@ -20,7 +20,6 @@ import type {
   PermissionDecisionPayload,
 } from "@/types/conversation/interaction/permission";
 
-import { CONVERSATION_ASSISTANT_FRAME_WIDTH_CLASS_NAME } from "../../../../conversation-panel-styles";
 import type {
   AssistantContentMode,
   ContentProjection,
@@ -183,24 +182,5 @@ function resolveContentWorkspaceAgentId(
   assistantAgentId: string | null,
   workspaceAgentId?: string | null,
 ) {
-  return assistantAgentId ?? workspaceAgentId;
-}
-
-const ASSISTANT_LAYOUTS = {
-  compact: {
-    content: "pt-1 text-base leading-6",
-    inner: "max-w-full",
-    section: "px-0",
-    showMetadata: true,
-  },
-  expanded: {
-    content: "w-full max-w-full pt-3 text-[16px] leading-7",
-    inner: CONVERSATION_ASSISTANT_FRAME_WIDTH_CLASS_NAME,
-    section: "px-2 sm:px-3",
-    showMetadata: false,
-  },
-} as const;
-
-export function resolveAssistantMessageLayout(compact: boolean) {
-  return ASSISTANT_LAYOUTS[compact ? "compact" : "expanded"];
+  return assistantAgentId?.trim() || workspaceAgentId;
 }

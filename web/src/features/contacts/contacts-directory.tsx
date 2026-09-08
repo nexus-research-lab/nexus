@@ -1,6 +1,6 @@
 /**
  * INPUT: Agent 目录与创建、详情、私聊、群聊导航命令。
- * OUTPUT: 可搜索筛选并切换卡片/列表的 Agent 管理目录。
+ * OUTPUT: 直接复用公共搜索输入、共享具名筛选、可恢复空态和卡片/列表 Agent 目录。
  * POS: 联系人正文根目录；承载选择 Agent 所需的识别和能力概况。
  */
 "use client";
@@ -10,18 +10,25 @@ import { useMemo, useState } from "react";
 
 import { AGENT_PERMISSION_MODES } from "@/lib/agent-options";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
+import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
 import { WorkspaceContentHeader } from "@/shared/ui/layout/workspace-content-header";
 import { UiListRow } from "@/shared/ui/list/list-row";
-import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
+import { UiFilterSelect } from "@/shared/ui/menu/filter-select";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { UiPanel } from "@/shared/ui/panel";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import {
   WORKSPACE_CATALOG_GRID_CLASS_NAME,
   WORKSPACE_CONTENT_PAGE_CLASS_NAME,
 } from "@/shared/ui/layout/workspace-content-layout";
 import { WorkspaceCatalogGhostAction } from "@/shared/ui/workspace/catalog/workspace-catalog-card";
+import {
+  WorkspaceCatalogDescription,
+  WorkspaceCatalogTitle,
+} from "@/shared/ui/workspace/catalog/workspace-catalog-content";
 import { WorkspaceIconFrame } from "@/shared/ui/workspace/catalog/workspace-icon-frame";
-import { WorkspaceSearchInput } from "@/shared/ui/workspace/controls/workspace-search-input";
+import { UiSearchInput } from "@/shared/ui/form/form-control";
 import { Agent } from "@/types/agent/agent";
 import { formatProviderLabel } from "@/types/capability/provider";
 
@@ -104,9 +111,8 @@ export function ContactsDirectory({
   ];
 
   const headerTrailing = (
-    <WorkspaceSearchInput
-      className="hidden sm:inline-flex"
-      inputClassName="w-[200px]"
+    <UiSearchInput
+      className="w-full sm:w-[240px]"
       onChange={setSearchQuery}
       placeholder={t("common.search_agents")}
       value={searchQuery}
@@ -123,128 +129,96 @@ export function ContactsDirectory({
             title={t("contacts.title")}
           />
           <div className="mb-3 space-y-2.5">
-            <WorkspaceSearchInput
-              className="sm:hidden"
-              onChange={setSearchQuery}
-              placeholder={t("common.search_agents")}
-              value={searchQuery}
-            />
             <div className="flex flex-wrap items-center gap-2">
-              <span className="mr-auto shrink-0 text-compact text-(--text-muted)">
+              <span className={cn(
+                "mr-auto shrink-0",
+                getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+              )}>
                 {t("contacts.result_count", {
                   count: filteredAgents.length,
                   total: agents.length,
                 })}
               </span>
-              <UiSelectMenu
+              <UiFilterSelect
                 ariaLabel={t("contacts.filters.tags")}
-                buttonClassName="gap-1 px-2.5 shadow-none"
-                className="w-[140px] shrink-0"
+                label={t("contacts.filters.tag_label")}
+                className="w-full sm:w-[232px]"
                 disabled={businessTags.length === 0}
                 menuMinWidth={220}
                 onChange={setTagFilter}
                 options={tagOptions}
-                placement="bottom"
-                size="sm"
                 value={tagFilter}
               />
-              <UiSelectMenu
+              <UiFilterSelect
                 ariaLabel={t("contacts.filters.providers")}
-                buttonClassName="gap-1 px-2.5 shadow-none"
-                className="w-[150px] shrink-0"
+                label={t("contacts.metadata.provider")}
+                className="w-full sm:w-[224px]"
                 menuMinWidth={190}
                 onChange={setProviderFilter}
                 options={providerOptions}
-                placement="bottom"
-                size="sm"
                 value={providerFilter}
               />
-              <UiSelectMenu
+              <UiFilterSelect
                 ariaLabel={t("contacts.filters.permissions")}
-                buttonClassName="gap-1 px-2.5 shadow-none"
-                className="w-[140px] shrink-0"
+                label={t("contacts.metadata.permission")}
+                className="w-full sm:w-[232px]"
                 menuMinWidth={180}
                 onChange={setPermissionFilter}
                 options={permissionOptions}
-                placement="bottom"
-                size="sm"
                 value={permissionFilter}
               />
-              <div className="flex shrink-0 items-center rounded-[8px] border border-(--surface-control-border) p-0.5">
-                <UiIconButton
-                  aria-label={t("contacts.views.grid")}
-                  aria-pressed={view === "grid"}
-                  onClick={() => setView("grid")}
-                  size="sm"
-                  title={t("contacts.views.grid")}
-                  variant="ghost"
-                >
-                  <LayoutGrid className="h-3.5 w-3.5" />
-                </UiIconButton>
-                <UiIconButton
-                  aria-label={t("contacts.views.list")}
-                  aria-pressed={view === "list"}
-                  onClick={() => setView("list")}
-                  size="sm"
-                  title={t("contacts.views.list")}
-                  variant="ghost"
-                >
-                  <List className="h-3.5 w-3.5" />
-                </UiIconButton>
-              </div>
+              <UiSegmentedControl
+                className="shrink-0"
+                density="compact"
+                onChange={setView}
+                options={[
+                  {
+                    icon: LayoutGrid,
+                    iconOnly: true,
+                    label: t("contacts.views.grid"),
+                    value: "grid",
+                  },
+                  {
+                    icon: List,
+                    iconOnly: true,
+                    label: t("contacts.views.list"),
+                    value: "list",
+                  },
+                ]}
+                title={t("contacts.views.title")}
+                value={view}
+              />
             </div>
           </div>
-          <div className={view === "grid"
-            ? cn(WORKSPACE_CATALOG_GRID_CLASS_NAME, "gap-3.5 md:gap-4")
-            : "divide-y divide-(--divider-subtle-color) overflow-hidden rounded-[12px] border border-(--divider-subtle-color)"}
+          <UiPanel
+            className={view === "grid"
+              ? cn(WORKSPACE_CATALOG_GRID_CLASS_NAME, "gap-3.5 md:gap-4")
+              : "divide-y divide-(--divider-subtle-color) overflow-hidden"}
+            padding="none"
+            radius="md"
+            variant={view === "grid" ? "plain" : "card"}
           >
             {view === "grid" ? (
-              <>
-                <button
-                  className="flex min-h-[138px] w-full items-center gap-3 rounded-[12px] border border-dashed border-(--divider-subtle-color) bg-transparent px-4 py-4 text-left transition duration-(--motion-duration-fast) ease-out hover:border-(--surface-interactive-active-border) hover:bg-(--surface-interactive-hover-background) md:hidden"
-                  onClick={onCreateAgent}
-                  type="button"
-                >
-                  <WorkspaceIconFrame className="h-10 w-10 shrink-0" shape="round" size="md">
-                    <Plus className="h-4.5 w-4.5 text-(--icon-default)" />
-                  </WorkspaceIconFrame>
-                  <span className="min-w-0">
-                    <span className="block truncate text-base font-semibold text-(--text-strong)">
-                      {t("contacts.new_agent")}
-                    </span>
-                    <span className="mt-1 block line-clamp-2 text-xs leading-5 text-(--text-muted)">
-                      {t("contacts.new_agent_description")}
-                    </span>
-                  </span>
-                </button>
-                <WorkspaceCatalogGhostAction
-                  className="hidden py-8 md:flex"
-                  onClick={onCreateAgent}
-                  size="comfort"
-                >
-                  <WorkspaceIconFrame className="h-16 w-16" shape="round" size="lg">
-                    <Plus className="h-7 w-7 text-(--icon-default)" />
-                  </WorkspaceIconFrame>
-                  <p className="mt-4 text-md font-semibold tracking-[-0.03em] text-(--text-strong)">
+              <WorkspaceCatalogGhostAction aria-label={t("contacts.new_agent")} className="gap-3"
+                onClick={onCreateAgent} size="comfort">
+                <WorkspaceIconFrame shape="round" size="lg"><Plus aria-hidden className="h-6 w-6" /></WorkspaceIconFrame>
+                <span className="min-w-0">
+                  <WorkspaceCatalogTitle as="span" className="block [overflow-wrap:anywhere]" size="lg">
                     {t("contacts.new_agent")}
-                  </p>
-                  <p className="mt-2 text-sm leading-5 text-(--text-default)">
+                  </WorkspaceCatalogTitle>
+                  <WorkspaceCatalogDescription className="mt-1" lines={2}>
                     {t("contacts.new_agent_description")}
-                  </p>
-                </WorkspaceCatalogGhostAction>
-              </>
+                  </WorkspaceCatalogDescription>
+                </span>
+              </WorkspaceCatalogGhostAction>
             ) : (
-              <UiListRow
-                className="min-h-[76px] rounded-none px-3 py-2.5"
-                description={t("contacts.new_agent_description")}
-                leading={(
-                  <WorkspaceIconFrame className="h-10 w-10 shrink-0" shape="round" size="md">
-                    <Plus className="h-4.5 w-4.5 text-(--icon-default)" />
-                  </WorkspaceIconFrame>
-                )}
-                onClick={onCreateAgent}
-                title={t("contacts.new_agent")}
-              />
+              <UiListRow aria-label={t("contacts.new_agent")} variant="flush" onClick={onCreateAgent}
+                leading={<WorkspaceIconFrame shape="round" size="md"><Plus aria-hidden className="h-5 w-5" /></WorkspaceIconFrame>}>
+                <div className="min-w-0">
+                  <WorkspaceCatalogTitle className="[overflow-wrap:anywhere]" size="sm">{t("contacts.new_agent")}</WorkspaceCatalogTitle>
+                  <WorkspaceCatalogDescription className="mt-1" lines={2}>{t("contacts.new_agent_description")}</WorkspaceCatalogDescription>
+                </div>
+              </UiListRow>
             )}
             {filteredAgents.map((agent) => (
               <ContactsAgentCard
@@ -257,11 +231,15 @@ export function ContactsDirectory({
               />
             ))}
             {agents.length > 0 && filteredAgents.length === 0 ? (
-              <p className="col-span-full px-4 py-10 text-center text-sm text-(--text-muted)">
-                {t("contacts.no_matches")}
-              </p>
+              <UiResourceState className="col-span-full" size="sm" state="empty" variant="plain"
+                title={t("contacts.no_matches")} primaryAction={{ label: t("state.clear_filters"), onClick: () => {
+                  setSearchQuery("");
+                  setTagFilter("");
+                  setProviderFilter("");
+                  setPermissionFilter("");
+                } }} />
             ) : null}
-          </div>
+          </UiPanel>
         </div>
       </div>
     </div>

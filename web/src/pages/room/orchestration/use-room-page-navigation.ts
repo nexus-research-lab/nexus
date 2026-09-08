@@ -7,14 +7,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
-import { AppRouteBuilders } from "@/app/router/route-paths";
+import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 import { deleteSessionApi } from "@/lib/api/conversation/session-api";
 import { getExternalSessionKeyFromConversationId } from "@/lib/conversation/external-session";
 import { notifyRoomDirectoryUpdated } from "@/lib/conversation/room-directory-events";
 import {
   replaceFinalConversation as runFinalConversationReplacement,
   type FinalConversationReplacementHandler,
-} from "@/shared/ui/workspace/controls/conversation-tabs/final-conversation-replacement";
+} from "@/features/navigation/conversation-tabs/final-conversation-replacement";
 import { useRoomNavigationStore } from "@/store/room-navigation";
 import { useSidebarStore } from "@/store/sidebar";
 

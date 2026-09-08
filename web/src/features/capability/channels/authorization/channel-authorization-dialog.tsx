@@ -15,10 +15,14 @@ import {
 } from "lucide-react";
 
 import { UiButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiQRCode } from "@/shared/ui/display/qr-code";
-import { UiInput } from "@/shared/ui/form/form-control";
+import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
+import { RecoverySummary } from "@/shared/ui/feedback/recovery-summary";
+import { UiField, UiInput } from "@/shared/ui/form/form-control";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -94,13 +98,13 @@ function ChannelAuthorizationQRCodeDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        className="z-[10020]"
         closeOnBackdrop={false}
         describedBy="channel-authorization-description"
         labelledBy="channel-authorization-title"
+        layer="dialogInteraction"
         onClose={onClose}
       >
-        <UiDialogShell className="max-h-[92vh]" size="sm">
+        <UiDialogShell size="sm" viewport="compactMax">
           <UiDialogHeader
             appearance="plain"
             onClose={onClose}
@@ -113,7 +117,7 @@ function ChannelAuthorizationQRCodeDialog({
               expiry={expiry}
             />
             <p
-              className="text-sm leading-6 text-(--text-default)"
+              className={getUiTypographyClassName({ role: "body", tone: "default" })}
               id="channel-authorization-description"
             >
               {presentation.prompt}
@@ -186,10 +190,10 @@ function ChannelAuthorizationCodeDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        className="z-[10020]"
         closeOnBackdrop={false}
         describedBy="channel-authorization-code-description"
         initialFocusRef={inputRef}
+        layer="dialogInteraction"
         labelledBy="channel-authorization-code-title"
         onClose={onClose}
       >
@@ -206,20 +210,16 @@ function ChannelAuthorizationCodeDialog({
               expiry={expiry}
             />
             <p
-              className="text-sm leading-6 text-(--text-default)"
+              className={getUiTypographyClassName({ role: "body", tone: "default" })}
               id="channel-authorization-code-description"
             >
               {presentation.prompt}
             </p>
-            <label className="block space-y-2" htmlFor="channel-authorization-code">
-              <span className="text-xs font-medium text-(--text-muted)">
-                验证码
-              </span>
+            <UiField htmlFor="channel-authorization-code" label="验证码">
               <UiInput
                 ref={inputRef}
                 autoCapitalize="none"
                 autoComplete="one-time-code"
-                className="h-12 text-center font-mono text-lg tracking-[0.22em]"
                 disabled={busy || expiry.expired || writeLocked}
                 id="channel-authorization-code"
                 inputMode="numeric"
@@ -227,10 +227,11 @@ function ChannelAuthorizationCodeDialog({
                 onChange={(event) => setCode(event.target.value)}
                 placeholder="输入验证码"
                 spellCheck={false}
+                textRole="verification"
                 value={code}
                 variant="dialog"
               />
-            </label>
+            </UiField>
             {error ? (
               <AuthorizationError failure={error} />
             ) : null}
@@ -270,42 +271,29 @@ function AuthorizationError({
   failure: ChannelAuthorizationFailure;
 }) {
   return (
-    <div
-      aria-atomic="true"
-      aria-live="polite"
-      className="space-y-1 rounded-[8px] border border-[color:color-mix(in_srgb,var(--destructive)_22%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_7%,transparent)] px-3 py-2"
-      role="status"
-    >
-      <p className="text-xs font-semibold leading-5 text-(--destructive)">
-        {failure.title}
-      </p>
-      <p className="text-xs leading-5 text-(--text-muted)">{failure.impact}</p>
-      <p className="text-xs font-medium leading-5 text-(--text-default)">
-        {failure.nextStep}
-      </p>
-    </div>
+    <UiInlineNotice
+      message={(
+        <RecoverySummary impact={failure.impact} nextStep={failure.nextStep} />
+      )}
+      title={failure.title}
+      tone="danger"
+    />
   );
 }
 
 function AuthorizationExpired() {
   const { t } = useI18n();
   return (
-    <div
-      aria-atomic="true"
-      aria-live="polite"
-      className="space-y-1 rounded-[8px] border border-[color:color-mix(in_srgb,var(--warning)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_7%,transparent)] px-3 py-2"
-      role="status"
-    >
-      <p className="text-xs font-semibold leading-5 text-(--text-strong)">
-        {t("capability.channel_authorization_expired_title")}
-      </p>
-      <p className="text-xs leading-5 text-(--text-muted)">
-        {t("capability.channel_authorization_expired_impact")}
-      </p>
-      <p className="text-xs font-medium leading-5 text-(--text-default)">
-        {t("capability.channel_authorization_expired_next_step")}
-      </p>
-    </div>
+    <UiInlineNotice
+      message={(
+        <RecoverySummary
+          impact={t("capability.channel_authorization_expired_impact")}
+          nextStep={t("capability.channel_authorization_expired_next_step")}
+        />
+      )}
+      title={t("capability.channel_authorization_expired_title")}
+      tone="warning"
+    />
   );
 }
 
@@ -322,9 +310,14 @@ function AuthorizationIdentityStrip({
         {channelType}
       </UiBadge>
       <div
-        className={`inline-flex items-center gap-1.5 text-xs font-medium ${
-          expiry.expired ? "text-(--destructive)" : "text-(--text-muted)"
-        }`}
+        className={cn(
+          "inline-flex items-center gap-1.5",
+          getUiTypographyClassName({
+            role: "caption",
+            tone: expiry.expired ? "danger" : "muted",
+            weight: "medium",
+          }),
+        )}
       >
         <TimerReset className="h-3.5 w-3.5" />
         {expiry.label}
@@ -335,7 +328,10 @@ function AuthorizationIdentityStrip({
 
 function SecurityBoundaryNote({ children }: { children: string }) {
   return (
-    <p className="border-t border-(--divider-subtle-color) pt-3 text-xs leading-5 text-(--text-muted)">
+    <p className={cn(
+      "border-t border-(--divider-subtle-color) pt-3",
+      getUiTypographyClassName({ role: "caption", tone: "muted" }),
+    )}>
       {children}
     </p>
   );

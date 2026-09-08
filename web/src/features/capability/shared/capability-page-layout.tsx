@@ -1,7 +1,7 @@
 /**
- * INPUT: 能力页面标题、可选说明、页面动作、筛选控件、分区与目录条目。
- * OUTPUT: 能力管理页的共享内容轴、用途说明、移动页头动作投影和响应式网格。
- * POS: 能力域页面级设计语法；通过应用布局动作槽适配手机页头，不解释具体领域状态。
+ * INPUT: 能力页面标题、说明、动作、筛选控件、目录条目及详情导航/正文/配置内容。
+ * OUTPUT: 能力目录与详情页的共享内容轴、目录筛选布局、移动页头动作、二级导航、按工作面宽度换行的对象身份区、目录内容几何和响应式分栏。
+ * POS: 能力域页面级设计语法；通过中立页头动作 Context 适配宿主挂载点，不依赖 App 装配或解释具体领域状态。
  */
 "use client";
 
@@ -11,17 +11,22 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import { ArrowLeft } from "lucide-react";
 
-import { useMobileAppPageHeaderActionsTarget } from "@/app/layout/mobile-app-page-header-actions-context";
+import { usePageHeaderActionsTarget } from "@/shared/lib/react/page-header-actions-context";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
 import {
   WORKSPACE_CATALOG_GRID_CLASS_NAME,
   WORKSPACE_CONTENT_PAGE_CLASS_NAME,
 } from "@/shared/ui/layout/workspace-content-layout";
-import { WorkspaceContentHeader } from "@/shared/ui/layout/workspace-content-header";
-import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
-import type { UiSelectMenuOption } from "@/shared/ui/menu/select-menu-model";
+import {
+  WorkspaceContentDetailHeader,
+  WorkspaceContentHeader,
+} from "@/shared/ui/layout/workspace-content-header";
+import { UiBreadcrumb } from "@/shared/ui/navigation/breadcrumb";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 interface CapabilityPageLayoutProps {
   actions?: ReactNode;
@@ -30,6 +35,29 @@ interface CapabilityPageLayoutProps {
   description?: ReactNode;
   headerAnchor?: string;
   title: ReactNode;
+}
+
+interface CapabilityDetailHeaderProps {
+  backLabel: ReactNode;
+  currentTitle?: ReactNode;
+  onBack: () => void;
+}
+
+interface CapabilityDetailPageProps extends CapabilityDetailHeaderProps {
+  children: ReactNode;
+  className?: string;
+}
+
+interface CapabilityDetailIdentityProps {
+  actions?: ReactNode;
+  className?: string;
+  description?: ReactNode;
+  descriptionClassName?: string;
+  descriptionRole?: "caption" | "code" | "supporting";
+  descriptionTitle?: string;
+  leading?: ReactNode;
+  title: ReactNode;
+  titleMeta?: ReactNode;
 }
 
 interface CapabilityFilterBarProps {
@@ -43,6 +71,19 @@ interface CapabilitySectionHeaderProps {
   title: ReactNode;
 }
 
+interface CapabilityDetailSplitLayoutProps {
+  aside: ReactNode;
+  children: ReactNode;
+  className?: string;
+  header?: ReactNode;
+}
+
+interface CapabilityDetailSectionHeaderProps {
+  description?: ReactNode;
+  meta?: ReactNode;
+  title: ReactNode;
+}
+
 interface CapabilityFilterSearchInputProps {
   action?: ReactNode;
   onChange: (value: string) => void;
@@ -53,19 +94,6 @@ interface CapabilityFilterSearchInputProps {
   value: string;
 }
 
-interface CapabilityFilterSelectProps {
-  ariaLabel: string;
-  className?: string;
-  disabled?: boolean;
-  label?: ReactNode;
-  leading?: ReactNode;
-  onChange: (value: string) => void;
-  options: UiSelectMenuOption[];
-  placeholder?: string;
-  tourAnchor?: string;
-  value: string;
-}
-
 interface CapabilityItemIconProps {
   children: ReactNode;
   className?: string;
@@ -73,8 +101,8 @@ interface CapabilityItemIconProps {
 }
 
 const CAPABILITY_ITEM_ICON_SIZE_CLASS_NAMES = {
-  md: "h-9 w-9 rounded-[8px]",
-  sm: "h-8 w-8 rounded-[8px]",
+  md: "h-9 w-9 radius-control-sm",
+  sm: "h-8 w-8 radius-control-sm",
 } as const;
 
 /** 普通能力目录统一使用紧凑三列，避免各子域维护不同横纵间距。 */
@@ -83,7 +111,124 @@ export const CAPABILITY_DIRECTORY_GRID_CLASS_NAME =
 
 /** 目录条目保留清晰外框，让不同能力类型共享同一内容层级。 */
 export const CAPABILITY_DIRECTORY_ROW_CLASS_NAME =
-  "min-h-[80px] border-(--divider-subtle-color) bg-transparent px-3 py-3 hover:border-(--surface-interactive-hover-border)";
+  "min-h-[80px] px-3 py-3";
+
+/** 能力二级页统一使用“返回目录 / 当前对象”的单行桌面导航。 */
+function CapabilityDetailHeader({
+  backLabel,
+  currentTitle,
+  onBack,
+}: CapabilityDetailHeaderProps) {
+  const { t } = useI18n();
+  return (
+    <WorkspaceContentDetailHeader>
+      <div
+        className="min-w-0 flex-1"
+        data-slot="capability-detail-header"
+      >
+        <UiBreadcrumb
+          ariaLabel={t("common.location_aria")}
+          items={[
+            {
+              icon: <ArrowLeft aria-hidden />,
+              id: "directory",
+              label: backLabel,
+              onSelect: onBack,
+            },
+            ...(currentTitle ? [{ id: "current", label: currentTitle }] : []),
+          ]}
+        />
+      </div>
+    </WorkspaceContentDetailHeader>
+  );
+}
+
+/** 能力详情页统一持有内容轴、顶部导航和导航后的正文起点，业务组件只提供对象内容。 */
+export function CapabilityDetailPage({
+  backLabel,
+  children,
+  className,
+  currentTitle,
+  onBack,
+}: CapabilityDetailPageProps) {
+  return (
+    <div
+      className={cn(WORKSPACE_CONTENT_PAGE_CLASS_NAME, className)}
+      data-slot="capability-detail-page"
+    >
+      <CapabilityDetailHeader
+        backLabel={backLabel}
+        currentTitle={currentTitle}
+        onBack={onBack}
+      />
+      <div
+        className="flex min-h-0 flex-1 flex-col pt-5"
+        data-slot="capability-detail-body"
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** 详情对象的前导身份、标题、元数据、说明和操作共享同一响应式对齐规则。 */
+export function CapabilityDetailIdentity({
+  actions,
+  className,
+  description,
+  descriptionClassName,
+  descriptionRole = "supporting",
+  descriptionTitle,
+  leading,
+  title,
+  titleMeta,
+}: CapabilityDetailIdentityProps) {
+  return (
+    <div
+      className={cn(
+        "flex flex-wrap items-start gap-4",
+        className,
+      )}
+      data-slot="capability-detail-identity"
+    >
+      <div className="flex min-w-0 flex-[1_1_280px] items-start gap-4">
+        {leading ? (
+          <div className="shrink-0" data-slot="capability-detail-identity-leading">
+            {leading}
+          </div>
+        ) : null}
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className={cn("min-w-0 max-w-full break-words [overflow-wrap:anywhere]", getUiTypographyClassName({ role: "objectTitle", tone: "strong" }))}>
+              {title}
+            </h1>
+            {titleMeta}
+          </div>
+          {description ? (
+            <p
+              className={cn(
+                "mt-1 break-words [overflow-wrap:anywhere]",
+                getUiTypographyClassName({ role: descriptionRole, tone: "muted" }),
+                descriptionClassName,
+              )}
+              title={descriptionTitle}
+            >
+              {description}
+            </p>
+          ) : null}
+        </div>
+      </div>
+      {actions ? (
+        <div
+          className="ml-auto flex min-w-0 max-w-full flex-wrap items-center justify-end gap-2"
+          data-slot="capability-detail-identity-actions"
+        >
+          {actions}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 /** 能力目录复用共享管理内容轴，标题、工具和内容始终保持同一基线。 */
 export function CapabilityPageLayout({
@@ -94,7 +239,7 @@ export function CapabilityPageLayout({
   headerAnchor,
   title,
 }: CapabilityPageLayoutProps) {
-  const mobileHeaderActionsTarget = useMobileAppPageHeaderActionsTarget();
+  const mobileHeaderActionsTarget = usePageHeaderActionsTarget();
   const mobileActions = mobileHeaderActionsTarget && actions
     ? createPortal(
         <div
@@ -121,7 +266,10 @@ export function CapabilityPageLayout({
           title={title}
         />
         {description ? (
-          <p className="mb-5 text-compact leading-5 text-(--text-muted) sm:hidden">
+          <p className={cn(
+            "mb-5 sm:hidden",
+            getUiTypographyClassName({ role: "supporting", tone: "muted" }),
+          )}>
             {description}
           </p>
         ) : null}
@@ -133,10 +281,10 @@ export function CapabilityPageLayout({
 
 export function CapabilityFilterSearchInput({
   action,
-  onChange: onChange,
-  onCompositionEnd: onCompositionEnd,
-  onCompositionStart: onCompositionStart,
-  onKeyDown: onKeyDown,
+  onChange,
+  onCompositionEnd,
+  onCompositionStart,
+  onKeyDown,
   placeholder,
   value,
 }: CapabilityFilterSearchInputProps) {
@@ -175,40 +323,6 @@ export function CapabilityItemIcon({
   );
 }
 
-export function CapabilityFilterSelect({
-  ariaLabel: ariaLabel,
-  className: className,
-  disabled,
-  label,
-  leading,
-  onChange: onChange,
-  options,
-  placeholder,
-  tourAnchor: tourAnchor,
-  value,
-}: CapabilityFilterSelectProps) {
-  return (
-    <div
-      className={cn("shrink-0 sm:w-[144px]", className)}
-      data-tour-anchor={tourAnchor}
-    >
-      <UiSelectMenu
-        ariaLabel={ariaLabel}
-        buttonClassName="gap-1.5 px-2.5 shadow-none"
-        className="h-8"
-        disabled={disabled}
-        label={label}
-        leading={leading}
-        onChange={onChange}
-        options={options}
-        placeholder={placeholder}
-        size="sm"
-        value={value}
-      />
-    </div>
-  );
-}
-
 export function CapabilityFilterBar({
   children,
   className: className,
@@ -233,18 +347,98 @@ export function CapabilitySectionHeader({
   return (
     <div className="mb-2 flex items-end justify-between gap-4 border-b border-(--divider-subtle-color) pb-1.5">
       <div className="min-w-0">
-        <h2 className="truncate text-base font-medium tracking-[-0.01em] text-(--text-strong)">
+        <h2 className={cn(
+          "truncate",
+          getUiTypographyClassName({ role: "sectionTitle", tone: "strong" }),
+        )}>
           {title}
         </h2>
         {description ? (
-          <p className="mt-0.5 truncate text-compact text-(--text-muted)">
+          <p className={cn(
+            "mt-0.5 truncate",
+            getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+          )}>
             {description}
           </p>
         ) : null}
       </div>
       {count !== undefined && count !== null ? (
-        <span className="text-xs font-medium text-(--text-soft)">
+        <span className={getUiTypographyClassName({
+          role: "caption",
+          tone: "soft",
+          weight: "medium",
+        })}>
           {count}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * 详情页在宽工作面使用“可读正文 + 配置侧栏”，窄窗把配置放到长正文之前。
+ * 业务页面只提供语义内容，不得自行复制断点、列宽或跨平台窗口公式。
+ */
+export function CapabilityDetailSplitLayout({
+  aside,
+  children,
+  className,
+  header,
+}: CapabilityDetailSplitLayoutProps) {
+  return (
+    <div
+      className={cn("w-full max-w-[1180px]", className)}
+      data-slot="capability-detail-layout"
+    >
+      {header ? <div className="mb-6">{header}</div> : null}
+      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,760px)_minmax(280px,360px)] xl:gap-8">
+        <aside
+          className="min-w-0 xl:col-start-2 xl:row-start-1"
+          data-slot="capability-detail-aside"
+        >
+          {aside}
+        </aside>
+        <div
+          className="min-w-0 xl:col-start-1 xl:row-start-1"
+          data-slot="capability-detail-main"
+        >
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** 详情正文与配置区共享标题、说明和右侧元数据节奏。 */
+export function CapabilityDetailSectionHeader({
+  description,
+  meta,
+  title,
+}: CapabilityDetailSectionHeaderProps) {
+  return (
+    <div className="mb-3 flex items-end justify-between gap-3">
+      <div className="min-w-0">
+        <h2 className={getUiTypographyClassName({
+          role: "sectionTitle",
+          tone: "strong",
+        })}>
+          {title}
+        </h2>
+        {description ? (
+          <p className={cn(
+            "mt-1",
+            getUiTypographyClassName({ role: "supporting", tone: "muted" }),
+          )}>
+            {description}
+          </p>
+        ) : null}
+      </div>
+      {meta ? (
+        <span className={cn(
+          "shrink-0",
+          getUiTypographyClassName({ role: "caption", tone: "soft" }),
+        )}>
+          {meta}
         </span>
       ) : null}
     </div>

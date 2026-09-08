@@ -1,6 +1,6 @@
 /**
  * INPUT: Room 会话快照、当前会话与管理能力。
- * OUTPUT: 排除内部草稿后，按活动时间排序并带单项/全量管理资格的历史条目。
+ * OUTPUT: 排除内部草稿后，按活动时间排序、投影管理资格并可分成普通历史/IM 的条目。
  * POS: Room 历史菜单的纯协议到展示能力投影。
  */
 
@@ -18,6 +18,11 @@ export interface RoomHistoryEntry {
   canBulkDelete: boolean;
   canDelete: boolean;
   canRename: boolean;
+}
+
+export interface RoomHistoryEntryGroups {
+  history: RoomHistoryEntry[];
+  im: RoomHistoryEntry[];
 }
 
 function compareByRecentActivity(
@@ -76,4 +81,14 @@ export function buildRoomHistoryEntries({
         ),
       };
     });
+}
+
+export function groupRoomHistoryEntries(
+  entries: readonly RoomHistoryEntry[],
+): RoomHistoryEntryGroups {
+  const groups: RoomHistoryEntryGroups = { history: [], im: [] };
+  for (const entry of entries) {
+    groups[entry.externalSessionLabel ? "im" : "history"].push(entry);
+  }
+  return groups;
 }

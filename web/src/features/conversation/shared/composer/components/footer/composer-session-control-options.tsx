@@ -2,7 +2,7 @@
 
 /**
  * INPUT: 当前 Session 设置、Agent 继承值与 Provider 模型目录。
- * OUTPUT: 模型和权限菜单共用的选项投影与编码工具。
+ * OUTPUT: 模型/权限菜单共用选项、语义 Provider 元信息、编码与精确模型选择分派。
  * POS: DM 直接菜单与 Room Agent 设置浮层之间的无状态共享层。
  */
 
@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 
 import { getAgentPermissionChoices, resolveRuntimePermissionMode } from "@/lib/agent-options";
+import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { useI18n } from "@/shared/i18n/i18n-context";
 import type { UiActionMenuItem } from "@/shared/ui/menu/action-menu";
 
@@ -85,10 +87,13 @@ export function buildSessionModelItems(
         active,
         label: (
           <span className="flex min-w-0 items-center gap-2">
-            <span className="truncate">
+            <span className="min-w-0 flex-1 truncate" title={model.display_name || model.model_id}>
               {model.display_name || model.model_id}
             </span>
-            <span className="shrink-0 text-2xs font-normal text-(--text-soft)">
+            <span
+              className={cn("max-w-[40%] shrink-0 truncate", getUiTypographyClassName({ role: "metadata", tone: "muted", weight: "regular" }))}
+              title={provider.display_name || provider.provider}
+            >
               {provider.display_name || provider.provider}
             </span>
           </span>
@@ -116,7 +121,26 @@ export function buildResetSessionSettingItem(
   };
 }
 
-export function decodeSessionModelValue(value: string): [string, string] {
+// 继承值恢复与显式 override 只在这里分派；持久化/失败对账仍由控制器负责。
+export function applySessionModelSelection(
+  controller: Pick<ComposerSessionSettingsController,
+    "inheritedProvider" | "inheritedModel" | "resetModel" | "updateModel">,
+  value: string,
+): void {
+  if (value === RESET_SESSION_SETTING_VALUE) {
+    void controller.resetModel();
+    return;
+  }
+  const [provider, model] = decodeSessionModelValue(value);
+  if (!provider || !model) return;
+  if (provider === controller.inheritedProvider && model === controller.inheritedModel) {
+    void controller.resetModel();
+  } else {
+    void controller.updateModel(provider, model);
+  }
+}
+
+function decodeSessionModelValue(value: string): [string, string] {
   let parsed: unknown;
   try {
     parsed = JSON.parse(value);

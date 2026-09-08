@@ -1,6 +1,10 @@
+// INPUT: 基础任务草稿、资源投影、变更命令与名称输入引用。
+// OUTPUT: 以实例级字段身份、具名选择组和共享说明展示任务身份与执行位置。
+// POS: Scheduled 创建/编辑左栏纯视图；不加载资源或提交任务。
+
 "use client";
 
-import { type RefObject } from "react";
+import { useId, type RefObject } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiChoiceButton } from "@/shared/ui/form/choice";
@@ -41,6 +45,7 @@ export function TaskBasicsPanel({
   nameRef,
 }: TaskBasicsPanelProps) {
   const { t } = useI18n();
+  const formId = useId();
   const target = buildTaskTargetPresentation(form, data, t);
   const targetActions: Record<TargetType, (value: string) => void> = {
     agent: actions.setSelectedAgentId,
@@ -56,13 +61,13 @@ export function TaskBasicsPanel({
   return (
     <div className="flex min-w-0 flex-col gap-4">
       <UiField
-        htmlFor="task-name"
+        htmlFor={`${formId}-name`}
         label={t("capability.scheduled_dialog_task_name")}
         required
       >
         <UiInput
           ref={nameRef}
-          id="task-name"
+          id={`${formId}-name`}
           onChange={(event) => actions.setTaskName(event.target.value)}
           placeholder={t("capability.scheduled_dialog_task_name_placeholder")}
           required
@@ -70,10 +75,10 @@ export function TaskBasicsPanel({
         />
       </UiField>
 
-      <div className="dialog-field">
-        <span className="dialog-label">
-          {t("capability.scheduled_dialog_execution_location")}
-        </span>
+      <UiField
+        description={t("capability.scheduled_dialog_execution_location_help")}
+        label={t("capability.scheduled_dialog_execution_location")}
+      >
         <div className="flex flex-wrap gap-2">
           {buildTargetTypeOptions(t).map((option) => (
             <UiChoiceButton
@@ -85,21 +90,18 @@ export function TaskBasicsPanel({
             </UiChoiceButton>
           ))}
         </div>
-        <p className="mt-2 text-xs leading-5 text-(--text-muted)">
-          {t("capability.scheduled_dialog_execution_location_help")}
-        </p>
-      </div>
+      </UiField>
 
       <div className="space-y-2">
         <UiField
-          htmlFor="task-target-object"
+          htmlFor={`${formId}-target`}
           label={target.label}
           required
         >
           <UiSelectMenu
             ariaLabel={target.ariaLabel}
             disabled={target.disabled}
-            id="task-target-object"
+            id={`${formId}-target`}
             onChange={setTarget}
             options={target.options}
             surface="dialog"

@@ -24,6 +24,7 @@ export interface ChoiceDef<Value extends string> {
 
 export interface TaskDialogLabelOption {
   badge?: string | null;
+  disabled?: boolean;
   label: string;
   value: string;
 }

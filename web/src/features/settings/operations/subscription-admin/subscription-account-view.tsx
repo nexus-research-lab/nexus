@@ -1,12 +1,23 @@
+// INPUT: Subscription 账户、套餐选项、草稿和刷新/保存命令。
+// OUTPUT: 账户用量摘要与可编辑套餐绑定列表。
+// POS: Operations 账户订阅视图；不拥有通用按钮或选择器视觉。
+
 import { Gauge, Loader2, RefreshCw, Save, ShieldCheck, UsersRound } from "lucide-react";
 
-import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import {
   SETTINGS_CARD_CLASS_NAME,
+  SETTINGS_CONTROL_LABEL_CLASS_NAME,
   SETTINGS_ICON_CLASS_NAME,
   SETTINGS_ITEM_TITLE_CLASS_NAME,
 } from "@/features/settings/shared/settings-panel-ui";
+import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
+import { UiBadge } from "@/shared/ui/display/badge";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { SubscriptionAccount } from "@/types/settings/subscription";
 
 import {
@@ -19,13 +30,6 @@ import {
   formatTokenCount,
   formatTokenLimit,
 } from "./subscription-admin-model";
-import {
-  SAVE_BUTTON_CLASS_NAME,
-  SECONDARY_BUTTON_CLASS_NAME,
-  SubscriptionEmptyState,
-  SubscriptionLoadingState,
-} from "./subscription-admin-ui";
-
 interface SubscriptionAccountViewProps {
   model: AccountViewModel;
   onChangeDraft: (ownerUserId: string, patch: Partial<AccountDraft>) => void;
@@ -81,7 +85,10 @@ function SubscriptionSummary({
                   <p className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
                     {formatTokenCount(item.value)}
                   </p>
-                  <p className="mt-1 text-xs text-(--text-soft)">
+                  <p className={cn(
+                    "mt-1",
+                    getUiTypographyClassName({ role: "caption", tone: "soft" }),
+                  )}>
                     {item.label}
                   </p>
                 </div>
@@ -111,50 +118,62 @@ function SubscriptionAccountRow({
     <div className="grid gap-4 px-4 py-4 lg:grid-cols-[minmax(180px,1.1fr)_minmax(0,1fr)_auto] lg:items-start">
       <div className="min-w-0">
         <div className="flex min-w-0 items-center gap-2">
-          <p className="truncate text-base font-semibold text-(--text-strong)">
+          <p className={cn(
+            "truncate",
+            getUiTypographyClassName({ role: "sectionTitle", tone: "strong" }),
+          )}>
             {displayName}
           </p>
-          <span className="rounded-full border border-(--divider-subtle-color) px-2 py-0.5 text-2xs font-semibold uppercase text-(--text-muted)">
+          <UiBadge className="uppercase" size="xs">
             {account.role}
-          </span>
+          </UiBadge>
         </div>
-        <p className="mt-1 truncate text-compact text-(--text-soft)">
+        <p className={cn(
+          "mt-1 truncate",
+          getUiTypographyClassName({ role: "metadata", tone: "soft" }),
+        )}>
           {account.username}
         </p>
-        <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-(--text-muted)">
+        <div className={cn(
+          "mt-3 grid grid-cols-2 gap-2",
+          getUiTypographyClassName({ role: "caption", tone: "muted" }),
+        )}>
           <span>
             {t("settings.subscription.used")}: {" "}
-            <strong className="font-semibold text-(--text-default)">
+            <strong className="ui-type-tone-default ui-type-weight-semibold">
               {formatTokenCount(account.used_tokens)}
             </strong>
           </span>
           <span>
             {t("settings.subscription.percent")}: {" "}
-            <strong className="font-semibold text-(--text-default)">
+            <strong className="ui-type-tone-default ui-type-weight-semibold">
               {formatPercent(account.used_percent)}
             </strong>
           </span>
           <span>
             {t("settings.subscription.sessions")}: {" "}
-            <strong className="font-semibold text-(--text-default)">
+            <strong className="ui-type-tone-default ui-type-weight-semibold">
               {formatTokenCount(account.session_count)}
             </strong>
           </span>
           <span>
             {t("settings.subscription.messages")}: {" "}
-            <strong className="font-semibold text-(--text-default)">
+            <strong className="ui-type-tone-default ui-type-weight-semibold">
               {formatTokenCount(account.message_count)}
             </strong>
           </span>
         </div>
-        <p className="mt-2 text-xs text-(--text-soft)">
+        <p className={cn(
+          "mt-2",
+          getUiTypographyClassName({ role: "caption", tone: "soft" }),
+        )}>
           {t("settings.subscription.period")}: {periodLabel}
         </p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="space-y-1.5">
-          <span className="text-xs font-semibold text-(--text-muted)">
+          <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
             {t("settings.subscription.plan")}
           </span>
           <UiSelectMenu
@@ -177,10 +196,13 @@ function SubscriptionAccountRow({
           />
         </label>
         <div className="space-y-1.5">
-          <span className="text-xs font-semibold text-(--text-muted)">
+          <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
             {t("settings.subscription.effective_limit")}
           </span>
-          <div className="flex h-9 items-center radius-control-lg border border-(--divider-subtle-color) px-3 text-sm font-semibold text-(--text-strong)">
+          <div className={cn(
+            "flex h-9 items-center radius-control-lg border border-(--divider-subtle-color) px-3",
+            getUiTypographyClassName({ role: "control", tone: "strong", weight: "semibold" }),
+          )}>
             {formatTokenLimit(
               account.monthly_token_limit,
               t("settings.subscription.limit_unlimited"),
@@ -190,19 +212,20 @@ function SubscriptionAccountRow({
       </div>
 
       <div className="flex lg:justify-end">
-        <button
-          className={SAVE_BUTTON_CLASS_NAME}
+        <UiButton
           disabled={disabled}
           onClick={() => void onSave(account.owner_user_id)}
-          type="button"
+          size="sm"
+          tone="primary"
+          variant="solid"
         >
           {saving ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
           ) : (
             <Save className="h-3.5 w-3.5" />
           )}
           {t("settings.subscription.save")}
-        </button>
+        </UiButton>
       </div>
     </div>
   );
@@ -227,29 +250,42 @@ export function SubscriptionAccountView({
             <p className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
               {t("settings.subscription.users_title")}
             </p>
-            <p className="mt-1 text-xs text-(--text-soft)">
+            <p className={cn(
+              "mt-1",
+              getUiTypographyClassName({ role: "caption", tone: "soft" }),
+            )}>
               {t("settings.subscription.period")}: {formatDate(model.periodStart)} - {formatDate(model.periodEnd)}
             </p>
           </div>
-          <button
-            className={SECONDARY_BUTTON_CLASS_NAME}
+          <UiButton
             disabled={disabled}
             onClick={() => void onRefresh()}
-            type="button"
+            size="sm"
+            variant="surface"
           >
             {model.loading ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
             ) : (
               <RefreshCw className="h-3.5 w-3.5" />
             )}
             {t("settings.subscription.refresh")}
-          </button>
+          </UiButton>
         </div>
 
         {model.loading ? (
-          <SubscriptionLoadingState label={t("settings.subscription.loading")} />
+          <UiResourceState
+            size="sm"
+            state="loading"
+            title={t("settings.subscription.loading")}
+            variant="plain"
+          />
         ) : model.accounts.length === 0 ? (
-          <SubscriptionEmptyState label={t("settings.subscription.users_empty")} />
+          <UiResourceState
+            size="sm"
+            state="empty"
+            title={t("settings.subscription.users_empty")}
+            variant="plain"
+          />
         ) : (
           <div className="divide-y divide-(--divider-subtle-color)">
             {model.accounts.map((account) => (

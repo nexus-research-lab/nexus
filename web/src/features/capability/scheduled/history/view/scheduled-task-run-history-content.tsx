@@ -1,6 +1,6 @@
 /**
  * INPUT: 运行历史资源状态、任务与运行命令。
- * OUTPUT: 紧凑加载/错误/空态或按时间排列的运行目录。
+ * OUTPUT: 紧凑加载/错误/空态或运行目录；唯一重试动作投影在读取中禁用，权限失败优先隐藏快照。
  * POS: Scheduled 历史弹窗正文，不解释请求身份。
  */
 "use client";
@@ -59,17 +59,19 @@ export function ScheduledTaskRunHistoryContent({
 }: ScheduledTaskRunHistoryContentProps) {
   const { t } = useI18n();
   const accessBlocked = Boolean(failure?.access);
+  const refreshAction = {
+    busy: isLoading,
+    icon: <RefreshCw className="h-3.5 w-3.5" />,
+    label: t("state.retry"),
+    onClick: onRefresh,
+  };
   return (
     <div aria-busy={isLoading}>
       {failure && hasSnapshot && !failure.access ? (
         <UiResourceState
           className="mb-3 min-h-0 py-4"
           impact={t("capability.scheduled_history_stale_impact")}
-          primaryAction={{
-            icon: <RefreshCw className="h-3.5 w-3.5" />,
-            label: t("state.retry"),
-            onClick: onRefresh,
-          }}
+          primaryAction={refreshAction}
           role="status"
           size="sm"
           state="error"
@@ -79,11 +81,7 @@ export function ScheduledTaskRunHistoryContent({
       {accessBlocked && failure ? (
         <UiResourceState
           impact={t("state.access_failure_impact")}
-          primaryAction={{
-            icon: <RefreshCw className="h-3.5 w-3.5" />,
-            label: t("state.retry"),
-            onClick: onRefresh,
-          }}
+          primaryAction={refreshAction}
           state="error"
           title={t("state.permission_title")}
         />
@@ -92,11 +90,7 @@ export function ScheduledTaskRunHistoryContent({
       ) : failure && !hasSnapshot ? (
         <UiResourceState
           impact={t("state.read_failure_impact")}
-          primaryAction={{
-            icon: <RefreshCw className="h-3.5 w-3.5" />,
-            label: t("state.retry"),
-            onClick: onRefresh,
-          }}
+          primaryAction={refreshAction}
           state="error"
           title={t("capability.scheduled_history_load_failed")}
         />

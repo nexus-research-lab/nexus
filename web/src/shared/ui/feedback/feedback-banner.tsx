@@ -2,17 +2,45 @@
 // OUTPUT: 标题、一句说明和至多一个动作的全局反馈条。
 // POS: 反馈展示边界；不推测请求结果，也不发起恢复请求。
 import { useEffect, useRef } from "react";
-import { X } from "lucide-react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  Info,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 
-import { cn } from "@/shared/ui/class-name";
-import { UiButton } from "@/shared/ui/button/button";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton, UiIconButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
+import {
+  getUiToneClassName,
+  getUiTypographyClassName,
+  type UiTypographyTone,
+} from "@/shared/ui/typography/typography-styles";
 
 import {
-  projectFeedbackBanner,
+  resolveFeedbackBannerPolicy,
 } from "./feedback-banner-model";
-import type { FeedbackBannerProps } from "./feedback-banner-contract";
+import type {
+  FeedbackBannerProps,
+  FeedbackBannerTone,
+} from "./feedback-banner-contract";
 import { RecoverySummary } from "./recovery-summary";
+
+const FEEDBACK_ICON_BY_TONE: Record<FeedbackBannerTone, LucideIcon> = {
+  error: AlertCircle,
+  info: Info,
+  success: CheckCircle2,
+  warning: AlertCircle,
+};
+
+const FEEDBACK_ICON_TONE: Record<FeedbackBannerTone, UiTypographyTone> = {
+  error: "danger",
+  info: "brand",
+  success: "success",
+  warning: "warning",
+};
 
 export function FeedbackBanner({
   ...props
@@ -28,11 +56,11 @@ export function FeedbackBanner({
   } = props;
   const noticeMessage = "message" in props ? props.message : null;
   const { t } = useI18n();
-  const presentation = projectFeedbackBanner(tone, Boolean(action));
-  const Icon = presentation.icon;
+  const policy = resolveFeedbackBannerPolicy(tone, Boolean(action));
+  const Icon = FEEDBACK_ICON_BY_TONE[tone];
   const onDismissRef = useRef(onDismiss);
   const canAutoDismiss = Boolean(onDismiss)
-    && presentation.autoDismissMs !== null
+    && policy.autoDismissMs !== null
     && !impact
     && !nextStep;
 
@@ -41,30 +69,37 @@ export function FeedbackBanner({
   }, [onDismiss]);
 
   useEffect(() => {
-    if (!canAutoDismiss || presentation.autoDismissMs === null) {
+    if (!canAutoDismiss || policy.autoDismissMs === null) {
       return;
     }
     const timer = window.setTimeout(() => {
       onDismissRef.current?.();
-    }, presentation.autoDismissMs);
+    }, policy.autoDismissMs);
     return () => {
       window.clearTimeout(timer);
     };
-  }, [canAutoDismiss, impact, nextStep, noticeMessage, presentation.autoDismissMs, title]);
+  }, [canAutoDismiss, impact, nextStep, noticeMessage, policy.autoDismissMs, title]);
 
   return (
     <div
       aria-atomic="true"
       aria-live={urgency}
-      className={cn(
-        "pointer-events-auto flex max-h-[calc(100dvh-6rem)] w-full min-w-0 max-w-[420px] items-start gap-2.5 overflow-y-auto rounded-[10px] border bg-[color:color-mix(in_srgb,var(--surface-panel-background)_97%,white)] px-3.5 py-3 shadow-[0_6px_24px_color-mix(in_srgb,var(--shadow-color)_9%,transparent)] sm:max-h-[calc(100dvh-7.5rem)] sm:min-w-[320px]",
-        presentation.shellClassName,
-      )}
+      className="surface-popover surface-radius-md pointer-events-auto flex max-h-[calc(100dvh-6rem)] w-full min-w-0 max-w-[420px] items-start gap-2.5 overflow-y-auto px-3.5 py-3 sm:max-h-[calc(100dvh-7.5rem)] sm:min-w-[320px]"
       role={urgency === "assertive" ? "alert" : "status"}
     >
-      <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", presentation.iconClassName)} />
+      <Icon className={cn(
+        "mt-0.5 h-4 w-4 shrink-0",
+        getUiToneClassName(FEEDBACK_ICON_TONE[tone]),
+      )} />
       <div className="min-w-0 flex-1">
-        <p className={cn("break-words text-[13px] font-medium leading-5 [overflow-wrap:anywhere]", presentation.titleClassName)}>
+        <p className={cn(
+          "break-words [overflow-wrap:anywhere]",
+          getUiTypographyClassName({
+            role: "supporting",
+            tone: "strong",
+            weight: "medium",
+          }),
+        )}>
           {title}
         </p>
         {impact ? (
@@ -74,7 +109,10 @@ export function FeedbackBanner({
             nextStep={action ? undefined : nextStep}
           />
         ) : (
-          <p className="mt-0.5 break-words text-xs leading-5 text-(--text-muted) [overflow-wrap:anywhere]">
+          <p className={cn(
+            "mt-0.5 break-words [overflow-wrap:anywhere]",
+            getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+          )}>
             {noticeMessage}
           </p>
         )}
@@ -91,14 +129,15 @@ export function FeedbackBanner({
         ) : null}
       </div>
       {onDismiss ? (
-        <button
+        <UiIconButton
           aria-label={t("common.close")}
-          className="-mr-2 -mt-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-[7px] text-(--icon-muted) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default) motion-reduce:transition-none"
+          className="-mr-2 -mt-2 shrink-0 motion-reduce:transition-none"
           onClick={onDismiss}
-          type="button"
+          size="lg"
+          variant="ghost"
         >
           <X className="h-3.5 w-3.5" />
-        </button>
+        </UiIconButton>
       ) : null}
     </div>
   );

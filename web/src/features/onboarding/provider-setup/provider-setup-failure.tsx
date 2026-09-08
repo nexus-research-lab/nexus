@@ -36,7 +36,7 @@ export function ProviderSetupFailureView({
         )}
       />
       <div className="min-w-0 flex-1">
-        <p className="text-[13px] font-medium leading-5 text-(--text-strong)">
+        <p className="text-sm font-medium leading-5 text-(--text-strong)">
           {problem}
         </p>
         <RecoverySummary className="mt-0.5" impact={impact} nextStep={nextStep} />

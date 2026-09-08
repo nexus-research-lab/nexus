@@ -52,13 +52,13 @@ export function SkillImportDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        className="z-[9999]"
+        layer="dialog"
         onClose={controller.dismissAction}
       >
         <UiDialogFormShell
-          className="max-h-[86vh]"
           onSubmit={controller.submit}
-          size="xl"
+          size="md"
+          viewport="adaptiveMax"
         >
           <UiDialogHeader
             appearance="plain"

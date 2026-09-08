@@ -52,19 +52,6 @@ func TestProcessorAddsWorkGraphArtifactForManagedAuthoringResult(t *testing.T) {
 }
 
 func TestProcessorAddsWorkGraphArtifactForStructuredRuntimeCommand(t *testing.T) {
-	processor := NewProcessor(MessageContext{
-		SessionKey: "agent:nexus:ws:dm:test", AgentID: "nexus",
-		RoundID: "round-workgraph-native", ParentID: "round-workgraph-native",
-	}, "")
-	processor.Process(sdkprotocol.ReceivedMessage{
-		Type: sdkprotocol.MessageTypeAssistant,
-		Assistant: &sdkprotocol.AssistantMessage{Message: sdkprotocol.ConversationEnvelope{
-			Content: []sdkprotocol.ContentBlock{sdkprotocol.ToolUseBlock{
-				ID: "tool-workgraph-native", Name: "mcp__nexus__command",
-				Input: json.RawMessage(`{"domain":"execution","action":"invoke","operation":"get_workgraph_preview","request_id":"get-preview-native-1","input":{"preview_id":"preview-1"}}`),
-			}},
-		}},
-	})
 	structured := map[string]any{
 		"preview_id": "preview-1", "head_revision": float64(1), "selected_revision": float64(1),
 		"versions": []any{map[string]any{"revision": float64(1)}},
@@ -79,18 +66,43 @@ func TestProcessorAddsWorkGraphArtifactForStructuredRuntimeCommand(t *testing.T)
 			}},
 		},
 	}
-	output := processor.Process(sdkprotocol.ReceivedMessage{
-		Type: sdkprotocol.MessageTypeUser,
-		User: &sdkprotocol.UserMessage{
-			ToolUseResult: structured,
-			Message: sdkprotocol.ConversationEnvelope{Content: []sdkprotocol.ContentBlock{sdkprotocol.ToolResultBlock{
-				ToolUseID: "tool-workgraph-native", Content: json.RawMessage(`"updated"`),
-			}}},
-		},
-	})
-	blocks, _ := output.DurableMessages[0]["content"].([]map[string]any)
-	if len(blocks) != 3 || blocks[2]["type"] != protocol.ContentBlockTypeWorkGraphArtifact {
-		t.Fatalf("structured runtime command artifact blocks = %#v", blocks)
+	for _, testCase := range []struct {
+		name          string
+		toolUseResult map[string]any
+	}{
+		{name: "flat compatibility", toolUseResult: structured},
+		{name: "wrapped MCP result", toolUseResult: map[string]any{
+			"content": structured, "structuredContent": structured,
+		}},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			processor := NewProcessor(MessageContext{
+				SessionKey: "agent:nexus:ws:dm:test", AgentID: "nexus",
+				RoundID: "round-workgraph-native", ParentID: "round-workgraph-native",
+			}, "")
+			processor.Process(sdkprotocol.ReceivedMessage{
+				Type: sdkprotocol.MessageTypeAssistant,
+				Assistant: &sdkprotocol.AssistantMessage{Message: sdkprotocol.ConversationEnvelope{
+					Content: []sdkprotocol.ContentBlock{sdkprotocol.ToolUseBlock{
+						ID: "tool-workgraph-native", Name: "mcp__nexus__command",
+						Input: json.RawMessage(`{"domain":"execution","action":"invoke","operation":"get_workgraph_preview","request_id":"get-preview-native-1","input":{"preview_id":"preview-1"}}`),
+					}},
+				}},
+			})
+			output := processor.Process(sdkprotocol.ReceivedMessage{
+				Type: sdkprotocol.MessageTypeUser,
+				User: &sdkprotocol.UserMessage{
+					ToolUseResult: testCase.toolUseResult,
+					Message: sdkprotocol.ConversationEnvelope{Content: []sdkprotocol.ContentBlock{sdkprotocol.ToolResultBlock{
+						ToolUseID: "tool-workgraph-native", Content: json.RawMessage(`"updated"`),
+					}}},
+				},
+			})
+			blocks, _ := output.DurableMessages[0]["content"].([]map[string]any)
+			if len(blocks) != 3 || blocks[2]["type"] != protocol.ContentBlockTypeWorkGraphArtifact {
+				t.Fatalf("structured runtime command artifact blocks = %#v", blocks)
+			}
+		})
 	}
 }
 

@@ -1,3 +1,7 @@
+// INPUT: 当前队列与 Conversation 所有者提供的派发命令。
+// OUTPUT: 原生拖动/相邻移动、有限边缘滚动与同步串行派发保护。
+// POS: Queue 瞬时交互控制器；受理、错误展示和队列顺序仍服从 transport/服务端。
+
 import {
   useCallback,
   useEffect,
@@ -24,11 +28,11 @@ interface PendingQueueDragRuntime {
   draggingMessageIdRef: RefObject<string | null>;
   pointerYRef: RefObject<number | null>;
   scrollFrameRef: RefObject<number | null>;
-  scrollRef: RefObject<HTMLDivElement | null>;
+  scrollRef: RefObject<HTMLOListElement | null>;
 }
 
 interface ActiveDragRuntime {
-  container: HTMLDivElement;
+  container: HTMLOListElement;
   pointerY: number;
 }
 
@@ -49,15 +53,15 @@ export function usePendingQueueController({
   const {
     deleteMessage: runDeleteMessage,
     guideMessage: runGuideMessage,
-    reorderMessages,
+    reorderMessages: runReorderMessages,
   } = commands;
   const [dragState, setDragState] = useState(EMPTY_DRAG_STATE);
-  const [isCollapsed, setIsCollapsed] = useState(false);
   const [isActionRunning, setIsActionRunning] = useState(false);
+  const actionRunningRef = useRef(false);
   const draggingMessageIdRef = useRef<string | null>(null);
   const pointerYRef = useRef<number | null>(null);
   const scrollFrameRef = useRef<number | null>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLOListElement>(null);
   const runtime = useMemo<PendingQueueDragRuntime>(() => ({
     draggingMessageIdRef,
     pointerYRef,
@@ -80,13 +84,19 @@ export function usePendingQueueController({
       return;
     }
     const delta = resolveAutoScrollDelta(activeRuntime);
-    if (delta !== 0) {
-      activeRuntime.container.scrollTop += delta;
+    const container = activeRuntime.container;
+    const maxScroll = Math.max(0, container.scrollHeight - container.clientHeight);
+    const nextScroll = Math.max(0, Math.min(maxScroll, container.scrollTop + delta));
+    if (nextScroll === container.scrollTop) {
+      runtime.scrollFrameRef.current = null;
+      return;
     }
+    container.scrollTop = nextScroll;
     runtime.scrollFrameRef.current = requestAnimationFrame(runAutoScroll);
   }, [runtime]);
 
   const startAutoScroll = useCallback((clientY: number) => {
+    if (!runtime.draggingMessageIdRef.current || actionRunningRef.current) return;
     runtime.pointerYRef.current = clientY;
     if (runtime.scrollFrameRef.current === null) {
       runtime.scrollFrameRef.current = requestAnimationFrame(runAutoScroll);
@@ -101,52 +111,73 @@ export function usePendingQueueController({
 
   useEffect(() => stopAutoScroll, [stopAutoScroll]);
 
+  useEffect(() => {
+    const source = runtime.draggingMessageIdRef.current;
+    if (source && !items.some((item) => item.id === source)) finishDrag();
+  }, [finishDrag, items, runtime]);
+
   const startDrag = useCallback((messageId: string) => {
+    if (actionRunningRef.current || !items.some((item) => item.id === messageId)) return;
+    stopAutoScroll();
     runtime.draggingMessageIdRef.current = messageId;
     setDragState({ draggingMessageId: messageId, dragOverMessageId: null });
-  }, [runtime]);
+  }, [items, runtime, stopAutoScroll]);
 
   const dragOver = useCallback((messageId: string, clientY: number) => {
+    if (!runtime.draggingMessageIdRef.current) return;
     startAutoScroll(clientY);
     setDragState((current) => (
       current.dragOverMessageId === messageId
         ? current
         : { ...current, dragOverMessageId: messageId }
     ));
-  }, [startAutoScroll]);
+  }, [runtime, startAutoScroll]);
 
-  const dropOnMessage = useCallback((targetId: string) => {
-    const sourceId = dragState.draggingMessageId;
-    if (!sourceId) {
-      return;
-    }
-    void reorderMessages(
-      reorderPendingMessageIds(items, sourceId, targetId),
-    );
+  const runCommand = useCallback(async (command: () => void | Promise<void>) => {
+    if (actionRunningRef.current) return;
     finishDrag();
-  }, [dragState.draggingMessageId, finishDrag, items, reorderMessages]);
-
-  const guideMessage = useCallback(async (messageId: string) => {
-    if (isActionRunning) {
-      return;
-    }
+    actionRunningRef.current = true;
     setIsActionRunning(true);
     try {
-      await runGuideMessage(messageId);
+      await command();
     } catch (error) {
-      console.error("引导队列消息失败:", error);
+      // Conversation 已投影失败；这里只收口 Promise，不创建第二个错误面或重放命令。
+      console.error("Queue command dispatch failed:", error);
     } finally {
+      actionRunningRef.current = false;
       setIsActionRunning(false);
     }
-  }, [isActionRunning, runGuideMessage]);
+  }, [finishDrag]);
+
+  const moveToMessage = useCallback((sourceId: string, targetId: string) => {
+    const orderedIds = reorderPendingMessageIds(items, sourceId, targetId);
+    if (orderedIds.every((id, index) => id === items[index].id)) return;
+    return runCommand(() => runReorderMessages(orderedIds));
+  }, [items, runCommand, runReorderMessages]);
+
+  const dropOnMessage = useCallback((targetId: string) => {
+    const sourceId = runtime.draggingMessageIdRef.current;
+    finishDrag();
+    if (sourceId) return moveToMessage(sourceId, targetId);
+  }, [finishDrag, moveToMessage, runtime]);
+
+  const moveMessage = useCallback((messageId: string, direction: -1 | 1) => {
+    const index = items.findIndex((item) => item.id === messageId);
+    const target = items[index + direction];
+    if (index >= 0 && target) return moveToMessage(messageId, target.id);
+  }, [items, moveToMessage]);
+
+  const guideMessage = useCallback((messageId: string) => {
+    if (items.some((item) => item.id === messageId)) {
+      return runCommand(() => runGuideMessage(messageId));
+    }
+  }, [items, runCommand, runGuideMessage]);
 
   const deleteMessage = useCallback((messageId: string) => {
-    void runDeleteMessage(messageId);
-  }, [runDeleteMessage]);
-
-  const toggleCollapsed = useCallback(() => {
-    setIsCollapsed((current) => !current);
-  }, []);
+    if (items.some((item) => item.id === messageId)) {
+      return runCommand(() => runDeleteMessage(messageId));
+    }
+  }, [items, runCommand, runDeleteMessage]);
 
   return {
     actions: {
@@ -157,10 +188,10 @@ export function usePendingQueueController({
       guideMessage,
       startAutoScroll,
       startDrag,
-      toggleCollapsed,
+      moveMessage,
     },
     refs: { scrollRef: runtime.scrollRef },
-    state: { dragState, isActionRunning, isCollapsed },
+    state: { dragState, isActionRunning },
   };
 }
 
@@ -169,18 +200,8 @@ function readActiveDragRuntime(
 ): ActiveDragRuntime | null {
   const container = runtime.scrollRef.current;
   const pointerY = runtime.pointerYRef.current;
-  const isActive = [
-    Boolean(container),
-    pointerY !== null,
-    Boolean(runtime.draggingMessageIdRef.current),
-  ].every(Boolean);
-  if (!isActive) {
-    return null;
-  }
-  return {
-    container: container as HTMLDivElement,
-    pointerY: pointerY as number,
-  };
+  if (!container || pointerY === null || !runtime.draggingMessageIdRef.current) return null;
+  return { container, pointerY };
 }
 
 function resolveAutoScrollDelta({

@@ -10,7 +10,8 @@ L4 | 父级: web/src/features/settings/operations
 - `subscription-transaction.ts`: 同步互斥的加载与 mutation 事务
 - `subscription-account-view.tsx`: 用户订阅概览和账号套餐分配
 - `subscription-plan-view.tsx`: 套餐创建、编辑与保存
-- `subscription-admin-ui.tsx`: 两个视图共用的基础控件状态
+- 加载、空态、按钮、表单、Badge 和文本角色直接复用 `shared/ui` 与 Settings 域 Pattern，不保留 Subscription 私有视觉原语
+- 账号刷新/保存和套餐创建/保存统一使用共享 `sm` Spinner；业务视图不维护独立动效配方
 
 页面快照由 Control 套餐/成员 entitlement 与 Nexus 本地 token 用量组合；写请求只进入 Control，Nexus 不接受套餐或成员额度 mutation。加载与 mutation 在 React 状态
 更新前竞争同一把同步锁，避免连续操作并发执行以及较晚返回的旧响应覆盖新操作。

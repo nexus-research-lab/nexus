@@ -1,16 +1,18 @@
+// INPUT: 配对目录计数、搜索及渠道/Agent 筛选命令。
+// OUTPUT: 公共目录页签与统一标签筛选器；Agent 同名/缺项文字复用公共选项投影。
+// POS: Pairing 工具区纯视图；不拥有筛选图标或菜单 DOM。
 "use client";
 
-import { Filter, Users } from "lucide-react";
-
+import { UiFilterSelect } from "@/shared/ui/menu/filter-select";
 import {
   CapabilityFilterBar,
   CapabilityFilterSearchInput,
-  CapabilityFilterSelect,
 } from "@/features/capability/shared/capability-page-layout";
 import type { ImChannelType } from "@/lib/api/capability/channel-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiTabs } from "@/shared/ui/navigation/tabs";
+import { UiDirectoryTabs } from "@/shared/ui/navigation/directory-tabs";
 import type { Agent } from "@/types/agent/agent";
+import { buildAgentSelectionOptions, includeUnavailableAgentSelection } from "@/lib/agent-selection-options";
 
 import type {
   PairingFilters,
@@ -54,15 +56,11 @@ export function PairingFilterBar({
 
   return (
     <CapabilityFilterBar className="mb-5 sm:justify-between">
-      <UiTabs
+      <UiDirectoryTabs
         activeValue={filters.status}
         ariaLabel="按配对状态筛选"
-        className="h-8 w-full shrink-0 sm:w-auto"
-        density="compact"
-        itemClassName="h-8 w-full justify-center px-3 sm:w-auto"
         onChange={(value) => onChange("status", value)}
         options={STATUS_TABS.map((tab) => ({
-          className: "min-w-0 flex-1 sm:flex-none",
           label: (
             <>
               <span>{tab.label}</span>
@@ -81,10 +79,9 @@ export function PairingFilterBar({
           placeholder={searchPlaceholder}
           value={filters.query}
         />
-        <CapabilityFilterSelect
+        <UiFilterSelect
           ariaLabel="按渠道筛选"
           label={t("capability.channel_label")}
-          leading={<Filter className="h-3.5 w-3.5" />}
           onChange={(value) => onChange(
             "channel",
             value as ImChannelType | "",
@@ -95,18 +92,14 @@ export function PairingFilterBar({
           ]}
           value={filters.channel}
         />
-        <CapabilityFilterSelect
+        <UiFilterSelect
           ariaLabel="按处理智能体筛选"
           className="sm:w-[220px]"
           label={t("capability.agent_label")}
-          leading={<Users className="h-3.5 w-3.5" />}
           onChange={(value) => onChange("agentId", value)}
           options={[
             { value: "", label: "全部智能体" },
-            ...agents.map((agent) => ({
-              value: agent.agent_id,
-              label: agent.name,
-            })),
+            ...includeUnavailableAgentSelection(buildAgentSelectionOptions(agents, t), filters.agentId, t),
           ]}
           value={filters.agentId}
         />

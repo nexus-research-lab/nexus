@@ -1,7 +1,10 @@
+/**
+ * INPUT: Connector 对象、状态投影和认证/连接动作。
+ * OUTPUT: Connector 身份说明、本地化动作和唯一 OAuth 应用配置按钮。
+ * POS: Connector 详情对象投影；身份几何和二级页导航归 capability/shared。
+ */
 import type { ReactNode } from "react";
 import {
-  ArrowLeft,
-  ChevronRight,
   KeyRound,
   Link2,
   RefreshCcw,
@@ -9,8 +12,9 @@ import {
   Unplug,
 } from "lucide-react";
 
+import { CapabilityDetailIdentity } from "@/features/capability/shared/capability-page-layout";
+import { useI18n, type I18nContextValue } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
-import { WorkspaceContentDetailHeader } from "@/shared/ui/layout/workspace-content-header";
 import type { ConnectorDetail } from "@/types/capability/connector";
 
 import { ConnectorIcon } from "../connector-icon";
@@ -31,9 +35,9 @@ interface ConnectorActionContext {
 
 const PRIMARY_ACTION: Record<
   ConnectorPrimaryAction,
-  (context: ConnectorActionContext) => ReactNode
+  (context: ConnectorActionContext, t: I18nContextValue["t"]) => ReactNode
 > = {
-  connect: ({ busy, detail, onConnect }) => (
+  connect: ({ busy, detail, onConnect }, t) => (
     <UiButton
       disabled={busy}
       onClick={() => onConnect(detail.connector_id)}
@@ -43,10 +47,10 @@ const PRIMARY_ACTION: Record<
       variant="solid"
     >
       <Link2 className="h-3.5 w-3.5" />
-      添加到 Nexus
+      {t("capability.connector_add_to_nexus")}
     </UiButton>
   ),
-  "configure-credential": ({ busy, detail, onConfigureCredential }) => (
+  "configure-credential": ({ busy, detail, onConfigureCredential }, t) => (
     <UiButton
       disabled={busy}
       onClick={() => onConfigureCredential(detail)}
@@ -56,10 +60,10 @@ const PRIMARY_ACTION: Record<
       variant="solid"
     >
       <KeyRound className="h-3.5 w-3.5" />
-      配置凭证
+      {t("capability.connector_configure_credentials")}
     </UiButton>
   ),
-  disconnect: ({ busy, detail, onDisconnect }) => (
+  disconnect: ({ busy, detail, onDisconnect }, t) => (
     <UiButton
       disabled={busy}
       onClick={() => onDisconnect(detail.connector_id)}
@@ -67,18 +71,18 @@ const PRIMARY_ACTION: Record<
       type="button"
     >
       <Unplug className="h-3.5 w-3.5" />
-      断开连接
+      {t("capability.connector_disconnect")}
     </UiButton>
   ),
-  "coming-soon": () => (
+  "coming-soon": (_, t) => (
     <UiButton disabled size="sm" type="button">
-      即将推出
+      {t("capability.connector_card_coming_soon")}
     </UiButton>
   ),
-  unavailable: () => (
+  unavailable: (_, t) => (
     <UiButton disabled size="sm" type="button">
       <Shield className="h-3.5 w-3.5" />
-      后端未配置
+      {t("capability.connector_service_unconfigured")}
     </UiButton>
   ),
   none: () => null,
@@ -90,37 +94,6 @@ interface OauthClientActionContext {
   onConfigure: (detail: ConnectorDetail) => void;
 }
 
-const OAUTH_CLIENT_ACTION: Record<
-  Exclude<ConnectorOauthClientAction, null>,
-  (context: OauthClientActionContext) => ReactNode
-> = {
-  configure: ({ busy, detail, onConfigure }) => (
-    <UiButton
-      disabled={busy}
-      onClick={() => onConfigure(detail)}
-      size="sm"
-      tone="primary"
-      type="button"
-      variant="solid"
-    >
-      <KeyRound className="h-3.5 w-3.5" />
-      配置应用
-    </UiButton>
-  ),
-  reconfigure: ({ busy, detail, onConfigure }) => (
-    <UiButton
-      disabled={busy}
-      onClick={() => onConfigure(detail)}
-      size="sm"
-      type="button"
-      variant="surface"
-    >
-      <KeyRound className="h-3.5 w-3.5" />
-      配置应用
-    </UiButton>
-  ),
-};
-
 function ConnectorOauthClientButton({
   action,
   context,
@@ -128,40 +101,17 @@ function ConnectorOauthClientButton({
   action: ConnectorOauthClientAction;
   context: OauthClientActionContext;
 }) {
+  const { t } = useI18n();
   if (!action) {
     return null;
   }
-  return OAUTH_CLIENT_ACTION[action](context);
-}
-
-export function ConnectorDetailBreadcrumb({
-  detail,
-  onBack,
-}: {
-  detail: ConnectorDetail | null;
-  onBack: () => void;
-}) {
   return (
-    <WorkspaceContentDetailHeader>
-      <div className="flex min-w-0 items-center gap-2 text-base text-(--text-muted)">
-        <button
-          className="inline-flex items-center gap-1 rounded-[8px] px-1.5 py-1 font-medium transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_28%,transparent)]"
-          onClick={onBack}
-          type="button"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          连接器
-        </button>
-        {detail ? (
-          <>
-            <ChevronRight className="h-3.5 w-3.5 text-(--icon-muted)" />
-            <span className="truncate font-medium text-(--text-strong)">
-              {detail.title}
-            </span>
-          </>
-        ) : null}
-      </div>
-    </WorkspaceContentDetailHeader>
+    <UiButton disabled={context.busy} onClick={() => context.onConfigure(context.detail)}
+      size="sm" tone={action === "configure" ? "primary" : undefined}
+      variant={action === "configure" ? "solid" : "surface"}>
+      <KeyRound className="h-3.5 w-3.5" />
+      {t("capability.connector_configure_app")}
+    </UiButton>
   );
 }
 
@@ -179,49 +129,51 @@ export function ConnectorDetailHeader({
   onReplaceOauthClient: (detail: ConnectorDetail) => void;
   state: ConnectorState;
 }) {
+  const { t } = useI18n();
   const primaryAction = PRIMARY_ACTION[state.primaryAction]({
     busy,
     detail,
     onConfigureCredential,
     onConnect,
     onDisconnect,
-  });
+  }, t);
   return (
-    <div className="flex flex-wrap items-start justify-between gap-4">
-      <div className="flex min-w-0 items-start gap-4">
-        <ConnectorIcon className="h-14 w-14 surface-radius-md" icon={detail.icon} size="lg" title={detail.title} />
-        <div className="min-w-0">
-          <h1 className="text-lg font-semibold tracking-[-0.025em] text-(--text-strong)">
-            {detail.title}
-          </h1>
-          <p className="mt-1 text-sm leading-5 text-(--text-muted)">
-            {detail.description}
-          </p>
-        </div>
-      </div>
-      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-        {canReplaceConnectorOauthClient(detail) ? (
-          <UiButton
-            disabled={busy}
-            onClick={() => onReplaceOauthClient(detail)}
-            size="sm"
-            type="button"
-            variant="surface"
-          >
-            <RefreshCcw className="h-3.5 w-3.5" />
-            更换飞书应用
-          </UiButton>
-        ) : null}
-        <ConnectorOauthClientButton
-          action={state.oauthClientAction}
-          context={{
-            busy,
-            detail,
-            onConfigure: onConfigureOauthClient,
-          }}
+    <CapabilityDetailIdentity
+      actions={(
+        <>
+          {canReplaceConnectorOauthClient(detail) ? (
+            <UiButton
+              disabled={busy}
+              onClick={() => onReplaceOauthClient(detail)}
+              size="sm"
+              type="button"
+              variant="surface"
+            >
+              <RefreshCcw className="h-3.5 w-3.5" />
+              {t("capability.connector_replace_feishu_app")}
+            </UiButton>
+          ) : null}
+          <ConnectorOauthClientButton
+            action={state.oauthClientAction}
+            context={{
+              busy,
+              detail,
+              onConfigure: onConfigureOauthClient,
+            }}
+          />
+          {primaryAction}
+        </>
+      )}
+      description={detail.description}
+      leading={(
+        <ConnectorIcon
+          className="h-14 w-14 surface-radius-md"
+          icon={detail.icon}
+          size="lg"
+          title={detail.title}
         />
-        {primaryAction}
-      </div>
-    </div>
+      )}
+      title={detail.title}
+    />
   );
 }

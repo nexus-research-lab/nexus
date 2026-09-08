@@ -1,3 +1,7 @@
+// INPUT: Composer runtime/Goal/附件/错误状态、字符限制与本地化文案。
+// OUTPUT: Footer 状态优先级、语义 tone、加载阶段与字符计数风险等级。
+// POS: Composer Footer 纯业务投影；不返回 class、Tailwind、颜色、阴影、帧字符或动效名称。
+
 import type { ReactNode, RefObject } from "react";
 
 import type { ContextUsageData } from "@/types/generated/protocol";
@@ -61,15 +65,12 @@ export interface ComposerFooterStatusCopy {
 }
 
 export interface ComposerFooterStatusProjection {
-  className: string;
-  frames: string[] | null;
   hint: string | null;
+  indicator: "active" | "preparing" | null;
+  kind: "activity" | "error" | "goal" | "preparing" | "replying";
   message: string | null;
-  messageClassName: string;
+  tone: "brand" | "danger" | "default" | "soft";
 }
-
-const ACTIVE_FRAMES = ["✽", "✻", "✶", "✢", "·"];
-const PREPARING_FRAMES = ["·", "◦", "•", "◦"];
 
 const RUNTIME_STATUS_DEFINITIONS: Record<
   Exclude<ComposerRuntimeActivity, null>,
@@ -99,31 +100,31 @@ export function projectComposerFooterStatus({
     projectRuntimeActivityStatus(runtimeActivity, copy),
     isPreparingAttachments
       ? {
-        className: "text-(--text-default)",
-        frames: PREPARING_FRAMES,
         hint: null,
+        indicator: "preparing",
+        kind: "preparing",
         message: copy.preparingAttachments,
-        messageClassName: "",
+        tone: "default",
       }
       : null,
     isGoalCreating
       ? {
-        className: "text-(--brand-action)",
-        frames: PREPARING_FRAMES,
         hint: null,
+        indicator: "preparing",
+        kind: "goal",
         message: isGoalConfirming
           ? copy.goalConfirming
           : copy.goalCreating,
-        messageClassName: "animate-pulse",
+        tone: "brand",
       }
       : null,
     activeError
       ? {
-        className: "text-(--destructive)",
-        frames: null,
         hint: null,
+        indicator: null,
+        kind: "error",
         message: activeError,
-        messageClassName: "",
+        tone: "danger",
       }
       : null,
   ];
@@ -139,11 +140,11 @@ function projectRuntimeActivityStatus(
   }
   if (activity === "replying") {
     return {
-      className: "text-(--text-soft)",
-      frames: null,
       hint: copy.stopHint,
+      indicator: null,
+      kind: "replying",
       message: null,
-      messageClassName: "",
+      tone: "soft",
     };
   }
   const definition = RUNTIME_STATUS_DEFINITIONS[activity];
@@ -158,25 +159,24 @@ function buildActiveStatus(
   hint: string | null,
 ): ComposerFooterStatusProjection {
   return {
-    className: "text-(--brand-action)",
-    frames: ACTIVE_FRAMES,
     hint,
+    indicator: "active",
+    kind: "activity",
     message,
-    messageClassName: "animate-pulse",
+    tone: "brand",
   };
 }
 
-export function getCharacterCountClassName({
+export function getCharacterCountTone({
   isNearLimit,
   isOverLimit,
 }: {
   isNearLimit: boolean;
   isOverLimit: boolean;
-}): string {
+}): "danger" | "soft" | "warning" {
   const candidates = [
-    { active: isOverLimit, className: "text-destructive" },
-    { active: isNearLimit, className: "text-warning" },
+    { active: isOverLimit, tone: "danger" as const },
+    { active: isNearLimit, tone: "warning" as const },
   ];
-  return candidates.find((candidate) => candidate.active)?.className
-    ?? "text-(--text-soft)";
+  return candidates.find((candidate) => candidate.active)?.tone ?? "soft";
 }

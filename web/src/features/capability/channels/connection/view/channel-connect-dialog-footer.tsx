@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 
 import { UiButton } from "@/shared/ui/button/button";
 import { UiDialogFooter } from "@/shared/ui/dialog/dialog";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 
 import {
   getChannelSubmitLabel,
@@ -57,7 +58,7 @@ export function ChannelConnectDialogFooter({
             variant="text"
           >
             {deleting
-              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ? <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
               : null}
             {deleting ? "断开中..." : "断开频道"}
           </UiButton>

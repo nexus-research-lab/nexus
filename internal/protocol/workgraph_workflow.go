@@ -1,6 +1,6 @@
-// INPUT: 系统内置结构模板、当前/历史 managed Execution 经模型抽取的结构草图、不可变编辑版本与隔离后台保存请求。
-// OUTPUT: 可恢复 Draft、可选择的版本、Slash 名称可用性、只读内置或 owner 保存的命名 WorkGraph；保存 capability 不携带运行事实。
-// POS: WorkGraph 模板、提取、查询、对话编辑、版本选择、独立内部 Session 保存、Slash 目录和 runtime prompt 展开共用的跨边界协议。
+// INPUT: 系统内置结构模板、当前/历史 managed Execution 经模型抽取的结构草图、不可变编辑版本与用户确认保存请求。
+// OUTPUT: 可恢复 Draft、可选择的版本、Slash 名称可用性、只读内置或 owner 保存的命名 WorkGraph；保存回执携带已提交命名图，不携带运行事实。
+// POS: WorkGraph 模板、提取、查询、对话编辑、版本选择、用户确认后的直接保存、Slash 目录和 runtime prompt 展开共用的跨边界协议。
 package protocol
 
 import "time"
@@ -61,6 +61,8 @@ type WorkGraphWorkflowDependency struct {
 // WorkGraphWorkflowPreview 是已进入 durable Draft、但尚未进入 Slash 目录的一条完整抽象草图版本。
 // 用户可在普通对话或隐藏专用 DM 中修订元信息、节点与依赖；保存前仍须通过完整结构校验。
 type WorkGraphWorkflowPreview struct {
+	HeadRevision       int64                         `json:"head_revision,omitempty"`
+	SelectedRevision   int64                         `json:"selected_revision,omitempty"`
 	PreviewID          string                        `json:"preview_id"`
 	SlashName          string                        `json:"slash_name"`
 	Title              string                        `json:"title"`
@@ -95,6 +97,7 @@ type WorkGraphWorkflowPreviewVersionSummary struct {
 // WorkGraphWorkflowDraft 是按 source Execution 唯一复用、可恢复且拥有不可变版本历史的草图聚合。
 // Editor Session identity 由宿主持有，不进入普通 Agent DM 目录。
 type WorkGraphWorkflowDraft struct {
+	OriginWorkflowID     string                            `json:"-"`
 	PreviewID            string                            `json:"preview_id"`
 	OwnerUserID          string                            `json:"-"`
 	SourceExecutionID    string                            `json:"source_execution_id"`
@@ -169,8 +172,10 @@ type SaveWorkGraphWorkflowRequest struct {
 	PreviewID        string `json:"preview_id"`
 }
 
-// ScheduleWorkGraphWorkflowSaveRequest 请求宿主启动不进入聊天时间线的内部 Agent round。
-type ScheduleWorkGraphWorkflowSaveRequest struct {
+// ConfirmWorkGraphWorkflowSaveRequest 直接保存用户确认的草图，表单只可调整元信息。
+type ConfirmWorkGraphWorkflowSaveRequest struct {
+	HeadRevision     int64  `json:"head_revision"`
+	SelectedRevision int64  `json:"selected_revision"`
 	SourceSessionKey string `json:"source_session_key"`
 	PreviewID        string `json:"preview_id"`
 	SlashName        string `json:"slash_name,omitempty"`
@@ -178,10 +183,19 @@ type ScheduleWorkGraphWorkflowSaveRequest struct {
 	Description      string `json:"description,omitempty"`
 }
 
-// WorkGraphWorkflowSaveReceipt 表示 exact preview 已交给后台 Agent；它不表示 CLI 已经落库。
+// WorkGraphWorkflowSaveReceipt 只在 exact Draft 与命名图同事务提交后返回 saved。
 type WorkGraphWorkflowSaveReceipt struct {
-	PreviewID string `json:"preview_id"`
-	Status    string `json:"status"`
+	PreviewID string             `json:"preview_id"`
+	Status    string             `json:"status"`
+	Workflow  *WorkGraphWorkflow `json:"workflow"`
+}
+
+// WorkGraphWorkflowSaveState 以实际命名图内容核对选中草稿，保存标记不能替代持久化证据。
+type WorkGraphWorkflowSaveState struct {
+	Preview       WorkGraphWorkflowPreview `json:"preview"`
+	Workflow      *WorkGraphWorkflow       `json:"workflow,omitempty"`
+	Status        string                   `json:"status"`
+	SavedRevision int64                    `json:"saved_revision"`
 }
 
 // WorkGraphWorkflowSlashNameAvailability 表示 owner scope 中一个 canonical Slash 名称能否用于 exact Draft。
@@ -221,6 +235,7 @@ type GetWorkGraphWorkflowEditorRequest struct {
 
 // ApplyWorkGraphWorkflowEditorRequest 把隐藏会话的 exact 选中版本投影到当前 preview。
 type ApplyWorkGraphWorkflowEditorRequest struct {
+	SelectedRevision int64  `json:"selected_revision"`
 	SourceSessionKey string `json:"source_session_key"`
 	EditorID         string `json:"editor_id"`
 	Revision         int64  `json:"revision"`

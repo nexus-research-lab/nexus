@@ -1,16 +1,25 @@
+// INPUT: 执行/投递/权限草稿、资源投影与字段变更命令。
+// OUTPUT: 实例级字段/具名选择组与高级摘要；显式缺项 Agent 保留为禁用显示项。
+// POS: Scheduled 基础表单的高级视图；不维护资源请求或提交事务。
+
 "use client";
 
 import { resolveRuntimePermissionMode } from "@/lib/agent-options";
 import { useDefaultAgentRuntimeKind } from "@/hooks/settings/use-default-agent-runtime-kind";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 
 import { Link2Off, Settings2 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { includeUnavailableAgentSelection } from "@/lib/agent-selection-options";
+import { UiDisclosure } from "@/shared/ui/disclosure/disclosure";
 import { UiChoiceButton } from "@/shared/ui/form/choice";
+import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
+import { UiPanel } from "@/shared/ui/panel";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import type {
   ChoiceDef,
@@ -54,24 +63,21 @@ interface TaskChoiceFieldProps<Value extends string> {
   value: Value;
 }
 
-const OPTION_ENABLED = () => false;
-
 function TaskChoiceField<Value extends string>({
   help,
-  isDisabled = OPTION_ENABLED,
+  isDisabled,
   label,
   onChange,
   options,
   value,
 }: TaskChoiceFieldProps<Value>) {
   return (
-    <div className="dialog-field">
-      <span className="dialog-label">{label}</span>
+    <UiField description={help} label={label}>
       <div className="flex flex-wrap gap-2">
         {options.map((option) => (
           <UiChoiceButton
             active={value === option.key}
-            disabled={isDisabled(option.key)}
+            disabled={isDisabled?.(option.key)}
             key={option.key}
             onClick={() => onChange(option.key)}
           >
@@ -79,22 +85,18 @@ function TaskChoiceField<Value extends string>({
           </UiChoiceButton>
         ))}
       </div>
-      {help ? (
-        <p className="mt-2 text-xs leading-5 text-(--text-muted)">{help}</p>
-      ) : null}
-    </div>
+    </UiField>
   );
 }
 
 function TaskSessionField({
-  id,
   onChange,
   presentation,
 }: {
-  id: string;
   onChange: (value: string) => void;
   presentation: TaskSelectPresentation;
 }) {
+  const id = useId();
   return (
     <div className="space-y-2">
       <UiField
@@ -170,7 +172,6 @@ function TaskDeliveryTargetField({
   }
   return (
     <TaskSessionField
-      id="task-delivery-target"
       onChange={deliveryTargetActions[form.deliveryTargetType]}
       presentation={deliveryTarget}
     />
@@ -182,16 +183,17 @@ function TaskDedicatedSessionField({
   form,
 }: Pick<TaskBasicsAdvancedProps, "actions" | "form">) {
   const { t } = useI18n();
+  const id = useId();
   if (form.executionMode !== "dedicated") {
     return null;
   }
   return (
     <UiField
-      htmlFor="task-dedicated-session-key"
+      htmlFor={id}
       label={t("capability.scheduled_dialog_dedicated_session")}
     >
       <UiInput
-        id="task-dedicated-session-key"
+        id={id}
         onChange={(event) => actions.setDedicatedSessionKey(event.target.value)}
         placeholder={t("capability.scheduled_dialog_dedicated_session_placeholder")}
         value={form.dedicatedSessionKey}
@@ -240,7 +242,6 @@ function TaskExecutionSessionField({
   }
   return (
     <TaskSessionField
-      id="task-session-key"
       onChange={actions.setSelectedSessionKey}
       presentation={presentation}
     />
@@ -261,7 +262,6 @@ function TaskRoomAgentField({
     : t("capability.scheduled_dialog_select_room_agent");
   return (
     <TaskSessionField
-      id="task-execution-room-agent"
       onChange={actions.setSelectedAgentId}
       presentation={{
         ariaLabel: t("capability.scheduled_dialog_select_room_agent"),
@@ -273,7 +273,7 @@ function TaskRoomAgentField({
         label: t("capability.scheduled_dialog_execution_agent"),
         options: [
           { label: defaultLabel, value: "" },
-          ...data.executionRoomAgentOptions,
+          ...includeUnavailableAgentSelection(data.executionRoomAgentOptions, form.selectedAgentId, t),
         ],
         value: form.selectedAgentId,
       }}
@@ -292,7 +292,6 @@ function TaskReplySessionField({
   }
   return (
     <TaskSessionField
-      id="task-reply-session-key"
       onChange={actions.setSelectedReplySessionKey}
       presentation={buildReplySessionPresentation(form, data, t)}
     />
@@ -315,7 +314,6 @@ function TaskDeliveryRoomAgentField({
     : t("capability.scheduled_dialog_select_room_agent");
   return (
     <TaskSessionField
-      id="task-delivery-room-agent"
       onChange={actions.setSelectedDeliveryPresenterAgentId}
       presentation={{
         ariaLabel: t("capability.scheduled_dialog_select_delivery_room_agent"),
@@ -327,7 +325,7 @@ function TaskDeliveryRoomAgentField({
         label: t("capability.scheduled_dialog_delivery_room_agent"),
         options: [
           { label: defaultLabel, value: "" },
-          ...data.deliveryRoomAgentOptions,
+          ...includeUnavailableAgentSelection(data.deliveryRoomAgentOptions, form.selectedDeliveryPresenterAgentId, t),
         ],
         value: form.selectedDeliveryPresenterAgentId,
       }}
@@ -391,14 +389,15 @@ function TaskExpirationField({
   form,
 }: Pick<TaskBasicsAdvancedProps, "actions" | "form">) {
   const { t } = useI18n();
+  const id = useId();
   return (
     <UiField
       description={t("capability.scheduled_dialog_expiration_description")}
-      htmlFor="task-expires-at"
+      htmlFor={id}
       label={t("capability.scheduled_dialog_expiration")}
     >
       <UiInput
-        id="task-expires-at"
+        id={id}
         onChange={(event) => actions.setExpiresAt(event.target.value)}
         type="datetime-local"
         value={form.expiresAt}
@@ -419,51 +418,41 @@ export function TaskBasicsAdvanced(props: TaskBasicsAdvancedProps) {
   return (
     <>
       {props.needsSessionRebind ? (
-        <div
-          className="flex gap-2.5 rounded-[8px] border border-[color:color-mix(in_srgb,var(--warning)_24%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--warning)_5%,transparent)] p-3"
-          role="status"
-        >
-          <Link2Off className="mt-0.5 h-4 w-4 shrink-0 text-(--warning)" />
-          <div className="min-w-0">
-            <p className="text-xs font-medium text-(--text-strong)">
-              {t("capability.scheduled_dialog_session_rebind_required")}
-            </p>
-            <p className="mt-1 text-xs leading-5 text-(--text-muted)">
-              {t("capability.scheduled_dialog_session_rebind_description")}
-            </p>
-          </div>
-        </div>
+        <UiInlineNotice
+          icon={<Link2Off />}
+          message={t("capability.scheduled_dialog_session_rebind_description")}
+          title={t("capability.scheduled_dialog_session_rebind_required")}
+          tone="warning"
+        />
       ) : null}
 
-      <div className="flex flex-col gap-4 rounded-[10px] border border-(--divider-subtle-color) p-3">
+      <UiPanel className="flex flex-col gap-4" padding="sm" radius="md">
         <TaskExecutionModeField actions={actions} form={form} isEditing={props.isEditing} />
         <TaskExecutionSessionField {...props} />
         <TaskRoomAgentField {...props} />
-      </div>
+      </UiPanel>
 
-      <div className="flex flex-col gap-4 rounded-[10px] border border-(--divider-subtle-color) p-3">
+      <UiPanel className="flex flex-col gap-4" padding="sm" radius="md">
         <TaskDeliveryFields {...props} />
-      </div>
+      </UiPanel>
 
-      <details
-        className="group rounded-[10px] border border-(--divider-subtle-color) px-3 py-2.5"
-        onToggle={(event) => setIsOpen(event.currentTarget.open)}
-        open={isOpen}
-      >
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium text-(--text-default)">
-          <span className="inline-flex items-center gap-2">
-            <Settings2 className="h-3.5 w-3.5 text-(--icon-default)" />
-            {t("capability.scheduled_dialog_advanced")}
-          </span>
-          <span className="truncate text-xs font-normal text-(--text-muted)">
+      <UiDisclosure
+        contentClassName="flex flex-col gap-4"
+        label={t("capability.scheduled_dialog_advanced")}
+        leading={<Settings2 className="h-3.5 w-3.5 text-(--icon-default)" />}
+        meta={(
+          <span className={getUiTypographyClassName({ role: "metadata", tone: "muted" })}>
             {buildTaskAdvancedSummary(form, t)}
           </span>
-        </summary>
-        <div className="mt-4 flex flex-col gap-4 border-t border-(--divider-subtle-color) pt-4">
+        )}
+        onToggle={(event) => setIsOpen(event.currentTarget.open)}
+        open={isOpen}
+        summaryRole="control"
+        variant="panel"
+      >
           <TaskPermissionModeField actions={actions} form={form} />
           <TaskExpirationField actions={actions} form={form} />
-        </div>
-      </details>
+      </UiDisclosure>
     </>
   );
 }

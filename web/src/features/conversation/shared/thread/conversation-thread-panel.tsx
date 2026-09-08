@@ -1,11 +1,12 @@
 "use client";
 
 /**
- * INPUT: Thread 消息、运行态、交互请求与关闭动作。
- * OUTPUT: 带独立跟随滚动和消息上下文的 Thread 面板。
- * POS: Room Agent Thread 的状态装配入口。
+ * INPUT: Thread 消息、展示/工作区身份、交互请求与来源文件动作。
+ * OUTPUT: 独立跟随滚动和消息上下文，保留明确的空工作区及完整文件动作参数。
+ * POS: Room 与子智能体共用的 Thread 状态装配入口。
  */
 import { type ReactNode, useMemo } from "react";
+import type { WorkspaceFileOpenHandler } from "@/lib/workspace-file-action";
 
 import {
   buildConversationAtomicLayoutKey,
@@ -45,7 +46,7 @@ interface ConversationThreadPanelProps {
   onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
   onClose: () => void;
   onStopMessage?: (msgId: string) => void;
-  onOpenWorkspaceFile?: (path: string) => void;
+  onOpenWorkspaceFile?: WorkspaceFileOpenHandler;
   isLoading?: boolean;
   /** mobile 模式下使用全屏样式。 */
   layout?: ConversationThreadLayout;

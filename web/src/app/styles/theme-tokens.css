@@ -1,3 +1,6 @@
+/* INPUT: light/dark/rain 材质与跨主题共用的语义尺度。
+ * OUTPUT: App UI 的 canonical token、可读状态色及其配对前景、可混色控件材质与无环 Tailwind 投影。
+ * POS: 产品 token 定义真相；组件只消费，局部几何仍由对应 pattern 持有。 */
 /**
  * =====================================================
  * @File   : theme-tokens.css
@@ -7,7 +10,7 @@
  * =====================================================
  */
 
-/* 整套 /app 视觉只暴露 ambient / material / text / divider / interaction 五组语义令牌；界面控件以 14px 为基准，阅读正文自行声明字号。 */
+/* 主题材质由 ambient / material / text / divider / interaction 派生；跨主题几何在下方共享定义，阅读正文保留所属 Surface 的字号。 */
 :root,
 :root[data-theme="light"] {
   --nexus-page-background-light: transparent;
@@ -37,11 +40,11 @@
   --border: rgba(11, 11, 11, 0.10);
   --input: #ffffff;
   --ring: rgba(91, 114, 255, 0.24);
-  --destructive: #df5d62;
+  --destructive: #b52f3e;
   --destructive-foreground: #ffffff;
-  --success: #2fb884;
-  --success-foreground: #06140f;
-  --warning: #df9d2e;
+  --success: #14734f;
+  --success-foreground: #ffffff;
+  --warning: #895b00;
   --radius-lg: 12px;
   --radius-md: 8px;
   --radius-sm: 4px;
@@ -76,6 +79,7 @@
   --material-canvas-background: rgba(252, 252, 251, 0.64);
   --material-canvas-border: rgba(11, 11, 11, 0.06);
 
+  /* 控件颜色槽参与 color-mix；图像材质留在 canvas / avatar 等专用槽。 */
   --material-chip-background: #f3f3f0;
   --material-chip-border: rgba(11, 11, 11, 0.10);
   --material-chip-shadow: none;
@@ -117,7 +121,7 @@
   --text-strong: #131313;
   --text-default: #383835;
   --text-muted: #5f5e5a;
-  --text-soft: #7b7974;
+  --text-soft: var(--muted-foreground);
   --icon-strong: #20201f;
   --icon-default: #52514e;
   --icon-muted: #898781;
@@ -133,10 +137,6 @@
   --divider-kbd-border: rgba(11, 11, 11, 0.10);
   --surface-kbd-shadow: none;
 
-  /* info 软背景系列 — 用于信息/活跃状态徽标（取代硬编码 #cfe0ff / #27539d 等） */
-  --status-info-soft-bg: rgba(59, 130, 246, 0.10);
-  --status-info-soft-border: rgba(59, 130, 246, 0.22);
-  --status-info-soft-text: #2d5da8;
   --status-running-soft-bg: rgba(91, 107, 128, 0.08);
   --status-running-soft-border: rgba(91, 107, 128, 0.20);
   --status-running-soft-text: #59697d;
@@ -168,7 +168,7 @@
   --input: rgba(17, 24, 34, 0.78);
   --ring: rgba(142, 164, 255, 0.2);
   --destructive: #f26d77;
-  --destructive-foreground: #ffffff;
+  --destructive-foreground: #24090e;
   --success: #49d09a;
   --success-foreground: #06140f;
   --warning: #efb554;
@@ -202,8 +202,7 @@
     linear-gradient(180deg, rgba(13, 19, 28, 0.82), rgba(10, 15, 22, 0.74) 100%);
   --material-canvas-border: rgba(182, 199, 223, 0.12);
 
-  --material-chip-background:
-    linear-gradient(180deg, rgba(26, 34, 47, 0.82), rgba(17, 23, 33, 0.72) 100%);
+  --material-chip-background: rgba(22, 29, 40, 0.8);
   --material-chip-border: rgba(182, 199, 223, 0.12);
   --material-chip-shadow:
     0 8px 16px rgba(0, 5, 12, 0.12),
@@ -221,11 +220,9 @@
   --material-dialog-surface-shadow: 0 28px 72px rgba(0, 5, 12, 0.5);
   --dialog-backdrop-color: rgba(2, 6, 14, 0.46);
 
-  --material-input-background:
-    linear-gradient(180deg, rgba(27, 35, 47, 0.92), rgba(16, 22, 31, 0.88) 100%);
+  --material-input-background: rgba(22, 29, 39, 0.9);
   --material-input-border: rgba(182, 199, 223, 0.18);
-  --material-input-focus-background:
-    linear-gradient(180deg, rgba(32, 41, 56, 0.96), rgba(18, 25, 35, 0.92) 100%);
+  --material-input-focus-background: rgba(25, 33, 45, 0.94);
   --material-input-focus-border: rgba(142, 164, 255, 0.34);
 
   --material-avatar-background:
@@ -249,7 +246,7 @@
   --text-strong: #edf3fb;
   --text-default: rgba(218, 227, 240, 0.92);
   --text-muted: rgba(165, 180, 198, 0.82);
-  --text-soft: rgba(131, 146, 165, 0.68);
+  --text-soft: rgba(131, 146, 165, 0.92);
   --icon-strong: rgba(235, 242, 252, 0.92);
   --icon-default: rgba(173, 188, 208, 0.82);
   --icon-muted: rgba(127, 142, 162, 0.66);
@@ -265,9 +262,6 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.08),
     0 8px 16px rgba(0, 5, 12, 0.22);
 
-  --status-info-soft-bg: rgba(96, 165, 250, 0.12);
-  --status-info-soft-border: rgba(96, 165, 250, 0.20);
-  --status-info-soft-text: #93bbfc;
   --status-running-soft-bg: rgba(153, 169, 191, 0.12);
   --status-running-soft-border: rgba(153, 169, 191, 0.22);
   --status-running-soft-text: #a8b5c7;
@@ -298,9 +292,9 @@
   --border: rgba(171, 190, 214, 0.16);
   --input: rgba(44, 54, 66, 0.8);
   --ring: rgba(154, 183, 255, 0.2);
-  --destructive: #f37c87;
-  --destructive-foreground: #ffffff;
-  --success: #50d2ac;
+  --destructive: #ffb0b9;
+  --destructive-foreground: #24090e;
+  --success: #6ce7bf;
   --success-foreground: #07140f;
   --warning: #f2bf62;
   --radius-lg: 12px;
@@ -333,8 +327,7 @@
     linear-gradient(180deg, rgba(42, 51, 62, 0.78), rgba(33, 42, 52, 0.7) 100%);
   --material-canvas-border: rgba(205, 220, 240, 0.12);
 
-  --material-chip-background:
-    linear-gradient(180deg, rgba(74, 86, 99, 0.8), rgba(49, 59, 71, 0.7) 100%);
+  --material-chip-background: rgba(61, 73, 86, 0.78);
   --material-chip-border: rgba(205, 220, 240, 0.12);
   --material-chip-shadow:
     0 8px 16px rgba(9, 15, 24, 0.12),
@@ -352,11 +345,9 @@
   --material-dialog-surface-shadow: 0 28px 72px rgba(9, 15, 24, 0.46);
   --dialog-backdrop-color: rgba(9, 15, 24, 0.42);
 
-  --material-input-background:
-    linear-gradient(180deg, rgba(53, 63, 76, 0.9), rgba(40, 49, 60, 0.86) 100%);
+  --material-input-background: rgba(47, 56, 68, 0.88);
   --material-input-border: rgba(205, 220, 240, 0.18);
-  --material-input-focus-background:
-    linear-gradient(180deg, rgba(60, 72, 86, 0.94), rgba(44, 54, 66, 0.9) 100%);
+  --material-input-focus-background: rgba(52, 63, 76, 0.92);
   --material-input-focus-border: rgba(154, 183, 255, 0.34);
 
   --material-avatar-background:
@@ -379,8 +370,8 @@
   --border-200-color: hsl(48deg 12.5% 72%);
   --text-strong: #eef3f8;
   --text-default: rgba(221, 231, 242, 0.92);
-  --text-muted: rgba(179, 194, 211, 0.84);
-  --text-soft: rgba(146, 162, 179, 0.7);
+  --text-muted: rgba(179, 194, 211, 0.92);
+  --text-soft: rgba(171, 187, 205, 0.92);
   --icon-strong: rgba(238, 244, 250, 0.92);
   --icon-default: rgba(184, 199, 216, 0.82);
   --icon-muted: rgba(146, 162, 179, 0.66);
@@ -396,9 +387,6 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.08),
     0 8px 16px rgba(9, 15, 24, 0.22);
 
-  --status-info-soft-bg: rgba(96, 165, 250, 0.10);
-  --status-info-soft-border: rgba(96, 165, 250, 0.18);
-  --status-info-soft-text: #7eaef8;
   --status-running-soft-bg: rgba(170, 185, 202, 0.12);
   --status-running-soft-border: rgba(170, 185, 202, 0.20);
   --status-running-soft-text: #b8c3d1;
@@ -413,6 +401,41 @@
 :root[data-theme="light"],
 :root[data-theme="dark"],
 :root[data-theme="rain"] {
+  /* 控件与独立表面分别按语义命名，recipe 不再重复数值。 */
+  --radius-control-xs: 6px;
+  --radius-control-sm: 8px;
+  --radius-control-md: 10px;
+  --radius-control-lg: 12px;
+  --radius-surface-sm: 8px;
+  --radius-surface-md: 12px;
+  --radius-surface-lg: 16px;
+  --radius-surface-xl: 24px;
+
+  /* 业务组件只能消费语义 layer，不得通过继续增加整数解决遮挡。 */
+  --layer-select-menu: 120;
+  --layer-action-menu: 130;
+  --layer-popover: 140;
+  --layer-feedback: 150;
+  --layer-dialog-underlay: 9998;
+  --layer-dialog: 9999;
+  --layer-dialog-nested: 10000;
+  --layer-dialog-interaction: 10020;
+  --layer-tooltip: 10030;
+  --layer-tour: 11000;
+  --layer-tour-dialog: 11050;
+  --layer-system-dialog: 12000;
+
+  /* 内容选择器、标准弹窗、工作台与窄窗口共用同一组视口公式。 */
+  --dialog-compact-height: min(620px, calc(100dvh - 72px));
+  --dialog-compact-viewport-height: calc(100dvh - 16px);
+  --dialog-adaptive-height: min(82dvh, 760px);
+  --dialog-adaptive-compact-height: calc(100dvh - 16px);
+  --dialog-visual-preview-height: min(72dvh, 600px);
+  --dialog-document-preview-height: min(64dvh, 520px);
+  --dialog-workbench-height: min(820px, calc(100dvh - 56px));
+  --dialog-workbench-compact-height: calc(100dvh - 16px);
+  --dialog-workbench-width: min(94vw, 1440px);
+
   --surface-body-background: var(--ambient-page-pattern);
 
   /* 列表和侧栏复用同一层轻抬升表面，避免引用不存在的旧 token。 */
@@ -482,10 +505,10 @@
   --surface-paper-shadow: var(--material-paper-shadow);
 
   /* 内容渲染只在可执行或独立阅读时上浮，正文中的 code、quote 和 table 统一使用低噪音语义表面。 */
-  --content-radius-inline: 6px;
-  --content-radius-control-xs: 6px;
-  --content-radius-control: var(--radius-md);
-  --content-radius-surface: var(--radius-lg);
+  --content-radius-inline: var(--radius-control-xs);
+  --content-radius-control-xs: var(--radius-control-xs);
+  --content-radius-control: var(--radius-control-sm);
+  --content-radius-surface: var(--radius-surface-md);
   --content-inline-code-background: color-mix(
     in srgb,
     var(--surface-panel-background) 78%,
@@ -611,7 +634,6 @@
 
   --chip-segmented-background: color-mix(in srgb, var(--material-chip-background) 92%, transparent);
   --chip-segmented-border: var(--material-chip-border);
-  --chip-segmented-icon-color: var(--icon-default);
   --chip-segmented-option-color: var(--text-default);
   --chip-segmented-option-hover-background: color-mix(in srgb, var(--interaction-hover-background) 88%, transparent);
   --chip-segmented-option-hover-color: var(--text-strong);

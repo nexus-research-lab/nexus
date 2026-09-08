@@ -1,11 +1,11 @@
 /**
  * INPUT: Room/DM 共用 Execution resource、Agent 目录与精确 Agent round Task run。
- * OUTPUT: 以标题旁唯一的下拉入口展示当前项、明确的历史空态，并切换已有历史的 WorkGraph 主视图。
+ * OUTPUT: 以共享标题动作和状态 Badge、唯一历史下拉和明确空态切换已有历史的 WorkGraph 主视图。
  * POS: 底部节点轨迹之外的完整图入口；只消费同一权威 ExecutionView，不解析 metadata 或另起状态机。
  */
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ComponentProps } from "react";
 import {
   Check,
   ChevronDown,
@@ -18,13 +18,15 @@ import {
 
 import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
 import { ReadResourceReliabilityNotice } from "@/features/conversation/shared/read-resource-reliability-notice";
-import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { previewWorkGraphWorkflowApi } from "@/lib/api/conversation/execution-api";
 import { getErrorMessage } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiIconButton } from "@/shared/ui/button/button";
+import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
+import { UiBadge } from "@/shared/ui/display/badge";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import {
   UiActionMenu,
   type UiActionMenuItem,
@@ -46,14 +48,14 @@ import { WorkGraphDistillationDialog } from "./workgraph-distillation-dialog";
 
 type WorkGraphSurfaceMode = "current" | "history";
 
-const EXECUTION_HEADER_STATUS_TONE: Record<ExecutionStatus, string> = {
-  active: "border-[color:color-mix(in_srgb,var(--success)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--success)_9%,transparent)] text-(--success)",
-  waiting: "border-[color:color-mix(in_srgb,var(--warning)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_9%,transparent)] text-(--warning)",
-  paused: "border-[color:color-mix(in_srgb,var(--warning)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_9%,transparent)] text-(--warning)",
-  completed: "border-[color:color-mix(in_srgb,var(--success)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--success)_9%,transparent)] text-(--success)",
-  failed: "border-destructive/20 bg-destructive/10 text-destructive",
-  cancelled: "border-(--surface-control-border) bg-(--surface-muted-background) text-(--text-soft)",
-  superseded: "border-(--surface-control-border) bg-(--surface-muted-background) text-(--text-soft)",
+const EXECUTION_HEADER_STATUS_TONE: Record<ExecutionStatus, ComponentProps<typeof UiBadge>["tone"]> = {
+  active: "active",
+  waiting: "warning",
+  paused: "warning",
+  completed: "success",
+  failed: "danger",
+  cancelled: "idle",
+  superseded: "idle",
 };
 
 export function ExecutionWorkGraphSurface({
@@ -159,7 +161,7 @@ export function ExecutionWorkGraphSurface({
   if (historyResource.isLoading) {
     historyMenuItems.push({
       disabled: true,
-      icon: <LoaderCircle className="h-3.5 w-3.5 animate-spin" />,
+      icon: <LoaderCircle className={getUiSpinnerClassName({ size: "sm" })} />,
       label: t("execution.surface_loading"),
       value: "loading",
     });
@@ -263,59 +265,64 @@ export function ExecutionWorkGraphSurface({
           data-execution-header-actions
         >
           {header && header.status !== "active" ? (
-            <span
-              className={cn(
-                "inline-flex h-6 shrink-0 items-center rounded-full border px-2 text-[11px] font-semibold leading-none",
-                EXECUTION_HEADER_STATUS_TONE[header.status],
-              )}
+            <UiBadge
               data-execution-header-notice-status={header.status}
+              shape="pill"
+              size="md"
+              tone={EXECUTION_HEADER_STATUS_TONE[header.status]}
             >
               {t(header.statusLabelKey)}
-            </span>
+            </UiBadge>
           ) : null}
           {header?.status === "completed" && execution && sketchSessionKey ? (
-            <button
-              className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-[7px] border border-[color:color-mix(in_srgb,var(--primary)_24%,var(--surface-control-border))] bg-[color:color-mix(in_srgb,var(--primary)_6%,var(--surface-control-background))] px-2.5 text-[11px] font-semibold text-(--primary) transition-colors hover:bg-[color:color-mix(in_srgb,var(--primary)_11%,var(--surface-control-background))] disabled:cursor-wait disabled:opacity-60"
+            <UiButton
+              className="shrink-0"
               data-workgraph-save-sketch
               disabled={sketchLoading}
               onClick={handleOpenSketch}
-              type="button"
+              size="xs"
+              tone="primary"
+              variant="surface"
             >
               {sketchLoading
-                ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                ? <LoaderCircle className={getUiSpinnerClassName({ size: "sm" })} />
                 : <GitBranchPlus className="h-3.5 w-3.5" />}
               {t(sketchLoading
                 ? "execution.workflow_extracting_sketch"
                 : "execution.workflow_save_as_sketch")}
-            </button>
+            </UiButton>
           ) : null}
           {runtimeProjectionPartial ? (
-            <span
+            <UiBadge
               aria-label={t("execution.surface_partial", {
                 nodes: execution?.graph?.runtime_node_total ?? 0,
                 edges: execution?.graph?.runtime_edge_total ?? 0,
               })}
-              className="flex shrink-0 items-center gap-1 rounded-full bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-1.5 py-0.5 text-[10px] font-medium text-(--warning)"
+              icon={<CircleAlert aria-hidden="true" className="h-3 w-3" />}
+              shape="pill"
+              size="xs"
+              tone="warning"
               title={t("execution.surface_partial", {
                 nodes: execution?.graph?.runtime_node_total ?? 0,
                 edges: execution?.graph?.runtime_edge_total ?? 0,
               })}
             >
-              <CircleAlert aria-hidden="true" className="h-3 w-3" />
               <span>{t("execution.surface_partial_short")}</span>
-            </span>
+            </UiBadge>
           ) : null}
           {mode === "current" && resource.isStale ? (
-            <span
+            <UiBadge
               aria-label={t("execution.surface_stale")}
-              className="flex shrink-0 items-center gap-1 rounded-full bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-1.5 py-0.5 text-[10px] font-medium text-(--warning)"
+              icon={<CircleAlert aria-hidden="true" className="h-3 w-3" />}
+              shape="pill"
+              size="xs"
+              tone="warning"
               title={lastSuccessfulAt
                 ? t("execution.surface_stale_at", { time: lastSuccessfulAt })
                 : t("execution.surface_stale")}
             >
-              <CircleAlert aria-hidden="true" className="h-3 w-3" />
               <span>{t("execution.surface_stale_short")}</span>
-            </span>
+            </UiBadge>
           ) : null}
         </div>
       </header>
@@ -377,7 +384,9 @@ export function ExecutionWorkGraphSurface({
         <div className="grid min-h-0 flex-1 place-items-center px-6 py-8 text-center">
           <div className="flex max-w-64 flex-col items-center gap-2 text-(--text-soft)">
             {(mode === "history" ? historyResource.isLoading : resource.isLoading) ? (
-              <LoaderCircle className="h-5 w-5 animate-spin text-(--icon-muted)" />
+              <LoaderCircle
+                className={getUiSpinnerClassName({ size: "lg", tone: "muted" })}
+              />
             ) : (mode === "history" ? historyResource.error : resource.error) ? (
               <CircleAlert className="h-5 w-5 text-(--warning)" />
             ) : (

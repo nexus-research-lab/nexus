@@ -1,6 +1,6 @@
 /**
  * INPUT: 一个默认模型角色的选项、当前值和保存状态。
- * OUTPUT: 不承载异常文案的模型选择行。
+ * OUTPUT: 复用公共紧凑选择器和设置文字层级、不承载异常文案的模型选择行。
  * POS: 默认模型纯展示组件；目录失败由分区级资源状态统一展示。
  */
 "use client";
@@ -10,17 +10,16 @@ import { Loader2 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import type { UiSelectMenuOption } from "@/shared/ui/menu/select-menu-model";
 
 import type { DefaultModelPreferenceRole } from "../model/default-model-preferences-model";
 import {
-  SETTINGS_CONTROL_HEIGHT_CLASS_NAME,
   SETTINGS_CONTROL_LABEL_CLASS_NAME,
   SETTINGS_ICON_CLASS_NAME,
   SETTINGS_ITEM_DESCRIPTION_CLASS_NAME,
   SETTINGS_ITEM_TITLE_CLASS_NAME,
-  SETTINGS_SELECT_BUTTON_CLASS_NAME,
   SETTINGS_TEXT_ROW_CLASS_NAME,
 } from "../../shared/settings-panel-ui";
 
@@ -76,21 +75,21 @@ export function SettingsDefaultModelRow({
         </span>
         <UiSelectMenu
           ariaLabel={t(titleKey)}
-          buttonClassName={SETTINGS_SELECT_BUTTON_CLASS_NAME}
-          className={SETTINGS_CONTROL_HEIGHT_CLASS_NAME}
           disabled={
             disabled
             || providerOptionsLoading
             || Boolean(savingRole)
             || options.length === 0
           }
-          leading={savingRole === modelCategory ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+          leading={savingRole === modelCategory
+            ? <Loader2 className={getUiSpinnerClassName({ size: "xs" })} />
+            : null}
           onChange={(nextValue) => onChange(nextValue, modelCategory)}
           options={options}
           placeholder={providerOptionsLoading
             ? t("settings.general.default_model_loading")
             : t(emptyPlaceholderKey)}
-          size="xs"
+          size="sm"
           value={value}
         />
       </div>

@@ -6,10 +6,11 @@
 import { MessageSquareText, X } from "lucide-react";
 import { useRef, useState, type DragEvent } from "react";
 
+import { UiListActionButton } from "@/shared/ui/list/list-action";
 import { cn } from "@/shared/ui/class-name";
-import { SIDEBAR_SELECTION_CLASS_NAME } from "@/shared/ui/sidebar/sidebar-selection";
 
 import { resolveSidebarPinnedConversationDropPlacement } from "./sidebar-pinned-conversations-model";
+import { SidebarRailAction } from "./sidebar-rail-action";
 import type {
   SidebarPinnedConversationItem,
   SidebarPinnedConversationPlacement,
@@ -147,7 +148,7 @@ export function SidebarPinnedConversations({
         {items.map((item) => (
           <div
             className={cn(
-              "group/pinned relative h-14 w-14 shrink-0 transition-colors duration-(--motion-duration-fast)",
+              "group/item relative h-14 w-14 shrink-0 transition-colors duration-(--motion-duration-fast)",
               item.active
                 ? "text-(--text-strong)"
                 : "text-(--text-muted)",
@@ -173,39 +174,30 @@ export function SidebarPinnedConversations({
                 )}
               />
             ) : null}
-            <button
-              aria-current={item.active ? "page" : undefined}
-              className="absolute inset-0 min-w-0 cursor-grab rounded-[12px] text-2xs font-medium transition-colors duration-(--motion-duration-fast) active:cursor-grabbing hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_34%,transparent)]"
+            <SidebarRailAction
+              active={item.active}
               draggable
+              icon={MessageSquareText}
+              label={item.title}
+              layout="pinned"
               onDragEnd={resetDragState}
               onDragStart={(event) => handleDragStart(event, item)}
               onClick={() => onSelect(item)}
+              supplementalLabel={reorderLabel}
               title={`${item.title} · ${reorderLabel}`}
-              type="button"
-            >
-              <span className={cn(
-                "absolute left-1/2 top-0 flex h-8 w-8 -translate-x-1/2 items-center justify-center rounded-[10px] transition-[background,color] duration-(--motion-duration-fast)",
-                item.active
-                  ? SIDEBAR_SELECTION_CLASS_NAME
-                  : "group-hover/pinned:bg-(--surface-interactive-hover-background)",
-              )}>
-                <MessageSquareText className="h-[17px] w-[17px]" />
-              </span>
-              <span className="absolute inset-x-0 bottom-2 block truncate px-1 text-center leading-tight">
-                {item.title}
-              </span>
-              <span className="sr-only">{reorderLabel}</span>
-            </button>
-            <button
+            />
+            <UiListActionButton
               aria-label={`${unpinLabel}：${item.title}`}
-              className="absolute -right-1 -top-1 z-10 flex h-6 w-6 items-center justify-center rounded-full text-(--icon-muted) opacity-0 transition-[background-color,color,opacity] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-active-background) hover:text-(--text-strong) focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_34%,transparent)] group-focus-within/pinned:opacity-100 group-hover/pinned:opacity-100"
+              className="absolute -right-1 -top-1 z-10"
               data-pinned-conversation-unpin="true"
               onClick={() => onUnpin(item)}
+              shape="round"
+              size="xs"
               title={unpinLabel}
-              type="button"
+              visibility="hover"
             >
               <X className="h-3.5 w-3.5" />
-            </button>
+            </UiListActionButton>
           </div>
         ))}
       </div>

@@ -1,16 +1,13 @@
 /**
  * INPUT: 当前 Agent、可编辑配置、联络资源与目录/协作导航命令。
- * OUTPUT: 带显式桌面目录返回入口的 Agent 分栏详情页。
+ * OUTPUT: 共享 Header 承载目录返回与精确 Agent 作用域的保存反馈/动作；详情栏目保持连续。
  * POS: 联系人目录的二级页面；手机返回由应用页头承载。
  */
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ArrowLeft,
-  Check,
-  CircleAlert,
-  LoaderCircle,
   MessageCirclePlus,
   MessageSquareText,
   Trash2,
@@ -29,9 +26,9 @@ import type {
   AgentOptionsTabKey,
 } from "@/features/agents/options/agent-options-editor-model";
 import { AgentMemoryView } from "@/features/memory/agent-memory-view";
-import { useMediaQuery } from "@/hooks/ui/use-media-query";
-import { useResettableState } from "@/hooks/ui/use-resettable-state";
-import { CONVERSATION_FOCUS_MEDIA_QUERY } from "@/lib/layout/home-layout";
+import { useMediaQuery } from "@/shared/lib/react/use-media-query";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
+import { APP_NARROW_VIEWPORT_MEDIA_QUERY } from "@/lib/layout/home-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
@@ -52,6 +49,7 @@ import {
   AgentCommunicationView,
   type AgentCommunicationViewState,
 } from "./agent-communication-view";
+import { AgentOptionsPersistenceStatus } from "./agent-options-persistence-status";
 import { ContactsAgentDetailActionsMenu } from "./contacts-agent-detail-actions-menu";
 
 interface ContactsAgentDetailProps {
@@ -107,7 +105,7 @@ export function ContactsAgentDetail({
   onSendCommunicationMessage,
 }: ContactsAgentDetailProps) {
   const { t } = useI18n();
-  const isCompactLayout = useMediaQuery(CONVERSATION_FOCUS_MEDIA_QUERY);
+  const isCompactLayout = useMediaQuery(APP_NARROW_VIEWPORT_MEDIA_QUERY);
   const [activeTab, setActiveTab] = useState<AgentDetailTabKey>("identity");
   const [persistenceState, setPersistenceState] =
     useResettableState<AgentOptionsPersistenceState>({
@@ -147,6 +145,8 @@ export function ContactsAgentDetail({
 
   const actionControls = isCompactLayout ? (
     <ContactsAgentDetailActionsMenu
+      agentId={agent.agent_id}
+      agentName={agent.name}
       onCreateTeam={() => onCreateTeam(agent.agent_id)}
       onDelete={() => onDeleteAgent(agent.agent_id)}
       onOpenDirectRoom={() => onOpenDirectRoom(agent.agent_id)}
@@ -184,7 +184,7 @@ export function ContactsAgentDetail({
   const trailing = (
     <div className="flex shrink-0 items-center justify-end gap-0.5">
       {isEditorTab ? (
-        <AgentOptionsPersistenceStatus state={persistenceState} />
+        <AgentOptionsPersistenceStatus agentId={agent.agent_id} compact={isCompactLayout} state={persistenceState} />
       ) : null}
       {actionControls}
     </div>
@@ -208,7 +208,7 @@ export function ContactsAgentDetail({
         activeTab={activeTab}
         compactTabsLabel={t("contacts.title")}
         leading={directoryNavigation}
-        leadingClassName="!h-auto !w-auto !bg-transparent"
+        leadingVariant="action"
         onChangeTab={setActiveTab}
         tabs={configTabs}
         trailing={trailing}
@@ -268,72 +268,4 @@ export function ContactsAgentDetail({
 
 function isAgentOptionsTab(tab: AgentDetailTabKey): tab is AgentOptionsTabKey {
   return tab === "identity" || tab === "skills" || tab === "advanced";
-}
-
-function AgentOptionsPersistenceStatus({
-  state,
-}: {
-  state: AgentOptionsPersistenceState;
-}) {
-  const [mobileErrorOpen, setMobileErrorOpen] = useState(false);
-  useEffect(() => {
-    setMobileErrorOpen(false);
-  }, [state.message, state.phase]);
-  const StatusIcon = state.phase === "saving"
-    ? LoaderCircle
-    : state.phase === "success"
-      ? Check
-      : state.phase === "error"
-        ? CircleAlert
-        : null;
-  return (
-    <span
-      aria-live="polite"
-      className={cn(
-        "relative mr-1 inline-flex h-8 shrink-0 items-center gap-1 text-xs text-(--text-soft)",
-        state.phase === "success" && "text-(--success)",
-        state.phase === "error" && "text-(--destructive)",
-      )}
-      title={state.message}
-    >
-      {StatusIcon && state.phase === "error" ? (
-        <>
-          <button
-            aria-expanded={mobileErrorOpen}
-            aria-label={state.message}
-            className="flex h-8 w-8 items-center justify-center rounded-[7px] text-(--destructive) hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] sm:hidden"
-            data-agent-save-error-details
-            onClick={() => setMobileErrorOpen((current) => !current)}
-            type="button"
-          >
-            <StatusIcon aria-hidden="true" className="h-3.5 w-3.5" />
-          </button>
-          <StatusIcon aria-hidden="true" className="h-3.5 w-3.5 max-sm:hidden" />
-        </>
-      ) : StatusIcon ? (
-        <StatusIcon
-          aria-hidden="true"
-          className={cn(
-            "h-3.5 w-3.5",
-            state.phase === "saving" && "animate-spin",
-          )}
-        />
-      ) : null}
-      <span
-        aria-hidden={state.phase === "error" ? "true" : undefined}
-        className="sr-only sm:not-sr-only"
-      >
-        {state.message}
-      </span>
-      {state.phase === "error" && mobileErrorOpen ? (
-        <span
-          aria-hidden="true"
-          className="absolute right-0 top-[calc(100%+0.375rem)] z-40 w-[min(19rem,calc(100vw-1.5rem))] rounded-[10px] border border-[color:color-mix(in_srgb,var(--destructive)_20%,transparent)] bg-(--surface-popover-background) px-3 py-2.5 text-left text-xs font-normal leading-5 text-(--text-default) shadow-(--surface-popover-shadow) sm:hidden"
-          data-agent-save-error-popover
-        >
-          {state.message}
-        </span>
-      ) : null}
-    </span>
-  );
 }

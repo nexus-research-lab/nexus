@@ -1,3 +1,7 @@
+// INPUT: 已注册 Tour、当前步骤与导航/关闭命令。
+// OUTPUT: 随锚点、卡片及视口变化重新定位的非阻塞导览 Portal。
+// POS: Onboarding Tour 浮层编排；测量归 hook，几何计算归纯模型，内容归 Card。
+
 "use client";
 
 import { useEffect } from "react";
@@ -27,7 +31,12 @@ export function OnboardingTourOverlay({
   tour,
 }: OnboardingTourOverlayProps) {
   const step = tour.steps[stepIndex];
-  const { cardRef, popoverSize, targetRect } = useTourOverlayLayout(step);
+  const {
+    cardRef,
+    popoverSize,
+    targetRect,
+    viewportSize,
+  } = useTourOverlayLayout(step);
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
@@ -68,14 +77,14 @@ export function OnboardingTourOverlay({
   const position = getPopoverPosition(
     placement,
     targetRect,
-    window.innerWidth,
-    window.innerHeight,
+    viewportSize.width,
+    viewportSize.height,
     popoverSize,
     16,
   );
 
   return createPortal(
-    <div className="pointer-events-none fixed inset-0 z-[11000]">
+    <div className="pointer-events-none fixed inset-0 ui-layer-tour">
       {!targetRect ? (
         <div
           className="absolute inset-0 bg-[rgba(11,16,24,0.42)]"
@@ -108,7 +117,7 @@ export function OnboardingTourOverlay({
 function TourTargetHighlight({ targetRect }: { targetRect: DOMRect }) {
   return (
     <div
-      className="pointer-events-none absolute rounded-[10px] border border-[color:color-mix(in_srgb,var(--primary)_38%,white)] shadow-[0_0_0_9999px_var(--dialog-backdrop-color)] transition-[top,left,width,height] duration-(--motion-duration-fast)"
+      className="tour-target-highlight pointer-events-none absolute"
       style={{
         height: targetRect.height + 12,
         left: targetRect.left - 6,

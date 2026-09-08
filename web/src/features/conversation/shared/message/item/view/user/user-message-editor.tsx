@@ -1,8 +1,13 @@
+// INPUT: 用户消息编辑草稿、提交资格、键盘动作与 textarea 引用。
+// OUTPUT: 可取消或提交的原位消息编辑器。
+// POS: User message 编辑视图；公共输入壳与按钮持有外观，原生 textarea 保留正文行高、60/64px 起始高度、120px 上限与独立动作 Footer 的组合几何。
+
 import type { KeyboardEvent, RefObject } from "react";
 
+import { isImeKeyboardEvent } from "@/shared/lib/browser/ime-keyboard-event";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
-import { getUiButtonClassName } from "@/shared/ui/button/button-styles";
 
 interface UserMessageEditorProps {
   canSubmit: boolean;
@@ -25,6 +30,9 @@ export function UserMessageEditor({
 }: UserMessageEditorProps) {
   const { t } = useI18n();
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (isImeKeyboardEvent(event.nativeEvent)) {
+      return;
+    }
     if (event.key === "Escape") {
       event.preventDefault();
       onCancel();
@@ -37,13 +45,13 @@ export function UserMessageEditor({
   };
 
   return (
-    <div className="input-shell workbench-input-shell ml-auto flex w-full max-w-full flex-col overflow-hidden rounded-[10px]">
+    <div className="input-shell ml-auto flex w-full max-w-full flex-col overflow-hidden">
       <textarea
         aria-label={t("message.edit_content")}
         className={cn(
-          "soft-scrollbar min-h-0 resize-none appearance-none border-0 bg-transparent px-3 text-left text-[14px] leading-6 text-(--text-strong)",
+          "soft-scrollbar min-h-0 resize-none appearance-none border-0 bg-transparent px-3 text-left text-base leading-6 text-(--text-strong)",
           compact ? "py-1.5" : "py-2",
-          "outline-none shadow-none ring-0 transition-none placeholder:text-(--text-faint)",
+          "outline-none shadow-none ring-0 transition-none placeholder:text-(--text-soft)",
           "focus:border-0 focus:bg-transparent focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none",
         )}
         onChange={(event) => onChange(event.target.value)}
@@ -53,21 +61,21 @@ export function UserMessageEditor({
         value={draftContent}
       />
       <div className="flex items-center justify-end gap-1.5 border-t border-(--divider-subtle-color) px-2 py-0.5">
-        <button
-          className={getUiButtonClassName({ size: "xs", variant: "surface" })}
+        <UiButton
           onClick={onCancel}
-          type="button"
+          size="xs"
+          variant="surface"
         >
           {t("common.cancel")}
-        </button>
-        <button
-          className={getUiButtonClassName({ size: "xs", variant: "solid" })}
+        </UiButton>
+        <UiButton
           disabled={!canSubmit}
           onClick={onSubmit}
-          type="button"
+          size="xs"
+          variant="solid"
         >
           {t("composer.enter_send")}
-        </button>
+        </UiButton>
       </div>
     </div>
   );

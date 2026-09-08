@@ -1,12 +1,16 @@
 /**
  * INPUT: 当前语言与导入在途状态。
- * OUTPUT: 默认收起的 Skill 格式要求、示例与指南下载动作。
+ * OUTPUT: 共享说明字号/示例表面的折叠格式要求与原样指南下载动作。
  * POS: Skill 导入表单的次级帮助，不占据首屏主栏。
  */
 
 import { UiButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
+import { UiDisclosure } from "@/shared/ui/disclosure/disclosure";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { Locale } from "@/shared/i18n/messages";
+import { UiPanel } from "@/shared/ui/panel";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import roomCollaborationMechanismEnglishMarkdown from "../../../../../../docs/guides/room-skill-authoring.en.md?raw";
 import roomCollaborationMechanismChineseMarkdown from "../../../../../../docs/guides/room-skill-authoring.md?raw";
@@ -46,36 +50,48 @@ export function SkillImportGuide({ importing }: { importing: boolean }) {
   const { locale, t } = useI18n();
   return (
     <aside className="border-t border-(--divider-subtle-color) pt-4">
-      <details className="group">
-        <summary className="cursor-pointer select-none text-sm font-medium text-(--text-muted) hover:text-(--text-strong)">
-          {t("capability.skills_import_guide_title")}
-        </summary>
-        <div className="mt-3 space-y-3 pl-4">
+      <UiDisclosure
+        contentClassName="space-y-3 pl-4"
+        label={t("capability.skills_import_guide_title")}
+        summaryTone="muted"
+        variant="inline"
+      >
           <div className="flex justify-end">
-          <UiButton
-            aria-label={t("capability.skills_import_guide_download_aria")}
-            className="shrink-0"
-            disabled={importing}
-            onClick={() => downloadRoomCollaborationMechanism(locale)}
-            size="xs"
-            tone="primary"
-            variant="text"
-          >
-            {t("capability.skills_import_guide_download")}
-          </UiButton>
+            <UiButton
+              aria-label={t("capability.skills_import_guide_download_aria")}
+              className="shrink-0"
+              disabled={importing}
+              onClick={() => downloadRoomCollaborationMechanism(locale)}
+              size="xs"
+              tone="primary"
+              variant="text"
+            >
+              {t("capability.skills_import_guide_download")}
+            </UiButton>
           </div>
-          <ul className="space-y-1.5 text-xs leading-5 text-(--text-muted)">
+          <ul className={cn(
+            "space-y-1.5",
+            getUiTypographyClassName({ role: "supporting", tone: "muted" }),
+          )}>
             <li>{t("capability.skills_import_rule_name")}</li>
             <li>{t("capability.skills_import_rule_scope")}</li>
             <li>{t("capability.skills_import_rule_room_guide")}</li>
             <li>{t("capability.skills_import_rule_room_enable")}</li>
             <li>{t("capability.skills_import_rule_git_tracking")}</li>
           </ul>
-          <pre className="max-h-[260px] overflow-auto rounded-[8px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_92%,black_2%)] p-3 text-xs leading-5 text-(--text-default)">
-            {buildSkillFrontmatterExample(t)}
-          </pre>
-        </div>
-      </details>
+          <UiPanel
+            padding="sm"
+            radius="sm"
+            variant="filled"
+          >
+            <pre className={cn(
+              "max-h-[260px] overflow-auto whitespace-pre-wrap",
+              getUiTypographyClassName({ role: "code", tone: "default" }),
+            )}>
+              {buildSkillFrontmatterExample(t)}
+            </pre>
+          </UiPanel>
+      </UiDisclosure>
     </aside>
   );
 }

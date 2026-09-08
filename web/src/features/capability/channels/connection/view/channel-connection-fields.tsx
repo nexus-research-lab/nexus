@@ -1,7 +1,8 @@
 // INPUT: Channel 配置快照、表单草稿、登录状态与字段更新动作。
-// OUTPUT: 首屏配置字段，以及按需展开的完整平台准备和 runtime 说明。
+// OUTPUT: 标签与控件精确关联的首屏配置字段，以及按需展开的平台准备和 runtime 说明。
 // POS: Channel 连接弹窗的字段视图，不复制控制器状态机。
 import { ExternalLink } from "lucide-react";
+import { useId } from "react";
 
 import type {
   ChannelAccountView,
@@ -52,6 +53,7 @@ export function ChannelConnectionFields({
   controller,
 }: ChannelConnectionFieldsProps) {
   const { currentItem, draft } = controller;
+  const fieldId = useId();
   return (
     <>
       <ChannelGuide item={currentItem} runtimeNote={currentItem.runtime_note} />
@@ -77,10 +79,11 @@ export function ChannelConnectionFields({
         />
       ) : null}
 
-      <UiField label="处理智能体" required>
+      <UiField htmlFor={`${fieldId}-agent`} label="处理智能体" required>
         <UiSelectMenu
           ariaLabel="选择频道处理智能体"
           disabled={controller.busy}
+          id={`${fieldId}-agent`}
           onChange={controller.setAgentId}
           options={agents.map((agent) => ({
             value: agent.agent_id,
@@ -95,6 +98,7 @@ export function ChannelConnectionFields({
         {currentItem.credential_fields.map((field, index) => (
           <UiField
             key={field.key}
+            htmlFor={`${fieldId}-${field.key}`}
             label={field.label}
             required={field.required}
           >
@@ -106,6 +110,7 @@ export function ChannelConnectionFields({
               data-form-type="other"
               data-lpignore="true"
               disabled={controller.busy}
+              id={`${fieldId}-${field.key}`}
               name={channelFieldInputName(currentItem.channel_type, index)}
               onChange={(event) => controller.updateField(field, event.target.value)}
               placeholder={field.placeholder || ""}

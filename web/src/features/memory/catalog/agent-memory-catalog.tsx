@@ -5,12 +5,14 @@
  */
 import { RefreshCw, Search } from "lucide-react";
 
-import { cn } from "@/shared/ui/class-name";
 import { UiIconButton } from "@/shared/ui/button/button";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
+import { UiListRow } from "@/shared/ui/list/list-row";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
-import { SIDEBAR_SELECTION_CLASS_NAME } from "@/shared/ui/sidebar/sidebar-selection";
 import {
   MEMORY_FILTER_OPTIONS,
   type MemoryCatalogRow,
@@ -50,12 +52,13 @@ export function AgentMemoryCatalog({
   truncated,
 }: AgentMemoryCatalogProps) {
   const { t } = useI18n();
+  const hasFilters = filter !== "all" || !createUiSearchMatcher(query).empty;
   const filterOptions = MEMORY_FILTER_OPTIONS.map((option) => ({
     label: t(option.labelKey),
     value: option.value,
   }));
   return (
-    <aside className="nexus-memory-catalog flex min-h-0 min-w-0 flex-col bg-(--surface-raised-background)">
+    <aside className="nexus-memory-catalog flex min-h-0 min-w-0 flex-col">
       <div className="flex shrink-0 items-center gap-2 px-3 py-3">
         <UiSearchInput
           action={(
@@ -68,18 +71,20 @@ export function AgentMemoryCatalog({
               title={t("capability.refresh")}
               variant="ghost"
             >
-              <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
+              <RefreshCw
+                className={refreshing
+                  ? getUiSpinnerClassName({ size: "sm" })
+                  : "h-3.5 w-3.5"}
+              />
             </UiIconButton>
           )}
           className="min-w-0 flex-1"
-          inputClassName="text-compact"
           onChange={onQueryChange}
           placeholder={t("capability.memory_search_placeholder")}
           value={query}
         />
         <UiSelectMenu
           ariaLabel={t("capability.memory_filter_aria")}
-          buttonClassName="gap-1 px-2.5 shadow-none"
           className="w-[86px] shrink-0"
           menuMinWidth={120}
           onChange={(value) => onFilterChange(value as MemoryFilter)}
@@ -98,13 +103,22 @@ export function AgentMemoryCatalog({
             section={section}
           />
         ))}
-        {emptyFilterVisible ? (
-          <div className="px-3 py-10 text-center">
-            <Search className="mx-auto h-5 w-5 text-(--icon-muted)" />
-            <p className="mt-2 text-compact text-(--text-muted)">
-              {t("capability.memory_empty_filter")}
-            </p>
-          </div>
+        {emptyMemoryVisible ? (
+          <UiResourceState
+            description={t("capability.memory_empty_description")}
+            size="sm" state="empty" variant="plain"
+            title={t("capability.memory_empty_title")}
+          />
+        ) : emptyFilterVisible ? (
+          <UiResourceState
+            icon={<Search aria-hidden className="h-5 w-5 text-(--icon-default)" />}
+            primaryAction={hasFilters ? {
+              label: t("capability.memory_clear_filters"),
+              onClick: () => { onQueryChange(""); onFilterChange("all"); },
+            } : undefined}
+            size="sm" state="empty" variant="plain"
+            title={t("capability.memory_empty_filter")}
+          />
         ) : null}
 
         {truncated ? (
@@ -114,16 +128,6 @@ export function AgentMemoryCatalog({
         ) : null}
       </div>
 
-      {emptyMemoryVisible ? (
-        <div className="px-4 py-4">
-          <p className="text-compact font-semibold text-(--text-strong)">
-            {t("capability.memory_empty_title")}
-          </p>
-          <p className="mt-1 text-xs leading-5 text-(--text-muted)">
-            {t("capability.memory_empty_description")}
-          </p>
-        </div>
-      ) : null}
     </aside>
   );
 }
@@ -178,30 +182,20 @@ function MemoryDocumentRow({
   const displayTitle = getMemoryDocumentDisplayTitle(document);
   const showDocumentTitle = displayTitle !== document.title;
   return (
-    <button
-      className={cn(
-        "group flex w-full items-center gap-2.5 radius-control-sm border border-transparent px-2.5 py-2 text-left transition-colors",
-        isSelected
-          ? SIDEBAR_SELECTION_CLASS_NAME
-          : "hover:bg-(--surface-interactive-hover-background)",
+    <UiListRow
+      active={isSelected}
+      activeTone="sidebar"
+      aria-pressed={isSelected}
+      density="dense"
+      description={showDocumentTitle ? document.title : undefined}
+      leading={(
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center radius-control-xs bg-(--surface-panel-subtle-background) text-(--icon-muted)">
+          <Icon className="h-3.5 w-3.5" />
+        </span>
       )}
       onClick={() => onSelect(document.path)}
-      title={document.path}
-      type="button"
-    >
-      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[6px] bg-(--surface-panel-subtle-background) text-(--icon-muted)">
-        <Icon className="h-3.5 w-3.5" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-compact font-semibold text-(--text-strong)">
-          {displayTitle}
-        </span>
-        {showDocumentTitle ? (
-          <span className="mt-0.5 block truncate text-xs leading-4 text-(--text-muted)">
-            {document.title}
-          </span>
-        ) : null}
-      </span>
-    </button>
+      title={displayTitle}
+      tooltip={document.path}
+    />
   );
 }

@@ -8,7 +8,9 @@ import { Check, Pause, Play, Plus } from "lucide-react";
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
+import { UiChoiceButton } from "@/shared/ui/form/choice";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
+import { UiListRow } from "@/shared/ui/list/list-row";
 
 import type { RoomMemberAgentOption } from "./create-room-dialog-types";
 
@@ -96,27 +98,15 @@ function RoomMemberOption({
   );
   const ParticipationIcon = participationPaused ? Play : Pause;
   return (
-    <div
-      className={cn(
-        "radius-control-md flex min-h-10 w-full items-center border border-transparent transition-[background,color] duration-(--motion-duration-fast)",
-        selected
-          ? "bg-(--surface-interactive-active-background)"
-          : "bg-transparent hover:bg-(--surface-interactive-hover-background)",
-      )}
-    >
-      <button
-        aria-label={actionLabel}
-        aria-pressed={selected}
-        className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 px-2.5 py-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
-        onClick={() => onToggle(agent.agent_id)}
-        title={actionLabel}
-        type="button"
-      >
-        <UiAgentAvatar avatar={agent.avatar} name={agent.name} size="sm" />
-        <p className="min-w-0 flex-1 truncate text-sm font-semibold text-(--text-strong)">
-          {agent.name}
-        </p>
-        <div
+    <UiListRow
+      active={selected}
+      aria-label={actionLabel}
+      aria-pressed={selected}
+      density="dense"
+      leading={<UiAgentAvatar avatar={agent.avatar} name={agent.name} size="sm" />}
+      onClick={() => onToggle(agent.agent_id)}
+      right={(
+        <span
           className={cn(
             "pointer-events-none flex h-6 w-6 shrink-0 items-center justify-center radius-control-xs transition-[background-color,color] duration-(--motion-duration-fast)",
             selected
@@ -125,26 +115,26 @@ function RoomMemberOption({
           )}
         >
           <SelectionIcon className="h-3 w-3" />
-        </div>
-      </button>
-      {canManageParticipation && selected ? (
-        <button
+        </span>
+      )}
+      actions={canManageParticipation && selected ? (
+        <UiChoiceButton
+          active={participationPaused}
           aria-label={participationActionLabel}
-          aria-pressed={participationPaused}
-          className={cn(
-            "mr-1.5 flex h-7 shrink-0 items-center gap-1 radius-control-xs px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]",
-            participationPaused
-              ? "bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] text-(--warning) hover:bg-[color:color-mix(in_srgb,var(--warning)_16%,transparent)]"
-              : "text-(--text-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-default)",
-          )}
-          onClick={() => onToggleParticipation(agent.agent_id)}
+          choiceSize="xs"
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggleParticipation(agent.agent_id);
+          }}
           title={participationActionLabel}
-          type="button"
+          tone="neutral"
         >
           <ParticipationIcon className="h-3 w-3" />
           <span>{t(participationPaused ? "room.resume_participation" : "room.pause_participation")}</span>
-        </button>
+        </UiChoiceButton>
       ) : null}
-    </div>
+      title={agent.name}
+      tooltip={actionLabel}
+    />
   );
 }

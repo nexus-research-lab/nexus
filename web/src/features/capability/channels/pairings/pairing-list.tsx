@@ -1,18 +1,20 @@
 /**
  * INPUT: 分组配对、Agent 目录与配对写命令。
- * OUTPUT: 可识别的外部对象摘要和按需展开的内部技术详情。
+ * OUTPUT: 外部对象摘要、共享 Agent 选择文字/缺项绑定与按需展开的技术详情。
  * POS: 配对目录列表纯视图；外部身份属于管理对象，内部绑定键才延后展示。
  */
 "use client";
 
 import {
   Check,
-  ChevronDown,
   Copy,
   Trash2,
   X,
   type LucideIcon,
 } from "lucide-react";
+import { useId } from "react";
+import { useI18n } from "@/shared/i18n/i18n-context";
+import { buildAgentSelectionOptions, includeUnavailableAgentSelection, type AgentSelectionOption } from "@/lib/agent-selection-options";
 
 import type {
   ImPairingStatus,
@@ -23,9 +25,12 @@ import { CapabilitySectionHeader } from "@/features/capability/shared/capability
 import { UiBadge } from "@/shared/ui/display/badge";
 import type { UiBadgeTone } from "@/shared/ui/display/badge-styles";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
+import { UiDisclosure } from "@/shared/ui/disclosure/disclosure";
 import { UiField } from "@/shared/ui/form/form-control";
 import { UiPanel } from "@/shared/ui/panel";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { Agent } from "@/types/agent/agent";
 
 import { ChannelIcon } from "../channel-icon";
@@ -113,11 +118,13 @@ export function PairingList({
   onDeletePairing,
   onUpdatePairing,
 }: PairingListProps) {
+  const { t } = useI18n();
+  const agentOptions = buildAgentSelectionOptions(agents, t);
   return (
     <div className="space-y-5">
       {pendingItems.length > 0 ? (
         <PairingSection
-          agents={agents}
+          agentOptions={agentOptions}
           busy={busy}
           description="首次消息正在等待授权"
           items={pendingItems}
@@ -129,7 +136,7 @@ export function PairingList({
       ) : null}
       {groups.map((group) => (
         <PairingSection
-          agents={agents}
+          agentOptions={agentOptions}
           busy={busy}
           items={group.items}
           key={group.agent_id}
@@ -144,7 +151,7 @@ export function PairingList({
 }
 
 function PairingSection({
-  agents,
+  agentOptions,
   busy,
   description,
   items,
@@ -153,7 +160,7 @@ function PairingSection({
   onUpdatePairing,
   title,
 }: {
-  agents: Agent[];
+  agentOptions: AgentSelectionOption[];
   busy: boolean;
   description?: string;
   items: PairingView[];
@@ -172,7 +179,7 @@ function PairingSection({
       <div className="space-y-2">
         {items.map((item) => (
           <PairingRow
-            agents={agents}
+            agentOptions={agentOptions}
             busy={busy}
             item={item}
             key={item.pairing_id}
@@ -187,38 +194,50 @@ function PairingSection({
 }
 
 function PairingRow({
-  agents,
+  agentOptions,
   busy,
   item,
   onCopySessionKey,
   onDeletePairing,
   onUpdatePairing,
 }: {
-  agents: Agent[];
+  agentOptions: AgentSelectionOption[];
   busy: boolean;
   item: PairingView;
   onCopySessionKey: PairingListProps["onCopySessionKey"];
   onDeletePairing: PairingListProps["onDeletePairing"];
   onUpdatePairing: PairingListProps["onUpdatePairing"];
 }) {
+  const { t } = useI18n();
+  const agentFieldId = useId();
   const bindingKey = pairingBindingKey(item);
   const sessionKey = pairingSessionKey(item);
   const activityAt = item.last_message_at || item.updated_at;
   return (
-    <UiPanel className="overflow-hidden rounded-[8px]" padding="none" radius="sm">
+    <UiPanel className="overflow-hidden" padding="none" radius="sm">
       <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(220px,0.7fr)_auto] items-center gap-3 px-3 py-3 max-lg:grid-cols-1">
         <div className="flex min-w-0 items-center gap-2.5">
           <ChannelIcon type={item.channel_type} />
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-2">
-              <div className="min-w-0 flex-1 truncate text-base font-medium text-(--text-strong)">
+              <div className={cn(
+                "min-w-0 flex-1 truncate",
+                getUiTypographyClassName({
+                  role: "control",
+                  tone: "strong",
+                  weight: "medium",
+                }),
+              )}>
                 {pairingDisplayName(item)}
               </div>
               <UiBadge tone={STATUS_TONES[item.status]}>
                 {STATUS_LABELS[item.status]}
               </UiBadge>
             </div>
-            <div className="mt-1 flex min-w-0 items-center gap-1.5 overflow-hidden text-compact text-(--text-muted)">
+            <div className={cn(
+              "mt-1 flex min-w-0 items-center gap-1.5 overflow-hidden",
+              getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+            )}>
               <span className="shrink-0">
                 {CHANNEL_LABELS[item.channel_type] ?? item.channel_type}
               </span>
@@ -227,7 +246,10 @@ function PairingRow({
                 {CHAT_TYPE_LABELS[item.chat_type] ?? item.chat_type}
               </span>
               <span aria-hidden="true">·</span>
-              <span className="min-w-0 truncate font-mono">
+              <span className={cn(
+                "min-w-0 truncate",
+                getUiTypographyClassName({ role: "code", tone: "muted" }),
+              )}>
                 {pairingTarget(item)}
               </span>
               <span aria-hidden="true">·</span>
@@ -239,15 +261,13 @@ function PairingRow({
           </div>
         </div>
 
-        <UiField className="min-w-0" label="处理智能体">
+        <UiField className="min-w-0" htmlFor={agentFieldId} label="处理智能体">
           <UiSelectMenu
             ariaLabel="选择配对处理智能体"
             disabled={busy}
+            id={agentFieldId}
             onChange={(value) => void onUpdatePairing(item, { agent_id: value })}
-            options={agents.map((agent) => ({
-              value: agent.agent_id,
-              label: agent.name,
-            }))}
+            options={includeUnavailableAgentSelection(agentOptions, item.agent_id, t)}
             size="sm"
             value={item.agent_id}
           />
@@ -287,21 +307,30 @@ function PairingRow({
         </div>
       </div>
 
-      <details className="group border-t border-(--divider-subtle-color) px-3">
-        <summary className="flex h-9 cursor-pointer list-none items-center gap-1.5 text-compact font-medium text-(--text-muted) [&::-webkit-details-marker]:hidden">
-          <span>技术详情</span>
-          <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
-        </summary>
-        <div className="grid gap-3 pb-3 md:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_minmax(180px,0.6fr)]">
+      <UiDisclosure
+        contentClassName="grid gap-3 md:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_minmax(180px,0.6fr)]"
+        density="compact"
+        inset="sm"
+        label="技术详情"
+        summaryRole="metadata"
+        summaryTone="muted"
+        variant="section"
+      >
           <PairingTechnicalField label="绑定键" value={bindingKey} />
           <div className="min-w-0">
-            <div className="flex h-6 items-center gap-1.5 text-xs font-semibold text-(--text-soft)">
+            <div className={cn(
+              "flex h-6 items-center gap-1.5",
+              getUiTypographyClassName({
+                role: "caption",
+                tone: "soft",
+                weight: "semibold",
+              }),
+            )}>
               <span>IM Session</span>
               <UiIconButton
-                className="h-6 w-6"
                 disabled={busy || !sessionKey}
                 onClick={() => void onCopySessionKey(item)}
-                size="sm"
+                size="xs"
                 title="复制 IM session key"
                 type="button"
                 variant="ghost"
@@ -310,18 +339,23 @@ function PairingRow({
               </UiIconButton>
             </div>
             <div
-              className="truncate font-mono text-compact text-(--text-default)"
+              className={cn(
+                "truncate",
+                getUiTypographyClassName({ role: "code", tone: "default" }),
+              )}
               title={sessionKey || "未生成"}
             >
               {sessionKey || "未生成"}
             </div>
           </div>
-          <div className="min-w-0 text-compact leading-5 text-(--text-muted)">
+          <div className={cn(
+            "min-w-0",
+            getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+          )}>
             <div>来源：{item.source === "ingress" ? "首次消息" : item.source}</div>
             <div>更新：{formatPairingTime(item.updated_at)}</div>
           </div>
-        </div>
-      </details>
+      </UiDisclosure>
     </UiPanel>
   );
 }
@@ -329,10 +363,23 @@ function PairingRow({
 function PairingTechnicalField({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <div className="flex h-6 items-center text-xs font-semibold text-(--text-soft)">
+      <div className={cn(
+        "flex h-6 items-center",
+        getUiTypographyClassName({
+          role: "caption",
+          tone: "soft",
+          weight: "semibold",
+        }),
+      )}>
         {label}
       </div>
-      <div className="truncate font-mono text-compact text-(--text-default)" title={value}>
+      <div
+        className={cn(
+          "truncate",
+          getUiTypographyClassName({ role: "code", tone: "default" }),
+        )}
+        title={value}
+      >
         {value}
       </div>
     </div>

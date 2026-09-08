@@ -1,5 +1,7 @@
 /**
- * Connector（应用授权）类型定义
+ * INPUT: 当前 Connector 目录、授权与本机配对 API。
+ * OUTPUT: 已接入的 Connector 身份、状态和授权交换类型。
+ * POS: Connector 传输契约；分类名称与顺序由目录模型持有。
  */
 
 /** 授权方式 */
@@ -164,10 +166,4 @@ export interface ConnectorLocalPairingPollResult {
   status: ConnectorLocalPairingStatus;
   message?: string;
   connector?: ConnectorInfo;
-}
-
-/** 连接器类别 */
-export interface ConnectorCategory {
-  key: string;
-  name: string;
 }

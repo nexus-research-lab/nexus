@@ -21,7 +21,7 @@
 - 最后 root 的全部连续 Agent 节点按真实高度进入 shared feed；新增 shell 必须立即推动 FOLLOW，禁止尾部 runway 或逐 Agent `min-height`。并行 live source 的负向校正只允许在共享父 Feed 暂存，并在整个 epoch 终态后统一释放。
 - 导航优先定位已挂载 DOM；虚拟列表未挂载时才回退到索引滚动。
 - 模型文件只做纯数据转换，不读取 Store、不触发副作用。
-
 聊天排版偏好改变后，虚拟 Feed 在下一帧清除高度缓存，已挂载行继续用 ResizeObserver 测量。
 
 `permission_review` 是绑定工具调用的审核审计，仅在 DM/对应 Room Thread 展示，不作为可操作权限卡，也不在 Room 公区展示。
+- `group-agent-timeline-model.ts` 只消费 round 模型的结构 entries，不为结构归组伪造空姓名/头像目录。目录后到、改名或语言切换只影响卡片显示，不改变 Agent 节点身份或 guided user 归属。

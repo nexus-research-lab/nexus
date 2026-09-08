@@ -1,13 +1,19 @@
+// INPUT: Exact Session/Room source, optional caller filter, task navigation request and shared file actions.
+// OUTPUT: Source/caller-isolated navigation, truthful missing-target feedback and focus handoff between directory/detail.
+// POS: Shared subagent surface assembly; member identity belongs to the Room adapter, queries to resource hooks.
 "use client";
 
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
-  useState,
   type ReactNode,
 } from "react";
 
+import type { WorkspaceFileOpenHandler } from "@/lib/workspace-file-action";
+import { useI18n } from "@/shared/i18n/i18n-context";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import type { SubagentTaskSource } from "@/types/conversation/subagent-task";
 
 import { SubagentTaskList } from "./subagent-task-list";
@@ -24,7 +30,7 @@ interface SubagentTaskSurfaceProps {
   hostAgentId?: string | null;
   layout?: "desktop" | "mobile";
   onClose: () => void;
-  onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void;
+  onOpenWorkspaceFile?: WorkspaceFileOpenHandler;
   requestKey?: number;
   requestedTaskToolUseId?: string | null;
   source: SubagentTaskSource;
@@ -66,29 +72,51 @@ function SubagentTaskSourceSurface({
   requestedTaskToolUseId,
   source,
 }: SubagentTaskSurfaceProps) {
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  const handledRequestKeyRef = useRef(0);
+  const hostFilterKey = hostAgentId?.trim() ?? null;
+  const { t } = useI18n();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const previousTaskRef = useRef<string | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useResettableState<string | null>(null, hostFilterKey);
+  const handledRequestRef = useRef<string | null>(null);
+  const requestedToolUseId = requestedTaskToolUseId?.trim() ?? "";
+  const requestIdentity = Number.isSafeInteger(requestKey) && requestKey > 0 && requestedToolUseId
+    ? JSON.stringify([requestKey, requestedToolUseId])
+    : null;
   const {
     data,
     error,
     isLoading,
     refresh,
     tasks,
-  } = useSubagentTasks(source, selectedTaskId === null, hostAgentId);
+  } = useSubagentTasks(source, selectedTaskId === null && hostFilterKey !== "", hostAgentId);
   const visibleTasks = useMemo(
-    () => filterSubagentTasksByHostAgent(tasks, hostAgentId),
-    [hostAgentId, tasks],
+    () => data && !data.capabilities.observe ? [] : filterSubagentTasksByHostAgent(tasks, hostAgentId),
+    [data, hostAgentId, tasks],
   );
   const selectedTask = visibleTasks.find(
     (task) => task.task_id === selectedTaskId,
   ) ?? null;
 
+  useLayoutEffect(() => {
+    const previousTaskId = previousTaskRef.current;
+    const currentTaskId = selectedTask?.task_id ?? null;
+    previousTaskRef.current = currentTaskId;
+    const root = rootRef.current;
+    if (!root || previousTaskId === currentTaskId) return;
+    const returnedRow = Array.from(root.querySelectorAll<HTMLElement>("[data-subagent-task-id]"))
+      .find((row) => row.dataset.subagentTaskId === previousTaskId);
+    const target = currentTaskId
+      ? root.querySelector<HTMLElement>("header button")
+      : returnedRow;
+    // Returning to a lower catalog row should let the browser reveal it in the
+    // directory scroller; header/fallback focus does not move scroll positions.
+    (target ?? root.querySelector<HTMLElement>("button, [role='button']") ?? root).focus({ preventScroll: !returnedRow });
+  }, [selectedTask?.task_id]);
+
   useEffect(() => {
-    const requestedToolUseId = requestedTaskToolUseId?.trim() ?? "";
     if (
-      requestKey <= 0
-      || !requestedToolUseId
-      || handledRequestKeyRef.current === requestKey
+      !requestIdentity
+      || handledRequestRef.current === requestIdentity
     ) {
       return;
     }
@@ -99,42 +127,56 @@ function SubagentTaskSourceSurface({
     if (!requestedTask) {
       return;
     }
-    handledRequestKeyRef.current = requestKey;
+    handledRequestRef.current = requestIdentity;
     setSelectedTaskId(requestedTask.task_id);
-  }, [requestKey, requestedTaskToolUseId, visibleTasks]);
+  }, [requestIdentity, requestedToolUseId, setSelectedTaskId, visibleTasks]);
 
   useEffect(() => {
     if (selectedTaskId && data && !selectedTask) {
       setSelectedTaskId(null);
     }
-  }, [data, selectedTask, selectedTaskId]);
-
-  if (selectedTask) {
-    return (
-      <SubagentTaskThread
-        layout={layout}
-        onBack={() => {
-          setSelectedTaskId(null);
-          void refresh(true);
-        }}
-        onOpenWorkspaceFile={onOpenWorkspaceFile}
-        source={source}
-        task={selectedTask}
-      />
-    );
-  }
+  }, [data, selectedTask, selectedTaskId, setSelectedTaskId]);
 
   return (
-    <SubagentTaskList
-      data={data}
-      error={error}
-      headerLeading={headerLeading}
-      isLoading={isLoading}
-      onClose={onClose}
-      onRefresh={() => void refresh()}
-      onSelectTask={setSelectedTaskId}
+    <div
+      ref={rootRef}
+      role="group"
+      aria-label={t("subagents.panel_title")}
+      tabIndex={-1}
+      className="flex min-h-0 min-w-0 flex-1 flex-col"
+    >
+      {selectedTask ? (
+        <SubagentTaskThread
+          layout={layout}
+          onBack={() => {
+            if (requestIdentity) handledRequestRef.current = requestIdentity;
+            setSelectedTaskId(null);
+            void refresh(true);
+          }}
+          onOpenWorkspaceFile={onOpenWorkspaceFile}
+          source={source}
+          task={selectedTask}
+        />
+      ) : (
+        <SubagentTaskList
+          data={data}
+          error={error}
+          headerLeading={headerLeading}
+          isLoading={isLoading}
+          onClose={onClose}
+          onRefresh={() => void refresh()}
+          requestedTaskUnavailable={Boolean(
+            requestIdentity && handledRequestRef.current !== requestIdentity
+            && data?.capabilities.observe && !findSubagentTaskByToolUseId(visibleTasks, requestedToolUseId),
+      )}
+      onSelectTask={(taskId) => {
+        if (requestIdentity) handledRequestRef.current = requestIdentity;
+        setSelectedTaskId(taskId);
+      }}
       showTitle={layout === "mobile"}
       tasks={visibleTasks}
     />
+      )}
+    </div>
   );
 }

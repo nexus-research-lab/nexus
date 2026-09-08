@@ -1,9 +1,13 @@
-/** INPUT: 当前正文字体。OUTPUT: 本机字体目录与选择。POS: 外观页字体读取与交互边界。 */
+// INPUT: 当前正文字体与本机字体目录能力。
+// OUTPUT: 共享字体选择器、文本兜底和读取失败状态。
+// POS: 外观页字体读取与交互边界；不读取或上传字体文件。
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getDesktopSystemFonts, isDesktopBridgeAvailable } from "@/lib/desktop-bridge";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiInput } from "@/shared/ui/form/form-control";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 type FontWindow = Window & {
   queryLocalFonts?: () => Promise<Array<{ family: string }>>;
@@ -59,8 +63,9 @@ export function SettingsFontPicker({ value, onChange }: { value: string; onChang
     <div className="space-y-2">
       <UiSelectMenu
         ariaLabel={t("settings.reading.font")}
-        buttonClassName="w-full border border-(--divider-subtle-color) bg-transparent shadow-none"
+        className="w-full"
         menuMinWidth={280}
+        size="lg"
         value={value}
         onChange={onChange}
         onOpen={() => { if (families.length === 0) void readBrowserFonts(); }}
@@ -70,16 +75,21 @@ export function SettingsFontPicker({ value, onChange }: { value: string; onChang
         ]}
       />
       {!desktop && (!canReadFonts || failed) && families.length === 0 && (
-        <input
+        <UiInput
           aria-label={t("settings.reading.custom_font")}
-          className="h-9 w-full rounded-lg border border-(--divider-subtle-color) bg-transparent px-3 text-sm"
+          className="w-full"
+          controlSize="lg"
           placeholder={t("settings.reading.font_hint")}
           maxLength={100}
           value={presets.some((preset) => preset === value) ? "" : value}
           onChange={(event) => onChange(event.target.value)}
         />
       )}
-      {failed && <p role="status" className="text-xs text-(--text-soft)">{t("settings.reading.font_error")}</p>}
+      {failed && (
+        <p className={getUiTypographyClassName({ role: "caption", tone: "soft" })} role="status">
+          {t("settings.reading.font_error")}
+        </p>
+      )}
     </div>
   );
 }

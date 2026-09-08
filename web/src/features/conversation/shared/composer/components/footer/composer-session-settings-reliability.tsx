@@ -1,7 +1,9 @@
 // INPUT: Composer Provider/Connector/Session-setting 读取与 mutation 失败投影。
-// OUTPUT: 就近、持久、polite 的 Problem/Impact/Recovery 状态和显式动作。
+// OUTPUT: 自动弹出的写入失败 Dialog，及可展开、可独立重试的紧凑读取失败提示。
 // POS: Composer Session controls 共用可见错误面；不把读取当作 mutation 对账。
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton, UiIconButton } from "@/shared/ui/button/button";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { ChevronRight, CircleAlert, RotateCw } from "lucide-react";
 import { useId, useState } from "react";
 import { UiDialogPortal, UiDialogBackdrop, UiDialogShell, UiDialogHeader, UiDialogBody } from "@/shared/ui/dialog/dialog";
@@ -37,12 +39,8 @@ export function ComposerSessionSettingsReliability({
 
   const failure = activeReadFailure;
   if (!failure) return null;
-  const canRetry = Boolean(activeReadFailure);
-  const retrying = activeReadFailure
-    ? isReadRetrying(controller, activeReadFailure)
-    : controller.settingsLoading;
-
-  const retryLabel = t(activeReadFailure ? "state.retry" : "state.reload_check");
+  const recovery = getReadRecovery(controller, activeReadFailure);
+  const retryLabel = t("state.retry");
 
   return (
     <div
@@ -50,31 +48,36 @@ export function ComposerSessionSettingsReliability({
       data-composer-settings-reliability
     >
       <div className="flex min-w-0 items-center gap-1">
-        <button
+        <UiButton
           aria-haspopup="dialog"
-          className="flex min-h-8 min-w-0 items-center gap-2 rounded-md text-left focus-visible:outline-2 focus-visible:outline-(--text-strong)"
+          className="min-w-0 justify-start"
           onClick={() => setDialogOpen(true)}
-          type="button"
+          size="xs"
+          variant="text"
         >
           <CircleAlert aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-(--destructive)" />
           <span aria-live="polite" className="min-w-0 truncate" title={failure.title}>
             {failure.title}
           </span>
           <ChevronRight aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
-        </button>
-        {canRetry ? (
-          <button
+        </UiButton>
+        {recovery ? (
+          <UiIconButton
+            aria-busy={recovery.busy}
             aria-label={retryLabel}
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-(--icon-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:outline-2 focus-visible:outline-(--text-strong) disabled:cursor-wait disabled:opacity-50"
-            disabled={retrying}
-            onClick={() => activeReadFailure
-              ? retryReadFailure(controller, activeReadFailure)
-              : void controller.retrySessionSettings()}
-            title={retryLabel}
-            type="button"
+            disabled={recovery.busy}
+            onClick={recovery.run}
+            size="sm"
+            tooltip={retryLabel}
+            variant="ghost"
           >
-            <RotateCw aria-hidden="true" className={`h-3.5 w-3.5 ${retrying ? "animate-spin motion-reduce:animate-none" : ""}`} />
-          </button>
+            <RotateCw
+              aria-hidden="true"
+              className={recovery.busy
+                ? getUiSpinnerClassName({ size: "sm", tone: "muted" })
+                : "h-3.5 w-3.5"}
+            />
+          </UiIconButton>
         ) : null}
       </div>
       {isDialogOpen ? (
@@ -88,40 +91,20 @@ export function ComposerSessionSettingsReliability({
   );
 }
 
-function isReadRetrying(
+function getReadRecovery(
   controller: ComposerSessionSettingsController,
   failure: ComposerReadFailure,
-): boolean {
+): { busy: boolean; run: () => void } | null {
   switch (failure.resource) {
     case "connectors":
-      return controller.connectorsLoading;
+      return { busy: controller.connectorsLoading, run: controller.retryConnectors };
     case "providers":
-      return controller.providerOptionsLoading;
+      return { busy: controller.providerOptionsLoading, run: controller.retryProviderOptions };
     case "session_settings":
-      return controller.settingsLoading;
+      return { busy: controller.settingsLoading, run: () => void controller.retrySessionSettings() };
     case "models":
     case "skills":
-      return false;
-  }
-}
-
-function retryReadFailure(
-  controller: ComposerSessionSettingsController,
-  failure: ComposerReadFailure,
-): void {
-  switch (failure.resource) {
-    case "connectors":
-      controller.retryConnectors();
-      return;
-    case "providers":
-      controller.retryProviderOptions();
-      return;
-    case "session_settings":
-      void controller.retrySessionSettings();
-      return;
-    case "models":
-    case "skills":
-      return;
+      return null;
   }
 }
 

@@ -20,12 +20,14 @@ import { cn } from "@/shared/ui/class-name";
 import { formatTokens } from "@/lib/format/token-count";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import {
   buildTokenUsagePresentation,
   type TokenUsageMetricKey,
   type TokenUsageValueKey,
 } from "./personal-settings-model";
+import { SETTINGS_CARD_CLASS_NAME } from "../shared/settings-panel-ui";
 
 interface UsageMetricDefinition {
   icon: LucideIcon;
@@ -58,17 +60,20 @@ export function PersonalTokenUsageSection({
   const presentation = buildTokenUsagePresentation(usage, locale, t);
 
   return (
-    <section className="order-last overflow-hidden rounded-[12px] border border-(--divider-subtle-color) bg-transparent">
+    <section className={cn("order-last", SETTINGS_CARD_CLASS_NAME)}>
       <div className="grid gap-3 px-3 py-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
         <div className="flex min-w-0 items-start gap-3">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center radius-control-lg bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
             <Gauge className="h-3.5 w-3.5" />
           </div>
           <div className="min-w-0">
-            <h3 className="text-base font-semibold tracking-tight text-(--text-strong)">
+            <h3 className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong" })}>
               {t("settings.personal.token_usage_title")}
             </h3>
-            <p className="mt-1 text-compact leading-5 text-(--text-soft)">
+            <p className={cn(
+              "mt-1",
+              getUiTypographyClassName({ role: "metadata", tone: "soft" }),
+            )}>
               {t("settings.personal.updated_at", {
                 value: presentation.updatedAt,
               })}
@@ -76,10 +81,13 @@ export function PersonalTokenUsageSection({
           </div>
         </div>
         <div className="text-left lg:text-right">
-          <div className="text-lg font-semibold tracking-tight text-(--text-strong)">
+          <div className={getUiTypographyClassName({ role: "objectTitle", tone: "strong" })}>
             {presentation.totalTokens}
           </div>
-          <div className="mt-1 text-xs font-medium text-(--text-soft)">
+          <div className={cn(
+            "mt-1",
+            getUiTypographyClassName({ role: "caption", tone: "soft", weight: "medium" }),
+          )}>
             {t("settings.personal.total_tokens")}
           </div>
         </div>
@@ -114,7 +122,10 @@ export function PersonalTokenUsageSection({
 
       <div className="mx-3 border-t border-(--divider-subtle-color)" />
 
-      <div className="grid gap-2 px-3 py-2.5 text-xs text-(--text-soft) sm:grid-cols-2">
+      <div className={cn(
+        "grid gap-2 px-3 py-2.5 sm:grid-cols-2",
+        getUiTypographyClassName({ role: "caption", tone: "soft" }),
+      )}>
         <span>{t("settings.personal.session_count", { count: presentation.sessionCount })}</span>
         <span>{t("settings.personal.message_count", { count: presentation.messageCount })}</span>
       </div>
@@ -132,15 +143,21 @@ function UsageMetric({
   value: string;
 }) {
   return (
-    <div className="flex min-w-0 items-center gap-3 rounded-[12px] border border-(--divider-subtle-color) bg-transparent px-3 py-3">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
+    <div className="flex min-w-0 items-center gap-3 surface-radius-md border border-(--divider-subtle-color) bg-transparent px-3 py-3">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center radius-control-md bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
         {icon}
       </div>
       <div className="min-w-0">
-        <div className="truncate text-xs font-medium text-(--text-soft)">
+        <div className={cn(
+          "truncate",
+          getUiTypographyClassName({ role: "caption", tone: "soft", weight: "medium" }),
+        )}>
           {label}
         </div>
-        <div className="mt-1 truncate text-base font-semibold text-(--text-strong)">
+        <div className={cn(
+          "mt-1 truncate",
+          getUiTypographyClassName({ role: "sectionTitle", tone: "strong" }),
+        )}>
           {value}
         </div>
       </div>
@@ -175,10 +192,22 @@ function TokenUsageChart({
       </div>
       <div className="mt-3 grid gap-2 sm:grid-cols-3">
         {items.map((item) => (
-          <div className="flex min-w-0 items-center gap-2 text-xs text-(--text-soft)" key={item.key}>
+          <div
+            className={cn(
+              "flex min-w-0 items-center gap-2",
+              getUiTypographyClassName({ role: "caption", tone: "soft" }),
+            )}
+            key={item.key}
+          >
             <span className={cn("h-2 w-2 shrink-0 rounded-full", item.className)} />
             <span className="min-w-0 flex-1 truncate">{item.label}</span>
-            <span className="font-semibold text-(--text-strong)">{formatTokens(item.value)}</span>
+            <span className={getUiTypographyClassName({
+              role: "caption",
+              tone: "strong",
+              weight: "semibold",
+            })}>
+              {formatTokens(item.value)}
+            </span>
           </div>
         ))}
       </div>

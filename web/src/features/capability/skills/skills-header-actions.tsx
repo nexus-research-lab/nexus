@@ -1,3 +1,6 @@
+// INPUT: Skill 导入、更新检查、来源管理与导览动作及其忙碌状态。
+// OUTPUT: 桌面工具栏或窄窗共享动作菜单，并以统一 Spinner 投影等待状态。
+// POS: Skill 目录页头动作视图；不持有导入、更新或来源命令生命周期。
 import {
   Compass,
   Download,
@@ -9,14 +12,15 @@ import {
 import { useRef, useState } from "react";
 
 import { SKILLS_TOUR_ANCHORS } from "@/features/onboarding/tours/skills-tour";
-import { useMediaQuery } from "@/hooks/ui/use-media-query";
-import { CONVERSATION_FOCUS_MEDIA_QUERY } from "@/lib/layout/home-layout";
+import { useMediaQuery } from "@/shared/lib/react/use-media-query";
+import { APP_NARROW_VIEWPORT_MEDIA_QUERY } from "@/lib/layout/home-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton, UiIconButton } from "@/shared/ui/button/button";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import {
   UiActionMenu,
   type UiActionMenuItem,
 } from "@/shared/ui/menu/action-menu";
-import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 
 import type { SkillImportDialogMode } from "./controller/skill-marketplace-controller";
 
@@ -30,7 +34,7 @@ interface SkillsHeaderActionsProps {
 }
 
 export function SkillsHeaderActions(props: SkillsHeaderActionsProps) {
-  const isCompactLayout = useMediaQuery(CONVERSATION_FOCUS_MEDIA_QUERY);
+  const isCompactLayout = useMediaQuery(APP_NARROW_VIEWPORT_MEDIA_QUERY);
   return isCompactLayout
     ? <SkillsHeaderCompactActions {...props} />
     : <SkillsHeaderDesktopActions {...props} />;
@@ -51,7 +55,7 @@ function SkillsHeaderCompactActions({
     {
       disabled: importing,
       icon: importing
-        ? <Loader2 className="h-4 w-4 animate-spin text-(--icon-muted)" />
+        ? <Loader2 className={getUiSpinnerClassName({ size: "md", tone: "muted" })} />
         : <Download className="h-4 w-4 text-(--icon-muted)" />,
       label: importing
         ? t("capability.skills_importing")
@@ -62,7 +66,7 @@ function SkillsHeaderCompactActions({
     {
       disabled: checkingUpdates,
       icon: checkingUpdates
-        ? <Loader2 className="h-4 w-4 animate-spin text-(--icon-muted)" />
+        ? <Loader2 className={getUiSpinnerClassName({ size: "md", tone: "muted" })} />
         : <RefreshCw className="h-4 w-4 text-(--icon-muted)" />,
       label: checkingUpdates
         ? t("capability.skills_checking")
@@ -83,19 +87,18 @@ function SkillsHeaderCompactActions({
 
   return (
     <>
-      <button
+      <UiIconButton
         ref={buttonRef}
         aria-expanded={isOpen}
         aria-haspopup="menu"
         aria-label={t("common.more_actions")}
-        className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] text-(--icon-default) transition hover:bg-(--interaction-hover-background) hover:text-(--text-strong)"
         data-tour-anchor={SKILLS_TOUR_ANCHORS.import_skill}
         onClick={() => setIsOpen((current) => !current)}
+        size="lg"
         title={t("common.more_actions")}
-        type="button"
       >
         <MoreHorizontal className="h-4 w-4" />
-      </button>
+      </UiIconButton>
       <UiActionMenu
         anchorRef={buttonRef}
         ariaLabel={t("common.more_actions")}
@@ -129,40 +132,44 @@ function SkillsHeaderDesktopActions({
   return (
     <div className="flex items-center gap-2">
       <div className="flex items-center" data-tour-anchor={SKILLS_TOUR_ANCHORS.import_skill}>
-        <WorkspaceSurfaceToolbarAction
+        <UiButton
           disabled={importing}
           onClick={() => onOpenImport("local")}
+          size="2xs"
+          variant="text"
         >
           <Download className="h-3.5 w-3.5" />
           {importing
             ? t("capability.skills_importing")
             : t("capability.import_skill")}
-        </WorkspaceSurfaceToolbarAction>
+        </UiButton>
       </div>
       <div className="flex items-center" data-tour-anchor={SKILLS_TOUR_ANCHORS.update_library}>
-        <WorkspaceSurfaceToolbarAction
+        <UiButton
           disabled={checkingUpdates}
           onClick={onCheckUpdates}
+          size="2xs"
+          variant="text"
         >
           {checkingUpdates ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
           ) : (
             <RefreshCw className="h-3.5 w-3.5" />
           )}
           {checkingUpdates
             ? t("capability.skills_checking")
             : t("capability.update_library")}
-        </WorkspaceSurfaceToolbarAction>
+        </UiButton>
       </div>
-      <WorkspaceSurfaceToolbarAction onClick={onOpenSources}>
+      <UiButton onClick={onOpenSources} size="2xs" variant="text">
         <SlidersHorizontal className="h-3.5 w-3.5" />
         {t("capability.skill_sources")}
-      </WorkspaceSurfaceToolbarAction>
+      </UiButton>
       {onReplayTour ? (
-        <WorkspaceSurfaceToolbarAction onClick={onReplayTour}>
+        <UiButton onClick={onReplayTour} size="2xs" variant="text">
           <Compass className="h-3.5 w-3.5" />
           {t("common.view_guide")}
-        </WorkspaceSurfaceToolbarAction>
+        </UiButton>
       ) : null}
     </div>
   );

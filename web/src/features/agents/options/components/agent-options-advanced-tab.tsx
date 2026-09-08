@@ -1,33 +1,33 @@
 /**
- * INPUT: Agent 权限模式和连接器选择状态。
- * OUTPUT: 默认折叠的独立权限设置与连接器配置页。
- * POS: Agent 详情中的授权决策面；说明用于比较选择而非装饰。
+ * INPUT: Agent 权限模式和 Connector 选择状态。
+ * OUTPUT: Connector 配置与默认折叠、运行时感知的独立权限设置。
+ * POS: Agent 详情中的授权决策面；不提供工具预授权入口。
  */
 
 "use client";
 
-import { useDefaultAgentRuntimeKind } from "@/hooks/settings/use-default-agent-runtime-kind";
+import { useId } from "react";
 import { Link } from "react-router-dom";
+import { Check, Loader2, TriangleAlert } from "lucide-react";
 
-import { AppRouteBuilders } from "@/app/router/route-paths";
-
-import {
-  Check,
-  Loader2,
-  TriangleAlert,
-} from "lucide-react";
-
-import { cn } from "@/shared/ui/class-name";
-import { useI18n } from "@/shared/i18n/i18n-context";
-import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
-import { UiResourceState } from "@/shared/ui/display/resource-state";
-import { SIDEBAR_SELECTION_CLASS_NAME } from "@/shared/ui/sidebar/sidebar-selection";
-import { ConnectorIcon } from "@/features/capability/connectors/connector-icon";
-import type { ConnectorInfo } from "@/types/capability/connector";
+import { useDefaultAgentRuntimeKind } from "@/hooks/settings/use-default-agent-runtime-kind";
 import {
   getAgentPermissionChoices,
   resolveRuntimePermissionMode,
 } from "@/lib/agent-options";
+import { AppRouteBuilders } from "@/shared/navigation/route-paths";
+import { cn } from "@/shared/ui/class-name";
+import { UiDisclosure } from "@/shared/ui/disclosure/disclosure";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
+import { UiChoiceButton } from "@/shared/ui/form/choice";
+import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiListRow } from "@/shared/ui/list/list-row";
+import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
+import { ConnectorIcon } from "@/features/capability/connectors/connector-icon";
+import type { ConnectorInfo } from "@/types/capability/connector";
 
 interface AgentOptionsAdvancedTabProps {
   permissionMode: string;
@@ -40,10 +40,10 @@ interface AgentOptionsAdvancedTabProps {
   onToggleConnector: (connectorId: string) => void;
 }
 
-/** Advanced Tab 展示连接器及折叠的独立权限设置。 */
+/** Connector 是常用能力；危险权限控制默认折叠，避免误触。 */
 export function AgentOptionsAdvancedTab({
-  permissionMode: permissionMode,
-  onPermissionModeChange: onPermissionModeChange,
+  permissionMode,
+  onPermissionModeChange,
   connectorIds,
   connectors,
   connectorsError,
@@ -54,7 +54,9 @@ export function AgentOptionsAdvancedTab({
   const { t } = useI18n();
   const runtimeKind = useDefaultAgentRuntimeKind();
   const effectivePermissionMode = resolveRuntimePermissionMode(permissionMode, runtimeKind);
-  const isBypassPermissionMode = permissionMode === "bypassPermissions";
+  const permissionGroupId = useId();
+  const AGENT_PERMISSION_MODES = getAgentPermissionChoices(runtimeKind);
+  const isBypassPermissionMode = effectivePermissionMode === "bypassPermissions";
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200 [overflow-anchor:none]">
@@ -68,7 +70,7 @@ export function AgentOptionsAdvancedTab({
         />
         {connectorsLoading && connectors.length === 0 ? (
           <div className="flex h-16 items-center justify-center text-(--icon-muted)">
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className={getUiSpinnerClassName({ size: "md", tone: "muted" })} />
           </div>
         ) : null}
         {connectorsError ? (
@@ -90,7 +92,7 @@ export function AgentOptionsAdvancedTab({
           />
         ) : null}
         {!connectorsLoading && !connectorsError && connectors.length === 0 ? (
-          <p className="text-xs text-(--text-soft)">
+          <p className={getUiTypographyClassName({ role: "caption", tone: "soft" })}>
             {t("agent_options.advanced.connector_empty")}
           </p>
         ) : null}
@@ -108,53 +110,62 @@ export function AgentOptionsAdvancedTab({
         ) : null}
       </section>
 
-      <details className="rounded-[10px] border border-(--divider-subtle-color) p-3">
-        <summary className="cursor-pointer text-sm font-medium text-(--text-strong)">
-          {t("agent_options.advanced.permission_settings")}
-        </summary>
-        <div className="mt-3 space-y-3">
-          <SectionHeader
-            description={t("agent_options.advanced.permission_control_hint")}
-            title={t("agent_options.advanced.permission_control")}
-          />
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2">
-            {getAgentPermissionChoices(runtimeKind).map((mode) => {
-              const isActive = effectivePermissionMode === mode.value;
-              return (
-                <button
-                  aria-pressed={isActive}
+      <UiDisclosure
+        contentClassName="space-y-3"
+        label={t("agent_options.advanced.permission_settings")}
+        variant="panel"
+      >
+        <SectionHeader
+          description={t("agent_options.advanced.permission_control_hint")}
+          title={t("agent_options.advanced.permission_control")}
+        />
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2">
+          {AGENT_PERMISSION_MODES.map((mode) => {
+            const isActive = effectivePermissionMode === mode.value;
+            const titleId = `${permissionGroupId}-${mode.value}-title`;
+            const descriptionId = `${permissionGroupId}-${mode.value}-description`;
+            return (
+              <UiChoiceButton
+                active={isActive}
+                aria-describedby={descriptionId}
+                aria-labelledby={titleId}
+                choiceSize="lg"
+                className="min-h-[72px] min-w-0 flex-col items-stretch justify-start gap-0 text-left"
+                data-agent-permission-mode={mode.value}
+                key={mode.value}
+                onClick={() => onPermissionModeChange(mode.value)}
+                tone="neutral"
+              >
+                <span className={cn(
+                  "flex w-full min-w-0 items-center gap-2",
+                  getUiTypographyClassName({ role: "control", tone: "strong", weight: "medium" }),
+                )}>
+                  <span className="min-w-0 flex-1 break-words" id={titleId}>
+                    {t(mode.labelKey)}
+                  </span>
+                  {isActive ? <Check aria-hidden className="h-3.5 w-3.5 shrink-0" /> : null}
+                </span>
+                <span
                   className={cn(
-                    "flex min-h-[72px] min-w-0 flex-col rounded-[10px] border px-3 py-2.5 text-left transition-[background,border-color] duration-(--motion-duration-fast)",
-                    isActive
-                      ? SIDEBAR_SELECTION_CLASS_NAME
-                      : "border-(--divider-subtle-color) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)",
+                    "mt-1 break-words",
+                    getUiTypographyClassName({ role: "supporting", tone: "muted" }),
                   )}
-                  key={mode.value}
-                  onClick={() => onPermissionModeChange(mode.value)}
-                  type="button"
+                  id={descriptionId}
                 >
-                  <span className="flex w-full min-w-0 items-center gap-2 text-sm font-semibold text-(--text-strong)">
-                    <span className="min-w-0 flex-1 truncate">{t(mode.labelKey)}</span>
-                    {isActive ? <Check className="h-3.5 w-3.5 shrink-0" /> : null}
-                  </span>
-                  <span
-                    className="mt-1 line-clamp-2 text-xs leading-[1.45] text-(--text-muted)"
-                    title={t(mode.descriptionKey)}
-                  >
-                    {t(mode.descriptionKey)}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-          {isBypassPermissionMode ? (
-            <div className="flex items-start gap-2 rounded-[8px] bg-[color:color-mix(in_srgb,var(--warning)_7%,transparent)] px-3 py-2 text-xs leading-5 text-(--warning)">
-              <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              <span>{t("agent_options.advanced.bypass_warning")}</span>
-            </div>
-          ) : null}
+                  {t(mode.descriptionKey)}
+                </span>
+              </UiChoiceButton>
+            );
+          })}
         </div>
-      </details>
+        {isBypassPermissionMode ? (
+          <UiInlineNotice
+            icon={<TriangleAlert />}
+            message={t("agent_options.advanced.bypass_warning")}
+            tone="warning"
+          />
+        ) : null}
+      </UiDisclosure>
     </div>
   );
 }
@@ -171,13 +182,21 @@ function SectionHeader({
   return (
     <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
       <div className="min-w-0">
-        <h3 className="text-sm font-semibold text-(--text-strong)">{title}</h3>
-        <p className="mt-0.5 max-w-[720px] text-xs leading-5 text-(--text-soft)">
+        <h3 className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong" })}>
+          {title}
+        </h3>
+        <p className={cn(
+          "mt-0.5 max-w-[720px]",
+          getUiTypographyClassName({ role: "metadata", tone: "soft" }),
+        )}>
           {description}
         </p>
       </div>
       {trailing ? (
-        <span className="shrink-0 text-xs tabular-nums text-(--text-soft) sm:pt-0.5">
+        <span className={cn(
+          "shrink-0 tabular-nums sm:pt-0.5",
+          getUiTypographyClassName({ role: "caption", tone: "soft" }),
+        )}>
           {trailing}
         </span>
       ) : null}
@@ -196,44 +215,50 @@ function ConnectorAuthorizationRow({
 }) {
   const { t } = useI18n();
   const connected = connector.connection_state === "connected";
+  const disabled = !connected && !checked;
   return (
-    <div
-      className={cn(
-        "grid min-h-[64px] grid-cols-[minmax(0,1fr)_auto] items-center gap-2.5 rounded-[10px] border px-3 py-2.5 transition-[background,border-color] duration-(--motion-duration-fast)",
-        checked
-          ? SIDEBAR_SELECTION_CLASS_NAME
-          : "border-(--divider-subtle-color) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)",
-        !connected && "opacity-(--disabled-opacity)",
+    <UiListRow
+      active={checked}
+      activeTone="sidebar"
+      muted={disabled}
+      right={(
+        <GlassSwitch
+          aria-label={connector.title}
+          checked={checked}
+          disabled={disabled}
+          onChange={onToggle}
+          size="xs"
+        />
       )}
+      variant="outlined"
     >
       <Link
         aria-label={connector.title}
-        className="group/connector grid min-w-0 grid-cols-[30px_minmax(0,1fr)] items-center gap-2.5 rounded-[8px] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-(--text-strong)"
+        className="grid min-w-0 flex-1 grid-cols-[30px_minmax(0,1fr)] items-center gap-2.5 radius-control-md focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
         to={AppRouteBuilders.connectorDetail(connector.connector_id)}
       >
         <ConnectorIcon
-          className="h-[30px] w-[30px] rounded-[8px]"
+          className="h-[30px] w-[30px]"
           icon={connector.icon}
           title={connector.title}
         />
         <span className="min-w-0">
-          <span className="block truncate text-compact font-semibold text-(--text-strong) group-hover/connector:underline">
+          <span className={cn(
+            "block truncate hover:underline",
+            getUiTypographyClassName({ role: "sectionTitle", tone: "strong" }),
+          )}>
             {connector.title}
           </span>
-          <span className="mt-0.5 block truncate text-xs leading-4 text-(--text-muted)">
+          <span className={cn(
+            "mt-0.5 block truncate",
+            getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+          )}>
             {connected
               ? connector.description
               : t("agent_options.advanced.connector_disconnected")}
           </span>
         </span>
       </Link>
-      <GlassSwitch
-        aria-label={connector.title}
-        checked={checked}
-        disabled={!connected && !checked}
-        onChange={onToggle}
-        size="xs"
-      />
-    </div>
+    </UiListRow>
   );
 }

@@ -116,7 +116,6 @@ export function LauncherConsole({
         >
           <LottiePlayer
             className="launcher-console-spotlights pointer-events-none absolute opacity-[0.68]"
-            inlineStyle={undefined}
             src={ANIMATIONS.BOM}
           />
           <div className="pointer-events-none absolute bottom-2 left-3 flex items-center gap-1">

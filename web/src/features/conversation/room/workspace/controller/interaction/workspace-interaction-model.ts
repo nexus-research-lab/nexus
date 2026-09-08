@@ -1,7 +1,10 @@
-import { isDesktopRuntime } from "@/config/desktop-runtime";
+// INPUT: Workspace 菜单调用元素、原始位置、文件身份及创建/重命名草稿。
+// OUTPUT: 无菜单尺寸或宿主视觉判断的本地交互状态与 Prompt 默认值。
+// POS: Workspace 交互模型；浮层几何由 shared/ui/overlay 负责。
 import type { WorkspaceFileEntry } from "@/types/agent/agent";
 
 export interface WorkspaceContextMenuState {
+  anchor: HTMLElement | null;
   entry: WorkspaceFileEntry | null;
   position: { x: number; y: number } | null;
 }
@@ -21,33 +24,9 @@ const CREATE_PROMPT_DEFAULTS: Record<
   file: { defaultValue: "untitled.txt", mode: "create-file" },
 };
 
-const MENU_HEIGHT_BY_TARGET = {
-  directory: 178,
-  file: 102,
-  root: 106,
-} as const;
-
 export function createWorkspacePrompt(
   entryType: "file" | "directory",
   parentPath: string | null,
 ): WorkspacePromptState {
   return { ...CREATE_PROMPT_DEFAULTS[entryType], parentPath };
-}
-
-export function resolveWorkspaceMenuPosition(
-  clientPosition: { x: number; y: number },
-  viewport: { height: number; width: number },
-  entry: WorkspaceFileEntry | null,
-): { x: number; y: number } {
-  const target = entry ? (entry.is_dir ? "directory" : "file") : "root";
-  const isDesktopFile = target === "file" && isDesktopRuntime();
-  const menuHeight = isDesktopFile ? 250 : MENU_HEIGHT_BY_TARGET[target];
-  const menuWidth = isDesktopFile ? 200 : 180;
-  return {
-    x: Math.max(0, Math.min(clientPosition.x, viewport.width - menuWidth)),
-    y: Math.max(
-      0,
-      Math.min(clientPosition.y, viewport.height - menuHeight),
-    ),
-  };
 }

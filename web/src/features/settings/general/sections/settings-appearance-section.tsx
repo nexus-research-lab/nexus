@@ -1,12 +1,20 @@
+// INPUT: 主题、语言与本机聊天排版偏好。
+// OUTPUT: 即时预览、共享设置控件与恢复默认动作。
+// POS: General 外观分区纯视图；不持久化服务端 Preferences。
 "use client";
 
 import { Languages, Palette, RotateCcw } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
 import { DEFAULT_CHAT_TYPOGRAPHY, useChatTypography } from "@/shared/theme/chat-typography";
 import { defaultTheme, useTheme } from "@/shared/theme/theme-context";
+import { UiInput } from "@/shared/ui/form/form-control";
 import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
+import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import { SettingsFontPicker } from "../components/settings-font-picker";
 import { LOCALE_OPTIONS, THEME_OPTIONS } from "../model/settings-options";
@@ -17,7 +25,6 @@ import {
   SETTINGS_ITEM_TITLE_CLASS_NAME,
   SETTINGS_ROW_CLASS_NAME,
   SETTINGS_TEXT_ROW_CLASS_NAME,
-  SettingsSegmentedControl,
 } from "../../shared/settings-panel-ui";
 
 export function SettingsAppearanceSection() {
@@ -48,13 +55,15 @@ export function SettingsAppearanceSection() {
             </div>
           </div>
           <div className="min-w-0">
-            <SettingsSegmentedControl
-              ariaLabel={t("theme.switch_title")}
+            <UiSegmentedControl
+              density="compact"
               onChange={setTheme}
               options={THEME_OPTIONS.map((option) => ({
                 value: option.value,
                 label: t(option.labelKey),
               }))}
+              stretch
+              title={t("theme.switch_title")}
               value={theme}
             />
           </div>
@@ -77,13 +86,15 @@ export function SettingsAppearanceSection() {
             </div>
           </div>
           <div className="min-w-0">
-            <SettingsSegmentedControl
-              ariaLabel={t("language.switch_title")}
+            <UiSegmentedControl
+              density="compact"
               onChange={setLocale}
               options={LOCALE_OPTIONS.map((option) => ({
                 value: option.value,
                 label: t(option.labelKey),
               }))}
+              stretch
+              title={t("language.switch_title")}
               value={locale}
             />
           </div>
@@ -92,7 +103,9 @@ export function SettingsAppearanceSection() {
 
       <div className={`${SETTINGS_CARD_CLASS_NAME} px-5`}>
         <div className="nexus-chat-feed h-48 overflow-y-auto border-b border-(--divider-subtle-color) py-5">
-          <p className="mb-3 text-xs text-(--text-soft)">{t("settings.appearance.preview")}</p>
+          <p className={cn("mb-3", getUiTypographyClassName({ role: "caption", tone: "soft" }))}>
+            {t("settings.appearance.preview")}
+          </p>
           <UiMarkdownContent content={t("settings.reading.preview")} />
         </div>
         <AppearanceRow label={t("settings.reading.font")}>
@@ -118,15 +131,18 @@ export function SettingsAppearanceSection() {
         </AppearanceRow>
 
         <div className="flex flex-wrap items-center justify-between gap-3 py-4">
-          <p className="text-compact text-(--text-soft)">{t("settings.appearance.reset_description")}</p>
-          <button
-            type="button"
-            className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border border-(--divider-subtle-color) px-3 text-compact text-(--text-strong) hover:bg-(--surface-interactive-hover-background)"
+          <p className={getUiTypographyClassName({ role: "supporting", tone: "soft" })}>
+            {t("settings.appearance.reset_description")}
+          </p>
+          <UiButton
+            className="shrink-0"
             onClick={resetAppearance}
+            size="sm"
+            variant="outline"
           >
             <RotateCcw aria-hidden="true" className="h-3.5 w-3.5" />
             {t("settings.appearance.reset")}
-          </button>
+          </UiButton>
         </div>
       </div>
     </section>
@@ -136,7 +152,9 @@ export function SettingsAppearanceSection() {
 function AppearanceRow({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="grid min-h-16 grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] items-center gap-4 border-b border-(--divider-subtle-color) py-3 text-(--text-strong) last:border-b-0 sm:grid-cols-[minmax(0,1fr)_240px]">
-      <span className="text-base font-medium">{label}</span>
+      <span className={getUiTypographyClassName({ role: "control", weight: "medium" })}>
+        {label}
+      </span>
       <div className="min-w-0">{children}</div>
     </div>
   );
@@ -155,9 +173,10 @@ function AppearanceNumberInput({ label, value, min, max, step, unit, onChange }:
   const [draft, setDraft] = useState<string | null>(null);
   return (
     <div className="relative">
-      <input
+      <UiInput
         aria-label={label}
-        className="h-10 w-full [appearance:textfield] rounded-lg border border-(--divider-subtle-color) bg-transparent px-3 pr-10 text-sm tabular-nums [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        className="w-full [appearance:textfield] pr-10 tabular-nums [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        controlSize="lg"
         type="number"
         min={min} max={max} step={step}
         value={draft ?? value}
@@ -172,7 +191,14 @@ function AppearanceNumberInput({ label, value, min, max, step, unit, onChange }:
         }}
         onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
       />
-      {unit && <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-(--text-soft)">{unit}</span>}
+      {unit && (
+        <span className={cn(
+          "pointer-events-none absolute inset-y-0 right-3 flex items-center",
+          getUiTypographyClassName({ role: "caption", tone: "soft" }),
+        )}>
+          {unit}
+        </span>
+      )}
     </div>
   );
 }

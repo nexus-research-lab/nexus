@@ -1,6 +1,6 @@
 /**
- * INPUT: 当前会话投影出的任务列表、来源 Agent 与可选来源控件。
- * OUTPUT: 带 Agent 来源、44px 起始热区、可完整换行的平面状态锚点、顺序键盘导航与可读状态的任务摘要及向上明细。
+ * INPUT: 当前会话 scope、只读任务列表、来源 Agent 与可选来源控件。
+ * OUTPUT: 可换行任务摘要与共享非模态明细浮层；会话切换关闭，任务目录/来源变更清空旧详情。
  * POS: 锚在 Composer 顶边的 Workspace 会话级只读任务入口。
  */
 "use client";
@@ -8,14 +8,25 @@
 import { ChevronDown, ChevronUp, Circle, CircleCheck, ListChecks } from "lucide-react";
 import {
   type ReactNode,
+  useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
-  useState,
 } from "react";
+import { createPortal } from "react-dom";
+
+import { getTabbableElements } from "@/shared/lib/browser/focus-navigation";
+import { isImeKeyboardEvent } from "@/shared/lib/browser/ime-keyboard-event";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
+import { useAnchoredOverlayLayer } from "@/shared/ui/overlay/anchored-overlay-layer";
+import { resolveUiAnchoredOverlayPosition } from "@/shared/ui/overlay/anchored-overlay-layout";
+import { OPEN_OVERLAY_DATA_ATTRIBUTES } from "@/shared/ui/overlay/overlay-contract";
+import { focusAfterAnchoredOverlayExit } from "@/shared/ui/overlay/overlay-focus-navigation";
 
 import { cn } from "@/shared/ui/class-name";
+import { UiIconButton } from "@/shared/ui/button/button";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { LoadingOrb } from "@/shared/ui/feedback/loading-orb";
@@ -23,11 +34,14 @@ import {
   ANCHORED_OVERLAY_MOTION_CLASS_NAME,
   OVERLAY_SURFACE_CLASS_NAME,
 } from "@/shared/ui/overlay/overlay-styles";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { TodoItem } from "@/types/conversation/todo";
 
+import { getConversationActivityChipClassName } from "./conversation-activity-chip-styles";
 import { resolveWorkspaceTaskState } from "./workspace-task-strip-model";
 
 interface WorkspaceTaskPanelProps {
+  scopeKey?: string;
   todos: TodoItem[];
   className?: string;
   source?: WorkspaceTaskSource;
@@ -37,11 +51,14 @@ interface WorkspaceTaskPanelProps {
 export interface WorkspaceTaskSource {
   agentId: string;
   avatar: string | null;
+  /** 可选的去歧义名称；头像缩写仍取原始展示姓名。 */
+  label?: string;
   name: string;
 }
 
 export function WorkspaceTaskPanel({
   todos,
+  scopeKey,
   className,
   source,
   sourceControl,
@@ -53,26 +70,62 @@ export function WorkspaceTaskPanel({
   );
   const normalizedTodos = taskState?.todos ?? [];
   const hasTasks = taskState !== null;
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [expandedTaskIndex, setExpandedTaskIndex] = useState<number | null>(null);
-  const panelId = useId();
+  const [isExpanded, setIsExpanded] = useResettableState(false, JSON.stringify([scopeKey, hasTasks]));
+  // Todo 没有稳定条目 ID；结构变化时关闭旧详情，不按相同行号猜测新任务身份。
+  const contentCounts = new Map<string, number>();
+  for (const todo of normalizedTodos) contentCounts.set(todo.content, (contentCounts.get(todo.content) ?? 0) + 1);
+  const detailScope = JSON.stringify([scopeKey, source?.agentId, isExpanded, normalizedTodos.map((todo) => [
+    todo.content, Boolean(taskDetail(todo)),
+    contentCounts.get(todo.content)! > 1 ? [todo.active_form, todo.status] : null,
+  ])]);
+  const [expandedTaskIndex, setExpandedTaskIndex] = useResettableState<number | null>(null, detailScope);
+  const summaryId = useId();
   const triggerRef = useRef<HTMLButtonElement | null>(null);
-
+  const focusedControlRef = useRef<HTMLElement | null>(null);
+  const closePanel = useCallback(() => setIsExpanded(false), [setIsExpanded]);
+  const { overlayId: panelId, overlayPosition, overlayRef, overlayStyle, portalContainer, updateOverlayPosition } = useAnchoredOverlayLayer({
+    anchorRef: triggerRef,
+    disabled: !hasTasks,
+    estimatePosition: resolveTaskPopoverPosition,
+    isOpen: isExpanded,
+    onClose: closePanel,
+  });
+  const collapsePanel = useCallback(() => {
+    triggerRef.current?.focus();
+    closePanel();
+  }, [closePanel]);
   useEffect(() => {
-    if (!hasTasks) {
-      setIsExpanded(false);
-      setExpandedTaskIndex(null);
-    }
-  }, [hasTasks]);
-
+    if (!isExpanded) return;
+    const handleTab = (event: KeyboardEvent) => {
+      const root = overlayRef.current;
+      if (!root || event.key !== "Tab" || event.defaultPrevented || isImeKeyboardEvent(event)
+        || !(event.target instanceof Node) || !root.contains(event.target)) return;
+      const controls = getTabbableElements(root);
+      const current = document.activeElement;
+      const exitsBackward = event.shiftKey && (current === root || current === controls[0]);
+      const exitsForward = !event.shiftKey && (current === controls.at(-1) || controls.length === 0);
+      if (!exitsBackward && !exitsForward) return;
+      event.preventDefault();
+      event.stopPropagation();
+      collapsePanel();
+      if (exitsForward) focusAfterAnchoredOverlayExit([root], false);
+    };
+    document.addEventListener("keydown", handleTab);
+    return () => document.removeEventListener("keydown", handleTab);
+  }, [collapsePanel, isExpanded, overlayRef]);
+  const isPositioned = overlayPosition !== null;
+  useLayoutEffect(() => {
+    if (isExpanded) updateOverlayPosition();
+  }, [isExpanded, source?.label, source?.name, t, taskState, updateOverlayPosition]);
   useEffect(() => {
-    if (
-      expandedTaskIndex !== null
-      && expandedTaskIndex >= normalizedTodos.length
-    ) {
-      setExpandedTaskIndex(null);
+    if (isExpanded && isPositioned) overlayRef.current?.focus({ preventScroll: true });
+  }, [isExpanded, isPositioned, overlayRef]);
+  useLayoutEffect(() => {
+    const previous = focusedControlRef.current;
+    if (isExpanded && previous && !previous.isConnected && document.activeElement === document.body) {
+      overlayRef.current?.focus({ preventScroll: true });
     }
-  }, [expandedTaskIndex, normalizedTodos.length]);
+  }, [detailScope, isExpanded, overlayRef]);
 
   if (taskState === null) {
     return null;
@@ -98,19 +151,14 @@ export function WorkspaceTaskPanel({
 
   const renderStatusMarker = (status: TodoItem["status"]) => {
     if (status === "completed") {
-      return <CircleCheck aria-hidden="true" className="h-[18px] w-[18px] text-(--success)" />;
+      return <CircleCheck aria-hidden="true" className="h-3.5 w-3.5 text-(--success)" />;
     }
     if (status === "in_progress") {
-      return <Circle aria-hidden="true" className="h-2.5 w-2.5 fill-current text-(--primary)" />;
+      return <Circle aria-hidden="true" className="h-2.5 w-2.5 fill-current text-(--status-running-soft-text)" />;
     }
     return <Circle aria-hidden="true" className="h-2.5 w-2.5 text-(--icon-muted)" />;
   };
 
-  const collapsePanel = () => {
-    triggerRef.current?.focus();
-    setIsExpanded(false);
-    setExpandedTaskIndex(null);
-  };
 
   return (
     <aside
@@ -124,7 +172,9 @@ export function WorkspaceTaskPanel({
     >
       <button
         ref={triggerRef}
-        aria-controls={panelId}
+        aria-controls={isExpanded ? panelId : undefined}
+        aria-describedby={summaryId}
+        aria-haspopup="dialog"
         aria-expanded={isExpanded}
         aria-label={isExpanded ? t("tasks.collapse_panel") : t("tasks.expand_panel")}
         className="group pointer-events-auto flex min-h-11 min-w-0 max-w-full items-center focus-visible:outline-none"
@@ -134,8 +184,9 @@ export function WorkspaceTaskPanel({
         type="button"
       >
         <span
-          className="conversation-activity-chip inline-flex min-w-0 max-w-full items-center gap-1.5 px-2 py-1 text-(--text-default) transition-[background,color] duration-(--motion-duration-fast) group-hover:bg-(--surface-control-hover-background) group-hover:text-(--text-strong) group-focus-visible:bg-(--surface-control-hover-background) group-focus-visible:ring-2 group-focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_22%,transparent)]"
+          className={getConversationActivityChipClassName("inline-flex min-w-0 max-w-full items-center gap-1.5 px-2 py-1 transition-[background,color] duration-(--motion-duration-fast) group-hover:bg-(--surface-control-hover-background) group-hover:text-(--text-strong) group-focus-visible:bg-(--surface-control-hover-background) group-focus-visible:ring-2 group-focus-visible:ring-[color:var(--ring)]", "plain")}
           data-workspace-task-visual
+          id={summaryId}
         >
           {source ? (
             <WorkspaceTaskSourceIdentity source={source} />
@@ -149,13 +200,19 @@ export function WorkspaceTaskPanel({
               <ListChecks aria-hidden="true" className="h-3.5 w-3.5 text-(--icon-muted)" />
             )}
           </span>
-          <span className="shrink-0 font-medium tabular-nums text-(--text-strong)">
+          <span className={cn(
+            "shrink-0 tabular-nums",
+            getUiTypographyClassName({ role: "metadata", tone: "strong", weight: "medium" }),
+          )}>
             {t("tasks.step_progress", {
               current: currentStep,
               total: totalCount,
             })}
           </span>
-          <span className="min-w-0 whitespace-normal break-words text-left leading-4 text-(--text-muted)">
+          <span className={cn(
+            "min-w-0 whitespace-normal break-words text-left",
+            getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+          )}>
             {summary}
           </span>
           <ChevronDown
@@ -166,69 +223,84 @@ export function WorkspaceTaskPanel({
           />
         </span>
       </button>
-      {isExpanded ? (
+      {isExpanded && portalContainer ? createPortal(
         <div
-          className="pointer-events-none absolute bottom-[calc(100%+0.5rem)] left-1/2 -translate-x-1/2"
+          ref={overlayRef}
+          aria-label={t("tasks.label")}
+          aria-modal={false}
+          className={cn(
+            "pointer-events-auto fixed ui-layer-popover flex origin-bottom flex-col overflow-hidden outline-none",
+            OVERLAY_SURFACE_CLASS_NAME,
+            ANCHORED_OVERLAY_MOTION_CLASS_NAME,
+          )}
+          data-placement={overlayPosition?.placement ?? "top"}
+          id={panelId}
+          onFocusCapture={(event) => {
+            if (event.target instanceof HTMLElement && event.currentTarget.contains(event.target)) {
+              focusedControlRef.current = event.target;
+            }
+          }}
+          role="dialog"
+          style={overlayStyle}
+          tabIndex={-1}
+          {...OPEN_OVERLAY_DATA_ATTRIBUTES}
         >
-          <section
-            aria-label={t("tasks.label")}
-            className={cn(
-              "pointer-events-auto flex max-h-[min(360px,45dvh)] w-[min(360px,calc(100vw-4rem))] origin-bottom flex-col overflow-hidden",
-              OVERLAY_SURFACE_CLASS_NAME,
-              ANCHORED_OVERLAY_MOTION_CLASS_NAME,
-            )}
-            data-placement="top"
-            id={panelId}
-          >
-            <div className="flex h-10 shrink-0 items-center gap-2 px-3">
-              {sourceControl || source ? (
-                <>
-                  <div
-                    className="min-w-0 max-w-[9rem]"
-                    data-workspace-task-expanded-source
-                  >
-                    {sourceControl ?? (
-                      source ? <WorkspaceTaskSourceIdentity source={source} /> : null
-                    )}
-                  </div>
-                  <span
-                    aria-hidden="true"
-                    className="h-3.5 w-px shrink-0 bg-(--divider-subtle-color)"
-                  />
-                </>
-              ) : null}
-              <span className="shrink-0 text-compact font-semibold text-(--text-strong)">
+          <div className="flex h-10 shrink-0 items-center gap-2 px-3">
+            {sourceControl || source ? (
+              <>
+                <div
+                  className="min-w-0 max-w-[9rem]"
+                  data-workspace-task-expanded-source
+                >
+                  {sourceControl ?? (
+                    source ? <WorkspaceTaskSourceIdentity source={source} /> : null
+                  )}
+                </div>
+                <span
+                  aria-hidden="true"
+                  className="h-3.5 w-px shrink-0 bg-(--divider-subtle-color)"
+                />
+              </>
+            ) : null}
+              <span className={cn(
+                "shrink-0",
+                getUiTypographyClassName({ role: "metadata", tone: "strong", weight: "semibold" }),
+              )}>
                 {t("tasks.label")}
               </span>
               <span
-                className="shrink-0 text-compact tabular-nums text-(--text-soft)"
+                className={cn(
+                  "shrink-0 tabular-nums",
+                  getUiTypographyClassName({ role: "metadata", tone: "soft" }),
+                )}
                 data-workspace-task-progress-label
               >
                 {completedCount}/{totalCount}
               </span>
               <span className="min-w-0 flex-1" />
               {hasRunningTask ? <LoadingOrb /> : null}
-              <button
+              <UiIconButton
                 aria-label={t("tasks.collapse_panel")}
-                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[6px] text-(--icon-muted) transition-[background,color] hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)"
+                className="shrink-0"
                 onClick={collapsePanel}
-                title={t("tasks.collapse_panel")}
-                type="button"
+                size="xs"
               >
                 <ChevronUp className="h-3.5 w-3.5" />
-              </button>
+              </UiIconButton>
             </div>
 
-            <div className="soft-scrollbar min-h-0 overflow-y-auto pb-1.5">
+            <ol className="soft-scrollbar min-h-0 overflow-y-auto pb-1.5">
               {normalizedTodos.map((todo, index) => {
-                const detailText = todo.active_form?.trim() || "";
-                const hasDetail = detailText.length > 0 && detailText !== todo.content.trim();
+                const detailText = taskDetail(todo);
+                const hasDetail = detailText.length > 0;
+                const taskId = `${panelId}-task-${index}`;
+                const detailId = `${taskId}-detail`;
                 const isDetailExpanded = expandedTaskIndex === index;
 
                 return (
-                  <div
+                  <li
                     className="flex min-w-0 items-start gap-2 px-3 py-1.5"
-                    key={`${todo.content}-${index}`}
+                    key={JSON.stringify([todo.content, contentCounts.get(todo.content)! > 1 ? index : null])}
                   >
                     <span className="flex h-5 w-5 shrink-0 items-center justify-center">
                       {renderStatusMarker(todo.status)}
@@ -236,28 +308,35 @@ export function WorkspaceTaskPanel({
                     </span>
                     <div className="min-w-0 flex-1">
                       <p
+                        id={taskId}
                         className={cn(
-                          "text-compact leading-5 text-(--text-default)",
+                          "break-words",
+                          getUiTypographyClassName({ role: "metadata", tone: "default" }),
                           todo.status === "completed" && "text-(--text-soft) line-through",
                         )}
                       >
                         {todo.content}
                       </p>
                       {isDetailExpanded && hasDetail ? (
-                        <p className="mt-0.5 border-l border-(--divider-subtle-color) pl-2 text-xs leading-4.5 text-(--text-muted)">
+                        <p id={detailId} className={cn(
+                          "mt-0.5 break-words border-l border-(--divider-subtle-color) pl-2",
+                          getUiTypographyClassName({ role: "caption", tone: "muted" }),
+                        )}>
                           {detailText}
                         </p>
                       ) : null}
                     </div>
                     {hasDetail ? (
-                      <button
+                      <UiIconButton
+                        aria-controls={isDetailExpanded ? detailId : undefined}
+                        aria-describedby={taskId}
                         aria-expanded={isDetailExpanded}
                         aria-label={isDetailExpanded ? t("tasks.collapse_detail") : t("tasks.expand_detail")}
-                        className="inline-flex h-6 w-6 shrink-0 items-center justify-center radius-control-xs text-(--icon-muted) transition-[background,color] hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)"
+                        className="shrink-0"
                         onClick={() => setExpandedTaskIndex((currentIndex) => (
                           currentIndex === index ? null : index
                         ))}
-                        type="button"
+                        size="xs"
                       >
                         <ChevronDown
                           className={cn(
@@ -265,14 +344,14 @@ export function WorkspaceTaskPanel({
                             isDetailExpanded && "rotate-180",
                           )}
                         />
-                      </button>
+                      </UiIconButton>
                     ) : null}
-                  </div>
+                  </li>
                 );
               })}
-            </div>
-          </section>
-        </div>
+            </ol>
+          </div>,
+          portalContainer,
       ) : null}
     </aside>
   );
@@ -287,18 +366,30 @@ function WorkspaceTaskSourceIdentity({
     <span
       className="flex min-w-0 max-w-[7.5rem] items-center gap-1.5"
       data-workspace-task-agent-id={source.agentId}
-      title={source.name}
+      title={source.label ?? source.name}
     >
       <UiAgentAvatar
+        aria-hidden="true"
         avatar={source.avatar}
-        className="h-5 w-5 shrink-0 rounded-[5px] shadow-none"
-        imageClassName="rounded-[5px]"
+        className="shadow-none"
         name={source.name}
         size="xs"
       />
-      <span className="min-w-0 truncate text-xs font-medium leading-normal text-(--text-default)">
-        {source.name}
+      <span className={cn(
+        "min-w-0 truncate",
+        getUiTypographyClassName({ role: "caption", tone: "default", weight: "medium" }),
+      )}>
+        {source.label ?? source.name}
       </span>
     </span>
   );
+}
+
+function taskDetail(todo: TodoItem): string {
+  const detail = todo.active_form?.trim() ?? "";
+  return detail !== todo.content.trim() ? detail : "";
+}
+
+function resolveTaskPopoverPosition(anchor: HTMLButtonElement) {
+  return resolveUiAnchoredOverlayPosition({ anchor, placement: "top", align: "center", preset: "reference-list" });
 }

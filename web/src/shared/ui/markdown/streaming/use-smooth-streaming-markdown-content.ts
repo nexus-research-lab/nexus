@@ -12,13 +12,13 @@ import {
   useState,
 } from "react";
 
-import { usePrefersReducedMotion } from "@/hooks/ui/use-prefers-reduced-motion";
+import { splitTextGraphemes } from "@/lib/text-graphemes";
+import { usePrefersReducedMotion } from "@/shared/lib/react/use-prefers-reduced-motion";
 import { AdaptiveStreamClock } from "./adaptive-stream-clock";
 import { conversationStreamFrameScheduler } from "./stream-frame-scheduler";
 import {
   appendStreamingTextUnits,
   joinStreamingTextPrefix,
-  splitStreamingTextUnits,
 } from "./stream-text-units";
 
 export interface SmoothStreamingMarkdownState {
@@ -28,10 +28,6 @@ export interface SmoothStreamingMarkdownState {
 
 function getNow(): number {
   return typeof performance === "undefined" ? Date.now() : performance.now();
-}
-
-function toChars(value: string): string[] {
-  return splitStreamingTextUnits(value);
 }
 
 function getRevealableTargetCount(
@@ -63,7 +59,7 @@ export function useSmoothStreamingMarkdownState(
 
   const targetInitialCharsRef = useRef<string[] | null>(null);
   if (targetInitialCharsRef.current === null) {
-    targetInitialCharsRef.current = toChars(content);
+    targetInitialCharsRef.current = splitTextGraphemes(content);
   }
   const displayedContentRef = useRef(initialDisplayedContent);
   const displayedCountRef = useRef(
@@ -101,7 +97,7 @@ export function useSmoothStreamingMarkdownState(
     (nextContent: string) => {
       stopFrameLoop();
 
-      const chars = toChars(nextContent);
+      const chars = splitTextGraphemes(nextContent);
       targetContentRef.current = nextContent;
       targetCharsRef.current = chars;
       targetCountRef.current = chars.length;
@@ -341,11 +337,4 @@ export function useSmoothStreamingMarkdownState(
     content: shouldRenderStreaming ? displayedContent : content,
     isStreaming: shouldRenderStreaming,
   };
-}
-
-export function useSmoothStreamingMarkdownContent(
-  content: string,
-  enabled: boolean,
-): string {
-  return useSmoothStreamingMarkdownState(content, enabled).content;
 }

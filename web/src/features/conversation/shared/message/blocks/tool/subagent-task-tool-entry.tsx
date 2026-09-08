@@ -15,8 +15,10 @@ import {
 
 import { getCompactToolInputSummary } from "../../tool-activity";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import type { ToolUseContent } from "@/types/conversation/message/content";
 
 import type {
@@ -27,16 +29,16 @@ import type {
 
 const STATUS_ICON: Readonly<Record<
   ToolBlockStatus,
-  { className: string; icon: LucideIcon }
+  { icon: LucideIcon; spinning?: boolean }
 >> = {
-  error: { className: "", icon: X },
-  pending: { className: "", icon: Sparkles },
-  rejected: { className: "", icon: X },
-  superseded: { className: "", icon: Square },
-  running: { className: "animate-spin", icon: LoaderCircle },
-  stopped: { className: "", icon: Square },
-  success: { className: "", icon: Check },
-  waiting_permission: { className: "", icon: Clock3 },
+  error: { icon: X },
+  pending: { icon: Sparkles },
+  rejected: { icon: X },
+  superseded: { icon: Square },
+  running: { icon: LoaderCircle, spinning: true },
+  stopped: { icon: Square },
+  success: { icon: Check },
+  waiting_permission: { icon: Clock3 },
 };
 
 const STATUS_TONE_CLASS: Readonly<Record<ToolStatusTone, string>> = {
@@ -71,13 +73,14 @@ export function SubagentTaskToolEntry({
   ].join(" · ");
 
   return (
-    <button
+    <UiButton
       aria-label={accessibleLabel}
-      className="group/subagent-task inline-flex h-9 w-60 max-w-full items-center gap-2 radius-control-sm border border-(--divider-subtle-color) bg-transparent px-1.5 text-left text-sm font-medium text-(--text-muted) transition-[background,border-color,color] duration-(--motion-duration-fast) hover:border-(--divider-strong-color) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
+      className="group/subagent-task w-60 max-w-full justify-start text-left"
       data-subagent-task-tool-entry
       onClick={onOpen}
+      size="md"
       title={`${taskTitle} · ${model.statusText}`}
-      type="button"
+      variant="surface"
     >
       <UiSeededAvatar
         data-subagent-task-avatar
@@ -94,8 +97,12 @@ export function SubagentTaskToolEntry({
         data-subagent-task-status={model.status}
         title={model.statusText}
       >
-        <StatusIcon className={cn("h-3.5 w-3.5", statusIcon.className)} />
+        <StatusIcon
+          className={statusIcon.spinning
+            ? getUiSpinnerClassName({ size: "sm" })
+            : "h-3.5 w-3.5"}
+        />
       </span>
-    </button>
+    </UiButton>
   );
 }

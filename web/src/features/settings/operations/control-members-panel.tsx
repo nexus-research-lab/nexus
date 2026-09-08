@@ -1,8 +1,14 @@
+// INPUT: Control 部署成员、当前身份权限和创建/更新成员命令。
+// OUTPUT: 成员目录、创建表单、角色/状态控制与操作反馈。
+// POS: Operations 成员管理用例；不拥有认证资源或通用表单视觉。
 "use client";
 
 import { RefreshCw, UserPlus, UsersRound } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 
+import {
+  SETTINGS_ITEM_TITLE_CLASS_NAME,
+} from "@/features/settings/shared/settings-panel-ui";
 import {
   createControlMemberApi,
   listControlMembersApi,
@@ -13,8 +19,15 @@ import {
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
-import { UiField, UiInput } from "@/shared/ui/form/form-control";
-import { getUiFormControlClassName } from "@/shared/ui/form/form-control-styles";
+import { cn } from "@/shared/ui/class-name";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import {
+  UiField,
+  UiInput,
+  UiNativeSelect,
+} from "@/shared/ui/form/form-control";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 interface MemberDraft {
   username: string;
@@ -115,20 +128,32 @@ export function ControlMembersPanel() {
         <div>
           <div className="flex items-center gap-2 text-(--text-strong)">
             <UsersRound className="h-4 w-4" />
-            <h2 className="text-base font-semibold">{t("members.title")}</h2>
+            <h2 className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong" })}>
+              {t("members.title")}
+            </h2>
           </div>
-          <p className="mt-1.5 max-w-[680px] text-sm leading-6 text-(--text-muted)">
+          <p className={cn(
+            "mt-1.5 max-w-[680px]",
+            getUiTypographyClassName({ role: "supporting", tone: "muted" }),
+          )}>
             {t("members.description")}
           </p>
         </div>
         <UiButton className="self-start" disabled={loading} onClick={() => void loadMembers()} size="sm" variant="text">
-          <RefreshCw className={loading ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />
+          <RefreshCw
+            className={loading
+              ? getUiSpinnerClassName({ size: "sm" })
+              : "h-3.5 w-3.5"}
+          />
           {t("members.refresh")}
         </UiButton>
       </header>
 
       <form className="border-b border-(--divider-subtle-color) py-5" onSubmit={createMember}>
-        <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-(--text-strong)">
+        <div className={cn(
+          "mb-4 flex items-center gap-2",
+          SETTINGS_ITEM_TITLE_CLASS_NAME,
+        )}>
           <UserPlus className="h-4 w-4" />
           {t("members.create_title")}
         </div>
@@ -146,20 +171,23 @@ export function ControlMembersPanel() {
             <UiInput autoComplete="new-password" id="member-confirm-password" minLength={8} onChange={(event) => setDraft((current) => ({ ...current, confirmPassword: event.target.value }))} required type="password" value={draft.confirmPassword} variant="surface" />
           </UiField>
           <UiField htmlFor="member-role" label={t("members.role")} required>
-            <select
-              className={getUiFormControlClassName({ variant: "surface" })}
+            <UiNativeSelect
               id="member-role"
               onChange={(event) => setDraft((current) => ({ ...current, role: event.target.value as ControlMemberRole }))}
               value={draft.role}
+              variant="surface"
             >
               <option value="member">{t("settings.personal.role_member")}</option>
               {canCreateElevatedRole ? <option value="admin">{t("settings.personal.role_admin")}</option> : null}
               {canCreateElevatedRole ? <option value="owner">{t("settings.personal.role_owner")}</option> : null}
-            </select>
+            </UiNativeSelect>
           </UiField>
         </div>
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-          <p className={draftError ? "text-xs text-(--destructive)" : "text-xs text-(--text-muted)"}>
+          <p className={getUiTypographyClassName({
+            role: "caption",
+            tone: draftError ? "danger" : "muted",
+          })}>
             {draftError ?? t("members.create_hint")}
           </p>
           <UiButton disabled={Boolean(draftError) || pendingKey !== null} size="sm" tone="primary" type="submit" variant="solid">
@@ -169,17 +197,36 @@ export function ControlMembersPanel() {
       </form>
 
       {feedback ? (
-        <p className={feedback.tone === "success" ? "py-3 text-sm text-(--text-muted)" : "py-3 text-sm text-(--destructive)"} role="status">
+        <p
+          className={cn(
+            "py-3",
+            getUiTypographyClassName({
+              role: "supporting",
+              tone: feedback.tone === "success" ? "muted" : "danger",
+            }),
+          )}
+          role="status"
+        >
           {feedback.message}
         </p>
       ) : null}
 
       <section aria-label={t("members.list_label")} className="divide-y divide-(--divider-subtle-color)">
         {loading && members.length === 0 ? (
-          <p className="py-8 text-sm text-(--text-muted)">{t("members.loading")}</p>
+          <UiResourceState
+            size="sm"
+            state="loading"
+            title={t("members.loading")}
+            variant="plain"
+          />
         ) : null}
         {!loading && members.length === 0 ? (
-          <p className="py-8 text-sm text-(--text-muted)">{t("members.empty")}</p>
+          <UiResourceState
+            size="sm"
+            state="empty"
+            title={t("members.empty")}
+            variant="plain"
+          />
         ) : null}
         {members.map((member) => {
           const isSelf = member.user_id === status?.user_id;
@@ -190,22 +237,34 @@ export function ControlMembersPanel() {
             <article className="grid items-center gap-4 py-4 md:grid-cols-[minmax(0,1fr)_150px_120px]" key={member.user_id}>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <p className="truncate text-sm font-semibold text-(--text-strong)">{member.display_name || member.username}</p>
-                  {isSelf ? <span className="text-xs text-(--text-soft)">{t("members.current")}</span> : null}
+                  <p className={cn("truncate", SETTINGS_ITEM_TITLE_CLASS_NAME)}>
+                    {member.display_name || member.username}
+                  </p>
+                  {isSelf ? (
+                    <span className={getUiTypographyClassName({ role: "caption", tone: "soft" })}>
+                      {t("members.current")}
+                    </span>
+                  ) : null}
                 </div>
-                <p className="mt-1 truncate text-xs text-(--text-muted)">@{member.username}</p>
+                <p className={cn(
+                  "mt-1 truncate",
+                  getUiTypographyClassName({ role: "caption", tone: "muted" }),
+                )}>
+                  @{member.username}
+                </p>
               </div>
-              <select
+              <UiNativeSelect
                 aria-label={t("members.role")}
-                className={getUiFormControlClassName({ size: "sm", variant: "surface" })}
+                controlSize="sm"
                 disabled={!canEditRole || isPending}
                 onChange={(event) => void updateMember(member, { role: event.target.value as ControlMemberRole })}
                 value={member.role}
+                variant="surface"
               >
                 <option value="member">{t("settings.personal.role_member")}</option>
                 <option value="admin">{t("settings.personal.role_admin")}</option>
                 <option value="owner">{t("settings.personal.role_owner")}</option>
-              </select>
+              </UiNativeSelect>
               <UiButton
                 disabled={!canToggle || isPending}
                 onClick={() => void updateMember(member, { status: member.membership_status === "active" ? "revoked" : "active" })}

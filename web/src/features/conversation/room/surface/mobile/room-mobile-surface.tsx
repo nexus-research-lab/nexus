@@ -2,11 +2,14 @@
 
 /**
  * INPUT: 移动端 Room 会话、任务快照、导航与 Overlay 命令。
- * OUTPUT: 将任务快照交给聊天 Bottom Dock，并常驻暴露可打开统一空态的移动端工作图。
+ * OUTPUT: 装配聊天与临时导航；会话/owner 切换关闭旧辅助层，Room 成员准备复用领域生命周期。
  * POS: Room 移动端 Surface 的主装配层。
  */
 
-import { useMemo, useState } from "react";
+import { useMemo, useSyncExternalStore } from "react";
+
+import { captureAuthOwnerScopeGeneration, subscribeAuthOwnerScopeGeneration } from "@/shared/auth/auth-owner-generation";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 
 import { buildComposerDraftScopeKey } from "@/features/conversation/shared/composer/composer-draft-scope";
 import type { ExecutionResource } from "@/features/conversation/shared/execution/use-execution-resource";
@@ -28,12 +31,12 @@ import type {
   ConversationSnapshotPayload,
   RoomConversationView,
 } from "@/types/conversation/conversation";
-import type { SubagentTaskSource } from "@/types/conversation/subagent-task";
 import type { TodoItem } from "@/types/conversation/todo";
 import type { AgentRuntimeKind } from "@/types/settings/preferences";
 import { buildRoomSharedSessionKey } from "@/lib/conversation/session-key";
 
 import { GroupThreadContextProvider } from "../../group/thread/group-thread-context";
+import { useRoomMemberManager } from "../../members/use-room-member-manager";
 import { RoomHistoryMenu } from "../history/room-history-menu";
 import { RoomChatSurface } from "../room-chat-surface";
 import { resolveRoomSubagentTaskSource } from "../room-surface-model";
@@ -145,15 +148,6 @@ export function RoomMobileSurface({
   runtimeKind,
 }: RoomMobileSurfaceProps) {
   const { t } = useI18n();
-  const [activeAuxiliaryTab, setActiveAuxiliaryTab] = useState<RoomMobileAuxiliaryTab | null>(null);
-  const [isConversationSwitcherOpen, setIsConversationSwitcherOpen] = useState(false);
-  const [memberDialogRoomId, setMemberDialogRoomId] = useState<string | null>(null);
-  const [openSubagentSource, setOpenSubagentSource] = useState<SubagentTaskSource | null>(null);
-  const [subagentRequest, setSubagentRequest] = useState({
-    hostAgentId: null as string | null,
-    key: 0,
-    toolUseId: null as string | null,
-  });
   const isDm = currentRoomType === "dm";
   const composerSessionKey = isDm
     ? currentAgentSessionIdentity?.session_key?.trim() || null
@@ -165,6 +159,22 @@ export function RoomMobileSurface({
     roomId: isDm ? null : roomId,
     sessionKey: composerSessionKey,
   });
+  const ownerGeneration = useSyncExternalStore(
+    subscribeAuthOwnerScopeGeneration, captureAuthOwnerScopeGeneration, captureAuthOwnerScopeGeneration,
+  );
+  const navigationScopeKey = JSON.stringify([
+    ownerGeneration, roomId, currentRoomType, conversationId,
+    isDm ? currentAgent.agent_id : null, composerSessionKey,
+  ]);
+  const [activeAuxiliaryTab, setActiveAuxiliaryTab] = useResettableState<RoomMobileAuxiliaryTab | null>(null, navigationScopeKey);
+  const [isConversationSwitcherOpen, setIsConversationSwitcherOpen] = useResettableState(false, navigationScopeKey);
+  const [subagentRequest, setSubagentRequest] = useResettableState({
+    isOpen: false,
+    hostAgentId: null as string | null,
+    key: 0,
+    toolUseId: null as string | null,
+  }, navigationScopeKey);
+  const memberManager = useRoomMemberManager(isDm ? null : roomId, onOpenMemberManager);
   const subagentTaskSource = useMemo(
     () => resolveRoomSubagentTaskSource({
       conversationId,
@@ -176,28 +186,21 @@ export function RoomMobileSurface({
   );
   const conversationTitle = currentRoomConversation?.title?.trim()
     || t("room.new_conversation");
-  const handleOpenMemberList = async () => {
-    const scopeRoomId = roomId;
-    if (!scopeRoomId || isDm) {
-      return;
-    }
-    await onOpenMemberManager();
-    setMemberDialogRoomId(scopeRoomId);
-  };
   const handleOpenAuxiliaryTab = (
     tab: "about" | "subagents" | "workgraph" | "workspace",
   ) => {
+    memberManager.close();
     if (tab === "subagents") {
       setActiveAuxiliaryTab(null);
       setSubagentRequest((current) => ({
+        isOpen: subagentTaskSource !== null,
         hostAgentId: null,
         key: current.key + 1,
         toolUseId: null,
       }));
-      setOpenSubagentSource(subagentTaskSource);
       return;
     }
-    setOpenSubagentSource(null);
+    setSubagentRequest((current) => ({ ...current, isOpen: false }));
     setActiveAuxiliaryTab(tab);
   };
   const handleOpenSubagentTask = (
@@ -208,13 +211,14 @@ export function RoomMobileSurface({
     if (!normalizedToolUseId || !subagentTaskSource) {
       return;
     }
+    memberManager.close();
     setActiveAuxiliaryTab(null);
     setSubagentRequest((current) => ({
+      isOpen: true,
       hostAgentId: hostAgentId?.trim() || null,
       key: current.key + 1,
       toolUseId: normalizedToolUseId,
     }));
-    setOpenSubagentSource(subagentTaskSource);
   };
   const handleOpenWorkspaceFile = (
     path: string | null,
@@ -222,7 +226,8 @@ export function RoomMobileSurface({
   ) => {
     onOpenWorkspaceFile(path, workspaceAgentId);
     if (path) {
-      setOpenSubagentSource(null);
+      memberManager.close();
+      setSubagentRequest((current) => ({ ...current, isOpen: false }));
       setActiveAuxiliaryTab("workspace");
     }
   };
@@ -263,6 +268,7 @@ export function RoomMobileSurface({
         isConversationSwitcherOpen={isConversationSwitcherOpen}
         onBack={onBackToDirectory}
         onOpenConversations={() => {
+          memberManager.close();
           setIsConversationSwitcherOpen((isOpen) => !isOpen);
         }}
         roomTitle={currentRoomTitle}
@@ -279,9 +285,11 @@ export function RoomMobileSurface({
             />
             <RoomMobileActionsMenu
               canOpenSubagents={subagentTaskSource !== null}
+              isMembersLoading={memberManager.isLoading}
+              scopeKey={JSON.stringify([navigationScopeKey, memberManager.isOpen])}
               onCreateConversation={onCreateConversation}
               onManageMembers={!isDm && roomId
-                ? () => void handleOpenMemberList()
+                ? memberManager.open
                 : undefined}
               onOpenAuxiliaryTab={handleOpenAuxiliaryTab}
             />
@@ -324,15 +332,13 @@ export function RoomMobileSurface({
 
       <RoomMobileSubagentOverlay
         currentAgentId={currentAgent.agent_id}
-        onClose={() => setOpenSubagentSource(null)}
+        onClose={() => setSubagentRequest((current) => ({ ...current, isOpen: false }))}
         onOpenWorkspaceFile={handleOpenWorkspaceFile}
         requestKey={subagentRequest.key}
         requestedHostAgentId={subagentRequest.hostAgentId}
         requestedTaskToolUseId={subagentRequest.toolUseId}
         roomMembers={roomMembers}
-        source={openSubagentSource === subagentTaskSource
-          ? openSubagentSource
-          : null}
+        source={subagentRequest.isOpen ? subagentTaskSource : null}
       />
 
       <RoomMobileAuxiliaryOverlay
@@ -361,8 +367,8 @@ export function RoomMobileSurface({
           initialName={currentRoomTitle}
           initialPrivateMessagesEnabled={roomPrivateMessagesEnabled}
           initialRoomSkillNames={roomSkillNames}
-          isOpen={roomId !== null && memberDialogRoomId === roomId}
-          onClose={() => setMemberDialogRoomId(null)}
+          isOpen={memberManager.isOpen}
+          onClose={memberManager.close}
           onManageRoom={onManageRoom}
           roomMembers={roomMembers}
         />

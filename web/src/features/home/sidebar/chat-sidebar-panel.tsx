@@ -48,7 +48,6 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
       <SidebarSearchField
         action={(
           <SidebarSearchAction
-            className="leading-none"
             onClick={controller.create.open}
             title={t("home.create_room")}
           >
@@ -56,7 +55,7 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
           </SidebarSearchAction>
         )}
         onChange={controller.list.setQuery}
-        placeholder={t("sidebar.search_conversations")}
+        label={t("sidebar.search_conversations")}
         value={controller.list.query}
       />
 

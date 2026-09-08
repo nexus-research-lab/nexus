@@ -1,6 +1,6 @@
 /**
  * INPUT: 定时任务初值、创建/更新回调与当前 Agent 作用域。
- * OUTPUT: plain 双栏任务表单及原有提交事务。
+ * OUTPUT: 自动关联标题的 plain 双栏表单、显式提交 busy 与原有提交事务。
  * POS: 定时任务创建/编辑模态边界，不在标题区复述表单结构。
  */
 "use client";
@@ -92,22 +92,22 @@ export function ScheduledTaskDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        className="z-[9999] max-sm:p-2"
         closeOnBackdrop={canClose}
         initialFocusRef={controller.refs.nameRef}
-        labelledBy="create-task-dialog-title"
+        inset="compact"
+        layer="dialog"
         onClose={canClose ? onClose : () => undefined}
         onPointerDown={(event) => event.stopPropagation()}
         onPointerMove={(event) => event.stopPropagation()}
         onPointerUp={(event) => event.stopPropagation()}
       >
         <UiDialogFormShell
-          className="h-[min(82dvh,760px)] max-w-[960px] max-sm:h-[calc(100dvh-16px)]"
           onSubmit={(event) => {
             event.preventDefault();
             void controller.handleSubmit();
           }}
           size="wide"
+          viewport="adaptive"
         >
           <UiDialogHeader
             appearance="plain"
@@ -115,7 +115,6 @@ export function ScheduledTaskDialog({
             title={initialTask
               ? t("capability.scheduled_dialog_edit_title")
               : t("capability.scheduled_dialog_new_title")}
-            titleId="create-task-dialog-title"
           />
 
           <UiDialogBody
@@ -172,6 +171,7 @@ export function ScheduledTaskDialog({
             </UiButton>
             {!isLegacyScriptTask ? (
               <UiButton
+                aria-busy={controller.isSubmitting || undefined}
                 className="min-w-[124px]"
                 disabled={controller.isCloseBlocked}
                 tone="primary"

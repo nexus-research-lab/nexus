@@ -2,7 +2,7 @@
 
 /**
  * INPUT: 消息活动状态。
- * OUTPUT: 图标、逐帧提示、可替换通用状态的自然语言活动标签，以及可与工具行等高的稳定活动槽位。
+ * OUTPUT: 图标、静态文案、共享局部指示器，以及可与工具行等高的稳定活动槽位。
  * POS: DM/Room 共用的单行活动呈现；不推导 runtime 状态，也不把即时标签伪装成正式回复。
  */
 import {
@@ -15,20 +15,20 @@ import {
   Shield,
   Wrench,
 } from "lucide-react";
-import type { CSSProperties } from "react";
-import spinners, { type BrailleSpinnerName } from "unicode-animations";
-
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import { cn } from "@/shared/ui/class-name";
+import {
+  LoadingOrb,
+  type LoadingOrbVariant,
+} from "@/shared/ui/feedback/loading-orb";
 
 import type { MessageActivityState } from "../activity/message-activity-state";
-import "./message-activity-status.css";
 
 interface MessageActivityPresentation {
   icon: LucideIcon;
+  indicator: LoadingOrbVariant | null;
   labelKey: TranslationKey;
-  spinner: BrailleSpinnerName | null;
   toneClassName: string;
 }
 
@@ -38,50 +38,50 @@ const ACTIVITY_PRESENTATION: Record<
 > = {
   compacting: {
     icon: RefreshCw,
+    indicator: "active",
     labelKey: "message.activity_compacting",
-    spinner: "braille",
     toneClassName: "text-(--text-muted)",
   },
   sending: {
     icon: MessageSquareText,
+    indicator: "active",
     labelKey: "message.activity_sending",
-    spinner: "braille",
     toneClassName: "text-(--text-muted)",
   },
   thinking: {
     icon: Brain,
+    indicator: "active",
     labelKey: "message.activity_thinking",
-    spinner: "braille",
     toneClassName: "text-(--text-muted)",
   },
   replying: {
     icon: MessageSquareText,
+    indicator: "active",
     labelKey: "message.activity_replying",
-    spinner: "braille",
     toneClassName: "text-(--text-default)",
   },
   browsing: {
     icon: Globe,
+    indicator: "active",
     labelKey: "message.activity_browsing",
-    spinner: "braille",
     toneClassName: "text-[color:color-mix(in_srgb,var(--primary)_76%,var(--accent)_24%)]",
   },
   executing: {
     icon: Wrench,
+    indicator: "active",
     labelKey: "message.activity_executing",
-    spinner: "dna",
     toneClassName: "text-(--primary)",
   },
   waiting_permission: {
     icon: Shield,
+    indicator: null,
     labelKey: "message.activity_waiting_permission",
-    spinner: null,
     toneClassName: "text-(--text-muted)",
   },
   waiting_input: {
     icon: MessageCircleMore,
+    indicator: "active",
     labelKey: "message.activity_waiting_input",
-    spinner: "dna",
     toneClassName: "text-[color:color-mix(in_srgb,var(--primary)_72%,var(--text-strong)_28%)]",
   },
 };
@@ -146,66 +146,16 @@ export function MessageActivityStatus({
         >
           <ActivityIcon className="h-3.5 w-3.5" />
         </span>
-        <MessageActivityLabel label={label} />
-        {presentation.spinner ? (
-          <MessageLoadingDots
-            className="shrink-0 opacity-70"
-            name={presentation.spinner}
-          />
+        <span className="min-w-0 truncate">{label}</span>
+        {presentation.indicator ? (
+          <span
+            className="flex h-5 w-3 shrink-0 items-center justify-center opacity-70"
+            data-message-activity-indicator
+          >
+            <LoadingOrb variant={presentation.indicator} />
+          </span>
         ) : null}
       </div>
     </div>
-  );
-}
-
-function MessageActivityLabel({ label }: { label: string }) {
-  return (
-    <span className="message-activity-label-flow truncate">
-      {label}
-    </span>
-  );
-}
-
-function MessageLoadingDots({
-  className,
-  name,
-}: {
-  className?: string;
-  name: BrailleSpinnerName;
-}) {
-  const spinner = spinners[name];
-  const frames = spinner.frames.length > 0 ? spinner.frames : ["·"];
-  const trackFrames = [...frames, frames[0]];
-  const spinnerWidth = Math.max(
-    ...frames.map((frame) => Array.from(frame).length),
-  );
-  const trackStyle = {
-    "--message-activity-spinner-distance": `-${frames.length}em`,
-    animation: `nexus-message-activity-frames ${spinner.interval * frames.length}ms steps(${frames.length}, end) infinite`,
-  } as CSSProperties;
-
-  return (
-    <span
-      aria-hidden="true"
-      className={cn(
-        "inline-block h-[1em] translate-y-[2px] overflow-hidden select-none whitespace-pre leading-[1em] text-current text-[1.4em]",
-        className,
-      )}
-      style={{ width: `${spinnerWidth}ch` }}
-    >
-      <span
-        className="message-activity-spinner-track flex flex-col font-mono leading-none"
-        style={trackStyle}
-      >
-        {trackFrames.map((frame, index) => (
-          <span
-            className="block h-[1em] shrink-0 leading-[1em]"
-            key={`${frame}:${index}`}
-          >
-            {frame}
-          </span>
-        ))}
-      </span>
-    </span>
   );
 }

@@ -2353,7 +2353,7 @@ test("Composer submission clears immediately and failure recovery preserves newe
 
 test("restored Composer draft places the caret after the final character", async () => {
   const { focusComposerInputAtEnd } = await server.ssrLoadModule(
-    "/src/features/conversation/shared/composer/composer-model.ts",
+    "/src/features/conversation/shared/composer/controller/composer-textarea.ts",
   );
   let focusOptions = null;
   let selection = null;
