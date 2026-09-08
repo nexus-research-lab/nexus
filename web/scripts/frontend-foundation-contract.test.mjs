@@ -31,6 +31,7 @@ const PROHIBITED_PRODUCT_STYLE_PATTERNS = [
 ];
 
 const REQUIRED_SHARED_UI_BEHAVIOR_SUITES = [
+  "src/features/conversation/room/surface/layout/room-surface-auxiliary-panel.test.tsx",
   "src/features/conversation/room/surface/room-agent-about-surface.test.tsx",
   "src/features/conversation/room/group/thread/round-card/thread-action-button.test.tsx",
   "src/features/conversation/room/group/thread/round-card/group-agent-execution-shell.test.tsx",
