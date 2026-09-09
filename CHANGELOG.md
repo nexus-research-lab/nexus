@@ -92,6 +92,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Redesign the sidebar Nexus wordmark with open geometric lettering and the original
+  theme-aware graphite gradient, removing blurred shadows for quieter navigation chrome.
+
 - Aligned WorkGraph skills and command guidance with the actual inspect recovery,
   XML context and Draft version operations. Removed fictional coordination-mode
   instructions and repetitive edit confirmations while retaining save confirmation.
