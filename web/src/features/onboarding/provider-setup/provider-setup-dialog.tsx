@@ -51,6 +51,8 @@ import {
   subscribeAuthOwnerScopeGeneration,
 } from "@/shared/auth/auth-owner-generation";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { UiButton } from "@/shared/ui/button/button";
 import {
   UiDialogBackdrop,
@@ -59,6 +61,7 @@ import {
   UiDialogPortal,
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
@@ -164,6 +167,9 @@ export function ProviderSetupDialog({
   const [verifyPhase, setVerifyPhase] = useState(0);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  const translationRef = useRef(t);
+  translationRef.current = t;
   const [error, setError] = useState<string | null>(null);
   const [errorKind, setErrorKind] = useState<SetupFailureKind>("read");
   const [result, setResult] = useState<SetupResult | null>(null);
@@ -221,6 +227,7 @@ export function ProviderSetupDialog({
     const recoveredJournal = journalRead.journal;
     setScene("provider");
     setLoading(true);
+    busyRef.current = false;
     setBusy(false);
     setCCSwitchOpen(false);
     setError(null);
@@ -273,7 +280,7 @@ export function ProviderSetupDialog({
         });
         if (recoveredJournal.outcome === "unknown") {
           setErrorKind(failureKindForUnknownStage(recoveredJournal.stage));
-          setError(t(failureMessageKeyForUnknownStage(recoveredJournal.stage)));
+          setError(translationRef.current(failureMessageKeyForUnknownStage(recoveredJournal.stage)));
         }
         return;
       }
@@ -304,7 +311,7 @@ export function ProviderSetupDialog({
       if (!cancelled && isAuthOwnerScopeGenerationCurrent(ownerGeneration)) {
         void loadError;
         setErrorKind("read");
-        setError(t("onboarding.provider_setup_load_failed"));
+        setError(translationRef.current("onboarding.provider_setup_load_failed"));
       }
     }).finally(() => {
       if (!cancelled && isAuthOwnerScopeGenerationCurrent(ownerGeneration)) {
@@ -314,7 +321,7 @@ export function ProviderSetupDialog({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, ownerScope, runtimeKind, t]);
+  }, [isOpen, ownerScope, runtimeKind]);
 
   if (!isOpen) {
     return null;
@@ -369,7 +376,7 @@ export function ProviderSetupDialog({
     draft: ProviderConnectionDraft,
     failureScene: "credentials" | "custom",
   ) => {
-    if (busy) {
+    if (busyRef.current) {
       return;
     }
     const normalizedApiKey = draft.apiKey.trim();
@@ -401,6 +408,7 @@ export function ProviderSetupDialog({
       displayName: draft.displayName.trim(),
       modelID: normalizedModelID,
     };
+    busyRef.current = true;
     setBusy(true);
     setScene("verify");
     setError(null);
@@ -418,6 +426,7 @@ export function ProviderSetupDialog({
       })
       .finally(() => {
         if (isAuthOwnerScopeGenerationCurrent(ownerGeneration)) {
+          busyRef.current = false;
           setBusy(false);
         }
       });
@@ -1330,11 +1339,13 @@ function ProviderScene({
       />
       <div className="soft-scrollbar mt-5 min-h-0 flex-1 overflow-y-auto pr-1">
         {loading ? (
-          <div className="flex min-h-40 items-center justify-center text-(--text-muted)">
-            <Loader2
-              className={getUiSpinnerClassName({ size: "lg", tone: "muted" })}
-            />
-          </div>
+          <UiResourceState
+            className="min-h-40"
+            size="sm"
+            state="loading"
+            title={t("common.loading")}
+            variant="plain"
+          />
         ) : null}
         {!loading && error ? (
           <ProviderSetupFailure kind={errorKind} />
@@ -1868,10 +1879,10 @@ function SceneMessage({
 }) {
   return (
     <div>
-      <h3 className="text-lg font-semibold tracking-[-0.02em] text-(--text-strong)">
+      <h3 className={getUiTypographyClassName({ role: "objectTitle", tone: "strong", weight: "semibold" })}>
         {title}
       </h3>
-      <p className="mt-2 max-w-[42ch] text-sm leading-5 text-(--text-muted)">
+      <p className={cn("mt-2 max-w-[42ch] wrap-anywhere", getUiTypographyClassName({ role: "supporting", tone: "muted" }))}>
         {body}
       </p>
     </div>

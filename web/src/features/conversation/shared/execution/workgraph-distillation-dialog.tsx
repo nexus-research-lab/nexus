@@ -5,7 +5,7 @@
  */
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef, useId } from "react";
 import {
   CheckCircle2,
   LoaderCircle,
@@ -22,6 +22,8 @@ import {
   type MutationFailureEffect,
 } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { UiButton } from "@/shared/ui/button/button";
 import {
   UiDialogBackdrop,
@@ -47,7 +49,11 @@ interface WorkGraphSaveFailure {
   changed?: boolean;
 }
 
-export function WorkGraphDistillationDialog({
+export function WorkGraphDistillationDialog(props: Parameters<typeof WorkGraphDistillationContent>[0]) {
+  return <WorkGraphDistillationContent key={`${props.sessionKey}\0${props.preview.preview_id}`} {...props} />;
+}
+
+function WorkGraphDistillationContent({
   agents,
   onClose,
   onSaved,
@@ -61,6 +67,12 @@ export function WorkGraphDistillationDialog({
   sessionKey: string;
 }) {
   const { t } = useI18n();
+  const fieldId = useId();
+  const generationRef = useRef(0);
+  const savePendingRef = useRef(false);
+  const activeRef = useRef(true);
+  useEffect(() => { activeRef.current = true; return () => { activeRef.current = false; generationRef.current += 1; }; }, []);
+  const [checkFailed, setCheckFailed] = useState(false);
   const [saveState, setSaveState] = useState<"idle" | "saving">("idle");
   const [saveFailure, setSaveFailure] = useState<WorkGraphSaveFailure | null>(null);
   const [loading, setLoading] = useState(true);
@@ -74,10 +86,12 @@ export function WorkGraphDistillationDialog({
   const [description, setDescription] = useState(preview.description ?? "");
   const [confirmedConflictName, setConfirmedConflictName] = useState<string | null>(null);
   const loadCurrentDraft = useCallback(async () => {
+    const generation = ++generationRef.current;
     setLoading(true);
     setLoadFailed(false);
     try {
       const current = await getWorkGraphWorkflowSaveStateApi(sessionKey, preview.preview_id);
+      if (!activeRef.current || generation !== generationRef.current) return;
       setWorkingPreview(current.preview);
       setSlashName(current.preview.slash_name);
       setTitle(current.preview.title);
@@ -86,9 +100,9 @@ export function WorkGraphDistillationDialog({
       setSaveFailure(null);
       setSaveState("idle");
     } catch {
-      setLoadFailed(true);
+      if (activeRef.current && generation === generationRef.current) setLoadFailed(true);
     } finally {
-      setLoading(false);
+      if (activeRef.current && generation === generationRef.current) setLoading(false);
     }
   }, [preview.preview_id, sessionKey]);
   useEffect(() => { void loadCurrentDraft(); }, [loadCurrentDraft]);
@@ -135,7 +149,9 @@ export function WorkGraphDistillationDialog({
     setEditorOpen(true);
   };
   const handleSave = async () => {
-    if (locked) return;
+    if (locked || savePendingRef.current || metadataError || !slashNameAvailable) return;
+    savePendingRef.current = true;
+    const generation = ++generationRef.current;
     setSaveState("saving");
     setSaveFailure(null);
     try {
@@ -146,6 +162,7 @@ export function WorkGraphDistillationDialog({
         slash_name: normalizedSlashName,
         title: title.trim(),
       });
+      if (!activeRef.current || generation !== generationRef.current) return;
       if (receipt.status !== "saved" || !receipt.workflow) {
         throw new Error("WorkGraph save was not confirmed");
       }
@@ -159,6 +176,7 @@ export function WorkGraphDistillationDialog({
       // baseline before allowing another edit; never guess its next revision.
       await loadCurrentDraft();
     } catch (reason: unknown) {
+      if (!activeRef.current || generation !== generationRef.current) return;
       if (reason instanceof ApiRequestError && reason.status === 409) {
         setConfirmedConflictName(normalizedSlashName);
       } else if (reason instanceof ApiRequestError && reason.status === 412) {
@@ -171,13 +189,18 @@ export function WorkGraphDistillationDialog({
         setSaveFailure({ effect: failure.effect });
       }
     } finally {
-      setSaveState("idle");
+      savePendingRef.current = false;
+      if (activeRef.current) setSaveState("idle");
     }
   };
   const verifySave = async () => {
+    if (loading) return;
+    const generation = ++generationRef.current;
+    setCheckFailed(false);
     setLoading(true);
     try {
       const current = await getWorkGraphWorkflowSaveStateApi(sessionKey, workingPreview.preview_id);
+      if (!activeRef.current || generation !== generationRef.current) return;
       setSavedWorkflow(current.workflow);
       const intended = { ...workingPreview, slash_name: normalizedSlashName, title: title.trim(), description: description.trim() };
       if (current.workflow && savedWorkGraphMatchesPreview(current.workflow, intended)) {
@@ -189,8 +212,10 @@ export function WorkGraphDistillationDialog({
         onSaved?.(current.workflow);
         window.dispatchEvent(new CustomEvent(WORKGRAPH_WORKFLOWS_CHANGED_EVENT));
       }
+    } catch {
+      if (activeRef.current && generation === generationRef.current) setCheckFailed(true);
     } finally {
-      setLoading(false);
+      if (activeRef.current && generation === generationRef.current) setLoading(false);
     }
   };
 
@@ -198,7 +223,7 @@ export function WorkGraphDistillationDialog({
     <UiDialogPortal>
       <UiDialogBackdrop
         layer="dialogUnderlay"
-        labelledBy="workgraph-distillation-dialog-title"
+        labelledBy={`${fieldId}-workgraph-distillation-dialog-title`}
         onClose={onClose}
         trapFocus={!editorOpen}
       >
@@ -219,12 +244,12 @@ export function WorkGraphDistillationDialog({
                 </span>
                 <div className="min-w-0 pt-0.5">
                   <h2
-                    className="text-lg font-semibold leading-6 tracking-[-0.01em] text-(--text-strong)"
-                    id="workgraph-distillation-dialog-title"
+                    className={getUiTypographyClassName({ role: "objectTitle", tone: "strong", weight: "semibold" })}
+                    id={`${fieldId}-workgraph-distillation-dialog-title`}
                   >
                     {t("execution.workflow_distill_title")}
                   </h2>
-                  <p className="mt-1 text-xs text-(--text-muted)">
+                  <p className={cn("mt-1", getUiTypographyClassName({ role: "caption", tone: "muted" }))}>
                     {t("execution.workflow_sketch_label")} · {workingPreview.nodes.length} {t("execution.workflow_nodes_short")}
                   </p>
                 </div>
@@ -232,7 +257,7 @@ export function WorkGraphDistillationDialog({
 
               <div className="soft-scrollbar mt-6 min-h-0 flex-1 space-y-5 overflow-y-auto pr-1">
                 <UiField
-                  className="surface-radius-md border border-[color:color-mix(in_srgb,var(--primary)_18%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--surface-panel-background)_72%,transparent)] p-3.5"
+                  className="space-y-2"
                   description={slashNameFormatError === null && availabilityMatchesInput ? (
                     slashNameAvailability.status === "checking" ? (
                       <span className="inline-flex items-center gap-1.5">
@@ -247,7 +272,7 @@ export function WorkGraphDistillationDialog({
                     ) : null
                   ) : null}
                   error={slashNameError}
-                  htmlFor="workgraph-slash-name"
+                  htmlFor={`${fieldId}-workgraph-slash-name`}
                   label={(
                     <span className="inline-flex items-center gap-1.5 font-medium text-(--text-default)">
                       <SquareTerminal className="h-3.5 w-3.5 text-(--primary)" />
@@ -262,7 +287,7 @@ export function WorkGraphDistillationDialog({
                       autoComplete="off"
                       className="pl-11"
                       disabled={locked}
-                      id="workgraph-slash-name"
+                      id={`${fieldId}-workgraph-slash-name`}
                       maxLength={64}
                       spellCheck={false}
                       textRole="code"
@@ -276,17 +301,17 @@ export function WorkGraphDistillationDialog({
                   </div>
                 </UiField>
 
-                {!loading && !loadFailed ? <p className="text-xs text-(--text-muted)">
+                {!loading && !loadFailed ? <p className={getUiTypographyClassName({ role: "caption", tone: "muted" })}>
                   {savedWorkflow
                     ? t("execution.workflow_current_command", { command: `/${savedWorkflow.slash_name}` })
                     : t("execution.workflow_no_saved_command")}
                 </p> : null}
 
                 <div className="space-y-4 border-t border-(--divider-subtle-color) pt-5">
-                  <UiField htmlFor="workgraph-title" label={t("execution.workflow_title")}>
+                  <UiField htmlFor={`${fieldId}-workgraph-title`} label={t("execution.workflow_title")}>
                     <UiInput
                       disabled={locked}
-                      id="workgraph-title"
+                      id={`${fieldId}-workgraph-title`}
                       maxLength={120}
                       value={title}
                       variant="dialog"
@@ -295,13 +320,13 @@ export function WorkGraphDistillationDialog({
                   </UiField>
                   <UiField
                     error={metadataError && (!title.trim() || !description.trim()) ? metadataError : null}
-                    htmlFor="workgraph-description"
+                    htmlFor={`${fieldId}-workgraph-description`}
                     label={t("execution.workflow_description")}
                   >
                     <UiTextarea
                       className="min-h-28 resize-none"
                       disabled={locked}
-                      id="workgraph-description"
+                      id={`${fieldId}-workgraph-description`}
                       maxLength={500}
                       value={description}
                       variant="dialog"
@@ -319,7 +344,7 @@ export function WorkGraphDistillationDialog({
                     primaryAction={{ label: t("execution.workflow_reload_draft"), onClick: () => void loadCurrentDraft() }} />
                 ) : null}
                 {isSaved ? (
-                  <div className="flex items-start gap-2 text-xs text-(--text-default)">
+                  <div className={cn("flex items-start gap-2", getUiTypographyClassName({ role: "caption", tone: "default" }))}>
                     <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-(--success)" />
                     <div>
                       <div className="font-semibold text-(--text-strong)">{t("execution.workflow_saved_title")}</div>
@@ -332,8 +357,8 @@ export function WorkGraphDistillationDialog({
                   </div>
                 ) : null}
                 {saveFailure ? (
-                  <WorkGraphSaveFailureState failure={saveFailure} checking={loading}
-                    onCheck={() => { void verifySave().catch(() => {}); }} onReload={() => void loadCurrentDraft()} />
+                  <WorkGraphSaveFailureState failure={saveFailure} checking={loading} checkFailed={checkFailed}
+                    onCheck={() => { void verifySave(); }} onReload={() => void loadCurrentDraft()} />
                 ) : null}
                 {isSaved || (saveFailure && saveFailure.effect !== "not_applied") ? (
                   <UiButton className="w-full" onClick={onClose} size="sm" tone="primary" variant="solid">
@@ -356,7 +381,7 @@ export function WorkGraphDistillationDialog({
 
             <main className="flex min-h-0 flex-col bg-(--surface-canvas-background)">
               <header className="flex shrink-0 items-center justify-between gap-4 border-b border-(--divider-subtle-color) px-7 py-5 pr-16">
-                <h3 className="text-sm font-semibold text-(--text-strong)">
+                <h3 className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong" })}>
                   {t("execution.workflow_sketch_label")}
                 </h3>
                 <UiButton
@@ -413,11 +438,13 @@ export function WorkGraphDistillationDialog({
 function WorkGraphSaveFailureState({
   failure,
   checking,
+  checkFailed,
   onCheck,
   onReload,
 }: {
   failure: WorkGraphSaveFailure;
   checking: boolean;
+  checkFailed: boolean;
   onCheck: () => void;
   onReload: () => void;
 }) {
@@ -441,7 +468,7 @@ function WorkGraphSaveFailureState({
         ? { label: t("execution.workflow_reload_draft"), onClick: onReload }
         : !notApplied ? { label: t("execution.workflow_check_save"), busy: checking, onClick: onCheck } : undefined}
       state="error"
-      title={title}
+      title={checkFailed ? t("execution.workflow_state_failed") : title}
       urgency="polite"
       variant="card"
     />

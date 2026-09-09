@@ -1,8 +1,8 @@
 // INPUT: 在线 Room 创建状态与提交/取消动作。
-// OUTPUT: 只收集首阶段必需名称的建群对话框。
+// OUTPUT: 实例独立字段/标题 ID 的建群对话框；创建中禁止关闭。
 // POS: Relay Room 创建入口；成员邀请在建群后独立管理。
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useId, useState } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
@@ -49,6 +49,8 @@ function CreateOnlineRoomDialogContent({
   onConfirm,
 }: Omit<Parameters<typeof CreateOnlineRoomDialog>[0], "isOpen">) {
   const { t } = useI18n();
+  const titleId = useId();
+  const nameId = useId();
   const [name, setName] = useState("");
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -58,20 +60,20 @@ function CreateOnlineRoomDialogContent({
   };
   return (
     <UiDialogPortal>
-      <UiDialogBackdrop inset="compact" layer="dialogUnderlay" labelledBy="online-room-title" onClose={onCancel}>
+      <UiDialogBackdrop inset="compact" layer="dialogUnderlay" labelledBy={titleId} closeOnBackdrop={!isCreating} onClose={isCreating ? undefined : onCancel}>
         <UiDialogShell size="xs">
           <form onSubmit={submit}>
-            <UiDialogHeader onClose={onCancel} title={t("team.create_room")} titleId="online-room-title" />
+            <UiDialogHeader onClose={isCreating ? undefined : onCancel} title={t("team.create_room")} titleId={titleId} />
             <UiDialogBody className="px-5 py-4">
               <UiField
                 error={error ? t("team.error_create") : undefined}
-                htmlFor="online-room-name"
+                htmlFor={nameId}
                 label={t("team.room_name")}
                 required
               >
                 <UiInput
                   disabled={isCreating}
-                  id="online-room-name"
+                  id={nameId}
                   maxLength={100}
                   onChange={(event) => setName(event.target.value)}
                   required

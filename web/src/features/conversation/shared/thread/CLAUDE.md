@@ -13,3 +13,5 @@
 - `transcript` 保留完整轮次、内部身份头和过程时间轴；`inspector` 由外层 Header 独占身份，只显示无左侧线点装饰的执行过程，并隐藏主 Feed 已经承载的用户输入与最终答复。
 
 - Thread 的返回与关闭动作在 `conversation-thread-view.tsx` 使用当前语言键生成可访问名称，图标仅装饰；复用公共 IconButton 和平台 Header，不在子任务或移动端复制导航按钮。
+
+Thread 滚动区域通过具名 region/tabIndex 提供键盘滚动；头像无条件提供 fallback，由图片加载状态决定展示。默认副标题使用当前语言键。

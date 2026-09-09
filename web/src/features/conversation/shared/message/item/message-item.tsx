@@ -65,7 +65,7 @@ function MessageItemInner({
     <div
       className={cn(
         "nexus-chat-message-round w-full min-w-0 space-y-1 py-3",
-        animateEntry && "animate-in fade-in slide-in-from-bottom-2 duration-300",
+        animateEntry && "motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:duration-300",
         compact ? "nexus-chat-message-round-compact" : "nexus-chat-message-round-expanded",
         className,
       )}

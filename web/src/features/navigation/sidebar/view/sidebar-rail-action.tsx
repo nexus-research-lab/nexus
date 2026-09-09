@@ -51,6 +51,7 @@ export function SidebarRailAction({
   layout,
   supplementalLabel,
   type = "button",
+  title = label,
   ...props
 }: SidebarRailActionProps) {
   return (
@@ -66,6 +67,7 @@ export function SidebarRailAction({
         BUTTON_LAYOUT_CLASS_NAMES[layout],
         className,
       )}
+      title={title}
       type={type}
       {...props}
     >

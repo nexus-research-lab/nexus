@@ -193,3 +193,27 @@ it.each(["zh", "en"] as const)("does not expose the internal execution Agent whe
   expect(screen.getByText("Nova")).toBeTruthy();
   expect(result.container.textContent).not.toContain(task.agent_id);
 });
+
+
+it("closes a resolved attention surface when a new attempt starts", async () => {
+  const failed = { ...TASK, last_error: "old attempt private error", failure_streak: 1 };
+  const { rerender } = render(view(failed));
+  await userEvent.setup().click(screen.getByRole("button", { name: /查看.*详情/ }));
+  expect(screen.getByRole("dialog").textContent).toContain("old attempt private error");
+  rerender(view({ ...failed, running: true, running_started_at: Date.now() }));
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(screen.queryByText(/old attempt private error/)).toBeNull();
+});
+
+
+it("localizes an open deletion review without exposing stale permission actions", async () => {
+  const task = { ...TASK, name: "Review task", instruction: "Work", deletion_state: "review_required" };
+  const { rerender } = render(view(task, vi.fn(), "en"));
+  await userEvent.setup().click(screen.getByRole("button", { name: /View details:/ }));
+  const dialog = screen.getByRole("dialog");
+  expect(dialog.textContent).not.toMatch(/[\u4e00-\u9fff]/);
+  expect(screen.getByRole("button", { name: "Confirm stopped and continue deletion" })).toBeTruthy();
+  rerender(view(task, vi.fn(), "zh"));
+  expect(screen.getByRole("button", { name: "确认已停止，继续删除" })).toBeTruthy();
+  expect(screen.getByRole("dialog")).toBe(dialog);
+});

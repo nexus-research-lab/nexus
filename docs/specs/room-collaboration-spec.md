@@ -68,18 +68,18 @@ correlation_id 是可选的不透明关联值，只用于日志、诊断和 UI �
 
 ### 3.6 Initial empty state
 
-新 Room 的 public feed 为空时，前端可以静态展示协作建议。该空态不是 public fact，不写入 ledger、不调用模型，也不创建 round、handoff、Goal 或 Execution。用户选择建议后生成普通公开输入；group Room 只有显式 `@AgentName` 才唤醒 Agent，主持 Agent 身份本身不产生默认接管。
+新 Room 的 public feed 为空时，前端可以静态展示协作建议。该空态不是 public fact，不写入 ledger、不调用模型，也不创建 round、handoff、Goal 或 Execution。用户选择建议后生成普通公开输入；本地 group Room 服从下节目标解析；主持 Agent 身份本身不产生默认接管，必须同时启用自动接管设置。
 
 ## 4. 公区输入与 Agent handoff
 
 ### 4.1 用户输入的目标解析
 
-用户向 group Room 发送消息时，后端只接受以下显式目标：
+用户向本地 group Room 发送消息时，后端优先解析以下显式目标：
 
 1. 请求中的显式 target_agent_ids。
 2. 正文中可解析的 Agent @ 别名。
 
-没有目标时保存并广播用户消息，但不启动 Agent。主持 Agent 仍需被显式 `@`；单 Agent DM 可以默认选择唯一成员。用户定向消息无论 Room 是否同时存在 managed Execution 都进入 conversation round；它不携带 WorkBinding/ReviewBinding。受管 work/review 不复用这组自然语言路由，而由各自 durable outbox 按精确 binding 启动。
+没有显式目标时，仅当已保存有效成员 `host_agent_id` 且 `host_auto_reply_enabled=true`，才以 `room_host_default` 唤醒该群主；浏览器输入同样遵守此设置，暂停参与的群主仍受参与闸门限制。未开启接管或群主无效时，保存并广播用户消息但不启动 Agent；单 Agent DM 可以默认选择唯一成员。在线 Team/Relay 群聊继续只接受显式目标，不套用本地 Room 接管设置。用户定向消息无论 Room 是否同时存在 managed Execution 都进入 conversation round；它不携带 WorkBinding/ReviewBinding。受管 work/review 不复用这组自然语言路由，而由各自 durable outbox 按精确 binding 启动。
 
 ### 4.2 Agent 的公开回复
 

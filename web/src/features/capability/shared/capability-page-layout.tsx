@@ -387,19 +387,19 @@ export function CapabilityDetailSplitLayout({
 }: CapabilityDetailSplitLayoutProps) {
   return (
     <div
-      className={cn("w-full max-w-[1180px]", className)}
+      className={cn("@container/capability-detail w-full max-w-[1180px]", className)}
       data-slot="capability-detail-layout"
     >
       {header ? <div className="mb-6">{header}</div> : null}
-      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,760px)_minmax(280px,360px)] xl:gap-8">
+      <div className="grid items-start gap-5 @[960px]/capability-detail:grid-cols-[minmax(0,760px)_minmax(280px,360px)] @[960px]/capability-detail:gap-8">
         <aside
-          className="min-w-0 xl:col-start-2 xl:row-start-1"
+          className="min-w-0 @[960px]/capability-detail:col-start-2 @[960px]/capability-detail:row-start-1"
           data-slot="capability-detail-aside"
         >
           {aside}
         </aside>
         <div
-          className="min-w-0 xl:col-start-1 xl:row-start-1"
+          className="min-w-0 @[960px]/capability-detail:col-start-1 @[960px]/capability-detail:row-start-1"
           data-slot="capability-detail-main"
         >
           {children}

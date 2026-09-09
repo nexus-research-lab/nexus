@@ -108,3 +108,13 @@ describe("Connector detail surfaces", () => {
     expect(screen.queryByText(/7 天|7 days/)).toBeNull();
   });
 });
+
+it("keeps the current detail visible during refresh but hides it after access is lost", () => {
+  const props = actions();
+  const view = render(<ConnectorDetailView {...props} loading />, { wrapper: I18nProvider });
+  expect(screen.getByRole("heading", { name: "RichMail" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Add to Nexus" }).hasAttribute("disabled")).toBe(true);
+  view.rerender(<ConnectorDetailView {...props} failure={{ access: "forbidden", message: "hidden" }} />);
+  expect(screen.queryByRole("heading", { name: "RichMail" })).toBeNull();
+  expect(screen.getByRole("status").getAttribute("data-resource-state")).toBe("error");
+});

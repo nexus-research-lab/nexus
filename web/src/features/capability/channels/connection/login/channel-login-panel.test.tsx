@@ -29,7 +29,7 @@ describe("ChannelLoginPanel", () => {
     const onSubmitVerifyCode = vi.fn().mockResolvedValue(true);
     const { container } = render(
       <I18N_CONTEXT.Provider
-        value={{ locale: "zh", setLocale: vi.fn(), t: (key) => key }}
+        value={{ locale: "zh", setLocale: vi.fn(), t: (key) => MESSAGES.zh[key] }}
       >
         <ChannelLoginPanel
           channelTitle="Telegram"
@@ -46,7 +46,7 @@ describe("ChannelLoginPanel", () => {
     expect(screen.getByRole("heading", { name: "扫码连接" }).className)
       .toContain("ui-type-control");
     expect(screen.getByText(LOGIN.user_id).className).toContain("ui-type-code");
-    expect(screen.getByRole("img", { name: "capability.channel_login_qr_alt" }).className)
+    expect(screen.getByRole("img", { name: MESSAGES.zh["capability.channel_login_qr_alt"] }).className)
       .toContain("surface-radius-sm");
     expect(container.querySelectorAll("section.surface-radius-sm").length).toBeGreaterThan(1);
 

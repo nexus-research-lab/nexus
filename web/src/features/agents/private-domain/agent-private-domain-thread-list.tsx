@@ -92,7 +92,7 @@ function PrivateThreadListContent({
   switch (presentation.kind) {
     case "loading":
       return (
-        <div className={layout.containerClassName}>
+        <div aria-label={t("common.loading")} aria-busy="true" role="status" className={layout.containerClassName}>
           <Loader2
             className={getUiSpinnerClassName({ size: "lg", tone: "muted" })}
           />

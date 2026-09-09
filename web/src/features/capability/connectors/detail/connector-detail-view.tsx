@@ -148,9 +148,12 @@ export function ConnectorDetailView({
     null,
     detailIdentity(detail),
   );
-  const mcpTools = useConnectorMCPTools(detail);
+  const mcpTools = useConnectorMCPTools(failure?.access ? null : detail);
 
-  if (loading) {
+  if (failure?.access) {
+    return <ConnectorDetailFailure onBack={onBack} onRetry={onRetry} />;
+  }
+  if (loading && !detail) {
     return <ConnectorDetailLoading detail={detail} onBack={onBack} />;
   }
   if (failure && !detail) {
@@ -176,6 +179,8 @@ export function ConnectorDetailView({
           primaryAction={{
             label: t("capability.connector_detail_refresh"),
             onClick: onRetry,
+            disabled: loading,
+            busy: loading,
           }}
           size="sm"
           state="error"
@@ -184,7 +189,7 @@ export function ConnectorDetailView({
       ) : null}
       <div>
         <ConnectorDetailHeader
-          busy={busy}
+          busy={busy || loading}
           detail={detail}
           onConfigureCredential={onConfigureCredential}
           onConfigureOauthClient={onConfigureOauthClient}

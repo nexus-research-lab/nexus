@@ -43,6 +43,7 @@ import {
 
 interface CustomMCPDialogProps {
   busy: boolean;
+  blocked?: boolean;
   onClose: () => void;
   onSave: (input: CustomMCPServerInput) => Promise<boolean>;
   server?: CustomMCPServer;
@@ -53,6 +54,7 @@ const AUTH_TYPES: CustomMCPAuthType[] = ["none", "bearer", "headers"];
 
 export function CustomMCPDialog({
   busy,
+  blocked = false,
   onClose,
   onSave,
   server,
@@ -74,6 +76,7 @@ export function CustomMCPDialog({
   };
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (busy || blocked) return;
     const error = validateCustomMCPDraft(draft);
     setValidationError(error);
     if (error) return;
@@ -90,6 +93,7 @@ export function CustomMCPDialog({
         onClose={busy ? undefined : onClose}
       >
         <UiDialogFormShell
+          aria-busy={busy}
           onSubmit={(event) => void submit(event)}
           size="lg"
           viewport="adaptiveMax"
@@ -104,7 +108,8 @@ export function CustomMCPDialog({
               : t("capability.custom_mcp_add_title")}
             titleId={`${dialogId}-title`}
           />
-          <UiDialogBody className="space-y-5" scrollable>
+          <UiDialogBody scrollable>
+            <fieldset className="space-y-5" disabled={busy || blocked}>
             {recoveryRequired ? (
               <UiInlineNotice
                 message={t("capability.custom_mcp_recovery_form_description")}
@@ -152,13 +157,14 @@ export function CustomMCPDialog({
             ) : (
               <RemoteFields draft={draft} updateDraft={updateDraft} />
             )}
+            </fieldset>
           </UiDialogBody>
           <UiDialogFooter appearance="plain">
             <UiButton disabled={busy} onClick={onClose} type="button">
               {t("common.cancel")}
             </UiButton>
             <UiButton
-              disabled={busy}
+              disabled={busy || blocked}
               tone="primary"
               type="submit"
               variant="solid"

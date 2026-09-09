@@ -1,15 +1,11 @@
-/**
- * =====================================================
- * @File   : theme-context.ts
- * @Date   : 2026-04-04 18:06
- * @Author : leemysw
- * 2026-04-04 18:06   Create
- * =====================================================
- */
+// INPUT: 保存的主题偏好与系统配色。
+// OUTPUT: 当前主题身份、文档颜色和背景投影。
+// POS: 主题定义与 Context；可选存储失败由 theme-storage 容错。
 
 "use client";
 
 import { createContext, useContext } from "react";
+import { readThemePreference } from "./theme-storage";
 import { applyThemeBackgroundPattern } from "./theme-background-pattern";
 
 export type Theme = "light" | "dark" | "sunny" | "rain";
@@ -32,7 +28,7 @@ export function detectInitialTheme(): Theme {
     return "light";
   }
 
-  const savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+  const savedTheme = readThemePreference(THEME_STORAGE_KEY);
   if (
     savedTheme === "light" ||
     savedTheme === "dark" ||

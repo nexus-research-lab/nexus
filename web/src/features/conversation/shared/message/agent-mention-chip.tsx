@@ -61,7 +61,7 @@ export function AgentMentionChip({
       className={cn(
         "mx-0.5 inline-flex max-w-full items-center gap-1 rounded-full border px-1.5 py-0.5 align-middle text-[0.9em] font-medium leading-tight transition-colors",
         "border-primary/20 bg-primary/8 text-primary",
-        interactive && "cursor-pointer hover:border-primary/40 hover:bg-primary/14",
+        interactive && "cursor-pointer hover:border-primary/40 hover:bg-primary/14 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]",
         !interactive && "cursor-default",
       )}
       disabled={!interactive}

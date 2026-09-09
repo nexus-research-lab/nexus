@@ -94,7 +94,7 @@ export function ConnectorCredentialDialog({
 
   const copy = getCredentialCopy(detail, t);
   return (
-    <UiDialogBackdrop onClose={onClose}>
+    <UiDialogBackdrop labelledBy={`${credentialId}-title`} onClose={onClose}>
       <UiDialogFormShell
         aria-busy={busy}
         onSubmit={handleSubmit}
@@ -103,6 +103,7 @@ export function ConnectorCredentialDialog({
       >
         <UiDialogHeader
           appearance="plain"
+            titleId={`${credentialId}-title`}
           onClose={onClose}
           title={t("capability.credential_title", { title: detail.title })}
         />

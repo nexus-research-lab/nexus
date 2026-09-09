@@ -341,6 +341,7 @@ export function TaskSchedulePanel({
             : undefined}
           size="sm"
           state="error"
+          tone={mutationFailure.effect === "not_applied" ? "danger" : "warning"}
           title={t(mutationFailure.effect === "not_applied"
               ? "capability.scheduled_mutation_not_applied_title"
             : mutationFailure.effect === "accepted"

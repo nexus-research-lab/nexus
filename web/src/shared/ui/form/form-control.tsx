@@ -116,9 +116,10 @@ export function UiField({
   const invalidTargetRef = useRef<
     HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null
   >(null);
-  const [nativeError, setNativeError] = useState<{ controlId: string; message: string } | null>(null);
-  const labelError = label && !error ? nativeError?.message : null;
-  const contentError = error ?? (!label ? nativeError?.message : null);
+  const [nativeError, setNativeError] = useState<{ controlId: string; messageKey: "common.required_field" | "common.invalid_field" } | null>(null);
+  const nativeErrorMessage = nativeError ? t(nativeError.messageKey) : null;
+  const labelError = label && !error ? nativeErrorMessage : null;
+  const contentError = error ?? (!label ? nativeErrorMessage : null);
   const visibleDescriptionId = description && !contentError ? descriptionId : undefined;
 
   const clearNativeError = () => {
@@ -151,7 +152,7 @@ export function UiField({
     invalidTargetRef.current = target;
     setNativeError({
       controlId: target.id,
-      message: t(target.validity.valueMissing ? "common.required_field" : "common.invalid_field"),
+      messageKey: target.validity.valueMissing ? "common.required_field" : "common.invalid_field",
     });
     target.focus();
   };
@@ -167,7 +168,7 @@ export function UiField({
     if (!target.validity.valid) {
       setNativeError({
         controlId: target.id,
-        message: t(target.validity.valueMissing ? "common.required_field" : "common.invalid_field"),
+        messageKey: target.validity.valueMissing ? "common.required_field" : "common.invalid_field",
       });
       return;
     }

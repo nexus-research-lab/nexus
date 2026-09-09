@@ -1,7 +1,7 @@
 /**
  * INPUT: 权威 Execution Graph、Agent 目录、当前 Graph 节点、节点展示密度与精确 Agent round Task run。
  * OUTPUT: 在焦点稳定、全边界可达且不叠加伪主图底框的工作板上显示图标或可读摘要卡片、可整体悬停聚焦的子图、正交流程边、唯一节点/边检查器外壳、公共静态运行活动行、共享关闭动作、统一节点/运行耗时及完整交互的大图弹窗。
- * POS: DM/Room 共用的只读 Execution Graph 主视图；一级运行树外框与内部方向边只按结构化父身份投影，不从自由文本反推关系。
+ * POS: DM/Room 共用的只读 Execution Graph 主视图；历史 Task 按节点 Attempt 隔离，文件操作使用真实节点工作区身份；一级运行树外框与内部方向边只按结构化父身份投影，不从自由文本反推关系。
  */
 "use client";
 
@@ -54,6 +54,7 @@ import { resolveExecutionNodeTaskRun } from "./execution-node-task-model";
 import {
   compactExecutionNodeObjective,
   normalizeExecutionNodeDisplayText,
+  orderedExecutionGraphNodes,
   resolveExecutionGraphNodeAgent,
   resolveExecutionGraphNodeStatus,
   type ExecutionAgentDirectory,
@@ -287,7 +288,7 @@ export function ExecutionWorkGraphCanvas({
     ) ?? null
     : null;
   const selectedTaskRun = selectedItem && selectedLayoutNode?.node.kind === "agent"
-    ? resolveExecutionNodeTaskRun(selectedItem, taskRuns)
+    ? resolveExecutionNodeTaskRun(selectedItem, taskRuns, selectedLayoutNode.node.attempt_id)
     : null;
   const selectedInspectorStyle = selectedLayoutNode
     ? resolveNodeInspectorStyle(
@@ -311,11 +312,11 @@ export function ExecutionWorkGraphCanvas({
   useEffect(() => {
     if (
       selectedId
-      && !(execution.graph?.nodes ?? []).some((node) => node.id === selectedId)
+      && !orderedExecutionGraphNodes(execution).some((node) => node.id === selectedId)
     ) {
       setSelectedId(null);
     }
-  }, [execution.graph?.nodes, selectedId]);
+  }, [execution, selectedId]);
 
   useEffect(() => {
     if (selectedEdgeId && !layout.edges.some((edge) => edge.id === selectedEdgeId)) {
@@ -457,6 +458,30 @@ export function ExecutionWorkGraphCanvas({
     viewportSize.width,
     zoom,
   ]);
+
+  // React delegates wheel/touch listeners as passive. Cancel native browser
+  // scrolling/zooming at the viewport before React applies the graph transform.
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const preventWheelDefault = (event: WheelEvent) => {
+      if (event.ctrlKey || event.metaKey
+        || (event.shiftKey && Math.abs(event.deltaY) > Math.abs(event.deltaX))) {
+        event.preventDefault();
+      }
+    };
+    const preventPinchDefault = (event: TouchEvent) => {
+      if (event.touches.length === 2) event.preventDefault();
+    };
+    viewport.addEventListener("wheel", preventWheelDefault, { passive: false });
+    viewport.addEventListener("touchstart", preventPinchDefault, { passive: false });
+    viewport.addEventListener("touchmove", preventPinchDefault, { passive: false });
+    return () => {
+      viewport.removeEventListener("wheel", preventWheelDefault);
+      viewport.removeEventListener("touchstart", preventPinchDefault);
+      viewport.removeEventListener("touchmove", preventPinchDefault);
+    };
+  }, []);
 
   const revealNode = (nodeId: string | null) => {
     if (!nodeId) {
@@ -1653,7 +1678,7 @@ function ExecutionNodeInspector({
         item={item}
         node={node}
         onOpenWorkspaceFile={onOpenWorkspaceFile}
-        workspaceAgentId={owner?.id ?? node.agent_id}
+        workspaceAgentId={node.agent_id?.trim() || parentNode?.agent_id?.trim() || null}
       />
       {childNodes.length > 0 ? (
         <ExecutionNodeRunList

@@ -64,8 +64,17 @@ describe("Assistant process disclosure", () => {
     },
   );
 
+  it("isolates disclosure targets when the same process appears in two surfaces", () => {
+    const { container } = render(<>{view("dm_live", false)}{view("room_thread", false)}</>);
+    const toggles = Array.from(container.querySelectorAll('[data-tool-run-id] button[aria-expanded]'));
+    expect(toggles).toHaveLength(2);
+    expect(toggles[0].getAttribute("aria-controls")).not.toBe(toggles[1].getAttribute("aria-controls"));
+    toggles.forEach((toggle) => fireEvent.click(toggle));
+    toggles.forEach((toggle) => expect(document.getElementById(toggle.getAttribute("aria-controls")!)).toBeTruthy());
+  });
+
   it("Thought stays collapsed during streaming and preserves manual state at completion", () => {
-    const thought = (streaming: boolean) => <ThinkingBlock thinking="Inspect the source" isStreaming={streaming} />;
+    const thought = (streaming: boolean) => <I18nProvider><ThinkingBlock thinking="Inspect the source" isStreaming={streaming} /></I18nProvider>;
     const { container, rerender } = render(thought(false));
     const toggle = container.querySelector('button[aria-expanded]')!;
     expect(toggle.getAttribute("aria-expanded")).toBe("false");

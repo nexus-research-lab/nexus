@@ -38,6 +38,14 @@ const CONVERSATIONS = [
 ] as RoomConversationView[];
 
 describe("RoomMobileConversationSwitcher", () => {
+  it("orders live activity like desktop history without mutating the directory", () => {
+    render(<I18nProvider><RoomMobileConversationSwitcher activeConversationId={null} conversations={CONVERSATIONS}
+      isOpen onClose={vi.fn()} onSelect={vi.fn()} /></I18nProvider>);
+    const rows = within(screen.getByRole("dialog")).getAllByRole("button").filter((button) => button.getAttribute("role") === "button");
+    expect(rows.map((row) => row.textContent)).toEqual([expect.stringContaining("交付检查"), expect.stringContaining("产品讨论")]);
+    expect(CONVERSATIONS[0].conversation_id).toBe("conversation-1");
+  });
+
   it.each(["en", "zh"] as const)("uses %s time labels and explains an empty history without exposing drafts", (locale: Locale) => {
     const props = { activeConversationId: null, isOpen: true, onClose: vi.fn(), onSelect: vi.fn() };
     const wrapper = ({ children }: { children: React.ReactNode }) => <I18N_CONTEXT.Provider value={{ locale, setLocale: vi.fn(), t: (key) => MESSAGES[locale][key] }}>{children}</I18N_CONTEXT.Provider>;
@@ -86,7 +94,7 @@ describe("RoomMobileConversationSwitcher", () => {
       await waitFor(() => expect(document.activeElement).toBe(close));
       expect(document.body.style.overflow).toBe("hidden");
       await user.keyboard("{Shift>}{Tab}{/Shift}");
-      expect(document.activeElement).toBe(within(dialog).getByRole("button", { name: /交付检查/ }));
+      expect(document.activeElement).toBe(within(dialog).getByRole("button", { name: /产品讨论/ }));
       await user.keyboard("{Tab}");
       expect(document.activeElement).toBe(close);
       await screen.findByRole("tooltip", { name: "Close" });

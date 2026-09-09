@@ -20,6 +20,7 @@ import {
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
+import { WorkspaceIconFrame } from "@/shared/ui/workspace/catalog/workspace-icon-frame";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
@@ -79,9 +80,9 @@ export function ConversationEmptyIntroduction({
           {kind === "dm" ? (
             <UiAgentAvatar avatar={agentAvatar} name={name} size="lg" />
           ) : (
-            <span className="flex h-14 w-14 items-center justify-center rounded-[12px] border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-(--icon-muted) shadow-(--surface-avatar-shadow)">
-              <MessagesSquare className="-translate-x-0.5 h-6 w-6" />
-            </span>
+            <WorkspaceIconFrame size="lg">
+              <MessagesSquare aria-hidden className="-translate-x-0.5 h-6 w-6" />
+            </WorkspaceIconFrame>
           )}
         </div>
         <h2 className={`mx-auto mt-5 max-w-[32rem] text-balance text-center ${getUiTypographyClassName({

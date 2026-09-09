@@ -21,7 +21,6 @@ import {
 } from "@/shared/ui/feedback/feedback-banner-contract";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
-import { UiStateBlock } from "@/shared/ui/display/state-block";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 
 import { CreatePairingDialog } from "./pairings/pairing-create-dialog";
@@ -56,6 +55,7 @@ export function PairingsDirectory() {
           actions={(
             <div className="flex items-center gap-2">
               <UiButton
+                disabled={controller.loading}
                 onClick={() => void controller.refresh()}
                 size="2xs"
                 variant="text"
@@ -68,8 +68,8 @@ export function PairingsDirectory() {
                 onClick={controller.openCreate}
                 size="2xs"
                 title={controller.agents.length === 0
-                  ? "需要先创建智能体"
-                  : "新增 IM 配对"}
+                  ? t("capability.pairing_need_agent")
+                  : t("capability.pairing_new_im")}
                 tone="primary"
                 variant="text"
               >
@@ -82,8 +82,9 @@ export function PairingsDirectory() {
           title={t("capability.pairings_intro_title")}
         >
           {controller.loading && controller.items.length === 0 ? (
-            <UiStateBlock
+            <UiResourceState
               size="sm"
+              state="loading"
               title={t("capability.pairings_loading_title")}
             />
           ) : controller.readFailed && controller.items.length === 0 ? (
@@ -148,14 +149,14 @@ export function PairingsDirectory() {
 
       <FeedbackBannerViewport item={feedbackItem} />
       <ConfirmDialog
-        confirmText="删除配对"
+        confirmText={t("capability.pairing_delete")}
         isOpen={controller.deleteTarget !== null}
         message={controller.deleteTarget
-          ? `确认删除 ${controller.deleteTarget.external_name || controller.deleteTarget.external_ref} 的配对吗？删除后该外部对象需要重新授权。`
+          ? t("capability.pairing_delete_confirm", { name: controller.deleteTarget.external_name || controller.deleteTarget.external_ref })
           : ""}
         onCancel={() => controller.requestDelete(null)}
         onConfirm={controller.confirmDelete}
-        title="删除配对"
+        title={t("capability.pairing_delete")}
         variant="danger"
       />
     </>
@@ -183,7 +184,7 @@ function PairingEmptyState({
         icon: <Plus className="h-3.5 w-3.5" />,
         label: canCreate
           ? t("capability.pairings_create")
-          : "需要先创建智能体",
+          : t("capability.pairing_need_agent"),
         onClick: onCreate,
         tone: "primary",
       }}

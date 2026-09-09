@@ -95,6 +95,7 @@ export function useChatSidebarController({
   const [isOnlineCreateOpen, setIsOnlineCreateOpen] = useState(false);
   const [isOnlineCreating, setIsOnlineCreating] = useState(false);
   const [onlineCreateError, setOnlineCreateError] = useState(false);
+  const onlineCreatingRef = useRef(false);
   const onlineCreateCommandRef = useRef<{ id: string; name: string } | null>(null);
   const activeTarget = useMemo(
     () => getActiveChatTargetFromPath(location.pathname),
@@ -340,13 +341,14 @@ export function useChatSidebarController({
 
   const submitOnlineCreate = useCallback(async (name: string) => {
     const normalized = name.trim();
-    if (!normalized || isOnlineCreating) {
+    if (!normalized || onlineCreatingRef.current) {
       return;
     }
     const command = onlineCreateCommandRef.current?.name === normalized
       ? onlineCreateCommandRef.current
       : { id: crypto.randomUUID(), name: normalized };
     onlineCreateCommandRef.current = command;
+    onlineCreatingRef.current = true;
     setIsOnlineCreating(true);
     setOnlineCreateError(false);
     try {
@@ -358,9 +360,10 @@ export function useChatSidebarController({
     } catch {
       setOnlineCreateError(true);
     } finally {
+      onlineCreatingRef.current = false;
       setIsOnlineCreating(false);
     }
-  }, [isOnlineCreating, navigate, onlineRooms]);
+  }, [navigate, onlineRooms]);
 
   return {
     create: {

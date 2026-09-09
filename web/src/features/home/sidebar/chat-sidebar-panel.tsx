@@ -144,9 +144,7 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
         isCreating={controller.create.isCreating}
         isOpen={controller.create.isOpen}
         onCancel={controller.create.cancel}
-        onConfirm={(submission) => {
-          void controller.create.submit(submission);
-        }}
+        onConfirm={controller.create.submit}
       />
       <CreateOnlineRoomDialog
         error={controller.onlineCreate.error}

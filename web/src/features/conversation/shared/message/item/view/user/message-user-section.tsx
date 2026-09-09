@@ -30,7 +30,12 @@ interface MessageUserSectionProps {
   workspaceAgentId?: string | null;
 }
 
-export function MessageUserSection({
+export function MessageUserSection(props: MessageUserSectionProps) {
+  const { message } = props;
+  return <MessageUserSectionContent key={JSON.stringify([message.session_key, message.agent_id, message.message_id, message.round_id])} {...props} />;
+}
+
+function MessageUserSectionContent({
   compact,
   agentMentionDirectory,
   message,

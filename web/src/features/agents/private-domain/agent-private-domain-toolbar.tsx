@@ -29,6 +29,7 @@ export function PrivateDomainToolbar({
         <span className={cn("tabular-nums", getUiTypographyClassName({ role: "caption", tone: "soft" }))}>{count}</span>
       </div>
       <UiIconButton
+        aria-busy={isLoading}
         aria-label={refreshLabel}
         disabled={isLoading}
         onClick={onRefresh}

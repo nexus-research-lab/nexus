@@ -2,6 +2,15 @@ import type { MessageSegment } from "../message-segment";
 import type { zhConversationMessages } from "../zh/conversation";
 
 export const enConversationMessages = {
+  "room.history_mutation_unconfirmed": "This change could not be confirmed. Check the current conversation before making further changes.",
+  "room.host_unset": "Not set",
+  "room.host_label": "Host",
+  "room.host_select_label": "Select host",
+  "room.host_auto_reply_label": "Let the host respond or coordinate when no member is mentioned",
+  "room.private_messages_label": "Allow members to collaborate privately",
+  "room.skill_remove_label": "Remove {name}",
+  "room.save_unconfirmed": "Changes could not be confirmed. Check the current group settings.",
+  "room.loading_conversation": "Loading conversation…",
   "tasks.label": "Progress",
   "tasks.switch_agent": "Switch progress agent",
   "tasks.step_progress": "Step {current} / {total}",
@@ -928,6 +937,11 @@ export const enConversationMessages = {
   "composer.enter_send": "Send",
   "composer.history_position": "History {current}/{total}",
   "composer.current_runtime": "Current runtime: {runtime}",
+  "message.thought": "Thought",
+  "generative_ui.title": "Interactive content",
+  "message.image_missing_data": "Image data is unavailable",
+  "message.generated_image": "Generated image",
+  "message.avatar_details": "View avatar details",
   "message.guidance": "Additional guidance",
   "message.rerun": "Run again",
   "message.edit": "Edit message",

@@ -11,6 +11,16 @@ import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
 import type { AgentContact } from "@/types/agent/agent";
 import { AgentCommunicationView } from "./agent-communication-view";
 
+const followState = vi.hoisted(() => ({ visible: false, scrollToBottom: vi.fn() }));
+vi.mock("@/features/conversation/shared/timeline/scroll/use-follow-scroll", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/features/conversation/shared/timeline/scroll/use-follow-scroll")>();
+  return { useFollowScroll: (options: Parameters<typeof actual.useFollowScroll>[0]) => ({
+    ...actual.useFollowScroll(options),
+    showScrollToBottom: followState.visible,
+    scrollToBottom: followState.scrollToBottom,
+  }) };
+});
+
 vi.mock("@/features/conversation/shared/composer/composer-panel", () => ({
   ComposerPanel: () => <div>Composer boundary</div>,
 }));
@@ -20,7 +30,11 @@ beforeEach(() => vi.stubGlobal("matchMedia", (media: string) => ({
   media, matches: false, onchange: null,
   addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, dispatchEvent: () => true,
 })));
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  followState.visible = false;
+  followState.scrollToBottom.mockClear();
+});
 
 const contacts: AgentContact[] = ["Alpha", "Beta"].map((name) => ({
   id: name, contact_agent_id: name, owner_agent_id: "owner", name,
@@ -87,4 +101,17 @@ it("does not close a new Agent's confirmation when an old removal finishes", asy
   await act(async () => finish(true));
   expect(screen.getByRole("dialog")).toBe(current);
   expect(within(current).getByText("agent_options.contact.remove_friend_confirm Beta")).toBeTruthy();
+});
+
+
+it("projects the shared reading state into the standard return-to-latest action", async () => {
+  const { rerender } = render(view());
+  expect(screen.queryByRole("button", { name: "room.scroll_to_latest" })).toBeNull();
+  followState.visible = true;
+  rerender(view());
+  await userEvent.click(screen.getByRole("button", { name: "room.scroll_to_latest" }));
+  expect(followState.scrollToBottom).toHaveBeenCalledExactlyOnceWith();
+  followState.visible = false;
+  rerender(view());
+  expect(screen.queryByRole("button", { name: "room.scroll_to_latest" })).toBeNull();
 });

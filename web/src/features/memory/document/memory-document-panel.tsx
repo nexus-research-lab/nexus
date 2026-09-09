@@ -72,7 +72,7 @@ export function MemoryDocumentPanel({
   }
   if (controller.resourceError?.access) {
     return (
-      <div className="nexus-memory-document flex min-h-0 min-w-0 flex-col">
+      <div className="nexus-memory-document @container/memory-document flex min-h-0 min-w-0 flex-col">
         <div className="nexus-memory-compact-only nexus-memory-document-content shrink-0 py-3">
           <UiButton onClick={onBack} size="sm" variant="ghost">
             <ArrowLeft aria-hidden className="h-4 w-4" />
@@ -94,7 +94,7 @@ export function MemoryDocumentPanel({
     );
   }
   return (
-    <div className="nexus-memory-document flex min-h-0 min-w-0 flex-col">
+    <div className="nexus-memory-document @container/memory-document flex min-h-0 min-w-0 flex-col">
       <MemoryDocumentHeader
         controller={controller}
         deleteBusy={deleteBusy}
@@ -160,11 +160,12 @@ function MemoryDocumentAlerts({
   const stale = staleDays > MEMORY_STALE_AFTER_DAYS;
   const commandError = controller.commandError;
   const resourceFailure = controller.resourceError;
+  const hasLoadedContent = controller.revision !== null || controller.content !== "";
   if (
     !stale
     && !commandError
     && !controller.saveIssue
-    && !(resourceFailure && !resourceFailure.access && controller.content)
+    && !(resourceFailure && !resourceFailure.access && hasLoadedContent)
   ) {
     return null;
   }
@@ -194,7 +195,7 @@ function MemoryDocumentAlerts({
       {controller.saveIssue ? (
         <MemorySaveIssueNotice controller={controller} />
       ) : null}
-      {resourceFailure && !resourceFailure.access && controller.content ? (
+      {resourceFailure && !resourceFailure.access && hasLoadedContent ? (
         <UiResourceState
           className="min-h-0 py-3"
           impact={t("capability.memory_stale_document_impact")}
@@ -231,6 +232,7 @@ function MemorySaveIssueNotice({
           className="min-h-0 py-3"
           impact={t("capability.memory_conflict_review_impact")}
           primaryAction={{
+            disabled: controller.isSaving || controller.isReconciling,
             label: t("capability.memory_use_latest"),
             onClick: controller.adoptLatest,
           }}
@@ -316,13 +318,14 @@ function MemoryDocumentBody({
       : [],
     [controller.content, document.kind],
   );
-  if (controller.isLoading && !controller.content) {
+  const hasLoadedContent = controller.revision !== null || controller.content !== "";
+  if (controller.isLoading && !hasLoadedContent) {
     return (
       <UiResourceState className="min-h-[260px]" size="sm" state="loading"
         title={t("common.loading")} variant="plain" />
     );
   }
-  if (controller.resourceError && !controller.content) {
+  if (controller.resourceError && !hasLoadedContent) {
     return (
       <UiResourceState
         impact={t("state.read_failure_impact")}
@@ -382,7 +385,7 @@ function MemoryConflictReview({
 }) {
   const { t } = useI18n();
   return (
-    <div className="nexus-memory-document-content grid min-h-0 flex-1 gap-2 py-4 lg:grid-cols-2">
+    <div className="nexus-memory-document-content grid min-h-0 flex-1 gap-2 py-4 @min-[640px]/memory-document:grid-cols-2">
       <section className="flex min-h-[240px] min-w-0 flex-col radius-control-md border border-[color:color-mix(in_srgb,var(--warning)_26%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--warning)_4%,transparent)]">
         <h3 className={cn("shrink-0 px-3 pb-2 pt-3", getUiTypographyClassName({ role: "metadata", tone: "strong", weight: "semibold" }))}>
           {t("capability.memory_local_draft")}

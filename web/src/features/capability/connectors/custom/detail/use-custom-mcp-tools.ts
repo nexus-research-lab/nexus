@@ -58,10 +58,9 @@ export function useCustomMCPTools(server: CustomMCPServer | null) {
       })
       .catch((error: unknown) => {
         if (requestId !== requestIdRef.current) return;
-        setFailure({ identity, value: getResourceFailure(
-          error,
-          t("capability.custom_mcp_tools_load_failed"),
-        ) });
+        const failure = getResourceFailure(error, t("capability.custom_mcp_tools_load_failed"));
+        if (failure.access) setCatalog(null);
+        setFailure({ identity, value: failure });
       })
       .finally(() => {
         if (requestId === requestIdRef.current) setLoading(false);

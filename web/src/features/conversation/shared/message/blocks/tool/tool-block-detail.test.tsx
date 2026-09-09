@@ -2,11 +2,15 @@
 // OUTPUT: 证明短状态复用共享紧凑 Notice，普通宽内容不继承该限制。
 // POS: ToolBlock 结果详情 DOM 合同；mutation 语义解析由纯模型测试负责。
 
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { act, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 import { I18nProvider } from "@/shared/i18n/i18n-provider";
 import type { ToolResultContent } from "@/types/conversation/message/content";
+
+import type { MessageDetailResponse } from "@/types/conversation/history";
+import { getSessionMessageDetailApi } from "@/lib/api/conversation/session-api";
+vi.mock("@/lib/api/conversation/session-api", () => ({ getSessionMessageDetailApi: vi.fn() }));
 
 import { ToolBlockResult } from "./tool-block-detail";
 
@@ -31,6 +35,22 @@ function mutationResult(
 }
 
 describe("ToolBlockResult", () => {
+  it("ignores a late success from a cancelled detail request", async () => {
+    let resolveOld!: (value: MessageDetailResponse) => void;
+    let resolveNew!: (value: MessageDetailResponse) => void;
+    vi.mocked(getSessionMessageDetailApi)
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveOld = resolve; }))
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveNew = resolve; }));
+    const view = (ref: string) => <I18nProvider><ToolBlockResult toolResult={{ type: "tool_result", tool_use_id: "tool", content: "Preview", detail_session_key: "session", detail_ref: ref }} /></I18nProvider>;
+    const { rerender } = render(view("old"));
+    rerender(view("new"));
+    await act(async () => resolveNew({ ref: "new", kind: "tool_result", byte_size: 10, content: "New detail" }));
+    expect(screen.getByText("New detail")).toBeTruthy();
+    await act(async () => resolveOld({ ref: "old", kind: "tool_result", byte_size: 10, content: "Old detail" }));
+    expect(screen.getByText("New detail")).toBeTruthy();
+    expect(screen.queryByText("Old detail")).toBeNull();
+  });
+
   it.each([
     ["rejected", "danger", "terminal_delivery_missing"],
     ["superseded", "neutral", "execution_terminal"],

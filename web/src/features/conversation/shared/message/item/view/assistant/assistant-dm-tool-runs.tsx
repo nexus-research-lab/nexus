@@ -5,7 +5,7 @@
  */
 "use client";
 
-import { useEffect, useMemo, type RefObject } from "react";
+import { useEffect, useId, useMemo, type RefObject } from "react";
 import { Wrench } from "lucide-react";
 
 import { useScrollAnchoredState } from "@/features/conversation/shared/timeline/scroll/use-scroll-anchored-state";
@@ -205,7 +205,7 @@ function ToolRun({
   );
   const phase = active ? "active" : segment.phase;
   const expanded = expansion.isOpen;
-  const contentId = `${segment.id}-content`;
+  const contentId = useId();
   const warning = phase === "error" || phase === "rejected";
   const summary = formatToolRunSummary(
     segment,

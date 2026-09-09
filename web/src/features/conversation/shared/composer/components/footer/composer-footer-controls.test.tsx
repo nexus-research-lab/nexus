@@ -129,6 +129,18 @@ describe("Composer Session settings recovery", () => {
     expect((screen.getByRole("button", { name: "state.retry" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it("does not reopen old read details after recovery or a different session", async () => {
+    const user = userEvent.setup();
+    const failure = { resource: "providers" as ComposerReadResource, title: "目录读取失败", impact: "已有数据保留" };
+    const controller = makeController({ providerFailure: failure });
+    const view = render(<Localized><ComposerSessionSettingsReliability controller={controller} /></Localized>);
+    await user.click(screen.getByRole("button", { name: "目录读取失败" }));
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    view.rerender(<Localized><ComposerSessionSettingsReliability controller={{ ...controller, providerFailure: null }} /></Localized>);
+    view.rerender(<Localized><ComposerSessionSettingsReliability controller={controller} /></Localized>);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
   it("does not offer a no-op retry for a resource outside this controller", () => {
     render(<Localized><ComposerSessionSettingsReliability controller={makeController({
       settingsReadFailure: { resource: "skills" as ComposerReadResource, title: "不可读取", impact: "稍后重开" },

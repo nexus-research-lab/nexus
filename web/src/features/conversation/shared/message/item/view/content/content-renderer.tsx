@@ -1,3 +1,6 @@
+// INPUT: String or structured message content and exact rendering context.
+// OUTPUT: Markdown or structured blocks with independently controlled timeline geometry.
+// POS: Shared content entry; className does not decide behavior.
 "use client";
 
 import { cn } from "@/shared/ui/class-name";
@@ -51,7 +54,7 @@ function MarkdownContent({
       renderLeadingSlashCommand={renderLeadingSlashCommand}
     />
   );
-  if (!className) {
+  if (!className && !showTimelineDots) {
     return markdown;
   }
 

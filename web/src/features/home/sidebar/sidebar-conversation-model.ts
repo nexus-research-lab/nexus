@@ -1,6 +1,7 @@
 // INPUT: Room/Conversation 目录、已订阅的主智能体身份与活动状态。
-// OUTPUT: 主智能体禁删且优先置顶，其余聊天按最新活动排序。
+// OUTPUT: 主智能体禁删且优先置顶，其余聊天按最新活动排序；摘要复用消息协议清理。
 // POS: 聊天目录纯投影，不按名称猜测系统身份。
+import { stripRoomControlMarkers } from "@/features/conversation/shared/message/message-content-model";
 import { getDefaultAgentId } from "@/config/runtime-options";
 import type { TeamRoomView } from "@/lib/api/conversation/team-api";
 import { isExternalSessionChannel } from "@/lib/conversation/external-session";
@@ -161,7 +162,7 @@ function projectConversationItem(
     routeRoomId: room.id,
     activityStatus: context.roomActivity.get(room.id) ?? null,
     sessionKey: latest.session_key,
-    summary: latest.last_reply_preview?.trim() ?? "",
+    summary: stripRoomControlMarkers(latest.last_reply_preview ?? ""),
     timeLabel: formatSidebarTime(lastActivityAt, context.locale),
     title,
   };

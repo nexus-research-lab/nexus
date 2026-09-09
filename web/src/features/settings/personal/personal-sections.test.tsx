@@ -93,3 +93,24 @@ it("shows daily values and switches to the exact table", async () => {
   expect(screen.getByRole("cell", { name: "20" })).toBeTruthy();
   vi.useRealTimers();
 });
+
+
+it("associates password guidance with each form independently and exposes saving", () => {
+  const common = { canChange: true, canSubmit: false, hasInput: true, mutationBlocked: false,
+    draft: { currentPassword: "old", newPassword: "new", confirmPassword: "new" },
+    onFieldChange: vi.fn(), onSubmit: vi.fn() };
+  const { container } = render(<>
+    <PersonalPasswordSection {...common} isSubmitting={false} validationError="First error" />
+    <PersonalPasswordSection {...common} isSubmitting validationError="Second error" />
+  </>);
+  const forms = container.querySelectorAll("form");
+  forms.forEach((form, index) => {
+    const inputs = form.querySelectorAll("input");
+    inputs.forEach(input => {
+      const helper = document.getElementById(input.getAttribute("aria-describedby")!);
+      expect(form.contains(helper)).toBe(true);
+      expect(helper?.textContent).toBe(index === 0 ? "First error" : "Second error");
+    });
+    expect(form.getAttribute("aria-busy")).toBe(String(index === 1));
+  });
+});

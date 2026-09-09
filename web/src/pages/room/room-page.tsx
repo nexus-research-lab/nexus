@@ -7,6 +7,7 @@ import { useParams } from "react-router-dom";
 
 import { GroupRouteEntry } from "@/features/conversation/room/group/group-route-entry";
 import { RoomSurfaceShell } from "@/features/conversation/room/surface/room-surface-shell";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { WorkspaceLoadingState } from "@/shared/ui/workspace/frame/workspace-loading-state";
 import { WorkspacePageFrame } from "@/shared/ui/workspace/frame/workspace-page-frame";
 import { resolveSelectedDraftConversationId } from "@/features/navigation/conversation-tabs/room-conversation-tabs-model";
@@ -93,11 +94,12 @@ function ActiveRoomPage({
 }
 
 function RoomPageContent(props: RoomPageContentProps) {
+  const { t } = useI18n();
   const { agent, conversation, room, status } = props.controller;
   if (!status.isHydrated) {
     return (
       <WorkspacePageFrame contentPaddingClassName="p-0">
-        <WorkspaceLoadingState label="加载对话..." />
+        <WorkspaceLoadingState label={t("room.loading_conversation")} />
       </WorkspacePageFrame>
     );
   }

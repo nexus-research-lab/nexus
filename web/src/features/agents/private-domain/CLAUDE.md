@@ -7,3 +7,7 @@
 - `agent-private-domain-view.tsx` 负责工具栏、列表和时间线装配；完整详情复用记忆页的 240–288px 紧凑目录与 8px 软分栏，右侧正文保持 920px 阅读轴，Room 预览继续使用自身紧凑几何；时间线内部规则归 `timeline/`，分栏几何归 `agent-private-domain.css`；预览目录与两种密度的时间线均使用 `UiPanel variant="filled"`，不得恢复私有阅读面背景或分栏阴影。
 - 工具栏标题和计数使用 App Typography。私域头像仍由 `UiAgentAvatar` 渲染；多参与者的叠放与溢出计数属于 `agent-private-domain-avatar.tsx` 的身份图形几何，不承担按钮或普通元数据职责。
 - 私域线程目录初始加载使用共享 `lg` muted Spinner，工具栏刷新使用 `sm` muted Spinner；视图不得自行维护旋转或 reduced-motion class。
+
+线程与消息读取分别持有单调请求代次；同 scope 重读、A→B→A 和卸载都使旧结果失效，过期成功/失败/finally 不得覆盖新快照或清除新 loading。初始线程加载具名 status，刷新和时间线明确声明 busy。
+
+- DM简介联络按Agent读取跨会话记录，不使用当前人机DM的Room/Conversation过滤。群聊简介继续保留精确Room/Conversation；未指定Room时预览也不将扫描范围压到一个Room。

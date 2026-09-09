@@ -1,3 +1,7 @@
+// INPUT: 稳定Token身份、完整名称、物理几何与当前Agent选择。
+// OUTPUT: 有具名焦点和当前状态的Agent按钮，Room及缺少Agent身份的Token仅作装饰。
+// POS: Launcher Token场景DOM所有者；不执行导航或控制物理生命周期。
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import type { SpotlightToken } from "@/types/app/launcher";
 
@@ -46,6 +50,7 @@ export function LauncherAgentToken({
   onSelectAgent,
   token,
 }: LauncherAgentTokenProps) {
+  const { t } = useI18n();
   const shape = SHAPE_BY_KIND[token.kind];
   const content = (
     <TokenFace shape={shape} token={token} />
@@ -63,11 +68,13 @@ export function LauncherAgentToken({
     height: config.size,
     width: config.size,
   };
-  const agentId = token.agent_id;
+  const agentId = token.kind === "agent" ? token.agent_id : null;
 
   return agentId ? (
     <button
-      className={cn("pointer-events-auto", commonClassName)}
+      aria-label={t("launcher.select_agent", { name: token.name?.trim() || token.label })}
+      aria-pressed={isActive}
+      className={cn("pointer-events-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:var(--ring)]", commonClassName)}
       data-token-kind={token.kind}
       onClick={() => onSelectAgent(agentId)}
       ref={bindElement}

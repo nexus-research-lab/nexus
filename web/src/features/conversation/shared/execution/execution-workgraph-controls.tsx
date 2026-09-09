@@ -68,6 +68,7 @@ export function ExecutionWorkGraphControls({
   const { t } = useI18n();
   const [searchOpen, setSearchOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement | null>(null);
+  const searchTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     if (searchOpen) {
@@ -78,6 +79,7 @@ export function ExecutionWorkGraphControls({
   const closeSearch = () => {
     setSearchOpen(false);
     onQueryChange("");
+    searchTriggerRef.current?.focus();
   };
   return (
     <div
@@ -86,9 +88,10 @@ export function ExecutionWorkGraphControls({
     >
       <div className="surface-popover surface-radius-sm pointer-events-auto flex items-center gap-0.5 p-1 backdrop-blur-xl">
         <UiIconButton
+          ref={searchTriggerRef}
           aria-label={t("execution.search_graph")}
           aria-pressed={searchOpen}
-          onClick={() => setSearchOpen((value) => !value)}
+          onClick={() => searchOpen ? closeSearch() : setSearchOpen(true)}
           size="sm"
           tooltip={t("execution.search_graph")}
           variant="ghost"
@@ -182,7 +185,7 @@ export function ExecutionWorkGraphControls({
       </div>
 
       {searchOpen ? (
-        <div className="surface-popover surface-radius-sm pointer-events-auto flex w-[min(22rem,calc(100vw-2rem))] items-center gap-1 p-1.5">
+        <div className="surface-popover surface-radius-sm pointer-events-auto flex max-w-full w-[min(22rem,calc(100vw-2rem))] items-center gap-1 p-1.5">
           <UiSearchInput
             aria-label={t("execution.search_graph")}
             className="min-w-0 flex-1"
@@ -190,6 +193,8 @@ export function ExecutionWorkGraphControls({
             onChange={onQueryChange}
             onKeyDown={(event) => {
               if (event.key === "Escape") {
+                event.preventDefault();
+                event.stopPropagation();
                 closeSearch();
               } else if (event.key === "Enter") {
                 event.preventDefault();

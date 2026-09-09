@@ -22,3 +22,5 @@ L6 | 父级: web/src/features/conversation/shared/message/blocks
 WorkGraph 产物卡和来源对照只负责图数据与响应式编排：卡片、动作、文字、版本标记和窄屏 pane 切换分别复用 `UiPanel`、`UiButton`、Typography、`UiBadge` 与 `UiTabs`，不得再手写对照页签的按钮、阴影或选中态。
 
 WorkGraph 卡片“来源对照”是单行操作，按钮和图标不参与横向压缩，宽度跟随标签内容；标题继续承担可截断的弹性空间。
+
+来源对照读取绑定 exact source Session/Execution，切换来源或关闭对话框后忽略迟到结果；每个对话框拥有独立标题 ID。

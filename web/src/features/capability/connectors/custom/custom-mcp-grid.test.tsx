@@ -28,7 +28,7 @@ describe("Custom MCP directory", () => {
   it("distinguishes loading, empty owner catalog and filtered no-results without creating resources", async () => {
     const user = userEvent.setup();
     const actions = props();
-    const { rerender } = render(<CustomMCPGrid {...actions} loading />, { wrapper: I18nProvider });
+    const { rerender } = render(<CustomMCPGrid {...actions} servers={[]} hasServers={false} loading />, { wrapper: I18nProvider });
     expect(screen.getByRole("status").getAttribute("aria-busy")).toBe("true");
     expect(screen.queryByRole("button")).toBeNull();
     rerender(<CustomMCPGrid {...actions} servers={[]} hasServers={false} />);
@@ -89,5 +89,13 @@ describe("Custom MCP directory", () => {
     await user.click(screen.getByRole("button", { name: "Reconfigure" }));
     expect(actions.onEdit).toHaveBeenCalledExactlyOnceWith(recovering);
     expect(actions.onOpen).not.toHaveBeenCalled();
+  });
+  it("shows read failure instead of an empty catalog and keeps refresh snapshots", () => {
+    const actions = props();
+    const view = render(<CustomMCPGrid {...actions} loading />, { wrapper: I18nProvider });
+    expect(screen.getByText(SERVER.name)).toBeTruthy();
+    view.rerender(<CustomMCPGrid {...actions} servers={[]} hasServers={false} failure={{ access: null, message: "unavailable" }} onRetry={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Add MCP" })).toBeNull();
   });
 });

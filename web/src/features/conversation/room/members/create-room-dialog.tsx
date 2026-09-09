@@ -1,8 +1,11 @@
 // INPUT: 创建或管理 Room 的完整初值、Agent 目录和提交/取消动作。
-// OUTPUT: 名称/设置、成员和 Skill 组成的 plain 表单工作台。
+// OUTPUT: 名称/设置、成员和 Skill 表单；提交期间冻结草稿并同步防重，失败保留草稿。
 // POS: Room 创建与管理的模态装配层，不用图标或副标题重复表单要求。
 "use client";
 
+import { useEffect, useId, useRef, useState } from "react";
+
+import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
 import {
@@ -61,6 +64,16 @@ function CreateRoomDialogContent({
   onConfirm,
 }: RoomDialogContentProps) {
   const { t } = useI18n();
+  const titleId = useId();
+  const submitting = useRef(false);
+  const mounted = useRef(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitFailed, setSubmitFailed] = useState(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+  const pending = isCreating || isSubmitting;
   const form = useCreateRoomForm({
     agents,
     initialAvatar,
@@ -74,11 +87,26 @@ function CreateRoomDialogContent({
   });
   const skills = useRoomSkillOptions(form.state.skillQuery);
   const labels = resolveRoomDialogLabels(mode, t);
-  const canSubmit = form.canSubmit && !isCreating;
+  const canSubmit = form.canSubmit && !pending && !submitFailed;
   const handleSubmit = () => {
-    if (canSubmit) {
-      onConfirm(form.submission);
-    }
+    if (!canSubmit || submitting.current) return;
+    submitting.current = true;
+    setIsSubmitting(true);
+    setSubmitFailed(false);
+    void (async () => {
+      try {
+        await onConfirm(form.submission);
+      } catch {
+        if (mounted.current) setSubmitFailed(true);
+      } finally {
+        submitting.current = false;
+        if (mounted.current) setIsSubmitting(false);
+      }
+    })();
+  };
+
+  const handleCancel = () => {
+    if (!pending && !submitting.current) onCancel();
   };
 
   return (
@@ -86,8 +114,8 @@ function CreateRoomDialogContent({
       <UiDialogBackdrop
         inset="compact"
         layer="dialogUnderlay"
-        labelledBy="create-room-dialog-title"
-        onClose={onCancel}
+        labelledBy={titleId}
+        onClose={handleCancel}
       >
         <UiDialogShell
           className="pointer-events-auto"
@@ -96,9 +124,9 @@ function CreateRoomDialogContent({
         >
           <UiDialogHeader
             appearance="plain"
-            onClose={onCancel}
+            onClose={handleCancel}
             title={labels.title}
-            titleId="create-room-dialog-title"
+            titleId={titleId}
           />
 
           <UiDialogBody className="flex min-h-0 flex-1 flex-col gap-5 px-5" scrollable>
@@ -106,7 +134,7 @@ function CreateRoomDialogContent({
               <RoomSettingsForm
                 avatarFallbackTitle={labels.title}
                 canSubmit={canSubmit}
-                isCreating={isCreating}
+                isCreating={pending}
                 onSubmit={handleSubmit}
                 selectedAgents={form.selectedAgents}
                 setters={{
@@ -121,6 +149,7 @@ function CreateRoomDialogContent({
               />
               <RoomMemberSelector
                 agents={form.filteredAgents}
+                disabled={pending}
                 canManageParticipation={mode === "manage"}
                 onQueryChange={form.setMemberQuery}
                 onToggleAgent={form.toggleAgent}
@@ -131,7 +160,7 @@ function CreateRoomDialogContent({
               />
             </div>
             <RoomSkillsSelector
-              disabled={isCreating}
+              disabled={pending}
               error={skills.error}
               isLoading={skills.loading}
               onChange={form.setSelectedSkillNames}
@@ -142,15 +171,20 @@ function CreateRoomDialogContent({
             />
           </UiDialogBody>
 
+          {submitFailed ? (
+            <UiInlineNotice className="mx-5" tone="warning" message={t("room.save_unconfirmed")} />
+          ) : null}
           <UiDialogFooter appearance="plain">
             <UiButton
-              onClick={onCancel}
+              disabled={pending}
+              onClick={handleCancel}
               size="sm"
               type="button"
             >
               {t("common.cancel")}
             </UiButton>
             <UiButton
+              aria-busy={pending}
               disabled={!canSubmit}
               onClick={handleSubmit}
               size="sm"
@@ -158,7 +192,7 @@ function CreateRoomDialogContent({
               type="button"
               variant="solid"
             >
-              {isCreating ? t("room.creating_action") : labels.confirm}
+              {pending ? t(mode === "manage" ? "common.saving" : "room.creating_action") : labels.confirm}
             </UiButton>
           </UiDialogFooter>
         </UiDialogShell>

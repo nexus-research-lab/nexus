@@ -6,6 +6,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
+import type { TranslationKey } from "@/shared/i18n/messages";
+import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
+
 import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 import {
   getConnectorOauthRedirectUri,
@@ -24,20 +29,21 @@ import {
 } from "@/features/capability/connectors/auth/connector-oauth-events";
 
 type OAuthCallbackStatus =
-  | { impact: string; message?: never; title: string }
-  | { impact?: never; message: string; title: string };
+  | { impact: TranslationKey; message?: never; title: TranslationKey }
+  | { impact?: never; message: TranslationKey; title: TranslationKey };
 
 const INITIAL_STATUS: OAuthCallbackStatus = {
-  message: "Nexus 正在核对这次授权。",
-  title: "正在完成连接",
+  message: "capability.oauth_callback.checking_message",
+  title: "capability.oauth_callback.checking_title",
 };
 
 /** OAuth 回调专用页面，只显示受控结果，不回显 Provider 或 HTTP 异常正文。 */
 export function ConnectorOAuthCallbackPage() {
   const { pathname, search } = useLocation();
+  const { t } = useI18n();
   const completedRef = useRef(false);
   const [status, setStatus] = useState<OAuthCallbackStatus>(INITIAL_STATUS);
-  const [closingHint, setClosingHint] = useState("");
+  const [closingHint, setClosingHint] = useState<TranslationKey | null>(null);
 
   useEffect(() => {
     if (completedRef.current) {
@@ -53,12 +59,12 @@ export function ConnectorOAuthCallbackPage() {
 
     const closeCallbackWindow = (nextStatus: OAuthCallbackStatus) => {
       setStatus(nextStatus);
-      setClosingHint("正在关闭窗口……");
+      setClosingHint("capability.oauth_callback.closing");
       window.setTimeout(() => {
         window.close();
       }, 120);
       window.setTimeout(() => {
-        setClosingHint("可以手动关闭此窗口。");
+        setClosingHint("capability.oauth_callback.manual_close");
       }, 800);
     };
 
@@ -70,7 +76,7 @@ export function ConnectorOAuthCallbackPage() {
     ) => {
       publishConnectorOauthEvent(
         type,
-        nextStatus.message ?? nextStatus.title,
+        t(nextStatus.message ?? nextStatus.title),
         {
           connectorId,
           failureKind,
@@ -84,12 +90,12 @@ export function ConnectorOAuthCallbackPage() {
 
     const returnToDesktop = (nextStatus: OAuthCallbackStatus) => {
       setStatus(nextStatus);
-      setClosingHint("正在返回 Nexus……");
+      setClosingHint("capability.oauth_callback.returning");
       window.setTimeout(() => {
         window.location.href = getDesktopConnectorsReturnUri();
       }, 120);
       window.setTimeout(() => {
-        setClosingHint("请返回 Nexus，或手动关闭此窗口。");
+        setClosingHint("capability.oauth_callback.manual_return");
       }, 1_000);
     };
 
@@ -102,12 +108,12 @@ export function ConnectorOAuthCallbackPage() {
         }
       }
       const successStatus: OAuthCallbackStatus = {
-        message: "授权信息已安全返回 Nexus。",
-        title: "连接已完成",
+        message: "capability.oauth_callback.success_message",
+        title: "capability.oauth_callback.success_title",
       };
       publishConnectorOauthEvent(
         "connector-oauth:success",
-        successStatus.message,
+        t(successStatus.message),
         { connectorId },
       );
       clearPendingConnectorOauth(connectorId);
@@ -122,8 +128,8 @@ export function ConnectorOAuthCallbackPage() {
       postAndClose(
         "connector-oauth:error",
         {
-          impact: "没有保存新的连接；已有连接和应用配置没有被删除。",
-          title: error === "access_denied" ? "授权已取消" : "连接没有完成",
+          impact: "capability.oauth_callback.cancel_impact",
+          title: error === "access_denied" ? "capability.oauth_callback.cancel_title" : "capability.oauth_callback.failed_title",
         },
         "not_connected",
       );
@@ -133,8 +139,8 @@ export function ConnectorOAuthCallbackPage() {
       postAndClose(
         "connector-oauth:error",
         {
-          impact: "没有提交连接信息；已有连接和应用配置保持不变。",
-          title: "授权信息不完整",
+          impact: "capability.oauth_callback.incomplete_impact",
+          title: "capability.oauth_callback.incomplete_title",
         },
         "not_connected",
       );
@@ -146,24 +152,24 @@ export function ConnectorOAuthCallbackPage() {
       .catch((err: unknown) => {
         const failure = projectMutationFailure(
           err,
-          "Nexus 没有收到连接完成的确认。",
+          t("capability.oauth_callback.unknown_fallback"),
         );
         const notConnected = failure.effect === "not_applied";
         postAndClose(
           "connector-oauth:error",
           notConnected
             ? {
-                impact: "这次连接没有保存；已有连接和应用配置保持不变。",
-                title: "连接没有完成",
+                impact: "capability.oauth_callback.failed_impact",
+                title: "capability.oauth_callback.failed_title",
               }
             : {
-                impact: "已有连接和应用配置没有被删除；新连接结果待核对。",
-                title: "连接结果待确认",
+                impact: "capability.oauth_callback.unknown_impact",
+                title: "capability.oauth_callback.unknown_title",
               },
           notConnected ? "not_connected" : "outcome_unknown",
         );
       });
-  }, [pathname, search]);
+  }, [pathname, search, t]);
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-6 py-10 text-foreground">
@@ -172,21 +178,21 @@ export function ConnectorOAuthCallbackPage() {
         className="surface-panel surface-radius-xl w-full max-w-[480px] border px-8 py-9"
         role={status.impact ? "alert" : "status"}
       >
-        <h1 className="text-lg font-semibold text-(--text-strong)">
-          {status.title}
+        <h1 className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong" })}>
+          {t(status.title)}
         </h1>
         {"message" in status ? (
-          <p className="mt-2 text-sm leading-6 text-(--text-muted)">
-            {status.message}
+          <p className={cn("mt-2", getUiTypographyClassName({ role: "supporting", tone: "muted" }))}>
+            {status.message ? t(status.message) : null}
           </p>
         ) : null}
         {status.impact ? (
-          <p className="mt-3 text-sm leading-6 text-(--text-muted)">
-            {status.impact}
+          <p className={cn("mt-3", getUiTypographyClassName({ role: "supporting", tone: "muted" }))}>
+            {t(status.impact)}
           </p>
         ) : null}
         {closingHint ? (
-          <p className="mt-4 text-xs text-(--text-soft)">{closingHint}</p>
+          <p className={cn("mt-4", getUiTypographyClassName({ role: "metadata", tone: "soft" }))}>{t(closingHint)}</p>
         ) : null}
       </section>
     </main>

@@ -46,7 +46,9 @@ export function useConnectorMCPTools(detail: ConnectorDetail | null) {
       })
       .catch((error: unknown) => {
         if (requestId !== requestIdRef.current) return;
-        setFailure({ identity, value: getResourceFailure(error, "工具读取失败") });
+        const failure = getResourceFailure(error, "工具读取失败");
+        if (failure.access) setCatalog(null);
+        setFailure({ identity, value: failure });
       })
       .finally(() => {
         if (requestId === requestIdRef.current) setLoading(false);

@@ -344,7 +344,7 @@ test("sensitive snapshots are blocked by access state and refresh stays non-dest
   );
   assert.ok(
     memoryDocument.indexOf("controller.resourceError?.access")
-      < memoryDocument.indexOf("controller.isLoading && !controller.content"),
+      < memoryDocument.indexOf("controller.isLoading && !hasLoadedContent"),
   );
   assert.match(scheduledHistory, /accessBlocked && failure[\s\S]*isLoading && !hasSnapshot/);
   assert.match(workGraphDirectory, /loading && !hasSnapshot/);

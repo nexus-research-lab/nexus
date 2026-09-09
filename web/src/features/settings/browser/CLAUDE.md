@@ -11,3 +11,5 @@ L4 | 父级: web/src/features/settings
 标题、状态、说明、步骤与风险文案只选择 App Typography 语义角色；本目录不得自行拼接字号、行高、字重、tracking、任意圆角或状态徽标。
 CDP 保留独立的权限风险卡；风险和 supporting 说明通过实例级 ID 同时关联到唯一 GlassSwitch，切换只更新 browser_cdp_enabled，禁用仍来自 Preferences 当前权限和读写状态。
 安装命令的等待状态使用共享 `sm` Spinner；普通状态继续显示文件夹动作图标，Browser 视图不拥有旋转或 reduced-motion 样式。
+
+扩展轮询每个读取代次至多一个请求在途；慢响应跳过下一轮，卸载或显式刷新使旧代次失效。安装动作使用同步在途锁，主入口和恢复入口不能重复启动同一次宿主安装。

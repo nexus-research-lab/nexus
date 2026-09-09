@@ -9,3 +9,5 @@
 - 详情返回/来源动作复用共享 Button/LinkButton，身份、标题、说明和矩阵元数据使用 App Typography；Agent 加载、空态及失败统一由 Resource State 表达，不允许私有错误卡片。
 - `skill-markdown.tsx` 只把纯模型归一化后的 Skill 包说明交给共享 Markdown，复用文件阅读配方的 14px 正文与标题阶梯；技能包说明属于文档阅读面，不沿用聊天正文的字号。说明没有 Agent Workspace 来源；外部 URL 和包内相对图片保持原 href/src，不以当前 Agent 选择猜资源基址，不生成工作区预览 API URL。
 - 更新与删除必须复用市场操作控制器；命令返回明确成功结果，失败时不得继续刷新详情或离开路由。
+
+- 更新、删除与 Agent 开关共用同步 ref 防重，开关在其他动作期间也禁用；只读绑定重试不与写请求并发。切换语言不重载主详情或重置在途动作。未知开关结果只有目标 Agent 的 enabled 达到本次目标才由读取证明；未证明时保留锁并提供显式新意图，accepted 仍只允许读取，committed 的读取恢复不重放写入。

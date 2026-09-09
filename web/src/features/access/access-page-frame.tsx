@@ -42,7 +42,7 @@ export function AccessPageIntroduction({ artwork, backHomeLabel, children, descr
     <section className="relative min-w-0 py-6" data-access-introduction>
       <Link aria-label={backHomeLabel} className="inline-flex items-center gap-3 text-(--text-strong) no-underline" to={APP_ROUTE_PATHS.root}>
         <img alt="" className="access-brand-mark h-10 w-10 object-contain" src="/logo.webp" />
-        <span className={getUiTypographyClassName({ role: "objectTitle", tone: "strong" })}>NEXUS</span>
+        <span className={getUiTypographyClassName({ role: "objectTitle", tone: "strong" })}>Nexus</span>
       </Link>
       {artwork}
       <div className="mt-10 max-w-[620px] sm:mt-14 lg:mt-20">

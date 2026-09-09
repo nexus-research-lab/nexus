@@ -30,3 +30,12 @@ describe("CreateOnlineRoomDialog", () => {
     expect(onConfirm).toHaveBeenCalledExactlyOnceWith("  研发群  ");
   });
 });
+
+it("does not dismiss a pending creation through Escape or a close button", () => {
+  const onCancel = vi.fn();
+  render(<I18N_CONTEXT.Provider value={{locale: "zh", setLocale: vi.fn(), t: key => key}}><CreateOnlineRoomDialog error={false} isCreating isOpen onCancel={onCancel} onConfirm={vi.fn()} /></I18N_CONTEXT.Provider>);
+  fireEvent.keyDown(document, {key: "Escape"});
+  expect(onCancel).not.toHaveBeenCalled();
+  expect(screen.getByRole("button", {name: "common.cancel"}).hasAttribute("disabled")).toBe(true);
+  expect(screen.getByRole("dialog").getAttribute("aria-labelledby")).toBeTruthy();
+});

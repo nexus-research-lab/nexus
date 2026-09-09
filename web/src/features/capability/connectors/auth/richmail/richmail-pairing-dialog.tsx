@@ -3,6 +3,7 @@
 // POS: RichMail 配对的人机边界；不显示、复制或接收 Bearer Token。
 "use client";
 
+import { useId } from "react";
 import { Check, Loader2 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -48,6 +49,7 @@ export function RichMailPairingDialog({
   session,
 }: RichMailPairingDialogProps) {
   const { t } = useI18n();
+  const dialogId = useId();
   const [status, setStatus] = useResettableState<"pending" | "connected">(
     "pending",
     session?.attempt_token ?? null,
@@ -63,20 +65,21 @@ export function RichMailPairingDialog({
   if (!session || typeof document === "undefined") return null;
   return (
     <UiDialogPortal>
-      <UiDialogBackdrop layer="dialog" onClose={onCancel}>
-        <UiDialogShell size="sm">
+      <UiDialogBackdrop labelledBy={`${dialogId}-title`} layer="dialog" onClose={onCancel}>
+        <UiDialogShell size="sm" viewport="compactMax">
           <UiDialogHeader
             appearance="plain"
+            titleId={`${dialogId}-title`}
             onClose={onCancel}
             title={t("capability.richmail_pairing_title")}
           />
-          <UiDialogBody className="space-y-4 px-5">
+          <UiDialogBody className="space-y-4 px-5" scrollable>
             <div className={cn(
               "flex items-center gap-2",
               getUiTypographyClassName({ role: "metadata", tone: "muted", weight: "medium" }),
             )}>
               <Loader2 className={getUiSpinnerClassName({ size: "sm", tone: "muted" })} />
-              <span aria-live="polite">{t(status === "pending" ? "capability.richmail_pairing_pending" : "capability.richmail_pairing_connected")}</span>
+              <span aria-live="polite" className="min-w-0 [overflow-wrap:anywhere]">{t(status === "pending" ? "capability.richmail_pairing_pending" : "capability.richmail_pairing_connected")}</span>
             </div>
             <ol className="space-y-3 border-y border-(--divider-subtle-color) py-4">
               {PAIRING_STEPS.map((step, index) => (

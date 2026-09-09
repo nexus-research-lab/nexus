@@ -3,6 +3,7 @@
 // POS: Channel 连接弹窗的动作投影，不解释状态机或重复表单内容。
 import { Loader2 } from "lucide-react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
 import { UiDialogFooter } from "@/shared/ui/dialog/dialog";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
@@ -36,6 +37,7 @@ export function ChannelConnectDialogFooter({
   saving,
   supportsQRCode,
 }: ChannelConnectDialogFooterProps) {
+  const { t } = useI18n();
   const submitState: ChannelSubmitState = {
     loginLoading,
     loginRunning,
@@ -60,7 +62,7 @@ export function ChannelConnectDialogFooter({
             {deleting
               ? <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
               : null}
-            {deleting ? "断开中..." : "断开频道"}
+            {t(deleting ? "capability.channel_disconnecting" : "capability.channel_disconnect")}
           </UiButton>
         ) : null}
       </div>
@@ -71,7 +73,7 @@ export function ChannelConnectDialogFooter({
           size="sm"
           type="button"
         >
-          取消
+          {t("common.cancel")}
         </UiButton>
         <UiButton
           disabled={submitDisabled}
@@ -80,7 +82,7 @@ export function ChannelConnectDialogFooter({
           type="submit"
           variant="solid"
         >
-          {getChannelSubmitLabel(submitState)}
+          {getChannelSubmitLabel(submitState, t)}
         </UiButton>
       </div>
     </UiDialogFooter>

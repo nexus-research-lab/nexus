@@ -1,7 +1,11 @@
+// INPUT: Provider tool invocation failure text.
+// OUTPUT: Shared bounded failure notice preserving diagnostic issues.
+// POS: Tool invocation error projection; no recovery or execution authority.
 "use client";
 
 import { AlertTriangle } from "lucide-react";
 
+import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
 const TOOL_USE_ERROR_PATTERN = /^(?:(?<error_type>[A-Za-z]+Error):\s*)?(?<tool_name>[A-Za-z][A-Za-z0-9_]*) failed due to the following issues:\s*(?<issues>[\s\S]*)$/;
@@ -52,35 +56,20 @@ export function ToolUseErrorBlock({ content }: ToolUseErrorBlockProps) {
   );
 
   return (
-    <div className="my-2 min-w-0 border-l-2 border-(--destructive) pl-4">
-      <div className="message-cjk-font flex min-w-0 items-start gap-2 py-1 text-xs">
-        <span
-          data-timeline-anchor
-          data-timeline-anchor-mode="box"
-          className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-(--destructive)"
-        >
-          <AlertTriangle className="h-3.5 w-3.5" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="shrink-0 text-xs font-medium text-(--destructive)">
-              {t("message.tool_invocation_failed", {
-                tool: parsed.tool_name,
-              })}
-            </span>
-            <span className="shrink-0 text-xs text-(--text-soft)">
-              {parsed.error_type}
-            </span>
-          </div>
-          <div className="mt-1 space-y-0.5 text-compact leading-5 text-(--text-muted)">
-            {parsed.issues.map((issue, index) => (
-              <div key={`${index}-${issue}`} className="break-words">
-                {issue}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
+    <UiInlineNotice
+      className="my-2"
+      icon={<AlertTriangle aria-hidden />}
+      title={t("message.tool_invocation_failed", { tool: parsed.tool_name })}
+      message={(
+        <>
+          <code className="block break-all">{parsed.error_type}</code>
+          {parsed.issues.map((issue, index) => (
+            <span key={`${index}-${issue}`} className="block break-words">{issue}</span>
+          ))}
+        </>
+      )}
+      tone="danger"
+      width="compact"
+    />
   );
 }

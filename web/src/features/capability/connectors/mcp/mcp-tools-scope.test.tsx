@@ -1,6 +1,7 @@
 // INPUT: 固定和自定义 MCP 读取控制器、受控 API 完成顺序与配置切换。
 // OUTPUT: 同配置刷新保留快照，跨配置隐藏快照/错误，迟到响应不得覆盖当前结果。
 // POS: 工具目录读取身份边界回归；不连接外部服务。
+import { ApiRequestError } from "@/lib/api/core/http-error";
 import { useMemo } from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -78,4 +79,34 @@ describe.each([
     await act(async () => next.resolve(catalog));
     expect(view.result.current.catalog).toEqual(catalog);
   });
+});
+
+it("discards a fixed connector tool snapshot after access loss, including while retrying", async () => {
+  const retry = deferred();
+  vi.mocked(getConnectorMCPToolsApi).mockResolvedValueOnce(catalog)
+    .mockRejectedValueOnce(new ApiRequestError("forbidden", 403)).mockReturnValueOnce(retry.promise);
+  const view = renderHook(() => useConnectorMCPTools(fixed));
+  await waitFor(() => expect(view.result.current.catalog).toEqual(catalog));
+  act(() => view.result.current.refresh());
+  await waitFor(() => expect(view.result.current.failure?.access).toBe("forbidden"));
+  expect(view.result.current.catalog).toBeNull();
+  act(() => view.result.current.refresh());
+  expect(view.result.current.catalog).toBeNull();
+  await act(async () => retry.resolve(catalog));
+  expect(view.result.current.catalog).toEqual(catalog);
+});
+
+it("discards a custom MCP tool snapshot after access loss, including while retrying", async () => {
+  const retry = deferred();
+  vi.mocked(getCustomMCPToolsApi).mockResolvedValueOnce(catalog)
+    .mockRejectedValueOnce(new ApiRequestError("forbidden", 403)).mockReturnValueOnce(retry.promise);
+  const view = renderHook(() => useCustomMCPTools(custom), { wrapper: I18nProvider });
+  await waitFor(() => expect(view.result.current.catalog).toEqual(catalog));
+  act(() => view.result.current.refresh());
+  await waitFor(() => expect(view.result.current.failure?.access).toBe("forbidden"));
+  expect(view.result.current.catalog).toBeNull();
+  act(() => view.result.current.refresh());
+  expect(view.result.current.catalog).toBeNull();
+  await act(async () => retry.resolve(catalog));
+  expect(view.result.current.catalog).toEqual(catalog);
 });

@@ -10,3 +10,5 @@
 - 来源分段、表单、zip 空投区、示例面板、文字层级与加载图标必须复用 shared/ui；不得在导入子组件重写按钮、字号、圆角或旋转动画。
 - 导入是单列紧凑表单，固定使用 `UiDialogFormShell size="md"`；不得因示例内容较长而扩大整窗，溢出交给共享自适应滚动合同。
 - Git 字段通过实例 ID 关联说明，地址、branch 与 path 使用公共 code 文字角色，值仍原样交给控制器。来源分段和 Footer 直接组合公共控件；格式规则/zip 说明使用 supporting，示例使用 filled Panel，不另配背景。Git/zip 动作显式暴露 importing busy，草稿保留、关闭清理和文件入口由真实弹窗回归覆盖。
+
+- 导入弹窗以实例 titleId 关联 Dialog 名称。指南下载回归直接核对 zh/en 对应文件名和打包 Markdown 内容，下载按钮不能触发表单提交；导入互斥仍由操作控制器的同步 ref 拥有。

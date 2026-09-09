@@ -7,8 +7,9 @@ import {
   ArrowLeft,
   ChevronRight,
 } from "lucide-react";
-import { type FormEvent } from "react";
+import { type FormEvent, useId } from "react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { UiButton } from "@/shared/ui/button/button";
 import {
@@ -43,6 +44,8 @@ export function FeishuAppConnectionDialog({
   onConnectManually,
   onScan,
 }: FeishuAppConnectionDialogProps) {
+  const { t } = useI18n();
+  const fieldId = useId();
   const resetKey = isOpen ? "open" : "closed";
   const [view, setView] = useResettableState<FeishuAppConnectionView>(
     "choice",
@@ -63,14 +66,15 @@ export function FeishuAppConnectionDialog({
     };
     return (
       <UiDialogPortal>
-        <UiDialogBackdrop layer="dialog" onClose={onClose}>
-          <UiDialogFormShell onSubmit={handleSubmit} size="sm">
+        <UiDialogBackdrop labelledBy={`${fieldId}-title`} layer="dialog" onClose={onClose}>
+          <UiDialogFormShell onSubmit={handleSubmit} size="sm" viewport="compactMax">
             <UiDialogHeader
               appearance="plain"
+            titleId={`${fieldId}-title`}
               onClose={onClose}
-              title="手动连接飞书"
+              title={t("capability.feishu_manual_title")}
             />
-            <UiDialogBody className="space-y-4 px-5">
+            <UiDialogBody className="space-y-4 px-5" scrollable>
               <UiButton
                 className="w-fit"
                 disabled={busy}
@@ -80,21 +84,21 @@ export function FeishuAppConnectionDialog({
                 variant="text"
               >
                 <ArrowLeft className="h-3.5 w-3.5" />
-                返回
+                {t("common.back")}
               </UiButton>
               <p className={getUiTypographyClassName({ role: "supporting", tone: "muted" })}>
-                仅在扫码不可用时填写应用凭据。
+                {t("capability.feishu_manual_hint")}
               </p>
-              <UiField htmlFor="feishu-existing-app-id" label="App ID" required>
+              <UiField htmlFor={`${fieldId}-app-id`} label="App ID" required>
                 <UiInput
                   autoCapitalize="off"
                   autoCorrect="off"
                   disabled={busy}
-                  id="feishu-existing-app-id"
+                  id={`${fieldId}-app-id`}
                   name="feishu-existing-app-id"
                   onChange={(event) => setClientId(event.target.value)}
                   pattern=".*\S.*"
-                  placeholder="飞书开放平台中的 App ID"
+                  placeholder={t("capability.feishu_app_id_placeholder")}
                   required
                   spellCheck={false}
                   value={clientId}
@@ -102,7 +106,7 @@ export function FeishuAppConnectionDialog({
                 />
               </UiField>
               <UiField
-                htmlFor="feishu-existing-app-secret"
+                htmlFor={`${fieldId}-app-secret`}
                 label="App Secret"
                 required
               >
@@ -114,11 +118,11 @@ export function FeishuAppConnectionDialog({
                   data-form-type="other"
                   data-lpignore="true"
                   disabled={busy}
-                  id="feishu-existing-app-secret"
+                  id={`${fieldId}-app-secret`}
                   name="feishu-existing-app-secret"
                   onChange={(event) => setClientSecret(event.target.value)}
                   pattern=".*\S.*"
-                  placeholder="飞书开放平台中的 App Secret"
+                  placeholder={t("capability.feishu_app_secret_placeholder")}
                   required
                   spellCheck={false}
                   type="password"
@@ -129,7 +133,7 @@ export function FeishuAppConnectionDialog({
             </UiDialogBody>
             <UiDialogFooter appearance="plain">
               <UiButton disabled={busy} onClick={onClose} type="button">
-                取消
+                {t("common.cancel")}
               </UiButton>
               <UiButton
                 disabled={busy}
@@ -137,7 +141,7 @@ export function FeishuAppConnectionDialog({
                 type="submit"
                 variant="solid"
               >
-                继续
+                {t("capability.feishu_continue")}
               </UiButton>
             </UiDialogFooter>
           </UiDialogFormShell>
@@ -148,34 +152,35 @@ export function FeishuAppConnectionDialog({
 
   return (
     <UiDialogPortal>
-      <UiDialogBackdrop layer="dialog" onClose={onClose}>
-        <UiDialogShell size="sm">
+      <UiDialogBackdrop labelledBy={`${fieldId}-title`} layer="dialog" onClose={onClose}>
+        <UiDialogShell size="sm" viewport="compactMax">
           <UiDialogHeader
             appearance="plain"
+            titleId={`${fieldId}-title`}
             onClose={onClose}
-            title="连接飞书云文档"
+            title={t("capability.feishu_connect_title")}
           />
-          <UiDialogBody className="px-5">
+          <UiDialogBody className="px-5" scrollable>
             <div className="radius-control-lg divide-y divide-(--divider-subtle-color) overflow-hidden border border-(--divider-subtle-color)">
               <UiListRow
                 disabled={busy}
-                description="在飞书页面选择或创建应用。"
+                description={t("capability.feishu_scan_description")}
                 onClick={onScan}
                 right={<ChevronRight className="h-4 w-4 text-(--icon-muted)" />}
-                title="扫码连接"
+                title={t("capability.feishu_scan_title")}
               />
               <UiListRow
                 disabled={busy}
-                description="填写 App ID 和 App Secret。"
+                description={t("capability.feishu_manual_description")}
                 onClick={() => setView("manual")}
                 right={<ChevronRight className="h-4 w-4 text-(--icon-muted)" />}
-                title="手动配置"
+                title={t("capability.feishu_manual_choice")}
               />
             </div>
           </UiDialogBody>
           <UiDialogFooter appearance="plain">
             <UiButton disabled={busy} onClick={onClose} type="button">
-              取消
+              {t("common.cancel")}
             </UiButton>
           </UiDialogFooter>
         </UiDialogShell>

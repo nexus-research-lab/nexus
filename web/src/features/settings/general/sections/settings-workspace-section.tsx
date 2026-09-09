@@ -99,6 +99,7 @@ export function SettingsWorkspaceSection() {
                   variant="surface"
                 />
                 <UiIconButton
+                  aria-busy={controller.selecting}
                   aria-label={t("settings.general.state_root_select_action")}
                   className="absolute right-1 top-1/2 -translate-y-1/2 disabled:pointer-events-none"
                   disabled={controller.busy}
@@ -116,6 +117,7 @@ export function SettingsWorkspaceSection() {
               </div>
               <UiButton
                 className="shrink-0"
+                aria-busy={controller.saving}
                 disabled={controller.saveDisabled}
                 onClick={() => setConfirmOpen(true)}
                 size="xs"

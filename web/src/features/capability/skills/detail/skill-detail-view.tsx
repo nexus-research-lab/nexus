@@ -58,6 +58,7 @@ interface SkillDetailViewProps {
   onDelete: () => void;
   onRetry: () => void;
   onRetryBindings: () => void;
+  onStartNewToggleIntent?: (agentId: string) => void;
   onUpdate: () => void;
   snapshot: SkillDetailSnapshot;
   toggleFailures: Readonly<Record<string, SkillAgentToggleFailure>>;
@@ -74,6 +75,7 @@ export function SkillDetailView({
   onDelete,
   onRetry,
   onRetryBindings,
+  onStartNewToggleIntent,
   onUpdate,
   snapshot,
   toggleFailures,
@@ -95,6 +97,7 @@ export function SkillDetailView({
         onDelete={onDelete}
         onRetry={onRetry}
         onRetryBindings={onRetryBindings}
+        onStartNewToggleIntent={onStartNewToggleIntent}
         onUpdate={onUpdate}
         snapshot={snapshot}
         toggleFailures={toggleFailures}
@@ -113,6 +116,7 @@ function SkillDetailContent({
   onDelete,
   onRetry,
   onRetryBindings,
+  onStartNewToggleIntent,
   onUpdate,
   snapshot,
   toggleFailures,
@@ -165,6 +169,7 @@ function SkillDetailContent({
       onDelete={onDelete}
       onUpdate={onUpdate}
       onRetryBindings={onRetryBindings}
+      onStartNewToggleIntent={onStartNewToggleIntent}
       toggleFailures={toggleFailures}
     />
   );
@@ -181,6 +186,7 @@ function SkillDetailReady({
   onDelete,
   onUpdate,
   onRetryBindings,
+  onStartNewToggleIntent,
   toggleFailures,
 }: {
   activeAction: SkillDetailAction | null;
@@ -193,6 +199,7 @@ function SkillDetailReady({
   onDelete: () => void;
   onUpdate: () => void;
   onRetryBindings: () => void;
+  onStartNewToggleIntent?: (agentId: string) => void;
   toggleFailures: Readonly<Record<string, SkillAgentToggleFailure>>;
 }) {
   const { t } = useI18n();
@@ -210,8 +217,10 @@ function SkillDetailReady({
                 bindingsFailure={bindingsFailure}
                 busyAgentId={busyAgentId}
                 locked={model.locked}
+                actionPending={activeAction !== null}
                 onToggle={onAgentToggle}
                 onRetryBindings={onRetryBindings}
+                onStartNewToggleIntent={onStartNewToggleIntent}
                 toggleFailures={toggleFailures}
               />
             )}
@@ -267,7 +276,9 @@ function SkillAgentBindings({
   bindingsFailure,
   busyAgentId,
   locked,
+  actionPending,
   onRetryBindings,
+  onStartNewToggleIntent,
   onToggle,
   toggleFailures,
 }: {
@@ -276,7 +287,9 @@ function SkillAgentBindings({
   bindingsFailure: SkillAgentBindingsReadFailure | null;
   busyAgentId: string | null;
   locked: boolean;
+  actionPending: boolean;
   onRetryBindings: () => void;
+  onStartNewToggleIntent?: (agentId: string) => void;
   onToggle: (binding: SkillAgentBinding) => void;
   toggleFailures: Readonly<Record<string, SkillAgentToggleFailure>>;
 }) {
@@ -352,6 +365,7 @@ function SkillAgentBindings({
                         checked={binding.enabled}
                         disabled={
                           locked
+                          || actionPending
                           || !binding.available
                           || busyAgentId !== null
                           || Boolean(failure?.blocksRepeat)
@@ -365,8 +379,12 @@ function SkillAgentBindings({
                     <SkillAgentFailureNotice
                       className="mx-3 mb-3"
                       failure={failure}
-                      onRefresh={failure.blocksRepeat ? onRetryBindings : undefined}
-                      refreshLabel={t("state.reload_check")}
+                      onRefresh={failure.canStartNewIntent && onStartNewToggleIntent
+                        ? () => onStartNewToggleIntent(binding.agent_id)
+                        : failure.blocksRepeat ? onRetryBindings : undefined}
+                      refreshLabel={t(failure.canStartNewIntent
+                        ? "capability.skill_operation_new_intent_action"
+                        : "state.reload_check")}
                     />
                   ) : null}
                 </div>

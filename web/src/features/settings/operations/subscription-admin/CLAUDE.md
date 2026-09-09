@@ -19,3 +19,5 @@ L4 | 父级: web/src/features/settings/operations
 禁写状态是独立于可见 feedback 的 mutation 事实；dismiss 、读取失败或其他提示替换都不得解锁。只有成功读取权威 overview 或服务端明确 `not_applied/committed` 才能收口。
 
 订阅概览采用轻量文字摘要，账号行突出身份、用量/占比、套餐和当前有效额度；公共周期仅显示一次。会话/消息数与部署角色不重复出现在套餐分配视图。套餐目录默认仅展示名称、状态和额度，展开后编辑；新建也按需展开，收起不丢失草稿。字段与保存动作底部对齐，控件统一 md，表单随工作面宽度分列。
+
+账号页刷新是只读核对入口：loading / mutationPending 时禁用，但 mutationsBlocked 不得禁用刷新；写控件继续同时遵循三种状态。

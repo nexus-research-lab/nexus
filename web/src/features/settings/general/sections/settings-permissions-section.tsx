@@ -79,7 +79,6 @@ export function SettingsPermissionsSection({
             <UiSelectMenu
               ariaLabel={t("settings.general.default_permission_mode")}
               disabled={preferencesLoading || preferencesSaving}
-              id="default-permission-mode"
               onChange={onPermissionModeChange}
               options={getAgentPermissionChoices(runtimeKind).map((mode) => ({
                 value: mode.value,

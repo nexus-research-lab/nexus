@@ -26,6 +26,7 @@ import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import {
   UiActionMenu,
@@ -119,6 +120,12 @@ export function ExecutionWorkGraphSurface({
   );
   const sketchScopeRef = useRef(sketchScopeKey);
   sketchScopeRef.current = sketchScopeKey;
+  const sketchRequestRef = useRef(0);
+  const sketchPendingRef = useRef<string | null>(null);
+  useEffect(() => () => {
+    sketchRequestRef.current += 1;
+    sketchPendingRef.current = null;
+  }, [sketchScopeKey]);
   const header = execution
     ? resolveExecutionWorkGraphHeaderModel(execution)
     : null;
@@ -151,7 +158,7 @@ export function ExecutionWorkGraphSurface({
     const active = mode === "history" && item.id === execution?.id;
     historyMenuItems.push({
       active,
-      description: `${new Date(item.updated_at).toLocaleDateString()} · ${item.work_items?.length ?? 0} ${t("execution.workflow_nodes_short")}`,
+      description: `${new Date(item.updated_at).toLocaleDateString(locale)} · ${item.work_items?.length ?? 0} ${t("execution.workflow_nodes_short")}`,
       icon: <Clock3 className="h-3.5 w-3.5" />,
       label: item.objective,
       trailing: active ? <Check className="h-3.5 w-3.5 text-(--success)" /> : null,
@@ -182,25 +189,28 @@ export function ExecutionWorkGraphSurface({
   }
 
   const handleOpenSketch = () => {
-    if (!execution || !sketchSessionKey || sketchLoading) {
+    if (!execution || !sketchSessionKey || sketchLoading || sketchPendingRef.current === sketchScopeKey) {
       return;
     }
     const requestedScope = sketchScopeKey;
+    const requestId = ++sketchRequestRef.current;
+    sketchPendingRef.current = requestedScope;
     setSketchLoading(true);
     setSketchError(null);
     void previewWorkGraphWorkflowApi(sketchSessionKey, execution.id, locale)
       .then((preview) => {
-        if (sketchScopeRef.current === requestedScope) {
+        if (sketchScopeRef.current === requestedScope && sketchRequestRef.current === requestId) {
           setSketchPreview(preview);
         }
       })
       .catch((reason: unknown) => {
-        if (sketchScopeRef.current === requestedScope) {
+        if (sketchScopeRef.current === requestedScope && sketchRequestRef.current === requestId) {
           setSketchError(getErrorMessage(reason, t("execution.workflow_preview_failed")));
         }
       })
       .finally(() => {
-        if (sketchScopeRef.current === requestedScope) {
+        if (sketchScopeRef.current === requestedScope && sketchRequestRef.current === requestId) {
+          sketchPendingRef.current = null;
           setSketchLoading(false);
         }
       });
@@ -223,7 +233,7 @@ export function ExecutionWorkGraphSurface({
           className="flex min-w-0 flex-1 items-center gap-0.5"
           data-execution-header-context
         >
-          <div className="min-w-0 truncate text-compact font-semibold text-(--text-strong)">
+          <div className={cn("min-w-0 truncate", getUiTypographyClassName({ role: "control", weight: "semibold", tone: "strong" }))}>
             {header?.summary || t("execution.label")}
           </div>
           <UiIconButton
@@ -392,7 +402,7 @@ export function ExecutionWorkGraphSurface({
             ) : (
               <Workflow className="h-5 w-5 text-(--icon-muted)" />
             )}
-            <p className="text-compact leading-5">
+            <p className={getUiTypographyClassName({ role: "supporting", tone: "muted" })}>
               {(mode === "history" ? historyResource.isLoading : resource.isLoading)
                 ? t("execution.surface_loading")
                 : (mode === "history" ? historyResource.error : resource.error)

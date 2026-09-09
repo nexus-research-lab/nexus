@@ -1,7 +1,7 @@
 "use client";
 
 // INPUT: Slash picker 目录、读取状态与显式重载动作。
-// OUTPUT: Skill/Model 选择列表或完整的 Problem/Impact/Recovery 状态。
+// OUTPUT: 支持原生键盘/指针激活的命令、Skill/Model 列表及完整读取恢复状态。
 // POS: Composer picker 可见错误边界；只读失败不触碰输入草稿。
 
 import {
@@ -295,10 +295,8 @@ function SlashCommandList({
             key={`${command.execution}:${command.name}`}
             onMouseDown={(event) => {
               event.preventDefault();
-              if (selectable) {
-                onSelect(command);
-              }
             }}
+            onClick={() => { if (selectable) onSelect(command); }}
             title={selectable
               ? undefined
               : command.disabled_reason
@@ -379,8 +377,8 @@ function SlashSkillList({
             key={skill.name}
             onMouseDown={(event) => {
               event.preventDefault();
-              onSelect(skill);
             }}
+            onClick={() => onSelect(skill)}
             title={description || title}
           >
             <span
@@ -472,8 +470,8 @@ function SlashModelList({
           key={`${model.provider ?? "runtime"}:${model.id}`}
           onMouseDown={(event) => {
             event.preventDefault();
-            onSelect(model);
           }}
+          onClick={() => onSelect(model)}
           title={model.providerLabel
             ? `${model.label} · ${model.providerLabel}`
             : model.label}
@@ -528,6 +526,7 @@ function SlashEmptyState({
 }) {
   return (
     <p
+      role="status"
       className={cn(
         "px-2.5 py-2 text-2xs leading-4",
         tone === "danger" ? "text-(--destructive)" : "text-(--text-soft)",

@@ -151,6 +151,8 @@ export function SkillsDirectory() {
                   busyExternalKeys={operations.busyExternalKeys}
                   importedExternalSources={catalog.importedExternalSources}
                   loading={external.loading}
+                  loadFailed={external.loadFailed}
+                  onRetry={external.retry}
                   onImport={(item) => void operations.importExternal(item)}
                   onPreview={(item) => void external.preview(item)}
                   onSelectSource={(sourceId) => external.setSourceId(sourceId || "")}
@@ -177,6 +179,8 @@ export function SkillsDirectory() {
                     busySkillNames={operations.busySkillNames}
                     groupedSkills={catalog.groupedSkills}
                     loading={catalog.loading}
+                    loadFailed={catalog.loadFailed}
+                    onReload={() => void catalog.refresh()}
                     onDeleteSkill={(skill) => void operations.deleteSkill(skill)}
                     onOpenSkill={openSkillPage}
                   />
@@ -207,6 +211,9 @@ export function SkillsDirectory() {
       <SkillSourceManagerDialog
         isOpen={sources.managerOpen}
         loading={sources.loading}
+        mutationBlocked={sources.mutationBlocked}
+        loadFailed={sources.loadFailed}
+        onRetry={sources.retry}
         onClose={sources.closeManager}
         onDelete={(source) => void sources.remove(source)}
         onSave={sources.save}

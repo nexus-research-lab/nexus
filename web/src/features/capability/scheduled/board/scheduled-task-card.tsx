@@ -5,7 +5,7 @@
  */
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   CalendarCheck2,
@@ -122,7 +122,7 @@ export function ScheduledTaskCard({
   onToggleEnabled,
   task,
 }: ScheduledTaskCardProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [isAttentionOpen, setIsAttentionOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuAnchorRef = useRef<HTMLButtonElement>(null);
@@ -137,7 +137,7 @@ export function ScheduledTaskCard({
     isRunUnconfirmed,
     isToggling,
     isToggleUnconfirmed,
-  }, t);
+  }, t, locale);
   const TaskIdentityIcon = TASK_IDENTITY_ICONS[presentation.columnId];
   const permissionRequest = task.pending_permission_request;
   const errorCopy = getScheduledTaskErrorCopy(presentation.lastError, t);
@@ -148,12 +148,15 @@ export function ScheduledTaskCard({
   const attentionDetail = presentation.deletion?.description
     ?? presentation.binding?.description ?? (presentation.permission
     ? permissionRequest
-      ? getScheduledPermissionCapabilityLabel(permissionRequest)
+      ? getScheduledPermissionCapabilityLabel(permissionRequest, t)
       : presentation.permission.description
     : errorCopy?.summary ?? null);
   const hasAttention = Boolean(
     presentation.deletion || presentation.binding || presentation.permission || errorCopy,
   );
+  useEffect(() => {
+    if (!hasAttention) setIsAttentionOpen(false);
+  }, [hasAttention]);
   const hasPermissionActions = presentation.permission !== null
     && hasScheduledTaskPermissionActions(task);
   const AttentionIcon = presentation.deletion
@@ -410,7 +413,7 @@ export function ScheduledTaskCard({
         isBindingAttention={presentation.binding !== null}
         isDeletionAttention={presentation.deletion !== null}
         isDeletionReviewPending={isDeletionReviewPending}
-        isOpen={isAttentionOpen}
+        isOpen={isAttentionOpen && hasAttention}
         isPending={isMutationBlocked || isPermissionPending || isPermissionUnconfirmed}
         onClose={() => setIsAttentionOpen(false)}
         onConfirmDeletionStopped={onConfirmDeletionStopped}

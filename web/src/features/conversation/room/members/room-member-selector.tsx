@@ -17,6 +17,7 @@ import type { RoomMemberAgentOption } from "./create-room-dialog-types";
 interface RoomMemberSelectorProps {
   agents: RoomMemberAgentOption[];
   canManageParticipation: boolean;
+  disabled?: boolean;
   onQueryChange: (query: string) => void;
   onToggleAgent: (agentId: string) => void;
   onToggleParticipation: (agentId: string) => void;
@@ -28,6 +29,7 @@ interface RoomMemberSelectorProps {
 export function RoomMemberSelector({
   agents,
   canManageParticipation,
+  disabled = false,
   onQueryChange,
   onToggleAgent,
   onToggleParticipation,
@@ -41,6 +43,7 @@ export function RoomMemberSelector({
       <UiSearchInput
         aria-label={t("room.search_agent_placeholder")}
         controlSize="md"
+        disabled={disabled}
         onChange={onQueryChange}
         placeholder={t("room.search_agent_placeholder")}
         value={query}
@@ -58,6 +61,7 @@ export function RoomMemberSelector({
             <RoomMemberOption
               agent={agent}
               canManageParticipation={canManageParticipation}
+              disabled={disabled}
               key={agent.agent_id}
               onToggle={onToggleAgent}
               onToggleParticipation={onToggleParticipation}
@@ -74,6 +78,7 @@ export function RoomMemberSelector({
 function RoomMemberOption({
   agent,
   canManageParticipation,
+  disabled = false,
   onToggle,
   onToggleParticipation,
   participationPaused,
@@ -81,6 +86,7 @@ function RoomMemberOption({
 }: {
   agent: RoomMemberAgentOption;
   canManageParticipation: boolean;
+  disabled?: boolean;
   onToggle: (agentId: string) => void;
   onToggleParticipation: (agentId: string) => void;
   participationPaused: boolean;
@@ -103,6 +109,7 @@ function RoomMemberOption({
       aria-label={actionLabel}
       aria-pressed={selected}
       density="dense"
+      disabled={disabled}
       leading={<UiAgentAvatar avatar={agent.avatar} name={agent.name} size="sm" />}
       onClick={() => onToggle(agent.agent_id)}
       right={(
@@ -122,6 +129,7 @@ function RoomMemberOption({
           active={participationPaused}
           aria-label={participationActionLabel}
           choiceSize="xs"
+          disabled={disabled}
           onClick={(event) => {
             event.stopPropagation();
             onToggleParticipation(agent.agent_id);

@@ -1,5 +1,8 @@
 # 全前端设计与代码审查
 
+> 当前验收范围（用户最新指示）：不再进行视觉验收，只审查代码并执行必要验证。历史记录中的“视觉待验收/暂缓”不再构成完成门槛；但代码未审、行为未验证、源码变化后的旧证据仍需复核，不能批量视为完成。后续按页面/模块成组推进并合并相关检查；继续不暂存、不提交。
+
+
 **Non-normative。** 本文跟踪 2026-09-06 新 Goal 的范围、判断与交付证据，
 不新增另一套设计规范。工程规则继续归
 [frontend-engineering-spec.md](../specs/frontend-engineering-spec.md)，
@@ -4214,3 +4217,315 @@ OAuth 标题、Provider 说明、ID/Secret 提示、复制反馈和页脚动作�
 ### A186 — 授权表单处理中提交保护
 
 直接凭证和 OAuth 表单原只禁用提交按钮，处理器仍接受 submit 事件。处理器直接消费现有 busy 拒绝提交，表单通过 aria-busy 投影状态，不新增 mutation 状态机或清空草稿。新增两类表单忙碌提交被拒绝、恢复后精确保存原值回归。9 项授权测试、目标 lint/typecheck 通过；未做视觉验证。
+
+
+### A187 — Device Flow 复制反馈（待合并完成后提交）
+
+授权码复制移除私有状态与未清理的 setTimeout，独立区块按 device_code 身份复用 useCopyToClipboard，复制成功按钮名称同步反映结果。目标 DOM 回归覆盖会话切换、精确复制码与卸载清理复制计时器；1 项测试及目标 lint 通过。当前工作区处于外部合并，多个前端文件含冲突标记，全局 typecheck 未通过；CSV/CHANGELOG 自身也在冲突中，未写入或暂存它们，未提交本批。待合并完成后更新对应哈希、日志并重新运行类型检查。未做视觉验证。
+
+A187 补充：会话切换后旧复制 Promise 失败不再调用当前错误反馈，当前会话失败仍提示。2 项目标测试及 lint 通过；合并仍有未解决文件，继续保留为未提交改动，待合并完成后补齐 CSV/CHANGELOG 与全局类型检查。
+
+
+### A188 — Device Flow 自动打开反馈归属（按用户要求暂不提交）
+
+桌面自动打开链接回调原未绑定当前会话，旧请求迟到可覆盖新会话的手动继续提示。以挂载中的 device_code 检查成功/失败反馈，卸载清除活动身份；保留既有自动打开一次策略。增加旧成功迟到不能覆盖新失败的真实组件测试；共 3 项 Device Flow 测试与目标 lint 通过。当前合并由其他任务处理，本任务不改冲突、不暂存或提交，CSV/CHANGELOG 合并完成后补齐，未重复运行已知受冲突阻断的全局类型检查。
+
+
+### A189 — 授权弹窗紧凑视口与正文滚动（暂不提交）
+
+Device Flow、飞书选择/手工表单、RichMail 配对接入公共 compactMax 与 scrollable Body，标题/页脚不进入正文滚动区；Device Flow/RichMail 状态文案 min-w-0 与 anywhere 换行。保留公共 Spinner 的 shrink-0，无新增私有高度或滚动 recipe。16 项相关测试、目标 lint 与全局 typecheck 通过；同时补齐 A187/A188 的类型验证。未做视觉验证，按用户要求不暂存、不提交。
+
+
+### A190 — 飞书连接双语与字段关联（暂不提交）
+
+选择与手工连接的标题、说明、动作和占位接入双语目录，App ID/Secret 使用实例级标签 ID。保持 isOpen 重置域、扫码优先与凭据 trim 规则；新增切换语言保留手工步骤/同一输入节点/凭据并精确提交回归。Shopify 复查确认继续消费公共 Prompt，未改业务实现。12 项相关测试、目标 lint/typecheck 通过；未做视觉验证，按用户要求不提交。
+
+
+### A191 — 聊天侧栏内部标记泄漏（暂不提交）
+
+用户截图出现 nexus_room_no_reply：目录项原直接读取 last_reply_preview，仅 trim，未经过已有消息协议清理。Room/DM 目录纯投影现在统一调用 message-content-model.stripRoomControlMarkers，纯标记摘要为空，混合文本保留真实文字，不篡改目录源数据、不按名称另建过滤表。新增 no_reply/fanout/混合/普通尖括号四组回归；9 项目录与行测试、目标 lint/typecheck 通过。按用户要求未提交；未做视觉验证。
+
+
+### A192 — 最终文件引用优先于中间生成脚本（暂不提交）
+
+截图 PPTX 卡片缺失：实际历史工具先 Write Python，后 Bash 生成 PPTX，结构化工具产物只有 Python。新增最终 Markdown inlineCode/link 的来源文件目录解析，复用已有 listed resolver；确认最终引用后尾部优先显示交付文件，无已知文件则保留原工具产物。不解析普通正文/代码块，不猜未知 owner。PPTX 打开/下载精确归属集成回归及纯模型测试通过，共 14 项相关测试，目标 lint/typecheck 通过。子任务详情截图仍待 exact 请求错误：本机相关 Room/Session 列表读请求返回空任务，未改错误渲染或伪造成功。用户已被请求提供失败的 messages 请求响应。未提交、未做视觉验证。
+
+
+### A193 — 最终文件 URL 引用兼容（暂不提交）
+
+最终卡片文件引用支持 Markdown link URL 编码与 ./ 相对前缀，仍先尝试原始精确目录匹配，仅对 link 解码，inlineCode 不解码，防止百分号文件名被误认。损坏编码和未列出的外部 URL 不生成卡片；同文件链接与代码引用去重。3 项模型测试、目标 lint/typecheck 通过。子任务实际 API 前缀已核对一致，仍等待失败请求响应，未声称读取问题修复。
+
+
+### A194 — 源码变化后的审计证据复核（暂不提交）
+
+核对 484 项审计路径与 SHA-256：7 个不存在的路径均已标记 removed；6 个 improved 条目源码已偏离旧指纹，恢复 in_progress，保留旧证据与旧指纹，不能据此宣称当前版本完成。其余未完成条目仍维持原状态，不机械刷新指纹。
+
+- `web/src/features/conversation/shared/composer/components/footer/composer-footer-actions.tsx`
+- `web/src/features/conversation/shared/composer/components/footer/composer-footer.tsx`
+- `web/src/features/navigation/sidebar/view/sidebar-utility-actions.tsx`
+- `web/src/features/settings/personal/personal-avatar-picker.tsx`
+- `web/src/shared/ui/menu/select-menu-view.tsx`
+- `web/src/pages/team/team-page.tsx`
+
+后续优先复查公共 SelectMenuView 的展开层级、键盘与视口约束，再复查 Composer footer/actions；导航、个人头像与 Team 页面跟进。头像入口初读仍使用共享头像、图标选择器和 Spinner，控制器已有保存互斥，本批不为消除指纹差异改动业务。CSV 校验确认路径唯一、字段完整、不存在未标记删除的缺失路径。未做视觉验收，按用户要求不暂存或提交。
+
+
+### A195 — 公共单选菜单当前实现复查（暂不提交）
+
+检查 SelectMenuView、UiSelectMenu、useSelectMenuOverlay、style/model 与 owner 合同。触发器 min-w-0 允许字段收缩；字号、密度、换行与活动态继续由公共 recipe 持有，定位由 anchored overlay 限制视口宽高。选值校验当前可用目录，禁用时立即隐藏并丢弃打开态，显式打开后聚焦可用项，父层关闭继续复用 Overlay。未发现需要新增私有实现的问题，保留源码。
+
+运行 menu、menu-keyboard、select-menu-trigger、select-menu-open、filter-select 五个真实组件测试文件，44 项通过，覆盖禁用/空目录、IME、键盘遍历、Tab/Escape、焦点归还、上下文重置、Portal 隔离和打开事件。更新已读 View 的源码指纹，状态继续 in_progress；这些离线结果不证明窄屏实际几何或视觉验收。按用户要求未暂存、未提交。
+
+
+### A196 — 输入底栏动作与响应规则复查（暂不提交）
+
+复查 Footer、Actions、SubmitButton、owner 合同和 theme-recipes 容器规则：普通三列在 640px 隐藏品牌，520px 收敛元数据/权限文字，Goal 在 460px 分行；动作复用公共 Action Menu，Goal/Connector 单入口勾选，目录 unknown 写入仅阻断对应动作。提交保持控制器资格投影，停止仅在具备回调时可用。
+
+31 项 Footer/Submit/Session/Context 回归通过。更新两个已读文件的指纹并保持 in_progress。源码中的普通 leading overflow:hidden 与 trailing overflow-hidden 仍需要实际窄壳验证控件/焦点环是否裁切；离线 DOM 无法证明这一几何结论，因此本批不盲目去掉溢出约束或宣称响应式已验收。未改产品行为、未暂存或提交。
+
+
+### A197 — Team 文字角色恢复公共所有权（暂不提交）
+
+当前 Team 页面局部 text-xs/text-sm 偏离 owner 文档。加载/错误使用 supporting，作者及首字标记使用 supporting/semibold，时间使用 metadata/muted；正文渲染布局保持。7 项页面回归与目标 lint 通过，覆盖 IME、发送失败草稿、加载失败/重试、Unicode、共享阅读滚动。不改变 transport、发送或页面状态机；视觉验收仍暂缓。侧栏辅助入口已初读，后续继续复查；未提交。
+
+
+### A198 — 账号菜单长名称与历史参数清理（暂不提交）
+
+账号首项截断名称补完整 title；UtilityButton 是文件内私有函数，两处调用均未传 anchor，删除该死参数与无效 data 属性，保留账号按钮的实际 tour anchor。移除无语义 Fragment。4 项路由/登录/退出/引导回归及目标 lint 通过。视觉暂缓，未提交。
+
+
+### A199 — Mermaid 加载几何与复制生命周期共用（暂不提交）
+
+加载占位的 compact/constrained/unconstrained 容器分支与正式视图完全重复，改用既有布局模型。主视图复制使用公共 useCopyToClipboard，保留 1600ms 反馈，删除私有状态/定时器/清理逻辑，迟到成功不在卸载后安排反馈计时器。6 项相关预览/源码/复制 Hook 测试及目标 lint 通过；未做视觉验收或提交。CodeShell/Panel 已初读但本批未完成审计，不修改其状态。
+
+
+### A200 — 摘要常规字重覆盖遗漏（暂不提交）
+
+strongAsText 原只抑制 strong 与 monochrome 标题，普通颜色标题和全部表头仍 medium。修复两种颜色模式的标题/表头，默认强调保持。5 项 Markdown 测试与 lint 通过，含两种模式开关回归。摘要组件仍 in_progress，未做视觉验收、未提交。
+
+
+### A201 — 个人页分区与密码说明关联（暂不提交）
+
+读取个人页装配、身份、用量及密码区；保持共享布局与分区顺序。密码规则/错误原未关联输入，新增实例级说明 ID，并将提交 busy 投影到 form。不猜具体错误字段，不改变 submit/unknown 恢复。新增双实例错误关联和 busy 回归，5 项个人分区测试与 lint 通过；完整视觉及其余分区验收仍未完成。未提交。
+
+
+### A202 — 个人页首次加载/失败边界（暂不提交）
+
+首次加载失败原继续将 null profile 传给全部分区，展示缺省身份与用量。现在只有成功资料才装配分区；既有反馈与重试保持控制器所有权，刷新期间保留成功内容。加载添加具名 busy status，Spinner 装饰隐藏。2 项页面装配回归通过，视觉待验收，未提交。
+
+
+### A203 — 标签自动归位尊重减少动态效果（暂不提交）
+
+检查标签装配、滚动轨道和滚动 Hook，自动归位原无条件 smooth。接入公共系统偏好 Hook，reduce 时 auto，普通模式保持 smooth；定时二次边界校正、滚轮和受控命令不变。7 项标签/滚动测试与 lint 通过，含两种动效偏好。实际窄屏几何仍待验收，未提交。
+
+
+### A204 — 页面框架与加载文案约束（暂不提交）
+
+核对 Frame/Scaffold 的 min-w/min-h、滚动选项及实际调用；保留唯一滚动归属，补 L3 契约。公共加载占位补 min-w-0/max-w-full/换行，长文案不依赖页面修补。3 项相关测试与 lint 通过，实际几何未验收。发现 Contacts/Room 调用仍有硬编码中文加载文案，留待页面双语复查；本批未扩大业务范围，未提交。
+
+
+### A205 — Contacts/Room 加载文案双语（暂不提交）
+
+两页面写死的中文加载文字接入 navigation/conversation 双语目录，保留业务对象含义；不改变 hydration、目录/详情切换或恢复行为。目标 lint/typecheck 验证。Contacts 删除确认/失败纯模型仍有一组中文文案，后续必须按 outcome 分支整体国际化，不能只翻译标题；页面整体仍在审计中。未提交、未做视觉验证。
+
+
+### A206 — Contacts 删除/恢复整组双语（暂不提交）
+
+确认、fallback 名称、未生效、已提交清理未完成、资源不存在与结果未知的全部检查分支接入 contacts.delete 双语目录；纯模型显式接收 t。保留原中文内容与全部领域分支。既有中文恢复断言及新增 12 种 outcome/check 组合的双语动作一致性回归通过（2 tests）；目标 lint/typecheck 通过。未做视觉验收、未提交。
+
+
+### A207 — 引导注销清理活动身份（暂不提交）
+
+原 unregister 只修改 ref，不通知活动状态。新增微任务核对：未重新注册才清空同 ID activeTour；保留同轮定义更新及随后启动的其他 Tour，不写完成状态。4 项 Provider/Overlay 回归通过，覆盖注销、重新注册与换引导。未做实际页面视觉验收，未提交。
+
+
+### A208 — 最近批次生产构建集成检查（暂不提交）
+
+在当前工作树运行 web/npm run build，5989 个模块转换、生产构建退出 0。这是最近页面、Markdown、引导、标签及文案改动组合后的打包验证，不替代运行时或视觉验收。Vite 提示部分分块超过 500 kB，观察到 root-bootstrap 618.17 kB、匿名 chunk 663.06 kB、exceljs 929.92 kB（压缩前）；保留警告，后续性能审计需追踪加载时机与实际成本，不机械提高阈值或仅凭体积拆包。未提交任何文件，未执行重复全量测试。
+
+
+### A209 — 常规设置恢复组件职责审查（暂不提交）
+
+完整读取 Echo/Preferences notice 和 Onboarding 行：前两者复用 ResourceState 的布局/排版/忙碌动作，分别拥有领域恢复优先级，保留独立组件；Onboarding 行存在真实行为分区消费者，不能视为死代码。9 项行为分区测试通过，但不覆盖两个 notice 的全部独立恢复分支，因此不标完成。Workspace 分区已初读，尚待完整回归覆盖。没有产品代码修改、没有视觉验收、未提交。
+
+
+### A210 — 恢复提示直接交互回归与验收范围调整
+
+新增 7 项直接 DOM 回归：Preferences/Echo 的修复、重应用、读取优先级与唯一命令分派，checking 防重复，以及无恢复权限/成功态无动作。测试和目标 lint 通过，未改产品逻辑。用户明确取消视觉验收，后续代码审查不再等待像素/截图证据；历史视觉欠项只作为旧记录保留，不自动将代码欠项标完成。按模块批量推进，继续不提交。
+
+
+### A211 — 仅代码验收收口与并行审计
+
+按最新用户指示取消视觉门槛，基于已读源码与 A195/A204/A209/A210 验证将 8 个公共框架、菜单与常规设置条目收口，不批量关闭未知状态条目。Desktop/Workspace 按控制器投影 busy 到操作按钮，不新增状态。用户授权三个子智能体并行审查模型设置、运营设置与 Markdown；中央清单与全局检查由主任务统一维护，禁止暂存/提交。
+
+
+### A212 — 公共面板及个人展示组件代码收口
+
+Panel 原生 section 与有限 recipe、个人身份/头像/用量展示均已读实现；继续复用公共所有者，保留纯视图职责，不以减少文件数强行合并。4 个条目按仅代码验收收口；2 项 Panel 回归通过，个人用量使用 A201 已通过的分区回归，未重复跑。Desktop/Workspace 三个 busy ARIA 投影局部 lint 通过。并行子任务分别修复 Provider、Operations、Markdown 的已发现问题，待其回报再统一验收。
+
+
+### A213 — 三模块并行代码审查收口
+
+Markdown、Provider 设置、Operations 三个子任务完成独立审查，本批收口 26 个清单 owner。Mermaid 修复流式源码清空后残留旧 SVG；Provider 统一弹窗权限/共享忙碌限制并保留已删除但刷新失败反馈；Operations 恢复独立刷新，补成员与项目读写互斥及未知结果禁写。目标验证分别 16、32、11 项通过。主任务检查关键改动并运行全局 lint（0 errors，workgraph-metadata-editor-dialog.tsx 留有一条本批未改的 Hook 警告）与 TypeScript 检查，均退出 0。未做视觉验收，未暂存或提交，不覆盖其他任务改动。
+
+
+### A214 — 表单、记忆、联系人和设置导航并行审查
+
+按代码审查收口 23 个原未完成 owner。Form/Switch 修复原生错误切换语言不更新、次按钮触发按压及捕获丢失残留；Memory 保留空文件草稿、保护冲突保存并依容器宽度分栏；Contacts 删除固定隐藏滚动控件的历史常量，接回统一 FOLLOW 状态。分别 58、26、34 项目标验证通过。设置导航新增窄栏不受搜索草稿影响的回归，导航与共享目录累计 7 项通过；设置 Panel/Page 保留纯装配职责。未视觉验收、未提交。文件树新截图反馈正在单独处理，不计本批完成。
+
+
+### A215 — 文件树截图反馈
+
+定位到目录 aria-expanded 触发 UiButton 局部状态背景，与外层选中背景范围冲突；改为共享 Tree 自有透明 disclosure 命中区，整行统一承载状态，不改全局 Button。名称统一 regular，重命名/删除归一个公共 ActionMenu，减少动作常占宽度。5 项 Tree DOM 回归及局部 lint 通过，保留完整路径、精确 entry、右键、键盘及菜单退出焦点。没有视觉验收，没有提交。
+
+A214/A215 集成检查：全局 lint 0 errors、保留原 WorkGraph Hook warning；修正 Memory 测试 mock 缺失 access:null 后全局 typecheck 通过。文件浏览器调用方 1 项测试通过，Tree 与调用方合计 6 项。
+
+
+### A216 — 页面入口、引导、Workspace 控件
+
+并行代码审查收口 18 个未完成 owner。修复标签拖拽捕获丢失、Provider 引导切语言丢草稿/同步重复提交、Launcher 迟到导航覆盖新选择；OAuth 状态保留翻译键且语言切换不重放授权。运营旧入口补具名等待状态。Workspace/Onboarding/页面分别 16/7/3 项目标验证通过。根故障面改用无 Context 样式配方，2 项隔离回归通过，但不以此声明完整启动恢复链完成。未视觉验收、未提交。
+
+A216 集成门禁：28 项目标验证通过；全局 lint 0 errors（原 WorkGraph Hook warning 保留），故障测试显式 never 返回类型修正后全局 typecheck 通过，改动 diff check 通过。
+
+
+### A217 — Agent Options、频道和公共反馈
+
+收口 26 个 owner；共享提示允许长动作换行，Agent Options 区分加载/无快照失败/真空态并使用实例标题 ID，频道防重复控制帧及配对提交期间冻结草稿/关闭。公共展示、Agent Options、频道及 App 布局分别 15/39/15/3 项目标验证通过。5 个频道视图仍有硬编码中文，保持 in_progress；连接/扫码状态机未覆盖。核对全部已收口源文件指纹无漂移。未视觉、未提交。
+
+A217 集成：全局 typecheck 通过，lint 0 errors，原 WorkGraph Hook warning 未变。72 项目标验证通过。未提交。
+
+
+### A218 — 公共模态/菜单、侧栏与主题装饰
+
+本批先收口 15 个 owner，Dialog/Menu 61 项与 Sidebar 12 项测试通过。保留已有焦点、IME、候选校验和精确固定会话身份；Nexus 字标恢复用户要求的首字母大写且颜色保持，resize 不响应右键或面板外侧命中。主题减少动效时不启动装饰，Canvas 无 context 安全退化，视频卸载暂停，3 项回归通过；主题叠层常量仍待统一审查，保持 in_progress。频道文案单独收尾。未视觉验收、未提交。
+
+
+### A219 — 频道国际化欠项收口
+
+5 个频道 owner 的授权/配对标题、动作、倒计时、筛选、确认与技术说明完成双语；协议枚举不变，当前语言标签同时参与列表与状态计数搜索，兼容旧中文和协议标识搜索。17 项目标验证、6 项恢复合同通过。与 A218 合计 99 项目标验证；未视觉验收、未提交。
+
+A218/A219 集成检查：全局 typecheck、lint（0 errors，原 WorkGraph Hook warning 保留）和生产构建通过，5988 模块转换；messages/匿名 chunk/exceljs 仍有 >500kB 构建提示，未调整警告阈值。
+
+
+### A220 — 常规设置、聊天侧栏、主题收尾
+
+收口 13 个 owner。常规设置修复加载锁、重试互斥和固定字段 ID；联系人私聊准备按代次隔离，捕获错误且未知结果不重放；主题装饰使用低于菜单的公共层级，偏好存储不可用时仍应用实时主题/排版，明确只保护可选视觉存储。General 23、Home 7、Theme 5、排版合同 2 与 token 合同 8 项通过；全局 lint 0 errors（原 WorkGraph warning 保留）、typecheck通过。未视觉验收、未提交。频道连接另行收尾。
+
+
+### A221 — 频道连接/扫码交互
+
+6 个 owner 收口：扫码/验证码直接成功或核对成功后刷新账号快照，验证码等待时禁用重复保存/启动，补齐短文案、验证码具名与说明关联、实例标题及状态语义。9 项目标回归与 6 项恢复合同、局部 lint通过。平台教程 ChannelGuide 仍有中文硬编码，保持 in_progress。未视觉、未提交。
+
+
+### A222 — 公共基础、剩余设置与初始化入口
+
+收口 15 项。引导的持久化和Provider同时拒绝迟到初始化覆盖用户重置/完成；浏览器设置防慢请求重叠；平台教程完成双语；Setup 提交和核对共用同步锁、期间禁用草稿并使用实例字段身份。Access 品牌遵循 Nexus 大小写，保留品牌几何专用职责。公共控件36、浏览器5、教程6、Setup2项验证通过。Login 页已发现英文硬编码和空加载框，继续in_progress。未视觉、未提交。
+
+A222 集成门禁：全局 typecheck、lint通过，lint仅保留原WorkGraph Hook warning；49 项目标验证通过。
+
+
+### A223 — 技能目录、任务表单与导航预览
+
+收口21个owner：技能8、任务表单/选择器11、导航1及Markdown文件按钮1。技能失败与空态分离并在刷新时保留快照；任务选择器补齐列和日期命名，未知写入使用warning；导航Escape归还精确轮次且不触发跳转。分别15、35、3、2项目标验证通过，共55项。Login、技能剩余10和任务board/directory完整文案链仍在审查；未视觉、未提交。
+
+
+### A224 — 登录页收尾
+
+收口2个Login owner。启动使用共享具名加载面、产品介绍双语且切语言保留凭证；多实例字段身份隔离，提交期间冻结输入，控制器同步锁防止同帧重复认证。11项Login测试通过。未视觉、未提交。
+
+
+### A225 — 技能与任务目录收尾
+
+收口15 owner：技能剩余10、任务board/directory5。技能未知写入锁不再被普通GET清除，开关按目标值核对，缺证据要求明确新意图；展示读失败与真空态分离。任务包含模型、计划formatter与确认弹窗的双语完整链，新attempt不保留上次诊断。技能33、任务37项目标验证通过；Team刷新保留已有消息另8项通过，Team仍未完整关闭。集成typecheck通过，未视觉、未提交。
+
+
+### A226 — 群头像同步截图反馈
+
+顶部移除4人特例，与侧栏统一最多9人；共享头像只排序成员副本，以稳定身份统一拼图。沿用AgentStore最新头像合并和目录事件刷新，不添加数据源。16项头像/Header/成员模型回归通过。A223–A225合计新收口38项，当前完成328、剩余156；Team增量修复不计完整关闭。未视觉、未提交。
+
+A223–A226最终集成：全局typecheck通过，lint 0 errors（保留原WorkGraph Hook warning），前端diff check通过。未视觉验收、未提交。
+
+
+### A227 — 私域、Connector视图和能力布局
+
+收口18项。私域请求增加代次避免A/B/A迟到响应覆盖；Connector访问失败不再显示残留详情；能力详情采用实际容器960px切换双栏、品牌补img语义。分别8/30/9项目标测试通过；构建5989模块通过并检查container CSS已生成，保留大chunk提示。Connector命令恢复/auth/custom和能力摘要计数状态仍未关闭。未视觉、未提交。
+
+
+### A228 — Launcher收尾
+
+收口5 owner。减少动效使用一次静态落位，不申请动画帧/定时器；Token完整名称、焦点与选中语义，Room仅作装饰；无Provider不吞草稿，可选存储不可用时不重复自动弹配置。目录缺省名双语。13项目标测试通过。A227/A228合计23项，累计完成351、剩余133；未视觉、未提交。
+
+A227/A228集成：全局lint无错误（原WorkGraph warning保留），最终typecheck与前端diff check通过。生产构建用于容器规则验证已通过，Launcher后续仅目标测试与代码门禁。
+
+
+### A229 — 摘要与会话恢复控件
+
+收口5 owner。摘要首次/失败不再伪造零计数，保留成功快照并删除无用空摘要常量和重置分支。三类恢复提示保留公共InlineNotice纯投影；回到底部补显式键盘焦点。5项目标测试通过，未视觉、未提交。
+
+
+### A230 — 用户消息与消息身份控件
+
+收口9 owner。消息身份变化重建编辑/复制/折叠状态；附件用共享Button或静态Badge，触屏操作可见。头像原图失败回退、新URL重试、默认详情动作双语；保留消息24/40px领域几何不扩展公共头像接口。7项目标测试通过。未视觉、未提交。
+
+
+### A231 — Room成员编辑
+
+收口6 owner。异步保存防重且冻结草稿和关闭；失败保持草稿并禁止当前实例直接重放。入口透传Promise，实例ID、IME、多选ARIA、设置文案双语补齐。7项组件与3项成员参与合同通过。未视觉、未提交。
+
+
+### A232 — Connector认证与Custom MCP恢复
+
+收口8 owner。固定/OAuth未知写入不凭普通GET解锁，Custom MCP独立恢复锁；失败和空态分离、撤权不恢复旧工具快照，表单锁与标题关联补齐。51项目标测试通过。主directory命令与Device Flow完整文案链仍待完成。A229–A232共收口28项，累计379、剩余105。未视觉、未提交。
+
+A229–A232最终集成：补齐Custom读取失败impact合同后typecheck通过；全局lint无错误（原WorkGraph warning保留），前端diff check通过。未暂存、未提交。
+
+
+### A233 — Room渲染错误边界
+
+收口2 owner，保留共享资源错误面和显式刷新。补回归证明异常诊断不显示、同会话不隐式重渲染、新会话身份恢复，1项通过。入口文件只完成初读，未计完整关闭。未视觉、未提交。
+
+
+### A234 — 消息执行过程组件
+
+收口9 owner。widget重试创建新隔离iframe且拒绝旧frame消息；详情取消后拒绝成功回写，身份用Session/ref二元组。工具头IME保护、Thought减少动效、本地化及公共错误提示收口。12项目标测试通过。未视觉、未提交。
+
+
+### A235 — Connector文案与历史/移动会话
+
+收口7 owner。Connector命令和Device Flow完整双语链，语言切换不重复授权。历史写失败提示并锁住未确认条目、关闭菜单不解锁，owner/Room隔离迟到批量结果；移动与桌面活动顺序统一。分别32/33项目标验证通过。A233–A235合计18项，累计397、剩余87。最终typecheck、lint（0errors，原WorkGraph warning）和前端diff check通过。未视觉、未提交。
+
+
+### A236 — DM简介联络缺记录
+
+修复前端误用当前人机DM的Room/Conversation过滤，以及后端全局查询漏掉隐藏联系通道。DM读取Agent联络，群聊仍精确scope；联系通道独立按owner/member查询，不受普通room_limit截断。25项前端测试、typecheck与局部lint通过，后端两个目标包及增强SQL/ledger隔离回归通过。名称未改，未提交。后续截图中QA主DM不知道另一联络Session的往返属于独立的来源结果获知问题，尚未实现自动回投，不以本修复宣称解决。
+
+
+### A237 — 认证守卫、消息产物、Feed与工作图
+
+实际收口23 owner：认证守卫1、消息6、Feed8、工作图8。认证失败使用公共资源状态和双语恢复文案，不显示诊断；图片取消后不创建Blob URL，来源对照隔离迟到请求；提及在拆分文件卡前按完整正文定位，双反引号代码保持内容。Feed共享身份与滚动合同保留。工作图撤权清空快照、历史读取失效、提取同步防重、文件引用缺owner不可打开、搜索关闭恢复焦点。认证5、消息9、Feed70、工作图56项通过。累计420完成、64未完成；大画布、两个保存编辑器和命名图目录继续待审。未视觉、未暂存、未提交。私聊主DM结果获知机制仍未改变。
+
+A237集成验证：typecheck通过；全局lint零错误（保留原WorkGraph编辑器1条warning）；diff check通过。
+
+
+### A238 — 启动入口、消息组装、Composer与命名图编辑
+
+实际收口42 owner：入口/i18n15、消息16、Composer8、工作图3。浏览器存储不可用不阻断语言和启动；根恢复双语无Provider，桌面入口跨源路径安全回退。消息修复头像fallback、timeline几何、重复DOM ID、历史重试计时器；Composer补原生键盘激活、Session草稿隔离和读取详情状态。命名图删除未知锁独立于反馈，明确核对前不解锁；编辑器同帧防重、读取/写入代次、撤权与保存核对失败展示。入口18、消息17、Composer46、工作图35项验证通过。累计462完成、22未完成；大canvas与AuthProvider仍待完整审查。未视觉、未暂存、未提交。
+
+A238集成验证：typecheck通过，全局lint零错误零warning，diff check通过。
+
+
+### A239 — 最后生产owner与覆盖核对
+
+收口原剩余22项，覆盖扫描补入2个新增生产owner（在线建群、个人用量图），清单合计486。生产TSX逐文件与清单匹配，开发gallery及其entry不属于产品UI；7个已删除owner确认文件不存在。认证边界保留并用2项DOM测试确认；用量5项、画布44项、会话装配18项、页面/导入15项目标验证通过。
+
+画布修历史Attempt关联、文件来源身份、兼容检查器和原生缩放事件；Thread补键盘区域/头像回退，fork迟到结果不导航；Team按owner/Room隔离、建群与导入同步防重。既有Windows Hero动效例外保留。mention焦点token合同发现未声明引用，修复后8项通过。第一次全量组件测试捕获编辑中的新夹具错误，已修后等待最终完整运行。
+
+未视觉、未暂存、未提交。私聊主DM如何获知独立联络Session结果仍是待用户选择的新行为，不在本轮保留既有行为的前端审查中擅自实现。
+
+### 最终完成审计（A239）
+
+- 范围：生产TSX逐文件核对，清单486项（306 improved、173 retained、7 removed）；479个存活owner全部与记录SHA256一致，7个删除项不存在。开发gallery及其专用entry明确排除；无漏列生产TSX。
+- 设计与职责：每个owner有保留或改善结论及分批证据；公共UI recipe承担字体/密度/反馈/焦点，领域组件保留其会话、权限、工作图及资源身份职责。必要业务辅助代码随owner审查，不以搬迁目录代替审查。
+- 验证：最终完整前端测试338合同、1628组件测试全部通过；typecheck通过，lint零错误零warning，Vite build通过，diff check通过。构建仍有已知大于500kB chunk提示，不影响构建；本轮未以拆包扩张范围。
+- 用户覆盖项：依照后续明确指令，仅代码审查和测试；不做视觉/浏览器/宿主验收，不暂存、不提交。原Windows实际宿主验收继续暂缓。
+- 独立后续决策：主DM获知独立联络Session结果涉及新增产品行为，等待用户在按需查询和主动回传之间选择；本轮未擅自改变通讯协议或声称此新行为已实现。

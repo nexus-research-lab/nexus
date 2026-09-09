@@ -68,6 +68,7 @@ describe("AssistantMessageStats", () => {
     const dialog = screen.getByRole("dialog", {
       name: /referenced memories|引用的记忆/i,
     });
+    expect(dialog.id).toBe(trigger.getAttribute("aria-controls"));
     expect(dialog.className).toContain("surface-popover");
     expect(screen.getByRole("heading", {
       name: /referenced memories|引用的记忆/i,

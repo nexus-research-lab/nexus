@@ -1,4 +1,4 @@
-// INPUT: 单项模型能力、当前开关值与更新动作。
+// INPUT: 单项模型能力、当前开关值、禁用状态与更新动作。
 // OUTPUT: 可换行名称与原生标签关联的开关，文字点击复用同一开关动作。
 // POS: Provider 模型能力设置的最小行组件。
 import { cn } from "@/shared/ui/class-name";
@@ -7,10 +7,12 @@ import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styl
 
 export function CapabilitySwitch({
   checked,
+  disabled = false,
   label,
   onChange,
 }: {
   checked: boolean;
+  disabled?: boolean;
   label: string;
   onChange: (checked: boolean) => void;
 }) {
@@ -20,6 +22,7 @@ export function CapabilitySwitch({
       <GlassSwitch
         aria-label={label}
         checked={checked}
+        disabled={disabled}
         size="xs"
         onChange={onChange}
       />

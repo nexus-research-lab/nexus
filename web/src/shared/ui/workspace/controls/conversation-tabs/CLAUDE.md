@@ -13,3 +13,7 @@
 - 窄容器仍保留当前会话标题；创建入口始终保持纯图标和可访问名称，但使用比普通 ghost 工具明确一档的中性浅底，避免核心入口消失在 Header 中。
 - 桌面标签轨道随共享顶栏使用 36px 导航带和 32px 标签/动作高度；宽度分配仍只由容器模型决定。
 - `workspace-conversation-tabs.test.tsx` 验证受控命令与 busy 投影；`conversation-tabs-model.test.ts` 验证固定边缘空间、活动权重和稳定溢出阈值；`workspace-conversation-tab.test.tsx` 验证关闭动作的键盘、标题和事件隔离。
+
+活动标签归位复用 usePrefersReducedMotion：减少动效时使用 auto，普通模式 smooth；稳定后二次边界校正保持 auto，不另建媒体监听。
+
+鼠标拖拽或原生 range 的指针捕获丢失时必须清理临时按压/拖拽状态；视口先清理当前拖拽引用再释放捕获，防止捕获丢失事件重入。

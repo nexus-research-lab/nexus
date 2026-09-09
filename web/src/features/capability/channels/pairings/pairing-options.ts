@@ -1,37 +1,44 @@
-import { ImChatType, ImChannelType, ImPairingStatus } from "@/lib/api/capability/channel-api";
+// INPUT: 稳定渠道/会话/配对状态协议值和当前翻译器。
+// OUTPUT: 单一键表生成的双语标签与选项；默认中文标签仅用于既有搜索兼容。
+// POS: 配对标签的唯一所有者，不改变命令载荷中的枚举。
+import type { ImChatType, ImChannelType, ImPairingStatus } from "@/lib/api/capability/channel-api";
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
+import { MESSAGES, type TranslationKey } from "@/shared/i18n/messages";
 
-export const CHANNEL_LABELS: Record<ImChannelType, string> = {
-  dingtalk: "钉钉",
-  wechat: "企业微信",
-  "weixin-personal": "微信",
-  feishu: "飞书",
-  telegram: "Telegram",
-  discord: "Discord",
+const CHANNEL_KEYS: Record<ImChannelType, TranslationKey> = {
+  dingtalk: "capability.pairing_channel_dingtalk",
+  wechat: "capability.pairing_channel_wechat",
+  "weixin-personal": "capability.pairing_channel_weixin_personal",
+  feishu: "capability.pairing_channel_feishu",
+  telegram: "capability.pairing_channel_telegram",
+  discord: "capability.pairing_channel_discord",
 };
-
-export const STATUS_LABELS: Record<ImPairingStatus, string> = {
-  pending: "待处理",
-  active: "已授权",
-  disabled: "已停用",
-  rejected: "已拒绝",
+const STATUS_KEYS: Record<ImPairingStatus, TranslationKey> = {
+  pending: "capability.pairing_status_pending",
+  active: "capability.pairing_status_active",
+  disabled: "capability.pairing_status_disabled",
+  rejected: "capability.pairing_status_rejected",
 };
-
-export const CHAT_TYPE_LABELS: Record<ImChatType, string> = {
-  dm: "用户",
-  group: "群聊",
+const CHAT_KEYS: Record<ImChatType, TranslationKey> = {
+  dm: "capability.pairing_chat_dm", group: "capability.pairing_chat_group",
 };
-
-export const CHANNEL_OPTIONS = (Object.entries(CHANNEL_LABELS) as Array<[ImChannelType, string]>).map(([value, label]) => ({
-  value,
-  label,
-}));
-
-export const CHAT_TYPE_OPTIONS = (
-  Object.entries(CHAT_TYPE_LABELS) as Array<[ImChatType, string]>
-).map(([value, label]) => ({ value, label }));
-
-export const CREATE_PAIRING_STATUS_OPTIONS: Array<{ value: ImPairingStatus; label: string }> = [
-  { value: "active", label: STATUS_LABELS.active },
-  { value: "pending", label: STATUS_LABELS.pending },
-  { value: "disabled", label: STATUS_LABELS.disabled },
-];
+function labels<Value extends string>(keys: Record<Value, TranslationKey>, t: I18nContextValue["t"]): Record<Value, string> {
+  return Object.fromEntries((Object.keys(keys) as Value[]).map((value) => [value, t(keys[value])])) as Record<Value, string>;
+}
+function options<Value extends string>(values: Record<Value, string>): Array<{ value: Value; label: string }> {
+  return (Object.keys(values) as Value[]).map((value) => ({ value, label: values[value] }));
+}
+export function getPairingLabels(t: I18nContextValue["t"]) {
+  return { channels: labels(CHANNEL_KEYS, t), statuses: labels(STATUS_KEYS, t), chatTypes: labels(CHAT_KEYS, t) };
+}
+export function getPairingOptions(t: I18nContextValue["t"]) {
+  const translated = getPairingLabels(t);
+  return {
+    channels: options(translated.channels),
+    chatTypes: options(translated.chatTypes),
+    initialStatuses: (["active", "pending", "disabled"] as const).map((value) => ({ value, label: translated.statuses[value] })),
+  };
+}
+const defaultLabels = getPairingLabels((key) => MESSAGES.zh[key]);
+export const CHANNEL_LABELS = defaultLabels.channels;
+export const CHAT_TYPE_LABELS = defaultLabels.chatTypes;

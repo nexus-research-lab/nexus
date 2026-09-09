@@ -86,3 +86,22 @@ it("运营分组直接导航到五个独立子页，搜索保留管理员权限�
   expect(screen.getByRole("button", { name: "套餐管理" })).toBeTruthy();
   expect(screen.queryByRole("button", { name: "部署成员" })).toBeNull();
 });
+
+it("keeps rail navigation unfiltered and preserves the panel search draft", async () => {
+  const user = userEvent.setup();
+  const onNavigate = vi.fn();
+  const view = render(<SettingsSidebarNavigation variant="panel" onNavigate={onNavigate} />);
+  await user.click(screen.getByRole("button", { name: "搜索设置…" }));
+  await user.type(screen.getByRole("searchbox"), "不存在的设置");
+  expect(screen.getByRole("status")).toBeTruthy();
+  view.rerender(<SettingsSidebarNavigation variant="rail" onNavigate={onNavigate} />);
+  expect(screen.queryByRole("searchbox")).toBeNull();
+  expect(screen.queryByRole("status")).toBeNull();
+  expect(screen.getByRole("button", { name: "常规" }).getAttribute("aria-current")).toBe("page");
+  await user.click(screen.getByRole("button", { name: "外观" }));
+  expect(selectSection).toHaveBeenLastCalledWith("appearance");
+  expect(onNavigate).toHaveBeenCalledOnce();
+  view.rerender(<SettingsSidebarNavigation variant="panel" onNavigate={onNavigate} />);
+  expect((screen.getByRole("searchbox") as HTMLInputElement).value).toBe("不存在的设置");
+  expect(screen.getByRole("status")).toBeTruthy();
+});

@@ -4,7 +4,8 @@
 import { expect, it } from "vitest";
 import { MESSAGES } from "@/shared/i18n/messages";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
-import { buildScheduledTaskBoard } from "./scheduled-task-board-model";
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
+import { getScheduledTaskCardPresentation, buildScheduledTaskBoard } from "./scheduled-task-board-model";
 
 function task(job_id: string, overrides: Partial<ScheduledTaskItem> = {}): ScheduledTaskItem {
   return {
@@ -34,4 +35,30 @@ it("translates titles while preserving column priority, schedule order and sourc
   ]);
   expect(identities(zh)).toEqual(identities(en));
   expect(items).toEqual(before);
+});
+
+
+it("localizes every card state without changing command eligibility or task data", () => {
+  const overrides: Partial<ScheduledTaskItem>[] = [
+    {}, { running: true }, { enabled: false },
+    { enabled: false, last_run_at: 100, last_run_status: "succeeded" },
+    { failure_streak: 2, last_error: "Provider failed" },
+    { deletion_state: "deleting" }, { deletion_state: "review_required" },
+    { session_binding_state: "rebind_required", session_binding_issues: ["execution", "delivery"] },
+    ...["awaiting_approval", "awaiting_input", "awaiting_reauth", "denied", "ready_to_retry"].map((permission_state) => ({ permission_state })),
+  ];
+  const translate = (locale: "zh" | "en"): I18nContextValue["t"] => (key, params) =>
+    Object.entries(params ?? {}).reduce((value, [name, param]) => value.replaceAll(`{${name}}`, String(param)), MESSAGES[locale][key]);
+  const pending = { isDeleting: false, isPermissionPending: false, isRunning: false, isToggling: false };
+  for (const override of overrides) {
+    const input = task("task", override);
+    const before = structuredClone(input);
+    const en = getScheduledTaskCardPresentation(input, pending, translate("en"), "en");
+    const zh = getScheduledTaskCardPresentation(input, pending, translate("zh"), "zh");
+    expect(JSON.stringify(en)).not.toMatch(/[\u4e00-\u9fff]/);
+    expect(en.columnId).toBe(zh.columnId);
+    expect(en.runAction.disabled).toBe(zh.runAction.disabled);
+    expect(en.toggleAction.disabled).toBe(zh.toggleAction.disabled);
+    expect(input).toEqual(before);
+  }
 });

@@ -75,6 +75,7 @@ export function WorkspaceConversationTabs({
             controller.tabsScroll.isDragging ? "cursor-grabbing select-none" : "cursor-grab",
           )}
           onClickCapture={controller.tabsScroll.handleClickCapture}
+          onLostPointerCapture={controller.tabsScroll.handleLostPointerCapture}
           onPointerCancel={controller.tabsScroll.handlePointerCancel}
           onPointerDown={controller.tabsScroll.handlePointerDown}
           onPointerMove={controller.tabsScroll.handlePointerMove}

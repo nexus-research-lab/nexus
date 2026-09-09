@@ -5,7 +5,7 @@
  * OUTPUT: 聊天/工作区/WorkGraph 共用布局和原右栏尺寸命令，以及只由 execution_invalidated 驱动的 ExecutionResource revision。
  * POS: Room 页面桌面与移动 Surface 的资源组合根；不从 message/round/Goal 活动猜测图变化。
  */
-import { useCallback, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 
 import { useExecutionResource } from "@/features/conversation/shared/execution/use-execution-resource";
 import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
@@ -155,9 +155,15 @@ export function RoomSurfaceShell({
     setExecutionTaskRunState({ sessionKey: executionSessionKey, runs });
   }, [executionSessionKey]);
 
+  const navigationGeneration = useRef(0);
+  useLayoutEffect(() => {
+    navigationGeneration.current += 1;
+    return () => { navigationGeneration.current += 1; };
+  }, [roomId, conversationId, currentAgent.agent_id]);
+
   const handleCreateConversationInShell = useCallback(async (title?: string) => {
     const nextConversationId = await onCreateConversation(title);
-    setActiveSurfaceTab("chat");
+    if (nextConversationId) setActiveSurfaceTab("chat");
     return nextConversationId;
   }, [onCreateConversation]);
 
@@ -176,8 +182,9 @@ export function RoomSurfaceShell({
     if (!conversationId) {
       return;
     }
+    const generation = navigationGeneration.current;
     const nextConversationId = await onForkConversation(conversationId, roundId);
-    if (!nextConversationId) {
+    if (!nextConversationId || generation !== navigationGeneration.current) {
       return;
     }
     setActiveSurfaceTab("chat");

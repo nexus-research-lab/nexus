@@ -5,7 +5,7 @@
  * OUTPUT: 启动台主界面、模型引导及当前唯一的持久可靠性反馈。
  * POS: Launcher 展示装配层；优先展示当前 Console 操作失败，不自行判断请求结果。
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ANIMATIONS } from "@/config/animation-assets";
 import { ProviderSetupDialog } from "@/features/onboarding/provider-setup/provider-setup-dialog";
@@ -50,27 +50,29 @@ export function LauncherConsole({
   });
   const { hasAvailableProvider, isReady } = useProviderAvailability();
   const [setupOpen, setSetupOpen] = useState(false);
+  const setupPromptedRef = useRef(false);
   const launcherTour = useMemo(() => buildLauncherTour(t), [t]);
   const decorativeTokens = useMemo(
     () => buildDecorativeTokens(agents, rooms),
     [agents, rooms],
   );
   const mentionTargets = useMemo(
-    () => buildLauncherMentionTargets(agents, rooms),
-    [agents, rooms],
+    () => buildLauncherMentionTargets(agents, rooms, t),
+    [agents, rooms, t],
   );
   const recentEntries = useMemo(
-    () => buildRecentLauncherEntries(conversations),
-    [conversations],
+    () => buildRecentLauncherEntries(conversations, t),
+    [conversations, t],
   );
   const openProviderSetup = useCallback(() => {
+    setupPromptedRef.current = true;
     markProviderSetupPrompted();
     setTourDismissed(LAUNCHER_TOUR_ID, true);
     setSetupOpen(true);
   }, []);
 
   useEffect(() => {
-    if (!isReady || hasAvailableProvider || setupOpen || providerSetupWasPrompted()) {
+    if (!isReady || hasAvailableProvider || setupOpen || setupPromptedRef.current || providerSetupWasPrompted()) {
       return undefined;
     }
     const timeoutId = window.setTimeout(() => {
@@ -91,7 +93,7 @@ export function LauncherConsole({
     if (isReady && !hasAvailableProvider) {
       controller.actions.updateQuery(input);
       openProviderSetup();
-      return true;
+      return false;
     }
     return controller.actions.submitQuery(input);
   }, [controller.actions, hasAvailableProvider, isReady, openProviderSetup]);

@@ -5,6 +5,8 @@
  */
 import { RefreshCw, Search } from "lucide-react";
 
+import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
@@ -122,7 +124,7 @@ export function AgentMemoryCatalog({
         ) : null}
 
         {truncated ? (
-          <p className="px-3 py-3 text-xs leading-4 text-(--text-soft)">
+          <p className={cn("px-3 py-3", getUiTypographyClassName({ role: "caption", tone: "soft" }))}>
             {t("capability.memory_truncated")}
           </p>
         ) : null}
@@ -163,7 +165,7 @@ function MemoryCatalogSectionView({
 
 function MemorySectionLabel({ label, value }: { label: string; value?: string }) {
   return (
-    <div className="flex items-center justify-between px-2 pb-1 pt-1 text-2xs font-semibold uppercase text-(--text-soft)">
+    <div className={cn("flex items-center justify-between px-2 pb-1 pt-1 uppercase", getUiTypographyClassName({ role: "metadata", weight: "semibold", tone: "soft" }))}>
       <span>{label}</span>
       {value ? <span className="tabular-nums">{value}</span> : null}
     </div>

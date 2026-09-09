@@ -73,7 +73,7 @@ export function useConnectorCommands({
   requestShopDomain,
   runCommand,
 }: UseConnectorCommandsOptions) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [deviceAuthSession, setDeviceAuthSession] =
     useState<ConnectorDeviceAuthStart | null>(null);
   const [localPairingSession, setLocalPairingSession] =
@@ -94,9 +94,10 @@ export function useConnectorCommands({
 
   const reconcileMutation = useCallback(async (
     action: ConnectorPendingAction,
+    effect: "committed" | "accepted" | "unknown" = "unknown",
   ): Promise<void> => {
     const refreshed = await refreshConnector(action.connectorId);
-    if (refreshed) {
+    if (refreshed && effect === "committed") {
       completeReconciliation(action.connectorId);
       reportFeedback({
         message: t("capability.connector_reconcile_success_message"),
@@ -105,11 +106,26 @@ export function useConnectorCommands({
       });
       return;
     }
+    if (refreshed && effect === "unknown") {
+      reportFeedback({
+        action: {
+          label: t("capability.connector_new_intent_action"),
+          onClick: () => completeReconciliation(action.connectorId),
+        },
+        impact: t("capability.connector_checked_unknown_impact"),
+        nextStep: t("capability.connector_checked_unknown_next_step"),
+        persistent: true,
+        reconciliationConnectorId: action.connectorId,
+        title: t("capability.connector_unknown_title"),
+        tone: "warning",
+      });
+      return;
+    }
     reportFeedback({
       action: {
         label: t("capability.connector_reconcile_action"),
         onClick: () => {
-          void reconcileMutation(action);
+          void reconcileMutation(action, effect);
         },
       },
       impact: t("capability.connector_reconcile_failed_impact"),
@@ -123,8 +139,8 @@ export function useConnectorCommands({
   }, [completeReconciliation, refreshConnector, reportFeedback, t]);
 
   const openFeishuWebAuthorizationUrl = useCallback((url: string) => (
-    !isDesktopRuntime() && getFeishuWebAuthorizationWindow().open(url)
-  ), [getFeishuWebAuthorizationWindow]);
+    !isDesktopRuntime() && getFeishuWebAuthorizationWindow().open(url, locale)
+  ), [getFeishuWebAuthorizationWindow, locale]);
 
   const executeMutation = useCallback(async ({
     errorFallback,
@@ -150,7 +166,7 @@ export function useConnectorCommands({
     if (refreshed) {
       reportFeedback({
         tone: "success",
-        title: "操作完成",
+        title: t("capability.connector_flow_op_done"),
         message: successMessage,
       });
       return true;
@@ -159,7 +175,7 @@ export function useConnectorCommands({
       action: {
         label: t("capability.connector_reconcile_action"),
         onClick: () => {
-          void reconcileMutation(action);
+          void reconcileMutation(action, "committed");
         },
       },
       impact: t("capability.connector_refresh_failed_impact"),
@@ -201,7 +217,7 @@ export function useConnectorCommands({
       shop ?? undefined,
     );
     if (!authUrl) {
-      throw new Error("授权地址为空，请检查连接器配置");
+      throw new Error(t("capability.connector_flow_auth_empty"));
     }
     rememberPendingConnectorOauth(connector.connector_id);
     const popup = window.open(
@@ -211,15 +227,15 @@ export function useConnectorCommands({
     );
     if (!popup) {
       clearPendingConnectorOauth(connector.connector_id);
-      throw new Error("授权窗口被浏览器拦截，请允许弹窗后重试");
+      throw new Error(t("capability.connector_flow_auth_popup_blocked"));
     }
     reportFeedback({
       tone: "success",
-      title: "操作完成",
-      message: "已打开授权页面，请在新窗口完成授权",
+      title: t("capability.connector_flow_op_done"),
+      message: t("capability.connector_flow_auth_opened"),
     });
     return true;
-  }, [reportFeedback, requestShopDomain]);
+  }, [reportFeedback, requestShopDomain, t]);
 
   const openDeviceOauth = useCallback(async (
     connector: ConnectorInfo,
@@ -232,12 +248,12 @@ export function useConnectorCommands({
     setDeviceAuthSession(session);
     reportFeedback({
       tone: "success",
-      title: "操作完成",
+      title: t("capability.connector_flow_op_done"),
       message: connector.connector_id === "feishu-docx"
         ? mode === "official_qr"
-          ? "请使用飞书扫描二维码选择或创建应用"
-          : "请打开飞书授权链接完成连接"
-        : "已生成 GitHub 授权码",
+          ? t("capability.connector_flow_feishu_scan_hint")
+          : t("capability.connector_flow_feishu_link_hint")
+        : t("capability.connector_flow_github_code_ready"),
     });
     const authUrl = session.verification_uri_complete
       || session.verification_uri;
@@ -245,7 +261,7 @@ export function useConnectorCommands({
       window.open(authUrl, "_blank", "noopener,noreferrer");
     }
     return true;
-  }, [reportFeedback]);
+  }, [reportFeedback, t]);
 
   const openLocalPairing = useCallback(async (
     connector: ConnectorInfo,
@@ -279,9 +295,9 @@ export function useConnectorCommands({
         > = {
           direct: () => executeMutation({
             action: { kind: "connect", connectorId },
-            errorFallback: "连接失败",
+            errorFallback: t("capability.connector_flow_connect_failed"),
             request: () => connectConnectorApi(connectorId),
-            successMessage: "连接成功",
+            successMessage: t("capability.connector_flow_connect_success"),
           }),
           "direct-credential": async () => {
             reportFeedback({
@@ -350,21 +366,21 @@ export function useConnectorCommands({
     }
     return runMutation({
       action: { kind: "connect-credential", connectorId },
-      errorFallback: "连接失败",
+      errorFallback: t("capability.connector_flow_connect_failed"),
       request: () => connectConnectorApi(
         connectorId,
         buildDirectCredentialPayload(authType, credential),
       ),
-      successMessage: "连接成功",
+      successMessage: t("capability.connector_flow_connect_success"),
     });
   }, [connectors, reportFeedback, runMutation, t]);
 
   const handleDisconnect = useCallback((connectorId: string) => runMutation({
     action: { kind: "disconnect", connectorId },
-    errorFallback: "断开失败",
+    errorFallback: t("capability.connector_flow_disconnect_failed"),
     request: () => disconnectConnectorApi(connectorId),
-    successMessage: "已断开连接",
-  }), [runMutation]);
+    successMessage: t("capability.connector_flow_disconnected"),
+  }), [runMutation, t]);
 
   const reportDeviceAuthFailure = useCallback((
     connectorId: string,
@@ -424,7 +440,7 @@ export function useConnectorCommands({
       } catch (error) {
         reportDeviceAuthFailure(
           "feishu-docx",
-          getErrorMessage(error, "启动飞书扫码连接失败"),
+          getErrorMessage(error, t("capability.connector_flow_feishu_scan_failed")),
           "outcome_unknown",
         );
         return false;
@@ -460,12 +476,12 @@ export function useConnectorCommands({
     }
     const saved = await runMutation({
       action: { kind: "save-oauth-client", connectorId },
-      errorFallback: "保存飞书应用配置失败",
+      errorFallback: t("capability.connector_flow_feishu_save_failed"),
       request: () => saveConnectorOauthClientApi(connectorId, {
         client_id: clientId,
         client_secret: clientSecret,
       }),
-      successMessage: "飞书应用配置已保存",
+      successMessage: t("capability.connector_flow_feishu_saved"),
     });
     if (!saved) {
       return false;
@@ -476,7 +492,7 @@ export function useConnectorCommands({
       } catch (error) {
         reportDeviceAuthFailure(
           connectorId,
-          getErrorMessage(error, "启动飞书授权失败"),
+          getErrorMessage(error, t("capability.connector_flow_feishu_start_failed")),
           "outcome_unknown",
         );
         return false;
@@ -499,31 +515,31 @@ export function useConnectorCommands({
     clientSecret: string,
   ) => runMutation({
     action: { kind: "save-oauth-client", connectorId },
-    errorFallback: "保存配置失败",
+    errorFallback: t("capability.connector_flow_save_failed"),
     request: () => saveConnectorOauthClientApi(connectorId, {
       client_id: clientId,
       client_secret: clientSecret,
     }),
-    successMessage: "应用配置已保存",
-  }), [runMutation]);
+    successMessage: t("capability.connector_flow_saved"),
+  }), [runMutation, t]);
 
   const handleDeleteOauthClient = useCallback((connectorId: string) => (
     runMutation({
       action: { kind: "delete-oauth-client", connectorId },
-      errorFallback: "删除配置失败",
+      errorFallback: t("capability.connector_flow_delete_failed"),
       request: () => deleteConnectorOauthClientApi(connectorId),
-      successMessage: "应用配置已删除",
+      successMessage: t("capability.connector_flow_deleted"),
     })
-  ), [runMutation]);
+  ), [runMutation, t]);
 
   const handleDeviceConnected = useCallback(async () => {
     reportFeedback({
       tone: "success",
-      title: "操作完成",
-      message: "连接器已连接",
+      title: t("capability.connector_flow_op_done"),
+      message: t("capability.connector_flow_connected"),
     });
     await refreshCatalog();
-  }, [refreshCatalog, reportFeedback]);
+  }, [refreshCatalog, reportFeedback, t]);
 
   const closeDeviceAuthSession = useCallback(() => {
     closeFeishuWebAuthorizationWindow();
@@ -602,7 +618,7 @@ function reportConnectorMutationFailure({
   action: ConnectorPendingAction;
   error: unknown;
   errorFallback: string;
-  reconcileMutation: (action: ConnectorPendingAction) => Promise<void>;
+  reconcileMutation: (action: ConnectorPendingAction, effect: "committed" | "accepted" | "unknown") => Promise<void>;
   reportFeedback: ReportConnectorFeedback;
   requireReconciliation: (action: ConnectorPendingAction) => void;
   t: ReturnType<typeof useI18n>["t"];
@@ -643,7 +659,7 @@ function reportConnectorMutationFailure({
       : {
           label: t("capability.connector_reconcile_action"),
           onClick: () => {
-            void reconcileMutation(action);
+            void reconcileMutation(action, outcome);
           },
     },
     impact: t(selectedCopy.impact),

@@ -38,6 +38,9 @@ import type { ExternalSkillSourceInfo } from "@/types/capability/skill";
 interface SkillSourceManagerDialogProps {
   isOpen: boolean;
   loading: boolean;
+  mutationBlocked?: boolean;
+  loadFailed?: boolean;
+  onRetry?: () => void;
   onClose: () => void;
   onDelete: (source: ExternalSkillSourceInfo) => void;
   onSave: (
@@ -76,6 +79,9 @@ function sourceKindLabel(kind: string, t: I18nContextValue["t"]): string {
 export function SkillSourceManagerDialog({
   isOpen,
   loading,
+  mutationBlocked = false,
+  loadFailed = false,
+  onRetry,
   onClose,
   onDelete,
   onSave,
@@ -123,6 +129,7 @@ export function SkillSourceManagerDialog({
   };
   const submitForm = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (loading || mutationBlocked) return;
     if (!draft.name.trim() || !draft.url.trim()) return;
     if (
       draft.authType === "bearer"
@@ -138,6 +145,7 @@ export function SkillSourceManagerDialog({
         draft={draft}
         editingSource={editingSource}
         loading={loading}
+        mutationBlocked={mutationBlocked}
         onCancel={closeEditor}
         onChange={setDraft}
         onSubmit={submitForm}
@@ -163,6 +171,11 @@ export function SkillSourceManagerDialog({
                   title={t("capability.skill_sources_loading")}
                   variant="plain"
                 />
+              ) : loadFailed && !sortedSources.length ? (
+                <UiResourceState state="error" size="sm"
+                  title={t("capability.skill_sources_load_failed_title")}
+                  impact={t("state.read_failure_impact")}
+                  primaryAction={onRetry ? { label: t("state.retry"), onClick: onRetry } : undefined} />
               ) : sortedSources.length ? (
                 <UiPanel
                   className="divide-y divide-(--divider-subtle-color) overflow-hidden"
@@ -173,7 +186,7 @@ export function SkillSourceManagerDialog({
                   {sortedSources.map((source) => (
                     <SourceRow
                       key={source.source_id}
-                      disabled={loading}
+                      disabled={loading || mutationBlocked}
                       onDelete={() => setDeleteTarget(source)}
                       onEdit={() => openEditEditor(source)}
                       onToggle={(enabled) => onToggle(source, enabled)}
@@ -194,7 +207,7 @@ export function SkillSourceManagerDialog({
             <UiDialogFooter appearance="plain" className="gap-2">
               <UiButton
                 className="mr-auto"
-                disabled={loading}
+                disabled={loading || mutationBlocked}
                 onClick={openCreateEditor}
                 size="sm"
                 tone="primary"
@@ -333,6 +346,7 @@ interface PrivateSourceEditorDialogProps {
   draft: PrivateSkillSourceDraft;
   editingSource: ExternalSkillSourceInfo | null;
   loading: boolean;
+  mutationBlocked: boolean;
   onCancel: () => void;
   onChange: (draft: PrivateSkillSourceDraft) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
@@ -342,6 +356,7 @@ function PrivateSourceEditorDialog({
   draft,
   editingSource,
   loading,
+  mutationBlocked,
   onCancel,
   onChange,
   onSubmit,
@@ -379,7 +394,7 @@ function PrivateSourceEditorDialog({
             >
               <UiInput
                 data-autofocus="true"
-                disabled={loading}
+                disabled={loading || mutationBlocked}
                 id={`${fieldId}-name`}
                 onChange={(event) => updateDraft("name", event.target.value)}
                 pattern=".*\S.*"
@@ -397,7 +412,7 @@ function PrivateSourceEditorDialog({
               required
             >
               <UiInput
-                disabled={loading || Boolean(editingSource)}
+                disabled={loading || mutationBlocked || Boolean(editingSource)}
                 id={`${fieldId}-url`}
                 onChange={(event) => updateDraft("url", event.target.value)}
                 placeholder="https://skills.example.com/registry"
@@ -408,7 +423,7 @@ function PrivateSourceEditorDialog({
               />
             </UiField>
             <UiSegmentedControl
-              disabled={loading}
+              disabled={loading || mutationBlocked}
               onChange={(authType) => updateDraft("authType", authType)}
               options={[
                 { label: t("capability.skill_source_auth_none"), value: "none" },
@@ -429,7 +444,7 @@ function PrivateSourceEditorDialog({
               >
                 <UiInput
                   autoComplete="new-password"
-                  disabled={loading}
+                  disabled={loading || mutationBlocked}
                   id={`${fieldId}-token`}
                   onChange={(event) => updateDraft("token", event.target.value)}
                   pattern=".*\S.*"
@@ -443,7 +458,7 @@ function PrivateSourceEditorDialog({
           </UiDialogBody>
           <UiDialogFooter appearance="plain" className="gap-2">
             <UiButton
-              disabled={loading}
+              disabled={loading || mutationBlocked}
               onClick={onCancel}
               size="sm"
               variant="surface"
@@ -452,7 +467,7 @@ function PrivateSourceEditorDialog({
             </UiButton>
             <UiButton
               aria-busy={loading || undefined}
-              disabled={loading}
+              disabled={loading || mutationBlocked}
               size="sm"
               tone="primary"
               type="submit"

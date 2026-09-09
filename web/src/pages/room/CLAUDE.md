@@ -6,3 +6,5 @@
 - `orchestration/` 负责 URL、导航、页面级事件和 Tour，不得下沉到领域 Feature 或通用 Hook 目录。
 - `room_deleted` 是服务端已确认事实，当前页面直接离开失效路由，不以旧页面快照二次推断。
 - 无完整 Room 上下文时的 GroupRouteEntry 保留降级导航与精确 Room 最近会话过滤；三个入口直接组合 WorkspaceCatalogCard 的主动作和共享排版，不再依赖单消费者工作区动作封装。
+
+页面加载提示从对应双语目录读取，并交给 WorkspaceLoadingState 统一呈现。

@@ -15,6 +15,8 @@ interface SkillsCatalogGridProps {
   busySkillNames: ReadonlySet<string>;
   groupedSkills: Array<[string, SkillInfo[]]>;
   loading: boolean;
+  loadFailed: boolean;
+  onReload: () => void;
   onDeleteSkill: (skill: SkillInfo) => void;
   onOpenSkill: (skillName: string) => void;
 }
@@ -23,12 +25,14 @@ export function SkillsCatalogGrid({
   busySkillNames,
   groupedSkills,
   loading,
+  loadFailed,
+  onReload,
   onDeleteSkill,
   onOpenSkill,
 }: SkillsCatalogGridProps) {
   const { t } = useI18n();
 
-  if (loading) {
+  if (loading && !groupedSkills.length) {
     return (
       <UiResourceState
         className="min-h-80"
@@ -39,6 +43,18 @@ export function SkillsCatalogGrid({
       />
     );
   }
+
+  const failure = loadFailed ? (
+    <UiResourceState
+      state="error"
+      size="sm"
+      title={t("capability.skills_catalog_load_failed_title")}
+      impact={t("capability.skills_catalog_load_failed_impact")}
+      nextStep={t("capability.skills_catalog_load_failed_next_step")}
+      primaryAction={{ label: t("common.refresh"), onClick: onReload, disabled: loading, busy: loading }}
+    />
+  ) : null;
+  if (loadFailed && !groupedSkills.length) return failure;
 
   if (!groupedSkills.length) {
     return (
@@ -54,7 +70,8 @@ export function SkillsCatalogGrid({
   }
 
   return (
-    <div className="space-y-6">
+    <div aria-busy={loading || undefined} className="space-y-6">
+      {failure}
       {groupedSkills.map(([categoryName, items]) => (
         <section key={categoryName}>
           <CapabilitySectionHeader title={categoryName} />

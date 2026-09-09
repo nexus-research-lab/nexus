@@ -87,20 +87,20 @@ export function ScheduledTaskAttentionDialog({
   }
   const request = task.pending_permission_request;
   const capabilityLabel = request
-    ? getScheduledPermissionCapabilityLabel(request)
+    ? getScheduledPermissionCapabilityLabel(request, t)
     : null;
   const resourceSummary = request
     ? getScheduledPermissionResourceSummary(request)
     : null;
-  const errorCopy = getScheduledTaskErrorCopy(task.last_error, t);
+  const errorCopy = getScheduledTaskErrorCopy(task.running ? null : task.last_error, t);
   const errorEchoesPermission = Boolean(
     request?.capability.tool_name
       && task.last_error?.includes(request.capability.tool_name),
   );
   const hasPermissionAttention = hasScheduledTaskPermissionAttention(task);
   const requestStatusLabel = request?.status === "approved"
-    ? "已批准，待重试"
-    : "等待处理";
+    ? t("capability.scheduled_board_approved_retry")
+    : t("capability.scheduled_board_waiting");
   const deletionNeedsReview = task.deletion_state?.trim() === "review_required";
   const titleId = `scheduled-task-attention-${task.job_id}`;
 
@@ -136,15 +136,15 @@ export function ScheduledTaskAttentionDialog({
                   })}
                   id={`${titleId}-deletion`}
                 >
-                  {title || (deletionNeedsReview ? "删除需要管理员处理" : "任务正在删除")}
+                  {title || (deletionNeedsReview ? t("capability.scheduled_delete_review_required_title") : t("capability.scheduled_board_deleting_title"))}
                 </h3>
                 <p className={cn(
                   "mt-2",
                   getUiTypographyClassName({ role: "supporting", tone: "default" }),
                 )}>
                   {description || (deletionNeedsReview
-                    ? "系统无法确认删除前的原执行是否已经停止，因此任务数据尚未删除。"
-                    : "删除请求已受理，系统正在停止任务并完成收尾。")}
+                    ? t("capability.scheduled_board_delete_review_description")
+                    : t("capability.scheduled_board_deleting_description"))}
                 </p>
                 <UiPanel className="mt-4 space-y-4" padding="sm" radius="sm">
                   <div>
@@ -153,15 +153,15 @@ export function ScheduledTaskAttentionDialog({
                       tone: "strong",
                       weight: "semibold",
                     })}>
-                      对已有内容的影响
+                      {t("capability.scheduled_board_impact_title")}
                     </h4>
                     <p className={cn(
                       "mt-1",
                       getUiTypographyClassName({ role: "metadata", tone: "default" }),
                     )}>
                       {deletionImpact || (deletionNeedsReview
-                        ? "任务配置和运行记录仍然保留；继续确认后会删除任务和历史，但此前已经发生的外部影响无法撤回。"
-                        : "已保存的运行记录不会被重写；已经发生的外部操作不会被撤销或自动重做。")}
+                        ? t("capability.scheduled_board_delete_review_impact")
+                        : t("capability.scheduled_board_deleting_impact"))}
                     </p>
                   </div>
                   <div>
@@ -170,15 +170,15 @@ export function ScheduledTaskAttentionDialog({
                       tone: "strong",
                       weight: "semibold",
                     })}>
-                      现在可以做什么
+                      {t("capability.scheduled_board_next_step_title")}
                     </h4>
                     <p className={cn(
                       "mt-1",
                       getUiTypographyClassName({ role: "metadata", tone: "default" }),
                     )}>
                       {deletionNextStep || (deletionNeedsReview
-                        ? "请先确认原执行端已经停止，再使用下方确认操作完成删除；也可以先刷新或查看运行历史。"
-                        : "无需再次删除。请等待片刻后刷新，或先查看运行历史。")}
+                        ? t("capability.scheduled_board_delete_review_next")
+                        : t("capability.scheduled_board_deleting_next"))}
                     </p>
                   </div>
                 </UiPanel>
@@ -193,7 +193,7 @@ export function ScheduledTaskAttentionDialog({
                   })}
                   id={`${titleId}-binding`}
                 >
-                  {title || "重新绑定会话"}
+                  {title || t("capability.scheduled_board_rebind")}
                 </h3>
                 <p className={cn(
                   "mt-2",
@@ -213,7 +213,7 @@ export function ScheduledTaskAttentionDialog({
                     })}
                     id={`${titleId}-request`}
                   >
-                    {title || capabilityLabel || "权限请求"}
+                    {title || capabilityLabel || t("capability.scheduled_board_permission_request")}
                   </h3>
                   <UiBadge shape="pill" size="sm" tone="warning">
                     {requestStatusLabel}
@@ -231,7 +231,7 @@ export function ScheduledTaskAttentionDialog({
                     <dt className={getUiTypographyClassName({
                       role: "caption",
                       tone: "muted",
-                    })}>能力</dt>
+                    })}>{t("capability.scheduled_board_capability")}</dt>
                     <dd className={cn(
                       "min-w-0",
                       getUiTypographyClassName({
@@ -248,7 +248,7 @@ export function ScheduledTaskAttentionDialog({
                       <dt className={getUiTypographyClassName({
                         role: "caption",
                         tone: "muted",
-                      })}>目标</dt>
+                      })}>{t("capability.scheduled_board_target")}</dt>
                       <dd className={cn(
                         "min-w-0 break-all",
                         getUiTypographyClassName({ role: "caption", tone: "default" }),
@@ -270,16 +270,16 @@ export function ScheduledTaskAttentionDialog({
                     <dt className={getUiTypographyClassName({
                       role: "caption",
                       tone: "muted",
-                    })}>批准后</dt>
+                    })}>{t("capability.scheduled_board_after_approval")}</dt>
                     <dd className={getUiTypographyClassName({
                       role: "caption",
                       tone: "default",
                     })}>
                       {request.status === "approved"
-                        ? "审批已完成；确认后会重试同一次运行"
+                        ? t("capability.scheduled_board_approved_next")
                         : request.resume_safe
-                        ? "结束当前尝试，并自动继续同一次运行"
-                        : "等待你再次确认后才会重试，避免重复副作用"}
+                        ? t("capability.scheduled_board_safe_resume")
+                        : t("capability.scheduled_board_unsafe_resume")}
                     </dd>
                   </div>
                 </dl>
@@ -289,12 +289,12 @@ export function ScheduledTaskAttentionDialog({
                     role: "metadata",
                     tone: "default",
                     weight: "medium",
-                  })}>这项选择只处理当前任务正在等待的权限。</p>
+                  })}>{t("capability.scheduled_board_permission_scope")}</p>
                   <p className={cn(
                     "mt-1",
                     getUiTypographyClassName({ role: "metadata", tone: "muted" }),
                   )}>
-                    页面会在提交后重新读取任务状态；如果结果无法确认，会先停止同类操作并提示你核对，不会自动重复执行。
+                    {t("capability.scheduled_board_permission_reconcile")}
                   </p>
                 </UiPanel>
               </section>
@@ -308,13 +308,13 @@ export function ScheduledTaskAttentionDialog({
                   })}
                   id={`${titleId}-state`}
                 >
-                  {title || "任务需要处理"}
+                  {title || t("capability.scheduled_board_attention_title")}
                 </h3>
                 <p className={cn(
                   "mt-2",
                   getUiTypographyClassName({ role: "supporting", tone: "default" }),
                 )}>
-                  {description || "任务权限状态已经变化，请刷新后再执行下一步操作。"}
+                  {description || t("capability.scheduled_board_permission_changed")}
                 </p>
               </section>
             ) : null}
@@ -332,7 +332,7 @@ export function ScheduledTaskAttentionDialog({
                   })}
                   id={`${titleId}-diagnostic`}
                 >
-                  {hasPermissionAttention ? "附带运行诊断" : "最近运行诊断"}
+                  {hasPermissionAttention ? t("capability.scheduled_board_additional_diagnostic") : t("capability.scheduled_board_recent_diagnostic")}
                 </h3>
                 <p className={cn(
                   "mt-2 whitespace-pre-wrap break-words",
@@ -352,7 +352,7 @@ export function ScheduledTaskAttentionDialog({
                 variant="text"
               >
                 <History className="h-3.5 w-3.5" />
-                查看运行历史
+                {t("capability.scheduled_board_history")}
               </UiButton>
               {isDeletionAttention ? (
                 <div className="flex flex-wrap items-center justify-end gap-2">
@@ -363,7 +363,7 @@ export function ScheduledTaskAttentionDialog({
                     variant="surface"
                   >
                     <RefreshCw className="h-3.5 w-3.5" />
-                    刷新任务状态
+                    {t("capability.scheduled_board_refresh")}
                   </UiButton>
                   {deletionNeedsReview ? (
                     <UiButton
@@ -375,8 +375,8 @@ export function ScheduledTaskAttentionDialog({
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                       {isDeletionReviewPending
-                        ? "确认结果待核对"
-                        : "确认已停止，继续删除"}
+                        ? t("capability.scheduled_board_confirmation_unknown")
+                        : t("capability.scheduled_board_confirm_stopped")}
                     </UiButton>
                   ) : null}
                 </div>
@@ -388,7 +388,7 @@ export function ScheduledTaskAttentionDialog({
                   tone="primary"
                   variant="solid"
                 >
-                  重新绑定会话
+                  {t("capability.scheduled_board_rebind")}
                 </UiButton>
               ) : hasPermissionActions ? (
                 <div className="flex flex-wrap items-center justify-end gap-2">

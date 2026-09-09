@@ -22,6 +22,7 @@ import type { WorkGraphWorkflow } from "@/types/conversation/workgraph-workflow"
 
 interface WorkGraphDistillationDetailProps {
   item: WorkGraphWorkflow;
+  editDisabled?: boolean;
   notice?: ReactNode;
   onBack: () => void;
   onCopy: () => void;
@@ -30,6 +31,7 @@ interface WorkGraphDistillationDetailProps {
 
 export function WorkGraphDistillationDetail({
   item,
+  editDisabled = false,
   notice,
   onBack,
   onCopy,
@@ -49,7 +51,7 @@ export function WorkGraphDistillationDetail({
           actions={(
             <>
               {!item.built_in ? (
-                <UiButton onClick={onEdit} size="sm" variant="surface">
+                <UiButton disabled={editDisabled} onClick={onEdit} size="sm" variant="surface">
                   {t("capability.workgraph_edit")}
                 </UiButton>
               ) : null}

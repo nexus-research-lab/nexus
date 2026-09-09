@@ -209,4 +209,14 @@ describe("ExecutionNodeRunHistory", () => {
       act(() => useAgentStore.setState({ current_agent_id: null }));
     }
   });
+  it("does not open plain output references without the source workspace owner", async () => {
+    const open = vi.fn();
+    render(<I18N_CONTEXT.Provider value={{ locale: "zh", setLocale: vi.fn(), t: (key) => key }}>
+      <ExecutionNodeRunHistory item={ITEM} node={NODE} onOpenWorkspaceFile={open} />
+    </I18N_CONTEXT.Provider>);
+    const button = screen.getByRole("button", { name: "output/report.md" }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    await userEvent.setup().click(button);
+    expect(open).not.toHaveBeenCalled();
+  });
 });

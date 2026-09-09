@@ -1,3 +1,6 @@
+// INPUT: 页面内容与响应式留白。
+// OUTPUT: 允许横纵收缩的工作区 Flex 页面框架。
+// POS: 页面几何所有者，不创建独立滚动容器。
 "use client";
 
 import { ReactNode } from "react";

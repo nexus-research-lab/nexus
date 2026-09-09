@@ -4,7 +4,7 @@
 
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useState } from "react";
 import {
   Check,
   Code2,
@@ -12,7 +12,7 @@ import {
   Eye,
 } from "lucide-react";
 
-import { writeTextToClipboard } from "@/shared/lib/browser/clipboard";
+import { useCopyToClipboard } from "@/shared/lib/react/use-copy-to-clipboard";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
@@ -50,35 +50,19 @@ export function MermaidView({
 }: MermaidViewProps) {
   const { t } = useI18n();
   const renderIdPrefix = `mermaid-${useId().replace(/:/g, "")}`;
-  const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { error, is_rendering: isRendering, svg } = useMermaidSvg(
     chart,
     isStreaming,
     renderIdPrefix,
   );
   const [viewMode, setViewMode] = useState<MermaidViewMode>("preview");
-  const [copied, setCopied] = useState(false);
+  const { copied, copy } = useCopyToClipboard({ feedback_timeout_ms: 1600 });
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const copySourceLabel = t(
     copied ? "markdown.mermaid.copied_source" : "markdown.mermaid.copy_source",
   );
 
-  useEffect(() => () => {
-    if (copyResetTimerRef.current) {
-      clearTimeout(copyResetTimerRef.current);
-    }
-  }, []);
-
-  const copySource = async () => {
-    if (!await writeTextToClipboard(chart)) {
-      return;
-    }
-    setCopied(true);
-    if (copyResetTimerRef.current) {
-      clearTimeout(copyResetTimerRef.current);
-    }
-    copyResetTimerRef.current = setTimeout(() => setCopied(false), 1600);
-  };
+  const copySource = () => copy(chart);
 
   const openPreview = () => {
     if (svg) {

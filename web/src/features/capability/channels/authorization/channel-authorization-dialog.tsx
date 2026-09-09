@@ -94,6 +94,7 @@ function ChannelAuthorizationQRCodeDialog({
   presentation: ChannelAuthorizationData;
   writeLocked: boolean;
 }) {
+  const { t } = useI18n();
   const expiry = useAuthorizationExpiry(presentation.expires_at);
   return (
     <UiDialogPortal>
@@ -108,7 +109,7 @@ function ChannelAuthorizationQRCodeDialog({
           <UiDialogHeader
             appearance="plain"
             onClose={onClose}
-            title="连接频道"
+            title={t("capability.channel_auth_connect")}
             titleId="channel-authorization-title"
           />
           <UiDialogBody className="space-y-4 px-5" scrollable>
@@ -124,18 +125,18 @@ function ChannelAuthorizationQRCodeDialog({
             </p>
             <div className="mx-auto w-fit">
               <UiQRCode
-                alt={`${presentation.channel_type} 授权二维码`}
+                alt={t("capability.channel_auth_qr_alt", { channel: presentation.channel_type })}
                 payload={presentation.qr_payload ?? ""}
                 showPayload={false}
               />
             </div>
             {error ? <AuthorizationError failure={error} /> : null}
             {expiry.expired ? <AuthorizationExpired /> : null}
-            <SecurityBoundaryNote>授权信息只用于本次连接。</SecurityBoundaryNote>
+            <SecurityBoundaryNote>{t("capability.channel_auth_boundary")}</SecurityBoundaryNote>
           </UiDialogBody>
           <UiDialogFooter appearance="plain">
             <UiButton disabled={busy} onClick={onClose} variant="surface">
-              关闭
+              {t("common.close")}
             </UiButton>
             <UiButton
               disabled={busy || writeLocked}
@@ -143,7 +144,7 @@ function ChannelAuthorizationQRCodeDialog({
               tone="danger"
               variant="solid"
             >
-              {busy ? "取消中…" : "取消连接"}
+              {t(busy ? "capability.channel_auth_cancelling" : "capability.channel_auth_cancel")}
             </UiButton>
           </UiDialogFooter>
         </UiDialogShell>
@@ -171,6 +172,7 @@ function ChannelAuthorizationCodeDialog({
 }) {
   const [code, setCode] = useState("");
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const { t } = useI18n();
   const expiry = useAuthorizationExpiry(presentation.expires_at);
 
   useEffect(() => {
@@ -197,14 +199,14 @@ function ChannelAuthorizationCodeDialog({
         labelledBy="channel-authorization-code-title"
         onClose={onClose}
       >
-        <UiDialogFormShell autoComplete="off" onSubmit={submit} size="sm">
+        <UiDialogFormShell autoComplete="off" onSubmit={submit} size="sm" viewport="compactMax">
           <UiDialogHeader
             appearance="plain"
             onClose={onClose}
-            title="输入验证码"
+            title={t("capability.channel_auth_code_title")}
             titleId="channel-authorization-code-title"
           />
-          <UiDialogBody className="space-y-4 px-5">
+          <UiDialogBody className="space-y-4 px-5" scrollable>
             <AuthorizationIdentityStrip
               channelType={presentation.channel_type}
               expiry={expiry}
@@ -215,7 +217,7 @@ function ChannelAuthorizationCodeDialog({
             >
               {presentation.prompt}
             </p>
-            <UiField htmlFor="channel-authorization-code" label="验证码">
+            <UiField htmlFor="channel-authorization-code" label={t("capability.channel_auth_code")}>
               <UiInput
                 ref={inputRef}
                 autoCapitalize="none"
@@ -225,7 +227,7 @@ function ChannelAuthorizationCodeDialog({
                 inputMode="numeric"
                 maxLength={256}
                 onChange={(event) => setCode(event.target.value)}
-                placeholder="输入验证码"
+                placeholder={t("capability.channel_auth_code_title")}
                 spellCheck={false}
                 textRole="verification"
                 value={code}
@@ -236,11 +238,11 @@ function ChannelAuthorizationCodeDialog({
               <AuthorizationError failure={error} />
             ) : null}
             {expiry.expired ? <AuthorizationExpired /> : null}
-            <SecurityBoundaryNote>验证码只用于本次连接。</SecurityBoundaryNote>
+            <SecurityBoundaryNote>{t("capability.channel_auth_code_boundary")}</SecurityBoundaryNote>
           </UiDialogBody>
           <UiDialogFooter appearance="plain">
             <UiButton disabled={busy} onClick={onClose} variant="surface">
-              关闭
+              {t("common.close")}
             </UiButton>
             <UiButton
               disabled={busy || writeLocked}
@@ -248,7 +250,7 @@ function ChannelAuthorizationCodeDialog({
               tone="danger"
               variant="surface"
             >
-              取消连接
+              {t("capability.channel_auth_cancel")}
             </UiButton>
             <UiButton
               disabled={!code.trim() || busy || expiry.expired || writeLocked}
@@ -256,7 +258,7 @@ function ChannelAuthorizationCodeDialog({
               type="submit"
               variant="solid"
             >
-              {busy ? "提交中…" : "提交"}
+              {t(busy ? "capability.channel_auth_submitting" : "capability.channel_auth_submit")}
             </UiButton>
           </UiDialogFooter>
         </UiDialogFormShell>
@@ -343,6 +345,7 @@ interface AuthorizationExpiry {
 }
 
 function useAuthorizationExpiry(expiresAt: string): AuthorizationExpiry {
+  const { t } = useI18n();
   const expiresAtMs = useMemo(() => Date.parse(expiresAt), [expiresAt]);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -351,12 +354,12 @@ function useAuthorizationExpiry(expiresAt: string): AuthorizationExpiry {
   }, []);
   const remainingSeconds = Math.max(0, Math.ceil((expiresAtMs - now) / 1_000));
   if (remainingSeconds <= 0) {
-    return { expired: true, label: "授权已过期" };
+    return { expired: true, label: t("capability.channel_auth_expired") };
   }
   const minutes = Math.floor(remainingSeconds / 60);
   const seconds = String(remainingSeconds % 60).padStart(2, "0");
   return {
     expired: false,
-    label: `${minutes}:${seconds} 后失效`,
+    label: t("capability.channel_auth_remaining", { time: `${minutes}:${seconds}` }),
   };
 }

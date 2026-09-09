@@ -573,3 +573,23 @@ describe("form primitives", () => {
     expect(onChange).toHaveBeenCalledWith("list");
   });
 });
+
+// 已触发的原生校验保留身份和类型，语言切换不必重新触发 invalid。
+it("retranslates a visible native validation error without clearing its control identity", () => {
+  const node = (locale: "zh" | "en") => (
+    <I18N_CONTEXT.Provider value={{ locale, setLocale: vi.fn(), t: (key) => key === "common.required_field" ? (locale === "zh" ? "请填写此字段" : "Required field") : key }}>
+      <UiField htmlFor="translated-error" label="Name">
+        <UiInput id="translated-error" required />
+      </UiField>
+    </I18N_CONTEXT.Provider>
+  );
+  const { rerender } = render(node("zh"));
+  const input = screen.getByRole("textbox", { name: "Name" });
+  fireEvent.invalid(input);
+  const errorId = input.getAttribute("aria-errormessage");
+  expect(screen.getByRole("alert").textContent).toBe("请填写此字段");
+  rerender(node("en"));
+  expect(screen.getByRole("alert").textContent).toBe("Required field");
+  expect(input.getAttribute("aria-invalid")).toBe("true");
+  expect(input.getAttribute("aria-errormessage")).toBe(errorId);
+});

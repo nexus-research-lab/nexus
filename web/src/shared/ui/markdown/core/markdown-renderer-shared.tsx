@@ -140,8 +140,20 @@ function escapeInlineMarkdownIdentifierAsterisks(line: string, isMath: (offset: 
 }
 
 function isInsideInlineCode(content: string, offset: number): boolean {
-  const before = content.slice(0, offset);
-  return (before.match(/`/g)?.length ?? 0) % 2 === 1;
+  const runs = Array.from(content.matchAll(/`+/g));
+  for (let index = 0; index < runs.length; index++) {
+    const opening = runs[index];
+    const start = opening.index;
+    if (start > offset) return false;
+    const escapes = content.slice(0, start).match(/\\+$/)?.[0].length ?? 0;
+    if (escapes % 2 === 1) continue;
+    const closingIndex = runs.findIndex((run, candidate) => candidate > index && run[0].length === opening[0].length);
+    if (closingIndex < 0) continue;
+    const closing = runs[closingIndex];
+    if (offset >= start && offset < closing.index + closing[0].length) return true;
+    index = closingIndex;
+  }
+  return false;
 }
 
 function isInsideMarkdownProtectedRegion(content: string, offset: number): boolean {

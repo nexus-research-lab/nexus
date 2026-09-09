@@ -12,6 +12,8 @@ import {
   type RefObject,
 } from "react";
 
+import { usePrefersReducedMotion } from "@/shared/lib/react/use-prefers-reduced-motion";
+
 import { CONVERSATION_TABS_VIEWPORT_INSET } from "./conversation-tabs-model";
 
 const SCROLL_EDGE_TOLERANCE = 2;
@@ -48,6 +50,7 @@ export function useConversationTabsScroll({
   activeConversationId: string | null;
   contentKey: string;
 }) {
+  const reducedMotion = usePrefersReducedMotion();
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const dragStateRef = useRef<ConversationTabsDragState | null>(null);
   const suppressClickRef = useRef(false);
@@ -123,7 +126,7 @@ export function useConversationTabsScroll({
         preferredAlignment,
       );
     };
-    const frame = window.requestAnimationFrame(() => alignActiveTab("smooth"));
+    const frame = window.requestAnimationFrame(() => alignActiveTab(reducedMotion ? "auto" : "smooth"));
     // 中文注释：标签宽度会平滑交换，动画结束后按最终尺寸再校正一次边界。
     const settleTimer = window.setTimeout(
       () => alignActiveTab("auto"),
@@ -133,7 +136,7 @@ export function useConversationTabsScroll({
       window.cancelAnimationFrame(frame);
       window.clearTimeout(settleTimer);
     };
-  }, [activeConversationId, contentKey]);
+  }, [activeConversationId, contentKey, reducedMotion]);
 
   const setScrollLeft = useCallback((scrollLeft: number) => {
     viewportRef.current?.scrollTo({ left: scrollLeft });
@@ -156,10 +159,10 @@ export function useConversationTabsScroll({
     if (!dragState || dragState.pointerId !== event.pointerId) {
       return;
     }
+    dragStateRef.current = null;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
-    dragStateRef.current = null;
     setIsDragging(false);
     window.requestAnimationFrame(() => {
       suppressClickRef.current = false;
@@ -195,6 +198,7 @@ export function useConversationTabsScroll({
   return {
     handleClickCapture,
     handlePointerCancel: finishDragging,
+    handleLostPointerCapture: finishDragging,
     handlePointerDown,
     handlePointerMove,
     handlePointerUp: finishDragging,

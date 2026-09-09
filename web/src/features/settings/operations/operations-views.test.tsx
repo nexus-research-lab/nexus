@@ -5,8 +5,9 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 import { I18nProvider } from "@/shared/i18n/i18n-provider";
+import { SubscriptionAccountView } from "./subscription-admin/subscription-account-view";
 import { SubscriptionPlanView } from "./subscription-admin/subscription-plan-view";
-import { createEmptyPlanDraft, createPlanDraft, type PlanViewModel } from "./subscription-admin/subscription-admin-model";
+import { createEmptyPlanDraft, createPlanDraft, type AccountViewModel, type PlanViewModel } from "./subscription-admin/subscription-admin-model";
 
 const plan = { plan_key: "research", display_name: "Research", status: "active", monthly_token_limit: 1_000_000, notes: "", sort_order: 0 };
 afterEach(cleanup);
@@ -35,4 +36,18 @@ it("套餐编辑按需展开，保留草稿并遵守 mutation 锁", async () => 
   model.mutationsBlocked = true;
   rerender(view());
   expect((screen.getByRole("button", { name: /保存|Save/ }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+
+it("未对账订阅写入仍允许刷新权威快照，实际请求进行中禁用刷新", async () => {
+  const user = userEvent.setup();
+  const refresh = vi.fn(async () => {});
+  const model: AccountViewModel = { accounts: [], drafts: {}, loading: false, mutationPending: false, mutationsBlocked: true, periodStart: "", periodEnd: "", plans: [], savingOwnerUserId: null, summary: { accountCount: 0, planCount: 0, usedTokens: 0 } };
+  const view = () => <I18nProvider><SubscriptionAccountView model={model} onChangeDraft={vi.fn()} onRefresh={refresh} onSave={vi.fn(async () => {})} /></I18nProvider>;
+  const { rerender } = render(view());
+  await user.click(screen.getByRole("button", { name: /刷新|Refresh/ }));
+  expect(refresh).toHaveBeenCalledTimes(1);
+  model.mutationPending = true;
+  rerender(view());
+  expect((screen.getByRole("button", { name: /刷新|Refresh/ }) as HTMLButtonElement).disabled).toBe(true);
 });

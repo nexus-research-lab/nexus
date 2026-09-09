@@ -51,12 +51,13 @@ export function ConnectorOAuthClientDialog({
   onSave,
 }: ConnectorOAuthClientDialogProps) {
   const { t } = useI18n();
+  const dialogId = useId();
   const model = buildConnectorOauthClientDialogModel(detail, t);
   const form = useConnectorOauthClientForm(model, busy, onSave);
   if (!model) return null;
 
   return (
-    <UiDialogBackdrop onClose={onClose}>
+    <UiDialogBackdrop labelledBy={`${dialogId}-title`} onClose={onClose}>
       <UiDialogFormShell
         aria-busy={busy}
         onSubmit={form.handleSubmit}
@@ -65,6 +66,7 @@ export function ConnectorOAuthClientDialog({
       >
         <UiDialogHeader
           appearance="plain"
+            titleId={`${dialogId}-title`}
           onClose={onClose}
           title={t("capability.oauth_client_title", { title: model.title })}
         />

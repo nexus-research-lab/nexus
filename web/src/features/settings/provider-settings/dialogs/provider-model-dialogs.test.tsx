@@ -132,6 +132,37 @@ describe("Provider model dialogs", () => {
     expect(onAdd).not.toHaveBeenCalled();
   });
 
+  it.each([
+    { canManage: false, pendingAction: null },
+    { canManage: true, pendingAction: { kind: "test-provider" as const } },
+  ])("locks add and options drafts across permission and unrelated busy states: %j", async ({ canManage, pendingAction }) => {
+    const user = userEvent.setup();
+    const onAdd = vi.fn();
+    const setId = vi.fn();
+    const setEnabled = vi.fn();
+    const setOptions = vi.fn();
+    const { rerender } = render(view(<ProviderAddModelDialog isOpen manualModelEnabled manualModelId="model" manualModelPlaceholder=""
+      onAdd={onAdd} onClose={vi.fn()} pendingAction={pendingAction} selectedCanManage={canManage}
+      setManualModelEnabled={setEnabled} setManualModelId={setId} />));
+    const input = screen.getByRole("textbox") as HTMLInputElement;
+    expect(input.disabled).toBe(true);
+    await user.type(input, "changed");
+    await user.click(screen.getByRole("switch"));
+    fireEvent.submit(input.closest("form")!);
+    expect(onAdd).not.toHaveBeenCalled();
+    expect(setId).not.toHaveBeenCalled();
+    expect(setEnabled).not.toHaveBeenCalled();
+    rerender(view(<ProviderModelOptionsDialog modelOptions={OPTIONS} onClose={vi.fn()} onSave={vi.fn()}
+      pendingAction={pendingAction} selectedCanManage={canManage} setModelOptions={setOptions} />));
+    for (const input of screen.getAllByRole("textbox")) expect((input as HTMLInputElement).disabled).toBe(true);
+    for (const control of screen.getAllByRole("switch")) {
+      expect((control as HTMLButtonElement).disabled).toBe(true);
+      await user.click(control);
+    }
+    expect((screen.getByRole("button", { name: "common.save" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(setOptions).not.toHaveBeenCalled();
+  });
+
   it("binds every dialog title and editable field to its own instance", () => {
     render(view(<>{["first", "second"].map((key) => <div key={key}>
       <ProviderAddModelDialog isOpen manualModelEnabled manualModelId={key} manualModelPlaceholder=""

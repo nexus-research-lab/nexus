@@ -7,9 +7,109 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Correct historical WorkGraph task and file ownership, and contain canvas zoom gestures.
+- Isolate Team drafts and late conversation navigation; prevent duplicate online-room and provider-import submissions.
+- Improve Thread keyboard access and failed-avatar recovery.
+
+- Keep startup and language switching usable when browser storage is blocked, with localized root recovery.
+- Restore keyboard activation and session isolation in Composer pickers.
+- Preserve uncertain WorkGraph deletion locks and prevent stale editor writes and reads.
+- Fix assistant avatar fallbacks, duplicated process IDs, and expired retry timers.
+
+- Use localized authentication recovery without exposing diagnostics.
+- Prevent stale artifact and WorkGraph reads, release cancelled image resources, and preserve mentions across file cards.
+- Clear inaccessible execution snapshots and require workspace ownership before opening execution references.
+
+- Include agent contact channels in private-history reads and show cross-session contacts in DM profiles.
+
+- Localize connector device authorization without restarting polling when the language changes.
+- Preserve uncertain history-operation locks and use consistent conversation ordering on mobile.
+
+- Retry generated widgets in a fresh isolated frame and ignore stale tool-detail responses.
+
+- Keep uncertain connector and custom MCP mutations locked through reconciliation and clear inaccessible snapshots.
+
+- Freeze room member drafts during saves and prevent immediate replay after uncertain save results.
+
+- Reset message editing state when its identity changes and keep message actions accessible on touch devices.
+
+- Keep unknown capability counts blank and make the scroll-to-latest keyboard focus explicit.
+
+- Honor reduced motion in the launcher and retain drafts when provider setup is required.
+
+- Size capability detail columns to their container and ignore stale private-domain reads.
+- Hide stale connector detail metadata after access checks fail.
+
+- Keep group avatar mosaics consistent between the sidebar and conversation header.
+
+- Keep uncertain skill mutations locked until reconciled and distinguish failed reads from empty catalogs.
+- Localize scheduled task status and schedule summaries; preserve Team messages during refresh.
+
+- Localize the login introduction and preserve credential drafts while preventing duplicate sign-in submissions.
+
+- Preserve skill catalog snapshots on refresh failures and clarify accessible schedule picker labels.
+- Dismiss conversation navigation previews with Escape and return focus to the matching round.
+
+- Prevent late onboarding hydration from undoing resets and serialize browser extension status checks.
+- Localize platform connection guides and keep setup drafts locked through submission reconciliation.
+
+- Refresh channel accounts after direct login success and prevent restarting connection setup while verification is pending.
+
+- Keep theme preferences usable when local storage is unavailable and place decorative layers below menus.
+- Guard default-model controls during preference loading and keep contact DM navigation failures recoverable without automatic replay.
+
+- Localize channel authorization and pairing screens, including search by translated channel names.
+- Respect reduced motion for theme decorations, handle unavailable Canvas contexts, and stop videos on unmount.
+- Keep the Nexus wordmark in title case and restrict sidebar resize to valid primary-button hits.
+
+- Keep long notice actions within narrow panels and distinguish Agent skill loading failures from empty lists.
+- Give Agent settings dialogs unique title identities and prevent repeated channel authorization or edits during pairing submission.
+
+- Preserve provider setup drafts across language changes and prevent duplicate connection submissions.
+- Ignore stale Launcher navigation results and localize OAuth callback states without repeating authorization.
+- Release tab drag state when pointer capture is lost and reuse shared styles in bootstrap recovery.
+
+- Unify workspace file-tree row highlights, use regular file labels, and group rename/delete in a compact action menu.
+
+- Refresh native field errors after language changes and clear interrupted switch press states.
+- Preserve empty memory document drafts during refresh and prevent competing conflict actions.
+- Restore the shared return-to-bottom action in contact conversations.
+
+- Clear stale Mermaid previews when streaming source becomes empty.
+- Keep provider model forms read-only during shared operations and preserve committed changes when directory refresh fails.
+- Serialize member and project administration operations while keeping recovery reads available after uncertain writes.
+
 - Attribute generated file deliveries to the producing Agent and round, including Skill/script outputs through validated file delivery; keep working files and Markdown references out of new delivery cards.
 
+- Clear active onboarding tours when their page unregisters them, while preserving immediate definition updates.
+
+- Localize member deletion confirmations and recovery guidance without changing outcome-specific actions.
+
+- Localize member and conversation loading messages in Contacts and Room pages.
+
+- Allow workspace loading labels to wrap within narrow panels.
+
+- Respect reduced-motion preferences when bringing the active conversation tab into view.
+
+- Avoid showing placeholder account sections after profile loading fails and announce the initial loading state.
+
+- Associate password guidance with its inputs and expose the saving state to assistive technology.
+
+- Keep Markdown summary headings and table headers regular when emphasis is disabled, in both color modes.
+
+- Reuse Mermaid layout rules during lazy loading and shared clipboard feedback cleanup after unmount.
+
+- Preserve the full account name as a tooltip when the sidebar account menu truncates it.
+
+- Align Team message metadata and loading/error feedback with shared typography roles.
+
 - Fix sidebar reply previews showing process commentary before tool calls instead of the final reply body.
+
+- Correct RichMail runtime mount hints and clarify dynamic tool discovery for remote and custom MCP connectors.
+
+- Fix selected GitHub connectors not mounting tools in DM and Room runtimes by attaching the official remote MCP server with the existing OAuth token.
+
+- Fix local Room host auto-reply being skipped for browser messages, so the configured Lead handles unmentioned input when takeover is enabled.
 
 - Remove the built-in Loops catalog, backend endpoints and summary count, capability pages and navigation, and Composer Loop-to-Goal actions.
 

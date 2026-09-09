@@ -30,7 +30,7 @@ export function ScrollToLatestButton({
       type="button"
       aria-label={t("room.scroll_to_latest")}
       onClick={onClick}
-      className="group pointer-events-auto grid h-11 w-11 place-items-center justify-self-center"
+      className="group pointer-events-auto grid h-11 w-11 place-items-center justify-self-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
       data-generating={isGenerating ? "true" : undefined}
       data-scroll-to-latest
     >

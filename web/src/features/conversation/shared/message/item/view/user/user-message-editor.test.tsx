@@ -10,6 +10,20 @@ import { MessageUserSection } from "./message-user-section";
 import type { UserMessage } from "@/types/conversation/message/entity";
 
 describe("User message editing", () => {
+  it("discards a draft when the exact message identity changes", () => {
+    const onEdit = vi.fn();
+    const message: UserMessage = { message_id: "one", session_key: "session", agent_id: "agent", round_id: "round-one", role: "user", timestamp: 1, content: "First" };
+    const view = (value: UserMessage) => <I18nProvider><MessageUserSection compact message={value} onEditUserMessage={onEdit} /></I18nProvider>;
+    const { rerender } = render(view(message));
+    fireEvent.click(screen.getByRole("button", { name: /Edit message|编辑消息/ }));
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Old draft" } });
+    rerender(view({ ...message, message_id: "two", round_id: "round-two", content: "Second" }));
+    expect(screen.queryByRole("textbox")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Edit message|编辑消息/ }));
+    expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("Second");
+    expect(onEdit).not.toHaveBeenCalled();
+  });
+
   it("withholds edit/rerun only for durable Goal control records, not ordinary slash text", () => {
     const onEdit = vi.fn();
     const message: UserMessage = {

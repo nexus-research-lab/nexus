@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import { Bot, Clock3, RadioTower, Square } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiBadge } from "@/shared/ui/display/badge";
 import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 
@@ -101,10 +102,10 @@ function AssistantEchoBadge({ visible }: { visible: boolean }) {
     return null;
   }
   return (
-    <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-(--divider-subtle-color) bg-(--surface-control-field-background) px-1.5 py-0.5 text-2xs font-medium leading-none text-(--text-muted)">
+    <UiBadge shape="pill" size="xs">
       <RadioTower className="h-2.5 w-2.5" />
       {t("message.echo")}
-    </span>
+    </UiBadge>
   );
 }
 
@@ -114,13 +115,14 @@ function AssistantAutomationBadge({ taskName }: { taskName?: string | null }) {
     return null;
   }
   return (
-    <span
-      className="inline-flex shrink-0 items-center gap-1 rounded-full border border-(--divider-subtle-color) bg-(--surface-control-field-background) px-1.5 py-0.5 text-2xs font-medium leading-none text-(--text-muted)"
+    <UiBadge
+      shape="pill"
+      size="xs"
       title={taskName || t("message.scheduled_task")}
     >
       <Clock3 className="h-2.5 w-2.5" />
       {t("message.scheduled_task")}
-    </span>
+    </UiBadge>
   );
 }
 
@@ -235,23 +237,7 @@ function AssistantMessageAvatar({
       size={presentation.size}
       title={t("room.agent_contact_open", { name: displayName })}
     >
-      <AssistantAvatarFallback
-        avatarUrl={avatarUrl}
-        className={presentation.bot}
-      />
+      <Bot className={presentation.bot} />
     </MessageAvatar>
   );
-}
-
-function AssistantAvatarFallback({
-  avatarUrl,
-  className,
-}: {
-  avatarUrl?: string | null;
-  className: string;
-}) {
-  if (avatarUrl) {
-    return null;
-  }
-  return <Bot className={className} />;
 }

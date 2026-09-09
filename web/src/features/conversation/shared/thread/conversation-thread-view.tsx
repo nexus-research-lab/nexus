@@ -289,7 +289,7 @@ function ThreadAgentAvatar({
       )}
       size="full"
     >
-      {avatarUrl ? null : <Bot className="h-3.5 w-3.5" />}
+      <Bot className="h-3.5 w-3.5" />
     </MessageAvatar>
   );
 }
@@ -319,6 +319,7 @@ function ThreadFeed({
   onWheel,
   scrollRef,
 }: ThreadFeedProps) {
+  const { t } = useI18n();
   return (
     <div
       className={cn(
@@ -326,7 +327,10 @@ function ThreadFeed({
         model.presentation === "inspector" ? "pb-3 pt-0" : "py-3",
       )}
       style={{ overflowAnchor: "none", scrollbarGutter: "stable" }}
-      tabIndex={-1}
+      aria-label={t("room.thread_label")}
+      role="region"
+      // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- Named Thread viewport needs native keyboard scrolling.
+      tabIndex={0}
       onPointerDown={onPointerDown}
       onScroll={onScroll}
       onTouchEnd={onTouchEnd}

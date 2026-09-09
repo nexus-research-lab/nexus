@@ -93,11 +93,15 @@ export function MarkdownRenderer({
     }),
     [getFilePreviewUrl, openFile, renderLink, resolveFilePath],
   );
+  const decoratedContent = useMemo(
+    () => decorateMarkdownMentions(displayedContent, agentMentions),
+    [displayedContent, agentMentions],
+  );
   const contentSegments = useMemo(
     () => openFile
-      ? splitMarkdownFileArtifacts(displayedContent, resolveFilePath)
-      : [{ type: "text" as const, text: displayedContent }],
-    [displayedContent, openFile, resolveFilePath],
+      ? splitMarkdownFileArtifacts(decoratedContent, resolveFilePath)
+      : [{ type: "text" as const, text: decoratedContent }],
+    [decoratedContent, openFile, resolveFilePath],
   );
 
   return (
@@ -113,7 +117,6 @@ export function MarkdownRenderer({
           components={components.stable}
           key={`${segment.type}:${index}`}
           onOpenWorkspaceFile={openFile}
-          agentMentions={agentMentions}
           renderLeadingSlashCommand={renderLeadingSlashCommand && index === 0}
           resolveFilePath={resolveFilePath}
           segment={segment}
@@ -127,7 +130,6 @@ export function MarkdownRenderer({
 }
 
 interface MessageMarkdownSegmentProps {
-	agentMentions: AgentMention[];
 	components: Components;
   onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void;
   resolveFilePath: ResolveWorkspaceFilePath;
@@ -139,7 +141,6 @@ interface MessageMarkdownSegmentProps {
 }
 
 function MessageMarkdownSegment({
-	agentMentions,
 	components,
   onOpenWorkspaceFile,
   resolveFilePath,
@@ -164,16 +165,12 @@ function MessageMarkdownSegment({
     return null;
   }
 
-  const contentWithMentions = decorateMarkdownMentions(
-    segment.text,
-    agentMentions,
-  );
   const sharedProps = {
     components,
     content: normalizeMarkdownContent(
       renderLeadingSlashCommand
-        ? decorateLeadingSlashCommand(contentWithMentions)
-        : contentWithMentions,
+        ? decorateLeadingSlashCommand(segment.text)
+        : segment.text,
       resolveFilePath,
       onOpenWorkspaceFile,
       { is_streaming: shouldStream },
@@ -203,8 +200,9 @@ function decorateMarkdownMentions(content: string, mentions: AgentMention[]): st
   let cursor = 0;
   let result = "";
   for (const mention of matches) {
-    const start = Math.max(cursor, Math.min(mention.start_rune, runes.length));
-    const end = Math.max(start, Math.min(mention.end_rune, runes.length));
+    const start = mention.start_rune;
+    const end = mention.end_rune;
+    if (!Number.isInteger(start) || !Number.isInteger(end) || start < cursor || end > runes.length) continue;
     if (end <= start) {
       continue;
     }

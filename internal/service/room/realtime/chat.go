@@ -1,5 +1,5 @@
 // INPUT: Room 用户输入、owner-scoped Slash 展开、内部触发与当前 round/queue 状态。
-// OUTPUT: 保留共享消息原文、把 Slash 作为独立原子输入投递给 runtime 的串行 Room round。
+// OUTPUT: 按显式目标或已启用的群主接管解析成员，保留共享消息原文并原子投递 Slash 的串行 Room round。
 // POS: Room 输入从受理到 runtime 启动的原子交接边界。
 package realtime
 
@@ -369,9 +369,13 @@ func resolveDefaultRoomTargets(
 	if len(targetAgentIDs) > 0 {
 		return targetAgentIDs, targetResolution
 	}
+	// 本地 Room 的显式接管设置适用于浏览器输入；配置上下文不是目标路由策略。
+	if hostAgentID, ok := resolveRoomHostDefaultTarget(contextValue, agentNameByID); ok {
+		return []string{hostAgentID}, "room_host_default"
+	}
 	if contextValue == nil ||
 		(contextValue.Room.RoomType == protocol.RoomTypeGroup && requireExplicitGroupTarget) {
-		// 浏览器群聊只允许显式 @Agent；受控内部调用仍可沿用既有调度目标。
+		// 未开启接管的浏览器群聊仍要求显式目标，不按唯一成员隐式唤醒。
 		return targetAgentIDs, targetResolution
 	}
 	if len(agentNameByID) == 1 {
@@ -379,9 +383,6 @@ func resolveDefaultRoomTargets(
 		for agentID := range agentNameByID {
 			return []string{agentID}, "single_member_default"
 		}
-	}
-	if hostAgentID, ok := resolveRoomHostDefaultTarget(contextValue, agentNameByID); ok {
-		return []string{hostAgentID}, "room_host_default"
 	}
 	return targetAgentIDs, targetResolution
 }

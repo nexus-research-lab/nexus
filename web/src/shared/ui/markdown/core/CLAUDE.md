@@ -14,3 +14,7 @@
 - `markdown-math.ts` 拥有公式 token 到 MDAST 的投影、已有美元公式的未闭合/歧义处理及 KaTeX 视口焦点；KaTeX 的 trust 保持关闭，局部错误由现有 rehype-katex 收口。
 - 同文件的 `remarkMathSummary` 只把识别出的数学节点和显式 math fence 降为内联文本标记；价格歧义保留 literal 标识，普通代码不转换。不通过 CSS 隐藏已排版的公式，也不重新用正则解析整段摘要。
 - `markdown-math-ranges.ts` 只为预处理提供保守的源文保护范围，不代替语法解析或修正公式。`markdown-renderer-shared.tsx` 在所有标识符/文件/流式 URL 预处理前应用该边界。
+
+摘要 strongAsText 同时抑制 strong、标题和表头的强调字重，与 monochrome 颜色开关独立。
+
+规范化工作区路径时，行内代码按相同长度反引号闭合保护，不得用反引号字符奇偶数推断代码范围。

@@ -1,10 +1,10 @@
 // INPUT: Control 部署成员、当前身份权限和创建/更新成员命令。
-// OUTPUT: 成员目录、创建表单、角色/状态控制与操作反馈。
+// OUTPUT: 成员目录与互斥写入；未知写结果保持禁写，直至清单读取成功。
 // POS: Operations 成员管理用例；不拥有认证资源或通用表单视觉。
 "use client";
 
 import { RefreshCw } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 import {
   SETTINGS_ITEM_TITLE_CLASS_NAME,
@@ -57,6 +57,10 @@ export function ControlMembersPanel() {
   const [draft, setDraft] = useState<MemberDraft>(EMPTY_DRAFT);
   const [loading, setLoading] = useState(true);
   const [pendingKey, setPendingKey] = useState<string | null>(null);
+  const mutationPendingRef = useRef(false);
+  const loadingRef = useRef(false);
+  const [mutationsBlocked, setMutationsBlocked] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [feedback, setFeedback] = useState<Feedback>(null);
   const canCreateElevatedRole = status?.role === "owner";
   const roleOptions = [
@@ -71,13 +75,22 @@ export function ControlMembersPanel() {
     return null;
   }, [draft, t]);
 
-  const loadMembers = useCallback(async () => {
+  const loadMembers = useCallback(async (reconcileMutation = false) => {
+    if (loadingRef.current || (mutationPendingRef.current && !reconcileMutation)) return;
+    loadingRef.current = true;
     setLoading(true);
+    setLoadFailed(false);
     try {
       setMembers(await listControlMembersApi());
+      setMutationsBlocked(false);
+      if (!reconcileMutation) {
+        setFeedback((current) => current?.tone === "error" ? null : current);
+      }
     } catch {
+      setLoadFailed(true);
       setFeedback({ tone: "error", message: t("members.load_failed") });
     } finally {
+      loadingRef.current = false;
       setLoading(false);
     }
   }, [t]);
@@ -88,7 +101,8 @@ export function ControlMembersPanel() {
 
   const createMember = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (draftError) return;
+    if (draftError || loadingRef.current || mutationPendingRef.current || mutationsBlocked) return;
+    mutationPendingRef.current = true;
     setPendingKey("create");
     setFeedback(null);
     try {
@@ -103,8 +117,10 @@ export function ControlMembersPanel() {
       setFeedback({ tone: "success", message: t("members.create_success") });
     } catch {
       setFeedback({ tone: "error", message: t("members.create_unknown") });
-      await loadMembers();
+      setMutationsBlocked(true);
+      await loadMembers(true);
     } finally {
+      mutationPendingRef.current = false;
       setPendingKey(null);
     }
   };
@@ -113,6 +129,8 @@ export function ControlMembersPanel() {
     member: ControlDeploymentMember,
     change: { role?: ControlMemberRole; status?: "active" | "revoked" },
   ) => {
+    if (loadingRef.current || mutationPendingRef.current || mutationsBlocked) return;
+    mutationPendingRef.current = true;
     const key = `update:${member.user_id}`;
     setPendingKey(key);
     setFeedback(null);
@@ -124,11 +142,15 @@ export function ControlMembersPanel() {
       setFeedback({ tone: "success", message: t("members.update_success") });
     } catch {
       setFeedback({ tone: "error", message: t("members.update_unknown") });
-      await loadMembers();
+      setMutationsBlocked(true);
+      await loadMembers(true);
     } finally {
+      mutationPendingRef.current = false;
       setPendingKey(null);
     }
   };
+
+  const writesDisabled = loading || pendingKey !== null || mutationsBlocked;
 
   return (
     <div className="@container/members grid w-full min-w-0 gap-4 pb-8">
@@ -137,7 +159,7 @@ export function ControlMembersPanel() {
         title={t("members.title")}
         description={t("members.description")}
         actions={(
-          <UiButton disabled={loading} onClick={() => void loadMembers()} size="sm" variant="text">
+          <UiButton disabled={loading || pendingKey !== null} onClick={() => void loadMembers()} size="sm" variant="text">
             <RefreshCw className={loading ? getUiSpinnerClassName({ size: "sm" }) : "h-3.5 w-3.5"} />
             {t("members.refresh")}
           </UiButton>
@@ -145,23 +167,24 @@ export function ControlMembersPanel() {
       />
 
       <UiDisclosure label={t("members.create_title")} variant="panel">
-        <form onSubmit={createMember}>
+        <form aria-busy={pendingKey === "create"} onSubmit={createMember}>
           <div className="grid items-end gap-4 @min-[480px]/members:grid-cols-2">
             <UiField htmlFor="member-username" label={t("members.username")} required>
-              <UiInput id="member-username" maxLength={64} minLength={3} onChange={(event) => setDraft((current) => ({ ...current, username: event.target.value }))} pattern="[a-z0-9._-]+" required value={draft.username} variant="surface" />
+              <UiInput disabled={writesDisabled} id="member-username" maxLength={64} minLength={3} onChange={(event) => setDraft((current) => ({ ...current, username: event.target.value }))} pattern="[a-z0-9._-]+" required value={draft.username} variant="surface" />
             </UiField>
             <UiField htmlFor="member-display-name" label={t("members.display_name")}>
-              <UiInput id="member-display-name" maxLength={128} onChange={(event) => setDraft((current) => ({ ...current, displayName: event.target.value }))} value={draft.displayName} variant="surface" />
+              <UiInput disabled={writesDisabled} id="member-display-name" maxLength={128} onChange={(event) => setDraft((current) => ({ ...current, displayName: event.target.value }))} value={draft.displayName} variant="surface" />
             </UiField>
             <UiField htmlFor="member-password" label={t("members.password")} required>
-              <UiInput autoComplete="new-password" id="member-password" minLength={8} onChange={(event) => setDraft((current) => ({ ...current, password: event.target.value }))} required type="password" value={draft.password} variant="surface" />
+              <UiInput disabled={writesDisabled} autoComplete="new-password" id="member-password" minLength={8} onChange={(event) => setDraft((current) => ({ ...current, password: event.target.value }))} required type="password" value={draft.password} variant="surface" />
             </UiField>
             <UiField htmlFor="member-confirm-password" label={t("members.confirm_password")} required>
-              <UiInput autoComplete="new-password" id="member-confirm-password" minLength={8} onChange={(event) => setDraft((current) => ({ ...current, confirmPassword: event.target.value }))} required type="password" value={draft.confirmPassword} variant="surface" />
+              <UiInput disabled={writesDisabled} autoComplete="new-password" id="member-confirm-password" minLength={8} onChange={(event) => setDraft((current) => ({ ...current, confirmPassword: event.target.value }))} required type="password" value={draft.confirmPassword} variant="surface" />
             </UiField>
             <UiField htmlFor="member-role" label={t("members.role")} required>
               <UiSelectMenu
                 ariaLabel={t("members.role")}
+                disabled={writesDisabled}
                 id="member-role"
                 onChange={(value) => setDraft((current) => ({ ...current, role: value as ControlMemberRole }))}
                 options={canCreateElevatedRole ? roleOptions : roleOptions.filter((option) => option.value === "member")}
@@ -177,7 +200,7 @@ export function ControlMembersPanel() {
             })}>
               {draft.username && draft.password ? draftError ?? t("members.create_hint") : t("members.create_hint")}
             </p>
-            <UiButton disabled={Boolean(draftError) || pendingKey !== null} size="md" tone="primary" type="submit" variant="solid">
+            <UiButton disabled={Boolean(draftError) || writesDisabled} size="md" tone="primary" type="submit" variant="solid">
               {pendingKey === "create" ? t("members.creating") : t("members.create")}
             </UiButton>
           </div>
@@ -208,7 +231,7 @@ export function ControlMembersPanel() {
             variant="plain"
           />
         ) : null}
-        {!loading && members.length === 0 ? (
+        {!loading && !loadFailed && members.length === 0 ? (
           <UiResourceState
             size="sm"
             state="empty"
@@ -246,14 +269,14 @@ export function ControlMembersPanel() {
               </div>
               <UiSelectMenu
                 ariaLabel={`${t("members.role")}: ${member.display_name || member.username}`}
-                disabled={!canEditRole || isPending}
+                disabled={!canEditRole || writesDisabled}
                 onChange={(value) => void updateMember(member, { role: value as ControlMemberRole })}
                 options={roleOptions}
                 size="sm"
                 value={member.role}
               />
               <UiButton
-                disabled={!canToggle || isPending}
+                disabled={!canToggle || writesDisabled}
                 onClick={() => void updateMember(member, { status: member.membership_status === "active" ? "revoked" : "active" })}
                 size="sm"
                 tone={member.membership_status === "active" ? "danger" : "primary"}

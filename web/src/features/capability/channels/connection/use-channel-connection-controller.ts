@@ -106,7 +106,7 @@ export function useChannelConnectionController({
 
   const {
     loading: loginLoading,
-    running: loginRunning,
+    running: loginPolling,
     startLogin,
     submitVerifyCode,
     view: loginView,
@@ -119,6 +119,7 @@ export function useChannelConnectionController({
     pendingAction,
     runCommand,
   });
+  const loginRunning = loginPolling || loginView?.status === "verify_code_required";
   const hasManualCredentials = hasCompleteManualChannelCredentials(
     currentItem.channel_type,
     draft,
@@ -130,7 +131,7 @@ export function useChannelConnectionController({
   const showsQRCode = offersQRCode || loginView !== null;
 
   const saveChannel = useCallback(async () => {
-    if (!draft.agentId || planned || recovery || loginMutationBlocked) {
+    if (!draft.agentId || planned || recovery || loginMutationBlocked || loginRunning) {
       return false;
     }
     const intent: ChannelConnectionIntent = {
@@ -179,6 +180,7 @@ export function useChannelConnectionController({
     planned,
     recovery,
     loginMutationBlocked,
+    loginRunning,
     runCommand,
     startLogin,
     t,

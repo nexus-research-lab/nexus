@@ -32,7 +32,6 @@ interface UseProviderTestActionsOptions {
 interface TestMessages {
   failureImpact: string;
   failureFallback: string;
-  failureNextStep: string;
   failureTitle: string;
   successFallbackModel: string;
   successTitle: string;
@@ -111,7 +110,6 @@ export function useProviderTestActions({
       {
         failureImpact: t("settings.providers.test_failed_impact"),
         failureFallback: t("settings.providers.check_network_auth"),
-        failureNextStep: t("settings.providers.test_failed_next_step"),
         failureTitle: t("settings.providers.provider_test_failed_title"),
         successFallbackModel: t("settings.providers.auto_model"),
         successTitle: t("settings.providers.provider_test_passed_title"),
@@ -130,7 +128,6 @@ export function useProviderTestActions({
       {
         failureImpact: t("settings.providers.test_failed_impact"),
         failureFallback: t("settings.providers.check_network_auth_model"),
-        failureNextStep: t("settings.providers.test_failed_next_step"),
         failureTitle: t("settings.providers.model_test_failed_title"),
         successFallbackModel: normalizedModelId,
         successTitle: t("settings.providers.model_test_passed_title"),

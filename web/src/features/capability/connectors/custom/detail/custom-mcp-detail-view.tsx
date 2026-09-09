@@ -48,6 +48,8 @@ interface CustomMCPDetailViewProps {
   onToggle: (enabled: boolean) => void;
   server: CustomMCPServer | null;
   serverLoading: boolean;
+  serverFailure?: ResourceFailure | null;
+  onRetryServer?: () => void;
 }
 
 export function CustomMCPDetailView({
@@ -62,8 +64,13 @@ export function CustomMCPDetailView({
   onToggle,
   server,
   serverLoading,
+  serverFailure,
+  onRetryServer,
 }: CustomMCPDetailViewProps) {
   const { t } = useI18n();
+  if (serverFailure && (serverFailure.access || !server)) {
+    return <CustomMCPDetailFrame onBack={onBack}><UiResourceState state="error" title={t("capability.custom_mcp_operation_failed")} impact={t("state.read_failure_impact")} primaryAction={onRetryServer ? { label: t("state.retry"), onClick: onRetryServer, disabled: serverLoading } : undefined} /></CustomMCPDetailFrame>;
+  }
   if (serverLoading && !server) {
     return (
       <CustomMCPDetailFrame onBack={onBack}>
@@ -178,7 +185,7 @@ export function CustomMCPDetailView({
           />
         ) : (
           <>
-            <CustomMCPConnectionSection catalog={catalog} server={server} />
+            <CustomMCPConnectionSection catalog={failure?.access ? null : catalog} server={server} />
             <MCPToolsSection
               available={server.enabled}
               catalog={catalog}
@@ -204,7 +211,7 @@ function CustomMCPRecoverySection({
   return (
     <section className="py-5">
       <UiPanel className="flex items-start gap-3" padding="md" radius="md">
-        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center radius-control-md bg-[color:color-mix(in_srgb,var(--warning)_8%,transparent)] text-(--warning)">
+        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center radius-control-md text-(--warning)">
           <TriangleAlert className="h-4 w-4" />
         </span>
         <div className="min-w-0 flex-1">

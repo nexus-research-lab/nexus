@@ -36,15 +36,16 @@ export function PersonalSettingsPanel() {
         />
         <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 pb-8">
           {controller.profile.isLoading && !controller.profile.value ? (
-            <section className={cn(
+            <section role="status" aria-label={t("common.loading")} aria-busy="true" className={cn(
               SETTINGS_CARD_CLASS_NAME,
               "flex min-h-[220px] items-center justify-center text-(--text-soft)",
             )}>
               <Loader2
+                aria-hidden="true"
                 className={getUiSpinnerClassName({ size: "lg", tone: "muted" })}
               />
             </section>
-          ) : (
+          ) : controller.profile.value ? (
             <>
               <PersonalProfileSection
                 avatar={controller.avatar.value}
@@ -70,7 +71,7 @@ export function PersonalSettingsPanel() {
                 validationError={controller.password.validationError}
               />
             </>
-          )}
+          ) : null}
         </div>
       </div>
 

@@ -5,7 +5,7 @@
  */
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   Database,
   Loader2,
@@ -77,6 +77,8 @@ export function ProviderCCSwitchDialog({
   const [syncing, setSyncing] = useState(false);
   const [failure, setFailure] = useState<CCSwitchFailure | null>(null);
   const requestIdRef = useRef(0);
+  const syncingRef = useRef(false);
+  const titleId = useId();
 
   const loadPreview = useCallback(async (requestedPath?: string) => {
     const requestId = ++requestIdRef.current;
@@ -151,9 +153,11 @@ export function ProviderCCSwitchDialog({
   };
 
   const handleSync = async () => {
-    if (!canSync || syncing) {
+    if (!canSync || loading || syncingRef.current || failure?.kind === "committed_refresh"
+      || (failure?.kind === "sync" && (failure.effect === "accepted" || failure.effect === "committed"))) {
       return;
     }
+    syncingRef.current = true;
     setSyncing(true);
     setFailure(null);
     try {
@@ -181,12 +185,14 @@ export function ProviderCCSwitchDialog({
         kind: "sync",
       });
     } finally {
+      syncingRef.current = false;
       setSyncing(false);
     }
   };
 
   const handleRefreshAfterSync = async () => {
-    if (!failure || failure.kind !== "committed_refresh" || syncing) return;
+    if (!failure || failure.kind !== "committed_refresh" || syncingRef.current) return;
+    syncingRef.current = true;
     setSyncing(true);
     try {
       await onSynced(failure.result);
@@ -194,6 +200,7 @@ export function ProviderCCSwitchDialog({
     } catch {
       setFailure(failure);
     } finally {
+      syncingRef.current = false;
       setSyncing(false);
     }
   };
@@ -209,7 +216,7 @@ export function ProviderCCSwitchDialog({
       <UiDialogBackdrop
         layer="systemDialog"
         closeOnBackdrop={!syncing}
-        labelledBy="provider-ccswitch-title"
+        labelledBy={titleId}
         onClose={syncing ? undefined : onClose}
       >
         <UiDialogFormShell
@@ -230,7 +237,7 @@ export function ProviderCCSwitchDialog({
             title={requireDefault
               ? t("settings.providers.ccswitch_import_title")
               : t("settings.providers.ccswitch_title")}
-            titleId="provider-ccswitch-title"
+            titleId={titleId}
           />
 
           <CCSwitchSourceBar
@@ -246,7 +253,7 @@ export function ProviderCCSwitchDialog({
 
           <UiDialogBody className="!min-h-0 !flex-1 p-0" scrollable>
             {loading ? (
-              <div className="flex h-full min-h-[180px] items-center justify-center gap-2 text-sm text-(--text-muted)">
+              <div role="status" className="flex h-full min-h-[180px] items-center justify-center gap-2 text-sm text-(--text-muted)">
                 <Loader2
                   className={getUiSpinnerClassName({ size: "md", tone: "muted" })}
                 />

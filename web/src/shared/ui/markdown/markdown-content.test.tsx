@@ -58,3 +58,16 @@ describe("UiMarkdownContent controlled resources", () => {
     expect(openFile).not.toHaveBeenCalled();
   });
 });
+
+
+it.each([false, true])("keeps headings and table headers regular when summary emphasis is disabled (monochrome=%s)", (monochrome) => {
+  const content = "# Heading\n\n**Strong**\n\n| Header |\n| --- |\n| Cell |";
+  const { container, rerender } = render(<UiMarkdownContent content={content} variant="summary" summaryMonochrome={monochrome} summaryStrongAsText />);
+  expect(screen.getByText("Heading").classList.contains("font-normal")).toBe(true);
+  expect(screen.getByText("Header").classList.contains("font-normal")).toBe(true);
+  expect(container.querySelector("strong")).toBeNull();
+  rerender(<I18nProvider><UiMarkdownContent content={content} variant="summary" summaryMonochrome={monochrome} /></I18nProvider>);
+  expect(screen.getByText("Heading").classList.contains("font-medium")).toBe(true);
+  expect(screen.getByText("Header").classList.contains("font-medium")).toBe(true);
+  expect(container.querySelector("strong")?.textContent).toBe("Strong");
+});

@@ -77,14 +77,14 @@ const CAPABILITY_SIDEBAR_DEFINITIONS: readonly CapabilitySidebarDefinition[] = [
 ];
 
 export function buildCapabilitySidebarItems(
-  summary: CapabilitySummary,
+  summary: CapabilitySummary | null,
   translate: I18nContextValue["t"],
 ): CapabilitySidebarItem[] {
   return CAPABILITY_SIDEBAR_DEFINITIONS.map((definition) => ({
     icon: definition.icon,
     id: definition.id,
     label: translate(definition.labelKey),
-    meta: String(summary[definition.countKey]),
+    meta: summary ? String(summary[definition.countKey]) : "",
     path: definition.path,
   }));
 }

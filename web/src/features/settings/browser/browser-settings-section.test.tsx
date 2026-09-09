@@ -2,7 +2,7 @@
 // OUTPUT: 证明 Browser 设置复用共享 Typography、Badge、ResourceState 与 Settings Shape。
 // POS: Browser 视图合同测试；轮询协议与 Preferences 事务由各自模型/接口测试负责。
 
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -59,6 +59,7 @@ describe("Browser settings surface", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   it("binds each CDP switch to its own risk and description while retaining the permission gate", async () => {
@@ -136,4 +137,23 @@ describe("Browser settings surface", () => {
     expect(spinner?.getAttribute("class")).toContain("h-3.5 w-3.5");
     expect(spinner?.getAttribute("class")).toContain("motion-reduce:animate-none");
   });
+});
+
+
+it("does not overlap slow extension status polls and stops after unmount", async () => {
+  vi.useFakeTimers();
+  mocks.getStatus.mockReset();
+  let resolveStatus!: (value: object) => void;
+  mocks.getStatus.mockImplementation(() => new Promise((resolve) => { resolveStatus = resolve; }));
+  const { unmount } = renderWithI18n(<BrowserSettingsSection />);
+  expect(mocks.getStatus).toHaveBeenCalledOnce();
+  await act(async () => { await vi.advanceTimersByTimeAsync(6000); });
+  expect(mocks.getStatus).toHaveBeenCalledOnce();
+  await act(async () => { resolveStatus({ connected: false, connection_state: "disconnected" }); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
+  expect(mocks.getStatus).toHaveBeenCalledTimes(2);
+  unmount();
+  await act(async () => { resolveStatus({ connected: true, browser_name: "Late" }); await vi.advanceTimersByTimeAsync(6000); });
+  expect(mocks.getStatus).toHaveBeenCalledTimes(2);
+  vi.useRealTimers();
 });

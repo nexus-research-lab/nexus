@@ -127,10 +127,14 @@ function ApiRetrySystemEvent({
   );
 
   useEffect(() => {
-    if (retryDelayMs <= 0) {
+    if (retryDelayMs <= 0 || block.timestamp + retryDelayMs <= Date.now()) {
       return;
     }
-    const intervalId = window.setInterval(() => setNowMs(Date.now()), 1000);
+    const intervalId = window.setInterval(() => {
+      const now = Date.now();
+      setNowMs(now);
+      if (now >= block.timestamp + retryDelayMs) window.clearInterval(intervalId);
+    }, 1000);
     return () => window.clearInterval(intervalId);
   }, [block.timestamp, retryDelayMs, setNowMs]);
 

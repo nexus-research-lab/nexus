@@ -1,5 +1,5 @@
 // INPUT: Room 身份、成员、会话导航与目录准备/管理命令。
-// OUTPUT: 标准群头像、共享标签与按当前 Room/owner 隔离的成员入口。
+// OUTPUT: 与目录一致的九成员群头像、共享标签与按当前 Room/owner 隔离的成员入口。
 // POS: 群聊 Header 装配；成员写事务归页面命令，临时打开流程归本目录 Hook。
 
 "use client";
@@ -85,7 +85,6 @@ export const GroupConversationHeader = memo(function GroupConversationHeader({
         leading={(
           <UiRoomAvatar
             avatar={roomAvatar}
-            maxMembers={4}
             members={roomMembers.map((member) => ({
               avatar: member.avatar,
               id: member.agent_id,

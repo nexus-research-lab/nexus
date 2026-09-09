@@ -28,6 +28,8 @@ interface SkillsExternalResultsProps {
   busyExternalKeys: ReadonlySet<string>;
   importedExternalSources: Map<string, Set<string>>;
   loading: boolean;
+  loadFailed?: boolean;
+  onRetry?: () => void;
   onImport: (item: ExternalSkillSearchItem) => void;
   onPreview: (item: ExternalSkillSearchItem) => void;
   onSelectSource: (key: string | null) => void;
@@ -42,6 +44,8 @@ export function SkillsExternalResults({
   busyExternalKeys,
   importedExternalSources,
   loading,
+  loadFailed = false,
+  onRetry,
   onImport,
   onPreview,
   onSelectSource,
@@ -65,6 +69,13 @@ export function SkillsExternalResults({
     [loading, results, selectedSourceKey, sourceStatuses, sources, submittedQuery, t],
   );
 
+  if (loadFailed && !loading) {
+    return <UiResourceState state="error" size="sm"
+      title={t("capability.skills_external_search_failed")}
+      impact={t("state.read_failure_impact")}
+      nextStep={t("state.retry_next_step")}
+      primaryAction={onRetry ? { label: t("state.retry"), onClick: onRetry } : undefined} />;
+  }
   return (
     <ExternalResultsStage
       busyExternalKeys={busyExternalKeys}

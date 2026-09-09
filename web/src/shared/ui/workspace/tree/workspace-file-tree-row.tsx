@@ -1,14 +1,14 @@
 // INPUT: 文件节点、真实深度、受控展开/选中投影与稳定动作。
-// OUTPUT: 原生按钮组成的嵌套目录，具名展开、完整路径提示和独立行内动作。
-// POS: 文件树递归布局；展开状态归 Tree，Button/行次动作归共享 owner。
+// OUTPUT: 整行选中和悬停的嵌套目录，具名展开、完整路径提示和独立更多菜单。
+// POS: 文件树递归布局；展开状态与透明主命中区归 Tree，菜单/行次动作归共享 owner。
 
 "use client";
 
-import { memo, useCallback, useId, type MouseEvent } from "react";
-import { ChevronRight, Pencil, Trash2 } from "lucide-react";
+import { memo, useCallback, useId, useRef, useState, type MouseEvent } from "react";
+import { ChevronRight, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
-import { UiButton } from "@/shared/ui/button/button";
+import { UiActionMenu } from "@/shared/ui/menu/action-menu";
 import { UiListActionButton } from "@/shared/ui/list/list-action";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { WorkspaceFileEntry } from "@/types/agent/agent";
@@ -76,18 +76,16 @@ export const WorkspaceFileTreeRow = memo(function WorkspaceFileTreeRow({
         className={presentation.rowClassName}
         onContextMenu={handleContextMenu}
       >
-        <UiButton
+        <button
           aria-controls={presentation.showChildren ? childrenId : undefined}
           aria-current={presentation.isSelected ? "true" : undefined}
           aria-expanded={entry.is_dir ? isOpen : undefined}
           aria-label={entry.name}
-          className="min-w-0 flex-1 justify-start gap-1.25 px-0 text-left focus-visible:ring-inset"
+          className="inline-flex min-h-7 min-w-0 flex-1 items-center justify-start gap-1.25 rounded-[inherit] border-0 bg-transparent py-1 pr-0 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:var(--ring)]"
           id={entryId}
           onClick={handleClick}
-          size="xs"
           style={{ paddingLeft: `min(${presentation.paddingLeft}px, 35%)` }}
           title={entry.path}
-          variant="text"
           type="button"
         >
           <WorkspaceTreeExpandIndicator
@@ -102,7 +100,7 @@ export const WorkspaceFileTreeRow = memo(function WorkspaceFileTreeRow({
           <span className={presentation.nameClassName}>
             {entry.name}
           </span>
-        </UiButton>
+        </button>
         <WorkspaceFileTreeRowActions
           actions={actions}
           entry={entry}
@@ -214,30 +212,43 @@ function WorkspaceFileTreeRowActions({
   visible: boolean;
 }) {
   const { t } = useI18n();
+  const anchorRef = useRef<HTMLButtonElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const closeMenu = useCallback(() => setIsOpen(false), []);
+  const menuLabel = `${t("common.more_actions")} ${entry.path}`;
 
   return (
-    <div className="ml-auto flex shrink-0 items-center gap-0.5 pl-1">
+    <div className="ml-auto flex shrink-0 items-center pl-1">
       <UiListActionButton
-        aria-label={`${t("home.rename")} ${entry.path}`}
-        onClick={() => actions.onRenameEntry(entry)}
+        aria-expanded={isOpen}
+        aria-haspopup="menu"
+        aria-label={menuLabel}
+        onClick={() => setIsOpen((open) => !open)}
+        ref={anchorRef}
         size="xs"
         stopPropagation
-        title={t("home.rename")}
-        visibility={visible ? "visible" : "hover"}
+        title={t("common.more_actions")}
+        visibility={visible || isOpen ? "visible" : "hover"}
       >
-        <Pencil aria-hidden className="h-3 w-3" />
+        <MoreHorizontal aria-hidden className="h-3 w-3" />
       </UiListActionButton>
-      <UiListActionButton
-        aria-label={`${t("common.delete")} ${entry.path}`}
-        onClick={() => actions.onDeleteEntry(entry)}
-        size="xs"
-        stopPropagation
-        title={t("common.delete")}
-        tone="danger"
-        visibility={visible ? "visible" : "hover"}
-      >
-        <Trash2 aria-hidden className="h-3 w-3" />
-      </UiListActionButton>
+      <UiActionMenu
+        align="end"
+        anchorRef={anchorRef}
+        ariaLabel={menuLabel}
+        density="compact"
+        isOpen={isOpen}
+        items={[
+          { value: "rename", label: t("home.rename"), icon: <Pencil className="h-3.5 w-3.5" /> },
+          { value: "delete", label: t("common.delete"), icon: <Trash2 className="h-3.5 w-3.5" />, tone: "danger" },
+        ]}
+        minWidth={160}
+        onClose={closeMenu}
+        onSelect={(value) => {
+          if (value === "rename") actions.onRenameEntry(entry);
+          else if (value === "delete") actions.onDeleteEntry(entry);
+        }}
+      />
     </div>
   );
 }

@@ -1,5 +1,5 @@
 // INPUT: 当前 Room/Agent、成员目录、显式简介请求及既有配置保存命令。
-// OUTPUT: 当前作用域内的成员/栏目导航、共享设置/记忆/联络工作面。
+// OUTPUT: 成员/栏目导航及设置/记忆/联络；DM联络读Agent跨会话，群聊保留当前会话范围。
 // POS: Room 简介装配；只拥有导航选择，字段、保存和内容状态由各领域负责。
 "use client";
 
@@ -31,6 +31,7 @@ import { RoomAgentSwitcher } from "./room-agent-switcher";
 
 interface RoomAgentAboutSurfaceProps {
   agent: Agent;
+  isDm?: boolean;
   roomId: string | null;
   conversationId: string | null;
   roomMembers: Agent[];
@@ -52,6 +53,7 @@ interface RoomAgentAboutSurfaceProps {
 
 export function RoomAgentAboutSurface({
   agent,
+  isDm = false,
   roomId,
   conversationId,
   roomMembers,
@@ -124,8 +126,8 @@ export function RoomAgentAboutSurface({
         {activeTab === "private_domain" ? (
           <AgentPrivateDomainView
             agent={selectedAgent}
-            conversationId={conversationId}
-            roomId={roomId}
+            conversationId={isDm ? null : conversationId}
+            roomId={isDm ? null : roomId}
             variant="preview"
           />
         ) : activeTab === "memory" ? (

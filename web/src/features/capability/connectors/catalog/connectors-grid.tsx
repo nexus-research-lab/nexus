@@ -54,7 +54,7 @@ export function ConnectorsGrid({
     );
   }
 
-  if (failure && connectors.length === 0) {
+  if (failure && (failure.access || connectors.length === 0)) {
     return (
       <UiResourceState
         impact={t("capability.connector_catalog_load_failed_impact")}
@@ -94,6 +94,9 @@ export function ConnectorsGrid({
           state="error"
           title={t("capability.connector_catalog_load_failed_title")}
         />
+      ) : null}
+      {sections.length === 0 ? (
+        <UiResourceState size="sm" state="empty" title={t("capability.connectors_empty")} variant="plain" />
       ) : null}
       {sections.map((section) => (
         <section key={section.key}>

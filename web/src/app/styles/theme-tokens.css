@@ -412,6 +412,7 @@
   --radius-surface-xl: 24px;
 
   /* 业务组件只能消费语义 layer，不得通过继续增加整数解决遮挡。 */
+  --layer-theme-decoration: 100;
   --layer-select-menu: 120;
   --layer-action-menu: 130;
   --layer-popover: 140;

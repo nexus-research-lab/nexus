@@ -303,23 +303,23 @@ export function ScheduledTasksDirectory() {
   };
   const getTaskMutationBlockReason = (task: ScheduledTaskItem): string | null => {
     if (accessBlockedRef.current) {
-      return "当前登录状态无法执行这项操作，请重新登录后刷新页面。";
+      return t("capability.scheduled_board_access_blocked");
     }
     const authoritativeTask = resource.items.find(
       (item) => item.job_id === task.job_id,
     );
     if (!authoritativeTask && resource.hasSnapshot) {
-      return "任务已不在当前列表中，请刷新后核对删除是否已经完成。";
+      return t("capability.scheduled_board_task_missing");
     }
     const currentTask = authoritativeTask ?? task;
     if (currentTask.deletion_state?.trim() === "review_required") {
-      return "删除正在等待管理员处理，任务不再接受新的运行、投递或配置操作。";
+      return t("capability.scheduled_board_mutation_review");
     }
     if (isScheduledTaskDeleting(currentTask)) {
-      return "删除已经受理，任务不再接受新的运行、投递或配置操作。";
+      return t("capability.scheduled_board_mutation_deleting");
     }
     if (commands.isTaskMutationBlocked(currentTask.job_id)) {
-      return "这个任务还有一项操作正在处理或等待核对，请先刷新当前状态。";
+      return t("capability.scheduled_board_mutation_pending");
     }
     return null;
   };
@@ -570,29 +570,29 @@ export function ScheduledTasksDirectory() {
         unconfirmed={commands.unconfirmed}
       />
       <ConfirmDialog
-        confirmText="确认已停止并删除"
+        confirmText={t("capability.scheduled_board_confirm_delete")}
         isOpen={!scopeUnavailable
           && !accessBlocked
           && !deletionStoppedTargetUnavailable
           && deletionStoppedTarget !== null}
-        message="系统尚未删除这个任务和运行历史。请先确认原执行端已经停止。继续后将删除任务和运行历史，但无法撤回任务此前已经产生的外部影响。"
+        message={t("capability.scheduled_board_confirm_delete_message")}
         onCancel={() => setDeletionStoppedTarget(null)}
         onConfirm={confirmDeletionStopped}
-        title="确认原执行已经停止"
+        title={t("capability.scheduled_board_confirm_delete_title")}
         variant="danger"
       />
       <ConfirmDialog
-        confirmText="删除"
+        confirmText={t("capability.scheduled_board_delete")}
         isOpen={!scopeUnavailable
           && !accessBlocked
           && !deleteTargetUnavailable
           && deleteTarget !== null}
         message={!accessBlocked && !deleteTargetUnavailable && deleteTarget
-          ? `删除“${deleteTarget.name}”后，这个任务将不再运行。`
+          ? t("capability.scheduled_board_delete_message", { name: deleteTarget.name })
           : ""}
         onCancel={() => setDeleteTarget(null)}
         onConfirm={confirmDeleteTask}
-        title="删除任务"
+        title={t("capability.scheduled_card_delete")}
         variant="danger"
       />
 
