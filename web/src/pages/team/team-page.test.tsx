@@ -1,22 +1,16 @@
 // INPUT: Team read-model snapshots and controlled send outcomes.
 // OUTPUT: IME-safe submit, draft retention and accessible load/error feedback.
 // POS: Team page interaction regressions; no Team transport is invoked.
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vitest";
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
 import type { useTeamRoom } from "@/features/team/use-team-room";
 import { TeamPage } from "./team-page";
 const model = vi.hoisted(() => ({ read: vi.fn() }));
 vi.mock("@/features/team/use-team-room", () => ({ useTeamRoom: model.read }));
 let room: ReturnType<typeof useTeamRoom>;
-const originalScroll = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollIntoView");
-afterEach(() => {
-  if (originalScroll) Object.defineProperty(HTMLElement.prototype, "scrollIntoView", originalScroll);
-  else Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
-});
 beforeEach(() => {
-  HTMLElement.prototype.scrollIntoView = vi.fn();
   room = {bootstrap: {
     team: {id: "team", deployment_id: "deployment", name: "Team"},
     room: {id: "room", team_id: "team", name: "General"},
@@ -74,4 +68,33 @@ it("keeps complete Unicode initials decorative while preserving author and Markd
   expect(screen.getByText("👩‍🔬 Researcher")).toBeTruthy();
   expect(screen.getByText("Research result").tagName).toBe("STRONG");
   expect(screen.queryByText("internal-user")).toBeNull();
+});
+
+it("keeps a reader in place as messages arrive, then resumes following through the shared action", async () => {
+  const view = render(page());
+  const viewport = screen.getByRole("region", {name: "team.shared_room"});
+  let height = 600;
+  Object.defineProperties(viewport, {
+    clientHeight: {configurable: true, value: 200},
+    scrollHeight: {configurable: true, get: () => height},
+  });
+  viewport.scrollTop = 400;
+  fireEvent.scroll(viewport);
+  fireEvent.wheel(viewport, {deltaY: -100});
+  viewport.scrollTop = 150;
+  fireEvent.scroll(viewport);
+  expect(screen.getByRole("button", {name: "room.scroll_to_latest"})).toBeTruthy();
+  room.messages = [{id: "new", conversation_id: "conversation", message_seq: 1,
+    author_type: "user", author_user_id: "user", author_username: "name", author_display_name: "Name",
+    client_message_id: "client", content: {version: 1, blocks: [{type: "markdown", text: "New message"}]}, created_at: "2026-09-09T01:00:00Z"}];
+  height = 800;
+  view.rerender(page());
+  expect(viewport.scrollTop).toBe(150);
+  await userEvent.click(screen.getByRole("button", {name: "room.scroll_to_latest"}));
+  await waitFor(() => expect(viewport.scrollTop).toBe(600));
+  expect(screen.queryByRole("button", {name: "room.scroll_to_latest"})).toBeNull();
+  room.messages = [...room.messages, {...room.messages[0], id: "next", message_seq: 2}];
+  height = 1_000;
+  view.rerender(page());
+  await waitFor(() => expect(viewport.scrollTop).toBe(800));
 });

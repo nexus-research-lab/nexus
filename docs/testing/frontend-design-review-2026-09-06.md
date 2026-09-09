@@ -3807,3 +3807,10 @@ Team Enter 发送接入公共 IME 判断，组合输入和 keyCode 229 不发送
 标题、作者、时间、加载/空态与错误使用公共 Typography roles；作者行支持换行，时间按界面语言格式化。保留真人消息圆形首字标记以区别 Agent 身份，但删除 UTF-16 slice，复用现有 getInitials 完整字素逻辑，并将重复标记设为装饰。Markdown 正文仍由公共渲染器拥有。
 
 Team 4 项回归含完整 emoji 首字、作者、Markdown 内容及不暴露内部身份，目标 eslint/typecheck 通过，见 /tmp/nexus-a111-{target,lint,types}.log。无视觉验证，滚动尚待审，清单状态计数不变。
+
+
+## A112 — Team 复用统一阅读/跟随滚动
+
+删除每次消息数变化的强制 scrollIntoView 与旧 ref/effect，Team 直接接入已有 useFollowScroll、feed/viewport refs、用户滚动事件和 ScrollToLatestButton。上滚进入阅读时新消息不追底，显式回到底部后恢复跟随；滚动 scope 使用真实 conversation.id。滚动区域以可聚焦 region 支持键盘，添加有理由的局部 tabindex lint 例外，不修改全局规则。
+
+Team 5 项回归通过，实际 Hook 的测试覆盖阅读位置保留、返回底部及后续新消息继续跟随；目标 lint/typecheck/build 通过，见 /tmp/nexus-a112-{target,lint,types,build}.log，仅既有大分块提示。未做视觉验证。Team 仍 in_progress，首次加载失败的恢复入口另审，状态计数不变。
