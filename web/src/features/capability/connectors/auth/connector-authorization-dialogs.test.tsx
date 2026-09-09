@@ -4,8 +4,10 @@
 
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { I18N_CONTEXT, type I18nContextValue } from "@/shared/i18n/i18n-context";
+import { LOCALE_STORAGE_KEY, MESSAGES, type Locale } from "@/shared/i18n/messages";
 import { I18nProvider } from "@/shared/i18n/i18n-provider";
 import type { ConnectorDetail } from "@/types/capability/connector";
 
@@ -40,6 +42,8 @@ const FEISHU_DETAIL = {
   oauth_client_configured: false,
   title: "飞书云文档",
 } satisfies ConnectorDetail;
+
+beforeEach(() => localStorage.setItem(LOCALE_STORAGE_KEY, "zh"));
 
 describe("Connector authorization dialogs", () => {
   it("keeps busy Feishu connection choices named and inert until the operation settles", async () => {
@@ -117,4 +121,33 @@ describe("Connector authorization dialogs", () => {
 
     expect(onSave).toHaveBeenCalledWith("feishu-docx", "client-id", "client-secret");
   });
+});
+
+
+it("translates a direct credential dialog without clearing its draft or submitting on locale change", async () => {
+  const user = userEvent.setup();
+  const onSave = vi.fn();
+  const onClose = vi.fn();
+  const view = (locale: Locale) => {
+    const t: I18nContextValue["t"] = (key, params) => Object.entries(params ?? {}).reduce(
+      (text, [name, value]) => text.replaceAll(`{${name}}`, String(value)), MESSAGES[locale][key],
+    );
+    return <I18N_CONTEXT.Provider value={{locale, t, setLocale: vi.fn()}}>
+      <ConnectorCredentialDialog busy={false} detail={AMAP_DETAIL} onSave={onSave} onClose={onClose} />
+    </I18N_CONTEXT.Provider>;
+  };
+  const {rerender} = render(view("zh"));
+  const input = screen.getByLabelText("API Key*") as HTMLInputElement;
+  await user.type(input, "  user-key  ");
+  rerender(view("en"));
+  expect(screen.getByRole("dialog", {name: "Connect 高德地图"})).toBeTruthy();
+  expect(screen.getByText("Paste the Web Service Key from Amap Open Platform.")).toBeTruthy();
+  expect(screen.getByRole("link", {name: "View documentation"}).getAttribute("href")).toBe(AMAP_DETAIL.docs_url);
+  expect(screen.getByLabelText("API Key*")).toBe(input);
+  expect(input.value).toBe("  user-key  ");
+  expect(input.type).toBe("password");
+  expect(onSave).not.toHaveBeenCalled();
+  expect(onClose).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("button", {name: "Connect"}));
+  expect(onSave).toHaveBeenCalledExactlyOnceWith("amap", "user-key");
 });

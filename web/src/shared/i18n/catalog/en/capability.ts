@@ -2,6 +2,20 @@ import type { MessageSegment } from "../message-segment";
 import type { zhCapabilityMessages } from "../zh/capability";
 
 export const enCapabilityMessages = {
+  "capability.credential_title": "Connect {title}",
+  "capability.credential_description": "Enter {label} to connect {title}.",
+  "capability.credential_docs": "View documentation",
+  "capability.credential_connect": "Connect",
+  "capability.credential_amap_description": "Paste the Web Service Key from Amap Open Platform.",
+  "capability.credential_amap_placeholder": "Amap Web Service Key",
+  "capability.credential_didi_description": "Paste the MCP Key from the DiDi MCP service page.",
+  "capability.credential_didi_placeholder": "DiDi MCP Key",
+  "capability.credential_dingtalk_description": "Paste the Streamable HTTP URL provided by DingTalk AI Tables.",
+  "capability.credential_dingtalk_placeholder": "DingTalk AI Tables Streamable HTTP URL",
+  "capability.credential_tencent_description": "Paste the personal token from the Tencent Docs MCP authorization page.",
+  "capability.credential_tencent_placeholder": "Tencent Docs personal token",
+  "capability.credential_yuque_description": "Paste the Personal Token from your Yuque account settings.",
+  "capability.credential_yuque_placeholder": "Yuque Personal Token",
   "capability.scheduled_target_agent": "DM",
   "capability.scheduled_target_room": "Room",
   "capability.scheduled_target_all": "All types",
