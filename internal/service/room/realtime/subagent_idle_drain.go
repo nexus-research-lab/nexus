@@ -8,10 +8,9 @@ import (
 	"strings"
 	"time"
 
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
 func (s *Service) startIdleSubagentNotificationDrains(ctx context.Context, roundValue *activeRoomRound) {

@@ -8,6 +8,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
+	"strings"
+	"sync/atomic"
+	"time"
+	"unicode"
+
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
@@ -17,13 +24,8 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	goalruntimeusage "github.com/nexus-research-lab/nexus/internal/service/goal/runtimeusage"
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
-	"maps"
-	"slices"
-	"strings"
-	"sync/atomic"
-	"time"
-	"unicode"
 )
 
 const (
@@ -34,7 +36,7 @@ const (
 type roomSubagentUsageSettlement struct {
 	taskID          string
 	cumulativeTotal int64
-	observation     roomSubagentUsageObservation
+	observation     goalsvc.SubagentUsageObservation
 }
 
 type roomGoalUsageSourceRecorder interface {
@@ -700,39 +702,12 @@ func (s *Service) recordGoalUsageFromSlotAssistantMessageWithActor(
 	}
 }
 
-func slotFinalGoalUsageSnapshot(
-	slot *activeRoomSlot,
-	result exec.RoundExecutionResult,
-	finalAssistant protocol.Message,
-) (goalsvc.RuntimeUsageSnapshot, bool) {
-	usage, resultUsagePresent := runtimectx.GoalUsageFromTokenUsageWithPresence(result.Usage)
-	cumulative := resultUsagePresent
-	usageOK := resultUsagePresent
-	if !resultUsagePresent && protocol.MessageRole(finalAssistant) == "assistant" {
-		usage, usageOK = runtimectx.GoalUsageFromRaw(finalAssistant["usage"])
-	}
-	elapsedSeconds := result.ElapsedTimeSeconds
-	if elapsedSeconds <= 0 {
-		elapsedSeconds = slotGoalUsageElapsedSeconds(slot)
-	}
-	return goalsvc.RuntimeUsageSnapshot{
-		Usage:              usage,
-		ElapsedSeconds:     elapsedSeconds,
-		TokenUsageObserved: usageOK,
-		TurnID:             strings.TrimSpace(anyString(finalAssistant["message_id"])),
-		Cumulative:         cumulative,
-		Terminal:           true,
-	}, usageOK || elapsedSeconds > 0
+func slotFinalGoalUsageSnapshot(slot *activeRoomSlot, result exec.RoundExecutionResult, finalAssistant protocol.Message) (goalsvc.RuntimeUsageSnapshot, bool) {
+	return goalruntimeusage.FinalSnapshot(result, finalAssistant, slotGoalUsageElapsedSeconds(slot))
 }
 
 func slotAssistantGoalUsageSnapshot(slot *activeRoomSlot, message protocol.Message) goalsvc.RuntimeUsageSnapshot {
-	usage, usageObserved := runtimectx.GoalUsageFromRaw(message["usage"])
-	return goalsvc.RuntimeUsageSnapshot{
-		Usage:              usage,
-		ElapsedSeconds:     slotGoalUsageElapsedSeconds(slot),
-		TokenUsageObserved: usageObserved,
-		TurnID:             strings.TrimSpace(anyString(message["message_id"])),
-	}
+	return goalruntimeusage.AssistantSnapshot(message, slotGoalUsageElapsedSeconds(slot))
 }
 
 func (s *Service) recordGoalUsageSnapshotForSlot(
@@ -1474,7 +1449,7 @@ func (s *Service) recordSubagentGoalUsageForSlot(
 			}
 			settled = append(settled, roomSubagentUsageSettlement{
 				taskID:          child.taskID,
-				cumulativeTotal: observation.cumulativeTotal,
+				cumulativeTotal: observation.CumulativeTotal,
 				observation:     observation,
 			})
 			slot.clearSubagentUsageObservationPending(child.taskID, observation)
@@ -1494,7 +1469,7 @@ func (s *Service) recordSubagentGoalUsageForSlot(
 		if s.runtime == nil {
 			settled = append(settled, roomSubagentUsageSettlement{
 				taskID:          child.taskID,
-				cumulativeTotal: child.observation.cumulativeTotal,
+				cumulativeTotal: child.observation.CumulativeTotal,
 				observation:     child.observation,
 			})
 			continue
@@ -1502,7 +1477,7 @@ func (s *Service) recordSubagentGoalUsageForSlot(
 		delta := s.runtime.ObserveSubagentUsage(
 			slot.RuntimeSessionKey,
 			child.taskID,
-			child.observation.cumulativeTotal,
+			child.observation.CumulativeTotal,
 		)
 		if delta > 0 && attributed && s.goals != nil {
 			// 兼容测试/非 SQL provider：每个 slot 按 runtime session 去重，
@@ -1511,60 +1486,24 @@ func (s *Service) recordSubagentGoalUsageForSlot(
 		}
 		settled = append(settled, roomSubagentUsageSettlement{
 			taskID:          child.taskID,
-			cumulativeTotal: child.observation.cumulativeTotal,
+			cumulativeTotal: child.observation.CumulativeTotal,
 			observation:     child.observation,
 		})
 	}
 	return settled
 }
 
-func roomSubagentUsageObservations(
-	slot *activeRoomSlot,
-	message protocol.Message,
-) []roomSubagentUsageSettlement {
-	usage := messageutil.SubagentTaskUsageSnapshots(message)
-	observedAt := time.Now().UTC()
-	observations := make([]roomSubagentUsageSettlement, 0, len(usage)+1)
-	indexByTask := make(map[string]int, len(usage)+1)
-	for _, child := range usage {
-		taskID := strings.TrimSpace(child.TaskID)
-		if taskID == "" || child.TotalTokens <= 0 {
-			continue
-		}
-		indexByTask[taskID] = len(observations)
-		observations = append(observations, roomSubagentUsageSettlement{
-			taskID:          taskID,
-			cumulativeTotal: child.TotalTokens,
-			observation: roomSubagentUsageObservation{
-				cumulativeTotal: child.TotalTokens,
-				observedAt:      observedAt,
-			},
-		})
+func roomSubagentUsageObservations(slot *activeRoomSlot, message protocol.Message) []roomSubagentUsageSettlement {
+	var knowsTask func(string) bool
+	if slot != nil {
+		knowsTask = slot.knowsSubagentTask
 	}
-
-	metadata, _ := message["metadata"].(map[string]any)
-	taskID := strings.TrimSpace(anyString(metadata["task_id"]))
-	if taskID == "" ||
-		(!metadataLooksLikeSubagentTask(metadata) && (slot == nil || !slot.knowsSubagentTask(taskID))) {
-		return observations
+	observations := goalruntimeusage.SubagentObservations(message, knowsTask)
+	result := make([]roomSubagentUsageSettlement, 0, len(observations))
+	for _, item := range observations {
+		result = append(result, roomSubagentUsageSettlement{taskID: item.TaskID, observation: item.Usage, cumulativeTotal: item.Usage.CumulativeTotal})
 	}
-	terminal := isTerminalSubagentTaskStatus(anyString(metadata["status"]))
-	if index, exists := indexByTask[taskID]; exists {
-		observations[index].observation.terminal =
-			observations[index].observation.terminal || terminal
-		observations[index].observation.terminalTokenUsageObserved =
-			observations[index].observation.terminalTokenUsageObserved ||
-				(terminal && observations[index].observation.cumulativeTotal > 0)
-		return observations
-	}
-	observations = append(observations, roomSubagentUsageSettlement{
-		taskID: taskID,
-		observation: roomSubagentUsageObservation{
-			terminal:   terminal,
-			observedAt: observedAt,
-		},
-	})
-	return observations
+	return result
 }
 
 func (s *Service) persistSubagentGoalUsageForSlot(
@@ -1579,8 +1518,8 @@ func (s *Service) persistSubagentGoalUsageForSlot(
 		ctx,
 		slot,
 		taskID,
-		roomSubagentUsageObservation{
-			cumulativeTotal: cumulativeTotal,
+		goalsvc.SubagentUsageObservation{
+			CumulativeTotal: cumulativeTotal,
 		},
 		goalID,
 		goalSessionKey,
@@ -1591,7 +1530,7 @@ func (s *Service) persistSubagentGoalUsageObservationForSlot(
 	ctx context.Context,
 	slot *activeRoomSlot,
 	taskID string,
-	observation roomSubagentUsageObservation,
+	observation goalsvc.SubagentUsageObservation,
 	goalID string,
 	goalSessionKey string,
 ) (protocol.GoalUsageSourceResult, error) {
@@ -1604,15 +1543,15 @@ func (s *Service) persistSubagentGoalUsageObservationForSlot(
 		RuntimeSessionKey:      slot.RuntimeSessionKey,
 		SourceKind:             protocol.GoalUsageSourceKindNXSTask,
 		SourceID:               strings.TrimSpace(taskID),
-		CumulativeActualTokens: observation.cumulativeTotal,
+		CumulativeActualTokens: observation.CumulativeTotal,
 		EvidenceRequired:       true,
-		Terminal:               observation.terminal,
-		TokenUsageObserved:     observation.terminalTokenUsageObserved,
+		Terminal:               observation.Terminal,
+		TokenUsageObserved:     observation.TerminalTokenUsageObserved,
 		GoalID:                 strings.TrimSpace(goalID),
 		GoalSessionKey:         goalUsageSessionKeyForRoomSlot(slot, goalSessionKey),
 		RoundID:                slot.AgentRoundID,
 		ScopeRoundID:           goalUsageScopeRoundIDForRoomSlot(slot),
-		ObservedAt:             observation.observedAt,
+		ObservedAt:             observation.ObservedAt,
 	})
 	if err == nil && result.Goal != nil {
 		s.bindRoomGoalUsageForScope(slot, result.Goal.SessionKey, result.Goal.ID)

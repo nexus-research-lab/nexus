@@ -6,14 +6,16 @@ package dm
 import (
 	"context"
 	"errors"
-	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"log/slog"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
@@ -25,9 +27,6 @@ import (
 	orchestrationruntimehook "github.com/nexus-research-lab/nexus/internal/service/orchestration/runtimehook"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
 type dmRoundMapperAdapter struct {
@@ -108,7 +107,7 @@ type roundRunner struct {
 	goalTokenUsageObserved      bool
 	goalUsageScopeConsumed      bool
 	subagentTasks               map[string]struct{}
-	subagentUsagePending        map[string]dmSubagentUsageObservation
+	subagentUsagePending        map[string]goalsvc.SubagentUsageObservation
 	subagentUsageClaimPending   bool
 	goalUsageRetryRunning       bool
 	subagentParentTerminal      string
@@ -260,7 +259,7 @@ func (r *roundRunner) executeRound(
 		ObserveIncomingMessage: func(incoming sdkprotocol.ReceivedMessage) {
 			r.observeDeferredRuntimeMessage(incoming)
 			r.service.executionObserver().ObserveMessage(actor, incoming)
-			r.observeExecutionPersistenceEvidence(actor, incoming)
+			r.service.executionObserver().ObserveCompactBoundary(actor, r.sessionKey, r.agentRoundID, incoming)
 			if incoming.Type == sdkprotocol.MessageTypeStreamEvent && !r.service.config.MessageDebugStreamEvent {
 				return
 			}

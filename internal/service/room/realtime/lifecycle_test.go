@@ -8,7 +8,6 @@ import (
 	"time"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
-
 	"github.com/nexus-research-lab/nexus/internal/app"
 	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -16,7 +15,6 @@ import (
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	realtimesvc "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-
 	_ "modernc.org/sqlite"
 )
 

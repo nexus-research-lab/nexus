@@ -9,9 +9,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/nexus-research-lab/nexus/internal/protocol"
-
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 const shellToolProgressThrottleSeconds = 30
@@ -553,5 +552,31 @@ func taskNotificationDefaultContent(status string) string {
 		return "任务执行失败"
 	default:
 		return "任务状态已更新"
+	}
+}
+
+// IsSubagentTaskMetadata 判断消息是否提供子智能体任务身份，排除本地 shell。
+func IsSubagentTaskMetadata(metadata map[string]any) bool {
+	if len(metadata) == 0 {
+		return false
+	}
+	taskType := strings.ToLower(strings.TrimSpace(normalizeString(metadata["task_type"])))
+	if taskType == "local_shell" {
+		return false
+	}
+	if taskType != "" {
+		return taskType == "local_agent"
+	}
+	return strings.TrimSpace(normalizeString(metadata["agent_id"])) != "" ||
+		strings.TrimSpace(normalizeString(metadata["agent_type"])) != ""
+}
+
+// IsTerminalSubagentTaskStatus 判断子任务是否已进入不可继续运行的终态。
+func IsTerminalSubagentTaskStatus(status string) bool {
+	switch strings.TrimSpace(status) {
+	case "completed", "failed", "error", "stopped", "killed", "cancelled":
+		return true
+	default:
+		return false
 	}
 }

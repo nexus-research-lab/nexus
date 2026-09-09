@@ -17,7 +17,6 @@ import (
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	skillspkg "github.com/nexus-research-lab/nexus/internal/service/skills"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-
 	_ "modernc.org/sqlite"
 )
 

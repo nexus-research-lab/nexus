@@ -10,14 +10,13 @@ import (
 	"testing"
 	"time"
 
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	realtimesvc "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	_ "modernc.org/sqlite"
 )
 

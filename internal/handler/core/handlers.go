@@ -27,7 +27,6 @@ type Handlers struct {
 	agents    *agentpkg.Service
 	providers *providercfg.Service
 	prefs     *preferencessvc.Service
-	nxs       *nxsruntimesvc.Service
 	runtime   *runtimectx.Manager
 }
 
@@ -52,7 +51,6 @@ func New(
 		agents:    agents,
 		providers: providers,
 		prefs:     prefService,
-		nxs:       nxsruntimesvc.NewService(),
 	}
 }
 
@@ -298,7 +296,7 @@ func (h *Handlers) syncRuntimePreferences(ctx context.Context, preferences prefe
 
 // HandleNXSRuntimeStatus 返回当前主机上 nxs runtime 的本地可用状态。
 func (h *Handlers) HandleNXSRuntimeStatus(writer http.ResponseWriter, request *http.Request) {
-	h.api.WriteSuccess(writer, h.nxs.Status())
+	h.api.WriteSuccess(writer, nxsruntimesvc.Status())
 }
 
 func (h *Handlers) currentPreferences(request *http.Request) (preferencessvc.Preferences, error) {

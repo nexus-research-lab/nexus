@@ -11,7 +11,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
-
 	_ "modernc.org/sqlite"
 )
 

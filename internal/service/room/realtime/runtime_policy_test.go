@@ -2,10 +2,14 @@ package realtime_test
 
 import (
 	"context"
+	"slices"
+	"sync"
+	"testing"
+	"time"
+
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
-
 	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -18,10 +22,6 @@ import (
 	goalstore "github.com/nexus-research-lab/nexus/internal/storage/goal"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 	_ "modernc.org/sqlite"
-	"slices"
-	"sync"
-	"testing"
-	"time"
 )
 
 func TestRealtimeServiceForwardsProviderModelOption(t *testing.T) {

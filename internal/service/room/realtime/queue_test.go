@@ -8,6 +8,10 @@ import (
 	"testing"
 	"time"
 
+	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -16,11 +20,6 @@ import (
 	realtimesvc "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 	queueadmissionstore "github.com/nexus-research-lab/nexus/internal/storage/queueadmission"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-
-	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
-	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	_ "modernc.org/sqlite"
 )
 

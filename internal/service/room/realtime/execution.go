@@ -8,6 +8,12 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"log/slog"
+	"strings"
+	"sync"
+	"time"
+	"unicode/utf8"
+
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
@@ -22,11 +28,6 @@ import (
 	orchestrationruntimehook "github.com/nexus-research-lab/nexus/internal/service/orchestration/runtimehook"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-	"log/slog"
-	"strings"
-	"sync"
-	"time"
-	"unicode/utf8"
 )
 
 func appendPromptSection(base string, section string) string {
@@ -442,7 +443,7 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 		ObserveIncomingMessage: func(incoming sdkprotocol.ReceivedMessage) {
 			currentActor := e.orchestrationActor()
 			e.service.executionObserver().ObserveMessage(currentActor, incoming)
-			e.observeExecutionPersistenceEvidence(currentActor, incoming)
+			e.service.executionObserver().ObserveCompactBoundary(currentActor, e.slot.RuntimeSessionKey, e.slot.AgentRoundID, incoming)
 			e.observeIncomingMessage(incoming)
 		},
 		SyncSessionID: func(sessionID string) error {
