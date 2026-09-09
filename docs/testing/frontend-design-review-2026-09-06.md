@@ -4031,3 +4031,8 @@ TourOverlayCard 增加每实例标题/说明关联的非模态 region，装饰�
 ### A151 — 全局反馈贴近右上角
 
 按用户要求，唯一 FeedbackBannerViewport 移除 80/96px 顶部偏移，顶部和右侧改为至少 16px 安全区边距；窄屏保留左右边距，宽屏维持原有消息宽度。关闭、时长、播报和层级不变。4 项反馈回归及 lint 通过，不做视觉验收。
+
+
+### A152 — 会话固定按钮收口
+
+单标签固定动作改用 UiIconButton xs/24px，固定态映射 primary 和 aria-pressed，删除私有 pinClassName 的几何、颜色和焦点环。保持标签宽度预算与独立动作，关闭原语不变。3 项标签 DOM 回归验证固定/关闭/选择隔离与受控状态，lint/typecheck 通过；未做视觉验收。

@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Reuse the shared icon button for conversation pinning, preserving independent tab actions.
+
 - Anchor global feedback at the top-right with a small safe-area-aware margin.
 
 - Name onboarding card regions and let long guidance and navigation controls wrap.

@@ -1,10 +1,11 @@
 /**
  * INPUT: 单个 Conversation 的活动、固定、关闭状态与独立动作。
- * OUTPUT: 标题、状态点、图钉和共享 Tab dismiss 按钮组成的单一会话标签。
+ * OUTPUT: 标题、状态点、共享图标固定按钮和 Tab dismiss 按钮组成的单一会话标签。
  * POS: Workspace 会话标签纯视图，不推导集合或持久化状态。
  */
 import { Pin } from "lucide-react";
 
+import { UiIconButton } from "@/shared/ui/button/button";
 import { UiTabDismissButton } from "@/shared/ui/navigation/tab-dismiss-button";
 
 import { resolveWorkspaceConversationTabPresentation } from "./workspace-conversation-tab-model";
@@ -77,19 +78,20 @@ export function WorkspaceConversationTab({
       {presentation.showPin || presentation.showClose ? (
         <span className={presentation.actionsClassName}>
           {presentation.showPin ? (
-            <button
+            <UiIconButton
               aria-label={pinLabel}
               aria-pressed={isPinned}
-              className={presentation.pinClassName}
+              size="xs"
+              tone={isPinned ? "primary" : "default"}
               onClick={(event) => {
                 event.stopPropagation();
                 onTogglePin();
               }}
-              title={pinLabel}
+              tooltip={pinLabel}
               type="button"
             >
-              <Pin className={isPinned ? "h-3 w-3 fill-current" : "h-3 w-3"} />
-            </button>
+              <Pin aria-hidden="true" className={isPinned ? "h-3 w-3 fill-current" : "h-3 w-3"} />
+            </UiIconButton>
           ) : null}
           {presentation.showClose ? (
             <UiTabDismissButton
