@@ -1,5 +1,5 @@
 // INPUT: 侧栏展开状态、可见系统动作、路由状态与动作命令。
-// OUTPUT: 账号入口、向上展开的设置/退出菜单与右侧帮助入口。
+// OUTPUT: 紧凑账号退出菜单与并排的设置、帮助入口。
 // POS: 宽侧栏底部/折叠动作视图；权限与更新状态由上层和专属 hook 决定。
 
 import {
@@ -15,8 +15,7 @@ import { useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 import { SIDEBAR_TOUR_ANCHORS } from "@/features/onboarding/tours/sidebar-navigation-tour";
-import { UiButton, UiIconButton } from "@/shared/ui/button/button";
-import { cn } from "@/shared/ui/class-name";
+import { UiIconButton } from "@/shared/ui/button/button";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { UiActionMenu, type UiActionMenuItem } from "@/shared/ui/menu/action-menu";
 
@@ -70,63 +69,58 @@ export function SidebarFooterActions(props: SidebarUtilityActionsProps) {
   const navigate = useNavigate();
   const anchorRef = useRef<HTMLButtonElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [menuWidth, setMenuWidth] = useState(220);
-  const items: UiActionMenuItem[] = props.showSettings ? [{
-    value: "settings",
-    label: props.labels.settings,
-    icon: <Settings className="h-4 w-4" />,
-    active: props.settingsActive,
-  }] : [];
-  const footerItems: UiActionMenuItem[] = props.showLogout ? [{
+  const items: UiActionMenuItem[] = [{
     value: "logout",
     label: props.labels.logout,
-    icon: <LogOut className="h-4 w-4" />,
-  }] : [];
+    icon: <LogOut aria-hidden="true" className="h-4 w-4" />,
+  }];
 
   return (
-    <div className={cn(
-      "sidebar-panel-footer shell-region-footer relative -mr-1.5 flex shrink-0 items-center gap-2 px-2",
-      "h-12",
-    )}>
-      <UiButton
-        ref={anchorRef}
-        aria-label={props.accountName}
-        aria-expanded={menuOpen}
-        aria-haspopup="menu"
-        className="min-w-0 flex-1 justify-start gap-2 px-1 font-normal"
-        onClick={() => {
-          const footer = anchorRef.current?.parentElement;
-          if (footer) {
-            const style = getComputedStyle(footer);
-            setMenuWidth(footer.getBoundingClientRect().width - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0));
-          }
-          setMenuOpen(!menuOpen);
-        }}
-        variant="ghost"
-      >
-        <UiAgentAvatar avatar={props.accountAvatar} className="rounded-full" name={props.accountName} size="sm" />
-        <span className="truncate">{props.accountName}</span>
-      </UiButton>
-      <UiActionMenu
-        anchorRef={anchorRef}
-        ariaLabel={props.accountName}
-        isOpen={menuOpen}
-        header={
-          <div className="flex min-w-0 items-center gap-2.5">
-            <UiAgentAvatar avatar={props.accountAvatar} className="rounded-full" name={props.accountName} size="sm" />
-            <span className="ui-type-control truncate text-(--text-strong)">{props.accountName}</span>
-          </div>
-        }
-        items={[...items, ...footerItems]}
-        minWidth={menuWidth}
-        placement="top"
-        onClose={() => setMenuOpen(false)}
-        onSelect={(value) => {
-          if (value === "logout") props.onLogout();
-          if (value === "settings") navigate(AppRouteBuilders.settings());
-        }}
-      />
+    <div className="sidebar-panel-footer shell-region-footer relative -mr-1.5 flex h-12 shrink-0 items-center justify-end gap-2 px-2">
+      {props.showLogout ? (
+        <>
+          <UiIconButton
+            ref={anchorRef}
+            aria-label={props.accountName}
+            aria-expanded={menuOpen}
+            aria-haspopup="menu"
+            className="mr-auto"
+            onClick={() => setMenuOpen(!menuOpen)}
+            shape="round"
+            size="md"
+            tooltip={props.accountName}
+          >
+            <UiAgentAvatar aria-hidden="true" avatar={props.accountAvatar} className="rounded-full" name={props.accountName} size="sm" />
+          </UiIconButton>
+          <UiActionMenu
+            anchorRef={anchorRef}
+            ariaLabel={props.accountName}
+            isOpen={menuOpen}
+            header={
+              <div className="flex min-w-0 items-center gap-2.5">
+                <UiAgentAvatar aria-hidden="true" avatar={props.accountAvatar} className="rounded-full" name={props.accountName} size="sm" />
+                <span className="ui-type-control truncate text-(--text-strong)">{props.accountName}</span>
+              </div>
+            }
+            items={items}
+            minWidth={220}
+            placement="top"
+            onClose={() => setMenuOpen(false)}
+            onSelect={(value) => {
+              if (value === "logout") props.onLogout();
+            }}
+          />
+        </>
+      ) : null}
       {updateVersion ? <SidebarUpdateIndicator version={updateVersion} /> : null}
+      {props.showSettings ? (
+        <UtilityButton
+          active={props.settingsActive}
+          icon={Settings}
+          label={props.labels.settings}
+          onClick={() => navigate(AppRouteBuilders.settings())}
+        />
+      ) : null}
       <UtilityButton
         active={props.guideOpen}
         anchor={SIDEBAR_TOUR_ANCHORS.restart}
@@ -163,7 +157,7 @@ function UtilityButton({
       size="md"
       tooltip={label}
     >
-      <Icon className={iconClassName} />
+      <Icon aria-hidden="true" className={iconClassName} />
     </UiIconButton>
   );
 }
