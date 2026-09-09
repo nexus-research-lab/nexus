@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Compact model configuration with header identity, two-column capabilities and
+  advanced JSON disclosure that stays open for existing custom options.
+
 - Restore a consistent indent beneath settings navigation group headings.
 
 - Use title-case Nexus branding and expand the compact settings search on focus or query.
