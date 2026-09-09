@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Localize scheduled-task card action labels, accessible names and mutation-protection hints.
+
 - Localize scheduled-task permission actions in cards and details while preserving pending and unknown-result protection.
 
 - Give scheduled-task titles a shared editable-title input role and use shared supporting typography for confirmation summaries.
