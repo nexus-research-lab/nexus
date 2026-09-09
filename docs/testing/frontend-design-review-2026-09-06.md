@@ -4117,3 +4117,8 @@ UiInput title 角色统一页内对象标题的 objectTitle/regular、透明无�
 ### A167 — 记忆删除纯模型测试去 SSR 生命周期
 
 A166 的记忆合同断言通过后反复原生退出崩溃；其行为部分只需纯恢复函数。将原有完整断言迁入模型共置 Vitest 测试，静态 source fence 合同留在 Node 脚本并移除 Vite createServer/close。保留断言，不改产品代码、不跳过测试。共置行为 1 项、Node 静态合同 1 项、lint/typecheck 全通过且进程正常退出；没有据此宣告整套合同全绿。
+
+
+### A168 — 登录二维码行内提示
+
+必需二维码缺失时由 FeedbackBanner 改为 UiInlineNotice，保留固定标题、影响和下一步；可选且为空时仍不展示。二维码 alt 接入双语目录。3 项登录/缺失反馈回归与 lint 通过，未改登录事务或载荷隐藏规则，未做视觉验收。

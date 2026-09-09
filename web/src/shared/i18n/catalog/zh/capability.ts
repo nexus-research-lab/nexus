@@ -847,6 +847,7 @@ export const zhCapabilityMessages = {
   "capability.channel_login_refresh_failed_message": "扫码登录已完成，但当前弹窗没有取得最新频道信息。",
   "capability.channel_login_refresh_failed_impact": "登录已完成，但页面没有更新。请刷新。",
   "capability.channel_login_refresh_failed_next_step": "只需核对最新频道状态，不要重新扫码或保存配置。",
+  "capability.channel_login_qr_alt": "频道扫码登录二维码",
   "capability.channel_login_qr_loading": "正在生成登录二维码…",
   "capability.channel_login_qr_missing_title": "登录二维码尚未就绪",
   "capability.channel_login_qr_missing_message": "扫码会话已经建立，但当前状态没有包含可显示的二维码。",

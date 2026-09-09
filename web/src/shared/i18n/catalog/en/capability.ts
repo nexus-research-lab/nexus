@@ -850,6 +850,7 @@ export const enCapabilityMessages = {
   "capability.channel_login_refresh_failed_message": "QR login finished, but this dialog couldn’t load the latest channel information.",
   "capability.channel_login_refresh_failed_impact": "Sign-in finished, but the page hasn't updated. Refresh it.",
   "capability.channel_login_refresh_failed_next_step": "Only check the latest channel status. Don’t scan again or save the configuration again.",
+  "capability.channel_login_qr_alt": "Channel sign-in QR code",
   "capability.channel_login_qr_loading": "Generating the login QR code…",
   "capability.channel_login_qr_missing_title": "The login QR code isn’t ready",
   "capability.channel_login_qr_missing_message": "The QR session started, but its current state does not include a QR code that can be displayed.",

@@ -9,6 +9,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { ChannelLoginView } from "@/lib/api/capability/channel-api";
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
 
+import { LoginQRCode } from "./login-qr-code";
+import { MESSAGES } from "@/shared/i18n/messages";
 import { ChannelLoginPanel } from "./channel-login-panel";
 
 const LOGIN = {
@@ -44,7 +46,7 @@ describe("ChannelLoginPanel", () => {
     expect(screen.getByRole("heading", { name: "扫码连接" }).className)
       .toContain("ui-type-control");
     expect(screen.getByText(LOGIN.user_id).className).toContain("ui-type-code");
-    expect(screen.getByRole("img", { name: "频道扫码登录二维码" }).className)
+    expect(screen.getByRole("img", { name: "capability.channel_login_qr_alt" }).className)
       .toContain("surface-radius-sm");
     expect(container.querySelectorAll("section.surface-radius-sm").length).toBeGreaterThan(1);
 
@@ -53,4 +55,18 @@ describe("ChannelLoginPanel", () => {
     expect(onSubmitVerifyCode).toHaveBeenCalledWith("648201");
     expect((screen.getByPlaceholderText("验证码") as HTMLInputElement).value).toBe("");
   });
+});
+
+
+it.each(["zh", "en"] as const)("keeps a required missing QR inline and hides an optional missing QR in %s", (locale) => {
+  const show = (required: boolean) => <I18N_CONTEXT.Provider value={{ locale, setLocale: vi.fn(), t: (key) => MESSAGES[locale][key] }}>
+    <LoginQRCode payload="" required={required} />
+  </I18N_CONTEXT.Provider>;
+  const result = render(show(true));
+  const notice = screen.getByRole("status");
+  expect(notice.textContent).toContain(MESSAGES[locale]["capability.channel_login_qr_missing_impact"]);
+  expect(notice.textContent).toContain(MESSAGES[locale]["capability.channel_login_qr_missing_next_step"]);
+  expect(screen.queryByRole("img")).toBeNull();
+  result.rerender(show(false));
+  expect(screen.queryByRole("status")).toBeNull();
 });

@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Keep missing channel QR feedback inline and localize QR accessible names.
+
 - Translate scheduled board column headings without changing task grouping or order.
 
 - Use a localized task label instead of exposing the internal executor Agent ID when a scheduled task has no source name.
