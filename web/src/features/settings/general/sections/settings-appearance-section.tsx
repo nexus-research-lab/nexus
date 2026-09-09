@@ -4,12 +4,12 @@
 "use client";
 
 import { Languages, Palette, RotateCcw } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
-import { DEFAULT_CHAT_TYPOGRAPHY, useChatTypography } from "@/shared/theme/chat-typography";
+import { CHAT_TYPOGRAPHY_LIMITS, DEFAULT_CHAT_TYPOGRAPHY, useChatTypography } from "@/shared/theme/chat-typography";
 import { defaultTheme, useTheme } from "@/shared/theme/theme-context";
 import { UiInput } from "@/shared/ui/form/form-control";
 import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
@@ -115,7 +115,7 @@ export function SettingsAppearanceSection() {
           <AppearanceNumberInput
             label={t("settings.reading.size")}
             value={typography.fontSize}
-            min={14} max={22} step={1}
+            min={CHAT_TYPOGRAPHY_LIMITS.fontSize.min} max={CHAT_TYPOGRAPHY_LIMITS.fontSize.max} step={1}
             unit="px"
             onChange={(value) => setTypography({ fontSize: value })}
           />
@@ -124,7 +124,7 @@ export function SettingsAppearanceSection() {
           <AppearanceNumberInput
             label={t("settings.reading.spacing")}
             value={typography.lineHeight}
-            min={1.4} max={2} step={0.05}
+            min={CHAT_TYPOGRAPHY_LIMITS.lineHeight.min} max={CHAT_TYPOGRAPHY_LIMITS.lineHeight.max} step={0.05}
             unit=""
             onChange={(value) => setTypography({ lineHeight: value })}
           />
@@ -170,23 +170,43 @@ function AppearanceNumberInput({ label, value, min, max, step, unit, onChange }:
   unit: string;
   onChange: (value: number) => void;
 }) {
+  const { t } = useI18n();
+  const hintId = useId();
   const [draft, setDraft] = useState<string | null>(null);
+  const [adjusted, setAdjusted] = useState<number | null>(null);
+  const numericDraft = draft === null || draft === "" ? null : Number(draft);
+  const outOfRange = numericDraft !== null && Number.isFinite(numericDraft) && (numericDraft < min || numericDraft > max);
+  const range = t("settings.appearance.value_range", { min, max, unit });
+  const hint = outOfRange
+    ? t("settings.appearance.range_warning", { min, max, unit })
+    : adjusted !== null
+      ? t("settings.appearance.range_adjusted", { min, max, unit, value: adjusted })
+      : range;
   return (
-    <div className="relative">
+    <div>
+      <div className="relative">
       <UiInput
         aria-label={label}
+        aria-describedby={hintId}
+        aria-invalid={outOfRange}
         className="w-full [appearance:textfield] pr-10 tabular-nums [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
         controlSize="lg"
         type="number"
         min={min} max={max} step={step}
         value={draft ?? value}
         onChange={(event) => {
+          setAdjusted(null);
           setDraft(event.target.value);
           if (event.target.value !== "" && event.target.validity.valid) onChange(event.target.valueAsNumber);
         }}
         onBlur={(event) => {
           // 输入中允许清空和小数中间态；失焦时才收口范围或恢复原值。
-          if (Number.isFinite(event.target.valueAsNumber)) onChange(event.target.valueAsNumber);
+          const entered = event.target.valueAsNumber;
+          if (Number.isFinite(entered)) {
+            const bounded = Math.min(max, Math.max(min, entered));
+            setAdjusted(bounded !== entered ? bounded : null);
+            onChange(bounded);
+          }
           setDraft(null);
         }}
         onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
@@ -199,6 +219,10 @@ function AppearanceNumberInput({ label, value, min, max, step, unit, onChange }:
           {unit}
         </span>
       )}
+      </div>
+      <p id={hintId} role="status" className={cn("mt-1.5", getUiTypographyClassName({ role: "caption", tone: outOfRange ? "warning" : "muted" }))}>
+        {hint}
+      </p>
     </div>
   );
 }

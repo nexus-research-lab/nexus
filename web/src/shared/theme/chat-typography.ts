@@ -4,6 +4,7 @@ import { createJSONStorage, persist, type StateStorage } from "zustand/middlewar
 
 const STORAGE_KEY = "nexus-chat-typography";
 export const DEFAULT_CHAT_TYPOGRAPHY = { font: "default", fontSize: 16, lineHeight: 1.65 } as const;
+export const CHAT_TYPOGRAPHY_LIMITS = { fontSize: { min: 14, max: 22 }, lineHeight: { min: 1.4, max: 2 } } as const;
 type ChatTypography = { font: string; fontSize: number; lineHeight: number };
 
 const CHAT_TYPOGRAPHY_STORAGE: StateStorage = {
@@ -18,9 +19,9 @@ export function normalizeChatTypography(value: unknown): ChatTypography {
     font: typeof input.font === "string" && input.font.trim() && !/[\x00-\x1f\x7f]/.test(input.font)
       ? input.font.slice(0, 100) : "default",
     fontSize: typeof input.fontSize === "number" && Number.isFinite(input.fontSize)
-      ? Math.round(Math.min(22, Math.max(14, input.fontSize))) : 16,
+      ? Math.round(Math.min(CHAT_TYPOGRAPHY_LIMITS.fontSize.max, Math.max(CHAT_TYPOGRAPHY_LIMITS.fontSize.min, input.fontSize))) : 16,
     lineHeight: typeof input.lineHeight === "number" && Number.isFinite(input.lineHeight)
-      ? Math.min(2, Math.max(1.4, input.lineHeight)) : 1.65,
+      ? Math.min(CHAT_TYPOGRAPHY_LIMITS.lineHeight.max, Math.max(CHAT_TYPOGRAPHY_LIMITS.lineHeight.min, input.lineHeight)) : 1.65,
   };
 }
 

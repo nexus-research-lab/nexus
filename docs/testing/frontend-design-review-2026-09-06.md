@@ -3886,3 +3886,12 @@ CodeBlockContent 改用公共 UiIconButton sm/ghost 与 success tone，保留 28
 按用户反馈移除 Skills 桌面与窄屏菜单的查看引导，清理 replay props 与路由页返回值解构，首次自动 onboarding 保留。侧栏引导中心移入账号菜单，删除独立帮助图标；本地模式显示紧凑头像与引导，Web 额外提供退出，设置保持直接入口。
 
 3 项账号菜单回归覆盖本地/认证账号引导、退出边界和设置，目标 lint/typecheck 通过，日志 /tmp/nexus-a123-{target,lint,types}.log。未做视觉验证，清单状态计数不变。
+
+
+## A124 — 排版范围显式反馈
+
+字号/行距范围由 chat-typography 同一常量拥有，输入下显示范围，超界草稿保留并 aria-invalid/状态说明警告，失焦或 Enter 后才收口，并保留调整说明。提示以 useId 关联字段，避免单位随说明高度错位。2 项实际设置回归验证上下界、提示早于收口及存储值，lint/typecheck 通过，日志 /tmp/nexus-a124-{target,lint,types}.log。
+
+## A125 — 固定品牌字标
+
+按用户要求制作代码版本：NEXUS 靠左，固定 18px 字号与 0.22em 字母间距，保留品牌材质与收起控制；移除两个容器字号断点。目标 lint/typecheck/build 通过，日志 /tmp/nexus-a125-{lint,types,build}.log。未做视觉验证，用户可在运行版本查看；未把误在仓库根启动并取消的测试计为通过。两批清单状态计数不变。

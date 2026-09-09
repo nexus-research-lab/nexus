@@ -681,18 +681,6 @@
     );
   }
 
-  @container sidebar-panel (max-width: 320px) {
-    .sidebar-brand-wordmark {
-      --sidebar-brand-font-size: 18px;
-    }
-  }
-
-  @container sidebar-panel (max-width: 280px) {
-    .sidebar-brand-wordmark {
-      --sidebar-brand-font-size: 16px;
-    }
-  }
-
   .sidebar-panel-shell[data-sidebar-resizing="true"] {
     transition: none;
   }
