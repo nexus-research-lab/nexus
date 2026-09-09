@@ -4184,3 +4184,8 @@ OAuth 标题、Provider 说明、ID/Secret 提示、复制反馈和页脚动作�
 ### A180 — RichMail 配对产品说明与状态投影
 
 配对引导去除 Token 装配细节，说明与标题/服务地址/取消接入双语目录。Hook 只回传 pending/connected 状态，不回显服务端 message；拒绝/过期及异常继续沿 not_connected/outcome_unknown 独立分类，当前翻译保存在 ref，语言变化不重启 session 轮询。4 项视图/Hook 集成回归覆盖原始消息隔离、精确回调与终态停止，lint/typecheck 通过；未做视觉验证。并行后端修改未纳入本批。
+
+
+### A181 — 来源对照按钮单行
+
+按用户截图反馈，为 WorkGraph 卡片来源对照按钮增加 shrink-0/whitespace-nowrap，图标同步禁止收缩；不改公共按钮默认换行策略或点击行为。目标 lint/typecheck 通过，未做视觉验证。

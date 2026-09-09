@@ -20,3 +20,5 @@ L6 | 父级: web/src/features/conversation/shared/message/blocks
 图片详情和 WorkGraph 来源读取使用共享 `md` muted Spinner；Artifact 视图不得自行维护加载图标尺寸、颜色、旋转或 reduced-motion class。
 
 WorkGraph 产物卡和来源对照只负责图数据与响应式编排：卡片、动作、文字、版本标记和窄屏 pane 切换分别复用 `UiPanel`、`UiButton`、Typography、`UiBadge` 与 `UiTabs`，不得再手写对照页签的按钮、阴影或选中态。
+
+WorkGraph 卡片“来源对照”是单行操作，按钮和图标不参与横向压缩，宽度跟随标签内容；标题继续承担可截断的弹性空间。

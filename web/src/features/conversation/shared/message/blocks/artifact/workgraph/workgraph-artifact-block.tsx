@@ -105,11 +105,12 @@ export function WorkGraphArtifactBlock({
             ) : null}
           </div>
           <UiButton
+            className="shrink-0 whitespace-nowrap"
             onClick={() => setCompareOpen(true)}
             size="sm"
             variant="surface"
           >
-            <GitCompareArrows className="h-3.5 w-3.5" />
+            <GitCompareArrows className="h-3.5 w-3.5 shrink-0" />
             {t("execution.workflow_artifact_compare")}
           </UiButton>
         </header>
