@@ -15,6 +15,7 @@ import { ContentBlockView } from "../../item/view/content/content-block-view";
 import { projectStructuredContent } from "../../item/view/content/content-renderer-model";
 import { AssistantMessageContent } from "../../item/view/assistant/assistant-message-content";
 import type { AssistantActivityState, AssistantContentEnvironment, AssistantPermissionState } from "../../item/view/assistant/assistant-message-model";
+import { buildWorkspaceFileArtifactEntries } from "./workspace-file-artifact-list-model";
 import { WorkspaceFileArtifactBlock, WorkspaceFileArtifactList } from "./workspace-file-artifacts";
 
 vi.mock("@/lib/api/agent/agent-api", () => ({ downloadWorkspaceFileApi: vi.fn().mockResolvedValue(undefined) }));
@@ -116,4 +117,32 @@ describe("Structured file source adapters", () => {
     rerender(localized(<WorkspaceFileArtifactBlock artifact={{ ...ARTIFACT, label: "" }} />));
     expect(screen.queryByText("file")).toBeNull();
   });
+});
+
+
+it("renders repeated writes to one file once and preserves its open/download target", () => {
+  const open = vi.fn();
+  const artifacts = Array.from({length: 7}, (_, index) => ({...ARTIFACT, id: `artifact-${index}`, source_tool_use_id: `write-${index}`}));
+  const before = structuredClone(artifacts);
+  render(localized(<WorkspaceFileArtifactList artifacts={artifacts} workspaceAgentId="author" onOpenWorkspaceFile={open} />));
+  expect(screen.getAllByRole("button", {name: /^result\.md/})).toHaveLength(1);
+  fireEvent.click(screen.getByRole("button", {name: /^result\.md/}));
+  fireEvent.click(screen.getByRole("button", {name: "Download result.md"}));
+  expect(open).toHaveBeenCalledExactlyOnceWith(ARTIFACT.path, "author");
+  expect(downloadWorkspaceFileApi).toHaveBeenCalledExactlyOnceWith("author", ARTIFACT.path, "result.md");
+  expect(buildWorkspaceFileArtifactEntries(artifacts, "author")[0].artifact).toBe(artifacts[6]);
+  expect(artifacts).toEqual(before);
+});
+
+it("keeps different paths, workspaces and unresolved sources separate despite identical display names", () => {
+  const sameTarget = {...ARTIFACT, workspace_agent_id: " author ", path: ` ${ARTIFACT.path} `};
+  const otherFolder = {...ARTIFACT, path: "other/result.md"};
+  const otherWorkspace = {...ARTIFACT, workspace_agent_id: "other-author"};
+  const artifacts = [ARTIFACT, otherFolder, otherWorkspace, sameTarget];
+  const entries = buildWorkspaceFileArtifactEntries(artifacts, "author");
+  expect(entries.map(({artifact}) => artifact)).toEqual([sameTarget, otherFolder, otherWorkspace]);
+  expect(new Set(entries.map(({key}) => key)).size).toBe(3);
+  expect(buildWorkspaceFileArtifactEntries([ARTIFACT, {...ARTIFACT}], null)).toHaveLength(2);
+  render(localized(<WorkspaceFileArtifactList artifacts={artifacts} workspaceAgentId="author" onOpenWorkspaceFile={vi.fn()} />));
+  expect(screen.getAllByRole("button", {name: /^result\.md/})).toHaveLength(3);
 });
