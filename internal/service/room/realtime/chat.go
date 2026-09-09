@@ -255,6 +255,7 @@ func (s *Service) prepareRoomChat(ctx context.Context, request ChatRequest) (*ro
 		agentNameByID,
 		targetAgentIDs,
 		targetResolution,
+		request.TrustedConfigurationContext,
 	)
 	if request.Internal {
 		_, pausedTargetAgentIDs := partitionRoomParticipationTargets(
@@ -285,7 +286,8 @@ func (s *Service) prepareRoomChat(ctx context.Context, request ChatRequest) (*ro
 		}
 	}
 	deliveryPolicy := safeRoomDeliveryPolicy(request)
-	if !request.Internal {
+	if !request.Internal &&
+		(contextValue.Room.RoomType != protocol.RoomTypeGroup || !request.TrustedConfigurationContext) {
 		targetAgentIDs, targetResolution = s.resolveActiveRoomTargets(
 			sessionKey,
 			conversationID,
@@ -362,8 +364,14 @@ func resolveDefaultRoomTargets(
 	agentNameByID map[string]string,
 	targetAgentIDs []string,
 	targetResolution string,
+	requireExplicitGroupTarget bool,
 ) ([]string, string) {
 	if len(targetAgentIDs) > 0 {
+		return targetAgentIDs, targetResolution
+	}
+	if contextValue == nil ||
+		(contextValue.Room.RoomType == protocol.RoomTypeGroup && requireExplicitGroupTarget) {
+		// 浏览器群聊只允许显式 @Agent；受控内部调用仍可沿用既有调度目标。
 		return targetAgentIDs, targetResolution
 	}
 	if len(agentNameByID) == 1 {

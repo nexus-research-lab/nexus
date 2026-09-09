@@ -14,7 +14,6 @@ const WIDE_PANEL_DEFAULT_WIDTH = 264;
 type WidePanelCollapseSource = "manual" | "right_panel_auto";
 export const SIDEBAR_CAPABILITY_ITEM_IDS = {
   skills: "capability:skills",
-  loops: "capability:loops",
   workGraphDistillations: "capability:workgraphs",
   connectors: "capability:connectors",
   scheduledTasks: "capability:scheduled-tasks",
@@ -25,7 +24,6 @@ export const SIDEBAR_CAPABILITY_ITEM_IDS = {
 /** 根据当前路由派生侧栏高亮条目，保证整套导航只走一个状态源。 */
 export function deriveSidebarItemIdFromPath(pathname: string): string | null {
   if (pathname.startsWith("/capability/skills")) return SIDEBAR_CAPABILITY_ITEM_IDS.skills;
-  if (pathname.startsWith("/capability/loops")) return SIDEBAR_CAPABILITY_ITEM_IDS.loops;
   if (pathname.startsWith("/capability/workgraphs")) return SIDEBAR_CAPABILITY_ITEM_IDS.workGraphDistillations;
   if (pathname.startsWith("/capability/connectors")) return SIDEBAR_CAPABILITY_ITEM_IDS.connectors;
   if (pathname.startsWith("/capability/scheduled-tasks")) return SIDEBAR_CAPABILITY_ITEM_IDS.scheduledTasks;

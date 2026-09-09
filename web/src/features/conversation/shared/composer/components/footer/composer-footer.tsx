@@ -33,7 +33,6 @@ export function ComposerFooter(props: ComposerFooterProps) {
           <ComposerFooterActions
             actionButtonRef={props.actionButtonRef}
             canCreateGoal={props.canCreateGoal}
-            canUseLoop={props.canUseLoop}
             canUseWorkGraphDistillations={props.canUseWorkGraphDistillations}
             isActionMenuOpen={props.isActionMenuOpen}
             isGoalCreating={props.isGoalCreating}
@@ -44,7 +43,6 @@ export function ComposerFooter(props: ComposerFooterProps) {
             onActionMenuToggle={props.onActionMenuToggle}
             onAttachmentSelect={props.onAttachmentSelect}
             onGoalToggle={props.onGoalToggle}
-            onLoopSelect={props.onLoopSelect}
             onWorkGraphDistillationsSelect={props.onWorkGraphDistillationsSelect}
             onLocalDirectorySelect={props.onLocalDirectorySelect}
             sessionSettingsController={props.sessionSettingsController}
@@ -71,7 +69,7 @@ export function ComposerFooter(props: ComposerFooterProps) {
           runtimeActivity={props.runtimeActivity}
         />
       </div>
-      <ComposerPoweredBy runtimeKind={props.runtimeKind} />
+      <ComposerPoweredByNexus runtimeKind={props.runtimeKind} />
       <div className="nexus-chat-composer-footer-trailing flex min-w-0 items-center justify-self-end gap-2 overflow-hidden">
         <ComposerContextUsage
           items={props.contextUsageItems}
@@ -96,7 +94,15 @@ export function ComposerFooter(props: ComposerFooterProps) {
   );
 }
 
-function ComposerPoweredBy({ runtimeKind }: { runtimeKind: AgentRuntimeKind }) {
+export function ComposerPoweredByNexus({ visible = true, runtimeKind = "nxs" }: { visible?: boolean; runtimeKind?: AgentRuntimeKind }) {
+  if (!visible) {
+    return (
+      <span
+        aria-hidden="true"
+        className="nexus-chat-composer-footer-brand"
+      />
+    );
+  }
   return (
     <span
       className={`nexus-chat-composer-footer-brand whitespace-nowrap text-center tracking-[0.01em] ${getUiTypographyClassName({ role: "caption", weight: "medium" })}`}

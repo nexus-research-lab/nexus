@@ -4,6 +4,7 @@
 
 import {
   CircleHelp,
+  LogIn,
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
@@ -30,9 +31,11 @@ export interface SidebarUtilityActionsProps {
   labels: SidebarUtilityLabels;
   onCollapse: () => void;
   onExpand: () => void;
+  onLogin: () => void;
   onLogout: () => void;
   onOpenGuide: () => void;
   settingsActive: boolean;
+  showLogin: boolean;
   showLogout: boolean;
   showPanelToggle: boolean;
   showSettings: boolean;
@@ -74,7 +77,11 @@ export function SidebarFooterActions(props: SidebarUtilityActionsProps) {
     label: props.labels.guide,
     icon: <CircleHelp aria-hidden="true" className="h-4 w-4" />,
     active: props.guideOpen,
-  }, ...(props.showLogout ? [{
+  }, ...(props.showLogin ? [{
+    value: "login",
+    label: props.labels.login,
+    icon: <LogIn aria-hidden="true" className="h-4 w-4" />,
+  }] : []), ...(props.showLogout ? [{
     value: "logout",
     label: props.labels.logout,
     icon: <LogOut aria-hidden="true" className="h-4 w-4" />,
@@ -101,17 +108,20 @@ export function SidebarFooterActions(props: SidebarUtilityActionsProps) {
             anchorRef={anchorRef}
             ariaLabel={props.accountName}
             isOpen={menuOpen}
-            header={
-              <div className="flex min-w-0 items-center gap-2.5">
+            items={[{
+              value: "personal",
+              label: <span className="flex min-w-0 items-center gap-2.5">
                 <UiAgentAvatar aria-hidden="true" avatar={props.accountAvatar} className="rounded-full" name={props.accountName} size="sm" />
                 <span className="ui-type-control truncate text-(--text-strong)">{props.accountName}</span>
-              </div>
-            }
-            items={items}
+              </span>,
+            }]}
+            footerItems={items}
             minWidth={220}
             placement="top"
             onClose={() => setMenuOpen(false)}
             onSelect={(value) => {
+              if (value === "personal") navigate(AppRouteBuilders.settings("personal"));
+              if (value === "login") props.onLogin();
               if (value === "logout") props.onLogout();
               if (value === "guide") props.onOpenGuide();
             }}

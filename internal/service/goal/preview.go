@@ -31,7 +31,7 @@ func (s *Service) updatePreviewFromGoal(ctx context.Context, item protocol.Goal,
 		return
 	}
 	sessionKey := strings.TrimSpace(item.SessionKey)
-	fallbackTitle := goalPreviewTitle(item)
+	fallbackTitle := strings.TrimSpace(item.Objective)
 	if sessionKey == "" || fallbackTitle == "" {
 		return
 	}
@@ -64,11 +64,4 @@ func (s *Service) RepairCurrentGoalPreviews(ctx context.Context) error {
 		}
 	}
 	return errors.Join(repairErrors...)
-}
-
-func goalPreviewTitle(item protocol.Goal) string {
-	if title := protocol.GoalMetadataString(item.Metadata, protocol.GoalMetadataRoomGoalLoopTitle); title != "" {
-		return title
-	}
-	return strings.TrimSpace(item.Objective)
 }

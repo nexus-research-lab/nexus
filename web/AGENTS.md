@@ -1,5 +1,7 @@
 # Frontend Agent entry
 
+Use the pinned pnpm version in `package.json`; `pnpm-lock.yaml` is the only frontend dependency lockfile.
+
 Read the existing owner before changing code. Follow these canonical sources:
 
 - [Engineering contract](../docs/specs/frontend-engineering-spec.md): ownership,

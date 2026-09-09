@@ -1,18 +1,35 @@
 // INPUT: current round Actor、host-owned Execution command receipts 与候选 CLI Tool NodeRun。
 // OUTPUT: 经 receipt 精确核验并恢复 operation 名、责任分段和审核锚点的 Runtime Graph 节点。
-// POS: nexus.command transport 与 WorkGraph 结构语义之间的可信桥；不从模型输入授予 authority。
+// POS: 已验证执行操作事实到 Runtime Graph 的领域投影；MCP 转换由 runtimehook 负责。
 package orchestration
 
 import (
 	"context"
-	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"slices"
 	"strings"
 	"time"
 
-	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
+
+// RuntimeCommandFact 是宿主已核验的执行操作事实，不携带 MCP 协议模型。
+// 仅可信适配器可构造；请求 ID 与责任身份用于重放和物理轮次关联。
+type RuntimeCommandFact struct {
+	RequestID    string
+	Operation    string
+	Outcome      string
+	Message      string
+	ReasonCode   string
+	ExecutionID  string
+	WorkItemID   string
+	AssignmentID string
+	AttemptID    string
+	Changed      []string
+}
+
+func (f RuntimeCommandFact) applied() bool {
+	return strings.TrimSpace(f.Outcome) == string(protocol.MutationResultApplied)
+}
 
 const (
 	runtimeGraphCommandDomainMetadataKey    = "runtime_command_domain"
@@ -23,13 +40,12 @@ const (
 	runtimeGraphCommandActionMetadataKey    = "runtime_command_action"
 )
 
-// ObserveRuntimeCommandReceipts reconciles provider Tool nodes only after their
-// structured identity matches host-owned receipts. One graph read serves the whole assistant
-// checkpoint; providers without Tool lifecycle receive deterministic fallback nodes.
-func (s *Service) ObserveRuntimeCommandReceipts(
+// ObserveRuntimeCommands 将宿主核验的操作事实与物理轮次节点关联；
+// 每批只读取一次图，缺少工具生命周期时生成可重放的稳定节点。
+func (s *Service) ObserveRuntimeCommands(
 	ctx context.Context,
 	actor ActorContext,
-	receipts []nexusmcp.CommandReceipt,
+	receipts []RuntimeCommandFact,
 ) error {
 	if s == nil {
 		return nil
@@ -62,7 +78,7 @@ func (s *Service) ObserveRuntimeCommandReceipts(
 	}
 	now := s.now().UTC()
 	for _, receipt := range executionReceipts {
-		key := runtimeCommandReceiptKey(receipt.Domain, receipt.Operation, receipt.RequestID)
+		key := runtimeCommandReceiptKey("execution", receipt.Operation, receipt.RequestID)
 		candidateNodes := candidates[key]
 		if len(candidateNodes) == 0 && verified[key] {
 			continue
@@ -85,11 +101,10 @@ func (s *Service) ObserveRuntimeCommandReceipts(
 	return nil
 }
 
-func filterExecutionCommandReceipts(receipts []nexusmcp.CommandReceipt) []nexusmcp.CommandReceipt {
-	result := make([]nexusmcp.CommandReceipt, 0, len(receipts))
+func filterExecutionCommandReceipts(receipts []RuntimeCommandFact) []RuntimeCommandFact {
+	result := make([]RuntimeCommandFact, 0, len(receipts))
 	for _, receipt := range receipts {
-		if receipt.Domain == command.DomainExecution &&
-			strings.TrimSpace(receipt.RequestID) != "" &&
+		if strings.TrimSpace(receipt.RequestID) != "" &&
 			strings.TrimSpace(receipt.Operation) != "" {
 			result = append(result, receipt)
 		}
@@ -102,7 +117,7 @@ func (s *Service) applyRuntimeCommandReceipt(
 	repository runtimeGraphRepository,
 	actor ActorContext,
 	identity runtimeGraphIdentity,
-	receipt nexusmcp.CommandReceipt,
+	receipt RuntimeCommandFact,
 	node protocol.ExecutionRuntimeNodeRun,
 	matchedCandidate bool,
 	now time.Time,
@@ -115,12 +130,12 @@ func (s *Service) applyRuntimeCommandReceipt(
 	node.ExecutionID = firstNonEmpty(receipt.ExecutionID, actor.ExecutionID, node.ExecutionID)
 	node.ResultSummary = strings.TrimSpace(receipt.Message)
 	node.ErrorCode = strings.TrimSpace(receipt.ReasonCode)
-	node.Metadata[runtimeGraphCommandDomainMetadataKey] = receipt.Domain
+	node.Metadata[runtimeGraphCommandDomainMetadataKey] = "execution"
 	node.Metadata[runtimeGraphCommandOperationMetadataKey] = receipt.Operation
 	node.Metadata[runtimeGraphCommandRequestIDMetadataKey] = receipt.RequestID
 	node.Metadata[runtimeGraphCommandVerifiedMetadataKey] = true
 	node.Metadata[runtimeGraphCommandTransportMetadataKey] = true
-	node.Metadata[runtimeGraphCommandActionMetadataKey] = command.ActionInvoke
+	node.Metadata[runtimeGraphCommandActionMetadataKey] = "invoke"
 	if receipt.Outcome != "" {
 		node.Metadata["mutation_outcome"] = receipt.Outcome
 	}
@@ -205,7 +220,7 @@ func runtimeCommandReceiptKey(domain, operation, requestID string) string {
 
 func runtimeCommandFallbackNode(
 	identity runtimeGraphIdentity,
-	receipt nexusmcp.CommandReceipt,
+	receipt RuntimeCommandFact,
 	now time.Time,
 ) protocol.ExecutionRuntimeNodeRun {
 	subjectID := "runtime-command:" + receipt.RequestID
@@ -218,11 +233,11 @@ func runtimeCommandFallbackNode(
 		AgentRoundID: identity.AgentRoundID, AgentID: identity.AgentID,
 		Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now, UpdatedAt: now,
 		Metadata: map[string]any{
-			runtimeGraphCommandDomainMetadataKey:    receipt.Domain,
+			runtimeGraphCommandDomainMetadataKey:    "execution",
 			runtimeGraphCommandOperationMetadataKey: receipt.Operation,
 			runtimeGraphCommandRequestIDMetadataKey: receipt.RequestID,
 			runtimeGraphCommandTransportMetadataKey: true,
-			runtimeGraphCommandActionMetadataKey:    command.ActionInvoke,
+			runtimeGraphCommandActionMetadataKey:    "invoke",
 		},
 	}
 }
@@ -231,9 +246,9 @@ func (s *Service) runtimeCommandReceiptSegment(
 	ctx context.Context,
 	actor ActorContext,
 	identity runtimeGraphIdentity,
-	receipt nexusmcp.CommandReceipt,
+	receipt RuntimeCommandFact,
 ) runtimeExecutionSegment {
-	if !runtimeGraphAssignmentBoundaryOperation(receipt.Operation) || !receipt.Applied() {
+	if !runtimeGraphAssignmentBoundaryOperation(receipt.Operation) || !receipt.applied() {
 		return runtimeExecutionSegment{}
 	}
 	source := runtimeGraphAssignmentBoundarySource(receipt.Operation)

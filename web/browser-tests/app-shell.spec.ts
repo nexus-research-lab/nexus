@@ -34,6 +34,14 @@ test("real Launcher navigates to a readable responsive workbench and pins surviv
       && /^\/(?:npm\/)?@lottiefiles\/dotlottie-web@[^/]+\/dist\/dotlottie-player\.wasm$/.test(url.pathname)) {
       return route.fulfill({ path: localLottieWasm, contentType: "application/wasm" });
     }
+    if (url.pathname === "/nexus/v1/launcher/bootstrap") {
+      reads.push(url.pathname);
+      return route.fulfill({ json: { data: { agents: appShellRead("GET", "/nexus/v1/agents")!.data, rooms: [], conversations: [
+        { session_key: "recent-1", agent_id: "qa-main", room_type: "dm", title: "Bash顺序执行与回归测试", last_activity: "2026-09-09T10:00:00Z" },
+        { session_key: "recent-2", agent_id: "qa-reader", room_type: "dm", title: "本地文件与目录权限测试", last_activity: "2026-09-09T09:00:00Z" },
+        { session_key: "recent-3", room_id: "qa-room", conversation_id: "qa-conversation", room_type: "room", title: "文档助手", last_activity: "2026-09-09T08:00:00Z" },
+      ] } } });
+    }
     const fixture = appShellRead(request.method(), url.pathname);
     if (fixture) {
       reads.push(url.pathname);
@@ -57,6 +65,17 @@ test("real Launcher navigates to a readable responsive workbench and pins surviv
   await page.evaluate(() => document.fonts.ready);
   await input.fill("Inspect the local workspace");
   await expect(input).toHaveValue("Inspect the local workspace");
+  const recent = page.locator("[data-launcher-recent-entry]");
+  await expect(recent).toHaveCount(3);
+  const bounds = await recent.evaluateAll((elements) => elements.map((element) => {
+    const rect = element.getBoundingClientRect();
+    return { top: rect.top, width: rect.width, scrollWidth: element.scrollWidth, clientWidth: element.clientWidth };
+  }));
+  for (const boundsItem of bounds) {
+    expect(Math.abs(boundsItem.top - bounds[0].top)).toBeLessThanOrEqual(1);
+    expect(Math.abs(boundsItem.width - bounds[0].width)).toBeLessThanOrEqual(1);
+    expect(boundsItem.scrollWidth).toBeLessThanOrEqual(boundsItem.clientWidth + 1);
+  }
   await info.attach("app-launcher", { body: await page.screenshot(), contentType: "image/png" });
   await enter.click();
   await expect(page).toHaveURL(/\/app$/);

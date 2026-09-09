@@ -3,13 +3,17 @@
 // POS: 设置侧栏搜索交互回归，不请求后端。
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { MESSAGES, type TranslationKey } from "@/shared/i18n/messages";
+import { OPERATIONS_SECTIONS, parseSettingsSection } from "./settings-navigation-model";
 import { SettingsSidebarNavigation } from "./settings-sidebar-navigation";
 
+const auth = vi.hoisted(() => ({ role: "member" }));
+afterEach(() => { auth.role = "member"; });
+vi.mock("@/hooks/settings/use-project-permissions-enabled", () => ({ useProjectPermissionsEnabled: () => true }));
 const selectSection = vi.hoisted(() => vi.fn());
 const backToWorkspace = vi.hoisted(() => vi.fn());
-vi.mock("@/shared/auth/auth-context", () => ({ useAuth: () => ({ status: { role: "member" } }) }));
+vi.mock("@/shared/auth/auth-context", () => ({ useAuth: () => ({ status: auth }) }));
 vi.mock("@/shared/i18n/i18n-context", () => ({ useI18n: () => ({ t: (key: TranslationKey) => MESSAGES.zh[key] }) }));
 vi.mock("./use-settings-navigation", () => ({ useSettingsNavigation: () => ({ activeSection: "general", backToWorkspace, selectSection }) }));
 
@@ -64,4 +68,21 @@ it("keeps the full back label visible and keyboard accessible before search", as
   await user.click(screen.getByRole("button", { name: "常规" }));
   expect(screen.queryByRole("searchbox")).toBeNull();
   expect(back.querySelector(".sr-only")).toBeNull();
+});
+
+it("运营分组直接导航到五个独立子页，搜索保留管理员权限过滤", async () => {
+  auth.role = "admin";
+  const user = userEvent.setup();
+  render(<SettingsSidebarNavigation variant="panel" />);
+  expect(screen.getByText("运营管理")).toBeTruthy();
+  for (const item of OPERATIONS_SECTIONS) {
+    await user.click(screen.getByRole("button", { name: MESSAGES.zh[item.labelKey] }));
+    expect(selectSection).toHaveBeenLastCalledWith(item.key);
+    expect(parseSettingsSection(new URLSearchParams({ section: item.key }))).toBe(item.key);
+  }
+  expect(parseSettingsSection(new URLSearchParams("section=operations"))).toBe("operations-members");
+  await user.click(screen.getByRole("button", { name: "搜索设置…" }));
+  await user.type(screen.getByRole("searchbox"), "套餐管理");
+  expect(screen.getByRole("button", { name: "套餐管理" })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "部署成员" })).toBeNull();
 });

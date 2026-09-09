@@ -1,4 +1,4 @@
-// INPUT: Composer 附件/目录/Goal/Loop/WorkGraph 动作与 Connector 只读目录。
+// INPUT: Composer 附件/目录/Goal/WorkGraph 动作与 Connector 只读目录。
 // OUTPUT: 主动作菜单与受控 Goal/Connector 勾选项；每行只有一个原生激活入口。
 // POS: Composer Footer 动作入口；Connector 读取失败由外层可靠性面统一展示。
 import type { RefObject } from "react";
@@ -7,7 +7,6 @@ import {
   Loader2,
   Paperclip,
   Plus,
-  Repeat2,
   Target,
   GitBranchPlus,
 } from "lucide-react";
@@ -23,12 +22,11 @@ import {
 import type { ComposerSessionSettingsController } from "../../controller/use-composer-session-settings";
 import type { ComposerLocalDirectoriesController } from "../../controller/use-composer-local-directories";
 
-type ComposerActionValue = "attachment" | "directory" | "goal" | "loop" | "workgraph";
+type ComposerActionValue = "attachment" | "directory" | "goal" | "workgraph";
 
 interface ComposerFooterActionsProps {
   actionButtonRef: RefObject<HTMLButtonElement | null>;
   canCreateGoal: boolean;
-  canUseLoop: boolean;
   canUseWorkGraphDistillations: boolean;
   isActionMenuOpen: boolean;
   isGoalCreating: boolean;
@@ -39,7 +37,6 @@ interface ComposerFooterActionsProps {
   onActionMenuToggle: () => void;
   onAttachmentSelect: () => void;
   onGoalToggle: (checked: boolean) => void;
-  onLoopSelect: () => void;
   onWorkGraphDistillationsSelect: () => void;
   onLocalDirectorySelect: () => void;
   sessionSettingsController: ComposerSessionSettingsController;
@@ -54,7 +51,6 @@ interface VisibleActionItem {
 export function ComposerFooterActions({
   actionButtonRef,
   canCreateGoal,
-  canUseLoop,
   canUseWorkGraphDistillations,
   isActionMenuOpen,
   isGoalCreating,
@@ -65,7 +61,6 @@ export function ComposerFooterActions({
   onActionMenuToggle,
   onAttachmentSelect,
   onGoalToggle,
-  onLoopSelect,
   onWorkGraphDistillationsSelect,
   onLocalDirectorySelect,
   sessionSettingsController,
@@ -75,7 +70,6 @@ export function ComposerFooterActions({
   const items = buildActionItems({
     canCreateGoal,
     canUseLocalDirectories: localDirectoriesController.available,
-    canUseLoop,
     canUseWorkGraphDistillations,
     isGoalCreating,
     isGoalMode,
@@ -89,14 +83,12 @@ export function ComposerFooterActions({
       attachment: t("composer.add_attachment"),
       directory: t("composer.add_local_directory"),
       goal: t("composer.start_goal"),
-      loop: t("composer.insert_loop"),
       workgraph: t("composer.open_workgraph_distillations"),
     },
   });
   const commands = new Map<string, () => void>([
     ["attachment", onAttachmentSelect],
     ["directory", onLocalDirectorySelect],
-    ["loop", onLoopSelect],
     ["workgraph", onWorkGraphDistillationsSelect],
     ["goal", () => onGoalToggle(!isGoalMode)],
   ]);
@@ -193,7 +185,6 @@ function buildConnectorItems({
 function buildActionItems({
   canCreateGoal,
   canUseLocalDirectories,
-  canUseLoop,
   canUseWorkGraphDistillations,
   isGoalCreating,
   isGoalMode,
@@ -203,7 +194,6 @@ function buildActionItems({
 }: {
   canCreateGoal: boolean;
   canUseLocalDirectories: boolean;
-  canUseLoop: boolean;
   canUseWorkGraphDistillations: boolean;
   isGoalCreating: boolean;
   isGoalMode: boolean;
@@ -229,14 +219,6 @@ function buildActionItems({
         value: "attachment",
       },
       visible: true,
-    },
-    {
-      item: {
-        icon: <Repeat2 className="h-4 w-4 text-(--icon-muted)" />,
-        label: labels.loop,
-        value: "loop",
-      },
-      visible: canUseLoop,
     },
     {
       item: {

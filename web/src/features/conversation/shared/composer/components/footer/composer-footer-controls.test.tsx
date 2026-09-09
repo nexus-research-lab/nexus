@@ -23,12 +23,12 @@ function Actions({ overrides = {} }: { overrides?: Partial<ActionProps> }) {
   const [isActionMenuOpen, setOpen] = useState(false);
   const [isGoalMode, setGoalMode] = useState(false);
   return <Localized><ComposerFooterActions
-    actionButtonRef={actionButtonRef} canCreateGoal canUseLoop canUseWorkGraphDistillations
+    actionButtonRef={actionButtonRef} canCreateGoal canUseWorkGraphDistillations
     isActionMenuOpen={isActionMenuOpen} isGoalCreating={false} isGoalMode={isGoalMode} isPreparingAttachments={false}
     localDirectoriesController={{ available: true, directories: [], failure: null, loading: false, saving: false,
       chooseDirectory: vi.fn(async () => undefined), removeDirectory: vi.fn(async () => undefined), reload: vi.fn() }}
     onActionMenuClose={() => setOpen(false)} onActionMenuToggle={() => setOpen((value) => !value)}
-    onAttachmentSelect={vi.fn()} onGoalToggle={setGoalMode} onLoopSelect={vi.fn()}
+    onAttachmentSelect={vi.fn()} onGoalToggle={setGoalMode}
     onWorkGraphDistillationsSelect={vi.fn()} onLocalDirectorySelect={vi.fn()}
     sessionSettingsController={makeController()} sessionSettingsDisabled={false} {...overrides}
   /></Localized>;
@@ -41,6 +41,7 @@ describe("Composer Footer actions", () => {
     const { rerender } = render(<Actions overrides={{ onGoalToggle }} />);
     const anchor = screen.getByRole("button", { name: "composer.open_actions" });
     await user.click(anchor);
+    expect(screen.queryByText("composer.insert_loop")).toBeNull();
     const goal = screen.getByRole("menuitemcheckbox", { name: "composer.start_goal", checked: false });
     expect(goal.querySelector("button, input")).toBeNull();
     expect(screen.queryByRole("switch")).toBeNull();

@@ -6,6 +6,7 @@ const ENTRY_DELAY_START_MS = 580;
 const ENTRY_DELAY_STEP_MS = 55;
 
 export const LauncherRecentEntryLayout = {
+  rowClassName: "grid w-full auto-cols-fr grid-flow-col items-center gap-1",
   listClassName: "mx-auto mt-4 flex w-full max-w-[420px] flex-col items-center justify-center gap-1",
 } as const;
 

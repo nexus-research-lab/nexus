@@ -145,17 +145,10 @@ func (s *Service) RepairGoalTitleFromGoal(
 		UserID: ownerUserID,
 		Role:   authctx.RoleOwner,
 	})
-	fallbackTitle := goalFallbackTitle(item)
+	fallbackTitle := strings.TrimSpace(item.Objective)
 	err := s.FillEmptyPreviewFromGoal(ctx, item.SessionKey, fallbackTitle)
 	s.ScheduleGoalTitleFromGoal(ctx, item, ownerUserID, fallbackTitle)
 	return err
-}
-
-func goalFallbackTitle(item protocol.Goal) string {
-	if title := protocol.GoalMetadataString(item.Metadata, protocol.GoalMetadataRoomGoalLoopTitle); title != "" {
-		return title
-	}
-	return strings.TrimSpace(item.Objective)
 }
 
 func goalDMConversationID(parsed protocol.SessionKey) string {

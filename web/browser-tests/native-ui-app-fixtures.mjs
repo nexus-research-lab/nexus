@@ -27,7 +27,7 @@ export function appShellRead(method, pathname) {
       room: { id: "qa-room", team_id: "qa-team", name: "QA Room" },
       conversation: {
         id: "qa-conversation", room_id: "qa-room", type: "room",
-        high_water_message_seq: 0, sync_stream_id: "qa-stream",
+        high_water_message_seq: 0, last_activity_at: null, sync_stream_id: "qa-stream",
         stream_epoch: "qa-epoch", high_water_sync_event_seq: 0,
       },
     } };

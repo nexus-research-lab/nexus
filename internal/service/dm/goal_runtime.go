@@ -6,17 +6,18 @@ package dm
 import (
 	"context"
 	"errors"
-	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"strings"
 	"time"
 
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	messageutil "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	goalruntimeusage "github.com/nexus-research-lab/nexus/internal/service/goal/runtimeusage"
 )
 
 const (
@@ -310,7 +311,7 @@ func (r *roundRunner) recordGoalUsageFromAssistantMessage(message protocol.Messa
 	}
 	receipts := r.consumeRuntimeCommandReceipts()
 	if nexusmcp.HasDomain(receipts, command.DomainExecution) {
-		r.service.observeExecutionRuntimeCommandReceipts(r.orchestrationActor(), receipts)
+		r.service.executionObserver().ObserveCommandReceipts(r.orchestrationActor(), receipts)
 	}
 	if r.service.goals == nil || r.ignoreGoalRuntime() {
 		return
@@ -480,27 +481,8 @@ func (r *roundRunner) hasGoalToolProgress() bool {
 	return r.goalToolProgress
 }
 
-func (r *roundRunner) finalGoalUsageSnapshot(
-	result exec.RoundExecutionResult,
-	finalAssistant protocol.Message,
-) (goalsvc.RuntimeUsageSnapshot, bool) {
-	usage, usageOK := runtimectx.GoalUsageFromTokenUsageWithPresence(result.Usage)
-	cumulative := usageOK
-	if !cumulative && protocol.MessageRole(finalAssistant) == "assistant" {
-		usage, usageOK = runtimectx.GoalUsageFromRaw(finalAssistant["usage"])
-	}
-	elapsedSeconds := result.ElapsedTimeSeconds
-	if elapsedSeconds <= 0 {
-		elapsedSeconds = r.elapsedGoalUsageSeconds()
-	}
-	return goalsvc.RuntimeUsageSnapshot{
-		Usage:              usage,
-		ElapsedSeconds:     elapsedSeconds,
-		TokenUsageObserved: usageOK,
-		TurnID:             dmdomain.NormalizeString(finalAssistant["message_id"]),
-		Cumulative:         cumulative,
-		Terminal:           true,
-	}, usageOK || elapsedSeconds > 0
+func (r *roundRunner) finalGoalUsageSnapshot(result exec.RoundExecutionResult, finalAssistant protocol.Message) (goalsvc.RuntimeUsageSnapshot, bool) {
+	return goalruntimeusage.FinalSnapshot(result, finalAssistant, r.elapsedGoalUsageSeconds())
 }
 
 // rememberTerminalGoalUsageSnapshot 保留 provider terminal 快照，直到 claim、
@@ -558,13 +540,7 @@ func (r *roundRunner) closeGoalUsageIfNoTerminalSnapshotPending() bool {
 }
 
 func (r *roundRunner) assistantGoalUsageSnapshot(message protocol.Message) goalsvc.RuntimeUsageSnapshot {
-	usage, usageObserved := runtimectx.GoalUsageFromRaw(message["usage"])
-	return goalsvc.RuntimeUsageSnapshot{
-		Usage:              usage,
-		ElapsedSeconds:     r.elapsedGoalUsageSeconds(),
-		TokenUsageObserved: usageObserved,
-		TurnID:             dmdomain.NormalizeString(message["message_id"]),
-	}
+	return goalruntimeusage.AssistantSnapshot(message, r.elapsedGoalUsageSeconds())
 }
 
 func (r *roundRunner) recordGoalUsageSnapshot(ctx context.Context, snapshot goalsvc.RuntimeUsageSnapshot) {
@@ -933,7 +909,7 @@ type dmGoalUsageSourceRecorder interface {
 
 type dmSubagentUsageSettlement struct {
 	taskID      string
-	observation dmSubagentUsageObservation
+	observation goalsvc.SubagentUsageObservation
 }
 
 func (r *roundRunner) recordSubagentGoalUsage(
@@ -1028,7 +1004,7 @@ func (r *roundRunner) recordSubagentGoalUsage(
 		delta := r.service.runtime.ObserveSubagentUsage(
 			r.sessionKey,
 			child.taskID,
-			child.observation.cumulativeTotal,
+			child.observation.CumulativeTotal,
 		)
 		if delta > 0 && attributed && r.service.goals != nil && !r.ignoreGoalRuntime() {
 			// 兼容测试/非 SQL provider：TaskUsage 只有 provider actual total，
@@ -1043,60 +1019,24 @@ func (r *roundRunner) recordSubagentGoalUsage(
 	return settledSnapshots
 }
 
-func dmSubagentUsageObservations(
-	runner *roundRunner,
-	message protocol.Message,
-) []dmSubagentUsageSettlement {
-	usage := messageutil.SubagentTaskUsageSnapshots(message)
-	observedAt := time.Now().UTC()
-	observations := make([]dmSubagentUsageSettlement, 0, len(usage)+1)
-	indexByTask := make(map[string]int, len(usage)+1)
-	for _, child := range usage {
-		taskID := strings.TrimSpace(child.TaskID)
-		if taskID == "" || child.TotalTokens <= 0 {
-			continue
-		}
-		indexByTask[taskID] = len(observations)
-		observations = append(observations, dmSubagentUsageSettlement{
-			taskID: taskID,
-			observation: dmSubagentUsageObservation{
-				cumulativeTotal: child.TotalTokens,
-				observedAt:      observedAt,
-			},
-		})
+func dmSubagentUsageObservations(runner *roundRunner, message protocol.Message) []dmSubagentUsageSettlement {
+	var knowsTask func(string) bool
+	if runner != nil {
+		knowsTask = runner.knowsSubagentTask
 	}
-
-	metadata, _ := message["metadata"].(map[string]any)
-	taskID := strings.TrimSpace(dmAnyString(metadata["task_id"]))
-	if taskID == "" ||
-		(!dmMetadataLooksLikeSubagentTask(metadata) &&
-			(runner == nil || !runner.knowsSubagentTask(taskID))) {
-		return observations
+	observations := goalruntimeusage.SubagentObservations(message, knowsTask)
+	result := make([]dmSubagentUsageSettlement, 0, len(observations))
+	for _, item := range observations {
+		result = append(result, dmSubagentUsageSettlement{taskID: item.TaskID, observation: item.Usage})
 	}
-	terminal := dmIsTerminalSubagentTaskStatus(dmAnyString(metadata["status"]))
-	if index, exists := indexByTask[taskID]; exists {
-		observations[index].observation.terminal =
-			observations[index].observation.terminal || terminal
-		observations[index].observation.terminalTokenUsageObserved =
-			observations[index].observation.terminalTokenUsageObserved ||
-				(terminal && observations[index].observation.cumulativeTotal > 0)
-		return observations
-	}
-	observations = append(observations, dmSubagentUsageSettlement{
-		taskID: taskID,
-		observation: dmSubagentUsageObservation{
-			terminal:   terminal,
-			observedAt: observedAt,
-		},
-	})
-	return observations
+	return result
 }
 
 func (r *roundRunner) persistSubagentUsageObservation(
 	ctx context.Context,
 	recorder dmGoalUsageSourceRecorder,
 	taskID string,
-	observation dmSubagentUsageObservation,
+	observation goalsvc.SubagentUsageObservation,
 ) (protocol.GoalUsageSourceResult, error) {
 	r.goalUsageBindingMu.Lock()
 	defer r.goalUsageBindingMu.Unlock()
@@ -1113,7 +1053,7 @@ func (r *roundRunner) persistSubagentUsageObservationLocked(
 	ctx context.Context,
 	recorder dmGoalUsageSourceRecorder,
 	taskID string,
-	observation dmSubagentUsageObservation,
+	observation goalsvc.SubagentUsageObservation,
 ) (protocol.GoalUsageSourceResult, error) {
 	return recorder.RecordUsageSourceSnapshot(
 		ctx,
@@ -1123,7 +1063,7 @@ func (r *roundRunner) persistSubagentUsageObservationLocked(
 
 func (r *roundRunner) subagentUsageSourceSnapshotLocked(
 	taskID string,
-	observation dmSubagentUsageObservation,
+	observation goalsvc.SubagentUsageObservation,
 ) protocol.GoalUsageSourceSnapshot {
 	goalID := strings.TrimSpace(r.childGoalIDForUsage)
 	if goalID == "" {
@@ -1134,15 +1074,15 @@ func (r *roundRunner) subagentUsageSourceSnapshotLocked(
 		RuntimeSessionKey:      r.sessionKey,
 		SourceKind:             protocol.GoalUsageSourceKindNXSTask,
 		SourceID:               strings.TrimSpace(taskID),
-		CumulativeActualTokens: observation.cumulativeTotal,
+		CumulativeActualTokens: observation.CumulativeTotal,
 		EvidenceRequired:       true,
-		Terminal:               observation.terminal,
-		TokenUsageObserved:     observation.terminalTokenUsageObserved,
+		Terminal:               observation.Terminal,
+		TokenUsageObserved:     observation.TerminalTokenUsageObserved,
 		GoalID:                 goalID,
 		GoalSessionKey:         r.sessionKey,
 		RoundID:                r.roundID,
 		ScopeRoundID:           r.roundID,
-		ObservedAt:             observation.observedAt,
+		ObservedAt:             observation.ObservedAt,
 	}
 }
 

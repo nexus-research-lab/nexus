@@ -79,5 +79,5 @@ func normalizeCompactedHistoryRows(
 	activeRoundIDs map[string]struct{},
 ) []protocol.Message {
 	materialized := materializeUnfinishedRounds(compacted, activeRoundIDs)
-	return mergeRoundResultSummaries(materialized)
+	return message.MergeHistoryResultSummaries(materialized)
 }

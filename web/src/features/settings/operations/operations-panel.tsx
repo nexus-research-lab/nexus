@@ -1,138 +1,39 @@
-/**
- * INPUT: 当前运营标签、访问范围与返回动作。
- * OUTPUT: 运营设置页签与对应管理内容；公共 Provider 只提供分区内容，避免重复页头。
- * POS: 设置内嵌与独立运营入口共用的页面装配层。
- */
+// INPUT: 已校验权限的运营子页 URL 分区。
+// OUTPUT: 当前管理页面；导航由设置侧栏统一持有。
+// POS: 运营内容装配，不持有本地页签状态或额外导航壳层。
 "use client";
 
-import { ArrowLeft } from "lucide-react";
-import { useCallback, useState, type ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
-
-import { APP_ROUTE_PATHS } from "@/shared/navigation/route-paths";
+import type { ReactNode } from "react";
 import { ProviderSettingsPanel } from "@/features/settings/provider-settings/provider-settings-panel";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiButton } from "@/shared/ui/button/button";
-import { cn } from "@/shared/ui/class-name";
 import { WorkspaceContentHeader } from "@/shared/ui/layout/workspace-content-header";
 import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
-import { UiTabs } from "@/shared/ui/navigation/tabs";
-import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
-
+import { getSettingsSectionLabelKey, type OperationsSectionKey } from "../settings-navigation-model";
 import { ProjectAdminPanel } from "./project-admin/project-admin-panel";
 import { SubscriptionAdminPanel } from "./subscription-admin/subscription-admin-panel";
 import { ControlMembersPanel } from "./control-members-panel";
 
-const OPERATIONS_TAB_KEYS = [
-  "members",
-  "userSubscriptions",
-  "subscriptionPlans",
-  "subscriptionProviders",
-  "projects",
-] as const;
-
-type OperationsTabKey = (typeof OPERATIONS_TAB_KEYS)[number];
-type OperationsTabLabelKey =
-  | "operations.tabs.members"
-  | "operations.tabs.user_subscriptions"
-  | "operations.tabs.subscription_plans"
-  | "operations.tabs.subscription_providers"
-  | "operations.tabs.projects";
-
-interface OperationsTabDefinition {
-  labelKey: OperationsTabLabelKey;
-  renderContent: () => ReactNode;
-}
-
-const OPERATIONS_TAB_DEFINITIONS: Record<
-  OperationsTabKey,
-  OperationsTabDefinition
-> = {
-  members: {
-    labelKey: "operations.tabs.members",
-    renderContent: () => <ControlMembersPanel />,
-  },
-  userSubscriptions: {
-    labelKey: "operations.tabs.user_subscriptions",
-    renderContent: () => <SubscriptionAdminPanel view="users" />,
-  },
-  subscriptionPlans: {
-    labelKey: "operations.tabs.subscription_plans",
-    renderContent: () => <SubscriptionAdminPanel view="plans" />,
-  },
-  subscriptionProviders: {
-    labelKey: "operations.tabs.subscription_providers",
-    renderContent: () => (
-      <ProviderSettingsPanel
-        layout="section"
-        visibilityScope="public"
-      />
-    ),
-  },
-  projects: {
-    labelKey: "operations.tabs.projects",
-    renderContent: () => <ProjectAdminPanel />,
-  },
+const CONTENT: Record<OperationsSectionKey, () => ReactNode> = {
+  "operations-members": () => <ControlMembersPanel />,
+  "operations-subscriptions": () => <SubscriptionAdminPanel view="users" />,
+  "operations-plans": () => <SubscriptionAdminPanel view="plans" />,
+  "operations-providers": () => <ProviderSettingsPanel layout="section" visibilityScope="public" />,
+  "operations-projects": () => <ProjectAdminPanel />,
 };
 
-export function OperationsPanel({ embedded = false }: { embedded?: boolean }) {
+export function OperationsPanel({ section }: { section: OperationsSectionKey }) {
   const { t } = useI18n();
-  const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<OperationsTabKey>("members");
-  const activeTabConfig = OPERATIONS_TAB_DEFINITIONS[activeTab];
-
-  const handleBackToWorkspace = useCallback(() => {
-    navigate(APP_ROUTE_PATHS.home);
-  }, [navigate]);
-
-  const tabs = OPERATIONS_TAB_KEYS.map((key) => ({
-    value: key,
-    label: t(OPERATIONS_TAB_DEFINITIONS[key].labelKey),
-  }));
-  const content = activeTabConfig.renderContent();
-  const page = (
-    <div className={cn(
-      WORKSPACE_CONTENT_PAGE_CLASS_NAME,
-      "flex min-h-full flex-col",
-    )}>
-      <WorkspaceContentHeader
-        actions={!embedded ? (
-          <UiButton
-            onClick={handleBackToWorkspace}
-            size="2xs"
-            variant="text"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            {t("settings.back_to_workspace")}
-          </UiButton>
-        ) : undefined}
-        className="max-sm:hidden"
-        description={t("operations.description")}
-        title={t("operations.page_title")}
-      />
-      <UiTabs
-        activeValue={activeTab}
-        ariaLabel={t("operations.title")}
-        className="shrink-0"
-        density="compact"
-        itemClassName="px-3"
-        onChange={setActiveTab}
-        options={tabs}
-      />
-      <div className="min-h-0 flex-1 pt-4">{content}</div>
-    </div>
-  );
-
-  if (embedded) {
-    return page;
-  }
-
+  // 成员和项目页的标题与刷新动作由各自事务视图组合。
+  const ownsHeader = section === "operations-members" || section === "operations-projects";
   return (
-    <WorkspaceSurfaceScaffold
-      bodyScrollable
-      stableGutter
-    >
-      {page}
-    </WorkspaceSurfaceScaffold>
+    <div className={WORKSPACE_CONTENT_PAGE_CLASS_NAME} data-operations-page={section}>
+      {!ownsHeader ? (
+        <WorkspaceContentHeader
+          className="max-sm:hidden"
+          title={t(getSettingsSectionLabelKey(section))}
+        />
+      ) : null}
+      {CONTENT[section]()}
+    </div>
   );
 }

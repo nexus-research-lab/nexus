@@ -78,11 +78,9 @@ export const SETTINGS_SEARCH_ITEMS: Record<SettingsSectionKey, readonly (readonl
     ["settings.providers.ccswitch_title"],
     ["settings.providers.section_title", "settings.providers.section_description"],
   ],
-  operations: [
-    ["operations.tabs.members"],
-    ["operations.tabs.user_subscriptions"],
-    ["operations.tabs.subscription_plans"],
-    ["operations.tabs.subscription_providers"],
-    ["operations.tabs.projects"],
-  ],
+  "operations-members": [["members.create_title"], ["members.role"]],
+  "operations-subscriptions": [["settings.subscription.users_description"]],
+  "operations-plans": [["settings.subscription.create_plan"], ["settings.subscription.plan_management_description"]],
+  "operations-providers": [["settings.providers.api_key"], ["settings.providers.models"]],
+  "operations-projects": [["settings.projects.create"], ["settings.projects.add_member"]],
 };

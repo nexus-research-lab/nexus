@@ -32,10 +32,9 @@ export function PersonalSettingsPanel() {
       )}>
         <WorkspaceContentHeader
           className="max-sm:hidden"
-          description={t("settings.personal.section_description")}
           title={t("settings.personal.section_title")}
         />
-        <div className="flex flex-col gap-3">
+        <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 pb-8">
           {controller.profile.isLoading && !controller.profile.value ? (
             <section className={cn(
               SETTINGS_CARD_CLASS_NAME,

@@ -7,11 +7,10 @@ import (
 	"testing"
 	"time"
 
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
-
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
 type blockingRoomGoalUsageProvider struct {
@@ -184,7 +183,7 @@ func TestRoomChildPersistenceAndExternalBindShareRootScopeBoundary(t *testing.T)
 	// peer 的 running child 只有内存 pending；activation 必须在 bind 前把
 	// 它写成 evidence/checkpoint，且不能因为是 0 就丢掉 lifecycle。
 	peer.markSubagentUsageObservationPending(
-		roomSubagentUsageObservation{},
+		goalsvc.SubagentUsageObservation{},
 		"task-peer-running",
 	)
 	roundValue := &activeRoomRound{
@@ -288,7 +287,7 @@ func TestRoomExternalBindRequiresKnownChildPendingToFlush(t *testing.T) {
 	slot.setRuntimeKind("nxs")
 	slot.setGoalBinding("room:group:child-flush-failure", "")
 	slot.markSubagentUsageObservationPending(
-		roomSubagentUsageObservation{observedAt: time.Now().UTC()},
+		goalsvc.SubagentUsageObservation{ObservedAt: time.Now().UTC()},
 		"task-running",
 	)
 

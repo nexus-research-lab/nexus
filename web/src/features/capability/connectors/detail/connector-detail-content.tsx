@@ -1,6 +1,6 @@
 /**
  * INPUT: Connector 详情、连接状态、能力条目与文档地址。
- * OUTPUT: 本地化状态、能力和文档，具可换行事实与准备步骤的公共连接说明面板。
+ * OUTPUT: 本地化状态、能力和文档，优先展示连接准备步骤、默认折叠技术事实、连接后展示工具目录。
  * POS: Connector 详情正文纯视图。
  */
 import type { ReactNode } from "react";
@@ -12,6 +12,7 @@ import { UiLinkButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { UiDisclosure } from "@/shared/ui/disclosure/disclosure";
 import { UiListRow } from "@/shared/ui/list/list-row";
 import { UiPanel } from "@/shared/ui/panel";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
@@ -167,65 +168,50 @@ function RichMailConnectionSection({
 }) {
   const { t } = useI18n();
   const connected = detail.connection_state === "connected";
-  const serverName = catalog?.server_title
-    || catalog?.server_name
-    || t("capability.connector_richmail_metadata_pending");
+  const serverName = catalog?.server_title || catalog?.server_name;
   return (
-    <section className="border-y border-(--divider-subtle-color) py-5">
-      <h2 className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong" })}>
-        {t("capability.connector_connection_info")}
-      </h2>
-      <dl className="mt-3 grid grid-cols-[repeat(auto-fit,minmax(min(100%,280px),1fr))] gap-x-8 gap-y-3">
-        <ConnectorFact label={t("capability.connector_fact_endpoint")} value={detail.mcp_server_url || "http://127.0.0.1:3100/mcp"} />
-        <ConnectorFact label={t("capability.connector_fact_transport")} value="Streamable HTTP" />
-        <ConnectorFact label={t("capability.connector_fact_auth")} value={t("capability.connector_richmail_auth")} />
-        <ConnectorFact
-          label={t("capability.connector_fact_server")}
-          value={catalog?.server_version
-            ? `${serverName} · ${catalog.server_version}`
-            : serverName}
-        />
-        <ConnectorFact
-          label={t("capability.connector_fact_protocol")}
-          value={catalog?.protocol_version || t("capability.connector_richmail_metadata_pending")}
-        />
-        <ConnectorFact
-          label="Token"
-          value={t(connected ? "capability.connector_richmail_token_saved" : "capability.connector_richmail_token_pending")}
-        />
-      </dl>
+    <section className="space-y-3">
       {!connected ? (
         <UiPanel
           aria-label={t("capability.connector_richmail_prepare_title")}
-          className="mt-5"
           role="note"
-          variant="filled"
+          variant="card"
         >
-          <h3 className={getUiTypographyClassName({ role: "control", tone: "strong", weight: "semibold" })}>
+          <h2 className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong" })}>
             {t("capability.connector_richmail_prepare_title")}
-          </h3>
-          <p className={cn("mt-1", getUiTypographyClassName({ role: "supporting", tone: "muted" }))}>
-            {t("capability.connector_richmail_prepare_intro")}
-          </p>
-          <dl className="mt-4 border-t border-(--divider-subtle-color) pt-3">
-            <dt className={getUiTypographyClassName({ role: "metadata", tone: "muted", weight: "medium" })}>
-              {t("capability.connector_richmail_settings_path_label")}
-            </dt>
-            <dd className={cn("mt-1 break-words", getUiTypographyClassName({ role: "supporting", tone: "default" }))}>
-              {t("capability.connector_richmail_settings_path")}
-            </dd>
-          </dl>
-          <p className={cn("mt-2", getUiTypographyClassName({ role: "supporting", tone: "default", weight: "medium" }))}>
-            {t("capability.connector_richmail_enable_setting")}
-          </p>
-          <p className={cn(
-            "mt-3",
-            getUiTypographyClassName({ role: "supporting", tone: "muted" }),
+          </h2>
+          <ol className={cn(
+            "mt-3 list-decimal space-y-3 pl-5",
+            getUiTypographyClassName({ role: "supporting", tone: "default" }),
           )}>
-            {t("capability.connector_richmail_prepare_next")}
-          </p>
+            <li>{t("capability.connector_richmail_prepare_intro")}</li>
+            <li>
+              <p>{t("capability.connector_richmail_settings_path")}</p>
+              <p className="mt-1">{t("capability.connector_richmail_enable_setting")}</p>
+            </li>
+            <li>{t("capability.connector_richmail_prepare_next")}</li>
+          </ol>
         </UiPanel>
       ) : null}
+      <UiDisclosure label={t("capability.connector_connection_info")}>
+        <dl className="space-y-3">
+          <ConnectorFact label={t("capability.connector_fact_endpoint")} value={detail.mcp_server_url || "http://127.0.0.1:3100/mcp"} />
+          <ConnectorFact label={t("capability.connector_fact_transport")} value="Streamable HTTP" />
+          <ConnectorFact label={t("capability.connector_fact_auth")} value={t("capability.connector_richmail_auth")} />
+          {connected && serverName ? (
+            <ConnectorFact
+              label={t("capability.connector_fact_server")}
+              value={catalog?.server_version ? `${serverName} · ${catalog.server_version}` : serverName}
+            />
+          ) : null}
+          {connected && catalog?.protocol_version ? (
+            <ConnectorFact label={t("capability.connector_fact_protocol")} value={catalog.protocol_version} />
+          ) : null}
+          {connected ? (
+            <ConnectorFact label="Token" value={t("capability.connector_richmail_token_saved")} />
+          ) : null}
+        </dl>
+      </UiDisclosure>
     </section>
   );
 }
@@ -267,7 +253,7 @@ export function ConnectorDetailContent({
         />
       ) : null}
       <ConnectorFeatureList features={features} onSelect={onSelectFeature} />
-      {mcpTools.supported ? (
+      {mcpTools.supported && detail.connection_state === "connected" ? (
         <MCPToolsSection
           available={detail.connection_state === "connected"}
           catalog={mcpTools.catalog}

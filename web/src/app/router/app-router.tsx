@@ -58,9 +58,6 @@ const SkillsPage = lazy(() =>
 const ConnectorsPage = lazy(() =>
   import("@/pages/connectors/connectors-page").then((m) => ({ default: m.ConnectorsPage })),
 );
-const LoopsPage = lazy(() =>
-  import("@/pages/loops/loops-page").then((m) => ({ default: m.LoopsPage })),
-);
 const WorkGraphDistillationsPage = lazy(() =>
   import("@/pages/workgraph-distillations/workgraph-distillations-page").then((m) => ({ default: m.WorkGraphDistillationsPage })),
 );
@@ -145,8 +142,6 @@ export function AppRouter() {
                   <Route element={<SkillsPage />} path={APP_ROUTE_PATHS.skillDetail} />
 
                   {/* 能力子路由 */}
-                  <Route element={<LoopsPage />} path={APP_ROUTE_PATHS.loops} />
-                  <Route element={<LoopsPage />} path={APP_ROUTE_PATHS.loopDetail} />
                   <Route element={<WorkGraphDistillationsPage />} path={APP_ROUTE_PATHS.workGraphDistillations} />
                   <Route element={<WorkGraphDistillationsPage />} path={APP_ROUTE_PATHS.workGraphDistillationDetail} />
                   <Route element={<ConnectorsPage />} path={APP_ROUTE_PATHS.connectors} />

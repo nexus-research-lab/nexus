@@ -3,9 +3,10 @@
 // L2 | 父级: internal/handler（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - handlers.go：Handlers、核心路由及 Preferences 条件回滚的 WebSearch 热同步。
+//   - handlers.go：Handlers、核心路由、无状态 nxs 本地可用性查询及 Preferences 条件回滚的 WebSearch 热同步。
 //   - preferences_version.go：Preferences ETag/If-Match CAS 和读写阶段 FailureCore 投影。
 //   - imagegen_defaults.go：在 Preferences owner 锁内完成的图片生成默认偏好投影。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
+// runtime/options 的 project_permissions_enabled 由项目服务提供，未绑定时默认关闭。
 package core

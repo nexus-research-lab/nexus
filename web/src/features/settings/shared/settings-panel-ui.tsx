@@ -25,7 +25,7 @@ export const SETTINGS_ICON_CLASS_NAME = "flex h-7 w-7 shrink-0 items-center just
 export const SETTINGS_ITEM_TITLE_CLASS_NAME = getUiTypographyClassName({
   role: "control",
   tone: "strong",
-  weight: "semibold",
+  weight: "medium",
 });
 export const SETTINGS_ITEM_DESCRIPTION_CLASS_NAME = cn(
   "mt-1 max-w-[520px]",
@@ -90,7 +90,7 @@ export function SettingsNavigationButton({
     <UiButton
       {...buttonProps}
       aria-current={ariaCurrent ?? (active ? "page" : undefined)}
-      className={cn("w-full justify-start border-0 px-2 text-left", className)}
+      className={cn("w-full justify-start border-0 px-2 text-left font-normal", className)}
       size={size}
       variant="ghost"
     >

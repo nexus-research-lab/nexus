@@ -29,6 +29,7 @@ type ScrollViewportEvents = Pick<
 >;
 
 export type ConversationViewportModel = ScrollViewportEvents & {
+  ariaLabel?: string;
   isHistoryLoading: boolean;
   scrollRef: RefObject<HTMLDivElement | null>;
 };
@@ -86,7 +87,9 @@ export function ConversationPanelViewport({
           : "soft-scrollbar relative z-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-3 py-4 outline-none sm:px-5 sm:py-5 xl:px-7 xl:py-5"
       }
       style={{ overflowAnchor: "none", scrollbarGutter: "stable" }}
-      tabIndex={-1}
+      role={viewport.ariaLabel ? "region" : undefined}
+      aria-label={viewport.ariaLabel}
+      tabIndex={viewport.ariaLabel ? 0 : -1}
       onPointerDown={viewport.onPointerDown}
       onScroll={viewport.onScroll}
       onTouchEnd={viewport.onTouchEnd}

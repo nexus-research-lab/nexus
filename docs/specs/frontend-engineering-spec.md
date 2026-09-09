@@ -209,7 +209,7 @@ Pattern 与 Primitive 的区别是：Primitive 统一一个控件；Pattern 统�
 
 能力与联系人等目录的具名下拉筛选统一由 `shared/ui/menu/filter-select.tsx` 的 `UiFilterSelect` 组合紧凑 `UiSelectMenu`；跨领域 Pattern 固定必填文字标签并不暴露前导图标参数，不保留领域命名的转发层。视觉结构只在 `design.md` 定义，页面仍拥有选项、筛选状态和按内容调整的容器宽度。普通表单选择继续直接使用 `UiSelectMenu`。
 
-领域内跨子页重复的 Pattern 留在该领域 `shared`：例如 Skill、Connector、自定义 MCP、Loop 与 WorkGraph 详情统一由 `CapabilityDetailPage` 持有内容轴，并由唯一 `CapabilityDetailHeader` 组合全站 `UiBreadcrumb` 渲染“返回目录 / 当前对象”；Workspace 文件层级也只向 `UiBreadcrumb` 提供用户可见名称与相对路径段。导航下方的前导图标、标题、元数据、说明和响应式动作对齐统一由 `CapabilityDetailIdentity` 持有。业务子页不得直接引用底层 `WorkspaceContentDetailHeader`、手写 `objectTitle` 与动作容器、复制箭头、斜杠或间距，也不得把目录态 `WorkspaceContentHeader` 复用成对象身份区；详情路由不得残留目录 Header 或搜索控件。
+领域内跨子页重复的 Pattern 留在该领域 `shared`：例如 Skill、Connector、自定义 MCP 与 WorkGraph 详情统一由 `CapabilityDetailPage` 持有内容轴，并由唯一 `CapabilityDetailHeader` 组合全站 `UiBreadcrumb` 渲染“返回目录 / 当前对象”；Workspace 文件层级也只向 `UiBreadcrumb` 提供用户可见名称与相对路径段。导航下方的前导图标、标题、元数据、说明和响应式动作对齐统一由 `CapabilityDetailIdentity` 持有。业务子页不得直接引用底层 `WorkspaceContentDetailHeader`、手写 `objectTitle` 与动作容器、复制箭头、斜杠或间距，也不得把目录态 `WorkspaceContentHeader` 复用成对象身份区；详情路由不得残留目录 Header 或搜索控件。
 
 设置域的普通二元行由 `settings/shared/settings-panel-ui.tsx` 的 `SettingsToggleRow`
 组合唯一 GlassSwitch，标题作为可访问名称，实例级说明 ID 通过 aria-describedby

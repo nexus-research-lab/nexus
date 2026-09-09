@@ -146,3 +146,10 @@ func (s *Service) FinalizeUsageForGoal(
 	}
 	return nil, ErrGoalVersionStale
 }
+
+// IsCompletionUsageReport 核对报告的 Goal 身份与完成状态；是否已结算由 UsageFinalized 单独表达。
+// 空 GoalID 沿用内部报告的既有语义，调用方仍须使用精确 Goal ID 查询。
+func IsCompletionUsageReport(report *protocol.GoalUsageReport, goalID string) bool {
+	return report != nil && protocol.NormalizeGoalStatus(report.Status) == protocol.GoalStatusComplete &&
+		(strings.TrimSpace(report.GoalID) == "" || strings.TrimSpace(report.GoalID) == goalID)
+}

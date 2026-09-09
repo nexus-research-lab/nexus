@@ -11,3 +11,5 @@ L2 | 父级: web/src
 
 配置层不得请求网络或依赖 Feature；运行时配置拉取由 `app/runtime-options-resource.ts` 编排。
 该读取必须捕获 auth owner generation，并在应用全局默认值前重新校验；旧 owner 的迟到 `runtime/options` 响应只能丢弃。
+
+运行配置的 `project_permissions_enabled` 仅在后端显式 true 时开启；应用配置先更新能力再通知，owner 重置先清空能力再通知。

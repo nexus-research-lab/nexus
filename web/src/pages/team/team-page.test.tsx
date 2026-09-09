@@ -6,20 +6,22 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
 import type { useTeamRoom } from "@/features/team/use-team-room";
+import { MemoryRouter } from "react-router-dom";
+import { AUTH_CONTEXT } from "@/shared/auth/auth-context";
 import { TeamPage } from "./team-page";
 const model = vi.hoisted(() => ({ read: vi.fn() }));
 vi.mock("@/features/team/use-team-room", () => ({ useTeamRoom: model.read }));
 let room: ReturnType<typeof useTeamRoom>;
 beforeEach(() => {
-  room = {bootstrap: {
-    team: {id: "team", deployment_id: "deployment", name: "Team"},
-    room: {id: "room", team_id: "team", name: "General"},
-    conversation: {id: "conversation", room_id: "room", type: "team", high_water_message_seq: 0, sync_stream_id: "stream", stream_epoch: "epoch", high_water_sync_event_seq: 0},
+  room = {room: {
+    room: {id: "room", team_id: "team", name: "General", description: "", avatar: "", configuration_version: 1, membership_version: 1, created_at: "2026-09-09T00:00:00Z", updated_at: "2026-09-09T00:00:00Z"},
+    conversation: {id: "conversation", room_id: "room", type: "main", high_water_message_seq: 0, last_activity_at: null, sync_stream_id: "stream", stream_epoch: "epoch", high_water_sync_event_seq: 0},
+    current_user_role: "owner",
   }, error: null, isLoading: false, isSending: false, messages: [], reload: vi.fn(), retryLoad: vi.fn(), send: vi.fn().mockResolvedValue(true)};
   model.read.mockImplementation(() => room);
 });
 function page() {
-  return <I18N_CONTEXT.Provider value={{locale: "zh", setLocale: vi.fn(), t: (key) => key}}><TeamPage /></I18N_CONTEXT.Provider>;
+  return <I18N_CONTEXT.Provider value={{locale: "zh", setLocale: vi.fn(), t: (key) => key}}><AUTH_CONTEXT.Provider value={{error: null, isBootstrapped: true, loading: false, login: vi.fn(), logout: vi.fn(), refreshStatus: vi.fn(), status: {auth_required: true, authenticated: true, auth_method: "password", password_login_enabled: true, user_id: "owner", username: "owner"}}}><MemoryRouter initialEntries={["/team?room_id=room"]}><TeamPage /></MemoryRouter></AUTH_CONTEXT.Provider></I18N_CONTEXT.Provider>;
 }
 it("does not send on composition confirmation or Shift+Enter, then sends exact text on Enter", async () => {
   render(page());
@@ -48,7 +50,7 @@ it("retains the draft after a rejected send and refuses empty or busy submission
   expect(room.send).toHaveBeenCalledTimes(1);
 });
 it("announces loading and load failure without claiming an empty conversation", () => {
-  room = {...room, bootstrap: null, isLoading: true};
+  room = {...room, room: null, isLoading: true};
   const view = render(page());
   expect(screen.getByRole("status").textContent).toBe("team.loading");
   room = {...room, isLoading: false, error: "load"};
@@ -100,7 +102,7 @@ it("keeps a reader in place as messages arrive, then resumes following through t
 });
 
 it("offers load retry without sending and disables it while loading", async () => {
-  room = {...room, error: "load", bootstrap: null};
+  room = {...room, error: "load", room: null};
   const view = render(page());
   await userEvent.click(screen.getByRole("button", {name: "state.retry"}));
   expect(room.retryLoad).toHaveBeenCalledOnce();
@@ -108,4 +110,15 @@ it("offers load retry without sending and disables it while loading", async () =
   room = {...room, isLoading: true};
   view.rerender(page());
   expect((screen.getByRole("button", {name: "state.retry"}) as HTMLButtonElement).disabled).toBe(true);
+});
+
+it("uses shared Room surfaces and resolves the requested online room", async () => {
+  const {container} = render(page());
+  expect(model.read).toHaveBeenCalledWith("room");
+  expect(container.querySelector(".workspace-surface-header")).toBeTruthy();
+  expect(container.querySelector(".nexus-chat-composer-shell")).toBeTruthy();
+  const input = screen.getByRole("textbox", {name: "team.message"});
+  fireEvent.change(input, {target: {value: "hello"}});
+  fireEvent.click(screen.getByRole("button", {name: "team.send"}));
+  await waitFor(() => expect(room.send).toHaveBeenCalledExactlyOnceWith("hello"));
 });

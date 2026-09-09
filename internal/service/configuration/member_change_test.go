@@ -5,17 +5,18 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	serverruntime "github.com/nexus-research-lab/nexus/internal/app/server/runtime"
-	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
-	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
-	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
-	configurationsvc "github.com/nexus-research-lab/nexus/internal/service/configuration"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	appruntime "github.com/nexus-research-lab/nexus/internal/app/runtime"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
+	configurationsvc "github.com/nexus-research-lab/nexus/internal/service/configuration"
 )
 
 type memberTestControl struct {
@@ -93,7 +94,7 @@ func TestMemberConfigurationRequiresHumanSecretAndLiveAdmin(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		serverruntime.NewConfigurationHandler(fixture.services.Configuration, fixture.services.Permission)(response, httpRequest)
+		appruntime.NewConfigurationHandler(fixture.services.Configuration, fixture.services.Permission)(response, httpRequest)
 	}()
 	select {
 	case event := <-sender.events:
