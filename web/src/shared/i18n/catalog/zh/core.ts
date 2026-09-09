@@ -72,6 +72,7 @@ export const zhCoreMessages = {
   "state.clear_filters_next_step": "清除搜索和筛选条件，查看全部内容。",
   "state.permission_title": "当前账号无法读取这些内容",
   "state.reload_check": "刷新",
+  "markdown.code.group": "{language} 代码",
   "markdown.code.copy": "复制 {language} 代码",
   "markdown.code.copied": "已复制",
   "markdown.code.streaming": "输出中",

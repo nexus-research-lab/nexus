@@ -3870,3 +3870,12 @@ UiFilterSelect 删除可见 label API，所有联系人、技能、连接器、�
 CodeBlockContent 改用公共 UiIconButton sm/ghost 与 success tone，保留 28px 几何和浮动操作布局；删除 content-code-action 专属 CSS，包括覆盖焦点描边的 outline:none。复制精确原文，只有成功才更新辅助名称与提示，图标作为装饰；补齐 L3。
 
 5 项 Markdown 回归、目标 lint/typecheck/build 通过，日志 /tmp/nexus-a120-{target,lint,types,build}.log；构建仅既有大分块提示，未做视觉验证。代码内容组件推进 in_progress，语法色板/正文仍待审；489 项现为 216 pending、133 in_progress、112 improved、22 retained、6 removed。
+
+
+## A121 — 代码外壳键盘与本地化
+
+代码组名称与延迟加载说明本地化，删除外壳 tabIndex 和 lint 例外，Tab 直接进入实际复制按钮；focus-within 仍显示操作层。补齐 L3，清理解构别名。6 项 Markdown 回归、lint/typecheck 通过，日志 /tmp/nexus-a121-{target,lint,types}.log。
+
+## A122 — 社区搜索动作去重
+
+按用户截图反馈，把搜索框右侧重复放大镜替换为公共 UiButton 文字搜索动作，保留输入框左侧搜索标记、清除、点击/Enter 与禁用条件。搜索工具区回归、lint/typecheck 通过，日志 /tmp/nexus-a122-{target,lint,types}.log。两批均未做视觉验证，清单状态计数不变。

@@ -1,15 +1,14 @@
 // INPUT: Skill 目录/社区的搜索、分类、来源及用户命令。
-// OUTPUT: 统一目录标签、搜索动作和无额外图标的标签筛选器。
+// OUTPUT: 统一目录标签、文字搜索动作和无额外图标的标签筛选器。
 // POS: Skill 工具区纯视图；筛选结构由 UiFilterSelect 唯一拥有。
 
 import { UiFilterSelect } from "@/shared/ui/menu/filter-select";
-import { Search } from "lucide-react";
 import { useRef, type KeyboardEvent } from "react";
 
 import { SKILLS_TOUR_ANCHORS } from "@/features/onboarding/tours/skills-tour";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
-import { UiIconButton } from "@/shared/ui/button/button";
+import { UiButton } from "@/shared/ui/button/button";
 import { UiDirectoryTabs } from "@/shared/ui/navigation/directory-tabs";
 import {
   CapabilityFilterBar,
@@ -71,7 +70,7 @@ export function SkillsSearchBar({
   };
 
   const externalSearchAction = discoveryMode === "external" ? (
-    <UiIconButton
+    <UiButton
       aria-label={searchLabel}
       className="shrink-0"
       disabled={externalQuery.trim().length < 2 || externalLoading}
@@ -84,8 +83,8 @@ export function SkillsSearchBar({
       title={searchLabel}
       variant="surface"
     >
-      <Search className="h-3.5 w-3.5" />
-    </UiIconButton>
+      {searchLabel}
+    </UiButton>
   ) : null;
 
   return (

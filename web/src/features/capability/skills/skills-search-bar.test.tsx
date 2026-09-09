@@ -11,7 +11,7 @@ import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
 import { SkillsSearchBar } from "./skills-search-bar";
 
 describe("SkillsSearchBar", () => {
-  it("uses shared page tabs and icon actions while preserving external search", async () => {
+  it("uses shared page tabs and a text search action while preserving external search", async () => {
     const user = userEvent.setup();
     const onChangeDiscoveryMode = vi.fn();
     const onSubmitExternalSearch = vi.fn();
@@ -57,7 +57,8 @@ describe("SkillsSearchBar", () => {
     const searchAction = screen.getByRole("button", {
       name: "capability.skills_tour_search_title",
     });
-    expect(searchAction.className).toContain("radius-control-sm");
+    expect(searchAction.textContent).toBe("capability.skills_tour_search_title");
+    expect(searchAction.querySelector("svg")).toBeNull();
     await user.click(searchAction);
     fireEvent.keyDown(screen.getByRole("searchbox"), { key: "Enter" });
     expect(onSubmitExternalSearch).toHaveBeenCalledTimes(2);
