@@ -19,7 +19,7 @@
 //   - background_coordinator.go：Execution 三类 outbox、Subagent deadline 与三类
 //     durable saga 共用的 startup + mutation wake + exact deadline + bounded audit 控制面。
 //   - subagent_admission.go：Subagent admission、child Attempt、parent-exit deadline、
-//     coordinator 唤醒与重启 orphan 对账。
+//     command subagent/spawn 的准入投影、coordinator 唤醒与重启 orphan 对账。
 //   - runtime_graph*.go / execution_view.go / context.go / execution_alignment.go：
 //     Runtime Graph 事实、actor context、目标对齐，以及按每个 root Attempt 与 immutable Submission/Gate 保留轮次、再按 exact Attempt/Submission/round 合并运行历史的 managed WorkGraph 当前/显式历史只读投影。
 //   - goal_policy.go / promotion.go / explicit_goal.go / goal_binding.go /

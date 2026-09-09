@@ -224,7 +224,8 @@ nxs 从完整 `user-invocable` 目录解析，Claude Code 沿用自身直接 Ski
 
 依赖 Nexus 控制面的内置 Skill 不共享一个宽泛的自动触发入口。信任边界和业务决策
 保持为独立顶层 Skill：Goal、Execution、Automation 共享 round-scoped
-`nexus.command`，Configuration 使用 round-scoped `nexuscfg`，owner 平台资源
+`nexus.command`；Subagent 委派复用 Execution Skill 的按需 `references/subagents.md`
+和 command 的 subagent domain，不增加独立常驻工具或顶层 Skill。Configuration 使用 round-scoped `nexuscfg`，owner 平台资源
 管理使用仅主智能体可见的 `nexusctl`。一个领域被选中时，runtime 只需要加载该领域的
 根 `SKILL.md`。
 

@@ -17,6 +17,7 @@ var requestIDPattern = regexp.MustCompile(`^[A-Za-z0-9._:-]{8,128}$`)
 
 const (
 	DomainAutomation = "automation"
+	DomainSubagent   = "subagent"
 	DomainGoal       = nexusmcp.CommandDomainGoal
 	DomainExecution  = nexusmcp.CommandDomainExecution
 
