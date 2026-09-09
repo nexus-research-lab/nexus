@@ -61,3 +61,28 @@ describe("OnboardingTourOverlay", () => {
     }
   });
 });
+
+
+it("respects consumed Escape and IME cancellation before closing on ordinary Escape", () => {
+  const onClose = vi.fn();
+  const view = render(
+    <I18N_CONTEXT.Provider value={{ locale: "zh", setLocale: vi.fn(), t: (key) => key }}>
+      <input aria-label="Editor" onKeyDown={(event) => {
+        if (event.key === "Escape") event.preventDefault();
+      }} />
+      <OnboardingTourOverlay
+        onClose={onClose} onNext={vi.fn()} onPrevious={vi.fn()} stepIndex={0}
+        tour={{ id: "escape-tour", steps: [{ id: "first", title: "Guide", description: "Help", placement: "center" }] }}
+      />
+    </I18N_CONTEXT.Provider>,
+  );
+  fireEvent.keyDown(view.getByRole("textbox", { name: "Editor" }), { key: "Escape" });
+  fireEvent.keyDown(document, { key: "Escape", isComposing: true });
+  fireEvent.keyDown(document, { key: "Escape", keyCode: 229 });
+  expect(onClose).not.toHaveBeenCalled();
+  fireEvent.keyDown(document, { key: "Escape" });
+  expect(onClose).toHaveBeenCalledOnce();
+  view.unmount();
+  fireEvent.keyDown(document, { key: "Escape" });
+  expect(onClose).toHaveBeenCalledOnce();
+});

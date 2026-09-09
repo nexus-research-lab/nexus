@@ -5,3 +5,5 @@
 - `tour-overlay-geometry.ts` 用定位策略表计算卡片位置，不读取 React 状态或查询 DOM。
 - `tour-overlay-card.tsx` 只渲染步骤内容与导航，条目图标由完整描述表分派；标题、说明、条目与进度分别消费 `pageTitle`、`supporting`、`metadata` 与 `caption`，不得重新拼字号。目标高亮的圆角、描边、遮罩阴影和动效统一属于 `theme-recipes.css` 的 `tour-target-highlight`，Overlay 只负责测量后的几何位置。
 - Gallery 必须包含实际 `data-tour-anchor`，浏览器检查 token 解析后的圆角、目标外扩、卡片可见性和 Escape/目标点击关闭；页面点击仍透传原命令，不能通过吞掉交互维持导览。
+
+Escape 关闭必须忽略已被控件消费及输入法组合中的事件，避免取消输入或关闭其他控件时连带结束引导；页面点击仍透传。
