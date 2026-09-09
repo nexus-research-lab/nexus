@@ -666,7 +666,7 @@ func (s *Service) recordGoalUsageFromSlotAssistantMessageWithActor(
 	}
 	receipts := slot.consumeRuntimeCommandReceipts()
 	if actor != nil && nexusmcp.HasDomain(receipts, command.DomainExecution) {
-		s.observeExecutionRuntimeCommandReceipts(*actor, receipts)
+		s.executionObserver().ObserveCommandReceipts(*actor, receipts)
 	}
 	if s.goals == nil || slot.goalRuntimeIgnored() {
 		return

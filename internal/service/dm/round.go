@@ -242,7 +242,7 @@ func (r *roundRunner) executeRound(
 		)
 		defer r.service.runtime.ClearSubagentHookCallbacks(r.sessionKey, r.roundID)
 	}
-	r.service.beginExecutionRuntimeGraph(actor)
+	r.service.executionObserver().Begin(actor)
 	result, executeErr := exec.ExecuteRound(ctx, exec.RoundExecutionRequest{
 		Content:          r.runtimeContent.Payload(),
 		AtomicInput:      r.atomicInput,
@@ -259,7 +259,7 @@ func (r *roundRunner) executeRound(
 		},
 		ObserveIncomingMessage: func(incoming sdkprotocol.ReceivedMessage) {
 			r.observeDeferredRuntimeMessage(incoming)
-			r.service.observeExecutionRuntimeGraph(actor, incoming)
+			r.service.executionObserver().ObserveMessage(actor, incoming)
 			r.observeExecutionPersistenceEvidence(actor, incoming)
 			if incoming.Type == sdkprotocol.MessageTypeStreamEvent && !r.service.config.MessageDebugStreamEvent {
 				return
@@ -325,7 +325,7 @@ func (r *roundRunner) executeRound(
 	if executeErr != nil {
 		failureReason = executeErr.Error()
 	}
-	r.service.finishExecutionRuntimeGraph(
+	r.service.executionObserver().Finish(
 		actor,
 		result.TerminalStatus,
 		failureReason,
@@ -429,7 +429,7 @@ func (r *roundRunner) handleDurableMessage(message protocol.Message) error {
 	if err := r.persistMessage(message); err != nil {
 		return err
 	}
-	r.service.observeExecutionRuntimeArtifacts(r.orchestrationActor(), message)
+	r.service.executionObserver().ObserveArtifacts(r.orchestrationActor(), message)
 	settledSubagentUsage := r.recordSubagentGoalUsage(context.Background(), message)
 	r.rememberSubagentTaskMessage(message)
 	for _, settled := range settledSubagentUsage {

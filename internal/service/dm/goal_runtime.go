@@ -310,7 +310,7 @@ func (r *roundRunner) recordGoalUsageFromAssistantMessage(message protocol.Messa
 	}
 	receipts := r.consumeRuntimeCommandReceipts()
 	if nexusmcp.HasDomain(receipts, command.DomainExecution) {
-		r.service.observeExecutionRuntimeCommandReceipts(r.orchestrationActor(), receipts)
+		r.service.executionObserver().ObserveCommandReceipts(r.orchestrationActor(), receipts)
 	}
 	if r.service.goals == nil || r.ignoreGoalRuntime() {
 		return

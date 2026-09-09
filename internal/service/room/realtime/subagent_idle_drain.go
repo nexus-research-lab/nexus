@@ -61,7 +61,7 @@ func (s *Service) handleIdleSubagentMessage(
 		s.retireSlotAfterOutputRevocation(ctx, roundValue, slot, err)
 		return false
 	}
-	s.observeExecutionRuntimeGraph(roomOrchestrationActor(roundValue, slot), incoming)
+	s.executionObserver().ObserveMessage(roomOrchestrationActor(roundValue, slot), incoming)
 	events, durableMessages, _, err := mapper.Map(incoming)
 	if err != nil {
 		s.loggerFor(ctx).Warn("处理 Room idle subagent 通知失败",
@@ -152,7 +152,7 @@ func (s *Service) handleIdleSubagentDurableMessage(
 		if err := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); err != nil {
 			return err
 		}
-		s.observeExecutionRuntimeArtifacts(roomOrchestrationActor(roundValue, slot), messageValue)
+		s.executionObserver().ObserveArtifacts(roomOrchestrationActor(roundValue, slot), messageValue)
 		actor := roomOrchestrationActor(roundValue, slot)
 		s.recordGoalUsageFromSlotAssistantMessageWithActor(ctx, slot, &actor, messageValue)
 		return nil
@@ -179,7 +179,7 @@ func (s *Service) handleIdleSubagentDurableMessage(
 	if err := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); err != nil {
 		return err
 	}
-	s.observeExecutionRuntimeArtifacts(roomOrchestrationActor(roundValue, slot), messageValue)
+	s.executionObserver().ObserveArtifacts(roomOrchestrationActor(roundValue, slot), messageValue)
 	actor := roomOrchestrationActor(roundValue, slot)
 	s.recordGoalUsageFromSlotAssistantMessageWithActor(ctx, slot, &actor, messageValue)
 	return nil

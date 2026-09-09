@@ -18,6 +18,8 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
+
+	relaycontract "github.com/nexus-research-lab/nexus/internal/relay"
 )
 
 const (
@@ -35,21 +37,6 @@ type Client struct {
 	baseURL    string
 	httpClient *http.Client
 	wsClient   *http.Client
-}
-
-// RemoteError 是 Relay 返回的结构化失败。
-type RemoteError struct {
-	StatusCode int
-	Code       string
-	Message    string
-	RequestID  string
-}
-
-func (e *RemoteError) Error() string {
-	if e == nil {
-		return "Relay 请求失败"
-	}
-	return fmt.Sprintf("Relay 请求失败: %s (%s)", e.Message, e.Code)
 }
 
 type responseEnvelope struct {
@@ -99,7 +86,7 @@ func (c *Client) Watch(
 	token string,
 	streamID string,
 	streamEpoch string,
-	handle func(StreamUpdated) error,
+	handle func(relaycontract.StreamUpdated) error,
 ) error {
 	if c == nil || c.wsClient == nil || c.baseURL == "" {
 		return errors.New("Relay client 未配置")
@@ -144,7 +131,7 @@ func (c *Client) Watch(
 	defer connection.CloseNow()
 	connection.SetReadLimit(16 << 10)
 	for {
-		var update StreamUpdated
+		var update relaycontract.StreamUpdated
 		if err = wsjson.Read(ctx, connection, &update); err != nil {
 			if ctx.Err() != nil {
 				return ctx.Err()
@@ -174,7 +161,7 @@ func readRemoteError(response *http.Response) error {
 	if err = json.Unmarshal(payload, &envelope); err != nil {
 		return fmt.Errorf("连接 Nexus Relay WSS: HTTP %d", response.StatusCode)
 	}
-	return &RemoteError{
+	return &relaycontract.RemoteError{
 		StatusCode: response.StatusCode,
 		Code:       strings.TrimSpace(envelope.Code),
 		Message:    strings.TrimSpace(envelope.Message),
@@ -183,8 +170,8 @@ func readRemoteError(response *http.Response) error {
 }
 
 // Bootstrap 幂等获取当前 Deployment 的默认协作空间。
-func (c *Client) Bootstrap(ctx context.Context, token string) (Bootstrap, error) {
-	var result Bootstrap
+func (c *Client) Bootstrap(ctx context.Context, token string) (relaycontract.Bootstrap, error) {
+	var result relaycontract.Bootstrap
 	err := c.do(ctx, http.MethodPost, "/bootstrap", nil, token, "", nil, &result)
 	if err == nil {
 		result.Conversation.StreamEpoch, err = responseStreamEpoch(result.Conversation.StreamEpoch, "")
@@ -198,17 +185,17 @@ func (c *Client) PostMessage(
 	token string,
 	conversationID string,
 	idempotencyKey string,
-	input CreateMessageInput,
-) (MessageCommit, error) {
+	input relaycontract.CreateMessageInput,
+) (relaycontract.MessageCommit, error) {
 	conversationID, err := requireResourceID(conversationID, "conversation_id")
 	if err != nil {
-		return MessageCommit{}, err
+		return relaycontract.MessageCommit{}, err
 	}
 	idempotencyKey = strings.TrimSpace(idempotencyKey)
 	if !validCommandID(idempotencyKey) {
-		return MessageCommit{}, errors.New("Idempotency-Key 必须为 1-128 字节的可见 ASCII")
+		return relaycontract.MessageCommit{}, errors.New("Idempotency-Key 必须为 1-128 字节的可见 ASCII")
 	}
-	var result MessageCommit
+	var result relaycontract.MessageCommit
 	err = c.do(
 		ctx,
 		http.MethodPost,
@@ -230,24 +217,24 @@ func (c *Client) Snapshot(
 	ctx context.Context,
 	token string,
 	conversationID string,
-	options SnapshotOptions,
-) (Snapshot, error) {
+	options relaycontract.SnapshotOptions,
+) (relaycontract.Snapshot, error) {
 	conversationID, err := requireResourceID(conversationID, "conversation_id")
 	if err != nil {
-		return Snapshot{}, err
+		return relaycontract.Snapshot{}, err
 	}
 	if err = validatePage(options.AfterMessageSeq, options.Limit); err != nil {
-		return Snapshot{}, err
+		return relaycontract.Snapshot{}, err
 	}
 	if (options.ThroughMessageSeq == nil) != (options.SnapshotSeq == nil) {
-		return Snapshot{}, errors.New("续页必须同时提供 through_message_seq 与 snapshot_seq")
+		return relaycontract.Snapshot{}, errors.New("续页必须同时提供 through_message_seq 与 snapshot_seq")
 	}
 	streamEpoch, err := optionalStreamEpoch(
 		options.StreamEpoch,
 		options.AfterMessageSeq > 0 || options.SnapshotSeq != nil,
 	)
 	if err != nil {
-		return Snapshot{}, err
+		return relaycontract.Snapshot{}, err
 	}
 	query := url.Values{
 		"after_message_seq": {strconv.FormatInt(options.AfterMessageSeq, 10)},
@@ -255,7 +242,7 @@ func (c *Client) Snapshot(
 	}
 	if options.ThroughMessageSeq != nil {
 		if *options.ThroughMessageSeq < 0 || *options.SnapshotSeq < 0 {
-			return Snapshot{}, errors.New("Relay 快照游标不能为负数")
+			return relaycontract.Snapshot{}, errors.New("Relay 快照游标不能为负数")
 		}
 		query.Set("through_message_seq", strconv.FormatInt(*options.ThroughMessageSeq, 10))
 		query.Set("snapshot_seq", strconv.FormatInt(*options.SnapshotSeq, 10))
@@ -263,7 +250,7 @@ func (c *Client) Snapshot(
 	if streamEpoch != "" {
 		query.Set("stream_epoch", streamEpoch)
 	}
-	var result Snapshot
+	var result relaycontract.Snapshot
 	err = c.do(
 		ctx,
 		http.MethodGet,
@@ -285,18 +272,18 @@ func (c *Client) Difference(
 	ctx context.Context,
 	token string,
 	streamID string,
-	options DifferenceOptions,
-) (Difference, error) {
+	options relaycontract.DifferenceOptions,
+) (relaycontract.Difference, error) {
 	streamID, err := requireResourceID(streamID, "stream_id")
 	if err != nil {
-		return Difference{}, err
+		return relaycontract.Difference{}, err
 	}
 	if err = validatePage(options.AfterSeq, options.Limit); err != nil {
-		return Difference{}, err
+		return relaycontract.Difference{}, err
 	}
 	streamEpoch, err := optionalStreamEpoch(options.StreamEpoch, options.AfterSeq > 0)
 	if err != nil {
-		return Difference{}, err
+		return relaycontract.Difference{}, err
 	}
 	query := url.Values{
 		"after_seq": {strconv.FormatInt(options.AfterSeq, 10)},
@@ -305,7 +292,7 @@ func (c *Client) Difference(
 	if streamEpoch != "" {
 		query.Set("stream_epoch", streamEpoch)
 	}
-	var result Difference
+	var result relaycontract.Difference
 	err = c.do(
 		ctx,
 		http.MethodGet,
@@ -381,7 +368,7 @@ func (c *Client) do(
 		return fmt.Errorf("解析 Nexus Relay 响应: %w", err)
 	}
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices || envelope.Code != "0000" {
-		return &RemoteError{
+		return &relaycontract.RemoteError{
 			StatusCode: response.StatusCode,
 			Code:       strings.TrimSpace(envelope.Code),
 			Message:    strings.TrimSpace(envelope.Message),

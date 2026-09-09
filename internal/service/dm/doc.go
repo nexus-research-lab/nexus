@@ -13,5 +13,7 @@
 //     Connector 选择提交后按 Session latest-wins 预备工具面 fork，真实输入仍同步兜底；工具面变化时从旧 transcript 幂等 fork 新物理 Session，并签发 nexuscfg 与 Agent-facing nexus command 的 physical-round capability；active-paired
 //     外部私聊复用同 Agent Skill，provider init/fork 后的 SDK Session identity 动态写回同轮 command context，受控 Automation 执行可覆盖创建时工具快照且 CLI 只读绑定当前 job/run。
 //
+// 运行观察统一消费 orchestration/runtimehook.Observer，入口提供可信 actor 与日志。
+//
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package dm

@@ -20,8 +20,9 @@ import (
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	relaycontract "github.com/nexus-research-lab/nexus/internal/relay"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
-	relaysvc "github.com/nexus-research-lab/nexus/internal/service/relay"
+	teamsvc "github.com/nexus-research-lab/nexus/internal/service/team"
 )
 
 const (
@@ -36,35 +37,8 @@ type relayTokenExchanger interface {
 	ExchangeRelayUserToken(context.Context, *authsvc.Principal) (string, error)
 }
 
-type relayClient interface {
-	Bootstrap(context.Context, string) (relaysvc.Bootstrap, error)
-	PostMessage(
-		context.Context,
-		string,
-		string,
-		string,
-		relaysvc.CreateMessageInput,
-	) (relaysvc.MessageCommit, error)
-	Snapshot(
-		context.Context,
-		string,
-		string,
-		relaysvc.SnapshotOptions,
-	) (relaysvc.Snapshot, error)
-	Difference(
-		context.Context,
-		string,
-		string,
-		relaysvc.DifferenceOptions,
-	) (relaysvc.Difference, error)
-	Watch(context.Context, string, string, string, func(relaysvc.StreamUpdated) error) error
-}
-
-type relayProjector interface {
-	ProjectBootstrap(context.Context, string, relaysvc.Bootstrap) error
-	ProjectCommit(context.Context, string, relaysvc.MessageCommit) error
-	ProjectSnapshot(context.Context, string, relaysvc.Snapshot) error
-	ProjectDifference(context.Context, string, relaysvc.Difference) error
+type relayStream interface {
+	Watch(context.Context, string, string, string, func(relaycontract.StreamUpdated) error) error
 }
 
 type streamResetRequired struct {
@@ -77,18 +51,18 @@ type streamResetRequired struct {
 type Handlers struct {
 	api    *handlershared.API
 	tokens relayTokenExchanger
-	relay  relayClient
-	local  relayProjector
+	relay  relayStream
+	team   *teamsvc.Service
 }
 
 // New 创建 Team gateway handlers。
 func New(
 	api *handlershared.API,
 	tokens relayTokenExchanger,
-	relay relayClient,
-	local relayProjector,
+	service *teamsvc.Service,
+	relay relayStream,
 ) *Handlers {
-	return &Handlers{api: api, tokens: tokens, relay: relay, local: local}
+	return &Handlers{api: api, tokens: tokens, relay: relay, team: service}
 }
 
 // HandleStream 把 Relay 的提交水位提示转发给同源浏览器；消息正文仍由 Difference 获取。
@@ -117,7 +91,7 @@ func (h *Handlers) HandleStream(writer http.ResponseWriter, request *http.Reques
 	defer connection.CloseNow()
 	connection.SetReadLimit(1024)
 	ctx := connection.CloseRead(request.Context())
-	err = h.relay.Watch(ctx, token, streamID, streamEpoch, func(update relaysvc.StreamUpdated) error {
+	err = h.relay.Watch(ctx, token, streamID, streamEpoch, func(update relaycontract.StreamUpdated) error {
 		writeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
 		return wsjson.Write(writeCtx, connection, update)
@@ -125,7 +99,7 @@ func (h *Handlers) HandleStream(writer http.ResponseWriter, request *http.Reques
 	if ctx.Err() != nil {
 		return
 	}
-	var remote *relaysvc.RemoteError
+	var remote *relaycontract.RemoteError
 	if errors.As(err, &remote) && remote.Code == "full_snapshot_required" {
 		writeCtx, cancel := context.WithTimeout(request.Context(), 10*time.Second)
 		defer cancel()
@@ -152,18 +126,17 @@ func (h *Handlers) HandleBootstrap(writer http.ResponseWriter, request *http.Req
 	if !ok {
 		return
 	}
-	result, err := h.relay.Bootstrap(request.Context(), token)
+	result, err := h.team.Bootstrap(request.Context(), teamAccess(request, token))
 	if err != nil {
 		h.writeRelayError(writer, request, err, true)
 		return
 	}
-	if err = h.project(request, func(ctx context.Context, ownerUserID string) error {
-		return h.local.ProjectBootstrap(ctx, ownerUserID, result)
-	}); err != nil {
-		h.writeProjectionError(writer, request, err, true)
-		return
-	}
 	h.api.WriteSuccess(writer, result)
+}
+
+func teamAccess(request *http.Request, token string) teamsvc.Access {
+	principal := authsvc.PrincipalFromContext(request.Context())
+	return teamsvc.Access{OwnerUserID: principal.UserID, DeploymentID: principal.DeploymentID, Token: token}
 }
 
 // HandlePostMessage 向 Team Conversation 幂等提交一条真人消息。
@@ -178,7 +151,7 @@ func (h *Handlers) HandlePostMessage(writer http.ResponseWriter, request *http.R
 		h.writeRequestError(writer, request, "team.message_invalid", "消息请求参数无效", true)
 		return
 	}
-	var input relaysvc.CreateMessageInput
+	var input relaycontract.CreateMessageInput
 	if err := decodeStrictJSON(writer, request, &input); err != nil {
 		h.writeRequestError(writer, request, "team.message_invalid", "消息正文无效", true)
 		return
@@ -187,23 +160,12 @@ func (h *Handlers) HandlePostMessage(writer http.ResponseWriter, request *http.R
 	if !ok {
 		return
 	}
-	result, err := h.relay.PostMessage(
-		request.Context(), token, conversationID, idempotencyKey, input,
+	result, err := h.team.PostMessage(
+		request.Context(), teamAccess(request, token), conversationID, idempotencyKey, input,
 	)
 	if err != nil {
 		h.writeRelayError(writer, request, err, true)
 		return
-	}
-	if err = h.project(request, func(ctx context.Context, ownerUserID string) error {
-		return h.local.ProjectCommit(ctx, ownerUserID, result)
-	}); err != nil {
-		principal := authsvc.PrincipalFromContext(request.Context())
-		ownerUserID := ""
-		if principal != nil {
-			ownerUserID = principal.UserID
-		}
-		// Relay 写入已经提交，响应必须保持成功；客户端会从旧游标走 Difference 修复投影。
-		h.api.BaseLogger().Error("Team 本地投影失败", "owner_user_id", ownerUserID, "err", err)
 	}
 	h.api.WriteSuccess(writer, result)
 }
@@ -221,15 +183,9 @@ func (h *Handlers) HandleSnapshot(writer http.ResponseWriter, request *http.Requ
 	if !ok {
 		return
 	}
-	result, err := h.relay.Snapshot(request.Context(), token, conversationID, options)
+	result, err := h.team.Snapshot(request.Context(), teamAccess(request, token), conversationID, options)
 	if err != nil {
 		h.writeRelayError(writer, request, err, false)
-		return
-	}
-	if err = h.project(request, func(ctx context.Context, ownerUserID string) error {
-		return h.local.ProjectSnapshot(ctx, ownerUserID, result)
-	}); err != nil {
-		h.writeProjectionError(writer, request, err, false)
 		return
 	}
 	h.api.WriteSuccess(writer, result)
@@ -248,32 +204,12 @@ func (h *Handlers) HandleDifference(writer http.ResponseWriter, request *http.Re
 	if !ok {
 		return
 	}
-	result, err := h.relay.Difference(request.Context(), token, streamID, options)
+	result, err := h.team.Difference(request.Context(), teamAccess(request, token), streamID, options)
 	if err != nil {
 		h.writeRelayError(writer, request, err, false)
 		return
 	}
-	if err = h.project(request, func(ctx context.Context, ownerUserID string) error {
-		return h.local.ProjectDifference(ctx, ownerUserID, result)
-	}); err != nil {
-		h.writeProjectionError(writer, request, err, false)
-		return
-	}
 	h.api.WriteSuccess(writer, result)
-}
-
-func (h *Handlers) project(
-	request *http.Request,
-	project func(context.Context, string) error,
-) error {
-	if h.local == nil {
-		return nil
-	}
-	principal := authsvc.PrincipalFromContext(request.Context())
-	if principal == nil {
-		return nil
-	}
-	return project(request.Context(), principal.UserID)
 }
 
 func (h *Handlers) writeProjectionError(
@@ -369,6 +305,10 @@ func (h *Handlers) writeRelayError(
 	err error,
 	mutation bool,
 ) {
+	if errors.Is(err, teamsvc.ErrProjection) {
+		h.writeProjectionError(writer, request, err, mutation)
+		return
+	}
 	status, failure := relayFailure(err, mutation)
 	h.api.WriteError(writer, request, status, failure)
 }
@@ -381,7 +321,7 @@ func relayFailure(err error, mutation bool) (int, handlershared.FailureSpec) {
 		Detail:   "团队服务暂时不可用",
 		Cause:    err,
 	}
-	var remote *relaysvc.RemoteError
+	var remote *relaycontract.RemoteError
 	if !errors.As(err, &remote) {
 		return http.StatusBadGateway, spec
 	}
@@ -482,67 +422,67 @@ func decodeStrictJSON(writer http.ResponseWriter, request *http.Request, target 
 	return nil
 }
 
-func snapshotOptions(query url.Values) (relaysvc.SnapshotOptions, error) {
+func snapshotOptions(query url.Values) (relaycontract.SnapshotOptions, error) {
 	after, err := queryInt64(query, "after_message_seq", 0)
 	if err != nil {
-		return relaysvc.SnapshotOptions{}, err
+		return relaycontract.SnapshotOptions{}, err
 	}
 	limit, err := queryLimit(query)
 	if err != nil {
-		return relaysvc.SnapshotOptions{}, err
+		return relaycontract.SnapshotOptions{}, err
 	}
-	result := relaysvc.SnapshotOptions{
+	result := relaycontract.SnapshotOptions{
 		AfterMessageSeq: after,
 		Limit:           limit,
 		StreamEpoch:     strings.TrimSpace(query.Get("stream_epoch")),
 	}
 	if result.StreamEpoch != "" && !validResourceID(result.StreamEpoch) {
-		return relaysvc.SnapshotOptions{}, errors.New("stream epoch 无效")
+		return relaycontract.SnapshotOptions{}, errors.New("stream epoch 无效")
 	}
 	throughRaw := strings.TrimSpace(query.Get("through_message_seq"))
 	snapshotRaw := strings.TrimSpace(query.Get("snapshot_seq"))
 	if (throughRaw == "") != (snapshotRaw == "") {
-		return relaysvc.SnapshotOptions{}, errors.New("续页游标不完整")
+		return relaycontract.SnapshotOptions{}, errors.New("续页游标不完整")
 	}
 	if throughRaw == "" {
 		if after > 0 && result.StreamEpoch == "" {
-			return relaysvc.SnapshotOptions{}, errors.New("续页缺少 stream epoch")
+			return relaycontract.SnapshotOptions{}, errors.New("续页缺少 stream epoch")
 		}
 		return result, nil
 	}
 	through, err := parseNonnegativeInt64(throughRaw)
 	if err != nil {
-		return relaysvc.SnapshotOptions{}, err
+		return relaycontract.SnapshotOptions{}, err
 	}
 	snapshot, err := parseNonnegativeInt64(snapshotRaw)
 	if err != nil {
-		return relaysvc.SnapshotOptions{}, err
+		return relaycontract.SnapshotOptions{}, err
 	}
 	result.ThroughMessageSeq = &through
 	result.SnapshotSeq = &snapshot
 	if result.StreamEpoch == "" {
-		return relaysvc.SnapshotOptions{}, errors.New("续页缺少 stream epoch")
+		return relaycontract.SnapshotOptions{}, errors.New("续页缺少 stream epoch")
 	}
 	return result, nil
 }
 
-func differenceOptions(query url.Values) (relaysvc.DifferenceOptions, error) {
+func differenceOptions(query url.Values) (relaycontract.DifferenceOptions, error) {
 	after, err := queryInt64(query, "after_seq", 0)
 	if err != nil {
-		return relaysvc.DifferenceOptions{}, err
+		return relaycontract.DifferenceOptions{}, err
 	}
 	limit, err := queryLimit(query)
 	if err != nil {
-		return relaysvc.DifferenceOptions{}, err
+		return relaycontract.DifferenceOptions{}, err
 	}
 	streamEpoch := strings.TrimSpace(query.Get("stream_epoch"))
 	if streamEpoch != "" && !validResourceID(streamEpoch) {
-		return relaysvc.DifferenceOptions{}, errors.New("stream epoch 无效")
+		return relaycontract.DifferenceOptions{}, errors.New("stream epoch 无效")
 	}
 	if after > 0 && streamEpoch == "" {
-		return relaysvc.DifferenceOptions{}, errors.New("增量请求缺少 stream epoch")
+		return relaycontract.DifferenceOptions{}, errors.New("增量请求缺少 stream epoch")
 	}
-	return relaysvc.DifferenceOptions{
+	return relaycontract.DifferenceOptions{
 		AfterSeq: after, Limit: limit, StreamEpoch: streamEpoch,
 	}, nil
 }

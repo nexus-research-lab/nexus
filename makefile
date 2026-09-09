@@ -48,7 +48,7 @@ GO_TEST_PACKAGE_PARALLELISM ?= 4
 # Default target
 .DEFAULT_GOAL := help
 
-.PHONY: help build build-backend build-web package-release start stop restart logs logs-all logs-nginx clean status \
+.PHONY: check-architecture help build build-backend build-web package-release start stop restart logs logs-all logs-nginx clean status \
 	dev dev-nxs run-control install gen-protocol-types lint-web test-web test-web-browser check-web typecheck-web prepare-host-data \
 	prepare-dev-runtime-cli \
 	check-backend check-go-vet check-go check-go-fresh check-go-full check test run-web run-backend run-backend-go \
@@ -175,7 +175,10 @@ check-web: ## Run frontend lint, types, all tests, browser UI matrix and product
 typecheck-web: ## Run frontend type check
 	cd web && $(PNPM) run typecheck
 
-check-go-vet: ## Run Go static analysis checks
+check-architecture: ## Check internal production dependency boundaries
+	go run ./scripts/check-architecture
+
+check-go-vet: check-architecture ## Run Go static analysis checks
 	go vet -p=$(GO_TEST_PACKAGE_PARALLELISM) ./...
 
 check-go: ## Run checks for Go packages changed from the upstream branch

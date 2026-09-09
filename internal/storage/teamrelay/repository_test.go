@@ -9,7 +9,8 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
-	relaysvc "github.com/nexus-research-lab/nexus/internal/service/relay"
+	relaycontract "github.com/nexus-research-lab/nexus/internal/relay"
+
 	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite"
 )
@@ -45,10 +46,10 @@ owner_user_id, username, display_name, role, status, created_at, updated_at
 
 	repository := NewRepository(config.Config{DatabaseDriver: "sqlite"}, db)
 	ctx := context.Background()
-	bootstrap := relaysvc.Bootstrap{
-		Team: relaysvc.Team{ID: "team-1", DeploymentID: "deployment-1"},
-		Room: relaysvc.Room{ID: "room-1", TeamID: "team-1"},
-		Conversation: relaysvc.Conversation{
+	bootstrap := relaycontract.Bootstrap{
+		Team: relaycontract.Team{ID: "team-1", DeploymentID: "deployment-1"},
+		Room: relaycontract.Room{ID: "room-1", TeamID: "team-1"},
+		Conversation: relaycontract.Conversation{
 			ID: "conversation-1", RoomID: "room-1", SyncStreamID: "stream-1", StreamEpoch: "epoch-1",
 		},
 	}
@@ -56,25 +57,25 @@ owner_user_id, username, display_name, role, status, created_at, updated_at
 		t.Fatal(err)
 	}
 	first := testMessage("message-1", 1, "first")
-	if err = repository.ProjectSnapshot(ctx, "owner-1", relaysvc.Snapshot{
-		StreamID: "stream-1", StreamEpoch: "epoch-1", SnapshotSeq: 1, Messages: []relaysvc.Message{first},
+	if err = repository.ProjectSnapshot(ctx, "owner-1", relaycontract.Snapshot{
+		StreamID: "stream-1", StreamEpoch: "epoch-1", SnapshotSeq: 1, Messages: []relaycontract.Message{first},
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err = repository.ProjectSnapshot(ctx, "owner-1", relaysvc.Snapshot{
-		StreamID: "stream-1", StreamEpoch: "epoch-1", SnapshotSeq: 1, Messages: []relaysvc.Message{first},
+	if err = repository.ProjectSnapshot(ctx, "owner-1", relaycontract.Snapshot{
+		StreamID: "stream-1", StreamEpoch: "epoch-1", SnapshotSeq: 1, Messages: []relaycontract.Message{first},
 	}); err != nil {
 		t.Fatalf("duplicate snapshot: %v", err)
 	}
 	second := testMessage("message-2", 2, "second")
-	if err = repository.ProjectDifference(ctx, "owner-1", relaysvc.Difference{
+	if err = repository.ProjectDifference(ctx, "owner-1", relaycontract.Difference{
 		StreamID: "stream-1", StreamEpoch: "epoch-1",
-		Events: []relaysvc.SyncEvent{{EventSeq: 2, Type: "message.created", Message: second}},
+		Events: []relaycontract.SyncEvent{{EventSeq: 2, Type: "message.created", Message: second}},
 	}); err != nil {
 		t.Fatal(err)
 	}
 	third := testMessage("message-3", 3, "third")
-	if err = repository.ProjectCommit(ctx, "owner-1", relaysvc.MessageCommit{
+	if err = repository.ProjectCommit(ctx, "owner-1", relaycontract.MessageCommit{
 		Message: third, StreamID: "stream-1", StreamEpoch: "epoch-1", EventSeq: 3,
 	}); err != nil {
 		t.Fatal(err)
@@ -82,9 +83,9 @@ owner_user_id, username, display_name, role, status, created_at, updated_at
 	if err = repository.ProjectBootstrap(ctx, "owner-2", bootstrap); err != nil {
 		t.Fatal(err)
 	}
-	sharedSnapshot := relaysvc.Snapshot{
+	sharedSnapshot := relaycontract.Snapshot{
 		StreamID: "stream-1", StreamEpoch: "epoch-1", SnapshotSeq: 3,
-		Messages: []relaysvc.Message{first, second, third},
+		Messages: []relaycontract.Message{first, second, third},
 	}
 	var waitGroup sync.WaitGroup
 	projectionErrors := make(chan error, 2)
@@ -102,9 +103,9 @@ owner_user_id, username, display_name, role, status, created_at, updated_at
 			t.Fatal(projectionErr)
 		}
 	}
-	if err = repository.ProjectDifference(ctx, "owner-1", relaysvc.Difference{
+	if err = repository.ProjectDifference(ctx, "owner-1", relaycontract.Difference{
 		StreamID: "stream-1", StreamEpoch: "epoch-1",
-		Events: []relaysvc.SyncEvent{{EventSeq: 5, Type: "message.created", Message: testMessage("message-5", 5, "gap")}},
+		Events: []relaycontract.SyncEvent{{EventSeq: 5, Type: "message.created", Message: testMessage("message-5", 5, "gap")}},
 	}); err == nil {
 		t.Fatal("gap difference must fail")
 	}
@@ -219,13 +220,13 @@ author_user_id, author_username, author_display_name, client_message_id, content
 	}
 }
 
-func testMessage(id string, sequence int64, text string) relaysvc.Message {
-	return relaysvc.Message{
+func testMessage(id string, sequence int64, text string) relaycontract.Message {
+	return relaycontract.Message{
 		ID: id, ConversationID: "conversation-1", MessageSeq: sequence,
-		AuthorType: relaysvc.AuthorTypeUser, AuthorUserID: "user-1", AuthorUsername: "alice",
+		AuthorType: relaycontract.AuthorTypeUser, AuthorUserID: "user-1", AuthorUsername: "alice",
 		AuthorDisplayName: "Alice", ClientMessageID: "client-" + id,
-		Content: relaysvc.MessageContent{Version: relaysvc.ContentVersionV1, Blocks: []relaysvc.ContentBlock{{
-			Type: relaysvc.BlockTypeMarkdown, Text: text,
+		Content: relaycontract.MessageContent{Version: relaycontract.ContentVersionV1, Blocks: []relaycontract.ContentBlock{{
+			Type: relaycontract.BlockTypeMarkdown, Text: text,
 		}}},
 		CreatedAt: time.Date(2026, 9, 8, 12, 0, int(sequence), 0, time.UTC),
 	}

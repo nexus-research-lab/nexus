@@ -29,5 +29,7 @@
 // 消费的 assignment/review/cancellation delivery、Goal continuation/readiness 与
 // Start* 后台恢复入口。Set* 方法只负责应用层依赖注入。
 //
+// 运行观察统一消费 orchestration/runtimehook.Observer，入口提供可信 actor 与日志。
+//
 // [PROTOCOL]: 行为变化时检查 Room specs、Execution specs、父级 room L2 与 AGENTS.md。
 package realtime

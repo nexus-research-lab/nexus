@@ -419,7 +419,7 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 		)
 	}
 	e.slot.beginNoReplyCandidate()
-	e.service.beginExecutionRuntimeGraph(actor)
+	e.service.executionObserver().Begin(actor)
 	result, executeErr := exec.ExecuteRound(e.ctx, exec.RoundExecutionRequest{
 		Content:          payload,
 		ContextualInputs: append(executionInputs, e.contextualInputs()...),
@@ -441,7 +441,7 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 		},
 		ObserveIncomingMessage: func(incoming sdkprotocol.ReceivedMessage) {
 			currentActor := e.orchestrationActor()
-			e.service.observeExecutionRuntimeGraph(currentActor, incoming)
+			e.service.executionObserver().ObserveMessage(currentActor, incoming)
 			e.observeExecutionPersistenceEvidence(currentActor, incoming)
 			e.observeIncomingMessage(incoming)
 		},
@@ -461,7 +461,7 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 	if executeErr != nil {
 		failureReason = executeErr.Error()
 	}
-	e.service.finishExecutionRuntimeGraph(
+	e.service.executionObserver().Finish(
 		e.orchestrationActor(),
 		result.TerminalStatus,
 		failureReason,
@@ -639,7 +639,7 @@ func (e *slotExecution) handleDurableMessage(messageValue protocol.Message) erro
 	if err := e.service.ensureSlotOutputAuthorized(e.ctx, e.round, e.slot); err != nil {
 		return err
 	}
-	e.service.observeExecutionRuntimeArtifacts(e.orchestrationActor(), messageValue)
+	e.service.executionObserver().ObserveArtifacts(e.orchestrationActor(), messageValue)
 	actor := e.orchestrationActor()
 	e.service.recordGoalUsageFromSlotAssistantMessageWithActor(e.ctx, e.slot, &actor, messageValue)
 	return nil
