@@ -124,9 +124,9 @@ describe("TaskBasicsPanel", () => {
     expect(screen.getByRole("button", {name: "Discussion"})).toBeTruthy();
     await user.click(screen.getByRole("button", {name: "capability.scheduled_target_filter"}));
     expect(screen.getAllByRole("option").map((item) => item.textContent)).toEqual([
-      "capability.scheduled_target_all", "DM", "Room",
+      "capability.scheduled_target_all", "capability.scheduled_target_agent", "capability.scheduled_target_room",
     ]);
-    await user.click(screen.getByRole("option", {name: "DM"}));
+    await user.click(screen.getByRole("option", {name: "capability.scheduled_target_agent"}));
     expect(screen.getByRole("button", {name: "Nova"})).toBeTruthy();
     expect(screen.queryByRole("button", {name: "Research"})).toBeNull();
     expect(actions.selectExecution).not.toHaveBeenCalled();
@@ -136,7 +136,7 @@ describe("TaskBasicsPanel", () => {
     expect(screen.getByRole("button", {name: "Nova"})).toBeTruthy();
     expect(screen.getByRole("button", {name: "Research"})).toBeTruthy();
     await user.click(screen.getByRole("button", {name: "capability.scheduled_target_filter"}));
-    await user.click(screen.getByRole("option", {name: "Room"}));
+    await user.click(screen.getByRole("option", {name: "capability.scheduled_target_room"}));
     expect(screen.queryByRole("button", {name: "Nova"})).toBeNull();
     expect(actions.selectExecution).not.toHaveBeenCalled();
     await user.type(screen.getByRole("searchbox", {name: "capability.scheduled_search_chats"}), "Research");

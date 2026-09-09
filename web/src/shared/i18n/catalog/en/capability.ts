@@ -2,6 +2,8 @@ import type { MessageSegment } from "../message-segment";
 import type { zhCapabilityMessages } from "../zh/capability";
 
 export const enCapabilityMessages = {
+  "capability.scheduled_target_agent": "DM",
+  "capability.scheduled_target_room": "Room",
   "capability.scheduled_target_all": "All types",
   "capability.scheduled_target_filter": "Conversation type",
   "capability.scheduled_editor": "Task editor",
