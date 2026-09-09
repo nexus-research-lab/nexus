@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Keep the last MCP tool list visible on ordinary refresh failures with an inline stale-data notice; hide it when access is lost.
+
 - Isolate MCP tool snapshots and read failures when switching connector configurations.
 
 - Allow long MCP tool names, arguments and descriptions to wrap within connector detail panels.

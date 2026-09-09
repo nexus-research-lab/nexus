@@ -700,6 +700,7 @@ export const zhCapabilityMessages = {
   "capability.custom_mcp_tools_description": "开启后，这些工具可在对话的 MCP 选择中使用。",
   "capability.custom_mcp_tools_loading": "正在读取服务器工具",
   "capability.custom_mcp_tools_load_failed": "工具读取失败",
+  "capability.custom_mcp_tools_refresh_failed_impact": "显示上次读取的工具目录，内容可能已过期。请重试以获取最新目录。",
   "capability.custom_mcp_tools_load_failed_impact": "连接配置仍然保留，但当前无法确认服务器提供的工具。",
   "capability.custom_mcp_tools_disabled": "开启这个 MCP 后即可连接并查看工具。",
   "capability.custom_mcp_tools_runtime_only": "本地 stdio 服务只由 Agent 运行时启动；详情页不会以宿主身份执行该命令。",
