@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Reduce compact shared status text to regular supporting typography, with a smaller
+  icon frame and spacing for loading and empty states.
+
 - Prevent overlapping desktop update-hint reads from replacing newer version hints.
 
 - Remove the unused internal category-prefix rendering branch from shared select triggers.
