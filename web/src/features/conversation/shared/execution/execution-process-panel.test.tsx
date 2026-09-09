@@ -236,10 +236,11 @@ describe("ExecutionProcessPanel", () => {
 
     const frame = container.querySelector("[data-execution-node-agent]")!;
     expect(frame.className).toContain("h-7");
-    expect(frame.className).toContain("border-transparent");
+    expect(frame.className).toContain("border-0");
     expect(frame.className).not.toMatch(/ring-|scale-|border-\(--(?:success|warning)\)/);
     expect(frame.getAttribute("title")).toBeNull();
-    expect(screen.getByRole("img", { name: "Nexus" }).className).toContain("h-6.5");
+    expect(screen.getByRole("img", { name: "Nexus" }).className).toContain("h-7");
+    expect(screen.getByRole("img", { name: "Nexus" }).className).toContain("rounded-(--radius-control-sm)");
     expect(frame.lastElementChild?.className).toContain(dotColor);
     expect(frame.getAttribute("data-execution-node-current")).toBe(status === "running" ? "true" : null);
   });
