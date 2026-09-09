@@ -1,5 +1,5 @@
 // INPUT: 设置导航权限、查询与路由动作。
-// OUTPUT: 返回与搜索同排的宽侧栏，或紧凑导航轨。
+// OUTPUT: 返回与搜索同排、分组标题下选项统一缩进的宽侧栏，或紧凑导航轨。
 // POS: 设置导航视图，复用公共输入与按钮，不执行设置写入。
 "use client";
 
@@ -141,7 +141,7 @@ export function SettingsSidebarNavigation({
             <SettingsNavigationGroupLabel>
               {t(group.labelKey)}
             </SettingsNavigationGroupLabel>
-            <div className="space-y-0.5">
+            <div className="ml-3 space-y-0.5">
               {group.items.map((item) => {
                 const Icon = SETTINGS_SECTION_ICONS[item.key];
                 const active = activeSection === item.key;
