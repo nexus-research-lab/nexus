@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Consolidate guides in the compact account menu, removing duplicate Skills and
+  standalone help actions while retaining first-visit onboarding.
+
 - Replace the duplicate community-search magnifier with a text Search action.
 - Localize code-group/loading labels and remove decorative code shells from Tab order.
 

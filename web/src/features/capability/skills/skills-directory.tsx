@@ -38,11 +38,7 @@ import { SKILLS_TOUR_ANCHORS } from "@/features/onboarding/tours/skills-tour";
 
 /* ── Skills 页面主编排组件 ────────────────────── */
 
-interface SkillsDirectoryProps {
-  onReplayTour?: () => void;
-}
-
-export function SkillsDirectory({ onReplayTour }: SkillsDirectoryProps) {
+export function SkillsDirectory() {
   const { t } = useI18n();
   const {
     catalog,
@@ -114,7 +110,6 @@ export function SkillsDirectory({ onReplayTour }: SkillsDirectoryProps) {
                 onCheckUpdates={() => void operations.checkUpdates()}
                 onOpenImport={operations.setImportDialogMode}
                 onOpenSources={sources.openManager}
-                onReplayTour={onReplayTour}
               />
             )}
             description={t("capability.skills_intro_description")}

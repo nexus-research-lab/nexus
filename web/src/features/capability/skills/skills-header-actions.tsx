@@ -1,8 +1,7 @@
-// INPUT: Skill 导入、更新检查、来源管理与导览动作及其忙碌状态。
+// INPUT: Skill 导入、更新检查、来源管理动作及其忙碌状态。
 // OUTPUT: 桌面工具栏或窄窗共享动作菜单，并以统一 Spinner 投影等待状态。
 // POS: Skill 目录页头动作视图；不持有导入、更新或来源命令生命周期。
 import {
-  Compass,
   Download,
   Loader2,
   MoreHorizontal,
@@ -30,7 +29,6 @@ interface SkillsHeaderActionsProps {
   onCheckUpdates: () => void;
   onOpenImport: (mode: SkillImportDialogMode) => void;
   onOpenSources: () => void;
-  onReplayTour?: () => void;
 }
 
 export function SkillsHeaderActions(props: SkillsHeaderActionsProps) {
@@ -46,7 +44,6 @@ function SkillsHeaderCompactActions({
   onCheckUpdates,
   onOpenImport,
   onOpenSources,
-  onReplayTour,
 }: SkillsHeaderActionsProps) {
   const { t } = useI18n();
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -78,11 +75,6 @@ function SkillsHeaderCompactActions({
       label: t("capability.skill_sources"),
       value: "sources",
     },
-    ...(onReplayTour ? [{
-      icon: <Compass className="h-4 w-4 text-(--icon-muted)" />,
-      label: t("common.view_guide"),
-      value: "guide",
-    }] : []),
   ];
 
   return (
@@ -108,7 +100,6 @@ function SkillsHeaderCompactActions({
         onClose={() => setIsOpen(false)}
         onSelect={(value) => {
           const actions: Record<string, () => void> = {
-            guide: () => onReplayTour?.(),
             import: () => onOpenImport("local"),
             sources: onOpenSources,
             updates: onCheckUpdates,
@@ -126,7 +117,6 @@ function SkillsHeaderDesktopActions({
   onCheckUpdates,
   onOpenImport,
   onOpenSources,
-  onReplayTour,
 }: SkillsHeaderActionsProps) {
   const { t } = useI18n();
   return (
@@ -165,12 +155,6 @@ function SkillsHeaderDesktopActions({
         <SlidersHorizontal className="h-3.5 w-3.5" />
         {t("capability.skill_sources")}
       </UiButton>
-      {onReplayTour ? (
-        <UiButton onClick={onReplayTour} size="2xs" variant="text">
-          <Compass className="h-3.5 w-3.5" />
-          {t("common.view_guide")}
-        </UiButton>
-      ) : null}
     </div>
   );
 }

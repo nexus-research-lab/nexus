@@ -1,5 +1,5 @@
 // INPUT: 侧栏展开状态、可见系统动作、路由状态与动作命令。
-// OUTPUT: 紧凑账号退出菜单与并排的设置、帮助入口。
+// OUTPUT: 紧凑账号菜单集中提供引导与有效退出，设置保留直接入口。
 // POS: 宽侧栏底部/折叠动作视图；权限与更新状态由上层和专属 hook 决定。
 
 import {
@@ -70,17 +70,22 @@ export function SidebarFooterActions(props: SidebarUtilityActionsProps) {
   const anchorRef = useRef<HTMLButtonElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const items: UiActionMenuItem[] = [{
+    value: "guide",
+    label: props.labels.guide,
+    icon: <CircleHelp aria-hidden="true" className="h-4 w-4" />,
+    active: props.guideOpen,
+  }, ...(props.showLogout ? [{
     value: "logout",
     label: props.labels.logout,
     icon: <LogOut aria-hidden="true" className="h-4 w-4" />,
-  }];
+  }] : [])];
 
   return (
     <div className="sidebar-panel-footer shell-region-footer relative -mr-1.5 flex h-12 shrink-0 items-center justify-end gap-2 px-2">
-      {props.showLogout ? (
-        <>
+      <>
           <UiIconButton
             ref={anchorRef}
+            data-tour-anchor={SIDEBAR_TOUR_ANCHORS.restart}
             aria-label={props.accountName}
             aria-expanded={menuOpen}
             aria-haspopup="menu"
@@ -108,10 +113,10 @@ export function SidebarFooterActions(props: SidebarUtilityActionsProps) {
             onClose={() => setMenuOpen(false)}
             onSelect={(value) => {
               if (value === "logout") props.onLogout();
+              if (value === "guide") props.onOpenGuide();
             }}
           />
-        </>
-      ) : null}
+      </>
       {updateVersion ? <SidebarUpdateIndicator version={updateVersion} /> : null}
       {props.showSettings ? (
         <UtilityButton
@@ -121,13 +126,6 @@ export function SidebarFooterActions(props: SidebarUtilityActionsProps) {
           onClick={() => navigate(AppRouteBuilders.settings())}
         />
       ) : null}
-      <UtilityButton
-        active={props.guideOpen}
-        anchor={SIDEBAR_TOUR_ANCHORS.restart}
-        icon={CircleHelp}
-        label={props.labels.guide}
-        onClick={props.onOpenGuide}
-      />
     </div>
   );
 }
