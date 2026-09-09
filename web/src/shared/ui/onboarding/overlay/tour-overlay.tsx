@@ -1,5 +1,5 @@
 // INPUT: 已注册 Tour、当前步骤与导航/关闭命令。
-// OUTPUT: 随锚点、卡片及视口变化重新定位的非阻塞导览 Portal。
+// OUTPUT: 随锚点和视口定位的非阻塞导览；关闭尊重已消费按键与输入法状态。
 // POS: Onboarding Tour 浮层编排；测量归 hook，几何计算归纯模型，内容归 Card。
 
 "use client";
@@ -40,7 +40,12 @@ export function OnboardingTourOverlay({
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
+      if (
+        event.key === "Escape"
+        && !event.defaultPrevented
+        && !event.isComposing
+        && event.keyCode !== 229
+      ) {
         onClose();
       }
     };

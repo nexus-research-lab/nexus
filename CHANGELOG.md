@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Keep onboarding open when Escape is consumed by another control or an input method.
+
 - Make Mermaid source regions keyboard-accessible while preserving native scrolling and source formatting.
 
 - Keep appearance number drafts intact during IME confirmation and match adjustment feedback to the current value.

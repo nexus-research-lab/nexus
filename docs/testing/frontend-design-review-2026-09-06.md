@@ -4051,3 +4051,8 @@ AppearanceNumberInput 的 Enter 收口忽略输入法组合态与 229 兼容事�
 ### A155 — Mermaid 源码键盘入口
 
 源码 overflow 区增加双语具名 region、Tab 焦点和共享 ring token，保留 pre 空白与原生滚动。未新增方向键代理。3 项状态、预览激活和源码焦点回归及目标 lint 通过；不以 jsdom 焦点验证代替实际滚动/视觉验收。
+
+
+### A156 — 引导 Escape 消费边界
+
+OnboardingTourOverlay 忽略已消费 Escape、输入法组合态与 229 兼容事件，普通 Escape 保持关闭。新增 React 控件消费、输入法取消、普通关闭与卸载清理回归；连同定位/卡片共 3 项及目标 lint 通过。不声称覆盖所有浮层叠加或视觉验收。
