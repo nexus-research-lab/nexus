@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Remove the built-in Loops catalog, backend endpoints and summary count, capability pages and navigation, and Composer Loop-to-Goal actions.
+
 
 ### Added
 

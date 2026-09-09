@@ -36,7 +36,6 @@ export function useComposerController({
   defaultPlaceholder,
   defaultDeliveryPolicy,
   draftScopeKey,
-  enableLoops = false,
   goalCreateDisabledReason = null,
   historyScopeKey,
   inputQueueItems,
@@ -44,7 +43,6 @@ export function useComposerController({
   isLoading,
   localDirectorySessionKey,
   onCreateGoal,
-  onCreateLoopGoal,
   onEnqueueMessage,
   onPrepareAttachments,
   onSendMessage,
@@ -68,7 +66,6 @@ export function useComposerController({
     setActionMenuOpen,
     setGoalError,
     setInput,
-    setLoopPickerOpen,
     setSelectedTargetIDs,
     state: draftState,
   } = draft;
@@ -125,13 +122,11 @@ export function useComposerController({
     closeMention();
     closeSlashCommand();
     setActionMenuOpen(false);
-    setLoopPickerOpen(false);
   }, [
     interactionIdentity,
     closeMention,
     closeSlashCommand,
     setActionMenuOpen,
-    setLoopPickerOpen,
   ]);
   const history = useComposerHistory({
     clearError: clearAttachmentError,
@@ -183,14 +178,12 @@ export function useComposerController({
   const goal = useComposerGoalActions({
     closeMention: mention.closeMention,
     draft,
-    enableLoops,
     fallbackErrorMessage: t("composer.goal_create_failed"),
     failureImpact: t("composer.goal_not_applied_impact"),
     failureNextStep: t("composer.goal_not_applied_next_step"),
     focusTextarea,
     goalCreateDisabledReason,
     onCreateGoal,
-    onCreateLoopGoal,
   });
   const { submitGoal } = goal;
   const handleSend = useCallback(async () => {
@@ -254,7 +247,6 @@ export function useComposerController({
     attachmentCount: attachments.attachments.length,
     attachmentError,
     canCreateGoal: goal.canCreateGoal,
-    canUseLoop: goal.canUseLoop,
     copy: {
       defaultPlaceholder: defaultPlaceholder ?? t("composer.default_placeholder"),
       goalConfirm: t("composer.goal_confirm"),
@@ -271,7 +263,6 @@ export function useComposerController({
     isGoalConfirming: draftState.isGoalConfirming,
     isGoalCreating: draftState.isGoalCreating,
     isLoading,
-    isLoopPickerOpen: draftState.isLoopPickerOpen,
     isPreparingAttachments: attachments.isPreparingAttachments,
     isSessionSettingsSaving:
       sessionSettingsController.saving || localDirectories.saving,
@@ -337,13 +328,10 @@ export function useComposerController({
       handleCompositionStart: keyboard.handleCompositionStart,
       handleInputChange,
       handleKeyDown: keyboard.handleKeyDown,
-      handleLoopSelect: goal.handleLoopSelect,
       handleSend,
       openAttachmentPicker,
       openLocalDirectoryPicker,
-      openLoopPicker: goal.openLoopPicker,
       setIsActionMenuOpen: setActionMenuOpen,
-      setIsLoopPickerOpen: setLoopPickerOpen,
       toggleGoalInput: goal.toggleGoalInput,
     },
   };

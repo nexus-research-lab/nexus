@@ -11,7 +11,7 @@ L5 | 父级: web/src/features/conversation/shared/composer
 - `use-composer-local-directories.ts`: 为桌面 DM/Room 读取、选择、移除并保存 Session 级本机工作文件夹；Room 将同一目录快照投影给全部成员 runtime
 - `use-composer-draft.ts`: 将正文、附件、输入模式、Goal 负责人和 Mention 目标绑定到包含 Session ID 的 Room/DM 内存草稿胶囊，并独立管理瞬时弹层状态
 - `use-composer-message-submit.ts`: 按资格判断、附件准备、投递和收尾阶段提交消息
-- `use-composer-goal-actions.ts`: 管理 Goal 与 Loop 动作；宿主请求发出后立即从原 Session 原子认领草稿，ACK 跨 Session 切换按 client_request_id 收口，明确失败只在该作用域仍为空时恢复；带 transport identity 的 post-send 失败同时保留 recovery receipt，由更新过的 owner-scoped Goal fence 或 exact durable Goal 控制记录撤回同一自动恢复修订，受理未知继续进入原 scope 的“确认中”互斥态
+- `use-composer-goal-actions.ts`: 管理 Goal 动作；宿主请求发出后立即从原 Session 原子认领草稿，ACK 跨 Session 切换按 client_request_id 收口，明确失败只在该作用域仍为空时恢复；带 transport identity 的 post-send 失败同时保留 recovery receipt，由更新过的 owner-scoped Goal fence 或 exact durable Goal 控制记录撤回同一自动恢复修订，受理未知继续进入原 scope 的“确认中”互斥态
 - `use-composer-keyboard.ts`: 依次执行输入法、Safari、Slash 和 Mention 守卫，再分派键盘命令
 - `composer-view-projections.ts`: 分别投影输入、运行时、模式和动作状态
 - `composer-controller-model.ts`: 组装业务语义与可用动作为视图契约；间距等 CSS 只在 Panel 按语义状态消费 `composer-styles`

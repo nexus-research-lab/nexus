@@ -6,7 +6,6 @@ export const EMPTY_CAPABILITY_SUMMARY: CapabilitySummary = {
   connected_channels_count: 0,
   connected_connectors_count: 0,
   enabled_scheduled_tasks_count: 0,
-  loops_count: 0,
   workgraph_distillations_count: 0,
   skills_count: 0,
 };

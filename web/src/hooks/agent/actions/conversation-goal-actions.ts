@@ -1,5 +1,5 @@
 /**
- * INPUT: Goal Composer objective、Room lead/Loop options 与会话 WebSocket 上下文。
+ * INPUT: Goal Composer objective、Room lead 与 Goal options 与会话 WebSocket 上下文。
  * OUTPUT: 独立 set_goal 控制消息及可由 durable Room record/ACK 收口的 optimistic user item。
  * POS: Goal UI transport；不复用普通 chat 发送路径。
  */

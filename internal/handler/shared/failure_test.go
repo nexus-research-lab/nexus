@@ -397,7 +397,7 @@ func TestRequestContextMiddlewareGeneratesOneConsistentDiagnosticID(t *testing.T
 		},
 	))
 	recorder := httptest.NewRecorder()
-	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/loops", nil))
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/resources", nil))
 
 	responseID := recorder.Header().Get("X-Request-ID")
 	if captured == "" || responseID == "" || captured != responseID {

@@ -1,18 +1,13 @@
 /**
- * INPUT: Room 成员、负责人草稿、当前 Goal metadata、Loop 定义与当前翻译器。
- * OUTPUT: 保持成员边界的默认/当前负责人、创建可用性与既有 Loop Goal 控制输入。
+ * INPUT: Room 成员、负责人草稿、当前 Goal metadata 与当前翻译器。
+ * OUTPUT: 保持成员边界的默认/当前负责人、创建可用性。
  * POS: Room Goal 领域纯模型；UI 名称不参与身份校验，不调用 transport。
  */
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type { Agent } from "@/types/agent/agent";
-import type { LoopCatalogItem } from "@/types/capability/loop";
 import type { Goal } from "@/types/conversation/goal";
 
 const ROOM_GOAL_LEAD_AGENT_ID_KEY = "room_goal_lead_agent_id";
-const ROOM_GOAL_LOOP_SLUG_KEY = "room_goal_loop_slug";
-const ROOM_GOAL_LOOP_TITLE_KEY = "room_goal_loop_title";
-
-const ROOM_LOOP_GOAL_MAX_OBJECTIVE_LENGTH = 3900;
 
 function metadataString(
   metadata: Record<string, unknown> | undefined,
@@ -68,57 +63,4 @@ export function resolveRoomGoalLeadAgentId(
     return metadataAgentId;
   }
   return fallbackAgentId;
-}
-
-export function buildRoomLoopGoalMetadata(
-  loop: LoopCatalogItem,
-): Record<string, unknown> {
-  return {
-    [ROOM_GOAL_LOOP_SLUG_KEY]: loop.slug,
-    [ROOM_GOAL_LOOP_TITLE_KEY]: loop.title,
-  };
-}
-
-export function buildRoomLoopGoalObjective(loop: LoopCatalogItem): string {
-  const lines = [
-    `按 Loop「${loop.title}」推进这个 Room Goal。`,
-    "",
-    "目标",
-    firstNonEmpty(loop.kickoff_prompt, loop.description),
-    "",
-    "步骤",
-    ...loop.steps.map((step, index) => {
-      const shellCheck = step.shell_check?.trim();
-      return `${index + 1}. ${step.name}: ${step.prompt}${shellCheck ? `\n   验证: ${shellCheck}` : ""}`;
-    }),
-    "",
-    "退出条件",
-    `- ${loop.exit_condition.description}`,
-    loop.exit_condition.command ? `- 验证命令: ${loop.exit_condition.command}` : "",
-    loop.exit_condition.max_iterations
-      ? `- 最大轮数: ${loop.exit_condition.max_iterations}`
-      : "",
-    "",
-    "护栏",
-    ...(loop.guardrails.length > 0 ? loop.guardrails.map((item) => `- ${item}`) : ["- 每轮先检查退出条件；满足后再标记 Goal complete。"]),
-    "",
-    "Room 协作规则",
-    "- 负责人推进整体闭环；一次性对话帮助可用 Room @ 唤起成员，需要可追责交付时必须通过 WorkGraph Assignment 分派。",
-    "- 验证失败时，把失败信息作为反馈继续修；不要把未验证的进展当完成。",
-    "- 完成前必须有当前证据证明退出条件成立。",
-  ].filter((line) => line.trim() !== "");
-
-  return truncateObjective(lines.join("\n"));
-}
-
-function firstNonEmpty(...values: string[]): string {
-  return values.map((value) => value.trim()).find(Boolean) ?? "";
-}
-
-function truncateObjective(value: string): string {
-  if (value.length <= ROOM_LOOP_GOAL_MAX_OBJECTIVE_LENGTH) {
-    return value;
-  }
-  const suffix = "\n\n[Loop 内容过长，已截断；仍以退出条件为准。]";
-  return `${value.slice(0, ROOM_LOOP_GOAL_MAX_OBJECTIVE_LENGTH - suffix.length).trimEnd()}${suffix}`;
 }

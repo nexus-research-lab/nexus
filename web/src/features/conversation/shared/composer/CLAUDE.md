@@ -6,7 +6,7 @@ L4 | 父级: web/src/features/conversation/shared
 
 - `composer-panel.tsx`: Composer 各子域的纯视图装配
 - `use-composer-interaction-height-guard.ts`: 在同一人工介入队列内持有输入壳高度高水位，并在恢复普通输入时一次释放，不让连续权限卡反复改变消息 viewport
-- `controller/`: 草稿状态、消息投递、Goal/Loop、IME 与视图状态编排
+- `controller/`: 草稿状态、消息投递、Goal、IME 与视图状态编排
 - `composer-history-store.ts`: 按 Room/DM 逻辑聊天隔离并在当前浏览器或 App WebView 内持久化发送历史
 - `use-composer-history.ts`: 将持久化发送历史接入上下键召回、游标与未发送草稿恢复
 - `composer-model.ts`: 输入策略、键盘命令和投递决策；不返回样式
@@ -20,7 +20,7 @@ L4 | 父级: web/src/features/conversation/shared
 - `use-conversation-composer-handlers.ts`: DM/Room 对 Composer 的发送适配
 - `controller/use-composer-controller.ts`: 除既有草稿/发送装配外，只接受同一 exact Session 的命名 WorkGraph 保存意图事件，把可见请求写入 Message 草稿并自动发送；不直接调用命名工作图创建 API
 - `attachments/`: 以单一规则表统一附件分类、批量校验、上传准备和本地展示
-- `components/`: 输入行、提交动作、Footer、Session 模型/权限控制、待发送队列，以及 Loop / 已保存工作图选择器
+- `components/`: 输入行、提交动作、Footer、Session 模型/权限控制、待发送队列，以及 已保存工作图选择器
 
 DM 可在桌面端为当前 Session 挂载多个本机工作文件夹，Web 不公开入口。附加目录独立于 Agent workspace CWD，保存期间与模型/权限设置一样阻止新一轮提交；保存结果未知时保留操作前列表并锁定修改，只允许重新读取当前 Session 设置后再决定下一步。
 
@@ -46,4 +46,4 @@ Composer 的可用发送、排队与 Goal 确认使用 Nexus 品牌行动蓝，�
 队列命令和附件准备是 DM/Room 的共同能力；DM Composer 的停止针对当前会话，Room Composer 的“全部停止”必须在点击时冻结所有 active slot 的精确 `agent_round_id`，逐个复用定向停止，禁止退化为无目标的 session interrupt。
 Mention 目标只投影成员标记和标签；匹配、插入、键盘与浮层规则归 `shared/ui/mention/`。Slash 键盘导航不得注册 document 级监听，必须由 textarea 或子面板搜索框显式分派；外部点击、Escape 收口及 resize/scroll 重定位统一复用 `shared/ui/overlay/anchored-overlay-layer.ts`。
 附件必须先整批校验再上传；DM/Room 只提供目标作用域，不得复制格式规则或上传循环。
-Composer 的 Loop 与工作图目录使用 plain Dialog 标题和扁平选择行，不显示解释选择动作的副标题或装饰图标；工作图在同一选择器内以目录/预览双栏查看，窄屏纵向排列。
+Composer 的工作图目录使用 plain Dialog 标题和扁平选择行，不显示解释选择动作的副标题或装饰图标；工作图在同一选择器内以目录/预览双栏查看，窄屏纵向排列。

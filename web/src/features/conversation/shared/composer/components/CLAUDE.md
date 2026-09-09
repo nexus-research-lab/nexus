@@ -11,7 +11,6 @@ L5 | 父级: web/src/features/conversation/shared/composer
 - `interaction/`: DM 等待用户确认、回答或批准计划时，原位替换输入壳的唯一交互 surface
 - `footer/`: 动作菜单、Session 级模型/权限、Goal 标记、运行状态、输入元数据和提交动作
 - `pending-queue/`: 共享 Disclosure 中的待发送消息、拖动/键盘重排和串行派发；临时 UI 由 ComposerPanel 按 Session 草稿作用域隔离
-- `loop-picker/`: Loop 目录资源、筛选、选择事务和 Dialog 展示
 - `workgraph-distillation-picker/`: owner 工作图目录、搜索、键盘选项与只读预览；明确复用时只将原始 Slash 写回当前 Composer
 
 组件只消费控制器或本子域模型的明确结果，不重新派生发送资格、运行时阶段或跨域协议状态。
