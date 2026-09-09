@@ -5,11 +5,9 @@
 "use client";
 
 import {
-  FolderKanban,
   Loader2,
   Plus,
   RefreshCw,
-  ShieldCheck,
   UserPlus,
 } from "lucide-react";
 import { type FormEvent, useMemo } from "react";
@@ -21,9 +19,10 @@ import {
 } from "@/features/settings/shared/settings-panel-ui";
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { WorkspaceContentHeader } from "@/shared/ui/layout/workspace-content-header";
 import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
-import { UiBadge } from "@/shared/ui/display/badge";
+import { UiDisclosure } from "@/shared/ui/disclosure/disclosure";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiInput } from "@/shared/ui/form/form-control";
@@ -76,13 +75,12 @@ function ProjectCard({
 
   return (
     <article className={SETTINGS_CARD_CLASS_NAME}>
-      <div className="grid gap-3 border-b border-(--divider-subtle-color) px-4 py-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
+      <div className="grid gap-3 border-b border-(--divider-subtle-color) px-4 py-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <FolderKanban className="h-4 w-4 shrink-0 text-primary" />
             <p className={cn(
-              "truncate",
-              getUiTypographyClassName({ role: "sectionTitle", tone: "strong" }),
+              "wrap-anywhere",
+              SETTINGS_ITEM_TITLE_CLASS_NAME,
             )}>
               {project.project_id}
             </p>
@@ -94,14 +92,10 @@ function ProjectCard({
             {t("settings.projects.root")}: {project.root}
           </p>
         </div>
-        <UiBadge className="w-fit" size="xs">
-          {t("settings.projects.generation")}: {project.generation}
-        </UiBadge>
       </div>
 
       <div className="px-4 py-3">
         <div className="flex items-center gap-2">
-          <ShieldCheck className="h-3.5 w-3.5 text-(--text-soft)" />
           <p className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
             {t("settings.projects.members")}
           </p>
@@ -122,11 +116,11 @@ function ProjectCard({
               return (
                 <div
                   key={ownerUserId}
-                  className="grid gap-2 py-2.5 sm:grid-cols-[minmax(0,1fr)_140px] sm:items-center"
+                  className="grid gap-2 py-2.5 @min-[480px]/projects:grid-cols-[minmax(0,1fr)_160px] @min-[480px]/projects:items-center"
                 >
                   <span className={cn(
-                    "min-w-0 truncate",
-                    getUiTypographyClassName({ role: "metadata", tone: "default", weight: "medium" }),
+                    "min-w-0 wrap-anywhere",
+                    getUiTypographyClassName({ role: "supporting", tone: "default", weight: "medium" }),
                   )}>
                     {ownerUserId}
                   </span>
@@ -140,7 +134,7 @@ function ProjectCard({
                         value as ProjectAccess,
                       )}
                       options={accessOptions}
-                      size="xs"
+                      size="sm"
                       value={access}
                     />
                   ) : (
@@ -161,14 +155,15 @@ function ProjectCard({
 
         {model.canManageMembers ? (
           <form
-            className="mt-3 grid gap-2 border-t border-(--divider-subtle-color) pt-3 sm:grid-cols-[minmax(0,1fr)_auto]"
+            className="mt-3 grid gap-2 border-t border-(--divider-subtle-color) pt-3 @min-[480px]/projects:grid-cols-[minmax(0,1fr)_auto] @min-[480px]/projects:items-end"
             onSubmit={handleAddMember}
           >
-            <label className="min-w-0">
-              <span className="sr-only">
+            <label className="grid min-w-0 gap-1.5">
+              <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
                 {t("settings.projects.member_owner_id")}
               </span>
               <UiInput
+                variant="surface"
                 disabled={disabled}
                 onChange={(event) =>
                   onChangeMemberDraft(project.project_id, event.target.value)}
@@ -178,7 +173,7 @@ function ProjectCard({
             </label>
             <UiButton
               disabled={disabled || memberDraft.trim() === ""}
-              size="sm"
+              size="md"
               tone="primary"
               type="submit"
               variant="solid"
@@ -223,10 +218,19 @@ export function ProjectAdminPanel() {
 
   return (
     <>
-      <div className="grid gap-4">
-        <section className={SETTINGS_CARD_CLASS_NAME}>
+      <div className="@container/projects grid min-w-0 gap-4">
+        <WorkspaceContentHeader
+          className="mb-0 max-sm:[&_h1]:hidden"
+          title={t("settings.projects.title")}
+          description={t("settings.projects.description")}
+          actions={<UiButton disabled={refreshDisabled} onClick={() => void controller.refreshProjects()} size="sm" variant="text">
+            <RefreshCw className={viewModel.loading ? getUiSpinnerClassName({ size: "sm" }) : "h-3.5 w-3.5"} />
+            {t("settings.projects.refresh")}
+          </UiButton>}
+        />
+        <UiDisclosure label={t("settings.projects.create")} variant="panel">
           <form
-            className="grid gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end"
+            className="grid items-end gap-3 @min-[480px]/projects:grid-cols-[minmax(0,1fr)_auto]"
             onSubmit={handleCreateProject}
           >
             <label className="grid min-w-0 gap-1.5">
@@ -234,6 +238,7 @@ export function ProjectAdminPanel() {
                 {t("settings.projects.create_label")}
               </span>
               <UiInput
+                variant="surface"
                 disabled={disabled}
                 onChange={(event) => controller.setNewProjectId(event.target.value)}
                 placeholder={t("settings.projects.create_placeholder")}
@@ -242,7 +247,7 @@ export function ProjectAdminPanel() {
             </label>
             <UiButton
               disabled={disabled || viewModel.newProjectId.trim() === ""}
-              size="sm"
+              size="md"
               tone="primary"
               type="submit"
               variant="solid"
@@ -254,21 +259,8 @@ export function ProjectAdminPanel() {
               )}
               {t("settings.projects.create")}
             </UiButton>
-            <UiButton
-              disabled={refreshDisabled}
-              onClick={() => void controller.refreshProjects()}
-              size="sm"
-              variant="surface"
-            >
-              {viewModel.loading ? (
-                <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
-              ) : (
-                <RefreshCw className="h-3.5 w-3.5" />
-              )}
-              {t("settings.projects.refresh")}
-            </UiButton>
           </form>
-        </section>
+        </UiDisclosure>
 
         {viewModel.loading ? (
           <UiResourceState

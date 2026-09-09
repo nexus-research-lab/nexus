@@ -12,8 +12,7 @@ import (
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
-
-	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
+	"github.com/nexus-research-lab/nexus/internal/app"
 	agenthandler "github.com/nexus-research-lab/nexus/internal/handler/agent"
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
 	roomhandler "github.com/nexus-research-lab/nexus/internal/handler/room"
@@ -185,7 +184,7 @@ func newSubagentSecurityFixture(t *testing.T) subagentSecurityFixture {
 	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
 	db := handlertest.OpenSQLite(t, cfg.DatabaseURL)
 	t.Cleanup(func() { _ = db.Close() })
-	core := serverapp.NewCoreServicesWithDB(cfg, db)
+	core := app.NewCoreServicesWithDB(cfg, db)
 	runtimeManager := runtimectx.NewManager()
 	core.Session.SetRuntimeManager(runtimeManager)
 

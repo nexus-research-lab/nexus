@@ -98,9 +98,7 @@ func (s *Service) roomGoalCompletionReport(
 		}
 		return nil, false
 	}
-	if report == nil ||
-		protocol.NormalizeGoalStatus(report.Status) != protocol.GoalStatusComplete ||
-		(strings.TrimSpace(report.GoalID) != "" && strings.TrimSpace(report.GoalID) != goalID) {
+	if !goalsvc.IsCompletionUsageReport(report, goalID) {
 		return nil, false
 	}
 	return report, true

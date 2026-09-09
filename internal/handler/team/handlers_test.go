@@ -22,8 +22,9 @@ import (
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	relaycontract "github.com/nexus-research-lab/nexus/internal/relay"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
-	relaysvc "github.com/nexus-research-lab/nexus/internal/service/relay"
+	teamsvc "github.com/nexus-research-lab/nexus/internal/service/team"
 )
 
 type teamTokenStub struct {
@@ -44,62 +45,76 @@ func (stub *teamTokenStub) ExchangeRelayUserToken(
 
 type teamRelayStub struct {
 	err               error
-	bootstrap         relaysvc.Bootstrap
-	commit            relaysvc.MessageCommit
-	snapshot          relaysvc.Snapshot
-	difference        relaysvc.Difference
+	rooms             relaycontract.RoomList
+	room              relaycontract.RoomView
+	commit            relaycontract.MessageCommit
+	snapshot          relaycontract.Snapshot
+	difference        relaycontract.Difference
 	tokens            []string
 	conversationID    string
 	idempotencyKey    string
-	messageInput      relaysvc.CreateMessageInput
-	snapshotOptions   relaysvc.SnapshotOptions
+	messageInput      relaycontract.CreateMessageInput
+	snapshotOptions   relaycontract.SnapshotOptions
 	streamID          string
-	differenceOptions relaysvc.DifferenceOptions
-	bootstrapCalls    int
+	differenceOptions relaycontract.DifferenceOptions
+	listRoomsCalls    int
+	createRoomCalls   int
 	messageCalls      int
 	snapshotCalls     int
 	differenceCalls   int
 	watchCalls        int
 	watchStreamEpoch  string
-	watchUpdate       relaysvc.StreamUpdated
+	watchUpdate       relaycontract.StreamUpdated
 	watchErr          error
 }
 
 type teamProjectorStub struct {
 	err             error
-	bootstrapCalls  int
+	roomCalls       int
 	commitCalls     int
 	snapshotCalls   int
 	differenceCalls int
 }
 
-func (stub *teamProjectorStub) ProjectBootstrap(context.Context, string, relaysvc.Bootstrap) error {
-	stub.bootstrapCalls++
+func (stub *teamProjectorStub) ProjectRoom(context.Context, string, string, relaycontract.RoomView) error {
+	stub.roomCalls++
 	return stub.err
 }
 
-func (stub *teamProjectorStub) ProjectCommit(context.Context, string, relaysvc.MessageCommit) error {
+func (stub *teamProjectorStub) ProjectCommit(context.Context, string, relaycontract.MessageCommit) error {
 	stub.commitCalls++
 	return stub.err
 }
 
-func (stub *teamProjectorStub) ProjectSnapshot(context.Context, string, relaysvc.Snapshot) error {
+func (stub *teamProjectorStub) ProjectSnapshot(context.Context, string, relaycontract.Snapshot) error {
 	stub.snapshotCalls++
 	return stub.err
 }
 
-func (stub *teamProjectorStub) ProjectDifference(context.Context, string, relaysvc.Difference) error {
+func (stub *teamProjectorStub) ProjectDifference(context.Context, string, relaycontract.Difference) error {
 	stub.differenceCalls++
 	return stub.err
 }
 
-func (stub *teamRelayStub) Bootstrap(
+func (stub *teamRelayStub) ListRooms(
 	_ context.Context,
 	token string,
-) (relaysvc.Bootstrap, error) {
-	stub.bootstrapCalls++
+) (relaycontract.RoomList, error) {
+	stub.listRoomsCalls++
 	stub.tokens = append(stub.tokens, token)
-	return stub.bootstrap, stub.err
+	return stub.rooms, stub.err
+}
+
+func (stub *teamRelayStub) CreateRoom(
+	_ context.Context,
+	token string,
+	idempotencyKey string,
+	_ relaycontract.CreateRoomInput,
+) (relaycontract.RoomView, error) {
+	stub.createRoomCalls++
+	stub.tokens = append(stub.tokens, token)
+	stub.idempotencyKey = idempotencyKey
+	return stub.room, stub.err
 }
 
 func (stub *teamRelayStub) PostMessage(
@@ -107,8 +122,8 @@ func (stub *teamRelayStub) PostMessage(
 	token string,
 	conversationID string,
 	idempotencyKey string,
-	input relaysvc.CreateMessageInput,
-) (relaysvc.MessageCommit, error) {
+	input relaycontract.CreateMessageInput,
+) (relaycontract.MessageCommit, error) {
 	stub.messageCalls++
 	stub.tokens = append(stub.tokens, token)
 	stub.conversationID = conversationID
@@ -121,8 +136,8 @@ func (stub *teamRelayStub) Snapshot(
 	_ context.Context,
 	token string,
 	conversationID string,
-	options relaysvc.SnapshotOptions,
-) (relaysvc.Snapshot, error) {
+	options relaycontract.SnapshotOptions,
+) (relaycontract.Snapshot, error) {
 	stub.snapshotCalls++
 	stub.tokens = append(stub.tokens, token)
 	stub.conversationID = conversationID
@@ -134,8 +149,8 @@ func (stub *teamRelayStub) Difference(
 	_ context.Context,
 	token string,
 	streamID string,
-	options relaysvc.DifferenceOptions,
-) (relaysvc.Difference, error) {
+	options relaycontract.DifferenceOptions,
+) (relaycontract.Difference, error) {
 	stub.differenceCalls++
 	stub.tokens = append(stub.tokens, token)
 	stub.streamID = streamID
@@ -148,7 +163,7 @@ func (stub *teamRelayStub) Watch(
 	token string,
 	streamID string,
 	streamEpoch string,
-	handle func(relaysvc.StreamUpdated) error,
+	handle func(relaycontract.StreamUpdated) error,
 ) error {
 	stub.watchCalls++
 	stub.tokens = append(stub.tokens, token)
@@ -163,7 +178,7 @@ func (stub *teamRelayStub) Watch(
 }
 
 func TestTeamStreamForwardsAuthenticatedRelayHints(t *testing.T) {
-	update := relaysvc.StreamUpdated{
+	update := relaycontract.StreamUpdated{
 		Type: "stream.updated", StreamID: "stream-1", StreamEpoch: "epoch-1", HighWaterSeq: 9,
 	}
 	tokens := &teamTokenStub{token: "fixed-relay-token"}
@@ -181,7 +196,7 @@ func TestTeamStreamForwardsAuthenticatedRelayHints(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer connection.CloseNow()
-	var got relaysvc.StreamUpdated
+	var got relaycontract.StreamUpdated
 	if err = wsjson.Read(ctx, connection, &got); err != nil {
 		t.Fatal(err)
 	}
@@ -208,7 +223,7 @@ func TestTeamStreamRejectsMissingOriginBeforeRelay(t *testing.T) {
 }
 
 func TestTeamStreamForwardsSnapshotReset(t *testing.T) {
-	relay := &teamRelayStub{watchErr: &relaysvc.RemoteError{
+	relay := &teamRelayStub{watchErr: &relaycontract.RemoteError{
 		StatusCode: http.StatusConflict,
 		Code:       "full_snapshot_required",
 	}}
@@ -243,7 +258,7 @@ func TestTeamDifferenceDoesNotHideProjectionFailure(t *testing.T) {
 		t,
 		newTeamTestRouterWithProjector(
 			&teamTokenStub{token: "token"},
-			&teamRelayStub{difference: relaysvc.Difference{StreamEpoch: "epoch-1"}},
+			&teamRelayStub{difference: relaycontract.Difference{StreamEpoch: "epoch-1"}},
 			projector,
 			teamTestPrincipal(),
 		),
@@ -261,8 +276,8 @@ func TestTeamDifferenceDoesNotHideProjectionFailure(t *testing.T) {
 
 func TestTeamMessageKeepsCommittedSuccessWhenProjectionFails(t *testing.T) {
 	projector := &teamProjectorStub{err: errors.New("local database unavailable")}
-	relay := &teamRelayStub{commit: relaysvc.MessageCommit{
-		Message:     relaysvc.Message{ID: "message-1"},
+	relay := &teamRelayStub{commit: relaycontract.MessageCommit{
+		Message:     relaycontract.Message{ID: "message-1"},
 		StreamEpoch: "epoch-1",
 	}}
 	recorder := teamRequest(
@@ -288,19 +303,13 @@ func TestTeamHandlersUseAuthenticatedPrincipalAndFixedRelayToken(t *testing.T) {
 	}
 	tokens := &teamTokenStub{token: "fixed-relay-token"}
 	relay := &teamRelayStub{
-		bootstrap: relaysvc.Bootstrap{Team: relaysvc.Team{ID: "team-1"}},
-		commit: relaysvc.MessageCommit{Message: relaysvc.Message{
-			ID: "message-1", AuthorType: relaysvc.AuthorTypeUser, ClientMessageID: "command-1",
+		commit: relaycontract.MessageCommit{Message: relaycontract.Message{
+			ID: "message-1", AuthorType: relaycontract.AuthorTypeUser, ClientMessageID: "command-1",
 		}},
-		snapshot:   relaysvc.Snapshot{SnapshotSeq: 12},
-		difference: relaysvc.Difference{NextSeq: 7},
+		snapshot:   relaycontract.Snapshot{SnapshotSeq: 12},
+		difference: relaycontract.Difference{NextSeq: 7},
 	}
 	router := newTeamTestRouter(tokens, relay, principal)
-
-	bootstrap := teamRequest(t, router, http.MethodPost, "/nexus/v1/team/bootstrap", "", true)
-	if bootstrap.Code != http.StatusOK {
-		t.Fatalf("bootstrap status=%d body=%s", bootstrap.Code, bootstrap.Body.String())
-	}
 
 	message := teamRequest(
 		t,
@@ -314,12 +323,12 @@ func TestTeamHandlersUseAuthenticatedPrincipalAndFixedRelayToken(t *testing.T) {
 		t.Fatalf("message status=%d cache=%q body=%s", message.Code, message.Header().Get("Cache-Control"), message.Body.String())
 	}
 	var messageEnvelope struct {
-		Data relaysvc.MessageCommit `json:"data"`
+		Data relaycontract.MessageCommit `json:"data"`
 	}
 	if err := json.Unmarshal(message.Body.Bytes(), &messageEnvelope); err != nil {
 		t.Fatal(err)
 	}
-	if messageEnvelope.Data.Message.AuthorType != relaysvc.AuthorTypeUser ||
+	if messageEnvelope.Data.Message.AuthorType != relaycontract.AuthorTypeUser ||
 		messageEnvelope.Data.Message.ClientMessageID != "command-1" {
 		t.Fatalf("message identity fields lost: %+v", messageEnvelope.Data.Message)
 	}
@@ -348,16 +357,16 @@ func TestTeamHandlersUseAuthenticatedPrincipalAndFixedRelayToken(t *testing.T) {
 		t.Fatalf("difference status=%d body=%s", difference.Code, difference.Body.String())
 	}
 
-	if tokens.calls != 4 || tokens.principal != principal {
+	if tokens.calls != 3 || tokens.principal != principal {
 		t.Fatalf("token exchange = calls %d principal %+v", tokens.calls, tokens.principal)
 	}
 	if !reflect.DeepEqual(relay.tokens, []string{
-		"fixed-relay-token", "fixed-relay-token", "fixed-relay-token", "fixed-relay-token",
+		"fixed-relay-token", "fixed-relay-token", "fixed-relay-token",
 	}) {
 		t.Fatalf("Relay tokens = %#v", relay.tokens)
 	}
 	if relay.conversationID != "conversation-1" || relay.idempotencyKey != "command-1" ||
-		relay.messageInput.Content.Version != relaysvc.ContentVersionV1 ||
+		relay.messageInput.Content.Version != relaycontract.ContentVersionV1 ||
 		len(relay.messageInput.Content.Blocks) != 1 ||
 		relay.messageInput.Content.Blocks[0].Text != "hello" {
 		t.Fatalf("message relay input = id %q key %q input %+v", relay.conversationID, relay.idempotencyKey, relay.messageInput)
@@ -368,10 +377,34 @@ func TestTeamHandlersUseAuthenticatedPrincipalAndFixedRelayToken(t *testing.T) {
 		relay.snapshotOptions.SnapshotSeq == nil || *relay.snapshotOptions.SnapshotSeq != 12 {
 		t.Fatalf("snapshot options = %+v", relay.snapshotOptions)
 	}
-	if relay.streamID != "stream-1" || relay.differenceOptions != (relaysvc.DifferenceOptions{
+	if relay.streamID != "stream-1" || relay.differenceOptions != (relaycontract.DifferenceOptions{
 		AfterSeq: 5, Limit: 20, StreamEpoch: "epoch-1",
 	}) {
 		t.Fatalf("difference input = stream %q options %+v", relay.streamID, relay.differenceOptions)
+	}
+}
+
+func TestTeamHandlersCreateAndListExplicitRooms(t *testing.T) {
+	view := relaycontract.RoomView{
+		Room: relaycontract.Room{ID: "room-1", TeamID: "team-1", Name: "研发群"},
+		Conversation: relaycontract.Conversation{
+			ID: "conversation-1", RoomID: "room-1", SyncStreamID: "stream-1", StreamEpoch: "epoch-1",
+		},
+		CurrentUserRole: "owner",
+	}
+	relay := &teamRelayStub{room: view, rooms: relaycontract.RoomList{Rooms: []relaycontract.RoomView{view}}}
+	projector := &teamProjectorStub{}
+	router := newTeamTestRouterWithProjector(
+		&teamTokenStub{token: "relay-token"}, relay, projector, teamTestPrincipal(),
+	)
+	created := teamRequest(
+		t, router, http.MethodPost, "/nexus/v1/team/rooms", `{"name":"研发群"}`, true,
+	)
+	listed := teamRequest(t, router, http.MethodGet, "/nexus/v1/team/rooms", "", false)
+	if created.Code != http.StatusOK || listed.Code != http.StatusOK ||
+		relay.createRoomCalls != 1 || relay.listRoomsCalls != 1 ||
+		relay.idempotencyKey != "command-1" || projector.roomCalls != 2 {
+		t.Fatalf("create=%d list=%d relay=%+v projector=%+v", created.Code, listed.Code, relay, projector)
 	}
 }
 
@@ -394,20 +427,22 @@ func TestTeamMutationsRequireStrictSameOrigin(t *testing.T) {
 			tokens := &teamTokenStub{token: "relay-token"}
 			relay := &teamRelayStub{}
 			router := newTeamTestRouter(tokens, relay, teamTestPrincipal())
-			request := httptest.NewRequest(http.MethodPost, "/nexus/v1/team/bootstrap", nil)
+			request := httptest.NewRequest(http.MethodPost, "/nexus/v1/team/rooms", strings.NewReader(`{"name":"研发群"}`))
 			if strings.Contains(test.origin, ":8443") {
 				request.Host = "example.com:8443"
 			}
 			request.Header.Set("Origin", test.origin)
 			request.Header.Set("X-Forwarded-Proto", test.forwarded)
+			request.Header.Set("Content-Type", "application/json")
+			request.Header.Set("Idempotency-Key", "command-1")
 			recorder := httptest.NewRecorder()
 			router.ServeHTTP(recorder, request)
-			if recorder.Code != test.status || tokens.calls != test.calls || relay.bootstrapCalls != test.calls {
+			if recorder.Code != test.status || tokens.calls != test.calls || relay.createRoomCalls != test.calls {
 				t.Fatalf(
 					"status=%d token calls=%d relay calls=%d body=%s",
 					recorder.Code,
 					tokens.calls,
-					relay.bootstrapCalls,
+					relay.createRoomCalls,
 					recorder.Body.String(),
 				)
 			}
@@ -421,7 +456,7 @@ func TestTeamHandlersRejectClientIdentityFields(t *testing.T) {
 		path string
 		body string
 	}{
-		{name: "bootstrap user", path: "/nexus/v1/team/bootstrap", body: `{"user_id":"forged"}`},
+		{name: "room user", path: "/nexus/v1/team/rooms", body: `{"name":"研发群","user_id":"forged"}`},
 		{
 			name: "message deployment",
 			path: "/nexus/v1/team/conversations/conversation-1/messages",
@@ -445,12 +480,12 @@ func TestTeamHandlersRejectClientIdentityFields(t *testing.T) {
 			recorder := httptest.NewRecorder()
 			router.ServeHTTP(recorder, request)
 			if recorder.Code != http.StatusBadRequest || tokens.calls != 0 ||
-				relay.bootstrapCalls != 0 || relay.messageCalls != 0 {
+				relay.createRoomCalls != 0 || relay.messageCalls != 0 {
 				t.Fatalf(
 					"status=%d token calls=%d relay calls=(%d,%d) body=%s",
 					recorder.Code,
 					tokens.calls,
-					relay.bootstrapCalls,
+					relay.createRoomCalls,
 					relay.messageCalls,
 					recorder.Body.String(),
 				)
@@ -460,10 +495,10 @@ func TestTeamHandlersRejectClientIdentityFields(t *testing.T) {
 }
 
 func TestTeamMessageAcceptsMaximumContentAfterJSONEscaping(t *testing.T) {
-	payload, err := json.Marshal(relaysvc.CreateMessageInput{Content: relaysvc.MessageContent{
-		Version: relaysvc.ContentVersionV1,
-		Blocks: []relaysvc.ContentBlock{{
-			Type: relaysvc.BlockTypeMarkdown,
+	payload, err := json.Marshal(relaycontract.CreateMessageInput{Content: relaycontract.MessageContent{
+		Version: relaycontract.ContentVersionV1,
+		Blocks: []relaycontract.ContentBlock{{
+			Type: relaycontract.BlockTypeMarkdown,
 			Text: strings.Repeat("\\", 64*1024),
 		}},
 	}})
@@ -545,56 +580,56 @@ func TestTeamHandlersMapStableRelayFailures(t *testing.T) {
 		{
 			name: "message invalid", method: http.MethodPost,
 			path:   "/nexus/v1/team/conversations/conversation-1/messages",
-			err:    &relaysvc.RemoteError{StatusCode: 400, Code: "request_invalid", Message: "secret"},
+			err:    &relaycontract.RemoteError{StatusCode: 400, Code: "request_invalid", Message: "secret"},
 			status: http.StatusBadRequest, code: "team.request_invalid",
 			category: protocol.FailureCategoryValidation, effect: protocol.FailureEffectNotApplied,
 		},
 		{
 			name: "message too large", method: http.MethodPost,
 			path:   "/nexus/v1/team/conversations/conversation-1/messages",
-			err:    &relaysvc.RemoteError{StatusCode: 413, Code: "message_too_large"},
+			err:    &relaycontract.RemoteError{StatusCode: 413, Code: "message_too_large"},
 			status: http.StatusRequestEntityTooLarge, code: "team.message_too_large",
 			category: protocol.FailureCategoryValidation, effect: protocol.FailureEffectNotApplied,
 		},
 		{
 			name: "idempotency conflict", method: http.MethodPost,
 			path:   "/nexus/v1/team/conversations/conversation-1/messages",
-			err:    &relaysvc.RemoteError{StatusCode: 409, Code: "idempotency_conflict"},
+			err:    &relaycontract.RemoteError{StatusCode: 409, Code: "idempotency_conflict"},
 			status: http.StatusConflict, code: "team.idempotency_conflict",
 			category: protocol.FailureCategoryConflict, effect: protocol.FailureEffectNotApplied,
 		},
 		{
 			name: "resource missing", method: http.MethodGet,
 			path:   "/nexus/v1/team/conversations/missing/snapshot",
-			err:    &relaysvc.RemoteError{StatusCode: 404, Code: "resource_not_found"},
+			err:    &relaycontract.RemoteError{StatusCode: 404, Code: "resource_not_found"},
 			status: http.StatusNotFound, code: "team.resource_not_found",
 			category: protocol.FailureCategoryNotFound, effect: protocol.FailureEffectNotApplicable,
 		},
 		{
 			name: "cursor ahead", method: http.MethodGet,
 			path:   "/nexus/v1/team/sync-streams/stream-1/difference",
-			err:    &relaysvc.RemoteError{StatusCode: 409, Code: "cursor_ahead"},
+			err:    &relaycontract.RemoteError{StatusCode: 409, Code: "cursor_ahead"},
 			status: http.StatusConflict, code: "team.cursor_ahead",
 			category: protocol.FailureCategoryConflict, effect: protocol.FailureEffectNotApplicable,
 		},
 		{
 			name: "snapshot required", method: http.MethodGet,
 			path:   "/nexus/v1/team/sync-streams/stream-1/difference",
-			err:    &relaysvc.RemoteError{StatusCode: 409, Code: "full_snapshot_required"},
+			err:    &relaycontract.RemoteError{StatusCode: 409, Code: "full_snapshot_required"},
 			status: http.StatusConflict, code: "team.full_snapshot_required",
 			category: protocol.FailureCategoryConflict, effect: protocol.FailureEffectNotApplicable,
 		},
 		{
 			name: "relay identity rejected", method: http.MethodPost,
 			path:   "/nexus/v1/team/conversations/conversation-1/messages",
-			err:    &relaysvc.RemoteError{StatusCode: 401, Code: "principal_invalid"},
+			err:    &relaycontract.RemoteError{StatusCode: 401, Code: "principal_invalid"},
 			status: http.StatusBadGateway, code: "team.identity_rejected",
 			category: protocol.FailureCategoryUnavailable, effect: protocol.FailureEffectNotApplied,
 		},
 		{
 			name: "relay unavailable", method: http.MethodPost,
 			path:   "/nexus/v1/team/conversations/conversation-1/messages",
-			err:    &relaysvc.RemoteError{StatusCode: 503, Code: "relay_unavailable"},
+			err:    &relaycontract.RemoteError{StatusCode: 503, Code: "relay_unavailable"},
 			status: http.StatusServiceUnavailable, code: "team.unavailable",
 			category: protocol.FailureCategoryUnavailable, effect: protocol.FailureEffectUnknown,
 		},
@@ -651,6 +686,26 @@ func TestTeamMessageIdentityExchangeFailureIsKnownNotApplied(t *testing.T) {
 	}
 }
 
+func TestTeamRoomsRejectLocalPrincipalBeforeTokenExchange(t *testing.T) {
+	tokens := &teamTokenStub{token: "must-not-be-used"}
+	relay := &teamRelayStub{}
+	recorder := teamRequest(
+		t,
+		newTeamTestRouter(tokens, relay, &authsvc.Principal{
+			UserID: authsvc.SystemUserID, AuthMethod: authsvc.AuthMethodLocal,
+		}),
+		http.MethodGet,
+		"/nexus/v1/team/rooms",
+		"",
+		false,
+	)
+	failure := decodeTeamFailure(t, recorder)
+	if recorder.Code != http.StatusForbidden || failure.Code != "team.remote_account_required" ||
+		failure.Effect != protocol.FailureEffectNotApplicable || tokens.calls != 0 || relay.listRoomsCalls != 0 {
+		t.Fatalf("status=%d failure=%+v token calls=%d relay calls=%d", recorder.Code, failure, tokens.calls, relay.listRoomsCalls)
+	}
+}
+
 func newTeamTestRouter(
 	tokens relayTokenExchanger,
 	relay relayClient,
@@ -662,11 +717,11 @@ func newTeamTestRouter(
 func newTeamTestRouterWithProjector(
 	tokens relayTokenExchanger,
 	relay relayClient,
-	projector relayProjector,
+	projector teamsvc.Projector,
 	principal *authsvc.Principal,
 ) http.Handler {
 	api := handlershared.NewAPI(slog.New(slog.NewTextHandler(io.Discard, nil)))
-	handler := New(api, tokens, relay, projector)
+	handler := New(api, tokens, teamsvc.New(relay, projector, api.BaseLogger()), relay)
 	router := chi.NewRouter()
 	router.Use(handlershared.RequestContextMiddleware(api.BaseLogger()))
 	if principal != nil {
@@ -677,7 +732,8 @@ func newTeamTestRouterWithProjector(
 			})
 		})
 	}
-	router.Post("/nexus/v1/team/bootstrap", handler.HandleBootstrap)
+	router.Get("/nexus/v1/team/rooms", handler.HandleListRooms)
+	router.Post("/nexus/v1/team/rooms", handler.HandleCreateRoom)
 	router.Post("/nexus/v1/team/conversations/{conversation_id}/messages", handler.HandlePostMessage)
 	router.Get("/nexus/v1/team/conversations/{conversation_id}/snapshot", handler.HandleSnapshot)
 	router.Get("/nexus/v1/team/sync-streams/{stream_id}/difference", handler.HandleDifference)
@@ -727,4 +783,9 @@ func decodeTeamFailure(t *testing.T, recorder *httptest.ResponseRecorder) protoc
 		t.Fatalf("decode failure: %v body=%s", err, recorder.Body.String())
 	}
 	return envelope.Data.Failure
+}
+
+type relayClient interface {
+	teamsvc.RelayClient
+	relayStream
 }

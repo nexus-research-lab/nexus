@@ -269,6 +269,14 @@ test("connector details wrap inside narrow panes and preserve named capability d
   const paneBounds = (await body.boundingBox())!;
   const actionBounds = (await connect.boundingBox())!;
   expect(actionBounds.x + actionBounds.width).toBeLessThanOrEqual(paneBounds.x + paneBounds.width + 1);
+  await expect(body.getByRole("heading", { name: copy(info, "工具", "Tools"), exact: true })).toHaveCount(0);
+  const connectionInfo = body.locator("details").filter({ hasText: copy(info, "连接信息", "Connection details") });
+  await expect(connectionInfo).not.toHaveAttribute("open");
+  await connectionInfo.locator("summary").click();
+  await expect(connectionInfo).toHaveAttribute("open", "");
+  for (const value of await connectionInfo.locator("dd").all()) {
+    expect(await value.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+  }
   const note = body.getByRole("note");
   await expect(note.getByRole("heading")).toHaveCount(1);
   await capture(note, info, "connector-preparation");
@@ -297,66 +305,48 @@ test("connector details wrap inside narrow panes and preserve named capability d
   await expect(feature).toBeFocused();
   await connect.click();
   await expect(note).toHaveCount(0);
+  await expect(body.getByRole("heading", { name: copy(info, "工具", "Tools"), exact: true })).toBeVisible();
   await expect(identity.getByRole("button", { name: copy(info, "断开连接", "Disconnect"), exact: true })).toBeVisible();
   expect(errors).toEqual([]);
 });
 
-test("Composer catalog pickers keep search focus, readable metadata and reachable selection", async ({ page }, info) => {
+test("Composer WorkGraph picker keeps search focus and reachable selection", async ({ page }, info) => {
   const { errors } = await openGallery(page, info);
   const rejected: string[] = [];
-  const loop = { id: "verify", slug: "verify", title: "Review evidence and verify the final delivery", description: "Check the complete result before starting another iteration.",
-    category: "Quality assurance", trigger_type: "manual", tags: [], compatible_agents: [], trigger_config: {}, steps: [],
-    exit_condition: { type: "manual", description: "Stop after review." }, kickoff_prompt: "Verify", install_bundle: {}, best_for_agents: [], author: "Nexus",
-    author_slug: "nexus", author_official: true, source: "builtin", guardrails: [], examples: [], copies: 0, installs: 0, views: 0,
-    featured: false, is_published: true, created_at: "" };
   const graph = { id: "review", title: "Evidence review", slash_name: "review-evidence-with-a-long-reusable-command-name", description: "Verify the full source evidence.",
     objective: "Inspect references", built_in: true, source_execution_id: "", source_session_key: "", nodes: [], dependencies: [], version: 1, created_at: "", updated_at: "" };
   await page.route("**/nexus/v1/**", (route) => {
     const request = route.request();
     const pathname = new URL(request.url()).pathname;
-    if (request.method() === "GET" && pathname.endsWith("/capability/loops")) return route.fulfill({ json: { data: [loop] } });
     if (request.method() === "GET" && pathname.endsWith("/workgraph/workflows")) return route.fulfill({ json: { data: [graph, { ...graph, id: "research", title: "Research topic", slash_name: "research" }] } });
     rejected.push(`${request.method()} ${pathname}`);
     return route.abort();
   });
   await page.setViewportSize({ ...page.viewportSize()!, height: 420 });
   await page.evaluate((locale) => localStorage.setItem("nexus-locale", locale), String(info.project.metadata.locale));
-  for (const kind of ["loop", "workgraph"] as const) {
-    await page.evaluate(async (pickerKind) => {
-      const modulePath = "/src/dev/ui-gallery/mount-composer-picker-fixture.ts";
-      const { mountComposerPickerFixture } = await import(modulePath);
-      mountComposerPickerFixture(pickerKind);
-    }, kind);
-    const dialog = page.getByRole("dialog");
-    await expectInsideViewport(page, dialog.locator(".dialog-shell"));
-    const search = dialog.getByRole("searchbox");
-    await expect(search).toBeFocused();
-    expect(await dialog.locator(".dialog-body").evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
-    if (kind === "loop") {
-      const row = dialog.getByRole("button").filter({ hasText: loop.title });
-      await expect(row).toBeVisible();
-      const metadata = row.getByText("Quality assurance · manual", { exact: true });
-      await expect(metadata).toHaveCSS("font-size", "12px");
-      await row.focus();
-      await capture(dialog.locator(".dialog-shell"), info, "composer-loop-picker");
-      await page.keyboard.press("Enter");
-      await expect(page.locator('[data-composer-picker-result="loop"]')).toHaveText("verify");
-    } else {
-      const options = dialog.getByRole("option");
-      await expect(options).toHaveCount(2);
-      await options.first().focus();
-      await page.keyboard.press("End");
-      await expect(options.last()).toBeFocused();
-      await expect(options.last()).toHaveAttribute("aria-selected", "true");
-      const use = dialog.getByRole("button", { name: copy(info, "使用这个工作图", "Use this WorkGraph"), exact: true });
-      await use.scrollIntoViewIfNeeded();
-      await expectInsideViewport(page, use);
-      await capture(dialog.locator(".dialog-shell"), info, "composer-workgraph-picker");
-      await use.click();
-      await expect(page.locator('[data-composer-picker-result="workgraph"]')).toHaveText("/research ");
-    }
-    await expect(dialog).toHaveCount(0);
-  }
+  await page.evaluate(async () => {
+    const modulePath = "/src/dev/ui-gallery/mount-composer-picker-fixture.ts";
+    const { mountComposerPickerFixture } = await import(modulePath);
+    mountComposerPickerFixture();
+  });
+  const dialog = page.getByRole("dialog");
+  await expectInsideViewport(page, dialog.locator(".dialog-shell"));
+  const search = dialog.getByRole("searchbox");
+  await expect(search).toBeFocused();
+  expect(await dialog.locator(".dialog-body").evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+  const options = dialog.getByRole("option");
+  await expect(options).toHaveCount(2);
+  await options.first().focus();
+  await page.keyboard.press("End");
+  await expect(options.last()).toBeFocused();
+  await expect(options.last()).toHaveAttribute("aria-selected", "true");
+  const use = dialog.getByRole("button", { name: copy(info, "使用这个工作图", "Use this WorkGraph"), exact: true });
+  await use.scrollIntoViewIfNeeded();
+  await expectInsideViewport(page, use);
+  await capture(dialog.locator(".dialog-shell"), info, "composer-workgraph-picker");
+  await use.click();
+  await expect(page.locator('[data-composer-picker-result="workgraph"]')).toHaveText("/research ");
+  await expect(dialog).toHaveCount(0);
   expect(rejected).toEqual([]);
   expect(errors).toEqual([]);
 });
@@ -517,6 +507,7 @@ test("setting switches retain readable wrapped text, one hit target and independ
   const settings = page.locator("[data-gallery-settings-controls]");
   const row = settings.locator("[data-gallery-settings-toggle]");
   const control = row.getByRole("switch", { name: copy(info, "自动整理记忆", "Automatic memory consolidation") });
+  await expect(row.getByRole("heading")).toHaveCSS("font-weight", "500");
   const description = row.locator("p");
   await row.scrollIntoViewIfNeeded();
   await expect(control).toHaveAccessibleDescription(await description.innerText());
@@ -1925,5 +1916,69 @@ test("Contacts directory uses one identity tree, readable metadata and independe
   await expect(fixture.getByRole("searchbox")).toHaveValue("");
   await expect(listToggle).toHaveAttribute("aria-pressed", "true");
   await expect(fixture.getByRole("heading", { name: "Writer · 写作者", exact: true })).toHaveCount(1);
+  expect(errors).toEqual([]);
+});
+
+test("Skill details align reading and configuration with concise accessible toggle rows", async ({ page }, info) => {
+  const { errors } = await openGallery(page, info, "content");
+  const detail = page.locator("[data-gallery-skill-detail]");
+  const main = detail.locator('[data-slot="capability-detail-main"]');
+  const aside = detail.locator('[data-slot="capability-detail-aside"]');
+  const identity = detail.locator('[data-slot="capability-detail-identity"]');
+  await expect(identity).not.toContainText("1.1.8");
+  const metadata = detail.getByText(/1\.1\.8/);
+  const identityBounds = (await identity.boundingBox())!;
+  const metadataBounds = (await metadata.boundingBox())!;
+  expect(metadataBounds.y).toBeGreaterThanOrEqual(identityBounds.y + identityBounds.height);
+  const metadataRow = (await metadata.locator("..").boundingBox())!;
+  expect(Math.abs(metadataRow.x - identityBounds.x)).toBeLessThanOrEqual(1);
+  await expect(aside).not.toContainText("1.1.8");
+  await expect(main.locator(".nexus-workspace-file-markdown")).toHaveCSS("font-size", "14px");
+  await expect(aside).not.toContainText(copy(info, "可独立启停", "Can be toggled independently"));
+  const switches = aside.getByRole("switch");
+  await expect(switches).toHaveCount(3);
+  await expect(switches.nth(2)).toBeDisabled();
+  await switches.nth(1).focus();
+  await page.keyboard.press("Space");
+  await expect(switches.nth(1)).toHaveAttribute("aria-checked", "true");
+  await page.keyboard.press("Space");
+  await expect(switches.nth(1)).toHaveAttribute("aria-checked", "false");
+  expect(await detail.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  const mainBounds = (await main.boundingBox())!;
+  const asideBounds = (await aside.boundingBox())!;
+  if (page.viewportSize()!.width >= 1280) {
+    expect(Math.abs(mainBounds.y - asideBounds.y)).toBeLessThanOrEqual(1);
+    const readingPanel = (await main.locator("section section").boundingBox())!;
+    const configurationPanel = (await aside.locator("section section").boundingBox())!;
+    expect(Math.abs(readingPanel.y - configurationPanel.y)).toBeLessThanOrEqual(1);
+  } else {
+    expect(asideBounds.y + asideBounds.height).toBeLessThan(mainBounds.y);
+  }
+  await capture(detail, info, "skill-detail-layout");
+  expect(errors).toEqual([]);
+});
+
+
+test("streaming Markdown catches up across concurrent streams and preserves settled blocks", async ({ page }, info) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  const { errors } = await openGallery(page, info, "content");
+  const fixture = page.locator("[data-gallery-streaming-markdown]");
+  await fixture.getByRole("button", { name: "Burst", exact: true }).click();
+  const outputs = fixture.locator("[data-stream-output]");
+  await expect(outputs.first().locator("[data-markdown-anchor]").first()).toHaveText("稳定段落 Markdown 👩🏽‍💻。");
+  const stableBlock = await outputs.first().locator("[data-markdown-anchor]").first().elementHandle();
+  await fixture.getByRole("button", { name: "Finish", exact: true }).click();
+  for (const output of await outputs.all()) {
+    await expect(output).toContainText("STREAM_DONE 👩🏽‍💻", { timeout: 2_000 });
+    await expect(output.locator("[data-markdown-anchor]")).toHaveCount(12);
+    expect(await output.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+  }
+  expect(await stableBlock?.evaluate((element) => element.isConnected)).toBe(true);
+  if (info.project.name === "light-zh-1440") await capture(fixture, info, "streaming-markdown-settled");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await fixture.getByRole("button", { name: "Reset", exact: true }).click();
+  await expect(outputs.first()).toHaveText("");
+  await fixture.getByRole("button", { name: "Finish", exact: true }).click();
+  await expect(outputs.first()).toContainText("STREAM_DONE 👩🏽‍💻");
   expect(errors).toEqual([]);
 });

@@ -17,13 +17,10 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { buildRoomAgentSessionKey } from "@/lib/conversation/session-key";
 import type { Agent } from "@/types/agent/agent";
 import type { UseAgentConversationReturn } from "@/types/agent/agent-conversation";
-import type { LoopCatalogItem } from "@/types/capability/loop";
 import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
 import type { GroupChatComposerModel } from "../view/group-chat-panel-view";
 import {
-  buildRoomLoopGoalMetadata,
-  buildRoomLoopGoalObjective,
   resolveRoomGoalCreateDisabledReason,
 } from "../../room-goal-model";
 import { projectRoomPendingInputQueueItems } from "./group-chat-panel-projection";
@@ -130,7 +127,6 @@ export function useGroupChatComposerModel({
   ]);
   const createGoal = useCallback(async (
     objective: string,
-    metadata?: Record<string, unknown>,
   ) => {
     if (!sessionKey) {
       throw new Error(t("room.goal_session_not_ready"));
@@ -139,19 +135,11 @@ export function useGroupChatComposerModel({
     const disabledReason = resolveRoomGoalCreateDisabledReason(roomMembers, leadAgentId, t);
     if (disabledReason) throw new Error(disabledReason);
     await setGoal(objective, {
-      ...(metadata ? { metadata } : {}),
       replace_existing: true,
       target_agent_ids: [leadAgentId],
       token_budget: null,
     });
   }, [goal.leadAgentId, roomMembers, sessionKey, setGoal, t]);
-  const createLoopGoal = useCallback(async (loop: LoopCatalogItem) => {
-    await createGoal(
-      buildRoomLoopGoalObjective(loop),
-      buildRoomLoopGoalMetadata(loop),
-    );
-  }, [createGoal]);
-
   return {
     commandCatalog: conversation.command_catalog,
     contextUsage: conversation.context_usage,
@@ -163,7 +151,6 @@ export function useGroupChatComposerModel({
     })),
     defaultDeliveryPolicy,
     draftScopeKey,
-    enableLoops: true,
     goalCreateDisabledReason: goal.createDisabledReason,
     goalScopeLabel: t("goal.scope_room"),
     historyScopeKey,
@@ -181,7 +168,6 @@ export function useGroupChatComposerModel({
     onCreateGoal: sessionKey
       ? (objective: string) => createGoal(objective)
       : undefined,
-    onCreateLoopGoal: sessionKey ? createLoopGoal : undefined,
     onDeleteQueuedMessage: conversation.delete_input_queue_message,
     onEnqueueMessage: conversation.enqueue_input_queue_message,
     onGuideQueuedMessage: conversation.guide_input_queue_message,

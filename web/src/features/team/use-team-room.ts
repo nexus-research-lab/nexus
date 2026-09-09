@@ -10,13 +10,13 @@ import {
 } from "react";
 
 import {
-  bootstrapTeam,
   buildTeamStreamUrl,
   getTeamDifference,
   getTeamSnapshot,
   postTeamMessage,
-  type TeamBootstrap,
+  listTeamRooms,
   type TeamMessage,
+  type TeamRoomView,
 } from "@/lib/api/conversation/team-api";
 import { ApiRequestError } from "@/lib/api/core/http-error";
 import { useWebSocket } from "@/lib/websocket/use-socket";
@@ -24,17 +24,20 @@ import {
   captureAuthOwnerScopeGeneration,
   subscribeAuthOwnerScopeGeneration,
 } from "@/shared/auth/auth-owner-generation";
+import { isRemoteAccountAuthenticated, useAuth } from "@/shared/auth/auth-context";
 
 import { parseTeamStreamEvent } from "./team-stream-event";
 
-export function useTeamRoom() {
-  const [bootstrap, setBootstrap] = useState<TeamBootstrap | null>(null);
+export function useTeamRoom(roomId: string | null) {
+  const { status } = useAuth();
+  const canUseRelay = isRemoteAccountAuthenticated(status);
+  const [room, setRoom] = useState<TeamRoomView | null>(null);
   const [messages, setMessages] = useState<TeamMessage[]>([]);
   const [error, setError] = useState<"load" | "send" | "sync" | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const retryControllerRef = useRef<AbortController | null>(null);
-  const bootstrapRef = useRef<TeamBootstrap | null>(null);
+  const roomRef = useRef<TeamRoomView | null>(null);
   const cursorRef = useRef(0);
   const messagesRef = useRef<TeamMessage[]>([]);
   const syncingRef = useRef(false);
@@ -56,7 +59,7 @@ export function useTeamRoom() {
   }, []);
 
   const loadSnapshot = useCallback(async (
-    value: TeamBootstrap,
+    value: TeamRoomView,
     signal?: AbortSignal,
   ): Promise<{ messages: TeamMessage[]; snapshotSeq: number }> => {
     let afterMessageSeq = 0;
@@ -85,20 +88,29 @@ export function useTeamRoom() {
   }, []);
 
   const reload = useCallback(async (signal?: AbortSignal) => {
+    if (!canUseRelay) {
+      return false;
+    }
     const requestID = ++reloadRequestRef.current;
-    const value = await bootstrapTeam(signal);
+    const directory = await listTeamRooms(signal);
+    const value = roomId
+      ? directory.rooms.find((candidate) => candidate.room.id === roomId)
+      : directory.rooms[0];
+    if (!value) {
+      throw new Error("Team Room 不存在");
+    }
     const snapshot = await loadSnapshot(value, signal);
     if (signal?.aborted || requestID !== reloadRequestRef.current) {
       return false;
     }
-    bootstrapRef.current = value;
+    roomRef.current = value;
     cursorRef.current = snapshot.snapshotSeq;
     pendingHighWaterRef.current = snapshot.snapshotSeq;
     replaceMessages(snapshot.messages);
-    setBootstrap(value);
+    setRoom(value);
     setError(null);
     return true;
-  }, [loadSnapshot, replaceMessages]);
+  }, [canUseRelay, loadSnapshot, replaceMessages, roomId]);
 
   const retryLoad = useCallback(async () => {
     if (retryControllerRef.current) return;
@@ -125,7 +137,7 @@ export function useTeamRoom() {
     syncingRef.current = true;
     try {
       while (cursorRef.current < pendingHighWaterRef.current) {
-        const value = bootstrapRef.current;
+        const value = roomRef.current;
         if (!value) {
           return;
         }
@@ -135,7 +147,7 @@ export function useTeamRoom() {
             cursorRef.current,
             value.conversation.stream_epoch,
           );
-          if (bootstrapRef.current !== value) {
+          if (roomRef.current !== value) {
             return;
           }
           replaceMessages([
@@ -166,13 +178,21 @@ export function useTeamRoom() {
   }, [reload, replaceMessages]);
 
   useEffect(() => {
+    if (!canUseRelay) {
+      roomRef.current = null;
+      replaceMessages([]);
+      setRoom(null);
+      setError(null);
+      setIsLoading(false);
+      return;
+    }
     const controller = new AbortController();
     recoveringRef.current = false;
-    bootstrapRef.current = null;
+    roomRef.current = null;
     cursorRef.current = 0;
     pendingHighWaterRef.current = 0;
     replaceMessages([]);
-    setBootstrap(null);
+    setRoom(null);
     setError(null);
     setIsLoading(true);
     void reload(controller.signal)
@@ -192,17 +212,17 @@ export function useTeamRoom() {
       retryControllerRef.current = null;
       reloadRequestRef.current += 1;
     };
-  }, [ownerGeneration, reload, replaceMessages]);
+  }, [canUseRelay, ownerGeneration, reload, replaceMessages]);
 
   const recoverStream = useCallback(async () => {
     if (recoveringRef.current) {
       return;
     }
     recoveringRef.current = true;
-    bootstrapRef.current = null;
+    roomRef.current = null;
     cursorRef.current = 0;
     pendingHighWaterRef.current = 0;
-    setBootstrap(null);
+    setRoom(null);
     replaceMessages([]);
     setIsLoading(true);
     try {
@@ -216,7 +236,7 @@ export function useTeamRoom() {
   }, [reload, replaceMessages]);
 
   const handleStreamMessage = useCallback((message: unknown) => {
-    const value = bootstrapRef.current;
+    const value = roomRef.current;
     const event = value ? parseTeamStreamEvent(message, value) : null;
     if (!event) {
       return;
@@ -230,23 +250,23 @@ export function useTeamRoom() {
     });
   }, [recoverStream, synchronize]);
   useWebSocket({
-    autoConnect: Boolean(bootstrap),
+    autoConnect: canUseRelay && Boolean(room),
     heartbeatInterval: 0,
     heartbeatTimeout: 0,
     onMessage: handleStreamMessage,
     reconnect: true,
-    url: bootstrap
+    url: room
       ? buildTeamStreamUrl(
-          bootstrap.conversation.sync_stream_id,
-          bootstrap.conversation.stream_epoch,
+          room.conversation.sync_stream_id,
+          room.conversation.stream_epoch,
         )
       : "",
   });
 
   const send = useCallback(async (text: string) => {
-    const value = bootstrapRef.current;
+    const value = roomRef.current;
     const normalized = text.trim();
-    if (!value || !normalized || sendingRef.current) {
+    if (!canUseRelay || !value || !normalized || sendingRef.current) {
       return false;
     }
     sendingRef.current = true;
@@ -277,9 +297,18 @@ export function useTeamRoom() {
       sendingRef.current = false;
       setIsSending(false);
     }
-  }, [replaceMessages, synchronize]);
+  }, [canUseRelay, replaceMessages, synchronize]);
 
-  return { bootstrap, error, isLoading, isSending, messages, reload, retryLoad, send };
+  return {
+    error: canUseRelay ? error : null,
+    isLoading: canUseRelay && isLoading,
+    isSending: canUseRelay && isSending,
+    messages: canUseRelay ? messages : [],
+    reload,
+    retryLoad,
+    room: canUseRelay ? room : null,
+    send,
+  };
 }
 
 function mergeTeamMessages(messages: TeamMessage[]): TeamMessage[] {

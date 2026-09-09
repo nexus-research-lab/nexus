@@ -6,7 +6,7 @@
 - `launcher-recent-entry-model.ts` 只投影 DM/Room 标签、可访问名称与截断提示，不得返回 class、style、颜色、尺寸、阴影或动画参数。
 - `launcher-recent-entry-layout.ts` 只拥有 Hero 最近入口的排列和渐入时序；按钮形状、尺寸、字阶与交互状态仍归共享 Button。
 - `launcher-recent-entry-styles.ts` 只从稳定入口键投影语义色身份点；不得把按钮底色、边框、字号或交互态带回业务配方。
-- `launcher-recent-entries.tsx` 只编排最近入口与主 Agent 交接动作；两类动作固定复用透明 `UiButton`；最近入口单独成行，交接动作居中置于下一行，DM 以彩色身份点替代机器人图标，Room 保留 `#` 语义，入口说明复用 `shared/ui/overlay/tooltip`，不得恢复原生按钮、常驻胶囊底或局部层级的 Tooltip。
+- `launcher-recent-entries.tsx` 只编排最近入口与主 Agent 交接动作；两类动作固定复用透明 `UiButton`；最多三个最近入口固定在同一行内等分宽度，长标签在列内截断，不得换行撑高 Hero，交接动作居中置于下一行，DM 以彩色身份点替代机器人图标，Room 保留 `#` 语义，入口说明复用 `shared/ui/overlay/tooltip`，不得恢复原生按钮、常驻胶囊底或局部层级的 Tooltip。
 - `use-launcher-query-input.ts` 拥有受控输入、IME、Mention 和提交交互。
 - Mention 只接收原输入 ref，定位、listbox/活动候选关联和浮层关闭由共享所有者处理；Hero 不再捕获一次性矩形或强制向下方向。
 - 输入键盘与公共 Mention 捕获都复用 `isImeKeyboardEvent`，composition、Process 和 229 不能触发选择或提交；同步受理成功才清理草稿，拒绝保留原文，外部恢复和 Mention 光标插入仍由本输入 owner 处理。

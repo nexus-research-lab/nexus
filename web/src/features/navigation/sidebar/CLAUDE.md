@@ -1,7 +1,7 @@
 # 应用宽侧栏
 
 - `sidebar-wide-panel.tsx` 只组合折叠/展开视图和唯一引导中心弹层；手机一级目录强制展开并占满可用宽度，同时把系统操作收进左侧 Dock。折叠、引导、更新和退出等 32px 圆形系统动作固定复用 `UiIconButton shape="round"`，不得各自重写 hover、active、focus 或 tooltip。
-- `use-sidebar-wide-panel-controller.ts` 独占路由、认证、通知、目录摘要与 Sidebar/Room Navigation Store 装配；固定会话点击进入 exact Conversation，拖放只重排持久偏好，X 只取消固定且复用 `UiIconButton` 的 24px 圆形动作；退出入口只在网页端已进入密码认证会话时显示，单用户免认证、访问令牌与桌面运行时均不得暴露无效退出动作；手机目录中的能力 Tab 进入 `/capability`，桌面仍直接打开默认能力页。
+- `use-sidebar-wide-panel-controller.ts` 独占路由、认证、通知、目录摘要与 Sidebar/Room Navigation Store 装配；固定会话点击进入 exact Conversation，拖放只重排持久偏好，X 只取消固定且复用 `UiIconButton` 的 24px 圆形动作；Desktop 本地主体显示远程登录，网页与 Desktop 的密码 Session 显示退出，单用户免认证与访问令牌不得暴露无效退出动作；手机目录中的能力 Tab 进入 `/capability`，桌面仍直接打开默认能力页。
 - `sidebar-wide-panel-model.ts` 纯派生主 Tab、固定会话标题/路由与标签。
 - 固定会话整块同时承担 56px Dock 布局、原生拖放源和落点几何，保留一个由该视图拥有的原生 button 例外；取消固定属于普通图标动作，必须使用 `UiIconButton`。架构门禁锁定该文件只能存在这一处原生命中区。
 - `use-sidebar-panel-resize.ts` 只管理拖拽边界，不读取 Store。

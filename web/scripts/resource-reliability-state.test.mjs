@@ -321,58 +321,19 @@ test("mutation failure projection keeps evidence and downgrades unknown effects"
   assert.equal(interrupted.category, "unavailable");
 });
 
-test("Loop picker keeps a loaded snapshot during refresh and transient failure", async () => {
-  const { projectLoopPickerContentKind } = await server.ssrLoadModule(
-    "/src/features/conversation/shared/composer/components/loop-picker/loop-picker-model.ts",
-  );
-
-  assert.equal(projectLoopPickerContentKind({
-    accessBlocked: false,
-    error: null,
-    hasSnapshot: false,
-    isLoading: true,
-    loopCount: 0,
-  }), "loading");
-  assert.equal(projectLoopPickerContentKind({
-    accessBlocked: false,
-    error: null,
-    hasSnapshot: true,
-    isLoading: true,
-    loopCount: 2,
-  }), "list");
-  assert.equal(projectLoopPickerContentKind({
-    accessBlocked: false,
-    error: new Error("refresh failed"),
-    hasSnapshot: true,
-    isLoading: false,
-    loopCount: 2,
-  }), "list");
-  assert.equal(projectLoopPickerContentKind({
-    accessBlocked: true,
-    error: new Error("forbidden"),
-    hasSnapshot: true,
-    isLoading: false,
-    loopCount: 2,
-  }), "error");
-});
-
 test("sensitive snapshots are blocked by access state and refresh stays non-destructive", async () => {
   const [
     memoryView,
     memoryDocument,
     scheduledHistory,
-    loopsDirectory,
     workGraphDirectory,
-    loopController,
     memoryDocumentResource,
     scheduledDialog,
   ] = await Promise.all([
     read("src/features/memory/agent-memory-view.tsx"),
     read("src/features/memory/document/memory-document-panel.tsx"),
     read("src/features/capability/scheduled/history/view/scheduled-task-run-history-content.tsx"),
-    read("src/features/capability/loops/loops-directory.tsx"),
     read("src/features/capability/workgraph-distillations/workgraph-distillations-directory.tsx"),
-    read("src/features/conversation/shared/composer/components/loop-picker/use-loop-picker-controller.ts"),
     read("src/features/memory/document/use-memory-document-resource.ts"),
     read("src/features/capability/scheduled/history/scheduled-task-run-history-dialog.tsx"),
   ]);
@@ -386,10 +347,7 @@ test("sensitive snapshots are blocked by access state and refresh stays non-dest
       < memoryDocument.indexOf("controller.isLoading && !controller.content"),
   );
   assert.match(scheduledHistory, /accessBlocked && failure[\s\S]*isLoading && !hasSnapshot/);
-  assert.match(loopsDirectory, /loading && !hasSnapshot/);
   assert.match(workGraphDirectory, /loading && !hasSnapshot/);
-  assert.match(loopController, /current\.scopeKey === locale[\s\S]*\.\.\.current/);
-  assert.doesNotMatch(loopController, /setResource\(INITIAL_RESOURCE\)/);
   assert.match(memoryView, /isOpen=\{!accessBlocked && deleteTarget !== null\}/);
   assert.match(workGraphDirectory, /isOpen=\{!accessBlocked && Boolean\(deleteCandidate\)\}/);
   assert.match(workGraphDirectory, /\{!accessBlocked && editingPreview \? \(/);

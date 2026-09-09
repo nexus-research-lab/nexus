@@ -22,8 +22,6 @@ export const APP_ROUTE_PATHS = {
   connectors: "/capability/connectors",
   connectorDetail: "/capability/connectors/:connectorId",
   connectorsOauthCallback: "/capability/connectors/oauth/callback",
-  loops: "/capability/loops",
-  loopDetail: "/capability/loops/:slug",
   workGraphDistillations: "/capability/workgraphs",
   workGraphDistillationDetail: "/capability/workgraphs/:distillationId",
   scheduledTasks: "/capability/scheduled-tasks",
@@ -40,7 +38,9 @@ export const AppRouteBuilders = {
   setup: () => APP_ROUTE_PATHS.setup,
   launcher: () => APP_ROUTE_PATHS.launcher,
   home: () => APP_ROUTE_PATHS.home,
-  team: () => APP_ROUTE_PATHS.team,
+  team: (roomId?: string) => roomId
+    ? `${APP_ROUTE_PATHS.team}?room_id=${encodeURIComponent(roomId)}`
+    : APP_ROUTE_PATHS.team,
   room: (roomId: string) => `/rooms/${encodeURIComponent(roomId)}`,
   roomSession: (roomId: string, sessionKey: string) =>
     `/rooms/${encodeURIComponent(roomId)}/sessions/${encodeURIComponent(sessionKey)}`,
@@ -62,8 +62,6 @@ export const AppRouteBuilders = {
   connectors: () => APP_ROUTE_PATHS.connectors,
   connectorDetail: (connectorId: string) => `/capability/connectors/${encodeURIComponent(connectorId)}`,
   connectorsOauthCallback: () => APP_ROUTE_PATHS.connectorsOauthCallback,
-  loops: () => APP_ROUTE_PATHS.loops,
-  loopDetail: (slug: string) => `/capability/loops/${encodeURIComponent(slug)}`,
   workGraphDistillations: () => APP_ROUTE_PATHS.workGraphDistillations,
   workGraphDistillationDetail: (distillationId: string) => `/capability/workgraphs/${encodeURIComponent(distillationId)}`,
   scheduledTasks: () => APP_ROUTE_PATHS.scheduledTasks,

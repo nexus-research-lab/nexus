@@ -125,8 +125,6 @@ const (
 	GoalMetadataRoomGoalCreatorAgentID = "room_goal_creator_agent_id"
 	GoalMetadataRoomGoalLeadAgentID    = "room_goal_lead_agent_id"
 	GoalMetadataRoomGoalLeadAgentName  = "room_goal_lead_agent_name"
-	GoalMetadataRoomGoalLoopSlug       = "room_goal_loop_slug"
-	GoalMetadataRoomGoalLoopTitle      = "room_goal_loop_title"
 	// GoalMetadataRoomGoalCollaborationRequired is retained for historical
 	// decoding only. New code neither writes nor treats it as a completion gate.
 	GoalMetadataRoomGoalCollaborationRequired = "room_goal_collaboration_required"

@@ -6,18 +6,18 @@ package server
 import (
 	"context"
 
+	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	handlerwebsocket "github.com/nexus-research-lab/nexus/internal/handler/websocket"
 	runtimeprovider "github.com/nexus-research-lab/nexus/internal/runtime/provider"
 	runtimeselectionsvc "github.com/nexus-research-lab/nexus/internal/service/runtimeselection"
-
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 )
 
 func newWebSocketHandler(
 	api *handlershared.API,
-	services *AppServices,
+	services *app.AppServices,
 	cfg config.Config,
 ) *handlerwebsocket.Handler {
 	handler := handlerwebsocket.NewHandler(
@@ -51,7 +51,7 @@ func newWebSocketHandler(
 }
 
 func newRuntimeKindResolver(
-	services *AppServices,
+	services *app.AppServices,
 ) func(context.Context, string) (agentclient.RuntimeKind, error) {
 	return func(ctx context.Context, agentID string) (agentclient.RuntimeKind, error) {
 		if services == nil || services.Core == nil || services.Core.Agent == nil {
@@ -74,7 +74,7 @@ func newRuntimeKindResolver(
 	}
 }
 
-func newRuntimeSnapshotProvider(services *AppServices) func(string) handlerwebsocket.RuntimeSnapshot {
+func newRuntimeSnapshotProvider(services *app.AppServices) func(string) handlerwebsocket.RuntimeSnapshot {
 	return func(agentID string) handlerwebsocket.RuntimeSnapshot {
 		runningCount := services.Runtime.CountRunningRounds(agentID)
 		if services.RoomRealtime != nil {

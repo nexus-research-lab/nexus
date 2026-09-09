@@ -6,6 +6,7 @@ package server
 import (
 	"context"
 
+	"github.com/nexus-research-lab/nexus/internal/app"
 	agenthandler "github.com/nexus-research-lab/nexus/internal/handler/agent"
 	authhandler "github.com/nexus-research-lab/nexus/internal/handler/auth"
 	automationhandler "github.com/nexus-research-lab/nexus/internal/handler/automation"
@@ -18,7 +19,6 @@ import (
 	executionhandler "github.com/nexus-research-lab/nexus/internal/handler/execution"
 	goalhandler "github.com/nexus-research-lab/nexus/internal/handler/goal"
 	launcherhandler "github.com/nexus-research-lab/nexus/internal/handler/launcher"
-	loophandler "github.com/nexus-research-lab/nexus/internal/handler/loop"
 	projectpermissionhandler "github.com/nexus-research-lab/nexus/internal/handler/projectpermission"
 	providerhandler "github.com/nexus-research-lab/nexus/internal/handler/provider"
 	roomhandler "github.com/nexus-research-lab/nexus/internal/handler/room"
@@ -29,6 +29,7 @@ import (
 	handlerwebsocket "github.com/nexus-research-lab/nexus/internal/handler/websocket"
 	workspacehandler "github.com/nexus-research-lab/nexus/internal/handler/workspace"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
+	teamsvc "github.com/nexus-research-lab/nexus/internal/service/team"
 )
 
 type handlerSet struct {
@@ -47,7 +48,6 @@ type handlerSet struct {
 	execution    *executionhandler.Handlers
 	echo         *echohandler.Handlers
 	launcher     *launcherhandler.Handlers
-	loop         *loophandler.Handlers
 	workspace    *workspacehandler.Handlers
 	project      *projectpermissionhandler.Handlers
 	team         *teamhandler.Handlers
@@ -57,7 +57,7 @@ type handlerSet struct {
 
 func newHandlerSet(
 	api *handlershared.API,
-	services *AppServices,
+	services *app.AppServices,
 	websocketHandler *handlerwebsocket.Handler,
 ) handlerSet {
 	core := corehandler.New(
@@ -67,6 +67,7 @@ func newHandlerSet(
 		services.Preferences,
 	)
 	core.SetRuntimeManager(services.Runtime)
+	core.SetProjectPermissions(services.ProjectPermission)
 	if services.WorkGraphWorkflow != nil {
 		services.WorkGraphWorkflow.SetChangeNotifier(func(
 			ctx context.Context,
@@ -113,7 +114,6 @@ func newHandlerSet(
 		execution:    executionhandler.New(api, services.Orchestration, services.WorkGraphWorkflow),
 		echo:         echohandler.New(api, services.Echo),
 		launcher:     launcherhandler.New(api, services.Launcher),
-		loop:         loophandler.New(api, services.Loops),
 		workspace:    workspacehandler.New(api, services.Workspace),
 		project:      projectpermissionhandler.New(api, services.ProjectPermission),
 		team:         newTeamHandler(api, services),
@@ -122,7 +122,7 @@ func newHandlerSet(
 	}
 }
 
-func newTeamHandler(api *handlershared.API, services *AppServices) *teamhandler.Handlers {
+func newTeamHandler(api *handlershared.API, services *app.AppServices) *teamhandler.Handlers {
 	if services == nil || services.Relay == nil {
 		return nil
 	}
@@ -130,5 +130,5 @@ func newTeamHandler(api *handlershared.API, services *AppServices) *teamhandler.
 	if !ok {
 		return nil
 	}
-	return teamhandler.New(api, control, services.Relay, services.TeamRelay)
+	return teamhandler.New(api, control, teamsvc.New(services.Relay, services.TeamRelay, api.BaseLogger()), services.Relay)
 }

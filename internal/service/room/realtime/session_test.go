@@ -8,16 +8,15 @@ import (
 	"testing"
 	"time"
 
-	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
-	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
-	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
-	realtimesvc "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
-
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
+	"github.com/nexus-research-lab/nexus/internal/app"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	realtimesvc "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 	_ "modernc.org/sqlite"
 )
 
@@ -29,7 +28,7 @@ func TestRealtimeServiceMCPBuilderUsesSharedRoomSessionContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
@@ -156,7 +155,7 @@ func TestRealtimeServiceUsesAndPersistsRoomSDKSessionID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
@@ -278,7 +277,7 @@ func TestRealtimeServiceForksLegacyRoomSessionForConnectorToolSurface(t *testing
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 	agentValue := createTestAgent(t, agentService, ctx, "飞书助手")
 	agentOptions := agentValue.Options
@@ -413,7 +412,7 @@ func TestRealtimeServiceSkipsRoomSDKSessionIDWhenTranscriptMissing(t *testing.T)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
@@ -527,7 +526,7 @@ func TestRealtimeServiceDoesNotPersistRoomSDKSessionIDWithoutTranscript(t *testi
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
@@ -635,7 +634,7 @@ func testRealtimeServiceRetriesRoomRuntimeWithoutStaleSDKSessionID(t *testing.T,
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}

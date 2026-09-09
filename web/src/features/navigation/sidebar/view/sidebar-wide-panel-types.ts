@@ -25,6 +25,7 @@ export interface SidebarUtilityLabels {
   collapse: string;
   expand: string;
   guide: string;
+  login: string;
   logout: string;
   settings: string;
 }

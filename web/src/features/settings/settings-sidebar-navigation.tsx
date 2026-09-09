@@ -9,6 +9,9 @@ import {
   ArrowLeft,
   Search,
   Cable,
+  UsersRound,
+  CreditCard,
+  ListChecks,
   Chrome,
   Cpu,
   FolderKanban,
@@ -23,6 +26,7 @@ import { UiSearchInput } from "@/shared/ui/form/form-control";
 import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 
 import { isDesktopRuntime } from "@/config/desktop-runtime";
+import { useProjectPermissionsEnabled } from "@/hooks/settings/use-project-permissions-enabled";
 import { useAuth } from "@/shared/auth/auth-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -30,6 +34,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { canUseOperations } from "./operations/operations-access";
 import {
   SETTINGS_NAVIGATION_GROUPS,
+  isOperationsSection,
   type SettingsSectionKey,
 } from "./settings-navigation-model";
 import {
@@ -43,7 +48,11 @@ const SETTINGS_SECTION_ICONS: Record<SettingsSectionKey, LucideIcon> = {
   appearance: Palette,
   general: Settings2,
   runtime: Cpu,
-  operations: ShieldCheck,
+  "operations-members": UsersRound,
+  "operations-subscriptions": CreditCard,
+  "operations-plans": ListChecks,
+  "operations-providers": Cable,
+  "operations-projects": FolderKanban,
   permissions: ShieldCheck,
 	browser: Chrome,
   personal: UserRound,
@@ -53,13 +62,20 @@ const SETTINGS_SECTION_ICONS: Record<SettingsSectionKey, LucideIcon> = {
 
 export function SettingsSidebarNavigation({
   variant,
+  onNavigate,
 }: {
   variant: "panel" | "rail";
+  onNavigate?: () => void;
 }) {
   const { t } = useI18n();
   const { status } = useAuth();
-  const { activeSection, backToWorkspace, selectSection } =
+  const projectPermissionsEnabled = useProjectPermissionsEnabled();
+  const { activeSection, backToWorkspace, selectSection: navigateToSection } =
     useSettingsNavigation();
+  const selectSection = (...args: Parameters<typeof navigateToSection>) => {
+    navigateToSection(...args);
+    onNavigate?.();
+  };
   const isRail = variant === "rail";
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -74,9 +90,10 @@ export function SettingsSidebarNavigation({
     items: group.items.filter(
       (item) =>
         (matcher.matches([t(item.labelKey), t(group.labelKey)]) || searchItems(item.key).length > 0) &&
+        (item.key !== "operations-projects" || projectPermissionsEnabled) &&
         (item.key !== "workspace" || isDesktopRuntime()) &&
 				(item.key !== "browser" || isDesktopRuntime()) &&
-        (item.key !== "operations" ||
+        (!isOperationsSection(item.key) ||
           (!isDesktopRuntime() && canUseOperations(status?.role))),
     ),
   })).filter((group) => group.items.length > 0);
@@ -175,7 +192,7 @@ export function SettingsSidebarNavigation({
                   {searchItems(item.key).map((fields) => (
                     <SettingsNavigationButton
                       key={fields[0]}
-                      className="pl-7 font-normal"
+                      className="pl-7"
                       onClick={() => selectSection(item.key, fields[0])}
                     >
                       <span className="text-left whitespace-normal">{t(fields[0])}</span>

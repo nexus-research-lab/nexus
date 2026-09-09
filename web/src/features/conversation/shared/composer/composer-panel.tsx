@@ -19,7 +19,6 @@ import { ComposerSessionSettingsReliability } from "./components/footer/composer
 import { ComposerInputRow } from "./components/composer-input-row";
 import { ComposerLocalDirectories } from "./components/composer-local-directories";
 import { ComposerPendingQueue } from "./components/pending-queue/composer-pending-queue";
-import { LoopPickerDialog } from "./components/loop-picker/loop-picker-dialog";
 import { WorkGraphDistillationPickerDialog } from "./components/workgraph-distillation-picker/workgraph-distillation-picker-dialog";
 import {
   MAX_COMPOSER_INPUT_LENGTH,
@@ -71,13 +70,6 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
           multiple
           onChange={attachments.handleFileSelect}
           type="file"
-        />
-      ) : null}
-      {state.canUseLoop && !props.interactionSurface ? (
-        <LoopPickerDialog
-          isOpen={state.isLoopPickerOpen}
-          onClose={() => actions.setIsLoopPickerOpen(false)}
-          onSelect={actions.handleLoopSelect}
         />
       ) : null}
       {props.workGraphSessionKey && !props.interactionSurface ? (
@@ -188,7 +180,6 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
                 actionButtonRef={refs.actionButtonRef}
                 activeError={state.activeError}
                 canCreateGoal={state.canCreateGoal}
-                canUseLoop={state.canUseLoop}
                 canUseWorkGraphDistillations={Boolean(props.workGraphSessionKey)}
                 charCount={state.charCount}
                 contextUsage={props.contextUsage}
@@ -213,7 +204,6 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
                 onAttachmentSelect={actions.openAttachmentPicker}
                 onCancelGoal={actions.cancelGoalInput}
                 onGoalToggle={actions.toggleGoalInput}
-                onLoopSelect={actions.openLoopPicker}
                 onWorkGraphDistillationsSelect={() => {
                   actions.setIsActionMenuOpen(false);
                   setWorkGraphPickerOpen(true);

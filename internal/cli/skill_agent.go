@@ -5,9 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/spf13/cobra"
-
-	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
 )
 
 func addSkillAgentCommands(parent *cobra.Command, services *cliServiceProvider) {
@@ -98,7 +97,7 @@ func newSkillUninstallCommand(services *cliServiceProvider) *cobra.Command {
 
 func resolveSkillInstallAgentID(
 	cmd *cobra.Command,
-	appServices *serverapp.AppServices,
+	appServices *app.AppServices,
 	agentID string,
 ) (string, error) {
 	if trimmed := strings.TrimSpace(agentID); trimmed != "" {
@@ -112,7 +111,7 @@ func resolveSkillInstallAgentID(
 
 func inferCLIWorkspaceAgentID(
 	cmd *cobra.Command,
-	appServices *serverapp.AppServices,
+	appServices *app.AppServices,
 ) string {
 	if appServices == nil || appServices.Core == nil || appServices.Core.Agent == nil {
 		return ""

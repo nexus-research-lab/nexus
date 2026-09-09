@@ -90,6 +90,10 @@ describe("Connector detail surfaces", () => {
     const note = screen.getByRole("note");
     expect(within(note).getAllByRole("heading")).toHaveLength(1);
     expect(within(note).getByText("设置 → Rwork → 智能体与能力 → 对外 MCP 服务")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: locale === "zh" ? "工具" : "Tools" })).toBeNull();
+    const connectionInfo = screen.getByText(locale === "zh" ? "连接信息" : "Connection details").closest("summary")!;
+    expect(connectionInfo.parentElement?.hasAttribute("open")).toBe(false);
+    await user.click(connectionInfo);
     expect(screen.getByText(DETAIL.mcp_server_url!)).toBeTruthy();
     const docs = screen.getByRole("link", { name: locale === "zh" ? "查看文档" : "Documentation" });
     expect(docs.getAttribute("href")).toBe(DETAIL.docs_url);

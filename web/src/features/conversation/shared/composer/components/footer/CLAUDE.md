@@ -5,7 +5,7 @@ L6 | 父级: web/src/features/conversation/shared/composer/components
 ## 职责
 
 - `composer-footer.tsx`: 以输入壳命名容器装配动作、Session 设置、Goal 标记、状态、元数据和提交动作，并在中心显示可按容器宽度收敛的 随当前内核切换的 `Powered by Nexus` / `Powered by Claude`
-- `composer-footer-actions.tsx`: 构造附件、本机文件夹、Goal/Loop 动作菜单、当前 Session Connector 显式开关并按动作表分派命令
+- `composer-footer-actions.tsx`: 构造附件、本机文件夹、Goal 动作菜单、当前 Session Connector 显式开关并按动作表分派命令
 - `composer-session-controls.tsx`: 为 DM 装配直接模型/权限菜单，为 Room 装配统一权限与右侧模型入口；领先权限入口共用一条装配分支。直接菜单按 target.sessionKey 重置，busy/disabled 关闭后不得自动恢复。DM 选择继承权限写空 override，Room 仍显式写所选模式。
 - `composer-room-model-control.tsx`: 复用公共锚定浮层、菜单键盘和 Action Menu 内容，按 Room Agent 级联其当前 Session 模型；定位完成才给 Agent 菜单初始焦点，点击/右方向键进入模型，左方向键或首个 Escape 返回原 Agent，第二次 Escape 才退出。悬浮只更新级联目标，不抢焦点；选择和 Tab 退出归还入口。行高估算共用 getMenuItemLayout，领域只拥有菜单宽度与级联结构。
 - `composer-session-control-layout.ts` 统一 DM/Room 模型的 256px 内容宽度、Room 返回栏 recipe 和可见面板总高。双栏是否可用由两列内容、公共间距和视口留白组成的媒体查询决定，订阅使用公共 useMediaQuery；定位/限宽继续交给 Overlay，单栏 Panel 填满约束后的宽度。宽窄两种布局只渲染同一份 RoomModelOptions，保留真实列表 DOM、焦点和滚动；返回栏计入整体限高，正文独立滚动，不让两套选项 JSX 漂移。

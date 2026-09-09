@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	teamhandler "github.com/nexus-research-lab/nexus/internal/handler/team"
@@ -31,7 +32,7 @@ func TestMountTeamRoutesRequiresRelayURL(t *testing.T) {
 	disabledResponse := httptest.NewRecorder()
 	disabled.router.ServeHTTP(
 		disabledResponse,
-		httptest.NewRequest(http.MethodPost, "/nexus/v1/team/bootstrap", nil),
+		httptest.NewRequest(http.MethodPost, "/nexus/v1/team/rooms", nil),
 	)
 	if disabledResponse.Code != http.StatusNotFound {
 		t.Fatalf("disabled Team route status=%d body=%s", disabledResponse.Code, disabledResponse.Body.String())
@@ -49,7 +50,7 @@ func TestMountTeamRoutesRequiresRelayURL(t *testing.T) {
 	enabledResponse := httptest.NewRecorder()
 	enabled.router.ServeHTTP(
 		enabledResponse,
-		httptest.NewRequest(http.MethodPost, "/nexus/v1/team/bootstrap", nil),
+		httptest.NewRequest(http.MethodPost, "/nexus/v1/team/rooms", nil),
 	)
 	if enabledResponse.Code != http.StatusForbidden {
 		t.Fatalf("enabled Team route status=%d body=%s", enabledResponse.Code, enabledResponse.Body.String())
@@ -62,7 +63,7 @@ func TestNewTeamHandlerRequiresControlAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	services := &AppServices{
+	services := &app.AppServices{
 		Auth:  authsvc.NewLocalAuthority("", nil, nil),
 		Relay: client,
 	}

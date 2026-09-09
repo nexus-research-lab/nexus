@@ -16,24 +16,17 @@ import (
 
 const relayUserPrincipalAudience = "nexus-relay-user"
 
-// ExchangeRelayUserToken 用当前已验证的密码 Session 换取 Relay 短令牌。
+// ExchangeRelayUserToken 用当前已验证的 Control 远程 Session 换取 Relay 短令牌。
 // audience 固定在 Nexus 内部，调用方不能改写 Relay 令牌用途。
 func (a *ControlAuthority) ExchangeRelayUserToken(
 	ctx context.Context,
 	principal *Principal,
 ) (string, error) {
-	if principal == nil || strings.TrimSpace(principal.AuthMethod) != AuthMethodPassword {
-		return "", errors.New("Relay 令牌必须来自已验证的密码 Session")
+	if !IsRelayUserPrincipal(principal) {
+		return "", errors.New("Relay 令牌必须来自已验证的 Control 远程 Session")
 	}
 	controlUserID := strings.TrimSpace(principal.ControlUserID)
-	deploymentID := strings.TrimSpace(principal.DeploymentID)
-	sessionID := ""
-	if principal.SessionID != nil {
-		sessionID = strings.TrimSpace(*principal.SessionID)
-	}
-	if controlUserID == "" || deploymentID == "" || sessionID == "" {
-		return "", errors.New("Relay 令牌缺少 Control 用户、Deployment 或 Session 身份")
-	}
+	sessionID := strings.TrimSpace(*principal.SessionID)
 
 	var response struct {
 		PrincipalToken string `json:"principal_token"`

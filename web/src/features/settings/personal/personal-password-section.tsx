@@ -3,7 +3,7 @@
  * OUTPUT: 可修改时显示表单；不可修改时只显示原因，不渲染禁用字段。
  * POS: 个人设置的密码区，不能提供的动作不得伪装成可配置表单。
  */
-import { Loader2, LockKeyhole } from "lucide-react";
+import { ChevronDown, Loader2 } from "lucide-react";
 import type { FormEvent } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -79,17 +79,20 @@ export function PersonalPasswordSection({
   }
 
   return (
-    <section className={SETTINGS_CARD_CLASS_NAME}>
-      <form className="grid gap-3 px-3 py-3" onSubmit={handleSubmit}>
-        <PasswordSectionHeader canChange={canChange} />
+    <details className={cn(SETTINGS_CARD_CLASS_NAME, "group")}>
+      <summary className="ui-type-section-title flex cursor-pointer list-none items-center justify-between px-4 py-3 text-(--text-strong) focus-visible:outline-2 focus-visible:outline-(--ring) [&::-webkit-details-marker]:hidden">
+        {t("settings.personal.password_title")}
+        <ChevronDown aria-hidden="true" className="h-4 w-4 text-(--text-muted) transition-transform group-open:rotate-180" />
+      </summary>
+      <form className="grid gap-4 border-t border-(--divider-subtle-color) p-4" onSubmit={handleSubmit}>
 
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3">
           {PASSWORD_INPUTS.map((input) => (
-            <label className="space-y-1.5" key={input.field}>
+            <label className="grid items-center gap-2 sm:grid-cols-[1fr_minmax(0,20rem)]" key={input.field}>
               <span className={getUiTypographyClassName({
-                role: "caption",
-                tone: "muted",
-                weight: "semibold",
+                role: "supporting",
+                tone: "default",
+                weight: "regular",
               })}>
                 {t(input.labelKey)}
               </span>
@@ -112,7 +115,7 @@ export function PersonalPasswordSection({
           validationError={validationError}
         />
       </form>
-    </section>
+    </details>
   );
 }
 
@@ -120,9 +123,6 @@ function PasswordSectionHeader({ canChange }: { canChange: boolean }) {
   const { t } = useI18n();
   return (
     <div className="flex items-center gap-3">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center radius-control-lg bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
-        <LockKeyhole className="h-3.5 w-3.5" />
-      </div>
       <div className="min-w-0">
         <h3 className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong" })}>
           {t("settings.personal.password_title")}
@@ -174,16 +174,6 @@ function PasswordSubmitActions({
         >
           {helperText}
         </p>
-        {showValidation ? (
-          <>
-            <p className={getUiTypographyClassName({ role: "caption", tone: "muted" })}>
-              {t("state.validation_failure_impact")}
-            </p>
-            <p className={getUiTypographyClassName({ role: "caption", tone: "default" })}>
-              {t("state.validation_failure_next_step")}
-            </p>
-          </>
-        ) : null}
       </div>
       <UiButton
         className="min-w-28"

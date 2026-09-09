@@ -46,3 +46,5 @@ Action Menu 可传入非交互 header 作为身份说明，位于动作区上方
 - 单选与多选共用触发器不提供内部类别前缀或分隔线 API；需要字段说明时使用外部 Field 标签与关联，不能在当前选值前重复绘制字段名。
 
 单选触发器的 `plain` 表面用于已有字段分隔的行内选择：透明、无边框，仍由公共 owner 提供 hover、focus 与 disabled 状态；消费者不得用后代选择器覆盖触发器内部样式。
+
+SelectMenu 外层允许收缩到所属 Grid/Flex 字段宽度；长选项在触发器内部截断，不能以 intrinsic min-width 覆盖相邻只读数据或动作。

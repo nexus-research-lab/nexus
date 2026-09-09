@@ -8,9 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nexus-research-lab/nexus/internal/protocol"
-
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
+	messageutil "github.com/nexus-research-lab/nexus/internal/message"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 )
 
 const (
@@ -18,16 +19,6 @@ const (
 	subagentParentTerminalFailed      = "failed"
 	subagentParentTerminalInterrupted = "interrupted"
 )
-
-// dmSubagentUsageObservation 是尚未确认持久化的 child checkpoint 与 lifecycle
-// evidence。状态单调推进且 observation time 在 retry 间保持不变，避免旧请求
-// 成功返回后误清除更新的 terminal 状态，或越过 external from-now 边界。
-type dmSubagentUsageObservation struct {
-	cumulativeTotal            int64
-	terminal                   bool
-	terminalTokenUsageObserved bool
-	observedAt                 time.Time
-}
 
 func (r *roundRunner) startIdleSubagentNotificationDrain() {
 	if r == nil || r.service == nil || r.service.runtime == nil || !r.service.runtime.HasSubagentHistory(r.sessionKey) {
@@ -37,7 +28,7 @@ func (r *roundRunner) startIdleSubagentNotificationDrain() {
 }
 
 func (r *roundRunner) handleIdleSubagentMessage(ctx context.Context, incoming sdkprotocol.ReceivedMessage) bool {
-	r.service.observeExecutionRuntimeGraph(r.orchestrationActor(), incoming)
+	r.service.executionObserver().ObserveMessage(r.orchestrationActor(), incoming)
 	events, durableMessages, _, _, err := r.mapper.Map(incoming)
 	if err != nil {
 		r.service.loggerFor(ctx).Warn("处理 DM idle subagent 通知失败",
@@ -98,7 +89,7 @@ func (r *roundRunner) rememberSubagentTaskMessage(message protocol.Message) {
 	}
 	subtype := strings.TrimSpace(dmAnyString(metadata["subtype"]))
 	status := strings.TrimSpace(dmAnyString(metadata["status"]))
-	if !dmMetadataLooksLikeSubagentTask(metadata) && !r.knowsSubagentTask(taskID) {
+	if !messageutil.IsSubagentTaskMetadata(metadata) && !r.knowsSubagentTask(taskID) {
 		return
 	}
 	r.goalUsageMu.Lock()
@@ -107,13 +98,13 @@ func (r *roundRunner) rememberSubagentTaskMessage(message protocol.Message) {
 	}
 	switch subtype {
 	case "task_started", "task_progress", "task_updated":
-		if dmIsTerminalSubagentTaskStatus(status) {
+		if messageutil.IsTerminalSubagentTaskStatus(status) {
 			delete(r.subagentTasks, taskID)
 			break
 		}
 		r.subagentTasks[taskID] = struct{}{}
 	case "task_notification":
-		if dmIsTerminalSubagentTaskStatus(status) {
+		if messageutil.IsTerminalSubagentTaskStatus(status) {
 			delete(r.subagentTasks, taskID)
 		}
 	}
@@ -150,15 +141,15 @@ func (r *roundRunner) hasRunningSubagentTask() bool {
 // task 最新的累计值。它与 runtime task 生命周期分开，防止终态消息先移除
 // task、后写 checkpoint 时被并发 finalization 穿透。
 func (r *roundRunner) markSubagentUsagePending(taskID string, totalTokens int64) {
-	r.markSubagentUsageObservationPending(taskID, dmSubagentUsageObservation{
-		cumulativeTotal: totalTokens,
-		observedAt:      time.Now().UTC(),
+	r.markSubagentUsageObservationPending(taskID, goalsvc.SubagentUsageObservation{
+		CumulativeTotal: totalTokens,
+		ObservedAt:      time.Now().UTC(),
 	})
 }
 
 func (r *roundRunner) markSubagentUsageObservationPending(
 	taskID string,
-	observation dmSubagentUsageObservation,
+	observation goalsvc.SubagentUsageObservation,
 ) {
 	if r == nil || strings.TrimSpace(taskID) == "" {
 		return
@@ -170,45 +161,31 @@ func (r *roundRunner) markSubagentUsageObservationPending(
 
 func (r *roundRunner) markSubagentUsageObservationPendingLocked(
 	taskID string,
-	observation dmSubagentUsageObservation,
+	observation goalsvc.SubagentUsageObservation,
 ) {
-	if observation.observedAt.IsZero() {
-		observation.observedAt = time.Now().UTC()
+	if observation.ObservedAt.IsZero() {
+		observation.ObservedAt = time.Now().UTC()
 	}
 	if r.subagentUsagePending == nil {
-		r.subagentUsagePending = make(map[string]dmSubagentUsageObservation)
+		r.subagentUsagePending = make(map[string]goalsvc.SubagentUsageObservation)
 	}
 	taskID = strings.TrimSpace(taskID)
-	current := r.subagentUsagePending[taskID]
-	if observation.cumulativeTotal > current.cumulativeTotal {
-		current.cumulativeTotal = observation.cumulativeTotal
-		current.observedAt = observation.observedAt
-	}
-	if observation.terminal && !current.terminal {
-		current.observedAt = observation.observedAt
-	}
-	if current.observedAt.IsZero() {
-		current.observedAt = observation.observedAt
-	}
-	current.terminal = current.terminal || observation.terminal
-	current.terminalTokenUsageObserved =
-		current.terminalTokenUsageObserved || observation.terminalTokenUsageObserved
-	r.subagentUsagePending[taskID] = current
+	r.subagentUsagePending[taskID] = r.subagentUsagePending[taskID].Merge(observation)
 }
 
 // clearSubagentUsagePending 只清除不新于已落库累计值的 pending。并发中的旧
 // checkpoint 成功不能覆盖随后到达、但仍未持久化的新累计值。
 func (r *roundRunner) clearSubagentUsagePending(taskID string, settledTotalTokens int64) {
-	r.clearSubagentUsageObservationPending(taskID, dmSubagentUsageObservation{
-		cumulativeTotal:            settledTotalTokens,
-		terminal:                   true,
-		terminalTokenUsageObserved: true,
+	r.clearSubagentUsageObservationPending(taskID, goalsvc.SubagentUsageObservation{
+		CumulativeTotal:            settledTotalTokens,
+		Terminal:                   true,
+		TerminalTokenUsageObserved: true,
 	})
 }
 
 func (r *roundRunner) clearSubagentUsageObservationPending(
 	taskID string,
-	settled dmSubagentUsageObservation,
+	settled goalsvc.SubagentUsageObservation,
 ) {
 	if r == nil || strings.TrimSpace(taskID) == "" {
 		return
@@ -220,13 +197,11 @@ func (r *roundRunner) clearSubagentUsageObservationPending(
 
 func (r *roundRunner) clearSubagentUsageObservationPendingLocked(
 	taskID string,
-	settled dmSubagentUsageObservation,
+	settled goalsvc.SubagentUsageObservation,
 ) {
 	taskID = strings.TrimSpace(taskID)
 	if pending, ok := r.subagentUsagePending[taskID]; ok &&
-		pending.cumulativeTotal <= settled.cumulativeTotal &&
-		(!pending.terminal || settled.terminal) &&
-		(!pending.terminalTokenUsageObserved || settled.terminalTokenUsageObserved) {
+		pending.CoveredBy(settled) {
 		delete(r.subagentUsagePending, taskID)
 	}
 }
@@ -309,30 +284,6 @@ func (r *roundRunner) claimSubagentPostRoundDispatch() bool {
 	}
 	r.subagentPostRoundDispatched = true
 	return true
-}
-
-func dmMetadataLooksLikeSubagentTask(metadata map[string]any) bool {
-	if len(metadata) == 0 {
-		return false
-	}
-	taskType := strings.ToLower(strings.TrimSpace(dmAnyString(metadata["task_type"])))
-	if taskType == "local_shell" {
-		return false
-	}
-	if taskType != "" {
-		return taskType == "local_agent"
-	}
-	return strings.TrimSpace(dmAnyString(metadata["agent_id"])) != "" ||
-		strings.TrimSpace(dmAnyString(metadata["agent_type"])) != ""
-}
-
-func dmIsTerminalSubagentTaskStatus(status string) bool {
-	switch strings.TrimSpace(status) {
-	case "completed", "failed", "error", "stopped", "killed", "cancelled":
-		return true
-	default:
-		return false
-	}
 }
 
 func dmAnyString(value any) string {

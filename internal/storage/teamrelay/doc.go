@@ -5,7 +5,9 @@
 // 成员清单：
 //   - repository.go：deployment 共享 Conversation/Message、owner 独立 cursor 的事务投影。
 //
-// 暴露接口：Repository、NewRepository、ProjectBootstrap、ProjectCommit、ProjectSnapshot、ProjectDifference。
+// 暴露接口：Repository、NewRepository、ProjectRoom、ProjectCommit、ProjectSnapshot、ProjectDifference。
+//
+// 远端 DTO 消费 internal/relay 合同，不依赖 service/relay 客户端实现。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 doc.go
 package teamrelay

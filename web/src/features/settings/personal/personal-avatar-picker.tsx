@@ -6,6 +6,7 @@
 "use client";
 
 import { Loader2, LockKeyhole } from "lucide-react";
+import { cn } from "@/shared/ui/class-name";
 
 import {
   AGENT_ICON_ID_END,
@@ -48,6 +49,10 @@ export function PersonalAvatarPicker({
           <UiAgentAvatar
             aria-hidden="true"
             avatar={avatar}
+            className={cn(
+              "rounded-full transition-colors duration-(--motion-duration-fast)",
+              !disabled && "group-hover:border-[color:color-mix(in_srgb,var(--primary)_35%,var(--surface-avatar-border))]",
+            )}
             name={name}
             size="xl"
           />
