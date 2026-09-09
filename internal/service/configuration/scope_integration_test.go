@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
-
 	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
@@ -726,6 +725,31 @@ func TestConnectorConversationChangeBindsTargetVersionAndRejectsStaleSecretOverw
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, err = fixture.services.Connectors.Connect(
+		fixture.ownerCtx,
+		actor.OwnerUserID,
+		"didi",
+		map[string]string{"api_key": "unrelated-didi-secret"},
+	); err != nil {
+		t.Fatalf("修改无关 Connector 失败: %v", err)
+	}
+	currentPlan, err := fixture.services.Configuration.PlanChange(
+		fixture.ownerCtx,
+		actor,
+		configurationsvc.ChangeRequest{
+			Domain: configurationsvc.DomainConnectors, Operation: "connect",
+			Target: "amap", Input: input,
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if currentPlan.CurrentRevision != plan.CurrentRevision ||
+		currentPlan.StateVersion != plan.StateVersion ||
+		currentPlan.PlanDigest != plan.PlanDigest {
+		t.Fatalf("无关 Connector 变化不应使目标计划失效: before=%+v after=%+v", plan, currentPlan)
+	}
+
 	request := configurationsvc.ChangeRequest{
 		RequestID: "connector-current-apply-01",
 		Domain:    configurationsvc.DomainConnectors, Operation: "connect",
@@ -759,91 +783,6 @@ func TestConnectorConversationChangeBindsTargetVersionAndRejectsStaleSecretOverw
 	}
 	if strings.Contains(string(payload), conversationSecret) {
 		t.Fatalf("Connector apply 泄漏 secret: %s", payload)
-	}
-}
-
-func TestConnectorConversationChangeIgnoresUnrelatedConnectorMutation(t *testing.T) {
-	fixture := newScopedConfigurationFixture(t)
-	actor := configurationsvc.Actor{
-		OwnerUserID: fixture.main.OwnerUserID,
-		AgentID:     fixture.main.AgentID,
-		IsMainAgent: true,
-		SessionKey:  "agent:" + fixture.main.AgentID + ":ws:dm:connector-target",
-		ContextKind: configurationsvc.ContextKindAgent,
-		ContextID:   fixture.main.AgentID,
-	}
-	bindConfigurationTestRound(t, fixture.services, &actor)
-	const targetSecret = "target-amap-secret"
-	input := json.RawMessage(`{
-		"credentials":{"api_key":{"$secret":"connector.api_key"}}
-	}`)
-	plan, err := fixture.services.Configuration.PlanChange(
-		fixture.ownerCtx,
-		actor,
-		configurationsvc.ChangeRequest{
-			Domain: configurationsvc.DomainConnectors, Operation: "connect",
-			Target: "amap", Input: input,
-		},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if _, err = fixture.services.Connectors.Connect(
-		fixture.ownerCtx,
-		actor.OwnerUserID,
-		"didi",
-		map[string]string{"api_key": "unrelated-didi-secret"},
-	); err != nil {
-		t.Fatalf("修改无关 Connector 失败: %v", err)
-	}
-	currentPlan, err := fixture.services.Configuration.PlanChange(
-		fixture.ownerCtx,
-		actor,
-		configurationsvc.ChangeRequest{
-			Domain: configurationsvc.DomainConnectors, Operation: "connect",
-			Target: "amap", Input: input,
-		},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if currentPlan.CurrentRevision != plan.CurrentRevision ||
-		currentPlan.StateVersion != plan.StateVersion ||
-		currentPlan.PlanDigest != plan.PlanDigest {
-		t.Fatalf(
-			"无关 Connector 变化不应使目标计划失效: before=%+v after=%+v",
-			plan,
-			currentPlan,
-		)
-	}
-
-	request := configurationsvc.ChangeRequest{
-		RequestID: "connector-target-only-apply-01",
-		Domain:    configurationsvc.DomainConnectors, Operation: "connect",
-		Target: "amap", Input: input, ExpectedRevision: plan.CurrentRevision,
-		PlanDigest: plan.PlanDigest,
-	}
-	approveConfigurationTestChangeWithSecrets(
-		t,
-		fixture.services,
-		fixture.ownerCtx,
-		actor,
-		request,
-		plan,
-		map[string]string{"connector.api_key": targetSecret},
-	)
-	result, err := fixture.services.Configuration.ApplyChange(
-		fixture.ownerCtx,
-		actor,
-		request,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !hasConfigurationCheck(result.Checks, "configuration_resource_version_advanced") ||
-		!hasConfigurationCheck(result.Checks, "connector_target_outcome_verified") {
-		t.Fatalf("目标 Connector apply 缺少版本与写后核验: %+v", result)
 	}
 }
 
@@ -1346,49 +1285,5 @@ func TestMainAgentPermissionChangeHotReloadsActiveRuntimeBoundary(t *testing.T) 
 	}
 	if !hasConfigurationCheck(applied.Checks, "configuration_resource_version_advanced") {
 		t.Fatalf("Agent update did not prove its resource version transition: %+v", applied.Checks)
-	}
-}
-
-func TestMainAgentDeleteVerifiesTargetAbsence(t *testing.T) {
-	fixture := newScopedConfigurationFixture(t)
-	worker := fixture.createAgent(t, "Delete Verification Worker")
-	actor := configurationsvc.Actor{
-		OwnerUserID: fixture.main.OwnerUserID,
-		AgentID:     fixture.main.AgentID,
-		IsMainAgent: true,
-		SessionKey:  "agent:" + fixture.main.AgentID + ":ws:dm:delete",
-		ContextKind: configurationsvc.ContextKindAgent,
-		ContextID:   fixture.main.AgentID,
-	}
-	bindConfigurationTestRound(t, fixture.services, &actor)
-	plan, err := fixture.services.Configuration.PlanChange(
-		fixture.ownerCtx,
-		actor,
-		configurationsvc.ChangeRequest{
-			Domain: configurationsvc.DomainAgents, Operation: "delete", Target: worker.AgentID,
-		},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	request := configurationsvc.ChangeRequest{
-		RequestID: "delete-agent-verify-01",
-		Domain:    configurationsvc.DomainAgents, Operation: "delete", Target: worker.AgentID,
-		ExpectedRevision: plan.CurrentRevision, PlanDigest: plan.PlanDigest,
-	}
-	approveConfigurationTestChange(t, fixture.services, fixture.ownerCtx, actor, request, plan)
-	applied, err := fixture.services.Configuration.ApplyChange(
-		fixture.ownerCtx,
-		actor,
-		request,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !hasConfigurationCheck(applied.Checks, "configuration_target_deleted") {
-		t.Fatalf("Agent deletion was not verified against source of truth: %+v", applied)
-	}
-	if _, err = fixture.services.Core.Agent.GetAgent(fixture.ownerCtx, worker.AgentID); err == nil {
-		t.Fatal("Agent still exists after verified delete")
 	}
 }

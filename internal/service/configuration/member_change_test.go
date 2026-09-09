@@ -5,17 +5,18 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+
 	appruntime "github.com/nexus-research-lab/nexus/internal/app/runtime"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	configurationsvc "github.com/nexus-research-lab/nexus/internal/service/configuration"
-	"net/http"
-	"net/http/httptest"
-	"strings"
-	"testing"
-	"time"
 )
 
 type memberTestControl struct {
