@@ -1,5 +1,5 @@
 // INPUT: 单个可聚焦触发器、短标签、可选快捷键与锚定方向。
-// OUTPUT: 具延迟 hover、即时 focus、ARIA 关联与 Portal 定位且不移动焦点的共享提示。
+// OUTPUT: 具延迟 hover、即时 focus、仅关联实际可见提示的 ARIA 与 Portal 定位且不移动焦点的共享提示。
 // POS: Tooltip primitive；不承担业务点击动作或长内容 Popover。
 "use client";
 
@@ -48,6 +48,7 @@ export function UiTooltip({
   const openTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const tooltipLabel = label.trim();
+  const visible = isOpen && Boolean(tooltipLabel);
   const clearOpenTimer = useCallback(() => {
     if (openTimerRef.current) {
       clearTimeout(openTimerRef.current);
@@ -95,7 +96,7 @@ export function UiTooltip({
     anchorRef,
     disabled: !tooltipLabel,
     estimatePosition,
-    isOpen,
+    isOpen: visible,
     onClose: close,
     restoreFocus: false,
   });
@@ -114,7 +115,7 @@ export function UiTooltip({
 
   const describedBy = [
     children.props["aria-describedby"],
-    isOpen ? overlayId : null,
+    visible && portalContainer ? overlayId : null,
   ].filter(Boolean).join(" ") || undefined;
 
   return (
@@ -131,7 +132,7 @@ export function UiTooltip({
       >
         {cloneElement(children, { "aria-describedby": describedBy })}
       </span>
-      {isOpen && tooltipLabel && portalContainer
+      {visible && portalContainer
         ? createPortal(
             <div
               ref={overlayRef}

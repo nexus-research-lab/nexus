@@ -68,4 +68,22 @@ describe("UiTooltip", () => {
     expect(screen.queryByRole("tooltip")).toBeNull();
     expect(document.activeElement).toBe(input);
   });
+  it("never references a missing tooltip and preserves the trigger's existing description", () => {
+    const view = (label: string) => <>
+      <p id="usage-description">Current usage</p>
+      <UiTooltip label={label}><button aria-describedby="usage-description">Usage</button></UiTooltip>
+    </>;
+    const { rerender } = render(view(" "));
+    const trigger = screen.getByRole("button");
+    act(() => trigger.focus());
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    expect(trigger.getAttribute("aria-describedby")).toBe("usage-description");
+    rerender(view("Context"));
+    const tooltip = screen.getByRole("tooltip");
+    expect(trigger.getAttribute("aria-describedby")).toBe(`usage-description ${tooltip.id}`);
+    rerender(view(""));
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    expect(trigger.getAttribute("aria-describedby")).toBe("usage-description");
+  });
+
 });
