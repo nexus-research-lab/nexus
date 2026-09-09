@@ -47,7 +47,7 @@ function LauncherRecentEntryChip({
         event.stopPropagation();
         onOpen(model.entry);
       }}
-      className="text-(--text-strong)"
+      className="w-full min-w-0 text-(--text-strong)"
       size="sm"
       variant="text"
     >
@@ -58,7 +58,7 @@ function LauncherRecentEntryChip({
           data-launcher-recent-entry-marker
         />
       ) : null}
-      {model.chipLabel}
+      <span className="truncate">{model.chipLabel}</span>
     </UiButton>
   );
 
@@ -66,7 +66,7 @@ function LauncherRecentEntryChip({
     <FadeSlideIn
       delayMs={getLauncherRecentEntryDelayMs(index)}
       durationMs={360}
-      style={{ display: "inline-flex" }}
+      className="flex min-w-0"
       yOffset={6}
     >
       {model.tooltipLabel
@@ -99,7 +99,7 @@ export function LauncherRecentEntries({
       data-tour-anchor={LAUNCHER_TOUR_ANCHORS.recent}
       className={LauncherRecentEntryLayout.listClassName}
     >
-      <div className="flex w-full flex-wrap items-center justify-center gap-x-3 gap-y-1">
+      <div className={LauncherRecentEntryLayout.rowClassName}>
       {models.map((model, index) => (
         <LauncherRecentEntryChip
           index={index}
