@@ -27,7 +27,7 @@
 //   - failure.go / event.go / conversation_failure.go / typescript_*.go / generate.go：最小 FailureCore（稳定分类、effect 与可选诊断号）、事件 envelope、Conversation 用户级失败分类、session-scoped
 //     command catalog、interrupt ACK、带 Room replay fence 的聊天 source 活动快照、WorkGraph/Subagent 失效事件、上下文占用事件与前端 TS 生成。
 //   - attachment.go / workspace_file_artifact.go / delivery_policy.go：附件、
-//     文件产物与投递策略。
+//     文件变更/交付及产出 Agent/round 来源与投递策略。
 //   - identity.go / value.go / provider_failure.go / tool_result.go /
 //     configuration_runtime.go / runtime_command.go：共享 ID、值解码、Provider
 //     失败分类、mutation outcome，以及 nexuscfg / Agent-facing nexus broker wire 常量。

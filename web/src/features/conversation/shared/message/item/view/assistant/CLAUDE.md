@@ -27,3 +27,5 @@ Room execution 的 cancelled/error 终态必须同时投影到主 Feed 与 Threa
 Assistant 页脚的派生会话动作属于微型图标动作，pending 使用共享 `xs` Spinner；不得在 Footer 动作里重写旋转或 reduced-motion class。
 
 - 文件产物在 DM/Thread/Room 主 Feed 的 direct/process/final 投影中统一抽离到回复尾部，删除卡片时必须同步重排 streamingIndexes；展开过程不再重复展示同一文件卡。
+
+- 回复尾部只消费持久化结构化交付；隐藏 direct/process 不隐藏其交付文件，working_file 不提升为交付。正文与目录只能用于文件引用，不能生成或覆盖交付记录。明确 producer_agent_id 必须属于当前消息 Agent，workspace_agent_id 继续决定实际文件打开位置；历史无 role 记录保持兼容。

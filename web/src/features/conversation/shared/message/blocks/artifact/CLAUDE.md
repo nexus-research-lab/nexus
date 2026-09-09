@@ -11,7 +11,7 @@ L6 | 父级: web/src/features/conversation/shared/message/blocks
 - `workspace-artifact-external-action.tsx`: 组合文字 Button 与公共反馈，通过 `hooks/agent/use-workspace-file-external-action.ts` 执行下载/桌面定位，不再自己调用 API 或吞掉失败
 - `workspace-file-artifacts.tsx`: 适配结构化工作区文件产物
 - `workspace-file-artifact-list-model.ts`: 按显式产物归属优先、来源工作区兜底及实际 path 去重；同目标保留最后记录、首次顺序，缺少来源不推断相等。显示名、工具 ID 不作为文件身份，历史证据不改写
-- `workspace-file-artifact-utils.ts`: 从消息内容提取工作区文件产物
+- `workspace-file-artifact-utils.ts`: 从同一回复所有投影提取持久交付，隐藏 working_file，并按 producer_agent_id 拒绝把其他 Agent 的产物归入当前回复；无 role 的历史证据保留。相同对象的跨投影重复先去重，不读取目录或解析正文推断交付。
 - `file/`: 文件块展示模型和视图
 - `image/`: 图片来源解析、展示模型和视图
 

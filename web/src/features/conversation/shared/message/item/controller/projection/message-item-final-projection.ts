@@ -330,7 +330,7 @@ function resolveFinalAssistantTurn(
 
 function hasFinalAnswerContent(turn: AssistantTurnEntry | null): boolean {
   return Boolean(turn?.textContent.length
-    || turn?.content.some((block) => block.type === "workspace_file_artifact"));
+    || turn?.content.some((block) => block.type === "workspace_file_artifact" && block.role !== "working_file"));
 }
 
 function resolveFinalTailEntries(

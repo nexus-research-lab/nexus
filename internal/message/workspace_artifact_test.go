@@ -61,6 +61,9 @@ func TestProcessorAddsWorkspaceFileArtifactForFileToolResult(t *testing.T) {
 		t.Fatalf("file artifact 内容块数量不正确: %+v", blocks)
 	}
 	artifact := blocks[2]
+	if artifact["role"] != "working_file" || artifact["producer_agent_id"] != "nexus" {
+		t.Fatalf("Write must record a change, not declare a deliverable: %+v", artifact)
+	}
 	if artifact["type"] != protocol.ContentBlockTypeWorkspaceFileArtifact {
 		t.Fatalf("第三块应为 workspace_file_artifact: %+v", artifact)
 	}
