@@ -221,3 +221,30 @@ describe("anchored overlay dismissal", () => {
     }
   });
 });
+
+it("places a portaled Select above its higher-token parent and retains layered Escape", async () => {
+  const style = document.createElement("style");
+  style.textContent = '[aria-label="父浮层"] { position: fixed; z-index: 140; } [role="listbox"] { position: fixed; z-index: 120; }';
+  document.head.append(style);
+  const user = userEvent.setup();
+  const view = render(<NestedOverlayHarness />);
+  try {
+    await user.click(screen.getByRole("button", { name: "打开浮层" }));
+    const parent = screen.getByRole("dialog", { name: "父浮层" });
+    const trigger = screen.getByRole("button", { name: "子选择" });
+    await user.click(trigger);
+    const child = screen.getByRole("listbox");
+    expect(child.parentElement).toBe(parent.parentElement);
+    expect(Number(getComputedStyle(child).zIndex)).toBeGreaterThan(Number(getComputedStyle(parent).zIndex));
+    expect(screen.getByRole("option", { name: "Alpha" })).toBeTruthy();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(screen.getByRole("dialog", { name: "父浮层" })).toBe(parent);
+    expect(document.activeElement).toBe(trigger);
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "父浮层" })).toBeNull();
+  } finally {
+    view.unmount();
+    style.remove();
+  }
+});
