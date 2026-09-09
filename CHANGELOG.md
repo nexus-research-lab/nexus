@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Avoid dangling tooltip descriptions when labels are empty while preserving existing accessibility hints.
+
 - Place pairing authorization badges next to the external contact name.
 
 - Localize Markdown workspace-file hover hints while preserving exact-path keyboard actions.
