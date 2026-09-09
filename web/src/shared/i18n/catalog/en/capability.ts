@@ -2,6 +2,16 @@ import type { MessageSegment } from "../message-segment";
 import type { zhCapabilityMessages } from "../zh/capability";
 
 export const enCapabilityMessages = {
+  "capability.richmail_pairing_title": "Connect RichMail",
+  "capability.richmail_pairing_pending": "Waiting for approval in RichMail",
+  "capability.richmail_pairing_connected": "RichMail connected",
+  "capability.richmail_pairing_expired": "The RichMail pairing request expired",
+  "capability.richmail_pairing_denied": "RichMail did not approve this connection",
+  "capability.richmail_pairing_unknown": "The RichMail pairing result could not be confirmed",
+  "capability.richmail_pairing_requested": "Connection request sent to RichMail on this device",
+  "capability.richmail_pairing_approve": "Approve the connection in the RichMail dialog",
+  "capability.richmail_pairing_finish": "After approval, the connection completes and available tools appear",
+  "capability.richmail_pairing_address": "Service address",
   "capability.oauth_provider_feishu": "Feishu Open Platform app",
   "capability.oauth_provider_generic": "OAuth app",
   "capability.oauth_feishu_id": "Feishu App ID",
