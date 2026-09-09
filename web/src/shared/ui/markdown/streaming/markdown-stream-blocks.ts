@@ -139,3 +139,27 @@ export function splitStreamingMarkdownBlocks(content: string): MarkdownStreamBlo
     state: index === tailIndex ? "streaming" : "revealed",
   }));
 }
+
+/** 缓存稳定前缀，只重新扫描可能继续增长或合并的尾部。 */
+export class MarkdownStreamBlockParser {
+  private content = "";
+  private blocks: MarkdownStreamBlock[] = [];
+
+  parse(content: string): MarkdownStreamBlock[] {
+    if (content === this.content) return this.blocks;
+    // 保留两块重扫：尾空行后追加的同类列表可能并回前一块。
+    const keepCount = content.startsWith(this.content)
+      ? Math.max(0, this.blocks.length - 2)
+      : 0;
+    const offset = this.blocks[keepCount]?.start_offset ?? 0;
+    this.blocks = [
+      ...this.blocks.slice(0, keepCount),
+      ...splitStreamingMarkdownBlocks(content.slice(offset)).map((block) => ({
+        ...block,
+        start_offset: block.start_offset + offset,
+      })),
+    ];
+    this.content = content;
+    return this.blocks;
+  }
+}

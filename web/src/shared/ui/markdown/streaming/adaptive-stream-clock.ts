@@ -1,6 +1,6 @@
 /**
  * INPUT: runtime 追加节奏、当前缓冲字符数、渲染帧间隔与流式阶段。
- * OUTPUT: 先吸收传输抖动、再连续推进且在终态温和排空的字符预算。
+ * OUTPUT: 先吸收传输抖动、再连续推进且在终态限时排空的字符预算。
  * POS: 与 React 和 Markdown 无关的流速时钟；传输停顿期间保持同一时间轴。
  */
 
@@ -8,7 +8,7 @@ const DEFAULT_ARRIVAL_CPS = 36;
 const ARRIVAL_RATE_ALPHA = 0.18;
 const ARRIVAL_WINDOW_MS = 3000;
 const MIN_OBSERVED_CPS = 8;
-const MAX_OBSERVED_CPS = 180;
+const MAX_OBSERVED_CPS = 10_000;
 const API_STALL_GAP_MS = 300;
 const MIN_SAFE_GAP_MS = 500;
 const MAX_SAFE_GAP_MS = 1200;
@@ -19,11 +19,10 @@ const MAX_INITIAL_WAIT_MS = 600;
 const MIN_LIVE_CPS = 18;
 const MAX_LIVE_CPS = 90;
 const LIVE_CATCH_UP_THRESHOLD_CHARS = 180;
-const LIVE_MAX_BACKLOG_SECONDS = 5;
+const LIVE_MAX_BACKLOG_SECONDS = 0.35;
 const MIN_FLUSH_CPS = 24;
-const MAX_FLUSH_CPS = 120;
 const FLUSH_SPEEDUP = 1.05;
-const FLUSH_MAX_SECONDS = 8;
+const FLUSH_MAX_MS = 500;
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
@@ -52,6 +51,7 @@ export interface AdaptiveStreamFrame {
 
 interface ResolveFrameInput {
   backlog: number;
+  completeBlockCharacters?: number;
   frameIntervalMs: number;
   maxRevealCount?: number;
   streaming: boolean;
@@ -59,6 +59,7 @@ interface ResolveFrameInput {
 }
 
 export class AdaptiveStreamClock {
+  private flushDeadline: number | null = null;
   private arrivalCps = DEFAULT_ARRIVAL_CPS;
   private readonly arrivals: ArrivalSample[] = [];
   private characterBudget = 0;
@@ -74,6 +75,7 @@ export class AdaptiveStreamClock {
   }
 
   reset(_timestamp: number): void {
+    this.flushDeadline = null;
     this.arrivalCps = DEFAULT_ARRIVAL_CPS;
     this.arrivals.length = 0;
     this.characterBudget = 0;
@@ -119,6 +121,7 @@ export class AdaptiveStreamClock {
 
   resolveFrame({
     backlog,
+    completeBlockCharacters = 0,
     frameIntervalMs,
     maxRevealCount = Number.POSITIVE_INFINITY,
     streaming,
@@ -133,6 +136,9 @@ export class AdaptiveStreamClock {
       return { cps: 0, phase: "buffering", revealCount: 0 };
     }
     this.hasStartedRendering = true;
+
+    if (streaming) this.flushDeadline = null;
+    else this.flushDeadline ??= timestamp + FLUSH_MAX_MS;
 
     const cps = streaming
       ? this.resolveLiveCps(backlog, timestamp)
@@ -150,12 +156,16 @@ export class AdaptiveStreamClock {
     );
     const revealCount = Math.min(
       backlog,
-      Math.floor(this.characterBudget),
+      Math.max(
+        Math.floor(this.characterBudget),
+        // 积压时合并已完成块；未闭合的长段落/代码仍按字符片段推进。
+        backlog >= LIVE_CATCH_UP_THRESHOLD_CHARS ? completeBlockCharacters : 0,
+      ),
       Math.max(0, Math.floor(maxRevealCount)),
     );
     // 只扣除调度器真正允许展示的字符；全局额度不足时，当前流已经累计的
     // 小数/整数预算继续留在时钟里，下一帧无需重新等待或损失原有语速。
-    this.characterBudget -= revealCount;
+    this.characterBudget = Math.max(0, this.characterBudget - revealCount);
 
     return {
       cps,
@@ -210,10 +220,9 @@ export class AdaptiveStreamClock {
     const catchUpCps = backlog >= LIVE_CATCH_UP_THRESHOLD_CHARS
       ? backlog / LIVE_MAX_BACKLOG_SECONDS
       : 0;
-    return clamp(
-      Math.max(Math.min(safeCps, arrivalCap), catchUpCps),
-      MIN_LIVE_CPS,
-      MAX_LIVE_CPS,
+    return Math.max(
+      clamp(Math.min(safeCps, arrivalCap), MIN_LIVE_CPS, MAX_LIVE_CPS),
+      catchUpCps,
     );
   }
 
@@ -222,12 +231,9 @@ export class AdaptiveStreamClock {
       MIN_FLUSH_CPS,
       this.getRecentArrivalCps(timestamp) * FLUSH_SPEEDUP,
     );
-    const catchUpCps = backlog / FLUSH_MAX_SECONDS;
-    return clamp(
-      Math.max(naturalCps, catchUpCps),
-      MIN_FLUSH_CPS,
-      MAX_FLUSH_CPS,
-    );
+    // 使用固定截止点；每帧重设“剩余 500ms”会产生永远追不完的指数拖尾。
+    const remainingMs = Math.max(1, (this.flushDeadline ?? timestamp) - timestamp);
+    return Math.max(naturalCps, backlog * 1000 / remainingMs);
   }
 
   private getRecentArrivalCps(timestamp: number): number {
