@@ -75,6 +75,7 @@ export const enCoreMessages = {
   "state.clear_filters_next_step": "Clear the search and filters to view everything.",
   "state.permission_title": "This account cannot access this content",
   "state.reload_check": "Refresh",
+  "markdown.code.group": "{language} code",
   "markdown.code.copy": "Copy {language} code",
   "markdown.code.copied": "Copied",
   "markdown.code.streaming": "Streaming",
