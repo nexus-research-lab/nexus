@@ -1,4 +1,7 @@
-import { isMainAgent } from "@/config/runtime-options";
+// INPUT: Room/Conversation 目录、已订阅的主智能体身份与活动状态。
+// OUTPUT: 主智能体禁删且优先置顶，其余聊天按最新活动排序。
+// POS: 聊天目录纯投影，不按名称猜测系统身份。
+import { getDefaultAgentId } from "@/config/runtime-options";
 import { isExternalSessionChannel } from "@/lib/conversation/external-session";
 import type { Locale } from "@/shared/i18n/messages";
 import type {
@@ -35,6 +38,7 @@ export interface SidebarConversationItem {
 }
 
 interface ConversationProjectionContext {
+  mainAgentId: string;
   roomActivity: ReadonlyMap<string, RoomActivityStatus>;
   agentById: Map<string, LauncherAgentSummary>;
   latestByRoomId: Map<string, LauncherConversationSummary>;
@@ -49,16 +53,19 @@ export function buildConversationItems({
   rooms,
   untitledRoomLabel,
   roomActivity = EMPTY_ROOM_ACTIVITY,
+  mainAgentId = getDefaultAgentId(),
 }: {
   agents: LauncherAgentSummary[];
   conversations: LauncherConversationSummary[];
   locale?: Locale;
   rooms: LauncherRoomSummary[];
   untitledRoomLabel: string;
+  mainAgentId?: string;
   roomActivity?: ReadonlyMap<string, RoomActivityStatus>;
 }): SidebarConversationItem[] {
   const context: ConversationProjectionContext = {
     roomActivity,
+    mainAgentId,
     agentById: new Map(agents.map((agent) => [agent.id, agent])),
     latestByRoomId: buildLatestConversationByRoomId(conversations),
     locale,
@@ -79,9 +86,9 @@ export function buildConversationItems({
   });
 }
 
-function isMainAgentDmRoom(room: LauncherRoomSummary): boolean {
+function isMainAgentDmRoom(room: LauncherRoomSummary, mainAgentId: string): boolean {
   return room.room_type === "dm" && Boolean(
-    room.dm_target_agent_id && isMainAgent(room.dm_target_agent_id),
+    mainAgentId && room.dm_target_agent_id?.trim() === mainAgentId.trim(),
   );
 }
 
@@ -94,7 +101,7 @@ function projectConversationItem(
     return null;
   }
   const isDm = room.room_type === "dm";
-  const isPinned = isMainAgentDmRoom(room);
+  const isPinned = isMainAgentDmRoom(room, context.mainAgentId);
   const dmAgent = room.dm_target_agent_id
     ? context.agentById.get(room.dm_target_agent_id)
     : undefined;

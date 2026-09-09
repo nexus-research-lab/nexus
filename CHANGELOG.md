@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Keep the main Nexus chat pinned and protected as runtime identity loads, and refresh chat ordering on durable user activity and round changes.
+
 - Collapse settings search to an icon until activated, and keep process disclosure text muted on hover.
 
 - Place generated-file summaries after assistant replies instead of beneath process headers.

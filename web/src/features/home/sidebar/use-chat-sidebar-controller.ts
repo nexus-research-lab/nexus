@@ -3,9 +3,10 @@
  * OUTPUT: 侧栏筛选/创建/删除/导航控制器；Room 导航保留锚点给 Feed 消费。
  * POS: Home 聊天侧栏有状态装配入口。
  */
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
+import { getDefaultAgentId, isMainAgent, USER_PREFERENCES_CHANGED_EVENT } from "@/config/runtime-options";
 import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
 import { getActiveChatTargetFromPath } from "@/features/home/notifications/chat-notification-target";
@@ -34,6 +35,7 @@ import {
 } from "./room-deletion-recovery";
 
 interface DeleteTarget {
+  agentId?: string;
   id: string;
   name: string;
 }
@@ -46,6 +48,7 @@ export function useChatSidebarController({
   untitledRoomLabel,
 }: ChatSidebarControllerOptions) {
   const { locale, t } = useI18n();
+  const mainAgentId = useSyncExternalStore(subscribeRuntimeIdentity, getDefaultAgentId, getDefaultAgentId);
   const location = useLocation();
   const navigate = useNavigate();
   const activeItemId = useSidebarStore((state) => state.active_panel_item_id);
@@ -97,10 +100,12 @@ export function useChatSidebarController({
     rooms,
     untitledRoomLabel,
     roomActivity,
+    mainAgentId,
   }), [
     agents,
     conversations,
     locale,
+    mainAgentId,
     roomActivity,
     rooms,
     untitledRoomLabel,
@@ -117,7 +122,7 @@ export function useChatSidebarController({
     if (!team) {
       return localItems;
     }
-    return [{
+    const teamItem = {
       activityStatus: null,
       canDelete: false,
       id: `team:${team.conversation.id}`,
@@ -129,7 +134,8 @@ export function useChatSidebarController({
       summary: t("team.shared_room_summary"),
       timeLabel: "",
       title: team.room.name || t("team.general"),
-    }, ...localItems];
+    };
+    return [...localItems.filter((item) => item.isPinned), teamItem, ...localItems.filter((item) => !item.isPinned)];
   }, [
     activeTarget,
     chatUnreadAnchors,
@@ -239,7 +245,7 @@ export function useChatSidebarController({
   }, [finishDeletion, reconcileRoomTarget]);
 
   const confirmDelete = useCallback(async () => {
-    if (!deleteTarget || deletionRunningRef.current) {
+    if (!deleteTarget || deletionRunningRef.current || (deleteTarget.agentId && isMainAgent(deleteTarget.agentId))) {
       return;
     }
     deletionRunningRef.current = true;
@@ -298,7 +304,7 @@ export function useChatSidebarController({
   ]);
 
   const requestDelete = useCallback((item: SidebarConversationItem) => {
-    if (deletionRunningRef.current || !item.canDelete || !item.roomId) {
+    if (deletionRunningRef.current || !item.canDelete || !item.roomId || (item.kind === "dm" && isMainAgent(item.agentId))) {
       return;
     }
     const unresolved = unresolvedDeletionsRef.current.get(item.roomId);
@@ -307,7 +313,7 @@ export function useChatSidebarController({
         ? unresolved.failure
         : null,
     );
-    setDeleteTarget({ id: item.roomId, name: item.title });
+    setDeleteTarget({ id: item.roomId, name: item.title, agentId: item.kind === "dm" ? item.agentId : undefined });
   }, []);
 
   const cancelDelete = useCallback(() => {
@@ -371,4 +377,9 @@ function filterConversationItems(
       ...item.members.map((member) => member.name),
     ]);
   });
+}
+
+function subscribeRuntimeIdentity(listener: () => void): () => void {
+  window.addEventListener(USER_PREFERENCES_CHANGED_EVENT, listener);
+  return () => window.removeEventListener(USER_PREFERENCES_CHANGED_EVENT, listener);
 }
