@@ -548,7 +548,7 @@ invocation remains denied by default on channel ingress and requires explicit
 channel/Agent approval. If admitted, the round-scoped server still derives owner/session
 identity and applies the same lane and SQL checks above.
 
-Goal and Execution share one model-visible, always-loaded MCP tool:
+Goal, Execution, Automation and Subagent share one model-visible, always-loaded MCP tool:
 `nexus.command`. The bundled Skills own model decisions; the host captures
 owner, Agent, Session, Room role, Goal revision, WorkBinding, ReviewBinding and
 coordination authority in a physical-round server instance. The model can submit
@@ -570,6 +570,37 @@ actor's running or exceptional Runtime Graph nodes, Artifacts and exact control
 returns. Bounded successful Tool/Subagent summaries remain durable but enter the
 model only through explicit Execution `inspect`; ordinary rounds and mutation
 results do not replay them.
+
+### Subagent transport and lifecycle
+
+The `subagent` domain reuses the fixed `nexus.command` schema. Its operation
+contracts are disclosed on demand; the execution-orchestrator Skill carries the
+model workflow. Nexus supplies a stable general-purpose child definition to nxs,
+while keeping the native Agent tool hidden from the parent model catalog. This
+changes the initial deployment context once; launching children does not mutate
+the tool schema or rewrite the prompt prefix.
+
+The bridge negotiates `subagent_control_v1`. During an active MCP call the host
+forwards the SDK-provided tool-use identity through a reentrant runtime control
+request. The runtime accepts that identity only in the current parent session,
+then executes the existing Agent/TaskOutput/TaskStop lifecycle and permission
+hooks. Plan Mode rejects spawn and send, while reads and stopping remain available.
+Unsupported runtimes fail explicitly; there is no CLI fallback. A child cannot
+borrow the parent caller identity to recursively spawn another child.
+
+Spawn is asynchronous. Independent children can run concurrently and retain the
+original launch identity used by WorkGraph admission and terminal observation.
+An exact current Assignment creates a managed child Attempt; missing or ambiguous
+responsibility remains runtime-only. Child completion never substitutes for parent
+Submission, Review or Acceptance. Subagent launch/lifecycle observations remain
+visible under the existing Runtime Graph rules, rather than being classified as
+Goal/Execution control-only detail.
+
+Subagent mutation receipts deduplicate exact intent within one physical round,
+including errors and unknown outcomes. They are not durable restart receipts.
+After an unknown result, inspect existing tasks before deciding any new mutation;
+never infer non-execution from an absent response or automatically replay with a
+new request identity. Read results expose only current-parent task projections.
 
 ### 5.1 Agent-facing structured command audit
 
@@ -631,7 +662,7 @@ canonical Agent service; the display projection never authorizes a runtime. The
 round-scoped SDK server is replaced in process when those profiles or authorities
 change, without expanding workspace write roots or restarting nxs.
 
-Current `nexus.command` calls are control-plane transport, not independent
+Current Goal/Execution `nexus.command` calls are control-plane transport, not independent
 WorkGraph work. The runtime observer recognizes the exact managed tool identity and
 persists only `domain + action + operation + request_id`, never business input. These
 calls remain `detail` under their direct Agent owner even when they fail, retry, carry

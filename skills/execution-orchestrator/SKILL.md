@@ -1,15 +1,16 @@
 ---
 name: execution-orchestrator
-description: 选择适当执行结构，按本轮权限规划、分派、交付和恢复 Nexus 工作图，或查询、编辑、保存可复用模板。简单任务直接完成。
+description: 选择执行结构、委派子智能体、管理 Nexus 工作图与可复用模板；遵守本轮权限，简单任务直接完成。
 ---
 
 # Execution Orchestrator
 
-Execution 管理“当前责任如何交付”；Goal 管理“什么目标需要跨轮持续追求”。两者独立选择或显式绑定，不按任务长度或人数推断。
+Execution 管理当前责任交付；Goal 管理跨轮目标。按需独立选择或显式绑定，不按任务长度或人数推断。
 
 ## 入口与命令协议
 
 1. substantial execution 前先判断直接执行、局部 Task、Subagent、WorkGraph、Room Assignment、Gate/Loop 或 Goal 中哪些结构真的降低风险；简单原子任务直接完成。
+   子任务使用 `nexus.command/subagent`，按下方参考操作；不要求先创建工作图。
 2. 执行当前任务的责任图时，先调用宿主提供的 `nexus.command`：
 
    ```json
@@ -27,7 +28,7 @@ Execution 管理“当前责任如何交付”；Goal 管理“什么目标需�
 
    字段、identity、authority 和 revision 以本轮 contract 为准。
 4. 业务输入是 `additionalProperties=false` 的 closed object，直接放在工具的 `input` 字段中。只提交 fresh `input_schema.properties` 中属于当前意图的字段；opaque locator 来自 inspect/receipt，不从标题或正文猜。相同语义重试复用 `request_id`，operation、目标或输入变化时换新 ID。
-5. 先检查 `is_error`，再按 operation 解读 `data.outcome`：`applied` 表示已应用；`no_op` 无新增变更，结合 message 区分重放与 Plan Mode 校验；prepare 成功为 `prepared`，草图提取为 `ready`，版本选择为 `selected`。`rejected`/`superseded` 不能当成功。`next_actions` 是建议，不授权，始终服从同一结果里的最新 lane、binding 和 `allowed_actions`。
+5. 先检查 `is_error`；Execution 操作再按 operation 解读 `data.outcome`：`applied` 表示已应用；`no_op` 无新增变更，结合 message 区分重放与 Plan Mode 校验；prepare 成功为 `prepared`，草图提取为 `ready`，版本选择为 `selected`。`rejected`/`superseded` 不能当成功。`next_actions` 是建议，不授权，始终服从同一结果里的最新 lane、binding 和 `allowed_actions`。
 
 `get_execution` 只用 `action=inspect`，省略 `operation/request_id`，不走 invoke。Room 当前负责人自行 inspect 恢复协调权限，成员只获得观察。lane/background 不是界面模式；不要让用户切模式或再发“开始”。
 
@@ -36,10 +37,11 @@ Execution 管理“当前责任如何交付”；Goal 管理“什么目标需�
 ## 按当前动作读取参考
 
 - 选择直接执行、Task、Subagent、Room 或 WorkGraph：[references/structure-selection.md](references/structure-selection.md)
-- 创建、replan、replace、abandon 或提交 sealed Plan：[references/graph-control.md](references/graph-control.md)
+- 派生、读取、等待、续聊或停止子智能体：[references/subagents.md](references/subagents.md)
+- Plan 创建、替换、放弃或提交：[references/graph-control.md](references/graph-control.md)
 - assign、submit、review 或 takeover：[references/responsibility-and-delivery.md](references/responsibility-and-delivery.md)
-- 入口纠正、block/resume、audit、Goal promotion 与跨域收口：[references/recovery-and-alignment.md](references/recovery-and-alignment.md)
-- 查询历史图、提取/恢复 Draft、版本化编辑、保存或复用命名 WorkGraph Slash：[references/workgraph-distillation.md](references/workgraph-distillation.md)
+- 恢复、审计与 Goal 跨域收口：[references/recovery-and-alignment.md](references/recovery-and-alignment.md)
+- 工作图查询、草图编辑与模板复用：[references/workgraph-distillation.md](references/workgraph-distillation.md)
 - Room/父子 Agent 的内容传递、并行与连续执行：[references/communication-and-continuity.md](references/communication-and-continuity.md)
 
 只完整读取当前决策需要的参考；不要为调用一个 operation 加载全部说明。

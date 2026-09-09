@@ -1,4 +1,4 @@
-// INPUT: 宿主绑定的 physical-round Actor 与 Goal/Execution/Automation 领域分发函数。
+// INPUT: 宿主绑定的 physical-round Actor 与 Goal/Execution/Automation/Subagent 领域分发函数。
 // OUTPUT: 单一 nexus.command MCP 工具、动态 contract 调用结果与宿主可信 typed receipt。
 // POS: 模型工具协议与 Nexus 领域 command adapter 之间的唯一 MCP 边界。
 package command
@@ -24,9 +24,9 @@ func NewTool(handler Handler) sdktool.Tool {
 	inputSchema := inputSchema()
 	return sdktool.Tool{
 		Name: ToolName,
-		Description: "调用 Nexus 托管的 Goal、Execution 或 Automation 命令。" +
+		Description: "调用 Nexus 托管的 Goal、Execution、Automation 或 Subagent 命令。" +
 			"先用 contract 获取操作目录和精确输入 schema，再用 inspect/invoke 或 plan/apply 执行。",
-		SearchHint:  "nexus goal execution automation contract inspect invoke plan apply 目标 执行 自动化",
+		SearchHint:  "nexus goal execution automation subagent contract inspect invoke plan apply 目标 执行 自动化",
 		AlwaysLoad:  true,
 		InputSchema: inputSchema,
 		Annotations: &sdktool.ToolAnnotations{Destructive: true},
@@ -51,7 +51,7 @@ func inputSchema() map[string]any {
 		"type": "object",
 		"properties": map[string]any{
 			"domain": map[string]any{
-				"type": "string", "enum": []string{DomainAutomation, DomainGoal, DomainExecution},
+				"type": "string", "enum": []string{DomainAutomation, DomainGoal, DomainExecution, DomainSubagent},
 			},
 			"action": map[string]any{
 				"type": "string", "enum": []string{

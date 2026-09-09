@@ -1,5 +1,5 @@
 // INPUT: 当前 Execution snapshot、current Spec/output claims/Acceptance 与 runtime actor 身份。
-// OUTPUT: 普通轮的紧凑 <nexus_round> 或受管轮的有界 <nexus_execution_context>。
+// OUTPUT: 普通轮的紧凑 <nexus_round> 或受管轮的有界 <nexus_execution_context>（含 subagent/spawn 准入路由）。
 // POS: DM、Room、compact recovery 与 Goal continuation 共用的动态执行上下文投影。
 package orchestration
 
@@ -953,7 +953,7 @@ func renderSubagentAdmissionBoundary(
 	eligible := !options.PlanMode
 	fmt.Fprintf(
 		output,
-		"\n  <subagent_admission eligible=\"%t\" native_tool=\"Agent\" candidate_assignment_count=\"%d\"",
+		"\n  <subagent_admission eligible=\"%t\" command_domain=\"subagent\" operation=\"spawn\" candidate_assignment_count=\"%d\"",
 		eligible,
 		candidateCount,
 	)
@@ -984,7 +984,7 @@ func renderSubagentAdmissionBoundary(
 			output,
 			4,
 			"note",
-			"native delegation is available, but this run is runtime observation only and does not claim managed Work Item evidence: "+reasonMessage,
+			"subagent delegation is admissible, but this run is runtime observation only and does not claim managed Work Item evidence: "+reasonMessage,
 		)
 	} else {
 		fmt.Fprintf(output, " reason_code=\"%s\">", xmlValue(string(reasonCode)))
@@ -1022,7 +1022,7 @@ func renderActionBoundary(
 		return
 	}
 	if subagentEligible {
-		allowed = append(allowed, "Agent")
+		allowed = append(allowed, "subagent/spawn")
 	}
 	forbidden := make([]string, 0)
 	current := isCurrentExecutionStatus(view.snapshot.Execution.Status)
@@ -1069,7 +1069,7 @@ func renderActionBoundary(
 			"take_over_work",
 			"audit_execution_alignment",
 			"promote_execution_to_goal",
-			"Agent",
+			"subagent/spawn",
 		)
 		renderStringList(output, "allowed_actions", "action", allowed)
 		renderStringList(output, "forbidden_actions", "action", forbidden)
@@ -1144,7 +1144,7 @@ func renderActionBoundary(
 		)
 	}
 	if !subagentEligible {
-		forbidden = append(forbidden, "Agent")
+		forbidden = append(forbidden, "subagent/spawn")
 	}
 	renderStringList(output, "allowed_actions", "action", allowed)
 	renderStringList(output, "forbidden_actions", "action", forbidden)

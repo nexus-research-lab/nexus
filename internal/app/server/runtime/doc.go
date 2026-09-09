@@ -4,6 +4,7 @@
 //
 // 成员清单：
 //   - command.go / builtin_tools.go / *_mcp.go：round-scoped nexus MCP、内建工具与显式选择的第三方 Connector MCP（含 RichMail）。
+//   - command.go：从 SDK 可信 metadata 绑定原始工具 identity，分发 subagent 原生控制。
 //   - configuration.go：nexuscfg loopback 配置 broker。
 //   - *_authorization.go / mcp_authority.go：真人授权与可信 runtime 身份边界。
 //   - human_tool_approval.go：高风险工具人工批准路由。

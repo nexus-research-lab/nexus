@@ -1,4 +1,4 @@
-// INPUT: 可信 runtime round、Nexus 内建工具组、Goal/Execution/Automation services 与 runtime permission context。
+// INPUT: 可信 runtime round、Nexus 内建工具组、Goal/Execution/Automation services、可信 Subagent control 与 runtime permission context。
 // OUTPUT: 单一 round-scoped nexus MCP server、按需 contract、语义调用结果与 typed mutation receipt。
 // POS: Nexus 内建工具的唯一 server 装配点；身份、责任、preview、Plan Mode 与真人确认均由宿主固定。
 package runtime
@@ -25,6 +25,7 @@ import (
 	executionoperation "github.com/nexus-research-lab/nexus/internal/mcp/command/execution/operation"
 	goalcontract "github.com/nexus-research-lab/nexus/internal/mcp/command/goal/contract"
 	goaloperation "github.com/nexus-research-lab/nexus/internal/mcp/command/goal/operation"
+	subagentcommand "github.com/nexus-research-lab/nexus/internal/mcp/command/subagent"
 	"github.com/nexus-research-lab/nexus/internal/mcp/sdktool"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
@@ -128,6 +129,13 @@ func (s *roundScopedMCPServer) HandleMessage(
 	ctx context.Context,
 	message map[string]any,
 ) (map[string]any, error) {
+	if params, ok := message["params"].(map[string]any); ok {
+		if meta, ok := params["_meta"].(map[string]any); ok {
+			if id, ok := meta["claudecode/toolUseId"].(string); ok {
+				ctx = subagentcommand.WithToolUseID(ctx, strings.TrimSpace(id))
+			}
+		}
+	}
 	ctx = authctx.WithPrincipal(ctx, clonePrincipal(s.principal))
 	ctx = authctx.WithInteractiveHumanEvidence(ctx, s.humanEvidenceSource)
 	return s.server.HandleMessage(ctx, message)
@@ -217,7 +225,14 @@ func buildNexusCommandMCPTool(
 	if actor.GoalMutationAuthority != round.CommandContext.GoalAuthority {
 		actor.GoalResponsibilityState = nil
 	}
+	subagents := subagentcommand.NewHandler(actor, round.SubagentControl)
 	return command.NewTool(func(callCtx context.Context, request command.Request) (any, error) {
+		if strings.ToLower(strings.TrimSpace(request.Domain)) == command.DomainSubagent {
+			if isolatedWorkGraphMCPRound(actor.SourceContextType) {
+				return nil, errors.New("临时 WorkGraph Session 只允许 execution domain")
+			}
+			return subagents(callCtx, request)
+		}
 		return dispatchNexusCommand(
 			callCtx,
 			automation,

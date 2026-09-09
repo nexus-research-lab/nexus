@@ -82,6 +82,9 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
 	}
+	if options.Env["NEXUS_HOST_SUBAGENT_CONTROL"] != "1" || options.Agents["general-purpose"].Prompt == "" {
+		t.Fatal("nxs missing fixed host-controlled subagent definition")
+	}
 	if options.Runtime.PermissionMode != sdkpermission.ModeDefault {
 		t.Fatalf("默认权限模式不正确: %+v", options)
 	}

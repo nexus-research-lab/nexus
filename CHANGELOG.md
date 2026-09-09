@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Expose tool disclosure state to assistive technology and prevent keyboard copying from toggling the parent tool row.
 
+- Restore nxs subagent delegation through the stable `nexus.command` entry, with on-demand Skill guidance and existing WorkGraph child-attempt tracking.
+
 - Show structured generated files at the end of Room replies, deduplicating process and final-answer references.
 
 - Keep DM and Room Thread process groups collapsed by default and preserve manually opened Thought details across streaming transitions.
