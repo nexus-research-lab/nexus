@@ -1,8 +1,8 @@
-import { formatScheduledTaskSchedule } from "../../scheduled-formatters";
-import { buildSchedule } from "./task-form-submit";
 // INPUT: Automation 草稿、资源候选与当前语言。
 // OUTPUT: 字段标签、选项与读取反馈；缺项 Agent/Room/Session 保留禁用显示项，不改写草稿。
 // POS: 基础/高级表单的只读投影，候选资格和提交校验保持各自领域所有者。
+import { formatScheduledTaskSchedule } from "../../scheduled-formatters";
+import { buildSchedule } from "./task-form-submit";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import { includeUnavailableSelection } from "@/shared/lib/selection-options";
 

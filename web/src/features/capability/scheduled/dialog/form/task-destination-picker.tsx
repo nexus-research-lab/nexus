@@ -17,7 +17,7 @@ import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TaskDestinationOption, TaskFormDraft } from "../scheduled-task-dialog-types";
-import { buildExecutionModeOptions } from "./task-form-options";
+import { buildTaskDestinationPickerModel } from "./task-destination-picker-model";
 import type { TaskBasicsActions, TaskBasicsData } from "./task-basics-model";
 
 export function TaskDestinationPicker({ kind, data, form, actions }: {
@@ -66,37 +66,9 @@ export function TaskDestinationPicker({ kind, data, form, actions }: {
   }, [close, isVisible, overlayRef]);
   const execution = kind === "execution";
   const label = t(execution ? "capability.scheduled_run_in" : "capability.scheduled_dialog_delivery");
-  const independent = t("capability.scheduled_dialog_execution_mode_temporary");
-  const options: TaskDestinationOption[] = execution ? [
-    ...data.agentOptions.map((agent) => ({
-      value: `new:${agent.value}`, label: independent, group: agent.label,
-      targetType: "agent" as const, agentId: agent.value, roomId: "", sessionKey: "",
-    })),
-    ...data.destinations.filter((option) => option.targetType !== "room"
-      || data.roomOptions.some((room) => room.value === option.roomId)),
-  ] : data.destinations;
-  const currentValue = execution
-    ? form.executionMode === "temporary" ? `new:${form.selectedAgentId}` : form.selectedSessionKey
-    : form.replyMode === "none" ? "none" : form.selectedReplySessionKey;
-  const current = options.find((option) => option.value === currentValue);
-  const legacyLabel = execution && (form.executionMode === "main" || form.executionMode === "dedicated")
-    ? buildExecutionModeOptions(t).find((option) => option.key === form.executionMode)?.label
-    : null;
-  const currentLabel = legacyLabel || (currentValue === "none" ? t("capability.scheduled_dialog_reply_none")
-    : current ? `${current.group} · ${current.label}` : t(currentValue ? "capability.scheduled_dialog_session_unavailable" : "capability.scheduled_choose_chat"));
-  const filtered = options.filter((option) => (typeFilter === "all" || option.targetType === typeFilter)
-    && `${option.group} ${option.label} ${option.badge ?? ""}`
-      .toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
-  const groups = new Map<string, TaskDestinationOption[]>();
-  for (const option of filtered) {
-    const key = `${option.targetType}:${option.agentId || option.roomId}`;
-    const group = groups.get(key) ?? [];
-    group.push(option);
-    groups.set(key, group);
-  }
-  const currentGroup = current ? `${current.targetType}:${current.agentId || current.roomId}` : "";
-  const activeGroup = [browsingGroup, currentGroup, ...groups.keys()].find((key) => key !== null && groups.has(key));
-  const visibleItems = activeGroup ? groups.get(activeGroup) ?? [] : [];
+  const { currentValue, currentLabel, groups, activeGroup, visibleItems, hasMatches } = buildTaskDestinationPickerModel({
+    execution, data, form, search, typeFilter, browsingGroup, t,
+  });
   const resources = [data.agents, data.rooms, data.destinationStatus];
   const loading = resources.some((resource) => resource.loading);
   const failedResources = resources.filter((resource) => resource.error);
@@ -151,7 +123,7 @@ export function TaskDestinationPicker({ kind, data, form, actions }: {
         <p className={getUiTypographyClassName({ role: "supporting", tone: "muted" })}>{t("capability.scheduled_dialog_resource_load_title")}</p>
         <UiButton size="sm" variant="text" disabled={retryableResources.length === 0} onClick={() => retryableResources.forEach((resource) => resource.retry())}>{t("state.retry")}</UiButton>
       </div> : null}
-      {!filtered.length && !loading && failedResources.length === 0 ? <p className={`p-3 ${getUiTypographyClassName({ role: "supporting", tone: "muted" })}`}>{t("capability.scheduled_no_matching_chats")}</p> : null}
+      {!hasMatches && !loading && failedResources.length === 0 ? <p className={`p-3 ${getUiTypographyClassName({ role: "supporting", tone: "muted" })}`}>{t("capability.scheduled_no_matching_chats")}</p> : null}
     </div>
       </div>, portalContainer) : null}
   </>;

@@ -83,6 +83,7 @@ const SELECT_MENU_LABEL_LAYOUT_CONFIG = {
 } as const;
 
 const SELECT_MENU_BUTTON_SURFACE_CLASS_NAMES: Record<UiSelectMenuSurface, string> = {
+  plain: "border-0 bg-transparent shadow-none hover:bg-(--surface-control-hover-background) focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_18%,transparent)]",
   dialog: "dialog-input shadow-none hover:border-[color:color-mix(in_srgb,var(--primary)_24%,var(--modal-input-border))] hover:bg-[color:color-mix(in_srgb,var(--modal-input-focus-background)_72%,transparent)] focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_14%,transparent)]",
   surface: "border border-(--surface-control-border) bg-(--surface-control-field-background) shadow-(--surface-control-field-shadow) hover:border-(--surface-control-hover-border) hover:bg-(--surface-control-hover-background) focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_18%,transparent)]",
 };
