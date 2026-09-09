@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Simplify RichMail setup into a compact three-step guide, collapse technical connection details, and show the tool catalog only after connecting.
+
+- Align skill detail headings and panels, place metadata on its own row below the skill introduction, simplify Agent toggle rows, and use consistent document typography.
+
 - Search settings item names and descriptions in addition to navigation labels, listing matching items under their accessible module.
 
 - Add settings navigation search by section or group name and soften the back-to-workspace label weight.
