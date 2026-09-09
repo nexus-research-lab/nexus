@@ -4001,3 +4001,8 @@ DM/Thread 的归档过程与实时工具段不再各自渲染文件汇总，由 
 - 清单仍有 213 pending、135 in_progress、112 improved、22 retained、7 removed。整体目标未完成，不因集成测试通过而提升未审计项目状态。
 
 本地日志：`/tmp/nexus-a145-contracts.log`、`/tmp/nexus-a145-components.log`。临时日志不作为跨机器唯一证据，以上命令与计数为本次复查记录。
+
+
+### A146 — Mermaid 预览键盘入口
+
+放大画布增加具名 region 与 Tab 入口，保留浏览器原生滚动；共享焦点环明确当前位置，标题改用每实例 useId，捕获丢失清理拖拽状态。新增 DOM 回归覆盖模态名称、关闭动作到画布的 Tab 与 Escape 退出；测试与 lint 通过。jsdom 仅模拟元素可见性，不宣称实际滚动或视觉验收。

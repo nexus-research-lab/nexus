@@ -1,9 +1,9 @@
 /**
  * INPUT: 已渲染 Mermaid SVG、开放状态与关闭动作。
- * OUTPUT: 无可见标题栏、支持拖拽浏览的放大画布。
+ * OUTPUT: 无可见标题栏、支持拖拽与键盘滚动的具名放大画布。
  * POS: Mermaid 主视图的瞬时预览层，不解释图表业务语义。
  */
-import { useEffect, useMemo, useRef, type PointerEvent } from "react";
+import { useEffect, useId, useMemo, useRef, type PointerEvent } from "react";
 
 import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -35,6 +35,7 @@ export function MermaidPreviewDialog({
   svg,
 }: MermaidPreviewDialogProps) {
   const { t } = useI18n();
+  const titleId = useId();
   const imageUrl = useMemo(() => buildSvgDataUrl(svg), [svg]);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const dragStateRef = useRef<PreviewDragState | null>(null);
@@ -97,7 +98,7 @@ export function MermaidPreviewDialog({
     <UiDialogPortal>
       <UiDialogBackdrop
         className="overscroll-contain animate-in fade-in duration-(--motion-duration-fast)"
-        labelledBy="mermaid-image-preview-title"
+        labelledBy={titleId}
         layer="dialogNested"
         onClose={onClose}
         onWheel={(event) => {
@@ -111,19 +112,23 @@ export function MermaidPreviewDialog({
           size="workbench"
           viewport="workbench"
         >
-          <h2 className="sr-only" id="mermaid-image-preview-title">
+          <h2 className="sr-only" id={titleId}>
             {t("markdown.mermaid.preview_title")}
           </h2>
           <UiDialogCloseButton
             className="absolute right-3 top-3 z-10 border border-(--surface-paper-border) bg-[color:color-mix(in_srgb,var(--surface-paper-background)_88%,transparent)] text-(--surface-paper-foreground) shadow-sm backdrop-blur"
             onClose={onClose}
           />
+          {/* eslint-disable jsx-a11y/no-noninteractive-tabindex -- The overflow region needs keyboard focus for native scrolling. */}
           <div
-            aria-label={t("markdown.mermaid.open_preview")}
+            aria-label={t("markdown.mermaid.preview_title")}
+            role="region"
+            tabIndex={0}
             className={cn(
-              "soft-scrollbar min-h-0 flex-1 select-none overflow-auto overscroll-contain bg-(--surface-paper-background)",
+              "soft-scrollbar min-h-0 flex-1 select-none overflow-auto overscroll-contain bg-(--surface-paper-background) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-(--ring)",
               isDragging ? "cursor-grabbing" : "cursor-grab",
             )}
+            onLostPointerCapture={finishDrag}
             onPointerCancel={finishDrag}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
@@ -140,6 +145,7 @@ export function MermaidPreviewDialog({
               />
             </div>
           </div>
+          {/* eslint-enable jsx-a11y/no-noninteractive-tabindex */}
         </UiDialogShell>
       </UiDialogBackdrop>
     </UiDialogPortal>
