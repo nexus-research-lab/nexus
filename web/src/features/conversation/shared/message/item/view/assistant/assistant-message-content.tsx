@@ -15,7 +15,7 @@ import type {
   ToolUseContent,
 } from "@/types/conversation/message/content";
 
-import { shouldShowAssistantTimeline } from "../../message-item-projection";
+import { type ContentProjection, shouldShowAssistantTimeline } from "../../message-item-projection";
 import { getLocalizedToolActivityLabel } from "../../../tool-activity";
 import { ProcessActivityIconStack } from "../../../ui/activity-icon";
 import { LocalizedMessageActivityStatus } from "../message-activity-status";
@@ -53,11 +53,24 @@ export function AssistantMessageContent({
   process,
   showMaxTokensWarning,
 }: AssistantMessageContentProps) {
-  const artifactContent = useMemo(() => (
-    environment.mode === "room_result" ? []
-      : process.visible ? process.projection.content : direct.visible ? direct.projection.content : []
-  ), [environment.mode, process.visible, process.projection.content, direct.visible, direct.projection.content]);
-  const artifacts = useWorkspaceFileArtifactsFromContent(artifactContent);
+  const filePresentation = useMemo(() => {
+    if (environment.mode === "room_result") return { direct, process, final, content: [] };
+    const content = [
+      ...(process.visible ? process.projection.content : []),
+      ...(direct.visible ? direct.projection.content : []),
+      ...(final.visible && Array.isArray(final.content) ? final.content : []),
+    ];
+    const finalProjection = Array.isArray(final.content)
+      ? withoutFileCards({ content: final.content, streamingIndexes: new Set(final.streamingIndexes) })
+      : null;
+    return {
+      direct: { ...direct, projection: withoutFileCards(direct.projection) },
+      process: { ...process, projection: withoutFileCards(process.projection) },
+      final: finalProjection ? { ...final, content: finalProjection.content, streamingIndexes: finalProjection.streamingIndexes } : final,
+      content,
+    };
+  }, [environment.mode, direct, process, final]);
+  const artifacts = useWorkspaceFileArtifactsFromContent(filePresentation.content);
   return (
     <>
       <StandaloneActivity
@@ -67,7 +80,7 @@ export function AssistantMessageContent({
       <EmptyStreamStatus status={activity.emptyStreamStatus} />
       <AssistantDirectContent
         activity={activity}
-        direct={direct}
+        direct={filePresentation.direct}
         environment={environment}
         permissions={permissions}
         responseResumed={final.isStreaming}
@@ -77,25 +90,25 @@ export function AssistantMessageContent({
         activity={activity}
         environment={environment}
         permissions={permissions}
-        process={process}
+        process={filePresentation.process}
       />
       <AssistantFinalContent
         activity={activity}
         environment={environment}
-        final={final}
+        final={filePresentation.final}
         permissions={permissions}
         showTrailingActivity={!direct.visible}
       />
       <RoomResultProcessActivity
         activity={activity}
-        direct={direct}
+        direct={filePresentation.direct}
         environment={environment}
       />
       <RoomResultTrailingActivity
         activity={activity}
-        direct={direct}
+        direct={filePresentation.direct}
         environment={environment}
-        final={final}
+        final={filePresentation.final}
       />
       <MaxTokensWarning visible={showMaxTokensWarning} />
       <WorkspaceFileArtifactList
@@ -106,6 +119,18 @@ export function AssistantMessageContent({
       />
     </>
   );
+}
+
+// Removing cards must reindex streaming markers alongside the remaining content.
+function withoutFileCards(projection: ContentProjection): ContentProjection {
+  const content: ContentBlock[] = [];
+  const streamingIndexes = new Set<number>();
+  projection.content.forEach((block, index) => {
+    if (block.type === "workspace_file_artifact") return;
+    if (projection.streamingIndexes.has(index)) streamingIndexes.add(content.length);
+    content.push(block);
+  });
+  return { content, streamingIndexes };
 }
 
 function RoomResultProcessActivity({
