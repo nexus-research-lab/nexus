@@ -1,5 +1,5 @@
 // INPUT: 消息明细的展开态、前导内容、摘要内容、语义 tone 与原生按钮属性。
-// OUTPUT: 统一尺寸、焦点、状态色和旋转箭头的消息明细展开按钮。
+// OUTPUT: 常规字重、展开不加深的消息明细按钮；保留焦点、语义状态色与旋转箭头。
 // POS: Message 领域公共交互组件；不判断 Thought、Tool 或 Process 业务状态。
 
 import type { ButtonHTMLAttributes, ReactNode } from "react";
@@ -41,7 +41,11 @@ export function MessageDetailToggle({
     <UiButton
       {...props}
       aria-expanded={expanded}
-      className={cn("w-full min-w-0 justify-start text-left", className)}
+      className={cn(
+        "w-full min-w-0 justify-start text-left font-normal",
+        tone === "default" && "aria-[expanded=true]:text-(--text-muted)",
+        className,
+      )}
       size="sm"
       tone={BUTTON_TONE[tone]}
       variant="text"
