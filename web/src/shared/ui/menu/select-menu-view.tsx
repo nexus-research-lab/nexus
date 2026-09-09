@@ -88,7 +88,7 @@ export function SelectMenuView({
 }: SelectMenuViewProps) {
   return (
     <div
-      className={cn("relative w-full", styles.heightClassName, className)}
+      className={cn("relative min-w-0 w-full", styles.heightClassName, className)}
     >
       <SelectMenuTrigger
         ariaLabel={ariaLabel}

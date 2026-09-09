@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Reorganize Operations and its member, subscription, plan, provider, and project views with consistent field sizes, responsive content alignment, concise summaries, and expandable create/edit forms. Operations subpages now live in the settings sidebar with URL-backed navigation, regular-weight navigation and medium-weight setting labels, and a compact navigation drawer on narrow screens.
+
 - Apply localized compact token counts to activity tooltips and chart detail labels as well as summary metrics.
 
 - Tighten Token activity spacing with square calendar cells, abbreviate personal usage in localized units (M/B or 百万/亿), and align the collapsible password form with settings rows.

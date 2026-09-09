@@ -1,4 +1,21 @@
+// INPUT: 设置分区名称与 URL 查询参数。
+// OUTPUT: 侧栏分组、运营子页识别与当前页面名称。
+// POS: 设置导航单一目录；不读取权限或持有渲染状态。
 import type { TranslationKey } from "@/shared/i18n/messages";
+
+export const OPERATIONS_SECTIONS = [
+  { key: "operations-members", labelKey: "operations.tabs.members" },
+  { key: "operations-subscriptions", labelKey: "operations.tabs.user_subscriptions" },
+  { key: "operations-plans", labelKey: "operations.tabs.subscription_plans" },
+  { key: "operations-providers", labelKey: "operations.tabs.subscription_providers" },
+  { key: "operations-projects", labelKey: "operations.tabs.projects" },
+] as const;
+
+export type OperationsSectionKey = typeof OPERATIONS_SECTIONS[number]["key"];
+
+export function isOperationsSection(section: string): section is OperationsSectionKey {
+  return OPERATIONS_SECTIONS.some((item) => item.key === section);
+}
 
 export type SettingsSectionKey =
   | "general"
@@ -9,7 +26,7 @@ export type SettingsSectionKey =
 	| "browser"
   | "personal"
   | "providers"
-  | "operations";
+  | OperationsSectionKey;
 
 export interface SettingsNavigationGroup {
   key: "preferences" | "account" | "models" | "management";
@@ -53,10 +70,8 @@ export const SETTINGS_NAVIGATION_GROUPS: readonly SettingsNavigationGroup[] = [
   },
   {
     key: "management",
-    labelKey: "settings.navigation.management",
-    items: [
-      { key: "operations", labelKey: "operations.title" },
-    ],
+    labelKey: "operations.page_title",
+    items: OPERATIONS_SECTIONS,
   },
 ] as const;
 
@@ -70,6 +85,7 @@ export function parseSettingsSection(
   searchParams: URLSearchParams,
 ): SettingsSectionKey {
   const section = searchParams.get("section");
+  if (section === "operations") return "operations-members";
   return section && SETTINGS_SECTION_KEYS.has(section as SettingsSectionKey)
     ? (section as SettingsSectionKey)
     : DEFAULT_SETTINGS_SECTION;

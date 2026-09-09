@@ -4,7 +4,13 @@
 
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { Menu } from "lucide-react";
+import { usePageHeaderActionsTarget } from "@/shared/lib/react/page-header-actions-context";
+import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiIconButton } from "@/shared/ui/button/button";
+import { UiDialogPortal, UiDialogBackdrop, UiDialogShell, UiDialogHeader } from "@/shared/ui/dialog/dialog";
 import { Navigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/shared/navigation/route-paths";
@@ -19,13 +25,16 @@ import { ProviderSettingsPanel } from "./provider-settings/provider-settings-pan
 import { SettingsGeneralSection } from "./general/settings-general-section";
 import { SettingsRuntimeSection } from "./runtime/settings-runtime-section";
 import { BrowserSettingsSection } from "./browser/browser-settings-section";
-import type { SettingsSectionKey } from "./settings-navigation-model";
+import { isOperationsSection, type SettingsSectionKey } from "./settings-navigation-model";
 import { SettingsSidebarNavigation } from "./settings-sidebar-navigation";
 import { useSettingsSearchTarget } from "./use-settings-search-target";
 import { useSettingsNavigation } from "./use-settings-navigation";
 
 export function SettingsPanel({ standalone = false }: { standalone?: boolean }) {
   const { status } = useAuth();
+  const { t } = useI18n();
+  const headerActionsTarget = usePageHeaderActionsTarget();
+  const [navigationOpen, setNavigationOpen] = useState(false);
   const { activeSection } = useSettingsNavigation();
   const contentRef = useRef<HTMLDivElement>(null);
   useSettingsSearchTarget(contentRef, activeSection);
@@ -33,10 +42,10 @@ export function SettingsPanel({ standalone = false }: { standalone?: boolean }) 
     !isDesktopRuntime() && canUseOperations(status?.role);
   const content = (
     <div ref={contentRef}>
-    <SettingsSectionContent
-      canViewOperations={canViewOperations}
-      section={activeSection}
-    />
+      <SettingsSectionContent
+        canViewOperations={canViewOperations}
+        section={activeSection}
+      />
     </div>
   );
 
@@ -67,6 +76,20 @@ export function SettingsPanel({ standalone = false }: { standalone?: boolean }) 
       bodyScrollable
       stableGutter
     >
+      {headerActionsTarget ? createPortal(
+        <UiIconButton aria-label={t("settings.open_navigation")} aria-expanded={navigationOpen} aria-haspopup="dialog" onClick={() => setNavigationOpen(true)} size="md" variant="ghost"><Menu className="h-4 w-4" /></UiIconButton>,
+        headerActionsTarget,
+      ) : null}
+      {navigationOpen && headerActionsTarget ? (
+        <UiDialogPortal>
+          <UiDialogBackdrop className="items-stretch justify-start" onClose={() => setNavigationOpen(false)}>
+            <UiDialogShell className="h-full w-72 max-w-full" size="xs">
+              <UiDialogHeader title={t("settings.title")} onClose={() => setNavigationOpen(false)} />
+              <SettingsSidebarNavigation variant="panel" onNavigate={() => setNavigationOpen(false)} />
+            </UiDialogShell>
+          </UiDialogBackdrop>
+        </UiDialogPortal>
+      ) : null}
       {content}
     </WorkspaceSurfaceScaffold>
   );
@@ -79,9 +102,9 @@ function SettingsSectionContent({
   canViewOperations: boolean;
   section: SettingsSectionKey;
 }) {
-  if (section === "operations") {
+  if (isOperationsSection(section)) {
     return canViewOperations ? (
-      <OperationsPanel embedded />
+      <OperationsPanel section={section} />
     ) : (
       <Navigate replace to={AppRouteBuilders.settings()} />
     );

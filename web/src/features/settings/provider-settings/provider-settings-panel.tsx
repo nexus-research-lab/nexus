@@ -46,7 +46,7 @@ export function ProviderSettingsPanel({
   const panelContent = (
     <div className={cn(
       layout === "page" ? WORKSPACE_CONTENT_PAGE_CLASS_NAME : undefined,
-      "flex min-h-0 flex-col sm:h-full",
+      "@container/provider flex min-h-0 min-w-0 flex-col sm:h-full",
     )}>
       {layout === "page" ? (
         <WorkspaceContentHeader
@@ -59,7 +59,7 @@ export function ProviderSettingsPanel({
             : "settings.providers.section_title")}
         />
       ) : null}
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-visible sm:flex-row sm:items-stretch sm:gap-5 sm:overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-visible @min-[720px]/provider:flex-row @min-[720px]/provider:items-stretch @min-[720px]/provider:gap-5 @min-[720px]/provider:overflow-hidden">
         <ProviderSettingsSidebar
           configuredByPreset={state.configuredByPreset}
           customProviders={state.customProviders}
@@ -77,9 +77,9 @@ export function ProviderSettingsPanel({
           showCCSwitchImport={canImportFromCCSwitch}
         />
 
-        <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-visible sm:overflow-hidden">
+        <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-visible @min-[720px]/provider:overflow-hidden">
           {state.isEmptyMode ? null : (
-            <div className="flex min-h-0 flex-1 flex-col bg-transparent py-2 sm:px-5">
+            <div className="flex min-h-0 flex-1 flex-col bg-transparent py-2">
               <ProviderSettingsDetailHeader
                 detailTitle={state.detailTitle}
                 enabled={state.draft.enabled}
