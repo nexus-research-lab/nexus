@@ -2,7 +2,7 @@
 // OUTPUT: 证明授权弹窗随步骤标题命名、复用共享排版/表单并只提交完整的业务凭证。
 // POS: Connector 授权弹窗 DOM 合同；Device Flow 时序由相邻 poller 测试负责。
 
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -206,4 +206,29 @@ it.each(["credential", "oauth"] as const)("associates %s labels with their own d
     expect(input.value).toBe("draft");
   }
   forms[0].querySelectorAll("input").forEach((input) => expect(input.value).toBe(""));
+});
+
+it.each(["credential", "oauth"] as const)("rejects %s form submissions while busy and preserves the draft", async (kind) => {
+  const user = userEvent.setup();
+  const onSave = vi.fn();
+  const onClose = vi.fn();
+  const view = (busy: boolean) => <I18nProvider>{kind === "credential"
+    ? <ConnectorCredentialDialog detail={AMAP_DETAIL} busy={busy} onClose={onClose} onSave={onSave} />
+    : <ConnectorOAuthClientDialog detail={FEISHU_DETAIL} busy={busy} onClose={onClose} onDelete={vi.fn()} onSave={onSave} />
+  }</I18nProvider>;
+  const { rerender } = render(view(false));
+  if (kind === "oauth") await user.type(screen.getByLabelText("Client ID*"), "client-id");
+  const input = screen.getByLabelText(kind === "credential" ? "API Key*" : "Client Secret*");
+  await user.type(input, "secret");
+  const form = input.closest("form")!;
+  rerender(view(true));
+  expect(form.getAttribute("aria-busy")).toBe("true");
+  fireEvent.submit(form);
+  expect(onSave).not.toHaveBeenCalled();
+  rerender(view(false));
+  expect(form.getAttribute("aria-busy")).toBe("false");
+  expect((input as HTMLInputElement).value).toBe("secret");
+  fireEvent.submit(form);
+  expect(onSave).toHaveBeenCalledExactlyOnceWith(...(kind === "credential"
+    ? ["amap", "secret"] : ["feishu-docx", "client-id", "secret"]));
 });

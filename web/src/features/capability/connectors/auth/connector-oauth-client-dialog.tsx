@@ -52,12 +52,13 @@ export function ConnectorOAuthClientDialog({
 }: ConnectorOAuthClientDialogProps) {
   const { t } = useI18n();
   const model = buildConnectorOauthClientDialogModel(detail, t);
-  const form = useConnectorOauthClientForm(model, onSave);
+  const form = useConnectorOauthClientForm(model, busy, onSave);
   if (!model) return null;
 
   return (
     <UiDialogBackdrop onClose={onClose}>
       <UiDialogFormShell
+        aria-busy={busy}
         onSubmit={form.handleSubmit}
         size="sm"
         viewport="compactMax"
@@ -89,6 +90,7 @@ interface ConnectorOauthClientFormState {
 
 function useConnectorOauthClientForm(
   model: ConnectorOauthClientDialogModel | null,
+  busy: boolean,
   onSave: ConnectorOAuthClientDialogProps["onSave"],
 ): ConnectorOauthClientFormState {
   const resetKey = model?.resetKey ?? "closed";
@@ -99,11 +101,11 @@ function useConnectorOauthClientForm(
   const [clientSecret, setClientSecret] = useResettableState("", resetKey);
   const handleSubmit = useCallback((event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!model || !connectorOauthCredentialsComplete(clientId, clientSecret)) {
+    if (busy || !model || !connectorOauthCredentialsComplete(clientId, clientSecret)) {
       return;
     }
     onSave(model.connectorId, clientId, clientSecret);
-  }, [clientId, clientSecret, model, onSave]);
+  }, [busy, clientId, clientSecret, model, onSave]);
 
   return {
     clientId,

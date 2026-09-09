@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Guard credential form submission while busy and expose the pending state without clearing entered values.
+
 - Guide main-agent creation to set an avatar and complete the existing behavior-template fields while preserving default rules and verifying the saved result.
 
 - Isolate OAuth and direct credential field labels per dialog instance to prevent cross-form focus and input.

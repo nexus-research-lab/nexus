@@ -84,10 +84,10 @@ export function ConnectorCredentialDialog({
   const handleSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      if (!detail || !credential.trim()) return;
+      if (busy || !detail || !credential.trim()) return;
       onSave(detail.connector_id, credential.trim());
     },
-    [credential, detail, onSave],
+    [busy, credential, detail, onSave],
   );
 
   if (!detail) return null;
@@ -96,6 +96,7 @@ export function ConnectorCredentialDialog({
   return (
     <UiDialogBackdrop onClose={onClose}>
       <UiDialogFormShell
+        aria-busy={busy}
         onSubmit={handleSubmit}
         size="sm"
         viewport="compactMax"

@@ -17,3 +17,5 @@
 - RichMail 配对 Hook 只向视图投影 pending/connected 状态，拒绝/过期与 outcome_unknown 继续分离；反馈由当前语言目录生成，不回显服务端 message 或异常正文。语言变化不重启配对轮询，步骤只描述客户端批准及自动连接。
 
 - OAuth 与直接凭证字段使用实例级 ID 关联标签，重复挂载不共享 DOM 身份；字段 ID 不参与草稿 reset key 或业务提交，OAuth Secret 的 name 使用通用语义。
+
+- 直接凭证与 OAuth 表单按外部 busy 投影 aria-busy，并在提交处理器拒绝 busy 期间的提交；不建立额外请求状态或清除当前草稿。
