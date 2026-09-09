@@ -4,7 +4,7 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
-import { useState } from "react";
+import { StrictMode, useState } from "react";
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
 import { SettingsFontPicker } from "./settings-font-picker";
 
@@ -70,4 +70,54 @@ it("does not duplicate a pending browser request when reopened", async () => {
   expect(query).toHaveBeenCalledOnce();
   await act(async () => resolve([{ family: "Arial" }]));
   expect(screen.getByRole("option", { name: "Arial" })).toBeTruthy();
+});
+
+it("keeps presets usable while loading and provides input for an empty catalog", async () => {
+  bridge.available.mockReturnValue(true);
+  let finish!: (value: { families: string[] }) => void;
+  bridge.fonts.mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+  render(<Form />);
+  expect(screen.getByText("common.loading").getAttribute("role")).toBe("status");
+  await userEvent.click(screen.getByRole("button", { name: "settings.reading.font" }));
+  await userEvent.click(screen.getByRole("option", { name: "settings.reading.serif" }));
+  expect(screen.getByLabelText("Selected font").textContent).toBe("serif");
+  await act(async () => finish({ families: [] }));
+  expect(screen.queryByText("common.loading")).toBeNull();
+  expect(screen.getByRole("textbox", { name: "settings.reading.custom_font" })).toBeTruthy();
+});
+it("retries desktop failures on reopening without discarding the manual field", async () => {
+  bridge.available.mockReturnValue(true);
+  bridge.fonts.mockRejectedValueOnce(new Error("offline"));
+  let finish!: (value: { families: string[] }) => void;
+  bridge.fonts.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+  render(<Form initial="Saved Font" />);
+  const input = await screen.findByRole("textbox", { name: "settings.reading.custom_font" });
+  await userEvent.click(screen.getByRole("button", { name: "settings.reading.font" }));
+  expect(bridge.fonts).toHaveBeenCalledTimes(2);
+  expect(screen.getByRole("textbox", { name: "settings.reading.custom_font" })).toBe(input);
+  await act(async () => finish({ families: ["Arial"] }));
+  expect(screen.queryByText("settings.reading.font_error")).toBeNull();
+  expect(screen.getByLabelText("Selected font").textContent).toBe("Saved Font");
+});
+it("ignores stale desktop responses after StrictMode effect cleanup", async () => {
+  bridge.available.mockReturnValue(true);
+  const finish: Array<(value: { families: string[] }) => void> = [];
+  bridge.fonts.mockImplementation(() => new Promise((resolve) => { finish.push(resolve); }));
+  render(<StrictMode><Form /></StrictMode>);
+  expect(finish).toHaveLength(2);
+  await act(async () => finish[1]({ families: ["Current Font"] }));
+  await act(async () => finish[0]({ families: ["Stale Font"] }));
+  await userEvent.click(screen.getByRole("button", { name: "settings.reading.font" }));
+  expect(screen.getByRole("option", { name: "Current Font" })).toBeTruthy();
+  expect(screen.queryByRole("option", { name: "Stale Font" })).toBeNull();
+});
+it.each(["granted", "prompt"])("only enumerates automatically with %s browser permission", async (state) => {
+  const permission = vi.fn().mockResolvedValue({ state });
+  vi.stubGlobal("navigator", Object.create(navigator, { permissions: { value: { query: permission } } }));
+  const query = vi.fn().mockResolvedValue([{ family: "Arial" }]);
+  vi.stubGlobal("queryLocalFonts", query);
+  render(<Form />);
+  await act(async () => { await Promise.resolve(); });
+  expect(permission).toHaveBeenCalledWith({ name: "local-fonts" });
+  expect(query).toHaveBeenCalledTimes(state === "granted" ? 1 : 0);
 });
