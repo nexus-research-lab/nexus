@@ -1,4 +1,5 @@
 import { isMainAgent } from "@/config/runtime-options";
+import type { TeamRoomView } from "@/lib/api/conversation/team-api";
 import { isExternalSessionChannel } from "@/lib/conversation/external-session";
 import type { Locale } from "@/shared/i18n/messages";
 import type {
@@ -68,7 +69,14 @@ export function buildConversationItems({
     .map((room) => projectConversationItem(room, context))
     .filter((item): item is SidebarConversationItem => item !== null);
 
-  return items.sort((left, right) => {
+  return sortConversationItems(items, locale);
+}
+
+export function sortConversationItems(
+  items: SidebarConversationItem[],
+  locale: Locale,
+): SidebarConversationItem[] {
+  return [...items].sort((left, right) => {
     if (left.isPinned !== right.isPinned) {
       return left.isPinned ? -1 : 1;
     }
@@ -77,6 +85,36 @@ export function buildConversationItems({
     }
     return left.title.localeCompare(right.title, resolveIntlLocale(locale));
   });
+}
+
+export function buildTeamConversationItem({
+  fallbackTitle,
+  locale,
+  summary,
+  team,
+}: {
+  fallbackTitle: string;
+  locale: Locale;
+  summary: string;
+  team: TeamRoomView;
+}): SidebarConversationItem {
+  const lastActivityAt = toTimestamp(team.conversation.last_activity_at);
+  return {
+    activityStatus: null,
+    avatar: team.room.avatar || null,
+    canDelete: false,
+    conversationId: team.conversation.id,
+    id: `team:${team.conversation.id}`,
+    isPinned: false,
+    kind: "team",
+    lastActivityAt,
+    members: [],
+    messageCount: team.conversation.high_water_message_seq,
+    roomId: team.room.id,
+    summary,
+    timeLabel: formatSidebarTime(lastActivityAt, locale),
+    title: team.room.name || fallbackTitle,
+  };
 }
 
 function isMainAgentDmRoom(room: LauncherRoomSummary): boolean {

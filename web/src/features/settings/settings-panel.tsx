@@ -15,6 +15,7 @@ import { Navigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 import { isDesktopRuntime } from "@/config/desktop-runtime";
+import { useProjectPermissionsEnabled } from "@/hooks/settings/use-project-permissions-enabled";
 import { useAuth } from "@/shared/auth/auth-context";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 
@@ -32,6 +33,7 @@ import { useSettingsNavigation } from "./use-settings-navigation";
 
 export function SettingsPanel({ standalone = false }: { standalone?: boolean }) {
   const { status } = useAuth();
+  const projectPermissionsEnabled = useProjectPermissionsEnabled();
   const { t } = useI18n();
   const headerActionsTarget = usePageHeaderActionsTarget();
   const [navigationOpen, setNavigationOpen] = useState(false);
@@ -43,7 +45,7 @@ export function SettingsPanel({ standalone = false }: { standalone?: boolean }) 
   const content = (
     <div ref={contentRef}>
       <SettingsSectionContent
-        canViewOperations={canViewOperations}
+        canViewOperations={canViewOperations && (activeSection !== "operations-projects" || projectPermissionsEnabled)}
         section={activeSection}
       />
     </div>

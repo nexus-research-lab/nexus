@@ -9,7 +9,8 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
 import { getActiveChatTargetFromPath } from "@/features/home/notifications/chat-notification-target";
-import { useTeamBootstrap } from "@/features/team/use-team-bootstrap";
+import { useTeamRooms } from "@/features/team/use-team-rooms";
+import { createTeamRoom } from "@/lib/api/conversation/team-api";
 import { createRoom, deleteRoom } from "@/lib/api/conversation/room-command-api";
 import { projectMutationFailure } from "@/lib/error-message";
 import {
@@ -23,6 +24,8 @@ import { useSidebarStore } from "@/store/sidebar";
 import { useRoomActivity } from "../room-activity-resource";
 import {
   buildConversationItems,
+  buildTeamConversationItem,
+  sortConversationItems,
   type SidebarConversationItem,
 } from "./sidebar-conversation-model";
 import { useSidebarDirectory } from "./sidebar-directory";
@@ -64,7 +67,7 @@ export function useChatSidebarController({
     (state) => state.discard_chat_state_for_room,
   );
   const roomActivity = useRoomActivity();
-  const team = useTeamBootstrap();
+  const onlineRooms = useTeamRooms();
   const {
     agents,
     conversations,
@@ -86,6 +89,10 @@ export function useChatSidebarController({
   }>());
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [isOnlineCreateOpen, setIsOnlineCreateOpen] = useState(false);
+  const [isOnlineCreating, setIsOnlineCreating] = useState(false);
+  const [onlineCreateError, setOnlineCreateError] = useState(false);
+  const onlineCreateCommandRef = useRef<{ id: string; name: string } | null>(null);
   const activeTarget = useMemo(
     () => getActiveChatTargetFromPath(location.pathname),
     [location.pathname],
@@ -114,22 +121,18 @@ export function useChatSidebarController({
       chatUnreadTimestamps,
       items: conversationItems,
     });
-    if (!team) {
+    if (onlineRooms.rooms.length === 0) {
       return localItems;
     }
-    return [{
-      activityStatus: null,
-      canDelete: false,
-      id: `team:${team.conversation.id}`,
-      isPinned: true,
-      kind: "team" as const,
-      lastActivityAt: 0,
-      members: [],
-      messageCount: team.conversation.high_water_message_seq,
-      summary: t("team.shared_room_summary"),
-      timeLabel: "",
-      title: team.room.name || t("team.general"),
-    }, ...localItems];
+    return sortConversationItems([
+      ...localItems,
+      ...onlineRooms.rooms.map((team) => buildTeamConversationItem({
+        fallbackTitle: t("team.shared_room"),
+        locale,
+        summary: t("team.shared_room_summary"),
+        team,
+      })),
+    ], locale);
   }, [
     activeTarget,
     chatUnreadAnchors,
@@ -137,7 +140,8 @@ export function useChatSidebarController({
     chatUnreadTargets,
     chatUnreadTimestamps,
     conversationItems,
-    team,
+    locale,
+    onlineRooms.rooms,
     t,
   ]);
   const filteredItems = useMemo(
@@ -148,7 +152,7 @@ export function useChatSidebarController({
   const openConversation = useCallback((item: SidebarConversationItem) => {
     if (item.kind === "team") {
       setActiveItem(item.id);
-      navigate(AppRouteBuilders.team());
+      navigate(AppRouteBuilders.team(item.roomId));
       return;
     }
     const routeRoomId = item.routeRoomId ?? item.roomId;
@@ -320,11 +324,38 @@ export function useChatSidebarController({
     setDeleteTarget(null);
   }, []);
 
-  const isItemActive = useCallback((item: SidebarConversationItem) => (
-    (item.kind === "team" && location.pathname === AppRouteBuilders.team())
-    || activeItemId === item.id
-    || Boolean(item.roomId && activeItemId === item.roomId)
-  ), [activeItemId, location.pathname]);
+  const isItemActive = useCallback((item: SidebarConversationItem) => {
+    if (item.kind === "team") {
+      const selectedRoomId = new URLSearchParams(location.search).get("room_id")
+        ?? onlineRooms.rooms[0]?.room.id;
+      return location.pathname === AppRouteBuilders.team() && selectedRoomId === item.roomId;
+    }
+    return activeItemId === item.id || Boolean(item.roomId && activeItemId === item.roomId);
+  }, [activeItemId, location.pathname, location.search, onlineRooms.rooms]);
+
+  const submitOnlineCreate = useCallback(async (name: string) => {
+    const normalized = name.trim();
+    if (!normalized || isOnlineCreating) {
+      return;
+    }
+    const command = onlineCreateCommandRef.current?.name === normalized
+      ? onlineCreateCommandRef.current
+      : { id: crypto.randomUUID(), name: normalized };
+    onlineCreateCommandRef.current = command;
+    setIsOnlineCreating(true);
+    setOnlineCreateError(false);
+    try {
+      const created = await createTeamRoom(normalized, command.id);
+      onlineCreateCommandRef.current = null;
+      setIsOnlineCreateOpen(false);
+      onlineRooms.refresh();
+      navigate(AppRouteBuilders.team(created.room.id));
+    } catch {
+      setOnlineCreateError(true);
+    } finally {
+      setIsOnlineCreating(false);
+    }
+  }, [isOnlineCreating, navigate, onlineRooms]);
 
   return {
     create: {
@@ -333,6 +364,23 @@ export function useChatSidebarController({
       isOpen: isCreateOpen,
       open: () => setIsCreateOpen(true),
       submit: submitCreate,
+    },
+    onlineCreate: {
+      cancel: () => {
+        if (!isOnlineCreating) {
+          setIsOnlineCreateOpen(false);
+          setOnlineCreateError(false);
+        }
+      },
+      error: onlineCreateError,
+      isAvailable: onlineRooms.isAvailable,
+      isCreating: isOnlineCreating,
+      isOpen: isOnlineCreateOpen,
+      open: () => {
+        setOnlineCreateError(false);
+        setIsOnlineCreateOpen(true);
+      },
+      submit: submitOnlineCreate,
     },
     deletion: {
       action: deleteAction,

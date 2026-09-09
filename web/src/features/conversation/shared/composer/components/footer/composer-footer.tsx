@@ -92,7 +92,7 @@ export function ComposerFooter(props: ComposerFooterProps) {
   );
 }
 
-function ComposerPoweredByNexus({ visible }: { visible: boolean }) {
+export function ComposerPoweredByNexus({ visible }: { visible: boolean }) {
   if (!visible) {
     return (
       <span

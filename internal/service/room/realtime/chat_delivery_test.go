@@ -19,7 +19,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-func TestRealtimeServiceHandleChatWithSingleAgentRoomFallbackTarget(t *testing.T) {
+func TestRealtimeServiceHandleGroupChatWithExplicitAgentMention(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
@@ -104,7 +104,7 @@ func TestRealtimeServiceHandleChatWithSingleAgentRoomFallbackTarget(t *testing.T
 		ConversationID:  roomContext.Conversation.ID,
 		ClientRequestID: "request-room-user-1",
 		ClientMessageID: "local-room-user-1",
-		Content:         "你好",
+		Content:         "@单聊助手 你好",
 		RoundID:         "room-round-1",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
@@ -193,7 +193,7 @@ func TestRealtimeServiceHandleChatWithSingleAgentRoomFallbackTarget(t *testing.T
 		"Before substantial execution, assess separability",
 		"members may use local subagents",
 		"Current-Room private messaging is disabled",
-		"room_host_default routes an unaddressed turn to the host",
+		"Group Agents wake only through explicit @mention",
 		"managed Plan and assign_work through execution-orchestrator",
 		"never substitute raw @",
 		"If a private message wakes you, answer once in the final reply",
@@ -298,7 +298,7 @@ func TestRealtimeServiceHandleChatWithSingleAgentRoomFallbackTarget(t *testing.T
 	privateUserContent := anyToString(privateMessages[0]["content"])
 	for _, expected := range []string{
 		"<public_feed>",
-		"User: 你好",
+		"User: @单聊助手 你好",
 	} {
 		if !strings.Contains(privateUserContent, expected) {
 			t.Fatalf("私有 round marker 应记录实际 Room dispatch prompt，缺少 %q:\n%s", expected, privateUserContent)
@@ -320,7 +320,7 @@ func TestRealtimeServiceHandleChatWithSingleAgentRoomFallbackTarget(t *testing.T
 	}
 }
 
-func TestRealtimeServiceRoutesUnmentionedGroupMessageToRoomHost(t *testing.T) {
+func TestRealtimeServiceKeepsUnmentionedGroupMessageWithoutStartingHost(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
@@ -363,11 +363,12 @@ func TestRealtimeServiceRoutesUnmentionedGroupMessageToRoomHost(t *testing.T) {
 	permission.BindSession(sharedSessionKey, sender)
 
 	if err = service.HandleChat(ctx, realtimesvc.ChatRequest{
-		SessionKey:     sharedSessionKey,
-		RoomID:         roomContext.Room.ID,
-		ConversationID: roomContext.Conversation.ID,
-		Content:        "帮我拆一下这个需求",
-		RoundID:        "room-round-host-default",
+		SessionKey:                  sharedSessionKey,
+		RoomID:                      roomContext.Room.ID,
+		ConversationID:              roomContext.Conversation.ID,
+		Content:                     "帮我拆一下这个需求",
+		RoundID:                     "room-round-host-default",
+		TrustedConfigurationContext: true,
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -379,15 +380,11 @@ func TestRealtimeServiceRoutesUnmentionedGroupMessageToRoomHost(t *testing.T) {
 	})
 	select {
 	case prompt := <-hostPrompt:
-		if !strings.Contains(prompt, `<latest_trigger type="room_host_default">`) ||
-			!strings.Contains(prompt, "帮我拆一下这个需求") {
-			t.Fatalf("群主 prompt 缺少默认接管上下文: %s", prompt)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("未 @ 消息没有唤醒群主")
+		t.Fatalf("未 @ 消息不应唤醒主持 Agent: %s", prompt)
+	default:
 	}
-	if !hasChatAckPendingAgent(events, amy.AgentID) {
-		t.Fatalf("事件流缺少群主 pending slot: %+v", events)
+	if hasChatAckPendingAgent(events, amy.AgentID) {
+		t.Fatalf("未 @ 消息不应创建主持 Agent pending slot: %+v", events)
 	}
 	if hasChatAckPendingAgent(events, devin.AgentID) {
 		t.Fatalf("未 @ 消息不应直接唤醒非群主成员: %+v", events)
@@ -402,12 +399,12 @@ func TestRealtimeServiceRoutesUnmentionedGroupMessageToRoomHost(t *testing.T) {
 		if message["round_id"] == "room-round-host-default" && message["role"] == "user" {
 			foundUserMessage = true
 			if message["content"] != "帮我拆一下这个需求" {
-				t.Fatalf("群主默认接管用户输入内容不正确: %+v", message)
+				t.Fatalf("未 @ 用户输入内容不正确: %+v", message)
 			}
 		}
 	}
 	if !foundUserMessage {
-		t.Fatalf("群主默认接管的用户输入应写入公区历史: %+v", sharedMessages)
+		t.Fatalf("未 @ 用户输入仍应写入公区历史: %+v", sharedMessages)
 	}
 }
 
@@ -451,11 +448,12 @@ func TestRealtimeServiceAcksPublicMessageWithoutMention(t *testing.T) {
 	permission.BindSession(sharedSessionKey, sender)
 
 	if err = service.HandleChat(ctx, realtimesvc.ChatRequest{
-		SessionKey:     sharedSessionKey,
-		RoomID:         roomContext.Room.ID,
-		ConversationID: roomContext.Conversation.ID,
-		Content:        "先记一下这个背景",
-		RoundID:        "room-round-no-mention",
+		SessionKey:                  sharedSessionKey,
+		RoomID:                      roomContext.Room.ID,
+		ConversationID:              roomContext.Conversation.ID,
+		Content:                     "先记一下这个背景",
+		RoundID:                     "room-round-no-mention",
+		TrustedConfigurationContext: true,
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}

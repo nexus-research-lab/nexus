@@ -2,7 +2,7 @@
 // OUTPUT: 证明系统动作复用共享圆形 IconButton，并转发精确命令。
 // POS: 侧栏底部动作 DOM 行为测试；路由和更新桥接由各自所有者负责。
 
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -37,7 +37,12 @@ describe("SidebarPanelToggleAction", () => {
 
 vi.mock("./use-sidebar-update-version", () => ({ useSidebarUpdateVersion: () => null }));
 
-it("opens account actions and only logs out after selecting the menu item", async () => {
+function CurrentRoute() {
+  const location = useLocation();
+  return <output data-testid="route">{location.pathname}{location.search}</output>;
+}
+
+it("opens personal settings from the account row and keeps logout explicit", async () => {
   const user = userEvent.setup();
   const onLogout = vi.fn();
   const onOpenGuide = vi.fn();
@@ -55,12 +60,17 @@ it("opens account actions and only logs out after selecting the menu item", asyn
     showLogout
     showPanelToggle
     showSettings
-  /></MemoryRouter>);
+  /><CurrentRoute /></MemoryRouter>);
   expect(screen.queryByRole("menuitem", { name: "退出登录" })).toBeNull();
   await user.click(screen.getByRole("button", { name: "测试用户" }));
   expect(screen.getByRole("menuitem", { name: "设置" })).toBeTruthy();
   expect(screen.getAllByRole("separator")).toHaveLength(1);
-  expect(screen.queryByRole("menuitem", { name: "测试用户" })).toBeNull();
+  const account = screen.getByRole("menuitem", { name: "测试用户" });
+  expect(account.className).toBe(screen.getByRole("menuitem", { name: "设置" }).className);
+  await user.click(account);
+  expect(screen.getByTestId("route").textContent).toBe("/settings?section=personal");
+  expect(screen.queryByRole("menu")).toBeNull();
+  await user.click(screen.getByRole("button", { name: "测试用户" }));
   expect(onLogout).not.toHaveBeenCalled();
   await user.click(screen.getByRole("menuitem", { name: "退出登录" }));
   expect(onLogout).toHaveBeenCalledOnce();

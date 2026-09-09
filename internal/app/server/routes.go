@@ -136,7 +136,8 @@ func (s *Server) mountTeamRoutes() {
 	if strings.TrimSpace(s.config.RelayURL) == "" || s.handlers.team == nil {
 		return
 	}
-	s.router.Post(s.prefixPath("/team/bootstrap"), s.handlers.team.HandleBootstrap)
+	s.router.Get(s.prefixPath("/team/rooms"), s.handlers.team.HandleListRooms)
+	s.router.Post(s.prefixPath("/team/rooms"), s.handlers.team.HandleCreateRoom)
 	s.router.Post(
 		s.prefixPath("/team/conversations/{conversation_id}/messages"),
 		s.handlers.team.HandlePostMessage,

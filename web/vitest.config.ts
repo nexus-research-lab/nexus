@@ -12,7 +12,20 @@ export default defineConfig({
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
   },
+  server: {
+    fs: {
+      allow: [
+        fileURLToPath(new URL(".", import.meta.url)),
+        fileURLToPath(new URL("../docs", import.meta.url)),
+      ],
+    },
+  },
   test: {
+    pool: "forks",
+    poolOptions: {
+      // 由 jsdom 提供浏览器存储，避免 Node 25 的同名全局对象覆盖它。
+      forks: { execArgv: ["--no-experimental-webstorage"] },
+    },
     environment: "jsdom",
     include: ["src/**/*.test.{ts,tsx}"],
     setupFiles: ["./src/test/setup.ts"],

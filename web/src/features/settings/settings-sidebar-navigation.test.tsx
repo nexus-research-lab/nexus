@@ -10,6 +10,7 @@ import { SettingsSidebarNavigation } from "./settings-sidebar-navigation";
 
 const auth = vi.hoisted(() => ({ role: "member" }));
 afterEach(() => { auth.role = "member"; });
+vi.mock("@/hooks/settings/use-project-permissions-enabled", () => ({ useProjectPermissionsEnabled: () => true }));
 const selectSection = vi.hoisted(() => vi.fn());
 vi.mock("@/shared/auth/auth-context", () => ({ useAuth: () => ({ status: auth }) }));
 vi.mock("@/shared/i18n/i18n-context", () => ({ useI18n: () => ({ t: (key: TranslationKey) => MESSAGES.zh[key] }) }));

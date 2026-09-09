@@ -45,7 +45,8 @@ func (stub *teamTokenStub) ExchangeRelayUserToken(
 
 type teamRelayStub struct {
 	err               error
-	bootstrap         relaycontract.Bootstrap
+	rooms             relaycontract.RoomList
+	room              relaycontract.RoomView
 	commit            relaycontract.MessageCommit
 	snapshot          relaycontract.Snapshot
 	difference        relaycontract.Difference
@@ -56,7 +57,8 @@ type teamRelayStub struct {
 	snapshotOptions   relaycontract.SnapshotOptions
 	streamID          string
 	differenceOptions relaycontract.DifferenceOptions
-	bootstrapCalls    int
+	listRoomsCalls    int
+	createRoomCalls   int
 	messageCalls      int
 	snapshotCalls     int
 	differenceCalls   int
@@ -68,14 +70,14 @@ type teamRelayStub struct {
 
 type teamProjectorStub struct {
 	err             error
-	bootstrapCalls  int
+	roomCalls       int
 	commitCalls     int
 	snapshotCalls   int
 	differenceCalls int
 }
 
-func (stub *teamProjectorStub) ProjectBootstrap(context.Context, string, relaycontract.Bootstrap) error {
-	stub.bootstrapCalls++
+func (stub *teamProjectorStub) ProjectRoom(context.Context, string, string, relaycontract.RoomView) error {
+	stub.roomCalls++
 	return stub.err
 }
 
@@ -94,13 +96,25 @@ func (stub *teamProjectorStub) ProjectDifference(context.Context, string, relayc
 	return stub.err
 }
 
-func (stub *teamRelayStub) Bootstrap(
+func (stub *teamRelayStub) ListRooms(
 	_ context.Context,
 	token string,
-) (relaycontract.Bootstrap, error) {
-	stub.bootstrapCalls++
+) (relaycontract.RoomList, error) {
+	stub.listRoomsCalls++
 	stub.tokens = append(stub.tokens, token)
-	return stub.bootstrap, stub.err
+	return stub.rooms, stub.err
+}
+
+func (stub *teamRelayStub) CreateRoom(
+	_ context.Context,
+	token string,
+	idempotencyKey string,
+	_ relaycontract.CreateRoomInput,
+) (relaycontract.RoomView, error) {
+	stub.createRoomCalls++
+	stub.tokens = append(stub.tokens, token)
+	stub.idempotencyKey = idempotencyKey
+	return stub.room, stub.err
 }
 
 func (stub *teamRelayStub) PostMessage(
@@ -289,7 +303,6 @@ func TestTeamHandlersUseAuthenticatedPrincipalAndFixedRelayToken(t *testing.T) {
 	}
 	tokens := &teamTokenStub{token: "fixed-relay-token"}
 	relay := &teamRelayStub{
-		bootstrap: relaycontract.Bootstrap{Team: relaycontract.Team{ID: "team-1"}},
 		commit: relaycontract.MessageCommit{Message: relaycontract.Message{
 			ID: "message-1", AuthorType: relaycontract.AuthorTypeUser, ClientMessageID: "command-1",
 		}},
@@ -297,11 +310,6 @@ func TestTeamHandlersUseAuthenticatedPrincipalAndFixedRelayToken(t *testing.T) {
 		difference: relaycontract.Difference{NextSeq: 7},
 	}
 	router := newTeamTestRouter(tokens, relay, principal)
-
-	bootstrap := teamRequest(t, router, http.MethodPost, "/nexus/v1/team/bootstrap", "", true)
-	if bootstrap.Code != http.StatusOK {
-		t.Fatalf("bootstrap status=%d body=%s", bootstrap.Code, bootstrap.Body.String())
-	}
 
 	message := teamRequest(
 		t,
@@ -349,11 +357,11 @@ func TestTeamHandlersUseAuthenticatedPrincipalAndFixedRelayToken(t *testing.T) {
 		t.Fatalf("difference status=%d body=%s", difference.Code, difference.Body.String())
 	}
 
-	if tokens.calls != 4 || tokens.principal != principal {
+	if tokens.calls != 3 || tokens.principal != principal {
 		t.Fatalf("token exchange = calls %d principal %+v", tokens.calls, tokens.principal)
 	}
 	if !reflect.DeepEqual(relay.tokens, []string{
-		"fixed-relay-token", "fixed-relay-token", "fixed-relay-token", "fixed-relay-token",
+		"fixed-relay-token", "fixed-relay-token", "fixed-relay-token",
 	}) {
 		t.Fatalf("Relay tokens = %#v", relay.tokens)
 	}
@@ -376,6 +384,30 @@ func TestTeamHandlersUseAuthenticatedPrincipalAndFixedRelayToken(t *testing.T) {
 	}
 }
 
+func TestTeamHandlersCreateAndListExplicitRooms(t *testing.T) {
+	view := relaycontract.RoomView{
+		Room: relaycontract.Room{ID: "room-1", TeamID: "team-1", Name: "研发群"},
+		Conversation: relaycontract.Conversation{
+			ID: "conversation-1", RoomID: "room-1", SyncStreamID: "stream-1", StreamEpoch: "epoch-1",
+		},
+		CurrentUserRole: "owner",
+	}
+	relay := &teamRelayStub{room: view, rooms: relaycontract.RoomList{Rooms: []relaycontract.RoomView{view}}}
+	projector := &teamProjectorStub{}
+	router := newTeamTestRouterWithProjector(
+		&teamTokenStub{token: "relay-token"}, relay, projector, teamTestPrincipal(),
+	)
+	created := teamRequest(
+		t, router, http.MethodPost, "/nexus/v1/team/rooms", `{"name":"研发群"}`, true,
+	)
+	listed := teamRequest(t, router, http.MethodGet, "/nexus/v1/team/rooms", "", false)
+	if created.Code != http.StatusOK || listed.Code != http.StatusOK ||
+		relay.createRoomCalls != 1 || relay.listRoomsCalls != 1 ||
+		relay.idempotencyKey != "command-1" || projector.roomCalls != 2 {
+		t.Fatalf("create=%d list=%d relay=%+v projector=%+v", created.Code, listed.Code, relay, projector)
+	}
+}
+
 func TestTeamMutationsRequireStrictSameOrigin(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -395,20 +427,22 @@ func TestTeamMutationsRequireStrictSameOrigin(t *testing.T) {
 			tokens := &teamTokenStub{token: "relay-token"}
 			relay := &teamRelayStub{}
 			router := newTeamTestRouter(tokens, relay, teamTestPrincipal())
-			request := httptest.NewRequest(http.MethodPost, "/nexus/v1/team/bootstrap", nil)
+			request := httptest.NewRequest(http.MethodPost, "/nexus/v1/team/rooms", strings.NewReader(`{"name":"研发群"}`))
 			if strings.Contains(test.origin, ":8443") {
 				request.Host = "example.com:8443"
 			}
 			request.Header.Set("Origin", test.origin)
 			request.Header.Set("X-Forwarded-Proto", test.forwarded)
+			request.Header.Set("Content-Type", "application/json")
+			request.Header.Set("Idempotency-Key", "command-1")
 			recorder := httptest.NewRecorder()
 			router.ServeHTTP(recorder, request)
-			if recorder.Code != test.status || tokens.calls != test.calls || relay.bootstrapCalls != test.calls {
+			if recorder.Code != test.status || tokens.calls != test.calls || relay.createRoomCalls != test.calls {
 				t.Fatalf(
 					"status=%d token calls=%d relay calls=%d body=%s",
 					recorder.Code,
 					tokens.calls,
-					relay.bootstrapCalls,
+					relay.createRoomCalls,
 					recorder.Body.String(),
 				)
 			}
@@ -422,7 +456,7 @@ func TestTeamHandlersRejectClientIdentityFields(t *testing.T) {
 		path string
 		body string
 	}{
-		{name: "bootstrap user", path: "/nexus/v1/team/bootstrap", body: `{"user_id":"forged"}`},
+		{name: "room user", path: "/nexus/v1/team/rooms", body: `{"name":"研发群","user_id":"forged"}`},
 		{
 			name: "message deployment",
 			path: "/nexus/v1/team/conversations/conversation-1/messages",
@@ -446,12 +480,12 @@ func TestTeamHandlersRejectClientIdentityFields(t *testing.T) {
 			recorder := httptest.NewRecorder()
 			router.ServeHTTP(recorder, request)
 			if recorder.Code != http.StatusBadRequest || tokens.calls != 0 ||
-				relay.bootstrapCalls != 0 || relay.messageCalls != 0 {
+				relay.createRoomCalls != 0 || relay.messageCalls != 0 {
 				t.Fatalf(
 					"status=%d token calls=%d relay calls=(%d,%d) body=%s",
 					recorder.Code,
 					tokens.calls,
-					relay.bootstrapCalls,
+					relay.createRoomCalls,
 					relay.messageCalls,
 					recorder.Body.String(),
 				)
@@ -652,6 +686,26 @@ func TestTeamMessageIdentityExchangeFailureIsKnownNotApplied(t *testing.T) {
 	}
 }
 
+func TestTeamRoomsRejectLocalPrincipalBeforeTokenExchange(t *testing.T) {
+	tokens := &teamTokenStub{token: "must-not-be-used"}
+	relay := &teamRelayStub{}
+	recorder := teamRequest(
+		t,
+		newTeamTestRouter(tokens, relay, &authsvc.Principal{
+			UserID: authsvc.SystemUserID, AuthMethod: authsvc.AuthMethodLocal,
+		}),
+		http.MethodGet,
+		"/nexus/v1/team/rooms",
+		"",
+		false,
+	)
+	failure := decodeTeamFailure(t, recorder)
+	if recorder.Code != http.StatusForbidden || failure.Code != "team.remote_account_required" ||
+		failure.Effect != protocol.FailureEffectNotApplicable || tokens.calls != 0 || relay.listRoomsCalls != 0 {
+		t.Fatalf("status=%d failure=%+v token calls=%d relay calls=%d", recorder.Code, failure, tokens.calls, relay.listRoomsCalls)
+	}
+}
+
 func newTeamTestRouter(
 	tokens relayTokenExchanger,
 	relay relayClient,
@@ -678,7 +732,8 @@ func newTeamTestRouterWithProjector(
 			})
 		})
 	}
-	router.Post("/nexus/v1/team/bootstrap", handler.HandleBootstrap)
+	router.Get("/nexus/v1/team/rooms", handler.HandleListRooms)
+	router.Post("/nexus/v1/team/rooms", handler.HandleCreateRoom)
 	router.Post("/nexus/v1/team/conversations/{conversation_id}/messages", handler.HandlePostMessage)
 	router.Get("/nexus/v1/team/conversations/{conversation_id}/snapshot", handler.HandleSnapshot)
 	router.Get("/nexus/v1/team/sync-streams/{stream_id}/difference", handler.HandleDifference)

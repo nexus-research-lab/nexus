@@ -46,14 +46,13 @@ owner_user_id, username, display_name, role, status, created_at, updated_at
 
 	repository := NewRepository(config.Config{DatabaseDriver: "sqlite"}, db)
 	ctx := context.Background()
-	bootstrap := relaycontract.Bootstrap{
-		Team: relaycontract.Team{ID: "team-1", DeploymentID: "deployment-1"},
+	room := relaycontract.RoomView{
 		Room: relaycontract.Room{ID: "room-1", TeamID: "team-1"},
 		Conversation: relaycontract.Conversation{
 			ID: "conversation-1", RoomID: "room-1", SyncStreamID: "stream-1", StreamEpoch: "epoch-1",
 		},
 	}
-	if err = repository.ProjectBootstrap(ctx, "owner-1", bootstrap); err != nil {
+	if err = repository.ProjectRoom(ctx, "owner-1", "deployment-1", room); err != nil {
 		t.Fatal(err)
 	}
 	first := testMessage("message-1", 1, "first")
@@ -80,7 +79,7 @@ owner_user_id, username, display_name, role, status, created_at, updated_at
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err = repository.ProjectBootstrap(ctx, "owner-2", bootstrap); err != nil {
+	if err = repository.ProjectRoom(ctx, "owner-2", "deployment-1", room); err != nil {
 		t.Fatal(err)
 	}
 	sharedSnapshot := relaycontract.Snapshot{
@@ -135,8 +134,8 @@ WHERE owner_user_id = 'owner-2' AND conversation_id = 'conversation-1'`).Scan(&r
 	if relaySeq != 3 {
 		t.Fatalf("second owner relay_seq=%d", relaySeq)
 	}
-	bootstrap.Conversation.StreamEpoch = "epoch-2"
-	if err = repository.ProjectBootstrap(ctx, "owner-1", bootstrap); err != nil {
+	room.Conversation.StreamEpoch = "epoch-2"
+	if err = repository.ProjectRoom(ctx, "owner-1", "deployment-1", room); err != nil {
 		t.Fatal(err)
 	}
 	if err = db.QueryRow(`SELECT COUNT(*) FROM team_relay_messages`).Scan(&count); err != nil {

@@ -68,21 +68,18 @@ correlation_id 是可选的不透明关联值，只用于日志、诊断和 UI �
 
 ### 3.6 Initial empty state
 
-新 Room 的 public feed 为空时，前端可以静态展示协作建议。该空态不是 public fact，不写入 ledger、不调用模型，也不创建 round、handoff、Goal 或 Execution。用户选择建议后生成普通公开输入，继续由 `host_auto_reply_enabled`、`@AgentName` 与既有目标解析规则决定接管成员。
+新 Room 的 public feed 为空时，前端可以静态展示协作建议。该空态不是 public fact，不写入 ledger、不调用模型，也不创建 round、handoff、Goal 或 Execution。用户选择建议后生成普通公开输入；group Room 只有显式 `@AgentName` 才唤醒 Agent，主持 Agent 身份本身不产生默认接管。
 
 ## 4. 公区输入与 Agent handoff
 
 ### 4.1 用户输入的目标解析
 
-用户向 Room 发送消息时，后端按以下优先级解析目标：
+用户向 group Room 发送消息时，后端只接受以下显式目标：
 
 1. 请求中的显式 target_agent_ids。
 2. 正文中可解析的 Agent @ 别名。
-3. 单成员 Room 的默认成员。
-4. 开启 host 默认接管时的 host_agent_id。
-5. 仍无目标且存在活跃 root round 时，沿最近活跃 root round 的成员继续投递。
 
-这些是用户输入路由规则，不是业务 Skill 或 WorkGraph 状态。以上规则仍没有目标时，可以保存用户消息，但不启动 Agent。用户定向消息无论 Room 是否同时存在 managed Execution 都进入 conversation round；它不携带 WorkBinding/ReviewBinding。受管 work/review 不复用这组自然语言路由，而由各自 durable outbox 按精确 binding 启动。
+没有目标时保存并广播用户消息，但不启动 Agent。主持 Agent 仍需被显式 `@`；单 Agent DM 可以默认选择唯一成员。用户定向消息无论 Room 是否同时存在 managed Execution 都进入 conversation round；它不携带 WorkBinding/ReviewBinding。受管 work/review 不复用这组自然语言路由，而由各自 durable outbox 按精确 binding 启动。
 
 ### 4.2 Agent 的公开回复
 

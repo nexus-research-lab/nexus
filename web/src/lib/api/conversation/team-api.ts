@@ -22,18 +22,34 @@ export interface TeamMessage {
   created_at: string;
 }
 
-export interface TeamBootstrap {
-  team: { id: string; deployment_id: string; name: string };
-  room: { id: string; team_id: string; name: string };
+export interface TeamRoomView {
+  room: {
+    id: string;
+    team_id?: string;
+    name: string;
+    description: string;
+    avatar: string;
+    coordinator_agent_id?: string;
+    configuration_version: number;
+    membership_version: number;
+    created_at: string;
+    updated_at: string;
+  };
   conversation: {
     id: string;
     room_id: string;
     type: string;
     high_water_message_seq: number;
+    last_activity_at: string | null;
     sync_stream_id: string;
     stream_epoch: string;
     high_water_sync_event_seq: number;
   };
+  current_user_role: "owner" | "admin" | "member";
+}
+
+export interface TeamRoomList {
+  rooms: TeamRoomView[];
 }
 
 export interface TeamSnapshot {
@@ -81,10 +97,18 @@ export interface TeamStreamResetRequired {
   reason: "full_snapshot_required";
 }
 
-export function bootstrapTeam(signal?: AbortSignal): Promise<TeamBootstrap> {
-  return requestApi<TeamBootstrap>(`${TEAM_API_BASE_URL}/bootstrap`, {
+export function listTeamRooms(signal?: AbortSignal): Promise<TeamRoomList> {
+  return requestApi<TeamRoomList>(`${TEAM_API_BASE_URL}/rooms`, { method: "GET", signal });
+}
+
+export function createTeamRoom(
+  name: string,
+  commandId: string,
+): Promise<TeamRoomView> {
+  return requestApi<TeamRoomView>(`${TEAM_API_BASE_URL}/rooms`, {
+    body: { name },
+    headers: { "Idempotency-Key": commandId },
     method: "POST",
-    signal,
   });
 }
 

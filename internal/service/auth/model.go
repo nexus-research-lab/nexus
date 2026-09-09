@@ -2,6 +2,7 @@ package auth
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 )
@@ -35,6 +36,17 @@ const (
 
 type Principal = authctx.Principal
 type State = authctx.State
+
+// IsRelayUserPrincipal 只认可 Control 远程登录签发并绑定到当前 Deployment 的真人 Session。
+func IsRelayUserPrincipal(principal *Principal) bool {
+	if principal == nil || principal.SessionID == nil {
+		return false
+	}
+	return strings.TrimSpace(principal.AuthMethod) == AuthMethodPassword &&
+		strings.TrimSpace(principal.ControlUserID) != "" &&
+		strings.TrimSpace(principal.DeploymentID) != "" &&
+		strings.TrimSpace(*principal.SessionID) != ""
+}
 
 // StatusPayload 表示前端依赖的登录状态响应。
 type StatusPayload struct {

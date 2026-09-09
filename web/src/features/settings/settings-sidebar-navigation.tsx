@@ -25,6 +25,7 @@ import { UiSearchInput } from "@/shared/ui/form/form-control";
 import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 
 import { isDesktopRuntime } from "@/config/desktop-runtime";
+import { useProjectPermissionsEnabled } from "@/hooks/settings/use-project-permissions-enabled";
 import { useAuth } from "@/shared/auth/auth-context";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -67,6 +68,7 @@ export function SettingsSidebarNavigation({
 }) {
   const { t } = useI18n();
   const { status } = useAuth();
+  const projectPermissionsEnabled = useProjectPermissionsEnabled();
   const { activeSection, backToWorkspace, selectSection: navigateToSection } =
     useSettingsNavigation();
   const selectSection = (...args: Parameters<typeof navigateToSection>) => {
@@ -85,6 +87,7 @@ export function SettingsSidebarNavigation({
     items: group.items.filter(
       (item) =>
         (matcher.matches([t(item.labelKey), t(group.labelKey)]) || searchItems(item.key).length > 0) &&
+        (item.key !== "operations-projects" || projectPermissionsEnabled) &&
         (item.key !== "workspace" || isDesktopRuntime()) &&
 				(item.key !== "browser" || isDesktopRuntime()) &&
         (!isOperationsSection(item.key) ||

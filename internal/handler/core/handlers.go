@@ -16,6 +16,7 @@ import (
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	nxsruntimesvc "github.com/nexus-research-lab/nexus/internal/service/nxsruntime"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
+	projectsvc "github.com/nexus-research-lab/nexus/internal/service/projectpermission"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	runtimeselectionsvc "github.com/nexus-research-lab/nexus/internal/service/runtimeselection"
 	versionpkg "github.com/nexus-research-lab/nexus/internal/version"
@@ -23,12 +24,16 @@ import (
 
 // Handlers 封装核心 HTTP handlers。
 type Handlers struct {
+	projects  *projectsvc.Service
 	api       *handlershared.API
 	agents    *agentpkg.Service
 	providers *providercfg.Service
 	prefs     *preferencessvc.Service
 	runtime   *runtimectx.Manager
 }
+
+// SetProjectPermissions 绑定宿主 ACL 可用性真相源。
+func (h *Handlers) SetProjectPermissions(projects *projectsvc.Service) { h.projects = projects }
 
 // SetRuntimeManager 绑定活跃 Agent runtime 管理器。
 func (h *Handlers) SetRuntimeManager(manager *runtimectx.Manager) {
@@ -101,11 +106,12 @@ func (h *Handlers) HandleRuntimeOptions(writer http.ResponseWriter, request *htt
 		"message": "success",
 		"success": true,
 		"data": map[string]any{
-			"default_agent_id":       defaultAgent.AgentID,
-			"default_agent_avatar":   defaultAgent.Avatar,
-			"default_agent_provider": defaultProvider,
-			"default_agent_model":    defaultModel,
-			"preferences":            prefs,
+			"project_permissions_enabled": h.projects.Available(),
+			"default_agent_id":            defaultAgent.AgentID,
+			"default_agent_avatar":        defaultAgent.Avatar,
+			"default_agent_provider":      defaultProvider,
+			"default_agent_model":         defaultModel,
+			"preferences":                 prefs,
 		},
 	})
 }

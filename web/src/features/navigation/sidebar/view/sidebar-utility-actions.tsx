@@ -121,17 +121,23 @@ export function SidebarFooterActions(props: SidebarUtilityActionsProps) {
         anchorRef={anchorRef}
         ariaLabel={props.accountName}
         isOpen={menuOpen}
-        header={
-          <div className="flex min-w-0 items-center gap-2.5">
-            <UiAgentAvatar avatar={props.accountAvatar} className="rounded-full" name={props.accountName} size="sm" />
-            <span className="ui-type-control truncate text-(--text-strong)">{props.accountName}</span>
-          </div>
-        }
-        items={[...items, ...footerItems]}
+        items={[{
+          value: "personal",
+          label: (
+            <span className="flex min-w-0 items-center gap-2.5 py-2">
+              <span aria-hidden="true">
+                <UiAgentAvatar avatar={props.accountAvatar} className="rounded-full" name={props.accountName} size="sm" />
+              </span>
+              <span className="truncate">{props.accountName}</span>
+            </span>
+          ),
+        }]}
+        footerItems={[...items, ...footerItems]}
         minWidth={menuWidth}
         placement="top"
         onClose={() => setMenuOpen(false)}
         onSelect={(value) => {
+          if (value === "personal") navigate(AppRouteBuilders.settings("personal"));
           if (value === "login") props.onLogin();
           if (value === "logout") props.onLogout();
           if (value === "settings") navigate(AppRouteBuilders.settings());

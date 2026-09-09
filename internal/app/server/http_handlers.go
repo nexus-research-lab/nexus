@@ -67,6 +67,7 @@ func newHandlerSet(
 		services.Preferences,
 	)
 	core.SetRuntimeManager(services.Runtime)
+	core.SetProjectPermissions(services.ProjectPermission)
 	if services.WorkGraphWorkflow != nil {
 		services.WorkGraphWorkflow.SetChangeNotifier(func(
 			ctx context.Context,
