@@ -97,6 +97,9 @@ export function TaskDestinationPicker({ kind, data, form, actions }: {
   const activeGroup = [browsingGroup, currentGroup, ...groups.keys()].find((key) => key !== null && groups.has(key));
   const visibleItems = activeGroup ? groups.get(activeGroup) ?? [] : [];
   const resources = [data.agents, data.rooms, data.destinationStatus];
+  const loading = resources.some((resource) => resource.loading);
+  const failedResources = resources.filter((resource) => resource.error);
+  const retryableResources = failedResources.filter((resource) => !resource.loading);
   const select = (option: TaskDestinationOption | null) => {
     if (execution && option) actions.selectExecution(option);
     else actions.selectDelivery(option);
@@ -142,12 +145,12 @@ export function TaskDestinationPicker({ kind, data, form, actions }: {
       </div>
     </div>
     <div className="shrink-0">
-      {resources.some((resource) => resource.loading) ? <p role="status" className={`p-3 ${getUiTypographyClassName({ role: "supporting", tone: "muted" })}`}>{t("common.loading")}</p> : null}
-      {resources.some((resource) => resource.error) ? <div role="status" className="p-2">
+      {loading ? <p role="status" className={`p-3 ${getUiTypographyClassName({ role: "supporting", tone: "muted" })}`}>{t("common.loading")}</p> : null}
+      {failedResources.length > 0 ? <div role="status" className="p-2">
         <p className={getUiTypographyClassName({ role: "supporting", tone: "muted" })}>{t("capability.scheduled_dialog_resource_load_title")}</p>
-        <UiButton size="sm" variant="text" onClick={() => resources.filter((resource) => resource.error).forEach((resource) => resource.retry())}>{t("state.retry")}</UiButton>
+        <UiButton size="sm" variant="text" disabled={retryableResources.length === 0} onClick={() => retryableResources.forEach((resource) => resource.retry())}>{t("state.retry")}</UiButton>
       </div> : null}
-      {!filtered.length && !resources.some((resource) => resource.loading) ? <p className={`p-3 ${getUiTypographyClassName({ role: "supporting", tone: "muted" })}`}>{t("capability.scheduled_no_matching_chats")}</p> : null}
+      {!filtered.length && !loading && failedResources.length === 0 ? <p className={`p-3 ${getUiTypographyClassName({ role: "supporting", tone: "muted" })}`}>{t("capability.scheduled_no_matching_chats")}</p> : null}
     </div>
       </div>, portalContainer) : null}
   </>;

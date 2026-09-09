@@ -205,3 +205,35 @@ it.each([false, true])("returns target picker Tab to parent form order (backward
   expect(screen.queryByRole("dialog")).toBeNull();
   expect(document.activeElement).toBe(screen.getByRole("textbox", {name: backward ? "Before" : "After"}));
 });
+
+it("preserves loaded destinations during partial failure and retries only idle failed resources", async () => {
+  const agentRetry = vi.fn();
+  const roomRetry = vi.fn();
+  const catalogRetry = vi.fn();
+  const actions = createActions();
+  const destination = {value: "session", sessionKey: "session", label: "Known chat", group: "Nova", targetType: "agent" as const, agentId: "agent", roomId: ""};
+  const data = {...DATA, destinations: [destination],
+    agents: {loading: false, error: "private failure", retry: agentRetry},
+    rooms: {loading: true, error: "retry pending", retry: roomRetry},
+    destinationStatus: {...READY_RESOURCE, retry: catalogRetry}};
+  render(<I18N_CONTEXT.Provider value={{locale: "zh", setLocale: vi.fn(), t: (key) => key}}>
+    <TaskDestinationPicker kind="execution" data={data} form={FORM} actions={actions} />
+  </I18N_CONTEXT.Provider>);
+  await userEvent.click(screen.getByRole("button", {name: "capability.scheduled_run_in"}));
+  expect(screen.getByRole("button", {name: "Known chat"})).toBeTruthy();
+  expect(screen.queryByText("private failure")).toBeNull();
+  await userEvent.click(screen.getByRole("button", {name: "state.retry"}));
+  expect(agentRetry).toHaveBeenCalledOnce();
+  expect(roomRetry).not.toHaveBeenCalled();
+  expect(catalogRetry).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("button", {name: "Known chat"}));
+  expect(actions.selectExecution).toHaveBeenCalledExactlyOnceWith(destination);
+});
+it.each([false, true])("does not announce empty results for a failed catalog (retrying=%s)", async (loading) => {
+  render(<I18N_CONTEXT.Provider value={{locale: "zh", setLocale: vi.fn(), t: (key) => key}}>
+    <TaskDestinationPicker kind="delivery" data={{...DATA, destinationStatus: {loading, error: "unavailable", retry: vi.fn()}}} form={FORM} actions={createActions()} />
+  </I18N_CONTEXT.Provider>);
+  await userEvent.click(screen.getByRole("button", {name: "capability.scheduled_dialog_delivery"}));
+  expect(screen.queryByText("capability.scheduled_no_matching_chats")).toBeNull();
+  expect((screen.getByRole("button", {name: "state.retry"}) as HTMLButtonElement).disabled).toBe(loading);
+});
