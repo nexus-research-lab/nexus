@@ -1,8 +1,8 @@
 // INPUT: 当前 Tour 步骤、位置、进度和导航/关闭动作。
-// OUTPUT: 可滚动、使用语义排版的引导卡片、步骤内容与统一 Button 导航。
+// OUTPUT: 具名可滚动、长文案可换行的引导卡片、步骤内容与统一 Button 导航。
 // POS: Onboarding Tour 卡片视图；不拥有按钮、文字 recipe 或浮层定位生命周期。
 
-import { forwardRef } from "react";
+import { forwardRef, useId } from "react";
 import {
   Bot,
   Hash,
@@ -53,9 +53,14 @@ export const TourOverlayCard = forwardRef<
   stepIndex,
 }, ref) {
   const { t } = useI18n();
+  const titleId = useId();
+  const descriptionId = useId();
 
   return (
     <div
+      role="region"
+      aria-labelledby={titleId}
+      aria-describedby={descriptionId}
       className="surface-popover surface-radius-lg relative max-h-[calc(100vh-64px)] w-[min(336px,calc(100vw-32px))] overflow-y-auto px-4 py-3"
       ref={ref}
     >
@@ -68,8 +73,8 @@ export const TourOverlayCard = forwardRef<
       ) : null}
 
       <div className="flex items-start justify-between gap-4">
-        <h3 className={cn(
-          "mt-0.5 min-w-0",
+        <h3 id={titleId} className={cn(
+          "mt-0.5 min-w-0 [overflow-wrap:anywhere]",
           getUiTypographyClassName({ role: "pageTitle", tone: "strong" }),
         )}>
           {step.title}
@@ -84,8 +89,8 @@ export const TourOverlayCard = forwardRef<
         </UiButton>
       </div>
 
-      <p className={cn(
-        "mt-2",
+      <p id={descriptionId} className={cn(
+        "mt-2 [overflow-wrap:anywhere]",
         getUiTypographyClassName({ role: "supporting", tone: "default" }),
       )}>
         {step.description}
@@ -93,14 +98,14 @@ export const TourOverlayCard = forwardRef<
 
       {step.items?.length ? <TourStepItems items={step.items} /> : null}
 
-      <div className="mt-3 flex items-center justify-between gap-3 border-t border-(--divider-subtle-color) pt-3">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-(--divider-subtle-color) pt-3">
         <span className={cn(
           "tabular-nums",
           getUiTypographyClassName({ role: "caption", tone: "muted", weight: "medium" }),
         )}>
           {stepIndex + 1} / {stepCount}
         </span>
-        <div className="flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
           <UiButton
             disabled={stepIndex === 0}
             onClick={onPrevious}
@@ -157,8 +162,8 @@ function TourStepItems({ items }: { items: OnboardingTourStepItem[] }) {
             className="flex items-center gap-2 py-2"
             key={item.text}
           >
-            <Icon className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
-            <span className={getUiTypographyClassName({ role: "metadata", tone: "default" })}>
+            <Icon aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
+            <span className={cn("min-w-0 [overflow-wrap:anywhere]", getUiTypographyClassName({ role: "metadata", tone: "default" }))}>
               {item.text}
             </span>
           </div>
