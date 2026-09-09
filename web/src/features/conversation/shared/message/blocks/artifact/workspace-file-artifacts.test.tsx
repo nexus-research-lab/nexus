@@ -33,10 +33,10 @@ function localized(children: ReactNode, locale: I18nContextValue["locale"] = "en
 }
 
 function routeView(route: string, artifact: WorkspaceFileArtifactContent, workspaceAgentId: string | null, onOpenWorkspaceFile: WorkspaceFileOpenHandler) {
-  const environment: AssistantContentEnvironment = { canRespondToPermissions: false, hiddenToolNames: [], mode: "dm_live", workspaceAgentId, onOpenWorkspaceFile };
+  const environment: AssistantContentEnvironment = { canRespondToPermissions: false, hiddenToolNames: [], mode: route === "room result" ? "room_result" : "dm_live", workspaceAgentId, onOpenWorkspaceFile };
   const projection = { content: [artifact], streamingIndexes: new Set<number>() };
   if (route === "body") return <ContentBlockView block={artifact} blockIndex={0} showTimelineDots={false} streaming={false} context={{ canRespondToPermissions: false, hiddenToolNames: new Set(), onOpenWorkspaceFile, pendingInteractionOwner: "composer", projection: projectStructuredContent([artifact]), workspaceAgentId }} />;
-  if (["archived process", "expanded process", "tool process", "standalone artifact"].includes(route)) {
+  if (["archived process", "expanded process", "tool process", "standalone artifact", "room result"].includes(route)) {
     const content = [
       { type: "tool_use" as const, id: "prepare-report", name: "Read", input: { file_path: "input.md" } },
       { type: "tool_result" as const, tool_use_id: "prepare-report", content: "Read" },
@@ -45,7 +45,7 @@ function routeView(route: string, artifact: WorkspaceFileArtifactContent, worksp
       artifact,
     ];
     return <AssistantMessageContent activity={ACTIVITY} environment={environment} permissions={PERMISSIONS}
-      direct={{ visible: route === "tool process" || route === "standalone artifact", projection: { ...projection, content: route === "standalone artifact" ? [artifact] : content } }}
+      direct={{ visible: route === "tool process" || route === "standalone artifact" || route === "room result", projection: { ...projection, content: route === "standalone artifact" ? [artifact] : content } }}
       process={{ anchorRef: createRef(), expanded: route === "expanded process", projection, summary: { kind: "details", latestDetail: null, metrics: [] }, toggle: vi.fn(), visible: route === "archived process" || route === "expanded process" }}
       final={{ content: "Report complete", visible: true, isStreaming: false, streamingIndexes: new Set(), mentions: [] }}
       showMaxTokensWarning={false} />;
@@ -59,12 +59,13 @@ afterEach(() => {
 });
 
 describe("Structured file source adapters", () => {
-  it.each(["body", "archived process", "expanded process", "tool process", "standalone artifact", "list"])("preserves source and artifact scope through %s and disables unknown scope", (route) => {
+  it.each(["body", "archived process", "expanded process", "tool process", "standalone artifact", "room result", "list"])("preserves source and artifact scope through %s and disables unknown scope", (route) => {
     const open = vi.fn();
     useAgentStore.setState({ current_agent_id: "viewer" });
     const { rerender } = render(localized(routeView(route, ARTIFACT, "message-author", open)));
+    if (route === "room result") expect(document.querySelector("[data-tool-run-id]")).toBeNull();
     if (route === "tool process") expect(document.querySelector('[data-tool-run-id] [aria-expanded="false"]')).toBeTruthy();
-    if (["archived process", "expanded process", "tool process", "standalone artifact"].includes(route)) {
+    if (["archived process", "expanded process", "tool process", "standalone artifact", "room result"].includes(route)) {
       const body = screen.getByText("Report complete");
       const file = screen.getByRole("button", { name: /^result\.md/ });
       expect(body.compareDocumentPosition(file) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -145,4 +146,29 @@ it("keeps different paths, workspaces and unresolved sources separate despite id
   expect(buildWorkspaceFileArtifactEntries([ARTIFACT, {...ARTIFACT}], null)).toHaveLength(2);
   render(localized(<WorkspaceFileArtifactList artifacts={artifacts} workspaceAgentId="author" onOpenWorkspaceFile={vi.fn()} />));
   expect(screen.getAllByRole("button", {name: /^result\.md/})).toHaveLength(3);
+});
+
+it("moves Room final artifacts after the complete answer and deduplicates process evidence", () => {
+  const open = vi.fn();
+  const renderRoom = (withArtifacts: boolean) => localized(<AssistantMessageContent
+    activity={ACTIVITY}
+    environment={{ mode: "room_result", canRespondToPermissions: false, hiddenToolNames: [], workspaceAgentId: "author", onOpenWorkspaceFile: open }}
+    permissions={PERMISSIONS}
+    direct={{ visible: withArtifacts, projection: { content: withArtifacts ? [ARTIFACT] : [], streamingIndexes: new Set() } }}
+    process={{ visible: false, expanded: false, anchorRef: createRef(), toggle: vi.fn(), projection: { content: [], streamingIndexes: new Set() }, summary: { kind: "details", latestDetail: null, metrics: [] } }}
+    final={{ visible: true, isStreaming: false, mentions: [], streamingIndexes: new Set(), content: [
+      { type: "text", text: "Report: `reports/result.md`" },
+      ...(withArtifacts ? [ARTIFACT] : []),
+      { type: "text", text: "End of the answer" },
+    ] }}
+    showMaxTokensWarning={false}
+  />);
+  const { rerender } = render(renderRoom(true));
+  const card = screen.getByRole("button", { name: /^result\.md/ });
+  expect(screen.getAllByRole("button", { name: /^result\.md/ })).toHaveLength(1);
+  expect(screen.getByText("End of the answer").compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  fireEvent.click(card);
+  expect(open).toHaveBeenCalledExactlyOnceWith(ARTIFACT.path, "author");
+  rerender(renderRoom(false));
+  expect(screen.queryByText("Generated files")).toBeNull();
 });
