@@ -40,6 +40,8 @@ it("keeps the draft focused during IME confirmation and commits on ordinary Ente
  expect(input.value).toBe("10");
  fireEvent.keyDown(input, { key: "Enter", keyCode: 229 });
  expect(document.activeElement).toBe(input);
+ fireEvent.keyDown(input, { key: "Enter", which: 229 });
+ expect(document.activeElement).toBe(input);
  expect(useChatTypography.getState().typography.fontSize).toBe(16);
  fireEvent.keyDown(input, { key: "Enter" });
  expect(document.activeElement).not.toBe(input);

@@ -79,6 +79,7 @@ it("respects consumed Escape and IME cancellation before closing on ordinary Esc
   fireEvent.keyDown(view.getByRole("textbox", { name: "Editor" }), { key: "Escape" });
   fireEvent.keyDown(document, { key: "Escape", isComposing: true });
   fireEvent.keyDown(document, { key: "Escape", keyCode: 229 });
+  fireEvent.keyDown(document, { key: "Escape", which: 229 });
   expect(onClose).not.toHaveBeenCalled();
   fireEvent.keyDown(document, { key: "Escape" });
   expect(onClose).toHaveBeenCalledOnce();

@@ -4,6 +4,7 @@
 
 "use client";
 
+import { isImeKeyboardEvent } from "@/shared/lib/browser/ime-keyboard-event";
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
 
@@ -43,8 +44,7 @@ export function OnboardingTourOverlay({
       if (
         event.key === "Escape"
         && !event.defaultPrevented
-        && !event.isComposing
-        && event.keyCode !== 229
+        && !isImeKeyboardEvent(event)
       ) {
         onClose();
       }
