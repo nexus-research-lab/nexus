@@ -41,6 +41,16 @@ describe("WorkspaceConversationTab close action", () => {
     expect(onSelect).not.toHaveBeenCalled();
     expect(onTogglePin).not.toHaveBeenCalled();
 
+    const pinButton = screen.getByRole("button", { name: "固定任务会话" });
+    await user.click(pinButton);
+    expect(onTogglePin).toHaveBeenCalledOnce();
+    expect(onSelect).not.toHaveBeenCalled();
+    rerender(<WorkspaceConversationTab {...props} isPinned />);
+    expect(pinButton.getAttribute("aria-pressed")).toBe("true");
+    await user.keyboard(" ");
+    expect(onTogglePin).toHaveBeenCalledTimes(2);
+    expect(onClose).toHaveBeenCalledTimes(3);
+
     rerender(<WorkspaceConversationTab {...props} isActive />);
     expect(screen.getByRole("button", { name: "关闭任务会话" }).className).toContain("opacity-80");
     rerender(<WorkspaceConversationTab {...props} canClose={false} />);
