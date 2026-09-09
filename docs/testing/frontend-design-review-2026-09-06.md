@@ -3737,3 +3737,10 @@ A101 合并后核对：59058680c 已包含本批四个代码/测试/目录规范
 新基线验证：当前基础禁止项合同 1 项、活动工具栏 9 项回归与 typecheck 通过，见 /tmp/nexus-a101-merged-{contract,target,types}.log。合并有意按新工程规范精简源码实现约束，不能把旧 141 项计为新基线结果。既有 486 项当前为 218 pending、132 in_progress、108 improved、22 retained、6 removed；6 个此前 improved 的 owner 因源变化回到 in_progress。
 
 A101 提交状态更正：后续直接读取 HEAD blob 确认 59058680c 未包含工具栏修改，四个文件仍为工作区改动；之前“已包含”结论撤回。受测内容保持，将按独立本地提交落地，以实际提交对象为准。
+
+
+## A102 — 合并后的生产页面范围补齐
+
+按当前 web/src 全部 TSX 对照清单，排除测试、dev 与既有 Gallery 专用入口后，新增缺项恰为 TeamPage、TaskDestinationPicker、SettingsFontPicker。三项已登记 pending 并记录具体待审边界，未将目录核对当成功能/设计验收。生产 TSX 当前无遗漏；新文件加入后共 489 项：221 pending、132 in_progress、108 improved、22 retained、6 removed。页面入口范围随 TeamPage 扩展，原基线与删除记录继续保留。
+
+工具栏代码已独立提交 e814ff981；直接读取提交 blob 确认公共 sm 头像与 12px 分隔存在，前端工作树无残留。并行 WorkGraph 修改保留。
