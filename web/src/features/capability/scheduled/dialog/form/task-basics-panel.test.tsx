@@ -3,6 +3,7 @@
 // POS: Scheduled 基础表单 DOM 合同；不覆盖资源加载与提交事务。
 
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import { TaskDestinationPicker } from "./task-destination-picker";
 import { createRef } from "react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -123,6 +124,10 @@ describe("TaskBasicsAdvanced", () => {
     expect(actions.selectExecution).not.toHaveBeenCalled();
     expect(screen.getByRole("button", {name: "Discussion"})).toBeTruthy();
     await user.click(screen.getByRole("button", {name: "capability.scheduled_target_filter"}));
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(screen.getByRole("dialog", {name: "capability.scheduled_run_in"})).toBeTruthy();
+    await user.click(screen.getByRole("button", {name: "capability.scheduled_target_filter"}));
     await user.click(screen.getByRole("option", {name: "capability.scheduled_dialog_target_type_room"}));
     expect(screen.queryByRole("button", {name: "Nova"})).toBeNull();
     await user.click(screen.getByRole("button", {name: "Discussion"}));
@@ -183,4 +188,20 @@ it("summarizes the current schedule, performer and delivery without inventing a 
   const recipient = {value: "chat", sessionKey: "chat", group: "Lucy", label: "行业研究", agentId: "agent-1", roomId: "", targetType: "agent" as const};
   expect(buildTaskConfirmationSummary({...FORM, replyMode: "selected", selectedReplySessionKey: "chat", selectedDeliveryAgentId: "agent-1"}, createDefaultTaskSchedule(), {...data, destinations: [recipient]}, t)).toContain("结果发到「Lucy · 行业研究」聊天");
   expect(buildTaskConfirmationSummary({...FORM, replyMode: "selected"}, createDefaultTaskSchedule(), data, t)).toContain("接收聊天待选择");
+});
+
+it.each([false, true])("returns target picker Tab to parent form order (backward=%s)", async (backward) => {
+  vi.spyOn(HTMLElement.prototype, "getClientRects").mockReturnValue([{} as DOMRect] as unknown as DOMRectList);
+  const user = userEvent.setup();
+  render(<I18N_CONTEXT.Provider value={{locale: "zh", setLocale: vi.fn(), t: (key) => key}}>
+    <input aria-label="Before" /><TaskDestinationPicker kind="delivery" data={DATA} form={FORM} actions={createActions()} /><input aria-label="After" />
+  </I18N_CONTEXT.Provider>);
+  await user.click(screen.getByRole("button", {name: "capability.scheduled_dialog_delivery"}));
+  const root = screen.getByRole("dialog");
+  const first = within(root).getByRole("searchbox");
+  const last = within(root).getByRole("button", {name: "capability.scheduled_dialog_reply_none"});
+  (backward ? first : last).focus();
+  await user.tab({shift: backward});
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(document.activeElement).toBe(screen.getByRole("textbox", {name: backward ? "Before" : "After"}));
 });

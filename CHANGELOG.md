@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Align scheduled target pickers with shared popover styling and return boundary
+  Tab navigation to the surrounding form.
+
 - Show font catalog loading, allow empty-catalog manual input and retry on reopening,
   and ignore stale font responses after the picker closes.
 
