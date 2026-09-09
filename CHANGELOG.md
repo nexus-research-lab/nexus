@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Show the full settings back label and simplify the sidebar Nexus wordmark.
+- Show the full settings back label and refine Nexus wordmark proportions while preserving its original colors.
 
 - Keep conversation process disclosure text regular and muted when expanded.
 
