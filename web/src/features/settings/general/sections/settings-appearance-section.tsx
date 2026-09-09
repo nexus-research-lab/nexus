@@ -3,6 +3,7 @@
 // POS: General 外观分区纯视图；不持久化服务端 Preferences。
 "use client";
 
+import { isImeKeyboardEvent } from "@/shared/lib/browser/ime-keyboard-event";
 import { Languages, Palette, RotateCcw } from "lucide-react";
 import { useId, useState, type ReactNode } from "react";
 
@@ -210,7 +211,7 @@ function AppearanceNumberInput({ label, value, min, max, step, unit, onChange }:
           setDraft(null);
         }}
         onKeyDown={(event) => {
-          if (event.key === "Enter" && !event.nativeEvent.isComposing && event.keyCode !== 229) {
+          if (event.key === "Enter" && !isImeKeyboardEvent(event.nativeEvent)) {
             event.currentTarget.blur();
           }
         }}
