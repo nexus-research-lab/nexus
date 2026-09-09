@@ -16,3 +16,5 @@
 Skill 目录初始读取使用共享 `md` muted Spinner，单卡启停命令使用 `sm` muted Spinner；视图不得自行维护尺寸、颜色、旋转或 reduced-motion class。
 
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+
+技能开关通过实例唯一说明 ID 关联本卡用途；无说明时不输出空关联。长连续名称和说明允许断行，但仍保留既有两行密度。
