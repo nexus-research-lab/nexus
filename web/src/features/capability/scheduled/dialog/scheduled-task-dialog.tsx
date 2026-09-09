@@ -135,7 +135,6 @@ export function ScheduledTaskDialog({
                 actions={controller.form.actions}
                 data={controller.data}
                 form={controller.form.draft}
-                isEditing={initialTask !== null}
                 needsSessionRebind={controller.needsSessionRebind}
                 expandAdvanced={Boolean(controller.formError)}
                 nameRef={controller.refs.nameRef}

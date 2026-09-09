@@ -30,7 +30,6 @@ interface TaskBasicsPanelProps {
   actions: TaskBasicsActions;
   data: TaskBasicsData;
   form: TaskFormDraft;
-  isEditing: boolean;
   needsSessionRebind: boolean;
   expandAdvanced?: boolean;
   nameRef: RefObject<HTMLInputElement | null>;

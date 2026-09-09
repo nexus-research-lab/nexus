@@ -27,3 +27,5 @@
 目标选择器的候选展示、搜索分组和活动项回退由 `task-destination-picker-model.ts` 纯函数持有；视图只维护临时浏览状态、焦点/浮层和显式选择事件。执行/接收外框组合 UiPanel md（12px）保留新版紧凑分组，内间距由领域布局提供。
 
 - `task-room-agent-picker.tsx` 是执行/回复 Room 成员字段的唯一视图所有者，分别调用独立草稿命令；DM 已由智能体与会话绑定确定身份，不提供跨智能体的额外 DM 成员选择。高级区只保留权限、时区、到期和兼容专用会话设置，不再重复成员字段。
+
+- 新版目标选择器替代旧分立 Agent/Room/Session select 投影；旧 buildTaskTargetPresentation/buildTaskDeliveryTargetPresentation/buildExecutionSessionPresentation/buildReplySessionPresentation 已删除，不保留仅供测试调用的旧 UI 实现。
