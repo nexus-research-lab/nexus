@@ -131,7 +131,10 @@ func HandleSemantic(
 		return BuildContract(domain, inspectOperation, request.Operation, operations)
 	case ActionInspect:
 		if strings.TrimSpace(request.Operation) != "" {
-			return nil, errors.New("inspect operation 由领域固定，不能覆盖")
+			if inspectOperation == "" {
+				return nil, errors.New("当前作用域没有固定 inspect 操作，请使用 contract 查询可用操作")
+			}
+			return nil, inspectUsageError(domain, inspectOperation)
 		}
 		operation, ok := FindOperation(operations, inspectOperation)
 		if !ok {
@@ -139,11 +142,15 @@ func HandleSemantic(
 		}
 		return operation.Invoke(ctx, request.Input, nil)
 	case ActionInvoke:
+		// 先纠正入口，避免模型为固定 inspect 操作反复补 request_id 或等待注册。
+		if inspectOperation != "" && strings.TrimSpace(request.Operation) == inspectOperation {
+			return nil, inspectUsageError(domain, inspectOperation)
+		}
 		if !ValidRequestID(request.RequestID) {
 			return nil, errors.New("invoke request_id 必须为 8-128 位字母、数字、点、下划线、冒号或连字符")
 		}
 		operation, ok := FindOperation(operations, request.Operation)
-		if !ok || operation.Name == inspectOperation {
+		if !ok {
 			return nil, fmt.Errorf("未知或不可 invoke 的 %s operation %q", domain, request.Operation)
 		}
 		result, err := operation.Invoke(ctx, request.Input, &CallContext{
@@ -157,6 +164,10 @@ func HandleSemantic(
 	default:
 		return nil, fmt.Errorf("%s 只支持 contract、inspect、invoke", domain)
 	}
+}
+
+func inspectUsageError(domain, operation string) error {
+	return fmt.Errorf("%s 是 %s 的固定 inspect 操作，不能通过 invoke 调用。请调用 {\"domain\":%q,\"action\":\"inspect\"}，不要传 operation；如需指定读取目标，保留符合该操作 schema 的 input。等待注册或重试原调用不会解决此入口错误。", operation, domain, domain)
 }
 
 func recordReceipt(

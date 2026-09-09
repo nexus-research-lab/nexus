@@ -7,6 +7,53 @@ import (
 	"testing"
 )
 
+func TestInspectEntryCorrection(t *testing.T) {
+	for domain, name := range map[string]string{"execution": "get_execution", "goal": "get_goal"} {
+		t.Run(domain, func(t *testing.T) {
+			calls := 0
+			operations := []Operation{{Name: name, Handler: func(_ context.Context, input map[string]any) (Result, error) {
+				calls++
+				if input["execution_id"] != "historical" {
+					t.Fatal("inspect lost input")
+				}
+				return Result{}, nil
+			}}}
+			tool := NewTool(func(ctx context.Context, request Request) (any, error) {
+				return HandleSemantic(ctx, Actor{}, domain, name, operations, request)
+			})
+			for _, action := range []string{ActionInvoke, ActionInspect} {
+				result, err := tool.Handler(context.Background(), map[string]any{
+					"domain": domain, "action": action, "operation": name,
+				})
+				if err != nil || !result.IsError || calls != 0 {
+					t.Fatalf("wrong entry executed: result=%+v err=%v calls=%d", result, err, calls)
+				}
+				message := result.Content[0]["text"].(string)
+				start, end := strings.Index(message, "{"), strings.Index(message, "}")
+				if start < 0 || end < start {
+					t.Fatalf("missing correction: %s", message)
+				}
+				var corrected map[string]any
+				if err := json.Unmarshal([]byte(message[start:end+1]), &corrected); err != nil {
+					t.Fatal(err)
+				}
+				corrected["input"] = map[string]any{"execution_id": "historical"}
+				result, err = tool.Handler(context.Background(), corrected)
+				if err != nil || result.IsError || calls != 1 {
+					t.Fatalf("correction failed: result=%+v err=%v calls=%d", result, err, calls)
+				}
+				calls = 0
+			}
+			for _, selected := range []string{"", name} {
+				contract, err := BuildContract(domain, name, selected, operations)
+				if err != nil || !strings.Contains(contract.Operations[0].Description, `"action":"inspect"`) {
+					t.Fatalf("contract lacks inspect entry: %+v, %v", contract, err)
+				}
+			}
+		})
+	}
+}
+
 func TestOperationInvokeRejectsMissingAndInvalidEnumBeforeHandler(t *testing.T) {
 	invoked := false
 	operation := Operation{
