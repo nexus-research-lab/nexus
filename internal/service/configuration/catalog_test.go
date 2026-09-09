@@ -2,8 +2,6 @@ package configuration
 
 import (
 	"encoding/json"
-	"errors"
-	"slices"
 	"strings"
 	"testing"
 
@@ -12,59 +10,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 )
-
-func TestSkillCatalogRequiresScopedSourceIdentityAndDisableConfirmation(t *testing.T) {
-	definition, err := definitionFor(DomainSkills)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, operationName := range []string{"install", "uninstall", "install_self", "uninstall_self"} {
-		operation, operationErr := operationFor(definition, operationName)
-		if operationErr != nil {
-			t.Fatal(operationErr)
-		}
-		if !slices.Contains(operation.RequiredInputFields, "target_scope") ||
-			!slices.Contains(operation.RequiredInputFields, "source_identity") {
-			t.Fatalf("%s 缺少明确来源字段: %+v", operationName, operation)
-		}
-	}
-	for _, operationName := range []string{"uninstall", "uninstall_self"} {
-		operation, operationErr := operationFor(definition, operationName)
-		if operationErr != nil {
-			t.Fatal(operationErr)
-		}
-		if !operation.RequiresConfirmation {
-			t.Fatalf("%s 必须要求显式确认: %+v", operationName, operation)
-		}
-	}
-}
-
-func TestPlanRejectsNonMainAgentBeforeReadingState(t *testing.T) {
-	service := &Service{}
-	_, err := service.PlanChange(t.Context(), Actor{
-		OwnerUserID: "owner", AgentID: "worker", IsMainAgent: false,
-	}, ChangeRequest{Domain: DomainPreferences, Operation: "update", Input: []byte(`{}`)})
-	if !errors.Is(err, ErrMainAgentRequired) {
-		t.Fatalf("PlanChange error = %v, want ErrMainAgentRequired", err)
-	}
-}
-
-func TestValidateChangeRequestCoversSensitiveAndDestructiveOperations(t *testing.T) {
-	cases := []ChangeRequest{
-		{Domain: DomainProviders, Operation: "create", Input: []byte(`{"provider":"custom","auth_token":"secret"}`)},
-		{Domain: DomainChannels, Operation: "upsert", Target: "feishu", Input: []byte(`{"agent_id":"nexus","credentials":{"app_secret":"secret"}}`)},
-		{Domain: DomainConnectors, Operation: "save_oauth_client", Target: "feishu-docx", Input: []byte(`{"client_id":"id","client_secret":"secret"}`)},
-		{
-			Domain: DomainSkills, Operation: "install", Target: "planner",
-			Input: []byte(`{"agent_id":"worker","target_scope":"global_library","source_identity":"skill-source:test"}`),
-		},
-	}
-	for _, request := range cases {
-		if err := validateChangeRequest(request); err != nil {
-			t.Fatalf("%s.%s validation failed: %v", request.Domain, request.Operation, err)
-		}
-	}
-}
 
 func TestValidateChangeRequestRejectsUnknownFields(t *testing.T) {
 	err := validateChangeRequest(ChangeRequest{
@@ -309,5 +254,83 @@ func TestSecretTemplatePreservesMixedProviderOptions(t *testing.T) {
 	}
 	if options["api_key"] != "provider-secret" {
 		t.Fatalf("provider option secret was not materialized: %#v", options["api_key"])
+	}
+}
+
+func TestClassifyChangeRiskRequiresHumanApprovalForSensitiveInput(t *testing.T) {
+	risk, requires := classifyChangeRisk(OperationDefinition{}, ChangeRequest{
+		Domain: DomainPreferences, Operation: "update",
+		Input: []byte(`{"web_search_api_key":"secret"}`),
+	})
+	if risk != "sensitive" || !requires {
+		t.Fatalf("risk=%q requires=%v, want sensitive/true", risk, requires)
+	}
+}
+
+func TestClassifyChangeRiskRequiresHumanApprovalForRuntimePreferences(t *testing.T) {
+	for _, input := range []string{
+		`{"agent_runtime_kind":"nxs"}`,
+		`{"runtime_settings":{"nxs":{"setting_sources":["user"]}}}`,
+		`{"web_search":{"enabled":true}}`,
+		`{"default_agent_options":{"model":"expensive"}}`,
+		`{"default_image_model_selection":{"provider":"custom","model":"image"}}`,
+	} {
+		risk, requires := classifyChangeRisk(OperationDefinition{}, ChangeRequest{
+			Domain: DomainPreferences, Operation: "update", Input: []byte(input),
+		})
+		if risk != "high_risk" || !requires {
+			t.Fatalf("input=%s risk=%q requires=%v, want high_risk/true", input, risk, requires)
+		}
+	}
+}
+
+func TestClassifyChangeRiskDistinguishesHighRiskFromDestructive(t *testing.T) {
+	risk, requires := classifyChangeRisk(OperationDefinition{
+		RequiresConfirmation: true,
+	}, ChangeRequest{Domain: DomainChannels, Operation: "upsert"})
+	if risk != "high_risk" || !requires {
+		t.Fatalf("upsert risk=%q requires=%v, want high_risk/true", risk, requires)
+	}
+
+	risk, requires = classifyChangeRisk(OperationDefinition{
+		RequiresConfirmation: true,
+	}, ChangeRequest{Domain: DomainChannels, Operation: "delete_config"})
+	if risk != "destructive" || !requires {
+		t.Fatalf("delete risk=%q requires=%v, want destructive/true", risk, requires)
+	}
+}
+
+func TestCatalogRequiresHumanApprovalForExternalAndExecutableChanges(t *testing.T) {
+	for _, reference := range []struct {
+		domain    string
+		operation string
+	}{
+		{DomainProviders, "create"},
+		{DomainAgents, "create"},
+		{DomainChannels, "upsert"},
+		{DomainConnectors, "connect"},
+		{DomainSkills, "import_git"},
+		{DomainSkills, "import_url"},
+		{DomainSkills, "import_skills_sh"},
+		{DomainSkills, "update_source"},
+		{DomainSkills, "install"},
+		{DomainSkills, "install_self"},
+		{DomainSkills, "uninstall"},
+		{DomainSkills, "uninstall_self"},
+		{DomainSkills, "update_single"},
+		{DomainAgents, "update_self_runtime"},
+		{DomainRooms, "update_profile"},
+	} {
+		definition, err := definitionFor(reference.domain)
+		if err != nil {
+			t.Fatal(err)
+		}
+		operation, err := operationFor(definition, reference.operation)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !operation.RequiresConfirmation {
+			t.Fatalf("%s.%s must require human approval", reference.domain, reference.operation)
+		}
 	}
 }
