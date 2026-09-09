@@ -98,8 +98,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Redesign the sidebar Nexus wordmark with open geometric lettering and the original
-  theme-aware graphite gradient, removing blurred shadows for quieter navigation chrome.
+- Restore the uppercase, thin Panchang NEXUS sidebar wordmark with wide letter spacing
+  and its original theme-aware graphite gradient and shadows.
 
 - Aligned WorkGraph skills and command guidance with the actual inspect recovery,
   XML context and Draft version operations. Removed fictional coordination-mode
