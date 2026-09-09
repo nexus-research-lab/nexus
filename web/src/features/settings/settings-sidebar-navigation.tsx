@@ -1,3 +1,6 @@
+// INPUT: 设置导航权限、查询与路由动作。
+// OUTPUT: 返回与搜索同排的宽侧栏，或紧凑导航轨。
+// POS: 设置导航视图，复用公共输入与按钮，不执行设置写入。
 "use client";
 
 import { useState } from "react";
@@ -106,21 +109,23 @@ export function SettingsSidebarNavigation({
       aria-label={t("settings.title")}
       className="soft-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto px-2 py-2.5"
     >
-      <SettingsNavigationButton
-        className="mb-2 font-normal"
-        onClick={backToWorkspace}
-      >
-        <ArrowLeft className="h-3.5 w-3.5" />
-        <span>{t("settings.back_to_workspace")}</span>
-      </SettingsNavigationButton>
-
-      <UiSearchInput
-        aria-label={t("settings.search_navigation")}
-        placeholder={t("settings.search_navigation")}
-        className="mb-4"
-        value={query}
-        onChange={setQuery}
-      />
+      <div className="mb-4 flex min-w-0 shrink-0 items-center gap-2">
+        <UiIconButton
+          aria-label={t("settings.back_to_workspace")}
+          tooltip={t("settings.back_to_workspace")}
+          onClick={backToWorkspace}
+          size="md"
+        >
+          <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+        </UiIconButton>
+        <UiSearchInput
+          aria-label={t("settings.search_navigation")}
+          placeholder={t("settings.search_navigation")}
+          className="min-w-0 flex-1"
+          value={query}
+          onChange={setQuery}
+        />
+      </div>
       {navigationGroups.length === 0 ? (
         <p role="status" className="ui-type-metadata px-2 text-(--text-muted)">
           {t("settings.search_no_results")}

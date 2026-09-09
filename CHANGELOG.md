@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Put settings Back and Search controls on one row with a named compact back button.
+
 - Refine the fixed sidebar wordmark to 22px with balanced weight and tighter spacing.
 - Align community-search Enter behavior with disabled and IME input boundaries.
 

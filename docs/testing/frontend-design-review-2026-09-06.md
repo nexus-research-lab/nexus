@@ -3904,3 +3904,8 @@ Enter 与按钮共用短查询/加载禁用条件，保留 composition ref 并�
 ## A127 — 品牌字标比例修订
 
 根据用户认为 18px 偏矮的反馈，改为固定 22px 字号、320 字重、0.16em 字距；维持靠左、固定宽度及既有顶栏高度，侧栏拖宽不改变文字尺寸。目标 lint/build 通过，日志 /tmp/nexus-a127-{lint,build}.log；未做视觉验证，清单计数不变。
+
+
+## A128 — 设置返回与搜索同排
+
+按用户截图要求，宽设置侧栏顶部改为公共 IconButton 返回箭头与弹性 SearchInput 同一行；返回工作台保留辅助名称/提示，Tab 顺序先返回后搜索。轨道模式和筛选/权限逻辑保持。3 项回归、lint/typecheck 通过，日志 /tmp/nexus-a128-{target,lint,types}.log；未做视觉验证，清单计数不变。
