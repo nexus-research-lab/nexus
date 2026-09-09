@@ -93,7 +93,7 @@ describe("Message Markdown domain adaptation", () => {
     useWorkspaceFilesStore.getState().set_files("other-agent", [workspaceFile("other/report.md")]);
     useWorkspaceFilesStore.getState().set_files("selected-agent", [workspaceFile("wrong/report.md")]);
     const content = '`report.md` [Read](report.md) ![Chart](images/chart.png)';
-    const { rerender } = render(<MarkdownRenderer content={content} onOpenWorkspaceFile={openFile} workspaceAgentId="message-agent" />);
+    const { rerender } = render(<MarkdownRenderer content={content} onOpenWorkspaceFile={openFile} workspaceAgentId="message-agent" />, { wrapper: I18nProvider });
 
     act(() => useAgentStore.setState({ current_agent_id: "other-agent" }));
     await user.click(screen.getByRole("button", { name: "report.md" }));
@@ -110,7 +110,7 @@ describe("Message Markdown domain adaptation", () => {
 
   it("removes old owner file lookup immediately and refuses ambiguous basenames", () => {
     useWorkspaceFilesStore.getState().set_files("message-agent", [workspaceFile("owner-one/report.md")]);
-    render(<MarkdownRenderer content="`report.md`" onOpenWorkspaceFile={vi.fn()} workspaceAgentId="message-agent" />);
+    render(<MarkdownRenderer content="`report.md`" onOpenWorkspaceFile={vi.fn()} workspaceAgentId="message-agent" />, { wrapper: I18nProvider });
     expect(screen.getByRole("button", { name: "report.md" })).toBeTruthy();
 
     act(() => resetWorkspaceFilesOwnerScope());
