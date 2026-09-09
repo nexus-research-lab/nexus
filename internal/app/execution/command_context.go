@@ -7,13 +7,12 @@ import (
 	"context"
 	"strings"
 
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	executioncontract "github.com/nexus-research-lab/nexus/internal/mcp/command/execution/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	runtimepermission "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
-
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
 // SnapshotReader 读取当前或指定 Execution 快照。

@@ -1,7 +1,7 @@
 // INPUT: Goal command create/retarget/alignment/lifecycle request、当前 explicit Goal、current Execution 与 Goal/Orchestration 服务。
 // OUTPUT: 单域原子的 goal_only create_goal、带 canonical objective 的只读 Plan activation、显式 Goal/Execution binding saga 与 Goal 工具窄透传。
-// POS: Goal 与 Execution 两个领域服务之间的应用层协调器；create_goal 不隐式跨域，Plan transport 不裁决 Goal objective。
-package goal
+// POS: Goal 与 Execution 的跨域业务协调；create_goal 不隐式跨域，Plan transport 不裁决 Goal objective。
+package goalexecution
 
 import (
 	"context"
@@ -12,14 +12,19 @@ import (
 	"strconv"
 	"strings"
 
-	goalcommandcontract "github.com/nexus-research-lab/nexus/internal/mcp/command/goal/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
 )
 
 type lifecycleService interface {
-	goalcommandcontract.Service
+	Create(context.Context, protocol.CreateGoalRequest) (*protocol.Goal, error)
+	Current(context.Context, string) (*protocol.Goal, error)
+	CurrentOptional(context.Context, string) (*protocol.Goal, error)
+	RetargetByModel(context.Context, string, protocol.RetargetGoalRequest) (*protocol.Goal, error)
+	AuditObjectiveAlignmentByModel(context.Context, string, protocol.AuditGoalObjectiveAlignmentRequest) (*protocol.GoalObjectiveAlignmentRecord, error)
+	CompleteByModel(context.Context, string, protocol.CompleteGoalRequest) (*protocol.Goal, error)
+	BlockByModel(context.Context, string, protocol.BlockGoalRequest) (*protocol.Goal, error)
 	BindExplicitExecution(
 		context.Context,
 		goalsvc.ExplicitExecutionBinding,
@@ -60,6 +65,10 @@ type executionService interface {
 		context.Context,
 		orchestrationsvc.GoalRevisionSupersedeInput,
 	) (*protocol.ExecutionSnapshot, error)
+}
+
+type goalCommandMutationAuthorityResolver interface {
+	CurrentModelMutationAuthority(context.Context, string, string, string) (*protocol.Goal, error)
 }
 
 // executionCoordinator 既包装 Goal command service，也向 Plan
@@ -457,8 +466,7 @@ func (c *executionCoordinator) AuditObjectiveAlignmentByModel(
 	return c.goals.AuditObjectiveAlignmentByModel(ctx, goalID, request)
 }
 
-// RetargetGoalObjective executes the durable Goal revision / Execution rebase
-// saga shared by MCP, HTTP and app-server objective mutation paths.
+// RetargetGoalObjective 统一协调各入口的持久目标修订与 Execution 替换。
 func (c *executionCoordinator) RetargetGoalObjective(
 	ctx context.Context,
 	command goalsvc.ObjectiveRetargetCommand,

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
+	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -139,7 +139,7 @@ func newSessionTestConfig(t *testing.T) config.Config {
 func newSessionTestAgentService(t *testing.T, cfg config.Config) (*agentsvc.Service, *sql.DB) {
 	t.Helper()
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := app.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
@@ -154,9 +154,9 @@ func newSessionTestAgentService(t *testing.T, cfg config.Config) (*agentsvc.Serv
 func newSessionTestCoreServices(
 	t *testing.T,
 	cfg config.Config,
-) (*serverapp.CoreServices, *sql.DB) {
+) (*app.CoreServices, *sql.DB) {
 	t.Helper()
-	db, err := serverapp.OpenDB(cfg)
+	db, err := app.OpenDB(cfg)
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
@@ -165,7 +165,7 @@ func newSessionTestCoreServices(
 			t.Errorf("关闭测试数据库失败: %v", err)
 		}
 	})
-	return serverapp.NewCoreServicesWithDB(cfg, db), db
+	return app.NewCoreServicesWithDB(cfg, db), db
 }
 
 func writeSessionTranscriptFixture(t *testing.T, workspacePath string, sessionID string, rows []map[string]any) {

@@ -5,10 +5,10 @@ package runtime
 
 import (
 	"context"
-	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	channelauthorizationmcp "github.com/nexus-research-lab/nexus/internal/mcp/channelauthorization"
 	channelauthorizationcontract "github.com/nexus-research-lab/nexus/internal/mcp/channelauthorization/contract"
 	"github.com/nexus-research-lab/nexus/internal/mcp/sdktool"

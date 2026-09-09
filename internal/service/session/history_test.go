@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
+	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	sessionsvc "github.com/nexus-research-lab/nexus/internal/service/session"
@@ -20,7 +20,7 @@ func TestSessionServiceGetSessionMessagesSkipsActiveRoundMaterialization(t *test
 	migrateSessionSQLite(t, cfg.DatabaseURL)
 
 	agentService, db := newSessionTestAgentService(t, cfg)
-	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
+	sessionService := app.NewSessionServiceWithDB(cfg, db, agentService)
 	runtimeManager := runtimectx.NewManager()
 	sessionService.SetRuntimeManager(runtimeManager)
 
@@ -56,7 +56,7 @@ func TestSessionServiceReconcilesStaleActiveWorkspaceMeta(t *testing.T) {
 	migrateSessionSQLite(t, cfg.DatabaseURL)
 
 	agentService, db := newSessionTestAgentService(t, cfg)
-	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
+	sessionService := app.NewSessionServiceWithDB(cfg, db, agentService)
 	runtimeManager := runtimectx.NewManager()
 	sessionService.SetRuntimeManager(runtimeManager)
 
@@ -120,7 +120,7 @@ func TestSessionServiceReadsTranscriptHistoryWithRoundMarkers(t *testing.T) {
 	migrateSessionSQLite(t, cfg.DatabaseURL)
 
 	agentService, db := newSessionTestAgentService(t, cfg)
-	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
+	sessionService := app.NewSessionServiceWithDB(cfg, db, agentService)
 
 	ctx := context.Background()
 	agentA, err := agentService.CreateAgent(ctx, protocol.CreateRequest{Name: "Transcript 助手"})
@@ -206,8 +206,8 @@ func TestSessionServiceReadsRoomTopicHistoryFromWorkspaceMetaSessionID(t *testin
 	migrateSessionSQLite(t, cfg.DatabaseURL)
 
 	agentService, db := newSessionTestAgentService(t, cfg)
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
-	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
+	sessionService := app.NewSessionServiceWithDB(cfg, db, agentService)
 
 	ctx := context.Background()
 	agentA, err := agentService.CreateAgent(ctx, protocol.CreateRequest{Name: "Room Topic Transcript 助手"})

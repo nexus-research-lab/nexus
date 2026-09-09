@@ -5,19 +5,18 @@ package runtime
 
 import (
 	"context"
-	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"net/http"
 	"net/url"
 	"strings"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	connectorauthorizationmcp "github.com/nexus-research-lab/nexus/internal/mcp/connectorauthorization"
 	connectorauthorizationcontract "github.com/nexus-research-lab/nexus/internal/mcp/connectorauthorization/contract"
 	"github.com/nexus-research-lab/nexus/internal/mcp/sdktool"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	connectorsvc "github.com/nexus-research-lab/nexus/internal/service/connectors"
-
-	"github.com/go-chi/chi/v5"
 )
 
 const connectorAuthorizationOpenRoute = "/connectors/authorization-flows/{flow_id}/open"

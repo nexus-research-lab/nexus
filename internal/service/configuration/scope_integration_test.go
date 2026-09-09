@@ -11,7 +11,8 @@ import (
 	"testing"
 
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
-	"github.com/nexus-research-lab/nexus/internal/app/server"
+
+	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -22,7 +23,7 @@ import (
 )
 
 type scopedConfigurationFixture struct {
-	services *server.AppServices
+	services *app.AppServices
 	ownerCtx context.Context
 	main     *protocol.Agent
 	config   config.Config
@@ -74,7 +75,7 @@ func newScopedConfigurationFixture(t *testing.T) scopedConfigurationFixture {
 	if err = goose.Up(db, "../../../db/migrations/sqlite"); err != nil {
 		t.Fatal(err)
 	}
-	services := server.NewAppServicesWithDB(cfg, db, nil)
+	services := app.NewAppServicesWithDB(cfg, db, nil)
 	enableConfigurationTestPrincipalVerification(services)
 	if err = services.Core.Agent.EnsureReady(t.Context()); err != nil {
 		t.Fatal(err)
@@ -106,7 +107,7 @@ func (f scopedConfigurationFixture) createAgent(t *testing.T, name string) *prot
 
 func skillSelectionInput(
 	t *testing.T,
-	services *server.AppServices,
+	services *app.AppServices,
 	agentID string,
 	skillName string,
 	targetScope skillsvc.AgentSkillTargetScope,

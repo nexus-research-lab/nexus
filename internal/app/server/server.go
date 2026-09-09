@@ -4,12 +4,13 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"sync"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
-
-	"github.com/go-chi/chi/v5"
 )
 
 // Server 表示完整 HTTP 进程入口。
@@ -17,8 +18,13 @@ type Server struct {
 	config   config.Config
 	api      *handlershared.API
 	router   chi.Router
-	services *AppServices
+	services *app.AppServices
 	handlers handlerSet
+
+	lifecycleMu sync.Mutex
+	cancel      context.CancelFunc
+	done        chan struct{}
+	closed      bool
 }
 
 // New 使用默认日志配置创建 HTTP server。
@@ -32,7 +38,7 @@ func NewWithLogger(cfg config.Config, logger *slog.Logger) (*Server, error) {
 		logger = newLogger(cfg)
 	}
 
-	appServices, err := NewAppServices(cfg, logger)
+	appServices, err := app.NewAppServices(cfg, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -66,10 +72,24 @@ func (s *Server) Router() http.Handler {
 	return s.router
 }
 
-// Close 收口后台文件任务与 Server 自行创建的共享资源。
+// Close 先等待 HTTP 与后台任务退出，再释放应用持有的资源。
 func (s *Server) Close(ctx context.Context) error {
 	if s == nil {
 		return nil
+	}
+	s.lifecycleMu.Lock()
+	s.closed = true
+	done := s.done
+	if s.cancel != nil {
+		s.cancel()
+	}
+	s.lifecycleMu.Unlock()
+	if done != nil {
+		select {
+		case <-done:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
 	if s.services == nil {
 		return nil

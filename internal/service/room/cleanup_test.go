@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
+	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -22,7 +22,7 @@ func TestRoomServiceCleansRoomArtifacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	goalCleaner := &fakeRoomGoalCleaner{}
 	roomService.SetGoalCleaner(goalCleaner)
 
@@ -205,11 +205,11 @@ WHERE conversation_id = ? AND agent_id = ?`, 0, mainContextAfterAdd.Conversation
 func TestRoomSessionArtifactCleanupFailsClosedWithoutCoordinator(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := app.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 	agentA := createTestAgent(t, agentService, ctx, "保留助手A")
 	agentB := createTestAgent(t, agentService, ctx, "保留助手B")

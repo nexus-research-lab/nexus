@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
+	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -29,7 +29,7 @@ func TestRealtimeServicePausesOneMemberAndResumesPreservedWork(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 	pausedAgent := createTestAgent(t, agentService, ctx, "暂停目标")
 	activeAgent := createTestAgent(t, agentService, ctx, "继续目标")

@@ -8,13 +8,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/mcp/sdktool"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	connectorsvc "github.com/nexus-research-lab/nexus/internal/service/connectors"
-
-	"github.com/go-chi/chi/v5"
 )
 
 type connectorAuthorizationAppControl struct {

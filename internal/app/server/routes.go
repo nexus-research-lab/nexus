@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"strings"
 
-	serverruntime "github.com/nexus-research-lab/nexus/internal/app/server/runtime"
+	appruntime "github.com/nexus-research-lab/nexus/internal/app/runtime"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 )
 
@@ -17,7 +17,7 @@ import (
 func (s *Server) mountRoutes() {
 	s.router.Post(
 		s.prefixPath("/internal/runtime/configuration"),
-		serverruntime.NewConfigurationHandler(s.services.Configuration, s.services.Permission),
+		appruntime.NewConfigurationHandler(s.services.Configuration, s.services.Permission),
 	)
 	if s.handlers.browser != nil {
 		s.router.Get(
@@ -343,7 +343,7 @@ func (s *Server) mountCapabilityRoutes() {
 	s.router.Get(s.prefixPath("/connectors/{connector_id}/capabilities"), s.handlers.connector.HandleGetConnectorMCPCapabilities)
 	s.router.Post(s.prefixPath("/connectors/{connector_id}/connect"), s.handlers.connector.HandleConnectConnector)
 	s.router.Post(s.prefixPath("/connectors/{connector_id}/disconnect"), s.handlers.connector.HandleDisconnectConnector)
-	serverruntime.MountConnectorAuthorizationRoutes(
+	appruntime.MountConnectorAuthorizationRoutes(
 		s.router,
 		s.prefixPath,
 		s.services.ConnectorAuthorization,

@@ -1,7 +1,7 @@
 // INPUT: Channel 删除协调器、runtime Agent 撤销器与持久删除回调。
 // OUTPUT: 数据库提交点后立即撤销 Agent runtime，并汇总 Channel/runtime 后置清理错误。
 // POS: app 装配层连接 Agent、Channels 与 runtime 的跨域删除事务协调边界。
-package server
+package app
 
 import (
 	"context"

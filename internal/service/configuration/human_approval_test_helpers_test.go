@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nexus-research-lab/nexus/internal/app/server"
+	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	configurationsvc "github.com/nexus-research-lab/nexus/internal/service/configuration"
@@ -63,14 +63,14 @@ func (configurationTestPrincipalVerifier) ResolveActivePrincipalRole(
 	return authctx.RoleOwner, nil
 }
 
-func enableConfigurationTestPrincipalVerification(services *server.AppServices) {
+func enableConfigurationTestPrincipalVerification(services *app.AppServices) {
 	verifier := configurationTestPrincipalVerifier{}
 	services.Configuration.SetPrincipalVerifiers(verifier, verifier)
 }
 
 func bindConfigurationTestRound(
 	t *testing.T,
-	services *server.AppServices,
+	services *app.AppServices,
 	actor *configurationsvc.Actor,
 ) {
 	t.Helper()
@@ -115,7 +115,7 @@ func bindConfigurationTestRound(
 
 func approveConfigurationTestChange(
 	t *testing.T,
-	services *server.AppServices,
+	services *app.AppServices,
 	ctx context.Context,
 	actor configurationsvc.Actor,
 	request configurationsvc.ChangeRequest,
@@ -134,7 +134,7 @@ func approveConfigurationTestChange(
 
 func approveConfigurationTestChangeWithSecrets(
 	t *testing.T,
-	services *server.AppServices,
+	services *app.AppServices,
 	ctx context.Context,
 	actor configurationsvc.Actor,
 	request configurationsvc.ChangeRequest,

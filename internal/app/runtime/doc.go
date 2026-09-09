@@ -1,6 +1,6 @@
 // Package runtime 装配 Nexus 进程向 Agent runtime 暴露的宿主能力。
 //
-// L2 | 父级: internal/app/server（L2 见 ../doc.go）
+// L2 | 父级: internal/app（L2 见 ../doc.go）
 //
 // 成员清单：
 //   - command.go / builtin_tools.go / *_mcp.go：round-scoped nexus MCP、内建工具与显式选择的第三方 Connector MCP（含 RichMail）。

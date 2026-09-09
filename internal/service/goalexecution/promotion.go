@@ -1,7 +1,7 @@
 // INPUT: 已通过 Orchestration policy 的权威 Execution 快照、当前 actor 与 Goal 配置。
 // OUTPUT: 幂等创建或复用且在 SQL BindGoal 前保持 pending 的 adaptive Goal identity/revision。
-// POS: Execution Orchestration 到 Goal 生命周期服务的应用层防腐适配器。
-package goal
+// POS: Execution 到 Goal 的跨域晋升协调与完成审计边界。
+package goalexecution
 
 import (
 	"context"
@@ -124,8 +124,7 @@ func (g *promotionGateway) ReadGoalPromotionAvailability(
 		execution.Objective,
 		protocol.GoalActivationReasonObservedBoundary,
 	); err == nil {
-		// A compatible Goal may have been created before BindGoal hit a CAS
-		// conflict. Advertising retry is safe and preserves idempotency.
+		// BindGoal 的 CAS 冲突前可能已创建兼容 Goal，允许重试可复用同一身份。
 		return availability, nil
 	}
 	if errors.Is(err, orchestrationsvc.ErrGoalPromotionConflict) {

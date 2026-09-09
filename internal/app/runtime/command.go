@@ -9,17 +9,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"strings"
 
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
-	serverexecution "github.com/nexus-research-lab/nexus/internal/app/server/execution"
-	servergoal "github.com/nexus-research-lab/nexus/internal/app/server/goal"
-
+	appexecution "github.com/nexus-research-lab/nexus/internal/app/execution"
+	appgoal "github.com/nexus-research-lab/nexus/internal/app/goal"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	executioncontract "github.com/nexus-research-lab/nexus/internal/mcp/command/execution/contract"
 	executionoperation "github.com/nexus-research-lab/nexus/internal/mcp/command/execution/operation"
@@ -205,10 +204,10 @@ func buildNexusCommandMCPTool(
 		actor.SourceContextType = strings.TrimSuffix(actor.SourceContextType, "_untrusted") + "_untrusted"
 	}
 	actor.IsMainAgent = record.IsMain && trustedMainCommandActor(actor)
-	actor.GoalMutationAuthority = servergoal.ResolveCommandMutationAuthority(
+	actor.GoalMutationAuthority = appgoal.ResolveCommandMutationAuthority(
 		ctx,
 		goals,
-		servergoal.ResolveCommandSessionKey(actor.SessionKey, actor.SourceContextType),
+		appgoal.ResolveCommandSessionKey(actor.SessionKey, actor.SourceContextType),
 		actor.SourceContextType,
 		record,
 		round.CommandContext.GoalAuthority,
@@ -417,11 +416,11 @@ func HandleGoalCommand(
 	}
 	sctx := goalcontract.Context{
 		OwnerUserID:       actor.OwnerUserID,
-		CurrentSessionKey: servergoal.ResolveCommandSessionKey(actor.SessionKey, actor.SourceContextType),
+		CurrentSessionKey: appgoal.ResolveCommandSessionKey(actor.SessionKey, actor.SourceContextType),
 		CurrentRoundID:    actor.RoundID, CurrentAgentID: actor.AgentID,
 		GoalAuthority:           actor.GoalMutationAuthority,
 		ResponsibilityAuthority: actor.GoalResponsibilityState,
-		AllowUserRetarget:       servergoal.AllowsTrustedUserRetarget(actor.SourceContextType),
+		AllowUserRetarget:       appgoal.AllowsTrustedUserRetarget(actor.SourceContextType),
 		PlanMode:                permissionctx.NormalizeMode(actor.Round.CommandContext.PermissionMode) == sdkpermission.ModePlan,
 	}
 	operations := goaloperation.BuildAll(svc, sctx)
@@ -523,7 +522,7 @@ func HandleExecutionCommand(
 	// immutable launch snapshot, or Goal+WorkGraph will self-conflict.
 	roundContext.GoalAuthority = actor.GoalMutationAuthority
 	roundContext.ResponsibilityAuthority = actor.GoalResponsibilityState
-	sctx, ok := serverexecution.ResolveCommandContext(ctx, svc, roundContext)
+	sctx, ok := appexecution.ResolveCommandContext(ctx, svc, roundContext)
 	if !ok {
 		if len(authoringOperations) > 0 {
 			return command.HandleSemantic(

@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	teamhandler "github.com/nexus-research-lab/nexus/internal/handler/team"
@@ -62,7 +63,7 @@ func TestNewTeamHandlerRequiresControlAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	services := &AppServices{
+	services := &app.AppServices{
 		Auth:  authsvc.NewLocalAuthority("", nil, nil),
 		Relay: client,
 	}

@@ -6,7 +6,7 @@ import (
 	"sync"
 	"testing"
 
-	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
+	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	sessionsvc "github.com/nexus-research-lab/nexus/internal/service/session"
@@ -78,7 +78,7 @@ func TestSessionServiceRoutesCompletedNXSTaskControlsToRoomHostRuntime(t *testin
 	cfg := newSessionTestConfig(t)
 	migrateSessionSQLite(t, cfg.DatabaseURL)
 	agentService, db := newSessionTestAgentService(t, cfg)
-	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
+	sessionService := app.NewSessionServiceWithDB(cfg, db, agentService)
 	runtimeManager := runtimectx.NewManager()
 	sessionService.SetRuntimeManager(runtimeManager)
 
@@ -151,7 +151,7 @@ func TestSessionServiceRejectsCCSendBeforeRuntimeWire(t *testing.T) {
 	cfg := newSessionTestConfig(t)
 	migrateSessionSQLite(t, cfg.DatabaseURL)
 	agentService, db := newSessionTestAgentService(t, cfg)
-	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
+	sessionService := app.NewSessionServiceWithDB(cfg, db, agentService)
 	runtimeManager := runtimectx.NewManager()
 	sessionService.SetRuntimeManager(runtimeManager)
 

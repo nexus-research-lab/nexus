@@ -11,7 +11,6 @@ import (
 
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
-
 	connectordomain "github.com/nexus-research-lab/nexus/internal/connectors"
 	feishudocxmcp "github.com/nexus-research-lab/nexus/internal/mcp/feishudocx"
 	feishudocxmcpcontract "github.com/nexus-research-lab/nexus/internal/mcp/feishudocx/contract"
