@@ -705,7 +705,7 @@ export function WorkspaceGallery({ locale }: { locale: Locale }) {
             <div className="flex h-56 flex-col overflow-hidden rounded-[12px] border border-(--divider-subtle-color)">
               <WorkspaceSurfaceView
                 bodyClassName="min-h-0"
-                header={{ action: <UiButton size="xs" variant="text">{galleryText(locale, "刷新", "Refresh")}</UiButton>, kind: "page" }}
+                header={{ action: <UiButton size="xs" variant="text">{galleryText(locale, "刷新", "Refresh")}</UiButton>, kind: "mobile" }}
                 title={galleryText(locale, "预览工作面", "Preview surface")}
               >
                 <p className={getUiTypographyClassName({ role: "body", tone: "default" })}>

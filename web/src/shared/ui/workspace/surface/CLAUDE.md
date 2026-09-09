@@ -20,5 +20,5 @@
 - `workspace-header-layout.ts` 保存侧边栏与主内容区共用的桌面高度基线：浏览器回退 60px，macOS 消费原生红灯中心推导值；布局双方不得复制数值，会话标签和动作随基线同步变化，不能只给外层追加空白。
 - 桌面右侧辅助面板的简介、工作区、子智能体与 Thread 共用 `workspace-header-layout.ts` 的 44px 头部、12px 横向内边距、28px 图标点击区和 14px 线性图标基线；移动端统一消费平台感知的窄窗 Header 高度和 gutter，macOS 跟随原生窗口控件中心，Windows/浏览器保持 52px。业务视图不得复制这些几何值，面板 Agent 筛选器统一使用固定 112×28px 的 Panel 变体。
 - `workspace-surface-scaffold.tsx` 只提供 Header 与主画布骨架；业务滚动、状态和命令留在调用方。
-- `workspace-surface-view.tsx` 用 `page`、`mobile`、`overlay` 与缺省无障碍标题表达四种真实模式；`mobile` 统一投影平台感知的标题栏、拖窗热区和语义排版，默认正文和 Page Header 复用管理工作面的响应式水平 gutter。调用方可以显式取消留白，但不得复制断点数值；不得重新引入控制标题组合的布尔参数。
+- `workspace-surface-view.tsx` 只保留 `mobile` 与缺省无障碍标题两种产品使用模式；`mobile` 统一投影平台感知的标题栏、拖窗热区和语义排版，默认正文复用管理工作面的响应式水平 gutter。调用方可以显式取消留白，但不得复制断点数值；不得重新引入控制标题组合的布尔参数。
 - 标题、标签和中部导航的可选组合在各自私有组件内收口，根 Header 不维护布尔状态矩阵。
