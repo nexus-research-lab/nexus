@@ -1,5 +1,5 @@
 // INPUT: 主题、语言与本机聊天排版偏好。
-// OUTPUT: 即时预览、共享设置控件与恢复默认动作。
+// OUTPUT: 即时预览、范围反馈与恢复默认动作；输入法确认不提前提交数字草稿。
 // POS: General 外观分区纯视图；不持久化服务端 Preferences。
 "use client";
 
@@ -179,7 +179,7 @@ function AppearanceNumberInput({ label, value, min, max, step, unit, onChange }:
   const range = t("settings.appearance.value_range", { min, max, unit });
   const hint = outOfRange
     ? t("settings.appearance.range_warning", { min, max, unit })
-    : adjusted !== null
+    : adjusted !== null && adjusted === value
       ? t("settings.appearance.range_adjusted", { min, max, unit, value: adjusted })
       : range;
   return (
@@ -209,7 +209,11 @@ function AppearanceNumberInput({ label, value, min, max, step, unit, onChange }:
           }
           setDraft(null);
         }}
-        onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && !event.nativeEvent.isComposing && event.keyCode !== 229) {
+            event.currentTarget.blur();
+          }
+        }}
       />
       {unit && (
         <span className={cn(
