@@ -20,7 +20,6 @@ interface IconPickerItemModel {
   active: boolean;
   iconId: string;
   iconPath: string;
-  title: string;
 }
 
 interface IconPickerModel {
@@ -44,7 +43,6 @@ export function buildIconPickerModel({
       active: value === iconId,
       iconId,
       iconPath: `/icon/${iconFamily}/${iconId}.png`,
-      title: `icon-${iconId}`,
     })),
     showClear: showClear && Boolean(value),
   };

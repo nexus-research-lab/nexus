@@ -129,6 +129,7 @@ export function AgentOptionsIdentityTab({
           nameValidation={nameValidation}
           onAvatarChange={onAvatarChange}
           onTitleChange={onTitleChange}
+          scopeKey={scopeKey}
           title={title}
           validatingLabel={t("agent_options.identity.validating_name")}
           variant={variant}

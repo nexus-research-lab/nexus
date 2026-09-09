@@ -1,3 +1,6 @@
+// INPUT: Room 草稿头像、名称、禁用状态与头像修改命令。
+// OUTPUT: 公共 56px 身份头像及唯一中性选择入口。
+// POS: Room 表单头像适配；材质、选择和焦点归公共 Avatar/Picker。
 "use client";
 
 import {
@@ -38,8 +41,8 @@ export function RoomAvatarPicker({
       renderTrigger={(isOpen) => (
         <>
           <UiRoomAvatar
+            aria-hidden="true"
             avatar={avatar}
-            className="transition-[border-color] duration-(--motion-duration-fast) group-hover:border-(--surface-interactive-hover-border)"
             members={[]}
             roomId={name}
             size="lg"

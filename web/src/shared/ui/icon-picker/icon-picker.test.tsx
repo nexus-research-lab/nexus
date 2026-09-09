@@ -16,7 +16,7 @@ describe("IconPicker", () => {
     const onSelect = vi.fn();
     render(
       <I18N_CONTEXT.Provider
-        value={{ locale: "zh", setLocale: vi.fn(), t: (key) => key }}
+        value={{ locale: "zh", setLocale: vi.fn(), t: (key, params) => key === "common.icon_picker_option" ? `头像 ${params?.number}` : key }}
       >
         <IconPicker
           iconFamily="agent"
@@ -29,11 +29,12 @@ describe("IconPicker", () => {
       </I18N_CONTEXT.Provider>,
     );
 
-    const idle = screen.getByRole("button", { name: "icon-4" });
-    const selected = screen.getByRole("button", { name: "icon-5" });
+    const idle = screen.getByRole("button", { name: "头像 4" });
+    const selected = screen.getByRole("button", { name: "头像 5" });
     expect(idle.getAttribute("aria-pressed")).toBe("false");
     expect(selected.getAttribute("aria-pressed")).toBe("true");
-    expect(selected.className).toContain("h-12 w-12");
+    expect(selected.className).toContain("aspect-square");
+    expect(selected.className).toContain("max-w-full");
     expect(selected.className).not.toContain("shadow-");
     expect(selected.querySelector("img")?.getAttribute("alt")).toBe("");
 
@@ -46,7 +47,7 @@ describe("IconPicker", () => {
   it("keeps every shared choice disabled when the picker is disabled", () => {
     render(
       <I18N_CONTEXT.Provider
-        value={{ locale: "zh", setLocale: vi.fn(), t: (key) => key }}
+        value={{ locale: "zh", setLocale: vi.fn(), t: (key, params) => key === "common.icon_picker_option" ? `头像 ${params?.number}` : key }}
       >
         <IconPicker disabled maxIcons={2} onSelect={vi.fn()} value="1" />
       </I18N_CONTEXT.Provider>,
