@@ -298,7 +298,7 @@ function getRunStatusLabel(status: string | null | undefined): string {
   return status ? labels[status] ?? status : "尚未执行";
 }
 
-function getContextLabel(task: ScheduledTaskItem): string {
+function getContextLabel(task: ScheduledTaskItem, t: Translate): string {
   const contextLabel = task.source?.context_label?.trim();
   if (task.source?.context_type === "room" && contextLabel) {
     return `Room · ${contextLabel}`;
@@ -308,7 +308,9 @@ function getContextLabel(task: ScheduledTaskItem): string {
     && contextLabel) {
     return contextLabel;
   }
-  return task.execution_kind === "script" ? "工作区脚本" : task.agent_id;
+  return t(task.execution_kind === "script"
+    ? "capability.scheduled_context_script"
+    : "capability.scheduled_context_agent");
 }
 
 function getStoppedTimingSummary(task: ScheduledTaskItem): string {
@@ -360,6 +362,7 @@ function getTimingSummary(
 export function getScheduledTaskCardPresentation(
   task: ScheduledTaskItem,
   pending: ScheduledTaskCardPendingState,
+  t: Translate,
 ): ScheduledTaskCardPresentation {
   const columnId = getTaskColumnId(task);
   const deletion = getDeletionPresentation(task);
@@ -374,7 +377,7 @@ export function getScheduledTaskCardPresentation(
   return {
     binding,
     columnId,
-    contextLabel: getContextLabel(task),
+    contextLabel: getContextLabel(task, t),
     deletion,
     deleteDisabled: deletion !== null
       || pending.isDeleting
