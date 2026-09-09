@@ -183,3 +183,27 @@ it("keeps OAuth credentials when changing language and resets them for a differe
   expect((screen.getByLabelText("Client ID*") as HTMLInputElement).value).toBe("replacement-client");
   expect((screen.getByLabelText("Client Secret*") as HTMLInputElement).value).toBe("");
 });
+
+it.each(["credential", "oauth"] as const)("associates %s labels with their own dialog instance", async (kind) => {
+  const user = userEvent.setup();
+  const dialog = () => kind === "credential"
+    ? <ConnectorCredentialDialog detail={AMAP_DETAIL} busy={false} onClose={vi.fn()} onSave={vi.fn()} />
+    : <ConnectorOAuthClientDialog detail={FEISHU_DETAIL} busy={false} onClose={vi.fn()} onDelete={vi.fn()} onSave={vi.fn()} />;
+  render(<I18nProvider>{dialog()}{dialog()}</I18nProvider>);
+  const forms = Array.from(document.querySelectorAll("form"));
+  expect(forms).toHaveLength(2);
+  const ids = forms.flatMap((form) => Array.from(form.querySelectorAll("input"), (input) => input.id));
+  expect(new Set(ids).size).toBe(ids.length);
+  const topForm = forms[1];
+  const labels = topForm.querySelectorAll<HTMLLabelElement>("label[for]");
+  expect(labels.length).toBe(kind === "credential" ? 1 : 2);
+  for (const label of labels) {
+    await user.click(label);
+    const input = label.control as HTMLInputElement;
+    expect(input.closest("form")).toBe(topForm);
+    expect(document.activeElement).toBe(input);
+    await user.keyboard("draft");
+    expect(input.value).toBe("draft");
+  }
+  forms[0].querySelectorAll("input").forEach((input) => expect(input.value).toBe(""));
+});
