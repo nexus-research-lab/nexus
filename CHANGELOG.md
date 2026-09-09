@@ -40,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Clarify fixed inspect operations in command contracts and return the exact inspect call when agents incorrectly invoke them, preventing misleading operation-registration retries.
+
 - Navigate settings search results to the matching field, including repeated clicks within the same section and asynchronously loaded content.
 
 - Center sidebar navigation icons and labels across the full visible rail, including the shell's leading inset.
