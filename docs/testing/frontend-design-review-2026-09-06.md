@@ -4006,3 +4006,8 @@ DM/Thread 的归档过程与实时工具段不再各自渲染文件汇总，由 
 ### A146 — Mermaid 预览键盘入口
 
 放大画布增加具名 region 与 Tab 入口，保留浏览器原生滚动；共享焦点环明确当前位置，标题改用每实例 useId，捕获丢失清理拖拽状态。新增 DOM 回归覆盖模态名称、关闭动作到画布的 Tab 与 Escape 退出；测试与 lint 通过。jsdom 仅模拟元素可见性，不宣称实际滚动或视觉验收。
+
+
+### A147 — 内联文件提示本地化
+
+WorkspaceFileButton 移除硬编码英文提示，使用统一中英文翻译；保留内联代码字号、公共 content-workspace-file recipe 及已解析路径命令。2 项双语键盘回归及 3 项 Markdown 入口测试通过，lint/typecheck 验证；未做视觉验收。

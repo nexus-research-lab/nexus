@@ -78,6 +78,7 @@ export const enCoreMessages = {
   "markdown.code.group": "{language} code",
   "markdown.code.copy": "Copy {language} code",
   "markdown.code.copied": "Copied",
+  "markdown.workspace.open_file": "Open {path}",
   "markdown.code.streaming": "Streaming",
   "markdown.mermaid.copy_source": "Copy source",
   "markdown.mermaid.copied_source": "Source copied",
