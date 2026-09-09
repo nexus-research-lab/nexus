@@ -1,6 +1,6 @@
 /**
  * INPUT: 管理页标题、用途说明、可选动作与二级页导航内容。
- * OUTPUT: 与 Workspace 内容轴和移动端投影合同一致的标准页头。
+ * OUTPUT: 与 Workspace 内容轴一致、允许长内容自然增高的标准页头。
  * POS: 全站管理型内容页 Header owner；不解释具体业务动作或页面状态。
  */
 "use client";
@@ -24,7 +24,7 @@ interface WorkspaceContentDetailHeaderProps {
   className?: string;
 }
 
-/** 管理页只保留一层正文标题，标题、说明与动作始终共享同一垂直基线。 */
+/** 管理页只保留一层正文标题，常规内容与动作对齐，长内容允许增高而不越过分隔线。 */
 export function WorkspaceContentHeader({
   actions,
   className,
@@ -35,20 +35,20 @@ export function WorkspaceContentHeader({
   return (
     <header
       className={cn(
-        "workspace-content-header mb-4 shrink-0 border-b border-(--divider-subtle-color) pb-4 sm:h-[var(--workspace-header-height,60px)] sm:pb-0",
+        "workspace-content-header mb-4 shrink-0 border-b border-(--divider-subtle-color) pb-4 sm:min-h-[var(--workspace-header-height,60px)] sm:pb-0",
         className,
       )}
       data-desktop-window-drag-region
       data-tour-anchor={headerAnchor}
     >
-      <div className="workspace-content-header-inner flex min-h-[52px] flex-col gap-3 sm:h-full sm:min-h-0 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0 flex-1">
-          <h1 className={getUiTypographyClassName({ role: "pageTitle", tone: "strong" })}>
+      <div className="workspace-content-header-inner flex min-h-[52px] flex-col gap-3 sm:min-h-[var(--workspace-header-height,60px)] sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div className="min-w-0 flex-1 sm:basis-60">
+          <h1 className={cn("[overflow-wrap:anywhere]", getUiTypographyClassName({ role: "pageTitle", tone: "strong" }))}>
             {title}
           </h1>
           {description ? (
             <p className={cn(
-              "mt-0.5 max-w-[640px]",
+              "mt-0.5 max-w-[640px] [overflow-wrap:anywhere]",
               getUiTypographyClassName({ role: "metadata", tone: "muted" }),
             )}>
               {description}
@@ -56,7 +56,7 @@ export function WorkspaceContentHeader({
           ) : null}
         </div>
         {actions ? (
-          <div className="flex min-h-8 shrink-0 items-center sm:justify-end">
+          <div className="flex min-h-8 min-w-0 max-w-full flex-wrap items-center gap-2 sm:ml-auto sm:justify-end">
             {actions}
           </div>
         ) : null}
