@@ -64,7 +64,8 @@ export function TaskBasicsPanel({
         aria-label={t("capability.scheduled_dialog_task_name")}
         onChange={(event) => actions.setTaskName(event.target.value)}
         placeholder={t("capability.scheduled_dialog_task_name_placeholder")}
-        className="min-w-0 flex-1 border-0 bg-transparent px-0 text-lg shadow-none"
+        className="min-w-0 flex-1"
+        textRole="title"
         value={form.taskName}
       />
         {titleAction}

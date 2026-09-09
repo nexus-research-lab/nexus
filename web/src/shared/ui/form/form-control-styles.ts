@@ -1,12 +1,12 @@
 // INPUT: 表单字段的单行/多行语义、内容角色、尺寸、表面档位与搜索壳层类型。
-// OUTPUT: 输入字段及搜索壳层的共享尺寸、可读占位提示、焦点、invalid 和 disabled 样式投影。
+// OUTPUT: 输入字段（含页内标题）及搜索壳层的尺寸、表面、焦点、invalid 和 disabled 样式投影。
 // POS: Form primitive 内部视觉所有者；不渲染 DOM，不决定字段值、校验规则或搜索范围。
 
 import { cn } from "@/shared/ui/class-name";
 
 export type UiFormControlSize = "xs" | "sm" | "md" | "lg";
 export type UiFormControlVariant = "dialog" | "surface";
-export type UiFormControlTextRole = "text" | "code" | "verification";
+export type UiFormControlTextRole = "text" | "code" | "verification" | "title";
 export type UiSearchInputVariant = UiFormControlVariant | "menu" | "toolbar";
 
 interface UiFormControlStyleOptions {
@@ -76,7 +76,9 @@ export function getUiFormControlClassName(
     multiline ? FORM_TEXTAREA_SIZE_CLASS_MAP[size] : FORM_CONTROL_SIZE_CLASS_MAP[size],
     textRole === "verification"
       ? "h-12 text-center font-mono tracking-widest ui-type-object-title"
-      : cn(FORM_CONTROL_TEXT_SIZE_CLASS_MAP[size], textRole === "code" && "font-mono"),
+      : textRole === "title"
+        ? "border-0 bg-transparent px-0 shadow-none ui-type-object-title ui-type-weight-regular"
+        : cn(FORM_CONTROL_TEXT_SIZE_CLASS_MAP[size], textRole === "code" && "font-mono"),
     className,
   );
 }

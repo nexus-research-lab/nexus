@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Give scheduled-task titles a shared editable-title input role and use shared supporting typography for confirmation summaries.
+
 - Preserve the redesigned scheduled-task editor while separating destination projection and reusing shared panel and plain-select surfaces.
 
 - Associate agent skill switches with their purpose descriptions and wrap long unbroken card text.

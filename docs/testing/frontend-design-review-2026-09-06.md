@@ -4080,3 +4080,8 @@ OnboardingTourOverlay 忽略已消费 Escape、输入法组合态与 229 兼容�
 修正三项所有权问题：目标候选/搜索/分组/当前值投影提取至 task-destination-picker-model；执行/接收分组使用 UiPanel md，保持现有 12px 圆角与领域内间距；计划选择的后代按钮样式覆盖改为共享 Select plain 表面，hover/focus/disabled 仍归公共 owner。任务标题等领域专用组合继续留在当前编辑面，没有机械移动目录或重建第二套表单事务。
 
 定时任务及共享 Select 12 文件 / 98 项组件测试通过，定时会话合同 12 项通过，scheduled 全域与变更共享文件 lint、全前端 typecheck 通过。日志 /tmp/nexus-scheduled-a160-final.log 与 /tmp/nexus-scheduled-a160-contracts.log。未运行服务、浏览器或原生视觉验证；这些证据不证明像素/响应式几何验收或全部后端正确性。
+
+
+### A161 — 定时标题输入排版归属
+
+UiInput title 角色统一页内对象标题的 objectTitle/regular、透明无框表面与水平内边距，定时表单移除本地 text-lg/表面覆盖。确认摘要改用 supporting/muted。保留任务标题可空及原有提交语义。38 项公共表单/定时基础表单回归、目标 lint 和 typecheck 通过；未做视觉验收。

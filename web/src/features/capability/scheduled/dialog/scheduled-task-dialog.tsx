@@ -8,6 +8,8 @@
 import { useEffect } from "react";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { ResourceFailure } from "@/lib/error-message";
+import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { UiButton } from "@/shared/ui/button/button";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
 import {
@@ -161,7 +163,7 @@ export function ScheduledTaskDialog({
           </UiDialogBody>
 
           {!isLegacyScriptTask ? (
-            <p aria-live="polite" className="shrink-0 px-6 pt-3 text-sm leading-relaxed text-(--text-muted) break-words">
+            <p aria-live="polite" className={cn("shrink-0 px-6 pt-3 break-words", getUiTypographyClassName({ role: "supporting", tone: "muted" }))}>
               {buildTaskConfirmationSummary(controller.form.draft, controller.schedule.draft, controller.data, t)}
             </p>
           ) : null}
