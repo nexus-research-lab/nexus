@@ -6,7 +6,7 @@
 //
 // 成员地图：
 //   - service.go / errors.go / work_binding.go / coordination_round.go：装配、actor、
-//     Work/Review/Coordination capability 与 optimistic revision fence。
+//     Work/Review/Coordination capability 与 optimistic revision fence；终态历史读取不改本轮协调权限。
 //   - execution*.go / goal_retarget.go / plan_validation.go：Execution 生命周期、
 //     predecessor/successor、Plan revision 与 DAG 校验。
 //   - plan_document*.go / plan_proposal*.go / plan_materialization.go：严格 Plan

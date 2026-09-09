@@ -3814,3 +3814,12 @@ Team 4 项回归含完整 emoji 首字、作者、Markdown 内容及不暴露内
 删除每次消息数变化的强制 scrollIntoView 与旧 ref/effect，Team 直接接入已有 useFollowScroll、feed/viewport refs、用户滚动事件和 ScrollToLatestButton。上滚进入阅读时新消息不追底，显式回到底部后恢复跟随；滚动 scope 使用真实 conversation.id。滚动区域以可聚焦 region 支持键盘，添加有理由的局部 tabindex lint 例外，不修改全局规则。
 
 Team 5 项回归通过，实际 Hook 的测试覆盖阅读位置保留、返回底部及后续新消息继续跟随；目标 lint/typecheck/build 通过，见 /tmp/nexus-a112-{target,lint,types,build}.log，仅既有大分块提示。未做视觉验证。Team 仍 in_progress，首次加载失败的恢复入口另审，状态计数不变。
+
+
+## A113 — Team 首次加载失败恢复
+
+加载失败新增公共重试按钮，加载中禁用/busy；hook 增加 retryLoad，复用 reload 快照路径与请求栅栏，在途 controller 防重，owner effect 清理和卸载时取消旧重试，迟到 finally 不清新请求状态。重试不调用消息发送，不添加自动重放。
+
+并行 Git 操作中将本批转入 /tmp/nexus-a113-review.json 指向的快照，8 项回归（页面 6、hook 2）、目标 lint/typecheck 通过，见 /tmp/nexus-a113-{target,lint,types}.log。合并后确认 frontend HEAD 与受测基线 cf19c4be2 无差异，恢复文件与快照核对一致；先前工作区的“retryLoad 不存在”失败来自并行恢复旧文件，非通过证据。
+
+结合 A110–A112，Team UI 代码审查 improved；本轮不声称 Team transport 全面审计或实际视觉验收。489 项现为 218 pending、132 in_progress、111 improved、22 retained、6 removed。

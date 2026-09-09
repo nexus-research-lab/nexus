@@ -9,7 +9,7 @@
 - UI 标题栏和普通对话都是同一 WorkGraph Draft 能力的入口。UI 可由宿主直接调用 authoring service；普通对话必须先读取 fresh `inspect_workgraph_library` contract 并调用该 operation，不能凭 transcript、记忆或数量描述推断历史图。返回值会同时列出当前 Session 的 completed source、Draft、只读内置模板和 owner 命名图，因此一个会话有多张图时必须使用 exact `execution_id` / `preview_id`；用户明确询问“自己保存的”图时排除 `built_in=true` 项。
 - 提取只接受当前 Session 的 completed source Execution。调用 `extract_workgraph_preview` 时，宿主会先按 owner/session/source 查找可恢复 Draft；已有 Draft 直接返回，不重复模型提取。首次提取把完整 source logical-key、父子层级和依赖交给抽象模型，强制保留 required/terminal、拓扑引用、验证/复核和协作边界等关键节点，主要抽象节点内的具体任务语义；只有不影响任何结构语义的非关键孤立节点才可省略，无法确定时保留。`slash_name` 默认用不冲突的短单词，只有准确单词均冲突时才用两个短词。
 - Draft 按 source Execution 唯一并跨页面恢复。每次修改追加不可变版本；`head_revision` 是并发 CAS，`selected_revision` 是用户当前偏好版本。选择旧版本不删除新版本，下一次修改从 selected 内容继续但仍提交 fresh head revision。模型不得把“选择 v1”解释成重写一份近似 v1。
-- 草图编辑统一由 owner 的 Nexus 主智能体承载在隐藏专用 DM 中。它不进入主智能体普通 DM 目录，不继承来源 DM/Room transcript、连接器或权限；来源只通过完整 Draft 与 source WorkGraph 事实提供。关闭 UI 不删除该 Session，再次打开继续同一对话。该 Session 只开放本 Skill、`revise_workgraph_preview` 和 `select_workgraph_preview_revision`。
+- 草图编辑统一由 owner 的 Nexus 主智能体承载在隐藏专用 DM 中。它不进入主智能体普通 DM 目录，不继承来源 DM/Room transcript、连接器或权限；来源只通过完整 Draft 与 source WorkGraph 事实提供。关闭 UI 不删除该 Session，再次打开继续同一对话。该 Session 的草图操作只开放 `revise_workgraph_preview` 和 `select_workgraph_preview_revision`，另有 Skill 加载与必要的用户提问能力。
 - UI 确认保存已生成草图时，宿主直接在数据库事务内保存命名图与 Draft 保存标记，不再启动后台模型 round。表单只提供 exact `preview_id` 和可选命令名、标题、描述，完整图结构由服务端读取；只改元信息同样直接保存。保存不得重新读取源图、重选节点或重写草图。普通对话中的明确保存继续通过 `save_workgraph_preview` 进入同一事务边界。
 - 用户在普通对话中明确要求保存当前 Draft 时，不需要再创建 UI round：读取 `save_workgraph_preview` fresh contract，以 exact preview_id 直接保存 selected version。保存前必须已经向用户展示或概述当前 Draft 且本轮存在明确保存意图；“看看”“比较”“先改一下”不构成保存确认。
 - 普通 DM/Room 中，成功的 `extract_workgraph_preview`、`get_workgraph_preview`、`revise_workgraph_preview`、`select_workgraph_preview_revision` 和 `save_workgraph_preview` 会由宿主把最后一份完整图自动渲染为当前回复里的草图卡片；卡片可按需打开“来源图 / 当前草图”对照。这是回答“草图在哪看、是否已更新、怎么对照”时使用的界面事实，不是每次回复都要重复的固定话术。不要复述完整节点 JSON，或假装自己另外绘制了界面；没有 applied/ready/selected 成功结果时不得声称卡片已更新。
@@ -21,7 +21,7 @@
 
 - 创建或修改 Draft 前，先判断当前 source、用户要求和 selected version 是否足以确定复用目标、范围边界、terminal 交付、完成/验收标准以及必须保留的依赖或协作边界。只有缺口或冲突会实质改变草图或持久化结果时才提问；可从 exact source/Draft 得出的事实、可逆的文案偏好和不影响结构的细节不追问，采用合理假设并在检查问题中简短说明。
 - 需要补充时使用 `AskUserQuestion`，一次集中询问最少的关键问题，允许用户提供自定义答案；在收到答案前不猜测、不执行受影响的 Draft mutation，也不保存。若当前通道不支持 `AskUserQuestion`，改为一条简洁的普通问题并结束本轮，等待用户回复。
-- `extract_workgraph_preview` 或 `revise_workgraph_preview` 成功后，宿主会把最新完整草图渲染到当前回复的草图卡片；隐藏编辑 Session 则实时刷新右侧预览。此时必须调用 `AskUserQuestion` 暂停，请用户检查目标和范围、节点与依赖、关键交付与验收条件是否准确且无遗漏。问题应提供“确认当前草图”和“需要修改或补充”的清晰路径；原请求已经写过“保存”也不能替代这次草图后的检查。
+- `extract_workgraph_preview` 或 `revise_workgraph_preview` 成功后，宿主会把最新完整草图渲染到当前回复的草图卡片；隐藏编辑 Session 则实时刷新右侧预览。简要说明本次修改，供用户查看；不要为每次可逆编辑强制增加一次确认。若下一步要保存而当前版本尚未经用户明确确认，再请用户确认当前草图并保存；原请求中的“保存”不能代替新生成版本展示后的确认。需要提问时优先用可用的 `AskUserQuestion`，否则使用普通问题。
 - 用户指出缺漏或错误时，先读取当前 selected 完整 Draft，把用户补充作为精确修改要求调用 `revise_workgraph_preview`，成功渲染新版本后再次进入同一检查门槛。不要在用户仍要求修改时保存，也不要用聊天中的修正说明代替 durable Draft revision。
 - 用户在草图显示后明确确认无遗漏，才算通过检查。若原意图包含保存，可把明确的“确认并保存”答案作为当前草图的保存确认；若原意图只是查看或编辑，确认只结束检查，不自动扩大为保存意图。用户选择暂不保存时保留 Draft，结束当前流程。
 - 历史遗留的 `HiddenFromUser + Synthetic + purpose=workgraph_distillation` 内部保存 round 不执行这套问答：它收到的 host-bound `preview_id` 已代表用户在可见界面完成检查并确认保存，重复提问会形成不可见阻塞。新 UI 保存不启动这类 round。
@@ -30,7 +30,7 @@
 
 不要先运行 `execution inspect`；WorkGraph library 能力在当前没有 active Execution 时也可用。
 
-1. 读取并调用 `inspect_workgraph_library`。如果用户没有指明是哪张图，只有返回目录中目标唯一时才能继续；否则列出紧凑候选让用户选择。
+1. 读取 `action=contract, operation=inspect_workgraph_library` 后，用 `action=invoke, operation=inspect_workgraph_library`、新的 `request_id` 和 `input={}` 调用。它不是固定 inspect 入口；`get_workgraph_preview` 同样走 invoke，不能按名称前缀改成 action=inspect。如果用户没有指明是哪张图，只有返回目录中目标唯一时才能继续；否则列出紧凑候选让用户选择。
 2. 如果目标、范围或关键交付仍有会改变草图的缺口，先按“信息补充与草图检查门槛”提问；没有目标 Draft 且用户要求沉淀 completed source 时，再读取 `extract_workgraph_preview` contract，提交 exact `source_execution_id` 和界面语言。已有同源 Draft 会直接恢复。
 3. 首次提取成功后进入草图检查门槛。用户要求修改时，先调用 `get_workgraph_preview` 读取 selected 完整图、head revision 和版本目录；再读取 `revise_workgraph_preview` contract 并提交完整草图。保留用户未要求改变的字段，不能只提交 diff。修改成功后重新进入草图检查门槛。
 4. 用户明确选择旧版本时调用 `select_workgraph_preview_revision`，提交 exact preview_id、head revision 和 selected revision。选择成功后把所选版本作为当前可见草图请用户检查；不要继续修改，除非用户同时明确要求。
@@ -64,8 +64,8 @@
 1. 只响应用户对当前草图的修改或提问，不执行草图任务，不读 workspace，也不调用 `nexus.command` 之外的 MCP。
 2. 用户的修改要求缺少会实质改变 Draft 的信息时，先用 `AskUserQuestion` 补齐；不运行 `execution inspect`。信息充分后，修改前读取 fresh `revise_workgraph_preview` contract；版本选择前读取 fresh `select_workgraph_preview_revision` contract。
 3. 按 contract 的结构化输入规则提交带当前 head revision 的完整草图；保留所有未被用户要求改变的字段，不能只提交 diff。当前内容是 selected revision，用户切回旧版本后必须从它继续。
-4. 只通过 `nexus.command` 调用 `execution/invoke` 的 `revise_workgraph_preview`。服务端会校验 owner/editor Session、revision CAS、命令冲突、节点类型、父子结构、DAG、key 主路径与 terminal 交付。
-5. applied 后右侧预览实时刷新，立即用 `AskUserQuestion` 请用户检查当前版本；用户继续补充时重复修改与检查，明确确认后才结束本次编辑检查。冲突或过期时说明需要基于最新预览重试，不得转用普通 Execution operation。
+4. 修改用 `revise_workgraph_preview`，选择既有版本用 `select_workgraph_preview_revision`，都通过 `nexus.command` 的 `execution/invoke` 调用；不得把版本选择重做成一次修改。服务端会校验 owner/editor Session、revision CAS、命令冲突、节点类型、父子结构、DAG、key 主路径与 terminal 交付。
+5. applied/selected 后右侧预览实时刷新，简要说明改动或所选版本即可；用户继续补充时继续编辑，不强制要求每轮确认。最终应用与保存由用户在可见界面完成。冲突或过期时说明需要基于最新预览重试，不得转用普通 Execution operation。
 
 隐藏编辑 Session 的右侧是宿主实时草图预览窗，applied 后宿主会从 durable Draft 刷新它。只有用户询问展示位置或刷新状态时才需要说明这个界面事实；正常修改回复不必反复提右侧。不要在左侧对话重复整张图；只回答问题而未 mutation 时，不得声称右侧已经更新。
 

@@ -1361,6 +1361,42 @@ func TestRoomConversationCoordinatorRequiresExplicitRoundCoordinationCapability(
 	}
 }
 
+func TestHistoricalReadDoesNotReplaceCurrentRoundCoordination(t *testing.T) {
+	for _, status := range []protocol.ExecutionStatus{
+		protocol.ExecutionStatusCompleted, protocol.ExecutionStatusFailed,
+		protocol.ExecutionStatusCancelled, protocol.ExecutionStatusSuperseded,
+	} {
+		t.Run(string(status), func(t *testing.T) {
+			snapshot, binding := structuredRoomWorkBindingSnapshot()
+			service := NewService(&fakeRepository{snapshot: snapshot})
+			actor := structuredRoomMemberActor(binding)
+			actor.AgentID = snapshot.Execution.CoordinatorAgentID
+			actor.Role = ExecutionActorCoordinator
+			actor.WorkBinding = nil
+			if err := service.ActivateRuntimeCoordination(context.Background(), actor, snapshot); err != nil {
+				t.Fatal(err)
+			}
+			history := *snapshot
+			history.Execution.ID = "historical-execution"
+			history.Execution.Status = status
+			if err := service.ActivateRuntimeCoordination(context.Background(), actor, &history); err != nil {
+				t.Fatal(err)
+			}
+			if !service.runtimeCoordinationActive(actor, snapshot.Execution.ID) ||
+				service.runtimeCoordinationActive(actor, history.Execution.ID) {
+				t.Fatal("historical read replaced current coordination")
+			}
+			service.ReleaseRuntimeCoordination(actor)
+			if err := service.ActivateRuntimeCoordination(context.Background(), actor, &history); err != nil {
+				t.Fatal(err)
+			}
+			if service.runtimeCoordinationActive(actor, history.Execution.ID) {
+				t.Fatal("historical read granted coordination")
+			}
+		})
+	}
+}
+
 func TestRoomExactGoalContinuationEntersCoordinationWithoutConversationBootstrap(t *testing.T) {
 	snapshot, binding := structuredRoomWorkBindingSnapshot()
 	snapshot.Execution.GoalID = "goal-room"

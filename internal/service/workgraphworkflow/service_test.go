@@ -441,6 +441,7 @@ func TestMetadataEditorAppliesValidatedGraphRevisionAndDiscardsTransientSession(
 		t.Fatalf("editor runtime policy unavailable: active=%v err=%v", active, err)
 	}
 	if !slices.Contains(policy.ToolPolicy.AllowedTools, "mcp__nexus__command") ||
+		!slices.Contains(policy.ToolPolicy.AllowedTools, "AskUserQuestion") ||
 		slices.Contains(policy.ToolPolicy.AllowedTools, "Read") ||
 		slices.Contains(policy.ToolPolicy.AllowedTools, "Write") {
 		t.Fatalf("editor must use the structured runtime command without file staging: %#v", policy.ToolPolicy)

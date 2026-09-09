@@ -1,3 +1,6 @@
+// INPUT: Owner scope, Team resources and explicit retry/send commands.
+// OUTPUT: Team read model with cancellable load retry, separate from message sending.
+// POS: Team resource lifecycle owner.
 import {
   useCallback,
   useEffect,
@@ -30,6 +33,7 @@ export function useTeamRoom() {
   const [error, setError] = useState<"load" | "send" | "sync" | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
+  const retryControllerRef = useRef<AbortController | null>(null);
   const bootstrapRef = useRef<TeamBootstrap | null>(null);
   const cursorRef = useRef(0);
   const messagesRef = useRef<TeamMessage[]>([]);
@@ -95,6 +99,23 @@ export function useTeamRoom() {
     setError(null);
     return true;
   }, [loadSnapshot, replaceMessages]);
+
+  const retryLoad = useCallback(async () => {
+    if (retryControllerRef.current) return;
+    const controller = new AbortController();
+    retryControllerRef.current = controller;
+    setIsLoading(true);
+    try {
+      await reload(controller.signal);
+    } catch {
+      if (!controller.signal.aborted) setError("load");
+    } finally {
+      if (retryControllerRef.current === controller) {
+        retryControllerRef.current = null;
+        setIsLoading(false);
+      }
+    }
+  }, [reload]);
 
   const synchronize = useCallback(async (highWaterSeq: number) => {
     pendingHighWaterRef.current = Math.max(pendingHighWaterRef.current, highWaterSeq);
@@ -167,6 +188,8 @@ export function useTeamRoom() {
       });
     return () => {
       controller.abort();
+      retryControllerRef.current?.abort();
+      retryControllerRef.current = null;
       reloadRequestRef.current += 1;
     };
   }, [ownerGeneration, reload, replaceMessages]);
@@ -256,7 +279,7 @@ export function useTeamRoom() {
     }
   }, [replaceMessages, synchronize]);
 
-  return { bootstrap, error, isLoading, isSending, messages, reload, send };
+  return { bootstrap, error, isLoading, isSending, messages, reload, retryLoad, send };
 }
 
 function mergeTeamMessages(messages: TeamMessage[]): TeamMessage[] {

@@ -12,6 +12,8 @@
 // abandon_execution cancels a transient graph without a successor.
 // Adapters reload authoritative state, inject revisions and idempotency keys,
 // keep malformed Plan transport retry state across per-command registry rebuilds,
+// preserve stable domain rejection codes and route get_execution through action=inspect;
+// historical reads never replace current round coordination. Adapters
 // preserve exact bound Room work/review reads instead of downgrading them to
 // observation, clear stale WorkBinding context after a successor/abandon
 // transition, and never expose Attempt bookkeeping such as start_work. Command
@@ -26,8 +28,9 @@
 // DM/Room rounds can inspect exact-session sources and Drafts, extract/reuse one
 // completed graph, append a full CAS revision, select an immutable version, and
 // save only after explicit user confirmation. Hidden Nexus-main-Agent editor
-// Sessions expose only revise/select for their bound Draft. UI confirmation uses
-// an isolated internal registry where distill_workgraph consumes only the exact
+// Sessions expose only revise/select for their bound Draft. UI confirmation saves
+// directly through the host service; legacy internal rounds retain an isolated
+// registry where distill_workgraph consumes only the exact
 // host-bound preview_id and persists that selected sketch unchanged, without
 // source transcript, runtime or delivery history.
 //

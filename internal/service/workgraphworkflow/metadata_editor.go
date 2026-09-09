@@ -1,6 +1,6 @@
 // INPUT: exact WorkGraph Draft、Nexus 主智能体隐藏 Session 与模型提交的完整草图版本。
 // OUTPUT: 保留保存表单最新元信息的可恢复编辑对话、不可变版本、exact committed revision 回执与应用前的 DAG/交付语义校验。
-// POS: 对话式草图编辑边界；普通 DM 负责消息/流式 UI，本服务拥有 Draft 版本和受限 CLI 修改授权。
+// POS: 对话式草图编辑边界；普通 DM 负责消息/流式 UI，本服务拥有 Draft 版本和受限 command 修改授权。
 package workgraphworkflow
 
 import (
@@ -290,7 +290,7 @@ func (s *Service) RuntimeEditorPolicy(
 		languageRule = "Write title, description, objective, completion criteria, every node's subject/objective/deliverable/acceptance criteria, and the final reply in concise, natural English"
 	}
 	prompt := fmt.Sprintf(`你正在 Nexus 主智能体的隐藏 WorkGraph 草图编辑 Session 中。只处理这张草图，不执行图中任务，也不读取 workspace；来源会话只以当前草图及其来源 WorkGraph 事实提供，不继承来源聊天权限。
-先加载 execution-orchestrator Skill，并阅读其中的 WorkGraph authoring 说明。需要修改时，通过 nexus.command 读取 revise_workgraph_preview 的 fresh execution contract，按 contract 提交带 head_revision 的完整草图；不能只提交差异，也不能调用 execution inspect。用户选择旧版本后，当前草图就是 selected_revision，后续修改必须以它为偏好基线，但 CAS 仍使用 head_revision。command 成功后右侧预览会由宿主自动刷新；只有用户询问展示位置或刷新状态时才说明这个界面事实，正常修改回复不必反复提右侧。不要在左侧复述完整节点；用户只是提问时可以直接回答，也不能声称未发生的更新。
+先加载 execution-orchestrator Skill，并阅读其中的 WorkGraph authoring 说明。需要修改时，通过 nexus.command 读取 revise_workgraph_preview 的 fresh execution contract，按 contract 提交带 head_revision 的完整草图；不能只提交差异，也不能调用 execution inspect。用户要求选择既有版本时，读取 select_workgraph_preview_revision contract 并调用该 operation，不要生成近似旧版的新 revision。只有影响草图结果的信息缺失时才提问，优先使用 AskUserQuestion，不可用时用普通问题；修改后简述结果即可，应用与保存由可见界面确认。用户选择旧版本后，当前草图就是 selected_revision，后续修改必须以它为偏好基线，但 CAS 仍使用 head_revision。command 成功后右侧预览会由宿主自动刷新；只有用户询问展示位置或刷新状态时才说明这个界面事实，正常修改回复不必反复提右侧。不要在左侧复述完整节点；用户只是提问时可以直接回答，也不能声称未发生的更新。
 %s。不要在回复中输出内部 objective JSON、工具参数或源 Execution identity。
 
 当前草图（head_revision=%d，selected_revision=%d）：
@@ -302,7 +302,7 @@ unavailable_slash_names：%s`, languageRule, record.revision, record.selectedRev
 	return protocol.ScopedSessionRuntimePolicy{
 		SystemPrompt: prompt,
 		ToolPolicy: protocol.RuntimeToolPolicy{
-			AllowedTools: []string{"Skill", "mcp__nexus__command"},
+			AllowedTools: []string{"Skill", "AskUserQuestion", "mcp__nexus__command"},
 			DisallowedTools: []string{
 				"Agent", "Edit", "Glob", "Grep", "Task", "WebFetch", "WebSearch",
 				"mcp__nexus__show_widget", "mcp__nexus__generate_image", "mcp__nexus__edit_image",

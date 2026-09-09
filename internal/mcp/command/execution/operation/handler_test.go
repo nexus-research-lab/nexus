@@ -342,6 +342,45 @@ func (s *fakeExecutionService) ActivateRuntimeCoordination(
 	return s.activate(actor, snapshot)
 }
 
+func TestExecutionInspectRoutesWithoutInvokeOrDurableMutation(t *testing.T) {
+	svc := &fakeExecutionService{current: func() *protocol.ExecutionSnapshot { return executionSnapshot(9) }}
+	activations := 0
+	svc.activate = func(orchestration.ActorContext, *protocol.ExecutionSnapshot) error {
+		activations++
+		return nil
+	}
+	operations := BuildAll(svc, executionContext())
+	result, err := command.HandleSemantic(context.Background(), command.Actor{}, "execution", "get_execution", operations,
+		command.Request{Domain: "execution", Action: "inspect"})
+	if err != nil || activations != 1 {
+		t.Fatalf("inspect result=%#v activations=%d err=%v", result, activations, err)
+	}
+	view, ok := result.(command.Result)
+	if !ok || view.IsError {
+		t.Fatalf("inspect result = %#v", result)
+	}
+	if xml, ok := view.StructuredContent["execution_context"].(string); !ok || !strings.Contains(xml, "<allowed_actions>") {
+		t.Fatalf("inspect did not return XML action boundary: %#v", view)
+	}
+	_, err = command.HandleSemantic(context.Background(), command.Actor{}, "execution", "get_execution", operations,
+		command.Request{Domain: "execution", Action: "invoke", Operation: "get_execution", RequestID: "inspect-route-test"})
+	if err == nil || activations != 1 {
+		t.Fatalf("invoke unexpectedly reached inspect: activations=%d err=%v", activations, err)
+	}
+}
+
+func TestExecutionTransportRejectionPreservesDomainCode(t *testing.T) {
+	for _, code := range []orchestration.ErrorCode{orchestration.ErrorCodeConversationOnly, orchestration.ErrorCodeWrongOwner} {
+		result := transportErrorResult(&orchestration.DomainError{Code: code, Message: "denied"})
+		if !result.IsError || result.StructuredContent["reason_code"] != code || result.StructuredContent["outcome"] != "rejected" {
+			t.Fatalf("domain rejection lost identity: %#v", result)
+		}
+		if result.StructuredContent["next_actions"] != nil {
+			t.Fatal("rejection fabricated coordination authority or recovery")
+		}
+	}
+}
+
 func TestGetExecutionMintsExplicitRuntimeCoordinationCapability(t *testing.T) {
 	snapshot := executionSnapshot(9)
 	var activated bool

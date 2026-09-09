@@ -15,7 +15,7 @@ beforeEach(() => {
     team: {id: "team", deployment_id: "deployment", name: "Team"},
     room: {id: "room", team_id: "team", name: "General"},
     conversation: {id: "conversation", room_id: "room", type: "team", high_water_message_seq: 0, sync_stream_id: "stream", stream_epoch: "epoch", high_water_sync_event_seq: 0},
-  }, error: null, isLoading: false, isSending: false, messages: [], reload: vi.fn(), send: vi.fn().mockResolvedValue(true)};
+  }, error: null, isLoading: false, isSending: false, messages: [], reload: vi.fn(), retryLoad: vi.fn(), send: vi.fn().mockResolvedValue(true)};
   model.read.mockImplementation(() => room);
 });
 function page() {
@@ -97,4 +97,15 @@ it("keeps a reader in place as messages arrive, then resumes following through t
   height = 1_000;
   view.rerender(page());
   await waitFor(() => expect(viewport.scrollTop).toBe(800));
+});
+
+it("offers load retry without sending and disables it while loading", async () => {
+  room = {...room, error: "load", bootstrap: null};
+  const view = render(page());
+  await userEvent.click(screen.getByRole("button", {name: "state.retry"}));
+  expect(room.retryLoad).toHaveBeenCalledOnce();
+  expect(room.send).not.toHaveBeenCalled();
+  room = {...room, isLoading: true};
+  view.rerender(page());
+  expect((screen.getByRole("button", {name: "state.retry"}) as HTMLButtonElement).disabled).toBe(true);
 });

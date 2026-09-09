@@ -10,9 +10,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add an explicit, cancellable Team load retry with duplicate-request protection;
+  retrying a read never resends a chat message.
+
 - Restore conversational administrator user management through Control-backed `nexuscfg members`, with human approval, secure password entry, profile/role updates, and deployment access revocation. Remove obsolete user/auth CLI instructions.
 
 ### Changed
+
+- Aligned WorkGraph skills and command guidance with the actual inspect recovery,
+  XML context and Draft version operations. Removed fictional coordination-mode
+  instructions and repetitive edit confirmations while retaining save confirmation.
+  Preserved domain rejection codes, enabled editor clarification, and prevented
+  historical graph reads from replacing current round coordination authority.
+
+- Aligned Execution and Goal skills with fixed inspect entry corrections, including
+  recovery-action routing and the separate invoke path for WorkGraph Draft queries.
 
 - Preserve Team history reading position when messages arrive and reuse the
   shared return-to-latest action to resume following.
