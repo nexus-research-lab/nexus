@@ -13,3 +13,5 @@
 - 直接凭证弹窗的 Provider 说明与占位、通用标题和按钮由双语目录提供；语言切换不参与凭证草稿 reset key，目标身份切换仍按既有边界重置。
 
 - OAuth 应用配置说明、占位与复制反馈消费当前语言；模型的 resetKey 只由连接器身份与已配置 Client ID 组成，语言更新保留输入，配置身份改变仍清空 Secret。未知 Provider 使用通用 Client ID/Secret 提示，不套用飞书字段说明。
+
+- RichMail 配对 Hook 只向视图投影 pending/connected 状态，拒绝/过期与 outcome_unknown 继续分离；反馈由当前语言目录生成，不回显服务端 message 或异常正文。语言变化不重启配对轮询，步骤只描述客户端批准及自动连接。

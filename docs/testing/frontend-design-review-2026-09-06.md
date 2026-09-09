@@ -4179,3 +4179,8 @@ A173 补充：用户说明旧界面下拉只见“全部”；本轮明确断言
 ### A179 — OAuth 配置弹窗本地化
 
 OAuth 标题、Provider 说明、ID/Secret 提示、复制反馈和页脚动作接入双语目录，模型显式接收翻译函数但保持原 resetKey 身份；未知 Provider 使用通用提示。新增语言切换保持输入与同一密码节点、精确保存参数、配置身份改变清空 Secret 回归。5 项授权测试、目标 lint/typecheck 通过；未做视觉验证。
+
+
+### A180 — RichMail 配对产品说明与状态投影
+
+配对引导去除 Token 装配细节，说明与标题/服务地址/取消接入双语目录。Hook 只回传 pending/connected 状态，不回显服务端 message；拒绝/过期及异常继续沿 not_connected/outcome_unknown 独立分类，当前翻译保存在 ref，语言变化不重启 session 轮询。4 项视图/Hook 集成回归覆盖原始消息隔离、精确回调与终态停止，lint/typecheck 通过；未做视觉验证。并行后端修改未纳入本批。

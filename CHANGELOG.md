@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Simplify and localize RichMail pairing guidance and status feedback without exposing raw service messages.
+
 - Localize OAuth app configuration prompts and copy feedback without resetting credentials on language changes.
 
 - Deduplicate generated file cards by source workspace and actual path, preserving the latest record and distinct same-name files.

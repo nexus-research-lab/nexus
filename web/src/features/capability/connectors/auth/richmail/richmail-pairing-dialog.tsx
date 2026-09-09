@@ -1,10 +1,12 @@
 // INPUT: RichMail 本机配对会话、轮询状态与取消/完成回调。
-// OUTPUT: 只呈现客户端审批下一步、固定端点和当前等待状态的 plain 弹窗。
+// OUTPUT: 本地化的客户端审批下一步、固定端点和当前等待状态，不展示服务端自由文本。
 // POS: RichMail 配对的人机边界；不显示、复制或接收 Bearer Token。
 "use client";
 
 import { Check, Loader2 } from "lucide-react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
+import type { TranslationKey } from "@/shared/i18n/messages";
 import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
@@ -33,10 +35,10 @@ interface RichMailPairingDialogProps {
 }
 
 const PAIRING_STEPS = [
-  "Nexus 已向本机 RichMail 发起无 Token 配对请求",
-  "请在 RichMail 客户端弹窗中批准本次连接",
-  "批准后 Nexus 会自动保存 Token 并读取 MCP 工具",
-];
+  "capability.richmail_pairing_requested",
+  "capability.richmail_pairing_approve",
+  "capability.richmail_pairing_finish",
+] satisfies TranslationKey[];
 
 export function RichMailPairingDialog({
   onCancel,
@@ -45,15 +47,16 @@ export function RichMailPairingDialog({
   onError,
   session,
 }: RichMailPairingDialogProps) {
-  const [message, setMessage] = useResettableState(
-    "等待在 RichMail 中批准连接",
+  const { t } = useI18n();
+  const [status, setStatus] = useResettableState<"pending" | "connected">(
+    "pending",
     session?.attempt_token ?? null,
   );
   useRichMailPairing({
     onClose,
     onConnected,
     onError,
-    onMessage: setMessage,
+    onMessage: setStatus,
     session,
   });
 
@@ -65,7 +68,7 @@ export function RichMailPairingDialog({
           <UiDialogHeader
             appearance="plain"
             onClose={onCancel}
-            title="连接 RichMail"
+            title={t("capability.richmail_pairing_title")}
           />
           <UiDialogBody className="space-y-4 px-5">
             <div className={cn(
@@ -73,7 +76,7 @@ export function RichMailPairingDialog({
               getUiTypographyClassName({ role: "metadata", tone: "muted", weight: "medium" }),
             )}>
               <Loader2 className={getUiSpinnerClassName({ size: "sm", tone: "muted" })} />
-              <span aria-live="polite">{message}</span>
+              <span aria-live="polite">{t(status === "pending" ? "capability.richmail_pairing_pending" : "capability.richmail_pairing_connected")}</span>
             </div>
             <ol className="space-y-3 border-y border-(--divider-subtle-color) py-4">
               {PAIRING_STEPS.map((step, index) => (
@@ -84,12 +87,12 @@ export function RichMailPairingDialog({
                   <UiBadge className="h-5 w-5 px-0" shape="pill" size="xs" tone="default">
                     {index === 0 ? <Check className="h-3 w-3" /> : index + 1}
                   </UiBadge>
-                  <span>{step}</span>
+                  <span>{t(step)}</span>
                 </li>
               ))}
             </ol>
             <div className={getUiTypographyClassName({ role: "caption", tone: "soft" })}>
-              服务地址
+              {t("capability.richmail_pairing_address")}
               <code className={cn(
                 "ml-2 select-all break-all",
                 getUiTypographyClassName({ role: "code", tone: "muted" }),
@@ -100,7 +103,7 @@ export function RichMailPairingDialog({
           </UiDialogBody>
           <UiDialogFooter appearance="plain">
             <UiButton onClick={onCancel} size="sm" type="button">
-              取消
+              {t("common.cancel")}
             </UiButton>
           </UiDialogFooter>
         </UiDialogShell>
