@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/storage"
@@ -47,7 +48,8 @@ ON CONFLICT(owner_user_id) DO UPDATE SET
     plan_name = excluded.plan_name,
     monthly_token_limit = excluded.monthly_token_limit,
     updated_at = excluded.updated_at,
-    projected_at = excluded.projected_at
+    projected_at = excluded.projected_at,
+    control_unavailable = FALSE
 WHERE owner_entitlements.updated_at <= excluded.updated_at`,
 		ownerUserID,
 		entitlement.PlanKey,
@@ -57,4 +59,25 @@ WHERE owner_entitlements.updated_at <= excluded.updated_at`,
 		projectedAt,
 	)
 	return err
+}
+
+func (s *controlEntitlementProjectionStore) markUnavailable(
+	ctx context.Context,
+	ownerUserIDs []string,
+) error {
+	var joinedErr error
+	for _, ownerUserID := range ownerUserIDs {
+		if ownerUserID == "" {
+			continue
+		}
+		_, err := s.db.ExecContext(
+			ctx,
+			`UPDATE owner_entitlements
+SET control_unavailable = TRUE
+WHERE owner_user_id = `+s.dialect.Bind(1),
+			ownerUserID,
+		)
+		joinedErr = errors.Join(joinedErr, err)
+	}
+	return joinedErr
 }

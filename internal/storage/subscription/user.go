@@ -17,6 +17,7 @@ func (r *Repository) GetAccount(
 	row := r.db.QueryRowContext(ctx, `
 SELECT p.owner_user_id, p.username, p.display_name, p.role, p.status,
        e.plan_key, e.plan_name, e.monthly_token_limit,
+       CASE WHEN e.control_unavailable THEN 1 ELSE 0 END,
        COALESCE(SUM(t.total_tokens), 0),
        COUNT(DISTINCT t.session_key),
        COUNT(t.usage_key),
@@ -28,7 +29,8 @@ LEFT JOIN token_usage_records t ON t.owner_user_id = p.owner_user_id
   AND t.occurred_at < `+r.dialect.Bind(2)+`
 WHERE p.owner_user_id = `+r.dialect.Bind(3)+`
 GROUP BY p.owner_user_id, p.username, p.display_name, p.role, p.status,
-         e.plan_key, e.plan_name, e.monthly_token_limit, p.created_at, e.updated_at`,
+         e.plan_key, e.plan_name, e.monthly_token_limit, e.control_unavailable,
+         p.created_at, e.updated_at`,
 		r.dialect.TimestampValue(periodStart),
 		r.dialect.TimestampValue(periodEnd),
 		ownerUserID,
@@ -89,6 +91,7 @@ type accountScanner interface {
 func scanAccount(scanner accountScanner) (AccountEntity, error) {
 	var account AccountEntity
 	var monthlyLimit sql.NullInt64
+	var controlUnavailable int64
 	if err := scanner.Scan(
 		&account.OwnerUserID,
 		&account.Username,
@@ -98,6 +101,7 @@ func scanAccount(scanner accountScanner) (AccountEntity, error) {
 		&account.PlanKey,
 		&account.PlanName,
 		&monthlyLimit,
+		&controlUnavailable,
 		&account.UsedTokens,
 		&account.SessionCount,
 		&account.MessageCount,
@@ -109,5 +113,6 @@ func scanAccount(scanner accountScanner) (AccountEntity, error) {
 	if monthlyLimit.Valid {
 		account.MonthlyTokenLimit = &monthlyLimit.Int64
 	}
+	account.ControlUnavailable = controlUnavailable != 0
 	return account, nil
 }
