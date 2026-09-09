@@ -1,3 +1,7 @@
+// INPUT: 受控活动标签、内容身份和标签视口的原生滚动事件。
+// OUTPUT: 溢出测量、活动项归位与鼠标拖动；缩放及已消费事件保留原行为。
+// POS: 共享会话标签滚动所有者，不解释会话业务状态。
+
 import {
   useCallback,
   useLayoutEffect,
@@ -201,10 +205,14 @@ export function useConversationTabsScroll({
   };
 }
 
-export function scrollConversationTabsByWheel(
+function scrollConversationTabsByWheel(
   viewport: HTMLDivElement,
   event: WheelEvent,
 ): boolean {
+  if (event.ctrlKey || event.metaKey || event.defaultPrevented) {
+    return false;
+  }
+
   const maxScrollLeft = viewport.scrollWidth - viewport.clientWidth;
   if (maxScrollLeft <= SCROLL_EDGE_TOLERANCE) {
     return false;

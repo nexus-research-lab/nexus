@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Preserve browser zoom gestures over conversation tabs and release wheel events at scroll boundaries.
+
 - Reuse the shared icon button for conversation pinning, preserving independent tab actions.
 
 - Anchor global feedback at the top-right with a small safe-area-aware margin.
