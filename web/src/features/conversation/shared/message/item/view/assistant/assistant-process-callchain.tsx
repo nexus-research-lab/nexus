@@ -1,21 +1,14 @@
 // INPUT: Archived process, assistant content environment and disclosure state.
-// OUTPUT: Process disclosure and generated files bound to the source message workspace.
+// OUTPUT: Process disclosure; generated-file summaries are owned by the reply footer.
 // POS: Archived Assistant process orchestration; file cards own action eligibility.
 
-import type { WorkspaceFileOpenHandler } from "@/lib/workspace-file-action";
 import type { RefObject } from "react";
 import { Wrench } from "lucide-react";
 
-import type {
-  ContentBlock,
-  WorkspaceFileArtifactContent,
-} from "@/types/conversation/message/content";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 
-import { WorkspaceFileArtifactList } from "../../../blocks/artifact/workspace-file-artifacts";
-import { useWorkspaceFileArtifactsFromContent } from "../../../blocks/artifact/workspace-file-artifact-utils";
 import { getLocalizedToolTitle } from "../../../tool-activity";
 import type {
   ProcessSummaryDetail,
@@ -31,12 +24,10 @@ import type {
 import { AssistantToolRuns } from "./assistant-dm-tool-runs";
 import { MessageDetailToggle } from "../../../ui/message-detail-toggle";
 
-const EMPTY_CONTENT_BLOCKS: ContentBlock[] = [];
 
 interface AssistantProcessCallchainProps {
   activity: AssistantActivityState;
   environment: AssistantContentEnvironment;
-  generatedFilesLabel: string;
   permissions: AssistantPermissionState;
   process: AssistantProcessState;
 }
@@ -44,14 +35,9 @@ interface AssistantProcessCallchainProps {
 export function AssistantProcessCallchain({
   activity,
   environment,
-  generatedFilesLabel,
   permissions,
   process,
 }: AssistantProcessCallchainProps) {
-  const collapsedFileArtifacts = useWorkspaceFileArtifactsFromContent(
-    selectCollapsedProcessContent(process),
-  );
-
   if (!process.visible) {
     return null;
   }
@@ -59,32 +45,15 @@ export function AssistantProcessCallchain({
   return (
     <div ref={process.anchorRef as RefObject<HTMLDivElement>}>
       <ProcessToggleButton process={process} />
-      <CollapsedProcessArtifacts
-        artifacts={collapsedFileArtifacts}
-        label={generatedFilesLabel}
-        onOpenWorkspaceFile={environment.onOpenWorkspaceFile}
-        workspaceAgentId={environment.workspaceAgentId}
-        visible={!process.expanded}
-      />
       <ExpandedProcessContent
         activity={activity}
         environment={environment}
-        generatedFilesLabel={generatedFilesLabel}
         permissions={permissions}
         process={process}
         visible={process.expanded}
       />
     </div>
   );
-}
-
-function selectCollapsedProcessContent(
-  process: AssistantProcessState,
-): ContentBlock[] {
-  const shouldCollectArtifacts = process.visible && !process.expanded;
-  return shouldCollectArtifacts
-    ? process.projection.content
-    : EMPTY_CONTENT_BLOCKS;
 }
 
 function ProcessToggleButton({ process }: { process: AssistantProcessState }) {
@@ -166,44 +135,15 @@ function formatProcessDetail(
     : title;
 }
 
-function CollapsedProcessArtifacts({
-  artifacts,
-  label,
-  onOpenWorkspaceFile,
-  visible,
-  workspaceAgentId,
-}: {
-  artifacts: WorkspaceFileArtifactContent[];
-  label: string;
-  onOpenWorkspaceFile?: WorkspaceFileOpenHandler;
-  visible: boolean;
-  workspaceAgentId?: string | null;
-}) {
-  if (!visible) {
-    return null;
-  }
-  return (
-    <WorkspaceFileArtifactList
-      artifacts={artifacts}
-      className="ml-5 pb-1"
-      label={label}
-      onOpenWorkspaceFile={onOpenWorkspaceFile}
-      workspaceAgentId={workspaceAgentId}
-    />
-  );
-}
-
 function ExpandedProcessContent({
   activity,
   environment,
-  generatedFilesLabel,
   permissions,
   process,
   visible,
 }: {
   activity: AssistantActivityState;
   environment: AssistantContentEnvironment;
-  generatedFilesLabel: string;
   permissions: AssistantPermissionState;
   process: AssistantProcessState;
   visible: boolean;
@@ -216,7 +156,6 @@ function ExpandedProcessContent({
       <AssistantToolRuns
         activity={activity}
         environment={environment}
-        generatedFilesLabel={generatedFilesLabel}
         permissions={permissions}
         projection={process.projection}
         responseResumed={false}

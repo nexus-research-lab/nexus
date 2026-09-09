@@ -3963,3 +3963,8 @@ CapabilitySwitch 用原生 label 包含唯一 GlassSwitch，扩大文字点击�
 ### A139 — 合并流式与加载代码视图
 
 删除重复 StreamingCodeBlock，由 CodeBlock 内部 memo PlainCodeBlock 统一代码原文、滚动容器与状态文案；开发展示仅迁移现有消费者，不扩展 Gallery。新增回归覆盖流式增量、空格/换行保真、延迟高亮占位与唯一 pre；连同复制和外壳共 4 项测试及定向 lint/typecheck 通过。未做视觉验收。当前清单：{'pending': 214, 'in_progress': 134, 'improved': 112, 'retained': 22, 'removed': 7}。
+
+
+### A140 — 生成文件汇总后置
+
+DM/Thread 的归档过程与实时工具段不再各自渲染文件汇总，由 AssistantMessageContent 在 final 正文之后统一展示；Room 公区不因此暴露隐藏过程产物。保留详情内文件证据及精确来源工作区，不改下载或打开命令。6 项真实文件 DOM 测试覆盖归档/实时正文先于唯一汇总、来源优先级与下载；lint/typecheck 通过。不做视觉验收。

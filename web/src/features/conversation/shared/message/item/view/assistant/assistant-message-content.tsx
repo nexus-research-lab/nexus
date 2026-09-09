@@ -1,8 +1,11 @@
 /**
  * INPUT: Assistant direct/process/final 投影、活动状态、interaction owner 与请求切片。
- * OUTPUT: DM/Thread 的折叠工具段、Room 主 Feed 的等高单行活动摘要、固定位置的 final 正文与唯一人工响应面。
+ * OUTPUT: DM/Thread 的折叠工具段、Room 主 Feed 的等高单行活动摘要、固定位置的 final 正文、回复尾部生成文件汇总与唯一人工响应面。
  * POS: Assistant 正文、过程、终态与人工介入的纯视图编排层；Room 公区不消费具体工具过程。
  */
+import { useMemo } from "react";
+import { WorkspaceFileArtifactList } from "../../../blocks/artifact/workspace-file-artifacts";
+import { useWorkspaceFileArtifactsFromContent } from "../../../blocks/artifact/workspace-file-artifact-utils";
 import { AlertTriangle } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -50,7 +53,11 @@ export function AssistantMessageContent({
   process,
   showMaxTokensWarning,
 }: AssistantMessageContentProps) {
-  const { t } = useI18n();
+  const artifactContent = useMemo(() => (
+    environment.mode === "room_result" ? []
+      : process.visible ? process.projection.content : direct.visible ? direct.projection.content : []
+  ), [environment.mode, process.visible, process.projection.content, direct.visible, direct.projection.content]);
+  const artifacts = useWorkspaceFileArtifactsFromContent(artifactContent);
   return (
     <>
       <StandaloneActivity
@@ -62,7 +69,6 @@ export function AssistantMessageContent({
         activity={activity}
         direct={direct}
         environment={environment}
-        generatedFilesLabel={t("message.generated_files")}
         permissions={permissions}
         responseResumed={final.isStreaming}
         responseStreaming={final.isStreaming}
@@ -70,7 +76,6 @@ export function AssistantMessageContent({
       <AssistantProcessCallchain
         activity={activity}
         environment={environment}
-        generatedFilesLabel={t("message.generated_files")}
         permissions={permissions}
         process={process}
       />
@@ -93,6 +98,12 @@ export function AssistantMessageContent({
         final={final}
       />
       <MaxTokensWarning visible={showMaxTokensWarning} />
+      <WorkspaceFileArtifactList
+        artifacts={artifacts}
+        className="mt-3"
+        onOpenWorkspaceFile={environment.onOpenWorkspaceFile}
+        workspaceAgentId={environment.workspaceAgentId}
+      />
     </>
   );
 }
@@ -220,7 +231,6 @@ function AssistantDirectContent({
   activity,
   direct,
   environment,
-  generatedFilesLabel,
   permissions,
   responseResumed,
   responseStreaming,
@@ -228,7 +238,6 @@ function AssistantDirectContent({
   activity: AssistantActivityState;
   direct: AssistantDirectState;
   environment: AssistantContentEnvironment;
-  generatedFilesLabel: string;
   permissions: AssistantPermissionState;
   responseResumed: boolean;
   responseStreaming: boolean;
@@ -244,7 +253,6 @@ function AssistantDirectContent({
       <AssistantToolRuns
         activity={activity}
         environment={environment}
-        generatedFilesLabel={generatedFilesLabel}
         permissions={permissions}
         projection={direct.projection}
         responseResumed={responseResumed}
