@@ -193,7 +193,7 @@ export function SidebarPanel({
             </div>
           </div>
         )}
-        {collapsed ? null : <SidebarFooterActions {...utility} />}
+        {collapsed || utility.settingsActive ? null : <SidebarFooterActions {...utility} />}
       </div>
     </>
   );
