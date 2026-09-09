@@ -1,6 +1,6 @@
 /**
  * INPUT: Thought 正文、流式状态与展开默认值。
- * OUTPUT: 收起时显示单行正文预览，展开时仅保留状态标题并呈现完整明细。
+ * OUTPUT: 默认收起的单行正文预览；用户展开后保留选择，流式阶段切换不重置明细。
  * POS: Assistant 执行过程中的 Thought 二级明细入口。
  */
 "use client";
@@ -52,11 +52,8 @@ export function ThinkingBlock({
   isStreaming = false,
   workspaceAgentId,
 }: ThinkingBlockProps) {
-  // 流式边界是展开状态的重置域；同一阶段内仍允许用户手动切换。
-  const expansion = useScrollAnchoredState(
-    defaultExpanded ?? isStreaming,
-    isStreaming,
-  );
+  // 展开只由用户选择；流式开始或结束不得自动打开或关闭详情。
+  const expansion = useScrollAnchoredState(defaultExpanded ?? false);
   const isExpanded = expansion.isOpen;
   const presentation = resolveThinkingPresentation(isStreaming);
   const preview = thinking.replace(/\s+/g, " ").trim();

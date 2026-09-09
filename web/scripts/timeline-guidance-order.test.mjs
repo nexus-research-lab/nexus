@@ -2370,7 +2370,7 @@ test("live commentary separates completed and active tool groups", async () => {
   assert.match(html, /data-live-tool-text="true"/);
 });
 
-test("DM activity groups collapse while Room Thread groups expand", async () => {
+test("DM and Room Thread activity groups default to collapsed", async () => {
   const { AssistantProcessCallchain } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/item/view/assistant/assistant-process-callchain.tsx",
   );
@@ -2467,10 +2467,10 @@ test("DM activity groups collapse while Room Thread groups expand", async () => 
       },
     },
   ));
-  assert.match(threadHtml, /aria-expanded="true"/);
+  assert.doesNotMatch(threadHtml, /aria-expanded="true"/);
   assert.match(threadHtml, /aria-expanded="false"/);
-  assert.match(threadHtml, /data-tool-run-detail-list/);
-  assert.match(threadHtml, /Thought 0/);
+  assert.doesNotMatch(threadHtml, /data-tool-run-detail-list/);
+  assert.doesNotMatch(threadHtml, /Thought 0/);
   assert.doesNotMatch(threadHtml, /before:bottom-0/);
   assert.doesNotMatch(threadHtml, /data-timeline-dot/);
   assert.doesNotMatch(threadHtml, /nexus-chat-timeline-block/);
@@ -2490,7 +2490,7 @@ test("DM activity groups collapse while Room Thread groups expand", async () => 
       responseResumed: false,
     },
   ));
-  assert.match(liveThreadHtml, /data-message-detail-follow="true"/);
+  assert.doesNotMatch(liveThreadHtml, /data-tool-run-detail-list/);
 
   const archivedHtml = await renderWithI18n(React.createElement(
     AssistantProcessCallchain,
@@ -2571,6 +2571,7 @@ test("Thought detail uses compact tool-detail typography", async () => {
   );
   const html = await renderWithI18n(React.createElement(ThinkingBlock, {
     isStreaming: true,
+    defaultExpanded: true,
     thinking: "Compact detail",
   }));
 
