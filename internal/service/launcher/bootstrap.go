@@ -1,6 +1,6 @@
 // INPUT: Agent/Room 持久摘要、只读 Session metadata 目录与有界最新消息页。
 // OUTPUT: 保持 wire 兼容的 Launcher 首屏 agents、rooms 与 conversations 摘要。
-// POS: Launcher 首屏投影；回复预览只读最近两个 round，单个历史失败不得阻断目录。
+// POS: Launcher 首屏投影；回复预览只读最近两个 round 的末尾正文，排除思考/工具过程，单个历史失败不得阻断目录。
 package launcher
 
 import (
@@ -197,10 +197,7 @@ func latestReplyPreview(messages []protocol.Message) string {
 			continue
 		}
 
-		text := messageutil.ExtractAssistantDisplayText(item)
-		if text == "" {
-			text = replySummaryString(item["content"])
-		}
+		text := messageutil.ExtractAssistantFinalText(item)
 		if text == "" {
 			text = replySummaryString(resultSummary["result"])
 		}
