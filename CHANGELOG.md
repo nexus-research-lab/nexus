@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Use the shared icon button for code copying, restoring consistent keyboard focus
+  and accessible success feedback while removing duplicate code-button CSS.
+
 - Reduce compact shared status text to regular supporting typography, with a smaller
   icon frame and spacing for loading and empty states.
 

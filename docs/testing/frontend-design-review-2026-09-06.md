@@ -3863,3 +3863,10 @@ UiFilterSelect 删除可见 label API，所有联系人、技能、连接器、�
 根据社区技能加载截图反馈，确认调用方已有 size=sm，但公共 StateBlock 没有按尺寸降低标题与图标。小号中性状态统一采用 supporting/regular/muted，图标框 56→36px、图文间距 20→12px。紧凑错误/决策语义保持，不更换字体族，不加页面覆盖。
 
 11 项状态与社区技能回归、目标 lint/typecheck 通过，日志 /tmp/nexus-a119-{target,lint,types}.log。未做视觉验证，清单状态不变。此前 Hermes 删除尝试已按用户要求完全撤回，没有计入本批。
+
+
+## A120 — 代码复制按钮统一所有权
+
+CodeBlockContent 改用公共 UiIconButton sm/ghost 与 success tone，保留 28px 几何和浮动操作布局；删除 content-code-action 专属 CSS，包括覆盖焦点描边的 outline:none。复制精确原文，只有成功才更新辅助名称与提示，图标作为装饰；补齐 L3。
+
+5 项 Markdown 回归、目标 lint/typecheck/build 通过，日志 /tmp/nexus-a120-{target,lint,types,build}.log；构建仅既有大分块提示，未做视觉验证。代码内容组件推进 in_progress，语法色板/正文仍待审；489 项现为 216 pending、133 in_progress、112 improved、22 retained、6 removed。
