@@ -167,7 +167,7 @@ test("real Launcher navigates to a readable responsive workbench and pins surviv
   await expect(page.locator(".sidebar-panel-shell")).toBeVisible();
   await expect(pinned).toHaveCount(0);
   await sibling.close();
-  await page.getByRole("link").filter({ has: page.getByText("NEXUS", { exact: true }).first() }).click();
+  await page.getByRole("link", { name: isChinese ? "回到 Launcher" : "Back to launcher", exact: true }).click();
   await expect(page).toHaveURL(/\/launcher$/);
   await expect(input).toHaveValue("");
   expect(reads).toContain("/nexus/v1/auth/status");
