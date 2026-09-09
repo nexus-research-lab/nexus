@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Made Agent identity tag fields respond to their actual container width and
+  removed redundant field wrappers. Unified editor action sizes and made save
+  confirmations fully readable and accessible without changing save commands.
 - Consolidated desktop DM and Room header navigation wiring and stabilized Thread
   controls across unrelated page updates. Extended real session-tab and layout
   regressions for panel switching, retained chat input and read-failure recovery.

@@ -58,3 +58,31 @@ it("binds the retained edit-description field and forwards its draft", async () 
   await userEvent.type(screen.getByRole("textbox", { name: "agent_options.identity.description" }), "!");
   expect(onDescriptionChange).toHaveBeenCalledWith("Description!");
 });
+
+it("keeps one field tree and independent tag drafts when switching identity presentation", async () => {
+  const user = userEvent.setup();
+  const onBusinessTagsChange = vi.fn();
+  const onVibeTagsChange = vi.fn();
+  const callbacks = { onBusinessTagsChange, onVibeTagsChange };
+  const rendered = render(view(callbacks));
+  const business = screen.getByRole("textbox", { name: "agent_options.identity.business_tags" });
+  const vibe = screen.getByRole("textbox", { name: "agent_options.identity.vibe_tags" });
+  const name = screen.getByRole("textbox", { name: "agent_options.identity.name" });
+  await user.type(business, "research");
+  await user.type(vibe, "friendly");
+  rendered.rerender(view({ ...callbacks, variant: "inline" }));
+  expect(screen.getByRole("textbox", { name: "agent_options.identity.name" })).toBe(name);
+  expect(screen.getByRole("textbox", { name: "agent_options.identity.business_tags" })).toBe(business);
+  expect(screen.getByRole("textbox", { name: "agent_options.identity.vibe_tags" })).toBe(vibe);
+  expect((business as HTMLInputElement).value).toBe("research");
+  expect((vibe as HTMLInputElement).value).toBe("friendly");
+  business.focus();
+  await user.keyboard("{Enter}");
+  expect(onBusinessTagsChange).toHaveBeenCalledExactlyOnceWith(["research"]);
+  expect(onVibeTagsChange).not.toHaveBeenCalled();
+  rendered.rerender(view(callbacks));
+  expect((vibe as HTMLInputElement).value).toBe("friendly");
+  vibe.focus();
+  await user.keyboard("{Enter}");
+  expect(onVibeTagsChange).toHaveBeenCalledExactlyOnceWith(["friendly"]);
+});

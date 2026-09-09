@@ -3674,3 +3674,40 @@ Session 变化继续由已存在的 live 发布 owner 清理，DM 不挂 Room Th
 基线 4d0c830d3，9 文件快照 /tmp/nexus-a98-review.json；全部 486 项源哈希一致。
 只有既有 effect-ref lint 警告与大分块提示，没有新增测试警告。通过后仅追加
 本段审计证据，提交前核对源文件、暂存区和受测快照字节；不推送。
+
+
+## A99 — Agent 身份字段布局与配置动作行
+
+身份页标签原先依赖整窗 sm/lg 断点，在宽窗口的窄辅助面板中仍会强制双列；
+现在同一标签区通过 CSS auto-fit/minmax 按容器宽度排布，15rem 为正常最小
+列宽，更窄容器单列可缩至 100%。保持资料、业务标签、风格标签、模型、简介
+阅读顺序和 dialog/inline 的 16/20px 组间距；未添加 JS 测量、断点订阅或第二套
+字段树。删除 profile/model 单子项包装及其无作用 space 属性、重复 min-width
+布局表项，字段根直接拥有收缩能力。创建模板、内联普通 Agent 的完整 AGENTS.md、
+主 Agent 隐藏文件与默认模型、兼容编辑描述、各领域状态和命令保持原语义。
+
+配置动作原先只有保存按钮选择尺寸，内联删除仍落到默认 36px；现将参数改为
+buttonSize 并在整行共用，内联 32px/supporting、弹窗 36px/control。成功确认
+删除 280px 截断和原生 title，使用公共 supporting/success 及唯一礼貌状态播报，
+长文完整换行且不抢焦点；warning/error 仍复用原 Notice/RecoverySummary。
+动作只执行上层给出的命令与 enabled，不增加保存事务、自动重试或删除确认。
+
+补齐动作的双档独立键盘命令、禁用保存、可选动作省略、完整成功播报和焦点保持；
+身份回归验证切换 dialog/inline 后同一字段节点及业务/风格两份待加草稿保持，
+提交仍进入对应集合。继续复用既有名称反馈、模板加载、模型反馈、IME 标签与
+资料文件保存回归，不增加视觉/浏览器/宿主检查、Gallery 或产品服务。唯一设计
+规范、领域目录合同及 L3 同步；整个 Editor 只推进动作区切片，其他栏目另审。
+
+486 项清单现为 221 pending、126 in_progress、111 improved、22 retained、
+6 removed；公共 UI 仍 118 项。三处字段/动作视图完成代码审查，Editor 继续
+in_progress；Goal 保持 active，仅本地提交。
+
+
+定向 6 文件 27 项及 typecheck 首轮通过，见 /tmp/nexus-a99-target.log 和
+/tmp/nexus-a99-types.log。最终隔离 npm run check 首轮通过 lint、typecheck、
+485 项合同、278 文件的 1297 项组件/模型测试及 build，见 /tmp/nexus-a99-check.log。
+另核对构建 CSS 已生成 repeat(auto-fit,minmax(min(100%,15rem),1fr))；这是
+代码/编译证据，不代表浏览器几何或外观验收。基线 fd9217d21，14 文件快照
+/tmp/nexus-a99-review.json；全部 486 项源哈希一致。只有既有 effect-ref lint
+警告与大分块提示，没有新增测试警告；通过后仅追加本段证据，提交前核对工作树、
+暂存区与受测快照字节，不推送。
