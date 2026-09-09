@@ -81,6 +81,7 @@ export function useChatNotificationSocket({
       return;
     }
     syncRoomActivity(event, directoryIndexRef.current);
+    if (event.event_type === "round_status") notifyRoomDirectoryUpdated();
     recordRoomSequence(roomSeqCursorRef.current, event);
     if (event.event_type === "room_resync_required") {
       recordResyncSequence(roomSeqCursorRef.current, event);
@@ -94,6 +95,7 @@ export function useChatNotificationSocket({
       deliveryMode: event.delivery_mode,
       sessionKey: event.session_key,
     });
+    if (message?.role === "user") notifyRoomDirectoryUpdated();
     if (message && isCompletedAssistantMessage(message)) {
       notifyRoomDirectoryUpdated();
       onCompletedMessage(event, message);
