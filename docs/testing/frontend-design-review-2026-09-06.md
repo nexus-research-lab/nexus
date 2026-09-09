@@ -3711,3 +3711,14 @@ in_progress；Goal 保持 active，仅本地提交。
 /tmp/nexus-a99-review.json；全部 486 项源哈希一致。只有既有 effect-ref lint
 警告与大分块提示，没有新增测试警告；通过后仅追加本段证据，提交前核对工作树、
 暂存区与受测快照字节，不推送。
+
+
+## A100 — 公共头像入口与选择浮层
+
+统一 Agent/Room 的公共 lg 与个人资料 xl 档位，移除个人 72px 覆盖和三个入口的私有 hover 边框；头像和辅助图标作为具名触发器中的装饰。网格选择保持正方形并可收缩到单元格，选项名称在视图本地化，纯数据模型不再输出技术名称。横向滚动选择器尚未完成本轮审查，保留原状态。
+
+公共浮层在定位后聚焦当前或首个选项，Tab 边界延续父表单顺序；Escape/outside 继续使用公共 overlay 机制。禁用、目录或值变化关闭旧浮层；身份字段按 scopeKey 仅重建头像入口，名称字段不重建。最小高度改为零以服从真实可用视口，未改选择命令、个人保存期间权限或领域持久化。
+
+新增离线交互测试并纳入公共门禁；不做视觉、浏览器或宿主验收，不启动产品服务。486 项为 218 pending、126 in_progress、114 improved、22 retained、6 removed，公共 UI 仍 118 项；improved 仅表示代码审查与离线证据，不表示外观验收。
+
+验证：定向 4 文件 14 项及 typecheck 通过；隔离 npm run check 通过 lint、typecheck、485 项合同、279 文件 1303 项组件/模型测试及 build。第一次受沙箱 loopback 限制，允许离线夹具监听后重跑通过。日志 /tmp/nexus-a100-check.log，快照 /tmp/nexus-a100-review.json。仅既有 lint effect-ref 和构建大分块提示。并行 WorkGraph 后端/文档改动不纳入本批提交；无视觉验收或推送。

@@ -44,6 +44,7 @@ export const zhCoreMessages = {
   "common.location_aria": "当前位置",
   "common.required_field": "必填",
   "common.invalid_field": "格式有误",
+  "common.icon_picker_option": "头像 {number}",
   "common.icon_picker_previous": "向前浏览头像",
   "common.icon_picker_scroll": "滚动头像选项",
   "common.icon_picker_next": "向后浏览头像",

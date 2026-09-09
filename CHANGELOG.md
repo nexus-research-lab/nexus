@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Improved shared avatar picker keyboard focus, form Tab navigation and disabled/value
+  reset behavior; unified profile avatar sizing and localized avatar choice labels.
+
 - Added DM and group session-header regressions covering creation with delayed
   catalog refresh, history opening, tab switching, close/reopen and persisted
   tab/pin restoration through the real page navigation and command handlers.

@@ -78,6 +78,7 @@ const REQUIRED_SHARED_UI_BEHAVIOR_SUITES = [
   "src/shared/ui/form/form-controls.test.tsx",
   "src/shared/ui/form/removable-chip.test.tsx",
   "src/shared/ui/icon-picker/icon-picker.test.tsx",
+  "src/shared/ui/icon-picker/icon-picker-popover.test.tsx",
   "src/shared/ui/list/list.test.tsx",
   "src/shared/ui/liquid-glass/glass-switch.test.tsx",
   "src/shared/ui/markdown/mermaid/mermaid-view-parts.test.tsx",

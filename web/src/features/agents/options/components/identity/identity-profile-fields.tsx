@@ -22,6 +22,7 @@ interface IdentityProfileFieldsProps {
   title: string;
   validatingLabel: string;
   variant: AgentIdentityVariant;
+  scopeKey: string;
 }
 
 export function IdentityProfileFields({
@@ -36,12 +37,14 @@ export function IdentityProfileFields({
   title,
   validatingLabel,
   variant,
+  scopeKey,
 }: IdentityProfileFieldsProps) {
   const nameId = useId();
 
   return (
     <div className="flex min-w-0 items-start gap-3">
       <IdentityAvatarPicker
+        key={scopeKey}
         avatar={avatar}
         avatarAlt={avatarAlt}
         name={title || avatarAlt}

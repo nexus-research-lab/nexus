@@ -77,7 +77,7 @@ export function IconPicker({
           size="2xs"
           variant="text"
         >
-          <X className="h-3.5 w-3.5" />
+          <X aria-hidden="true" className="h-3.5 w-3.5" />
           {t("common.clear")}
         </UiButton>
       ) : null}
@@ -88,13 +88,13 @@ export function IconPicker({
         {model.items.map((item) => (
           <UiChoiceButton
             active={item.active}
-            aria-label={item.title}
+            aria-label={t("common.icon_picker_option", { number: item.iconId })}
             choiceSize={iconSize}
-            className={layout === "row" ? "shrink-0" : undefined}
+            className={layout === "row" ? "shrink-0" : "aspect-square h-auto max-w-full"}
             disabled={disabled}
             key={item.iconId}
             onClick={() => onSelect(item.iconId)}
-            title={item.title}
+            title={t("common.icon_picker_option", { number: item.iconId })}
             variant="icon"
           >
             <img
@@ -115,7 +115,7 @@ export function IconPicker({
             size="sm"
             variant="surface"
           >
-            <ChevronLeft className="h-3.5 w-3.5" />
+            <ChevronLeft aria-hidden="true" className="h-3.5 w-3.5" />
           </UiIconButton>
           <input
             aria-label={t("common.icon_picker_scroll")}
@@ -135,7 +135,7 @@ export function IconPicker({
             size="sm"
             variant="surface"
           >
-            <ChevronRight className="h-3.5 w-3.5" />
+            <ChevronRight aria-hidden="true" className="h-3.5 w-3.5" />
           </UiIconButton>
         </div>
       ) : null}

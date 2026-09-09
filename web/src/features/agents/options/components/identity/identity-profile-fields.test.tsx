@@ -10,7 +10,7 @@ import { I18nProvider } from "@/shared/i18n/i18n-provider";
 import { IdentityProfileFields } from "./identity-profile-fields";
 
 const base = {
-  avatar: "1", avatarAlt: "Avatar", isValidatingName: false,
+  scopeKey: "first", avatar: "1", avatarAlt: "Avatar", isValidatingName: false,
   nameLabel: "Agent name", namePlaceholder: "Enter a name", nameValidation: null,
   onAvatarChange: vi.fn(), onTitleChange: vi.fn(), title: "Nova",
   validatingLabel: "Checking name", variant: "dialog" as const,
@@ -43,4 +43,14 @@ it("associates current validation and removes obsolete error/description space",
   expect(input.getAttribute("aria-describedby")).toBeNull();
   expect(input.getAttribute("aria-errormessage")).toBeNull();
   expect(screen.queryByRole("alert")).toBeNull();
+});
+
+it("closes the avatar picker on identity change even with the same avatar", async () => {
+  const view = render(<I18nProvider><IdentityProfileFields {...base} /></I18nProvider>);
+  const input = screen.getByRole("textbox", { name: "Agent name" });
+  await userEvent.click(document.querySelector<HTMLButtonElement>('[aria-haspopup="dialog"]')!);
+  expect(screen.getByRole("dialog")).toBeTruthy();
+  view.rerender(<I18nProvider><IdentityProfileFields {...base} scopeKey="second" /></I18nProvider>);
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(screen.getByRole("textbox", { name: "Agent name" })).toBe(input);
 });

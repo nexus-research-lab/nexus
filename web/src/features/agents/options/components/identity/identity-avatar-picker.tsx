@@ -41,8 +41,8 @@ export function IdentityAvatarPicker({
       renderTrigger={(isOpen) => (
         <>
           <UiAgentAvatar
+            aria-hidden="true"
             avatar={avatar}
-            className="transition-[border-color] duration-(--motion-duration-fast) group-hover:border-(--surface-interactive-active-border)"
             name={name || avatarAlt}
             size="lg"
           />
