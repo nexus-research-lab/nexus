@@ -18,6 +18,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import { cn } from "@/shared/ui/class-name";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
 import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 
@@ -121,7 +122,10 @@ export function SettingsSidebarNavigation({
         <UiSearchInput
           aria-label={t("settings.search_navigation")}
           placeholder={t("settings.search_navigation")}
-          className="min-w-0 flex-1"
+          className={cn(
+            "min-w-0 flex-1 transition-[max-width] duration-200 motion-reduce:transition-none focus-within:max-w-full",
+            query ? "max-w-full" : "max-w-[180px]",
+          )}
           value={query}
           onChange={setQuery}
         />
