@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Make Mermaid preview canvases keyboard-focusable and give each dialog its own accessible title identity.
+
 - Let management page headers grow and wrap actions when their content exceeds the standard height.
 
 - Keep the main Nexus chat pinned and protected as runtime identity loads, and refresh chat ordering on durable user activity and round changes.
