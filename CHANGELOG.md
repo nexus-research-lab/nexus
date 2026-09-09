@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Deduplicate generated file cards by source workspace and actual path, preserving the latest record and distinct same-name files.
+
 - Localize direct connector credential dialogs while preserving entered credentials across language changes.
 
 - Keep nested select menus above their parent popovers, fixing hidden scheduled-task type options.

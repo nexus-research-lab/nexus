@@ -1,7 +1,7 @@
 "use client";
 
 // INPUT: Structured file artifacts and the exact message/node workspace context.
-// OUTPUT: Localized file cards; artifact ownership takes precedence over the supplied source context.
+// OUTPUT: Localized file cards deduplicated by resolved workspace and actual path; latest evidence wins.
 // POS: Structured artifact adapter; never infers a workspace from global Agent selection or hides evidence without preview.
 
 import type { WorkspaceFileOpenHandler } from "@/lib/workspace-file-action";
@@ -10,6 +10,7 @@ import { cn } from "@/shared/ui/class-name";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { WorkspaceFileArtifactContent } from "@/types/conversation/message/content";
 
+import { buildWorkspaceFileArtifactEntries } from "./workspace-file-artifact-list-model";
 import { FileArtifactBlock } from "./file/file-artifact-block";
 import { firstNonEmptyArtifactValue } from "./artifact-path-model";
 
@@ -27,13 +28,6 @@ interface WorkspaceFileArtifactBlockProps {
   workspaceAgentId?: string | null;
   compact?: boolean;
   className?: string;
-}
-
-function artifactKey(artifact: WorkspaceFileArtifactContent): string {
-  return (
-    artifact.id ||
-    `${artifact.source_tool_use_id ?? "workspace_file"}:${artifact.path}`
-  );
 }
 
 export function WorkspaceFileArtifactBlock({
@@ -66,7 +60,8 @@ export function WorkspaceFileArtifactList({
 }: WorkspaceFileArtifactListProps) {
   const { t } = useI18n();
   const visibleLabel = label ?? t("message.generated_files");
-  if (artifacts.length === 0) {
+  const entries = buildWorkspaceFileArtifactEntries(artifacts, workspaceAgentId);
+  if (entries.length === 0) {
     return null;
   }
 
@@ -78,9 +73,9 @@ export function WorkspaceFileArtifactList({
         </div>
       ) : null}
       <div className="min-w-0 space-y-1.5">
-        {artifacts.map((artifact) => (
+        {entries.map(({ key, artifact }) => (
           <WorkspaceFileArtifactBlock
-            key={artifactKey(artifact)}
+            key={key}
             compact
             artifact={{ ...artifact, label: "" }}
             onOpenWorkspaceFile={onOpenWorkspaceFile}
