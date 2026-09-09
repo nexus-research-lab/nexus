@@ -132,7 +132,6 @@ export const zhNavigationMessages = {
   "contacts.no_description": "暂无描述",
   "contacts.no_matches": "没有符合当前筛选条件的智能体",
   "contacts.result_count": "显示 {count}/{total} 个智能体",
-  "contacts.filters.tag_label": "标签",
   "contacts.filters.tags": "按业务标签筛选",
   "contacts.filters.all_tags": "全部业务标签",
   "contacts.filters.providers": "按 Provider 筛选",

@@ -3837,3 +3837,8 @@ Team 5 项回归通过，实际 Hook 的测试覆盖阅读位置保留、返回�
 UiFilterSelect 删除可见 label API，所有联系人、技能、连接器、渠道、配对、Loop 消费点同步清理，触发器只显示受控选值和箭头。分类 all 文案双语明确为全部分类，已有全部 Provider/权限/渠道/智能体保留；普通表单字段不变。Gallery 仅同步 API 与文案，不扩展或运行视觉验证。
 
 31 项共享菜单回归通过，目标 lint/typecheck 通过，见 /tmp/nexus-a115-{target,lint,types}.log。更新消费点源哈希，仅作为本次筛选 API 修改证据，不改变整页审查状态与总计。
+
+
+## A116 — 清理筛选前缀遗留文案
+
+全仓引用检查确认 capability category/status/channel/agent label 与 contacts tag_label 五个键只剩双语定义，删除共十条；仍由联系人卡片消费的权限说明保留。共享筛选回归 1 项、目标 lint/typecheck 通过，日志 /tmp/nexus-a116-{target,lint,types}.log。初次 typecheck 在仓库根启动失败后改在 web 正确执行；失败命令不作为验证证据。清单状态不变。
