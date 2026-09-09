@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Allow long MCP tool names, arguments and descriptions to wrap within connector detail panels.
+
 - Reuse the shared IME keyboard boundary in appearance inputs and onboarding, including legacy composition events.
 
 - Keep missing channel QR feedback inline and localize QR accessible names.

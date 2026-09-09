@@ -1,5 +1,5 @@
 // INPUT: 已连接 MCP 的 tools/list 快照、读取状态与可用性。
-// OUTPUT: 保留服务端原始工具标题、描述、参数与只读 annotation 的统一目录。
+// OUTPUT: 保留服务端原始工具标题、描述、参数与只读 annotation 的统一目录，连续长文本可在窄面板内换行。
 // POS: 固定 Connector 与自定义 MCP 共用的工具展示；不读取或展示 Prompts/Resources。
 import { Code2, RotateCcw, Wrench } from "lucide-react";
 
@@ -54,7 +54,7 @@ export function MCPToolsSection({
             ) : null}
           </h2>
           <p className={cn(
-            "mt-1",
+            "mt-1 [overflow-wrap:anywhere]",
             getUiTypographyClassName({ role: "caption", tone: "muted" }),
           )}>
             {description || t("capability.custom_mcp_tools_description")}
@@ -139,11 +139,17 @@ function MCPToolRow({ tool }: { tool: CustomMCPTool }) {
     >
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <h3 className={getUiTypographyClassName({ role: "control", tone: "strong", weight: "medium" })}>
+          <h3 className={cn(
+            "min-w-0 [overflow-wrap:anywhere]",
+            getUiTypographyClassName({ role: "control", tone: "strong", weight: "medium" }),
+          )}>
             {tool.title}
           </h3>
           {tool.title !== tool.name ? (
-            <code className={getUiTypographyClassName({ role: "code", tone: "soft" })}>
+            <code className={cn(
+              "min-w-0 [overflow-wrap:anywhere]",
+              getUiTypographyClassName({ role: "code", tone: "soft" }),
+            )}>
               {tool.name}
             </code>
           ) : null}
@@ -153,7 +159,7 @@ function MCPToolRow({ tool }: { tool: CustomMCPTool }) {
         </div>
         {tool.description ? (
           <p className={cn(
-            "mt-1",
+            "mt-1 [overflow-wrap:anywhere]",
             getUiTypographyClassName({ role: "supporting", tone: "muted" }),
           )}>
             {tool.description}
@@ -165,7 +171,7 @@ function MCPToolRow({ tool }: { tool: CustomMCPTool }) {
             {tool.arguments.map((argument) => (
               <code
                 className={cn(
-                  "radius-control-xs bg-(--surface-interactive-hover-background) px-1.5 py-0.5",
+                  "min-w-0 max-w-full [overflow-wrap:anywhere] radius-control-xs bg-(--surface-interactive-hover-background) px-1.5 py-0.5",
                   getUiTypographyClassName({ role: "code", tone: "muted" }),
                 )}
                 key={argument.name}
