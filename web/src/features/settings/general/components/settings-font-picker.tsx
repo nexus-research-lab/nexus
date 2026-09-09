@@ -1,7 +1,7 @@
 // INPUT: 当前正文字体与本机字体目录能力。
-// OUTPUT: 共享字体选择器、跨宿主空/失败目录的文本兜底、读取状态与显式重开重试。
+// OUTPUT: 共享字体选择器、跨宿主空/失败目录的文本兜底与可换行说明、读取状态与显式重开重试。
 // POS: 外观页字体读取与交互边界；不读取或上传字体文件。
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import { getDesktopSystemFonts, isDesktopBridgeAvailable } from "@/lib/desktop-bridge";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -15,6 +15,7 @@ type FontWindow = Window & {
 
 export function SettingsFontPicker({ value, onChange }: { value: string; onChange: (font: string) => void }) {
   const { t } = useI18n();
+  const hintId = useId();
   const [families, setFamilies] = useState<string[]>([]);
   const reading = useRef(false);
   const [failed, setFailed] = useState(false);
@@ -87,15 +88,21 @@ export function SettingsFontPicker({ value, onChange }: { value: string; onChang
         ]}
       />
       {(hasRead || (!desktop && !canReadFonts)) && families.length === 0 && (
-        <UiInput
-          aria-label={t("settings.reading.custom_font")}
-          className="w-full"
-          controlSize="lg"
-          placeholder={t("settings.reading.font_hint")}
-          maxLength={100}
-          value={presets.some((preset) => preset === value) ? "" : value}
-          onChange={(event) => onChange(event.target.value)}
-        />
+        <div className="space-y-1">
+          <UiInput
+            aria-label={t("settings.reading.custom_font")}
+            aria-describedby={hintId}
+            className="w-full"
+            controlSize="lg"
+            placeholder={t("settings.reading.custom_font")}
+            maxLength={100}
+            value={presets.some((preset) => preset === value) ? "" : value}
+            onChange={(event) => onChange(event.target.value)}
+          />
+          <p id={hintId} className={getUiTypographyClassName({ role: "caption", tone: "soft" })}>
+            {t("settings.reading.font_hint")}
+          </p>
+        </div>
       )}
       {(loading || failed) && (
         <p className={getUiTypographyClassName({ role: "caption", tone: "soft" })} role="status">
