@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Remove manual font entry and its helper copy; keep font selection in the dropdown.
+
 - Clarify sidebar conversation name hierarchy and show font fallback guidance without truncation.
 
 - Show the full settings back label and refine Nexus wordmark proportions while preserving its original colors.
