@@ -28,9 +28,9 @@ describe("WorkspaceSurfaceView", () => {
     expect(screen.getByText("任务目录")).toBeTruthy();
   });
 
-  it("exposes the ordinary Workspace page title as a heading", () => {
+  it("keeps an accessible title when the caller owns its visible header", () => {
     render(
-      <WorkspaceSurfaceView header={{ kind: "page" }} title="连接器">
+      <WorkspaceSurfaceView title="连接器">
         <p>连接器目录</p>
       </WorkspaceSurfaceView>,
     );

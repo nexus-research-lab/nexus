@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Remove unused workspace surface header modes while retaining existing product layouts.
+
 - Keep onboarding open when Escape is consumed by another control or an input method.
 
 - Make Mermaid source regions keyboard-accessible while preserving native scrolling and source formatting.

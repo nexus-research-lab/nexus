@@ -4061,3 +4061,8 @@ OnboardingTourOverlay 忽略已消费 Escape、输入法组合态与 229 兼容�
 ### A157 — 跨组件回归
 
 类型检查通过。组件全量首次为 292 文件通过、1 文件失败，2 项消息 Markdown 测试缺少文件按钮本地化需要的 I18nProvider；补齐测试 wrapper 后，目标 5 项与 lint 通过，全量重跑 293 文件 / 1382 项全部通过。日志 /tmp/nexus-a157-components-rerun.log；未执行浏览器或原生视觉验收。
+
+
+### A158 — Workspace Surface 无消费者分支清理
+
+核对全部产品调用方：工作区/简介使用无头部模式，子任务使用 mobile；page 仅 Gallery/测试引用，overlay 无调用。删除两种模式及私有渲染/分派分支，既有 Gallery 改消费 mobile，不扩充展示页。保留 mobile 拖窗和无头部可访问标题；2 项 DOM 回归、目标 lint 和全前端 typecheck 通过。净减少实现分支，未做视觉验收。
