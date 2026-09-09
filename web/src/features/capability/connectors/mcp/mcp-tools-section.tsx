@@ -1,6 +1,6 @@
 // INPUT: 已连接 MCP 的 tools/list 快照、读取状态与可用性。
 // OUTPUT: 保留服务端原始工具标题、描述、参数与只读 annotation 的统一目录，连续长文本可在窄面板内换行。
-// POS: 固定 Connector 与自定义 MCP 共用的工具展示；不读取或展示 Prompts/Resources。
+// POS: 同配置普通读取失败保留目录并行内提示；失去访问权不展示快照。固定 Connector 与自定义 MCP 共用的工具展示；不读取或展示 Prompts/Resources。
 import { Code2, RotateCcw, Wrench } from "lucide-react";
 
 import type { ResourceFailure } from "@/lib/error-message";
@@ -9,6 +9,7 @@ import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import { UiListRow } from "@/shared/ui/list/list-row";
 import { UiPanel } from "@/shared/ui/panel";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
@@ -30,13 +31,14 @@ interface MCPToolsSectionProps {
 export function MCPToolsSection({
   available,
   unavailableMessage,
-  catalog,
+  catalog: sourceCatalog,
   description,
   failure,
   loading,
   onRetry,
 }: MCPToolsSectionProps) {
   const { t } = useI18n();
+  const catalog = available && !failure?.access ? sourceCatalog : null;
   const toolCount = catalog?.tools.length ?? 0;
   return (
     <section className="py-5">
@@ -60,13 +62,21 @@ export function MCPToolsSection({
             {description || t("capability.custom_mcp_tools_description")}
           </p>
         </div>
-        {failure ? (
-          <UiButton className="shrink-0" onClick={onRetry} size="sm" type="button" variant="text">
+        {available && failure ? (
+          <UiButton aria-busy={loading || undefined} disabled={loading} className="shrink-0" onClick={onRetry} size="sm" type="button" variant="text">
             <RotateCcw className="h-3.5 w-3.5" />
             {t("state.retry")}
           </UiButton>
         ) : null}
       </div>
+      {catalog && failure ? (
+        <UiInlineNotice
+          className="mt-3"
+          message={t("capability.custom_mcp_tools_refresh_failed_impact")}
+          title={t("capability.custom_mcp_tools_load_failed")}
+          tone="warning"
+        />
+      ) : null}
       {!available ? (
         <MCPToolsMessage
           title={unavailableMessage || t("capability.custom_mcp_tools_disabled")}
@@ -78,7 +88,7 @@ export function MCPToolsSection({
           state="loading"
           title={t("capability.custom_mcp_tools_loading")}
         />
-      ) : failure ? (
+      ) : failure && !catalog ? (
         <UiResourceState
           className="mt-3 min-h-36"
           impact={t("capability.custom_mcp_tools_load_failed_impact")}

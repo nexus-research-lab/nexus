@@ -703,6 +703,7 @@ export const enCapabilityMessages = {
   "capability.custom_mcp_tools_description": "When enabled, these tools can be selected for a chat.",
   "capability.custom_mcp_tools_loading": "Reading server tools",
   "capability.custom_mcp_tools_load_failed": "Could not read tools",
+  "capability.custom_mcp_tools_refresh_failed_impact": "Showing the last tool list, which may be out of date. Retry to get the latest list.",
   "capability.custom_mcp_tools_load_failed_impact": "The connection settings are preserved, but the server's tools could not be confirmed.",
   "capability.custom_mcp_tools_disabled": "Enable this MCP to connect and inspect its tools.",
   "capability.custom_mcp_tools_runtime_only": "Local stdio servers are started only by the Agent runtime; this page does not run the command as the host.",
