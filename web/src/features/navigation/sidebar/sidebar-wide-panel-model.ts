@@ -137,6 +137,7 @@ export function buildSidebarUtilityLabels(
     collapse: t("sidebar.collapse_panel"),
     expand: t("sidebar.expand_panel"),
     guide: t("common.guide_center"),
+    login: t("sidebar.login_remote"),
     logout: t("sidebar.logout"),
     settings: t("sidebar.settings"),
   };

@@ -6,6 +6,7 @@ export const enNavigationMessages = {
   "sidebar.workspace_title": "Nexus",
   "sidebar.settings": "Settings",
   "sidebar.contacts": "Contacts",
+  "sidebar.login_remote": "Sign in to remote account",
   "sidebar.logout": "Sign out",
   "sidebar.update_available": "Download and update Nexus {version}",
   "sidebar.update_starting": "Starting update",

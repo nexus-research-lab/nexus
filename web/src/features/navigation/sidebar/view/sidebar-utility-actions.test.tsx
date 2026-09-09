@@ -44,12 +44,14 @@ it("opens account actions and only logs out after selecting the menu item", asyn
   render(<MemoryRouter><SidebarFooterActions
     accountName="测试用户"
     guideOpen={false}
-    labels={{ collapse: "收起", expand: "展开", settings: "设置", logout: "退出登录", guide: "帮助" }}
+    labels={{ collapse: "收起", expand: "展开", settings: "设置", login: "登录远程账户", logout: "退出登录", guide: "帮助" }}
     onCollapse={vi.fn()}
     onExpand={vi.fn()}
+    onLogin={vi.fn()}
     onLogout={onLogout}
     onOpenGuide={onOpenGuide}
     settingsActive={false}
+    showLogin={false}
     showLogout
     showPanelToggle
     showSettings
@@ -65,4 +67,28 @@ it("opens account actions and only logs out after selecting the menu item", asyn
   expect(screen.queryByRole("menu")).toBeNull();
   await user.click(screen.getByRole("button", { name: "帮助" }));
   expect(onOpenGuide).toHaveBeenCalledOnce();
+});
+
+it("exposes optional remote sign-in from the Desktop account menu", async () => {
+  const user = userEvent.setup();
+  const onLogin = vi.fn();
+  render(<MemoryRouter><SidebarFooterActions
+    accountName="本地用户"
+    guideOpen={false}
+    labels={{ collapse: "收起", expand: "展开", settings: "设置", login: "登录远程账户", logout: "退出登录", guide: "帮助" }}
+    onCollapse={vi.fn()}
+    onExpand={vi.fn()}
+    onLogin={onLogin}
+    onLogout={vi.fn()}
+    onOpenGuide={vi.fn()}
+    settingsActive={false}
+    showLogin
+    showLogout={false}
+    showPanelToggle
+    showSettings
+  /></MemoryRouter>);
+
+  await user.click(screen.getByRole("button", { name: "本地用户" }));
+  await user.click(screen.getByRole("menuitem", { name: "登录远程账户" }));
+  expect(onLogin).toHaveBeenCalledOnce();
 });

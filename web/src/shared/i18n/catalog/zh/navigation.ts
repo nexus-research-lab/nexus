@@ -3,6 +3,7 @@ export const zhNavigationMessages = {
   "sidebar.workspace_title": "Nexus",
   "sidebar.settings": "设置",
   "sidebar.contacts": "联系人",
+  "sidebar.login_remote": "登录远程账户",
   "sidebar.logout": "退出登录",
   "sidebar.update_available": "下载并更新 Nexus {version}",
   "sidebar.update_starting": "正在启动更新",

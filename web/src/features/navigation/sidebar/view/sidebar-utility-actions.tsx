@@ -4,6 +4,7 @@
 
 import {
   CircleHelp,
+  LogIn,
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
@@ -31,9 +32,11 @@ export interface SidebarUtilityActionsProps {
   labels: SidebarUtilityLabels;
   onCollapse: () => void;
   onExpand: () => void;
+  onLogin: () => void;
   onLogout: () => void;
   onOpenGuide: () => void;
   settingsActive: boolean;
+  showLogin: boolean;
   showLogout: boolean;
   showPanelToggle: boolean;
   showSettings: boolean;
@@ -77,11 +80,18 @@ export function SidebarFooterActions(props: SidebarUtilityActionsProps) {
     icon: <Settings className="h-4 w-4" />,
     active: props.settingsActive,
   }] : [];
-  const footerItems: UiActionMenuItem[] = props.showLogout ? [{
-    value: "logout",
-    label: props.labels.logout,
-    icon: <LogOut className="h-4 w-4" />,
-  }] : [];
+  const footerItems: UiActionMenuItem[] = [
+    ...(props.showLogin ? [{
+      value: "login",
+      label: props.labels.login,
+      icon: <LogIn className="h-4 w-4" />,
+    }] : []),
+    ...(props.showLogout ? [{
+      value: "logout",
+      label: props.labels.logout,
+      icon: <LogOut className="h-4 w-4" />,
+    }] : []),
+  ];
 
   return (
     <div className={cn(
@@ -122,6 +132,7 @@ export function SidebarFooterActions(props: SidebarUtilityActionsProps) {
         placement="top"
         onClose={() => setMenuOpen(false)}
         onSelect={(value) => {
+          if (value === "login") props.onLogin();
           if (value === "logout") props.onLogout();
           if (value === "settings") navigate(AppRouteBuilders.settings());
         }}
