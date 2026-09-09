@@ -3,6 +3,7 @@
 // L2 | 父级: internal/app（L2 见 ../doc.go）
 //
 // 成员清单：
+//   - builtin_tools.go：同时装配绑定当前 Agent/round 的文件交付工具，不接受模型选择产出身份。
 //   - command.go / builtin_tools.go / *_mcp.go：round-scoped nexus MCP、内建工具与显式选择的第三方 Connector MCP（含 RichMail）。
 //   - command.go：从 SDK 可信 metadata 绑定原始工具 identity，分发 subagent 原生控制。
 //   - configuration.go：nexuscfg loopback 配置 broker。

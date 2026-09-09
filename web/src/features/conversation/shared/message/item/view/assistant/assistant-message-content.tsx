@@ -55,8 +55,8 @@ export function AssistantMessageContent({
 }: AssistantMessageContentProps) {
   const filePresentation = useMemo(() => {
     const content = [
-      ...(process.visible ? process.projection.content : []),
-      ...(direct.visible ? direct.projection.content : []),
+      ...process.projection.content,
+      ...direct.projection.content,
       ...(final.visible && Array.isArray(final.content) ? final.content : []),
     ];
     const finalProjection = Array.isArray(final.content)
@@ -69,7 +69,7 @@ export function AssistantMessageContent({
       content,
     };
   }, [direct, process, final]);
-  const artifacts = useWorkspaceFileArtifactsFromContent(filePresentation.content);
+  const artifacts = useWorkspaceFileArtifactsFromContent(filePresentation.content, environment.workspaceAgentId);
   return (
     <>
       <StandaloneActivity

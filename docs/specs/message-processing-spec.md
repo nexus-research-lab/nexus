@@ -117,7 +117,8 @@ round 结束只由 terminal `round_status` 定义，前端不再自己猜测。
 
 ### 3.3 内容块兼容
 
-- `workspace_file_artifact` 属于已知可见内容，只有文件而没有自然语言正文的回复仍须展示。最终回复末尾的文件与相邻正文共用 final surface；Room 最终轮选择不得跳过文件交付而回退旧正文。更早工具过程中的文件继续留在过程，完整 transcript 保留全部，Room 过程检查器不重复主 Feed 的最终正文和尾部文件。
+- `workspace_file_artifact` 的 `role=working_file` 表示 Write/Edit 文件变更，`role=deliverable` 表示显式交付或专用图片工具输出；旧记录缺省 role 时保留既有文件证据。任意 Skill/脚本生成的交付通过 `nexus.deliver_files` 登记，模型只提交当前 workspace 文件 paths，宿主整批校验 owner/Agent 和 confined-fd 普通文件，拒绝缺失、目录、越界、符号链接或受保护路径；这证明文件可交付，不把存在性或修改时间伪装成创建者的文件系统证据。产出归属是本轮 Agent 的显式声明，宿主绑定 `producer_agent_id` 与 `source_agent_round_id`，只接受精确工具身份及匹配当前 Agent/round 的成功回执，并随来源 assistant 消息持久化。`workspace_agent_id` 独立表示打开文件的位置，不允许模型指定其他 Agent 的身份。公开性继承原消息，不因登记文件跨私域广播。
+- 只有文件而没有正文的交付仍须展示。DM/Thread/Room 从同一回复 direct/process/final 投影统一提取交付并在回复尾部去重展示；隐藏工具过程不得隐藏交付，working_file 不进入生成文件列表。其他 Agent 的产物不能归入当前回复；转述仅保留引用，不改变产出者。正文 Markdown、目录缓存、Bash 日志及修改时间不能生成或覆盖交付记录；历史无记录的脚本产物不做推测回填。文件卡仍指向当前文件，不承诺不可变内容快照。
 - 已知内容块按协议类型显式解码，不靠全局字段改名。
 - Claude Code 的 `server_tool_use` / `web_search_tool_result` 等块保留原始 `source_type`，同时投影到 Nexus 现有工具渲染模型。
 - 新版本 runtime 发来未知或字段不完整的内容块时，前端保留原始类型和 payload，并安全隐藏；单个未知块不能让整条消息解析失败或让会话停止。

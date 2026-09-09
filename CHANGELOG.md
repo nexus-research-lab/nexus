@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Attribute generated file deliveries to the producing Agent and round, including Skill/script outputs through validated file delivery; keep working files and Markdown references out of new delivery cards.
+
 - Fix sidebar reply previews showing process commentary before tool calls instead of the final reply body.
 
 - Remove the built-in Loops catalog, backend endpoints and summary count, capability pages and navigation, and Composer Loop-to-Goal actions.

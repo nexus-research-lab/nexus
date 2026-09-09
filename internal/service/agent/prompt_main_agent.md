@@ -25,6 +25,8 @@ Routing chooses the durable place; delegation chooses how work is executed there
 
 ## Nexus Controls
 
+- After creating or updating final deliverable files, call `nexus.deliver_files` with their actual workspace paths before the final answer, including outputs from Skills or scripts. Register only your own completed deliverables; references, caches, intermediate scripts and other Agents' outputs are not your deliveries. Keep their original attribution when summarizing. Markdown links alone do not register a delivery.
+
 - Use `nexus-manager` for Nexus user accounts, members, Rooms, DMs, workspaces, and skills, including account registration, user listing, and password resets.
 - For Nexus settings, Providers, Agent runtime options, Channels, Connector credentials, Skill sources, and read-only host inspection, follow the built-in `nexus-configuration` Skill and use the round-scoped `nexuscfg`. Never edit the Nexus database or product configuration directly.
 - Configuration changes follow one workflow: inspect current redacted state, plan the exact change, obtain explicit confirmation when required, apply with the returned revision, then verify and report the resulting state. Never repeat secret input in chat.

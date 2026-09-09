@@ -1,4 +1,4 @@
-// INPUT: 当前 Agent round 与 Browser、Imagegen、Visualize 服务。
+// INPUT: 当前 Agent round 与 Browser、Imagegen、Visualize、Workspace 服务。
 // OUTPUT: 按当前配置动态可见的 Nexus 内建工具。
 // POS: nexus MCP 的通用内建工具装配入口。
 package runtime
@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
+	artifactmcp "github.com/nexus-research-lab/nexus/internal/mcp/artifact"
 	browsermcp "github.com/nexus-research-lab/nexus/internal/mcp/browser"
 	imagegenmcp "github.com/nexus-research-lab/nexus/internal/mcp/imagegen"
 	imagegenmcpcontract "github.com/nexus-research-lab/nexus/internal/mcp/imagegen/contract"
@@ -17,6 +18,20 @@ import (
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 )
+
+// NewArtifactToolBuilder binds explicit file delivery to the current runtime Agent.
+func NewArtifactToolBuilder(service artifactmcp.Service) ToolBuilder {
+	return func(_ context.Context, round nexusmcp.RoundContext) []sdktool.Tool {
+		agent := round.CommandContext.Agent
+		if agent == nil {
+			return nil
+		}
+		return artifactmcp.BuildTools(service, artifactmcp.Context{
+			OwnerUserID: agent.OwnerUserID, AgentID: agent.AgentID,
+			AgentRoundID: round.CommandContext.AgentRoundID,
+		})
+	}
+}
 
 // ImagegenConfigResolver 解析当前可用的图片生成配置。
 type ImagegenConfigResolver interface {

@@ -9,6 +9,7 @@ import { downloadWorkspaceFileApi } from "@/lib/api/agent/agent-api";
 import type { WorkspaceFileOpenHandler } from "@/lib/workspace-file-action";
 import { I18N_CONTEXT, type I18nContextValue } from "@/shared/i18n/i18n-context";
 import { MESSAGES } from "@/shared/i18n/messages";
+import { useWorkspaceFilesStore, resetWorkspaceFilesOwnerScope } from "@/store/workspace-files";
 import { useAgentStore } from "@/store/agent";
 import type { WorkspaceFileArtifactContent } from "@/types/conversation/message/content";
 import { ContentBlockView } from "../../item/view/content/content-block-view";
@@ -54,6 +55,7 @@ function routeView(route: string, artifact: WorkspaceFileArtifactContent, worksp
 }
 
 afterEach(() => {
+  act(() => resetWorkspaceFilesOwnerScope());
   act(() => useAgentStore.setState({ current_agent_id: null }));
   vi.clearAllMocks();
 });
@@ -170,5 +172,55 @@ it("moves Room final artifacts after the complete answer and deduplicates proces
   fireEvent.click(card);
   expect(open).toHaveBeenCalledExactlyOnceWith(ARTIFACT.path, "author");
   rerender(renderRoom(false));
+  expect(screen.queryByText("Generated files")).toBeNull();
+});
+
+
+it("shows a registered script deliverable from hidden Room process with exact source actions", () => {
+  const open = vi.fn();
+  const { set_files } = useWorkspaceFilesStore.getState();
+  set_files("author", [{ name: "报告.pptx", path: "报告.pptx", depth: 1, is_dir: false, modified_at: "2026-09-10" }]);
+  render(localized(<AssistantMessageContent activity={ACTIVITY}
+    environment={{ mode: "room_result", canRespondToPermissions: false, hiddenToolNames: [], workspaceAgentId: "author", onOpenWorkspaceFile: open }} permissions={PERMISSIONS}
+    direct={{ visible: false, projection: { content: [{ ...ARTIFACT, path: "make_report.py", role: "working_file" }], streamingIndexes: new Set() } }}
+    process={{ visible: false, expanded: false, anchorRef: createRef(), toggle: vi.fn(), projection: { content: [{ ...ARTIFACT, path: "报告.pptx", role: "deliverable", producer_agent_id: "author", workspace_agent_id: "author" }], streamingIndexes: new Set() }, summary: { kind: "details", latestDetail: null, metrics: [] } }}
+    final={{ visible: true, isStreaming: false, mentions: [], streamingIndexes: new Set(), content: "文件：`报告.pptx`" }} showMaxTokensWarning={false}
+  />));
+  expect(screen.queryByText("make_report.py")).toBeNull();
+  fireEvent.click(screen.getAllByRole("button", { name: /^报告.pptx/ }).at(-1)!);
+  expect(open).toHaveBeenCalledExactlyOnceWith("报告.pptx", "author");
+  fireEvent.click(screen.getByRole("button", { name: "Download 报告.pptx" }));
+  expect(downloadWorkspaceFileApi).toHaveBeenCalledExactlyOnceWith("author", "报告.pptx", "报告.pptx");
+});
+
+it("does not turn references into generated files or replace durable delivery with a listed reference", () => {
+  useWorkspaceFilesStore.getState().set_files("author", [{ name: "reference.md", path: "reference.md", depth: 1, is_dir: false, modified_at: "2026-09-10" }]);
+  const show = (deliver: boolean) => localized(<AssistantMessageContent activity={ACTIVITY}
+    environment={{ mode: "room_result", canRespondToPermissions: false, hiddenToolNames: [], workspaceAgentId: "author" }} permissions={PERMISSIONS}
+    direct={{ visible: false, projection: { content: deliver ? [{ ...ARTIFACT, role: "deliverable" }] : [], streamingIndexes: new Set() } }}
+    process={{ visible: false, expanded: false, anchorRef: createRef(), toggle: vi.fn(), projection: { content: [], streamingIndexes: new Set() }, summary: { kind: "details", latestDetail: null, metrics: [] } }}
+    final={{ visible: true, isStreaming: false, mentions: [], streamingIndexes: new Set(), content: "参考了 `reference.md` 和 [资料](reference.md)" }} showMaxTokensWarning={false}
+  />);
+  const { rerender } = render(show(false));
+  expect(screen.queryByText("Generated files")).toBeNull();
+  rerender(show(true));
+  expect(screen.getByText("Generated files")).toBeTruthy();
+  expect(screen.getByRole("button", { name: /^result\.md/ })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Download reference.md" })).toBeNull();
+});
+
+it("keeps a declared delivery under its producer rather than a summarizing Room member", () => {
+  const open = vi.fn();
+  const delivery = { ...ARTIFACT, role: "deliverable" as const, producer_agent_id: "researcher", workspace_agent_id: "researcher", source_agent_round_id: "researcher-round" };
+  const show = (agent: string) => localized(<AssistantMessageContent activity={ACTIVITY}
+    environment={{ mode: "room_result", canRespondToPermissions: false, hiddenToolNames: [], workspaceAgentId: agent, onOpenWorkspaceFile: open }} permissions={PERMISSIONS}
+    direct={{ visible: false, projection: { content: [delivery], streamingIndexes: new Set() } }}
+    process={{ visible: false, expanded: false, anchorRef: createRef(), toggle: vi.fn(), projection: { content: [], streamingIndexes: new Set() }, summary: { kind: "details", latestDetail: null, metrics: [] } }}
+    final={{ visible: true, isStreaming: false, mentions: [], streamingIndexes: new Set(), content: "完成" }} showMaxTokensWarning={false}
+  />);
+  const { rerender } = render(show("researcher"));
+  fireEvent.click(screen.getByRole("button", { name: /^result\.md/ }));
+  expect(open).toHaveBeenCalledExactlyOnceWith(ARTIFACT.path, "researcher");
+  rerender(show("coordinator"));
   expect(screen.queryByText("Generated files")).toBeNull();
 });

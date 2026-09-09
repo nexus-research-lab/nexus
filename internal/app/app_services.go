@@ -444,6 +444,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		appruntime.NewConnectorAuthorizationToolBuilder(connectorAuthorization, core.Agent),
 		appruntime.NewChannelAuthorizationToolBuilder(channelAuthorization, core.Agent),
 		appruntime.NewVisualizeToolBuilder(),
+		appruntime.NewArtifactToolBuilder(workspaceService),
 		appruntime.NewImagegenToolBuilder(imagegenService, providerService),
 		appruntime.NewBrowserToolBuilder(browserService, preferencesService),
 	)
