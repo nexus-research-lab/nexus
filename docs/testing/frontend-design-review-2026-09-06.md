@@ -4105,3 +4105,10 @@ UiInput title 角色统一页内对象标题的 objectTitle/regular、透明无�
 ### A165 — 看板列名与稳定状态分离
 
 四列内部定义改用翻译键并取消无外部消费者的导出，buildScheduledTaskBoard 接收当前翻译函数。列 ID、状态优先级和排序保持；新增双语列名、删除优先于运行、时间排序与输入不变回归。13 项 board 测试及 lint/typecheck 通过，未做视觉验收。
+
+
+### A166 — 前端合同门禁复核（未全绿）
+
+全量合同命令 npm run test:contracts 在 Node v22.23.2 下报告 336 pass / 3 fail（包含进程级失败项）。desktop-attention.test.mjs 的业务断言通过后出现 V8 GlobalHandles/DestroyParamCleanupHook 原生清理崩溃（SIGTRAP），单独重跑通过；native-ui-fixtures.test.mjs 因沙箱禁止监听 127.0.0.1 报 EPERM，许可范围内独立重跑通过。memory-catalog-deletion-recovery.test.mjs 两项断言通过后反复 SIGBUS，单独重跑仍失败，禁用 watcher 实验无效且已撤回。本批没有为消除门禁红灯改动产品代码或弱化断言。
+
+全量日志 /tmp/nexus-a166-contracts.log。当前合同门禁不能宣告通过；需要继续调查 Node/Vite 退出生命周期或在受支持的另一 Node 运行时复核。该问题不构成整个 UI 审查无路可走，目标仍继续推进。未做视觉验收。
