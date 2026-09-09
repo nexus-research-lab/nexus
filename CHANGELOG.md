@@ -52,6 +52,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Prevent Team messages from being sent while confirming IME composition and
+  announce loading failures without displaying an empty conversation.
+
 - Constrain anchored popover dimensions to the viewport even when a preferred
   minimum height is larger than the available window.
 
