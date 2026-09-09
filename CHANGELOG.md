@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Use a localized task label instead of exposing the internal executor Agent ID when a scheduled task has no source name.
+
 - Localize scheduled-task card action labels, accessible names and mutation-protection hints.
 
 - Localize scheduled-task permission actions in cards and details while preserving pending and unknown-result protection.

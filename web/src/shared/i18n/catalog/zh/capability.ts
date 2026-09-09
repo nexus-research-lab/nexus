@@ -993,6 +993,8 @@ export const zhCapabilityMessages = {
   "capability.scheduled_card_deletion_locked": "{state}，任务不再接受修改",
   "capability.scheduled_card_attention_details": "查看{title}详情",
   "capability.scheduled_card_details": "详情",
+  "capability.scheduled_context_agent": "智能体任务",
+  "capability.scheduled_context_script": "工作区脚本",
   "capability.scheduled_dialog_edit_title": "编辑任务",
   "capability.scheduled_dialog_create": "创建",
   "capability.scheduled_dialog_creating": "创建中",

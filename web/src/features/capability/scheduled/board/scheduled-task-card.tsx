@@ -137,7 +137,7 @@ export function ScheduledTaskCard({
     isRunUnconfirmed,
     isToggling,
     isToggleUnconfirmed,
-  });
+  }, t);
   const TaskIdentityIcon = TASK_IDENTITY_ICONS[presentation.columnId];
   const permissionRequest = task.pending_permission_request;
   const errorCopy = getScheduledTaskErrorCopy(presentation.lastError, t);

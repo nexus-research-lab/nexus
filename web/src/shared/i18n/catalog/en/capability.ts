@@ -996,6 +996,8 @@ export const enCapabilityMessages = {
   "capability.scheduled_card_deletion_locked": "{state}. This task no longer accepts changes.",
   "capability.scheduled_card_attention_details": "View details: {title}",
   "capability.scheduled_card_details": "Details",
+  "capability.scheduled_context_agent": "Agent task",
+  "capability.scheduled_context_script": "Workspace script",
   "capability.scheduled_dialog_edit_title": "Edit task",
   "capability.scheduled_dialog_create": "Create",
   "capability.scheduled_dialog_creating": "Creating",

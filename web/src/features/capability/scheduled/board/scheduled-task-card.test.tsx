@@ -182,3 +182,14 @@ it("updates card action names when the locale changes without changing the run t
   expect(screen.getByRole("button", { name: "立即运行" })).toBe(run);
   expect(screen.queryByRole("button", { name: "Run now" })).toBeNull();
 });
+
+
+it.each(["zh", "en"] as const)("does not expose the internal execution Agent when source names are missing in %s", (locale) => {
+  const task = { ...TASK, agent_id: "private-executor-identity" };
+  const result = render(view(task, vi.fn(), locale));
+  expect(screen.getByText(MESSAGES[locale]["capability.scheduled_context_agent"])).toBeTruthy();
+  expect(result.container.textContent).not.toContain(task.agent_id);
+  result.rerender(view({ ...task, source: { kind: "user_page", context_type: "agent", context_id: task.agent_id, context_label: "Nova" } }, vi.fn(), locale));
+  expect(screen.getByText("Nova")).toBeTruthy();
+  expect(result.container.textContent).not.toContain(task.agent_id);
+});
