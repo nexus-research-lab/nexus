@@ -4085,3 +4085,8 @@ OnboardingTourOverlay 忽略已消费 Escape、输入法组合态与 229 兼容�
 ### A161 — 定时标题输入排版归属
 
 UiInput title 角色统一页内对象标题的 objectTitle/regular、透明无框表面与水平内边距，定时表单移除本地 text-lg/表面覆盖。确认摘要改用 supporting/muted。保留任务标题可空及原有提交语义。38 项公共表单/定时基础表单回归、目标 lint 和 typecheck 通过；未做视觉验收。
+
+
+### A162 — 定时权限动作双语
+
+卡片/详情的唯一权限动作组件移除硬编码中文，完整与紧凑文案进入双语目录。保持所有保护条件，isPending 包含 unknown，未把它误投影为 busy。新增中英精确命令及禁用回归，共 7 项测试、lint/typecheck 通过；未做视觉验收。

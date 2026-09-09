@@ -10,6 +10,7 @@ import { I18N_CONTEXT, type I18nContextValue } from "@/shared/i18n/i18n-context"
 import { MESSAGES } from "@/shared/i18n/messages";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 
+import { ScheduledTaskPermissionActions } from "./scheduled-task-permission-actions";
 import { ScheduledTaskCard } from "./scheduled-task-card";
 
 const TASK: ScheduledTaskItem = {
@@ -144,4 +145,28 @@ describe("ScheduledTaskCard", () => {
     expect(screen.getByText("等待处理").className).toContain("rounded-full");
     expect(container.querySelectorAll("section.surface-radius-sm").length).toBeGreaterThan(0);
   });
+});
+
+
+it.each(["zh", "en"] as const)("localizes shared permission actions in %s and keeps protected actions inert", async (locale) => {
+  const user = userEvent.setup();
+  const decide = vi.fn();
+  const task: ScheduledTaskItem = { ...TASK, permission_state: "awaiting_approval", pending_permission_request: {
+    capability: { effect: "read", tool_name: "web.search" },
+    created_at: "2026-09-09", updated_at: "2026-09-09", description: "Read", job_id: TASK.job_id,
+    kind: "tool", policy_revision: 2, request_id: "permission", resume_safe: true, run_id: "run", status: "pending",
+  } };
+  const renderActions = (isPending: boolean) => <I18N_CONTEXT.Provider value={{ locale, setLocale: vi.fn(), t: (key) => MESSAGES[locale][key] }}>
+    <ScheduledTaskPermissionActions compact isPending={isPending} task={task} onEdit={vi.fn()} onOpenConnector={vi.fn()} onPermissionDecision={decide} onPermissionResume={vi.fn()} />
+  </I18N_CONTEXT.Provider>;
+  const result = render(renderActions(false));
+  const once = screen.getByRole("button", { name: MESSAGES[locale]["capability.scheduled_permission_once_short"] });
+  await user.click(once);
+  expect(decide).toHaveBeenCalledExactlyOnceWith(task, "allow_once");
+  result.rerender(renderActions(true));
+  for (const button of screen.getAllByRole("button")) {
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    await user.click(button);
+  }
+  expect(decide).toHaveBeenCalledOnce();
 });
