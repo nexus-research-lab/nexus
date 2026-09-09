@@ -1,6 +1,6 @@
 /**
  * INPUT: Launcher 标签与侧栏展开状态。
- * OUTPUT: 固定尺寸、纯色紧凑的 Nexus 字标，不随侧栏拉伸。
+ * OUTPUT: 保留原有渐变与阴影、固定尺寸的紧凑 Nexus 字标，不随侧栏拉伸。
  * POS: 宽侧栏顶部唯一品牌入口，不承载 Agent 会话动作。
  */
 import { Link } from "react-router-dom";
@@ -31,8 +31,25 @@ export function SidebarBrandLink({
       tabIndex={collapsed ? -1 : undefined}
       to={AppRouteBuilders.launcher()}
     >
-      <span className="sidebar-brand-wordmark cursor-pointer whitespace-nowrap font-sans text-[24px] leading-none font-semibold tracking-[-0.035em] text-(--text-strong)">
-        {wordmark}
+      <span className="sidebar-brand-wordmark relative cursor-pointer whitespace-nowrap font-sans text-[24px] leading-none font-semibold tracking-[-0.035em]">
+        <span
+          aria-hidden="true"
+          className="absolute inset-x-0 top-0 translate-y-[1.5px] text-[color:color-mix(in_srgb,var(--text-strong)_38%,transparent)] opacity-60 blur-[0.2px]"
+        >
+          {wordmark}
+        </span>
+        <span
+          className="relative bg-clip-text text-transparent transition-opacity duration-(--motion-duration-fast) group-hover/brand:opacity-80"
+          style={{
+            backgroundImage:
+              "linear-gradient(180deg, color-mix(in srgb, var(--text-strong) 94%, white 6%) 4%, var(--text-default) 48%, color-mix(in srgb, var(--text-muted) 72%, var(--text-strong) 28%) 100%)",
+            filter:
+              "drop-shadow(0 1px 0 color-mix(in srgb, white 38%, transparent)) drop-shadow(0 4px 6px color-mix(in srgb, var(--text-strong) 12%, transparent))",
+            WebkitBackgroundClip: "text",
+          }}
+        >
+          {wordmark}
+        </span>
       </span>
     </Link>
   );
