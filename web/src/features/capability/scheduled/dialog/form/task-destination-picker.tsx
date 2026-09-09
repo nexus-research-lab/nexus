@@ -96,7 +96,7 @@ export function TaskDestinationPicker({ kind, data, form, actions }: {
       <UiSearchInput className="min-w-0 flex-1" aria-label={t("capability.scheduled_search_chats")}
         placeholder={t("capability.scheduled_search_chats")} value={search} onChange={setSearch} />
       <UiSelectMenu className="w-28 shrink-0" ariaLabel={t("capability.scheduled_target_filter")} value={typeFilter} onChange={setTypeFilter}
-        options={[{value: "all", label: t("capability.scheduled_target_all")}, {value: "agent", label: "DM"}, {value: "room", label: "Room"}]} />
+        options={[{value: "all", label: t("capability.scheduled_target_all")}, {value: "agent", label: t("capability.scheduled_target_agent")}, {value: "room", label: t("capability.scheduled_target_room")}]} />
 
     </div>
     {!execution ? <UiButton className="w-full shrink-0 justify-between" variant="ghost" size="sm" onClick={() => select(null)}>

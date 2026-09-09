@@ -1,4 +1,6 @@
 export const zhCapabilityMessages = {
+  "capability.scheduled_target_agent": "智能体",
+  "capability.scheduled_target_room": "群聊",
   "capability.scheduled_target_all": "全部类型",
   "capability.scheduled_target_filter": "会话类型",
   "capability.scheduled_editor": "任务编辑",
