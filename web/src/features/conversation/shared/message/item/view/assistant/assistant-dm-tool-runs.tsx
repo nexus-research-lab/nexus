@@ -179,10 +179,7 @@ function ToolRun({
   streaming: boolean;
 }) {
   const { t } = useI18n();
-  const expansion = useScrollAnchoredState(
-    environment.mode === "room_thread"
-      || environment.mode === "room_thread_process",
-  );
+  const expansion = useScrollAnchoredState(false);
   const [closedToolUseCount, setClosedToolUseCount] = useResettableState(
     0,
     segment.id,

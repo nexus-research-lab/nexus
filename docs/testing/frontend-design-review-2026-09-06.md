@@ -4189,3 +4189,8 @@ OAuth 标题、Provider 说明、ID/Secret 提示、复制反馈和页脚动作�
 ### A181 — 来源对照按钮单行
 
 按用户截图反馈，为 WorkGraph 卡片来源对照按钮增加 shrink-0/whitespace-nowrap，图标同步禁止收缩；不改公共按钮默认换行策略或点击行为。目标 lint/typecheck 通过，未做视觉验证。
+
+
+### A182 — Thread 过程默认折叠与独立详情
+
+用户截图反馈 Thread 仍默认展开。移除 room_thread/room_thread_process 的默认展开分支，DM/Thread 统一先收起执行过程；Thought 公共块默认收起，流式阶段切换不再重置用户选择。保留普通工具独立二次点击行为，更新此前明确期待 Thread 自动展开的旧合同。新增真实组件交互测试覆盖三种模式目录展开、子项独立打开、更新保留选择、父层重开不级联，以及 Thought 流式切换。14 项组件回归、65 项时间线合同、目标 lint/typecheck 通过；未做视觉验证，未纳入并行后端修改。
