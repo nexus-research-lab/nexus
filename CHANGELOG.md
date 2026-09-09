@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Use title-case Nexus branding and expand the compact settings search on focus or query.
+
 - Put settings Back and Search controls on one row with a named compact back button.
 
 - Refine the fixed sidebar wordmark to 22px with balanced weight and tighter spacing.

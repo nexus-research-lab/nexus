@@ -2,11 +2,19 @@
 // OUTPUT: 验证公共公式兼容、局部失败、原文边界及流式/历史一致性。
 // POS: #262 的真实 Markdown DOM 回归；不验证像素或宿主外观。
 
-import { render, screen } from "@testing-library/react";
+import { render as renderView, screen } from "@testing-library/react";
+import type { ReactElement, ReactNode } from "react";
+import { I18nProvider } from "@/shared/i18n/i18n-provider";
+import { THEME_CONTEXT } from "@/shared/theme/theme-context";
 import { describe, expect, it } from "vitest";
 import { UiMarkdownContent } from "../markdown-content";
 import { MarkdownText } from "../streaming/markdown-streaming";
 import { MARKDOWN_PLUGINS, REHYPE_PLUGINS } from "./markdown-renderer-shared";
+
+function Providers({ children }: { children: ReactNode }) {
+  return <I18nProvider><THEME_CONTEXT.Provider value={{ theme: "light", setTheme: () => undefined }}>{children}</THEME_CONTEXT.Provider></I18nProvider>;
+}
+const render = (ui: ReactElement) => renderView(ui, { wrapper: Providers });
 
 const sources = (container: HTMLElement) => Array.from(container.querySelectorAll('annotation[encoding="application/x-tex"]'), (node) => node.textContent);
 

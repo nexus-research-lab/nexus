@@ -3909,3 +3909,12 @@ Enter 与按钮共用短查询/加载禁用条件，保留 composition ref 并�
 ## A128 — 设置返回与搜索同排
 
 按用户截图要求，宽设置侧栏顶部改为公共 IconButton 返回箭头与弹性 SearchInput 同一行；返回工作台保留辅助名称/提示，Tab 顺序先返回后搜索。轨道模式和筛选/权限逻辑保持。3 项回归、lint/typecheck 通过，日志 /tmp/nexus-a128-{target,lint,types}.log；未做视觉验证，清单计数不变。
+
+
+## A129 — 集成门禁核对
+
+全前端 lint/typecheck 通过（保留既有 WorkGraph effect ref 警告）。337 项源码合同中 336 通过，唯一失败为 native fixture 回环监听被沙箱禁止，授权后单独通过。组件回归 1363/1364 通过，失败为公式测试缺少新增代码本地化所需 Provider；已在测试 wrapper 补齐真实语言/主题上下文，19 项公式回归通过。没有把初次整链失败声称为整链成功；日志 /tmp/nexus-a129-{check,fixture,components}.log。
+
+## A130 — 品牌大小写与搜索展开
+
+按用户反馈将字标改为 Nexus 并去掉 uppercase。设置搜索默认 max-width 180px，focus-within 或有查询展开到剩余宽度；无查询且失焦收回，宽度动效尊重 reduced-motion。相关设置/公式回归 22 项、目标 lint/typecheck/build 通过，日志 /tmp/nexus-a130-{target,lint,types,build}.log。未做视觉校验，清单计数不变。
