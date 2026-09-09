@@ -293,7 +293,7 @@ features/conversation,web/src/features/conversation/shared/message/markdown-rend
 features/conversation,web/src/features/conversation/shared/message/message-markdown-links.tsx,,pending,,,f52663e3d00af2f21ee5c2ca5b27c12404e8747a017689f49903df75d04bfb0f
 features/conversation,web/src/features/conversation/shared/message/ui/activity-icon.tsx,ToolActivityIcon;ProcessActivityIconStack,pending,,,386905cd517474f9375205b59f204880ca8e4375e49dae83263cc87b4be6cc1c
 features/conversation,web/src/features/conversation/shared/message/ui/message-avatar.tsx,MessageAvatar,pending,,,17fa73036337835ad877be62779193cdba12d6acbaf8912cbddaddd15f4af5d2
-features/conversation,web/src/features/conversation/shared/message/ui/message-detail-toggle.tsx,MessageDetailToggle,pending,,,c769eed7037106d579ce97848a2188ea0ed7de44842c6492a3dbed7d7f47395a
+features/conversation,web/src/features/conversation/shared/message/ui/message-detail-toggle.tsx,MessageDetailToggle,pending, A133：共享消息明细按钮常规字重，普通 tone 展开保持 muted，保留危险/活动状态色。, A133：10 项相关回归、lint。,74623af9346e1e13d64e3b8df83a71d7e5a580f8aaaeb78dc1e17158d885473a
 features/conversation,web/src/features/conversation/shared/message/ui/message-rail.tsx,MessageDetailFrame;MessageDetailScroll,pending,,,f15f0ebe3a9a6eeb3af9635b81793ce953163f2f7d2173c9b804a0374c714ec1
 features/conversation,web/src/features/conversation/shared/provider-unavailable-banner.tsx,ProviderUnavailableBanner,pending,,,e8044fb34bb26245030b75ff66d0e7cfb7e330c3b039b06aec0c35fe10408861
 features/conversation,web/src/features/conversation/shared/read-resource-reliability-notice.tsx,ReadResourceReliabilityNotice,pending,,,d705481f6fc8d83a3ec01c25449b4287993677f53f6c040e952246775e410400

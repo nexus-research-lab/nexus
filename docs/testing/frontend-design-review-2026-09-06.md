@@ -3928,3 +3928,8 @@ Enter 与按钮共用短查询/加载禁用条件，保留 composition ref 并�
 ## A132 — 模型配置布局
 
 按用户截图反馈将 lg 弹窗收为 md，模型身份进入 Header subtitle，能力为宽屏双列/窄屏单列，移除每行贯通分隔线；额度继续双列。高级 JSON 使用公共 Disclosure，空/{} 默认收起，已有配置展开，正文保留辅助标签且不重复可见标题；底部保存/权限/busy 和草稿值不变。6 项模型弹窗回归、lint/typecheck 通过，日志 /tmp/nexus-a132-{target,lint,types}.log；无视觉验证，清单计数不变。
+
+
+## A133 — 执行过程展开文字降噪
+
+按用户反馈在 MessageDetailToggle 唯一所有者固定常规字重，普通 tone 的 expanded 文字保持 muted，箭头/底色仍表达开合，active/danger 的语义色保持。不修改全局 Button 的选中策略。10 项明细/执行过程回归和 lint 通过，日志 /tmp/nexus-a133-{target,lint}.log；无视觉验证，清单计数不变。

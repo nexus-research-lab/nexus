@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Keep conversation process disclosure text regular and muted when expanded.
+
 - Compact model configuration with header identity, two-column capabilities and
   advanced JSON disclosure that stays open for existing custom options.
 
