@@ -3786,3 +3786,10 @@ Select 行保持 in_progress（本轮只复审新增 onOpen 契约），字体�
 公共锚定求解器此前在极短视口中仍强制 preset 的 minHeight，坐标夹紧无法补救整体越界。现最终宽高同时服从整窗扣除留白后的硬上限并保持非负；正常窗口的建议最小高度和位置规则不变。修复放在唯一 model，不给目标选择器添加独立定位。
 
 8 类 preset × auto/top/bottom 在短视口下的边界回归、折叠视口非负尺寸及既有宽窗/强制方向检查通过；连同 Overlay 生命周期和目标表单共 3 文件 66 项通过，目标 eslint/typecheck 通过，见 /tmp/nexus-a108-{target,lint,types}.log。这是数学与离线 DOM 证据，不是实际绘制验收。目标浮层在极短可用区域内的内容滚动仍需审查，状态计数保持。
+
+
+## A109 — 目标浮层内容收缩与当前值描述
+
+两列列表保留 96px 最小操作区，极短空间通过外层纵向滚动访问完整内容，正常高度继续列内滚动；不再通过 overflow-hidden 裁掉搜索/错误或让列表缩为零。当前目标说明通过 useId 与触发器关联，同时渲染执行/投递不串联描述，失效身份仅展示本地化提示。分组 pressed 状态继续由公共 Button recipe 表达，未新增业务选中样式。
+
+12 项目标表单回归、目标 lint、typecheck 及生产 build 通过，见 /tmp/nexus-a109-{target,lint,types,build}.log；仅既有大分块提示。CSS 构建不作为视觉验收。结合 A106–A108 的精确选择、嵌套 Escape、双向 Tab、资源恢复和公共视口边界证据，目标选择器代码审查 improved。489 项现为 219 pending、132 in_progress、110 improved、22 retained、6 removed。
