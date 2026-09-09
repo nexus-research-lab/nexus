@@ -1,5 +1,5 @@
 // INPUT: Desktop/browser font catalogs, denied access and unsupported enumeration.
-// OUTPUT: Preset/custom choices remain usable without granting real font permissions.
+// OUTPUT: Preset and saved choices remain usable without granting real font permissions.
 // POS: Font picker boundary regressions with real shared controls.
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -21,22 +21,19 @@ function Form({ initial = "default" }: { initial?: string }) {
     <SettingsFontPicker value={value} onChange={setValue} /><output aria-label="Selected font">{value}</output>
   </I18N_CONTEXT.Provider>;
 }
-it("allows manual font input when browser enumeration is unsupported", async () => {
+it("uses only the font menu when enumeration is unsupported", () => {
   render(<Form />);
-  await userEvent.type(screen.getByRole("textbox", { name: "settings.reading.custom_font" }), "Georgia");
-  expect(screen.getByLabelText("Selected font").textContent).toBe("Georgia");
+  expect(screen.queryByRole("textbox")).toBeNull();
+  expect(screen.getByRole("button", { name: "settings.reading.font" })).toBeTruthy();
   expect(bridge.fonts).not.toHaveBeenCalled();
 });
-it("preserves a custom value and exposes manual recovery after desktop failure", async () => {
+it("preserves a saved custom font after desktop failure", async () => {
   bridge.available.mockReturnValue(true);
   bridge.fonts.mockRejectedValue(new Error("native unavailable"));
   render(<Form initial="My Font" />);
-  const input = await screen.findByRole("textbox", { name: "settings.reading.custom_font" });
-  expect((input as HTMLInputElement).value).toBe("My Font");
-  await userEvent.clear(input);
-  await userEvent.type(input, "Georgia");
-  expect(screen.getByLabelText("Selected font").textContent).toBe("Georgia");
-  expect(screen.getByText("settings.reading.font_error").getAttribute("role")).toBe("status");
+  await screen.findByText("settings.reading.font_error");
+  expect(screen.getByLabelText("Selected font").textContent).toBe("My Font");
+  expect(screen.queryByRole("textbox")).toBeNull();
   expect(screen.queryByText("native unavailable")).toBeNull();
 });
 it("deduplicates the desktop catalog and retains the saved custom font", async () => {
@@ -56,7 +53,8 @@ it("requests browser fonts on opening and falls back after denied access", async
   expect(query).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole("button", { name: "settings.reading.font" }));
   expect(query).toHaveBeenCalledOnce();
-  expect(await screen.findByRole("textbox", { name: "settings.reading.custom_font" })).toBeTruthy();
+  await screen.findByText("settings.reading.font_error");
+  expect(screen.queryByRole("textbox")).toBeNull();
 });
 it("does not duplicate a pending browser request when reopened", async () => {
   let resolve!: (fonts: { family: string }[]) => void;
@@ -72,7 +70,7 @@ it("does not duplicate a pending browser request when reopened", async () => {
   expect(screen.getByRole("option", { name: "Arial" })).toBeTruthy();
 });
 
-it("keeps presets usable while loading and provides input for an empty catalog", async () => {
+it("keeps presets usable while loading and after an empty catalog", async () => {
   bridge.available.mockReturnValue(true);
   let finish!: (value: { families: string[] }) => void;
   bridge.fonts.mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
@@ -83,18 +81,18 @@ it("keeps presets usable while loading and provides input for an empty catalog",
   expect(screen.getByLabelText("Selected font").textContent).toBe("serif");
   await act(async () => finish({ families: [] }));
   expect(screen.queryByText("common.loading")).toBeNull();
-  expect(screen.getByRole("textbox", { name: "settings.reading.custom_font" })).toBeTruthy();
+  expect(screen.queryByRole("textbox")).toBeNull();
 });
-it("retries desktop failures on reopening without discarding the manual field", async () => {
+it("retries desktop failures on reopening without discarding the saved font", async () => {
   bridge.available.mockReturnValue(true);
   bridge.fonts.mockRejectedValueOnce(new Error("offline"));
   let finish!: (value: { families: string[] }) => void;
   bridge.fonts.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
   render(<Form initial="Saved Font" />);
-  const input = await screen.findByRole("textbox", { name: "settings.reading.custom_font" });
+  await screen.findByText("settings.reading.font_error");
   await userEvent.click(screen.getByRole("button", { name: "settings.reading.font" }));
   expect(bridge.fonts).toHaveBeenCalledTimes(2);
-  expect(screen.getByRole("textbox", { name: "settings.reading.custom_font" })).toBe(input);
+  expect(screen.getByLabelText("Selected font").textContent).toBe("Saved Font");
   await act(async () => finish({ families: ["Arial"] }));
   expect(screen.queryByText("settings.reading.font_error")).toBeNull();
   expect(screen.getByLabelText("Selected font").textContent).toBe("Saved Font");

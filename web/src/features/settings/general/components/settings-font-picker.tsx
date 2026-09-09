@@ -1,11 +1,10 @@
 // INPUT: 当前正文字体与本机字体目录能力。
-// OUTPUT: 共享字体选择器、跨宿主空/失败目录的文本兜底与可换行说明、读取状态与显式重开重试。
+// OUTPUT: 共享字体下拉、保留已存字体选择、读取状态与显式重开重试。
 // POS: 外观页字体读取与交互边界；不读取或上传字体文件。
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getDesktopSystemFonts, isDesktopBridgeAvailable } from "@/lib/desktop-bridge";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiInput } from "@/shared/ui/form/form-control";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
@@ -15,7 +14,6 @@ type FontWindow = Window & {
 
 export function SettingsFontPicker({ value, onChange }: { value: string; onChange: (font: string) => void }) {
   const { t } = useI18n();
-  const hintId = useId();
   const [families, setFamilies] = useState<string[]>([]);
   const reading = useRef(false);
   const [failed, setFailed] = useState(false);
@@ -24,7 +22,6 @@ export function SettingsFontPicker({ value, onChange }: { value: string; onChang
 
   const generation = useRef(0);
   const [loading, setLoading] = useState(false);
-  const [hasRead, setHasRead] = useState(false);
 
   useEffect(() => () => {
     generation.current += 1;
@@ -48,7 +45,6 @@ export function SettingsFontPicker({ value, onChange }: { value: string; onChang
       if (request === generation.current) {
         reading.current = false;
         setLoading(false);
-        setHasRead(true);
       }
     }
   }, [desktop, canReadFonts]);
@@ -87,23 +83,6 @@ export function SettingsFontPicker({ value, onChange }: { value: string; onChang
           ...names.map((name) => ({ value: name, label: name })),
         ]}
       />
-      {(hasRead || (!desktop && !canReadFonts)) && families.length === 0 && (
-        <div className="space-y-1">
-          <UiInput
-            aria-label={t("settings.reading.custom_font")}
-            aria-describedby={hintId}
-            className="w-full"
-            controlSize="lg"
-            placeholder={t("settings.reading.custom_font")}
-            maxLength={100}
-            value={presets.some((preset) => preset === value) ? "" : value}
-            onChange={(event) => onChange(event.target.value)}
-          />
-          <p id={hintId} className={getUiTypographyClassName({ role: "caption", tone: "soft" })}>
-            {t("settings.reading.font_hint")}
-          </p>
-        </div>
-      )}
       {(loading || failed) && (
         <p className={getUiTypographyClassName({ role: "caption", tone: "soft" })} role="status">
           {t(loading ? "common.loading" : "settings.reading.font_error")}
