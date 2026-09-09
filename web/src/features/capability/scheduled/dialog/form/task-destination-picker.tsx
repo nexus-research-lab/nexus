@@ -1,7 +1,7 @@
 // INPUT: 完整聊天候选、草稿目标与精确选择命令。
 // OUTPUT: 按智能体/群聊分组的可搜索锚定浮层；正文布局保持不变，公共浮层材质/层级与 Tab 边界返回表单；加载失败可重试，未解析值保留提示。
 // POS: 定时任务运行和接收选择器；不请求资源、不拼装服务端载荷。
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown } from "lucide-react";
 import { getTabbableElements } from "@/shared/lib/browser/focus-navigation";
@@ -27,6 +27,7 @@ export function TaskDestinationPicker({ kind, data, form, actions }: {
   actions: TaskBasicsActions;
 }) {
   const { t } = useI18n();
+  const selectedLabelId = useId();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -108,17 +109,17 @@ export function TaskDestinationPicker({ kind, data, form, actions }: {
   };
   return <>
     <UiButton ref={anchorRef} aria-label={label} aria-expanded={open} aria-haspopup="dialog"
-      aria-controls={open ? overlayId : undefined} className="w-full justify-between gap-4 text-left"
+      aria-controls={open ? overlayId : undefined} aria-describedby={selectedLabelId} className="w-full justify-between gap-4 text-left"
       variant="ghost" onClick={() => open ? close() : setOpen(true)}>
       <span className="shrink-0">{label}</span>
       <span className="flex min-w-0 items-center gap-2">
-        <span className="truncate">{currentLabel}</span><ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0" />
+        <span id={selectedLabelId} className="truncate">{currentLabel}</span><ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0" />
       </span>
     </UiButton>
     {open && portalContainer ? createPortal(
       <div ref={overlayRef} id={overlayId} role="dialog" aria-label={label}
         {...OPEN_OVERLAY_DATA_ATTRIBUTES} style={overlayStyle}
-        className={`${OVERLAY_SURFACE_CLASS_NAME} fixed ui-layer-popover flex flex-col overflow-hidden p-2`}>
+        className={`${OVERLAY_SURFACE_CLASS_NAME} fixed ui-layer-popover flex flex-col overflow-y-auto overscroll-contain p-2`}>
     <div className="flex shrink-0 items-center gap-2 border-b border-(--divider-subtle-color) pb-2">
       <UiSearchInput className="min-w-0 flex-1" aria-label={t("capability.scheduled_search_chats")}
         placeholder={t("capability.scheduled_search_chats")} value={search} onChange={setSearch} />
@@ -128,7 +129,7 @@ export function TaskDestinationPicker({ kind, data, form, actions }: {
     {!execution ? <UiButton className="w-full shrink-0 justify-between" variant="ghost" size="sm" onClick={() => select(null)}>
       {t("capability.scheduled_dialog_reply_none")}{currentValue === "none" ? <Check aria-hidden="true" className="h-4 w-4" /> : null}
     </UiButton> : null}
-    <div className="grid min-h-0 flex-1 grid-cols-[minmax(100px,35%)_minmax(0,1fr)] overflow-hidden" role="group" aria-label={label}>
+    <div className="grid min-h-24 flex-1 grid-cols-[minmax(100px,35%)_minmax(0,1fr)] overflow-hidden" role="group" aria-label={label}>
       <div className="soft-scrollbar min-h-0 overflow-y-auto overscroll-contain border-r border-(--divider-subtle-color) py-2 pr-2" aria-label={t("capability.scheduled_objects")}>
         {[...groups].map(([key, items]) => <UiButton key={key} className="w-full justify-start text-left" variant="ghost" size="sm"
           aria-pressed={activeGroup === key} onClick={() => setBrowsingGroup(key)}>

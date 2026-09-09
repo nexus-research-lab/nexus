@@ -237,3 +237,18 @@ it.each([false, true])("does not announce empty results for a failed catalog (re
   expect(screen.queryByText("capability.scheduled_no_matching_chats")).toBeNull();
   expect((screen.getByRole("button", {name: "state.retry"}) as HTMLButtonElement).disabled).toBe(loading);
 });
+
+it("associates each target trigger with its current selection without exposing missing identities", () => {
+  render(<I18N_CONTEXT.Provider value={{locale: "zh", setLocale: vi.fn(), t: (key) => key}}>
+    <TaskDestinationPicker kind="execution" data={DATA} form={{...FORM, executionMode: "existing", selectedSessionKey: "internal-missing-session"}} actions={createActions()} />
+    <TaskDestinationPicker kind="delivery" data={DATA} form={FORM} actions={createActions()} />
+  </I18N_CONTEXT.Provider>);
+  const execution = screen.getByRole("button", {name: "capability.scheduled_run_in"});
+  const delivery = screen.getByRole("button", {name: "capability.scheduled_dialog_delivery"});
+  const executionDescription = execution.getAttribute("aria-describedby")!;
+  const deliveryDescription = delivery.getAttribute("aria-describedby")!;
+  expect(executionDescription).not.toBe(deliveryDescription);
+  expect(document.getElementById(executionDescription)?.textContent).toBe("capability.scheduled_dialog_session_unavailable");
+  expect(document.getElementById(deliveryDescription)?.textContent).toBe("capability.scheduled_dialog_reply_none");
+  expect(screen.queryByText("internal-missing-session")).toBeNull();
+});

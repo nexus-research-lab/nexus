@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Keep scheduled target picker content scrollable in short windows and describe
+  the current target accessibly on each trigger.
+
 - Align scheduled target pickers with shared popover styling and return boundary
   Tab navigation to the surrounding form.
 
