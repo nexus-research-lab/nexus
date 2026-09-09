@@ -36,7 +36,6 @@ import (
 	goalobjectivesvc "github.com/nexus-research-lab/nexus/internal/service/goalobjective"
 	imagegensvc "github.com/nexus-research-lab/nexus/internal/service/imagegen"
 	"github.com/nexus-research-lab/nexus/internal/service/launcher"
-	loopsvc "github.com/nexus-research-lab/nexus/internal/service/loops"
 	memorymaintenancesvc "github.com/nexus-research-lab/nexus/internal/service/memorymaintenance"
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
@@ -90,7 +89,6 @@ type AppServices struct {
 	GoalCommand            goalcommandcontract.Service
 	Orchestration          *orchestrationsvc.Service
 	WorkGraphWorkflow      *workgraphworkflowsvc.Service
-	Loops                  *loopsvc.Service
 	MemoryMaintenance      *memorymaintenancesvc.Coordinator
 	Browser                *browsersvc.Service
 	Relay                  *relaysvc.Client
@@ -198,7 +196,6 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	if cfg.BrowserEnabled {
 		browserService = browsersvc.NewService()
 	}
-	loopService := loopsvc.NewService()
 	imagegenService.SetPreferences(preferencesService)
 	workspaceService := workspacepkg.NewService(cfg, core.Agent)
 	projectPermissionService := projectpermissionsvc.NewService(cfg)
@@ -499,7 +496,6 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		GoalCommand:            explicitGoalCoordinator,
 		Orchestration:          orchestrationService,
 		WorkGraphWorkflow:      workGraphWorkflowService,
-		Loops:                  loopService,
 		MemoryMaintenance:      memoryMaintenance,
 		Browser:                browserService,
 		TeamRelay:              teamrelaystore.NewRepository(cfg, db),

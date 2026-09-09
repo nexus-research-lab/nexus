@@ -20,7 +20,6 @@ export interface ComposerFooterProps {
   actionButtonRef: RefObject<HTMLButtonElement | null>;
   activeError: string | null;
   canCreateGoal: boolean;
-  canUseLoop: boolean;
   canUseWorkGraphDistillations: boolean;
   charCount: number;
   contextUsage: ContextUsageData | null;
@@ -43,7 +42,6 @@ export interface ComposerFooterProps {
   onAttachmentSelect: () => void;
   onCancelGoal: () => void;
   onGoalToggle: (checked: boolean) => void;
-  onLoopSelect: () => void;
   onWorkGraphDistillationsSelect: () => void;
   onLocalDirectorySelect: () => void;
   runtimeActivity: ComposerRuntimeActivity;

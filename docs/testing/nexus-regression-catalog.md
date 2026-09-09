@@ -544,7 +544,6 @@ cd ../nexus-agent-sdk-go && GOWORK=off go test ./...
 | NX-TITLE-01 | 自动标题 | 首轮普通消息、Goal 控制消息和恢复 Session 各自生成正确标题，不泄漏内部提示 |
 | NX-NOTIFY-01 | 侧栏活动与未读 | working、waiting、未读和终态按 Room 聚合且按 source 隔离，重连 snapshot 权威覆盖 |
 | NX-USAGE-01 | token/费用/cache | 每轮和累计 usage 与 Provider 返回、runtime/model 和 cache 字段对应，失败轮也可解释 |
-| NX-LOOP-01 | Capability loops | 列表与详情反映真实可用 loop，缺依赖时展示原因，不生成不可执行入口 |
 | NX-IMAGE-01 | ImageGen | Provider 选择、图片产物、错误、历史恢复和 workspace artifact 归属一致 |
 | NX-DESKTOP-06 | 本地目录与文件动作 | macOS/Windows 的 mount、open、reveal、下载及重启恢复语义一致 |
 | NX-DESKTOP-07 | WebView/sidecar 恢复 | renderer/browser/sidecar 分别崩溃时恢复边界明确，不重复启动旧 runtime |

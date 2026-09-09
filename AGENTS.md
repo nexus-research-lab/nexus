@@ -75,6 +75,7 @@ cmd -> app -> handler -> service -> domain/storage
 - `service` 负责业务阶段和事务边界，不依赖 `handler` 或 `app`。
 - `service/room` 只持有 Room 的持久化管理；实时聊天与 runtime 编排位于 `service/room/realtime`，依赖方向只能从 realtime 指向 room。
 - `service/room/realtime` 测试按 package 与行为聚合：内部状态、Goal、协作测试分别归组，外部交付、生命周期和共享夹具集中管理；queue、guidance、session、directed message 等大场景保持独立。
+- 内置 Loops 模板目录已移除；能力入口保留 Skills、Connectors、Channels、定时任务与工作图，Composer 通过普通 Goal 或已保存工作图发起任务。
 - `storage` 负责持久化与数据库方言，不保留没有行为的方言门面；共享 SQL 分叉统一进入 `SQLDialect`，领域查询留在各自 repository。
 - `runtime` 只描述 bridge 会话与执行生命周期；SDK 系统消息到产品事件的投影统一属于 `message`。
 - Nexus 只生产按 priority/name/content/metadata 确定性排序的内部上下文块；bridge 将它们绑定到下一条 user 消息，nxs 在 user 落盘前提取为当前 live model history 的隐藏 reminder，Claude Code 通过 `UserPromptSubmit` hook 生成同语义 attachment；两者后续请求继续携带但不进入 transcript。workspace `AGENTS.md` 只由 SDK 启动加载器读取，产品 prompt builder 不再重复拼接。

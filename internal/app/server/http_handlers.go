@@ -18,7 +18,6 @@ import (
 	executionhandler "github.com/nexus-research-lab/nexus/internal/handler/execution"
 	goalhandler "github.com/nexus-research-lab/nexus/internal/handler/goal"
 	launcherhandler "github.com/nexus-research-lab/nexus/internal/handler/launcher"
-	loophandler "github.com/nexus-research-lab/nexus/internal/handler/loop"
 	projectpermissionhandler "github.com/nexus-research-lab/nexus/internal/handler/projectpermission"
 	providerhandler "github.com/nexus-research-lab/nexus/internal/handler/provider"
 	roomhandler "github.com/nexus-research-lab/nexus/internal/handler/room"
@@ -47,7 +46,6 @@ type handlerSet struct {
 	execution    *executionhandler.Handlers
 	echo         *echohandler.Handlers
 	launcher     *launcherhandler.Handlers
-	loop         *loophandler.Handlers
 	workspace    *workspacehandler.Handlers
 	project      *projectpermissionhandler.Handlers
 	team         *teamhandler.Handlers
@@ -113,7 +111,6 @@ func newHandlerSet(
 		execution:    executionhandler.New(api, services.Orchestration, services.WorkGraphWorkflow),
 		echo:         echohandler.New(api, services.Echo),
 		launcher:     launcherhandler.New(api, services.Launcher),
-		loop:         loophandler.New(api, services.Loops),
 		workspace:    workspacehandler.New(api, services.Workspace),
 		project:      projectpermissionhandler.New(api, services.ProjectPermission),
 		team:         newTeamHandler(api, services),

@@ -11,7 +11,6 @@ import type {
   AgentConversationRuntimePhase,
   InputQueueItem,
 } from "@/types/agent/agent-conversation";
-import type { LoopCatalogItem } from "@/types/capability/loop";
 import type { MessageAttachment } from "@/types/conversation/message/attachment";
 import type {
   CommandCatalogData,
@@ -24,7 +23,7 @@ export interface ComposerPanelProps {
   commandCatalog: CommandCatalogData;
   defaultPlaceholder?: string;
   contextUsage: ContextUsageData | null;
-  /** 纯文本消费者可隐藏附件、Goal 与 Loop 动作入口。 */
+  /** 纯文本消费者可隐藏附件与 Goal 动作入口。 */
   showActionMenu?: boolean;
   contextUsageItems?: readonly ComposerContextUsageItem[];
   /**
@@ -72,8 +71,6 @@ export interface ComposerPanelProps {
     files: File[],
   ) => Promise<MessageAttachment[]>;
   onCreateGoal?: (objective: string) => Promise<void>;
-  enableLoops?: boolean;
-  onCreateLoopGoal?: (loop: LoopCatalogItem) => Promise<void>;
   goalCreateDisabledReason?: string | null;
   goalModeExtra?: ReactNode;
   goalScopeLabel: string;

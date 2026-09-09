@@ -47,7 +47,7 @@
 | C | Contacts、Agent 详情/编辑/授权/私域、Memory | 目录扫描、信息主次、长内容、表单与保存反馈 | 进行中（目录、身份、联络和记忆编辑；完整页面待验收） |
 | D | Room、DM、Thread、子任务、Composer、Goal | 阅读节奏、消息身份、过程/最终回复分层、状态堆叠、输入空间 | 进行中（Composer、历史与输入弹窗；其余待审） |
 | E | Workspace、文件/文档/表格/演示预览、Artifact、WorkGraph | 画布与工具栏、缩放、长文档、详情、图形专用几何 | 进行中（源码编辑；预览与画布继续审查） |
-| F | Skills、Connectors/Custom MCP、Loops、WorkGraph 目录与详情 | 目录/详情一致性、筛选、说明、次级操作、授权流程 | 进行中（Connector、目录选择器与配置字段；其余待审） |
+| F | Skills、Connectors/Custom MCP、WorkGraph 目录与详情 | 目录/详情一致性、筛选、说明、次级操作、授权流程 | 进行中（Connector、目录选择器与配置字段；其余待审） |
 | G | Channels、Pairings、Scheduled Tasks 及编辑/历史 | 配置阶段、任务状态、日期时间、复杂表单与失败恢复 | 待审查 |
 | H | Settings 全部栏目、Operations 全部栏目 | 分组与分割、说明密度、设置行、模型/成员/套餐表单 | 进行中（通用配置与 Provider；其余待审） |
 | I | Login、Setup、OAuth 回调、引导、独立桌面设置窗口 | 独立壳层、错误/加载、响应式及原生入口差异 | 待审查 |
