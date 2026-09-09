@@ -507,6 +507,7 @@ test("setting switches retain readable wrapped text, one hit target and independ
   const settings = page.locator("[data-gallery-settings-controls]");
   const row = settings.locator("[data-gallery-settings-toggle]");
   const control = row.getByRole("switch", { name: copy(info, "自动整理记忆", "Automatic memory consolidation") });
+  await expect(row.getByRole("heading")).toHaveCSS("font-weight", "500");
   const description = row.locator("p");
   await row.scrollIntoViewIfNeeded();
   await expect(control).toHaveAccessibleDescription(await description.innerText());

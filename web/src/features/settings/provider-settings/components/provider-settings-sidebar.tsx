@@ -66,9 +66,9 @@ export function ProviderSettingsSidebar({
 
   return (
     <aside
-      className="w-full max-w-full shrink-0 border-b border-(--divider-subtle-color) pb-2 sm:w-[190px] sm:border-b-0 sm:border-r sm:pb-0 sm:pr-4"
+      className="w-full max-w-full shrink-0 border-b border-(--divider-subtle-color) pb-2 @min-[720px]/provider:w-[190px] @min-[720px]/provider:border-b-0 @min-[720px]/provider:border-r @min-[720px]/provider:pb-0 @min-[720px]/provider:pr-4"
     >
-      <div className="soft-scrollbar max-h-[180px] min-h-0 overflow-y-auto sm:h-full sm:max-h-none sm:pr-2">
+      <div className="soft-scrollbar max-h-[180px] min-h-0 overflow-y-auto @min-[720px]/provider:h-full @min-[720px]/provider:max-h-none @min-[720px]/provider:pr-2">
         {loading ? (
           <div className="flex min-h-[260px] items-center justify-center text-(--text-soft)">
             <Loader2
@@ -76,8 +76,8 @@ export function ProviderSettingsSidebar({
             />
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-1 py-2 sm:block sm:space-y-1">
-            <div className="col-span-2 mb-2 grid grid-cols-2 gap-1 border-b border-(--divider-subtle-color) pb-2 sm:block sm:space-y-1">
+          <div className="grid grid-cols-2 gap-1 py-2 @min-[720px]/provider:block @min-[720px]/provider:space-y-1">
+            <div className="col-span-2 mb-2 grid grid-cols-2 gap-1 border-b border-(--divider-subtle-color) pb-2 @min-[720px]/provider:block @min-[720px]/provider:space-y-1">
               <SettingsNavigationButton
                 active={isCreating && draftPresetKey === "custom"}
                 onClick={() => onCreateFromPreset("custom")}

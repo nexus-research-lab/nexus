@@ -42,3 +42,5 @@
 - `UiActionMenuContent` 透传内容根 ref；Action Menu 只测量未限高内容的 scrollHeight，加实际外框 padding/border 后交回原 Overlay 求解器。内容/字体/宽度变化通过 ResizeObserver 与既有 resize/scroll 更新，关闭/卸载清理；尺寸变化不得重置首项焦点。初始未测量使用同一行 recipe 估算，后续按内容增长/缩短至既有视口与 320px 上限。只有 footer 时不画孤立分隔线，估算与 DOM 保持同构。业务复合模型标签继续拥有主次布局并保留完整名称提示。
 
 Action Menu 可传入非交互 header 作为身份说明，位于动作区上方并由共享分隔线隔开；header 纳入现有内容测高，不参与菜单键盘动作遍历。
+
+SelectMenu 外层允许收缩到所属 Grid/Flex 字段宽度；长选项在触发器内部截断，不能以 intrinsic min-width 覆盖相邻只读数据或动作。

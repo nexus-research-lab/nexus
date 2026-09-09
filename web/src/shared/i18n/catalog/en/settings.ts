@@ -2,6 +2,7 @@ import type { MessageSegment } from "../message-segment";
 import type { zhSettingsMessages } from "../zh/settings";
 
 export const enSettingsMessages = {
+  "settings.open_navigation": "Settings navigation",
   "settings.search_navigation": "Search settings…",
   "settings.search_no_results": "No matching settings",
   "settings.personal.daily_usage": "Daily tokens",
@@ -492,8 +493,10 @@ export const enSettingsMessages = {
   "operations.tabs.subscription_plans": "Plan management",
   "operations.tabs.subscription_providers": "Subscription Provider",
   "operations.tabs.projects": "Project access",
+  "members.active": "Active",
+  "members.revoked": "Suspended",
   "members.title": "Deployment members",
-  "members.description": "These accounts share this Nexus deployment's sign-in. Membership changes do not move or merge Agent, workspace, or transcript data.",
+  "members.description": "Manage member accounts, roles, and access to this deployment.",
   "members.refresh": "Refresh",
   "members.create_title": "Create account",
   "members.username": "Username",
@@ -520,7 +523,7 @@ export const enSettingsMessages = {
   "members.suspend": "Suspend",
   "members.restore": "Restore",
   "settings.projects.title": "Project access",
-  "settings.projects.description": "Create shared projects and manage member read/write access through OS group ACLs. Permission changes recycle the member's existing runtimes.",
+  "settings.projects.description": "Create shared projects and assign read or write access. Changing access restarts the affected member’s runtime.",
   "settings.projects.create_label": "Project ID",
   "settings.projects.create_placeholder": "e.g. research-team",
   "settings.projects.create": "Create project",

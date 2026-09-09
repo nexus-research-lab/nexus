@@ -1,3 +1,6 @@
+// INPUT: 设置 URL、角色权限、搜索词与导航后回调。
+// OUTPUT: 宽侧栏、图标栏与窄屏面板共用的分组入口。
+// POS: 设置导航视图；运营入口逐项沿用权限过滤。
 "use client";
 
 import { useState } from "react";
@@ -5,6 +8,9 @@ import { useState } from "react";
 import {
   ArrowLeft,
   Cable,
+  UsersRound,
+  CreditCard,
+  ListChecks,
   Chrome,
   Cpu,
   FolderKanban,
@@ -26,6 +32,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { canUseOperations } from "./operations/operations-access";
 import {
   SETTINGS_NAVIGATION_GROUPS,
+  isOperationsSection,
   type SettingsSectionKey,
 } from "./settings-navigation-model";
 import {
@@ -39,7 +46,11 @@ const SETTINGS_SECTION_ICONS: Record<SettingsSectionKey, LucideIcon> = {
   appearance: Palette,
   general: Settings2,
   runtime: Cpu,
-  operations: ShieldCheck,
+  "operations-members": UsersRound,
+  "operations-subscriptions": CreditCard,
+  "operations-plans": ListChecks,
+  "operations-providers": Cable,
+  "operations-projects": FolderKanban,
   permissions: ShieldCheck,
 	browser: Chrome,
   personal: UserRound,
@@ -49,13 +60,19 @@ const SETTINGS_SECTION_ICONS: Record<SettingsSectionKey, LucideIcon> = {
 
 export function SettingsSidebarNavigation({
   variant,
+  onNavigate,
 }: {
   variant: "panel" | "rail";
+  onNavigate?: () => void;
 }) {
   const { t } = useI18n();
   const { status } = useAuth();
-  const { activeSection, backToWorkspace, selectSection } =
+  const { activeSection, backToWorkspace, selectSection: navigateToSection } =
     useSettingsNavigation();
+  const selectSection = (...args: Parameters<typeof navigateToSection>) => {
+    navigateToSection(...args);
+    onNavigate?.();
+  };
   const isRail = variant === "rail";
   const [query, setQuery] = useState("");
   const matcher = createUiSearchMatcher(isRail ? "" : query);
@@ -70,7 +87,7 @@ export function SettingsSidebarNavigation({
         (matcher.matches([t(item.labelKey), t(group.labelKey)]) || searchItems(item.key).length > 0) &&
         (item.key !== "workspace" || isDesktopRuntime()) &&
 				(item.key !== "browser" || isDesktopRuntime()) &&
-        (item.key !== "operations" ||
+        (!isOperationsSection(item.key) ||
           (!isDesktopRuntime() && canUseOperations(status?.role))),
     ),
   })).filter((group) => group.items.length > 0);
@@ -107,7 +124,7 @@ export function SettingsSidebarNavigation({
       className="soft-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto px-2 py-2.5"
     >
       <SettingsNavigationButton
-        className="mb-2 font-normal"
+        className="mb-2"
         onClick={backToWorkspace}
       >
         <ArrowLeft className="h-3.5 w-3.5" />
@@ -150,7 +167,7 @@ export function SettingsSidebarNavigation({
                   {searchItems(item.key).map((fields) => (
                     <SettingsNavigationButton
                       key={fields[0]}
-                      className="pl-7 font-normal"
+                      className="pl-7"
                       onClick={() => selectSection(item.key, fields[0])}
                     >
                       <span className="text-left whitespace-normal">{t(fields[0])}</span>
