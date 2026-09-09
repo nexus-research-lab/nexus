@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Keep appearance number drafts intact during IME confirmation and match adjustment feedback to the current value.
+
 - Preserve browser zoom gestures over conversation tabs and release wheel events at scroll boundaries.
 
 - Reuse the shared icon button for conversation pinning, preserving independent tab actions.
