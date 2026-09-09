@@ -141,7 +141,6 @@ export function ContactsDirectory({
               </span>
               <UiFilterSelect
                 ariaLabel={t("contacts.filters.tags")}
-                label={t("contacts.filters.tag_label")}
                 className="w-full sm:w-[232px]"
                 disabled={businessTags.length === 0}
                 menuMinWidth={220}
@@ -151,7 +150,6 @@ export function ContactsDirectory({
               />
               <UiFilterSelect
                 ariaLabel={t("contacts.filters.providers")}
-                label={t("contacts.metadata.provider")}
                 className="w-full sm:w-[224px]"
                 menuMinWidth={190}
                 onChange={setProviderFilter}
@@ -160,7 +158,6 @@ export function ContactsDirectory({
               />
               <UiFilterSelect
                 ariaLabel={t("contacts.filters.permissions")}
-                label={t("contacts.metadata.permission")}
                 className="w-full sm:w-[232px]"
                 menuMinWidth={180}
                 onChange={setPermissionFilter}

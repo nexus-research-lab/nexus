@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Simplify shared directory filters to the selected value and chevron, removing
+  repeated category prefixes while retaining accessible names and explicit all-category labels.
+
 - Compact sidebar footer actions: settings sits beside help; local mode hides the
   account bar, while authenticated Web sessions retain an avatar logout menu.
 

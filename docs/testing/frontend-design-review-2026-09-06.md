@@ -3830,3 +3830,10 @@ Team 5 项回归通过，实际 Hook 的测试覆盖阅读位置保留、返回�
 按用户反馈移除本地 Local User 长条，设置直接以公共圆形图标与帮助并排，保留权限和选中态；密码认证会话保留紧凑头像，名称与退出留在公共菜单。删除底栏宽度测量及冗余设置菜单项，沿用共享菜单定位与焦点逻辑。
 
 3 项 DOM 回归覆盖设置跳转、权限隐藏、帮助与显式退出；目标 eslint/typecheck 通过，日志 /tmp/nexus-a114-{target,types}.log。未进行视觉验证。489 项现为 217 pending、132 in_progress、112 improved、22 retained、6 removed。
+
+
+## A115 — 全部同类目录筛选去重
+
+UiFilterSelect 删除可见 label API，所有联系人、技能、连接器、渠道、配对、Loop 消费点同步清理，触发器只显示受控选值和箭头。分类 all 文案双语明确为全部分类，已有全部 Provider/权限/渠道/智能体保留；普通表单字段不变。Gallery 仅同步 API 与文案，不扩展或运行视觉验证。
+
+31 项共享菜单回归通过，目标 lint/typecheck 通过，见 /tmp/nexus-a115-{target,lint,types}.log。更新消费点源哈希，仅作为本次筛选 API 修改证据，不改变整页审查状态与总计。

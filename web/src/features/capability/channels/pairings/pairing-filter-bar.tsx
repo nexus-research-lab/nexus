@@ -81,7 +81,6 @@ export function PairingFilterBar({
         />
         <UiFilterSelect
           ariaLabel="按渠道筛选"
-          label={t("capability.channel_label")}
           onChange={(value) => onChange(
             "channel",
             value as ImChannelType | "",
@@ -95,7 +94,6 @@ export function PairingFilterBar({
         <UiFilterSelect
           ariaLabel="按处理智能体筛选"
           className="sm:w-[220px]"
-          label={t("capability.agent_label")}
           onChange={(value) => onChange("agentId", value)}
           options={[
             { value: "", label: "全部智能体" },

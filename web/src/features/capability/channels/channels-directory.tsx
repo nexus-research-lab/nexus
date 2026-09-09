@@ -81,7 +81,6 @@ export function ChannelsDirectory() {
             />
             <UiFilterSelect
               ariaLabel={t("capability.channels_filter_aria")}
-              label={t("capability.status_label")}
               onChange={(value) => controller.setChannelFilter(
                 value as ChannelFilter,
               )}

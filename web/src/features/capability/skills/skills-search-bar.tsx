@@ -129,7 +129,6 @@ export function SkillsSearchBar({
         {discoveryMode === "catalog" ? (
           <UiFilterSelect
             ariaLabel={t("capability.skills_filter_aria")}
-            label={t("capability.category_label")}
             onChange={onChangeCategory}
             options={categories.map((category) => ({
               label: category.label,
@@ -142,7 +141,6 @@ export function SkillsSearchBar({
         ) : (
           <UiFilterSelect
             ariaLabel={t("capability.skill_source_search_scope")}
-            label={t("capability.skill_sources")}
             onChange={onChangeExternalSource}
             options={externalSources}
             value={externalSourceId}

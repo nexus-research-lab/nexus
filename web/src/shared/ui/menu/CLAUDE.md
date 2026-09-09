@@ -2,7 +2,7 @@
 
 - `menu-styles.ts` 的 getMenuItemLayout 同时拥有 compact/default、单行/说明行的渲染尺寸与估算高度；UiMenuActionRow、Action Menu 估算和 Mention Option 共用，禁止分别维护相同数字。
 - `getMenuContentHeight` 统一累加行、分隔线、上下内边距和条目间距；Action、Workspace 与 Room 模型菜单直接消费。分隔线外观由 `MENU_SEPARATOR_CLASS_NAME` 持有，不再各自推导 footer 高度。Action 行透传原生 ref，且不参与 flex 压缩，长菜单通过外层滚动保留有限行高。
-- `filter-select.tsx` 的 `UiFilterSelect` 是能力与联系人目录共用的具名筛选 Pattern：必填可见标签，选项、值、命令和内容宽度由业务拥有，菜单与控件外观直接复用 `UiSelectMenu`；不接受前导图标或第二套按钮样式。交互和视觉合同见根目录 `design.md`。
+- `filter-select.tsx` 的 `UiFilterSelect` 是能力与联系人目录共用的具名筛选 Pattern：必填辅助名称，触发器只显示当前值与箭头，未筛选文案明确为全部分类/状态等；选项、值、命令和内容宽度由业务拥有，菜单与控件外观直接复用 `UiSelectMenu`；不接受前导图标或第二套按钮样式。交互和视觉合同见根目录 `design.md`。
 - `select-menu-model.ts` 只计算当前选项、键盘遍历、高度估算和锚点几何，不得返回视觉类；`select-menu-styles.ts` 独占菜单共用的尺寸、表面、标签换行和选中态视觉 recipe。业务需要组合多选或特殊 listbox 时可以复用 style recipe，但不得从 model 导入样式。
 - `use-select-menu-overlay.ts` 统一选择菜单的内部开关、锚点定位和触发键盘协议。
 - `UiSelectMenu.resetKey` 由调用方描述选择上下文；变化时通过共享 resettable state 丢弃菜单打开态，不重建 trigger DOM，也不改变当前选值或外部焦点。Room Goal 传精确 Session 与候选身份集合，普通名称、顺序或语言更新不关闭菜单；无 resetKey 的既有消费者保持原行为。
