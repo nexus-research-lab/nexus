@@ -8,9 +8,10 @@ import { MESSAGES, type TranslationKey } from "@/shared/i18n/messages";
 import { SettingsSidebarNavigation } from "./settings-sidebar-navigation";
 
 const selectSection = vi.hoisted(() => vi.fn());
+const backToWorkspace = vi.hoisted(() => vi.fn());
 vi.mock("@/shared/auth/auth-context", () => ({ useAuth: () => ({ status: { role: "member" } }) }));
 vi.mock("@/shared/i18n/i18n-context", () => ({ useI18n: () => ({ t: (key: TranslationKey) => MESSAGES.zh[key] }) }));
-vi.mock("./use-settings-navigation", () => ({ useSettingsNavigation: () => ({ activeSection: "general", backToWorkspace: vi.fn(), selectSection }) }));
+vi.mock("./use-settings-navigation", () => ({ useSettingsNavigation: () => ({ activeSection: "general", backToWorkspace, selectSection }) }));
 
 it("filters names and groups, reports no results and restores navigation on clear", async () => {
   const user = userEvent.setup();
@@ -42,4 +43,16 @@ it("finds setting descriptions beneath their module without exposing restricted 
   await user.type(search, "部署成员");
   expect(screen.queryByRole("button", { name: "运营" })).toBeNull();
   expect(screen.getByRole("status")).toBeTruthy();
+});
+
+it("keeps the compact back action named and keyboard accessible before search", async () => {
+  const user = userEvent.setup();
+  render(<SettingsSidebarNavigation variant="panel" />);
+  const back = screen.getByRole("button", { name: "返回工作台" });
+  await user.tab();
+  expect(document.activeElement).toBe(back);
+  await user.keyboard("{Enter}");
+  expect(backToWorkspace).toHaveBeenCalledOnce();
+  await user.tab();
+  expect(document.activeElement).toBe(screen.getByRole("searchbox", { name: "搜索设置…" }));
 });
