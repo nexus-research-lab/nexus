@@ -73,7 +73,7 @@ describe("ScheduledTaskCard", () => {
     const { container, rerender } = render(view(task, vi.fn(), "en"));
     expect(screen.getByText("This run encountered a problem. View diagnostics for details.")).toBeTruthy();
     expect(container.textContent).not.toContain("private-agent-id");
-    await userEvent.setup().click(screen.getByRole("button", { name: /查看.*详情/ }));
+    await userEvent.setup().click(screen.getByRole("button", { name: /View details:/ }));
     expect(screen.getByRole("dialog").textContent).toContain(error);
     rerender(view(task, vi.fn(), "zh"));
     expect(screen.getByText("运行遇到问题，可查看诊断了解详情")).toBeTruthy();
@@ -84,7 +84,7 @@ describe("ScheduledTaskCard", () => {
     const task = { ...TASK, last_error: "Permission request timeout", failure_streak: 1 };
     const { rerender } = render(view(task, vi.fn(), "en"));
     expect(screen.getByText("Timed out waiting for a permission response")).toBeTruthy();
-    await userEvent.setup().click(screen.getByRole("button", { name: /查看.*详情/ }));
+    await userEvent.setup().click(screen.getByRole("button", { name: /View details:/ }));
     expect(screen.getByRole("dialog").textContent).toContain("Technical details: Permission request timeout");
     rerender(view(task, vi.fn(), "zh"));
     expect(screen.getByText("等待权限响应超时")).toBeTruthy();
@@ -169,4 +169,16 @@ it.each(["zh", "en"] as const)("localizes shared permission actions in %s and ke
     await user.click(button);
   }
   expect(decide).toHaveBeenCalledOnce();
+});
+
+
+it("updates card action names when the locale changes without changing the run target", async () => {
+  const onRunNow = vi.fn();
+  const result = render(view(TASK, onRunNow, "en"));
+  const run = screen.getByRole("button", { name: "Run now" });
+  await userEvent.setup().click(run);
+  expect(onRunNow).toHaveBeenCalledExactlyOnceWith(TASK);
+  result.rerender(view(TASK, onRunNow, "zh"));
+  expect(screen.getByRole("button", { name: "立即运行" })).toBe(run);
+  expect(screen.queryByRole("button", { name: "Run now" })).toBeNull();
 });
