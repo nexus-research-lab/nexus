@@ -26,7 +26,16 @@ export interface LoginParams {
   password: string;
 }
 
+export interface DailyTokenUsage {
+  date: string;
+  input_tokens: number;
+  output_tokens: number;
+  cache_tokens: number;
+  total_tokens: number;
+}
+
 export interface TokenUsageSummary {
+  daily?: DailyTokenUsage[];
   input_tokens: number;
   output_tokens: number;
   cache_creation_input_tokens: number;
