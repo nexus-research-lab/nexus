@@ -38,7 +38,9 @@ export const AppRouteBuilders = {
   setup: () => APP_ROUTE_PATHS.setup,
   launcher: () => APP_ROUTE_PATHS.launcher,
   home: () => APP_ROUTE_PATHS.home,
-  team: () => APP_ROUTE_PATHS.team,
+  team: (roomId?: string) => roomId
+    ? `${APP_ROUTE_PATHS.team}?room_id=${encodeURIComponent(roomId)}`
+    : APP_ROUTE_PATHS.team,
   room: (roomId: string) => `/rooms/${encodeURIComponent(roomId)}`,
   roomSession: (roomId: string, sessionKey: string) =>
     `/rooms/${encodeURIComponent(roomId)}/sessions/${encodeURIComponent(sessionKey)}`,

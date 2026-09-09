@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Hide the sidebar account and help footer while viewing settings, restoring it when returning to the workspace.
 
+- Support Node.js 25 for frontend development and checks, isolate jsdom storage from Node Web Storage in component tests, and validate Node 22/24/25 in CI.
+
 
 ### Added
 
@@ -32,11 +34,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Keep Desktop local capabilities and the `__system__` data owner active at all times, while the App connects account and Team requests to the public Nexus gateway for optional online Control sign-in without shipping Control service credentials or switching the local data directory.
 
-- Redesign personal settings with a centered profile, bounded content width, concise token usage, and an expandable password form; remove redundant metric cards and decorative icons.
-
 - Adapt streaming Markdown to output pressure: keep low-speed character pacing, merge completed blocks during bursts, reduce long-tail parsing, and drain completed responses promptly across concurrent Agents.
 
+- Redesign personal settings with a centered profile, bounded content width, concise token usage, and an expandable password form; remove redundant metric cards and decorative icons.
+
+- Make the account menu avatar/name row open personal settings with the same hover and keyboard feedback as other menu actions.
+
 - Keep all three Launcher recent entries on one evenly sized row, truncating long labels without stretching the hero.
+
+- Gate online Room discovery, navigation, creation, messaging, and Relay token exchange behind an authenticated Control remote session; desktop local users remain local-only.
 
 - Simplify RichMail setup into a compact three-step guide, collapse technical connection details, and show the tool catalog only after connecting.
 
@@ -68,6 +74,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Hide Project access and block direct navigation unless the host exposes an enabled Linux ACL control plane with an executable launcher.
+
 - Drain HTTP requests and wait for background workers before releasing server resources, and retry failed identity cleanup while Control remains unavailable.
 
 - Clarify fixed inspect operations in command contracts and return the exact inspect call when agents incorrectly invoke them, preventing misleading operation-registration retries.
@@ -79,6 +87,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix completed legacy queued runs being restored as active task occupancy; reconcile proven finished remnants during scheduler audits, reject stale runtime snapshots, and show unknown start times honestly.
 
 - Store each Team Conversation and Relay Message once per deployment while keeping only per-owner recovery cursors, including migration of existing duplicated projections.
+
+- Require explicit `@Agent` targeting in group Rooms; coordinator identity no longer auto-routes ordinary chat.
 
 - Keep Team local-projection cursors behind failed writes, recover Relay stream-epoch changes through a typed WebSocket reset, and replay committed sends through difference before advancing the browser cursor.
 
@@ -100,10 +110,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added opt-in Nexus Relay configuration, fixed-audience Control user token
   exchange, an independent typed Relay M1 HTTP client, and authenticated
   `/nexus/v1/team/...` browser gateway endpoints with Relay stream-epoch propagation,
-  WSS-triggered difference recovery, owner-scoped local projection, and a shared
-  General Room in the existing chat UI.
+  WSS-triggered difference recovery, owner-scoped local projection, and shared
+  Room surfaces in the existing chat UI. Online Rooms are created explicitly,
+  selected from the normal chat directory, and never synthesized as a fixed General Room.
 
 ### Fixed
+
+- Let Relay Rooms participate in the normal chat-directory order and reuse the existing Room conversation surface instead of a fixed, standalone chat layout.
 
 - Fixed LaTeX parenthesis/bracket delimiters and formulas containing blank lines in streamed replies.
 

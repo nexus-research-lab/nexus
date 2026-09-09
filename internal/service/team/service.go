@@ -25,7 +25,8 @@ type Access struct {
 
 // RelayClient 是同步流程所需的远端操作端口。
 type RelayClient interface {
-	Bootstrap(context.Context, string) (relaycontract.Bootstrap, error)
+	ListRooms(context.Context, string) (relaycontract.RoomList, error)
+	CreateRoom(context.Context, string, string, relaycontract.CreateRoomInput) (relaycontract.RoomView, error)
 	PostMessage(
 		context.Context,
 		string,
@@ -49,7 +50,7 @@ type RelayClient interface {
 
 // Projector 负责将远端权威结果写入本地读模型。
 type Projector interface {
-	ProjectBootstrap(context.Context, string, relaycontract.Bootstrap) error
+	ProjectRoom(context.Context, string, string, relaycontract.RoomView) error
 	ProjectCommit(context.Context, string, relaycontract.MessageCommit) error
 	ProjectSnapshot(context.Context, string, relaycontract.Snapshot) error
 	ProjectDifference(context.Context, string, relaycontract.Difference) error
@@ -80,13 +81,30 @@ func (s *Service) project(apply func() error) error {
 	return nil
 }
 
-// Bootstrap 获取远端默认协作空间并确认本地投影。
-func (s *Service) Bootstrap(ctx context.Context, access Access) (relaycontract.Bootstrap, error) {
-	result, err := s.relay.Bootstrap(ctx, access.Token)
+// ListRooms 返回已建立本地投影的在线目录。
+func (s *Service) ListRooms(ctx context.Context, access Access) (relaycontract.RoomList, error) {
+	result, err := s.relay.ListRooms(ctx, access.Token)
 	if err != nil {
 		return result, err
 	}
-	return result, s.project(func() error { return s.local.ProjectBootstrap(ctx, access.OwnerUserID, result) })
+	err = s.project(func() error {
+		for _, room := range result.Rooms {
+			if err := s.local.ProjectRoom(ctx, access.OwnerUserID, access.DeploymentID, room); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	return result, err
+}
+
+// CreateRoom 创建远端 Room 并确认本地投影。
+func (s *Service) CreateRoom(ctx context.Context, access Access, key string, input relaycontract.CreateRoomInput) (relaycontract.RoomView, error) {
+	result, err := s.relay.CreateRoom(ctx, access.Token, key, input)
+	if err != nil {
+		return result, err
+	}
+	return result, s.project(func() error { return s.local.ProjectRoom(ctx, access.OwnerUserID, access.DeploymentID, result) })
 }
 
 // PostMessage 保留远端已提交事实，本地失败由同步恢复。

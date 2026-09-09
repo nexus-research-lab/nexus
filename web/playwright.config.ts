@@ -7,7 +7,8 @@ import { defineConfig } from "@playwright/test";
 const themes = ["light", "dark", "rain"] as const;
 const locales = ["zh", "en"] as const;
 const widths = [320, 767, 768, 1440];
-const baseURL = "http://127.0.0.1:3100";
+const port = process.env.NEXUS_BROWSER_TEST_PORT ?? "3100";
+const baseURL = `http://127.0.0.1:${port}`;
 
 export default defineConfig({
   testDir: "./browser-tests",
@@ -42,7 +43,7 @@ export default defineConfig({
     },
   }))))],
   webServer: {
-    command: "npm run dev -- --mode browser-test --host 127.0.0.1 --port 3100",
+    command: `npm run dev -- --mode browser-test --host 127.0.0.1 --port ${port}`,
     url: `${baseURL}/ui-gallery.html`,
     reuseExistingServer: false,
     timeout: 60_000,

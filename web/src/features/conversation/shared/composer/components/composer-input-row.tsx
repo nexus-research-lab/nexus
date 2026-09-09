@@ -22,7 +22,10 @@ import type { SkillInfo } from "@/types/capability/skill";
 import { projectLeadingSlashCommand } from "../../slash-command-presentation";
 import { SlashCommandToken } from "../../slash-command-token";
 
-import { COMPOSER_TEXTAREA_MAX_HEIGHT_PX } from "../composer-styles";
+import {
+  COMPOSER_TEXTAREA_CLASS_NAME,
+  COMPOSER_TEXTAREA_MAX_HEIGHT_PX,
+} from "../composer-styles";
 import type { SlashModelOption } from "../slash-command-model";
 import type { ComposerReadFailure } from "../controller/composer-settings-reliability";
 import { SlashCommandPopover } from "./slash-command-popover";
@@ -160,11 +163,8 @@ export function ComposerInputRow({
           ref={textareaRef}
           aria-label={input.placeholder}
           className={cn(
-            "multiline-cursor soft-scrollbar relative z-10 block min-h-8 w-full min-w-0 resize-none overflow-y-auto overscroll-contain bg-transparent px-1.5 py-1 text-base leading-6 outline-none shadow-none ring-0",
+            COMPOSER_TEXTAREA_CLASS_NAME,
             slashCommandPresentation ? "text-transparent" : "text-(--text-strong)",
-            "placeholder:text-(--text-soft)",
-            "disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
-            "focus:border-0 focus:bg-transparent focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none",
           )}
           disabled={input.disabled}
           onChange={(event) => input.onChange(event.target.value)}

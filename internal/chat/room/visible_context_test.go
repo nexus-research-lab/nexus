@@ -162,7 +162,7 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 		"recipients sets visibility",
 		"wake_targets selects who runs",
 		"Runtime routes one final reply per recipient through reply_route",
-		"room_host_default routes an unaddressed turn to the host",
+		"Group Agents wake only through explicit @mention",
 		"reply_route projects",
 		"members may use local subagents",
 		"not the word “collaborate” or participant count",

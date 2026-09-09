@@ -8,4 +8,5 @@
 //   - imagegen_defaults.go：在 Preferences owner 锁内完成的图片生成默认偏好投影。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
+// runtime/options 的 project_permissions_enabled 由项目服务提供，未绑定时默认关闭。
 package core

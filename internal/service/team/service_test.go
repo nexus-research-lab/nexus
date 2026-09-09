@@ -16,8 +16,13 @@ type syncRemote struct {
 	err               error
 }
 
-func (f *syncRemote) Bootstrap(context.Context, string) (relaycontract.Bootstrap, error) {
-	return relaycontract.Bootstrap{}, f.err
+func (f *syncRemote) ListRooms(context.Context, string) (relaycontract.RoomList, error) {
+	return relaycontract.RoomList{Rooms: []relaycontract.RoomView{{}}}, f.err
+}
+func (f *syncRemote) CreateRoom(_ context.Context, token, key string, _ relaycontract.CreateRoomInput) (relaycontract.RoomView, error) {
+	f.key = key
+	f.token = token
+	return relaycontract.RoomView{}, f.err
 }
 func (f *syncRemote) PostMessage(_ context.Context, token, _, key string, _ relaycontract.CreateMessageInput) (relaycontract.MessageCommit, error) {
 	f.key = key
@@ -34,14 +39,15 @@ func (f *syncRemote) Difference(_ context.Context, _, _ string, options relaycon
 }
 
 type syncProjection struct {
-	err   error
-	calls int
-	owner string
+	err               error
+	calls             int
+	owner, deployment string
 }
 
-func (f *syncProjection) ProjectBootstrap(_ context.Context, owner string, _ relaycontract.Bootstrap) error {
+func (f *syncProjection) ProjectRoom(_ context.Context, owner, deployment string, _ relaycontract.RoomView) error {
 	f.calls++
 	f.owner = owner
+	f.deployment = deployment
 	return f.err
 }
 func (f *syncProjection) ProjectCommit(_ context.Context, owner string, _ relaycontract.MessageCommit) error {
@@ -66,8 +72,11 @@ func TestSyncProjectionFailurePreservesRemoteCommitAndReadFence(t *testing.T) {
 	service := New(remote, projection, nil)
 	access := Access{OwnerUserID: "owner-a", DeploymentID: "deployment-a", Token: "trusted-token"}
 	ctx := context.Background()
-	if _, err := service.Bootstrap(ctx, access); !errors.Is(err, ErrProjection) {
-		t.Fatalf("bootstrap err=%v", err)
+	if _, err := service.ListRooms(ctx, access); !errors.Is(err, ErrProjection) {
+		t.Fatalf("list err=%v", err)
+	}
+	if _, err := service.CreateRoom(ctx, access, "create-key", relaycontract.CreateRoomInput{}); !errors.Is(err, ErrProjection) {
+		t.Fatalf("create err=%v", err)
 	}
 	snapshot := int64(9)
 	through := int64(8)
@@ -83,14 +92,14 @@ func TestSyncProjectionFailurePreservesRemoteCommitAndReadFence(t *testing.T) {
 	if err != nil || result.EventSeq != 9 || !result.Replayed || result.StreamEpoch != "epoch" {
 		t.Fatalf("commit=%+v err=%v", result, err)
 	}
-	if projection.owner != access.OwnerUserID || projection.calls != 4 {
+	if projection.owner != access.OwnerUserID || projection.deployment != access.DeploymentID || projection.calls != 5 {
 		t.Fatalf("projection=%+v", projection)
 	}
 	if remote.key != "message-key" || remote.token != access.Token || remote.snapshotOptions != options || remote.differenceOptions != difference {
 		t.Fatalf("远端身份或游标被改写: %+v", remote)
 	}
 	remote.err = errors.New("remote unavailable")
-	if _, err := service.PostMessage(ctx, access, "conversation", "message-key", relaycontract.CreateMessageInput{}); err != remote.err || projection.calls != 4 {
+	if _, err := service.PostMessage(ctx, access, "conversation", "message-key", relaycontract.CreateMessageInput{}); err != remote.err || projection.calls != 5 {
 		t.Fatal("远端失败不得开始投影")
 	}
 }

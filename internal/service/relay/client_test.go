@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -88,19 +87,28 @@ func TestClientMatchesRelayM1HTTPContract(t *testing.T) {
 		}
 		writer.Header().Set("Content-Type", "application/json")
 		switch request.Method + " " + request.URL.Path {
-		case "POST /api/relay/v1/bootstrap":
-			body, _ := io.ReadAll(request.Body)
-			if len(body) != 0 {
-				t.Errorf("bootstrap body = %q", body)
-			}
-			writeRelayTestData(t, writer, http.StatusOK, relaycontract.Bootstrap{
-				Team: relaycontract.Team{ID: "team-1", DeploymentID: "deployment-1", Name: "Nexus"},
-				Room: relaycontract.Room{ID: "room-1", TeamID: "team-1", Name: "General"},
+		case "GET /api/relay/v1/rooms":
+			writeRelayTestData(t, writer, http.StatusOK, relaycontract.RoomList{Rooms: []relaycontract.RoomView{{
+				Room: relaycontract.Room{ID: "room-1", TeamID: "team-1", Name: "研发群"},
 				Conversation: relaycontract.Conversation{
-					ID: "conversation-1", RoomID: "room-1", Type: "main",
-					HighWaterMessageSeq: 3, SyncStreamID: "stream-1", StreamEpoch: "epoch-1",
-					HighWaterSyncEventSeq: 4,
+					ID: "conversation-1", RoomID: "room-1", SyncStreamID: "stream-1", StreamEpoch: "epoch-1",
 				},
+				CurrentUserRole: "owner",
+			}}})
+		case "POST /api/relay/v1/rooms":
+			if request.Header.Get("Idempotency-Key") != "create-room-1" {
+				t.Errorf("Idempotency-Key = %q", request.Header.Get("Idempotency-Key"))
+			}
+			var input relaycontract.CreateRoomInput
+			if err := json.NewDecoder(request.Body).Decode(&input); err != nil || input.Name != "研发群" {
+				t.Errorf("create room input = %+v, %v", input, err)
+			}
+			writeRelayTestData(t, writer, http.StatusCreated, relaycontract.RoomView{
+				Room: relaycontract.Room{ID: "room-1", TeamID: "team-1", Name: "研发群"},
+				Conversation: relaycontract.Conversation{
+					ID: "conversation-1", RoomID: "room-1", SyncStreamID: "stream-1", StreamEpoch: "epoch-1",
+				},
+				CurrentUserRole: "owner",
 			})
 		case "POST /api/relay/v1/conversations/conversation-1/messages":
 			if request.Header.Get("Idempotency-Key") != "command-1" {
@@ -155,9 +163,13 @@ func TestClientMatchesRelayM1HTTPContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	bootstrap, err := client.Bootstrap(ctx, token)
-	if err != nil || bootstrap.Conversation.SyncStreamID != "stream-1" {
-		t.Fatalf("Bootstrap() = %+v, %v", bootstrap, err)
+	rooms, err := client.ListRooms(ctx, token)
+	if err != nil || len(rooms.Rooms) != 1 || rooms.Rooms[0].CurrentUserRole != "owner" {
+		t.Fatalf("ListRooms() = %+v, %v", rooms, err)
+	}
+	created, err := client.CreateRoom(ctx, token, "create-room-1", relaycontract.CreateRoomInput{Name: "研发群"})
+	if err != nil || created.Room.ID != "room-1" || created.Conversation.StreamEpoch != "epoch-1" {
+		t.Fatalf("CreateRoom() = %+v, %v", created, err)
 	}
 	commit, err := client.PostMessage(ctx, token, "conversation-1", "command-1", relaycontract.CreateMessageInput{
 		Content: relaycontract.MessageContent{
@@ -262,8 +274,8 @@ func TestClientRejectsTrailingResponseData(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = client.Bootstrap(context.Background(), "token"); err == nil {
-		t.Fatal("Bootstrap() accepted trailing response data")
+	if _, err = client.ListRooms(context.Background(), "token"); err == nil {
+		t.Fatal("ListRooms() accepted trailing response data")
 	}
 }
 

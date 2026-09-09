@@ -1,4 +1,4 @@
-// INPUT: 当前 owner、Relay bootstrap/message/snapshot/difference 结果。
+// INPUT: 当前 owner/deployment、Relay Room/message/snapshot/difference 结果。
 // OUTPUT: deployment 共享消息、owner 独立游标、幂等且连续的 Nexus 本地投影。
 // POS: Relay 权威消息进入 Nexus 单一数据库的本地读模型边界。
 package teamrelay
@@ -30,15 +30,17 @@ func NewRepository(cfg config.Config, db *sql.DB) *Repository {
 	return &Repository{db: db, dialect: storage.NewSQLDialect(cfg.DatabaseDriver)}
 }
 
-// ProjectBootstrap 建立默认 Team Conversation 的共享投影和 owner 游标。
-func (r *Repository) ProjectBootstrap(
+// ProjectRoom 建立在线 Room Conversation 的共享投影和 owner 游标。
+func (r *Repository) ProjectRoom(
 	ctx context.Context,
 	ownerUserID string,
-	bootstrap relaycontract.Bootstrap,
+	deploymentID string,
+	room relaycontract.RoomView,
 ) error {
 	ownerUserID = strings.TrimSpace(ownerUserID)
-	if ownerUserID == "" {
-		return errors.New("Relay 投影缺少 owner")
+	deploymentID = strings.TrimSpace(deploymentID)
+	if ownerUserID == "" || deploymentID == "" {
+		return errors.New("Relay 投影缺少 owner 或 deployment")
 	}
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -51,9 +53,9 @@ deployment_id, team_id, room_id, conversation_id, stream_id, stream_epoch
 ) VALUES (` + r.dialect.BindList(6) + `)
 ON CONFLICT(deployment_id, conversation_id) DO NOTHING`
 	if _, err = tx.ExecContext(ctx, query,
-		bootstrap.Team.DeploymentID, bootstrap.Team.ID, bootstrap.Room.ID,
-		bootstrap.Conversation.ID, bootstrap.Conversation.SyncStreamID,
-		bootstrap.Conversation.StreamEpoch,
+		deploymentID, room.Room.TeamID, room.Room.ID,
+		room.Conversation.ID, room.Conversation.SyncStreamID,
+		room.Conversation.StreamEpoch,
 	); err != nil {
 		return err
 	}
@@ -61,33 +63,33 @@ ON CONFLICT(deployment_id, conversation_id) DO NOTHING`
 	// Conversation 是共享写锁；所有 owner 都按这个顺序再更新自己的 cursor。
 	if _, err = tx.ExecContext(ctx, `UPDATE team_relay_conversations SET updated_at = updated_at
 WHERE deployment_id = `+r.dialect.Bind(1)+` AND conversation_id = `+r.dialect.Bind(2),
-		bootstrap.Team.DeploymentID, bootstrap.Conversation.ID,
+		deploymentID, room.Conversation.ID,
 	); err != nil {
 		return err
 	}
 	var epoch string
 	if err = tx.QueryRowContext(ctx, `SELECT stream_epoch FROM team_relay_conversations
 WHERE deployment_id = `+r.dialect.Bind(1)+` AND conversation_id = `+r.dialect.Bind(2),
-		bootstrap.Team.DeploymentID, bootstrap.Conversation.ID,
+		deploymentID, room.Conversation.ID,
 	).Scan(&epoch); err != nil {
 		return err
 	}
-	if epoch != bootstrap.Conversation.StreamEpoch {
+	if epoch != room.Conversation.StreamEpoch {
 		if _, err = tx.ExecContext(ctx, `DELETE FROM team_relay_messages
 WHERE deployment_id = `+r.dialect.Bind(1)+` AND conversation_id = `+r.dialect.Bind(2),
-			bootstrap.Team.DeploymentID, bootstrap.Conversation.ID,
+			deploymentID, room.Conversation.ID,
 		); err != nil {
 			return err
 		}
 		if _, err = tx.ExecContext(ctx, `UPDATE team_relay_conversations SET next_room_seq = 1
 WHERE deployment_id = `+r.dialect.Bind(1)+` AND conversation_id = `+r.dialect.Bind(2),
-			bootstrap.Team.DeploymentID, bootstrap.Conversation.ID,
+			deploymentID, room.Conversation.ID,
 		); err != nil {
 			return err
 		}
 		if _, err = tx.ExecContext(ctx, `UPDATE team_relay_owner_cursors SET relay_seq = 0,
 updated_at = CURRENT_TIMESTAMP WHERE deployment_id = `+r.dialect.Bind(1)+`
-AND conversation_id = `+r.dialect.Bind(2), bootstrap.Team.DeploymentID, bootstrap.Conversation.ID); err != nil {
+AND conversation_id = `+r.dialect.Bind(2), deploymentID, room.Conversation.ID); err != nil {
 			return err
 		}
 	}
@@ -97,9 +99,8 @@ room_id = ` + r.dialect.Bind(2) + `, stream_id = ` + r.dialect.Bind(3) + `,
 stream_epoch = ` + r.dialect.Bind(4) + `, updated_at = CURRENT_TIMESTAMP
 WHERE deployment_id = ` + r.dialect.Bind(5) + ` AND conversation_id = ` + r.dialect.Bind(6)
 	if _, err = tx.ExecContext(ctx, query,
-		bootstrap.Team.ID, bootstrap.Room.ID, bootstrap.Conversation.SyncStreamID,
-		bootstrap.Conversation.StreamEpoch, bootstrap.Team.DeploymentID,
-		bootstrap.Conversation.ID,
+		room.Room.TeamID, room.Room.ID, room.Conversation.SyncStreamID,
+		room.Conversation.StreamEpoch, deploymentID, room.Conversation.ID,
 	); err != nil {
 		return err
 	}
@@ -108,7 +109,7 @@ owner_user_id, deployment_id, conversation_id
 ) VALUES (` + r.dialect.BindList(3) + `)
 ON CONFLICT(owner_user_id, deployment_id, conversation_id) DO NOTHING`
 	if _, err = tx.ExecContext(ctx, query,
-		ownerUserID, bootstrap.Team.DeploymentID, bootstrap.Conversation.ID,
+		ownerUserID, deploymentID, room.Conversation.ID,
 	); err != nil {
 		return err
 	}

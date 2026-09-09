@@ -9,4 +9,5 @@
 //   - channel_external_session.go：外部通道会话到 WebSocket 的通知适配。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
+// 核心启动配置 handler 绑定宿主 ProjectPermission 服务，投影 ACL 可用性。
 package server

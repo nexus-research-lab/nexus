@@ -7,7 +7,7 @@
 - `sidebar-conversation-model.ts` 只投影真实 Room/DM 目录项；主智能体 DM 固定置顶且不可删除，其他条目仍按最近活动排序，活动时间按当前界面语言格式化；未读状态由 `sidebar-unread-model.ts` 统一聚合。
 - 聊天行摘要显示 bootstrap 提供的最新 assistant 回复预览，不能用会话标题冒充消息；后端只读取最近两个 round，单个历史损坏不得阻断目录。目录首次失败必须与真实空目录分开展示并提供重试，后续刷新失败继续展示最后成功目录并使用非阻塞提示。
 - `use-chat-sidebar-controller.ts` 负责聊天列表导航、Room 创建和删除事务，视图不得直接调用 API 或 Store 命令。
-- Relay Team 可用时，控制器把默认 General 作为固定聊天项投影进同一目录；Team bootstrap 由 `features/team/` 持有，视图仍不直接请求。
+- 已登录 Control 远程账户且 Relay 可用时，控制器把当前用户加入的在线 Room 作为普通不可删除条目投影进同一目录，并复用统一的置顶、活动时间与标题排序；目录读取与显式建群由 `features/team/` 持有，桌面本地免登录用户不得探测 Relay。
 - Room 删除确认必须以同步锁阻止重复提交；只有 FailureCore 或 exact 目录对账明确证明 `not_applied` 才能再次 DELETE。传输中断、旧接口失败或提交证据不明一律保留确认面，先通过 Launcher 权威目录核对 exact Room；核对失败只能再次读取，不能重放删除。界面只说明结果、已有数据影响和下一步，不展示内部 effect、code、请求 ID 或清理阶段。
 - `chat-sidebar-panel.tsx` 与 `contacts-sidebar-panel.tsx` 是两个独立入口，不再通过聚合文件互相耦合。
 - 联系人搜索右侧的创建图标是创建智能体的直接入口，必须以 `view=create` 路由意图打开共享 Agent 编辑器；联系人空态中的管理动作仍只进入目录。聊天和联系人共用 `SidebarSearchField/SidebarSearchAction`，完整搜索名称与创建命令由各页面提供，不复制输入或按钮视觉。

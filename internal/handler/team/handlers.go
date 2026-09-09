@@ -116,17 +116,42 @@ func (h *Handlers) HandleStream(writer http.ResponseWriter, request *http.Reques
 	_ = connection.Close(websocket.StatusInternalError, "team stream interrupted")
 }
 
-// HandleBootstrap 获取当前登录用户的默认 Team 空间。
-func (h *Handlers) HandleBootstrap(writer http.ResponseWriter, request *http.Request) {
+// HandleListRooms 返回当前用户已加入的在线 Room，并建立本地同步投影。
+func (h *Handlers) HandleListRooms(writer http.ResponseWriter, request *http.Request) {
 	h.noStore(writer)
-	if !h.requireMutationOrigin(writer, request) || !h.requireEmptyBody(writer, request) {
+	token, ok := h.exchangeToken(writer, request, false)
+	if !ok {
+		return
+	}
+	result, err := h.team.ListRooms(request.Context(), teamAccess(request, token))
+	if err != nil {
+		h.writeRelayError(writer, request, err, false)
+		return
+	}
+	h.api.WriteSuccess(writer, result)
+}
+
+// HandleCreateRoom 显式创建在线 Room；创建者由 Relay 设为唯一真人群主。
+func (h *Handlers) HandleCreateRoom(writer http.ResponseWriter, request *http.Request) {
+	h.noStore(writer)
+	if !h.requireMutationOrigin(writer, request) {
+		return
+	}
+	idempotencyKey := strings.TrimSpace(request.Header.Get("Idempotency-Key"))
+	if !validIdempotencyKey(idempotencyKey) {
+		h.writeRequestError(writer, request, "team.room_invalid", "建群请求参数无效", true)
+		return
+	}
+	var input relaycontract.CreateRoomInput
+	if err := decodeStrictJSON(writer, request, &input); err != nil {
+		h.writeRequestError(writer, request, "team.room_invalid", "建群请求正文无效", true)
 		return
 	}
 	token, ok := h.exchangeToken(writer, request, true)
 	if !ok {
 		return
 	}
-	result, err := h.team.Bootstrap(request.Context(), teamAccess(request, token))
+	result, err := h.team.CreateRoom(request.Context(), teamAccess(request, token), idempotencyKey, input)
 	if err != nil {
 		h.writeRelayError(writer, request, err, true)
 		return
@@ -245,16 +270,6 @@ func (h *Handlers) requireMutationOrigin(writer http.ResponseWriter, request *ht
 	return false
 }
 
-func (h *Handlers) requireEmptyBody(writer http.ResponseWriter, request *http.Request) bool {
-	decoder := json.NewDecoder(http.MaxBytesReader(writer, request.Body, maxRequestBodyBytes))
-	var value any
-	if err := decoder.Decode(&value); errors.Is(err, io.EOF) {
-		return true
-	}
-	h.writeRequestError(writer, request, "team.bootstrap_invalid", "Bootstrap 请求不能包含正文", true)
-	return false
-}
-
 func (h *Handlers) exchangeToken(
 	writer http.ResponseWriter,
 	request *http.Request,
@@ -267,6 +282,15 @@ func (h *Handlers) exchangeToken(
 			Category: protocol.FailureCategoryAuthentication,
 			Effect:   requestEffect(mutation, true),
 			Detail:   "未登录或登录状态已过期",
+		})
+		return "", false
+	}
+	if !authsvc.IsRelayUserPrincipal(principal) {
+		h.api.WriteError(writer, request, http.StatusForbidden, handlershared.FailureSpec{
+			Code:     "team.remote_account_required",
+			Category: protocol.FailureCategoryAuthorization,
+			Effect:   requestEffect(mutation, true),
+			Detail:   "多人协作需要登录远程账户",
 		})
 		return "", false
 	}

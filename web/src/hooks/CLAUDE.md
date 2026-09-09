@@ -16,3 +16,5 @@ L2 | 父级: web/CLAUDE.md
 - `use-conversation-loader.ts`: 响应式对话加载 Hook
 
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+
+- `settings/use-project-permissions-enabled.ts`: 订阅启动配置的项目 ACL 可用性，缺失及 owner 重置默认关闭，侧栏与页面共享同一门禁。

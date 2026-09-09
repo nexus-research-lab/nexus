@@ -14,7 +14,7 @@
 
 | 项目 | 实现归属 | 必须保持的行为 | 验收 |
 | --- | --- | --- | --- |
-| Team 同步 | `internal/relay` 合同，`service/relay` 客户端，`service/team` 同步流程 | 远端消息已提交后本地投影失败仍返回成功；Bootstrap、快照和增量投影失败不能确认成功；身份与令牌仍只来自可信入口 | handler 契约、服务失败路径、仓储连续游标与幂等测试 |
+| Team 同步 | `internal/relay` 合同，`service/relay` 客户端，`service/team` 同步流程 | 远端消息已提交后本地投影失败仍返回成功；目录、建群、快照和增量投影失败不能确认成功；身份与令牌仍只来自可信入口 | handler 契约、服务失败路径、仓储连续游标与幂等测试 |
 | Execution 命令观察 | orchestration 操作事实，runtimehook 回执转换 | 请求身份、责任归属、拒绝状态、重放幂等与节点关联不变 | 回执转换与 Runtime Graph 回归 |
 | Session 删除 | deletion 协调，automation/orchestration 仓储事务内清理 | Goal/Task 原有准备顺序不变；路由与执行数据继续同事务提交；owner 隔离、历史审计保留 | 中途失败回滚与 owner 隔离测试 |
 | 历史投影 | message 负责结果归属与合并，storage/workspace 负责存取与查询 | 保留公共分页入口、物理 Agent round 配对、旧记录兼容与未匹配结果合成；不迁移历史格式或缓存模型 | 混合 Agent 结果、重放与历史分页回归 |

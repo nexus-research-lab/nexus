@@ -30,9 +30,11 @@ async function expectContained(surface: Locator) {
   }
 }
 
-test("operations subpages keep clear hierarchy and aligned responsive controls", async ({ page, context }, info) => {
+for (const aclEnabled of [true, false]) {
+test(`operations subpages keep clear hierarchy and aligned responsive controls (ACL ${aclEnabled ? "enabled" : "disabled"})`, async ({ page, context }, info) => {
   const zh = info.project.metadata.locale === "zh";
   const text = (cn: string, en: string) => zh ? cn : en;
+  let projectRequests = 0;
   const rejected: string[] = [];
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -44,6 +46,8 @@ test("operations subpages keep clear hierarchy and aligned responsive controls",
   await context.route("**/*", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
+    if (url.pathname === "/nexus/v1/projects") projectRequests++;
+    if (url.pathname === "/nexus/v1/runtime/options") return route.fulfill({ json: { data: { default_agent_id: "qa-main", project_permissions_enabled: aclEnabled } } });
     if (url.pathname === "/nexus/v1/auth/status") {
       return route.fulfill({ json: { data: { ...(appShellRead("GET", url.pathname)!.data as Record<string, unknown>), auth_method: "password", role: "owner" } } });
     }
@@ -57,8 +61,17 @@ test("operations subpages keep clear hierarchy and aligned responsive controls",
     }
     return route.continue();
   });
-  const params = new URLSearchParams({ section: "operations-members", theme: String(info.project.metadata.theme), locale: String(info.project.metadata.locale) });
+  const params = new URLSearchParams({ section: aclEnabled ? "operations-members" : "operations-projects", theme: String(info.project.metadata.theme), locale: String(info.project.metadata.locale) });
   await page.goto(`/app.html?desktop_route=${encodeURIComponent(`/settings?${params}`)}`);
+  if (!aclEnabled) {
+    await expect(page).toHaveURL(/\/settings$/);
+    const menu = page.getByRole("button", { name: text("设置导航", "Settings navigation"), exact: true });
+    if (await menu.isVisible()) await menu.click();
+    await expect(page.getByRole("navigation").getByRole("button", { name: text("项目权限", "Project access"), exact: true })).toHaveCount(0);
+    await expect(page.locator("[data-operations-page]")).toHaveCount(0);
+    expect(projectRequests).toBe(0);
+    return;
+  }
   const surface = page.locator("[data-operations-page]");
   const selectPage = async (section: string, cn: string, en: string) => {
     const menu = page.getByRole("button", { name: text("设置导航", "Settings navigation"), exact: true });
@@ -134,3 +147,5 @@ test("operations subpages keep clear hierarchy and aligned responsive controls",
   expect(errors).toEqual([]);
   expect(rejected).toEqual([]);
 });
+
+}

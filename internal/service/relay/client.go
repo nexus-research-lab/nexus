@@ -169,12 +169,41 @@ func readRemoteError(response *http.Response) error {
 	}
 }
 
-// Bootstrap 幂等获取当前 Deployment 的默认协作空间。
-func (c *Client) Bootstrap(ctx context.Context, token string) (relaycontract.Bootstrap, error) {
-	var result relaycontract.Bootstrap
-	err := c.do(ctx, http.MethodPost, "/bootstrap", nil, token, "", nil, &result)
+// ListRooms 返回当前真人已加入的在线 Room。
+func (c *Client) ListRooms(ctx context.Context, token string) (relaycontract.RoomList, error) {
+	var result relaycontract.RoomList
+	err := c.do(ctx, http.MethodGet, "/rooms", nil, token, "", nil, &result)
+	if err != nil {
+		return relaycontract.RoomList{}, err
+	}
+	for index := range result.Rooms {
+		result.Rooms[index].Conversation.StreamEpoch, err = responseStreamEpoch(
+			result.Rooms[index].Conversation.StreamEpoch, "",
+		)
+		if err != nil {
+			return relaycontract.RoomList{}, err
+		}
+	}
+	return result, nil
+}
+
+// CreateRoom 使用调用方提供的幂等键显式创建在线 Room。
+func (c *Client) CreateRoom(
+	ctx context.Context,
+	token string,
+	idempotencyKey string,
+	input relaycontract.CreateRoomInput,
+) (relaycontract.RoomView, error) {
+	idempotencyKey = strings.TrimSpace(idempotencyKey)
+	if !validCommandID(idempotencyKey) {
+		return relaycontract.RoomView{}, errors.New("Idempotency-Key 必须为 1-128 字节的可见 ASCII")
+	}
+	var result relaycontract.RoomView
+	err := c.do(ctx, http.MethodPost, "/rooms", nil, token, idempotencyKey, input, &result)
 	if err == nil {
-		result.Conversation.StreamEpoch, err = responseStreamEpoch(result.Conversation.StreamEpoch, "")
+		result.Conversation.StreamEpoch, err = responseStreamEpoch(
+			result.Conversation.StreamEpoch, "",
+		)
 	}
 	return result, err
 }
