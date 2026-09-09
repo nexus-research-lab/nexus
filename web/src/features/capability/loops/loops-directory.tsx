@@ -136,7 +136,6 @@ export function LoopsDirectory() {
             />
             <UiFilterSelect
               ariaLabel={t("capability.loops_filter_aria")}
-              label={t("capability.category_label")}
               onChange={setCategory}
               options={categoryOptions}
               value={category}

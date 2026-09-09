@@ -66,7 +66,6 @@ export function ConnectorsSearchBar({
         {mode === "catalog" ? (
           <UiFilterSelect
             ariaLabel={t("capability.connectors_filter_aria")}
-            label={t("capability.category_label")}
             onChange={onCategoryChange}
             options={["all", ...categoryKeys].map((category) => ({
               label: getConnectorCategoryLabel(category, t),
