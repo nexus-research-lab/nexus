@@ -35,7 +35,7 @@ function routeView(route: string, artifact: WorkspaceFileArtifactContent, worksp
   const environment: AssistantContentEnvironment = { canRespondToPermissions: false, hiddenToolNames: [], mode: "dm_live", workspaceAgentId, onOpenWorkspaceFile };
   const projection = { content: [artifact], streamingIndexes: new Set<number>() };
   if (route === "body") return <ContentBlockView block={artifact} blockIndex={0} showTimelineDots={false} streaming={false} context={{ canRespondToPermissions: false, hiddenToolNames: new Set(), onOpenWorkspaceFile, pendingInteractionOwner: "composer", projection: projectStructuredContent([artifact]), workspaceAgentId }} />;
-  if (route === "archived process" || route === "tool process") {
+  if (["archived process", "expanded process", "tool process", "standalone artifact"].includes(route)) {
     const content = [
       { type: "tool_use" as const, id: "prepare-report", name: "Read", input: { file_path: "input.md" } },
       { type: "tool_result" as const, tool_use_id: "prepare-report", content: "Read" },
@@ -44,8 +44,8 @@ function routeView(route: string, artifact: WorkspaceFileArtifactContent, worksp
       artifact,
     ];
     return <AssistantMessageContent activity={ACTIVITY} environment={environment} permissions={PERMISSIONS}
-      direct={{ visible: route === "tool process", projection: { ...projection, content } }}
-      process={{ anchorRef: createRef(), expanded: false, projection, summary: { kind: "details", latestDetail: null, metrics: [] }, toggle: vi.fn(), visible: route === "archived process" }}
+      direct={{ visible: route === "tool process" || route === "standalone artifact", projection: { ...projection, content: route === "standalone artifact" ? [artifact] : content } }}
+      process={{ anchorRef: createRef(), expanded: route === "expanded process", projection, summary: { kind: "details", latestDetail: null, metrics: [] }, toggle: vi.fn(), visible: route === "archived process" || route === "expanded process" }}
       final={{ content: "Report complete", visible: true, isStreaming: false, streamingIndexes: new Set(), mentions: [] }}
       showMaxTokensWarning={false} />;
   }
@@ -58,12 +58,12 @@ afterEach(() => {
 });
 
 describe("Structured file source adapters", () => {
-  it.each(["body", "archived process", "tool process", "list"])("preserves source and artifact scope through %s and disables unknown scope", (route) => {
+  it.each(["body", "archived process", "expanded process", "tool process", "standalone artifact", "list"])("preserves source and artifact scope through %s and disables unknown scope", (route) => {
     const open = vi.fn();
     useAgentStore.setState({ current_agent_id: "viewer" });
     const { rerender } = render(localized(routeView(route, ARTIFACT, "message-author", open)));
     if (route === "tool process") expect(document.querySelector('[data-tool-run-id] [aria-expanded="false"]')).toBeTruthy();
-    if (route === "archived process" || route === "tool process") {
+    if (["archived process", "expanded process", "tool process", "standalone artifact"].includes(route)) {
       const body = screen.getByText("Report complete");
       const file = screen.getByRole("button", { name: /^result\.md/ });
       expect(body.compareDocumentPosition(file) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

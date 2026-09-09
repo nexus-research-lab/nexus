@@ -25,3 +25,5 @@ Room execution 的 cancelled/error 终态必须同时投影到主 Feed 与 Threa
 `relevant_memories` 只在 Assistant 底部显示常驻引用入口，弹层仅展示脱敏摘要；不得恢复独立 system 消息或暴露记忆正文和绝对路径。
 
 Assistant 页脚的派生会话动作属于微型图标动作，pending 使用共享 `xs` Spinner；不得在 Footer 动作里重写旋转或 reduced-motion class。
+
+- 文件产物在 DM/Thread 的 direct/process/final 投影中统一抽离到回复尾部，删除卡片时必须同步重排 streamingIndexes；展开过程不再重复展示同一文件卡。
