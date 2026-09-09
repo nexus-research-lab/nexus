@@ -45,10 +45,11 @@ it("finds setting descriptions beneath their module without exposing restricted 
   expect(screen.getByRole("status")).toBeTruthy();
 });
 
-it("keeps the compact back action named and keyboard accessible before search", async () => {
+it("keeps the full back label visible and keyboard accessible before search", async () => {
   const user = userEvent.setup();
   render(<SettingsSidebarNavigation variant="panel" />);
   const back = screen.getByRole("button", { name: "返回工作台" });
+  expect(back.textContent).toBe("返回工作台");
   await user.tab();
   expect(document.activeElement).toBe(back);
   await user.keyboard("{Enter}");
