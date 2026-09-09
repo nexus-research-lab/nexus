@@ -54,7 +54,6 @@ export function AssistantMessageContent({
   showMaxTokensWarning,
 }: AssistantMessageContentProps) {
   const filePresentation = useMemo(() => {
-    if (environment.mode === "room_result") return { direct, process, final, content: [] };
     const content = [
       ...(process.visible ? process.projection.content : []),
       ...(direct.visible ? direct.projection.content : []),
@@ -69,7 +68,7 @@ export function AssistantMessageContent({
       final: finalProjection ? { ...final, content: finalProjection.content, streamingIndexes: finalProjection.streamingIndexes } : final,
       content,
     };
-  }, [environment.mode, direct, process, final]);
+  }, [direct, process, final]);
   const artifacts = useWorkspaceFileArtifactsFromContent(filePresentation.content);
   return (
     <>
