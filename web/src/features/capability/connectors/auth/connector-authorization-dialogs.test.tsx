@@ -151,3 +151,35 @@ it("translates a direct credential dialog without clearing its draft or submitti
   await user.click(screen.getByRole("button", {name: "Connect"}));
   expect(onSave).toHaveBeenCalledExactlyOnceWith("amap", "user-key");
 });
+
+it("keeps OAuth credentials when changing language and resets them for a different configuration", async () => {
+  const user = userEvent.setup();
+  const onSave = vi.fn();
+  const onDelete = vi.fn();
+  const original = {...FEISHU_DETAIL, oauth_client_id: "existing-client", oauth_client_configured: true};
+  const view = (locale: Locale, detail = original) => {
+    const t: I18nContextValue["t"] = (key, params) => Object.entries(params ?? {}).reduce(
+      (text, [name, value]) => text.replaceAll(`{${name}}`, String(value)), MESSAGES[locale][key],
+    );
+    return <I18N_CONTEXT.Provider value={{locale, t, setLocale: vi.fn()}}>
+      <ConnectorOAuthClientDialog busy={false} detail={detail} onSave={onSave} onDelete={onDelete} onClose={vi.fn()} />
+    </I18N_CONTEXT.Provider>;
+  };
+  const {rerender} = render(view("zh"));
+  const secret = screen.getByLabelText("Client Secret*") as HTMLInputElement;
+  await user.type(secret, "entered-secret");
+  rerender(view("en"));
+  expect(screen.getByRole("dialog", {name: "Configure 飞书云文档"})).toBeTruthy();
+  expect(screen.getByText("Add the callback URL to your Feishu Open Platform app, then enter the app credentials.")).toBeTruthy();
+  expect(screen.getByRole("button", {name: "Copy callback URL"})).toBeTruthy();
+  expect(screen.getByLabelText("Client Secret*")).toBe(secret);
+  expect(secret.value).toBe("entered-secret");
+  expect(secret.placeholder).toBe("Enter the secret again to save");
+  expect(onSave).not.toHaveBeenCalled();
+  expect(onDelete).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("button", {name: "Save"}));
+  expect(onSave).toHaveBeenCalledExactlyOnceWith("feishu-docx", "existing-client", "entered-secret");
+  rerender(view("en", {...original, oauth_client_id: "replacement-client"}));
+  expect((screen.getByLabelText("Client ID*") as HTMLInputElement).value).toBe("replacement-client");
+  expect((screen.getByLabelText("Client Secret*") as HTMLInputElement).value).toBe("");
+});

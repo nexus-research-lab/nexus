@@ -11,3 +11,5 @@
 - OAuth、Device Flow、直接凭证与本机配对共享 Dialog、Panel、Field、Typography、Badge 和 Spinner 所有权；各 Provider 只提供步骤与数据，不得重写字号、圆角或加载动画。
 
 - 直接凭证弹窗的 Provider 说明与占位、通用标题和按钮由双语目录提供；语言切换不参与凭证草稿 reset key，目标身份切换仍按既有边界重置。
+
+- OAuth 应用配置说明、占位与复制反馈消费当前语言；模型的 resetKey 只由连接器身份与已配置 Client ID 组成，语言更新保留输入，配置身份改变仍清空 Secret。未知 Provider 使用通用 Client ID/Secret 提示，不套用飞书字段说明。
