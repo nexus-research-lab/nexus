@@ -1,5 +1,5 @@
 // INPUT: 当前正文字体与本机字体目录能力。
-// OUTPUT: 共享字体选择器、文本兜底和读取失败状态。
+// OUTPUT: 共享字体选择器、跨宿主读取失败后的文本兜底和读取失败状态。
 // POS: 外观页字体读取与交互边界；不读取或上传字体文件。
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -74,7 +74,7 @@ export function SettingsFontPicker({ value, onChange }: { value: string; onChang
           ...names.map((name) => ({ value: name, label: name })),
         ]}
       />
-      {!desktop && (!canReadFonts || failed) && families.length === 0 && (
+      {(failed || (!desktop && !canReadFonts)) && families.length === 0 && (
         <UiInput
           aria-label={t("settings.reading.custom_font")}
           className="w-full"
