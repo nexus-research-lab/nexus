@@ -131,6 +131,12 @@ export function TeamPage() {
             {errorMessage}
           </p>
         ) : null}
+        {room.error === "load" ? (
+          <div className="mx-auto mt-2 w-full max-w-3xl">
+            <UiButton size="sm" variant="text" disabled={room.isLoading} aria-busy={room.isLoading}
+              onClick={() => { void room.retryLoad(); }}>{t("state.retry")}</UiButton>
+          </div>
+        ) : null}
       </form>
     </WorkspacePageFrame>
   );

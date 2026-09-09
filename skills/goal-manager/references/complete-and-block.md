@@ -20,7 +20,7 @@
 - `not_aligned`：存在明确缺口；继续执行。
 - `inconclusive`：证据不足；先补证。
 
-Goal 审计只记录证据，不完成 Goal。完成时后端始终校验 Goal revision、Room 责任和运行状态；只有当前 Goal 确认绑定已物化 WorkGraph 时才额外校验 Execution/WorkGraph。reserved Execution ID 不是绑定证据。若 `update_goal` 被拒绝，直接按返回的 domain-qualified `nextAction` 恢复：`goal/audit_objective_alignment` 表示当前轮缺少或已失效的 Goal 对齐证据，`execution/get_execution` 表示图仍有未完成责任；不要盲重试 `update_goal`，也不要在 terminal Execution 上改调 `audit_execution_alignment`。
+Goal 审计只记录证据，不完成 Goal。完成时后端始终校验 Goal revision、Room 责任和运行状态；只有当前 Goal 确认绑定已物化 WorkGraph 时才额外校验 Execution/WorkGraph。reserved Execution ID 不是绑定证据。若 `update_goal` 被拒绝，直接按返回的 domain-qualified `nextAction` 恢复：`goal/audit_objective_alignment` 表示当前轮缺少或已失效的 Goal 对齐证据，`execution/get_execution` 表示图仍有未完成责任，实际调用 `{"domain":"execution","action":"inspect"}` 并省略 operation，不能把 nextAction 机械复制成 invoke；不要盲重试 `update_goal`，也不要在 terminal Execution 上改调 `audit_execution_alignment`。
 
 ### 暂停状态的恢复说明
 

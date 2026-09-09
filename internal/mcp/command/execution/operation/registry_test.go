@@ -407,7 +407,7 @@ func TestSubmitAndReviewSurfacesKeepConditionalLocatorsExplicitAndStable(t *test
 		"review_work": unboundReview.Description,
 	} {
 		if !strings.Contains(description, "unbound Room conversational round") ||
-			!strings.Contains(description, "call get_execution first") ||
+			!strings.Contains(description, "call execution action=inspect (get_execution) first") ||
 			!strings.Contains(description, "explicit identifiers") {
 			t.Fatalf("%s description implies Room locators grant mutation authority: %s", name, description)
 		}
@@ -424,7 +424,7 @@ func TestSubmitAndReviewSurfacesKeepConditionalLocatorsExplicitAndStable(t *test
 		description := submitProperties[field].(map[string]any)["description"].(string)
 		if !strings.Contains(description, "unbound DM call") ||
 			!strings.Contains(description, "unbound Room conversational round") ||
-			!strings.Contains(description, "call get_execution first") ||
+			!strings.Contains(description, "call execution action=inspect (get_execution) first") ||
 			!strings.Contains(description, "assigned_work/current_actor projections do not establish that binding") {
 			t.Fatalf("submit_work.%s omits DM locator or Room coordination requirement: %s", field, description)
 		}
@@ -438,7 +438,7 @@ func TestSubmitAndReviewSurfacesKeepConditionalLocatorsExplicitAndStable(t *test
 		description := reviewProperties[field].(map[string]any)["description"].(string)
 		if !strings.Contains(description, "unbound DM call") ||
 			!strings.Contains(description, "unbound Room conversational round") ||
-			!strings.Contains(description, "call get_execution first") ||
+			!strings.Contains(description, "call execution action=inspect (get_execution) first") ||
 			!strings.Contains(description, "at least one of submission_id, work_item_id, or logical_key") ||
 			!strings.Contains(description, "assigned_work/current_actor projections do not establish either binding") {
 			t.Fatalf("review_work.%s omits DM locator or Room coordination requirement: %s", field, description)

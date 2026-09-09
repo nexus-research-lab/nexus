@@ -674,6 +674,14 @@ round has no coordination capability. The capability is not persisted and does
 not make the read a graph mutation, but this coordinator-only runtime side effect
 also means the operation must not be advertised with a pure `ReadOnly` annotation.
 
+The model invokes this recovery through `nexus.command` with `domain=execution`
+and `action=inspect`; `get_execution` is its semantic name and is not invokable.
+The returned `execution_context` is XML text containing the lane and allowed actions.
+There is no user-facing coordination mode switch, and recovery alone does not
+require replanning or another user message. Terminal historical reads never mint
+or replace the current round coordination capability. Tool transport rejections
+preserve a domain `reason_code` when available without granting recovery authority.
+
 A successful `plan_execution` may also activate coordination for the current exact
 round.
 
