@@ -6,3 +6,5 @@
 - 复制动作使用 UiIconButton 的 sm/ghost 与 success tone，沿用公共焦点环和提示；原文复制由共享剪贴板 Hook 负责，只有成功后更新已复制辅助名称。代码专用 CSS 只保留浮动操作布局，不复制按钮状态样式。
 
 - CodeShell 使用本地化组名称，外壳不加入 Tab 顺序，实际复制按钮焦点继续触发 focus-within 操作层；延迟高亮加载说明复用 common.loading。
+
+- 流式代码与延迟高亮加载占位由 CodeBlock 内部的 PlainCodeBlock 共用；状态只改变文案，不维护第二份 pre 或外壳。

@@ -68,7 +68,6 @@ import { PanelResizeHandle } from "@/shared/ui/layout/panel-resize-handle";
 import { WorkspaceContentDetailHeader, WorkspaceContentHeader } from "@/shared/ui/layout/workspace-content-header";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import { CodeBlock } from "@/shared/ui/markdown/code/code-block";
-import { StreamingCodeBlock } from "@/shared/ui/markdown/code/streaming-code-block";
 import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
 import { MermaidView } from "@/shared/ui/markdown/mermaid/mermaid-view";
 import { WorkspaceFileButton } from "@/shared/ui/markdown/workspace/markdown-workspace-file-button";
@@ -322,8 +321,8 @@ export function ContentGallery({ locale }: { locale: Locale }) {
               path="web/src/shared/ui/markdown/markdown-content.tsx"
             />
           </PreviewCard>
-          <PreviewCard components={["StreamingCodeBlock", "MermaidView", "LazyMermaidView", "MermaidSourceView", "MermaidRenderedPreview", "MermaidPreviewDialog"]}>
-            <StreamingCodeBlock language="ts" value={code} />
+          <PreviewCard components={["CodeBlock", "MermaidView", "LazyMermaidView", "MermaidSourceView", "MermaidRenderedPreview", "MermaidPreviewDialog"]}>
+            <CodeBlock language="ts" value={code} isStreaming />
             <MermaidView
               chart="flowchart LR\n  Source[shared/ui] --> Gallery[UI Gallery]\n  Gallery --> Check[Coverage contract]"
               compact
