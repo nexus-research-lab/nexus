@@ -1,5 +1,5 @@
 // INPUT: Agent 创建/编辑草稿、身份验证反馈、字段回调与模型选择插槽。
-// OUTPUT: 共用身份布局、标签和文本/源码字段；输入事件交回当前草稿所有者。
+// OUTPUT: 单一字段阅读顺序、随容器换列的标签和文本/源码字段；输入交回当前草稿所有者。
 // POS: Agent 身份表单组合层；共享控件持有视觉状态，保存与权限归上层流程。
 "use client";
 
@@ -13,7 +13,8 @@ import type { ProviderOption } from "@/types/capability/provider";
 
 import type { AgentOptionsMode } from "../../agent-options-editor-model";
 import {
-  IDENTITY_LAYOUTS,
+  IDENTITY_CONTENT_CLASS_NAMES,
+  IDENTITY_TAGS_CLASS_NAME,
   type AgentIdentityVariant,
 } from "./identity-layout";
 import { AgentProfileFileEditor } from "./agent-profile-file-editor";
@@ -91,7 +92,6 @@ export function AgentOptionsIdentityTab({
   const { t } = useI18n();
   const descriptionId = useId();
   const templateId = useId();
-  const layout = IDENTITY_LAYOUTS[variant];
   const isInline = variant === "inline";
   const shouldShowDescriptionField =
     sourceMode !== "create" && (!isInline || (!isMain && !agentId));
@@ -119,24 +119,22 @@ export function AgentOptionsIdentityTab({
           : "space-y-6",
       )}
     >
-      <div className={cn(layout.contentClassName, isInline && "shrink-0")}>
-        <div className={layout.profileClassName}>
-          <IdentityProfileFields
-            avatar={avatar}
-            avatarAlt={t("agent_options.identity.avatar_alt")}
-            isValidatingName={isValidatingName}
-            nameLabel={t("agent_options.identity.name")}
-            namePlaceholder={t("agent_options.identity.name_placeholder")}
-            nameValidation={nameValidation}
-            onAvatarChange={onAvatarChange}
-            onTitleChange={onTitleChange}
-            title={title}
-            validatingLabel={t("agent_options.identity.validating_name")}
-            variant={variant}
-          />
-        </div>
+      <div className={cn(IDENTITY_CONTENT_CLASS_NAMES[variant], isInline && "shrink-0")}>
+        <IdentityProfileFields
+          avatar={avatar}
+          avatarAlt={t("agent_options.identity.avatar_alt")}
+          isValidatingName={isValidatingName}
+          nameLabel={t("agent_options.identity.name")}
+          namePlaceholder={t("agent_options.identity.name_placeholder")}
+          nameValidation={nameValidation}
+          onAvatarChange={onAvatarChange}
+          onTitleChange={onTitleChange}
+          title={title}
+          validatingLabel={t("agent_options.identity.validating_name")}
+          variant={variant}
+        />
 
-        <div className={layout.tagsClassName}>
+        <div className={IDENTITY_TAGS_CLASS_NAME}>
           <IdentityTags
             addLabel={t("agent_options.identity.add_business_tag")}
             label={t("agent_options.identity.business_tags")}
@@ -153,9 +151,7 @@ export function AgentOptionsIdentityTab({
           />
         </div>
 
-        <div className={layout.modelClassName}>
-          {modelSelector}
-        </div>
+        {modelSelector}
       </div>
 
       {isInline && !isMain && agentId ? (

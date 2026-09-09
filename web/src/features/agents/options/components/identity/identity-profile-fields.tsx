@@ -1,5 +1,5 @@
 // INPUT: Agent identity fields, presentation context and name-validation feedback.
-// OUTPUT: Avatar/name editing callbacks and current validation feedback using shared controls.
+// OUTPUT: Shrinkable avatar/name fields and current validation feedback using shared controls.
 // POS: Identity field composition; validation authority and profile persistence remain with the caller.
 
 import { useId } from "react";
@@ -40,7 +40,7 @@ export function IdentityProfileFields({
   const nameId = useId();
 
   return (
-    <div className="flex items-start gap-3">
+    <div className="flex min-w-0 items-start gap-3">
       <IdentityAvatarPicker
         avatar={avatar}
         avatarAlt={avatarAlt}
