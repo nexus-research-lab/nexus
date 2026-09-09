@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Anchor global feedback at the top-right with a small safe-area-aware margin.
+
 - Name onboarding card regions and let long guidance and navigation controls wrap.
 
 - Avoid dangling tooltip descriptions when labels are empty while preserving existing accessibility hints.
