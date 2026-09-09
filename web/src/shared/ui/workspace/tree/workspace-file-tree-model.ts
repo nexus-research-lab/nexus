@@ -234,7 +234,7 @@ export function getWorkspaceFileTreeRowPresentation({
       getUiTypographyClassName({
         role: "supporting",
         tone: isSelected ? "strong" : "default",
-        weight: entry.is_dir || isSelected ? "medium" : "regular",
+        weight: "regular",
       }),
     ),
     paddingLeft: 8 + depth * 12,

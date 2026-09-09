@@ -248,7 +248,7 @@ export function ConnectorDetailContent({
       <ConnectorConfigurationError error={state.configurationError} />
       {mcpTools.supported ? (
         <RichMailConnectionSection
-          catalog={mcpTools.catalog}
+          catalog={mcpTools.failure?.access ? null : mcpTools.catalog}
           detail={detail}
         />
       ) : null}

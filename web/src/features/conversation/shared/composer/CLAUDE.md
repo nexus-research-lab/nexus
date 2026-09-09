@@ -47,3 +47,5 @@ Composer 的可用发送、排队与 Goal 确认使用 Nexus 品牌行动蓝，�
 Mention 目标只投影成员标记和标签；匹配、插入、键盘与浮层规则归 `shared/ui/mention/`。Slash 键盘导航不得注册 document 级监听，必须由 textarea 或子面板搜索框显式分派；外部点击、Escape 收口及 resize/scroll 重定位统一复用 `shared/ui/overlay/anchored-overlay-layer.ts`。
 附件必须先整批校验再上传；DM/Room 只提供目标作用域，不得复制格式规则或上传循环。
 Composer 的工作图目录使用 plain Dialog 标题和扁平选择行，不显示解释选择动作的副标题或装饰图标；工作图在同一选择器内以目录/预览双栏查看，窄屏纵向排列。
+
+- 工作图选择器的临时打开意图按完整草稿/工作图 Session 与人工介入状态重置，切页返回不得恢复旧选择器。

@@ -12,6 +12,8 @@ import {
   X,
 } from "lucide-react";
 
+import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
@@ -86,14 +88,14 @@ export function MemoryDocumentHeader({
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
             <h2
-              className="truncate text-base font-semibold text-(--text-strong)"
+              className={cn("truncate", getUiTypographyClassName({ role: "sectionTitle", tone: "strong", weight: "semibold" }))}
               title={document.path}
             >
               {getMemoryDocumentDisplayTitle(document)}
             </h2>
             {runtimeWriting ? <MemoryRuntimeWritingStatus /> : null}
           </div>
-          <div className="mt-0.5 text-xs text-(--text-soft)">
+          <div className={cn("mt-0.5", getUiTypographyClassName({ role: "caption", tone: "soft" }))}>
             {formatMemoryModifiedTime(document.modified_at, locale)}
           </div>
         </div>
@@ -111,7 +113,7 @@ export function MemoryDocumentHeader({
 function MemoryRuntimeWritingStatus() {
   const { t } = useI18n();
   return (
-    <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-(--primary)">
+    <span className={cn("inline-flex shrink-0 items-center gap-1", getUiTypographyClassName({ role: "caption", tone: "brand", weight: "medium" }))}>
       <LoaderCircle
         className={getUiSpinnerClassName({ size: "xs", tone: "primary" })}
       />

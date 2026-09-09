@@ -7,6 +7,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import type { ChannelAccountView } from "@/lib/api/capability/channel-api";
+import { MESSAGES } from "@/shared/i18n/messages";
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
 
 import { ChannelAccountsPanel } from "./channel-accounts-panel";
@@ -26,7 +27,7 @@ function renderPanel(
 ) {
   return render(
     <I18N_CONTEXT.Provider
-      value={{ locale: "zh", setLocale: vi.fn(), t: (key) => key }}
+      value={{ locale: "zh", setLocale: vi.fn(), t: (key) => MESSAGES.zh[key] }}
     >
       <ChannelAccountsPanel
         accounts={[ACCOUNT]}
@@ -49,7 +50,7 @@ describe("ChannelAccountsPanel", () => {
     const accountFailure = screen.getByRole("status");
     expect(accountFailure.getAttribute("data-inline-notice-tone")).toBe("danger");
     expect(accountFailure.getAttribute("data-inline-notice-width")).toBe("full");
-    expect(screen.getByText("capability.channel_account_error_title").className)
+    expect(screen.getByText(MESSAGES.zh["capability.channel_account_error_title"]).className)
       .toContain("ui-type-metadata");
     expect(screen.queryByText(ACCOUNT.last_error)).toBeNull();
     expect(screen.getByRole("button", { name: "删除该账号" }).querySelector("svg")?.classList)

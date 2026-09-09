@@ -1,3 +1,4 @@
+import { MESSAGES } from "@/shared/i18n/messages";
 // INPUT: 配对状态计数、当前筛选与筛选更新命令。
 // OUTPUT: 证明配对状态复用能力目录下划线标签，并发送精确状态值。
 // POS: 配对筛选条 DOM 合同；查询、渠道和 Agent 选项行为由共享 Form/Menu 覆盖。
@@ -16,7 +17,7 @@ describe("PairingFilterBar", () => {
     const onChange = vi.fn();
     render(
       <I18N_CONTEXT.Provider
-        value={{ locale: "zh", setLocale: vi.fn(), t: (key) => key }}
+        value={{ locale: "zh", setLocale: vi.fn(), t: (key) => MESSAGES.zh[key] }}
       >
         <PairingFilterBar
           agents={[]}

@@ -5,7 +5,7 @@
  */
 "use client";
 
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
   AppWindow,
   CheckCircle2,
@@ -68,13 +68,17 @@ export function BrowserSettingsSection() {
   const [statusRefresh, setStatusRefresh] = useState(0);
   const [setup, setSetup] = useState<DesktopBrowserExtensionSetupResult | null>(null);
   const [openingSetup, setOpeningSetup] = useState(false);
+  const setupPendingRef = useRef(false);
   const [setupError, setSetupError] = useState(false);
   const preferences = useUserPreferences();
   const cdpEnabled = preferences.preferences.browser_cdp_enabled === true;
 
   useEffect(() => {
     let active = true;
+    let loading = false;
     const load = async () => {
+      if (!active || loading) return;
+      loading = true;
       try {
         const next = await getBrowserExtensionStatusApi();
         if (!active) return;
@@ -83,6 +87,8 @@ export function BrowserSettingsSection() {
       } catch {
         if (!active) return;
         setStatusError(true);
+      } finally {
+        loading = false;
       }
     };
     void load();
@@ -94,6 +100,8 @@ export function BrowserSettingsSection() {
   }, [statusRefresh]);
 
   const openSetup = useCallback(async () => {
+    if (setupPendingRef.current) return;
+    setupPendingRef.current = true;
     setOpeningSetup(true);
     setSetupError(false);
     try {
@@ -101,6 +109,7 @@ export function BrowserSettingsSection() {
     } catch {
       setSetupError(true);
     } finally {
+      setupPendingRef.current = false;
       setOpeningSetup(false);
     }
   }, []);
@@ -161,6 +170,7 @@ export function BrowserSettingsSection() {
             </div>
 
             <UiButton
+              aria-busy={openingSetup}
               disabled={openingSetup}
               onClick={() => void openSetup()}
               size="sm"

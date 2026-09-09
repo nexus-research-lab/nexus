@@ -11,6 +11,7 @@ import {
   CAPABILITY_DIRECTORY_GRID_CLASS_NAME,
   CAPABILITY_DIRECTORY_ROW_CLASS_NAME,
 } from "@/features/capability/shared/capability-page-layout";
+import type { ResourceFailure } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
@@ -31,6 +32,8 @@ interface CustomMCPGridProps {
   busy: boolean;
   hasServers: boolean;
   loading: boolean;
+  failure?: ResourceFailure | null;
+  onRetry?: () => void;
   onAdd: () => void;
   onDelete: (server: CustomMCPServer) => void;
   onEdit: (server: CustomMCPServer) => void;
@@ -43,6 +46,8 @@ export function CustomMCPGrid({
   busy,
   hasServers,
   loading,
+  failure,
+  onRetry,
   onAdd,
   onDelete,
   onEdit,
@@ -52,7 +57,10 @@ export function CustomMCPGrid({
 }: CustomMCPGridProps) {
   const { t } = useI18n();
 
-  if (loading) {
+  if (failure && (failure.access || !hasServers)) {
+    return <UiResourceState state="error" title={t("capability.custom_mcp_operation_failed")} impact={t("state.read_failure_impact")} primaryAction={onRetry ? { label: t("state.retry"), onClick: onRetry, disabled: loading } : undefined} />;
+  }
+  if (loading && !hasServers) {
     return (
       <UiResourceState size="sm" state="loading" title={t("capability.connectors_loading")} variant="plain" />
     );

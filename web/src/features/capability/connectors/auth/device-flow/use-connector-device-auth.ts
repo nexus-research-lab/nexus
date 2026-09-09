@@ -2,6 +2,7 @@
 // OUTPUT: 会话级轮询器生命周期；卸载只停止轮询，不删除 Connector 配置。
 // POS: React 与 ConnectorDeviceAuthPoller 之间的窄适配层。
 import { useEffect, useRef } from "react";
+import { useI18n } from "@/shared/i18n/i18n-context";
 
 import { pollConnectorDeviceAuthApi } from "@/lib/api/capability/connector-api";
 import type { ConnectorDeviceAuthStart } from "@/types/capability/connector";
@@ -12,7 +13,8 @@ import {
 } from "./connector-device-auth-poller";
 
 interface UseConnectorDeviceAuthOptions
-  extends ConnectorDeviceAuthPollerCallbacks {
+  extends Omit<ConnectorDeviceAuthPollerCallbacks, "onError"> {
+  onError: (message: string, kind: Parameters<ConnectorDeviceAuthPollerCallbacks["onError"]>[1]) => void;
   session: ConnectorDeviceAuthStart | null;
 }
 
@@ -24,7 +26,10 @@ export function useConnectorDeviceAuth({
   onNext,
   session,
 }: UseConnectorDeviceAuthOptions): void {
-  const callbacksRef = useRef<ConnectorDeviceAuthPollerCallbacks>({
+  const { t } = useI18n();
+  const translationRef = useRef(t);
+  translationRef.current = t;
+  const callbacksRef = useRef<Omit<UseConnectorDeviceAuthOptions, "session">>({
     onClose,
     onConnected,
     onError,
@@ -50,7 +55,7 @@ export function useConnectorDeviceAuth({
         onConnected: (connectorId) => (
           callbacksRef.current.onConnected(connectorId)
         ),
-        onError: (message, kind) => callbacksRef.current.onError(message, kind),
+        onError: (message, kind) => callbacksRef.current.onError(translationRef.current(message), kind),
         onMessage: (message) => callbacksRef.current.onMessage(message),
         onNext: (nextSession) => callbacksRef.current.onNext(nextSession),
       },

@@ -22,3 +22,5 @@
 - `workspace-surface-scaffold.tsx` 只提供 Header 与主画布骨架；业务滚动、状态和命令留在调用方。
 - `workspace-surface-view.tsx` 只保留 `mobile` 与缺省无障碍标题两种产品使用模式；`mobile` 统一投影平台感知的标题栏、拖窗热区和语义排版，默认正文复用管理工作面的响应式水平 gutter。调用方可以显式取消留白，但不得复制断点数值；不得重新引入控制标题组合的布尔参数。
 - 标题、标签和中部导航的可选组合在各自私有组件内收口，根 Header 不维护布尔状态矩阵。
+
+PageFrame 只提供可收缩 Flex 与留白；Scaffold 按显式 bodyScrollable 决定正文滚动，stableGutter 仅滚动模式有效。加载占位允许文案换行和横向收缩，不拥有固定业务宽度。

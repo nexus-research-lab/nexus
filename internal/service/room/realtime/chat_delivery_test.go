@@ -193,7 +193,7 @@ func TestRealtimeServiceHandleGroupChatWithExplicitAgentMention(t *testing.T) {
 		"Before substantial execution, assess separability",
 		"members may use local subagents",
 		"Current-Room private messaging is disabled",
-		"Group Agents wake only through explicit @mention",
+		"host-issued room_host_default trigger when the owner has enabled host auto-reply",
 		"managed Plan and assign_work through execution-orchestrator",
 		"never substitute raw @",
 		"If a private message wakes you, answer once in the final reply",
@@ -320,7 +320,7 @@ func TestRealtimeServiceHandleGroupChatWithExplicitAgentMention(t *testing.T) {
 	}
 }
 
-func TestRealtimeServiceKeepsUnmentionedGroupMessageWithoutStartingHost(t *testing.T) {
+func TestRealtimeServiceRoutesUnmentionedGroupMessageToConfiguredHost(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
@@ -380,11 +380,14 @@ func TestRealtimeServiceKeepsUnmentionedGroupMessageWithoutStartingHost(t *testi
 	})
 	select {
 	case prompt := <-hostPrompt:
-		t.Fatalf("未 @ 消息不应唤醒主持 Agent: %s", prompt)
+		if !strings.Contains(prompt, `type="room_host_default"`) || !strings.Contains(prompt, "帮我拆一下这个需求") {
+			t.Fatalf("群主应收到接管触发和原始输入: %s", prompt)
+		}
 	default:
+		t.Fatal("开启接管后，未 @ 消息必须唤醒已保存的群主")
 	}
-	if hasChatAckPendingAgent(events, amy.AgentID) {
-		t.Fatalf("未 @ 消息不应创建主持 Agent pending slot: %+v", events)
+	if !hasChatAckPendingAgent(events, amy.AgentID) {
+		t.Fatalf("未 @ 消息应创建群主 pending slot: %+v", events)
 	}
 	if hasChatAckPendingAgent(events, devin.AgentID) {
 		t.Fatalf("未 @ 消息不应直接唤醒非群主成员: %+v", events)

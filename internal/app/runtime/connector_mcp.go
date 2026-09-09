@@ -1,5 +1,5 @@
 // INPUT: connector 服务、Agent owner 与 runtime 显式选择的 Connector。
-// OUTPUT: DM/Room 共用的 connector MCP builder。
+// OUTPUT: DM/Room 共用的 connector MCP builder，GitHub 使用已有授权直连官方远程 MCP。
 // POS: connector MCP 的应用装配入口。
 package runtime
 
@@ -76,6 +76,8 @@ func NewConnectorBuilder(
 				appendYuqueMCPServer(ctx, servers, svc, agentValue.OwnerUserID)
 			case "richmail":
 				appendRichMailMCPServer(ctx, servers, svc, agentValue.OwnerUserID)
+			case "github":
+				appendGitHubMCPServer(ctx, servers, svc, agentValue.OwnerUserID)
 			default:
 				servers = appendCustomMCPServer(
 					ctx,
@@ -187,6 +189,24 @@ func appendYuqueMCPServer(
 		Args:    []string{"-y", "yuque-mcp"},
 		Env: map[string]string{
 			"YUQUE_PERSONAL_TOKEN": strings.TrimSpace(snapshot.AccessToken),
+		},
+	}
+}
+
+func appendGitHubMCPServer(
+	ctx context.Context,
+	servers map[string]sdkmcp.ServerConfig,
+	svc connectorMCPService,
+	ownerUserID string,
+) {
+	snapshot := loadConnectorMCPSnapshot(ctx, svc, ownerUserID, "github")
+	if snapshot == nil {
+		return
+	}
+	servers["github"] = sdkmcp.HTTPServerConfig{
+		URL: "https://api.githubcopilot.com/mcp/",
+		Headers: map[string]string{
+			"Authorization": "Bearer " + strings.TrimSpace(snapshot.AccessToken),
 		},
 	}
 }

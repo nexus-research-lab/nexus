@@ -2,12 +2,13 @@
 
 /**
  * INPUT: 当前会话草稿、投递能力、Goal/附件动作、人工介入与 runtime 状态。
- * OUTPUT: 稳定 Composer 壳与互斥输入/人工确认；队列临时交互按完整 Session 草稿作用域隔离。
+ * OUTPUT: 稳定 Composer 壳与互斥输入/人工确认；队列及工作图选择器临时交互按完整 Session 草稿作用域隔离。
  * POS: DM 与 Room 共用 Composer 的纯视图装配入口。
  */
 
-import { memo, useState } from "react";
+import { memo } from "react";
 
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
@@ -34,7 +35,8 @@ import { useComposerInteractionHeightGuard } from "./use-composer-interaction-he
 
 const ComposerPanelView = memo((props: ComposerPanelProps) => {
   const { t } = useI18n();
-  const [isWorkGraphPickerOpen, setWorkGraphPickerOpen] = useState(false);
+  const [isWorkGraphPickerOpen, setWorkGraphPickerOpen] = useResettableState(false,
+    JSON.stringify([props.draftScopeKey, props.workGraphSessionKey, Boolean(props.interactionSurface)]));
   const {
     actions,
     attachments,

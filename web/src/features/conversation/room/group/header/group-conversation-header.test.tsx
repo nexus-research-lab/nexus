@@ -144,3 +144,15 @@ it("keeps existing members available when the auxiliary catalog rejects and igno
     expect(membersButton().hasAttribute("disabled")).toBe(false);
   } finally { log.mockRestore(); }
 });
+
+
+it("uses the same five-member mosaic and order as the sidebar room avatar", () => {
+  const roomMembers = ["e", "c", "a", "d", "b"].map((id) => ({
+    agent_id: id, name: id, avatar: `/${id}.png`, created_at: 1,
+    options: {}, status: "idle" as const, workspace_path: "/workspace",
+  }));
+  render(view({ roomMembers }));
+  const identity = screen.getByRole("img", { name: "Research" });
+  expect(Array.from(identity.querySelectorAll("img"), (img) => img.getAttribute("src")))
+    .toEqual(["/a.png", "/b.png", "/c.png", "/d.png", "/e.png"]);
+});

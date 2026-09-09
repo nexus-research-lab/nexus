@@ -1,13 +1,15 @@
 // INPUT: Relay Team Room 快照、当前 Control 用户与消息发送动作。
 // OUTPUT: 复用 Room Header、FOLLOW/READING 阅读轨道、本人消息和 Composer，保留独立读取重试。
-// POS: Relay 真人消息到 Nexus Room UI 的窄适配层；不拥有同步与投递规则。
+// POS: Relay 真人消息到 Nexus Room UI 的窄适配层；按 owner/路由隔离实例，不拥有同步与投递规则。
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useState, useSyncExternalStore } from "react";
 import { Navigate, useSearchParams } from "react-router-dom";
+import { captureAuthOwnerScopeGeneration, subscribeAuthOwnerScopeGeneration } from "@/shared/auth/auth-owner-generation";
 import { getInitials } from "@/lib/avatar";
 import { useFollowScroll } from "@/features/conversation/shared/timeline/scroll/use-follow-scroll";
 import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
 import { UiButton } from "@/shared/ui/button/button";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import { MessageUserSection } from "@/features/conversation/shared/message/item/view/user/message-user-section";
 import { ContentRenderer } from "@/features/conversation/shared/message/item/view/content/content-renderer";
@@ -48,11 +50,18 @@ import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspac
 import "@/features/conversation/room/surface/room-conversation-header-edge.css";
 
 export function TeamPage() {
+  const [searchParams] = useSearchParams();
+  const { status } = useAuth();
+  const generation = useSyncExternalStore(subscribeAuthOwnerScopeGeneration, captureAuthOwnerScopeGeneration, captureAuthOwnerScopeGeneration);
+  const roomId = searchParams.get("room_id");
+  return <TeamPageContent key={JSON.stringify([generation, status?.user_id, roomId])} roomId={roomId} />;
+}
+
+function TeamPageContent({ roomId }: { roomId: string | null }) {
   const { t } = useI18n();
   const { status } = useAuth();
   const canUseRelay = isRemoteAccountAuthenticated(status);
-  const [searchParams] = useSearchParams();
-  const room = useTeamRoom(searchParams.get("room_id"));
+  const room = useTeamRoom(roomId);
   const [draft, setDraft] = useState("");
   const scroll = useFollowScroll({
     messageCount: room.messages.length,
@@ -123,7 +132,7 @@ export function TeamPage() {
 
           <form className="relative z-10 shrink-0" data-conversation-bottom-area onSubmit={submit}>
             {errorMessage ? (
-              <p className={`${CONVERSATION_COMPOSER_LANE_CLASS_NAME} px-6 text-xs text-destructive`} role="alert">
+              <p className={`${CONVERSATION_COMPOSER_LANE_CLASS_NAME} px-6 ${getUiTypographyClassName({ role: "supporting", tone: "danger" })}`} role="alert">
                 {errorMessage}
               </p>
             ) : null}
@@ -203,15 +212,15 @@ function TeamMessageFeed({
 }) {
   const { t } = useI18n();
   if (loadFailed && !isLoading && messages.length === 0) return null;
-  if (isLoading || messages.length === 0) {
+  if (messages.length === 0) {
     return (
-      <div role={isLoading ? "status" : undefined} className={`${CONVERSATION_CONTENT_LANE_CLASS_NAME} flex h-full min-h-64 items-center justify-center text-sm text-(--text-soft)`}>
+      <div role={isLoading ? "status" : undefined} className={`${CONVERSATION_CONTENT_LANE_CLASS_NAME} flex h-full min-h-64 items-center justify-center ${getUiTypographyClassName({ role: "supporting", tone: "muted" })}`}>
         {t(isLoading ? "team.loading" : "team.empty")}
       </div>
     );
   }
   return (
-    <ol className={`${CONVERSATION_CONTENT_LANE_CLASS_NAME} flex flex-col gap-5`}>
+    <ol aria-busy={isLoading || undefined} className={`${CONVERSATION_CONTENT_LANE_CLASS_NAME} flex flex-col gap-5`}>
       {messages.map((message) => (
         <TeamMessageItem
           currentUserId={currentUserId}
@@ -260,12 +269,12 @@ function TeamMessageItem({
     <li className="nexus-chat-message-section px-0 sm:px-3">
       <div className="flex min-w-0 gap-3">
         <MessageAvatar title={author}>
-          <span aria-hidden="true" className="text-sm font-semibold">{getInitials(author, "?", 1)}</span>
+          <span aria-hidden="true" className={getUiTypographyClassName({ role: "supporting", weight: "semibold" })}>{getInitials(author, "?", 1)}</span>
         </MessageAvatar>
         <div className="min-w-0 flex-1">
           <div className="mb-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-            <span className="min-w-0 break-words text-sm font-semibold text-(--text-strong)">{author}</span>
-            <time className="text-xs text-(--text-soft)" dateTime={message.created_at}>
+            <span className={cn("min-w-0 break-words", getUiTypographyClassName({ role: "supporting", weight: "semibold", tone: "strong" }))}>{author}</span>
+            <time className={getUiTypographyClassName({ role: "metadata", tone: "muted" })} dateTime={message.created_at}>
               {formatMessageTime(new Date(message.created_at).getTime())}
             </time>
           </div>

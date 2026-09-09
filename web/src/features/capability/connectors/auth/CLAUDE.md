@@ -19,3 +19,9 @@
 - OAuth 与直接凭证字段使用实例级 ID 关联标签，重复挂载不共享 DOM 身份；字段 ID 不参与草稿 reset key 或业务提交，OAuth Secret 的 name 使用通用语义。
 
 - 直接凭证与 OAuth 表单按外部 busy 投影 aria-busy，并在提交处理器拒绝 busy 期间的提交；不建立额外请求状态或清除当前草稿。
+
+- Device Flow、飞书连接选择/手工表单与 RichMail 配对沿用 compactMax 视口和 scrollable Body，标题与操作区留在正文滚动区之外；状态文案允许窄宽度换行，不私写高度或滚动容器。
+
+- 直接凭证、OAuth 应用、飞书连接和 RichMail 配对标题使用实例级 labelledBy/titleId，不依赖页面上其他弹窗的标题。
+
+- Device Flow 的 presentation 和轮询输出保持语义翻译键，视图随语言切换即时更新；错误在 Hook 使用当前语言翻译，语言变化不重启轮询。

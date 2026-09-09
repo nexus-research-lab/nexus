@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import type { PairingView } from "@/lib/api/capability/channel-api";
 import { MESSAGES } from "@/shared/i18n/messages";
 import type { Agent } from "@/types/agent/agent";
+import { getPairingLabels } from "./pairing-options";
 import { filterPairings, groupPairings } from "./pairing-model";
 
 const agent: Agent = { agent_id: "internal-agent", name: " Nova ", created_at: 1, options: {}, status: "idle", workspace_path: "/workspace/nova" };
@@ -32,4 +33,14 @@ describe("pairing group names", () => {
     expect(filterPairings([pairing, { ...second, agent_id: "another-agent" }], { agentId: agent.agent_id, channel: "", query: "", status: "" })).toEqual([pairing]);
     expect(pairing.agent_name).toBe("Old name");
   });
+});
+
+
+it.each(["en", "zh"] as const)("searches the visible channel name in %s without changing identities", (locale) => {
+  const labels = getPairingLabels((key) => MESSAGES[locale][key]);
+  const item = { ...pairing, channel_type: "wechat" as const };
+  const filters = { agentId: "", channel: "" as const, status: "" as const, query: labels.channels.wechat };
+  expect(filterPairings([item], filters, labels)).toEqual([item]);
+  expect(filterPairings([item], { ...filters, query: "企业微信" }, labels)).toEqual([item]);
+  expect(filterPairings([item], { ...filters, query: "wechat" }, labels)).toEqual([item]);
 });

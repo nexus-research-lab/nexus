@@ -63,6 +63,8 @@ export function AgentPrivateDomainView({
   const [eventsLoading, setEventsLoading] = useResettableState(Boolean(selectedThreadId), eventsResetKey);
   const [threadsFailure, setThreadsFailure] = useResettableState<PrivateDomainReadFailure | null>(null, queryResetKey);
   const [eventsFailure, setEventsFailure] = useResettableState<PrivateDomainReadFailure | null>(null, eventsResetKey);
+  const threadsRequestRef = useRef(0);
+  const eventsRequestRef = useRef(0);
   const threadsRef = useRef(threads);
   const eventsRef = useRef(events);
   const activeQueryKeyRef = useRef(queryResetKey);
@@ -77,15 +79,16 @@ export function AgentPrivateDomainView({
     room_id: roomId,
     conversation_id: isExternalSessionConversation ? null : conversationId,
     limit: isPreview ? 16 : 80,
-    room_limit: isPreview ? 1 : 160,
+    room_limit: roomId ? 1 : 160,
   }), [conversationId, isExternalSessionConversation, isPreview, roomId]);
 
   const loadThreads = useCallback(async () => {
     const requestKey = queryResetKey;
+    const requestId = ++threadsRequestRef.current;
     setThreadsLoading(true);
     try {
       const page = await listAgentPrivateThreadsApi(agent.agent_id, query);
-      if (activeQueryKeyRef.current !== requestKey) {
+      if (activeQueryKeyRef.current !== requestKey || threadsRequestRef.current !== requestId) {
         return;
       }
       const nextThreads = page.items ?? [];
@@ -98,13 +101,13 @@ export function AgentPrivateDomainView({
         return nextThreads[0]?.thread_id ?? null;
       });
     } catch (loadError) {
-      if (activeQueryKeyRef.current === requestKey) {
+      if (activeQueryKeyRef.current === requestKey && threadsRequestRef.current === requestId) {
         setThreadsFailure({
           stale: threadsRef.current.length > 0,
         });
       }
     } finally {
-      if (activeQueryKeyRef.current === requestKey) {
+      if (activeQueryKeyRef.current === requestKey && threadsRequestRef.current === requestId) {
         setThreadsLoading(false);
       }
     }
@@ -120,6 +123,7 @@ export function AgentPrivateDomainView({
 
   const loadEvents = useCallback(async (threadId: string | null) => {
     const requestKey = eventsResetKey;
+    const requestId = ++eventsRequestRef.current;
     if (!threadId) {
       setEvents([]);
       setEventsFailure(null);
@@ -131,19 +135,19 @@ export function AgentPrivateDomainView({
         ...query,
         limit: isPreview ? 40 : 120,
       });
-      if (activeEventsKeyRef.current !== requestKey) {
+      if (activeEventsKeyRef.current !== requestKey || eventsRequestRef.current !== requestId) {
         return;
       }
       setEvents(page.items ?? []);
       setEventsFailure(null);
     } catch (loadError) {
-      if (activeEventsKeyRef.current === requestKey) {
+      if (activeEventsKeyRef.current === requestKey && eventsRequestRef.current === requestId) {
         setEventsFailure({
           stale: eventsRef.current.length > 0,
         });
       }
     } finally {
-      if (activeEventsKeyRef.current === requestKey) {
+      if (activeEventsKeyRef.current === requestKey && eventsRequestRef.current === requestId) {
         setEventsLoading(false);
       }
     }
@@ -159,10 +163,12 @@ export function AgentPrivateDomainView({
 
   useEffect(() => {
     void loadThreads();
+    return () => { threadsRequestRef.current += 1; };
   }, [loadThreads]);
 
   useEffect(() => {
     void loadEvents(selectedThreadId);
+    return () => { eventsRequestRef.current += 1; };
   }, [loadEvents, selectedThreadId]);
 
   const selectedThread = useMemo(

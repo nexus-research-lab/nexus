@@ -14,6 +14,7 @@ import {
 import { createPortal } from "react-dom";
 import { Check, Loader2 } from "lucide-react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
@@ -205,6 +206,7 @@ function SelectedSkillChips({
   options: RoomSkillOption[];
   placeholder: string;
 }) {
+  const { t } = useI18n();
   if (options.length === 0) {
     return (
       <span className="truncate font-semibold text-(--text-muted)">
@@ -220,7 +222,7 @@ function SelectedSkillChips({
           disabled={disabled}
           key={option.value}
           onRemove={() => onRemove(option.value)}
-          removeLabel={`移除 ${option.label}`}
+          removeLabel={t("room.skill_remove_label", { name: option.label })}
           size="xs"
         >
           {option.label}
@@ -253,6 +255,7 @@ function RoomSkillMenuPortal({
       ariaLabel={ariaLabel}
       id={menuId}
       layoutClassName="flex flex-col overflow-hidden"
+      multiSelectable
       panelRef={menuRef}
       placement={placement}
       style={menuStyle}
@@ -337,6 +340,7 @@ export function RoomSkillMultiSelect({
     overlay.updateMenuPosition();
   };
   const removeValue = (nextValue: string) => {
+    if (disabled) return;
     onChange(removeRoomSkill(value, nextValue));
     overlay.updateMenuPosition();
   };

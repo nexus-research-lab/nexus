@@ -550,7 +550,7 @@ test("WorkGraph sketch editor reuses DM and applies a validated graph revision",
   assert.match(editorSource, /catalogAgents\.find\(\(item\) => item\.agent_id === editor\.agent_id\)/);
   assert.match(editorSource, /if \(!hasEditorAgent\) \{\s*await loadAgents\(\);\s*\}/);
   assert.doesNotMatch(editorSource, /\}, \[agents, locale, sessionKey, t, updateEditor\]\);/);
-  assert.match(editorSource, /\}, \[loadAgents, sessionKey, startAttempt, updateEditor\]\);/);
+  assert.match(editorSource, /\}, \[invalidateReads, loadAgents, sessionKey, startAttempt, updateEditor\]\);/);
   assert.doesNotMatch(editorSource, /getAgents\(\)/);
   assert.match(editorSource, /<DmChatPanel/);
   assert.match(editorSource, /embeddedEditor=/);

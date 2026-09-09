@@ -14,3 +14,5 @@
 内容投影向相邻 `activity/` 提供已消费块、已结束工具和隐藏工具集合；活动领域不得反向依赖本目录的视图模型。
 状态所有权按 `Goal lifecycle/activity -> Agent execution -> reply/tool leaf` 逐层细化；同一时刻只由最深可见层展示瞬时状态，上层不得重复解释下层已经可见的状态。
 DOM 锚点测量和系统事件样式属于具体视图，不得回流到消息领域模型。
+
+字符串内容的 timeline 开关独立于 className；Provider retry 倒计时仅在 deadline 前启动，结束后立即清理时钟，历史已过期记录不调度。

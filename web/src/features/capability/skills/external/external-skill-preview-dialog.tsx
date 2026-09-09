@@ -5,6 +5,8 @@
  */
 "use client";
 
+import { useId } from "react";
+
 import { ExternalLink, Loader2, PackagePlus } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -39,16 +41,18 @@ export function ExternalSkillPreviewDialog({
   onImport,
 }: ExternalSkillPreviewDialogProps) {
   const { t } = useI18n();
+  const titleId = useId();
   if (!model) return null;
 
   return (
     <UiDialogPortal>
-      <UiDialogBackdrop layer="dialog" onClose={onClose}>
+      <UiDialogBackdrop labelledBy={titleId} layer="dialog" onClose={onClose}>
         <UiDialogShell size="xl" viewport="adaptive">
           <UiDialogHeader
             appearance="plain"
             onClose={onClose}
             title={model.title}
+            titleId={titleId}
           />
           <UiDialogBody scrollable>
             <div className="mb-5 flex flex-wrap gap-2">
@@ -67,7 +71,7 @@ export function ExternalSkillPreviewDialog({
               <UiLinkButton
                 className="w-fit"
                 href={model.detailUrl}
-                rel="noreferrer"
+                rel="noopener noreferrer"
                 size="sm"
                 target="_blank"
                 variant="text"
@@ -78,6 +82,7 @@ export function ExternalSkillPreviewDialog({
             ) : <span />}
             <div className="flex flex-wrap items-center gap-2">
               <UiButton
+                aria-busy={model.importState.busy || undefined}
                 disabled={model.importState.busy || !model.importState.canImport}
                 onClick={() => onImport(model.item)}
                 size="sm"

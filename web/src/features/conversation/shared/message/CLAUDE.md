@@ -18,3 +18,5 @@
 - 消息项控制器只返回按 User/Assistant 和视觉职责分组的具体状态；各视图在消费侧声明所需结构，不共享宽状态接口。
 - Assistant 快照合并必须单调保留 `recalled_memories`，历史载入的引用摘要不得被同进度 live 快照覆盖。
 - live Assistant 高度只由当前可见内容的 intrinsic layout 决定；禁止用子级 `ResizeObserver` 把历史最高高度回写为 `min-height`，否则过程/正文切换会留下不可自愈的大空白。多 Agent 的展示节奏由 shared Markdown 帧调度器合批，MessageItem 不持有高度状态。
+
+Markdown 的服务端 mention rune 范围先应用于完整正文，再拆出文件卡；流式未完整到达或互相重叠的范围不局部截断成新 mention。

@@ -1,12 +1,13 @@
 // INPUT: 已投影 Skill 列表、读取可用性与逐 Skill mutation 锁。
 // OUTPUT: 保留快照且仅禁用不安全开关的分组列表。
 // POS: Agent Options Skill 内容层；不解释失败、不触发自动重试。
-import { Loader2 } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
-import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
 import type { AgentSkillEntry } from "@/types/capability/skill";
@@ -47,7 +48,7 @@ function SkillsSectionHeader({
 }) {
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-      <h4 className="text-sm font-semibold text-(--text-strong)">{title}</h4>
+      <h4 className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong" })}>{title}</h4>
       {trailing}
     </div>
   );
@@ -75,7 +76,7 @@ function EnabledSkillsSection({
       <SkillsSectionHeader
         title={t("agent_options.skills.enabled_section")}
         trailing={(
-          <span className="text-xs text-(--text-soft)">
+          <span className={getUiTypographyClassName({ role: "metadata", tone: "soft" })}>
             {projection.enabled.length}
           </span>
         )}
@@ -139,7 +140,7 @@ function AvailableSkillsSection({
         trailing={(
           <div className="flex w-full items-center gap-3 sm:w-auto">
             {filteredCount ? (
-              <span className="shrink-0 text-xs text-(--text-soft)">
+              <span className={cn("shrink-0", getUiTypographyClassName({ role: "metadata", tone: "soft" }))}>
                 {filteredCount}
               </span>
             ) : null}
@@ -194,14 +195,11 @@ export function AgentOptionsSkillsContent(
   }
   if (props.loading) {
     return (
-      <UiStateBlock
+      <UiResourceState
         className="py-10"
-        icon={(
-          <Loader2
-            className={getUiSpinnerClassName({ size: "md", tone: "muted" })}
-          />
-        )}
         size="sm"
+        state="loading"
+        title={t("common.loading")}
         variant="card"
       />
     );

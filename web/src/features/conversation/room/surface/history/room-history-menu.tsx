@@ -1,19 +1,20 @@
 /**
  * INPUT: Room 会话目录、当前会话和既有创建/选择/删除/重命名命令。
- * OUTPUT: 固定标题/操作区、可读时间与多选状态；未确认删除说明复用公共提示并随列表滚动。
+ * OUTPUT: 固定标题/操作区与多选；按 owner/Room 隔离临时状态，写入防重并锁住未确认条目的后续修改。
  * POS: Room Header 历史交互层；只按命令结果展示恢复事实，不猜测底层提交状态。
  */
 
 "use client";
 
 import { createPortal } from "react-dom";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   ChevronDown,
   History,
   Loader2,
 } from "lucide-react";
 
+import { captureAuthOwnerScopeGeneration, subscribeAuthOwnerScopeGeneration } from "@/shared/auth/auth-owner-generation";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
@@ -69,7 +70,13 @@ interface RoomHistoryBulkDeleteFailure {
   totalCount: number;
 }
 
-export function RoomHistoryMenu({
+export function RoomHistoryMenu(props: RoomHistoryMenuProps) {
+  const owner = useSyncExternalStore(subscribeAuthOwnerScopeGeneration, captureAuthOwnerScopeGeneration, captureAuthOwnerScopeGeneration);
+  const roomId = props.conversations[0]?.room_id ?? null;
+  return <RoomHistoryMenuContent key={JSON.stringify([owner, roomId])} {...props} />;
+}
+
+function RoomHistoryMenuContent({
   canManageConversations = true,
   conversationId,
   conversations,
@@ -80,6 +87,15 @@ export function RoomHistoryMenu({
   triggerVariant = "history",
 }: RoomHistoryMenuProps) {
   const { t } = useI18n();
+  const mounted = useRef(true);
+  const writing = useRef(false);
+
+  const [uncertainIds, setUncertainIds] = useState<Set<string>>(() => new Set());
+  const [mutationFailed, setMutationFailed] = useState(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
   const [pendingDeleteConversation, setPendingDeleteConversation] = useState<RoomConversationView | null>(null);
   const [
     pendingBulkDelete,
@@ -92,7 +108,13 @@ export function RoomHistoryMenu({
     canUpdateConversationTitle: onUpdateConversationTitle !== undefined,
     conversations,
     currentConversationId: conversationId,
-  }), [
+  }).map((entry) => ({
+    ...entry,
+    canDelete: entry.canDelete && !uncertainIds.has(entry.conversation.conversation_id),
+    canBulkDelete: entry.canBulkDelete && !uncertainIds.has(entry.conversation.conversation_id),
+    canRename: entry.canRename && !uncertainIds.has(entry.conversation.conversation_id),
+  })), [
+    uncertainIds,
     canManageConversations,
     conversationId,
     conversations,
@@ -135,6 +157,8 @@ export function RoomHistoryMenu({
     disabled: isBulkDeleting,
     estimatePosition,
   });
+  const isOpenRef = useRef(isOpen);
+  isOpenRef.current = isOpen;
   const historyTitleId = `${menuId}-title`;
   const triggerLabel = isBulkDeleting
     ? t("room.history_batch_deleting")
@@ -157,7 +181,7 @@ export function RoomHistoryMenu({
   }, [closeMenu]);
   const requestBulkDelete = useCallback(() => {
     const conversationIds = entries
-      .filter((entry) => selectedIds.has(entry.conversation.conversation_id))
+      .filter((entry) => entry.canBulkDelete && selectedIds.has(entry.conversation.conversation_id))
       .map((entry) => entry.conversation.conversation_id);
     if (conversationIds.length === 0) {
       return;
@@ -179,6 +203,7 @@ export function RoomHistoryMenu({
     toggleMenu,
   ]);
   const confirmBulkDelete = useCallback(async () => {
+    if (writing.current) return;
     const pendingDelete = pendingBulkDelete;
     const conversationIds = pendingDelete?.conversationIds ?? [];
     setPendingBulkDelete(null);
@@ -187,6 +212,7 @@ export function RoomHistoryMenu({
       return;
     }
 
+    writing.current = true;
     setIsBulkDeleting(true);
     const {
       failedConversationIds,
@@ -201,11 +227,14 @@ export function RoomHistoryMenu({
           : undefined,
       },
     );
+    writing.current = false;
+    if (!mounted.current) return;
     setIsBulkDeleting(false);
     if (replacementConversationId) {
       onSelectConversation(replacementConversationId);
     }
     if (failedConversationIds.length > 0) {
+      setUncertainIds((current) => new Set([...current, ...failedConversationIds]));
       setBulkDeleteFailure({
         failedCount: failedConversationIds.length,
         totalCount: conversationIds.length,
@@ -230,6 +259,22 @@ export function RoomHistoryMenu({
     }
     startSelection();
   }, [clearSelection, isSelecting, startSelection]);
+  const runItemMutation = async (id: string, command: () => Promise<unknown>) => {
+    if (writing.current || uncertainIds.has(id)) return;
+    writing.current = true;
+    try {
+      await command();
+    } catch {
+      if (mounted.current) {
+        setUncertainIds((current) => new Set([...current, id]));
+        setMutationFailed(true);
+        if (!isOpenRef.current) toggleMenu();
+      }
+    } finally {
+      writing.current = false;
+    }
+  };
+
   const renderHistoryEntry = (entry: RoomHistoryEntry) => (
     <RoomHistoryItem
       entry={entry}
@@ -238,10 +283,8 @@ export function RoomHistoryMenu({
       key={entry.conversation.conversation_id}
       onDelete={() => requestDelete(entry.conversation)}
       onRename={(title) => {
-        void onUpdateConversationTitle?.(
-          entry.conversation.conversation_id,
-          title,
-        );
+        const id = entry.conversation.conversation_id;
+        void runItemMutation(id, () => onUpdateConversationTitle?.(id, title) ?? Promise.resolve());
       }}
       onSelect={() => selectConversation(entry.conversation.conversation_id)}
       onToggleSelection={() => toggleSelection(
@@ -344,6 +387,9 @@ export function RoomHistoryMenu({
             className="soft-scrollbar min-h-0 flex-1 overflow-auto overscroll-contain p-1.5"
             data-room-history-scroll-viewport
           >
+            {mutationFailed ? (
+              <UiInlineNotice className="mb-2" tone="warning" message={t("room.history_mutation_unconfirmed")} />
+            ) : null}
             {isSelecting && bulkDeleteFailure ? (
               <UiInlineNotice
                 className="mb-2"
@@ -403,7 +449,7 @@ export function RoomHistoryMenu({
               {isSelecting ? (
                 <UiButton
                   className="shrink-0"
-                  disabled={selectedIds.size === 0}
+                  disabled={selectedIds.size === 0 || !entries.some((entry) => entry.canBulkDelete && selectedIds.has(entry.conversation.conversation_id))}
                   onClick={requestBulkDelete}
                   size="sm"
                   tone="danger"
@@ -439,7 +485,7 @@ export function RoomHistoryMenu({
           const target = pendingDeleteConversation;
           setPendingDeleteConversation(null);
           if (target) {
-            void onDeleteConversation(target.conversation_id);
+            void runItemMutation(target.conversation_id, () => onDeleteConversation(target.conversation_id));
           }
         }}
         title={t("room.delete_conversation_title")}

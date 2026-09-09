@@ -18,7 +18,7 @@ import { getUiOverlayLayerClassName } from "@/shared/ui/overlay/layer-styles";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { RoomConversationView } from "@/types/conversation/conversation";
 
-import { filterRoomHistoryConversations } from "../history/room-history-model";
+import { buildRoomHistoryEntries } from "../history/room-history-model";
 
 interface RoomMobileConversationSwitcherProps {
   activeConversationId: string | null;
@@ -39,7 +39,12 @@ export function RoomMobileConversationSwitcher({
   const titleId = useId();
   const rootRef = useRef<HTMLElement | null>(null);
   useDialogModalBehavior({ enabled: isOpen, onClose, rootRef });
-  const historyConversations = filterRoomHistoryConversations(conversations);
+  const historyConversations = buildRoomHistoryEntries({
+    conversations,
+    currentConversationId: activeConversationId,
+    canManageConversations: false,
+    canUpdateConversationTitle: false,
+  }).map((entry) => entry.conversation);
   if (!isOpen) {
     return null;
   }

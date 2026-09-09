@@ -1,7 +1,9 @@
 // INPUT: Contacts 的创建/编辑 Agent 状态与保存、删除、关闭动作。
-// OUTPUT: plain 标题和持续可切换的 Agent 设置工作台，不展示内部 ID 副标题。
+// OUTPUT: 实例级具名 plain 标题和持续可切换的 Agent 设置工作台，不展示内部 ID 副标题。
 // POS: Agent Options 的模态壳层，字段与事务全部委托给编辑器。
 "use client";
+
+import { useId } from "react";
 
 import { AgentOptionsDialogEditor } from "@/features/agents/options/agent-options-editor";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -36,6 +38,7 @@ export function AgentOptionsDialog({
   state,
 }: AgentOptionsDialogProps) {
   const { t } = useI18n();
+  const titleId = useId();
 
   if (state.kind === "closed") {
     return null;
@@ -47,7 +50,7 @@ export function AgentOptionsDialog({
       <UiDialogBackdrop
         closeOnBackdrop={false}
         inset="compact"
-        labelledBy="agent-options-dialog-title"
+        labelledBy={titleId}
         layer="dialog"
         onClose={onClose}
       >
@@ -62,7 +65,7 @@ export function AgentOptionsDialog({
             closeLabel={t("agent_options.close_dialog")}
             onClose={onClose}
             title={title}
-            titleId="agent-options-dialog-title"
+            titleId={titleId}
           />
 
           <AgentOptionsDialogEditor

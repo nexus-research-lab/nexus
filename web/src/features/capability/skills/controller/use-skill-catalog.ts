@@ -27,6 +27,7 @@ export function useSkillCatalog({
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
+  const [loadFailed, setLoadFailed] = useState(false);
   const [loading, setLoading] = useState(true);
   const requestRef = useRef(0);
 
@@ -47,11 +48,13 @@ export function useSkillCatalog({
       });
       if (requestId === requestRef.current) {
         setSkills(nextSkills);
+        setLoadFailed(false);
         return true;
       }
       return false;
     } catch {
       if (requestId === requestRef.current) {
+        setLoadFailed(true);
         onError(catalogLoadFailed);
       }
       return false;
@@ -127,6 +130,7 @@ export function useSkillCatalog({
     groupedSkills,
     importedExternalSources,
     loading,
+    loadFailed,
     query,
     refresh,
     setActiveCategory,

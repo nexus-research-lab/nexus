@@ -18,6 +18,8 @@ function view(loading: boolean) {
         busySkillNames={new Set()}
         groupedSkills={[]}
         loading={loading}
+        loadFailed={false}
+        onReload={vi.fn()}
         onDeleteSkill={vi.fn()}
         onOpenSkill={vi.fn()}
       />

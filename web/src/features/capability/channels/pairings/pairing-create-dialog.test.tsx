@@ -2,7 +2,7 @@
 // OUTPUT: 证明目录变化不能自动改绑第一项，恢复后仍提交用户选择的精确 ID。
 // POS: 配对创建表单的实际 DOM/提交回归，复用公共 Select 与 Dialog。
 
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { I18N_CONTEXT, type I18nContextValue } from "@/shared/i18n/i18n-context";
@@ -57,4 +57,38 @@ describe("pairing creation identity", () => {
     expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({ agent_id: b.agent_id, external_ref: "chat-42" }));
     expect(onClose).not.toHaveBeenCalled();
   });
+});
+
+
+it("cannot dismiss or edit the creation draft while its submission is pending", async () => {
+  let finish!: (created: boolean) => void;
+  const onCreate = vi.fn(() => new Promise<boolean>((resolve) => { finish = resolve; }));
+  const onClose = vi.fn();
+  const user = userEvent.setup();
+  render(<I18N_CONTEXT.Provider value={{ locale: "zh", setLocale: vi.fn(), t }}><CreatePairingDialog agents={[a]} blocked={false} failure={null} onCreate={onCreate} onClose={onClose} /></I18N_CONTEXT.Provider>);
+  await user.type(screen.getByLabelText(/外部对象 ID/), "chat-42");
+  await user.click(screen.getByRole("button", { name: "新增配对" }));
+  expect((screen.getByLabelText(/外部对象 ID/) as HTMLInputElement).disabled).toBe(true);
+  await user.keyboard("{Escape}");
+  expect(onClose).not.toHaveBeenCalled();
+  await act(async () => finish(false));
+  expect((screen.getByLabelText(/外部对象 ID/) as HTMLInputElement).disabled).toBe(false);
+  expect((screen.getByLabelText(/外部对象 ID/) as HTMLInputElement).value).toBe("chat-42");
+  await user.keyboard("{Escape}");
+  expect(onClose).toHaveBeenCalledOnce();
+});
+
+
+it("switches to English without losing the pairing draft or changing protocol values", async () => {
+  const user = userEvent.setup();
+  const onCreate = vi.fn(async () => false);
+  const view = (locale: "en" | "zh") => <I18N_CONTEXT.Provider value={{ locale, setLocale: vi.fn(), t: (key) => MESSAGES[locale][key] }}><CreatePairingDialog agents={[a]} blocked={false} failure={null} onCreate={onCreate} onClose={vi.fn()} /></I18N_CONTEXT.Provider>;
+  const { rerender } = render(view("zh"));
+  await user.type(screen.getByLabelText(/外部对象 ID/), "chat-42");
+  rerender(view("en"));
+  expect((screen.getByLabelText(/External contact ID/) as HTMLInputElement).value).toBe("chat-42");
+  await user.click(screen.getByRole("button", { name: "Select IM channel" }));
+  await user.click(screen.getByRole("option", { name: "WeCom" }));
+  await user.click(screen.getByRole("button", { name: "New pairing" }));
+  expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({ channel_type: "wechat", external_ref: "chat-42", agent_id: a.agent_id }));
 });

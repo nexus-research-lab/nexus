@@ -360,8 +360,9 @@ function ScheduledTaskReadyBoard({
 }: Omit<ScheduledTaskBoardProps, "isLoading" | "items" | "onCreate" | "onCreateFromPreset"> & {
   columns: ScheduledTaskBoardColumn[];
 }) {
+  const { t } = useI18n();
   return (
-    <section className="flex min-h-0 min-w-0 flex-1 flex-col" aria-label="定时任务看板">
+    <section className="flex min-h-0 min-w-0 flex-1 flex-col" aria-label={t("capability.scheduled_intro_title")}>
       <div className={cn(
         WORKSPACE_CONTENT_BLEED_CLASS_NAME,
         "soft-scrollbar min-h-0 flex-1 overflow-x-auto overflow-y-hidden",

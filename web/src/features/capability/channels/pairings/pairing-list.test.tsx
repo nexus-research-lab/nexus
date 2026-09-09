@@ -64,7 +64,7 @@ describe("PairingList", () => {
     const onUpdatePairing = vi.fn();
     const { container } = render(
       <I18N_CONTEXT.Provider
-        value={{ locale: "zh", setLocale: vi.fn(), t: (key) => key }}
+        value={{ locale: "zh", setLocale: vi.fn(), t: (key) => MESSAGES.zh[key] }}
       >
         <PairingList
           agents={[AGENT]}
@@ -109,7 +109,7 @@ describe("PairingList", () => {
     const onCopySessionKey = vi.fn();
     render(
       <I18N_CONTEXT.Provider
-        value={{ locale: "zh", setLocale: vi.fn(), t: (key) => key }}
+        value={{ locale: "zh", setLocale: vi.fn(), t: (key) => MESSAGES.zh[key] }}
       >
         <PairingList
           agents={[AGENT]}

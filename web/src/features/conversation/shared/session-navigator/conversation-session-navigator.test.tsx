@@ -134,4 +134,21 @@ describe("ConversationSessionNavigator", () => {
       "ui-type-caption",
     );
   });
+  it("keeps focus transitions inside the preview and exits by blur or non-IME Escape", () => {
+    render(<I18nProvider><ConversationSessionNavigator scopeKey="session" scrollRef={createRef<HTMLDivElement>()} timeline={EMPTY_TIMELINE} /></I18nProvider>);
+    const nav = screen.getByRole("navigation");
+    const ticks = nav.querySelectorAll<HTMLButtonElement>("[data-session-navigator-round]");
+    const preview = nav.querySelector<HTMLButtonElement>("[data-session-navigator-preview]")!;
+    fireEvent.blur(ticks[1], { relatedTarget: preview });
+    expect(navigation.clearPreview).not.toHaveBeenCalled();
+    fireEvent.keyDown(preview, { key: "Escape", isComposing: true });
+    expect(navigation.clearPreview).not.toHaveBeenCalled();
+    fireEvent.keyDown(preview, { key: "Escape" });
+    expect(navigation.clearPreview).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).toBe(ticks[1]);
+    fireEvent.blur(ticks[1], { relatedTarget: document.body });
+    expect(navigation.clearPreview).toHaveBeenCalledTimes(2);
+    expect(navigation.jumpToRound).not.toHaveBeenCalled();
+  });
+
 });

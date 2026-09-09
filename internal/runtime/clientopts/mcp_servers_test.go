@@ -115,6 +115,16 @@ func TestMergeAgentMCPServersRejectsManagedNames(t *testing.T) {
 			serverName: "nexus",
 		},
 		{
+			name:       "reserved GitHub name case insensitive",
+			configured: map[string]any{"GitHub": map[string]any{"command": "custom"}},
+			serverName: "GitHub",
+		},
+		{
+			name:       "reserved RichMail name",
+			configured: map[string]any{"richmail": map[string]any{"command": "custom"}},
+			serverName: "richmail",
+		},
+		{
 			name: "reserved connector name",
 			configured: map[string]any{
 				"amap_maps": map[string]any{"command": "custom"},

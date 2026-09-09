@@ -64,7 +64,7 @@ export function ImageBlock({
         type="button"
       >
         <img
-          alt={projection.alt}
+          alt={block.alt || t("message.generated_image")}
           className="content-artifact-image-preview h-full w-full object-contain"
           loading="lazy"
           src={projection.source.src}
@@ -85,7 +85,7 @@ function useDeferredImageDetail(block: ImageContent): {
 } {
   const detailRef = block.detail_ref?.trim() ?? "";
   const sessionKey = block.detail_session_key?.trim() ?? "";
-  const key = `${sessionKey}:${detailRef}`;
+  const key = JSON.stringify([sessionKey, detailRef]);
   const [state, setState] = useState({ key: "", loading: false, url: "" });
 
   useEffect(() => {
@@ -100,6 +100,7 @@ function useDeferredImageDetail(block: ImageContent): {
       detailRef,
       controller.signal,
     ).then((blob) => {
+      if (controller.signal.aborted) return;
       objectUrl = URL.createObjectURL(blob);
       setState({ key, loading: false, url: objectUrl });
     }).catch((error: unknown) => {
@@ -146,10 +147,11 @@ function openImageArtifact(
 }
 
 function MissingImageArtifact() {
+  const { t } = useI18n();
   return (
     <div className="content-artifact-empty content-media-frame my-2 flex items-center justify-center gap-2 px-3 py-2 text-sm">
       <ImageIcon className="h-4 w-4 shrink-0" />
-      图片内容缺少可展示的数据
+      {t("message.image_missing_data")}
     </div>
   );
 }

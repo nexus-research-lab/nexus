@@ -182,7 +182,7 @@ export function ConnectorsDirectory() {
     || controller.reconciliationActions.some((action) => (
       action.connectorId === activeConnectorId
     ))
-    || customMCP.busy;
+    || customMCP.busy || customMCP.blocked;
   const confirmCustomMCPDelete = useCallback(async () => {
     const target = customMCP.deleteTarget;
     if (
@@ -212,13 +212,17 @@ export function ConnectorsDirectory() {
         }}
         server={selectedCustomMCPServer}
         serverLoading={customMCP.loading}
+        serverFailure={customMCP.failure}
+        onRetryServer={() => void customMCP.refresh()}
       />
     );
   } else if (connectorId) {
     surfaceContent = (
       <ConnectorDetailView
         busy={busy}
-        detail={controller.selectedDetail}
+        detail={controller.selectedDetail?.connector_id === connectorId
+          ? controller.selectedDetail
+          : null}
         failure={controller.detailFailure}
         loading={controller.detailLoading}
         onBack={backToConnectors}
@@ -257,8 +261,10 @@ export function ConnectorsDirectory() {
       />
     ) : (
       <CustomMCPGrid
-        busy={customMCP.busy}
+        busy={customMCP.busy || customMCP.blocked}
         hasServers={customMCP.servers.length > 0}
+        failure={customMCP.failure}
+        onRetry={() => void customMCP.refresh()}
         loading={customMCP.loading}
         onAdd={customMCP.openCreate}
         onDelete={customMCP.requestDelete}
@@ -274,7 +280,7 @@ export function ConnectorsDirectory() {
       <CapabilityPageLayout
         actions={directoryMode === "custom_mcp" ? (
           <UiButton
-            disabled={customMCP.busy}
+            disabled={customMCP.busy || customMCP.blocked}
             onClick={customMCP.openCreate}
             size="2xs"
             tone="primary"
@@ -411,6 +417,7 @@ export function ConnectorsDirectory() {
       />
       {customMCP.dialogState ? (
         <CustomMCPDialog
+          blocked={customMCP.blocked}
           busy={customMCP.busy}
           key={customMCP.dialogState.mode === "edit"
             ? customMCP.dialogState.server.connector_id

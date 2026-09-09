@@ -89,44 +89,42 @@ export function SidebarFooterActions(props: SidebarUtilityActionsProps) {
 
   return (
     <div className="sidebar-panel-footer shell-region-footer relative -mr-1.5 flex h-12 shrink-0 items-center justify-end gap-2 px-2">
-      <>
-          <UiIconButton
-            ref={anchorRef}
-            data-tour-anchor={SIDEBAR_TOUR_ANCHORS.restart}
-            aria-label={props.accountName}
-            aria-expanded={menuOpen}
-            aria-haspopup="menu"
-            className="mr-auto"
-            onClick={() => setMenuOpen(!menuOpen)}
-            shape="round"
-            size="md"
-            tooltip={props.accountName}
-          >
+      <UiIconButton
+        ref={anchorRef}
+        data-tour-anchor={SIDEBAR_TOUR_ANCHORS.restart}
+        aria-label={props.accountName}
+        aria-expanded={menuOpen}
+        aria-haspopup="menu"
+        className="mr-auto"
+        onClick={() => setMenuOpen(!menuOpen)}
+        shape="round"
+        size="md"
+        tooltip={props.accountName}
+      >
+        <UiAgentAvatar aria-hidden="true" avatar={props.accountAvatar} className="rounded-full" name={props.accountName} size="sm" />
+      </UiIconButton>
+      <UiActionMenu
+        anchorRef={anchorRef}
+        ariaLabel={props.accountName}
+        isOpen={menuOpen}
+        items={[{
+          value: "personal",
+          label: <span className="flex min-w-0 items-center gap-2.5">
             <UiAgentAvatar aria-hidden="true" avatar={props.accountAvatar} className="rounded-full" name={props.accountName} size="sm" />
-          </UiIconButton>
-          <UiActionMenu
-            anchorRef={anchorRef}
-            ariaLabel={props.accountName}
-            isOpen={menuOpen}
-            items={[{
-              value: "personal",
-              label: <span className="flex min-w-0 items-center gap-2.5">
-                <UiAgentAvatar aria-hidden="true" avatar={props.accountAvatar} className="rounded-full" name={props.accountName} size="sm" />
-                <span className="ui-type-control truncate text-(--text-strong)">{props.accountName}</span>
-              </span>,
-            }]}
-            footerItems={items}
-            minWidth={220}
-            placement="top"
-            onClose={() => setMenuOpen(false)}
-            onSelect={(value) => {
-              if (value === "personal") navigate(AppRouteBuilders.settings("personal"));
-              if (value === "login") props.onLogin();
-              if (value === "logout") props.onLogout();
-              if (value === "guide") props.onOpenGuide();
-            }}
-          />
-      </>
+            <span className="ui-type-control truncate text-(--text-strong)" title={props.accountName}>{props.accountName}</span>
+          </span>,
+        }]}
+        footerItems={items}
+        minWidth={220}
+        placement="top"
+        onClose={() => setMenuOpen(false)}
+        onSelect={(value) => {
+          if (value === "personal") navigate(AppRouteBuilders.settings("personal"));
+          if (value === "login") props.onLogin();
+          if (value === "logout") props.onLogout();
+          if (value === "guide") props.onOpenGuide();
+        }}
+      />
       {updateVersion ? <SidebarUpdateIndicator version={updateVersion} /> : null}
       {props.showSettings ? (
         <UtilityButton
@@ -142,14 +140,12 @@ export function SidebarFooterActions(props: SidebarUtilityActionsProps) {
 
 function UtilityButton({
   active,
-  anchor,
   icon: Icon,
   iconClassName = "h-[18px] w-[18px]",
   label,
   onClick,
 }: {
   active?: boolean;
-  anchor?: string;
   icon: LucideIcon;
   iconClassName?: string;
   label: string;
@@ -159,7 +155,6 @@ function UtilityButton({
     <UiIconButton
       aria-label={label}
       aria-pressed={active}
-      data-tour-anchor={anchor}
       onClick={onClick}
       shape="round"
       size="md"

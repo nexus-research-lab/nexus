@@ -1,11 +1,12 @@
 // INPUT: Composer Provider/Connector/Session-setting 读取与 mutation 失败投影。
 // OUTPUT: 自动弹出的写入失败 Dialog，及可展开、可独立重试的紧凑读取失败提示。
 // POS: Composer Session controls 共用可见错误面；不把读取当作 mutation 对账。
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { ChevronRight, CircleAlert, RotateCw } from "lucide-react";
-import { useId, useState } from "react";
+import { useId } from "react";
 import { UiDialogPortal, UiDialogBackdrop, UiDialogShell, UiDialogHeader, UiDialogBody } from "@/shared/ui/dialog/dialog";
 
 import type { ComposerSessionSettingsController } from "../../controller/use-composer-session-settings";
@@ -17,12 +18,14 @@ export function ComposerSessionSettingsReliability({
   controller: ComposerSessionSettingsController;
 }) {
   const { t } = useI18n();
-  const [isDialogOpen, setDialogOpen] = useState(false);
   const readFailures = [
     controller.settingsReadFailure,
     controller.providerFailure,
     controller.connectorsFailure,
   ].filter((failure): failure is ComposerReadFailure => Boolean(failure));
+  const [isDialogOpen, setDialogOpen] = useResettableState(false, JSON.stringify([
+    controller.target?.sessionKey, readFailures[0]?.resource ?? null, Boolean(controller.mutationFailure),
+  ]));
   if (readFailures.length === 0 && !controller.mutationFailure) {
     return null;
   }

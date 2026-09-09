@@ -136,6 +136,7 @@ export function RoomSurfaceAuxiliaryPanel({
       key: "about",
       content: (
         <RoomAgentAboutSurface
+            isDm={isDm}
           agent={currentAgent}
           conversationId={conversationId}
           roomId={roomId}

@@ -62,6 +62,7 @@ export function ChannelsDirectory() {
         <CapabilityPageLayout
           actions={(
             <UiButton
+              disabled={controller.loading}
               onClick={() => void controller.refresh()}
               size="2xs"
               variant="text"

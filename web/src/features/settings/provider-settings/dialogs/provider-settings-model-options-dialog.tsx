@@ -1,5 +1,5 @@
 // INPUT: 单个 Provider 模型的能力、窗口、输出限制和 JSON Options 草稿。
-// OUTPUT: 标题下模型身份、双列能力、额度与折叠高级参数，保留底部保存动作。
+// OUTPUT: 模型身份、双列能力、额度与折叠参数；只读或忙碌时统一禁用编辑与保存。
 // POS: Provider 模型覆写入口，不把每项能力包装成图标卡片。
 import { useId, type Dispatch, type SetStateAction } from "react";
 import { Loader2 } from "lucide-react";
@@ -56,6 +56,8 @@ export function ProviderModelOptionsDialog({
     return null;
   }
 
+  const controlsDisabled = pendingAction !== null || !selectedCanManage;
+
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
@@ -85,6 +87,7 @@ export function ProviderModelOptionsDialog({
                 {CAPABILITY_FIELDS.map(({ key, label }) => (
                   <CapabilitySwitch
                     checked={!!modelOptions.capabilities[key]}
+                    disabled={controlsDisabled}
                     key={key}
                     label={t(label)}
                     onChange={(checked) => setModelOptions((current) => current ? ({
@@ -100,6 +103,7 @@ export function ProviderModelOptionsDialog({
               <UiField htmlFor={`${dialogId}-context`} label={t("settings.providers.context_window")}>
                 <UiInput
                   controlSize="md"
+                  disabled={controlsDisabled}
                   id={`${dialogId}-context`}
                   inputMode="numeric"
                   onChange={(event) => setModelOptions((current) => current ? ({ ...current, context_window: event.target.value }) : current)}
@@ -110,6 +114,7 @@ export function ProviderModelOptionsDialog({
               <UiField htmlFor={`${dialogId}-output`} label={t("settings.providers.max_output_tokens")}>
                 <UiInput
                   controlSize="md"
+                  disabled={controlsDisabled}
                   id={`${dialogId}-output`}
                   inputMode="numeric"
                   onChange={(event) => setModelOptions((current) => current ? ({ ...current, max_output_tokens: event.target.value }) : current)}
@@ -128,6 +133,7 @@ export function ProviderModelOptionsDialog({
               <UiTextarea
                 aria-label={t("settings.providers.provider_options_json")}
                 controlSize="md"
+                disabled={controlsDisabled}
                 id={`${dialogId}-options`}
                 onChange={(event) => setModelOptions((current) => current ? ({ ...current, provider_options_text: event.target.value }) : current)}
                 spellCheck={false}
@@ -146,7 +152,7 @@ export function ProviderModelOptionsDialog({
             </UiButton>
             <UiButton
               aria-busy={pendingAction?.kind === "save-model-options"}
-              disabled={pendingAction?.kind === "save-model-options" || !selectedCanManage}
+              disabled={controlsDisabled}
               onClick={onSave}
               tone="primary"
               type="button"

@@ -2,7 +2,7 @@
 // OUTPUT: 验证连续改名保存、已保存内容判定、当前版本续用，以及编辑器显式元信息边界。
 // POS: WorkGraph 保存确认表单 DOM 回归；模型编辑和画布由独立边界替身代替。
 
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -251,5 +251,20 @@ describe("WorkGraph save form metadata", () => {
     expect(mocks.save).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "execution.workflow_reload_draft" }));
     expect(save.disabled).toBe(false);
+  });
+  it("blocks same-frame duplicate saves and reports failed verification without unlocking", async () => {
+    let reject!: (reason: Error) => void;
+    mocks.save.mockReturnValue(new Promise((_resolve, fail) => { reject = fail; }));
+    render(<WorkGraphDistillationDialog agents={[]} onClose={vi.fn()} preview={PREVIEW} sessionKey="session-a" />);
+    const button = screen.getByRole<HTMLButtonElement>("button", { name: "execution.workflow_save_sketch" });
+    await waitFor(() => expect(button.disabled).toBe(false));
+    act(() => { fireEvent.click(button); fireEvent.click(button); });
+    expect(mocks.save).toHaveBeenCalledOnce();
+    await act(async () => reject(new Error("lost response")));
+    mocks.state.mockRejectedValueOnce(new Error("offline"));
+    await userEvent.setup().click(screen.getByRole("button", { name: "execution.workflow_check_save" }));
+    expect(screen.getByText("execution.workflow_state_failed")).toBeTruthy();
+    expect(screen.getByLabelText<HTMLInputElement>("execution.workflow_slash_name").disabled).toBe(true);
+    expect(mocks.save).toHaveBeenCalledOnce();
   });
 });

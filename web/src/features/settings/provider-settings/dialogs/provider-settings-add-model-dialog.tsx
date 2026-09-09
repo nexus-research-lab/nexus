@@ -1,5 +1,5 @@
 // INPUT: 当前 Provider 的手工模型草稿、启用选择和添加命令状态。
-// OUTPUT: 实例级 Model ID 字段与具名/关联说明的启用开关，复用 Dialog 焦点和 Field 技术文本。
+// OUTPUT: 实例级 Model ID 与启用开关，按权限/共享忙碌状态冻结草稿与提交，复用公共焦点和字段。
 // POS: Provider 手工模型入口，不重复解释后续模型配置能力。
 import { useId, useRef } from "react";
 import { Loader2 } from "lucide-react";
@@ -56,6 +56,7 @@ export function ProviderAddModelDialog({
   }
 
   const isAdding = pendingAction?.kind === "add-model";
+  const controlsDisabled = pendingAction !== null || !selectedCanManage;
 
   return (
     <UiDialogPortal>
@@ -68,7 +69,7 @@ export function ProviderAddModelDialog({
         <UiDialogFormShell
           onSubmit={(event) => {
             event.preventDefault();
-            onAdd();
+            if (!controlsDisabled) onAdd();
           }}
           size="md"
           viewport="adaptiveMax"
@@ -91,6 +92,7 @@ export function ProviderAddModelDialog({
                 autoCapitalize="off"
                 autoCorrect="off"
                 controlSize="md"
+                disabled={controlsDisabled}
                 id={`${dialogId}-model`}
                 ref={modelInputRef}
                 onChange={(event) => setManualModelId(event.target.value)}
@@ -115,6 +117,7 @@ export function ProviderAddModelDialog({
                 aria-describedby={`${dialogId}-enable-description`}
                 aria-label={t("settings.providers.enable_after_add")}
                 checked={manualModelEnabled}
+                disabled={controlsDisabled}
                 size="xs"
                 onChange={setManualModelEnabled}
               />
@@ -130,7 +133,7 @@ export function ProviderAddModelDialog({
             </UiButton>
             <UiButton
               aria-busy={isAdding}
-              disabled={isAdding || !selectedCanManage}
+              disabled={controlsDisabled}
               tone="primary"
               type="submit"
               variant="solid"

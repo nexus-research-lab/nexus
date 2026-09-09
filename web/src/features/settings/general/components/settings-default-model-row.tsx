@@ -69,7 +69,7 @@ export function SettingsDefaultModelRow({
           </p>
         </div>
       </div>
-      <div className="flex min-w-0 flex-col gap-1.5">
+      <div aria-busy={savingRole === modelCategory || providerOptionsLoading} className="flex min-w-0 flex-col gap-1.5">
         <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
           {t("settings.general.default_model_label")}
         </span>

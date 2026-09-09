@@ -19,7 +19,8 @@ import type {
   PairingStatusCounts,
   PairingStatusFilter,
 } from "./pairing-model";
-import { CHANNEL_OPTIONS } from "./pairing-options";
+import type { TranslationKey } from "@/shared/i18n/messages";
+import { getPairingOptions } from "./pairing-options";
 
 interface PairingFilterBarProps {
   agents: Agent[];
@@ -34,15 +35,15 @@ interface PairingFilterBarProps {
 
 interface StatusTab {
   countKey: keyof PairingStatusCounts;
-  label: string;
+  labelKey: TranslationKey;
   value: PairingStatusFilter;
 }
 
 const STATUS_TABS: StatusTab[] = [
-  { countKey: "all", label: "全部", value: "" },
-  { countKey: "pending", label: "待处理", value: "pending" },
-  { countKey: "active", label: "已授权", value: "active" },
-  { countKey: "inactive", label: "已停用", value: "inactive" },
+  { countKey: "all", labelKey: "capability.pairing_status_all", value: "" },
+  { countKey: "pending", labelKey: "capability.pairing_status_pending", value: "pending" },
+  { countKey: "active", labelKey: "capability.pairing_status_active", value: "active" },
+  { countKey: "inactive", labelKey: "capability.pairing_status_disabled", value: "inactive" },
 ];
 
 export function PairingFilterBar({
@@ -58,12 +59,12 @@ export function PairingFilterBar({
     <CapabilityFilterBar className="mb-5 sm:justify-between">
       <UiDirectoryTabs
         activeValue={filters.status}
-        ariaLabel="按配对状态筛选"
+        ariaLabel={t("capability.pairing_filter_status")}
         onChange={(value) => onChange("status", value)}
         options={STATUS_TABS.map((tab) => ({
           label: (
             <>
-              <span>{tab.label}</span>
+              <span>{t(tab.labelKey)}</span>
               <span className="min-w-4 text-right tabular-nums text-(--text-soft)">
                 {counts[tab.countKey]}
               </span>
@@ -80,23 +81,23 @@ export function PairingFilterBar({
           value={filters.query}
         />
         <UiFilterSelect
-          ariaLabel="按渠道筛选"
+          ariaLabel={t("capability.pairing_filter_channel")}
           onChange={(value) => onChange(
             "channel",
             value as ImChannelType | "",
           )}
           options={[
-            { value: "", label: "全部渠道" },
-            ...CHANNEL_OPTIONS,
+            { value: "", label: t("capability.pairing_all_channels") },
+            ...getPairingOptions(t).channels,
           ]}
           value={filters.channel}
         />
         <UiFilterSelect
-          ariaLabel="按处理智能体筛选"
+          ariaLabel={t("capability.pairing_filter_agent")}
           className="sm:w-[220px]"
           onChange={(value) => onChange("agentId", value)}
           options={[
-            { value: "", label: "全部智能体" },
+            { value: "", label: t("capability.pairing_all_agents") },
             ...includeUnavailableAgentSelection(buildAgentSelectionOptions(agents, t), filters.agentId, t),
           ]}
           value={filters.agentId}

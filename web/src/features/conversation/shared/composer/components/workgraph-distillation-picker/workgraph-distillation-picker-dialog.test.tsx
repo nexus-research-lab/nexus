@@ -28,6 +28,7 @@ describe("WorkGraph picker", () => {
     const onUseCommand = vi.fn();
     render(<WorkGraphDistillationPickerDialog isOpen onClose={onClose} onUseCommand={onUseCommand} />,
       { wrapper: I18nProvider });
+    expect(screen.getByRole("dialog", { name: "WorkGraphs" })).toBeTruthy();
     const search = screen.getByLabelText("Search WorkGraphs...");
     await waitFor(() => expect(document.activeElement).toBe(search));
     const listbox = await screen.findByRole("listbox");

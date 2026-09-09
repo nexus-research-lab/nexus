@@ -144,6 +144,8 @@ export function SettingsGeneralBehaviorSection({
         <UiResourceState
           impact={t("settings.general.default_model_catalog_failed_impact")}
           primaryAction={{
+            busy: providerOptionsLoading,
+            busyLabel: t("settings.general.default_model_loading"),
             label: t("settings.general.default_model_catalog_retry"),
             onClick: onRetryDefaultModelCatalog,
           }}
@@ -210,7 +212,7 @@ export function SettingsGeneralBehaviorSection({
         <div className="border-t border-(--divider-subtle-color)" />
 
         <SettingsDefaultModelRow
-          disabled={preferencesSaving}
+          disabled={preferencesLoading || preferencesSaving}
           descriptionKey="settings.general.default_model_description"
           emptyPlaceholderKey="settings.general.default_model_empty"
           icon={<MonitorCog className="h-3.5 w-3.5" />}
@@ -226,7 +228,7 @@ export function SettingsGeneralBehaviorSection({
         <div className="border-t border-(--divider-subtle-color)" />
 
         <SettingsDefaultModelRow
-          disabled={preferencesSaving}
+          disabled={preferencesLoading || preferencesSaving}
           descriptionKey="settings.general.default_image_model_description"
           emptyPlaceholderKey="settings.general.default_image_model_empty"
           icon={<Image className="h-3.5 w-3.5" />}
@@ -242,7 +244,7 @@ export function SettingsGeneralBehaviorSection({
         <div className="border-t border-(--divider-subtle-color)" />
 
         <SettingsDefaultModelRow
-          disabled={preferencesSaving}
+          disabled={preferencesLoading || preferencesSaving}
           descriptionKey="settings.general.default_vision_model_description"
           emptyPlaceholderKey="settings.general.default_vision_model_empty"
           icon={<ScanEye className="h-3.5 w-3.5" />}
@@ -258,7 +260,7 @@ export function SettingsGeneralBehaviorSection({
         <div className="border-t border-(--divider-subtle-color)" />
 
         <SettingsDefaultModelRow
-          disabled={preferencesSaving}
+          disabled={preferencesLoading || preferencesSaving}
           descriptionKey="settings.general.default_background_model_description"
           emptyPlaceholderKey="settings.general.default_background_model_empty"
           icon={<Sparkles className="h-3.5 w-3.5" />}

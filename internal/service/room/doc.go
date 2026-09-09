@@ -7,7 +7,7 @@
 //   - cleanup.go / runtime.go / empty_conversation_prune.go：保护存活 fork transcript 引用的持久化资源清理、runtime session 关闭，以及带持久引用保护的历史空白 conversation 维护。
 //   - agent_resolution.go / host.go / skills.go：成员、房主设置和 Room skill 归一化。
 //   - attachments.go：Room conversation 公共附件上传。
-//   - private_domain.go / privateview/：Agent 私域投影与稳定事件游标分页查询。
+//   - private_domain.go / privateview/：Agent 私域投影与稳定事件游标分页查询；全局查询独立补齐该 Agent 所有联系人通道，不受普通房间目录过滤或 room_limit 截断。
 //
 // 实时聊天、round、queue、协作消息和 runtime 执行位于同级 realtime 子包；
 // 它依赖本包的持久化 Service，本包不反向依赖 realtime，保持单向边界。

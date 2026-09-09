@@ -98,7 +98,7 @@ export function buildTaskConfirmationSummary(
   try {
     const value = buildSchedule(schedule, t);
     // 单次时间使用任务时区的输入值，避免浏览器本地时区转换。
-    when = value.kind === "at" ? value.run_at.replace("T", " ") : formatScheduledTaskSchedule(value);
+    when = value.kind === "at" ? value.run_at.replace("T", " ") : formatScheduledTaskSchedule(value, t);
   } catch {
     when = t("capability.scheduled_dialog_summary_time_pending");
   }

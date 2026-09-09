@@ -13,6 +13,7 @@ import {
   type PairingView,
   type UpdatePairingPayload,
 } from "@/lib/api/capability/channel-api";
+import { getPairingLabels } from "./pairing-options";
 import { useCopyToClipboard } from "@/shared/lib/react/use-copy-to-clipboard";
 import type { Agent } from "@/types/agent/agent";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -122,13 +123,14 @@ export function usePairingsController() {
     void refresh();
   }, [refresh]);
 
+  const pairingLabels = useMemo(() => getPairingLabels(t), [t]);
   const visibleItems = useMemo(
-    () => filterPairings(items, filters),
-    [filters, items],
+    () => filterPairings(items, filters, pairingLabels),
+    [filters, items, pairingLabels],
   );
   const statusScopeItems = useMemo(
-    () => filterPairings(items, { ...filters, status: "" }),
-    [filters, items],
+    () => filterPairings(items, { ...filters, status: "" }, pairingLabels),
+    [filters, items, pairingLabels],
   );
   const statusCounts = useMemo(
     () => countPairingStatuses(statusScopeItems),

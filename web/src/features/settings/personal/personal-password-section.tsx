@@ -4,7 +4,7 @@
  * POS: 个人设置的密码区，不能提供的动作不得伪装成可配置表单。
  */
 import { ChevronDown, Loader2 } from "lucide-react";
-import type { FormEvent } from "react";
+import { type FormEvent, useId } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
@@ -65,6 +65,7 @@ export function PersonalPasswordSection({
   validationError,
 }: PersonalPasswordSectionProps) {
   const { t } = useI18n();
+  const helperId = useId();
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     onSubmit();
@@ -84,7 +85,7 @@ export function PersonalPasswordSection({
         {t("settings.personal.password_title")}
         <ChevronDown aria-hidden="true" className="h-4 w-4 text-(--text-muted) transition-transform group-open:rotate-180" />
       </summary>
-      <form className="grid gap-4 border-t border-(--divider-subtle-color) p-4" onSubmit={handleSubmit}>
+      <form aria-busy={isSubmitting} className="grid gap-4 border-t border-(--divider-subtle-color) p-4" onSubmit={handleSubmit}>
 
         <div className="grid gap-3">
           {PASSWORD_INPUTS.map((input) => (
@@ -97,6 +98,7 @@ export function PersonalPasswordSection({
                 {t(input.labelKey)}
               </span>
               <UiInput
+                aria-describedby={helperId}
                 autoComplete={input.autoComplete}
                 disabled={isSubmitting || mutationBlocked}
                 onChange={(event) => onFieldChange(input.field, event.target.value)}
@@ -108,6 +110,7 @@ export function PersonalPasswordSection({
         </div>
 
         <PasswordSubmitActions
+          helperId={helperId}
           canChange={canChange}
           canSubmit={canSubmit}
           hasInput={hasInput}
@@ -141,6 +144,7 @@ function PasswordSectionHeader({ canChange }: { canChange: boolean }) {
 }
 
 function PasswordSubmitActions({
+  helperId,
   canChange,
   canSubmit,
   hasInput,
@@ -149,7 +153,7 @@ function PasswordSubmitActions({
 }: Pick<
   PersonalPasswordSectionProps,
   "canChange" | "canSubmit" | "hasInput" | "isSubmitting" | "validationError"
->) {
+> & { helperId: string }) {
   const { t } = useI18n();
   const helperText = resolvePasswordHelperText(
     validationError,
@@ -166,7 +170,7 @@ function PasswordSubmitActions({
         className="min-w-0 flex-1"
         role={showValidation ? "status" : undefined}
       >
-        <p className={getUiTypographyClassName({
+        <p id={helperId} className={getUiTypographyClassName({
           role: "caption",
           tone: showValidation ? "danger" : "soft",
           weight: showValidation ? "medium" : undefined,

@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前 Agent、联络读模型、Session、私信事件、失败事实与页面命令。
- * OUTPUT: 编排独立目录、共享聊天面板、标准主身份 Header 与固定目标/提交状态的删除确认。
+ * OUTPUT: 编排独立目录、共享聊天面板及回到底部动作、标准主身份 Header 与固定目标/提交状态的删除确认。
  * POS: Contacts 详情“联络”根编排；不定义目录行、添加表单或资源状态样式。
  */
 "use client";
@@ -67,11 +67,6 @@ const EMPTY_COMMAND_CATALOG: CommandCatalogData = {
   status: "unavailable",
 };
 const EMPTY_INPUT_QUEUE: InputQueueItem[] = [];
-const HIDDEN_SCROLL_CONTROL = {
-  isGenerating: false,
-  onClick: ignoreAction,
-  visible: false,
-} as const;
 const UNAVAILABLE_ROUND_INDEX_RESOURCE = {
   access: null,
   error: null,
@@ -405,7 +400,7 @@ function ContactConversation({
     <ConversationPanelLayout>
       <ConversationPanelViewportArea>
         <ConversationPanelViewport
-          floatingDockOccupied={false}
+          floatingDockOccupied={scroll.showScrollToBottom}
           isMobileLayout={isCompactLayout}
           viewport={{
             isHistoryLoading,
@@ -490,7 +485,11 @@ function ContactConversation({
           transport_phase: "healthy",
         }}
         roundIndexResource={UNAVAILABLE_ROUND_INDEX_RESOURCE}
-        scrollToLatest={HIDDEN_SCROLL_CONTROL}
+        scrollToLatest={{
+          isGenerating: false,
+          onClick: () => scroll.scrollToBottom(),
+          visible: scroll.showScrollToBottom,
+        }}
       >
         <ComposerPanel
           commandCatalog={EMPTY_COMMAND_CATALOG}

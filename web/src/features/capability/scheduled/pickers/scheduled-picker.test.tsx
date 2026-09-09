@@ -41,12 +41,14 @@ describe("Scheduled Picker controls", () => {
     const user = userEvent.setup();
     render(
       <TimePickerColumn
+        label="Minutes"
         onSelect={onSelect}
         options={["08", "09"]}
         value="08"
       />,
     );
 
+    expect(screen.getByRole("group", { name: "Minutes" })).toBeTruthy();
     const selected = screen.getByRole("button", { name: "08" });
     expect(selected.className).toContain("radius-control-md");
     expect(selected.getAttribute("aria-pressed")).toBe("true");

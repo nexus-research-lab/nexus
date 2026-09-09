@@ -10,6 +10,7 @@ import type {
   ChannelCredentialField,
   ChannelLoginView,
 } from "@/lib/api/capability/channel-api";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton, UiLinkButton } from "@/shared/ui/button/button";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
@@ -52,6 +53,7 @@ export function ChannelConnectionFields({
   agents,
   controller,
 }: ChannelConnectionFieldsProps) {
+  const { t } = useI18n();
   const { currentItem, draft } = controller;
   const fieldId = useId();
   return (
@@ -79,9 +81,9 @@ export function ChannelConnectionFields({
         />
       ) : null}
 
-      <UiField htmlFor={`${fieldId}-agent`} label="处理智能体" required>
+      <UiField htmlFor={`${fieldId}-agent`} label={t("capability.channel_agent_label")} required>
         <UiSelectMenu
-          ariaLabel="选择频道处理智能体"
+          ariaLabel={t("capability.channel_agent_select")}
           disabled={controller.busy}
           id={`${fieldId}-agent`}
           onChange={controller.setAgentId}
@@ -126,7 +128,7 @@ export function ChannelConnectionFields({
       </div>
 
       {currentItem.channel_type === "discord" ? (
-        <UiField label="授权机器人到服务器">
+        <UiField label={t("capability.channel_authorize_server")}>
           {controller.busy || !controller.discordOauthUrl ? (
             <UiButton
               className="w-full"
@@ -137,7 +139,7 @@ export function ChannelConnectionFields({
               variant="solid"
             >
               <ExternalLink className="h-5 w-5" />
-              授权机器人
+              {t("capability.channel_authorize_bot")}
             </UiButton>
           ) : (
             <UiLinkButton
@@ -150,7 +152,7 @@ export function ChannelConnectionFields({
               variant="solid"
             >
               <ExternalLink className="h-5 w-5" />
-              授权机器人
+              {t("capability.channel_authorize_bot")}
             </UiLinkButton>
           )}
         </UiField>

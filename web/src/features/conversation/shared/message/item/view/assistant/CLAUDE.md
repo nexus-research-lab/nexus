@@ -29,3 +29,5 @@ Assistant 页脚的派生会话动作属于微型图标动作，pending 使用�
 - 文件产物在 DM/Thread/Room 主 Feed 的 direct/process/final 投影中统一抽离到回复尾部，删除卡片时必须同步重排 streamingIndexes；展开过程不再重复展示同一文件卡。
 
 - 回复尾部只消费持久化结构化交付；隐藏 direct/process 不隐藏其交付文件，working_file 不提升为交付。正文与目录只能用于文件引用，不能生成或覆盖交付记录。明确 producer_agent_id 必须属于当前消息 Agent，workspace_agent_id 继续决定实际文件打开位置；历史无 role 记录保持兼容。
+
+记忆浮层实例 ID 必须与触发器 aria-controls 一致；过程详情也使用实例 ID，业务 tool segment ID 只用于 React/数据身份。头像 fallback 无条件传入，由公共头像加载状态决定是否显示。徽标复用 UiBadge，触屏始终展示 Footer 操作。

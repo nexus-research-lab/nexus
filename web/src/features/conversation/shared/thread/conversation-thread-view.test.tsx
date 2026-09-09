@@ -29,7 +29,7 @@ describe("ConversationThreadView", () => {
     const { container } = render(
       <I18N_CONTEXT.Provider value={{ locale, setLocale: vi.fn(), t: (key) => MESSAGES[locale][key] }}>
         <ConversationThreadView
-          agentAvatar={null}
+          agentAvatar="/broken-avatar.png"
           agentName="研究助手"
           bottomAnchorRef={createRef<HTMLDivElement>()}
           emptyContent={<p>暂无过程</p>}
@@ -67,6 +67,10 @@ describe("ConversationThreadView", () => {
     expect(screen.getByText("研究助手").className).toContain("ui-type-supporting");
     expect(screen.getByText("Thread").className).toContain("ui-type-caption");
     expect(back.className).toContain("rounded-full");
+
+    expect(screen.getByRole("region", { name: MESSAGES[locale]["room.thread_label"] }).tabIndex).toBe(0);
+    fireEvent.error(header!.querySelector("img")!);
+    expect(header?.querySelector(".lucide-bot")).not.toBeNull();
 
     fireEvent.click(back);
     expect(onClose).toHaveBeenCalledOnce();

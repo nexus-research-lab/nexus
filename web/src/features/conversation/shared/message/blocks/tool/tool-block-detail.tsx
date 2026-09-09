@@ -156,7 +156,7 @@ function useToolResultDetail(toolResult: ToolResultContent): {
     key: string;
     loading: boolean;
   }>({ content: undefined, error: false, key: "", loading: false });
-  const key = `${sessionKey}:${detailRef}`;
+  const key = JSON.stringify([sessionKey, detailRef]);
 
   useEffect(() => {
     if (!sessionKey || !detailRef) {
@@ -166,6 +166,7 @@ function useToolResultDetail(toolResult: ToolResultContent): {
     setState({ content: undefined, error: false, key, loading: true });
     void getSessionMessageDetailApi(sessionKey, detailRef, controller.signal)
       .then((detail) => {
+        if (controller.signal.aborted) return;
         setState({ content: detail.content, error: false, key, loading: false });
       })
       .catch((error: unknown) => {

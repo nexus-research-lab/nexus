@@ -16,7 +16,7 @@ export function SidebarBrandLink({
   collapsed: boolean;
   label: string;
 }) {
-  const wordmark = "NEXUS";
+  const wordmark = "Nexus";
   return (
     <Link
       aria-label={label}
@@ -32,7 +32,7 @@ export function SidebarBrandLink({
       to={AppRouteBuilders.launcher()}
     >
       <span
-        className="sidebar-brand-wordmark relative w-max max-w-full cursor-pointer whitespace-nowrap uppercase leading-none"
+        className="sidebar-brand-wordmark relative w-max max-w-full cursor-pointer whitespace-nowrap leading-none"
         style={{
           fontFamily: '"Panchang", var(--font-sans)',
           fontSize: "18px",

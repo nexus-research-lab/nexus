@@ -5,7 +5,7 @@
  */
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { RotateCcw } from "lucide-react";
 
 import { NamedWorkGraphSketch } from "@/features/conversation/shared/execution/named-workgraph-sketch";
@@ -59,6 +59,7 @@ function OpenWorkGraphDistillationPickerDialog({
   onUseCommand: (command: string) => void;
 }) {
   const { locale, t } = useI18n();
+  const titleId = useId();
   const [items, setItems] = useState<WorkGraphWorkflow[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -110,12 +111,13 @@ function OpenWorkGraphDistillationPickerDialog({
 
   return (
     <UiDialogPortal>
-      <UiDialogBackdrop initialFocusRef={searchInputRef} onClose={onClose}>
+      <UiDialogBackdrop initialFocusRef={searchInputRef} labelledBy={titleId} onClose={onClose}>
         <UiDialogShell size="lg" viewport="compact">
           <UiDialogHeader
             appearance="plain"
             onClose={onClose}
             title={t("composer.workgraph_picker_title")}
+            titleId={titleId}
           />
           <UiDialogBody className="flex min-h-0 flex-1 flex-col gap-3">
             <div className="flex shrink-0 items-center gap-2">
@@ -133,6 +135,7 @@ function OpenWorkGraphDistillationPickerDialog({
                 className="min-h-0 py-3"
                 impact={t("state.stale_snapshot_impact")}
                 primaryAction={{
+                  busy: loading,
                   icon: <RotateCcw className="h-3.5 w-3.5" />,
                   label: t("state.retry"),
                   onClick: () => setLoadRevision((current) => current + 1),
@@ -157,6 +160,7 @@ function OpenWorkGraphDistillationPickerDialog({
                   ? "state.access_failure_impact"
                   : "state.read_failure_impact")}
                 primaryAction={{
+                  busy: loading,
                   icon: <RotateCcw className="h-3.5 w-3.5" />,
                   label: t("state.retry"),
                   onClick: () => setLoadRevision((current) => current + 1),

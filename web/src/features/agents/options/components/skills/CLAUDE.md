@@ -13,8 +13,10 @@
 
 列表与命令结果必须绑定 Agent；旧请求、旧命令不得写入新作用域，页面卸载后不得继续刷新视图状态。
 
-Skill 目录初始读取使用共享 `md` muted Spinner，单卡启停命令使用 `sm` muted Spinner；视图不得自行维护尺寸、颜色、旋转或 reduced-motion class。
+Skill 目录初始读取使用具名 UiResourceState loading，单卡启停命令使用 `sm` muted Spinner；视图不得自行维护尺寸、颜色、旋转或 reduced-motion class。
 
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 
 技能开关通过实例唯一说明 ID 关联本卡用途；无说明时不输出空关联。长连续名称和说明允许断行，但仍保留既有两行密度。
+
+首次读取失败且无列表时仅展示读取恢复面，不同时伪造已启用/可用空目录；已有卡片仍保留并禁用开关。初始加载使用具名 UiResourceState，分组标题和数量统一使用 Typography 角色。

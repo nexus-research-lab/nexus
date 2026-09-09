@@ -10,7 +10,7 @@ import {
   setCustomMCPServerEnabledApi,
   updateCustomMCPServerApi,
 } from "@/lib/api/capability/connector-api";
-import { projectMutationFailure } from "@/lib/error-message";
+import { getResourceFailure, projectMutationFailure, type ResourceFailure } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type {
   CustomMCPServer,
@@ -39,8 +39,12 @@ export function useCustomMCPServers({
   const { t } = useI18n();
   const requestIdRef = useRef(0);
   const commandRef = useRef(false);
+  const recoveryRef = useRef(false);
+  const accessDeniedRef = useRef(false);
+  const [blocked, setBlocked] = useState(false);
   const [servers, setServers] = useState<CustomMCPServer[]>([]);
   const [loading, setLoading] = useState(false);
+  const [failure, setFailure] = useState<ResourceFailure | null>(null);
   const [busy, setBusy] = useState(false);
   const [dialogState, setDialogState] = useState<CustomMCPDialogState>(null);
   const [deleteTarget, setDeleteTarget] = useState<CustomMCPServer | null>(null);
@@ -54,17 +58,23 @@ export function useCustomMCPServers({
       const items = await getCustomMCPServersApi();
       if (requestId === requestIdRef.current) {
         setServers(items);
+        setFailure(null);
+        accessDeniedRef.current = false;
       }
       return requestId === requestIdRef.current;
     } catch (error) {
       if (requestId === requestIdRef.current) {
+        const nextFailure = getResourceFailure(error, t("capability.custom_mcp_operation_failed"));
+        setFailure(nextFailure);
+        accessDeniedRef.current = Boolean(nextFailure.access);
+        if (nextFailure.access) setServers([]);
         if (onFailure) {
           onFailure();
         } else {
           reportFeedback({
             action: {
               label: t("state.retry"),
-              onClick: () => window.location.reload(),
+              onClick: () => { void refresh(); },
             },
             impact: t("state.read_failure_impact"),
             nextStep: t("state.retry_next_step"),
@@ -87,13 +97,14 @@ export function useCustomMCPServers({
       return;
     }
     void refresh();
+    return () => { requestIdRef.current += 1; };
   }, [enabled, refresh]);
 
   const runCommand = useCallback(async (
     command: () => Promise<void>,
     fallbackMessage: string,
   ): Promise<boolean> => {
-    if (commandRef.current) return false;
+    if (commandRef.current || recoveryRef.current || accessDeniedRef.current) return false;
     commandRef.current = true;
     setBusy(true);
     try {
@@ -102,8 +113,36 @@ export function useCustomMCPServers({
     } catch (error) {
       const failure = projectMutationFailure(error, fallbackMessage);
       const notApplied = failure.effect === "not_applied";
-      function reconcile() {
-        void refresh(() => reportFailure(true));
+      if (!notApplied) {
+        recoveryRef.current = true;
+        setBlocked(true);
+      }
+      async function reconcile() {
+        const refreshed = await refresh(() => reportFailure(true));
+        if (!refreshed) return;
+        if (failure.effect === "committed") {
+          recoveryRef.current = false;
+          setBlocked(false);
+          reportFeedback({ tone: "success", title: t("capability.connector_reconcile_success_title") });
+        } else if (failure.effect === "accepted") {
+          reportFailure(false);
+        } else {
+          reportFeedback({
+            action: {
+              label: t("capability.connector_new_intent_action"),
+              onClick: () => {
+                recoveryRef.current = false;
+                setBlocked(false);
+                reportFeedback({ tone: "warning", title: t("capability.connector_unknown_title"), message: t("capability.connector_checked_unknown_next_step") });
+              },
+            },
+            title: t("capability.custom_mcp_unknown_title"),
+            impact: t("capability.connector_checked_unknown_impact"),
+            nextStep: t("capability.connector_checked_unknown_next_step"),
+            persistent: true,
+            tone: "warning",
+          });
+        }
       }
       function reportFailure(refreshFailed: boolean) {
         reportFeedback({
@@ -260,11 +299,14 @@ export function useCustomMCPServers({
 
   return {
     busy,
+    blocked: blocked || Boolean(failure?.access),
     closeDialog: () => setDialogState(null),
     confirmDelete,
     deleteTarget,
     dialogState,
     loading,
+    failure,
+    refresh,
     openCreate: () => setDialogState({ mode: "create" }),
     openEdit: (server: CustomMCPServer) => setDialogState({
       mode: "edit",

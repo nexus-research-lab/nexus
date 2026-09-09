@@ -2,7 +2,7 @@
 // OUTPUT: 证明共享触发/多选控件，并以公共列表分隔线隔离普通历史和 IM 历史。
 // POS: RoomHistoryMenu DOM 行为测试；删除事务和锚定位置算法由各自所有者测试。
 
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -84,7 +84,57 @@ describe("RoomHistoryMenu", () => {
     expect(create).toHaveBeenCalledOnce();
     expect(remove.mock.calls.map(([id]) => id)).toEqual(["conversation-beta", "conversation-alpha"]);
     expect(select).toHaveBeenCalledExactlyOnceWith("replacement");
-    expect((screen.getByRole("checkbox", { name: /Beta/ }) as HTMLInputElement).checked).toBe(true);
+    expect(screen.getAllByRole("checkbox").some((checkbox) => (checkbox as HTMLInputElement).disabled)).toBe(true);
+    expect((screen.getByRole("button", { name: /Delete|删除/ }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("captures failed renames and prevents replay for that conversation", async () => {
+    const user = userEvent.setup();
+    const rename = vi.fn(async () => { throw new Error("lost response"); });
+    render(<I18nProvider><RoomHistoryMenu conversationId="conversation-alpha" conversations={CONVERSATIONS}
+      onCreateConversation={vi.fn(async () => null)} onDeleteConversation={vi.fn(async () => null)}
+      onSelectConversation={vi.fn()} onUpdateConversationTitle={rename} /></I18nProvider>);
+    await user.click(screen.getByRole("button", { name: /History|历史/ }));
+    const row = screen.getByRole("button", { name: /Alpha/ });
+    await user.click(within(row).getByRole("button", { name: /Rename|重命名/ }));
+    await user.clear(screen.getByRole("textbox"));
+    await user.type(screen.getByRole("textbox"), "Changed{Enter}");
+    expect((await screen.findByRole("status")).textContent).toMatch(/could not be confirmed|未确认/);
+    expect(within(screen.getByRole("button", { name: /Alpha/ })).queryByRole("button", { name: /Rename|重命名/ })).toBeNull();
+    expect(rename).toHaveBeenCalledTimes(1);
+  });
+
+  it("reopens history with feedback when a single deletion cannot be confirmed", async () => {
+    const user = userEvent.setup();
+    const remove = vi.fn(async () => { throw new Error("lost response"); });
+    render(<I18nProvider><RoomHistoryMenu conversationId="conversation-alpha" conversations={CONVERSATIONS}
+      onCreateConversation={vi.fn(async () => null)} onDeleteConversation={remove} onSelectConversation={vi.fn()} /></I18nProvider>);
+    await user.click(screen.getByRole("button", { name: /History|历史/ }));
+    await user.click(within(screen.getByRole("button", { name: /Alpha/ })).getByRole("button", { name: /Delete|删除/ }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: /Delete|删除/ }));
+    expect((await screen.findByRole("status")).textContent).toMatch(/could not be confirmed|未确认/);
+    expect(within(screen.getByRole("button", { name: /Alpha/ })).queryByRole("button", { name: /Delete|删除/ })).toBeNull();
+    expect(remove).toHaveBeenCalledTimes(1);
+  });
+
+  it("discards late batch navigation after switching rooms", async () => {
+    const user = userEvent.setup();
+    let finish!: (value: string | null) => void;
+    const remove = vi.fn(() => new Promise<string | null>((resolve) => { finish = resolve; }));
+    const select = vi.fn();
+    const props = { conversationId: "conversation-alpha", conversations: CONVERSATIONS,
+      onCreateConversation: vi.fn(async () => "replacement"), onDeleteConversation: remove, onSelectConversation: select };
+    const view = render(<I18nProvider><RoomHistoryMenu {...props} /></I18nProvider>);
+    await user.click(screen.getByRole("button", { name: /History|历史/ }));
+    await user.click(screen.getByRole("button", { name: /Select|多选/ }));
+    await user.click(screen.getByRole("checkbox", { name: /Select all|全选/ }));
+    await user.click(screen.getByRole("button", { name: /Clear history|清空历史/ }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: /Clear history|清空历史/ }));
+    view.rerender(<I18nProvider><RoomHistoryMenu {...props} conversations={CONVERSATIONS.map((entry) => ({ ...entry, room_id: "other" }))} /></I18nProvider>);
+    await act(async () => { finish(null); });
+    await act(async () => { finish(null); });
+    expect(select).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("keeps IME confirmation inside title editing and lets Escape cancel before dismissing history", async () => {

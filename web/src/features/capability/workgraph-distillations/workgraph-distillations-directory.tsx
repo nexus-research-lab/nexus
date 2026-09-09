@@ -21,9 +21,8 @@ import {
 import { notifyCapabilitySummaryMutated } from "@/features/capability/capability-summary-events";
 import { WorkGraphDistillationDialog } from "@/features/conversation/shared/execution/workgraph-distillation-dialog";
 import { WORKGRAPH_WORKFLOWS_CHANGED_EVENT } from "@/lib/conversation/workgraph-workflow-events";
-import { writeTextToClipboard } from "@/shared/lib/browser/clipboard";
+import { useCopyToClipboard } from "@/shared/lib/react/use-copy-to-clipboard";
 import {
-  deleteWorkGraphWorkflowApi,
   getWorkGraphWorkflowsApi,
   previewSavedWorkGraphWorkflowApi,
 } from "@/lib/api/conversation/execution-api";
@@ -46,6 +45,7 @@ import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspac
 import { useAgentStore } from "@/store/agent";
 import type { WorkGraphWorkflow, WorkGraphWorkflowPreview } from "@/types/conversation/workgraph-workflow";
 
+import { useWorkGraphDeletion } from "./use-workgraph-deletion";
 import { WorkGraphDistillationDetail } from "./workgraph-distillation-detail";
 
 export function WorkGraphDistillationsDirectory() {
@@ -67,6 +67,27 @@ export function WorkGraphDistillationsDirectory() {
   const agents = useAgentStore((state) => state.agents);
   const loadAgents = useAgentStore((state) => state.load_agents_from_server);
   const accessBlocked = Boolean(loadFailure?.access);
+  const loadSequenceRef = useRef(0);
+  const editorPendingRef = useRef(false);
+  const editorRequestRef = useRef(0);
+  useEffect(() => {
+    setOpeningEditorId(null);
+    return () => { editorRequestRef.current += 1; editorPendingRef.current = false; };
+  }, [distillationId]);
+  const { copy, copied } = useCopyToClipboard({ feedback_timeout_ms: 1800 });
+  const deletion = useWorkGraphDeletion({
+    onRefresh: () => setLoadRevision((current) => current + 1),
+    reportFeedback: setCommandFailure,
+    onDeleted: (id) => {
+      loadSequenceRef.current += 1;
+      setLoading(false);
+      setItems((current) => current.filter((item) => item.id !== id));
+      notifyCapabilitySummaryMutated({ domain: "workgraph_distillation" });
+      window.dispatchEvent(new CustomEvent(WORKGRAPH_WORKFLOWS_CHANGED_EVENT));
+    },
+  });
+  const deletionRef = useRef(deletion);
+  deletionRef.current = deletion;
   const accessBlockedRef = useRef(accessBlocked);
   accessBlockedRef.current = accessBlocked;
 
@@ -80,20 +101,22 @@ export function WorkGraphDistillationsDirectory() {
 
   useEffect(() => {
     let active = true;
+    const sequence = ++loadSequenceRef.current;
     setLoading(true);
     setLoadFailure((current) => current?.access ? current : null);
     void getWorkGraphWorkflowsApi(locale).then((next) => {
-      if (active) {
+      if (active && sequence === loadSequenceRef.current) {
         setItems(next);
         setLoadedLocale(locale);
         setLoadFailure(null);
-        setCommandFailure(null);
+        if (!deletionRef.current.blocked) setCommandFailure(null);
+        deletionRef.current.reconcile(next);
         window.dispatchEvent(new CustomEvent(WORKGRAPH_WORKFLOWS_CHANGED_EVENT));
       }
     }).catch((reason: unknown) => {
-      if (active) setLoadFailure(getResourceFailure(reason, t("capability.workgraph_loading_failed")));
+      if (active && sequence === loadSequenceRef.current) setLoadFailure(getResourceFailure(reason, t("capability.workgraph_loading_failed")));
     }).finally(() => {
-      if (active) setLoading(false);
+      if (active && sequence === loadSequenceRef.current) setLoading(false);
     });
     return () => { active = false; };
   }, [loadRevision, locale, t]);
@@ -112,23 +135,28 @@ export function WorkGraphDistillationsDirectory() {
   const selected = items.find((item) => item.id === distillationId) ?? null;
 
   const copyCommand = async (item: WorkGraphWorkflow) => {
-    await writeTextToClipboard(`/${item.slash_name} `);
-    setCopiedId(item.id);
-    window.setTimeout(() => setCopiedId((current) => current === item.id ? null : current), 1800);
+    if (await copy(`/${item.slash_name} `)) {
+      setCopiedId(item.id);
+    } else {
+      setCommandFailure({ title: t("capability.workgraph_copy_failed"), impact: t("capability.workgraph_copy_failed_impact"), tone: "error", onDismiss: () => setCommandFailure(null) });
+    }
   };
 
   const openEditor = async (item: WorkGraphWorkflow) => {
-    if (accessBlockedRef.current || openingEditorId) return;
+    if (item.built_in || accessBlockedRef.current || editorPendingRef.current || deletion.busy || deletion.blocked) return;
+    editorPendingRef.current = true;
+    const request = ++editorRequestRef.current;
     setOpeningEditorId(item.id);
     setCommandFailure(null);
     try {
       if (agents.length === 0) await loadAgents();
-      if (accessBlockedRef.current) return;
+      if (accessBlockedRef.current || request !== editorRequestRef.current) return;
       const preview = await previewSavedWorkGraphWorkflowApi(item.id, locale);
-      if (accessBlockedRef.current) return;
+      if (accessBlockedRef.current || request !== editorRequestRef.current) return;
       setEditingWorkflowId(item.id);
       setEditingPreview(preview);
     } catch {
+      if (request !== editorRequestRef.current) return;
       setCommandFailure({
         action: {
           label: t("state.reload_check"),
@@ -140,7 +168,10 @@ export function WorkGraphDistillationsDirectory() {
         tone: "error",
       });
     } finally {
-      setOpeningEditorId(null);
+      if (request === editorRequestRef.current) {
+        editorPendingRef.current = false;
+        setOpeningEditorId(null);
+      }
     }
   };
 
@@ -204,6 +235,7 @@ export function WorkGraphDistillationsDirectory() {
       detailRouteContent = (
         <WorkGraphDistillationDetail
           item={selected}
+          editDisabled={openingEditorId !== null || deletion.busy || deletion.blocked}
           notice={staleLoadNotice}
           onBack={backToDirectory}
           onCopy={() => void copyCommand(selected)}
@@ -320,7 +352,7 @@ export function WorkGraphDistillationsDirectory() {
                     {!item.built_in ? (
                       <UiIconButton
                         aria-label={t("capability.workgraph_edit")}
-                        disabled={openingEditorId !== null}
+                        disabled={openingEditorId !== null || deletion.busy || deletion.blocked}
                         onClick={(event) => {
                           event.stopPropagation();
                           void openEditor(item);
@@ -340,12 +372,13 @@ export function WorkGraphDistillationsDirectory() {
                       size="md"
                       variant="ghost"
                     >
-                      {copiedId === item.id
+                      {copied && copiedId === item.id
                         ? <Check className="h-4 w-4" />
                         : <Copy className="h-4 w-4" />}
                     </UiIconButton>
                     {!item.built_in ? (
                       <UiIconButton
+                        disabled={deletion.busy || deletion.blocked || openingEditorId !== null}
                         aria-label={t("execution.workflow_delete")}
                         onClick={(event) => {
                           event.stopPropagation();
@@ -394,22 +427,8 @@ export function WorkGraphDistillationsDirectory() {
         onConfirm={() => {
           const candidate = deleteCandidate;
           setDeleteCandidate(null);
-          if (accessBlockedRef.current || !candidate) return;
-          void deleteWorkGraphWorkflowApi(candidate.id).then(() => {
-            setCommandFailure(null);
-            setItems((current) => current.filter((item) => item.id !== candidate.id));
-            notifyCapabilitySummaryMutated({ domain: "workgraph_distillation" });
-            window.dispatchEvent(new CustomEvent(WORKGRAPH_WORKFLOWS_CHANGED_EVENT));
-          }).catch(() => setCommandFailure({
-            action: {
-              label: t("state.reload_check"),
-              onClick: () => setLoadRevision((current) => current + 1),
-            },
-            impact: t("capability.workgraph_delete_failure_impact"),
-            onDismiss: () => setCommandFailure(null),
-            title: t("capability.workgraph_delete_failed"),
-            tone: "error",
-          }));
+          if (accessBlockedRef.current || deletion.busy || deletion.blocked || !candidate) return;
+          void deletion.remove(candidate);
         }}
         title={t("execution.workflow_delete_title")}
         variant="danger"
@@ -430,7 +449,7 @@ export function WorkGraphDistillationsDirectory() {
           }}
         />
       ) : null}
-      <FeedbackBannerViewport item={commandFailure} />
+      <FeedbackBannerViewport item={deletion.feedback ?? commandFailure} />
     </WorkspaceSurfaceScaffold>
   );
 }

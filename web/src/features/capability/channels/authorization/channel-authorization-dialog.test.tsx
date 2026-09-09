@@ -2,6 +2,8 @@
 // OUTPUT: 证明授权弹窗通过共享行内提示呈现错误/过期状态，且保留完整恢复文案。
 // POS: Channel 授权 DOM 合同；事件校验、写锁与命令受理由 model/presenter 测试负责。
 
+import userEvent from "@testing-library/user-event";
+import { MESSAGES } from "@/shared/i18n/messages";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -72,4 +74,18 @@ describe("ChannelAuthorizationDialog", () => {
     expect(screen.getByText("capability.channel_authorization_expired_impact")).toBeTruthy();
     expect(screen.getByText("capability.channel_authorization_expired_next_step")).toBeTruthy();
   });
+});
+
+
+it("updates authorization chrome in English without dropping the verification code", async () => {
+  const user = userEvent.setup();
+  const submit = vi.fn();
+  const view = (locale: "en" | "zh") => <I18N_CONTEXT.Provider value={{ locale, setLocale: vi.fn(), t: (key, params) => Object.entries(params ?? {}).reduce((text, [name, value]) => text.replaceAll(`{${name}}`, String(value)), MESSAGES[locale][key]) }}><ChannelAuthorizationDialog busy={false} error={null} onCancelAuthorization={vi.fn()} onClose={vi.fn()} onSubmitCode={submit} presentation={PRESENTATION} writeLocked={false} /></I18N_CONTEXT.Provider>;
+  const { rerender } = render(view("zh"));
+  await user.type(screen.getByLabelText("验证码"), "123456");
+  rerender(view("en"));
+  expect((screen.getByLabelText("Verification code") as HTMLInputElement).value).toBe("123456");
+  expect(screen.getByText(/^Expires in /)).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "Submit" }));
+  expect(submit).toHaveBeenCalledExactlyOnceWith("123456");
 });

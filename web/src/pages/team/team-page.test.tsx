@@ -6,7 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
 import type { useTeamRoom } from "@/features/team/use-team-room";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useNavigate } from "react-router-dom";
 import { AUTH_CONTEXT } from "@/shared/auth/auth-context";
 import { TeamPage } from "./team-page";
 const model = vi.hoisted(() => ({ read: vi.fn() }));
@@ -20,8 +20,12 @@ beforeEach(() => {
   }, error: null, isLoading: false, isSending: false, messages: [], reload: vi.fn(), retryLoad: vi.fn(), send: vi.fn().mockResolvedValue(true)};
   model.read.mockImplementation(() => room);
 });
+function SwitchRoom() {
+  const navigate = useNavigate();
+  return <button onClick={() => navigate("/team?room_id=other")}>Switch room</button>;
+}
 function page() {
-  return <I18N_CONTEXT.Provider value={{locale: "zh", setLocale: vi.fn(), t: (key) => key}}><AUTH_CONTEXT.Provider value={{error: null, isBootstrapped: true, loading: false, login: vi.fn(), logout: vi.fn(), refreshStatus: vi.fn(), status: {auth_required: true, authenticated: true, auth_method: "password", password_login_enabled: true, user_id: "owner", username: "owner"}}}><MemoryRouter initialEntries={["/team?room_id=room"]}><TeamPage /></MemoryRouter></AUTH_CONTEXT.Provider></I18N_CONTEXT.Provider>;
+  return <I18N_CONTEXT.Provider value={{locale: "zh", setLocale: vi.fn(), t: (key) => key}}><AUTH_CONTEXT.Provider value={{error: null, isBootstrapped: true, loading: false, login: vi.fn(), logout: vi.fn(), refreshStatus: vi.fn(), status: {auth_required: true, authenticated: true, auth_method: "password", password_login_enabled: true, user_id: "owner", username: "owner"}}}><MemoryRouter initialEntries={["/team?room_id=room"]}><TeamPage /><SwitchRoom /></MemoryRouter></AUTH_CONTEXT.Provider></I18N_CONTEXT.Provider>;
 }
 it("does not send on composition confirmation or Shift+Enter, then sends exact text on Enter", async () => {
   render(page());
@@ -121,4 +125,34 @@ it("uses shared Room surfaces and resolves the requested online room", async () 
   fireEvent.change(input, {target: {value: "hello"}});
   fireEvent.click(screen.getByRole("button", {name: "team.send"}));
   await waitFor(() => expect(room.send).toHaveBeenCalledExactlyOnceWith("hello"));
+});
+
+
+it("preserves existing messages while a read refresh is pending", () => {
+  room.messages = [{id: "existing", conversation_id: "conversation", message_seq: 1,
+    author_type: "user", author_user_id: "user", author_username: "Name", author_display_name: "Name",
+    client_message_id: "client", content: {version: 1, blocks: [{type: "markdown", text: "Keep visible"}]}, created_at: "2026-09-09T01:00:00Z"}];
+  const view = render(page());
+  expect(screen.getByText("Keep visible")).toBeTruthy();
+  room = {...room, isLoading: true};
+  view.rerender(page());
+  expect(screen.getByText("Keep visible")).toBeTruthy();
+  expect(screen.getByRole("list").getAttribute("aria-busy")).toBe("true");
+  expect(screen.queryByText("team.loading")).toBeNull();
+});
+
+
+it("resets the draft on room navigation and ignores a previous room send completion", async () => {
+  let resolve!: (value: boolean) => void;
+  room.send = vi.fn(() => new Promise<boolean>(done => { resolve = done; }));
+  render(page());
+  const input = screen.getByRole("textbox", {name: "team.message"});
+  await userEvent.type(input, "Old room");
+  await userEvent.click(screen.getByRole("button", {name: "team.send"}));
+  await userEvent.click(screen.getByRole("button", {name: "Switch room"}));
+  const next = screen.getByRole("textbox", {name: "team.message"});
+  expect((next as HTMLTextAreaElement).value).toBe("");
+  await userEvent.type(next, "New draft");
+  resolve(true);
+  await waitFor(() => expect((next as HTMLTextAreaElement).value).toBe("New draft"));
 });

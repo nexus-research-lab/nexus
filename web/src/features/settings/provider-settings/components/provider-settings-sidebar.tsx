@@ -7,14 +7,13 @@
 
 import { ArrowDownToLine, Loader2, Plus, Trash2 } from "lucide-react";
 
-import { cn } from "@/shared/ui/class-name";
+import { UiBadge } from "@/shared/ui/display/badge";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiListActionButton } from "@/shared/ui/list/list-action";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import {
   SettingsNavigationButton,
 } from "@/features/settings/shared/settings-panel-ui";
-import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type {
   ProviderConfigRecord,
   ProviderPreset,
@@ -70,8 +69,9 @@ export function ProviderSettingsSidebar({
     >
       <div className="soft-scrollbar max-h-[180px] min-h-0 overflow-y-auto @min-[720px]/provider:h-full @min-[720px]/provider:max-h-none @min-[720px]/provider:pr-2">
         {loading ? (
-          <div className="flex min-h-[260px] items-center justify-center text-(--text-soft)">
+          <div role="status" aria-label={t("common.loading")} className="flex min-h-[180px] items-center justify-center text-(--text-soft)">
             <Loader2
+              aria-hidden="true"
               className={getUiSpinnerClassName({ size: "md", tone: "muted" })}
             />
           </div>
@@ -130,14 +130,11 @@ export function ProviderSettingsSidebar({
                     name={preset.display_name}
                     presetKey={preset.preset_key}
                   />
-                  <span className="min-w-0 flex-1 truncate">{preset.display_name}</span>
+                  <span className="min-w-0 flex-1 truncate" title={preset.display_name}>{preset.display_name}</span>
                   {isUnsupportedPreset ? (
-                    <span className={cn(
-                      "shrink-0 rounded-full bg-(--surface-muted-background) px-1.5 py-0.5",
-                      getUiTypographyClassName({ role: "caption", tone: "soft", weight: "semibold" }),
-                    )}>
+                    <UiBadge shape="pill" size="xs" tone="idle">
                       {t("settings.providers.unsupported_badge")}
-                    </span>
+                    </UiBadge>
                   ) : null}
                 </SettingsNavigationButton>
               );
@@ -162,7 +159,7 @@ export function ProviderSettingsSidebar({
                       name={getProviderTitle(item)}
                       presetKey={item.preset_key}
                     />
-                    <span className="min-w-0 flex-1 truncate">{getProviderTitle(item)}</span>
+                    <span className="min-w-0 flex-1 truncate" title={getProviderTitle(item)}>{getProviderTitle(item)}</span>
                   </SettingsNavigationButton>
                   {canShowDelete ? (
                     <UiListActionButton

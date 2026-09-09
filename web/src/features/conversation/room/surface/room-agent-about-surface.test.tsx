@@ -208,3 +208,14 @@ it("routes editor validation and saves to the displayed Agent without automatic 
     source: expect.objectContaining({ kind: "edit", agentId: "beta", initial: expect.objectContaining({ title: "Beta" }) }),
   }));
 });
+
+
+it("reads Agent contacts across sessions in DM while keeping group contacts scoped", async () => {
+  const user = userEvent.setup();
+  const props = {...baseProps(), isDm: true, requestedTab: "private_domain" as const};
+  const { rerender } = render(localized(<RoomAgentAboutSurface {...props} />));
+  expect(boundaries.privateDomain).toHaveBeenLastCalledWith(expect.objectContaining({roomId: null, conversationId: null}));
+  rerender(localized(<RoomAgentAboutSurface {...props} isDm={false} />));
+  await user.click(tab("private_domain"));
+  expect(boundaries.privateDomain).toHaveBeenLastCalledWith(expect.objectContaining({roomId: "room-a", conversationId: "conversation-a"}));
+});

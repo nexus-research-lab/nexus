@@ -5,6 +5,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
+import { CapabilityBrandIcon } from "./capability-brand-icon";
+
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
 import { PageHeaderActionsContext } from "@/shared/lib/react/page-header-actions-context";
 
@@ -195,8 +197,8 @@ describe("CapabilityPageLayout", () => {
     const main = container.querySelector("[data-slot='capability-detail-main']");
 
     expect(layout?.className).toContain("max-w-[1180px]");
-    expect(aside?.className).toContain("xl:col-start-2");
-    expect(main?.className).toContain("xl:col-start-1");
+    expect(aside?.className).toContain("@[960px]/capability-detail:col-start-2");
+    expect(main?.className).toContain("@[960px]/capability-detail:col-start-1");
     expect(aside?.compareDocumentPosition(main as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(screen.getByRole("heading", { name: "Availability" }).className)
       .toContain("ui-type-section-title");
@@ -205,4 +207,13 @@ describe("CapabilityPageLayout", () => {
     expect(screen.getByText("2/4 enabled").className)
       .toContain("ui-type-caption");
   });
+});
+
+
+it("names capability artwork with image semantics without exposing decorative children", () => {
+  const { rerender } = render(<CapabilityBrandIcon title="Mail" src="/mail.svg" />);
+  expect(screen.getByRole("img", { name: "Mail" })).toBeTruthy();
+  rerender(<CapabilityBrandIcon title="Mail" fallback="M" />);
+  expect(screen.getByRole("img", { name: "Mail" })).toBeTruthy();
+  expect(screen.getByText("M").getAttribute("aria-hidden")).toBe("true");
 });

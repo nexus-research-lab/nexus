@@ -5,6 +5,7 @@
  */
 import type { HTMLAttributes, KeyboardEventHandler } from "react";
 
+import { isImeKeyboardEvent } from "@/shared/lib/browser/ime-keyboard-event";
 import { cn } from "@/shared/ui/class-name";
 
 import type {
@@ -104,7 +105,7 @@ function createToggleKeyHandler(
   onToggle: () => void,
 ): KeyboardEventHandler<HTMLDivElement> {
   return (event) => {
-    if (event.target !== event.currentTarget
+    if (event.defaultPrevented || isImeKeyboardEvent(event) || event.target !== event.currentTarget
       || (event.key !== "Enter" && event.key !== " ")) {
       return;
     }

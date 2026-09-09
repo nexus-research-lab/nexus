@@ -66,3 +66,17 @@ describe("Relay Room sidebar projection", () => {
       .toEqual([general.id, older.id]);
   });
 });
+
+
+it.each([
+  ["<nexus_room_no_reply/>", ""],
+  ["  <nexus_room_fanout />  ", ""],
+  ["已完成整理。<nexus_room_no_reply/>\n<nexus_room_fanout/>", "已完成整理。"],
+  ["普通消息 <example> 保留", "普通消息 <example> 保留"],
+])("cleans internal control markers from directory previews: %s", (preview, expected) => {
+  const source = conversations.map((item) => ({ ...item, last_reply_preview: preview }));
+  const items = buildConversationItems({ ...input, conversations: source });
+  expect(items).toHaveLength(3);
+  items.forEach((item) => expect(item.summary).toBe(expected));
+  expect(source[0].last_reply_preview).toBe(preview);
+});

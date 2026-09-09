@@ -87,6 +87,7 @@ describe("ExecutionWorkGraphControls", () => {
 
     fireEvent.keyDown(input, { key: "Escape" });
     expect(onQueryChange).toHaveBeenCalledWith("");
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: /search workgraph|搜索工作图/i }));
     expect(screen.queryByRole("searchbox", { name: /search workgraph|搜索工作图/i })).toBeNull();
   });
 });

@@ -1,8 +1,8 @@
 // INPUT: 登录表单状态、已分类的认证/提交恢复事实与用户动作。
-// OUTPUT: 共享 Field、filled Panel、Typography 与恢复提示组成的登录表单，保留输入和提交阻塞态。
+// OUTPUT: 共享 Field、filled Panel、Typography 与恢复提示组成的登录表单，实例级关联字段/标题，提交期间锁定凭证输入并播报 busy。
 // POS: 登录页展示边界；控件视觉归 shared/ui，不推断提交结果或自行重放登录请求。
 import { ArrowRight } from "lucide-react";
-import type { FormEvent } from "react";
+import { useId, type FormEvent } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
@@ -97,13 +97,15 @@ function PasswordLoginForm({
   username,
 }: Omit<LoginAuthPanelProps, "formMode">) {
   const { t } = useI18n();
+  const fieldId = useId();
   return (
-    <form className="mt-7 space-y-4" onSubmit={onSubmit}>
-      <UiField htmlFor="nexus-login-username" label={t("login.username")}>
+    <form aria-busy={isSubmitting} className="mt-7 space-y-4" onSubmit={onSubmit}>
+      <UiField htmlFor={`${fieldId}-username`} label={t("login.username")}>
         <UiInput
           autoComplete="username"
           controlSize="lg"
-          id="nexus-login-username"
+          disabled={isSubmitting}
+          id={`${fieldId}-username`}
           onChange={(event) => onChangeUsername(event.target.value)}
           placeholder={t("login.username_placeholder")}
           type="text"
@@ -111,11 +113,12 @@ function PasswordLoginForm({
           variant="surface"
         />
       </UiField>
-      <UiField htmlFor="nexus-login-password" label={t("login.password")}>
+      <UiField htmlFor={`${fieldId}-password`} label={t("login.password")}>
         <UiInput
           autoComplete="current-password"
           controlSize="lg"
-          id="nexus-login-password"
+          disabled={isSubmitting}
+          id={`${fieldId}-password`}
           onChange={(event) => onChangePassword(event.target.value)}
           placeholder={t("login.password_placeholder")}
           type="password"
@@ -157,9 +160,10 @@ export function LoginAuthPanel({
   username,
 }: LoginAuthPanelProps) {
   const { t } = useI18n();
+  const titleId = useId();
   return (
-    <UiPanel aria-labelledby="nexus-login-title" className="w-full" padding="lg" radius="lg" variant="filled">
-      <h2 className={getUiTypographyClassName({ role: "objectTitle", tone: "strong" })} id="nexus-login-title">
+    <UiPanel aria-labelledby={titleId} className="w-full" padding="lg" radius="lg" variant="filled">
+      <h2 className={getUiTypographyClassName({ role: "objectTitle", tone: "strong" })} id={titleId}>
         {t("login.title")}
       </h2>
 

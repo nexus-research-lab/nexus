@@ -152,6 +152,7 @@ export function SingleRunPicker(props: SingleRunPickerProps) {
                 const isDisabled = isDateDisabled(day.value);
                 return (
                   <UiChoiceButton
+                    aria-label={day.value}
                     active={isSelected}
                     disabled={isDisabled}
                     key={day.value}
@@ -177,18 +178,21 @@ export function SingleRunPicker(props: SingleRunPickerProps) {
             />
             <TimePickerColumn
               isDisabled={isHourDisabled}
+              label={t("capability.scheduled_dialog_hours")}
               onSelect={onHourSelect}
               options={HOUR_12_OPTIONS}
               value={hour12}
             />
             <TimePickerColumn
               isDisabled={isMinuteDisabled}
+              label={t("capability.scheduled_dialog_minutes")}
               onSelect={onMinuteSelect}
               options={MINUTE_OPTIONS}
               value={minute}
             />
             <TimePickerColumn
               isDisabled={isSecondDisabled}
+              label={t("capability.scheduled_dialog_seconds")}
               onSelect={onSecondSelect}
               options={SECOND_OPTIONS}
               value={second}

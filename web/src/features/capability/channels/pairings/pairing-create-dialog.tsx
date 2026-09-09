@@ -46,9 +46,7 @@ import {
   type CreatePairingDraft,
 } from "./pairing-model";
 import {
-  CHANNEL_OPTIONS,
-  CHAT_TYPE_OPTIONS,
-  CREATE_PAIRING_STATUS_OPTIONS,
+  getPairingOptions,
 } from "./pairing-options";
 
 interface CreatePairingDialogProps {
@@ -68,6 +66,7 @@ export function CreatePairingDialog({
 }: CreatePairingDialogProps) {
   const { t } = useI18n();
   const fieldId = useId();
+  const options = getPairingOptions(t);
   const savingRef = useRef(false);
   const [draft, setDraft] = useState(() => createPairingDraft(
     agents[0]?.agent_id || "",
@@ -111,50 +110,57 @@ export function CreatePairingDialog({
     }
   };
 
+  const close = () => {
+    if (!savingRef.current) onClose();
+  };
+
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
         layer="dialog"
         labelledBy={`${fieldId}-title`}
-        onClose={onClose}
+        onClose={close}
       >
         <UiDialogFormShell
+          aria-busy={saving}
           onSubmit={handleSubmit}
           size="lg"
           viewport="adaptiveMax"
         >
           <UiDialogHeader
             appearance="plain"
-            onClose={onClose}
-            title="新增配对"
+            onClose={close}
+            title={t("capability.pairing_new")}
             titleId={`${fieldId}-title`}
           />
 
           <UiDialogBody className="space-y-4" scrollable>
             {failure ? <FeedbackBanner {...failure} /> : null}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <UiField htmlFor={`${fieldId}-channel`} label="渠道">
+              <UiField htmlFor={`${fieldId}-channel`} label={t("capability.pairing_channel")}>
                 <UiSelectMenu
-                  ariaLabel="选择 IM 渠道"
+                  disabled={saving || blocked}
+                  ariaLabel={t("capability.pairing_select_channel")}
                   id={`${fieldId}-channel`}
                   onChange={(value) => setField(
                     "channelType",
                     value as ImChannelType,
                   )}
-                  options={CHANNEL_OPTIONS}
+                  options={options.channels}
                   size="sm"
                   value={draft.channelType}
                 />
               </UiField>
-              <UiField htmlFor={`${fieldId}-chat-type`} label="会话类型">
+              <UiField htmlFor={`${fieldId}-chat-type`} label={t("capability.pairing_chat_type")}>
                 <UiSelectMenu
-                  ariaLabel="选择会话类型"
+                  disabled={saving || blocked}
+                  ariaLabel={t("capability.pairing_select_chat_type")}
                   id={`${fieldId}-chat-type`}
                   onChange={(value) => setField(
                     "chatType",
                     value as ImChatType,
                   )}
-                  options={CHAT_TYPE_OPTIONS}
+                  options={options.chatTypes}
                   size="sm"
                   value={draft.chatType}
                 />
@@ -162,39 +168,41 @@ export function CreatePairingDialog({
             </div>
 
             <UiField
-              description="同一智能体可以绑定多个不同外部对象，每个对象会生成独立 IM session。"
+              description={t("capability.pairing_external_hint")}
               htmlFor={`${fieldId}-external-ref`}
-              label="外部对象 ID"
+              label={t("capability.pairing_external_id")}
               required
             >
               <UiInput
+                disabled={saving || blocked}
                 id={`${fieldId}-external-ref`}
                 onChange={(event) => setField("externalRef", event.target.value)}
                 pattern=".*\S.*"
                 placeholder={draft.chatType === "group"
-                  ? "群 ID / chat_id / channel_id"
-                  : "用户 ID / open_id / chat_id"}
+                  ? t("capability.pairing_group_placeholder")
+                  : t("capability.pairing_user_placeholder")}
                 required
                 value={draft.externalRef}
                 variant="dialog"
               />
             </UiField>
 
-            <UiField htmlFor={`${fieldId}-name`} label="显示名称">
+            <UiField htmlFor={`${fieldId}-name`} label={t("capability.pairing_display_name")}>
               <UiInput
+                disabled={saving || blocked}
                 id={`${fieldId}-name`}
                 onChange={(event) => setField("externalName", event.target.value)}
-                placeholder="可选，用于配对列表识别"
+                placeholder={t("capability.pairing_name_placeholder")}
                 value={draft.externalName}
                 variant="dialog"
               />
             </UiField>
 
-            <UiField htmlFor={`${fieldId}-agent`} label="处理智能体" required>
+            <UiField htmlFor={`${fieldId}-agent`} label={t("capability.pairing_agent")} required>
                 <UiSelectMenu
-                  ariaLabel="选择处理智能体"
+                  disabled={saving || blocked || agents.length === 0}
+                  ariaLabel={t("capability.pairing_select_agent")}
                   id={`${fieldId}-agent`}
-                  disabled={agents.length === 0}
                   onChange={(value) => setField("agentId", value)}
                   options={agentOptions}
                   size="sm"
@@ -203,26 +211,28 @@ export function CreatePairingDialog({
             </UiField>
 
             <UiDisclosure
-              label="账号、话题与初始状态"
+              label={t("capability.pairing_advanced")}
               summaryTone="muted"
               variant="section"
             >
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <UiField
-                  description="多账号接入时用于区分同一个外部对象。"
+                  description={t("capability.pairing_account_hint")}
                   htmlFor={`${fieldId}-account`}
-                  label="通道账号 ID"
+                  label={t("capability.pairing_account")}
                 >
                   <UiInput
+                    disabled={saving || blocked}
                     id={`${fieldId}-account`}
                     onChange={(event) => setField("accountId", event.target.value)}
-                    placeholder="扫码账号 ID / bot id"
+                    placeholder={t("capability.pairing_account_placeholder")}
                     value={draft.accountId}
                     variant="dialog"
                   />
                 </UiField>
-                <UiField htmlFor={`${fieldId}-thread`} label="Thread / 话题 ID">
+                <UiField htmlFor={`${fieldId}-thread`} label={t("capability.pairing_thread")}>
                   <UiInput
+                    disabled={saving || blocked}
                     id={`${fieldId}-thread`}
                     onChange={(event) => setField("threadId", event.target.value)}
                     placeholder="Telegram topic / Discord thread"
@@ -230,22 +240,23 @@ export function CreatePairingDialog({
                     variant="dialog"
                   />
                 </UiField>
-                <UiField htmlFor={`${fieldId}-status`} label="初始状态">
+                <UiField htmlFor={`${fieldId}-status`} label={t("capability.pairing_initial_status")}>
                   <UiSelectMenu
-                    ariaLabel="选择初始配对状态"
+                    disabled={saving || blocked}
+                    ariaLabel={t("capability.pairing_select_initial_status")}
                     id={`${fieldId}-status`}
                     onChange={(value) => setField(
                       "status",
                       value as ImPairingStatus,
                     )}
-                    options={CREATE_PAIRING_STATUS_OPTIONS}
+                    options={options.initialStatuses}
                     size="sm"
                     value={draft.status}
                   />
                 </UiField>
               </div>
               <p className={getUiTypographyClassName({ role: "caption", tone: "soft" })}>
-                仅在已知稳定外部 ID 时手动创建；首次入站消息仍会生成待处理配对。
+                {t("capability.pairing_manual_hint")}
               </p>
             </UiDisclosure>
           </UiDialogBody>
@@ -253,10 +264,10 @@ export function CreatePairingDialog({
           <UiDialogFooter appearance="plain">
             <UiButton
               disabled={saving || blocked}
-              onClick={onClose}
+              onClick={close}
               type="button"
             >
-              取消
+              {t("common.cancel")}
             </UiButton>
             <UiButton
               disabled={saving || blocked || !selectedAgentAvailable}
@@ -267,7 +278,7 @@ export function CreatePairingDialog({
               {saving ? (
                 <Loader2 className={getUiSpinnerClassName({ size: "md" })} />
               ) : null}
-              {saving ? "创建中..." : "新增配对"}
+              {saving ? t("capability.pairing_creating") : t("capability.pairing_new")}
             </UiButton>
           </UiDialogFooter>
         </UiDialogFormShell>

@@ -51,17 +51,17 @@ test("Feishu Docs presents official QR as the primary choose-or-create flow", as
   );
 
   const appSelection = getFeishuDeviceAuthPresentation("app_selection");
-  assert.equal(appSelection.title, "选择飞书应用");
+  assert.equal(appSelection.title, "capability.connector_flow_select_app");
   assert.equal("subtitle" in appSelection, false);
   assert.equal(appSelection.showQRCode, true);
-  assert.equal(appSelection.actionLabel, "打开飞书");
+  assert.equal(appSelection.actionLabel, "capability.connector_flow_feishu_open");
 
   const userAuthorization = getFeishuDeviceAuthPresentation(
     "user_authorization",
   );
-  assert.equal(userAuthorization.title, "连接飞书云文档");
+  assert.equal(userAuthorization.title, "capability.connector_flow_feishu_title");
   assert.equal(userAuthorization.showQRCode, false);
-  assert.equal(userAuthorization.actionLabel, "继续授权");
+  assert.equal(userAuthorization.actionLabel, "capability.connector_flow_continue_auth");
 
   const appSelectionSession = {
     connector_id: "feishu-docx",
@@ -252,7 +252,7 @@ test("Device auth distinguishes a confirmed rejection from an unknown poll resul
   await denied.poll();
   assert.deepEqual(failures, [{
     kind: "not_connected",
-    message: "用户拒绝授权",
+    message: "capability.connector_flow_poll_denied",
   }]);
 
   failures.length = 0;
@@ -266,7 +266,7 @@ test("Device auth distinguishes a confirmed rejection from an unknown poll resul
   await transportFailure.poll();
   assert.deepEqual(failures, [{
     kind: "outcome_unknown",
-    message: "飞书授权状态暂时无法确认",
+    message: "capability.connector_flow_poll_unknown",
   }]);
 });
 

@@ -32,7 +32,7 @@ export interface CreateRoomDialogProps {
   isOpen: boolean;
   mode?: RoomDialogMode;
   onCancel: () => void;
-  onConfirm: (submission: RoomDialogSubmission) => void;
+  onConfirm: (submission: RoomDialogSubmission) => void | Promise<void>;
 }
 
 export interface RoomDialogFormState {

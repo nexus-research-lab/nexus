@@ -54,6 +54,7 @@ export interface SkillAgentBindingsReadFailure {
 export interface SkillAgentToggleFailure {
   agentId: string;
   blocksRepeat: boolean;
+  canStartNewIntent?: boolean;
   effect: MutationFailureEffect;
   impact: string;
   title: string;

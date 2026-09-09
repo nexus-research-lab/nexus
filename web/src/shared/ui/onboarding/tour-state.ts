@@ -1,3 +1,6 @@
+// INPUT: 浏览器及桌面持久引导状态与显式完成、跳过、重置操作。
+// OUTPUT: 经本地写入代次隔离的持久状态读取和更新。
+// POS: 引导持久化边界；迟到初始化不得恢复被新操作覆盖的旧快照。
 "use client";
 
 import {
@@ -15,6 +18,8 @@ const SIDEBAR_HINT_DISMISSED_STORAGE_KEY = "nexus:sidebar-onboarding-dismissed";
 const DESKTOP_COMPLETED_TOURS_KEY = "onboarding.completed_tours";
 const DESKTOP_DISMISSED_TOURS_KEY = "onboarding.dismissed_tours";
 const DESKTOP_SIDEBAR_HINT_KEY = "onboarding.sidebar_hint_dismissed";
+
+let persistentRevision = 0;
 
 export interface HydratedOnboardingState {
   completedTours: Record<string, boolean>;
@@ -101,6 +106,7 @@ async function readDesktopBoolean(key: string): Promise<boolean | null> {
 }
 
 export async function hydrateOnboardingStateFromDesktop(): Promise<HydratedOnboardingState> {
+  const revision = persistentRevision;
   const localCompletedTours = readCompletedTours();
   if (!isDesktopBridgeAvailable()) {
     return { completedTours: localCompletedTours };
@@ -112,6 +118,10 @@ export async function hydrateOnboardingStateFromDesktop(): Promise<HydratedOnboa
       readDesktopBooleanMap(DESKTOP_DISMISSED_TOURS_KEY),
       readDesktopBoolean(DESKTOP_SIDEBAR_HINT_KEY),
     ]);
+
+    if (revision !== persistentRevision) {
+      return { completedTours: readCompletedTours() };
+    }
 
     const completedTours = {
       ...localCompletedTours,
@@ -140,7 +150,7 @@ export async function hydrateOnboardingStateFromDesktop(): Promise<HydratedOnboa
 
     return { completedTours: completedTours };
   } catch {
-    return { completedTours: localCompletedTours };
+    return { completedTours: readCompletedTours() };
   }
 }
 
@@ -149,6 +159,7 @@ export function readCompletedTours(): Record<string, boolean> {
 }
 
 export function writeCompletedTours(nextValue: Record<string, boolean>) {
+  persistentRevision += 1;
   const normalized = normalizeBooleanMap(nextValue);
   writeBooleanMap(TOUR_COMPLETION_STORAGE_KEY, normalized);
   persistDesktopValue(DESKTOP_COMPLETED_TOURS_KEY, JSON.stringify(normalized));
@@ -159,6 +170,7 @@ function readDismissedTours(): Record<string, boolean> {
 }
 
 function writeDismissedTours(nextValue: Record<string, boolean>) {
+  persistentRevision += 1;
   const normalized = normalizeBooleanMap(nextValue);
   writeBooleanMap(TOUR_DISMISS_STORAGE_KEY, normalized);
   persistDesktopValue(DESKTOP_DISMISSED_TOURS_KEY, JSON.stringify(normalized));
@@ -211,6 +223,7 @@ export function clearRequestedTourId(expectedTourId?: string) {
 }
 
 export function resetAllTourState() {
+  persistentRevision += 1;
   if (typeof window === "undefined") {
     return;
   }

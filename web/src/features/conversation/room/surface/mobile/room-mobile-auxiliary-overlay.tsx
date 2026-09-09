@@ -135,6 +135,7 @@ export function RoomMobileAuxiliaryOverlay({
           />
         ) : (
           <RoomAgentAboutSurface
+            isDm={isDm}
             agent={currentAgent}
             conversationId={conversationId}
             isVisible

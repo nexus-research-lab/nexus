@@ -198,7 +198,7 @@ export function SubscriptionAccountView({
             </p>
           </div>
           <UiButton
-            disabled={disabled}
+            disabled={model.loading || model.mutationPending}
             onClick={() => void onRefresh()}
             size="sm"
             variant="text"

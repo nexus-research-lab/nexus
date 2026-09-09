@@ -2,7 +2,7 @@
 // OUTPUT: 验证切换期间禁止应用，迟到读取不回退版本，冲突后先刷新再显式应用。
 // POS: WorkGraph 编辑器 DOM 回归；聊天与画布由独立边界替身代替。
 
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -108,5 +108,24 @@ describe("WorkGraph editor version ordering", () => {
     expect(mocks.apply).toHaveBeenCalledTimes(1);
     await user.click(apply);
     expect(mocks.apply).toHaveBeenNthCalledWith(2, "session-a", "editor-a", 2, 2);
+  });
+  it("uses a synchronous version gate and does not read over an in-flight selection", async () => {
+    const selection = deferred<WorkGraphWorkflowEditorSession>();
+    mocks.select.mockReturnValue(selection.promise);
+    await openEditor();
+    const version = screen.getByRole("button", { name: "v2" });
+    act(() => { fireEvent.click(version); fireEvent.click(version); fireEvent.click(screen.getByRole("button", { name: "Chat snapshot" })); });
+    expect(mocks.select).toHaveBeenCalledOnce();
+    expect(mocks.get).not.toHaveBeenCalled();
+    await act(async () => selection.resolve(editor(2)));
+  });
+  it("hides editor content after access revocation until a successful read", async () => {
+    mocks.get.mockRejectedValueOnce(new ApiRequestError("secret", 403));
+    const { user } = await openEditor();
+    await user.click(screen.getByRole("button", { name: "Chat snapshot" }));
+    expect(screen.queryByRole("button", { name: "Chat snapshot" })).toBeNull();
+    expect(screen.queryByText("execution.workflow_editor_apply")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "state.retry" }));
+    expect(screen.getByRole("button", { name: "Chat snapshot" })).toBeTruthy();
   });
 });

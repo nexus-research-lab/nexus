@@ -3,7 +3,7 @@
 /**
  * INPUT: Agent/Room 身份、头像路径、成员集合与调用方投影的运行态。
  * OUTPUT: 从紧凑选择器到完整身份的唯一具名 rounded-square 头像，图片失败时保留完整字符回退。
- * POS: 头像尺寸、图片回退与最多九成员拼图的唯一 UI owner；不读取业务状态。
+ * POS: 头像尺寸、图片回退与按稳定成员身份排序的最多九成员拼图的唯一 UI owner；不读取业务状态。
  */
 import { type HTMLAttributes, type ReactNode, useState } from "react";
 import { Hash } from "lucide-react";
@@ -170,7 +170,9 @@ export function UiRoomAvatar({
   title,
   ...props
 }: UiRoomAvatarProps) {
-  const visibleMembers = members.slice(0, Math.max(0, Math.min(9, Math.floor(maxMembers))));
+  const visibleMembers = [...members]
+    .sort((left, right) => left.id < right.id ? -1 : left.id > right.id ? 1 : 0)
+    .slice(0, Math.max(0, Math.min(9, Math.floor(maxMembers))));
   const gridSize = roomAvatarGridSize(visibleMembers.length);
   const isMemberPair = visibleMembers.length === 2;
   const hasMembers = visibleMembers.length > 0;

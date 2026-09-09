@@ -40,7 +40,7 @@ function panel() {
 }
 
 it("announces initial document loading instead of an unnamed spinner", () => {
-  controller.content = ""; controller.isLoading = true; controller.editing = false;
+  controller.content = ""; controller.revision = null; controller.isLoading = true; controller.editing = false;
   panel();
   const loading = screen.getByText("Loading…").closest('[role="status"]');
   expect(loading?.getAttribute("aria-busy")).toBe("true");
@@ -84,4 +84,25 @@ it("only reconciles an unknown save while retaining the editable draft", async (
   expect(controller.reconcileSave).toHaveBeenCalledOnce();
   expect(controller.save).not.toHaveBeenCalled();
   expect(controller.overwriteConflict).not.toHaveBeenCalled();
+});
+
+
+it.each(["refreshing", "failed"])("keeps the draft of a loaded empty document visible while %s", (state) => {
+  controller.content = "";
+  controller.isLoading = state === "refreshing";
+  controller.resourceError = state === "failed" ? { access: null, message: "offline" } : null;
+  panel();
+  expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("My draft");
+  expect(screen.queryByText("Loading…")).toBeNull();
+  if (state === "failed") expect(screen.getByText(MESSAGES.en["capability.memory_document_refresh_failed"])).toBeTruthy();
+});
+
+it("does not discard a conflict draft while overwrite is saving", async () => {
+  controller.saveIssue = { kind: "conflict", phase: "review" };
+  controller.isSaving = true;
+  panel();
+  const adopt = screen.getByRole("button", { name: MESSAGES.en["capability.memory_use_latest"] });
+  expect((adopt as HTMLButtonElement).disabled).toBe(true);
+  await userEvent.click(adopt);
+  expect(controller.adoptLatest).not.toHaveBeenCalled();
 });

@@ -88,6 +88,7 @@ export function buildCreatePairingPayload(
 export function filterPairings(
   items: PairingView[],
   filters: PairingFilters,
+  labels = { channels: CHANNEL_LABELS, chatTypes: CHAT_TYPE_LABELS },
 ): PairingView[] {
   const search = createUiSearchMatcher(filters.query);
   return items.filter((item) => {
@@ -100,7 +101,7 @@ export function filterPairings(
     if (!matchesStatusFilter(item.status, filters.status)) {
       return false;
     }
-    return search.matches(pairingSearchValues(item));
+    return search.matches(pairingSearchValues(item, labels));
   });
 }
 
@@ -147,13 +148,13 @@ export function countPairingStatuses(
   };
 }
 
-export function pairingDisplayName(item: PairingView): string {
+export function pairingDisplayName(item: PairingView, labels = { channels: CHANNEL_LABELS, chatTypes: CHAT_TYPE_LABELS }): string {
   const name = item.external_name?.trim();
   if (name && name !== item.external_ref.trim()) {
     return name;
   }
-  const channel = CHANNEL_LABELS[item.channel_type] ?? item.channel_type;
-  const chatType = CHAT_TYPE_LABELS[item.chat_type] ?? item.chat_type;
+  const channel = labels.channels[item.channel_type] ?? item.channel_type;
+  const chatType = labels.chatTypes[item.chat_type] ?? item.chat_type;
   return `${channel}${chatType}`;
 }
 
@@ -162,11 +163,11 @@ export function pairingTarget(item: PairingView): string {
   return `${item.external_ref}${thread}`;
 }
 
-export function pairingBindingKey(item: PairingView): string {
+export function pairingBindingKey(item: PairingView, labels = { channels: CHANNEL_LABELS, chatTypes: CHAT_TYPE_LABELS }): string {
   return [
-    CHANNEL_LABELS[item.channel_type] ?? item.channel_type,
+    labels.channels[item.channel_type] ?? item.channel_type,
     item.account_id || "default",
-    CHAT_TYPE_LABELS[item.chat_type] ?? item.chat_type,
+    labels.chatTypes[item.chat_type] ?? item.chat_type,
     item.external_ref,
     item.thread_id || "-",
   ].join(" / ");
@@ -176,7 +177,7 @@ export function pairingSessionKey(item: PairingView): string {
   return item.session_key || "";
 }
 
-function pairingSearchValues(item: PairingView): string[] {
+function pairingSearchValues(item: PairingView, labels: { channels: typeof CHANNEL_LABELS; chatTypes: typeof CHAT_TYPE_LABELS }): string[] {
   return [
     item.external_name ?? "",
     item.external_ref,
@@ -184,6 +185,10 @@ function pairingSearchValues(item: PairingView): string[] {
     item.thread_id ?? "",
     pairingSessionKey(item),
     item.agent_name ?? "",
+    item.channel_type,
+    labels.channels[item.channel_type],
+    labels.chatTypes[item.chat_type],
+    pairingDisplayName(item, labels),
     CHANNEL_LABELS[item.channel_type] ?? item.channel_type,
   ];
 }

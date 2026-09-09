@@ -10,3 +10,7 @@
 - 滚动复用 conversation 的 useFollowScroll 与 ScrollToLatestButton：底部跟随，上滚后保持阅读，显式回到底部恢复跟随。Team 不维护独立滚动阈值、动画或强制 scrollIntoView；会话 identity 为实际 conversation.id。可聚焦 region 支持键盘滚动，局部 lint 例外仅用于该滚动区域。
 
 - 首次加载失败提供公共“重试”按钮，仅调用 retryLoad；加载中禁用且标记 busy。不得用重试入口重发聊天消息。
+
+- 已有消息在读取刷新期间继续可见，列表标记 busy；只有没有消息的首次加载才显示整块加载提示。
+
+- 页面实例按 owner generation、用户与路由 room_id 隔离，草稿和未完成发送不能越过会话切换。

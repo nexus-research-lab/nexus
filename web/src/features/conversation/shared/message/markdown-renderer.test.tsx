@@ -37,6 +37,15 @@ afterEach(() => {
 });
 
 describe("Message Markdown domain adaptation", () => {
+  it("keeps full-message mention offsets after file-card segmentation", () => {
+    const content = "saved to report.md\n\nPlease ask @Agent for review.";
+    const start = Array.from(content.slice(0, content.indexOf("@Agent"))).length;
+    render(<I18nProvider><MarkdownRenderer content={content} onOpenWorkspaceFile={vi.fn()} workspaceAgentId="message-agent"
+      agentMentions={[{ agent_id: "exact-agent", content_block_index: 0, start_rune: start, end_rune: start + 6, label: "@Agent" }]} /></I18nProvider>);
+    expect(screen.getAllByRole("button", { name: /@Agent/ })).toHaveLength(1);
+    expect(screen.getByText(/Please ask/)).toBeTruthy();
+  });
+
   it("keeps mention identity and exact handoff context through streaming completion", async () => {
     const user = userEvent.setup();
     const openContact = vi.fn();

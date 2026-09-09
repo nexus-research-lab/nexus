@@ -232,3 +232,27 @@ it.each(["credential", "oauth"] as const)("rejects %s form submissions while bus
   expect(onSave).toHaveBeenCalledExactlyOnceWith(...(kind === "credential"
     ? ["amap", "secret"] : ["feishu-docx", "client-id", "secret"]));
 });
+
+it("preserves the Feishu manual step and credentials across language changes", async () => {
+  const user = userEvent.setup();
+  const save = vi.fn();
+  const view = (locale: Locale) => <I18N_CONTEXT.Provider value={{ locale, setLocale: vi.fn(), t: (key) => MESSAGES[locale][key] }}>
+    <FeishuAppConnectionDialog isOpen busy={false} onClose={vi.fn()} onScan={vi.fn()} onConnectManually={save} />
+  </I18N_CONTEXT.Provider>;
+  const { rerender } = render(view("zh"));
+  await user.click(screen.getByRole("button", { name: /手动配置/ }));
+  const id = screen.getByLabelText("App ID*");
+  const secret = screen.getByLabelText("App Secret*");
+  await user.type(id, " app-id ");
+  await user.type(secret, " app-secret ");
+  rerender(view("en"));
+  expect(screen.getByRole("dialog", { name: "Connect Feishu manually" })).toBeTruthy();
+  expect(screen.getByLabelText("App ID*")).toBe(id);
+  expect(screen.getByLabelText("App Secret*")).toBe(secret);
+  expect((secret as HTMLInputElement).value).toBe(" app-secret ");
+  expect(save).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("button", { name: "Continue" }));
+  expect(save).toHaveBeenCalledExactlyOnceWith("app-id", "app-secret");
+  await user.click(screen.getByRole("button", { name: "Back" }));
+  expect(screen.getByRole("button", { name: /Connect with QR code/ })).toBeTruthy();
+});

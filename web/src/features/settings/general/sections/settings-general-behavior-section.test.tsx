@@ -129,3 +129,32 @@ describe("General setting switches", () => {
     expect(props.onAutoMemoryEnabledChange).toHaveBeenCalledExactlyOnceWith(false);
   });
 });
+
+
+it.each(["preferencesLoading", "preferencesSaving"] as const)("locks all populated model selectors during %s", (flag) => {
+  const options = [{ value: "provider/model", label: "Model" }];
+  const props = { ...preferences(), [flag]: true,
+    defaultModelOptions: options, defaultImageModelOptions: options,
+    defaultVisionModelOptions: options, defaultBackgroundModelOptions: options,
+  };
+  const { rerender } = render(view(<SettingsGeneralBehaviorSection {...props} />));
+  const modelNames = ["默认对话模型", "默认生图模型", "视觉理解模型", "后台任务模型"];
+  const selectors = modelNames.map((name) => screen.getByRole("button", { name }));
+  expect(selectors).toHaveLength(4);
+  for (const selector of selectors) expect((selector as HTMLButtonElement).disabled).toBe(true);
+  rerender(view(<SettingsGeneralBehaviorSection {...props} preferencesLoading={false} preferencesSaving={false} />));
+  for (const selector of modelNames.map((name) => screen.getByRole("button", { name }))) expect((selector as HTMLButtonElement).disabled).toBe(false);
+});
+
+it("blocks duplicate model catalog retries while its read is pending", async () => {
+  const user = userEvent.setup();
+  const props = { ...preferences(), defaultModelCatalogFailed: true };
+  const { rerender } = render(view(<SettingsGeneralBehaviorSection {...props} />));
+  await user.click(screen.getByRole("button", { name: zhSettingsMessages["settings.general.default_model_catalog_retry"] }));
+  expect(props.onRetryDefaultModelCatalog).toHaveBeenCalledOnce();
+  rerender(view(<SettingsGeneralBehaviorSection {...props} providerOptionsLoading />));
+  const retry = screen.getByRole("button", { name: zhSettingsMessages["settings.general.default_model_loading"] });
+  expect((retry as HTMLButtonElement).disabled).toBe(true);
+  await user.click(retry);
+  expect(props.onRetryDefaultModelCatalog).toHaveBeenCalledOnce();
+});

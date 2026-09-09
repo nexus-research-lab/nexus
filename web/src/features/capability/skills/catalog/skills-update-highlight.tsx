@@ -5,7 +5,7 @@
 
 import { AlertTriangle, CheckCircle2, Clock3, Loader2, RefreshCw } from "lucide-react";
 
-import { getSkillDisplayDescription } from "@/lib/skill-description";
+import { getSkillDisplayDescription, getSkillDisplayTitle } from "@/lib/skill-description";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
@@ -56,17 +56,6 @@ const SKILL_UPDATE_STATUS_ICON = {
   icon: typeof Clock3;
 }>;
 
-const SKILL_UPDATE_STATUS_SURFACE = {
-  checking:
-    "border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-panel-background)_58%,transparent)]",
-  current:
-    "border-[color:color-mix(in_srgb,var(--success)_20%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--success)_4%,transparent)]",
-  failure:
-    "border-[color:color-mix(in_srgb,var(--destructive)_22%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--destructive)_4%,transparent)]",
-  updates:
-    "border-[color:color-mix(in_srgb,var(--warning)_24%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--warning)_5%,transparent)]",
-} satisfies Record<SkillUpdateStatus, string>;
-
 function SkillUpdateStatusIcon({ status }: { status: SkillUpdateStatus }) {
   const presentation = SKILL_UPDATE_STATUS_ICON[status];
   const Icon = presentation.icon;
@@ -94,7 +83,7 @@ function UpdateSkillRow({
 }) {
   const { t } = useI18n();
   const description = getSkillDisplayDescription(skill, t);
-  const title = skill.title || skill.name;
+  const title = getSkillDisplayTitle(skill, t);
   return (
     <UiListRow
       aria-label={title}
@@ -144,7 +133,7 @@ function UpdateSkillRow({
             "min-w-0 truncate",
             getUiTypographyClassName({ role: "caption", tone: "soft" }),
           )}>
-            {skill.source_name || t("capability.skills_external_import")} · {skill.version || "unknown"}
+            {skill.source_name || t("capability.skills_external_import")} · {skill.version || t("capability.skills_version_unknown")}
           </span>
         </div>
         {description ? (
@@ -184,10 +173,7 @@ export function SkillsUpdateHighlight({
 
   return (
     <UiPanel
-      className={cn(
-        "mb-5",
-        SKILL_UPDATE_STATUS_SURFACE[model.status],
-      )}
+      className="mb-5"
       padding="sm"
       radius="md"
     >

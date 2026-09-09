@@ -10,7 +10,7 @@ import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
 
 import { SkillsExternalResults } from "./skills-external-results";
 
-function view(loading: boolean) {
+function view(loading: boolean, loadFailed = false, onRetry = vi.fn()) {
   return (
     <I18N_CONTEXT.Provider
       value={{ locale: "zh", setLocale: vi.fn(), t: (key) => key }}
@@ -19,6 +19,8 @@ function view(loading: boolean) {
         busyExternalKeys={new Set()}
         importedExternalSources={new Map()}
         loading={loading}
+        loadFailed={loadFailed}
+        onRetry={onRetry}
         onImport={vi.fn()}
         onPreview={vi.fn()}
         onSelectSource={vi.fn()}
@@ -92,4 +94,12 @@ describe("SkillsExternalResults", () => {
     await user.click(teamSource);
     expect(onSelectSource).toHaveBeenCalledWith("team-source");
   });
+});
+
+it("offers a read-only retry instead of an empty result after search failure", async () => {
+  const onRetry = vi.fn();
+  render(view(false, true, onRetry));
+  expect(screen.queryByText("capability.skills_external_empty")).toBeNull();
+  await userEvent.setup().click(screen.getByRole("button", { name: "state.retry" }));
+  expect(onRetry).toHaveBeenCalledOnce();
 });

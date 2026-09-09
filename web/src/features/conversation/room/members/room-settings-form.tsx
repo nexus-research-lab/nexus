@@ -43,7 +43,7 @@ export function RoomSettingsForm({
 }: RoomSettingsFormProps) {
   const { t } = useI18n();
   const hostOptions = [
-    { label: "未设置", value: "" },
+    { label: t("room.host_unset"), value: "" },
     ...selectedAgents.map((agent) => ({
       label: agent.name,
       value: agent.agent_id,
@@ -66,10 +66,11 @@ export function RoomSettingsForm({
             aria-label={t("room.name")}
             className="min-w-0"
             data-autofocus="true"
+            disabled={isCreating}
             maxLength={64}
             onChange={(event) => setters.setName(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === "Enter" && canSubmit) {
+              if (event.key === "Enter" && !event.nativeEvent.isComposing && event.keyCode !== 229 && canSubmit) {
                 onSubmit();
               }
             }}
@@ -83,10 +84,10 @@ export function RoomSettingsForm({
         <div className="flex items-center gap-2">
           <div className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-(--text-muted)">
             <Crown className="h-3.5 w-3.5 text-primary" />
-            <span>群主</span>
+            <span>{t("room.host_label")}</span>
           </div>
           <UiSelectMenu
-            ariaLabel="选择 Room 群主"
+            ariaLabel={t("room.host_select_label")}
             className="min-w-0 flex-1"
             disabled={selectedAgents.length === 0 || isCreating}
             onChange={setters.setHostAgentId}
@@ -100,13 +101,13 @@ export function RoomSettingsForm({
           checked={state.hostAutoReplyEnabled}
           className="mt-1.5"
           disabled={!state.hostAgentId || isCreating}
-          label="未 @ 时由群主接管，可回答或协调"
+          label={t("room.host_auto_reply_label")}
           onChange={setters.setHostAutoReplyEnabled}
         />
         <RoomSettingCheckbox
           checked={state.privateMessagesEnabled}
           disabled={isCreating}
-          label="允许成员私信协作"
+          label={t("room.private_messages_label")}
           onChange={setters.setPrivateMessagesEnabled}
         />
       </div>

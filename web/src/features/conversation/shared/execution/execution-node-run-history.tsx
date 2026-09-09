@@ -90,14 +90,14 @@ export function ExecutionNodeRunHistory({
           <ul className="space-y-1">
             {references.map((reference) => {
               const workspacePath = resolveExecutionWorkspaceReference(reference);
-              const actionable = Boolean(workspacePath && onOpenWorkspaceFile);
+              const actionable = Boolean(workspacePath && workspaceAgentId?.trim() && onOpenWorkspaceFile);
               return (
                 <li key={reference}>
                   <UiButton
                     className="w-full min-w-0 justify-start"
                     disabled={!actionable}
                     onClick={() => {
-                      if (workspacePath) {
+                      if (actionable && workspacePath) {
                         onOpenWorkspaceFile?.(workspacePath, workspaceAgentId);
                       }
                     }}

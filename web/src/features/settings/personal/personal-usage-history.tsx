@@ -36,7 +36,7 @@ export function PersonalUsageHistory({ days: allDays }: { days: DailyTokenUsage[
       <div className="flex gap-3">
         <div aria-hidden="true" className="ui-type-caption flex h-48 flex-col justify-between text-right tabular-nums text-(--text-muted)"><span>{formatTokens(maximum, locale)}</span><span>{formatTokens(maximum / 2, locale)}</span><span>0</span></div>
         <div className="flex h-48 min-w-0 flex-1 items-end gap-1 border-b border-(--divider-subtle-color) bg-[linear-gradient(to_top,var(--divider-subtle-color)_1px,transparent_1px)] bg-size-[100%_50%]">
-          {days.map((day) => <UiButton key={day.date} aria-label={`${day.date}: ${day.total_tokens.toLocaleString()}`} aria-pressed={active?.date === day.date}
+          {days.map((day) => <UiButton key={day.date} aria-label={`${day.date}: ${day.total_tokens.toLocaleString(locale)}`} aria-pressed={active?.date === day.date}
             className="h-full min-h-0 min-w-0 flex-1 flex-col justify-end gap-0 rounded-none border-0 p-0" variant="ghost"
             onMouseEnter={() => setSelected(day.date)} onFocus={() => setSelected(day.date)} onClick={() => setSelected(day.date)}>
             {series.map((item) => <span aria-hidden="true" key={item.key} className={`block w-full shrink-0 ${item.color}`} style={{ height: `${day[item.key] / maximum * 100}%` }} />)}
@@ -47,7 +47,7 @@ export function PersonalUsageHistory({ days: allDays }: { days: DailyTokenUsage[
       <div aria-live="polite" className="ui-type-metadata flex min-h-10 flex-wrap items-center gap-x-4 gap-y-1 tabular-nums">
         <span>{active?.date}</span>{series.map((item) => <span key={item.key}>{item.label} · {formatTokens(active?.[item.key] ?? 0, locale)}</span>)}
       </div>
-    </> : <div className="max-h-72 overflow-auto"><table className="ui-type-metadata w-full text-right tabular-nums"><thead><tr><th className="sticky top-0 bg-(--background) py-2 text-left">{t("settings.personal.date")}</th>{series.map((item) => <th className="sticky top-0 bg-(--background) px-2 py-2 font-medium" key={item.key}>{item.label}</th>)}</tr></thead><tbody>{days.toReversed().map((day) => <tr className="border-t border-(--divider-subtle-color)" key={day.date}><td className="py-2 text-left">{day.date}</td>{series.map((item) => <td className="px-2 py-2" key={item.key}>{day[item.key].toLocaleString()}</td>)}</tr>)}</tbody></table></div>}
+    </> : <div className="max-h-72 overflow-auto"><table className="ui-type-metadata w-full text-right tabular-nums"><thead><tr><th className="sticky top-0 bg-(--background) py-2 text-left">{t("settings.personal.date")}</th>{series.map((item) => <th className="sticky top-0 bg-(--background) px-2 py-2 font-medium" key={item.key}>{item.label}</th>)}</tr></thead><tbody>{days.toReversed().map((day) => <tr className="border-t border-(--divider-subtle-color)" key={day.date}><td className="py-2 text-left">{day.date}</td>{series.map((item) => <td className="px-2 py-2" key={item.key}>{day[item.key].toLocaleString(locale)}</td>)}</tr>)}</tbody></table></div>}
   </section>;
 }
 
@@ -96,7 +96,7 @@ export function PersonalUsageHeatmap({ days }: { days: DailyTokenUsage[] }) {
           {Array.from({length: offset}, (_, index) => <span key={`pad-${index}`} />)}
           {cells.map((day) => {
             const strength = day.value ? 0.25 + Math.ceil(day.value / peak * 3) * 0.25 : 0;
-            const label = `${day.date}: ${day.value === undefined ? t("settings.personal.activity_missing") : `${day.value.toLocaleString()} Token`}`;
+            const label = `${day.date}: ${day.value === undefined ? t("settings.personal.activity_missing") : `${day.value.toLocaleString(locale)} Token`}`;
             const dateLabel = new Date(`${day.date}T00:00:00Z`).toLocaleDateString(locale, { month: "short", day: "numeric", timeZone: "UTC" });
             const detail = day.value === undefined ? `${dateLabel} · ${t("settings.personal.activity_missing")}` : t("settings.personal.activity_detail", { date: dateLabel, value: formatTokens(day.value, locale) });
             return <UiTooltip key={day.date} label={detail}><UiButton aria-label={label}

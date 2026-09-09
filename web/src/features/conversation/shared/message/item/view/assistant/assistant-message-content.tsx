@@ -354,7 +354,7 @@ const EMPTY_STREAM_STATUS = {
     labelKey: "message.stopped",
   },
   error: {
-    className: "text-xs italic text-rose-500",
+    className: "text-xs italic text-(--destructive)",
     labelKey: "message.failed",
   },
 } as const;

@@ -160,7 +160,7 @@ function AssistantStatsTrailing({
       {memories.length > 0 ? (
         <AssistantMemoryReferences memories={memories} />
       ) : null}
-      <div className="flex items-center opacity-100 transition-opacity duration-(--motion-duration-fast) sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100">
+      <div className="flex items-center opacity-100 transition-opacity duration-(--motion-duration-fast) sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 [@media(hover:none)]:opacity-100">
         {onCopy ? <AssistantCopyAction copied={copied} onCopy={onCopy} /> : null}
         {onFork ? <AssistantForkAction onFork={onFork} /> : null}
       </div>
@@ -262,6 +262,7 @@ function AssistantMemoryReferences({
       {isOpen && portalContainer ? createPortal(
         <div
           ref={overlayRef}
+          id={overlayId}
           aria-label={label}
           className={cn(
             "fixed ui-layer-popover overflow-y-auto p-4",

@@ -152,6 +152,7 @@ export function PrivateEventTimeline({
 
   return (
     <UiPanel
+      aria-busy={isLoading}
       data-private-timeline-density={density}
       padding="none"
       variant="filled"

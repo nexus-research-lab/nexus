@@ -1,8 +1,10 @@
 // INPUT: Login controller page state and access-domain presentation.
-// OUTPUT: Shared access layout with the login introduction and authentication panel.
+// OUTPUT: Accessible bootstrap loading and current-language introduction with the shared authentication panel.
 // POS: Login route assembly; authentication decisions stay in the controller and common presentation in features/access.
 
 import { Compass, PanelRightOpen, ShieldCheck } from "lucide-react";
+import { useI18n } from "@/shared/i18n/i18n-context";
+import { AppLoadingScreen } from "@/shared/ui/layout/app-loading-screen";
 import { Navigate } from "react-router-dom";
 
 import { AccessPageFrame, AccessPageIntroduction } from "@/features/access/access-page-frame";
@@ -16,28 +18,29 @@ import { useLoginPageController } from "./use-login-page-controller";
 const LOGIN_SIGNAL_ITEMS = [
   {
     Icon: Compass,
-    copy: "Route work to the right room, DM, or app surface.",
-    title: "Launcher",
+    copy: "login.intro_launcher_copy",
+    title: "login.intro_launcher_title",
   },
   {
     Icon: PanelRightOpen,
-    copy: "Keep files, history, and review context in one place.",
-    title: "Workspace",
+    copy: "login.intro_workspace_copy",
+    title: "login.intro_workspace_title",
   },
   {
     Icon: ShieldCheck,
-    copy: "Open Nexus with one authenticated operating surface.",
-    title: "Control",
+    copy: "login.intro_control_copy",
+    title: "login.intro_control_title",
   },
 ] as const;
 
 function LoginIntroduction() {
+  const { t } = useI18n();
   return (
     <AccessPageIntroduction
-      backHomeLabel="Back to Nexus home"
-      eyebrow="Private workspace access"
-      title="Enter the operating surface."
-      description="Sign in to open the launcher, rooms, workspace files, and review surfaces that keep agent work visible."
+      backHomeLabel={t("login.intro_back_home")}
+      eyebrow={t("login.intro_eyebrow")}
+      title={t("login.intro_headline")}
+      description={t("login.intro_description")}
       artwork={
         <div
           aria-hidden="true"
@@ -60,10 +63,10 @@ function LoginIntroduction() {
           >
             <div className="flex items-center gap-2 text-(--text-strong)">
               <Icon className="h-4 w-4 text-[color:color-mix(in_srgb,var(--brand)_88%,transparent)]" />
-              <strong className={getUiTypographyClassName({ role: "supporting", weight: "semibold" })}>{title}</strong>
+              <strong className={getUiTypographyClassName({ role: "supporting", weight: "semibold" })}>{t(title)}</strong>
             </div>
             <p className={cn("mt-2", getUiTypographyClassName({ role: "supporting", tone: "muted" }))}>
-              {copy}
+              {t(copy)}
             </p>
           </div>
         ))}
@@ -75,7 +78,7 @@ function LoginIntroduction() {
 export function LoginPage() {
   const controller = useLoginPageController();
   if (controller.pageState.kind === "bootstrapping") {
-    return <AccessPageFrame />;
+    return <AppLoadingScreen />;
   }
   if (controller.pageState.kind === "redirect") {
     return <Navigate replace to={controller.pageState.path} />;

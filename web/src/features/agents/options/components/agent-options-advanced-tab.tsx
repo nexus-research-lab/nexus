@@ -69,8 +69,8 @@ export function AgentOptionsAdvancedTab({
           })}
         />
         {connectorsLoading && connectors.length === 0 ? (
-          <div className="flex h-16 items-center justify-center text-(--icon-muted)">
-            <Loader2 className={getUiSpinnerClassName({ size: "md", tone: "muted" })} />
+          <div role="status" aria-label={t("common.loading")} className="flex h-16 items-center justify-center text-(--icon-muted)">
+            <Loader2 aria-hidden="true" className={getUiSpinnerClassName({ size: "md", tone: "muted" })} />
           </div>
         ) : null}
         {connectorsError ? (

@@ -5,7 +5,7 @@
  */
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import {
   CheckCircle2,
   GitCompareArrows,
@@ -133,6 +133,7 @@ export function WorkGraphArtifactBlock({
       </UiPanel>
       {compareOpen ? (
         <WorkGraphCompareDialog
+          key={JSON.stringify([graph.source_session_key, graph.source_execution_id])}
           artifact={artifact}
           onClose={() => setCompareOpen(false)}
         />
@@ -150,6 +151,8 @@ function WorkGraphCompareDialog({
 }) {
   const { t } = useI18n();
   const graph = artifact.preview ?? artifact.workflow;
+  const titleId = useId();
+  const [retryRevision, setRetryRevision] = useState(0);
   const [activePane, setActivePane] = useState<ComparePane>("draft");
   const [source, setSource] = useState<ExecutionView | null>(null);
   const [loading, setLoading] = useState(true);
@@ -165,25 +168,30 @@ function WorkGraphCompareDialog({
     [preview, revision],
   );
 
-  const loadSource = async () => {
-    if (!graph) return;
+  const sourceSessionKey = graph?.source_session_key;
+  const sourceExecutionId = graph?.source_execution_id;
+  useEffect(() => {
+    if (!sourceSessionKey || !sourceExecutionId) {
+      setSource(null);
+      setLoading(false);
+      setFailed(true);
+      return;
+    }
+    let cancelled = false;
     setLoading(true);
     setFailed(false);
-    try {
-      setSource(await getExecutionApi(graph.source_session_key, graph.source_execution_id));
-    } catch (reason: unknown) {
+    setSource(null);
+    void getExecutionApi(sourceSessionKey, sourceExecutionId).then((value) => {
+      if (!cancelled) setSource(value);
+    }).catch((reason: unknown) => {
+      if (cancelled) return;
       console.error("[WorkGraphArtifact] source load failed", reason);
       setFailed(true);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    void loadSource();
-    // exact source identity only changes when a different message artifact mounts.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [graph?.source_execution_id, graph?.source_session_key]);
+    }).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [sourceExecutionId, sourceSessionKey, retryRevision]);
 
   if (!graph || !draftExecution) return null;
 
@@ -214,7 +222,7 @@ function WorkGraphCompareDialog({
             primaryAction={{
               icon: <RotateCcw className="h-3.5 w-3.5" />,
               label: t("execution.workflow_artifact_source_retry"),
-              onClick: () => void loadSource(),
+              onClick: () => setRetryRevision((revision) => revision + 1),
             }}
             size="sm"
             state="error"
@@ -239,9 +247,9 @@ function WorkGraphCompareDialog({
 
   return (
     <UiDialogPortal>
-      <UiDialogBackdrop layer="dialogUnderlay" labelledBy="workgraph-compare-title" onClose={onClose}>
+      <UiDialogBackdrop layer="dialogUnderlay" labelledBy={titleId} onClose={onClose}>
         <UiDialogShell size="workbench" viewport="workbench">
-          <h2 className="sr-only" id="workgraph-compare-title">
+          <h2 className="sr-only" id={titleId}>
             {t("execution.workflow_artifact_compare_title")}: /{graph.slash_name} · {graph.title}
           </h2>
           <UiDialogCloseButton

@@ -7,6 +7,7 @@ import type { ComponentProps, ReactNode, RefObject } from "react";
 
 import type { SessionRoundIndexResource } from "@/hooks/conversation/use-session-round-index";
 import { hasConversationReliabilityNotice } from "@/hooks/agent/reliability/conversation-reliability-model";
+import { UiBadge } from "@/shared/ui/display/badge";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
 import { ConversationReliabilityNotice } from "./conversation-reliability-notice";
@@ -102,9 +103,9 @@ export function ConversationPanelViewport({
           className={`${CONVERSATION_CONTENT_LANE_CLASS_NAME} pointer-events-none sticky top-2 z-20 flex h-0 justify-center`}
           data-conversation-history-loading-overlay
         >
-          <span className="inline-flex h-6 items-center rounded-full border border-(--surface-control-border) bg-(--surface-control-background) px-2.5 text-xs text-muted-foreground shadow-(--surface-control-shadow)">
+          <UiBadge shape="pill" size="md" role="status">
             {t("room.loading_earlier_messages")}
-          </span>
+          </UiBadge>
         </div>
       ) : null}
       {children}
