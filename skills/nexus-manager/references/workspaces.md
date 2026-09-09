@@ -15,4 +15,5 @@ nexusctl --json workspace delete --agent-id '<agent-id>' --path '<relative-path>
 - path/new-path 必须是该 workspace 内的相对路径，不传绝对路径，不使用 `..` 穿越，不访问 state/runtime/database。
 - 修改前先 get 原内容并确认覆盖范围；create 前确认目标不存在；rename 前确认 source/target；delete 前精确核对路径和影响。
 - `update --content` 是完整覆盖，不是 patch/append。需要局部修改时先读回、在模型侧形成完整新内容，再一次更新；不要在并发修改不明时覆盖。
+- 补充根级 `AGENTS.md` 行为模板时，遵循 [accounts-and-agents.md](accounts-and-agents.md) 的字段补全规则，保留默认规则、结构和已有内容；不能用一段新的人设覆盖全文。
 - 不把密码、token、Connector credential 或其他秘密写入 workspace。大型二进制、附件和 Room 公共产物使用对应 artifact/attachment 流程，不塞进文本 content flag。
