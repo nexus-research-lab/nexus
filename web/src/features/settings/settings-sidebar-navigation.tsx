@@ -1,5 +1,5 @@
 // INPUT: 设置导航权限、查询与路由动作。
-// OUTPUT: 返回与搜索同排、分组标题下选项统一缩进的宽侧栏，或紧凑导航轨。
+// OUTPUT: 完整返回文案与搜索同排、分组标题下选项统一缩进的宽侧栏，或紧凑导航轨。
 // POS: 设置导航视图，复用公共输入与按钮，不执行设置写入。
 "use client";
 
@@ -24,7 +24,7 @@ import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 
 import { isDesktopRuntime } from "@/config/desktop-runtime";
 import { useAuth } from "@/shared/auth/auth-context";
-import { UiIconButton } from "@/shared/ui/button/button";
+import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
 import { canUseOperations } from "./operations/operations-access";
@@ -111,14 +111,15 @@ export function SettingsSidebarNavigation({
       className="soft-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto px-2 py-2.5"
     >
       <div className="mb-4 flex min-w-0 shrink-0 items-center gap-2">
-        <UiIconButton
-          aria-label={t("settings.back_to_workspace")}
-          tooltip={t("settings.back_to_workspace")}
+        <UiButton
+          className="shrink-0 whitespace-nowrap px-2"
           onClick={backToWorkspace}
+          variant="text"
           size="md"
         >
           <ArrowLeft aria-hidden="true" className="h-4 w-4" />
-        </UiIconButton>
+          {t("settings.back_to_workspace")}
+        </UiButton>
         <UiSearchInput
           aria-label={t("settings.search_navigation")}
           placeholder={t("settings.search_navigation")}
