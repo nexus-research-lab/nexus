@@ -12,9 +12,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Show real token activity with a 365-day heatmap and a 30-day interactive stacked chart and exact table, backed by owner-scoped usage ledger aggregation.
+
 - Restore conversational administrator user management through Control-backed `nexuscfg members`, with human approval, secure password entry, profile/role updates, and deployment access revocation. Remove obsolete user/auth CLI instructions.
 
 ### Changed
+
+- Apply localized compact token counts to activity tooltips and chart detail labels as well as summary metrics.
+
+- Tighten Token activity spacing with square calendar cells, abbreviate personal usage in localized units (M/B or 百万/亿), and align the collapsible password form with settings rows.
+
+- Compact personal identity and token summaries, remove redundant labels and unset quota placeholders, and reveal account and usage details on hover or keyboard focus.
+
+- Keep the annual Token activity heatmap compact even with partial history, with independent daily, weekly and cumulative views and accessible hover details.
+
+- Redesign personal settings with a centered profile, bounded content width, concise token usage, and an expandable password form; remove redundant metric cards and decorative icons.
 
 - Adapt streaming Markdown to output pressure: keep low-speed character pacing, merge completed blocks during bursts, reduce long-tail parsing, and drain completed responses promptly across concurrent Agents.
 

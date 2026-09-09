@@ -49,7 +49,7 @@ export function PersonalAvatarPicker({
           <UiAgentAvatar
             avatar={avatar}
             className={cn(
-              "h-[72px] w-[72px] surface-radius-lg transition-colors duration-(--motion-duration-fast)",
+              "rounded-full transition-colors duration-(--motion-duration-fast)",
               !disabled && "group-hover:border-[color:color-mix(in_srgb,var(--primary)_35%,var(--surface-avatar-border))]",
             )}
             name={name}
