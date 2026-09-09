@@ -1,5 +1,5 @@
 // INPUT: Home 目录加载数量，以及已投影的会话、联系人、活动和操作数据。
-// OUTPUT: 复用共享原语的侧栏目录行，公式仅在摘要中显示本地化内联标记。
+// OUTPUT: 复用共享原语的侧栏目录行，名称使用正常文字色、摘要使用弱文字色，公式仅在摘要中显示本地化内联标记。
 // POS: Home sidebar 行级视图；不拥有基础组件视觉 recipe 或业务数据获取。
 
 import {
@@ -178,7 +178,6 @@ export function ConversationRow({
       activeTone="sidebar"
       density="sidebar"
       description={item.summary ? <ConversationRowSummary item={item} /> : undefined}
-      inactiveTone="muted"
       leading={<ConversationRowLeading isActive={hasActivity} item={item} />}
       meta={item.timeLabel || onDelete ? (
         <ConversationRowMeta
