@@ -3895,3 +3895,12 @@ CodeBlockContent 改用公共 UiIconButton sm/ghost 与 success tone，保留 28
 ## A125 — 固定品牌字标
 
 按用户要求制作代码版本：NEXUS 靠左，固定 18px 字号与 0.22em 字母间距，保留品牌材质与收起控制；移除两个容器字号断点。目标 lint/typecheck/build 通过，日志 /tmp/nexus-a125-{lint,types,build}.log。未做视觉验证，用户可在运行版本查看；未把误在仓库根启动并取消的测试计为通过。两批清单状态计数不变。
+
+
+## A126 — 搜索键盘边界
+
+Enter 与按钮共用短查询/加载禁用条件，保留 composition ref 并接入公共 IME/229 判断；已处理事件不二次消费。3 项搜索回归、lint/typecheck 通过，日志 /tmp/nexus-a126-{target,lint,types}.log。
+
+## A127 — 品牌字标比例修订
+
+根据用户认为 18px 偏矮的反馈，改为固定 22px 字号、320 字重、0.16em 字距；维持靠左、固定宽度及既有顶栏高度，侧栏拖宽不改变文字尺寸。目标 lint/build 通过，日志 /tmp/nexus-a127-{lint,build}.log；未做视觉验证，清单计数不变。

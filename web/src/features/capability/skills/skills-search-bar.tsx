@@ -3,6 +3,7 @@
 // POS: Skill 工具区纯视图；筛选结构由 UiFilterSelect 唯一拥有。
 
 import { UiFilterSelect } from "@/shared/ui/menu/filter-select";
+import { isImeKeyboardEvent } from "@/shared/lib/browser/ime-keyboard-event";
 import { useRef, type KeyboardEvent } from "react";
 
 import { SKILLS_TOUR_ANCHORS } from "@/features/onboarding/tours/skills-tour";
@@ -61,19 +62,21 @@ export function SkillsSearchBar({
   const composingRef = useRef(false);
   const searchLabel = t("capability.skills_tour_search_title");
 
+  const searchDisabled = externalQuery.trim().length < 2 || externalLoading;
+
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (discoveryMode !== "external") return;
     if (event.key !== "Enter") return;
-    if (composingRef.current || event.nativeEvent.isComposing) return;
+    if (event.defaultPrevented || composingRef.current || isImeKeyboardEvent(event.nativeEvent)) return;
     event.preventDefault();
-    onSubmitExternalSearch();
+    if (!searchDisabled) onSubmitExternalSearch();
   };
 
   const externalSearchAction = discoveryMode === "external" ? (
     <UiButton
       aria-label={searchLabel}
       className="shrink-0"
-      disabled={externalQuery.trim().length < 2 || externalLoading}
+      disabled={searchDisabled}
       onClick={(event) => {
         event.preventDefault();
         onSubmitExternalSearch();
