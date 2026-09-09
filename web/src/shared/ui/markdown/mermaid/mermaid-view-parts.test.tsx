@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { I18nProvider } from "@/shared/i18n/i18n-provider";
 
-import { MermaidRenderedPreview } from "./mermaid-view-parts";
+import { MermaidRenderedPreview, MermaidSourceView } from "./mermaid-view-parts";
 
 describe("Mermaid view parts", () => {
   it("keeps rendering status consistent", () => {
@@ -63,4 +63,15 @@ describe("Mermaid view parts", () => {
     await user.keyboard("{Enter}");
     expect(onOpenPreview).toHaveBeenCalledTimes(2);
   });
+});
+
+
+it("lets keyboard users focus the source scroll region without changing its text", async () => {
+  const user = userEvent.setup();
+  const chart = "graph TD\n  A --> B\n";
+  render(<I18nProvider><MermaidSourceView chart={chart} compact constrainHeight /></I18nProvider>);
+  const source = screen.getByRole("region", { name: "Mermaid source" });
+  await user.tab();
+  expect(document.activeElement).toBe(source);
+  expect(source.querySelector("pre")?.textContent).toBe(chart);
 });
