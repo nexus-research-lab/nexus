@@ -11,6 +11,7 @@ import {
   useCallback,
 } from "react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { useCopyToClipboard } from "@/shared/lib/react/use-copy-to-clipboard";
 import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { UiButton, UiIconButton, UiLinkButton } from "@/shared/ui/button/button";
@@ -48,7 +49,8 @@ export function ConnectorOAuthClientDialog({
   onDelete,
   onSave,
 }: ConnectorOAuthClientDialogProps) {
-  const model = buildConnectorOauthClientDialogModel(detail);
+  const { t } = useI18n();
+  const model = buildConnectorOauthClientDialogModel(detail, t);
   const form = useConnectorOauthClientForm(model, onSave);
   if (!model) return null;
 
@@ -62,7 +64,7 @@ export function ConnectorOAuthClientDialog({
         <UiDialogHeader
           appearance="plain"
           onClose={onClose}
-          title={`配置 ${model.title}`}
+          title={t("capability.oauth_client_title", { title: model.title })}
         />
         <ConnectorOauthClientBody form={form} model={model} />
         <ConnectorOauthClientFooter
@@ -132,10 +134,11 @@ function ConnectorOauthClientIntroduction({
 }: {
   model: ConnectorOauthClientDialogModel;
 }) {
+  const { t } = useI18n();
   return (
     <>
       <p className={getUiTypographyClassName({ role: "supporting", tone: "muted" })}>
-        先在{model.providerName}添加回调地址，再填写应用凭据。
+        {t("capability.oauth_client_description", { provider: model.providerName })}
       </p>
       {model.docsUrl ? (
         <UiLinkButton
@@ -147,7 +150,7 @@ function ConnectorOauthClientIntroduction({
           variant="text"
         >
           <ExternalLink className="h-3 w-3" />
-          查看文档
+          {t("capability.credential_docs")}
         </UiLinkButton>
       ) : null}
     </>
@@ -155,6 +158,7 @@ function ConnectorOauthClientIntroduction({
 }
 
 function ConnectorOauthCallbackField({ callbackUrl }: { callbackUrl: string }) {
+  const { t } = useI18n();
   const { copied, copy } = useCopyToClipboard();
   return (
     <div className="space-y-1">
@@ -171,11 +175,11 @@ function ConnectorOauthCallbackField({ callbackUrl }: { callbackUrl: string }) {
           {callbackUrl}
         </code>
         <UiIconButton
-          aria-label={copied ? "已复制 Callback URL" : "复制 Callback URL"}
+          aria-label={t(copied ? "capability.oauth_callback_copied" : "capability.oauth_callback_copy")}
           className="shrink-0"
           onClick={() => void copy(callbackUrl)}
           size="sm"
-          title={copied ? "已复制" : "复制 Callback URL"}
+          title={t(copied ? "capability.oauth_callback_copied" : "capability.oauth_callback_copy")}
           type="button"
         >
           {copied
@@ -204,7 +208,7 @@ function ConnectorOauthClientFields({
           id="oauth-client-id"
           onChange={(event) => form.setClientId(event.target.value)}
           pattern=".*\S.*"
-          placeholder="飞书应用 App ID"
+          placeholder={model.clientIdPlaceholder}
           required
           spellCheck={false}
           value={form.clientId}
@@ -244,6 +248,7 @@ function ConnectorOauthClientFooter({
   onClose: ConnectorOAuthClientDialogProps["onClose"];
   onDelete: ConnectorOAuthClientDialogProps["onDelete"];
 }) {
+  const { t } = useI18n();
   return (
     <UiDialogFooter appearance="plain" className="justify-between">
       <div>
@@ -257,13 +262,13 @@ function ConnectorOauthClientFooter({
           variant="surface"
         >
           <Trash2 className="h-3.5 w-3.5" />
-          删除配置
+          {t("capability.oauth_delete_configuration")}
         </UiButton>
         ) : null}
       </div>
       <div className="flex items-center gap-2">
         <UiButton disabled={busy} onClick={onClose} size="sm" type="button">
-          取消
+          {t("common.cancel")}
         </UiButton>
         <UiButton
           disabled={busy}
@@ -272,7 +277,7 @@ function ConnectorOauthClientFooter({
           type="submit"
           variant="solid"
         >
-          保存
+          {t("capability.oauth_save")}
         </UiButton>
       </div>
     </UiDialogFooter>

@@ -2,6 +2,17 @@ import type { MessageSegment } from "../message-segment";
 import type { zhCapabilityMessages } from "../zh/capability";
 
 export const enCapabilityMessages = {
+  "capability.oauth_provider_feishu": "Feishu Open Platform app",
+  "capability.oauth_provider_generic": "OAuth app",
+  "capability.oauth_feishu_id": "Feishu App ID",
+  "capability.oauth_feishu_secret": "Feishu App Secret",
+  "capability.oauth_secret_replace": "Enter the secret again to save",
+  "capability.oauth_client_title": "Configure {title}",
+  "capability.oauth_client_description": "Add the callback URL to your {provider}, then enter the app credentials.",
+  "capability.oauth_callback_copy": "Copy callback URL",
+  "capability.oauth_callback_copied": "Callback URL copied",
+  "capability.oauth_delete_configuration": "Delete configuration",
+  "capability.oauth_save": "Save",
   "capability.credential_title": "Connect {title}",
   "capability.credential_description": "Enter {label} to connect {title}.",
   "capability.credential_docs": "View documentation",
