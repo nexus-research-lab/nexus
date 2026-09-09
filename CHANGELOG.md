@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Remove the unused internal category-prefix rendering branch from shared select triggers.
+
 - Remove obsolete bilingual category-prefix strings after shared filter consolidation.
 
 - Simplify shared directory filters to the selected value and chevron, removing

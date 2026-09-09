@@ -44,7 +44,6 @@ interface SelectMenuViewProps {
   disabled: boolean;
   id?: string;
   isOpen: boolean;
-  label?: ReactNode;
   leading?: ReactNode;
   menuId: string;
   menuPlacement?: UiAnchoredOverlayPosition["placement"];
@@ -69,7 +68,6 @@ export function SelectMenuView({
   disabled,
   id,
   isOpen,
-  label,
   leading,
   menuId,
   menuPlacement,
@@ -103,7 +101,7 @@ export function SelectMenuView({
         styles={styles}
         surface={surface}
       >
-        <SelectMenuTriggerContent isOpen={isOpen} label={label} leading={leading}>
+        <SelectMenuTriggerContent isOpen={isOpen} leading={leading}>
           <span className="flex min-w-0 flex-1 items-center gap-2">
             <span
               className={cn(

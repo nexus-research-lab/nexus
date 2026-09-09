@@ -3842,3 +3842,10 @@ UiFilterSelect 删除可见 label API，所有联系人、技能、连接器、�
 ## A116 — 清理筛选前缀遗留文案
 
 全仓引用检查确认 capability category/status/channel/agent label 与 contacts tag_label 五个键只剩双语定义，删除共十条；仍由联系人卡片消费的权限说明保留。共享筛选回归 1 项、目标 lint/typecheck 通过，日志 /tmp/nexus-a116-{target,lint,types}.log。初次 typecheck 在仓库根启动失败后改在 web 正确执行；失败命令不作为验证证据。清单状态不变。
+
+
+## A117 — 删除公共 Select 内部类别分支
+
+在 A115 消费方统一后，删除 UiSelectMenu → SelectMenuView → SelectMenuTriggerContent 三层已无业务消费者的 label 参数及类别/分隔线 DOM、专用排版 import。外部 Field 关联、leading、当前值及多选内容保留。TypeScript JSX 遍历检查 58 处相关调用，没有残余内部 label 属性；全前端 typecheck 通过。
+
+5 文件 44 项回归覆盖单选菜单、触发器、打开手势、目录筛选与 Room 多选，目标 lint 通过，日志 /tmp/nexus-a117-{target,lint,types}.log。未做视觉验证，仅更新本批所有者哈希与审查证据，清单状态不变。
