@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Compact sidebar footer actions: settings sits beside help; local mode hides the
+  account bar, while authenticated Web sessions retain an avatar logout menu.
+
 - Add an explicit, cancellable Team load retry with duplicate-request protection;
   retrying a read never resends a chat message.
 

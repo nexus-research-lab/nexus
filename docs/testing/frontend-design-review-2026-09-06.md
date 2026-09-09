@@ -3823,3 +3823,10 @@ Team 5 项回归通过，实际 Hook 的测试覆盖阅读位置保留、返回�
 并行 Git 操作中将本批转入 /tmp/nexus-a113-review.json 指向的快照，8 项回归（页面 6、hook 2）、目标 lint/typecheck 通过，见 /tmp/nexus-a113-{target,lint,types}.log。合并后确认 frontend HEAD 与受测基线 cf19c4be2 无差异，恢复文件与快照核对一致；先前工作区的“retryLoad 不存在”失败来自并行恢复旧文件，非通过证据。
 
 结合 A110–A112，Team UI 代码审查 improved；本轮不声称 Team transport 全面审计或实际视觉验收。489 项现为 218 pending、132 in_progress、111 improved、22 retained、6 removed。
+
+
+## A114 — 紧凑侧栏底部操作
+
+按用户反馈移除本地 Local User 长条，设置直接以公共圆形图标与帮助并排，保留权限和选中态；密码认证会话保留紧凑头像，名称与退出留在公共菜单。删除底栏宽度测量及冗余设置菜单项，沿用共享菜单定位与焦点逻辑。
+
+3 项 DOM 回归覆盖设置跳转、权限隐藏、帮助与显式退出；目标 eslint/typecheck 通过，日志 /tmp/nexus-a114-{target,types}.log。未进行视觉验证。489 项现为 217 pending、132 in_progress、112 improved、22 retained、6 removed。

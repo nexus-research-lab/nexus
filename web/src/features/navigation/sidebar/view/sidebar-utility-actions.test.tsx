@@ -1,11 +1,13 @@
-// INPUT: 侧栏折叠动作标签、可见状态与展开/收起命令。
-// OUTPUT: 证明系统动作复用共享圆形 IconButton，并转发精确命令。
+// INPUT: 侧栏动作标签、账号/设置权限、路由与命令。
+// OUTPUT: 验证紧凑设置、帮助、账号退出和折叠动作的独立行为。
 // POS: 侧栏底部动作 DOM 行为测试；路由和更新桥接由各自所有者负责。
 
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+
+import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 
 import { SidebarFooterActions, SidebarPanelToggleAction } from "./sidebar-utility-actions";
 
@@ -56,7 +58,8 @@ it("opens account actions and only logs out after selecting the menu item", asyn
   /></MemoryRouter>);
   expect(screen.queryByRole("menuitem", { name: "退出登录" })).toBeNull();
   await user.click(screen.getByRole("button", { name: "测试用户" }));
-  expect(screen.getByRole("menuitem", { name: "设置" })).toBeTruthy();
+  expect(screen.queryByRole("menuitem", { name: "设置" })).toBeNull();
+  expect(screen.getByRole("button", { name: "设置" })).toBeTruthy();
   expect(screen.getAllByRole("separator")).toHaveLength(1);
   expect(screen.queryByRole("menuitem", { name: "测试用户" })).toBeNull();
   expect(onLogout).not.toHaveBeenCalled();
@@ -65,4 +68,33 @@ it("opens account actions and only logs out after selecting the menu item", asyn
   expect(screen.queryByRole("menu")).toBeNull();
   await user.click(screen.getByRole("button", { name: "帮助" }));
   expect(onOpenGuide).toHaveBeenCalledOnce();
+});
+
+function CurrentLocation() {
+  return <output data-testid="location">{useLocation().pathname}</output>;
+}
+
+it("opens settings directly without a local account bar and respects action visibility", async () => {
+  const user = userEvent.setup();
+  const props = {
+    accountName: "Local User",
+    guideOpen: true,
+    labels: { collapse: "收起", expand: "展开", settings: "设置", logout: "退出登录", guide: "帮助" },
+    onCollapse: vi.fn(), onExpand: vi.fn(), onLogout: vi.fn(), onOpenGuide: vi.fn(),
+    settingsActive: true, showLogout: false, showPanelToggle: true, showSettings: true,
+  };
+  const view = render(<MemoryRouter><SidebarFooterActions {...props} /><CurrentLocation /></MemoryRouter>);
+  expect(screen.queryByRole("button", { name: "Local User" })).toBeNull();
+  expect(screen.queryByText("Local User")).toBeNull();
+  const settings = screen.getByRole("button", { name: "设置" });
+  expect(settings.getAttribute("aria-pressed")).toBe("true");
+  await user.click(settings);
+  expect(screen.getByTestId("location").textContent).toBe(AppRouteBuilders.settings());
+  expect(screen.queryByRole("menu")).toBeNull();
+  await user.click(screen.getByRole("button", { name: "帮助" }));
+  expect(props.onOpenGuide).toHaveBeenCalledOnce();
+  expect(props.onLogout).not.toHaveBeenCalled();
+  view.rerender(<MemoryRouter><SidebarFooterActions {...props} showSettings={false} /><CurrentLocation /></MemoryRouter>);
+  expect(screen.queryByRole("button", { name: "设置" })).toBeNull();
+  expect(screen.getByRole("button", { name: "帮助" })).toBeTruthy();
 });
