@@ -62,3 +62,16 @@ it("announces loading and load failure without claiming an empty conversation", 
   expect(screen.getByRole("alert").textContent).toBe("team.error_load");
   expect(screen.queryByText("team.empty")).toBeNull();
 });
+
+it("keeps complete Unicode initials decorative while preserving author and Markdown content", () => {
+  room.messages = [{id: "message", conversation_id: "conversation", message_seq: 1,
+    author_type: "user", author_user_id: "internal-user", author_username: "researcher",
+    author_display_name: "👩‍🔬 Researcher", client_message_id: "client",
+    content: {version: 1, blocks: [{type: "markdown", text: "**Research result**"}]},
+    created_at: "2026-09-09T01:00:00Z"}];
+  render(page());
+  expect(screen.getByText("👩‍🔬").getAttribute("aria-hidden")).toBe("true");
+  expect(screen.getByText("👩‍🔬 Researcher")).toBeTruthy();
+  expect(screen.getByText("Research result").tagName).toBe("STRONG");
+  expect(screen.queryByText("internal-user")).toBeNull();
+});
