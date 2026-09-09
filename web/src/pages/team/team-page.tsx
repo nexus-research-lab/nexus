@@ -1,12 +1,14 @@
 // INPUT: Team room read model, controlled draft and explicit send command.
-// OUTPUT: Human-message page with shared typography, Unicode initials and IME-safe submission.
+// OUTPUT: Human-message page with shared typography, FOLLOW/READING scrolling and IME-safe submission.
 // POS: Team presentation; transport and persistence remain in useTeamRoom.
 import { Send } from "lucide-react";
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useState } from "react";
 
 import { getInitials } from "@/lib/avatar";
 import { cn } from "@/shared/ui/class-name";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
+import { useFollowScroll } from "@/features/conversation/shared/timeline/scroll/use-follow-scroll";
+import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
 import { useTeamRoom } from "@/features/team/use-team-room";
 import { isImeKeyboardEvent } from "@/shared/lib/browser/ime-keyboard-event";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -19,12 +21,11 @@ export function TeamPage() {
   const { locale, t } = useI18n();
   const room = useTeamRoom();
   const [draft, setDraft] = useState("");
-  const endRef = useRef<HTMLDivElement>(null);
+  const scroll = useFollowScroll({
+    messageCount: room.messages.length,
+    sessionKey: room.bootstrap?.conversation.id ?? null,
+  });
   const errorMessage = room.error ? t(TEAM_ERROR_KEYS[room.error]) : null;
-
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ block: "end" });
-  }, [room.messages.length]);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -45,7 +46,13 @@ export function TeamPage() {
         </div>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-8">
+      <div className="relative min-h-0 flex-1">
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- The scroll region must accept keyboard scrolling without changing its landmark role. */}
+      <div ref={scroll.scrollRef} role="region" aria-label={t("team.shared_room")} tabIndex={0}
+        onScroll={scroll.onScroll} onWheel={scroll.onWheel} onPointerDown={scroll.onPointerDown}
+        onTouchStart={scroll.onTouchStart} onTouchMove={scroll.onTouchMove} onTouchEnd={scroll.onTouchEnd}
+        className="h-full overflow-y-auto px-4 py-5 sm:px-8">
+        <div ref={scroll.feedRef} className="min-h-full">
         {room.isLoading ? (
           <div role="status" className={cn("flex h-full items-center justify-center", getUiTypographyClassName({ role: "supporting", tone: "soft" }))}>
             {t("team.loading")}
@@ -81,7 +88,12 @@ export function TeamPage() {
             ))}
           </ol>
         )}
-        <div ref={endRef} />
+        <div ref={scroll.bottomAnchorRef} />
+        </div>
+      </div>
+      <div className="pointer-events-none absolute inset-x-0 bottom-2 grid justify-items-center">
+        <ScrollToLatestButton visible={scroll.showScrollToBottom} onClick={() => scroll.scrollToBottom()} />
+      </div>
       </div>
 
       <form className="shrink-0 border-t border-(--divider-subtle-color) p-3 sm:px-8" onSubmit={submit}>

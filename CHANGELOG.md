@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Preserve Team history reading position when messages arrive and reuse the
+  shared return-to-latest action to resume following.
+
 - Align Team message typography with shared styles, allow author rows to wrap
   and preserve complete Unicode initials.
 
