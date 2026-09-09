@@ -148,9 +148,10 @@ export function UiSelectMenu({
       closeMenu();
       return; // Trigger 仍在页面顺序中；让浏览器自然续接焦点。
     }
-    if (!isOpen && ["Enter", " ", "ArrowDown", "ArrowUp"].includes(event.key)) onOpen?.();
     focusMenuOnOpenRef.current = event.key === "Enter" || event.key === " ";
     handleOverlayTriggerKeyDown(event, moveSelection);
+    // Only an accepted opening key may request privileged resources in this gesture.
+    if (!isOpen && event.defaultPrevented) onOpen?.();
   }, [closeMenu, disabled, handleOverlayTriggerKeyDown, isOpen, moveSelection, onOpen]);
 
   return (

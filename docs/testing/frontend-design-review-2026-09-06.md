@@ -3744,3 +3744,10 @@ A101 提交状态更正：后续直接读取 HEAD blob 确认 59058680c 未包�
 按当前 web/src 全部 TSX 对照清单，排除测试、dev 与既有 Gallery 专用入口后，新增缺项恰为 TeamPage、TaskDestinationPicker、SettingsFontPicker。三项已登记 pending 并记录具体待审边界，未将目录核对当成功能/设计验收。生产 TSX 当前无遗漏；新文件加入后共 489 项：221 pending、132 in_progress、108 improved、22 retained、6 removed。页面入口范围随 TeamPage 扩展，原基线与删除记录继续保留。
 
 工具栏代码已独立提交 e814ff981；直接读取提交 blob 确认公共 sm 头像与 12px 分隔存在，前端工作树无残留。并行 WorkGraph 修改保留。
+
+
+## A103 — Select 打开事件与权限读取边界
+
+审查新增字体读取入口时发现，公共 Select 预先对所有打开键触发 onOpen，但空/全禁用候选的方向键不会实际打开。现把通知置于键盘协议受理之后，仍同步处于用户手势中，避免无效操作触发权限读取。IME、禁用、关闭和正常选择语义保持。新增 8 项行为回归与既有 2 项触发器回归均通过，目标 eslint 与 typecheck 通过，见 /tmp/nexus-a103-{target,lint,types}.log。未调用本机权限或进行视觉验收。
+
+Select 行保持 in_progress（本轮只复审新增 onOpen 契约），字体选择器仍 pending：读取生命周期与失败回退另审。489 项状态计数不变，不将单一入口修复视作整个组件/页面完成。
