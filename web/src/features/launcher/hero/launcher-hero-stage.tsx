@@ -8,7 +8,7 @@ import {
   useCallback,
   type MouseEvent,
 } from "react";
-import { ArrowRight, LoaderCircle } from "lucide-react";
+import { ArrowRight, LoaderCircle, MessageSquare } from "lucide-react";
 
 import { LAUNCHER_TOUR_ANCHORS } from "@/features/onboarding/tours/launcher-tour";
 import { cn } from "@/shared/ui/class-name";
@@ -131,7 +131,12 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
           <FadeSlideIn delayMs={440} durationMs={420} yOffset={10}>
             <div
               data-tour-anchor={LAUNCHER_TOUR_ANCHORS.composer}
-              className="relative mx-auto flex w-full max-w-[420px] min-w-0 items-center gap-2"
+              className="relative mx-auto flex h-[54px] w-full max-w-[420px] min-w-0 items-center gap-2 rounded-2xl px-4 focus-within:ring-2 focus-within:ring-[color:var(--ring)]"
+              style={{
+                background: "var(--launcher-input-fill)",
+                boxShadow: "inset 0 0 0 1px var(--launcher-input-stroke), 0 12px 26px rgba(48, 63, 88, 0.10)",
+                color: "var(--launcher-input-text)",
+              }}
             >
                 {queryInput.mention.match ? (
                   <MentionTargetPopover
@@ -142,10 +147,11 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
                     onSelect={queryInput.mention.select}
                   />
                 ) : null}
+                <MessageSquare aria-hidden="true" className="h-[18px] w-[18px] shrink-0 opacity-60" />
                 <UiInput
                   aria-label={t("launcher.query_input")}
                   ref={queryInput.input.ref}
-                  className="min-w-0 flex-1"
+                  className="min-w-0 flex-1 border-0 bg-transparent px-1 shadow-none focus-visible:ring-0"
                   controlSize="lg"
                   variant="surface"
                   onBlur={queryInput.input.onBlur}

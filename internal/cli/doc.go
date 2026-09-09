@@ -10,9 +10,10 @@
 //   - services.go：按命令域延迟创建服务，避免 help 等命令拉起全量后端依赖。
 //   - automation*.go：自动化任务的查询、变更、运行与运维命令；新投递目标绑定既有结构化 Session。
 //   - skill.go / skill_agent.go / skill_external.go：技能目录、Agent 安装与来源管理命令。
-//   - 其余领域文件：agent / auth / channel / connector / conversation（含空白会话维护）/ emotion /
+//   - 其余领域文件：agent / channel / connector / conversation（含空白会话维护）/ emotion /
 //     imagegen / launcher / room / session / workspace 命令域。
 //   - output.go：输出格式。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
+//   - configuration.go：nexuscfg inspect/plan/apply/history；members 密码槽由宿主确认卡收集，CLI 不传秘密。
 package cli

@@ -31,6 +31,7 @@ const SYSTEM_MESSAGE_DISPLAY_META_BY_SUBTYPE: Readonly<Record<
   api_retry: { icon: "retry", label: "自动重试", tone: "warning" },
   compact_boundary: { icon: "status", label: "上下文压缩", tone: "neutral" },
   guided_input: { icon: "guide", label: "已引导对话", tone: "neutral" },
+  permission_review: { icon: "status", label: "自动审核", tone: "neutral" },
   memory_saved: { icon: "status", label: "长期记忆", tone: "neutral" },
   status: { icon: "status", label: "状态更新", tone: "neutral" },
   task_notification: { icon: "status", label: "状态更新", tone: "neutral" },
@@ -44,7 +45,7 @@ const SYSTEM_EVENT_VISIBILITY_RULES: ReadonlyArray<
 > = [
   ({ message }) => Boolean(message.content.trim()),
   ({ includeTransientEvents, message }) => includeTransientEvents
-    || ["guided_input", "memory_saved"].includes(
+    || ["guided_input", "memory_saved", "permission_review"].includes(
       message.metadata?.subtype ?? "",
     ),
 ];

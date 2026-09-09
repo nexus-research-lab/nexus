@@ -1,29 +1,32 @@
 // INPUT: 侧栏展开状态、可见系统动作、路由状态与动作命令。
-// OUTPUT: 固定几何的设置链接和共享圆形 IconButton 系统动作。
+// OUTPUT: 账号入口、向上展开的设置/退出菜单与右侧帮助入口。
 // POS: 宽侧栏底部/折叠动作视图；权限与更新状态由上层和专属 hook 决定。
 
 import {
-  Compass,
+  CircleHelp,
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
   Settings,
   type LucideIcon,
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 import { SIDEBAR_TOUR_ANCHORS } from "@/features/onboarding/tours/sidebar-navigation-tour";
-import { UiIconButton } from "@/shared/ui/button/button";
+import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
-import { UiTooltip } from "@/shared/ui/overlay/tooltip";
-import { WORKSPACE_HEADER_HEIGHT_CLASS } from "@/shared/ui/workspace/surface/workspace-header-layout";
+import { UiAgentAvatar } from "@/shared/ui/display/avatar";
+import { UiActionMenu, type UiActionMenuItem } from "@/shared/ui/menu/action-menu";
 
 import { SidebarUpdateIndicator } from "./sidebar-update-indicator";
 import type { SidebarUtilityLabels } from "./sidebar-wide-panel-types";
 import { useSidebarUpdateVersion } from "./use-sidebar-update-version";
 
-interface SidebarUtilityActionsProps {
+export interface SidebarUtilityActionsProps {
+  accountName: string;
+  accountAvatar?: string | null;
   guideOpen: boolean;
   labels: SidebarUtilityLabels;
   onCollapse: () => void;
@@ -43,13 +46,6 @@ interface SidebarPanelToggleActionProps {
   showPanelToggle: boolean;
   variant: "rail" | "panel";
 }
-
-const FOOTER_ACTION_SIZE = 32;
-const FOOTER_ACTION_GAP = 6;
-const FOOTER_ACTION_STRIDE = FOOTER_ACTION_SIZE + FOOTER_ACTION_GAP;
-const FOOTER_HORIZONTAL_GAP = 10;
-const FOOTER_PADDING = 14;
-const FOOTER_LEFT = 16;
 
 export function SidebarPanelToggleAction(
   props: SidebarPanelToggleActionProps,
@@ -71,95 +67,74 @@ export function SidebarPanelToggleAction(
 
 export function SidebarFooterActions(props: SidebarUtilityActionsProps) {
   const updateVersion = useSidebarUpdateVersion();
+  const navigate = useNavigate();
+  const anchorRef = useRef<HTMLButtonElement>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuWidth, setMenuWidth] = useState(220);
+  const items: UiActionMenuItem[] = props.showSettings ? [{
+    value: "settings",
+    label: props.labels.settings,
+    icon: <Settings className="h-4 w-4" />,
+    active: props.settingsActive,
+  }] : [];
+  const footerItems: UiActionMenuItem[] = props.showLogout ? [{
+    value: "logout",
+    label: props.labels.logout,
+    icon: <LogOut className="h-4 w-4" />,
+  }] : [];
 
   return (
     <div className={cn(
-      "sidebar-panel-footer shell-region-footer relative -mr-1.5 shrink-0 overflow-hidden",
-      WORKSPACE_HEADER_HEIGHT_CLASS,
+      "sidebar-panel-footer shell-region-footer relative -mr-1.5 flex shrink-0 items-center gap-2 px-2",
+      "h-12",
     )}>
-      {props.showSettings ? (
-        <div
-          className="sidebar-panel-footer-action"
-          style={{ bottom: FOOTER_PADDING, left: FOOTER_LEFT }}
-        >
-          <UtilityLink
-            active={props.settingsActive}
-            icon={Settings}
-            label={props.labels.settings}
-            to={AppRouteBuilders.settings()}
-          />
-        </div>
-      ) : null}
-      <div
-        className="sidebar-panel-footer-action"
-        style={{
-          bottom: FOOTER_PADDING,
-          left: FOOTER_LEFT + (props.showSettings
-            ? FOOTER_ACTION_SIZE + FOOTER_HORIZONTAL_GAP
-            : 0),
+      <UiButton
+        ref={anchorRef}
+        aria-label={props.accountName}
+        aria-expanded={menuOpen}
+        aria-haspopup="menu"
+        className="min-w-0 flex-1 justify-start gap-2 px-1 font-normal"
+        onClick={() => {
+          const footer = anchorRef.current?.parentElement;
+          if (footer) {
+            const style = getComputedStyle(footer);
+            setMenuWidth(footer.getBoundingClientRect().width - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0));
+          }
+          setMenuOpen(!menuOpen);
         }}
+        variant="ghost"
       >
-        <UtilityButton
-          active={props.guideOpen}
-          anchor={SIDEBAR_TOUR_ANCHORS.restart}
-          icon={Compass}
-          label={props.labels.guide}
-          onClick={props.onOpenGuide}
-        />
-      </div>
-      {updateVersion ? (
-        <div
-          className="sidebar-panel-footer-action"
-          style={{
-            bottom: FOOTER_PADDING,
-            right: props.showLogout
-              ? FOOTER_LEFT + FOOTER_ACTION_STRIDE
-              : FOOTER_LEFT,
-          }}
-        >
-          <SidebarUpdateIndicator
-            version={updateVersion}
-          />
-        </div>
-      ) : null}
-      {props.showLogout ? (
-        <div
-          className="sidebar-panel-footer-action"
-          style={{ bottom: FOOTER_PADDING, right: FOOTER_LEFT }}
-        >
-          <UtilityButton
-            icon={LogOut}
-            label={props.labels.logout}
-            onClick={props.onLogout}
-          />
-        </div>
-      ) : null}
+        <UiAgentAvatar avatar={props.accountAvatar} className="rounded-full" name={props.accountName} size="sm" />
+        <span className="truncate">{props.accountName}</span>
+      </UiButton>
+      <UiActionMenu
+        anchorRef={anchorRef}
+        ariaLabel={props.accountName}
+        isOpen={menuOpen}
+        header={
+          <div className="flex min-w-0 items-center gap-2.5">
+            <UiAgentAvatar avatar={props.accountAvatar} className="rounded-full" name={props.accountName} size="sm" />
+            <span className="ui-type-control truncate text-(--text-strong)">{props.accountName}</span>
+          </div>
+        }
+        items={[...items, ...footerItems]}
+        minWidth={menuWidth}
+        placement="top"
+        onClose={() => setMenuOpen(false)}
+        onSelect={(value) => {
+          if (value === "logout") props.onLogout();
+          if (value === "settings") navigate(AppRouteBuilders.settings());
+        }}
+      />
+      {updateVersion ? <SidebarUpdateIndicator version={updateVersion} /> : null}
+      <UtilityButton
+        active={props.guideOpen}
+        anchor={SIDEBAR_TOUR_ANCHORS.restart}
+        icon={CircleHelp}
+        label={props.labels.guide}
+        onClick={props.onOpenGuide}
+      />
     </div>
-  );
-}
-
-function UtilityLink({
-  active,
-  icon: Icon,
-  label,
-  to,
-}: {
-  active: boolean;
-  icon: LucideIcon;
-  label: string;
-  to: string;
-}) {
-  return (
-    <UiTooltip label={label}>
-      <Link
-        aria-current={active ? "page" : undefined}
-        aria-label={label}
-        className={utilityActionClassName(active)}
-        to={to}
-      >
-        <Icon className="h-[18px] w-[18px]" />
-      </Link>
-    </UiTooltip>
   );
 }
 
@@ -190,13 +165,5 @@ function UtilityButton({
     >
       <Icon className={iconClassName} />
     </UiIconButton>
-  );
-}
-
-function utilityActionClassName(active: boolean): string {
-  return cn(
-    "flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-[background,color] duration-(--motion-duration-normal) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
-    active &&
-      "bg-(--surface-interactive-active-background) text-(--text-strong)",
   );
 }

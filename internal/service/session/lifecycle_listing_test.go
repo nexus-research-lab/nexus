@@ -369,7 +369,7 @@ func TestSessionRuntimeSettingsPersistWithoutChangingAgentDefaults(t *testing.T)
 	want := protocol.SessionRuntimeSettings{
 		Provider:       "session-provider",
 		Model:          "session-model",
-		PermissionMode: "acceptEdits",
+		PermissionMode: "auto",
 	}
 	if _, err = sessionService.UpdateRuntimeSettings(ctx, dmKey, want); err != nil {
 		t.Fatalf("更新 DM Session 设置失败: %v", err)

@@ -1,15 +1,14 @@
 // INPUT: 基础任务草稿、资源投影、变更命令与名称输入引用。
 // OUTPUT: 以实例级字段身份、具名选择组和共享说明展示任务身份与执行位置。
-// POS: Scheduled 创建/编辑左栏纯视图；不加载资源或提交任务。
+// POS: Scheduled 创建/编辑执行对象与高级设置纯视图；不加载资源或提交任务。
 
 "use client";
 
-import { useId, type RefObject } from "react";
+import { type ReactNode, type RefObject } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiChoiceButton } from "@/shared/ui/form/choice";
-import { UiField, UiInput } from "@/shared/ui/form/form-control";
-import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
+import { UiInput } from "@/shared/ui/form/form-control";
+import { TaskDestinationPicker } from "./task-destination-picker";
 
 import type {
   TargetType,
@@ -17,41 +16,39 @@ import type {
 } from "../scheduled-task-dialog-types";
 import {
   TaskBasicsAdvanced,
-  TaskResourceFailure,
 } from "./task-basics-advanced";
 import {
   buildTaskDeliveryTargetPresentation,
-  buildTaskTargetPresentation,
   type TaskBasicsActions,
   type TaskBasicsData,
 } from "./task-basics-model";
-import { buildTargetTypeOptions } from "./task-form-options";
 
 interface TaskBasicsPanelProps {
+  children?: ReactNode;
+  advancedFields?: ReactNode;
+  titleAction?: ReactNode;
   actions: TaskBasicsActions;
   data: TaskBasicsData;
   form: TaskFormDraft;
   isEditing: boolean;
   needsSessionRebind: boolean;
+  expandAdvanced?: boolean;
   nameRef: RefObject<HTMLInputElement | null>;
 }
 
 export function TaskBasicsPanel({
   actions,
+  advancedFields,
+  titleAction,
+  children,
   data,
   form,
   isEditing,
   needsSessionRebind,
+  expandAdvanced,
   nameRef,
 }: TaskBasicsPanelProps) {
   const { t } = useI18n();
-  const formId = useId();
-  const target = buildTaskTargetPresentation(form, data, t);
-  const targetActions: Record<TargetType, (value: string) => void> = {
-    agent: actions.setSelectedAgentId,
-    room: actions.setSelectedRoomId,
-  };
-  const setTarget = targetActions[target.targetType];
   const deliveryTarget = buildTaskDeliveryTargetPresentation(form, data, t);
   const deliveryTargetActions: Record<TargetType, (value: string) => void> = {
     agent: actions.setSelectedDeliveryAgentId,
@@ -60,57 +57,21 @@ export function TaskBasicsPanel({
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      <UiField
-        htmlFor={`${formId}-name`}
-        label={t("capability.scheduled_dialog_task_name")}
-        required
-      >
-        <UiInput
-          ref={nameRef}
-          id={`${formId}-name`}
-          onChange={(event) => actions.setTaskName(event.target.value)}
-          placeholder={t("capability.scheduled_dialog_task_name_placeholder")}
-          required
-          value={form.taskName}
-        />
-      </UiField>
-
-      <UiField
-        description={t("capability.scheduled_dialog_execution_location_help")}
-        label={t("capability.scheduled_dialog_execution_location")}
-      >
-        <div className="flex flex-wrap gap-2">
-          {buildTargetTypeOptions(t).map((option) => (
-            <UiChoiceButton
-              active={form.targetType === option.key}
-              key={option.key}
-              onClick={() => actions.setTargetType(option.key)}
-            >
-              {option.label}
-            </UiChoiceButton>
-          ))}
-        </div>
-      </UiField>
-
-      <div className="space-y-2">
-        <UiField
-          htmlFor={`${formId}-target`}
-          label={target.label}
-          required
-        >
-          <UiSelectMenu
-            ariaLabel={target.ariaLabel}
-            disabled={target.disabled}
-            id={`${formId}-target`}
-            onChange={setTarget}
-            options={target.options}
-            surface="dialog"
-            value={target.value}
-          />
-        </UiField>
-        {target.error && target.retry ? (
-          <TaskResourceFailure onRetry={target.retry} />
-        ) : null}
+      <div className="flex min-w-0 items-center gap-3">
+      <UiInput
+        ref={nameRef}
+        aria-label={t("capability.scheduled_dialog_task_name")}
+        onChange={(event) => actions.setTaskName(event.target.value)}
+        placeholder={t("capability.scheduled_dialog_task_name_placeholder")}
+        className="min-w-0 flex-1 border-0 bg-transparent px-0 text-lg shadow-none"
+        value={form.taskName}
+      />
+        {titleAction}
+      </div>
+      {children}
+      <div className="divide-y divide-(--divider-subtle-color) rounded-xl border border-(--divider-subtle-color) p-2">
+        <TaskDestinationPicker kind="execution" actions={actions} data={data} form={form} />
+        <TaskDestinationPicker kind="delivery" actions={actions} data={data} form={form} />
       </div>
 
       <TaskBasicsAdvanced
@@ -121,7 +82,10 @@ export function TaskBasicsPanel({
         form={form}
         isEditing={isEditing}
         needsSessionRebind={needsSessionRebind}
-      />
+        expandAdvanced={expandAdvanced}
+      >
+        {advancedFields}
+      </TaskBasicsAdvanced>
     </div>
   );
 }

@@ -1,8 +1,12 @@
 // INPUT: Composer Provider/Connector/Session-setting 读取与 mutation 失败投影。
-// OUTPUT: 单一就近失败面；写入未知优先，恢复动作按资源投影并在读取中防重。
+// OUTPUT: 自动弹出的写入失败 Dialog，及可展开、可独立重试的紧凑读取失败提示。
 // POS: Composer Session controls 共用可见错误面；不把读取当作 mutation 对账。
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { UiButton, UiIconButton } from "@/shared/ui/button/button";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import { ChevronRight, CircleAlert, RotateCw } from "lucide-react";
+import { useId, useState } from "react";
+import { UiDialogPortal, UiDialogBackdrop, UiDialogShell, UiDialogHeader, UiDialogBody } from "@/shared/ui/dialog/dialog";
 
 import type { ComposerSessionSettingsController } from "../../controller/use-composer-session-settings";
 import type { ComposerReadFailure } from "../../controller/composer-settings-reliability";
@@ -13,31 +17,76 @@ export function ComposerSessionSettingsReliability({
   controller: ComposerSessionSettingsController;
 }) {
   const { t } = useI18n();
-  const mutationFailure = controller.mutationFailure;
-  const readFailure = controller.settingsReadFailure ?? controller.providerFailure ?? controller.connectorsFailure;
-  const failure = mutationFailure ?? readFailure;
-  if (!failure) return null;
+  const [isDialogOpen, setDialogOpen] = useState(false);
+  const readFailures = [
+    controller.settingsReadFailure,
+    controller.providerFailure,
+    controller.connectorsFailure,
+  ].filter((failure): failure is ComposerReadFailure => Boolean(failure));
+  if (readFailures.length === 0 && !controller.mutationFailure) {
+    return null;
+  }
+  if (controller.mutationFailure) {
+    return (
+      <ComposerSettingsFailureDialog
+        title={controller.mutationFailure.title}
+        impact={controller.mutationFailure.impact}
+        onClose={controller.dismissMutationFailure}
+      />
+    );
+  }
+  const activeReadFailure = readFailures[0] ?? null;
 
-  const retry = mutationFailure
-    ? mutationFailure.blocksRepeat ? {
-      busy: controller.settingsLoading,
-      onClick: () => void controller.retrySessionSettings(),
-    } : undefined
-    : readFailure ? getReadRecovery(controller, readFailure) : undefined;
+  const failure = activeReadFailure;
+  if (!failure) return null;
+  const recovery = getReadRecovery(controller, activeReadFailure);
+  const retryLabel = t("state.retry");
 
   return (
-    <div className="px-2" data-composer-settings-reliability>
-      <UiResourceState
-        impact={failure.impact}
-        primaryAction={retry ? {
-          ...retry,
-          label: t(mutationFailure ? "state.reload_check" : "state.retry"),
-        } : undefined}
-        size="sm"
-        state="error"
-        title={failure.title}
-        variant="card"
-      />
+    <div
+      className="mb-2 min-w-0 px-3 text-left text-xs text-(--text-soft)"
+      data-composer-settings-reliability
+    >
+      <div className="flex min-w-0 items-center gap-1">
+        <UiButton
+          aria-haspopup="dialog"
+          className="min-w-0 justify-start"
+          onClick={() => setDialogOpen(true)}
+          size="xs"
+          variant="text"
+        >
+          <CircleAlert aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-(--destructive)" />
+          <span aria-live="polite" className="min-w-0 truncate" title={failure.title}>
+            {failure.title}
+          </span>
+          <ChevronRight aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+        </UiButton>
+        {recovery ? (
+          <UiIconButton
+            aria-busy={recovery.busy}
+            aria-label={retryLabel}
+            disabled={recovery.busy}
+            onClick={recovery.run}
+            size="sm"
+            tooltip={retryLabel}
+            variant="ghost"
+          >
+            <RotateCw
+              aria-hidden="true"
+              className={recovery.busy
+                ? getUiSpinnerClassName({ size: "sm", tone: "muted" })
+                : "h-3.5 w-3.5"}
+            />
+          </UiIconButton>
+        ) : null}
+      </div>
+      {isDialogOpen ? (
+        <ComposerSettingsFailureDialog
+          title={failure.title}
+          impact={failure.impact}
+          onClose={() => setDialogOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -45,16 +94,40 @@ export function ComposerSessionSettingsReliability({
 function getReadRecovery(
   controller: ComposerSessionSettingsController,
   failure: ComposerReadFailure,
-): { busy: boolean; onClick: () => void } | undefined {
+): { busy: boolean; run: () => void } | null {
   switch (failure.resource) {
     case "connectors":
-      return { busy: controller.connectorsLoading, onClick: controller.retryConnectors };
+      return { busy: controller.connectorsLoading, run: controller.retryConnectors };
     case "providers":
-      return { busy: controller.providerOptionsLoading, onClick: controller.retryProviderOptions };
+      return { busy: controller.providerOptionsLoading, run: controller.retryProviderOptions };
     case "session_settings":
-      return { busy: controller.settingsLoading, onClick: () => void controller.retrySessionSettings() };
+      return { busy: controller.settingsLoading, run: () => void controller.retrySessionSettings() };
     case "models":
     case "skills":
-      return undefined;
+      return null;
   }
+}
+
+/** 修改失败时直接打开模态框，关闭后由控制器清除本次错误。 */
+function ComposerSettingsFailureDialog({ title, impact, onClose }: {
+  title: string;
+  impact: string;
+  onClose: () => void;
+}) {
+  const titleId = useId();
+  const descriptionId = useId();
+  return (
+    <UiDialogPortal>
+      <UiDialogBackdrop describedBy={descriptionId} labelledBy={titleId} onClose={onClose}>
+        <UiDialogShell size="md">
+          <UiDialogHeader appearance="plain" onClose={onClose} title={title} titleId={titleId} />
+          <UiDialogBody>
+            <p className="break-words text-left text-sm leading-relaxed text-(--text-soft)" id={descriptionId}>
+              {impact}
+            </p>
+          </UiDialogBody>
+        </UiDialogShell>
+      </UiDialogBackdrop>
+    </UiDialogPortal>
+  );
 }

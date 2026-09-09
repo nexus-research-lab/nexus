@@ -65,8 +65,16 @@ test("real Launcher navigates to a readable responsive workbench and pins surviv
   const labels = page.locator(".shell-navigation-rail button[aria-pressed] > span:nth-child(2)");
   await expect(labels).toHaveCount(3);
   const railWidth = await sidebar.locator(".shell-navigation-rail").evaluate((e) => e.getBoundingClientRect().width);
-  expect(railWidth).toBe(64);
+  const leadingPadding = await sidebar.evaluate((e) => parseFloat(getComputedStyle(e).paddingLeft));
+  expect(railWidth).toBe(56 + leadingPadding);
+  const railLeft = await sidebar.locator(".shell-navigation-rail").evaluate((e) => e.getBoundingClientRect().left);
+  expect(railLeft).toBe(await sidebar.evaluate((e) => e.getBoundingClientRect().left));
   for (const label of await labels.all()) {
+    const center = await label.evaluate((e) => {
+      const box = e.getBoundingClientRect();
+      return box.left + box.width / 2;
+    });
+    expect(center).toBeCloseTo(railLeft + railWidth / 2, 1);
     // scrollWidth rounds to integer pixels. Even subpixel clipping can show an
     // ellipsis, so measure the actual text against its content box instead.
     expect(await label.evaluate((e) => {

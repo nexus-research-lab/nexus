@@ -13,6 +13,7 @@ const (
 	PermissionModeDefault           = "default"
 	PermissionModePlan              = "plan"
 	PermissionModeAcceptEdits       = "acceptEdits"
+	PermissionModeAuto              = "auto"
 	PermissionModeBypassPermissions = "bypassPermissions"
 	PermissionModeDontAsk           = "dontAsk"
 
@@ -103,13 +104,14 @@ func validatePermissionMode(mode string) error {
 	}
 	switch NormalizePermissionMode(mode) {
 	case PermissionModeDefault,
+		PermissionModeAuto,
 		PermissionModePlan,
 		PermissionModeAcceptEdits,
 		PermissionModeBypassPermissions,
 		PermissionModeDontAsk:
 		return nil
 	default:
-		return errors.New("permission_mode must be one of default, plan, acceptEdits, bypassPermissions, dontAsk")
+		return errors.New("permission_mode must be one of auto, default, plan, acceptEdits, bypassPermissions, dontAsk")
 	}
 }
 

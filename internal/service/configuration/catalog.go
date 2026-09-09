@@ -10,6 +10,8 @@ import (
 )
 
 var domainCatalog = []DomainDefinition{
+	{Name: DomainMembers, Description: "当前部署的用户账号、显示名称、角色与访问权限", Source: "Nexus Control", ManagedBy: "nexuscfg", Mutable: true,
+		Operations: []OperationDefinition{op("create", "创建账号并加入当前部署；密码由真人在确认卡片输入", true, "immediate"), op("update", "修改显示名称、角色或启停状态", true, "immediate"), op("remove", "撤销部署访问权限并使会话失效；保留账号与工作区数据", true, "immediate")}},
 	{
 		Name: DomainPreferences, Description: "用户级聊天、runtime、WebSearch 与默认 Agent 偏好",
 		Source: "user preferences JSON + encrypted/isolated credential file", ManagedBy: "nexuscfg", Mutable: true,
@@ -188,6 +190,12 @@ func hydrateDefinition(definition DomainDefinition) DomainDefinition {
 
 func operationContract(domain, operation string) (string, any, []string) {
 	switch domain + "." + operation {
+	case DomainMembers + ".create":
+		return "", map[string]any{"username": "string", "display_name": "string", "role": "member|admin", "password": secretSlotShape()}, []string{"username", "role", "password"}
+	case DomainMembers + ".update":
+		return "inspect 返回的精确 user_id", map[string]any{"display_name": "string", "role": "member|admin|owner", "status": "active|revoked"}, nil
+	case DomainMembers + ".remove":
+		return "inspect 返回的精确 user_id", map[string]any{}, nil
 	case DomainPreferences + ".update":
 		return "", map[string]any{
 			"chat_default_delivery_policy":       "queue|interrupt|reject",

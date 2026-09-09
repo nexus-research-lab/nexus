@@ -20,8 +20,9 @@ export function useSettingsNavigation() {
   const activeSection = parseSettingsSection(searchParams);
 
   const selectSection = useCallback(
-    (section: SettingsSectionKey) => {
-      navigate(AppRouteBuilders.settings(section));
+    (section: SettingsSectionKey, target?: string) => {
+      const route = AppRouteBuilders.settings(section);
+      navigate(target ? `${route}&target=${encodeURIComponent(target)}` : route);
     },
     [navigate],
   );

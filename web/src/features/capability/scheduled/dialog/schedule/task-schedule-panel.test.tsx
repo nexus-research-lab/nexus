@@ -7,7 +7,7 @@ import userEvent from "@testing-library/user-event";
 import { createRef, type ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
-import { TaskSchedulePanel } from "./task-schedule-panel";
+import { TaskSchedulePanel, TaskScheduleAdvanced } from "./task-schedule-panel";
 import type { ScheduleKind } from "../scheduled-task-dialog-types";
 
 function makeProps(kind: ScheduleKind): ComponentProps<typeof TaskSchedulePanel> {
@@ -36,7 +36,7 @@ function makeProps(kind: ScheduleKind): ComponentProps<typeof TaskSchedulePanel>
 
 function TestForm({ props, label }: { props: ComponentProps<typeof TaskSchedulePanel>; label: string }) {
   return <I18N_CONTEXT.Provider value={{ locale: "zh", setLocale: vi.fn(), t: (key) => key }}>
-    <section aria-label={label}><TaskSchedulePanel {...props} /></section>
+    <section aria-label={label}><TaskSchedulePanel {...props} /><TaskScheduleAdvanced {...props} /></section>
   </I18N_CONTEXT.Provider>;
 }
 
@@ -65,7 +65,7 @@ describe("TaskSchedulePanel", () => {
     const ids = [...container.querySelectorAll("[id]")].map((element) => element.id);
     expect(new Set(ids).size).toBe(ids.length);
     const second = within(screen.getByRole("region", { name: "Second" }));
-    expect(second.getAllByRole("group", { name: "capability.scheduled_dialog_schedule" })).toHaveLength(1);
+    expect(second.getAllByRole("button", { name: "capability.scheduled_dialog_schedule" })).toHaveLength(1);
     if (kind === "monthly" || kind === "custom") {
       const label = `capability.scheduled_dialog_${kind === "monthly" ? "monthly_day" : "custom_cron"}`;
       const control = second.getByRole(kind === "monthly" ? "spinbutton" : "textbox", { name: label });

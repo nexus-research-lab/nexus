@@ -182,6 +182,8 @@ export function useSidebarWidePanelController({
       },
       tabs,
       utility: {
+        accountName: authStatus?.display_name?.trim() || authStatus?.username?.trim() || "Nexus",
+        accountAvatar: authStatus?.avatar,
         guideOpen: guideCenter.isGuideCenterOpen,
         labels: utilityLabels,
         onCollapse: () => setWidePanelCollapsed(true),

@@ -497,7 +497,7 @@ test("settings controls share readable compact sizes and preserve keyboard selec
   await page.keyboard.press("Space");
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Enter");
-  await expect(commands).toHaveText('["agent_runtime:reasoning","permission:plan"]');
+  await expect(commands).toHaveText('["agent_runtime:reasoning","permission:auto"]');
   await saving.click();
   await expect(model).toBeDisabled();
   await expect(permission).toBeDisabled();
@@ -505,7 +505,7 @@ test("settings controls share readable compact sizes and preserve keyboard selec
   await saving.click();
   await expect(model).toBeEnabled();
   await expect(permission).toBeEnabled();
-  await expect(commands).toHaveText('["agent_runtime:reasoning","permission:plan"]');
+  await expect(commands).toHaveText('["agent_runtime:reasoning","permission:auto"]');
   expect(await settings.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
   await info.attach("settings-text-contrast", { body: JSON.stringify(contrast), contentType: "application/json" });
   await capture(settings, info, "settings-compact-controls");
@@ -1625,6 +1625,10 @@ test("Agent configuration reuses shared rows and cards without widening toggle h
   const { errors } = await openGallery(page, info, "workspace");
   const controls = page.locator("[data-gallery-agent-options]");
   const permissions = controls.locator("[data-gallery-agent-permissions]");
+  const permissionDisclosure = permissions.locator("details");
+  await expect(permissionDisclosure).not.toHaveAttribute("open", "");
+  await permissionDisclosure.locator("summary").click();
+  await expect(permissionDisclosure).toHaveAttribute("open", "");
   for (const card of await permissions.locator("[data-agent-permission-mode]").all()) {
     const description = card.locator("[id$='-description']");
     const title = card.locator("[id$='-title']");
@@ -1635,12 +1639,12 @@ test("Agent configuration reuses shared rows and cards without widening toggle h
     await card.scrollIntoViewIfNeeded();
     await expectInsideViewport(page, card);
   }
-  const bash = permissions.getByRole("switch", { name: "Bash", exact: true });
-  await expect(bash).toHaveAttribute("aria-checked", "true");
-  await permissions.getByText("Bash", { exact: true }).click();
-  await expect(bash).toHaveAttribute("aria-checked", "true");
-  await bash.click();
-  await expect(bash).toHaveAttribute("aria-checked", "false");
+  const available = permissions.getByRole("switch", { name: "Available connector", exact: true });
+  await expect(available).toHaveAttribute("aria-checked", "false");
+  await permissions.getByRole("link", { name: "Available connector", exact: true }).click();
+  await expect(available).toHaveAttribute("aria-checked", "false");
+  await available.click();
+  await expect(available).toHaveAttribute("aria-checked", "true");
   await expect(permissions.getByRole("switch", { name: "Unavailable connector", exact: true })).toBeDisabled();
   const previous = permissions.getByRole("switch", { name: "Previously enabled connector", exact: true });
   await previous.click();
@@ -1671,8 +1675,8 @@ test("Agent configuration reuses shared rows and cards without widening toggle h
     await row.scrollIntoViewIfNeeded();
     await expectInsideViewport(page, row);
   }
-  await bash.locator("..").scrollIntoViewIfNeeded();
-  await capture(bash.locator(".."), info, "agent-authorization-row");
+  await available.locator("..").scrollIntoViewIfNeeded();
+  await capture(available.locator(".."), info, "agent-authorization-row");
   expect(errors).toEqual([]);
 });
 

@@ -26,5 +26,5 @@
 - `icon-picker/` 的锚定浮层只显示可访问名称和图标网格；`maxIcons` 是数据边界，不作为孤立数字显示在标题旁。
 - `liquid-glass/` 分离浏览器能力、交互/动画生命周期、滤镜资源链与组件装配；`GlassSwitch` 是唯一开关 DOM 所有者，消费者不得套伪按钮或把 disabled 仅做成视觉状态；视图渲染阶段不得修正自身状态。
 - 新增 primitive 前先搜索本表所有者；DOM、键盘、焦点或 ARIA 相同就扩展既有组件。共享 pattern 的晋升门槛与全局交互/可访问性例外统一遵循[工程规范 §5](../../../../docs/specs/frontend-engineering-spec.md#5-抽象与晋升规则)，此地图不另设条件。
-- `frontend-foundation-contract.test.mjs` 固定关键行为测试清单；新增基础行为必须共置 `*.test.tsx`，源码正则不能代替 DOM 测试。
+- `frontend-foundation-contract.test.mjs` 只检查业务层不得绕过共享 elevation 与 layer 所有者；新增基础行为必须共置 `*.test.tsx`，源码正则不能代替 DOM 测试。
 - `ui-gallery.html` 必须直接 import 并渲染本目录的真实公开 React 组件，中文与英文只替换 fixture 文案，不复制组件 DOM/CSS；`ui-gallery-coverage-contract.test.mjs` 保证每个公开组件只登记一次，复合内部原语与无独立界面的 Provider/Filter 必须注明真实消费组件。

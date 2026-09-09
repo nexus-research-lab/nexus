@@ -9,6 +9,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
 import { getActiveChatTargetFromPath } from "@/features/home/notifications/chat-notification-target";
+import { useTeamBootstrap } from "@/features/team/use-team-bootstrap";
 import { createRoom, deleteRoom } from "@/lib/api/conversation/room-command-api";
 import { projectMutationFailure } from "@/lib/error-message";
 import {
@@ -44,7 +45,7 @@ interface ChatSidebarControllerOptions {
 export function useChatSidebarController({
   untitledRoomLabel,
 }: ChatSidebarControllerOptions) {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const location = useLocation();
   const navigate = useNavigate();
   const activeItemId = useSidebarStore((state) => state.active_panel_item_id);
@@ -63,6 +64,7 @@ export function useChatSidebarController({
     (state) => state.discard_chat_state_for_room,
   );
   const roomActivity = useRoomActivity();
+  const team = useTeamBootstrap();
   const {
     agents,
     conversations,
@@ -103,20 +105,40 @@ export function useChatSidebarController({
     rooms,
     untitledRoomLabel,
   ]);
-  const items = useMemo(() => projectSidebarUnreadItems({
-    activeTarget,
-    chatUnreadAnchors,
-    chatUnreadCounts,
-    chatUnreadTargets,
-    chatUnreadTimestamps,
-    items: conversationItems,
-  }), [
+  const items = useMemo(() => {
+    const localItems = projectSidebarUnreadItems({
+      activeTarget,
+      chatUnreadAnchors,
+      chatUnreadCounts,
+      chatUnreadTargets,
+      chatUnreadTimestamps,
+      items: conversationItems,
+    });
+    if (!team) {
+      return localItems;
+    }
+    return [{
+      activityStatus: null,
+      canDelete: false,
+      id: `team:${team.conversation.id}`,
+      isPinned: true,
+      kind: "team" as const,
+      lastActivityAt: 0,
+      members: [],
+      messageCount: team.conversation.high_water_message_seq,
+      summary: t("team.shared_room_summary"),
+      timeLabel: "",
+      title: team.room.name || t("team.general"),
+    }, ...localItems];
+  }, [
     activeTarget,
     chatUnreadAnchors,
     chatUnreadCounts,
     chatUnreadTargets,
     chatUnreadTimestamps,
     conversationItems,
+    team,
+    t,
   ]);
   const filteredItems = useMemo(
     () => filterConversationItems(items, query),
@@ -124,6 +146,11 @@ export function useChatSidebarController({
   );
 
   const openConversation = useCallback((item: SidebarConversationItem) => {
+    if (item.kind === "team") {
+      setActiveItem(item.id);
+      navigate(AppRouteBuilders.team());
+      return;
+    }
     const routeRoomId = item.routeRoomId ?? item.roomId;
     if (!routeRoomId) {
       return;
@@ -294,8 +321,10 @@ export function useChatSidebarController({
   }, []);
 
   const isItemActive = useCallback((item: SidebarConversationItem) => (
-    activeItemId === item.id || Boolean(item.roomId && activeItemId === item.roomId)
-  ), [activeItemId]);
+    (item.kind === "team" && location.pathname === AppRouteBuilders.team())
+    || activeItemId === item.id
+    || Boolean(item.roomId && activeItemId === item.roomId)
+  ), [activeItemId, location.pathname]);
 
   return {
     create: {

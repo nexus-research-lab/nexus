@@ -8,7 +8,7 @@ const LAUNCHER_RECENT_ENTRY_MARKER_CLASS_NAMES = [
   "border-[color:color-mix(in_srgb,var(--primary)_30%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_20%,transparent)]",
 ] as const;
 
-const MARKER_BASE_CLASS_NAME = "h-2.5 w-2.5 shrink-0 rounded-full border";
+const MARKER_BASE_CLASS_NAME = "h-4 w-4 shrink-0 rounded-full border";
 
 export function getLauncherRecentEntryMarkerClassName(entryKey: string): string {
   let hash = 0;

@@ -8,13 +8,16 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
+import { MESSAGES } from "@/shared/i18n/messages";
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
+import { createDefaultTaskSchedule } from "../schedule/task-schedule-model";
 import type { TranslationKey } from "@/shared/i18n/messages";
 
 import type { TaskFormDraft } from "../scheduled-task-dialog-types";
 import { TaskBasicsAdvanced } from "./task-basics-advanced";
 import { TaskBasicsPanel } from "./task-basics-panel";
 import type { TaskBasicsActions, TaskBasicsData } from "./task-basics-model";
-import { buildTaskDeliveryTargetPresentation, buildTaskTargetPresentation } from "./task-basics-model";
+import { buildTaskConfirmationSummary, buildTaskDeliveryTargetPresentation, buildTaskTargetPresentation } from "./task-basics-model";
 
 const READY_RESOURCE = {
   error: null,
@@ -23,6 +26,9 @@ const READY_RESOURCE = {
 };
 
 const DATA: TaskBasicsData = {
+  destinations: [],
+  destinationStatus: READY_RESOURCE,
+  inheritedPermissionMode: "auto",
   agentOptions: [],
   agents: READY_RESOURCE,
   defaultDeliveryRoomAgentId: "",
@@ -61,6 +67,8 @@ const FORM: TaskFormDraft = {
 
 function createActions(): TaskBasicsActions {
   return {
+    selectExecution: vi.fn(),
+    selectDelivery: vi.fn(),
     setDedicatedSessionKey: vi.fn(),
     setDeliveryTargetType: vi.fn(),
     setExecutionMode: vi.fn(),
@@ -80,50 +88,45 @@ function createActions(): TaskBasicsActions {
 }
 
 describe("TaskBasicsAdvanced", () => {
-  it.each(["agent", "room"] as const)("preserves %s targets and sessions through loading, failure and catalog recovery", async (targetType) => {
+  it("lists all destinations and selects an exact complete binding", async () => {
     const user = userEvent.setup();
     const actions = createActions();
-    const form: TaskFormDraft = {
-      ...FORM, targetType, executionMode: "existing", selectedRoomId: "room-one", selectedSessionKey: "execution-one",
-      replyMode: "selected", deliveryTargetType: targetType, selectedDeliveryAgentId: "agent-1",
-      selectedDeliveryRoomId: "room-two", selectedReplySessionKey: "delivery-one",
-    };
-    const data: TaskBasicsData = {
-      ...DATA, agentOptions: [{ value: "agent-1", label: "Nova" }],
-      roomOptions: [{ value: "room-one", label: "Research" }], deliveryRoomOptions: [{ value: "room-two", label: "Team" }],
-      sessionOptions: [{ value: "execution-one", sessionKey: "execution-one", label: "执行会话" }, { value: "execution-two", sessionKey: "execution-two", label: "另一个会话" }],
-      deliverySessionOptions: [{ value: "delivery-one", sessionKey: "delivery-one", label: "接收会话" }],
-    };
-    const view = (current: TaskBasicsData) => <I18N_CONTEXT.Provider value={{ locale: "zh", setLocale: vi.fn(), t: (key) => key }}>
-      <TaskBasicsPanel actions={actions} data={current} form={form} isEditing nameRef={createRef<HTMLInputElement>()} needsSessionRebind={false} />
-    </I18N_CONTEXT.Provider>;
-    const { rerender } = render(view(data));
-    const targetName = `capability.scheduled_dialog_select_target_${targetType}`;
-    const deliveryName = `capability.scheduled_dialog_delivery_${targetType}`;
-    const executionName = "capability.scheduled_dialog_select_execution_session";
-    const replyName = "capability.scheduled_dialog_select_reply_session";
-    expect(screen.getByRole("button", { name: executionName }).textContent).toContain("执行会话");
-    for (const status of [READY_RESOURCE, { ...READY_RESOURCE, loading: true }, { ...READY_RESOURCE, error: "not shown" }]) {
-      rerender(view({ ...DATA, agents: status, rooms: status, sessions: status, deliverySessions: status }));
-      for (const name of [targetName, deliveryName]) {
-        expect(screen.getByRole("button", { name }).textContent).toContain(targetType === "agent" ? "agent.selection_unavailable" : "capability.scheduled_dialog_room_unavailable");
-      }
-      for (const name of [executionName, replyName]) {
-        const trigger = screen.getByRole("button", { name });
-        expect(trigger.textContent).toContain("capability.scheduled_dialog_session_unavailable");
-        expect((trigger as HTMLButtonElement).disabled).toBe(true);
-        await user.click(trigger);
-      }
-    }
-    for (const action of Object.values(actions)) expect(action).not.toHaveBeenCalled();
-    rerender(view(data));
-    expect(screen.getByRole("button", { name: targetName }).textContent).toContain(targetType === "agent" ? "Nova" : "Research");
-    expect(screen.getByRole("button", { name: replyName }).textContent).toContain("接收会话");
-    await user.click(screen.getByRole("button", { name: executionName }));
-    await user.click(screen.getByRole("option", { name: "另一个会话" }));
-    expect(actions.setSelectedSessionKey).toHaveBeenCalledExactlyOnceWith("execution-two");
-    expect(form.selectedSessionKey).toBe("execution-one");
-    expect(data.sessionOptions).toHaveLength(2);
+    const destination = {value: "session-b", sessionKey: "session-b", label: "Chat B", group: "Nova", targetType: "agent" as const, agentId: "agent-b", roomId: ""};
+    render(<I18N_CONTEXT.Provider value={{locale: "zh", setLocale: vi.fn(), t: (key) => key}}>
+      <TaskBasicsPanel actions={actions} data={{...DATA, destinations: [destination]}} form={FORM} isEditing={false} nameRef={createRef<HTMLInputElement>()} needsSessionRebind={false} />
+    </I18N_CONTEXT.Provider>);
+    await user.click(screen.getByText("capability.scheduled_run_in"));
+    const searches = screen.getAllByRole("searchbox");
+    await user.type(searches[0], "Chat B");
+    await user.click(within(screen.getByRole("group", {name: "capability.scheduled_run_in"})).getByRole("button", {name: "Chat B"}));
+    expect(actions.selectExecution).toHaveBeenCalledExactlyOnceWith(destination);
+    expect(actions.selectDelivery).not.toHaveBeenCalled();
+    expect(actions.setTargetType).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog", {name: "capability.scheduled_run_in"})).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole("button", {name: "capability.scheduled_run_in"}));
+    await user.click(screen.getByRole("button", {name: "capability.scheduled_run_in"}));
+    const picker = screen.getByRole("dialog", {name: "capability.scheduled_run_in"});
+    expect(picker.parentElement).toBe(document.body);
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", {name: "capability.scheduled_run_in"})).toBeNull();
+  });
+
+  it("browses objects without changing the task and filters group chats", async () => {
+    const user = userEvent.setup();
+    const actions = createActions();
+    const room = {value: "room-session", sessionKey: "room-session", label: "Discussion", group: "Research", targetType: "room" as const, agentId: "", roomId: "room"};
+    render(<I18N_CONTEXT.Provider value={{locale: "zh", setLocale: vi.fn(), t: (key) => key}}>
+      <TaskBasicsPanel actions={actions} data={{...DATA, agentOptions: [{value: "agent-1", label: "Nova"}], roomOptions: [{value: "room", label: "Research"}], destinations: [room]}} form={FORM} isEditing={false} nameRef={createRef<HTMLInputElement>()} needsSessionRebind={false} />
+    </I18N_CONTEXT.Provider>);
+    await user.click(screen.getByRole("button", {name: "capability.scheduled_run_in"}));
+    await user.click(screen.getByRole("button", {name: "Research"}));
+    expect(actions.selectExecution).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", {name: "Discussion"})).toBeTruthy();
+    await user.click(screen.getByRole("button", {name: "capability.scheduled_target_filter"}));
+    await user.click(screen.getByRole("option", {name: "capability.scheduled_dialog_target_type_room"}));
+    expect(screen.queryByRole("button", {name: "Nova"})).toBeNull();
+    await user.click(screen.getByRole("button", {name: "Discussion"}));
+    expect(actions.selectExecution).toHaveBeenCalledExactlyOnceWith(room);
   });
 
   it("keeps unavailable explicit Agent bindings separate from empty/default choices", () => {
@@ -157,86 +160,27 @@ describe("TaskBasicsAdvanced", () => {
     expect(actions.setSelectedDeliveryPresenterAgentId).not.toHaveBeenCalled();
   });
 
-  it.each(["agent", "room"] as const)("isolates two %s forms and names their choice groups", async (targetType) => {
-    const user = userEvent.setup();
-    const actions = [createActions(), createActions()];
-    const form: TaskFormDraft = {
-      ...FORM, targetType, executionMode: targetType === "agent" ? "dedicated" : "existing",
-      selectedRoomId: "room", selectedSessionKey: "execution-session", replyMode: "selected",
-      deliveryTargetType: "room", selectedDeliveryRoomId: "delivery-room", selectedReplySessionKey: "delivery-session",
-    };
-    const { container } = render(<I18N_CONTEXT.Provider value={{ locale: "zh", setLocale: vi.fn(), t: (key) => key }}>
-      {actions.map((commands, index) => <section aria-label={`Form ${index}`} key={index}>
-        <TaskBasicsPanel actions={commands} data={DATA} form={form} isEditing nameRef={createRef<HTMLInputElement>()} needsSessionRebind />
-      </section>)}
-    </I18N_CONTEXT.Provider>);
-    for (const label of container.querySelectorAll<HTMLLabelElement>("label[for]")) {
-      expect(label.control).not.toBeNull();
-      expect(label.control?.closest("section[aria-label]")).toBe(label.closest("section[aria-label]"));
-    }
-    const ids = [...container.querySelectorAll("[id]")].map((element) => element.id);
-    expect(new Set(ids).size).toBe(ids.length);
-    const second = within(screen.getByRole("region", { name: "Form 1" }));
-    const location = second.getByRole("group", { name: "capability.scheduled_dialog_execution_location" });
-    expect(document.getElementById(location.getAttribute("aria-describedby")!)?.textContent)
-      .toBe("capability.scheduled_dialog_execution_location_help");
-    await user.click(within(location).getByRole("button", { name: /room/ }));
-    expect(actions[1].setTargetType).toHaveBeenCalledExactlyOnceWith("room");
-    expect(actions[0].setTargetType).not.toHaveBeenCalled();
-    fireEvent.change(second.getByRole("textbox", { name: "capability.scheduled_dialog_task_name" }), { target: { value: "  Keep task name  " } });
-    expect(actions[1].setTaskName).toHaveBeenCalledExactlyOnceWith("  Keep task name  ");
-    expect(actions[0].setTaskName).not.toHaveBeenCalled();
-    for (const name of ["delivery", "delivery_target_type", "permission_mode"]) {
-      expect(second.getAllByRole("group", { name: `capability.scheduled_dialog_${name}` })).toHaveLength(1);
-    }
-  });
-
-  it("uses shared form chrome and preserves execution-mode selection", async () => {
+  it("keeps the title editable and advanced settings collapsed", () => {
     const actions = createActions();
-    const user = userEvent.setup();
-    const { container } = render(
-      <I18N_CONTEXT.Provider
-        value={{ locale: "zh", setLocale: vi.fn(), t: (key) => key }}
-      >
-        <TaskBasicsAdvanced
-          actions={actions}
-          data={DATA}
-          deliveryTarget={{
-            ariaLabel: "delivery target",
-            description: null,
-            disabled: true,
-            error: null,
-            label: "delivery target",
-            options: [],
-            value: "",
-          }}
-          deliveryTargetActions={{ agent: vi.fn(), room: vi.fn() }}
-          form={FORM}
-          isEditing={false}
-          needsSessionRebind
-        />
-      </I18N_CONTEXT.Provider>,
-    );
-
-    const warning = screen.getByRole("status");
-    expect(warning).toBeTruthy();
-    expect(warning.getAttribute("data-inline-notice-tone")).toBe("warning");
-    expect(warning.getAttribute("data-inline-notice-width")).toBe("full");
-    expect(
-      screen.getByText("capability.scheduled_dialog_session_rebind_required").className,
-    ).toContain("ui-type-metadata");
-    expect(
-      screen.getByText("capability.scheduled_dialog_session_rebind_description").className,
-    ).toContain("ui-type-metadata");
-    expect(container.querySelectorAll("section.surface-radius-md")).toHaveLength(2);
-
-    const details = container.querySelector("details.surface-radius-md");
-    expect(details).toBeTruthy();
-    expect(details?.querySelector("summary")?.className).toContain("ui-type-control");
-
-    await user.click(screen.getByRole("button", {
-      name: "capability.scheduled_dialog_execution_mode_existing",
-    }));
-    expect(actions.setExecutionMode).toHaveBeenCalledWith("existing");
+    const {container} = render(<I18N_CONTEXT.Provider value={{locale: "zh", setLocale: vi.fn(), t: (key) => key}}>
+      <TaskBasicsPanel actions={actions} data={DATA} form={FORM} isEditing={false} nameRef={createRef<HTMLInputElement>()} needsSessionRebind={false} />
+    </I18N_CONTEXT.Provider>);
+    fireEvent.change(screen.getByRole("textbox", {name: "capability.scheduled_dialog_task_name"}), {target: {value: "Keep name"}});
+    expect(actions.setTaskName).toHaveBeenCalledExactlyOnceWith("Keep name");
+    expect([...container.querySelectorAll("details")].every((details) => !details.open)).toBe(true);
   });
+});
+
+it("summarizes the current schedule, performer and delivery without inventing a recipient", () => {
+  const t: I18nContextValue["t"] = (key, params) => Object.entries(params ?? {}).reduce((text, [name, value]) => text.replaceAll(`{${name}}`, String(value)), MESSAGES.zh[key]);
+  const schedule = {...createDefaultTaskSchedule(), kind: "cron" as const, selectedWeekdays: ["mo", "tu", "we", "th", "fr"] as const, dailyTime: "09:00"};
+  const data = {...DATA, agentOptions: [{value: "agent-1", label: "Lucy"}]};
+  const summary = buildTaskConfirmationSummary(FORM, {...schedule, selectedWeekdays: [...schedule.selectedWeekdays]}, data, t);
+  expect(summary).toContain("工作日 09:00");
+  expect(summary).toContain("Lucy");
+  expect(summary).toContain(FORM.instruction);
+  expect(summary).toContain("结果仅保留在运行记录中");
+  const recipient = {value: "chat", sessionKey: "chat", group: "Lucy", label: "行业研究", agentId: "agent-1", roomId: "", targetType: "agent" as const};
+  expect(buildTaskConfirmationSummary({...FORM, replyMode: "selected", selectedReplySessionKey: "chat", selectedDeliveryAgentId: "agent-1"}, createDefaultTaskSchedule(), {...data, destinations: [recipient]}, t)).toContain("结果发到「Lucy · 行业研究」聊天");
+  expect(buildTaskConfirmationSummary({...FORM, replyMode: "selected"}, createDefaultTaskSchedule(), data, t)).toContain("接收聊天待选择");
 });

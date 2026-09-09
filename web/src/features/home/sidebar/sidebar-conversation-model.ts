@@ -13,7 +13,7 @@ import type { RoomActivityStatus } from "../room-activity-resource";
 export interface SidebarConversationItem {
   id: string;
   isPinned: boolean;
-  kind: "room" | "dm";
+  kind: "room" | "dm" | "team";
   title: string;
   summary: string;
   timeLabel: string;

@@ -369,7 +369,7 @@ Composer 的间距配方
 
 - `src/**/*.test.tsx`：与 primitive/pattern 共置的 Vitest + jsdom 行为测试，必须通过 Testing Library 从角色、名称和真实用户事件观察组件；
 - `scripts/*.test.mjs`：纯模型、协议、架构边界和禁止项合同；不得在这里伪造 DOM 交互结论，统一入口以有界并发运行，避免大量独立 Vite 转换进程使门禁随机崩溃；
-- `frontend-control-style-contract.test.mjs` 禁止公共 Button、ListRow/ListAction、Select/FilterSelect 与 Form（Input/Textarea/NativeSelect/SearchInput/Checkbox/Choice/SegmentedControl）调用方的静态视觉覆盖；支持控件别名/命名空间导入、词法作用域内常量、条件表达式与对象展开，并追踪本地模块的具名不可变常量导入与具名转导出，同时检查 `className`、`buttonClassName`、`inputClassName` 和内联 `style`。它保留局部遮蔽、参数和循环边界，允许布局与独立图标内容，不执行模块或函数。命名空间样式常量、星号转导出、外部 CSS 和运行时计算样式仍需审查，不能将静态门禁通过视为全部视觉实现无覆盖。
+- 公共控件调用方原则上只传布局 class；场景确需组合特殊表面时由设计规范、组件行为测试和浏览器验收判断，不使用源码正则冻结实现细节。
 - `frontend-token-contract.test.mjs` 通过既有 CSS 工具链和 TypeScript AST 检查全部生产 CSS/TS 的静态 `var()`、Tailwind 简写和模板 CSS；必需引用必须有声明，可选注入必须有 fallback，三主题的 canonical 别名不得缺失、循环或在同一声明块重复。明确进入 `color-mix()` 的公共控件颜色槽还需解析其别名并通过既有 DOM CSS 解析器的颜色校验，拒绝把已声明的渐变误用为颜色。检查不执行运行时表达式，也不把全局声明集合或解析器接受当作 DOM 继承、实际绘制或文字对比度证明；没有逐文件违规额度。
 - `npm run test:components` 与 `npm run test:contracts` 可分别定位失败，`npm test` 必须串行覆盖两类测试。
 - `npm run check` 串行执行 lint、typecheck、上述两类测试和生产构建。

@@ -7,6 +7,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+### Added
+
+- Restore conversational administrator user management through Control-backed `nexuscfg members`, with human approval, secure password entry, profile/role updates, and deployment access revocation. Remove obsolete user/auth CLI instructions.
+
+### Changed
+
+- Search settings item names and descriptions in addition to navigation labels, listing matching items under their accessible module.
+
+- Add settings navigation search by section or group name and soften the back-to-workspace label weight.
+
+- Align settings navigation icons and the back action with section headings using a shared 8px content inset.
+
+- Narrow the primary navigation rail by 8px to give the adjacent directory more room, keeping pinned items centered.
+
+- Distribute the sidebar NEXUS wordmark across the available header width with balanced spacing and a reserved collapse action.
+
+- Refine the sidebar account menu with an avatar header, grouped actions, regular-weight account text, and width aligned to the footer.
+
+- Compact the sidebar account footer to 48px and add online documentation to the guide center.
+
+- Restore the unified glass Launcher composer with an inset mascot, larger recent-entry markers, and a separate centered handoff row.
+
+- Group sidebar settings and sign-out under the account menu, with a dedicated help action at the bottom right.
+
+### Changed
+
+- Simplify automation creation with a right-side editor alongside the unchanged board, searchable two-column execution and recipient pickers with Agent/group-chat filters, clearly labeled optional task titles with an inline close button and no empty editor header, generated task names, live confirmation summaries and concrete inherited permission labels, explicit result delivery, safe unique-session defaults, and secondary options grouped under advanced settings; retain the existing task board.
+
+- Expose “Approve for me” for Claude and preserve native auto mode through session and task configuration; confirm activation in the bridge instead of silently using manual approval.
+
+### Fixed
+
+- Navigate settings search results to the matching field, including repeated clicks within the same section and asynchronously loaded content.
+
+- Center sidebar navigation icons and labels across the full visible rail, including the shell's leading inset.
+
+- Fix completed legacy queued runs being restored as active task occupancy; reconcile proven finished remnants during scheduler audits, reject stale runtime snapshots, and show unknown start times honestly.
+
+- Store each Team Conversation and Relay Message once per deployment while keeping only per-owner recovery cursors, including migration of existing duplicated projections.
+
+- Keep Team local-projection cursors behind failed writes, recover Relay stream-epoch changes through a typed WebSocket reset, and replay committed sends through difference before advancing the browser cursor.
+
+- Accept automatic review in DM/Room session settings and classify validation failures as not applied. Show save failures in a dismissible dialog without leaving an error banner or refresh action.
+
+### Changed
+
+- Replace the selectable automatic-edit mode with “Approve for me”, backed by native SDK review, and preserve review reasons in conversations and scheduled-task approvals. New Agents default to automatic review; existing modes remain unchanged.
+- Keep automatic review hidden for Claude until its native mode is integrated; project saved automatic-review presets to manual approval in the current Claude adapter.
+- Move Agent-specific permissions into collapsed advanced settings, explain their relationship to system defaults, and remove per-tool authorization switches. Preauthorize web search and fetch while preserving explicit restrictions.
+- Link Agent connector cards to connector settings, retain gray styling for disconnected connectors, and keep activation switches independent.
+
+### Added
+
+- Alert users to pending approvals and questions while Nexus is in the background with a numeric macOS Dock badge (without bouncing) and Windows taskbar flashing; clear attention on return or resolution.
+
+- Added local system-font selection, font size, and line spacing preferences with live preview, row-based appearance controls, and one-click theme and typography reset.
+
+- Added opt-in Nexus Relay configuration, fixed-audience Control user token
+  exchange, an independent typed Relay M1 HTTP client, and authenticated
+  `/nexus/v1/team/...` browser gateway endpoints with Relay stream-epoch propagation,
+  WSS-triggered difference recovery, owner-scoped local projection, and a shared
+  General Room in the existing chat UI.
+
+### Fixed
+
+- Fixed LaTeX parenthesis/bracket delimiters and formulas containing blank lines in streamed replies.
+
+- Fixed Room scheduled tasks remaining running after their round completed, and
+  restored owner-scoped transcript permission repair for Room history, page
+  loading, Agent wakeups, and scheduled result delivery.
 ### Added
 
 - Improved shared avatar picker keyboard focus, form Tab navigation and disabled/value

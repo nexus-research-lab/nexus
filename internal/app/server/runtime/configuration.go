@@ -13,11 +13,14 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	configurationsvc "github.com/nexus-research-lab/nexus/internal/service/configuration"
 )
 
@@ -152,6 +155,7 @@ func configurationBrokerURL(cfg config.Config) string {
 // NewConfigurationHandler 处理 runtime loopback 配置请求。
 func NewConfigurationHandler(
 	svc *configurationsvc.Service,
+	permissions *permissionctx.Context,
 ) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		if !configurationLoopbackRequest(request) {
@@ -184,6 +188,11 @@ func NewConfigurationHandler(
 		case "plan":
 			result, err = svc.PlanChange(request.Context(), actor, command.Change)
 		case "apply":
+			if strings.EqualFold(strings.TrimSpace(command.Change.Domain), configurationsvc.DomainMembers) {
+				_ = http.NewResponseController(writer).SetWriteDeadline(time.Time{})
+				result, err = applyMemberConfiguration(request.Context(), svc, permissions, actor, command.Change)
+				break
+			}
 			result, err = svc.ApplyChangeFromCLI(
 				request.Context(),
 				actor,
@@ -231,4 +240,38 @@ func writeConfigurationJSON(writer http.ResponseWriter, status int, payload map[
 	encoder := json.NewEncoder(writer)
 	encoder.SetEscapeHTML(false)
 	_ = encoder.Encode(payload)
+}
+
+// applyMemberConfiguration 由宿主展示真实确认卡；CLI 的 --confirm 不能替代人工批准。
+func applyMemberConfiguration(ctx context.Context, svc *configurationsvc.Service, permissions *permissionctx.Context, actor configurationsvc.Actor, change configurationsvc.ChangeRequest) (*configurationsvc.ApplyResult, error) {
+	if permissions == nil {
+		return nil, errors.New("成员管理缺少人工确认通道")
+	}
+	plan, err := svc.PlanChange(ctx, actor, change)
+	if err != nil {
+		return nil, err
+	}
+	if plan.PlanDigest != change.PlanDigest || plan.CurrentRevision != change.ExpectedRevision {
+		return nil, errors.New("成员管理计划已变化，请重新 plan")
+	}
+	payload, err := json.Marshal(change)
+	if err != nil {
+		return nil, err
+	}
+	var input map[string]any
+	if err = json.Unmarshal(payload, &input); err != nil {
+		return nil, err
+	}
+	sessionKey := actor.LeaseSessionKey
+	if sessionKey == "" {
+		sessionKey = actor.SessionKey
+	}
+	decision, err := permissions.RequestPermission(ctx, sessionKey, sdkpermission.Request{ToolName: "apply_nexus_configuration_change", Input: input, DecisionReason: plan.Summary})
+	if err != nil {
+		return nil, err
+	}
+	if decision.Behavior != sdkpermission.BehaviorAllow {
+		return nil, errors.New("管理员未批准成员变更")
+	}
+	return svc.ApplyChange(ctx, actor, change)
 }

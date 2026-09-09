@@ -4,6 +4,7 @@
 
 "use client";
 
+import { useRef } from "react";
 import { Navigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/shared/navigation/route-paths";
@@ -20,18 +21,23 @@ import { SettingsRuntimeSection } from "./runtime/settings-runtime-section";
 import { BrowserSettingsSection } from "./browser/browser-settings-section";
 import type { SettingsSectionKey } from "./settings-navigation-model";
 import { SettingsSidebarNavigation } from "./settings-sidebar-navigation";
+import { useSettingsSearchTarget } from "./use-settings-search-target";
 import { useSettingsNavigation } from "./use-settings-navigation";
 
 export function SettingsPanel({ standalone = false }: { standalone?: boolean }) {
   const { status } = useAuth();
   const { activeSection } = useSettingsNavigation();
+  const contentRef = useRef<HTMLDivElement>(null);
+  useSettingsSearchTarget(contentRef, activeSection);
   const canViewOperations =
     !isDesktopRuntime() && canUseOperations(status?.role);
   const content = (
+    <div ref={contentRef}>
     <SettingsSectionContent
       canViewOperations={canViewOperations}
       section={activeSection}
     />
+    </div>
   );
 
   if (standalone) {

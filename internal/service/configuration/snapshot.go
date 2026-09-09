@@ -116,6 +116,9 @@ func (s *Service) domainValues(
 		scope = ScopeRef{Kind: ScopeKindOwner, ID: actor.OwnerUserID}
 	}
 	switch domain {
+	case DomainMembers:
+		value, version, err := s.memberSnapshot(ctx, actor, target)
+		return value, nil, version, scope, err
 	case DomainPreferences:
 		value, err := s.prefs.Get(ctx, actor.OwnerUserID)
 		return value, preferencesChecks(value, err), value.Version, scope, err

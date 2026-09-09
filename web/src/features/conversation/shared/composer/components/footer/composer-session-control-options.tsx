@@ -16,10 +16,9 @@ import {
   ShieldOff,
 } from "lucide-react";
 
+import { getAgentPermissionChoices, resolveRuntimePermissionMode } from "@/lib/agent-options";
 import { cn } from "@/shared/ui/class-name";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
-
-import { AGENT_PERMISSION_MODES } from "@/lib/agent-options";
 import type { useI18n } from "@/shared/i18n/i18n-context";
 import type { UiActionMenuItem } from "@/shared/ui/menu/action-menu";
 
@@ -30,6 +29,7 @@ import type {
 export const RESET_SESSION_SETTING_VALUE = "__reset__";
 
 const SESSION_PERMISSION_DESCRIPTION_KEYS = {
+  auto: "agent_options.advanced.permission.auto.description",
   default: "composer.session_permission_default_hint",
   plan: "composer.session_permission_plan_hint",
   acceptEdits: "composer.session_permission_accept_edits_hint",
@@ -38,6 +38,12 @@ const SESSION_PERMISSION_DESCRIPTION_KEYS = {
 } as const;
 
 const SESSION_PERMISSION_ICONS = {
+  auto: (
+    <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3 3 7v5c0 5 4 8 9 10 5-2 9-5 9-10V7Z" />
+      <path d="m8 9 3 3-3 3m5 0h3" />
+    </svg>
+  ),
   default: <Hand className="h-4 w-4" />,
   plan: <ListChecks className="h-4 w-4" />,
   acceptEdits: <FilePenLine className="h-4 w-4" />,
@@ -49,9 +55,9 @@ export function buildSessionPermissionItems(
   controller: ComposerSessionSettingsController,
   t: ReturnType<typeof useI18n>["t"],
 ): UiActionMenuItem[] {
-  const currentMode = controller.settings.permission_mode
-    || controller.inheritedPermissionMode;
-  return AGENT_PERMISSION_MODES.map((mode) => ({
+  const currentMode = resolveRuntimePermissionMode(controller.settings.permission_mode
+    || controller.inheritedPermissionMode, controller.scope?.runtimeKind ?? "");
+  return getAgentPermissionChoices(controller.scope?.runtimeKind ?? "").map((mode) => ({
     active: currentMode === mode.value,
     description: t(SESSION_PERMISSION_DESCRIPTION_KEYS[mode.value]),
     icon: SESSION_PERMISSION_ICONS[mode.value],

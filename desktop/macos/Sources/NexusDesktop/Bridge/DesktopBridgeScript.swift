@@ -19,6 +19,8 @@ enum DesktopBridgeScript {
       function timeoutMessage(kind) {
         if ([
           "app.get_app_version",
+          "app.get_system_fonts",
+          "app.set_attention",
           "app.get_state_root",
           "app.get_workspace_file_applications",
           "app.get_persistent_state",

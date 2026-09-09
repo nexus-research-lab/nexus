@@ -116,8 +116,8 @@ function splitMarkdownRawBlocks(content: string): MarkdownRawBlock[] {
     }
 
     const mathFence = readMathFence(line);
-    if (mathFence === "\\[" || /^\${2,}$/.test(mathFence)) {
-      openMath = mathFence === "\\[" ? "\\]" : mathFence;
+    if ((mathFence.startsWith("\\[") && !mathFence.includes("\\]")) || /^\${2,}$/.test(mathFence)) {
+      openMath = mathFence.startsWith("\\[") ? "\\]" : mathFence;
       continue;
     }
 

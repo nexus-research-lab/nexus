@@ -467,3 +467,74 @@ test("增量 Markdown 不使用会重排既有行的 pretty wrapping", async () 
   assert.doesNotMatch(html, /text-pretty|text-balance/);
   assert.match(html, /wrap-anywhere/);
 });
+
+test("公式分隔符兼容保留代码与链接，流式空行不拆公式", async () => {
+  const { normalizeMarkdownContent, MARKDOWN_PLUGINS, REHYPE_PLUGINS } = await server.ssrLoadModule("/src/shared/ui/markdown/core/markdown-renderer-shared.tsx");
+  const { splitStreamingMarkdownBlocks } = await server.ssrLoadModule("/src/shared/ui/markdown/streaming/markdown-stream-blocks.ts");
+  const normalize = (text) => normalizeMarkdownContent(text, () => null);
+  for (const input of [String.raw`\(x^2\)`, String.raw`\[x^2\]`, "$x^2$", "$$\nx^2\n$$"]) {
+    const html = renderToStaticMarkup(React.createElement(ReactMarkdown, { remarkPlugins: MARKDOWN_PLUGINS, rehypePlugins: REHYPE_PLUGINS }, normalize(input)));
+    assert.match(html, /class="katex"/);
+  }
+  for (const input of ["`\\(x\\)`", "``\\(x\\)``", "```tex\n\\[x\\]\n```", "~~~tex\n\\[x\\]\n~~~", "```tex\n\\[x\\]", "[link](https://example.com/\\(x\\))", String.raw`\\(literal\\)`]) {
+    assert.equal(normalize(input), input);
+  }
+  const formula = "$$\na+b\n\n+c\n$$\n";
+  assert.deepEqual(splitStreamingMarkdownBlocks(formula).map((block) => block.content), [formula]);
+  assert.equal(splitStreamingMarkdownBlocks("$$\na+b\n\n+c").length, 1);
+  assert.equal(splitStreamingMarkdownBlocks(normalize(String.raw`\[a+b
+
++c`)).filter((block) => block.content.trim()).length, 1);
+  assert.match(normalize("```tex\ncode\n````\n\\(x\\)"), /\\\(x\\\)/);
+  const literalFormula = String.raw`\(\mathrm{file.txt}\)`;
+  assert.equal(normalizeMarkdownContent(literalFormula, () => "file.txt", () => {}), literalFormula);
+});
+
+test("阅读偏好持久化与损坏数据恢复", async () => {
+  const { normalizeChatTypography, DEFAULT_CHAT_TYPOGRAPHY, useChatTypography } = await server.ssrLoadModule("/src/shared/theme/chat-typography.ts");
+  assert.deepEqual(normalizeChatTypography(null), DEFAULT_CHAT_TYPOGRAPHY);
+  assert.deepEqual(normalizeChatTypography({ font: 123, fontSize: 99, lineHeight: 0 }), { font: "default", fontSize: 22, lineHeight: 1.4 });
+  assert.deepEqual(normalizeChatTypography({ fontSize: NaN, lineHeight: Infinity }), DEFAULT_CHAT_TYPOGRAPHY);
+  assert.equal(normalizeChatTypography({ font: "Times New Roman" }).font, "Times New Roman");
+  assert.equal(normalizeChatTypography({ font: "PT " }).font, "PT ");
+  assert.equal(normalizeChatTypography({ font: "\n" }).font, "default");
+  let stored;
+  useChatTypography.persist.setOptions({ storage: { getItem: () => stored, setItem: (_key, value) => { stored = value; }, removeItem: () => { stored = undefined; } } });
+  useChatTypography.getState().setTypography({ font: "Times New Roman", fontSize: 20, lineHeight: 1.8 });
+  const saved = stored;
+  useChatTypography.setState({ typography: DEFAULT_CHAT_TYPOGRAPHY });
+  stored = saved;
+  await useChatTypography.persist.rehydrate();
+  assert.deepEqual(useChatTypography.getState().typography, { font: "Times New Roman", fontSize: 20, lineHeight: 1.8 });
+});
+
+test("外观恢复的主题默认值跟随系统配色", async () => {
+  const { defaultTheme } = await server.ssrLoadModule("/src/shared/theme/theme-context.ts");
+  const previousWindow = globalThis.window;
+  try {
+    globalThis.window = { matchMedia: () => ({ matches: true }) };
+    assert.equal(defaultTheme(), "dark");
+    globalThis.window = { matchMedia: () => ({ matches: false }) };
+    assert.equal(defaultTheme(), "light");
+  } finally {
+    if (previousWindow === undefined) delete globalThis.window;
+    else globalThis.window = previousWindow;
+  }
+});
+
+test("字体目录通过版本化桌面桥接读取且不发送字体文件", async () => {
+  const { getDesktopSystemFonts } = await server.ssrLoadModule("/src/lib/desktop-bridge/desktop-bridge.ts");
+  const previousWindow = globalThis.window;
+  let request;
+  try {
+    globalThis.window = { __NEXUS_DESKTOP_BRIDGE__: { invoke: async (message) => {
+      request = message;
+      return { families: ["Academy Engraved LET", "Al Bayan", "PT Mono"] };
+    } } };
+    assert.deepEqual(await getDesktopSystemFonts(), { families: ["Academy Engraved LET", "Al Bayan", "PT Mono"] });
+    assert.deepEqual(request, { schema_version: 1, kind: "app.get_system_fonts", payload: {} });
+  } finally {
+    if (previousWindow === undefined) delete globalThis.window;
+    else globalThis.window = previousWindow;
+  }
+});

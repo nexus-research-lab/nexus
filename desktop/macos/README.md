@@ -172,3 +172,7 @@ xattr -dr com.apple.quarantine /Applications/Nexus.app
 - 还没有 Sparkle；内置自动更新器依赖 Release metadata、sha256、Developer ID 签名、公证和 Gatekeeper 本地校验。
 - 还没有由 Go 协议真相源生成的 desktop bridge schema。
 - 还没有更完整的快捷键冲突引导、逐项 secret 级 Keychain API、occlusion 长时间/异常路径验证和多窗口生命周期细化。
+
+外观设置通过 `app.get_system_fonts` 读取 NSFontManager 的本机字体家族目录。
+
+待人工确认（含提问）通过 `app.set_attention` 同步到宿主；后台使用 Dock 数字角标显示待确认事项总数，不弹跳，回到应用或清空待处理请求时取消，窗口最小化不切断事件连接。

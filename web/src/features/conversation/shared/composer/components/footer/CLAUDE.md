@@ -23,9 +23,14 @@ Footer 的普通动作、模型/权限触发器和返回动作必须使用共享
 上下文占用只消费 runtime 在 round 终态推送的权威快照，不轮询 transcript，也不由前端估算。DM 显示当前 Session；Room 按 Agent ID 保存并在同一个弹层逐行展示各自最近快照，入口圆环使用最高占用提示风险，不能暗示当前消息只发给某个 Agent。入口直接使用 `UiIconButton size="sm"` 的 28px 命中区，首个快照到达前保留同宽的不可交互槽位；发送与停止动作统一为 32px 圆形图标按钮，避免 round 终态改变 Footer 几何而使 Composer 跳动。
 上下文压缩沿用运行状态指示器；正文流与停止按钮已经表达回复进行中，Composer 不再重复显示“回复中”文案或动效，只保留可执行的停止快捷键提示。停止提示只在 DM Composer 明确提供停止能力时显示，Room 的停止按钮由 Agent slot 头部渲染。
 
+Session 设置可靠性提示在输入壳外显示紧凑单行，影响说明点击后通过共享 Dialog 展示，刷新/重试独立可操作并显示忙碌状态；不得嵌入整块资源错误卡撑高输入框。
+
+可靠性提示的刷新图标固定紧邻标题，详细说明在弹窗中展示；打开弹窗不改变刷新位置，图标保留可访问名称与忙碌反馈。
+
+修改 Session 设置失败必须自动弹出完整错误 Dialog，关闭时清除此 Session 的本次 mutation failure；不为修改失败保留输入区错误条或刷新动作。资源读取错误仍使用独立读取恢复入口。
 Footer 的 Connector 初始读取使用共享 `md` muted Spinner，Room Agent 模型更新使用 `sm` muted Spinner；菜单与级联控件不得自行维护尺寸、颜色、旋转或 reduced-motion class。
 
 - Footer 的品牌、Goal/运行状态、计数和上下文详情消费 Typography；辅助文字层级以根 design.md 为准，空计数不保留 flex 间距。状态投影仍由 footer-model 唯一排序，视图不复制 LoadingOrb 或优先级。
 - Footer Actions 的 Goal/Connector 使用 Action Menu 受控 checked；每行只有一次激活，不嵌套 Switch 或用 stopPropagation 保留第二条切换路径。目录选择服从控制器已有 blocksMutation，附件和其他无关命令保持独立。
 - Context Usage 的 hover/focus/click 都展开同一详情；点击不反转 focus 刚打开的状态，鼠标离开不关闭仍有键盘焦点的指标。快照可用性变化清空打开态，普通占用更新保留详情；内容和关闭时序不改变终态 snapshot 权威。
-- Session settings reliability 只渲染一个失败面，写入失败优先，其次 Session/Provider/Connector 读取。读取重试按资源路由；写入未知只显式重新核对 Session，读忙碌防重，mutation lock 不禁用核对动作。没有本控制器恢复命令的资源不显示空操作。
+- Session settings reliability 的资源读取错误按 Session/Provider/Connector 路由到对应恢复命令，读忙碌防重；没有恢复命令的资源不显示空操作。

@@ -24,6 +24,7 @@ import type {
   TaskDialogLabelOption,
   TaskDialogSessionOption,
   TaskFormDraft,
+  TaskDestinationOption,
 } from "../scheduled-task-dialog-types";
 import { buildRoomSelectionOptions, distinguishSessionOptions } from "./task-dialog-selection-labels";
 import type {
@@ -86,16 +87,9 @@ export function buildTaskDialogResourceKeys(
   isOpen: boolean,
 ): TaskDialogResourceKeys {
   return {
-    allSessions: isOpen && form.executionKind === "agent" && (
-      form.targetType === "room" || form.replyMode === "selected"
-    )
-      ? OPEN_RESOURCE_KEY
-      : null,
+    allSessions: isOpen && form.executionKind === "agent" ? OPEN_RESOURCE_KEY : null,
     agents: isOpen ? OPEN_RESOURCE_KEY : null,
-    rooms: isOpen && (
-      form.targetType === "room"
-      || (form.replyMode === "selected" && form.deliveryTargetType === "room")
-    ) ? OPEN_RESOURCE_KEY : null,
+    rooms: isOpen && form.executionKind === "agent" ? OPEN_RESOURCE_KEY : null,
     ...SESSION_REQUEST_KEYS[form.targetType](form, isOpen),
   };
 }
@@ -431,4 +425,46 @@ function buildRoomSessionOptions(
       value: sessionKey,
     };
   });
+}
+
+// 复用既有可投递会话资格，按父对象分组；Room 仍使用共享会话身份。
+export function buildTaskDestinations(
+  sessions: AgentSession[],
+  agents: TaskDialogLabelOption[],
+  rooms: TaskDialogLabelOption[],
+  t: I18nContextValue["t"],
+): TaskDestinationOption[] {
+  return [
+    ...agents.flatMap((agent) => distinguishSessionOptions(buildDeliveryAgentOptions(sessions, agent.value, t), t)
+      .map((option) => ({ ...option, group: agent.label, targetType: "agent" as const, agentId: agent.value, roomId: "" }))),
+    ...rooms.flatMap((room) => distinguishSessionOptions(buildDeliveryRoomOptions(sessions, room.value, t), t)
+      .map((option) => ({ ...option, group: room.label, targetType: "room" as const, agentId: "", roomId: room.value }))),
+  ];
+}
+
+// 与创建时的权限快照保持相同优先级；资源未就绪时不猜测权限。
+export function resolveTaskInheritedPermission(
+  form: TaskFormDraft,
+  agents: DialogResource<Agent>,
+  agentSessions: DialogResource<AgentSession>,
+  roomContexts: DialogResource<RoomContextAggregate>,
+  defaultAgentId: string,
+): string | null {
+  if (agents.loading || agents.error) return null;
+  const agent = agents.items.find((item) => item.agent_id === (form.selectedAgentId || defaultAgentId));
+  if (!agent) return null;
+  let sessionMode: unknown;
+  if (form.targetType === "room") {
+    if (roomContexts.loading || roomContexts.error) return null;
+    const context = roomContexts.items.find((item) => item.conversation.id === roomConversationId(form.selectedSessionKey));
+    if (!context) return null;
+    const sessions = context.sessions.filter((item) => item.agent_id === agent.agent_id);
+    sessionMode = (sessions.find((item) => item.is_primary) ?? sessions[0])?.options.permission_mode;
+  } else if (form.executionMode === "existing") {
+    if (agentSessions.loading || agentSessions.error) return null;
+    const session = agentSessions.items.find((item) => item.session_key === form.selectedSessionKey);
+    if (!session) return null;
+    sessionMode = session.options.permission_mode;
+  }
+  return (typeof sessionMode === "string" ? sessionMode.trim() : "") || agent.options.permission_mode?.trim() || "default";
 }

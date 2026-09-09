@@ -43,6 +43,9 @@ func buildPermissionPayload(pending *PendingRequest) map[string]any {
 		"summary":          summarizeInput(pending.ToolName, pending.ToolInput),
 		"suggestions":      serializePermissionUpdates(pending.Suggestions),
 	}
+	if pending.DecisionReason != "" {
+		payload["summary"] = pending.DecisionReason + "\n" + summarizeInput(pending.ToolName, pending.ToolInput)
+	}
 	if len(pending.ConfigurationSecretSlots) > 0 {
 		payload["configuration_secret_slots"] = pending.ConfigurationSecretSlots
 	}

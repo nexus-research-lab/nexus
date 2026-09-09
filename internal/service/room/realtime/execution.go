@@ -742,6 +742,11 @@ func (s *Service) runRound(
 		)
 	}
 	s.broadcastSharedEventWithTimeout(ctx, roundValue.SessionKey, roundValue.RoomID, statusEvent)
+	// round 已从注册表移除，终态必须用执行体保留的观察器交付给自动化。
+	// permission 广播路径已包含 sink，只有 RoomBroadcaster 路径需要内部镜像。
+	if s.broadcaster != nil && roundValue.RoomID != "" && roundValue.EventObserver != nil {
+		roundValue.EventObserver(ctx, statusEvent)
+	}
 	s.broadcastSessionStatus(ctx, roundValue.SessionKey)
 	// Round 已经结束后，所有仍可能写 queue/workspace 或启动后续 runtime 的工作
 	// 必须先登记到 session 生命周期，再执行。否则 CloseSession 可能在

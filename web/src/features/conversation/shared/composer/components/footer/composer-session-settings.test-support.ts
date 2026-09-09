@@ -32,6 +32,7 @@ export function makeController(overrides: Partial<ComposerSessionSettingsControl
     scope: { initialTargetId: target.agentId, runtimeKind: "nxs", targets: [target] },
     settings: { provider: "provider", model: "advanced", permission_mode: "plan", connector_ids: null },
     settingsLoading: false, settingsReadFailure: null, mutationFailure: null,
+    dismissMutationFailure: vi.fn(),
     target, targetViews: [{ target, busy: false, modelLabel: "Advanced" }],
     retryConnectors: vi.fn(), retryProviderOptions: vi.fn(), retrySessionSettings: vi.fn(async () => undefined),
     resetModel: vi.fn(async () => undefined), updateModel: vi.fn(async () => undefined),

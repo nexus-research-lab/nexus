@@ -26,3 +26,5 @@ DM 与 Room、静态与虚拟 Feed 必须复用 `conversation-panel-styles.ts` �
 虚拟 Feed 根节点必须声明 `data-conversation-virtual-feed="true"`，避免共享滚动层重复执行可见轮次补偿或 bottom 写入。
 最后一个 root 不得预建 viewport 高度的空白 runway。新消息从真实内容底部进入；FOLLOW 把并行 Agent 视为同一条 live timeline，父 Feed 聚合尺寸变化后始终贴住真实底部，让旧内容连续上推。live epoch 可在父 Feed 暂存由估高校正和 shell 收口产生的高度负债，但静态内容栈与完整虚拟画布必须贴住 Feed 底部，让负债只占据消息上方而不能在真实 tail 后形成空洞；所有来源终态并经过短暂异步布局结算后只允许一次原子释放，不得做连续高度动画。不得给单个 Agent 预留 spacer 或在 terminal 后永久保留空白。
 optimistic user 被 ACK 替换为 canonical 消息时，Feed 与 Virtualizer 继续使用 `client_message_id` 作为节点身份，业务导航仍使用 canonical `round_id`，禁止重挂载同一轮或重播入场动画。
+
+聊天排版偏好改变后，虚拟 Feed 在下一帧清除高度缓存，已挂载行继续用 ResizeObserver 测量。

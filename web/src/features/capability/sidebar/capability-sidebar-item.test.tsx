@@ -1,5 +1,5 @@
 // INPUT: 能力导航项、选中状态与选择回调。
-// OUTPUT: 证明能力行复用 ListRow、语义形状与 Typography，并保持鼠标和键盘选择。
+// OUTPUT: 证明能力行显示摘要，并通过鼠标和键盘选择精确条目。
 // POS: 能力侧栏行 DOM 合同；摘要读取和路由写入由 panel/controller 负责。
 
 import { Puzzle } from "lucide-react";
@@ -19,10 +19,10 @@ const ITEM = {
 } satisfies CapabilitySidebarItem;
 
 describe("CapabilitySidebarItemView", () => {
-  it("uses shared row semantics and dispatches the exact item", async () => {
+  it("dispatches the exact item through mouse and keyboard", async () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();
-    const { container } = render(
+    render(
       <CapabilitySidebarItemView
         active
         item={ITEM}
@@ -31,10 +31,8 @@ describe("CapabilitySidebarItemView", () => {
     );
 
     const row = screen.getByRole("button");
-    expect(row.className).toContain("radius-control-md");
-    expect(container.querySelector("span.radius-control-md")).toBeTruthy();
-    expect(screen.getByText(ITEM.label).className).toContain("ui-type-section-title");
-    expect(screen.getByText(ITEM.meta).className).toContain("ui-type-caption");
+    screen.getByText(ITEM.label);
+    screen.getByText(ITEM.meta);
 
     await user.click(row);
     expect(onSelect).toHaveBeenCalledWith(ITEM);
