@@ -9,17 +9,16 @@ import { type ReactNode, type RefObject } from "react";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiPanel } from "@/shared/ui/panel";
 import { UiInput } from "@/shared/ui/form/form-control";
+import { TaskRoomAgentPicker } from "./task-room-agent-picker";
 import { TaskDestinationPicker } from "./task-destination-picker";
 
 import type {
-  TargetType,
   TaskFormDraft,
 } from "../scheduled-task-dialog-types";
 import {
   TaskBasicsAdvanced,
 } from "./task-basics-advanced";
 import {
-  buildTaskDeliveryTargetPresentation,
   type TaskBasicsActions,
   type TaskBasicsData,
 } from "./task-basics-model";
@@ -44,17 +43,11 @@ export function TaskBasicsPanel({
   children,
   data,
   form,
-  isEditing,
   needsSessionRebind,
   expandAdvanced,
   nameRef,
 }: TaskBasicsPanelProps) {
   const { t } = useI18n();
-  const deliveryTarget = buildTaskDeliveryTargetPresentation(form, data, t);
-  const deliveryTargetActions: Record<TargetType, (value: string) => void> = {
-    agent: actions.setSelectedDeliveryAgentId,
-    room: actions.setSelectedDeliveryRoomId,
-  };
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
@@ -72,17 +65,20 @@ export function TaskBasicsPanel({
       </div>
       {children}
       <UiPanel padding="none" radius="md" className="divide-y divide-(--divider-subtle-color) p-2">
-        <TaskDestinationPicker kind="execution" actions={actions} data={data} form={form} />
-        <TaskDestinationPicker kind="delivery" actions={actions} data={data} form={form} />
+        <div>
+          <TaskDestinationPicker kind="execution" actions={actions} data={data} form={form} />
+          <TaskRoomAgentPicker kind="execution" actions={actions} data={data} form={form} />
+        </div>
+        <div>
+          <TaskDestinationPicker kind="delivery" actions={actions} data={data} form={form} />
+          <TaskRoomAgentPicker kind="delivery" actions={actions} data={data} form={form} />
+        </div>
       </UiPanel>
 
       <TaskBasicsAdvanced
         actions={actions}
         data={data}
-        deliveryTarget={deliveryTarget}
-        deliveryTargetActions={deliveryTargetActions}
         form={form}
-        isEditing={isEditing}
         needsSessionRebind={needsSessionRebind}
         expandAdvanced={expandAdvanced}
       >

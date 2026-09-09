@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Simplify scheduled task destination selection: clarify the DM/Room type filter and show independent Room execution/reply member selectors beside their destinations.
+
 - Keep the last MCP tool list visible on ordinary refresh failures with an inline stale-data notice; hide it when access is lost.
 
 - Isolate MCP tool snapshots and read failures when switching connector configurations.

@@ -3,7 +3,7 @@
 // POS: 定时任务运行和接收选择器；不请求资源、不拼装服务端载荷。
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, UserRound, Users } from "lucide-react";
 import { getTabbableElements } from "@/shared/lib/browser/focus-navigation";
 import { isImeKeyboardEvent } from "@/shared/lib/browser/ime-keyboard-event";
 import { focusAfterAnchoredOverlayExit } from "@/shared/ui/overlay/overlay-focus-navigation";
@@ -95,8 +95,9 @@ export function TaskDestinationPicker({ kind, data, form, actions }: {
     <div className="flex shrink-0 items-center gap-2 border-b border-(--divider-subtle-color) pb-2">
       <UiSearchInput className="min-w-0 flex-1" aria-label={t("capability.scheduled_search_chats")}
         placeholder={t("capability.scheduled_search_chats")} value={search} onChange={setSearch} />
-      <UiSelectMenu className="max-w-28" ariaLabel={t("capability.scheduled_target_filter")} value={typeFilter} onChange={setTypeFilter}
-        options={[{value: "all", label: t("capability.scheduled_target_all")}, {value: "agent", label: t("capability.scheduled_dialog_target_type_agent")}, {value: "room", label: t("capability.scheduled_dialog_target_type_room")}]} />
+      <UiSelectMenu className="w-28 shrink-0" ariaLabel={t("capability.scheduled_target_filter")} value={typeFilter} onChange={setTypeFilter}
+        options={[{value: "all", label: t("capability.scheduled_target_all")}, {value: "agent", label: "DM"}, {value: "room", label: "Room"}]} />
+
     </div>
     {!execution ? <UiButton className="w-full shrink-0 justify-between" variant="ghost" size="sm" onClick={() => select(null)}>
       {t("capability.scheduled_dialog_reply_none")}{currentValue === "none" ? <Check aria-hidden="true" className="h-4 w-4" /> : null}
@@ -105,6 +106,7 @@ export function TaskDestinationPicker({ kind, data, form, actions }: {
       <div className="soft-scrollbar min-h-0 overflow-y-auto overscroll-contain border-r border-(--divider-subtle-color) py-2 pr-2" aria-label={t("capability.scheduled_objects")}>
         {[...groups].map(([key, items]) => <UiButton key={key} className="w-full justify-start text-left" variant="ghost" size="sm"
           aria-pressed={activeGroup === key} onClick={() => setBrowsingGroup(key)}>
+          {items[0].targetType === "room" ? <Users aria-hidden="true" className="h-4 w-4 shrink-0" /> : <UserRound aria-hidden="true" className="h-4 w-4 shrink-0" />}
           <span className="truncate">{items[0].group}</span>
         </UiButton>)}
       </div>
