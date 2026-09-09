@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Align Team message typography with shared styles, allow author rows to wrap
+  and preserve complete Unicode initials.
+
 - Keep scheduled target picker content scrollable in short windows and describe
   the current target accessibly on each trigger.
 

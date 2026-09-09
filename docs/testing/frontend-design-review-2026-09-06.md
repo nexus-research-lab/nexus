@@ -3800,3 +3800,10 @@ Select 行保持 in_progress（本轮只复审新增 onOpen 契约），字体�
 Team Enter 发送接入公共 IME 判断，组合输入和 keyCode 229 不发送，Shift+Enter 保留换行。submit 同步拒绝空文本、发送中及 bootstrap 未就绪；成功清空、失败保留的既有草稿行为不变。加载增加 status，错误增加 alert，首次加载失败不显示空会话；发送图标作为具名按钮装饰。
 
 新增 3 项真实表单交互回归覆盖上述入口和状态，目标 lint/typecheck 通过，日志 /tmp/nexus-a110-{target,lint,types}.log。未改变 transport 或宿主，未做视觉验证。Team 页推进 in_progress，消息视图/排版与滚动仍待审。489 项现为 218 pending、133 in_progress、110 improved、22 retained、6 removed。
+
+
+## A111 — Team 消息身份与公共排版
+
+标题、作者、时间、加载/空态与错误使用公共 Typography roles；作者行支持换行，时间按界面语言格式化。保留真人消息圆形首字标记以区别 Agent 身份，但删除 UTF-16 slice，复用现有 getInitials 完整字素逻辑，并将重复标记设为装饰。Markdown 正文仍由公共渲染器拥有。
+
+Team 4 项回归含完整 emoji 首字、作者、Markdown 内容及不暴露内部身份，目标 eslint/typecheck 通过，见 /tmp/nexus-a111-{target,lint,types}.log。无视觉验证，滚动尚待审，清单状态计数不变。
