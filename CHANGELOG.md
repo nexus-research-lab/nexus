@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Refine the fixed sidebar wordmark to 22px with balanced weight and tighter spacing.
+- Align community-search Enter behavior with disabled and IME input boundaries.
+
 - Show typography limits and warn before clamping out-of-range values on blur.
 - Keep the sidebar NEXUS wordmark left-aligned with fixed size and letter spacing.
 

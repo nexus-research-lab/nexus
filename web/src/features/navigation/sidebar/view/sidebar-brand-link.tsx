@@ -35,18 +35,18 @@ export function SidebarBrandLink({
         className="sidebar-brand-wordmark relative w-max max-w-full cursor-pointer whitespace-nowrap uppercase leading-none"
         style={{
           fontFamily: '"Panchang", var(--font-sans)',
-          fontSize: "18px",
-          fontWeight: 280,
+          fontSize: "22px",
+          fontWeight: 320,
         }}
       >
         <span
           aria-hidden="true"
-          className="absolute inset-x-0 top-0 flex gap-[0.22em] translate-y-[1.5px] text-[color:color-mix(in_srgb,var(--text-strong)_38%,transparent)] opacity-60 blur-[0.2px]"
+          className="absolute inset-x-0 top-0 flex gap-[0.16em] translate-y-[1.5px] text-[color:color-mix(in_srgb,var(--text-strong)_38%,transparent)] opacity-60 blur-[0.2px]"
         >
           {Array.from(wordmark, (letter, index) => <span key={index}>{letter}</span>)}
         </span>
         <span
-          className="relative flex gap-[0.22em] bg-clip-text text-transparent transition-opacity duration-(--motion-duration-fast) group-hover/brand:opacity-80"
+          className="relative flex gap-[0.16em] bg-clip-text text-transparent transition-opacity duration-(--motion-duration-fast) group-hover/brand:opacity-80"
           style={{
             backgroundImage:
               "linear-gradient(180deg, color-mix(in srgb, var(--text-strong) 94%, white 6%) 4%, var(--text-default) 48%, color-mix(in srgb, var(--text-muted) 72%, var(--text-strong) 28%) 100%)",
