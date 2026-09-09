@@ -1,6 +1,6 @@
 /**
  * INPUT: 分组配对、Agent 目录与配对写命令。
- * OUTPUT: 外部对象摘要、共享 Agent 选择文字/缺项绑定与按需展开的技术详情。
+ * OUTPUT: 名称旁的授权状态、外部对象摘要、共享 Agent 选择文字/缺项绑定与按需展开的技术详情。
  * POS: 配对目录列表纯视图；外部身份属于管理对象，内部绑定键才延后展示。
  */
 "use client";
@@ -219,9 +219,9 @@ function PairingRow({
         <div className="flex min-w-0 items-center gap-2.5">
           <ChannelIcon type={item.channel_type} />
           <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 items-center gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
               <div className={cn(
-                "min-w-0 flex-1 truncate",
+                "min-w-0 max-w-full truncate",
                 getUiTypographyClassName({
                   role: "control",
                   tone: "strong",
