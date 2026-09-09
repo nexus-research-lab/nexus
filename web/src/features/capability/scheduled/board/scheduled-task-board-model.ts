@@ -4,6 +4,7 @@
  * POS: 定时任务看板唯一纯投影模型。
  */
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
+import type { TranslationKey } from "@/shared/i18n/messages";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 
 import type { TaskDialogCreatePreset } from "../dialog/scheduled-task-dialog-types";
@@ -143,25 +144,25 @@ export function buildScheduledTaskSuggestions(
   ];
 }
 
-export const SCHEDULED_TASK_BOARD_COLUMNS: ScheduledTaskBoardColumnDefinition[] = [
+const SCHEDULED_TASK_BOARD_COLUMNS: (Omit<ScheduledTaskBoardColumnDefinition, "title"> & { titleKey: TranslationKey })[] = [
   {
     id: "running",
-    title: "执行中",
+    titleKey: "capability.scheduled_column_running",
     tone: "primary",
   },
   {
     id: "scheduled",
-    title: "已计划",
+    titleKey: "capability.scheduled_column_scheduled",
     tone: "success",
   },
   {
     id: "attention",
-    title: "需处理",
+    titleKey: "capability.scheduled_column_attention",
     tone: "warning",
   },
   {
     id: "stopped",
-    title: "已停止",
+    titleKey: "capability.scheduled_column_stopped",
     tone: "muted",
   },
 ];
@@ -458,9 +459,12 @@ function sortColumnItems(
 
 export function buildScheduledTaskBoard(
   items: ScheduledTaskItem[],
+  t: Translate,
 ): ScheduledTaskBoardColumn[] {
   return SCHEDULED_TASK_BOARD_COLUMNS.map((column) => ({
-    ...column,
+    id: column.id,
+    tone: column.tone,
+    title: t(column.titleKey),
     items: sortColumnItems(
       column.id,
       items.filter((task) => getTaskColumnId(task) === column.id),

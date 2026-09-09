@@ -473,7 +473,7 @@ export function ScheduledTaskBoard(props: ScheduledTaskBoardProps) {
       ) : (
         <ScheduledTaskReadyBoard
           {...props}
-          columns={buildScheduledTaskBoard(props.items)}
+          columns={buildScheduledTaskBoard(props.items, t)}
         />
       )}
     </div>
