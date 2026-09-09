@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Localize direct connector credential dialogs while preserving entered credentials across language changes.
+
 - Keep nested select menus above their parent popovers, fixing hidden scheduled-task type options.
 
 - Use “智能体 / 群聊” for scheduled task type filters in Chinese and “DM / Room” in English.
