@@ -7,6 +7,7 @@
 import { type ReactNode, type RefObject } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiPanel } from "@/shared/ui/panel";
 import { UiInput } from "@/shared/ui/form/form-control";
 import { TaskDestinationPicker } from "./task-destination-picker";
 
@@ -69,10 +70,10 @@ export function TaskBasicsPanel({
         {titleAction}
       </div>
       {children}
-      <div className="divide-y divide-(--divider-subtle-color) rounded-xl border border-(--divider-subtle-color) p-2">
+      <UiPanel padding="none" radius="md" className="divide-y divide-(--divider-subtle-color) p-2">
         <TaskDestinationPicker kind="execution" actions={actions} data={data} form={form} />
         <TaskDestinationPicker kind="delivery" actions={actions} data={data} form={form} />
-      </div>
+      </UiPanel>
 
       <TaskBasicsAdvanced
         actions={actions}

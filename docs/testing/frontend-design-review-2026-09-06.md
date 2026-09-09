@@ -4071,3 +4071,12 @@ OnboardingTourOverlay 忽略已消费 Escape、输入法组合态与 229 兼容�
 ### A159 — Agent 技能卡片说明关联
 
 技能开关通过实例唯一 ID 关联用途说明，无说明时不产生悬空引用；标题与摘要允许连续字符串断行，保留两行限制和唯一开关热区。3 项命令隔离、禁用和独立说明关联测试及目标 lint 通过；未做视觉验收。
+
+
+### A160 — 新版定时任务架构复核
+
+以当前右侧页内编辑、固定页脚、目标双列浮层和四列看板为准，不回滚旧 UI。核对目录命令保护、创建/更新控制器、草稿原子选择、资源投影、看板及历史测试：浏览对象不改变草稿，选择会话由 use-task-form 一次更新完整绑定；提交仍由 controller 校验 configuration version、request identity、scope 和 unknown 锁，视图未接管写 API。
+
+修正三项所有权问题：目标候选/搜索/分组/当前值投影提取至 task-destination-picker-model；执行/接收分组使用 UiPanel md，保持现有 12px 圆角与领域内间距；计划选择的后代按钮样式覆盖改为共享 Select plain 表面，hover/focus/disabled 仍归公共 owner。任务标题等领域专用组合继续留在当前编辑面，没有机械移动目录或重建第二套表单事务。
+
+定时任务及共享 Select 12 文件 / 98 项组件测试通过，定时会话合同 12 项通过，scheduled 全域与变更共享文件 lint、全前端 typecheck 通过。日志 /tmp/nexus-scheduled-a160-final.log 与 /tmp/nexus-scheduled-a160-contracts.log。未运行服务、浏览器或原生视觉验证；这些证据不证明像素/响应式几何验收或全部后端正确性。

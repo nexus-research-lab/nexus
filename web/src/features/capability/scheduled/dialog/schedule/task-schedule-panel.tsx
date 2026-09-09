@@ -175,7 +175,7 @@ export function TaskSchedulePanel({
         <UiSelectMenu id={`${formId}-kind`} ariaLabel={t("capability.scheduled_dialog_schedule")}
           onChange={(value) => actions.setKind(value as ScheduleKind)}
           options={buildScheduleOptions(t).map((option) => ({label: option.label, value: option.key}))}
-          className="[&>button]:border-0 [&>button]:bg-transparent [&>button]:text-right [&>button]:shadow-none" value={schedule.kind} />
+          surface="plain" className="text-right" value={schedule.kind} />
       </UiField>
 
       {schedule.kind === "at" ? (
