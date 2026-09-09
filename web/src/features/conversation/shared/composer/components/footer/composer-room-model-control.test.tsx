@@ -65,6 +65,7 @@ function setupFixture(width = 1024) {
       resetTarget, saving: false, scope: undefined, selectTarget: setSelectedId,
       settings: { provider: "provider", model: "advanced", permission_mode: "", connector_ids: null },
       settingsLoading: false, settingsReadFailure: null, mutationFailure: null,
+      dismissMutationFailure: vi.fn(),
       target: availableTargets.find((target) => target.agentId === selectedId),
       targetViews: availableTargets.map((target) => ({ target, busy: false, modelLabel: "Advanced" })),
       retryConnectors: vi.fn(), retryProviderOptions: vi.fn(), retrySessionSettings: vi.fn(async () => undefined),

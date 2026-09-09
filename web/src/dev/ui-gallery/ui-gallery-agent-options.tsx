@@ -3,6 +3,7 @@
 // POS: Development-only product fixture; all commands update local state and never call product services.
 
 import { useState } from "react";
+import { MemoryRouter } from "react-router-dom";
 import { AgentOptionsAdvancedTab } from "@/features/agents/options/components/agent-options-advanced-tab";
 import { AgentSkillCard } from "@/features/agents/options/components/skills/agent-skill-card";
 import { AgentOptionsIdentityTab } from "@/features/agents/options/components/identity/agent-options-identity-tab";
@@ -32,7 +33,6 @@ function toggleValue(values: string[], value: string) {
 
 export function AgentOptionsGallery({ locale }: { locale: Locale }) {
   const [permissionMode, setPermissionMode] = useState("default");
-  const [allowedTools, setAllowedTools] = useState(["Bash"]);
   const [connectorIds, setConnectorIds] = useState(["Previously enabled connector"]);
   const [skillEnabled, setSkillEnabled] = useState(false);
   const [skillBusy, setSkillBusy] = useState(false);
@@ -53,12 +53,14 @@ export function AgentOptionsGallery({ locale }: { locale: Locale }) {
         ))}
       </div>
       <div data-gallery-agent-permissions>
-        <AgentOptionsAdvancedTab
-          allowedTools={allowedTools} connectorIds={connectorIds} connectors={CONNECTORS}
-          connectorsError={null} connectorsLoading={false} onPermissionModeChange={setPermissionMode}
-          onRetryConnectors={() => undefined} onToggleConnector={(id) => setConnectorIds((values) => toggleValue(values, id))}
-          onToggleTool={(name) => setAllowedTools((values) => toggleValue(values, name))} permissionMode={permissionMode}
-        />
+        <MemoryRouter>
+          <AgentOptionsAdvancedTab
+            connectorIds={connectorIds} connectors={CONNECTORS}
+            connectorsError={null} connectorsLoading={false} onPermissionModeChange={setPermissionMode}
+            onRetryConnectors={() => undefined} onToggleConnector={(id) => setConnectorIds((values) => toggleValue(values, id))}
+            permissionMode={permissionMode}
+          />
+        </MemoryRouter>
       </div>
       <div className="grid gap-3 sm:grid-cols-2" data-gallery-agent-skills>
         <AgentSkillCard actionLabel="Toggle" blocked={false} busy={skillBusy} commandBusy={skillBusy}

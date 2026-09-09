@@ -4,17 +4,17 @@
 
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { AGENT_PERMISSION_MODES, resolveRuntimePermissionMode } from "@/lib/agent-options";
+import { useDefaultAgentRuntimeKind } from "@/hooks/settings/use-default-agent-runtime-kind";
+import { useEffect, useId, useState, type ReactNode } from "react";
 
 import { Link2Off, Settings2 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { includeUnavailableAgentSelection } from "@/lib/agent-selection-options";
 import { UiDisclosure } from "@/shared/ui/disclosure/disclosure";
-import { UiChoiceButton } from "@/shared/ui/form/choice";
 import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
-import { UiPanel } from "@/shared/ui/panel";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
@@ -25,24 +25,18 @@ import type {
   TaskFormDraft,
 } from "../scheduled-task-dialog-types";
 import {
-  buildExecutionSessionPresentation,
-  buildReplySessionPresentation,
   buildTaskAdvancedSummary,
   type TaskBasicsActions,
   type TaskBasicsData,
   type TaskSelectPresentation,
 } from "./task-basics-model";
 import {
-  buildDeliveryTargetTypeOptions,
-  buildExecutionModeOptions,
   buildPermissionModeOptions,
-  buildReplyModeOptions,
-  getExecutionModeHelp,
   getPermissionModeHelp,
-  getReplyModeHelp,
 } from "./task-form-options";
 
 interface TaskBasicsAdvancedProps {
+  children?: ReactNode;
   actions: TaskBasicsActions;
   data: TaskBasicsData;
   deliveryTarget: TaskSelectPresentation;
@@ -50,6 +44,7 @@ interface TaskBasicsAdvancedProps {
   form: TaskFormDraft;
   isEditing: boolean;
   needsSessionRebind: boolean;
+  expandAdvanced?: boolean;
 }
 
 interface TaskChoiceFieldProps<Value extends string> {
@@ -69,20 +64,12 @@ function TaskChoiceField<Value extends string>({
   options,
   value,
 }: TaskChoiceFieldProps<Value>) {
+  const id = useId();
   return (
-    <UiField description={help} label={label}>
-      <div className="flex flex-wrap gap-2">
-        {options.map((option) => (
-          <UiChoiceButton
-            active={value === option.key}
-            disabled={isDisabled?.(option.key)}
-            key={option.key}
-            onClick={() => onChange(option.key)}
-          >
-            {option.label}
-          </UiChoiceButton>
-        ))}
-      </div>
+    <UiField htmlFor={id} description={help} className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-1 [&>p]:col-span-2" label={label}>
+      <UiSelectMenu id={id} ariaLabel={label} value={value} onChange={(next) => onChange(next as Value)}
+        options={options.map((option) => ({label: option.label, value: option.key, disabled: isDisabled?.(option.key)}))}
+        className="[&>button]:border-0 [&>button]:bg-transparent [&>button]:text-right [&>button]:shadow-none" />
     </UiField>
   );
 }
@@ -98,11 +85,12 @@ function TaskSessionField({
   return (
     <div className="space-y-2">
       <UiField
-        description={presentation.error ? undefined : presentation.description}
+        className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-4"
         htmlFor={id}
         label={presentation.label}
       >
         <UiSelectMenu
+          className="[&>button]:border-0 [&>button]:bg-transparent [&>button]:text-right [&>button]:shadow-none"
           ariaLabel={presentation.ariaLabel}
           disabled={presentation.disabled}
           id={id}
@@ -142,40 +130,6 @@ export function TaskResourceFailure({
   );
 }
 
-function TaskDeliveryTargetTypeField({
-  actions,
-  form,
-}: Pick<TaskBasicsAdvancedProps, "actions" | "form">) {
-  const { t } = useI18n();
-  if (form.executionKind !== "agent" || form.replyMode !== "selected") {
-    return null;
-  }
-  return (
-    <TaskChoiceField
-      label={t("capability.scheduled_dialog_delivery_target_type")}
-      onChange={actions.setDeliveryTargetType}
-      options={buildDeliveryTargetTypeOptions(t)}
-      value={form.deliveryTargetType}
-    />
-  );
-}
-
-function TaskDeliveryTargetField({
-  deliveryTarget,
-  deliveryTargetActions,
-  form,
-}: TaskBasicsAdvancedProps) {
-  if (form.executionKind !== "agent" || form.replyMode !== "selected") {
-    return null;
-  }
-  return (
-    <TaskSessionField
-      onChange={deliveryTargetActions[form.deliveryTargetType]}
-      presentation={deliveryTarget}
-    />
-  );
-}
-
 function TaskDedicatedSessionField({
   actions,
   form,
@@ -197,52 +151,6 @@ function TaskDedicatedSessionField({
         value={form.dedicatedSessionKey}
       />
     </UiField>
-  );
-}
-
-function TaskExecutionModeField({
-  actions,
-  form,
-  isEditing,
-}: Pick<TaskBasicsAdvancedProps, "actions" | "form" | "isEditing">) {
-  const { t } = useI18n();
-  if (form.executionKind !== "agent" || form.targetType !== "agent") {
-    return null;
-  }
-  const options = buildExecutionModeOptions(t).filter((option) => (
-    option.key === "existing"
-      || option.key === "temporary"
-      || (isEditing && option.key === form.executionMode)
-  ));
-  return (
-    <>
-      <TaskChoiceField
-        help={getExecutionModeHelp(form.executionMode, t)}
-        label={t("capability.scheduled_dialog_execution_session")}
-        onChange={actions.setExecutionMode}
-        options={options}
-        value={form.executionMode}
-      />
-      <TaskDedicatedSessionField actions={actions} form={form} />
-    </>
-  );
-}
-
-function TaskExecutionSessionField({
-  actions,
-  data,
-  form,
-}: TaskBasicsAdvancedProps) {
-  const { t } = useI18n();
-  const presentation = buildExecutionSessionPresentation(form, data, t);
-  if (!presentation) {
-    return null;
-  }
-  return (
-    <TaskSessionField
-      onChange={actions.setSelectedSessionKey}
-      presentation={presentation}
-    />
   );
 }
 
@@ -275,23 +183,6 @@ function TaskRoomAgentField({
         ],
         value: form.selectedAgentId,
       }}
-    />
-  );
-}
-
-function TaskReplySessionField({
-  actions,
-  data,
-  form,
-}: TaskBasicsAdvancedProps) {
-  const { t } = useI18n();
-  if (form.replyMode !== "selected") {
-    return null;
-  }
-  return (
-    <TaskSessionField
-      onChange={actions.setSelectedReplySessionKey}
-      presentation={buildReplySessionPresentation(form, data, t)}
     />
   );
 }
@@ -331,51 +222,28 @@ function TaskDeliveryRoomAgentField({
   );
 }
 
-function TaskDeliveryFields(props: TaskBasicsAdvancedProps) {
-  const { t } = useI18n();
-  const { actions, form } = props;
-  if (form.executionKind !== "agent") {
-    return null;
-  }
-  const options = buildReplyModeOptions(t).filter((option) => (
-    option.key === "none"
-      || option.key === "selected"
-  ));
-  return (
-    <>
-      <TaskChoiceField
-        help={getReplyModeHelp(form.replyMode, t)}
-        isDisabled={(replyMode) => (
-          form.executionMode === "main" && replyMode !== "none"
-        )}
-        label={t("capability.scheduled_dialog_delivery")}
-        onChange={actions.setReplyMode}
-        options={options}
-        value={form.replyMode}
-      />
-      <TaskDeliveryTargetTypeField actions={actions} form={form} />
-      <TaskDeliveryTargetField {...props} />
-      <TaskReplySessionField {...props} />
-      <TaskDeliveryRoomAgentField {...props} />
-    </>
-  );
-}
-
 function TaskPermissionModeField({
   actions,
   form,
-}: Pick<TaskBasicsAdvancedProps, "actions" | "form">) {
+  data,
+}: Pick<TaskBasicsAdvancedProps, "actions" | "form" | "data">) {
   const { t } = useI18n();
+  const runtimeKind = useDefaultAgentRuntimeKind();
+  const effectivePermissionMode = resolveRuntimePermissionMode(form.permissionMode, runtimeKind);
   if (form.executionKind !== "agent") {
     return null;
   }
   return (
     <TaskChoiceField
-      help={getPermissionModeHelp(form.permissionMode, t)}
+      help={getPermissionModeHelp(effectivePermissionMode, t)}
       label={t("capability.scheduled_dialog_permission_mode")}
       onChange={actions.setPermissionMode}
-      options={buildPermissionModeOptions(t)}
-      value={form.permissionMode}
+      options={buildPermissionModeOptions(t, true, runtimeKind).map((option) => {
+        if (option.key !== "copy") return option;
+        const mode = AGENT_PERMISSION_MODES.find((item) => item.value === data.inheritedPermissionMode);
+        return { ...option, label: `${option.label} · ${mode ? t(mode.labelKey) : t("capability.scheduled_dialog_permission_pending")}` };
+      })}
+      value={effectivePermissionMode}
     />
   );
 }
@@ -407,10 +275,10 @@ export function TaskBasicsAdvanced(props: TaskBasicsAdvancedProps) {
   const { actions, form } = props;
   const [isOpen, setIsOpen] = useState(props.needsSessionRebind);
   useEffect(() => {
-    if (props.needsSessionRebind) {
+    if (props.needsSessionRebind || props.expandAdvanced) {
       setIsOpen(true);
     }
-  }, [props.needsSessionRebind]);
+  }, [props.needsSessionRebind, props.expandAdvanced]);
   return (
     <>
       {props.needsSessionRebind ? (
@@ -422,15 +290,6 @@ export function TaskBasicsAdvanced(props: TaskBasicsAdvancedProps) {
         />
       ) : null}
 
-      <UiPanel className="flex flex-col gap-4" padding="sm" radius="md">
-        <TaskExecutionModeField actions={actions} form={form} isEditing={props.isEditing} />
-        <TaskExecutionSessionField {...props} />
-        <TaskRoomAgentField {...props} />
-      </UiPanel>
-
-      <UiPanel className="flex flex-col gap-4" padding="sm" radius="md">
-        <TaskDeliveryFields {...props} />
-      </UiPanel>
 
       <UiDisclosure
         contentClassName="flex flex-col gap-4"
@@ -444,9 +303,13 @@ export function TaskBasicsAdvanced(props: TaskBasicsAdvancedProps) {
         onToggle={(event) => setIsOpen(event.currentTarget.open)}
         open={isOpen}
         summaryRole="control"
-        variant="panel"
+        variant="inline"
       >
-          <TaskPermissionModeField actions={actions} form={form} />
+          {props.children}
+          <TaskDedicatedSessionField actions={actions} form={form} />
+          <TaskRoomAgentField {...props} />
+          <TaskDeliveryRoomAgentField {...props} />
+          <TaskPermissionModeField actions={actions} form={form} data={props.data} />
           <TaskExpirationField actions={actions} form={form} />
       </UiDisclosure>
     </>

@@ -1,5 +1,5 @@
 // INPUT: 已装配的 HTTP handlers 与统一 API prefix。
-// OUTPUT: 核心、Session、Room、能力和 Web 路由表。
+// OUTPUT: 核心、可选 Team、Session、Room、能力和 Web 路由表。
 // POS: app 层唯一 HTTP route composition root。
 package server
 
@@ -13,7 +13,7 @@ import (
 func (s *Server) mountRoutes() {
 	s.router.Post(
 		s.prefixPath("/internal/runtime/configuration"),
-		serverruntime.NewConfigurationHandler(s.services.Configuration),
+		serverruntime.NewConfigurationHandler(s.services.Configuration, s.services.Permission),
 	)
 	if s.handlers.browser != nil {
 		s.router.Get(
@@ -26,6 +26,7 @@ func (s *Server) mountRoutes() {
 		)
 	}
 	s.mountCoreRoutes()
+	s.mountTeamRoutes()
 	s.mountProviderRoutes()
 	s.mountAdminRoutes()
 	s.mountProjectRoutes()
@@ -36,6 +37,27 @@ func (s *Server) mountRoutes() {
 	s.mountExecutionRoutes()
 	s.mountPlaceholderRoutes()
 	s.mountWebAppRoutes()
+}
+
+// mountTeamRoutes 仅在 Web Control 与 Relay 均已装配时挂载多人 Team gateway。
+func (s *Server) mountTeamRoutes() {
+	if strings.TrimSpace(s.config.RelayURL) == "" || s.handlers.team == nil {
+		return
+	}
+	s.router.Post(s.prefixPath("/team/bootstrap"), s.handlers.team.HandleBootstrap)
+	s.router.Post(
+		s.prefixPath("/team/conversations/{conversation_id}/messages"),
+		s.handlers.team.HandlePostMessage,
+	)
+	s.router.Get(
+		s.prefixPath("/team/conversations/{conversation_id}/snapshot"),
+		s.handlers.team.HandleSnapshot,
+	)
+	s.router.Get(
+		s.prefixPath("/team/sync-streams/{stream_id}/difference"),
+		s.handlers.team.HandleDifference,
+	)
+	s.router.Get(s.prefixPath("/team/stream"), s.handlers.team.HandleStream)
 }
 
 // mountProjectRoutes 挂载共享项目 ACL 控制面。

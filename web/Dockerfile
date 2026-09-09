@@ -28,6 +28,8 @@ RUN pnpm run build
 
 FROM nginx:1.28-alpine AS runner
 
+RUN mkdir -p /etc/nginx/nexus-locations.d
+
 COPY deploy/nginx.conf /etc/nginx/nginx.conf
 COPY deploy/nginx-locations.conf /etc/nginx/snippets/nexus-locations.conf
 COPY deploy/nginx-http.conf.template /etc/nginx/nexus-templates/http.conf.template

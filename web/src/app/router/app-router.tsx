@@ -40,6 +40,9 @@ const HomePage = lazy(() =>
 const RoomPage = lazy(() =>
   import("@/pages/room/room-page").then((m) => ({ default: m.RoomPage })),
 );
+const TeamPage = lazy(() =>
+  import("@/pages/team/team-page").then((m) => ({ default: m.TeamPage })),
+);
 const ScheduledTasksPage = lazy(() =>
   import("@/pages/scheduled-tasks/scheduled-tasks-page").then((m) => ({ default: m.ScheduledTasksPage })),
 );
@@ -120,6 +123,7 @@ export function AppRouter() {
                 {/* 有侧边栏的页面 — 共享 AppLayout，路由切换时侧边栏不重新挂载 */}
                 <Route element={<AppLayout />}>
                   <Route element={<HomePage />} path={APP_ROUTE_PATHS.home} />
+                  <Route element={<TeamPage />} path={APP_ROUTE_PATHS.team} />
 
                   {/* Room 路由 */}
                   <Route element={<RoomPage />} path={APP_ROUTE_PATHS.room} />

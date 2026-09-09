@@ -70,7 +70,7 @@ export function resolveMobileAppRoute({
   pathname: string;
   search: string;
 }): MobileAppRoutePresentation {
-  if (pathname.startsWith("/rooms/")) {
+  if (pathname.startsWith("/rooms/") || pathname === APP_ROUTE_PATHS.team) {
     return { mode: "conversation" };
   }
   if (pathname === APP_ROUTE_PATHS.home) {

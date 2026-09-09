@@ -47,6 +47,7 @@ function LauncherRecentEntryChip({
         event.stopPropagation();
         onOpen(model.entry);
       }}
+      className="text-(--text-strong)"
       size="sm"
       variant="text"
     >
@@ -98,6 +99,7 @@ export function LauncherRecentEntries({
       data-tour-anchor={LAUNCHER_TOUR_ANCHORS.recent}
       className={LauncherRecentEntryLayout.listClassName}
     >
+      <div className="flex w-full flex-wrap items-center justify-center gap-x-3 gap-y-1">
       {models.map((model, index) => (
         <LauncherRecentEntryChip
           index={index}
@@ -106,6 +108,7 @@ export function LauncherRecentEntries({
           onOpen={onOpen}
         />
       ))}
+      </div>
       <FadeSlideIn
         delayMs={getLauncherHandoffDelayMs(recentEntries.length)}
         durationMs={360}

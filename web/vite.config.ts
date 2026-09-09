@@ -124,7 +124,7 @@ export default defineConfig(({ mode }) => ({
     proxy: {
       "/nexus/v1": {
         target: resolveDevTarget(mode, "VITE_BACKEND_PORT", "8010"),
-        changeOrigin: true,
+        changeOrigin: false,
         ws: true,
       },
       "/auth/v1": {

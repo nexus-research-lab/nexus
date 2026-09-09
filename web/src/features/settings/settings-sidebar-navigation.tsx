@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import {
   ArrowLeft,
   Cable,
@@ -12,6 +14,9 @@ import {
   UserRound,
   type LucideIcon,
 } from "lucide-react";
+
+import { UiSearchInput } from "@/shared/ui/form/form-control";
+import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 
 import { isDesktopRuntime } from "@/config/desktop-runtime";
 import { useAuth } from "@/shared/auth/auth-context";
@@ -27,6 +32,7 @@ import {
   SettingsNavigationButton,
   SettingsNavigationGroupLabel,
 } from "./shared/settings-panel-ui";
+import { SETTINGS_SEARCH_ITEMS } from "./settings-search-items";
 import { useSettingsNavigation } from "./use-settings-navigation";
 
 const SETTINGS_SECTION_ICONS: Record<SettingsSectionKey, LucideIcon> = {
@@ -51,10 +57,17 @@ export function SettingsSidebarNavigation({
   const { activeSection, backToWorkspace, selectSection } =
     useSettingsNavigation();
   const isRail = variant === "rail";
+  const [query, setQuery] = useState("");
+  const matcher = createUiSearchMatcher(isRail ? "" : query);
+  const searchItems = (section: SettingsSectionKey) => SETTINGS_SEARCH_ITEMS[section].filter(
+    (fields) => (isDesktopRuntime() || (fields[0] !== "settings.providers.ccswitch_title" && !fields[0].startsWith("settings.desktop.")))
+      && !matcher.empty && matcher.matches(fields.map((key) => t(key))),
+  );
   const navigationGroups = SETTINGS_NAVIGATION_GROUPS.map((group) => ({
     ...group,
     items: group.items.filter(
       (item) =>
+        (matcher.matches([t(item.labelKey), t(group.labelKey)]) || searchItems(item.key).length > 0) &&
         (item.key !== "workspace" || isDesktopRuntime()) &&
 				(item.key !== "browser" || isDesktopRuntime()) &&
         (item.key !== "operations" ||
@@ -94,13 +107,25 @@ export function SettingsSidebarNavigation({
       className="soft-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto px-2 py-2.5"
     >
       <SettingsNavigationButton
-        className="mb-3"
+        className="mb-2 font-normal"
         onClick={backToWorkspace}
       >
         <ArrowLeft className="h-3.5 w-3.5" />
         <span>{t("settings.back_to_workspace")}</span>
       </SettingsNavigationButton>
 
+      <UiSearchInput
+        aria-label={t("settings.search_navigation")}
+        placeholder={t("settings.search_navigation")}
+        className="mb-4"
+        value={query}
+        onChange={setQuery}
+      />
+      {navigationGroups.length === 0 ? (
+        <p role="status" className="ui-type-metadata px-2 text-(--text-muted)">
+          {t("settings.search_no_results")}
+        </p>
+      ) : null}
       <div className="flex flex-col gap-3">
         {navigationGroups.map((group) => (
           <section key={group.key}>
@@ -112,9 +137,9 @@ export function SettingsSidebarNavigation({
                 const Icon = SETTINGS_SECTION_ICONS[item.key];
                 const active = activeSection === item.key;
                 return (
+                  <div key={item.key}>
                   <SettingsNavigationButton
                     active={active}
-                    key={item.key}
                     onClick={() => selectSection(item.key)}
                   >
                     <Icon
@@ -122,6 +147,16 @@ export function SettingsSidebarNavigation({
                     />
                     <span className="truncate">{t(item.labelKey)}</span>
                   </SettingsNavigationButton>
+                  {searchItems(item.key).map((fields) => (
+                    <SettingsNavigationButton
+                      key={fields[0]}
+                      className="pl-7 font-normal"
+                      onClick={() => selectSection(item.key, fields[0])}
+                    >
+                      <span className="text-left whitespace-normal">{t(fields[0])}</span>
+                    </SettingsNavigationButton>
+                  ))}
+                  </div>
                 );
               })}
             </div>

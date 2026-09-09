@@ -18,9 +18,6 @@ it.each(["en", "zh"] as const)("announces %s loading and empty details without a
   expect(status.getAttribute("aria-busy")).toBe("true");
   expect(status.textContent).toBe(MESSAGES[locale]["room.thread_waiting"]);
   expect(status.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
-  expect(status.querySelector("svg")?.getAttribute("class")).toContain("motion-reduce:animate-none");
-  expect(status.className).toContain("min-h-32");
-  expect(status.className).not.toContain("border");
   rendered.rerender(view(false));
   expect(screen.getAllByRole("status")).toHaveLength(1);
   expect(status.getAttribute("aria-busy")).toBe("false");

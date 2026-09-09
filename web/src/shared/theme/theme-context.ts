@@ -42,11 +42,13 @@ export function detectInitialTheme(): Theme {
     return savedTheme;
   }
 
-  if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
-    return "dark";
-  }
+  return defaultTheme();
+}
 
-  return "light";
+// 首次打开与一键恢复共用默认值，不读取已有的主题偏好。
+export function defaultTheme(): Theme {
+  return typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches
+    ? "dark" : "light";
 }
 
 export function applyTheme(theme: Theme) {

@@ -5,7 +5,7 @@
 import { useRef } from "react";
 import { TaskBasicsPanel } from "@/features/capability/scheduled/dialog/form/task-basics-panel";
 import { useTaskForm } from "@/features/capability/scheduled/dialog/form/use-task-form";
-import { TaskSchedulePanel } from "@/features/capability/scheduled/dialog/schedule/task-schedule-panel";
+import { TaskSchedulePanel, TaskScheduleAdvanced } from "@/features/capability/scheduled/dialog/schedule/task-schedule-panel";
 import { createDefaultTaskSchedule } from "@/features/capability/scheduled/dialog/schedule/task-schedule-model";
 import { useTaskSchedule } from "@/features/capability/scheduled/dialog/schedule/use-task-schedule";
 import type { TaskBasicsData } from "@/features/capability/scheduled/dialog/form/task-basics-model";
@@ -35,6 +35,12 @@ export function TaskFormGallery() {
   }, noOp);
   const schedule = useTaskSchedule({ ...createDefaultTaskSchedule(), kind: "every", everyValue: "2", everyUnit: "hours" }, noOp);
   const data: TaskBasicsData = {
+    destinations: [
+      {...dmSessions[0], group: "Nova", targetType: "agent", agentId: "nova", roomId: ""},
+      {...roomSessions[0], group: "Research", targetType: "room", agentId: "", roomId: "research"},
+    ],
+    destinationStatus: ready,
+  inheritedPermissionMode: "auto",
     agentOptions, agents: ready, rooms: ready, sessions: ready, deliverySessions: ready,
     roomOptions, deliveryRoomOptions: roomOptions,
     sessionOptions: form.draft.targetType === "room" ? roomSessions : dmSessions,
@@ -46,15 +52,17 @@ export function TaskFormGallery() {
     <h2 className={getUiTypographyClassName({ role: "pageTitle", tone: "strong" })}>
       {galleryText(locale, "定时任务表单", "Scheduled task form")}
     </h2>
-    <div className="grid min-w-0 grid-cols-1 items-start gap-6 md:grid-cols-2">
+    <div className="mx-auto flex max-w-3xl min-w-0 flex-col gap-6">
       <div className="min-w-0" data-gallery-task-basics>
-        <TaskBasicsPanel actions={form.actions} data={data} form={form.draft} isEditing={false} nameRef={nameRef} needsSessionRebind={false} />
-      </div>
+        <TaskBasicsPanel actions={form.actions} data={data} form={form.draft} isEditing={false} nameRef={nameRef} needsSessionRebind={false}
+          advancedFields={<TaskScheduleAdvanced actions={schedule.actions} form={form.draft} formActions={form.actions} schedule={schedule.draft} />}>
       <div className="min-w-0" data-gallery-task-schedule>
         <TaskSchedulePanel actions={schedule.actions} form={form.draft} formActions={form.actions}
           formError={null} isReconciling={false} isRestoredCreateIntent={false} isMutationReviewed={false}
           mutationFailure={null} onConfirmMutationReviewed={noOp} onReconcile={noOp} onStartNewCreateIntent={noOp}
           refs={{ dailyPickerAnchorRef, singlePickerAnchorRef }} schedule={schedule.draft} view={schedule.view} />
+      </div>
+        </TaskBasicsPanel>
       </div>
     </div>
     <output className="sr-only" data-gallery-task-draft>{JSON.stringify({ form: form.draft, schedule: schedule.draft })}</output>

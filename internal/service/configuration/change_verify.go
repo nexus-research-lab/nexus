@@ -34,6 +34,13 @@ func (s *Service) snapshotAfterChange(
 		return DomainSnapshot{}, err
 	}
 
+	if request.Domain == DomainMembers {
+		if err = verifyMemberResult(resultValue, after, request.Operation); err != nil {
+			return after, err
+		}
+		after.Checks = append(after.Checks, okCheck(DomainMembers, "member_verified", "已从 Control 核对成员写后状态"))
+		return after, nil
+	}
 	if request.Domain == DomainRooms {
 		check, verifyErr := s.verifyRoomLifecycleChange(ctx, request, plan, resultValue, after)
 		if verifyErr != nil {

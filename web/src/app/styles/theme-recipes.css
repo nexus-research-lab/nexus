@@ -684,14 +684,12 @@
   @container sidebar-panel (max-width: 320px) {
     .sidebar-brand-wordmark {
       --sidebar-brand-font-size: 18px;
-      --sidebar-brand-letter-spacing: 0.58em;
     }
   }
 
   @container sidebar-panel (max-width: 280px) {
     .sidebar-brand-wordmark {
       --sidebar-brand-font-size: 16px;
-      --sidebar-brand-letter-spacing: 0.32em;
     }
   }
 
@@ -737,6 +735,9 @@
   .shell-navigation-rail {
     position: relative;
     z-index: 2;
+    /* 将壳层左侧留白纳入导航轨，图标与标签在整个可见区域内居中。 */
+    margin-left: calc(-1 * var(--sidebar-shell-leading-padding, 4px));
+    width: calc(56px + var(--sidebar-shell-leading-padding, 4px));
     background: var(--surface-shell-navigation-background);
     box-shadow: var(--surface-shell-inner-shadow);
   }
@@ -1804,7 +1805,7 @@
 
   /* 京华老宋体只进入聊天中文正文，避免侧栏摘要、工作区文档与其他 UI 被正文风格污染。 */
   .nexus-chat-feed .message-cjk-text {
-    font-family: var(--font-prose);
+    font-family: var(--chat-cjk-font-family, var(--font-prose));
     font-synthesis: style;
   }
 
@@ -1870,31 +1871,31 @@
   .nexus-chat-feed .nexus-markdown-body [data-markdown-anchor] {
     margin: 0;
     color: var(--text-strong);
-    line-height: 1.65rem;
+    line-height: var(--chat-line-height, 1.65);
   }
 
   .nexus-chat-feed .nexus-markdown-body h1[data-markdown-anchor] {
     margin-top: 0.75rem;
     margin-bottom: -0.25rem;
-    font-size: 1.375rem;
+    font-size: 1.375em;
     font-weight: 600;
-    line-height: 1.65rem;
+    line-height: var(--chat-line-height, 1.65);
   }
 
   .nexus-chat-feed .nexus-markdown-body h2[data-markdown-anchor] {
     margin-top: 0.75rem;
     margin-bottom: -0.25rem;
-    font-size: 1.125rem;
+    font-size: 1.125em;
     font-weight: 600;
-    line-height: 1.65rem;
+    line-height: var(--chat-line-height, 1.65);
   }
 
   .nexus-chat-feed .nexus-markdown-body :is(h3, h4, h5, h6)[data-markdown-anchor] {
     margin-top: 0.5rem;
     margin-bottom: -0.25rem;
-    font-size: 1rem;
+    font-size: 1em;
     font-weight: 600;
-    line-height: 1.65rem;
+    line-height: var(--chat-line-height, 1.65);
   }
 
   .nexus-chat-feed .nexus-markdown-body blockquote {
@@ -1916,7 +1917,7 @@
   }
 
   .nexus-chat-feed .nexus-markdown-body .markdown-list-item {
-    line-height: 1.65rem;
+    line-height: var(--chat-line-height, 1.65);
   }
 
   .nexus-chat-feed .nexus-markdown-body .markdown-list-item + .markdown-list-item {
@@ -1932,6 +1933,19 @@
   .nexus-chat-feed .nexus-markdown-body .markdown-list-item::marker {
     color: var(--text-default);
     font-weight: 400;
+  }
+
+  .nexus-chat-feed .nexus-markdown-body {
+    font-family: var(--chat-font-family, var(--font-sans));
+    font-size: var(--chat-font-size, 16px);
+    line-height: var(--chat-line-height, 1.65);
+  }
+
+  .nexus-chat-markdown .katex-display {
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-block: 0.125em;
   }
 
   /* Thought 明细属于工具审计内容，不沿用消息正文的大字号排版。 */

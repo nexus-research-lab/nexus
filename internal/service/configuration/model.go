@@ -11,6 +11,7 @@ import (
 )
 
 const (
+	DomainMembers     = "members"
 	DomainPreferences = "preferences"
 	DomainProviders   = "providers"
 	DomainAgents      = "agents"

@@ -90,7 +90,7 @@ export function SettingsNavigationButton({
     <UiButton
       {...buttonProps}
       aria-current={ariaCurrent ?? (active ? "page" : undefined)}
-      className={cn("w-full justify-start text-left", className)}
+      className={cn("w-full justify-start border-0 px-2 text-left", className)}
       size={size}
       variant="ghost"
     >

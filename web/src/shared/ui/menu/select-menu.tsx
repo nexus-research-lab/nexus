@@ -40,6 +40,7 @@ interface UiSelectMenuProps {
   leading?: ReactNode;
   menuMinWidth?: number;
   onChange: (value: string) => void;
+  onOpen?: () => void;
   options: UiSelectMenuOption[];
   placement?: UiSelectMenuPlacement;
   placeholder?: string;
@@ -61,6 +62,7 @@ export function UiSelectMenu({
   leading,
   menuMinWidth,
   onChange,
+  onOpen,
   options,
   placement = "auto",
   placeholder: explicitPlaceholder,
@@ -146,9 +148,10 @@ export function UiSelectMenu({
       closeMenu();
       return; // Trigger 仍在页面顺序中；让浏览器自然续接焦点。
     }
+    if (!isOpen && ["Enter", " ", "ArrowDown", "ArrowUp"].includes(event.key)) onOpen?.();
     focusMenuOnOpenRef.current = event.key === "Enter" || event.key === " ";
     handleOverlayTriggerKeyDown(event, moveSelection);
-  }, [closeMenu, disabled, handleOverlayTriggerKeyDown, moveSelection]);
+  }, [closeMenu, disabled, handleOverlayTriggerKeyDown, isOpen, moveSelection, onOpen]);
 
   return (
     <SelectMenuView
@@ -166,7 +169,11 @@ export function UiSelectMenu({
       menuStyle={menuStyle}
       onSelect={changeValue}
       onTabExit={closeAndRestoreFocus}
-      onTriggerClick={() => { focusMenuOnOpenRef.current = true; toggleMenu(); }}
+      onTriggerClick={() => {
+        if (!disabled && !isOpen) onOpen?.();
+        focusMenuOnOpenRef.current = true;
+        toggleMenu();
+      }}
       onTriggerKeyDown={onTriggerKeyDown}
       options={options}
       portalContainer={portalContainer}

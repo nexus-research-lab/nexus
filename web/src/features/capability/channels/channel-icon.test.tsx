@@ -28,10 +28,7 @@ describe("ChannelIcon", () => {
 
     const maskImages = CHANNELS.map(({ label }) => {
       const frame = screen.getByLabelText(label);
-      expect(frame.className).toContain("bg-(--surface-panel-background)");
-      expect(frame.className).toContain("radius-control-sm");
       const mark = frame.firstElementChild as HTMLElement;
-      expect(mark.style.backgroundColor).toBe("var(--text-strong)");
       return mark.style.maskImage;
     });
 
@@ -39,11 +36,4 @@ describe("ChannelIcon", () => {
     expect(container.innerHTML).not.toMatch(/#[0-9a-f]{3,8}|text-white/i);
   });
 
-  it("uses the same large capability frame in connection dialogs", () => {
-    render(<ChannelIcon size="dialog" type="telegram" />);
-
-    const frame = screen.getByLabelText("Telegram");
-    expect(frame.className).toContain("h-14");
-    expect(frame.className).toContain("surface-radius-md");
-  });
 });

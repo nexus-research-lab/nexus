@@ -254,3 +254,50 @@ func assertAtomicRuntimeState(t *testing.T, db *sql.DB, jobID string, runID stri
 		t.Fatalf("run count = %d, want %d", count, runCount)
 	}
 }
+
+func TestFinishedLegacyQueuedRunCannotOccupyTask(t *testing.T) {
+	db, repository, task := newAtomicRuntimeRepository(t, automationdomain.OverlapPolicyAllow)
+	ctx := context.Background()
+	for _, id := range []string{"legacy", "active"} {
+		if err := repository.InsertRunPending(ctx, RunPendingInput{RunID: id, JobID: task.JobID, OwnerUserID: task.OwnerUserID, Status: automationdomain.RunStatusQueuedToMain}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := db.Exec(`UPDATE automation_task_runs SET finished_at = CURRENT_TIMESTAMP WHERE run_id = 'legacy'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`UPDATE automation_scheduled_tasks SET running_run_id = 'legacy', running_started_at = NULL WHERE job_id = ?`, task.JobID); err != nil {
+		t.Fatal(err)
+	}
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, _, err := repository.latestActiveRunIdentity(ctx, tx, task.OwnerUserID, task.JobID)
+	_ = tx.Rollback()
+	if err != nil || id != "active" {
+		t.Fatalf("active identity = %q, %v", id, err)
+	}
+	repaired, err := repository.ReconcileFinishedTaskRuntime(ctx)
+	if err != nil || len(repaired) != 0 {
+		t.Fatalf("must retain occupancy while another run is active: %v %v", repaired, err)
+	}
+	if _, err := db.Exec(`UPDATE automation_task_runs SET status = 'succeeded', finished_at = CURRENT_TIMESTAMP WHERE run_id = 'active'`); err != nil {
+		t.Fatal(err)
+	}
+	repaired, err = repository.ReconcileFinishedTaskRuntime(ctx)
+	if err != nil || len(repaired) != 1 {
+		t.Fatalf("repair = %v, %v", repaired, err)
+	}
+	if err := repository.UpdateScheduledTaskRuntime(ctx, JobRuntimeUpdateInput{JobID: task.JobID, RunningRunID: "legacy"}); err != nil {
+		t.Fatal(err)
+	}
+	var running string
+	if err := db.QueryRow(`SELECT COALESCE(running_run_id, '') FROM automation_scheduled_tasks WHERE job_id = ?`, task.JobID).Scan(&running); err != nil || running != "" {
+		t.Fatalf("stale snapshot restored occupancy: %q %v", running, err)
+	}
+	repaired, err = repository.ReconcileFinishedTaskRuntime(ctx)
+	if err != nil || len(repaired) != 0 {
+		t.Fatalf("repair is not idempotent: %v %v", repaired, err)
+	}
+}

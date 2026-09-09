@@ -31,10 +31,10 @@ skills/     - 随产品发布的平台内置 Skill（每个目录自含 SKILL.md
 internal/   - 后端核心（各子包 L2 见其 doc.go）:
   protocol/   - 跨 HTTP/WS/前端/运行时的协议真相源（会话/房间/Goal/Execution Graph 与命名工作图模型、NodeRun 历史/可恢复结构化产物/显式 partial/total/控制回连事实与 Room creator/lead 身份、事件、枚举、TS codegen 输入）
   runtime/    - nxs/Claude Code 共用宿主主链（bridge client、manager 生命周期、workspace isolation Hook）
-  service/    - 业务服务（auth 的 Desktop Local 与外部 Control adapter / agent / communication / dm / echo / room / room/realtime / configuration / session / workspace / skills / connectors / automation / llm ...）
+  service/    - 业务服务（auth 的 Desktop Local 与外部 Control adapter / relay 的可选 typed HTTP client / agent / communication / dm / echo / room / room/realtime / configuration / session / workspace / skills / connectors / automation / llm ...）
   service/objectivealignment/ - Goal completion 与 Execution loop guard 共用的无状态目标对齐审计契约
   chat/       - 对话领域（dm / room）
-  handler/    - HTTP / WebSocket 处理器
+  handler/    - HTTP / WebSocket 处理器；team 是浏览器到可选多人服务的认证 gateway
   message/    - runtime/SDK 消息 → Nexus 事件与 assistant 快照的映射投影
   echo/       - 用户级 DM 主动跟进策略、attempt 状态与会话覆盖领域模型
   automation/ - 定时任务调度域（任务级 capability grant、持久审批、主会话事件派发、run 阻塞与安全恢复）
@@ -53,6 +53,7 @@ docs/       - 开源文档入口；README.md 是索引，guides/ 面向用户与
 
 - `.nexus` 是统一 `NEXUS_STATE_ROOT`；Nexus 宿主数据位于 `.nexus/app`，独立 Control 数据位于 `.nexus/control`，供 Nexus 读取的公钥镜像位于 `.nexus/control-public`。
 - 服务端 Web 的 User、密码和 Session 权威位于独立 `nexus-control`；同一套 Nexus Web Shell 将 `/auth/v1` 的登录、登出、资料、改密、首次初始化和成员管理请求同源发送给 Control，Nexus Server 只验证短期签名 Principal，并用 `local_owner_bindings` 将 Control 身份确定性映射到本地 owner key，展示资料只投影到 `owner_profiles`。每个 Nexus 副本独立消费 Control 的持久身份失效序列：登出只清 exact browser Session 与 WebSocket，资料变更刷新 owner 连接但保留 Agent runtime，角色变更或停用才关闭该 owner 的连接与 runtime。Desktop Local 使用无密码本地主体；旧 `users`/认证表只允许迁移代码读取，不再属于运行时账号系统。
+- 多人 Team 浏览器 API 固定使用 `/nexus/v1/team/...` 产品路径，只接收现有 HttpOnly Session。Nexus 从认证上下文读取已验证 Control Principal，经 `/internal/humans/verify` 换取固定 `nexus-relay-user` 短令牌后访问 Relay；浏览器正文、查询和 Header 都不能指定 user、deployment 或 audience。非零同步游标和快照续页必须原样传递 Relay 返回的 `stream_epoch`，世代失配由 WSS `stream.reset_required` 或 difference 触发全量快照。`NEXUS_RELAY_URL` 留空或运行 Desktop Local 时不挂载 Team 路由；M1 WSS 只转发提交水位，正文由 difference/snapshot 恢复。同一 deployment 的 Conversation/Message 和 `room_seq` 在 Nexus 原数据库只保存一份，各 owner 仅保存独立 `relay_seq` 恢复游标；共享消息与当前 owner 游标在同一事务中提交。bootstrap/snapshot/difference 只有在本地投影成功后才确认；Relay 已提交的 message mutation 保持成功，Browser 必须从原 cursor 走 difference 补齐后再推进。
 - 服务端 Web 的订阅套餐与成员 entitlement 写权威也位于 `nexus-control`。Nexus 只保存 `owner_entitlements` 本地投影、持久 Control 事件游标和自身 token 用量，并在新 runtime 请求前按投影校验额度；`entitlement_changed` 只刷新投影，不中断正在执行的 Agent。旧 `subscription_plans`/`user_subscriptions` 只允许迁移读取。运营页中的公共 Provider 与项目 ACL 仍属于 Nexus 运行资源，不迁入 Control。
 - 桌面端只迁移完整 `NEXUS_STATE_ROOT`：原生宿主退出 sidecar 后离线复制 `app/`、`users/` 与其余状态，切换宿主外的启动指针并直接重启；启动提交阶段必须先重映射持久路径与路径派生的 Session 删除恢复文件名，再通过健康检查提交新根；业务进程不支持拆分或在线迁移局部子树。
 - 用户数据位于 `.nexus/users/<owner>/`，该 owner 的 runtime 对整棵用户数据根拥有读写权限，跨 owner 访问仍拒绝；`workspace/` 保存 Agent 工作目录与 `.rooms/` 公共附件，`runtime/` 同时作为 `NEXUS_CONFIG_DIR` 与 `CLAUDE_CONFIG_DIR`，Room ledger 固定写入 `state/rooms/`。
@@ -100,3 +101,7 @@ cmd -> app -> handler -> service -> domain/storage
 - IM 来源的定时任务只持久化结构化会话键与可长期复用的通道上下文；创建 `Source` 只作不可变 provenance，最近一次明确配置投递的可信 Agent/页面/CLI 授权必须独立保存在非公开 `DeliveryGrant`，旧任务升级时从 Source 精确复制而不改写来源。callback `req_id`/stream 只用于当前即时回复。执行 Agent 与结果接收 Session 相互独立：结果先以 run_id 幂等投影到接收 Agent 所属的真实 Nexus/Room/IM Session，另存 producer Agent metadata，再发送外部 IM 并关联平台回执；新建与改绑必须引用结构化且已存在的真实 Session，不得只保存裸 channel/chat ID 或创建合成“定时任务收件箱”，旧裸路由与该内部 key 只保留历史读取/投递兼容，编辑时必须重绑。真实 Session 以统一读模型为准：数据库拥有的 Room-backed DM/成员 Session 与 workspace/IM Session 都是合法候选；首次投递可基于该已验证身份物化 workspace 投影，不得以 `room_id` 或 workspace meta 是否已生成作为可投递性边界。普通 Agent 的 Automation command 只表达 `context_mode=current|isolated` 与 `deliver_result`，tool schema 不暴露 channel/account/target/thread/session 等宿主路由；create/update 必须从 round actor 自动绑定，模型伪造字段必须被严格解码或 service 拒绝。owner main 高级控制也只能选择已存在且可验证的真实 Session。所有 Automation mutation 固定走 `inspect -> plan -> apply`、revision/digest 栅栏和当前 Session 原生真人确认；后台 scheduled run authority 只读并绑定 exact job/run。每个 run 固化开始时的投递目标，首次投递使用该快照；用户修正通道后重试使用任务最新目标。正文不承担来源或授权语义。创建、执行投递、审批与重试都必须重新验证 active pairing。持久权限请求创建时冻结唯一审批 Session：优先该 run 的结果接收 Session，没有接收目标时可退到来源 Session；实时投影、重连重放、Composer 决策与 IM Slash 此后只认该冻结身份。企业微信延迟结果使用主动消息命令；IM 权限通知只向用户展示 session-scoped `/y`（本次允许）、`/a`（持续允许）、`/d`（拒绝），历史 `/approve`、`/always`、`/deny` 只作兼容别名，内部请求 ID 不属于用户协议；无 ID 命令只有在当前会话跨普通 runtime 与 Automation 合计恰有一个待确认请求时才执行，多个请求必须 fail closed，且命令不进入 Agent 对话。catalog 中所有外部 IM 的 active-paired 私聊都是同一 Agent 的 transport：共享该 Agent 的 Skill、当前 permission mode、工具 allow/deny 和同 Agent Automation CRUD；普通 runtime 工具确认也通过同一 session 的无 ID Slash 回到唯一 pending request。浏览器查看外部 IM session 可以订阅并处理绑定 exact request 的 Automation 持久权限卡片，但不得注入 Web host Slash 或覆盖 IM 投递 route；群聊、失效配对及跨 Agent/owner 控制继续 fail closed。
 
 长流程按业务阶段拆成私有函数，阶段之间传递有语义的结构体；一个产品语义只保留一个投影入口。Go 文件不设机械行数上限，按业务内聚、依赖边界和阅读路径决定拆合；同一业务散落时优先合并，不以透传参数包或多层薄包装掩盖复杂度。
+
+自动审核产品预设为 `permission_mode=auto`，实现边界见 `docs/auto-review.md`。SDK 负责独立模型审核，bridge 协商 auto_review_v1，产品保留人工审批与任务持久恢复。
+
+用户账号的对话管理统一通过 nexuscfg members，由 runtime broker 展示绑定当前真人 Session 的确认卡片，再调用 Control 内部成员 API。只向有效管理员的主智能体 DM 开放；不恢复 nexusctl auth/user，不传递 Control 服务凭据给命令参数。members.remove 撤销部署访问并保留数据。

@@ -33,6 +33,14 @@ export interface TaskDialogSessionOption extends TaskDialogLabelOption {
   sessionKey: string;
 }
 
+// 一个选项携带完整目标，选择时原子更新，不再逐级猜测父对象。
+export interface TaskDestinationOption extends TaskDialogSessionOption {
+  group: string;
+  targetType: TargetType;
+  agentId: string;
+  roomId: string;
+}
+
 export interface TaskFormDraft {
   dedicatedSessionKey: string;
   deliveryTargetType: DeliveryTargetType;

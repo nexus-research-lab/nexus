@@ -95,25 +95,22 @@ describe("Composer Footer actions", () => {
 });
 
 describe("Composer Session settings recovery", () => {
-  it("prioritizes unknown writes and allows reconciliation despite the mutation lock", async () => {
+  it("prioritizes unknown writes in a dialog and clears the failure on close", async () => {
     const user = userEvent.setup();
     const controller = makeController({ busy: true,
       mutationFailure: { title: "结果未知", impact: "先核对设置", blocksRepeat: true, effect: "unknown",
         intent: { fingerprint: "intent-a", sessionKey: "session-a", setting: "model" } },
       settingsReadFailure: { resource: "session_settings", title: "读取失败", impact: "读取设置" },
     });
-    const view = (settingsLoading: boolean) => <Localized><ComposerSessionSettingsReliability controller={{ ...controller, settingsLoading }} /></Localized>;
-    const { rerender } = render(view(false));
+    render(<Localized><ComposerSessionSettingsReliability controller={controller} /></Localized>);
     expect(screen.getByText("结果未知")).toBeTruthy();
     expect(screen.queryByText("读取失败")).toBeNull();
-    await user.click(screen.getByRole("button", { name: "state.reload_check" }));
-    expect(controller.retrySessionSettings).toHaveBeenCalledOnce();
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "state.reload_check" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "common.close" }));
+    expect(controller.dismissMutationFailure).toHaveBeenCalledOnce();
+    expect(controller.retrySessionSettings).not.toHaveBeenCalled();
     expect(controller.updateModel).not.toHaveBeenCalled();
-    rerender(view(true));
-    const retry = screen.getByRole("button", { name: "state.reload_check" });
-    expect((retry as HTMLButtonElement).disabled).toBe(true);
-    await user.click(retry);
-    expect(controller.retrySessionSettings).toHaveBeenCalledOnce();
   });
 
   it.each(["session_settings", "providers", "connectors"] as const)("retries only the failed %s read and disables it while loading", async (resource) => {
@@ -136,6 +133,6 @@ describe("Composer Session settings recovery", () => {
       settingsReadFailure: { resource: "skills" as ComposerReadResource, title: "不可读取", impact: "稍后重开" },
     })} /></Localized>);
     expect(screen.getByText("不可读取")).toBeTruthy();
-    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.queryByRole("button", { name: "state.retry" })).toBeNull();
   });
 });

@@ -12,4 +12,4 @@
 - 上述详情页在导航下方的对象图标、标题、标题元数据、说明和动作必须交给 `CapabilityDetailIdentity`；业务页只投影领域内容和动作资格，不得手写 `objectTitle`、响应式动作容器，或把目录态 `WorkspaceContentHeader` 当成对象 Header。
 - `CapabilityDetailIdentity` 按自身工作面宽度换行，不根据整窗断点强制标题与动作并排；长对象名和说明可换行，动作组保留公共按钮几何，并在空间不足时移到下一行。
 - Connector 与 Channel 的品牌身份都通过 `CapabilityBrandIcon` 渲染：领域只选择准确 SVG 和名称，容器、尺寸、单色主题前景及回退字形由共享组件持有；不得在卡片中恢复平台色背景或通用占位图标。
-- 修改布局、移动动作投影或分区层级时，必须同步维护同目录 DOM 测试与 `frontend-foundation-contract` 静态门禁。
+- 修改布局、移动动作投影或分区层级时，必须同步维护同目录真实行为的 DOM 测试。

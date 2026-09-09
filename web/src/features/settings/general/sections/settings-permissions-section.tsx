@@ -5,9 +5,12 @@
  */
 "use client";
 
+import { useDefaultAgentRuntimeKind } from "@/hooks/settings/use-default-agent-runtime-kind";
 import { ShieldCheck } from "lucide-react";
 
 import {
+  getAgentPermissionChoices,
+  resolveRuntimePermissionMode,
   AGENT_PERMISSION_MODES,
 } from "@/lib/agent-options";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -47,7 +50,9 @@ export function SettingsPermissionsSection({
   preferencesRecovery,
 }: SettingsPermissionsSectionProps) {
   const { t } = useI18n();
-  const selectedPermissionMode = AGENT_PERMISSION_MODES.find((mode) => mode.value === permissionMode) ?? AGENT_PERMISSION_MODES[0];
+  const runtimeKind = useDefaultAgentRuntimeKind();
+  const effectivePermissionMode = resolveRuntimePermissionMode(permissionMode, runtimeKind);
+  const selectedPermissionMode = AGENT_PERMISSION_MODES.find((mode) => mode.value === effectivePermissionMode) ?? AGENT_PERMISSION_MODES[0];
 
   return (
     <section className="space-y-2.5">
@@ -76,13 +81,13 @@ export function SettingsPermissionsSection({
               disabled={preferencesLoading || preferencesSaving}
               id="default-permission-mode"
               onChange={onPermissionModeChange}
-              options={AGENT_PERMISSION_MODES.map((mode) => ({
+              options={getAgentPermissionChoices(runtimeKind).map((mode) => ({
                 value: mode.value,
                 label: t(mode.labelKey),
               }))}
               placement="bottom"
               size="sm"
-              value={permissionMode}
+              value={effectivePermissionMode}
             />
             <p className={getUiTypographyClassName({ role: "supporting", tone: "muted" })}>
               {t(selectedPermissionMode.descriptionKey)}
