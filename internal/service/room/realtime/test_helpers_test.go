@@ -13,6 +13,9 @@ import (
 	"testing"
 	"time"
 
+	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
@@ -24,10 +27,6 @@ import (
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 	realtimesvc "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	_ "modernc.org/sqlite"
 )
 

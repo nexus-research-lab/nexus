@@ -10,7 +10,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-
 	_ "modernc.org/sqlite"
 )
 

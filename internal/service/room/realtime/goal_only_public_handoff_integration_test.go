@@ -18,7 +18,6 @@ import (
 	realtimesvc "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 	goalstore "github.com/nexus-research-lab/nexus/internal/storage/goal"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-
 	_ "modernc.org/sqlite"
 )
 

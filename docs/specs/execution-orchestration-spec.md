@@ -51,6 +51,19 @@ Do not copy the complete Plan Document field list or operation input schema into
 document. When this document and those sources disagree on a field shape or enum,
 the source above wins and this document must be corrected.
 
+
+### 1.2 生命周期实现归属
+
+| 阶段 | 唯一业务归属 | 宿主适配边界 |
+| --- | --- | --- |
+| 创建目标 | Goal 校验目标、owner、版本与用量作用域；Execution 提供真实 binding 分类 | DM/Room 验证会话和 lead，持久化各自控制记录 |
+| 规划与续跑 | Goal 持有 reservation、lease、claim、started、settle/retry 及重启恢复；Execution 持有 Plan 和责任状态 | DM/Room 在自己的派发锁内重验显式输入优先级，再 claim 和启动；Room 继续校验成员与协作阻塞 |
+| 运行观察 | `orchestration/runtimehook.Observer` 统一事件观察和 compact 证据记录 | 宿主传入可信 actor；compact ID 使用物理 Session 与 Agent round，不能替换为共享 Room 根轮次 |
+| 用量证据 | `goal/runtimeusage` 转换 provider result、assistant 与子任务消息；Goal accumulator 负责累计差额，`SubagentUsageObservation` 负责单调合并和落库确认 | DM/Room 保留 pending 容器、锁、原始观察时间和重试生命周期；旧回执不能清除新累计值或新终态证据 |
+| 最终结算与交付 | Goal 持有 durable usage fence 和完成报告身份规则；状态完成与用量已结算分别判断 | DM 等待本轮 parent/child，Room 等待共享 scope 全部 slot；公私历史、输出授权和广播分别由宿主持有 |
+
+Goal 主包不依赖 runtime。需要理解运行协议的转换位于其 `runtimeusage` 子包，依赖方向为宿主 → 适配 → Goal。共用值规则不会移动宿主锁、扩大事务，也不会增加独立恢复循环。
+
 ## 2. Stable product model
 
 ### 2.1 Supported modes

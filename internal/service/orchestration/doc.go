@@ -11,8 +11,10 @@
 //     predecessor/successor、Plan revision 与 DAG 校验。
 //   - plan_document*.go / plan_proposal*.go / plan_materialization.go：严格 Plan
 //     document、非权威 sealed proposal、跨 round exact binding、原子 materialization 与重启恢复。
-//   - commands.go：Assignment、Attempt、Submission、Acceptance、
-//     Block/Resume/Takeover 与 completion。
+//   - command_plan.go / command_assignment.go / command_submission.go / command_review.go /
+//     command_control.go：按计划、分配与接管、提交、审核、阻塞与恢复及完成聚合命令和专用输入；
+//     commands.go 只保留共享授权、引用解析与结果投影，不改变原子命令和事务边界。
+//   - runtimehook/：DM 与 Room 共用的 SDK hook 及运行观察适配；宿主提供可信 actor，适配器统一观察超时和失败日志。
 //   - dispatch.go / review_dispatch.go / cancellation_dispatch.go /
 //     room_attempt_terminal.go：Room work、review 和 physical cancellation outbox，
 //     以及 dispatched/self WorkBinding 共用的 root Attempt 终态桥。

@@ -6,15 +6,14 @@ import (
 	"sync"
 	"testing"
 
+	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	sessionsvc "github.com/nexus-research-lab/nexus/internal/service/session"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
 type subagentControlCall struct {

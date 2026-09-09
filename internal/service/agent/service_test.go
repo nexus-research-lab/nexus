@@ -13,16 +13,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nexus-research-lab/nexus/internal/protocol"
-
 	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
-
 	_ "modernc.org/sqlite"
 )
 

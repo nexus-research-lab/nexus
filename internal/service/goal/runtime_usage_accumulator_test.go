@@ -2,9 +2,31 @@ package goal
 
 import (
 	"testing"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
+
+func TestSubagentUsageObservationRetainsUnsettledEvidence(t *testing.T) {
+	first := time.Unix(10, 0).UTC()
+	last := first.Add(time.Second)
+	progress := SubagentUsageObservation{CumulativeTotal: 25, ObservedAt: first}
+	terminal := progress.Merge(SubagentUsageObservation{CumulativeTotal: 25, Terminal: true, ObservedAt: last})
+	if terminal.CoveredBy(progress) || !terminal.ObservedAt.Equal(last) {
+		t.Fatal("旧进度回执不得清除后来到达的终态")
+	}
+	withUsage := terminal.Merge(SubagentUsageObservation{TerminalTokenUsageObserved: true, ObservedAt: last.Add(time.Second)})
+	if withUsage.CoveredBy(terminal) || !withUsage.ObservedAt.Equal(last) {
+		t.Fatal("补充终态用量证据不得丢失或改变原始观察时间")
+	}
+	newer := withUsage.Merge(SubagentUsageObservation{CumulativeTotal: 50, ObservedAt: last.Add(2 * time.Second)})
+	if newer.CoveredBy(withUsage) || !newer.Terminal || !newer.TerminalTokenUsageObserved {
+		t.Fatal("旧回执不得清除更大的累计值，合并也不能撤销终态")
+	}
+	if replay := newer.Merge(progress); replay != newer || !replay.CoveredBy(newer) {
+		t.Fatal("旧观察重放必须幂等，并可由完整落库证据确认")
+	}
+}
 
 func TestRuntimeUsageAccumulatorDeltasResetAndClose(t *testing.T) {
 	accumulator := NewRuntimeUsageAccumulator(true)

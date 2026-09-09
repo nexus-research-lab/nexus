@@ -2,8 +2,12 @@ package realtime_test
 
 import (
 	"context"
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
+	"strings"
+	"sync/atomic"
+	"testing"
+	"time"
 
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
@@ -13,10 +17,6 @@ import (
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 	_ "modernc.org/sqlite"
-	"strings"
-	"sync/atomic"
-	"testing"
-	"time"
 )
 
 func TestRealtimeServiceHandleChatWithSingleAgentRoomFallbackTarget(t *testing.T) {

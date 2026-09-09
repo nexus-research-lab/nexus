@@ -8,16 +8,15 @@ import (
 	"testing"
 	"time"
 
+	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	realtimesvc "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
-
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
-	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	_ "modernc.org/sqlite"
 )
 
