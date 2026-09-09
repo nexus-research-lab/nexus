@@ -2,9 +2,14 @@
 // OUTPUT: 验证链接安全、文件交互和摘要语义不依赖任何业务 Store。
 // POS: 共享 Markdown 公共入口的 DOM 行为测试。
 
-import { render, screen } from "@testing-library/react";
+import { render as renderDom, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+
+import type { ReactNode } from "react";
+import { I18nProvider } from "@/shared/i18n/i18n-provider";
+
+function render(node: ReactNode) { return renderDom(<I18nProvider>{node}</I18nProvider>); }
 
 import { UiMarkdownContent } from "./markdown-content";
 

@@ -75,6 +75,7 @@ export const zhCoreMessages = {
   "markdown.code.group": "{language} 代码",
   "markdown.code.copy": "复制 {language} 代码",
   "markdown.code.copied": "已复制",
+  "markdown.workspace.open_file": "打开 {path}",
   "markdown.code.streaming": "输出中",
   "markdown.mermaid.copy_source": "复制源码",
   "markdown.mermaid.copied_source": "已复制源码",
