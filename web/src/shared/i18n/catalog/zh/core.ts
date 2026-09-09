@@ -91,6 +91,7 @@ export const zhCoreMessages = {
   "markdown.mermaid.render_failed_impact": "只有图表预览未生成，原始 Mermaid 源码仍完整保留。",
   "markdown.mermaid.render_failed_next_step": "切换到“源码”查看内容；修正语法后，预览会再次生成。",
   "markdown.mermaid.rendering": "正在渲染图表",
+  "markdown.mermaid.source_region": "Mermaid 源码",
   "markdown.mermaid.source": "源码",
   "markdown.mermaid.updating": "更新中",
   "markdown.mermaid.waiting": "等待完整图表",

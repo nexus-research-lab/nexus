@@ -94,6 +94,7 @@ export const enCoreMessages = {
   "markdown.mermaid.render_failed_impact": "Only the chart preview failed. The original Mermaid source is still intact.",
   "markdown.mermaid.render_failed_next_step": "Switch to Source to review the content. After the syntax is corrected, the preview will render again.",
   "markdown.mermaid.rendering": "Rendering chart",
+  "markdown.mermaid.source_region": "Mermaid source",
   "markdown.mermaid.source": "Source",
   "markdown.mermaid.updating": "Updating",
   "markdown.mermaid.waiting": "Waiting for complete chart",

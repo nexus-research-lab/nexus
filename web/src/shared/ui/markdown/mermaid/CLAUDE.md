@@ -13,3 +13,5 @@
 模块加载、首次渲染和已有图表更新统一消费 `display/spinner-styles.ts`，状态容器负责 `aria-busy` 与单一 live region；不得在图表分支内复制旋转、尺寸或 reduced-motion class。
 
 放大画布使用具名可聚焦 region，键盘滚动交给浏览器；每实例标题使用独立 ID。指针捕获丢失也必须清理拖拽状态。
+
+源码滚动区同样提供具名 region 与键盘焦点，保留源码空白和浏览器原生滚动，不添加自定义方向键处理。
