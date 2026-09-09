@@ -1,10 +1,10 @@
 export const zhCapabilityMessages = {
+  "capability.scheduled_target_all": "全部类型",
+  "capability.scheduled_target_filter": "会话类型",
   "capability.scheduled_editor": "任务编辑",
   "capability.scheduled_discard_title": "放弃当前编辑？",
   "capability.scheduled_discard_message": "当前未保存的修改将丢失。",
   "capability.scheduled_continue": "继续",
-  "capability.scheduled_target_filter": "筛选对象类型",
-  "capability.scheduled_target_all": "全部",
   "capability.scheduled_objects": "智能体与群聊",
   "capability.scheduled_run_in": "运行于",
   "capability.scheduled_choose_chat": "选择聊天",

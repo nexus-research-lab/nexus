@@ -15,7 +15,6 @@ import { createDefaultTaskSchedule } from "../schedule/task-schedule-model";
 import type { TranslationKey } from "@/shared/i18n/messages";
 
 import type { TaskFormDraft } from "../scheduled-task-dialog-types";
-import { TaskBasicsAdvanced } from "./task-basics-advanced";
 import { TaskBasicsPanel } from "./task-basics-panel";
 import type { TaskBasicsActions, TaskBasicsData } from "./task-basics-model";
 import { buildTaskConfirmationSummary, buildTaskDeliveryTargetPresentation, buildTaskTargetPresentation } from "./task-basics-model";
@@ -88,7 +87,7 @@ function createActions(): TaskBasicsActions {
   };
 }
 
-describe("TaskBasicsAdvanced", () => {
+describe("TaskBasicsPanel", () => {
   it("lists all destinations and selects an exact complete binding", async () => {
     const user = userEvent.setup();
     const actions = createActions();
@@ -112,7 +111,7 @@ describe("TaskBasicsAdvanced", () => {
     expect(screen.queryByRole("dialog", {name: "capability.scheduled_run_in"})).toBeNull();
   });
 
-  it("browses objects without changing the task and filters group chats", async () => {
+  it("browses and searches objects without changing the task", async () => {
     const user = userEvent.setup();
     const actions = createActions();
     const room = {value: "room-session", sessionKey: "room-session", label: "Discussion", group: "Research", targetType: "room" as const, agentId: "", roomId: "room"};
@@ -124,11 +123,23 @@ describe("TaskBasicsAdvanced", () => {
     expect(actions.selectExecution).not.toHaveBeenCalled();
     expect(screen.getByRole("button", {name: "Discussion"})).toBeTruthy();
     await user.click(screen.getByRole("button", {name: "capability.scheduled_target_filter"}));
-    await user.keyboard("{Escape}");
-    expect(screen.queryByRole("listbox")).toBeNull();
-    expect(screen.getByRole("dialog", {name: "capability.scheduled_run_in"})).toBeTruthy();
+    expect(screen.getAllByRole("option").map((item) => item.textContent)).toEqual([
+      "capability.scheduled_target_all", "DM", "Room",
+    ]);
+    await user.click(screen.getByRole("option", {name: "DM"}));
+    expect(screen.getByRole("button", {name: "Nova"})).toBeTruthy();
+    expect(screen.queryByRole("button", {name: "Research"})).toBeNull();
+    expect(actions.selectExecution).not.toHaveBeenCalled();
+    expect(actions.selectDelivery).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", {name: "capability.scheduled_target_filter"}));
-    await user.click(screen.getByRole("option", {name: "capability.scheduled_dialog_target_type_room"}));
+    await user.click(screen.getByRole("option", {name: "capability.scheduled_target_all"}));
+    expect(screen.getByRole("button", {name: "Nova"})).toBeTruthy();
+    expect(screen.getByRole("button", {name: "Research"})).toBeTruthy();
+    await user.click(screen.getByRole("button", {name: "capability.scheduled_target_filter"}));
+    await user.click(screen.getByRole("option", {name: "Room"}));
+    expect(screen.queryByRole("button", {name: "Nova"})).toBeNull();
+    expect(actions.selectExecution).not.toHaveBeenCalled();
+    await user.type(screen.getByRole("searchbox", {name: "capability.scheduled_search_chats"}), "Research");
     expect(screen.queryByRole("button", {name: "Nova"})).toBeNull();
     await user.click(screen.getByRole("button", {name: "Discussion"}));
     expect(actions.selectExecution).toHaveBeenCalledExactlyOnceWith(room);
@@ -154,10 +165,7 @@ describe("TaskBasicsAdvanced", () => {
     const data = { ...DATA, executionRoomAgentOptions: [{ value: "available", label: "Nova" }], deliveryRoomAgentOptions: [{ value: "available", label: "Nova" }] };
     const form: TaskFormDraft = { ...FORM, targetType: "room", selectedSessionKey: "room:group:one", replyMode: "selected", deliveryTargetType: "room", selectedReplySessionKey: "room:group:two", selectedDeliveryPresenterAgentId: "missing-presenter" };
     render(<I18N_CONTEXT.Provider value={{ locale: "zh", setLocale: vi.fn(), t }}>
-      <TaskBasicsAdvanced actions={actions} data={data} form={form} isEditing={false} needsSessionRebind={false}
-        deliveryTarget={buildTaskDeliveryTargetPresentation(form, data, t)}
-        deliveryTargetActions={{ agent: actions.setSelectedDeliveryAgentId, room: actions.setSelectedDeliveryRoomId }}
-      />
+      <TaskBasicsPanel actions={actions} data={data} form={form} isEditing={false} needsSessionRebind={false} nameRef={createRef<HTMLInputElement>()} />
     </I18N_CONTEXT.Provider>);
     expect(screen.getByRole("button", { name: "capability.scheduled_dialog_select_room_agent" }).textContent).toContain("agent.selection_unavailable");
     expect(screen.getByRole("button", { name: "capability.scheduled_dialog_select_delivery_room_agent" }).textContent).toContain("agent.selection_unavailable");
@@ -251,4 +259,34 @@ it("associates each target trigger with its current selection without exposing m
   expect(document.getElementById(executionDescription)?.textContent).toBe("capability.scheduled_dialog_session_unavailable");
   expect(document.getElementById(deliveryDescription)?.textContent).toBe("capability.scheduled_dialog_reply_none");
   expect(screen.queryByText("internal-missing-session")).toBeNull();
+});
+
+
+it("exposes independent Room execution and reply members outside advanced settings", async () => {
+  const user = userEvent.setup();
+  const actions = createActions();
+  const data = { ...DATA, defaultExecutionRoomAgentId: "host", defaultDeliveryRoomAgentId: "host",
+    executionRoomAgentOptions: [{ value: "nova", label: "Nova" }],
+    deliveryRoomAgentOptions: [{ value: "pixel", label: "Pixel" }],
+  };
+  const form: TaskFormDraft = { ...FORM, targetType: "room", selectedSessionKey: "run-room-session",
+    selectedAgentId: "", replyMode: "selected", deliveryTargetType: "room", selectedReplySessionKey: "reply-room-session" };
+  render(<I18N_CONTEXT.Provider value={{locale: "zh", setLocale: vi.fn(), t: (key) => key}}>
+    <TaskBasicsPanel actions={actions} data={data} form={form} isEditing={false} needsSessionRebind={false} nameRef={createRef<HTMLInputElement>()} />
+  </I18N_CONTEXT.Provider>);
+  const executor = screen.getByRole("button", {name: "capability.scheduled_dialog_select_room_agent"});
+  const presenter = screen.getByRole("button", {name: "capability.scheduled_dialog_select_delivery_room_agent"});
+  expect(executor.closest("details")).toBeNull();
+  expect(presenter.closest("details")).toBeNull();
+  expect(executor.textContent).toContain("capability.scheduled_dialog_default_room_host");
+  await user.click(executor);
+  await user.click(screen.getByRole("option", {name: "Nova"}));
+  expect(actions.setSelectedAgentId).toHaveBeenCalledExactlyOnceWith("nova");
+  expect(actions.setSelectedDeliveryPresenterAgentId).not.toHaveBeenCalled();
+  await user.click(presenter);
+  await user.click(screen.getByRole("option", {name: "Pixel"}));
+  expect(actions.setSelectedDeliveryPresenterAgentId).toHaveBeenCalledExactlyOnceWith("pixel");
+  expect(actions.setSelectedAgentId).toHaveBeenCalledTimes(1);
+  expect(actions.selectExecution).not.toHaveBeenCalled();
+  expect(actions.selectDelivery).not.toHaveBeenCalled();
 });

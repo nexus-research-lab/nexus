@@ -2,12 +2,12 @@ import type { MessageSegment } from "../message-segment";
 import type { zhCapabilityMessages } from "../zh/capability";
 
 export const enCapabilityMessages = {
+  "capability.scheduled_target_all": "All types",
+  "capability.scheduled_target_filter": "Conversation type",
   "capability.scheduled_editor": "Task editor",
   "capability.scheduled_discard_title": "Discard current changes?",
   "capability.scheduled_discard_message": "Your unsaved changes will be lost.",
   "capability.scheduled_continue": "Continue",
-  "capability.scheduled_target_filter": "Filter target type",
-  "capability.scheduled_target_all": "All",
   "capability.scheduled_objects": "Agents and group chats",
   "capability.scheduled_run_in": "Run in",
   "capability.scheduled_choose_chat": "Choose a chat",
