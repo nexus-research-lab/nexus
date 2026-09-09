@@ -4112,3 +4112,8 @@ UiInput title 角色统一页内对象标题的 objectTitle/regular、透明无�
 全量合同命令 npm run test:contracts 在 Node v22.23.2 下报告 336 pass / 3 fail（包含进程级失败项）。desktop-attention.test.mjs 的业务断言通过后出现 V8 GlobalHandles/DestroyParamCleanupHook 原生清理崩溃（SIGTRAP），单独重跑通过；native-ui-fixtures.test.mjs 因沙箱禁止监听 127.0.0.1 报 EPERM，许可范围内独立重跑通过。memory-catalog-deletion-recovery.test.mjs 两项断言通过后反复 SIGBUS，单独重跑仍失败，禁用 watcher 实验无效且已撤回。本批没有为消除门禁红灯改动产品代码或弱化断言。
 
 全量日志 /tmp/nexus-a166-contracts.log。当前合同门禁不能宣告通过；需要继续调查 Node/Vite 退出生命周期或在受支持的另一 Node 运行时复核。该问题不构成整个 UI 审查无路可走，目标仍继续推进。未做视觉验收。
+
+
+### A167 — 记忆删除纯模型测试去 SSR 生命周期
+
+A166 的记忆合同断言通过后反复原生退出崩溃；其行为部分只需纯恢复函数。将原有完整断言迁入模型共置 Vitest 测试，静态 source fence 合同留在 Node 脚本并移除 Vite createServer/close。保留断言，不改产品代码、不跳过测试。共置行为 1 项、Node 静态合同 1 项、lint/typecheck 全通过且进程正常退出；没有据此宣告整套合同全绿。

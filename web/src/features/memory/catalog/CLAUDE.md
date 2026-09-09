@@ -15,3 +15,5 @@
 目录请求结果必须匹配当前 owner generation 与 `agentId`。选择路径只能指向当前快照中的文档；没有仍然有效的选择时默认打开最近的正文记忆，索引保留为显式入口。普通刷新可以更新 stale 快照，但不得解除某个 path 的未知删除；只有显式核对确认条目缺失才能收口，截断目录还必须用 exact path GET 补证。
 
 - `agent-memory-catalog.tsx` 保留同行 `UiSearchInput`（刷新在 action 槽）与只显示当前值的紧凑 `UiSelectMenu`；这是一套用户明确选择保留的目录布局，不追加“类型”标签或改成两行。真空目录与无匹配结果仍互斥，后者的清除动作仅重置当前 query/type。
+
+删除恢复纯函数行为由共置 memory-deletion-recovery.test.ts 验证；scripts 中只保留静态作用域合同，不为纯函数启动 Vite SSR 服务。
