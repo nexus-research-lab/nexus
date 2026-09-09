@@ -1,5 +1,5 @@
 // INPUT: 单个 Provider 模型的能力、窗口、输出限制和 JSON Options 草稿。
-// OUTPUT: 完整模型身份、共享字段/技术文本与始终具名的保存动作。
+// OUTPUT: 标题下模型身份、双列能力、额度与折叠高级参数，保留底部保存动作。
 // POS: Provider 模型覆写入口，不把每项能力包装成图标卡片。
 import { useId, type Dispatch, type SetStateAction } from "react";
 import { Loader2 } from "lucide-react";
@@ -15,6 +15,7 @@ import {
   UiDialogPortal,
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
+import { UiDisclosure } from "@/shared/ui/disclosure/disclosure";
 import { UiField, UiInput, UiTextarea } from "@/shared/ui/form/form-control";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
@@ -62,17 +63,15 @@ export function ProviderModelOptionsDialog({
         labelledBy={`${dialogId}-title`}
         onClose={onClose}
       >
-        <UiDialogShell size="lg" viewport="adaptiveMax">
+        <UiDialogShell size="md" viewport="adaptiveMax">
           <UiDialogHeader
             appearance="plain"
             onClose={onClose}
             title={t("settings.providers.model_options")}
             titleId={`${dialogId}-title`}
+            subtitle={<code className="break-all">{modelOptions.model.model_id}</code>}
           />
           <UiDialogBody className="space-y-5 px-5" scrollable>
-            <code className={cn("block break-all", getUiTypographyClassName({ role: "code", tone: "muted" }))}>
-              {modelOptions.model.model_id}
-            </code>
             <section className="space-y-2.5">
               <div>
                 <h3 className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong" })}>
@@ -82,7 +81,7 @@ export function ProviderModelOptionsDialog({
                   {t("settings.providers.model_capabilities_description")}
                 </p>
               </div>
-              <div className="divide-y divide-(--divider-subtle-color) border-y border-(--divider-subtle-color)">
+              <div className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
                 {CAPABILITY_FIELDS.map(({ key, label }) => (
                   <CapabilitySwitch
                     checked={!!modelOptions.capabilities[key]}
@@ -120,8 +119,14 @@ export function ProviderModelOptionsDialog({
               </UiField>
             </section>
 
-            <UiField htmlFor={`${dialogId}-options`} label={t("settings.providers.provider_options_json")}>
+            <UiDisclosure
+              key={modelOptions.model.id}
+              label={t("settings.providers.provider_options_json")}
+              variant="section"
+              defaultOpen={modelOptions.provider_options_text.trim() !== "" && modelOptions.provider_options_text.trim() !== "{}"}
+            >
               <UiTextarea
+                aria-label={t("settings.providers.provider_options_json")}
                 controlSize="md"
                 id={`${dialogId}-options`}
                 onChange={(event) => setModelOptions((current) => current ? ({ ...current, provider_options_text: event.target.value }) : current)}
@@ -129,7 +134,7 @@ export function ProviderModelOptionsDialog({
                 textRole="code"
                 value={modelOptions.provider_options_text}
               />
-            </UiField>
+            </UiDisclosure>
           </UiDialogBody>
           <UiDialogFooter appearance="plain">
             <UiButton

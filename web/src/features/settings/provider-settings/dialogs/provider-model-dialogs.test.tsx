@@ -92,6 +92,7 @@ describe("Provider model dialogs", () => {
       await user.click(screen.getByRole("switch", { name: `settings.providers.capability_${key}` }));
       expect(draft()).toEqual({ ...before, capabilities: { ...before.capabilities, [key]: !before.capabilities[key] } });
     }
+    await user.click(screen.getAllByText("settings.providers.provider_options_json").find((node) => node.closest("summary"))!);
     for (const [label, key, value] of [
       ["context_window", "context_window", " 256000 "],
       ["max_output_tokens", "max_output_tokens", ""],
