@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Unify streaming code and syntax-loading placeholders in the Markdown code renderer.
+
 - Allow model capability labels to wrap and activate their switch when clicked.
 
 - Remove manual font entry and its helper copy; keep font selection in the dropdown.

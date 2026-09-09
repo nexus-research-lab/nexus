@@ -85,7 +85,7 @@ export const UI_GALLERY_COVERAGE_GROUPS: readonly UiGalleryCoverageGroup[] = [
     mode: "direct",
     renderer: "Markdown and code",
     components: [
-      "UiMarkdownContent", "MarkdownText", "CodeBlock", "StreamingCodeBlock", "CodeShell",
+      "UiMarkdownContent", "MarkdownText", "CodeBlock", "CodeShell",
       "SyntaxHighlightedCode", "CodeBlockContent", "MermaidView", "LazyMermaidView",
       "MermaidSourceView", "MermaidRenderedPreview",
       "MermaidPreviewDialog", "WorkspaceFileButton",
