@@ -3879,3 +3879,10 @@ CodeBlockContent 改用公共 UiIconButton sm/ghost 与 success tone，保留 28
 ## A122 — 社区搜索动作去重
 
 按用户截图反馈，把搜索框右侧重复放大镜替换为公共 UiButton 文字搜索动作，保留输入框左侧搜索标记、清除、点击/Enter 与禁用条件。搜索工具区回归、lint/typecheck 通过，日志 /tmp/nexus-a122-{target,lint,types}.log。两批均未做视觉验证，清单状态计数不变。
+
+
+## A123 — 引导入口归账号菜单
+
+按用户反馈移除 Skills 桌面与窄屏菜单的查看引导，清理 replay props 与路由页返回值解构，首次自动 onboarding 保留。侧栏引导中心移入账号菜单，删除独立帮助图标；本地模式显示紧凑头像与引导，Web 额外提供退出，设置保持直接入口。
+
+3 项账号菜单回归覆盖本地/认证账号引导、退出边界和设置，目标 lint/typecheck 通过，日志 /tmp/nexus-a123-{target,lint,types}.log。未做视觉验证，清单状态计数不变。

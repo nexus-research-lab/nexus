@@ -66,7 +66,8 @@ it("opens account actions and only logs out after selecting the menu item", asyn
   await user.click(screen.getByRole("menuitem", { name: "退出登录" }));
   expect(onLogout).toHaveBeenCalledOnce();
   expect(screen.queryByRole("menu")).toBeNull();
-  await user.click(screen.getByRole("button", { name: "帮助" }));
+  await user.click(screen.getByRole("button", { name: "测试用户" }));
+  await user.click(screen.getByRole("menuitem", { name: "帮助" }));
   expect(onOpenGuide).toHaveBeenCalledOnce();
 });
 
@@ -84,17 +85,19 @@ it("opens settings directly without a local account bar and respects action visi
     settingsActive: true, showLogout: false, showPanelToggle: true, showSettings: true,
   };
   const view = render(<MemoryRouter><SidebarFooterActions {...props} /><CurrentLocation /></MemoryRouter>);
-  expect(screen.queryByRole("button", { name: "Local User" })).toBeNull();
+  expect(screen.getByRole("button", { name: "Local User" })).toBeTruthy();
   expect(screen.queryByText("Local User")).toBeNull();
   const settings = screen.getByRole("button", { name: "设置" });
   expect(settings.getAttribute("aria-pressed")).toBe("true");
   await user.click(settings);
   expect(screen.getByTestId("location").textContent).toBe(AppRouteBuilders.settings());
   expect(screen.queryByRole("menu")).toBeNull();
-  await user.click(screen.getByRole("button", { name: "帮助" }));
+  await user.click(screen.getByRole("button", { name: "Local User" }));
+  expect(screen.queryByRole("menuitem", { name: "退出登录" })).toBeNull();
+  await user.click(screen.getByRole("menuitem", { name: "帮助" }));
   expect(props.onOpenGuide).toHaveBeenCalledOnce();
   expect(props.onLogout).not.toHaveBeenCalled();
   view.rerender(<MemoryRouter><SidebarFooterActions {...props} showSettings={false} /><CurrentLocation /></MemoryRouter>);
   expect(screen.queryByRole("button", { name: "设置" })).toBeNull();
-  expect(screen.getByRole("button", { name: "帮助" })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "帮助" })).toBeNull();
 });
