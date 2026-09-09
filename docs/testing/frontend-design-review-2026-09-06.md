@@ -3765,3 +3765,10 @@ Select 行保持 in_progress（本轮只复审新增 onOpen 契约），字体�
 删除桌面/浏览器重复请求状态分支，统一在途防重与代次校验；实例清理使迟到响应失效。读取时使用公共 caption/status 显示 loading，预设和当前值可继续操作。成功空目录、失败或不支持枚举均允许手工输入；重开空目录可重试，在途不移除已有输入框。字体排序去重、已保存自定义值与本地排版写入边界保持。浏览器权限查询仅 granted 才自动枚举，首次授权保留打开菜单的同步用户手势。
 
 字体 10 项回归覆盖空/失败/成功、重试、防重、StrictMode 旧响应、授权和手动值；加公共 Select 8 项共 18 项通过，目标 eslint/typecheck 通过，见 /tmp/nexus-a105-{target,lint,types}.log。没有真实字体授权或视觉验证。字体入口代码审查 improved；489 项为 220 pending、132 in_progress、109 improved、22 retained、6 removed。
+
+
+## A106 — 定时任务目标浮层公共样式与键盘退出
+
+目标选择器去掉私有 z-50/shadow-lg，使用命名 popover 层级和既有公共材质；加载、空态、失败文案使用公共 supporting/muted。Chevron/Check 作为已有具名按钮的装饰隐藏。保留左右领域分组和选择资格。
+
+浮层 Tab 首尾边界通过公共焦点导航延续父表单，关闭同时清理搜索/分组筛选。回归新增双向 Tab 并验证嵌套筛选 Escape 不误关父浮层，既有精确执行目标与组浏览行为保持，共 8 项通过；目标 lint/typecheck 通过。日志 /tmp/nexus-a106-{target,lint,types}.log；无视觉验收。目标选择器推进至 in_progress，候选与错误状态、窄屏几何仍需继续审查。489 项为 219 pending、133 in_progress、109 improved、22 retained、6 removed。
