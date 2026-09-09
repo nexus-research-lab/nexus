@@ -3722,3 +3722,16 @@ in_progress；Goal 保持 active，仅本地提交。
 新增离线交互测试并纳入公共门禁；不做视觉、浏览器或宿主验收，不启动产品服务。486 项为 218 pending、126 in_progress、114 improved、22 retained、6 removed，公共 UI 仍 118 项；improved 仅表示代码审查与离线证据，不表示外观验收。
 
 验证：定向 4 文件 14 项及 typecheck 通过；隔离 npm run check 通过 lint、typecheck、485 项合同、279 文件 1303 项组件/模型测试及 build。第一次受沙箱 loopback 限制，允许离线夹具监听后重跑通过。日志 /tmp/nexus-a100-check.log，快照 /tmp/nexus-a100-review.json。仅既有 lint effect-ref 和构建大分块提示。并行 WorkGraph 后端/文档改动不纳入本批提交；无视觉验收或推送。
+
+
+## A101 — 活动工具栏头像比例
+
+按用户截图反馈，Dock 从私有 26px 图像和多层圆角覆盖收敛为公共 sm 的 28px 头像，外层只定位单一状态点，删除边框与留白。分隔线从 16px 缩为 12px；公共 36px 工具栏、两侧 32px 命中区、16px 工作图图标及公共 ghost 悬停反馈保持。多 Agent 横向滚动、固定图入口、精确 round 跳转与完整图的其他档位均保持。
+
+原有 9 项定向回归通过，覆盖导航、键盘、多 Agent、空集合、状态及完整图几何；目标 eslint 与 typecheck 通过。未增加镜像实现测试，未运行视觉或宿主验证。清单两行更新源哈希，状态计数不变；完整 ExecutionNodeAvatar 仍 in_progress，本轮只完成 Dock 切片。
+
+工作区随后进入并行合并，公共合同文件暂有冲突。已在基线 7fb8c49c3 的独立快照覆盖本批文件，141 项基础合同、9 项活动工具栏回归及 typecheck 均通过（/tmp/nexus-a101-contract.log、/tmp/nexus-a101-target.log、/tmp/nexus-a101-types.log）。快照 /tmp/nexus-a101-review.json。当前暂不提交，以免污染并行合并的暂存区；合并后需核对本批文件与新基线再提交。
+
+A101 合并后核对：59058680c 已包含本批四个代码/测试/目录规范文件，与受测快照逐字节一致。旧清单另外 29 个 owner 源文件发生变化，已更新当前源哈希并标记待复审；其中此前 improved 的条目回到 in_progress，未将合并视作设计验收。工具栏无需重复提交代码，仅补齐审计证据。新页面/组件的目录增量仍需后续纳入，不以旧 486 项声称覆盖此次合并后的全量前端。
+
+新基线验证：当前基础禁止项合同 1 项、活动工具栏 9 项回归与 typecheck 通过，见 /tmp/nexus-a101-merged-{contract,target,types}.log。合并有意按新工程规范精简源码实现约束，不能把旧 141 项计为新基线结果。既有 486 项当前为 218 pending、132 in_progress、108 improved、22 retained、6 removed；6 个此前 improved 的 owner 因源变化回到 in_progress。
