@@ -57,7 +57,7 @@ def build(output: Path) -> dict:
     # evidence is for the working tree, which can differ from the current commit.
     inputs = sources + sorted((ROOT / "web/src").rglob("*")) + sorted((ROOT / "web/browser-tests").glob("native-ui-*")) + [
         Path(__file__).resolve(), ROOT / "web/app.html",
-        ROOT / "web/vite.config.ts", ROOT / "web/package-lock.json", ROOT / "web/pnpm-lock.yaml",
+        ROOT / "web/vite.config.ts", ROOT / "web/pnpm-lock.yaml",
         ROOT / "web/package.json", ROOT / "web/ui-gallery.html",
     ]
     manifest = {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()

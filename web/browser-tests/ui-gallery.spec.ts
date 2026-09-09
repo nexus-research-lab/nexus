@@ -269,6 +269,14 @@ test("connector details wrap inside narrow panes and preserve named capability d
   const paneBounds = (await body.boundingBox())!;
   const actionBounds = (await connect.boundingBox())!;
   expect(actionBounds.x + actionBounds.width).toBeLessThanOrEqual(paneBounds.x + paneBounds.width + 1);
+  await expect(body.getByRole("heading", { name: copy(info, "工具", "Tools"), exact: true })).toHaveCount(0);
+  const connectionInfo = body.locator("details").filter({ hasText: copy(info, "连接信息", "Connection details") });
+  await expect(connectionInfo).not.toHaveAttribute("open");
+  await connectionInfo.locator("summary").click();
+  await expect(connectionInfo).toHaveAttribute("open", "");
+  for (const value of await connectionInfo.locator("dd").all()) {
+    expect(await value.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+  }
   const note = body.getByRole("note");
   await expect(note.getByRole("heading")).toHaveCount(1);
   await capture(note, info, "connector-preparation");
@@ -297,6 +305,7 @@ test("connector details wrap inside narrow panes and preserve named capability d
   await expect(feature).toBeFocused();
   await connect.click();
   await expect(note).toHaveCount(0);
+  await expect(body.getByRole("heading", { name: copy(info, "工具", "Tools"), exact: true })).toBeVisible();
   await expect(identity.getByRole("button", { name: copy(info, "断开连接", "Disconnect"), exact: true })).toBeVisible();
   expect(errors).toEqual([]);
 });
@@ -1925,5 +1934,44 @@ test("Contacts directory uses one identity tree, readable metadata and independe
   await expect(fixture.getByRole("searchbox")).toHaveValue("");
   await expect(listToggle).toHaveAttribute("aria-pressed", "true");
   await expect(fixture.getByRole("heading", { name: "Writer · 写作者", exact: true })).toHaveCount(1);
+  expect(errors).toEqual([]);
+});
+
+test("Skill details align reading and configuration with concise accessible toggle rows", async ({ page }, info) => {
+  const { errors } = await openGallery(page, info, "content");
+  const detail = page.locator("[data-gallery-skill-detail]");
+  const main = detail.locator('[data-slot="capability-detail-main"]');
+  const aside = detail.locator('[data-slot="capability-detail-aside"]');
+  const identity = detail.locator('[data-slot="capability-detail-identity"]');
+  await expect(identity).not.toContainText("1.1.8");
+  const metadata = detail.getByText(/1\.1\.8/);
+  const identityBounds = (await identity.boundingBox())!;
+  const metadataBounds = (await metadata.boundingBox())!;
+  expect(metadataBounds.y).toBeGreaterThanOrEqual(identityBounds.y + identityBounds.height);
+  const metadataRow = (await metadata.locator("..").boundingBox())!;
+  expect(Math.abs(metadataRow.x - identityBounds.x)).toBeLessThanOrEqual(1);
+  await expect(aside).not.toContainText("1.1.8");
+  await expect(main.locator(".nexus-workspace-file-markdown")).toHaveCSS("font-size", "14px");
+  await expect(aside).not.toContainText(copy(info, "可独立启停", "Can be toggled independently"));
+  const switches = aside.getByRole("switch");
+  await expect(switches).toHaveCount(3);
+  await expect(switches.nth(2)).toBeDisabled();
+  await switches.nth(1).focus();
+  await page.keyboard.press("Space");
+  await expect(switches.nth(1)).toHaveAttribute("aria-checked", "true");
+  await page.keyboard.press("Space");
+  await expect(switches.nth(1)).toHaveAttribute("aria-checked", "false");
+  expect(await detail.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  const mainBounds = (await main.boundingBox())!;
+  const asideBounds = (await aside.boundingBox())!;
+  if (page.viewportSize()!.width >= 1280) {
+    expect(Math.abs(mainBounds.y - asideBounds.y)).toBeLessThanOrEqual(1);
+    const readingPanel = (await main.locator("section section").boundingBox())!;
+    const configurationPanel = (await aside.locator("section section").boundingBox())!;
+    expect(Math.abs(readingPanel.y - configurationPanel.y)).toBeLessThanOrEqual(1);
+  } else {
+    expect(asideBounds.y + asideBounds.height).toBeLessThan(mainBounds.y);
+  }
+  await capture(detail, info, "skill-detail-layout");
   expect(errors).toEqual([]);
 });
