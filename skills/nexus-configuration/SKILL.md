@@ -50,3 +50,7 @@ tags: [nexus, configuration, settings, agent, room]
 ## 管理用户
 
 管理员需要新增、修改或移除用户时，读取 [references/members.md](references/members.md)。不要调用旧 `nexusctl user/auth`，不要操作 Control 数据库或索取服务令牌。
+
+## 创建 Agent 与行为模板
+
+主智能体创建普通 Agent 时，先读取 `nexus-manager` 的 `references/accounts-and-agents.md`，按其中的头像选择与行为模板补全流程完成。若通过本 Skill 的 `agents.create` 创建，仍走上述配置生命周期，并显式设置头像和介绍；未读取真实默认模板时省略 `profile_template`，让宿主生成默认文件，再用返回的 exact Agent ID 读取、补全并验证 `AGENTS.md`。不要把简短介绍或新写的人设段落作为完整 `profile_template` 覆盖默认内容。已有 Agent 的行为模板是 workspace 文件，不是 `description` 或 runtime 配置；自己的文件直接读写，其他 Agent 的文件由主智能体通过 `nexus-manager` 处理。

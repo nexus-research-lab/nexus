@@ -19,7 +19,7 @@ scope: main
 
 ## 按资源读取参考
 
-- Agent 资源与账号管理分流：[references/accounts-and-agents.md](references/accounts-and-agents.md)
+- Agent 资源与账号管理分流：[references/accounts-and-agents.md](references/accounts-and-agents.md)；创建 Agent 必须读取，其中包含头像选择与默认行为模板字段补全流程。
 - DM/Room、conversation、Session 与消息历史：[references/rooms-and-sessions.md](references/rooms-and-sessions.md)
 - 其他 Agent workspace 文件：[references/workspaces.md](references/workspaces.md)
 - Skill 目录、安装、导入、更新与卸载：[references/skills.md](references/skills.md)
