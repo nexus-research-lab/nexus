@@ -3758,3 +3758,10 @@ Select 行保持 in_progress（本轮只复审新增 onOpen 契约），字体�
 桌面字体目录失败原先仅显示错误而不提供手工输入，现在和浏览器无法枚举一样允许输入字体名，原有自定义值不丢失。继续使用公共 Input/Select 和原有排版持久化，无自动改值或重放保存。5 项新增测试覆盖浏览器不支持、桌面失败、目录去重/已有值、浏览器拒绝及在途防重；连同 Select 打开 8 项共 13 项通过，目标 eslint/typecheck 通过，见 /tmp/nexus-a104-{target,lint,types}.log。无真实字体权限请求或视觉验收。
 
 字体入口推进至 in_progress，加载反馈、空目录和完整异步生命周期仍需继续审查；489 项现为 220 pending、133 in_progress、108 improved、22 retained、6 removed。
+
+
+## A105 — 字体目录生命周期与状态收口
+
+删除桌面/浏览器重复请求状态分支，统一在途防重与代次校验；实例清理使迟到响应失效。读取时使用公共 caption/status 显示 loading，预设和当前值可继续操作。成功空目录、失败或不支持枚举均允许手工输入；重开空目录可重试，在途不移除已有输入框。字体排序去重、已保存自定义值与本地排版写入边界保持。浏览器权限查询仅 granted 才自动枚举，首次授权保留打开菜单的同步用户手势。
+
+字体 10 项回归覆盖空/失败/成功、重试、防重、StrictMode 旧响应、授权和手动值；加公共 Select 8 项共 18 项通过，目标 eslint/typecheck 通过，见 /tmp/nexus-a105-{target,lint,types}.log。没有真实字体授权或视觉验证。字体入口代码审查 improved；489 项为 220 pending、132 in_progress、109 improved、22 retained、6 removed。

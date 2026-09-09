@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Show font catalog loading, allow empty-catalog manual input and retry on reopening,
+  and ignore stale font responses after the picker closes.
+
 - Refined the execution activity dock with shared 28px avatars, fewer nested
   styling overrides and a shorter divider while preserving navigation and hit areas.
 
