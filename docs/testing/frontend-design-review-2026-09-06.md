@@ -3772,3 +3772,10 @@ Select 行保持 in_progress（本轮只复审新增 onOpen 契约），字体�
 目标选择器去掉私有 z-50/shadow-lg，使用命名 popover 层级和既有公共材质；加载、空态、失败文案使用公共 supporting/muted。Chevron/Check 作为已有具名按钮的装饰隐藏。保留左右领域分组和选择资格。
 
 浮层 Tab 首尾边界通过公共焦点导航延续父表单，关闭同时清理搜索/分组筛选。回归新增双向 Tab 并验证嵌套筛选 Escape 不误关父浮层，既有精确执行目标与组浏览行为保持，共 8 项通过；目标 lint/typecheck 通过。日志 /tmp/nexus-a106-{target,lint,types}.log；无视觉验收。目标选择器推进至 in_progress，候选与错误状态、窄屏几何仍需继续审查。489 项为 219 pending、133 in_progress、109 improved、22 retained、6 removed。
+
+
+## A107 — 目标目录失败与空结果语义
+
+移除资源失败同时显示空结果的矛盾反馈；加载或失败时不推断没有聊天。部分已加载聊天仍可按精确身份选择。重试仅调用失败且不在加载中的资源，所有失败资源均在途时禁用重试；不请求正常资源，不自动重放业务选择或提交。
+
+新增部分失败保留/选择、精确重试、失败空目录与在途禁用回归，累计 11 项通过；目标 eslint/typecheck 通过，日志 /tmp/nexus-a107-{target,lint,types}.log。窄屏几何仍待审，行保持 in_progress；总状态计数不变，无视觉验证。

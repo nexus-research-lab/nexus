@@ -49,6 +49,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Keep loaded scheduled-task destinations usable during partial failures, avoid
+  misleading empty results and retry only failed resources that are not loading.
+
 - Allow manual font selection after desktop font catalog loading fails, preserving
   the current custom font.
 
