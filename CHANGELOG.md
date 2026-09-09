@@ -49,6 +49,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Constrain anchored popover dimensions to the viewport even when a preferred
+  minimum height is larger than the available window.
+
 - Keep loaded scheduled-task destinations usable during partial failures, avoid
   misleading empty results and retry only failed resources that are not loading.
 

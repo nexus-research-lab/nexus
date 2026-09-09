@@ -250,3 +250,26 @@ describe("point and side overlays share preset boundaries", () => {
     rect.mockRestore();
   });
 });
+
+describe("short viewport hard limits", () => {
+  it.each(PRESET_EXPECTATIONS.flatMap(({preset, viewportInset}) =>
+    (["auto", "top", "bottom"] as const).map((placement) => ({preset, viewportInset, placement})),
+  ))("keeps $preset inside a short viewport with $placement placement", ({preset, viewportInset, placement}) => {
+    setViewport(320, 120);
+    const position = resolveUiAnchoredOverlayPosition({
+      anchor: createAnchor({left: 240, top: 45, bottom: 77, width: 80}), preset, placement,
+    });
+    const top = position.top ?? window.innerHeight - position.bottom! - position.maxHeight;
+    expect(position.maxHeight).toBeGreaterThanOrEqual(0);
+    expect(top).toBeGreaterThanOrEqual(viewportInset);
+    expect(top + position.maxHeight).toBeLessThanOrEqual(120 - viewportInset);
+    expect(position.left).toBeGreaterThanOrEqual(viewportInset);
+    expect(position.left + position.width).toBeLessThanOrEqual(320 - viewportInset);
+  });
+  it("never emits negative dimensions for a temporarily collapsed viewport", () => {
+    setViewport(0, 0);
+    const position = resolveUiAnchoredOverlayPosition({anchor: createAnchor(), preset: "form-picker", placement: "auto"});
+    expect(position.width).toBe(0);
+    expect(position.maxHeight).toBe(0);
+  });
+});

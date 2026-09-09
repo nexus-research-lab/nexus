@@ -1,5 +1,5 @@
 // INPUT: 锚点 DOM/指针位置、视口与调用方已解析的原始定位约束。
-// OUTPUT: 上下锚定、指针或侧向浮层的视口安全坐标、宽度、最大高度与动画方向。
+// OUTPUT: 上下锚定、指针或侧向浮层的视口安全坐标、非负宽高与动画方向；视口硬上限优先于建议最小高度。
 // POS: 锚定浮层底层几何求解器；语义 preset 及其数值归 anchored-overlay-layout 所有。
 
 export type UiAnchoredOverlayPlacement = "auto" | "bottom" | "top";
@@ -72,15 +72,16 @@ export function resolveAnchoredOverlayPosition({
       && availableBelow < estimatedHeight
       && availableAbove > availableBelow);
   const availableSpace = placeAbove ? availableAbove : availableBelow;
-  const resolvedMaxHeight = Math.min(
+  const resolvedMaxHeight = Math.max(0, Math.min(
     maxHeight,
     estimatedHeight,
     Math.max(minHeight, availableSpace - gap),
-  );
-  const width = Math.min(
+    viewportHeight - viewportMargin * 2,
+  ));
+  const width = Math.max(0, Math.min(
     Math.max(rect.width, minWidth),
     viewportWidth - viewportMargin * 2,
-  );
+  ));
   const preferredLeft = align === "end"
     ? rect.right - width
     : align === "center"
