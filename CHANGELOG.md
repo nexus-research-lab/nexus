@@ -190,6 +190,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Restore Composer branding updates when switching between Nexus and Claude agent runtimes.
+
 - Prevent Team messages from being sent while confirming IME composition and
   announce loading failures without displaying an empty conversation.
 
