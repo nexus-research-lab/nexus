@@ -3983,3 +3983,8 @@ DM/Thread 的归档过程与实时工具段不再各自渲染文件汇总，由 
 ### A143 — Nexus 置顶禁删与及时刷新
 
 侧栏通过 useSyncExternalStore 订阅 runtime 默认身份，主 DM 置顶优先于 Team，删除入口与确认阶段再次验证主身份。目录消息协议在 durable user 和 round_status 时触发既有合并刷新，保留完成回复刷新，不按 token delta 请求。2 项排序/身份纯模型、2 项行 DOM、1 项真实协议 socket 回归通过，lint/typecheck 通过。未进行宿主视觉验证。
+
+
+### A144 — 标题区自适应内容
+
+公共 WorkspaceContentHeader 在桌面使用原有 token 作为最小高度，标题列可收缩换行、连续长字符串可断行、动作区允许移至下一行；详情导航固定高度保留。检查能力目录、联系人与设置消费者及全局顶部安全区 CSS。定向 lint、typecheck、生产构建校验；未运行视觉验收，不能据代码断言像素布局已验收。
