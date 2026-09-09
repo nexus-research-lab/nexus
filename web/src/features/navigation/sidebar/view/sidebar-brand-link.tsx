@@ -1,6 +1,6 @@
 /**
  * INPUT: Launcher 标签与侧栏展开状态。
- * OUTPUT: 指向 Launcher 的 NEXUS 品牌字标。
+ * OUTPUT: 固定字号与字距、靠左的 Launcher 品牌字标，不随侧栏拉伸。
  * POS: 宽侧栏顶部唯一品牌入口，不承载 Agent 会话动作。
  */
 import { Link } from "react-router-dom";
@@ -32,21 +32,21 @@ export function SidebarBrandLink({
       to={AppRouteBuilders.launcher()}
     >
       <span
-        className="sidebar-brand-wordmark relative w-full cursor-pointer whitespace-nowrap uppercase leading-none"
+        className="sidebar-brand-wordmark relative w-max max-w-full cursor-pointer whitespace-nowrap uppercase leading-none"
         style={{
           fontFamily: '"Panchang", var(--font-sans)',
-          fontSize: "var(--sidebar-brand-font-size, var(--text-lg))",
+          fontSize: "18px",
           fontWeight: 280,
         }}
       >
         <span
           aria-hidden="true"
-          className="absolute inset-x-0 top-0 flex justify-between translate-y-[1.5px] text-[color:color-mix(in_srgb,var(--text-strong)_38%,transparent)] opacity-60 blur-[0.2px]"
+          className="absolute inset-x-0 top-0 flex gap-[0.22em] translate-y-[1.5px] text-[color:color-mix(in_srgb,var(--text-strong)_38%,transparent)] opacity-60 blur-[0.2px]"
         >
           {Array.from(wordmark, (letter, index) => <span key={index}>{letter}</span>)}
         </span>
         <span
-          className="relative flex justify-between bg-clip-text text-transparent transition-opacity duration-(--motion-duration-fast) group-hover/brand:opacity-80"
+          className="relative flex gap-[0.22em] bg-clip-text text-transparent transition-opacity duration-(--motion-duration-fast) group-hover/brand:opacity-80"
           style={{
             backgroundImage:
               "linear-gradient(180deg, color-mix(in srgb, var(--text-strong) 94%, white 6%) 4%, var(--text-default) 48%, color-mix(in srgb, var(--text-muted) 72%, var(--text-strong) 28%) 100%)",
