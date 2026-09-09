@@ -26,4 +26,5 @@
 // owner/session/Goal 查询、GetSnapshot/GetWorkGraphState、outbox claim/deliver/retry、Runtime Graph
 // upsert/read，以及 Plan proposal binding/materialization、Goal confirmation 和 completion audit recovery
 // receipt 方法，以及 background deadline snapshots。
+//   - session_cleanup.go：在调用方 sql.Tx 内按依赖顺序清理 Session 执行引用，保留跨领域删除原子性。
 package orchestration

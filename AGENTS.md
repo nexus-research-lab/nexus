@@ -2,6 +2,7 @@
 
 ## Build & Validation Commands
 - `make dev`：同时启动同级 Nexus Control（8020）、Go 后端（8010）和前端（3000）
+- `make check-architecture`：检查生产导入方向；集成测试可继续通过 app 装配。
 - `make check-go`：默认 Go 门禁，只检查相对上游及当前工作树中发生变化的 Go 包
 - `make check-go-fresh`：对上述变化包禁用测试结果缓存
 - `make check-go-full`：显式运行 Go 全量 vet 与无缓存测试，仅用于发布、跨包基础设施变更或用户明确要求
@@ -35,6 +36,7 @@ internal/   - 后端核心（各子包 L2 见其 doc.go）:
   service/objectivealignment/ - Goal completion 与 Execution loop guard 共用的无状态目标对齐审计契约
   chat/       - 对话领域（dm / room）
   handler/    - HTTP / WebSocket 处理器；team 是浏览器到可选多人服务的认证 gateway
+  relay/      - Relay 独立跨仓合同；service/relay 只负责 HTTP/WSS 客户端，service/team 负责远端结果与本地投影的同步流程
   message/    - runtime/SDK 消息 → Nexus 事件与 assistant 快照的映射投影
   echo/       - 用户级 DM 主动跟进策略、attempt 状态与会话覆盖领域模型
   automation/ - 定时任务调度域（任务级 capability grant、持久审批、主会话事件派发、run 阻塞与安全恢复）
@@ -106,3 +108,12 @@ cmd -> app -> handler -> service -> domain/storage
 自动审核产品预设为 `permission_mode=auto`，实现边界见 `docs/auto-review.md`。SDK 负责独立模型审核，bridge 协商 auto_review_v1，产品保留人工审批与任务持久恢复。
 
 用户账号的对话管理统一通过 nexuscfg members，由 runtime broker 展示绑定当前真人 Session 的确认卡片，再调用 Control 内部成员 API。只向有效管理员的主智能体 DM 开放；不恢复 nexusctl auth/user，不传递 Control 服务凭据给命令参数。members.remove 撤销部署访问并保留数据。
+
+## 内部依赖门禁
+
+当前边界与验收见 `docs/specs/internal-boundaries.md`，由 `scripts/check-architecture` 检查生产导入，并接入增量 Go 检查与全量 vet 入口。
+
+- protocol 与 relay 合同不依赖其他 internal 包；runtime 根包只消费 protocol。
+- service 不依赖 app/handler；storage、infra、message 不依赖 app/handler/service，message 也不依赖 storage。
+- orchestration 核心不依赖 MCP，协议转换进入 runtimehook；app 共享装配不反向依赖 app/server。
+- Session 跨表清理使用调用方持有的同一事务，SQL 归本领域仓储，不能由各服务分别提交。

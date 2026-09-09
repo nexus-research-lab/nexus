@@ -36,5 +36,7 @@
 // review、Goal binding/promotion、Room WorkGraph/Runtime Graph observation、deadline coordinator 和 recovery 方法；
 // Set*Gateway/Consumer/Sink 只注入 Goal、Room、runtime 与 transport 的消费侧 port。
 //
+//   - runtime_graph_command.go：消费 RuntimeCommandFact，核心不依赖 MCP；回执过滤与复制由 runtimehook 完成。
+//
 // [PROTOCOL]: 行为或 wire 变化时检查两份 execution spec、protocol L2 与 AGENTS.md。
 package orchestration

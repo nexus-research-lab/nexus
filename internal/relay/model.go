@@ -3,7 +3,10 @@
 // POS: Relay HTTP client 的跨仓协议真相源。
 package relay
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 const (
 	// ContentVersionV1 是首版 Markdown block 正文版本。
@@ -141,4 +144,19 @@ type DifferenceOptions struct {
 	AfterSeq    int64
 	Limit       int
 	StreamEpoch string
+}
+
+// RemoteError 是 Relay 返回的结构化失败。
+type RemoteError struct {
+	StatusCode int
+	Code       string
+	Message    string
+	RequestID  string
+}
+
+func (e *RemoteError) Error() string {
+	if e == nil {
+		return "Relay 请求失败"
+	}
+	return fmt.Sprintf("Relay 请求失败: %s (%s)", e.Message, e.Code)
 }

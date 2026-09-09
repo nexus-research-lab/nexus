@@ -14,7 +14,8 @@ import (
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
-	relaysvc "github.com/nexus-research-lab/nexus/internal/service/relay"
+	relaycontract "github.com/nexus-research-lab/nexus/internal/relay"
+
 	"github.com/nexus-research-lab/nexus/internal/storage"
 )
 
@@ -33,7 +34,7 @@ func NewRepository(cfg config.Config, db *sql.DB) *Repository {
 func (r *Repository) ProjectBootstrap(
 	ctx context.Context,
 	ownerUserID string,
-	bootstrap relaysvc.Bootstrap,
+	bootstrap relaycontract.Bootstrap,
 ) error {
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	if ownerUserID == "" {
@@ -118,7 +119,7 @@ ON CONFLICT(owner_user_id, deployment_id, conversation_id) DO NOTHING`
 func (r *Repository) ProjectCommit(
 	ctx context.Context,
 	ownerUserID string,
-	commit relaysvc.MessageCommit,
+	commit relaycontract.MessageCommit,
 ) error {
 	return r.project(ctx, ownerUserID, commit.StreamID, commit.StreamEpoch, func(
 		tx *sql.Tx,
@@ -138,9 +139,9 @@ func (r *Repository) ProjectCommit(
 func (r *Repository) ProjectSnapshot(
 	ctx context.Context,
 	ownerUserID string,
-	snapshot relaysvc.Snapshot,
+	snapshot relaycontract.Snapshot,
 ) error {
-	messages := append([]relaysvc.Message(nil), snapshot.Messages...)
+	messages := append([]relaycontract.Message(nil), snapshot.Messages...)
 	sort.Slice(messages, func(i, j int) bool { return messages[i].MessageSeq < messages[j].MessageSeq })
 	return r.project(ctx, ownerUserID, snapshot.StreamID, snapshot.StreamEpoch, func(
 		tx *sql.Tx,
@@ -162,7 +163,7 @@ func (r *Repository) ProjectSnapshot(
 func (r *Repository) ProjectDifference(
 	ctx context.Context,
 	ownerUserID string,
-	difference relaysvc.Difference,
+	difference relaycontract.Difference,
 ) error {
 	return r.project(ctx, ownerUserID, difference.StreamID, difference.StreamEpoch, func(
 		tx *sql.Tx,
@@ -285,7 +286,7 @@ func (r *Repository) insertMessage(
 	ctx context.Context,
 	tx *sql.Tx,
 	conversation conversationState,
-	message relaysvc.Message,
+	message relaycontract.Message,
 ) error {
 	if message.ConversationID != conversation.id {
 		return errors.New("Relay 消息 conversation_id 不匹配")
@@ -302,7 +303,7 @@ AND message_id = `+r.dialect.Bind(3), conversation.deploymentID, conversation.id
 		&existingSeq, &existingContent,
 	)
 	if err == nil {
-		var existing relaysvc.MessageContent
+		var existing relaycontract.MessageContent
 		if json.Unmarshal(existingContent, &existing) != nil ||
 			existingSeq != message.MessageSeq || !reflect.DeepEqual(existing, message.Content) {
 			return errors.New("Relay 消息幂等内容冲突")

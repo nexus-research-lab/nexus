@@ -1,14 +1,15 @@
 // INPUT: 同一历史页内的 assistant 快照、result 行与 Agent 执行身份。
 // OUTPUT: result 只挂到同 root round 的对应 agent round，未匹配结果转合成 assistant。
 // POS: compact 后历史行到前端 assistant 终态的唯一 result 配对入口。
-package workspace
+package message
 
 import (
-	"github.com/nexus-research-lab/nexus/internal/message"
+	"encoding/json"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-func mergeRoundResultSummaries(rows []protocol.Message) []protocol.Message {
+// MergeHistoryResultSummaries 按物理 Agent round 配对结果，返回独立副本；不修改输入历史。
+func MergeHistoryResultSummaries(rows []protocol.Message) []protocol.Message {
 	if len(rows) == 0 {
 		return rows
 	}
@@ -43,7 +44,7 @@ type resultSummaryTarget struct {
 
 func newRoundResultSummaryMerger(rows []protocol.Message) *roundResultSummaryMerger {
 	merger := &roundResultSummaryMerger{
-		rows:                   cloneHistoryRows(rows),
+		rows:                   cloneResultHistoryRows(rows),
 		assistantByAgentRound:  make(map[agentRoundSummaryKey]resultSummaryTarget),
 		assistantByAgent:       make(map[agentSummaryKey]resultSummaryTarget),
 		legacyAssistantByAgent: make(map[agentSummaryKey]resultSummaryTarget),
@@ -54,30 +55,22 @@ func newRoundResultSummaryMerger(rows []protocol.Message) *roundResultSummaryMer
 	return merger
 }
 
-func cloneHistoryRows(rows []protocol.Message) []protocol.Message {
-	cloned := make([]protocol.Message, 0, len(rows))
-	for _, row := range rows {
-		cloned = append(cloned, protocol.Clone(row))
-	}
-	return cloned
-}
-
 func (m *roundResultSummaryMerger) indexAssistants() {
 	for index, row := range m.rows {
 		if protocol.MessageRole(row) != "assistant" {
 			continue
 		}
-		roundID := stringFromAny(row["round_id"])
+		roundID := historyIdentity(row["round_id"])
 		if roundID == "" {
 			continue
 		}
 		target := resultSummaryTarget{
 			index:         index,
-			assistantText: message.ExtractAssistantDisplayText(row),
+			assistantText: ExtractAssistantDisplayText(row),
 		}
 		m.lastAssistantByRound[roundID] = target
-		agentID := stringFromAny(row["agent_id"])
-		agentRoundID := stringFromAny(row["agent_round_id"])
+		agentID := historyIdentity(row["agent_id"])
+		agentRoundID := historyIdentity(row["agent_round_id"])
 		if agentRoundID != "" {
 			m.assistantByAgentRound[agentRoundSummaryKey{
 				roundID:      roundID,
@@ -105,25 +98,25 @@ func (m *roundResultSummaryMerger) attachMatchingResults() {
 		}
 
 		assistant := protocol.Clone(m.rows[target.index])
-		summary := message.BuildAssistantResultSummary(row, target.assistantText)
+		summary := BuildAssistantResultSummary(row, target.assistantText)
 		if len(summary) == 0 {
 			continue
 		}
 		assistant["result_summary"] = summary
 		m.rows[target.index] = assistant
-		if messageID := stringFromAny(row["message_id"]); messageID != "" {
+		if messageID := historyIdentity(row["message_id"]); messageID != "" {
 			m.mergedResultMessageIDs[messageID] = struct{}{}
 		}
 	}
 }
 
 func (m *roundResultSummaryMerger) matchingAssistant(result protocol.Message) (resultSummaryTarget, bool) {
-	roundID := stringFromAny(result["round_id"])
+	roundID := historyIdentity(result["round_id"])
 	if roundID == "" {
 		return resultSummaryTarget{}, false
 	}
-	agentID := stringFromAny(result["agent_id"])
-	if agentRoundID := stringFromAny(result["agent_round_id"]); agentRoundID != "" {
+	agentID := historyIdentity(result["agent_id"])
+	if agentRoundID := historyIdentity(result["agent_round_id"]); agentRoundID != "" {
 		if target, ok := m.assistantByAgentRound[agentRoundSummaryKey{
 			roundID:      roundID,
 			agentRoundID: agentRoundID,
@@ -156,13 +149,27 @@ func (m *roundResultSummaryMerger) buildResultRows() []protocol.Message {
 	result := make([]protocol.Message, 0, len(m.rows))
 	for _, row := range m.rows {
 		if protocol.MessageRole(row) == "result" {
-			if _, merged := m.mergedResultMessageIDs[stringFromAny(row["message_id"])]; merged {
+			if _, merged := m.mergedResultMessageIDs[historyIdentity(row["message_id"])]; merged {
 				continue
 			}
-			result = append(result, message.BuildSyntheticAssistantFromResult(row))
+			result = append(result, BuildSyntheticAssistantFromResult(row))
 			continue
 		}
 		result = append(result, row)
 	}
 	return result
+}
+func cloneResultHistoryRows(rows []protocol.Message) []protocol.Message {
+	cloned := make([]protocol.Message, 0, len(rows))
+	for _, row := range rows {
+		cloned = append(cloned, protocol.Clone(row))
+	}
+	return cloned
+}
+
+func historyIdentity(value any) string {
+	if number, ok := value.(json.Number); ok {
+		return number.String()
+	}
+	return normalizeString(value)
 }

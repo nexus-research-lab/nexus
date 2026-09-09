@@ -29,6 +29,7 @@ import (
 	handlerwebsocket "github.com/nexus-research-lab/nexus/internal/handler/websocket"
 	workspacehandler "github.com/nexus-research-lab/nexus/internal/handler/workspace"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
+	teamsvc "github.com/nexus-research-lab/nexus/internal/service/team"
 )
 
 type handlerSet struct {
@@ -128,5 +129,5 @@ func newTeamHandler(api *handlershared.API, services *app.AppServices) *teamhand
 	if !ok {
 		return nil
 	}
-	return teamhandler.New(api, control, services.Relay, services.TeamRelay)
+	return teamhandler.New(api, control, teamsvc.New(services.Relay, services.TeamRelay, api.BaseLogger()), services.Relay)
 }

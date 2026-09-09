@@ -21,7 +21,8 @@
 //   - paths.go / transcript_path.go / transcript_project_hash.go / value_coerce.go：
 //     路径、transcript 项目目录名、工程 hash、值转换。
 //
-// 历史投影与持久化共享未导出模型；在形成稳定边界前保留同包，避免为拆目录暴露内部状态。
+// 结果与 assistant 的物理 Agent round 配对由 message.MergeHistoryResultSummaries 统一负责。
+// 其余历史存取、分页索引和源解析共享未导出模型，避免为拆目录暴露内部状态。
 // TranscriptProjectDirectoryName/Names 与 RebaseSessionLifecycleRecords 是迁移层复用的稳定路径边界；
 // ReadTranscriptSessionMessages 用受控 session id 读取独立 Agent thread，
 // ReadTranscriptLinkMessages 是 Claude Code runtime 输出链接唯一允许的双重 confined 读取入口。

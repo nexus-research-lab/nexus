@@ -9,6 +9,7 @@
 //   - tool_result.go / workspace_artifact.go / workgraph_artifact.go：工具结果消息、typed applied mutation 观察、fail-closed Goal 进展、工作区产物与受管 WorkGraph 草图卡片投影。
 //   - segment_assistant.go / projection_result.go：assistant 分段、工具输入与自然语言易失进度投影、结果摘要，以及只公开已知耗时/actual token 的 Goal 完成收据挂载。
 //   - helpers.go：共享归一化与单路径 block 投影辅助。
+//   - history_result_summary.go：历史结果的物理 Agent round 配对、旧记录兼容与未匹配结果合成；不依赖存储或索引实现。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package message
