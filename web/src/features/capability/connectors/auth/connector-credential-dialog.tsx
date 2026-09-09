@@ -1,10 +1,10 @@
 // INPUT: 需要直接凭证的 Connector、提交状态与保存/关闭动作。
-// OUTPUT: 本地化的必要说明、凭证字段与连接动作；语言切换保留当前目标的输入。
+// OUTPUT: 本地化的必要说明、实例独立标签的凭证字段与连接动作；语言切换保留当前目标的输入。
 // POS: Connector 直接凭证的人机边界，不解释 runtime 或 MCP 内部装配细节。
 "use client";
 
 import { ExternalLink } from "lucide-react";
-import { type FormEvent, useCallback } from "react";
+import { type FormEvent, useCallback, useId } from "react";
 
 import { useI18n, type I18nContextValue } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
@@ -78,6 +78,7 @@ export function ConnectorCredentialDialog({
   onSave,
 }: ConnectorCredentialDialogProps) {
   const { t } = useI18n();
+  const credentialId = useId();
   const [credential, setCredential] = useResettableState("", detail?.connector_id ?? null);
 
   const handleSubmit = useCallback(
@@ -125,7 +126,7 @@ export function ConnectorCredentialDialog({
           ) : null}
 
           <UiField
-            htmlFor={`${detail.connector_id}-credential`}
+            htmlFor={credentialId}
             label={copy.label}
             required
           >
@@ -136,7 +137,7 @@ export function ConnectorCredentialDialog({
               controlSize="sm"
               data-form-type="other"
               data-lpignore="true"
-              id={`${detail.connector_id}-credential`}
+              id={credentialId}
               name={`${detail.connector_id}-credential`}
               onChange={(event) => setCredential(event.target.value)}
               pattern=".*\S.*"

@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Isolate OAuth and direct credential field labels per dialog instance to prevent cross-form focus and input.
+
 - Expose tool disclosure state to assistive technology and prevent keyboard copying from toggling the parent tool row.
 
 - Show structured generated files at the end of Room replies, deduplicating process and final-answer references.

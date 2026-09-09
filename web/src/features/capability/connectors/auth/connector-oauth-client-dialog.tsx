@@ -1,5 +1,5 @@
 // INPUT: OAuth Connector 的应用配置、现有身份与保存/删除动作。
-// OUTPUT: 回调地址和应用凭据组成的 plain 配置弹窗，删除与保存动作保持分离。
+// OUTPUT: 回调地址和实例独立标签的应用凭据组成的 plain 配置弹窗，删除与保存动作保持分离。
 // POS: Connector OAuth 客户端配置的人机边界，不重复解释内部授权流程。
 "use client";
 
@@ -9,6 +9,7 @@ import {
   type FormEvent,
   type SetStateAction,
   useCallback,
+  useId,
 } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -198,14 +199,15 @@ function ConnectorOauthClientFields({
   form: ConnectorOauthClientFormState;
   model: ConnectorOauthClientDialogModel;
 }) {
+  const fieldId = useId();
   return (
     <>
-      <UiField htmlFor="oauth-client-id" label="Client ID" required>
+      <UiField htmlFor={`${fieldId}-client-id`} label="Client ID" required>
         <UiInput
           autoCapitalize="off"
           autoCorrect="off"
           controlSize="sm"
-          id="oauth-client-id"
+          id={`${fieldId}-client-id`}
           onChange={(event) => form.setClientId(event.target.value)}
           pattern=".*\S.*"
           placeholder={model.clientIdPlaceholder}
@@ -214,7 +216,7 @@ function ConnectorOauthClientFields({
           value={form.clientId}
         />
       </UiField>
-      <UiField htmlFor="oauth-client-secret" label="Client Secret" required>
+      <UiField htmlFor={`${fieldId}-client-secret`} label="Client Secret" required>
         <UiInput
           autoCapitalize="off"
           autoComplete="off"
@@ -222,8 +224,8 @@ function ConnectorOauthClientFields({
           controlSize="sm"
           data-form-type="other"
           data-lpignore="true"
-          id="oauth-client-secret"
-          name="feishu-docx-client-secret"
+          id={`${fieldId}-client-secret`}
+          name="oauth-client-secret"
           onChange={(event) => form.setClientSecret(event.target.value)}
           pattern=".*\S.*"
           placeholder={model.secretPlaceholder}
