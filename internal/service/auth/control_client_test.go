@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
+	subscriptionsvc "github.com/nexus-research-lab/nexus/internal/service/subscription"
 
 	_ "modernc.org/sqlite"
 )
@@ -365,6 +367,44 @@ FROM owner_entitlements WHERE owner_user_id = ?`, binding.LocalOwnerKey).Scan(
 	}
 	if planKey != "team" || planName != "Team" || projectedLimit != limit {
 		t.Fatalf("stale Principal rolled projection back to %q, %q, %d", planKey, planName, projectedLimit)
+	}
+}
+
+func TestFailClosedControlIdentitiesBlocksOldEntitlementProjection(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	cfg, database := newAuthTestDB(t)
+	authority := NewControlAuthority(cfg, database, nil)
+	principal := controlPrincipal{
+		DeploymentID: "dep-a", UserID: "user-a", Username: "member",
+		DisplayName: "Member", Role: RoleMember,
+		Entitlement: testControlEntitlement(time.Now().UTC()),
+	}
+	binding, err := authority.bindings.resolve(ctx, principal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	subscription := subscriptionsvc.NewServiceWithDB(cfg, database)
+	if err := subscription.EnsureQuotaAvailable(ctx, binding.LocalOwnerKey); err != nil {
+		t.Fatalf("fresh Control entitlement should allow a request: %v", err)
+	}
+
+	owners, err := authority.FailClosedControlIdentities(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(owners) != 1 || owners[0] != binding.LocalOwnerKey {
+		t.Fatalf("fail-closed owners = %v, want [%s]", owners, binding.LocalOwnerKey)
+	}
+	if err := subscription.EnsureQuotaAvailable(ctx, binding.LocalOwnerKey); !errors.Is(err, subscriptionsvc.ErrEntitlementUnavailable) {
+		t.Fatalf("skipped invalidation must reject requests despite the old projection: %v", err)
+	}
+
+	if _, err := authority.bindings.resolve(ctx, principal); err != nil {
+		t.Fatal(err)
+	}
+	if err := subscription.EnsureQuotaAvailable(ctx, binding.LocalOwnerKey); err != nil {
+		t.Fatalf("authoritative entitlement refresh should restore requests: %v", err)
 	}
 }
 
