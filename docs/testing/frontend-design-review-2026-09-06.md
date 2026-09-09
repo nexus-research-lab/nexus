@@ -3849,3 +3849,10 @@ UiFilterSelect 删除可见 label API，所有联系人、技能、连接器、�
 在 A115 消费方统一后，删除 UiSelectMenu → SelectMenuView → SelectMenuTriggerContent 三层已无业务消费者的 label 参数及类别/分隔线 DOM、专用排版 import。外部 Field 关联、leading、当前值及多选内容保留。TypeScript JSX 遍历检查 58 处相关调用，没有残余内部 label 属性；全前端 typecheck 通过。
 
 5 文件 44 项回归覆盖单选菜单、触发器、打开手势、目录筛选与 Room 多选，目标 lint 通过，日志 /tmp/nexus-a117-{target,lint,types}.log。未做视觉验证，仅更新本批所有者哈希与审查证据，清单状态不变。
+
+
+## A118 — 更新提示串行读取
+
+审查确认更新执行错误已有原生宿主反馈，未添加第二套反馈。版本提示 hook 增加在途读取防重，避免慢桥接重叠与旧响应覆盖；保留读取失败时最后已知版本、空值清除和卸载丢弃结果。补齐 L3。
+
+4 项 hook 回归覆盖非桌面/无桥接、慢响应、失败恢复、空值和卸载，目标 lint/typecheck 通过，日志 /tmp/nexus-a118-{target,lint,types}.log。未执行原生更新或视觉校验；不宣称更新按钮整体审查完成，清单计数不变。

@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Prevent overlapping desktop update-hint reads from replacing newer version hints.
+
 - Remove the unused internal category-prefix rendering branch from shared select triggers.
 
 - Remove obsolete bilingual category-prefix strings after shared filter consolidation.
