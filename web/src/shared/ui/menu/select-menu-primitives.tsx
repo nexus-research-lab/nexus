@@ -1,5 +1,5 @@
 // INPUT: Select trigger 的开关/禁用事实、既有样式投影、内容与原生事件，以及 listbox/选项数据。
-// OUTPUT: 稳定触发器、精确 Field 关联、可聚焦/委派键盘的 listbox 和 option button 语义 DOM。
+// OUTPUT: 只显示选值/可选前导内容的稳定触发器、精确 Field 关联、可聚焦/委派键盘的 listbox 和 option button 语义 DOM。
 // POS: Select Menu 视图原语；不管理开关、选值或定位计算。
 
 import type {
@@ -12,7 +12,6 @@ import type {
 import { ChevronDown } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
-import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { useFieldControlAttributes } from "@/shared/ui/form/field-accessibility";
 
 import type { UiAnchoredOverlayPosition } from "../overlay/anchored-overlay-model";
@@ -88,12 +87,10 @@ export function SelectMenuTrigger({
 export function SelectMenuTriggerContent({
   children,
   isOpen,
-  label,
   leading,
 }: {
   children: ReactNode;
   isOpen: boolean;
-  label?: ReactNode;
   leading?: ReactNode;
 }) {
   return (
@@ -101,14 +98,6 @@ export function SelectMenuTriggerContent({
       <span className="flex min-w-0 flex-1 items-center gap-2">
         {leading ? (
           <span aria-hidden="true" className="shrink-0 text-(--icon-default)">{leading}</span>
-        ) : null}
-        {label ? (
-          <>
-            <span className={cn("shrink-0", getUiTypographyClassName({ role: "metadata", tone: "muted", weight: "medium" }))}>
-              {label}
-            </span>
-            <span className="h-3.5 w-px shrink-0 bg-(--divider-subtle-color)" />
-          </>
         ) : null}
         {children}
       </span>

@@ -36,7 +36,6 @@ interface UiSelectMenuProps {
   className?: string;
   disabled?: boolean;
   id?: string;
-  label?: ReactNode;
   leading?: ReactNode;
   menuMinWidth?: number;
   onChange: (value: string) => void;
@@ -58,7 +57,6 @@ export function UiSelectMenu({
   className,
   disabled: disabledProp = false,
   id,
-  label,
   leading,
   menuMinWidth,
   onChange,
@@ -162,7 +160,6 @@ export function UiSelectMenu({
       disabled={disabled}
       id={id}
       isOpen={isOpen}
-      label={label}
       leading={leading}
       menuId={menuId}
       menuPlacement={menuPosition?.placement}
