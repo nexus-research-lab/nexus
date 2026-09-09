@@ -14,6 +14,7 @@ import {
 
 import { splitTextGraphemes } from "@/lib/text-graphemes";
 import { usePrefersReducedMotion } from "@/shared/lib/react/use-prefers-reduced-motion";
+import { MarkdownStreamBlockParser } from "./markdown-stream-blocks";
 import { AdaptiveStreamClock } from "./adaptive-stream-clock";
 import { conversationStreamFrameScheduler } from "./stream-frame-scheduler";
 import {
@@ -68,6 +69,8 @@ export function useSmoothStreamingMarkdownState(
   const targetContentRef = useRef(content);
   const targetCharsRef = useRef(targetInitialCharsRef.current);
   const targetCountRef = useRef(targetCharsRef.current.length);
+  const [blockParser] = useState(() => new MarkdownStreamBlockParser());
+  const lastCommitTsRef = useRef<number | null>(null);
   const lastFrameTsRef = useRef<number | null>(null);
   const frameSubscriptionRef = useRef<(() => void) | null>(null);
   const enabledRef = useRef(enabled);
@@ -91,6 +94,7 @@ export function useSmoothStreamingMarkdownState(
       frameSubscriptionRef.current = null;
     }
     lastFrameTsRef.current = null;
+    lastCommitTsRef.current = null;
   }, []);
 
   const syncImmediate = useCallback(
@@ -139,6 +143,15 @@ export function useSmoothStreamingMarkdownState(
     }
 
     const tick = (timestamp: number, revealGrant: number): number => {
+      const blocks = blockParser.parse(targetContentRef.current);
+      const displayedOffset = displayedContentRef.current.length;
+      const activeBlock = blocks.findLast((block) => block.start_offset <= displayedOffset);
+      const tailLength = displayedOffset - (activeBlock?.start_offset ?? 0);
+      // 长尾每次解析更贵：合并到最多 96ms 一次，预算仍累计完整等待时间。
+      const commitInterval = Math.min(96, (1000 / 30) * (1 + tailLength / 256));
+      if (lastCommitTsRef.current !== null
+        && timestamp - lastCommitTsRef.current < commitInterval - 0.5) return 0;
+
       const previousFrameTs = lastFrameTsRef.current;
       const frameIntervalMs = previousFrameTs === null
         ? 16
@@ -159,8 +172,19 @@ export function useSmoothStreamingMarkdownState(
         return 0;
       }
 
+      const grantEnd = displayedOffset + targetCharsRef.current
+        .slice(displayedCount, Math.min(targetCount, displayedCount + revealGrant))
+        .join("").length;
+      const completeEnd = blocks.findLast((block) => block.start_offset <= grantEnd)?.start_offset ?? 0;
+      let completeBlockCharacters = 0;
+      let offset = displayedOffset;
+      while (offset < completeEnd && completeBlockCharacters < backlog) {
+        offset += targetCharsRef.current[displayedCount + completeBlockCharacters].length;
+        completeBlockCharacters += 1;
+      }
       const frame = streamClockRef.current?.resolveFrame({
         backlog,
+        completeBlockCharacters,
         frameIntervalMs,
         maxRevealCount: revealGrant,
         streaming: enabledRef.current,
@@ -174,6 +198,7 @@ export function useSmoothStreamingMarkdownState(
         return 0;
       }
 
+      lastCommitTsRef.current = timestamp;
       const nextCount = displayedCount + frame.revealCount;
       const segment = targetCharsRef.current
         .slice(displayedCount, nextCount)
@@ -197,6 +222,7 @@ export function useSmoothStreamingMarkdownState(
       tick,
     );
   }, [
+    blockParser,
     setIsAnimating,
     stopFrameLoop,
   ]);

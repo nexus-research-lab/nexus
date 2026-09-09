@@ -322,6 +322,9 @@ export function ContentGallery({ locale }: { locale: Locale }) {
               path="web/src/shared/ui/markdown/markdown-content.tsx"
             />
           </PreviewCard>
+          <PreviewCard components={["useSmoothStreamingMarkdownState", "MarkdownText"]}>
+            <StreamingMarkdownGallery />
+          </PreviewCard>
           <PreviewCard components={["StreamingCodeBlock", "MermaidView", "LazyMermaidView", "MermaidSourceView", "MermaidRenderedPreview", "MermaidPreviewDialog"]}>
             <StreamingCodeBlock language="ts" value={code} />
             <MermaidView
@@ -936,4 +939,25 @@ function translateTodo(content: string): string {
     "Verify 320px viewport": "验证 320px 视口",
   };
   return translations[content] ?? content;
+}
+
+function StreamingMarkdownGallery() {
+  const [content, setContent] = useState("");
+  const [streaming, setStreaming] = useState(true);
+  const sample = "稳定段落 **Markdown** 👩🏽‍💻。\n\n".repeat(10)
+    + "长段落 e\u0301 与中文连续输出。".repeat(160);
+  return (
+    <div className="grid gap-3" data-gallery-streaming-markdown>
+      <div className="flex flex-wrap gap-2">
+        <UiButton onClick={() => { setStreaming(true); setContent(sample); }}>Burst</UiButton>
+        <UiButton onClick={() => { setContent(sample + "\n\nSTREAM_DONE 👩🏽‍💻"); setStreaming(false); }}>Finish</UiButton>
+        <UiButton onClick={() => { setContent(""); setStreaming(true); }}>Reset</UiButton>
+      </div>
+      {[0, 1, 2].map((index) => (
+        <div className="max-h-60 overflow-auto" data-stream-output key={index}>
+          <UiMarkdownContent content={content} isStreaming={streaming} />
+        </div>
+      ))}
+    </div>
+  );
 }

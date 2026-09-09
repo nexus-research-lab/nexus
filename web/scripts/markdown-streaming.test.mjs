@@ -58,8 +58,8 @@ test("并行 Markdown 流共用一个帧提交且空闲后停止调度", async (
     consumptions
       .filter((entry) => entry.timestamp === 16)
       .reduce((total, entry) => total + entry.grant, 0),
-    4,
-    "the default aggregate reveal cap must stay at 4 graphemes",
+    2048,
+    "large block catch-up stays bounded per commit",
   );
   assert.equal(frames.length, 2, "active streams schedule one shared next frame");
 
@@ -238,37 +238,51 @@ test("流回报未用额度后同帧预算可交给后续流", async () => {
   unsubscribeBusy();
 });
 
-test("大块 live backlog 平滑追赶且 terminal 在有界时间排空", async () => {
+test("高速输出追赶且大块终态按固定截止时间排空", async () => {
   const { AdaptiveStreamClock } = await server.ssrLoadModule(
     "/src/shared/ui/markdown/streaming/adaptive-stream-clock.ts",
   );
+  for (const cps of [36, 300, 3_000]) {
+    const clock = new AdaptiveStreamClock(0);
+    let backlog = 0;
+    let maxBacklog = 0;
+    for (let timestamp = 0; timestamp < 3_000; timestamp += 34) {
+      const appended = Math.round(cps * 0.034);
+      backlog += appended;
+      clock.observeAppend(timestamp, appended);
+      const frame = clock.resolveFrame({ backlog, frameIntervalMs: 34,
+        maxRevealCount: 2048, streaming: true, timestamp });
+      assert.ok(frame.revealCount >= 0 && frame.revealCount <= backlog);
+      backlog -= frame.revealCount;
+      maxBacklog = Math.max(maxBacklog, backlog);
+    }
+    assert.ok(maxBacklog < Math.max(180, cps * 0.5), `arrival ${cps}/s: backlog ${maxBacklog}`);
+  }
   const clock = new AdaptiveStreamClock(0);
-  clock.observeAppend(0, 1_200);
+  let backlog = 12_000;
+  clock.observeAppend(0, backlog);
+  const first = clock.resolveFrame({ backlog, frameIntervalMs: 34,
+    maxRevealCount: 2048, streaming: false, timestamp: 34 });
+  assert.ok(first.revealCount > 4 && first.revealCount < backlog);
+  backlog -= first.revealCount;
+  for (let timestamp = 68; timestamp <= 578 && backlog; timestamp += 34) {
+    backlog -= clock.resolveFrame({ backlog, frameIntervalMs: 34,
+      maxRevealCount: 2048, streaming: false, timestamp }).revealCount;
+  }
+  assert.equal(backlog, 0, "terminal must finish, not restart a sliding drain window");
+});
 
-  const liveFrame = clock.resolveFrame({
-    backlog: 1_200,
-    frameIntervalMs: 34,
-    streaming: true,
-    timestamp: 1_000,
-  });
-  assert.equal(liveFrame.phase, "rendering");
-  assert.ok(
-    liveFrame.cps >= 80 && liveFrame.cps <= 90 && liveFrame.revealCount > 0,
-    "a large first snapshot must advance at a visible reading pace",
+test("高积压合并完成块，低速正文仍使用字符预算", async () => {
+  const { AdaptiveStreamClock } = await server.ssrLoadModule(
+    "/src/shared/ui/markdown/streaming/adaptive-stream-clock.ts",
   );
-
-  const terminalFrame = clock.resolveFrame({
-    backlog: 1_200,
-    frameIntervalMs: 34,
-    streaming: false,
-    timestamp: 1_034,
-  });
-  assert.equal(terminalFrame.phase, "flushing");
-  assert.ok(
-    terminalFrame.cps >= 110 && terminalFrame.cps <= 120
-      && terminalFrame.revealCount > liveFrame.revealCount,
-    "terminal drain must speed up gently without one immediate full-height jump",
-  );
+  for (const [backlog, expected] of [[1_200, 800], [100, 1]]) {
+    const clock = new AdaptiveStreamClock(0);
+    clock.observeAppend(0, backlog);
+    const frame = clock.resolveFrame({ backlog, completeBlockCharacters: 800,
+      frameIntervalMs: 34, maxRevealCount: 2048, streaming: true, timestamp: 34 });
+    assert.equal(frame.revealCount, expected);
+  }
 });
 
 test("全局帧额度不足时流时钟保留未展示字符预算", async () => {
@@ -296,7 +310,7 @@ test("全局帧额度不足时流时钟保留未展示字符预算", async () =>
   });
   assert.equal(
     nextFrame.revealCount,
-    1,
+    80,
     "budget accumulated before the global cap must remain available",
   );
 });
@@ -432,6 +446,28 @@ test("流式 Markdown 保持空行分隔的相邻有序列表项为一个语义�
   assert.match(blocks[1].content, /^1\./);
   assert.match(blocks[1].content, /\n2\./);
   assert.match(blocks[1].content, /\n3\./);
+});
+
+test("增量分块与全量扫描逐前缀一致，支持修正与列表续写", async () => {
+  const { MarkdownStreamBlockParser, splitStreamingMarkdownBlocks } = await server.ssrLoadModule(
+    "/src/shared/ui/markdown/streaming/markdown-stream-blocks.ts",
+  );
+  const parser = new MarkdownStreamBlockParser();
+  const samples = [
+    "# 标题\n\n段落 👩🏽‍💻\n\n1. 一\n\n2. 二\n\n后续\n\n",
+    "首段\n\n第二段\n\n```ts\na\n\nb\n```\n\n尾段",
+    "首段\n\n第二段\n\n$$\na\n\n+b\n$$\n\n尾段",
+    "# 新标题\n\n修正后\n\n- 一\n\n- 二\n\n",
+  ];
+  for (const source of samples) {
+    for (let end = 0; end <= source.length; end++) {
+      const prefix = source.slice(0, end);
+      assert.deepEqual(parser.parse(prefix), splitStreamingMarkdownBlocks(prefix), prefix);
+    }
+  }
+  const prefix = "一\n\n二\n\n三\n\n四\n\n五";
+  const frozen = parser.parse(prefix)[0];
+  assert.equal(parser.parse(prefix + "追加")[0], frozen, "completed prefixes retain object identity");
 });
 
 test("Markdown 有序列表透传非默认起始序号", async () => {

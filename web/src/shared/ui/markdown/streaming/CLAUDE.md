@@ -1,11 +1,13 @@
 # Markdown 流式渲染
 
-- `markdown-stream-blocks.ts`: 把不完整输入切成可稳定渲染的区块。
+- `markdown-stream-blocks.ts`: 把不完整输入切成可稳定渲染的区块；增量解析器缓存前缀，保留最后两块重扫以支持列表续写，非前缀修正重新解析。
 - `markdown-streaming.tsx`: 以一个持久 `MarkdownText` 身份组合静态区块与当前增量区块；本次挂载一旦进入流式态，终态继续按相同 `start_offset` 分块并切换为静态组件，避免代码、图片等后续块重挂载；所有流已由共享帧调度器合批，禁止再用每实例延迟值制造第二批异步高度提交，初次加载的历史消息直接走静态单块。
-- `adaptive-stream-clock.ts`: 根据追加字符的到达速度与最长间隔先建立短暂抗抖缓冲，再以约 18–90 grapheme/s 的可读节奏连续追赶；终态只温和提升到最多约 120 grapheme/s，避免传输间隙和完成瞬间触发突发刷新；公平池轮转等待必须完整累计，共享调度器未授予的当前 backlog 预算不得扣除，但累计信用不能超过已经到达的 backlog。
-- `stream-frame-scheduler.ts`: 所有可见 Markdown 流共用一个最高 30Hz RAF 和固定的每帧 4 grapheme 总额度；每帧只允许一条流实际消费并按订阅者身份轮转，返回 0 的 buffering 流不占提交名额、调度器继续探测后续流，空 backlog 必须立即退订。
+- `adaptive-stream-clock.ts`: 低速输入保持约 18–90 grapheme/s 与短暂抗抖缓冲；积压达到 180 字符时按 350ms 目标延迟提高片段大小，并允许合并已完成块。终态设定一次 500ms 排空截止点，实际完成仍受共享调度额度与浏览器帧可用性约束；信用不得超过已到达 backlog。
+- `stream-frame-scheduler.ts`: 所有可见流共用最高 30Hz RAF，每帧只允许一条流提交并按身份轮转；字符需求由各流时钟决定，大块追赶每次最多 2048 grapheme，返回 0 的 buffering/节流流不占名额，空 backlog 立即退订。
 - `stream-text-units.ts`: 追加时通过 `lib/text-graphemes.ts` 重分前一个尾单元与新 delta，保证跨 transport chunk 的 emoji ZWJ、肤色修饰符与组合附标仍作为一个展示单元；基础切分不在流式层重复实现。
-- `use-smooth-streaming-markdown-content.ts`: 通过唯一 `useSmoothStreamingMarkdownState` 同时返回正文与真实渲染态，只对追加快照做单调追赶；增量字符原地追加到目标缓冲，大块 live 追加也按有界追赶速度展示而不瞬间扩高，终态继续排空已有 backlog；历史首挂、非前缀修正、页面重新可见或减少动态效果时立即对齐真实正文。
+- `use-smooth-streaming-markdown-content.ts`: 通过唯一 `useSmoothStreamingMarkdownState` 同时返回正文与真实渲染态，只对追加快照做单调追赶；增量字符原地追加到目标缓冲，大块 live 追加以有界字符预算或完成块合并追赶，长尾按长度将提交间隔延长到最多 96ms，终态继续排空已有 backlog；历史首挂、非前缀修正、页面重新可见或减少动态效果时立即对齐真实正文。
+
+`use-smooth-streaming-markdown-content.test.tsx` 用真实时钟与调度器验证长尾降频、grapheme 边界、终态排空和快照修正。
 
 相邻列表项属于同一个 Markdown 语义块，即使条目之间存在空行也不得拆开，否则有序列表会丢失连续计数；列表之外的已完成区块仍保持稳定身份。
 
@@ -17,3 +19,5 @@ Room 的阅读位置仍由会话滚动层维护；Markdown 平滑只改善阅读
 正文流式层不得添加 opacity、transform、光标或光晕动画；视觉连续性只由字符时钟、稳定区块身份与会话层原有贴底逻辑提供。
 
 显示公式的独占行分隔（含列表/引用前缀）与代码块一样拥有内部空行；不可在中途冻结为多个 Markdown 块。完成后继续复用相同起点和节点，正文语法与未闭合降级仍由 core 处理。
+
+实现参考 Lobe UI streamdown 的积压完成块合并、长尾降频与前缀缓存思路（`lobehub/lobe-ui@2907fc1e`，`packages/streamdown/src/useSmoothStreamContent.ts` 与 `blockLexer.ts`）；不引入依赖，继续复用本仓 grapheme、Markdown 边界和显式 runtime 终态。

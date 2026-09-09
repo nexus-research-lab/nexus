@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Adapt streaming Markdown to output pressure: keep low-speed character pacing, merge completed blocks during bursts, reduce long-tail parsing, and drain completed responses promptly across concurrent Agents.
+
 - Keep all three Launcher recent entries on one evenly sized row, truncating long labels without stretching the hero.
 
 - Simplify RichMail setup into a compact three-step guide, collapse technical connection details, and show the tool catalog only after connecting.

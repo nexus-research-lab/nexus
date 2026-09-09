@@ -9,11 +9,12 @@ import {
   memo,
   useMemo,
   useRef,
+  useState,
   type ComponentProps,
 } from "react";
 import ReactMarkdown from "react-markdown";
 
-import { splitStreamingMarkdownBlocks } from "./markdown-stream-blocks";
+import { MarkdownStreamBlockParser } from "./markdown-stream-blocks";
 
 type ReactMarkdownProps = ComponentProps<typeof ReactMarkdown>;
 
@@ -70,6 +71,7 @@ export function MarkdownText({
   remarkPlugins: remarkPlugins,
   urlTransform,
 }: MarkdownTextProps) {
+  const [blockParser] = useState(() => new MarkdownStreamBlockParser());
   const hasEverStreamedRef = useRef(isStreaming);
   if (isStreaming) {
     hasEverStreamedRef.current = true;
@@ -77,13 +79,13 @@ export function MarkdownText({
   const shouldKeepStreamBlocks = hasEverStreamedRef.current;
   const nextBlocks = useMemo(
     () => shouldKeepStreamBlocks
-      ? splitStreamingMarkdownBlocks(content)
+      ? blockParser.parse(content)
       : [{
         content,
         start_offset: 0,
         state: "revealed" as const,
       }],
-    [content, shouldKeepStreamBlocks],
+    [blockParser, content, shouldKeepStreamBlocks],
   );
   const blocks = nextBlocks;
 

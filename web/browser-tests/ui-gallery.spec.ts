@@ -1975,3 +1975,28 @@ test("Skill details align reading and configuration with concise accessible togg
   await capture(detail, info, "skill-detail-layout");
   expect(errors).toEqual([]);
 });
+
+
+test("streaming Markdown catches up across concurrent streams and preserves settled blocks", async ({ page }, info) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  const { errors } = await openGallery(page, info, "content");
+  const fixture = page.locator("[data-gallery-streaming-markdown]");
+  await fixture.getByRole("button", { name: "Burst", exact: true }).click();
+  const outputs = fixture.locator("[data-stream-output]");
+  await expect(outputs.first().locator("[data-markdown-anchor]").first()).toHaveText("稳定段落 Markdown 👩🏽‍💻。");
+  const stableBlock = await outputs.first().locator("[data-markdown-anchor]").first().elementHandle();
+  await fixture.getByRole("button", { name: "Finish", exact: true }).click();
+  for (const output of await outputs.all()) {
+    await expect(output).toContainText("STREAM_DONE 👩🏽‍💻", { timeout: 2_000 });
+    await expect(output.locator("[data-markdown-anchor]")).toHaveCount(12);
+    expect(await output.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+  }
+  expect(await stableBlock?.evaluate((element) => element.isConnected)).toBe(true);
+  if (info.project.name === "light-zh-1440") await capture(fixture, info, "streaming-markdown-settled");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await fixture.getByRole("button", { name: "Reset", exact: true }).click();
+  await expect(outputs.first()).toHaveText("");
+  await fixture.getByRole("button", { name: "Finish", exact: true }).click();
+  await expect(outputs.first()).toContainText("STREAM_DONE 👩🏽‍💻");
+  expect(errors).toEqual([]);
+});
