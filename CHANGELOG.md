@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Remove the built-in Loops catalog, backend endpoints and summary count, capability pages and navigation, and Composer Loop-to-Goal actions.
 
+- Hide the sidebar account and help footer while viewing settings, restoring it when returning to the workspace.
+
 
 ### Added
 
