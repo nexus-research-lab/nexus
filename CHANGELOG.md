@@ -43,6 +43,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Avoid requesting Select opening resources when arrow keys have no available option.
+
 - Navigate settings search results to the matching field, including repeated clicks within the same section and asynchronously loaded content.
 
 - Center sidebar navigation icons and labels across the full visible rail, including the shell's leading inset.
