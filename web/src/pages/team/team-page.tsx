@@ -1,7 +1,11 @@
+// INPUT: Team room read model, controlled draft and explicit send command.
+// OUTPUT: Human-message page with IME-safe submission and accessible feedback.
+// POS: Team presentation; transport and persistence remain in useTeamRoom.
 import { Send } from "lucide-react";
 import { FormEvent, useEffect, useRef, useState } from "react";
 
 import { useTeamRoom } from "@/features/team/use-team-room";
+import { isImeKeyboardEvent } from "@/shared/lib/browser/ime-keyboard-event";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
 import { UiTextarea } from "@/shared/ui/form/form-control";
@@ -21,6 +25,7 @@ export function TeamPage() {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (!draft.trim() || room.isSending || !room.bootstrap) return;
     if (await room.send(draft)) {
       setDraft("");
     }
@@ -39,10 +44,10 @@ export function TeamPage() {
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-8">
         {room.isLoading ? (
-          <div className="flex h-full items-center justify-center text-sm text-(--text-soft)">
+          <div role="status" className="flex h-full items-center justify-center text-sm text-(--text-soft)">
             {t("team.loading")}
           </div>
-        ) : room.messages.length === 0 ? (
+        ) : room.messages.length === 0 && room.error !== "load" ? (
           <div className="flex h-full items-center justify-center text-sm text-(--text-soft)">
             {t("team.empty")}
           </div>
@@ -84,6 +89,7 @@ export function TeamPage() {
             disabled={!room.bootstrap || room.isSending}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {
+              if (event.defaultPrevented || isImeKeyboardEvent(event.nativeEvent)) return;
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
                 event.currentTarget.form?.requestSubmit();
@@ -101,12 +107,12 @@ export function TeamPage() {
             type="submit"
             variant="solid"
           >
-            <Send className="h-4 w-4" />
+            <Send aria-hidden="true" className="h-4 w-4" />
             {t("team.send")}
           </UiButton>
         </div>
         {errorMessage ? (
-          <p className="mx-auto mt-2 w-full max-w-3xl text-xs text-destructive">
+          <p role="alert" className="mx-auto mt-2 w-full max-w-3xl text-xs text-destructive">
             {errorMessage}
           </p>
         ) : null}

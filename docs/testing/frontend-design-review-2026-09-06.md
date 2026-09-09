@@ -3793,3 +3793,10 @@ Select 行保持 in_progress（本轮只复审新增 onOpen 契约），字体�
 两列列表保留 96px 最小操作区，极短空间通过外层纵向滚动访问完整内容，正常高度继续列内滚动；不再通过 overflow-hidden 裁掉搜索/错误或让列表缩为零。当前目标说明通过 useId 与触发器关联，同时渲染执行/投递不串联描述，失效身份仅展示本地化提示。分组 pressed 状态继续由公共 Button recipe 表达，未新增业务选中样式。
 
 12 项目标表单回归、目标 lint、typecheck 及生产 build 通过，见 /tmp/nexus-a109-{target,lint,types,build}.log；仅既有大分块提示。CSS 构建不作为视觉验收。结合 A106–A108 的精确选择、嵌套 Escape、双向 Tab、资源恢复和公共视口边界证据，目标选择器代码审查 improved。489 项现为 219 pending、132 in_progress、110 improved、22 retained、6 removed。
+
+
+## A110 — 团队页输入法与反馈
+
+Team Enter 发送接入公共 IME 判断，组合输入和 keyCode 229 不发送，Shift+Enter 保留换行。submit 同步拒绝空文本、发送中及 bootstrap 未就绪；成功清空、失败保留的既有草稿行为不变。加载增加 status，错误增加 alert，首次加载失败不显示空会话；发送图标作为具名按钮装饰。
+
+新增 3 项真实表单交互回归覆盖上述入口和状态，目标 lint/typecheck 通过，日志 /tmp/nexus-a110-{target,lint,types}.log。未改变 transport 或宿主，未做视觉验证。Team 页推进 in_progress，消息视图/排版与滚动仍待审。489 项现为 218 pending、133 in_progress、110 improved、22 retained、6 removed。
