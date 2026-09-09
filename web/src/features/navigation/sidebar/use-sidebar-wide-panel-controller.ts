@@ -188,12 +188,16 @@ export function useSidebarWidePanelController({
         labels: utilityLabels,
         onCollapse: () => setWidePanelCollapsed(true),
         onExpand: () => setWidePanelCollapsed(false),
+        onLogin: () => navigate(AppRouteBuilders.login()),
         onLogout: () => void logout(),
         onOpenGuide: guideCenter.openGuideCenter,
         settingsActive: pathname.startsWith(AppRouteBuilders.settings()),
+        showLogin:
+          desktopRuntime
+          && authStatus?.password_login_enabled === true
+          && authStatus.auth_method === "local",
         showLogout:
-          !desktopRuntime
-          && authStatus?.auth_required === true
+          authStatus?.auth_method === "password"
           && authStatus.password_login_enabled
           && authStatus.authenticated,
         showPanelToggle: !navigationOnly,

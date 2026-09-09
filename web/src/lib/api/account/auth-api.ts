@@ -85,41 +85,88 @@ export interface PasswordChangeReceipt {
 
 export interface UpdatePersonalProfileParams {
   avatar?: string;
+  authMethod?: string;
 }
 
 export async function getAuthStatus(): Promise<AuthStatus> {
-  return requestApi<AuthStatus>(`${AUTH_API_BASE_URL}/auth/status`, {
+  const localStatus = await requestApi<AuthStatus>(`${AUTH_API_BASE_URL}/auth/status`, {
     method: "GET",
     notify_on_401: false,
   });
+  if (!isDesktopRuntime()) {
+    return localStatus;
+  }
+  try {
+    const remoteStatus = await requestApi<AuthStatus>(`${CONTROL_AUTH_BASE_URL}/status`, {
+      method: "GET",
+      notify_on_401: false,
+    });
+    if (!remoteStatus.authenticated) {
+      return {
+        ...localStatus,
+        password_login_enabled: remoteStatus.password_login_enabled,
+      };
+    }
+    return {
+      ...remoteStatus,
+      auth_required: false,
+      setup_enabled: false,
+      setup_required: false,
+      user_id: localStatus.user_id,
+    };
+  } catch {
+    return {
+      ...localStatus,
+      password_login_enabled: true,
+    };
+  }
 }
 
 export async function loginApi(params: LoginParams): Promise<AuthStatus> {
-  return requestApi<AuthStatus>(`${CONTROL_AUTH_BASE_URL}/login`, {
+  const status = await requestApi<AuthStatus>(`${CONTROL_AUTH_BASE_URL}/login`, {
     method: "POST",
     notify_on_401: false,
     body: JSON.stringify(params),
   });
+  return isDesktopRuntime() ? getAuthStatus() : status;
 }
 
 export async function logoutApi(): Promise<AuthStatus> {
-  if (isDesktopRuntime()) {
-    return getAuthStatus();
-  }
-  return requestApi<AuthStatus>(`${CONTROL_AUTH_BASE_URL}/logout`, {
+  const status = await requestApi<AuthStatus>(`${CONTROL_AUTH_BASE_URL}/logout`, {
     method: "POST",
     notify_on_401: false,
   });
+  return isDesktopRuntime() ? getAuthStatus() : status;
 }
 
 export async function getPersonalProfileApi(): Promise<PersonalProfile> {
-  return requestApi<PersonalProfile>(`${AUTH_API_BASE_URL}/settings/profile`, {
+  const profile = await requestApi<PersonalProfile>(`${AUTH_API_BASE_URL}/settings/profile`, {
     method: "GET",
   });
+  if (!isDesktopRuntime()) {
+    return profile;
+  }
+  const status = await getAuthStatus();
+  if (status.auth_method !== "password") {
+    return profile;
+  }
+  return {
+    ...profile,
+    can_change_password: true,
+    can_update_profile: true,
+    user: {
+      ...profile.user,
+      auth_method: status.auth_method,
+      avatar: status.avatar ?? "",
+      display_name: status.display_name ?? status.username ?? "",
+      role: status.role ?? profile.user.role,
+      username: status.username ?? "",
+    },
+  };
 }
 
 export async function updatePersonalProfileApi(params: UpdatePersonalProfileParams): Promise<void> {
-  const endpoint = isDesktopRuntime()
+  const endpoint = isDesktopRuntime() && params.authMethod !== "password"
     ? `${AUTH_API_BASE_URL}/settings/profile`
     : `${CONTROL_AUTH_BASE_URL}/profile`;
   await requestApi<unknown>(endpoint, {

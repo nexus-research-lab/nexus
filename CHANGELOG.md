@@ -26,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Keep the annual Token activity heatmap compact even with partial history, with independent daily, weekly and cumulative views and accessible hover details.
 
+- Keep Desktop local capabilities and the `__system__` data owner active at all times, while the App connects account and Team requests to the public Nexus gateway for optional online Control sign-in without shipping Control service credentials or switching the local data directory.
+
 - Redesign personal settings with a centered profile, bounded content width, concise token usage, and an expandable password form; remove redundant metric cards and decorative icons.
 
 - Adapt streaming Markdown to output pressure: keep low-speed character pacing, merge completed blocks during bursts, reduce long-tail parsing, and drain completed responses promptly across concurrent Agents.

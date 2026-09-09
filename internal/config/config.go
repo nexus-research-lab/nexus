@@ -50,6 +50,7 @@ type Config struct {
 	DatabaseDriver                   string
 	DatabaseURL                      string
 	AuthSessionCookieName            string
+	RemoteURL                        string
 	ControlURL                       string
 	ControlServiceToken              string
 	ControlServiceTokenFile          string
@@ -143,6 +144,10 @@ func Load() Config {
 	}
 	workspacePath := configuredWorkspacePath(getEnv("WORKSPACE_PATH", ""))
 	appMode := getEnv("NEXUS_APP_MODE", "")
+	remoteURL := strings.TrimSpace(getEnv("NEXUS_REMOTE_URL", ""))
+	if remoteURL == "" && strings.EqualFold(strings.TrimSpace(appMode), "desktop") {
+		remoteURL = "https://app.nexusos.cn"
+	}
 	controlURL := strings.TrimSpace(getEnv("NEXUS_CONTROL_URL", ""))
 	if controlURL == "" && !strings.EqualFold(strings.TrimSpace(appMode), "desktop") {
 		controlURL = "http://127.0.0.1:8020"
@@ -204,6 +209,7 @@ func Load() Config {
 			filepath.Join(appRoot, "data"),
 		),
 		AuthSessionCookieName:   getEnv("AUTH_SESSION_COOKIE_NAME", "nexus_session"),
+		RemoteURL:               remoteURL,
 		ControlURL:              controlURL,
 		ControlServiceToken:     controlServiceToken,
 		ControlServiceTokenFile: controlServiceTokenFile,
