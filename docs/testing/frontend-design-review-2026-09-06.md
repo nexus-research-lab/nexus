@@ -3918,3 +3918,8 @@ Enter 与按钮共用短查询/加载禁用条件，保留 composition ref 并�
 ## A130 — 品牌大小写与搜索展开
 
 按用户反馈将字标改为 Nexus 并去掉 uppercase。设置搜索默认 max-width 180px，focus-within 或有查询展开到剩余宽度；无查询且失焦收回，宽度动效尊重 reduced-motion。相关设置/公式回归 22 项、目标 lint/typecheck/build 通过，日志 /tmp/nexus-a130-{target,lint,types,build}.log。未做视觉校验，清单计数不变。
+
+
+## A131 — 设置分组缩进
+
+按用户反馈恢复分类标题与选项的层级：标题保持原位，选项容器统一左缩进 12px，选中底面随选项一起缩进，搜索命中的字段继续使用既有次级缩进。3 项导航回归与 lint 通过，日志 /tmp/nexus-a131-{target,lint}.log；无视觉验证，清单计数不变。
