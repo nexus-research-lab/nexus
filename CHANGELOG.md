@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Refined the execution activity dock with shared 28px avatars, fewer nested
+  styling overrides and a shorter divider while preserving navigation and hit areas.
+
 - Search settings item names and descriptions in addition to navigation labels, listing matching items under their accessible module.
 
 - Add settings navigation search by section or group name and soften the back-to-workspace label weight.

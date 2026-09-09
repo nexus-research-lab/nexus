@@ -1,6 +1,6 @@
 /**
  * INPUT: Graph 节点类型、状态、当前标记、展示语义与可选持久或 runtime Agent identity。
- * OUTPUT: 带生命周期或实时工作状态的节点视觉；Dock 使用较大头像与单一状态点，完整图保留状态框。
+ * OUTPUT: 带生命周期或实时工作状态的节点视觉；Dock 使用公共 sm 头像与单一状态点，完整图保留状态框。
  * POS: Composer 节点轨迹与展开 Execution Graph 共用的节点视觉原语。
  */
 "use client";
@@ -82,7 +82,7 @@ export function ExecutionNodeAvatar({
         graph
           ? "h-11 w-11 rounded-[13px]"
           : dock
-          ? "h-7 w-7 rounded-[8px] border-transparent bg-transparent p-0"
+          ? "h-7 w-7 border-0 bg-transparent p-0"
           : nested
           ? "h-8.5 w-8.5 rounded-[11px]"
           : "h-6 w-6 rounded-[8px]",
@@ -127,7 +127,7 @@ export function ExecutionNodeAvatar({
             graph
               ? "h-9.5 w-9.5 rounded-[10px]"
               : dock
-              ? "h-6.5 w-6.5 rounded-[7px]"
+              ? undefined
               : nested
               ? "h-7 w-7 rounded-[8px]"
               : "h-5 w-5",
@@ -135,12 +135,12 @@ export function ExecutionNodeAvatar({
           imageClassName={graph
             ? "rounded-[9px]"
             : dock
-            ? "rounded-[6px]"
+            ? undefined
             : nested
             ? "rounded-[7px]"
             : "rounded-[5px]"}
           name={agent.name}
-          size={graph ? "md" : "xs"}
+          size={graph ? "md" : dock ? "sm" : "xs"}
         />
       ) : kind === "subagent" ? (
         // 防御性 fallback；正常 WorkGraph 投影会为每个 Subagent 提供稳定头像。

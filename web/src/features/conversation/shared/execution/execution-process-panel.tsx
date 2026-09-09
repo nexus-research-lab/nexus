@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前托管 Execution、Agent 目录、打开完整工作图与精确 Agent round 导航动作。
- * OUTPUT: Composer 上方只包含一级 Agent 的实时活动 Dock；头像区域可滚动，完整工作图入口固定可达。
+ * OUTPUT: Composer 上方只包含一级 Agent 的实时活动 Dock（公共 28px 头像、32px 命中区与 12px 分隔）；头像区域可滚动，完整工作图入口固定可达。
  * POS: DM 与 Room 共用的 WorkGraph 快速入口；完整节点关系与详情只在右侧 WorkGraph Surface 展示。
  */
 "use client";
@@ -127,7 +127,7 @@ export function ExecutionProcessPanel({
             </div>
             <span
               aria-hidden="true"
-              className="h-4 w-px shrink-0 bg-(--divider-subtle-color)"
+              className="h-3 w-px shrink-0 bg-(--divider-subtle-color)"
               data-execution-agent-activity-divider
             />
           </>
