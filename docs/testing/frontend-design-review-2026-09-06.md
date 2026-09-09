@@ -4056,3 +4056,8 @@ AppearanceNumberInput 的 Enter 收口忽略输入法组合态与 229 兼容事�
 ### A156 — 引导 Escape 消费边界
 
 OnboardingTourOverlay 忽略已消费 Escape、输入法组合态与 229 兼容事件，普通 Escape 保持关闭。新增 React 控件消费、输入法取消、普通关闭与卸载清理回归；连同定位/卡片共 3 项及目标 lint 通过。不声称覆盖所有浮层叠加或视觉验收。
+
+
+### A157 — 跨组件回归
+
+类型检查通过。组件全量首次为 292 文件通过、1 文件失败，2 项消息 Markdown 测试缺少文件按钮本地化需要的 I18nProvider；补齐测试 wrapper 后，目标 5 项与 lint 通过，全量重跑 293 文件 / 1382 项全部通过。日志 /tmp/nexus-a157-components-rerun.log；未执行浏览器或原生视觉验收。
