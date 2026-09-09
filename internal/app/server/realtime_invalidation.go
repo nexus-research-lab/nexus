@@ -7,6 +7,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/app"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/handler/websocket"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -15,7 +16,7 @@ import (
 )
 
 func configureRealtimeInvalidation(
-	services *AppServices,
+	services *app.AppServices,
 	broadcaster *websocket.Handler,
 ) {
 	if services == nil || broadcaster == nil {

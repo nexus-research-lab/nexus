@@ -7,7 +7,7 @@ import (
 	"errors"
 	"testing"
 
-	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
+	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
@@ -18,12 +18,12 @@ import (
 func TestDeleteRoomAtVersionSeparatesCASFailureFromCommittedCleanupFailure(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := app.NewAgentService(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	runtimeCloser := &fakeRoomRuntimeCloser{err: errors.New("runtime close failed")}
 	goalCleaner := &fakeRoomGoalCleaner{conversationErr: errors.New("goal cleanup failed")}
 	roomService.SetRuntimeManager(runtimeCloser)

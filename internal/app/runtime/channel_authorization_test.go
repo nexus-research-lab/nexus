@@ -5,10 +5,10 @@ package runtime
 
 import (
 	"context"
-	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"github.com/nexus-research-lab/nexus/internal/mcp/sdktool"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"

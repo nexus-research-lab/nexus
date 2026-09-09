@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nexus-research-lab/nexus/internal/app/server"
+	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	configurationsvc "github.com/nexus-research-lab/nexus/internal/service/configuration"
@@ -40,7 +40,7 @@ func TestConfigurationControlPlaneAppliesAndVerifiesPreferenceChange(t *testing.
 	if err = goose.Up(db, "../../../db/migrations/sqlite"); err != nil {
 		t.Fatal(err)
 	}
-	services := server.NewAppServicesWithDB(cfg, db, nil)
+	services := app.NewAppServicesWithDB(cfg, db, nil)
 	enableConfigurationTestPrincipalVerification(services)
 	if err = services.Core.Agent.EnsureReady(t.Context()); err != nil {
 		t.Fatal(err)

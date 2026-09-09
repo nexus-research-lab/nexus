@@ -8,7 +8,8 @@ import (
 	"time"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
-	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
+
+	"github.com/nexus-research-lab/nexus/internal/app"
 	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
@@ -27,7 +28,7 @@ func TestRoomServiceLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	roomService.SetSessionArtifactDeletionCoordinator(
 		noopSessionArtifactDeletionCoordinator{},
 	)
@@ -168,7 +169,7 @@ func TestRoomServiceTouchConversationActivityOrdersContexts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 
 	ctx := context.Background()
 	agentA := createTestAgent(t, agentService, ctx, "测试助手A")
@@ -242,7 +243,7 @@ func TestRoomServiceEnsuresSingleDraftConversation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 
 	ctx := context.Background()
 	agentA := createTestAgent(t, agentService, ctx, "草稿助手A")
@@ -351,7 +352,7 @@ func TestRoomServiceClosesConversationRuntime(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	runtimeCloser := &fakeRoomRuntimeCloser{}
 	roomService.SetRuntimeManager(runtimeCloser)
 	roomService.SetSessionArtifactDeletionCoordinator(
@@ -403,7 +404,7 @@ func TestRealtimeServiceHandleInterruptCancelsAllSlots(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
@@ -611,7 +612,7 @@ func TestRealtimeServiceTreatsClosedStreamAfterInterruptAsInterrupted(t *testing
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
@@ -742,7 +743,7 @@ func TestRoomRoundCompletionReachesAutomationObserver(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	agent := createTestAgent(t, agentService, ctx, "定时助手")
 	room, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
 		AgentIDs: []string{agent.AgentID}, Name: "自动化终态回归",

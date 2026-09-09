@@ -15,7 +15,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
-	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
+	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
@@ -392,7 +392,7 @@ func TestServiceRejectsMainAgentDeletionBeforeCoordinator(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
 
-	service, _, err := serverapp.NewAgentService(cfg)
+	service, _, err := app.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 service 失败: %v", err)
 	}
@@ -416,7 +416,7 @@ func TestServiceUsesRuntimeVersionForCompareAndSwap(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
 
-	service, _, err := serverapp.NewAgentService(cfg)
+	service, _, err := app.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 service 失败: %v", err)
 	}
@@ -480,7 +480,7 @@ func TestServiceDeleteAtVersionRejectsStalePlanBeforeWorkspaceCleanup(t *testing
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
 
-	service, _, err := serverapp.NewAgentService(cfg)
+	service, _, err := app.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 service 失败: %v", err)
 	}
@@ -863,7 +863,7 @@ func migrateSQLite(t *testing.T, databaseURL string) {
 
 func newAgentTestService(t *testing.T, cfg config.Config) (*agentpkg.Service, *sql.DB) {
 	t.Helper()
-	service, db, err := serverapp.NewAgentService(cfg)
+	service, db, err := app.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 service 失败: %v", err)
 	}

@@ -64,6 +64,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Drain HTTP requests and wait for background workers before releasing server resources, and retry failed identity cleanup while Control remains unavailable.
+
 - Clarify fixed inspect operations in command contracts and return the exact inspect call when agents incorrectly invoke them, preventing misleading operation-registration retries.
 
 - Navigate settings search results to the matching field, including repeated clicks within the same section and asynchronously loaded content.

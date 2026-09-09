@@ -7,12 +7,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 
-	servergoal "github.com/nexus-research-lab/nexus/internal/app/server/goal"
+	appgoal "github.com/nexus-research-lab/nexus/internal/app/goal"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
 	sessionsvc "github.com/nexus-research-lab/nexus/internal/service/session"
@@ -28,20 +29,33 @@ const (
 	executionDispatchBatch     = 32
 	subagentReconcileBatch     = 32
 	orchestrationRecoveryBatch = 32
-	controlInvalidationPoll    = time.Second
-	controlInvalidationGrace   = time.Minute
 )
-
-type controlIdentityInvalidationSource interface {
-	ControlIdentityInvalidationCursor(context.Context) (int64, error)
-	CommitControlIdentityInvalidationCursor(context.Context, int64) error
-	ControlIdentityInvalidations(context.Context, int64) ([]authsvc.ControlIdentityInvalidation, error)
-	ApplyControlIdentityInvalidation(context.Context, authsvc.ControlIdentityInvalidation) (string, error)
-	FailClosedControlIdentities(context.Context) ([]string, error)
-}
 
 // ListenAndServe 启动后台服务与 HTTP 服务。
 func (s *Server) ListenAndServe(ctx context.Context) error {
+	s.lifecycleMu.Lock()
+	if s.closed || s.done != nil {
+		s.lifecycleMu.Unlock()
+		return errors.New("HTTP server is closed or already running")
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	s.cancel, s.done = cancel, done
+	s.lifecycleMu.Unlock()
+	defer func() {
+		cancel()
+		s.lifecycleMu.Lock()
+		close(done)
+		s.cancel, s.done = nil, nil
+		s.lifecycleMu.Unlock()
+	}()
+
+	// 监听失败时不启动后台任务，避免失败启动触发业务恢复。
+	listener, err := net.Listen("tcp", s.config.Address())
+	if err != nil {
+		return err
+	}
+	defer listener.Close()
 	stopBackground, err := s.startBackgroundServices(ctx)
 	if err != nil {
 		return err
@@ -57,12 +71,25 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 		IdleTimeout:       httpIdleTimeout,
 	}
 
-	go func() {
-		<-ctx.Done()
+	shutdownDone := make(chan struct{})
+	stopShutdown := context.AfterFunc(ctx, func() {
+		defer close(shutdownDone)
 		s.api.BaseLogger().Info("收到停止信号，开始关闭 HTTP 服务")
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		_ = httpServer.Shutdown(shutdownCtx)
+		if err := httpServer.Shutdown(shutdownCtx); err != nil {
+			s.api.BaseLogger().Warn("HTTP 请求未在关闭期限内结束", "err", err)
+			_ = httpServer.Close()
+		}
+	})
+	defer func() {
+		// Serve 返回不会等待 Shutdown；先排空 HTTP，再停止后台并释放数据库。
+		cancel()
+		if stopShutdown() {
+			_ = httpServer.Close()
+		} else {
+			<-shutdownDone
+		}
 	}()
 
 	s.api.BaseLogger().Info("HTTP 服务开始监听",
@@ -70,7 +97,7 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 		"api_prefix", s.config.APIPrefix,
 		"websocket_path", s.config.WebSocketPath,
 	)
-	return httpServer.ListenAndServe()
+	return httpServer.Serve(listener)
 }
 
 func (s *Server) startBackgroundServices(ctx context.Context) (func(), error) {
@@ -107,13 +134,6 @@ func (s *Server) startBackgroundServices(ctx context.Context) (func(), error) {
 	if stopRuntimeIdleReclaimer := s.startRuntimeIdleSessionReclaimer(ctx); stopRuntimeIdleReclaimer != nil {
 		stops = append(stops, stopRuntimeIdleReclaimer)
 	}
-	if s.services != nil && s.services.Title != nil {
-		stops = append(stops, func() {
-			if err := s.services.Title.Close(context.Background()); err != nil {
-				s.api.BaseLogger().Warn("标题生成后台任务关闭失败", "err", err)
-			}
-		})
-	}
 
 	return stopAll, nil
 }
@@ -122,126 +142,13 @@ func (s *Server) startControlIdentityInvalidations(ctx context.Context) (func(),
 	if s.services == nil || s.services.Auth == nil {
 		return nil, nil
 	}
-	source, ok := s.services.Auth.(controlIdentityInvalidationSource)
+	source, ok := s.services.Auth.(authsvc.ControlIdentityInvalidationSource)
 	if !ok {
 		return nil, nil
 	}
-	cursor, err := source.ControlIdentityInvalidationCursor(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("load Control identity invalidation cursor: %w", err)
-	}
-	runCtx, cancel := context.WithCancel(ctx)
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		s.runControlIdentityInvalidations(runCtx, source, cursor)
-	}()
-	s.api.BaseLogger().Info("启动 Control identity invalidation coordinator", "cursor", cursor)
-	return func() {
-		cancel()
-		<-done
-	}, nil
-}
-
-func (s *Server) runControlIdentityInvalidations(
-	ctx context.Context,
-	source controlIdentityInvalidationSource,
-	cursor int64,
-) {
-	var unavailableSince time.Time
-	failClosed := false
-	for ctx.Err() == nil {
-		events, err := source.ControlIdentityInvalidations(ctx, cursor)
-		if err != nil {
-			if unavailableSince.IsZero() {
-				unavailableSince = time.Now().UTC()
-			}
-			s.api.BaseLogger().Warn("读取 Control identity invalidation 失败", "err", err)
-			if !failClosed && time.Since(unavailableSince) >= controlInvalidationGrace {
-				owners, closeErr := source.FailClosedControlIdentities(ctx)
-				connections := s.handlers.websocket.CloseControlConnections()
-				for _, ownerUserID := range owners {
-					_, runtimeErr := s.services.Runtime.CloseOwnerSessions(ctx, ownerUserID)
-					closeErr = errors.Join(closeErr, runtimeErr)
-				}
-				s.api.BaseLogger().Error(
-					"Control identity invalidation 超过安全窗口，已关闭认证会话",
-					"owners", len(owners),
-					"connections", connections,
-					"err", closeErr,
-				)
-				failClosed = true
-			}
-			if !waitControlInvalidationPoll(ctx) {
-				return
-			}
-			continue
-		}
-		unavailableSince = time.Time{}
-		failClosed = false
-		processedAll := true
-		for _, event := range events {
-			ownerUserID, applyErr := source.ApplyControlIdentityInvalidation(ctx, event)
-			connections := 0
-			if ownerUserID != "" {
-				switch event.Reason {
-				case "session_revoked":
-					connections = s.handlers.websocket.CloseControlSessionConnections(event.SessionID)
-				case "entitlement_changed":
-					// 本地额度投影对下一个请求生效，不中断当前 Agent。
-				case "profile_changed":
-					connections = s.handlers.websocket.CloseOwnerConnections(ownerUserID)
-				default:
-					connections = s.handlers.websocket.CloseOwnerConnections(ownerUserID)
-					_, runtimeErr := s.services.Runtime.CloseOwnerSessions(ctx, ownerUserID)
-					applyErr = errors.Join(applyErr, runtimeErr)
-				}
-			}
-			if applyErr != nil {
-				s.api.BaseLogger().Warn(
-					"应用 Control identity invalidation 失败",
-					"event_id", event.EventID,
-					"owner_user_id", ownerUserID,
-					"err", applyErr,
-				)
-				processedAll = false
-				break
-			}
-			if applyErr = source.CommitControlIdentityInvalidationCursor(ctx, event.EventID); applyErr != nil {
-				s.api.BaseLogger().Warn(
-					"持久化 Control identity invalidation 游标失败",
-					"event_id", event.EventID,
-					"err", applyErr,
-				)
-				processedAll = false
-				break
-			}
-			cursor = event.EventID
-			s.api.BaseLogger().Info(
-				"应用 Control identity invalidation",
-				"event_id", event.EventID,
-				"owner_user_id", ownerUserID,
-				"connections", connections,
-			)
-		}
-		if processedAll && len(events) == authsvc.ControlIdentityInvalidationBatchSize {
-			continue
-		}
-		if !waitControlInvalidationPoll(ctx) {
-			return
-		}
-	}
-}
-
-func waitControlInvalidationPoll(ctx context.Context) bool {
-	timer := time.NewTimer(controlInvalidationPoll)
-	defer timer.Stop()
-	select {
-	case <-ctx.Done():
-		return false
-	case <-timer.C:
-		return true
-	}
+	return authsvc.NewControlIdentityInvalidationCoordinator(
+		source, s.handlers.websocket, s.services.Runtime, s.api.BaseLogger(),
+	).Start(ctx)
 }
 
 func (s *Server) startEcho(ctx context.Context) (func(), error) {
@@ -601,7 +508,7 @@ func (s *Server) startGoalResume(ctx context.Context) (func(), error) {
 	}
 	stop, err := s.services.Goal.StartAutoResume(
 		ctx,
-		servergoal.NewContinuationDispatcher(s.services.Runtime, s.services.DM, s.services.RoomRealtime),
+		appgoal.NewContinuationDispatcher(s.services.Runtime, s.services.DM, s.services.RoomRealtime),
 	)
 	if err != nil {
 		s.api.BaseLogger().Error("启动 Goal durable resume 失败", "err", err)
@@ -625,8 +532,12 @@ func (s *Server) startRuntimeIdleSessionReclaimer(ctx context.Context) func() {
 		"idle_ttl_seconds", int64(idleFor.Seconds()),
 		"sweep_interval_seconds", int64(sweepInterval.Seconds()),
 	)
-	go s.runRuntimeIdleSessionReclaimer(runCtx, sweepInterval, idleFor)
-	return stop
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		s.runRuntimeIdleSessionReclaimer(runCtx, sweepInterval, idleFor)
+	}()
+	return func() { stop(); <-done }
 }
 
 func (s *Server) runRuntimeIdleSessionReclaimer(ctx context.Context, sweepInterval time.Duration, idleFor time.Duration) {

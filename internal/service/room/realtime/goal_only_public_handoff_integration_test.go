@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
+	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -33,7 +33,7 @@ func TestRoomGoalOnlyPublicMentionHandbackImmediatelyContinues(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create Agent service: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	const ownerUserID = "owner-goal-only-public-handoff"
 	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
 		UserID: ownerUserID,

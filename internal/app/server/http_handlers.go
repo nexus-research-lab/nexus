@@ -6,6 +6,7 @@ package server
 import (
 	"context"
 
+	"github.com/nexus-research-lab/nexus/internal/app"
 	agenthandler "github.com/nexus-research-lab/nexus/internal/handler/agent"
 	authhandler "github.com/nexus-research-lab/nexus/internal/handler/auth"
 	automationhandler "github.com/nexus-research-lab/nexus/internal/handler/automation"
@@ -55,7 +56,7 @@ type handlerSet struct {
 
 func newHandlerSet(
 	api *handlershared.API,
-	services *AppServices,
+	services *app.AppServices,
 	websocketHandler *handlerwebsocket.Handler,
 ) handlerSet {
 	core := corehandler.New(
@@ -119,7 +120,7 @@ func newHandlerSet(
 	}
 }
 
-func newTeamHandler(api *handlershared.API, services *AppServices) *teamhandler.Handlers {
+func newTeamHandler(api *handlershared.API, services *app.AppServices) *teamhandler.Handlers {
 	if services == nil || services.Relay == nil {
 		return nil
 	}
