@@ -13,8 +13,7 @@ import { useAgentStore } from "@/store/agent";
 import type { WorkspaceFileArtifactContent } from "@/types/conversation/message/content";
 import { ContentBlockView } from "../../item/view/content/content-block-view";
 import { projectStructuredContent } from "../../item/view/content/content-renderer-model";
-import { AssistantProcessCallchain } from "../../item/view/assistant/assistant-process-callchain";
-import { AssistantToolRuns } from "../../item/view/assistant/assistant-dm-tool-runs";
+import { AssistantMessageContent } from "../../item/view/assistant/assistant-message-content";
 import type { AssistantActivityState, AssistantContentEnvironment, AssistantPermissionState } from "../../item/view/assistant/assistant-message-model";
 import { WorkspaceFileArtifactBlock, WorkspaceFileArtifactList } from "./workspace-file-artifacts";
 
@@ -36,14 +35,20 @@ function routeView(route: string, artifact: WorkspaceFileArtifactContent, worksp
   const environment: AssistantContentEnvironment = { canRespondToPermissions: false, hiddenToolNames: [], mode: "dm_live", workspaceAgentId, onOpenWorkspaceFile };
   const projection = { content: [artifact], streamingIndexes: new Set<number>() };
   if (route === "body") return <ContentBlockView block={artifact} blockIndex={0} showTimelineDots={false} streaming={false} context={{ canRespondToPermissions: false, hiddenToolNames: new Set(), onOpenWorkspaceFile, pendingInteractionOwner: "composer", projection: projectStructuredContent([artifact]), workspaceAgentId }} />;
-  if (route === "archived process") return <AssistantProcessCallchain activity={ACTIVITY} environment={environment} generatedFilesLabel="Generated files" permissions={PERMISSIONS} process={{ anchorRef: createRef(), expanded: false, projection, summary: { kind: "details", latestDetail: null, metrics: [] }, toggle: vi.fn(), visible: true }} />;
-  if (route === "tool process") return <AssistantToolRuns activity={ACTIVITY} environment={environment} generatedFilesLabel="Generated files" permissions={PERMISSIONS} responseResumed={false} projection={{ ...projection, content: [
-    { type: "tool_use", id: "prepare-report", name: "Read", input: { file_path: "input.md" } },
-    { type: "tool_result", tool_use_id: "prepare-report", content: "Read" },
-    { type: "tool_use", id: "write-report", name: "Write", input: { file_path: artifact.path } },
-    { type: "tool_result", tool_use_id: "write-report", content: "Saved" },
-    artifact,
-  ] }} />;
+  if (route === "archived process" || route === "tool process") {
+    const content = [
+      { type: "tool_use" as const, id: "prepare-report", name: "Read", input: { file_path: "input.md" } },
+      { type: "tool_result" as const, tool_use_id: "prepare-report", content: "Read" },
+      { type: "tool_use" as const, id: "write-report", name: "Write", input: { file_path: artifact.path } },
+      { type: "tool_result" as const, tool_use_id: "write-report", content: "Saved" },
+      artifact,
+    ];
+    return <AssistantMessageContent activity={ACTIVITY} environment={environment} permissions={PERMISSIONS}
+      direct={{ visible: route === "tool process", projection: { ...projection, content } }}
+      process={{ anchorRef: createRef(), expanded: false, projection, summary: { kind: "details", latestDetail: null, metrics: [] }, toggle: vi.fn(), visible: route === "archived process" }}
+      final={{ content: "Report complete", visible: true, isStreaming: false, streamingIndexes: new Set(), mentions: [] }}
+      showMaxTokensWarning={false} />;
+  }
   return <WorkspaceFileArtifactList artifacts={[artifact]} workspaceAgentId={workspaceAgentId} onOpenWorkspaceFile={onOpenWorkspaceFile} />;
 }
 
@@ -58,6 +63,12 @@ describe("Structured file source adapters", () => {
     useAgentStore.setState({ current_agent_id: "viewer" });
     const { rerender } = render(localized(routeView(route, ARTIFACT, "message-author", open)));
     if (route === "tool process") expect(document.querySelector('[data-tool-run-id] [aria-expanded="false"]')).toBeTruthy();
+    if (route === "archived process" || route === "tool process") {
+      const body = screen.getByText("Report complete");
+      const file = screen.getByRole("button", { name: /^result\.md/ });
+      expect(body.compareDocumentPosition(file) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(screen.getAllByRole("button", { name: /^result\.md/ })).toHaveLength(1);
+    }
     fireEvent.click(screen.getByRole("button", { name: /^result\.md/ }));
     expect(open).toHaveBeenLastCalledWith(ARTIFACT.path, "message-author");
 
