@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Collapse settings search to an icon until activated, and keep process disclosure text muted on hover.
+
 - Place generated-file summaries after assistant replies instead of beneath process headers.
 
 - Unify streaming code and syntax-loading placeholders in the Markdown code renderer.

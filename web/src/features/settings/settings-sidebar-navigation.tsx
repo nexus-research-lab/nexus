@@ -1,12 +1,13 @@
 // INPUT: 设置导航权限、查询与路由动作。
-// OUTPUT: 完整返回文案与搜索同排、分组标题下选项统一缩进的宽侧栏，或紧凑导航轨。
+// OUTPUT: 默认完整返回与搜索图标同排，搜索时收起返回文案并展开输入、分组标题下选项统一缩进的宽侧栏，或紧凑导航轨。
 // POS: 设置导航视图，复用公共输入与按钮，不执行设置写入。
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 
 import {
   ArrowLeft,
+  Search,
   Cable,
   Chrome,
   Cpu,
@@ -18,7 +19,6 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import { cn } from "@/shared/ui/class-name";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
 import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 
@@ -62,6 +62,8 @@ export function SettingsSidebarNavigation({
     useSettingsNavigation();
   const isRail = variant === "rail";
   const [query, setQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const focusSearch = useCallback((input: HTMLInputElement | null) => { input?.focus(); }, []);
   const matcher = createUiSearchMatcher(isRail ? "" : query);
   const searchItems = (section: SettingsSectionKey) => SETTINGS_SEARCH_ITEMS[section].filter(
     (fields) => (isDesktopRuntime() || (fields[0] !== "settings.providers.ccswitch_title" && !fields[0].startsWith("settings.desktop.")))
@@ -110,7 +112,12 @@ export function SettingsSidebarNavigation({
       aria-label={t("settings.title")}
       className="soft-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto px-2 py-2.5"
     >
-      <div className="mb-4 flex min-w-0 shrink-0 items-center gap-2">
+      <div
+        className="mb-4 flex min-w-0 shrink-0 items-center gap-2"
+        onBlur={(event) => {
+          if (!query && !event.currentTarget.contains(event.relatedTarget)) setSearchOpen(false);
+        }}
+      >
         <UiButton
           className="shrink-0 whitespace-nowrap px-2"
           onClick={backToWorkspace}
@@ -118,18 +125,26 @@ export function SettingsSidebarNavigation({
           size="md"
         >
           <ArrowLeft aria-hidden="true" className="h-4 w-4" />
-          {t("settings.back_to_workspace")}
+          <span className={searchOpen ? "sr-only" : undefined}>{t("settings.back_to_workspace")}</span>
         </UiButton>
-        <UiSearchInput
+        {searchOpen ? <UiSearchInput
+          ref={focusSearch}
           aria-label={t("settings.search_navigation")}
           placeholder={t("settings.search_navigation")}
-          className={cn(
-            "min-w-0 flex-1 transition-[max-width] duration-200 motion-reduce:transition-none focus-within:max-w-full",
-            query ? "max-w-full" : "max-w-[180px]",
-          )}
+          className="min-w-0 flex-1"
           value={query}
           onChange={setQuery}
-        />
+        /> : (
+          <UiIconButton
+            className="ml-auto"
+            aria-label={t("settings.search_navigation")}
+            tooltip={t("settings.search_navigation")}
+            onClick={() => setSearchOpen(true)}
+            size="md"
+          >
+            <Search aria-hidden="true" className="h-4 w-4" />
+          </UiIconButton>
+        )}
       </div>
       {navigationGroups.length === 0 ? (
         <p role="status" className="ui-type-metadata px-2 text-(--text-muted)">

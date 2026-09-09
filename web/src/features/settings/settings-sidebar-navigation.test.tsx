@@ -16,6 +16,7 @@ vi.mock("./use-settings-navigation", () => ({ useSettingsNavigation: () => ({ ac
 it("filters names and groups, reports no results and restores navigation on clear", async () => {
   const user = userEvent.setup();
   render(<SettingsSidebarNavigation variant="panel" />);
+  await user.click(screen.getByRole("button", { name: "搜索设置…" }));
   const search = screen.getByRole("searchbox", { name: "搜索设置…" });
   await user.type(search, "外观");
   expect(screen.queryByRole("button", { name: "常规" })).toBeNull();
@@ -34,6 +35,7 @@ it("filters names and groups, reports no results and restores navigation on clea
 it("finds setting descriptions beneath their module without exposing restricted modules", async () => {
   const user = userEvent.setup();
   render(<SettingsSidebarNavigation variant="panel" />);
+  await user.click(screen.getByRole("button", { name: "搜索设置…" }));
   const search = screen.getByRole("searchbox", { name: "搜索设置…" });
   await user.type(search, "长期");
   expect(screen.getByRole("button", { name: "常规" })).toBeTruthy();
@@ -55,5 +57,11 @@ it("keeps the full back label visible and keyboard accessible before search", as
   await user.keyboard("{Enter}");
   expect(backToWorkspace).toHaveBeenCalledOnce();
   await user.tab();
+  expect(document.activeElement).toBe(screen.getByRole("button", { name: "搜索设置…" }));
+  await user.keyboard("{Enter}");
   expect(document.activeElement).toBe(screen.getByRole("searchbox", { name: "搜索设置…" }));
+  expect(back.querySelector(".sr-only")?.textContent).toBe("返回工作台");
+  await user.click(screen.getByRole("button", { name: "常规" }));
+  expect(screen.queryByRole("searchbox")).toBeNull();
+  expect(back.querySelector(".sr-only")).toBeNull();
 });

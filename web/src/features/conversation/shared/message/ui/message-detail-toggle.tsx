@@ -43,7 +43,7 @@ export function MessageDetailToggle({
       aria-expanded={expanded}
       className={cn(
         "w-full min-w-0 justify-start text-left font-normal",
-        tone === "default" && "aria-[expanded=true]:text-(--text-muted)",
+        tone === "default" && "hover:text-(--text-muted) aria-[expanded=true]:text-(--text-muted)",
         className,
       )}
       size="sm"
