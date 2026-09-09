@@ -54,7 +54,7 @@ export function TaskFormGallery() {
     </h2>
     <div className="mx-auto flex max-w-3xl min-w-0 flex-col gap-6">
       <div className="min-w-0" data-gallery-task-basics>
-        <TaskBasicsPanel actions={form.actions} data={data} form={form.draft} isEditing={false} nameRef={nameRef} needsSessionRebind={false}
+        <TaskBasicsPanel actions={form.actions} data={data} form={form.draft} nameRef={nameRef} needsSessionRebind={false}
           advancedFields={<TaskScheduleAdvanced actions={schedule.actions} form={form.draft} formActions={form.actions} schedule={schedule.draft} />}>
       <div className="min-w-0" data-gallery-task-schedule>
         <TaskSchedulePanel actions={schedule.actions} form={form.draft} formActions={form.actions}

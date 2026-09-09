@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Keep nested select menus above their parent popovers, fixing hidden scheduled-task type options.
+
 - Use “智能体 / 群聊” for scheduled task type filters in Chinese and “DM / Room” in English.
 
 - Simplify scheduled task destination selection: clarify the DM/Room type filter and show independent Room execution/reply member selectors beside their destinations.
