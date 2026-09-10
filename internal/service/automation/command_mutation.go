@@ -1,5 +1,5 @@
 // INPUT: round-scoped Actor、Automation mutation operation 与 CLI intent。
-// OUTPUT: 不写入的确定性 plan，或经 digest/revision/人工确认后的领域写入结果。
+// OUTPUT: 不写入的确定性 plan，或复用确认前预检契约并再次校验 digest/revision/人工确认后的领域写入结果。
 // POS: Nexus Automation command 的唯一变更入口；tool input 和模型文本都不能绕过本层。
 package automation
 
@@ -168,8 +168,8 @@ func (s *Service) ApplyRuntimeCommand(
 	options RuntimeCommandApplyOptions,
 ) (*automationdomain.AutomationCommandApplyResult, error) {
 	request.RequestID = strings.TrimSpace(request.RequestID)
-	if !runtimeAutomationRequestIDPattern.MatchString(request.RequestID) {
-		return nil, errors.New("request_id 必须为 8-128 位字母、数字、点、下划线、冒号或连字符")
+	if err := command.ValidateRequestID(request.RequestID); err != nil {
+		return nil, err
 	}
 	if replayed, found, replayErr := s.ReplayRuntimeCommand(ctx, actor, request); replayErr != nil {
 		return nil, replayErr
@@ -180,11 +180,8 @@ func (s *Service) ApplyRuntimeCommand(
 	if err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(request.ExpectedRevision) == "" || request.ExpectedRevision != plan.CurrentRevision {
-		return nil, fmt.Errorf("Automation 状态已变化：expected_revision=%s current_revision=%s；请重新 plan", request.ExpectedRevision, plan.CurrentRevision)
-	}
-	if strings.TrimSpace(request.PlanDigest) == "" || request.PlanDigest != plan.PlanDigest {
-		return nil, errors.New("plan_digest 与当前 Actor、输入或 revision 不匹配；请重新 plan")
+	if err := ValidateRuntimeCommandPlan(request, *plan); err != nil {
+		return nil, err
 	}
 	if plan.RequiresConfirmation && !options.HumanConfirmed {
 		return nil, errors.New("该 Automation 变更缺少当前会话的真人确认")
@@ -343,8 +340,8 @@ func (s *Service) ReplayRuntimeCommand(
 		return nil, false, err
 	}
 	request.RequestID = strings.TrimSpace(request.RequestID)
-	if !runtimeAutomationRequestIDPattern.MatchString(request.RequestID) {
-		return nil, false, errors.New("request_id 必须为 8-128 位字母、数字、点、下划线、冒号或连字符")
+	if err := command.ValidateRequestID(request.RequestID); err != nil {
+		return nil, false, err
 	}
 	intentDigest, err := runtimeAutomationIntentDigest(actor, request.Operation, request.Input)
 	if err != nil {
