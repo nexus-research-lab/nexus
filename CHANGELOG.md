@@ -8,7 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 - Unify local and online Room creation in one full group-chat dialog; online creation additionally supports Team member selection.
-
+- Activate Browser tabs before native input to prevent background wheel stalls, and persist command diagnostics in Nexus logs (extension 0.8.6).
+- Bound Browser commands and cursor feedback, cancel stale operations, isolate uncertain sessions, and record execution stages; requires Browser extension 0.8.5 (protocol 6).
+- Align command schema bounds, expose exact Automation contracts and reusable plan inputs, and reject invalid apply fences before confirmation.
+- Declare command request ID constraints and provide actionable correction guidance for invalid WorkGraph submissions.
 - Correct historical WorkGraph task and file ownership, and contain canvas zoom gestures.
 - Isolate Team drafts and late conversation navigation; prevent duplicate online-room and provider-import submissions.
 - Improve Thread keyboard access and failed-avatar recovery.

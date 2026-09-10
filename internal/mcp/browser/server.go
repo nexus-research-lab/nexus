@@ -153,7 +153,7 @@ func browserSchema() map[string]any {
 			},
 			"timeout_ms": map[string]any{
 				"type": "integer", "minimum": 100, "maximum": 80000,
-				"description": "evaluate、wait_for、wait_for_url 或 downloads wait 的等待时长。",
+				"description": "evaluate、wait_for、wait_for_url 或 downloads wait 的整条调用预算（包含排队）；超时后先核对页面，不自动重试。",
 			},
 			"page_format": map[string]any{
 				"type": "string", "enum": []string{"text", "html"},

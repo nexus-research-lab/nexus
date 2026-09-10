@@ -3,7 +3,7 @@
 // L2 | 父级: internal（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - app_services.go / core_services.go：共享依赖图与数据库所有权；AppServices.Close 统一释放标题任务、授权任务、Browser 与自有数据库。
+//   - app_services.go / core_services.go：共享依赖图、Browser 持久化诊断 logger 与数据库所有权；AppServices.Close 统一释放标题任务、授权任务、Browser 与自有数据库。
 //   - agent_deletion_coordinator.go / dm_external_reply.go：Agent 删除与外部回复的跨域宿主适配。
 //   - goal/：会话所有权、命令路由、引导、中断与续跑的 DM/Room 适配。
 //   - execution/ / workgraph/：执行取消、命令上下文、历史投影与隐藏编辑会话适配。

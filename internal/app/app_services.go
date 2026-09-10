@@ -196,6 +196,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	var browserService *browsersvc.Service
 	if cfg.BrowserEnabled {
 		browserService = browsersvc.NewService()
+		browserService.SetLogger(logger.With("component", "browser"))
 	}
 	imagegenService.SetPreferences(preferencesService)
 	workspaceService := workspacepkg.NewService(cfg, core.Agent)

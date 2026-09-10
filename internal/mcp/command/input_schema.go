@@ -1,5 +1,5 @@
 // INPUT: Operation.InputSchema 的 portable JSON Schema 子集，以及 MCP/CLI 解码后的 JSON 输入。
-// OUTPUT: 在领域 handler 前完成 required/type/enum/pattern/closed-object/array-boundary 校验的稳定错误。
+// OUTPUT: 在领域 handler 前完成 required/type/enum/pattern/string-length/numeric-boundary/closed-object/array-boundary 校验的稳定错误。
 // POS: Goal 与 Execution command 共用的模型输入边界；复刻原生 MCP provider 的 schema 前置约束。
 package command
 
@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 )
 
 // ValidateInput validates the portable schema dialect emitted by runtime
@@ -62,6 +63,9 @@ func validateSchemaValue(path string, value any, schema map[string]any) error {
 		if maximum, ok := schemaInteger(schema["maxItems"]); ok && len(array) > maximum {
 			return fmt.Errorf("at %s must contain at most %d items", path, maximum)
 		}
+		if minimum, ok := schemaInteger(schema["minItems"]); ok && len(array) < minimum {
+			return fmt.Errorf("at %s must contain at least %d items", path, minimum)
+		}
 		itemSchema, _ := schema["items"].(map[string]any)
 		for index, item := range array {
 			if err := validateSchemaValue(fmt.Sprintf("%s[%d]", path, index), item, itemSchema); err != nil {
@@ -75,6 +79,13 @@ func validateSchemaValue(path string, value any, schema map[string]any) error {
 		}
 		if allowed := schemaStrings(schema["enum"]); len(allowed) > 0 && !containsString(allowed, text) {
 			return fmt.Errorf("at %s must be one of %s", path, strings.Join(allowed, ", "))
+		}
+		length := utf8.RuneCountInString(text)
+		if minimum, ok := schemaInteger(schema["minLength"]); ok && length < minimum {
+			return fmt.Errorf("at %s must contain at least %d characters", path, minimum)
+		}
+		if maximum, ok := schemaInteger(schema["maxLength"]); ok && length > maximum {
+			return fmt.Errorf("at %s must contain at most %d characters", path, maximum)
 		}
 		if pattern, ok := schema["pattern"].(string); ok && pattern != "" {
 			compiled, err := regexp.Compile(pattern)
@@ -92,6 +103,19 @@ func validateSchemaValue(path string, value any, schema map[string]any) error {
 	case "integer":
 		if !isJSONInteger(value) {
 			return fmt.Errorf("at %s must be an integer", path)
+		}
+		// JSON decoding may use json.Number or native Go integer types.
+		encoded, _ := json.Marshal(value)
+		var number json.Number
+		if err := json.Unmarshal(encoded, &number); err != nil {
+			return fmt.Errorf("at %s must be an integer", path)
+		}
+		numeric, _ := number.Float64()
+		if minimum, ok := schemaInteger(schema["minimum"]); ok && numeric < float64(minimum) {
+			return fmt.Errorf("at %s must be at least %d", path, minimum)
+		}
+		if maximum, ok := schemaInteger(schema["maximum"]); ok && numeric > float64(maximum) {
+			return fmt.Errorf("at %s must be at most %d", path, maximum)
 		}
 	}
 	return nil
