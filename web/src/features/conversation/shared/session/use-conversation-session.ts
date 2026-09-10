@@ -1,5 +1,5 @@
 /**
- * INPUT: 会话历史、初始/实时内容锚点、slot/权限/execution 运行态与 round 索引。
+ * INPUT: 会话历史、初始内容锚点、slot/权限/execution 运行态与 round 索引。
  * OUTPUT: feed、navigator、可顶部起始的滚动、历史窗口加载反馈与当前轮次共享的 session 视图状态。
  * POS: 会话页面消费统一时间线模型的 React 装配入口。
  */
@@ -32,7 +32,6 @@ interface UseConversationSessionOptions {
   debugName: string;
   identity: AgentConversationIdentity | null;
   initialScrollAnchor?: "bottom" | "top";
-  liveContentAlignment?: "end" | "start";
   onRoomEvent?: (eventType: string, data: RoomEventPayload) => void;
   visibleAfterUnixMilli?: number;
 }
@@ -42,7 +41,6 @@ export function useConversationSession({
   debugName,
   identity,
   initialScrollAnchor,
-  liveContentAlignment,
   onRoomEvent,
   visibleAfterUnixMilli,
 }: UseConversationSessionOptions) {
@@ -121,7 +119,6 @@ export function useConversationSession({
     historyPrependToken: conversation.history_prepend_token,
     initialScrollAnchor,
     liveLayoutActive,
-    liveContentAlignment,
     messageCount: visibleMessages.length,
     sessionKey,
     topologyKey: scrollTopologyKey,

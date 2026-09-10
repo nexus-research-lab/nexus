@@ -8,18 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 - Expand the sidebar account menu across the footer and include settings and desktop update actions while retaining the settings shortcut.
-
 - Unify browser, sign-in, site navigation, and survey branding with the refreshed app icon.
-
 - Adopt the refined vector app icon and regenerate the macOS PNG/ICNS and Windows multi-resolution ICO assets.
-
+- Prevent blank space from pushing conversation messages downward when live process content collapses; use actual feed height and preserve virtual scroll anchoring.
+- Split the visualize skill into shared guidance and on-demand references, with improved diagram spacing and text scaling guidance.
 - Preserve connected sockets during acknowledgment timeout checks, avoiding cancellation of pending submissions while retaining the 10-second ordinary request window.
 - Catch failed conversation suggestions, attachment preparation and ACK recovery without replaying uncertain submissions; include recoverable desktop errors, WebSocket cancellation and slow Room/Launcher stages in exported diagnostics.
 - Unify local and online Room creation in one full group-chat dialog; online creation additionally supports Team member selection.
 - Activate Browser tabs before native input to prevent background wheel stalls, and persist command diagnostics in Nexus logs (extension 0.8.6).
+
 - Bound Browser commands and cursor feedback, cancel stale operations, isolate uncertain sessions, and record execution stages; requires Browser extension 0.8.5 (protocol 6).
+
 - Align command schema bounds, expose exact Automation contracts and reusable plan inputs, and reject invalid apply fences before confirmation.
+
 - Declare command request ID constraints and provide actionable correction guidance for invalid WorkGraph submissions.
+
 - Correct historical WorkGraph task and file ownership, and contain canvas zoom gestures.
 - Isolate Team drafts and late conversation navigation; prevent duplicate online-room and provider-import submissions.
 - Improve Thread keyboard access and failed-avatar recovery.

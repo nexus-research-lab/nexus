@@ -145,7 +145,7 @@ src/
 - DM/Room 虚拟消息流共用 `features/conversation/shared/feed/` 的容器测量与轮次导航协议；高度估算必须响应容器宽度变化
 - DM/Room canonical 根轮次只从 `features/conversation/shared/timeline/timeline-model.ts` 派生；隐藏消息、私域 Room execution 的 slot/permission/execution 证据及其 live round 在这个入口一次性过滤，Feed、Thread 与 navigator 不得再次解释可见性；Room Feed 再由 `room/group/chat/feed/group-agent-timeline-model.ts` 把各 `agent_round` 投影为保留根因果关系的稳定时间线节点，并在节点生成前移除明确无公开回复的 entry，Thread 仍使用 canonical root；indexed resident window 必须为已驻留窗口保留有界相邻加载边界，不能依赖未挂载 DOM 才发现缺页；`timeline/window-loader/` 分离候选选择、有限重试账本和调度，窗口加载必须用会话代次隔离在途请求，并在有界消息窗口淘汰已加载 round 后按实际驻留 identity 重新开放；用户顶部下拉可显式重开耗尽的自动重试
 - Room 未读 Agent 队列只使用完成事件的精确消息身份、`room_seq` 和稳定 `room-agent-round` 节点；Agent 节点可能插入旧 root，标记必须以不改变测量高度的 overlay 随真实节点渲染，Composer 上方入口按目标相对视口显示向上或向下，static/virtual Feed 共用同一状态且不得改变 DM 的回到底部控件
-- 对话滚动只通过 `features/conversation/shared/timeline/scroll/` 协调；FOLLOW、READING、Virtualizer、历史前插、轮次导航和局部展开任一几何提交都必须服从单一 `scrollTop` owner，面板不得复制底部阈值、RAF 动画、历史前插锚点或轮次 DOM 标记；Feed/Composer 高度负债只允许在安静窗口后原子释放，禁止连续高度动画形成 ResizeObserver 反馈
+- 对话滚动只通过 `features/conversation/shared/timeline/scroll/` 协调；FOLLOW、READING、Virtualizer、历史前插、轮次导航和局部展开任一几何提交都必须服从单一 `scrollTop` owner，面板不得复制底部阈值、RAF 动画、历史前插锚点或轮次 DOM 标记；Feed 使用真实内容高度，禁止保留历史最大高度制造空白；Composer 的交互高度保护只允许原子释放，禁止连续高度动画形成 ResizeObserver 反馈
 - 对话历史请求默认携带 `defer_index=true`；后端返回 `indexing` 时必须保留 loading、按 `retry_after_ms` 短请求重试，所有首屏/向前/around 请求必须持有可在切换会话或重置分页时 abort 的请求信号，禁止把空 `items` 当成已加载的空会话；Round Navigator 复用同一 generation 与短轮询协议
 - 浏览器消息集合按完整 root round 同时受 round 数与估算驻留字节预算约束；淘汰不得拆开 round，around 窗口保留目标锚点，实时/乐观消息优先于可重取的历史。超过阈值的历史 Tool result 与内联图片只在消息页保留当前 generation 引用和有界预览，展开 Tool 或挂载图片时才通过带认证、可取消的 detail 请求读取完整内容
 - DM/Room Todo 只从 `features/conversation/shared/todos/` 的单遍轮次投影派生；计划、运行时任务和状态别名不得在面板中重复推导

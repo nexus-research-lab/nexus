@@ -12,9 +12,22 @@ Create a custom interactive visual only when it communicates the answer better t
 
 ## Workflow
 
-1. Call `show_widget` with a concise title and one self-contained HTML fragment in `widget_code`.
-2. Put explanation and conclusions in the normal response around the widget. Do not repeat the visual as Markdown.
-3. The tool result only confirms delivery to the client. Do not claim that rendering succeeded.
+1. Choose the visual form and read only the relevant references below before composing the fragment.
+2. Call `show_widget` with a concise title and one self-contained HTML fragment in `widget_code`.
+3. Put explanation and conclusions in the normal response around the widget. Do not repeat the visual as Markdown.
+4. The tool result only confirms delivery to the client. Do not claim that rendering succeeded.
+
+## Read on demand
+
+Resolve these paths relative to this skill directory. Do not load the whole reference directory. Combine references only when the widget needs both concerns, such as an interactive diagram.
+
+| When building | Read |
+| --- | --- |
+| Controls, selections, or state-driven views | [Interaction](references/interaction.md) |
+| Quantitative charts, axes, or Chart.js | [Charts](references/charts.md) |
+| Flows, hierarchies, networks, or explanatory diagrams | [Diagrams](references/diagrams.md) |
+| Product UI prototypes, dashboards, or comparison layouts | [UI mockups](references/ui-mockups.md) |
+| SVG illustrations, Canvas drawing, or continuous animation | [Art](references/art.md) |
 
 ## Widget contract
 
@@ -57,54 +70,3 @@ Create a custom interactive visual only when it communicates the answer better t
 - `--nexus-radius-lg`
 
 Use these variables for CSS and SVG. Canvas APIs cannot resolve CSS `var(...)` strings; read their computed values first.
-
-## Interactive widgets
-
-- Begin with visible, meaningful markup. JavaScript enhances it after streaming; it must not be required to reveal the entire widget.
-- Use native `button`, `input`, `select`, and `range` controls with explicit labels. Every visible control must change the visual immediately and support keyboard input.
-- Keep one plain state object. Derive displayed values from it, then render through short idempotent functions.
-- Resolve elements before binding events. Never call `.addEventListener` directly on `getElementById(...)` or `querySelector(...)`: fail with a clear `Missing widget element: <selector>` error for required elements, and use optional chaining only for genuinely optional controls.
-- Bind events once with `addEventListener`. Do not wait for `DOMContentLoaded`; final widget scripts already run after the submitted markup is inserted. Do not mix inline handlers, duplicated listeners, and global mutable callbacks.
-- Prefer changing `textContent`, attributes, classes, SVG paths, or chart data over replacing a large subtree with `innerHTML`.
-- Animate the visualization, not the surrounding UI. Use 150-400ms transitions and honor `prefers-reduced-motion`.
-
-## Charts
-
-- Use SVG or native DOM for small charts. Use Chart.js only when axes, tooltips, or multiple dynamic series justify it.
-- Wrap each canvas in a `position:relative` container with an explicit height. Do not set CSS height on canvas. Use `responsive:true` and `maintainAspectRatio:false`.
-- Canvas cannot resolve CSS variables. Read `--nexus-chart-1` through `--nexus-chart-5` with `getComputedStyle(document.documentElement).getPropertyValue(name).trim()`.
-- Assigning `canvas.width` or `canvas.height` clears the bitmap and resets the context. Set the backing size only during initialization or a real resize, never inside draw or coordinate helpers.
-- Give every canvas a unique id. Keep the chart instance and guard initialization so CDN `onload` plus an immediate fallback cannot create it twice.
-- Load established UMD builds over HTTPS. Put the library script before the initializer, use `onload` to call a named init function, and also call it when the global already exists.
-- Controls must update chart data and call `chart.update()`. Disable library legends when a compact HTML legend communicates values more clearly.
-- Round displayed values consistently, label axes and units, and pad plot ranges so points and labels are not clipped.
-
-## Diagrams
-
-- Prefer one responsive SVG with `width="100%"` and a complete `viewBox`. Put `defs` and arrow markers before visible nodes so streaming connectors are valid.
-- Choose the structure that matches the idea: flow for sequence, hierarchy for ownership, cycle for feedback, matrix for two dimensions, timeline for change, or side-by-side for comparison.
-- Keep node titles to five words when possible and at most four full-size nodes per row. Put detail in surrounding prose or an interactive inspector.
-- Calculate the `viewBox` from the lowest element plus padding. Keep labels inside bounds and account for `text-anchor` direction.
-- Connect edges from node boundaries, use a shared marker, and verify no edge crosses unrelated nodes or text.
-- Use neutral structure plus no more than two categorical chart colors. Encode status with text or shape as well as color.
-- For interactive diagrams, mutate classes and SVG attributes on existing elements instead of rebuilding the SVG.
-
-When `diagram-design` is installed, use it for a persistent, downloadable single-file HTML diagram rather than an inline conversational widget.
-
-## UI mockups
-
-- Reproduce the requested product surface, not an entire decorative landing page. Omit browser chrome, fake sidebars, duplicate titles, and ornamental hero areas unless they are the subject.
-- Use a clear reading order: compact controls, primary content, then secondary detail. Prefer dividers and whitespace over nested cards.
-- Use CSS Grid for comparable metrics and Flexbox for compact controls. Keep labels and values aligned to common axes.
-- Use one-pixel `--nexus-border` boundaries, `--nexus-surface` for restrained grouping, and 8px or 12px radii. Avoid gradients, glass, glow, and heavy shadows.
-- Empty, loading, selected, warning, and error states must remain distinguishable in both light and dark themes.
-- On narrow widths, reflow columns and allow tables or timelines to scroll only when their data cannot remain legible otherwise.
-
-## SVG and Canvas art
-
-- Prefer SVG for illustrations and finite diagrams; use Canvas for continuous animation, dense particles, or pixel-level drawing.
-- For Canvas, initialize the backing store once per actual size change, scale for `devicePixelRatio` once, and keep coordinate conversion separate from drawing.
-- Resolve Nexus color variables to concrete values before assigning `fillStyle`, `strokeStyle`, shadows, or gradients.
-- Run animation through `requestAnimationFrame`, cap particle or object counts, and pause or simplify when `prefers-reduced-motion` is enabled.
-- Keep controls and captions as accessible HTML outside Canvas. Do not make essential meaning depend on pixels alone.
-- Keep the outer surface transparent and let the artwork, not decorative containers, carry the composition.

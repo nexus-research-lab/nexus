@@ -563,7 +563,6 @@ test("WorkGraph sketch editor reuses DM and applies a validated graph revision",
   assert.match(editorSource, /--conversation-composer-backdrop:var\(--surface-muted-background\)/);
   assert.match(panelModelSource, /embeddedEditor\.introduction/);
   assert.match(panelModelSource, /initialScrollAnchor: embeddedEditor \? "top" : "bottom"/);
-  assert.match(panelModelSource, /liveContentAlignment: embeddedEditor \? "start" : "end"/);
   assert.match(panelViewSource, /data-embedded-editor-introduction/);
   assert.match(panelViewSource, /<ConversationFeed[\s\S]*leadingContent=/);
   assert.doesNotMatch(panelViewSource, /<EmbeddedEditorIntroduction[^>]*\/>\s*<ConversationFeed/);
