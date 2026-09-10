@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Prevent blank space from pushing conversation messages downward when live process content collapses; use actual feed height and preserve virtual scroll anchoring.
+
 - Split the visualize skill into shared guidance and on-demand references, with improved diagram spacing and text scaling guidance.
 
 - Activate Browser tabs before native input to prevent background wheel stalls, and persist command diagnostics in Nexus logs (extension 0.8.6).
