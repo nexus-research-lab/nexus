@@ -7,6 +7,7 @@
 - `use-room-member-manager.ts` 只持有成员入口生命周期，不写成员或取消/重放目录请求；Room/owner 或挂载代次改变使迟到打开失效。它保留标题/目录刷新和同 Room 会话选择，辅助读取失败继续使用已有成员。
 - `create-room-dialog-model.ts` 负责可选参数默认化、弹窗重建身份和创建/管理标签投影，不持有 React 状态。
 - 创建群聊入口可以使用 Lucide `MessageCirclePlus`，弹窗本身使用 plain Header，只让标题表达创建或管理模式。
+- 创建模式在同一份表单中选择本地或在线；在线选项仅在远程账户和 Relay 可用时出现，并在统一成员列表中追加可邀请的 Team 真人，不得另建简化在线弹窗。
 - `use-create-room-form.ts` 独占表单状态、不变量归一化和提交模型构造；成员移除后群主失效、暂停草稿只保留已选成员等联动必须在这里完成。
 - `room-settings-form.tsx`、`room-member-selector.tsx` 只负责各自视图和用户输入，不在渲染期修正状态；设置区以内容驱动的头像/名称与群主选项分组排布，不常驻渲染完整头像轨道；管理态成员行将增删与持久暂停/恢复呈现为两个独立动作。
 - `room-avatar-picker.tsx` 只组合 Room 当前头像和共享锚定图标选择器，保持与 Agent 身份页一致的“明确入口后展开”交互。

@@ -5,6 +5,7 @@ import type {
   CreateRoomDialogProps,
   RoomDialogMode,
   RoomDialogSubmission,
+  RoomMemberUserOption,
   RoomMemberAgentOption,
 } from "./create-room-dialog-types";
 
@@ -35,6 +36,8 @@ export interface RoomDialogContentProps {
   initialSelectedAgentIds: string[];
   isCreating: boolean;
   mode: RoomDialogMode;
+  onlineAvailable: boolean;
+  users: RoomMemberUserOption[];
   onCancel: () => void;
   onConfirm: (submission: RoomDialogSubmission) => void | Promise<void>;
 }
@@ -75,6 +78,8 @@ export function resolveRoomDialogContentProps(
     ),
     isCreating: valueOrDefault(props.isCreating, false),
     mode: valueOrDefault(props.mode, "create"),
+    onlineAvailable: valueOrDefault(props.onlineAvailable, false),
+    users: valueOrDefault(props.users, []),
     onCancel: props.onCancel,
     onConfirm: props.onConfirm,
   };

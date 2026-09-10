@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Unify local and online Room creation in one full group-chat dialog; online creation additionally supports Team member selection.
+
 - Correct historical WorkGraph task and file ownership, and contain canvas zoom gestures.
 - Isolate Team drafts and late conversation navigation; prevent duplicate online-room and provider-import submissions.
 - Improve Thread keyboard access and failed-avatar recovery.

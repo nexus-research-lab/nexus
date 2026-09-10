@@ -21,6 +21,31 @@ function setup(onConfirm: () => Promise<void>) {
 }
 
 describe("CreateRoomDialog submission", () => {
+  it("uses the same form to select online Room members", async () => {
+    const onConfirm = vi.fn(async () => undefined);
+    render(<I18N_CONTEXT.Provider value={{ locale: "en", setLocale: vi.fn(), t: (key, values) => values?.name ? `${key} ${values.name}` : key }}>
+      <CreateRoomDialog
+        agents={[{ agent_id: "agent", name: "Nova" }]}
+        initialName="Research"
+        initialSelectedAgentIds={["agent"]}
+        isOpen
+        onlineAvailable
+        onCancel={vi.fn()}
+        onConfirm={onConfirm}
+        users={[{ user_id: "user", username: "lee", display_name: "Lee" }]}
+      />
+    </I18N_CONTEXT.Provider>);
+
+    fireEvent.click(screen.getByRole("button", { name: "room.location_online" }));
+    fireEvent.click(screen.getByRole("button", { name: "room.user_select_add Lee" }));
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "room.create_action" })); });
+    expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({
+      agentIds: ["agent"],
+      location: "online",
+      userIds: ["user"],
+    }));
+  });
+
   it("freezes the draft, blocks duplicate submits, and preserves it on rejection", async () => {
     let reject!: (reason: Error) => void;
     const onConfirm = vi.fn(() => new Promise<void>((_, fail) => { reject = fail; }));

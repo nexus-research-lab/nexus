@@ -11,6 +11,7 @@ import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
 import { getActiveChatTargetFromPath } from "@/features/home/notifications/chat-notification-target";
 import { useTeamRooms } from "@/features/team/use-team-rooms";
+import { useTeamMembers } from "@/features/team/use-team-members";
 import { createTeamRoom } from "@/lib/api/conversation/team-api";
 import { createRoom, deleteRoom } from "@/lib/api/conversation/room-command-api";
 import { projectMutationFailure } from "@/lib/error-message";
@@ -71,6 +72,7 @@ export function useChatSidebarController({
   );
   const roomActivity = useRoomActivity();
   const onlineRooms = useTeamRooms();
+  const teamMembers = useTeamMembers(onlineRooms.isAvailable);
   const {
     agents,
     conversations,
@@ -86,17 +88,14 @@ export function useChatSidebarController({
   const [deleteAction, setDeleteAction] = useState<"check" | "delete" | null>(null);
   const [deleteFailure, setDeleteFailure] = useState<RoomDeletionFailure | null>(null);
   const deletionRunningRef = useRef(false);
+  const createSubmittingRef = useRef(false);
   const unresolvedDeletionsRef = useRef(new Map<string, {
     failure: RoomDeletionFailure;
     ownerGeneration: number;
   }>());
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-  const [isOnlineCreateOpen, setIsOnlineCreateOpen] = useState(false);
-  const [isOnlineCreating, setIsOnlineCreating] = useState(false);
-  const [onlineCreateError, setOnlineCreateError] = useState(false);
-  const onlineCreatingRef = useRef(false);
-  const onlineCreateCommandRef = useRef<{ id: string; name: string } | null>(null);
+  const onlineCreateCommandRef = useRef<{ id: string; payload: string } | null>(null);
   const activeTarget = useMemo(
     () => getActiveChatTargetFromPath(location.pathname),
     [location.pathname],
@@ -178,8 +177,33 @@ export function useChatSidebarController({
   }, [clearRoomNotifications, clearTargetNotifications, navigate, setActiveItem]);
 
   const submitCreate = useCallback(async (submission: RoomDialogSubmission) => {
+    if (createSubmittingRef.current) return;
+    createSubmittingRef.current = true;
     setIsCreating(true);
     try {
+      if (submission.location === "online") {
+        const input = {
+          agent_ids: submission.agentIds,
+          avatar: submission.avatar,
+          coordinator_agent_id: submission.hostAgentId ?? undefined,
+          host_auto_reply_enabled: submission.hostAutoReplyEnabled,
+          member_user_ids: submission.userIds,
+          name: submission.name,
+          private_messages_enabled: submission.privateMessagesEnabled,
+          skill_names: submission.skillNames,
+        };
+        const payload = JSON.stringify(input);
+        const command = onlineCreateCommandRef.current?.payload === payload
+          ? onlineCreateCommandRef.current
+          : { id: crypto.randomUUID(), payload };
+        onlineCreateCommandRef.current = command;
+        const created = await createTeamRoom(input, command.id);
+        onlineCreateCommandRef.current = null;
+        setIsCreateOpen(false);
+        onlineRooms.refresh();
+        navigate(AppRouteBuilders.team(created.room.id));
+        return;
+      }
       const context = await createRoom({
         agent_ids: submission.agentIds,
         avatar: submission.avatar,
@@ -193,9 +217,10 @@ export function useChatSidebarController({
       refreshDirectory();
       navigate(AppRouteBuilders.room(context.room.id));
     } finally {
+      createSubmittingRef.current = false;
       setIsCreating(false);
     }
-  }, [navigate, refreshDirectory]);
+  }, [navigate, onlineRooms, refreshDirectory]);
 
   const finishDeletion = useCallback((target: DeleteTarget) => {
     unresolvedDeletionsRef.current.delete(target.id);
@@ -339,56 +364,15 @@ export function useChatSidebarController({
     return activeItemId === item.id || Boolean(item.roomId && activeItemId === item.roomId);
   }, [activeItemId, location.pathname, location.search, onlineRooms.rooms]);
 
-  const submitOnlineCreate = useCallback(async (name: string) => {
-    const normalized = name.trim();
-    if (!normalized || onlineCreatingRef.current) {
-      return;
-    }
-    const command = onlineCreateCommandRef.current?.name === normalized
-      ? onlineCreateCommandRef.current
-      : { id: crypto.randomUUID(), name: normalized };
-    onlineCreateCommandRef.current = command;
-    onlineCreatingRef.current = true;
-    setIsOnlineCreating(true);
-    setOnlineCreateError(false);
-    try {
-      const created = await createTeamRoom(normalized, command.id);
-      onlineCreateCommandRef.current = null;
-      setIsOnlineCreateOpen(false);
-      onlineRooms.refresh();
-      navigate(AppRouteBuilders.team(created.room.id));
-    } catch {
-      setOnlineCreateError(true);
-    } finally {
-      onlineCreatingRef.current = false;
-      setIsOnlineCreating(false);
-    }
-  }, [navigate, onlineRooms]);
-
   return {
     create: {
       cancel: () => setIsCreateOpen(false),
       isCreating,
       isOpen: isCreateOpen,
       open: () => setIsCreateOpen(true),
+      onlineAvailable: onlineRooms.isAvailable,
       submit: submitCreate,
-    },
-    onlineCreate: {
-      cancel: () => {
-        if (!isOnlineCreating) {
-          setIsOnlineCreateOpen(false);
-          setOnlineCreateError(false);
-        }
-      },
-      error: onlineCreateError,
-      isAvailable: onlineRooms.isAvailable,
-      isCreating: isOnlineCreating,
-      isOpen: isOnlineCreateOpen,
-      open: () => {
-        setOnlineCreateError(false);
-        setIsOnlineCreateOpen(true);
-      },
-      submit: submitOnlineCreate,
+      users: teamMembers,
     },
     deletion: {
       action: deleteAction,

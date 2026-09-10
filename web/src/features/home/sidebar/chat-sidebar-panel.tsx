@@ -3,11 +3,10 @@
  * OUTPUT: 可搜索、可恢复且保留 stale 会话的聊天侧栏。
  * POS: Home 聊天目录视图；不直接发起 bootstrap 请求。
  */
-import { CircleAlert, Cloud, MessageCirclePlus, MessageSquarePlus } from "lucide-react";
+import { CircleAlert, MessageCirclePlus, MessageSquarePlus } from "lucide-react";
 import { memo } from "react";
 
 import { CreateRoomDialog } from "@/features/conversation/room/members/create-room-dialog";
-import { CreateOnlineRoomDialog } from "@/features/team/create-online-room-dialog";
 import { HomeDirectoryRefreshErrorNotice } from "@/features/home/home-directory-refresh-error-notice";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
@@ -48,22 +47,9 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
     >
       <SidebarSearchField
         action={(
-          <div className="flex gap-1">
-            <SidebarSearchAction
-              onClick={controller.create.open}
-              title={t("home.create_room")}
-            >
-              <MessageCirclePlus />
-            </SidebarSearchAction>
-            {controller.onlineCreate.isAvailable ? (
-              <SidebarSearchAction
-                onClick={controller.onlineCreate.open}
-                title={t("team.create_room")}
-              >
-                <Cloud />
-              </SidebarSearchAction>
-            ) : null}
-          </div>
+          <SidebarSearchAction onClick={controller.create.open} title={t("home.create_room")}>
+            <MessageCirclePlus />
+          </SidebarSearchAction>
         )}
         onChange={controller.list.setQuery}
         label={t("sidebar.search_conversations")}
@@ -143,17 +129,10 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
         }))}
         isCreating={controller.create.isCreating}
         isOpen={controller.create.isOpen}
+        onlineAvailable={controller.create.onlineAvailable}
         onCancel={controller.create.cancel}
         onConfirm={controller.create.submit}
-      />
-      <CreateOnlineRoomDialog
-        error={controller.onlineCreate.error}
-        isCreating={controller.onlineCreate.isCreating}
-        isOpen={controller.onlineCreate.isOpen}
-        onCancel={controller.onlineCreate.cancel}
-        onConfirm={(name) => {
-          void controller.onlineCreate.submit(name);
-        }}
+        users={controller.create.users}
       />
     </div>
   );
