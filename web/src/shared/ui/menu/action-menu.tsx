@@ -1,21 +1,35 @@
+// INPUT: 外部控制的打开态、锚点、菜单项与选择/关闭命令。
+// OUTPUT: 完整动作/说明与唯一激活入口；按内容测高、可见后聚焦、重定位保留焦点及统一退出。
+// POS: Action Menu 交互 pattern；不持有业务值或决定命令是否允许。
 "use client";
 
 import {
   type ReactNode,
+  type Ref,
   type RefObject,
   useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
 } from "react";
 import { createPortal } from "react-dom";
+import { Check } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
+
+import { focusFirstMenuItem, handleMenuKeyDown } from "./menu-keyboard";
 
 import {
-  getMenuItemStateClassName,
-  MENU_ITEM_BASE_CLASS_NAME,
-  MENU_ITEM_GAP_PX,
+  getMenuItemLayout,
+  getMenuContentHeight,
   MENU_LIST_CLASS_NAME,
-  MENU_SURFACE_VERTICAL_PADDING_PX,
+  MENU_SEPARATOR_CLASS_NAME,
 } from "./menu-styles";
+import {
+  UiMenuActionRow,
+  type UiMenuActionRowDensity,
+} from "./menu-action-row";
 import { useAnchoredOverlayLayer } from "../overlay/anchored-overlay-layer";
 import {
   resolveAnchoredOverlayPosition,
@@ -35,16 +49,20 @@ export interface UiActionMenuItem {
   icon?: ReactNode;
   trailing?: ReactNode;
   active?: boolean;
+  /** Controlled checked state; labels, icons and trailing content must be non-interactive. */
+  checked?: boolean;
   disabled?: boolean;
   tone?: "default" | "primary" | "danger";
 }
 
-export type UiActionMenuDensity = "compact" | "default";
+export type UiActionMenuDensity = UiMenuActionRowDensity;
 
 export interface UiActionMenuContentProps {
+  ref?: Ref<HTMLDivElement>;
   density?: UiActionMenuDensity;
   disabled?: boolean;
   footerItems?: UiActionMenuItem[];
+  header?: ReactNode;
   items: UiActionMenuItem[];
   onSelect: (value: string) => void;
 }
@@ -57,6 +75,7 @@ interface UiActionMenuProps {
   ariaLabel: string;
   density?: UiActionMenuDensity;
   footerItems?: UiActionMenuItem[];
+  header?: ReactNode;
   isOpen: boolean;
   items: UiActionMenuItem[];
   minWidth?: number;
@@ -66,27 +85,6 @@ interface UiActionMenuProps {
 }
 
 const ACTION_MENU_MAX_HEIGHT = 320;
-const ACTION_MENU_ITEM_HEIGHT = {
-  compact: 32,
-  default: 36,
-} as const;
-const ACTION_MENU_DESCRIBED_ITEM_HEIGHT = {
-  compact: 40,
-  default: 44,
-} as const;
-const ACTION_MENU_ITEM_CLASS_NAME = {
-  compact: {
-    described: "h-10 py-0.5",
-    plain: "h-8",
-    spacing: "gap-2 px-2",
-  },
-  default: {
-    described: "h-11 py-1",
-    plain: "h-9",
-    spacing: "gap-3 px-2.5",
-  },
-} as const;
-const ACTION_MENU_FOOTER_SEPARATOR_HEIGHT = 9;
 const EMPTY_ACTION_MENU_ITEMS: UiActionMenuItem[] = [];
 
 function estimateActionMenuHeight({
@@ -98,18 +96,10 @@ function estimateActionMenuHeight({
   footerItems?: UiActionMenuItem[];
   items: UiActionMenuItem[];
 }): number {
-  const allItems = [...items, ...footerItems];
-  const hasFooter = footerItems.length > 0;
-  const contentBlockCount = allItems.length + (hasFooter ? 1 : 0);
-  return allItems.reduce(
-    (height, item) => height + (
-      item.description
-        ? ACTION_MENU_DESCRIBED_ITEM_HEIGHT[density]
-        : ACTION_MENU_ITEM_HEIGHT[density]
-    ),
-    MENU_SURFACE_VERTICAL_PADDING_PX
-      + (hasFooter ? ACTION_MENU_FOOTER_SEPARATOR_HEIGHT : 0),
-  ) + MENU_ITEM_GAP_PX * Math.max(0, contentBlockCount - 1);
+  return getMenuContentHeight(
+    [...items, ...footerItems].map((item) => getMenuItemLayout({ density, hasDescription: Boolean(item.description) }).height),
+    footerItems.length > 0 && items.length > 0 ? 1 : 0,
+  );
 }
 
 function resolveActionMenuPosition({
@@ -119,6 +109,7 @@ function resolveActionMenuPosition({
   items,
   footerItems,
   minWidth,
+  measuredContentHeight,
   placement,
 }: {
   align: UiAnchoredOverlayAlignment;
@@ -127,71 +118,44 @@ function resolveActionMenuPosition({
   items: UiActionMenuItem[];
   footerItems: UiActionMenuItem[];
   minWidth: number;
+  measuredContentHeight: number | null;
   placement: UiActionMenuPlacement;
 }) {
-  const contentHeight = estimateActionMenuHeight({
+  const contentHeight = measuredContentHeight ?? estimateActionMenuHeight({
     density,
     footerItems,
     items,
   });
   const estimatedHeight = Math.min(
     ACTION_MENU_MAX_HEIGHT,
-    Math.max(ACTION_MENU_ITEM_HEIGHT[density], contentHeight),
+    Math.max(getMenuItemLayout({ density }).height, contentHeight),
   );
   return resolveAnchoredOverlayPosition({
     align,
     anchor,
     estimatedHeight,
     maxHeight: ACTION_MENU_MAX_HEIGHT,
-    minHeight: ACTION_MENU_ITEM_HEIGHT[density],
+    minHeight: getMenuItemLayout({ density }).height,
     minWidth,
     placement,
   });
 }
 
-function getItemBodyClassName(
-  item: UiActionMenuItem,
-  density: UiActionMenuDensity,
-) {
-  const densityClassName = ACTION_MENU_ITEM_CLASS_NAME[density];
-  return cn(
-    MENU_ITEM_BASE_CLASS_NAME,
-    "flex cursor-pointer items-center justify-between",
-    densityClassName.spacing,
-    item.description
-      ? densityClassName.described
-      : densityClassName.plain,
-    item.disabled && "cursor-not-allowed opacity-(--disabled-opacity)",
-    getMenuItemStateClassName({
-      active: item.active,
-      tone: item.tone,
-    }),
-  );
-}
-
-function getItemLabelClassName(tone: UiActionMenuItem["tone"], active?: boolean) {
-  if (tone === "primary") {
-    return "text-(--brand-action)";
-  }
-  if (tone === "danger") {
-    return "text-(--destructive)";
-  }
-  return active ? "text-(--text-strong)" : "text-(--text-default)";
-}
-
 export function UiActionMenu({
+  header,
   align = "start",
-  anchorRef: anchorRef,
-  ariaLabel: ariaLabel,
+  anchorRef,
+  ariaLabel,
   density = "default",
   footerItems = EMPTY_ACTION_MENU_ITEMS,
-  isOpen: isOpen,
+  isOpen,
   items,
-  minWidth: minWidth = 220,
+  minWidth = 220,
   placement = "auto",
-  onClose: onClose,
-  onSelect: onSelect,
+  onClose,
+  onSelect,
 }: UiActionMenuProps) {
+  const contentRef = useRef<HTMLDivElement>(null);
   const estimatePosition = useCallback(
     (anchor: HTMLElement) => resolveActionMenuPosition({
       align,
@@ -200,6 +164,7 @@ export function UiActionMenu({
       footerItems,
       items,
       minWidth,
+      measuredContentHeight: measureActionMenuHeight(contentRef.current),
       placement,
     }),
     [align, density, footerItems, items, minWidth, placement],
@@ -209,6 +174,7 @@ export function UiActionMenu({
     overlayRef: menuRef,
     overlayStyle: menuStyle,
     portalContainer,
+    updateOverlayPosition,
   } = useAnchoredOverlayLayer({
     anchorRef,
     disabled: false,
@@ -216,6 +182,24 @@ export function UiActionMenu({
     isOpen,
     onClose,
   });
+  // 只观察未限高的内容；不能用已被 maxHeight 裁过的菜单壳测量，否则无法重新长高。
+  useLayoutEffect(() => {
+    const content = contentRef.current;
+    if (!isOpen || !portalContainer || !content) return;
+    updateOverlayPosition();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(updateOverlayPosition);
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, [isOpen, menuPosition?.width, portalContainer, updateOverlayPosition]);
+  const isMenuPositioned = menuPosition !== null;
+
+  useEffect(() => {
+    if (!isOpen || !portalContainer || !isMenuPositioned) {
+      return;
+    }
+    focusFirstMenuItem(menuRef.current);
+  }, [isMenuPositioned, isOpen, menuRef, portalContainer]);
 
   if (!isOpen) {
     return null;
@@ -223,10 +207,13 @@ export function UiActionMenu({
   if (!portalContainer) {
     return null;
   }
-  const select = (value: string) => {
-    onSelect(value);
+  const closeAndRestoreFocus = () => {
     onClose();
     anchorRef.current?.focus();
+  };
+  const select = (value: string) => {
+    onSelect(value);
+    closeAndRestoreFocus();
   };
 
   return createPortal(
@@ -234,18 +221,22 @@ export function UiActionMenu({
       ref={menuRef}
       aria-label={ariaLabel}
       className={cn(
-        "fixed z-[130] overflow-y-auto p-1",
+        "fixed ui-layer-action-menu overflow-y-auto p-1",
         OVERLAY_SURFACE_CLASS_NAME,
         ANCHORED_OVERLAY_MOTION_CLASS_NAME,
       )}
       data-placement={menuPosition?.placement ?? "bottom"}
       data-state="open"
+      onKeyDown={(event) => handleMenuKeyDown(event, closeAndRestoreFocus)}
       role="menu"
       style={menuStyle}
+      tabIndex={-1}
       {...OPEN_OVERLAY_DATA_ATTRIBUTES}
     >
       <UiActionMenuContent
+        ref={contentRef}
         density={density}
+        header={header}
         footerItems={footerItems}
         items={items}
         onSelect={select}
@@ -256,6 +247,8 @@ export function UiActionMenu({
 }
 
 export function UiActionMenuContent({
+  header,
+  ref,
   density = "default",
   disabled = false,
   footerItems = EMPTY_ACTION_MENU_ITEMS,
@@ -263,7 +256,11 @@ export function UiActionMenuContent({
   onSelect,
 }: UiActionMenuContentProps) {
   return (
-    <div className={MENU_LIST_CLASS_NAME} role="none">
+    <div ref={ref} className={MENU_LIST_CLASS_NAME} role="none">
+      {header ? <>
+        <div className="px-2.5 py-2" role="presentation">{header}</div>
+        <div className={MENU_SEPARATOR_CLASS_NAME} role="separator" />
+      </> : null}
       {items.map((item) => (
         <ActionMenuItem
           density={density}
@@ -275,7 +272,7 @@ export function UiActionMenuContent({
       ))}
       {footerItems.length > 0 ? (
         <>
-          <div className="mx-1 my-1 border-t border-(--divider-subtle-color)" />
+          {items.length > 0 ? <div className={MENU_SEPARATOR_CLASS_NAME} role="separator" /> : null}
           {footerItems.map((item) => (
             <ActionMenuItem
               density={density}
@@ -309,43 +306,28 @@ function ActionMenuItem({
     onSelect(item.value);
   };
   return (
-    <div
-      aria-disabled={disabled || item.disabled || undefined}
-      className={cn(
-        getItemBodyClassName(item, density),
-        disabled && "cursor-not-allowed opacity-(--disabled-opacity)",
-      )}
+    <UiMenuActionRow
+      active={item.active}
+      checked={item.checked}
+      contentSized
+      density={density}
+      disabled={disabled || item.disabled}
+      hasDescription={Boolean(item.description)}
       onClick={select}
-      onKeyDown={(event) => {
-        if (
-          disabled
-          || item.disabled
-          || (event.key !== "Enter" && event.key !== " ")
-        ) {
-          return;
-        }
-        event.preventDefault();
-        select();
-      }}
-      role="menuitem"
-      tabIndex={disabled || item.disabled ? -1 : 0}
+      tone={item.tone}
     >
       <span className="flex min-w-0 flex-1 items-center gap-2">
         {item.icon ? (
-          <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+          <span aria-hidden="true" className="flex h-4 w-4 shrink-0 items-center justify-center">
             {item.icon}
           </span>
         ) : null}
         <span className="min-w-0 flex-1">
-          <span className={cn(
-            "block truncate font-normal",
-            density === "compact" ? "text-compact" : "text-sm",
-            getItemLabelClassName(item.tone, item.active),
-          )}>
+          <span className="block whitespace-normal wrap-anywhere">
             {item.label}
           </span>
           {item.description ? (
-            <span className="block truncate text-2xs font-normal text-(--text-soft)">
+            <span className={cn("block whitespace-normal wrap-anywhere", getUiTypographyClassName({ role: "metadata", tone: "muted", weight: "regular" }))}>
               {item.description}
             </span>
           ) : null}
@@ -356,6 +338,19 @@ function ActionMenuItem({
           {item.trailing}
         </span>
       ) : null}
-    </div>
+      {item.checked !== undefined ? (
+        <span aria-hidden="true" className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+          {item.checked ? <Check className="h-3.5 w-3.5" /> : null}
+        </span>
+      ) : null}
+    </UiMenuActionRow>
   );
+}
+
+/** 内容层不带 padding/border；外框尺寸读取实际 recipe，避免复制另一组边框数字。 */
+function measureActionMenuHeight(content: HTMLDivElement | null): number | null {
+  if (!content || content.scrollHeight <= 0 || !content.parentElement) return null;
+  const style = window.getComputedStyle(content.parentElement);
+  return content.scrollHeight + [style.paddingTop, style.paddingBottom, style.borderTopWidth, style.borderBottomWidth]
+    .reduce((height, value) => height + (Number.parseFloat(value) || 0), 0);
 }

@@ -4,78 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { createServer } from "vite";
-
 const webRoot = fileURLToPath(new URL("..", import.meta.url));
-const server = await createServer({
-  configFile: false,
-  logLevel: "silent",
-  resolve: { alias: { "@": path.join(webRoot, "src") } },
-  root: webRoot,
-  server: { middlewareMode: true },
-});
-
-test.after(async () => {
-  await server.close();
-});
-
-test("Memory deletion recovery only retries not-applied and requires a new intent otherwise", async () => {
-  const recovery = await server.ssrLoadModule(
-    "/src/features/memory/catalog/memory-deletion-recovery.ts",
-  );
-  const identity = {
-    agentId: "agent-a",
-    ownerGeneration: 7,
-    path: "memory/project.md",
-    title: "Project memory",
-  };
-
-  const notApplied = recovery.projectMemoryDeletionFailure(
-    { effect: "not_applied" },
-    identity,
-  );
-  assert.equal(
-    recovery.getMemoryDeletionRecoveryPresentation(notApplied).primaryAction,
-    "retry",
-  );
-
-  const unknownPresent = {
-    ...recovery.projectMemoryDeletionFailure({ effect: "unknown" }, identity),
-    directoryCheck: "target_present",
-  };
-  const presentRecovery = recovery.getMemoryDeletionRecoveryPresentation(
-    unknownPresent,
-  );
-  assert.equal(presentRecovery.primaryAction, "start_new_intent");
-  assert.equal(
-    recovery.canStartNewMemoryDeletionIntent(unknownPresent),
-    true,
-  );
-
-  const unknownFailed = { ...unknownPresent, directoryCheck: "failed" };
-  assert.equal(
-    recovery.getMemoryDeletionRecoveryPresentation(unknownFailed)
-      .primaryAction,
-    "reconcile",
-  );
-  assert.equal(
-    recovery.canStartNewMemoryDeletionIntent(unknownFailed),
-    false,
-  );
-
-  const committedFailed = {
-    ...recovery.projectCommittedMemoryDeletion(identity),
-    directoryCheck: "failed",
-  };
-  const committedRecovery = recovery.getMemoryDeletionRecoveryPresentation(
-    committedFailed,
-  );
-  assert.equal(committedRecovery.primaryAction, "reconcile");
-  assert.equal(
-    recovery.canStartNewMemoryDeletionIntent(committedFailed),
-    false,
-  );
-});
 
 test("Memory catalog fences delete and reconciliation by owner, Agent, path, and command", async () => {
   const [controller, notice, view] = await Promise.all([

@@ -60,6 +60,8 @@ export function useProjectAdmin({
   }, []);
 
   const loadProjects = useCallback(async () => {
+    if (transactionRunning.current) return;
+    transactionRunning.current = true;
     setLoading(true);
     try {
       setProjects(await getProjectsApi());
@@ -70,6 +72,7 @@ export function useProjectAdmin({
     } catch (error) {
       setFeedback(buildProjectFeedback(t, "load-failed", error));
     } finally {
+      transactionRunning.current = false;
       setLoading(false);
     }
   }, [t, updateMutationBlock]);

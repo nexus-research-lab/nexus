@@ -1,3 +1,6 @@
+// INPUT: Capability count snapshots and invalidation/focus events.
+// OUTPUT: Last successful counts or null until known; failures never invent zeros.
+// POS: Sidebar optional summary read owner; does not block navigation.
 "use client";
 
 import { type Dispatch, type SetStateAction, useCallback, useEffect, useRef, useState } from "react";
@@ -13,14 +16,13 @@ import {
   type CapabilitySummaryRefreshOptions,
   completeCapabilitySummaryRefresh,
   createCapabilitySummaryRefreshRuntime,
-  EMPTY_CAPABILITY_SUMMARY,
 } from "./capability-summary-refresh-model";
 
 const CAPABILITY_SUMMARY_REVALIDATE_INTERVAL_MS = 60_000;
 
 function applyCapabilitySummary(
   mounted: boolean,
-  setSummary: Dispatch<SetStateAction<CapabilitySummary>>,
+  setSummary: Dispatch<SetStateAction<CapabilitySummary | null>>,
   summary: CapabilitySummary,
 ): void {
   if (mounted) {
@@ -28,19 +30,9 @@ function applyCapabilitySummary(
   }
 }
 
-function resetCapabilitySummaryAfterError(
-  mounted: boolean,
-  options: CapabilitySummaryRefreshOptions,
-  setSummary: Dispatch<SetStateAction<CapabilitySummary>>,
-): void {
-  if (mounted && options.resetOnError) {
-    setSummary(EMPTY_CAPABILITY_SUMMARY);
-  }
-}
-
-export function useCapabilitySummary(): CapabilitySummary {
+export function useCapabilitySummary(): CapabilitySummary | null {
   const runtimeRef = useRef(createCapabilitySummaryRefreshRuntime());
-  const [summary, setSummary] = useState(EMPTY_CAPABILITY_SUMMARY);
+  const [summary, setSummary] = useState<CapabilitySummary | null>(null);
 
   const refreshSummary = useCallback(async (
     initialOptions: CapabilitySummaryRefreshOptions = {},
@@ -61,7 +53,7 @@ export function useCapabilitySummary(): CapabilitySummary {
         const nextSummary = await getCapabilitySummaryApi();
         applyCapabilitySummary(runtime.mounted, setSummary, nextSummary);
       } catch {
-        resetCapabilitySummaryAfterError(runtime.mounted, options, setSummary);
+        // Counts are optional: retain the last snapshot, or remain unknown.
       }
       options = completeCapabilitySummaryRefresh(runtime);
     }
@@ -70,7 +62,7 @@ export function useCapabilitySummary(): CapabilitySummary {
   useEffect(() => {
     const runtime = runtimeRef.current;
     runtime.mounted = true;
-    void refreshSummary({ force: true, resetOnError: true });
+    void refreshSummary({ force: true });
     const handleSummaryMutation = () => {
       void refreshSummary({ force: true });
     };

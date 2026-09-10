@@ -47,16 +47,12 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
     >
       <SidebarSearchField
         action={(
-          <SidebarSearchAction
-            className="leading-none"
-            onClick={controller.create.open}
-            title={t("home.create_room")}
-          >
+          <SidebarSearchAction onClick={controller.create.open} title={t("home.create_room")}>
             <MessageCirclePlus />
           </SidebarSearchAction>
         )}
         onChange={controller.list.setQuery}
-        placeholder={t("sidebar.search_conversations")}
+        label={t("sidebar.search_conversations")}
         value={controller.list.query}
       />
 
@@ -133,10 +129,10 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
         }))}
         isCreating={controller.create.isCreating}
         isOpen={controller.create.isOpen}
+        onlineAvailable={controller.create.onlineAvailable}
         onCancel={controller.create.cancel}
-        onConfirm={(submission) => {
-          void controller.create.submit(submission);
-        }}
+        onConfirm={controller.create.submit}
+        users={controller.create.users}
       />
     </div>
   );

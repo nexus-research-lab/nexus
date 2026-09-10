@@ -7,7 +7,7 @@ import { CircleAlert } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
-import { RecoverySummary } from "@/shared/ui/feedback/recovery-summary";
+import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 
 interface HomeDirectoryRefreshErrorNoticeProps {
   className?: string;
@@ -21,28 +21,16 @@ export function HomeDirectoryRefreshErrorNotice({
   const { t } = useI18n();
 
   return (
-    <div
-      aria-live="polite"
-      className={cn(
-        "flex shrink-0 items-center gap-2 rounded-[10px] border border-[color:color-mix(in_srgb,var(--destructive)_15%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-panel-background)_96%,var(--destructive))] px-2.5 py-2 text-xs text-(--destructive)",
-        className,
-      )}
-      role="status"
-    >
-      <CircleAlert aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
-      <span className="min-w-0 flex-1">
-        <span className="block font-semibold text-(--text-strong)">
-          {t("sidebar.directory_refresh_failed_description")}
-        </span>
-        <RecoverySummary impact={t("sidebar.directory_refresh_failed_impact")} />
-      </span>
-      <button
-        className="shrink-0 font-semibold text-(--destructive) hover:underline"
-        onClick={onRetry}
-        type="button"
-      >
-        {t("sidebar.retry")}
-      </button>
-    </div>
+    <UiInlineNotice
+      action={{
+        label: t("sidebar.retry"),
+        onClick: onRetry,
+      }}
+      className={cn("shrink-0", className)}
+      icon={<CircleAlert />}
+      message={t("sidebar.directory_refresh_failed_impact")}
+      title={t("sidebar.directory_refresh_failed_description")}
+      tone="danger"
+    />
   );
 }

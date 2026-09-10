@@ -7,7 +7,6 @@ import {
   getErrorMessage,
   projectMutationFailure,
 } from "@/lib/error-message";
-import type { LoopCatalogItem } from "@/types/capability/loop";
 
 import type { ComposerGoalConfirmationIdentity } from "../composer-draft-store";
 import type { ComposerDraftController } from "./use-composer-draft";
@@ -15,14 +14,12 @@ import type { ComposerDraftController } from "./use-composer-draft";
 interface UseComposerGoalActionsOptions {
   closeMention: () => void;
   draft: ComposerDraftController;
-  enableLoops: boolean;
   fallbackErrorMessage: string;
   failureImpact: string;
   failureNextStep: string;
   focusTextarea: () => void;
   goalCreateDisabledReason: string | null;
   onCreateGoal?: (objective: string) => Promise<void>;
-  onCreateLoopGoal?: (loop: LoopCatalogItem) => Promise<void>;
 }
 
 function isRequestAcceptanceUnknown(error: unknown): error is Error {
@@ -92,33 +89,24 @@ function readConfirmationIdentity(
 export function useComposerGoalActions({
   closeMention,
   draft,
-  enableLoops,
   fallbackErrorMessage,
   failureImpact,
   failureNextStep,
   focusTextarea,
   goalCreateDisabledReason,
   onCreateGoal,
-  onCreateLoopGoal,
 }: UseComposerGoalActionsOptions) {
   const {
-    applyPrompt,
     beginGoalSubmission,
     cancelGoal,
     completeGoalSubmission,
     failGoalSubmission,
     markGoalSubmissionConfirming,
-    setActionMenuOpen,
     setGoalError,
-    setLoopPickerOpen,
     startGoal,
     state: { input, isGoalCreating },
   } = draft;
   const canCreateGoal = Boolean(onCreateGoal);
-  const canUseLoop = [
-    enableLoops,
-    [Boolean(onCreateLoopGoal), canCreateGoal].some(Boolean),
-  ].every(Boolean);
   const blockedReason = normalizeBlockedReason(goalCreateDisabledReason);
 
   const submitGoal = useCallback(async () => {
@@ -215,95 +203,10 @@ export function useComposerGoalActions({
     }
   }, [cancelGoalInput, startGoalInput]);
 
-  const openLoopPicker = useCallback(() => {
-    if (!canUseLoop) {
-      return;
-    }
-    setActionMenuOpen(false);
-    setLoopPickerOpen(true);
-  }, [
-    canUseLoop,
-    setActionMenuOpen,
-    setLoopPickerOpen,
-  ]);
-
-  const applyLoopPrompt = useCallback((loop: LoopCatalogItem) => {
-    applyPrompt(loop.kickoff_prompt, canCreateGoal ? "goal" : "message");
-    closeMention();
-    focusTextarea();
-  }, [applyPrompt, canCreateGoal, closeMention, focusTextarea]);
-
-  const handleLoopSelect = useCallback(async (loop: LoopCatalogItem) => {
-    if (!onCreateLoopGoal) {
-      applyLoopPrompt(loop);
-      return;
-    }
-    setGoalError(null);
-    closeMention();
-    const submission = beginGoalSubmission();
-    if (!submission) {
-      return;
-    }
-    let createPromise: Promise<void>;
-    try {
-      createPromise = onCreateLoopGoal(loop);
-    } catch (error) {
-      failGoalSubmission(
-        submission,
-        buildGoalFailureMessage(
-          error,
-          fallbackErrorMessage,
-          failureImpact,
-          failureNextStep,
-        ),
-        readConfirmationIdentity(error),
-      );
-      throw error;
-    }
-    try {
-      await createPromise;
-      completeGoalSubmission(submission);
-    } catch (error) {
-      if (requiresGoalReconciliation(error)) {
-        markGoalSubmissionConfirming(
-          submission,
-          readConfirmationIdentity(error),
-        );
-        return;
-      }
-      failGoalSubmission(
-        submission,
-        buildGoalFailureMessage(
-          error,
-          fallbackErrorMessage,
-          failureImpact,
-          failureNextStep,
-        ),
-        readConfirmationIdentity(error),
-      );
-      throw error;
-    }
-  }, [
-    applyLoopPrompt,
-    beginGoalSubmission,
-    closeMention,
-    completeGoalSubmission,
-    failGoalSubmission,
-    fallbackErrorMessage,
-    failureImpact,
-    failureNextStep,
-    onCreateLoopGoal,
-    markGoalSubmissionConfirming,
-    setGoalError,
-  ]);
-
   return {
     blockedReason,
     canCreateGoal,
-    canUseLoop,
     cancelGoalInput,
-    handleLoopSelect,
-    openLoopPicker,
     submitGoal,
     toggleGoalInput,
   };

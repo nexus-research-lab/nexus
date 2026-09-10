@@ -2,7 +2,7 @@
  * Skill API 服务模块
  *
  * [INPUT]: 依赖 @/types/capability/skill, @/types/system/api
- * [OUTPUT]: 对外提供 Agent 技能接口与全局 Skill Marketplace 接口，并原样保留传输层 FailureCore
+ * [OUTPUT]: 提供 Agent 技能读取/显式启停与 Skill Marketplace 接口，并原样保留传输层 FailureCore；不保留无人使用的 install/uninstall 兼容写入口
  * [POS]: lib 模块的 Skill API 层，被技能市场、Agent 配置与联系人页消费
  */
 
@@ -283,20 +283,6 @@ export const getAgentSkillsApi = async (
   );
 };
 
-/** 兼容启用 Agent Skill 的旧入口 */
-export const installSkillApi = async (
-  agentId: string,
-  skillName: string,
-): Promise<AgentSkillEntry> => {
-  return requestSkillApi<AgentSkillEntry>(
-    `/agents/${encodeURIComponent(agentId)}/skills`,
-    {
-      method: "POST",
-      body: JSON.stringify({ skill_name: skillName }),
-    },
-  );
-};
-
 /** 切换 Agent 技能状态；停用只改变绑定，不删除工作区文件。 */
 export const setAgentSkillEnabledApi = async (
   agentId: string,
@@ -309,19 +295,6 @@ export const setAgentSkillEnabledApi = async (
     {
       method: "PATCH",
       body: JSON.stringify({ enabled, target_scope: targetScope }),
-    },
-  );
-};
-
-/** 兼容删除 Agent Skill 的旧入口 */
-export const uninstallSkillApi = async (
-  agentId: string,
-  skillName: string,
-): Promise<void> => {
-  await requestSkillApi<{ success: boolean }>(
-    `/agents/${encodeURIComponent(agentId)}/skills/${encodeURIComponent(skillName)}`,
-    {
-      method: "DELETE",
     },
   );
 };

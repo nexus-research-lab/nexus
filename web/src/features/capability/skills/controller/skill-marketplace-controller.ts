@@ -48,6 +48,7 @@ export interface SkillCatalogController {
   groupedSkills: Array<[string, SkillInfo[]]>;
   importedExternalSources: Map<string, Set<string>>;
   loading: boolean;
+  loadFailed: boolean;
   query: string;
   refresh: () => Promise<boolean>;
   setActiveCategory: (category: string) => void;
@@ -57,6 +58,8 @@ export interface SkillCatalogController {
 }
 
 export interface ExternalSkillSearchController {
+  loadFailed: boolean;
+  retry: () => void;
   closePreview: () => void;
   loading: boolean;
   preview: (item: ExternalSkillSearchItem) => Promise<void>;
@@ -80,6 +83,9 @@ export interface PrivateSkillSourceDraft {
 }
 
 export interface ExternalSkillSourcesController {
+  mutationBlocked: boolean;
+  loadFailed: boolean;
+  retry: () => void;
   closeManager: () => void;
   items: ExternalSkillSourceInfo[];
   loading: boolean;

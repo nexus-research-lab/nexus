@@ -8,8 +8,15 @@
 - 内置 Skill 的双语名称统一由 `lib/skill-description.ts` 做只读展示投影；本域不得修改 API Skill 对象、`SKILL.md` 或同名用户 Skill。
 - 可启用 Skill 的搜索属于分组工具，桌面与分组标题同排、手机端换到标题下方；内置 Skill 使用当前语言的展示说明参与搜索。未搜索时不显示无信息增量的 `n/n`，筛选时才显示命中数与可用总数。
 - `agent-skill-card.tsx` 明确标记当前 Agent 的本地 workspace Skill；这类 Skill 不进入全局技能库、不对其它 Agent 可见，存在时默认启用，停用只写当前 Agent 的显式停用状态。
+- Skill 卡片使用 `WorkspaceCatalogCard size="dense"` 保留紧凑设置面密度；标题和摘要使用共享排版。卡片是非交互 Article，只有未锁定且命令允许的 `GlassSwitch` 能发出原始 Skill 启停命令，不能把整卡变成第二个开关热区。
 - `agent-options-skills-view.tsx` 只组合错误提示、内容与确认弹窗，不重复渲染技能总数或常驻手动刷新；资源在页面进入、窗口重新聚焦或恢复可见时刷新，不做固定间隔轮询。`agent-options-skills-content.tsx` 分别渲染状态、已启用列表和可启用列表，`agent-skill-card.tsx` 只渲染单项。
 
 列表与命令结果必须绑定 Agent；旧请求、旧命令不得写入新作用域，页面卸载后不得继续刷新视图状态。
 
+Skill 目录初始读取使用具名 UiResourceState loading，单卡启停命令使用 `sm` muted Spinner；视图不得自行维护尺寸、颜色、旋转或 reduced-motion class。
+
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+
+技能开关通过实例唯一说明 ID 关联本卡用途；无说明时不输出空关联。长连续名称和说明允许断行，但仍保留既有两行密度。
+
+首次读取失败且无列表时仅展示读取恢复面，不同时伪造已启用/可用空目录；已有卡片仍保留并禁用开关。初始加载使用具名 UiResourceState，分组标题和数量统一使用 Typography 角色。

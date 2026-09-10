@@ -1,5 +1,5 @@
 // INPUT: Agent runtime、主/后台模型、权限/工具/Skill、round capability、内建 MCP 与持久化 MCP 配置。
-// OUTPUT: 经统一校验、后台进度模型环境投影与 MCP 名称隔离后的 SDK client options。
+// OUTPUT: 经统一校验、后台进度模型环境投影、固定宿主子智能体定义与 MCP 名称隔离后的 SDK client options。
 // POS: Agent 数据库配置进入 DM/Room runtime 前的统一启动选项装配边界。
 package clientopts
 
@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 
+	sdkagent "github.com/nexus-research-lab/nexus-agent-sdk-bridge/agent"
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
@@ -213,7 +214,7 @@ func BuildAgentClientOptionsWithConfig(
 		},
 		Tools: agentclient.ToolOptions{
 			Available: runtimeAvailableTools(effectiveRuntimeKind),
-			Allow:     slices.Clone(input.AllowedTools),
+			Allow:     runtimePreauthorizedTools(input.AllowedTools),
 			Deny:      appendDistinctStrings(input.DisallowedTools, agentSessionDeniedTools...),
 		},
 		Runtime: agentclient.RuntimeOptions{
@@ -224,6 +225,13 @@ func BuildAgentClientOptionsWithConfig(
 		Callbacks: agentclient.CallbackOptions{
 			PermissionHandler: input.PermissionHandler,
 		},
+	}
+	if effectiveRuntimeKind == runtimeKindNXS {
+		options.Env["NEXUS_HOST_SUBAGENT_CONTROL"] = "1"
+		options = options.WithAgents(map[string]sdkagent.Definition{"general-purpose": {
+			Description: "在父智能体给定的任务边界内完成调研、实现或核查，向父智能体返回结果与证据。",
+			Prompt:      "你是父智能体派生的子智能体。执行收到的具体任务，遵守其范围、写入限制和当前工具权限；不代表父智能体管理 Goal 或工作图责任，不递归派生。完成后返回简洁结论、证据或产物位置，以及尚未解决的问题。",
+		}})
 	}
 	if effectiveRuntimeKind == runtimeKindClaude {
 		// Claude 的项目级 Skill 会在会话期间动态发现；用 deny 规则隔离
@@ -339,6 +347,22 @@ func firstNonEmptyRuntimeValue(values ...string) string {
 		}
 	}
 	return ""
+}
+
+// runtimePreauthorizedTools 默认授权网页检索；保留用户已有的工具及域名范围规则。
+// 文件读取等基础能力由 runtime 自身判定，不能用无范围的 Read 授权绕过路径审批。
+func runtimePreauthorizedTools(configured []string) []string {
+	result := slices.Clone(configured)
+	for _, tool := range []string{"WebFetch", "WebSearch"} {
+		configuredTool := slices.ContainsFunc(configured, func(rule string) bool {
+			rule = strings.TrimSpace(rule)
+			return rule == tool || strings.HasPrefix(rule, tool+"(")
+		})
+		if !configuredTool {
+			result = append(result, tool)
+		}
+	}
+	return result
 }
 
 func runtimeAvailableTools(runtimeKind string) []string {

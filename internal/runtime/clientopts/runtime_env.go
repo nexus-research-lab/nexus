@@ -1,3 +1,6 @@
+// INPUT: 宿主环境、owner 身份、Provider 配置与 runtime 选项。
+// OUTPUT: 按 owner/runtime 隔离且清除 Control/Relay 宿主配置的子进程环境。
+// POS: Nexus 宿主到 Agent runtime 环境投影的唯一边界。
 package clientopts
 
 import (
@@ -482,6 +485,14 @@ func scrubInheritedRuntimeEnv() map[string]string {
 		"NEXUS_CONTROL_PRINCIPAL_PUBLIC_KEY_FILE",
 		"NEXUS_CONTROL_PRINCIPAL_AUDIENCE",
 		"NEXUS_CONTROL_REQUEST_TIMEOUT_SECONDS",
+		"NEXUS_REMOTE_URL",
+		"NEXUS_RELAY_URL",
+		"NEXUS_RELAY_REQUEST_TIMEOUT_SECONDS",
+		"RELAY_DATABASE_DRIVER",
+		"RELAY_DATABASE_URL",
+		"RELAY_DEPLOYMENT_ID",
+		"RELAY_PRINCIPAL_PUBLIC_KEY",
+		"RELAY_PRINCIPAL_PUBLIC_KEY_FILE",
 		"DISCORD_BOT_TOKEN",
 		"TELEGRAM_BOT_TOKEN",
 		// provider 的环境凭据属于宿主全局秘密；当前用户的凭据只能

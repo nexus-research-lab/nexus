@@ -268,7 +268,7 @@ func (s *AgentHistoryStore) snapshotAgentHistoryTranscriptAtResolvedPath(
 		return historyPageSourceSnapshot{}, err
 	}
 	defer root.Close()
-	file, err := root.OpenFileNoSymlink(relative, os.O_RDONLY, 0)
+	file, err := s.openTranscriptReadFile(root, relative)
 	if err != nil {
 		return historyPageSourceSnapshot{}, err
 	}

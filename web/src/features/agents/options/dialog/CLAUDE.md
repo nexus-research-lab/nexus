@@ -4,3 +4,5 @@
 - `agent-options-dialog-model.ts` 用关闭、新建、编辑判别状态投影唯一标题，不接受可选字段矩阵；编辑态不把内部 Agent ID 暴露成副标题。
 - 字段状态和保存事务统一委托 `AgentOptionsDialogEditor`，不得在弹窗维护镜像草稿。
 - 当前唯一消费者是 Contacts；直接导入具体组件，不提供无价值 barrel。
+
+标题引用使用实例级 useId，多个弹窗不能共享固定 DOM ID。

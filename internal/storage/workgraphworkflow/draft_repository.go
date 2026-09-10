@@ -37,18 +37,19 @@ INSERT INTO workgraph_workflow_drafts (
     source_agent_id, source_conversation_id, output_language,
     head_revision, selected_revision, editor_id, editor_agent_id,
     editor_session_key, editor_display_after_unix_milli,
-    save_scheduled, saved_workflow_id, saved_revision, expires_at, created_at, updated_at
+    save_scheduled, saved_workflow_id, saved_revision, expires_at, created_at, updated_at, origin_workflow_id
 ) VALUES (`+
 		r.bind(1)+`,`+r.bind(2)+`,`+r.bind(3)+`,`+r.bind(4)+`,`+
 		r.bind(5)+`,`+r.bind(6)+`,`+r.bind(7)+`,`+r.bind(8)+`,`+
 		r.bind(9)+`,`+r.bind(10)+`,`+r.bind(11)+`,`+r.bind(12)+`,`+
 		r.bind(13)+`,`+r.bind(14)+`,`+r.bind(15)+`,`+r.bind(16)+`,`+
-		r.bind(17)+`,`+r.bind(18)+`,`+r.bind(19)+`)`,
+		r.bind(17)+`,`+r.bind(18)+`,`+r.bind(19)+`,`+r.bind(20)+`)`,
 		draft.PreviewID, draft.OwnerUserID, draft.SourceExecutionID, draft.SourceSessionKey,
 		draft.SourceAgentID, draft.SourceConversationID, draft.OutputLanguage,
 		draft.HeadRevision, draft.SelectedRevision, draft.EditorID, draft.EditorAgentID,
 		draft.EditorSessionKey, draft.EditorDisplayAfter, draft.SaveScheduled,
 		draft.SavedWorkflowID, draft.SavedRevision, r.timestamp(draft.ExpiresAt), r.timestamp(draft.CreatedAt), r.timestamp(draft.UpdatedAt),
+		draft.OriginWorkflowID,
 	)
 	if err != nil {
 		return nil, err
@@ -99,7 +100,7 @@ func (r *Repository) GetDraftBySource(
 	draft, err := scanDraft(r.db.QueryRowContext(ctx, r.draftSelect()+`
 WHERE owner_user_id = `+r.bind(1)+`
   AND source_session_key = `+r.bind(2)+`
-  AND source_execution_id = `+r.bind(3),
+  AND source_execution_id = `+r.bind(3)+` AND origin_workflow_id = ''`,
 		strings.TrimSpace(ownerUserID), strings.TrimSpace(sourceSessionKey), strings.TrimSpace(sourceExecutionID)))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -143,6 +144,22 @@ func (r *Repository) GetDraftBySavedWorkflowID(
 	draft, err := scanDraft(r.db.QueryRowContext(ctx, r.draftSelect()+`
 WHERE owner_user_id = `+r.bind(1)+` AND saved_workflow_id = `+r.bind(2),
 		strings.TrimSpace(ownerUserID), strings.TrimSpace(workflowID)))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err = r.loadDraftVersions(ctx, &draft); err != nil {
+		return nil, err
+	}
+	return &draft, nil
+}
+
+// GetDraftByEditorID 让打开中的编辑器在重启或另一窗口修改后读取数据库当前版本。
+func (r *Repository) GetDraftByEditorID(ctx context.Context, ownerUserID, editorID string) (*protocol.WorkGraphWorkflowDraft, error) {
+	draft, err := scanDraft(r.db.QueryRowContext(ctx, r.draftSelect()+`
+WHERE owner_user_id = `+r.bind(1)+` AND editor_id = `+r.bind(2), strings.TrimSpace(ownerUserID), strings.TrimSpace(editorID)))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -406,6 +423,8 @@ ORDER BY revision ASC`, draft.PreviewID)
 	if draft.Preview.PreviewID == "" {
 		return fmt.Errorf("WorkGraph Draft %s selected version is missing", draft.PreviewID)
 	}
+	draft.Preview.HeadRevision = draft.HeadRevision
+	draft.Preview.SelectedRevision = draft.SelectedRevision
 	return nil
 }
 
@@ -414,7 +433,7 @@ func (r *Repository) draftSelect() string {
        source_agent_id, source_conversation_id, output_language,
        head_revision, selected_revision, editor_id, editor_agent_id,
        editor_session_key, editor_display_after_unix_milli,
-       save_scheduled, saved_workflow_id, saved_revision, expires_at, created_at, updated_at
+       save_scheduled, saved_workflow_id, saved_revision, expires_at, created_at, updated_at, origin_workflow_id
 FROM workgraph_workflow_drafts`
 }
 
@@ -440,6 +459,7 @@ func scanDraft(scanner rowScanner) (protocol.WorkGraphWorkflowDraft, error) {
 		&draft.ExpiresAt,
 		&draft.CreatedAt,
 		&draft.UpdatedAt,
+		&draft.OriginWorkflowID,
 	)
 	if err != nil {
 		return protocol.WorkGraphWorkflowDraft{}, err

@@ -1,17 +1,21 @@
 /**
  * INPUT: Assistant direct/process/final 投影、活动状态、interaction owner 与请求切片。
- * OUTPUT: DM/Thread 的折叠工具段、Room 主 Feed 的等高单行活动摘要、固定位置的 final 正文与唯一人工响应面。
+ * OUTPUT: DM/Thread 的折叠工具段、Room 主 Feed 的等高单行活动摘要、固定位置的 final 正文、回复尾部生成文件汇总与唯一人工响应面。
  * POS: Assistant 正文、过程、终态与人工介入的纯视图编排层；Room 公区不消费具体工具过程。
  */
+import { useMemo } from "react";
+import { WorkspaceFileArtifactList } from "../../../blocks/artifact/workspace-file-artifacts";
+import { useWorkspaceFileArtifactsFromContent } from "../../../blocks/artifact/workspace-file-artifact-utils";
 import { AlertTriangle } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import type {
   ContentBlock,
   ToolUseContent,
 } from "@/types/conversation/message/content";
 
-import { shouldShowAssistantTimeline } from "../../message-item-projection";
+import { type ContentProjection, shouldShowAssistantTimeline } from "../../message-item-projection";
 import { getLocalizedToolActivityLabel } from "../../../tool-activity";
 import { ProcessActivityIconStack } from "../../../ui/activity-icon";
 import { LocalizedMessageActivityStatus } from "../message-activity-status";
@@ -49,7 +53,23 @@ export function AssistantMessageContent({
   process,
   showMaxTokensWarning,
 }: AssistantMessageContentProps) {
-  const { t } = useI18n();
+  const filePresentation = useMemo(() => {
+    const content = [
+      ...process.projection.content,
+      ...direct.projection.content,
+      ...(final.visible && Array.isArray(final.content) ? final.content : []),
+    ];
+    const finalProjection = Array.isArray(final.content)
+      ? withoutFileCards({ content: final.content, streamingIndexes: new Set(final.streamingIndexes) })
+      : null;
+    return {
+      direct: { ...direct, projection: withoutFileCards(direct.projection) },
+      process: { ...process, projection: withoutFileCards(process.projection) },
+      final: finalProjection ? { ...final, content: finalProjection.content, streamingIndexes: finalProjection.streamingIndexes } : final,
+      content,
+    };
+  }, [direct, process, final]);
+  const artifacts = useWorkspaceFileArtifactsFromContent(filePresentation.content, environment.workspaceAgentId);
   return (
     <>
       <StandaloneActivity
@@ -59,9 +79,8 @@ export function AssistantMessageContent({
       <EmptyStreamStatus status={activity.emptyStreamStatus} />
       <AssistantDirectContent
         activity={activity}
-        direct={direct}
+        direct={filePresentation.direct}
         environment={environment}
-        generatedFilesLabel={t("message.generated_files")}
         permissions={permissions}
         responseResumed={final.isStreaming}
         responseStreaming={final.isStreaming}
@@ -69,31 +88,48 @@ export function AssistantMessageContent({
       <AssistantProcessCallchain
         activity={activity}
         environment={environment}
-        generatedFilesLabel={t("message.generated_files")}
         permissions={permissions}
-        process={process}
+        process={filePresentation.process}
       />
       <AssistantFinalContent
         activity={activity}
         environment={environment}
-        final={final}
+        final={filePresentation.final}
         permissions={permissions}
         showTrailingActivity={!direct.visible}
       />
       <RoomResultProcessActivity
         activity={activity}
-        direct={direct}
+        direct={filePresentation.direct}
         environment={environment}
       />
       <RoomResultTrailingActivity
         activity={activity}
-        direct={direct}
+        direct={filePresentation.direct}
         environment={environment}
-        final={final}
+        final={filePresentation.final}
       />
       <MaxTokensWarning visible={showMaxTokensWarning} />
+      <WorkspaceFileArtifactList
+        artifacts={artifacts}
+        className="mt-3"
+        onOpenWorkspaceFile={environment.onOpenWorkspaceFile}
+        workspaceAgentId={environment.workspaceAgentId}
+      />
     </>
   );
+}
+
+// Removing cards must reindex streaming markers alongside the remaining content.
+function withoutFileCards(projection: ContentProjection): ContentProjection {
+  const content: ContentBlock[] = [];
+  const streamingIndexes = new Set<number>();
+  projection.content.forEach((block, index) => {
+    if (block.type === "workspace_file_artifact") return;
+    if (projection.streamingIndexes.has(index)) streamingIndexes.add(content.length);
+    content.push(block);
+  });
+  return { content, streamingIndexes };
 }
 
 function RoomResultProcessActivity({
@@ -219,7 +255,6 @@ function AssistantDirectContent({
   activity,
   direct,
   environment,
-  generatedFilesLabel,
   permissions,
   responseResumed,
   responseStreaming,
@@ -227,7 +262,6 @@ function AssistantDirectContent({
   activity: AssistantActivityState;
   direct: AssistantDirectState;
   environment: AssistantContentEnvironment;
-  generatedFilesLabel: string;
   permissions: AssistantPermissionState;
   responseResumed: boolean;
   responseStreaming: boolean;
@@ -243,7 +277,6 @@ function AssistantDirectContent({
       <AssistantToolRuns
         activity={activity}
         environment={environment}
-        generatedFilesLabel={generatedFilesLabel}
         permissions={permissions}
         projection={direct.projection}
         responseResumed={responseResumed}
@@ -321,7 +354,7 @@ const EMPTY_STREAM_STATUS = {
     labelKey: "message.stopped",
   },
   error: {
-    className: "text-xs italic text-rose-500",
+    className: "text-xs italic text-(--destructive)",
     labelKey: "message.failed",
   },
 } as const;
@@ -345,9 +378,11 @@ function MaxTokensWarning({ visible }: { visible: boolean }) {
     return null;
   }
   return (
-    <div className="mt-2 flex items-center gap-1.5 rounded-[8px] border border-[color:color-mix(in_srgb,var(--warning)_18%,transparent)] px-3 py-2 text-xs leading-5 text-(--warning)">
-      <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-      <span>{t("message.max_tokens_warning")}</span>
-    </div>
+    <UiInlineNotice
+      className="mt-2"
+      icon={<AlertTriangle />}
+      message={t("message.max_tokens_warning")}
+      tone="warning"
+    />
   );
 }

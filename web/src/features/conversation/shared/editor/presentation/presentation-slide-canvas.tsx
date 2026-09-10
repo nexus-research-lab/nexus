@@ -1,3 +1,6 @@
+// INPUT: Parsed slide geometry and source text styles, with optional thumbnail chrome.
+// OUTPUT: One SVG content layout at every display size, preserving repeated paragraphs and runs.
+// POS: Presentation canvas; source formatting stays local and thumbnails only change outer chrome.
 import type { CSSProperties } from "react";
 
 import { cn } from "@/shared/ui/class-name";
@@ -11,7 +14,7 @@ import {
 } from "./presentation-preview-model";
 
 export function PresentationSlideCanvas({
-  className: className,
+  className,
   slide,
   thumbnail = false,
 }: {
@@ -23,8 +26,8 @@ export function PresentationSlideCanvas({
     <svg
       aria-label={slide.title}
       className={cn(
-        "block w-full bg-(--surface-paper-background) shadow-(--surface-paper-shadow)",
-        thumbnail ? "rounded-[2px] shadow-sm" : "rounded-[2px]",
+        "block w-full rounded-[2px] bg-(--surface-paper-background) shadow-(--surface-paper-shadow)",
+        thumbnail && "shadow-sm",
         className,
       )}
       role="img"
@@ -47,7 +50,7 @@ export function PresentationSlideCanvas({
           );
         }
 
-        return <PresentationShape key={element.id} shape={element} thumbnail={thumbnail} />;
+        return <PresentationShape key={element.id} shape={element} />;
       })}
     </svg>
   );
@@ -55,34 +58,28 @@ export function PresentationSlideCanvas({
 
 function PresentationShape({
   shape,
-  thumbnail,
 }: {
   shape: PresentationShapeElement;
-  thumbnail: boolean;
 }) {
   const stroke = shape.stroke || "none";
   const fill = shape.geometry === "line" ? "none" : shape.fill || "transparent";
   return (
     <g>
       {renderShapeGeometry(shape, fill, stroke)}
-      <PresentationShapeText shape={shape} thumbnail={thumbnail} />
+      <PresentationShapeText shape={shape} />
     </g>
   );
 }
 
 function PresentationShapeText({
   shape,
-  thumbnail,
 }: {
   shape: PresentationShapeElement;
-  thumbnail: boolean;
 }) {
   if (shape.paragraphs.length === 0) {
     return null;
   }
-  const textPadding = thumbnail
-    ? Math.max(Math.min(shape.width, shape.height) * 0.03, 4)
-    : Math.max(Math.min(shape.width, shape.height) * 0.045, 6);
+  const textPadding = Math.max(Math.min(shape.width, shape.height) * 0.045, 6);
   const justifyContent = shape.textAnchor === "center"
     ? "center"
     : shape.textAnchor === "bottom"
@@ -104,10 +101,10 @@ function PresentationShapeText({
       >
         {shape.paragraphs.map((paragraph, index) => (
           <PresentationParagraphView
-            key={getParagraphKey(shape.id, paragraph)}
+            // Parsed sequences are immutable and may repeat identical content; position is their identity.
+            key={index}
             first={index === 0}
             paragraph={paragraph}
-            shapeId={shape.id}
           />
         ))}
       </div>
@@ -118,11 +115,9 @@ function PresentationShapeText({
 function PresentationParagraphView({
   first,
   paragraph,
-  shapeId,
 }: {
   first: boolean;
   paragraph: PresentationParagraph;
-  shapeId: string;
 }) {
   return (
     <p style={buildPresentationParagraphStyle(paragraph, first)}>
@@ -132,9 +127,9 @@ function PresentationParagraphView({
         </span>
       ) : null}
       <span style={buildPresentationParagraphContentStyle(paragraph)}>
-        {paragraph.runs.map((run) => (
+        {paragraph.runs.map((run, index) => (
           <PresentationTextRunView
-            key={getTextRunKey(shapeId, paragraph, run)}
+            key={index}
             run={run}
           />
         ))}
@@ -199,35 +194,6 @@ function PresentationTextRunView({ run }: { run: PresentationTextRun }) {
       {run.text}
     </span>
   );
-}
-
-function getParagraphKey(shapeId: string, paragraph: PresentationParagraph): string {
-  return [
-    shapeId,
-    "paragraph",
-    paragraph.text,
-    paragraph.bullet ?? "",
-    paragraph.align ?? "",
-    paragraph.fontSize,
-    paragraph.lineHeight,
-  ].join(":");
-}
-
-function getTextRunKey(
-  shapeId: string,
-  paragraph: PresentationParagraph,
-  run: PresentationTextRun,
-): string {
-  return [
-    getParagraphKey(shapeId, paragraph),
-    "run",
-    run.text,
-    run.fontFace ?? "",
-    run.fontSize,
-    run.color ?? "",
-    run.bold ? "bold" : "normal",
-    run.italic ? "italic" : "roman",
-  ].join(":");
 }
 
 function renderShapeGeometry(shape: PresentationShapeElement, fill: string, stroke: string) {

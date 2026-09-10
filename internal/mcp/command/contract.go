@@ -17,6 +17,7 @@ var requestIDPattern = regexp.MustCompile(`^[A-Za-z0-9._:-]{8,128}$`)
 
 const (
 	DomainAutomation = "automation"
+	DomainSubagent   = "subagent"
 	DomainGoal       = nexusmcp.CommandDomainGoal
 	DomainExecution  = nexusmcp.CommandDomainExecution
 
@@ -152,6 +153,9 @@ func BuildContract(domain, inspect, selected string, operations []Operation) (Co
 		definition := OperationContract{
 			Name: operation.Name, Kind: kind, Description: operation.Description,
 			Idempotent: operation.Idempotent || operation.Annotations != nil && operation.Annotations.IdempotentHint,
+		}
+		if operation.Name == inspect {
+			definition.Description = fmt.Sprintf("Call with {\"domain\":%q,\"action\":\"inspect\"}; omit operation. This operation cannot be invoked with action=invoke. ", domain) + definition.Description
 		}
 		if includeSchema {
 			definition.InputSchema = operation.InputSchema

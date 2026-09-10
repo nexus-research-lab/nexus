@@ -51,15 +51,16 @@ func (s CacheSegment) CacheReadShare() (share float64, ok bool) {
 
 // Summary 表示用户级 token 用量汇总。
 type Summary struct {
-	InputTokens              int64  `json:"input_tokens"`
-	OutputTokens             int64  `json:"output_tokens"`
-	CacheCreationInputTokens int64  `json:"cache_creation_input_tokens"`
-	CacheReadInputTokens     int64  `json:"cache_read_input_tokens"`
-	TotalTokens              int64  `json:"total_tokens"`
-	QuotaLimitTokens         *int64 `json:"quota_limit_tokens"`
-	SessionCount             int    `json:"session_count"`
-	MessageCount             int    `json:"message_count"`
-	UpdatedAt                string `json:"updated_at"`
+	Daily                    []usagestore.DailyUsage `json:"daily"`
+	InputTokens              int64                   `json:"input_tokens"`
+	OutputTokens             int64                   `json:"output_tokens"`
+	CacheCreationInputTokens int64                   `json:"cache_creation_input_tokens"`
+	CacheReadInputTokens     int64                   `json:"cache_read_input_tokens"`
+	TotalTokens              int64                   `json:"total_tokens"`
+	QuotaLimitTokens         *int64                  `json:"quota_limit_tokens"`
+	SessionCount             int                     `json:"session_count"`
+	MessageCount             int                     `json:"message_count"`
+	UpdatedAt                string                  `json:"updated_at"`
 }
 
 // Service 负责用户级 token usage ledger。
@@ -98,7 +99,12 @@ func (s *Service) Summary(ctx context.Context, ownerUserID string) (Summary, err
 	if err != nil {
 		return Summary{}, err
 	}
+	daily, err := s.repository.DailyUsage(ctx, ownerUserID, s.now())
+	if err != nil {
+		return Summary{}, err
+	}
 	return Summary{
+		Daily:                    daily,
 		InputTokens:              stored.InputTokens,
 		OutputTokens:             stored.OutputTokens,
 		CacheCreationInputTokens: stored.CacheCreationInputTokens,

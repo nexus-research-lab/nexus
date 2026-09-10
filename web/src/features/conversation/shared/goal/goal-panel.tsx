@@ -2,12 +2,13 @@
 
 /**
  * INPUT: session-scoped Goal controller/reliability state and panel presentation props.
- * OUTPUT: status, Problem/Impact/Recovery notices, edit and clear-confirmation UI.
+ * OUTPUT: localized status, optional domain presentation derived from the current Goal, recovery and scoped confirmation.
  * POS: Goal panel composition layer; it does not infer Execution binding or call APIs.
  */
 
 import type { ReactNode } from "react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import type { Goal } from "@/types/conversation/goal";
 
@@ -17,36 +18,22 @@ import type { GoalReliabilityState } from "./goal-lifecycle-recovery";
 import {
   GOAL_PANEL_COMPACT_CLASS_NAME,
   GOAL_PANEL_STRIP_CLASS_NAME,
-  type GoalDialog,
-} from "./goal-model";
+} from "./goal-panel-layout";
+import type { GoalDialog } from "./goal-model";
 import { GoalReliabilityNotice } from "./goal-reliability-notice";
 import { GoalStatusStrip } from "./goal-status-strip";
 import { useGoalController } from "./use-goal-controller";
 
-interface GoalDialogPresentation {
-  cancelText: string;
-  confirmText: string;
-  title: string;
-  variant?: "danger";
-}
-
-const GOAL_DIALOG_PRESENTATION: GoalDialogPresentation = {
-  cancelText: "取消",
-  confirmText: "清除",
-  title: "清除当前 Goal?",
-  variant: "danger",
-};
-
 interface GoalPanelProps {
   activityKey?: number | string | null;
   compact?: boolean;
-  continuationHold?: GoalContinuationHold | null;
+  continuationHold?: GoalContinuationHold | null | ((goal: Goal) => GoalContinuationHold | null);
   disabled?: boolean;
   isGenerating?: boolean;
   onGoalChange?: (goal: Goal | null) => void;
   scopeLabel?: string;
   sessionKey: string | null;
-  statusExtra?: ReactNode;
+  statusExtra?: ReactNode | ((goal: Goal) => ReactNode);
 }
 
 function GoalConfirmationDialog({
@@ -58,18 +45,18 @@ function GoalConfirmationDialog({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const { t } = useI18n();
   if (dialog.kind === "none") {
     return null;
   }
-  const presentation = GOAL_DIALOG_PRESENTATION;
   return (
     <ConfirmDialog
-      cancelText={presentation.cancelText}
-      confirmText={presentation.confirmText}
+      cancelText={t("common.cancel")}
+      confirmText={t("common.clear")}
       isOpen
-      message={`Goal：${dialog.goal.objective}`}
-      title={presentation.title}
-      variant={presentation.variant}
+      message={t("goal.clear_objective", { objective: dialog.goal.objective })}
+      title={t("goal.clear_title")}
+      variant="danger"
       onCancel={onCancel}
       onConfirm={onConfirm}
     />
@@ -87,13 +74,13 @@ function GoalPanelContent({
   statusExtra,
 }: {
   compact: boolean;
-  continuationHold: GoalContinuationHold | null;
+  continuationHold: NonNullable<GoalPanelProps["continuationHold"]> | null;
   controller: ReturnType<typeof useGoalController>;
   disabled: boolean;
   isGenerating: boolean;
   scopeLabel: string;
   sessionKey: string | null;
-  statusExtra: ReactNode;
+  statusExtra: GoalPanelProps["statusExtra"];
 }) {
   const { actions, dialog, draft, goal } = controller;
   if (!sessionKey) {
@@ -123,7 +110,7 @@ function GoalPanelContent({
         canResume={controller.canResume}
         clearDisabledReason={controller.clearDisabledReason}
         compact={compact}
-        continuationHold={continuationHold}
+        continuationHold={typeof continuationHold === "function" ? continuationHold(goal) : continuationHold}
         disabled={disabled}
         executionBinding={controller.executionBinding}
         goal={goal}
@@ -131,15 +118,16 @@ function GoalPanelContent({
         isLoading={controller.isLoading}
         mutationBlockReason={controller.mutationBlockReason}
         mutationBlocked={controller.mutationsBlocked}
+        pendingAction={controller.pendingAction}
         scopeLabel={scopeLabel}
-        statusExtra={statusExtra}
+        statusExtra={typeof statusExtra === "function" ? statusExtra(goal) : statusExtra}
         onClearRequest={actions.startClearing}
         onEdit={actions.startEditing}
         onPause={actions.pause}
         onRefresh={actions.refresh}
         onResume={actions.resume}
       />
-      {resourceReliability ? (
+      {!draft && resourceReliability ? (
         <GoalReliabilityLane
           compact={compact}
           isRefreshing={controller.isLoading}
@@ -148,7 +136,7 @@ function GoalPanelContent({
           onRefresh={actions.refresh}
         />
       ) : null}
-      {runtimeReliability ? (
+      {!draft && runtimeReliability ? (
         <GoalReliabilityLane
           compact={compact}
           isRefreshing={controller.isLoading}
@@ -238,10 +226,11 @@ export function GoalPanel({
   disabled = false,
   isGenerating = false,
   onGoalChange,
-  scopeLabel = "会话 Goal",
+  scopeLabel,
   sessionKey,
   statusExtra = null,
 }: GoalPanelProps) {
+  const { t } = useI18n();
   const controller = useGoalController({
     activityKey,
     disabled,
@@ -256,7 +245,7 @@ export function GoalPanel({
       controller={controller}
       disabled={disabled}
       isGenerating={isGenerating}
-      scopeLabel={scopeLabel}
+      scopeLabel={scopeLabel ?? t("goal.scope_session")}
       sessionKey={sessionKey}
       statusExtra={statusExtra}
     />

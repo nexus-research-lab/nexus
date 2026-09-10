@@ -9,17 +9,18 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { Plus, RefreshCw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-import { AppRouteBuilders } from "@/app/router/route-paths";
+import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 import { CapabilityPageLayout } from "@/features/capability/shared/capability-page-layout";
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button/button";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import {
   completeFeedbackBanner,
   type FeedbackBannerProps,
 } from "@/shared/ui/feedback/feedback-banner-contract";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
-import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type { ScheduledTaskRunItem } from "@/types/capability/scheduled-task/run";
 import type {
@@ -53,6 +54,16 @@ export function ScheduledTasksDirectory() {
   const { status: authStatus } = useAuth();
   const navigate = useNavigate();
   const [dialog, setDialog] = useState<TaskDialogState>({ kind: "closed" });
+  const [editorBusy, setEditorBusy] = useState(false);
+  const [nextEditor, setNextEditor] = useState<TaskDialogState | null>(null);
+  const openEditor = (next: TaskDialogState) => {
+    if (editorBusy) return;
+    if (dialog.kind !== "closed") {
+      setNextEditor(next);
+      return;
+    }
+    setDialog(next);
+  };
   const [historyTask, setHistoryTask] = useState<ScheduledTaskItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ScheduledTaskItem | null>(null);
   const [deletionStoppedTarget, setDeletionStoppedTarget] = useState<
@@ -128,7 +139,7 @@ export function ScheduledTasksDirectory() {
         ? {
             action: {
               label: t("capability.scheduled_create_pending_review_action"),
-              onClick: () => setDialog({ kind: "create", preset: null }),
+              onClick: () => openEditor({ kind: "create", preset: null }),
             },
             impact: t("capability.scheduled_create_pending_impact"),
             title: t("capability.scheduled_create_pending_title"),
@@ -186,6 +197,7 @@ export function ScheduledTasksDirectory() {
     ));
     setCreateRequestResolution(null);
     setDialog({ kind: "closed" });
+    setNextEditor(null);
     setHistoryTask(null);
     setDeleteTarget(null);
     setDeletionStoppedTarget(null);
@@ -206,6 +218,7 @@ export function ScheduledTasksDirectory() {
       return;
     }
     setDialog({ kind: "closed" });
+    setNextEditor(null);
     setHistoryTask(null);
     setDeleteTarget(null);
     setDeletionStoppedTarget(null);
@@ -273,6 +286,7 @@ export function ScheduledTasksDirectory() {
       || (!current && resource.hasSnapshot)
     ) {
       setDialog({ kind: "closed" });
+      setNextEditor(null);
     }
   }, [editingJobId, resource.hasSnapshot, resource.items]);
 
@@ -289,23 +303,23 @@ export function ScheduledTasksDirectory() {
   };
   const getTaskMutationBlockReason = (task: ScheduledTaskItem): string | null => {
     if (accessBlockedRef.current) {
-      return "当前登录状态无法执行这项操作，请重新登录后刷新页面。";
+      return t("capability.scheduled_board_access_blocked");
     }
     const authoritativeTask = resource.items.find(
       (item) => item.job_id === task.job_id,
     );
     if (!authoritativeTask && resource.hasSnapshot) {
-      return "任务已不在当前列表中，请刷新后核对删除是否已经完成。";
+      return t("capability.scheduled_board_task_missing");
     }
     const currentTask = authoritativeTask ?? task;
     if (currentTask.deletion_state?.trim() === "review_required") {
-      return "删除正在等待管理员处理，任务不再接受新的运行、投递或配置操作。";
+      return t("capability.scheduled_board_mutation_review");
     }
     if (isScheduledTaskDeleting(currentTask)) {
-      return "删除已经受理，任务不再接受新的运行、投递或配置操作。";
+      return t("capability.scheduled_board_mutation_deleting");
     }
     if (commands.isTaskMutationBlocked(currentTask.job_id)) {
-      return "这个任务还有一项操作正在处理或等待核对，请先刷新当前状态。";
+      return t("capability.scheduled_board_mutation_pending");
     }
     return null;
   };
@@ -420,36 +434,42 @@ export function ScheduledTasksDirectory() {
         <CapabilityPageLayout
           actions={(
             <div className="flex items-center gap-2">
-              <WorkspaceSurfaceToolbarAction
+              <UiButton
                 disabled={resource.isLoading}
                 onClick={refreshTasks}
+                size="2xs"
+                variant="text"
               >
                 <RefreshCw className={resource.isLoading
-                  ? "h-3.5 w-3.5 motion-safe:animate-spin"
+                  ? getUiSpinnerClassName({ size: "sm" })
                   : "h-3.5 w-3.5"}
                 />
                 {t("capability.refresh")}
-              </WorkspaceSurfaceToolbarAction>
-              <WorkspaceSurfaceToolbarAction
-                disabled={scopeUnavailable
+              </UiButton>
+              <UiButton
+                disabled={editorBusy || scopeUnavailable
                   || accessBlocked
                   || (resource.isLoading && !resource.hasSnapshot)}
                 onClick={() => {
                   if (!scopeUnavailable && !accessBlockedRef.current) {
-                    setDialog({ kind: "create", preset: null });
+                    openEditor({ kind: "create", preset: null });
                   }
                 }}
+                size="2xs"
                 tone="primary"
+                variant="text"
               >
                 <Plus className="h-3.5 w-3.5" />
                 {t("capability.create_task")}
-              </WorkspaceSurfaceToolbarAction>
+              </UiButton>
             </div>
           )}
           description={t("capability.scheduled_intro_description")}
-          className="flex h-full min-h-0 flex-col"
+          className="flex h-full min-h-0 flex-col pb-0"
           title={t("capability.scheduled_intro_title")}
         >
+          <div className="flex min-h-0 flex-1 overflow-hidden">
+          <div className={dialog.kind === "closed" ? "flex min-h-0 min-w-0 flex-1 overflow-hidden" : "hidden min-h-0 min-w-0 flex-1 overflow-hidden lg:flex"}>
           <ScheduledTaskBoard
             failure={resource.failure}
             hasSnapshot={resource.hasSnapshot}
@@ -458,19 +478,19 @@ export function ScheduledTasksDirectory() {
             items={resource.items}
             onCreate={() => {
               if (!scopeUnavailable && !accessBlockedRef.current) {
-                setDialog({ kind: "create", preset: null });
+                openEditor({ kind: "create", preset: null });
               }
             }}
             onCreateFromPreset={(preset) => {
               if (!scopeUnavailable && !accessBlockedRef.current) {
-                setDialog({ kind: "create", preset });
+                openEditor({ kind: "create", preset });
               }
             }}
             onConfirmDeletionStopped={requestDeletionStoppedConfirmation}
             onDelete={deleteTask}
             onEdit={(task) => {
               if (taskAcceptsMutations(task)) {
-                setDialog({ kind: "edit", task });
+                openEditor({ kind: "edit", task });
               }
             }}
             onOpenHistory={(task) => {
@@ -488,10 +508,11 @@ export function ScheduledTasksDirectory() {
             permissionFailure={resource.permissionFailure}
             unconfirmed={commands.unconfirmed}
           />
-        </CapabilityPageLayout>
-      </WorkspaceSurfaceScaffold>
-
+          </div>
+          <aside aria-label={t("capability.scheduled_editor")}
+            className={dialog.kind === "closed" ? "hidden" : "relative min-h-0 w-full shrink-0 bg-(--background) border-l border-(--divider-subtle-color) lg:ml-4 lg:w-[55%] lg:min-w-[420px] lg:max-w-[760px]"}>
       <ScheduledTaskDialog
+        onBusyChange={setEditorBusy}
         agentId={resource.agentId}
         createPreset={createPreset}
         initialTask={editingTask}
@@ -508,6 +529,22 @@ export function ScheduledTasksDirectory() {
         onReconcile={commands.reconcile}
         onSaved={commands.acceptSavedTask}
         scopeKey={ownerScopeKey}
+      />
+          </aside>
+          </div>
+        </CapabilityPageLayout>
+      </WorkspaceSurfaceScaffold>
+
+      <ConfirmDialog
+        isOpen={nextEditor !== null && !editorBusy && !scopeUnavailable && !accessBlocked}
+        title={t("capability.scheduled_discard_title")}
+        message={t("capability.scheduled_discard_message")}
+        confirmText={t("capability.scheduled_continue")}
+        onCancel={() => setNextEditor(null)}
+        onConfirm={() => {
+          if (nextEditor && !editorBusy) setDialog(nextEditor);
+          setNextEditor(null);
+        }}
       />
       <ScheduledTaskRunHistoryDialog
         isOpen={!scopeUnavailable && !accessBlocked && visibleHistoryTask !== null}
@@ -533,29 +570,29 @@ export function ScheduledTasksDirectory() {
         unconfirmed={commands.unconfirmed}
       />
       <ConfirmDialog
-        confirmText="确认已停止并删除"
+        confirmText={t("capability.scheduled_board_confirm_delete")}
         isOpen={!scopeUnavailable
           && !accessBlocked
           && !deletionStoppedTargetUnavailable
           && deletionStoppedTarget !== null}
-        message="系统尚未删除这个任务和运行历史。请先确认原执行端已经停止。继续后将删除任务和运行历史，但无法撤回任务此前已经产生的外部影响。"
+        message={t("capability.scheduled_board_confirm_delete_message")}
         onCancel={() => setDeletionStoppedTarget(null)}
         onConfirm={confirmDeletionStopped}
-        title="确认原执行已经停止"
+        title={t("capability.scheduled_board_confirm_delete_title")}
         variant="danger"
       />
       <ConfirmDialog
-        confirmText="删除"
+        confirmText={t("capability.scheduled_board_delete")}
         isOpen={!scopeUnavailable
           && !accessBlocked
           && !deleteTargetUnavailable
           && deleteTarget !== null}
         message={!accessBlocked && !deleteTargetUnavailable && deleteTarget
-          ? `删除“${deleteTarget.name}”后，这个任务将不再运行。`
+          ? t("capability.scheduled_board_delete_message", { name: deleteTarget.name })
           : ""}
         onCancel={() => setDeleteTarget(null)}
         onConfirm={confirmDeleteTask}
-        title="删除任务"
+        title={t("capability.scheduled_card_delete")}
         variant="danger"
       />
 

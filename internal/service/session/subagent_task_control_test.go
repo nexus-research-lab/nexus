@@ -6,15 +6,14 @@ import (
 	"sync"
 	"testing"
 
-	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
+	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
+	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	sessionsvc "github.com/nexus-research-lab/nexus/internal/service/session"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
 type subagentControlCall struct {
@@ -78,7 +77,7 @@ func TestSessionServiceRoutesCompletedNXSTaskControlsToRoomHostRuntime(t *testin
 	cfg := newSessionTestConfig(t)
 	migrateSessionSQLite(t, cfg.DatabaseURL)
 	agentService, db := newSessionTestAgentService(t, cfg)
-	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
+	sessionService := app.NewSessionServiceWithDB(cfg, db, agentService)
 	runtimeManager := runtimectx.NewManager()
 	sessionService.SetRuntimeManager(runtimeManager)
 
@@ -151,7 +150,7 @@ func TestSessionServiceRejectsCCSendBeforeRuntimeWire(t *testing.T) {
 	cfg := newSessionTestConfig(t)
 	migrateSessionSQLite(t, cfg.DatabaseURL)
 	agentService, db := newSessionTestAgentService(t, cfg)
-	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
+	sessionService := app.NewSessionServiceWithDB(cfg, db, agentService)
 	runtimeManager := runtimectx.NewManager()
 	sessionService.SetRuntimeManager(runtimeManager)
 

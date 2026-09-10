@@ -2,7 +2,7 @@
  * Skill Marketplace 类型定义
  *
  * [INPUT]: 无外部依赖
- * [OUTPUT]: 对外提供 Skill 列表、详情、导入、Agent 启停和更新相关类型
+ * [OUTPUT]: 对外提供当前 API 实际消费的 Skill 列表、详情、导入、Agent 启停和更新类型；不保留旧批量安装/更新响应
  * [POS]: types 模块的 Skill Marketplace 核心类型，被 skill-api.ts 和 skills 页面消费
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -65,24 +65,6 @@ export interface RedeployAgentSuccess {
 
 export interface RedeployAgentFailure extends RedeployAgentSuccess {
     error: string;
-}
-
-export interface SkillRedeployResult {
-    skill_name: string;
-    success_agents: RedeployAgentSuccess[];
-    failures: RedeployAgentFailure[];
-}
-
-export interface BatchInstallSkillsResponse {
-    successes: string[];
-    failures: SkillActionFailure[];
-}
-
-export interface UpdateInstalledSkillsResponse {
-    updated_skills: string[];
-    skipped_skills: string[];
-    failures: SkillActionFailure[];
-    deploy_results?: SkillRedeployResult[];
 }
 
 export interface CheckSkillUpdatesResponse {

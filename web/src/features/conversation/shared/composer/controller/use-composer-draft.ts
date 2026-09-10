@@ -6,7 +6,7 @@
 import { useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
-import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 
 import type { ComposerLocalAttachment } from "../attachments/composer-local-attachment-model";
 import {
@@ -21,7 +21,6 @@ import { readObservedComposerGoal } from "../composer-goal-observation";
 
 interface ComposerDraftTransientState {
   isActionMenuOpen: boolean;
-  isLoopPickerOpen: boolean;
 }
 
 interface ComposerDraftState
@@ -37,7 +36,6 @@ type DraftTransition = (
 
 const INITIAL_DRAFT_STATE: ComposerDraftTransientState = {
   isActionMenuOpen: false,
-  isLoopPickerOpen: false,
 };
 
 function resolveStateAction<T>(action: SetStateAction<T>, current: T): T {
@@ -48,7 +46,6 @@ function resolveStateAction<T>(action: SetStateAction<T>, current: T): T {
 
 export interface ComposerDraftController {
   state: ComposerDraftState;
-  applyPrompt: (prompt: string, mode: ComposerInputMode) => void;
   cancelGoal: () => void;
   beginGoalSubmission: () => ComposerGoalSubmission | null;
   claimMessageSubmission: () => ComposerDraftSnapshot | null;
@@ -69,7 +66,6 @@ export interface ComposerDraftController {
   setAttachments: Dispatch<SetStateAction<ComposerLocalAttachment[]>>;
   setGoalError: Dispatch<SetStateAction<string | null>>;
   setInput: Dispatch<SetStateAction<string>>;
-  setLoopPickerOpen: Dispatch<SetStateAction<boolean>>;
   setSelectedTargetIDs: Dispatch<SetStateAction<string[]>>;
   startGoal: () => void;
 }
@@ -160,12 +156,6 @@ export function useComposerDraft(
       isActionMenuOpen: resolveStateAction(action, current.isActionMenuOpen),
     }));
   }, [transition]);
-  const setLoopPickerOpen = useCallback<Dispatch<SetStateAction<boolean>>>((action) => {
-    transition((current) => ({
-      ...current,
-      isLoopPickerOpen: resolveStateAction(action, current.isLoopPickerOpen),
-    }));
-  }, [transition]);
   const setGoalError = useCallback<Dispatch<SetStateAction<string | null>>>((action) => {
     const current = useComposerDraftStore
       .getState()
@@ -186,14 +176,6 @@ export function useComposerDraft(
     setGoalError(null);
     transition((current) => ({ ...current, isActionMenuOpen: false }));
   }, [setGoalError, setInputMode, transition]);
-  const applyPrompt = useCallback((prompt: string, mode: ComposerInputMode) => {
-    updateComposerDraft(draftScopeKey, (current) => ({
-      ...current,
-      input: prompt,
-      inputMode: mode,
-    }));
-    setGoalError(null);
-  }, [draftScopeKey, setGoalError, updateComposerDraft]);
   const claimDraftSubmission = useCallback(() => (
     claimComposerDraftForSubmission(draftScopeKey, draftSnapshot.revision)
   ), [
@@ -224,7 +206,6 @@ export function useComposerDraft(
       isGoalConfirming,
       isGoalCreating,
     },
-    applyPrompt,
     beginGoalSubmission: beginScopedGoalSubmission,
     cancelGoal,
     claimMessageSubmission: claimDraftSubmission,
@@ -236,7 +217,6 @@ export function useComposerDraft(
     setAttachments,
     setGoalError,
     setInput,
-    setLoopPickerOpen,
     setSelectedTargetIDs,
     startGoal,
   };

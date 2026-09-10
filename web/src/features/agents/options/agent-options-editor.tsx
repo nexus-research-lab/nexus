@@ -1,5 +1,5 @@
 // INPUT: Agent Options 创建/编辑来源、当前栏目和持久化动作。
-// OUTPUT: 内联或模态设置工作台；模态底部使用 plain 动作区。
+// OUTPUT: 内联或模态设置工作台；动作区整行选择同一公共尺寸，模态采用 plain Footer。
 // POS: Agent Options 两种明确壳层的编辑器装配，不持有业务字段副本。
 import { useEffect } from "react";
 
@@ -74,7 +74,7 @@ export function AgentOptionsInlineEditor({
         )}>
           <AgentOptionsEditorActions
             {...controller.actions}
-            saveButtonSize="sm"
+            buttonSize="sm"
           />
         </div>
       ) : null}
@@ -115,7 +115,7 @@ export function AgentOptionsDialogEditor({
         <AgentOptionsEditorActions
           {...controller.actions}
           cancelAction={cancelAction}
-          saveButtonSize="md"
+          buttonSize="md"
         />
       </UiDialogFooter>
     </>

@@ -43,7 +43,6 @@
   .workspace-surface-header-view-tab {
   gap: 6px;
   padding-inline: 10px;
-  font-size: 12px;
 }
 
 .workspace-surface-header-tool-cluster-page-tabs
@@ -63,7 +62,6 @@
   --workspace-header-control-height: 32px;
   gap: 5px;
   padding-inline: 8px;
-  font-size: 12px;
 }
 
 .workspace-surface-header-with-session-tabs
@@ -80,21 +78,6 @@
 
 .workspace-surface-header-title {
   max-width: 260px;
-}
-
-.workspace-surface-header-identity-avatar {
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, var(--background) 72%, transparent),
-    0 2px 5px color-mix(in srgb, var(--text-strong) 8%, transparent),
-    0 8px 18px color-mix(in srgb, var(--text-strong) 10%, transparent);
-}
-
-.workspace-surface-header-section-icon {
-  box-shadow: none;
-}
-
-.workspace-surface-header-title-trailing > * {
-  flex-wrap: nowrap;
 }
 
 .workspace-surface-header-view-tabs {
@@ -158,11 +141,11 @@
   box-shadow: none;
 }
 
-.workspace-surface-header-control-segment:hover {
+.workspace-surface-header-control-segment:not(:disabled):hover {
   background: var(--surface-interactive-hover-background);
 }
 
-.workspace-surface-header-control-segment[aria-expanded="true"] {
+.workspace-surface-header-control-segment:not(:disabled)[aria-expanded="true"] {
   background: var(--surface-interactive-active-background);
   box-shadow: var(--surface-interactive-active-shadow);
 }
@@ -177,10 +160,8 @@
 
 .workspace-surface-header-compact-tabs {
   display: none;
-}
-
-.workspace-conversation-create-label-compact {
-  display: none;
+  width: 10rem;
+  max-width: 100%;
 }
 
 .workspace-surface-header-session-tabs-track {
@@ -346,19 +327,8 @@
   outline-offset: 2px;
 }
 
-@media (max-width: 1023px) {
-  .workspace-surface-header-narrow-hidden {
-    display: none;
-  }
-
-  .workspace-surface-header-narrow-toolbar
-    .workspace-surface-header-title {
-    display: none;
-  }
-}
-
 @container workspace-surface-header (max-width: 920px) {
-  .workspace-surface-header-with-session-tabs nav.workspace-surface-header-view-tabs {
+  .workspace-surface-header-with-session-tabs .workspace-surface-header-view-tabs {
     flex: 0 0 auto;
     min-width: 0;
   }
@@ -375,17 +345,12 @@
   }
 
   .workspace-surface-header:not(.workspace-surface-header-with-session-tabs)
-    nav.workspace-surface-header-view-tabs {
+    .workspace-surface-header-view-tabs {
     display: none !important;
   }
 
   .workspace-surface-header-compact-tabs {
     display: inline-flex;
-  }
-
-  .workspace-surface-header-with-session-tabs
-    .workspace-surface-header-compact-tabs {
-    display: none;
   }
 
   .workspace-surface-header-with-session-tabs
@@ -435,9 +400,6 @@
     max-width: 160px;
   }
 
-  .workspace-surface-header-subtitle {
-    display: none;
-  }
 }
 
 @container workspace-surface-header (max-width: 620px) {
@@ -451,19 +413,4 @@
     padding-inline: 0.625rem;
   }
 
-  .workspace-conversation-create-label-full {
-    display: none;
-  }
-
-  .workspace-conversation-create-label-compact {
-    display: inline;
-  }
-
-  .workspace-surface-header-compact-tabs-label {
-    max-width: 3.75rem;
-  }
-
-  .workspace-surface-header-title-trailing {
-    display: none;
-  }
 }

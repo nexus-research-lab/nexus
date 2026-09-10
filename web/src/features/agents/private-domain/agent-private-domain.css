@@ -1,18 +1,10 @@
+/* INPUT: Private-domain directory and reader layout within the current workspace.
+ * OUTPUT: One two-column reading layout with the shared canvas background.
+ * POS: Private-domain outer geometry; child surfaces are owned by UiPanel.
+ */
+
 .nexus-private-domain-layout {
   grid-template-columns: minmax(240px, 288px) minmax(0, 1fr);
   column-gap: 8px;
   background: var(--surface-canvas-background);
-}
-
-.nexus-private-domain-reader {
-  background: color-mix(
-    in srgb,
-    var(--surface-panel-background) 72%,
-    transparent
-  );
-  box-shadow: -8px 0 20px -18px color-mix(
-    in srgb,
-    var(--shadow-color) 14%,
-    transparent
-  );
 }

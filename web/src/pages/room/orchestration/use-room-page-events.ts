@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { AppRouteBuilders } from "@/app/router/route-paths";
+import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 import type { RoomEventPayload } from "@/types/agent/agent-conversation";
 
 const REFRESH_EVENT_TYPES = new Set([

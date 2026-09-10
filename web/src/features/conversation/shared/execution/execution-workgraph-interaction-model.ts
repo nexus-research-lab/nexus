@@ -7,6 +7,7 @@ import type {
   ExecutionGraphNodeView,
   ExecutionView,
 } from "@/types/conversation/execution";
+import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 
 import {
   orderedExecutionGraphNodes,
@@ -142,12 +143,12 @@ export function searchExecutionGraphNodes(
   execution: ExecutionView,
   query: string,
 ): string[] {
-  const normalized = normalizeSearchText(query);
-  if (!normalized) {
+  const search = createUiSearchMatcher(query);
+  if (search.empty) {
     return [];
   }
   return orderedExecutionGraphNodes(execution)
-    .filter((node) => executionGraphNodeSearchText(execution, node).includes(normalized))
+    .filter((node) => search.matches(executionGraphNodeSearchFields(execution, node)))
     .map((node) => node.id);
 }
 
@@ -410,10 +411,10 @@ function isExecutionGraphTraceControlEdge(kind: string): boolean {
   return kind === "loop_back" || kind === "retry";
 }
 
-function executionGraphNodeSearchText(
+function executionGraphNodeSearchFields(
   execution: ExecutionView,
   node: ExecutionGraphNodeView,
-): string {
+): string[] {
   const item = resolveExecutionGraphNodeItem(execution, node);
   const values: string[] = [
     node.id,
@@ -453,11 +454,7 @@ function executionGraphNodeSearchText(
   for (const criterion of item?.acceptance?.criteria_results ?? []) {
     values.push(criterion.criterion, criterion.note ?? "", ...(criterion.evidence ?? []));
   }
-  return normalizeSearchText(values.join(" "));
-}
-
-function normalizeSearchText(value: string): string {
-  return value.trim().toLocaleLowerCase();
+  return values;
 }
 
 function finiteOrZero(value: number): number {

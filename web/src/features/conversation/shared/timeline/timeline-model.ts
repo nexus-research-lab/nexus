@@ -1,7 +1,7 @@
 /**
  * INPUT: 会话消息、Room slot/permission/execution 易失态、运行轮次与服务端 round 索引。
  * OUTPUT: DM / Room 共用的消息及易失态根轮次分组、历史窗口可见性与 feed 顺序纯投影。
- * POS: 时间线顺序的唯一真相源，feed 与 navigator 不得自行修正轮次。
+ * POS: 时间线顺序的唯一真相源；索引窗口只由 buildIndexedConversationWindow 输出，feed 与 navigator 不得自行修正轮次。
  */
 import type {
   AssistantMessage,
@@ -548,14 +548,4 @@ export function buildIndexedConversationWindow(
       (roundId) => !loadedRoundIdSet.has(roundId),
     ),
   };
-}
-
-export function buildIndexedTimelineRoundIds(
-  roundIndexItems: SessionRoundIndexItem[],
-  loadedRoundIds: string[],
-): string[] {
-  return buildIndexedConversationWindow(
-    roundIndexItems,
-    loadedRoundIds,
-  ).roundIds;
 }

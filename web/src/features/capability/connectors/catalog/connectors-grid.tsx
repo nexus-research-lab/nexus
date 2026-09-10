@@ -1,6 +1,6 @@
 /**
  * INPUT: 过滤后的 Connector、分组规则与连接命令。
- * OUTPUT: 无分类计数的 Connector 网格或短空态。
+ * OUTPUT: 无分类计数的 Connector 网格与统一加载、空态和恢复反馈。
  * POS: Connector 目录纯视图。
  */
 "use client";
@@ -50,13 +50,11 @@ export function ConnectorsGrid({
 
   if (loading && connectors.length === 0) {
     return (
-      <div className="flex min-h-40 items-center justify-center text-sm text-(--text-muted)">
-        {t("capability.connectors_loading")}
-      </div>
+      <UiResourceState size="sm" state="loading" title={t("capability.connectors_loading")} variant="plain" />
     );
   }
 
-  if (failure && connectors.length === 0) {
+  if (failure && (failure.access || connectors.length === 0)) {
     return (
       <UiResourceState
         impact={t("capability.connector_catalog_load_failed_impact")}
@@ -72,9 +70,7 @@ export function ConnectorsGrid({
 
   if (connectors.length === 0) {
     return (
-      <div className="flex min-h-48 items-center justify-center text-(--text-muted)">
-        <p className="text-compact">{t("capability.connectors_empty")}</p>
-      </div>
+      <UiResourceState size="sm" state="empty" title={t("capability.connectors_empty")} variant="plain" />
     );
   }
 
@@ -98,6 +94,9 @@ export function ConnectorsGrid({
           state="error"
           title={t("capability.connector_catalog_load_failed_title")}
         />
+      ) : null}
+      {sections.length === 0 ? (
+        <UiResourceState size="sm" state="empty" title={t("capability.connectors_empty")} variant="plain" />
       ) : null}
       {sections.map((section) => (
         <section key={section.key}>

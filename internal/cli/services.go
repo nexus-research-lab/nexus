@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"sync"
 
-	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
+	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/config"
 )
 
@@ -17,7 +17,7 @@ type cliServiceProvider struct {
 	mu     sync.Mutex
 	logger *slog.Logger
 
-	app     *serverapp.AppServices
+	app     *app.AppServices
 	appErr  error
 	appDone bool
 }
@@ -36,7 +36,7 @@ func (p *cliServiceProvider) SetLogger(logger *slog.Logger) {
 	}
 }
 
-func (p *cliServiceProvider) AppServices() (*serverapp.AppServices, error) {
+func (p *cliServiceProvider) AppServices() (*app.AppServices, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -44,7 +44,7 @@ func (p *cliServiceProvider) AppServices() (*serverapp.AppServices, error) {
 		return p.app, p.appErr
 	}
 	p.appDone = true
-	p.app, p.appErr = serverapp.NewAppServices(p.cfg, p.logger)
+	p.app, p.appErr = app.NewAppServices(p.cfg, p.logger)
 	return p.app, p.appErr
 }
 

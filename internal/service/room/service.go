@@ -39,6 +39,7 @@ var (
 type Repository interface {
 	LoadAgentRuntimeRefs(context.Context, string, []string) ([]roomrepo.AgentRuntimeRef, error)
 	ListRecentRooms(context.Context, string, int) ([]protocol.RoomAggregate, error)
+	ListAgentContactRoomIDs(context.Context, string, string) ([]string, error)
 	GetRoom(context.Context, string, string) (*protocol.RoomAggregate, error)
 	GetRoomAuthorizationSnapshot(context.Context, string, string, string) (*protocol.RoomAuthorizationSnapshot, error)
 	GetRoomContexts(context.Context, string, string) ([]protocol.ConversationContextAggregate, error)

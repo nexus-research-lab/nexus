@@ -1,12 +1,17 @@
+// INPUT: 代码语言与原文、主题和共享剪贴板能力。
+// OUTPUT: 语法高亮代码与公共复制按钮，成功后更新辅助名称和提示。
+// POS: Markdown 代码内容 owner；外壳和按钮外观由共享组件负责。
 "use client";
 
 import { Check, Copy } from "lucide-react";
 import { PrismAsyncLight as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneLight, vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 
-import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
+import { useCopyToClipboard } from "@/shared/lib/react/use-copy-to-clipboard";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { useTheme } from "@/shared/theme/theme-context";
+
+import { UiIconButton } from "@/shared/ui/button/button";
 
 import { CodeShell } from "./code-shell";
 
@@ -116,20 +121,20 @@ export function CodeBlockContent({ language, value }: CodeBlockContentProps) {
       language={language}
       className="group"
       rightSlot={(
-        <button
-          aria-label={copyLabel}
-          className="content-code-action"
-          data-copied={copied ? "true" : undefined}
+        <UiIconButton
+          aria-label={copied ? t("markdown.code.copied") : copyLabel}
+          size="sm"
+          tone={copied ? "success" : "default"}
           onClick={handleCopy}
-          title={copied ? t("markdown.code.copied") : copyLabel}
+          tooltip={copied ? t("markdown.code.copied") : copyLabel}
           type="button"
         >
           {copied ? (
-            <Check className="h-4 w-4" />
+            <Check aria-hidden="true" className="h-4 w-4" />
           ) : (
-            <Copy className="h-4 w-4" />
+            <Copy aria-hidden="true" className="h-4 w-4" />
           )}
-        </button>
+        </UiIconButton>
       )}
       contentClassName="relative min-w-0 overflow-x-auto overflow-y-hidden"
     >

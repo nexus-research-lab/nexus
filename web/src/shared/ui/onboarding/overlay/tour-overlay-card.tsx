@@ -1,4 +1,8 @@
-import { forwardRef } from "react";
+// INPUT: 当前 Tour 步骤、位置、进度和导航/关闭动作。
+// OUTPUT: 具名可滚动、长文案可换行的引导卡片、步骤内容与统一 Button 导航。
+// POS: Onboarding Tour 卡片视图；不拥有按钮、文字 recipe 或浮层定位生命周期。
+
+import { forwardRef, useId } from "react";
 import {
   Bot,
   Hash,
@@ -8,8 +12,9 @@ import {
 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { getUiButtonClassName } from "@/shared/ui/button/button-styles";
+import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type {
   OnboardingTourStep,
   OnboardingTourStepItem,
@@ -48,9 +53,14 @@ export const TourOverlayCard = forwardRef<
   stepIndex,
 }, ref) {
   const { t } = useI18n();
+  const titleId = useId();
+  const descriptionId = useId();
 
   return (
     <div
+      role="region"
+      aria-labelledby={titleId}
+      aria-describedby={descriptionId}
       className="surface-popover surface-radius-lg relative max-h-[calc(100vh-64px)] w-[min(336px,calc(100vw-32px))] overflow-y-auto px-4 py-3"
       ref={ref}
     >
@@ -63,50 +73,56 @@ export const TourOverlayCard = forwardRef<
       ) : null}
 
       <div className="flex items-start justify-between gap-4">
-        <h3 className="mt-0.5 min-w-0 text-md font-semibold tracking-tight text-(--text-strong)">
+        <h3 id={titleId} className={cn(
+          "mt-0.5 min-w-0 [overflow-wrap:anywhere]",
+          getUiTypographyClassName({ role: "pageTitle", tone: "strong" }),
+        )}>
           {step.title}
         </h3>
-        <button
-          className="shrink-0 px-1 py-0.5 text-xs font-medium text-(--text-muted) transition-colors duration-(--motion-duration-fast) hover:text-(--text-strong)"
+        <UiButton
+          className="shrink-0"
           onClick={() => onClose({ completed: true })}
-          type="button"
+          size="xs"
+          variant="text"
         >
           {t("common.skip")}
-        </button>
+        </UiButton>
       </div>
 
-      <p className="mt-2 text-compact leading-5 text-(--text-default)">
+      <p id={descriptionId} className={cn(
+        "mt-2 [overflow-wrap:anywhere]",
+        getUiTypographyClassName({ role: "supporting", tone: "default" }),
+      )}>
         {step.description}
       </p>
 
       {step.items?.length ? <TourStepItems items={step.items} /> : null}
 
-      <div className="mt-3 border-t border-(--divider-subtle-color) pt-3 flex items-center justify-between gap-3">
-        <span className="text-xs font-medium tabular-nums text-(--text-muted)">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-(--divider-subtle-color) pt-3">
+        <span className={cn(
+          "tabular-nums",
+          getUiTypographyClassName({ role: "caption", tone: "muted", weight: "medium" }),
+        )}>
           {stepIndex + 1} / {stepCount}
         </span>
-        <div className="flex items-center gap-2">
-          <button
-            className={getUiButtonClassName(
-              { size: "xs", tone: "default", variant: "text" },
-              "font-medium",
-            )}
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          <UiButton
             disabled={stepIndex === 0}
             onClick={onPrevious}
-            type="button"
+            size="xs"
+            tone="default"
+            variant="text"
           >
             {t("common.back")}
-          </button>
-          <button
-            className={getUiButtonClassName(
-              { size: "xs", tone: "primary", variant: "surface" },
-              "font-medium",
-            )}
+          </UiButton>
+          <UiButton
             onClick={isLastStep ? () => onClose({ completed: true }) : onNext}
-            type="button"
+            size="xs"
+            tone="primary"
+            variant="surface"
           >
             {isLastStep ? t("common.finish") : t("common.next")}
-          </button>
+          </UiButton>
         </div>
       </div>
     </div>
@@ -146,8 +162,8 @@ function TourStepItems({ items }: { items: OnboardingTourStepItem[] }) {
             className="flex items-center gap-2 py-2"
             key={item.text}
           >
-            <Icon className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
-            <span className="text-compact leading-5 text-(--text-default)">
+            <Icon aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
+            <span className={cn("min-w-0 [overflow-wrap:anywhere]", getUiTypographyClassName({ role: "metadata", tone: "default" }))}>
               {item.text}
             </span>
           </div>

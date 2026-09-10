@@ -3,7 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import { AuthGuard } from "@/app/router/auth-guard";
 import { DesktopEntryFallback, DesktopEntryLayout } from "@/app/router/desktop-entry-layout";
-import { APP_ROUTE_PATHS } from "@/app/router/route-paths";
+import { APP_ROUTE_PATHS } from "@/shared/navigation/route-paths";
 import { OnboardingTourProvider } from "@/shared/ui/onboarding/tour-provider";
 
 const LoginPage = lazy(() =>

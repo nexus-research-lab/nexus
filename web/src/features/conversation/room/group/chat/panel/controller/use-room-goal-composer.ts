@@ -1,9 +1,9 @@
 /**
  * INPUT: Room 身份、成员、宿主 Agent、当前 Session 与 Goal 事件刷新信号。
- * OUTPUT: 按 Session 隔离的 Goal 负责人选择、创建能力与刷新序列。
+ * OUTPUT: 按 Session 保留的负责人草稿与创建门禁；失效选择不暗中改派，刷新信号独立。
  * POS: Room Composer Goal 负责人控制器；创建由独立宿主 Goal 控制链负责。
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { buildComposerDraftScopeKey } from "@/features/conversation/shared/composer/composer-draft-scope";
 import { useComposerDraftStore } from "@/features/conversation/shared/composer/composer-draft-store";
@@ -12,6 +12,7 @@ import type { Agent } from "@/types/agent/agent";
 
 import {
   resolveDefaultRoomGoalLead,
+  resolveRoomGoalCreateDisabledReason,
 } from "../../room-goal-model";
 
 interface UseRoomGoalComposerOptions {
@@ -61,49 +62,15 @@ export function useRoomGoalComposer({
     }));
   }, [draftScopeKey, updateComposerDraft]);
 
-  useEffect(() => {
-    if (storedLeadAgentId === null || storedLeadAgentId.trim() === "") {
-      return;
-    }
-    const isCurrentMember = roomMembers.some(
-      (agent) => agent.agent_id === storedLeadAgentId,
-    );
-    if (!isCurrentMember) {
-      setLeadAgentId(defaultLeadAgentId);
-    }
-  }, [
-    defaultLeadAgentId,
-    roomMembers,
-    setLeadAgentId,
-    storedLeadAgentId,
-  ]);
-
   const refresh = useCallback(() => {
     setRefreshSequence((value) => value + 1);
   }, []);
 
   return {
-    createDisabledReason: resolveCreateDisabledReason(
-      roomMembers,
-      leadAgentId,
-      t("room.goal_no_assignable_agent"),
-      t("room.goal_lead_required"),
-    ),
+    createDisabledReason: resolveRoomGoalCreateDisabledReason(roomMembers, leadAgentId, t),
     leadAgentId,
     refresh,
     refreshSequence,
     setLeadAgentId,
   };
-}
-
-function resolveCreateDisabledReason(
-  roomMembers: Agent[],
-  leadAgentId: string,
-  noAssignableAgentMessage: string,
-  leadRequiredMessage: string,
-): string | null {
-  if (roomMembers.length === 0) {
-    return noAssignableAgentMessage;
-  }
-  return leadAgentId.trim() === "" ? leadRequiredMessage : null;
 }

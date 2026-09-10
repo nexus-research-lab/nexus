@@ -3,12 +3,14 @@
 // L2 | 父级: internal（L1 见 AGENTS.md）
 //
 // 成员清单：
+//   - file_delivery.go：精确 nexus.deliver_files 回执投影；与 workspace_artifact.go 区分工作文件变更和显式交付，保留产出 Agent/round。
 //   - processor.go / event_mapper.go：SDK 消息分发、状态持有、内部中断归一化、统一事件封装与场景装饰。
-//   - system.go / task_event.go / memory_attachment.go：可见系统事件、用户引导、后台任务事件、记忆引用与同消息多 child token 快照。
+//   - system.go / task_event.go / memory_attachment.go：可见系统事件（含独立自动审核记录）、用户引导、后台任务事件、记忆引用与同消息多 child token 快照；子任务身份与终态识别供 DM/Room 共用。
 //   - result_message.go：assistant API 错误、终态结果消息与 Provider 内容安全拦截归一化。
 //   - tool_result.go / workspace_artifact.go / workgraph_artifact.go：工具结果消息、typed applied mutation 观察、fail-closed Goal 进展、工作区产物与受管 WorkGraph 草图卡片投影。
-//   - segment_assistant.go / projection_result.go：assistant 分段、工具输入与自然语言易失进度投影、结果摘要，以及只公开已知耗时/actual token 的 Goal 完成收据挂载。
+//   - segment_assistant.go / projection_result.go：assistant 分段、工具输入与自然语言易失进度投影、结果摘要、排除思考/工具过程的末尾正文提取，以及只公开已知耗时/actual token 的 Goal 完成收据挂载。
 //   - helpers.go：共享归一化与单路径 block 投影辅助。
+//   - history_result_summary.go：历史结果的物理 Agent round 配对、旧记录兼容与未匹配结果合成；不依赖存储或索引实现。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package message

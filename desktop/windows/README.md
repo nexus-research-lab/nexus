@@ -8,6 +8,7 @@
 - WebView：WebView2，只作为 React/Vite UI 的渲染面。
 - 窗口 chrome：WPF `WindowChrome` 保留四边缩放；独立 34-DIP 原生栏承载应用图标、前进/后退、文件/编辑/视图/帮助菜单和最小化、最大化/还原、关闭控件，且只有该栏空白区参与拖窗。`WebView2CompositionControl` 从下一行完整铺开并始终保持客户区，Web Header、搜索区和内容不再投影为非客户区；最小化或隐藏到托盘前显式切换 WPF `Visibility`，由 WebView2 映射到 controller 可见性，恢复时走同一路径重新启用输入。`/app` 无空白 Header、透明拖动条或 caption controls 留白。
 - 原生反馈：菜单、更新和启动错误统一使用 Nexus 原生主题与模态对话框；系统 `MessageBox`、菜单默认模板和独立更新窗口不得形成第二套视觉语言。
+- `Theme/NexusNativeTheme.cs` 当前投影 Web 浅色主题；颜色所有权与校验方式见[前端工程规范](../../docs/specs/frontend-engineering-spec.md#41-design-token)。前端门禁会检查投影漂移，但不替代 Windows 实机的菜单、对话框与 WebView2 验收。
 - Sidecar：复用当前 Go `nexus-server`，由 shell 随机端口启动并注入 `NEXUS_DESKTOP_SESSION_TOKEN`，正式包优先使用 `Resources\bin\nxs.exe` 作为 `nxs` runtime。
 - Web UI：复用 `web/dist/app.html`，默认路由为完整 launcher `/launcher`。
 - 主窗口保持 `1280×820` 默认启动尺寸；常规屏幕可缩小到 `360×520`，极小可用工作区回退到 `320×480`，由 Web 层切换为手机布局。
@@ -103,3 +104,7 @@ pwsh desktop/windows/.build/app/Nexus/register-nexus-protocol.ps1
 - 启动、更新和桌面桥接失败统一说明“发生了什么、已有数据是否受影响、接下来能做什么”；底层异常、诊断路径和进程输出只进入 Trace 或诊断报告，不直接显示给用户。更新检查与下载/校验失败按实际阶段分别说明，后者在安装器启动前不会替换当前版本。
 - 应用启动后会检测一次 GitHub Release 中的 Windows metadata，并每 4 小时在后台复查；仅桌面侧栏会在宿主确认有新版本时显示更新入口，点击后通过桌面桥直接下载 `NexusSetup-*.exe` 与对应 `.sha256` 到 `~/.nexus/app/cache/updates`，校验通过后提示是否退出 Nexus 并启动安装器。新版本首次启动成功后会清理旧的更新缓存目录；用户选择“稍后”时，当前版本的已下载包会保留。可设置 `NEXUS_DESKTOP_DISABLE_UPDATE_CHECK=1` 禁用检测。
 - GitHub `Publish Release` workflow 会在 `windows-latest` 上构建、烟测并上传 Windows installer exe、sha256 与 metadata；未配置 Windows 签名证书时产物会明确标记为 unsigned。托盘在后续阶段补齐。
+
+外观设置通过 `app.get_system_fonts` 读取 WPF Fonts.SystemFontFamilies 的本机字体家族目录。
+
+待人工确认（含提问）通过 `app.set_attention` 同步到宿主；后台或最小化时用 FlashWindowEx 闪烁任务栏，回到窗口或清空待处理请求时停止，不抢焦点。隐藏 WebView 只停止绘制，不暂停事件连接。

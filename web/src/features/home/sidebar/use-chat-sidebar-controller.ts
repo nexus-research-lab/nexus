@@ -3,12 +3,16 @@
  * OUTPUT: 侧栏筛选/创建/删除/导航控制器；Room 导航保留锚点给 Feed 消费。
  * POS: Home 聊天侧栏有状态装配入口。
  */
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
-import { AppRouteBuilders } from "@/app/router/route-paths";
+import { getDefaultAgentId, isMainAgent, USER_PREFERENCES_CHANGED_EVENT } from "@/config/runtime-options";
+import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
 import { getActiveChatTargetFromPath } from "@/features/home/notifications/chat-notification-target";
+import { useTeamRooms } from "@/features/team/use-team-rooms";
+import { useTeamMembers } from "@/features/team/use-team-members";
+import { createTeamRoom } from "@/lib/api/conversation/team-api";
 import { createRoom, deleteRoom } from "@/lib/api/conversation/room-command-api";
 import { projectMutationFailure } from "@/lib/error-message";
 import {
@@ -16,12 +20,14 @@ import {
   isAuthOwnerScopeGenerationCurrent,
 } from "@/shared/auth/auth-owner-generation";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 import { useSidebarStore } from "@/store/sidebar";
 
 import { useRoomActivity } from "../room-activity-resource";
 import {
   buildConversationItems,
-  normalizeSidebarQuery,
+  buildTeamConversationItem,
+  sortConversationItems,
   type SidebarConversationItem,
 } from "./sidebar-conversation-model";
 import { useSidebarDirectory } from "./sidebar-directory";
@@ -33,6 +39,7 @@ import {
 } from "./room-deletion-recovery";
 
 interface DeleteTarget {
+  agentId?: string;
   id: string;
   name: string;
 }
@@ -44,7 +51,8 @@ interface ChatSidebarControllerOptions {
 export function useChatSidebarController({
   untitledRoomLabel,
 }: ChatSidebarControllerOptions) {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
+  const mainAgentId = useSyncExternalStore(subscribeRuntimeIdentity, getDefaultAgentId, getDefaultAgentId);
   const location = useLocation();
   const navigate = useNavigate();
   const activeItemId = useSidebarStore((state) => state.active_panel_item_id);
@@ -63,6 +71,8 @@ export function useChatSidebarController({
     (state) => state.discard_chat_state_for_room,
   );
   const roomActivity = useRoomActivity();
+  const onlineRooms = useTeamRooms();
+  const teamMembers = useTeamMembers(onlineRooms.isAvailable);
   const {
     agents,
     conversations,
@@ -78,12 +88,14 @@ export function useChatSidebarController({
   const [deleteAction, setDeleteAction] = useState<"check" | "delete" | null>(null);
   const [deleteFailure, setDeleteFailure] = useState<RoomDeletionFailure | null>(null);
   const deletionRunningRef = useRef(false);
+  const createSubmittingRef = useRef(false);
   const unresolvedDeletionsRef = useRef(new Map<string, {
     failure: RoomDeletionFailure;
     ownerGeneration: number;
   }>());
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const onlineCreateCommandRef = useRef<{ id: string; payload: string } | null>(null);
   const activeTarget = useMemo(
     () => getActiveChatTargetFromPath(location.pathname),
     [location.pathname],
@@ -95,28 +107,47 @@ export function useChatSidebarController({
     rooms,
     untitledRoomLabel,
     roomActivity,
+    mainAgentId,
   }), [
     agents,
     conversations,
     locale,
+    mainAgentId,
     roomActivity,
     rooms,
     untitledRoomLabel,
   ]);
-  const items = useMemo(() => projectSidebarUnreadItems({
-    activeTarget,
-    chatUnreadAnchors,
-    chatUnreadCounts,
-    chatUnreadTargets,
-    chatUnreadTimestamps,
-    items: conversationItems,
-  }), [
+  const items = useMemo(() => {
+    const localItems = projectSidebarUnreadItems({
+      activeTarget,
+      chatUnreadAnchors,
+      chatUnreadCounts,
+      chatUnreadTargets,
+      chatUnreadTimestamps,
+      items: conversationItems,
+    });
+    if (onlineRooms.rooms.length === 0) {
+      return localItems;
+    }
+    return sortConversationItems([
+      ...localItems,
+      ...onlineRooms.rooms.map((team) => buildTeamConversationItem({
+        fallbackTitle: t("team.shared_room"),
+        locale,
+        summary: t("team.shared_room_summary"),
+        team,
+      })),
+    ], locale);
+  }, [
     activeTarget,
     chatUnreadAnchors,
     chatUnreadCounts,
     chatUnreadTargets,
     chatUnreadTimestamps,
     conversationItems,
+    locale,
+    onlineRooms.rooms,
+    t,
   ]);
   const filteredItems = useMemo(
     () => filterConversationItems(items, query),
@@ -124,6 +155,11 @@ export function useChatSidebarController({
   );
 
   const openConversation = useCallback((item: SidebarConversationItem) => {
+    if (item.kind === "team") {
+      setActiveItem(item.id);
+      navigate(AppRouteBuilders.team(item.roomId));
+      return;
+    }
     const routeRoomId = item.routeRoomId ?? item.roomId;
     if (!routeRoomId) {
       return;
@@ -141,8 +177,33 @@ export function useChatSidebarController({
   }, [clearRoomNotifications, clearTargetNotifications, navigate, setActiveItem]);
 
   const submitCreate = useCallback(async (submission: RoomDialogSubmission) => {
+    if (createSubmittingRef.current) return;
+    createSubmittingRef.current = true;
     setIsCreating(true);
     try {
+      if (submission.location === "online") {
+        const input = {
+          agent_ids: submission.agentIds,
+          avatar: submission.avatar,
+          coordinator_agent_id: submission.hostAgentId ?? undefined,
+          host_auto_reply_enabled: submission.hostAutoReplyEnabled,
+          member_user_ids: submission.userIds,
+          name: submission.name,
+          private_messages_enabled: submission.privateMessagesEnabled,
+          skill_names: submission.skillNames,
+        };
+        const payload = JSON.stringify(input);
+        const command = onlineCreateCommandRef.current?.payload === payload
+          ? onlineCreateCommandRef.current
+          : { id: crypto.randomUUID(), payload };
+        onlineCreateCommandRef.current = command;
+        const created = await createTeamRoom(input, command.id);
+        onlineCreateCommandRef.current = null;
+        setIsCreateOpen(false);
+        onlineRooms.refresh();
+        navigate(AppRouteBuilders.team(created.room.id));
+        return;
+      }
       const context = await createRoom({
         agent_ids: submission.agentIds,
         avatar: submission.avatar,
@@ -156,9 +217,10 @@ export function useChatSidebarController({
       refreshDirectory();
       navigate(AppRouteBuilders.room(context.room.id));
     } finally {
+      createSubmittingRef.current = false;
       setIsCreating(false);
     }
-  }, [navigate, refreshDirectory]);
+  }, [navigate, onlineRooms, refreshDirectory]);
 
   const finishDeletion = useCallback((target: DeleteTarget) => {
     unresolvedDeletionsRef.current.delete(target.id);
@@ -212,7 +274,7 @@ export function useChatSidebarController({
   }, [finishDeletion, reconcileRoomTarget]);
 
   const confirmDelete = useCallback(async () => {
-    if (!deleteTarget || deletionRunningRef.current) {
+    if (!deleteTarget || deletionRunningRef.current || (deleteTarget.agentId && isMainAgent(deleteTarget.agentId))) {
       return;
     }
     deletionRunningRef.current = true;
@@ -271,7 +333,7 @@ export function useChatSidebarController({
   ]);
 
   const requestDelete = useCallback((item: SidebarConversationItem) => {
-    if (deletionRunningRef.current || !item.canDelete || !item.roomId) {
+    if (deletionRunningRef.current || !item.canDelete || !item.roomId || (item.kind === "dm" && isMainAgent(item.agentId))) {
       return;
     }
     const unresolved = unresolvedDeletionsRef.current.get(item.roomId);
@@ -280,7 +342,7 @@ export function useChatSidebarController({
         ? unresolved.failure
         : null,
     );
-    setDeleteTarget({ id: item.roomId, name: item.title });
+    setDeleteTarget({ id: item.roomId, name: item.title, agentId: item.kind === "dm" ? item.agentId : undefined });
   }, []);
 
   const cancelDelete = useCallback(() => {
@@ -293,9 +355,14 @@ export function useChatSidebarController({
     setDeleteTarget(null);
   }, []);
 
-  const isItemActive = useCallback((item: SidebarConversationItem) => (
-    activeItemId === item.id || Boolean(item.roomId && activeItemId === item.roomId)
-  ), [activeItemId]);
+  const isItemActive = useCallback((item: SidebarConversationItem) => {
+    if (item.kind === "team") {
+      const selectedRoomId = new URLSearchParams(location.search).get("room_id")
+        ?? onlineRooms.rooms[0]?.room.id;
+      return location.pathname === AppRouteBuilders.team() && selectedRoomId === item.roomId;
+    }
+    return activeItemId === item.id || Boolean(item.roomId && activeItemId === item.roomId);
+  }, [activeItemId, location.pathname, location.search, onlineRooms.rooms]);
 
   return {
     create: {
@@ -303,7 +370,9 @@ export function useChatSidebarController({
       isCreating,
       isOpen: isCreateOpen,
       open: () => setIsCreateOpen(true),
+      onlineAvailable: onlineRooms.isAvailable,
       submit: submitCreate,
+      users: teamMembers,
     },
     deletion: {
       action: deleteAction,
@@ -334,14 +403,17 @@ function filterConversationItems(
   items: SidebarConversationItem[],
   query: string,
 ): SidebarConversationItem[] {
-  const normalizedQuery = normalizeSidebarQuery(query);
-  if (!normalizedQuery) {
-    return items;
-  }
+  const search = createUiSearchMatcher(query);
   return items.filter((item) => {
-    const memberNames = item.members.map((member) => member.name).join(" ");
-    return `${item.title} ${item.summary} ${memberNames}`
-      .toLowerCase()
-      .includes(normalizedQuery);
+    return search.matches([
+      item.title,
+      item.summary,
+      ...item.members.map((member) => member.name),
+    ]);
   });
+}
+
+function subscribeRuntimeIdentity(listener: () => void): () => void {
+  window.addEventListener(USER_PREFERENCES_CHANGED_EVENT, listener);
+  return () => window.removeEventListener(USER_PREFERENCES_CHANGED_EVENT, listener);
 }

@@ -1,3 +1,6 @@
+// INPUT: Projected workbook dimensions, merge ranges and the two virtualized axes.
+// OUTPUT: Ordered visible rows/cells with exact geometry and bounded merge spans, including offscreen anchors.
+// POS: Pure spreadsheet viewport projection; no ExcelJS access or React state.
 import type { VirtualItem } from "@tanstack/react-virtual";
 
 import type {
@@ -24,10 +27,19 @@ export interface RenderedSpreadsheetCell {
   cell?: SpreadsheetPreviewCellData;
   columnIndex: number;
   columnStart: number;
+  columnSpan: number;
   height: number;
   rowIndex: number;
   rowStart: number;
+  rowSpan: number;
   width: number;
+}
+
+export interface RenderedSpreadsheetRow {
+  cells: RenderedSpreadsheetCell[];
+  height: number;
+  index: number;
+  start: number;
 }
 
 type SpreadsheetPreviewRange = SpreadsheetPreviewSheetData["merges"][number];
@@ -89,13 +101,13 @@ function createSizeTable(
   return { sizes, starts, total };
 }
 
-export function createRenderedSpreadsheetCells(
+export function createRenderedSpreadsheetRows(
   sheet: SpreadsheetPreviewSheetData,
   rowSizes: SpreadsheetSizeTable,
   columnSizes: SpreadsheetSizeTable,
   virtualRows: VirtualItem[],
   virtualColumns: VirtualItem[],
-): RenderedSpreadsheetCell[] {
+): RenderedSpreadsheetRow[] {
   const viewport = createSpreadsheetGridViewport(
     virtualRows,
     virtualColumns,
@@ -112,7 +124,19 @@ export function createRenderedSpreadsheetCells(
   };
   projectVirtualSpreadsheetCells(projection, virtualRows, virtualColumns);
   projectVisibleMergeAnchors(projection, viewport);
-  return Array.from(projection.cells.values());
+  const orderedCells = Array.from(projection.cells.values()).sort((a, b) => (
+    a.rowIndex - b.rowIndex || a.columnIndex - b.columnIndex
+  ));
+  const rows = new Map<number, RenderedSpreadsheetRow>();
+  for (const cell of orderedCells) {
+    let row = rows.get(cell.rowIndex);
+    if (!row) {
+      row = { cells: [], height: rowSizes.sizes[cell.rowIndex], index: cell.rowIndex, start: cell.rowStart };
+      rows.set(cell.rowIndex, row);
+    }
+    row.cells.push(cell);
+  }
+  return Array.from(rows.values());
 }
 
 function createSpreadsheetGridViewport(
@@ -232,9 +256,11 @@ function createRenderedCell(
     cell: sheet.rows[rowIndex]?.cells[columnIndex],
     columnIndex,
     columnStart: columnSizes.starts[columnIndex] ?? 0,
+    columnSpan: endColumn - columnIndex + 1,
     height: getSizeRange(rowSizes, rowIndex, endRow),
     rowIndex,
     rowStart: rowSizes.starts[rowIndex] ?? 0,
+    rowSpan: endRow - rowIndex + 1,
     width: getSizeRange(columnSizes, columnIndex, endColumn),
   };
 }

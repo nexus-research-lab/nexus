@@ -1,5 +1,5 @@
 // INPUT: trusted Room coordinator identity、physical round identity 与 explicit get/materialized Plan、exact Goal continuation 或 resolved ReviewBinding transition。
-// OUTPUT: round-scoped Coordination capability 的 mint、review-to-coordination 升级、检查与释放。
+// OUTPUT: 非终态 round-scoped Coordination capability 的 mint、review-to-coordination 升级、检查与释放；历史读取不改协调权限。
 // POS: conversation substrate 到 Execution coordination overlay 的后端准入边界。
 package orchestration
 
@@ -22,6 +22,10 @@ func (s *Service) ActivateRuntimeCoordination(
 	}
 	if err := requireCoordinator(actor, snapshot); err != nil {
 		return err
+	}
+	// Historical reads must not replace this round's current coordination scope.
+	if !isCurrentExecutionStatus(snapshot.Execution.Status) {
+		return nil
 	}
 	if !roomConversationCoordinator(actor, snapshot) &&
 		!exactGoalCoordinator(actor, snapshot) {
@@ -199,7 +203,7 @@ func (s *Service) requireRuntimeCoordination(
 	}
 	return domainError(
 		ErrorCodeConversationOnly,
-		"this Room round is conversational; call get_execution to inspect and enter current coordination, or prepare_plan_execution then plan_execution to materialize a revised Plan before other Execution mutations",
+		`this Room round has not entered coordination; call nexus.command with {"domain":"execution","action":"inspect"} to verify current coordinator authority, then follow the returned allowed_actions. This is a tool transition, not a UI mode switch; do not replan solely to recover authority or ask the user to send another start message`,
 	)
 }
 

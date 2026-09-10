@@ -8,9 +8,10 @@
 //   - history_page_index.go / agent_history_page_index.go / room_history_page_index.go：DM/Room 共用的 round 分页编排、有界 exact-scope rebuild admission、source preflight/resolver selection 依赖与删除栅栏。
 //   - history_read_model.go / history_message_detail.go：宿主 SQLite/B-Tree 派生读模型，以原子 generation、source/payload 校验、有界 metadata window、淘汰、整库版本重建和大型 Tool/图片按需 detail 提供按页读取；canonical 历史不迁移。
 //   - agent_history*.go：Agent 历史门面、K3 工具面换代后的分段 transcript lineage 读取、overlay 与共享模型。
-//   - runtime_repair.go：enforce 模式下 owner runtime 权限修复与受限重试。
+//   - runtime_repair.go：enforce 模式下 owner runtime 权限修复与受限重试；transcript reader 与分页指纹共用修复入口。
 //   - transcript_*.go：transcript cache、重复 UUID/自指链修复、reader、path、session、project、
-//     可见性安全的 marker 对齐、guidance 与 root/source round 投影。
+//     可见性安全的 marker 对齐（含 reminder 提取后的空白 Goal 续跑）、guidance 与 root/source round 投影；
+//     投影与 rewrite/fork 共用边界，派生读模型升级时清除旧轮次归属。
 //   - input_queue.go / input_queue_codec.go / input_queue_replay.go：输入队列存取、携带非授权 Goal collaboration attribution、完整 Execution WorkBinding 或独立 ReviewBinding 的跨派发持久幂等入队、责任项禁止 guide/合并的 capability envelope fence、可返回规范化提交的原子批量登记、预检版本一致的整批 conversation guidance 认领、按执行 scope 隔离的编解码与事件重放。
 //   - room_history.go / room_directed_message.go / room_directed_message_wake.go / session_file.go / session_lifecycle.go / artifact_probe.go / jsonl.go：
 //     Session runtime 回写可按 configuration version 强制拒绝过期的后台 Connector 预备；
@@ -20,7 +21,8 @@
 //   - paths.go / transcript_path.go / transcript_project_hash.go / value_coerce.go：
 //     路径、transcript 项目目录名、工程 hash、值转换。
 //
-// 历史投影与持久化共享未导出模型；在形成稳定边界前保留同包，避免为拆目录暴露内部状态。
+// 结果与 assistant 的物理 Agent round 配对由 message.MergeHistoryResultSummaries 统一负责。
+// 其余历史存取、分页索引和源解析共享未导出模型，避免为拆目录暴露内部状态。
 // TranscriptProjectDirectoryName/Names 与 RebaseSessionLifecycleRecords 是迁移层复用的稳定路径边界；
 // ReadTranscriptSessionMessages 用受控 session id 读取独立 Agent thread，
 // ReadTranscriptLinkMessages 是 Claude Code runtime 输出链接唯一允许的双重 confined 读取入口。

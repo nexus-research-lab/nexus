@@ -188,7 +188,10 @@ export function usePersonalSettingsController() {
     setIsSavingAvatar(true);
     setFeedback(null);
     try {
-      await updatePersonalProfileApi({ avatar: nextAvatar });
+      await updatePersonalProfileApi({
+        authMethod: profile.user.auth_method,
+        avatar: nextAvatar,
+      });
     } catch (error) {
       if (!isAuthOwnerScopeGenerationCurrent(ownerGeneration)) {
         return;

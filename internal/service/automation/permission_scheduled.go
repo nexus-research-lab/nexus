@@ -266,6 +266,9 @@ func (s *Service) blockScheduledPermissionRequest(
 	if err != nil || run == nil {
 		return sdkpermission.Deny("无法建立定时任务审批请求", true), err
 	}
+	if request.DecisionReason != "" {
+		description = strings.TrimSpace(request.DecisionReason) + "\n" + description
+	}
 	reason := strings.TrimSpace(description)
 	pending, created, err := s.repository.CreatePermissionRequestAndBlockRun(
 		ctx,

@@ -2,7 +2,7 @@ import { lazy, Suspense } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import { DesktopEntryFallback } from "@/app/router/desktop-entry-layout";
-import { APP_ROUTE_PATHS } from "@/app/router/route-paths";
+import { APP_ROUTE_PATHS } from "@/shared/navigation/route-paths";
 
 const ConnectorOAuthCallbackPage = lazy(() =>
   import("@/pages/connectors/connector-oauth-callback-page").then((m) => ({

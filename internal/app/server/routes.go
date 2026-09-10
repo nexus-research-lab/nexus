@@ -1,19 +1,23 @@
 // INPUT: 已装配的 HTTP handlers 与统一 API prefix。
-// OUTPUT: 核心、Session、Room、能力和 Web 路由表。
+// OUTPUT: 核心、可选 Team、Session、Room、能力和 Web 路由表。
 // POS: app 层唯一 HTTP route composition root。
 package server
 
 import (
+	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"strings"
 
-	serverruntime "github.com/nexus-research-lab/nexus/internal/app/server/runtime"
+	appruntime "github.com/nexus-research-lab/nexus/internal/app/runtime"
+	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 )
 
 // mountRoutes 按功能域挂载全部 HTTP 路由。
 func (s *Server) mountRoutes() {
 	s.router.Post(
 		s.prefixPath("/internal/runtime/configuration"),
-		serverruntime.NewConfigurationHandler(s.services.Configuration),
+		appruntime.NewConfigurationHandler(s.services.Configuration, s.services.Permission),
 	)
 	if s.handlers.browser != nil {
 		s.router.Get(
@@ -26,6 +30,8 @@ func (s *Server) mountRoutes() {
 		)
 	}
 	s.mountCoreRoutes()
+	s.mountRemoteGateway()
+	s.mountTeamRoutes()
 	s.mountProviderRoutes()
 	s.mountAdminRoutes()
 	s.mountProjectRoutes()
@@ -36,6 +42,115 @@ func (s *Server) mountRoutes() {
 	s.mountExecutionRoutes()
 	s.mountPlaceholderRoutes()
 	s.mountWebAppRoutes()
+}
+
+// mountRemoteGateway 让 Desktop WebView 同源使用线上账号与 Team 能力。
+func (s *Server) mountRemoteGateway() {
+	if !strings.EqualFold(strings.TrimSpace(s.config.AppMode), "desktop") ||
+		strings.TrimSpace(s.config.RemoteURL) == "" {
+		return
+	}
+	target, err := url.Parse(strings.TrimRight(strings.TrimSpace(s.config.RemoteURL), "/"))
+	if err != nil || target.Host == "" || (target.Scheme != "http" && target.Scheme != "https") {
+		s.api.BaseLogger().Error("Desktop 线上服务地址无效", "remote_url", s.config.RemoteURL)
+		return
+	}
+	s.mountRemoteProxy(target, "/auth/v1", true)
+	s.mountRemoteProxy(target, s.prefixPath("/team"), false)
+}
+
+func (s *Server) mountRemoteProxy(target *url.URL, path string, rewriteSessionCookie bool) {
+	proxy := httputil.NewSingleHostReverseProxy(target)
+	director := proxy.Director
+	proxy.Director = func(request *http.Request) {
+		director(request)
+		stripDesktopCredential(request)
+		request.Host = target.Host
+		if strings.TrimSpace(request.Header.Get("Origin")) != "" {
+			request.Header.Set("Origin", target.Scheme+"://"+target.Host)
+		}
+		request.Header.Set("X-Forwarded-Proto", target.Scheme)
+	}
+	proxy.ModifyResponse = func(response *http.Response) error {
+		if !rewriteSessionCookie {
+			return nil
+		}
+		cookies := response.Cookies()
+		if len(cookies) == 0 {
+			return nil
+		}
+		response.Header.Del("Set-Cookie")
+		for _, cookie := range cookies {
+			if cookie.Name == s.config.AuthSessionCookieName {
+				cookie.Domain = ""
+				cookie.Secure = false
+				cookie.SameSite = http.SameSiteLaxMode
+			}
+			response.Header.Add("Set-Cookie", cookie.String())
+		}
+		return nil
+	}
+	handler := http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodGet && !sameOriginRequest(request) {
+			s.api.WriteFailure(writer, http.StatusForbidden, "请求来源无效")
+			return
+		}
+		proxy.ServeHTTP(writer, request)
+	})
+	s.router.Mount(
+		path,
+		handlershared.DesktopSessionTokenMiddleware(
+			s.api,
+			s.config.DesktopSessionToken,
+			path,
+		)(handler),
+	)
+}
+
+func stripDesktopCredential(request *http.Request) {
+	request.Header.Del(handlershared.DesktopSessionTokenHeader)
+	request.Header.Del("Sec-WebSocket-Protocol")
+	cookies := request.Cookies()
+	request.Header.Del("Cookie")
+	for _, cookie := range cookies {
+		if cookie.Name != handlershared.DesktopSessionTokenCookie {
+			request.AddCookie(cookie)
+		}
+	}
+}
+
+func sameOriginRequest(request *http.Request) bool {
+	origin, err := url.Parse(strings.TrimSpace(request.Header.Get("Origin")))
+	if err != nil || origin.Scheme == "" || origin.Host == "" || origin.User != nil {
+		return false
+	}
+	scheme := "http"
+	if request.TLS != nil {
+		scheme = "https"
+	}
+	return strings.EqualFold(origin.Scheme, scheme) && strings.EqualFold(origin.Host, request.Host)
+}
+
+// mountTeamRoutes 仅在 Web Control 与 Relay 均已装配时挂载多人 Team gateway。
+func (s *Server) mountTeamRoutes() {
+	if strings.TrimSpace(s.config.RelayURL) == "" || s.handlers.team == nil {
+		return
+	}
+	s.router.Get(s.prefixPath("/team/rooms"), s.handlers.team.HandleListRooms)
+	s.router.Post(s.prefixPath("/team/rooms"), s.handlers.team.HandleCreateRoom)
+	s.router.Post(
+		s.prefixPath("/team/conversations/{conversation_id}/messages"),
+		s.handlers.team.HandlePostMessage,
+	)
+	s.router.Get(
+		s.prefixPath("/team/conversations/{conversation_id}/snapshot"),
+		s.handlers.team.HandleSnapshot,
+	)
+	s.router.Get(
+		s.prefixPath("/team/sync-streams/{stream_id}/difference"),
+		s.handlers.team.HandleDifference,
+	)
+	s.router.Get(s.prefixPath("/team/stream"), s.handlers.team.HandleStream)
 }
 
 // mountProjectRoutes 挂载共享项目 ACL 控制面。
@@ -188,8 +303,6 @@ func (s *Server) mountRoomRoutes() {
 // mountCapabilityRoutes 挂载技能、连接器、通道与自动化能力路由。
 func (s *Server) mountCapabilityRoutes() {
 	s.router.Get(s.prefixPath("/capability/summary"), s.handlers.capability.HandleCapabilitySummary)
-	s.router.Get(s.prefixPath("/capability/loops"), s.handlers.loop.HandleListLoops)
-	s.router.Get(s.prefixPath("/capability/loops/{slug}"), s.handlers.loop.HandleGetLoopDetail)
 
 	s.router.Get(s.prefixPath("/skills"), s.handlers.skill.HandleListSkills)
 	s.router.Get(s.prefixPath("/skills/{skill_name}/agents"), s.handlers.skill.HandleListSkillAgents)
@@ -231,7 +344,7 @@ func (s *Server) mountCapabilityRoutes() {
 	s.router.Get(s.prefixPath("/connectors/{connector_id}/capabilities"), s.handlers.connector.HandleGetConnectorMCPCapabilities)
 	s.router.Post(s.prefixPath("/connectors/{connector_id}/connect"), s.handlers.connector.HandleConnectConnector)
 	s.router.Post(s.prefixPath("/connectors/{connector_id}/disconnect"), s.handlers.connector.HandleDisconnectConnector)
-	serverruntime.MountConnectorAuthorizationRoutes(
+	appruntime.MountConnectorAuthorizationRoutes(
 		s.router,
 		s.prefixPath,
 		s.services.ConnectorAuthorization,
@@ -344,7 +457,11 @@ func (s *Server) mountExecutionRoutes() {
 	)
 	s.router.Post(
 		s.prefixPath("/workgraph/previews/{preview_id}/save"),
-		s.handlers.execution.HandleScheduleWorkGraphWorkflowSave,
+		s.handlers.execution.HandleConfirmWorkGraphWorkflowSave,
+	)
+	s.router.Get(
+		s.prefixPath("/workgraph/previews/{preview_id}/save-state"),
+		s.handlers.execution.HandleGetWorkGraphWorkflowSaveState,
 	)
 	s.router.Post(
 		s.prefixPath("/workgraph/previews/{preview_id}/editor"),

@@ -3,7 +3,7 @@
 // POS: Channel login view; it never renders raw provider output, errors, or login IDs.
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import {
   CircleCheck,
   QrCode,
@@ -15,12 +15,16 @@ import type {
   ChannelLoginView,
   ImChannelType,
 } from "@/lib/api/capability/channel-api";
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiBadge } from "@/shared/ui/display/badge";
 import { UiButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
+import { UiBadge } from "@/shared/ui/display/badge";
 import { FeedbackBanner } from "@/shared/ui/feedback/feedback-banner";
 import type { FeedbackBannerProps } from "@/shared/ui/feedback/feedback-banner-contract";
 import { UiInput } from "@/shared/ui/form/form-control";
+import { UiPanel } from "@/shared/ui/panel";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import {
   buildChannelLoginPanelModel,
   type ChannelLoginPanelModel,
@@ -37,14 +41,15 @@ const LOGIN_STATUS_ICONS: Record<ChannelLoginStatusIcon, typeof Terminal> = {
 function channelLoginDescription(
   channelType: ImChannelType,
   channelTitle: string,
+  t: I18nContextValue["t"],
 ): string {
   if (channelType === "feishu") {
-    return "不填写下方凭据时，保存后打开飞书官方扫码页；可选择已有应用并补齐权限，也可创建新应用。填写已有 App ID / Secret 则直接连接。";
+    return t("capability.channel_login_feishu_description");
   }
   if (channelType === "weixin-personal") {
-    return "Nexus 会先保存当前配置，再通过微信官方接口生成登录二维码。";
+    return t("capability.channel_login_weixin_description");
   }
-  return `不填写下方凭据时，Nexus 会通过 ${channelTitle} 官方接口生成二维码并自动保存凭据；也可填写已有凭据直接连接。`;
+  return t("capability.channel_login_description").replace("{channel}", channelTitle);
 }
 
 function ChannelLoginHeader({
@@ -54,14 +59,25 @@ function ChannelLoginHeader({
   channelTitle: string;
   channelType: ImChannelType;
 }) {
+  const { t } = useI18n();
   return (
     <div className="min-w-0">
-      <div className="flex items-center gap-2 text-sm font-semibold text-(--text-strong)">
+      <h3 className={cn(
+        "flex items-center gap-2",
+        getUiTypographyClassName({
+          role: "control",
+          tone: "strong",
+          weight: "semibold",
+        }),
+      )}>
         <QrCode className="h-4 w-4 text-(--primary)" />
-        扫码连接
-      </div>
-      <p className="mt-1 text-compact leading-5 text-(--text-muted)">
-        {channelLoginDescription(channelType, channelTitle)}
+        {t("capability.channel_login_heading")}
+      </h3>
+      <p className={cn(
+        "mt-1",
+        getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+      )}>
+        {channelLoginDescription(channelType, channelTitle, t)}
       </p>
     </div>
   );
@@ -78,6 +94,8 @@ function ChannelLoginVerifyCode({
   blocked: boolean;
   onSubmit: (value: string) => Promise<boolean>;
 }) {
+  const { t } = useI18n();
+  const hintId = useId();
   const [verifyCode, setVerifyCode] = useState("");
   const submit = async () => {
     if (await onSubmit(verifyCode)) {
@@ -86,18 +104,34 @@ function ChannelLoginVerifyCode({
   };
 
   return (
-    <div className="rounded-[10px] border border-[color:color-mix(in_srgb,var(--warning)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_8%,transparent)] px-3 py-3">
-      <div className="mb-2 text-compact font-semibold text-(--text-strong)">
+    <UiPanel
+      className="border-[color:color-mix(in_srgb,var(--warning)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_8%,transparent)]"
+      padding="sm"
+      radius="sm"
+    >
+      <div id={hintId} className={cn(
+        "mb-2",
+        getUiTypographyClassName({
+          role: "metadata",
+          tone: "strong",
+          weight: "semibold",
+        }),
+      )}>
         {hint}
       </div>
       <div className="flex gap-2">
         <UiInput
+          aria-label={t("capability.channel_auth_code")}
+          aria-describedby={hintId}
+          autoComplete="one-time-code"
+          disabled={loading || blocked}
           onChange={(event) => setVerifyCode(event.target.value)}
-          placeholder="验证码"
+          placeholder={t("capability.channel_auth_code")}
           value={verifyCode}
           variant="dialog"
         />
         <UiButton
+          aria-busy={loading || undefined}
           disabled={!verifyCode.trim() || loading || blocked}
           onClick={() => void submit()}
           size="sm"
@@ -105,10 +139,10 @@ function ChannelLoginVerifyCode({
           type="button"
           variant="solid"
         >
-          提交
+          {t("capability.channel_auth_submit")}
         </UiButton>
       </div>
-    </div>
+    </UiPanel>
   );
 }
 
@@ -131,7 +165,10 @@ function ChannelLoginSession({
           <StatusIcon className="mr-1 h-3 w-3" />
           {model.status.label}
         </UiBadge>
-        <code className="min-w-0 truncate rounded-[8px] border border-(--divider-subtle-color) px-2 py-1 text-xs text-(--text-muted)">
+        <code className={cn(
+          "surface-radius-sm min-w-0 truncate border border-(--divider-subtle-color) px-2 py-1",
+          getUiTypographyClassName({ role: "code", tone: "muted" }),
+        )}>
           {model.identity}
         </code>
       </div>
@@ -145,9 +182,13 @@ function ChannelLoginSession({
         />
       ) : null}
       {model.progress ? (
-        <p className="rounded-[10px] border border-(--divider-subtle-color) px-3 py-2 text-compact leading-5 text-(--text-muted)">
+        <UiPanel
+          className={getUiTypographyClassName({ role: "metadata", tone: "muted" })}
+          padding="sm"
+          radius="sm"
+        >
           {model.progress}
-        </p>
+        </UiPanel>
       ) : null}
       {model.failure ? (
         <FeedbackBanner {...model.failure} />
@@ -177,7 +218,7 @@ export function ChannelLoginPanel({
   const model = buildChannelLoginPanelModel(loginView, t);
 
   return (
-    <div className="rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-3 py-3">
+    <UiPanel padding="sm" radius="sm">
       <ChannelLoginHeader channelTitle={channelTitle} channelType={channelType} />
       {recoveryNotice ? (
         <div className="mt-3">
@@ -192,6 +233,6 @@ export function ChannelLoginPanel({
           onSubmitVerifyCode={onSubmitVerifyCode}
         />
       ) : null}
-    </div>
+    </UiPanel>
   );
 }

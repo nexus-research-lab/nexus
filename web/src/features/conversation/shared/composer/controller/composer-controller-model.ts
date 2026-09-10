@@ -1,9 +1,10 @@
+// INPUT: Composer input, capabilities, local UI state and runtime facts.
+// OUTPUT: Semantic view state and action eligibility without CSS or layout tokens.
+// POS: Composer controller projection; the panel resolves presentation from these facts.
+
 import type { AgentConversationRuntimePhase } from "@/types/agent/agent-conversation";
 
-import {
-  type ComposerInputMode,
-  getComposerInputRowPaddingClass,
-} from "../composer-model";
+import type { ComposerInputMode } from "../composer-model";
 import {
   type ComposerViewCopy,
   projectComposerActions,
@@ -16,8 +17,6 @@ interface ComposerViewStateOptions {
   attachmentCount: number;
   attachmentError: string | null;
   canCreateGoal: boolean;
-  canUseLoop: boolean;
-  compact: boolean;
   copy: ComposerViewCopy;
   goalCreateBlockedReason: string | null;
   goalError: string | null;
@@ -30,7 +29,6 @@ interface ComposerViewStateOptions {
   isGoalConfirming: boolean;
   isGoalCreating: boolean;
   isLoading: boolean;
-  isLoopPickerOpen: boolean;
   isPreparingAttachments: boolean;
   isSessionSettingsSaving: boolean;
   queueItemCount: number;
@@ -71,13 +69,7 @@ export function buildComposerViewState(
   return {
     activeError: modeState.activeError,
     canCreateGoal: options.canCreateGoal,
-    canUseLoop: options.canUseLoop,
     charCount: inputState.charCount,
-    composerInputRowPaddingClass: getComposerInputRowPaddingClass(
-      options.compact,
-      options.queueItemCount > 0,
-      modeState.isGoalMode,
-    ),
     historyIndex: options.historyIndex,
     input: options.input,
     inputHistoryLength: options.historyItemCount,
@@ -85,7 +77,6 @@ export function buildComposerViewState(
     isGoalConfirming: options.isGoalConfirming,
     isGoalCreating: options.isGoalCreating,
     isGoalMode: modeState.isGoalMode,
-    isLoopPickerOpen: options.isLoopPickerOpen,
     isNearLimit: inputState.isNearLimit,
     isOverLimit: inputState.isOverLimit,
     isPreparingAttachments: options.isPreparingAttachments,

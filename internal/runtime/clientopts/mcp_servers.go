@@ -1,5 +1,5 @@
 // INPUT: Nexus 内建 MCP servers 与 Agent 持久化的自由格式 MCP 配置。
-// OUTPUT: 经严格校验、且不会覆盖内建名称的 SDK MCP server 集合。
+// OUTPUT: 经严格校验、且不会覆盖内建或 GitHub 等 Connector 托管名称的 SDK MCP server 集合。
 // POS: Agent 配置进入 DM/Room runtime 前的统一 MCP 解析边界。
 package clientopts
 
@@ -19,6 +19,8 @@ import (
 var persistedMCPServerNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
 
 var reservedAgentMCPServerNames = map[string]struct{}{
+	"github":            {},
+	"richmail":          {},
 	"amap_maps":         {},
 	"didi_ride":         {},
 	"dingtalk_ai_table": {},

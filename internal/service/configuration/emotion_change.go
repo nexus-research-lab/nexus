@@ -4,6 +4,7 @@
 package configuration
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -71,4 +72,128 @@ func validateEmotionText(field string, value string) error {
 		return fmt.Errorf("%s 不能为空", field)
 	}
 	return nil
+}
+
+func validateEmotionChange(request ChangeRequest) error {
+	switch request.Operation {
+	case "set_base":
+		var input emotionBaseInput
+		if err := request.decodeInput(&input); err != nil {
+			return err
+		}
+		if err := validateEmotionText("mood", input.Mood); err != nil {
+			return err
+		}
+		if err := validateEmotionScore("energy", input.Energy); err != nil {
+			return err
+		}
+		if err := validateEmotionScore("valence", input.Valence); err != nil {
+			return err
+		}
+		return validateEmotionText("description", input.Description)
+	case "set_context":
+		var input emotionContextInput
+		if err := request.decodeInput(&input); err != nil {
+			return err
+		}
+		if err := validateEmotionText("mood", input.Mood); err != nil {
+			return err
+		}
+		if err := validateEmotionScore("valence", input.Valence); err != nil {
+			return err
+		}
+		return validateEmotionText("trigger", input.Trigger)
+	case "clear_context":
+		return request.decodeInput(&struct{}{})
+	default:
+		return unsupportedChange(request)
+	}
+}
+
+func (s *Service) executeEmotionChange(ctx context.Context, actor *resolvedActor, request ChangeRequest, stateVersion int64) (any, error) {
+	switch request.Operation {
+	case "set_base":
+		if stateVersion <= 0 {
+			return nil, errors.New("Emotion 更新缺少 state_version；请重新 plan")
+		}
+		var input emotionBaseInput
+		if err := request.decodeAppliedInput(&input); err != nil {
+			return nil, err
+		}
+		view, err := s.agents.SetAgentRuntimeEmotionBaseAtVersion(
+			ctx,
+			actor.AgentID,
+			agentsvc.RuntimeEmotionBaseUpdate{
+				Mood: input.Mood, Energy: input.Energy,
+				Valence: input.Valence, Description: input.Description,
+			},
+			stateVersion,
+		)
+		return safeEmotionView(view), err
+	case "set_context":
+		if stateVersion <= 0 {
+			return nil, errors.New("Emotion 更新缺少 state_version；请重新 plan")
+		}
+		contextID, err := trustedEmotionContextID(actor)
+		if err != nil {
+			return nil, err
+		}
+		var input emotionContextInput
+		if err = request.decodeAppliedInput(&input); err != nil {
+			return nil, err
+		}
+		view, err := s.agents.SetAgentRuntimeEmotionContextAtVersion(
+			ctx,
+			actor.AgentID,
+			agentsvc.RuntimeEmotionContextUpdate{
+				ContextID: contextID, Mood: input.Mood,
+				Valence: input.Valence, Trigger: input.Trigger,
+			},
+			stateVersion,
+		)
+		return safeEmotionView(view), err
+	case "clear_context":
+		if stateVersion <= 0 {
+			return nil, errors.New("Emotion 更新缺少 state_version；请重新 plan")
+		}
+		contextID, err := trustedEmotionContextID(actor)
+		if err != nil {
+			return nil, err
+		}
+		view, err := s.agents.ClearAgentRuntimeEmotionContextAtVersion(
+			ctx,
+			actor.AgentID,
+			contextID,
+			stateVersion,
+		)
+		return safeEmotionView(view), err
+	default:
+		return nil, unsupportedChange(request)
+	}
+}
+
+func (s *Service) readEmotionConfiguration(ctx context.Context, actor *resolvedActor, target string) (any, []Check, int64, ScopeRef, error) {
+	contextID, contextErr := trustedEmotionContextID(actor)
+	if contextErr != nil {
+		return nil, nil, 0, ScopeRef{Kind: ScopeKindAgent, ID: actor.AgentID}, contextErr
+	}
+	view, err := s.agents.GetAgentRuntimeEmotionView(
+		ctx,
+		actor.AgentID,
+		contextID,
+		time.Now(),
+	)
+	if err != nil {
+		return nil, []Check{errorCheck(DomainEmotion, "emotion_state_readable", err)}, 0,
+			ScopeRef{Kind: ScopeKindAgent, ID: actor.AgentID}, err
+	}
+	return safeEmotionView(view),
+		[]Check{okCheck(
+			DomainEmotion,
+			"emotion_state_readable",
+			"已核对当前 Agent 的版本化情绪状态；fatigue 为 runtime 只读，绝对 workspace 路径不对模型暴露",
+		)},
+		view.Version,
+		ScopeRef{Kind: ScopeKindAgent, ID: actor.AgentID},
+		nil
 }

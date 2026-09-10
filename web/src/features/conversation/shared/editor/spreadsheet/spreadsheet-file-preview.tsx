@@ -1,7 +1,7 @@
+// INPUT: Workbook preview controller and file actions.
+// OUTPUT: Sheet count, workbook and one shared state surface; failed reads stay scrollable in short panels.
+// POS: Spreadsheet presentation; workbook selection and parsing stay with their existing owners.
 "use client";
-
-import type { ReactNode } from "react";
-import { Eye, FileWarning, LoaderCircle } from "lucide-react";
 
 import {
   WorkspaceFileDownloadButton,
@@ -9,6 +9,7 @@ import {
   WorkspaceFilePreviewHeader,
 } from "../workspace-file-preview-chrome";
 import { OfficePreviewFailureState } from "../office-preview-fallbacks";
+import { WorkspaceFilePreviewLoading } from "../workspace-file-preview-loading";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { WorkspaceFilePreviewProps } from "../workspace-file-preview-types";
 import { SpreadsheetReadonlyWorkbook } from "./spreadsheet-readonly-workbook";
@@ -24,6 +25,7 @@ export function SpreadsheetFilePreview({
   onTogglePreviewFocus,
   path,
 }: WorkspaceFilePreviewProps) {
+  const { t } = useI18n();
   const preview = useSpreadsheetPreview(agentId, path);
   return (
     <>
@@ -41,7 +43,7 @@ export function SpreadsheetFilePreview({
             />
           </>
         )}
-        meta={<SpreadsheetPreviewMeta status={preview.status} />}
+        meta={preview.status.state === "loaded" ? t("workspace_file.spreadsheet_loaded", { count: preview.status.sheetCount }) : undefined}
         title={fileName}
       />
       <div className="relative min-h-0 flex-1 overflow-hidden bg-[var(--surface-panel-subtle-background)]">
@@ -63,37 +65,6 @@ export function SpreadsheetFilePreview({
   );
 }
 
-function SpreadsheetPreviewMeta({
-  status,
-}: {
-  status: SpreadsheetPreviewStatus;
-}) {
-  const { t } = useI18n();
-  const statusContent = {
-    error: (
-      <span className="flex min-w-0 items-center gap-1 text-destructive">
-        <FileWarning className="h-3 w-3 shrink-0" />
-        <span className="truncate">{t("workspace_file.preview_failed_status")}</span>
-      </span>
-    ),
-    loaded: (
-      <span className="flex items-center gap-1 text-(--success)">
-        <Eye className="h-3 w-3" />
-        {t("workspace_file.spreadsheet_loaded", {
-          count: status.state === "loaded" ? status.sheetCount : 0,
-        })}
-      </span>
-    ),
-    loading: (
-      <span className="flex min-w-0 items-center gap-1">
-        <LoaderCircle className="h-3 w-3 shrink-0 animate-spin" />
-        <span className="truncate">{t("workspace_file.preview_loading")}</span>
-      </span>
-    ),
-  } satisfies Record<SpreadsheetPreviewStatus["state"], ReactNode>;
-  return statusContent[status.state];
-}
-
 function SpreadsheetPreviewOverlay({
   onRetry,
   status,
@@ -101,25 +72,15 @@ function SpreadsheetPreviewOverlay({
   onRetry: () => void;
   status: Exclude<SpreadsheetPreviewStatus, { state: "loaded" }>;
 }) {
-  const { t } = useI18n();
   const isError = status.state === "error";
   if (isError) {
     return (
-      <div className="absolute inset-0 flex items-center justify-center bg-[var(--surface-panel-subtle-background)] p-8">
+      <div className="soft-scrollbar absolute inset-0 overflow-auto overscroll-contain bg-[var(--surface-panel-subtle-background)] p-4">
         <OfficePreviewFailureState kind="spreadsheet" onRetry={onRetry} />
       </div>
     );
   }
   return (
-    <div className="absolute inset-0 flex items-center justify-center bg-[var(--surface-panel-subtle-background)] p-8 text-center">
-      <div className="max-w-xs">
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center surface-radius-md border border-(--surface-panel-subtle-border) bg-(--card-default-background)">
-          <LoaderCircle className="h-7 w-7 animate-spin text-primary" />
-        </div>
-        <p className="text-sm font-medium text-(--text-strong)">
-          {t("workspace_file.preview_loading")}
-        </p>
-      </div>
-    </div>
+    <WorkspaceFilePreviewLoading className="absolute inset-0" />
   );
 }

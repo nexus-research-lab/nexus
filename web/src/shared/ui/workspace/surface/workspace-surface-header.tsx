@@ -1,13 +1,19 @@
+// INPUT: Workspace 身份/返回动作、标题、会话或视图导航与业务动作插槽。
+// OUTPUT: 统一内容轴与排版的 Header；公共 Select 持有窄窗视图选择，Avatar 持有身份外形。
+// POS: Workspace 顶部导航原语；不拥有业务标签、当前选择或动作事务。
+
 "use client";
 
-import { ChevronDown, type LucideIcon } from "lucide-react";
-import { useRef, useState, type ReactNode } from "react";
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
+import { type LucideIcon } from "lucide-react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { WORKSPACE_CONTENT_GUTTER_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
-import { UiActionMenu } from "@/shared/ui/menu/action-menu";
+import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import { UiTabs } from "@/shared/ui/navigation/tabs";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { WORKSPACE_HEADER_HEIGHT_CLASS } from "@/shared/ui/workspace/surface/workspace-header-layout";
 
 import "./workspace-surface-header.css";
@@ -22,44 +28,30 @@ interface WorkspaceSurfaceHeaderTab<TTabKey extends string> {
   label: string;
 }
 
-type WorkspaceSurfaceHeaderLeadingVariant = "identity" | "section";
-type WorkspaceSurfaceHeaderNarrowMode = "full" | "hidden" | "toolbar";
-
-type WorkspaceSurfaceHeaderMiddle =
-  | { subtitle?: ReactNode; tabsLeading?: never }
-  | { subtitle?: never; tabsLeading: ReactNode };
-
+type WorkspaceSurfaceHeaderLeadingVariant = "identity" | "action";
 type WorkspaceSurfaceHeaderProps<TTabKey extends string> = {
   activeTab?: TTabKey;
   compactTabsLabel?: string;
   leading?: ReactNode;
-  leadingClassName?: string;
   leadingVariant?: WorkspaceSurfaceHeaderLeadingVariant;
   onChangeTab?: (tab: TTabKey) => void;
   navigationTrailing?: ReactNode;
-  narrowMode?: WorkspaceSurfaceHeaderNarrowMode;
   tabs?: WorkspaceSurfaceHeaderTab<TTabKey>[];
-  tabsNavAnchor?: string;
   title?: string;
-  titleTrailing?: ReactNode;
+  tabsLeading?: ReactNode;
   trailing?: ReactNode;
-} & WorkspaceSurfaceHeaderMiddle;
+};
 
 export function WorkspaceSurfaceHeader<TTabKey extends string>({
   activeTab,
   compactTabsLabel,
   leading,
-  leadingClassName,
-  leadingVariant = "section",
+  leadingVariant = "action",
   onChangeTab,
   navigationTrailing,
-  narrowMode = "full",
-  subtitle,
   tabs = [],
   tabsLeading,
-  tabsNavAnchor,
   title,
-  titleTrailing,
   trailing,
 }: WorkspaceSurfaceHeaderProps<TTabKey>) {
   return (
@@ -67,8 +59,6 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
       className={cn(
         SURFACE_HEADER_CLASS_NAME,
         tabsLeading && "workspace-surface-header-with-session-tabs",
-        narrowMode === "hidden" && "workspace-surface-header-narrow-hidden",
-        narrowMode === "toolbar" && "workspace-surface-header-narrow-toolbar",
         WORKSPACE_HEADER_HEIGHT_CLASS,
       )}
       data-desktop-window-drag-region
@@ -79,10 +69,8 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
       )}>
         <WorkspaceSurfaceIdentity
           leading={leading}
-          leadingClassName={leadingClassName}
           leadingVariant={leadingVariant}
           title={title}
-          titleTrailing={titleTrailing}
         />
 
         <WorkspaceSurfaceNavigation
@@ -90,10 +78,8 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
           compactTabsLabel={compactTabsLabel}
           onChangeTab={onChangeTab}
           navigationTrailing={navigationTrailing}
-          subtitle={subtitle}
           tabs={tabs}
           tabsLeading={tabsLeading}
-          tabsNavAnchor={tabsNavAnchor}
         />
 
         <WorkspaceSurfaceTrailing>{trailing}</WorkspaceSurfaceTrailing>
@@ -104,62 +90,28 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
 
 function WorkspaceSurfaceIdentity({
   leading,
-  leadingClassName,
   leadingVariant,
   title,
-  titleTrailing,
 }: {
   leading?: ReactNode;
-  leadingClassName?: string;
   leadingVariant: WorkspaceSurfaceHeaderLeadingVariant;
   title?: string;
-  titleTrailing?: ReactNode;
 }) {
-  const hasTitleContent = Boolean(title) || Boolean(titleTrailing);
-  if (!leading && !hasTitleContent) return null;
-
+  if (!leading && !title) return null;
   return (
     <div className="workspace-surface-header-title flex min-w-0 shrink items-center gap-2.5">
       {leading ? (
         <div className={cn(
-          "workspace-surface-header-leading flex shrink-0 items-center justify-center text-(--icon-default)",
-          leadingVariant === "identity"
-            ? "workspace-surface-header-identity-avatar h-10 w-10 rounded-[10px] border border-(--surface-avatar-border) bg-(--surface-avatar-background)"
-            : "workspace-surface-header-section-icon h-8 w-8 radius-control-sm bg-(--surface-interactive-hover-background)",
-          leadingClassName,
+          "workspace-surface-header-leading flex shrink-0 items-center justify-center",
+          leadingVariant === "identity" && "workspace-surface-header-identity-avatar h-10 w-10",
         )}>
           {leading}
         </div>
       ) : null}
-
-      {hasTitleContent ? (
-        <WorkspaceSurfaceTitle
-          title={title}
-          titleTrailing={titleTrailing}
-        />
-      ) : null}
-    </div>
-  );
-}
-
-function WorkspaceSurfaceTitle({
-  title,
-  titleTrailing,
-}: {
-  title?: string;
-  titleTrailing?: ReactNode;
-}) {
-  return (
-    <div className="workspace-surface-header-title-content flex min-w-0 flex-1 flex-nowrap items-center gap-x-1.5">
       {title ? (
-        <div className="truncate text-md font-semibold leading-5 tracking-normal text-(--text-strong)">
+        <UiTooltip label={title}><div className={cn("min-w-0 truncate", getUiTypographyClassName({ role: "pageTitle", tone: "strong" }))} >
           {title}
-        </div>
-      ) : null}
-      {titleTrailing ? (
-        <div className="workspace-surface-header-title-trailing min-w-0 max-h-6 shrink overflow-hidden text-(--text-default)">
-          {titleTrailing}
-        </div>
+        </div></UiTooltip>
       ) : null}
     </div>
   );
@@ -170,28 +122,23 @@ function WorkspaceSurfaceNavigation<TTabKey extends string>({
   compactTabsLabel,
   onChangeTab,
   navigationTrailing,
-  subtitle,
   tabs,
   tabsLeading,
-  tabsNavAnchor,
 }: {
   activeTab?: TTabKey;
   compactTabsLabel?: string;
   onChangeTab?: (tab: TTabKey) => void;
   navigationTrailing?: ReactNode;
-  subtitle?: ReactNode;
   tabs: WorkspaceSurfaceHeaderTab<TTabKey>[];
   tabsLeading?: ReactNode;
-  tabsNavAnchor?: string;
 }) {
   const hasNavigationTools = tabs.length > 0 || Boolean(navigationTrailing);
 
   return (
     <div className="workspace-surface-header-navigation flex min-w-0 flex-1 items-center">
-      <WorkspaceSurfaceNavigationLead
-        subtitle={subtitle}
-        tabsLeading={tabsLeading}
-      />
+      {tabsLeading ? (
+        <div className="workspace-surface-header-session-tabs min-w-0 flex-1">{tabsLeading}</div>
+      ) : null}
       {hasNavigationTools ? (
         <div
           className={cn(
@@ -205,7 +152,6 @@ function WorkspaceSurfaceNavigation<TTabKey extends string>({
             hasLeading={Boolean(tabsLeading)}
             onChangeTab={onChangeTab}
             tabs={tabs}
-            tabsNavAnchor={tabsNavAnchor}
           />
           {navigationTrailing ? (
             <div className="workspace-surface-header-navigation-actions flex shrink-0 items-center">
@@ -218,39 +164,18 @@ function WorkspaceSurfaceNavigation<TTabKey extends string>({
   );
 }
 
-function WorkspaceSurfaceNavigationLead({
-  subtitle,
-  tabsLeading,
-}: {
-  subtitle?: ReactNode;
-  tabsLeading?: ReactNode;
-}) {
-  if (tabsLeading) {
-    return <div className="workspace-surface-header-session-tabs min-w-0 flex-1">{tabsLeading}</div>;
-  }
-  if (!subtitle) return null;
-
-  return (
-    <div className="workspace-surface-header-subtitle min-w-0 flex-1 truncate text-compact leading-5 text-(--text-soft)">
-      {subtitle}
-    </div>
-  );
-}
-
 function WorkspaceSurfaceTabs<TTabKey extends string>({
   activeTab,
   compactTabsLabel,
   hasLeading,
   onChangeTab,
   tabs,
-  tabsNavAnchor,
 }: {
   activeTab?: TTabKey;
   compactTabsLabel?: string;
   hasLeading: boolean;
   onChangeTab?: (tab: TTabKey) => void;
   tabs: WorkspaceSurfaceHeaderTab<TTabKey>[];
-  tabsNavAnchor?: string;
 }) {
   const { t } = useI18n();
   if (tabs.length === 0) return null;
@@ -265,12 +190,10 @@ function WorkspaceSurfaceTabs<TTabKey extends string>({
           hasLeading ? "shrink-0" : "flex-1",
         )}
         density="compact"
-        navAnchor={tabsNavAnchor}
         onChange={onChangeTab}
         itemClassName="workspace-surface-header-view-tab"
         options={tabs.map((tab) => ({
           anchor: tab.anchor,
-          className: `workspace-surface-header-view-tab-item workspace-surface-header-view-tab-item-${tab.key}`,
           icon: tab.icon,
           label: (
             <span className="workspace-surface-header-view-tab-label">
@@ -281,13 +204,14 @@ function WorkspaceSurfaceTabs<TTabKey extends string>({
           value: tab.key,
         }))}
       />
-      <WorkspaceSurfaceCompactTabs
-        activeTab={activeTab}
-        compactTabsLabel={compactTabsLabel ?? tabs[0].label}
-        onChangeTab={onChangeTab}
-        tabs={tabs}
-        tabsNavAnchor={tabsNavAnchor}
-      />
+      {!hasLeading ? (
+        <WorkspaceSurfaceCompactTabs
+          activeTab={activeTab}
+          compactTabsLabel={compactTabsLabel ?? t("common.view_switcher")}
+          onChangeTab={onChangeTab}
+          tabs={tabs}
+        />
+      ) : null}
     </>
   );
 }
@@ -297,60 +221,52 @@ function WorkspaceSurfaceCompactTabs<TTabKey extends string>({
   compactTabsLabel,
   onChangeTab,
   tabs,
-  tabsNavAnchor,
 }: {
   activeTab?: TTabKey;
   compactTabsLabel: string;
   onChangeTab?: (tab: TTabKey) => void;
   tabs: WorkspaceSurfaceHeaderTab<TTabKey>[];
-  tabsNavAnchor?: string;
 }) {
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const [isOpen, setIsOpen] = useState(false);
+  const { t } = useI18n();
+  const hostRef = useRef<HTMLDivElement>(null);
+  const [isVisible, setIsVisible] = useState(false);
   const activeOption = tabs.find((tab) => tab.key === activeTab);
   const ActiveIcon = activeOption?.icon;
-  const triggerLabel = activeOption?.label ?? compactTabsLabel;
+  const resetKey = JSON.stringify([activeTab ?? null, tabs.map((tab) => tab.key).sort()]);
+
+  useLayoutEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    // CSS 拥有 container breakpoint；只观察其实际可见性，避免复制阈值或保留隐藏菜单。
+    const updateVisibility = () => setIsVisible(getComputedStyle(host).display !== "none");
+    updateVisibility();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updateVisibility);
+    observer?.observe(host);
+    window.addEventListener("resize", updateVisibility);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", updateVisibility);
+    };
+  }, []);
 
   return (
-    <div
-      className={cn(
-        "workspace-surface-header-compact-tabs h-8 min-w-0 items-center overflow-hidden radius-control-sm border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_55%,transparent)]",
-        activeOption && "border-[color:color-mix(in_srgb,var(--primary)_22%,var(--divider-subtle-color)_78%)] bg-[color:color-mix(in_srgb,var(--primary)_7%,transparent)]",
-      )}
-      data-tour-anchor={tabsNavAnchor}
-    >
-      <button
-        ref={buttonRef}
-        aria-expanded={isOpen}
-        aria-haspopup="menu"
-        aria-label={compactTabsLabel}
-        className="flex h-full min-w-0 items-center gap-1.5 px-2 text-xs font-semibold text-(--text-default) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
-        onClick={() => setIsOpen((current) => !current)}
-        title={triggerLabel}
-        type="button"
-      >
-        {ActiveIcon ? <ActiveIcon className="h-3.5 w-3.5 shrink-0" /> : null}
-        <span className="workspace-surface-header-compact-tabs-label min-w-0 truncate">
-          {triggerLabel}
-        </span>
-        <ChevronDown className="h-3 w-3 shrink-0 text-(--icon-muted)" />
-      </button>
-      <UiActionMenu
-        anchorRef={buttonRef}
-        ariaLabel={compactTabsLabel}
-        isOpen={isOpen}
-        items={tabs.map((tab) => {
-          const Icon = tab.icon;
-          return {
-            active: tab.key === activeTab,
-            icon: Icon ? <Icon className="h-4 w-4 text-(--icon-muted)" /> : undefined,
-            label: tab.label,
-            value: tab.key,
-          };
-        })}
-        minWidth={176}
-        onClose={() => setIsOpen(false)}
-        onSelect={(value) => onChangeTab?.(value as TTabKey)}
+    <div ref={hostRef} className="workspace-surface-header-compact-tabs min-w-0">
+      <UiSelectMenu
+        ariaLabel={activeOption
+          ? t("common.view_switcher_current", { label: compactTabsLabel, view: activeOption.label })
+          : compactTabsLabel}
+        disabled={!isVisible || !onChangeTab}
+        leading={ActiveIcon ? <ActiveIcon aria-hidden="true" className="h-3.5 w-3.5" /> : undefined}
+        menuMinWidth={176}
+        onChange={(value) => {
+          const tab = tabs.find((item) => item.key === value);
+          if (tab) onChangeTab?.(tab.key);
+        }}
+        options={tabs.map((tab) => ({ label: tab.label, value: tab.key }))}
+        placeholder={compactTabsLabel}
+        resetKey={resetKey}
+        size="sm"
+        value={activeTab ?? ""}
       />
     </div>
   );

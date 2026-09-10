@@ -3,7 +3,6 @@ package orchestration
 import (
 	"context"
 	"fmt"
-	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"strings"
 	"testing"
 	"time"
@@ -306,15 +305,15 @@ func TestRuntimeCommandReceiptsReconcileCLITransportInOneGraphRead(t *testing.T)
 	}
 	service := NewService(repository)
 	service.now = func() time.Time { return now }
-	err = service.ObserveRuntimeCommandReceipts(context.Background(), actor, []nexusmcp.CommandReceipt{
+	err = service.ObserveRuntimeCommands(context.Background(), actor, []RuntimeCommandFact{
 		{
-			Domain: command.DomainExecution, Operation: "assign_work",
+			Operation: "assign_work",
 			RequestID: "assign-request-1", Outcome: string(protocol.MutationResultApplied),
 			ExecutionID: "execution-1",
 			Changed:     []string{"assignment:assignment-1", "attempt:attempt-1"},
 		},
 		{
-			Domain: command.DomainExecution, Operation: "submit_work",
+			Operation: "submit_work",
 			RequestID: "submit-request-1", Outcome: string(protocol.MutationResultApplied),
 			ExecutionID: "execution-1",
 		},

@@ -1,4 +1,5 @@
 import type { TranslationKey } from "@/shared/i18n/messages";
+import { matchesUiSearchFields } from "@/shared/ui/form/search-query";
 import type { MemoryDocument, MemorySnapshot } from "@/types/memory/memory";
 
 export type MemoryFilter = "all" | "user" | "feedback" | "project" | "reference" | "daily_log";
@@ -122,15 +123,12 @@ function memoryDocumentMatchesQuery(
   document: MemoryDocument,
   query: string,
 ): boolean {
-  const normalizedQuery = query.trim().toLowerCase();
-  if (!normalizedQuery) {
-    return true;
-  }
-  return [document.title, document.description, document.path, document.type]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase()
-    .includes(normalizedQuery);
+  return matchesUiSearchFields(query, [
+    document.title,
+    document.description,
+    document.path,
+    document.type,
+  ]);
 }
 
 function buildMemoryCatalogSections(

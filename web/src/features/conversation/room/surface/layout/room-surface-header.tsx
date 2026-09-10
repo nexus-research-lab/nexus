@@ -1,6 +1,6 @@
 /**
  * INPUT: Room/DM Header 身份、会话标签、面板动作与成员管理命令。
- * OUTPUT: 带非交互下缘渐隐的桌面 Room Header。
+ * OUTPUT: 统一会话导航命令装配、保留 DM/群身份和下缘渐隐的桌面 Room Header。
  * POS: 桌面 Room Surface 顶部视觉边界；保持共享桌面 Header 几何，不参与消息滚动。
  */
 import { DmConversationHeader } from "@/features/conversation/room/dm/dm-conversation-header";
@@ -8,7 +8,7 @@ import type { Agent } from "@/types/agent/agent";
 import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
 import type { RoomConversationView } from "@/types/conversation/conversation";
 import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
-import type { FinalConversationReplacementHandler } from "@/shared/ui/workspace/controls/conversation-tabs/final-conversation-replacement";
+import type { FinalConversationReplacementHandler } from "@/features/navigation/conversation-tabs/final-conversation-replacement";
 
 import { GroupConversationHeader } from "../../group/header/group-conversation-header";
 import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversation-tour";
@@ -75,39 +75,33 @@ export function RoomSurfaceHeader({
     }
     onChangeSurfaceTab(tab);
   };
+  const conversationNavigation = {
+    activeTab: activeSurfaceTab,
+    conversationId,
+    conversations,
+    onChangeTab: handleToggleSurfaceTab,
+    onCloseConversation,
+    onCreateConversation,
+    onReplaceFinalConversation,
+    onDeleteConversation,
+    onSelectConversation,
+    onUpdateConversationTitle,
+  };
   const header = isDm ? (
     <DmConversationHeader
       key={roomId ?? "dm-header"}
-      activeTab={activeSurfaceTab}
-      conversationId={conversationId}
-      conversations={conversations}
+      {...conversationNavigation}
       currentAgentName={currentAgent.name}
       currentAgentAvatar={currentAgent.avatar ?? null}
-      onChangeTab={handleToggleSurfaceTab}
-      onCloseConversation={onCloseConversation}
-      onCreateConversation={onCreateConversation}
-      onReplaceFinalConversation={onReplaceFinalConversation}
-      onDeleteConversation={onDeleteConversation}
-      onSelectConversation={onSelectConversation}
-      onUpdateConversationTitle={onUpdateConversationTitle}
     />
   ) : (
     <GroupConversationHeader
       key={roomId ?? "room-header"}
-      activeTab={activeSurfaceTab}
+      {...conversationNavigation}
       availableRoomAgents={availableRoomAgents}
-      conversationId={conversationId}
-      conversations={conversations}
       currentRoomTitle={currentRoomTitle}
-      onChangeTab={handleToggleSurfaceTab}
-      onCloseConversation={onCloseConversation}
-      onCreateConversation={onCreateConversation}
-      onReplaceFinalConversation={onReplaceFinalConversation}
-      onDeleteConversation={onDeleteConversation}
       onManageRoom={onManageRoom}
       onOpenMemberManager={onOpenMemberManager}
-      onSelectConversation={onSelectConversation}
-      onUpdateConversationTitle={onUpdateConversationTitle}
       roomAvatar={roomAvatar}
       roomHostAgentId={roomHostAgentId}
       roomHostAutoReplyEnabled={roomHostAutoReplyEnabled}

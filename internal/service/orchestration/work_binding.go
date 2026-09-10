@@ -72,7 +72,7 @@ func scopeSnapshotToTrustedWorkBinding(
 	if unboundRoomConversationActor(actor, snapshot) {
 		return nil, domainError(
 			ErrorCodeConversationOnly,
-			"this Room round is conversational and carries no trusted WorkBinding or ReviewBinding",
+			"this Room member round carries no trusted WorkBinding or ReviewBinding; it may observe the shared graph through execution inspect, but only the current coordinator can assign work. A raw mention or UI mode change cannot grant this responsibility",
 		)
 	}
 	if snapshot == nil ||

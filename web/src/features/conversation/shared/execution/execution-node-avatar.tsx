@@ -1,10 +1,11 @@
 /**
  * INPUT: Graph 节点类型、状态、当前标记、展示语义与可选持久或 runtime Agent identity。
- * OUTPUT: 带生命周期或实时工作状态的 Agent/Subagent 头像、动作语义 Tool 图标与 Gate 图标。
+ * OUTPUT: 带生命周期或实时工作状态的节点视觉；Dock 使用公共 sm 头像与单一状态点，完整图保留状态框。
  * POS: Composer 节点轨迹与展开 Execution Graph 共用的节点视觉原语。
  */
 "use client";
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import {
   Bot,
   FilePenLine,
@@ -76,18 +77,18 @@ export function ExecutionNodeAvatar({
   const toolVisualKind = resolveExecutionToolVisualKind(toolName);
   const ToolIcon = EXECUTION_TOOL_ICON[toolVisualKind];
   return (
-    <span
+    <UiTooltip label={dock ? undefined : title}><span
       className={cn(
         "relative grid shrink-0 place-items-center border bg-(--surface-control-background) p-px transition-[border-color,box-shadow,transform]",
         graph
           ? "h-11 w-11 rounded-[13px]"
           : dock
-          ? "h-6 w-6 rounded-[7px]"
+          ? "h-7 w-7 border-0 bg-transparent p-0"
           : nested
           ? "h-8.5 w-8.5 rounded-[11px]"
           : "h-6 w-6 rounded-[8px]",
-        executionNodeFrameTone(status, tone),
-        current
+        !dock && executionNodeFrameTone(status, tone),
+        !dock && current
           && (tone === "activity"
             ? "scale-105 ring-2 ring-[color:color-mix(in_srgb,var(--success)_24%,transparent)] ring-offset-1 ring-offset-(--surface-panel-background)"
             : "scale-105 ring-2 ring-[color:var(--status-running-soft-border)] ring-offset-1 ring-offset-(--surface-panel-background)"),
@@ -99,7 +100,7 @@ export function ExecutionNodeAvatar({
       data-execution-node-status={status}
       data-execution-node-tone={tone}
       data-execution-tool-visual={kind === "tool" ? toolVisualKind : undefined}
-      title={title}
+
     >
       {kind === "tool" ? (
         <ToolIcon
@@ -127,7 +128,7 @@ export function ExecutionNodeAvatar({
             graph
               ? "h-9.5 w-9.5 rounded-[10px]"
               : dock
-              ? "h-5.5 w-5.5 rounded-[6px]"
+              ? undefined
               : nested
               ? "h-7 w-7 rounded-[8px]"
               : "h-5 w-5",
@@ -135,12 +136,12 @@ export function ExecutionNodeAvatar({
           imageClassName={graph
             ? "rounded-[9px]"
             : dock
-            ? "rounded-[5px]"
+            ? undefined
             : nested
             ? "rounded-[7px]"
             : "rounded-[5px]"}
           name={agent.name}
-          size={graph ? "md" : "xs"}
+          size={graph ? "md" : dock ? "sm" : "xs"}
         />
       ) : kind === "subagent" ? (
         // 防御性 fallback；正常 WorkGraph 投影会为每个 Subagent 提供稳定头像。
@@ -175,7 +176,7 @@ export function ExecutionNodeAvatar({
           executionNodeDotTone(status, tone),
         )}
       />
-    </span>
+    </span></UiTooltip>
   );
 }
 

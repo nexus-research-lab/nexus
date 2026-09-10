@@ -1,13 +1,15 @@
 /**
  * INPUT: 统一会话时间线、当前滚动位置与跳转命令。
- * OUTPUT: 时间刻度和轻量轮次预览浮层。
+ * OUTPUT: 时间刻度和支持键盘退出、焦点归还的轻量轮次预览浮层。
  * POS: Conversation 桌面宽屏导航；预览不是模态弹窗。
  */
-import type { RefObject } from "react";
+import type { KeyboardEvent, RefObject } from "react";
 import { ChevronRight } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { isImeKeyboardEvent } from "@/shared/lib/browser/ime-keyboard-event";
 import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import type { ConversationRoundScrollHandleRef } from "../timeline/scroll/round-scroll";
 import type { ConversationTimeline } from "../timeline/timeline-model";
@@ -68,6 +70,18 @@ export function ConversationSessionNavigator({
     return null;
   }
 
+  const handlePreviewKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (!previewItem || event.key !== "Escape" || event.defaultPrevented || isImeKeyboardEvent(event.nativeEvent)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.target instanceof Element && event.target.closest("[data-session-navigator-preview]")) {
+      const tick = Array.from(event.currentTarget.closest("nav")!.querySelectorAll<HTMLButtonElement>("[data-session-navigator-round]"))
+        .find((button) => button.dataset.sessionNavigatorRound === previewItem.roundId);
+      tick?.focus({ preventScroll: true });
+    }
+    clearPreview();
+  };
+
   const trackHeight = getRulerTrackHeight(items.length);
   return (
     <nav
@@ -76,6 +90,11 @@ export function ConversationSessionNavigator({
         "pointer-events-none hidden h-auto w-11 select-none xl:block",
         className,
       )}
+      onBlur={(event) => {
+        if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) {
+          clearPreview();
+        }
+      }}
       onMouseLeave={clearPreview}
     >
       <div className="relative h-full min-h-[220px] w-full">
@@ -102,12 +121,14 @@ export function ConversationSessionNavigator({
               return (
                 <button
                   key={item.roundId}
+                  data-session-navigator-round={item.roundId}
                   type="button"
                   aria-current={isActive ? "true" : undefined}
                   aria-label={t("room.session_navigator_jump", {
                     title: item.title,
                   })}
                   className="flex min-h-0 w-12 flex-1 items-center justify-start rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
+                  onKeyDown={handlePreviewKeyDown}
                   onClick={() => {
                     jumpToRound(item);
                   }}
@@ -128,8 +149,9 @@ export function ConversationSessionNavigator({
 
             {previewItem ? (
               <button
-                className="dialog-shell surface-radius-lg pointer-events-auto absolute left-12 z-[60] w-[min(332px,calc(100vw-96px))] -translate-y-1/2 overflow-hidden text-left outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
+                className="surface-popover pointer-events-auto absolute left-12 ui-layer-popover w-[min(332px,calc(100vw-96px))] -translate-y-1/2 overflow-hidden text-left outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
                 data-session-navigator-preview="true"
+                onKeyDown={handlePreviewKeyDown}
                 style={{
                   top: `${getTickDisplayPercent(
                     previewItem.index,
@@ -151,19 +173,39 @@ export function ConversationSessionNavigator({
                 type="button"
               >
                 <span className="flex min-w-0 items-center gap-2 border-b border-(--divider-subtle-color) px-3 py-2.5">
-                  <span className="min-w-0 flex-1 truncate text-sm font-semibold leading-[18px] text-(--text-strong)">
+                  <span className={cn(
+                    "min-w-0 flex-1 truncate",
+                    getUiTypographyClassName({
+                      role: "supporting",
+                      tone: "strong",
+                      weight: "semibold",
+                    }),
+                  )}>
                     {previewItem.title}
                   </span>
-                  <span className="shrink-0 text-xs leading-4 text-(--text-muted)">
+                  <span className={cn(
+                    "shrink-0",
+                    getUiTypographyClassName({ role: "caption", tone: "muted" }),
+                  )}>
                     {previewItem.time}
                   </span>
                   <ChevronRight className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
                 </span>
                 <span className="block px-3 py-2.5">
-                  <span className="line-clamp-2 text-xs leading-[18px] text-(--text-default)">
+                  <span className={cn(
+                    "line-clamp-2",
+                    getUiTypographyClassName({ role: "metadata", tone: "default" }),
+                  )}>
                     {previewItem.summary}
                   </span>
-                  <span className="mt-2 flex min-w-0 items-center gap-1.5 text-2xs font-medium leading-4 text-(--text-soft)">
+                  <span className={cn(
+                    "mt-2 flex min-w-0 items-center gap-1.5",
+                    getUiTypographyClassName({
+                      role: "caption",
+                      tone: "soft",
+                      weight: "medium",
+                    }),
+                  )}>
                     <span
                       className={cn(
                         "h-1.5 w-1.5 shrink-0 rounded-full",

@@ -1,3 +1,8 @@
+/**
+ * INPUT: 当前 Provider、模型目录、筛选和互斥命令状态。
+ * OUTPUT: 模型列表、能力标识及同步、默认、删除和启停动作。
+ * POS: Provider 详情内的模型目录视图；不拥有命令事务或共享加载样式。
+ */
 "use client";
 
 import {
@@ -16,9 +21,12 @@ import {
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type {
   ProviderConfigRecord,
   ProviderModelCapabilities,
@@ -94,13 +102,13 @@ function ProviderModelListHeader({
   return (
     <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
       <div className="flex min-w-0 items-baseline gap-2">
-        <h3 className="text-base font-semibold tracking-tight text-(--text-strong)">
+        <h3 className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong" })}>
           {t("settings.providers.models")}
         </h3>
         {selectedRecord ? (
-          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-(--surface-muted-background) px-1.5 text-xs font-semibold text-(--text-muted)">
+          <UiBadge shape="pill" size="xs" tone="idle">
             {modelCount}
-          </span>
+          </UiBadge>
         ) : null}
       </div>
       {actionsVisible ? (
@@ -126,7 +134,7 @@ function ProviderModelListHeader({
             variant="surface"
           >
             {pendingAction?.kind === "fetch-models" ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
             ) : (
               <RefreshCw className="h-3.5 w-3.5" />
             )}
@@ -141,7 +149,7 @@ function ProviderModelListHeader({
 function ProviderModelCapabilities({ model }: { model: ProviderModelRecord }) {
   const capabilities = getEffectiveCapabilities(model);
   return (
-    <span className="flex shrink-0 items-center gap-1.5 text-2xs leading-4 text-(--text-muted)">
+    <span className={cn("flex shrink-0 items-center gap-1.5", getUiTypographyClassName({ role: "caption", tone: "muted" }))}>
       {PROVIDER_CAPABILITY_ICONS.map(({ Icon, key }) => (
         capabilities[key] ? <Icon className="h-3 w-3" key={key} /> : null
       ))}
@@ -160,29 +168,15 @@ function DefaultModelToggle({
   const { t } = useI18n();
   const requestDisable = () => onDefaultModelDisableAttempt(model);
   return (
-    <span
-      className="inline-flex"
-      onClick={requestDisable}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          requestDisable();
-        }
-      }}
-      role="button"
-      tabIndex={0}
+    <GlassSwitch
+      aria-label={t("settings.providers.toggle_model", {
+        name: model.display_name || model.model_id,
+      })}
+      checked={model.enabled}
+      onChange={() => requestDisable()}
+      size="xs"
       title={t("settings.providers.default_model_disable_tooltip")}
-    >
-      <GlassSwitch
-        aria-label={t("settings.providers.toggle_model", {
-          name: model.display_name || model.model_id,
-        })}
-        checked={model.enabled}
-        disabled
-        size="xs"
-        onChange={() => undefined}
-      />
-    </span>
+    />
   );
 }
 
@@ -203,7 +197,11 @@ function ProviderModelToggle({
   const isPending = pendingAction?.kind === "toggle-model"
     && pendingAction.modelId === model.model_id;
   if (isPending) {
-    return <Loader2 className="h-4 w-4 animate-spin text-(--text-muted)" />;
+    return (
+      <Loader2
+        className={getUiSpinnerClassName({ size: "md", tone: "muted" })}
+      />
+    );
   }
   if (model.is_default) {
     return (
@@ -260,7 +258,7 @@ function ProviderModelRow({
   return (
     <div className="grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b border-(--divider-subtle-color) px-2.5 py-1 last:border-b-0">
       <div className="flex min-w-0 items-center gap-2">
-        <span className="min-w-0 truncate font-mono text-sm leading-5 text-(--text-strong)">
+        <span className={cn("min-w-0 truncate", getUiTypographyClassName({ role: "code", tone: "strong" }))}>
           {displayName}
         </span>
         <ProviderModelCapabilities model={model} />
@@ -285,7 +283,7 @@ function ProviderModelRow({
               variant="ghost"
             >
               {isDefaultPending ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
               ) : (
                 <Star className="h-3.5 w-3.5" />
               )}
@@ -294,7 +292,7 @@ function ProviderModelRow({
           )
         ) : null}
         {model.model_id !== displayName ? (
-          <span className="hidden max-w-[120px] truncate font-mono text-xs text-(--text-soft) xl:inline">
+          <span className={cn("hidden max-w-[120px] truncate xl:inline", getUiTypographyClassName({ role: "code", tone: "soft" }))}>
             {model.model_id}
           </span>
         ) : null}
@@ -321,7 +319,7 @@ function ProviderModelRow({
             variant="ghost"
           >
             {isDeletePending ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
             ) : (
               <Trash2 className="h-3.5 w-3.5" />
             )}
@@ -364,7 +362,7 @@ function ProviderModelListBody({
   const { t } = useI18n();
   if (!selectedRecord || displayedModels.length === 0) {
     return (
-      <div className="flex min-h-28 items-center justify-center text-sm text-(--text-soft)">
+      <div className={cn("flex min-h-28 items-center justify-center", getUiTypographyClassName({ role: "supporting", tone: "soft" }))}>
         {selectedRecord
           ? t("settings.providers.models_empty")
           : t("settings.providers.models_after_save")}
@@ -430,7 +428,7 @@ export function ProviderSettingsModelList({
         variant="dialog"
       />
 
-      <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto rounded-[12px] border border-(--divider-subtle-color)">
+      <div className="soft-scrollbar surface-radius-md min-h-0 flex-1 overflow-y-auto border border-(--divider-subtle-color)">
         <ProviderModelListBody
           displayedModels={displayedModels}
           onDefaultModelDisableAttempt={onDefaultModelDisableAttempt}

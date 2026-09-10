@@ -8,11 +8,15 @@
 - `item/activity/` 统一活动状态契约，以及轮次级和内容块级的纯状态推导。
 - `item/process/` 负责过程摘要、问答超时识别与 DM live 连续工具段纯投影；工具段只接收人工交互工具 ID 集合作为边界，不取得权限动作所有权。
 - `ui/` 只保留跨消息表面的头像、动作、轨道和统计；消息项私有视图不得上提到共享聚合文件。
-- `markdown-renderer.tsx` 只把消息文件产物协议适配到共享 Markdown；通用渲染能力归 `shared/ui/markdown/`。
+- 用户消息展开、子智能体任务入口和 Artifact 外部动作必须直接复用 `UiButton` 的尺寸与状态合同；业务层只保留内容布局和领域命令，不得重新绘制按钮边框、圆角、hover 或 focus。
+- `ui/message-detail-toggle.tsx` 是 Thought、过程总览和工具过程段的统一展开行，固定 Button、箭头、ARIA、焦点与状态 tone；消费者只传前导身份、摘要、展开态和命令，不得各自复制 disclosure 按钮。
+- `markdown-renderer.tsx` 将消息文件产物协议适配到共享 Markdown，并在消费侧用 `useWorkspaceMarkdown` 绑定同一 exact Agent 的文件索引、图片 URL 和打开命令。`message-markdown-links.tsx` 独占 Agent mention/handoff 与 Slash URI 的解析、安全放行和链接渲染槽；通用渲染能力归 `shared/ui/markdown/`。
 - `agent-handoff-status-context.tsx` 只桥接按 `handoff_id` 投影的 mention 阶段；Room 面板从宿主 `handoff_reply` 恢复单调 `responded`，源 mention chip 依次原位展示等待调度、正在唤醒、处理中与已回应，非终态使用低强度活动点避免长等待被误解为停滞。目标消息头的“回应 @Agent”仅复用身份视觉，不建立 mention、wake 或第二张 Agent 卡。
-- DM/Room pending interaction 的唯一操作 owner 都是 Composer：消息内容与 Thread 只保留中性的等待确认过程证据，不得再次挂载权限、问答或计划确认组件，也不得用 warning 色或容器动画压过 Composer 决策按钮；消息活动文案共用低对比流光提示，但必须在系统减少动态效果时静态回退。
+- DM/Room pending interaction 的唯一操作 owner 都是 Composer：消息内容与 Thread 只保留中性的等待确认过程证据，不得再次挂载权限、问答或计划确认组件，也不得用 warning 色或容器动画压过 Composer 决策按钮；消息活动文案保持静态，只允许固定占位的共享局部指示器表达运行。
 - 单消费者逻辑留在拥有它的 controller/view；禁止重新建立聚合 helper 或通过根 barrel 暴露内部模型。
 - `MessageItem` 由 `item/message-item.tsx` 直接公开，消费者不得绕回消息目录聚合出口。
 - 消息项控制器只返回按 User/Assistant 和视觉职责分组的具体状态；各视图在消费侧声明所需结构，不共享宽状态接口。
 - Assistant 快照合并必须单调保留 `recalled_memories`，历史载入的引用摘要不得被同进度 live 快照覆盖。
 - live Assistant 高度只由当前可见内容的 intrinsic layout 决定；禁止用子级 `ResizeObserver` 把历史最高高度回写为 `min-height`，否则过程/正文切换会留下不可自愈的大空白。多 Agent 的展示节奏由 shared Markdown 帧调度器合批，MessageItem 不持有高度状态。
+
+Markdown 的服务端 mention rune 范围先应用于完整正文，再拆出文件卡；流式未完整到达或互相重叠的范围不局部截断成新 mention。

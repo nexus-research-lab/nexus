@@ -1,7 +1,14 @@
-import { Crown } from "lucide-react";
+// INPUT: Room 基础设置草稿、成员候选与字段更新/提交命令。
+// OUTPUT: 使用共享表单与选择原语的 Room 名称、群主和协作设置。
+// POS: Room 创建/管理弹窗的设置组合层；不拥有草稿状态或服务端提交。
+
+import { Cloud, Crown, HardDrive } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiCheckbox } from "@/shared/ui/form/checkbox";
+import { UiInput } from "@/shared/ui/form/form-control";
+import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 
 import type {
@@ -20,10 +27,12 @@ interface RoomSettingsFormProps {
     setAvatar: (avatar: string) => void;
     setHostAgentId: (agentId: string) => void;
     setHostAutoReplyEnabled: (enabled: boolean) => void;
+    setLocation: (location: RoomDialogFormState["location"]) => void;
     setName: (name: string) => void;
     setPrivateMessagesEnabled: (enabled: boolean) => void;
   };
   state: RoomDialogFormState;
+  showLocation: boolean;
 }
 
 export function RoomSettingsForm({
@@ -34,10 +43,11 @@ export function RoomSettingsForm({
   selectedAgents,
   setters,
   state,
+  showLocation,
 }: RoomSettingsFormProps) {
   const { t } = useI18n();
   const hostOptions = [
-    { label: "未设置", value: "" },
+    { label: t("room.host_unset"), value: "" },
     ...selectedAgents.map((agent) => ({
       label: agent.name,
       value: agent.agent_id,
@@ -46,6 +56,19 @@ export function RoomSettingsForm({
   return (
     <div className="flex min-h-0 min-w-0 flex-col gap-4">
       <p className="dialog-label">{t("room.settings_title")}</p>
+      {showLocation ? (
+        <UiSegmentedControl
+          disabled={isCreating}
+          onChange={setters.setLocation}
+          options={[
+            { icon: HardDrive, label: t("room.location_local"), value: "local" },
+            { icon: Cloud, label: t("room.location_online"), value: "online" },
+          ]}
+          stretch
+          title={t("room.location")}
+          value={state.location}
+        />
+      ) : null}
       <div className="flex items-start gap-3">
         <RoomAvatarPicker
           avatar={state.avatar}
@@ -56,20 +79,20 @@ export function RoomSettingsForm({
         />
         <label className="min-w-0 flex-1 space-y-1.5">
           <span className="dialog-label">{t("room.name")}</span>
-          <input
+          <UiInput
             aria-label={t("room.name")}
-            className="dialog-input h-10 min-w-0 w-full radius-control-md px-3 text-sm text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none"
+            className="min-w-0"
             data-autofocus="true"
+            disabled={isCreating}
             maxLength={64}
             onChange={(event) => setters.setName(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === "Enter" && canSubmit) {
+              if (event.key === "Enter" && !event.nativeEvent.isComposing && event.keyCode !== 229 && canSubmit) {
                 onSubmit();
               }
             }}
             placeholder={t("room.name_required_placeholder")}
             required
-            type="text"
             value={state.name}
           />
         </label>
@@ -78,10 +101,10 @@ export function RoomSettingsForm({
         <div className="flex items-center gap-2">
           <div className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-(--text-muted)">
             <Crown className="h-3.5 w-3.5 text-primary" />
-            <span>群主</span>
+            <span>{t("room.host_label")}</span>
           </div>
           <UiSelectMenu
-            ariaLabel="选择 Room 群主"
+            ariaLabel={t("room.host_select_label")}
             className="min-w-0 flex-1"
             disabled={selectedAgents.length === 0 || isCreating}
             onChange={setters.setHostAgentId}
@@ -94,14 +117,14 @@ export function RoomSettingsForm({
         <RoomSettingCheckbox
           checked={state.hostAutoReplyEnabled}
           className="mt-1.5"
-          disabled={!state.hostAgentId || isCreating}
-          label="未 @ 时由群主接管，可回答或协调"
+          disabled={!state.hostAgentId || state.location === "online" || isCreating}
+          label={t("room.host_auto_reply_label")}
           onChange={setters.setHostAutoReplyEnabled}
         />
         <RoomSettingCheckbox
           checked={state.privateMessagesEnabled}
           disabled={isCreating}
-          label="允许成员私信协作"
+          label={t("room.private_messages_label")}
           onChange={setters.setPrivateMessagesEnabled}
         />
       </div>
@@ -129,12 +152,11 @@ function RoomSettingCheckbox({
         className,
       )}
     >
-      <input
+      <UiCheckbox
         checked={checked}
-        className="h-3.5 w-3.5 shrink-0 accent-[var(--primary)] disabled:cursor-not-allowed disabled:opacity-55"
+        checkboxSize="small"
         disabled={disabled}
         onChange={(event) => onChange(event.target.checked)}
-        type="checkbox"
       />
       <span className="min-w-0 truncate">{label}</span>
     </label>

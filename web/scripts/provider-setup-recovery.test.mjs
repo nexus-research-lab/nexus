@@ -5,28 +5,18 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { createServer } from "vite";
+import { importLeafTypeScriptModule } from "./import-leaf-typescript-module.mjs";
 
 const webRoot = fileURLToPath(new URL("..", import.meta.url));
-const server = await createServer({
-  configFile: false,
-  logLevel: "silent",
-  resolve: { alias: { "@": path.join(webRoot, "src") } },
-  root: webRoot,
-  server: { middlewareMode: true },
-});
 
 if (!globalThis.crypto) {
   globalThis.crypto = webcrypto;
 }
 
-const recovery = await server.ssrLoadModule(
-  "/src/features/onboarding/provider-setup/provider-setup-recovery.ts",
+const recovery = await importLeafTypeScriptModule(
+  webRoot,
+  "src/features/onboarding/provider-setup/provider-setup-recovery.ts",
 );
-
-test.after(async () => {
-  await server.close();
-});
 
 test("create reconciliation requires exact key, version, and non-secret intent fingerprint", async () => {
   const journal = await providerJournal({ providerWasExisting: false });

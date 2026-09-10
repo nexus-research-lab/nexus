@@ -1,13 +1,14 @@
 /**
  * INPUT: 定时任务 durable 删除、绑定、权限或运行注意事项与后续动作。
- * OUTPUT: 以任务名为标题的处理面；人工复核只提供刷新、历史和显式停止确认入口。
- * POS: Scheduled 看板的注意事项处理边界；不暴露内部删除 token 或误复用旧权限语义。
+ * OUTPUT: 以任务名为标题、复用 Badge/Panel/Typography 的处理面，已知错误按当前语言解释且保留完整诊断。
+ * POS: Scheduled 看板处理边界；只组合业务事实与共享 UI，不暴露内部删除 token。
  */
 "use client";
 
 import { History, RefreshCw, Trash2 } from "lucide-react";
 
 import { UiButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -16,10 +17,14 @@ import {
   UiDialogPortal,
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
+import { UiBadge } from "@/shared/ui/display/badge";
+import { UiPanel } from "@/shared/ui/panel";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { AutomationPermissionDecision } from "@/types/capability/scheduled-task/permission";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 
 import { getScheduledTaskErrorCopy } from "../scheduled-task-error-copy";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import {
   getScheduledPermissionCapabilityLabel,
   getScheduledPermissionResourceSummary,
@@ -76,25 +81,26 @@ export function ScheduledTaskAttentionDialog({
   task,
   title,
 }: ScheduledTaskAttentionDialogProps) {
+  const { t } = useI18n();
   if (!isOpen) {
     return null;
   }
   const request = task.pending_permission_request;
   const capabilityLabel = request
-    ? getScheduledPermissionCapabilityLabel(request)
+    ? getScheduledPermissionCapabilityLabel(request, t)
     : null;
   const resourceSummary = request
     ? getScheduledPermissionResourceSummary(request)
     : null;
-  const errorCopy = getScheduledTaskErrorCopy(task.last_error);
+  const errorCopy = getScheduledTaskErrorCopy(task.running ? null : task.last_error, t);
   const errorEchoesPermission = Boolean(
     request?.capability.tool_name
       && task.last_error?.includes(request.capability.tool_name),
   );
   const hasPermissionAttention = hasScheduledTaskPermissionAttention(task);
   const requestStatusLabel = request?.status === "approved"
-    ? "已批准，待重试"
-    : "等待处理";
+    ? t("capability.scheduled_board_approved_retry")
+    : t("capability.scheduled_board_waiting");
   const deletionNeedsReview = task.deletion_state?.trim() === "review_required";
   const titleId = `scheduled-task-attention-${task.job_id}`;
 
@@ -111,7 +117,7 @@ export function ScheduledTaskAttentionDialog({
         labelledBy={titleId}
         onClose={onClose}
       >
-        <UiDialogShell className="max-h-[86vh]" size="lg">
+        <UiDialogShell size="md" viewport="adaptiveMax">
           <UiDialogHeader
             appearance="plain"
             onClose={onClose}
@@ -123,48 +129,76 @@ export function ScheduledTaskAttentionDialog({
             {isDeletionAttention ? (
               <section aria-labelledby={`${titleId}-deletion`}>
                 <h3
-                  className="text-sm font-semibold text-(--text-strong)"
+                  className={getUiTypographyClassName({
+                    role: "supporting",
+                    tone: "strong",
+                    weight: "semibold",
+                  })}
                   id={`${titleId}-deletion`}
                 >
-                  {title || (deletionNeedsReview ? "删除需要管理员处理" : "任务正在删除")}
+                  {title || (deletionNeedsReview ? t("capability.scheduled_delete_review_required_title") : t("capability.scheduled_board_deleting_title"))}
                 </h3>
-                <p className="mt-2 text-sm leading-6 text-(--text-default)">
+                <p className={cn(
+                  "mt-2",
+                  getUiTypographyClassName({ role: "supporting", tone: "default" }),
+                )}>
                   {description || (deletionNeedsReview
-                    ? "系统无法确认删除前的原执行是否已经停止，因此任务数据尚未删除。"
-                    : "删除请求已受理，系统正在停止任务并完成收尾。")}
+                    ? t("capability.scheduled_board_delete_review_description")
+                    : t("capability.scheduled_board_deleting_description"))}
                 </p>
-                <div className="mt-4 space-y-4 rounded-[8px] border border-(--divider-subtle-color) px-3 py-3">
+                <UiPanel className="mt-4 space-y-4" padding="sm" radius="sm">
                   <div>
-                    <h4 className="text-xs font-semibold text-(--text-strong)">
-                      对已有内容的影响
+                    <h4 className={getUiTypographyClassName({
+                      role: "caption",
+                      tone: "strong",
+                      weight: "semibold",
+                    })}>
+                      {t("capability.scheduled_board_impact_title")}
                     </h4>
-                    <p className="mt-1 text-xs leading-5 text-(--text-default)">
+                    <p className={cn(
+                      "mt-1",
+                      getUiTypographyClassName({ role: "metadata", tone: "default" }),
+                    )}>
                       {deletionImpact || (deletionNeedsReview
-                        ? "任务配置和运行记录仍然保留；继续确认后会删除任务和历史，但此前已经发生的外部影响无法撤回。"
-                        : "已保存的运行记录不会被重写；已经发生的外部操作不会被撤销或自动重做。")}
+                        ? t("capability.scheduled_board_delete_review_impact")
+                        : t("capability.scheduled_board_deleting_impact"))}
                     </p>
                   </div>
                   <div>
-                    <h4 className="text-xs font-semibold text-(--text-strong)">
-                      现在可以做什么
+                    <h4 className={getUiTypographyClassName({
+                      role: "caption",
+                      tone: "strong",
+                      weight: "semibold",
+                    })}>
+                      {t("capability.scheduled_board_next_step_title")}
                     </h4>
-                    <p className="mt-1 text-xs leading-5 text-(--text-default)">
+                    <p className={cn(
+                      "mt-1",
+                      getUiTypographyClassName({ role: "metadata", tone: "default" }),
+                    )}>
                       {deletionNextStep || (deletionNeedsReview
-                        ? "请先确认原执行端已经停止，再使用下方确认操作完成删除；也可以先刷新或查看运行历史。"
-                        : "无需再次删除。请等待片刻后刷新，或先查看运行历史。")}
+                        ? t("capability.scheduled_board_delete_review_next")
+                        : t("capability.scheduled_board_deleting_next"))}
                     </p>
                   </div>
-                </div>
+                </UiPanel>
               </section>
             ) : isBindingAttention ? (
               <section aria-labelledby={`${titleId}-binding`}>
                 <h3
-                  className="text-sm font-semibold text-(--text-strong)"
+                  className={getUiTypographyClassName({
+                    role: "supporting",
+                    tone: "strong",
+                    weight: "semibold",
+                  })}
                   id={`${titleId}-binding`}
                 >
-                  {title || "重新绑定会话"}
+                  {title || t("capability.scheduled_board_rebind")}
                 </h3>
-                <p className="mt-2 text-sm leading-6 text-(--text-default)">
+                <p className={cn(
+                  "mt-2",
+                  getUiTypographyClassName({ role: "supporting", tone: "default" }),
+                )}>
                   {description}
                 </p>
               </section>
@@ -172,33 +206,56 @@ export function ScheduledTaskAttentionDialog({
               <section aria-labelledby={`${titleId}-request`}>
                 <div className="flex items-center justify-between gap-3">
                   <h3
-                    className="text-sm font-semibold text-(--text-strong)"
+                    className={getUiTypographyClassName({
+                      role: "supporting",
+                      tone: "strong",
+                      weight: "semibold",
+                    })}
                     id={`${titleId}-request`}
                   >
-                    {title || capabilityLabel || "权限请求"}
+                    {title || capabilityLabel || t("capability.scheduled_board_permission_request")}
                   </h3>
-                  <span className="rounded-full border border-[color:color-mix(in_srgb,var(--warning)_28%,var(--divider-subtle-color))] px-2 py-0.5 text-[11px] font-medium text-(--warning)">
+                  <UiBadge shape="pill" size="sm" tone="warning">
                     {requestStatusLabel}
-                  </span>
+                  </UiBadge>
                 </div>
-                <p className="mt-2 text-sm leading-6 text-(--text-default)">
+                <p className={cn(
+                  "mt-2",
+                  getUiTypographyClassName({ role: "supporting", tone: "default" }),
+                )}>
                   {description || request.description || request.reason}
                 </p>
 
-                <dl className="mt-4 overflow-hidden rounded-[8px] border border-(--divider-subtle-color)">
-                  <div className="grid grid-cols-[88px_minmax(0,1fr)] border-b border-(--divider-subtle-color) px-3 py-2.5 text-xs last:border-b-0">
-                    <dt className="text-(--text-muted)">能力</dt>
-                    <dd className="min-w-0 font-medium text-(--text-strong)">
+                <dl className="mt-4 overflow-hidden surface-radius-sm border border-(--divider-subtle-color)">
+                  <div className="grid grid-cols-[88px_minmax(0,1fr)] border-b border-(--divider-subtle-color) px-3 py-2.5 last:border-b-0">
+                    <dt className={getUiTypographyClassName({
+                      role: "caption",
+                      tone: "muted",
+                    })}>{t("capability.scheduled_board_capability")}</dt>
+                    <dd className={cn(
+                      "min-w-0",
+                      getUiTypographyClassName({
+                        role: "caption",
+                        tone: "strong",
+                        weight: "medium",
+                      }),
+                    )}>
                       {capabilityLabel}
                     </dd>
                   </div>
                   {resourceSummary ? (
-                    <div className="grid grid-cols-[88px_minmax(0,1fr)] border-b border-(--divider-subtle-color) px-3 py-2.5 text-xs last:border-b-0">
-                      <dt className="text-(--text-muted)">目标</dt>
-                      <dd className="min-w-0 break-all text-(--text-default)">
+                    <div className="grid grid-cols-[88px_minmax(0,1fr)] border-b border-(--divider-subtle-color) px-3 py-2.5 last:border-b-0">
+                      <dt className={getUiTypographyClassName({
+                        role: "caption",
+                        tone: "muted",
+                      })}>{t("capability.scheduled_board_target")}</dt>
+                      <dd className={cn(
+                        "min-w-0 break-all",
+                        getUiTypographyClassName({ role: "caption", tone: "default" }),
+                      )}>
                         {isWebResource(resourceSummary) ? (
                           <a
-                            className="underline decoration-(--divider-color) underline-offset-2 hover:text-(--primary)"
+                            className="underline decoration-(--divider-subtle-color) underline-offset-2 hover:text-(--primary)"
                             href={resourceSummary}
                             rel="noreferrer"
                             target="_blank"
@@ -209,35 +266,55 @@ export function ScheduledTaskAttentionDialog({
                       </dd>
                     </div>
                   ) : null}
-                  <div className="grid grid-cols-[88px_minmax(0,1fr)] px-3 py-2.5 text-xs">
-                    <dt className="text-(--text-muted)">批准后</dt>
-                    <dd className="text-(--text-default)">
+                  <div className="grid grid-cols-[88px_minmax(0,1fr)] px-3 py-2.5">
+                    <dt className={getUiTypographyClassName({
+                      role: "caption",
+                      tone: "muted",
+                    })}>{t("capability.scheduled_board_after_approval")}</dt>
+                    <dd className={getUiTypographyClassName({
+                      role: "caption",
+                      tone: "default",
+                    })}>
                       {request.status === "approved"
-                        ? "审批已完成；确认后会重试同一次运行"
+                        ? t("capability.scheduled_board_approved_next")
                         : request.resume_safe
-                        ? "结束当前尝试，并自动继续同一次运行"
-                        : "等待你再次确认后才会重试，避免重复副作用"}
+                        ? t("capability.scheduled_board_safe_resume")
+                        : t("capability.scheduled_board_unsafe_resume")}
                     </dd>
                   </div>
                 </dl>
 
-                <div className="mt-3 rounded-[8px] border border-(--divider-subtle-color) px-3 py-2.5 text-xs leading-5 text-(--text-muted)">
-                  <p className="font-medium text-(--text-default)">这项选择只处理当前任务正在等待的权限。</p>
-                  <p className="mt-1">
-                    页面会在提交后重新读取任务状态；如果结果无法确认，会先停止同类操作并提示你核对，不会自动重复执行。
+                <UiPanel className="mt-3" padding="sm" radius="sm">
+                  <p className={getUiTypographyClassName({
+                    role: "metadata",
+                    tone: "default",
+                    weight: "medium",
+                  })}>{t("capability.scheduled_board_permission_scope")}</p>
+                  <p className={cn(
+                    "mt-1",
+                    getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+                  )}>
+                    {t("capability.scheduled_board_permission_reconcile")}
                   </p>
-                </div>
+                </UiPanel>
               </section>
             ) : hasPermissionAttention ? (
               <section aria-labelledby={`${titleId}-state`}>
                 <h3
-                  className="text-sm font-semibold text-(--text-strong)"
+                  className={getUiTypographyClassName({
+                    role: "supporting",
+                    tone: "strong",
+                    weight: "semibold",
+                  })}
                   id={`${titleId}-state`}
                 >
-                  {title || "任务需要处理"}
+                  {title || t("capability.scheduled_board_attention_title")}
                 </h3>
-                <p className="mt-2 text-sm leading-6 text-(--text-default)">
-                  {description || "任务权限状态已经变化，请刷新后再执行下一步操作。"}
+                <p className={cn(
+                  "mt-2",
+                  getUiTypographyClassName({ role: "supporting", tone: "default" }),
+                )}>
+                  {description || t("capability.scheduled_board_permission_changed")}
                 </p>
               </section>
             ) : null}
@@ -248,12 +325,19 @@ export function ScheduledTaskAttentionDialog({
                 className="border-t border-(--divider-subtle-color) pt-4"
               >
                 <h3
-                  className="text-xs font-semibold text-(--destructive)"
+                  className={getUiTypographyClassName({
+                    role: "caption",
+                    tone: "danger",
+                    weight: "semibold",
+                  })}
                   id={`${titleId}-diagnostic`}
                 >
-                  {hasPermissionAttention ? "附带运行诊断" : "最近运行诊断"}
+                  {hasPermissionAttention ? t("capability.scheduled_board_additional_diagnostic") : t("capability.scheduled_board_recent_diagnostic")}
                 </h3>
-                <p className="mt-2 whitespace-pre-wrap break-words text-xs leading-5 text-(--text-default)">
+                <p className={cn(
+                  "mt-2 whitespace-pre-wrap break-words",
+                  getUiTypographyClassName({ role: "metadata", tone: "default" }),
+                )}>
                   {errorCopy.detail}
                 </p>
               </section>
@@ -268,7 +352,7 @@ export function ScheduledTaskAttentionDialog({
                 variant="text"
               >
                 <History className="h-3.5 w-3.5" />
-                查看运行历史
+                {t("capability.scheduled_board_history")}
               </UiButton>
               {isDeletionAttention ? (
                 <div className="flex flex-wrap items-center justify-end gap-2">
@@ -279,7 +363,7 @@ export function ScheduledTaskAttentionDialog({
                     variant="surface"
                   >
                     <RefreshCw className="h-3.5 w-3.5" />
-                    刷新任务状态
+                    {t("capability.scheduled_board_refresh")}
                   </UiButton>
                   {deletionNeedsReview ? (
                     <UiButton
@@ -291,8 +375,8 @@ export function ScheduledTaskAttentionDialog({
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                       {isDeletionReviewPending
-                        ? "确认结果待核对"
-                        : "确认已停止，继续删除"}
+                        ? t("capability.scheduled_board_confirmation_unknown")
+                        : t("capability.scheduled_board_confirm_stopped")}
                     </UiButton>
                   ) : null}
                 </div>
@@ -304,7 +388,7 @@ export function ScheduledTaskAttentionDialog({
                   tone="primary"
                   variant="solid"
                 >
-                  重新绑定会话
+                  {t("capability.scheduled_board_rebind")}
                 </UiButton>
               ) : hasPermissionActions ? (
                 <div className="flex flex-wrap items-center justify-end gap-2">

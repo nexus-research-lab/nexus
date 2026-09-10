@@ -1,3 +1,9 @@
+// INPUT: 运行错误原文与当前翻译函数。
+// OUTPUT: 可见的本地化运行问题摘要，以及按原文保留的显式诊断详情。
+// POS: Scheduled 已知错误语义的唯一展示映射；未知详情不回退为卡片摘要，不按文本猜测恢复权限。
+
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
+
 interface ScheduledTaskErrorCopy {
   detail: string;
   summary: string;
@@ -5,6 +11,7 @@ interface ScheduledTaskErrorCopy {
 
 export function getScheduledTaskErrorCopy(
   value: string | null | undefined,
+  t: I18nContextValue["t"],
 ): ScheduledTaskErrorCopy | null {
   const message = value?.trim();
   if (!message) {
@@ -12,15 +19,15 @@ export function getScheduledTaskErrorCopy(
   }
   if (message === "previous run is still running; overlap_policy=skip") {
     return {
-      detail: `上一次运行仍未结束，任务按“跳过重叠执行”策略略过了本次调度。\n\n技术信息：${message}`,
-      summary: "上一次运行未结束，本次调度已跳过",
+      detail: t("capability.scheduled_error_overlap_detail", { error: message }),
+      summary: t("capability.scheduled_error_overlap_summary"),
     };
   }
   if (message === "Permission request timeout") {
     return {
-      detail: `任务等待权限响应超时。\n\n技术信息：${message}`,
-      summary: "等待权限响应超时",
+      detail: t("capability.scheduled_error_permission_detail", { error: message }),
+      summary: t("capability.scheduled_error_permission_summary"),
     };
   }
-  return { detail: message, summary: message.split("\n", 1)[0] ?? message };
+  return { detail: message, summary: t("capability.scheduled_error_unknown_summary") };
 }

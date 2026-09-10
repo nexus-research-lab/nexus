@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getAvailableSkillsApi } from "@/lib/api/capability/skill-api";
 import { getSkillDisplayDescription } from "@/lib/skill-description";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 import type { SkillInfo } from "@/types/capability/skill";
 
 import type { RoomSkillOption } from "./room-skill-multi-select-model";
@@ -46,35 +47,25 @@ export function useRoomSkillOptions(query: string) {
     };
   }, [t]);
 
-  const normalizedQuery = query.trim().toLowerCase();
   const options = useMemo<RoomSkillOption[]>(
-    () => state.items
-      .map((skill) => ({
+    () => {
+      const search = createUiSearchMatcher(query);
+      return state.items.map((skill) => ({
         description: getSkillDisplayDescription(skill, t),
         skill,
       }))
-      .filter(({ description, skill }) => (
-        matchesSkill(skill, description, normalizedQuery)
-      ))
+      .filter(({ description, skill }) => search.matches([
+        skill.name,
+        skill.title,
+        description,
+      ]))
       .map(({ description, skill }) => ({
         description: description || skill.title,
         label: skill.name,
         value: skill.name,
-      })),
-    [normalizedQuery, state.items, t],
+      }));
+    },
+    [query, state.items, t],
   );
   return { ...state, options };
-}
-
-function matchesSkill(
-  skill: SkillInfo,
-  description: string,
-  query: string,
-): boolean {
-  if (!query) {
-    return true;
-  }
-  return [skill.name, skill.title, description].some((value) =>
-    value.toLowerCase().includes(query),
-  );
 }

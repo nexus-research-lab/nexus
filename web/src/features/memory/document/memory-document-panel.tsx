@@ -1,16 +1,22 @@
 // INPUT: Memory 文档控制面、目录动作和 workspace live 状态。
-// OUTPUT: 正文、P/I/R 失败、冲突双版对照与明确决策入口。
+// OUTPUT: 既有正文布局、具名加载、访问失败返回、公共源码编辑与冲突双版决策。
 // POS: Memory 正文可视化；不自动合并或覆盖并发版本。
 "use client";
 
 import { useMemo } from "react";
-import { LoaderCircle, RefreshCw } from "lucide-react";
+
+import { useWorkspaceMarkdown } from "@/hooks/agent/use-workspace-markdown";
+import { ArrowLeft, RefreshCw } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
+import { UiButton } from "@/shared/ui/button/button";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
+import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
+import { UiSourceEditor } from "@/shared/ui/form/source-editor";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
 import type { WorkspaceLiveFileState } from "@/types/app/workspace-live";
 import type { MemoryDocument } from "@/types/memory/memory";
@@ -66,7 +72,13 @@ export function MemoryDocumentPanel({
   }
   if (controller.resourceError?.access) {
     return (
-      <div className="nexus-memory-document flex min-h-0 min-w-0 flex-col">
+      <div className="nexus-memory-document @container/memory-document flex min-h-0 min-w-0 flex-col">
+        <div className="nexus-memory-compact-only nexus-memory-document-content shrink-0 py-3">
+          <UiButton onClick={onBack} size="sm" variant="ghost">
+            <ArrowLeft aria-hidden className="h-4 w-4" />
+            {t("capability.memory_back_to_directory")}
+          </UiButton>
+        </div>
         <UiResourceState
           impact={t("state.access_failure_impact")}
           primaryAction={{
@@ -82,7 +94,7 @@ export function MemoryDocumentPanel({
     );
   }
   return (
-    <div className="nexus-memory-document flex min-h-0 min-w-0 flex-col">
+    <div className="nexus-memory-document @container/memory-document flex min-h-0 min-w-0 flex-col">
       <MemoryDocumentHeader
         controller={controller}
         deleteBusy={deleteBusy}
@@ -148,20 +160,22 @@ function MemoryDocumentAlerts({
   const stale = staleDays > MEMORY_STALE_AFTER_DAYS;
   const commandError = controller.commandError;
   const resourceFailure = controller.resourceError;
+  const hasLoadedContent = controller.revision !== null || controller.content !== "";
   if (
     !stale
     && !commandError
     && !controller.saveIssue
-    && !(resourceFailure && !resourceFailure.access && controller.content)
+    && !(resourceFailure && !resourceFailure.access && hasLoadedContent)
   ) {
     return null;
   }
   return (
     <div className="nexus-memory-document-content shrink-0 space-y-1 pb-2">
       {stale ? (
-        <div className="rounded-[8px] bg-[color:color-mix(in_srgb,var(--warning)_7%,transparent)] px-3 py-2 text-compact leading-5 text-(--warning)">
-          {t("capability.memory_stale", { count: staleDays })}
-        </div>
+        <UiInlineNotice
+          message={t("capability.memory_stale", { count: staleDays })}
+          tone="warning"
+        />
       ) : null}
       {commandError ? (
         <UiResourceState
@@ -181,7 +195,7 @@ function MemoryDocumentAlerts({
       {controller.saveIssue ? (
         <MemorySaveIssueNotice controller={controller} />
       ) : null}
-      {resourceFailure && !resourceFailure.access && controller.content ? (
+      {resourceFailure && !resourceFailure.access && hasLoadedContent ? (
         <UiResourceState
           className="min-h-0 py-3"
           impact={t("capability.memory_stale_document_impact")}
@@ -218,6 +232,7 @@ function MemorySaveIssueNotice({
           className="min-h-0 py-3"
           impact={t("capability.memory_conflict_review_impact")}
           primaryAction={{
+            disabled: controller.isSaving || controller.isReconciling,
             label: t("capability.memory_use_latest"),
             onClick: controller.adoptLatest,
           }}
@@ -296,20 +311,21 @@ function MemoryDocumentBody({
   onSelectPath: (path: string) => void;
 }) {
   const { t } = useI18n();
+  const { resolveFilePath, getFilePreviewUrl } = useWorkspaceMarkdown(agentId);
   const indexEntries = useMemo(
     () => document.kind === "index"
       ? parseMemoryIndexEntries(controller.content)
       : [],
     [controller.content, document.kind],
   );
-  if (controller.isLoading && !controller.content) {
+  const hasLoadedContent = controller.revision !== null || controller.content !== "";
+  if (controller.isLoading && !hasLoadedContent) {
     return (
-      <div className="flex min-h-[260px] items-center justify-center text-(--text-muted)">
-        <LoaderCircle className="h-5 w-5 animate-spin" />
-      </div>
+      <UiResourceState className="min-h-[260px]" size="sm" state="loading"
+        title={t("common.loading")} variant="plain" />
     );
   }
-  if (controller.resourceError && !controller.content) {
+  if (controller.resourceError && !hasLoadedContent) {
     return (
       <UiResourceState
         impact={t("state.read_failure_impact")}
@@ -332,11 +348,10 @@ function MemoryDocumentBody({
       return <MemoryConflictReview controller={controller} />;
     }
     return (
-      <textarea
+      <UiSourceEditor
         aria-label={t("capability.memory_editor_aria")}
-        className="nexus-memory-document-content message-cjk-code-font min-h-0 flex-1 resize-none overflow-y-auto bg-transparent py-4 text-sm leading-6 text-(--text-default) outline-none"
+        className="nexus-memory-document-content flex-1 py-4"
         onChange={(event) => controller.setDraft(event.target.value)}
-        spellCheck={false}
         value={controller.draft}
       />
     );
@@ -357,7 +372,8 @@ function MemoryDocumentBody({
       )}
       content={stripMemoryFrontmatter(controller.content)}
       mermaidShowHeader={false}
-      workspaceAgentId={agentId}
+      getFilePreviewUrl={getFilePreviewUrl}
+      resolveFilePath={resolveFilePath}
     />
   );
 }
@@ -369,28 +385,26 @@ function MemoryConflictReview({
 }) {
   const { t } = useI18n();
   return (
-    <div className="nexus-memory-document-content grid min-h-0 flex-1 gap-2 py-4 lg:grid-cols-2">
-      <section className="flex min-h-[240px] min-w-0 flex-col rounded-[10px] border border-[color:color-mix(in_srgb,var(--warning)_26%,var(--border-subtle))] bg-[color:color-mix(in_srgb,var(--warning)_4%,transparent)]">
-        <h3 className="shrink-0 px-3 pb-2 pt-3 text-xs font-semibold text-(--text-strong)">
+    <div className="nexus-memory-document-content grid min-h-0 flex-1 gap-2 py-4 @min-[640px]/memory-document:grid-cols-2">
+      <section className="flex min-h-[240px] min-w-0 flex-col radius-control-md border border-[color:color-mix(in_srgb,var(--warning)_26%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--warning)_4%,transparent)]">
+        <h3 className={cn("shrink-0 px-3 pb-2 pt-3", getUiTypographyClassName({ role: "metadata", tone: "strong", weight: "semibold" }))}>
           {t("capability.memory_local_draft")}
         </h3>
-        <textarea
+        <UiSourceEditor
           aria-label={t("capability.memory_local_draft")}
-          className="message-cjk-code-font min-h-[200px] flex-1 resize-none overflow-auto bg-transparent px-3 pb-3 text-sm leading-6 text-(--text-default) outline-none"
+          className="min-h-[200px] flex-1 px-3 pb-3"
           onChange={(event) => controller.setDraft(event.target.value)}
-          spellCheck={false}
           value={controller.draft}
         />
       </section>
-      <section className="flex min-h-[240px] min-w-0 flex-col rounded-[10px] border border-(--border-subtle) bg-(--surface-subtle)">
-        <h3 className="shrink-0 px-3 pb-2 pt-3 text-xs font-semibold text-(--text-strong)">
+      <section className="flex min-h-[240px] min-w-0 flex-col radius-control-md border border-(--divider-subtle-color) bg-(--surface-panel-subtle-background)">
+        <h3 className={cn("shrink-0 px-3 pb-2 pt-3", getUiTypographyClassName({ role: "metadata", tone: "strong", weight: "semibold" }))}>
           {t("capability.memory_saved_version")}
         </h3>
-        <textarea
+        <UiSourceEditor
           aria-label={t("capability.memory_saved_version")}
-          className="message-cjk-code-font min-h-[200px] flex-1 resize-none overflow-auto bg-transparent px-3 pb-3 text-sm leading-6 text-(--text-muted) outline-none"
+          className="min-h-[200px] flex-1 px-3 pb-3"
           readOnly
-          spellCheck={false}
           value={controller.content}
         />
       </section>

@@ -1,6 +1,6 @@
 /**
  * INPUT: 通用偏好、Echo 与默认模型目录状态。
- * OUTPUT: 分域恢复提示和通用行为设置控件。
+ * OUTPUT: 分域恢复提示、唯一设置开关行与具名分段偏好字段。
  * POS: General 行为分区视图；Preferences 写入仍由版本化控制器负责。
  */
 "use client";
@@ -20,21 +20,20 @@ import {
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { UiSelectMenuOption } from "@/shared/ui/menu/select-menu-model";
-import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
 import type { AgentConversationDefaultDeliveryPolicy } from "@/types/agent/agent-conversation";
 
 import { SettingsDefaultModelRow } from "../components/settings-default-model-row";
 import { DELIVERY_POLICY_OPTIONS } from "../model/settings-options";
 import {
+  SettingsToggleRow,
   SETTINGS_CARD_CLASS_NAME,
-  SETTINGS_CONTROL_LABEL_CLASS_NAME,
   SETTINGS_ICON_CLASS_NAME,
   SETTINGS_ITEM_DESCRIPTION_CLASS_NAME,
   SETTINGS_ITEM_TITLE_CLASS_NAME,
   SETTINGS_ROW_CLASS_NAME,
   SETTINGS_TEXT_ROW_CLASS_NAME,
-  SettingsSegmentedControl,
 } from "../../shared/settings-panel-ui";
 import type { DefaultModelPreferenceRole } from "../model/default-model-preferences-model";
 import { SettingsOnboardingRow } from "../components/settings-onboarding-row";
@@ -145,6 +144,8 @@ export function SettingsGeneralBehaviorSection({
         <UiResourceState
           impact={t("settings.general.default_model_catalog_failed_impact")}
           primaryAction={{
+            busy: providerOptionsLoading,
+            busyLabel: t("settings.general.default_model_loading"),
             label: t("settings.general.default_model_catalog_retry"),
             onClick: onRetryDefaultModelCatalog,
           }}
@@ -155,158 +156,63 @@ export function SettingsGeneralBehaviorSection({
         />
       ) : null}
       <div className={SETTINGS_CARD_CLASS_NAME}>
-        <div className={SETTINGS_ROW_CLASS_NAME}>
-          <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
-            <div className={SETTINGS_ICON_CLASS_NAME}>
-              <Bug className="h-3.5 w-3.5" />
-            </div>
-            <div className="min-w-0">
-              <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
-                {t("settings.general.agent_sdk_diagnostics_title")}
-              </h3>
-              <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
-                {t("settings.general.agent_sdk_diagnostics_description")}
-              </p>
-            </div>
-          </div>
-          <div className="flex min-w-0 items-center justify-between gap-3 md:justify-end">
-            <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
-              {t("settings.general.agent_sdk_diagnostics_label")}
-            </span>
-            <GlassSwitch
-              aria-label={t("settings.general.agent_sdk_diagnostics_label")}
-              checked={agentSdkDiagnosticsEnabled}
-              disabled={preferencesLoading || preferencesSaving}
-              onChange={onAgentSdkDiagnosticsChange}
-              size="sm"
-            />
-          </div>
-        </div>
+        <SettingsToggleRow
+          checked={agentSdkDiagnosticsEnabled}
+          description={t("settings.general.agent_sdk_diagnostics_description")}
+          disabled={preferencesLoading || preferencesSaving}
+          icon={<Bug className="h-3.5 w-3.5" />}
+          onChange={onAgentSdkDiagnosticsChange}
+          title={t("settings.general.agent_sdk_diagnostics_title")}
+        />
 
         <div className="border-t border-(--divider-subtle-color)" />
 
-        <div className={SETTINGS_ROW_CLASS_NAME}>
-          <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
-            <div className={SETTINGS_ICON_CLASS_NAME}>
-              <Brain className="h-3.5 w-3.5" />
-            </div>
-            <div className="min-w-0">
-              <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
-                {t("settings.general.auto_memory_title")}
-              </h3>
-              <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
-                {t("settings.general.auto_memory_description")}
-              </p>
-            </div>
-          </div>
-          <div className="flex min-w-0 items-center justify-between gap-3 md:justify-end">
-            <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
-              {t("settings.general.auto_memory_label")}
-            </span>
-            <GlassSwitch
-              aria-label={t("settings.general.auto_memory_title")}
-              checked={autoMemoryEnabled}
-              disabled={preferencesLoading || preferencesSaving}
-              onChange={onAutoMemoryEnabledChange}
-              size="sm"
-            />
-          </div>
-        </div>
+        <SettingsToggleRow
+          checked={autoMemoryEnabled}
+          description={t("settings.general.auto_memory_description")}
+          disabled={preferencesLoading || preferencesSaving}
+          icon={<Brain className="h-3.5 w-3.5" />}
+          onChange={onAutoMemoryEnabledChange}
+          title={t("settings.general.auto_memory_title")}
+        />
 
         <div className="border-t border-(--divider-subtle-color)" />
 
-        <div className={SETTINGS_ROW_CLASS_NAME}>
-          <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
-            <div className={SETTINGS_ICON_CLASS_NAME}>
-              <Moon className="h-3.5 w-3.5" />
-            </div>
-            <div className="min-w-0">
-              <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
-                {t("settings.general.auto_dream_title")}
-              </h3>
-              <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
-                {t("settings.general.auto_dream_description")}
-              </p>
-            </div>
-          </div>
-          <div className="flex min-w-0 items-center justify-between gap-3 md:justify-end">
-            <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
-              {t("settings.general.auto_dream_label")}
-            </span>
-            <GlassSwitch
-              aria-label={t("settings.general.auto_dream_title")}
-              checked={autoDreamEnabled}
-              disabled={preferencesLoading || preferencesSaving}
-              onChange={onAutoDreamEnabledChange}
-              size="sm"
-            />
-          </div>
-        </div>
+        <SettingsToggleRow
+          checked={autoDreamEnabled}
+          description={t("settings.general.auto_dream_description")}
+          disabled={preferencesLoading || preferencesSaving}
+          icon={<Moon className="h-3.5 w-3.5" />}
+          onChange={onAutoDreamEnabledChange}
+          title={t("settings.general.auto_dream_title")}
+        />
 
         <div className="border-t border-(--divider-subtle-color)" />
 
-        <div className={SETTINGS_ROW_CLASS_NAME}>
-          <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
-            <div className={SETTINGS_ICON_CLASS_NAME}>
-              <HeartPulse className="h-3.5 w-3.5" />
-            </div>
-            <div className="min-w-0">
-              <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
-                {t("settings.general.emotion_title")}
-              </h3>
-              <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
-                {t("settings.general.emotion_description")}
-              </p>
-            </div>
-          </div>
-          <div className="flex min-w-0 items-center justify-between gap-3 md:justify-end">
-            <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
-              {t("settings.general.emotion_label")}
-            </span>
-            <GlassSwitch
-              aria-label={t("settings.general.emotion_label")}
-              checked={emotionEnabled}
-              disabled={preferencesLoading || preferencesSaving}
-              onChange={onEmotionEnabledChange}
-              size="sm"
-            />
-          </div>
-        </div>
+        <SettingsToggleRow
+          checked={emotionEnabled}
+          description={t("settings.general.emotion_description")}
+          disabled={preferencesLoading || preferencesSaving}
+          icon={<HeartPulse className="h-3.5 w-3.5" />}
+          onChange={onEmotionEnabledChange}
+          title={t("settings.general.emotion_title")}
+        />
 
         <div className="border-t border-(--divider-subtle-color)" />
 
-        <div className={SETTINGS_ROW_CLASS_NAME}>
-          <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
-            <div className={SETTINGS_ICON_CLASS_NAME}>
-              <RadioTower className="h-3.5 w-3.5" />
-            </div>
-            <div className="min-w-0">
-              <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
-                {t("settings.general.echo_title")}
-              </h3>
-              <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
-                {t("settings.general.echo_description")}
-              </p>
-            </div>
-          </div>
-          <div className="flex min-w-0 items-center justify-between gap-3 md:justify-end">
-            <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
-              {t("settings.general.echo_label")}
-            </span>
-            <GlassSwitch
-              aria-label={t("settings.general.echo_label")}
-              checked={echoEnabled}
-              disabled={echoDisabled || echoLoading || echoSaving}
-              onChange={onEchoEnabledChange}
-              size="sm"
-            />
-          </div>
-        </div>
+        <SettingsToggleRow
+          checked={echoEnabled}
+          description={t("settings.general.echo_description")}
+          disabled={echoDisabled || echoLoading || echoSaving}
+          icon={<RadioTower className="h-3.5 w-3.5" />}
+          onChange={onEchoEnabledChange}
+          title={t("settings.general.echo_title")}
+        />
 
         <div className="border-t border-(--divider-subtle-color)" />
 
         <SettingsDefaultModelRow
-          disabled={preferencesSaving}
+          disabled={preferencesLoading || preferencesSaving}
           descriptionKey="settings.general.default_model_description"
           emptyPlaceholderKey="settings.general.default_model_empty"
           icon={<MonitorCog className="h-3.5 w-3.5" />}
@@ -322,7 +228,7 @@ export function SettingsGeneralBehaviorSection({
         <div className="border-t border-(--divider-subtle-color)" />
 
         <SettingsDefaultModelRow
-          disabled={preferencesSaving}
+          disabled={preferencesLoading || preferencesSaving}
           descriptionKey="settings.general.default_image_model_description"
           emptyPlaceholderKey="settings.general.default_image_model_empty"
           icon={<Image className="h-3.5 w-3.5" />}
@@ -338,7 +244,7 @@ export function SettingsGeneralBehaviorSection({
         <div className="border-t border-(--divider-subtle-color)" />
 
         <SettingsDefaultModelRow
-          disabled={preferencesSaving}
+          disabled={preferencesLoading || preferencesSaving}
           descriptionKey="settings.general.default_vision_model_description"
           emptyPlaceholderKey="settings.general.default_vision_model_empty"
           icon={<ScanEye className="h-3.5 w-3.5" />}
@@ -354,7 +260,7 @@ export function SettingsGeneralBehaviorSection({
         <div className="border-t border-(--divider-subtle-color)" />
 
         <SettingsDefaultModelRow
-          disabled={preferencesSaving}
+          disabled={preferencesLoading || preferencesSaving}
           descriptionKey="settings.general.default_background_model_description"
           emptyPlaceholderKey="settings.general.default_background_model_empty"
           icon={<Sparkles className="h-3.5 w-3.5" />}
@@ -383,21 +289,20 @@ export function SettingsGeneralBehaviorSection({
               </p>
             </div>
           </div>
-          <div className="flex min-w-0 flex-col gap-1.5">
-            <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
-              {t("settings.general.default_delivery")}
-            </span>
-            <SettingsSegmentedControl
-              ariaLabel={t("settings.general.default_delivery")}
-              disabled={preferencesLoading || preferencesSaving}
-              onChange={onDefaultDeliveryPolicyChange}
-              options={DELIVERY_POLICY_OPTIONS.map((option) => ({
-                value: option.value,
-                label: t(option.labelKey),
-              }))}
-              value={chatDefaultDeliveryPolicy}
-            />
-          </div>
+          <UiSegmentedControl
+            className="min-w-0"
+            density="compact"
+            disabled={preferencesLoading || preferencesSaving}
+            onChange={onDefaultDeliveryPolicyChange}
+            options={DELIVERY_POLICY_OPTIONS.map((option) => ({
+              value: option.value,
+              label: t(option.labelKey),
+            }))}
+            showLabel
+            stretch
+            title={t("settings.general.default_delivery")}
+            value={chatDefaultDeliveryPolicy}
+          />
         </div>
 
         <SettingsOnboardingRow onReset={onResetTours} />

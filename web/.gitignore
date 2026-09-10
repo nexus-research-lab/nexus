@@ -1,6 +1,7 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
+/package-lock.json
 /node_modules
 /.pnp
 .pnp.*
@@ -12,6 +13,8 @@
 
 # testing
 /coverage
+/test-results/
+/playwright-report/
 
 # vite
 /dist
@@ -41,3 +44,9 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
+
+# Source owners remain versioned even when a developer globally ignores lib/.
+!/src/lib/
+!/src/lib/**
+!/src/shared/lib/
+!/src/shared/lib/**

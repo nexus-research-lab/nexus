@@ -1,6 +1,6 @@
 /**
  * INPUT: DM 轮次 source、可选同栈前导内容、渲染器与共享滚动 refs。
- * OUTPUT: 含本地前导内容的静态 Feed或普通虚拟 Feed，并以真实内容高度驱动贴底增长。
+ * OUTPUT: 含本地前导内容的静态 Feed 或普通虚拟 Feed；空前导 Feed 填满 viewport，其余内容以真实高度驱动贴底增长。
  * POS: DM 主消息流的分支装配入口。
  */
 import { memo, useRef } from "react";
@@ -55,14 +55,15 @@ function StaticConversationFeed({
     roundScrollRef: refs.roundScrollRef,
     scrollRef: refs.scrollRef ?? unavailableScrollRef,
   });
+  const fillsViewport = leadingContent != null && source.roundIds.length === 0;
 
   return (
     <div
       ref={refs.feedRef}
       className={
         isMobileLayout
-          ? "nexus-chat-feed flex flex-col"
-          : `nexus-chat-feed ${CONVERSATION_CONTENT_LANE_CLASS_NAME} flex flex-col`
+          ? `nexus-chat-feed flex flex-col${fillsViewport ? " min-h-full" : ""}`
+          : `nexus-chat-feed ${CONVERSATION_CONTENT_LANE_CLASS_NAME} flex flex-col${fillsViewport ? " min-h-full" : ""}`
       }
     >
       {leadingContent}

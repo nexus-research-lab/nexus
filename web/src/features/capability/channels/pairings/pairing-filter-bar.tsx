@@ -1,23 +1,26 @@
+// INPUT: 配对目录计数、搜索及渠道/Agent 筛选命令。
+// OUTPUT: 公共目录页签与统一标签筛选器；Agent 同名/缺项文字复用公共选项投影。
+// POS: Pairing 工具区纯视图；不拥有筛选图标或菜单 DOM。
 "use client";
 
-import { Filter, Users } from "lucide-react";
-
+import { UiFilterSelect } from "@/shared/ui/menu/filter-select";
 import {
   CapabilityFilterBar,
   CapabilityFilterSearchInput,
-  CapabilityFilterSelect,
 } from "@/features/capability/shared/capability-page-layout";
 import type { ImChannelType } from "@/lib/api/capability/channel-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiTabs } from "@/shared/ui/navigation/tabs";
+import { UiDirectoryTabs } from "@/shared/ui/navigation/directory-tabs";
 import type { Agent } from "@/types/agent/agent";
+import { buildAgentSelectionOptions, includeUnavailableAgentSelection } from "@/lib/agent-selection-options";
 
 import type {
   PairingFilters,
   PairingStatusCounts,
   PairingStatusFilter,
 } from "./pairing-model";
-import { CHANNEL_OPTIONS } from "./pairing-options";
+import type { TranslationKey } from "@/shared/i18n/messages";
+import { getPairingOptions } from "./pairing-options";
 
 interface PairingFilterBarProps {
   agents: Agent[];
@@ -32,15 +35,15 @@ interface PairingFilterBarProps {
 
 interface StatusTab {
   countKey: keyof PairingStatusCounts;
-  label: string;
+  labelKey: TranslationKey;
   value: PairingStatusFilter;
 }
 
 const STATUS_TABS: StatusTab[] = [
-  { countKey: "all", label: "全部", value: "" },
-  { countKey: "pending", label: "待处理", value: "pending" },
-  { countKey: "active", label: "已授权", value: "active" },
-  { countKey: "inactive", label: "已停用", value: "inactive" },
+  { countKey: "all", labelKey: "capability.pairing_status_all", value: "" },
+  { countKey: "pending", labelKey: "capability.pairing_status_pending", value: "pending" },
+  { countKey: "active", labelKey: "capability.pairing_status_active", value: "active" },
+  { countKey: "inactive", labelKey: "capability.pairing_status_disabled", value: "inactive" },
 ];
 
 export function PairingFilterBar({
@@ -54,18 +57,14 @@ export function PairingFilterBar({
 
   return (
     <CapabilityFilterBar className="mb-5 sm:justify-between">
-      <UiTabs
+      <UiDirectoryTabs
         activeValue={filters.status}
-        ariaLabel="按配对状态筛选"
-        className="h-8 w-full shrink-0 sm:w-auto"
-        density="compact"
-        itemClassName="h-8 w-full justify-center px-3 sm:w-auto"
+        ariaLabel={t("capability.pairing_filter_status")}
         onChange={(value) => onChange("status", value)}
         options={STATUS_TABS.map((tab) => ({
-          className: "min-w-0 flex-1 sm:flex-none",
           label: (
             <>
-              <span>{tab.label}</span>
+              <span>{t(tab.labelKey)}</span>
               <span className="min-w-4 text-right tabular-nums text-(--text-soft)">
                 {counts[tab.countKey]}
               </span>
@@ -81,32 +80,25 @@ export function PairingFilterBar({
           placeholder={searchPlaceholder}
           value={filters.query}
         />
-        <CapabilityFilterSelect
-          ariaLabel="按渠道筛选"
-          label={t("capability.channel_label")}
-          leading={<Filter className="h-3.5 w-3.5" />}
+        <UiFilterSelect
+          ariaLabel={t("capability.pairing_filter_channel")}
           onChange={(value) => onChange(
             "channel",
             value as ImChannelType | "",
           )}
           options={[
-            { value: "", label: "全部渠道" },
-            ...CHANNEL_OPTIONS,
+            { value: "", label: t("capability.pairing_all_channels") },
+            ...getPairingOptions(t).channels,
           ]}
           value={filters.channel}
         />
-        <CapabilityFilterSelect
-          ariaLabel="按处理智能体筛选"
+        <UiFilterSelect
+          ariaLabel={t("capability.pairing_filter_agent")}
           className="sm:w-[220px]"
-          label={t("capability.agent_label")}
-          leading={<Users className="h-3.5 w-3.5" />}
           onChange={(value) => onChange("agentId", value)}
           options={[
-            { value: "", label: "全部智能体" },
-            ...agents.map((agent) => ({
-              value: agent.agent_id,
-              label: agent.name,
-            })),
+            { value: "", label: t("capability.pairing_all_agents") },
+            ...includeUnavailableAgentSelection(buildAgentSelectionOptions(agents, t), filters.agentId, t),
           ]}
           value={filters.agentId}
         />

@@ -1,187 +1,43 @@
-/**
- * INPUT: 用户 Token 用量汇总。
- * OUTPUT: 总量、额度、三类明细、构成比例和覆盖范围。
- * POS: 个人设置的用量摘要；数值用于精确阅读，图表用于快速比较构成。
- */
-"use client";
-
-import type { ReactNode } from "react";
-import type { LucideIcon } from "lucide-react";
-import {
-  Database,
-  Gauge,
-  KeyRound,
-  LockKeyhole,
-  ShieldCheck,
-} from "lucide-react";
-
+// INPUT: 用户累计 Token 与每日用量。
+// OUTPUT: 紧凑指标、独立热力图与每日趋势，精确数值通过悬浮和键盘聚焦查看。
+// POS: 个人用量展示，不推算账本缺失数据。
 import type { TokenUsageSummary } from "@/lib/api/account/auth-api";
-import { cn } from "@/shared/ui/class-name";
 import { formatTokens } from "@/lib/format/token-count";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import type { TranslationKey } from "@/shared/i18n/messages";
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
+import { UiButton } from "@/shared/ui/button/button";
+import { buildTokenUsagePresentation } from "./personal-settings-model";
+import { PersonalUsageHeatmap, PersonalUsageHistory } from "./personal-usage-history";
+import { SETTINGS_CARD_CLASS_NAME } from "../shared/settings-panel-ui";
 
-import {
-  buildTokenUsagePresentation,
-  type TokenUsageMetricKey,
-  type TokenUsageValueKey,
-} from "./personal-settings-model";
-
-interface UsageMetricDefinition {
-  icon: LucideIcon;
-  key: TokenUsageMetricKey;
-  labelKey: TranslationKey;
-}
-
-const USAGE_METRIC_DEFINITIONS: readonly UsageMetricDefinition[] = [
-  { key: "quota", icon: ShieldCheck, labelKey: "settings.personal.quota_limit" },
-  { key: "input", icon: KeyRound, labelKey: "settings.personal.input_tokens" },
-  { key: "output", icon: LockKeyhole, labelKey: "settings.personal.output_tokens" },
-  { key: "cache", icon: Database, labelKey: "settings.personal.cache_tokens" },
-];
-
-const TOKEN_CHART_DEFINITIONS: readonly {
-  className: string;
-  key: TokenUsageValueKey;
-}[] = [
-  { key: "input", className: "bg-primary" },
-  { key: "output", className: "bg-(--accent)" },
-  { key: "cache", className: "bg-(--warning)" },
-];
-
-export function PersonalTokenUsageSection({
-  usage,
-}: {
-  usage: TokenUsageSummary | undefined;
-}) {
+export function PersonalTokenUsageSection({ usage }: { usage: TokenUsageSummary | undefined }) {
   const { locale, t } = useI18n();
   const presentation = buildTokenUsagePresentation(usage, locale, t);
+  const metrics = [
+    { label: t("settings.personal.total_tokens"), value: usage?.total_tokens },
+    { label: t("settings.personal.input_tokens"), value: usage?.input_tokens },
+    { label: t("settings.personal.output_tokens"), value: usage?.output_tokens },
+    { label: t("settings.personal.cache_tokens"), value: usage ? usage.cache_creation_input_tokens + usage.cache_read_input_tokens : undefined },
+    ...(usage?.quota_limit_tokens != null ? [{ label: t("settings.personal.quota_limit"), value: usage.quota_limit_tokens }] : []),
+  ];
+  const detail = [
+    t("settings.personal.session_count", { count: presentation.sessionCount }),
+    t("settings.personal.message_count", { count: presentation.messageCount }),
+    t("settings.personal.updated_at", { value: presentation.updatedAt }),
+  ].join(" · ");
 
-  return (
-    <section className="order-last overflow-hidden rounded-[12px] border border-(--divider-subtle-color) bg-transparent">
-      <div className="grid gap-3 px-3 py-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
-        <div className="flex min-w-0 items-start gap-3">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center radius-control-lg bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
-            <Gauge className="h-3.5 w-3.5" />
-          </div>
-          <div className="min-w-0">
-            <h3 className="text-base font-semibold tracking-tight text-(--text-strong)">
-              {t("settings.personal.token_usage_title")}
-            </h3>
-            <p className="mt-1 text-compact leading-5 text-(--text-soft)">
-              {t("settings.personal.updated_at", {
-                value: presentation.updatedAt,
-              })}
-            </p>
-          </div>
-        </div>
-        <div className="text-left lg:text-right">
-          <div className="text-lg font-semibold tracking-tight text-(--text-strong)">
-            {presentation.totalTokens}
-          </div>
-          <div className="mt-1 text-xs font-medium text-(--text-soft)">
-            {t("settings.personal.total_tokens")}
-          </div>
-        </div>
-      </div>
-
-      <div className="mx-3 border-t border-(--divider-subtle-color)" />
-
-      <div className="grid gap-2 px-3 py-3 sm:grid-cols-2">
-        {USAGE_METRIC_DEFINITIONS.map((definition) => {
-          const Icon = definition.icon;
-          return (
-            <UsageMetric
-              icon={<Icon className="h-3.5 w-3.5" />}
-              key={definition.key}
-              label={t(definition.labelKey)}
-              value={presentation.metrics[definition.key]}
-            />
-          );
-        })}
-      </div>
-
-      <div className="mx-3 border-t border-(--divider-subtle-color)" />
-
-      <TokenUsageChart
-        values={presentation.tokenValues}
-        labels={{
-          input: t("settings.personal.input_tokens"),
-          output: t("settings.personal.output_tokens"),
-          cache: t("settings.personal.cache_tokens"),
-        }}
-      />
-
-      <div className="mx-3 border-t border-(--divider-subtle-color)" />
-
-      <div className="grid gap-2 px-3 py-2.5 text-xs text-(--text-soft) sm:grid-cols-2">
-        <span>{t("settings.personal.session_count", { count: presentation.sessionCount })}</span>
-        <span>{t("settings.personal.message_count", { count: presentation.messageCount })}</span>
-      </div>
-    </section>
-  );
-}
-
-function UsageMetric({
-  icon,
-  label,
-  value,
-}: {
-  icon: ReactNode;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="flex min-w-0 items-center gap-3 rounded-[12px] border border-(--divider-subtle-color) bg-transparent px-3 py-3">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
-        {icon}
-      </div>
-      <div className="min-w-0">
-        <div className="truncate text-xs font-medium text-(--text-soft)">
-          {label}
-        </div>
-        <div className="mt-1 truncate text-base font-semibold text-(--text-strong)">
-          {value}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function TokenUsageChart({
-  values,
-  labels,
-}: {
-  values: Record<TokenUsageValueKey, number>;
-  labels: Record<TokenUsageValueKey, string>;
-}) {
-  const total = Math.max(Object.values(values).reduce((sum, value) => sum + value, 0), 1);
-  const items = TOKEN_CHART_DEFINITIONS.map((definition) => ({
-    ...definition,
-    label: labels[definition.key],
-    value: values[definition.key],
-  }));
-
-  return (
-    <div className="px-3 py-3">
-      <div className="flex h-2 overflow-hidden rounded-full bg-[color:color-mix(in_srgb,var(--divider-subtle-color)_55%,transparent)]">
-        {items.map((item) => (
-          <div
-            className={cn(item.value > 0 ? "min-w-[2px]" : "", item.className)}
-            key={item.key}
-            style={{ width: `${(item.value / total) * 100}%` }}
-          />
-        ))}
-      </div>
-      <div className="mt-3 grid gap-2 sm:grid-cols-3">
-        {items.map((item) => (
-          <div className="flex min-w-0 items-center gap-2 text-xs text-(--text-soft)" key={item.key}>
-            <span className={cn("h-2 w-2 shrink-0 rounded-full", item.className)} />
-            <span className="min-w-0 flex-1 truncate">{item.label}</span>
-            <span className="font-semibold text-(--text-strong)">{formatTokens(item.value)}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  return <section className="space-y-4">
+    <dl className={`${SETTINGS_CARD_CLASS_NAME} flex flex-wrap py-3`}>
+      {metrics.map((metric, index) => <div key={metric.label} className="min-w-28 flex-1 space-y-1 border-r border-(--divider-subtle-color) px-3 text-center last:border-r-0">
+          <dt className="ui-type-metadata text-(--text-muted)">{metric.label}</dt>
+          <dd><UiTooltip label={`${metric.label} · ${metric.value?.toLocaleString(locale) ?? "—"}${index === 0 ? ` / ${detail}` : ""}`}>
+            <UiButton variant="ghost" className="ui-type-section-title h-auto min-h-0 p-0 tabular-nums text-(--text-strong)">{metric.value == null ? "—" : formatTokens(metric.value, locale)}</UiButton>
+          </UiTooltip></dd>
+      </div>)}
+    </dl>
+    {usage?.daily && usage.daily.length > 0 ? <>
+      <PersonalUsageHeatmap days={usage.daily} />
+      <PersonalUsageHistory days={usage.daily} />
+    </> : null}
+  </section>;
 }

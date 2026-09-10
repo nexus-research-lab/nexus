@@ -1,9 +1,14 @@
+// INPUT: 单次运行、所属任务、命令状态与诊断/恢复动作。
+// OUTPUT: 随当前语言更新状态/日期/时长的共享 Disclosure 历史行、结果详情与合法动作。
+// POS: Scheduled 历史单项装配层；状态与动作资格来自 history model。
+
 "use client";
 
-import { useState } from "react";
-import { ChevronDown } from "lucide-react";
-
-import { WorkspaceStatusBadge } from "@/shared/ui/workspace/controls/workspace-status-badge";
+import { cn } from "@/shared/ui/class-name";
+import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiDisclosure } from "@/shared/ui/disclosure/disclosure";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
+import { UiBadge } from "@/shared/ui/display/badge";
 import type { ScheduledTaskRunItem } from "@/types/capability/scheduled-task/run";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 
@@ -49,37 +54,48 @@ export function ScheduledTaskRunHistoryItem({
   run,
   task,
 }: ScheduledTaskRunHistoryItemProps) {
-  const [open, setOpen] = useState(defaultOpen);
-  const status = getStatusMeta(run.status);
-  const deliveryStatus = getDeliveryStatusMeta(run.delivery_status);
+  const { locale, t } = useI18n();
+  const status = getStatusMeta(run.status, t);
+  const deliveryStatus = getDeliveryStatusMeta(run.delivery_status, t);
   const showDeliveryStatus = run.delivery_status !== "not_required"
     && run.delivery_status !== "skipped";
   return (
     <article className="py-1.5 first:pt-0 last:pb-0">
-      <details
-        className="group"
-        onToggle={(event) => setOpen(event.currentTarget.open)}
-        open={open}
-      >
-        <summary className="flex cursor-pointer list-none items-center gap-3 rounded-[10px] px-2 py-2.5 transition-colors hover:bg-(--surface-control-background) [&::-webkit-details-marker]:hidden">
-          <WorkspaceStatusBadge label={status.label} size="compact" tone={status.tone} />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-(--text-strong)">
-              {formatScheduledDatetime(run.scheduled_for, { includeSeconds: true })}
-            </p>
-            <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-(--text-muted)">
-              <span>{formatDuration(run.started_at, run.finished_at)}</span>
+      <UiDisclosure
+        defaultOpen={defaultOpen}
+        label={(
+          <span className="block min-w-0">
+            <span className={cn(
+              "block truncate",
+              getUiTypographyClassName({
+                role: "supporting",
+                tone: "strong",
+                weight: "medium",
+              }),
+            )}>
+              {formatScheduledDatetime(run.scheduled_for, {
+                emptyLabel: t("capability.scheduled_history_not_recorded"),
+                includeSeconds: true,
+                locale,
+              })}
+            </span>
+            <span className={cn(
+              "mt-0.5 flex flex-wrap items-center gap-x-1.5",
+              getUiTypographyClassName({ role: "caption", tone: "muted" }),
+            )}>
+              <span>{formatDuration(run.started_at, run.finished_at, t)}</span>
               {showDeliveryStatus && deliveryStatus ? (
                 <>
                   <span aria-hidden="true">·</span>
                   <span>{deliveryStatus.label}</span>
                 </>
               ) : null}
-            </p>
-          </div>
-          <ChevronDown className="h-4 w-4 shrink-0 text-(--icon-muted) transition-transform group-open:rotate-180" />
-        </summary>
-        <div className="mx-2 border-l border-(--divider-subtle-color) pb-3 pl-4 pr-2">
+            </span>
+          </span>
+        )}
+        leading={<UiBadge showDot size="xs" tone={status.tone}>{status.label}</UiBadge>}
+        variant="row"
+      >
           <ScheduledTaskRunDetails
             isCopied={isCopied}
             onCopyDiagnostic={() => onCopyDiagnostic(run)}
@@ -98,8 +114,7 @@ export function ScheduledTaskRunHistoryItem({
             run={run}
             task={task}
           />
-        </div>
-      </details>
+      </UiDisclosure>
     </article>
   );
 }

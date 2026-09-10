@@ -210,16 +210,6 @@ export const getCustomMCPServersApi = async (): Promise<CustomMCPServer[]> => {
   });
 };
 
-/** 获取单条脱敏自定义 MCP server。 */
-export const getCustomMCPServerApi = async (
-  connectorId: string,
-): Promise<CustomMCPServer> => {
-  return requestApi<CustomMCPServer>(
-    customMCPServerApiPath(connectorId),
-    { method: "GET" },
-  );
-};
-
 /** 获取远程自定义 MCP 当前暴露的工具目录。 */
 export const getCustomMCPToolsApi = async (
   connectorId: string,

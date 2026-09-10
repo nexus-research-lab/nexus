@@ -295,7 +295,7 @@ Runtime 新能力先进入 Capability，再由 Product 按协商结果启用。�
 | 需求 | 首要位置 |
 | --- | --- |
 | HTTP、WebSocket 或前端事件 | `internal/protocol`、`internal/handler`、`web/src/lib/api` |
-| Product 启动和依赖装配 | `internal/app/server` |
+| Product 共享依赖装配 / HTTP 启动 | `internal/app` / `internal/app/server` |
 | DM 和 Room 行为 | `internal/chat`、`internal/service/room` |
 | Goal 与 Execution | `internal/service/goal`、`internal/service/execution`、`internal/service/room/realtime` |
 | Runtime Session 和 Round | `internal/runtime` |

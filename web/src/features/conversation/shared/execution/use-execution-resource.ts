@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getLatestExecutionApi } from "@/lib/api/conversation/execution-api";
-import { getErrorMessage } from "@/lib/error-message";
+import { getErrorMessage, getResourceFailure } from "@/lib/error-message";
 import type {
   ExecutionStatus,
   ExecutionView,
@@ -114,6 +114,7 @@ export function useExecutionResource({
             ...current,
             error: getErrorMessage(error, "执行进程读取失败"),
             loading: false,
+            ...(getResourceFailure(error, "").access ? { execution: null, lastSuccessfulAt: null } : {}),
           }
         : current);
     }
@@ -123,7 +124,10 @@ export function useExecutionResource({
     const timeout = window.setTimeout(() => {
       void refresh(true);
     }, EXECUTION_INVALIDATION_DEBOUNCE_MS);
-    return () => window.clearTimeout(timeout);
+    return () => {
+      window.clearTimeout(timeout);
+      requestVersionRef.current += 1;
+    };
   }, [invalidationKey, refresh, sessionKey]);
 
   useEffect(() => {

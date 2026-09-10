@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前 Agent/Room/Conversation scope 与只读联络记录 API。
- * OUTPUT: 保留最后成功快照、隔离过期响应并提供就地恢复动作的私域联络视图。
+ * OUTPUT: 在公共 Panel 中保留最后成功快照、隔离过期响应并提供就地恢复动作的私域联络视图。
  * POS: Agent 私域记录读取编排；不把读取失败解释成数据修改，也不显示原始异常。
  */
 "use client";
@@ -8,7 +8,7 @@
 import { RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
-import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import {
   PrivateEventTimeline,
   type PrivateDomainReadFailure,
@@ -24,6 +24,7 @@ import {
 import { isExternalSessionConversationId } from "@/lib/conversation/external-session";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { UiPanel } from "@/shared/ui/panel";
 import { Agent } from "@/types/agent/agent";
 import {
   AgentPrivateEvent,
@@ -62,6 +63,8 @@ export function AgentPrivateDomainView({
   const [eventsLoading, setEventsLoading] = useResettableState(Boolean(selectedThreadId), eventsResetKey);
   const [threadsFailure, setThreadsFailure] = useResettableState<PrivateDomainReadFailure | null>(null, queryResetKey);
   const [eventsFailure, setEventsFailure] = useResettableState<PrivateDomainReadFailure | null>(null, eventsResetKey);
+  const threadsRequestRef = useRef(0);
+  const eventsRequestRef = useRef(0);
   const threadsRef = useRef(threads);
   const eventsRef = useRef(events);
   const activeQueryKeyRef = useRef(queryResetKey);
@@ -76,15 +79,16 @@ export function AgentPrivateDomainView({
     room_id: roomId,
     conversation_id: isExternalSessionConversation ? null : conversationId,
     limit: isPreview ? 16 : 80,
-    room_limit: isPreview ? 1 : 160,
+    room_limit: roomId ? 1 : 160,
   }), [conversationId, isExternalSessionConversation, isPreview, roomId]);
 
   const loadThreads = useCallback(async () => {
     const requestKey = queryResetKey;
+    const requestId = ++threadsRequestRef.current;
     setThreadsLoading(true);
     try {
       const page = await listAgentPrivateThreadsApi(agent.agent_id, query);
-      if (activeQueryKeyRef.current !== requestKey) {
+      if (activeQueryKeyRef.current !== requestKey || threadsRequestRef.current !== requestId) {
         return;
       }
       const nextThreads = page.items ?? [];
@@ -97,13 +101,13 @@ export function AgentPrivateDomainView({
         return nextThreads[0]?.thread_id ?? null;
       });
     } catch (loadError) {
-      if (activeQueryKeyRef.current === requestKey) {
+      if (activeQueryKeyRef.current === requestKey && threadsRequestRef.current === requestId) {
         setThreadsFailure({
           stale: threadsRef.current.length > 0,
         });
       }
     } finally {
-      if (activeQueryKeyRef.current === requestKey) {
+      if (activeQueryKeyRef.current === requestKey && threadsRequestRef.current === requestId) {
         setThreadsLoading(false);
       }
     }
@@ -119,6 +123,7 @@ export function AgentPrivateDomainView({
 
   const loadEvents = useCallback(async (threadId: string | null) => {
     const requestKey = eventsResetKey;
+    const requestId = ++eventsRequestRef.current;
     if (!threadId) {
       setEvents([]);
       setEventsFailure(null);
@@ -130,19 +135,19 @@ export function AgentPrivateDomainView({
         ...query,
         limit: isPreview ? 40 : 120,
       });
-      if (activeEventsKeyRef.current !== requestKey) {
+      if (activeEventsKeyRef.current !== requestKey || eventsRequestRef.current !== requestId) {
         return;
       }
       setEvents(page.items ?? []);
       setEventsFailure(null);
     } catch (loadError) {
-      if (activeEventsKeyRef.current === requestKey) {
+      if (activeEventsKeyRef.current === requestKey && eventsRequestRef.current === requestId) {
         setEventsFailure({
           stale: eventsRef.current.length > 0,
         });
       }
     } finally {
-      if (activeEventsKeyRef.current === requestKey) {
+      if (activeEventsKeyRef.current === requestKey && eventsRequestRef.current === requestId) {
         setEventsLoading(false);
       }
     }
@@ -158,10 +163,12 @@ export function AgentPrivateDomainView({
 
   useEffect(() => {
     void loadThreads();
+    return () => { threadsRequestRef.current += 1; };
   }, [loadThreads]);
 
   useEffect(() => {
     void loadEvents(selectedThreadId);
+    return () => { eventsRequestRef.current += 1; };
   }, [loadEvents, selectedThreadId]);
 
   const selectedThread = useMemo(
@@ -178,7 +185,7 @@ export function AgentPrivateDomainView({
     return (
       <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
         <div className="grid h-full min-h-0 flex-1 grid-cols-[230px_minmax(0,1fr)] items-stretch gap-3 overflow-hidden px-4 pb-4 pt-3 2xl:grid-cols-[250px_minmax(0,1fr)]">
-          <section className="surface-radius-md flex h-full min-h-0 flex-col overflow-hidden border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_36%,transparent)]">
+          <UiPanel className="flex h-full min-h-0 flex-col overflow-hidden" padding="none" variant="filled">
             <PrivateDomainToolbar
               count={threads.length}
               isLoading={threadsLoading || eventsLoading}
@@ -207,7 +214,7 @@ export function AgentPrivateDomainView({
                 threads={threads}
               />
             )}
-          </section>
+          </UiPanel>
           <PrivateEventTimeline
             agentId={agent.agent_id}
             className="h-full min-h-0"
@@ -226,7 +233,7 @@ export function AgentPrivateDomainView({
 
   return (
     <div className="nexus-private-domain-layout grid min-h-0 min-w-0 flex-1 overflow-hidden">
-      <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-(--surface-raised-background)">
+      <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-(--surface-shell-directory-background)">
         <PrivateDomainToolbar
           count={threads.length}
           isLoading={threadsLoading || eventsLoading}

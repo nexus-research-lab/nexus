@@ -3,15 +3,19 @@
  * OUTPUT: 可修改时显示表单；不可修改时只显示原因，不渲染禁用字段。
  * POS: 个人设置的密码区，不能提供的动作不得伪装成可配置表单。
  */
-import { Loader2, LockKeyhole } from "lucide-react";
-import type { FormEvent } from "react";
+import { ChevronDown, Loader2 } from "lucide-react";
+import { type FormEvent, useId } from "react";
 
-import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
-import { getUiButtonClassName } from "@/shared/ui/button/button-styles";
+import { UiButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import { UiInput } from "@/shared/ui/form/form-control";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import type { PasswordDraft, PasswordField } from "./personal-settings-model";
+import { SETTINGS_CARD_CLASS_NAME } from "../shared/settings-panel-ui";
 
 interface PasswordInputConfig {
   autoComplete: "current-password" | "new-password";
@@ -49,15 +53,6 @@ const PASSWORD_INPUTS: readonly PasswordInputConfig[] = [
   },
 ];
 
-const PRIMARY_BUTTON_CLASS_NAME = getUiButtonClassName(
-  { size: "md", tone: "primary", variant: "solid" },
-  "gap-2 tracking-tight",
-);
-const SECONDARY_BUTTON_CLASS_NAME = getUiButtonClassName(
-  { size: "md", variant: "surface" },
-  "gap-2 tracking-tight",
-);
-
 export function PersonalPasswordSection({
   canChange,
   canSubmit,
@@ -70,6 +65,7 @@ export function PersonalPasswordSection({
   validationError,
 }: PersonalPasswordSectionProps) {
   const { t } = useI18n();
+  const helperId = useId();
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     onSubmit();
@@ -77,26 +73,33 @@ export function PersonalPasswordSection({
 
   if (!canChange) {
     return (
-      <section className="rounded-[12px] border border-(--divider-subtle-color) bg-transparent px-3 py-3">
+      <section className={cn(SETTINGS_CARD_CLASS_NAME, "px-3 py-3")}>
         <PasswordSectionHeader canChange={false} />
       </section>
     );
   }
 
   return (
-    <section className="overflow-hidden rounded-[12px] border border-(--divider-subtle-color) bg-transparent">
-      <form className="grid gap-3 px-3 py-3" onSubmit={handleSubmit}>
-        <PasswordSectionHeader canChange={canChange} />
+    <details className={cn(SETTINGS_CARD_CLASS_NAME, "group")}>
+      <summary className="ui-type-section-title flex cursor-pointer list-none items-center justify-between px-4 py-3 text-(--text-strong) focus-visible:outline-2 focus-visible:outline-(--ring) [&::-webkit-details-marker]:hidden">
+        {t("settings.personal.password_title")}
+        <ChevronDown aria-hidden="true" className="h-4 w-4 text-(--text-muted) transition-transform group-open:rotate-180" />
+      </summary>
+      <form aria-busy={isSubmitting} className="grid gap-4 border-t border-(--divider-subtle-color) p-4" onSubmit={handleSubmit}>
 
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3">
           {PASSWORD_INPUTS.map((input) => (
-            <label className="space-y-1.5" key={input.field}>
-              <span className="text-xs font-semibold text-(--text-muted)">
+            <label className="grid items-center gap-2 sm:grid-cols-[1fr_minmax(0,20rem)]" key={input.field}>
+              <span className={getUiTypographyClassName({
+                role: "supporting",
+                tone: "default",
+                weight: "regular",
+              })}>
                 {t(input.labelKey)}
               </span>
-              <input
+              <UiInput
+                aria-describedby={helperId}
                 autoComplete={input.autoComplete}
-                className="dialog-input h-9 w-full radius-control-md px-3 text-sm text-(--text-strong) outline-none disabled:opacity-(--disabled-opacity)"
                 disabled={isSubmitting || mutationBlocked}
                 onChange={(event) => onFieldChange(input.field, event.target.value)}
                 type="password"
@@ -107,6 +110,7 @@ export function PersonalPasswordSection({
         </div>
 
         <PasswordSubmitActions
+          helperId={helperId}
           canChange={canChange}
           canSubmit={canSubmit}
           hasInput={hasInput}
@@ -114,7 +118,7 @@ export function PersonalPasswordSection({
           validationError={validationError}
         />
       </form>
-    </section>
+    </details>
   );
 }
 
@@ -122,15 +126,15 @@ function PasswordSectionHeader({ canChange }: { canChange: boolean }) {
   const { t } = useI18n();
   return (
     <div className="flex items-center gap-3">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center radius-control-lg bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
-        <LockKeyhole className="h-3.5 w-3.5" />
-      </div>
       <div className="min-w-0">
-        <h3 className="text-base font-semibold tracking-tight text-(--text-strong)">
+        <h3 className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong" })}>
           {t("settings.personal.password_title")}
         </h3>
         {!canChange ? (
-          <p className="mt-1 text-compact leading-5 text-(--text-soft)">
+          <p className={cn(
+            "mt-1",
+            getUiTypographyClassName({ role: "metadata", tone: "soft" }),
+          )}>
             {t("settings.personal.password_disabled")}
           </p>
         ) : null}
@@ -140,6 +144,7 @@ function PasswordSectionHeader({ canChange }: { canChange: boolean }) {
 }
 
 function PasswordSubmitActions({
+  helperId,
   canChange,
   canSubmit,
   hasInput,
@@ -148,7 +153,7 @@ function PasswordSubmitActions({
 }: Pick<
   PersonalPasswordSectionProps,
   "canChange" | "canSubmit" | "hasInput" | "isSubmitting" | "validationError"
->) {
+> & { helperId: string }) {
   const { t } = useI18n();
   const helperText = resolvePasswordHelperText(
     validationError,
@@ -162,37 +167,31 @@ function PasswordSubmitActions({
       <div
         aria-atomic={showValidation ? "true" : undefined}
         aria-live={showValidation ? "polite" : undefined}
-        className="min-w-0 flex-1 text-xs leading-5"
+        className="min-w-0 flex-1"
         role={showValidation ? "status" : undefined}
       >
-        <p className={showValidation
-          ? "font-medium text-(--danger-text-color)"
-          : "text-(--text-soft)"}
+        <p id={helperId} className={getUiTypographyClassName({
+          role: "caption",
+          tone: showValidation ? "danger" : "soft",
+          weight: showValidation ? "medium" : undefined,
+        })}
         >
           {helperText}
         </p>
-        {showValidation ? (
-          <>
-            <p className="text-(--text-muted)">
-              {t("state.validation_failure_impact")}
-            </p>
-            <p className="text-(--text-default)">
-              {t("state.validation_failure_next_step")}
-            </p>
-          </>
-        ) : null}
       </div>
-      <button
-        className={cn(
-          canSubmit ? PRIMARY_BUTTON_CLASS_NAME : SECONDARY_BUTTON_CLASS_NAME,
-          "min-w-28",
-        )}
+      <UiButton
+        className="min-w-28"
         disabled={!canSubmit}
+        size="md"
+        tone={canSubmit ? "primary" : "default"}
         type="submit"
+        variant={canSubmit ? "solid" : "surface"}
       >
-        {isSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+        {isSubmitting ? (
+          <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
+        ) : null}
         {isSubmitting ? t("common.saving") : t("settings.personal.change_password")}
-      </button>
+      </UiButton>
     </div>
   );
 }

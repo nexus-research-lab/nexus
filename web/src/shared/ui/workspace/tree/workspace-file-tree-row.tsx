@@ -1,9 +1,16 @@
+// INPUT: 文件节点、真实深度、受控展开/选中投影与稳定动作。
+// OUTPUT: 整行选中和悬停的嵌套目录，具名展开、完整路径提示和独立更多菜单。
+// POS: 文件树递归布局；展开状态与透明主命中区归 Tree，菜单/行次动作归共享 owner。
+
 "use client";
 
-import { memo, useCallback, useState, type MouseEvent } from "react";
-import { ChevronRight, Pencil, Trash2 } from "lucide-react";
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
+import { memo, useCallback, useId, useRef, useState, type MouseEvent } from "react";
+import { ChevronRight, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
+import { UiActionMenu } from "@/shared/ui/menu/action-menu";
+import { UiListActionButton } from "@/shared/ui/list/list-action";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { WorkspaceFileEntry } from "@/types/agent/agent";
 
@@ -26,6 +33,7 @@ interface WorkspaceFileTreeRowProps {
   actions: WorkspaceFileTreeActions;
   activePath: string | null;
   depth: number;
+  expandedDirectories: ReadonlyMap<string, boolean>;
   focusedDirectoryPath: string | null;
   node: WorkspaceFileTreeNode;
 }
@@ -34,11 +42,14 @@ export const WorkspaceFileTreeRow = memo(function WorkspaceFileTreeRow({
   actions,
   activePath,
   depth,
+  expandedDirectories,
   focusedDirectoryPath,
   node,
 }: WorkspaceFileTreeRowProps) {
   const { entry, children } = node;
-  const [isOpen, setIsOpen] = useState(depth === 0);
+  const isOpen = expandedDirectories.get(entry.path) ?? depth === 0;
+  const entryId = useId();
+  const childrenId = useId();
   const presentation = getWorkspaceFileTreeRowPresentation({
     activePath,
     depth,
@@ -49,7 +60,6 @@ export const WorkspaceFileTreeRow = memo(function WorkspaceFileTreeRow({
 
   const handleClick = useCallback(() => {
     if (entry.is_dir) {
-      setIsOpen((value) => !value);
       actions.onClickDirectory(entry.path);
       return;
     }
@@ -62,15 +72,21 @@ export const WorkspaceFileTreeRow = memo(function WorkspaceFileTreeRow({
   }, [actions, entry]);
 
   return (
-    <div>
+    <li className="min-w-0">
       <div
         className={presentation.rowClassName}
         onContextMenu={handleContextMenu}
       >
-        <button
-          className="flex min-w-0 flex-1 items-center gap-1.25 py-1.25 text-left"
+        <UiTooltip label={entry.path}><button
+          aria-controls={presentation.showChildren ? childrenId : undefined}
+          aria-current={presentation.isSelected ? "true" : undefined}
+          aria-expanded={entry.is_dir ? isOpen : undefined}
+          aria-label={entry.name}
+          className="inline-flex min-h-7 min-w-0 flex-1 items-center justify-start gap-1.25 rounded-[inherit] border-0 bg-transparent py-1 pr-0 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:var(--ring)]"
+          id={entryId}
           onClick={handleClick}
-          style={{ paddingLeft: `${presentation.paddingLeft}px` }}
+          style={{ paddingLeft: `min(${presentation.paddingLeft}px, 35%)` }}
+
           type="button"
         >
           <WorkspaceTreeExpandIndicator
@@ -85,7 +101,7 @@ export const WorkspaceFileTreeRow = memo(function WorkspaceFileTreeRow({
           <span className={presentation.nameClassName}>
             {entry.name}
           </span>
-        </button>
+        </button></UiTooltip>
         <WorkspaceFileTreeRowActions
           actions={actions}
           entry={entry}
@@ -97,10 +113,13 @@ export const WorkspaceFileTreeRow = memo(function WorkspaceFileTreeRow({
         activePath={activePath}
         children={children}
         depth={depth}
+        expandedDirectories={expandedDirectories}
+        id={childrenId}
+        labelledBy={entryId}
         focusedDirectoryPath={focusedDirectoryPath}
         visible={presentation.showChildren}
       />
-    </div>
+    </li>
   );
 });
 
@@ -112,7 +131,7 @@ function WorkspaceTreeExpandIndicator({
   isDirectory: boolean;
 }) {
   return isDirectory
-    ? <ChevronRight className={className} />
+    ? <ChevronRight aria-hidden className={className} />
     : <span className="w-3 shrink-0" />;
 }
 
@@ -121,29 +140,41 @@ function WorkspaceFileTreeChildren({
   activePath,
   children,
   depth,
+  expandedDirectories,
   focusedDirectoryPath,
   visible,
+  id,
+  labelledBy,
 }: {
   actions: WorkspaceFileTreeActions;
   activePath: string | null;
   children: WorkspaceFileTreeNode[];
   depth: number;
+  expandedDirectories: ReadonlyMap<string, boolean>;
   focusedDirectoryPath: string | null;
   visible: boolean;
+  id: string;
+  labelledBy: string;
 }) {
   if (!visible) {
     return null;
   }
-  return children.map((child) => (
-    <WorkspaceFileTreeRow
-      actions={actions}
-      activePath={activePath}
-      depth={depth + 1}
-      focusedDirectoryPath={focusedDirectoryPath}
-      key={child.entry.path}
-      node={child}
-    />
-  ));
+  return (
+    // eslint-disable-next-line jsx-a11y/no-redundant-roles -- WebKit needs an explicit role for unmarked lists: https://bugs.webkit.org/show_bug.cgi?id=170179#c1
+    <ul aria-labelledby={labelledBy} className="m-0 min-w-0 list-none p-0" id={id} role="list">
+      {children.map((child) => (
+        <WorkspaceFileTreeRow
+          actions={actions}
+          activePath={activePath}
+          depth={depth + 1}
+          expandedDirectories={expandedDirectories}
+          focusedDirectoryPath={focusedDirectoryPath}
+          key={child.entry.path}
+          node={child}
+        />
+      ))}
+    </ul>
+  );
 }
 
 function WorkspaceTreeEntryIcon({
@@ -182,40 +213,43 @@ function WorkspaceFileTreeRowActions({
   visible: boolean;
 }) {
   const { t } = useI18n();
-  const handleRename = useCallback((event: MouseEvent) => {
-    event.stopPropagation();
-    actions.onRenameEntry(entry);
-  }, [actions, entry]);
-  const handleDelete = useCallback((event: MouseEvent) => {
-    event.stopPropagation();
-    actions.onDeleteEntry(entry);
-  }, [actions, entry]);
+  const anchorRef = useRef<HTMLButtonElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const closeMenu = useCallback(() => setIsOpen(false), []);
+  const menuLabel = `${t("common.more_actions")} ${entry.path}`;
 
   return (
-    <div
-      className={cn(
-        "ml-auto flex shrink-0 items-center gap-0.5 pl-2 transition-opacity",
-        visible ? "opacity-100" : "opacity-0 group-hover:opacity-100",
-      )}
-    >
-      <button
-        aria-label={t("home.rename")}
-        className="flex h-5.5 w-5.5 items-center justify-center rounded-md text-(--icon-muted) transition hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)"
-        onClick={handleRename}
-        title={t("home.rename")}
-        type="button"
+    <div className="ml-auto flex shrink-0 items-center pl-1">
+      <UiListActionButton
+        aria-expanded={isOpen}
+        aria-haspopup="menu"
+        aria-label={menuLabel}
+        onClick={() => setIsOpen((open) => !open)}
+        ref={anchorRef}
+        size="xs"
+        stopPropagation
+        title={t("common.more_actions")}
+        visibility={visible || isOpen ? "visible" : "hover"}
       >
-        <Pencil className="h-3 w-3" />
-      </button>
-      <button
-        aria-label={t("common.delete")}
-        className="flex h-5.5 w-5.5 items-center justify-center rounded-md text-(--icon-muted) transition hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] hover:text-(--destructive)"
-        onClick={handleDelete}
-        title={t("common.delete")}
-        type="button"
-      >
-        <Trash2 className="h-3 w-3" />
-      </button>
+        <MoreHorizontal aria-hidden className="h-3 w-3" />
+      </UiListActionButton>
+      <UiActionMenu
+        align="end"
+        anchorRef={anchorRef}
+        ariaLabel={menuLabel}
+        density="compact"
+        isOpen={isOpen}
+        items={[
+          { value: "rename", label: t("home.rename"), icon: <Pencil className="h-3.5 w-3.5" /> },
+          { value: "delete", label: t("common.delete"), icon: <Trash2 className="h-3.5 w-3.5" />, tone: "danger" },
+        ]}
+        minWidth={160}
+        onClose={closeMenu}
+        onSelect={(value) => {
+          if (value === "rename") actions.onRenameEntry(entry);
+          else if (value === "delete") actions.onDeleteEntry(entry);
+        }}
+      />
     </div>
   );
 }

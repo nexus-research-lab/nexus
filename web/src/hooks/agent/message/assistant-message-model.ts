@@ -1,6 +1,6 @@
 /**
  * INPUT: Assistant 实时增量、终态/历史快照与 ContentBlock。
- * OUTPUT: 内容不回退、内容专有规范化不丢失、durable annotation 不丢失的 Assistant 消息及安全终态失败。
+ * OUTPUT: 内容不回退、durable annotation 不丢失的 Assistant 消息与仅含身份/分类的终态失败投影。
  * POS: 会话 transport 汇流前的 Assistant 单消息归一/合并边界。
  */
 import type {
@@ -207,52 +207,6 @@ export function resolveAssistantResultErrorBannerMessage(
 
 function normalizeDisplayText(value: string): string {
   return value.replaceAll("\r\n", "\n").trim();
-}
-
-// latestAssistantResultErrorMessage 只检查终态 result_summary，不把工具自身
-// 的 is_error 当成整轮失败；这样可恢复工具错误不会污染会话错误栏。
-export function latestAssistantResultErrorMessage(
-  messages: readonly Message[],
-): string | null {
-  let latestAssistant: AssistantMessage | null = null;
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    if (message.role === "assistant") {
-      latestAssistant = message;
-      break;
-    }
-  }
-  if (!latestAssistant) {
-    return null;
-  }
-
-  const latestRoundId = typeof latestAssistant.round_id === "string"
-    ? latestAssistant.round_id.trim()
-    : "";
-  // 正常消息都带 root round_id；缺失时只能信任最新一条，避免把旧轮次错误
-  // 误挂到一个没有身份的历史快照上。
-  if (!latestRoundId) {
-    return resolveAssistantResultErrorBannerMessage(latestAssistant);
-  }
-
-  // Room 同一 root round 可能有多个 Agent。不能只看最后一条 Assistant，
-  // 否则前一个 slot 的真实失败会被后一个 slot 的成功快照覆盖。
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    if (
-      message.role !== "assistant"
-      || (typeof message.round_id === "string"
-        ? message.round_id.trim()
-        : "") !== latestRoundId
-    ) {
-      continue;
-    }
-    const error = resolveAssistantResultErrorBannerMessage(message);
-    if (error) {
-      return error;
-    }
-  }
-  return null;
 }
 
 /**

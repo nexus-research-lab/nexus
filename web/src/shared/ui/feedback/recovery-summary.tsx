@@ -4,6 +4,7 @@
 import type { ReactNode } from "react";
 
 import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 export function RecoverySummary({
   className,
@@ -17,13 +18,14 @@ export function RecoverySummary({
   return (
     <p
       className={cn(
-        "break-words text-xs leading-5 text-(--text-muted) [overflow-wrap:anywhere]",
+        "break-words [overflow-wrap:anywhere]",
+        getUiTypographyClassName({ role: "metadata", tone: "muted" }),
         className,
       )}
     >
       <span data-recovery-impact>{impact}</span>
       {nextStep ? (
-        <>{" "}<span className="text-(--text-default)" data-recovery-next-step>
+        <>{" "}<span className="ui-type-tone-default" data-recovery-next-step>
           {nextStep}
         </span></>
       ) : null}

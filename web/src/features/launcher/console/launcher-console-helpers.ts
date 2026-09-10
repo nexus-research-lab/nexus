@@ -1,3 +1,10 @@
+/**
+ * INPUT: Launcher 目录摘要、搜索标签和会话时间。
+ * OUTPUT: 装饰身份、Mention 与最近会话的纯投影。
+ * POS: Launcher Console 数据适配；姓名缩写复用 lib/avatar 的完整字符边界。
+ */
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
+import { getInitials } from "@/lib/avatar";
 import type {
   LauncherAgentSummary,
   LauncherConversationSummary,
@@ -21,17 +28,6 @@ const TOKEN_SWATCHES = [
   { fill: "#8B9089", text: "#FFFFFF", ring: "#B6BAB4" },
   { fill: "#E8945A", text: "#FFFFFF", ring: "#F0B186" },
 ];
-
-function getInitials(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) {
-    return "AG";
-  }
-  if (parts.length === 1) {
-    return parts[0].slice(0, 2).toUpperCase();
-  }
-  return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
-}
 
 export function truncateLauncherChipLabel(
   label: string,
@@ -62,6 +58,7 @@ export function buildDecorativeTokens(
   const agentTokens: SpotlightToken[] = agents.map((agent, index) => ({
     key: `agent-${agent.id}`,
     label: getInitials(agent.name),
+    name: agent.name,
     agent_id: agent.id,
     kind: "agent" as const,
     swatch: TOKEN_SWATCHES[index % TOKEN_SWATCHES.length],
@@ -123,6 +120,7 @@ export function buildDecorativeTokens(
 export function buildLauncherMentionTargets(
   agents: LauncherAgentSummary[],
   rooms: LauncherRoomSummary[],
+  t: I18nContextValue["t"],
 ): LauncherMentionTarget[] {
   const agentTargets = agents
     .slice()
@@ -131,7 +129,7 @@ export function buildLauncherMentionTargets(
       id: `agent-${agent.id}`,
       label: agent.name,
       marker: agent.name.charAt(0).toUpperCase(),
-      subtitle: "Agent",
+      subtitle: t("launcher.mention_agent"),
       kind: "agent" as const,
     }));
 
@@ -143,9 +141,9 @@ export function buildLauncherMentionTargets(
     )
     .map((room) => ({
       id: `room-${room.id}`,
-      label: room.name?.trim() || "未命名 Room",
+      label: room.name?.trim() || t("launcher.unnamed_room"),
       marker: "#",
-      subtitle: "Room",
+      subtitle: t("launcher.mention_room"),
       kind: "room" as const,
     }));
 
@@ -155,6 +153,7 @@ export function buildLauncherMentionTargets(
 
 export function buildRecentLauncherEntries(
   conversations: LauncherConversationSummary[],
+  t: I18nContextValue["t"],
 ): RecentLauncherEntry[] {
   return conversations
     .slice()
@@ -168,7 +167,7 @@ export function buildRecentLauncherEntries(
       type: conversation.room_type,
       label:
         conversation.title.trim() ||
-        (conversation.room_type === "dm" ? "未命名会话" : "未命名话题"),
+        t(conversation.room_type === "dm" ? "launcher.unnamed_conversation" : "launcher.unnamed_topic"),
       last_activity_at: getLauncherConversationTimestamp(conversation),
       agent_id: conversation.agent_id,
       room_id: conversation.room_id,

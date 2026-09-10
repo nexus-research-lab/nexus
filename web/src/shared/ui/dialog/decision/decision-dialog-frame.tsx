@@ -6,13 +6,15 @@
 import { LoaderCircle } from "lucide-react";
 import type { ReactNode, RefObject } from "react";
 
+import { UiButton } from "@/shared/ui/button/button";
 import {
   UiDialogBackdrop,
   UiDialogFooter,
   UiDialogPortal,
   UiDialogShell,
+  type UiDialogSize,
 } from "@/shared/ui/dialog/dialog";
-import { getDialogActionClassName } from "@/shared/ui/dialog/dialog-styles";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 
 interface DecisionDialogFrameProps {
   children: ReactNode;
@@ -20,6 +22,7 @@ interface DecisionDialogFrameProps {
   initialFocusRef: RefObject<HTMLElement | null>;
   labelledBy: string;
   onClose: () => void;
+  size?: Extract<UiDialogSize, "xs" | "sm">;
 }
 
 interface DecisionDialogActionsProps {
@@ -39,17 +42,18 @@ export function DecisionDialogFrame({
   initialFocusRef,
   labelledBy,
   onClose,
+  size = "sm",
 }: DecisionDialogFrameProps) {
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        className="z-[9999]"
         describedBy={describedBy}
         initialFocusRef={initialFocusRef}
         labelledBy={labelledBy}
+        layer="dialog"
         onClose={onClose}
       >
-        <UiDialogShell size="sm">{children}</UiDialogShell>
+        <UiDialogShell size={size}>{children}</UiDialogShell>
       </UiDialogBackdrop>
     </UiDialogPortal>
   );
@@ -66,26 +70,33 @@ export function DecisionDialogActions({
   onConfirm,
 }: DecisionDialogActionsProps) {
   return (
-    <UiDialogFooter className="!border-t-0 !bg-transparent !px-5 !pb-5 !pt-0">
-      <button
-        className={getDialogActionClassName("default")}
+    <UiDialogFooter appearance="plain" className="gap-2">
+      <UiButton
         disabled={busy}
         onClick={onCancel}
-        type="button"
+        size="md"
+        variant="surface"
       >
         {cancelText}
-      </button>
-      <button
+      </UiButton>
+      <UiButton
         aria-busy={busy}
-        className={getDialogActionClassName(confirmTone, confirmClassName)}
+        className={confirmClassName}
         disabled={busy}
         onClick={onConfirm}
         ref={confirmButtonRef}
-        type="button"
+        size="md"
+        tone={confirmTone}
+        variant="solid"
       >
-        {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+        {busy ? (
+          <LoaderCircle
+            aria-hidden
+            className={getUiSpinnerClassName({ size: "md" })}
+          />
+        ) : null}
         {confirmText}
-      </button>
+      </UiButton>
     </UiDialogFooter>
   );
 }

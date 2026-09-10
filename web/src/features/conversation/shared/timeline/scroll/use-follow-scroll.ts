@@ -1,11 +1,11 @@
 /**
- * INPUT: 会话内容版本、初始/实时内容锚点、历史前插令牌与滚动容器尺寸变化。
- * OUTPUT: DM、Room、Thread 共用的跟随状态、可顶部起始的 live 高度保护、阅读锚定与用户滚动处理器。
- * POS: FOLLOW 单一滚动所有权、Virtualizer 测高委托、live 高度负债、READING 锚定和资源清理的 React 编排层。
+ * INPUT: 会话内容版本、初始内容锚点、历史前插令牌与滚动容器尺寸变化。
+ * OUTPUT: DM、Room、Thread 共用的跟随状态、可顶部起始的自然内容布局、阅读锚定与用户滚动处理器。
+ * POS: FOLLOW 单一滚动所有权、Virtualizer 测高委托、真实内容尺寸、READING 锚定和资源清理的 React 编排层。
  */
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 
-import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 
 import {
   getConversationViewportSize,
@@ -22,10 +22,6 @@ import {
   clearConversationRoundNavigationTarget,
   getConversationRoundNavigationTarget,
 } from "./round-scroll";
-import {
-  useConversationLiveHeightGuard,
-  type ConversationLiveContentAlignment,
-} from "./use-conversation-live-height-guard";
 import { useFollowScrollInteractions } from "./use-follow-scroll-interactions";
 
 interface UseFollowScrollOptions {
@@ -34,7 +30,6 @@ interface UseFollowScrollOptions {
   contentKey?: string | null;
   historyPrependToken?: number;
   initialScrollAnchor?: "bottom" | "top";
-  liveContentAlignment?: ConversationLiveContentAlignment;
   liveLayoutActive?: boolean;
   sessionKey: string | null;
   topologyKey?: string | null;
@@ -67,7 +62,6 @@ export function useFollowScroll({
   contentKey = null,
   historyPrependToken = 0,
   initialScrollAnchor = "bottom",
-  liveContentAlignment = "end",
   liveLayoutActive = false,
   sessionKey,
   topologyKey = null,
@@ -114,13 +108,6 @@ export function useFollowScroll({
       && previousTopologyKeyRef.current !== topologyKey
     )
   );
-  useConversationLiveHeightGuard({
-    active: liveLayoutActive,
-    contentAlignment: liveContentAlignment,
-    feedRef,
-    revision: `${messageCount}\u001f${topologyKey ?? ""}`,
-    scopeKey: sessionKey,
-  });
 
   const isBottomScrollActive = useCallback(
     () => (

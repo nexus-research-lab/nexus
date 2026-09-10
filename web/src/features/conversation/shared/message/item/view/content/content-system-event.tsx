@@ -1,3 +1,7 @@
+// INPUT: 已投影的系统事件内容、重试时序和本地化文案。
+// OUTPUT: 紧凑系统事件，以及可独立展开错误详情的 Provider 重试活动行。
+// POS: Conversation 消息内容视图；只解释系统事件展示，不拥有协议投影或重试状态。
+
 import { useEffect } from "react";
 import {
   ChevronRight,
@@ -8,7 +12,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import type { SystemEventContent } from "@/types/conversation/message/content";
@@ -61,7 +65,7 @@ export function ContentSystemEvent({ block }: { block: SystemEventContent }) {
         </span>
         <span>{block.label}</span>
       </div>
-      <div className="message-cjk-font min-w-0 max-w-full overflow-hidden break-words pt-1 text-[14px] leading-6 text-(--text-default)">
+      <div className="message-cjk-font ui-type-body min-w-0 max-w-full overflow-hidden break-words pt-1 text-(--text-default)">
         {block.content}
       </div>
     </div>
@@ -123,10 +127,14 @@ function ApiRetrySystemEvent({
   );
 
   useEffect(() => {
-    if (retryDelayMs <= 0) {
+    if (retryDelayMs <= 0 || block.timestamp + retryDelayMs <= Date.now()) {
       return;
     }
-    const intervalId = window.setInterval(() => setNowMs(Date.now()), 1000);
+    const intervalId = window.setInterval(() => {
+      const now = Date.now();
+      setNowMs(now);
+      if (now >= block.timestamp + retryDelayMs) window.clearInterval(intervalId);
+    }, 1000);
     return () => window.clearInterval(intervalId);
   }, [block.timestamp, retryDelayMs, setNowMs]);
 

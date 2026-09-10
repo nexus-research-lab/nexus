@@ -8,13 +8,13 @@ import (
 	"time"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
-	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
+	"github.com/nexus-research-lab/nexus/internal/app"
+	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	realtimesvc "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-
 	_ "modernc.org/sqlite"
 )
 
@@ -26,7 +26,7 @@ func TestRoomServiceLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	roomService.SetSessionArtifactDeletionCoordinator(
 		noopSessionArtifactDeletionCoordinator{},
 	)
@@ -167,7 +167,7 @@ func TestRoomServiceTouchConversationActivityOrdersContexts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 
 	ctx := context.Background()
 	agentA := createTestAgent(t, agentService, ctx, "测试助手A")
@@ -241,7 +241,7 @@ func TestRoomServiceEnsuresSingleDraftConversation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 
 	ctx := context.Background()
 	agentA := createTestAgent(t, agentService, ctx, "草稿助手A")
@@ -350,7 +350,7 @@ func TestRoomServiceClosesConversationRuntime(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	runtimeCloser := &fakeRoomRuntimeCloser{}
 	roomService.SetRuntimeManager(runtimeCloser)
 	roomService.SetSessionArtifactDeletionCoordinator(
@@ -402,7 +402,7 @@ func TestRealtimeServiceHandleInterruptCancelsAllSlots(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
@@ -610,7 +610,7 @@ func TestRealtimeServiceTreatsClosedStreamAfterInterruptAsInterrupted(t *testing
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
@@ -730,5 +730,63 @@ func TestRealtimeServiceTreatsClosedStreamAfterInterruptAsInterrupted(t *testing
 	}
 	if !partialThinkingPreserved {
 		t.Fatalf("共享日志未保留强制中断前的流式思考: %+v", sharedMessages)
+	}
+}
+
+func TestRoomRoundCompletionReachesAutomationObserver(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
+	agent := createTestAgent(t, agentService, ctx, "定时助手")
+	room, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs: []string{agent.AgentID}, Name: "自动化终态回归",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := newFakeRoomClient()
+	client.onQuery = func(context.Context, string) error {
+		client.messages <- sdkprotocol.ReceivedMessage{
+			Type: sdkprotocol.MessageTypeResult, SessionID: client.sessionID, UUID: "result-1",
+			Result: &sdkprotocol.ResultMessage{Subtype: "success", Result: "任务完成", NumTurns: 1},
+		}
+		return nil
+	}
+	manager := runtimectx.NewManager()
+	service := NewServiceWithFactory(cfg, roomService, agentService, manager,
+		permissionctx.NewContext(), &fakeRoomFactory{clients: []*fakeRoomClient{client}})
+	broadcaster := &roomDirectedMessageBroadcaster{}
+	service.SetRoomBroadcaster(broadcaster)
+	sink := automationexec.NewExecutionSink("automation:completion-test")
+	defer sink.Close()
+	const roundID = "automation-room-round"
+	sessionKey := protocol.BuildRoomSharedSessionKey(room.Conversation.ID)
+	if err = service.HandleChat(ctx, realtimesvc.ChatRequest{
+		SessionKey: sessionKey, ConversationID: room.Conversation.ID, RoomID: room.Room.ID,
+		Content: "完成本次任务", TargetAgentIDs: []string{agent.AgentID}, RoundID: roundID,
+		ExecutionOrigin: "automation",
+		EventObserver:   func(ctx context.Context, event protocol.EventMessage) { _ = sink.SendEvent(ctx, event) },
+	}); err != nil {
+		t.Fatal(err)
+	}
+	waitCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	observation := sink.WaitForRound(waitCtx, roundID)
+	if observation.Status != "succeeded" {
+		t.Fatalf("Room 已结束时自动化必须收到成功终态，实际 %+v", observation)
+	}
+	terminalCount := 0
+	for _, event := range broadcaster.Events() {
+		if event.EventType == protocol.EventTypeRoundStatus && event.Data["is_terminal"] == true {
+			terminalCount++
+		}
+	}
+	if terminalCount != 1 {
+		t.Fatalf("Web 应收到一次 root 终态，实际 %d", terminalCount)
 	}
 }

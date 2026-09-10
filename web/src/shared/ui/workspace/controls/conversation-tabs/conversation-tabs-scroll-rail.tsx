@@ -1,3 +1,6 @@
+// INPUT: 已归一化的标签滚动尺寸、位置与滚动命令。
+// OUTPUT: 原生 range 滚动轨道，按压和捕获丢失只改变临时外观。
+// POS: Workspace 标签滚动控制，不拥有滚动位置真相或业务状态。
 import { useState, type CSSProperties } from "react";
 
 import type { ConversationTabsScrollMetrics } from "./use-conversation-tabs-scroll";
@@ -30,6 +33,7 @@ export function ConversationTabsScrollRail({
       min={0}
       onBlur={() => setIsDragging(false)}
       onChange={(event) => onChange(Number(event.currentTarget.value))}
+      onLostPointerCapture={() => setIsDragging(false)}
       onPointerCancel={() => setIsDragging(false)}
       onPointerDown={(event) => {
         if (event.button === 0) {

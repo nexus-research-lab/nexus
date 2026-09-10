@@ -32,6 +32,8 @@ public partial class MainWindow : System.Windows.Window
     private readonly DesktopUpdateChecker updateChecker;
     private readonly DesktopTrayController trayController;
     private WebViewHost? webViewHost;
+    private bool needsAttention;
+    private bool flashingAttention;
     private bool closed;
     private bool exitRequested;
     private bool webViewRecreateInFlight;
@@ -94,13 +96,59 @@ public partial class MainWindow : System.Windows.Window
     protected override void OnActivated(EventArgs e)
     {
         base.OnActivated(e);
+        UpdateAttention();
         webViewHost?.SetHostWindowInteractive(IsWebViewInteractive(), "activated");
         _ = webViewHost?.RecoverAfterWindowShownAsync("activated");
     }
 
+    protected override void OnDeactivated(EventArgs e)
+    {
+        base.OnDeactivated(e);
+        UpdateAttention();
+    }
+
+    internal void SetNeedsAttention(bool pending)
+    {
+        needsAttention = pending;
+        UpdateAttention();
+    }
+
+    private void UpdateAttention()
+    {
+        bool flash = needsAttention && (!IsActive || WindowState == WindowState.Minimized);
+        IntPtr handle = new WindowInteropHelper(this).Handle;
+        if (handle == IntPtr.Zero || flashingAttention == flash) return;
+        flashingAttention = flash;
+        // FLASHW_TRAY | FLASHW_TIMERNOFG：闪烁任务栏直到窗口回到前台，不抢焦点。
+        var info = new FlashWindowInfo
+        {
+            Size = (uint)Marshal.SizeOf<FlashWindowInfo>(),
+            Window = handle,
+            Flags = flash ? 0x0000000Eu : 0,
+            Count = uint.MaxValue,
+            Timeout = 0,
+        };
+        FlashWindowEx(ref info);
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct FlashWindowInfo
+    {
+        public uint Size;
+        public IntPtr Window;
+        public uint Flags;
+        public uint Count;
+        public uint Timeout;
+    }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool FlashWindowEx(ref FlashWindowInfo info);
+
     protected override void OnStateChanged(EventArgs e)
     {
         base.OnStateChanged(e);
+        UpdateAttention();
         bool interactive = IsWebViewInteractive();
         webViewHost?.SetHostWindowInteractive(
             interactive,
@@ -139,6 +187,7 @@ public partial class MainWindow : System.Windows.Window
 
     public void DisposeWebView()
     {
+        SetNeedsAttention(false);
         webViewHost?.Dispose();
         webViewHost = null;
         SetNavigationAvailability(canGoBack: false, canGoForward: false);

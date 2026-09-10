@@ -1,7 +1,7 @@
 /**
  * INPUT: Room 根轮次 feed、消息、slot、权限与 execution 首见锚点投影。
  * OUTPUT: 以稳定 agent_round 节点展开、按 parent slot 精确消费 legacy terminal，并守恒每条可见 user 消息的 feed。
- * POS: Room feed 专属时间线投影；canonical root 数据仍由 shared timeline 保存给 Thread。
+ * POS: Room feed 专属结构投影，不依赖姓名/头像目录；canonical root 数据仍由 shared timeline 保存给 Thread。
  */
 import type {
   RoomAgentExecutionState,
@@ -49,6 +49,7 @@ interface TimelineNode {
 const ROOM_AGENT_NODE_PREFIX = "room-agent-round:";
 const ROOM_THREAD_ONLY_SYSTEM_SUBTYPES = new Set([
   "memory_saved",
+  "permission_review",
 ]);
 
 /** 每次 agent_round 从 pending 到 terminal 都保持同一个 feed node identity。 */
@@ -137,8 +138,6 @@ function buildRootTimelineNodes({
   }
 
   const model = buildGroupRoundCardModel({
-    agentAvatarMap: {},
-    agentNameMap: {},
     messages,
     pendingPermissions,
     pendingSlots,

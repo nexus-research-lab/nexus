@@ -1,6 +1,9 @@
+// INPUT: 当前 Room/Agent、成员目录、显式简介请求及既有配置保存命令。
+// OUTPUT: 成员/栏目导航及设置/记忆/联络；DM联络读Agent跨会话，群聊保留当前会话范围。
+// POS: Room 简介装配；只拥有导航选择，字段、保存和内容状态由各领域负责。
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useSyncExternalStore, type ReactNode } from "react";
 
 import {
   AGENT_DETAIL_TABS,
@@ -12,6 +15,8 @@ import {
   buildAgentOptionsEditSource,
 } from "@/features/agents/options/agent-options-editor-model";
 import { AgentMemoryView } from "@/features/memory/agent-memory-view";
+import { captureAuthOwnerScopeGeneration, subscribeAuthOwnerScopeGeneration } from "@/shared/auth/auth-owner-generation";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { UiTabs } from "@/shared/ui/navigation/tabs";
@@ -26,6 +31,7 @@ import { RoomAgentSwitcher } from "./room-agent-switcher";
 
 interface RoomAgentAboutSurfaceProps {
   agent: Agent;
+  isDm?: boolean;
   roomId: string | null;
   conversationId: string | null;
   roomMembers: Agent[];
@@ -47,6 +53,7 @@ interface RoomAgentAboutSurfaceProps {
 
 export function RoomAgentAboutSurface({
   agent,
+  isDm = false,
   roomId,
   conversationId,
   roomMembers,
@@ -58,18 +65,24 @@ export function RoomAgentAboutSurface({
   onValidateAgentName,
 }: RoomAgentAboutSurfaceProps) {
   const { t } = useI18n();
-  const [selectedAgentId, setSelectedAgentId] = useState(agent.agent_id);
-  const [activeTab, setActiveTab] = useState<AgentDetailTabKey>("identity");
-
-  useEffect(() => {
-    setSelectedAgentId(requestedAgentId ?? agent.agent_id);
-    setActiveTab(requestedTab ?? "identity");
-  }, [agent.agent_id, requestKey, requestedAgentId, requestedTab]);
-
-  const selectedAgent = useMemo(() => {
-    return roomMembers.find((member) => member.agent_id === selectedAgentId) ?? agent;
-  }, [agent, roomMembers, selectedAgentId]);
-
+  const ownerGeneration = useSyncExternalStore(
+    subscribeAuthOwnerScopeGeneration, captureAuthOwnerScopeGeneration, captureAuthOwnerScopeGeneration,
+  );
+  // 简介导航属于 Room/Agent；同一 Room 的 Session 切换由内容领域更新查询。
+  const navigationScope = JSON.stringify([
+    ownerGeneration, roomId, agent.agent_id, requestKey, requestedAgentId, requestedTab,
+  ]);
+  const [selectedAgentId, setSelectedAgentId] = useResettableState(
+    requestedAgentId ?? agent.agent_id, navigationScope,
+  );
+  const [activeTab, setActiveTab] = useResettableState<AgentDetailTabKey>(
+    requestedTab ?? "identity", navigationScope,
+  );
+  const selectedAgent = roomMembers.find((member) => member.agent_id === selectedAgentId) ?? agent;
+  // 提交当前回退，成员重新出现时不恢复已经失效的旧选择。
+  if (selectedAgentId !== selectedAgent.agent_id) {
+    setSelectedAgentId(selectedAgent.agent_id);
+  }
   const editorSource = useMemo(
     () => buildAgentOptionsEditSource(selectedAgent),
     [selectedAgent],
@@ -113,8 +126,8 @@ export function RoomAgentAboutSurface({
         {activeTab === "private_domain" ? (
           <AgentPrivateDomainView
             agent={selectedAgent}
-            conversationId={conversationId}
-            roomId={roomId}
+            conversationId={isDm ? null : conversationId}
+            roomId={isDm ? null : roomId}
             variant="preview"
           />
         ) : activeTab === "memory" ? (
@@ -137,9 +150,9 @@ export function RoomAgentAboutSurface({
 }
 
 function RoomAgentPanelTabs({
-  activeTab: activeTab,
-  leading: leading,
-  onChange: onChange,
+  activeTab,
+  leading,
+  onChange,
 }: {
   activeTab: AgentDetailTabKey;
   leading?: ReactNode;
@@ -149,12 +162,12 @@ function RoomAgentPanelTabs({
 
   return (
     <div className={cn(
-      "flex min-w-0 shrink-0 items-center border-b dialog-divider",
+      "flex min-w-0 shrink-0 items-center gap-2 border-b dialog-divider",
       WORKSPACE_PANEL_HEADER_HEIGHT_CLASS,
       WORKSPACE_PANEL_HEADER_PADDING_CLASS,
     )}>
       {leading ? (
-        <div className="mr-5 shrink-0">
+        <div className="shrink-0">
           {leading}
         </div>
       ) : null}
@@ -163,7 +176,6 @@ function RoomAgentPanelTabs({
         ariaLabel={t("room.agent_panel_tabs")}
         className="-mx-0.5 min-w-0 flex-1 px-0.5"
         density="compact"
-        itemClassName="h-7 px-2.5"
         onChange={onChange}
         options={AGENT_DETAIL_TABS.map((tab) => ({
           label: t(tab.labelKey),

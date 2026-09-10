@@ -76,7 +76,7 @@ test("上下文圆环只显示 runtime 快照，并保留 Room 每个 Agent 的�
   assert.deepEqual(projectContextUsage(usage), {
     maxTokens: 258_000,
     percentage: 76,
-    toneClassName: "text-(--text-soft)",
+    tone: "soft",
     totalTokens: 196_000,
   });
   assert.equal(projectContextUsage(null), null);
@@ -93,8 +93,8 @@ test("上下文圆环只显示 runtime 快照，并保留 Room 每个 Agent 的�
   assert.match(html, /class="h-4 w-4 -rotate-90"/);
   assert.doesNotMatch(html, /class="h-5 w-5 -rotate-90"/);
   assert.match(html, /上下文窗口已用 76%/);
-  assert.match(html, /196\.0K/);
-  assert.match(html, /258\.0K/);
+  assert.match(html, /196K/);
+  assert.match(html, /258K/);
   assert.equal(
     (html.match(/stroke-width="2"/g) ?? []).length,
     2,
@@ -570,12 +570,15 @@ test("questions and plan confirmations use the same Composer replacement owner",
   assert.match(planHtml, /先验证数据源，再生成最终报告/);
   assert.match(planHtml, />允许本次</);
   assert.match(planHtml, />拒绝</);
-  assert.match(
-    planHtml,
-    /class="[^"]*\bradius-control-sm\b[^"]*\bw-24\b[^"]*" data-composer-permission-action="deny"/,
-  );
-  assert.match(
-    planHtml,
-    /class="[^"]*\bradius-control-sm\b[^"]*\bw-24\b[^"]*" data-composer-permission-action="allow"/,
-  );
+  const denyActionTag = planHtml.match(
+    /<button[^>]*data-composer-permission-action="deny"[^>]*>/,
+  )?.[0] ?? "";
+  const allowActionTag = planHtml.match(
+    /<div[^>]*data-composer-permission-action="allow"[^>]*>/,
+  )?.[0] ?? "";
+  assert.match(denyActionTag, /\bradius-control-sm\b/);
+  assert.match(denyActionTag, /\bw-24\b/);
+  assert.match(allowActionTag, /data-slot="split-button"/);
+  assert.match(allowActionTag, /\bradius-control-sm\b/);
+  assert.match(allowActionTag, /\bw-24\b/);
 });

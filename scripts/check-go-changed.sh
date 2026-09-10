@@ -53,6 +53,8 @@ append_nearest_go_package() {
 	fi
 }
 
+(cd "${repo_root}" && go run ./scripts/check-architecture)
+
 base_commit="$(resolve_base_commit)"
 changed_list_path="$(mktemp "${TMPDIR:-/tmp}/nexus-go-changed.XXXXXX")"
 package_list_path="$(mktemp "${TMPDIR:-/tmp}/nexus-go-packages.XXXXXX")"

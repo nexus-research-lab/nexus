@@ -1,4 +1,4 @@
-import { AGENT_PERMISSION_MODES } from "@/lib/agent-options";
+import { getAgentPermissionChoices, AGENT_PERMISSION_MODES } from "@/lib/agent-options";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 
 import type {
@@ -54,8 +54,9 @@ export function buildReplyModeOptions(t: Translate): ChoiceDef<ReplyMode>[] {
 export function buildPermissionModeOptions(
   t: Translate,
   includeCopy = true,
+  runtimeKind = "nxs",
 ): ChoiceDef<PermissionMode>[] {
-  const persisted = AGENT_PERMISSION_MODES.map((option) => ({
+  const persisted = getAgentPermissionChoices(runtimeKind).map((option) => ({
     key: option.value,
     label: t(option.labelKey),
   }));

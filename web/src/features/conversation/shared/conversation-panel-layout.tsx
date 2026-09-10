@@ -7,6 +7,7 @@ import type { ComponentProps, ReactNode, RefObject } from "react";
 
 import type { SessionRoundIndexResource } from "@/hooks/conversation/use-session-round-index";
 import { hasConversationReliabilityNotice } from "@/hooks/agent/reliability/conversation-reliability-model";
+import { UiBadge } from "@/shared/ui/display/badge";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
 import { ConversationReliabilityNotice } from "./conversation-reliability-notice";
@@ -29,6 +30,7 @@ type ScrollViewportEvents = Pick<
 >;
 
 export type ConversationViewportModel = ScrollViewportEvents & {
+  ariaLabel?: string;
   isHistoryLoading: boolean;
   scrollRef: RefObject<HTMLDivElement | null>;
 };
@@ -86,7 +88,9 @@ export function ConversationPanelViewport({
           : "soft-scrollbar relative z-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-3 py-4 outline-none sm:px-5 sm:py-5 xl:px-7 xl:py-5"
       }
       style={{ overflowAnchor: "none", scrollbarGutter: "stable" }}
-      tabIndex={-1}
+      role={viewport.ariaLabel ? "region" : undefined}
+      aria-label={viewport.ariaLabel}
+      tabIndex={viewport.ariaLabel ? 0 : -1}
       onPointerDown={viewport.onPointerDown}
       onScroll={viewport.onScroll}
       onTouchEnd={viewport.onTouchEnd}
@@ -99,9 +103,9 @@ export function ConversationPanelViewport({
           className={`${CONVERSATION_CONTENT_LANE_CLASS_NAME} pointer-events-none sticky top-2 z-20 flex h-0 justify-center`}
           data-conversation-history-loading-overlay
         >
-          <span className="inline-flex h-6 items-center rounded-full border border-(--surface-control-border) bg-(--surface-control-background) px-2.5 text-xs text-muted-foreground shadow-(--surface-control-shadow)">
+          <UiBadge shape="pill" size="md" role="status">
             {t("room.loading_earlier_messages")}
-          </span>
+          </UiBadge>
         </div>
       ) : null}
       {children}
@@ -222,7 +226,6 @@ export function ConversationPanelBottomArea({
                 : `${CONVERSATION_COMPOSER_LANE_CLASS_NAME} px-3 pt-1 sm:px-5 xl:px-6`}
             >
               <ReadResourceReliabilityNotice
-                className="rounded-[10px] border"
                 impact={t(roundIndexResource.access
                   ? "conversation.round_index_access_impact"
                   : roundIndexResource.isStale
@@ -233,6 +236,7 @@ export function ConversationPanelBottomArea({
                 problem={t("conversation.round_index_refresh_failed")}
                 resource="session-round-index"
                 stale={roundIndexResource.isStale}
+                variant="contained"
               />
             </div>
           ) : providerStatusVisible ? (

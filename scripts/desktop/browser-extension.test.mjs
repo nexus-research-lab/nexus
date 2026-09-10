@@ -74,11 +74,12 @@ const context = vm.createContext({
   crypto: webcrypto,
   setTimeout,
   TextEncoder,
+  performance,
   URL,
   WebSocket: WebSocketStub,
 });
 vm.runInContext(
-  source + "\n;globalThis.__test = { BrowserController, SNAPSHOT_MAX_BYTES, SNAPSHOT_MAX_NODES, browserNameFromUserAgent, buildNexusContextPrompt, buildNexusLaunchURL, isControllableURL };",
+  source + "\n;globalThis.__test = { BrowserClient, BrowserCommandContext, BrowserController, SNAPSHOT_MAX_BYTES, SNAPSHOT_MAX_NODES, browserNameFromUserAgent, buildNexusContextPrompt, buildNexusLaunchURL, isControllableURL };",
   context,
   { filename: testPath },
 );
@@ -268,13 +269,14 @@ test("Browser 标准点击等待可见光标抵达后再发送 CDP 事件", asyn
   controller.getTab = async () => ({ id: 9 });
   controller.pointerPoint = async () => ({ x: 120, y: 80 });
   controller.command = async (_tabId, method, params) => {
-    actionOrder.push(method + ":" + params.type);
+    actionOrder.push(method === "Page.bringToFront" ? method : method + ":" + params.type);
     return {};
   };
 
   await controller.click({ tab_id: 9, selector: "@e1" });
 
   assert.deepEqual(actionOrder, [
+    "Page.bringToFront",
     "cursor",
     "inject",
     "cursor",
@@ -382,4 +384,260 @@ test("Browser 光标首个动作沿轨迹移动且只在当前可见标签页显
   assert.equal(response.ok, true);
   assert.equal(overlay.cursor.style.opacity, "0");
   assert.equal(overlay.current, null);
+});
+
+
+function commandClient(execute) {
+  const controller = new context.__test.BrowserController();
+  if (execute) controller.execute = execute;
+  const client = new context.__test.BrowserClient(controller);
+  const messages = [];
+  const socket = { readyState: 1, send(raw) { messages.push(JSON.parse(raw)); }, close() {} };
+  client.socket = socket;
+  return { client, controller, socket, messages };
+}
+
+function submit(client, socket, id, action, params = {}, budget = 200) {
+  client.handleMessage(socket, { type: "browser.command", id, action, params, budget_ms: budget });
+}
+
+async function until(predicate) {
+  const deadline = Date.now() + 2500;
+  while (!predicate()) {
+    assert.ok(Date.now() < deadline, "timed out waiting for test condition");
+    await new Promise(resolve => setTimeout(resolve, 5));
+  }
+}
+
+test("Browser 挂起操作有界结束，目录查询可用，排队取消不会开始，其他会话继续", async () => {
+  const entered = [];
+  let resume;
+  const { client, socket, messages } = commandClient(async function(action) {
+    entered.push(action);
+    if (action === "scroll") await this.commandContext.native("Page.getLayoutMetrics", () => new Promise(resolve => { resume = resolve; }));
+    if (action === "scroll") this.claimTab(99, { session: "late" }, true);
+    return {};
+  });
+  submit(client, socket, "a", "scroll", { session: "a" }, 45);
+  submit(client, socket, "b", "click", { session: "b" });
+  client.handleMessage(socket, { type: "browser.cancel", id: "b" });
+  submit(client, socket, "c", "list_tabs", { session: "c" });
+  submit(client, socket, "d", "navigate", { session: "d" });
+  await until(() => messages.filter(m => m.type === "browser.result").length === 4);
+  assert.deepEqual(entered, ["scroll", "list_tabs", "navigate"]);
+  assert.match(messages.find(m => m.type === "browser.result" && m.id === "a").error, /unknown/);
+  assert.match(messages.find(m => m.type === "browser.result" && m.id === "b").error, /not started/);
+  resume({});
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(client.controller.leaseByTab.has(99), false);
+  submit(client, socket, "e", "click", { session: "a" });
+  await until(() => messages.some(m => m.type === "browser.result" && m.id === "e"));
+  assert.match(messages.find(m => m.type === "browser.result" && m.id === "e").error, /requires recovery/);
+});
+
+test("Browser 断线取消旧任务，迟到返回不能继续输入或向新连接发回执", async () => {
+  let resume;
+  const entered = [];
+  const { client, socket, messages } = commandClient(async function(action) {
+    if (action === "scroll") await this.commandContext.native("Page.getLayoutMetrics", () => new Promise(resolve => { resume = resolve; }));
+    this.commandContext.check();
+    entered.push(action);
+    return {};
+  });
+  submit(client, socket, "old", "scroll", { session: "old" });
+  submit(client, socket, "queued", "click", { session: "old" });
+  client.closeSocket();
+  const newer = { readyState: 1, send(raw) { messages.push(JSON.parse(raw)); }, close() {} };
+  client.socket = newer;
+  submit(client, newer, "new", "navigate", { session: "new" });
+  resume({});
+  await until(() => messages.some(m => m.type === "browser.result" && m.id === "new"));
+  assert.deepEqual(entered, ["navigate"]);
+  assert.equal(messages.some(m => m.type === "browser.result" && ["old", "queued"].includes(m.id)), false);
+});
+
+test("Browser 回执发送异常不会把调度器永久置为 rejected", async () => {
+  const { client, socket } = commandClient(async () => ({}));
+  socket.send = () => { throw new Error("socket failed"); };
+  submit(client, socket, "bad", "navigate", { session: "bad" });
+  await until(() => !client.running);
+  const messages = [];
+  const newer = { readyState: 1, send(raw) { messages.push(JSON.parse(raw)); }, close() {} };
+  client.socket = newer;
+  submit(client, newer, "good", "navigate", { session: "good" });
+  await until(() => messages.some(m => m.type === "browser.result" && m.id === "good"));
+  assert.equal(messages.find(m => m.type === "browser.result" && m.id === "good").error, undefined);
+});
+
+test("Browser 光标补注入永久挂起仍降级滚动，迟到注入不再发送光标", async () => {
+  const originalInject = chrome.scripting.executeScript;
+  const originalSend = chrome.tabs.sendMessage;
+  let resume;
+  let cursorCalls = 0;
+  const dispatched = [];
+  chrome.tabs.sendMessage = async () => { cursorCalls++; throw new Error("receiver absent"); };
+  chrome.scripting.executeScript = () => new Promise(resolve => { resume = resolve; });
+  const { client, controller, socket, messages } = commandClient();
+  controller.command = async (_id, method) => {
+    dispatched.push(method);
+    return { cssVisualViewport: { clientWidth: 800, clientHeight: 600 } };
+  };
+  try {
+    submit(client, socket, "scroll", "scroll", { tab_id: 9, session: "a", delta_y: 900 }, 2400);
+    await until(() => messages.some(m => m.type === "browser.result"));
+    assert.equal(messages.find(m => m.type === "browser.result").error, undefined);
+    assert.deepEqual(dispatched, ["Page.bringToFront", "Page.getLayoutMetrics", "Input.dispatchMouseEvent"]);
+    resume([]);
+    await new Promise(resolve => setTimeout(resolve, 10));
+    assert.equal(cursorCalls, 1);
+  } finally { chrome.scripting.executeScript = originalInject; chrome.tabs.sendMessage = originalSend; }
+});
+
+test("Browser 光标等待期间取消不得发出鼠标输入", async () => {
+  const originalSend = chrome.tabs.sendMessage;
+  let resume;
+  chrome.tabs.sendMessage = () => new Promise(resolve => { resume = resolve; });
+  const { client, controller, socket, messages } = commandClient();
+  const dispatched = [];
+  controller.command = async (_id, method) => { dispatched.push(method); return {}; };
+  try {
+    submit(client, socket, "scroll", "scroll", { tab_id: 9, x: 2, y: 2, session: "a", delta_y: 900 }, 40);
+    await until(() => messages.some(m => m.type === "browser.result"));
+    resume({});
+    await new Promise(resolve => setTimeout(resolve, 10));
+    assert.deepEqual(dispatched, ["Page.bringToFront"]);
+  } finally { chrome.tabs.sendMessage = originalSend; }
+});
+
+test("Browser 收尾的光标隐藏永久挂起有界降级并释放标签", async () => {
+  const originalSend = chrome.tabs.sendMessage;
+  chrome.tabs.sendMessage = () => new Promise(() => {});
+  const { client, controller, socket, messages } = commandClient();
+  controller.leaseByTab.set(9, { session: "a", roundID: "r", owned: false });
+  controller.attachedTabs.add(9);
+  try {
+    submit(client, socket, "finalize", "finalize_round", { session: "a", round_id: "r" }, 2400);
+    await until(() => messages.some(m => m.type === "browser.result"));
+    const result = messages.find(m => m.type === "browser.result");
+    assert.equal(result.error, undefined);
+    assert.equal(result.result.released, 1);
+    assert.equal(controller.leaseByTab.has(9), false);
+  } finally { chrome.tabs.sendMessage = originalSend; }
+});
+
+test("Browser 拖拽按下后取消会尝试detach，保留隔离且不继续拖动", async () => {
+  const original = chrome.debugger.sendCommand;
+  let resume;
+  const events = [];
+  chrome.debugger.sendCommand = async (_target, method, params) => {
+    if (method === "Page.bringToFront") return {};
+    events.push(params.type);
+    if (params.type === "mousePressed") return new Promise(resolve => { resume = resolve; });
+    return {};
+  };
+  const { client, controller, socket, messages } = commandClient();
+  controller.attachedTabs.add(9);
+  controller.leaseByTab.set(9, { session: "a", roundID: "r", owned: false });
+  const detachCount = detachedTabs.length;
+  try {
+    submit(client, socket, "drag", "drag", { tab_id: 9, session: "a", from_x: 0, from_y: 0, to_x: 9, to_y: 9 }, 50);
+    await until(() => messages.some(m => m.type === "browser.result"));
+    assert.deepEqual(events, ["mouseMoved", "mousePressed"]);
+    assert.ok(detachedTabs.length > detachCount);
+    assert.equal(client.quarantinedTabs.has(9), true);
+    resume({});
+    await new Promise(resolve => setTimeout(resolve, 10));
+    assert.deepEqual(events, ["mouseMoved", "mousePressed"]);
+  } finally { chrome.debugger.sendCommand = original; }
+});
+
+test("Browser 取消导航移除事件监听，迟到事件不会触发下一步", async () => {
+  const listeners = new Set();
+  const originalEvent = chrome.tabs.onUpdated;
+  const originalReload = chrome.tabs.reload;
+  let resume;
+  chrome.tabs.onUpdated = { addListener(fn) { listeners.add(fn); }, removeListener(fn) { listeners.delete(fn); } };
+  chrome.tabs.reload = () => new Promise(resolve => { resume = resolve; });
+  const { client, controller, socket, messages } = commandClient();
+  controller.attachedTabs.add(9);
+  const baselineListeners = listeners.size;
+  try {
+    submit(client, socket, "reload", "reload", { tab_id: 9, session: "a" }, 40);
+    await until(() => messages.some(m => m.type === "browser.result"));
+    assert.equal(listeners.size, baselineListeners);
+    resume({});
+    await new Promise(resolve => setTimeout(resolve, 10));
+    assert.equal(messages.filter(m => m.type === "browser.result").length, 1);
+  } finally { chrome.tabs.onUpdated = originalEvent; chrome.tabs.reload = originalReload; }
+});
+
+test("Browser 单个原生阶段期限先于命令总预算生效", async () => {
+  const { client, socket, messages } = commandClient(async function() {
+    await this.commandContext.native("Page.getLayoutMetrics", () => new Promise(() => {}), false, 20);
+    return {};
+  });
+  submit(client, socket, "api", "scroll", { session: "a" }, 500);
+  await until(() => messages.some(m => m.type === "browser.result"));
+  assert.match(messages.find(m => m.type === "browser.result").error, /API timed out: Page.getLayoutMetrics/);
+  assert.ok(messages.some(m => m.type === "browser.progress" && m.data.stage === "api_start" && m.data.method === "Page.getLayoutMetrics"));
+});
+
+test("Browser 排队预算到期后不得执行，队列容量拒绝不改变既有任务", async () => {
+  const entered = [];
+  const { client, socket, messages } = commandClient(async function(action) {
+    entered.push(action);
+    if (action === "first") await this.commandContext.native("tabs.get", () => new Promise(() => {}));
+    return {};
+  });
+  submit(client, socket, "first", "first", { session: "a" }, 80);
+  submit(client, socket, "expired", "click", { session: "b" }, 10);
+  for (let index = 0; index < 62; index++) submit(client, socket, "queued" + index, "queued", { session: "a" }, 20);
+  submit(client, socket, "overflow", "click", { session: "c" });
+  await until(() => messages.filter(m => m.type === "browser.result").length === 65);
+  assert.deepEqual(entered, ["first"]);
+  assert.match(messages.find(m => m.type === "browser.result" && m.id === "overflow").error, /queue is full/);
+});
+
+test("Browser 阶段上报发送失败后不得进入原生副作用", async () => {
+  let calls = 0;
+  const { client, socket, messages } = commandClient(async function() {
+    await this.commandContext.native("Input.dispatchMouseEvent", () => { calls++; return {}; });
+    return {};
+  });
+  socket.send = raw => {
+    const message = JSON.parse(raw);
+    if (message.type === "browser.progress" && message.data.stage === "api_start") throw new Error("write failed");
+    messages.push(message);
+  };
+  submit(client, socket, "fail", "click", { session: "a" });
+  await until(() => !client.running);
+  assert.equal(calls, 0);
+});
+
+
+test("Browser 激活后台页之后才派发滚轮，激活失败不发送输入", async () => {
+  const original = chrome.debugger.sendCommand;
+  let active = false;
+  let wheelCalls = 0;
+  chrome.debugger.sendCommand = async (_target, method) => {
+    if (method === "Page.bringToFront") { active = true; return {}; }
+    if (method === "Input.dispatchMouseEvent") { assert.equal(active, true); wheelCalls++; }
+    return {};
+  };
+  const { client, controller, socket, messages } = commandClient();
+  controller.attachedTabs.add(9);
+  try {
+    submit(client, socket, "scroll", "scroll", { tab_id: 9, session: "a", x: 100, y: 100, delta_y: 600 });
+    await until(() => messages.some(m => m.type === "browser.result"));
+    assert.equal(messages.find(m => m.type === "browser.result").error, undefined);
+    assert.equal(wheelCalls, 1);
+    chrome.debugger.sendCommand = async (_target, method) => {
+      if (method === "Page.bringToFront") throw new Error("activation failed");
+      wheelCalls++;
+    };
+    submit(client, socket, "failed", "scroll", { tab_id: 9, session: "a", x: 100, y: 100, delta_y: 600 });
+    await until(() => messages.some(m => m.type === "browser.result" && m.id === "failed"));
+    assert.match(messages.find(m => m.type === "browser.result" && m.id === "failed").error, /activation failed/);
+    assert.equal(wheelCalls, 1);
+  } finally { chrome.debugger.sendCommand = original; }
 });

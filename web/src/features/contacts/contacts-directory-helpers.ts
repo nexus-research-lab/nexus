@@ -1,16 +1,13 @@
-"use client";
-
+import {
+  matchesUiSearchFields,
+  normalizeUiSearchText,
+} from "@/shared/ui/form/search-query";
 import type { Agent } from "@/types/agent/agent";
 
 export const CONTACTS_DEFAULT_PROVIDER_FILTER = "__follow_default__";
 
 export function matchesContactsSearch(agent: Agent, query: string): boolean {
-  if (!query.trim()) {
-    return true;
-  }
-
-  const normalizedQuery = query.trim().toLowerCase();
-  const searchableText = [
+  return matchesUiSearchFields(query, [
     agent.name,
     agent.display_name,
     agent.headline,
@@ -21,12 +18,7 @@ export function matchesContactsSearch(agent: Agent, query: string): boolean {
     agent.options.provider,
     agent.options.permission_mode,
     ...(agent.business_tags ?? []),
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-
-  return searchableText.includes(normalizedQuery);
+  ]);
 }
 
 export interface ContactsDirectoryFilters {
@@ -40,14 +32,14 @@ export function filterContactsAgents(
   agents: Agent[],
   filters: ContactsDirectoryFilters,
 ): Agent[] {
-  const normalizedTag = filters.tag.toLowerCase();
+  const normalizedTag = normalizeUiSearchText(filters.tag);
   return agents.filter((agent) => {
     const provider = agent.options.provider?.trim()
       || CONTACTS_DEFAULT_PROVIDER_FILTER;
     const permissionMode = agent.options.permission_mode?.trim() || "default";
     return matchesContactsSearch(agent, filters.query)
       && (!normalizedTag || agent.business_tags?.some(
-        (tag) => tag.trim().toLowerCase() === normalizedTag,
+        (tag) => normalizeUiSearchText(tag) === normalizedTag,
       ))
       && (!filters.provider || provider === filters.provider)
       && (!filters.permissionMode || permissionMode === filters.permissionMode);

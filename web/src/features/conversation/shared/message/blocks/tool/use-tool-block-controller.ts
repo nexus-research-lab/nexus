@@ -9,8 +9,8 @@
 import { useCallback } from "react";
 
 import { useScrollAnchoredState } from "@/features/conversation/shared/timeline/scroll/use-scroll-anchored-state";
-import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
-import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { useCopyToClipboard } from "@/shared/lib/react/use-copy-to-clipboard";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { getSessionMessageDetailApi } from "@/lib/api/conversation/session-api";
 import type { PermissionUpdate } from "@/types/conversation/interaction/permission";

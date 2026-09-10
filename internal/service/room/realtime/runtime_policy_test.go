@@ -2,10 +2,15 @@ package realtime_test
 
 import (
 	"context"
+	"slices"
+	"sync"
+	"testing"
+	"time"
+
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
-	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
+	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
@@ -17,10 +22,6 @@ import (
 	goalstore "github.com/nexus-research-lab/nexus/internal/storage/goal"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 	_ "modernc.org/sqlite"
-	"slices"
-	"sync"
-	"testing"
-	"time"
 )
 
 func TestRealtimeServiceForwardsProviderModelOption(t *testing.T) {
@@ -31,7 +32,7 @@ func TestRealtimeServiceForwardsProviderModelOption(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
@@ -200,7 +201,7 @@ func TestRealtimeServiceBypassPermissionsKeepsQuestionChannel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 	memberAgent := createTestAgent(t, agentService, ctx, "bypass 助手")
 	memberAgent, err = agentService.UpdateAgent(ctx, memberAgent.AgentID, protocol.UpdateRequest{
@@ -273,7 +274,7 @@ func TestRealtimeServiceGoalContinuationDefersInPlanMode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 	memberAgent := createTestAgent(t, agentService, ctx, "计划模式助手")
 	if _, err = agentService.UpdateAgent(ctx, memberAgent.AgentID, protocol.UpdateRequest{
@@ -310,8 +311,8 @@ func TestRealtimeServiceGoalContinuationDefersForSessionPlanOverride(
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
-	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
+	sessionService := app.NewSessionServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 	memberAgent := createTestAgent(t, agentService, ctx, "Session 计划模式助手")
 	roomContext, err := createSingleAgentGroupRoom(
@@ -361,7 +362,7 @@ func TestRealtimeServiceGoalContinuationDefersBehindPendingUserGuidance(t *testi
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 	memberAgent := createTestAgent(t, agentService, ctx, "用户输入优先助手")
 	roomContext, err := createSingleAgentGroupRoom(ctx, roomService, memberAgent.AgentID)
@@ -413,7 +414,7 @@ func TestRealtimeServiceRoomGoalTargetMissingUsesRoomOwnerForBackgroundContext(t
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	ownerCtx := authctx.WithPrincipal(context.Background(), &authctx.Principal{
 		UserID:     "owner-1",
 		Role:       authctx.RoleOwner,
@@ -457,7 +458,7 @@ func TestRealtimeServiceGoalContinuationDefersWhenRoomHasNoDefaultTarget(t *test
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 	amy := createTestAgent(t, agentService, ctx, "Amy")
 	devin := createTestAgent(t, agentService, ctx, "Devin")
@@ -507,7 +508,7 @@ func TestRealtimeServiceGoalContinuationDefersForBusyNonLeadMember(t *testing.T)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 	host := createTestAgent(t, agentService, ctx, "Host")
 	peer := createTestAgent(t, agentService, ctx, "Peer")
@@ -571,7 +572,7 @@ func TestRealtimeServiceChatRequestCanOverridePermissionHandler(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 	memberAgent := createTestAgent(t, agentService, ctx, "非交互助手")
 	memberAgent, err = agentService.UpdateAgent(ctx, memberAgent.AgentID, protocol.UpdateRequest{
@@ -639,8 +640,8 @@ func TestRealtimeServiceChatRequestCanOverridePermissionHandler(t *testing.T) {
 	if options.Callbacks.PermissionHandler == nil {
 		t.Fatalf("room 请求级权限处理器未透传: %+v", options)
 	}
-	if len(options.Tools.Allow) != 0 {
-		t.Fatalf("room runtime 不应在无显式白名单时收窄 allowed tools: %+v", options.Tools.Allow)
+	if !slices.Equal(options.Tools.Allow, []string{"WebFetch", "WebSearch"}) {
+		t.Fatalf("Room 默认只预授权低风险网页检索: %+v", options.Tools.Allow)
 	}
 	goalDecision, err := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{
 		ToolName: "mcp__nexus__command",
@@ -734,7 +735,7 @@ func TestRoomExplicitInputWinsGoalContinuationDispatchRace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
 		UserID:   "owner-room-goal-race",
 		Username: "room-owner",

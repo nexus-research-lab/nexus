@@ -7,12 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-10
+
+### Added
+
+- Added optional online Rooms through Nexus Relay, with authenticated member discovery, explicit Room creation, shared human messaging, and durable synchronization in the existing chat interface.
+- Added optional online sign-in to the desktop app while preserving local capabilities and the same local data directory.
+- Added "Approve for me" with native nxs automatic permission review and confirmed Claude Code automatic mode, retaining review reasons and human fallback.
+- Restored host-controlled nxs subagent delegation through nexus.command with native lifecycle and WorkGraph child-attempt tracking.
+- Added Control-backed conversational member administration with human approval, secure password entry, profile and role updates, and access revocation.
+- Added system-font selection, font size and line spacing preferences, plus background approval/question attention on the macOS Dock and Windows taskbar.
+
+### Changed
+
+- Unified local and online Room creation, including member selection, host Agent, avatar, and shared settings. Online collaboration requires remote sign-in; Relay Agent Delivery is not included in this release.
+- Reorganized settings, account menus, member administration, capability pages, and narrow-window layouts with consistent controls, keyboard navigation, and localized feedback.
+- Redesigned scheduled-task editing with searchable execution and recipient selectors, separate Room execution/reply members, confirmation summaries, and advanced options.
+- Improved streamed Markdown, collapsed process details, generated-file delivery, source-workspace preservation, and conversation reading position.
+- Refreshed the app icon across desktop packages and Web surfaces, and added direct access to online documentation.
+- Updated the bundled nxs runtime to v0.1.32 and Bridge dependency to v0.1.33.
+
 ### Fixed
 
-- Isolated persistently failing Control identity invalidation events so later
-  invalidations continue while the affected identities fail closed.
-- Persisted Control entitlement unavailability so skipped invalidations cannot
-  authorize new requests through stale local projections.
+- Preserved conversation tabs, pinned sessions, drafts, scroll anchoring, and pending submissions across navigation, delayed responses, and acknowledgment timeouts.
+- Hardened WorkGraph editing, version selection, direct transactional saves, command renaming, source ownership, and uncertain mutation recovery.
+- Recovered online Room synchronization after stream-epoch changes and failed local writes without advancing cursors or duplicating shared messages.
+- Fixed completed scheduled runs retaining active occupancy, Room completion tracking, and transcript access during history loading and result delivery.
+- Restored GitHub connector tools, corrected RichMail discovery guidance, and preserved connector snapshots and credential drafts during recovery.
+- Bounded Browser operations, activated tabs before native input, cancelled stale work, and exported execution diagnostics; requires Browser extension 0.8.6.
+- Improved desktop diagnostics, shutdown ordering, blocked browser-storage recovery, IME handling, accessibility, and permission-scoped stale-state cleanup.
+- Isolated persistently failing Control identity invalidation events so later invalidations continue while the affected identities fail closed.
+- Persisted Control entitlement unavailability so skipped invalidations cannot authorize new requests through stale local projections.
+
+### Removed
+
+- Removed the built-in Loops catalog, related endpoints and pages, and Composer Loop-to-Goal actions.
 
 ## [0.1.40] - 2026-09-04
 

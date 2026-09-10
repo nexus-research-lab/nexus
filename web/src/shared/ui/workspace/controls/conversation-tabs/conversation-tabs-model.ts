@@ -1,5 +1,10 @@
-import { isExternalSessionConversation } from "@/lib/conversation/external-session";
-import type { RoomConversationView } from "@/types/conversation/conversation";
+// INPUT: 标签身份、活动项、固定边缘动作与实测轨道宽度。
+// OUTPUT: 稳定溢出判定与标签宽度分配。
+// POS: 共享标签几何模型；不认识 Room、会话生命周期或持久偏好。
+
+interface ConversationTabIdentity {
+  id: string;
+}
 
 // 中文注释：历史与创建入口共用轻量导航带的 32px 边缘占位。
 const CONVERSATION_EDGE_CONTROL_SPACE = 32;
@@ -37,193 +42,23 @@ export function hasConversationTabsOverflow({
   return minimumTabsWidth > tabViewportWidth;
 }
 
-export function getConversationIdsByCreationTime(
-  conversations: RoomConversationView[],
-): string[] {
-  return [...conversations]
-    .sort((left, right) => {
-      if (left.created_at !== right.created_at) {
-        return left.created_at - right.created_at;
-      }
-      return left.conversation_id.localeCompare(right.conversation_id);
-    })
-    .map((conversation) => conversation.conversation_id);
-}
-
-export function resolveSelectedDraftConversationId(
-  conversations: RoomConversationView[],
-  selectedConversationId: string | null,
-): string | null {
-  if (!selectedConversationId) {
-    return null;
-  }
-  const selectedConversation = conversations.find(
-    (conversation) => conversation.conversation_id === selectedConversationId,
-  );
-  return selectedConversation?.is_draft === true
-    && !isExternalSessionConversation(selectedConversation)
-    ? selectedConversation.conversation_id
-    : null;
-}
-
-export function getInitialOpenConversationIds(
-  conversationId: string | null,
-  orderedConversationIds: string[],
-): string[] {
-  const selectedId = conversationId && orderedConversationIds.includes(conversationId)
-    ? conversationId
-    : orderedConversationIds[orderedConversationIds.length - 1] ?? null;
-  return selectedId ? [selectedId] : [];
-}
-
-export function reconcileOpenConversationIds({
-  conversationId,
-  currentIds,
-  orderedIds,
-  pendingClosedId,
-}: {
-  conversationId: string | null;
-  currentIds: string[];
-  orderedIds: string[];
-  pendingClosedId: string | null;
-}): string[] {
-  const liveIds = new Set(orderedIds);
-  const selectedId = resolveLiveConversationId(conversationId, liveIds);
-  const retainedIds = retainLiveConversationIds(currentIds, liveIds);
-  const selectedIds = appendSelectedConversationId(
-    retainedIds,
-    selectedId,
-    pendingClosedId,
-  );
-  const ensuredIds = ensureOpenConversationId(
-    selectedIds,
-    selectedId,
-    orderedIds,
-  );
-  const resolvedIds = sortConversationIdsByReference(ensuredIds, orderedIds);
-
-  return areIdsEqual(currentIds, resolvedIds) ? currentIds : resolvedIds;
-}
-
-function sortConversationIdsByReference(
-  currentIds: string[],
-  orderedIds: string[],
-): string[] {
-  const currentIdSet = new Set(currentIds);
-  return orderedIds.filter((id) => currentIdSet.has(id));
-}
-
-function resolveLiveConversationId(
-  conversationId: string | null,
-  liveIds: Set<string>,
-): string | null {
-  return conversationId && liveIds.has(conversationId)
-    ? conversationId
-    : null;
-}
-
-function retainLiveConversationIds(
-  currentIds: string[],
-  liveIds: Set<string>,
-): string[] {
-  return currentIds.filter((id) => liveIds.has(id));
-}
-
-function appendSelectedConversationId(
-  currentIds: string[],
-  selectedId: string | null,
-  pendingClosedId: string | null,
-): string[] {
-  if (
-    !selectedId
-    || selectedId === pendingClosedId
-    || currentIds.includes(selectedId)
-  ) {
-    return currentIds;
-  }
-  return [...currentIds, selectedId];
-}
-
-function ensureOpenConversationId(
-  currentIds: string[],
-  selectedId: string | null,
-  recentIds: string[],
-): string[] {
-  if (currentIds.length > 0) {
-    return currentIds;
-  }
-  const fallbackId = selectedId ?? recentIds[0] ?? null;
-  return fallbackId ? [fallbackId] : currentIds;
-}
-
-export function resolveActiveConversationId({
-  conversationId,
-  optimisticId,
-  orderedConversations,
-}: {
-  conversationId: string | null;
-  optimisticId: string | null;
-  orderedConversations: RoomConversationView[];
-}): string | null {
-  const openIds = new Set(
-    orderedConversations.map((conversation) => conversation.conversation_id),
-  );
-  if (optimisticId && openIds.has(optimisticId)) {
-    return optimisticId;
-  }
-  if (conversationId && openIds.has(conversationId)) {
-    return conversationId;
-  }
-  return orderedConversations[0]?.conversation_id ?? null;
-}
-
-export function shouldPersistConversationTabs({
-  activeConversationId,
-  routeConversationId,
-}: {
-  activeConversationId: string | null;
-  routeConversationId: string | null;
-}): boolean {
-  return Boolean(
-    activeConversationId
-      && routeConversationId === activeConversationId,
-  );
-}
-
-export function getCloseFallbackConversationId(
-  orderedConversations: RoomConversationView[],
-  targetConversationId: string,
-): string | null {
-  const targetIndex = orderedConversations.findIndex(
-    (conversation) => conversation.conversation_id === targetConversationId,
-  );
-  if (targetIndex < 0) {
-    return null;
-  }
-  return (
-    orderedConversations[targetIndex + 1]?.conversation_id ??
-    orderedConversations[targetIndex - 1]?.conversation_id ??
-    null
-  );
-}
-
 export function calculateConversationTabWidths({
   activeConversationId,
   hasCreateButton,
   hasLeadingControl,
   hasTabsOverflow,
-  orderedConversations,
+  tabs,
   trackWidth,
 }: {
   activeConversationId: string | null;
   hasCreateButton: boolean;
   hasLeadingControl: boolean;
   hasTabsOverflow: boolean;
-  orderedConversations: RoomConversationView[];
+  tabs: readonly ConversationTabIdentity[];
   trackWidth: number;
 }): Map<string, number> {
   const widths = new Map<string, number>();
-  if (!trackWidth || orderedConversations.length === 0) {
+  if (!trackWidth || tabs.length === 0) {
     return widths;
   }
 
@@ -233,21 +68,21 @@ export function calculateConversationTabWidths({
     trackWidth,
   });
   const availableWidth = tabViewportWidth
-    - CONVERSATION_TAB_GAP * Math.max(0, orderedConversations.length - 1);
-  if (orderedConversations.length === 1) {
+    - CONVERSATION_TAB_GAP * Math.max(0, tabs.length - 1);
+  if (tabs.length === 1) {
     widths.set(
-      orderedConversations[0].conversation_id,
+      tabs[0].id,
       Math.max(ACTIVE_TAB_MIN_WIDTH, tabViewportWidth),
     );
     return widths;
   }
 
-  const inactiveCount = orderedConversations.length - 1;
+  const inactiveCount = tabs.length - 1;
   const minimumTotalWidth = ACTIVE_TAB_MIN_WIDTH + INACTIVE_TAB_MIN_WIDTH * inactiveCount;
   if (availableWidth < minimumTotalWidth && hasTabsOverflow) {
     return calculateOverflowConversationTabWidths({
       activeConversationId,
-      orderedConversations,
+      tabs,
       tabViewportWidth,
     });
   }
@@ -265,10 +100,10 @@ export function calculateConversationTabWidths({
     inactiveWidth = (availableWidth - activeWidth) / inactiveCount;
   }
 
-  orderedConversations.forEach((conversation) => {
+  tabs.forEach((conversation) => {
     widths.set(
-      conversation.conversation_id,
-      conversation.conversation_id === activeConversationId ? activeWidth : inactiveWidth,
+      conversation.id,
+      conversation.id === activeConversationId ? activeWidth : inactiveWidth,
     );
   });
   return widths;
@@ -276,15 +111,15 @@ export function calculateConversationTabWidths({
 
 function calculateOverflowConversationTabWidths({
   activeConversationId,
-  orderedConversations,
+  tabs,
   tabViewportWidth,
 }: {
   activeConversationId: string | null;
-  orderedConversations: RoomConversationView[];
+  tabs: readonly ConversationTabIdentity[];
   tabViewportWidth: number;
 }): Map<string, number> {
   const widths = new Map<string, number>();
-  const inactiveCount = orderedConversations.length - 1;
+  const inactiveCount = tabs.length - 1;
   // 中文注释：以活动标签为锚点，计算一屏能完整容纳的普通标签数。
   const visibleInactiveCount = Math.min(
     inactiveCount,
@@ -313,10 +148,10 @@ function calculateOverflowConversationTabWidths({
     inactiveWidth = (visibleWidth - activeWidth) / visibleInactiveCount;
   }
 
-  orderedConversations.forEach((conversation) => {
+  tabs.forEach((conversation) => {
     widths.set(
-      conversation.conversation_id,
-      conversation.conversation_id === activeConversationId ? activeWidth : inactiveWidth,
+      conversation.id,
+      conversation.id === activeConversationId ? activeWidth : inactiveWidth,
     );
   });
   return widths;
@@ -338,11 +173,5 @@ function getAvailableConversationTabWidth({
     ) - (
       hasLeadingControl ? CONVERSATION_EDGE_CONTROL_SPACE : 0
     ),
-  );
-}
-
-function areIdsEqual(leftIds: string[], rightIds: string[]): boolean {
-  return leftIds.length === rightIds.length && leftIds.every(
-    (id, index) => id === rightIds[index],
   );
 }

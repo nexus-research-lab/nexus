@@ -8,7 +8,7 @@
 import { useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
-import { AppRouteBuilders } from "@/app/router/route-paths";
+import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 import { CapabilityPageLayout } from "@/features/capability/shared/capability-page-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
@@ -38,11 +38,7 @@ import { SKILLS_TOUR_ANCHORS } from "@/features/onboarding/tours/skills-tour";
 
 /* ── Skills 页面主编排组件 ────────────────────── */
 
-interface SkillsDirectoryProps {
-  onReplayTour?: () => void;
-}
-
-export function SkillsDirectory({ onReplayTour }: SkillsDirectoryProps) {
+export function SkillsDirectory() {
   const { t } = useI18n();
   const {
     catalog,
@@ -114,7 +110,6 @@ export function SkillsDirectory({ onReplayTour }: SkillsDirectoryProps) {
                 onCheckUpdates={() => void operations.checkUpdates()}
                 onOpenImport={operations.setImportDialogMode}
                 onOpenSources={sources.openManager}
-                onReplayTour={onReplayTour}
               />
             )}
             description={t("capability.skills_intro_description")}
@@ -156,6 +151,8 @@ export function SkillsDirectory({ onReplayTour }: SkillsDirectoryProps) {
                   busyExternalKeys={operations.busyExternalKeys}
                   importedExternalSources={catalog.importedExternalSources}
                   loading={external.loading}
+                  loadFailed={external.loadFailed}
+                  onRetry={external.retry}
                   onImport={(item) => void operations.importExternal(item)}
                   onPreview={(item) => void external.preview(item)}
                   onSelectSource={(sourceId) => external.setSourceId(sourceId || "")}
@@ -182,6 +179,8 @@ export function SkillsDirectory({ onReplayTour }: SkillsDirectoryProps) {
                     busySkillNames={operations.busySkillNames}
                     groupedSkills={catalog.groupedSkills}
                     loading={catalog.loading}
+                    loadFailed={catalog.loadFailed}
+                    onReload={() => void catalog.refresh()}
                     onDeleteSkill={(skill) => void operations.deleteSkill(skill)}
                     onOpenSkill={openSkillPage}
                   />
@@ -212,6 +211,9 @@ export function SkillsDirectory({ onReplayTour }: SkillsDirectoryProps) {
       <SkillSourceManagerDialog
         isOpen={sources.managerOpen}
         loading={sources.loading}
+        mutationBlocked={sources.mutationBlocked}
+        loadFailed={sources.loadFailed}
+        onRetry={sources.retry}
         onClose={sources.closeManager}
         onDelete={(source) => void sources.remove(source)}
         onSave={sources.save}

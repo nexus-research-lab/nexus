@@ -1,13 +1,15 @@
 # User 消息视图
 
 - `message-user-section.tsx`: 只选择阅读态或编辑态并装配子视图。
-- `user-message-model.ts`: 投影密度、引导标记、时间和可用动作。
-- `user-message-header.tsx`: 渲染消息下方的时间与悬浮动作；不重复显示用户昵称或头像。
+- `user-message-model.ts`: 只投影正文、Goal/引导标记、时间和可用动作；不返回样式。`message-user-section.tsx` 从上级 `message-reading-layout.ts` 选择布局，子视图仅接收自己的内容/头部 class。折叠阈值与测量规则也由阅读布局持有。
+- `user-message-header.tsx`: 使用 App Typography 渲染消息下方的时间/引导标记，并组合共享微型悬浮动作；复制成功只使用 Button 的短暂 `success` tone，不重复显示用户昵称或头像。
 - `user-message-content.tsx`: 组合正文和附件，为消息开头的通用 Slash 指令开启共享命令标签；超高正文按真实排版高度折叠，并复用时间线滚动锚点完成展开与收起。
 - `use-user-message-editor.ts`: 管理编辑草稿、聚焦、高度和提交状态。
-- `user-message-editor.tsx`: 编辑表单纯视图。
-- `message-user-attachments.tsx`: 先投影附件名称、作用域动作和样式，再按附件类型表渲染工作区附件。
+- `user-message-editor.tsx`: 原位编辑纯视图，复用公共输入壳与按钮；原生 textarea 和独立 Footer 共同表达消息正文编辑几何，不重建普通表单 Field。IME 识别复用 `shared/lib/browser/ime-keyboard-event.ts`，合成输入期间不执行快捷键；普通 Enter 换行，Ctrl/Meta+Enter 提交，Escape 取消。无变化或空内容不发命令，实际提交继续由上层绑定原 round。
+- `message-user-attachments.tsx`: 先投影附件名称与作用域动作，再使用公共 UiButton 或静态 UiBadge 渲染工作区附件。
 
 附件是否可打开只由工作区 Agent 作用域决定；编辑视图不持有消息标识或调用上层会话命令。
 User 入口在消费侧声明消息、正文、附件和复制动作的最小结构，不依赖 Assistant 状态或控制器返回类型；上游按角色筛选后必须保留 `UserMessage` 具体类型，不得要求视图重复判别角色。
 无气泡 User 正文必须与 Assistant 正文复用 `nexus-chat-message-body-rhythm`，桌面与窄栏的头部到正文、正文到消息尾部间距不得各自覆写。
+
+User 入口按 exact Session、Agent、Message、round 身份重建局部编辑/复制/折叠状态，不能把旧草稿带到另一个消息。触屏无 hover 时，消息动作保持可见且可操作。

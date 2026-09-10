@@ -1,26 +1,28 @@
 // INPUT: 脱敏自定义 MCP 配置、owner 级启停命令与 tools/list 快照。
-// OUTPUT: Claude 风格的连接信息、服务器信息和工具目录详情页。
-// POS: 自定义 MCP 子页面纯视图。
+// OUTPUT: 共享对象身份区中的 MCP 状态与动作，以及连接信息和工具目录详情页。
+// POS: 自定义 MCP 子页面纯视图；身份几何和二级页导航归 capability/shared。
 "use client";
 
 import {
-  ArrowLeft,
-  ChevronRight,
   Pencil,
   Trash2,
   TriangleAlert,
 } from "lucide-react";
 import type { ReactNode } from "react";
 
+import {
+  CapabilityDetailIdentity,
+  CapabilityDetailPage,
+} from "@/features/capability/shared/capability-page-layout";
 import type { ResourceFailure } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
-import { WorkspaceContentDetailHeader } from "@/shared/ui/layout/workspace-content-header";
-import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import { UiPanel } from "@/shared/ui/panel";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type {
   CustomMCPServer,
   CustomMCPToolCatalog,
@@ -46,6 +48,8 @@ interface CustomMCPDetailViewProps {
   onToggle: (enabled: boolean) => void;
   server: CustomMCPServer | null;
   serverLoading: boolean;
+  serverFailure?: ResourceFailure | null;
+  onRetryServer?: () => void;
 }
 
 export function CustomMCPDetailView({
@@ -60,8 +64,13 @@ export function CustomMCPDetailView({
   onToggle,
   server,
   serverLoading,
+  serverFailure,
+  onRetryServer,
 }: CustomMCPDetailViewProps) {
   const { t } = useI18n();
+  if (serverFailure && (serverFailure.access || !server)) {
+    return <CustomMCPDetailFrame onBack={onBack}><UiResourceState state="error" title={t("capability.custom_mcp_operation_failed")} impact={t("state.read_failure_impact")} primaryAction={onRetryServer ? { label: t("state.retry"), onClick: onRetryServer, disabled: serverLoading } : undefined} /></CustomMCPDetailFrame>;
+  }
   if (serverLoading && !server) {
     return (
       <CustomMCPDetailFrame onBack={onBack}>
@@ -93,78 +102,81 @@ export function CustomMCPDetailView({
 
   return (
     <CustomMCPDetailFrame name={displayName} onBack={onBack}>
-      <div className="pt-5">
-        <header className="flex flex-wrap items-start justify-between gap-4 border-b border-(--divider-subtle-color) pb-5">
-          <div className="flex min-w-0 items-start gap-4">
+      <div>
+        <CapabilityDetailIdentity
+          actions={(
+            <>
+              <div className="flex items-center gap-2">
+                <span className={getUiTypographyClassName({
+                  role: "caption",
+                  tone: "muted",
+                  weight: "medium",
+                })}>
+                  {t("capability.custom_mcp_available_in_chat")}
+                </span>
+                <GlassSwitch
+                  aria-label={t("capability.custom_mcp_available_in_chat")}
+                  checked={!recoveryRequired && server.enabled}
+                  disabled={busy || recoveryRequired}
+                  onChange={onToggle}
+                  size="sm"
+                />
+              </div>
+              <UiIconButton
+                aria-label={t(recoveryRequired
+                  ? "capability.custom_mcp_recover_action"
+                  : "common.edit")}
+                disabled={busy}
+                onClick={() => onEdit(server)}
+                size="md"
+                variant="ghost"
+              >
+                <Pencil className="h-4 w-4" />
+              </UiIconButton>
+              <UiIconButton
+                aria-label={t("common.delete")}
+                disabled={busy}
+                onClick={() => onDelete(server)}
+                size="md"
+                tone="danger"
+                variant="ghost"
+              >
+                <Trash2 className="h-4 w-4" />
+              </UiIconButton>
+            </>
+          )}
+          description={recoveryRequired
+            ? t("capability.custom_mcp_recovery_summary")
+            : getCustomMCPConnectionTarget(server)}
+          descriptionClassName={cn(
+            "max-w-[680px]",
+            !recoveryRequired && "truncate",
+          )}
+          descriptionRole={recoveryRequired ? "caption" : "code"}
+          descriptionTitle={recoveryRequired
+            ? undefined
+            : getCustomMCPConnectionTarget(server)}
+          leading={(
             <ConnectorIcon
               icon="custom-mcp"
               size="lg"
               title={recoveryRequired ? server.connector_id : server.name}
             />
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-lg font-semibold tracking-[-0.025em] text-(--text-strong)">
-                  {displayName}
-                </h1>
-                <UiBadge tone={recoveryRequired
-                  ? "warning"
-                  : server.enabled ? "success" : "default"}
-                >
-                  {t(recoveryRequired
-                    ? "capability.custom_mcp_recovery_badge"
-                    : server.enabled
-                      ? "capability.custom_mcp_enabled"
-                      : "capability.custom_mcp_disabled")}
-                </UiBadge>
-              </div>
-              {recoveryRequired ? (
-                <p className="mt-1 max-w-[680px] text-xs text-(--text-muted)">
-                  {t("capability.custom_mcp_recovery_summary")}
-                </p>
-              ) : (
-                <p
-                  className="mt-1 max-w-[680px] truncate font-mono text-xs text-(--text-muted)"
-                  title={getCustomMCPConnectionTarget(server)}
-                >
-                  {getCustomMCPConnectionTarget(server)}
-                </p>
-              )}
-            </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <span className="mr-1 text-xs font-medium text-(--text-muted)">
-              {t("capability.custom_mcp_available_in_chat")}
-            </span>
-            <GlassSwitch
-              aria-label={t("capability.custom_mcp_available_in_chat")}
-              checked={!recoveryRequired && server.enabled}
-              disabled={busy || recoveryRequired}
-              onChange={onToggle}
-              size="sm"
-            />
-            <UiIconButton
-              aria-label={t(recoveryRequired
-                ? "capability.custom_mcp_recover_action"
-                : "common.edit")}
-              disabled={busy}
-              onClick={() => onEdit(server)}
-              size="md"
-              variant="ghost"
+          )}
+          title={displayName}
+          titleMeta={(
+            <UiBadge tone={recoveryRequired
+              ? "warning"
+              : server.enabled ? "success" : "default"}
             >
-              <Pencil className="h-4 w-4" />
-            </UiIconButton>
-            <UiIconButton
-              aria-label={t("common.delete")}
-              disabled={busy}
-              onClick={() => onDelete(server)}
-              size="md"
-              tone="danger"
-              variant="ghost"
-            >
-              <Trash2 className="h-4 w-4" />
-            </UiIconButton>
-          </div>
-        </header>
+              {t(recoveryRequired
+                ? "capability.custom_mcp_recovery_badge"
+                : server.enabled
+                  ? "capability.custom_mcp_enabled"
+                  : "capability.custom_mcp_disabled")}
+            </UiBadge>
+          )}
+        />
 
         {recoveryRequired ? (
           <CustomMCPRecoverySection
@@ -173,7 +185,7 @@ export function CustomMCPDetailView({
           />
         ) : (
           <>
-            <CustomMCPConnectionSection catalog={catalog} server={server} />
+            <CustomMCPConnectionSection catalog={failure?.access ? null : catalog} server={server} />
             <MCPToolsSection
               available={server.enabled}
               catalog={catalog}
@@ -199,17 +211,23 @@ function CustomMCPRecoverySection({
   return (
     <section className="py-5">
       <UiPanel className="flex items-start gap-3" padding="md" radius="md">
-        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] bg-[color:color-mix(in_srgb,var(--warning)_8%,transparent)] text-(--warning)">
+        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center radius-control-md text-(--warning)">
           <TriangleAlert className="h-4 w-4" />
         </span>
         <div className="min-w-0 flex-1">
-          <h2 className="text-base font-medium text-(--text-strong)">
+          <h2 className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong" })}>
             {t("capability.custom_mcp_recovery_title")}
           </h2>
-          <p className="mt-1 text-sm leading-6 text-(--text-muted)">
+          <p className={cn(
+            "mt-1",
+            getUiTypographyClassName({ role: "supporting", tone: "muted" }),
+          )}>
             {t("capability.custom_mcp_recovery_description")}
           </p>
-          <p className="mt-1 text-sm leading-6 text-(--text-muted)">
+          <p className={cn(
+            "mt-1",
+            getUiTypographyClassName({ role: "supporting", tone: "muted" }),
+          )}>
             {t("capability.custom_mcp_recovery_next_step")}
           </p>
           <UiButton
@@ -238,29 +256,13 @@ function CustomMCPDetailFrame({
 }) {
   const { t } = useI18n();
   return (
-    <div className={WORKSPACE_CONTENT_PAGE_CLASS_NAME}>
-      <WorkspaceContentDetailHeader>
-        <div className="flex min-w-0 items-center gap-2 text-base text-(--text-muted)">
-          <button
-            className="inline-flex items-center gap-1 rounded-[8px] px-1.5 py-1 font-medium transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
-            onClick={onBack}
-            type="button"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            {t("capability.connectors_tab_custom_mcp")}
-          </button>
-          {name ? (
-            <>
-              <ChevronRight className="h-3.5 w-3.5 text-(--icon-muted)" />
-              <span className="truncate font-medium text-(--text-strong)">
-                {name}
-              </span>
-            </>
-          ) : null}
-        </div>
-      </WorkspaceContentDetailHeader>
+    <CapabilityDetailPage
+      backLabel={t("capability.connectors_tab_custom_mcp")}
+      currentTitle={name}
+      onBack={onBack}
+    >
       {children}
-    </div>
+    </CapabilityDetailPage>
   );
 }
 
@@ -280,7 +282,7 @@ function CustomMCPConnectionSection({
     || t("capability.custom_mcp_server_unknown");
   return (
     <section className="border-b border-(--divider-subtle-color) py-5">
-      <h2 className="text-base font-medium text-(--text-strong)">
+      <h2 className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong" })}>
         {t("capability.custom_mcp_connection_info")}
       </h2>
       <dl className="mt-3 grid gap-x-8 gap-y-3 sm:grid-cols-2">
@@ -306,10 +308,13 @@ function CustomMCPConnectionSection({
       </dl>
       {catalog?.instructions ? (
         <div className="mt-4 border-l-2 border-(--divider-strong-color) pl-3">
-          <h3 className="text-xs font-semibold text-(--text-strong)">
+          <h3 className={getUiTypographyClassName({ role: "caption", tone: "strong", weight: "semibold" })}>
             {t("capability.custom_mcp_server_instructions")}
           </h3>
-          <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-(--text-muted)">
+          <p className={cn(
+            "mt-1 whitespace-pre-wrap",
+            getUiTypographyClassName({ role: "supporting", tone: "muted" }),
+          )}>
             {catalog.instructions}
           </p>
         </div>
@@ -334,9 +339,12 @@ function getCustomMCPAuthLabel(
 
 function CustomMCPFact({ label, value }: { label: string; value: string }) {
   return (
-    <div className="grid grid-cols-[112px_minmax(0,1fr)] gap-3 text-sm">
-      <dt className="text-(--text-soft)">{label}</dt>
-      <dd className="min-w-0 break-words text-(--text-default)">{value}</dd>
+    <div className={cn(
+      "grid grid-cols-[112px_minmax(0,1fr)] gap-3",
+      getUiTypographyClassName({ role: "supporting" }),
+    )}>
+      <dt className="ui-type-tone-soft">{label}</dt>
+      <dd className="min-w-0 break-words ui-type-tone-default">{value}</dd>
     </div>
   );
 }

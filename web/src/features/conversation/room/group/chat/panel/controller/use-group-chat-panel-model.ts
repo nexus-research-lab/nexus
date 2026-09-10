@@ -1,6 +1,6 @@
 /**
  * INPUT: Group Chat props、共享 Session/Composer/Goal 资源与 Room Agent 时间线。
- * OUTPUT: 含稳定滚动、Feed、Composer、Goal 与 Agent 终态驱动的 WorkGraph 刷新模型。
+ * OUTPUT: 含稳定滚动、Feed、Composer、Goal 与外部权威 WorkGraph 资源的面板模型。
  * POS: Group Chat 有状态装配入口；纯投影与未读队列分别下沉到专属模块。
  */
 import { useEffect, useMemo } from "react";
@@ -9,7 +9,6 @@ import { useComposerGoalSubmissionReconciliation } from "@/features/conversation
 import { useConversationPanelEnvironment } from "@/features/conversation/shared/use-conversation-panel-environment";
 import { buildRoomSharedSessionKey } from "@/lib/conversation/session-key";
 import type { Agent } from "@/types/agent/agent";
-import type { RoomAgentExecutionState } from "@/types/agent/agent-conversation";
 
 import { projectGroupAgentTimeline } from "../../feed/group-agent-timeline-model";
 import { useRoomThreadSource } from "../../../thread/live/use-room-thread-source";
@@ -133,20 +132,6 @@ export function useGroupChatPanelModel({
     roomMembers,
     session,
   });
-}
-
-export function buildRoomExecutionActivityKey(
-  messageCount: number,
-  isLoading: boolean,
-  states: readonly RoomAgentExecutionState[],
-): string {
-  return [
-    messageCount,
-    isLoading,
-    ...states.map((state) => (
-      `${state.agent_round_id}:${state.phase}:${state.status}`
-    )),
-  ].join("|");
 }
 
 function useRoomAgentDirectory(roomMembers: Agent[]): RoomAgentDirectory {

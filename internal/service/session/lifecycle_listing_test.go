@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
+	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
@@ -21,7 +21,6 @@ import (
 	sessionsvc "github.com/nexus-research-lab/nexus/internal/service/session"
 	sessionrepo "github.com/nexus-research-lab/nexus/internal/storage/sessionrepo"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-
 	_ "modernc.org/sqlite"
 )
 
@@ -50,8 +49,8 @@ func TestSessionServiceLifecycle(t *testing.T) {
 	migrateSessionSQLite(t, cfg.DatabaseURL)
 
 	agentService, db := newSessionTestAgentService(t, cfg)
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
-	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
+	sessionService := app.NewSessionServiceWithDB(cfg, db, agentService)
 	runtimeManager := runtimectx.NewManager()
 	sessionService.SetRuntimeManager(runtimeManager)
 
@@ -339,8 +338,8 @@ func TestSessionRuntimeSettingsPersistWithoutChangingAgentDefaults(t *testing.T)
 	migrateSessionSQLite(t, cfg.DatabaseURL)
 
 	agentService, db := newSessionTestAgentService(t, cfg)
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
-	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
+	sessionService := app.NewSessionServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 	agentValue, err := agentService.CreateAgent(ctx, protocol.CreateRequest{
 		Name: "Session 设置助手",
@@ -369,7 +368,7 @@ func TestSessionRuntimeSettingsPersistWithoutChangingAgentDefaults(t *testing.T)
 	want := protocol.SessionRuntimeSettings{
 		Provider:       "session-provider",
 		Model:          "session-model",
-		PermissionMode: "acceptEdits",
+		PermissionMode: "auto",
 	}
 	if _, err = sessionService.UpdateRuntimeSettings(ctx, dmKey, want); err != nil {
 		t.Fatalf("更新 DM Session 设置失败: %v", err)
@@ -522,7 +521,7 @@ func TestSessionRuntimeSettingsSchedulesOnlyEffectiveConnectorChanges(t *testing
 	cfg := newSessionTestConfig(t)
 	migrateSessionSQLite(t, cfg.DatabaseURL)
 	agentService, db := newSessionTestAgentService(t, cfg)
-	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
+	sessionService := app.NewSessionServiceWithDB(cfg, db, agentService)
 	recorder := &runtimeSettingsPreparationRecorder{}
 	sessionService.SetRuntimeSettingsPreparationScheduler(recorder)
 	ctx := context.Background()
@@ -584,8 +583,8 @@ func TestRoomSessionSDKIdentityCASUsesCurrentConnectorSelection(t *testing.T) {
 	cfg := newSessionTestConfig(t)
 	migrateSessionSQLite(t, cfg.DatabaseURL)
 	agentService, db := newSessionTestAgentService(t, cfg)
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
-	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
+	sessionService := app.NewSessionServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 	agentValue, err := agentService.CreateAgent(ctx, protocol.CreateRequest{Name: "Room Connector CAS"})
 	if err != nil {
@@ -681,8 +680,8 @@ func TestSessionLocalDirectoriesRequireDesktopAndPersist(t *testing.T) {
 	migrateSessionSQLite(t, cfg.DatabaseURL)
 
 	agentService, db := newSessionTestAgentService(t, cfg)
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
-	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
+	sessionService := app.NewSessionServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 	agentValue, err := agentService.CreateAgent(ctx, protocol.CreateRequest{
 		Name: "本机目录助手",
@@ -809,7 +808,7 @@ func TestSessionServiceListsExternalIMSessions(t *testing.T) {
 	migrateSessionSQLite(t, cfg.DatabaseURL)
 
 	agentService, db := newSessionTestAgentService(t, cfg)
-	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
+	sessionService := app.NewSessionServiceWithDB(cfg, db, agentService)
 
 	ctx := context.Background()
 	agentValue, err := agentService.CreateAgent(ctx, protocol.CreateRequest{Name: "个人微信助手"})
@@ -870,7 +869,7 @@ func TestTitleGenerationUpdatesExternalIMWorkspaceSession(t *testing.T) {
 	migrateSessionSQLite(t, cfg.DatabaseURL)
 
 	agentService, db := newSessionTestAgentService(t, cfg)
-	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
+	sessionService := app.NewSessionServiceWithDB(cfg, db, agentService)
 
 	agentValue, err := agentService.CreateAgent(context.Background(), protocol.CreateRequest{Name: "微信助手"})
 	if err != nil {

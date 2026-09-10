@@ -1,3 +1,7 @@
+// INPUT: Workspace 命令、菜单源元素/位置、精确编辑目标与执行状态。
+// OUTPUT: 共享输入/确认弹窗；文件写入期间锁住字段、重复提交与退出。
+// POS: Workspace 视图装配，业务校验、命令和结果仍归控制器。
+
 import {
   ConfirmDialog,
   PromptDialog,
@@ -70,6 +74,7 @@ export function WorkspaceDialogs({controller}: {controller: WorkspaceDialogsCont
   return (
     <>
       <WorkspaceContextMenu
+        anchor={controller.contextMenu.anchor}
         canCreateChildren={contextEntry === null || contextEntry.is_dir}
         entry={contextEntry}
         isLoadingOpenApplications={openApplications?.isLoading ?? false}
@@ -90,6 +95,7 @@ export function WorkspaceDialogs({controller}: {controller: WorkspaceDialogsCont
       />
 
       <PromptDialog
+        busy={controller.isMutating}
         defaultValue={controller.promptState?.defaultValue ?? ""}
         isOpen={controller.promptState !== null}
         onCancel={controller.closePrompt}

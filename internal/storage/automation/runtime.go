@@ -434,7 +434,11 @@ SET next_run_at = %s,
     last_delivery_status = %s,
     updated_at = CURRENT_TIMESTAMP
 WHERE job_id = %s
-  AND deletion_state = ''`,
+  AND deletion_state = ''
+  AND NOT EXISTS (SELECT 1 FROM automation_task_runs AS finished
+    WHERE finished.job_id = automation_scheduled_tasks.job_id
+      AND finished.owner_user_id = automation_scheduled_tasks.owner_user_id
+      AND finished.run_id = %s AND finished.finished_at IS NOT NULL)`,
 		r.bind(1),
 		r.bind(2),
 		r.bind(3),
@@ -444,6 +448,7 @@ WHERE job_id = %s
 		r.bind(7),
 		r.bind(8),
 		r.bind(9),
+		r.bind(10),
 	)
 	_, err := r.execWithRetry(
 		ctx,
@@ -457,6 +462,7 @@ WHERE job_id = %s
 		nullableString(input.LastError),
 		nullString(input.LastDeliveryStatus),
 		strings.TrimSpace(input.JobID),
+		nullString(input.RunningRunID),
 	)
 	return err
 }
@@ -659,4 +665,36 @@ WHERE job_id = %s
 	}
 	count, err := result.RowsAffected()
 	return count == 1, err
+}
+
+// ReconcileFinishedTaskRuntime 清理有结束证据且没有其他活跃 run 的残留占用。
+// 不改历史状态或任务摘要，也不把缺少记录当作执行已经结束。
+func (r *Repository) ReconcileFinishedTaskRuntime(ctx context.Context) ([]string, error) {
+	rows, err := r.db.QueryContext(ctx, `UPDATE automation_scheduled_tasks
+SET running_run_id = NULL, running_started_at = NULL, updated_at = CURRENT_TIMESTAMP
+WHERE deletion_state = ''
+ AND EXISTS (SELECT 1 FROM automation_task_runs AS finished
+  WHERE finished.owner_user_id = automation_scheduled_tasks.owner_user_id
+   AND finished.job_id = automation_scheduled_tasks.job_id
+   AND finished.run_id = automation_scheduled_tasks.running_run_id
+   AND finished.finished_at IS NOT NULL)
+ AND NOT EXISTS (SELECT 1 FROM automation_task_runs AS active
+  WHERE active.owner_user_id = automation_scheduled_tasks.owner_user_id
+   AND active.job_id = automation_scheduled_tasks.job_id
+   AND active.status IN ('pending', 'running', 'queued_to_main_session')
+   AND active.finished_at IS NULL)
+RETURNING job_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
 }

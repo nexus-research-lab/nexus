@@ -1,9 +1,19 @@
+// INPUT: 不可变运行记录、当前任务与调用方的当前语言。
+// OUTPUT: 唯一结果/本地化错误摘要、含完整错误的折叠诊断、复制文本与 Session 证明的文件归属。
+// POS: Scheduled 历史纯投影；当前任务或当前选择不能替代历史 run 身份。
+
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
+
+import { parseSessionKey } from "@/lib/conversation/session-key";
 import type { ScheduledTaskRunItem } from "@/types/capability/scheduled-task/run";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 
 import { formatScheduledDatetime } from "../scheduled-formatters";
 import { getScheduledTaskErrorCopy } from "../scheduled-task-error-copy";
 import { formatDuration } from "./scheduled-task-run-history-model";
+
+type HistoryI18n = Pick<I18nContextValue, "locale" | "t">;
+type Translate = I18nContextValue["t"];
 
 export interface RunDiagnosticRow {
   breakAll?: boolean;
@@ -13,25 +23,23 @@ export interface RunDiagnosticRow {
 
 export interface RunOutputSection {
   content: string;
-  label?: string;
   tone: "danger" | "default";
 }
 
 interface RunDiagnosticRowDefinition {
   breakAll?: boolean;
   label: string;
-  value: (run: ScheduledTaskRunItem) => string | null;
+  value: (run: ScheduledTaskRunItem, i18n: HistoryI18n) => string | null;
 }
 
 interface RunOutputSectionDefinition {
-  content: (run: ScheduledTaskRunItem) => string | null;
-  label?: string;
+  content: (run: ScheduledTaskRunItem, t: Translate) => string | null;
   tone: RunOutputSection["tone"];
 }
 
 interface DiagnosticCopyFieldDefinition {
   label: string;
-  value: (task: ScheduledTaskItem, run: ScheduledTaskRunItem) => string;
+  value: (task: ScheduledTaskItem, run: ScheduledTaskRunItem, i18n: HistoryI18n) => string;
 }
 
 interface DiagnosticCopySectionDefinition {
@@ -39,8 +47,8 @@ interface DiagnosticCopySectionDefinition {
   value: (run: ScheduledTaskRunItem) => string | null;
 }
 
-const formatDatetime = (value: number | null): string => (
-  formatScheduledDatetime(value, { includeSeconds: true })
+const formatDatetime = (value: number | null, { locale, t }: HistoryI18n): string => (
+  formatScheduledDatetime(value, { includeSeconds: true, locale, emptyLabel: t("capability.scheduled_history_not_recorded") })
 );
 
 const optionalText = (value: string | null | undefined): string | null => value || null;
@@ -53,8 +61,8 @@ const positiveNumber = (value: number | null | undefined): string | null => (
   value ? String(value) : null
 );
 
-const optionalDatetime = (value: number | null): string | null => (
-  value ? formatDatetime(value) : null
+const optionalDatetime = (value: number | null, i18n: HistoryI18n): string | null => (
+  value === null ? null : formatDatetime(value, i18n)
 );
 
 function assistantText(run: ScheduledTaskRunItem): string | null {
@@ -78,22 +86,24 @@ const RUN_DIAGNOSTIC_ROW_DEFINITIONS: readonly RunDiagnosticRowDefinition[] = [
   { breakAll: true, label: "Round", value: (run) => optionalText(run.round_id) },
   { breakAll: true, label: "Runtime", value: (run) => optionalText(run.session_id) },
   { breakAll: true, label: "Delivery", value: (run) => optionalText(run.delivery_to) },
-  { label: "Delivered", value: (run) => optionalDatetime(run.delivered_at) },
+  { label: "Delivered", value: (run, i18n) => optionalDatetime(run.delivered_at, i18n) },
   { label: "Delivery attempts", value: (run) => positiveNumber(run.delivery_attempts) },
-  { label: "Next delivery retry", value: (run) => optionalDatetime(run.delivery_next_attempt_at) },
-  { label: "Delivery dead letter", value: (run) => optionalDatetime(run.delivery_dead_letter_at) },
-  { label: "Started", value: (run) => formatDatetime(run.started_at) },
-  { label: "Finished", value: (run) => formatDatetime(run.finished_at) },
+  { label: "Next delivery retry", value: (run, i18n) => optionalDatetime(run.delivery_next_attempt_at, i18n) },
+  { label: "Delivery dead letter", value: (run, i18n) => optionalDatetime(run.delivery_dead_letter_at, i18n) },
+  { label: "Started", value: (run, i18n) => formatDatetime(run.started_at, i18n) },
+  { label: "Finished", value: (run, i18n) => formatDatetime(run.finished_at, i18n) },
   { label: "Attempts", value: (run) => String(run.attempts) },
+  { breakAll: true, label: "Error", value: (run, { t }) => getScheduledTaskErrorCopy(run.error_message, t)?.detail ?? null },
+  { breakAll: true, label: "Delivery error", value: (run) => optionalText(run.delivery_error) },
 ];
 
 const RUN_OUTPUT_SECTION_DEFINITIONS: readonly RunOutputSectionDefinition[] = [
   {
-    content: (run) => getScheduledTaskErrorCopy(run.error_message)?.detail ?? null,
+    content: (run, t) => getScheduledTaskErrorCopy(run.error_message, t)?.summary ?? null,
     tone: "danger",
   },
   {
-    content: (run) => run.delivery_error ? `投递失败：${run.delivery_error}` : null,
+    content: (run, t) => run.delivery_error ? t("capability.scheduled_history_delivery_error") : null,
     tone: "danger",
   },
   { content: primaryResultText, tone: "default" },
@@ -102,22 +112,23 @@ const RUN_OUTPUT_SECTION_DEFINITIONS: readonly RunOutputSectionDefinition[] = [
 const DIAGNOSTIC_COPY_FIELD_DEFINITIONS: readonly DiagnosticCopyFieldDefinition[] = [
   { label: "Task", value: (task) => task.name },
   { label: "Job ID", value: (task) => task.job_id },
-  { label: "Agent ID", value: (task) => task.agent_id },
-  { label: "Execution", value: (task) => task.execution_kind ?? "agent" },
+  { label: "Current Task Agent ID", value: (task) => task.agent_id },
+  { label: "Current Execution Kind", value: (task) => task.execution_kind ?? "agent" },
   { label: "Run ID", value: (_task, run) => run.run_id },
+  { label: "Run Agent ID", value: (_task, run) => getRunWorkspaceAgentID(run) ?? "" },
   { label: "Status", value: (_task, run) => run.status },
   { label: "Delivery Status", value: (_task, run) => run.delivery_status || "" },
   { label: "Delivery Attempts", value: (_task, run) => String(run.delivery_attempts ?? 0) },
-  { label: "Delivered At", value: (_task, run) => formatDatetime(run.delivered_at) },
-  { label: "Delivery Next Attempt", value: (_task, run) => formatDatetime(run.delivery_next_attempt_at) },
-  { label: "Delivery Dead Letter At", value: (_task, run) => formatDatetime(run.delivery_dead_letter_at) },
+  { label: "Delivered At", value: (_task, run, i18n) => formatDatetime(run.delivered_at, i18n) },
+  { label: "Delivery Next Attempt", value: (_task, run, i18n) => formatDatetime(run.delivery_next_attempt_at, i18n) },
+  { label: "Delivery Dead Letter At", value: (_task, run, i18n) => formatDatetime(run.delivery_dead_letter_at, i18n) },
   { label: "Trigger", value: (_task, run) => run.trigger_kind || "" },
-  { label: "Scheduled", value: (_task, run) => formatDatetime(run.scheduled_for) },
-  { label: "Started", value: (_task, run) => formatDatetime(run.started_at) },
-  { label: "Finished", value: (_task, run) => formatDatetime(run.finished_at) },
+  { label: "Scheduled", value: (_task, run, i18n) => formatDatetime(run.scheduled_for, i18n) },
+  { label: "Started", value: (_task, run, i18n) => formatDatetime(run.started_at, i18n) },
+  { label: "Finished", value: (_task, run, i18n) => formatDatetime(run.finished_at, i18n) },
   {
     label: "Duration",
-    value: (_task, run) => formatDuration(run.started_at, run.finished_at),
+    value: (_task, run, { t }) => formatDuration(run.started_at, run.finished_at, t),
   },
   { label: "Attempts", value: (_task, run) => String(run.attempts) },
   { label: "Session", value: (_task, run) => run.session_key || "" },
@@ -134,30 +145,36 @@ const DIAGNOSTIC_COPY_SECTION_DEFINITIONS: readonly DiagnosticCopySectionDefinit
   { label: "Assistant", value: assistantText },
 ];
 
-export function getRunDiagnosticRows(run: ScheduledTaskRunItem): RunDiagnosticRow[] {
+export function getRunDiagnosticRows(run: ScheduledTaskRunItem, i18n: HistoryI18n): RunDiagnosticRow[] {
   return RUN_DIAGNOSTIC_ROW_DEFINITIONS.flatMap((definition) => {
-    const value = definition.value(run);
+    const value = definition.value(run, i18n);
     return value === null
       ? []
       : [{ breakAll: definition.breakAll, label: definition.label, value }];
   });
 }
 
-export function getRunOutputSections(run: ScheduledTaskRunItem): RunOutputSection[] {
+export function getRunOutputSections(run: ScheduledTaskRunItem, t: Translate): RunOutputSection[] {
   return RUN_OUTPUT_SECTION_DEFINITIONS.flatMap((definition) => {
-    const content = definition.content(run);
+    const content = definition.content(run, t);
     return content === null
       ? []
-      : [{ content, label: definition.label, tone: definition.tone }];
+      : [{ content, tone: definition.tone }];
   });
+}
+
+export function getRunWorkspaceAgentID(run: ScheduledTaskRunItem): string | null {
+  const session = parseSessionKey(run.session_key);
+  return session.is_structured && session.kind === "agent" ? session.agent_id : null;
 }
 
 export function buildRunDiagnostic(
   task: ScheduledTaskItem,
   run: ScheduledTaskRunItem,
+  i18n: HistoryI18n,
 ): string {
   const fields = DIAGNOSTIC_COPY_FIELD_DEFINITIONS.map((definition) => (
-    `${definition.label}: ${definition.value(task, run)}`
+    `${definition.label}: ${definition.value(task, run, i18n)}`
   ));
   const sections = DIAGNOSTIC_COPY_SECTION_DEFINITIONS.flatMap((definition) => {
     const value = definition.value(run);
