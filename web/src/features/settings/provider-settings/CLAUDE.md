@@ -38,4 +38,4 @@ Provider 预设用 `endpoint_mode` 区分固定目录端点、资源级 Base URL
 
 Provider 目录/详情以自身 720px 工作面宽度作为横向分栏边界，设置和运营嵌入态复用；详情不再叠加额外横向内边距，字段沿统一内容轴排布。
 
-模型新增与参数弹窗的全部可编辑字段统一按 `pendingAction !== null || !selectedCanManage` 禁用；新增表单 submit 同样检查该边界。只读用户仍可打开参数详情查看，但不能制造可编辑而无法保存的草稿；命令运行时冻结草稿，关闭/取消继续可用。侧栏不支持状态复用 UiBadge，截断名称保留完整 title。
+模型新增与参数弹窗的全部可编辑字段统一按 `pendingAction !== null || !selectedCanManage` 禁用；新增表单 submit 同样检查该边界。只读用户仍可打开参数详情查看，但不能制造可编辑而无法保存的草稿；命令运行时冻结草稿，关闭/取消继续可用。侧栏不支持状态复用 UiBadge，截断名称保留完整共享 Tooltip。

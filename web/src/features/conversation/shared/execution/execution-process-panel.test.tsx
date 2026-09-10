@@ -262,7 +262,7 @@ describe("ExecutionProcessPanel", () => {
     expect(frame.className).toContain("border-(--primary)");
     expect(frame.className).toContain("scale-105");
     expect(frame.className).toContain("ring-(--primary)");
-    expect(frame.getAttribute("title")).toBe("Nexus node");
+    expect(frame.getAttribute("title")).toBeNull();
     expect(screen.getByRole("img", { name: "Nexus" }).className).toContain("h-9.5");
   });
 });

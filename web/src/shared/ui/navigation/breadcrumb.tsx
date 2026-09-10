@@ -3,6 +3,7 @@
 // POS: 全站 Breadcrumb DOM 与视觉 owner；不读取路由，也不解释业务路径。
 "use client";
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import { ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -89,7 +90,7 @@ function UiBreadcrumbItemContent({
   return (
     <>
       {icon}
-      <span
+      <UiTooltip label={item.title}><span
         aria-current={current ? "page" : undefined}
         className={cn(
           "min-w-0 max-w-full truncate whitespace-nowrap",
@@ -99,10 +100,9 @@ function UiBreadcrumbItemContent({
             weight: current ? "medium" : "regular",
           }),
         )}
-        title={item.title}
       >
         {item.label}
-      </span>
+      </span></UiTooltip>
     </>
   );
 }

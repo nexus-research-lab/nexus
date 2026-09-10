@@ -3,6 +3,7 @@
 // POS: Spreadsheet 视图；行投影与内容样式归本目录，Tabs、元数据排版和滚动配方归 shared/ui。
 "use client";
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
@@ -198,12 +199,12 @@ function SpreadsheetReadonlySheet({
               style={{ height: row.height, transform: `translateY(${row.start}px)` }}
             >
               {row.cells.map((cell) => (
-                <div
+                <UiTooltip label={cell.cell?.text || undefined} key={cell.columnIndex}><div
                   aria-colindex={cell.columnIndex + 1}
                   aria-colspan={cell.columnSpan > 1 ? cell.columnSpan : undefined}
                   aria-rowspan={cell.rowSpan > 1 ? cell.rowSpan : undefined}
                   className="absolute left-0 top-0 overflow-hidden border-r border-b border-(--surface-paper-border) px-2 py-0.5"
-                  key={cell.columnIndex}
+
                   role="cell"
                   style={{
                     ...createSpreadsheetCellStyle(sheet.styles, cell.cell?.style),
@@ -211,10 +212,10 @@ function SpreadsheetReadonlySheet({
                     transform: `translateX(${cell.columnStart}px)`,
                     width: cell.width,
                   }}
-                  title={cell.cell?.text || undefined}
+
                 >
                   <span className="min-w-0 shrink-0">{cell.cell?.text || ""}</span>
-                </div>
+                </div></UiTooltip>
               ))}
             </div>
           ))}

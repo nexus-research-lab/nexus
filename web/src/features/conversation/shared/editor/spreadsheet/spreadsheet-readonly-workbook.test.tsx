@@ -102,7 +102,7 @@ describe("SpreadsheetReadonlyWorkbook", () => {
     expect(overview.getAttribute("aria-pressed")).toBe("true");
     expect(overview.className).toContain("border-b-2");
     expect(overview.className).toContain("rounded-none");
-    expect(details.getAttribute("title")).toBe("Details");
+    expect(details.getAttribute("title")).toBeNull();
 
     await user.click(details);
     expect(onSelectSheet).toHaveBeenCalledWith(1);

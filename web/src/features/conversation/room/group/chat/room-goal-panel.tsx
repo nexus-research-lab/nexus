@@ -5,6 +5,7 @@
  */
 "use client";
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import { useCallback, useMemo } from "react";
 import { UserRound } from "lucide-react";
 
@@ -57,13 +58,12 @@ export function RoomGoalPanel({
   const statusExtra = useCallback((goal: Goal) => {
     const lead = memberOptions.find((option) => option.value === resolveLead(goal));
     return lead ? (
-      <span
+      <UiTooltip label={t("room.goal_lead_status_title", { name: lead.label })}><span
         className="inline-flex min-w-0 max-w-full items-center gap-1 text-(--text-muted)"
-        title={t("room.goal_lead_status_title", { name: lead.label })}
       >
         <UserRound aria-hidden="true" className="h-3 w-3 shrink-0" />
         <span className="truncate">{t("room.goal_lead_status", { name: lead.label })}</span>
-      </span>
+      </span></UiTooltip>
     ) : null;
   }, [memberOptions, resolveLead, t]);
 

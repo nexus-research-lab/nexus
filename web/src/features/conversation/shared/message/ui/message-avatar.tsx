@@ -1,6 +1,7 @@
 // INPUT: Message avatar source, fallback content and optional detail action.
 // OUTPUT: Compact/full message avatar with local image failure recovery.
 // POS: Message rail avatar geometry and accessible detail affordance.
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import { useState, type MouseEvent, type ReactNode } from "react";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
@@ -118,18 +119,18 @@ function InteractiveMessageAvatar({
 }) {
   const { t } = useI18n();
   return (
-    <button
+    <UiTooltip label={title}><button
       aria-label={ariaLabel ?? t("message.avatar_details")}
       className={cn(
         className,
         "motion-safe:hover:border-(--surface-interactive-active-border) cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45",
       )}
       onClick={onClick}
-      title={title}
+
       type="button"
     >
       {children}
-    </button>
+    </button></UiTooltip>
   );
 }
 
@@ -145,14 +146,14 @@ function StaticMessageAvatar({
   title?: string;
 }) {
   return (
-    <div
+    <UiTooltip label={title}><div
       className={cn(
         className,
         !hasImage && "flex items-center justify-center text-(--surface-avatar-foreground)",
       )}
-      title={title}
+
     >
       {children}
-    </div>
+    </div></UiTooltip>
   );
 }

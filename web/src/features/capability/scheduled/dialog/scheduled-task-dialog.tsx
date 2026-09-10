@@ -162,33 +162,24 @@ export function ScheduledTaskDialog({
           </UiDialogBody>
 
           {!isLegacyScriptTask ? (
-            <p aria-live="polite" className={cn("shrink-0 px-6 pt-3 break-words", getUiTypographyClassName({ role: "supporting", tone: "muted" }))}>
-              {buildTaskConfirmationSummary(controller.form.draft, controller.schedule.draft, controller.data, t)}
-            </p>
+            <div className="shrink-0 border-t border-(--divider-subtle-color)">
+              <p aria-live="polite" className={cn("px-[1.125rem] pt-5 break-words", getUiTypographyClassName({ role: "supporting", tone: "muted" }))}>
+                {buildTaskConfirmationSummary(controller.form.draft, controller.schedule.draft, controller.data, t)}
+              </p>
+              <UiDialogFooter appearance="plain" className="h-12 px-5 py-0">
+                <UiButton
+                  aria-busy={controller.isSubmitting || undefined}
+                  className="min-w-[124px]"
+                  disabled={controller.isCloseBlocked}
+                  tone="primary"
+                  type="submit"
+                  variant="solid"
+                >
+                  {controller.isSubmitting ? submittingLabel : submitLabel}
+                </UiButton>
+              </UiDialogFooter>
+            </div>
           ) : null}
-          <UiDialogFooter appearance="plain">
-            <UiButton
-              className="min-w-[104px]"
-              disabled={!canClose}
-              onClick={onClose}
-              type="button"
-              variant="surface"
-            >
-              {t(isLegacyScriptTask ? "common.close" : "common.cancel")}
-            </UiButton>
-            {!isLegacyScriptTask ? (
-              <UiButton
-                aria-busy={controller.isSubmitting || undefined}
-                className="min-w-[124px]"
-                disabled={controller.isCloseBlocked}
-                tone="primary"
-                type="submit"
-                variant="solid"
-              >
-                {controller.isSubmitting ? submittingLabel : submitLabel}
-              </UiButton>
-            ) : null}
-          </UiDialogFooter>
     </form>
   );
 }

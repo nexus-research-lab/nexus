@@ -2,6 +2,7 @@
 // OUTPUT: 单一原生 button/role=switch 的键盘、指针、禁用与液态玻璃视觉合同。
 // POS: Shared Switch primitive；不拥有业务校验、确认弹窗或状态提交。
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import type { CSSProperties } from "react";
 
 import { cn } from "@/shared/ui/class-name";
@@ -136,7 +137,7 @@ export function GlassSwitch({
   });
 
   return (
-    <button
+    <UiTooltip label={title}><button
       {...interaction.buttonHandlers}
       aria-checked={checked}
       aria-describedby={ariaDescribedBy}
@@ -148,7 +149,7 @@ export function GlassSwitch({
       )}
       disabled={disabled}
       role="switch"
-      title={title}
+
       type="button"
       style={presentation.trackStyle}
     >
@@ -170,6 +171,6 @@ export function GlassSwitch({
         onTransitionEnd={interaction.onThumbTransitionEnd}
         style={presentation.dynamicThumbStyle}
       />
-    </button>
+    </button></UiTooltip>
   );
 }

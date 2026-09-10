@@ -5,6 +5,7 @@
  */
 "use client";
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import { ArrowDownToLine, Loader2, Plus, Trash2 } from "lucide-react";
 
 import { UiBadge } from "@/shared/ui/display/badge";
@@ -130,7 +131,7 @@ export function ProviderSettingsSidebar({
                     name={preset.display_name}
                     presetKey={preset.preset_key}
                   />
-                  <span className="min-w-0 flex-1 truncate" title={preset.display_name}>{preset.display_name}</span>
+                  <UiTooltip label={preset.display_name}><span className="min-w-0 flex-1 truncate" >{preset.display_name}</span></UiTooltip>
                   {isUnsupportedPreset ? (
                     <UiBadge shape="pill" size="xs" tone="idle">
                       {t("settings.providers.unsupported_badge")}
@@ -159,7 +160,7 @@ export function ProviderSettingsSidebar({
                       name={getProviderTitle(item)}
                       presetKey={item.preset_key}
                     />
-                    <span className="min-w-0 flex-1 truncate" title={getProviderTitle(item)}>{getProviderTitle(item)}</span>
+                    <UiTooltip label={getProviderTitle(item)}><span className="min-w-0 flex-1 truncate" >{getProviderTitle(item)}</span></UiTooltip>
                   </SettingsNavigationButton>
                   {canShowDelete ? (
                     <UiListActionButton

@@ -61,14 +61,14 @@ describe("WorkspaceFileTree", () => {
     expect(docs.getAttribute("aria-expanded")).toBe("true");
     expect(docs.className).toContain("bg-transparent");
     expect(docs.className).not.toContain("aria-[expanded=true]:bg-");
-    expect(docs.parentElement?.className).not.toContain("bg-(--surface-sidebar-active-background)");
+    expect(docs.parentElement?.parentElement?.className).not.toContain("bg-(--surface-sidebar-active-background)");
     expect(docs.querySelector("span.ui-type-supporting")?.className).toContain("ui-type-weight-regular");
     const children = screen.getByRole("list", { name: "docs" });
     expect(docs.getAttribute("aria-controls")).toBe(children.id);
     const file = screen.getByRole("button", { name: "notes.txt" });
     expect(file.getAttribute("aria-current")).toBe("true");
-    expect(file.parentElement?.className).toContain("bg-(--surface-sidebar-active-background)");
-    expect(within(file.parentElement!).getAllByRole("button")).toHaveLength(2);
+    expect(file.parentElement?.parentElement?.className).toContain("bg-(--surface-sidebar-active-background)");
+    expect(within(file.parentElement?.parentElement!).getAllByRole("button")).toHaveLength(2);
     expect(file.hasAttribute("aria-expanded")).toBe(false);
     await user.click(file);
     expect(actions.onClickFile).toHaveBeenCalledWith("notes.txt");
@@ -110,7 +110,7 @@ describe("WorkspaceFileTree", () => {
     await user.click(screen.getByRole("button", { name: "nested" }));
     const nested = screen.getByRole("list", { name: "nested" });
     const file = within(nested).getByRole("button", { name: "readme.md" });
-    expect(file.getAttribute("title")).toBe("docs/nested/readme.md");
+    expect(file.getAttribute("title")).toBeNull();
     fireEvent.contextMenu(file, { button: 2, clientX: 40, clientY: 80 });
     expect(actions.onContextMenu).toHaveBeenCalledOnce();
     expect(actions.onContextMenu.mock.calls[0][1]).toBe(nestedFile);

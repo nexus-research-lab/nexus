@@ -2,6 +2,7 @@
 // OUTPUT: 统一的原生 menuitem/menuitemcheckbox 按钮与 ref、选中/禁用语义、固定或内容自适应命中几何和视觉状态。
 // POS: Shared Menu action row primitive；不管理菜单定位、开关、命令或业务内容。
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import type { ComponentPropsWithRef } from "react";
 
 import { cn } from "@/shared/ui/class-name";
@@ -41,9 +42,10 @@ export function UiMenuActionRow({
   disabled = false,
   hasDescription = false,
   tone = "default",
+  title,
   ...props
 }: UiMenuActionRowProps) {
-  return (
+  const content = (
     <button
       {...props}
       aria-checked={checked}
@@ -64,4 +66,5 @@ export function UiMenuActionRow({
       {children}
     </button>
   );
+  return title ? <UiTooltip label={title}>{content}</UiTooltip> : content;
 }

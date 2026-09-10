@@ -3,6 +3,7 @@
 // POS: 选择条 pattern；不是站点导航，也不拥有 tabpanel 或路由生命周期。
 "use client";
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import { type ReactNode } from "react";
 import { type LucideIcon } from "lucide-react";
 
@@ -59,17 +60,17 @@ export function UiTabs<TValue extends string>({
             className={cn("ui-navigation-tab-item inline-flex h-full shrink-0 items-center", option.className)}
             key={option.value}
           >
-            <button
+            <UiTooltip label={option.title}><button
               aria-pressed={isActive}
               className={getUiTabClassName({ active: isActive, density }, itemClassName)}
               data-tour-anchor={option.anchor}
               onClick={() => onChange?.(option.value)}
-              title={option.title}
+
               type="button"
             >
               {Icon ? <Icon aria-hidden="true" className="h-3.5 w-3.5" /> : null}
               {option.label}
-            </button>
+            </button></UiTooltip>
           </span>
         );
       })}

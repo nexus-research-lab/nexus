@@ -2,6 +2,7 @@
 // OUTPUT: 紧凑账号菜单集中提供引导与有效退出，设置保留直接入口。
 // POS: 宽侧栏底部/折叠动作视图；权限与更新状态由上层和专属 hook 决定。
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import {
   CircleHelp,
   LogIn,
@@ -16,7 +17,7 @@ import { useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 import { SIDEBAR_TOUR_ANCHORS } from "@/features/onboarding/tours/sidebar-navigation-tour";
-import { UiIconButton } from "@/shared/ui/button/button";
+import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { UiActionMenu, type UiActionMenuItem } from "@/shared/ui/menu/action-menu";
 
@@ -89,20 +90,21 @@ export function SidebarFooterActions(props: SidebarUtilityActionsProps) {
 
   return (
     <div className="sidebar-panel-footer shell-region-footer relative -mr-1.5 flex h-12 shrink-0 items-center justify-end gap-2 px-2">
-      <UiIconButton
+      <UiButton
         ref={anchorRef}
         data-tour-anchor={SIDEBAR_TOUR_ANCHORS.restart}
         aria-label={props.accountName}
         aria-expanded={menuOpen}
         aria-haspopup="menu"
-        className="mr-auto"
+        className="h-9 min-w-0 flex-1 justify-start gap-2 px-1"
         onClick={() => setMenuOpen(!menuOpen)}
-        shape="round"
         size="md"
-        tooltip={props.accountName}
+        title={props.accountName}
+        variant="ghost"
       >
         <UiAgentAvatar aria-hidden="true" avatar={props.accountAvatar} className="rounded-full" name={props.accountName} size="sm" />
-      </UiIconButton>
+        <span className="min-w-0 truncate text-left font-normal">{props.accountName}</span>
+      </UiButton>
       <UiActionMenu
         anchorRef={anchorRef}
         ariaLabel={props.accountName}
@@ -111,7 +113,7 @@ export function SidebarFooterActions(props: SidebarUtilityActionsProps) {
           value: "personal",
           label: <span className="flex min-w-0 items-center gap-2.5">
             <UiAgentAvatar aria-hidden="true" avatar={props.accountAvatar} className="rounded-full" name={props.accountName} size="sm" />
-            <span className="ui-type-control truncate text-(--text-strong)" title={props.accountName}>{props.accountName}</span>
+            <UiTooltip label={props.accountName}><span className="ui-type-control truncate text-(--text-strong)" >{props.accountName}</span></UiTooltip>
           </span>,
         }]}
         footerItems={items}

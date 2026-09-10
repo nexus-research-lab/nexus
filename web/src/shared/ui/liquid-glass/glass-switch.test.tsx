@@ -37,7 +37,7 @@ describe("GlassSwitch", () => {
 
     const control = screen.getByRole("switch", { name: "自动回复" });
     expect(control.getAttribute("aria-checked")).toBe("false");
-    expect(control.getAttribute("title")).toBe("切换自动回复");
+    expect(control.getAttribute("title")).toBeNull();
     await user.click(control);
     expect(onChange).toHaveBeenLastCalledWith(true);
 

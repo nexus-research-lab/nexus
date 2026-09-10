@@ -56,7 +56,7 @@ describe("RoomAgentSwitcher", () => {
     const props = { members, onSelect, selectedId: "beta" };
     const { rerender } = render(localizedSwitcher(props, locale));
     const trigger = screen.getByRole("button");
-    expect(trigger.getAttribute("title")).toBe("2 · Nova");
+    expect(trigger.getAttribute("title")).toBeNull();
     await user.click(trigger);
     const items = screen.getAllByRole("menuitem");
     expect(items[0].textContent).toContain("2 · Nova");
@@ -77,7 +77,7 @@ describe("RoomAgentSwitcher", () => {
     const directory = MEMBERS.map((member) => ({ ...member, name: "Nova" }));
     render(localizedSwitcher({ directory, members: [directory[1]], onSelect: vi.fn(), selectedId: "beta", variant: "task" }));
     const trigger = screen.getByRole("button");
-    expect(trigger.getAttribute("title")).toBe("2 · Nova");
+    expect(trigger.getAttribute("title")).toBeNull();
     await user.click(trigger);
     expect(screen.getAllByRole("menuitem")).toHaveLength(1);
     expect(screen.getByRole("menuitem", { name: "2 · Nova" })).toBeTruthy();
@@ -91,7 +91,7 @@ describe("RoomAgentSwitcher", () => {
     const { rerender } = render(localizedSwitcher(props, locale));
     const unavailable = MESSAGES[locale]["agent.selection_unavailable"];
     const trigger = screen.getByRole("button");
-    expect(trigger.getAttribute("title")).toBe(unavailable);
+    expect(trigger.getAttribute("title")).toBeNull();
     expect(trigger.textContent).not.toContain("Alpha");
     expect(onSelect).not.toHaveBeenCalled();
     await user.click(trigger);
@@ -103,7 +103,7 @@ describe("RoomAgentSwitcher", () => {
     await user.click(screen.getByRole("menuitem", { name: "Beta" }));
     expect(onSelect).toHaveBeenCalledExactlyOnceWith("beta");
     rerender(localizedSwitcher({ ...props, selectedId: "beta" }, locale));
-    expect(trigger.getAttribute("title")).toBe("Beta");
+    expect(trigger.getAttribute("title")).toBeNull();
   });
 
   it("discards an open menu when candidates disappear and does not reopen on recovery", async () => {
@@ -116,7 +116,7 @@ describe("RoomAgentSwitcher", () => {
     rerender(localizedSwitcher({ ...props, members: [] }));
     expect(screen.queryByRole("menu")).toBeNull();
     expect(trigger.hasAttribute("disabled")).toBe(true);
-    expect(trigger.getAttribute("title")).toBe(MESSAGES.zh["agent.selection_unavailable"]);
+    expect(trigger.getAttribute("title")).toBeNull();
     expect(onSelect).not.toHaveBeenCalled();
     rerender(localizedSwitcher(props));
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
@@ -136,7 +136,7 @@ describe("RoomAgentSwitcher", () => {
     await user.keyboard("{Enter}");
     rerender(localizedSwitcher({ ...props, selectedId: "beta" }));
     expect(screen.queryByRole("menu")).toBeNull();
-    expect(trigger.getAttribute("title")).toBe("Beta");
+    expect(trigger.getAttribute("title")).toBeNull();
     expect(onSelect).not.toHaveBeenCalled();
     trigger.focus();
     await user.keyboard("{Enter}");

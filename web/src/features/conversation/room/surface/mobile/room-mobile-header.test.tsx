@@ -59,12 +59,12 @@ describe("RoomMobileHeader", () => {
     expect(describe(first)).toEqual(["Research", "Study details with a long title"]);
     expect(describe(second)).toEqual(["Research"]);
     expect(first.getAttribute("aria-describedby")).not.toBe(second.getAttribute("aria-describedby"));
-    expect(first.getAttribute("title")).toBe("Research · Study details with a long title");
+    expect(first.getAttribute("title")).toBeNull();
     expect(within(second).getAllByText("Research")).toHaveLength(1);
     expect(first.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
     rendered.rerender(<I18nProvider><RoomMobileHeader {...props} roomTitle=" " conversationTitle=" " /></I18nProvider>);
     const empty = screen.getByRole("button", { name: /switch conversation|切换会话/i });
-    expect([MESSAGES.en["room.new_conversation"], MESSAGES.zh["room.new_conversation"]]).toContain(empty.getAttribute("title"));
+    expect([MESSAGES.en["room.new_conversation"], MESSAGES.zh["room.new_conversation"]]).toContain(empty.textContent);
   });
 
   it("keeps a single title action and exposes its expanded state for Enter and Space", async () => {

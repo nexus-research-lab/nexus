@@ -5,6 +5,7 @@
  */
 "use client";
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import {
   Bot,
   FilePenLine,
@@ -76,7 +77,7 @@ export function ExecutionNodeAvatar({
   const toolVisualKind = resolveExecutionToolVisualKind(toolName);
   const ToolIcon = EXECUTION_TOOL_ICON[toolVisualKind];
   return (
-    <span
+    <UiTooltip label={dock ? undefined : title}><span
       className={cn(
         "relative grid shrink-0 place-items-center border bg-(--surface-control-background) p-px transition-[border-color,box-shadow,transform]",
         graph
@@ -99,7 +100,7 @@ export function ExecutionNodeAvatar({
       data-execution-node-status={status}
       data-execution-node-tone={tone}
       data-execution-tool-visual={kind === "tool" ? toolVisualKind : undefined}
-      title={dock ? undefined : title}
+
     >
       {kind === "tool" ? (
         <ToolIcon
@@ -175,7 +176,7 @@ export function ExecutionNodeAvatar({
           executionNodeDotTone(status, tone),
         )}
       />
-    </span>
+    </span></UiTooltip>
   );
 }
 

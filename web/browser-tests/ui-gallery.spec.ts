@@ -45,6 +45,22 @@ async function capture(surface: Locator, info: TestInfo, name: string) {
   });
 }
 
+test("hover hints suppress repeated labels and reveal clipped text with the shared tooltip", async ({ page }, info) => {
+  const { errors } = await openGallery(page, info);
+  const redundant = page.locator("[data-gallery-redundant-tooltip]");
+  await redundant.hover();
+  await page.waitForTimeout(350);
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
+  await expect(redundant).not.toHaveAttribute("title");
+  const clipped = page.locator("[data-gallery-truncated-tooltip]");
+  await clipped.hover();
+  await expect(page.getByRole("tooltip")).toHaveText("Long account name for tooltip verification");
+  await expect(clipped).not.toHaveAttribute("title");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test("source editors preserve text, keyboard focus and native read-only behavior", async ({ page }, info) => {
   const { errors } = await openGallery(page, info);
   const fixture = page.locator("[data-gallery-source-editor]");
@@ -1410,6 +1426,30 @@ test("loading stays still in reduced motion and keeps its footprint when animate
   }));
   expect(new Set(samples.map((sample) => sample.glyph)).size).toBeGreaterThan(1);
   expect(new Set(samples.map((sample) => `${sample.width}x${sample.height}`)).size).toBe(1);
+  expect(errors).toEqual([]);
+});
+
+test("scheduled task suggestions fit their pane without overflowing card borders", async ({ page }, info) => {
+  const { errors } = await openGallery(page, info, "workspace");
+  const fixture = page.locator("[data-gallery-task-suggestions]");
+  for (const width of [260, 520, 760]) {
+    await fixture.evaluate((element, value) => { (element as HTMLElement).style.width = `${value}px`; }, width);
+    await fixture.scrollIntoViewIfNeeded();
+    const cards = fixture.locator(".grid > button");
+    await expect(cards).toHaveCount(3);
+    const bounds = (await fixture.boundingBox())!;
+    const positions = [];
+    for (const card of await cards.all()) {
+      const rect = (await card.boundingBox())!;
+      const description = (await card.locator("span").last().boundingBox())!;
+      expect(description.y + description.height).toBeLessThanOrEqual(rect.y + rect.height - 8);
+      expect(rect.x + rect.width).toBeLessThanOrEqual(bounds.x + bounds.width + 1);
+      expect(await card.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+      positions.push(Math.round(rect.x));
+    }
+    expect(new Set(positions).size).toBe(bounds.width >= 720 ? 3 : bounds.width >= 480 ? 2 : 1);
+  }
+  await capture(fixture, info, "task-suggestions");
   expect(errors).toEqual([]);
 });
 

@@ -80,8 +80,8 @@ describe("ToolBlockHeaderActions", () => {
     const allow = screen.getByRole("button", { name: /allow|允许/i });
     expect((deny as HTMLButtonElement).disabled).toBe(true);
     expect((allow as HTMLButtonElement).disabled).toBe(true);
-    expect(deny.title).toBe("Another request is active.");
-    expect(allow.title).toBe("Another request is active.");
+    expect(deny.title).toBe("");
+    expect(allow.title).toBe("");
 
     fireEvent.click(deny);
     fireEvent.click(allow);

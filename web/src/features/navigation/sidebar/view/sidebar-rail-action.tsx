@@ -2,6 +2,7 @@
 // OUTPUT: 一级入口和固定会话共用的 Dock 动作、图标框、文字与计数结构；一级动作使用可用轨宽保留完整标签。
 // POS: 宽侧栏导航轨的唯一动作 DOM/视觉所有者；不判断路由、排序或业务计数。
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import type { LucideIcon } from "lucide-react";
 import type { ButtonHTMLAttributes } from "react";
 
@@ -55,7 +56,7 @@ export function SidebarRailAction({
   ...props
 }: SidebarRailActionProps) {
   return (
-    <button
+    <UiTooltip label={title}><button
       aria-current={active ? "page" : undefined}
       aria-pressed={layout === "primary" ? active : undefined}
       className={cn(
@@ -67,7 +68,7 @@ export function SidebarRailAction({
         BUTTON_LAYOUT_CLASS_NAMES[layout],
         className,
       )}
-      title={title}
+
       type={type}
       {...props}
     >
@@ -89,6 +90,6 @@ export function SidebarRailAction({
       </span>
       <span className={LABEL_LAYOUT_CLASS_NAMES[layout]}>{label}</span>
       {supplementalLabel ? <span className="sr-only">{supplementalLabel}</span> : null}
-    </button>
+    </button></UiTooltip>
   );
 }

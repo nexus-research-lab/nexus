@@ -105,7 +105,7 @@ describe("UiListRow", () => {
     const row = screen.getByTestId("dense-row");
     expect(row.className).toContain("min-h-10");
     expect(row.className).toContain("py-1.5");
-    expect(row.getAttribute("title")).toBe("memory/note.md");
+    expect(row.getAttribute("title")).toBeNull();
   });
 
   it("keeps disabled actions semantic and inert", async () => {

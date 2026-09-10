@@ -43,8 +43,8 @@ describe("ExecutionNodeTaskList", () => {
     expect(screen.queryByText("步骤 1")).toBeNull();
     expect(screen.queryByText("步骤 8")).toBeNull();
     expect(screen.getByText("4/8")).toBeTruthy();
-    const active = screen.getByTitle("正在核对完整的协议与本轮交付结果");
-    expect(active.textContent).toBe(active.getAttribute("title"));
+    const active = screen.getByText("正在核对完整的协议与本轮交付结果");
+    expect(active.getAttribute("title")).toBeNull();
     expect(active.className).not.toContain("truncate");
     expect(active.closest("li")?.className).toContain("ui-type-supporting");
 
@@ -78,7 +78,7 @@ describe("ExecutionNodeTaskList", () => {
     render(view({ ...RUN, todos }));
     expect(screen.getByText("1/3")).toBeTruthy();
     expect(screen.getAllByRole("listitem")).toHaveLength(3);
-    expect(screen.getByTitle("正在处理旧格式").textContent).toBe("正在处理旧格式");
+    expect(screen.getByText("正在处理旧格式").textContent).toBe("正在处理旧格式");
     expect(screen.queryByText("忽略未知状态")).toBeNull();
     expect(screen.queryByRole("button")).toBeNull();
   });
@@ -111,7 +111,7 @@ describe("ExecutionNodeTaskList", () => {
     render(view({ ...RUN, todos: RUN.todos.map((todo) => ({ ...todo, status: "completed" })) }));
     expect(screen.getByText("8/8")).toBeTruthy();
     expect(screen.getByRole("list").firstElementChild?.getAttribute("value")).toBe("4");
-    expect(screen.getByTitle("步骤 8").className).toContain("line-through");
+    expect(screen.getByText("步骤 8").className).toContain("line-through");
   });
 
   it("renders no empty section for a run without displayable tasks", () => {

@@ -15,7 +15,8 @@ it.each(["zh", "en"] as const)("localizes the path hint and opens the exact file
     <WorkspaceFileButton label="报告" path={path} onOpenWorkspaceFile={open} />
   </I18N_CONTEXT.Provider>);
   const button = screen.getByRole("button", { name: "报告" });
-  expect(button.title).toBe(`${locale === "zh" ? "打开" : "Open"} ${path}`);
+  await user.hover(button);
+  expect((await screen.findByRole("tooltip")).textContent).toBe(`${locale === "zh" ? "打开" : "Open"} ${path}`);
   await user.tab();
   await user.keyboard("{Enter}");
   expect(open).toHaveBeenCalledExactlyOnceWith(path);

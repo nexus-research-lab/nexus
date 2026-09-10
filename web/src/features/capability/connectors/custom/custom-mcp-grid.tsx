@@ -5,6 +5,7 @@
  */
 "use client";
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 
 import {
@@ -98,12 +99,12 @@ export function CustomMCPGrid({
               description={recoveryRequired ? (
                 t("capability.custom_mcp_recovery_summary")
               ) : (
-                <span
+                <UiTooltip label={getCustomMCPConnectionTarget(server)}><span
                   className={getUiTypographyClassName({ role: "code" })}
-                  title={getCustomMCPConnectionTarget(server)}
+
                 >
                   {getCustomMCPConnectionTarget(server)}
-                </span>
+                </span></UiTooltip>
               )}
               key={server.connector_id}
               leading={(

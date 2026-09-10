@@ -3,6 +3,7 @@
  * OUTPUT: 标题、状态点、共享图标固定按钮和 Tab dismiss 按钮组成的单一会话标签。
  * POS: Workspace 会话标签纯视图，不推导集合或持久化状态。
  */
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import { Pin } from "lucide-react";
 
 import { UiIconButton } from "@/shared/ui/button/button";
@@ -51,11 +52,11 @@ export function WorkspaceConversationTab({
     title,
   });
   return (
-    <div
+    <UiTooltip label={presentation.title}><div
       className={presentation.rootClassName}
       data-conversation-tab-id={conversationId}
       style={presentation.style}
-      title={presentation.title}
+
     >
       <button
         aria-current={presentation.ariaCurrent}
@@ -102,6 +103,6 @@ export function WorkspaceConversationTab({
           ) : null}
         </span>
       ) : null}
-    </div>
+    </div></UiTooltip>
   );
 }

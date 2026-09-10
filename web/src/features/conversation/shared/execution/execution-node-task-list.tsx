@@ -3,6 +3,7 @@
  * OUTPUT: 复用已归一化任务的可读局部步骤清单；默认聚焦当前步骤，可展开完整只读内容。
  * POS: Task 在 WorkGraph 中的唯一展示面；不创建第二套节点状态或独立任务面板。
  */
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import { Circle, CircleCheck } from "lucide-react";
 import { useId } from "react";
 
@@ -67,14 +68,13 @@ export function ExecutionNodeTaskList({
             >
               <TaskStatusIcon status={todo.status} />
               <span className="sr-only">{taskStatusLabel(todo, t)}: </span>
-              <span
+              <UiTooltip label={label}><span
                 className={todo.status === "completed"
                   ? "min-w-0 break-words text-(--text-soft) line-through [overflow-wrap:anywhere]"
                   : "min-w-0 break-words text-(--text-default) [overflow-wrap:anywhere]"}
-                title={label}
               >
                 {label}
-              </span>
+              </span></UiTooltip>
             </li>
           );
         })}

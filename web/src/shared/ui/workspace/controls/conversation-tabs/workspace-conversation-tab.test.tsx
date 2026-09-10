@@ -30,7 +30,7 @@ describe("WorkspaceConversationTab close action", () => {
     };
     const { rerender } = render(<WorkspaceConversationTab {...props} />);
     const closeButton = screen.getByRole("button", { name: "关闭任务会话" });
-    expect(closeButton.getAttribute("title")).toBe("关闭任务会话");
+    expect(closeButton.getAttribute("title")).toBeNull();
     expect(closeButton.className).toContain("opacity-0");
     expect(closeButton.className).toContain("group-hover:opacity-100");
 

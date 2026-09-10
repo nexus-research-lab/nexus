@@ -2,6 +2,7 @@
 // OUTPUT: 共用触发器与 Badge、完整选项提示、单选 listbox 的焦点遍历与退出委派。
 // POS: Select Menu 视图；不持有开关、选值、定位或业务状态。
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import type {
   CSSProperties,
   KeyboardEventHandler,
@@ -103,15 +104,15 @@ export function SelectMenuView({
       >
         <SelectMenuTriggerContent isOpen={isOpen} leading={leading}>
           <span className="flex min-w-0 flex-1 items-center gap-2">
-            <span
+            <UiTooltip label={model.activeLabel}><span
               className={cn(
                 "min-w-0 flex-1 text-(--text-strong)",
                 styles.triggerLabelClassName,
               )}
-              title={model.activeLabel}
+
             >
               {model.activeLabel}
-            </span>
+            </span></UiTooltip>
             {model.activeBadge ? <UiBadge size="xs" tone="primary">{model.activeBadge}</UiBadge> : null}
           </span>
         </SelectMenuTriggerContent>
@@ -236,9 +237,9 @@ function SelectMenuOption({
       onClick={() => onSelect(option.value)}
       tabIndex={-1}
     >
-      <span className={cn("min-w-0 flex-1", styles.optionLabelClassName)} title={option.label}>
+      <UiTooltip label={option.label}><span className={cn("min-w-0 flex-1", styles.optionLabelClassName)} >
         {option.label}
-      </span>
+      </span></UiTooltip>
       {option.badge ? <UiBadge size="xs" tone="primary">{option.badge}</UiBadge> : null}
       {isActive ? <Check aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-(--icon-default)" /> : null}
     </SelectMenuOptionRow>

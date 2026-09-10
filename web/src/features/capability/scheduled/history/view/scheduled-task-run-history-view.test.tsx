@@ -180,8 +180,7 @@ describe("run history language and command states", () => {
     expect(diagnostic.textContent).toContain("destination unavailable");
     fireEvent.click(screen.getByRole("button", { name: "Copy diagnostics" }));
     expect(onCopyDiagnostic).toHaveBeenCalledExactlyOnceWith(run);
-    expect(screen.getByRole("button", { name: "Run again" }).getAttribute("title"))
-      .toBe("Run once with the current task configuration.");
+    expect(screen.getByRole("button", { name: "Run again" }).getAttribute("title")).toBeNull();
     expect(screen.queryByText("59 秒")).toBeNull();
   });
 

@@ -5,6 +5,7 @@
  */
 "use client";
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import {
   type CompositionEventHandler,
   type KeyboardEventHandler,
@@ -205,16 +206,16 @@ export function CapabilityDetailIdentity({
             {titleMeta}
           </div>
           {description ? (
-            <p
+            <UiTooltip label={descriptionTitle}><p
               className={cn(
                 "mt-1 break-words [overflow-wrap:anywhere]",
                 getUiTypographyClassName({ role: descriptionRole, tone: "muted" }),
                 descriptionClassName,
               )}
-              title={descriptionTitle}
+
             >
               {description}
-            </p>
+            </p></UiTooltip>
           ) : null}
         </div>
       </div>

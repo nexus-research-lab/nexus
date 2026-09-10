@@ -78,7 +78,7 @@ describe("ComposerPendingQueue", () => {
     const actions = commands();
     const text = "A long queued message ".repeat(30);
     render(wrap([{ ...queue[0], content: text, delivery_policy: "guide" }], actions));
-    const content = screen.getByTitle(text.trim());
+    const content = screen.getByText(text.trim());
     const row = screen.getByRole("listitem");
     const guide = within(row).getByRole("button", { name: "composer.cancel_guidance" });
     const remove = within(row).getByRole("button", { name: "composer.delete_pending" });
@@ -106,10 +106,10 @@ describe("ComposerPendingQueue", () => {
   it("shows attachment names or a meaningful fallback when a queued item has no text", () => {
     const attachment = { kind: "file" as const, file_name: "report.csv", workspace_path: "files/report.csv" };
     const { rerender } = render(wrap([{ ...queue[0], content: "  ", attachments: [attachment] }]));
-    expect(screen.getByTitle("report.csv")).toBeTruthy();
+    expect(screen.getByText("report.csv")).toBeTruthy();
     rerender(wrap([{ ...queue[0], content: "Message wins", attachments: [attachment] }]));
-    expect(screen.getByTitle("Message wins")).toBeTruthy();
-    expect(screen.queryByTitle("report.csv")).toBeNull();
+    expect(screen.getByText("Message wins")).toBeTruthy();
+    expect(screen.queryByText("report.csv")).toBeNull();
     rerender(wrap([{ ...queue[0], content: "" }]));
     expect(screen.getByText("composer.pending_message")).toBeTruthy();
   });

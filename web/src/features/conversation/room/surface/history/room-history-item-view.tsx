@@ -4,6 +4,7 @@
  * POS: Room 历史单项纯视图，不判断会话协议与删除资格。
  */
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import {
   type ComponentType,
   type KeyboardEvent,
@@ -110,13 +111,13 @@ function SelectingItemContent({
     return null;
   }
   return (
-    <label
+    <UiTooltip label={selection.disabled ? selectionLabel : undefined}><label
       className={cn(
         "flex w-full items-center gap-2.5",
         selection.disabled ? "cursor-default" : "cursor-pointer",
       )}
       htmlFor={checkboxId}
-      title={selection.disabled ? selectionLabel : undefined}
+
     >
       <UiCheckbox
         aria-label={selectionLabel}
@@ -127,7 +128,7 @@ function SelectingItemContent({
         onChange={onToggleSelection}
       />
       <RoomHistoryContent presentation={presentation} />
-    </label>
+    </label></UiTooltip>
   );
 }
 

@@ -3,6 +3,7 @@
  * OUTPUT: 有序队列行、完整内容提示与共享拖动/排序入口；引导和删除保持独立原生命中。
  * POS: Composer Pending Queue 行视图；不拥有队列顺序或命令状态。
  */
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import { useId, useRef } from "react";
 import { ArrowDown, ArrowUp, CornerDownRight, GripVertical, Paperclip, Trash2 } from "lucide-react";
 
@@ -151,11 +152,11 @@ function PendingQueueItemContentView({
 }) {
   const { t } = useI18n();
   return (
-    <p className={`flex min-w-0 flex-1 items-center gap-1 ${getUiTypographyClassName({
+    <UiTooltip label={content?.text}><p className={`flex min-w-0 flex-1 items-center gap-1 ${getUiTypographyClassName({
       role: "supporting", tone: content?.kind === "text" ? "strong" : "muted",
-    })}`} id={id} title={content?.text}>
+    })}`} id={id} >
       {content?.kind === "attachments" ? <Paperclip aria-hidden="true" className="h-3 w-3 shrink-0" /> : null}
       <span className="min-w-0 truncate">{content?.text || t("composer.pending_message")}</span>
-    </p>
+    </p></UiTooltip>
   );
 }

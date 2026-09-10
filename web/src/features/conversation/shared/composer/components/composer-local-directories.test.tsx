@@ -22,7 +22,8 @@ it("keeps exact path removal and selection as separate commands", async () => {
   const state = controller(); render(view(state));
   const user = userEvent.setup();
   expect(screen.getByRole("group", { name: "composer.local_directories_label" })).toBeTruthy();
-  expect(screen.getByTitle(state.directories[0])).toBeTruthy();
+  await user.hover(screen.getByText("Notes"));
+  expect((await screen.findByRole("tooltip")).textContent).toBe(state.directories[0]);
   await user.click(screen.getByText("Notes"));
   expect(state.removeDirectory).not.toHaveBeenCalled();
   await user.click(screen.getByRole("button", { name: "composer.remove_local_directory:Notes" }));

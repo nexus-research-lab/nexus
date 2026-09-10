@@ -4,6 +4,7 @@
 
 "use client";
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import {
   type HTMLAttributes,
   type KeyboardEvent,
@@ -82,7 +83,7 @@ export function UiListRow({
     variant,
   });
   return (
-    <div
+    <UiTooltip label={tooltip}><div
       className={presentation.className}
       {...props}
       aria-disabled={disabled || undefined}
@@ -94,7 +95,7 @@ export function UiListRow({
       )}
       role={presentation.role}
       tabIndex={presentation.tabIndex}
-      title={tooltip}
+
     >
       {leading}
       {children ?? (
@@ -107,7 +108,7 @@ export function UiListRow({
       )}
       {right}
       {actions}
-    </div>
+    </div></UiTooltip>
   );
 }
 

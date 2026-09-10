@@ -6,6 +6,7 @@
  * POS: Goal panel renderer; lifecycle and server-derived binding policy remain in the pure model/controller.
  */
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import type { ReactNode } from "react";
 import {
   CircleSlash,
@@ -221,15 +222,14 @@ function GoalStatusSummary({
         {model.bindingBadge ? <GoalBindingBadge model={model.bindingBadge} /> : null}
         {statusExtra}
       </div>
-      <div
+      <UiTooltip label={objective}><div
         className={cn(
           "mt-0.5 line-clamp-1",
           getUiTypographyClassName({ role: "supporting", tone: "strong", weight: "medium" }),
         )}
-        title={objective}
       >
         {objective}
-      </div>
+      </div></UiTooltip>
     </div>
   );
 }

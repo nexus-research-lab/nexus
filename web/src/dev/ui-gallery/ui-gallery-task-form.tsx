@@ -3,6 +3,7 @@
 // POS: Development-only fixture; no dialog mutation controller, network request or task submission.
 
 import { useRef } from "react";
+import { ScheduledTaskBoard } from "@/features/capability/scheduled/board/scheduled-task-board";
 import { TaskBasicsPanel } from "@/features/capability/scheduled/dialog/form/task-basics-panel";
 import { useTaskForm } from "@/features/capability/scheduled/dialog/form/use-task-form";
 import { TaskSchedulePanel, TaskScheduleAdvanced } from "@/features/capability/scheduled/dialog/schedule/task-schedule-panel";
@@ -52,6 +53,13 @@ export function TaskFormGallery() {
     <h2 className={getUiTypographyClassName({ role: "pageTitle", tone: "strong" })}>
       {galleryText(locale, "定时任务表单", "Scheduled task form")}
     </h2>
+    <div className="min-w-0 max-w-full" data-gallery-task-suggestions>
+      <ScheduledTaskBoard failure={null} hasSnapshot isLoading={false} isPermissionLoading={false} items={[]}
+        pending={new Map()} unconfirmed={new Map()} permissionFailure={null}
+        onCreate={noOp} onCreateFromPreset={noOp} onConfirmDeletionStopped={noOp} onDelete={noOp}
+        onEdit={noOp} onOpenHistory={noOp} onOpenConnector={noOp} onPermissionDecision={noOp}
+        onPermissionResume={noOp} onRefresh={noOp} onRunNow={noOp} onToggleEnabled={noOp} />
+    </div>
     <div className="mx-auto flex max-w-3xl min-w-0 flex-col gap-6">
       <div className="min-w-0" data-gallery-task-basics>
         <TaskBasicsPanel actions={form.actions} data={data} form={form.draft} nameRef={nameRef} needsSessionRebind={false}

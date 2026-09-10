@@ -102,7 +102,7 @@ describe("SubagentTaskList", () => {
     expect(row.className).toContain("radius-control-md");
     expect(screen.getByText("资料整理").className).toContain("ui-type-supporting");
     expect(screen.getByText("汇总公共组件使用情况").className).toContain("ui-type-metadata");
-    expect(row.querySelector("[title='资料整理']")?.className)
+    expect(row.querySelector(".h-6.w-6")?.className)
       .toContain("status-running-soft-border");
 
     await user.click(row);
@@ -122,7 +122,7 @@ it("separates unknown and failed/stopped history while keeping exact keyboard se
   const { container, rerender } = render(list({ tasks, onSelectTask }));
   const unknown = screen.getByRole("region", { name: "Status unavailable · 1" });
   const row = within(unknown).getByRole("button", { name: /New state/ });
-  expect(row.querySelector('[title="New state"]')?.className).not.toContain("status-running-soft-border");
+  expect(row.querySelector(".h-6.w-6")?.className).not.toContain("status-running-soft-border");
   expect(screen.queryByText(MESSAGES.en["subagents.no_active"])).toBeNull();
   const history = screen.getByRole("region", { name: "History · 2" });
   expect(within(history).getByText("Failed")).toBeTruthy();
@@ -162,7 +162,7 @@ it("omits invalid times and provides an exact date plus updated minute labels fo
   rerender(list({ tasks: [{ ...ACTIVE_TASK, updated_at: now }], onRefresh: refresh }));
   const time = container.querySelector("time")!;
   expect(time.dateTime).toBe(new Date(now).toISOString());
-  expect(time.title).toBe(new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(now));
+  expect(time.title).toBe("");
   const initial = time.textContent;
   act(() => vi.advanceTimersByTime(60_000));
   expect(time.textContent).not.toBe(initial);

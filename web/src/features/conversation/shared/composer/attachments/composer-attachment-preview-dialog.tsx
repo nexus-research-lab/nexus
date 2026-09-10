@@ -5,6 +5,7 @@
  */
 "use client";
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import { useEffect } from "react";
 
 import { useResettableState } from "@/shared/lib/react/use-resettable-state";
@@ -54,7 +55,7 @@ export function ComposerAttachmentPreviewDialog({
             className="items-center gap-2 px-3 py-1.5"
             closeLabel={t("composer.close_attachment_preview")}
             onClose={onClose}
-            title={<span className="block truncate" title={attachment.file.name}>{attachment.file.name}</span>}
+            title={<UiTooltip label={attachment.file.name}><span className="block truncate" >{attachment.file.name}</span></UiTooltip>}
           />
           {isImage ? (
             <ComposerImagePreview attachment={attachment} key={attachment.id} onClose={onClose} />
