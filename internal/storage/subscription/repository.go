@@ -9,19 +9,20 @@ import (
 )
 
 type AccountEntity struct {
-	OwnerUserID       string
-	Username          string
-	DisplayName       string
-	Role              string
-	UserStatus        string
-	PlanKey           string
-	PlanName          string
-	MonthlyTokenLimit *int64
-	UsedTokens        int64
-	SessionCount      int64
-	MessageCount      int64
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
+	OwnerUserID        string
+	Username           string
+	DisplayName        string
+	Role               string
+	UserStatus         string
+	PlanKey            string
+	PlanName           string
+	MonthlyTokenLimit  *int64
+	ControlUnavailable bool
+	UsedTokens         int64
+	SessionCount       int64
+	MessageCount       int64
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
 }
 
 type UsageEntity struct {
