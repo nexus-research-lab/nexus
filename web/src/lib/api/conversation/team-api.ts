@@ -25,6 +25,7 @@ export interface TeamMessage {
 export interface TeamRoomView {
   room: {
     id: string;
+    organization_id: string;
     team_id?: string;
     name: string;
     description: string;

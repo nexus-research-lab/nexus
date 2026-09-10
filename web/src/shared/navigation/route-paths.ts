@@ -9,6 +9,7 @@ export const APP_ROUTE_PATHS = {
   root: "/",
   login: "/login",
   setup: "/setup",
+  joinOrganization: "/join/:token",
   launcher: "/launcher",
   home: "/app",
   team: "/team",
@@ -36,6 +37,7 @@ export const AppRouteBuilders = {
   root: () => APP_ROUTE_PATHS.root,
   login: () => APP_ROUTE_PATHS.login,
   setup: () => APP_ROUTE_PATHS.setup,
+  joinOrganization: (token: string) => `/join/${encodeURIComponent(token)}`,
   launcher: () => APP_ROUTE_PATHS.launcher,
   home: () => APP_ROUTE_PATHS.home,
   team: (roomId?: string) => roomId

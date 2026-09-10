@@ -17,6 +17,8 @@ export interface AuthStatus {
   role?: string | null;
   avatar?: string | null;
   auth_method?: string | null;
+  organization_id?: string | null;
+  organization_name?: string | null;
   setup_required?: boolean;
   setup_enabled?: boolean;
 }

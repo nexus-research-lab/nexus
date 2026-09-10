@@ -28,6 +28,9 @@ const LoginPage = lazy(() =>
 const SetupPage = lazy(() =>
   import("@/pages/setup/setup-page").then((m) => ({ default: m.SetupPage })),
 );
+const JoinOrganizationPage = lazy(() =>
+  import("@/pages/join-organization/join-organization-page").then((m) => ({ default: m.JoinOrganizationPage })),
+);
 const LauncherPage = lazy(() =>
   import("@/pages/launcher/launcher-page").then((m) => ({ default: m.LauncherPage })),
 );
@@ -104,6 +107,7 @@ export function AppRouter() {
             />
             <Route element={<LoginPage />} path={APP_ROUTE_PATHS.login} />
             <Route element={<SetupPage />} path={APP_ROUTE_PATHS.setup} />
+            <Route element={<JoinOrganizationPage />} path={APP_ROUTE_PATHS.joinOrganization} />
 
             <Route element={<AuthGuard />}>
               <Route

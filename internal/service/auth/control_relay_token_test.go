@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -46,11 +47,12 @@ func TestControlAuthorityExchangesFixedAudienceRelayUserToken(t *testing.T) {
 	}, nil, nil)
 	sessionID := "session-1"
 	token, err := authority.ExchangeRelayUserToken(context.Background(), &Principal{
-		UserID:        "owner-local",
-		ControlUserID: "control-user",
-		DeploymentID:  "deployment-1",
-		AuthMethod:    AuthMethodPassword,
-		SessionID:     &sessionID,
+		UserID:         "owner-local",
+		ControlUserID:  "control-user",
+		DeploymentID:   "deployment-1",
+		OrganizationID: "organization-1",
+		AuthMethod:     AuthMethodPassword,
+		SessionID:      &sessionID,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -67,5 +69,48 @@ func TestControlAuthorityRejectsLocalPrincipalForRelayToken(t *testing.T) {
 		AuthMethod: AuthMethodLocal,
 	}); err == nil {
 		t.Fatal("local Principal must not mint a Relay user token")
+	}
+}
+
+func TestControlAuthorityVerifiesOrganizationMembers(t *testing.T) {
+	const serviceToken = "control-service-token-32-characters"
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != controlAPIBase+"/internal/organizations/members/verify" {
+			http.NotFound(writer, request)
+			return
+		}
+		var input struct {
+			DeploymentID   string   `json:"deployment_id"`
+			OrganizationID string   `json:"organization_id"`
+			UserIDs        []string `json:"user_ids"`
+		}
+		if err := json.NewDecoder(request.Body).Decode(&input); err != nil {
+			t.Error(err)
+			return
+		}
+		if input.DeploymentID != "deployment-1" || input.OrganizationID != "organization-1" {
+			t.Errorf("organization scope = %+v", input)
+		}
+		if len(input.UserIDs) == 1 && input.UserIDs[0] == "user-other" {
+			writer.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(writer).Encode(map[string]any{"code": "operation_forbidden", "message": "forbidden"})
+			return
+		}
+		_ = json.NewEncoder(writer).Encode(map[string]any{"code": "0000", "data": map[string]bool{"valid": true}})
+	}))
+	t.Cleanup(server.Close)
+	authority := NewControlAuthority(config.Config{
+		ControlURL: server.URL, ControlServiceToken: serviceToken, ControlRequestTimeoutSeconds: 2,
+	}, nil, nil)
+	sessionID := "session-1"
+	principal := &Principal{
+		UserID: "owner-local", ControlUserID: "control-user", DeploymentID: "deployment-1",
+		OrganizationID: "organization-1", AuthMethod: AuthMethodPassword, SessionID: &sessionID,
+	}
+	if err := authority.VerifyOrganizationMembers(context.Background(), principal, []string{"user-two"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := authority.VerifyOrganizationMembers(context.Background(), principal, []string{"user-other"}); !errors.Is(err, ErrOrganizationMemberInvalid) {
+		t.Fatalf("cross-organization error = %v", err)
 	}
 }

@@ -32,6 +32,7 @@ type MessageContent struct {
 // Room 是显式创建的在线协作空间。
 type Room struct {
 	ID                     string    `json:"id"`
+	OrganizationID         string    `json:"organization_id"`
 	TeamID                 string    `json:"team_id,omitempty"`
 	Name                   string    `json:"name"`
 	Description            string    `json:"description"`

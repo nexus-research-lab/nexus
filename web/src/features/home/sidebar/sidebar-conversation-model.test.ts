@@ -33,7 +33,7 @@ describe("Relay Room sidebar projection", () => {
       summary: "Shared messages",
       team: {
         room: {
-          id: "general", team_id: "team", name: "General", description: "", avatar: "",
+          id: "general", organization_id: "organization", team_id: "team", name: "General", description: "", avatar: "",
           configuration_version: 1, membership_version: 1,
           host_auto_reply_enabled: false, private_messages_enabled: false, skill_names: [],
           created_at: "2026-09-09T00:00:00Z", updated_at: "2026-09-09T01:00:00Z",
