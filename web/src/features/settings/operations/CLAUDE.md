@@ -6,7 +6,7 @@ L3 | 父级: web/src/features/settings
 
 - `operations-access.ts` 定义运营分区的角色准入规则。
 - `operations-panel.tsx` 根据 URL 分区装配成员、订阅、套餐、公共 Provider 和项目页面；导航定义归设置侧栏，正文只保留当前子页标题，不拥有页签状态。
-- `control-members-panel.tsx` 消费 Control 成员 API，负责创建、角色与 active/revoked 状态；未知写结果先刷新清单，不自动重放；核对失败持续禁写，手动刷新成功后恢复。读取与写入使用同步互斥，处理中所有成员行和新建草稿统一禁用，初次读失败不伪装成空目录。
+- `control-members-panel.tsx` 消费当前 Organization 成员 API，负责管理员直接建号、角色与 active/revoked 状态；`organization-invitations-panel.tsx` 创建、复制、审计和撤销一次性邀请链接。未知写结果不自动重放；成员读取与写入使用同步互斥，处理中所有成员行和新建草稿统一禁用，初次读失败不伪装成空目录。
 - `subscription-admin/` 负责订阅账号、套餐草稿与写事务；Control 提供套餐和成员 entitlement，Nexus 只提供本地 token 用量。
 - `project-admin/` 负责共享项目创建、成员 ACL 展示与管理员授权事务；读取与写入共用同步互斥，阻止迟到目录覆盖创建结果；角色权限仍由服务端判定。
 - `operations-views.test.tsx` 验证套餐展开后的草稿与保存禁用行为；`web/browser-tests/operations.spec.ts` 使用隔离数据检查五个子页的响应式布局和控件边界。

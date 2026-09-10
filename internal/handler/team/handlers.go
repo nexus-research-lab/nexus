@@ -35,6 +35,7 @@ const (
 
 type relayTokenExchanger interface {
 	ExchangeRelayUserToken(context.Context, *authsvc.Principal) (string, error)
+	VerifyOrganizationMembers(context.Context, *authsvc.Principal, []string) error
 }
 
 type relayStream interface {
@@ -149,6 +150,27 @@ func (h *Handlers) HandleCreateRoom(writer http.ResponseWriter, request *http.Re
 	}
 	token, ok := h.exchangeToken(writer, request, true)
 	if !ok {
+		return
+	}
+	if err := h.tokens.VerifyOrganizationMembers(
+		request.Context(), authsvc.PrincipalFromContext(request.Context()), input.MemberUserIDs,
+	); err != nil {
+		if errors.Is(err, authsvc.ErrOrganizationMemberInvalid) {
+			h.api.WriteError(writer, request, http.StatusForbidden, handlershared.FailureSpec{
+				Code:     "team.organization_member_required",
+				Category: protocol.FailureCategoryAuthorization,
+				Effect:   protocol.FailureEffectNotApplied,
+				Detail:   "只能邀请当前组织的成员",
+			})
+			return
+		}
+		h.api.WriteError(writer, request, http.StatusBadGateway, handlershared.FailureSpec{
+			Code:     "team.organization_check_failed",
+			Category: protocol.FailureCategoryUnavailable,
+			Effect:   protocol.FailureEffectNotApplied,
+			Detail:   "暂时无法确认群聊成员的组织归属",
+			Cause:    err,
+		})
 		return
 	}
 	result, err := h.team.CreateRoom(request.Context(), teamAccess(request, token), idempotencyKey, input)

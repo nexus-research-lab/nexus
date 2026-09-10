@@ -33,6 +33,7 @@ func TestControlAuthorityVerifiesPrincipalAndBindsLocalOwner(t *testing.T) {
 		Version: 1, Issuer: "nexus-control", Audience: "nexus-runtime",
 		IssuedAt: now.Unix(), ExpiresAt: now.Add(time.Minute).Unix(),
 		DeploymentID: "dep-a", UserID: "user-control-a",
+		OrganizationID: "org-a", OrganizationName: "Nexus",
 		Username: "admin", DisplayName: "Admin", Role: RoleOwner,
 		AuthMethod: AuthMethodPassword, SessionID: "sess-a",
 		Entitlement: testControlEntitlement(now),
@@ -141,6 +142,7 @@ func TestControlBindingCreateClaimsOneOwnerAcrossStores(t *testing.T) {
 	}
 	principal := controlPrincipal{
 		DeploymentID: "dep-atomic", UserID: "user-atomic",
+		OrganizationID: "org-atomic", OrganizationName: "Nexus",
 		Username: "atomic", DisplayName: "Atomic", Role: RoleMember,
 		Entitlement: testControlEntitlement(time.Now().UTC()),
 	}
@@ -233,6 +235,7 @@ func TestControlIdentityInvalidationClearsBoundLease(t *testing.T) {
 	authority := NewControlAuthority(cfg, database, nil)
 	principal := controlPrincipal{
 		DeploymentID: "dep-a", UserID: "user-a", Username: "member",
+		OrganizationID: "org-a", OrganizationName: "Nexus",
 		DisplayName: "Member", Role: RoleMember,
 		Entitlement: testControlEntitlement(time.Now().UTC()),
 	}
@@ -311,6 +314,7 @@ func TestControlEntitlementInvalidationRefreshesProjection(t *testing.T) {
 	authority := NewControlAuthority(cfg, database, nil)
 	principal := controlPrincipal{
 		DeploymentID: "dep-a", UserID: "user-a", Username: "member",
+		OrganizationID: "org-a", OrganizationName: "Nexus",
 		DisplayName: "Member", Role: RoleMember,
 		Entitlement: testControlEntitlement(updatedAt.Add(-time.Hour)),
 	}
@@ -375,6 +379,7 @@ func TestControlSessionInvalidationClearsOnlyExactLease(t *testing.T) {
 	authority := NewControlAuthority(cfg, database, nil)
 	controlValue := controlPrincipal{
 		DeploymentID: "dep-a", UserID: "user-a", Username: "member",
+		OrganizationID: "org-a", OrganizationName: "Nexus",
 		DisplayName: "Member", Role: RoleMember, AuthMethod: AuthMethodPassword,
 		Entitlement: testControlEntitlement(time.Now().UTC()),
 	}
@@ -421,6 +426,7 @@ owner_user_id, username, display_name, role, status, created_at, updated_at
 	store := newControlBindingStore(cfg.DatabaseDriver, database)
 	binding, err := store.resolve(ctx, controlPrincipal{
 		DeploymentID: "dep-a", UserID: "user_existing", Username: "admin",
+		OrganizationID: "org-a", OrganizationName: "Nexus",
 		DisplayName: "Admin", Role: RoleOwner, AuthMethod: AuthMethodPassword,
 		Entitlement: testControlEntitlement(time.Now().UTC()),
 	})

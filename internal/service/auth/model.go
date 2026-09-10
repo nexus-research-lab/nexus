@@ -45,6 +45,7 @@ func IsRelayUserPrincipal(principal *Principal) bool {
 	return strings.TrimSpace(principal.AuthMethod) == AuthMethodPassword &&
 		strings.TrimSpace(principal.ControlUserID) != "" &&
 		strings.TrimSpace(principal.DeploymentID) != "" &&
+		strings.TrimSpace(principal.OrganizationID) != "" &&
 		strings.TrimSpace(*principal.SessionID) != ""
 }
 
@@ -59,6 +60,8 @@ type StatusPayload struct {
 	Role                 *string `json:"role,omitempty"`
 	Avatar               *string `json:"avatar,omitempty"`
 	AuthMethod           *string `json:"auth_method,omitempty"`
+	OrganizationID       *string `json:"organization_id,omitempty"`
+	OrganizationName     *string `json:"organization_name,omitempty"`
 	SetupRequired        bool    `json:"setup_required,omitempty"`
 	SetupEnabled         bool    `json:"setup_enabled"`
 }

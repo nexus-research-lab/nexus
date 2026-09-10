@@ -31,6 +31,7 @@ import {
 } from "@/shared/ui/form/form-control";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
+import { OrganizationInvitationsPanel } from "./organization-invitations-panel";
 
 interface MemberDraft {
   username: string;
@@ -165,6 +166,8 @@ export function ControlMembersPanel() {
           </UiButton>
         )}
       />
+
+      <OrganizationInvitationsPanel />
 
       <UiDisclosure label={t("members.create_title")} variant="panel">
         <form aria-busy={pendingKey === "create"} onSubmit={createMember}>

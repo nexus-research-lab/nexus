@@ -28,10 +28,24 @@ import (
 )
 
 type teamTokenStub struct {
-	token     string
-	err       error
-	principal *authsvc.Principal
-	calls     int
+	token           string
+	err             error
+	verifyErr       error
+	principal       *authsvc.Principal
+	verifiedUserIDs []string
+	calls           int
+	verifyCalls     int
+}
+
+func (stub *teamTokenStub) VerifyOrganizationMembers(
+	_ context.Context,
+	principal *authsvc.Principal,
+	userIDs []string,
+) error {
+	stub.verifyCalls++
+	stub.principal = principal
+	stub.verifiedUserIDs = append([]string(nil), userIDs...)
+	return stub.verifyErr
 }
 
 func (stub *teamTokenStub) ExchangeRelayUserToken(
@@ -301,7 +315,8 @@ func TestTeamHandlersUseAuthenticatedPrincipalAndFixedRelayToken(t *testing.T) {
 	sessionID := "session-1"
 	principal := &authsvc.Principal{
 		UserID: "local-owner", ControlUserID: "control-user", DeploymentID: "deployment-1",
-		Username: "lee", AuthMethod: authsvc.AuthMethodPassword, SessionID: &sessionID,
+		OrganizationID: "organization-1",
+		Username:       "lee", AuthMethod: authsvc.AuthMethodPassword, SessionID: &sessionID,
 	}
 	tokens := &teamTokenStub{token: "fixed-relay-token"}
 	relay := &teamRelayStub{
@@ -396,9 +411,8 @@ func TestTeamHandlersCreateAndListExplicitRooms(t *testing.T) {
 	}
 	relay := &teamRelayStub{room: view, rooms: relaycontract.RoomList{Rooms: []relaycontract.RoomView{view}}}
 	projector := &teamProjectorStub{}
-	router := newTeamTestRouterWithProjector(
-		&teamTokenStub{token: "relay-token"}, relay, projector, teamTestPrincipal(),
-	)
+	tokens := &teamTokenStub{token: "relay-token"}
+	router := newTeamTestRouterWithProjector(tokens, relay, projector, teamTestPrincipal())
 	created := teamRequest(
 		t, router, http.MethodPost, "/nexus/v1/team/rooms", `{"name":"研发群","avatar":"room://avatar","agent_ids":["agent-1"],"member_user_ids":["user-2"]}`, true,
 	)
@@ -411,6 +425,23 @@ func TestTeamHandlersCreateAndListExplicitRooms(t *testing.T) {
 	if relay.roomInput.Avatar != "room://avatar" || !reflect.DeepEqual(relay.roomInput.AgentIDs, []string{"agent-1"}) ||
 		!reflect.DeepEqual(relay.roomInput.MemberUserIDs, []string{"user-2"}) {
 		t.Fatalf("room input = %+v", relay.roomInput)
+	}
+	if tokens.verifyCalls != 1 || !reflect.DeepEqual(tokens.verifiedUserIDs, []string{"user-2"}) {
+		t.Fatalf("organization verification = %+v", tokens)
+	}
+}
+
+func TestTeamCreateRoomRejectsCrossOrganizationMember(t *testing.T) {
+	tokens := &teamTokenStub{token: "relay-token", verifyErr: authsvc.ErrOrganizationMemberInvalid}
+	relay := &teamRelayStub{}
+	created := teamRequest(
+		t, newTeamTestRouter(tokens, relay, teamTestPrincipal()), http.MethodPost,
+		"/nexus/v1/team/rooms", `{"name":"研发群","member_user_ids":["user-other"]}`, true,
+	)
+	failure := decodeTeamFailure(t, created)
+	if created.Code != http.StatusForbidden || failure.Code != "team.organization_member_required" ||
+		tokens.verifyCalls != 1 || relay.createRoomCalls != 0 {
+		t.Fatalf("status=%d failure=%+v tokens=%+v relay calls=%d", created.Code, failure, tokens, relay.createRoomCalls)
 	}
 }
 
@@ -774,7 +805,8 @@ func teamTestPrincipal() *authsvc.Principal {
 	sessionID := "session-1"
 	return &authsvc.Principal{
 		UserID: "local-owner", ControlUserID: "control-user", DeploymentID: "deployment-1",
-		Username: "lee", AuthMethod: authsvc.AuthMethodPassword, SessionID: &sessionID,
+		OrganizationID: "organization-1",
+		Username:       "lee", AuthMethod: authsvc.AuthMethodPassword, SessionID: &sessionID,
 	}
 }
 
