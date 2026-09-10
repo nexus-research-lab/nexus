@@ -346,6 +346,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Keep the sidebar glass wordmark from compressing and scale its lettering to the available desktop header width.
+
+- Restore the historical glass magnifier material around the sidebar NEXUS wordmark with its original hover animation and release spring-back, a clearer surface, tighter horizontal padding, and gentler corners.
+
+- Use uppercase lettering and a stronger weight for the sidebar NEXUS wordmark.
+
 - Unify native hover hints with the shared tooltip and suppress redundant hints for fully visible labels.
 
 - Show the account name beside its avatar and expand the sidebar account menu trigger across the footer space before the settings button.

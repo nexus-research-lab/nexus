@@ -9,3 +9,5 @@
 - 禁止在 render 阶段通过状态写入同步 Props。
 
 - 指针按压只接受主按钮；捕获被宿主或其他控件夺走时清理按压外观，不触发业务切换。点击命令仍只由原生 click 负责。
+
+- `glass-magnifier.tsx` 为侧栏字标提供玻璃盖板与悬停弹性动效，复用历史 `glass-magnifier-filter.tsx` 与三张 magnifier 贴图；`use-glass-magnifier-animation.ts` 恢复历史悬停循环形变与移开回弹，减弱动态效果时保持静止，卸载时取消动画。外层链接负责交互，文字保持清晰。
