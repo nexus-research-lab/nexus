@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Expand the sidebar account menu across the footer and include settings and desktop update actions while retaining the settings shortcut.
+
 - Unify browser, sign-in, site navigation, and survey branding with the refreshed app icon.
 
 - Adopt the refined vector app icon and regenerate the macOS PNG/ICNS and Windows multi-resolution ICO assets.
