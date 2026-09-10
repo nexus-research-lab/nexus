@@ -32,12 +32,13 @@ runtime MCP browser
 - Handler 只接受 manifest 固定 ID 对应的 `chrome-extension://` Origin。
 - `browser.ready` 携带浏览器名称、稳定浏览器实例 ID 与当前扩展进程代次；代次变化时宿主立即废弃旧标签页引用。
 - 同一时刻只有一个扩展连接；新连接替换旧连接并结束旧连接上的等待请求。
+- 扩展0.8.6起，原生鼠标、滚轮、键盘输入以及原始 `Input.*` CDP 动作先执行 `Page.bringToFront` 激活目标标签，再计算位置、显示光标并派发输入；不能向后台页直接发滚轮后依赖超时重试。激活失败直接结束，不发送原生输入。
 - 当前协议版本为 `6`，配套扩展从 `0.8.5` 起提供命令生命周期保护；旧协议必须更新扩展，不能静默降级。
 - `browser.command` 的 `budget_ms` 是剩余毫秒预算；扩展以本地单调时钟累计排队和执行耗时。默认整条调用最多90秒，显式 `timeout_ms` 同时收紧宿主和扩展总预算，batch 继续共享宿主总预算，round 收尾最多15秒。两端不比较墙上时钟；网络传输延迟由宿主取消补足，取消不能撤销已交给 Chrome 的原生操作。
 - 扩展采用容量64的显式顺序队列；`list_tabs` 与健康消息绕过动作队列。原生 Chrome 调用一般最多15秒，脚本执行、截图与PDF调用受剩余总预算约束；光标发送、补注入共用1.5秒预算，隐藏也最多1.5秒，视觉反馈失败降级且迟到注入不继续发光标消息。
 - 宿主超时、取消或发送失败后，向原连接独立发送最多1秒的 `browser.cancel`；写锁等待也受调用 context 与写超时约束。扩展在出队、方法进入、Chrome调用及返回后检查命令生命周期；取消后不能继续后续副作用，断线使旧命令和异步事件处理失效。回执、阶段事件与标签事件在宿主按精确连接 ID 校验，不能由旧连接改写新状态。
 - 未开始命令取消后不执行；已开始命令取消或底层等待超时报告结果未知，隔离该 Session 与已知关联标签，后续冲突动作立即拒绝。隔离页尝试有界 debugger detach 以释放输入/调试状态，但成功 detach 也不自动清除隔离。其他 Session 可在调度器推进后继续，目录查询保持可用；用户核对页面并重新加载扩展后才恢复隔离会话，不自动重放原动作。
-- `browser.progress` 独立发送 queued/running/api_start/api_end/api_error/completed/cancelled/unknown，宿主只记录请求 ID、连接 ID、阶段、Chrome 方法与耗时，不记录参数、页面正文或脚本。宿主另记录发送开始/结束、回执与超时。响应发送异常不能破坏调度器。
+- `browser.progress` 独立发送 queued/running/api_start/api_end/api_error/completed/cancelled/unknown，宿主通过装配注入的持久化 logger 记录请求 ID、连接 ID、阶段、Chrome 方法与耗时，不记录参数、页面正文或脚本。宿主另记录发送开始/结束、回执与超时。响应发送异常不能破坏调度器。
 - `status.connected` 仅表达连接对象存在；`execution_state` 独立返回 unverified/ready/busy/recovery_required/unresponsive，`last_seen_at` 来自已验证连接的进度或 pong。超过45秒无新观测标记 unresponsive；不能把 connected=true 当作执行健康证明。
 
 

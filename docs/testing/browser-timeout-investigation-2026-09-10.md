@@ -100,3 +100,12 @@ handler写锁改为可取消等待，获得锁后再核对context；取消发送
 
 
 验证结果：扩展行为测试20/20通过（含新增11项故障回归）；Browser service/handler 的 Go race 测试及 MCP 包编译通过；三个目标包 go vet、架构依赖检查与 diff 空白检查通过。未执行全量 Go 测试，未用历史日志声称已识别首次原生卡点。
+
+
+## 0.8.5 安装后的真实复测（10:52—10:55）
+
+会话5996cbe2-3790-4a70-b24d-40c7a50f173b的新增记录（不是其前部复用的旧历史）：10:52:32后台导航成功、10:52:39截图成功；10:53:48 scroll明确返回 `Browser API timed out: Input.dispatchMouseEvent`。后续修改动作立即返回 recovery_required，10:54:21的全局标签目录正常返回；因此全局阻塞已被隔离，但原生滚轮本身仍失败。创建结果明确为 active=false。
+
+0.8.6 在真实键鼠及原始Input.*动作之前使用Page.bringToFront激活目标页，再进行光标与输入派发；激活失败不发输入。Chrome协议仓库曾记录非活动页Input.dispatchMouseEvent无响应（https://github.com/ChromeDevTools/devtools-protocol/issues/89），Page.bringToFront的官方语义为激活标签（https://chromedevtools.github.io/devtools-protocol/1-3/Page/#method-bringToFront）。后台状态是当前有证据支持的触发条件，真实修复效果仍以安装后同链路测试为准。
+
+同时修正阶段日志装配：原先默认slog只进入sidecar stderr，没有进入Nexus的持久化sidecar日志；现由AppServices显式注入现有文件logger。新增回归验证激活先于输入、激活失败不发输入，以及阶段信息写入配置的logger且不泄漏参数。

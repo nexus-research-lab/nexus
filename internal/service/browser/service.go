@@ -117,6 +117,7 @@ type incompatibleExtension struct {
 
 // Service 管理唯一浏览器扩展连接和各 runtime Session 的多标签页状态。
 type Service struct {
+	logger          *slog.Logger
 	mu              sync.Mutex
 	client          *client
 	incompatible    *incompatibleExtension
@@ -130,8 +131,15 @@ type Service struct {
 // NewService 创建 Browser 服务。
 func NewService() *Service {
 	return &Service{
-		pending:  make(map[string]chan commandResponse),
+		logger: slog.Default(), pending: make(map[string]chan commandResponse),
 		sessions: make(map[string]browserSession),
+	}
+}
+
+// SetLogger 在服务发布前设置持久化诊断日志。
+func (s *Service) SetLogger(logger *slog.Logger) {
+	if logger != nil {
+		s.logger = logger
 	}
 }
 
@@ -241,7 +249,7 @@ func (s *Service) Resolve(clientID uint64, requestID string, data map[string]any
 		response.err = errors.New(message)
 	}
 	waiter <- response
-	slog.Info("Browser command", "request_id", requestID, "client_id", clientID, "stage", "result_received", "failed", response.err != nil)
+	s.logger.Info("Browser command", "request_id", requestID, "client_id", clientID, "stage", "result_received", "failed", response.err != nil)
 	return true
 }
 
@@ -478,7 +486,7 @@ func (s *Service) sendCommand(
 		"params":    params,
 		"budget_ms": time.Until(deadlineOf(callCtx)).Milliseconds(),
 	}
-	slog.Info("Browser command", "request_id", requestID, "client_id", clientID, "action", action, "stage", "send_start")
+	s.logger.Info("Browser command", "request_id", requestID, "client_id", clientID, "action", action, "stage", "send_start")
 	if err := sender(callCtx, message); err != nil {
 		s.removePending(requestID)
 		cancelCtx, cancelSend := context.WithTimeout(context.Background(), time.Second)
@@ -487,7 +495,7 @@ func (s *Service) sendCommand(
 		return commandResult{}, fmt.Errorf("发送 Browser 命令失败，结果未知，请先核对页面: %w", err)
 	}
 
-	slog.Info("Browser command", "request_id", requestID, "client_id", clientID, "action", action, "stage", "send_end")
+	s.logger.Info("Browser command", "request_id", requestID, "client_id", clientID, "action", action, "stage", "send_end")
 	select {
 	case response := <-waiter:
 		if response.err != nil {
@@ -504,7 +512,7 @@ func (s *Service) sendCommand(
 			response := <-waiter
 			return commandResult{data: response.data, clientID: clientID}, response.err
 		}
-		slog.Warn("Browser command", "request_id", requestID, "client_id", clientID, "action", action, "stage", "timeout")
+		s.logger.Warn("Browser command", "request_id", requestID, "client_id", clientID, "action", action, "stage", "timeout")
 		cancelCtx, cancelSend := context.WithTimeout(context.Background(), time.Second)
 		defer cancelSend()
 		_ = sender(cancelCtx, map[string]any{"type": "browser.cancel", "id": requestID})
@@ -539,7 +547,7 @@ func (s *Service) ObserveProgress(clientID uint64, requestID string, data map[st
 	if stage == "unknown" {
 		s.client.executionState = "recovery_required"
 	}
-	slog.Info("Browser command", "request_id", requestID, "client_id", clientID, "stage", stage, "method", method, "elapsed_ms", elapsed)
+	s.logger.Info("Browser command", "request_id", requestID, "client_id", clientID, "stage", stage, "method", method, "elapsed_ms", elapsed)
 	return true
 }
 

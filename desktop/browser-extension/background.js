@@ -998,8 +998,15 @@ class BrowserController {
     }
   }
 
+  async prepareInput(tabId) {
+    // Chrome may leave mouseWheel pending for a background tab. Activate before
+    // computing coordinates or cursor feedback, never retry input after timeout.
+    await this.command(tabId, "Page.bringToFront");
+  }
+
   async mouseClick(params) {
     const tab = await this.getTab(params.tab_id);
+    await this.prepareInput(tab.id);
     const point = await this.pointerPoint(tab.id, params, "selector", "x", "y");
     const button = String(params.button || "left").toLowerCase();
     const clickCount = Number.isInteger(params.click_count) ? params.click_count : 1;
@@ -1021,6 +1028,7 @@ class BrowserController {
 
   async mouseMove(params) {
     const tab = await this.getTab(params.tab_id);
+    await this.prepareInput(tab.id);
     const point = await this.pointerPoint(tab.id, params, "selector", "x", "y");
     await this.moveCursor(tab.id, point);
     await this.command(tab.id, "Input.dispatchMouseEvent", {
@@ -1031,6 +1039,7 @@ class BrowserController {
 
   async drag(params) {
     const tab = await this.getTab(params.tab_id);
+    await this.prepareInput(tab.id);
     const start = params.selector
       ? await this.pointerPoint(tab.id, params, "selector", "from_x", "from_y")
       : { x: Number(params.from_x), y: Number(params.from_y) };
@@ -1065,6 +1074,7 @@ class BrowserController {
 
   async scroll(params) {
     const tab = await this.getTab(params.tab_id);
+    await this.prepareInput(tab.id);
     let point;
     if (params.selector) {
       point = await this.pointerPoint(tab.id, params, "selector", "x", "y");
@@ -1174,6 +1184,7 @@ class BrowserController {
   async rawCDP(params) {
     const tab = await this.getTab(params.tab_id);
     const method = this.requireText(params.method, "cdp requires method");
+    if (method.startsWith("Input.")) await this.prepareInput(tab.id);
     return {
       tab_id: tab.id,
       method,
@@ -1216,6 +1227,7 @@ class BrowserController {
 
   async keyType(params) {
     const tab = await this.getTab(params.tab_id);
+    await this.prepareInput(tab.id);
     const text = String(params.text ?? "");
     await this.command(tab.id, "Input.insertText", { text });
     return { tab_id: tab.id, typed: true, text_length: [...text].length };
@@ -1223,6 +1235,7 @@ class BrowserController {
 
   async sendKeys(params) {
     const tab = await this.getTab(params.tab_id);
+    await this.prepareInput(tab.id);
     const keys = this.requireText(params.keys, "send_keys requires keys").split(/\s+/);
     const repeat = Number.isInteger(params.repeat) ? params.repeat : 1;
     if (repeat < 1 || repeat > 100) throw new Error("repeat must be between 1 and 100");
