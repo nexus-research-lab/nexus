@@ -346,6 +346,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fit glass filter maps to the actual wordmark surface to remove the stray inner oval highlight.
+
+- Show the historical multicolor glow beneath the sidebar NEXUS glass wordmark only on hover, pausing its rotation while hidden.
+
 - Keep the sidebar glass wordmark from compressing and scale its lettering to the available desktop header width.
 
 - Restore the historical glass magnifier material around the sidebar NEXUS wordmark with its original hover animation and release spring-back, a clearer surface, tighter horizontal padding, and gentler corners.
