@@ -13,6 +13,8 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 )
 
+const controlInvalidationApplyAttempts = 3
+
 // ControlIdentityInvalidationSource 提供持久事件序列与本地身份投影。
 type ControlIdentityInvalidationSource interface {
 	ControlIdentityInvalidationCursor(context.Context) (int64, error)
@@ -106,31 +108,47 @@ func (c *ControlIdentityInvalidationCoordinator) run(
 		failClosed = false
 		processedAll := true
 		for _, event := range events {
-			ownerUserID, applyErr := source.ApplyControlIdentityInvalidation(ctx, event)
-			connections := 0
-			if ownerUserID != "" {
-				switch event.Reason {
-				case "session_revoked":
-					connections = c.connections.CloseControlSessionConnections(event.SessionID)
-				case "entitlement_changed":
-					// 本地额度投影对下一个请求生效，不中断当前 Agent。
-				case "profile_changed":
-					connections = c.connections.CloseOwnerConnections(ownerUserID)
-				default:
-					connections = c.connections.CloseOwnerConnections(ownerUserID)
-					_, runtimeErr := c.runtimes.CloseOwnerSessions(ctx, ownerUserID)
-					applyErr = errors.Join(applyErr, runtimeErr)
-				}
-			}
+			ownerUserID, connections, applyErr := c.applyControlIdentityInvalidationEvent(ctx, source, event)
 			if applyErr != nil {
-				c.logger.Warn(
-					"应用 Control identity invalidation 失败",
-					"event_id", event.EventID,
-					"owner_user_id", ownerUserID,
-					"err", applyErr,
-				)
-				processedAll = false
-				break
+				attempts := 1
+				for attempts < controlInvalidationApplyAttempts && ctx.Err() == nil {
+					if !c.wait(ctx) {
+						return
+					}
+					attempts++
+					ownerUserID, connections, applyErr = c.applyControlIdentityInvalidationEvent(ctx, source, event)
+					if applyErr == nil {
+						break
+					}
+				}
+				if ctx.Err() != nil {
+					return
+				}
+				if applyErr != nil {
+					owners, closedConnections, failClosedErr := c.failClosedControlIdentities(ctx, source)
+					if failClosedErr != nil {
+						c.logger.Error(
+							"Control identity invalidation 持续失败，且 fail-closed 处理失败",
+							"event_id", event.EventID,
+							"attempts", attempts,
+							"owners", owners,
+							"connections", closedConnections,
+							"err", errors.Join(applyErr, failClosedErr),
+						)
+						processedAll = false
+						break
+					}
+					c.logger.Error(
+						"Control identity invalidation 持续失败，已隔离并跳过事件",
+						"event_id", event.EventID,
+						"attempts", attempts,
+						"owner_user_id", ownerUserID,
+						"owners", owners,
+						"connections", closedConnections,
+						"err", applyErr,
+					)
+					applyErr = nil
+				}
 			}
 			if applyErr = source.CommitControlIdentityInvalidationCursor(ctx, event.EventID); applyErr != nil {
 				c.logger.Warn(
@@ -156,6 +174,43 @@ func (c *ControlIdentityInvalidationCoordinator) run(
 			return
 		}
 	}
+}
+
+func (c *ControlIdentityInvalidationCoordinator) applyControlIdentityInvalidationEvent(
+	ctx context.Context,
+	source ControlIdentityInvalidationSource,
+	event ControlIdentityInvalidation,
+) (string, int, error) {
+	ownerUserID, applyErr := source.ApplyControlIdentityInvalidation(ctx, event)
+	connections := 0
+	if ownerUserID != "" {
+		switch event.Reason {
+		case "session_revoked":
+			connections = c.connections.CloseControlSessionConnections(event.SessionID)
+		case "entitlement_changed":
+			// 本地额度投影对下一个请求生效，不中断当前 Agent。
+		case "profile_changed":
+			connections = c.connections.CloseOwnerConnections(ownerUserID)
+		default:
+			connections = c.connections.CloseOwnerConnections(ownerUserID)
+			_, runtimeErr := c.runtimes.CloseOwnerSessions(ctx, ownerUserID)
+			applyErr = errors.Join(applyErr, runtimeErr)
+		}
+	}
+	return ownerUserID, connections, applyErr
+}
+
+func (c *ControlIdentityInvalidationCoordinator) failClosedControlIdentities(
+	ctx context.Context,
+	source ControlIdentityInvalidationSource,
+) (int, int, error) {
+	owners, closeErr := source.FailClosedControlIdentities(ctx)
+	connections := c.connections.CloseControlConnections()
+	for _, ownerUserID := range owners {
+		_, runtimeErr := c.runtimes.CloseOwnerSessions(ctx, ownerUserID)
+		closeErr = errors.Join(closeErr, runtimeErr)
+	}
+	return len(owners), connections, closeErr
 }
 
 func (c *ControlIdentityInvalidationCoordinator) wait(ctx context.Context) bool {

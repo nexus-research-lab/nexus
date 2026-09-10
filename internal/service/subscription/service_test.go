@@ -51,6 +51,20 @@ func TestEnsureQuotaAvailableUsesControlProjection(t *testing.T) {
 	if !ok || !strings.Contains(message, "当前账号本月的订阅额度已全部用尽") {
 		t.Fatalf("额度错误缺少客户端提示: %q", message)
 	}
+	if _, err := db.Exec(`
+UPDATE owner_entitlements SET control_unavailable = TRUE WHERE owner_user_id = ?`, "owner-1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.EnsureQuotaAvailable(context.Background(), "owner-1"); !errors.Is(err, ErrEntitlementUnavailable) {
+		t.Fatalf("不可用的旧 Control entitlement 必须 fail closed，实际: %v", err)
+	}
+	if _, err := db.Exec(`
+UPDATE owner_entitlements SET control_unavailable = FALSE WHERE owner_user_id = ?`, "owner-1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.EnsureQuotaAvailable(context.Background(), "owner-1"); !errors.Is(err, ErrQuotaExceeded) {
+		t.Fatalf("Control entitlement 恢复后应重新执行额度校验，实际: %v", err)
+	}
 }
 
 func TestServerFailsClosedWithoutEntitlementProjection(t *testing.T) {

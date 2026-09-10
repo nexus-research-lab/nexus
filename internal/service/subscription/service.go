@@ -14,22 +14,23 @@ import (
 )
 
 type Account struct {
-	OwnerUserID       string   `json:"owner_user_id"`
-	Username          string   `json:"username"`
-	DisplayName       string   `json:"display_name"`
-	Role              string   `json:"role"`
-	UserStatus        string   `json:"user_status"`
-	PlanKey           string   `json:"plan_key"`
-	PlanName          string   `json:"plan_name"`
-	MonthlyTokenLimit *int64   `json:"monthly_token_limit"`
-	UsedTokens        int64    `json:"used_tokens"`
-	UsedPercent       *float64 `json:"used_percent"`
-	SessionCount      int64    `json:"session_count"`
-	MessageCount      int64    `json:"message_count"`
-	PeriodStart       string   `json:"period_start"`
-	PeriodEnd         string   `json:"period_end"`
-	CreatedAt         string   `json:"created_at"`
-	UpdatedAt         string   `json:"updated_at"`
+	OwnerUserID        string `json:"owner_user_id"`
+	Username           string `json:"username"`
+	DisplayName        string `json:"display_name"`
+	Role               string `json:"role"`
+	UserStatus         string `json:"user_status"`
+	PlanKey            string `json:"plan_key"`
+	PlanName           string `json:"plan_name"`
+	MonthlyTokenLimit  *int64 `json:"monthly_token_limit"`
+	controlUnavailable bool
+	UsedTokens         int64    `json:"used_tokens"`
+	UsedPercent        *float64 `json:"used_percent"`
+	SessionCount       int64    `json:"session_count"`
+	MessageCount       int64    `json:"message_count"`
+	PeriodStart        string   `json:"period_start"`
+	PeriodEnd          string   `json:"period_end"`
+	CreatedAt          string   `json:"created_at"`
+	UpdatedAt          string   `json:"updated_at"`
 }
 
 type UsageAccount struct {
@@ -125,8 +126,14 @@ func (s *Service) CurrentAccount(ctx context.Context, ownerUserID string) (*Acco
 // EnsureQuotaAvailable 在账号达到 Control 投影的月度 token 额度后阻止新 runtime 请求。
 func (s *Service) EnsureQuotaAvailable(ctx context.Context, ownerUserID string) error {
 	account, err := s.CurrentAccount(ctx, ownerUserID)
-	if err != nil || account == nil || account.MonthlyTokenLimit == nil {
+	if err != nil || account == nil {
 		return err
+	}
+	if account.controlUnavailable {
+		return ErrEntitlementUnavailable
+	}
+	if account.MonthlyTokenLimit == nil {
+		return nil
 	}
 	if account.UsedTokens >= *account.MonthlyTokenLimit {
 		return QuotaExceededError{
@@ -148,22 +155,23 @@ func mapAccount(
 		usedPercent = &percent
 	}
 	return Account{
-		OwnerUserID:       entity.OwnerUserID,
-		Username:          entity.Username,
-		DisplayName:       entity.DisplayName,
-		Role:              entity.Role,
-		UserStatus:        entity.UserStatus,
-		PlanKey:           entity.PlanKey,
-		PlanName:          entity.PlanName,
-		MonthlyTokenLimit: entity.MonthlyTokenLimit,
-		UsedTokens:        entity.UsedTokens,
-		UsedPercent:       usedPercent,
-		SessionCount:      entity.SessionCount,
-		MessageCount:      entity.MessageCount,
-		PeriodStart:       formatTime(periodStart),
-		PeriodEnd:         formatTime(periodEnd),
-		CreatedAt:         formatTime(entity.CreatedAt),
-		UpdatedAt:         formatTime(entity.UpdatedAt),
+		OwnerUserID:        entity.OwnerUserID,
+		Username:           entity.Username,
+		DisplayName:        entity.DisplayName,
+		Role:               entity.Role,
+		UserStatus:         entity.UserStatus,
+		PlanKey:            entity.PlanKey,
+		PlanName:           entity.PlanName,
+		MonthlyTokenLimit:  entity.MonthlyTokenLimit,
+		controlUnavailable: entity.ControlUnavailable,
+		UsedTokens:         entity.UsedTokens,
+		UsedPercent:        usedPercent,
+		SessionCount:       entity.SessionCount,
+		MessageCount:       entity.MessageCount,
+		PeriodStart:        formatTime(periodStart),
+		PeriodEnd:          formatTime(periodEnd),
+		CreatedAt:          formatTime(entity.CreatedAt),
+		UpdatedAt:          formatTime(entity.UpdatedAt),
 	}
 }
 
