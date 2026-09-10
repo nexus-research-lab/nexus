@@ -1,0 +1,135 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Nexus App Icon</title>
+  <desc id="desc">紫蓝色 Nexus 穿山甲，置于带有蓝紫高光的圆角玻璃底板上。</desc>
+  <defs>
+    <linearGradient id="rim" x1="0" y1="1" x2="1" y2="0">
+      <stop stop-color="#00d9ff"/><stop offset=".32" stop-color="#6788ff"/><stop offset=".68" stop-color="#fafaff"/><stop offset="1" stop-color="#cc54ff"/>
+    </linearGradient>
+    <linearGradient id="panel" x1=".1" y1="0" x2=".8" y2="1"><stop stop-color="#fafbff"/><stop offset=".5" stop-color="#f6f5fc"/><stop offset="1" stop-color="#dddffe"/></linearGradient>
+    <radialGradient id="cyan"><stop stop-color="#7fe4ff" stop-opacity=".42"/><stop offset="1" stop-color="#a6eaff" stop-opacity="0"/></radialGradient>
+    <radialGradient id="pink"><stop stop-color="#e5b7fa" stop-opacity=".55"/><stop offset="1" stop-color="#e5b7fa" stop-opacity="0"/></radialGradient>
+    <linearGradient id="body" x1=".6" y1="0" x2=".3" y2="1"><stop stop-color="#7765fb"/><stop offset=".38" stop-color="#6559f3"/><stop offset=".7" stop-color="#494ded"/><stop offset="1" stop-color="#343ee7"/></linearGradient>
+    <radialGradient id="face" cx=".6" cy=".36" r=".8"><stop stop-color="#ffffff"/><stop offset=".66" stop-color="#fefeff"/><stop offset="1" stop-color="#e9edf8"/></radialGradient>
+    <radialGradient id="armor" cx=".2" cy=".03" r="1.08">
+      <stop stop-color="#c0b4ff"/><stop offset=".25" stop-color="#a195f8"/><stop offset=".5" stop-color="#7b75e8"/><stop offset=".77" stop-color="#6163df"/><stop offset="1" stop-color="#4244c0"/>
+    </radialGradient>
+    <linearGradient id="edge" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#e9e0ff"/><stop offset=".4" stop-color="#c1b8ff"/><stop offset="1" stop-color="#5052d8"/></linearGradient>
+    <radialGradient id="navy" cx=".35" cy=".22" r=".8"><stop stop-color="#657eb7"/><stop offset=".34" stop-color="#153775"/><stop offset="1" stop-color="#00133f"/></radialGradient>
+    <linearGradient id="badge" x1=".15" y1="0" x2=".7" y2="1"><stop stop-color="#8079ff"/><stop offset=".48" stop-color="#5055fa"/><stop offset="1" stop-color="#263ee1"/></linearGradient>
+    <linearGradient id="arm" x1="0" y1="0" x2=".35" y2="1">
+      <stop stop-color="#8e83ff"/><stop offset=".24" stop-color="#6b5afb"/><stop offset=".7" stop-color="#564aee"/><stop offset="1" stop-color="#373bd4"/>
+    </linearGradient>
+    <linearGradient id="armBlend"><stop offset=".32" stop-color="#fff"/><stop offset="1" stop-color="#000"/></linearGradient>
+    <mask id="armMask" maskUnits="userSpaceOnUse" x="280" y="460" width="176" height="136"><rect x="280" y="460" width="176" height="136" fill="url(#armBlend)"/></mask>
+    <linearGradient id="armHighlight"><stop stop-color="#ded8ff" stop-opacity=".85"/><stop offset=".6" stop-color="#b5abff" stop-opacity=".55"/><stop offset="1" stop-color="#9284ff" stop-opacity="0"/></linearGradient>
+    <filter id="softEdge" x="-20%" y="-100%" width="140%" height="300%"><feGaussianBlur stdDeviation="2.5"/></filter>
+    <filter id="armShadow" x="-20%" y="-100%" width="140%" height="300%"><feGaussianBlur stdDeviation="5"/></filter>
+    <filter id="bevel" x="-15%" y="-15%" width="130%" height="130%" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="3" result="softAlpha"/>
+      <feOffset in="softAlpha" dx="1" dy="4" result="lowerAlpha"/>
+      <feComposite in="SourceAlpha" in2="lowerAlpha" operator="out" result="lightEdge"/>
+      <feFlood flood-color="#e6e0ff" flood-opacity=".5"/>
+      <feComposite in2="lightEdge" operator="in" result="light"/>
+      <feOffset in="softAlpha" dx="-2" dy="-5" result="upperAlpha"/>
+      <feComposite in="SourceAlpha" in2="upperAlpha" operator="out" result="darkEdge"/>
+      <feFlood flood-color="#171d87" flood-opacity=".65"/>
+      <feComposite in2="darkEdge" operator="in" result="shade"/>
+      <feMerge><feMergeNode in="SourceGraphic"/><feMergeNode in="shade"/><feMergeNode in="light"/></feMerge>
+    </filter>
+    <filter id="plateBevel" x="-.1" y="-.1" width="1.2" height="1.2" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="5" result="a"/>
+      <feOffset in="a" dx="2" dy="6" result="b"/>
+      <feComposite in="SourceAlpha" in2="b" operator="out" result="rim"/>
+      <feFlood flood-color="#f2eaff" flood-opacity=".92"/><feComposite in2="rim" operator="in" result="light"/>
+      <feOffset in="a" dx="-2" dy="-6" result="c"/>
+      <feComposite in="SourceAlpha" in2="c" operator="out" result="bottom"/>
+      <feFlood flood-color="#21259d" flood-opacity=".85"/><feComposite in2="bottom" operator="in" result="dark"/>
+      <feMerge><feMergeNode in="SourceGraphic"/><feMergeNode in="dark"/><feMergeNode in="light"/></feMerge>
+    </filter>
+    <filter id="rimBlur" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="4"/></filter>
+    <filter id="badgeLetter" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="1" dy="3" stdDeviation="2" flood-color="#192ac4" flood-opacity=".65"/></filter>
+    <linearGradient id="crease"><stop stop-color="#1e28b0"/><stop offset="1" stop-color="#454bc7"/></linearGradient>
+    <linearGradient id="chin" x1="0" y1="0" x2="1" y2=".3"><stop stop-color="#b8c4e4" stop-opacity="0"/><stop offset="1" stop-color="#b4bed8" stop-opacity=".4"/></linearGradient>
+    <radialGradient id="shoulderLight" gradientUnits="userSpaceOnUse" cx="682" cy="312" r="146" gradientTransform="translate(0 -80) scale(1 1.25)"><stop stop-color="#a599ff" stop-opacity=".32"/><stop offset="1" stop-color="#9b8fff" stop-opacity="0"/></radialGradient>
+    <radialGradient id="backShade" gradientUnits="userSpaceOnUse" cx="835" cy="485" r="235"><stop stop-color="#1e22bb" stop-opacity=".62"/><stop offset="1" stop-color="#2e2ac7" stop-opacity="0"/></radialGradient>
+    <radialGradient id="earFace" cx=".37" cy=".2" r=".85"><stop stop-color="#8d7aff"/><stop offset=".58" stop-color="#6654f1"/><stop offset="1" stop-color="#3b3bd5"/></radialGradient>
+    <radialGradient id="backArmor" cx=".14" cy=".24" r="1.03"><stop stop-color="#c3b3ff"/><stop offset=".42" stop-color="#a192f3"/><stop offset=".7" stop-color="#8a7eee"/><stop offset="1" stop-color="#5554d7"/></radialGradient>
+    <linearGradient id="earHighlight"><stop stop-color="#b4a9ff" stop-opacity="0"/><stop offset=".3" stop-color="#b4a9ff" stop-opacity=".55"/><stop offset=".65" stop-color="#b4a9ff" stop-opacity=".4"/><stop offset="1" stop-color="#b4a9ff" stop-opacity="0"/></linearGradient>
+    <linearGradient id="wristHighlight" x1="0" y1="0" x2=".5" y2="1"><stop stop-color="#b8b0ed" stop-opacity="0"/><stop offset=".25" stop-color="#b8b0ed" stop-opacity=".4"/><stop offset="1" stop-color="#b8b0ed" stop-opacity="0"/></linearGradient>
+    <filter id="fineSoft"><feGaussianBlur stdDeviation=".6"/></filter>
+    <linearGradient id="shoulderRim" gradientUnits="userSpaceOnUse" x1="600" y1="210" x2="792" y2="450"><stop stop-color="#b9adff" stop-opacity=".65"/><stop offset=".6" stop-color="#aca5ff" stop-opacity=".65"/><stop offset="1" stop-color="#8c87ff" stop-opacity="0"/></linearGradient>
+    <radialGradient id="bellyLight" gradientUnits="userSpaceOnUse" cx="318" cy="700" r="77" gradientTransform="translate(0 -280) scale(1 1.4)"><stop stop-color="#7174ff" stop-opacity=".8"/><stop offset=".45" stop-color="#565dff" stop-opacity=".45"/><stop offset="1" stop-color="#4b50f7" stop-opacity="0"/></radialGradient>
+    <mask id="bodyBevelMask" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024"><rect width="1024" height="1024" fill="white"/><ellipse cx="573" cy="198" rx="67" ry="24" fill="black" filter="url(#armShadow)"/></mask>
+    <radialGradient id="earRootShade" gradientUnits="userSpaceOnUse" cx="589" cy="207" r="42"><stop stop-color="#2424a9" stop-opacity=".45"/><stop offset="1" stop-color="#3930c1" stop-opacity="0"/></radialGradient>
+    <filter id="blur" x="-50%" y="-300%" width="200%" height="700%"><feGaussianBlur stdDeviation="16"/></filter>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#2520a2" flood-opacity=".45"/></filter>
+    <clipPath id="panelClip"><path d="M294 34H731C891 34 990 124 990 291V731C990 900 901 991 729 991H295C124 991 34 900 34 730V295C34 125 123 34 294 34Z"/></clipPath>
+  </defs>
+  <!-- 玻璃厚度由柔和内反光、窄亮边与外层蓝紫折射共同构成。 -->
+  <path d="M293 12H732C911 12 1012 113 1012 292V733C1012 913 911 1012 731 1012H292C112 1012 12 912 12 731V293C12 113 113 12 293 12Z" fill="url(#rim)" stroke="#fbfaff" stroke-width="2"/>
+  <path d="M294 28H731C900 28 996 122 996 292V732C996 903 901 996 730 996H294C123 996 28 901 28 731V294C28 123 122 28 294 28Z" fill="url(#panel)" stroke="#e1dfff" stroke-width="3"/>
+  <path d="M294 28H731C900 28 996 122 996 292V732C996 903 901 996 730 996H294C123 996 28 901 28 731V294C28 123 122 28 294 28Z" fill="none" stroke="url(#rim)" stroke-width="17" opacity=".7" filter="url(#rimBlur)"/>
+  <path d="M294 28H731C900 28 996 122 996 292V732C996 903 901 996 730 996H294C123 996 28 901 28 731V294C28 123 122 28 294 28Z" fill="none" stroke="#ffffff" stroke-width="4" opacity=".9"/>
+  <g clip-path="url(#panelClip)">
+    <ellipse cx="124" cy="743" rx="400" ry="460" fill="url(#cyan)"/>
+    <ellipse cx="855" cy="148" rx="380" ry="370" fill="url(#pink)"/>
+    <ellipse cx="538" cy="860" rx="295" ry="22" fill="#4a4fcc" opacity=".55" filter="url(#blur)"/>
+    <ellipse cx="530" cy="889" rx="387" ry="71" fill="#7674ed" opacity=".12" filter="url(#blur)"/>
+  </g>
+  <path d="M295 39H730C893 39 984 128 984 295V728C984 894 896 984 730 984H294C128 984 40 895 40 729V295C40 130 128 39 295 39Z" fill="none" stroke="#fff" stroke-opacity=".9" stroke-width="15" filter="url(#rimBlur)"/>
+  <!-- 角色耳朵、躯干和脸部。 -->
+  <path d="M500 174C520 163 540 171 557 185C636 218 730 270 775 347C807 423 767 518 691 576C638 623 545 652 465 674C397 697 346 725 291 750C298 689 321 650 357 625C363 621 361 598 365 577C335 567 308 560 283 550L283 504C318 494 350 490 379 479C481 468 548 419 575 341C598 278 589 224 547 191C531 182 513 176 500 174Z" fill="url(#body)"/>
+  <path d="M500 174C520 163 540 171 557 185C636 218 730 270 775 347C807 423 767 518 691 576C638 623 545 652 465 674C397 697 346 725 291 750C298 689 321 650 357 625C363 621 361 598 365 577C335 567 308 560 283 550L283 504C318 494 350 490 379 479C481 468 548 419 575 341C598 278 589 224 547 191C531 182 513 176 500 174Z" fill="url(#body)" stroke="#5149dd" stroke-width="2" filter="url(#bevel)" mask="url(#bodyBevelMask)"/>
+  <path d="M500 174C520 163 540 171 557 185C636 218 730 270 775 347C807 423 767 518 691 576C638 623 545 652 465 674C397 697 346 725 291 750C298 689 321 650 357 625C363 621 361 598 365 577C335 567 308 560 283 550L283 504C318 494 350 490 379 479C481 468 548 419 575 341C598 278 589 224 547 191C531 182 513 176 500 174Z" fill="url(#shoulderLight)"/>
+  <path d="M500 174C520 163 540 171 557 185C636 218 730 270 775 347C807 423 767 518 691 576C638 623 545 652 465 674C397 697 346 725 291 750C298 689 321 650 357 625C363 621 361 598 365 577C335 567 308 560 283 550L283 504C318 494 350 490 379 479C481 468 548 419 575 341C598 278 589 224 547 191C531 182 513 176 500 174Z" fill="url(#backShade)"/>
+  <path d="M500 174C520 163 540 171 557 185C636 218 730 270 775 347C807 423 767 518 691 576C638 623 545 652 465 674C397 697 346 725 291 750C298 689 321 650 357 625C363 621 361 598 365 577C335 567 308 560 283 550L283 504C318 494 350 490 379 479C481 468 548 419 575 341C598 278 589 224 547 191C531 182 513 176 500 174Z" fill="url(#bellyLight)"/>
+  <!-- 耳朵覆盖肩部接缝，脸部随后遮挡耳根左侧。 -->
+  <path d="M502 177C513 146 538 123 565 126C596 126 617 147 618 172C619 192 610 207 598 216C593 220 586 215 580 209C558 190 531 176 502 177Z" fill="url(#earFace)" filter="url(#bevel)"/>
+  <path d="M502 177C513 146 538 123 565 126C596 126 617 147 618 172C619 192 610 207 598 216C593 220 586 215 580 209C558 190 531 176 502 177Z" fill="url(#earRootShade)"/>
+  <path d="M513 163C527 140 546 130 565 131C589 130 607 147 611 167" fill="none" stroke="url(#earHighlight)" stroke-width="2.5" stroke-linecap="round" filter="url(#fineSoft)"/>
+  <path d="M616 164C621 184 612 207 598 216" fill="none" stroke="#3834bc" stroke-opacity=".45" stroke-width="2" stroke-linecap="round" filter="url(#fineSoft)"/>
+  <path d="M179 314C289 305 325 266 398 213C455 169 502 164 547 191C589 224 598 278 575 341C548 419 481 468 379 479C387 463 391 441 394 422C317 440 225 409 175 376C144 356 147 327 179 314Z" fill="url(#face)"/>
+  <path d="M181 314C291 303 326 266 398 213C455 169 502 164 547 191C589 224 598 278 575 341C548 419 481 468 379 479" fill="none" stroke="#887bfc" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M389 427C391 443 385 465 377 479L361 484C379 465 384 445 382 430Z" fill="url(#chin)" filter="url(#softEdge)"/>
+  <path d="M176 376C224 410 326 438 393 421" fill="none" stroke="#282bbe" stroke-width="7.5" stroke-linecap="round"/>
+  <path d="M181 378C232 409 327 432 389 421" fill="none" stroke="#7378ff" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M180 311C195 310 202 327 202 345C203 362 193 374 179 378C158 372 147 357 150 337C153 320 166 312 180 311Z" fill="url(#navy)" stroke="#061540" stroke-width="2"/>
+  <circle cx="426" cy="295" r="26" fill="url(#navy)" stroke="#061840" stroke-width="2"/>
+  <circle cx="425" cy="282" r="7" fill="#fff"/>
+  <!-- 前臂独立叠在躯干上，袖口包住手掌，根部渐隐避免硬切缝。 -->
+  <path d="M286 503C264 507 247 523 246 543C243 563 254 581 273 583C288 586 299 577 307 567C322 556 303 524 286 503Z" fill="url(#navy)" stroke="#061942" stroke-width="1.5"/>
+  <path d="M280 507C256 514 247 531 248 550" fill="none" stroke="url(#wristHighlight)" stroke-width="2" stroke-linecap="round" filter="url(#fineSoft)"/>
+  <path d="M324 567C347 576 379 585 404 575" fill="none" stroke="#192c9f" stroke-width="7" opacity=".45" filter="url(#armShadow)"/>
+  <path d="M287 503C324 494 355 488 382 478C409 474 434 465 454 460C470 490 451 548 414 573C405 579 399 580 394 580C370 583 337 572 313 564C321 550 298 525 287 503Z" fill="url(#arm)" mask="url(#armMask)"/>
+  <path d="M288 505C324 499 357 491 387 480C410 475 429 470 445 465" fill="none" stroke="url(#armHighlight)" stroke-width="5" stroke-linecap="round" filter="url(#softEdge)"/>
+  <path d="M287 504C290 518 313 538 315 552C317 558 315 562 313 564" fill="none" stroke="#2227a3" stroke-opacity=".65" stroke-width="2"/>
+  <path d="M290 508C296 522 311 538 314 549" fill="none" stroke="url(#wristHighlight)" stroke-width="2" stroke-linecap="round" filter="url(#fineSoft)"/>
+  <path d="M316 565C341 573 373 582 396 579" fill="none" stroke="#8275ff" stroke-opacity=".4" stroke-width="2" filter="url(#softEdge)"/>
+  <path d="M610 213C678 246 741 294 775 347C792 389 792 421 780 458" fill="none" stroke="url(#shoulderRim)" stroke-width="4" stroke-linecap="round" filter="url(#softEdge)"/>
+  <!-- 甲壳接缝保留深色间隙，倒角沿每片独立轮廓生成。 -->
+  <g stroke-linejoin="round">
+    <path d="M277 753C248 764 219 766 194 762C177 758 169 767 182 784C213 819 257 841 304 849C313 851 316 848 307 840C285 815 273 786 277 753Z" fill="url(#armor)" stroke="#4645bd" stroke-width="2" filter="url(#plateBevel)"/>
+    <path d="M368 708C344 720 310 735 287 746C280 750 279 758 280 770C282 800 302 835 321 847C344 860 396 864 429 864C442 864 445 861 435 853C395 817 371 764 373 718C374 709 373 705 368 708Z" fill="url(#armor)" stroke="#4645bd" stroke-width="2" filter="url(#plateBevel)"/>
+    <path d="M480 662C448 671 417 682 391 696C382 700 381 709 382 723C386 777 416 835 446 857C453 863 465 864 477 864C524 866 572 866 607 858C619 856 620 851 609 846C543 808 495 741 492 674C492 662 490 659 480 662Z" fill="url(#armor)" stroke="#4645bd" stroke-width="2" filter="url(#plateBevel)"/>
+    <path d="M582 632C556 640 529 647 505 653C496 655 493 661 495 675C505 742 558 816 616 844C624 848 633 850 645 849C701 845 749 821 773 786C781 775 779 771 767 769C690 751 619 697 595 641C592 633 590 629 582 632Z" fill="url(#armor)" stroke="#4645bd" stroke-width="2" filter="url(#plateBevel)"/>
+    <path d="M678 579C655 597 627 611 604 624C598 627 597 633 602 646C625 705 699 758 762 771C775 774 783 772 792 763C816 735 837 690 843 660C845 650 842 647 831 648C777 647 724 618 689 582C685 577 682 576 678 579Z" fill="url(#armor)" stroke="#4645bd" stroke-width="2" filter="url(#plateBevel)"/>
+    <path d="M775 347C813 386 842 446 855 503C866 551 860 602 850 634C846 648 840 651 826 649C774 642 727 619 699 587C692 580 691 574 700 566C766 510 800 438 782 365C780 360 777 352 775 347Z" fill="url(#backArmor)" stroke="#4645bd" stroke-width="2" filter="url(#plateBevel)"/>
+  </g>
+  <g fill="none" stroke-linecap="round">
+    <path d="M277 758C272 792 292 830 313 847" stroke="url(#crease)" stroke-width="5"/>
+    <path d="M277 758C272 792 292 830 313 847" transform="translate(-3 -1)" stroke="#c1b8ff" stroke-width="3" opacity=".8" filter="url(#fineSoft)"/>
+    <path d="M375 713C369 764 400 829 439 858" stroke="url(#crease)" stroke-width="5"/>
+    <path d="M375 713C369 764 400 829 439 858" transform="translate(-3 -1)" stroke="#c1b8ff" stroke-width="3" opacity=".8" filter="url(#fineSoft)"/>
+    <path d="M489 668C491 741 547 816 613 851" stroke="url(#crease)" stroke-width="5"/>
+    <path d="M489 668C491 741 547 816 613 851" transform="translate(-3 -1)" stroke="#c1b8ff" stroke-width="3" opacity=".8" filter="url(#fineSoft)"/>
+    <path d="M594 640C619 707 699 764 777 776" stroke="url(#crease)" stroke-width="5"/>
+    <path d="M594 640C619 707 699 764 777 776" transform="translate(-3 -1)" stroke="#c1b8ff" stroke-width="3" opacity=".8" filter="url(#fineSoft)"/>
+    <path d="M692 582C730 629 802 662 844 651" stroke="url(#crease)" stroke-width="5"/>
+    <path d="M692 582C730 629 802 662 844 651" transform="translate(-3 -1)" stroke="#c1b8ff" stroke-width="3" opacity=".8" filter="url(#fineSoft)"/>
+  </g>
+  <!-- 徽章的 N 采用路径，不依赖系统字体。 -->
+  <g filter="url(#shadow)">
+    <path d="M541 465C551 459 560 459 570 466L603 490C613 497 617 506 614 519L605 558C602 574 593 583 580 590L551 605C539 611 530 609 519 603L488 581C477 573 474 563 477 548L485 507C488 492 493 486 505 481Z" fill="url(#badge)" stroke="#7879ed" stroke-width="1.5" filter="url(#bevel)"/>
+    <path d="M504 569C500 569 497 567 498 562L510 500C511 495 514 493 520 494L527 495C530 496 532 499 534 502L559 541L565 502C566 498 568 496 572 497L583 499C587 499 588 502 587 506L575 568C574 573 572 575 567 574L559 573C555 573 553 570 551 567L526 527L519 565C518 569 516 571 512 570Z" fill="#fff" filter="url(#badgeLetter)"/>
+  </g>
+</svg>

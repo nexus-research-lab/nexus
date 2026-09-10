@@ -47,7 +47,7 @@ scripts/desktop/package-macos-app.sh
 ```
 
 `run-macos-dev.sh` 会先构建前端，再启动 Swift shell。直接运行 Swift shell 时若 `web/dist` 缺失或已过期，启动会明确失败并提示执行 `make app-run-dev`；正式 `.app` 内的打包资源不参与该开发态时效校验。首次启动会初始化桌面专用 SQLite 数据库。
-`generate-macos-icon.swift` 会从 `desktop/macos/Resources/AppIconSource.png` 生成 `desktop/macos/Resources/AppIcon.icns`，用于 `.app` 的 Finder / Dock 图标。
+应用图标的矢量母版为 `desktop/macos/Resources/AppIconSource.svg`。更新时先导出透明背景的 1024×1024 `AppIconSource.png`，再运行 `swift scripts/desktop/generate-macos-icon.swift` 生成 Finder / Dock 使用的 `AppIcon.icns`。Windows 的 `desktop/windows/Nexus.Desktop/Resources/AppIcon.ico` 从同一 PNG 导出，包含 16、24、32、48、64、128、256 像素层；同步更新官网仓 `nexus-atlas/public/images/nexus-app-icon.png`，首页、下载页及结构化数据复用该文件。
 `build-macos-app.sh` 会组装 `desktop/macos/.build/app/Nexus.app`，其中包含 Swift shell、Go sidecar、`web/dist`、`db/migrations` 与内置 `skills`。
 `smoke-macos-app.sh` 会启动已组装 `.app`，校验 ad-hoc Keychain 旁路、主窗口默认 launcher ready reveal、显式 `/app` 路由 ready、material 标记和退出后 sidecar 无残留。
 `make app-check-ui` 从当前 Swift 源码编译独立 QA App，复用实际 `WindowManager`、
