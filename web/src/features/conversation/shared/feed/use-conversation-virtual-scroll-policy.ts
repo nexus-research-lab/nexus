@@ -78,7 +78,7 @@ export function useConversationVirtualInitialOffset(
 
 export function shouldAdjustConversationVirtualScrollPosition(
   item: VirtualScrollItem,
-  delta: number,
+  _delta: number,
   instance: VirtualScrollState,
   context: ConversationVirtualAdjustmentContext = {
     bottomScrollActive: false,
@@ -94,11 +94,6 @@ export function shouldAdjustConversationVirtualScrollPosition(
     // READING 的直接操控优先于估高补偿；用户滚动时写回 delta 会让滚轮/
     // 触摸位移与 Virtualizer 互相拉扯。新测量仍进入缓存，只是不反向改写
     // 这一手势 epoch 的 scrollTop。
-    return false;
-  }
-  if (context.followingLatest && delta < 0) {
-    // live epoch 的负向测量由 Feed min-height 吸收；若这里同步回写
-    // scrollTop，会和浏览器 clamp / bottom animator 形成往返震荡。
     return false;
   }
   const scrollOffset = instance.scrollOffset ?? 0;
