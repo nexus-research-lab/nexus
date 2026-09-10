@@ -38,6 +38,7 @@ describe("SidebarPanelToggleAction", () => {
 });
 
 vi.mock("./use-sidebar-update-version", () => ({ useSidebarUpdateVersion: () => null }));
+vi.mock("@/shared/i18n/i18n-context", () => ({ useI18n: () => ({ t: (key: string) => key }) }));
 
 function CurrentRoute() {
   const location = useLocation();
@@ -65,7 +66,7 @@ it("opens personal settings from the account row and keeps logout explicit", asy
   /><CurrentRoute /></MemoryRouter>);
   expect(screen.queryByRole("menuitem", { name: "退出登录" })).toBeNull();
   await user.click(screen.getByRole("button", { name: "测试用户" }));
-  expect(screen.queryByRole("menuitem", { name: "设置" })).toBeNull();
+  expect(screen.getByRole("menuitem", { name: "设置" })).toBeTruthy();
   expect(screen.getByRole("button", { name: "设置" })).toBeTruthy();
   expect(screen.getAllByRole("separator")).toHaveLength(1);
   const account = screen.getByRole("menuitem", { name: "测试用户" });
@@ -87,7 +88,7 @@ function CurrentLocation() {
   return <output data-testid="location">{useLocation().pathname}</output>;
 }
 
-it("shows the account name and keeps settings independent with action visibility", async () => {
+it("shows the account name and opens settings inside the account menu with action visibility", async () => {
   const user = userEvent.setup();
   const props = {
     accountName: "Local User",
@@ -99,8 +100,8 @@ it("shows the account name and keeps settings independent with action visibility
   const view = render(<MemoryRouter><SidebarFooterActions {...props} /><CurrentLocation /></MemoryRouter>);
   expect(screen.getByRole("button", { name: "Local User" })).toBeTruthy();
   expect(screen.getByText("Local User").className).toContain("truncate");
-  const settings = screen.getByRole("button", { name: "设置" });
-  expect(settings.getAttribute("aria-pressed")).toBe("true");
+  await user.click(screen.getByRole("button", { name: "Local User" }));
+  const settings = screen.getByRole("menuitem", { name: "设置" });
   await user.click(settings);
   expect(screen.getByTestId("location").textContent).toBe(AppRouteBuilders.settings());
   expect(screen.queryByRole("menu")).toBeNull();
