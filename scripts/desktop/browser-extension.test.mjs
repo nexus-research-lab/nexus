@@ -269,13 +269,14 @@ test("Browser 标准点击等待可见光标抵达后再发送 CDP 事件", asyn
   controller.getTab = async () => ({ id: 9 });
   controller.pointerPoint = async () => ({ x: 120, y: 80 });
   controller.command = async (_tabId, method, params) => {
-    actionOrder.push(method + ":" + params.type);
+    actionOrder.push(method === "Page.bringToFront" ? method : method + ":" + params.type);
     return {};
   };
 
   await controller.click({ tab_id: 9, selector: "@e1" });
 
   assert.deepEqual(actionOrder, [
+    "Page.bringToFront",
     "cursor",
     "inject",
     "cursor",
@@ -485,7 +486,7 @@ test("Browser 光标补注入永久挂起仍降级滚动，迟到注入不再发
     submit(client, socket, "scroll", "scroll", { tab_id: 9, session: "a", delta_y: 900 }, 2400);
     await until(() => messages.some(m => m.type === "browser.result"));
     assert.equal(messages.find(m => m.type === "browser.result").error, undefined);
-    assert.deepEqual(dispatched, ["Page.getLayoutMetrics", "Input.dispatchMouseEvent"]);
+    assert.deepEqual(dispatched, ["Page.bringToFront", "Page.getLayoutMetrics", "Input.dispatchMouseEvent"]);
     resume([]);
     await new Promise(resolve => setTimeout(resolve, 10));
     assert.equal(cursorCalls, 1);
@@ -504,7 +505,7 @@ test("Browser 光标等待期间取消不得发出鼠标输入", async () => {
     await until(() => messages.some(m => m.type === "browser.result"));
     resume({});
     await new Promise(resolve => setTimeout(resolve, 10));
-    assert.deepEqual(dispatched, []);
+    assert.deepEqual(dispatched, ["Page.bringToFront"]);
   } finally { chrome.tabs.sendMessage = originalSend; }
 });
 
@@ -529,6 +530,7 @@ test("Browser 拖拽按下后取消会尝试detach，保留隔离且不继续拖
   let resume;
   const events = [];
   chrome.debugger.sendCommand = async (_target, method, params) => {
+    if (method === "Page.bringToFront") return {};
     events.push(params.type);
     if (params.type === "mousePressed") return new Promise(resolve => { resume = resolve; });
     return {};
@@ -610,4 +612,32 @@ test("Browser 阶段上报发送失败后不得进入原生副作用", async () 
   submit(client, socket, "fail", "click", { session: "a" });
   await until(() => !client.running);
   assert.equal(calls, 0);
+});
+
+
+test("Browser 激活后台页之后才派发滚轮，激活失败不发送输入", async () => {
+  const original = chrome.debugger.sendCommand;
+  let active = false;
+  let wheelCalls = 0;
+  chrome.debugger.sendCommand = async (_target, method) => {
+    if (method === "Page.bringToFront") { active = true; return {}; }
+    if (method === "Input.dispatchMouseEvent") { assert.equal(active, true); wheelCalls++; }
+    return {};
+  };
+  const { client, controller, socket, messages } = commandClient();
+  controller.attachedTabs.add(9);
+  try {
+    submit(client, socket, "scroll", "scroll", { tab_id: 9, session: "a", x: 100, y: 100, delta_y: 600 });
+    await until(() => messages.some(m => m.type === "browser.result"));
+    assert.equal(messages.find(m => m.type === "browser.result").error, undefined);
+    assert.equal(wheelCalls, 1);
+    chrome.debugger.sendCommand = async (_target, method) => {
+      if (method === "Page.bringToFront") throw new Error("activation failed");
+      wheelCalls++;
+    };
+    submit(client, socket, "failed", "scroll", { tab_id: 9, session: "a", x: 100, y: 100, delta_y: 600 });
+    await until(() => messages.some(m => m.type === "browser.result" && m.id === "failed"));
+    assert.match(messages.find(m => m.type === "browser.result" && m.id === "failed").error, /activation failed/);
+    assert.equal(wheelCalls, 1);
+  } finally { chrome.debugger.sendCommand = original; }
 });
