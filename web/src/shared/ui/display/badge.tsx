@@ -4,6 +4,7 @@
 
 "use client";
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import { type HTMLAttributes, type ReactNode } from "react";
 
 import { cn } from "@/shared/ui/class-name";
@@ -38,9 +39,10 @@ export function UiBadge({
   shape,
   size,
   tone,
+  title,
   ...props
 }: UiBadgeProps) {
-  return (
+  const content = (
     <span
       className={getUiBadgeClassName({ shape, size, tone }, cn(className))}
       {...props}
@@ -49,6 +51,7 @@ export function UiBadge({
       {children}
     </span>
   );
+  return title ? <UiTooltip label={title}>{content}</UiTooltip> : content;
 }
 
 export function UiCounterBadge({

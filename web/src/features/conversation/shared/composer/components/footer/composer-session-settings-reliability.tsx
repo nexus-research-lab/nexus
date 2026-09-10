@@ -1,6 +1,7 @@
 // INPUT: Composer Provider/Connector/Session-setting 读取与 mutation 失败投影。
 // OUTPUT: 自动弹出的写入失败 Dialog，及可展开、可独立重试的紧凑读取失败提示。
 // POS: Composer Session controls 共用可见错误面；不把读取当作 mutation 对账。
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
@@ -59,9 +60,9 @@ export function ComposerSessionSettingsReliability({
           variant="text"
         >
           <CircleAlert aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-(--destructive)" />
-          <span aria-live="polite" className="min-w-0 truncate" title={failure.title}>
+          <UiTooltip label={failure.title}><span aria-live="polite" className="min-w-0 truncate" >
             {failure.title}
-          </span>
+          </span></UiTooltip>
           <ChevronRight aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
         </UiButton>
         {recovery ? (

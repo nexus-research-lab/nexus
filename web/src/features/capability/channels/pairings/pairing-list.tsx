@@ -5,6 +5,7 @@
  */
 "use client";
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import {
   Check,
   Copy,
@@ -339,15 +340,15 @@ function PairingRow({
                 <Copy className="h-3.5 w-3.5" />
               </UiIconButton>
             </div>
-            <div
+            <UiTooltip label={sessionKey || t("capability.pairing_no_session")}><div
               className={cn(
                 "truncate",
                 getUiTypographyClassName({ role: "code", tone: "default" }),
               )}
-              title={sessionKey || t("capability.pairing_no_session")}
+
             >
               {sessionKey || t("capability.pairing_no_session")}
-            </div>
+            </div></UiTooltip>
           </div>
           <div className={cn(
             "min-w-0",
@@ -374,15 +375,14 @@ function PairingTechnicalField({ label, value }: { label: string; value: string 
       )}>
         {label}
       </div>
-      <div
+      <UiTooltip label={value}><div
         className={cn(
           "truncate",
           getUiTypographyClassName({ role: "code", tone: "default" }),
         )}
-        title={value}
       >
         {value}
-      </div>
+      </div></UiTooltip>
     </div>
   );
 }

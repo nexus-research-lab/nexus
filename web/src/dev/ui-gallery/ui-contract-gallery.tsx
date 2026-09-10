@@ -248,11 +248,16 @@ export function UiContractGallery() {
               <UiButton tone="primary" variant="text">{galleryText(locale, "了解规范", "Read guidelines")}</UiButton>
             </GalleryRow>
             <GalleryRow label="Neutral / danger">
-              <UiButton variant="surface">{galleryText(locale, "取消", "Cancel")}</UiButton>
+              <UiButton data-gallery-redundant-tooltip title={galleryText(locale, "取消", "Cancel")} variant="surface">{galleryText(locale, "取消", "Cancel")}</UiButton>
               <UiButton variant="outline">{galleryText(locale, "边框动作", "Outline action")}</UiButton>
               <UiButton variant="ghost"><Copy className="h-4 w-4" />{galleryText(locale, "复制", "Copy")}</UiButton>
               <UiButton tone="danger" variant="surface"><Trash2 className="h-4 w-4" />{galleryText(locale, "删除", "Delete")}</UiButton>
               <UiButton disabled tone="primary" variant="solid">{galleryText(locale, "不可用", "Unavailable")}</UiButton>
+            </GalleryRow>
+            <GalleryRow label="Truncated tooltip">
+              <UiButton className="w-28" data-gallery-truncated-tooltip title="Long account name for tooltip verification" variant="ghost">
+                <span className="truncate">Long account name for tooltip verification</span>
+              </UiButton>
             </GalleryRow>
             <GalleryRow label="Busy / icon">
               <UiButton aria-busy disabled tone="primary" variant="solid">

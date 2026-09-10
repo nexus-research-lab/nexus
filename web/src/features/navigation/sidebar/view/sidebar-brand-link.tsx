@@ -1,6 +1,6 @@
 /**
  * INPUT: Launcher 标签与侧栏展开状态。
- * OUTPUT: 固定字号与字距、靠左的 Launcher 品牌字标，不随侧栏拉伸。
+ * OUTPUT: 使用 Panchang 字体与舒展字距的纯色 Launcher 品牌字标。
  * POS: 宽侧栏顶部唯一品牌入口，不承载 Agent 会话动作。
  */
 import { Link } from "react-router-dom";
@@ -16,13 +16,12 @@ export function SidebarBrandLink({
   collapsed: boolean;
   label: string;
 }) {
-  const wordmark = "Nexus";
   return (
     <Link
       aria-label={label}
       aria-hidden={collapsed || undefined}
       className={cn(
-        "group/brand relative isolate flex h-10 min-w-0 flex-1 cursor-default items-center overflow-hidden transition-opacity duration-(--motion-duration-fast)",
+        "group/brand relative flex h-10 min-w-0 flex-1 cursor-default items-center overflow-hidden transition-opacity duration-(--motion-duration-fast)",
         collapsed
           ? "min-w-0 flex-1 pointer-events-none opacity-0"
           : "",
@@ -32,31 +31,10 @@ export function SidebarBrandLink({
       to={AppRouteBuilders.launcher()}
     >
       <span
-        className="sidebar-brand-wordmark relative w-max max-w-full cursor-pointer whitespace-nowrap leading-none"
-        style={{
-          fontFamily: '"Panchang", var(--font-sans)',
-          fontSize: "18px",
-          fontWeight: 280,
-        }}
+        className="sidebar-brand-wordmark cursor-pointer whitespace-nowrap text-[18px] font-[280] leading-none tracking-[0.18em] text-(--text-strong) transition-opacity duration-(--motion-duration-fast) group-hover/brand:opacity-80"
+        style={{ fontFamily: '"Panchang", var(--font-sans)' }}
       >
-        <span
-          aria-hidden="true"
-          className="absolute inset-x-0 top-0 flex gap-[0.22em] translate-y-[1.5px] text-[color:color-mix(in_srgb,var(--text-strong)_38%,transparent)] opacity-60 blur-[0.2px]"
-        >
-          {Array.from(wordmark, (letter, index) => <span key={index}>{letter}</span>)}
-        </span>
-        <span
-          className="relative flex gap-[0.22em] bg-clip-text text-transparent transition-opacity duration-(--motion-duration-fast) group-hover/brand:opacity-80"
-          style={{
-            backgroundImage:
-              "linear-gradient(180deg, color-mix(in srgb, var(--text-strong) 94%, white 6%) 4%, var(--text-default) 48%, color-mix(in srgb, var(--text-muted) 72%, var(--text-strong) 28%) 100%)",
-            filter:
-              "drop-shadow(0 1px 0 color-mix(in srgb, white 38%, transparent)) drop-shadow(0 4px 6px color-mix(in srgb, var(--text-strong) 12%, transparent))",
-            WebkitBackgroundClip: "text",
-          }}
-        >
-          {Array.from(wordmark, (letter, index) => <span key={index}>{letter}</span>)}
-        </span>
+        Nexus
       </span>
     </Link>
   );

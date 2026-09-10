@@ -346,6 +346,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Unify native hover hints with the shared tooltip and suppress redundant hints for fully visible labels.
+
+- Show the account name beside its avatar and expand the sidebar account menu trigger across the footer space before the settings button.
+
+- Refine the sidebar Nexus wordmark with Panchang typography, relaxed letter spacing, and a solid theme-aware color.
+
+- Separate scheduled-task editor actions from the form, align the submit button with the sidebar footer, and remove the redundant cancel action.
+
+- Keep scheduled-task suggestion text inside auto-height cards and adapt columns to the available pane width.
+
 - Restore Composer branding updates when switching between Nexus and Claude agent runtimes.
 
 - Prevent Team messages from being sent while confirming IME composition and

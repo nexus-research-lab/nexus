@@ -6,6 +6,7 @@
  * POS: Composer 本机目录纯视图；不判断目录授权或持久化结果。
  */
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import { Folder, Laptop, Plus } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -53,10 +54,10 @@ export function ComposerLocalDirectories({
                 removeLabel={t("composer.remove_local_directory", { name })}
                 size="xs"
               >
-                <span className="inline-flex min-w-0 items-center gap-1.5" title={directory}>
+                <UiTooltip label={directory}><span className="inline-flex min-w-0 items-center gap-1.5" >
                   <Folder aria-hidden className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
                   <span className="max-w-[180px] truncate">{name}</span>
-                </span>
+                </span></UiTooltip>
               </UiRemovableChip>
             );
           })}

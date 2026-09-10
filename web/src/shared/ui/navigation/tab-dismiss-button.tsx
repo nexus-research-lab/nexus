@@ -2,6 +2,7 @@
 // OUTPUT: 保持原生 title、固定关闭图标与既有命中区的独立关闭按钮。
 // POS: Workspace 标签的关闭 DOM owner；不选择标签或管理标签集合。
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import { X } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
@@ -19,17 +20,17 @@ export function UiTabDismissButton({
   onDismiss: () => void;
 }) {
   return (
-    <button
+    <UiTooltip label={label}><button
       aria-label={label}
       className={cn(TAB_DISMISS_CLASS_NAME, className)}
       onClick={(event) => {
         event.stopPropagation();
         onDismiss();
       }}
-      title={label}
+
       type="button"
     >
       <X className="h-3 w-3" />
-    </button>
+    </button></UiTooltip>
   );
 }

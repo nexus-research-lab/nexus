@@ -4,6 +4,7 @@
 
 "use client";
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import { type LucideIcon } from "lucide-react";
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
@@ -108,9 +109,9 @@ function WorkspaceSurfaceIdentity({
         </div>
       ) : null}
       {title ? (
-        <div className={cn("min-w-0 truncate", getUiTypographyClassName({ role: "pageTitle", tone: "strong" }))} title={title}>
+        <UiTooltip label={title}><div className={cn("min-w-0 truncate", getUiTypographyClassName({ role: "pageTitle", tone: "strong" }))} >
           {title}
-        </div>
+        </div></UiTooltip>
       ) : null}
     </div>
   );

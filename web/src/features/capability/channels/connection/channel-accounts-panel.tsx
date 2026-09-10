@@ -3,6 +3,7 @@
  * OUTPUT: 展示可识别账号身份、连接状态、更新时间与当前错误的管理列表。
  * POS: 频道连接详情的账号管理区；账号/用户标识是被管理对象，不是可隐藏的诊断字段。
  */
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import {
   Loader2,
   Trash2,
@@ -65,7 +66,7 @@ export function ChannelAccountsPanel({
             >
               <div className="min-w-0">
                 <div className="flex min-w-0 items-center gap-2">
-                  <code
+                  <UiTooltip label={account.user_id || account.account_id}><code
                     className={cn(
                       "min-w-0 truncate",
                       getUiTypographyClassName({
@@ -74,10 +75,10 @@ export function ChannelAccountsPanel({
                         weight: "semibold",
                       }),
                     )}
-                    title={account.user_id || account.account_id}
+
                   >
                     {account.user_id || account.account_id}
-                  </code>
+                  </code></UiTooltip>
                   <UiBadge size="xs" tone={account.status === "error" ? "danger" : account.status === "connected" ? "success" : "default"}>
                     {channelAccountStatusLabel(account.status, t)}
                   </UiBadge>

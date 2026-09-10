@@ -21,10 +21,7 @@ import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiSkeleton } from "@/shared/ui/display/skeleton";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import {
-  WORKSPACE_CATALOG_GRID_CLASS_NAME,
-  WORKSPACE_CONTENT_BLEED_CLASS_NAME,
-} from "@/shared/ui/layout/workspace-content-layout";
+import { WORKSPACE_CONTENT_BLEED_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 import type { AutomationPermissionDecision } from "@/types/capability/scheduled-task/permission";
@@ -156,7 +153,7 @@ function ScheduledTaskSuggestions({
 
   return (
     <section
-      className="soft-scrollbar min-h-0 flex-1 overflow-y-auto pb-4 pt-3"
+      className="@container/suggestions soft-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto pb-4 pt-3"
       aria-labelledby="scheduled-task-suggestions-title"
     >
       <div className="max-w-[720px]">
@@ -178,12 +175,12 @@ function ScheduledTaskSuggestions({
         </p>
       </div>
 
-      <div className={cn(WORKSPACE_CATALOG_GRID_CLASS_NAME, "mt-4 gap-2")}>
+      <div className="mt-4 grid grid-cols-1 gap-2 @min-[480px]/suggestions:grid-cols-2 @min-[720px]/suggestions:grid-cols-3">
         {suggestions.map((suggestion) => {
           const SuggestionIcon = SUGGESTION_ICONS[suggestion.icon];
           return (
             <UiButton
-              className="group min-h-[104px] w-full items-start justify-start gap-2.5 p-3 text-left"
+              className="group h-auto min-h-[104px] w-full items-start justify-start gap-2.5 whitespace-normal wrap-anywhere p-3 text-left"
               key={suggestion.title}
               onClick={() => onSelect(suggestion.preset)}
               size="sm"

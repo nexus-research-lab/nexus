@@ -5,6 +5,7 @@
  */
 "use client";
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import { ChevronDown, ChevronUp, Circle, CircleCheck, ListChecks } from "lucide-react";
 import {
   type ReactNode,
@@ -363,10 +364,10 @@ function WorkspaceTaskSourceIdentity({
   source: WorkspaceTaskSource;
 }) {
   return (
-    <span
+    <UiTooltip label={source.label ?? source.name}><span
       className="flex min-w-0 max-w-[7.5rem] items-center gap-1.5"
       data-workspace-task-agent-id={source.agentId}
-      title={source.label ?? source.name}
+
     >
       <UiAgentAvatar
         aria-hidden="true"
@@ -381,7 +382,7 @@ function WorkspaceTaskSourceIdentity({
       )}>
         {source.label ?? source.name}
       </span>
-    </span>
+    </span></UiTooltip>
   );
 }
 

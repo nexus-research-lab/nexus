@@ -109,7 +109,7 @@ describe("RoomWorkspaceTaskPanel identities", () => {
     const summary = screen.getByRole("button", { name: t("tasks.expand_panel") });
     expect(summary.textContent).toContain("Task for beta");
     const identity = summary.querySelector('[data-workspace-task-agent-id="beta"]');
-    expect(identity?.getAttribute("title")).toBe("3 · Nova");
+    expect(identity?.getAttribute("title")).toBeNull();
     expect(identity?.querySelector('[role="img"]')?.textContent).toBe("N");
     await user.click(summary);
     await user.click(screen.getByRole("button", { name: /3 · Nova/ }));
@@ -118,13 +118,13 @@ describe("RoomWorkspaceTaskPanel identities", () => {
     await user.click(screen.getByRole("menuitem", { name: "2 · Nova" }));
     expect(summary.textContent).toContain("Task for alpha");
     expect(summary.textContent).not.toContain("Task for beta");
-    expect(screen.getByRole("button", { name: /2 · Nova/ }).getAttribute("title")).toBe("2 · Nova");
+    expect(screen.getByRole("button", { name: /2 · Nova/ }).getAttribute("title")).toBeNull();
   });
 
   it("uses a localized source name for an unnamed sole member", () => {
     render(panel({ roomMembers: [{ ...members[1], name: "  " }], processes: [processes[0]], scopeKey: "room:session" }));
     const summary = screen.getByRole("button", { name: t("tasks.expand_panel") });
-    expect(summary.querySelector('[data-workspace-task-agent-id="alpha"]')?.getAttribute("title")).toBe("1 · Agent");
+    expect(summary.querySelector('[data-workspace-task-agent-id="alpha"]')?.getAttribute("title")).toBeNull();
     expect(summary.textContent).toContain("Agent");
     expect(summary.textContent).toContain("Task for alpha");
   });

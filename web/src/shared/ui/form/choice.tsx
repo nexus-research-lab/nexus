@@ -3,6 +3,7 @@
 // POS: Choice 原语；不拥有选项集合、业务选择值或提交行为。
 "use client";
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import {
   ButtonHTMLAttributes,
   forwardRef,
@@ -42,11 +43,12 @@ export const UiChoiceButton = forwardRef<HTMLButtonElement, UiChoiceButtonProps>
     tone,
     type = "button",
     variant,
-    ...props
+    title,
+  ...props
   },
   ref,
 ) {
-  return (
+  const content = (
     <button
       ref={ref}
       aria-pressed={active}
@@ -63,6 +65,7 @@ export const UiChoiceButton = forwardRef<HTMLButtonElement, UiChoiceButtonProps>
       {children}
     </button>
   );
+  return title ? <UiTooltip label={title} openOnFocus={false}>{content}</UiTooltip> : content;
 });
 
 interface UiRadioChoiceProps extends Omit<

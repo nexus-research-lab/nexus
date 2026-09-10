@@ -4,6 +4,7 @@
 
 "use client";
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import { memo, useCallback, useId, useRef, useState, type MouseEvent } from "react";
 import { ChevronRight, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 
@@ -76,7 +77,7 @@ export const WorkspaceFileTreeRow = memo(function WorkspaceFileTreeRow({
         className={presentation.rowClassName}
         onContextMenu={handleContextMenu}
       >
-        <button
+        <UiTooltip label={entry.path}><button
           aria-controls={presentation.showChildren ? childrenId : undefined}
           aria-current={presentation.isSelected ? "true" : undefined}
           aria-expanded={entry.is_dir ? isOpen : undefined}
@@ -85,7 +86,7 @@ export const WorkspaceFileTreeRow = memo(function WorkspaceFileTreeRow({
           id={entryId}
           onClick={handleClick}
           style={{ paddingLeft: `min(${presentation.paddingLeft}px, 35%)` }}
-          title={entry.path}
+
           type="button"
         >
           <WorkspaceTreeExpandIndicator
@@ -100,7 +101,7 @@ export const WorkspaceFileTreeRow = memo(function WorkspaceFileTreeRow({
           <span className={presentation.nameClassName}>
             {entry.name}
           </span>
-        </button>
+        </button></UiTooltip>
         <WorkspaceFileTreeRowActions
           actions={actions}
           entry={entry}

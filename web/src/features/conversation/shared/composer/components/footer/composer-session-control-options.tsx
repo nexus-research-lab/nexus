@@ -6,6 +6,7 @@
  * POS: DM 直接菜单与 Room Agent 设置浮层之间的无状态共享层。
  */
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import {
   Check,
   FilePenLine,
@@ -87,15 +88,15 @@ export function buildSessionModelItems(
         active,
         label: (
           <span className="flex min-w-0 items-center gap-2">
-            <span className="min-w-0 flex-1 truncate" title={model.display_name || model.model_id}>
+            <UiTooltip label={model.display_name || model.model_id}><span className="min-w-0 flex-1 truncate" >
               {model.display_name || model.model_id}
-            </span>
-            <span
+            </span></UiTooltip>
+            <UiTooltip label={provider.display_name || provider.provider}><span
               className={cn("max-w-[40%] shrink-0 truncate", getUiTypographyClassName({ role: "metadata", tone: "muted", weight: "regular" }))}
-              title={provider.display_name || provider.provider}
+
             >
               {provider.display_name || provider.provider}
-            </span>
+            </span></UiTooltip>
           </span>
         ),
         trailing: active ? <Check className="h-3.5 w-3.5" /> : undefined,

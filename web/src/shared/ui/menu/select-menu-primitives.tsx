@@ -2,6 +2,7 @@
 // OUTPUT: 只显示选值/可选前导内容的稳定触发器、精确 Field 关联、可聚焦/委派键盘的 listbox 和 option button 语义 DOM。
 // POS: Select Menu 视图原语；不管理开关、选值或定位计算。
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import type {
   ButtonHTMLAttributes,
   CSSProperties,
@@ -59,10 +60,11 @@ export function SelectMenuTrigger({
   menuId,
   styles,
   surface,
+  title,
   ...props
 }: SelectMenuTriggerProps) {
   const fieldAttributes = useFieldControlAttributes(props);
-  return (
+  const button = (
     <button
       {...props}
       {...fieldAttributes}
@@ -82,6 +84,7 @@ export function SelectMenuTrigger({
       type="button"
     />
   );
+  return title ? <UiTooltip label={title} openOnFocus={false}>{button}</UiTooltip> : button;
 }
 
 export function SelectMenuTriggerContent({

@@ -203,7 +203,8 @@ describe("UiSelectMenu listbox navigation", () => {
     else { trigger.focus(); await user.keyboard(opening === "Enter" ? "{Enter}" : " "); }
     const gamma = screen.getByRole("option", { name: options[2].label });
     expect(document.activeElement).toBe(gamma);
-    expect(gamma.querySelector("[title]")?.getAttribute("title")).toBe(options[2].label);
+    expect(gamma.textContent).toContain("Gamma with a complete model name");
+    expect(gamma.querySelector("[title]")).toBeNull();
     await user.keyboard("{ArrowUp}");
     expect(document.activeElement).toBe(screen.getByRole("option", { name: "Alpha" }));
     await user.keyboard("{End}{Home}{ArrowUp}");

@@ -87,7 +87,7 @@ function CurrentLocation() {
   return <output data-testid="location">{useLocation().pathname}</output>;
 }
 
-it("opens settings directly without a local account bar and respects action visibility", async () => {
+it("shows the account name and keeps settings independent with action visibility", async () => {
   const user = userEvent.setup();
   const props = {
     accountName: "Local User",
@@ -98,7 +98,7 @@ it("opens settings directly without a local account bar and respects action visi
   };
   const view = render(<MemoryRouter><SidebarFooterActions {...props} /><CurrentLocation /></MemoryRouter>);
   expect(screen.getByRole("button", { name: "Local User" })).toBeTruthy();
-  expect(screen.queryByText("Local User")).toBeNull();
+  expect(screen.getByText("Local User").className).toContain("truncate");
   const settings = screen.getByRole("button", { name: "设置" });
   expect(settings.getAttribute("aria-pressed")).toBe("true");
   await user.click(settings);

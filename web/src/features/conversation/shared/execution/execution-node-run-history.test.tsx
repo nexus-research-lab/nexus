@@ -84,12 +84,12 @@ describe("ExecutionNodeRunHistory", () => {
     expect((runs[1] as HTMLDetailsElement).open).toBe(true);
     expect(runs[1].querySelector("summary")?.className).toContain("ui-type-supporting");
 
-    const safeReference = screen.getByTitle("output/report.md");
+    const safeReference = screen.getByRole("button", { name: "output/report.md" });
     expect(safeReference.className).toContain("radius-control-xs");
     await user.click(safeReference);
     expect(onOpenWorkspaceFile).toHaveBeenCalledWith("output/report.md", "agent-1");
 
-    expect(screen.getByTitle("https://example.com/report").hasAttribute("disabled"))
+    expect(screen.getByRole("button", { name: "https://example.com/report" }).hasAttribute("disabled"))
       .toBe(true);
   });
 
@@ -185,7 +185,7 @@ describe("ExecutionNodeRunHistory", () => {
         artifacts: [{ type: "workspace_file_artifact", path: "output/result.md", workspace_agent_id: "artifact-owner" }],
       }],
     }, "en", onOpen));
-    await user.click(screen.getByTitle("output/result.md"));
+    await user.click(screen.getByRole("button", { name: /^result\.md / }));
     expect(onOpen).toHaveBeenCalledWith("output/result.md", "artifact-owner");
   });
 
@@ -194,12 +194,12 @@ describe("ExecutionNodeRunHistory", () => {
     const node: ExecutionGraphNodeView = { ...NODE, runs: [{ id: "legacy-run", artifacts: [{ type: "workspace_file_artifact", path: "output/legacy.md" }] }] };
     const { rerender } = render(history(node, "en", onOpen));
     const user = userEvent.setup();
-    await user.click(screen.getByTitle("output/legacy.md"));
+    await user.click(screen.getByRole("button", { name: /^legacy\.md / }));
     expect(onOpen).toHaveBeenCalledExactlyOnceWith("output/legacy.md", "fallback-agent");
     act(() => useAgentStore.setState({ current_agent_id: "unrelated-viewer" }));
     try {
       rerender(<I18N_CONTEXT.Provider value={{ locale: "en", setLocale: vi.fn(), t: (key) => MESSAGES.en[key] }}><ExecutionNodeRunHistory item={null} node={node} onOpenWorkspaceFile={onOpen} workspaceAgentId={null} /></I18N_CONTEXT.Provider>);
-      const button = screen.getByTitle("output/legacy.md");
+      const button = screen.getByRole("button", { name: /^legacy\.md / });
       expect(button.hasAttribute("disabled")).toBe(true);
       await user.click(button);
       expect(onOpen).toHaveBeenCalledOnce();

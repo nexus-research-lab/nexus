@@ -465,7 +465,7 @@ export function ScheduledTasksDirectory() {
             </div>
           )}
           description={t("capability.scheduled_intro_description")}
-          className="flex h-full min-h-0 flex-col"
+          className="flex h-full min-h-0 flex-col pb-0"
           title={t("capability.scheduled_intro_title")}
         >
           <div className="flex min-h-0 flex-1 overflow-hidden">

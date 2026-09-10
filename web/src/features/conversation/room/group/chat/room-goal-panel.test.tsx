@@ -33,31 +33,32 @@ describe("RoomGoalPanel", () => {
   it("uses the loaded Goal owner immediately while a refresh has withheld onGoalChange", () => {
     render(view());
     expect(onGoalChange).not.toHaveBeenCalled();
-    expect(screen.getByTitle("Room Goal owner: Beta")).toBeTruthy();
-    expect(screen.queryByTitle("Room Goal owner: Alpha")).toBeNull();
+    expect(screen.getByText("Owner Beta")).toBeTruthy();
+    expect(screen.queryByText("Owner Alpha")).toBeNull();
     expect(screen.getByText("Paused by Plan mode")).toBeTruthy();
   });
   it("switches current Goal, permission and owner context without retaining another session's presentation", () => {
     const { rerender } = render(view());
     resource = { ...resource, goal: { ...ACTIVE_GOAL, session_key: "session-2", metadata: { room_goal_lead_agent_id: "alpha" } } };
     rerender(view("en", ROOM_GOAL_MEMBERS, "session-2"));
-    expect(screen.getByTitle("Room Goal owner: Alpha")).toBeTruthy();
-    expect(screen.queryByTitle("Room Goal owner: Beta")).toBeNull();
+    expect(screen.getByText("Owner Alpha")).toBeTruthy();
+    expect(screen.queryByText("Owner Beta")).toBeNull();
     expect(screen.queryByText("Paused by Plan mode")).toBeNull();
     resource = { ...resource, ownerScopeGeneration: 2, goal: null };
     rerender(view("en", ROOM_GOAL_MEMBERS, "session-2"));
-    expect(screen.queryByTitle("Room Goal owner: Alpha")).toBeNull();
+    expect(screen.queryByText("Owner Alpha")).toBeNull();
   });
   it.each(["en", "zh"] as const)("uses the same disambiguated owner in the %s status and Plan explanation", (locale) => {
     const members = ROOM_GOAL_MEMBERS.map((member) => ({ ...member, name: "Nova" }));
     const context = goalTestI18n(locale);
     const { rerender } = render(view(locale, members));
-    expect(screen.getByTitle(context.t("room.goal_lead_status_title", { name: "2 · Nova" }))).toBeTruthy();
-    expect(screen.getByTitle(context.t("goal.hold_plan_detail", { name: "2 · Nova" }))).toBeTruthy();
+    expect(screen.getByText(context.t("room.goal_lead_status", { name: "2 · Nova" }))).toBeTruthy();
+    fireEvent.focus(screen.getByText(context.t("goal.hold_plan_label")));
+    expect(screen.getByRole("tooltip").textContent).toBe(context.t("goal.hold_plan_detail", { name: "2 · Nova" }));
     const unnamed = [members[0], { ...members[1], name: " " }];
     rerender(view(locale, unnamed));
     const name = locale === "en" ? "1 · Agent" : "1 · 智能体";
-    expect(screen.getByTitle(context.t("room.goal_lead_status_title", { name }))).toBeTruthy();
+    expect(screen.getByText(context.t("room.goal_lead_status", { name }))).toBeTruthy();
     expect(document.body.textContent).not.toContain("beta");
   });
   it("keeps refresh on the shared controller instead of maintaining a second Goal request", () => {

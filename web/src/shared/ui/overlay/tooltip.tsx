@@ -30,9 +30,10 @@ interface TooltipTriggerProps {
 
 interface UiTooltipProps {
   children: ReactElement<TooltipTriggerProps>;
-  label: string;
+  label?: string | null;
   placement?: UiAnchoredOverlayPlacement;
   shortcut?: string;
+  openOnFocus?: boolean;
 }
 
 const TOOLTIP_OPEN_DELAY_MS = 260;
@@ -42,12 +43,13 @@ export function UiTooltip({
   label,
   placement = "auto",
   shortcut,
+  openOnFocus = true,
 }: UiTooltipProps) {
   const anchorRef = useRef<HTMLSpanElement>(null);
   const measuredSizeRef = useRef({ height: 40, width: 0 });
   const openTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isOpen, setIsOpen] = useState(false);
-  const tooltipLabel = label.trim();
+  const tooltipLabel = label?.trim() ?? "";
   const visible = isOpen && Boolean(tooltipLabel);
   const clearOpenTimer = useCallback(() => {
     if (openTimerRef.current) {
@@ -61,8 +63,15 @@ export function UiTooltip({
   }, [clearOpenTimer]);
   const openNow = useCallback(() => {
     clearOpenTimer();
+    const trigger = anchorRef.current?.firstElementChild;
+    if (!tooltipLabel || !trigger) return;
+    // 已完整显示的文字不重复提示；截断内容与额外说明仍可查看。
+    const text = trigger.textContent?.replace(/\s+/g, " ").trim();
+    const clipped = [trigger, ...trigger.querySelectorAll("*")].some((element) =>
+      element.clientWidth > 0 && (element.scrollWidth > element.clientWidth || element.scrollHeight > element.clientHeight));
+    if (text === tooltipLabel.replace(/\s+/g, " ") && !clipped && !trigger.querySelector(".sr-only")) return;
     setIsOpen(true);
-  }, [clearOpenTimer]);
+  }, [clearOpenTimer, tooltipLabel]);
   const scheduleOpen = useCallback(() => {
     clearOpenTimer();
     openTimerRef.current = setTimeout(openNow, TOOLTIP_OPEN_DELAY_MS);
@@ -123,10 +132,14 @@ export function UiTooltip({
       <span
         ref={anchorRef}
         className="contents"
-        data-ui-tooltip-trigger="true"
+        data-ui-tooltip-trigger={tooltipLabel ? "true" : undefined}
         onBlurCapture={close}
-        onFocusCapture={openNow}
-        onMouseEnter={scheduleOpen}
+        onFocusCapture={(event) => {
+          if (openOnFocus && event.target.closest('[data-ui-tooltip-trigger="true"]') === anchorRef.current) openNow();
+        }}
+        onMouseEnter={(event) => {
+          if (event.target instanceof Element && event.target.closest('[data-ui-tooltip-trigger="true"]') === anchorRef.current) scheduleOpen();
+        }}
         onMouseLeave={close}
         onPointerDownCapture={close}
       >

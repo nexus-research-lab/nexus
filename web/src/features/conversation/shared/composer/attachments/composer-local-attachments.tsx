@@ -5,6 +5,7 @@
  */
 "use client";
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import {
   Eye,
   File as FileIcon,
@@ -109,9 +110,9 @@ function ComposerImageAttachment({
   const previewUrl = useComposerLocalFileUrl(attachment.file);
 
   return (
-    <div
+    <UiTooltip label={attachment.file.name}><div
       className={COMPOSER_IMAGE_ATTACHMENT_CLASS_NAME}
-      title={attachment.file.name}
+
     >
       <UiButton
         aria-label={previewLabel}
@@ -150,7 +151,7 @@ function ComposerImageAttachment({
       >
         <X size={11} />
       </UiIconButton>
-    </div>
+    </div></UiTooltip>
   );
 }
 
@@ -181,7 +182,7 @@ function ComposerFileAttachment({
           {content}
         </UiButton>
       ) : (
-        <span className="inline-flex min-w-0 items-center gap-1.5" title={attachment.file.name}>{content}</span>
+        <UiTooltip label={attachment.file.name}><span className="inline-flex min-w-0 items-center gap-1.5" >{content}</span></UiTooltip>
       )}
     </UiRemovableChip>
   );

@@ -5,6 +5,7 @@
  */
 "use client";
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import type { ReactNode } from "react";
 
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
@@ -114,11 +115,11 @@ export function AgentHandoffReplyChip({
   const name = identity.label.replace(/^@+/, "");
   const label = t("room.agent_handoff_reply", { name });
   return (
-    <span
+    <UiTooltip label={label}><span
       aria-label={label}
       className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/20 bg-primary/8 px-1.5 py-0.5 text-2xs font-medium leading-none text-primary"
       data-handoff-reply="true"
-      title={label}
+
     >
       <UiAgentAvatar
         avatar={identity.avatar}
@@ -127,7 +128,7 @@ export function AgentHandoffReplyChip({
         size="xs"
       />
       <span>{label}</span>
-    </span>
+    </span></UiTooltip>
   );
 }
 

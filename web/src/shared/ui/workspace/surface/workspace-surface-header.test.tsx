@@ -40,7 +40,7 @@ describe("WorkspaceSurfaceHeader", () => {
     );
 
     expect(screen.getByText("工作区").className).toContain("ui-type-page-title");
-    expect(screen.getByText("工作区").getAttribute("title")).toBe("工作区");
+    expect(screen.getByText("工作区").getAttribute("title")).toBeNull();
     expect(screen.getByRole("button", { name: "新建" }).className).toContain("ui-type-caption");
     const identity = container.querySelector(".workspace-surface-header-identity-avatar")!;
     const avatar = screen.getByRole("img", { name: "Nova" });
@@ -110,7 +110,7 @@ describe("WorkspaceSurfaceHeader", () => {
     view.rerender(renderHeader("zh", [{ key: "files", label: "一个很长的文件视图名称" }, TABS[1]]));
     expect(screen.getByRole("listbox")).toBeTruthy();
     expect(trigger.getAttribute("aria-label")).toBe("Views：一个很长的文件视图名称");
-    expect(within(trigger).getByText("一个很长的文件视图名称").getAttribute("title")).toBe("一个很长的文件视图名称");
+    expect(within(trigger).getByText("一个很长的文件视图名称").getAttribute("title")).toBeNull();
     view.rerender(renderHeader("zh", [TABS[0]]));
     expect(screen.queryByRole("listbox")).toBeNull();
     view.rerender(renderHeader("en"));

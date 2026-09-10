@@ -3,6 +3,7 @@
  * OUTPUT: 含可访问展开状态的单行工具头；内嵌动作的键盘事件不触发行展开。
  * POS: 普通 ToolBlock 的稳定头部，不渲染展开明细。
  */
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import type { HTMLAttributes, KeyboardEventHandler } from "react";
 
 import { isImeKeyboardEvent } from "@/shared/lib/browser/ime-keyboard-event";
@@ -116,7 +117,7 @@ function createToggleKeyHandler(
 
 function ToolSemanticIcon({ model }: { model: ToolBlockViewModel }) {
   return (
-    <div
+    <UiTooltip label={model.toolTitle}><div
       className={cn(
         "flex h-5 w-5 items-center justify-center text-(--icon-muted)",
         model.status === "running" && "text-(--primary)",
@@ -124,10 +125,10 @@ function ToolSemanticIcon({ model }: { model: ToolBlockViewModel }) {
       data-tool-block-icon={model.toolVisualKind}
       data-timeline-anchor
       data-timeline-anchor-mode="box"
-      title={model.toolTitle}
+
     >
       <ToolActivityIcon className="h-3.5 w-3.5" kind={model.toolVisualKind} />
-    </div>
+    </div></UiTooltip>
   );
 }
 

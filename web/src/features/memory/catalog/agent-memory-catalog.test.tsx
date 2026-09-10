@@ -59,7 +59,7 @@ it("names search and type separately and keeps selection available during refres
 it("keeps the full filename and exact path on a selected summarized row", () => {
   catalog();
   const row = screen.getByRole("button", { name: /跨区域项目资料/ });
-  expect(row.getAttribute("title")).toBe("memory/reference.md");
+  expect(row.getAttribute("title")).toBeNull();
   expect(row.getAttribute("aria-pressed")).toBe("true");
   expect(screen.getByText("reference.md")).toBeTruthy();
 });

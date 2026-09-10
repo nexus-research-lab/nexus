@@ -3,6 +3,7 @@
  * OUTPUT: 可读摘要标题、更新时间和真实编辑/删除动作。
  * POS: 记忆正文唯一 Header；内部路径只保留为悬停诊断。
  */
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import {
   ArrowLeft,
   LoaderCircle,
@@ -87,12 +88,12 @@ export function MemoryDocumentHeader({
         </UiIconButton>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
-            <h2
+            <UiTooltip label={document.path}><h2
               className={cn("truncate", getUiTypographyClassName({ role: "sectionTitle", tone: "strong", weight: "semibold" }))}
-              title={document.path}
+
             >
               {getMemoryDocumentDisplayTitle(document)}
-            </h2>
+            </h2></UiTooltip>
             {runtimeWriting ? <MemoryRuntimeWritingStatus /> : null}
           </div>
           <div className={cn("mt-0.5", getUiTypographyClassName({ role: "caption", tone: "soft" }))}>

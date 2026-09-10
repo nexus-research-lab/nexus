@@ -78,7 +78,7 @@ describe("Subagent task details", () => {
     const header = container.querySelector("header")!;
     expect(header.textContent).toContain(MESSAGES.zh["agent.subagent_name_fallback"]);
     expect(header.textContent).not.toMatch(/private-task|runtime-child|host-author/);
-    const avatar = header.querySelector('[title]');
+    const avatar = header.querySelector('.h-8.w-8');
     expect(avatar?.className).toContain("h-8 w-8");
     expect(avatar?.className).not.toContain("h-7");
     rerender(view("en"));
@@ -169,7 +169,7 @@ it.each(["en", "zh"] as const)("keeps unknown task state neutral and capability-
   fireEvent.click(screen.getByRole("button", { name: MESSAGES[locale]["subagents.send_message"] }));
   expect(value.onSendRequest).toHaveBeenCalledOnce();
   expect(container.textContent).not.toContain("private_future_status");
-  expect(container.querySelector('header [title]')?.className).not.toContain("status-running");
+  expect(container.querySelector('header .h-8.w-8')?.className).not.toContain("status-running");
   rerender(view({ ...value, task: { ...task, capabilities: { ...task.capabilities, send_message: false } } }));
   expect(screen.queryByRole("button", { name: MESSAGES[locale]["subagents.send_message"] })).toBeNull();
 });

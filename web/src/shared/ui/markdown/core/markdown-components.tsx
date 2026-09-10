@@ -5,6 +5,7 @@
  */
 "use client";
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import type { ReactNode } from "react";
 import { type Components } from "react-markdown";
 
@@ -103,15 +104,15 @@ function renderMarkdownLink({
     case "external":
       return (
         <>
-          <a
+          <UiTooltip label={presentation.href}><a
             className="inline max-w-full text-primary transition-all decoration-primary/30 underline-offset-4 break-words hover:underline"
             href={presentation.href}
             rel="noopener noreferrer"
             target={presentation.openInNewTab ? "_blank" : undefined}
-            title={presentation.href}
+
           >
             {presentation.compactLabel ?? children}
-          </a>
+          </a></UiTooltip>
           {presentation.trailingText}
         </>
       );
@@ -235,14 +236,14 @@ export function createMarkdownComponents(
 
       if (resolvedPath && onOpenWorkspaceFile) {
         return (
-          <button
+          <UiTooltip label={resolvedPath}><button
             className="content-media-action content-media-frame block text-left"
             onClick={() => onOpenWorkspaceFile(resolvedPath)}
-            title={resolvedPath}
+
             type="button"
           >
             {image}
-          </button>
+          </button></UiTooltip>
         );
       }
 

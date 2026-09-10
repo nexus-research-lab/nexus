@@ -14,3 +14,5 @@
 - Button 尺寸直接映射 App Typography：`2xs / xs / sm` 分别承载微型工具条、紧凑动作和次级动作，文字分别使用 caption / metadata / supporting；普通 `md / lg` 使用 control。具体高度与字号以根目录 `design.md` 和共享 size map 为准。文字与链接 Button 默认按尺寸使用标准控件圆角，标签式动作通过 `shape="pill"` 取得胶囊外形；IconButton 的 `2xs / xs / sm / md / lg` 固定为 20/24/28/32/36px。业务层不得用 `rounded-* / text-* / leading-* / font-*` 覆盖。
 - `outline` 用于与页面同层、需要稳定分组边界但不需要底色或阴影的动作；默认透明且保留轻边框，hover 才增加轻中性底。Ghost 与 text 按钮默认透明且无边界并使用次级文字，hover 使用轻中性底，checked / current-page / expanded / pressed state 使用更明确的中性活动底；状态切换不得增加边框或改变几何。品牌色只归明确的 primary 动作，危险色只归 destructive 动作，`success` 只表达已完成的短暂确认状态（例如复制成功），不能代替常规选中态。
 - `button.test.tsx` 使用真实表单、链接、图标动作、点击与键盘焦点证明默认 `type=button`、显式 submit、disabled、导航语义和可访问名称合同；业务层不得以源码断言替代这些行为测试。
+
+- 文字按钮与链接的 title 仅作为共享 Tooltip 文案，不下发原生属性；完整可见文字不重复提示。文字动作的补充悬停说明不在焦点归还时自动弹出，避免挡住上层菜单或模态的 Escape。

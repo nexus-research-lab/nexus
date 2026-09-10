@@ -40,10 +40,10 @@ describe("GoalStatusStrip", () => {
       </I18N_CONTEXT.Provider>,
     );
 
-    const status = screen.getByTitle("运行中");
+    const status = screen.getByText("运行中");
     const binding = container.querySelector('[data-goal-binding-state="confirmed"]');
     const leading = container.querySelector('span[aria-hidden="true"]');
-    const objective = screen.getByTitle("统一前端组件规范");
+    const objective = screen.getByText("统一前端组件规范");
     const panel = container.querySelector("section");
     const usage = container.querySelector(".tabular-nums");
 
@@ -80,9 +80,9 @@ describe("Goal status readability and busy actions", () => {
     expect(pause.getAttribute("aria-busy")).toBe("true");
     expect(pause.querySelector("svg")?.classList.contains("animate-spin")).toBe(true);
     expect(screen.getByRole("button", { name: "Refresh" }).getAttribute("aria-busy")).toBeNull();
-    expect(screen.getByTitle("Active")).toBeTruthy();
+    expect(screen.getByText("Active")).toBeTruthy();
     rerender(element("zh"));
-    expect(screen.getByTitle("运行中")).toBeTruthy();
+    expect(screen.getByText("运行中")).toBeTruthy();
     expect(screen.getByRole("button", { name: "暂停" }).getAttribute("aria-busy")).toBe("true");
   });
   it("keeps long blocking instructions available and preserves the safe refresh action while mutations are locked", () => {

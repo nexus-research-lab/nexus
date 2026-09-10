@@ -1,6 +1,7 @@
 // INPUT: 已连接 MCP 的 tools/list 快照、读取状态与可用性。
 // OUTPUT: 保留服务端原始工具标题、描述、参数与只读 annotation 的统一目录，连续长文本可在窄面板内换行。
 // POS: 同配置普通读取失败保留目录并行内提示；失去访问权不展示快照。固定 Connector 与自定义 MCP 共用的工具展示；不读取或展示 Prompts/Resources。
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import { Code2, RotateCcw, Wrench } from "lucide-react";
 
 import type { ResourceFailure } from "@/lib/error-message";
@@ -179,16 +180,15 @@ function MCPToolRow({ tool }: { tool: CustomMCPTool }) {
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
             <Code2 className="h-3.5 w-3.5 text-(--icon-muted)" />
             {tool.arguments.map((argument) => (
-              <code
+              <UiTooltip label={argument.description} key={argument.name}><code
                 className={cn(
                   "min-w-0 max-w-full [overflow-wrap:anywhere] radius-control-xs bg-(--surface-interactive-hover-background) px-1.5 py-0.5",
                   getUiTypographyClassName({ role: "code", tone: "muted" }),
                 )}
-                key={argument.name}
-                title={argument.description}
+
               >
                 {argument.name}{argument.required ? " *" : ""}
-              </code>
+              </code></UiTooltip>
             ))}
           </div>
         ) : null}

@@ -45,7 +45,7 @@ describe("GroupMemberAvatarStack", () => {
       Object.entries(params ?? {}).reduce((text, [name, value]) => text.replaceAll(`{${name}}`, String(value)), MESSAGES[locale][key]),
     }}><GroupMemberAvatarStack members={members} onClick={vi.fn()} /></I18N_CONTEXT.Provider>);
     const trigger = screen.getByRole("button", { name: locale === "en" ? "Members (1004)" : "成员（1004 人）" });
-    expect(trigger.getAttribute("title")).toBe(trigger.getAttribute("aria-label"));
+    expect(trigger.getAttribute("title")).toBeNull();
     expect(screen.queryByRole("img")).toBeNull();
     const avatars = screen.getAllByRole("img", { hidden: true });
     expect(avatars).toHaveLength(4);

@@ -5,6 +5,7 @@
  */
 "use client";
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import { ImageIcon, LoaderCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -53,14 +54,14 @@ export function ImageBlock({
   }
   return (
     <figure className="my-3 min-w-0 max-w-full">
-      <button
+      <UiTooltip label={projection.source.workspacePath || projection.alt}><button
         className={cn(
           "content-artifact-image content-media-frame text-left",
           projection.openClassName,
         )}
         disabled={!projection.canOpen}
         onClick={() => openImageArtifact(projection, onOpenWorkspaceFile)}
-        title={projection.source.workspacePath || projection.alt}
+
         type="button"
       >
         <img
@@ -69,7 +70,7 @@ export function ImageBlock({
           loading="lazy"
           src={projection.source.src}
         />
-      </button>
+      </button></UiTooltip>
       <ImageArtifactCaption caption={block.alt} />
       <WorkspaceArtifactExternalActionButton
         action={projection.action}

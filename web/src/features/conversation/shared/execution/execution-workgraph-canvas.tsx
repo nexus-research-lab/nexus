@@ -5,6 +5,7 @@
  */
 "use client";
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import {
   Fragment,
   useEffect,
@@ -1206,12 +1207,12 @@ export function ExecutionWorkGraphCanvas({
           </svg>
 
           {layout.edges.map((edge) => (
-            <button
+            <UiTooltip label={`${t("execution.edge_details")}: ${t(EDGE_KIND_LABEL_KEY[edge.kind])}`} key={`edge-control:${edge.id}`}><button
               aria-label={`${t("execution.edge_details")}: ${t(EDGE_KIND_LABEL_KEY[edge.kind])}`}
               className="absolute z-10 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--primary) focus-visible:ring-offset-1"
               data-execution-edge-hit-kind={edge.kind}
               data-execution-edge-hit-target={edge.id}
-              key={`edge-control:${edge.id}`}
+
               onClick={(event) => {
                 event.stopPropagation();
                 selectEdge(edge.id);
@@ -1233,9 +1234,9 @@ export function ExecutionWorkGraphCanvas({
                 current === edge.id ? null : current
               ))}
               style={{ left: edge.x, top: edge.y }}
-              title={`${t("execution.edge_details")}: ${t(EDGE_KIND_LABEL_KEY[edge.kind])}`}
+
               type="button"
-            />
+            /></UiTooltip>
           ))}
 
           {layout.nodes.map(({ height, item, node, size, width, x, y }) => {
@@ -1256,7 +1257,7 @@ export function ExecutionWorkGraphCanvas({
             const collapsed = collapsedNodeIds.has(node.id);
             return (
               <Fragment key={node.id}>
-              <button
+              <UiTooltip label={title}><button
                 aria-label={`${t("execution.details")}: ${title}`}
                 aria-pressed={selected}
                 className={cn(
@@ -1294,7 +1295,7 @@ export function ExecutionWorkGraphCanvas({
                   top: y - (nodePresentation === "summary" ? height : size + 8) / 2,
                   width: nodePresentation === "summary" ? width : size + 8,
                 }}
-                title={title}
+
                 type="button"
               >
                 {nodePresentation === "summary" ? (
@@ -1345,9 +1346,11 @@ export function ExecutionWorkGraphCanvas({
                     toolName={node.name}
                   />
                 )}
-              </button>
+              </button></UiTooltip>
               {descendantCount > 0 ? (
-                <button
+                <UiTooltip label={collapsed
+                    ? t("execution.expand_node")
+                    : t("execution.collapse_node")}><button
                   aria-label={collapsed
                     ? t("execution.expand_node")
                     : t("execution.collapse_node")}
@@ -1371,9 +1374,7 @@ export function ExecutionWorkGraphCanvas({
                     left: x + width / 2 - 5,
                     top: y + height / 2 - 5,
                   }}
-                  title={collapsed
-                    ? t("execution.expand_node")
-                    : t("execution.collapse_node")}
+
                   type="button"
                 >
                   {collapsed ? (
@@ -1382,7 +1383,7 @@ export function ExecutionWorkGraphCanvas({
                     <ChevronsDownUp className="h-2.5 w-2.5" />
                   )}
                   <span>{descendantCount}</span>
-                </button>
+                </button></UiTooltip>
               ) : null}
               </Fragment>
             );

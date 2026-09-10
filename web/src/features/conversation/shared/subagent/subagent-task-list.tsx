@@ -3,6 +3,7 @@
 // POS: 子智能体目录纯视图；不解释底层异常，也不改变任务执行状态。
 "use client";
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import { useId, type ReactNode } from "react";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { formatRelativeTime } from "@/lib/format/relative-time";
@@ -304,7 +305,6 @@ function SubagentTaskRow({
         />
       )}
       onClick={onClick}
-      tooltip={t("subagents.open_task")}
     >
       <span className="min-w-0 flex-1">
         <span className="flex min-w-0 items-baseline gap-3">
@@ -319,16 +319,16 @@ function SubagentTaskRow({
             {title}
           </span>
           {timestamp ? (
-            <time
+            <UiTooltip label={new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(timestamp)}><time
               dateTime={new Date(timestamp).toISOString()}
-              title={new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(timestamp)}
+
               className={cn(
                 "shrink-0 tabular-nums",
                 getUiTypographyClassName({ role: "caption", tone: "soft" }),
               )}
             >
               {formatRelativeTime(timestamp, locale, { compact: true, now })}
-            </time>
+            </time></UiTooltip>
           ) : null}
         </span>
         <span className="flex min-w-0 items-center gap-1.5">

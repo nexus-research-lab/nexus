@@ -49,9 +49,9 @@ describe("ComposerSessionControls", () => {
     await user.click(screen.getByRole("menuitem", { name: "Base Provider" }));
     expect(controller.resetModel).toHaveBeenCalledOnce();
     await open();
-    expect(screen.getByTitle("Other provider with a long name").className).toContain("ui-type-metadata");
-    expect(screen.getByTitle("Other provider with a long name").className).toContain("ui-type-tone-muted");
-    expect(screen.getByTitle("Base with a long name")).toBeTruthy();
+    expect(screen.getByText("Other provider with a long name").className).toContain("ui-type-metadata");
+    expect(screen.getByText("Other provider with a long name").className).toContain("ui-type-tone-muted");
+    expect(screen.getByText("Base with a long name")).toBeTruthy();
     await user.click(screen.getByRole("menuitem", { name: "Base with a long name Other provider with a long name" }));
     expect(controller.updateModel).toHaveBeenCalledWith("other", "base");
     await open();

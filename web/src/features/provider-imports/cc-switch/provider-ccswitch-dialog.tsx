@@ -5,6 +5,7 @@
  */
 "use client";
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   Database,
@@ -470,9 +471,9 @@ function CCSwitchSourceBar({
   return (
     <div className="flex items-center gap-2 border-b border-(--divider-subtle-color) px-5 py-3">
       <Database className="h-4 w-4 shrink-0 text-(--icon-muted)" />
-      <span className="min-w-0 flex-1 truncate font-mono text-xs text-(--text-muted)" title={databasePath}>
+      <UiTooltip label={databasePath}><span className="min-w-0 flex-1 truncate font-mono text-xs text-(--text-muted)" >
         {databasePath}
-      </span>
+      </span></UiTooltip>
       <UiButton disabled={locked} onClick={onEditPath} size="xs" variant="ghost">
         {t("settings.providers.ccswitch_change_path")}
       </UiButton>

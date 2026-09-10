@@ -4,6 +4,7 @@
 // OUTPUT: 文件身份、共享来源资格的预览/外部动作与缺失身份说明；不读取全局 Agent。
 // POS: File Artifact 视图；纯模型只投影身份与资格，内容几何来自 file-artifact-layout。
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import { memo, useId } from "react";
 import { FileText, FolderOpen } from "lucide-react";
 
@@ -121,12 +122,12 @@ function FileArtifactOpenButton({
   layout: ReturnType<typeof resolveFileArtifactLayout>;
 }) {
   return (
-    <button
+    <UiTooltip label={path}><button
       aria-describedby={describedBy}
       className="flex min-w-0 flex-1 items-center gap-2 text-left disabled:cursor-default"
       disabled={!projection.canOpen}
       onClick={onOpen}
-      title={path}
+
       type="button"
     >
       <span
@@ -155,7 +156,7 @@ function FileArtifactOpenButton({
         className={layout.openBadge}
         visible={projection.canOpen}
       />
-    </button>
+    </button></UiTooltip>
   );
 }
 

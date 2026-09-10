@@ -90,7 +90,7 @@ describe("SelectMenuTrigger", () => {
     const trigger = screen.getByRole("button", { name: "Room 技能" });
     expect(buttonRef.current).toBe(trigger);
     expect(trigger.id).toBe("room-skills-field");
-    expect(trigger.getAttribute("title")).toBe("研究、写作");
+    expect(trigger.getAttribute("title")).toBeNull();
     expect(trigger.getAttribute("aria-disabled")).toBe("true");
     expect((trigger as HTMLButtonElement).disabled).toBe(true);
     await user.click(trigger);
